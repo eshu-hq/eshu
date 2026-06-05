@@ -88,6 +88,10 @@ const (
 	// metric metadata collector. It polls configured metric API targets for
 	// bounded target and rule metadata and emits redacted source facts.
 	CollectorPrometheusMimir CollectorKind = "prometheus_mimir"
+	// CollectorTempo represents the read-only Grafana Tempo observability
+	// collector. It polls a configured Tempo query API for bounded trace-signal
+	// metadata and emits redacted source facts; it never reads trace payloads.
+	CollectorTempo CollectorKind = "tempo"
 )
 
 // TriggerKind identifies how a generation was produced.

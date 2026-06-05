@@ -140,6 +140,12 @@ fall back to defaults rather than failing; malformed values fail fast.
   targets, empty configuration, and an empty target list plan no work. The
   fairness key partitions per target scope, and `requested_scope_set` omits
   token and tenant environment references.
+- `TempoWorkPlanner` — plans Grafana Tempo trace-signal collection runs from
+  `configuration.targets[]`. Each enabled target becomes one claimable work item
+  keyed by `scope_id`; disabled targets are skipped, and `requested_scope_set`
+  omits token environment references. The per-target `FairnessKey` is
+  `tempo:<instance_id>:<scope_id>` so concurrent reconciles cannot admit two
+  open claims for the same target.
 - `OwnedPackageTargetReader` — optional active-mode dependency target reader
   used by `Service` when package-registry or vulnerability-intelligence
   instances enable `derive_from_owned_packages`.

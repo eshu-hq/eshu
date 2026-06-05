@@ -84,6 +84,12 @@ type PrometheusMimirPlanner interface {
 	PlanPrometheusMimirWork(context.Context, PrometheusMimirPlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
+// TempoPlanner plans Tempo trace-signal workflow rows from collector instance
+// configuration.
+type TempoPlanner interface {
+	PlanTempoWork(context.Context, TempoPlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
+
 // OwnedPackageTargetReader loads active dependency evidence that can bound
 // derived package-registry and vulnerability-intelligence work.
 type OwnedPackageTargetReader interface {
@@ -114,6 +120,7 @@ type Service struct {
 	PagerDutyPlanner                  PagerDutyPlanner
 	JiraPlanner                       JiraPlanner
 	PrometheusMimirPlanner            PrometheusMimirPlanner
+	TempoPlanner                      TempoPlanner
 	OwnedPackageTargetReader          OwnedPackageTargetReader
 	OSPackageAdvisoryTargetReader     OSPackageAdvisoryTargetReader
 	SBOMComponentAdvisoryTargetReader SBOMComponentAdvisoryTargetReader
@@ -312,6 +319,15 @@ func (s Service) runReconcile(ctx context.Context) error {
 		return err
 	}
 	if err := s.schedulePrometheusMimirWork(ctx, observedAt, instances); err != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:      reconcileOutcomeReconcileError,
+			Duration:     time.Since(startedAt),
+			DesiredCount: desiredCount,
+			DurableCount: durableCount,
+		})
+		return err
+	}
+	if err := s.scheduleTempoWork(ctx, observedAt, instances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
