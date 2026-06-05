@@ -20,9 +20,9 @@ export function DashboardPage({ model, onOpenService }: { readonly model: Consol
   return (
     <div className="page">
       <div className="grid g-4">
-        <StatTile label="Repositories" value={fmt(r.repositories)} spark={model.series.graphNodes} color="var(--teal)" sub={`${r.workloads} workloads · ${r.instances} instances`} />
+        <StatTile label="Repositories" value={fmt(r.repositories)} spark={model.series.graphNodes.length ? model.series.graphNodes : undefined} color="var(--teal)" sub={`${r.workloads} workloads · ${r.instances} instances`} />
         <StatTile label="Index status" value={r.indexStatus} color="var(--ember)" sub={`profile ${r.profile}`} />
-        <StatTile label="Queue outstanding" value={r.queueOutstanding} spark={model.series.queueDepth} color="var(--violet)" sub={`${r.inFlight} in-flight · ${r.deadLetters} dead-letter`} />
+        <StatTile label="Queue outstanding" value={r.queueOutstanding} spark={model.series.queueDepth.length ? model.series.queueDepth : undefined} color="var(--violet)" sub={`${r.inFlight} in-flight · ${r.deadLetters} dead-letter`} />
         <StatTile label="Succeeded" value={fmt(r.succeeded)} color="var(--blue)" sub="work items (run)" />
       </div>
 
@@ -51,7 +51,7 @@ export function DashboardPage({ model, onOpenService }: { readonly model: Consol
 
       <div className="grid mt" style={{ gridTemplateColumns: "minmax(0,1.5fr) minmax(0,1fr)", gap: "var(--gap)" }}>
         <Panel title="Ingestion throughput" sub="Facts committed per minute">
-          <AreaChart data={model.series.ingestRate} color="var(--teal)" h={190} unit=" f/m" />
+          {model.series.ingestRate.length ? <AreaChart data={model.series.ingestRate} color="var(--teal)" h={190} unit=" f/m" /> : <p className="empty" style={{ padding: "48px 12px" }}>Trend history requires the metrics time-series API (#1434). Current queue and runtime numbers are shown above.</p>}
         </Panel>
         <Panel title="Security posture" sub={`${sevTotals.critical} critical · ${sevTotals.high} high`}>
           <div style={{ display: "grid", placeItems: "center", marginBottom: 12 }}>
