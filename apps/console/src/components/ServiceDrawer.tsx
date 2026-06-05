@@ -1,10 +1,16 @@
 // components/ServiceDrawer.tsx
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
-import type { ConsoleModel } from "../console/types";
+import type { ConsoleModel, GraphModel, Severity } from "../console/types";
+import { SEVERITY_COLOR } from "../console/types";
 import { loadServiceSpotlight, spotlightFromRow } from "../api/eshuService";
 import type { ServiceSpotlight } from "../api/eshuService";
+import { loadBlastGraph, loadEntityGraph } from "../api/eshuGraph";
 import { TruthChip, FreshDot, Badge } from "./atoms";
+import { GraphCanvas } from "./GraphCanvas";
+
+type DrillKind = "blast" | "callers" | "findings";
 
 export function ServiceDrawer({ name, model, client, onClose }: {
   readonly name: string; readonly model: ConsoleModel;
@@ -12,6 +18,31 @@ export function ServiceDrawer({ name, model, client, onClose }: {
 }): React.JSX.Element {
   const [spot, setSpot] = useState<ServiceSpotlight | undefined>();
   const [loading, setLoading] = useState(true);
+  const [drill, setDrill] = useState<DrillKind | null>(null);
+  const [graph, setGraph] = useState<GraphModel | null>(null);
+  const [graphBusy, setGraphBusy] = useState(false);
+  const [graphErr, setGraphErr] = useState("");
+
+  // Findings for this service derive from the same impact-findings rows the
+  // Vulnerabilities page uses, so the count always equals the listed rows.
+  const findings = model.vulnerabilities.filter((v) => v.services.includes(name));
+  const sevCount: Record<Severity, number> = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+  findings.forEach((v) => { const k = v.severity as Severity; if (k in sevCount) sevCount[k] += 1; });
+
+  async function openGraph(kind: "blast" | "callers"): Promise<void> {
+    if (drill === kind) { setDrill(null); return; }
+    setDrill(kind); setGraph(null); setGraphErr("");
+    if (!client) { setGraphErr("requires a live connection"); return; }
+    setGraphBusy(true);
+    try {
+      const g = kind === "blast" ? await loadBlastGraph(client, name) : await loadEntityGraph(client, name);
+      // Callers = incoming edges into the center; keep the center node + its sources.
+      setGraph(kind === "callers"
+        ? { nodes: g.nodes, edges: g.edges.filter((e) => e.t === g.nodes.find((n) => n.hero)?.id) }
+        : g);
+    } catch (e) { setGraphErr(e instanceof Error ? e.message : "failed"); }
+    finally { setGraphBusy(false); }
+  }
 
   useEffect(() => {
     let active = true;
@@ -67,6 +98,44 @@ export function ServiceDrawer({ name, model, client, onClose }: {
                 <div className="row wrap" style={{ gap: 8 }}>
                   {spot.dependencies.length ? spot.dependencies.map((d) => <span className="dep-chip" key={d}>{d}</span>) : <span className="empty" style={{ padding: 0 }}>No dependencies indexed.</span>}
                 </div>
+              </div>
+
+              <div>
+                <div className="section-label">Drill-downs</div>
+                <div className="row wrap" style={{ gap: 8 }}>
+                  <button className={`btn-ghost${drill === "blast" ? " active" : ""}`} onClick={() => openGraph("blast")}>Blast radius →</button>
+                  <button className={`btn-ghost${drill === "callers" ? " active" : ""}`} onClick={() => openGraph("callers")}>Callers / importers →</button>
+                  <button className={`btn-ghost${drill === "findings" ? " active" : ""}`} onClick={() => setDrill(drill === "findings" ? null : "findings")}>Findings ({findings.length}) →</button>
+                </div>
+
+                {(drill === "blast" || drill === "callers") ? (
+                  <div style={{ marginTop: 10 }}>
+                    {graphBusy ? <p className="empty">Loading {drill} graph…</p>
+                      : graphErr ? <p className="src-err" style={{ marginTop: 0 }}>⚠ {graphErr}</p>
+                        : graph && graph.edges.length ? <GraphCanvas graph={graph} layout="radial" height={300} />
+                          : <p className="empty">No {drill === "blast" ? "transitive dependents" : "callers"} found for {name}.</p>}
+                  </div>
+                ) : null}
+
+                {drill === "findings" ? (
+                  <div style={{ marginTop: 10 }}>
+                    <div className="row wrap" style={{ gap: 8, marginBottom: 8 }}>
+                      {(["critical", "high", "medium", "low"] as const).filter((k) => sevCount[k] > 0).map((k) => (
+                        <span key={k} className="sev-tag" style={{ color: SEVERITY_COLOR[k] }}><i style={{ background: "currentColor" }} />{sevCount[k]} {k}</span>
+                      ))}
+                    </div>
+                    {findings.length ? (
+                      <ul className="plain-list">
+                        {findings.map((v) => (
+                          <li key={v.id} className="row" style={{ justifyContent: "space-between", gap: 8 }}>
+                            <Link to={`/vulnerabilities/${encodeURIComponent(v.id)}`} className="link-btn mono" style={{ fontSize: ".76rem" }} onClick={onClose}>{v.id}</Link>
+                            <span className="t-mut" style={{ fontSize: ".72rem" }}>{v.package} · CVSS {v.cvss || "—"}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : <p className="empty" style={{ padding: 0 }}>No findings reachable for {name}.</p>}
+                  </div>
+                ) : null}
               </div>
 
               {spot.environments.length ? (
