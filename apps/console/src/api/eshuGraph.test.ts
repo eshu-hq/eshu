@@ -1,8 +1,56 @@
 import { describe, expect, it } from "vitest";
-import { relationshipsToGraph, loadEntityMapGraph, resolveEntityName } from "./eshuGraph";
+import { relationshipsToGraph, loadEntityMapGraph, loadBlastGraph, resolveEntityName } from "./eshuGraph";
 import type { EshuApiClient } from "./client";
 
 describe("eshuGraph", () => {
+  it("loadBlastGraph posts target + target_type and maps the affected list", async () => {
+    let calledPath = "";
+    let body: unknown = null;
+    const client = {
+      post: async (path: string, b: unknown) => {
+        calledPath = path;
+        body = b;
+        return {
+          data: {
+            target: "api-node-boats",
+            target_type: "repository",
+            affected: [
+              { repo: "lib-common", hops: 1 },
+              { repo: "DISTINCT affected.name" }, // backend null-projection placeholder
+              { repo: "" }
+            ]
+          },
+          error: null,
+          truth: null
+        };
+      }
+    } as unknown as EshuApiClient;
+
+    const graph = await loadBlastGraph(client, "api-node-boats");
+    expect(calledPath).toBe("/api/v0/impact/blast-radius");
+    expect(body).toMatchObject({ target: "api-node-boats", target_type: "repository" });
+    const hero = graph.nodes.find((n) => n.hero);
+    expect(hero?.label).toBe("api-node-boats");
+    // Only the origin + the one real dependent; placeholder/empty rows dropped.
+    expect(graph.nodes.map((n) => n.label).sort()).toEqual(["api-node-boats", "lib-common"]);
+    expect(graph.edges).toHaveLength(1);
+    expect(graph.edges[0]).toMatchObject({ s: "lib-common", t: hero?.id, verb: "DEPENDS_ON" });
+  });
+
+  it("loadBlastGraph renders the origin alone when there are no real dependents", async () => {
+    const client = {
+      post: async () => ({
+        data: { target: "api-node-boats", affected: [{ repo: "DISTINCT affected.name" }] },
+        error: null,
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+    const graph = await loadBlastGraph(client, "api-node-boats");
+    expect(graph.nodes).toHaveLength(1);
+    expect(graph.nodes[0]?.hero).toBe(true);
+    expect(graph.edges).toHaveLength(0);
+  });
+
   it("relationshipsToGraph builds a hero center and maps verbs to layers + direction", () => {
     const graph = relationshipsToGraph({
       target: { id: "svc:checkout", name: "checkout", type: "service" },

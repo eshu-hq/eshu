@@ -101,24 +101,42 @@ export async function resolveEntityName(client: EshuApiClient, query: string): P
 // Blast radius: dependents that break if `name` fails. `loadBlastGraph` queries
 // the live API and throws if it is unavailable; callers that need an offline
 // path fall back to `blastFromModel`, which reverse-walks the in-memory graph.
-interface ImpactEntity { readonly id?: string; readonly name?: string; readonly type?: string; readonly distance?: number; readonly hops?: number; }
+// One affected entity from the blast-radius response. The live endpoint returns
+// `affected: [{repo, repo_id?, hops?, ...}]`; the other keys are kept for forward
+// compatibility with alternate response shapes.
+interface ImpactEntity {
+  readonly id?: string; readonly name?: string; readonly type?: string;
+  readonly distance?: number; readonly hops?: number;
+  readonly repo?: string; readonly repo_id?: string;
+}
 interface BlastResponse {
-  readonly target?: RelEntity; readonly entity?: RelEntity;
+  readonly target?: RelEntity | string; readonly entity?: RelEntity;
+  readonly affected?: readonly ImpactEntity[];
   readonly impacted?: readonly ImpactEntity[]; readonly dependents?: readonly ImpactEntity[]; readonly results?: readonly ImpactEntity[];
 }
 
 export async function loadBlastGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
-  const env = await client.post<BlastResponse>("/api/v0/impact/blast-radius", { name, max_depth: 3 });
+  // POST /api/v0/impact/blast-radius requires `target` + `target_type`; a
+  // service/workload is anchored on its repository. The response is
+  // `{ target, target_type, affected: [{repo, repo_id?, hops?}], ... }`.
+  const env = await client.post<BlastResponse>("/api/v0/impact/blast-radius", {
+    target: name, target_type: "repository", limit: 50
+  });
   const data = env.data ?? {};
-  const center = ident(data.target ?? data.entity, name);
-  const impacted = data.impacted ?? data.dependents ?? data.results ?? [];
+  const center = ident(typeof data.target === "object" ? data.target : data.entity, name);
+  const affected = data.affected ?? data.impacted ?? data.dependents ?? data.results ?? [];
   const nodes = new Map<string, GraphNode>();
   nodes.set(center.id, { id: center.id, kind: "service", label: center.name, sub: "impact origin", hero: true, col: 0, truth: "exact" });
   const edges: GraphEdge[] = [];
-  impacted.forEach((e) => {
-    const id = e.id ?? e.name ?? "unknown";
+  affected.forEach((e) => {
+    const label = (e.repo ?? e.name ?? e.id ?? "").trim();
+    // Skip empty or non-entity rows (a real repo name has no whitespace), so a
+    // target with no indexed dependents renders cleanly as the origin alone.
+    if (label === "" || /\s/.test(label)) return;
+    const id = e.repo_id ?? e.id ?? label;
+    if (id === center.id) return;
     const hop = e.distance ?? e.hops ?? 1;
-    if (!nodes.has(id)) nodes.set(id, { id, kind: kindFor(e.type), label: e.name ?? id, sub: `hop ${hop}`, col: hop, truth: "exact" });
+    if (!nodes.has(id)) nodes.set(id, { id, kind: kindFor(e.type), label, sub: `hop ${hop}`, col: hop, truth: "exact" });
     edges.push({ s: id, t: center.id, verb: "DEPENDS_ON", layer: "runtime" });
   });
   return { nodes: [...nodes.values()], edges };
