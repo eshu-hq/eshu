@@ -7,6 +7,7 @@
 
 import type { EshuApiClient } from "./client";
 import type { GraphModel, GraphNode, GraphEdge, GraphLayer } from "../console/types";
+import { resolveEntity } from "./entityResolution";
 
 const VERB_LAYER: Record<string, GraphLayer> = {
   CALLS: "code", IMPORTS: "code", INHERITS: "code", OVERRIDES: "code", REFERENCES: "code",
@@ -44,10 +45,11 @@ function ident(e: RelEntity | undefined, fallback: string): { id: string; name: 
   return { id: e?.id ?? name, name, type: e?.type ?? e?.entity_type };
 }
 
-// Resolve + expand one entity into a center-and-neighbours graph.
-export async function loadEntityGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
-  const env = await client.post<RelationshipsResponse>("/api/v0/code/relationships", { name, depth: 1 });
-  const data = env.data ?? {};
+// relationshipsToGraph maps a relationship-style response (center entity plus
+// edge records) into a center-and-neighbours graph. Shared by the direct
+// (code/relationships) and neighborhood (impact/entity-map) loaders, both of
+// which return the same defensive shape.
+export function relationshipsToGraph(data: RelationshipsResponse, name: string): GraphModel {
   const center = ident(data.target ?? data.entity, name);
   const records = data.relationships ?? data.edges ?? data.results ?? [];
 
@@ -68,6 +70,32 @@ export async function loadEntityGraph(client: EshuApiClient, name: string): Prom
   });
 
   return { nodes: [...nodes.values()], edges };
+}
+
+// Resolve + expand one entity into a center-and-neighbours graph via direct
+// code relationships (depth 1).
+export async function loadEntityGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
+  const env = await client.post<RelationshipsResponse>("/api/v0/code/relationships", { name, depth: 1 });
+  return relationshipsToGraph(env.data ?? {}, name);
+}
+
+// Expand one entity into a broader neighbourhood via POST impact/entity-map.
+// Returns the same center-and-neighbours graph shape as loadEntityGraph.
+export async function loadEntityMapGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
+  const env = await client.post<RelationshipsResponse>("/api/v0/impact/entity-map", { name, max_depth: 2 });
+  return relationshipsToGraph(env.data ?? {}, name);
+}
+
+// resolveEntityName resolves a typed query to a canonical entity name via
+// entities/resolve, returning the best candidate. Falls back to the raw query
+// when nothing resolves, so search still works against exact names.
+export async function resolveEntityName(client: EshuApiClient, query: string): Promise<string> {
+  try {
+    const result = await resolveEntity({ client, name: query, limit: 1 });
+    return result.candidates[0]?.name ?? query;
+  } catch {
+    return query;
+  }
 }
 
 // Blast radius: dependents that break if `name` fails. `loadBlastGraph` queries

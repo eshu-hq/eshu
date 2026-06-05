@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import type { EshuApiClient } from "../api/client";
 import type { ConsoleModel, GraphLayer, GraphModel, GraphNode } from "../console/types";
 import { LAYER_COLOR, KIND_COLOR, fmt } from "../console/types";
-import { loadEntityGraph } from "../api/eshuGraph";
+import { loadEntityGraph, loadEntityMapGraph, resolveEntityName } from "../api/eshuGraph";
 import { Panel, TruthChip } from "../components/atoms";
 import { GraphCanvas } from "../components/GraphCanvas";
 
@@ -16,6 +16,7 @@ export function ExplorerPage({ model, client, onOpenService }: {
 }): React.JSX.Element {
   const live = model.source === "live" && !!client;
   const [layout, setLayout] = useState<"layered" | "radial">("layered");
+  const [mode, setMode] = useState<"direct" | "neighborhood">("direct");
   const [on, setOn] = useState<Record<GraphLayer, boolean>>(
     () => Object.fromEntries(LAYERS.map((l) => [l, true])) as Record<GraphLayer, boolean>
   );
@@ -38,7 +39,16 @@ export function ExplorerPage({ model, client, onOpenService }: {
   async function expand(name: string): Promise<void> {
     if (!client) return;
     setBusy(true); setErr("");
-    try { const g = await loadEntityGraph(client, name); setLiveGraph(g); setSel(g.nodes.find((n) => n.hero)); }
+    try {
+      // Resolve the typed name to a canonical entity first (entities/resolve),
+      // then expand via direct relationships or the broader entity-map.
+      const resolved = await resolveEntityName(client, name);
+      const g = mode === "neighborhood"
+        ? await loadEntityMapGraph(client, resolved)
+        : await loadEntityGraph(client, resolved);
+      setLiveGraph(g);
+      setSel(g.nodes.find((n) => n.hero));
+    }
     catch (e) { setErr(e instanceof Error ? e.message : "failed"); }
     finally { setBusy(false); }
   }
@@ -63,6 +73,7 @@ export function ExplorerPage({ model, client, onOpenService }: {
               onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && query) void expand(query); }} />
           </div>
           <button className="btn-ghost active" onClick={() => query && expand(query)} disabled={busy}>{busy ? "Loading…" : "Load"}</button>
+          <div className="seg"><button className={mode === "direct" ? "active" : ""} onClick={() => setMode("direct")}>Direct</button><button className={mode === "neighborhood" ? "active" : ""} onClick={() => setMode("neighborhood")}>Neighborhood</button></div>
           {err ? <span className="src-err" style={{ marginTop: 0 }}>⚠ {err}</span> : null}
         </div>
       ) : null}
