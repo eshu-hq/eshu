@@ -1,0 +1,51 @@
+// console/liveModel.ts
+// Live-only model construction. The console renders API data exclusively, so this
+// module owns (a) the snapshot -> UI model lift and (b) an empty model used for
+// the loading / needs-connection / error states. There is no sample or demo data
+// here: an empty model carries real "unavailable" provenance, never fabricated
+// numbers. Graph and series stay empty until their endpoints are wired
+// (see eshuConsoleLive notes and the time-series backend issue).
+
+import type {
+  ConsoleModel, ConsoleSnapshot, RuntimeSummary, SeriesBundle, SectionProvenance
+} from "./types";
+
+export const emptySeries: SeriesBundle = {
+  ingestRate: [], queueDepth: [], graphNodes: [], graphEdges: [], queryP99: [], newVulns: []
+};
+
+const SNAPSHOT_SECTIONS = [
+  "runtime", "services", "languages", "ingesters", "findings", "vulnerabilities"
+] as const;
+
+function emptyRuntime(): RuntimeSummary {
+  return {
+    indexStatus: "unavailable", repositories: 0, workloads: 0, platforms: 0, instances: 0,
+    queueOutstanding: 0, inFlight: 0, deadLetters: 0, succeeded: 0, profile: "unknown"
+  };
+}
+
+// emptySnapshot builds a live snapshot with no rows. Pass a provenance state
+// (e.g. "unavailable" after a failed connection) to stamp every section so panels
+// can render an explicit empty/unavailable state instead of a fabricated zero.
+export function emptySnapshot(provenance: SectionProvenance | null = null): ConsoleSnapshot {
+  const prov: Record<string, SectionProvenance> = {};
+  if (provenance) for (const section of SNAPSHOT_SECTIONS) prov[section] = provenance;
+  return {
+    runtime: emptyRuntime(),
+    services: [], languages: [], ingesters: [], findings: [], vulnerabilities: [],
+    truth: {}, provenance: prov
+  };
+}
+
+// modelFromSnapshot lifts a live snapshot into the UI model. Graph, relationships,
+// and series are not yet provided by the API, so they stay empty until wired.
+export function modelFromSnapshot(snap: ConsoleSnapshot): ConsoleModel {
+  return { ...snap, source: "live", graph: { nodes: [], edges: [] }, relationships: [], series: emptySeries };
+}
+
+// emptyConsoleModel is the model used before/while connecting and after a failed
+// connection. It is always source: "live" — the console has no demo data path.
+export function emptyConsoleModel(provenance: SectionProvenance | null = null): ConsoleModel {
+  return modelFromSnapshot(emptySnapshot(provenance));
+}
