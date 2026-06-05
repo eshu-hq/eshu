@@ -159,17 +159,50 @@ func boundedParseError(err error) string {
 }
 
 type npmLockFile struct {
-	Packages     map[string]npmLockPackage `json:"packages"`
-	Dependencies map[string]npmLockPackage `json:"dependencies"`
+	Packages     map[string]npmLockPackage    `json:"packages"`
+	Dependencies map[string]npmLockDependency `json:"dependencies"`
 }
 
 type npmLockPackage struct {
-	Name         string                    `json:"name"`
-	Version      string                    `json:"version"`
-	Dev          bool                      `json:"dev"`
-	Optional     bool                      `json:"optional"`
-	Peer         bool                      `json:"peer"`
-	Dependencies map[string]npmLockPackage `json:"dependencies"`
+	Name         string                       `json:"name"`
+	Version      string                       `json:"version"`
+	Dev          bool                         `json:"dev"`
+	Optional     bool                         `json:"optional"`
+	Peer         bool                         `json:"peer"`
+	Dependencies map[string]npmLockDependency `json:"dependencies"`
+}
+
+type npmLockDependency struct {
+	Version      string
+	Dev          bool
+	Optional     bool
+	Peer         bool
+	Dependencies map[string]npmLockDependency
+}
+
+func (d *npmLockDependency) UnmarshalJSON(body []byte) error {
+	var versionRange string
+	if err := json.Unmarshal(body, &versionRange); err == nil {
+		return nil
+	}
+	var object struct {
+		Version      string                       `json:"version"`
+		Dev          bool                         `json:"dev"`
+		Optional     bool                         `json:"optional"`
+		Peer         bool                         `json:"peer"`
+		Dependencies map[string]npmLockDependency `json:"dependencies"`
+	}
+	if err := json.Unmarshal(body, &object); err != nil {
+		return err
+	}
+	*d = npmLockDependency{
+		Version:      object.Version,
+		Dev:          object.Dev,
+		Optional:     object.Optional,
+		Peer:         object.Peer,
+		Dependencies: object.Dependencies,
+	}
+	return nil
 }
 
 func parseNPMLockComponents(relativePath string, body []byte) ([]sbomgenerator.Component, []sbomgenerator.Warning) {
@@ -184,7 +217,7 @@ func parseNPMLockComponents(relativePath string, body []byte) ([]sbomgenerator.C
 		}
 		pkg := lock.Packages[path]
 		name := firstNonBlank(pkg.Name, npmNameFromPackagePath(path))
-		if component, ok := newLockfileComponent(packageidentity.EcosystemNPM, name, pkg.Version, relativePath, npmDependencyScope(pkg), npmDependencyType(path)); ok {
+		if component, ok := newLockfileComponent(packageidentity.EcosystemNPM, name, pkg.Version, relativePath, npmDependencyScope(pkg.Dev, pkg.Optional, pkg.Peer), npmDependencyType(path)); ok {
 			components = append(components, component)
 		}
 	}
@@ -192,23 +225,23 @@ func parseNPMLockComponents(relativePath string, body []byte) ([]sbomgenerator.C
 	return components, nil
 }
 
-func appendNPMDependencies(components *[]sbomgenerator.Component, deps map[string]npmLockPackage, relativePath string) {
+func appendNPMDependencies(components *[]sbomgenerator.Component, deps map[string]npmLockDependency, relativePath string) {
 	for _, name := range sortedMapKeys(deps) {
 		dep := deps[name]
-		if component, ok := newLockfileComponent(packageidentity.EcosystemNPM, name, dep.Version, relativePath, npmDependencyScope(dep), "transitive"); ok {
+		if component, ok := newLockfileComponent(packageidentity.EcosystemNPM, name, dep.Version, relativePath, npmDependencyScope(dep.Dev, dep.Optional, dep.Peer), "transitive"); ok {
 			*components = append(*components, component)
 		}
 		appendNPMDependencies(components, dep.Dependencies, relativePath)
 	}
 }
 
-func npmDependencyScope(pkg npmLockPackage) string {
+func npmDependencyScope(dev bool, optional bool, peer bool) string {
 	switch {
-	case pkg.Dev:
+	case dev:
 		return "dev"
-	case pkg.Optional:
+	case optional:
 		return "optional"
-	case pkg.Peer:
+	case peer:
 		return "peer"
 	default:
 		return "runtime"

@@ -183,6 +183,61 @@ empty=empty
 	assertComponentEvidence(t, components["org.springframework:spring-core"], "maven", "gradle.lockfile", "compileClasspath,runtimeClasspath", "resolved", "pkg:maven/org.springframework/spring-core@6.1.2")
 }
 
+func TestRepositorySBOMSourceParsesNPMPackageDependencyRanges(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "package-lock.json"), `{
+		"lockfileVersion": 3,
+		"packages": {
+			"": {
+				"name": "test-app",
+				"version": "1.0.0",
+				"dependencies": {
+					"@hapi/wreck": "^18.0.0",
+					"range-only": "^1.0.0"
+				}
+			},
+			"node_modules/@hapi/wreck": {
+				"version": "18.0.0",
+				"dependencies": {
+					"@hapi/boom": "^10.0.1",
+					"hoek": "9.x"
+				}
+			},
+			"node_modules/@hapi/boom": {
+				"version": "10.0.1"
+			},
+			"node_modules/hoek": {
+				"version": "9.3.0",
+				"optional": true
+			}
+		}
+	}`)
+	source, err := newRepositorySBOMSource([]sbomTargetConfig{{
+		ScopeID:  "scanner-worker://repository/repo-private-name",
+		RootPath: root,
+	}})
+	if err != nil {
+		t.Fatalf("newRepositorySBOMSource() error = %v, want nil", err)
+	}
+
+	inventory, err := source.Collect(context.Background(), testSBOMClaimInput(t))
+	if err != nil {
+		t.Fatalf("Collect() error = %v, want nil", err)
+	}
+	if len(inventory.Warnings) != 0 {
+		t.Fatalf("Warnings len = %d, want 0 for npm package dependency ranges: %#v", len(inventory.Warnings), inventory.Warnings)
+	}
+	components := componentsByName(inventory.Components)
+	assertComponentEvidence(t, components["@hapi/wreck"], "npm", "package-lock.json", "runtime", "direct", "pkg:npm/%40hapi/wreck@18.0.0")
+	assertComponentEvidence(t, components["@hapi/boom"], "npm", "package-lock.json", "runtime", "direct", "pkg:npm/%40hapi/boom@10.0.1")
+	assertComponentEvidence(t, components["hoek"], "npm", "package-lock.json", "optional", "direct", "pkg:npm/hoek@9.3.0")
+	if _, ok := components["range-only"]; ok {
+		t.Fatalf("range-only dependency emitted as installed component, want dependency range ignored without exact installed version")
+	}
+}
+
 func TestRepositorySBOMSourceEmitsMalformedLockfileWarning(t *testing.T) {
 	t.Parallel()
 
