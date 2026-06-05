@@ -80,6 +80,22 @@ The default ingester is `repository`. Status responses include:
 The public API does not include a per-ingester scan POST route. Use
 `POST /api/v0/admin/reindex` or deployment-managed ingestion instead.
 
+## Historical Metrics
+
+`GET /api/v0/metrics/timeseries?metric={name}&window={24h}&step={30m}` returns an
+ordered point series for one metric, for dashboard and operations trend charts.
+Supported `metric` values are `ingest_rate`, `queue_depth`, `dead_letters`,
+`graph_nodes`, `graph_edges`, `query_p50`, `query_p95`, and `query_p99`; an
+unsupported or missing `metric` returns a `400`. `window` defaults to `24h` and
+`step` to `30m`. The response carries `metric`, `unit`, `window`, `step`, and an
+ordered `points: [{ t, v }]` array.
+
+Series are sourced from the Prometheus/Mimir collector. When no metrics source
+is configured the response is **empty `points` with `truth.freshness.state` of
+`unavailable`** rather than an error, and a metric with no history yet returns
+empty `points` with `building` freshness. This lets the console show real
+point-in-time numbers and enable trend lines only once history exists.
+
 ## Durable Admin Controls
 
 - `POST /api/v0/admin/refinalize` re-enqueues active scope generations for

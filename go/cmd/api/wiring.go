@@ -281,6 +281,12 @@ func newRouter(
 			DB:           db,
 			StatusReader: pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db}),
 		},
+		// Metrics time-series. Source is nil until a Prometheus/Mimir collector is
+		// wired; the endpoint then returns empty points with unavailable freshness
+		// rather than failing.
+		Metrics: &query.MetricsHandler{
+			Profile: queryProfile,
+		},
 		Compare: &query.CompareHandler{
 			Neo4j:   neo4jReader,
 			Content: contentReader,
