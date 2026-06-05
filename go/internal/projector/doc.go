@@ -31,6 +31,11 @@
 // Package-registry identity emits package source-correlation and supply-chain
 // impact reducer intents so manifest-backed consumption and vulnerability
 // findings can catch up when package evidence arrives after source intelligence.
+// When a Postgres-backed runtime configures PackageRegistryIdentityLocker,
+// package-registry canonical writes also take transaction-scoped package UID
+// advisory locks before calling the graph writer. This coordinates ingester,
+// standalone projector, and bootstrap-index processes without serializing
+// unrelated package identities.
 // SBOM and attestation documents emit sbom_attestation_attachment reducer
 // intents; source-local components enrich the reducer decision but do not attach
 // themselves to images in the projector.

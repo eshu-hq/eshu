@@ -68,7 +68,9 @@ func (r Runtime) writeCanonicalProjection(
 		defer canonicalSpan.End()
 	}
 
-	if err := r.CanonicalWriter.Write(ctx, mat); err != nil {
+	if err := r.withPackageRegistryIdentityLocks(ctx, mat, func(lockCtx context.Context) error {
+		return r.CanonicalWriter.Write(lockCtx, mat)
+	}); err != nil {
 		return fmt.Errorf("write canonical projection: %w", err)
 	}
 	if err := r.publishCanonicalGraphPhases(ctx, generationID, inputFacts); err != nil {

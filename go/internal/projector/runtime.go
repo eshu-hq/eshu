@@ -32,6 +32,9 @@ type Runtime struct {
 	PhasePublisher  reducer.GraphProjectionPhasePublisher
 	RepairQueue     reducer.GraphProjectionPhaseRepairQueue
 	RetryInjector   RetryInjector
+	// PackageRegistryIdentityLocker coordinates package UID writes across
+	// projector processes before canonical graph projection reaches the backend.
+	PackageRegistryIdentityLocker PackageRegistryIdentityLocker
 	// ContentBeforeCanonical writes the content index before graph projection.
 	// This is reserved for local profiles that must keep code search usable
 	// while an evaluation graph backend is degraded.

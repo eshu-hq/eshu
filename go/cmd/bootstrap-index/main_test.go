@@ -246,6 +246,9 @@ func TestBuildBootstrapProjectorWiresPhasePublisherAndRepairQueue(t *testing.T) 
 	if runtime.RepairQueue == nil {
 		t.Fatal("buildBootstrapProjector() RepairQueue = nil, want non-nil")
 	}
+	if runtime.PackageRegistryIdentityLocker == nil {
+		t.Fatal("buildBootstrapProjector() PackageRegistryIdentityLocker = nil, want non-nil")
+	}
 }
 
 func TestBuildBootstrapProjectorClaimsOnlyGitScopes(t *testing.T) {

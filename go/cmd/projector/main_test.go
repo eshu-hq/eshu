@@ -23,6 +23,9 @@ func TestBuildProjectorRuntimeWiresPersistentStorageAdapters(t *testing.T) {
 	if _, ok := runtime.ContentWriter.(postgres.ContentWriter); !ok {
 		t.Fatalf("ContentWriter type = %T, want %T", runtime.ContentWriter, postgres.ContentWriter{})
 	}
+	if runtime.PackageRegistryIdentityLocker == nil {
+		t.Fatal("PackageRegistryIdentityLocker = nil, want non-nil")
+	}
 }
 
 func TestBuildProjectorServiceWiresRetryInjectorFromEnv(t *testing.T) {

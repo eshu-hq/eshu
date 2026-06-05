@@ -30,6 +30,10 @@
 // domain's truth contract. Shared projection intent writes use bounded
 // multi-row upserts so high-cardinality package, code-call, and correlation
 // facts reduce Postgres round trips without changing idempotency semantics.
+// PackageRegistryIdentityLocker uses transaction-scoped advisory locks to
+// coordinate package UID graph writes across projector processes; callers must
+// acquire sorted, de-duplicated keys and keep the protected callback bounded to
+// the canonical graph write.
 // Package correlation indexes cover reducer ownership, publication, and
 // consumption fact rows under package_id and repository_id anchors; their v2
 // names force existing databases to build the expanded publication predicate.
