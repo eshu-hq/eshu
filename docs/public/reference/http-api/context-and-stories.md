@@ -88,11 +88,11 @@ tag matches are not promoted.
 No-Regression Evidence:
 
 ```bash
-cd go && go test ./internal/query -run 'TestIncidentContext(ChangeCandidateQueryCastsNullableTimeParametersEverywhere|QueriesStayBoundedToActiveFacts|HandlerUsesBoundedStore|HandlerReturnsAmbiguousCandidates|HandlerRequiresIncidentIDAndLimit|RuntimeQueriesStayBoundedToExplicitEvidence)' -count=1
+cd go && go test ./internal/query -run 'TestIncidentContext(ChangeCandidateQueryCastsServiceIDParameter|ChangeCandidateQueryCastsNullableTimeParametersEverywhere|QueriesStayBoundedToActiveFacts|HandlerUsesBoundedStore|HandlerReturnsAmbiguousCandidates|HandlerRequiresIncidentIDAndLimit|RuntimeQueriesStayBoundedToExplicitEvidence)' -count=1
 ```
 
 This proves incident context reads keep bounded active-fact queries and cast
-nullable fallback-change time parameters everywhere they are used.
+fallback-change service and time parameters everywhere they are used.
 
 No-Observability-Change: the route still runs under `query.incident_context`
 with stable `http.route` and `eshu.capability` span attributes, existing

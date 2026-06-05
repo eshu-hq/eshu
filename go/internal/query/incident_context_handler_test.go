@@ -229,6 +229,15 @@ func TestIncidentContextChangeCandidateQueryCastsNullableTimeParametersEverywher
 	}
 }
 
+func TestIncidentContextChangeCandidateQueryCastsServiceIDParameter(t *testing.T) {
+	t.Parallel()
+
+	want := "jsonb_build_object('id', $1::text)"
+	if !strings.Contains(listIncidentContextChangeCandidatesQuery, want) {
+		t.Fatalf("listIncidentContextChangeCandidatesQuery missing %q:\n%s", want, listIncidentContextChangeCandidatesQuery)
+	}
+}
+
 func TestIncidentContextRuntimeQueriesStayBoundedToExplicitEvidence(t *testing.T) {
 	t.Parallel()
 
