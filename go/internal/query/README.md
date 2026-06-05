@@ -650,3 +650,31 @@ Observability Evidence: the aggregate routes add the
 `go/internal/telemetry/contract.go` with route and capability attributes.
 They re-use the existing `Neo4jReader.Run` tracing and the `neo4j.query`
 graph span; no new metric instrument is added.
+
+## Ecosystem Overview Counts
+
+`GET /api/v0/ecosystem/overview` counts repositories, workloads, platforms, and
+workload instances. Each label is counted with its own bounded single-label
+count query (`MATCH (x:Label) RETURN count(x)`), not a single chained
+`MATCH ... WITH count() MATCH ... WITH count()` statement. Chained cross-MATCH
+aggregation is not portable on NornicDB: an empty intermediate label collapsed
+the whole result and zeroed `repo_count`, and the chained form otherwise
+returned multiple all-null rows. A bare single-label count returns a single `0`
+row when the label is empty on both backends, so the repository count never
+disappears because workloads or platforms are not yet materialized.
+
+No-Regression Evidence: query shape changed from one chained-aggregation
+statement to four independent single-label count scans (NornicDB v1.1.3, local
+Docker Compose, `~/bg-repos` corpus: 33 Repository, 21 Workload, 7 Platform, 92
+WorkloadInstance nodes). Each scan is the same bounded label count as the
+original; the change adds three extra round-trips on a low-frequency overview
+read and removes none of the original scan work, so there is no scan-cost
+regression. Runtime before/after on the same stack: `GET /api/v0/ecosystem/overview`
+returned `{repo_count:0,workload_count:0,platform_count:0,instance_count:0}`
+before (chained statement collapsed despite 33 indexed repositories) and
+`{repo_count:33,workload_count:21,platform_count:7,instance_count:92}` after.
+Regression guard: `TestGetEcosystemOverviewCountsEachLabelIndependently`.
+
+No-Observability-Change: the route keeps the same `Neo4jReader.RunSingle` /
+`neo4j.query` graph spans and the same response field shape; no new metric, log
+field, or span is added.
