@@ -2,13 +2,15 @@
 
 ## Purpose
 
-`internal/collector/servicecatalog` owns fixture-backed service-catalog manifest
-normalization for the `service_catalog` collector family. It turns repo-hosted
-catalog descriptors (Backstage `catalog-info.yaml`, OpsLevel `opslevel.yml`, and
-Cortex `cortex.yaml`) into observed-confidence `service_catalog.*` fact envelopes
-that the already shipped `service_catalog_correlation` reducer domain consumes.
+`internal/collector/servicecatalog` owns service-catalog manifest normalization
+for the `service_catalog` collector family. It turns repo-hosted catalog
+descriptors (Backstage `catalog-info.yaml`, OpsLevel `opslevel.yml`, and Cortex
+`cortex.yaml`) into observed-confidence `service_catalog.*` fact envelopes that
+the already shipped `service_catalog_correlation` reducer domain consumes.
 
-This package is the **producer** side. The consumer half — projector intent
+This package is the pure **normalizer** side. The Git collector calls it while
+streaming recognized repo-hosted descriptor files, and fixture tests can call it
+directly. The consumer half — projector intent
 (`buildServiceCatalogCorrelationReducerIntent`), reducer handler/writer
 (`ServiceCatalogCorrelationHandler`), query store
 (`ListServiceCatalogCorrelations`), the `list_service_catalog_correlations` MCP
@@ -17,7 +19,9 @@ is **provenance only with zero graph writes**. This package adds no fact kinds,
 no schema change, and no graph writes.
 
 It intentionally does not implement hosted catalog API polling, credentials,
-filesystem discovery, graph writes, or canonical service/workload promotion.
+graph writes, or canonical service/workload promotion. Repo-hosted manifest
+selection lives in the Git collector stream path; hosted Backstage/OpsLevel/
+Cortex API collection remains a separate future runtime slice.
 
 ## Fixture-to-fact flow
 
@@ -155,10 +159,11 @@ producer leaves `lifecycle` blank rather than inventing one from a group label.
 
 ## Invariants
 
-- Fixture-backed until a hosted runtime slice is explicitly opened.
-- No HTTP clients, credentials, filesystem discovery, graph writes, reducer
-  imports, or query imports in production code (the reducer is imported in test
-  code only, for the round-trip contract test).
+- Pure-normalizer until a hosted runtime slice is explicitly opened.
+- No HTTP clients, credentials, graph writes, reducer imports, or query imports
+  in production code (the reducer is imported in test code only, for the
+  round-trip contract test). Repo-hosted manifest selection belongs to the Git
+  collector stream path.
 - Every emitted fact carries `schema_version = 1.0.0`
   (`facts.ServiceCatalogSchemaVersionV1`). For a known service-catalog fact kind,
   a blank or mismatched `schema_version` is a hard error at the projector
@@ -188,11 +193,13 @@ producer leaves `lifecycle` blank rather than inventing one from a group label.
 
 ## Telemetry
 
-This slice emits no metrics or spans; it is a deterministic offline normalizer.
-Producer counters (`service_catalog_facts_emitted_total`,
+This package emits no metrics or spans; it is a deterministic normalizer. When
+called from the Git collector, repo-hosted manifest facts are covered by the
+existing Git collector observe, stream, fact-emission, fact-count, and commit
+signals. Provider-specific producer counters (`service_catalog_facts_emitted_total`,
 `service_catalog_manifest_warnings_total`,
 `service_catalog_manifests_parsed_total`) and a `servicecatalog.collect` span
-are deferred to the telemetry + Compose-proof slice (design memo PR-4). The
+remain deferred to the hosted telemetry + Compose-proof slice. The
 shipped downstream `ServiceCatalogCorrelations{outcome}` reducer counter remains
 the diagnosis chain for "facts emitted but zero exact correlations."
 
@@ -231,13 +238,19 @@ counter remains the operator diagnosis chain. Producer counters and a
 slice (design memo PR-4), which must land before live collection is enabled. See
 the `No-Observability-Change:` marker below.
 
+Git Producer Evidence: the Git collector recognizes repo-hosted
+`catalog-info.yaml`/`.yml`, `opslevel.yml`/`.yaml`, and `cortex.yaml`/`.yml`
+descriptors during content streaming and emits these normalizer envelopes under
+the repository scope and generation. Focused coverage lives in
+`go/internal/collector/git_service_catalog_facts_test.go` and proves the
+two-phase and legacy content paths emit catalog facts without absolute path
+leakage or fabricated `repository_id`, `service_id`, or `workload_id`.
+
 Collector Deployment Evidence: no deployment artifact, binary, Compose service,
 Helm Deployment, metrics Service, or ServiceMonitor is added or changed by this
-slice. The package is a fixture-backed library with no live collection path, so
-there is intentionally nothing to deploy or scrape yet. Wiring a hosted
-claim-based runtime (with health/readiness, metrics, ServiceMonitor, and Helm)
-is deferred to a future runtime slice, exactly as `cicdrun` remains
-fixture-only.
+slice. Repo-hosted descriptors run inside the existing Git collector. Wiring a
+hosted claim-based catalog API runtime (with health/readiness, metrics,
+ServiceMonitor, and Helm) is deferred to a future runtime slice.
 
 No-Observability-Change: this package mounts no runtime and adds no metrics,
 spans, or logs. The later telemetry slice must add fact-emission, warning, and

@@ -22,8 +22,10 @@
 
 ## Invariants
 
-- Keep this package fixture-backed until the hosted runtime slice is explicitly
-  opened. No HTTP clients, credentials, filesystem discovery, or runtime status.
+- Keep this package as a pure manifest normalizer until the hosted runtime slice
+  is explicitly opened. No HTTP clients, credentials, runtime status, graph
+  writes, reducer imports, or query imports belong here. Repo-hosted manifest
+  selection lives in the Git collector stream path.
 - Do not import the reducer or query packages in production code. The reducer is
   imported only in `*_test.go` for the round-trip contract test.
 - Do not add new fact kinds or change the schema version. This package emits

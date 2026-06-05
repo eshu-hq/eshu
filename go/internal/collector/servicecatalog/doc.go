@@ -1,5 +1,5 @@
-// Package servicecatalog normalizes fixture-backed service-catalog manifests
-// into durable service-catalog facts.
+// Package servicecatalog normalizes service-catalog manifests into durable
+// service-catalog facts.
 //
 // The package implements the producer half of the service_catalog_correlation
 // domain. The consumer half (projector intent, reducer handler/writer, query
@@ -13,9 +13,10 @@
 // OpsLevelManifestEnvelopes, and Cortex cortex.yaml entity descriptors via
 // CortexManifestEnvelopes. Cortex scorecard descriptors are normalized via
 // CortexScorecardEnvelopes into carried-only scorecard facts. It does not call
-// hosted Backstage, OpsLevel, or Cortex APIs, manage credentials, discover
-// files, write graph state, or import the reducer or query packages. Two
-// invariants dominate the design:
+// hosted Backstage, OpsLevel, or Cortex APIs, manage credentials, write graph
+// state, or import the reducer or query packages. Repo-hosted manifest
+// selection belongs to the Git collector stream path. Two invariants dominate
+// the design:
 //
 //   - Payload-key fidelity: emitted payload keys exactly match what the shipped
 //     reducer index reads, so correlation does not silently degrade.

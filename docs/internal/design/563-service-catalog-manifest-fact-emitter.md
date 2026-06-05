@@ -1,8 +1,9 @@
 # Design Memo: Service Catalog Manifest Fact Emitter (#563)
 
-Status: For principal review. NO production code, NO schema change in this PR.
+Status: Producer package shipped; repo-hosted Git emission slice in progress.
+Hosted catalog API polling remains out of scope.
 Author surface: `go/internal/collector/...`, fixture corpora, package docs.
-Audience: principal reviewer deciding whether to authorize implementation.
+Audience: maintainers reviewing producer boundaries and follow-up runtime slices.
 
 This is a maintainer-only internal design doc. It is not part of the public
 MkDocs site (`docs_dir: public`), so the strict docs build does not cover it.
@@ -31,10 +32,11 @@ shipped:
   (`go/internal/telemetry/instruments.go`, contract in
   `contract_service_catalog.go`).
 
-What is **absent** is the producer. Nothing emits `service_catalog.*` facts
-today. The consumer side is a graph with no inputs. Issue #563 asks for the
-first runtime slice of that producer: a fixture-backed manifest collector that
-parses repo-hosted catalog descriptors into the already-defined typed fact
+The original absence was the producer. Nothing emitted `service_catalog.*`
+facts, so the consumer side had a graph with no inputs. Issue #563 shipped the
+pure manifest normalizer. The follow-up producer slice wires the Git collector
+content stream to that normalizer for repo-hosted Backstage, OpsLevel, and
+Cortex descriptors, still emitting only typed facts into the already-defined
 contract.
 
 The issue references an ADR at the stale path `docs/docs/adrs/2026-05-15-service-catalog-collector.md`;
@@ -43,9 +45,9 @@ tree at either path. The source-truth boundary for this collector is instead
 captured in `docs/public/reference/collector-reducer-readiness.md`, which lists
 `service_catalog_correlation` as "Catalog names, owners, and labels remain
 provenance until explicit repository evidence admits correlation" and classes
-"Service catalog ... Design or research only for deployed collector readiness."
-The reducer side is shipped; this issue opens the producer slice as
-fixture-backed, not deployed/hosted.
+hosted catalog API collection as not deployed. The reducer side is shipped;
+repo-hosted descriptors now run inside the existing Git collector, while hosted
+Backstage/OpsLevel/Cortex API polling remains undeployed.
 
 ### Acceptance criteria (verbatim intent from #563)
 
@@ -104,9 +106,9 @@ Stage-by-stage placement of this slice:
 | Stage | Owner today | This feature |
 | --- | --- | --- |
 | sync | ingester / git collector | unchanged |
-| discover | `internal/collector/discovery` | identifies `catalog-info.yaml` / `opslevel.yml` / `cortex.yaml` candidates (future hosted slice); this slice is fixture-input only |
-| parse | new `internal/collector/servicecatalog` | YAML manifest -> typed model |
-| emit facts | new package | `service_catalog.*` envelopes |
+| discover | `internal/collector/discovery` + Git content stream | ordinary repo discovery selects files; the Git fact stream recognizes `catalog-info.yaml` / `opslevel.yml` / `cortex.yaml` descriptor names during content emission |
+| parse | `internal/collector/servicecatalog` | YAML manifest -> typed model |
+| emit facts | Git collector + servicecatalog normalizer | `service_catalog.*` envelopes under the repository scope and generation |
 | enqueue work | projector (shipped) | already queues `service_catalog_correlation` |
 | reducer | shipped (#561) | already classifies into six outcomes |
 | graph/content | n/a for this domain | **provenance-only; no graph write** |
@@ -450,10 +452,10 @@ cicdrun is still fixture-only.
    completeness and forward compatibility (my recommendation), or (b) defer
    emitting them until the reducer can consume them, to avoid carrying inert
    facts? This affects PR-3 scope.
-3. **Manifest discovery vs fixture input.** This slice is fixture-input only
-   (like cicdrun). Confirm we are NOT wiring filesystem discovery
-   (`internal/collector/discovery` path globs for `**/catalog-info.yaml`) in
-   this issue, and that hosted/discovery selection is a separate follow-up.
+3. **Manifest discovery vs fixture input.** Resolved for repo-hosted manifests:
+   the Git collector now recognizes catalog descriptor basenames during content
+   streaming and emits `service_catalog.*` facts. Hosted provider API polling,
+   credentials, and claim-based catalog runtimes remain separate follow-ups.
 4. **Schema-version ownership.** If a manifest carries a field the reducer needs
    but `ServiceCatalogSchemaVersionV1` does not yet imply, is a `1.x` field
    addition a joint producer+reducer change, or do we hold the line on the
