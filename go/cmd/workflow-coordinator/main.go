@@ -130,6 +130,7 @@ func run(parent context.Context) error {
 		PackageRegistryPlanner:            coordinator.PackageRegistryWorkPlanner{},
 		VulnerabilityIntelligencePlanner:  coordinator.VulnerabilityIntelligenceWorkPlanner{},
 		SBOMAttestationPlanner:            coordinator.SBOMAttestationWorkPlanner{},
+		ScannerWorkerPlanner:              coordinator.ScannerWorkerWorkPlanner{},
 		SecurityAlertPlanner:              coordinator.SecurityAlertWorkPlanner{},
 		PagerDutyPlanner:                  coordinator.PagerDutyWorkPlanner{},
 		JiraPlanner:                       coordinator.JiraWorkPlanner{},

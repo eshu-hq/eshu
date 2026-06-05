@@ -123,6 +123,10 @@ fall back to defaults rather than failing; malformed values fail fast.
 - `SBOMAttestationWorkPlanner` — plans hosted SBOM and attestation collection
   runs from configured document or OCI-referrer targets. Each target becomes one
   claimable work item keyed by `scope_id`.
+- `ScannerWorkerWorkPlanner` — plans scanner-worker source-evidence work from
+  explicit configured targets. The planner only stores the analyzer, target
+  kind, and `scope_id` in workflow metadata; runtime-local roots and artifact
+  locators stay in the worker configuration.
 - `PagerDutyWorkPlanner` — plans PagerDuty incident-context collection runs
   from configured account or service-allowlist targets. Each target becomes one
   claimable work item keyed by `scope_id`, and `requested_scope_set` omits
@@ -167,6 +171,8 @@ fall back to defaults rather than failing; malformed values fail fast.
   `otelMetrics`.
 - `internal/collector/ociregistry` — OCI repository identity normalization used
   by the claim planner.
+- `internal/collector/scannerworker` — scanner-worker analyzer and target-kind
+  contracts used by the source-evidence planner.
 - `internal/collector/awscloud/freshness` — normalized AWS freshness trigger
   and target identity used by the AWS freshness planner.
 - `internal/webhook` — normalized PagerDuty and Jira incident freshness
@@ -218,6 +224,11 @@ warning (`collector_instance_drift_detected`, fields
 - `last_reaped_claims` spiking above `ExpiredClaimLimit` is not possible; that
   limit caps each reap pass. Repeated spikes at the limit indicate collectors
   are not completing claims within the lease TTL.
+- Scanner-worker runtime health is not enough to prove source evidence. An
+  enabled `scanner_worker` collector instance needs an analyzer-specific target
+  list so the coordinator can create claimable work; completed claims must emit
+  source facts or warning facts before remote evidence marks the collector row
+  `pass`.
 - Disabled PagerDuty and Jira collector instances are accepted as registrations
   when their identity, kind, mode, and JSON shape are valid. Private target
   fields and the claim-capable flag may remain set while disabled; enabled

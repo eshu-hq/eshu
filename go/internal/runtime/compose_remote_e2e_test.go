@@ -418,10 +418,11 @@ func TestRemoteE2EComposeIncludesScannerWorker(t *testing.T) {
 		t.Fatalf("scanner-worker command = %#v, want eshu-scanner-worker", service.Command)
 	}
 	assertComposeEnv(t, service, "ESHU_SCANNER_WORKER_INSTANCE_ID", "remote-e2e-scanner-worker-source")
-	assertComposeEnv(t, service, "ESHU_SCANNER_WORKER_ANALYZER", "${ESHU_SCANNER_WORKER_ANALYZER:-source_analysis}")
+	assertComposeEnv(t, service, "ESHU_SCANNER_WORKER_ANALYZER", "${ESHU_SCANNER_WORKER_ANALYZER:-sbom_generation}")
 	assertComposeEnv(t, service, "ESHU_SCANNER_WORKER_POLL_INTERVAL", "${ESHU_SCANNER_WORKER_POLL_INTERVAL:-2s}")
 	assertComposeEnv(t, service, "ESHU_SCANNER_WORKER_MEMORY_BYTES", "${ESHU_SCANNER_WORKER_MEMORY_BYTES:-4294967296}")
 	assertComposePortContains(t, service, "${ESHU_SCANNER_WORKER_METRICS_PORT:-19477}:9464")
+	assertComposeVolumeContains(t, service, "${ESHU_FILESYSTEM_HOST_ROOT:-./tests/fixtures/ecosystems}:/fixtures:ro")
 	assertComposeDependency(t, service, "projector")
 	assertComposeDependency(t, service, "workflow-coordinator")
 
@@ -429,11 +430,18 @@ func TestRemoteE2EComposeIncludesScannerWorker(t *testing.T) {
 	for _, want := range []string{
 		`"instance_id": "remote-e2e-scanner-worker-source"`,
 		`"collector_kind": "scanner_worker"`,
-		`"analyzer": "source_analysis"`,
+		`"analyzer": "sbom_generation"`,
+		`"scope_id": "scanner-worker://repository/remote-e2e-corpus"`,
+		`"root_path": "/fixtures"`,
 	} {
 		if !strings.Contains(compose, want) {
 			t.Fatalf("docker-compose.remote-e2e.yaml missing scanner-worker term %q", want)
 		}
+	}
+
+	exampleEnv := readRepositoryFile(t, "../../..", ".env.remote-e2e.example")
+	if !strings.Contains(exampleEnv, "ESHU_SCANNER_WORKER_SBOM_SUBJECT_DIGEST=sha256:") {
+		t.Fatal(".env.remote-e2e.example missing scanner-worker SBOM subject digest")
 	}
 }
 

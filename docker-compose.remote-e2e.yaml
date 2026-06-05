@@ -311,7 +311,14 @@ x-collector-env: &remote_e2e_collector_env
         "enabled": true,
         "claims_enabled": true,
         "configuration": {
-          "analyzer": "source_analysis"
+          "analyzer": "sbom_generation",
+          "sbom_targets": [
+            {
+              "scope_id": "scanner-worker://repository/remote-e2e-corpus",
+              "root_path": "/fixtures",
+              "subject_digest": "${ESHU_SCANNER_WORKER_SBOM_SUBJECT_DIGEST:-sha256:1111111111111111111111111111111111111111111111111111111111111111}"
+            }
+          ]
         }
       }
     ]
@@ -780,7 +787,7 @@ services:
       <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
       ESHU_SCANNER_WORKER_INSTANCE_ID: remote-e2e-scanner-worker-source
       ESHU_SCANNER_WORKER_OWNER_ID: remote-e2e-scanner-worker
-      ESHU_SCANNER_WORKER_ANALYZER: ${ESHU_SCANNER_WORKER_ANALYZER:-source_analysis}
+      ESHU_SCANNER_WORKER_ANALYZER: ${ESHU_SCANNER_WORKER_ANALYZER:-sbom_generation}
       ESHU_SCANNER_WORKER_POLL_INTERVAL: ${ESHU_SCANNER_WORKER_POLL_INTERVAL:-2s}
       ESHU_SCANNER_WORKER_CLAIM_LEASE_TTL: ${ESHU_SCANNER_WORKER_CLAIM_LEASE_TTL:-60s}
       ESHU_SCANNER_WORKER_HEARTBEAT_INTERVAL: ${ESHU_SCANNER_WORKER_HEARTBEAT_INTERVAL:-10s}
@@ -790,6 +797,8 @@ services:
       ESHU_SCANNER_WORKER_MAX_INPUT_BYTES: ${ESHU_SCANNER_WORKER_MAX_INPUT_BYTES:-2147483648}
       ESHU_SCANNER_WORKER_MAX_FILES: ${ESHU_SCANNER_WORKER_MAX_FILES:-250000}
       ESHU_SCANNER_WORKER_MAX_FACTS: ${ESHU_SCANNER_WORKER_MAX_FACTS:-50000}
+    volumes:
+      - ${ESHU_FILESYSTEM_HOST_ROOT:-./tests/fixtures/ecosystems}:/fixtures:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
       interval: 15s

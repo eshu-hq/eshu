@@ -394,6 +394,7 @@ type recordingClaimCommitter struct {
 	scope      scope.IngestionScope
 	generation scope.ScopeGeneration
 	facts      []facts.Envelope
+	err        error
 }
 
 func (c *recordingClaimCommitter) CommitClaimedScopeGeneration(
@@ -410,7 +411,7 @@ func (c *recordingClaimCommitter) CommitClaimedScopeGeneration(
 	for fact := range factStream {
 		c.facts = append(c.facts, fact)
 	}
-	return nil
+	return c.err
 }
 
 type recordingClaimStore struct {
