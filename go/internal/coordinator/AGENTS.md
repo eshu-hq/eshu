@@ -12,6 +12,10 @@
    type-assertion pattern for `RecordReap`/`RecordRunReconciliation`
 5. `go/internal/coordinator/package_registry_scheduler.go` — bounded
    `package_registry` work-item planning
+   - `go/internal/coordinator/tempo_scheduler.go` and `tempo_service.go` — the
+     reference periodic external-API poll planner: one enabled
+     `configuration.targets[]` entry becomes one claimable work item with a
+     per-`scope_id` `FairnessKey`; disabled targets are skipped
 6. `go/internal/workflow/service.go` (does not exist — `Store` is defined in
    `service.go` here; the workflow contracts are in `internal/workflow`)
 7. `go/internal/telemetry/instruments.go` and `contract.go` — before adding
