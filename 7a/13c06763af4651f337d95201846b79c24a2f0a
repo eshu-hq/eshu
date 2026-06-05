@@ -1,0 +1,23 @@
+go/internal/storage/cypher/canonical_node_writer_retract.go
+  s_f2f7fbb6f30866::t_eb647593d774f6 122
+go/internal/storage/cypher/README.md
+  s_f2f7fbb6f30866::t_7520dc4b1eb1db 85,88-89
+go/internal/storage/cypher/canonical_node_writer_retract_identity_test.go
+  s_f2f7fbb6f30866::t_0d2ff324671376 1-225
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "7a13c06763af4651f337d95201846b79c24a2f0a",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
