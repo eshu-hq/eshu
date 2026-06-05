@@ -160,8 +160,11 @@ analyzer failure or silent clean output.
 Observability Evidence: the runtime records scanner-worker claim, retry,
 dead-letter, facts-emitted, queue-wait, scan-duration, target-count,
 result-count, CPU, and memory metrics, plus `scanner_worker.*` spans and
-bounded structured failure logs. Configured `image_unpacking` and
-`sbom_generation` sources return measured metadata or manifest input bytes as
-peak memory usage and CPU seconds from the Go runtime counters, so operators can
-distinguish queue wait, extraction or manifest read cost, source fact volume,
-retries, and terminal resource-limit failures.
+bounded structured failure logs. Post-analysis persistence failures retry as
+`failure_class=commit_failed` and include a bounded `commit_failure_class`
+stage in logs, while analyzer source-read failures remain
+`source_unavailable`. Configured `image_unpacking` and `sbom_generation`
+sources return measured metadata or manifest input bytes as peak memory usage
+and CPU seconds from the Go runtime counters, so operators can distinguish
+queue wait, extraction or manifest read cost, source fact volume, retries,
+commit-stage failures, and terminal resource-limit failures.

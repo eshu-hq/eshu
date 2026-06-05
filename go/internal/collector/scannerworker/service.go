@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -187,7 +188,8 @@ func (s Service) processClaimed(ctx context.Context, item workflow.WorkItem, cla
 		if drainErr := drainScannerHeartbeatError(heartbeatErr); drainErr != nil {
 			return drainErr
 		}
-		return s.recordFailure(ctx, mutation, input, FailureRetryable, FailureClassSourceUnavailable, result.Usage)
+		s.logCommitFailure(input, err)
+		return s.recordFailure(ctx, mutation, input, FailureRetryable, FailureClassCommitFailed, result.Usage)
 	}
 
 	stopHeartbeat()
@@ -319,11 +321,15 @@ func (s Service) now() time.Time {
 }
 
 func scopeAndGenerationForInput(input ClaimInput, observedAt time.Time) (scope.IngestionScope, scope.ScopeGeneration) {
+	parentScopeID := strings.TrimSpace(input.Target.AcceptanceUnitID)
+	if parentScopeID == input.Target.ScopeID {
+		parentScopeID = ""
+	}
 	return scope.IngestionScope{
 			ScopeID:       input.Target.ScopeID,
 			SourceSystem:  string(scope.CollectorScannerWorker),
 			ScopeKind:     scope.KindScannerWorker,
-			ParentScopeID: input.Target.AcceptanceUnitID,
+			ParentScopeID: parentScopeID,
 			CollectorKind: scope.CollectorScannerWorker,
 			PartitionKey:  string(input.Analyzer) + ":" + input.Target.LocatorHash,
 			Metadata: map[string]string{
@@ -376,4 +382,108 @@ func (s Service) logFailure(message string, input ClaimInput, failureClass Failu
 		"work_item_id", input.WorkItemID,
 		"claim_id", input.ClaimID,
 	)
+}
+
+func (s Service) logCommitFailure(input ClaimInput, err error) {
+	if s.Logger == nil {
+		return
+	}
+	info := classifyCommitFailure(err)
+	attrs := []any{
+		telemetry.EventAttr("scanner_worker.claim.commit.failure"),
+		telemetry.FailureClassAttr(string(FailureClassCommitFailed)),
+		"commit_failure_class", info.Class,
+		"analyzer", string(input.Analyzer),
+		"target_kind", string(input.Target.Kind),
+		"target_locator_hash", input.Target.LocatorHash,
+		"work_item_id", input.WorkItemID,
+		"claim_id", input.ClaimID,
+	}
+	if info.SQLState != "" {
+		attrs = append(attrs, "commit_sqlstate", info.SQLState)
+	}
+	if info.Table != "" {
+		attrs = append(attrs, "commit_table", info.Table)
+	}
+	if info.Constraint != "" {
+		attrs = append(attrs, "commit_constraint", info.Constraint)
+	}
+	s.Logger.Warn("scanner-worker commit failed", attrs...)
+}
+
+type commitFailureInfo struct {
+	Class      string
+	SQLState   string
+	Table      string
+	Constraint string
+}
+
+func classifyCommitFailure(err error) commitFailureInfo {
+	message := strings.ToLower(strings.TrimSpace(fmt.Sprint(err)))
+	info := commitFailureInfo{Class: "unknown"}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		info.SQLState = strings.TrimSpace(pgErr.Code)
+		info.Table = strings.TrimSpace(pgErr.TableName)
+		info.Constraint = strings.TrimSpace(pgErr.ConstraintName)
+		info.Class = classifyPostgresCommitFailure(pgErr.Code)
+	}
+	switch {
+	case strings.Contains(message, "check active generation freshness"):
+		info.Class = "freshness_check"
+	case strings.Contains(message, "ingested_at must not be before observed_at"),
+		strings.Contains(message, "parent_scope_id must differ from scope_id"),
+		strings.Contains(message, "generation scope_id"),
+		strings.Contains(message, "must not be terminal before projection"):
+		info.Class = "generation_validation"
+	case strings.Contains(message, "fact store database is required"),
+		strings.Contains(message, "fact ") && strings.Contains(message, " scope_id "),
+		strings.Contains(message, "fact ") && strings.Contains(message, " generation_id "),
+		strings.Contains(message, "observed_at must not be zero"),
+		strings.Contains(message, "schema_version must be semantic version"),
+		strings.Contains(message, "source_confidence"):
+		info.Class = "fact_validation"
+	case strings.Contains(message, "verify active workflow claim"):
+		info.Class = "claim_fence"
+	case strings.Contains(message, "transaction beginner"),
+		strings.Contains(message, "begin ingestion transaction"):
+		info.Class = "transaction_begin"
+	case strings.Contains(message, "upsert ingestion scope"):
+		info.Class = "ingestion_scope"
+	case strings.Contains(message, "upsert scope generation"):
+		info.Class = "scope_generation"
+	case strings.Contains(message, "load repository catalog"):
+		info.Class = "repository_catalog"
+	case strings.Contains(message, "upsert fact batch"),
+		strings.Contains(message, "schema_version"),
+		strings.Contains(message, "read fact stream"):
+		info.Class = "fact_persistence"
+	case strings.Contains(message, "relationship evidence"),
+		strings.Contains(message, "relationship_backfill"):
+		info.Class = "relationship_evidence"
+	case strings.Contains(message, "enqueue projector work"):
+		info.Class = "projector_enqueue"
+	case strings.Contains(message, "commit ingestion transaction"):
+		info.Class = "transaction_commit"
+	}
+	return info
+}
+
+func classifyPostgresCommitFailure(code string) string {
+	switch strings.TrimSpace(code) {
+	case "23503":
+		return "database_foreign_key"
+	case "23505":
+		return "database_unique_violation"
+	case "23502":
+		return "database_not_null"
+	case "21000":
+		return "database_cardinality_violation"
+	case "40001":
+		return "database_serialization_failure"
+	case "40P01":
+		return "database_deadlock"
+	default:
+		return "database_error"
+	}
 }

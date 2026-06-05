@@ -41,6 +41,9 @@ const (
 	FailureClassUnsupportedTarget FailureClass = "unsupported_target"
 	// FailureClassSourceUnavailable covers unavailable source dependencies.
 	FailureClassSourceUnavailable FailureClass = "source_unavailable"
+	// FailureClassCommitFailed covers retryable persistence failures after a
+	// scanner worker has produced bounded source facts.
+	FailureClassCommitFailed FailureClass = "commit_failed"
 )
 
 // FailurePayload is the privacy-safe retry or dead-letter payload for scanner
@@ -121,7 +124,8 @@ func (c FailureClass) validate() error {
 		FailureClassFactLimitExceeded,
 		FailureClassTargetUnavailable,
 		FailureClassUnsupportedTarget,
-		FailureClassSourceUnavailable:
+		FailureClassSourceUnavailable,
+		FailureClassCommitFailed:
 		return nil
 	default:
 		if strings.TrimSpace(string(c)) == "" {
