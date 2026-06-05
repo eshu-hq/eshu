@@ -5,7 +5,7 @@ export function envelopePayload<TData>(response: unknown): {
   readonly data: TData;
   readonly truth?: EshuTruth;
 } {
-  if (isEnvelope(response)) {
+  if (isEnvelope<TData>(response)) {
     return unwrapEnvelope(response);
   }
   return {

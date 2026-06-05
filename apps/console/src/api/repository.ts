@@ -488,7 +488,7 @@ function fileCount(story: StoryResponse, context: ContextResponse | undefined): 
   }
   const codebase = story.story_sections?.find((section) => section.title === "codebase")?.summary;
   const match = codebase?.match(/^(\d+)/);
-  return match === undefined ? 0 : Number(match[1]);
+  return match ? Number(match[1]) : 0;
 }
 
 function totalCount(counts: Record<string, number> | undefined): number {

@@ -286,23 +286,6 @@ function LaneCards({
   );
 }
 
-function EvidenceLabels({
-  fallback,
-  labels
-}: {
-  readonly fallback: string;
-  readonly labels: readonly string[];
-}): React.JSX.Element {
-  const visibleLabels = labels.length > 0 ? labels : [fallback];
-  return (
-    <div className="service-evidence-chips">
-      {visibleLabels.map((label) => (
-        <span key={label}>{label}</span>
-      ))}
-    </div>
-  );
-}
-
 function EntryPointStrip({
   hostnames
 }: {

@@ -363,6 +363,7 @@ const spotlight: ServiceSpotlight = {
       evidenceCount: 7,
       label: "Kubernetes",
       relationshipTypes: ["DEPLOYS_FROM"],
+      resolvedCount: 3,
       sourceRepos: ["api-node-boats", "iac-eks-argocd", "helm-charts"]
     },
     {
@@ -370,6 +371,7 @@ const spotlight: ServiceSpotlight = {
       evidenceCount: 1,
       label: "ECS",
       relationshipTypes: ["PROVISIONS_DEPENDENCY_FOR"],
+      resolvedCount: 1,
       sourceRepos: ["terraform-stack-node10"]
     }
   ],

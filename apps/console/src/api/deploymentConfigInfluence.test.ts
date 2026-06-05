@@ -36,7 +36,7 @@ describe("deploymentConfigInfluenceFromResponse", () => {
       ],
       read_first_files: [
         {
-          evidence_kinds: ["helm_values_reference"],
+          evidence_kind: "helm_values_reference",
           next_call: "get_file_lines",
           relative_path: "clusters/bg-prod/api-node-boats/values.yaml",
           repo_id: "repository:iac-eks-argocd",

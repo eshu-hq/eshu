@@ -17,10 +17,6 @@ interface DeploymentGraphViewProps {
   readonly graph: DeploymentGraph;
 }
 
-const graphWidth = 1280;
-const minGraphHeight = 620;
-const semanticRowGap = 110;
-const fallbackRowGap = 96;
 const minZoom = 0.65;
 const maxZoom = 2.4;
 const zoomStep = 0.2;

@@ -100,7 +100,7 @@ export function serviceContextFromStoryDossier(
 
 function syntheticArtifactsFromLane(
   lane: NonNullable<ServiceStoryDossierResponse["deployment_lanes"]>[number]
-): NonNullable<ServiceContextResponse["deployment_evidence"]>["artifacts"] {
+): NonNullable<NonNullable<ServiceContextResponse["deployment_evidence"]>["artifacts"]> {
   const family = artifactFamily(lane.lane_type);
   const evidenceKind = family === "terraform" ? "TERRAFORM_ECS_SERVICE" : "ARGOCD_GITOPS";
   return (lane.source_repositories ?? []).map((repository, index) => ({
@@ -115,7 +115,7 @@ function syntheticArtifactsFromLane(
 
 function instancesFromLane(
   lane: NonNullable<ServiceStoryDossierResponse["deployment_lanes"]>[number]
-): ServiceContextResponse["instances"] {
+): NonNullable<ServiceContextResponse["instances"]> {
   const environments = lane.environments?.length === 0 ? ["observed"] : lane.environments;
   return (environments ?? ["observed"]).map((environment) => ({
     environment,

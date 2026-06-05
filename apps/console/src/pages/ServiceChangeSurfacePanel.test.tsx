@@ -188,6 +188,13 @@ const spotlight: ServiceSpotlight = {
     references: 0,
     upstream: 0
   },
+  relationshipClusters: [],
   repoName: "api-node-boats",
-  summary: "api-node-boats service"
+  summary: "api-node-boats service",
+  trust: {
+    basis: "graph evidence",
+    freshness: "fresh",
+    level: "exact",
+    profile: "local_full_stack"
+  }
 };

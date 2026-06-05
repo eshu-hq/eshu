@@ -1,92 +1,35 @@
-import { useEffect, useMemo, useState } from "react";
-import { EshuApiClient } from "../api/client";
-import { loadFindingRows } from "../api/liveData";
-import type { FindingRow } from "../api/mockData";
-import { loadConsoleEnvironment } from "../config/environment";
+// pages/FindingsPage.tsx
+import type { ConsoleModel } from "../console/types";
+import { Panel, StatTile, TruthChip, Badge } from "../components/atoms";
 
-export function FindingsPage(): React.JSX.Element {
-  const [rows, setRows] = useState<readonly FindingRow[]>([]);
-  const [query, setQuery] = useState("");
-  const [loadState, setLoadState] = useState<"loading" | "ready" | "unavailable">(
-    "loading"
-  );
-
-  useEffect(() => {
-    const environment = loadConsoleEnvironment();
-    const client =
-      environment.mode === "private"
-        ? new EshuApiClient({
-          apiKey: environment.apiKey,
-          baseUrl: environment.apiBaseUrl
-        })
-        : undefined;
-    void loadFindingRows({ client, mode: environment.mode })
-      .then((loadedRows) => {
-        setRows(loadedRows);
-        setLoadState("ready");
-      })
-      .catch(() => {
-        setRows([]);
-        setLoadState("unavailable");
-      });
-  }, []);
-
-  const filteredRows = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    if (normalized.length === 0) {
-      return rows;
-    }
-    return rows.filter((row) =>
-      `${row.findingType} ${row.name} ${row.entity} ${row.location}`
-        .toLowerCase()
-        .includes(normalized)
-    );
-  }, [query, rows]);
-
+export function FindingsPage({ model }: { readonly model: ConsoleModel }): React.JSX.Element {
+  const byType = new Map<string, number>();
+  model.findings.forEach((f) => byType.set(f.type, (byType.get(f.type) ?? 0) + 1));
   return (
-    <section className="page-shell">
-      <div className="page-intro">
-        <h1>Findings</h1>
-        <p>Search cleanup candidates by repo, symbol, file, or finding type.</p>
+    <div className="page">
+      <div className="page-intro"><h2>Findings</h2><p>What needs human attention — each finding carries its truth level and source.</p></div>
+      <div className="grid g-4">
+        <StatTile label="Open findings" value={model.findings.length} color="var(--ember)" sub={model.source === "live" ? "live from the graph" : "demo"} />
+        <StatTile label="Dead code" value={byType.get("Dead code") ?? 0} color="var(--violet)" sub="graph-backed candidates" />
+        <StatTile label="Vulnerability" value={byType.get("Vulnerability") ?? 0} color="var(--crit)" sub="reachable advisories" />
+        <StatTile label="Types" value={byType.size} color="var(--blue)" sub="distinct categories" />
       </div>
-      {loadState === "loading" ? <p className="inline-state">Loading live data.</p> : null}
-      {loadState === "unavailable" ? (
-        <p className="inline-state">Local Eshu API unavailable.</p>
-      ) : null}
-      <div className="table-toolbar">
-        <label>
-          <span>Search findings</span>
-          <input
-            aria-label="Search findings"
-            onChange={(event) => setQuery(event.currentTarget.value)}
-            placeholder="Filter by repo, symbol, or path"
-            value={query}
-          />
-        </label>
-        <strong>{rows.length} findings</strong>
-      </div>
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th>Type</th>
-            <th>Name</th>
-            <th>Entity</th>
-            <th>Location</th>
-            <th>Truth</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredRows.map((row) => (
-            <tr key={`${row.findingType}:${row.name}`}>
-              <td>{row.findingType}</td>
-              <td>{row.name}</td>
-              <td>{row.entity}</td>
-              <td>{row.location}</td>
-              <td>{row.truthLevel}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </section>
+      <Panel className="flush mt" title="All findings">
+        <table className="tbl">
+          <thead><tr><th>Finding</th><th>Type</th><th>Entity</th><th>Truth</th></tr></thead>
+          <tbody>
+            {model.findings.map((f) => (
+              <tr key={f.id}>
+                <td className="cell-stack" style={{ maxWidth: 460 }}><span style={{ color: "var(--bone)", fontWeight: 600 }}>{f.title}</span><small>{f.detail}</small></td>
+                <td><Badge tone="neutral">{f.type}</Badge></td>
+                <td className="t-name" style={{ fontSize: ".8rem" }}>{f.entity}</td>
+                <td><TruthChip level={f.truth === "fallback" ? "inferred" : f.truth === "derived" ? "derived" : "exact"} /></td>
+              </tr>
+            ))}
+            {model.findings.length === 0 ? <tr><td colSpan={4} className="empty">No findings from this source.</td></tr> : null}
+          </tbody>
+        </table>
+      </Panel>
+    </div>
   );
 }

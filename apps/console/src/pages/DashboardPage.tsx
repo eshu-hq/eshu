@@ -1,437 +1,90 @@
-import { useEffect, useState } from "react";
-import { EshuApiClient } from "../api/client";
-import { loadDashboardSnapshot } from "../api/dashboardSnapshot";
-import type { DashboardMetric, DashboardSnapshot, EvidenceRow } from "../api/mockData";
-import { loadServiceSpotlight } from "../api/serviceSpotlight";
-import type { ServiceSpotlight } from "../api/serviceSpotlight";
-import { loadConsoleEnvironment } from "../config/environment";
-import { DeploymentGraphView } from "../visualization/DeploymentGraphView";
-import { ServiceSpotlightPanel } from "./ServiceSpotlightPanel";
+// pages/DashboardPage.tsx
+import { useState } from "react";
+import type { ConsoleModel, GraphNode } from "../console/types";
+import { fmt, LAYER_COLOR, SEVERITY_COLOR, uiTruth } from "../console/types";
+import { StatTile, Panel, TruthChip } from "../components/atoms";
+import { AreaChart, Donut, BarRows } from "../components/charts";
+import { GraphCanvas } from "../components/GraphCanvas";
 
-export function DashboardPage(): React.JSX.Element {
-  const [snapshot, setSnapshot] = useState<DashboardSnapshot | undefined>();
-  const [metrics, setMetrics] = useState<readonly DashboardMetric[]>([]);
-  const [selectedEvidence, setSelectedEvidence] = useState<EvidenceRow | undefined>();
-  const [selectedMetric, setSelectedMetric] = useState<DashboardMetric | undefined>();
-  const [serviceSpotlight, setServiceSpotlight] = useState<ServiceSpotlight | undefined>();
-  const [loadError, setLoadError] = useState<string>("");
-  const [loadState, setLoadState] = useState<"loading" | "ready" | "unavailable">(
-    "loading"
+export function DashboardPage({ model, onOpenService }: { readonly model: ConsoleModel; readonly onOpenService?: (name: string) => void }): React.JSX.Element {
+  const r = model.runtime;
+  const [sel, setSel] = useState<GraphNode | undefined>(model.graph.nodes.find((n) => n.hero));
+  const sevTotals = model.vulnerabilities.reduce(
+    (a, v) => { const k = v.severity as keyof typeof a; if (k in a) a[k] += 1; return a; },
+    { critical: 0, high: 0, medium: 0, low: 0 }
   );
-
-  useEffect(() => {
-    const environment = loadConsoleEnvironment();
-    const client =
-      environment.mode === "private"
-        ? new EshuApiClient({
-          apiKey: environment.apiKey,
-          baseUrl: environment.apiBaseUrl
-        })
-        : undefined;
-    void loadDashboardSnapshot({ client, mode: environment.mode })
-      .then((loadedSnapshot) => {
-        setSnapshot(loadedSnapshot);
-        setMetrics(loadedSnapshot.metrics);
-        setSelectedEvidence(loadedSnapshot.evidence[0]);
-        setSelectedMetric(loadedSnapshot.metrics[0]);
-        setServiceSpotlight(loadedSnapshot.serviceSpotlight);
-        setLoadError("");
-        setLoadState("ready");
-        if (client !== undefined && loadedSnapshot.repositories !== undefined) {
-          void loadServiceSpotlight(client, loadedSnapshot.repositories)
-            .then(setServiceSpotlight)
-            .catch(() => setServiceSpotlight(undefined));
-        }
-      })
-      .catch((error: unknown) => {
-        setSnapshot(undefined);
-        setMetrics([]);
-        setSelectedEvidence(undefined);
-        setServiceSpotlight(undefined);
-        setLoadError(errorMessage(error));
-        setLoadState("unavailable");
-      });
-  }, []);
+  const relRows = model.relationships.slice().sort((a, b) => b.count - a.count).slice(0, 7)
+    .map((x) => ({ label: x.verb, value: x.count, color: LAYER_COLOR[x.layer], detail: x.detail }));
+  const serviceNames = new Set(model.services.map((s) => s.name));
 
   return (
-    <section className="page-shell">
-      <div className="page-intro">
-        <h1>Dashboard</h1>
-        <p>Read-only runtime, indexing, collector, and freshness status.</p>
+    <div className="page">
+      <div className="grid g-4">
+        <StatTile label="Repositories" value={fmt(r.repositories)} spark={model.series.graphNodes} color="var(--teal)" sub={`${r.workloads} workloads · ${r.instances} instances`} />
+        <StatTile label="Index status" value={r.indexStatus} color="var(--ember)" sub={`profile ${r.profile}`} />
+        <StatTile label="Queue outstanding" value={r.queueOutstanding} spark={model.series.queueDepth} color="var(--violet)" sub={`${r.inFlight} in-flight · ${r.deadLetters} dead-letter`} />
+        <StatTile label="Succeeded" value={fmt(r.succeeded)} color="var(--blue)" sub="work items (run)" />
       </div>
-      {loadState === "loading" ? <p className="inline-state">Loading live data.</p> : null}
-      {loadState === "unavailable" ? (
-        <p className="inline-state">
-          Local Eshu API unavailable{loadError.length > 0 ? `: ${loadError}` : ""}.
-        </p>
-      ) : null}
-      {metrics.length > 0 ? <RunReadiness metrics={metrics} /> : null}
-      {serviceSpotlight !== undefined ? (
-        <ServiceSpotlightPanel spotlight={serviceSpotlight} />
-      ) : null}
-      {snapshot !== undefined ? (
-        <section className="dashboard-atlas" aria-label="Deployment relationship atlas">
-          <div className="dashboard-atlas-copy">
-            <h2>Deployment relationship graph</h2>
-            <p>{snapshot.story}</p>
-            <p className="atlas-note">
-              Read this from left to right: source evidence, controller evidence, workload,
-              runtime placement, then supporting artifacts. Pick a node or edge to inspect the
-              exact relationship.
-            </p>
-          </div>
-          {snapshot.graph.nodes.length > 1 ? (
-            <DeploymentGraphView
-              ariaLabel="Workspace relationship graph"
-              detailTitle="Typed evidence"
-              graph={snapshot.graph}
-            />
-          ) : (
-            <p className="inline-state">No deployment relationship graph is available yet.</p>
-          )}
-        </section>
-      ) : null}
-      {snapshot !== undefined ? (
-        <RelationshipCoverage relationships={snapshot.relationships} />
-      ) : null}
-      {snapshot !== undefined && snapshot.evidence.length > 0 ? (
-        <section className="relationship-evidence" aria-label="Relationship evidence">
-          <h2>Evidence trail</h2>
-          <div className="relationship-evidence-grid">
-            <div className="relationship-evidence-list">
-              {snapshot.evidence.map((row) => (
-                <EvidenceTrailRow
-                  isSelected={evidenceKey(row) === evidenceKey(selectedEvidence)}
-                  key={evidenceKey(row)}
-                  onSelect={setSelectedEvidence}
-                  row={row}
-                />
-              ))}
+
+      <Panel className="mt" title="Code-to-cloud relationship atlas" sub="Select a node to inspect its typed evidence">
+        <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr) 300px", gap: "var(--gap)", alignItems: "start" }}>
+          <GraphCanvas graph={model.graph} height={460} onSelect={setSel} selectedId={sel?.id} />
+          <div className="panel" style={{ background: "var(--bg-field)", boxShadow: "none" }}>
+            <div className="panel-body">
+              {sel ? (
+                <div className="inspector">
+                  <div className="insp-head"><div><div className="insp-kind">{sel.kind}</div><div className="insp-title">{sel.label}</div></div></div>
+                  {sel.sub ? <div className="t-mut mono" style={{ fontSize: ".82rem" }}>{sel.sub}</div> : null}
+                  {sel.truth ? <TruthChip level={sel.truth} /> : null}
+                  {(sel.kind === "service" || sel.kind === "workload") && onOpenService ? <button className="btn-ghost active" style={{ width: "100%", justifyContent: "center" }} onClick={() => onOpenService(sel.label)}>Open spotlight →</button> : null}
+                  <div className="insp-evi">
+                    {model.graph.edges.filter((e) => e.s === sel.id || e.t === sel.id).map((e, i) => (
+                      <div className="insp-evi-row" key={i}>{e.verb} {e.s === sel.id ? `→ ${e.t}` : `← ${e.s}`}</div>
+                    ))}
+                  </div>
+                </div>
+              ) : <p className="empty">Select a node.</p>}
             </div>
-            <EvidenceDossier row={selectedEvidence ?? snapshot.evidence[0]} />
           </div>
-        </section>
-      ) : null}
-      <div className="dashboard-layout">
-        <div className="dashboard-column">
-          <section className="dashboard-story" aria-label="Runtime summary">
-            <h2>Runtime summary</h2>
-            <p>{dashboardSummary(metrics)}</p>
-            <dl className="summary-metrics">
-              {summaryMetrics(metrics).map((metric) => (
-                <div key={metric.label}>
-                  <dt>{metric.label}</dt>
-                  <dd>{metric.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-          <section className="runtime-ledger" aria-label="Runtime metrics">
-            <h2>Runtime metrics</h2>
-            <table className="data-table status-table">
-              <thead>
-                <tr>
-                  <th>Status</th>
-                  <th>Value</th>
-                  <th>Use</th>
+        </div>
+      </Panel>
+
+      <div className="grid mt" style={{ gridTemplateColumns: "minmax(0,1.5fr) minmax(0,1fr)", gap: "var(--gap)" }}>
+        <Panel title="Ingestion throughput" sub="Facts committed per minute">
+          <AreaChart data={model.series.ingestRate} color="var(--teal)" h={190} unit=" f/m" />
+        </Panel>
+        <Panel title="Security posture" sub={`${sevTotals.critical} critical · ${sevTotals.high} high`}>
+          <div style={{ display: "grid", placeItems: "center", marginBottom: 12 }}>
+            <Donut size={138} thickness={17} center={{ value: sevTotals.critical + sevTotals.high, label: "crit + high" }}
+              segments={(["critical", "high", "medium", "low"] as const).map((k) => ({ label: k, value: sevTotals[k], color: SEVERITY_COLOR[k] }))} />
+          </div>
+        </Panel>
+      </div>
+
+      <Panel className="mt" title="Relationship coverage" sub="Most-observed typed verbs">
+        <BarRows rows={relRows} />
+      </Panel>
+
+      <Panel className="mt flush" title="Needs attention" sub="Highest-severity findings with evidence">
+        <table className="tbl">
+          <thead><tr><th>Finding</th><th>Type</th><th>Entity</th><th>Truth</th></tr></thead>
+          <tbody>
+            {model.findings.map((f) => {
+              // Only services/workloads have a spotlight drawer. Findings keyed by
+              // a repo or other entity (e.g. dead code) must not open an empty one.
+              const canOpen = onOpenService !== undefined && serviceNames.has(f.entity);
+              return (
+                <tr key={f.id} onClick={canOpen ? () => onOpenService(f.entity) : undefined} style={canOpen ? { cursor: "pointer" } : undefined}>
+                  <td className="cell-stack"><span style={{ color: "var(--bone)", fontWeight: 600 }}>{f.title}</span><small>{f.detail}</small></td>
+                  <td className="t-mut">{f.type}</td>
+                  <td className="t-name">{f.entity}</td>
+                  <td><TruthChip level={uiTruth(f.truth)} /></td>
                 </tr>
-              </thead>
-              <tbody>
-                {metrics.map((metric) => (
-                  <tr key={metric.label}>
-                    <td>
-                      <button
-                        aria-label={`Inspect ${metric.label} ${metric.value}`}
-                        className="row-button"
-                        onClick={() => setSelectedMetric(metric)}
-                        type="button"
-                      >
-                        {metric.label}
-                      </button>
-                    </td>
-                    <td>{metric.value}</td>
-                    <td>{metricNarrative(metric)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-        </div>
-        <div className="dashboard-column">
-          <section className="queue-ledger" aria-label="Queue ledger">
-            <h2>Queue ledger</h2>
-            {queueMetrics(metrics).map((metric) => (
-              <button
-                aria-label={`${metric.label} ${metric.value}`}
-                className="ledger-row"
-                key={metric.label}
-                onClick={() => setSelectedMetric(metric)}
-                type="button"
-              >
-                <span>{metric.label}</span>
-                <strong>{metric.value}</strong>
-                <span>{metricNarrative(metric)}</span>
-              </button>
-            ))}
-          </section>
-          {selectedMetric !== undefined ? (
-            <section className="detail-panel" aria-label="Runtime dossier">
-              <h2>Runtime dossier</h2>
-              <dl>
-                <div>
-                  <dt>Selected</dt>
-                  <dd>{selectedMetric.label}</dd>
-                </div>
-                <div>
-                  <dt>Value</dt>
-                  <dd>{selectedMetric.value}</dd>
-                </div>
-                <div>
-                  <dt>Meaning</dt>
-                  <dd>{metricNarrative(selectedMetric)}</dd>
-                </div>
-              </dl>
-            </section>
-          ) : null}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function RunReadiness({
-  metrics
-}: {
-  readonly metrics: readonly DashboardMetric[];
-}): React.JSX.Element {
-  const readinessMetrics = [
-    "Index status",
-    "Graph repositories",
-    "Catalog repositories",
-    "Queue outstanding",
-    "Dead letters"
-  ].flatMap((label) => {
-    const metric = metricByLabel(metrics, label);
-    return metric === undefined ? [] : [metric];
-  });
-
-  return (
-    <section aria-label="Run readiness" className="run-readiness">
-      <div>
-        <h2>Run readiness</h2>
-        <p>{readinessSummary(metrics)}</p>
-      </div>
-      <dl>
-        {readinessMetrics.map((metric) => (
-          <div key={metric.label}>
-            <dt>{metric.label}</dt>
-            <dd>{metric.value}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
-  );
-}
-
-function RelationshipCoverage({
-  relationships
-}: {
-  readonly relationships: readonly DashboardSnapshot["relationships"][number][];
-}): React.JSX.Element {
-  const canonicalRelationships = relationships.filter(
-    (relationship) => relationship.layer !== "topology"
-  );
-  const topologyRelationships = relationships.filter(
-    (relationship) => relationship.layer === "topology"
-  );
-  return (
-    <section aria-label="Relationship coverage" className="relationship-coverage">
-      <div className="section-heading-row">
-        <div>
-          <h2>Relationship coverage</h2>
-          <p>Known Eshu verbs, separated into canonical deployment truth and topology hints.</p>
-        </div>
-        <span>{relationships.filter((relationship) => relationship.count > 0).length} observed</span>
-      </div>
-      <CoverageGroup relationships={canonicalRelationships} title="Canonical verbs" />
-      <CoverageGroup relationships={topologyRelationships} title="Runtime topology" />
-    </section>
-  );
-}
-
-function CoverageGroup({
-  relationships,
-  title
-}: {
-  readonly relationships: readonly DashboardSnapshot["relationships"][number][];
-  readonly title: string;
-}): React.JSX.Element {
-  return (
-    <div className="coverage-group">
-      <h3>{title}</h3>
-      <div className="coverage-table" role="table">
-        {relationships.map((relationship) => (
-          <div className="coverage-row" key={relationship.verb} role="row">
-            <strong role="cell">{relationship.verb}</strong>
-            <span role="cell">{relationship.detail}</span>
-            <b role="cell">{relationship.count}</b>
-            <em role="cell">{relationship.count > 0 ? "Observed" : "Missing"}</em>
-          </div>
-        ))}
-      </div>
+              );
+            })}
+          </tbody>
+        </table>
+      </Panel>
     </div>
   );
-}
-
-function EvidenceTrailRow({
-  isSelected,
-  onSelect,
-  row
-}: {
-  readonly isSelected: boolean;
-  readonly onSelect: (row: EvidenceRow) => void;
-  readonly row: EvidenceRow;
-}): React.JSX.Element {
-  return (
-    <article
-      className={
-        isSelected ? "relationship-evidence-row relationship-evidence-row-selected" : "relationship-evidence-row"
-      }
-    >
-      <button
-        aria-pressed={isSelected}
-        className="evidence-select"
-        onClick={() => onSelect(row)}
-        type="button"
-      >
-        <strong>{row.title ?? row.basis}</strong>
-        <p>{row.summary}</p>
-      </button>
-      <dl>
-        <div>
-          <dt>Verb</dt>
-          <dd>{row.basis}</dd>
-        </div>
-        <div>
-          <dt>Source</dt>
-          <dd>{row.source}</dd>
-        </div>
-        <div>
-          <dt>Path</dt>
-          <dd>{row.detailPath ?? "evidence"}</dd>
-        </div>
-      </dl>
-    </article>
-  );
-}
-
-function EvidenceDossier({ row }: { readonly row: EvidenceRow | undefined }): React.JSX.Element {
-  if (row === undefined) {
-    return (
-      <aside aria-label="Evidence dossier" className="evidence-dossier">
-        <h2>Evidence dossier</h2>
-        <p>No relationship evidence has been selected yet.</p>
-      </aside>
-    );
-  }
-  return (
-    <aside aria-label="Evidence dossier" className="evidence-dossier">
-      <h2>Evidence dossier</h2>
-      <p>{row.summary}</p>
-      <dl>
-        <div>
-          <dt>Verb</dt>
-          <dd>{row.basis}</dd>
-        </div>
-        <div>
-          <dt>Source</dt>
-          <dd>{row.source}</dd>
-        </div>
-        <div>
-          <dt>Category</dt>
-          <dd>{row.category ?? "relationship evidence"}</dd>
-        </div>
-        <div>
-          <dt>Path</dt>
-          <dd>{row.detailPath ?? "evidence"}</dd>
-        </div>
-      </dl>
-    </aside>
-  );
-}
-
-function evidenceKey(row: EvidenceRow | undefined): string {
-  if (row === undefined) {
-    return "";
-  }
-  return `${row.source}:${row.basis}:${row.detailPath ?? row.summary}`;
-}
-
-function metricByLabel(
-  metrics: readonly DashboardMetric[],
-  label: string
-): DashboardMetric | undefined {
-  return metrics.find((metric) => metric.label === label);
-}
-
-function summaryMetrics(metrics: readonly DashboardMetric[]): readonly DashboardMetric[] {
-  return [
-    "Index status",
-    "Graph repositories",
-    "Catalog repositories",
-    "Succeeded work"
-  ].flatMap((label) => {
-    const metric = metricByLabel(metrics, label);
-    return metric === undefined ? [] : [metric];
-  });
-}
-
-function queueMetrics(metrics: readonly DashboardMetric[]): readonly DashboardMetric[] {
-  return ["Queue outstanding", "In flight", "Pending work", "Dead letters"].flatMap(
-    (label) => {
-      const metric = metricByLabel(metrics, label);
-      return metric === undefined ? [] : [metric];
-    }
-  );
-}
-
-function dashboardSummary(metrics: readonly DashboardMetric[]): string {
-  const status = metricByLabel(metrics, "Index status")?.value ?? "unknown";
-  const graphRepos = metricByLabel(metrics, "Graph repositories")?.value ?? "0";
-  const catalogRepos = metricByLabel(metrics, "Catalog repositories")?.value ?? "0";
-  const outstanding = metricByLabel(metrics, "Queue outstanding")?.value ?? "0";
-  const deadLetters = metricByLabel(metrics, "Dead letters")?.value ?? "0";
-  return `${graphRepos} repositories indexed by graph status, ${catalogRepos} available in catalog drilldown, ${outstanding} outstanding queue item(s), and ${deadLetters} dead letter(s). Current index state is ${status}.`;
-}
-
-function readinessSummary(metrics: readonly DashboardMetric[]): string {
-  const status = metricByLabel(metrics, "Index status")?.value ?? "unknown";
-  const outstanding = metricByLabel(metrics, "Queue outstanding")?.value ?? "0";
-  const deadLetters = metricByLabel(metrics, "Dead letters")?.value ?? "0";
-  return `Current run is ${status}; queue has ${outstanding} outstanding item(s) and ${deadLetters} dead letter(s).`;
-}
-
-function metricNarrative(metric: DashboardMetric): string {
-  if (metric.detail !== undefined && metric.detail.trim().length > 0) {
-    return metric.detail;
-  }
-  if (metric.label === "Queue outstanding") {
-    return metric.value === "0"
-      ? "No queued work is waiting on reducers or projectors."
-      : `${metric.value} work item(s) still need reducer or projector attention.`;
-  }
-  if (metric.label === "Catalog repositories") {
-    return `${metric.value} repositories are available through catalog drilldown.`;
-  }
-  if (metric.label === "Index status") {
-    return `Index status is ${metric.value}.`;
-  }
-  return `${metric.label}: ${metric.value}.`;
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message.trim();
-  }
-  return "";
 }
