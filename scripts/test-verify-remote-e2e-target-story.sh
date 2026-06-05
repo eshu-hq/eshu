@@ -169,6 +169,17 @@ if rg -q 'repo://example/api|oci-registry://registry.example/team/api' /tmp/eshu
 fi
 
 reset_state
+jq 'del(.proof_mode)' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
+mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
+export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
+expect_pass
+if ! rg -q 'proof_mode=code_to_cloud' /tmp/eshu-remote-e2e-target-story.out; then
+  printf 'expected target-story proof mode default in output\n' >&2
+  sed -n '1,200p' /tmp/eshu-remote-e2e-target-story.out >&2
+  exit 1
+fi
+
+reset_state
 jq '.expected_security_alert_repository = "repository:r_example_api"' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
 mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
 export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
