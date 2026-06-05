@@ -54,17 +54,21 @@ func serviceCatalogFactCountForFile(
 	relativePath string,
 	body []byte,
 ) int {
-	if _, ok := serviceCatalogProviderForPath(relativePath); !ok {
+	sourceURI, ok := serviceCatalogSourceURI(relativePath)
+	if !ok {
+		return 0
+	}
+	if _, ok := serviceCatalogProviderForPath(sourceURI); !ok {
 		return 0
 	}
 	if body == nil {
-		raw, err := os.ReadFile(filepath.Join(repoPath, filepath.FromSlash(relativePath)))
+		raw, err := os.ReadFile(filepath.Join(repoPath, filepath.FromSlash(sourceURI)))
 		if err != nil {
 			return 0
 		}
 		body = raw
 	}
-	return len(serviceCatalogManifestEnvelopes(body, scopeID, generationID, observedAt, relativePath))
+	return len(serviceCatalogManifestEnvelopes(body, scopeID, generationID, observedAt, sourceURI))
 }
 
 func emitServiceCatalogFactsForContentFile(
@@ -93,7 +97,11 @@ func serviceCatalogManifestEnvelopes(
 	observedAt time.Time,
 	relativePath string,
 ) []facts.Envelope {
-	provider, ok := serviceCatalogProviderForPath(relativePath)
+	sourceURI, ok := serviceCatalogSourceURI(relativePath)
+	if !ok {
+		return nil
+	}
+	provider, ok := serviceCatalogProviderForPath(sourceURI)
 	if !ok {
 		return nil
 	}
@@ -102,7 +110,7 @@ func serviceCatalogManifestEnvelopes(
 		GenerationID:        generationID,
 		CollectorInstanceID: gitServiceCatalogCollectorInstanceID,
 		ObservedAt:          observedAt,
-		SourceURI:           serviceCatalogSourceURI(relativePath),
+		SourceURI:           sourceURI,
 	}
 	var (
 		envelopes []facts.Envelope
@@ -123,7 +131,11 @@ func serviceCatalogManifestEnvelopes(
 }
 
 func serviceCatalogProviderForPath(relativePath string) (servicecatalog.Provider, bool) {
-	base := strings.ToLower(path.Base(serviceCatalogSourceURI(relativePath)))
+	sourceURI, ok := serviceCatalogSourceURI(relativePath)
+	if !ok {
+		return "", false
+	}
+	base := strings.ToLower(path.Base(sourceURI))
 	switch base {
 	case "catalog-info.yaml", "catalog-info.yml":
 		return servicecatalog.ProviderBackstage, true
@@ -136,6 +148,10 @@ func serviceCatalogProviderForPath(relativePath string) (servicecatalog.Provider
 	}
 }
 
-func serviceCatalogSourceURI(relativePath string) string {
-	return path.Clean(filepath.ToSlash(strings.TrimSpace(relativePath)))
+func serviceCatalogSourceURI(relativePath string) (string, bool) {
+	sourceURI := path.Clean(filepath.ToSlash(strings.TrimSpace(relativePath)))
+	if sourceURI == "." || path.IsAbs(sourceURI) || sourceURI == ".." || strings.HasPrefix(sourceURI, "../") {
+		return "", false
+	}
+	return sourceURI, true
 }

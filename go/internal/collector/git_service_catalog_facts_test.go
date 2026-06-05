@@ -195,6 +195,21 @@ func TestServiceCatalogProviderForPathIsNarrow(t *testing.T) {
 			relativePath: "cortex_scorecard.yaml",
 			wantOK:       false,
 		},
+		{
+			name:         "absolute backstage path rejected",
+			relativePath: "/catalog-info.yaml",
+			wantOK:       false,
+		},
+		{
+			name:         "parent traversal backstage path rejected",
+			relativePath: "../catalog-info.yaml",
+			wantOK:       false,
+		},
+		{
+			name:         "cleaned parent traversal rejected",
+			relativePath: "services/../../catalog-info.yaml",
+			wantOK:       false,
+		},
 	}
 
 	for _, testCase := range testCases {
