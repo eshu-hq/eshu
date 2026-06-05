@@ -14,6 +14,7 @@ ingester status, and indexed bundle candidate search.
 - `GET /api/v0/repositories/{repo_id}/stats`
 - `GET /api/v0/repositories/{repo_id}/tree`
 - `GET /api/v0/repositories/{repo_id}/content`
+- `GET /api/v0/repositories/{repo_id}/branches`
 - `GET /api/v0/repositories/{repo_id}/coverage`
 
 Repository routes accept a repository selector in `{repo_id}`. The selector may
@@ -107,6 +108,16 @@ indexed commit SHA, and `language` is included when the content store recorded
 it. A missing path or unknown repository returns a `404` envelope. This endpoint
 returns the same redacted content the content store holds; it never reveals
 secrets the collectors strip during indexing.
+
+`GET /api/v0/repositories/{repo_id}/branches` returns the refs the console
+branch selector uses. Git branch names are not captured by ingestion yet, so
+this reports the single indexed commit ref per repository — one `branches[]`
+entry carrying `head_sha` (the indexed `commit_sha`) and `last_indexed_at`,
+with an empty `name` and `default_branch` — truth-labeled `derived` rather than
+fabricating a multi-branch list. A repository with no indexed commit returns an
+empty `branches` array; an unknown repository returns a `404` envelope. When git
+ref ingestion lands, this endpoint will return the full `default_branch` and
+per-branch head list.
 
 Repository responses should be treated as:
 
