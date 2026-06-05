@@ -49,6 +49,20 @@
   histogram, and gauge instruments in `NewMetrics`; run
   `go test ./internal/coordinator -count=1`.
 
+- **Add a new periodic external-API collector scheduler** (template:
+  `grafana_scheduler.go` + `grafana_service.go`) → add a `<Kind>Planner`
+  interface and a planner field on `Service` in `service.go`; add the concrete
+  `PlanXxxWork` planner in `<kind>_scheduler.go` that emits one work item per
+  enabled `configuration.targets[]` entry with a per-target `FairnessKey` so
+  concurrent reconciles never claim the same target twice; add
+  `schedule<Kind>Work`, `shouldSchedule<Kind>`, and `<kind>PlanKey` in
+  `<kind>_service.go`; call `schedule<Kind>Work` in `runReconcile` adjacent to
+  the existing schedule calls (guarded by active mode and `ClaimsEnabled`); wire
+  the concrete planner in `go/cmd/workflow-coordinator/main.go`; add the
+  `CollectorKind` constant in `internal/scope/scope.go`. The planner must be
+  idempotent: `RunID`, `WorkItemID`, and `GenerationID` are derived from the
+  instance and plan key only. Run `go test ./internal/coordinator ./internal/scope -count=1`.
+
 - **Change the reconcile interval default** → edit `defaultReconcileInterval`
   in `config.go`; document the change in `README.md` and the configuration
   table; verify that `Config.Validate` still passes with the new default.

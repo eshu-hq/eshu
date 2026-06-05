@@ -26,7 +26,10 @@
 // scope so concurrent reconciles never contend for one metric source.
 // TempoWorkPlanner plans one bounded trace-signal work item per enabled
 // Grafana Tempo target parsed from collector instance configuration, skipping
-// disabled targets. ScannerWorkerWorkPlanner plans explicit scanner-worker source
+// disabled targets. GrafanaWorkPlanner plans one bounded observability work item
+// per enabled Grafana target parsed from configuration.targets, skipping disabled
+// targets and partitioning by a per-target fairness key so concurrent reconciles
+// never claim the same target twice. ScannerWorkerWorkPlanner plans explicit scanner-worker source
 // evidence targets so a healthy worker must still have claimable work before a
 // proof can count source evidence. AWSScheduledWorkPlanner and
 // AWSFreshnessWorkPlanner plan ordinary AWS collector work from configured

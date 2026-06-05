@@ -92,6 +92,11 @@ const (
 	// collector. It polls a configured Tempo query API for bounded trace-signal
 	// metadata and emits redacted source facts; it never reads trace payloads.
 	CollectorTempo CollectorKind = "tempo"
+	// CollectorGrafana represents the read-only Grafana observability metadata
+	// collector. It observes a configured Grafana API target with a read-only
+	// token and emits bounded folder, dashboard, datasource, and alert-rule
+	// source facts; it never mutates the Grafana instance.
+	CollectorGrafana CollectorKind = "grafana"
 )
 
 // TriggerKind identifies how a generation was produced.
