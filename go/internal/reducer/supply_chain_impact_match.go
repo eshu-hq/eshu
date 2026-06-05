@@ -134,12 +134,7 @@ func supplyChainDeploymentContextFromEnvelope(envelope facts.Envelope) supplyCha
 }
 
 func supplyChainWorkloadContextsFromEnvelope(envelope facts.Envelope) []supplyChainWorkloadContext {
-	repositoryID := firstNonBlank(
-		payloadStr(envelope.Payload, "repository_id"),
-		payloadStr(envelope.Payload, "repo_id"),
-		payloadStr(envelope.Payload, "scope_id"),
-		envelope.ScopeID,
-	)
+	repositoryID := supplyChainWorkloadRepositoryID(envelope)
 	workloadIDs := supplyChainWorkloadIDsFromPayload(envelope.Payload)
 	if repositoryID == "" || len(workloadIDs) == 0 {
 		return nil
@@ -153,6 +148,40 @@ func supplyChainWorkloadContextsFromEnvelope(envelope facts.Envelope) []supplyCh
 		})
 	}
 	return out
+}
+
+func supplyChainWorkloadRepositoryID(envelope facts.Envelope) string {
+	direct := firstNonBlank(
+		payloadStr(envelope.Payload, "repository_id"),
+		payloadStr(envelope.Payload, "repo_id"),
+	)
+	if direct != "" {
+		return direct
+	}
+	scoped := firstNonBlank(
+		payloadStr(envelope.Payload, "scope_id"),
+		envelope.ScopeID,
+	)
+	if repositoryID := repositoryIDFromReducerScope(scoped); repositoryID != "" {
+		return repositoryID
+	}
+	for _, scopeID := range payloadOrderedStrings(envelope.Payload, "related_scope_ids") {
+		if repositoryID := repositoryIDFromReducerScope(scopeID); repositoryID != "" {
+			return repositoryID
+		}
+	}
+	return strings.TrimSpace(scoped)
+}
+
+func repositoryIDFromReducerScope(scopeID string) string {
+	scopeID = strings.TrimSpace(scopeID)
+	if strings.HasPrefix(scopeID, "repository:") {
+		return scopeID
+	}
+	if strings.HasPrefix(scopeID, "git-repository-scope:") {
+		return strings.TrimSpace(strings.TrimPrefix(scopeID, "git-repository-scope:"))
+	}
+	return ""
 }
 
 func supplyChainWorkloadIDsFromPayload(payload map[string]any) []string {
