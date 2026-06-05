@@ -1,4 +1,5 @@
 // pages/VulnerabilitiesPage.tsx
+import { Link } from "react-router-dom";
 import type { ConsoleModel, Severity } from "../console/types";
 import { SEVERITY_COLOR } from "../console/types";
 import { Panel, StatTile, Badge } from "../components/atoms";
@@ -32,7 +33,7 @@ export function VulnerabilitiesPage({ model }: { readonly model: ConsoleModel })
             <tbody>
               {rows.map((v) => (
                 <tr key={v.id}>
-                  <td className="row" style={{ gap: 7 }}><span className="t-name" style={{ fontSize: ".8rem" }}>{v.id}</span>{v.kev ? <span className="kev-flag">KEV</span> : null}</td>
+                  <td className="row" style={{ gap: 7 }}><Link to={`/vulnerabilities/${encodeURIComponent(v.id)}`} className="t-name link-btn" style={{ fontSize: ".8rem" }}>{v.id}</Link>{v.kev ? <span className="kev-flag">KEV</span> : null}</td>
                   <td><span className="sev-tag" style={{ color: SEVERITY_COLOR[(v.severity as Severity) in SEVERITY_COLOR ? (v.severity as Severity) : "medium"] }}><i style={{ background: "currentColor" }} />{v.severity}</span></td>
                   <td className="mono" style={{ fontSize: ".82rem" }}>{v.cvss || "—"}</td>
                   <td className="t-mut mono" style={{ fontSize: ".78rem" }}>{v.package}</td>
