@@ -150,6 +150,18 @@ or imply reducer-owned package, repository, image, workload, deployment, or
 reachability impact. Use the impact routes below when you need admitted impact
 truth.
 
+`GET /api/v0/supply-chain/vulnerabilities/{advisory_id}`
+
+Path-param convenience over the same advisory evidence read model. It returns a
+single canonical advisory matched by canonical id, GHSA id, or CVE id (a value
+beginning with `CVE-` is anchored as a CVE), with the same source-specific CVSS,
+EPSS, KEV, CWE, range, fixed-version, reference, and affected-package evidence as
+the list route. An unknown identifier returns a `404` envelope. Like the list
+route, this is source evidence only and does not imply repository, service,
+image, or workload impact; the impact findings routes below carry admitted
+impact truth, including the affected services and repositories the console links
+to.
+
 ## Standalone Vulnerability Scanner Read Contract
 
 `GET /api/v0/supply-chain/vulnerability-scanner/contract`

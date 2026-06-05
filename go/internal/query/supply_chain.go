@@ -96,6 +96,7 @@ func (h *SupplyChainHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/supply-chain/vulnerability-scanner/contract", h.getVulnerabilityScannerReadContract)
 	mux.HandleFunc("GET /api/v0/supply-chain/sbom-attestations/attachments", h.listSBOMAttachments)
 	mux.HandleFunc("GET /api/v0/supply-chain/advisories/evidence", h.listAdvisoryEvidence)
+	mux.HandleFunc("GET /api/v0/supply-chain/vulnerabilities/{advisory_id}", h.getVulnerabilityDetail)
 	mux.HandleFunc("GET /api/v0/supply-chain/impact/findings", h.listImpactFindings)
 	mux.HandleFunc("GET /api/v0/supply-chain/impact/explain", h.explainImpact)
 	mux.HandleFunc("GET /api/v0/supply-chain/container-images/identities", h.listContainerImageIdentities)
