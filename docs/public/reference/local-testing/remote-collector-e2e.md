@@ -430,7 +430,11 @@ values. Use `expected_image_digest` or `expected_image_ref` to tie
 container-image, SBOM, and CI/CD evidence to the same artifact. Use
 `expected_service_id` or `expected_workload_id` when the proof must validate a
 specific deployed service rather than any reducer-owned service-catalog row for
-the repository.
+the repository. For provider security-alert evidence,
+`expected_security_alert_repository` may be the provider-native repository
+selector from the private provider configuration or the canonical Eshu
+repository id returned by repository readbacks; the verifier uses those anchors
+only for matching and does not print them.
 
 ### Reducer Evidence Rows
 
