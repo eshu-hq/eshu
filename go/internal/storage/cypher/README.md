@@ -82,10 +82,11 @@ from the full `File` label population when a webhook-triggered re-index needs
 to remove files that disappeared from one repository.
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestChunkPositiveStringSliceRetractStatement|TestCanonicalNodeRefreshStructuralEdgesSeedsFromFilePath|TestCanonicalNodeRefreshStructuralEdgesKeepFilePathChunks|TestCanonicalNodeWriterDeduplicatesRetractFilePaths'
+'TestChunkPositiveStringSliceRetractStatement|TestCanonicalNodeRefreshStructuralEdgesSeedsFromFilePath|TestCanonicalNodeRefreshStructuralEdgesKeepFilePathChunks|TestCanonicalNodeWriterDeduplicatesRetractFilePaths|TestCanonicalNodeWriterKeepsEmptyDirectoryPathList'
 -count=1` proves the indexed `UNWIND` seed shape, protects the current-file
 structural refresh chunk budget, de-duplicates repeated current-file identities,
-and preserves current-file keep-list semantics.
+keeps empty directory identity lists encoded as Cypher lists, and preserves
+current-file keep-list semantics.
 
 No-Regression Evidence: `go test ./internal/storage/cypher ./cmd/ingester
 ./cmd/bootstrap-index ./cmd/projector -count=1` keeps canonical writer, NornicDB

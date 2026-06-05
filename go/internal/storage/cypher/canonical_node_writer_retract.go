@@ -119,7 +119,7 @@ func hasRepositoryScopedRetract(mat projector.CanonicalMaterialization) bool {
 // deterministic while positive UNWIND cleanups avoid duplicate deletes.
 func dedupeStringValues(values []string) []string {
 	if len(values) == 0 {
-		return nil
+		return values
 	}
 	seen := make(map[string]struct{}, len(values))
 	deduped := make([]string, 0, len(values))
