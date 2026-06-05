@@ -3,6 +3,7 @@
 // filter, and per-repo detail (stats + story highlights). No fabricated file
 // tree or contents here — source browsing is the separate code-viewer page.
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
 import { loadRepositories, loadRepositoryDetail } from "../api/repoCatalog";
 import type { RepoDetail, RepoListItem } from "../api/repoCatalog";
@@ -87,7 +88,9 @@ export function RepositoriesPage({ client }: { readonly client?: EshuApiClient }
                   <ul className="plain-list">{detail.highlights.slice(0, 8).map((h, i) => <li key={i} className="t-mut">{h}</li>)}</ul>
                 </>
               ) : null}
-              <p className="t-mut" style={{ fontSize: ".72rem", marginTop: 14 }}>Source browsing (file tree + contents) is the code viewer — pending the repository content API.</p>
+              <div style={{ marginTop: 14 }}>
+                <Link to={`/repositories/${encodeURIComponent(detail.id)}/source`} className="btn-ghost active">Browse source →</Link>
+              </div>
             </>
           )}
         </Panel>

@@ -413,6 +413,12 @@ h1, h2, h3, h4 { margin: 0; letter-spacing: -0.02em; font-weight: 700; }
 .plain-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .plain-list li { font-size: 0.82rem; }
 
+/* code viewer */
+.code-view { max-height: 620px; overflow: auto; }
+.code-pre { margin: 0; padding: 12px 0; font-family: var(--mono); font-size: 0.78rem; line-height: 1.55; background: var(--bg-field); overflow-x: auto; }
+.code-line { display: block; white-space: pre; padding-right: 16px; }
+.code-ln { display: inline-block; width: 44px; padding-right: 14px; margin-right: 12px; text-align: right; color: var(--subtle); border-right: 1px solid var(--line); user-select: none; }
+
 .popover-scrim { position: fixed; inset: 0; z-index: 40; }
 .popover { position: absolute; top: 46px; right: 0; width: 340px; z-index: 41; background: var(--bg-panel); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: var(--shadow); padding: 14px; display: grid; gap: 9px; }
 .popover-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 2px; }
