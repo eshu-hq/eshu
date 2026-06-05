@@ -207,6 +207,45 @@ func TestLokiWorkPlannerAllDisabledPlansNoWork(t *testing.T) {
 	}
 }
 
+func TestLokiWorkPlannerScopeIDsFilterAndTriggerOverride(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.June, 5, 15, 0, 0, 0, time.UTC)
+	instance := workflow.CollectorInstance{
+		InstanceID:     "loki-primary",
+		CollectorKind:  scope.CollectorLoki,
+		Mode:           workflow.CollectorModeContinuous,
+		Enabled:        true,
+		ClaimsEnabled:  true,
+		Configuration:  testLokiConfigTwoEnabledOneDisabled(),
+		LastObservedAt: observedAt,
+		CreatedAt:      observedAt,
+		UpdatedAt:      observedAt,
+	}
+
+	run, items, err := (LokiWorkPlanner{}).PlanLokiWork(t.Context(), LokiPlanRequest{
+		Instance:    instance,
+		ObservedAt:  observedAt,
+		PlanKey:     "schedule-20260605T150000Z",
+		TriggerKind: workflow.TriggerKindBootstrap,
+		ScopeIDs:    []string{"loki:source:bg-qa"},
+	})
+	if err != nil {
+		t.Fatalf("PlanLokiWork() error = %v, want nil", err)
+	}
+	// The explicit trigger override wins over the derived schedule trigger.
+	if got, want := run.TriggerKind, workflow.TriggerKindBootstrap; got != want {
+		t.Fatalf("TriggerKind = %q, want %q", got, want)
+	}
+	// Only the requested (enabled) scope is planned.
+	if got, want := len(items), 1; got != want {
+		t.Fatalf("len(items) = %d, want %d", got, want)
+	}
+	if got, want := items[0].ScopeID, "loki:source:bg-qa"; got != want {
+		t.Fatalf("ScopeID = %q, want %q", got, want)
+	}
+}
+
 func testLokiConfigTwoEnabledOneDisabled() string {
 	return `{
 		"targets": [{

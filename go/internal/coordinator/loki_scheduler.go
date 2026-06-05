@@ -24,6 +24,10 @@ type LokiPlanRequest struct {
 	// PlanKey makes the planned run and work items deterministic for one
 	// scheduling tick; the same (instance, plan key) always yields the same IDs.
 	PlanKey string
+	// TriggerKind optionally overrides the derived schedule/bootstrap trigger.
+	TriggerKind workflow.TriggerKind
+	// ScopeIDs optionally restricts planning to a subset of configured targets.
+	ScopeIDs []string
 }
 
 // LokiWorkPlanner plans workflow rows for configured Loki targets without
@@ -56,15 +60,16 @@ func (p LokiWorkPlanner) PlanLokiWork(
 	if err != nil {
 		return workflow.Run{}, nil, err
 	}
-	targets = enabledLokiTargets(targets)
 	if err := validateUniqueLokiTargets(targets); err != nil {
 		return workflow.Run{}, nil, err
 	}
+	targets = enabledLokiTargets(targets)
+	targets = filterLokiTargetsByScopeIDs(targets, request.ScopeIDs)
 
 	observedAt := request.ObservedAt.UTC()
 	run := workflow.Run{
-		RunID:              lokiRunID(request.Instance, request.PlanKey),
-		TriggerKind:        lokiTriggerKind(request.Instance),
+		RunID:              lokiRunID(request.Instance, request.PlanKey, lokiRequestTriggerKind(request)),
+		TriggerKind:        lokiRequestTriggerKind(request),
 		Status:             workflow.RunStatusCollectionPending,
 		RequestedScopeSet:  lokiRequestedScopeSet(request.Instance, targets),
 		RequestedCollector: string(scope.CollectorLoki),
@@ -100,6 +105,11 @@ func validateLokiPlanRequest(request LokiPlanRequest) error {
 	}
 	if err := validateSafePlanKey("loki planner", request.PlanKey); err != nil {
 		return err
+	}
+	if request.TriggerKind != "" {
+		if err := request.TriggerKind.Validate(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -147,14 +157,23 @@ func validateUniqueLokiTargets(targets []lokiTargetConfiguration) error {
 	return nil
 }
 
-func lokiRunID(instance workflow.CollectorInstance, planKey string) string {
+func lokiRunID(instance workflow.CollectorInstance, planKey string, triggerKind workflow.TriggerKind) string {
 	return fmt.Sprintf(
 		"%s:%s:%s:%s",
 		scope.CollectorLoki,
 		strings.TrimSpace(instance.InstanceID),
-		lokiTriggerKind(instance),
+		triggerKind,
 		strings.TrimSpace(planKey),
 	)
+}
+
+// lokiRequestTriggerKind honors an explicit request override and otherwise
+// derives the trigger from the instance bootstrap flag.
+func lokiRequestTriggerKind(request LokiPlanRequest) workflow.TriggerKind {
+	if request.TriggerKind != "" {
+		return request.TriggerKind
+	}
+	return lokiTriggerKind(request.Instance)
 }
 
 func lokiTriggerKind(instance workflow.CollectorInstance) workflow.TriggerKind {
@@ -162,6 +181,31 @@ func lokiTriggerKind(instance workflow.CollectorInstance) workflow.TriggerKind {
 		return workflow.TriggerKindBootstrap
 	}
 	return workflow.TriggerKindSchedule
+}
+
+// filterLokiTargetsByScopeIDs restricts planning to the requested scope IDs;
+// an empty scopeIDs slice plans every enabled target.
+func filterLokiTargetsByScopeIDs(
+	targets []lokiTargetConfiguration,
+	scopeIDs []string,
+) []lokiTargetConfiguration {
+	if len(scopeIDs) == 0 {
+		return targets
+	}
+	allowed := make(map[string]struct{}, len(scopeIDs))
+	for _, scopeID := range scopeIDs {
+		scopeID = strings.TrimSpace(scopeID)
+		if scopeID != "" {
+			allowed[scopeID] = struct{}{}
+		}
+	}
+	out := make([]lokiTargetConfiguration, 0, len(targets))
+	for _, target := range targets {
+		if _, ok := allowed[target.ScopeID]; ok {
+			out = append(out, target)
+		}
+	}
+	return out
 }
 
 func lokiRequestedScopeSet(
