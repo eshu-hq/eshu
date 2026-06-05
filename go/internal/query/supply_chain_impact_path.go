@@ -154,11 +154,13 @@ func missingReasonForSemanticHop(hop string, missing []string) []string {
 			}
 		case "service":
 			if reason == "service evidence missing" ||
+				reason == "service catalog correlation evidence missing" ||
 				strings.HasPrefix(reason, "service catalog evidence ") {
 				return []string{reason}
 			}
 		case "environment":
 			if reason == "deployment exposure evidence missing" ||
+				reason == "runtime deployment evidence not linked to vulnerable package" ||
 				strings.HasPrefix(reason, "deployment evidence ") {
 				return []string{reason}
 			}
@@ -183,8 +185,10 @@ func supplyChainImpactPathMissingReason(reason string) bool {
 		"repository dependency evidence missing",
 		"image or SBOM attachment evidence missing",
 		"deployment exposure evidence missing",
+		"runtime deployment evidence not linked to vulnerable package",
 		"workload evidence missing",
-		"service evidence missing":
+		"service evidence missing",
+		"service catalog correlation evidence missing":
 		return true
 	}
 	for _, prefix := range []string{

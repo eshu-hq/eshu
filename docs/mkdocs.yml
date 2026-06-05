@@ -158,6 +158,7 @@ nav:
     - Standalone Vulnerability Scanner Boundary: reference/standalone-vulnerability-scanner-boundary.md
     - Vulnerability Scanner Confidence Matrix: reference/vulnerability-scanner-confidence.md
     - Security Intelligence Source Coverage: reference/security-intelligence-source-coverage.md
+    - Story Missing Evidence Alignment: reference/story-missing-evidence.md
     - Dependency And Lockfile Coverage: reference/dependency-coverage.md
     - Runtime Admin API: reference/runtime-admin-api.md
     - Tag Taxonomy: reference/tag-taxonomy.md

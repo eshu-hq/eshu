@@ -1,0 +1,50 @@
+package reducer
+
+func missingImpactEvidence(finding SupplyChainImpactFinding) []string {
+	var missing []string
+	if finding.PackageID == "" || finding.ObservedVersion == "" {
+		missing = append(missing, "package version evidence missing")
+	}
+	if finding.RepositoryID == "" {
+		missing = append(missing, "repository dependency evidence missing")
+	}
+	if finding.SubjectDigest == "" && finding.RuntimeReachability != "known_fixed" &&
+		!supplyChainReachabilityHasPackageAnchor(finding.RuntimeReachability) {
+		missing = append(missing, "image or SBOM attachment evidence missing")
+	}
+	hasWorkloadOrService := len(finding.WorkloadIDs) > 0 || len(finding.ServiceIDs) > 0
+	if finding.RuntimeReachability != "known_fixed" && len(finding.Environments) == 0 {
+		if hasWorkloadOrService {
+			missing = append(missing, "runtime deployment evidence not linked to vulnerable package")
+		} else {
+			missing = append(missing, "deployment exposure evidence missing")
+		}
+	}
+	if finding.RuntimeReachability != "known_fixed" && len(finding.WorkloadIDs) == 0 {
+		missing = append(missing, "workload evidence missing")
+	}
+	if finding.RuntimeReachability != "known_fixed" && len(finding.ServiceIDs) == 0 {
+		if hasWorkloadOrService {
+			missing = append(missing, "service catalog correlation evidence missing")
+		} else {
+			missing = append(missing, "service evidence missing")
+		}
+	}
+	return uniqueSortedStrings(missing)
+}
+
+func supplyChainReachabilityHasPackageAnchor(runtimeReachability string) bool {
+	switch runtimeReachability {
+	case "package_manifest",
+		jsTSPackageAPICallEvidence,
+		jsTSPackageAPIImportEvidence,
+		jsTSPackageAPIReExportEvidence,
+		jsTSPackageAPISCIPCallEvidence,
+		jsTSPackageAPIUnknownEvidence,
+		jsTSPackageAPIAmbiguousEvidence,
+		jsTSPackageAPIMissingEvidence:
+		return true
+	default:
+		return false
+	}
+}
