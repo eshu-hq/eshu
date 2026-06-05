@@ -108,8 +108,10 @@ func TestBuildSupplyChainImpactFindingsAttachesWorkloadIdentityWithoutServiceCat
 	assertContainsString(t, got.EvidencePath, workloadIdentityFactKind)
 	assertContainsString(t, got.EvidenceFactIDs, "workload-1")
 	assertNotContainsString(t, got.MissingEvidence, "workload evidence missing")
-	assertContainsString(t, got.MissingEvidence, "deployment exposure evidence missing")
-	assertContainsString(t, got.MissingEvidence, "service evidence missing")
+	assertNotContainsString(t, got.MissingEvidence, "deployment exposure evidence missing")
+	assertNotContainsString(t, got.MissingEvidence, "service evidence missing")
+	assertContainsString(t, got.MissingEvidence, "runtime deployment evidence not linked to vulnerable package")
+	assertContainsString(t, got.MissingEvidence, "service catalog correlation evidence missing")
 	if len(got.ServiceIDs) != 0 {
 		t.Fatalf("ServiceIDs = %#v, want no fabricated service identity", got.ServiceIDs)
 	}
@@ -153,7 +155,8 @@ func TestBuildSupplyChainImpactFindingsAttachesDeploymentAndWorkloadWithoutServi
 	assertContainsString(t, got.EvidencePath, cicdRunCorrelationFactKind)
 	assertNotContainsString(t, got.MissingEvidence, "deployment exposure evidence missing")
 	assertNotContainsString(t, got.MissingEvidence, "workload evidence missing")
-	assertContainsString(t, got.MissingEvidence, "service evidence missing")
+	assertNotContainsString(t, got.MissingEvidence, "service evidence missing")
+	assertContainsString(t, got.MissingEvidence, "service catalog correlation evidence missing")
 	if len(got.ServiceIDs) != 0 {
 		t.Fatalf("ServiceIDs = %#v, want no fabricated service identity", got.ServiceIDs)
 	}

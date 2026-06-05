@@ -31,7 +31,7 @@ func buildRepositoryStoryResponse(
 		infrastructureOverview,
 	)
 	limitations := []string{"coverage_not_computed"}
-	if len(filteredPlatforms) == 0 {
+	if !repositoryDeploymentSurfaceKnown(filteredPlatforms, filteredWorkloads, deploymentOverview) {
 		limitations = append(limitations, "deployment_surface_unknown")
 	}
 	if len(filteredWorkloads) == 0 {
@@ -135,6 +135,33 @@ func buildRepositoryStoryResponse(
 	return response
 }
 
+func repositoryDeploymentSurfaceKnown(
+	platforms []string,
+	workloads []string,
+	deploymentOverview map[string]any,
+) bool {
+	if len(platforms) > 0 {
+		return true
+	}
+	if len(workloads) == 0 {
+		return false
+	}
+	for _, key := range []string{
+		"delivery_paths",
+		"delivery_workflows",
+		"delivery_family_paths",
+		"delivery_family_story",
+		"topology_story",
+		"direct_story",
+		"shared_config_paths",
+	} {
+		if mapValueHasRows(deploymentOverview, key) {
+			return true
+		}
+	}
+	return false
+}
+
 func buildRepositoryStory(
 	repo RepoRef,
 	fileCount int,
@@ -224,6 +251,16 @@ func repositoryGitOpsToolFamilies(platforms []string, infraFamilies []string, de
 		}
 	}
 	return toolFamilies
+}
+
+func mapValueHasRows(value map[string]any, key string) bool {
+	if len(value) == 0 {
+		return false
+	}
+	if len(mapSliceValue(value, key)) > 0 {
+		return true
+	}
+	return len(stringSliceMapValue(value, key)) > 0
 }
 
 func mergeStringSets(left []string, right []string) []string {

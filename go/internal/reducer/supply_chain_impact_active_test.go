@@ -135,7 +135,8 @@ func TestSupplyChainImpactHandlerLoadsActiveWorkloadIdentityForRepositoryFinding
 	assertContainsString(t, got.WorkloadIDs, testImpactWorkloadID)
 	assertContainsString(t, got.EvidenceFactIDs, "workload-1")
 	assertNotContainsString(t, got.MissingEvidence, "workload evidence missing")
-	assertContainsString(t, got.MissingEvidence, "service evidence missing")
+	assertNotContainsString(t, got.MissingEvidence, "service evidence missing")
+	assertContainsString(t, got.MissingEvidence, "service catalog correlation evidence missing")
 	if len(got.ServiceIDs) != 0 {
 		t.Fatalf("ServiceIDs = %#v, want no service identity without service catalog evidence", got.ServiceIDs)
 	}
