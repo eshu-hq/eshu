@@ -79,4 +79,47 @@ const openAPIPathsSupplyChainAdvisoryEvidence = `
         }
       }
     },
+    "/api/v0/supply-chain/vulnerabilities/{advisory_id}": {
+      "get": {
+        "summary": "Get a single advisory by identifier",
+        "description": "Path-param convenience over the advisory evidence read model. Returns one canonical advisory (matched by canonical id, GHSA id, or CVE id) with its source-specific CVSS, EPSS, KEV, CWE, range, fixed-version, reference, and affected-package evidence. This is source evidence only; repository, service, image, and workload impact remain available through the supply-chain impact findings surface.",
+        "operationId": "getVulnerabilityDetail",
+        "parameters": [
+          {"name": "advisory_id", "in": "path", "required": true, "schema": {"type": "string"}, "description": "Canonical advisory id, GHSA id, or CVE id."}
+        ],
+        "responses": {
+          "200": {
+            "description": "Canonical source-only advisory evidence for one advisory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "advisory_key": {"type": "string"},
+                    "canonical_id": {"type": "string"},
+                    "cve_ids": {"type": "array", "items": {"type": "string"}},
+                    "ghsa_ids": {"type": "array", "items": {"type": "string"}},
+                    "osv_ids": {"type": "array", "items": {"type": "string"}},
+                    "sources": {"type": "array", "items": {"type": "object"}},
+                    "affected_packages": {"type": "array", "items": {"type": "object"}},
+                    "affected_products": {"type": "array", "items": {"type": "object"}},
+                    "epss": {"type": "array", "items": {"type": "object"}},
+                    "kev": {"type": "array", "items": {"type": "object"}},
+                    "references": {"type": "array", "items": {"type": "object"}},
+                    "latest_observed_at": {"type": "string"},
+                    "source_freshness": {"type": "string"},
+                    "source_confidence": {"type": "string"}
+                  },
+                  "required": ["advisory_key", "canonical_id"]
+                }
+              }
+            }
+          },
+          "400": {"description": "Missing advisory_id"},
+          "404": {"description": "No advisory matched the identifier"},
+          "501": {"description": "Capability unsupported for the active profile"},
+          "503": {"description": "Postgres source fact read model unavailable"}
+        }
+      }
+    },
 `
