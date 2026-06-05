@@ -43,7 +43,7 @@ LIMIT $4
 
 const listIncidentContextChangeCandidatesQuery = incidentContextFactSelect + `
 FROM fact_records AS fact
-WHERE fact.payload @> jsonb_build_object('services', jsonb_build_array(jsonb_build_object('id', $1)))
+WHERE fact.payload @> jsonb_build_object('services', jsonb_build_array(jsonb_build_object('id', $1::text)))
   AND fact.scope_id = $2
   AND fact.generation_id = $3
   AND ($4::timestamptz IS NULL OR NULLIF(fact.payload->>'timestamp', '')::timestamptz >= $4::timestamptz)
