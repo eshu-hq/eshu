@@ -29,6 +29,37 @@ describe("eshuConsoleLive", () => {
         if (path.includes("/repositories/by-language")) {
           throw new Error("by-language requires ?language= and must not be used for the overview");
         }
+        if (path.includes("/catalog")) {
+          // The same workload appears as a service and a workload (and twice
+          // across environments) — the adapter must dedup by id.
+          return {
+            data: {
+              services: [{ id: "workload:api", name: "api", kind: "deployment", repo_name: "api" }],
+              workloads: [
+                { id: "workload:api", name: "api", kind: "deployment", repo_name: "api" },
+                { id: "workload:lib-config", name: "lib-config", kind: "library", repo_name: "lib-config" },
+                { id: "workload:lib-config", name: "lib-config", kind: "library", repo_name: "lib-config" }
+              ]
+            },
+            error: null,
+            truth: { profile: "production", level: "exact", capability: "x", freshness: { state: "fresh" } }
+          };
+        }
+        if (path.includes("/supply-chain/impact/findings")) {
+          // List endpoints require an impact_status anchor; affected findings
+          // carry a CVSS score but no severity label.
+          if (path.includes("impact_status=affected_exact")) {
+            return {
+              data: { findings: [
+                { advisory_id: "GHSA-aaaa", package_name: "serialize-javascript", cvss_score: 8.1, fixed_version: "7.0.3", repository_id: "r_1" },
+                { advisory_id: "GHSA-bbbb", package_name: "lodash", cvss_score: 5.9, repository_id: "r_1" }
+              ] },
+              error: null, truth: null
+            };
+          }
+          // affected_derived (and any unanchored call) returns nothing here.
+          return { data: { findings: [] }, error: null, truth: null };
+        }
         return { data: {}, error: null, truth: null };
       },
       getJson: async (path: string) => {
@@ -68,5 +99,22 @@ describe("eshuConsoleLive", () => {
     const snap = await loadConsoleSnapshot(fakeClient());
     expect(snap.ingesters).toHaveLength(1);
     expect(snap.ingesters[0]).toMatchObject({ id: "repository", state: "healthy", kind: "ingester" });
+  });
+
+  it("dedups the catalog by id across services and workloads", async () => {
+    const snap = await loadConsoleSnapshot(fakeClient());
+    const ids = snap.services.map((s) => s.id);
+    expect(ids).toEqual(["workload:api", "workload:lib-config"]);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("loads affected vulnerabilities with the impact_status anchor and derives severity from CVSS", async () => {
+    const snap = await loadConsoleSnapshot(fakeClient());
+    expect(snap.vulnerabilities).toHaveLength(2);
+    expect(snap.vulnerabilities[0]).toMatchObject({
+      id: "GHSA-aaaa", package: "serialize-javascript", severity: "high", cvss: 8.1, fixedVersion: "7.0.3"
+    });
+    // cvss 5.9 -> medium band, no fix -> null
+    expect(snap.vulnerabilities[1]).toMatchObject({ id: "GHSA-bbbb", severity: "medium", fixedVersion: null });
   });
 });

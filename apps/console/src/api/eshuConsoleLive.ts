@@ -108,6 +108,16 @@ interface IngesterStatus { readonly ingesters?: readonly Record<string, unknown>
 interface DeadCodeResponse { readonly results?: readonly { name?: string; file_path?: string; repo_name?: string; repo_id?: string; classification?: string }[]; }
 interface ImpactFindings { readonly findings?: readonly Record<string, unknown>[]; readonly results?: readonly Record<string, unknown>[]; }
 
+// Impact findings carry a CVSS score but no severity label; derive the standard
+// CVSS v3 qualitative band so the vulnerability list can colour-rank rows.
+function severityFromCvss(cvss: number): string {
+  if (cvss >= 9) return "critical";
+  if (cvss >= 7) return "high";
+  if (cvss >= 4) return "medium";
+  if (cvss > 0) return "low";
+  return "unknown";
+}
+
 async function section<T>(
   prov: Record<string, SectionProvenance>,
   key: string,
@@ -160,13 +170,20 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     if (env.truth) truth.services = env.truth;
     const lvl = env.truth?.level ?? "exact";
     const fresh = env.truth?.freshness.state ?? "fresh";
-    const rows: ServiceRow[] = [
-      ...(c.services ?? []), ...(c.workloads ?? [])
-    ].map((w) => ({
-      id: w.id ?? w.name ?? "", name: w.name ?? w.id ?? "", kind: w.kind ?? "service",
-      repo: w.repo_name ?? w.repo_id ?? "", environments: w.environments ?? [],
-      truth: lvl, freshness: fresh
-    }));
+    // services and workloads can overlap (a workload promoted to a service, or
+    // the same workload listed across environments); dedup by id so the catalog
+    // list has unique React keys and no duplicated rows.
+    const byId = new Map<string, ServiceRow>();
+    for (const w of [...(c.services ?? []), ...(c.workloads ?? [])]) {
+      const id = w.id ?? w.name ?? "";
+      if (id === "" || byId.has(id)) continue;
+      byId.set(id, {
+        id, name: w.name ?? w.id ?? "", kind: w.kind ?? "service",
+        repo: w.repo_name ?? w.repo_id ?? "", environments: w.environments ?? [],
+        truth: lvl, freshness: fresh
+      });
+    }
+    const rows = [...byId.values()];
     return rows.length > 0 ? rows : null;
   })) ?? [];
 
@@ -205,17 +222,32 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
   })) ?? [];
 
   const vulnerabilities = (await section(prov, "vulnerabilities", async () => {
-    const env = await client.get<ImpactFindings>("/api/v0/supply-chain/impact/findings?limit=50");
-    const arr = env.data?.findings ?? env.data?.results ?? [];
-    const rows = arr.map((v, i) => ({
-      id: String(v.advisory_id ?? v.id ?? `adv-${i}`),
-      package: String(v.package ?? v.package_name ?? v.subject ?? "—"),
-      severity: String(v.severity ?? "medium").toLowerCase(),
-      cvss: Number(v.cvss ?? v.cvss_score ?? 0),
-      kev: Boolean(v.kev ?? v.known_exploited),
-      fixedVersion: (v.fixed_version as string) ?? null,
-      services: (v.affected_services as string[]) ?? (v.repository_id ? [String(v.repository_id)] : [])
-    }));
+    // impact/findings requires an anchor; query the affected impact statuses
+    // (vulnerabilities reachable in indexed services) and merge them.
+    const rows: VulnRow[] = [];
+    const seen = new Set<string>();
+    for (const status of ["affected_exact", "affected_derived"]) {
+      let env;
+      try {
+        env = await client.get<ImpactFindings>(`/api/v0/supply-chain/impact/findings?limit=100&impact_status=${status}`);
+      } catch { continue; }
+      for (const v of (env.data?.findings ?? env.data?.results ?? [])) {
+        const id = String(v.advisory_id ?? v.cve_id ?? v.id ?? `adv-${rows.length}`);
+        if (seen.has(id)) continue;
+        seen.add(id);
+        const cvss = Number(v.cvss ?? v.cvss_score ?? 0);
+        const sev = (v.severity ? String(v.severity) : severityFromCvss(cvss)).toLowerCase();
+        rows.push({
+          id,
+          package: String(v.package ?? v.package_name ?? v.subject ?? "—"),
+          severity: sev,
+          cvss,
+          kev: Boolean(v.kev ?? v.known_exploited),
+          fixedVersion: (v.fixed_version as string) ?? null,
+          services: (v.affected_services as string[]) ?? (v.service_id ? [String(v.service_id)] : v.repository_id ? [String(v.repository_id)] : [])
+        });
+      }
+    }
     return rows.length > 0 ? rows : null;
   })) ?? [];
 
