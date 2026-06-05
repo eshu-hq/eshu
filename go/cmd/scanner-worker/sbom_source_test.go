@@ -214,6 +214,32 @@ func TestRepositorySBOMSourceParsesNPMPackageDependencyRanges(t *testing.T) {
 			}
 		}
 	}`)
+	nestedDir := filepath.Join(root, "subdir")
+	if err := os.MkdirAll(nestedDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll(%s) error = %v", nestedDir, err)
+	}
+	writeTestFile(t, filepath.Join(nestedDir, "package-lock.json"), `{
+		"lockfileVersion": 3,
+		"packages": {
+			"": {
+				"name": "nested-app",
+				"version": "1.0.0",
+				"dependencies": {
+					"nested-exact": "^2.0.0",
+					"nested-range-only": "^3.0.0"
+				}
+			},
+			"node_modules/nested-exact": {
+				"version": "2.0.1",
+				"dependencies": {
+					"nested-transitive": "~4.0.0"
+				}
+			},
+			"node_modules/nested-transitive": {
+				"version": "4.0.2"
+			}
+		}
+	}`)
 	source, err := newRepositorySBOMSource([]sbomTargetConfig{{
 		ScopeID:  "scanner-worker://repository/repo-private-name",
 		RootPath: root,
@@ -233,8 +259,13 @@ func TestRepositorySBOMSourceParsesNPMPackageDependencyRanges(t *testing.T) {
 	assertComponentEvidence(t, components["@hapi/wreck"], "npm", "package-lock.json", "runtime", "direct", "pkg:npm/%40hapi/wreck@18.0.0")
 	assertComponentEvidence(t, components["@hapi/boom"], "npm", "package-lock.json", "runtime", "direct", "pkg:npm/%40hapi/boom@10.0.1")
 	assertComponentEvidence(t, components["hoek"], "npm", "package-lock.json", "optional", "direct", "pkg:npm/hoek@9.3.0")
+	assertComponentEvidence(t, components["nested-exact"], "npm", "subdir/package-lock.json", "runtime", "direct", "pkg:npm/nested-exact@2.0.1")
+	assertComponentEvidence(t, components["nested-transitive"], "npm", "subdir/package-lock.json", "runtime", "direct", "pkg:npm/nested-transitive@4.0.2")
 	if _, ok := components["range-only"]; ok {
 		t.Fatalf("range-only dependency emitted as installed component, want dependency range ignored without exact installed version")
+	}
+	if _, ok := components["nested-range-only"]; ok {
+		t.Fatalf("nested-range-only dependency emitted as installed component, want dependency range ignored without exact installed version")
 	}
 }
 

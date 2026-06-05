@@ -154,7 +154,7 @@ dead-letter, metric, log, or public documentation payloads.
 No-Regression Evidence: scanner-worker runtime behavior is covered by
 `go test ./internal/collector/scannerworker ./internal/collector/scannerworker/imageanalyzer ./internal/collector/scannerworker/sbomgenerator ./internal/collector/ospackagevulnerability/osruntime ./cmd/scanner-worker -count=1`.
 
-No-Regression Evidence: `go test ./cmd/scanner-worker -run 'TestRepositorySBOMSource(ParsesNPMPackageDependencyRanges|ParsesCargoAndComposerLockfiles|ParsesPythonRubyAndGradleLockfiles|EmitsMalformedLockfileWarning)' -count=1`
+No-Regression Evidence: `go test ./cmd/scanner-worker -run 'TestRepositorySBOMSource(ParsesNPMPackageDependencyRanges|ParsesCargoAndComposerLockfiles|ParsesPythonRubyAndGradleLockfiles|EmitsMalformedLockfileWarning)|TestNPMLockDependencyUnmarshalStringResetsPriorObject' -count=1`
 proved repository SBOM generation accepts npm package dependency range maps,
 extracts Cargo, Composer, PyPI, RubyGems, Gradle/Maven, and NuGet exact
 lockfile components with ecosystem, relative path, dependency scope/type, PURL,

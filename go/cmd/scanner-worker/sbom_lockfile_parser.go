@@ -183,6 +183,7 @@ type npmLockDependency struct {
 func (d *npmLockDependency) UnmarshalJSON(body []byte) error {
 	var versionRange string
 	if err := json.Unmarshal(body, &versionRange); err == nil {
+		*d = npmLockDependency{}
 		return nil
 	}
 	var object struct {
