@@ -405,6 +405,43 @@ const openAPIPathsRepositories = `
         }
       }
     },
+    "/api/v0/repositories/{repo_id}/content": {
+      "get": {
+        "tags": ["repositories"],
+        "summary": "Get repository file content",
+        "description": "Returns the indexed bytes of a single repository file from the content store. Text is returned as utf-8; non-UTF-8 bytes are base64-encoded. size is the original byte length and truncated=true signals the byte cap was reached. The endpoint never returns content the collectors redact.",
+        "operationId": "getRepositoryContent",
+        "parameters": [
+          {"$ref": "#/components/parameters/RepoId"},
+          {"name": "path", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Repository-relative file path to read."},
+          {"name": "ref", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Informational ref selector; the response ref reports the indexed commit SHA."}
+        ],
+        "responses": {
+          "200": {
+            "description": "Repository file content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "path": {"type": "string"},
+                    "ref": {"type": "string"},
+                    "encoding": {"type": "string", "enum": ["utf-8", "base64"]},
+                    "content": {"type": "string"},
+                    "size": {"type": "integer"},
+                    "language": {"type": "string"},
+                    "truncated": {"type": "boolean"}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/repositories/{repo_id}/coverage": {
       "get": {
         "tags": ["repositories"],
