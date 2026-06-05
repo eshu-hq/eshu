@@ -322,7 +322,7 @@ func (s Service) now() time.Time {
 
 func scopeAndGenerationForInput(input ClaimInput, observedAt time.Time) (scope.IngestionScope, scope.ScopeGeneration) {
 	parentScopeID := strings.TrimSpace(input.Target.AcceptanceUnitID)
-	if parentScopeID == input.Target.ScopeID {
+	if parentScopeID == strings.TrimSpace(input.Target.ScopeID) {
 		parentScopeID = ""
 	}
 	return scope.IngestionScope{

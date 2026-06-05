@@ -84,6 +84,24 @@ func TestScopeAndGenerationForInputOmitsSelfParent(t *testing.T) {
 	}
 }
 
+func TestScopeAndGenerationForInputOmitsWhitespaceSelfParent(t *testing.T) {
+	t.Parallel()
+
+	item := testScannerWorkItem()
+	item.AcceptanceUnitID = " " + item.ScopeID + " "
+	item.ScopeID = "\t" + item.ScopeID + "\n"
+	claim := testScannerClaim(item)
+	input, err := NewClaimInput(item, claim, AnalyzerSBOMGeneration, testTargetScope(item), testResourceLimits())
+	if err != nil {
+		t.Fatalf("NewClaimInput() error = %v, want nil", err)
+	}
+
+	scopeValue, _ := scopeAndGenerationForInput(input, input.ObservedAt)
+	if scopeValue.ParentScopeID != "" {
+		t.Fatalf("ParentScopeID = %q, want blank when acceptance unit equals trimmed scope", scopeValue.ParentScopeID)
+	}
+}
+
 func TestScopeAndGenerationForInputStartsPendingForProjectorActivation(t *testing.T) {
 	t.Parallel()
 
