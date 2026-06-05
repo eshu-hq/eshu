@@ -78,6 +78,8 @@ export interface VulnRow {
 
 // ---- endpoint response shapes (partial; see GET /api/v0/openapi.json) ----
 interface EcosystemOverview {
+  // The API field is repo_count; repository_count is kept as a defensive alias.
+  readonly repo_count?: number;
   readonly repository_count?: number;
   readonly workload_count?: number;
   readonly platform_count?: number;
@@ -101,7 +103,7 @@ interface CatalogRecord {
   readonly repo_name?: string; readonly repo_id?: string; readonly repo_slug?: string;
   readonly environments?: readonly string[]; readonly materialization_status?: string;
 }
-interface LanguageInventory { readonly languages?: readonly { language: string; count: number }[]; }
+interface LanguageInventory { readonly languages?: readonly { language: string; count?: number; repository_count?: number; file_count?: number }[]; }
 interface IngesterStatus { readonly ingesters?: readonly Record<string, unknown>[]; }
 interface DeadCodeResponse { readonly results?: readonly { name?: string; file_path?: string; repo_name?: string; repo_id?: string; classification?: string }[]; }
 interface ImpactFindings { readonly findings?: readonly Record<string, unknown>[]; readonly results?: readonly Record<string, unknown>[]; }
@@ -127,14 +129,20 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
 
   const runtime = (await section(prov, "runtime", async () => {
     let overview: EcosystemOverview = {};
-    try { overview = (await client.get<EcosystemOverview>("/api/v0/ecosystem/overview")).data ?? {}; } catch { /* optional */ }
-    const env = await client.get<IndexStatus>("/api/v0/index-status");
-    const st = env.data ?? {};
+    let profile = "unknown";
+    try {
+      const eco = await client.get<EcosystemOverview>("/api/v0/ecosystem/overview");
+      overview = eco.data ?? {};
+      if (eco.truth) { truth.runtime = eco.truth; profile = eco.truth.profile ?? profile; }
+    } catch { /* optional */ }
+    // index-status is a raw status payload, not the eshu envelope, so read it as
+    // plain JSON (client.get would unwrap a non-existent `data` field to nothing).
+    let st: IndexStatus = {};
+    try { st = await client.getJson<IndexStatus>("/api/v0/index-status"); } catch { /* optional */ }
     const q = st.queue ?? {};
-    if (env.truth) truth.runtime = env.truth;
     return {
       indexStatus: st.status ?? "unknown",
-      repositories: st.repository_count ?? overview.repository_count ?? 0,
+      repositories: st.repository_count ?? overview.repo_count ?? overview.repository_count ?? 0,
       workloads: overview.workload_count ?? 0,
       platforms: overview.platform_count ?? 0,
       instances: overview.instance_count ?? 0,
@@ -142,7 +150,7 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
       inFlight: q.in_flight ?? 0,
       deadLetters: q.dead_letter ?? 0,
       succeeded: q.succeeded ?? 0,
-      profile: env.truth?.profile ?? "unknown"
+      profile
     } satisfies RuntimeSummary;
   })) ?? emptyRuntime();
 
@@ -163,17 +171,20 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
   })) ?? [];
 
   const languages = (await section(prov, "languages", async () => {
-    const env = await client.get<LanguageInventory>("/api/v0/repositories/by-language?limit=100&offset=0");
-    const rows = (env.data?.languages ?? []).map((l) => ({ language: l.language, count: l.count }));
+    // language-inventory is the "what languages exist" aggregate; by-language
+    // requires a specific ?language= and 400s without it.
+    const env = await client.get<LanguageInventory>("/api/v0/repositories/language-inventory?limit=100&offset=0");
+    const rows = (env.data?.languages ?? []).map((l) => ({ language: l.language, count: l.repository_count ?? l.count ?? l.file_count ?? 0 }));
     return rows.length > 0 ? rows : null;
   })) ?? [];
 
   const ingesters = (await section(prov, "ingesters", async () => {
-    const env = await client.get<IngesterStatus>("/api/v0/status/ingesters");
-    const rows = (env.data?.ingesters ?? []).map((g, i) => ({
-      id: String(g.id ?? g.ingester ?? `ingester-${i}`),
-      kind: String(g.kind ?? g.ingester ?? "ingester"),
-      state: String(g.state ?? g.status ?? "healthy"),
+    // status/ingesters is a raw status payload, not the eshu envelope.
+    const data = await client.getJson<IngesterStatus>("/api/v0/status/ingesters");
+    const rows = (data?.ingesters ?? []).map((g, i) => ({
+      id: String(g.name ?? g.id ?? g.ingester ?? `ingester-${i}`),
+      kind: String(g.runtime_family ?? g.kind ?? g.name ?? g.ingester ?? "ingester"),
+      state: String(g.health ?? g.state ?? g.status ?? "healthy"),
       facts: Number(g.fact_count ?? g.facts ?? 0),
       freshness: (g.freshness as FreshnessState) ?? "fresh"
     }));
