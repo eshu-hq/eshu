@@ -1,0 +1,11 @@
+go/internal/collector/git_snapshot_native_npm_discovery_test.go
+  s_f2f7fbb6f30866::t_1a9ea500a959e0 1-54
+go/internal/collector/README.md
+  s_f2f7fbb6f30866::t_24773289d8ea44 300-306,331-342
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "b611db0deef12b6909fe447d578ec5769f49eff1",
+  "prompts": {}
+}
