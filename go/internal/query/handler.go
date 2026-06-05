@@ -127,6 +127,7 @@ type APIRouter struct {
 	Incident              *IncidentHandler
 	WorkItems             *WorkItemHandler
 	Status                *StatusHandler
+	Metrics               *MetricsHandler
 	Compare               *CompareHandler
 	Admin                 *AdminHandler
 }
@@ -236,6 +237,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Status
 	if a.Status != nil {
 		a.Status.Mount(mux)
+	}
+
+	// Metrics
+	if a.Metrics != nil {
+		a.Metrics.Mount(mux)
 	}
 
 	// Compare
