@@ -1,0 +1,25 @@
+go/internal/collector/scannerworker/service_commit_failure_test.go
+  s_f2f7fbb6f30866::t_22dbc655e71038 14
+  s_f2f7fbb6f30866::t_1f326d765099aa 87-102
+go/internal/collector/scannerworker/service.go
+  s_f2f7fbb6f30866::t_68983ca3e4e6bd 345
+go/internal/collector/scannerworker/README.md
+  s_f2f7fbb6f30866::t_2dc38d54710fee 99-102
+  s_f2f7fbb6f30866::t_a75104c86c5e39 121-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "8d07c2abbf1d7d41d28a8b9f917debd1c323a221",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
