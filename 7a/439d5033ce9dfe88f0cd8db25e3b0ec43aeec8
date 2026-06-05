@@ -1,0 +1,39 @@
+docs/public/reference/story-missing-evidence.md
+  s_f2f7fbb6f30866::t_10c4e400693919 1-49
+go/internal/query/supply_chain_impact_path.go
+  s_f2f7fbb6f30866::t_827d891568ed20 157,163,188,190-191
+go/internal/query/repository_story.go
+  s_f2f7fbb6f30866::t_988c486bc174c9 256-265
+  s_f2f7fbb6f30866::t_b593de330fe858 34,138-162
+go/internal/reducer/supply_chain_impact_missing_evidence.go
+  s_f2f7fbb6f30866::t_d7af969ce0b765 1-50
+go/internal/reducer/supply_chain_impact_runtime_test.go
+  s_f2f7fbb6f30866::t_20fa50d5b5c34e 111-114
+  s_f2f7fbb6f30866::t_ed892331bf94b6 158-159
+docs/mkdocs.yml
+  s_f2f7fbb6f30866::t_10c4e400693919 161
+go/internal/reducer/supply_chain_impact_active_test.go
+  s_f2f7fbb6f30866::t_470f5f53fb8e6d 138-139
+go/internal/query/supply_chain_impact_explain_runtime_test.go
+  s_f2f7fbb6f30866::t_827d891568ed20 132-171
+go/internal/reducer/supply_chain_impact_provider_alert_test.go
+  s_f2f7fbb6f30866::t_0cfd8d973f64eb 1-449
+go/internal/query/repository_story_deployment_surface_test.go
+  s_f2f7fbb6f30866::t_871436f887efce 1-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "7a439d5033ce9dfe88f0cd8db25e3b0ec43aeec8",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
