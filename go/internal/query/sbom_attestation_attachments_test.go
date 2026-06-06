@@ -210,6 +210,12 @@ func TestSupplyChainListSBOMAttestationAttachmentsRejectsRepositoryScope(t *test
 	if !strings.Contains(w.Body.String(), "repository_id") {
 		t.Fatalf("body = %s, want repository_id contract error", w.Body.String())
 	}
+	if !strings.Contains(w.Body.String(), "omit repository_id") {
+		t.Fatalf("body = %s, want optional unscoped read guidance", w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "use subject_digest") {
+		t.Fatalf("body = %s, must not imply subject/document anchors are required for every SBOM attachment read", w.Body.String())
+	}
 }
 
 func TestSBOMAttestationAttachmentQueryUsesActiveFactReadModel(t *testing.T) {
