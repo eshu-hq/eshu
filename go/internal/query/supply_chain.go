@@ -317,7 +317,7 @@ func (h *SupplyChainHandler) listSBOMAttachments(w http.ResponseWriter, r *http.
 		return
 	}
 	filter := SBOMAttestationAttachmentFilter{
-		SubjectDigest:     firstNonEmptyQueryParam(r, "subject_digest", "digest", "image_digest"),
+		SubjectDigest:     firstNonEmptyQueryParam(r, "subject_digest", "digest"),
 		DocumentID:        QueryParam(r, "document_id"),
 		DocumentDigest:    QueryParam(r, "document_digest"),
 		RepositoryID:      repositoryID,

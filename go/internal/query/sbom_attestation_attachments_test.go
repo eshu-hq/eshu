@@ -35,6 +35,7 @@ func TestSupplyChainListSBOMAttestationAttachmentsRequiresScopeAndLimit(t *testi
 	for _, target := range []string{
 		"/api/v0/supply-chain/sbom-attestations/attachments?limit=10",
 		"/api/v0/supply-chain/sbom-attestations/attachments?subject_digest=sha256:abc",
+		"/api/v0/supply-chain/sbom-attestations/attachments?image_digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&limit=10",
 	} {
 		target := target
 		t.Run(target, func(t *testing.T) {
