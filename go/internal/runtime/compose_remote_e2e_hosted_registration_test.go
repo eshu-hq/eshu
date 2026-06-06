@@ -32,6 +32,10 @@ func TestRemoteE2EComposeDefaultsAllowDisabledHostedCoordinatorStartup(t *testin
 
 	assertRemoteE2EHostedInstanceDisabled(t, cfg, "remote-e2e-pagerduty", `"account_id": ""`)
 	assertRemoteE2EHostedInstanceDisabled(t, cfg, "remote-e2e-jira", `"site_id": ""`)
+	assertRemoteE2EHostedInstanceDisabled(t, cfg, "remote-e2e-grafana", `"base_url":""`)
+	assertRemoteE2EHostedInstanceDisabled(t, cfg, "remote-e2e-prometheus-mimir", `"base_url":""`)
+	assertRemoteE2EHostedInstanceDisabled(t, cfg, "remote-e2e-loki", `"base_url":""`)
+	assertRemoteE2EHostedInstanceDisabled(t, cfg, "remote-e2e-tempo", `"base_url":""`)
 }
 
 func TestRemoteE2EComposeJiraUsesJQLEnvReference(t *testing.T) {
@@ -59,7 +63,17 @@ func remoteE2ECollectorInstancesJSON(t *testing.T) string {
 	if !ok {
 		t.Fatalf("workflow-coordinator ESHU_COLLECTOR_INSTANCES_JSON = %#v, want string", service.Environment["ESHU_COLLECTOR_INSTANCES_JSON"])
 	}
-	return renderComposeVariables(t, raw)
+	base := strings.TrimSuffix(strings.TrimSpace(renderComposeVariables(t, raw)), "]")
+
+	observabilityDoc := readComposeDocument(t, "docker-compose.remote-e2e.observability.yaml")
+	observabilityService := requireComposeService(t, observabilityDoc, "workflow-coordinator")
+	observabilityRaw, ok := observabilityService.Environment["ESHU_OBSERVABILITY_COLLECTOR_INSTANCES_JSON"].(string)
+	if !ok {
+		t.Fatalf("observability workflow-coordinator ESHU_OBSERVABILITY_COLLECTOR_INSTANCES_JSON = %#v, want string", observabilityService.Environment["ESHU_OBSERVABILITY_COLLECTOR_INSTANCES_JSON"])
+	}
+	observability := strings.TrimPrefix(strings.TrimSpace(renderComposeVariables(t, observabilityRaw)), "[")
+
+	return base + "," + observability
 }
 
 func renderComposeVariables(t *testing.T, raw string) string {

@@ -5,15 +5,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 RUNTIME_LIB="${REPO_ROOT}/scripts/lib/compose_verification_runtime_common.sh"
 TFSTATE_WARNINGS_LIB="${REPO_ROOT}/scripts/lib/remote_e2e_tfstate_warnings.sh"
+HOSTED_SERVICES_LIB="${REPO_ROOT}/scripts/lib/remote_e2e_hosted_services.sh"
 
 COMPOSE_FILES="${ESHU_REMOTE_E2E_COMPOSE_FILES:-docker-compose.remote-e2e.yaml}"
 COMPOSE_ENV_FILE="${ESHU_REMOTE_E2E_ENV_FILE:-}"
+COMPOSE_PROFILES="${ESHU_REMOTE_E2E_COMPOSE_PROFILES:-${COMPOSE_PROFILES:-}}"
 API_BASE_URL="${ESHU_REMOTE_E2E_API_BASE_URL:-}"
 API_KEY="${ESHU_REMOTE_E2E_API_KEY:-}"
 API_TIMEOUT_SECONDS="${ESHU_REMOTE_E2E_API_TIMEOUT_SECONDS:-30}"
 CORE_SERVICES="${ESHU_REMOTE_E2E_REQUIRED_SERVICES:-eshu mcp-server ingester projector resolution-engine workflow-coordinator}"
 COLLECTOR_SERVICES="${ESHU_REMOTE_E2E_COLLECTOR_SERVICES:-collector-terraform-state collector-oci-registry collector-package-registry collector-sbom-attestation collector-security-alerts collector-vulnerability-intelligence collector-aws-cloud scanner-worker}"
 EXTRA_SERVICES="${ESHU_REMOTE_E2E_EXTRA_SERVICES:-}"
+PROFILE_COLLECTOR_SERVICES="${ESHU_REMOTE_E2E_PROFILE_COLLECTOR_SERVICES:-collector-confluence collector-pagerduty collector-jira collector-grafana collector-prometheus-mimir collector-loki collector-tempo}"
 CORPUS_MODE="${ESHU_REMOTE_E2E_CORPUS_MODE:-smoke}"
 ADVISORY_EVIDENCE_CVE_ID="${ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID:-${ESHU_VULNERABILITY_E2E_CVE_ID:-CVE-2021-44228}}"
 PACKAGE_REGISTRY_GAP_PACKAGE_ID="${ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID:-}"
@@ -27,6 +30,8 @@ COMPOSE_CMD=()
 source "${RUNTIME_LIB}"
 # shellcheck source=scripts/lib/remote_e2e_tfstate_warnings.sh disable=SC1091
 source "${TFSTATE_WARNINGS_LIB}"
+# shellcheck source=scripts/lib/remote_e2e_hosted_services.sh disable=SC1091
+source "${HOSTED_SERVICES_LIB}"
 
 cleanup() {
 	rm -rf "${TMP_DIR}"
@@ -38,6 +43,11 @@ configure_compose() {
 	if [[ -n "${COMPOSE_ENV_FILE}" ]]; then
 		COMPOSE_CMD+=(--env-file "${COMPOSE_ENV_FILE}")
 	fi
+	local profile
+	for profile in ${COMPOSE_PROFILES//,/ }; do
+		[[ -n "${profile}" ]] || continue
+		COMPOSE_CMD+=(--profile "${profile}")
+	done
 
 	local compose_file
 	IFS=':' read -r -a compose_file_paths <<<"${COMPOSE_FILES}"
@@ -450,6 +460,11 @@ main() {
 	configure_compose
 	verify_service_group "core runtime" "${CORE_SERVICES}"
 	verify_service_group "collector" "${COLLECTOR_SERVICES}"
+	local rendered_profile_collector_services
+	rendered_profile_collector_services="$(eshu_remote_e2e_rendered_hosted_collector_services)"
+	if [[ -n "${rendered_profile_collector_services}" ]]; then
+		verify_service_group "profile collector" "${rendered_profile_collector_services}"
+	fi
 	if [[ -n "${EXTRA_SERVICES}" ]]; then
 		verify_service_group "extra" "${EXTRA_SERVICES}"
 	fi

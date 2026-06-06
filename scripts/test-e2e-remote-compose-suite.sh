@@ -285,10 +285,10 @@ scanner_worker	scanner_worker.vulnerability	3
 confluence	documentation_source	1
 pagerduty	incident.record	1
 jira	work_item.record	1
-grafana	observability.grafana_dashboard	1
-prometheus_mimir	observability.metric_signal	1
-loki	observability.log_signal	1
-tempo	observability.trace_signal	1
+grafana	observability.observed_dashboard	1
+prometheus_mimir	observability.observed_target	1
+loki	observability.observed_log_signal	1
+tempo	observability.observed_trace_signal	1
 reducer	reducer_package_correlation	10
 reducer	reducer_aws_cloud_relationship	5
 reducer	reducer_container_image_identity	3

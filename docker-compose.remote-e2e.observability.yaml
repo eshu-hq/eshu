@@ -1,0 +1,166 @@
+# Opt-in observability collector workers for the remote collector E2E stack.
+#
+# Use with docker-compose.remote-e2e.yaml when the proof enables Grafana,
+# Prometheus/Mimir, Loki, or Tempo. The base file keeps the default remote E2E
+# coordinator registrations; this overlay appends disabled-by-default
+# observability registrations and adds the worker services.
+
+x-observability-runtime-env: &observability_runtime_env
+  ESHU_GRAPH_BACKEND: nornicdb
+  DEFAULT_DATABASE: nornic
+  ESHU_NEO4J_DATABASE: nornic
+  NEO4J_DATABASE: nornic
+  NEO4J_URI: bolt://nornicdb:7687
+  NEO4J_USERNAME: neo4j
+  NEO4J_PASSWORD: ${ESHU_NEO4J_PASSWORD:-change-me}
+  ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+  ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+  ESHU_HOME: /tmp/.eshu
+  HOME: /tmp
+  ESHU_DEPLOYMENT_ENVIRONMENT: remote-e2e-compose
+  ESHU_PROMETHEUS_METRICS_ENABLED: "true"
+  ESHU_PROMETHEUS_METRICS_PORT: "9464"
+  ESHU_CANONICAL_WRITE_TIMEOUT: ${ESHU_CANONICAL_WRITE_TIMEOUT:-120s}
+
+services:
+  workflow-coordinator:
+    environment:
+      ESHU_OBSERVABILITY_COLLECTOR_INSTANCES_JSON: |
+        [{"instance_id":"remote-e2e-grafana","collector_kind":"grafana","mode":"continuous","enabled":${ESHU_REMOTE_E2E_GRAFANA_ENABLED:-false},"claims_enabled":true,"configuration":{"targets":[{"provider":"grafana","scope_id":"grafana://remote-e2e","instance_id":"remote-e2e","base_url":"${ESHU_GRAFANA_BASE_URL:-}","token_env":"GRAFANA_TOKEN","resource_limit":${ESHU_GRAFANA_RESOURCE_LIMIT:-25},"stale_after":"${ESHU_GRAFANA_STALE_AFTER:-24h}","enabled":${ESHU_REMOTE_E2E_GRAFANA_ENABLED:-false},"observed_only_hint":true}]}},{"instance_id":"remote-e2e-prometheus-mimir","collector_kind":"prometheus_mimir","mode":"continuous","enabled":${ESHU_REMOTE_E2E_PROMETHEUS_MIMIR_ENABLED:-false},"claims_enabled":true,"configuration":{"targets":[{"provider":"${ESHU_PROMETHEUS_MIMIR_PROVIDER:-prometheus}","scope_id":"prometheus-mimir://remote-e2e","instance_id":"remote-e2e","base_url":"${ESHU_PROMETHEUS_MIMIR_BASE_URL:-}","path_prefix":"${ESHU_PROMETHEUS_MIMIR_PATH_PREFIX:-}","token_env":"${ESHU_PROMETHEUS_MIMIR_TOKEN_ENV:-}","tenant_id_env":"${ESHU_PROMETHEUS_MIMIR_TENANT_ID_ENV:-}","resource_limit":${ESHU_PROMETHEUS_MIMIR_RESOURCE_LIMIT:-25},"stale_after":"${ESHU_PROMETHEUS_MIMIR_STALE_AFTER:-24h}","enabled":${ESHU_REMOTE_E2E_PROMETHEUS_MIMIR_ENABLED:-false},"observed_only_hint":true}]}},{"instance_id":"remote-e2e-loki","collector_kind":"loki","mode":"continuous","enabled":${ESHU_REMOTE_E2E_LOKI_ENABLED:-false},"claims_enabled":true,"configuration":{"targets":[{"scope_id":"loki://remote-e2e","instance_id":"remote-e2e","base_url":"${ESHU_LOKI_BASE_URL:-}","path_prefix":"${ESHU_LOKI_PATH_PREFIX:-}","token_env":"${ESHU_LOKI_TOKEN_ENV:-}","tenant_id_env":"${ESHU_LOKI_TENANT_ID_ENV:-}","resource_limit":${ESHU_LOKI_RESOURCE_LIMIT:-25},"label_value_names":${ESHU_LOKI_LABEL_VALUE_NAMES_JSON:-[]},"max_label_values_per_label":${ESHU_LOKI_MAX_LABEL_VALUES_PER_LABEL:-5},"series_matchers":${ESHU_LOKI_SERIES_MATCHERS_JSON:-[]},"stale_after":"${ESHU_LOKI_STALE_AFTER:-24h}","enabled":${ESHU_REMOTE_E2E_LOKI_ENABLED:-false},"observed_only_hint":true}]}},{"instance_id":"remote-e2e-tempo","collector_kind":"tempo","mode":"continuous","enabled":${ESHU_REMOTE_E2E_TEMPO_ENABLED:-false},"claims_enabled":true,"configuration":{"targets":[{"scope_id":"tempo://remote-e2e","instance_id":"remote-e2e","base_url":"${ESHU_TEMPO_BASE_URL:-}","path_prefix":"${ESHU_TEMPO_PATH_PREFIX:-}","token_env":"${ESHU_TEMPO_TOKEN_ENV:-}","tenant_id_env":"${ESHU_TEMPO_TENANT_ID_ENV:-}","resource_limit":${ESHU_TEMPO_RESOURCE_LIMIT:-25},"tag_value_names":${ESHU_TEMPO_TAG_VALUE_NAMES_JSON:-[]},"max_tag_values_per_tag":${ESHU_TEMPO_MAX_TAG_VALUES_PER_TAG:-5},"stale_after":"${ESHU_TEMPO_STALE_AFTER:-24h}","enabled":${ESHU_REMOTE_E2E_TEMPO_ENABLED:-false},"observed_only_hint":true,"freshness_probe_enabled":${ESHU_TEMPO_FRESHNESS_PROBE_ENABLED:-true},"lookback":"${ESHU_TEMPO_LOOKBACK:-2h}"}]}}]
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        base="$$(printf '%s' "$${ESHU_COLLECTOR_INSTANCES_JSON:?missing base collector instances}" | tr -d '\n')"
+        extra="$$(printf '%s' "$${ESHU_OBSERVABILITY_COLLECTOR_INSTANCES_JSON:?missing observability collector instances}" | tr -d '\n')"
+        base="$${base%]}"
+        extra="$${extra#\[}"
+        export ESHU_COLLECTOR_INSTANCES_JSON="$${base},$${extra}"
+        exec /usr/local/bin/eshu-workflow-coordinator
+
+  collector-grafana:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles:
+      - grafana
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-grafana"]
+    ports:
+      - "${ESHU_COLLECTOR_GRAFANA_METRICS_PORT:-19482}:9464"
+    environment:
+      <<: *observability_runtime_env
+      ESHU_GRAFANA_COLLECTOR_INSTANCE_ID: remote-e2e-grafana
+      ESHU_GRAFANA_COLLECTOR_OWNER_ID: remote-e2e-grafana-worker
+      ESHU_GRAFANA_COLLECTOR_POLL_INTERVAL: ${ESHU_GRAFANA_COLLECTOR_POLL_INTERVAL:-2s}
+      ESHU_GRAFANA_COLLECTOR_CLAIM_LEASE_TTL: ${ESHU_GRAFANA_COLLECTOR_CLAIM_LEASE_TTL:-60s}
+      ESHU_GRAFANA_COLLECTOR_HEARTBEAT_INTERVAL: ${ESHU_GRAFANA_COLLECTOR_HEARTBEAT_INTERVAL:-10s}
+      ESHU_COLLECTOR_INSTANCES_JSON: |
+        [{"instance_id":"remote-e2e-grafana","collector_kind":"grafana","mode":"continuous","enabled":${ESHU_REMOTE_E2E_GRAFANA_ENABLED:-false},"claims_enabled":true,"configuration":{"targets":[{"provider":"grafana","scope_id":"grafana://remote-e2e","instance_id":"remote-e2e","base_url":"${ESHU_GRAFANA_BASE_URL:-}","token_env":"GRAFANA_TOKEN","resource_limit":${ESHU_GRAFANA_RESOURCE_LIMIT:-25},"stale_after":"${ESHU_GRAFANA_STALE_AFTER:-24h}","enabled":${ESHU_REMOTE_E2E_GRAFANA_ENABLED:-false},"observed_only_hint":true}]}}]
+      GRAFANA_TOKEN: ${ESHU_GRAFANA_TOKEN:-}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      projector:
+        condition: service_healthy
+      workflow-coordinator:
+        condition: service_healthy
+
+  collector-prometheus-mimir:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles:
+      - prometheus-mimir
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-prometheus-mimir"]
+    ports:
+      - "${ESHU_COLLECTOR_PROMETHEUS_MIMIR_METRICS_PORT:-19483}:9464"
+    environment:
+      <<: *observability_runtime_env
+      ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID: remote-e2e-prometheus-mimir
+      ESHU_PROMETHEUS_MIMIR_COLLECTOR_OWNER_ID: remote-e2e-prometheus-mimir-worker
+      ESHU_PROMETHEUS_MIMIR_COLLECTOR_POLL_INTERVAL: ${ESHU_PROMETHEUS_MIMIR_COLLECTOR_POLL_INTERVAL:-2s}
+      ESHU_PROMETHEUS_MIMIR_COLLECTOR_CLAIM_LEASE_TTL: ${ESHU_PROMETHEUS_MIMIR_COLLECTOR_CLAIM_LEASE_TTL:-60s}
+      ESHU_PROMETHEUS_MIMIR_COLLECTOR_HEARTBEAT_INTERVAL: ${ESHU_PROMETHEUS_MIMIR_COLLECTOR_HEARTBEAT_INTERVAL:-10s}
+      ESHU_COLLECTOR_INSTANCES_JSON: |
+        [{"instance_id":"remote-e2e-prometheus-mimir","collector_kind":"prometheus_mimir","mode":"continuous","enabled":${ESHU_REMOTE_E2E_PROMETHEUS_MIMIR_ENABLED:-false},"claims_enabled":true,"configuration":{"targets":[{"provider":"${ESHU_PROMETHEUS_MIMIR_PROVIDER:-prometheus}","scope_id":"prometheus-mimir://remote-e2e","instance_id":"remote-e2e","base_url":"${ESHU_PROMETHEUS_MIMIR_BASE_URL:-}","path_prefix":"${ESHU_PROMETHEUS_MIMIR_PATH_PREFIX:-}","token_env":"${ESHU_PROMETHEUS_MIMIR_TOKEN_ENV:-}","tenant_id_env":"${ESHU_PROMETHEUS_MIMIR_TENANT_ID_ENV:-}","resource_limit":${ESHU_PROMETHEUS_MIMIR_RESOURCE_LIMIT:-25},"stale_after":"${ESHU_PROMETHEUS_MIMIR_STALE_AFTER:-24h}","enabled":${ESHU_REMOTE_E2E_PROMETHEUS_MIMIR_ENABLED:-false},"observed_only_hint":true}]}}]
+      PROMETHEUS_MIMIR_TOKEN: ${ESHU_PROMETHEUS_MIMIR_TOKEN:-}
+      PROMETHEUS_MIMIR_TENANT_ID: ${ESHU_PROMETHEUS_MIMIR_TENANT_ID:-}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      projector:
+        condition: service_healthy
+      workflow-coordinator:
+        condition: service_healthy
+
+  collector-loki:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles:
+      - loki
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-loki"]
+    ports:
+      - "${ESHU_COLLECTOR_LOKI_METRICS_PORT:-19484}:9464"
+    environment:
+      <<: *observability_runtime_env
+      ESHU_LOKI_COLLECTOR_INSTANCE_ID: remote-e2e-loki
+      ESHU_LOKI_COLLECTOR_OWNER_ID: remote-e2e-loki-worker
+      ESHU_LOKI_COLLECTOR_POLL_INTERVAL: ${ESHU_LOKI_COLLECTOR_POLL_INTERVAL:-2s}
+      ESHU_LOKI_COLLECTOR_CLAIM_LEASE_TTL: ${ESHU_LOKI_COLLECTOR_CLAIM_LEASE_TTL:-60s}
+      ESHU_LOKI_COLLECTOR_HEARTBEAT_INTERVAL: ${ESHU_LOKI_COLLECTOR_HEARTBEAT_INTERVAL:-10s}
+      ESHU_COLLECTOR_INSTANCES_JSON: |
+        [{"instance_id":"remote-e2e-loki","collector_kind":"loki","mode":"continuous","enabled":${ESHU_REMOTE_E2E_LOKI_ENABLED:-false},"claims_enabled":true,"configuration":{"targets":[{"scope_id":"loki://remote-e2e","instance_id":"remote-e2e","base_url":"${ESHU_LOKI_BASE_URL:-}","path_prefix":"${ESHU_LOKI_PATH_PREFIX:-}","token_env":"${ESHU_LOKI_TOKEN_ENV:-}","tenant_id_env":"${ESHU_LOKI_TENANT_ID_ENV:-}","resource_limit":${ESHU_LOKI_RESOURCE_LIMIT:-25},"label_value_names":${ESHU_LOKI_LABEL_VALUE_NAMES_JSON:-[]},"max_label_values_per_label":${ESHU_LOKI_MAX_LABEL_VALUES_PER_LABEL:-5},"series_matchers":${ESHU_LOKI_SERIES_MATCHERS_JSON:-[]},"stale_after":"${ESHU_LOKI_STALE_AFTER:-24h}","enabled":${ESHU_REMOTE_E2E_LOKI_ENABLED:-false},"observed_only_hint":true}]}}]
+      LOKI_TOKEN: ${ESHU_LOKI_TOKEN:-}
+      LOKI_TENANT_ID: ${ESHU_LOKI_TENANT_ID:-}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      projector:
+        condition: service_healthy
+      workflow-coordinator:
+        condition: service_healthy
+
+  collector-tempo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles:
+      - tempo
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-tempo"]
+    ports:
+      - "${ESHU_COLLECTOR_TEMPO_METRICS_PORT:-19485}:9464"
+    environment:
+      <<: *observability_runtime_env
+      ESHU_TEMPO_COLLECTOR_INSTANCE_ID: remote-e2e-tempo
+      ESHU_TEMPO_COLLECTOR_OWNER_ID: remote-e2e-tempo-worker
+      ESHU_TEMPO_COLLECTOR_POLL_INTERVAL: ${ESHU_TEMPO_COLLECTOR_POLL_INTERVAL:-2s}
+      ESHU_TEMPO_COLLECTOR_CLAIM_LEASE_TTL: ${ESHU_TEMPO_COLLECTOR_CLAIM_LEASE_TTL:-60s}
+      ESHU_TEMPO_COLLECTOR_HEARTBEAT_INTERVAL: ${ESHU_TEMPO_COLLECTOR_HEARTBEAT_INTERVAL:-10s}
+      ESHU_COLLECTOR_INSTANCES_JSON: |
+        [{"instance_id":"remote-e2e-tempo","collector_kind":"tempo","mode":"continuous","enabled":${ESHU_REMOTE_E2E_TEMPO_ENABLED:-false},"claims_enabled":true,"configuration":{"targets":[{"scope_id":"tempo://remote-e2e","instance_id":"remote-e2e","base_url":"${ESHU_TEMPO_BASE_URL:-}","path_prefix":"${ESHU_TEMPO_PATH_PREFIX:-}","token_env":"${ESHU_TEMPO_TOKEN_ENV:-}","tenant_id_env":"${ESHU_TEMPO_TENANT_ID_ENV:-}","resource_limit":${ESHU_TEMPO_RESOURCE_LIMIT:-25},"tag_value_names":${ESHU_TEMPO_TAG_VALUE_NAMES_JSON:-[]},"max_tag_values_per_tag":${ESHU_TEMPO_MAX_TAG_VALUES_PER_TAG:-5},"stale_after":"${ESHU_TEMPO_STALE_AFTER:-24h}","enabled":${ESHU_REMOTE_E2E_TEMPO_ENABLED:-false},"observed_only_hint":true,"freshness_probe_enabled":${ESHU_TEMPO_FRESHNESS_PROBE_ENABLED:-true},"lookback":"${ESHU_TEMPO_LOOKBACK:-2h}"}]}}]
+      TEMPO_TOKEN: ${ESHU_TEMPO_TOKEN:-}
+      TEMPO_TENANT_ID: ${ESHU_TEMPO_TENANT_ID:-}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      projector:
+        condition: service_healthy
+      workflow-coordinator:
+        condition: service_healthy

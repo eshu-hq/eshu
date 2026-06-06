@@ -46,7 +46,7 @@ func TestRemoteE2EDocsDocumentAdvisoryEvidenceSelector(t *testing.T) {
 
 	for _, path := range []string{
 		"docs/public/reference/environment-compose-tests.md",
-		"docs/public/reference/local-testing/remote-collector-e2e.md",
+		"docs/public/reference/local-testing/remote-representative-acceptance.md",
 	} {
 		content := readRepositoryFile(t, "../../..", path)
 		if !strings.Contains(content, "ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID") {

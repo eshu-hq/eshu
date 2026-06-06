@@ -29,6 +29,15 @@ export ESHU_REMOTE_E2E_COMPOSE_FILES="docker-compose.remote-e2e.yaml:/tmp/eshu-r
 scripts/verify_remote_e2e_runtime_state.sh
 ```
 
+If the run enables Grafana, Prometheus/Mimir, Loki, or Tempo, include the
+checked-in observability overlay:
+
+```bash
+export ESHU_REMOTE_E2E_COMPOSE_FILES="docker-compose.remote-e2e.yaml:docker-compose.remote-e2e.observability.yaml"
+export ESHU_REMOTE_E2E_COMPOSE_PROFILES="grafana,prometheus-mimir,loki,tempo"
+scripts/verify_remote_e2e_runtime_state.sh
+```
+
 ## What It Checks
 
 By default, the verifier requires these core runtimes:
@@ -36,6 +45,7 @@ By default, the verifier requires these core runtimes:
 - `eshu`
 - `mcp-server`
 - `ingester`
+- `projector`
 - `resolution-engine`
 - `workflow-coordinator`
 
@@ -49,6 +59,13 @@ It also requires these hosted collector services:
 - `collector-vulnerability-intelligence`
 - `collector-aws-cloud`
 - `scanner-worker`
+
+The verifier also renders the configured Compose files and automatically
+requires any rendered profile collector service from this list:
+`collector-confluence`, `collector-pagerduty`, `collector-jira`,
+`collector-grafana`, `collector-prometheus-mimir`, `collector-loki`, and
+`collector-tempo`. This keeps a profile-expanded run from passing while an
+enabled hosted collector container is missing, stopped, or unhealthy.
 
 Each service must have a container, be `running`, and either have no Docker
 healthcheck or report `healthy`. In smoke and full-corpus modes, the verifier
@@ -79,6 +96,13 @@ probe is bounded by `ESHU_REMOTE_E2E_API_TIMEOUT_SECONDS`, which defaults to
 Set `ESHU_REMOTE_E2E_REQUIRED_SERVICES`,
 `ESHU_REMOTE_E2E_COLLECTOR_SERVICES`, or `ESHU_REMOTE_E2E_EXTRA_SERVICES` to
 override the checked service lists for a narrower or profile-expanded run.
+Set `ESHU_REMOTE_E2E_COMPOSE_PROFILES` when the proof started Compose services
+through profiles; the verifier passes those profiles to `docker compose config
+--services` before discovering rendered profile collector services. The value
+accepts comma-separated or whitespace-separated profile names.
+Set `ESHU_REMOTE_E2E_PROFILE_COLLECTOR_SERVICES` only when a local override
+adds another profile collector service that should be discovered from rendered
+Compose services.
 Set `ESHU_REMOTE_E2E_API_BASE_URL` and `ESHU_REMOTE_E2E_API_KEY` when the API
 is not discoverable through the `eshu` Compose service port and generated
 token.

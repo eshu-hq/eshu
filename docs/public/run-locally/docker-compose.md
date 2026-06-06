@@ -170,8 +170,9 @@ Use `docker-compose.remote-e2e.yaml` on a VPN-attached or account-local test
 machine for the default runtime plus claim-driven Terraform state, OCI
 registry, package registry, provider security alerts, vulnerability
 intelligence, scanner-worker, AWS cloud, and optional Confluence, Jira, and
-PagerDuty collectors. It is standalone and defaults the Compose project to
-`eshu-remote-e2e`.
+PagerDuty collectors. Add `docker-compose.remote-e2e.observability.yaml` for
+optional Grafana, Prometheus/Mimir, Loki, and Tempo workers. The stack is
+standalone and defaults the Compose project to `eshu-remote-e2e`.
 Its package-registry and vulnerability-intelligence derived target planners run
 with `planning_mode=single_pass` so representative proofs stay bounded by the
 configured derived target budget instead of rotating through a new owned-package
@@ -188,14 +189,17 @@ and acceptance evidence, see
 [Remote Collector E2E](../reference/local-testing/remote-collector-e2e.md)
 and [Profiling And Concurrency](../reference/local-testing/profiling-and-concurrency.md#remote-e2e-worker-profiles).
 The optional `docker-compose.remote-e2e.pprof.yaml` overlay binds host pprof
-ports to `127.0.0.1`; keep profiler access private and use it only for focused
-proof runs.
+ports to `127.0.0.1`; pair it with
+`docker-compose.remote-e2e.observability.pprof.yaml` when the observability
+collector overlay is enabled. Keep profiler access private and use it only for
+focused proof runs.
 
-Jira and PagerDuty are disabled by default and render only when
-`--profile jira` or `--profile pagerduty` is selected with a private env file
-that enables the matching collector instance. Their disabled registrations can
-keep blank private target fields and the claim-capable flag, so
-preserved-volume restarts do not need placeholder Jira or PagerDuty values.
+Jira, PagerDuty, Grafana, Prometheus/Mimir, Loki, and Tempo are disabled by
+default and render only when their explicit profile is selected with a private
+env file and, for the observability collectors, the observability overlay.
+Their disabled
+registrations can keep blank private target fields and the claim-capable flag,
+so preserved-volume restarts do not need placeholder provider values.
 The Jira registration uses `jql_env` for `ESHU_JIRA_JQL`; keep private JQL in
 the env file so spaces, quotes, and operators are not interpolated into the
 collector instance JSON.

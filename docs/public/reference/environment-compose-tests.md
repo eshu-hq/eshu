@@ -80,9 +80,11 @@ These variables are read by `scripts/sync_local_compose_mcp.sh`.
 | `ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID` | unset | Optional package ID whose impact-readiness envelope must report `package_registry_metadata` / `metadata_too_large` coverage-gap evidence. |
 | `ESHU_REMOTE_E2E_ENV_FILE` | unset | Optional Compose env file passed to `docker compose --env-file`. |
 | `ESHU_REMOTE_E2E_COMPOSE_FILES` | `docker-compose.remote-e2e.yaml` | Colon-separated Compose file list for `scripts/verify_remote_e2e_runtime_state.sh`. |
+| `ESHU_REMOTE_E2E_COMPOSE_PROFILES` | `COMPOSE_PROFILES`, then unset | Comma-separated or whitespace-separated Compose profiles passed to the remote runtime verifier. |
 | `ESHU_REMOTE_E2E_REQUIRED_SERVICES` | core runtime service list | Core services that must be running and healthy. |
 | `ESHU_REMOTE_E2E_COLLECTOR_SERVICES` | hosted collector service list | Collector services that must be running and healthy. |
 | `ESHU_REMOTE_E2E_EXTRA_SERVICES` | unset | Additional services required for a profile-specific proof. |
+| `ESHU_REMOTE_E2E_PROFILE_COLLECTOR_SERVICES` | profile hosted collector service list | Rendered profile collector services automatically added to the runtime health gate. |
 | `ESHU_REMOTE_E2E_API_BASE_URL` | discovered from Compose `eshu:8080` | API base URL for the checkpointed index-status probe. |
 | `ESHU_REMOTE_E2E_API_KEY` | discovered from Compose runtime when available | Bearer token for the index-status probe. |
 | `ESHU_AWS_E2E_ACCOUNT_ID` | unset | AWS account ID used by remote E2E AWS targets. |

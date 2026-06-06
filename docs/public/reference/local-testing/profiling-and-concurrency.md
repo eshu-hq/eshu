@@ -98,6 +98,19 @@ docker compose --env-file .env.remote-e2e \
   --profile seed up --build
 ```
 
+When profiling Grafana, Prometheus/Mimir, Loki, or Tempo, include the matching
+observability overlays:
+
+```bash
+docker compose --env-file .env.remote-e2e \
+  -f docker-compose.remote-e2e.yaml \
+  -f docker-compose.remote-e2e.observability.yaml \
+  -f docker-compose.remote-e2e.pprof.yaml \
+  -f docker-compose.remote-e2e.observability.pprof.yaml \
+  --profile grafana --profile prometheus-mimir \
+  --profile loki --profile tempo up --build
+```
+
 The overlay sets `ESHU_PPROF_ADDR=0.0.0.0:6060` inside each worker container,
 then publishes that container port on the remote host loopback interface. That
 keeps the profiler private to the test host while still allowing an operator to
@@ -119,7 +132,12 @@ use an SSH tunnel from their laptop.
 | `scanner-worker` | `127.0.0.1:19671` |
 | `collector-sbom-attestation` | `127.0.0.1:19672` |
 | `collector-security-alerts` | `127.0.0.1:19673` |
-| `collector-jira` | `127.0.0.1:19674` |
+| `collector-pagerduty` | `127.0.0.1:19674` |
+| `collector-jira` | `127.0.0.1:19675` |
+| `collector-grafana` | `127.0.0.1:19676` |
+| `collector-prometheus-mimir` | `127.0.0.1:19677` |
+| `collector-loki` | `127.0.0.1:19678` |
+| `collector-tempo` | `127.0.0.1:19679` |
 
 Example captures from the remote host:
 

@@ -1,0 +1,29 @@
+# Opt-in pprof overlay for remote E2E observability collector workers.
+#
+# Use after docker-compose.remote-e2e.observability.yaml when the proof needs
+# Grafana, Prometheus/Mimir, Loki, or Tempo worker profiles.
+
+services:
+  collector-grafana:
+    environment:
+      ESHU_PPROF_ADDR: 0.0.0.0:6060
+    ports:
+      - "127.0.0.1:19676:6060"
+
+  collector-prometheus-mimir:
+    environment:
+      ESHU_PPROF_ADDR: 0.0.0.0:6060
+    ports:
+      - "127.0.0.1:19677:6060"
+
+  collector-loki:
+    environment:
+      ESHU_PPROF_ADDR: 0.0.0.0:6060
+    ports:
+      - "127.0.0.1:19678:6060"
+
+  collector-tempo:
+    environment:
+      ESHU_PPROF_ADDR: 0.0.0.0:6060
+    ports:
+      - "127.0.0.1:19679:6060"
