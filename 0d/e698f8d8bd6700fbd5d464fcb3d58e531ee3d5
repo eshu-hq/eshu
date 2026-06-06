@@ -1,0 +1,26 @@
+apps/console/src/api/eshuObservability.ts
+  s_f2f7fbb6f30866::t_3b3a771f2d546f 6-7,39-40,66-69,95-112,114,117-138,141-142,150,155-157,167-168
+apps/console/src/pages/ObservabilityPage.test.tsx
+  s_f2f7fbb6f30866::t_c516a39e0a13ef 1-27
+apps/console/src/api/eshuObservability.test.ts
+  s_f2f7fbb6f30866::t_2c0ffd76201220 5-6,16-17,19-20,23,45,47,63,69-70,78
+  s_f2f7fbb6f30866::t_90216b1233fd51 18
+apps/console/src/pages/ObservabilityPage.tsx
+  s_f2f7fbb6f30866::t_5d51baa0c72788 6,35-38,44,51,57,65,68-69,83,86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "0de698f8d8bd6700fbd5d464fcb3d58e531ee3d5",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
