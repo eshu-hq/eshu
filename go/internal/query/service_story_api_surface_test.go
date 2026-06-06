@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -108,5 +109,42 @@ func TestGetServiceStoryReadbackAlignsSupportOverviewSpecCountWithAPISurface(t *
 	}
 	if got, want := IntVal(supportOverview, "spec_count"), IntVal(apiSurface, "spec_count"); got != want {
 		t.Fatalf("support_overview.spec_count = %d, want api_surface.spec_count %d", got, want)
+	}
+}
+
+func TestBuildServiceStoryResponseNormalizesAPISurfaceOnce(t *testing.T) {
+	ctx := serviceStoryAPISurfaceJSONContext(75)
+
+	allocs := testing.AllocsPerRun(100, func() {
+		_ = buildServiceStoryResponse("service-edge-api", ctx)
+	})
+
+	const maxAllocsPerResponse = 670
+	if allocs > maxAllocsPerResponse {
+		t.Fatalf("allocs per service story response = %.0f, want <= %d", allocs, maxAllocsPerResponse)
+	}
+}
+
+func serviceStoryAPISurfaceJSONContext(endpointCount int) map[string]any {
+	endpoints := make([]any, 0, endpointCount)
+	for i := range endpointCount {
+		endpoints = append(endpoints, map[string]any{
+			"path":      fmt.Sprintf("/v1/resource-%03d", i),
+			"methods":   []any{"GET", "POST"},
+			"spec_path": "openapi.yaml",
+		})
+	}
+	return map[string]any{
+		"id":        "workload:service-edge-api",
+		"name":      "service-edge-api",
+		"kind":      "service",
+		"repo_id":   "repo-service-edge-api",
+		"repo_name": "service-edge-api",
+		"api_surface": map[string]any{
+			"endpoint_count": endpointCount,
+			"method_count":   endpointCount * 2,
+			"spec_paths":     []any{"openapi.yaml"},
+			"endpoints":      endpoints,
+		},
 	}
 }
