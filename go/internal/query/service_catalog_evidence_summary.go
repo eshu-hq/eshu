@@ -127,11 +127,11 @@ func serviceCatalogLocalDescriptorEvidenceFromRows(
 		return ServiceCatalogLocalDescriptorEvidence{State: "absent"}
 	}
 
-	count := len(rows)
 	truncated := len(rows) > serviceCatalogLocalDescriptorEvidenceLimit
 	if truncated {
 		rows = rows[:serviceCatalogLocalDescriptorEvidenceLimit]
 	}
+	count := len(rows)
 
 	providerSet := map[string]struct{}{}
 	sourceURISet := map[string]struct{}{}

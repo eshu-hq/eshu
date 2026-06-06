@@ -90,7 +90,7 @@ JSON
 {"data":{"total_attachments":1},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
   cat >"${state_dir}/service-catalog.json" <<'JSON'
-{"data":{"count":1,"correlations":[{"correlation_id":"corr-1","service_id":"service:api"}],"truncated":false,"evidence_summary":{"local_descriptors":{"state":"present","count":1,"providers":["backstage"],"source_uris":["file://repo/catalog-info.yaml"]},"external_catalog_confirmation":{"state":"present","count":1}}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
+{"data":{"count":1,"correlations":[{"correlation_id":"corr-1","service_id":"service:api"}],"truncated":false,"evidence_summary":{"local_descriptors":{"state":"present","count":1,"providers":["backstage"],"source_uris":["file://repo/catalog-info.yaml"]},"external_catalog_confirmation":{"state":"present","count":1,"reason":"catalog_match"}}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
   cat >"${state_dir}/cicd-count.json" <<'JSON'
 {"data":{"total_correlations":1},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
@@ -102,7 +102,7 @@ JSON
 {"data":{"count":1,"results":[{"id":"cloud-resource:api","resource_id":"arn:aws:lambda:us-east-1:111122223333:function:example-api","arn":"arn:aws:lambda:us-east-1:111122223333:function:example-api","provider":"aws"}],"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
   cat >"${state_dir}/mcp-service-catalog.json" <<'JSON'
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":1,\"correlations\":[{\"correlation_id\":\"corr-1\",\"service_id\":\"service:api\"}],\"truncated\":false,\"evidence_summary\":{\"local_descriptors\":{\"state\":\"present\",\"count\":1,\"providers\":[\"backstage\"],\"source_uris\":[\"file://repo/catalog-info.yaml\"]},\"external_catalog_confirmation\":{\"state\":\"present\",\"count\":1}}},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
+{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":1,\"correlations\":[{\"correlation_id\":\"corr-1\",\"service_id\":\"service:api\"}],\"truncated\":false,\"evidence_summary\":{\"local_descriptors\":{\"state\":\"present\",\"count\":1,\"providers\":[\"backstage\"],\"source_uris\":[\"file://repo/catalog-info.yaml\"]},\"external_catalog_confirmation\":{\"state\":\"present\",\"count\":1,\"reason\":\"catalog_match\"}}},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
 JSON
   cat >"${state_dir}/mcp-cicd.json" <<'JSON'
 {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":1,\"correlations\":[{\"correlation_id\":\"cicd-1\",\"provider\":\"github_actions\",\"run_id\":\"run-1\",\"repository_id\":\"repo://example/api\",\"outcome\":\"exact\",\"provenance_only\":false,\"canonical_writes\":1}],\"limit\":1,\"truncated\":false,\"evidence_summary\":{\"static_workflow_artifacts\":{\"state\":\"present\",\"count\":1,\"paths\":[\".github/workflows/deploy.yml\"]},\"live_run_correlations\":{\"state\":\"present\",\"count\":1}}},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
@@ -193,6 +193,11 @@ if ! rg -q 'mcp_ci_cd_live_run_state=present' /tmp/eshu-remote-e2e-target-story.
   printf 'expected target-story proof to report MCP CI/CD live run state\n' >&2
   sed -n '1,200p' /tmp/eshu-remote-e2e-target-story.out >&2
   exit 1
+fi
+if ! rg -q 'service_catalog_external_confirmation_reason=catalog_match .*mcp_service_catalog_external_confirmation_reason=catalog_match' /tmp/eshu-remote-e2e-target-story.out; then
+	printf 'expected target-story proof to report API and MCP service-catalog evidence reasons\n' >&2
+	sed -n '1,200p' /tmp/eshu-remote-e2e-target-story.out >&2
+	exit 1
 fi
 
 reset_state

@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
 TARGET_STORY_FILE="${ESHU_REMOTE_E2E_TARGET_STORY_FILE:-}"
 API_BASE_URL="${ESHU_REMOTE_E2E_API_BASE_URL:-}"
 API_KEY="${ESHU_REMOTE_E2E_API_KEY:-}"
@@ -472,7 +471,7 @@ main() {
 		mcp_cloud_count="$(cloud_resource_match_count "${mcp_cloud_file}" "${expected_cloud_resource_id}")"
 		require_min_count mcp_cloud_resources "${mcp_cloud_count}" "${cloud_min}"
 	fi
-	printf 'remote E2E target story proof counts: proof_mode=%s repository_story=1 impact_findings=%s security_alert_reconciliations=%s security_alert_expected_rows=%s container_image_identities=%s sbom_attachments=%s service_catalog_correlations=%s service_catalog_local_descriptors=%s service_catalog_external_confirmation=%s service_catalog_external_confirmation_reason=%s ci_cd_run_correlations=%s ci_cd_static_workflow_state=%s ci_cd_live_run_state=%s cloud_resources=%s mcp_service_catalog_correlations=%s mcp_service_catalog_local_descriptors=%s mcp_service_catalog_external_confirmation=%s mcp_ci_cd_run_correlations=%s mcp_ci_cd_static_workflow_state=%s mcp_ci_cd_live_run_state=%s mcp_cloud_resources=%s\n' \
+	printf 'remote E2E target story proof counts: proof_mode=%s repository_story=1 impact_findings=%s security_alert_reconciliations=%s security_alert_expected_rows=%s container_image_identities=%s sbom_attachments=%s service_catalog_correlations=%s service_catalog_local_descriptors=%s service_catalog_external_confirmation=%s service_catalog_external_confirmation_reason=%s ci_cd_run_correlations=%s ci_cd_static_workflow_state=%s ci_cd_live_run_state=%s cloud_resources=%s mcp_service_catalog_correlations=%s mcp_service_catalog_local_descriptors=%s mcp_service_catalog_external_confirmation=%s mcp_service_catalog_external_confirmation_reason=%s mcp_ci_cd_run_correlations=%s mcp_ci_cd_static_workflow_state=%s mcp_ci_cd_live_run_state=%s mcp_cloud_resources=%s\n' \
 		"${proof_mode}" \
 		"${impact_count}" \
 		"${security_count}" \
@@ -490,6 +489,7 @@ main() {
 		"${mcp_catalog_count}" \
 		"${mcp_catalog_local_descriptor_state}" \
 		"${mcp_catalog_external_confirmation_state}" \
+		"${mcp_catalog_external_confirmation_reason}" \
 		"${mcp_cicd_count}" \
 		"${mcp_cicd_static_state}" \
 		"${mcp_cicd_live_state}" \

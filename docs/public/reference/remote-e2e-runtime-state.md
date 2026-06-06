@@ -259,8 +259,9 @@ When `ESHU_REMOTE_E2E_TARGET_STORY_FILE` is set, the verifier prints
 `remote E2E target story proof counts` with repository-story, impact,
 security-alert, provider-alert expected-row parity, container-image, SBOM,
 service-catalog count, service-catalog local-descriptor state,
-service-catalog external-confirmation state, CI/CD, cloud-resource, and MCP
-readback counts/states. It does not print raw repository selectors, image
+service-catalog external-confirmation state and reason, CI/CD, cloud-resource,
+and MCP readback counts/states including service-catalog
+external-confirmation reason. It does not print raw repository selectors, image
 references, service IDs, workload IDs, cloud resource IDs, provider repository
 names, hostnames, package names, URLs, or credentials. API reads request the
 Eshu truth envelope, MCP reads require an envelope resource, and both reject

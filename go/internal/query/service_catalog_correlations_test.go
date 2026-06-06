@@ -322,6 +322,52 @@ func TestServiceCatalogListCorrelationsExplainsLocalOnlyDescriptorEvidence(t *te
 	}
 }
 
+func TestServiceCatalogListCorrelationsBoundsLocalDescriptorEvidenceCount(t *testing.T) {
+	t.Parallel()
+
+	descriptorRows := make([]ServiceCatalogLocalDescriptorEvidenceRow, 0, serviceCatalogLocalDescriptorEvidenceLimit+1)
+	for i := range serviceCatalogLocalDescriptorEvidenceLimit + 1 {
+		descriptorRows = append(descriptorRows, ServiceCatalogLocalDescriptorEvidenceRow{
+			FactID:    "catalog-fact-" + string(rune('a'+i)),
+			FactKind:  "service_catalog.entity",
+			Provider:  "backstage",
+			EntityRef: "component:default/checkout",
+			SourceURI: "file://repo/catalog-info.yaml",
+		})
+	}
+	store := &recordingServiceCatalogCorrelationStore{descriptorRows: descriptorRows}
+	handler := &ServiceCatalogHandler{Correlations: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/service-catalog/correlations?repository_id=repo-checkout&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	var resp struct {
+		EvidenceSummary ServiceCatalogEvidenceSummary `json:"evidence_summary"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if !resp.EvidenceSummary.LocalDescriptors.Truncated {
+		t.Fatal("local_descriptors.truncated = false, want true")
+	}
+	if got, want := resp.EvidenceSummary.LocalDescriptors.Count, len(resp.EvidenceSummary.LocalDescriptors.Facts); got != want {
+		t.Fatalf("local_descriptors.count = %d, want returned facts count %d", got, want)
+	}
+	if got, want := len(resp.EvidenceSummary.LocalDescriptors.Facts), serviceCatalogLocalDescriptorEvidenceLimit; got != want {
+		t.Fatalf("len(local_descriptors.facts) = %d, want %d", got, want)
+	}
+}
+
 func TestServiceCatalogListCorrelationsExplainsExternalCatalogMatch(t *testing.T) {
 	t.Parallel()
 
