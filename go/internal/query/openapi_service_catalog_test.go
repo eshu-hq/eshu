@@ -36,4 +36,16 @@ func TestOpenAPISpecIncludesServiceCatalogCorrelations(t *testing.T) {
 	if got, want := missing["type"], "array"; got != want {
 		t.Fatalf("missing_evidence type = %#v, want %#v", got, want)
 	}
+	evidenceSummary := mustMapField(t, properties, "evidence_summary")
+	evidenceProperties := mustMapField(t, evidenceSummary, "properties")
+	localDescriptors := mustMapField(t, evidenceProperties, "local_descriptors")
+	localProperties := mustMapField(t, localDescriptors, "properties")
+	if got, want := mustMapField(t, localProperties, "source_uris")["type"], "array"; got != want {
+		t.Fatalf("local_descriptors.source_uris type = %#v, want %#v", got, want)
+	}
+	external := mustMapField(t, evidenceProperties, "external_catalog_confirmation")
+	externalProperties := mustMapField(t, external, "properties")
+	if got, want := mustMapField(t, externalProperties, "reason")["type"], "string"; got != want {
+		t.Fatalf("external_catalog_confirmation.reason type = %#v, want %#v", got, want)
+	}
 }

@@ -70,6 +70,49 @@ const openAPIPathsServiceCatalog = `
                         "required": ["class", "reason"]
                       }
                     },
+                    "evidence_summary": {
+                      "type": "object",
+                      "properties": {
+                        "local_descriptors": {
+                          "type": "object",
+                          "properties": {
+                            "state": {"type": "string", "enum": ["present", "absent", "not_checked", "unavailable"]},
+                            "count": {"type": "integer"},
+                            "providers": {"type": "array", "items": {"type": "string"}},
+                            "source_uris": {"type": "array", "items": {"type": "string"}},
+                            "facts": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "fact_id": {"type": "string"},
+                                  "fact_kind": {"type": "string"},
+                                  "provider": {"type": "string"},
+                                  "entity_ref": {"type": "string"},
+                                  "source_uri": {"type": "string"}
+                                },
+                                "required": ["fact_id", "fact_kind"]
+                              }
+                            },
+                            "truncated": {"type": "boolean"},
+                            "reason": {"type": "string"}
+                          },
+                          "required": ["state", "count"]
+                        },
+                        "external_catalog_confirmation": {
+                          "type": "object",
+                          "properties": {
+                            "state": {"type": "string", "enum": ["present", "missing"]},
+                            "count": {"type": "integer"},
+                            "truncated": {"type": "boolean"},
+                            "reason": {"type": "string"}
+                          },
+                          "required": ["state", "count"]
+                        },
+                        "reason": {"type": "string"}
+                      },
+                      "required": ["local_descriptors", "external_catalog_confirmation"]
+                    },
                     "next_cursor": {
                       "type": "object",
                       "properties": {
@@ -78,7 +121,7 @@ const openAPIPathsServiceCatalog = `
                       "required": ["after_correlation_id"]
                     }
                   },
-                  "required": ["correlations", "count", "limit", "truncated"]
+                  "required": ["correlations", "count", "limit", "truncated", "evidence_summary"]
                 }
               }
             }

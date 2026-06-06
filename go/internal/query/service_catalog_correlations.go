@@ -5,6 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/lib/pq"
 )
 
 const serviceCatalogCorrelationFactKind = "reducer_service_catalog_correlation"
@@ -126,6 +129,56 @@ func (s PostgresServiceCatalogCorrelationStore) ListServiceCatalogCorrelations(
 	return out, nil
 }
 
+// ListServiceCatalogLocalDescriptorEvidence returns active repo-local
+// service-catalog source facts for a canonical repository id.
+func (s PostgresServiceCatalogCorrelationStore) ListServiceCatalogLocalDescriptorEvidence(
+	ctx context.Context,
+	repositoryID string,
+	limit int,
+) ([]ServiceCatalogLocalDescriptorEvidenceRow, error) {
+	if s.DB == nil {
+		return nil, fmt.Errorf("service catalog correlation database is required")
+	}
+	if repositoryID == "" {
+		return nil, fmt.Errorf("repository_id is required")
+	}
+	if limit <= 0 || limit > serviceCatalogLocalDescriptorEvidenceLimit+1 {
+		return nil, fmt.Errorf("limit must be between 1 and %d", serviceCatalogLocalDescriptorEvidenceLimit+1)
+	}
+
+	rows, err := s.DB.QueryContext(
+		ctx,
+		listServiceCatalogLocalDescriptorEvidenceQuery,
+		serviceCatalogGitRepositoryScopeID(repositoryID),
+		pq.Array(facts.ServiceCatalogFactKinds()),
+		limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list service catalog local descriptor evidence: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make([]ServiceCatalogLocalDescriptorEvidenceRow, 0, limit)
+	for rows.Next() {
+		var factID string
+		var factKind string
+		var sourceURI string
+		var payloadBytes []byte
+		if err := rows.Scan(&factID, &factKind, &sourceURI, &payloadBytes); err != nil {
+			return nil, fmt.Errorf("list service catalog local descriptor evidence: %w", err)
+		}
+		row, err := decodeServiceCatalogLocalDescriptorEvidenceRow(factID, factKind, sourceURI, payloadBytes)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list service catalog local descriptor evidence: %w", err)
+	}
+	return out, nil
+}
+
 const listServiceCatalogCorrelationsQuery = `
 SELECT fact.fact_id, fact.payload
 FROM fact_records AS fact
@@ -150,6 +203,23 @@ WHERE fact.fact_kind = $1
   AND ($11 = '' OR fact.fact_id > $11)
 ORDER BY fact.fact_id ASC
 LIMIT $12
+`
+
+const listServiceCatalogLocalDescriptorEvidenceQuery = `
+SELECT fact.fact_id, fact.fact_kind, COALESCE(fact.source_uri, ''), fact.payload
+FROM fact_records AS fact
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact.scope_id
+ AND scope.active_generation_id = fact.generation_id
+JOIN scope_generations AS generation
+  ON generation.scope_id = fact.scope_id
+ AND generation.generation_id = fact.generation_id
+WHERE fact.scope_id = $1
+  AND fact.fact_kind = ANY($2::text[])
+  AND fact.is_tombstone = FALSE
+  AND generation.status = 'active'
+ORDER BY COALESCE(fact.source_uri, ''), fact.fact_kind, fact.fact_id
+LIMIT $3
 `
 
 func (f ServiceCatalogCorrelationFilter) hasScope() bool {
@@ -188,5 +258,24 @@ func decodeServiceCatalogCorrelationRow(
 		DriftStatus:            StringVal(payload, "drift_status"),
 		CandidateRepositoryIDs: StringSliceVal(payload, "candidate_repository_ids"),
 		EvidenceFactIDs:        StringSliceVal(payload, "evidence_fact_ids"),
+	}, nil
+}
+
+func decodeServiceCatalogLocalDescriptorEvidenceRow(
+	factID string,
+	factKind string,
+	sourceURI string,
+	payloadBytes []byte,
+) (ServiceCatalogLocalDescriptorEvidenceRow, error) {
+	var payload map[string]any
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		return ServiceCatalogLocalDescriptorEvidenceRow{}, fmt.Errorf("decode service catalog local descriptor evidence: %w", err)
+	}
+	return ServiceCatalogLocalDescriptorEvidenceRow{
+		FactID:    factID,
+		FactKind:  factKind,
+		Provider:  StringVal(payload, "provider"),
+		EntityRef: StringVal(payload, "entity_ref"),
+		SourceURI: sourceURI,
 	}, nil
 }

@@ -109,6 +109,41 @@ selector error instead of an empty page.
 manifest-backed consumption correlations. Provenance-only rows remain marked
 with `provenance_only=true`.
 
+## Service Catalog Correlation
+
+`GET /api/v0/service-catalog/correlations`
+
+Lists reducer-owned service-catalog ownership and drift correlations. The caller
+must provide `limit` and at least one bounded anchor:
+
+- `scope_id`
+- `entity_ref`
+- `repository_id`
+- `service_id`
+- `workload_id`
+- `owner_ref`
+
+`repository_id` accepts a canonical source repository id or the same human
+repository selectors used by repository context routes. Repository-scoped
+responses also include `evidence_summary.local_descriptors`, which reports
+active repo-local Backstage, OpsLevel, Cortex, or warning facts from the
+`git-repository-scope:<repository_id>` generation. These local descriptor facts
+prove that the repository contains catalog evidence, but they do not by
+themselves become external catalog confirmation. The separate
+`evidence_summary.external_catalog_confirmation` block reports whether the
+returned reducer correlation page contains non-provenance exact or derived
+catalog confirmation; otherwise its `reason` explains local-only, ambiguous,
+missing, not-checked, or unavailable evidence.
+
+No-Regression Evidence: `go test ./internal/query -run 'TestServiceCatalogListCorrelationsExplains(LocalOnlyDescriptorEvidence|ExternalCatalogMatch|AmbiguousLocalDescriptor|NoEvidence)|TestServiceCatalogLocalDescriptorEvidenceQueryUsesActiveRepositoryScope|TestOpenAPISpecIncludesServiceCatalogCorrelations' -count=1` covers local-only descriptors, external catalog matches, ambiguous repo-local descriptor correlations, no-evidence responses, the active repository-scope source-fact query shape, and the OpenAPI response schema.
+
+No-Observability-Change: the descriptor summary is a bounded Postgres read over
+active `service_catalog.*` facts for one repository scope and reuses the
+existing `query.service_catalog_correlations` request span, truth envelope,
+Postgres query instrumentation, and HTTP/MCP envelope paths. It adds no graph
+write, queue, worker, metric instrument, metric label, or runtime deployment
+knob.
+
 ## CI/CD Run Correlation
 
 `GET /api/v0/ci-cd/run-correlations`

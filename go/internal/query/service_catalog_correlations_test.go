@@ -2,18 +2,19 @@ package query
 
 import (
 	"context"
-	"database/sql/driver"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"slices"
-	"strings"
 	"testing"
 )
 
 type recordingServiceCatalogCorrelationStore struct {
-	rows       []ServiceCatalogCorrelationRow
-	lastFilter ServiceCatalogCorrelationFilter
+	rows                   []ServiceCatalogCorrelationRow
+	descriptorRows         []ServiceCatalogLocalDescriptorEvidenceRow
+	lastFilter             ServiceCatalogCorrelationFilter
+	lastDescriptorRepoID   string
+	lastDescriptorRowLimit int
 }
 
 func (s *recordingServiceCatalogCorrelationStore) ListServiceCatalogCorrelations(
@@ -22,6 +23,19 @@ func (s *recordingServiceCatalogCorrelationStore) ListServiceCatalogCorrelations
 ) ([]ServiceCatalogCorrelationRow, error) {
 	s.lastFilter = filter
 	return append([]ServiceCatalogCorrelationRow(nil), s.rows...), nil
+}
+
+func (s *recordingServiceCatalogCorrelationStore) ListServiceCatalogLocalDescriptorEvidence(
+	_ context.Context,
+	repositoryID string,
+	limit int,
+) ([]ServiceCatalogLocalDescriptorEvidenceRow, error) {
+	s.lastDescriptorRepoID = repositoryID
+	s.lastDescriptorRowLimit = limit
+	if limit > 0 && limit < len(s.descriptorRows) {
+		return append([]ServiceCatalogLocalDescriptorEvidenceRow(nil), s.descriptorRows[:limit]...), nil
+	}
+	return append([]ServiceCatalogLocalDescriptorEvidenceRow(nil), s.descriptorRows...), nil
 }
 
 func TestServiceCatalogListCorrelationsRequiresScopeAndLimit(t *testing.T) {
@@ -196,8 +210,9 @@ func TestServiceCatalogListCorrelationsExplainsRepositoryScopedEvidence(t *testi
 	if workloadOnly.ServiceID != "" {
 		t.Fatalf("workload-only service_id = %q, want empty without service proof", workloadOnly.ServiceID)
 	}
-	if got, want := byID["catalog-correlation-ambiguous"].CandidateRepositoryIDs, []string{"repository:r_payments", "repository:r_payments_fork"}; !slices.Equal(got, want) {
-		t.Fatalf("ambiguous candidate_repository_ids = %#v, want %#v", got, want)
+	wantCandidates := []string{"repository:r_payments", "repository:r_payments_fork"}
+	if got := byID["catalog-correlation-ambiguous"].CandidateRepositoryIDs; !slices.Equal(got, wantCandidates) {
+		t.Fatalf("ambiguous candidate_repository_ids = %#v, want %#v", got, wantCandidates)
 	}
 }
 
@@ -224,9 +239,10 @@ func TestServiceCatalogListCorrelationsReportsMissingEvidenceForRepositoryScope(
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 	var resp struct {
-		Correlations []ServiceCatalogCorrelationResult `json:"correlations"`
-		Missing      []ServiceCatalogMissingEvidence   `json:"missing_evidence"`
-		Count        int                               `json:"count"`
+		Correlations    []ServiceCatalogCorrelationResult `json:"correlations"`
+		Missing         []ServiceCatalogMissingEvidence   `json:"missing_evidence"`
+		Count           int                               `json:"count"`
+		EvidenceSummary ServiceCatalogEvidenceSummary     `json:"evidence_summary"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -243,66 +259,208 @@ func TestServiceCatalogListCorrelationsReportsMissingEvidenceForRepositoryScope(
 	if got, want := resp.Missing[0].Class, "repository_service_catalog_correlation"; got != want {
 		t.Fatalf("missing_evidence[0].class = %q, want %q", got, want)
 	}
-}
-
-func TestPostgresServiceCatalogCorrelationsResolveCandidateRepositoryIDs(t *testing.T) {
-	t.Parallel()
-
-	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
-		{
-			columns: []string{"fact_id", "payload"},
-			rows: [][]driver.Value{
-				{
-					"catalog-correlation-ambiguous",
-					[]byte(`{
-						"entity_ref": "component:default/payments-shared",
-						"outcome": "ambiguous",
-						"provenance_only": true,
-						"candidate_repository_ids": ["repository:r_payments", "repository:r_payments_fork"]
-					}`),
-				},
-			},
-		},
-	})
-	store := NewPostgresServiceCatalogCorrelationStore(db)
-
-	rows, err := store.ListServiceCatalogCorrelations(context.Background(), ServiceCatalogCorrelationFilter{
-		RepositoryID: "repository:r_payments",
-		Limit:        10,
-	})
-	if err != nil {
-		t.Fatalf("ListServiceCatalogCorrelations() error = %v, want nil", err)
-	}
-	if got, want := len(rows), 1; got != want {
-		t.Fatalf("len(rows) = %d, want %d", got, want)
-	}
-	if got, want := rows[0].CandidateRepositoryIDs, []string{"repository:r_payments", "repository:r_payments_fork"}; !slices.Equal(got, want) {
-		t.Fatalf("CandidateRepositoryIDs = %#v, want %#v", got, want)
-	}
-	if got, want := len(recorder.queries), 1; got != want {
-		t.Fatalf("len(queries) = %d, want %d", got, want)
-	}
-	if !strings.Contains(recorder.queries[0], "fact.payload->'candidate_repository_ids' ? $5") {
-		t.Fatalf("query missing candidate repository predicate:\n%s", recorder.queries[0])
+	if got, want := resp.EvidenceSummary.LocalDescriptors.State, "absent"; got != want {
+		t.Fatalf("local_descriptors.state = %q, want %q", got, want)
 	}
 }
 
-func TestServiceCatalogCorrelationQueryUsesActiveFactReadModel(t *testing.T) {
+func TestServiceCatalogListCorrelationsExplainsLocalOnlyDescriptorEvidence(t *testing.T) {
 	t.Parallel()
 
-	for _, want := range []string{
-		"fact.fact_kind = $1",
-		"fact.is_tombstone = FALSE",
-		"generation.status = 'active'",
-		"fact.payload->>'entity_ref' = $4",
-		"fact.payload->>'repository_id' = $5",
-		"fact.payload->'candidate_repository_ids' ? $5",
-		"fact.payload->>'owner_ref' = $8",
-		"fact.payload->>'outcome' = $9",
-	} {
-		if !strings.Contains(listServiceCatalogCorrelationsQuery, want) {
-			t.Fatalf("listServiceCatalogCorrelationsQuery missing %q:\n%s", want, listServiceCatalogCorrelationsQuery)
-		}
+	store := &recordingServiceCatalogCorrelationStore{
+		descriptorRows: []ServiceCatalogLocalDescriptorEvidenceRow{{
+			FactID:    "catalog-fact-1",
+			FactKind:  "service_catalog.entity",
+			Provider:  "backstage",
+			EntityRef: "component:default/checkout",
+			SourceURI: "file://repo/catalog-info.yaml",
+		}},
+	}
+	handler := &ServiceCatalogHandler{Correlations: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/service-catalog/correlations?repository_id=repo-checkout&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := store.lastDescriptorRepoID, "repo-checkout"; got != want {
+		t.Fatalf("descriptor repositoryID = %q, want %q", got, want)
+	}
+
+	var resp struct {
+		Correlations    []ServiceCatalogCorrelationResult `json:"correlations"`
+		EvidenceSummary ServiceCatalogEvidenceSummary     `json:"evidence_summary"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got := len(resp.Correlations); got != 0 {
+		t.Fatalf("len(correlations) = %d, want 0", got)
+	}
+	if got, want := resp.EvidenceSummary.LocalDescriptors.State, "present"; got != want {
+		t.Fatalf("local_descriptors.state = %q, want %q", got, want)
+	}
+	if got, want := resp.EvidenceSummary.LocalDescriptors.Count, 1; got != want {
+		t.Fatalf("local_descriptors.count = %d, want %d", got, want)
+	}
+	if got, want := resp.EvidenceSummary.LocalDescriptors.Providers, []string{"backstage"}; len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("local_descriptors.providers = %#v, want %#v", got, want)
+	}
+	if got, want := resp.EvidenceSummary.ExternalCatalogConfirmation.State, "missing"; got != want {
+		t.Fatalf("external_catalog_confirmation.state = %q, want %q", got, want)
+	}
+	if got, want := resp.EvidenceSummary.ExternalCatalogConfirmation.Reason, "local_descriptor_without_catalog_correlation"; got != want {
+		t.Fatalf("external_catalog_confirmation.reason = %q, want %q", got, want)
+	}
+}
+
+func TestServiceCatalogListCorrelationsExplainsExternalCatalogMatch(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingServiceCatalogCorrelationStore{
+		rows: []ServiceCatalogCorrelationRow{{
+			CorrelationID: "catalog-correlation-1",
+			RepositoryID:  "repo-checkout",
+			EntityRef:     "component:default/checkout",
+			Outcome:       "exact",
+			Reason:        "catalog repository id matches canonical repository identity",
+		}},
+		descriptorRows: []ServiceCatalogLocalDescriptorEvidenceRow{{
+			FactID:    "catalog-fact-1",
+			FactKind:  "service_catalog.repository_link",
+			Provider:  "backstage",
+			EntityRef: "component:default/checkout",
+			SourceURI: "file://repo/catalog-info.yaml",
+		}},
+	}
+	handler := &ServiceCatalogHandler{Correlations: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/service-catalog/correlations?repository_id=repo-checkout&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var resp struct {
+		Count           int                           `json:"count"`
+		EvidenceSummary ServiceCatalogEvidenceSummary `json:"evidence_summary"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := resp.Count, 1; got != want {
+		t.Fatalf("count = %d, want %d", got, want)
+	}
+	if got, want := resp.EvidenceSummary.ExternalCatalogConfirmation.State, "present"; got != want {
+		t.Fatalf("external_catalog_confirmation.state = %q, want %q", got, want)
+	}
+	if got, want := resp.EvidenceSummary.ExternalCatalogConfirmation.Count, 1; got != want {
+		t.Fatalf("external_catalog_confirmation.count = %d, want %d", got, want)
+	}
+}
+
+func TestServiceCatalogListCorrelationsExplainsAmbiguousLocalDescriptor(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingServiceCatalogCorrelationStore{
+		rows: []ServiceCatalogCorrelationRow{{
+			CorrelationID: "catalog-correlation-1",
+			RepositoryID:  "repo-checkout",
+			EntityRef:     "component:default/checkout",
+			Outcome:       "ambiguous",
+			Reason:        "repo-local catalog descriptor scope matches multiple active repository facts",
+		}},
+		descriptorRows: []ServiceCatalogLocalDescriptorEvidenceRow{{
+			FactID:    "catalog-fact-1",
+			FactKind:  "service_catalog.entity",
+			Provider:  "backstage",
+			EntityRef: "component:default/checkout",
+			SourceURI: "file://repo/catalog-info.yaml",
+		}},
+	}
+	handler := &ServiceCatalogHandler{Correlations: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/service-catalog/correlations?repository_id=repo-checkout&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var resp struct {
+		EvidenceSummary ServiceCatalogEvidenceSummary `json:"evidence_summary"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := resp.EvidenceSummary.LocalDescriptors.State, "present"; got != want {
+		t.Fatalf("local_descriptors.state = %q, want %q", got, want)
+	}
+	if got, want := resp.EvidenceSummary.ExternalCatalogConfirmation.State, "missing"; got != want {
+		t.Fatalf("external_catalog_confirmation.state = %q, want %q", got, want)
+	}
+	if got, want := resp.EvidenceSummary.ExternalCatalogConfirmation.Reason, "local_descriptor_ambiguous"; got != want {
+		t.Fatalf("external_catalog_confirmation.reason = %q, want %q", got, want)
+	}
+}
+
+func TestServiceCatalogListCorrelationsExplainsNoEvidence(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingServiceCatalogCorrelationStore{}
+	handler := &ServiceCatalogHandler{Correlations: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/service-catalog/correlations?repository_id=repo-checkout&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var resp struct {
+		EvidenceSummary ServiceCatalogEvidenceSummary `json:"evidence_summary"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := resp.EvidenceSummary.LocalDescriptors.State, "absent"; got != want {
+		t.Fatalf("local_descriptors.state = %q, want %q", got, want)
+	}
+	if got, want := resp.EvidenceSummary.ExternalCatalogConfirmation.State, "missing"; got != want {
+		t.Fatalf("external_catalog_confirmation.state = %q, want %q", got, want)
+	}
+	if got, want := resp.EvidenceSummary.Reason, "no_service_catalog_evidence_found"; got != want {
+		t.Fatalf("evidence_summary.reason = %q, want %q", got, want)
 	}
 }
 
