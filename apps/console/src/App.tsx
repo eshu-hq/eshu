@@ -17,6 +17,7 @@ import { FindingsPage } from "./pages/FindingsPage";
 import { OperationsPage } from "./pages/OperationsPage";
 import { VulnerabilitiesPage } from "./pages/VulnerabilitiesPage";
 import { VulnDetailPage } from "./pages/VulnDetailPage";
+import { ObservabilityPage } from "./pages/ObservabilityPage";
 import { ExplorerPage } from "./pages/ExplorerPage";
 import { RepositoriesPage } from "./pages/RepositoriesPage";
 import { RepoSourcePage } from "./pages/RepoSourcePage";
@@ -30,6 +31,7 @@ const NAV: readonly { to: string; label: string }[] = [
   { to: "/catalog", label: "Catalog" },
   { to: "/findings", label: "Findings" },
   { to: "/vulnerabilities", label: "Vulnerabilities" },
+  { to: "/observability", label: "Observability" },
   { to: "/operations", label: "Operations" }
 ];
 
@@ -131,6 +133,7 @@ export function App(): React.JSX.Element {
             <Route path="/findings" element={<FindingsPage model={model} />} />
             <Route path="/vulnerabilities" element={<VulnerabilitiesPage model={model} />} />
             <Route path="/vulnerabilities/:id" element={<VulnDetailPage model={model} client={client} />} />
+            <Route path="/observability" element={<ObservabilityPage client={client} />} />
             <Route path="/operations" element={<OperationsPage model={model} />} />
           </Routes>
         ) : (
