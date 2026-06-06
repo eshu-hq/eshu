@@ -332,13 +332,14 @@ wired in `cmd/api/wiring.go`, not here.
 No-Regression Evidence:
 
 ```bash
-cd go && go test ./internal/query -run 'TestInvestigateResourceResolvesExactCloudARN|TestBuildServiceStoryTraceExplainsUncorrelatedCloudCandidates|TestLoadUncorrelatedCloudResourceCandidatesUsesBoundedServiceSelector|TestBuildDeploymentTraceResponseExplainsUncorrelatedCloudCandidates|TestLoadResourceInvestigationSectionsJoinsParallelErrors' -count=1
+cd go && go test ./internal/query -run 'TestInvestigateResourceResolvesExactCloudARN|TestBuildServiceStoryTraceExplainsUncorrelatedCloudCandidates|TestLoadUncorrelatedCloudResourceCandidates(MatchesInfraSearchFields|UsesBoundedServiceSelector)|TestBuildDeploymentTraceResponseExplainsUncorrelatedCloudCandidates|TestLoadResourceInvestigationSectionsJoinsParallelErrors' -count=1
 ```
 
 This proves resource investigation accepts exact cloud ARNs returned by infra
 search, section traversals keep the canonical graph id and ARN handles, and
 service story/deployment trace expose bounded uncorrelated cloud-resource
-candidates without promoting them into canonical `cloud_resources`.
+candidates using the same safe CloudResource handles as infrastructure search
+without promoting them into canonical `cloud_resources`.
 
 No-Observability-Change: the new candidate read still runs through
 `GraphQuery.Run`, existing `neo4j.query` spans, and

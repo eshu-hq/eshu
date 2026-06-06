@@ -154,9 +154,11 @@ fact-summary sections. Mapping modes are:
 Service story and deployment trace keep canonical `cloud_resources` separate
 from `uncorrelated_cloud_resources`. `cloud_resources` requires a materialized
 workload-to-cloud relationship. `uncorrelated_cloud_resources` is a bounded
-candidate list for cloud resources whose name, resource id, or ARN matches the
-service but still lacks that relationship; callers should treat it as missing
-evidence to investigate, not as an attached dependency.
+candidate list for cloud resources whose safe identity handles match the
+service, including name, id, resource kind/type, resource id, ARN, service kind,
+account, region, source, or config path. These rows still lack the
+workload-to-cloud relationship; callers should treat them as missing evidence
+to investigate, not as attached dependencies.
 
 `POST /api/v0/impact/deployment-config-influence` accepts `service_name` or
 `workload_id`, optional `environment`, and optional `limit`. Use it when the
