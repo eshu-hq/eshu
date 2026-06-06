@@ -322,16 +322,10 @@ may contain private repository selectors, provider repository names, image
 references, digests, service IDs, or workload IDs, so keep it beside the
 private env file and out of public issues, docs, PRs, and release notes.
 
-The target-story verifier calls bounded API routes for the configured target:
-
-- repository story
-- impact finding count
-- security-alert reconciliation count
-- container-image identity count
-- SBOM attachment count
-- service story `image_package` API/MCP readback when image and SBOM minimums are positive
-- service-catalog correlation count
-- CI/CD run correlation count plus API and MCP list readbacks
+The target-story verifier calls bounded API/MCP readbacks for repository story,
+impact, security-alert, container-image, SBOM, service-story `image_package`,
+service-catalog, CI/CD, documentation, incident-context, and work-item evidence
+counts.
 
 Only configure positive minimums for evidence the proof is expected to cover.
 If a code-to-cloud proof requires image, SBOM, service, and CI/CD evidence,
@@ -354,6 +348,13 @@ the repository. For provider security-alert evidence,
 selector from the private provider configuration or the canonical Eshu
 repository id returned by repository readbacks; the verifier uses those anchors
 only for matching and does not print them.
+
+Use `minimums.documentation_findings`, `minimums.incident_contexts`, and
+`minimums.work_item_evidence` for Confluence/PagerDuty/Jira target evidence.
+Positive source minimums require `ESHU_REMOTE_E2E_MCP_URL`; aggregate collector
+counts are not target proof. Disabled or unsupported source families keep
+minimum `0` and set `unsupported_target_evidence`; missing positive evidence
+reports only `target_not_linked`.
 
 ### Reducer Evidence Rows
 
