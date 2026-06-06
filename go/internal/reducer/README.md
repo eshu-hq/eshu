@@ -69,7 +69,7 @@ canonical-write or bounded counter-emission requirements.
 | `DomainAWSCloudRuntimeDrift` | Publish admitted AWS runtime orphan, unmanaged, unknown, and ambiguous drift findings as canonical reducer facts |
 | `DomainContainerImageIdentity` | Join Git, OCI registry, and runtime image references into digest-keyed reducer facts |
 | `DomainCICDRunCorrelation` | Correlate CI/CD runs, artifacts, and environments with artifact identity evidence |
-| `DomainServiceCatalogCorrelation` | Correlate service-catalog entities with explicit repository links and ownership evidence without inventing workloads |
+| `DomainServiceCatalogCorrelation` | Correlate service-catalog entities with explicit repository links, repo-local descriptor scope, and ownership evidence without inventing workloads |
 | `DomainSBOMAttestationAttachment` | Attach SBOM and attestation documents to image digests only when subject evidence is explicit |
 | `DomainSupplyChainImpact` | Publish vulnerability impact findings only when explicit vulnerability, package, SBOM, image, or repository evidence exists |
 | `DomainSecurityAlertReconciliation` | Compare provider repository security alerts with Eshu-owned dependency and impact evidence, including alert-seeded impact rows only when owned dependency evidence matches |
@@ -942,10 +942,25 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
 - **Service catalog correlation is repository-evidence gated** —
   `ServiceCatalogCorrelationHandler` writes
   `reducer_service_catalog_correlation` facts for explicit repository-id or
-  repository-URL links only. Name-only links are rejected, tombstoned matches are
-  stale, and multiple active repository matches are ambiguous. Catalog names,
-  component names, and ownership labels never create repository, service, or
-  workload truth by themselves.
+  repository-URL links, and for repo-local catalog descriptors emitted from a
+  `git-repository-scope:<repo_id>` source scope when that repository is active.
+  Repo-local service descriptors may expose the catalog entity ref as service
+  evidence, but workload identity still requires separate workload proof.
+  Name-only links are rejected, tombstoned matches are stale, and multiple
+  active repository matches are ambiguous. Catalog names, component names, and
+  ownership labels never create repository, service, or workload truth by
+  themselves.
+
+  No-Regression Evidence: `go test ./internal/reducer -run
+  'TestBuildServiceCatalogCorrelationDecisions|TestServiceCatalogCorrelation'
+  -count=1` proves explicit URL/id links, provider scoping, name-only rejection,
+  ambiguous URL matches, repo-local source-scope admission, tombstoned
+  source-scope handling, and unscoped missing-evidence behavior.
+
+  No-Observability-Change: the existing
+  `eshu_dp_service_catalog_correlations_total` metric remains labeled by domain
+  and outcome; this change only reclassifies source-scope evidence into the
+  existing exact/stale/unresolved outcomes.
 - **Observability coverage correlation is stable-identity gated** —
   `ObservabilityCoverageCorrelationHandler` writes
   `reducer_observability_coverage_correlation` facts for exact, derived,
