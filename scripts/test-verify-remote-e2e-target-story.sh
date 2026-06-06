@@ -144,8 +144,19 @@ JSON
         "reconciliation_id": "rec-1",
         "provider_alert": {
           "provider_alert_id": "github_dependabot:security-alert:github:example/api:42",
-          "repository_id": "repository:r_example_api"
-        }
+          "provider_alert_number": 42,
+          "provider": "github_dependabot",
+          "provider_state": "open",
+          "repository_id": "repository:r_example_api",
+          "ecosystem": "npm",
+          "package_name": "left-pad",
+          "manifest_path": "package-lock.json",
+          "vulnerable_range": "<1.2.3",
+          "patched_version": "1.2.3"
+        },
+        "reconciliation_status": "matched",
+        "reason": "provider alert matched package evidence",
+        "evidence_fact_ids": ["fact-security-alert-42"]
       }
     ]
   },
@@ -215,6 +226,80 @@ if rg -q 'repo://example/api|oci-registry://registry.example/team/api|arn:aws' /
   sed -n '1,200p' /tmp/eshu-remote-e2e-target-story.out >&2
   exit 1
 fi
+
+reset_state
+cat >"${state_dir}/expected-security-alerts.json" <<'JSON'
+{
+  "alerts": [
+    {
+      "provider_alert_number": 42,
+      "ecosystem": "npm",
+      "package_name": "left-pad",
+      "manifest_path": "package-lock.json",
+      "vulnerable_range": "<1.2.3",
+      "fixed_version": "1.2.3",
+      "reconciliation_status": "matched",
+      "requires_evidence": true
+    }
+  ]
+}
+JSON
+jq --arg expected_rows "${state_dir}/expected-security-alerts.json" '.expected_security_alert_rows_file = $expected_rows' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
+mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
+export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
+expect_pass
+if ! rg -q 'security_alert_expected_rows=1' /tmp/eshu-remote-e2e-target-story.out; then
+  printf 'expected target-story proof to report expected security-alert rows\n' >&2
+  sed -n '1,200p' /tmp/eshu-remote-e2e-target-story.out >&2
+  exit 1
+fi
+
+reset_state
+cat >"${state_dir}/expected-security-alerts.json" <<'JSON'
+{
+  "alerts": [
+    {
+      "provider_alert_number": 42,
+      "ecosystem": "npm",
+      "package_name": "axios",
+      "manifest_path": "package-lock.json",
+      "vulnerable_range": "<1.2.3",
+      "fixed_version": "1.2.3",
+      "reconciliation_status": "matched",
+      "impact_status": "affected_exact",
+      "requires_evidence": true
+    }
+  ]
+}
+JSON
+jq --arg expected_rows "${state_dir}/expected-security-alerts.json" '.expected_security_alert_rows_file = $expected_rows' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
+mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
+export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
+expect_fail_with 'target security_alert_expected_rows missing_count=0 mismatch_count=1 evidence_gap_count=0'
+
+reset_state
+cat >"${state_dir}/expected-security-alerts.json" <<'JSON'
+{
+  "alerts": [
+    {
+      "provider_alert_number": 42,
+      "ecosystem": "npm",
+      "package_name": "left-pad",
+      "manifest_path": "package-lock.json",
+      "vulnerable_range": "<1.2.3",
+      "fixed_version": "1.2.3",
+      "reconciliation_status": "matched",
+      "requires_evidence": true
+    }
+  ]
+}
+JSON
+jq 'del(.data.reconciliations[0].evidence_fact_ids)' "${state_dir}/security-alert-count.json" >"${state_dir}/security-alert-count-next.json"
+mv "${state_dir}/security-alert-count-next.json" "${state_dir}/security-alert-count.json"
+jq --arg expected_rows "${state_dir}/expected-security-alerts.json" '.expected_security_alert_rows_file = $expected_rows' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
+mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
+export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
+expect_fail_with 'target security_alert_expected_rows missing_count=0 mismatch_count=0 evidence_gap_count=1'
 
 reset_state
 jq 'del(.proof_mode)' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"

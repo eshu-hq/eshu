@@ -114,6 +114,7 @@ Public-safe manifest shape:
 {
   "target_repository_id": "repo-or-selector",
   "expected_security_alert_repository": "provider/repository",
+  "expected_security_alert_rows_file": "/secure/local/expected-security-alerts.json",
   "expected_service_id": "service-id",
   "expected_workload_id": "workload-id",
   "expected_oci_repository_id": "oci-registry://registry.example/team/api",
@@ -144,6 +145,21 @@ environment aggregates alone are not enough to satisfy a target story. When the
 service-catalog or cloud minimum is positive, set `ESHU_REMOTE_E2E_MCP_URL`
 and, if needed, `ESHU_REMOTE_E2E_MCP_TOKEN`. The verifier exercises MCP
 readbacks over the same target filters as the API proof.
+
+Set `expected_security_alert_rows_file` to an operator-local JSON file when the
+proof needs provider-alert row parity, not only a reconciliation count. The
+file may be either an array or an object with an `alerts` array. Each alert row
+must include `provider_alert_id` or `provider_alert_number`; optional expected
+fields include `provider`, `provider_state`, `ecosystem`, `package_name`,
+`manifest_path`, `vulnerable_range`, `fixed_version`, `installed_version`,
+`reconciliation_status`, `impact_status`, and `requires_evidence`. The verifier
+matches those expected rows against the bounded
+`/api/v0/supply-chain/security-alerts/reconciliations` response for the target
+repository, raises the security-alert list limit up to the expected row count,
+and fails when a provider alert is missing, mismatched, or lacks evidence or an
+explicit missing-evidence reason. The expected rows file stays outside the
+public repository because it can contain private package coordinates,
+repository names, alert numbers, and manifest paths.
 
 Remote E2E Compose supports either an explicit `ESHU_API_KEY` in the env file
 or an auto-generated local token. When `ESHU_API_KEY` is blank, the API writes
@@ -202,17 +218,19 @@ containers into a real evidence-completeness check for exact Terraform-state
 sources.
 When `ESHU_REMOTE_E2E_TARGET_STORY_FILE` is set, the verifier prints
 `remote E2E target story proof counts` with repository-story, impact,
-security-alert, container-image, SBOM, service-catalog, CI/CD, cloud-resource,
-and MCP readback counts. It does not print raw repository selectors, image
+security-alert, provider-alert expected-row parity, container-image, SBOM,
+service-catalog, CI/CD, cloud-resource, and MCP readback counts. It does not
+print raw repository selectors, image
 references, service IDs, workload IDs, cloud resource IDs, provider repository
 names, hostnames, package names, URLs, or credentials. API reads request the
 Eshu truth envelope, MCP reads require an envelope resource, and both reject
 successful-looking responses that omit truth level and freshness.
 Additional No-Regression Evidence: `scripts/test-verify-remote-e2e-target-story.sh`
 proves the target-story helper accepts aligned repository, vulnerability,
-security-alert, image, SBOM, service-catalog, and CI/CD counts; rejects missing
-target image evidence; rejects provider-alert repository mismatches; rejects
-missing artifact anchors; rejects missing target service evidence; rejects
+security-alert, image, SBOM, service-catalog, and CI/CD counts; rejects matching
+security-alert counts when expected provider-alert rows mismatch; rejects
+missing target image evidence; rejects provider-alert repository mismatches;
+rejects missing artifact anchors; rejects missing target service evidence; rejects
 missing target cloud-resource evidence; fails missing MCP configuration when
 MCP-backed target proof is required; fails a missing configured manifest file;
 skips only when no target-story file is configured; requires Eshu envelope
