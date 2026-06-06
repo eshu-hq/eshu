@@ -336,13 +336,13 @@ x-collector-env: &remote_e2e_collector_env
         "configuration": {
           "targets": [
             {
-              "provider": "prometheus_mimir",
+              "provider": "${ESHU_PROMETHEUS_MIMIR_PROVIDER:-mimir}",
               "scope_id": "prometheus-mimir://remote-e2e",
               "instance_id": "remote-e2e-prometheus-mimir",
               "base_url": "${ESHU_PROMETHEUS_MIMIR_BASE_URL:-}",
               "path_prefix": "${ESHU_PROMETHEUS_MIMIR_PATH_PREFIX:-}",
               "token_env": "${ESHU_PROMETHEUS_MIMIR_TOKEN_ENV:-}",
-              "tenant_id": "${ESHU_PROMETHEUS_MIMIR_TENANT_ID:-}",
+              "tenant_id_env": "PROMETHEUS_MIMIR_TENANT_ID",
               "resource_limit": ${ESHU_PROMETHEUS_MIMIR_RESOURCE_LIMIT:-25},
               "stale_after": "${ESHU_PROMETHEUS_MIMIR_STALE_AFTER:-24h}",
               "enabled": true,
@@ -366,7 +366,7 @@ x-collector-env: &remote_e2e_collector_env
               "base_url": "${ESHU_LOKI_BASE_URL:-}",
               "path_prefix": "${ESHU_LOKI_PATH_PREFIX:-}",
               "token_env": "${ESHU_LOKI_TOKEN_ENV:-}",
-              "tenant_id": "${ESHU_LOKI_TENANT_ID:-}",
+              "tenant_id_env": "LOKI_TENANT_ID",
               "resource_limit": ${ESHU_LOKI_RESOURCE_LIMIT:-25},
               "label_value_names": [],
               "max_label_values_per_label": ${ESHU_LOKI_MAX_LABEL_VALUES_PER_LABEL:-5},
@@ -393,7 +393,7 @@ x-collector-env: &remote_e2e_collector_env
               "base_url": "${ESHU_TEMPO_BASE_URL:-}",
               "path_prefix": "${ESHU_TEMPO_PATH_PREFIX:-}",
               "token_env": "${ESHU_TEMPO_TOKEN_ENV:-}",
-              "tenant_id": "${ESHU_TEMPO_TENANT_ID:-}",
+              "tenant_id_env": "TEMPO_TENANT_ID",
               "resource_limit": ${ESHU_TEMPO_RESOURCE_LIMIT:-25},
               "tag_value_names": [],
               "max_tag_values_per_tag": ${ESHU_TEMPO_MAX_TAG_VALUES_PER_TAG:-5},

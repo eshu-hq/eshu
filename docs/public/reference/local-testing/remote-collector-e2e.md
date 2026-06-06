@@ -404,10 +404,14 @@ checked-in values leave both collectors disabled and blank.
 Use `ESHU_REMOTE_E2E_GRAFANA_ENABLED=true` with `ESHU_GRAFANA_BASE_URL` and
 `ESHU_GRAFANA_API_TOKEN`. Use `ESHU_REMOTE_E2E_PROMETHEUS_MIMIR_ENABLED=true`,
 `ESHU_REMOTE_E2E_LOKI_ENABLED=true`, or `ESHU_REMOTE_E2E_TEMPO_ENABLED=true`
-with the matching base URL and optional token or tenant values. For those
-three collectors, set the matching `*_TOKEN_ENV` variable only when the target
+with the matching base URL and optional token or tenant values. The
+Prometheus/Mimir profile defaults `ESHU_PROMETHEUS_MIMIR_PROVIDER` to `mimir`;
+set it to `prometheus` for a pure Prometheus target. For those three
+collectors, set the matching `*_TOKEN_ENV` variable only when the target
 requires bearer-style authentication; otherwise the collectors can prove
-unauthenticated read-only targets without a token.
+unauthenticated read-only targets without a token. Their Compose targets use
+`tenant_id_env` so tenant values stay in the operator-local env file instead of
+being interpolated into `ESHU_COLLECTOR_INSTANCES_JSON`.
 
 The harness distinguishes the non-passing cases:
 

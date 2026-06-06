@@ -94,6 +94,24 @@ assert_static_contract() {
 			die "checked-in remote E2E hosted Compose contract missing ${want}"
 		fi
 	done
+	for want in \
+		'"provider": "${ESHU_PROMETHEUS_MIMIR_PROVIDER:-mimir}"' \
+		'"tenant_id_env": "PROMETHEUS_MIMIR_TENANT_ID"' \
+		'"tenant_id_env": "LOKI_TENANT_ID"' \
+		'"tenant_id_env": "TEMPO_TENANT_ID"'; do
+		if ! rg -F -q "${want}" "${REPO_ROOT}/docker-compose.remote-e2e.yaml"; then
+			die "checked-in remote E2E hosted Compose contract missing ${want}"
+		fi
+	done
+	for unwanted in \
+		'"provider": "prometheus_mimir"' \
+		'"tenant_id": "${ESHU_PROMETHEUS_MIMIR_TENANT_ID:-}"' \
+		'"tenant_id": "${ESHU_LOKI_TENANT_ID:-}"' \
+		'"tenant_id": "${ESHU_TEMPO_TENANT_ID:-}"'; do
+		if rg -F -q "${unwanted}" "${REPO_ROOT}/docker-compose.remote-e2e.yaml"; then
+			die "checked-in remote E2E hosted Compose contract still embeds ${unwanted}"
+		fi
+	done
 }
 
 assert_static_contract
