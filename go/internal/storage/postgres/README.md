@@ -167,9 +167,13 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   is pending. This lets cross-scope endpoint readiness wait past
   `ESHU_REDUCER_MAX_ATTEMPTS` without terminally dropping edges.
 
-No-Regression Evidence: `go test ./internal/storage/postgres -run
-'TestReducerQueueFailDefersSecretsIAMEndpointReadinessPastAttemptBudget|TestReducerQueueClaimDoesNotCountSecretsIAMEndpointReadinessDefers|TestClaimBatchDoesNotCountSecretsIAMEndpointReadinessDefers'
--count=1` failed before #1391 because over-budget
+No-Regression Evidence:
+
+```bash
+go test ./internal/storage/postgres -run 'TestReducerQueueFailDefersSecretsIAMEndpointReadinessPastAttemptBudget|TestReducerQueueClaimDoesNotCountSecretsIAMEndpointReadinessDefers|TestClaimBatchDoesNotCountSecretsIAMEndpointReadinessDefers' -count=1
+```
+
+This failed before #1391 because over-budget
 `secrets_iam_endpoint_not_ready` dead-lettered and both claim paths consumed
 `attempt_count`; it passed after the class became a deferred retry and both
 claim SQL shapes preserved the attempt budget.
