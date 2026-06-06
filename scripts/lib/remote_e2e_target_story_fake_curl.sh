@@ -41,11 +41,26 @@ if ((is_mcp == 1)); then
 		exit 2
 	fi
 	tool_name="$(jq -r '.params.name // ""' "${payload_file}")"
+	printf '%s\n' "${tool_name}" >>"${state_dir}/mcp-tools"
 	case "${tool_name}" in
 		list_service_catalog_correlations)
 			cat "${state_dir}/mcp-service-catalog.json"
 			;;
 		list_ci_cd_run_correlations)
+			expected_digest="$(jq -r '.expected_image_digest // ""' "${state_dir}/target-story.json")"
+			expected_ref="$(jq -r '.expected_image_ref // ""' "${state_dir}/target-story.json")"
+			if ! jq -e --arg digest "${expected_digest}" --arg ref "${expected_ref}" --arg repo "repo://example/api" '
+				.params.arguments.repository_id == $repo
+				and
+				(if $digest != "" then
+					.params.arguments.artifact_digest == $digest
+				else
+					.params.arguments.image_ref == $ref
+				end)
+			' "${payload_file}" >/dev/null; then
+				echo "list_ci_cd_run_correlations used the wrong target anchor" >&2
+				exit 2
+			fi
 			cat "${state_dir}/mcp-cicd.json"
 			;;
 		get_service_story)

@@ -329,10 +329,9 @@ The target-story verifier calls bounded API routes for the configured target:
 - security-alert reconciliation count
 - container-image identity count
 - SBOM attachment count
-- service story `image_package` readback over API and MCP when image and SBOM
-  minimums are positive
+- service story `image_package` API/MCP readback when image and SBOM minimums are positive
 - service-catalog correlation count
-- CI/CD run correlation count
+- CI/CD run correlation count plus API and MCP list readbacks
 
 Only configure positive minimums for evidence the proof is expected to cover.
 If a code-to-cloud proof requires image, SBOM, service, and CI/CD evidence,
@@ -341,13 +340,13 @@ runtime minimums at `0` and record that as a partial proof. The verifier prints
 only count labels and sanitized missing-evidence reasons, never raw target
 values. Use `expected_image_digest` or `expected_image_ref` to tie
 container-image, SBOM, and CI/CD evidence to the same artifact. Digest-backed
-CI/CD proof filters by `artifact_digest`; image-reference proof filters the
-CI/CD count route by `image_ref` so the verifier does not fetch a broad
-repository page and filter locally. When image and SBOM minimums are both
-positive, the verifier also requires the target service story's
-`code_to_runtime_trace.image_package` segment to expose exact image/SBOM
-evidence through API and MCP readbacks; aggregate evidence alone is not enough.
-Use
+CI/CD proof filters count, API list, and MCP list readbacks by
+`artifact_digest`; image-reference proof filters those same readbacks by
+`image_ref` so the verifier does not accept unrelated repository rows. When
+image and SBOM minimums are both positive, the verifier also requires the
+target service story's `code_to_runtime_trace.image_package` segment to expose
+exact image/SBOM evidence through API and MCP readbacks; aggregate evidence
+alone is not enough. Use
 `expected_service_id` or `expected_workload_id` when the proof must validate a
 specific deployed service rather than any reducer-owned service-catalog row for
 the repository. For provider security-alert evidence,
