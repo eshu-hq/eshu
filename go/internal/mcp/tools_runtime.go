@@ -3,6 +3,15 @@ package mcp
 func runtimeTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
+			Name:        "list_collectors",
+			Description: "Return collector runtime status including coordinator-managed, direct-mode, disabled, and unregistered evidence categories.",
+			InputSchema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+				"required":   []string{},
+			},
+		},
+		{
 			Name:        "list_ingesters",
 			Description: "Return the current status for the configured ingesters.",
 			InputSchema: map[string]any{

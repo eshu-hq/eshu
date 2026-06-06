@@ -46,6 +46,54 @@ const openAPIPathsStatusAndCompare = `
         }
       }
     },
+    "/api/v0/status/collectors": {
+      "get": {
+        "tags": ["status"],
+        "summary": "List collectors",
+        "description": "Returns collector runtime status classified by workflow coordinator registration and direct status evidence.",
+        "operationId": "listCollectors",
+        "responses": {
+          "200": {
+            "description": "List of collector runtimes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "collectors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "instance_id": {"type": "string"},
+                          "collector_kind": {"type": "string"},
+                          "mode": {"type": "string"},
+                          "runtime_mode": {"type": "string"},
+                          "status_category": {
+                            "type": "string",
+                            "enum": ["coordinator_managed", "direct_mode", "profile_gated", "disabled", "unregistered"]
+                          },
+                          "coordinator_registered": {"type": "boolean"},
+                          "enabled": {"type": "boolean"},
+                          "claims_enabled": {"type": "boolean"},
+                          "evidence_sources": {"type": "array", "items": {"type": "string"}},
+                          "health": {"type": "string"},
+                          "detail": {"type": "string"}
+                        }
+                      }
+                    },
+                    "count": {"type": "integer"},
+                    "classification_basis": {"type": "string"}
+                  }
+                }
+              }
+            }
+          },
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
     "/api/v0/status/ingesters/{ingester}": {
       "get": {
         "tags": ["status"],
@@ -99,6 +147,26 @@ const openAPIPathsStatusAndCompare = `
             }
           },
           "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
+    "/api/v0/collectors": {
+      "get": {
+        "tags": ["status"],
+        "summary": "List collectors",
+        "description": "Legacy compatibility alias for collector runtime status.",
+        "operationId": "listCollectorsLegacy",
+        "responses": {
+          "200": {
+            "description": "List of collector runtimes",
+            "content": {
+              "application/json": {
+                "schema": {"type": "object"}
+              }
+            }
+          },
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },

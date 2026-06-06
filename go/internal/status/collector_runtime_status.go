@@ -1,0 +1,323 @@
+package status
+
+import (
+	"fmt"
+	"slices"
+	"sort"
+	"strings"
+	"time"
+)
+
+const (
+	// CollectorRuntimeCoordinatorManaged identifies a collector registered with
+	// the workflow coordinator and eligible for claim-driven work.
+	CollectorRuntimeCoordinatorManaged = "coordinator_managed"
+	// CollectorRuntimeDirectMode identifies a configured collector whose
+	// coordinator row is enabled but not claim-driven.
+	CollectorRuntimeDirectMode = "direct_mode"
+	// CollectorRuntimeProfileGated identifies a collector intentionally hidden
+	// by an active runtime profile gate.
+	CollectorRuntimeProfileGated = "profile_gated"
+	// CollectorRuntimeDisabled identifies a registered collector disabled by
+	// configuration or deactivated by reconciliation.
+	CollectorRuntimeDisabled = "disabled"
+	// CollectorRuntimeUnregistered identifies runtime status evidence without a
+	// matching workflow coordinator registration.
+	CollectorRuntimeUnregistered = "unregistered"
+)
+
+// CollectorRuntimeStatus is the unified operator view of one collector runtime
+// identity across coordinator registration and direct status evidence.
+type CollectorRuntimeStatus struct {
+	InstanceID            string
+	CollectorKind         string
+	Mode                  string
+	RuntimeMode           string
+	StatusCategory        string
+	CoordinatorRegistered bool
+	Enabled               bool
+	Bootstrap             bool
+	ClaimsEnabled         bool
+	DisplayName           string
+	Health                string
+	EvidenceSources       []string
+	ObservationCount      int
+	LastObservedAt        time.Time
+	UpdatedAt             time.Time
+	DeactivatedAt         time.Time
+	Detail                string
+}
+
+// CollectorRuntimeStatuses derives the shared collector runtime readback from
+// the status report without performing I/O.
+func CollectorRuntimeStatuses(report Report) []CollectorRuntimeStatus {
+	builder := collectorRuntimeStatusBuilder{byKey: map[string]int{}}
+	if report.Coordinator != nil {
+		for _, instance := range report.Coordinator.CollectorInstances {
+			builder.add(coordinatorRuntimeStatus(instance))
+		}
+	}
+	builder.addAWSCloudScans(report.AWSCloudScans)
+	builder.addVulnerabilitySources(report.VulnerabilitySources)
+	return builder.rows()
+}
+
+type collectorRuntimeStatusBuilder struct {
+	statuses []CollectorRuntimeStatus
+	byKey    map[string]int
+}
+
+func (b *collectorRuntimeStatusBuilder) add(status CollectorRuntimeStatus) int {
+	status.InstanceID = strings.TrimSpace(status.InstanceID)
+	status.CollectorKind = strings.TrimSpace(status.CollectorKind)
+	if status.InstanceID == "" || status.CollectorKind == "" {
+		return -1
+	}
+	key := collectorRuntimeStatusKey(status.CollectorKind, status.InstanceID)
+	if index, ok := b.byKey[key]; ok {
+		b.merge(index, status)
+		return index
+	}
+	status.EvidenceSources = uniqueNonEmptyStrings(status.EvidenceSources)
+	b.byKey[key] = len(b.statuses)
+	b.statuses = append(b.statuses, status)
+	return len(b.statuses) - 1
+}
+
+func (b *collectorRuntimeStatusBuilder) merge(index int, status CollectorRuntimeStatus) {
+	existing := &b.statuses[index]
+	existing.EvidenceSources = uniqueNonEmptyStrings(append(existing.EvidenceSources, status.EvidenceSources...))
+	existing.ObservationCount += status.ObservationCount
+	existing.Health = combineRuntimeHealth(existing.Health, status.Health)
+	if status.LastObservedAt.After(existing.LastObservedAt) {
+		existing.LastObservedAt = status.LastObservedAt
+	}
+	if status.UpdatedAt.After(existing.UpdatedAt) {
+		existing.UpdatedAt = status.UpdatedAt
+	}
+}
+
+func (b *collectorRuntimeStatusBuilder) addAWSCloudScans(rows []AWSCloudScanStatus) {
+	type aggregate struct {
+		count          int
+		health         string
+		lastObservedAt time.Time
+		updatedAt      time.Time
+	}
+	aggregates := map[string]aggregate{}
+	for _, row := range rows {
+		instanceID := strings.TrimSpace(row.CollectorInstanceID)
+		if instanceID == "" {
+			continue
+		}
+		current := aggregates[instanceID]
+		current.count++
+		current.health = combineRuntimeHealth(current.health, awsCloudScanHealth(row))
+		if row.LastObservedAt.After(current.lastObservedAt) {
+			current.lastObservedAt = row.LastObservedAt
+		}
+		if row.UpdatedAt.After(current.updatedAt) {
+			current.updatedAt = row.UpdatedAt
+		}
+		aggregates[instanceID] = current
+	}
+	for instanceID, aggregate := range aggregates {
+		b.add(directEvidenceRuntimeStatus(
+			instanceID,
+			"aws",
+			"aws_cloud_scan_status",
+			aggregate.count,
+			aggregate.health,
+			aggregate.lastObservedAt,
+			aggregate.updatedAt,
+		))
+	}
+}
+
+func (b *collectorRuntimeStatusBuilder) addVulnerabilitySources(rows []VulnerabilitySourceState) {
+	type aggregate struct {
+		count     int
+		health    string
+		updatedAt time.Time
+	}
+	aggregates := map[string]aggregate{}
+	for _, row := range rows {
+		instanceID := strings.TrimSpace(row.CollectorInstanceID)
+		if instanceID == "" {
+			continue
+		}
+		current := aggregates[instanceID]
+		current.count++
+		current.health = combineRuntimeHealth(current.health, vulnerabilitySourceHealth(row))
+		if row.UpdatedAt.After(current.updatedAt) {
+			current.updatedAt = row.UpdatedAt
+		}
+		aggregates[instanceID] = current
+	}
+	for instanceID, aggregate := range aggregates {
+		b.add(directEvidenceRuntimeStatus(
+			instanceID,
+			"vulnerability_intelligence",
+			"vulnerability_source_state",
+			aggregate.count,
+			aggregate.health,
+			time.Time{},
+			aggregate.updatedAt,
+		))
+	}
+}
+
+func (b collectorRuntimeStatusBuilder) rows() []CollectorRuntimeStatus {
+	statuses := slices.Clone(b.statuses)
+	sort.Slice(statuses, func(i, j int) bool {
+		if statuses[i].CollectorKind != statuses[j].CollectorKind {
+			return statuses[i].CollectorKind < statuses[j].CollectorKind
+		}
+		return statuses[i].InstanceID < statuses[j].InstanceID
+	})
+	return statuses
+}
+
+func coordinatorRuntimeStatus(instance CollectorInstanceSummary) CollectorRuntimeStatus {
+	category := CollectorRuntimeCoordinatorManaged
+	mode := "claim_driven"
+	detail := "registered with workflow coordinator"
+	health := "registered"
+	if !instance.Enabled || !instance.DeactivatedAt.IsZero() {
+		category = CollectorRuntimeDisabled
+		mode = "registration_only"
+		health = "disabled"
+		detail = "registered but disabled or deactivated"
+	} else if !instance.ClaimsEnabled {
+		category = CollectorRuntimeDirectMode
+		mode = "direct"
+		detail = "registered with claims disabled; direct-mode or profile-gated runtime"
+	}
+	return CollectorRuntimeStatus{
+		InstanceID:            instance.InstanceID,
+		CollectorKind:         instance.CollectorKind,
+		Mode:                  instance.Mode,
+		RuntimeMode:           mode,
+		StatusCategory:        category,
+		CoordinatorRegistered: true,
+		Enabled:               instance.Enabled,
+		Bootstrap:             instance.Bootstrap,
+		ClaimsEnabled:         instance.ClaimsEnabled,
+		DisplayName:           instance.DisplayName,
+		Health:                health,
+		EvidenceSources:       []string{"workflow_coordinator"},
+		LastObservedAt:        instance.LastObservedAt,
+		UpdatedAt:             instance.UpdatedAt,
+		DeactivatedAt:         instance.DeactivatedAt,
+		Detail:                detail,
+	}
+}
+
+func directEvidenceRuntimeStatus(
+	instanceID string,
+	collectorKind string,
+	evidenceSource string,
+	observations int,
+	health string,
+	lastObservedAt time.Time,
+	updatedAt time.Time,
+) CollectorRuntimeStatus {
+	return CollectorRuntimeStatus{
+		InstanceID:       instanceID,
+		CollectorKind:    collectorKind,
+		RuntimeMode:      "direct",
+		StatusCategory:   CollectorRuntimeUnregistered,
+		Enabled:          true,
+		Health:           health,
+		EvidenceSources:  []string{evidenceSource},
+		ObservationCount: observations,
+		LastObservedAt:   lastObservedAt,
+		UpdatedAt:        updatedAt,
+		Detail:           "status evidence exists without workflow coordinator registration",
+	}
+}
+
+func awsCloudScanHealth(row AWSCloudScanStatus) string {
+	if row.CredentialFailed || row.BudgetExhausted || strings.TrimSpace(row.FailureClass) != "" {
+		return "degraded"
+	}
+	switch strings.TrimSpace(row.Status) {
+	case "failed", "failed_terminal", "failed_retryable":
+		return "degraded"
+	case "partial":
+		return "partial"
+	case "succeeded", "success", "completed":
+		return "observed"
+	default:
+		return "unknown"
+	}
+}
+
+func vulnerabilitySourceHealth(row VulnerabilitySourceState) string {
+	switch strings.TrimSpace(row.TerminalStatus) {
+	case "failed", "failed_terminal", "failed_retryable":
+		return "degraded"
+	case "partial":
+		return "partial"
+	case "succeeded", "completed":
+		return "observed"
+	default:
+		return "unknown"
+	}
+}
+
+func combineRuntimeHealth(current string, next string) string {
+	order := map[string]int{"": 0, "unknown": 1, "registered": 1, "disabled": 2, "observed": 2, "partial": 3, "degraded": 4}
+	if order[next] > order[current] {
+		return next
+	}
+	return current
+}
+
+func collectorRuntimeStatusKey(collectorKind string, instanceID string) string {
+	return collectorKind + "\x00" + instanceID
+}
+
+func uniqueNonEmptyStrings(values []string) []string {
+	seen := map[string]struct{}{}
+	output := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		output = append(output, value)
+	}
+	sort.Strings(output)
+	return output
+}
+
+func renderCollectorRuntimeStatusLines(rows []CollectorRuntimeStatus) []string {
+	if len(rows) == 0 {
+		return nil
+	}
+	lines := []string{"Collector runtimes:"}
+	for _, row := range rows {
+		line := fmt.Sprintf(
+			"  %s kind=%s category=%s mode=%s coordinator_registered=%t evidence=%s",
+			row.InstanceID,
+			row.CollectorKind,
+			row.StatusCategory,
+			row.RuntimeMode,
+			row.CoordinatorRegistered,
+			strings.Join(row.EvidenceSources, ","),
+		)
+		if row.Health != "" {
+			line += fmt.Sprintf(" health=%s", row.Health)
+		}
+		if row.ObservationCount > 0 {
+			line += fmt.Sprintf(" observations=%d", row.ObservationCount)
+		}
+		lines = append(lines, line)
+	}
+	return lines
+}

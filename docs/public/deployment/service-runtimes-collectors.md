@@ -60,6 +60,15 @@ freshness, and effective target, rule, log-signal, or trace-signal metadata.
 All hosted collector runtimes expose `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` through the shared runtime admin surface.
 
+Central collector inventory comes from two durable sources: workflow coordinator
+registration rows and direct collector status rows that a runtime persists, such
+as AWS scan status or vulnerability source state. `GET /api/v0/status/collectors`
+and the MCP `list_collectors` tool classify these as coordinator-managed,
+direct-mode, disabled, or unregistered. A deployed pod that is neither registered
+with the coordinator nor writing a durable status row is not discoverable from
+the central API alone; use the pod-local `/admin/status`, `/metrics`, and the
+deployment platform inventory for that unsupported mode.
+
 ## Collector Contracts
 
 | Collector | Contract |

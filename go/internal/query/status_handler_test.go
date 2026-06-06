@@ -195,4 +195,108 @@ func TestStatusHandlerCollectorsRouteExposesCoordinatorInstances(t *testing.T) {
 	if got, want := int(payload["count"].(float64)), 1; got != want {
 		t.Fatalf("payload[count] = %d, want %d", got, want)
 	}
+	collectors, ok := payload["collectors"].([]any)
+	if !ok || len(collectors) != 1 {
+		t.Fatalf("payload[collectors] = %#v, want one collector", payload["collectors"])
+	}
+	collector, ok := collectors[0].(map[string]any)
+	if !ok {
+		t.Fatalf("payload[collectors][0] = %#v, want object", collectors[0])
+	}
+	if got, want := collector["mode"], "continuous"; got != want {
+		t.Fatalf("collector[mode] = %#v, want %#v", got, want)
+	}
+}
+
+func TestStatusHandlerCollectorsRouteExposesDirectRuntimeEvidence(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 6, 10, 45, 0, 0, time.UTC)
+	handler := &StatusHandler{
+		StatusReader: fakeStatusReader{
+			snapshot: statuspkg.RawSnapshot{
+				AsOf: now,
+				Coordinator: &statuspkg.CoordinatorSnapshot{
+					CollectorInstances: []statuspkg.CollectorInstanceSummary{{
+						InstanceID:     "collector-aws-claims",
+						CollectorKind:  "aws",
+						Mode:           "continuous",
+						Enabled:        true,
+						Bootstrap:      true,
+						ClaimsEnabled:  true,
+						LastObservedAt: now.Add(-10 * time.Minute),
+						UpdatedAt:      now.Add(-9 * time.Minute),
+					}},
+				},
+				AWSCloudScans: []statuspkg.AWSCloudScanStatus{{
+					CollectorInstanceID: "collector-aws-direct",
+					AccountID:           "123456789012",
+					Region:              "us-east-1",
+					ServiceKind:         "lambda",
+					Status:              "succeeded",
+					CommitStatus:        "committed",
+					LastObservedAt:      now.Add(-2 * time.Minute),
+					UpdatedAt:           now.Add(-1 * time.Minute),
+				}},
+			},
+		},
+	}
+
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/status/collectors", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("GET /api/v0/status/collectors status = %d, want %d", got, want)
+	}
+
+	var payload struct {
+		Count      int `json:"count"`
+		Collectors []struct {
+			InstanceID     string   `json:"instance_id"`
+			CollectorKind  string   `json:"collector_kind"`
+			StatusCategory string   `json:"status_category"`
+			RuntimeMode    string   `json:"runtime_mode"`
+			Evidence       []string `json:"evidence_sources"`
+		} `json:"collectors"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	if got, want := payload.Count, 2; got != want {
+		t.Fatalf("payload.count = %d, want %d; body=%s", got, want, rec.Body.String())
+	}
+	byID := map[string]struct {
+		category string
+		mode     string
+		evidence []string
+	}{}
+	for _, collector := range payload.Collectors {
+		byID[collector.InstanceID] = struct {
+			category string
+			mode     string
+			evidence []string
+		}{
+			category: collector.StatusCategory,
+			mode:     collector.RuntimeMode,
+			evidence: collector.Evidence,
+		}
+	}
+	registered := byID["collector-aws-claims"]
+	if got, want := registered.category, "coordinator_managed"; got != want {
+		t.Fatalf("coordinator category = %q, want %q", got, want)
+	}
+	direct := byID["collector-aws-direct"]
+	if got, want := direct.category, "unregistered"; got != want {
+		t.Fatalf("direct category = %q, want %q", got, want)
+	}
+	if got, want := direct.mode, "direct"; got != want {
+		t.Fatalf("direct runtime_mode = %q, want %q", got, want)
+	}
+	if len(direct.evidence) != 1 || direct.evidence[0] != "aws_cloud_scan_status" {
+		t.Fatalf("direct evidence = %#v, want aws_cloud_scan_status", direct.evidence)
+	}
 }

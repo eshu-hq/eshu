@@ -12,34 +12,36 @@ import (
 // RenderJSON returns a stable machine-readable projection of the report.
 func RenderJSON(report Report) ([]byte, error) {
 	payload := struct {
-		Version                string                     `json:"version"`
-		AsOf                   string                     `json:"as_of"`
-		Health                 HealthSummary              `json:"health"`
-		Coordinator            *coordinatorSnapshotJSON   `json:"coordinator,omitempty"`
-		Flow                   []flowSummaryJSON          `json:"flow"`
-		Queue                  queueJSON                  `json:"queue"`
-		LatestFailure          *queueFailureJSON          `json:"latest_failure,omitempty"`
-		RetryPolicies          []retryPolicyJSON          `json:"retry_policies"`
-		RegistryCollectors     []registryCollectorJSON    `json:"registry_collectors,omitempty"`
-		AWSCloudScans          []awsCloudScanJSON         `json:"aws_cloud_scans,omitempty"`
-		AWSFreshness           *awsFreshnessJSON          `json:"aws_freshness,omitempty"`
-		VulnerabilitySources   []vulnerabilitySourceJSON  `json:"vulnerability_sources,omitempty"`
-		AWSCloudScansTruncated bool                       `json:"aws_cloud_scans_truncated,omitempty"`
-		AWSCloudScanLimit      int                        `json:"aws_cloud_scan_limit,omitempty"`
-		ScopeActivity          scopeActivityJSON          `json:"scope_activity"`
-		GenerationHistory      generationHistoryJSON      `json:"generation_history"`
-		GenerationTransitions  []generationTransitionJSON `json:"generation_transitions"`
-		Scopes                 map[string]int             `json:"scopes"`
-		Generations            map[string]int             `json:"generations"`
-		Stages                 []StageSummary             `json:"stages"`
-		Domains                []domainBacklogJSON        `json:"domains"`
-		QueueBlockages         []queueBlockageJSON        `json:"queue_blockages"`
-		TerraformState         *terraformStateJSON        `json:"terraform_state,omitempty"`
+		Version                string                       `json:"version"`
+		AsOf                   string                       `json:"as_of"`
+		Health                 HealthSummary                `json:"health"`
+		Coordinator            *coordinatorSnapshotJSON     `json:"coordinator,omitempty"`
+		CollectorRuntimes      []collectorRuntimeStatusJSON `json:"collector_runtimes,omitempty"`
+		Flow                   []flowSummaryJSON            `json:"flow"`
+		Queue                  queueJSON                    `json:"queue"`
+		LatestFailure          *queueFailureJSON            `json:"latest_failure,omitempty"`
+		RetryPolicies          []retryPolicyJSON            `json:"retry_policies"`
+		RegistryCollectors     []registryCollectorJSON      `json:"registry_collectors,omitempty"`
+		AWSCloudScans          []awsCloudScanJSON           `json:"aws_cloud_scans,omitempty"`
+		AWSFreshness           *awsFreshnessJSON            `json:"aws_freshness,omitempty"`
+		VulnerabilitySources   []vulnerabilitySourceJSON    `json:"vulnerability_sources,omitempty"`
+		AWSCloudScansTruncated bool                         `json:"aws_cloud_scans_truncated,omitempty"`
+		AWSCloudScanLimit      int                          `json:"aws_cloud_scan_limit,omitempty"`
+		ScopeActivity          scopeActivityJSON            `json:"scope_activity"`
+		GenerationHistory      generationHistoryJSON        `json:"generation_history"`
+		GenerationTransitions  []generationTransitionJSON   `json:"generation_transitions"`
+		Scopes                 map[string]int               `json:"scopes"`
+		Generations            map[string]int               `json:"generations"`
+		Stages                 []StageSummary               `json:"stages"`
+		Domains                []domainBacklogJSON          `json:"domains"`
+		QueueBlockages         []queueBlockageJSON          `json:"queue_blockages"`
+		TerraformState         *terraformStateJSON          `json:"terraform_state,omitempty"`
 	}{
 		Version:                buildinfo.AppVersion(),
 		AsOf:                   report.AsOf.UTC().Format(time.RFC3339),
 		Health:                 report.Health,
 		Coordinator:            coordinatorJSON(report.Coordinator),
+		CollectorRuntimes:      collectorRuntimeStatusesJSON(CollectorRuntimeStatuses(report)),
 		Flow:                   flowSummariesJSON(report.FlowSummaries),
 		Queue:                  queueJSONFromReport(report.Queue),
 		LatestFailure:          queueFailureJSONFromReport(report.LatestQueueFailure),
