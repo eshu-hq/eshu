@@ -289,6 +289,20 @@ the valid evidence remains in the trace and the missing reason stays explicit.
 Identity and SBOM read-model pages probe one row past the public cap and treat
 over-limit pages as ambiguous rather than admitting a partial page.
 
+No-Regression Evidence:
+
+```bash
+cd go && go test ./internal/query ./internal/mcp -run 'Test(ServiceStorySupplyChainEvidence|ServiceStoryDeploymentImageRefs|GetServiceStoryEnvelopeIncludesSupplyChainEvidence|DispatchToolServiceStoryPreservesSupplyChainTrace|ResolveRouteMapsServiceStory)' -count=1
+cd .. && scripts/test-verify-remote-e2e-target-story.sh
+```
+
+Observability Evidence: service-story supply-chain enrichment records a
+`supply_chain_evidence` stage through the existing
+`service_query.stage_started` and `service_query.stage_completed` log events
+with image-ref, evidence, and missing-reason counts. It uses bounded Postgres
+read-model list calls and adds no worker, queue, graph write, metric instrument,
+or metric label.
+
 `POST /api/v0/impact/deployment-config-influence` accepts `service_name` or
 `workload_id`, optional `environment`, and optional `limit`. Use it when the
 caller asks which repositories and files influence image tags, runtime

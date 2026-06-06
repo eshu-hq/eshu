@@ -364,31 +364,6 @@ No-Observability-Change: the new candidate read still runs through
 `uncorrelated_cloud_resource_candidates` stage through the existing
 `service_query.stage_started` and `service_query.stage_completed` log events.
 
-## Service Story Supply-Chain Evidence
-
-Service stories attach reducer-owned container image identity and SBOM
-attachment evidence only after deployment evidence exposes a target-scoped
-image reference. The `image_package` trace segment treats exact
-`reducer_container_image_identity` plus admissible
-`reducer_sbom_attestation_attachment` rows as exact evidence. Ambiguous image
-tags, stale identity rows, missing identities, and SBOM rows without canonical
-attached status remain fail-closed `missing_evidence` reasons instead of
-promoting aggregate supply-chain facts into a target service story.
-
-No-Regression Evidence:
-
-```bash
-cd go && go test ./internal/query ./internal/mcp -run 'Test(ServiceStorySupplyChainEvidence|ServiceStoryDeploymentImageRefs|GetServiceStoryEnvelopeIncludesSupplyChainEvidence|DispatchToolServiceStoryPreservesSupplyChainTrace)' -count=1
-cd .. && scripts/test-verify-remote-e2e-target-story.sh
-```
-
-Observability Evidence: service-story supply-chain enrichment records a
-`supply_chain_evidence` stage through the existing
-`service_query.stage_started` and `service_query.stage_completed` log events
-with image-ref, evidence, and missing-reason counts. It uses bounded Postgres
-read-model list calls and adds no worker, queue, graph write, metric instrument,
-or metric label.
-
 ## Operational notes
 
 - High latency on `GET /api/v0/repositories/{repo_id}/context` or story routes:
