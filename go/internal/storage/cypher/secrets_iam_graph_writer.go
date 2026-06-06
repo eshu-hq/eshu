@@ -137,17 +137,17 @@ WHERE n.scope_id IN $scope_ids AND n.evidence_source = $evidence_source
 DETACH DELETE n`
 
 	// Edge retract removes reducer-owned SECRETS_IAM_* edges whose START node is
-	// a retained endpoint (KubernetesWorkload). The other four edge families sit
-	// between SecretsIAM* nodes and are removed by the DETACH DELETE node
-	// retract above; this covers the workload->service-account edge whose start
-	// node is NOT reducer-owned and so survives the node retract.
+	// a retained endpoint (KubernetesWorkload). The other edge families start
+	// from reducer-owned SecretsIAM* nodes and are removed by the DETACH DELETE
+	// node retract above, including the ServiceAccount->CloudResource IAM-role
+	// edge whose target endpoint is retained.
 	secretsIAMUsesServiceAccountEdgeRetractCypher = `MATCH (:KubernetesWorkload)-[rel:SECRETS_IAM_USES_SERVICE_ACCOUNT]->()
 WHERE rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source
 DELETE rel`
 )
 
 // SecretsIAMGraphWriter materializes the reducer-owned secrets/IAM graph
-// projection: the four SecretsIAM* nodes and the four resolvable
+// projection: the four SecretsIAM* nodes and the five resolvable
 // SECRETS_IAM_* edges, plus scoped retract. It writes through the
 // backend-neutral Executor seam and persists only the redaction-safe rows the
 // extractor produced — it performs no judgement of its own.

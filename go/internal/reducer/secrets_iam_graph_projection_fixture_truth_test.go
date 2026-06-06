@@ -11,7 +11,7 @@ import (
 // it drives the full load -> extract -> write orchestration through
 // SecretsIAMGraphProjectionHandler against the recording writer and asserts the
 // EXACT node and edge rows handed to each writer surface for all four
-// SecretsIAM* node families and all four resolvable SECRETS_IAM_* edge families,
+// SecretsIAM* node families and all five resolvable SECRETS_IAM_* edge families,
 // plus the skip-counted cases (missing workload, IAM-role-unresolved,
 // missing-vault-role, non-exact, missing-secret-path). It proves fixture intent
 // maps to exact graph-truth rows without a graph backend. The TRUE live-backend
@@ -76,7 +76,7 @@ func firstBatch(t *testing.T, batches [][]map[string]any, surface string) []map[
 
 // TestGraphProjectionFixtureTruthFullExactChainAndPath drives the IRSA-style
 // exact chain plus an exact secret-access path through the handler and asserts
-// the exact rows for all four node families and all four edge families, plus the
+// the exact rows for all four node families and all five edge families, plus the
 // IAM-role-unresolved skip. This is the §11 "exact IRSA chain" + "exact Vault
 // path" rows realized end to end against the recording writer.
 func TestGraphProjectionFixtureTruthFullExactChainAndPath(t *testing.T) {

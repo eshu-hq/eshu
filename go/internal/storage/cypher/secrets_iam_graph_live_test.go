@@ -18,7 +18,7 @@ import (
 // secrets/IAM graph writer. It is BACKEND-GATED: it SKIPs cleanly unless
 // ESHU_SECRETS_IAM_GRAPH_LIVE is set AND a Bolt backend is configured, so the
 // default package test run never requires Docker or remote graph credentials. It
-// proves the four SecretsIAM* node families and the four resolvable
+// proves the four SecretsIAM* node families and the five resolvable
 // SECRETS_IAM_* edge families MERGE, read back, and scoped-retract against a real
 // NornicDB/Neo4j-compatible backend. It NEVER fabricates a passing live proof:
 // without a backend it skips, and with a backend it fails on any mismatch.
@@ -101,7 +101,7 @@ func (e liveSecretsIAMExecutor) count(ctx context.Context, cypherText string, pa
 }
 
 // TestSecretsIAMGraphWriterLiveConformance writes all four node families and all
-// four edges, reads them back, then proves scoped retract removes only the
+// five edges, reads them back, then proves scoped retract removes only the
 // reducer-owned rows. It skips unless ESHU_SECRETS_IAM_GRAPH_LIVE is enabled.
 func TestSecretsIAMGraphWriterLiveConformance(t *testing.T) {
 	if !secretsIAMLiveEnabled() {
@@ -125,13 +125,20 @@ func TestSecretsIAMGraphWriterLiveConformance(t *testing.T) {
 	const scope = "scope:secrets-iam-live"
 	const evidence = "reducer/secrets-iam-graph"
 
-	// The workload edge needs a KubernetesWorkload endpoint to MATCH. Create it
-	// (and clean it up) so the workload edge resolves rather than no-opping.
+	// The workload and IAM-role edges need retained endpoint nodes to MATCH.
+	// Create them (and clean them up) so the endpoint edges resolve rather than
+	// no-oping.
 	if err := exec.Execute(ctx, cypher.Statement{
 		Cypher:     `MERGE (w:KubernetesWorkload {uid: $uid})`,
 		Parameters: map[string]any{"uid": "k8s://live/w-1"},
 	}); err != nil {
 		t.Fatalf("seed workload endpoint: %v", err)
+	}
+	if err := exec.Execute(ctx, cypher.Statement{
+		Cypher:     `MERGE (c:CloudResource {uid: $uid})`,
+		Parameters: map[string]any{"uid": "cloud:iam-role-live"},
+	}); err != nil {
+		t.Fatalf("seed iam role endpoint: %v", err)
 	}
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -139,6 +146,10 @@ func TestSecretsIAMGraphWriterLiveConformance(t *testing.T) {
 		_ = exec.Execute(cleanupCtx, cypher.Statement{
 			Cypher:     `MATCH (w:KubernetesWorkload {uid: $uid}) DETACH DELETE w`,
 			Parameters: map[string]any{"uid": "k8s://live/w-1"},
+		})
+		_ = exec.Execute(cleanupCtx, cypher.Statement{
+			Cypher:     `MATCH (c:CloudResource {uid: $uid}) DETACH DELETE c`,
+			Parameters: map[string]any{"uid": "cloud:iam-role-live"},
 		})
 		_ = cypher.NewSecretsIAMGraphWriter(exec, 0).RetractScope(cleanupCtx, []string{scope}, evidence)
 	})
@@ -186,6 +197,9 @@ func TestSecretsIAMGraphWriterLiveConformance(t *testing.T) {
 		{"uses-service-account", func() error {
 			return w.WriteUsesServiceAccountEdges(ctx, []map[string]any{node(map[string]any{"workload_uid": "k8s://live/w-1", "service_account_uid": "sha256:sa1", "evidence_fact_ids": []string{"f1"}})})
 		}},
+		{"assumes-iam-role", func() error {
+			return w.WriteAssumesIAMRoleEdges(ctx, []map[string]any{node(map[string]any{"service_account_uid": "sha256:sa1", "cloud_resource_uid": "cloud:iam-role-live", "assume_mode": "web_identity", "evidence_fact_ids": []string{"f1"}})})
+		}},
 		{"authenticates-vault-role", func() error {
 			return w.WriteAuthenticatesVaultRoleEdges(ctx, []map[string]any{node(map[string]any{"service_account_uid": "sha256:sa1", "vault_auth_role_uid": "sha256:vr1", "evidence_fact_ids": []string{"f1"}})})
 		}},
@@ -221,6 +235,7 @@ func TestSecretsIAMGraphWriterLiveConformance(t *testing.T) {
 
 	edgeCounts := map[string]string{
 		"SECRETS_IAM_USES_SERVICE_ACCOUNT":        `MATCH (:KubernetesWorkload)-[r:SECRETS_IAM_USES_SERVICE_ACCOUNT]->(:SecretsIAMServiceAccount) WHERE r.scope_id = $scope RETURN count(r)`,
+		"SECRETS_IAM_ASSUMES_IAM_ROLE":            `MATCH (:SecretsIAMServiceAccount)-[r:SECRETS_IAM_ASSUMES_IAM_ROLE]->(:CloudResource) WHERE r.scope_id = $scope RETURN count(r)`,
 		"SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE": `MATCH (:SecretsIAMServiceAccount)-[r:SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE]->(:SecretsIAMVaultAuthRole) WHERE r.scope_id = $scope RETURN count(r)`,
 		"SECRETS_IAM_USES_VAULT_POLICY":           `MATCH (:SecretsIAMVaultAuthRole)-[r:SECRETS_IAM_USES_VAULT_POLICY]->(:SecretsIAMVaultPolicy) WHERE r.scope_id = $scope RETURN count(r)`,
 		"SECRETS_IAM_GRANTS_SECRET_READ":          `MATCH (:SecretsIAMVaultPolicy)-[r:SECRETS_IAM_GRANTS_SECRET_READ]->(:SecretsIAMSecretMetadataPath) WHERE r.scope_id = $scope RETURN count(r)`,
@@ -236,7 +251,8 @@ func TestSecretsIAMGraphWriterLiveConformance(t *testing.T) {
 	}
 
 	// Scoped retract removes the four reducer-owned node families (and their
-	// edges), leaving the KubernetesWorkload endpoint intact.
+	// edges), leaving the retained KubernetesWorkload and CloudResource endpoints
+	// intact.
 	if err := w.RetractScope(ctx, []string{scope}, evidence); err != nil {
 		t.Fatalf("retract scope: %v", err)
 	}
@@ -255,5 +271,12 @@ func TestSecretsIAMGraphWriterLiveConformance(t *testing.T) {
 	}
 	if workloadCount != 1 {
 		t.Fatalf("retract deleted the retained KubernetesWorkload endpoint: count = %d, want 1", workloadCount)
+	}
+	cloudResourceCount, err := exec.count(ctx, `MATCH (c:CloudResource {uid: "cloud:iam-role-live"}) RETURN count(c)`, nil)
+	if err != nil {
+		t.Fatalf("post-retract CloudResource count: %v", err)
+	}
+	if cloudResourceCount != 1 {
+		t.Fatalf("retract deleted the retained CloudResource endpoint: count = %d, want 1", cloudResourceCount)
 	}
 }
