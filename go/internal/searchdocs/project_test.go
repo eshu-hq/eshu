@@ -119,6 +119,96 @@ func TestProjectRuntimeSummaryBuildsRuntimeDocument(t *testing.T) {
 	assertHasLabel(t, doc, "runtime")
 }
 
+func TestProjectSemanticContextBuildsDerivedLabelDocument(t *testing.T) {
+	updatedAt := time.Date(2026, 6, 6, 14, 30, 0, 0, time.UTC)
+	doc, decision := ProjectSemanticContext(SemanticContext{
+		ID:          "semantic-context:checkout-alert-routing",
+		RepoID:      "repo-checkout",
+		Title:       "Checkout alert routing context",
+		ContextText: "checkout-api alerts route through the pagerduty primary policy during deploys",
+		ServiceID:   "service:checkout-api",
+		WorkloadID:  "workload:checkout-api",
+		Environment: "prod",
+		Labels:      []string{"alert-routing", "deployment"},
+		SourceIDs:   []string{"service:checkout-api", "workload:checkout-api"},
+		UpdatedAt:   updatedAt,
+	})
+
+	if !decision.Include {
+		t.Fatalf("ProjectSemanticContext decision.Include = false, reason = %q", decision.Reason)
+	}
+	if got, want := doc.ID, "searchdoc:semantic_context:semantic-context:checkout-alert-routing"; got != want {
+		t.Fatalf("doc.ID = %q, want %q", got, want)
+	}
+	if got, want := doc.SourceKind, SourceKindSemanticContext; got != want {
+		t.Fatalf("doc.SourceKind = %q, want %q", got, want)
+	}
+	if got, want := doc.TruthScope.Level, TruthLevelDerived; got != want {
+		t.Fatalf("doc.TruthScope.Level = %q, want %q", got, want)
+	}
+	if got, want := doc.TruthScope.Basis, TruthBasisReadModel; got != want {
+		t.Fatalf("doc.TruthScope.Basis = %q, want %q", got, want)
+	}
+	if !doc.UpdatedAt.Equal(updatedAt) {
+		t.Fatalf("doc.UpdatedAt = %s, want %s", doc.UpdatedAt, updatedAt)
+	}
+	assertHasGraphHandle(t, doc, "semantic_context", "semantic-context:checkout-alert-routing")
+	assertHasGraphHandle(t, doc, "repository", "repo-checkout")
+	assertHasGraphHandle(t, doc, "service", "service:checkout-api")
+	assertHasGraphHandle(t, doc, "workload", "workload:checkout-api")
+	assertHasGraphHandle(t, doc, "environment", "prod")
+	assertHasLabel(t, doc, "semantic_context")
+	assertHasLabel(t, doc, "alert-routing")
+	assertHasLabel(t, doc, "deployment")
+}
+
+func TestProjectSemanticContextRejectsUnboundedOrSensitiveRows(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  SemanticContext
+		reason ExclusionReason
+	}{
+		{
+			name: "missing stable id",
+			input: SemanticContext{
+				RepoID:      "repo-checkout",
+				ContextText: "checkout ownership notes",
+				ServiceID:   "service:checkout-api",
+			},
+			reason: ReasonMissingStableHandle,
+		},
+		{
+			name: "missing bounded graph handle",
+			input: SemanticContext{
+				ID:          "semantic-context:unscoped",
+				ContextText: "unscoped semantic context should not enter retrieval",
+			},
+			reason: ReasonMissingStableHandle,
+		},
+		{
+			name: "secret context",
+			input: SemanticContext{
+				ID:          "semantic-context:secret",
+				RepoID:      "repo-checkout",
+				ContextText: `pagerduty_token = "super-secret"`,
+			},
+			reason: ReasonSensitiveContext,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc, decision := ProjectSemanticContext(tt.input)
+			if decision.Include {
+				t.Fatalf("decision.Include = true, doc = %#v", doc)
+			}
+			if got := decision.Reason; got != tt.reason {
+				t.Fatalf("decision.Reason = %q, want %q", got, tt.reason)
+			}
+		})
+	}
+}
+
 func TestProjectContentEntityDropsSensitiveOrNoisyRows(t *testing.T) {
 	tests := []struct {
 		name   string

@@ -149,39 +149,48 @@ func TestValidateRetrievalProofRejectsMissingRunsWithoutStopReason(t *testing.T)
 	}
 }
 
-func TestIssue1298StoppedEvidenceFileValidates(t *testing.T) {
+func TestStoppedEvidenceFilesValidate(t *testing.T) {
 	t.Parallel()
 
-	path := filepath.Join(
-		"..",
-		"..",
-		"..",
-		"docs",
-		"public",
-		"reference",
-		"searchbench-evidence",
+	for _, name := range []string{
 		"issue-1298-semantic-retrieval-proof-v1.json",
-	)
-	payload, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("os.ReadFile(%q) error = %v, want nil", path, err)
-	}
-	var proof RetrievalProof
-	if err := json.Unmarshal(payload, &proof); err != nil {
-		t.Fatalf("json.Unmarshal(%q) error = %v, want nil", path, err)
-	}
-	if strings.TrimSpace(proof.AcceptedStopReason) == "" {
-		t.Fatalf("%s accepted_stop_reason is empty, want explicit stopped-run reason", path)
-	}
-	for _, query := range proof.Suite.Queries {
-		assertIssue1298ExpectedHandlesUseSearchdocKeys(t, path, query)
-	}
-	if err := ValidateRetrievalProof(proof); err != nil {
-		t.Fatalf("ValidateRetrievalProof(%q) error = %v, want nil", path, err)
+		"issue-417-nornicdb-hybrid-retrieval-prototype-v1.json",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			path := filepath.Join(
+				"..",
+				"..",
+				"..",
+				"docs",
+				"public",
+				"reference",
+				"searchbench-evidence",
+				name,
+			)
+			payload, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("os.ReadFile(%q) error = %v, want nil", path, err)
+			}
+			var proof RetrievalProof
+			if err := json.Unmarshal(payload, &proof); err != nil {
+				t.Fatalf("json.Unmarshal(%q) error = %v, want nil", path, err)
+			}
+			if strings.TrimSpace(proof.AcceptedStopReason) == "" {
+				t.Fatalf("%s accepted_stop_reason is empty, want explicit stopped-run reason", path)
+			}
+			for _, query := range proof.Suite.Queries {
+				assertStoppedProofExpectedHandlesUseSearchdocKeys(t, path, query)
+			}
+			if err := ValidateRetrievalProof(proof); err != nil {
+				t.Fatalf("ValidateRetrievalProof(%q) error = %v, want nil", path, err)
+			}
+		})
 	}
 }
 
-func assertIssue1298ExpectedHandlesUseSearchdocKeys(t *testing.T, path string, query Query) {
+func assertStoppedProofExpectedHandlesUseSearchdocKeys(t *testing.T, path string, query Query) {
 	t.Helper()
 
 	for _, handle := range query.ExpectedHandles {

@@ -20,8 +20,8 @@ future search-document persistence.
 See `doc.go` for the godoc-rendered package contract.
 
 - `Document` is the curated search-lane record.
-- `ProjectContentEntity`, `ProjectContentFile`, and `ProjectRuntimeSummary`
-  project first-slice inputs into documents.
+- `ProjectContentEntity`, `ProjectContentFile`, `ProjectRuntimeSummary`, and
+  `ProjectSemanticContext` project first-slice inputs into documents.
 - `Decision` records whether a candidate was included or excluded.
 - `SourceKind`, `TruthScope`, `Freshness`, `AccessScope`, and `Provenance`
   preserve the retrieval contract fields later benchmark and API work must
@@ -46,6 +46,9 @@ failure class, as documented in
   prediction must not become canonical graph truth through this package.
 - Every included document must carry at least one stable graph handle for later
   bounded graph expansion.
+- Semantic context documents must also carry at least one bounded scope handle
+  beyond the semantic-context record itself, such as repository, service,
+  workload, environment, or another explicit expansion handle.
 - Projection drops sensitive context and excluded source kinds. Do not add raw
   provider payloads, log lines, trace spans, dashboard JSON, query bodies,
   finding bodies, credentials, secrets, or high-cardinality noise.
