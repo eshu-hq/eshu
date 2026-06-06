@@ -22,19 +22,52 @@ if [[ "$*" == *"test-api-key"* ]]; then
   exit 2
 fi
 curl_config=""
+payload_file=""
 args=("$@")
 for ((i = 0; i < ${#args[@]}; i++)); do
   if [[ "${args[$i]}" == "-K" ]]; then
     curl_config="${args[$((i + 1))]:-}"
   fi
+  if [[ "${args[$i]}" == "--data-binary" || "${args[$i]}" == "--data" || "${args[$i]}" == "-d" ]]; then
+    payload_file="${args[$((i + 1))]:-}"
+    payload_file="${payload_file#@}"
+  fi
 done
-if [[ -z "${curl_config}" ]] || ! rg -q 'Accept: application/eshu.envelope\+json' "${curl_config}"; then
+is_mcp=0
+if [[ "$*" == *"/mcp/message"* ]]; then
+  is_mcp=1
+fi
+if [[ -z "${curl_config}" ]]; then
+  echo "curl call is missing config file" >&2
+  exit 2
+fi
+if ((is_mcp == 0)) && ! rg -q 'Accept: application/eshu.envelope\+json' "${curl_config}"; then
   echo "curl call is missing Eshu envelope Accept header" >&2
   exit 2
 fi
 if [[ "$*" != *"--max-time"* ]]; then
   echo "curl call is missing max-time" >&2
   exit 2
+fi
+if ((is_mcp == 1)); then
+  if [[ -z "${payload_file}" || ! -f "${payload_file}" ]]; then
+    echo "mcp call is missing JSON-RPC payload" >&2
+    exit 2
+  fi
+  tool_name="$(jq -r '.params.name // ""' "${payload_file}")"
+  case "${tool_name}" in
+    list_service_catalog_correlations)
+      cat "${state_dir}/mcp-service-catalog.json"
+      ;;
+    find_infra_resources)
+      cat "${state_dir}/mcp-cloud-resources.json"
+      ;;
+    *)
+      echo "unexpected mcp tool: ${tool_name}" >&2
+      exit 2
+      ;;
+  esac
+  exit 0
 fi
 case "$*" in
   *"/api/v0/repositories/repo%3A%2F%2Fexample%2Fapi/story"*)
@@ -58,6 +91,9 @@ case "$*" in
   *"/api/v0/ci-cd/run-correlations/count?repository_id=repo%3A%2F%2Fexample%2Fapi&artifact_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"*)
     cat "${state_dir}/cicd-count.json"
     ;;
+  *"/api/v0/infra/resources/search"*)
+    cat "${state_dir}/cloud-resources.json"
+    ;;
   *)
     echo "unexpected curl target: $*" >&2
     exit 2
@@ -76,13 +112,15 @@ write_manifest() {
   "expected_oci_repository_id": "oci-registry://registry.example/team/api",
   "expected_image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "expected_sbom_subject_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "expected_cloud_resource_id": "arn:aws:lambda:us-east-1:111122223333:function:example-api",
   "minimums": {
     "impact_findings": 1,
     "security_alert_reconciliations": 1,
     "container_image_identities": 1,
     "sbom_attachments": 1,
     "service_catalog_correlations": 1,
-    "ci_cd_run_correlations": 1
+    "ci_cd_run_correlations": 1,
+    "cloud_resources": 1
   }
 }
 JSON
@@ -127,12 +165,22 @@ JSON
   cat >"${state_dir}/cicd-count.json" <<'JSON'
 {"data":{"total_correlations":1},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
+  cat >"${state_dir}/cloud-resources.json" <<'JSON'
+{"data":{"count":1,"results":[{"id":"cloud-resource:api","resource_id":"arn:aws:lambda:us-east-1:111122223333:function:example-api","arn":"arn:aws:lambda:us-east-1:111122223333:function:example-api","provider":"aws"}],"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
+JSON
+  cat >"${state_dir}/mcp-service-catalog.json" <<'JSON'
+{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":1,\"correlations\":[{\"correlation_id\":\"corr-1\",\"service_id\":\"service:api\"}],\"truncated\":false},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
+JSON
+  cat >"${state_dir}/mcp-cloud-resources.json" <<'JSON'
+{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":1,\"results\":[{\"id\":\"cloud-resource:api\",\"resource_id\":\"arn:aws:lambda:us-east-1:111122223333:function:example-api\",\"arn\":\"arn:aws:lambda:us-east-1:111122223333:function:example-api\",\"provider\":\"aws\"}],\"truncated\":false},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
+JSON
 }
 
 run_verifier() {
   ESHU_REMOTE_E2E_TEST_STATE="${state_dir}" \
     PATH="${fake_bin}:${PATH}" \
     ESHU_REMOTE_E2E_API_BASE_URL="http://127.0.0.1:18080/api/v0" \
+    ESHU_REMOTE_E2E_MCP_URL="http://127.0.0.1:18081/mcp/message" \
     ESHU_REMOTE_E2E_API_KEY="test-api-key" \
     "${verifier}" >/tmp/eshu-remote-e2e-target-story.out 2>/tmp/eshu-remote-e2e-target-story.err
 }
@@ -162,7 +210,7 @@ expect_fail_with() {
 reset_state
 export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
 expect_pass
-if rg -q 'repo://example/api|oci-registry://registry.example/team/api' /tmp/eshu-remote-e2e-target-story.out; then
+if rg -q 'repo://example/api|oci-registry://registry.example/team/api|arn:aws' /tmp/eshu-remote-e2e-target-story.out; then
   printf 'target-story proof leaked private target values\n' >&2
   sed -n '1,200p' /tmp/eshu-remote-e2e-target-story.out >&2
   exit 1
@@ -209,10 +257,12 @@ jq '
   del(.expected_oci_repository_id) |
   del(.expected_image_digest) |
   del(.expected_sbom_subject_digest) |
+  del(.expected_cloud_resource_id) |
   .minimums.container_image_identities = 0 |
   .minimums.sbom_attachments = 0 |
   .minimums.service_catalog_correlations = 0 |
-  .minimums.ci_cd_run_correlations = 0
+  .minimums.ci_cd_run_correlations = 0 |
+  .minimums.cloud_resources = 0
 ' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
 mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
 expect_pass
@@ -273,6 +323,50 @@ export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
 jq 'del(.expected_security_alert_repository)' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
 mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
 expect_fail_with 'target security_alert_reconciliations requires expected_security_alert_repository'
+
+reset_state
+export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
+unset ESHU_REMOTE_E2E_MCP_URL
+if ESHU_REMOTE_E2E_TEST_STATE="${state_dir}" \
+  PATH="${fake_bin}:${PATH}" \
+  ESHU_REMOTE_E2E_API_BASE_URL="http://127.0.0.1:18080/api/v0" \
+  ESHU_REMOTE_E2E_API_KEY="test-api-key" \
+  "${verifier}" >/tmp/eshu-remote-e2e-target-story.out 2>/tmp/eshu-remote-e2e-target-story.err; then
+  printf 'expected target-story verifier to require MCP URL when MCP-backed target proof is configured\n' >&2
+  exit 1
+fi
+if ! rg -q 'ESHU_REMOTE_E2E_MCP_URL is required when target story MCP proof is required' /tmp/eshu-remote-e2e-target-story.err; then
+  printf 'expected missing MCP URL failure\n' >&2
+  sed -n '1,200p' /tmp/eshu-remote-e2e-target-story.err >&2
+  exit 1
+fi
+
+reset_state
+export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
+cat >"${state_dir}/cloud-resources.json" <<'JSON'
+{"data":{"count":1,"results":[{"id":"cloud-resource:other","resource_id":"arn:aws:lambda:us-east-1:111122223333:function:other-api","arn":"arn:aws:lambda:us-east-1:111122223333:function:other-api","provider":"aws"}],"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
+JSON
+expect_fail_with 'target cloud_resources=0 below required minimum 1'
+
+reset_state
+export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
+cat >"${state_dir}/mcp-cloud-resources.json" <<'JSON'
+{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":1,\"results\":[{\"id\":\"cloud-resource:other\",\"resource_id\":\"arn:aws:lambda:us-east-1:111122223333:function:other-api\",\"arn\":\"arn:aws:lambda:us-east-1:111122223333:function:other-api\",\"provider\":\"aws\"}],\"truncated\":false},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
+JSON
+expect_fail_with 'target mcp_cloud_resources=0 below required minimum 1'
+
+reset_state
+export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
+cat >"${state_dir}/mcp-service-catalog.json" <<'JSON'
+{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 0 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":0,\"correlations\":[],\"truncated\":false},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
+JSON
+expect_fail_with 'target mcp_service_catalog_correlations=0 below required minimum 1'
+
+reset_state
+export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
+jq 'del(.expected_cloud_resource_id)' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
+mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
+expect_fail_with 'target cloud_resources requires expected_cloud_resource_id'
 
 reset_state
 rm -f "${state_dir}/target-story.json"
