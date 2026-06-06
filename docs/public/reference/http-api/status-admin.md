@@ -57,11 +57,31 @@ part of the shipped public contract.
 
 ## Pipeline, Collector, And Ingester Status
 
+- `GET /api/v0/status/collectors`
+- `GET /api/v0/collectors`
 - `GET /api/v0/status/pipeline`
 - `GET /api/v0/status/ingesters`
 - `GET /api/v0/status/ingesters/{ingester}`
 - `GET /api/v0/ingesters`
 - `GET /api/v0/ingesters/{ingester}`
+
+`/api/v0/status/collectors` is the canonical collector-status list route.
+`/api/v0/collectors` is the legacy GET alias. The response classifies each
+collector runtime identity using workflow-coordinator registration plus durable
+direct status evidence:
+
+- `coordinator_managed`: enabled and claim-driven in the workflow coordinator.
+- `direct_mode`: registered but claims are disabled.
+- `disabled`: registered but disabled or deactivated.
+- `unregistered`: direct status evidence exists without a matching coordinator
+  registration.
+- `profile_gated`: reserved for profile gates that explicitly surface a status
+  row.
+
+Central API status cannot discover arbitrary Kubernetes pods by itself. A
+deployed collector pod with no coordinator row and no durable direct status row
+is an unsupported inventory mode; query that pod's `/admin/status`, metrics, or
+the deployment platform inventory to prove process liveness.
 
 `/api/v0/status/ingesters` is the canonical ingester-status list route.
 `/api/v0/status/ingesters/{ingester}` is the canonical detail route. The
@@ -79,6 +99,12 @@ The default ingester is `repository`. Status responses include:
 
 The public API does not include a per-ingester scan POST route. Use
 `POST /api/v0/admin/reindex` or deployment-managed ingestion instead.
+
+No-Regression Evidence: `cd go && go test ./internal/status ./internal/query ./internal/mcp -run 'Test(RenderStatusIncludesCollectorRuntimeCategories|StatusHandlerCollectorsRouteExposesDirectRuntimeEvidence|ListCollectorsRuntimeToolRoutesToStatusCollectors)' -count=1`.
+No-Observability-Change: collector status classification reuses existing
+`/admin/status`, `/api/v0/status/collectors`, `aws_cloud_scans`,
+`vulnerability_sources`, workflow coordinator rows, and MCP HTTP dispatch; it
+does not add a worker, queue, graph query, or new metric label.
 
 ## Historical Metrics
 

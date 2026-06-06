@@ -68,6 +68,7 @@ The JSON report is rendered by `go/internal/status.RenderJSON` and may include:
 - `as_of`
 - `health`
 - `coordinator`
+- `collector_runtimes`
 - `flow`
 - `queue`
 - `latest_failure`
@@ -87,6 +88,13 @@ The JSON report is rendered by `go/internal/status.RenderJSON` and may include:
 - `domains`
 - `queue_blockages`
 - `terraform_state`
+
+`collector_runtimes` is a derived, additive view over coordinator registration
+and direct collector status evidence. It classifies rows as
+`coordinator_managed`, `direct_mode`, `disabled`, `unregistered`, or
+`profile_gated` when a profile gate emits an explicit status row. Rows include
+the collector instance ID, kind, runtime mode, coordinator registration flag,
+evidence sources, health label, and timestamps when available.
 
 Queue and domain age fields include both human-readable duration strings and
 seconds values, such as `oldest_outstanding_age_seconds` and

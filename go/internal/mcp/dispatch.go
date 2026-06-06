@@ -475,6 +475,8 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		}}, nil
 
 	// ── Status ──
+	case "list_collectors":
+		return &route{method: "GET", path: "/api/v0/status/collectors"}, nil
 	case "list_ingesters":
 		return &route{method: "GET", path: "/api/v0/status/ingesters"}, nil
 	case "get_ingester_status":

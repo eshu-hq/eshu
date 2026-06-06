@@ -75,6 +75,9 @@ See `doc.go` for the godoc contract. Key types and functions:
   instances, run and work-item status counts, completeness counts, active and
   overdue claims
 - `CollectorInstanceSummary` — one configured collector runtime instance
+- `CollectorRuntimeStatus` — derived coordinator/direct collector runtime
+  classification for `coordinator_managed`, `direct_mode`, `disabled`,
+  `unregistered`, and explicit `profile_gated` status rows
 - `RegistryCollectorSnapshot` — bounded OCI and package-registry runtime status
   counts for configured instances, active scopes, recent completed generations,
   last completed timestamp, retryable/terminal failures, and failure classes
@@ -129,8 +132,8 @@ states (in priority order):
 - `RenderText(report)` — compact multi-line text for CLI and plain-text admin
   endpoints; includes health, queue, retry policies, scope activity, generation
   history, stage summaries, domain backlogs, queue blockages, coordinator state,
-  registry collector state, AWS cloud scan state, AWS freshness backlog state,
-  and flow lanes
+  derived collector runtime classification, registry collector state, AWS cloud
+  scan state, AWS freshness backlog state, and flow lanes
 - `RenderJSON(report)` — stable JSON payload for machine-readable consumption;
   field names are part of the operator contract
 - `NewHTTPHandler(reader, opts)` — returns an `http.Handler` that serves `GET`
@@ -181,6 +184,11 @@ strings.
 - **`CoordinatorSnapshot` is optional.** When the workflow coordinator is not
   wired, `RawSnapshot.Coordinator` is nil and `Report.Coordinator` is nil.
   Callers must nil-check before rendering coordinator lines.
+- **Collector runtime classification is derived.** `CollectorRuntimeStatuses`
+  uses coordinator rows plus durable direct status rows already present in the
+  report. It does not call Kubernetes, Docker, or another deployment inventory
+  API, so a pod with no coordinator row and no durable status row remains
+  outside the central status contract.
 - **AWS cloud status separates scan and commit.** `AWSCloudScanStatus.Status`
   describes scanner-side outcome such as `partial`, `credential_failed`, or
   `failed`; `CommitStatus` describes whether the fenced fact transaction later

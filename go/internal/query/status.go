@@ -47,7 +47,7 @@ func (h *StatusHandler) getPipelineStatus(w http.ResponseWriter, r *http.Request
 	WriteJSON(w, http.StatusOK, statusReportToMap(report))
 }
 
-// listCollectors returns the known coordinator-managed collector instances.
+// listCollectors returns registered collectors plus direct runtime status evidence.
 func (h *StatusHandler) listCollectors(w http.ResponseWriter, r *http.Request) {
 	if h.StatusReader == nil {
 		WriteError(w, http.StatusServiceUnavailable, "status reader not configured")
@@ -60,29 +60,15 @@ func (h *StatusHandler) listCollectors(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collectors := []map[string]any{}
-	if report.Coordinator != nil {
-		collectors = make([]map[string]any, 0, len(report.Coordinator.CollectorInstances))
-		for _, instance := range report.Coordinator.CollectorInstances {
-			collectors = append(collectors, map[string]any{
-				"instance_id":      instance.InstanceID,
-				"collector_kind":   instance.CollectorKind,
-				"mode":             instance.Mode,
-				"enabled":          instance.Enabled,
-				"bootstrap":        instance.Bootstrap,
-				"claims_enabled":   instance.ClaimsEnabled,
-				"display_name":     instance.DisplayName,
-				"last_observed_at": instance.LastObservedAt.Format(time.RFC3339),
-				"updated_at":       instance.UpdatedAt.Format(time.RFC3339),
-				"deactivated_at":   nullableRFC3339(instance.DeactivatedAt),
-			})
-		}
-	}
+	runtimes := status.CollectorRuntimeStatuses(report)
+	collectors := collectorRuntimeStatusesToSlice(runtimes)
 
 	WriteJSON(w, http.StatusOK, map[string]any{
-		"version":    buildinfo.AppVersion(),
-		"collectors": collectors,
-		"count":      len(collectors),
+		"version":              buildinfo.AppVersion(),
+		"collectors":           collectors,
+		"count":                len(collectors),
+		"classification_basis": "workflow coordinator registration plus direct status evidence",
+		"updated_at":           collectorRuntimeUpdatedAt(runtimes),
 	})
 }
 
@@ -196,6 +182,7 @@ func statusReportToMap(r status.Report) map[string]any {
 		"as_of":                  r.AsOf.Format(time.RFC3339),
 		"health":                 healthToMap(r.Health),
 		"coordinator":            coordinatorToMap(r.Coordinator),
+		"collector_runtimes":     collectorRuntimeStatusesToSlice(status.CollectorRuntimeStatuses(r)),
 		"queue":                  queueToMap(r.Queue),
 		"scope_activity":         scopeActivityToMap(r.ScopeActivity),
 		"generation_history":     generationHistoryToMap(r.GenerationHistory),

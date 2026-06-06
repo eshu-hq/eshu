@@ -23,6 +23,19 @@ func TestOpenAPISpecStatusPathsMatchCurrentContract(t *testing.T) {
 	if _, ok := paths["/api/v0/ingesters/{ingester}"]; !ok {
 		t.Fatal("OpenAPI paths missing /api/v0/ingesters/{ingester}")
 	}
+	collectorsPath := mustMapField(t, paths, "/api/v0/status/collectors")
+	collectorsGet := mustMapField(t, collectorsPath, "get")
+	collectorsResponses := mustMapField(t, collectorsGet, "responses")
+	collectorsOK := mustMapField(t, collectorsResponses, "200")
+	collectorsContent := mustMapField(t, collectorsOK, "content")
+	collectorsJSON := mustMapField(t, collectorsContent, "application/json")
+	collectorsSchema := mustMapField(t, collectorsJSON, "schema")
+	collectorsProperties := mustMapField(t, collectorsSchema, "properties")
+	for _, want := range []string{"version", "updated_at", "collectors", "count", "classification_basis"} {
+		if _, ok := collectorsProperties[want]; !ok {
+			t.Fatalf("/api/v0/status/collectors response schema missing %q", want)
+		}
+	}
 	if _, ok := paths["/api/v0/index-runs/{run_id}"]; ok {
 		t.Fatal("OpenAPI paths unexpectedly advertise /api/v0/index-runs/{run_id}")
 	}
