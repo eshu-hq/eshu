@@ -358,8 +358,17 @@ func TestBuildSecurityAlertReconciliationsFailsClosedForAmbiguousProviderReposit
 		t.Fatalf("len(decisions) = %d, want %d", got, want)
 	}
 	decision := decisions[0]
-	if got, want := decision.Status, SecurityAlertReconciliationProviderOnly; got != want {
+	if got, want := decision.Status, SecurityAlertReconciliationAmbiguous; got != want {
 		t.Fatalf("Status = %q, want %q", got, want)
+	}
+	if got, want := decision.ReasonCode, "owned_dependency_ambiguous"; got != want {
+		t.Fatalf("ReasonCode = %q, want %q", got, want)
+	}
+	if got, want := len(decision.MissingEvidence), 1; got != want {
+		t.Fatalf("len(MissingEvidence) = %d, want %d", got, want)
+	}
+	if got, want := decision.MissingEvidence[0].Reason, "multiple_repository_candidates"; got != want {
+		t.Fatalf("MissingEvidence[0].Reason = %q, want %q", got, want)
 	}
 	if !strings.Contains(decision.Reason, "ambiguous") {
 		t.Fatalf("Reason = %q, want ambiguous evidence reason", decision.Reason)

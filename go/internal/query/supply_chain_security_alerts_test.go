@@ -308,7 +308,7 @@ func TestDecodeSecurityAlertReconciliationRowPreservesOwnedPackageEvidence(t *te
 		"dependency_range":          "1.2.0",
 		"dependency_evidence_id":    "consume-1",
 		"dependency_evidence_kind":  "reducer_package_consumption_correlation",
-		"missing_evidence":          []any{"installed package version malformed"},
+		"package_missing_evidence":  []any{"installed package version malformed"},
 		"reconciliation_status":     "matched",
 		"eshu_impact_status":        "affected_exact",
 		"eshu_impact_finding_id":    "impact-1",
@@ -337,6 +337,28 @@ func TestDecodeSecurityAlertReconciliationRowPreservesOwnedPackageEvidence(t *te
 	}
 	if got, want := row.EshuPackage.DependencyEvidenceKind, "reducer_package_consumption_correlation"; got != want {
 		t.Fatalf("EshuPackage.DependencyEvidenceKind = %q, want %q", got, want)
+	}
+	if got, want := row.EshuPackage.MissingEvidence, []string{"installed package version malformed"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("EshuPackage.MissingEvidence = %#v, want %#v", got, want)
+	}
+}
+
+func TestDecodeSecurityAlertReconciliationRowPreservesLegacyOwnedPackageMissingEvidence(t *testing.T) {
+	t.Parallel()
+
+	payload := map[string]any{
+		"package_id":            "npm://registry.npmjs.org/left-pad",
+		"missing_evidence":      []any{"installed package version malformed"},
+		"reconciliation_status": "unmatched",
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+
+	row, err := decodeSecurityAlertReconciliationRow("reconciliation-legacy", "inferred", raw)
+	if err != nil {
+		t.Fatalf("decodeSecurityAlertReconciliationRow() error = %v, want nil", err)
 	}
 	if got, want := row.EshuPackage.MissingEvidence, []string{"installed package version malformed"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("EshuPackage.MissingEvidence = %#v, want %#v", got, want)

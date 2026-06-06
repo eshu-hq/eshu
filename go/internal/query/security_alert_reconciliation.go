@@ -96,15 +96,17 @@ type SecurityAlertEshuPackageRow struct {
 
 // SecurityAlertReconciliationRow is one reducer-owned comparison row.
 type SecurityAlertReconciliationRow struct {
-	ReconciliationID     string                      `json:"reconciliation_id"`
-	ProviderAlert        ProviderSecurityAlertRow    `json:"provider_alert"`
-	EshuPackage          SecurityAlertEshuPackageRow `json:"eshu_package"`
-	EshuImpact           SecurityAlertEshuImpactRow  `json:"eshu_impact"`
-	ReconciliationStatus string                      `json:"reconciliation_status"`
-	Reason               string                      `json:"reason,omitempty"`
-	EvidenceFactIDs      []string                    `json:"evidence_fact_ids,omitempty"`
-	SourceFreshness      string                      `json:"source_freshness,omitempty"`
-	SourceConfidence     string                      `json:"source_confidence,omitempty"`
+	ReconciliationID     string                         `json:"reconciliation_id"`
+	ProviderAlert        ProviderSecurityAlertRow       `json:"provider_alert"`
+	EshuPackage          SecurityAlertEshuPackageRow    `json:"eshu_package"`
+	EshuImpact           SecurityAlertEshuImpactRow     `json:"eshu_impact"`
+	ReconciliationStatus string                         `json:"reconciliation_status"`
+	Reason               string                         `json:"reason,omitempty"`
+	ReasonCode           string                         `json:"reason_code,omitempty"`
+	MissingEvidence      []SecurityAlertMissingEvidence `json:"missing_evidence,omitempty"`
+	EvidenceFactIDs      []string                       `json:"evidence_fact_ids,omitempty"`
+	SourceFreshness      string                         `json:"source_freshness,omitempty"`
+	SourceConfidence     string                         `json:"source_confidence,omitempty"`
 }
 
 // SecurityAlertReconciliationResult is the public API row shape.
@@ -378,14 +380,29 @@ func decodeSecurityAlertReconciliationRow(
 			DependencyRange:        StringVal(payload, "dependency_range"),
 			DependencyEvidenceID:   StringVal(payload, "dependency_evidence_id"),
 			DependencyEvidenceKind: StringVal(payload, "dependency_evidence_kind"),
-			MissingEvidence:        StringSliceVal(payload, "missing_evidence"),
+			MissingEvidence: securityAlertPackageMissingEvidence(
+				StringSliceVal(payload, "package_missing_evidence"),
+				StringSliceVal(payload, "missing_evidence"),
+			),
 		},
 		ReconciliationStatus: StringVal(payload, "reconciliation_status"),
 		Reason:               StringVal(payload, "reason"),
+		ReasonCode:           StringVal(payload, "reason_code"),
+		MissingEvidence:      securityAlertMissingEvidenceVal(payload, "missing_evidence"),
 		EvidenceFactIDs:      StringSliceVal(payload, "evidence_fact_ids"),
 		SourceFreshness:      securityAlertSourceFreshness(payload),
 		SourceConfidence:     sourceConfidence,
 	}, nil
+}
+
+func securityAlertPackageMissingEvidence(
+	current []string,
+	legacy []string,
+) []string {
+	if len(current) > 0 {
+		return current
+	}
+	return legacy
 }
 
 func securityAlertSourceFreshness(payload map[string]any) string {
