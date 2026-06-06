@@ -1,0 +1,23 @@
+apps/console/src/api/vulnerability.ts
+  s_f2f7fbb6f30866::t_f2bdcf1559e390 54-56
+apps/console/src/pages/VulnDetailPage.test.tsx
+  s_f2f7fbb6f30866::t_e474c83a85603d 2-3,5-6,51,53,55-57,59-60,62-67,71-73
+apps/console/src/api/vulnerability.test.ts
+  s_f2f7fbb6f30866::t_4686d7037bca37 64,84,88-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "35546290ee6d8f558845a3336f07ff63831ac519",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
