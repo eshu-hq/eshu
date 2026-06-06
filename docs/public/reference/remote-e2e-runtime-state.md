@@ -170,6 +170,15 @@ service-catalog or cloud minimum is positive, set `ESHU_REMOTE_E2E_MCP_URL`
 and, if needed, `ESHU_REMOTE_E2E_MCP_TOKEN`. The verifier exercises MCP
 readbacks over the same target filters as the API proof.
 
+In `code_to_cloud` mode, the verifier also checks manifest alignment before
+calling API or MCP routes. The selected repository, provider security-alert
+repository, OCI repository or image reference, service/workload selectors, and
+SBOM subject digest must describe the same target chain. A positive aggregate
+image, SBOM, service, or cloud count from a different target fails the proof
+instead of being reported as code-to-cloud evidence. Use `partial` or
+`vulnerability_only` with `proof_mode_reason` when the manifest intentionally
+cannot prove the artifact or runtime hop.
+
 Set `expected_security_alert_rows_file` to an operator-local JSON file when the
 proof needs provider-alert row parity, not only a reconciliation count. The
 file may be either an array or an object with an `alerts` array. Each alert row
@@ -257,6 +266,9 @@ proves the target-story helper accepts aligned repository, vulnerability,
 security-alert, image, SBOM, service-catalog, and CI/CD counts; rejects matching
 security-alert counts when expected provider-alert rows mismatch; rejects
 missing target image evidence; rejects provider-alert repository mismatches;
+rejects code-to-cloud manifests whose configured OCI image target does not
+align with the selected repository even when that image target has positive
+evidence;
 rejects missing artifact anchors; rejects missing target service evidence; rejects
 missing target cloud-resource evidence; fails missing MCP configuration when
 MCP-backed target proof is required; fails a missing configured manifest file;

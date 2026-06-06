@@ -3,6 +3,8 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 verifier="${repo_root}/scripts/verify_remote_e2e_target_story.sh"
+# shellcheck source=scripts/lib/remote_e2e_target_story_alignment.sh
+source "${repo_root}/scripts/lib/remote_e2e_target_story_alignment.sh"
 
 tmp_root="$(mktemp -d)"
 trap 'rm -rf "${tmp_root}"' EXIT
@@ -83,6 +85,9 @@ case "$*" in
     cat "${state_dir}/image-count.json"
     ;;
   *"/api/v0/supply-chain/container-images/identities/count?image_ref=registry.example.com%2Fteam%2Fapi%3Aprod&repository_id=oci-registry%3A%2F%2Fregistry.example%2Fteam%2Fapi"*)
+    cat "${state_dir}/image-count.json"
+    ;;
+  *"/api/v0/supply-chain/container-images/identities/count?digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&repository_id=oci-registry%3A%2F%2Fregistry.example%2Fteam%2Fother-api"*)
     cat "${state_dir}/image-count.json"
     ;;
   *"/api/v0/supply-chain/sbom-attestations/attachments/count?subject_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"*)
@@ -224,6 +229,29 @@ expect_fail_with() {
   fi
 }
 
+expect_alignment_match() {
+  local left="$1"
+  local right="$2"
+  if ! target_story_alignment_matches "${left}" "${right}"; then
+    printf 'expected target-story tokens to align: %s vs %s\n' "${left}" "${right}" >&2
+    exit 1
+  fi
+}
+
+expect_alignment_mismatch() {
+  local left="$1"
+  local right="$2"
+  if target_story_alignment_matches "${left}" "${right}"; then
+    printf 'expected target-story tokens to mismatch: %s vs %s\n' "${left}" "${right}" >&2
+    exit 1
+  fi
+}
+
+expect_alignment_match 'repo://example/api' 'git@github.com:example/api.git'
+expect_alignment_match 'repo://example/api' 'https://user@github.com/example/api.git'
+expect_alignment_match 'registry.example.com/team/api' 'registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+expect_alignment_mismatch 'repo://example/api' 'git@github.com:example/other-api.git'
+
 reset_state
 export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
 expect_pass
@@ -232,6 +260,12 @@ if rg -q 'repo://example/api|oci-registry://registry.example/team/api|arn:aws' /
   sed -n '1,200p' /tmp/eshu-remote-e2e-target-story.out >&2
   exit 1
 fi
+
+reset_state
+jq '.expected_oci_repository_id = "oci-registry://registry.example/team/other-api"' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
+mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
+export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
+expect_fail_with 'target story alignment mismatch: expected_oci_repository_id does not align with target_repository_id'
 
 reset_state
 jq -n '{alerts:[{provider_alert_number:42, ecosystem:"npm", package_name:"left-pad", manifest_path:"package-lock.json", vulnerable_range:"<1.2.3", fixed_version:"1.2.3", reconciliation_status:"matched", requires_evidence:true}]}' >"${state_dir}/expected-security-alerts.json"

@@ -12,6 +12,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck source=scripts/lib/remote_e2e_security_alerts.sh
 source "${SCRIPT_DIR}/lib/remote_e2e_security_alerts.sh"
+# shellcheck source=scripts/lib/remote_e2e_target_story_alignment.sh
+source "${SCRIPT_DIR}/lib/remote_e2e_target_story_alignment.sh"
 
 cleanup() {
 	rm -rf "${TMP_DIR}"
@@ -340,6 +342,7 @@ main() {
 		fi
 	fi
 	validate_target_story_proof_mode "${proof_mode}" "${image_min}" "${sbom_min}"
+	target_story_validate_alignment "${TARGET_STORY_FILE}" "${proof_mode}"
 	if ((catalog_min > 0 || cloud_min > 0)) && [[ -z "${MCP_URL}" ]]; then
 		echo "ESHU_REMOTE_E2E_MCP_URL is required when target story MCP proof is required" >&2
 		return 1
@@ -396,7 +399,8 @@ main() {
 			echo "target container_image_identities requires expected_image_digest or expected_image_ref" >&2
 			return 1
 		fi
-		local image_path="/supply-chain/container-images/identities/count?${image_param}=$(urlencode "${image_anchor}")"
+		local image_path
+		image_path="/supply-chain/container-images/identities/count?${image_param}=$(urlencode "${image_anchor}")"
 		if [[ -n "${expected_image_repo}" ]]; then
 			image_path="${image_path}&repository_id=$(urlencode "${expected_image_repo}")"
 		fi
