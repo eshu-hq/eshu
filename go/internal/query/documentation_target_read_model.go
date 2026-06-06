@@ -98,16 +98,20 @@ func documentationTargetScopeFromFactFilter(filter documentationFactFilter) docu
 func documentationTargetScopeFromValues(repository, targetKind, targetID, serviceID string) documentationTargetScope {
 	scope := documentationTargetScope{
 		Repository: strings.TrimSpace(repository),
-		TargetKind: strings.TrimSpace(targetKind),
-		TargetID:   strings.TrimSpace(targetID),
 		ServiceID:  strings.TrimSpace(serviceID),
 	}
-	if scope.TargetID == "" && scope.ServiceID != "" {
+	targetKind = strings.TrimSpace(targetKind)
+	targetID = strings.TrimSpace(targetID)
+	if scope.ServiceID != "" {
 		scope.TargetKind = "service"
 		scope.TargetID = scope.ServiceID
 	}
+	if scope.TargetID == "" && targetID != "" {
+		scope.TargetKind = targetKind
+		scope.TargetID = targetID
+	}
 	if scope.TargetID == "" && scope.Repository != "" &&
-		(scope.TargetKind == "" || scope.TargetKind == "repository") {
+		(targetKind == "" || targetKind == "repository") {
 		scope.TargetKind = "repository"
 		scope.TargetID = scope.Repository
 	}

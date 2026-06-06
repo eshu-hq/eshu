@@ -82,7 +82,10 @@ include `related_facts`, `coverage`, and `missing_evidence` when raw
 documentation facts reference a repo or service but no admissible finding exists
 for that target. Explicit service or target filters count only target-matching
 findings in `coverage.findings_returned` and bound the raw fact preview to the
-explicit target reference before falling back to repo-scoped facts.
+explicit target reference before falling back to repo-scoped facts. A
+`target_kind` value without `target_id` or `service_id` is not treated as a
+target selector, and documentation fact reads name every accepted scope or
+target anchor in invalid-argument responses.
 
 ## Exported surface
 

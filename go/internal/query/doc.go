@@ -113,5 +113,7 @@
 // findings whose payload references match the selected target in coverage
 // metadata, so unrelated repo-source findings do not hide target correlation
 // gaps. Related fact previews use the same explicit target reference before
-// falling back to repo-scoped documentation facts.
+// falling back to repo-scoped documentation facts. A bare target_kind is not a
+// canonical target selector without target_id or service_id, and invalid
+// documentation fact reads report every accepted scope or target anchor.
 package query

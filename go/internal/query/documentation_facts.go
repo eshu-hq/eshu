@@ -110,7 +110,7 @@ func documentationFactRequestFilter(
 			r,
 			http.StatusBadRequest,
 			ErrorCodeInvalidArgument,
-			"documentation facts require scope_id, source_id, document_id, or section_id",
+			"documentation facts require scope_id, repo, target_id, service_id, source_id, document_id, or section_id",
 			"",
 		)
 		return documentationFactFilter{}, false

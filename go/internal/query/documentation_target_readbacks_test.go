@@ -240,6 +240,69 @@ func TestDocumentationTargetRefsDoNotCrossPairRepoOrServiceIDs(t *testing.T) {
 	}
 }
 
+func TestDocumentationTargetScopeDropsKindWithoutCanonicalTargetID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		filter     documentationFindingFilter
+		targetKind string
+		targetID   string
+	}{
+		{
+			name: "bare target kind",
+			filter: documentationFindingFilter{
+				TargetKind: "service",
+			},
+		},
+		{
+			name: "repo with mismatched bare target kind",
+			filter: documentationFindingFilter{
+				Repository: "repo:platform-api",
+				TargetKind: "service",
+			},
+		},
+		{
+			name: "repo target kind",
+			filter: documentationFindingFilter{
+				Repository: "repo:platform-api",
+				TargetKind: "repository",
+			},
+			targetKind: "repository",
+			targetID:   "repo:platform-api",
+		},
+		{
+			name: "explicit target id",
+			filter: documentationFindingFilter{
+				TargetKind: "workload",
+				TargetID:   "workload:payments",
+			},
+			targetKind: "workload",
+			targetID:   "workload:payments",
+		},
+		{
+			name: "service id",
+			filter: documentationFindingFilter{
+				TargetKind: "workload",
+				ServiceID:  "service:payment-api",
+			},
+			targetKind: "service",
+			targetID:   "service:payment-api",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scope := documentationTargetScopeFromFindingFilter(tt.filter)
+			if got := scope.TargetKind; got != tt.targetKind {
+				t.Fatalf("TargetKind = %q, want %q", got, tt.targetKind)
+			}
+			if got := scope.TargetID; got != tt.targetID {
+				t.Fatalf("TargetID = %q, want %q", got, tt.targetID)
+			}
+		})
+	}
+}
+
 func TestDocumentationTargetRefsPreferExplicitServiceOverRepoFallback(t *testing.T) {
 	t.Parallel()
 
