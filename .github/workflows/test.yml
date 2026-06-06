@@ -31,6 +31,11 @@ jobs:
       - name: Install ripgrep
         run: sudo apt-get update && sudo apt-get install -y ripgrep
 
+      - name: Verify CodeQL setup model
+        run: |
+          scripts/test-verify-codeql-setup.sh
+          scripts/verify-codeql-setup.sh
+
       - name: Verify hot-path evidence
         run: |
           scripts/test-verify-performance-evidence.sh
