@@ -176,9 +176,11 @@ coverage response to answer inventory questions.
 `get_repository_stats` also stays transport-only. The HTTP query layer resolves
 human repository selectors to a canonical repository id, performs only a bounded
 repository identity lookup in the graph, and reads file/entity/language/type
-counts from content-store coverage when that read model is available. Missing
-coverage is returned as explicit `coverage.missing_evidence` metadata instead
-of MCP inventing totals or retrying a whole-graph traversal.
+counts from content-store coverage when that read model is available. The HTTP
+route owns the 2s stats read budget; coverage timeouts return explicit
+`coverage.partial_results`, `coverage.truncated`, `coverage.timeout`, and
+`coverage.missing_evidence` metadata instead of MCP inventing totals or retrying
+a whole-graph traversal.
 
 Supply-chain tools keep the same transport-only contract. The impact explain
 tool forwards one `finding_id` or advisory/CVE plus package, repository, or

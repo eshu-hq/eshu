@@ -55,7 +55,7 @@ Cypher.
 | `count_repositories_by_language` | explicit language family | count-only via `limit=0` | yes | prompt-ready; avoids per-repo coverage fan-out |
 | `list_repositories_by_language` | explicit language family | `limit` and `offset` | yes | prompt-ready; returns repository handles and `truncated` |
 | `get_repository_language_inventory` | explicit whole-index language inventory | `limit` and `offset` | yes | prompt-ready; aggregate language buckets only |
-| `get_repository_stats` | repository selector optional; empty selector returns inventory | singleton or inventory | partial | usable, but prefer `list_indexed_repositories` for inventory |
+| `get_repository_stats` | repository selector optional; empty selector returns inventory | singleton or inventory | partial | transport-only HTTP stats; singleton coverage can carry `partial_results`, `truncated`, and `timeout` when coverage exceeds the route budget |
 | `execute_language_query` | language and entity type filters, optional repository selector | `limit` | yes | prompt-ready for bounded language scans |
 | `find_function_call_chain` | start and end names required | `max_depth` | yes | prompt-ready when both endpoints are known |
 | `get_ecosystem_overview` | explicit whole-index ecosystem overview | singleton summary | yes | prompt-ready |
