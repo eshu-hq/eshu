@@ -223,7 +223,10 @@ when service-catalog or cloud-resource minimums are positive. Positive
 `cloud_resources` proof requires an explicit `expected_cloud_resource_id`;
 provider or environment aggregates alone do not satisfy the target story.
 Aggregate OCI, SBOM, service, or cloud rows from unrelated repositories do not
-satisfy the target story.
+satisfy the target story. In `code_to_cloud` mode, the verifier fails before
+API reads when the manifest points the repository, provider security-alert
+repository, OCI/image target, service/workload selectors, or SBOM digest at
+different target chains.
 
 Use `proof_mode: "vulnerability_only"` or `proof_mode: "partial"` only when the
 run intentionally cannot observe the artifact hop, such as a registry account
