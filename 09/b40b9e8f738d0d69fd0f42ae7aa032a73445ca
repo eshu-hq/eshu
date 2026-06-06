@@ -1,0 +1,68 @@
+go/internal/query/supply_chain_impact_findings.go
+  s_f2f7fbb6f30866::t_4405f19d399162 80,308
+go/internal/query/supply_chain_impact_explain_build.go
+  s_f2f7fbb6f30866::t_4405f19d399162 144,160,180,186-192
+go/internal/query/supply_chain_impact_findings_test.go
+  s_f2f7fbb6f30866::t_8947afd99f40bf 117,182-183
+go/internal/reducer/supply_chain_impact_index.go
+  s_f2f7fbb6f30866::t_e2eebdd5e60668 418,422-450
+  s_f2f7fbb6f30866::t_4405f19d399162 121-126,161,232-235
+go/internal/query/supply_chain_impact_explain.go
+  s_f2f7fbb6f30866::t_4405f19d399162 126
+go/internal/reducer/supply_chain_impact_active_filter.go
+  s_f2f7fbb6f30866::t_5d99b500169ae6 3-7,170,176-180,182-185
+  s_f2f7fbb6f30866::t_4405f19d399162 155-156,160
+  s_f2f7fbb6f30866::t_e4ddb6f0a87d53 181
+go/internal/storage/postgres/facts_active_supply_chain_impact_test.go
+  s_f2f7fbb6f30866::t_be2ee24a51b407 21,70-71
+go/internal/query/supply_chain_impact_result.go
+  s_f2f7fbb6f30866::t_4405f19d399162 43
+go/internal/reducer/supply_chain_impact.go
+  s_f2f7fbb6f30866::t_4405f19d399162 106,450
+go/internal/storage/postgres/facts_active_supply_chain_impact.go
+  s_f2f7fbb6f30866::t_4405f19d399162 49,77
+go/internal/query/supply_chain_impact_explain_runtime_test.go
+  s_f2f7fbb6f30866::t_4154bed804fb39 172-234
+go/internal/query/openapi_paths_supply_chain.go
+  s_f2f7fbb6f30866::t_6d87b982e9fdc4 123,441,450
+go/internal/reducer/supply_chain_impact_writer.go
+  s_f2f7fbb6f30866::t_4405f19d399162 165
+docs/public/reference/security-intelligence-release-gate.md
+  s_f2f7fbb6f30866::t_df1c4f7792e13d 79-86
+  s_f2f7fbb6f30866::t_6d87b982e9fdc4 70-76,90-93
+go/internal/query/supply_chain_impact_path.go
+  s_f2f7fbb6f30866::t_d86f8cf97fc2eb 215
+  s_f2f7fbb6f30866::t_4405f19d399162 38,60-65,130-136,168-173,181,189-195
+go/internal/reducer/platform_materialization_writer.go
+  s_f2f7fbb6f30866::t_4405f19d399162 13-14,45
+go/internal/reducer/supply_chain_impact_match.go
+  s_f2f7fbb6f30866::t_4405f19d399162 136-156
+  s_f2f7fbb6f30866::t_33d5b11da92bd1 224,233-240
+go/internal/reducer/supply_chain_impact_runtime.go
+  s_f2f7fbb6f30866::t_4405f19d399162 42-46,57,128-141
+go/internal/reducer/supply_chain_impact_runtime_test.go
+  s_f2f7fbb6f30866::t_3491f8c6737eff 167-168
+  s_f2f7fbb6f30866::t_6dcbb4b5bb8406 149-166,169-173,399-410
+  s_f2f7fbb6f30866::t_42898f88f6fbb7 120-148,352-368
+go/internal/reducer/supply_chain_impact_missing_evidence.go
+  s_f2f7fbb6f30866::t_d86f8cf97fc2eb 15,18-20,30
+go/internal/reducer/supply_chain_impact_active_test.go
+  s_f2f7fbb6f30866::t_e4ddb6f0a87d53 11-12
+  s_f2f7fbb6f30866::t_72284b29a9de54 81,109,216
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "09b40b9e8f738d0d69fd0f42ae7aa032a73445ca",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
