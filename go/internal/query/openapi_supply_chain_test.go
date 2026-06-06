@@ -327,8 +327,10 @@ func TestOpenAPISpecIncludesSecurityAlertReconciliations(t *testing.T) {
 			t.Fatalf("provider_alert.properties missing %q", key)
 		}
 	}
-	if _, ok := impactProps["impact_status"]; !ok {
-		t.Fatalf("eshu_impact.properties missing impact_status")
+	for _, key := range []string{"impact_status", "finding_id", "observed_version", "match_reason", "missing_evidence"} {
+		if _, ok := impactProps[key]; !ok {
+			t.Fatalf("eshu_impact.properties missing %q", key)
+		}
 	}
 }
 

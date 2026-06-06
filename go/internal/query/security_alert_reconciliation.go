@@ -77,10 +77,15 @@ type ProviderSecurityAlertRow struct {
 }
 
 // SecurityAlertEshuImpactRow carries Eshu-owned impact state matched to a
-// provider alert. Empty fields mean no Eshu impact finding was admitted.
+// provider alert. Version fields come from Eshu-owned dependency or impact
+// evidence, never from provider alert metadata. Empty status and finding
+// fields mean no Eshu impact finding was admitted.
 type SecurityAlertEshuImpactRow struct {
-	ImpactStatus string `json:"impact_status,omitempty"`
-	FindingID    string `json:"finding_id,omitempty"`
+	ImpactStatus    string   `json:"impact_status,omitempty"`
+	FindingID       string   `json:"finding_id,omitempty"`
+	ObservedVersion string   `json:"observed_version,omitempty"`
+	MatchReason     string   `json:"match_reason,omitempty"`
+	MissingEvidence []string `json:"missing_evidence,omitempty"`
 }
 
 // SecurityAlertReconciliationRow is one reducer-owned comparison row.
@@ -357,8 +362,11 @@ func decodeSecurityAlertReconciliationRow(
 			CollectionIncompleteReasons: StringSliceVal(payload, "collection_incomplete_reasons"),
 		},
 		EshuImpact: SecurityAlertEshuImpactRow{
-			ImpactStatus: StringVal(payload, "eshu_impact_status"),
-			FindingID:    StringVal(payload, "eshu_impact_finding_id"),
+			ImpactStatus:    StringVal(payload, "eshu_impact_status"),
+			FindingID:       StringVal(payload, "eshu_impact_finding_id"),
+			ObservedVersion: StringVal(payload, "eshu_observed_version"),
+			MatchReason:     StringVal(payload, "eshu_match_reason"),
+			MissingEvidence: StringSliceVal(payload, "eshu_missing_evidence"),
 		},
 		ReconciliationStatus: StringVal(payload, "reconciliation_status"),
 		Reason:               StringVal(payload, "reason"),

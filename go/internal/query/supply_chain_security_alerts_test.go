@@ -107,8 +107,10 @@ func TestSupplyChainListSecurityAlertReconciliationsSeparatesProviderAndEshuStat
 					SourceURL:           "https://github.com/eshu-hq/eshu/security/dependabot/42",
 				},
 				EshuImpact: SecurityAlertEshuImpactRow{
-					ImpactStatus: "affected_exact",
-					FindingID:    "impact-1",
+					ImpactStatus:    "affected_exact",
+					FindingID:       "impact-1",
+					ObservedVersion: "1.2.2",
+					MatchReason:     "npm_semver_affected_range",
 				},
 				ReconciliationStatus: "matched",
 				Reason:               "provider alert matches owned dependency and reducer impact evidence",
@@ -160,6 +162,12 @@ func TestSupplyChainListSecurityAlertReconciliationsSeparatesProviderAndEshuStat
 	if got, want := row.EshuImpact.ImpactStatus, "affected_exact"; got != want {
 		t.Fatalf("EshuImpact.ImpactStatus = %q, want %q", got, want)
 	}
+	if got, want := row.EshuImpact.ObservedVersion, "1.2.2"; got != want {
+		t.Fatalf("EshuImpact.ObservedVersion = %q, want %q", got, want)
+	}
+	if got, want := row.EshuImpact.MatchReason, "npm_semver_affected_range"; got != want {
+		t.Fatalf("EshuImpact.MatchReason = %q, want %q", got, want)
+	}
 	if got, want := row.ReconciliationStatus, "matched"; got != want {
 		t.Fatalf("ReconciliationStatus = %q, want %q", got, want)
 	}
@@ -171,6 +179,63 @@ func TestSupplyChainListSecurityAlertReconciliationsSeparatesProviderAndEshuStat
 	}
 	if got, want := resp.NextCursor["after_reconciliation_id"], "reconciliation-1"; got != want {
 		t.Fatalf("next_cursor.after_reconciliation_id = %q, want %q", got, want)
+	}
+}
+
+func TestSupplyChainListSecurityAlertReconciliationsSurfacesMissingObservedVersionEvidence(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingSecurityAlertReconciliationStore{
+		rows: []SecurityAlertReconciliationRow{{
+			ReconciliationID: "reconciliation-missing-version",
+			ProviderAlert: ProviderSecurityAlertRow{
+				Provider:            "github_dependabot",
+				ProviderAlertNumber: 18,
+				ProviderState:       "open",
+				RepositoryID:        "repo://github/example-org/example-repo",
+				PackageID:           "npm://registry.npmjs.org/range-only",
+			},
+			EshuImpact: SecurityAlertEshuImpactRow{
+				ImpactStatus:    "possibly_affected",
+				FindingID:       "impact-range-only",
+				MatchReason:     "range_only_manifest",
+				MissingEvidence: []string{"installed package version missing"},
+			},
+			ReconciliationStatus: "matched",
+			SourceFreshness:      "active",
+			SourceConfidence:     "inferred",
+		}},
+	}
+	handler := &SupplyChainHandler{SecurityAlerts: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/supply-chain/security-alerts/reconciliations?repository_id=repo://github/example-org/example-repo&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var resp struct {
+		Reconciliations []SecurityAlertReconciliationResult `json:"reconciliations"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := len(resp.Reconciliations), 1; got != want {
+		t.Fatalf("len(reconciliations) = %d, want %d", got, want)
+	}
+	row := resp.Reconciliations[0]
+	if row.EshuImpact.ObservedVersion != "" {
+		t.Fatalf("EshuImpact.ObservedVersion = %q, want absent for missing version evidence", row.EshuImpact.ObservedVersion)
+	}
+	if got, want := row.EshuImpact.MissingEvidence, []string{"installed package version missing"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("EshuImpact.MissingEvidence = %#v, want %#v", got, want)
 	}
 }
 
@@ -248,6 +313,7 @@ func TestDecodeSecurityAlertReconciliationRowPreservesProviderCoverage(t *testin
 		"repository_id":                 "repo://github/example-org/example-repo",
 		"package_id":                    "npm://registry.npmjs.org/left-pad",
 		"reconciliation_status":         "provider_only",
+		"eshu_missing_evidence":         []any{"owned dependency evidence missing"},
 		"source_freshness":              "partial",
 		"collection_coverage_state":     "incomplete",
 		"collection_truncated":          true,
@@ -281,6 +347,46 @@ func TestDecodeSecurityAlertReconciliationRowPreservesProviderCoverage(t *testin
 	}
 	if got, want := row.ProviderAlert.CollectionIncompleteReasons, []string{"provider_open_alert_page_limit_reached"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("CollectionIncompleteReasons = %#v, want %#v", got, want)
+	}
+	if got, want := row.EshuImpact.MissingEvidence, []string{"owned dependency evidence missing"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("EshuImpact.MissingEvidence = %#v, want %#v", got, want)
+	}
+}
+
+func TestDecodeSecurityAlertReconciliationRowPreservesMalformedVersionEvidence(t *testing.T) {
+	t.Parallel()
+
+	payload := map[string]any{
+		"provider":               "github_dependabot",
+		"provider_alert_number":  float64(19),
+		"provider_state":         "open",
+		"repository_id":          "repo://github/example-org/example-repo",
+		"package_id":             "npm://registry.npmjs.org/malformed",
+		"reconciliation_status":  "matched",
+		"eshu_impact_status":     "possibly_affected",
+		"eshu_impact_finding_id": "impact-malformed",
+		"eshu_match_reason":      "installed_version_malformed",
+		"eshu_missing_evidence": []any{
+			"installed package version malformed",
+		},
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+
+	row, err := decodeSecurityAlertReconciliationRow("reconciliation-malformed", "inferred", raw)
+	if err != nil {
+		t.Fatalf("decodeSecurityAlertReconciliationRow() error = %v, want nil", err)
+	}
+	if row.EshuImpact.ObservedVersion != "" {
+		t.Fatalf("EshuImpact.ObservedVersion = %q, want absent for malformed version", row.EshuImpact.ObservedVersion)
+	}
+	if got, want := row.EshuImpact.MatchReason, "installed_version_malformed"; got != want {
+		t.Fatalf("EshuImpact.MatchReason = %q, want %q", got, want)
+	}
+	if got, want := row.EshuImpact.MissingEvidence, []string{"installed package version malformed"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("EshuImpact.MissingEvidence = %#v, want %#v", got, want)
 	}
 }
 

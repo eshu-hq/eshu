@@ -23,7 +23,7 @@ Git `content_entity` dependency fact agree on ecosystem and normalized package
 name. When the repository side has no manifest dependency fact for a package,
 the reducer must return zero consumption decisions for that repository, and
 the readiness envelope on
-[`GET /api/v0/supply-chain/impact/findings`](http-api/evidence-and-supply-chain.md)
+[`GET /api/v0/supply-chain/impact/findings`](http-api/security-intelligence.md)
 must report `missing_evidence: ["owned_packages"]` rather than letting
 absence of evidence look like absence of risk. Guard tests:
 

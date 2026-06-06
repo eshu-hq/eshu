@@ -1,6 +1,7 @@
 package reducer
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -51,6 +52,12 @@ func TestBuildSecurityAlertReconciliationsClassifiesProviderAlertStates(t *testi
 	}
 	if got, want := decision.EshuImpactStatus, "affected_exact"; got != want {
 		t.Fatalf("EshuImpactStatus = %q, want %q", got, want)
+	}
+	if got, want := decision.EshuObservedVersion, "1.2.2"; got != want {
+		t.Fatalf("EshuObservedVersion = %q, want reducer-owned impact version %q", got, want)
+	}
+	if got, want := decision.EshuMatchReason, "npm_semver_affected_range"; got != want {
+		t.Fatalf("EshuMatchReason = %q, want %q", got, want)
 	}
 	if got, want := decision.CanonicalWrites, 0; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
@@ -137,6 +144,43 @@ func TestBuildSecurityAlertReconciliationsCoversUnmatchedProviderOnlyStaleDismis
 		if got[factID] != wantStatus {
 			t.Fatalf("status for %s = %q, want %q (all: %#v)", factID, got[factID], wantStatus, got)
 		}
+	}
+}
+
+func TestBuildSecurityAlertReconciliationsPreservesMalformedVersionEvidence(t *testing.T) {
+	t.Parallel()
+
+	repoID := "repo://github/eshu-hq/eshu"
+	packageID := "npm://registry.npmjs.org/malformed-lib"
+	alert := securityAlertEnvelope("alert-malformed", repoID, map[string]any{
+		"provider":              "github_dependabot",
+		"provider_alert_number": int64(9),
+		"provider_state":        "open",
+		"package_id":            packageID,
+		"ecosystem":             "npm",
+		"package_name":          "malformed-lib",
+		"manifest_path":         "package-lock.json",
+		"cve_ids":               []string{"CVE-2026-9009"},
+	})
+	consumption := packageConsumptionCorrelationEnvelope("consume-malformed", repoID, packageID, "package-lock.json")
+	impact := supplyChainImpactFindingEnvelope("impact-malformed", repoID, packageID, "CVE-2026-9009", "possibly_affected")
+	impact.Payload["observed_version"] = ""
+	impact.Payload["match_reason"] = supplyChainVersionReasonMalformedInstalled
+	impact.Payload["missing_evidence"] = []string{supplyChainMissingMalformedInstalled}
+
+	decisions := BuildSecurityAlertReconciliations([]facts.Envelope{alert, consumption, impact})
+	if got, want := len(decisions), 1; got != want {
+		t.Fatalf("len(decisions) = %d, want %d", got, want)
+	}
+	decision := decisions[0]
+	if decision.EshuObservedVersion != "" {
+		t.Fatalf("EshuObservedVersion = %q, want absent for malformed version evidence", decision.EshuObservedVersion)
+	}
+	if got, want := decision.EshuMatchReason, supplyChainVersionReasonMalformedInstalled; got != want {
+		t.Fatalf("EshuMatchReason = %q, want %q", got, want)
+	}
+	if got, want := decision.EshuMissingEvidence, []string{supplyChainMissingMalformedInstalled}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("EshuMissingEvidence = %#v, want %#v", got, want)
 	}
 }
 
@@ -255,6 +299,9 @@ func TestSecurityAlertReconciliationWriterUsesProviderAlertScopeForPackageTrigge
 		CollectionIncompleteReasons: []string{
 			"provider_open_alert_page_limit_reached",
 		},
+		EshuObservedVersion: "1.2.2",
+		EshuMatchReason:     "npm_semver_affected_range",
+		EshuMissingEvidence: []string{"runtime reachability evidence missing"},
 	}
 
 	identity := securityAlertReconciliationIdentity(write, decision)
@@ -280,6 +327,15 @@ func TestSecurityAlertReconciliationWriterUsesProviderAlertScopeForPackageTrigge
 	}
 	if got, want := payload["collection_truncated"], true; got != want {
 		t.Fatalf("payload collection_truncated = %v, want %v", got, want)
+	}
+	if got, want := payload["eshu_observed_version"], "1.2.2"; got != want {
+		t.Fatalf("payload eshu_observed_version = %q, want %q", got, want)
+	}
+	if got, want := payload["eshu_match_reason"], "npm_semver_affected_range"; got != want {
+		t.Fatalf("payload eshu_match_reason = %q, want %q", got, want)
+	}
+	if got, want := payload["eshu_missing_evidence"], []string{"runtime reachability evidence missing"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("payload eshu_missing_evidence = %#v, want %#v", got, want)
 	}
 }
 
@@ -406,11 +462,14 @@ func supplyChainImpactFindingEnvelope(
 		FactKind:     supplyChainImpactFactKind,
 		ObservedAt:   time.Date(2026, 5, 23, 12, 0, 0, 0, time.UTC),
 		Payload: map[string]any{
-			"repository_id": repoID,
-			"package_id":    packageID,
-			"cve_id":        cveID,
-			"advisory_id":   "GHSA-abcd-1234",
-			"impact_status": impactStatus,
+			"repository_id":    repoID,
+			"package_id":       packageID,
+			"cve_id":           cveID,
+			"advisory_id":      "GHSA-abcd-1234",
+			"impact_status":    impactStatus,
+			"observed_version": "1.2.2",
+			"match_reason":     "npm_semver_affected_range",
+			"missing_evidence": []string{},
 		},
 	}
 }

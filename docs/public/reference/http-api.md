@@ -25,7 +25,8 @@ The mounted Go runtime admin OpenAPI contract lives in
 | Need | Start here |
 | --- | --- |
 | Health, readiness, index status, queue/admin controls, ingester status | [Status and admin routes](http-api/status-admin.md) |
-| Deployment evidence, citations, documentation findings, packages, CI/CD, SBOM, vulnerability impact | [Evidence and supply-chain routes](http-api/evidence-and-supply-chain.md) |
+| Deployment evidence, citations, documentation findings, packages, CI/CD, SBOM, and provider alert reconciliation | [Evidence and supply-chain routes](http-api/evidence-and-supply-chain.md) |
+| Advisory evidence, scanner contract, vulnerability impact findings, and impact explain | [Security intelligence routes](http-api/security-intelligence.md) |
 | Secrets/IAM trust chains, posture evidence, access paths, gaps, and posture summary | [Secrets/IAM routes](http-api/secrets-iam.md) |
 | Entity resolution, incident context, catalog, repository/service/workload stories, investigations | [Context and story routes](http-api/context-and-stories.md) |
 | Code search, symbols, relationships, call chains, dead-code, complexity, quality, language queries | [Code routes](http-api/code.md) |

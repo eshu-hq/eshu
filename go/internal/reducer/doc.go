@@ -31,7 +31,8 @@
 // explicit missing evidence. Security-alert reconciliation facts are keyed by provider alert
 // identity, package identity, advisory ids, and provider evidence scope so
 // provider-only placeholders are replaced by later matched or stale rows while
-// preserving reason and evidence references for audit.
+// preserving reason, evidence references, observed package version, match
+// reason, and missing-version evidence for audit.
 // S3 internet exposure materialization writes reducer-owned exposed /
 // not_exposed / unknown posture properties onto existing S3 CloudResource nodes
 // only, preserving unknown evidence as unknown rather than safe.

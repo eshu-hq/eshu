@@ -26,10 +26,13 @@ type securityAlertConsumption struct {
 }
 
 type securityAlertImpact struct {
-	factID       string
-	repositoryID string
-	packageID    string
-	cveID        string
-	advisoryID   string
-	status       string
+	factID          string
+	repositoryID    string
+	packageID       string
+	cveID           string
+	advisoryID      string
+	status          string
+	observedVersion string
+	matchReason     string
+	missingEvidence []string
 }

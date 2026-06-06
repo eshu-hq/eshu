@@ -77,7 +77,9 @@ func OpenAPISpec() string {
 			openAPIPathsSecretsIAM+
 			openAPIPathsObservabilityCoverage+
 			openAPIPathsVulnerabilityScannerContract+
+			openAPIPathsContainerImageIdentity+
 			openAPIPathsSupplyChain+
+			openAPIPathsSecurityAlertReconciliation+
 			openAPIPathsSupplyChainImpactAggregate+
 			openAPIPathsSecurityAlertAggregate+
 			openAPIPathsContainerImageIdentityAggregate+

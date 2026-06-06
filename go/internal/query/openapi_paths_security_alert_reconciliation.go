@@ -1,0 +1,110 @@
+package query
+
+const openAPIPathsSecurityAlertReconciliation = `
+    "/api/v0/supply-chain/security-alerts/reconciliations": {
+      "get": {
+        "summary": "List provider security alert reconciliations",
+        "description": "Requires limit plus repository_id, provider, package_id, cve_id, or ghsa_id. provider_state and reconciliation_status filter anchored pages only.",
+        "operationId": "listSecurityAlertReconciliations",
+        "parameters": [
+          {"name": "repository_id", "in": "query", "description": "Canonical repository id or human repository selector (name, repo slug, indexed path, local path, or remote URL). Unknown or ambiguous selectors return a selector error instead of an empty page.", "schema": {"type": "string"}},
+          {"name": "provider", "in": "query", "schema": {"type": "string"}},
+          {"name": "package_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "cve_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "ghsa_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "provider_state", "in": "query", "schema": {"type": "string", "enum": ["open", "fixed", "dismissed", "auto_dismissed"]}},
+          {"name": "reconciliation_status", "in": "query", "schema": {"type": "string", "enum": ["matched", "unmatched", "stale", "dismissed", "fixed", "provider_only"]}},
+          {"name": "after_reconciliation_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider security alert reconciliation page. Provider alert state and Eshu impact state are separate fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "reconciliations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "reconciliation_id": {"type": "string"},
+                          "provider_alert": {
+                            "type": "object",
+                            "properties": {
+                              "provider": {"type": "string"},
+                              "provider_alert_id": {"type": "string"},
+                              "provider_alert_number": {"type": "integer"},
+                              "provider_state": {"type": "string"},
+                              "repository_id": {"type": "string"},
+                              "package_id": {"type": "string"},
+                              "ecosystem": {"type": "string"},
+                              "package_name": {"type": "string"},
+                              "manifest_path": {"type": "string"},
+                              "dependency_scope": {"type": "string"},
+                              "relationship": {"type": "string"},
+                              "ghsa_ids": {"type": "array", "items": {"type": "string"}},
+                              "cve_ids": {"type": "array", "items": {"type": "string"}},
+                              "vulnerable_range": {"type": "string"},
+                              "patched_version": {"type": "string"},
+                              "severity": {"type": "string"},
+                              "cvss": {"type": "object"},
+                              "epss": {"type": "object", "additionalProperties": {"type": "string"}},
+                              "cwes": {"type": "array", "items": {"type": "object", "additionalProperties": {"type": "string"}}},
+                              "summary": {"type": "string"},
+                              "source_url": {"type": "string"},
+                              "created_at": {"type": "string"},
+                              "updated_at": {"type": "string"},
+                              "fixed_at": {"type": "string"},
+                              "dismissed_at": {"type": "string"},
+                              "collection_coverage_state": {"type": "string", "enum": ["complete", "incomplete"]},
+                              "collection_truncated": {"type": "boolean"},
+                              "collection_pages_fetched": {"type": "integer"},
+                              "collection_state_filter": {"type": "string", "enum": ["open"]},
+                              "collection_incomplete_reasons": {"type": "array", "items": {"type": "string"}}
+                            }
+                          },
+                          "eshu_impact": {
+                            "type": "object",
+                            "description": "Reducer-owned dependency and impact state matched to the alert, when Eshu has admitted owned evidence. Version fields come from Eshu evidence, not provider alert metadata.",
+                            "properties": {
+                              "impact_status": {"type": "string"},
+                              "finding_id": {"type": "string"},
+                              "observed_version": {"type": "string", "description": "Exact package version observed by Eshu dependency or impact evidence when available."},
+                              "match_reason": {"type": "string", "description": "Reducer version-match reason from Eshu impact evidence when available."},
+                              "missing_evidence": {"type": "array", "items": {"type": "string"}, "description": "Explicit Eshu evidence gaps such as missing owned dependency evidence, missing installed version, or malformed installed version."}
+                            }
+                          },
+                          "reconciliation_status": {"type": "string"},
+                          "reason": {"type": "string"},
+                          "evidence_fact_ids": {"type": "array", "items": {"type": "string"}},
+                          "source_freshness": {"type": "string"},
+                          "source_confidence": {"type": "string"}
+                        },
+                        "required": ["reconciliation_id", "provider_alert", "eshu_impact", "reconciliation_status"]
+                      }
+                    },
+                    "count": {"type": "integer"},
+                    "coverage": {
+                      "type": "object",
+                      "description": "Provider-source coverage for the returned reconciliation page. target_incomplete means at least one row came from a capped open-alert provider read.",
+                      "properties": {
+                        "state": {"type": "string", "enum": ["complete", "target_incomplete"]},
+                        "partial_rows": {"type": "integer"},
+                        "rows_considered": {"type": "integer"}
+                      }
+                    },
+                    "limit": {"type": "integer"},
+                    "truncated": {"type": "boolean"},
+                    "next_cursor": {"type": "object"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+`

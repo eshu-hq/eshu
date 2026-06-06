@@ -56,11 +56,9 @@ target_story_validate_expected_security_alert_rows() {
 			end;
 		all(expected_alerts[]?;
 			(((.provider_alert_id // "") | length) > 0 or (.provider_alert_number? != null))
-			and (.installed_version? == null)
-			and (.observed_version? == null)
 		)
 	' "${expected_file}" >/dev/null || {
-		echo "target security_alert_expected_rows requires provider_alert_id or provider_alert_number and does not currently support installed_version or observed_version" >&2
+		echo "target security_alert_expected_rows requires provider_alert_id or provider_alert_number" >&2
 		return 1
 	}
 }
@@ -76,10 +74,14 @@ target_story_compare_security_alert_expected_rows() {
 			(($actual[0].data // $actual[0]).reconciliations // []);
 		def actual_fixed_version($row):
 			($row.provider_alert.patched_version // $row.provider_alert.fixed_version // "");
+		def actual_observed_version($row):
+			($row.eshu_impact.observed_version // "");
 		def actual_impact_status($row):
 			($row.eshu_impact.impact_status // "");
 		def expected_fixed_version($row):
 			($row.fixed_version // $row.patched_version // "");
+		def expected_observed_version($row):
+			($row.installed_version // $row.observed_version // "");
 		def matches_identifier($want; $row):
 			((($want.provider_alert_id // "") | length) > 0 and
 			 (($row.provider_alert.provider_alert_id // "") == $want.provider_alert_id))
@@ -95,6 +97,7 @@ target_story_compare_security_alert_expected_rows() {
 				(if $want.manifest_path? then (($row.provider_alert.manifest_path // "") == $want.manifest_path) else true end),
 				(if $want.vulnerable_range? then (($row.provider_alert.vulnerable_range // "") == $want.vulnerable_range) else true end),
 				(if (expected_fixed_version($want) | length) > 0 then (actual_fixed_version($row) == expected_fixed_version($want)) else true end),
+				(if (expected_observed_version($want) | length) > 0 then (actual_observed_version($row) == expected_observed_version($want)) else true end),
 				(if $want.reconciliation_status? then (($row.reconciliation_status // "") == $want.reconciliation_status) else true end),
 				(if $want.impact_status? then (actual_impact_status($row) == $want.impact_status) else true end)
 			] | map(select(. == false)) | length;
@@ -103,6 +106,7 @@ target_story_compare_security_alert_expected_rows() {
 			else
 				((($row.evidence_fact_ids // []) | length) > 0)
 				or ((($row.reason // "") | ascii_downcase) | test("missing|unavailable|unsupported|provider[-_]only|stale"))
+				or ((($row.eshu_impact.missing_evidence // []) | length) > 0)
 				or ((($row.missing_evidence_reason // "") | length) > 0)
 			end;
 		reduce expected_alerts[] as $want (

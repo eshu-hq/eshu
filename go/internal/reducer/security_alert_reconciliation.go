@@ -74,6 +74,9 @@ type SecurityAlertReconciliationDecision struct {
 	Status                      SecurityAlertReconciliationStatus
 	EshuImpactStatus            string
 	EshuImpactFindingID         string
+	EshuObservedVersion         string
+	EshuMatchReason             string
+	EshuMissingEvidence         []string
 	Reason                      string
 	CanonicalWrites             int
 	EvidenceFactIDs             []string
@@ -284,24 +287,6 @@ func securityAlertPackageNameCandidates(alert providerSecurityAlert) []string {
 	return uniqueSortedStrings(candidates)
 }
 
-func extractSecurityAlertImpacts(envelopes []facts.Envelope) []securityAlertImpact {
-	impacts := make([]securityAlertImpact, 0)
-	for _, envelope := range envelopes {
-		if envelope.FactKind != supplyChainImpactFactKind {
-			continue
-		}
-		impacts = append(impacts, securityAlertImpact{
-			factID:       envelope.FactID,
-			repositoryID: payloadStr(envelope.Payload, "repository_id"),
-			packageID:    payloadStr(envelope.Payload, "package_id"),
-			cveID:        payloadStr(envelope.Payload, "cve_id"),
-			advisoryID:   payloadStr(envelope.Payload, "advisory_id"),
-			status:       payloadStr(envelope.Payload, "impact_status"),
-		})
-	}
-	return impacts
-}
-
 func classifyProviderSecurityAlert(
 	alert providerSecurityAlert,
 	consumptions []securityAlertConsumption,
@@ -323,6 +308,7 @@ func classifyProviderSecurityAlert(
 	if exactConsumption.factID == "" {
 		if ambiguousConsumption {
 			decision.Status = SecurityAlertReconciliationProviderOnly
+			decision.EshuMissingEvidence = []string{securityAlertMissingOwnedDependencyEvidenceAmbiguous}
 			decision.Reason = "provider alert repository scope is ambiguous across owned dependency evidence"
 			return decision
 		}
@@ -331,17 +317,28 @@ func classifyProviderSecurityAlert(
 			decision.RepositoryName = firstNonBlank(staleConsumption.repositoryName, decision.RepositoryName)
 			decision.Status = SecurityAlertReconciliationStale
 			decision.DependencyEvidenceID = staleConsumption.factID
+			decision.EshuObservedVersion = securityAlertConsumptionObservedVersion(alert, staleConsumption)
+			decision.EshuMissingEvidence = securityAlertVersionMissingEvidence(
+				decision.EshuObservedVersion,
+				decision.EshuMissingEvidence,
+			)
 			decision.EvidenceFactIDs = uniqueSortedStrings(append(decision.EvidenceFactIDs, staleConsumption.factID))
 			decision.Reason = "newer owned dependency evidence no longer matches the provider alert manifest path"
 			return decision
 		}
 		decision.Status = SecurityAlertReconciliationProviderOnly
+		decision.EshuMissingEvidence = []string{securityAlertMissingOwnedDependencyEvidence}
 		decision.Reason = "provider alert has no matching owned dependency evidence"
 		return decision
 	}
 	decision.RepositoryID = exactConsumption.repositoryID
 	decision.RepositoryName = firstNonBlank(exactConsumption.repositoryName, decision.RepositoryName)
 	decision.DependencyEvidenceID = exactConsumption.factID
+	decision.EshuObservedVersion = securityAlertConsumptionObservedVersion(alert, exactConsumption)
+	decision.EshuMissingEvidence = securityAlertVersionMissingEvidence(
+		decision.EshuObservedVersion,
+		decision.EshuMissingEvidence,
+	)
 	decision.EvidenceFactIDs = uniqueSortedStrings(append(decision.EvidenceFactIDs, exactConsumption.factID))
 
 	alert.RepositoryID = exactConsumption.repositoryID
@@ -354,6 +351,16 @@ func classifyProviderSecurityAlert(
 	decision.Status = SecurityAlertReconciliationMatched
 	decision.EshuImpactStatus = impact.status
 	decision.EshuImpactFindingID = impact.factID
+	decision.EshuObservedVersion = firstNonBlank(impact.observedVersion, decision.EshuObservedVersion)
+	decision.EshuMatchReason = impact.matchReason
+	decision.EshuMissingEvidence = uniqueSortedStrings(append(
+		decision.EshuMissingEvidence,
+		impact.missingEvidence...,
+	))
+	decision.EshuMissingEvidence = securityAlertVersionMissingEvidence(
+		decision.EshuObservedVersion,
+		decision.EshuMissingEvidence,
+	)
 	decision.ImpactEvidenceID = impact.factID
 	decision.EvidenceFactIDs = uniqueSortedStrings(append(decision.EvidenceFactIDs, impact.factID))
 	decision.Reason = "provider alert matches owned dependency and reducer impact evidence"
