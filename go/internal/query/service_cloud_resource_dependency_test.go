@@ -12,14 +12,15 @@ func TestEnrichServiceQueryContextPromotesStrongAWSCloudResourceAnchor(t *testin
 
 	db := openContentReaderTestDB(t, emptyServiceQueryContentResults())
 	workloadContext := sampleServiceCloudDependencyContext()
+	graphCalls := []serviceCloudResourceGraphCall{}
 
 	err := enrichServiceQueryContextWithOptions(
 		context.Background(),
 		fakeGraphReader{
-			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if strings.Contains(cypher, "service_anchor_status") &&
-					params["service_name"] == "orders-api" &&
-					params["workload_id"] == "workload:orders-api" {
+			run: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
+				call := recordServiceCloudResourceGraphCall(params)
+				graphCalls = append(graphCalls, call)
+				if isStrongServiceCloudResourceDependencyCall(call) {
 					return []map[string]any{
 						{
 							"id":                    "cloud-resource:orders-listener",
@@ -31,9 +32,6 @@ func TestEnrichServiceQueryContextPromotesStrongAWSCloudResourceAnchor(t *testin
 							"service_anchor_source": "attributes.service_name",
 						},
 					}, nil
-				}
-				if strings.Contains(cypher, "uncorrelated_cloud_resource_candidates") {
-					t.Fatalf("uncorrelated candidate query ran despite strong cloud resource anchor: %s", cypher)
 				}
 				return nil, nil
 			},
@@ -47,6 +45,12 @@ func TestEnrichServiceQueryContextPromotesStrongAWSCloudResourceAnchor(t *testin
 	)
 	if err != nil {
 		t.Fatalf("enrichServiceQueryContextWithOptions() error = %v, want nil", err)
+	}
+	if got, want := countServiceCloudResourceGraphCalls(graphCalls, isStrongServiceCloudResourceDependencyCall), 1; got != want {
+		t.Fatalf("strong cloud resource dependency graph calls = %d, want %d", got, want)
+	}
+	if got := countServiceCloudResourceGraphCalls(graphCalls, isUncorrelatedCloudResourceCandidateCall); got != 0 {
+		t.Fatalf("uncorrelated cloud resource candidate graph calls = %d, want 0", got)
 	}
 
 	resources := mapSliceValue(workloadContext, "cloud_resources")
@@ -208,6 +212,46 @@ func sampleServiceCloudDependencyContext() map[string]any {
 			},
 		},
 	}
+}
+
+type serviceCloudResourceGraphCall struct {
+	params map[string]any
+}
+
+func recordServiceCloudResourceGraphCall(params map[string]any) serviceCloudResourceGraphCall {
+	copied := make(map[string]any, len(params))
+	for key, value := range params {
+		copied[key] = value
+	}
+	return serviceCloudResourceGraphCall{params: copied}
+}
+
+func countServiceCloudResourceGraphCalls(
+	calls []serviceCloudResourceGraphCall,
+	match func(serviceCloudResourceGraphCall) bool,
+) int {
+	count := 0
+	for _, call := range calls {
+		if match(call) {
+			count++
+		}
+	}
+	return count
+}
+
+func isStrongServiceCloudResourceDependencyCall(call serviceCloudResourceGraphCall) bool {
+	return call.params["workload_id"] == "workload:orders-api" &&
+		call.params["service_name"] == "orders-api" &&
+		call.params["service_token"] == "orders-api" &&
+		call.params["limit"] == serviceStoryItemLimit
+}
+
+func isUncorrelatedCloudResourceCandidateCall(call serviceCloudResourceGraphCall) bool {
+	_, hasWorkloadID := call.params["workload_id"]
+	return !hasWorkloadID &&
+		call.params["service_name"] == "orders-api" &&
+		call.params["service_token"] == "orders-api" &&
+		call.params["limit"] == serviceStoryItemLimit
 }
 
 func emptyServiceQueryContentResults() []contentReaderQueryResult {
