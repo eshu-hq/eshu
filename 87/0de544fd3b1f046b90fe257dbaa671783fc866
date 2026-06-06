@@ -1,0 +1,29 @@
+apps/console/src/api/vulnerability.ts
+  s_f2f7fbb6f30866::t_f2bdcf1559e390 52-56
+  s_f2f7fbb6f30866::t_4eff19826bf3b2 157,171
+apps/console/src/pages/VulnDetailPage.test.tsx
+  s_f2f7fbb6f30866::t_e474c83a85603d 1-17,24-29,33-35
+  s_f2f7fbb6f30866::t_62d5e8ce5e5ea0 30-32
+  s_f2f7fbb6f30866::t_58e94c5ebc1c1a 18-23
+apps/console/src/pages/VulnDetailPage.tsx
+  s_f2f7fbb6f30866::t_bdb3d8953bf603 43-45
+  s_f2f7fbb6f30866::t_7bcd32b23115cf 46-48
+apps/console/src/api/vulnerability.test.ts
+  s_f2f7fbb6f30866::t_4686d7037bca37 64,84-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "870de544fd3b1f046b90fe257dbaa671783fc866",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
