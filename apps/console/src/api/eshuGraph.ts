@@ -72,18 +72,101 @@ export function relationshipsToGraph(data: RelationshipsResponse, name: string):
   return { nodes: [...nodes.values()], edges };
 }
 
-// Resolve + expand one entity into a center-and-neighbours graph via direct
-// code relationships (depth 1).
+// --- code/relationships (Direct mode) ---------------------------------------
+// POST /api/v0/code/relationships resolves edges by `entity_id` only — a `name`
+// body returns nothing — and answers with split incoming/outgoing edge lists,
+// not the generic relationships[] shape. See codeRelationshipsToGraph below.
+interface CodeRelEdge {
+  readonly type?: string;
+  readonly source_id?: string; readonly source_name?: string;
+  readonly target_id?: string; readonly target_name?: string;
+}
+interface CodeRelationshipsResponse {
+  readonly entity_id?: string; readonly name?: string; readonly labels?: readonly string[];
+  readonly incoming?: readonly CodeRelEdge[]; readonly outgoing?: readonly CodeRelEdge[];
+}
+
+// codeRelationshipsToGraph maps the code/relationships incoming/outgoing edge
+// lists into a center-and-neighbours graph.
+export function codeRelationshipsToGraph(data: CodeRelationshipsResponse, fallback: { id: string; name: string }): GraphModel {
+  const centerId = data.entity_id ?? fallback.id;
+  const centerType = data.labels?.[0];
+  const nodes = new Map<string, GraphNode>();
+  nodes.set(centerId, { id: centerId, kind: kindFor(centerType), label: data.name ?? fallback.name, sub: centerType, col: 1, hero: true, truth: "exact" });
+  const edges: GraphEdge[] = [];
+  (data.incoming ?? []).forEach((e) => {
+    const id = e.source_id ?? e.source_name;
+    if (!id) return;
+    const verb = (e.type ?? "RELATED").toUpperCase();
+    if (id !== centerId && !nodes.has(id)) nodes.set(id, { id, kind: kindFor(undefined), label: e.source_name ?? id, col: 0, truth: "exact" });
+    edges.push({ s: id, t: centerId, verb, layer: layerFor(verb) });
+  });
+  (data.outgoing ?? []).forEach((e) => {
+    const id = e.target_id ?? e.target_name;
+    if (!id) return;
+    const verb = (e.type ?? "RELATED").toUpperCase();
+    if (id !== centerId && !nodes.has(id)) nodes.set(id, { id, kind: kindFor(undefined), label: e.target_name ?? id, col: 2, truth: "exact" });
+    edges.push({ s: centerId, t: id, verb, layer: layerFor(verb) });
+  });
+  return { nodes: [...nodes.values()], edges };
+}
+
+// Resolve + expand one entity into a center-and-neighbours graph via direct code
+// relationships (depth 1). code/relationships only matches on `entity_id`, so we
+// resolve the query to a graph entity id first (falling back to the raw query).
 export async function loadEntityGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
-  const env = await client.post<RelationshipsResponse>("/api/v0/code/relationships", { name, depth: 1 });
-  return relationshipsToGraph(env.data ?? {}, name);
+  let entityID = name;
+  let displayName = name;
+  try {
+    const resolved = await resolveEntity({ client, name, limit: 1 });
+    const top = resolved.candidates[0];
+    if (top?.id) { entityID = top.id; displayName = top.name ?? name; }
+  } catch { /* fall back to the raw query as the entity id */ }
+  const env = await client.post<CodeRelationshipsResponse>("/api/v0/code/relationships", { entity_id: entityID, depth: 1 });
+  return codeRelationshipsToGraph(env.data ?? {}, { id: entityID, name: displayName });
+}
+
+// --- impact/entity-map (Neighborhood mode) ----------------------------------
+// POST /api/v0/impact/entity-map requires `from` (not `name`); it resolves the
+// handle itself and returns neighbours under evidence.relationships[].
+interface EntityMapRel {
+  readonly entity_name?: string; readonly entity_labels?: readonly string[];
+  readonly direction?: string; readonly relationship_type?: string;
+}
+interface EntityMapResponse {
+  readonly from?: string;
+  readonly resolution?: { readonly candidates?: readonly { readonly id?: string; readonly name?: string; readonly labels?: readonly string[] }[] };
+  readonly evidence?: { readonly relationships?: readonly EntityMapRel[] };
+}
+
+// entityMapToGraph maps the entity-map evidence.relationships[] into a
+// center-and-neighbours graph, using the resolved candidate as the center.
+export function entityMapToGraph(data: EntityMapResponse, fallbackName: string): GraphModel {
+  const candidate = data.resolution?.candidates?.[0];
+  const centerId = candidate?.id ?? data.from ?? fallbackName;
+  const centerType = candidate?.labels?.[0];
+  const nodes = new Map<string, GraphNode>();
+  nodes.set(centerId, { id: centerId, kind: kindFor(centerType), label: candidate?.name ?? fallbackName, sub: centerType, col: 1, hero: true, truth: "exact" });
+  const edges: GraphEdge[] = [];
+  (data.evidence?.relationships ?? []).forEach((r) => {
+    const label = (r.entity_name ?? "").trim();
+    if (label === "" || label === centerId) return;
+    const verb = (r.relationship_type ?? "RELATED").toUpperCase();
+    const type = r.entity_labels?.[0];
+    const incoming = (r.direction ?? "outgoing").toLowerCase() === "incoming";
+    if (!nodes.has(label)) nodes.set(label, { id: label, kind: kindFor(type), label, sub: type, col: incoming ? 0 : 2, truth: "exact" });
+    edges.push(incoming
+      ? { s: label, t: centerId, verb, layer: layerFor(verb) }
+      : { s: centerId, t: label, verb, layer: layerFor(verb) });
+  });
+  return { nodes: [...nodes.values()], edges };
 }
 
 // Expand one entity into a broader neighbourhood via POST impact/entity-map.
 // Returns the same center-and-neighbours graph shape as loadEntityGraph.
 export async function loadEntityMapGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
-  const env = await client.post<RelationshipsResponse>("/api/v0/impact/entity-map", { name, max_depth: 2 });
-  return relationshipsToGraph(env.data ?? {}, name);
+  const env = await client.post<EntityMapResponse>("/api/v0/impact/entity-map", { from: name, max_depth: 2 });
+  return entityMapToGraph(env.data ?? {}, name);
 }
 
 // resolveEntityName resolves a typed query to a canonical entity name via

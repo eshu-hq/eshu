@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { relationshipsToGraph, loadEntityMapGraph, loadBlastGraph, resolveEntityName } from "./eshuGraph";
+import { relationshipsToGraph, loadEntityGraph, loadEntityMapGraph, loadBlastGraph, resolveEntityName, codeRelationshipsToGraph, entityMapToGraph } from "./eshuGraph";
 import type { EshuApiClient } from "./client";
 
 describe("eshuGraph", () => {
@@ -70,13 +70,66 @@ describe("eshuGraph", () => {
     expect(inc).toMatchObject({ s: "fn:caller", t: "svc:checkout", layer: "code" });
   });
 
-  it("loadEntityMapGraph posts to impact/entity-map", async () => {
+  it("codeRelationshipsToGraph maps incoming/outgoing edges around the center", () => {
+    const graph = codeRelationshipsToGraph({
+      entity_id: "content-entity:e_center", name: "createNewVersion", labels: ["Function"],
+      incoming: [{ type: "CALLS", source_id: "content-entity:e_main", source_name: "main" }],
+      outgoing: [{ type: "CALLS", target_id: "content-entity:e_dep", target_name: "listFiles" }]
+    }, { id: "content-entity:e_center", name: "createNewVersion" });
+    const hero = graph.nodes.find((n) => n.hero);
+    expect(hero?.id).toBe("content-entity:e_center");
+    expect(graph.nodes).toHaveLength(3);
+    expect(graph.edges.find((e) => e.s === "content-entity:e_main")).toMatchObject({ t: "content-entity:e_center", verb: "CALLS", layer: "code" });
+    expect(graph.edges.find((e) => e.t === "content-entity:e_dep")).toMatchObject({ s: "content-entity:e_center", verb: "CALLS", layer: "code" });
+  });
+
+  it("loadEntityGraph resolves the query to an entity_id, then posts code/relationships by entity_id", async () => {
     let calledPath = "";
+    let body: unknown = null;
     const client = {
-      post: async (path: string) => { calledPath = path; return { data: { target: { id: "e", name: "e" }, relationships: [] }, error: null, truth: null }; }
+      // entities/resolve (used by resolveEntity) goes through postJson
+      postJson: async () => ({ entities: [{ id: "content-entity:e_center", name: "createNewVersion", labels: ["Function"] }] }),
+      post: async (path: string, b: unknown) => {
+        calledPath = path; body = b;
+        return { data: { entity_id: "content-entity:e_center", name: "createNewVersion", labels: ["Function"], incoming: [{ type: "CALLS", source_id: "content-entity:e_main", source_name: "main" }], outgoing: [] }, error: null, truth: null };
+      }
     } as unknown as EshuApiClient;
-    await loadEntityMapGraph(client, "e");
+    const graph = await loadEntityGraph(client, "createNewVersion");
+    expect(calledPath).toBe("/api/v0/code/relationships");
+    expect(body).toMatchObject({ entity_id: "content-entity:e_center" });
+    expect(graph.nodes.find((n) => n.hero)?.label).toBe("createNewVersion");
+    expect(graph.edges).toHaveLength(1);
+  });
+
+  it("entityMapToGraph centers on the resolved candidate and maps evidence.relationships by direction", () => {
+    const graph = entityMapToGraph({
+      from: "api-node-boats",
+      resolution: { candidates: [{ id: "workload:api-node-boats", name: "api-node-boats", labels: ["Workload"] }] },
+      evidence: { relationships: [
+        { entity_name: "api-node-boats", entity_labels: ["Repository"], direction: "incoming", relationship_type: "DEFINES" },
+        { entity_name: "payments", entity_labels: ["Workload"], direction: "outgoing", relationship_type: "DEPENDS_ON" }
+      ] }
+    }, "api-node-boats");
+    const hero = graph.nodes.find((n) => n.hero);
+    expect(hero?.id).toBe("workload:api-node-boats");
+    expect(graph.edges.find((e) => e.verb === "DEFINES")).toMatchObject({ t: "workload:api-node-boats" });
+    expect(graph.edges.find((e) => e.verb === "DEPENDS_ON")).toMatchObject({ s: "workload:api-node-boats", layer: "runtime" });
+  });
+
+  it("loadEntityMapGraph posts impact/entity-map with from and parses evidence.relationships", async () => {
+    let calledPath = "";
+    let body: unknown = null;
+    const client = {
+      post: async (path: string, b: unknown) => {
+        calledPath = path; body = b;
+        return { data: { from: "checkout", resolution: { candidates: [{ id: "workload:checkout", name: "checkout", labels: ["Workload"] }] }, evidence: { relationships: [{ entity_name: "payments", entity_labels: ["Workload"], direction: "outgoing", relationship_type: "DEPENDS_ON" }] } }, error: null, truth: null };
+      }
+    } as unknown as EshuApiClient;
+    const graph = await loadEntityMapGraph(client, "checkout");
     expect(calledPath).toBe("/api/v0/impact/entity-map");
+    expect(body).toMatchObject({ from: "checkout" });
+    expect(graph.nodes.find((n) => n.hero)?.id).toBe("workload:checkout");
+    expect(graph.edges).toHaveLength(1);
   });
 
   it("resolveEntityName returns the top candidate, falling back to the raw query", async () => {
