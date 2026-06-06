@@ -26,7 +26,8 @@ eligible AS (
       AND (claim_until IS NULL OR claim_until <= $1)
 ),
 blocked AS (
-    SELECT eligible.domain,
+    SELECT eligible.work_item_id,
+           eligible.domain,
            eligible.conflict_domain,
            eligible.conflict_key,
            eligible.available_at
@@ -40,7 +41,8 @@ blocked AS (
      AND inflight.claim_until > $1
 ),
 readiness_blocked AS (
-    SELECT eligible.domain,
+    SELECT eligible.work_item_id,
+           eligible.domain,
            'readiness' AS conflict_domain,
            'cloud_resource_uid:canonical_nodes_committed:' ||
                COALESCE(NULLIF(eligible.payload->>'entity_key', ''), eligible.scope_id) AS conflict_key,
@@ -59,7 +61,8 @@ readiness_blocked AS (
       )
 ),
 kubernetes_readiness_blocked AS (
-    SELECT eligible.domain,
+    SELECT eligible.work_item_id,
+           eligible.domain,
            'readiness' AS conflict_domain,
            'kubernetes_workload_uid:canonical_nodes_committed:' ||
                COALESCE(NULLIF(eligible.payload->>'entity_key', ''), eligible.scope_id) AS conflict_key,
@@ -81,7 +84,8 @@ security_group_reachability_readiness_blocked AS (
     -- The reachability edge (#1135 PR2b) gates on three keyspaces; surface each
     -- missing phase as its own blockage row so an operator can see which node
     -- family (rule / endpoint / cloud_resource) is the one that has not committed.
-    SELECT eligible.domain,
+    SELECT eligible.work_item_id,
+           eligible.domain,
            'readiness' AS conflict_domain,
            missing.keyspace || ':canonical_nodes_committed:' ||
                COALESCE(NULLIF(eligible.payload->>'entity_key', ''), eligible.scope_id) AS conflict_key,
@@ -110,7 +114,8 @@ ec2_uses_profile_readiness_blocked AS (
     -- node), both on the cloud_resource_uid keyspace. Surface each missing phase as
     -- its own blockage row so an operator can see which endpoint node family has
     -- not committed, keyed by the distinguishing entity-key prefix.
-    SELECT eligible.domain,
+    SELECT eligible.work_item_id,
+           eligible.domain,
            'readiness' AS conflict_domain,
            'cloud_resource_uid:canonical_nodes_committed:' ||
                missing.entity_key_prefix || eligible.scope_id AS conflict_key,
@@ -138,7 +143,8 @@ ec2_block_device_kms_posture_readiness_blocked AS (
     -- substrate and the EBS/KMS aws_resource node substrate. Surface each missing
     -- phase independently so operators can see which node family is blocking the
     -- posture decision.
-    SELECT eligible.domain,
+    SELECT eligible.work_item_id,
+           eligible.domain,
            'readiness' AS conflict_domain,
            'cloud_resource_uid:canonical_nodes_committed:' ||
                missing.entity_key_prefix || eligible.scope_id AS conflict_key,
@@ -161,26 +167,41 @@ ec2_block_device_kms_posture_readiness_blocked AS (
       )
 ),
 all_blocked AS (
-    SELECT domain, conflict_domain, conflict_key, available_at FROM blocked
+    SELECT work_item_id, domain, conflict_domain, conflict_key, available_at FROM blocked
     UNION ALL
-    SELECT domain, conflict_domain, conflict_key, available_at FROM readiness_blocked
+    SELECT work_item_id, domain, conflict_domain, conflict_key, available_at FROM readiness_blocked
     UNION ALL
-    SELECT domain, conflict_domain, conflict_key, available_at FROM kubernetes_readiness_blocked
+    SELECT work_item_id, domain, conflict_domain, conflict_key, available_at FROM kubernetes_readiness_blocked
     UNION ALL
-    SELECT domain, conflict_domain, conflict_key, available_at FROM security_group_reachability_readiness_blocked
+    SELECT work_item_id, domain, conflict_domain, conflict_key, available_at FROM security_group_reachability_readiness_blocked
     UNION ALL
-    SELECT domain, conflict_domain, conflict_key, available_at FROM ec2_uses_profile_readiness_blocked
+    SELECT work_item_id, domain, conflict_domain, conflict_key, available_at FROM ec2_uses_profile_readiness_blocked
     UNION ALL
-    SELECT domain, conflict_domain, conflict_key, available_at FROM ec2_block_device_kms_posture_readiness_blocked
+    SELECT work_item_id, domain, conflict_domain, conflict_key, available_at FROM ec2_block_device_kms_posture_readiness_blocked
+),
+blockage_rows AS (
+    SELECT domain,
+           conflict_domain,
+           conflict_key,
+           COUNT(DISTINCT work_item_id) AS blocked_count,
+           COALESCE(EXTRACT(EPOCH FROM ($1 - MIN(available_at))), 0) AS oldest_blocked_age_seconds
+    FROM all_blocked
+    GROUP BY domain, conflict_domain, conflict_key
+),
+domain_blocked AS (
+    SELECT domain,
+           COUNT(DISTINCT work_item_id) AS domain_blocked_count
+    FROM all_blocked
+    GROUP BY domain
 )
 SELECT 'reducer' AS stage,
        domain,
        conflict_domain,
        conflict_key,
-       COUNT(*) AS blocked_count,
-       COALESCE(EXTRACT(EPOCH FROM ($1 - MIN(available_at))), 0) AS oldest_blocked_age_seconds
-FROM all_blocked
-GROUP BY domain, conflict_domain, conflict_key
+       domain_blocked_count AS blocked_count,
+       oldest_blocked_age_seconds
+FROM blockage_rows
+JOIN domain_blocked USING (domain)
 ORDER BY blocked_count DESC, oldest_blocked_age_seconds DESC, domain ASC, conflict_key ASC
 LIMIT 10
 `

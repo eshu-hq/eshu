@@ -76,3 +76,30 @@ func TestReducerQueueBlockagesReportIAMPermissionReadinessWait(t *testing.T) {
 		}
 	}
 }
+
+func TestReducerQueueBlockagesExposeDistinctDomainBlockedCount(t *testing.T) {
+	t.Parallel()
+
+	queryer := &fakeQueryer{responses: []fakeRows{{rows: nil}}}
+	if _, err := listReducerConflictBlockages(
+		context.Background(),
+		queryer,
+		time.Date(2026, time.June, 6, 10, 35, 0, 0, time.UTC),
+	); err != nil {
+		t.Fatalf("listReducerConflictBlockages() error = %v", err)
+	}
+	if len(queryer.queries) != 1 {
+		t.Fatalf("queries = %d, want 1", len(queryer.queries))
+	}
+
+	query := queryer.queries[0]
+	for _, want := range []string{
+		"work_item_id",
+		"COUNT(DISTINCT work_item_id) AS domain_blocked_count",
+		"JOIN domain_blocked USING (domain)",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("blockage query missing distinct domain blocked count %q:\n%s", want, query)
+		}
+	}
+}

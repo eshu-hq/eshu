@@ -49,11 +49,12 @@ The index status payload includes `aws_materialization`, an aggregate reducer
 queue summary for AWS graph/read-model materialization domains. It separates
 `pending`, `blocked`, `retrying`, `dead_letter`, `failed`, `in_flight`, and
 `outstanding` counts and includes per-domain rows using domain names only. The
-`blocked` count is derived from queue blockage rows such as missing
-`cloud_resource_uid:canonical_nodes_committed` readiness, so operators can see
-named reducer prerequisites alongside aggregate queued, retrying, and terminal
-counts without printing ARNs, account-local resource IDs, bucket names, policy
-bodies, or other raw AWS payload details.
+`blocked` count is the distinct blocked work-item count for the domain; the
+separate `queue_blockages[]` diagnostics keep per-prerequisite rows such as
+missing `cloud_resource_uid:canonical_nodes_committed` readiness. Operators can
+see named reducer prerequisites alongside aggregate queued, retrying, and
+terminal counts without printing ARNs, account-local resource IDs, bucket names,
+policy bodies, or other raw AWS payload details.
 
 The payload also includes `terraform_state.warning_summary[]`, empty when no
 recent Terraform-state warnings exist. Each row carries `warning_kind`,

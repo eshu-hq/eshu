@@ -258,6 +258,77 @@ func TestStatusHandlerIndexStatusIncludesAWSMaterializationBeyondBacklogCap(t *t
 	}
 }
 
+func TestStatusHandlerIndexStatusUsesDistinctBlockedWorkItems(t *testing.T) {
+	t.Parallel()
+
+	handler := &StatusHandler{
+		StatusReader: fakeStatusReader{
+			snapshot: statuspkg.RawSnapshot{
+				AsOf: time.Date(2026, 6, 6, 11, 25, 0, 0, time.UTC),
+				DomainBacklogs: []statuspkg.DomainBacklog{
+					{
+						Domain:      "security_group_reachability_materialization",
+						Outstanding: 1,
+					},
+				},
+				QueueBlockages: []statuspkg.QueueBlockage{
+					{
+						Stage:          "reducer",
+						Domain:         "security_group_reachability_materialization",
+						ConflictDomain: "readiness",
+						ConflictKey:    "security_group_rule_uid:canonical_nodes_committed:sg-1",
+						Blocked:        1,
+					},
+					{
+						Stage:          "reducer",
+						Domain:         "security_group_reachability_materialization",
+						ConflictDomain: "readiness",
+						ConflictKey:    "security_group_endpoint_uid:canonical_nodes_committed:sg-1",
+						Blocked:        1,
+					},
+				},
+			},
+		},
+	}
+
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/index-status", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("GET /api/v0/index-status status = %d, want %d", got, want)
+	}
+
+	var payload struct {
+		AWSMaterialization struct {
+			Pending int `json:"pending"`
+			Blocked int `json:"blocked"`
+			Domains []struct {
+				Domain  string `json:"domain"`
+				Blocked int    `json:"blocked"`
+			} `json:"domains"`
+		} `json:"aws_materialization"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, body=%s", err, rec.Body.String())
+	}
+	if got, want := payload.AWSMaterialization.Pending, 1; got != want {
+		t.Fatalf("aws_materialization.pending = %d, want %d; body=%s", got, want, rec.Body.String())
+	}
+	if got, want := payload.AWSMaterialization.Blocked, 1; got != want {
+		t.Fatalf("aws_materialization.blocked = %d, want distinct blocked work items %d; body=%s", got, want, rec.Body.String())
+	}
+	if got, want := len(payload.AWSMaterialization.Domains), 1; got != want {
+		t.Fatalf("aws_materialization.domains len = %d, want %d; body=%s", got, want, rec.Body.String())
+	}
+	if got, want := payload.AWSMaterialization.Domains[0].Blocked, 1; got != want {
+		t.Fatalf("aws_materialization.domains[0].blocked = %d, want %d; body=%s", got, want, rec.Body.String())
+	}
+}
+
 func TestStatusHandlerLegacyIngesterAliases(t *testing.T) {
 	t.Parallel()
 

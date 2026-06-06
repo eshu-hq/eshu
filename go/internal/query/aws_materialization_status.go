@@ -129,7 +129,9 @@ func pendingDomainWork(backlog status.DomainBacklog) int {
 func queueBlockageCountsByDomain(blockages []status.QueueBlockage) map[string]int {
 	counts := make(map[string]int)
 	for _, blockage := range blockages {
-		counts[blockage.Domain] += blockage.Blocked
+		if blockage.Blocked > counts[blockage.Domain] {
+			counts[blockage.Domain] = blockage.Blocked
+		}
 	}
 	return counts
 }
