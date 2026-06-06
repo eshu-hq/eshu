@@ -225,7 +225,7 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 	}
 	results := make([]SupplyChainImpactFindingResult, 0, len(rows))
 	for _, row := range rows {
-		results = append(results, SupplyChainImpactFindingResult(row))
+		results = append(results, buildSupplyChainImpactFindingResult(row))
 	}
 	scope := SupplyChainImpactTargetScope{
 		CVEID:         filter.CVEID,

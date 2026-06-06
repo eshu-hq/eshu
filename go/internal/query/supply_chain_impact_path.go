@@ -173,7 +173,8 @@ func missingReasonForSemanticHop(hop string, missing []string) []string {
 			}
 		case "service":
 			if reason == "service evidence missing" ||
-				reason == "service catalog correlation evidence missing" ||
+				reason == serviceCatalogCorrelationMissingReason ||
+				reason == serviceCatalogAnchorMissingReason ||
 				strings.HasPrefix(reason, "service catalog evidence ") {
 				return []string{reason}
 			}
@@ -215,7 +216,8 @@ func supplyChainImpactPathMissingReason(reason string) bool {
 		"environment evidence missing",
 		"workload evidence missing",
 		"service evidence missing",
-		"service catalog correlation evidence missing":
+		serviceCatalogCorrelationMissingReason,
+		serviceCatalogAnchorMissingReason:
 		return true
 	}
 	for _, prefix := range []string{

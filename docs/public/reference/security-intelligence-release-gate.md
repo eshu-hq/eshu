@@ -73,7 +73,11 @@ repository scope. Environment hops still require CI/CD or runtime evidence,
 and service ids still require service-catalog correlation evidence. Missing
 service catalog data remains explicit `service evidence missing` or
 `service catalog correlation evidence missing` rather than a guessed service
-id.
+id. When the reducer has already attached
+`reducer_service_catalog_correlation` evidence but no service/workload catalog
+anchor is proven, API and MCP readbacks report
+`service catalog entity anchor missing` so callers do not misread present
+catalog-correlation evidence as absent.
 
 No-Regression Evidence: issue #680 keeps the active fact walk bounded by the
 existing repository follow-up filter. Runtime-adjacent reducer facts such as
@@ -84,6 +88,10 @@ the same fact-kind-gated branch as the existing runtime correlation facts.
 Focused tests cover repository-only, workload-only, deployment-plus-workload,
 service-attached, and stale/missing service evidence without adding graph
 reads or queue claims to the impact handler.
+
+No-Regression Evidence: issue #1548 keeps service-catalog correlation evidence
+separate from service catalog entity anchoring. Focused proof:
+`go test ./internal/query -run TestSupplyChainListImpactFindingsDoesNotReportPresentCatalogCorrelationAsMissing -count=1`.
 
 Observability Evidence: no new telemetry series are required. The existing
 `SupplyChainImpactHandler` counters, persisted `evidence_path`,
