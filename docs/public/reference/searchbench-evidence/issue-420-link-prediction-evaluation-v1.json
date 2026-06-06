@@ -1,0 +1,111 @@
+{
+  "version": "link-prediction-evaluation/v1",
+  "eshu_commit": "5b085c9f",
+  "backend_commit": "2ff4e099c5aa1263c1655523f15564db243c00d9",
+  "procedure_mode": "gds_stream",
+  "nornicdb_procedure_source": "orneryd/NornicDB@2ff4e099c5aa1263c1655523f15564db243c00d9:docs/features/link-prediction.md,pkg/cypher/linkprediction_test.go,pkg/linkpredict/README.md",
+  "top_k": 3,
+  "candidates": [
+    {
+      "algorithm": "common_neighbors",
+      "score": 0.92,
+      "source_handle": "repository:checkout-api",
+      "target_handle": "service:checkout",
+      "evidence_context": {
+        "summary": "shared workload and image evidence",
+        "shared_neighbor_handles": [
+          "workload:checkout-api",
+          "image:sha256:abc"
+        ]
+      },
+      "freshness": {
+        "state": "fresh",
+        "graph_generation": "generation-1",
+        "observed_at": "2026-06-06T12:00:00Z"
+      },
+      "reason": "common neighbors identify a missing repository-to-service relationship",
+      "truth_level": "candidate",
+      "decision": "positive",
+      "canonical_relationship_claim": false
+    },
+    {
+      "algorithm": "adamic_adar",
+      "score": 0.61,
+      "source_handle": "repository:docs",
+      "target_handle": "service:checkout",
+      "evidence_context": {
+        "summary": "weak shared documentation neighbor only",
+        "shared_neighbor_handles": [
+          "repository:platform-docs"
+        ]
+      },
+      "freshness": {
+        "state": "fresh",
+        "graph_generation": "generation-1",
+        "observed_at": "2026-06-06T12:00:00Z"
+      },
+      "reason": "candidate did not correspond to a later canonical edge",
+      "truth_level": "candidate",
+      "decision": "negative",
+      "canonical_relationship_claim": false
+    },
+    {
+      "algorithm": "predict",
+      "score": 0.54,
+      "source_handle": "repository:billing-worker",
+      "target_handle": "service:checkout",
+      "evidence_context": {
+        "summary": "topology and semantic signals disagree",
+        "shared_neighbor_handles": [
+          "queue:payments",
+          "topic:orders"
+        ]
+      },
+      "freshness": {
+        "state": "fresh",
+        "graph_generation": "generation-1",
+        "observed_at": "2026-06-06T12:00:00Z"
+      },
+      "reason": "mixed algorithm evidence remains provenance-only",
+      "truth_level": "semantic_candidate",
+      "decision": "ambiguous",
+      "canonical_relationship_claim": false
+    }
+  ],
+  "metrics": {
+    "candidate_count": 3,
+    "positive_count": 1,
+    "negative_count": 1,
+    "ambiguous_count": 1,
+    "precision_at_k": 0.3333333333333333,
+    "false_canonical_claim_count": 0,
+    "candidate_truth_level_counts": {
+      "candidate": 2,
+      "semantic_candidate": 1
+    },
+    "semantic_candidate_truth_count": 1,
+    "non_semantic_candidate_truth_count": 2
+  },
+  "gap_discovery": {
+    "baseline_discovered": 0,
+    "candidate_discovered": 1,
+    "improvement": 1
+  },
+  "telemetry_counts": [
+    {
+      "algorithm": "common_neighbors",
+      "decision": "positive",
+      "count": 1
+    },
+    {
+      "algorithm": "adamic_adar",
+      "decision": "negative",
+      "count": 1
+    },
+    {
+      "algorithm": "predict",
+      "decision": "ambiguous",
+      "count": 1
+    }
+  ]
+}

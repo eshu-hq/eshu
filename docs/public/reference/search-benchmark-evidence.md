@@ -275,6 +275,67 @@ stop reasons are exclusive with measured runs and latency evidence; a record
 with baseline or candidate run evidence must satisfy the normal recall,
 latency, false-canonical, and observation guardrails.
 
+## Link Prediction Candidate Evaluation Gate
+
+Issue #420 uses `go/internal/searchbench.LinkPredictionEvaluation` for the
+internal proof path. The proof is diagnostic evidence only. It does not add an
+API route, expose an MCP tool, write candidate edges to NornicDB, write
+canonical relationships, or change public truth-envelope levels.
+
+The first evidence version is:
+
+```text
+link-prediction-evaluation/v1
+```
+
+`ValidateLinkPredictionEvaluation` requires:
+
+- NornicDB backend commit or image evidence and the procedure source used for
+  the evaluation;
+- `procedure_mode=gds_stream`, meaning GDS-style stream procedures only;
+- at least one candidate for each decision: `positive`, `negative`, and
+  `ambiguous`;
+- every candidate to include algorithm, score, source handle, target handle,
+  evidence context, freshness, reason, and explicit `candidate` or
+  `semantic_candidate` truth level;
+- zero canonical relationship claims and zero false canonical claim count;
+- positive relationship-gap discovery improvement over the recorded baseline;
+- telemetry counts keyed by bounded `algorithm` and `decision`.
+
+Supported diagnostic algorithms are the stream-only NornicDB procedures:
+
+| Algorithm | Procedure family |
+| --- | --- |
+| `common_neighbors` | `gds.linkPrediction.commonNeighbors.stream` |
+| `jaccard` | `gds.linkPrediction.jaccard.stream` |
+| `adamic_adar` | `gds.linkPrediction.adamicAdar.stream` |
+| `resource_allocation` | `gds.linkPrediction.resourceAllocation.stream` |
+| `preferential_attachment` | `gds.linkPrediction.preferentialAttachment.stream` |
+| `predict` | `gds.linkPrediction.predict.stream` |
+
+Auto-TLP is rejected for this Eshu evidence gate because it can materialize
+edges. Issue #420 only evaluates candidate suggestions; any future canonical
+admission remains a separate reducer-owned design.
+
+The first public-safe fixture artifact is
+[`searchbench-evidence/issue-420-link-prediction-evaluation-v1.json`](searchbench-evidence/issue-420-link-prediction-evaluation-v1.json).
+It records one positive candidate that improves relationship-gap discovery, one
+negative candidate, one ambiguous provenance-only candidate, candidate truth
+labels, and generation counts by algorithm and decision. It uses upstream
+NornicDB source commit `2ff4e099c5aa1263c1655523f15564db243c00d9` as procedure
+support evidence. The artifact is a fixture/proof-contract record, not a live
+backend performance claim.
+
+No-Regression Evidence: issue #420 adds a pure validation and scoring contract
+under `go/internal/searchbench`; it performs no graph, Postgres, HTTP, MCP, or
+NornicDB I/O and does not touch canonical writers or existing traversal
+handlers.
+
+Observability Evidence: `link-prediction-evaluation/v1` requires
+`telemetry_counts` by bounded `algorithm` and `decision`. Candidate handles,
+shared neighbors, source handles, and target handles stay in evidence records,
+logs, or spans rather than metric labels.
+
 ## Recommendation
 
 Each completed evidence record must recommend exactly one decision:
