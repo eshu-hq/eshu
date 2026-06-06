@@ -93,9 +93,13 @@ func sbomAttestationAttachmentsRoute(args map[string]any) *route {
 		"after_attachment_id": str(args, "after_attachment_id"),
 		"artifact_kind":       str(args, "artifact_kind"),
 		"attachment_status":   str(args, "attachment_status"),
+		"digest":              str(args, "digest"),
 		"document_digest":     str(args, "document_digest"),
 		"document_id":         str(args, "document_id"),
 		"limit":               strconv.Itoa(intOr(args, "limit", 50)),
+		"repository_id":       str(args, "repository_id"),
+		"service_id":          str(args, "service_id"),
 		"subject_digest":      str(args, "subject_digest"),
+		"workload_id":         str(args, "workload_id"),
 	}}
 }

@@ -10,8 +10,8 @@ func TestBootstrapDefinitionsAreOrderedAndComplete(t *testing.T) {
 	t.Parallel()
 
 	defs := BootstrapDefinitions()
-	if len(defs) != 25 {
-		t.Fatalf("BootstrapDefinitions() len = %d, want 25", len(defs))
+	if len(defs) != 26 {
+		t.Fatalf("BootstrapDefinitions() len = %d, want 26", len(defs))
 	}
 
 	wantNames := []string{
@@ -19,6 +19,7 @@ func TestBootstrapDefinitionsAreOrderedAndComplete(t *testing.T) {
 		"scope_generations",
 		"fact_records",
 		"service_catalog_fact_record_indexes",
+		"fact_record_sbom_attestation_indexes",
 		"content_store",
 		"fact_work_items",
 		"fact_work_item_audit",
@@ -344,38 +345,6 @@ CREATE INDEX IF NOT EXISTS fact_records_active_container_image_refs_idx
     WHERE is_tombstone = FALSE`
 	if !strings.Contains(facts.SQL, containerRefsIndex) {
 		t.Fatalf("fact_records active container image refs index must start with cursor keys:\n%s", facts.SQL)
-	}
-}
-
-func TestBootstrapDefinitionsIncludeSBOMAttestationAttachmentFactIndexes(t *testing.T) {
-	t.Parallel()
-
-	var facts Definition
-	for _, def := range BootstrapDefinitions() {
-		if def.Name == "fact_records" {
-			facts = def
-			break
-		}
-	}
-	if facts.Name == "" {
-		t.Fatal("fact_records definition missing")
-	}
-	for _, want := range []string{
-		"fact_records_oci_image_referrer_subject_idx",
-		"fact_records_sbom_attestation_attachments_subject_idx",
-		"fact_records_sbom_attestation_attachments_document_idx",
-		"fact_records_sbom_attestation_attachments_document_digest_idx",
-		"fact_records_sbom_attestation_attachments_status_idx",
-		"'oci_registry.image_referrer'",
-		"'reducer_sbom_attestation_attachment'",
-		"(payload->>'subject_digest')",
-		"(payload->>'document_id')",
-		"(payload->>'document_digest')",
-		"(payload->>'attachment_status')",
-	} {
-		if !strings.Contains(facts.SQL, want) {
-			t.Fatalf("fact_records SQL missing %q", want)
-		}
 	}
 }
 

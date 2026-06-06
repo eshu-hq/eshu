@@ -9,10 +9,19 @@ import (
 )
 
 type containerImageRefEvidence struct {
-	imageRef       string
-	parsed         parsedContainerImageRef
-	resolvedDigest string
-	factIDs        []string
+	imageRef            string
+	parsed              parsedContainerImageRef
+	resolvedDigest      string
+	sourceRepositoryIDs []string
+	workloadIDs         []string
+	serviceIDs          []string
+	factIDs             []string
+}
+
+type containerImageRefAnchors struct {
+	sourceRepositoryIDs []string
+	workloadIDs         []string
+	serviceIDs          []string
 }
 
 type parsedContainerImageRef struct {
@@ -28,7 +37,7 @@ func extractContainerImageRefs(envelopes []facts.Envelope) []containerImageRefEv
 		switch envelope.FactKind {
 		case factKindContentEntity:
 			for _, imageRef := range contentEntityContainerImages(envelope.Payload) {
-				addContainerImageRef(byRef, imageRef, "", envelope.FactID)
+				addContainerImageRef(byRef, imageRef, "", envelope.FactID, containerImageAnchorsFromEnvelope(envelope))
 			}
 		case facts.AWSRelationshipFactKind:
 			if payloadStr(envelope.Payload, "target_type") != "container_image" {
@@ -39,6 +48,7 @@ func extractContainerImageRefs(envelopes []facts.Envelope) []containerImageRefEv
 				payloadStr(envelope.Payload, "target_resource_id"),
 				mapStringValue(envelope.Payload, "attributes", "resolved_image_uri"),
 				envelope.FactID,
+				containerImageAnchorsFromEnvelope(envelope),
 			)
 		case facts.AWSImageReferenceFactKind:
 			addAWSImageReference(byRef, envelope)
@@ -59,6 +69,7 @@ func addContainerImageRef(
 	imageRef string,
 	resolvedImageRef string,
 	factID string,
+	anchors containerImageRefAnchors,
 ) {
 	parsed, ok := parseContainerImageRef(imageRef)
 	if !ok {
@@ -68,9 +79,15 @@ func addContainerImageRef(
 	ref.imageRef = parsed.raw
 	ref.parsed = parsed
 	ref.factIDs = append(ref.factIDs, factID)
+	ref.sourceRepositoryIDs = append(ref.sourceRepositoryIDs, anchors.sourceRepositoryIDs...)
+	ref.workloadIDs = append(ref.workloadIDs, anchors.workloadIDs...)
+	ref.serviceIDs = append(ref.serviceIDs, anchors.serviceIDs...)
 	if resolvedDigest := digestFromImageRef(resolvedImageRef); resolvedDigest != "" {
 		ref.resolvedDigest = resolvedDigest
 	}
+	ref.sourceRepositoryIDs = uniqueSortedStrings(ref.sourceRepositoryIDs)
+	ref.workloadIDs = uniqueSortedStrings(ref.workloadIDs)
+	ref.serviceIDs = uniqueSortedStrings(ref.serviceIDs)
 	byRef[parsed.raw] = ref
 }
 
@@ -92,7 +109,46 @@ func addAWSImageReference(byRef map[string]containerImageRefEvidence, envelope f
 	}
 	registry := registryID + ".dkr.ecr." + payloadStr(envelope.Payload, "region") + ".amazonaws.com"
 	imageRef := registry + "/" + repositoryName + "@" + digest
-	addContainerImageRef(byRef, imageRef, imageRef, envelope.FactID)
+	addContainerImageRef(byRef, imageRef, imageRef, envelope.FactID, containerImageAnchorsFromEnvelope(envelope))
+}
+
+func containerImageAnchorsFromEnvelope(envelope facts.Envelope) containerImageRefAnchors {
+	return containerImageRefAnchors{
+		sourceRepositoryIDs: containerImageSourceRepositoryIDs(envelope),
+		workloadIDs:         supplyChainWorkloadIDsFromPayload(envelope.Payload),
+		serviceIDs:          containerImageServiceIDsFromPayload(envelope.Payload),
+	}
+}
+
+func containerImageSourceRepositoryIDs(envelope facts.Envelope) []string {
+	var out []string
+	out = append(out, []string{
+		payloadStr(envelope.Payload, "source_repository_id"),
+		payloadStr(envelope.Payload, "repo_id"),
+		repositoryIDFromReducerScope(payloadStr(envelope.Payload, "scope_id")),
+		repositoryIDFromReducerScope(envelope.ScopeID),
+	}...)
+	if repositoryID := payloadStr(envelope.Payload, "repository_id"); repositoryID != "" &&
+		!strings.HasPrefix(repositoryID, "oci-registry://") {
+		out = append(out, repositoryID)
+	}
+	for _, scopeID := range payloadOrderedStrings(envelope.Payload, "related_scope_ids") {
+		out = append(out, repositoryIDFromReducerScope(scopeID))
+	}
+	return uniqueSortedStrings(out)
+}
+
+func containerImageServiceIDsFromPayload(payload map[string]any) []string {
+	var serviceIDs []string
+	if serviceID := payloadStr(payload, "service_id"); serviceID != "" {
+		serviceIDs = append(serviceIDs, serviceID)
+	}
+	for _, entityKey := range payloadOrderedStrings(payload, "entity_keys") {
+		if strings.HasPrefix(entityKey, "service:") {
+			serviceIDs = append(serviceIDs, entityKey)
+		}
+	}
+	return uniqueSortedStrings(serviceIDs)
 }
 
 func contentEntityContainerImages(payload map[string]any) []string {

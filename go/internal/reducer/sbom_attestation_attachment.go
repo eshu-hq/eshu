@@ -57,6 +57,9 @@ type SBOMAttestationAttachmentDecision struct {
 	CanonicalWrites    int
 	ComponentCount     int
 	ComponentEvidence  []map[string]string
+	RepositoryIDs      []string
+	WorkloadIDs        []string
+	ServiceIDs         []string
 	WarningSummaries   []string
 	EvidenceFactIDs    []string
 	MissingEvidence    []string

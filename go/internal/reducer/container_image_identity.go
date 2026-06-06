@@ -35,14 +35,17 @@ const (
 
 // ContainerImageIdentityDecision records one bounded image identity decision.
 type ContainerImageIdentityDecision struct {
-	ImageRef         string
-	Digest           string
-	RepositoryID     string
-	Outcome          ContainerImageIdentityOutcome
-	Reason           string
-	CanonicalWrites  int
-	EvidenceFactIDs  []string
-	IdentityStrength string
+	ImageRef            string
+	Digest              string
+	RepositoryID        string
+	SourceRepositoryIDs []string
+	WorkloadIDs         []string
+	ServiceIDs          []string
+	Outcome             ContainerImageIdentityOutcome
+	Reason              string
+	CanonicalWrites     int
+	EvidenceFactIDs     []string
+	IdentityStrength    string
 }
 
 // ContainerImageIdentityWrite carries decisions for durable publication.

@@ -670,7 +670,8 @@ collector, worker, queue, graph write, metric, span, or log contract changes.
 
 Lists reducer-owned SBOM and attestation attachment facts. The caller must
 provide `limit` and at least one bounded anchor: `subject_digest`,
-`document_id`, or `document_digest`.
+`document_id`, `document_digest`, `repository_id`, `workload_id`, or
+`service_id`.
 
 Rows expose `attachment_status`, `parse_status`, and `verification_status`
 separately. Component evidence is returned as document evidence only; this
@@ -679,9 +680,11 @@ route does not emit vulnerability priority or affected-by findings.
 Rows also expose `attachment_scope` and `missing_evidence` so callers can tell
 image-attached evidence from parse-only corpus evidence. `image_subject` means
 Eshu saw an OCI referrer tying the SBOM or attestation document to the subject
-digest. `parse_only_unanchored` and `subject_only_unanchored` rows remain
-visible for diagnostics, but they are not image impact evidence until an OCI
-referrer proves the document is attached to the subject image.
+digest. `subject_only_unanchored` rows can still carry reducer-owned repository,
+workload, or service image anchors for scoped readback, but `canonical_writes`
+remains `0` until OCI referrer evidence proves the document is attached to the
+subject image. `parse_only_unanchored` rows remain visible for diagnostics and
+must surface the missing evidence that blocks image attachment.
 
 No-Regression Evidence: `go test ./internal/reducer -run
 'Test(BuildSBOMAttestationAttachmentDecisionsClassifiesSubjectsAndTrust|ScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment|PostgresSBOMAttestationAttachmentWriterPersistsAllStatuses)'

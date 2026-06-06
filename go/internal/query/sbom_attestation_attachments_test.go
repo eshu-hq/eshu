@@ -10,16 +10,19 @@ import (
 )
 
 type recordingSBOMAttestationAttachmentStore struct {
-	rows       []SBOMAttestationAttachmentRow
+	page       SBOMAttestationAttachmentPage
 	lastFilter SBOMAttestationAttachmentFilter
 }
 
 func (s *recordingSBOMAttestationAttachmentStore) ListSBOMAttestationAttachments(
 	_ context.Context,
 	filter SBOMAttestationAttachmentFilter,
-) ([]SBOMAttestationAttachmentRow, error) {
+) (SBOMAttestationAttachmentPage, error) {
 	s.lastFilter = filter
-	return append([]SBOMAttestationAttachmentRow(nil), s.rows...), nil
+	page := s.page
+	page.Attachments = append([]SBOMAttestationAttachmentRow(nil), s.page.Attachments...)
+	page.MissingEvidence = append([]string(nil), s.page.MissingEvidence...)
+	return page, nil
 }
 
 func TestSupplyChainListSBOMAttestationAttachmentsRequiresScopeAndLimit(t *testing.T) {
@@ -51,31 +54,34 @@ func TestSupplyChainListSBOMAttestationAttachmentsUsesBoundedStore(t *testing.T)
 	t.Parallel()
 
 	store := &recordingSBOMAttestationAttachmentStore{
-		rows: []SBOMAttestationAttachmentRow{
-			{
-				AttachmentID:       "attachment-1",
-				SubjectDigest:      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-				DocumentID:         "doc-1",
-				DocumentDigest:     "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-				AttachmentStatus:   "attached_verified",
-				ParseStatus:        "parsed",
-				VerificationStatus: "passed",
-				VerificationPolicy: "policy://prod",
-				ArtifactKind:       "sbom",
-				Format:             "cyclonedx",
-				SpecVersion:        "1.6",
-				Reason:             "subject digest reported without OCI referrer or repository attachment evidence",
-				AttachmentScope:    "parse_only_unanchored",
-				MissingEvidence:    []string{"image_referrer_evidence", "repository_attachment_evidence"},
-				ComponentCount:     3,
-				ComponentEvidence:  []ComponentEvidenceRow{{ComponentID: "pkg:npm/example@1.0.0", PURL: "pkg:npm/example@1.0.0"}},
-				WarningSummaries:   []string{"none"},
-				CanonicalWrites:    0,
-				EvidenceFactIDs:    []string{"doc-fact"},
-				SourceFreshness:    "active",
-				SourceConfidence:   "inferred",
+		page: SBOMAttestationAttachmentPage{
+			Attachments: []SBOMAttestationAttachmentRow{
+				{
+					AttachmentID:       "attachment-1",
+					SubjectDigest:      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					DocumentID:         "doc-1",
+					DocumentDigest:     "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+					AttachmentStatus:   "attached_verified",
+					ParseStatus:        "parsed",
+					VerificationStatus: "passed",
+					VerificationPolicy: "policy://prod",
+					ArtifactKind:       "sbom",
+					Format:             "cyclonedx",
+					SpecVersion:        "1.6",
+					AttachmentScope:    "image_subject",
+					ComponentCount:     3,
+					ComponentEvidence:  []ComponentEvidenceRow{{ComponentID: "pkg:npm/example@1.0.0", PURL: "pkg:npm/example@1.0.0"}},
+					WarningSummaries:   []string{"none"},
+					CanonicalWrites:    1,
+					EvidenceFactIDs:    []string{"doc-fact", "referrer-fact"},
+					RepositoryIDs:      []string{"repo://example/api"},
+					WorkloadIDs:        []string{"workload:example-api"},
+					ServiceIDs:         []string{"service:example-api"},
+					SourceFreshness:    "active",
+					SourceConfidence:   "inferred",
+				},
+				{AttachmentID: "attachment-2", AttachmentStatus: "attached_parse_only"},
 			},
-			{AttachmentID: "attachment-2", AttachmentStatus: "attached_parse_only"},
 		},
 	}
 	handler := &SupplyChainHandler{SBOMAttachments: store}
@@ -115,20 +121,67 @@ func TestSupplyChainListSBOMAttestationAttachmentsUsesBoundedStore(t *testing.T)
 	if got, want := resp.Attachments[0].VerificationStatus, "passed"; got != want {
 		t.Fatalf("VerificationStatus = %q, want %q", got, want)
 	}
-	if got, want := resp.Attachments[0].AttachmentScope, "parse_only_unanchored"; got != want {
+	if got, want := resp.Attachments[0].AttachmentScope, "image_subject"; got != want {
 		t.Fatalf("AttachmentScope = %q, want %q", got, want)
 	}
-	if got, want := strings.Join(resp.Attachments[0].MissingEvidence, ","), "image_referrer_evidence,repository_attachment_evidence"; got != want {
-		t.Fatalf("MissingEvidence = %q, want %q", got, want)
-	}
-	if got, want := resp.Attachments[0].CanonicalWrites, 0; got != want {
+	if got, want := resp.Attachments[0].CanonicalWrites, 1; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
+	}
+	if got, want := resp.Attachments[0].RepositoryIDs[0], "repo://example/api"; got != want {
+		t.Fatalf("RepositoryIDs[0] = %q, want %q", got, want)
 	}
 	if !resp.Truncated {
 		t.Fatal("truncated = false, want true")
 	}
 	if got, want := resp.NextCursor["after_attachment_id"], "attachment-1"; got != want {
 		t.Fatalf("next_cursor.after_attachment_id = %q, want %q", got, want)
+	}
+}
+
+func TestSupplyChainListSBOMAttestationAttachmentsAcceptsRepositoryWorkloadServiceAnchors(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingSBOMAttestationAttachmentStore{
+		page: SBOMAttestationAttachmentPage{
+			Attachments:     []SBOMAttestationAttachmentRow{{AttachmentID: "attachment-1", AttachmentStatus: "attached_parse_only"}},
+			MissingEvidence: []string{"image_to_sbom_evidence_missing"},
+		},
+	}
+	handler := &SupplyChainHandler{SBOMAttachments: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/supply-chain/sbom-attestations/attachments?repository_id=repo://example/api&workload_id=workload:example-api&service_id=service:example-api&digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := store.lastFilter.RepositoryID, "repo://example/api"; got != want {
+		t.Fatalf("RepositoryID = %q, want %q", got, want)
+	}
+	if got, want := store.lastFilter.WorkloadID, "workload:example-api"; got != want {
+		t.Fatalf("WorkloadID = %q, want %q", got, want)
+	}
+	if got, want := store.lastFilter.ServiceID, "service:example-api"; got != want {
+		t.Fatalf("ServiceID = %q, want %q", got, want)
+	}
+	if got, want := store.lastFilter.SubjectDigest, "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; got != want {
+		t.Fatalf("SubjectDigest = %q, want %q", got, want)
+	}
+
+	var resp struct {
+		MissingEvidence []string `json:"missing_evidence"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := resp.MissingEvidence[0], "image_to_sbom_evidence_missing"; got != want {
+		t.Fatalf("missing_evidence[0] = %q, want %q", got, want)
 	}
 }
 
@@ -143,6 +196,9 @@ func TestSBOMAttestationAttachmentQueryUsesActiveFactReadModel(t *testing.T) {
 		"fact.payload->>'subject_digest' = $2",
 		"fact.payload->>'document_id' = $3",
 		"fact.payload->>'attachment_status' = $5",
+		"fact.payload->'repository_ids' ? $7",
+		"fact.payload->'workload_ids' ? $8",
+		"fact.payload->'service_ids' ? $9",
 	} {
 		if !strings.Contains(listSBOMAttestationAttachmentsQuery, want) {
 			t.Fatalf("listSBOMAttestationAttachmentsQuery missing %q:\n%s", want, listSBOMAttestationAttachmentsQuery)
@@ -180,5 +236,21 @@ func TestDecodeSBOMAttestationAttachmentRowPreservesAnchorTruth(t *testing.T) {
 	}
 	if got, want := row.CanonicalWrites, 0; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
+	}
+}
+
+func TestSBOMAttestationAttachmentMissingEvidenceQueryExplainsScopedGaps(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"reducer_container_image_identity",
+		"source_repository_ids",
+		"fact.payload->>'outcome' IN ('exact_digest', 'tag_resolved')",
+		"missing_image",
+		"missing_attachment",
+	} {
+		if !strings.Contains(sbomAttestationAttachmentMissingEvidenceQuery, want) {
+			t.Fatalf("sbomAttestationAttachmentMissingEvidenceQuery missing %q:\n%s", want, sbomAttestationAttachmentMissingEvidenceQuery)
+		}
 	}
 }
