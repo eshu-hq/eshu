@@ -182,8 +182,60 @@ func TestHandleHTTPMessage_ToolCall(t *testing.T) {
 	if len(content) == 0 {
 		t.Fatal("expected at least one content entry")
 	}
-	if len(content) != 1 {
-		t.Fatalf("expected 1 content entry, got %d", len(content))
+	if len(content) != 2 {
+		t.Fatalf("expected text summary and resource payload, got %d content entries", len(content))
+	}
+}
+
+func TestHandleHTTPMessage_ToolCallPlainJSONReturnsStructuredPayload(t *testing.T) {
+	s := testServer()
+
+	body := `{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"list_indexed_repositories","arguments":{}}}`
+	req := httptest.NewRequest("POST", "/mcp/message", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	s.handleHTTPMessage(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	result, ok := resp["result"].(map[string]any)
+	if !ok {
+		t.Fatal("missing result")
+	}
+	structured, ok := result["structuredContent"].(map[string]any)
+	if !ok {
+		t.Fatalf("structuredContent = %#v, want API payload object", result["structuredContent"])
+	}
+	repos, ok := structured["repos"].([]any)
+	if !ok || len(repos) != 1 || repos[0] != "test/repo" {
+		t.Fatalf("structuredContent.repos = %#v, want [test/repo]", structured["repos"])
+	}
+	content, ok := result["content"].([]any)
+	if !ok || len(content) != 2 {
+		t.Fatalf("content = %#v, want text summary plus resource payload", result["content"])
+	}
+	resourceBlock, ok := content[1].(map[string]any)
+	if !ok {
+		t.Fatalf("content[1] = %T, want resource block", content[1])
+	}
+	resource, ok := resourceBlock["resource"].(map[string]any)
+	if !ok {
+		t.Fatalf("content[1].resource = %#v, want resource payload", resourceBlock["resource"])
+	}
+	if got, want := resource["uri"], "eshu://tool-result/payload"; got != want {
+		t.Fatalf("resource.uri = %#v, want %#v", got, want)
+	}
+	if got, want := resource["mimeType"], "application/json"; got != want {
+		t.Fatalf("resource.mimeType = %#v, want %#v", got, want)
+	}
+	if !strings.Contains(resource["text"].(string), `"test/repo"`) {
+		t.Fatalf("resource.text = %q, want original API payload", resource["text"])
 	}
 }
 
@@ -244,6 +296,11 @@ func TestHandleHTTPMessage_ToolCallStructuredEnvelopeError(t *testing.T) {
 	}
 	if !strings.Contains(resourcePayload["text"].(string), `"unsupported_capability"`) {
 		t.Fatalf("resource text = %q, want canonical unsupported_capability envelope", resourcePayload["text"])
+	}
+	if structured, ok := result["structuredContent"].(map[string]any); !ok {
+		t.Fatalf("structuredContent = %#v, want canonical envelope object", result["structuredContent"])
+	} else if _, ok := structured["error"].(map[string]any); !ok {
+		t.Fatalf("structuredContent.error = %#v, want error object", structured["error"])
 	}
 }
 

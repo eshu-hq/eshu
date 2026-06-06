@@ -43,8 +43,8 @@ flowchart TB
     rec["httptest.NewRecorder"]
     serve["handler.ServeHTTP(rec, req)"]
     pce["parseCanonicalEnvelope(body)\ndispatch_envelope.go:15"]
-    envelope["mcpToolResult with\ntext summary + resource block"]
-    plain["mcpToolResult with\ntext JSON block"]
+    envelope["mcpToolResult with\ntext summary + structuredContent + resource block"]
+    plain["mcpToolResult with\ntext summary + structuredContent + JSON resource block"]
 
     hm --> parse
     parse --> dt
@@ -282,8 +282,14 @@ element and sets `repo_id` rather than `repo_ids`.
 
 - The `Envelope` field of `dispatchResult` is populated by
   `parseCanonicalEnvelope` (`server.go:377`). When it is non-nil, the response
-  is returned as a two-block `mcpToolResult`. Do not substitute the
-  `query.EnvelopeMIMEType` string literal; use the constant.
+  is returned as `structuredContent` plus a two-block `mcpToolResult`. Do not
+  substitute the `query.EnvelopeMIMEType` string literal; use the constant.
+
+- Plain JSON handler payloads are not canonical envelopes, but they still carry
+  evidence. MCP returns those payloads in `structuredContent` and as an
+  `application/json` resource at `eshu://tool-result/payload`. Do not collapse
+  them back to text-only summaries; that breaks API/MCP parity for handlers
+  that have not adopted the canonical envelope shape yet.
 
 ## Related docs
 

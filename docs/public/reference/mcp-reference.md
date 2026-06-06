@@ -64,22 +64,65 @@ those are the answering backend.
 
 ## MCP Result Shape
 
-When the underlying HTTP route returns the canonical Eshu envelope, MCP returns
-a text summary plus a resource content block:
+MCP responses include a short text summary for humans and `structuredContent`
+for clients that need evidence. When the underlying HTTP route returns the
+canonical Eshu envelope, `structuredContent` contains that envelope and MCP also
+returns a resource content block:
 
 ```json
 {
-  "type": "resource",
-  "resource": {
-    "uri": "eshu://tool-result/envelope",
-    "mimeType": "application/eshu.envelope+json",
-    "text": "{\"data\":{},\"truth\":{},\"error\":null}"
-  }
+  "structuredContent": {
+    "data": {},
+    "truth": {},
+    "error": null
+  },
+  "content": [
+    {
+      "type": "text",
+      "text": "Eshu query completed."
+    },
+    {
+      "type": "resource",
+      "resource": {
+        "uri": "eshu://tool-result/envelope",
+        "mimeType": "application/eshu.envelope+json",
+        "text": "{\"data\":{},\"truth\":{},\"error\":null}"
+      }
+    }
+  ]
 }
 ```
 
-Clients should read the resource block for `truth.level`,
-`truth.capability`, `truth.profile`, `truth.freshness.state`, and `error`.
+When an HTTP route still returns plain JSON instead of the canonical envelope,
+MCP preserves the plain JSON payload in `structuredContent` and in an
+`application/json` resource:
+
+```json
+{
+  "structuredContent": {
+    "count": 1,
+    "results": []
+  },
+  "content": [
+    {
+      "type": "text",
+      "text": "Returned 1 result(s)."
+    },
+    {
+      "type": "resource",
+      "resource": {
+        "uri": "eshu://tool-result/payload",
+        "mimeType": "application/json",
+        "text": "{\"count\":1,\"results\":[]}"
+      }
+    }
+  ]
+}
+```
+
+For prompt automation, read `structuredContent` first. Use the resource block
+when the client wants the exact serialized payload. The text block is only a
+summary and should not be treated as the evidence-bearing response.
 
 ## Related Docs
 
