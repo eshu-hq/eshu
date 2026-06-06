@@ -1,5 +1,12 @@
 package query
 
+import "strings"
+
+const (
+	serviceCatalogCorrelationMissingReason = "service catalog correlation evidence missing"
+	serviceCatalogAnchorMissingReason      = "service catalog entity anchor missing"
+)
+
 // SupplyChainImpactFindingResult is one reducer-owned vulnerability impact row
 // returned by the public API.
 //
@@ -85,4 +92,35 @@ type SupplyChainReachabilityResult struct {
 	Reason           string   `json:"reason,omitempty"`
 	LanguageMaturity string   `json:"language_maturity,omitempty"`
 	MissingEvidence  []string `json:"missing_evidence,omitempty"`
+}
+
+func buildSupplyChainImpactFindingResult(row SupplyChainImpactFindingRow) SupplyChainImpactFindingResult {
+	result := SupplyChainImpactFindingResult(row)
+	result.MissingEvidence = normalizedSupplyChainImpactMissingEvidence(row)
+	return result
+}
+
+func normalizedSupplyChainImpactMissingEvidence(row SupplyChainImpactFindingRow) []string {
+	missing := make([]string, 0, len(row.MissingEvidence))
+	for _, reason := range row.MissingEvidence {
+		if reason == serviceCatalogCorrelationMissingReason && rowHasServiceCatalogEvidence(row) {
+			reason = serviceCatalogAnchorMissingReason
+		}
+		missing = append(missing, reason)
+	}
+	return explanationUniqueStrings(missing)
+}
+
+func rowHasServiceCatalogEvidence(row SupplyChainImpactFindingRow) bool {
+	for _, hop := range row.EvidencePath {
+		if hop == "reducer_service_catalog_correlation" {
+			return true
+		}
+	}
+	for _, factID := range row.EvidenceFactIDs {
+		if strings.HasPrefix(factID, "reducer_service_catalog_correlation:") {
+			return true
+		}
+	}
+	return false
 }

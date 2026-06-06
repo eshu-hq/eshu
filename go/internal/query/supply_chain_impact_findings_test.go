@@ -190,6 +190,60 @@ func TestSupplyChainListImpactFindingsUsesBoundedStore(t *testing.T) {
 	}
 }
 
+func TestSupplyChainListImpactFindingsDoesNotReportPresentCatalogCorrelationAsMissing(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingSupplyChainImpactFindingStore{
+		rows: []SupplyChainImpactFindingRow{{
+			FindingID:    "finding-catalog-present",
+			PackageID:    "pkg:npm/example",
+			ImpactStatus: "affected_exact",
+			RepositoryID: "repo://example/api",
+			WorkloadIDs:  []string{"workload:example-api"},
+			EvidencePath: []string{"content_entity", "reducer_service_catalog_correlation"},
+			EvidenceFactIDs: []string{
+				"content-1",
+				"reducer_service_catalog_correlation:catalog-1",
+			},
+			MissingEvidence: []string{
+				"environment evidence missing",
+				"service catalog correlation evidence missing",
+			},
+		}},
+	}
+	handler := &SupplyChainHandler{ImpactFindings: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/supply-chain/impact/findings?repository_id=repo://example/api&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var resp struct {
+		Findings []SupplyChainImpactFindingResult `json:"findings"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := len(resp.Findings), 1; got != want {
+		t.Fatalf("len(findings) = %d, want %d", got, want)
+	}
+	missing := resp.Findings[0].MissingEvidence
+	if containsString(missing, "service catalog correlation evidence missing") {
+		t.Fatalf("MissingEvidence = %#v, must not claim present catalog correlation is missing", missing)
+	}
+	if !containsString(missing, "service catalog entity anchor missing") {
+		t.Fatalf("MissingEvidence = %#v, want service catalog entity anchor missing", missing)
+	}
+}
+
 func TestSupplyChainImpactFindingQueryUsesActiveFactReadModel(t *testing.T) {
 	t.Parallel()
 
