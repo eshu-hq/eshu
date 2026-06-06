@@ -23,6 +23,7 @@ func buildRepositoryStoryResponse(
 		infraFamilies = stringSliceMapValue(semanticOverview, "infrastructure_families")
 	}
 	relationshipOverview := mapValue(infrastructureOverview, "relationship_overview")
+	deploymentEvidence := mapValue(infrastructureOverview, "deployment_evidence")
 	semanticStory := buildRepositorySemanticStory(semanticOverview)
 	deploymentOverview := BuildRepositoryDeploymentOverview(
 		filteredWorkloads,
@@ -30,6 +31,7 @@ func buildRepositoryStoryResponse(
 		infraFamilies,
 		infrastructureOverview,
 	)
+	deploymentOverview = enrichRepositoryDeploymentOverviewWithEvidence(deploymentOverview, deploymentEvidence)
 	limitations := []string{"coverage_not_computed"}
 	if !repositoryDeploymentSurfaceKnown(filteredPlatforms, filteredWorkloads, deploymentOverview) {
 		limitations = append(limitations, "deployment_surface_unknown")
@@ -114,6 +116,13 @@ func buildRepositoryStoryResponse(
 		response["infrastructure_overview"] = infrastructureOverview
 	}
 	if deploymentOverview, ok := response["deployment_overview"].(map[string]any); ok {
+		if evidenceStory := repositoryDeploymentEvidenceStory(deploymentEvidence); evidenceStory != "" {
+			response["story"] = response["story"].(string) + " " + evidenceStory
+			storySections = append(storySections, map[string]any{
+				"title":   "deployment_evidence",
+				"summary": evidenceStory,
+			})
+		}
 		if deliveryFamilyStory := stringSliceMapValue(deploymentOverview, "delivery_family_story"); len(deliveryFamilyStory) > 0 {
 			response["story"] = response["story"].(string) + " " + strings.Join(deliveryFamilyStory, " ")
 		}
@@ -143,8 +152,8 @@ func repositoryDeploymentSurfaceKnown(
 	if len(platforms) > 0 {
 		return true
 	}
-	if len(workloads) == 0 {
-		return false
+	if IntVal(deploymentOverview, "deployment_evidence_artifact_count") > 0 {
+		return true
 	}
 	for _, key := range []string{
 		"delivery_paths",

@@ -158,6 +158,45 @@ candidate list for cloud resources whose name, resource id, or ARN matches the
 service but still lacks that relationship; callers should treat it as missing
 evidence to investigate, not as an attached dependency.
 
+Repository story uses the same repository deployment-evidence read path as
+repository context and service story. When repository-scoped deployment evidence
+exists, repository story may populate deployment overview evidence counts,
+tool families, environments, relationship types, and delivery paths even when a
+materialized workload node is not available. In that case
+`deployment_surface_unknown` must not be emitted, but `workload_surface_unknown`
+can remain until workload materialization catches up.
+
+No-Regression Evidence: issue #1461 reproduced on current `main` with a
+repository story fixture containing one repository-scoped deployment evidence
+artifact and no materialized workload. The failing baseline returned
+`deployment_surface_unknown`; after the fix, this command returns one deployment
+evidence row, clears only `deployment_surface_unknown`, and leaves the workload
+limitation intact.
+
+```bash
+go test ./internal/query -run 'Test(GetRepositoryStoryUsesReadModelDeploymentEvidence|BuildRepositoryStoryResponseSummarizesRepositoryOnlyDeploymentEvidence|BuildRepositoryStoryResponseDoesNotMarkDeploymentUnknownWhenWorkloadHasDeliveryEvidence)' -count=1 -timeout=60s
+```
+
+The broader read-path proof ran:
+
+```bash
+go test ./internal/query -run 'Test(GetRepository(Context|Story).*Deployment|QueryRepoDeploymentEvidence|QueryServiceDeploymentEvidence|BuildRepositoryStoryResponse.*Deployment|BuildServiceStoryResponse.*Deployment|GetServiceStory.*|GetWorkloadStory.*|BuildWorkloadStory.*)' -count=1 -timeout=120s
+go test ./cmd/api ./internal/query ./internal/mcp -count=1 -timeout=180s
+```
+
+The proof backend is the query package in-memory `ContentStore`/`GraphQuery`
+harness, exercising the same
+NornicDB-compatible `GraphQuery` boundary and the content read model before
+graph fallback. No reducer queue, graph write, or worker row is involved; the
+terminal row count is one deployment evidence artifact read for the repository.
+
+Observability Evidence: repository story now emits a bounded
+`repository_query.stage_completed` event for the `repository_story` /
+`deployment_evidence` stage with `has_result` and `error` attributes. Existing
+route envelope truth metadata, HTTP status behavior, graph/content timing
+instrumentation, and MCP envelope dispatch stay unchanged. No metric label,
+collector, queue worker, runtime knob, or deployment setting changed.
+
 `POST /api/v0/impact/deployment-config-influence` accepts `service_name` or
 `workload_id`, optional `environment`, and optional `limit`. Use it when the
 caller asks which repositories and files influence image tags, runtime
