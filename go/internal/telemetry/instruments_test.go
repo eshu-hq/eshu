@@ -95,6 +95,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.ContainerImageIdentityDecisions, "ContainerImageIdentityDecisions counter should be registered")
 	assert.NotNil(t, inst.CICDRunCorrelations, "CICDRunCorrelations counter should be registered")
 	assert.NotNil(t, inst.ServiceCatalogCorrelations, "ServiceCatalogCorrelations counter should be registered")
+	assert.NotNil(t, inst.SearchDecayPolicyApplications, "SearchDecayPolicyApplications counter should be registered")
 	assert.NotNil(t, inst.ObservabilityCoverageCorrelations, "ObservabilityCoverageCorrelations counter should be registered")
 	assert.NotNil(t, inst.ObservabilityCoverageEdges, "ObservabilityCoverageEdges counter should be registered")
 	assert.NotNil(t, inst.IAMCanPerformConditioned, "IAMCanPerformConditioned counter should be registered")
@@ -266,6 +267,16 @@ func TestAttrHelpers(t *testing.T) {
 			name:     "AttrOutcome",
 			attrFunc: func(v string) string { return string(AttrOutcome(v).Key) },
 			wantKey:  MetricDimensionOutcome,
+		},
+		{
+			name:     "AttrPolicyID",
+			attrFunc: func(v string) string { return string(AttrPolicyID(v).Key) },
+			wantKey:  MetricDimensionPolicyID,
+		},
+		{
+			name:     "AttrEvidenceClass",
+			attrFunc: func(v string) string { return string(AttrEvidenceClass(v).Key) },
+			wantKey:  MetricDimensionEvidenceClass,
 		},
 		{
 			name:     "AttrBackendKind",

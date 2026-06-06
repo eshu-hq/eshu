@@ -20,6 +20,8 @@ var metricDimensionKeys = []string{
 	MetricDimensionEdgeType,
 	MetricDimensionWritePhase,
 	MetricDimensionOutcome,
+	MetricDimensionPolicyID,
+	MetricDimensionEvidenceClass,
 	MetricDimensionBackendKind,
 	MetricDimensionConfidence,
 	MetricDimensionRiskType,

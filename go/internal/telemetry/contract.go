@@ -40,6 +40,13 @@ const (
 	MetricDimensionEdgeType      = "edge_type"
 	MetricDimensionWritePhase    = "write_phase"
 	MetricDimensionOutcome       = "outcome"
+	// MetricDimensionPolicyID labels bounded policy counters, such as search
+	// decay scoring decisions, with a configured low-cardinality policy token.
+	MetricDimensionPolicyID = "policy_id"
+	// MetricDimensionEvidenceClass labels search and evaluation counters with a
+	// closed evidence family such as ci_run, deployment_event, or
+	// relationship_candidate.
+	MetricDimensionEvidenceClass = "evidence_class"
 	MetricDimensionBackendKind   = "backend_kind"
 	// MetricDimensionConfidence labels reducer read-model metrics with a closed
 	// confidence enum such as exact, partial, or unknown.
@@ -319,8 +326,8 @@ const (
 	// (exact read-model rows into SecretsIAM* nodes and SECRETS_IAM_* edges).
 	SpanReducerSecretsIAMGraphProjection = "reducer.secrets_iam_graph_projection"
 	SpanCanonicalWrite                   = "canonical.write"
-	SpanCanonicalProjection                 = "canonical.projection"
-	SpanCanonicalRetract                    = "canonical.retract"
+	SpanCanonicalProjection              = "canonical.projection"
+	SpanCanonicalRetract                 = "canonical.retract"
 
 	SpanEvidenceDiscovery                 = "ingestion.evidence_discovery"
 	SpanIaCReachabilityMaterialization    = "iac_reachability.materialize"
