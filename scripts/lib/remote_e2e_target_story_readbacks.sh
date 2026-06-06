@@ -54,8 +54,8 @@ target_story_service_api_path() {
 	service_name="$(target_story_service_path_name "${selector}")"
 	path="/services/$(urlencode "${service_name}")/story"
 	sep="?"
-	if [[ -n "${expected_workload_id}" ]]; then
-		path="${path}${sep}service_id=$(urlencode "${expected_workload_id}")"
+	if [[ -n "${expected_workload_id}" && -n "${expected_service_id}" ]]; then
+		path="${path}${sep}service_id=$(urlencode "${expected_service_id}")"
 		sep="&"
 	fi
 	if [[ -n "${repo_selector}" ]]; then

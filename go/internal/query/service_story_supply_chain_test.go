@@ -69,11 +69,17 @@ func TestServiceStorySupplyChainEvidenceAttachesExactImageAndSBOM(t *testing.T) 
 	if got, want := imageStore.filters[0].ImageRef, serviceStoryTestImageRef; got != want {
 		t.Fatalf("image identity ImageRef filter = %q, want %q", got, want)
 	}
+	if got, want := imageStore.filters[0].Limit, serviceStorySupplyChainReadLimit+1; got != want {
+		t.Fatalf("image identity Limit = %d, want probe limit %d", got, want)
+	}
 	if got, want := len(sbomStore.filters), 1; got != want {
 		t.Fatalf("SBOM attachment store calls = %d, want %d", got, want)
 	}
 	if got, want := sbomStore.filters[0].SubjectDigest, serviceStoryTestDigest; got != want {
 		t.Fatalf("SBOM SubjectDigest filter = %q, want %q", got, want)
+	}
+	if got, want := sbomStore.filters[0].Limit, serviceStorySupplyChainReadLimit+1; got != want {
+		t.Fatalf("SBOM attachment Limit = %d, want probe limit %d", got, want)
 	}
 
 	segment := serviceTraceImagePackageSegment(ctx)

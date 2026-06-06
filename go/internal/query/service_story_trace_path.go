@@ -82,12 +82,7 @@ func serviceTraceImagePackageSegment(workloadContext map[string]any) map[string]
 	if supplyChain := serviceStorySupplyChainImagePackage(workloadContext); len(supplyChain) > 0 {
 		evidence := mapSliceValue(supplyChain, "evidence")
 		missing := StringSliceVal(supplyChain, "missing_evidence")
-		status := "exact"
-		if len(missing) > 0 {
-			status = "missing_evidence"
-			evidence = nil
-		}
-		segment := serviceTraceSegment("image_package", "container_image_identity_and_sbom_attachment", status, evidence)
+		segment := serviceTraceSegment("image_package", "container_image_identity_and_sbom_attachment", "exact", evidence)
 		segment["candidate_image_ref_count"] = IntVal(supplyChain, "candidate_image_ref_count")
 		segment["candidate_image_refs"] = StringSliceVal(supplyChain, "candidate_image_refs")
 		segment["image_refs_truncated"] = BoolVal(supplyChain, "image_refs_truncated")

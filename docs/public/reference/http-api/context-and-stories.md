@@ -283,7 +283,11 @@ evidence only when a target deployment image reference resolves to an exact
 container image identity and an admissible SBOM attachment. Ambiguous tags,
 stale identity rows, missing image identities, and unattached SBOM rows stay
 fail-closed as `missing_evidence` reasons so aggregate supply-chain evidence is
-not promoted into a target service story by accident.
+not promoted into a target service story by accident. When one target image has
+valid identity and SBOM evidence but another target image is missing evidence,
+the valid evidence remains in the trace and the missing reason stays explicit.
+Identity and SBOM read-model pages probe one row past the public cap and treat
+over-limit pages as ambiguous rather than admitting a partial page.
 
 `POST /api/v0/impact/deployment-config-influence` accepts `service_name` or
 `workload_id`, optional `environment`, and optional `limit`. Use it when the

@@ -7,7 +7,10 @@ import (
 	"strings"
 )
 
-const serviceStorySupplyChainReadLimit = 3
+const (
+	serviceStorySupplyChainReadLimit  = 3
+	serviceStorySupplyChainProbeLimit = serviceStorySupplyChainReadLimit + 1
+)
 
 // enrichServiceStorySupplyChainEvidence attaches reducer-owned image and SBOM
 // evidence to the service story context using deployment image references as
@@ -33,7 +36,7 @@ func (h *EntityHandler) enrichServiceStorySupplyChainEvidence(ctx context.Contex
 	for _, imageRef := range imageRefs {
 		identities, err := h.ContainerImageIdentities.ListContainerImageIdentities(ctx, ContainerImageIdentityFilter{
 			ImageRef: imageRef,
-			Limit:    serviceStorySupplyChainReadLimit,
+			Limit:    serviceStorySupplyChainProbeLimit,
 		})
 		if err != nil {
 			return fmt.Errorf("load service story image identity: %w", err)
@@ -46,7 +49,7 @@ func (h *EntityHandler) enrichServiceStorySupplyChainEvidence(ctx context.Contex
 
 		attachments, err := h.SBOMAttachments.ListSBOMAttestationAttachments(ctx, SBOMAttestationAttachmentFilter{
 			SubjectDigest: identity.Digest,
-			Limit:         serviceStorySupplyChainReadLimit,
+			Limit:         serviceStorySupplyChainProbeLimit,
 		})
 		if err != nil {
 			return fmt.Errorf("load service story SBOM attachment: %w", err)
@@ -128,6 +131,9 @@ func serviceStoryAdmissibleImageIdentity(rows []ContainerImageIdentityRow) (Cont
 	if len(rows) == 0 {
 		return ContainerImageIdentityRow{}, "container_image_identity_missing"
 	}
+	if len(rows) > serviceStorySupplyChainReadLimit {
+		return ContainerImageIdentityRow{}, "container_image_identity_ambiguous"
+	}
 	admissible := make([]ContainerImageIdentityRow, 0, len(rows))
 	stale := false
 	for _, row := range rows {
@@ -177,6 +183,9 @@ func serviceStoryAdmissibleSBOMAttachments(
 ) ([]SBOMAttestationAttachmentRow, string) {
 	if len(rows) == 0 {
 		return nil, "sbom_attachment_missing"
+	}
+	if len(rows) > serviceStorySupplyChainReadLimit {
+		return nil, "sbom_attachment_ambiguous"
 	}
 	out := make([]SBOMAttestationAttachmentRow, 0, len(rows))
 	stale := false
