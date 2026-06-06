@@ -37,11 +37,10 @@ export function VulnDetailPage({ model, client }: {
   const services = affectedFromModel(id, model.vulnerabilities);
   const graph = affectedServicesGraph(id, services);
 
-  // The advisory-evidence endpoint (vulnerability-intelligence) often has no
-  // record for advisories surfaced via impact findings (security_alert), so fall
-  // back to the row the list already loaded. Only a live advisory response wins
-  // over the model row; "unavailable" stays only when neither source has it.
-  const effective = detail?.provenance === "live" ? detail : (detailFromModelRow(id, model.vulnerabilities) ?? detail);
+  // Fall back to the list row only when the detail endpoint is unavailable.
+  // A successful empty response is an explicit "no advisory evidence" state.
+  const fallback = detail?.provenance === "unavailable" ? detailFromModelRow(id, model.vulnerabilities) : null;
+  const effective = detail?.provenance === "live" ? detail : (fallback ?? detail);
 
   return (
     <div className="page">
@@ -53,7 +52,7 @@ export function VulnDetailPage({ model, client }: {
 
       {loading ? (
         <div className="conn-state"><div className="conn-spinner" aria-hidden /><p>Loading advisory…</p></div>
-      ) : !effective || effective.provenance === "unavailable" ? (
+      ) : !effective || effective.provenance === "unavailable" || effective.provenance === "empty" ? (
         <div className="conn-state"><h2>Advisory unavailable</h2><p>The vulnerability detail API did not return this advisory. It requires the vulnerability-intelligence collector and a live connection.</p></div>
       ) : (
         <>
