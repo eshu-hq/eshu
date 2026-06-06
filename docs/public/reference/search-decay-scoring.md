@@ -30,8 +30,9 @@ Decay is skipped for:
 Positive examples are derived `ci_run`, `vulnerability_observation`,
 `deployment_event`, `cloud_observation`, and `relationship_candidate` ranking
 items. Negative examples are canonical graph search results, admitted durable
-relationship evidence, and any candidate whose truth label is `exact`,
-`canonical`, or missing.
+relationship evidence, and any candidate whose truth label is `exact` or
+`canonical`. Candidates with missing truth labels are invalid and rejected
+before scoring, rather than treated as decay examples.
 
 ## Policy Contract
 
