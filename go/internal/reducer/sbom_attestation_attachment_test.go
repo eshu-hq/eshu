@@ -3,6 +3,7 @@ package reducer
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -88,11 +89,19 @@ func TestBuildSBOMAttestationAttachmentDecisionsClassifiesSubjectsAndTrust(t *te
 	got := sbomAttachmentDecisionsByDocument(decisions)
 	assertSBOMAttachmentDecision(t, got["doc-verified"], SBOMAttachmentAttachedVerified, 1)
 	assertSBOMAttachmentDecision(t, got["doc-unverified"], SBOMAttachmentAttachedUnverified, 1)
-	assertSBOMAttachmentDecision(t, got["doc-parse-only"], SBOMAttachmentAttachedParseOnly, 1)
+	assertSBOMAttachmentDecision(t, got["doc-parse-only"], SBOMAttachmentAttachedParseOnly, 0)
+	assertSBOMAttachmentScope(t, got["doc-parse-only"], "parse_only_unanchored", []string{
+		"image_referrer_evidence",
+		"repository_attachment_evidence",
+	})
 	assertSBOMAttachmentDecision(t, got["doc-mismatch"], SBOMAttachmentSubjectMismatch, 0)
 	assertSBOMAttachmentDecision(t, got["doc-unknown"], SBOMAttachmentUnknownSubject, 0)
 	assertSBOMAttachmentDecision(t, got["doc-unparseable"], SBOMAttachmentUnparseable, 0)
-	assertSBOMAttachmentDecision(t, got["stmt-verified"], SBOMAttachmentAttachedVerified, 1)
+	assertSBOMAttachmentDecision(t, got["stmt-verified"], SBOMAttachmentAttachedVerified, 0)
+	assertSBOMAttachmentScope(t, got["stmt-verified"], "subject_only_unanchored", []string{
+		"image_referrer_evidence",
+		"repository_attachment_evidence",
+	})
 	assertSBOMAttachmentDecision(t, got["stmt-multi"], SBOMAttachmentAmbiguousSubject, 0)
 	if got["doc-verified"].ComponentCount != 1 {
 		t.Fatalf("ComponentCount = %d, want 1", got["doc-verified"].ComponentCount)
@@ -181,6 +190,7 @@ func TestPostgresSBOMAttestationAttachmentWriterPersistsAllStatuses(t *testing.T
 				ArtifactKind:       "sbom",
 				Format:             "cyclonedx",
 				SpecVersion:        "1.6",
+				AttachmentScope:    "image_subject",
 				CanonicalWrites:    1,
 				ComponentCount:     2,
 				EvidenceFactIDs:    []string{"doc-fact", "referrer-fact"},
@@ -193,6 +203,8 @@ func TestPostgresSBOMAttestationAttachmentWriterPersistsAllStatuses(t *testing.T
 				ParseStatus:        "unparseable",
 				VerificationStatus: "not_configured",
 				ArtifactKind:       "sbom",
+				AttachmentScope:    "unanchored",
+				MissingEvidence:    []string{"parseable_document"},
 				EvidenceFactIDs:    []string{"doc-unparseable"},
 			},
 		},
@@ -218,6 +230,12 @@ func TestPostgresSBOMAttestationAttachmentWriterPersistsAllStatuses(t *testing.T
 	}
 	if got, want := payload["verification_status"], "passed"; got != want {
 		t.Fatalf("verification_status = %#v, want %#v", got, want)
+	}
+	if got, want := payload["attachment_scope"], "image_subject"; got != want {
+		t.Fatalf("attachment_scope = %#v, want %#v", got, want)
+	}
+	if missing := payloadSliceStrings(t, payload["missing_evidence"]); len(missing) != 0 {
+		t.Fatalf("missing_evidence = %#v, want empty for image-subject attachment", missing)
 	}
 	if _, exists := payload["vulnerability_priority"]; exists {
 		t.Fatalf("payload must not emit vulnerability priority: %#v", payload)
@@ -250,6 +268,24 @@ func assertSBOMAttachmentDecision(
 	}
 }
 
+func assertSBOMAttachmentScope(
+	t *testing.T,
+	decision SBOMAttestationAttachmentDecision,
+	scope string,
+	missing []string,
+) {
+	t.Helper()
+
+	if decision.AttachmentScope != scope {
+		t.Fatalf("AttachmentScope = %q, want %q for %#v", decision.AttachmentScope, scope, decision)
+	}
+	gotMissing := strings.Join(decision.MissingEvidence, ",")
+	wantMissing := strings.Join(missing, ",")
+	if gotMissing != wantMissing {
+		t.Fatalf("MissingEvidence = %q, want %q for %#v", gotMissing, wantMissing, decision)
+	}
+}
+
 func unmarshalSBOMAttestationAttachmentPayload(t *testing.T, raw any) map[string]any {
 	t.Helper()
 
@@ -262,6 +298,20 @@ func unmarshalSBOMAttestationAttachmentPayload(t *testing.T, raw any) map[string
 		t.Fatalf("json.Unmarshal payload: %v", err)
 	}
 	return payload
+}
+
+func payloadSliceStrings(t *testing.T, raw any) []string {
+	t.Helper()
+
+	values, ok := raw.([]any)
+	if !ok {
+		t.Fatalf("payload slice type = %T, want []any", raw)
+	}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		out = append(out, strings.TrimSpace(fmt.Sprint(value)))
+	}
+	return out
 }
 
 func sbomDocumentFact(

@@ -53,11 +53,13 @@ type SBOMAttestationAttachmentRow struct {
 	Format             string
 	SpecVersion        string
 	Reason             string
+	AttachmentScope    string
 	CanonicalWrites    int
 	ComponentCount     int
 	ComponentEvidence  []ComponentEvidenceRow
 	WarningSummaries   []string
 	EvidenceFactIDs    []string
+	MissingEvidence    []string
 	SourceFreshness    string
 	SourceConfidence   string
 }
@@ -181,11 +183,13 @@ func decodeSBOMAttestationAttachmentRow(
 		Format:             StringVal(payload, "format"),
 		SpecVersion:        StringVal(payload, "spec_version"),
 		Reason:             StringVal(payload, "reason"),
+		AttachmentScope:    StringVal(payload, "attachment_scope"),
 		CanonicalWrites:    IntVal(payload, "canonical_writes"),
 		ComponentCount:     IntVal(payload, "component_count"),
 		ComponentEvidence:  componentEvidenceRows(payload["component_evidence"]),
 		WarningSummaries:   StringSliceVal(payload, "warning_summaries"),
 		EvidenceFactIDs:    StringSliceVal(payload, "evidence_fact_ids"),
+		MissingEvidence:    StringSliceVal(payload, "missing_evidence"),
 		SourceFreshness:    "active",
 		SourceConfidence:   sourceConfidence,
 	}, nil

@@ -64,11 +64,14 @@ func TestSupplyChainListSBOMAttestationAttachmentsUsesBoundedStore(t *testing.T)
 				ArtifactKind:       "sbom",
 				Format:             "cyclonedx",
 				SpecVersion:        "1.6",
+				Reason:             "subject digest reported without OCI referrer or repository attachment evidence",
+				AttachmentScope:    "parse_only_unanchored",
+				MissingEvidence:    []string{"image_referrer_evidence", "repository_attachment_evidence"},
 				ComponentCount:     3,
 				ComponentEvidence:  []ComponentEvidenceRow{{ComponentID: "pkg:npm/example@1.0.0", PURL: "pkg:npm/example@1.0.0"}},
 				WarningSummaries:   []string{"none"},
-				CanonicalWrites:    1,
-				EvidenceFactIDs:    []string{"doc-fact", "referrer-fact"},
+				CanonicalWrites:    0,
+				EvidenceFactIDs:    []string{"doc-fact"},
 				SourceFreshness:    "active",
 				SourceConfidence:   "inferred",
 			},
@@ -112,6 +115,15 @@ func TestSupplyChainListSBOMAttestationAttachmentsUsesBoundedStore(t *testing.T)
 	if got, want := resp.Attachments[0].VerificationStatus, "passed"; got != want {
 		t.Fatalf("VerificationStatus = %q, want %q", got, want)
 	}
+	if got, want := resp.Attachments[0].AttachmentScope, "parse_only_unanchored"; got != want {
+		t.Fatalf("AttachmentScope = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(resp.Attachments[0].MissingEvidence, ","), "image_referrer_evidence,repository_attachment_evidence"; got != want {
+		t.Fatalf("MissingEvidence = %q, want %q", got, want)
+	}
+	if got, want := resp.Attachments[0].CanonicalWrites, 0; got != want {
+		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
+	}
 	if !resp.Truncated {
 		t.Fatal("truncated = false, want true")
 	}
@@ -135,5 +147,38 @@ func TestSBOMAttestationAttachmentQueryUsesActiveFactReadModel(t *testing.T) {
 		if !strings.Contains(listSBOMAttestationAttachmentsQuery, want) {
 			t.Fatalf("listSBOMAttestationAttachmentsQuery missing %q:\n%s", want, listSBOMAttestationAttachmentsQuery)
 		}
+	}
+}
+
+func TestDecodeSBOMAttestationAttachmentRowPreservesAnchorTruth(t *testing.T) {
+	t.Parallel()
+
+	payload := map[string]any{
+		"document_id":         "doc-parse-only",
+		"subject_digest":      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"attachment_status":   "attached_parse_only",
+		"attachment_scope":    "parse_only_unanchored",
+		"canonical_writes":    0,
+		"missing_evidence":    []string{"image_referrer_evidence", "repository_attachment_evidence"},
+		"component_count":     1,
+		"verification_status": "not_configured",
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+
+	row, err := decodeSBOMAttestationAttachmentRow("attachment-parse-only", "inferred", payloadBytes)
+	if err != nil {
+		t.Fatalf("decodeSBOMAttestationAttachmentRow() error = %v", err)
+	}
+	if got, want := row.AttachmentScope, "parse_only_unanchored"; got != want {
+		t.Fatalf("AttachmentScope = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(row.MissingEvidence, ","), "image_referrer_evidence,repository_attachment_evidence"; got != want {
+		t.Fatalf("MissingEvidence = %q, want %q", got, want)
+	}
+	if got, want := row.CanonicalWrites, 0; got != want {
+		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
 }

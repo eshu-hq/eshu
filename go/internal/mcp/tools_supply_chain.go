@@ -281,7 +281,7 @@ func supplyChainTools() []ToolDefinition {
 		},
 		{
 			Name:        "list_sbom_attestation_attachments",
-			Description: "List reducer-owned SBOM and attestation attachment evidence by image digest or document identity.",
+			Description: "List reducer-owned SBOM and attestation attachment evidence by image digest or document identity. Inspect attachment_scope and missing_evidence before treating parse-only rows as image evidence.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

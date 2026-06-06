@@ -19,6 +19,20 @@ func TestOpenAPISpecIncludesSBOMAttestationAttachments(t *testing.T) {
 	if got, want := get["operationId"], "listSBOMAttestationAttachments"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
+	responses := mustMapField(t, get, "responses")
+	twoHundred := mustMapField(t, responses, "200")
+	content := mustMapField(t, twoHundred, "content")
+	appJSON := mustMapField(t, content, "application/json")
+	schema := mustMapField(t, appJSON, "schema")
+	properties := mustMapField(t, schema, "properties")
+	attachments := mustMapField(t, properties, "attachments")
+	items := mustMapField(t, attachments, "items")
+	itemProperties := mustMapField(t, items, "properties")
+	for _, want := range []string{"attachment_scope", "missing_evidence", "canonical_writes"} {
+		if _, ok := itemProperties[want]; !ok {
+			t.Fatalf("attachment schema missing %q", want)
+		}
+	}
 }
 
 func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {

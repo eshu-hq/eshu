@@ -53,11 +53,13 @@ type SBOMAttestationAttachmentDecision struct {
 	Format             string
 	SpecVersion        string
 	Reason             string
+	AttachmentScope    string
 	CanonicalWrites    int
 	ComponentCount     int
 	ComponentEvidence  []map[string]string
 	WarningSummaries   []string
 	EvidenceFactIDs    []string
+	MissingEvidence    []string
 	SourceLayerKinds   []string
 }
 

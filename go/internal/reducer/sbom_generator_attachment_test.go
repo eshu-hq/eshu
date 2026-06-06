@@ -19,9 +19,9 @@ const generatorSubjectDigest = "sha256:abcdef0123456789abcdef0123456789abcdef012
 // the bounded sbomgenerator analyzer's source facts flow only through the
 // existing reducer-owned attachment path. The reducer classifies the
 // generator's document as attached_parse_only when a subject digest is
-// present (no signature verification evidence yet) and as unknown_subject
-// when the analyzer could not derive one. Scanner workers must never short-
-// circuit attachment truth on their own.
+// present, but reports that evidence as parse-only and unanchored until an OCI
+// referrer or repository attachment path exists. Scanner workers must never
+// short-circuit attachment truth on their own.
 func TestScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment(t *testing.T) {
 	t.Parallel()
 
@@ -43,8 +43,14 @@ func TestScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment(t *testing.T
 	if got, want := withSubjectDecision.SubjectDigest, generatorSubjectDigest; got != want {
 		t.Fatalf("SubjectDigest = %q, want %q", got, want)
 	}
-	if withSubjectDecision.CanonicalWrites != 1 {
-		t.Fatalf("CanonicalWrites = %d, want 1 for attached parse-only", withSubjectDecision.CanonicalWrites)
+	if withSubjectDecision.CanonicalWrites != 0 {
+		t.Fatalf("CanonicalWrites = %d, want 0 for unanchored parse-only", withSubjectDecision.CanonicalWrites)
+	}
+	if got, want := withSubjectDecision.AttachmentScope, "parse_only_unanchored"; got != want {
+		t.Fatalf("AttachmentScope = %q, want %q", got, want)
+	}
+	if got, want := len(withSubjectDecision.MissingEvidence), 2; got != want {
+		t.Fatalf("MissingEvidence = %#v, want two missing anchor reasons", withSubjectDecision.MissingEvidence)
 	}
 	if got, want := withSubjectDecision.ComponentCount, 2; got != want {
 		t.Fatalf("ComponentCount = %d, want %d generated components attached", got, want)

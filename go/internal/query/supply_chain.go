@@ -64,11 +64,13 @@ type SBOMAttestationAttachmentResult struct {
 	Format             string                 `json:"format,omitempty"`
 	SpecVersion        string                 `json:"spec_version,omitempty"`
 	Reason             string                 `json:"reason,omitempty"`
+	AttachmentScope    string                 `json:"attachment_scope,omitempty"`
 	CanonicalWrites    int                    `json:"canonical_writes"`
 	ComponentCount     int                    `json:"component_count"`
 	ComponentEvidence  []ComponentEvidenceRow `json:"component_evidence,omitempty"`
 	WarningSummaries   []string               `json:"warning_summaries,omitempty"`
 	EvidenceFactIDs    []string               `json:"evidence_fact_ids,omitempty"`
+	MissingEvidence    []string               `json:"missing_evidence,omitempty"`
 	SourceFreshness    string                 `json:"source_freshness,omitempty"`
 	SourceConfidence   string                 `json:"source_confidence,omitempty"`
 }

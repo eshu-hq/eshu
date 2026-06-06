@@ -655,3 +655,27 @@ provide `limit` and at least one bounded anchor: `subject_digest`,
 Rows expose `attachment_status`, `parse_status`, and `verification_status`
 separately. Component evidence is returned as document evidence only; this
 route does not emit vulnerability priority or affected-by findings.
+
+Rows also expose `attachment_scope` and `missing_evidence` so callers can tell
+image-attached evidence from parse-only corpus evidence. `image_subject` means
+Eshu saw an OCI referrer tying the SBOM or attestation document to the subject
+digest. `parse_only_unanchored` and `subject_only_unanchored` rows remain
+visible for diagnostics, but they are not image impact evidence until an OCI
+referrer, repository attachment path, or other explicit target anchor exists.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'Test(BuildSBOMAttestationAttachmentDecisionsClassifiesSubjectsAndTrust|ScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment|PostgresSBOMAttestationAttachmentWriterPersistsAllStatuses)'
+-count=1` and `go test ./internal/query -run
+'Test(SupplyChainListSBOMAttestationAttachmentsUsesBoundedStore|OpenAPISpecIncludesSBOMAttestationAttachments)'
+-count=1` failed before SBOM attachment decisions and readbacks carried
+attachment scope and missing anchor evidence, then passed after the reducer fact
+payload, API row, OpenAPI fragment, and MCP tool description exposed that
+truth.
+
+No-Observability-Change: this changes SBOM attachment classification and
+readback fields only. It adds no worker, queue, graph write, query, metric
+instrument, span, metric label, runtime flag, or broad read path. Operators
+continue to diagnose the path through the existing reducer attachment counter by
+status, `query.sbom_attestation_attachments` handler span, Postgres fact-read
+instrumentation, `canonical_writes`, `attachment_scope`, and
+`missing_evidence`.

@@ -142,28 +142,32 @@ func classifySBOMAttachmentDocument(
 		policy = firstNonBlank(payloadString(verifyFact.Payload, "verification_policy"), policy)
 		evidence = append(evidence, verifyFact.FactID)
 	}
+	hasImageReferrer := false
 	for _, referrer := range index.referrers[doc.documentDigest] {
 		evidence = append(evidence, referrer.factID)
 		if doc.subjectDigest != "" && referrer.subjectDigest != "" && doc.subjectDigest != referrer.subjectDigest {
-			return sbomAttachmentDecision(doc, SBOMAttachmentSubjectMismatch, verification, policy, 0, "document subject does not match OCI referrer subject", evidence, index)
+			return sbomAttachmentDecision(doc, SBOMAttachmentSubjectMismatch, verification, policy, false, "document subject does not match OCI referrer subject", evidence, index)
+		}
+		if doc.subjectDigest != "" && doc.subjectDigest == referrer.subjectDigest {
+			hasImageReferrer = true
 		}
 	}
 	if isUnparseableStatus(doc.parseStatus) {
-		return sbomAttachmentDecision(doc, SBOMAttachmentUnparseable, verification, policy, 0, "source document could not be parsed into stable facts", evidence, index)
+		return sbomAttachmentDecision(doc, SBOMAttachmentUnparseable, verification, policy, false, "source document could not be parsed into stable facts", evidence, index)
 	}
 	if doc.ambiguousSubject {
-		return sbomAttachmentDecision(doc, SBOMAttachmentAmbiguousSubject, verification, policy, 0, "document reports multiple distinct subject digests", evidence, index)
+		return sbomAttachmentDecision(doc, SBOMAttachmentAmbiguousSubject, verification, policy, false, "document reports multiple distinct subject digests", evidence, index)
 	}
 	if doc.subjectDigest == "" {
-		return sbomAttachmentDecision(doc, SBOMAttachmentUnknownSubject, verification, policy, 0, "document parsed but has no artifact subject digest", evidence, index)
+		return sbomAttachmentDecision(doc, SBOMAttachmentUnknownSubject, verification, policy, false, "document parsed but has no artifact subject digest", evidence, index)
 	}
 	switch verification {
 	case "passed", "verified":
-		return sbomAttachmentDecision(doc, SBOMAttachmentAttachedVerified, "passed", policy, 1, "subject digest matched and verification passed", evidence, index)
+		return sbomAttachmentDecision(doc, SBOMAttachmentAttachedVerified, "passed", policy, hasImageReferrer, sbomAttachmentReason("subject digest matched and verification passed", hasImageReferrer), evidence, index)
 	case "failed", "unverified":
-		return sbomAttachmentDecision(doc, SBOMAttachmentAttachedUnverified, verification, policy, 1, "subject digest matched but verification did not pass", evidence, index)
+		return sbomAttachmentDecision(doc, SBOMAttachmentAttachedUnverified, verification, policy, hasImageReferrer, sbomAttachmentReason("subject digest matched but verification did not pass", hasImageReferrer), evidence, index)
 	default:
-		return sbomAttachmentDecision(doc, SBOMAttachmentAttachedParseOnly, defaultStatus(verification, "not_configured"), policy, 1, "subject digest matched with parse-only evidence", evidence, index)
+		return sbomAttachmentDecision(doc, SBOMAttachmentAttachedParseOnly, defaultStatus(verification, "not_configured"), policy, hasImageReferrer, sbomAttachmentReason("subject digest matched with parse-only evidence", hasImageReferrer), evidence, index)
 	}
 }
 
@@ -172,12 +176,13 @@ func sbomAttachmentDecision(
 	status SBOMAttachmentStatus,
 	verificationStatus string,
 	verificationPolicy string,
-	canonicalWrites int,
+	hasImageReferrer bool,
 	reason string,
 	evidence []string,
 	index sbomAttachmentIndex,
 ) SBOMAttestationAttachmentDecision {
 	components := componentEvidenceRows(index.components[doc.documentID])
+	scope, missing := sbomAttachmentScope(status, hasImageReferrer)
 	return SBOMAttestationAttachmentDecision{
 		DocumentID:         doc.documentID,
 		DocumentDigest:     doc.documentDigest,
@@ -190,13 +195,63 @@ func sbomAttachmentDecision(
 		Format:             doc.format,
 		SpecVersion:        doc.specVersion,
 		Reason:             reason,
-		CanonicalWrites:    canonicalWrites,
+		AttachmentScope:    scope,
+		CanonicalWrites:    sbomAttachmentCanonicalWriteCount(status, hasImageReferrer),
 		ComponentCount:     len(components),
 		ComponentEvidence:  components,
 		WarningSummaries:   warningSummaries(index.warnings[doc.documentID]),
 		EvidenceFactIDs:    uniqueSortedStrings(evidence),
-		SourceLayerKinds:   []string{"reported", "observed_resource"},
+		MissingEvidence:    missing,
+		SourceLayerKinds:   sbomAttachmentSourceLayerKinds(hasImageReferrer),
 	}
+}
+
+func sbomAttachmentReason(base string, hasImageReferrer bool) string {
+	if hasImageReferrer {
+		return base
+	}
+	return "subject digest reported without OCI referrer or repository attachment evidence"
+}
+
+func sbomAttachmentCanonicalWriteCount(status SBOMAttachmentStatus, hasImageReferrer bool) int {
+	if !hasImageReferrer {
+		return 0
+	}
+	switch status {
+	case SBOMAttachmentAttachedVerified, SBOMAttachmentAttachedUnverified, SBOMAttachmentAttachedParseOnly:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func sbomAttachmentScope(status SBOMAttachmentStatus, hasImageReferrer bool) (string, []string) {
+	if hasImageReferrer {
+		return "image_subject", nil
+	}
+	switch status {
+	case SBOMAttachmentAttachedParseOnly:
+		return "parse_only_unanchored", []string{"image_referrer_evidence", "repository_attachment_evidence"}
+	case SBOMAttachmentAttachedVerified, SBOMAttachmentAttachedUnverified:
+		return "subject_only_unanchored", []string{"image_referrer_evidence", "repository_attachment_evidence"}
+	case SBOMAttachmentSubjectMismatch:
+		return "unanchored", []string{"matching_image_referrer_evidence"}
+	case SBOMAttachmentAmbiguousSubject:
+		return "unanchored", []string{"single_subject_digest"}
+	case SBOMAttachmentUnknownSubject:
+		return "unanchored", []string{"subject_digest"}
+	case SBOMAttachmentUnparseable:
+		return "unanchored", []string{"parseable_document"}
+	default:
+		return "unanchored", []string{"image_referrer_evidence", "repository_attachment_evidence"}
+	}
+}
+
+func sbomAttachmentSourceLayerKinds(hasImageReferrer bool) []string {
+	if hasImageReferrer {
+		return []string{"observed_resource", "reported"}
+	}
+	return []string{"reported"}
 }
 
 func componentEvidenceRows(components []facts.Envelope) []map[string]string {

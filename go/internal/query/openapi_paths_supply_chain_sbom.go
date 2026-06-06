@@ -35,6 +35,10 @@ const openAPIPathsSupplyChainSBOMAttestations = `
                           "parse_status": {"type": "string"},
                           "verification_status": {"type": "string"},
                           "verification_policy": {"type": "string"},
+                          "reason": {"type": "string"},
+                          "attachment_scope": {"type": "string", "enum": ["image_subject", "parse_only_unanchored", "subject_only_unanchored", "unanchored"]},
+                          "missing_evidence": {"type": "array", "items": {"type": "string"}},
+                          "canonical_writes": {"type": "integer"},
                           "component_count": {"type": "integer"}
                         }
                       }
