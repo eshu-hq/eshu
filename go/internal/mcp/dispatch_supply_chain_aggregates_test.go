@@ -47,6 +47,43 @@ func TestResolveRouteMapsSupplyChainImpactCountDefaultProfileToHTTPDefault(t *te
 	}
 }
 
+func TestResolveRouteMapsSupplyChainImpactAggregatePriorityAndSuppressionFilters(t *testing.T) {
+	t.Parallel()
+
+	for _, toolName := range []string{
+		"count_supply_chain_impact_findings",
+		"get_supply_chain_impact_inventory",
+	} {
+		toolName := toolName
+		t.Run(toolName, func(t *testing.T) {
+			t.Parallel()
+
+			route, err := resolveRoute(toolName, map[string]any{
+				"repository_id":      "repo://example/api",
+				"profile":            "comprehensive",
+				"priority_bucket":    "high",
+				"min_priority_score": float64(75),
+				"suppression_state":  "accepted_risk",
+				"include_suppressed": true,
+			})
+			if err != nil {
+				t.Fatalf("resolveRoute() error = %v, want nil", err)
+			}
+			for key, want := range map[string]string{
+				"profile":            "comprehensive",
+				"priority_bucket":    "high",
+				"min_priority_score": "75",
+				"suppression_state":  "accepted_risk",
+				"include_suppressed": "true",
+			} {
+				if got := route.query[key]; got != want {
+					t.Fatalf("route.query[%s] = %#v, want %#v", key, got, want)
+				}
+			}
+		})
+	}
+}
+
 func TestDispatchToolSupplyChainImpactCountPreservesProfile(t *testing.T) {
 	t.Parallel()
 

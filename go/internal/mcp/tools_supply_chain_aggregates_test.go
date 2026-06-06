@@ -39,6 +39,44 @@ func TestSupplyChainImpactCountToolDocumentsProfile(t *testing.T) {
 	}
 }
 
+func TestSupplyChainImpactAggregateToolsDocumentPriorityAndSuppressionFilters(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{
+		"count_supply_chain_impact_findings",
+		"get_supply_chain_impact_inventory",
+	} {
+		name := name
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			tool, ok := supplyChainAggregateToolByName(name)
+			if !ok {
+				t.Fatalf("%s tool missing", name)
+			}
+			inputSchema, ok := tool.InputSchema.(map[string]any)
+			if !ok {
+				t.Fatalf("%s input schema = %T, want map[string]any", name, tool.InputSchema)
+			}
+			properties, ok := inputSchema["properties"].(map[string]any)
+			if !ok {
+				t.Fatalf("%s properties = %T, want map[string]any", name, inputSchema["properties"])
+			}
+			for _, want := range []string{
+				"profile",
+				"priority_bucket",
+				"min_priority_score",
+				"suppression_state",
+				"include_suppressed",
+			} {
+				if _, ok := properties[want]; !ok {
+					t.Fatalf("%s schema missing %q in %#v", name, want, properties)
+				}
+			}
+		})
+	}
+}
+
 func supplyChainAggregateToolByName(name string) (ToolDefinition, bool) {
 	for _, tool := range supplyChainImpactAggregateTools() {
 		if tool.Name == name {
