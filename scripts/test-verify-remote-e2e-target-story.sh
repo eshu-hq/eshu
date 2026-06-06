@@ -234,22 +234,7 @@ if rg -q 'repo://example/api|oci-registry://registry.example/team/api|arn:aws' /
 fi
 
 reset_state
-cat >"${state_dir}/expected-security-alerts.json" <<'JSON'
-{
-  "alerts": [
-    {
-      "provider_alert_number": 42,
-      "ecosystem": "npm",
-      "package_name": "left-pad",
-      "manifest_path": "package-lock.json",
-      "vulnerable_range": "<1.2.3",
-      "fixed_version": "1.2.3",
-      "reconciliation_status": "matched",
-      "requires_evidence": true
-    }
-  ]
-}
-JSON
+jq -n '{alerts:[{provider_alert_number:42, ecosystem:"npm", package_name:"left-pad", manifest_path:"package-lock.json", vulnerable_range:"<1.2.3", fixed_version:"1.2.3", reconciliation_status:"matched", requires_evidence:true}]}' >"${state_dir}/expected-security-alerts.json"
 jq --arg expected_rows "${state_dir}/expected-security-alerts.json" '.expected_security_alert_rows_file = $expected_rows' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
 mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
 export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
@@ -261,51 +246,36 @@ if ! rg -q 'security_alert_expected_rows=1' /tmp/eshu-remote-e2e-target-story.ou
 fi
 
 reset_state
-cat >"${state_dir}/expected-security-alerts.json" <<'JSON'
-{
-  "alerts": [
-    {
-      "provider_alert_number": 42,
-      "ecosystem": "npm",
-      "package_name": "axios",
-      "manifest_path": "package-lock.json",
-      "vulnerable_range": "<1.2.3",
-      "fixed_version": "1.2.3",
-      "reconciliation_status": "matched",
-      "impact_status": "affected_exact",
-      "requires_evidence": true
-    }
-  ]
-}
-JSON
+jq -n '{alerts:[{provider_alert_number:42, ecosystem:"npm", package_name:"axios", manifest_path:"package-lock.json", vulnerable_range:"<1.2.3", fixed_version:"1.2.3", reconciliation_status:"matched", impact_status:"affected_exact", requires_evidence:true}]}' >"${state_dir}/expected-security-alerts.json"
 jq --arg expected_rows "${state_dir}/expected-security-alerts.json" '.expected_security_alert_rows_file = $expected_rows' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
 mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
 export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
 expect_fail_with 'target security_alert_expected_rows missing_count=0 mismatch_count=1 evidence_gap_count=0'
 
 reset_state
-cat >"${state_dir}/expected-security-alerts.json" <<'JSON'
-{
-  "alerts": [
-    {
-      "provider_alert_number": 42,
-      "ecosystem": "npm",
-      "package_name": "left-pad",
-      "manifest_path": "package-lock.json",
-      "vulnerable_range": "<1.2.3",
-      "fixed_version": "1.2.3",
-      "reconciliation_status": "matched",
-      "requires_evidence": true
-    }
-  ]
-}
-JSON
+jq -n '{alerts:[{provider_alert_number:42, ecosystem:"npm", package_name:"left-pad", manifest_path:"package-lock.json", vulnerable_range:"<1.2.3", fixed_version:"1.2.3", reconciliation_status:"matched", requires_evidence:true}]}' >"${state_dir}/expected-security-alerts.json"
 jq 'del(.data.reconciliations[0].evidence_fact_ids)' "${state_dir}/security-alert-count.json" >"${state_dir}/security-alert-count-next.json"
 mv "${state_dir}/security-alert-count-next.json" "${state_dir}/security-alert-count.json"
 jq --arg expected_rows "${state_dir}/expected-security-alerts.json" '.expected_security_alert_rows_file = $expected_rows' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
 mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
 export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
 expect_fail_with 'target security_alert_expected_rows missing_count=0 mismatch_count=0 evidence_gap_count=1'
+
+reset_state
+jq -n '{alerts:[{provider_alert_number:42, ecosystem:"npm", package_name:"left-pad", manifest_path:"package-lock.json", vulnerable_range:"<1.2.3", fixed_version:"1.2.3", reconciliation_status:"matched", requires_evidence:true}]}' >"${state_dir}/expected-security-alerts.json"
+jq 'del(.data.reconciliations[0].evidence_fact_ids) | .data.reconciliations[0].reason = "provider-only alert has no Eshu impact yet"' "${state_dir}/security-alert-count.json" >"${state_dir}/security-alert-count-next.json"
+mv "${state_dir}/security-alert-count-next.json" "${state_dir}/security-alert-count.json"
+jq --arg expected_rows "${state_dir}/expected-security-alerts.json" '.expected_security_alert_rows_file = $expected_rows' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
+mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
+export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
+expect_pass
+
+reset_state
+jq -n '{alerts:[{provider_alert_number:42, ecosystem:"npm", package_name:"left-pad", manifest_path:"package-lock.json", vulnerable_range:"<1.2.3", fixed_version:"1.2.3", installed_version:"1.2.0"}]}' >"${state_dir}/expected-security-alerts.json"
+jq --arg expected_rows "${state_dir}/expected-security-alerts.json" '.expected_security_alert_rows_file = $expected_rows' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
+mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
+export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
+expect_fail_with 'target security_alert_expected_rows requires provider_alert_id or provider_alert_number and does not currently support installed_version or observed_version'
 
 reset_state
 jq 'del(.proof_mode)' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"

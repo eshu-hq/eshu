@@ -151,15 +151,18 @@ proof needs provider-alert row parity, not only a reconciliation count. The
 file may be either an array or an object with an `alerts` array. Each alert row
 must include `provider_alert_id` or `provider_alert_number`; optional expected
 fields include `provider`, `provider_state`, `ecosystem`, `package_name`,
-`manifest_path`, `vulnerable_range`, `fixed_version`, `installed_version`,
-`reconciliation_status`, `impact_status`, and `requires_evidence`. The verifier
+`manifest_path`, `vulnerable_range`, `fixed_version`, `reconciliation_status`,
+`impact_status`, and `requires_evidence`. The verifier
 matches those expected rows against the bounded
 `/api/v0/supply-chain/security-alerts/reconciliations` response for the target
 repository, raises the security-alert list limit up to the expected row count,
 and fails when a provider alert is missing, mismatched, or lacks evidence or an
 explicit missing-evidence reason. The expected rows file stays outside the
 public repository because it can contain private package coordinates,
-repository names, alert numbers, and manifest paths.
+repository names, alert numbers, and manifest paths. The current
+security-alert reconciliation row does not expose installed or observed package
+versions, so `installed_version` and `observed_version` expectations fail
+closed until that API contract exists.
 
 Remote E2E Compose supports either an explicit `ESHU_API_KEY` in the env file
 or an auto-generated local token. When `ESHU_API_KEY` is blank, the API writes
