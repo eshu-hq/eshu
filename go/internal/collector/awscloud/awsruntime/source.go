@@ -114,10 +114,11 @@ func (s ClaimedSource) NextClaimed(
 	scanCtx := awscloud.ContextWithAPICallRecorder(ctx, apiRecorder)
 	envelopes, err := s.scanService(scanCtx, target, boundary, scanner)
 	if err != nil {
-		if statusErr := s.observeScanStatus(ctx, boundary, apiRecorder.Snapshot(), nil, err); statusErr != nil {
+		scanErr := classifyServiceScanError(err)
+		if statusErr := s.observeScanStatus(ctx, boundary, apiRecorder.Snapshot(), nil, scanErr); statusErr != nil {
 			return collector.CollectedGeneration{}, false, statusErr
 		}
-		return collector.CollectedGeneration{}, false, err
+		return collector.CollectedGeneration{}, false, scanErr
 	}
 	if err := s.observeScanStatus(ctx, boundary, apiRecorder.Snapshot(), envelopes, nil); err != nil {
 		return collector.CollectedGeneration{}, false, err

@@ -80,6 +80,20 @@ func TestAWSScanStatusStoreAllowsNewGenerationAfterTerminalPriorScan(t *testing.
 	}
 }
 
+func TestAWSScanStatusStoreAllowsNewGenerationAfterTerminalPermissionGap(t *testing.T) {
+	t.Parallel()
+
+	query := strings.Join(strings.Fields(startAWSScanStatusQuery), " ")
+	for _, want := range []string{
+		"aws_scan_status.commit_status = 'pending'",
+		"aws_scan_status.failure_class IN ('permission_denied', 'unsupported_permission') AND ( aws_scan_status.last_started_at IS NULL OR aws_scan_status.last_started_at < EXCLUDED.last_started_at )",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("StartAWSScan() query missing permission-gap handoff %q:\n%s", want, query)
+		}
+	}
+}
+
 // TestAWSScanStatusStoreAllowsNewGenerationOverOrphanedRunningRow proves that
 // a new workflow generation can claim the per-target slot when the previous
 // generation's row was left in a non-terminal state (e.g. the collector died

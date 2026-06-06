@@ -17,5 +17,8 @@
 // ESHU_AWS_REDACTION_KEY requirement from the registry instead of a
 // hand-maintained service list. The collector-aws-cloud command blank-imports
 // awsruntime/bindings to install every scanner before DefaultScannerFactory
-// dispatches the first claim.
+// dispatches the first claim. Top-level Smithy access-denied and unsupported
+// operation responses classify as terminal permission gaps for the claimed
+// scope; transient transport failures remain retryable through the shared
+// ClaimedService budget.
 package awsruntime
