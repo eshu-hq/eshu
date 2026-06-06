@@ -40,10 +40,20 @@ func exactObservedHostnameCandidates(candidates []contentrefs.HostnameCandidate)
 }
 
 func exactHostnameCandidateReason(candidates []contentrefs.HostnameCandidate, hostname string) string {
+	reason := ""
 	for _, candidate := range candidates {
-		if candidate.Value == hostname && candidate.Classification == "exact_hostname" {
+		if candidate.Value != hostname || candidate.Classification != "exact_hostname" {
+			continue
+		}
+		if candidate.Reason == "url_hostname_reference" {
 			return candidate.Reason
 		}
+		if reason == "" {
+			reason = candidate.Reason
+		}
+	}
+	if reason != "" {
+		return reason
 	}
 	return "content_hostname_reference"
 }

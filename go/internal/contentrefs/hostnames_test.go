@@ -23,6 +23,19 @@ host: "catalog.service"
 	}
 }
 
+func TestHostnamesAcceptsPublicIDAndNameTLDs(t *testing.T) {
+	t.Parallel()
+
+	got := Hostnames(`
+host: "portal.id"
+hostname: "directory.name"
+`)
+	want := []string{"directory.name", "portal.id"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Hostnames() = %#v, want %#v", got, want)
+	}
+}
+
 func TestHostnameCandidatesClassifyRejectedAndAmbiguousEvidence(t *testing.T) {
 	t.Parallel()
 

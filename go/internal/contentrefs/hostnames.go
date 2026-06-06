@@ -142,6 +142,9 @@ func classifyHostnameEvidence(rawMatch, rawHostname, hostname string) (string, s
 	if looksLikeConfigKeyHostname(parts) {
 		return hostnameClassificationRejectedConfigKey, "dotted_config_key"
 	}
+	if len(parts) == 2 && isExactTwoLabelPublicTLD(tld) {
+		return hostnameClassificationExact, "hostname_key_reference"
+	}
 	if len(parts[0]) <= 1 && len(parts) <= 2 {
 		return hostnameClassificationAmbiguous, "short_two_label_hostname_candidate"
 	}
@@ -187,12 +190,16 @@ var falsePositiveFieldPathSegments = map[string]struct{}{
 }
 
 var falsePositiveConfigKeyTerminals = map[string]struct{}{
-	"count": {}, "enabled": {}, "id": {}, "ids": {}, "key": {},
-	"level": {}, "limit": {}, "mode": {}, "ms": {}, "name": {},
+	"count": {}, "enabled": {}, "ids": {}, "key": {},
+	"level": {}, "limit": {}, "mode": {}, "ms": {},
 	"path": {}, "paths": {}, "port": {}, "ports": {}, "prefix": {},
 	"retries": {}, "retry": {}, "seconds": {}, "size": {},
 	"suffix": {}, "timeout": {}, "ttl": {}, "type": {},
 	"types": {}, "value": {}, "values": {}, "version": {},
+}
+
+var exactTwoLabelPublicTLDs = map[string]struct{}{
+	"id": {}, "name": {},
 }
 
 func looksLikeFieldPathHostname(parts []string) bool {
@@ -213,6 +220,11 @@ func looksLikeConfigKeyHostname(parts []string) bool {
 		return true
 	}
 	return false
+}
+
+func isExactTwoLabelPublicTLD(tld string) bool {
+	_, ok := exactTwoLabelPublicTLDs[tld]
+	return ok
 }
 
 func containsCamelCase(s string) bool {

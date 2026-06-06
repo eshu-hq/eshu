@@ -4,7 +4,30 @@ import (
 	"context"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/contentrefs"
 )
+
+func TestExactHostnameCandidateReasonPrefersURLReference(t *testing.T) {
+	t.Parallel()
+
+	candidates := []contentrefs.HostnameCandidate{
+		{
+			Value:          "sample-service-api.prod.example.test",
+			Classification: "exact_hostname",
+			Reason:         "hostname_key_reference",
+		},
+		{
+			Value:          "sample-service-api.prod.example.test",
+			Classification: "exact_hostname",
+			Reason:         "url_hostname_reference",
+		},
+	}
+
+	if got, want := exactHostnameCandidateReason(candidates, "sample-service-api.prod.example.test"), "url_hostname_reference"; got != want {
+		t.Fatalf("exactHostnameCandidateReason() = %q, want %q", got, want)
+	}
+}
 
 func TestLoadServiceQueryEvidenceClassifiesNonEntrypointHostnameCandidates(t *testing.T) {
 	t.Parallel()
