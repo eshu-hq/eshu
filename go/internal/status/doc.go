@@ -12,8 +12,9 @@
 // code graph and dead-code queries do not look ready while accepted edges are
 // still being written. The TerraformStateReport
 // section, surfaced under Report.TerraformState, exposes per-locator state
-// serial advance and recent warning_fact rows grouped by warning_kind so
-// operators can confirm tfstate liveness without scanning the fact stream.
+// serial advance, safe source handles, and recent warning_fact rows grouped by
+// warning_kind so operators can confirm tfstate liveness without scanning the
+// fact stream.
 // RegistryCollectorSnapshot rows expose aggregate OCI and package-registry
 // runtime liveness, bounded failure classes, and package-registry metadata
 // target counts without registry object names, package names, or credentials.

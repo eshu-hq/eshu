@@ -10,7 +10,9 @@ import (
 )
 
 const nonScalarTagValueReason = "non_scalar_tag_value"
-const nonObjectTagMapReason = "non_object_tag_map"
+const nullTagMapReason = "null_tag_map"
+const malformedTagMapReason = "malformed_tag_map"
+const unsupportedTagMapShapeReason = "unsupported_tag_map_shape"
 
 type tagValue struct {
 	Key    string
@@ -18,41 +20,55 @@ type tagValue struct {
 	Scalar bool
 }
 
-func readTagValues(decoder *json.Decoder, tagSource string) ([]tagValue, bool, error) {
+func readTagValues(decoder *json.Decoder, tagSource string) ([]tagValue, string, string, error) {
 	token, err := decoder.Token()
 	if err != nil {
-		return nil, false, fmt.Errorf("read terraform state resource %s: %w", tagSource, err)
+		return nil, "", "", fmt.Errorf("read terraform state resource %s: %w", tagSource, err)
+	}
+	if token == nil {
+		return nil, nullTagMapReason, "null", nil
 	}
 	delim, ok := token.(json.Delim)
 	if !ok {
-		return nil, false, nil
+		return nil, malformedTagMapReason, "scalar", nil
 	}
 	if delim != '{' {
 		if err := skipNested(decoder, delim); err != nil {
-			return nil, false, fmt.Errorf("skip malformed terraform state resource %s: %w", tagSource, err)
+			return nil, "", "", fmt.Errorf("skip malformed terraform state resource %s: %w", tagSource, err)
 		}
-		return nil, false, nil
+		return nil, unsupportedTagMapShapeReason, tagMapShape(delim), nil
 	}
 	tags := []tagValue{}
 	for decoder.More() {
 		token, err := decoder.Token()
 		if err != nil {
-			return nil, false, fmt.Errorf("read terraform state %s key: %w", tagSource, err)
+			return nil, "", "", fmt.Errorf("read terraform state %s key: %w", tagSource, err)
 		}
 		key, ok := token.(string)
 		if !ok {
-			return nil, false, fmt.Errorf("terraform state %s key must be a string", tagSource)
+			return nil, "", "", fmt.Errorf("terraform state %s key must be a string", tagSource)
 		}
 		value, scalar, err := readScalarOrSkip(decoder)
 		if err != nil {
-			return nil, false, fmt.Errorf("decode terraform state %s value %q: %w", tagSource, key, err)
+			return nil, "", "", fmt.Errorf("decode terraform state %s value %q: %w", tagSource, key, err)
 		}
 		tags = append(tags, tagValue{Key: key, Value: value, Scalar: scalar})
 	}
 	if _, err := decoder.Token(); err != nil {
-		return nil, false, fmt.Errorf("close terraform state resource %s: %w", tagSource, err)
+		return nil, "", "", fmt.Errorf("close terraform state resource %s: %w", tagSource, err)
 	}
-	return tags, true, nil
+	return tags, "", "", nil
+}
+
+func tagMapShape(delim json.Delim) string {
+	switch delim {
+	case '[':
+		return "array"
+	case '{':
+		return "object"
+	default:
+		return "composite"
+	}
 }
 
 func (p *stateParser) emitTagObservations(resourceAddress string, attributes []attributeValue) error {
@@ -66,8 +82,11 @@ func (p *stateParser) emitTagObservations(resourceAddress string, attributes []a
 		if attribute.InvalidTagMap {
 			if err := p.emitWarning(warningPayload{
 				WarningKind: "tag_map_dropped",
-				Reason:      nonObjectTagMapReason,
+				Reason:      attribute.TagMapDropReason,
 				Source:      "resources." + resourceAddress + ".attributes." + attribute.Key,
+				Details: map[string]any{
+					"source_shape": attribute.TagMapSourceShape,
+				},
 			}); err != nil {
 				return err
 			}

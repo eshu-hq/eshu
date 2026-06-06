@@ -27,6 +27,11 @@ verify_tfstate_warning_summary() {
 		.terraform_state.warning_summary[]?
 		| "remote E2E Terraform-state warning summary: warning_kind=\(.warning_kind // "unknown") reason=\(.reason // "unknown") scope_class=\(.scope_class // "unknown") count=\(.count // 0)"
 	' "${status_file}"
+	jq -r '
+		.terraform_state.recent_warnings[]?
+		| select((.warning_kind // "") == "state_missing")
+		| "remote E2E Terraform-state warning detail: warning_kind=\(.warning_kind // "unknown") reason=\(.reason // "unknown") source=\(.source // "unknown") source_handle=\(.source_handle // "unknown") safe_locator_hash=\(.safe_locator_hash // "unknown")"
+	' "${status_file}"
 
 	local state_missing_count
 	state_missing_count="$(jq -r '

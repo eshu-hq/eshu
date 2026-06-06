@@ -57,6 +57,14 @@ func NewWarningFact(options WarningFactOptions) (facts.Envelope, error) {
 		"reason":       reason,
 		"source":       warningSource,
 	}
+	for key, value := range options.Warning.Details {
+		switch key {
+		case "warning_kind", "reason", "source":
+			continue
+		default:
+			payload[key] = value
+		}
+	}
 	key := "terraform_state_warning:warning:" + warningKind + ":" + warningSource + ":" + reason
 	version, _ := facts.TerraformStateSchemaVersion(facts.TerraformStateWarningFactKind)
 	return facts.Envelope{

@@ -206,6 +206,7 @@ WITH warning_rows AS (
         COALESCE(fact.payload->>'warning_kind', '') AS warning_kind,
         COALESCE(fact.payload->>'reason', '') AS reason,
         COALESCE(fact.payload->>'source', '') AS source,
+        COALESCE(fact.payload->>'source_handle', '') AS source_handle,
         fact.generation_id AS generation_id,
         fact.observed_at AS observed_at,
         ROW_NUMBER() OVER (
@@ -219,7 +220,7 @@ WITH warning_rows AS (
       AND scope.scope_kind = 'state_snapshot'
       AND scope.collector_kind = 'terraform_state'
 )
-SELECT locator_hash, backend_kind, warning_kind, reason, source, generation_id, observed_at
+SELECT locator_hash, backend_kind, warning_kind, reason, source, source_handle, generation_id, observed_at
 FROM warning_rows
 WHERE rank <= $1
   AND locator_hash <> ''

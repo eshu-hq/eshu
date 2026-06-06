@@ -173,11 +173,16 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
   This covers PagerDuty integration keys and user emails, SNS endpoints, SSM
   parameter values, Lambda environment blocks, EventBridge target payload
   templates, webhook configs, and IAM policy documents even when a packaged
-  schema would otherwise mark the attribute as known.
+  schema would otherwise mark the attribute as known. These schema-backed
+  sensitive composites emit `warning_kind=composite_attribute_skipped` with
+  `reason=known_sensitive_key`, not `unsupported_composite_attribute`.
 - The provider-schema resolver trusts only the top-level attributes and
   block types declared in packaged resource or data-source schemas. It does not
   promote remote E2E shapes from logs alone; adding support for a new provider
   or shape requires a committed schema bundle or another explicit schema proof.
+  `cloudinit_config.part` remains an unsupported provider-schema gap until a
+  Cloudinit schema bundle is committed, so it emits
+  `unsupported_composite_attribute` with `reason=schema_unknown`.
 - Schema-known composite attributes are captured through a streaming nested
   walker (`readCompositeValue` in `composite_walker.go`). The walker reuses
   the existing `json.Decoder`, applies per-leaf classification via
@@ -192,7 +197,11 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
 - `tags` and `tags_all` are emitted as `terraform_state_tag_observation`
   facts for correlation indexing, but scalar tag keys and values still follow
   the unknown provider-schema rule and are redacted by default. Non-scalar tag
-  values are dropped and represented by warning facts.
+  values are dropped and represented by warning facts. Tag maps that are not
+  JSON objects emit `tag_map_dropped` with `reason=null_tag_map`,
+  `reason=malformed_tag_map`, or `reason=unsupported_tag_map_shape` so
+  operators can separate absent source data from bad source data and
+  intentionally unsupported tag shapes.
 - DynamoDB lock metadata is read-only and observational. The reader records the
   digest and a lock ID hash, but consistency decisions still come from the
   opened state body and durable generation metadata.

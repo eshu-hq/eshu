@@ -71,8 +71,8 @@ func TestStatusHandlerStatusIndexExposesTerraformStateWarningSummary(t *testing.
 			snapshot: statuspkg.RawSnapshot{
 				AsOf: now,
 				TerraformStateRecentWarnings: []statuspkg.TerraformStateLocatorWarning{
-					{SafeLocatorHash: "hash-a", BackendKind: "s3", WarningKind: "state_missing", Reason: "s3_not_found", Source: "source-a", ObservedAt: now},
-					{SafeLocatorHash: "hash-b", BackendKind: "s3", WarningKind: "state_missing", Reason: "s3_not_found", Source: "source-b", ObservedAt: now.Add(time.Second)},
+					{SafeLocatorHash: "hash-a", BackendKind: "s3", WarningKind: "state_missing", Reason: "s3_not_found", Source: "source-a", SourceHandle: "state_snapshot:s3:hash-a", ObservedAt: now},
+					{SafeLocatorHash: "hash-b", BackendKind: "s3", WarningKind: "state_missing", Reason: "s3_not_found", Source: "source-b", SourceHandle: "state_snapshot:s3:hash-b", ObservedAt: now.Add(time.Second)},
 				},
 			},
 		},
@@ -97,6 +97,13 @@ func TestStatusHandlerStatusIndexExposesTerraformStateWarningSummary(t *testing.
 				ScopeClass  string `json:"scope_class"`
 				Count       int    `json:"count"`
 			} `json:"warning_summary"`
+			RecentWarnings []struct {
+				SafeLocatorHash string `json:"safe_locator_hash"`
+				WarningKind     string `json:"warning_kind"`
+				Reason          string `json:"reason"`
+				Source          string `json:"source"`
+				SourceHandle    string `json:"source_handle"`
+			} `json:"recent_warnings"`
 		} `json:"terraform_state"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
@@ -111,6 +118,17 @@ func TestStatusHandlerStatusIndexExposesTerraformStateWarningSummary(t *testing.
 		row.ScopeClass != "s3" ||
 		row.Count != 2 {
 		t.Fatalf("warning_summary[0] = %+v, want state_missing/s3_not_found/s3 count=2", row)
+	}
+	if got := len(payload.TerraformState.RecentWarnings); got != 2 {
+		t.Fatalf("recent_warnings = %d rows, want 2; body=%s", got, rec.Body.String())
+	}
+	first := payload.TerraformState.RecentWarnings[0]
+	if first.WarningKind != "state_missing" ||
+		first.Reason != "s3_not_found" ||
+		first.Source != "source-a" ||
+		first.SourceHandle != "state_snapshot:s3:hash-a" ||
+		first.SafeLocatorHash != "hash-a" {
+		t.Fatalf("recent_warnings[0] = %+v, want actionable state_missing row for hash-a", first)
 	}
 }
 

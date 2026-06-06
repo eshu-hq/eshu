@@ -186,6 +186,7 @@ type SourceWarning struct {
 	WarningKind string
 	Reason      string
 	Source      string
+	Details     map[string]any
 }
 
 // FactSink receives redacted Terraform-state fact envelopes produced by

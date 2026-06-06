@@ -66,6 +66,16 @@ func TestParserWarnsAndContinuesForMalformedTagMaps(t *testing.T) {
 				"tags_all":["unexpected"]
 			}
 		}]
+	},{
+		"mode":"managed",
+		"type":"aws_instance",
+		"name":"api",
+		"instances":[{
+			"attributes":{
+				"id":"i-2",
+				"tags":"unexpected"
+			}
+		}]
 	}]}`
 
 	result := parseFixtureFacts(t, state)
@@ -75,21 +85,25 @@ func TestParserWarnsAndContinuesForMalformedTagMaps(t *testing.T) {
 		t.Fatalf("tag observation facts = %#v, want none for malformed tag maps", tags)
 	}
 	warnings := factsByKind(result, facts.TerraformStateWarningFactKind)
-	if got, want := len(warnings), 2; got != want {
+	if got, want := len(warnings), 3; got != want {
 		t.Fatalf("warning count = %d, want %d: %#v", got, want, warnings)
 	}
-	for _, source := range []string{
-		"resources.aws_instance.web.attributes.tags",
-		"resources.aws_instance.web.attributes.tags_all",
-	} {
+	expectTagMapWarning := func(source string, reason string, sourceShape string) {
+		t.Helper()
 		warning := factByPayloadValue(t, warnings, "source", source)
 		if got, want := warning.Payload["warning_kind"], "tag_map_dropped"; got != want {
 			t.Fatalf("warning_kind = %#v, want %q", got, want)
 		}
-		if got, want := warning.Payload["reason"], "non_object_tag_map"; got != want {
+		if got, want := warning.Payload["reason"], reason; got != want {
 			t.Fatalf("reason = %#v, want %q", got, want)
 		}
+		if got, want := warning.Payload["source_shape"], sourceShape; got != want {
+			t.Fatalf("source_shape = %#v, want %q", got, want)
+		}
 	}
+	expectTagMapWarning("resources.aws_instance.web.attributes.tags", "null_tag_map", "null")
+	expectTagMapWarning("resources.aws_instance.web.attributes.tags_all", "unsupported_tag_map_shape", "array")
+	expectTagMapWarning("resources.aws_instance.api.attributes.tags", "malformed_tag_map", "scalar")
 }
 
 func assertTagFieldRedacted(t *testing.T, tag facts.Envelope, field string) {

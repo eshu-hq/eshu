@@ -98,7 +98,8 @@ See `doc.go` for the godoc contract. Key types and functions:
   Terraform-state scope, keyed by safe locator hash so the report never carries
   raw bucket names, S3 keys, or local paths
 - `TerraformStateLocatorWarning` — recent `terraform_state_warning` fact row,
-  bounded per locator by `MaxTerraformStateRecentWarnings`
+  bounded per locator by `MaxTerraformStateRecentWarnings`; source-level rows
+  may include a public-safe `SourceHandle`
 - `TerraformStateWarningSummary` — aggregate warning totals by warning kind,
   reason, and public scope class for release-gate readback
 - `TerraformStateReport` — operator-facing tfstate section attached to

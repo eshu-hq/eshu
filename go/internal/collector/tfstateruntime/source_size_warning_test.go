@@ -205,6 +205,24 @@ func TestClaimedSourceEmitsWarningGenerationForMissingS3State(t *testing.T) {
 	if got, want := warning.Payload["source"], string(terraformstate.DiscoveryCandidateSourceGraph); got != want {
 		t.Fatalf("source = %#v, want %#v", got, want)
 	}
+	if got, want := warning.Payload["source_handle"], scopeValue.ScopeID; got != want {
+		t.Fatalf("source_handle = %#v, want %#v", got, want)
+	}
+	if got, want := warning.Payload["safe_locator_hash"], scopeValue.Metadata["locator_hash"]; got != want {
+		t.Fatalf("safe_locator_hash = %#v, want %#v", got, want)
+	}
+	locator, ok := warning.Payload["source_locator"].(map[string]any)
+	if !ok {
+		t.Fatalf("source_locator = %#v, want redaction marker map", warning.Payload["source_locator"])
+	}
+	marker, _ := locator["marker"].(string)
+	if !strings.HasPrefix(marker, "redacted:hmac-sha256:") {
+		t.Fatalf("source_locator marker = %#v, want redacted marker", locator["marker"])
+	}
+	if strings.Contains(fmt.Sprint(warning.Payload), "tfstate-prod") ||
+		strings.Contains(fmt.Sprint(warning.Payload), "services/deleted/terraform.tfstate") {
+		t.Fatalf("warning payload leaked raw state locator: %#v", warning.Payload)
+	}
 	if strings.Contains(warning.SourceRef.SourceURI, stateKey.Locator) ||
 		strings.Contains(warning.SourceRef.SourceRecordID, stateKey.Locator) {
 		t.Fatalf("warning source ref leaked state locator: %#v", warning.SourceRef)

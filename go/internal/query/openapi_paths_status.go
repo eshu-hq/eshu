@@ -236,6 +236,20 @@ const openAPIPathsStatusAndCompare = `
                               "count": {"type": "integer"}
                             }
                           }
+                        },
+                        "recent_warnings": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "safe_locator_hash": {"type": "string"},
+                              "backend_kind": {"type": "string"},
+                              "warning_kind": {"type": "string"},
+                              "reason": {"type": "string"},
+                              "source": {"type": "string"},
+                              "source_handle": {"type": "string"}
+                            }
+                          }
                         }
                       }
                     }
@@ -280,6 +294,20 @@ const openAPIPathsStatusAndCompare = `
                               "reason": {"type": "string"},
                               "scope_class": {"type": "string"},
                               "count": {"type": "integer"}
+                            }
+                          }
+                        },
+                        "recent_warnings": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "safe_locator_hash": {"type": "string"},
+                              "backend_kind": {"type": "string"},
+                              "warning_kind": {"type": "string"},
+                              "reason": {"type": "string"},
+                              "source": {"type": "string"},
+                              "source_handle": {"type": "string"}
                             }
                           }
                         }
