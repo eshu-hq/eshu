@@ -204,6 +204,7 @@ const openAPIPathsEntities = `
                     "investigation": {"type": "object"},
                     "deployment_overview": {"type": "object"},
                     "hostnames": {"type": "array", "items": {"type": "object"}},
+                    "entrypoint_candidates": {"type": "array", "description": "Dotted hostname-shaped candidates kept as non-entrypoint supporting evidence when rejected as config keys or field paths, or when ambiguous without stronger hostname evidence.", "items": {"type": "object"}},
                     "entrypoints": {"type": "array", "items": {"type": "object"}},
                     "network_paths": {"type": "array", "items": {"type": "object"}},
                     "observed_config_environments": {"type": "array", "items": {"type": "string"}},

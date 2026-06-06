@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/contentrefs"
 	"gopkg.in/yaml.v3"
 )
 
@@ -18,87 +16,7 @@ type serviceEvidenceReader interface {
 	GetFileContent(ctx context.Context, repoID, relativePath string) (*FileContent, error)
 }
 
-type ServiceQueryEvidence struct {
-	Hostnames       []ServiceHostnameEvidence    `json:"hostnames,omitempty"`
-	Environments    []ServiceEnvironmentEvidence `json:"environments,omitempty"`
-	DocsRoutes      []ServiceDocsRouteEvidence   `json:"docs_routes,omitempty"`
-	APISpecs        []ServiceAPISpecEvidence     `json:"api_specs,omitempty"`
-	FrameworkRoutes []FrameworkRouteEvidence     `json:"framework_routes,omitempty"`
-}
-
-type ServiceHostnameEvidence struct {
-	Hostname     string `json:"hostname"`
-	Environment  string `json:"environment,omitempty"`
-	RelativePath string `json:"relative_path"`
-	Reason       string `json:"reason"`
-}
-
-type ServiceEnvironmentEvidence struct {
-	Environment  string `json:"environment"`
-	RelativePath string `json:"relative_path"`
-	Reason       string `json:"reason"`
-}
-
-type ServiceDocsRouteEvidence struct {
-	Route        string `json:"route"`
-	RelativePath string `json:"relative_path"`
-	Reason       string `json:"reason"`
-}
-
-type ServiceAPISpecEvidence struct {
-	RelativePath     string                       `json:"relative_path"`
-	Format           string                       `json:"format"`
-	Parsed           bool                         `json:"parsed"`
-	SpecVersion      string                       `json:"spec_version,omitempty"`
-	APIVersion       string                       `json:"api_version,omitempty"`
-	EndpointCount    int                          `json:"endpoint_count,omitempty"`
-	MethodCount      int                          `json:"method_count,omitempty"`
-	OperationIDCount int                          `json:"operation_id_count,omitempty"`
-	DocsRoutes       []string                     `json:"docs_routes,omitempty"`
-	Hostnames        []string                     `json:"hostnames,omitempty"`
-	Endpoints        []ServiceAPIEndpointEvidence `json:"endpoints,omitempty"`
-}
-
-type ServiceAPIEndpointEvidence struct {
-	Path         string   `json:"path"`
-	Methods      []string `json:"methods,omitempty"`
-	OperationIDs []string `json:"operation_ids,omitempty"`
-}
-
-// FrameworkRouteEvidence captures routes detected by parser framework_semantics
-// from fact_records.
-type FrameworkRouteEvidence struct {
-	Framework    string                        `json:"framework"`
-	RelativePath string                        `json:"relative_path"`
-	RoutePaths   []string                      `json:"route_paths"`
-	RouteMethods []string                      `json:"route_methods"`
-	RouteEntries []FrameworkRouteEntryEvidence `json:"route_entries,omitempty"`
-}
-
-// FrameworkRouteEntryEvidence preserves one parser-observed route declaration.
-type FrameworkRouteEntryEvidence struct {
-	Method string `json:"method"`
-	Path   string `json:"path"`
-}
-
-var (
-	serviceDocsRoutePattern = regexp.MustCompile(`(?i)['"](/[^'"]+)['"]`)
-)
-
 const serviceEvidenceFileLimit = 5000
-
-var environmentAliases = []struct {
-	canonical string
-	aliases   []string
-}{
-	{canonical: "prod", aliases: []string{"prod", "production"}},
-	{canonical: "qa", aliases: []string{"qa"}},
-	{canonical: "stage", aliases: []string{"stage", "staging"}},
-	{canonical: "dev", aliases: []string{"dev", "development"}},
-	{canonical: "test", aliases: []string{"test"}},
-	{canonical: "sandbox", aliases: []string{"sandbox"}},
-	{canonical: "preview", aliases: []string{"preview"}},
-}
 
 var openAPIMethodNames = map[string]struct{}{
 	"get": {}, "put": {}, "post": {}, "delete": {}, "patch": {}, "options": {}, "head": {}, "trace": {},
@@ -121,6 +39,7 @@ func loadServiceQueryEvidence(
 
 	var evidence ServiceQueryEvidence
 	seenHostnames := map[string]struct{}{}
+	seenEntrypointCandidates := map[string]struct{}{}
 	seenEnvironments := map[string]struct{}{}
 	seenDocsRoutes := map[string]struct{}{}
 	seenSpecs := map[string]struct{}{}
@@ -143,8 +62,25 @@ func loadServiceQueryEvidence(
 			hydrated = *fileContent
 		}
 
-		hostnames := extractObservedHostnames(hydrated.Content)
+		hostnameCandidates := extractObservedHostnameCandidates(hydrated.Content)
+		hostnames := exactObservedHostnameCandidates(hostnameCandidates)
 		environments := inferObservedEnvironments(hydrated.RelativePath, hydrated.Content, hostnames)
+		for _, candidate := range hostnameCandidates {
+			if candidate.Classification == "exact_hostname" {
+				continue
+			}
+			key := candidate.Value + "\x00" + candidate.Classification + "\x00" + hydrated.RelativePath
+			if _, ok := seenEntrypointCandidates[key]; ok {
+				continue
+			}
+			seenEntrypointCandidates[key] = struct{}{}
+			evidence.EntrypointCandidates = append(evidence.EntrypointCandidates, ServiceEntrypointCandidateEvidence{
+				Candidate:      candidate.Value,
+				Classification: candidate.Classification,
+				RelativePath:   hydrated.RelativePath,
+				Reason:         candidate.Reason,
+			})
+		}
 		for _, hostname := range hostnames {
 			environment := inferHostnameEnvironment(hostname)
 			if environment == "" && len(environments) > 0 {
@@ -158,7 +94,7 @@ func loadServiceQueryEvidence(
 				Hostname:     hostname,
 				Environment:  environment,
 				RelativePath: hydrated.RelativePath,
-				Reason:       "content_hostname_reference",
+				Reason:       exactHostnameCandidateReason(hostnameCandidates, hostname),
 			})
 		}
 
@@ -214,6 +150,15 @@ func loadServiceQueryEvidence(
 		}
 		return evidence.DocsRoutes[i].RelativePath < evidence.DocsRoutes[j].RelativePath
 	})
+	sort.Slice(evidence.EntrypointCandidates, func(i, j int) bool {
+		if evidence.EntrypointCandidates[i].Candidate != evidence.EntrypointCandidates[j].Candidate {
+			return evidence.EntrypointCandidates[i].Candidate < evidence.EntrypointCandidates[j].Candidate
+		}
+		if evidence.EntrypointCandidates[i].Classification != evidence.EntrypointCandidates[j].Classification {
+			return evidence.EntrypointCandidates[i].Classification < evidence.EntrypointCandidates[j].Classification
+		}
+		return evidence.EntrypointCandidates[i].RelativePath < evidence.EntrypointCandidates[j].RelativePath
+	})
 	sort.Slice(evidence.APISpecs, func(i, j int) bool {
 		return evidence.APISpecs[i].RelativePath < evidence.APISpecs[j].RelativePath
 	})
@@ -245,89 +190,6 @@ func isServiceEvidenceCandidate(file FileContent, normalizedServiceName string) 
 		}
 	}
 	return false
-}
-
-func extractObservedHostnames(content string) []string {
-	return contentrefs.Hostnames(content)
-}
-
-func inferObservedEnvironments(relativePath string, content string, hostnames []string) []string {
-	seen := map[string]struct{}{}
-	addMatches := func(text string) {
-		for _, environment := range detectEnvironmentAliases(text) {
-			seen[environment] = struct{}{}
-		}
-	}
-	addMatches(relativePath)
-	addMatches(content)
-	for _, hostname := range hostnames {
-		addMatches(hostname)
-	}
-
-	environments := make([]string, 0, len(seen))
-	for environment := range seen {
-		environments = append(environments, environment)
-	}
-	sort.Strings(environments)
-	return environments
-}
-
-func detectEnvironmentAliases(text string) []string {
-	normalized := normalizeEvidenceToken(text)
-	if normalized == "" {
-		return nil
-	}
-	seen := map[string]struct{}{}
-	for _, row := range environmentAliases {
-		for _, alias := range row.aliases {
-			if strings.Contains(normalized, "_"+alias+"_") {
-				seen[row.canonical] = struct{}{}
-				break
-			}
-		}
-	}
-	environments := make([]string, 0, len(seen))
-	for environment := range seen {
-		environments = append(environments, environment)
-	}
-	sort.Strings(environments)
-	return environments
-}
-
-func inferHostnameEnvironment(hostname string) string {
-	matches := detectEnvironmentAliases(hostname)
-	if len(matches) == 0 {
-		return ""
-	}
-	return matches[0]
-}
-
-func extractDocsRoutes(content string) []string {
-	matches := serviceDocsRoutePattern.FindAllStringSubmatch(content, -1)
-	if len(matches) == 0 {
-		return nil
-	}
-	seen := map[string]struct{}{}
-	routes := make([]string, 0, len(matches))
-	for _, match := range matches {
-		if len(match) < 2 {
-			continue
-		}
-		route := strings.TrimSpace(match[1])
-		if route == "" {
-			continue
-		}
-		if !looksLikeDocsRoute(route) {
-			continue
-		}
-		if _, ok := seen[route]; ok {
-			continue
-		}
-		seen[route] = struct{}{}
-		routes = append(routes, route)
-	}
-	sort.Strings(routes)
-	return routes
 }
 
 // specFileResolver resolves a relative $ref path from a base spec file and
@@ -556,26 +418,6 @@ func isPotentialAPISpecPath(relativePath string) bool {
 	return strings.Contains(lower, "openapi") ||
 		strings.Contains(lower, "swagger") ||
 		strings.Contains(lower, "spec")
-}
-
-func looksLikeDocsRoute(route string) bool {
-	lower := strings.ToLower(route)
-	if strings.Contains(lower, "docs") || strings.Contains(lower, "swagger") || strings.Contains(lower, "openapi") {
-		return true
-	}
-	for _, segment := range strings.FieldsFunc(lower, func(r rune) bool {
-		switch r {
-		case '/', '_', '-', '.', ':':
-			return true
-		default:
-			return false
-		}
-	}) {
-		if segment == "spec" || segment == "specs" {
-			return true
-		}
-	}
-	return false
 }
 
 func hostnameFromURL(raw string) string {

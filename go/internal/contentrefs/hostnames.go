@@ -13,11 +13,47 @@ var (
 	camelCaseRE           = regexp.MustCompile(`[a-z][A-Z]`)
 )
 
+const (
+	hostnameClassificationExact             = "exact_hostname"
+	hostnameClassificationRejectedConfigKey = "rejected_config_key"
+	hostnameClassificationRejectedFieldPath = "rejected_field_path"
+	hostnameClassificationAmbiguous         = "ambiguous"
+)
+
+// HostnameCandidate classifies one dotted candidate found in hostname-like
+// content context. Exact candidates can be promoted to hostname lookup rows;
+// rejected and ambiguous candidates are supporting evidence only.
+type HostnameCandidate struct {
+	Value          string
+	Classification string
+	Reason         string
+}
+
 // Hostnames returns normalized hostnames that look like runtime or API
 // endpoints rather than code property chains or static file names.
 func Hostnames(content string) []string {
+	candidates := HostnameCandidates(content)
 	seen := map[string]struct{}{}
 	hostnames := make([]string, 0)
+	for _, candidate := range candidates {
+		if candidate.Classification != hostnameClassificationExact {
+			continue
+		}
+		if _, ok := seen[candidate.Value]; ok {
+			continue
+		}
+		seen[candidate.Value] = struct{}{}
+		hostnames = append(hostnames, candidate.Value)
+	}
+	sort.Strings(hostnames)
+	return hostnames
+}
+
+// HostnameCandidates returns every hostname-shaped token found in hostname-like
+// content context, classified as exact, rejected, or ambiguous evidence.
+func HostnameCandidates(content string) []HostnameCandidate {
+	seen := map[string]struct{}{}
+	candidates := make([]HostnameCandidate, 0)
 	for _, line := range strings.Split(content, "\n") {
 		if !lineLikelyContainsHostname(line) {
 			continue
@@ -27,61 +63,95 @@ func Hostnames(content string) []string {
 			if len(match) < 2 {
 				continue
 			}
-			hostname := strings.ToLower(strings.TrimSpace(match[1]))
+			rawMatch := strings.TrimSpace(match[0])
+			rawHostname := strings.TrimSpace(match[1])
+			hostname := strings.ToLower(rawHostname)
 			if hostname == "" {
 				continue
 			}
-			if isLikelyFalsePositiveHostname(hostname) {
+			candidate := classifyHostnameCandidate(rawMatch, rawHostname, hostname)
+			key := candidate.Value + "\x00" + candidate.Classification + "\x00" + candidate.Reason
+			if _, ok := seen[key]; ok {
 				continue
 			}
-			if _, ok := seen[hostname]; ok {
-				continue
-			}
-			seen[hostname] = struct{}{}
-			hostnames = append(hostnames, hostname)
+			seen[key] = struct{}{}
+			candidates = append(candidates, candidate)
 		}
 	}
-	sort.Strings(hostnames)
-	return hostnames
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].Value != candidates[j].Value {
+			return candidates[i].Value < candidates[j].Value
+		}
+		if candidates[i].Classification != candidates[j].Classification {
+			return candidates[i].Classification < candidates[j].Classification
+		}
+		return candidates[i].Reason < candidates[j].Reason
+	})
+	return candidates
 }
 
-// isLikelyFalsePositiveHostname rejects regex matches that look like file
-// names, code property chains, or test matchers rather than real hostnames.
-func isLikelyFalsePositiveHostname(hostname string) bool {
+func classifyHostnameCandidate(rawMatch, rawHostname, hostname string) HostnameCandidate {
+	classification, reason := classifyHostnameEvidence(rawMatch, rawHostname, hostname)
+	return HostnameCandidate{
+		Value:          hostname,
+		Classification: classification,
+		Reason:         reason,
+	}
+}
+
+func classifyHostnameEvidence(rawMatch, rawHostname, hostname string) (string, string) {
 	lastDot := strings.LastIndex(hostname, ".")
 	if lastDot < 0 {
-		return true
+		return hostnameClassificationRejectedFieldPath, "missing_dot"
 	}
 	tld := hostname[lastDot+1:]
 	if _, blocked := falsePositiveTLDs[tld]; blocked {
-		return true
+		return hostnameClassificationRejectedFieldPath, "code_or_file_extension"
 	}
 
 	for _, keyword := range codeCompoundKeywords {
 		if strings.Contains(tld, keyword) {
-			return true
+			return hostnameClassificationRejectedFieldPath, "code_identifier_suffix"
 		}
 	}
 
-	for _, segment := range strings.Split(hostname, ".") {
+	for _, segment := range strings.Split(rawHostname, ".") {
 		if containsCamelCase(segment) {
-			return true
+			return hostnameClassificationRejectedFieldPath, "camel_case_field_path"
 		}
 	}
 
 	for _, segment := range strings.Split(hostname, ".") {
 		if _, blocked := falsePositiveSegments[segment]; blocked {
-			return true
+			return hostnameClassificationRejectedFieldPath, "code_property_segment"
 		}
 	}
 
 	parts := strings.Split(hostname, ".")
 	for _, part := range parts {
 		if len(part) == 0 {
-			return true
+			return hostnameClassificationRejectedFieldPath, "empty_hostname_label"
 		}
 	}
-	return len(parts[0]) <= 1 && len(parts) <= 2
+	if looksLikeFieldPathHostname(parts) {
+		return hostnameClassificationRejectedFieldPath, "dotted_field_path"
+	}
+	if strings.Contains(strings.ToLower(rawMatch), "://") {
+		return hostnameClassificationExact, "url_hostname_reference"
+	}
+	if looksLikeConfigKeyHostname(parts) {
+		return hostnameClassificationRejectedConfigKey, "dotted_config_key"
+	}
+	if len(parts) == 2 && isExactTwoLabelPublicTLD(tld) {
+		return hostnameClassificationExact, "hostname_key_reference"
+	}
+	if len(parts[0]) <= 1 && len(parts) <= 2 {
+		return hostnameClassificationAmbiguous, "short_two_label_hostname_candidate"
+	}
+	if len(parts) <= 2 {
+		return hostnameClassificationAmbiguous, "two_label_hostname_candidate"
+	}
+	return hostnameClassificationExact, "hostname_key_reference"
 }
 
 var codeCompoundKeywords = []string{
@@ -110,6 +180,51 @@ var falsePositiveTLDs = map[string]struct{}{
 	"filter": {}, "reduce": {}, "keys": {}, "values": {},
 	"then": {}, "catch": {}, "resolve": {}, "reject": {},
 	"endpoint": {}, "env": {}, "host": {}, "hostname": {},
+}
+
+var falsePositiveFieldPathSegments = map[string]struct{}{
+	"attribute": {}, "attributes": {}, "body": {}, "data": {},
+	"field": {}, "fields": {}, "fixture": {}, "fixtures": {},
+	"item": {}, "items": {}, "metadata": {}, "payload": {},
+	"request": {}, "response": {}, "result": {}, "results": {},
+}
+
+var falsePositiveConfigKeyTerminals = map[string]struct{}{
+	"count": {}, "enabled": {}, "ids": {}, "key": {},
+	"level": {}, "limit": {}, "mode": {}, "ms": {},
+	"path": {}, "paths": {}, "port": {}, "ports": {}, "prefix": {},
+	"retries": {}, "retry": {}, "seconds": {}, "size": {},
+	"suffix": {}, "timeout": {}, "ttl": {}, "type": {},
+	"types": {}, "value": {}, "values": {}, "version": {},
+}
+
+var exactTwoLabelPublicTLDs = map[string]struct{}{
+	"id": {}, "name": {},
+}
+
+func looksLikeFieldPathHostname(parts []string) bool {
+	for _, part := range parts {
+		if _, ok := falsePositiveFieldPathSegments[part]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func looksLikeConfigKeyHostname(parts []string) bool {
+	if len(parts) == 0 {
+		return false
+	}
+	last := parts[len(parts)-1]
+	if _, ok := falsePositiveConfigKeyTerminals[last]; ok {
+		return true
+	}
+	return false
+}
+
+func isExactTwoLabelPublicTLD(tld string) bool {
+	_, ok := exactTwoLabelPublicTLDs[tld]
+	return ok
 }
 
 func containsCamelCase(s string) bool {
