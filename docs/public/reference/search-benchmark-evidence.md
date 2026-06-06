@@ -215,6 +215,44 @@ authorization, use an unknown risk or burden category, omit fallback behavior,
 omit latency or cost impact evidence, or claim user value without measured
 evidence or a deferred-evidence reason.
 
+## Reranking And Protocol Close-Out Gate
+
+Issue #421 uses `ValidateRerankProtocolEvaluation` from
+`go/internal/searchbench`. The gate ties the reranking comparison and protocol
+recommendation to the same measured NornicDB hybrid baseline evidence, or
+records why phase 5 stopped before reranking or protocol expansion could start.
+
+The first evidence version is:
+
+```text
+rerank-protocol-evaluation/v1
+```
+
+Measured issue #421 evidence must include:
+
+- baseline hybrid evidence id, backend, and mode;
+- rerank evaluation evidence;
+- protocol recommendation evidence;
+- no accepted stop reason.
+
+Validation rejects measured issue #421 evidence when the baseline hybrid
+evidence is missing, when the rerank evaluation and protocol recommendation do
+not reference the same `nornicdb_hybrid` / `hybrid` evidence id, or when either
+child record fails its own guardrails.
+
+A stopped issue #421 record must include only an `accepted_stop_reason` that
+references both issue #421 and the blocking issue #417 state. Stopped records
+cannot include baseline, rerank, or protocol evidence because they do not prove
+recall improvement, rerank quality, latency, cost, or protocol adoption value.
+
+Issue #421 currently records the stopped artifact at
+[`searchbench-evidence/issue-421-rerank-protocol-evaluation-v1.json`](searchbench-evidence/issue-421-rerank-protocol-evaluation-v1.json).
+The exact blocker is the issue #1298 stopped proof for #417: the tree has the
+bounded retrieval contract and proof gate, but no live Postgres content-search
+adapter or NornicDB hybrid adapter has produced measured `nornicdb_hybrid`
+baseline evidence. Reranking and protocol expansion must not start until that
+baseline exists.
+
 ## Query Suite Gate
 
 Issue #417 semantic retrieval evidence must use a versioned query suite before a

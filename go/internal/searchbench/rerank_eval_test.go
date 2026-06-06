@@ -173,6 +173,24 @@ func TestScoreRerankEvaluationRejectsQueryLimitAboveMaximum(t *testing.T) {
 	}
 }
 
+func TestValidateRerankEvaluationRejectsIncompleteResultRanks(t *testing.T) {
+	t.Parallel()
+
+	evaluation, err := ScoreRerankEvaluation(validRerankEvaluationInput())
+	if err != nil {
+		t.Fatalf("ScoreRerankEvaluation() error = %v, want nil", err)
+	}
+	evaluation.Results[0].RerankedRank = 0
+
+	err = ValidateRerankEvaluation(evaluation)
+	if err == nil {
+		t.Fatal("ValidateRerankEvaluation() error = nil, want missing reranked rank failure")
+	}
+	if want := "results[0].reranked_rank is required"; !strings.Contains(err.Error(), want) {
+		t.Fatalf("ValidateRerankEvaluation() error = %q, want substring %q", err, want)
+	}
+}
+
 func validRerankEvaluationInput() RerankEvaluationInput {
 	return RerankEvaluationInput{
 		Query: rerankQuery(1),

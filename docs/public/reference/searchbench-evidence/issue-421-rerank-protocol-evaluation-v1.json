@@ -1,0 +1,4 @@
+{
+  "version": "rerank-protocol-evaluation/v1",
+  "accepted_stop_reason": "Issue #421 stopped before reranking or protocol expansion evaluation: issue #417 remains open, and the committed issue #1298 semantic-retrieval-proof/v1 artifact records an accepted stop because this stack has no live Postgres content-search adapter or NornicDB hybrid adapter. Without measured nornicdb_hybrid baseline evidence, reranking and protocol expansion must not start."
+}
