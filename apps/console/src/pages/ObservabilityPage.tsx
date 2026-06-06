@@ -3,7 +3,7 @@
 // (grafana, prometheus/mimir, loki, tempo). Loads reducer-owned coverage
 // correlations live from GET /api/v0/observability/coverage/correlations (one
 // anchored request per provider) and renders covered-vs-gap rollups plus a
-// coverage table. No fabricated rows — honest empty/error states.
+// coverage table. No fabricated rows - honest empty/error states.
 import { useEffect, useState } from "react";
 import type { EshuApiClient } from "../api/client";
 import { loadObservabilityCoverage } from "../api/eshuObservability";
@@ -32,25 +32,29 @@ export function ObservabilityPage({ client }: { readonly client?: EshuApiClient 
   const total = snap?.rows.length ?? 0;
   const covered = (snap?.rows ?? []).filter((r) => r.covered).length;
   const gaps = total - covered;
+  const coverageSource = snap === null ? "loading" : snap.source;
+  const providerEmptyMessage = snap?.source === "unavailable"
+    ? "Observability coverage is unavailable for every provider."
+    : "No observability coverage from this source - requires the grafana/loki/tempo/mimir collectors.";
 
   return (
     <div className="page">
       <div className="page-intro">
         <h2>Observability</h2>
-        <p>Coverage correlations for grafana, prometheus/mimir, loki, and tempo — <span className="mono">GET /api/v0/observability/coverage/correlations</span>.</p>
+        <p>Coverage correlations for grafana, prometheus/mimir, loki, and tempo - <span className="mono">GET /api/v0/observability/coverage/correlations</span>.</p>
       </div>
 
       <div className="grid g-4">
         <StatTile label="Coverage correlations" value={total} color="var(--blue)" sub={`${snap?.providers.filter((p) => p.total > 0).length ?? 0} providers reporting`} />
         <StatTile label="Covered" value={covered} color="var(--teal)" sub="current signal present" />
         <StatTile label="Gaps" value={gaps} color="var(--ember)" sub="missing or stale" />
-        <StatTile label="Source" value={snap === null ? "…" : snap.source} color="var(--ember)" sub="observability coverage" />
+        <StatTile label="Source" value={coverageSource} color="var(--ember)" sub="observability coverage" />
       </div>
 
       <div className="grid mt" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,2.2fr)", gap: "var(--gap)" }}>
         <Panel title="By provider" sub="covered / gaps">
           <table className="tbl">
-            <thead><tr><th>Provider</th><th>Total</th><th>Covered</th><th>Gaps</th></tr></thead>
+            <thead><tr><th>Provider</th><th>Total</th><th>Covered</th><th>Gaps</th><th>State</th></tr></thead>
             <tbody>
               {(snap?.providers ?? []).map((p) => (
                 <tr key={p.provider}>
@@ -58,10 +62,11 @@ export function ObservabilityPage({ client }: { readonly client?: EshuApiClient 
                   <td className="mono">{p.total}</td>
                   <td><Badge tone="teal">{p.covered}</Badge></td>
                   <td>{p.gaps > 0 ? <Badge tone="crit">{p.gaps}</Badge> : <span className="t-mut">0</span>}</td>
+                  <td>{p.source === "unavailable" ? <Badge tone="crit" dot>{p.source}</Badge> : <span className="t-mut">{p.source}</span>}</td>
                 </tr>
               ))}
-              {(snap?.providers ?? []).every((p) => p.total === 0) ? (
-                <tr><td colSpan={4} className="empty">{err ? `Failed to load: ${err}` : "No observability coverage from this source — requires the grafana/loki/tempo/mimir collectors."}</td></tr>
+              {snap !== null && snap.providers.every((p) => p.total === 0) ? (
+                <tr><td colSpan={5} className="empty">{err ? `Failed to load: ${err}` : providerEmptyMessage}</td></tr>
               ) : null}
             </tbody>
           </table>
@@ -75,10 +80,10 @@ export function ObservabilityPage({ client }: { readonly client?: EshuApiClient 
           ) : null}
         </Panel>
 
-        <Panel className="flush" title="Coverage correlations" sub={snap === null ? "loading…" : "live"}
+        <Panel className="flush" title="Coverage correlations" sub={coverageSource}
           action={<div className="searchbox" style={{ minWidth: 200, height: 34 }}><input placeholder="Filter coverage…" value={q} onChange={(e) => setQ(e.target.value)} /></div>}>
           {snap === null ? (
-            <div className="conn-state" style={{ padding: 40 }}><div className="conn-spinner" aria-hidden /><p>Loading observability coverage…</p></div>
+            <div className="conn-state" style={{ padding: 40 }}><div className="conn-spinner" aria-hidden /><p>Loading observability coverage...</p></div>
           ) : (
             <table className="tbl">
               <thead><tr><th>Provider</th><th>Signal</th><th>Object</th><th>Resource</th><th>Source</th><th>Freshness</th><th>Status</th></tr></thead>
