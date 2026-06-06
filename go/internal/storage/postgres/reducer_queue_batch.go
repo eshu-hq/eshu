@@ -9,11 +9,17 @@ import (
 )
 
 const claimReducerWorkBatchQuery = `
-WITH candidate AS (
+WITH ` + supersedeInactiveReducerGenerationsCTE + `,
+candidate AS (
     SELECT work_item_id
     FROM fact_work_items
     WHERE stage = 'reducer'
       AND status IN ('pending', 'retrying', 'claimed', 'running')
+      AND NOT EXISTS (
+          SELECT 1
+          FROM superseded_stale_reducer_generations AS superseded
+          WHERE superseded.work_item_id = fact_work_items.work_item_id
+      )
       AND (visible_at IS NULL OR visible_at <= $1)
       AND (claim_until IS NULL OR claim_until <= $1)
       AND ($2::text[] IS NULL OR domain = ANY($2::text[]))
@@ -226,6 +232,11 @@ WITH candidate AS (
             AND same.conflict_domain = fact_work_items.conflict_domain
             AND COALESCE(same.conflict_key, same.scope_id) = COALESCE(fact_work_items.conflict_key, fact_work_items.scope_id)
             AND same.status IN ('pending', 'retrying', 'claimed', 'running')
+            AND NOT EXISTS (
+                SELECT 1
+                FROM superseded_stale_reducer_generations AS superseded_same
+                WHERE superseded_same.work_item_id = same.work_item_id
+            )
             AND (same.visible_at IS NULL OR same.visible_at <= $1)
             AND (same.claim_until IS NULL OR same.claim_until <= $1)
             AND ($2::text[] IS NULL OR same.domain = ANY($2::text[]))
