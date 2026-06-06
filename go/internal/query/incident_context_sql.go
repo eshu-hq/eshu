@@ -24,7 +24,7 @@ WHERE fact.source_system = $1
   AND (
       fact.payload->>'provider_incident_id' = $2
       OR (
-          COALESCE(NULLIF(fact.payload->>'provider_incident_id', ''), '') = ''
+          NULLIF(fact.payload->>'provider_incident_id', '') IS NULL
           AND fact.source_record_id = $2
       )
   )
