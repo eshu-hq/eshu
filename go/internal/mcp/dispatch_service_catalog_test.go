@@ -65,4 +65,7 @@ func TestServiceCatalogToolSchemaAdvertisesRepositorySelectors(t *testing.T) {
 			t.Fatalf("repository_id description = %q, want %q", description, want)
 		}
 	}
+	if strings.Contains(description, "remote URL") {
+		t.Fatalf("repository_id description = %q, must not advertise unsupported remote URL selectors", description)
+	}
 }

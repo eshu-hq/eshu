@@ -22,7 +22,7 @@ func serviceCatalogTools() []ToolDefinition {
 					},
 					"repository_id": map[string]any{
 						"type":        "string",
-						"description": "Repository selector to anchor catalog correlation lookup; accepts canonical ID, name, slug, indexed path, local path, or remote URL.",
+						"description": "Repository selector to anchor catalog correlation lookup; accepts canonical ID, name, slug, indexed path, or local path.",
 					},
 					"service_id": map[string]any{
 						"type":        "string",
