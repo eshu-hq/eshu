@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
@@ -18,6 +19,17 @@ import (
 // separate stale-fence terminal failures from credential, throttle, and
 // network-class collector failures.
 const FailureClassStaleFence = "stale_fence"
+
+// FailureClassPermissionDenied labels AWS service scans that reached AWS and
+// were rejected by an access-denied or unauthorized API response. The error is
+// terminal for the claimed scope until the operator fixes IAM permissions.
+const FailureClassPermissionDenied = "permission_denied"
+
+// FailureClassUnsupportedPermission labels AWS service scans that reached AWS
+// and were rejected because the requested metadata operation is unsupported for
+// that scope. Service adapters should absorb optional unsupported reads; an
+// unhandled top-level unsupported operation is terminal for the claim.
+const FailureClassUnsupportedPermission = "unsupported_permission"
 
 // ScanStatusPhaseStart, ScanStatusPhaseObserve, and ScanStatusPhaseCommit are
 // the closed set of values for the `operation` attribute on
@@ -46,6 +58,19 @@ func (e scanStatusStaleFenceError) Unwrap() error { return e.err }
 func (e scanStatusStaleFenceError) FailureClass() string { return FailureClassStaleFence }
 
 func (e scanStatusStaleFenceError) TerminalFailure() bool { return true }
+
+type terminalServiceScanError struct {
+	err          error
+	failureClass string
+}
+
+func (e terminalServiceScanError) Error() string { return e.err.Error() }
+
+func (e terminalServiceScanError) Unwrap() error { return e.err }
+
+func (e terminalServiceScanError) FailureClass() string { return e.failureClass }
+
+func (e terminalServiceScanError) TerminalFailure() bool { return true }
 
 // ClassifyScanStatusStaleFence inspects err for awscloud.ErrScanStatusStaleFence
 // and, when found, records eshu_dp_aws_scan_status_stale_fence_total and
@@ -107,6 +132,34 @@ func (s ClaimedSource) startScanStatus(ctx context.Context, boundary awscloud.Bo
 	return nil
 }
 
+func classifyServiceScanError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if failureClass := terminalServiceScanFailureClass(err); failureClass != "" {
+		return terminalServiceScanError{
+			err:          err,
+			failureClass: failureClass,
+		}
+	}
+	return err
+}
+
+func terminalServiceScanFailureClass(err error) string {
+	var apiErr smithy.APIError
+	if !errors.As(err, &apiErr) {
+		return ""
+	}
+	switch strings.TrimSpace(apiErr.ErrorCode()) {
+	case "AccessDenied", "AccessDeniedException", "UnauthorizedOperation", "UnauthorizedException", "ForbiddenException":
+		return FailureClassPermissionDenied
+	case "UnsupportedOperation", "UnsupportedOperationException":
+		return FailureClassUnsupportedPermission
+	default:
+		return ""
+	}
+}
+
 func (s ClaimedSource) observeScanStatus(
 	ctx context.Context,
 	boundary awscloud.Boundary,
@@ -135,7 +188,7 @@ func (s ClaimedSource) observeScanStatus(
 		failureClass = "org_access_skipped"
 	} else if scanErr != nil {
 		statusValue = awscloud.ScanStatusFailed
-		failureClass = awsScanFailureClass(apiStats)
+		failureClass = awsScanFailureClass(apiStats, scanErr)
 		failureMessage = awscloud.SanitizeScanStatusMessage(scanErr.Error())
 	}
 	if factStats.BudgetExhausted && s.Instruments != nil && s.Instruments.AWSBudgetExhausted != nil {
@@ -238,7 +291,13 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func awsScanFailureClass(stats awscloud.APICallStats) string {
+func awsScanFailureClass(stats awscloud.APICallStats, err error) string {
+	var classified interface{ FailureClass() string }
+	if errors.As(err, &classified) {
+		if value := strings.TrimSpace(classified.FailureClass()); value != "" {
+			return value
+		}
+	}
 	if stats.ThrottleCount > 0 {
 		return "throttled"
 	}

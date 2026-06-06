@@ -148,6 +148,15 @@ WHERE (
         AND (
             (aws_scan_status.status IN ('succeeded', 'partial', 'failed', 'credential_failed')
              AND aws_scan_status.commit_status IN ('committed', 'failed'))
+            OR (
+                aws_scan_status.status = 'failed'
+                AND aws_scan_status.commit_status = 'pending'
+                AND aws_scan_status.failure_class IN ('permission_denied', 'unsupported_permission')
+                AND (
+                    aws_scan_status.last_started_at IS NULL
+                    OR aws_scan_status.last_started_at < EXCLUDED.last_started_at
+                )
+            )
             OR aws_scan_status.last_started_at IS NULL
             OR aws_scan_status.last_started_at < EXCLUDED.last_started_at
         )

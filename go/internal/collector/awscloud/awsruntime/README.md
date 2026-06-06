@@ -118,6 +118,36 @@ pagination spans. The command registers the instruments:
 - `aws.service.scan`
 - `aws.service.pagination.page`
 
+## Permission Gap Evidence
+
+Smithy service API errors with `AccessDenied`, `AccessDeniedException`,
+`UnauthorizedOperation`, `UnauthorizedException`, `ForbiddenException`,
+`UnsupportedOperation`, or `UnsupportedOperationException` are terminal for the
+claimed AWS scope. The runtime records `aws_scan_status.status=failed` with
+`failure_class=permission_denied` or `failure_class=unsupported_permission`,
+then returns a terminal classified error so `collector.ClaimedService` records
+the claim as terminal instead of retrying the same denied scope until the
+generic attempt budget fires. Plain transport and request-send failures remain
+retryable `collect_failure` errors. A newer generation may reclaim a prior
+terminal permission-gap row only when its start timestamp is newer, preserving
+the AWS scan-status conflict domain against stale older starts.
+
+No-Regression Evidence:
+
+- `cd go && go test ./internal/collector/awscloud/awsruntime -run 'TestClaimedSource(ClassifiesDeniedSmithyAPIErrorsAsTerminalPermissionGaps|KeepsTransportFailureRetryable)|TestStartScanStatus(ClassifiesStaleFenceAsTerminal|IncrementsStaleFenceCounter)' -count=1`
+- `cd go && go test ./internal/storage/postgres -run 'TestAWSScanStatusStore(AllowsNewGenerationAfterTerminalPermissionGap|AllowsNewGenerationOverOrphanedRunningRow|ReturnsTypedStaleFenceError)' -count=1`
+
+These cover denied IAM-style, EC2 unauthorized, unsupported-operation,
+transient transport, stale-fence classification, recovery after permissions are
+fixed, orphaned-row handoff, and stale-fence rejection.
+
+Observability Evidence: no new metric name or JSON field was needed. Operators
+see the permission gap through existing AWS scan status fields
+(`status`, `commit_status`, `failure_class`, and `failure_message`), existing
+API pressure counters (`eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_throttle_total`), and the scan span/latency path
+(`aws.service.scan`, `eshu_dp_aws_scan_duration_seconds{result="error"}`).
+
 ## Refactor Evidence (Scanner Registry Self-Registration)
 
 The init-time scanner registry refactor (#762) replaces the central switch
@@ -328,8 +358,9 @@ shape.
   `organizations_org_access_skipped` warning and
   `eshu_dp_aws_org_access_skipped_total` rather than failed or fabricated
   organization truth.
-- This package does not decide retryability for AWS service errors. The caller
-  owns claim failure and retry policy through `collector.ClaimedService`.
+- This package classifies only deterministic top-level AWS API permission gaps
+  as terminal. The caller owns retry timing, claim failure persistence, and the
+  generic attempt budget through `collector.ClaimedService`.
 
 ## Related docs
 

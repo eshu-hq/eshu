@@ -67,6 +67,11 @@ Start with collector status before changing scanner logic:
 - `commit_status` says whether the fenced fact transaction reached Postgres.
 - `api_call_count`, `throttle_count`, `budget_exhausted`, and
   `credential_failed` identify pressure, budget, and credential failures.
+- `failure_class=permission_denied` or `unsupported_permission` means AWS
+  returned a deterministic Smithy access-denied or unsupported-operation
+  response for that `(account_id, region, service_kind)` scope. Treat it as
+  missing evidence until IAM or service support changes, not as a reason to
+  raise collector concurrency.
 - `organizations_org_access_skipped` warnings identify Organizations claims
   where the assumed role or workload identity was not usable from the
   management account or a delegated administrator.
