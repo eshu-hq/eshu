@@ -2,20 +2,24 @@ package reducer
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
+const serviceCatalogGitRepositoryScopePrefix = "git-repository-scope:"
+
 type serviceCatalogEntityEvidence struct {
-	factID      string
-	provider    string
-	entityRef   string
-	entityType  string
-	displayName string
-	lifecycle   string
-	tier        string
-	serviceID   string
-	workloadID  string
+	factID             string
+	provider           string
+	entityRef          string
+	entityType         string
+	displayName        string
+	lifecycle          string
+	tier               string
+	sourceRepositoryID string
+	serviceID          string
+	workloadID         string
 }
 
 type serviceCatalogEntityKey struct {
@@ -87,15 +91,16 @@ func buildServiceCatalogCorrelationIndex(envelopes []facts.Envelope) serviceCata
 
 func serviceCatalogEntityFromFact(envelope facts.Envelope) serviceCatalogEntityEvidence {
 	return serviceCatalogEntityEvidence{
-		factID:      envelope.FactID,
-		provider:    payloadString(envelope.Payload, "provider"),
-		entityRef:   payloadString(envelope.Payload, "entity_ref"),
-		entityType:  payloadString(envelope.Payload, "entity_type"),
-		displayName: payloadString(envelope.Payload, "display_name"),
-		lifecycle:   payloadString(envelope.Payload, "lifecycle"),
-		tier:        payloadString(envelope.Payload, "tier"),
-		serviceID:   payloadString(envelope.Payload, "service_id"),
-		workloadID:  payloadString(envelope.Payload, "workload_id"),
+		factID:             envelope.FactID,
+		provider:           payloadString(envelope.Payload, "provider"),
+		entityRef:          payloadString(envelope.Payload, "entity_ref"),
+		entityType:         payloadString(envelope.Payload, "entity_type"),
+		displayName:        payloadString(envelope.Payload, "display_name"),
+		lifecycle:          payloadString(envelope.Payload, "lifecycle"),
+		tier:               payloadString(envelope.Payload, "tier"),
+		sourceRepositoryID: serviceCatalogSourceRepositoryID(envelope.ScopeID),
+		serviceID:          payloadString(envelope.Payload, "service_id"),
+		workloadID:         payloadString(envelope.Payload, "workload_id"),
 	}
 }
 
@@ -160,6 +165,9 @@ func classifyServiceCatalogEntity(
 	decision := serviceCatalogBaseDecision(entity, index.ownership[key])
 	links := index.repoLinks[key]
 	if len(links) == 0 {
+		if entity.sourceRepositoryID != "" {
+			return classifyRepoLocalServiceCatalogEntity(entity, decision, index.repositories)
+		}
 		decision.Outcome = ServiceCatalogCorrelationUnresolved
 		decision.Reason = "catalog entity has no repository link evidence"
 		decision.DriftStatus = "missing"
@@ -214,6 +222,59 @@ func classifyServiceCatalogEntity(
 	}
 }
 
+func classifyRepoLocalServiceCatalogEntity(
+	entity serviceCatalogEntityEvidence,
+	decision ServiceCatalogCorrelationDecision,
+	repositories []serviceCatalogRepositoryEvidence,
+) ServiceCatalogCorrelationDecision {
+	activeMatches, staleMatches := matchRepoLocalServiceCatalogRepository(entity.sourceRepositoryID, repositories)
+	switch len(activeMatches) {
+	case 0:
+		if len(staleMatches) > 0 {
+			decision.Outcome = ServiceCatalogCorrelationStale
+			decision.Reason = "repo-local catalog descriptor scope matched only tombstoned repository facts"
+			decision.CandidateRepositoryIDs = serviceCatalogRepositoryIDs(staleMatches)
+			decision.DriftStatus = "stale"
+			for _, match := range staleMatches {
+				decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, match.factID)
+			}
+			return decision
+		}
+		decision.Outcome = ServiceCatalogCorrelationUnresolved
+		decision.Reason = "repo-local catalog descriptor scope did not match any active repository"
+		decision.DriftStatus = "missing"
+		return decision
+	case 1:
+		match := activeMatches[0]
+		decision.RepositoryID = match.repositoryID
+		if decision.ServiceID == "" {
+			decision.ServiceID = serviceCatalogAdmittedServiceID(entity)
+		}
+		decision.Outcome = ServiceCatalogCorrelationExact
+		decision.Reason = "repo-local catalog descriptor scope matches canonical repository identity"
+		decision.ProvenanceOnly = false
+		decision.DriftStatus = "matches"
+		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, match.factID)
+		return decision
+	default:
+		decision.Outcome = ServiceCatalogCorrelationAmbiguous
+		decision.Reason = "repo-local catalog descriptor scope matches multiple active repository facts"
+		decision.CandidateRepositoryIDs = serviceCatalogRepositoryIDs(activeMatches)
+		decision.DriftStatus = "ambiguous"
+		for _, match := range activeMatches {
+			decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, match.factID)
+		}
+		return decision
+	}
+}
+
+func serviceCatalogAdmittedServiceID(entity serviceCatalogEntityEvidence) string {
+	if strings.EqualFold(strings.TrimSpace(entity.entityType), "service") {
+		return entity.entityRef
+	}
+	return ""
+}
+
 func serviceCatalogBaseDecision(
 	entity serviceCatalogEntityEvidence,
 	owner serviceCatalogOwnershipEvidence,
@@ -232,6 +293,14 @@ func serviceCatalogBaseDecision(
 		DriftKind:       "repository",
 		EvidenceFactIDs: compactStringSlice(entity.factID, owner.factID),
 	}
+}
+
+func serviceCatalogSourceRepositoryID(scopeID string) string {
+	scopeID = strings.TrimSpace(scopeID)
+	if !strings.HasPrefix(scopeID, serviceCatalogGitRepositoryScopePrefix) {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(scopeID, serviceCatalogGitRepositoryScopePrefix))
 }
 
 type serviceCatalogRepositoryMatch struct {
@@ -290,6 +359,25 @@ func matchServiceCatalogRepositoryID(
 		})
 	}
 	return active, stale
+}
+
+func matchRepoLocalServiceCatalogRepository(
+	repositoryID string,
+	repositories []serviceCatalogRepositoryEvidence,
+) ([]serviceCatalogRepositoryEvidence, []serviceCatalogRepositoryEvidence) {
+	var active []serviceCatalogRepositoryEvidence
+	var stale []serviceCatalogRepositoryEvidence
+	for _, repository := range repositories {
+		if repository.repositoryID != repositoryID {
+			continue
+		}
+		if repository.tombstone {
+			stale = append(stale, repository)
+			continue
+		}
+		active = append(active, repository)
+	}
+	return uniqueServiceCatalogRepositories(active), uniqueServiceCatalogRepositories(stale)
 }
 
 func matchServiceCatalogRepositoryURL(

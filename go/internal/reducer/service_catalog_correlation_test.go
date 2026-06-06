@@ -93,6 +93,65 @@ func TestBuildServiceCatalogCorrelationDecisionsClassifiesRepositoryEvidence(t *
 	assertServiceCatalogDecision(t, got["component:default/name-only"], ServiceCatalogCorrelationRejected)
 }
 
+func TestBuildServiceCatalogCorrelationDecisionsAdmitsRepoLocalDescriptorScope(t *testing.T) {
+	t.Parallel()
+
+	decisions := BuildServiceCatalogCorrelationDecisions([]facts.Envelope{
+		serviceCatalogEntityFactWithScope(
+			"entity-local",
+			"git-repository-scope:repo-checkout",
+			"component:default/checkout",
+			"Checkout",
+		),
+		serviceCatalogEntityFactWithScope(
+			"entity-stale",
+			"git-repository-scope:repo-archived",
+			"component:default/archived",
+			"Archived",
+		),
+		serviceCatalogEntityFact("entity-unscoped", "component:default/unscoped", "Unscoped"),
+		repositoryFact("repo-checkout", "checkout", "https://github.com/acme/checkout.git", false),
+		repositoryFact("repo-archived", "archived", "https://github.com/acme/archived.git", true),
+	})
+
+	got := serviceCatalogDecisionsByEntity(decisions)
+	local := got["component:default/checkout"]
+	assertServiceCatalogDecision(t, local, ServiceCatalogCorrelationExact)
+	if got, want := local.RepositoryID, "repo-checkout"; got != want {
+		t.Fatalf("local RepositoryID = %q, want %q", got, want)
+	}
+	if got, want := local.ServiceID, "component:default/checkout"; got != want {
+		t.Fatalf("local ServiceID = %q, want %q", got, want)
+	}
+	if local.WorkloadID != "" {
+		t.Fatalf("local WorkloadID = %q, want empty without workload proof", local.WorkloadID)
+	}
+	if local.ProvenanceOnly {
+		t.Fatal("local ProvenanceOnly = true, want false")
+	}
+	if got, want := local.Reason, "repo-local catalog descriptor scope matches canonical repository identity"; got != want {
+		t.Fatalf("local Reason = %q, want %q", got, want)
+	}
+	if !slices.Equal(local.EvidenceFactIDs, []string{"entity-local", "repo-checkout"}) {
+		t.Fatalf("local EvidenceFactIDs = %#v, want entity and repository facts", local.EvidenceFactIDs)
+	}
+
+	stale := got["component:default/archived"]
+	assertServiceCatalogDecision(t, stale, ServiceCatalogCorrelationStale)
+	if !slices.Equal(stale.CandidateRepositoryIDs, []string{"repo-archived"}) {
+		t.Fatalf("stale candidates = %v, want repo-archived", stale.CandidateRepositoryIDs)
+	}
+	if !slices.Equal(stale.EvidenceFactIDs, []string{"entity-stale", "repo-archived"}) {
+		t.Fatalf("stale EvidenceFactIDs = %#v, want entity and tombstoned repository facts", stale.EvidenceFactIDs)
+	}
+
+	unscoped := got["component:default/unscoped"]
+	assertServiceCatalogDecision(t, unscoped, ServiceCatalogCorrelationUnresolved)
+	if unscoped.RepositoryID != "" {
+		t.Fatalf("unscoped RepositoryID = %q, want empty", unscoped.RepositoryID)
+	}
+}
+
 func TestBuildServiceCatalogCorrelationDecisionsKeepsProviderScopesSeparate(t *testing.T) {
 	t.Parallel()
 
@@ -273,6 +332,13 @@ func assertServiceCatalogDecision(
 
 func serviceCatalogEntityFact(factID, entityRef, displayName string) facts.Envelope {
 	return serviceCatalogEntityProviderFact(factID, "backstage", entityRef, displayName)
+}
+
+func serviceCatalogEntityFactWithScope(factID, scopeID, entityRef, displayName string) facts.Envelope {
+	envelope := serviceCatalogEntityFact(factID, entityRef, displayName)
+	envelope.ScopeID = scopeID
+	envelope.Payload["entity_type"] = "service"
+	return envelope
 }
 
 func serviceCatalogEntityProviderFact(factID, provider, entityRef, displayName string) facts.Envelope {
