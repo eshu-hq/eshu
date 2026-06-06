@@ -1413,25 +1413,23 @@ so an operator can see projection intents waiting on cross-scope endpoints. The
 error message names only the bounded keyspace and a missing-count — never a
 redactable uid.
 
-Cold-start LIMITATION (must close before enabling the flag): when the flag is
-first enabled, already-committed CloudResource and KubernetesWorkload nodes have
-no presence rows until they next re-materialize. The gate returns the retryable
-not-ready error, but the reducer queue retry is **bounded**
-(`ESHU_REDUCER_MAX_ATTEMPTS`, default 3, ~30s apart). Unlike the same-scope
-`aws_relationship_nodes_not_ready` gate — whose sibling node phase is published
-within the same scope generation and so always lands inside the retry window —
-this gate waits on an **independent cross-scope** endpoint materializer with no
-such timing guarantee. If that endpoint scope does not re-materialize within the
-attempt budget, the projection intent fails terminally (`reducer_failed`) and the
-generation's edges are dropped until the secrets/IAM scope itself produces a new
-generation. That is the same silent-drop class this gate exists to prevent, so it
-is a real liveness gap, not self-healing.
+Cold-start liveness (#1391): when the flag is first enabled, already-committed
+CloudResource and KubernetesWorkload nodes may lack presence rows until those
+endpoint scopes re-materialize. The queue now treats
+`secrets_iam_endpoint_not_ready` as a non-counting deferred retry: it preserves
+the specific failure class, keeps `visible_at`/`next_attempt_at` backoff, and
+does not increment `attempt_count` on later claims while that class is pending.
+The projection intent therefore keeps re-driving instead of exhausting
+`ESHU_REDUCER_MAX_ATTEMPTS` and terminally dropping the generation's edges.
 
-Because the projection lane is OFF by default and live activation is gated on the
-ADR #1314 §14 sign-off (#1381), this lands safely disabled. **Enabling the flag is
-blocked on the cross-scope liveness fix** (tracked in #1391): either a
-non-counting "blocked/deferred" retry disposition for
-`secrets_iam_endpoint_not_ready` that re-drives indefinitely without exhausting
-`maxAttempts`, or a presence-backfill trigger that re-enqueues the projection
-generations referencing a newly-committed endpoint uid. Until one lands, the flag
-must stay off.
+No-Regression Evidence (#1391):
+
+```bash
+go test ./internal/storage/postgres -run 'TestReducerQueueFailDefersSecretsIAMEndpointReadinessPastAttemptBudget|TestReducerQueueClaimDoesNotCountSecretsIAMEndpointReadinessDefers|TestClaimBatchDoesNotCountSecretsIAMEndpointReadinessDefers' -count=1
+```
+
+This gate failed before the queue dead-lettered an over-budget readiness miss
+and claim SQL always consumed `attempt_count`, then passed once deferred retries
+became non-counting on both single and batch claim paths. The projection lane
+still stays OFF by default until ADR #1314 §14 principal+security sign-off
+(#1381) records the final activation decision.

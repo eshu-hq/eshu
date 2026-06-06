@@ -254,19 +254,16 @@ materializers (flag-gated, so the default hot path is unchanged), and
 returning a retryable `secrets_iam_endpoint_not_ready` error so the queue
 re-enqueues rather than dropping edges.
 
-Open liveness gap (must close before §14 activation): the reducer queue retry is
-bounded (`ESHU_REDUCER_MAX_ATTEMPTS`, default 3). The same-scope
-`aws_relationship_nodes_not_ready` gate is safe because its sibling node phase
-commits within the same scope generation, inside the retry window. This gate
-waits on an independent cross-scope endpoint scope with no such timing guarantee,
-so at cold start (or whenever an endpoint scope is quiescent) the projection
-intent can exhaust its attempts and fail terminally, dropping the generation's
-edges — the very failure the gate prevents. Enabling the flag is therefore
-blocked on one of: (a) a non-counting "blocked/deferred" retry disposition for
-`secrets_iam_endpoint_not_ready` that re-drives without exhausting `maxAttempts`,
-or (b) a presence-backfill trigger that re-enqueues projection generations
-referencing a newly-committed endpoint uid. Tracked in #1391; the lane
-stays OFF until it lands. See `go/internal/reducer/README.md`.
+Resolved liveness gap (#1391): cross-scope endpoint waits no longer consume the
+bounded reducer retry budget. `ReducerQueue.Fail` preserves
+`failure_class=secrets_iam_endpoint_not_ready` and requeues with the existing
+`visible_at`/`next_attempt_at` backoff even after `ESHU_REDUCER_MAX_ATTEMPTS`.
+The single and batch claim SQL then keep `attempt_count` unchanged while that
+class is pending, so repeated cold-start readiness waits do not terminally
+dead-letter the generation or steal the later retry budget for real execution
+failures once endpoints exist. Status, latest-failure, and blockage surfaces
+continue to expose the specific failure class for operator diagnosis. See
+`go/internal/reducer/README.md` and `go/internal/storage/postgres/README.md`.
 
 The first implementation PR must publish a new canonical-node readiness phase
 for the `SecretsIAM*` node keyspace only after node writes commit. Edge writes
