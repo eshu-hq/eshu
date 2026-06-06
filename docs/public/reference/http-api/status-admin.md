@@ -45,8 +45,19 @@ public query API status.
 - `GET /api/v0/repositories/{repo_id}/coverage` returns durable repository
   coverage rows for one repository.
 
-The index status payload includes `terraform_state.warning_summary[]`, empty
-when no recent Terraform-state warnings exist. Each row carries `warning_kind`,
+The index status payload includes `aws_materialization`, an aggregate reducer
+queue summary for AWS graph/read-model materialization domains. It separates
+`pending`, `blocked`, `retrying`, `dead_letter`, `failed`, `in_flight`, and
+`outstanding` counts and includes per-domain rows using domain names only. The
+`blocked` count is the distinct blocked work-item count for the domain; the
+separate `queue_blockages[]` diagnostics keep per-prerequisite rows such as
+missing `cloud_resource_uid:canonical_nodes_committed` readiness. Operators can
+see named reducer prerequisites alongside aggregate queued, retrying, and
+terminal counts without printing ARNs, account-local resource IDs, bucket names,
+policy bodies, or other raw AWS payload details.
+
+The payload also includes `terraform_state.warning_summary[]`, empty when no
+recent Terraform-state warnings exist. Each row carries `warning_kind`,
 `reason`, `scope_class`, and `count`. `scope_class` is the public backend class
 such as `s3`, `local`, or `unknown`. The payload also includes bounded
 `terraform_state.recent_warnings[]` rows with `source_handle`,

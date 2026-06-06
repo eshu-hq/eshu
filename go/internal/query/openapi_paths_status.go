@@ -221,7 +221,21 @@ const openAPIPathsStatusAndCompare = `
                     "reasons": {"type": "array", "items": {"type": "string"}},
                     "repository_count": {"type": "integer"},
                     "queue": {"type": "object"},
+                    "queue_blockages": {"type": "array", "items": {"type": "object"}},
                     "scope_activity": {"type": "object"},
+                    "aws_materialization": {
+                      "type": "object",
+                      "properties": {
+                        "outstanding": {"type": "integer"},
+                        "pending": {"type": "integer"},
+                        "in_flight": {"type": "integer"},
+                        "blocked": {"type": "integer"},
+                        "retrying": {"type": "integer"},
+                        "dead_letter": {"type": "integer"},
+                        "failed": {"type": "integer"},
+                        "domains": {"type": "array", "items": {"type": "object"}}
+                      }
+                    },
                     "terraform_state": {
                       "type": "object",
                       "properties": {
@@ -281,7 +295,21 @@ const openAPIPathsStatusAndCompare = `
                     "reasons": {"type": "array", "items": {"type": "string"}},
                     "repository_count": {"type": "integer"},
                     "queue": {"type": "object"},
+                    "queue_blockages": {"type": "array", "items": {"type": "object"}},
                     "scope_activity": {"type": "object"},
+                    "aws_materialization": {
+                      "type": "object",
+                      "properties": {
+                        "outstanding": {"type": "integer"},
+                        "pending": {"type": "integer"},
+                        "in_flight": {"type": "integer"},
+                        "blocked": {"type": "integer"},
+                        "retrying": {"type": "integer"},
+                        "dead_letter": {"type": "integer"},
+                        "failed": {"type": "integer"},
+                        "domains": {"type": "array", "items": {"type": "object"}}
+                      }
+                    },
                     "terraform_state": {
                       "type": "object",
                       "properties": {

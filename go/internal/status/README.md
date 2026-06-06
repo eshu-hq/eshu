@@ -214,9 +214,12 @@ strings.
 - **`DomainBacklogs` are capped.** `BuildReport` applies `topDomainBacklogs`
   with `Options.DomainLimit` (default 5) to prevent unbounded output when the
   reducer has many domains.
-- **`QueueBlockage` rows use `ConflictKey` for per-item identity.** These rows
-  are sorted biggest-and-oldest-first before rendering. The `ConflictKey` field
-  is surfaced in text and JSON but must not be added as a metric label.
+- **`QueueBlockage` rows use `ConflictKey` for prerequisite diagnostics.**
+  Postgres status reads may emit one row per missing prerequisite keyspace, but
+  `Blocked` is the distinct work-item count for the domain so aggregate status
+  buckets do not double-count a row that waits on multiple prerequisites. The
+  `ConflictKey` field is surfaced in text and JSON but must not be added as a
+  metric label.
 - **`RetryPolicySummary` is normalized.** Both `cloneRetryPolicies` and
   `MergeRetryPolicies` deduplicate by stage and sort alphabetically before
   returning. Do not rely on insertion order.
