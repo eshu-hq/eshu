@@ -13,6 +13,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/remote_e2e_security_alerts.sh"
 # shellcheck source=scripts/lib/remote_e2e_target_story_alignment.sh
 source "${SCRIPT_DIR}/lib/remote_e2e_target_story_alignment.sh"
+# shellcheck source=scripts/lib/remote_e2e_target_story_readbacks.sh
+source "${SCRIPT_DIR}/lib/remote_e2e_target_story_readbacks.sh"
 # shellcheck source=scripts/lib/remote_e2e_target_story_cicd.sh
 source "${SCRIPT_DIR}/lib/remote_e2e_target_story_cicd.sh"
 # shellcheck source=scripts/lib/remote_e2e_service_catalog.sh
@@ -230,62 +232,6 @@ check_repository_story() {
 	fi
 }
 
-list_limit_for_minimum() {
-	local label="$1"
-	local value="$2"
-	if ((value > 200)); then
-		echo "target ${label} minimum cannot exceed bounded list limit 200" >&2
-		return 1
-	fi
-	if ((value < 1)); then
-		printf '1'
-		return 0
-	fi
-	printf '%s' "${value}"
-}
-
-provider_repository_match_count() {
-	local file="$1"
-	local expected="$2"
-	jq -r --arg expected "${expected}" '
-		(.data // .) as $body |
-		($expected | ascii_downcase) as $expected_lower |
-		def repository_anchor_matches($actual):
-			$actual == $expected_lower
-			or ($actual | endswith(":" + $expected_lower))
-			or ($actual | endswith("/" + $expected_lower));
-		def provider_repository_candidates($alert):
-			[
-				$alert.repository_id?,
-				$alert.repository_slug?,
-				$alert.repository_name?,
-				$alert.repository_full_name?,
-				$alert.provider_repository?,
-				$alert.provider_repository_id?,
-				$alert.provider_repository_name?,
-				(($alert.provider_alert_id? // "") | capture("security-alert:[^:]+:(?<repository>[^:]+)")? | .repository)
-			]
-			| map(select(type == "string" and length > 0) | ascii_downcase);
-		[
-			$body.reconciliations[]?
-			| provider_repository_candidates(.provider_alert // {}) as $anchors
-			| select(any($anchors[]; repository_anchor_matches(.)))
-		] | length
-	' "${file}"
-}
-
-cloud_resource_match_count() {
-	local file="$1"
-	local expected="$2"
-	jq -r --arg expected "${expected}" '
-		(.data // .) as $body |
-		[
-			$body.results[]?
-			| select((.resource_id // "") == $expected or (.arn // "") == $expected or (.id // "") == $expected)
-		] | length
-	' "${file}"
-}
-
 main() {
 	if [[ -z "${TARGET_STORY_FILE}" ]]; then
 		echo "remote E2E target story proof skipped: no target story configured"
@@ -337,6 +283,10 @@ main() {
 	require_non_negative_integer minimums.service_catalog_correlations "${catalog_min}"
 	require_non_negative_integer minimums.ci_cd_run_correlations "${cicd_min}"
 	require_non_negative_integer minimums.cloud_resources "${cloud_min}"
+	local service_story_min=0
+	if ((image_min > 0 && sbom_min > 0)); then
+		service_story_min=1
+	fi
 	local expected_security_rows_count=0
 	if [[ -n "${expected_security_rows_file}" ]]; then
 		if [[ ! -f "${expected_security_rows_file}" ]]; then
@@ -351,7 +301,7 @@ main() {
 	fi
 	validate_target_story_proof_mode "${proof_mode}" "${image_min}" "${sbom_min}"
 	target_story_validate_alignment "${TARGET_STORY_FILE}" "${proof_mode}"
-	if ((catalog_min > 0 || cicd_min > 0 || cloud_min > 0)) && [[ -z "${MCP_URL}" ]]; then
+	if ((catalog_min > 0 || cicd_min > 0 || cloud_min > 0 || service_story_min > 0)) && [[ -z "${MCP_URL}" ]]; then
 		echo "ESHU_REMOTE_E2E_MCP_URL is required when target story MCP proof is required" >&2
 		return 1
 	fi
@@ -363,7 +313,7 @@ main() {
 	local repo_query
 	repo_query="$(urlencode "${repo_selector}")"
 	local impact_count=0 security_count=0 security_expected_rows_count=0 image_count=0 sbom_count=0 catalog_count=0 cicd_count=0 cloud_count=0
-	local mcp_catalog_count=0 mcp_cicd_count=0 mcp_cloud_count=0
+	local service_story_count=0 mcp_service_story_count=0 mcp_catalog_count=0 mcp_cicd_count=0 mcp_cloud_count=0
 	local cicd_static_state=not_checked cicd_live_state=not_checked
 	local mcp_cicd_static_state=not_checked mcp_cicd_live_state=not_checked
 	local catalog_local_descriptor_state="not_checked"
@@ -437,6 +387,25 @@ main() {
 		sbom_count="$(json_int "${sbom_file}" '.total_attachments')"
 		require_min_count sbom_attachments "${sbom_count}" "${sbom_min}"
 	fi
+	if ((service_story_min > 0)); then
+		local service_selector
+		service_selector="$(target_story_service_selector "${expected_service_id}" "${expected_workload_id}")"
+		if [[ -z "${service_selector}" ]]; then
+			echo "target service_story_image_package requires expected_service_id or expected_workload_id" >&2
+			return 1
+		fi
+		local service_story_file="${TMP_DIR}/service-story.json"
+		api_get "$(target_story_service_api_path "${service_selector}" "${expected_service_id}" "${expected_workload_id}" "${repo_selector}")" "${service_story_file}"
+		service_story_count="$(service_story_image_package_match_count "${service_story_file}" "${expected_image_digest}" "${expected_image_ref}" "${expected_sbom_digest}")"
+		require_min_count service_story_image_package "${service_story_count}" "${service_story_min}"
+
+		local mcp_service_story_file="${TMP_DIR}/mcp-service-story.json"
+		local mcp_service_story_args
+		mcp_service_story_args="$(jq -n --arg workload_id "${service_selector}" '{workload_id:$workload_id}')"
+		mcp_tool_envelope get_service_story "${mcp_service_story_args}" "${mcp_service_story_file}"
+		mcp_service_story_count="$(service_story_image_package_match_count "${mcp_service_story_file}" "${expected_image_digest}" "${expected_image_ref}" "${expected_sbom_digest}")"
+		require_min_count mcp_service_story_image_package "${mcp_service_story_count}" "${service_story_min}"
+	fi
 	if ((catalog_min > 0)); then
 		target_story_check_service_catalog_correlations \
 			"${repo_query}" \
@@ -471,13 +440,14 @@ main() {
 		mcp_cloud_count="$(cloud_resource_match_count "${mcp_cloud_file}" "${expected_cloud_resource_id}")"
 		require_min_count mcp_cloud_resources "${mcp_cloud_count}" "${cloud_min}"
 	fi
-	printf 'remote E2E target story proof counts: proof_mode=%s repository_story=1 impact_findings=%s security_alert_reconciliations=%s security_alert_expected_rows=%s container_image_identities=%s sbom_attachments=%s service_catalog_correlations=%s service_catalog_local_descriptors=%s service_catalog_external_confirmation=%s service_catalog_external_confirmation_reason=%s ci_cd_run_correlations=%s ci_cd_static_workflow_state=%s ci_cd_live_run_state=%s cloud_resources=%s mcp_service_catalog_correlations=%s mcp_service_catalog_local_descriptors=%s mcp_service_catalog_external_confirmation=%s mcp_service_catalog_external_confirmation_reason=%s mcp_ci_cd_run_correlations=%s mcp_ci_cd_static_workflow_state=%s mcp_ci_cd_live_run_state=%s mcp_cloud_resources=%s\n' \
+	printf 'remote E2E target story proof counts: proof_mode=%s repository_story=1 impact_findings=%s security_alert_reconciliations=%s security_alert_expected_rows=%s container_image_identities=%s sbom_attachments=%s service_story_image_package=%s service_catalog_correlations=%s service_catalog_local_descriptors=%s service_catalog_external_confirmation=%s service_catalog_external_confirmation_reason=%s ci_cd_run_correlations=%s ci_cd_static_workflow_state=%s ci_cd_live_run_state=%s cloud_resources=%s mcp_service_story_image_package=%s mcp_service_catalog_correlations=%s mcp_service_catalog_local_descriptors=%s mcp_service_catalog_external_confirmation=%s mcp_service_catalog_external_confirmation_reason=%s mcp_ci_cd_run_correlations=%s mcp_ci_cd_static_workflow_state=%s mcp_ci_cd_live_run_state=%s mcp_cloud_resources=%s\n' \
 		"${proof_mode}" \
 		"${impact_count}" \
 		"${security_count}" \
 		"${security_expected_rows_count}" \
 		"${image_count}" \
 		"${sbom_count}" \
+		"${service_story_count}" \
 		"${catalog_count}" \
 		"${catalog_local_descriptor_state}" \
 		"${catalog_external_confirmation_state}" \
@@ -486,6 +456,7 @@ main() {
 		"${cicd_static_state}" \
 		"${cicd_live_state}" \
 		"${cloud_count}" \
+		"${mcp_service_story_count}" \
 		"${mcp_catalog_count}" \
 		"${mcp_catalog_local_descriptor_state}" \
 		"${mcp_catalog_external_confirmation_state}" \

@@ -166,10 +166,13 @@ CI/CD evidence. Positive image, SBOM, and CI/CD minimums require a shared
 `expected_image_digest` or `expected_image_ref` so the verifier proves a single
 artifact chain instead of unrelated aggregate evidence. A positive
 `cloud_resources` minimum requires `expected_cloud_resource_id`; provider or
-environment aggregates alone are not enough to satisfy a target story. When the
-service-catalog or cloud minimum is positive, set `ESHU_REMOTE_E2E_MCP_URL`
-and, if needed, `ESHU_REMOTE_E2E_MCP_TOKEN`. The verifier exercises MCP
-readbacks over the same target filters as the API proof.
+environment aggregates alone are not enough to satisfy a target story. When
+image and SBOM minimums are both positive, the verifier also requires exact API
+and MCP service-story `image_package` readback for the target service, not only
+aggregate supply-chain counts. When the service-story, service-catalog, or
+cloud minimum is positive, set `ESHU_REMOTE_E2E_MCP_URL` and, if needed,
+`ESHU_REMOTE_E2E_MCP_TOKEN`. The verifier exercises MCP readbacks over the same
+target filters as the API proof.
 
 In `code_to_cloud` mode, the verifier also checks manifest alignment before
 calling API or MCP routes. The selected repository, provider security-alert

@@ -3,6 +3,7 @@ package query
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 )
 
@@ -117,6 +118,20 @@ func (h *EntityHandler) getServiceStory(w http.ResponseWriter, r *http.Request) 
 	}); err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich service story: %v", err))
 		return
+	}
+	if h.ContainerImageIdentities != nil && h.SBOMAttachments != nil {
+		timer := startServiceQueryStage(r.Context(), h.Logger, "service_story", safeStr(ctx, "name"), safeStr(ctx, "repo_id"), "supply_chain_evidence")
+		if err := h.enrichServiceStorySupplyChainEvidence(r.Context(), ctx); err != nil {
+			timer.Done(r.Context(), slog.Bool("error", true))
+			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich service story supply chain evidence: %v", err))
+			return
+		}
+		imagePackage := serviceStorySupplyChainImagePackage(ctx)
+		timer.Done(r.Context(),
+			slog.Int("image_ref_count", len(StringSliceVal(imagePackage, "candidate_image_refs"))),
+			slog.Int("evidence_count", len(mapSliceValue(imagePackage, "evidence"))),
+			slog.Int("missing_count", len(StringSliceVal(imagePackage, "missing_evidence"))),
+		)
 	}
 
 	WriteSuccess(

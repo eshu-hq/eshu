@@ -278,6 +278,13 @@ No-Observability-Change: service story anchor admission uses existing service
 query stage timing and graph query instrumentation; it adds no collector call,
 queue worker, metric label, runtime knob, or deployment behavior.
 
+Service story `code_to_runtime_trace.image_package` attaches supply-chain
+evidence only when a target deployment image reference resolves to an exact
+container image identity and an admissible SBOM attachment. Ambiguous tags,
+stale identity rows, missing image identities, and unattached SBOM rows stay
+fail-closed as `missing_evidence` reasons so aggregate supply-chain evidence is
+not promoted into a target service story by accident.
+
 `POST /api/v0/impact/deployment-config-influence` accepts `service_name` or
 `workload_id`, optional `environment`, and optional `limit`. Use it when the
 caller asks which repositories and files influence image tags, runtime

@@ -48,6 +48,9 @@ if ((is_mcp == 1)); then
 		list_ci_cd_run_correlations)
 			cat "${state_dir}/mcp-cicd.json"
 			;;
+		get_service_story)
+			cat "${state_dir}/mcp-service-story.json"
+			;;
 		find_infra_resources)
 			cat "${state_dir}/mcp-cloud-resources.json"
 			;;
@@ -61,6 +64,9 @@ fi
 case "$*" in
 	*"/api/v0/repositories/repo%3A%2F%2Fexample%2Fapi/story"*)
 		cat "${state_dir}/repo-story.json"
+		;;
+	*"/api/v0/services/api/story"*)
+		cat "${state_dir}/service-story.json"
 		;;
 	*"/api/v0/supply-chain/impact/findings/count?repository_id=repo%3A%2F%2Fexample%2Fapi&profile=comprehensive"*)
 		cat "${state_dir}/impact-count.json"
