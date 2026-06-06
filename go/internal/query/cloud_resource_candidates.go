@@ -34,7 +34,8 @@ WHERE $service_name <> ''
     toLower(coalesce(c.account_id, '')) CONTAINS $service_token OR
     toLower(coalesce(c.region, '')) CONTAINS $service_token OR
     toLower(coalesce(c.source, c.source_system, '')) CONTAINS $service_token OR
-    toLower(coalesce(c.config_path, '')) CONTAINS $service_token
+    toLower(coalesce(c.config_path, '')) CONTAINS $service_token OR
+    toLower(coalesce(c.service_anchor_name_tokens, '')) CONTAINS $service_token
   )
 RETURN DISTINCT coalesce(c.id, c.uid, c.resource_id, c.arn, c.name) AS id,
        c.name AS name,
@@ -50,7 +51,9 @@ RETURN DISTINCT coalesce(c.id, c.uid, c.resource_id, c.arn, c.name) AS id,
        coalesce(c.arn, '') AS arn,
        coalesce(c.account_id, '') AS account_id,
        coalesce(c.region, '') AS region,
-       coalesce(c.service_kind, '') AS service_kind
+       coalesce(c.service_kind, '') AS service_kind,
+       coalesce(c.service_anchor_status, '') AS service_anchor_status,
+       coalesce(c.service_anchor_reason, '') AS service_anchor_reason
 ORDER BY name, id
 LIMIT $limit`, map[string]any{
 		"service_name":  serviceName,
@@ -63,27 +66,40 @@ LIMIT $limit`, map[string]any{
 	candidates := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		candidate := compactStringMap(map[string]any{
-			"id":                   StringVal(row, "id"),
-			"name":                 StringVal(row, "name"),
-			"kind":                 StringVal(row, "kind"),
-			"resource_type":        StringVal(row, "resource_type"),
-			"provider":             StringVal(row, "provider"),
-			"environment":          StringVal(row, "environment"),
-			"source":               StringVal(row, "source"),
-			"config_path":          StringVal(row, "config_path"),
-			"resource_service":     StringVal(row, "resource_service"),
-			"resource_category":    StringVal(row, "resource_category"),
-			"resource_id":          StringVal(row, "resource_id"),
-			"arn":                  StringVal(row, "arn"),
-			"account_id":           StringVal(row, "account_id"),
-			"region":               StringVal(row, "region"),
-			"service_kind":         StringVal(row, "service_kind"),
-			"candidate_status":     "uncorrelated",
-			"missing_relationship": "workload_cloud_relationship",
+			"id":                    StringVal(row, "id"),
+			"name":                  StringVal(row, "name"),
+			"kind":                  StringVal(row, "kind"),
+			"resource_type":         StringVal(row, "resource_type"),
+			"provider":              StringVal(row, "provider"),
+			"environment":           StringVal(row, "environment"),
+			"source":                StringVal(row, "source"),
+			"config_path":           StringVal(row, "config_path"),
+			"resource_service":      StringVal(row, "resource_service"),
+			"resource_category":     StringVal(row, "resource_category"),
+			"resource_id":           StringVal(row, "resource_id"),
+			"arn":                   StringVal(row, "arn"),
+			"account_id":            StringVal(row, "account_id"),
+			"region":                StringVal(row, "region"),
+			"service_kind":          StringVal(row, "service_kind"),
+			"service_anchor_status": StringVal(row, "service_anchor_status"),
+			"candidate_status":      cloudResourceCandidateStatus(row),
+			"service_anchor_reason": StringVal(row, "service_anchor_reason"),
+			"missing_relationship":  "workload_cloud_relationship",
 		})
 		if len(candidate) > 0 {
 			candidates = append(candidates, candidate)
 		}
 	}
 	return candidates, nil
+}
+
+func cloudResourceCandidateStatus(row map[string]any) string {
+	switch StringVal(row, "service_anchor_status") {
+	case "ambiguous":
+		return "ambiguous_anchor"
+	case "weak":
+		return "weak_anchor"
+	default:
+		return "uncorrelated"
+	}
 }

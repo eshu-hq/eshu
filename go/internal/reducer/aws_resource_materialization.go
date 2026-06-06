@@ -253,6 +253,9 @@ func cloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool) {
 		"source_confidence":   string(env.SourceConfidence),
 		"collector_kind":      env.CollectorKind,
 	}
+	for key, value := range cloudResourceServiceAnchorFields(env.Payload) {
+		row[key] = value
+	}
 	return row, uid, true
 }
 

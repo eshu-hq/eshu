@@ -131,6 +131,10 @@ func buildServiceDeploymentOverviewWithContext(buildCtx serviceStoryBuildContext
 	if provisioningChains := mapSliceValue(workloadContext, "provisioning_source_chains"); len(provisioningChains) > 0 {
 		overview["provisioning_source_chain_count"] = len(provisioningChains)
 	}
+	if cloudResources := mapSliceValue(workloadContext, "cloud_resources"); len(cloudResources) > 0 {
+		overview["cloud_resource_count"] = len(cloudResources)
+		overview["cloud_relationship_basis"] = serviceCloudRelationshipBasis(cloudResources)
+	}
 	if cloudCandidates := mapSliceValue(workloadContext, "uncorrelated_cloud_resources"); len(cloudCandidates) > 0 {
 		overview["uncorrelated_cloud_resource_count"] = len(cloudCandidates)
 		overview["missing_cloud_relationship"] = "workload_cloud_relationship"
@@ -153,6 +157,27 @@ func buildServiceDeploymentOverviewWithContext(buildCtx serviceStoryBuildContext
 		}
 	}
 	return overview
+}
+
+func serviceCloudRelationshipBasis(resources []map[string]any) string {
+	if len(resources) == 0 {
+		return ""
+	}
+	bases := map[string]struct{}{}
+	for _, resource := range resources {
+		basis := StringVal(resource, "relationship_basis")
+		if basis == "" {
+			basis = "materialized_workload_cloud_relationship"
+		}
+		bases[basis] = struct{}{}
+	}
+	if len(bases) != 1 {
+		return "mixed"
+	}
+	for basis := range bases {
+		return basis
+	}
+	return ""
 }
 
 func buildServiceStorySectionsWithContext(buildCtx serviceStoryBuildContext) []map[string]any {
@@ -297,6 +322,7 @@ func buildServiceSupportOverviewWithContext(buildCtx serviceStoryBuildContext) m
 		"entrypoint_host_count":      len(mapSliceValue(workloadContext, "hostnames")),
 		"entrypoint_count":           len(mapSliceValue(workloadContext, "entrypoints")),
 		"network_path_count":         len(mapSliceValue(workloadContext, "network_paths")),
+		"cloud_resource_count":       len(mapSliceValue(workloadContext, "cloud_resources")),
 		"has_api_surface":            len(mapValue(workloadContext, "api_surface")) > 0,
 		"has_documentation_overview": len(mapValue(workloadContext, "documentation_overview")) > 0,
 	}
