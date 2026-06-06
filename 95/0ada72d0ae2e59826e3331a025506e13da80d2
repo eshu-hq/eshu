@@ -1,0 +1,23 @@
+go/internal/query/impact_trace_deployment_test.go
+  s_f2f7fbb6f30866::t_4950c8761d7f70 261-294
+go/internal/query/deployment_config_influence_test.go
+  s_f2f7fbb6f30866::t_0bb66884bf6711 122-147
+go/internal/query/deployment_trace_delivery_paths.go
+  s_f2f7fbb6f30866::t_47aa5f170b176c 14-15,17,36-54,88-91,112-123,169-181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "950ada72d0ae2e59826e3331a025506e13da80d2",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
