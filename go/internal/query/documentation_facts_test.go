@@ -160,6 +160,74 @@ func TestContentReaderDocumentationFactsFiltersAndPaginates(t *testing.T) {
 	}
 }
 
+func TestContentReaderDocumentationFactsSearchesLinkTargetURI(t *testing.T) {
+	t.Parallel()
+
+	link := []byte(`{
+		"fact_id": "fact:link:1",
+		"fact_kind": "documentation_link",
+		"scope_id": "doc-source:confluence:boats-group.atlassian.net:196609",
+		"generation_id": "gen-1",
+		"payload": {
+			"document_id": "doc:confluence:123",
+			"section_id": "service-links",
+			"target_uri": "service://payments-api"
+		}
+	}`)
+	db := openContentReaderTestDB(t, []contentReaderQueryResult{{
+		columns: []string{"payload"},
+		rows:    [][]driver.Value{{link}},
+		queryContains: []string{
+			"fact_records.payload->>'target_uri'",
+		},
+	}})
+	reader := NewContentReader(db)
+
+	got, err := reader.documentationFacts(t.Context(), documentationFactFilter{
+		FactKind:   "documentation_link",
+		ScopeID:    "doc-source:confluence:boats-group.atlassian.net:196609",
+		DocumentID: "doc:confluence:123",
+		Query:      "payments-api",
+		Limit:      10,
+	})
+	if err != nil {
+		t.Fatalf("documentationFacts() error = %v, want nil", err)
+	}
+	if got, want := len(got.Facts), 1; got != want {
+		t.Fatalf("len(Facts) = %d, want %d", got, want)
+	}
+	payload := got.Facts[0]["payload"].(map[string]any)
+	if got, want := payload["target_uri"], "service://payments-api"; got != want {
+		t.Fatalf("payload.target_uri = %#v, want %#v", got, want)
+	}
+}
+
+func TestContentReaderDocumentationFactsReturnsEmptyForNoMatch(t *testing.T) {
+	t.Parallel()
+
+	db := openContentReaderTestDB(t, []contentReaderQueryResult{{
+		columns: []string{"payload"},
+		rows:    nil,
+	}})
+	reader := NewContentReader(db)
+
+	got, err := reader.documentationFacts(t.Context(), documentationFactFilter{
+		FactKind: "documentation_link",
+		ScopeID:  "doc-source:confluence:boats-group.atlassian.net:196609",
+		Query:    "not-present",
+		Limit:    10,
+	})
+	if err != nil {
+		t.Fatalf("documentationFacts() error = %v, want nil", err)
+	}
+	if got := len(got.Facts); got != 0 {
+		t.Fatalf("len(Facts) = %d, want 0", got)
+	}
+	if got := got.NextCursor; got != "" {
+		t.Fatalf("NextCursor = %#v, want empty", got)
+	}
+}
+
 func TestBuildDocumentationFactsSQLIsScopedAndBounded(t *testing.T) {
 	t.Parallel()
 
@@ -181,6 +249,7 @@ func TestBuildDocumentationFactsSQLIsScopedAndBounded(t *testing.T) {
 		"fact_records.payload->>'document_id' = $4",
 		"fact_records.payload->>'section_id' = $5",
 		"LOWER(",
+		"fact_records.payload->>'target_uri'",
 		"ORDER BY fact_records.observed_at DESC, fact_records.fact_id DESC",
 		"LIMIT $7 OFFSET $8",
 	} {

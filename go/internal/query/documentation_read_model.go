@@ -339,7 +339,8 @@ func buildDocumentationFactsSQL(filter documentationFactFilter) (string, []any) 
 			COALESCE(fact_records.payload->>'display_name', '') || ' ' ||
 			COALESCE(fact_records.payload->>'title', '') || ' ' ||
 			COALESCE(fact_records.payload->>'heading_text', '') || ' ' ||
-			COALESCE(fact_records.payload->>'content', '')
+			COALESCE(fact_records.payload->>'content', '') || ' ' ||
+			COALESCE(fact_records.payload->>'target_uri', '')
 		) LIKE $%d`, len(args)))
 	}
 	if filter.UpdatedSince != nil {

@@ -145,7 +145,7 @@ const openAPIPathsEvidence = `
           {"name": "source_id", "in": "query", "schema": {"type": "string"}},
           {"name": "document_id", "in": "query", "schema": {"type": "string"}},
           {"name": "section_id", "in": "query", "schema": {"type": "string"}},
-          {"name": "q", "in": "query", "schema": {"type": "string"}, "description": "Case-insensitive search over source display name, document title, section heading, and section content"},
+          {"name": "q", "in": "query", "schema": {"type": "string"}, "description": "Case-insensitive search over source display name, document title, section heading, section content, and documentation link target URI"},
           {"name": "updated_since", "in": "query", "schema": {"type": "string", "format": "date-time"}},
           {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200}},
           {"name": "cursor", "in": "query", "schema": {"type": "string"}, "description": "Non-negative integer offset returned as next_cursor"}
