@@ -18,6 +18,12 @@ route list is verified against `go/internal/query`.
 
 OpenAPI remains canonical for full request and response schemas.
 
+Programmatic clients that need route-to-route comparison should request the
+canonical envelope with `Accept: application/eshu.envelope+json`. Repository,
+entity, workload, and service context/story routes then return `data`, `truth`,
+and `error` at the top level. Plain HTTP clients that do not request the
+envelope keep the legacy route payload shape.
+
 ## Entity Resolution
 
 `POST /api/v0/entities/resolve` accepts `name`, optional `type`, optional
@@ -45,6 +51,21 @@ responses use `materialization_status=identity_only`,
 
 Entity context may include semantic narrative fields when normalized semantic
 metadata exists: `semantic_summary`, `semantic_profile`, and `story`.
+
+No-Regression Evidence:
+
+```bash
+cd go && go test ./internal/query -run 'TestGet(WorkloadContext|WorkloadStory|EntityContext)ReturnsEnvelopeWhenRequested' -count=1
+```
+
+This proves entity context, workload context, and workload story responses honor
+the same envelope negotiation used by repository and service story routes,
+without changing their graph/content lookup shape.
+
+No-Observability-Change: context/story envelope normalization only changes the
+HTTP response writer selected after the existing query and enrichment paths
+finish. It adds no graph query, collector call, queue worker, metric instrument,
+span attribute, or deployment knob.
 
 ## Incident Context
 

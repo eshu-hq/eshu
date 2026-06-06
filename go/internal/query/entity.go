@@ -201,7 +201,7 @@ func (h *EntityHandler) getEntityContext(w http.ResponseWriter, r *http.Request)
 			WriteError(w, http.StatusNotFound, "entity not found")
 			return
 		}
-		WriteJSON(w, http.StatusOK, response)
+		WriteSuccess(w, r, http.StatusOK, response, entityContextTruthEnvelope(h.profile()))
 		return
 	}
 
@@ -232,7 +232,7 @@ func (h *EntityHandler) getEntityContext(w http.ResponseWriter, r *http.Request)
 	response = enriched[0]
 	attachSemanticSummary(response)
 
-	WriteJSON(w, http.StatusOK, response)
+	WriteSuccess(w, r, http.StatusOK, response, entityContextTruthEnvelope(h.profile()))
 }
 
 func (h *EntityHandler) resolveEntityFromContent(
@@ -402,7 +402,7 @@ func (h *EntityHandler) getWorkloadContext(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	WriteJSON(w, http.StatusOK, ctx)
+	WriteSuccess(w, r, http.StatusOK, ctx, workloadContextTruthEnvelope(h.profile(), "context"))
 }
 
 // getWorkloadStory retrieves a narrative summary for a workload.
@@ -433,11 +433,11 @@ func (h *EntityHandler) getWorkloadStory(w http.ResponseWriter, r *http.Request)
 	}
 
 	story := buildWorkloadStory(ctx)
-	WriteJSON(w, http.StatusOK, map[string]any{
+	WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"workload_id": workloadID,
 		"name":        ctx["name"],
 		"story":       story,
-	})
+	}, workloadContextTruthEnvelope(h.profile(), "story"))
 }
 
 // getServiceContext retrieves the context for a service by name.
