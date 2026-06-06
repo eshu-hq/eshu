@@ -115,13 +115,18 @@ export function codeRelationshipsToGraph(data: CodeRelationshipsResponse, fallba
 // relationships (depth 1). code/relationships only matches on `entity_id`, so we
 // resolve the query to a graph entity id first (falling back to the raw query).
 export async function loadEntityGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
-  let entityID = name;
+  let entityID = "";
   let displayName = name;
   try {
     const resolved = await resolveEntity({ client, name, limit: 1 });
     const top = resolved.candidates[0];
     if (top?.id) { entityID = top.id; displayName = top.name ?? name; }
-  } catch { /* fall back to the raw query as the entity id */ }
+  } catch { /* resolution unavailable — handled below */ }
+  if (entityID === "") {
+    // code/relationships matches on entity_id only; a raw query string is not a
+    // valid id, so render the searched node alone instead of forcing a 404.
+    return { nodes: [{ id: name, kind: kindFor(undefined), label: name, col: 1, hero: true, truth: "exact" }], edges: [] };
+  }
   const env = await client.post<CodeRelationshipsResponse>("/api/v0/code/relationships", { entity_id: entityID, depth: 1 });
   return codeRelationshipsToGraph(env.data ?? {}, { id: entityID, name: displayName });
 }
@@ -130,8 +135,9 @@ export async function loadEntityGraph(client: EshuApiClient, name: string): Prom
 // POST /api/v0/impact/entity-map requires `from` (not `name`); it resolves the
 // handle itself and returns neighbours under evidence.relationships[].
 interface EntityMapRel {
-  readonly entity_name?: string; readonly entity_labels?: readonly string[];
-  readonly direction?: string; readonly relationship_type?: string;
+  readonly entity_id?: string; readonly entity_name?: string; readonly entity_labels?: readonly string[];
+  readonly direction?: string;
+  readonly relationship_type?: string; readonly relationship_types?: readonly string[];
 }
 interface EntityMapResponse {
   readonly from?: string;
@@ -149,15 +155,19 @@ export function entityMapToGraph(data: EntityMapResponse, fallbackName: string):
   nodes.set(centerId, { id: centerId, kind: kindFor(centerType), label: candidate?.name ?? fallbackName, sub: centerType, col: 1, hero: true, truth: "exact" });
   const edges: GraphEdge[] = [];
   (data.evidence?.relationships ?? []).forEach((r) => {
-    const label = (r.entity_name ?? "").trim();
-    if (label === "" || label === centerId) return;
-    const verb = (r.relationship_type ?? "RELATED").toUpperCase();
+    const label = (r.entity_name ?? r.entity_id ?? "").trim();
+    // Prefer the stable entity_id for the node identity; fall back to the name
+    // when the backend omits it. Keying by id avoids collapsing distinct nodes
+    // that share a display name.
+    const id = (r.entity_id ?? r.entity_name ?? "").trim();
+    if (id === "" || id === centerId) return;
+    const verb = (r.relationship_type ?? r.relationship_types?.[0] ?? "RELATED").toUpperCase();
     const type = r.entity_labels?.[0];
     const incoming = (r.direction ?? "outgoing").toLowerCase() === "incoming";
-    if (!nodes.has(label)) nodes.set(label, { id: label, kind: kindFor(type), label, sub: type, col: incoming ? 0 : 2, truth: "exact" });
+    if (!nodes.has(id)) nodes.set(id, { id, kind: kindFor(type), label: label || id, sub: type, col: incoming ? 0 : 2, truth: "exact" });
     edges.push(incoming
-      ? { s: label, t: centerId, verb, layer: layerFor(verb) }
-      : { s: centerId, t: label, verb, layer: layerFor(verb) });
+      ? { s: id, t: centerId, verb, layer: layerFor(verb) }
+      : { s: centerId, t: id, verb, layer: layerFor(verb) });
   });
   return { nodes: [...nodes.values()], edges };
 }
@@ -165,7 +175,9 @@ export function entityMapToGraph(data: EntityMapResponse, fallbackName: string):
 // Expand one entity into a broader neighbourhood via POST impact/entity-map.
 // Returns the same center-and-neighbours graph shape as loadEntityGraph.
 export async function loadEntityMapGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
-  const env = await client.post<EntityMapResponse>("/api/v0/impact/entity-map", { from: name, max_depth: 2 });
+  // The endpoint's request field is `depth` (1-4); `max_depth` is ignored by the
+  // Go decoder and silently defaults the traversal to depth 1.
+  const env = await client.post<EntityMapResponse>("/api/v0/impact/entity-map", { from: name, depth: 2 });
   return entityMapToGraph(env.data ?? {}, name);
 }
 
