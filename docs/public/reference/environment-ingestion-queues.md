@@ -127,12 +127,15 @@ For decision rules and evidence requirements, read [NornicDB Tuning](nornicdb-tu
 | `NORNICDB_IMAGE` | pinned Compose image | Docker Compose | NornicDB image override. |
 | `NORNICDB_PLATFORM` | unset | Docker Compose | Optional platform override; unset lets Docker choose host architecture. |
 | `NORNICDB_PULL_POLICY` | Compose default or `missing` in tier-2 v25 proof | Docker Compose | Pull policy for local/proof NornicDB image selection. |
-| `NORNICDB_PERSIST_SEARCH_INDEXES` | `true` in Eshu Compose and Helm | NornicDB container | Prevents expensive search-index rebuilds after normal restarts. |
+| `NORNICDB_PERSIST_SEARCH_INDEXES` | `false` in Eshu Compose and Helm | NornicDB container | Keeps disabled BM25/vector search indexes from creating canonical graph restart artifacts. |
+| `NORNICDB_SEARCH_BM25_ENABLED` | `false` in Eshu Compose and Helm | NornicDB container | Keeps BM25 indexing off for the canonical graph lane. |
+| `NORNICDB_SEARCH_VECTOR_ENABLED` | `false` in Eshu Compose and Helm | NornicDB container | Keeps vector indexing off for the canonical graph lane. |
+| `NORNICDB_SEARCH_BM25_WARMING` | `lazy` in Eshu Compose and Helm | NornicDB container | Uses lazy BM25 warming only when an operator deliberately enables BM25 for a search proof. |
+| `NORNICDB_SEARCH_VECTOR_WARMING` | `lazy` in Eshu Compose and Helm | NornicDB container | Uses lazy vector warming only when an operator deliberately enables vector search for a search proof. |
 | `NORNICDB_EMBEDDING_ENABLED` | `false` in Eshu Compose and Helm | NornicDB container | Keeps embedding workers off during Eshu indexing. |
 | `NORNICDB_ASYNC_WRITES_ENABLED`, `NORNICDB_HEIMDALL_ENABLED`, `NORNICDB_QDRANT_GRPC_ENABLED` | `false` in Eshu Compose and Helm | NornicDB container | Keeps optional backend behavior off for the Eshu graph path. |
 
-Do not treat unpinned NornicDB BM25/vector disable or lazy-warming variables as
-supported Eshu environment until the pinned NornicDB image, Compose tests, and
-Helm render tests prove the exact names and behavior. The current graph path
-uses persistence plus disabled embeddings as mitigation; curated search
-projection is tracked separately from canonical graph startup.
+These controls are the supported graph-only policy for the canonical NornicDB
+lane. Curated BM25, vector, or hybrid retrieval must use an explicit search
+projection proof instead of indexing every canonical graph node and property by
+default.
