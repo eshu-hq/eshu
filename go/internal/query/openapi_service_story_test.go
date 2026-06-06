@@ -24,6 +24,7 @@ func TestOpenAPISpecServiceStoryExposesDossierFields(t *testing.T) {
 		"service_identity",
 		"code_to_runtime_trace",
 		"api_surface",
+		"entrypoint_candidates",
 		"deployment_lanes",
 		"upstream_dependencies",
 		"downstream_consumers",
@@ -34,5 +35,22 @@ func TestOpenAPISpecServiceStoryExposesDossierFields(t *testing.T) {
 		if _, ok := serviceStorySchema[field]; !ok {
 			t.Fatalf("services/{service_name}/story response schema missing %s", field)
 		}
+	}
+}
+
+func TestOpenAPISpecServiceContextExposesEntrypointCandidates(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
+	}
+
+	components := mustMapField(t, spec, "components")
+	schemas := mustMapField(t, components, "schemas")
+	workloadContextSchema := mustMapField(t, schemas, "WorkloadContext")
+	workloadContextProperties := mustMapField(t, workloadContextSchema, "properties")
+	if _, ok := workloadContextProperties["entrypoint_candidates"]; !ok {
+		t.Fatal("WorkloadContext schema missing entrypoint_candidates")
 	}
 }

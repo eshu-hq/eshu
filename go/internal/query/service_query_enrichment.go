@@ -90,6 +90,9 @@ func enrichServiceQueryContextWithOptions(
 	if hostnames := buildServiceHostnameRows(evidence.Hostnames); len(hostnames) > 0 {
 		workloadContext["hostnames"] = hostnames
 	}
+	if candidates := buildServiceEntrypointCandidateRows(evidence.EntrypointCandidates); len(candidates) > 0 {
+		workloadContext["entrypoint_candidates"] = candidates
+	}
 	if entrypoints := buildServiceEntrypoints(workloadContext, evidence); len(entrypoints) > 0 {
 		workloadContext["entrypoints"] = entrypoints
 	}
@@ -203,6 +206,22 @@ func buildServiceHostnameRows(rows []ServiceHostnameEvidence) []map[string]any {
 			"environment":   row.Environment,
 			"relative_path": row.RelativePath,
 			"reason":        row.Reason,
+		})
+	}
+	return result
+}
+
+func buildServiceEntrypointCandidateRows(rows []ServiceEntrypointCandidateEvidence) []map[string]any {
+	if len(rows) == 0 {
+		return nil
+	}
+	result := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, map[string]any{
+			"candidate":      row.Candidate,
+			"classification": row.Classification,
+			"relative_path":  row.RelativePath,
+			"reason":         row.Reason,
 		})
 	}
 	return result

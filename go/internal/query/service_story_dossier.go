@@ -18,6 +18,7 @@ func enrichServiceStoryDossierResponse(response map[string]any, workloadContext 
 	rawContextLimits := map[string]any{}
 	for _, key := range []string{
 		"hostnames",
+		"entrypoint_candidates",
 		"entrypoints",
 		"network_paths",
 		"observed_config_environments",

@@ -270,6 +270,7 @@ const openAPIComponents = `  "components": {
           "repo_id": {"type": "string"},
           "repo_name": {"type": "string"},
           "hostnames": {"type": "array", "items": {"type": "object"}},
+          "entrypoint_candidates": {"type": "array", "description": "Hostname-shaped candidates kept as non-entrypoint supporting evidence with classification and reason.", "items": {"type": "object"}},
           "entrypoints": {"type": "array", "items": {"type": "object"}},
           "network_paths": {"type": "array", "items": {"type": "object"}},
           "observed_config_environments": {"type": "array", "items": {"type": "string"}},

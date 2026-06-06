@@ -132,6 +132,29 @@ Story routes return structured narrative first and drilldown handles second.
 They are the right entry point for onboarding, support, service explanation,
 and documentation generation prompts.
 
+Service story and service context classify hostname-shaped content evidence
+before returning entrypoints. Exact hostnames are returned in `hostnames` and
+may become public hostname `entrypoints`. Documented docs/spec routes remain
+internal `docs_route` entrypoints. Dotted config keys, fixture field paths, and
+two-label ambiguous candidates are returned only in `entrypoint_candidates`
+with `classification` and `reason`; they are supporting evidence, not public
+hostname entrypoints.
+
+No-Regression Evidence:
+
+```bash
+cd go && go test ./internal/contentrefs -run 'TestHostnamesRejectsDottedConfigKeysAndFieldPaths|TestHostnameCandidatesClassifyRejectedAndAmbiguousEvidence' -count=1
+cd go && go test ./internal/query -run 'TestLoadServiceQueryEvidenceClassifiesNonEntrypointHostnameCandidates|TestBuildServiceStoryResponseExposesNonEntrypointCandidates|TestRepositoryStoryReadbackKeepsDocsRoutesWithoutHostnameEntrypoints' -count=1
+```
+
+No-Observability-Change: this is hostname candidate classification and response
+shaping over content the service context/story route already loads. Operators
+continue to diagnose the path through existing service query stage timing logs,
+`service_evidence_content` hostname and environment counts, content-store query
+instrumentation, `platform_impact.context_overview` truth envelopes, and
+HTTP/MCP envelope errors. No graph write, queue domain, worker, metric
+instrument, span name, route, runtime flag, or pprof behavior changes.
+
 Service story supports disambiguation with:
 
 - `service_id` for an exact workload/service ID
