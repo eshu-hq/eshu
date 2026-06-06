@@ -123,6 +123,25 @@ func TestPackageRegistryListPackagesClassifiesBlankPackageIdentityRows(t *testin
 	}
 }
 
+func TestPackageRegistryIdentityIssueSerializesMissingEvidenceField(t *testing.T) {
+	t.Parallel()
+
+	payload, err := json.Marshal(PackageRegistryIdentityIssue{
+		Reason:          packageRegistryPackageIDMissingReason,
+		MissingEvidence: []string{},
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if _, ok := decoded["missing_evidence"]; !ok {
+		t.Fatalf("missing_evidence omitted from %s", payload)
+	}
+}
+
 func TestPackageRegistryListPackagesPreservesZeroVersionNPMIdentities(t *testing.T) {
 	t.Parallel()
 

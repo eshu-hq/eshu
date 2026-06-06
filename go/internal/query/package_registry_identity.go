@@ -8,7 +8,7 @@ const packageRegistryPackageIDMissingReason = "package_id_missing"
 // could not be returned as a valid package identity.
 type PackageRegistryIdentityIssue struct {
 	Reason           string   `json:"reason"`
-	MissingEvidence  []string `json:"missing_evidence,omitempty"`
+	MissingEvidence  []string `json:"missing_evidence"`
 	Ecosystem        string   `json:"ecosystem,omitempty"`
 	Registry         string   `json:"registry,omitempty"`
 	Namespace        string   `json:"namespace,omitempty"`
