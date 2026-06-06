@@ -82,6 +82,9 @@ case "$*" in
   *"/api/v0/supply-chain/container-images/identities/count?digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&repository_id=oci-registry%3A%2F%2Fregistry.example%2Fteam%2Fapi"*)
     cat "${state_dir}/image-count.json"
     ;;
+  *"/api/v0/supply-chain/container-images/identities/count?image_ref=registry.example.com%2Fteam%2Fapi%3Aprod&repository_id=oci-registry%3A%2F%2Fregistry.example%2Fteam%2Fapi"*)
+    cat "${state_dir}/image-count.json"
+    ;;
   *"/api/v0/supply-chain/sbom-attestations/attachments/count?subject_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"*)
     cat "${state_dir}/sbom-count.json"
     ;;
@@ -93,6 +96,9 @@ case "$*" in
     ;;
   *"/api/v0/infra/resources/search"*)
     cat "${state_dir}/cloud-resources.json"
+    ;;
+  *"/api/v0/ci-cd/run-correlations/count?repository_id=repo%3A%2F%2Fexample%2Fapi&image_ref=registry.example.com%2Fteam%2Fapi%3Aprod"*)
+    cat "${state_dir}/cicd-count.json"
     ;;
   *)
     echo "unexpected curl target: $*" >&2
@@ -224,6 +230,20 @@ expect_pass
 if ! rg -q 'proof_mode=code_to_cloud' /tmp/eshu-remote-e2e-target-story.out; then
   printf 'expected target-story proof mode default in output\n' >&2
   sed -n '1,200p' /tmp/eshu-remote-e2e-target-story.out >&2
+  exit 1
+fi
+
+reset_state
+jq '
+  del(.expected_image_digest) |
+  .expected_image_ref = "registry.example.com/team/api:prod"
+' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
+mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
+export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
+expect_pass
+if ! rg -F -q '/api/v0/ci-cd/run-correlations/count?repository_id=repo%3A%2F%2Fexample%2Fapi&image_ref=registry.example.com%2Fteam%2Fapi%3Aprod' "${state_dir}/curl-targets"; then
+  printf 'expected target-story verifier to count CI/CD rows by image_ref\n' >&2
+  sed -n '1,200p' "${state_dir}/curl-targets" >&2
   exit 1
 fi
 

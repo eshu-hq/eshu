@@ -179,6 +179,7 @@ func (h *CICDHandler) cicdRunCorrelationAggregateFilterFromRequest(
 		CommitSHA:      QueryParam(r, "commit_sha"),
 		Provider:       QueryParam(r, "provider"),
 		ArtifactDigest: QueryParam(r, "artifact_digest"),
+		ImageRef:       QueryParam(r, "image_ref"),
 		Environment:    QueryParam(r, "environment"),
 		Outcome:        QueryParam(r, "outcome"),
 	}, true
@@ -200,6 +201,9 @@ func cicdRunCorrelationAggregateScope(filter CICDRunCorrelationAggregateFilter) 
 	}
 	if filter.ArtifactDigest != "" {
 		out["artifact_digest"] = filter.ArtifactDigest
+	}
+	if filter.ImageRef != "" {
+		out["image_ref"] = filter.ImageRef
 	}
 	if filter.Environment != "" {
 		out["environment"] = filter.Environment

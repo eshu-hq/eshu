@@ -4,7 +4,7 @@ func cicdTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "list_ci_cd_run_correlations",
-			Description: "List reducer-owned CI/CD run, artifact, and environment correlations by run, repository, commit, artifact digest, or environment.",
+			Description: "List reducer-owned CI/CD run, artifact, and environment correlations by run, repository, commit, artifact digest, image reference, or environment.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -31,6 +31,10 @@ func cicdTools() []ToolDefinition {
 					"artifact_digest": map[string]any{
 						"type":        "string",
 						"description": "Artifact or image digest to anchor artifact-to-run correlation lookup.",
+					},
+					"image_ref": map[string]any{
+						"type":        "string",
+						"description": "Image reference to anchor tag-or-reference based run correlation lookup.",
 					},
 					"environment": map[string]any{
 						"type":        "string",

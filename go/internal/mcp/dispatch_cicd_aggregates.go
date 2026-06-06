@@ -9,6 +9,7 @@ func cicdRunCorrelationAggregateCountRoute(args map[string]any) *route {
 		"commit_sha":      str(args, "commit_sha"),
 		"provider":        str(args, "provider"),
 		"artifact_digest": str(args, "artifact_digest"),
+		"image_ref":       str(args, "image_ref"),
 		"environment":     str(args, "environment"),
 		"outcome":         str(args, "outcome"),
 	}}
@@ -26,6 +27,7 @@ func cicdRunCorrelationAggregateInventoryRoute(args map[string]any) *route {
 		"commit_sha":      str(args, "commit_sha"),
 		"provider":        str(args, "provider"),
 		"artifact_digest": str(args, "artifact_digest"),
+		"image_ref":       str(args, "image_ref"),
 		"environment":     str(args, "environment"),
 		"outcome":         str(args, "outcome"),
 		"limit":           strconv.Itoa(intOr(args, "limit", 100)),

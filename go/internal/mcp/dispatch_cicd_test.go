@@ -11,6 +11,7 @@ func TestResolveRouteMapsCICDRunCorrelationsToBoundedQuery(t *testing.T) {
 		"commit_sha":           "abc123",
 		"provider":             "github_actions",
 		"artifact_digest":      "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		"image_ref":            "registry.example.com/team/api:prod",
 		"environment":          "prod",
 		"outcome":              "exact",
 		"limit":                float64(25),
@@ -30,6 +31,7 @@ func TestResolveRouteMapsCICDRunCorrelationsToBoundedQuery(t *testing.T) {
 		"commit_sha":           "abc123",
 		"provider":             "github_actions",
 		"artifact_digest":      "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		"image_ref":            "registry.example.com/team/api:prod",
 		"environment":          "prod",
 		"outcome":              "exact",
 		"limit":                "25",
@@ -37,5 +39,30 @@ func TestResolveRouteMapsCICDRunCorrelationsToBoundedQuery(t *testing.T) {
 		if got := route.query[key]; got != want {
 			t.Fatalf("route.query[%s] = %#v, want %#v", key, got, want)
 		}
+	}
+}
+
+func TestResolveRouteMapsCICDRunCorrelationAggregatesToImageRefFilter(t *testing.T) {
+	t.Parallel()
+
+	for _, tool := range []string{
+		"count_ci_cd_run_correlations",
+		"get_ci_cd_run_correlation_inventory",
+	} {
+		tool := tool
+		t.Run(tool, func(t *testing.T) {
+			t.Parallel()
+
+			route, err := resolveRoute(tool, map[string]any{
+				"image_ref": "registry.example.com/team/api:prod",
+				"limit":     float64(10),
+			})
+			if err != nil {
+				t.Fatalf("resolveRoute() error = %v, want nil", err)
+			}
+			if got, want := route.query["image_ref"], "registry.example.com/team/api:prod"; got != want {
+				t.Fatalf("route.query[image_ref] = %#v, want %#v", got, want)
+			}
+		})
 	}
 }

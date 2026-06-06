@@ -8,6 +8,7 @@ func cicdRunCorrelationsRoute(args map[string]any) *route {
 		"artifact_digest":      str(args, "artifact_digest"),
 		"commit_sha":           str(args, "commit_sha"),
 		"environment":          str(args, "environment"),
+		"image_ref":            str(args, "image_ref"),
 		"limit":                strconv.Itoa(intOr(args, "limit", 50)),
 		"outcome":              str(args, "outcome"),
 		"provider":             str(args, "provider"),

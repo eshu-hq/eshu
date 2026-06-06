@@ -260,18 +260,6 @@ provider_repository_match_count() {
 	' "${file}"
 }
 
-cicd_image_ref_match_count() {
-	local file="$1"
-	local expected="$2"
-	jq -r --arg expected "${expected}" '
-		(.data // .) as $body |
-		[
-			$body.correlations[]?
-			| select((.image_ref // "") == $expected)
-		] | length
-	' "${file}"
-}
-
 cloud_resource_match_count() {
 	local file="$1"
 	local expected="$2"
@@ -439,10 +427,8 @@ main() {
 			api_get "/ci-cd/run-correlations/count?repository_id=${repo_query}&artifact_digest=$(urlencode "${expected_image_digest}")" "${cicd_file}"
 			cicd_count="$(json_int "${cicd_file}" '.total_correlations')"
 		else
-			local cicd_limit
-			cicd_limit="$(list_limit_for_minimum ci_cd_run_correlations "${cicd_min}")"
-			api_get "/ci-cd/run-correlations?repository_id=${repo_query}&limit=${cicd_limit}" "${cicd_file}"
-			cicd_count="$(cicd_image_ref_match_count "${cicd_file}" "${expected_image_ref}")"
+			api_get "/ci-cd/run-correlations/count?repository_id=${repo_query}&image_ref=$(urlencode "${expected_image_ref}")" "${cicd_file}"
+			cicd_count="$(json_int "${cicd_file}" '.total_correlations')"
 		fi
 		require_min_count ci_cd_run_correlations "${cicd_count}" "${cicd_min}"
 	fi
