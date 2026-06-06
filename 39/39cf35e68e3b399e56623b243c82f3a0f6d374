@@ -1,0 +1,25 @@
+go/internal/query/entity.go
+  s_f2f7fbb6f30866::t_5520a92d1dceaf 204,235,405,436,440
+docs/public/reference/http-api/context-and-stories.md
+  s_f2f7fbb6f30866::t_1a1af863481713 21-26,55-68
+go/internal/query/context_story_truth.go
+  s_f2f7fbb6f30866::t_74c3bbe70a63c0 1-23
+go/internal/query/context_story_envelope_test.go
+  s_f2f7fbb6f30866::t_fad579f3722c89 1-162
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "3939cf35e68e3b399e56623b243c82f3a0f6d374",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
