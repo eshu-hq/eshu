@@ -11,6 +11,7 @@ func supplyChainImpactAggregateCountRoute(args map[string]any) *route {
 		"ghsa_id":        str(args, "ghsa_id"),
 		"osv_id":         str(args, "osv_id"),
 		"package_id":     str(args, "package_id"),
+		"profile":        str(args, "profile"),
 		"repository_id":  str(args, "repository_id"),
 		"service_id":     str(args, "service_id"),
 		"severity":       str(args, "severity"),

@@ -67,6 +67,12 @@ func supplyChainImpactAggregateTools() []ToolDefinition {
 						"description": "Optional CVSS-derived severity bucket.",
 						"enum":        []string{"critical", "high", "medium", "low", "none"},
 					},
+					"profile": map[string]any{
+						"type":        "string",
+						"description": "Detection profile selector. precise (default) counts only exact installed-version anchors resolved by supported matchers; comprehensive also counts range-only, SBOM/CPE-derived, malformed, and missing-version rows. Unsupported ecosystems remain readiness gaps.",
+						"enum":        []string{"precise", "comprehensive"},
+						"default":     "precise",
+					},
 				},
 			},
 		},
