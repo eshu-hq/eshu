@@ -72,18 +72,113 @@ export function relationshipsToGraph(data: RelationshipsResponse, name: string):
   return { nodes: [...nodes.values()], edges };
 }
 
-// Resolve + expand one entity into a center-and-neighbours graph via direct
-// code relationships (depth 1).
+// --- code/relationships (Direct mode) ---------------------------------------
+// POST /api/v0/code/relationships resolves edges by `entity_id` only — a `name`
+// body returns nothing — and answers with split incoming/outgoing edge lists,
+// not the generic relationships[] shape. See codeRelationshipsToGraph below.
+interface CodeRelEdge {
+  readonly type?: string;
+  readonly source_id?: string; readonly source_name?: string;
+  readonly target_id?: string; readonly target_name?: string;
+}
+interface CodeRelationshipsResponse {
+  readonly entity_id?: string; readonly name?: string; readonly labels?: readonly string[];
+  readonly incoming?: readonly CodeRelEdge[]; readonly outgoing?: readonly CodeRelEdge[];
+}
+
+// codeRelationshipsToGraph maps the code/relationships incoming/outgoing edge
+// lists into a center-and-neighbours graph.
+export function codeRelationshipsToGraph(data: CodeRelationshipsResponse, fallback: { id: string; name: string }): GraphModel {
+  const centerId = data.entity_id ?? fallback.id;
+  const centerType = data.labels?.[0];
+  const nodes = new Map<string, GraphNode>();
+  nodes.set(centerId, { id: centerId, kind: kindFor(centerType), label: data.name ?? fallback.name, sub: centerType, col: 1, hero: true, truth: "exact" });
+  const edges: GraphEdge[] = [];
+  (data.incoming ?? []).forEach((e) => {
+    const id = e.source_id ?? e.source_name;
+    if (!id) return;
+    const verb = (e.type ?? "RELATED").toUpperCase();
+    if (id !== centerId && !nodes.has(id)) nodes.set(id, { id, kind: kindFor(undefined), label: e.source_name ?? id, col: 0, truth: "exact" });
+    edges.push({ s: id, t: centerId, verb, layer: layerFor(verb) });
+  });
+  (data.outgoing ?? []).forEach((e) => {
+    const id = e.target_id ?? e.target_name;
+    if (!id) return;
+    const verb = (e.type ?? "RELATED").toUpperCase();
+    if (id !== centerId && !nodes.has(id)) nodes.set(id, { id, kind: kindFor(undefined), label: e.target_name ?? id, col: 2, truth: "exact" });
+    edges.push({ s: centerId, t: id, verb, layer: layerFor(verb) });
+  });
+  return { nodes: [...nodes.values()], edges };
+}
+
+// Resolve + expand one entity into a center-and-neighbours graph via direct code
+// relationships (depth 1). code/relationships only matches on `entity_id`, so we
+// resolve the query to a graph entity id first (falling back to the raw query).
 export async function loadEntityGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
-  const env = await client.post<RelationshipsResponse>("/api/v0/code/relationships", { name, depth: 1 });
-  return relationshipsToGraph(env.data ?? {}, name);
+  let entityID = "";
+  let displayName = name;
+  try {
+    const resolved = await resolveEntity({ client, name, limit: 1 });
+    const top = resolved.candidates[0];
+    if (top?.id) { entityID = top.id; displayName = top.name ?? name; }
+  } catch { /* resolution unavailable — handled below */ }
+  if (entityID === "") {
+    // code/relationships matches on entity_id only; a raw query string is not a
+    // valid id, so render the searched node alone instead of forcing a 404.
+    return { nodes: [{ id: name, kind: kindFor(undefined), label: name, col: 1, hero: true, truth: "exact" }], edges: [] };
+  }
+  const env = await client.post<CodeRelationshipsResponse>("/api/v0/code/relationships", { entity_id: entityID, depth: 1 });
+  return codeRelationshipsToGraph(env.data ?? {}, { id: entityID, name: displayName });
+}
+
+// --- impact/entity-map (Neighborhood mode) ----------------------------------
+// POST /api/v0/impact/entity-map requires `from` (not `name`); it resolves the
+// handle itself and returns neighbours under evidence.relationships[].
+interface EntityMapRel {
+  readonly entity_id?: string; readonly entity_name?: string; readonly entity_labels?: readonly string[];
+  readonly direction?: string;
+  readonly relationship_type?: string; readonly relationship_types?: readonly string[];
+}
+interface EntityMapResponse {
+  readonly from?: string;
+  readonly resolution?: { readonly candidates?: readonly { readonly id?: string; readonly name?: string; readonly labels?: readonly string[] }[] };
+  readonly evidence?: { readonly relationships?: readonly EntityMapRel[] };
+}
+
+// entityMapToGraph maps the entity-map evidence.relationships[] into a
+// center-and-neighbours graph, using the resolved candidate as the center.
+export function entityMapToGraph(data: EntityMapResponse, fallbackName: string): GraphModel {
+  const candidate = data.resolution?.candidates?.[0];
+  const centerId = candidate?.id ?? data.from ?? fallbackName;
+  const centerType = candidate?.labels?.[0];
+  const nodes = new Map<string, GraphNode>();
+  nodes.set(centerId, { id: centerId, kind: kindFor(centerType), label: candidate?.name ?? fallbackName, sub: centerType, col: 1, hero: true, truth: "exact" });
+  const edges: GraphEdge[] = [];
+  (data.evidence?.relationships ?? []).forEach((r) => {
+    const label = (r.entity_name ?? r.entity_id ?? "").trim();
+    // Prefer the stable entity_id for the node identity; fall back to the name
+    // when the backend omits it. Keying by id avoids collapsing distinct nodes
+    // that share a display name.
+    const id = (r.entity_id ?? r.entity_name ?? "").trim();
+    if (id === "" || id === centerId) return;
+    const verb = (r.relationship_type ?? r.relationship_types?.[0] ?? "RELATED").toUpperCase();
+    const type = r.entity_labels?.[0];
+    const incoming = (r.direction ?? "outgoing").toLowerCase() === "incoming";
+    if (!nodes.has(id)) nodes.set(id, { id, kind: kindFor(type), label: label || id, sub: type, col: incoming ? 0 : 2, truth: "exact" });
+    edges.push(incoming
+      ? { s: id, t: centerId, verb, layer: layerFor(verb) }
+      : { s: centerId, t: id, verb, layer: layerFor(verb) });
+  });
+  return { nodes: [...nodes.values()], edges };
 }
 
 // Expand one entity into a broader neighbourhood via POST impact/entity-map.
 // Returns the same center-and-neighbours graph shape as loadEntityGraph.
 export async function loadEntityMapGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
-  const env = await client.post<RelationshipsResponse>("/api/v0/impact/entity-map", { name, max_depth: 2 });
-  return relationshipsToGraph(env.data ?? {}, name);
+  // The endpoint's request field is `depth` (1-4); `max_depth` is ignored by the
+  // Go decoder and silently defaults the traversal to depth 1.
+  const env = await client.post<EntityMapResponse>("/api/v0/impact/entity-map", { from: name, depth: 2 });
+  return entityMapToGraph(env.data ?? {}, name);
 }
 
 // resolveEntityName resolves a typed query to a canonical entity name via
