@@ -227,7 +227,6 @@ func directEvidenceRuntimeStatus(
 		CollectorKind:    collectorKind,
 		RuntimeMode:      "direct",
 		StatusCategory:   CollectorRuntimeUnregistered,
-		Enabled:          true,
 		Health:           health,
 		EvidenceSources:  []string{evidenceSource},
 		ObservationCount: observations,
@@ -267,11 +266,25 @@ func vulnerabilitySourceHealth(row VulnerabilitySourceState) string {
 }
 
 func combineRuntimeHealth(current string, next string) string {
-	order := map[string]int{"": 0, "unknown": 1, "registered": 1, "disabled": 2, "observed": 2, "partial": 3, "degraded": 4}
-	if order[next] > order[current] {
+	if runtimeHealthRank(next) > runtimeHealthRank(current) {
 		return next
 	}
 	return current
+}
+
+func runtimeHealthRank(value string) int {
+	switch value {
+	case "degraded":
+		return 4
+	case "partial":
+		return 3
+	case "disabled", "observed":
+		return 2
+	case "unknown", "registered":
+		return 1
+	default:
+		return 0
+	}
 }
 
 func collectorRuntimeStatusKey(collectorKind string, instanceID string) string {

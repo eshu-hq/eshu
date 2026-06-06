@@ -260,6 +260,7 @@ func TestStatusHandlerCollectorsRouteExposesDirectRuntimeEvidence(t *testing.T) 
 			CollectorKind  string   `json:"collector_kind"`
 			StatusCategory string   `json:"status_category"`
 			RuntimeMode    string   `json:"runtime_mode"`
+			Enabled        bool     `json:"enabled"`
 			Evidence       []string `json:"evidence_sources"`
 		} `json:"collectors"`
 	}
@@ -272,16 +273,19 @@ func TestStatusHandlerCollectorsRouteExposesDirectRuntimeEvidence(t *testing.T) 
 	byID := map[string]struct {
 		category string
 		mode     string
+		enabled  bool
 		evidence []string
 	}{}
 	for _, collector := range payload.Collectors {
 		byID[collector.InstanceID] = struct {
 			category string
 			mode     string
+			enabled  bool
 			evidence []string
 		}{
 			category: collector.StatusCategory,
 			mode:     collector.RuntimeMode,
+			enabled:  collector.Enabled,
 			evidence: collector.Evidence,
 		}
 	}
@@ -295,6 +299,9 @@ func TestStatusHandlerCollectorsRouteExposesDirectRuntimeEvidence(t *testing.T) 
 	}
 	if got, want := direct.mode, "direct"; got != want {
 		t.Fatalf("direct runtime_mode = %q, want %q", got, want)
+	}
+	if direct.enabled {
+		t.Fatal("direct enabled = true, want false because direct evidence does not prove coordinator configuration")
 	}
 	if len(direct.evidence) != 1 || direct.evidence[0] != "aws_cloud_scan_status" {
 		t.Fatalf("direct evidence = %#v, want aws_cloud_scan_status", direct.evidence)

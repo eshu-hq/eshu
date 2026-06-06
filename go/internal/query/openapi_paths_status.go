@@ -60,6 +60,7 @@ const openAPIPathsStatusAndCompare = `
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "version": {"type": "string"},
                     "collectors": {
                       "type": "array",
                       "items": {
@@ -83,7 +84,8 @@ const openAPIPathsStatusAndCompare = `
                       }
                     },
                     "count": {"type": "integer"},
-                    "classification_basis": {"type": "string"}
+                    "classification_basis": {"type": "string"},
+                    "updated_at": {"type": "string", "format": "date-time", "nullable": true}
                   }
                 }
               }
