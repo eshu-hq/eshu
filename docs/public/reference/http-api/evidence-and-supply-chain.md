@@ -136,6 +136,17 @@ inventory routes; unknown or ambiguous selectors return a selector error.
 `image_ref` is also accepted by the list, count, and inventory routes so
 target-story and MCP callers can prove tag-or-reference CI/CD evidence without
 fetching a repository-wide page and filtering client-side.
+Repository-scoped list responses also return `evidence_summary`:
+`static_workflow_artifacts` reports indexed GitHub Actions workflow files from
+the content read model, while `live_run_correlations` reports only
+reducer-owned run correlation rows. When static workflow files are present but
+the reducer has no live run rows, the response keeps `correlations=[]` and marks
+`live_run_correlations.reason=static_workflow_only_live_run_correlation_missing`
+instead of implying the repository has no CI/CD evidence.
+
+No-Regression Evidence: `go test ./internal/query -run 'TestCICDListRunCorrelationsExplains(StaticWorkflowOnlyEvidence|LiveRunEvidence|NoEvidence)|TestOpenAPISpecIncludesCICDRunCorrelations' -count=1` fails if the CI/CD list response stops distinguishing static workflow artifacts from live reducer run rows.
+
+No-Observability-Change: `evidence_summary` reuses the existing bounded CI/CD query span (`query.ci_cd_run_correlations`), repository-scoped content-store file lookup, Postgres/content query instrumentation, truth envelope, and HTTP status/error bodies. It adds no graph write, reducer work, queue, worker, metric instrument, metric label, or runtime knob.
 
 No-Regression Evidence: `go test ./internal/query -run 'TestCICD(ListRunCorrelationsUsesImageRefAnchor|RunCorrelationQueryFiltersImageRef|RunCorrelationAggregate(Count|Inventory)PassesImageRefFilter)' -count=1` and `go test ./internal/mcp -run 'TestResolveRouteMapsCICDRunCorrelation' -count=1` failed before CI/CD list/count/inventory routes and MCP dispatch accepted `image_ref`, then passed after the bounded query predicates and tool schemas included it.
 

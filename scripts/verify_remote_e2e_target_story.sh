@@ -14,7 +14,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/remote_e2e_security_alerts.sh"
 # shellcheck source=scripts/lib/remote_e2e_target_story_alignment.sh
 source "${SCRIPT_DIR}/lib/remote_e2e_target_story_alignment.sh"
-
+# shellcheck source=scripts/lib/remote_e2e_target_story_cicd.sh
+source "${SCRIPT_DIR}/lib/remote_e2e_target_story_cicd.sh"
 cleanup() {
 	rm -rf "${TMP_DIR}"
 }
@@ -343,7 +344,7 @@ main() {
 	fi
 	validate_target_story_proof_mode "${proof_mode}" "${image_min}" "${sbom_min}"
 	target_story_validate_alignment "${TARGET_STORY_FILE}" "${proof_mode}"
-	if ((catalog_min > 0 || cloud_min > 0)) && [[ -z "${MCP_URL}" ]]; then
+	if ((catalog_min > 0 || cicd_min > 0 || cloud_min > 0)) && [[ -z "${MCP_URL}" ]]; then
 		echo "ESHU_REMOTE_E2E_MCP_URL is required when target story MCP proof is required" >&2
 		return 1
 	fi
@@ -355,7 +356,9 @@ main() {
 	local repo_query
 	repo_query="$(urlencode "${repo_selector}")"
 	local impact_count=0 security_count=0 security_expected_rows_count=0 image_count=0 sbom_count=0 catalog_count=0 cicd_count=0 cloud_count=0
-	local mcp_catalog_count=0 mcp_cloud_count=0
+	local mcp_catalog_count=0 mcp_cicd_count=0 mcp_cloud_count=0
+	local cicd_static_state=not_checked cicd_live_state=not_checked
+	local mcp_cicd_static_state=not_checked mcp_cicd_live_state=not_checked
 	if ((impact_min > 0)); then
 		local impact_file="${TMP_DIR}/impact-count.json"
 		api_get "/supply-chain/impact/findings/count?repository_id=${repo_query}&profile=comprehensive" "${impact_file}"
@@ -448,19 +451,12 @@ main() {
 		require_min_count mcp_service_catalog_correlations "${mcp_catalog_count}" "${catalog_min}"
 	fi
 	if ((cicd_min > 0)); then
-		if [[ -z "${expected_image_digest}" && -z "${expected_image_ref}" ]]; then
-			echo "target ci_cd_run_correlations requires expected_image_digest or expected_image_ref" >&2
-			return 1
-		fi
-		local cicd_file="${TMP_DIR}/cicd-count.json"
-		if [[ -n "${expected_image_digest}" ]]; then
-			api_get "/ci-cd/run-correlations/count?repository_id=${repo_query}&artifact_digest=$(urlencode "${expected_image_digest}")" "${cicd_file}"
-			cicd_count="$(json_int "${cicd_file}" '.total_correlations')"
-		else
-			api_get "/ci-cd/run-correlations/count?repository_id=${repo_query}&image_ref=$(urlencode "${expected_image_ref}")" "${cicd_file}"
-			cicd_count="$(json_int "${cicd_file}" '.total_correlations')"
-		fi
-		require_min_count ci_cd_run_correlations "${cicd_count}" "${cicd_min}"
+		target_story_verify_cicd_run_correlations \
+			"${repo_query}" \
+			"${repo_selector}" \
+			"${expected_image_digest}" \
+			"${expected_image_ref}" \
+			"${cicd_min}"
 	fi
 	if ((cloud_min > 0)); then
 		if [[ -z "${expected_cloud_resource_id}" ]]; then
@@ -481,7 +477,7 @@ main() {
 		require_min_count mcp_cloud_resources "${mcp_cloud_count}" "${cloud_min}"
 	fi
 
-	printf 'remote E2E target story proof counts: proof_mode=%s repository_story=1 impact_findings=%s security_alert_reconciliations=%s security_alert_expected_rows=%s container_image_identities=%s sbom_attachments=%s service_catalog_correlations=%s ci_cd_run_correlations=%s cloud_resources=%s mcp_service_catalog_correlations=%s mcp_cloud_resources=%s\n' \
+	printf 'remote E2E target story proof counts: proof_mode=%s repository_story=1 impact_findings=%s security_alert_reconciliations=%s security_alert_expected_rows=%s container_image_identities=%s sbom_attachments=%s service_catalog_correlations=%s ci_cd_run_correlations=%s ci_cd_static_workflow_state=%s ci_cd_live_run_state=%s cloud_resources=%s mcp_service_catalog_correlations=%s mcp_ci_cd_run_correlations=%s mcp_ci_cd_static_workflow_state=%s mcp_ci_cd_live_run_state=%s mcp_cloud_resources=%s\n' \
 		"${proof_mode}" \
 		"${impact_count}" \
 		"${security_count}" \
@@ -490,8 +486,13 @@ main() {
 		"${sbom_count}" \
 		"${catalog_count}" \
 		"${cicd_count}" \
+		"${cicd_static_state}" \
+		"${cicd_live_state}" \
 		"${cloud_count}" \
 		"${mcp_catalog_count}" \
+		"${mcp_cicd_count}" \
+		"${mcp_cicd_static_state}" \
+		"${mcp_cicd_live_state}" \
 		"${mcp_cloud_count}"
 }
 

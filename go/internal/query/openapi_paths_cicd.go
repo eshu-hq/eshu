@@ -5,7 +5,7 @@ const openAPIPathsCICD = `
       "get": {
         "tags": ["ci-cd"],
         "summary": "List CI/CD run correlations",
-        "description": "Lists reducer-owned CI/CD run, artifact, and environment correlations. CI success and shell-only hints are not deployment truth; exact rows require explicit artifact identity evidence.",
+        "description": "Lists reducer-owned CI/CD run, artifact, and environment correlations. CI success and shell-only hints are not deployment truth; exact rows require explicit artifact identity evidence. Repository-scoped responses include evidence_summary so static GitHub Actions workflow artifacts are visible even when live run correlation rows are missing.",
         "operationId": "listCICDRunCorrelations",
         "parameters": [
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer scope ID to anchor lookup."},
@@ -57,6 +57,34 @@ const openAPIPathsCICD = `
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean"},
+                    "evidence_summary": {
+                      "type": "object",
+                      "properties": {
+                        "static_workflow_artifacts": {
+                          "type": "object",
+                          "properties": {
+                            "state": {"type": "string", "enum": ["present", "absent", "not_checked", "unavailable"]},
+                            "count": {"type": "integer"},
+                            "paths": {"type": "array", "items": {"type": "string"}},
+                            "truncated": {"type": "boolean"},
+                            "reason": {"type": "string"}
+                          },
+                          "required": ["state", "count"]
+                        },
+                        "live_run_correlations": {
+                          "type": "object",
+                          "properties": {
+                            "state": {"type": "string", "enum": ["present", "missing"]},
+                            "count": {"type": "integer"},
+                            "truncated": {"type": "boolean"},
+                            "reason": {"type": "string"}
+                          },
+                          "required": ["state", "count"]
+                        },
+                        "reason": {"type": "string"}
+                      },
+                      "required": ["static_workflow_artifacts", "live_run_correlations"]
+                    },
                     "next_cursor": {
                       "type": "object",
                       "properties": {
@@ -65,7 +93,7 @@ const openAPIPathsCICD = `
                       "required": ["after_correlation_id"]
                     }
                   },
-                  "required": ["correlations", "count", "limit", "truncated"]
+                  "required": ["correlations", "count", "limit", "truncated", "evidence_summary"]
                 }
               }
             }

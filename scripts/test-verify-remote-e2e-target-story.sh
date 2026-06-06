@@ -13,104 +13,7 @@ fake_bin="${tmp_root}/bin"
 state_dir="${tmp_root}/state"
 mkdir -p "${fake_bin}" "${state_dir}"
 
-cat >"${fake_bin}/curl" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-
-state_dir="${ESHU_REMOTE_E2E_TEST_STATE:?set ESHU_REMOTE_E2E_TEST_STATE}"
-printf '%s\n' "$*" >>"${state_dir}/curl-targets"
-if [[ "$*" == *"test-api-key"* ]]; then
-  echo "curl arguments leaked API key" >&2
-  exit 2
-fi
-curl_config=""
-payload_file=""
-args=("$@")
-for ((i = 0; i < ${#args[@]}; i++)); do
-  if [[ "${args[$i]}" == "-K" ]]; then
-    curl_config="${args[$((i + 1))]:-}"
-  fi
-  if [[ "${args[$i]}" == "--data-binary" || "${args[$i]}" == "--data" || "${args[$i]}" == "-d" ]]; then
-    payload_file="${args[$((i + 1))]:-}"
-    payload_file="${payload_file#@}"
-  fi
-done
-is_mcp=0
-if [[ "$*" == *"/mcp/message"* ]]; then
-  is_mcp=1
-fi
-if [[ -z "${curl_config}" ]]; then
-  echo "curl call is missing config file" >&2
-  exit 2
-fi
-if ((is_mcp == 0)) && ! rg -q 'Accept: application/eshu.envelope\+json' "${curl_config}"; then
-  echo "curl call is missing Eshu envelope Accept header" >&2
-  exit 2
-fi
-if [[ "$*" != *"--max-time"* ]]; then
-  echo "curl call is missing max-time" >&2
-  exit 2
-fi
-if ((is_mcp == 1)); then
-  if [[ -z "${payload_file}" || ! -f "${payload_file}" ]]; then
-    echo "mcp call is missing JSON-RPC payload" >&2
-    exit 2
-  fi
-  tool_name="$(jq -r '.params.name // ""' "${payload_file}")"
-  case "${tool_name}" in
-    list_service_catalog_correlations)
-      cat "${state_dir}/mcp-service-catalog.json"
-      ;;
-    find_infra_resources)
-      cat "${state_dir}/mcp-cloud-resources.json"
-      ;;
-    *)
-      echo "unexpected mcp tool: ${tool_name}" >&2
-      exit 2
-      ;;
-  esac
-  exit 0
-fi
-case "$*" in
-  *"/api/v0/repositories/repo%3A%2F%2Fexample%2Fapi/story"*)
-    cat "${state_dir}/repo-story.json"
-    ;;
-  *"/api/v0/supply-chain/impact/findings/count?repository_id=repo%3A%2F%2Fexample%2Fapi&profile=comprehensive"*)
-    cat "${state_dir}/impact-count.json"
-    ;;
-  *"/api/v0/supply-chain/security-alerts/reconciliations?repository_id=repo%3A%2F%2Fexample%2Fapi&limit=1"*)
-    cat "${state_dir}/security-alert-count.json"
-    ;;
-  *"/api/v0/supply-chain/container-images/identities/count?digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&repository_id=oci-registry%3A%2F%2Fregistry.example%2Fteam%2Fapi"*)
-    cat "${state_dir}/image-count.json"
-    ;;
-  *"/api/v0/supply-chain/container-images/identities/count?image_ref=registry.example.com%2Fteam%2Fapi%3Aprod&repository_id=oci-registry%3A%2F%2Fregistry.example%2Fteam%2Fapi"*)
-    cat "${state_dir}/image-count.json"
-    ;;
-  *"/api/v0/supply-chain/container-images/identities/count?digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&repository_id=oci-registry%3A%2F%2Fregistry.example%2Fteam%2Fother-api"*)
-    cat "${state_dir}/image-count.json"
-    ;;
-  *"/api/v0/supply-chain/sbom-attestations/attachments/count?subject_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"*)
-    cat "${state_dir}/sbom-count.json"
-    ;;
-  *"/api/v0/service-catalog/correlations?repository_id=repo%3A%2F%2Fexample%2Fapi&limit=1&service_id=service%3Aapi"*)
-    cat "${state_dir}/service-catalog.json"
-    ;;
-  *"/api/v0/ci-cd/run-correlations/count?repository_id=repo%3A%2F%2Fexample%2Fapi&artifact_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"*)
-    cat "${state_dir}/cicd-count.json"
-    ;;
-  *"/api/v0/infra/resources/search"*)
-    cat "${state_dir}/cloud-resources.json"
-    ;;
-  *"/api/v0/ci-cd/run-correlations/count?repository_id=repo%3A%2F%2Fexample%2Fapi&image_ref=registry.example.com%2Fteam%2Fapi%3Aprod"*)
-    cat "${state_dir}/cicd-count.json"
-    ;;
-  *)
-    echo "unexpected curl target: $*" >&2
-    exit 2
-    ;;
-esac
-SH
+cp "${repo_root}/scripts/lib/remote_e2e_target_story_fake_curl.sh" "${fake_bin}/curl"
 chmod +x "${fake_bin}/curl"
 
 write_manifest() {
@@ -192,11 +95,17 @@ JSON
   cat >"${state_dir}/cicd-count.json" <<'JSON'
 {"data":{"total_correlations":1},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
+  cat >"${state_dir}/cicd-list.json" <<'JSON'
+{"data":{"count":1,"correlations":[{"correlation_id":"cicd-1","provider":"github_actions","run_id":"run-1","repository_id":"repo://example/api","outcome":"exact","provenance_only":false,"canonical_writes":1}],"limit":1,"truncated":false,"evidence_summary":{"static_workflow_artifacts":{"state":"present","count":1,"paths":[".github/workflows/deploy.yml"]},"live_run_correlations":{"state":"present","count":1}}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
+JSON
   cat >"${state_dir}/cloud-resources.json" <<'JSON'
 {"data":{"count":1,"results":[{"id":"cloud-resource:api","resource_id":"arn:aws:lambda:us-east-1:111122223333:function:example-api","arn":"arn:aws:lambda:us-east-1:111122223333:function:example-api","provider":"aws"}],"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
   cat >"${state_dir}/mcp-service-catalog.json" <<'JSON'
 {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":1,\"correlations\":[{\"correlation_id\":\"corr-1\",\"service_id\":\"service:api\"}],\"truncated\":false},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
+JSON
+  cat >"${state_dir}/mcp-cicd.json" <<'JSON'
+{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":1,\"correlations\":[{\"correlation_id\":\"cicd-1\",\"provider\":\"github_actions\",\"run_id\":\"run-1\",\"repository_id\":\"repo://example/api\",\"outcome\":\"exact\",\"provenance_only\":false,\"canonical_writes\":1}],\"limit\":1,\"truncated\":false,\"evidence_summary\":{\"static_workflow_artifacts\":{\"state\":\"present\",\"count\":1,\"paths\":[\".github/workflows/deploy.yml\"]},\"live_run_correlations\":{\"state\":\"present\",\"count\":1}}},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
 JSON
   cat >"${state_dir}/mcp-cloud-resources.json" <<'JSON'
 {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":1,\"results\":[{\"id\":\"cloud-resource:api\",\"resource_id\":\"arn:aws:lambda:us-east-1:111122223333:function:example-api\",\"arn\":\"arn:aws:lambda:us-east-1:111122223333:function:example-api\",\"provider\":\"aws\"}],\"truncated\":false},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
@@ -262,6 +171,21 @@ export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
 expect_pass
 if rg -q 'repo://example/api|oci-registry://registry.example/team/api|arn:aws' /tmp/eshu-remote-e2e-target-story.out; then
   printf 'target-story proof leaked private target values\n' >&2
+  sed -n '1,200p' /tmp/eshu-remote-e2e-target-story.out >&2
+  exit 1
+fi
+if ! rg -F -q '/api/v0/ci-cd/run-correlations?repository_id=repo%3A%2F%2Fexample%2Fapi&artifact_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&limit=1' "${state_dir}/curl-targets"; then
+  printf 'expected target-story verifier to list CI/CD rows by artifact digest\n' >&2
+  sed -n '1,200p' "${state_dir}/curl-targets" >&2
+  exit 1
+fi
+if ! rg -q 'ci_cd_static_workflow_state=present' /tmp/eshu-remote-e2e-target-story.out; then
+  printf 'expected target-story proof to report CI/CD static workflow state\n' >&2
+  sed -n '1,200p' /tmp/eshu-remote-e2e-target-story.out >&2
+  exit 1
+fi
+if ! rg -q 'mcp_ci_cd_live_run_state=present' /tmp/eshu-remote-e2e-target-story.out; then
+  printf 'expected target-story proof to report MCP CI/CD live run state\n' >&2
   sed -n '1,200p' /tmp/eshu-remote-e2e-target-story.out >&2
   exit 1
 fi
@@ -362,6 +286,11 @@ export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
 expect_pass
 if ! rg -F -q '/api/v0/ci-cd/run-correlations/count?repository_id=repo%3A%2F%2Fexample%2Fapi&image_ref=registry.example.com%2Fteam%2Fapi%3Aprod' "${state_dir}/curl-targets"; then
   printf 'expected target-story verifier to count CI/CD rows by image_ref\n' >&2
+  sed -n '1,200p' "${state_dir}/curl-targets" >&2
+  exit 1
+fi
+if ! rg -F -q '/api/v0/ci-cd/run-correlations?repository_id=repo%3A%2F%2Fexample%2Fapi&image_ref=registry.example.com%2Fteam%2Fapi%3Aprod&limit=1' "${state_dir}/curl-targets"; then
+  printf 'expected target-story verifier to list CI/CD rows by image_ref\n' >&2
   sed -n '1,200p' "${state_dir}/curl-targets" >&2
   exit 1
 fi

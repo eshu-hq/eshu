@@ -116,7 +116,10 @@ HTTP status/error bodies.
 from Postgres. It requires an explicit scope, repository, commit, provider-run,
 artifact-digest, image-reference, or environment anchor plus `limit`, and it
 keeps CI success, environment observations, and shell-only hints separate from
-deployment truth.
+deployment truth. Repository-scoped list responses include `evidence_summary`
+from the content read model so indexed GitHub Actions workflow files remain
+visible when no live reducer run-correlation rows exist; static workflow
+artifacts are explanatory evidence, not synthetic correlation rows.
 `ServiceCatalogHandler` (`service_catalog.go:16`) reads reducer-owned service
 catalog ownership and drift correlation facts from Postgres. It requires an
 explicit scope, entity, repository, service, workload, or owner anchor plus
