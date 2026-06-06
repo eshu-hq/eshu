@@ -69,12 +69,22 @@ bounded shape is `coverage.query_shape=content_store_repository_coverage` with
 `coverage.query_shape=repository_identity_only` with
 `coverage.source_backend=unavailable`.
 
+`GET /api/v0/repositories/{repo_id}/story` uses the same bounded content-store
+coverage read model when available. Its `coverage_summary.status` is
+`available` with `source_backend=content_store`,
+`query_shape=content_store_repository_coverage`, `counts_available=true`, and
+file/entity/language/entity-type counts. When content coverage is missing, the
+story keeps `coverage_summary.status=unknown`, includes
+`missing_evidence=["content_store_coverage"]`, and retains the
+`coverage_not_computed` limitation instead of inventing zero totals.
+
 No-Regression Evidence: the focused query test covers repository-name and
 canonical-id selectors, proves the stats route does not issue the old optional
 graph aggregation after selector resolution, verifies content-store
-file/entity/language/entity-type counts, and checks that missing content
-coverage returns explicit missing-evidence metadata rather than zero totals:
-`go test ./internal/query -run 'TestGetRepositoryStats|TestContentReaderRepositoryCoverageIncludesEntityTypeCounts' -count=1`.
+file/entity/language/entity-type counts, checks that missing content coverage
+returns explicit missing-evidence metadata rather than zero totals, and proves
+repository story removes `coverage_not_computed` when the same coverage exists:
+`go test ./internal/query -run 'Test(GetRepositoryStats|GetRepositoryStoryUsesContentCoverageForFileCountsAndLanguages)|TestContentReaderRepositoryCoverageIncludesEntityTypeCounts' -count=1`.
 
 Observability Evidence: stats calls emit `repository_query.stage_started` and
 `repository_query.stage_completed` log events for `operation=repository_stats`

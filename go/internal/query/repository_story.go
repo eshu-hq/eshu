@@ -15,6 +15,30 @@ func buildRepositoryStoryResponse(
 	infrastructureOverview map[string]any,
 	semanticOverview map[string]any,
 ) map[string]any {
+	return buildRepositoryStoryResponseWithCoverage(
+		repo,
+		fileCount,
+		languages,
+		workloads,
+		platforms,
+		dependencyCount,
+		infrastructureOverview,
+		semanticOverview,
+		nil,
+	)
+}
+
+func buildRepositoryStoryResponseWithCoverage(
+	repo RepoRef,
+	fileCount int,
+	languages []string,
+	workloads []string,
+	platforms []string,
+	dependencyCount int,
+	infrastructureOverview map[string]any,
+	semanticOverview map[string]any,
+	contentCoverage *RepositoryContentCoverage,
+) map[string]any {
 	filteredLanguages := nonEmptyStrings(languages)
 	filteredPlatforms := nonEmptyStrings(platforms)
 	filteredWorkloads := nonEmptyStrings(workloads)
@@ -30,7 +54,8 @@ func buildRepositoryStoryResponse(
 		infraFamilies,
 		infrastructureOverview,
 	)
-	limitations := []string{"coverage_not_computed"}
+	coverageSummary := repositoryStoryCoverageSummary(contentCoverage)
+	limitations := repositoryStoryLimitations(coverageSummary)
 	if !repositoryDeploymentSurfaceKnown(filteredPlatforms, filteredWorkloads, deploymentOverview) {
 		limitations = append(limitations, "deployment_surface_unknown")
 	}
@@ -82,11 +107,8 @@ func buildRepositoryStoryResponse(
 			"language_count":   len(filteredLanguages),
 			"languages":        filteredLanguages,
 		},
-		"coverage_summary": map[string]any{
-			"status": "unknown",
-			"reason": "repository_story_does_not_yet_compute_completeness",
-		},
-		"limitations": limitations,
+		"coverage_summary": coverageSummary,
+		"limitations":      limitations,
 		"drilldowns": map[string]any{
 			"context_path":  "/api/v0/repositories/" + repo.ID + "/context",
 			"stats_path":    "/api/v0/repositories/" + repo.ID + "/stats",
@@ -133,6 +155,41 @@ func buildRepositoryStoryResponse(
 	})
 	response["story_sections"] = storySections
 	return response
+}
+
+func repositoryStoryCoverageSummary(contentCoverage *RepositoryContentCoverage) map[string]any {
+	if contentCoverage == nil || !contentCoverage.Available || !repositoryStatsCoverageHasEvidence(*contentCoverage) {
+		return map[string]any{
+			"status":           "unknown",
+			"reason":           "content_store_coverage_missing",
+			"counts_available": false,
+			"missing_evidence": []string{"content_store_coverage"},
+		}
+	}
+	summary := map[string]any{
+		"status":                 "available",
+		"source_backend":         "content_store",
+		"query_shape":            repositoryStatsContentCoverageShape,
+		"counts_available":       true,
+		"entity_types_available": true,
+		"whole_graph_traversal":  false,
+		"missing_evidence":       []string{},
+		"file_count":             contentCoverage.FileCount,
+		"entity_count":           contentCoverage.EntityCount,
+		"language_count":         len(repositoryStatsLanguageNames(contentCoverage.Languages)),
+		"entity_type_count":      len(repositoryStatsEntityTypeNames(contentCoverage.EntityTypes)),
+	}
+	if latest := latestCoverageTimestamp(contentCoverage.FileIndexedAt, contentCoverage.EntityIndexedAt); !latest.IsZero() {
+		summary["content_last_indexed_at"] = formatCoverageTimestamp(latest)
+	}
+	return summary
+}
+
+func repositoryStoryLimitations(coverageSummary map[string]any) []string {
+	if StringVal(coverageSummary, "status") == "available" {
+		return []string{}
+	}
+	return []string{"coverage_not_computed"}
 }
 
 func repositoryDeploymentSurfaceKnown(

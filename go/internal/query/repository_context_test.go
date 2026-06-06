@@ -392,6 +392,29 @@ func TestGetRepositoryStoryUsesContentCoverageForFileCountsAndLanguages(t *testi
 			t.Fatalf("story = %q, want fragment %q", story, want)
 		}
 	}
+
+	coverageSummary := repositoryStatsRequireMap(t, resp, "coverage_summary")
+	if got, want := coverageSummary["status"], "available"; got != want {
+		t.Fatalf("coverage_summary.status = %#v, want %#v", got, want)
+	}
+	if got, want := coverageSummary["source_backend"], "content_store"; got != want {
+		t.Fatalf("coverage_summary.source_backend = %#v, want %#v", got, want)
+	}
+	if got, want := coverageSummary["query_shape"], repositoryStatsContentCoverageShape; got != want {
+		t.Fatalf("coverage_summary.query_shape = %#v, want %#v", got, want)
+	}
+	if got, want := coverageSummary["counts_available"], true; got != want {
+		t.Fatalf("coverage_summary.counts_available = %#v, want %#v", got, want)
+	}
+	if got, want := coverageSummary["file_count"], float64(789); got != want {
+		t.Fatalf("coverage_summary.file_count = %#v, want %#v", got, want)
+	}
+	limitations := StringSliceVal(resp, "limitations")
+	for _, limitation := range limitations {
+		if limitation == "coverage_not_computed" {
+			t.Fatalf("limitations = %#v, want no coverage_not_computed when content coverage exists", limitations)
+		}
+	}
 }
 
 func TestGetRepositoryContextReturnsEnrichedResponse(t *testing.T) {

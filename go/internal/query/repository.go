@@ -547,7 +547,7 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	response := buildRepositoryStoryResponse(
+	response := buildRepositoryStoryResponseWithCoverage(
 		repo,
 		fileCount,
 		languages,
@@ -556,6 +556,7 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 		dependencyCount,
 		infrastructureOverview,
 		semanticOverview,
+		contentCoverage,
 	)
 	enrichRepositoryStoryResponseWithEvidence(response, semanticOverview, narrativeFiles)
 

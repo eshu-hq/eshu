@@ -456,6 +456,11 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
   `queryRepositoryGraphCoverageStats` is a no-content fallback, so
   `graph_gap_count` and `content_gap_count` stay zero when graph parity was not
   checked.
+- Repository story reuses the already-loaded `RepositoryContentCoverage` to
+  populate `coverage_summary` and to remove `coverage_not_computed` only when
+  content counts are genuinely available. Keep this aligned with repository
+  stats coverage semantics; do not invent zero-count coverage in the story when
+  content evidence is missing.
 - `WriteSuccess` branches on `acceptsEnvelope(r)` at `handler.go:29`; callers
   that do not send `Accept: application/eshu.envelope+json` receive the legacy
   payload shape. MCP tool dispatch relies on the envelope format; do not break
@@ -468,7 +473,9 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
   'TestDispatchToolRepo(Story|sitoryStats)ReturnsStructuredEnvelopeData'
   -count=1`, `go test ./cmd/api ./cmd/mcp-server ./internal/query
   ./internal/mcp -count=1`, `golangci-lint run ./...`, and `go test ./...`
-  covered the same bounded repository lookup and content coverage input shape;
+  covered the same bounded repository lookup and content coverage input shape.
+  Repository story coverage alignment is covered by
+  `go test ./internal/query -run TestGetRepositoryStoryUsesContentCoverageForFileCountsAndLanguages -count=1`;
   there is no graph query, queue, reducer, or runtime path change.
   No-Observability-Change: existing repository story/stats timer stages,
   structured logs, MCP envelope parsing, and HTTP status output remain the
