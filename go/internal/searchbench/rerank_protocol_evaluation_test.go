@@ -31,6 +31,52 @@ func TestValidateRerankProtocolEvaluationAllowsAcceptedStopReasonWithoutEvidence
 	}
 }
 
+func TestValidateRerankProtocolEvaluationIgnoresWhitespaceOnlyBaselineEvidenceForStopReason(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		mutate func(*RerankProtocolEvaluation)
+	}{
+		{
+			name: "top-level baseline",
+			mutate: func(evaluation *RerankProtocolEvaluation) {
+				evaluation.BaselineHybridEvidence.Backend = Backend(" \t\n")
+				evaluation.BaselineHybridEvidence.Mode = Mode(" \t\n")
+			},
+		},
+		{
+			name: "rerank baseline",
+			mutate: func(evaluation *RerankProtocolEvaluation) {
+				evaluation.RerankEvaluation.BaselineHybridEvidence.Backend = Backend(" \t\n")
+				evaluation.RerankEvaluation.BaselineHybridEvidence.Mode = Mode(" \t\n")
+			},
+		},
+		{
+			name: "protocol baseline",
+			mutate: func(evaluation *RerankProtocolEvaluation) {
+				evaluation.ProtocolRecommendation.BaselineHybridEvidence.Backend = Backend(" \t\n")
+				evaluation.ProtocolRecommendation.BaselineHybridEvidence.Mode = Mode(" \t\n")
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			evaluation := RerankProtocolEvaluation{
+				Version:            RerankProtocolEvaluationVersion,
+				AcceptedStopReason: "Issue #421 stopped before reranking because issue #417 has no measured NornicDB hybrid baseline.",
+			}
+			tc.mutate(&evaluation)
+
+			if err := ValidateRerankProtocolEvaluation(evaluation); err != nil {
+				t.Fatalf("ValidateRerankProtocolEvaluation() error = %v, want nil", err)
+			}
+		})
+	}
+}
+
 func TestValidateRerankProtocolEvaluationRejectsStopReasonWithoutIssueLinks(t *testing.T) {
 	t.Parallel()
 
@@ -100,6 +146,21 @@ func TestValidateRerankProtocolEvaluationRejectsMissingEvidenceWithoutStopReason
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("ValidateRerankProtocolEvaluation() error = %q, want substring %q", err, want)
 		}
+	}
+}
+
+func TestSameRerankBaselineEvidenceTrimsAllIdentityFields(t *testing.T) {
+	t.Parallel()
+
+	left := RerankBaselineEvidence{
+		EvidenceID: " search-benchmark:hybrid:v1 ",
+		Backend:    Backend(" \t" + string(BackendNornicDBHybrid) + "\n"),
+		Mode:       Mode("\t" + string(ModeHybrid) + " "),
+	}
+	right := rerankBaselineHybridEvidence()
+
+	if !sameRerankBaselineEvidence(left, right) {
+		t.Fatalf("sameRerankBaselineEvidence(%+v, %+v) = false, want true", left, right)
 	}
 }
 

@@ -140,7 +140,7 @@ neighbors in evidence records, logs, or spans, never metric labels.
   deferred user value before any live protocol integration is proposed.
 - Issue #421 can proceed only when rerank and protocol evidence reference the
   same measured `nornicdb_hybrid` baseline. If #417 has not produced measured
-  hybrid evidence, the only valid #421 record is an accepted stopped reason that
+  hybrid evidence, the only valid #421 record is an accepted stop reason that
   names the #417 blocker.
 - NornicDB runs must record the effective search flags and both clean-volume and
   preserved-volume startup behavior.

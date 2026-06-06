@@ -82,8 +82,8 @@ func ValidateRerankProtocolEvaluation(evaluation RerankProtocolEvaluation) error
 
 func rerankBaselineEvidencePresent(evidence RerankBaselineEvidence) bool {
 	return strings.TrimSpace(evidence.EvidenceID) != "" ||
-		evidence.Backend != "" ||
-		evidence.Mode != ""
+		strings.TrimSpace(string(evidence.Backend)) != "" ||
+		strings.TrimSpace(string(evidence.Mode)) != ""
 }
 
 func rerankEvaluationPresent(evaluation RerankEvaluation) bool {
@@ -135,6 +135,6 @@ func protocolImpactPresent(impact ProtocolImpact) bool {
 
 func sameRerankBaselineEvidence(left RerankBaselineEvidence, right RerankBaselineEvidence) bool {
 	return strings.TrimSpace(left.EvidenceID) == strings.TrimSpace(right.EvidenceID) &&
-		left.Backend == right.Backend &&
-		left.Mode == right.Mode
+		strings.TrimSpace(string(left.Backend)) == strings.TrimSpace(string(right.Backend)) &&
+		strings.TrimSpace(string(left.Mode)) == strings.TrimSpace(string(right.Mode))
 }
