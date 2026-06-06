@@ -91,13 +91,14 @@ func (h *CICDHandler) listRunCorrelations(w http.ResponseWriter, r *http.Request
 		Provider:           QueryParam(r, "provider"),
 		ProviderRunID:      firstNonEmpty(QueryParam(r, "provider_run_id"), QueryParam(r, "run_id")),
 		ArtifactDigest:     QueryParam(r, "artifact_digest"),
+		ImageRef:           QueryParam(r, "image_ref"),
 		Environment:        QueryParam(r, "environment"),
 		Outcome:            QueryParam(r, "outcome"),
 		AfterCorrelationID: QueryParam(r, "after_correlation_id"),
 		Limit:              limit + 1,
 	}
 	if !filter.hasScope() {
-		WriteError(w, http.StatusBadRequest, "scope_id, repository_id, commit_sha, provider_run_id, artifact_digest, or environment is required")
+		WriteError(w, http.StatusBadRequest, "scope_id, repository_id, commit_sha, provider_run_id, artifact_digest, image_ref, or environment is required")
 		return
 	}
 	if filter.ProviderRunID != "" && filter.Provider == "" && !filter.hasProviderRunDisambiguator() {

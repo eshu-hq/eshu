@@ -33,6 +33,10 @@ func cicdRunCorrelationAggregateTools() []ToolDefinition {
 						"type":        "string",
 						"description": "Optional artifact digest to scope the totals.",
 					},
+					"image_ref": map[string]any{
+						"type":        "string",
+						"description": "Optional image reference to scope the totals.",
+					},
 					"environment": map[string]any{
 						"type":        "string",
 						"description": "Optional deployment environment filter applied before counting.",
@@ -62,6 +66,7 @@ func cicdRunCorrelationAggregateTools() []ToolDefinition {
 					"commit_sha":      map[string]any{"type": "string", "description": "Optional commit SHA."},
 					"provider":        map[string]any{"type": "string", "description": "Optional CI provider identifier."},
 					"artifact_digest": map[string]any{"type": "string", "description": "Optional artifact digest."},
+					"image_ref":       map[string]any{"type": "string", "description": "Optional image reference."},
 					"environment":     map[string]any{"type": "string", "description": "Optional environment filter applied before grouping."},
 					"outcome": map[string]any{
 						"type":        "string",

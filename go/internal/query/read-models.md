@@ -114,8 +114,9 @@ existing query spans, Postgres query duration metrics, truth envelopes, and
 HTTP status/error bodies.
 `CICDHandler` (`ci_cd.go:16`) reads reducer-owned CI/CD run correlation facts
 from Postgres. It requires an explicit scope, repository, commit, provider-run,
-artifact-digest, or environment anchor plus `limit`, and it keeps CI success,
-environment observations, and shell-only hints separate from deployment truth.
+artifact-digest, image-reference, or environment anchor plus `limit`, and it
+keeps CI success, environment observations, and shell-only hints separate from
+deployment truth.
 `ServiceCatalogHandler` (`service_catalog.go:16`) reads reducer-owned service
 catalog ownership and drift correlation facts from Postgres. It requires an
 explicit scope, entity, repository, service, workload, or owner anchor plus
@@ -357,16 +358,18 @@ instrument.
 reducer-owned CI/CD run correlations through a separate Postgres aggregate
 read model (`ci_cd_run_correlation_aggregates.go`). `CountCICDRunCorrelations`
 answers total / per-outcome / per-environment / per-provider questions over
-an optional scope, repository, commit, provider, artifact digest,
-environment, or outcome scope. `CICDRunCorrelationInventory` returns a
+an optional scope, repository, commit, provider, artifact digest, image
+reference, environment, or outcome scope. `CICDRunCorrelationInventory` returns a
 paginated grouped count along one of the dimensions `outcome`, `environment`,
 `repository_id`, or `provider`. The aggregate replaces the page-and-iterate
 caller workflow for ecosystem-level questions like "how many runs ended in
 each outcome per environment?" exposed by `list_ci_cd_run_correlations`. It
 re-uses the existing partial indexes on `fact_records` for
-`reducer_ci_cd_run_correlation` (repository_id + commit_sha + artifact_digest
-+ environment + outcome, plus provider, environment, artifact_digest); no
-new schema or graph migration is needed. The aggregate handler validates the
+`reducer_ci_cd_run_correlation`: the composite lookup index covers
+repository_id + commit_sha + artifact_digest + environment + outcome, and
+separate partial lookup indexes cover run/provider, commit_sha,
+artifact_digest, image_ref, and environment; no new schema or graph migration
+is needed. The aggregate handler validates the
 `outcome` filter against the same enum the list endpoint advertises in
 `openapi_paths_cicd.go` (`exact`, `derived`, `ambiguous`, `unresolved`,
 `rejected`), so typos surface as 400 instead of silently returning zero

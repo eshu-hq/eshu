@@ -445,7 +445,10 @@ those minimums must be positive. If the run is vulnerability-only, leave the
 runtime minimums at `0` and record that as a partial proof. The verifier prints
 only count labels and sanitized missing-evidence reasons, never raw target
 values. Use `expected_image_digest` or `expected_image_ref` to tie
-container-image, SBOM, and CI/CD evidence to the same artifact. Use
+container-image, SBOM, and CI/CD evidence to the same artifact. Digest-backed
+CI/CD proof filters by `artifact_digest`; image-reference proof filters the
+CI/CD count route by `image_ref` so the verifier does not fetch a broad
+repository page and filter locally. Use
 `expected_service_id` or `expected_workload_id` when the proof must validate a
 specific deployed service rather than any reducer-owned service-catalog row for
 the repository. For provider security-alert evidence,

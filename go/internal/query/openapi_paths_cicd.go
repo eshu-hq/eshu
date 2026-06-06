@@ -15,6 +15,7 @@ const openAPIPathsCICD = `
           {"name": "provider_run_id", "in": "query", "schema": {"type": "string"}, "description": "Provider-native run, build, or pipeline ID. Pair with provider when no other bounded anchor is present."},
           {"name": "run_id", "in": "query", "schema": {"type": "string"}, "description": "Alias for provider_run_id."},
           {"name": "artifact_digest", "in": "query", "schema": {"type": "string"}, "description": "Artifact or image digest anchor."},
+          {"name": "image_ref", "in": "query", "schema": {"type": "string"}, "description": "Image reference anchor for tag-or-reference based correlation rows."},
           {"name": "environment", "in": "query", "schema": {"type": "string"}, "description": "Provider environment observation anchor."},
           {"name": "outcome", "in": "query", "schema": {"type": "string", "enum": ["exact", "derived", "ambiguous", "unresolved", "rejected"]}},
           {"name": "after_correlation_id", "in": "query", "schema": {"type": "string"}, "description": "Correlation ID from next_cursor when continuing a truncated page."},

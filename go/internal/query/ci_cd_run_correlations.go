@@ -23,6 +23,7 @@ type CICDRunCorrelationFilter struct {
 	Provider           string
 	ProviderRunID      string
 	ArtifactDigest     string
+	ImageRef           string
 	Environment        string
 	Outcome            string
 	AfterCorrelationID string
@@ -92,6 +93,7 @@ func (s PostgresCICDRunCorrelationStore) ListCICDRunCorrelations(
 		filter.Provider,
 		filter.ProviderRunID,
 		filter.ArtifactDigest,
+		filter.ImageRef,
 		filter.Environment,
 		filter.Outcome,
 		filter.AfterCorrelationID,
@@ -139,11 +141,12 @@ WHERE fact.fact_kind = $1
   AND ($5 = '' OR fact.payload->>'provider' = $5)
   AND ($6 = '' OR fact.payload->>'run_id' = $6)
   AND ($7 = '' OR fact.payload->>'artifact_digest' = $7)
-  AND ($8 = '' OR fact.payload->>'environment' = $8)
-  AND ($9 = '' OR fact.payload->>'outcome' = $9)
-  AND ($10 = '' OR fact.fact_id > $10)
+  AND ($8 = '' OR fact.payload->>'image_ref' = $8)
+  AND ($9 = '' OR fact.payload->>'environment' = $9)
+  AND ($10 = '' OR fact.payload->>'outcome' = $10)
+  AND ($11 = '' OR fact.fact_id > $11)
 ORDER BY fact.fact_id ASC
-LIMIT $11
+LIMIT $12
 `
 
 func (f CICDRunCorrelationFilter) hasScope() bool {
@@ -152,6 +155,7 @@ func (f CICDRunCorrelationFilter) hasScope() bool {
 		f.CommitSHA != "" ||
 		f.ProviderRunID != "" ||
 		f.ArtifactDigest != "" ||
+		f.ImageRef != "" ||
 		f.Environment != ""
 }
 
@@ -160,6 +164,7 @@ func (f CICDRunCorrelationFilter) hasProviderRunDisambiguator() bool {
 		f.RepositoryID != "" ||
 		f.CommitSHA != "" ||
 		f.ArtifactDigest != "" ||
+		f.ImageRef != "" ||
 		f.Environment != ""
 }
 

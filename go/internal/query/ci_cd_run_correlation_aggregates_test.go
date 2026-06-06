@@ -129,6 +129,30 @@ func TestCICDRunCorrelationAggregateCountReturnsRollups(t *testing.T) {
 	}
 }
 
+func TestCICDRunCorrelationAggregateCountPassesImageRefFilter(t *testing.T) {
+	t.Parallel()
+
+	store := &stubCICDRunCorrelationAggregateStore{}
+	handler := &CICDHandler{Aggregates: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/ci-cd/run-correlations/count?image_ref=registry.example.com/team/api:prod",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := store.lastFilter.ImageRef, "registry.example.com/team/api:prod"; got != want {
+		t.Fatalf("ImageRef = %q, want %q", got, want)
+	}
+}
+
 func TestCICDRunCorrelationAggregateInventoryReturnsBuckets(t *testing.T) {
 	t.Parallel()
 
@@ -172,6 +196,30 @@ func TestCICDRunCorrelationAggregateInventoryReturnsBuckets(t *testing.T) {
 	}
 	if body.Truncated {
 		t.Fatalf("truncated = true, want false (only 3 buckets, limit 10)")
+	}
+}
+
+func TestCICDRunCorrelationAggregateInventoryPassesImageRefFilter(t *testing.T) {
+	t.Parallel()
+
+	store := &stubCICDRunCorrelationAggregateStore{}
+	handler := &CICDHandler{Aggregates: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/ci-cd/run-correlations/inventory?image_ref=registry.example.com/team/api:prod&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := store.lastFilter.ImageRef, "registry.example.com/team/api:prod"; got != want {
+		t.Fatalf("ImageRef = %q, want %q", got, want)
 	}
 }
 

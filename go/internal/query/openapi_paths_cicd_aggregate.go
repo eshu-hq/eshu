@@ -11,6 +11,7 @@ const openAPIPathsCICDRunCorrelationAggregate = `
           {"name": "commit_sha", "in": "query", "schema": {"type": "string"}},
           {"name": "provider", "in": "query", "schema": {"type": "string"}},
           {"name": "artifact_digest", "in": "query", "schema": {"type": "string"}},
+          {"name": "image_ref", "in": "query", "schema": {"type": "string"}},
           {"name": "environment", "in": "query", "schema": {"type": "string"}},
           {"name": "outcome", "in": "query", "schema": {"type": "string", "enum": ["exact", "derived", "ambiguous", "unresolved", "rejected"]}}
         ],
@@ -46,6 +47,7 @@ const openAPIPathsCICDRunCorrelationAggregate = `
           {"name": "commit_sha", "in": "query", "schema": {"type": "string"}},
           {"name": "provider", "in": "query", "schema": {"type": "string"}},
           {"name": "artifact_digest", "in": "query", "schema": {"type": "string"}},
+          {"name": "image_ref", "in": "query", "schema": {"type": "string"}},
           {"name": "environment", "in": "query", "schema": {"type": "string"}},
           {"name": "outcome", "in": "query", "schema": {"type": "string", "enum": ["exact", "derived", "ambiguous", "unresolved", "rejected"]}},
           {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 500, "default": 100}},

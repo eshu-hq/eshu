@@ -116,6 +116,7 @@ caller must provide `limit` and at least one bounded anchor:
 - `provider_run_id`
 - `run_id`
 - `artifact_digest`
+- `image_ref`
 - `environment`
 
 When `provider_run_id` or `run_id` is the only anchor, callers must also
@@ -126,6 +127,13 @@ become deployment truth by themselves.
 repository selectors used by repository context routes. Eshu resolves selectors
 before reading reducer CI/CD correlation facts for the list, count, and
 inventory routes; unknown or ambiguous selectors return a selector error.
+`image_ref` is also accepted by the list, count, and inventory routes so
+target-story and MCP callers can prove tag-or-reference CI/CD evidence without
+fetching a repository-wide page and filtering client-side.
+
+No-Regression Evidence: `go test ./internal/query -run 'TestCICD(ListRunCorrelationsUsesImageRefAnchor|RunCorrelationQueryFiltersImageRef|RunCorrelationAggregate(Count|Inventory)PassesImageRefFilter)' -count=1` and `go test ./internal/mcp -run 'TestResolveRouteMapsCICDRunCorrelation' -count=1` failed before CI/CD list/count/inventory routes and MCP dispatch accepted `image_ref`, then passed after the bounded query predicates and tool schemas included it.
+
+No-Observability-Change: `image_ref` reuses the existing CI/CD query handler spans (`query.ci_cd_run_correlations`, `query.ci_cd_run_correlation_aggregate`) and Postgres fact-read instrumentation; the change adds no worker, queue, graph write, metric instrument, or metric label.
 
 ## Vulnerability Impact
 

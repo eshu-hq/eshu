@@ -53,6 +53,7 @@ type CICDRunCorrelationAggregateFilter struct {
 	CommitSHA      string
 	Provider       string
 	ArtifactDigest string
+	ImageRef       string
 	Environment    string
 	Outcome        string
 }
@@ -112,8 +113,9 @@ WHERE fact.fact_kind = 'reducer_ci_cd_run_correlation'
   AND ($3 = '' OR fact.payload->>'commit_sha' = $3)
   AND ($4 = '' OR fact.payload->>'provider' = $4)
   AND ($5 = '' OR fact.payload->>'artifact_digest' = $5)
-  AND ($6 = '' OR fact.payload->>'environment' = $6)
-  AND ($7 = '' OR fact.payload->>'outcome' = $7);
+  AND ($6 = '' OR fact.payload->>'image_ref' = $6)
+  AND ($7 = '' OR fact.payload->>'environment' = $7)
+  AND ($8 = '' OR fact.payload->>'outcome' = $8);
 `
 
 const cicdRunCorrelationAggregateGroupQueryTemplate = `
@@ -133,8 +135,9 @@ WHERE fact.fact_kind = 'reducer_ci_cd_run_correlation'
   AND ($3 = '' OR fact.payload->>'commit_sha' = $3)
   AND ($4 = '' OR fact.payload->>'provider' = $4)
   AND ($5 = '' OR fact.payload->>'artifact_digest' = $5)
-  AND ($6 = '' OR fact.payload->>'environment' = $6)
-  AND ($7 = '' OR fact.payload->>'outcome' = $7)
+  AND ($6 = '' OR fact.payload->>'image_ref' = $6)
+  AND ($7 = '' OR fact.payload->>'environment' = $7)
+  AND ($8 = '' OR fact.payload->>'outcome' = $8)
 GROUP BY bucket;
 `
 
@@ -155,11 +158,12 @@ WHERE fact.fact_kind = 'reducer_ci_cd_run_correlation'
   AND ($3 = '' OR fact.payload->>'commit_sha' = $3)
   AND ($4 = '' OR fact.payload->>'provider' = $4)
   AND ($5 = '' OR fact.payload->>'artifact_digest' = $5)
-  AND ($6 = '' OR fact.payload->>'environment' = $6)
-  AND ($7 = '' OR fact.payload->>'outcome' = $7)
+  AND ($6 = '' OR fact.payload->>'image_ref' = $6)
+  AND ($7 = '' OR fact.payload->>'environment' = $7)
+  AND ($8 = '' OR fact.payload->>'outcome' = $8)
 GROUP BY bucket
 ORDER BY bucket_count DESC, bucket
-LIMIT $8 OFFSET $9;
+LIMIT $9 OFFSET $10;
 `
 
 // CountCICDRunCorrelations returns the cheap-summary totals envelope for the
@@ -178,6 +182,7 @@ func (s PostgresCICDRunCorrelationAggregateStore) CountCICDRunCorrelations(
 		filter.CommitSHA,
 		filter.Provider,
 		filter.ArtifactDigest,
+		filter.ImageRef,
 		filter.Environment,
 		filter.Outcome,
 	}
@@ -263,6 +268,7 @@ func (s PostgresCICDRunCorrelationAggregateStore) CICDRunCorrelationInventory(
 		filter.CommitSHA,
 		filter.Provider,
 		filter.ArtifactDigest,
+		filter.ImageRef,
 		filter.Environment,
 		filter.Outcome,
 		limit,

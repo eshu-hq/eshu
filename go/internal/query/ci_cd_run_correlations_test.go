@@ -117,6 +117,30 @@ func TestCICDListRunCorrelationsUsesBoundedPostgresStore(t *testing.T) {
 	}
 }
 
+func TestCICDListRunCorrelationsUsesImageRefAnchor(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingCICDRunCorrelationStore{}
+	handler := &CICDHandler{Correlations: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/ci-cd/run-correlations?image_ref=registry.example.com/team/api:prod&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := store.lastFilter.ImageRef, "registry.example.com/team/api:prod"; got != want {
+		t.Fatalf("ImageRef = %q, want %q", got, want)
+	}
+}
+
 func TestCICDListRunCorrelationsRequiresProviderForProviderRunID(t *testing.T) {
 	t.Parallel()
 
@@ -182,5 +206,13 @@ func TestCICDRunCorrelationQueryFiltersProviderWithRunID(t *testing.T) {
 		if !strings.Contains(listCICDRunCorrelationsQuery, want) {
 			t.Fatalf("listCICDRunCorrelationsQuery missing %q:\n%s", want, listCICDRunCorrelationsQuery)
 		}
+	}
+}
+
+func TestCICDRunCorrelationQueryFiltersImageRef(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(listCICDRunCorrelationsQuery, "fact.payload->>'image_ref' = $8") {
+		t.Fatalf("listCICDRunCorrelationsQuery must filter image_ref:\n%s", listCICDRunCorrelationsQuery)
 	}
 }
