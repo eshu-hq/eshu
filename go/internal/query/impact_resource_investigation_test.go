@@ -207,6 +207,71 @@ func TestInvestigateResourceReturnsBoundedResourcePacket(t *testing.T) {
 	}
 }
 
+func TestInvestigateResourceResolvesExactCloudARN(t *testing.T) {
+	t.Parallel()
+
+	arn := "arn:aws:ssm:us-east-1:123456789012:parameter/configd/sample-service/client/port"
+	graph := &recordingResourceInvestigationGraph{
+		runRows: [][]map[string]any{{
+			{
+				"id": "cloud:ssm:sample-service-client-port", "name": "/configd/sample-service/client/port",
+				"labels": []any{"CloudResource"}, "resource_type": "ssm_parameter",
+				"provider": "aws", "environment": "dev", "resource_id": "/configd/sample-service/client/port",
+				"arn": arn,
+			},
+		}},
+	}
+	handler := &ImpactHandler{Neo4j: graph, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/impact/resource-investigation",
+		bytes.NewBufferString(`{"resource_id":"`+arn+`","resource_type":"cloud","limit":5}`),
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	if got, want := len(graph.runCalls), 4; got != want {
+		t.Fatalf("graph Run calls = %d, want resolver, workloads, incoming paths, outgoing paths", got)
+	}
+	resolverCall := graph.runCalls[0]
+	if !strings.Contains(resolverCall.cypher, "n.arn = $selector") {
+		t.Fatalf("resolver cypher does not match exact ARN selectors: %s", resolverCall.cypher)
+	}
+	if got, want := resolverCall.params["selector"], arn; got != want {
+		t.Fatalf("resolver selector = %#v, want %#v", got, want)
+	}
+	for i, call := range graph.runCalls[1:] {
+		if !strings.Contains(call.cypher, "resource.arn = $resource_arn") {
+			t.Fatalf("section call %d cypher does not carry selected ARN: %s", i+1, call.cypher)
+		}
+		if got, want := call.params["resource_arn"], arn; got != want {
+			t.Fatalf("section call %d resource_arn = %#v, want %#v", i+1, got, want)
+		}
+	}
+	data := decodeImpactEnvelopeData(t, w)
+	resolution := data["target_resolution"].(map[string]any)
+	if got, want := resolution["status"], "resolved"; got != want {
+		t.Fatalf("resolution.status = %#v, want %#v", got, want)
+	}
+	resource := data["resource"].(map[string]any)
+	if got, want := resource["arn"], arn; got != want {
+		t.Fatalf("resource.arn = %#v, want %#v", got, want)
+	}
+	missingEvidence := StringSliceVal(data, "missing_evidence")
+	for _, want := range []string{"resource_usage_relationship_missing", "repository_provenance_path_missing"} {
+		if !stringSliceContains(missingEvidence, want) {
+			t.Fatalf("missing_evidence = %#v, want %q", missingEvidence, want)
+		}
+	}
+}
+
 func TestResourceInvestigationResolverNarrowsQueueAndDatabaseTypes(t *testing.T) {
 	t.Parallel()
 
@@ -246,7 +311,7 @@ func TestLoadResourceInvestigationSectionsJoinsParallelErrors(t *testing.T) {
 	_, _, _, _, _, _, err := handler.loadResourceInvestigationSections(
 		context.Background(),
 		resourceInvestigationRequest{Limit: 1, MaxDepth: 1},
-		"cloud:rds:orders",
+		&resourceInvestigationCandidate{ID: "cloud:rds:orders"},
 	)
 	if !errors.Is(err, workloadErr) {
 		t.Fatalf("joined error missing workload error: %v", err)

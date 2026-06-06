@@ -29,7 +29,8 @@ func resourceInvestigationResponse(
 			incomingPaths,
 			outgoingPaths,
 		),
-		"limitations": resourceInvestigationLimitations(resolution, selected),
+		"missing_evidence": resourceInvestigationMissingEvidence(selected, workloads, incomingPaths, outgoingPaths),
+		"limitations":      resourceInvestigationLimitations(resolution, selected, workloads, incomingPaths, outgoingPaths),
 		"coverage": map[string]any{
 			"query_shape":    resourceInvestigationShape(selected),
 			"max_depth":      req.MaxDepth,
@@ -76,6 +77,7 @@ func resourceInvestigationCandidates(rows []map[string]any) []resourceInvestigat
 			ConfigPath:    StringVal(row, "config_path"),
 			Source:        StringVal(row, "source"),
 			ResourceID:    StringVal(row, "resource_id"),
+			Arn:           StringVal(row, "arn"),
 			ResourceKind:  StringVal(row, "resource_kind"),
 			ResourceClass: StringVal(row, "resource_class"),
 		})
@@ -103,6 +105,7 @@ func (c resourceInvestigationCandidate) Map() map[string]any {
 		"config_path":    c.ConfigPath,
 		"source":         c.Source,
 		"resource_id":    c.ResourceID,
+		"arn":            c.Arn,
 		"resource_kind":  c.ResourceKind,
 		"resource_class": c.ResourceClass,
 	})
@@ -188,6 +191,9 @@ func resourceInvestigationNextCalls(
 func resourceInvestigationLimitations(
 	resolution map[string]any,
 	selected *resourceInvestigationCandidate,
+	workloads []map[string]any,
+	incomingPaths []map[string]any,
+	outgoingPaths []map[string]any,
 ) []string {
 	status := StringVal(resolution, "status")
 	switch {
@@ -196,10 +202,38 @@ func resourceInvestigationLimitations(
 	case status == "no_match":
 		return []string{"resource was not found in the authoritative graph"}
 	case selected != nil:
-		return []string{"repository paths are graph provenance handles; read source files for exact line citations"}
+		limitations := []string{"repository paths are graph provenance handles; read source files for exact line citations"}
+		for _, missing := range resourceInvestigationMissingEvidence(selected, workloads, incomingPaths, outgoingPaths) {
+			switch missing {
+			case "resource_usage_relationship_missing":
+				limitations = append(limitations, "resource resolved, but no workload usage relationship is materialized")
+			case "repository_provenance_path_missing":
+				limitations = append(limitations, "resource resolved, but no repository provenance path is materialized")
+			}
+		}
+		return limitations
 	default:
 		return nil
 	}
+}
+
+func resourceInvestigationMissingEvidence(
+	selected *resourceInvestigationCandidate,
+	workloads []map[string]any,
+	incomingPaths []map[string]any,
+	outgoingPaths []map[string]any,
+) []string {
+	if selected == nil {
+		return []string{}
+	}
+	missing := []string{}
+	if len(workloads) == 0 {
+		missing = append(missing, "resource_usage_relationship_missing")
+	}
+	if len(incomingPaths)+len(outgoingPaths) == 0 {
+		missing = append(missing, "repository_provenance_path_missing")
+	}
+	return missing
 }
 
 func resourceInvestigationShape(selected *resourceInvestigationCandidate) string {

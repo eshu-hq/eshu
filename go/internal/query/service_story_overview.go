@@ -75,6 +75,10 @@ func buildServiceDeploymentOverview(workloadContext map[string]any) map[string]a
 	if provisioningChains := mapSliceValue(workloadContext, "provisioning_source_chains"); len(provisioningChains) > 0 {
 		overview["provisioning_source_chain_count"] = len(provisioningChains)
 	}
+	if cloudCandidates := mapSliceValue(workloadContext, "uncorrelated_cloud_resources"); len(cloudCandidates) > 0 {
+		overview["uncorrelated_cloud_resource_count"] = len(cloudCandidates)
+		overview["missing_cloud_relationship"] = "workload_cloud_relationship"
+	}
 	if deploymentEvidence := mapValue(workloadContext, "deployment_evidence"); len(deploymentEvidence) > 0 {
 		if toolFamilies := serviceDeploymentToolFamilies(deploymentEvidence); len(toolFamilies) > 0 {
 			overview["deployment_tool_families"] = toolFamilies

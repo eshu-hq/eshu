@@ -329,6 +329,23 @@ wired in `cmd/api/wiring.go`, not here.
   `service_query.stage_completed` (via `serviceQueryStageTimer`). Both emit
   `operation`, `stage`, `repo_id`, and `duration_seconds`.
 
+No-Regression Evidence:
+
+```bash
+cd go && go test ./internal/query -run 'TestInvestigateResourceResolvesExactCloudARN|TestBuildServiceStoryTraceExplainsUncorrelatedCloudCandidates|TestLoadUncorrelatedCloudResourceCandidatesUsesBoundedServiceSelector|TestBuildDeploymentTraceResponseExplainsUncorrelatedCloudCandidates|TestLoadResourceInvestigationSectionsJoinsParallelErrors' -count=1
+```
+
+This proves resource investigation accepts exact cloud ARNs returned by infra
+search, section traversals keep the canonical graph id and ARN handles, and
+service story/deployment trace expose bounded uncorrelated cloud-resource
+candidates without promoting them into canonical `cloud_resources`.
+
+No-Observability-Change: the new candidate read still runs through
+`GraphQuery.Run`, existing `neo4j.query` spans, and
+`eshu_dp_neo4j_query_duration_seconds`; service-story enrichment records the
+`uncorrelated_cloud_resource_candidates` stage through the existing
+`service_query.stage_started` and `service_query.stage_completed` log events.
+
 ## Operational notes
 
 - High latency on `GET /api/v0/repositories/{repo_id}/context` or story routes:

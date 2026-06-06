@@ -121,6 +121,49 @@ func TestFetchDeploymentSourcesDedupesCanonicalAndRepositoryOverlap(t *testing.T
 	}
 }
 
+func TestLoadUncorrelatedCloudResourceCandidatesUsesBoundedServiceSelector(t *testing.T) {
+	t.Parallel()
+
+	var seenCypher string
+	var seenParams map[string]any
+	got, err := loadUncorrelatedCloudResourceCandidates(t.Context(), fakeRepoGraphReader{
+		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+			seenCypher = cypher
+			seenParams = params
+			return []map[string]any{
+				{
+					"id": "cloud:ssm:sample-service-client-port", "name": "/configd/sample-service/client/port",
+					"resource_type": "ssm_parameter", "provider": "aws",
+					"arn": "arn:aws:ssm:us-east-1:123456789012:parameter/configd/sample-service/client/port",
+				},
+			}, nil
+		},
+	}, "sample-service", 3)
+	if err != nil {
+		t.Fatalf("loadUncorrelatedCloudResourceCandidates() error = %v, want nil", err)
+	}
+	for _, want := range []string{"MATCH (c:CloudResource)", "LIMIT $limit", "toLower(coalesce(c.arn, '')) CONTAINS $service_token"} {
+		if !strings.Contains(seenCypher, want) {
+			t.Fatalf("candidate cypher missing %q: %s", want, seenCypher)
+		}
+	}
+	if got, want := seenParams["service_token"], "sample-service"; got != want {
+		t.Fatalf("service_token = %#v, want %#v", got, want)
+	}
+	if got, want := seenParams["limit"], 3; got != want {
+		t.Fatalf("limit = %#v, want %#v", got, want)
+	}
+	if len(got) != 1 {
+		t.Fatalf("candidate count = %d, want 1", len(got))
+	}
+	if got, want := StringVal(got[0], "candidate_status"), "uncorrelated"; got != want {
+		t.Fatalf("candidate_status = %q, want %q", got, want)
+	}
+	if got, want := StringVal(got[0], "missing_relationship"), "workload_cloud_relationship"; got != want {
+		t.Fatalf("missing_relationship = %q, want %q", got, want)
+	}
+}
+
 func TestFetchServiceTraceContextAcceptsQualifiedWorkloadID(t *testing.T) {
 	t.Parallel()
 
@@ -289,6 +332,44 @@ func TestBuildDeploymentTraceResponseIncludesArtifactBackedDeliveryPaths(t *test
 	}
 	if !seenGitOps || !seenTerraform {
 		t.Fatalf("delivery_paths = %#v, want gitops and terraform artifact paths", deliveryPaths)
+	}
+}
+
+func TestBuildDeploymentTraceResponseExplainsUncorrelatedCloudCandidates(t *testing.T) {
+	t.Parallel()
+
+	ctx := sampleServiceDossierContext()
+	ctx["cloud_resources"] = []map[string]any{}
+	ctx["uncorrelated_cloud_resources"] = []map[string]any{
+		{
+			"id":                   "cloud:ssm:sample-service-client-port",
+			"name":                 "/configd/sample-service/client/port",
+			"resource_type":        "ssm_parameter",
+			"provider":             "aws",
+			"missing_relationship": "workload_cloud_relationship",
+			"candidate_status":     "uncorrelated",
+		},
+	}
+
+	got := buildDeploymentTraceResponse("sample-service-api", ctx)
+	if cloudResources := mapSliceValue(got, "cloud_resources"); len(cloudResources) != 0 {
+		t.Fatalf("cloud_resources = %#v, want no promoted attached resources", cloudResources)
+	}
+	candidates := mapSliceValue(got, "uncorrelated_cloud_resources")
+	if got, want := len(candidates), 1; got != want {
+		t.Fatalf("uncorrelated_cloud_resources len = %d, want %d", got, want)
+	}
+	overview := mapValue(got, "deployment_overview")
+	if got, want := IntVal(overview, "cloud_resource_count"), 0; got != want {
+		t.Fatalf("deployment_overview.cloud_resource_count = %d, want %d", got, want)
+	}
+	if got, want := IntVal(overview, "uncorrelated_cloud_resource_count"), 1; got != want {
+		t.Fatalf("deployment_overview.uncorrelated_cloud_resource_count = %d, want %d", got, want)
+	}
+	summary := mapValue(got, "deployment_fact_summary")
+	missingEvidence := StringSliceVal(summary, "missing_evidence")
+	if !stringSliceContains(missingEvidence, "workload_cloud_relationship_missing") {
+		t.Fatalf("deployment_fact_summary.missing_evidence = %#v, want workload cloud relationship gap", missingEvidence)
 	}
 }
 

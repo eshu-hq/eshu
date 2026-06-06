@@ -210,6 +210,7 @@ const openAPIPathsEntities = `
                     "dependents": {"type": "array", "items": {"type": "object"}},
                     "consumer_repositories": {"type": "array", "items": {"type": "object"}},
                     "provisioning_source_chains": {"type": "array", "items": {"type": "object"}},
+                    "uncorrelated_cloud_resources": {"type": "array", "description": "CloudResource candidates that match the service name or cloud identifier but remain missing the workload-to-cloud relationship required for canonical dependency truth.", "items": {"type": "object"}},
                     "deployment_evidence": {
                       "type": "object",
                       "description": "Deployment, CI, and environment evidence pointers. Artifacts include source_location plus resolved_id/generation_id for Postgres evidence drilldown; evidence_index groups those pointers by relationship type, artifact family, and evidence kind."

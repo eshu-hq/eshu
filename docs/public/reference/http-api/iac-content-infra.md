@@ -107,8 +107,15 @@ instances, repositories, cloud resources, Terraform resources/data
 sources/modules, Kubernetes resources, and graph file paths.
 
 `/impact/resource-investigation` accepts `query` or `resource_id`, optional
-`resource_type`, `environment`, `max_depth`, and `limit`. `max_depth` defaults
-to 4 and caps at 8; `limit` defaults to 25 and caps at 100.
+`resource_type`, `environment`, `max_depth`, and `limit`. `resource_id` may be
+the canonical graph resource id, provider resource id, or cloud ARN returned by
+`/infra/resources/search`. `max_depth` defaults to 4 and caps at 8; `limit`
+defaults to 25 and caps at 100.
+
+When the target resource resolves but no workload usage edge or repository
+provenance path is materialized, the response keeps `workloads` and
+`provisioning_paths` empty and reports structured `missing_evidence` instead of
+inventing an attachment.
 
 `/compare/environments` requires `workload_id`, `left`, and `right`; optional
 `limit` defaults to 50 and caps at 200. Config and runtime-setting drift are

@@ -96,6 +96,52 @@ func TestBuildServiceStoryResponseIncludesCodeToRuntimeTrace(t *testing.T) {
 	}
 }
 
+func TestBuildServiceStoryTraceExplainsUncorrelatedCloudCandidates(t *testing.T) {
+	t.Parallel()
+
+	ctx := sampleServiceDossierContext()
+	ctx["uncorrelated_cloud_resources"] = []map[string]any{
+		{
+			"id":                   "cloud:ssm:sample-service-client-port",
+			"name":                 "/configd/sample-service/client/port",
+			"resource_type":        "ssm_parameter",
+			"provider":             "aws",
+			"arn":                  "arn:aws:ssm:us-east-1:123456789012:parameter/configd/sample-service/client/port",
+			"missing_relationship": "workload_cloud_relationship",
+			"candidate_status":     "uncorrelated",
+		},
+	}
+
+	got := buildServiceStoryResponse("sample-service-api", ctx)
+	trace := mapValue(got, "code_to_runtime_trace")
+	cloud := segmentByName(mapSliceValue(trace, "segments"), "cloud_dependencies")
+	if cloud == nil {
+		t.Fatalf("cloud_dependencies segment missing from trace: %#v", trace)
+	}
+	if got, want := StringVal(cloud, "status"), "missing_evidence"; got != want {
+		t.Fatalf("cloud_dependencies status = %q, want %q", got, want)
+	}
+	if got, want := StringVal(cloud, "basis"), "uncorrelated_cloud_resource_candidates"; got != want {
+		t.Fatalf("cloud_dependencies basis = %q, want %q", got, want)
+	}
+	if got, want := IntVal(cloud, "candidate_count"), 1; got != want {
+		t.Fatalf("cloud_dependencies candidate_count = %d, want %d", got, want)
+	}
+	if got, want := StringVal(cloud, "missing_relationship"), "workload_cloud_relationship"; got != want {
+		t.Fatalf("cloud_dependencies missing_relationship = %q, want %q", got, want)
+	}
+	evidence := mapSliceValue(cloud, "evidence")
+	if got, want := len(evidence), 1; got != want {
+		t.Fatalf("cloud_dependencies evidence count = %d, want %d", got, want)
+	}
+	if got, want := StringVal(evidence[0], "candidate_status"), "uncorrelated"; got != want {
+		t.Fatalf("cloud candidate status = %q, want %q", got, want)
+	}
+	if resources := mapSliceValue(ctx, "cloud_resources"); len(resources) != 0 {
+		t.Fatalf("cloud_resources = %#v, want no promoted attached resources", resources)
+	}
+}
+
 func BenchmarkBuildServiceCodeToRuntimeTraceLargeDossier(b *testing.B) {
 	ctx := sampleServiceDossierContext()
 	ctx["api_surface"] = map[string]any{
