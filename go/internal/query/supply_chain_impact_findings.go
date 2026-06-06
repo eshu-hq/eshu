@@ -77,6 +77,7 @@ type SupplyChainImpactFindingRow struct {
 	ImageRef              string
 	DependencyScope       string
 	WorkloadIDs           []string
+	DeploymentIDs         []string
 	ServiceIDs            []string
 	Environments          []string
 	DependencyPath        []string
@@ -304,6 +305,7 @@ func decodeSupplyChainImpactFindingRow(
 		ImageRef:            StringVal(payload, "image_ref"),
 		DependencyScope:     StringVal(payload, "dependency_scope"),
 		WorkloadIDs:         StringSliceVal(payload, "workload_ids"),
+		DeploymentIDs:       StringSliceVal(payload, "deployment_ids"),
 		ServiceIDs:          StringSliceVal(payload, "service_ids"),
 		Environments:        StringSliceVal(payload, "environments"),
 		DependencyPath:      StringSliceVal(payload, "dependency_path"),

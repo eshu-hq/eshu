@@ -118,6 +118,12 @@ type supplyChainDeploymentContext struct {
 	outcome        string
 }
 
+type supplyChainDeploymentLaneContext struct {
+	factID        string
+	repositoryID  string
+	deploymentIDs []string
+}
+
 type supplyChainWorkloadContext struct {
 	factID       string
 	repositoryID string
@@ -152,6 +158,7 @@ type supplyChainImpactIndex struct {
 	attachments             map[string]supplyChainAttachment
 	images                  map[string]supplyChainImageIdentity
 	deployments             []supplyChainDeploymentContext
+	deploymentLanes         []supplyChainDeploymentLaneContext
 	workloads               []supplyChainWorkloadContext
 	services                []supplyChainServiceContext
 	riskSignals             map[string]supplyChainRiskSignals
@@ -221,6 +228,11 @@ func buildSupplyChainImpactIndex(envelopes []facts.Envelope) supplyChainImpactIn
 			deployment := supplyChainDeploymentContextFromEnvelope(envelope)
 			if deployment.factID != "" {
 				index.deployments = append(index.deployments, deployment)
+			}
+		case platformMaterializationFactKind:
+			lane := supplyChainDeploymentLaneContextFromEnvelope(envelope)
+			if lane.repositoryID != "" && len(lane.deploymentIDs) > 0 {
+				index.deploymentLanes = append(index.deploymentLanes, lane)
 			}
 		case workloadIdentityFactKind:
 			index.workloads = append(index.workloads, supplyChainWorkloadContextsFromEnvelope(envelope)...)
@@ -403,7 +415,39 @@ func supplyChainConsumptionMissingEvidence(consumption supplyChainPackageConsump
 func combinedMissingImpactEvidence(finding SupplyChainImpactFinding, extra []string) []string {
 	missing := missingImpactEvidence(finding)
 	missing = append(missing, extra...)
+	missing = suppressGenericServiceMissingEvidence(missing)
 	return uniqueSortedStrings(missing)
+}
+
+func suppressGenericServiceMissingEvidence(missing []string) []string {
+	if !hasSpecificServiceCatalogMissingEvidence(missing) {
+		return missing
+	}
+	out := make([]string, 0, len(missing))
+	for _, value := range missing {
+		switch value {
+		case "service evidence missing", "service catalog correlation evidence missing":
+			continue
+		default:
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func hasSpecificServiceCatalogMissingEvidence(missing []string) bool {
+	for _, value := range missing {
+		switch value {
+		case "service catalog evidence provenance-only",
+			"service catalog evidence stale",
+			"service catalog evidence ambiguous",
+			"service catalog evidence rejected",
+			"service catalog evidence unresolved",
+			"service catalog evidence unsupported":
+			return true
+		}
+	}
+	return false
 }
 
 func classifySupplyChainImpactProduct(

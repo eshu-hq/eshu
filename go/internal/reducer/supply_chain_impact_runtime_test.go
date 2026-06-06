@@ -117,6 +117,60 @@ func TestBuildSupplyChainImpactFindingsAttachesWorkloadIdentityWithoutServiceCat
 	}
 }
 
+func TestBuildSupplyChainImpactFindingsReportsScopedUnresolvedServiceCatalogEvidence(t *testing.T) {
+	t.Parallel()
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		vulnerabilityCVEFact("cve-1", "CVE-2026-1491", 9.1),
+		vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-1491", testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),
+		packageConsumptionFactWithRange("consume-1", testImpactPackageID, testImpactRepositoryID, "1.2.3"),
+		workloadIdentityRepositoryScopeImpactFact("workload-1", testImpactRepositoryID, testImpactWorkloadID),
+		serviceCatalogCorrelationRepositoryScopeImpactFact(
+			"catalog-1",
+			testImpactRepositoryID,
+			string(ServiceCatalogCorrelationUnresolved),
+			"missing",
+			true,
+		),
+	})
+
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-1491"]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	assertContainsString(t, got.WorkloadIDs, testImpactWorkloadID)
+	assertContainsString(t, got.EvidencePath, workloadIdentityFactKind)
+	assertNotContainsString(t, got.EvidencePath, serviceCatalogCorrelationFactKind)
+	assertContainsString(t, got.MissingEvidence, "service catalog evidence unresolved")
+	assertNotContainsString(t, got.MissingEvidence, "service catalog correlation evidence missing")
+	if len(got.ServiceIDs) != 0 {
+		t.Fatalf("ServiceIDs = %#v, want no fabricated service identity from unresolved service evidence", got.ServiceIDs)
+	}
+}
+
+func TestBuildSupplyChainImpactFindingsAttachesDeploymentLaneEvidence(t *testing.T) {
+	t.Parallel()
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		vulnerabilityCVEFact("cve-1", "CVE-2026-1492", 9.1),
+		vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-1492", testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),
+		packageConsumptionFactWithRange("consume-1", testImpactPackageID, testImpactRepositoryID, "1.2.3"),
+		workloadIdentityRepositoryScopeImpactFact("workload-1", testImpactRepositoryID, testImpactWorkloadID),
+		platformMaterializationImpactFact("deployment-1", testImpactRepositoryID, "deployment:example-api"),
+	})
+
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-1492"]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	assertContainsString(t, got.WorkloadIDs, testImpactWorkloadID)
+	assertContainsString(t, got.DeploymentIDs, "deployment:example-api")
+	assertContainsString(t, got.EvidencePath, "reducer_platform_materialization")
+	assertContainsString(t, got.EvidenceFactIDs, "deployment-1")
+	assertNotContainsString(t, got.MissingEvidence, "runtime deployment evidence not linked to vulnerable package")
+	assertContainsString(t, got.MissingEvidence, "environment evidence missing")
+	assertContainsString(t, got.MissingEvidence, "service catalog correlation evidence missing")
+	if len(got.Environments) != 0 {
+		t.Fatalf("Environments = %#v, want no fabricated environment from deployment lane", got.Environments)
+	}
+}
+
 func TestBuildSupplyChainImpactFindingsAttachesDeploymentAndWorkloadWithoutServiceCatalog(t *testing.T) {
 	t.Parallel()
 
@@ -295,6 +349,27 @@ func serviceCatalogCorrelationImpactFact(
 	}
 }
 
+func serviceCatalogCorrelationRepositoryScopeImpactFact(
+	factID string,
+	repositoryID string,
+	outcome string,
+	driftStatus string,
+	provenanceOnly bool,
+) facts.Envelope {
+	scopeID := "git-repository-scope:" + repositoryID
+	return facts.Envelope{
+		FactID:   factID,
+		FactKind: serviceCatalogCorrelationFactKind,
+		ScopeID:  scopeID,
+		Payload: map[string]any{
+			"scope_id":        scopeID,
+			"outcome":         outcome,
+			"drift_status":    driftStatus,
+			"provenance_only": provenanceOnly,
+		},
+	}
+}
+
 func workloadIdentityImpactFact(factID string, repositoryID string, workloadID string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
@@ -317,6 +392,22 @@ func workloadIdentityRepositoryScopeImpactFact(factID string, repositoryID strin
 			"scope_id":          scopeID,
 			"related_scope_ids": []any{scopeID},
 			"entity_keys":       []any{workloadID},
+		},
+	}
+}
+
+func platformMaterializationImpactFact(factID string, repositoryID string, deploymentID string) facts.Envelope {
+	scopeID := "git-repository-scope:" + repositoryID
+	return facts.Envelope{
+		FactID:   factID,
+		FactKind: "reducer_platform_materialization",
+		ScopeID:  scopeID,
+		Payload: map[string]any{
+			"scope_id":          scopeID,
+			"entity_keys":       []any{deploymentID},
+			"related_scope_ids": []any{scopeID},
+			"reducer_domain":    "deployment_mapping",
+			"canonical_writes":  1,
 		},
 	}
 }

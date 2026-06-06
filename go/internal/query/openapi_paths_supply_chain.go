@@ -120,6 +120,7 @@ const openAPIPathsSupplyChain = `
                           "image_ref": {"type": "string"},
                           "dependency_scope": {"type": "string"},
                           "workload_ids": {"type": "array", "items": {"type": "string"}},
+                          "deployment_ids": {"type": "array", "items": {"type": "string"}, "description": "Deployment mapping anchors from reducer_platform_materialization. These prove a repository/workload has deployment-lane evidence but do not imply environment or runtime image proof."},
                           "service_ids": {"type": "array", "items": {"type": "string"}},
                           "environments": {"type": "array", "items": {"type": "string"}},
                           "dependency_path": {"type": "array", "items": {"type": "string"}},
@@ -437,6 +438,7 @@ const openAPIPathsSupplyChain = `
                         "image_digests": {"type": "array", "items": {"type": "string"}},
                         "image_refs": {"type": "array", "items": {"type": "string"}},
                         "workloads": {"type": "array", "items": {"type": "string"}},
+                        "deployments": {"type": "array", "items": {"type": "string"}},
                         "services": {"type": "array", "items": {"type": "string"}},
                         "environments": {"type": "array", "items": {"type": "string"}},
                         "provider_alerts": {"type": "array", "items": {"type": "object"}},
@@ -445,7 +447,7 @@ const openAPIPathsSupplyChain = `
                     },
                     "impact_path": {
                       "type": "array",
-                      "description": "Reducer-owned present and missing hops from advisory/package evidence to repository, image, workload, service, and environment evidence. Missing hops remain explicit and are not inferred from names or tags.",
+                      "description": "Reducer-owned present and missing hops from advisory/package evidence to repository, image, workload, deployment, service, and environment evidence. Missing hops remain explicit and are not inferred from names or tags.",
                       "items": {
                         "type": "object",
                         "properties": {

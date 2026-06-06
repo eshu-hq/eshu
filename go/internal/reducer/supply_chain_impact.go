@@ -103,6 +103,7 @@ type SupplyChainImpactFinding struct {
 	ImageRef              string
 	DependencyScope       string
 	WorkloadIDs           []string
+	DeploymentIDs         []string
 	ServiceIDs            []string
 	Environments          []string
 	DependencyPath        []string
@@ -446,6 +447,7 @@ func supplyChainImpactFactKinds() []string {
 		containerImageIdentityFactKind,
 		packageConsumptionCorrelationFactKind,
 		cicdRunCorrelationFactKind,
+		platformMaterializationFactKind,
 		workloadIdentityFactKind,
 		serviceCatalogCorrelationFactKind,
 		factKindFile,

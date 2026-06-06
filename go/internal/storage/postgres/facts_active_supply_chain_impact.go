@@ -46,6 +46,7 @@ WHERE fact.fact_kind IN (
     'reducer_sbom_attestation_attachment',
     'reducer_container_image_identity',
     'reducer_ci_cd_run_correlation',
+    'reducer_platform_materialization',
     'reducer_service_catalog_correlation',
     'reducer_workload_identity',
     'file',
@@ -73,6 +74,7 @@ WHERE fact.fact_kind IN (
               'vulnerability.suppression',
               'reducer_container_image_identity',
               'reducer_ci_cd_run_correlation',
+              'reducer_platform_materialization',
               'reducer_service_catalog_correlation',
               'reducer_workload_identity'
           )

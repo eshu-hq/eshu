@@ -12,9 +12,12 @@ func missingImpactEvidence(finding SupplyChainImpactFinding) []string {
 		!supplyChainReachabilityHasPackageAnchor(finding.RuntimeReachability) {
 		missing = append(missing, "image or SBOM attachment evidence missing")
 	}
+	hasDeployment := len(finding.DeploymentIDs) > 0
 	hasWorkloadOrService := len(finding.WorkloadIDs) > 0 || len(finding.ServiceIDs) > 0
 	if finding.RuntimeReachability != "known_fixed" && len(finding.Environments) == 0 {
-		if hasWorkloadOrService {
+		if hasDeployment {
+			missing = append(missing, "environment evidence missing")
+		} else if hasWorkloadOrService {
 			missing = append(missing, "runtime deployment evidence not linked to vulnerable package")
 		} else {
 			missing = append(missing, "deployment exposure evidence missing")
@@ -24,7 +27,7 @@ func missingImpactEvidence(finding SupplyChainImpactFinding) []string {
 		missing = append(missing, "workload evidence missing")
 	}
 	if finding.RuntimeReachability != "known_fixed" && len(finding.ServiceIDs) == 0 {
-		if hasWorkloadOrService {
+		if hasDeployment || hasWorkloadOrService {
 			missing = append(missing, "service catalog correlation evidence missing")
 		} else {
 			missing = append(missing, "service evidence missing")

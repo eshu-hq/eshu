@@ -1,6 +1,10 @@
 package reducer
 
-import "github.com/eshu-hq/eshu/go/internal/facts"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+)
 
 func appendUniqueSupplyChainImpactFacts(envelopes []facts.Envelope, active ...facts.Envelope) []facts.Envelope {
 	if len(active) == 0 {
@@ -148,10 +152,12 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			digests = append(digests, payloadStr(envelope.Payload, "artifact_digest"))
 			repositoryIDs = append(repositoryIDs, payloadStr(envelope.Payload, "repository_id"))
 			imageRefs = append(imageRefs, payloadStr(envelope.Payload, "image_ref"))
+		case platformMaterializationFactKind:
+			repositoryIDs = append(repositoryIDs, supplyChainWorkloadRepositoryID(envelope))
 		case workloadIdentityFactKind:
 			repositoryIDs = append(repositoryIDs, supplyChainWorkloadRepositoryID(envelope))
 		case serviceCatalogCorrelationFactKind:
-			repositoryIDs = append(repositoryIDs, payloadStr(envelope.Payload, "repository_id"))
+			repositoryIDs = append(repositoryIDs, supplyChainServiceRepositoryID(envelope))
 		}
 	}
 	return SupplyChainImpactFactFilter{
@@ -161,10 +167,22 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 		SubjectDigests:    uniqueSortedStrings(digests),
 		DocumentIDs:       uniqueSortedStrings(documentIDs),
 		ProductCriteria:   uniqueSortedStrings(productCriteria),
-		RepositoryIDs:     uniqueSortedStrings(repositoryIDs),
+		RepositoryIDs:     supplyChainImpactRepositoryFilterIDs(repositoryIDs),
 		FileRepositoryIDs: supplyChainImpactParserFileRepositoryIDs(envelopes),
 		ImageRefs:         uniqueSortedStrings(imageRefs),
 	}
+}
+
+func supplyChainImpactRepositoryFilterIDs(repositoryIDs []string) []string {
+	ids := uniqueSortedStrings(repositoryIDs)
+	out := append([]string(nil), ids...)
+	for _, repositoryID := range ids {
+		repositoryID = strings.TrimSpace(repositoryID)
+		if repositoryID != "" && !strings.HasPrefix(repositoryID, "git-repository-scope:") {
+			out = append(out, "git-repository-scope:"+repositoryID)
+		}
+	}
+	return uniqueSortedStrings(out)
 }
 
 func (f SupplyChainImpactFactFilter) empty() bool {

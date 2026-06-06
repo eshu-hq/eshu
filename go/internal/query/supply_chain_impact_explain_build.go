@@ -141,6 +141,7 @@ func buildSupplyChainExplanationAnchors(
 		SubjectDigest:   row.Finding.SubjectDigest,
 		ImageRefs:       compactStrings([]string{row.Finding.ImageRef}),
 		Workloads:       append([]string(nil), row.Finding.WorkloadIDs...),
+		Deployments:     append([]string(nil), row.Finding.DeploymentIDs...),
 		Services:        append([]string(nil), row.Finding.ServiceIDs...),
 		Environments:    append([]string(nil), row.Finding.Environments...),
 		EvidenceFactIDs: append([]string(nil), row.Finding.EvidenceFactIDs...),
@@ -156,6 +157,7 @@ func buildSupplyChainExplanationAnchors(
 		appendUniqueString(&out.ImageDigests, StringVal(fact.Payload, "subject_digest"))
 		appendUniqueString(&out.ImageRefs, StringVal(fact.Payload, "image_ref"))
 		appendUniqueString(&out.Workloads, StringVal(fact.Payload, "workload_id"))
+		appendDeploymentAnchors(&out, fact.Payload)
 		appendUniqueString(&out.Services, StringVal(fact.Payload, "service_id"))
 		appendUniqueString(&out.Environments, StringVal(fact.Payload, "environment"))
 		if out.RepositoryID == "" {
@@ -175,9 +177,19 @@ func buildSupplyChainExplanationAnchors(
 	out.ImageDigests = explanationUniqueStrings(out.ImageDigests)
 	out.ImageRefs = explanationUniqueStrings(out.ImageRefs)
 	out.Workloads = explanationUniqueStrings(out.Workloads)
+	out.Deployments = explanationUniqueStrings(out.Deployments)
 	out.Services = explanationUniqueStrings(out.Services)
 	out.Environments = explanationUniqueStrings(out.Environments)
 	return out
+}
+
+func appendDeploymentAnchors(out *SupplyChainImpactExplanationAnchors, payload map[string]any) {
+	appendUniqueString(&out.Deployments, StringVal(payload, "deployment_id"))
+	for _, entityKey := range StringSliceVal(payload, "entity_keys") {
+		if strings.HasPrefix(entityKey, "deployment:") {
+			appendUniqueString(&out.Deployments, entityKey)
+		}
+	}
 }
 
 func summarizeSupplyChainEvidenceFacts(

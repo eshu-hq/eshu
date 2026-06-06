@@ -8,6 +8,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
+const testImpactRepositoryFilterIDs = "git-repository-scope:" + testImpactRepositoryID + "," + testImpactRepositoryID
+
 func TestSupplyChainImpactHandlerExpandsActiveEvidenceUntilSBOMImagePathIsLoaded(t *testing.T) {
 	t.Parallel()
 
@@ -76,7 +78,7 @@ func TestSupplyChainImpactHandlerExpandsActiveEvidenceUntilSBOMImagePathIsLoaded
 	if got, want := strings.Join(loader.filters[3].SubjectDigests, ","), testImpactSubjectDigest; got != want {
 		t.Fatalf("follow-up subject digests = %q, want %q", got, want)
 	}
-	if got, want := strings.Join(loader.filters[4].RepositoryIDs, ","), testImpactRepositoryID; got != want {
+	if got, want := strings.Join(loader.filters[4].RepositoryIDs, ","), testImpactRepositoryFilterIDs; got != want {
 		t.Fatalf("follow-up repository IDs = %q, want %q", got, want)
 	}
 	if result.CanonicalWrites != 1 {
@@ -104,7 +106,7 @@ func TestSupplyChainImpactHandlerLoadsActiveWorkloadIdentityForRepositoryFinding
 			packageConsumptionFactWithRange("consume-1", testImpactPackageID, testImpactRepositoryID, "1.2.3"),
 		},
 		activeForFilter: func(filter SupplyChainImpactFactFilter) []facts.Envelope {
-			if strings.Join(filter.RepositoryIDs, ",") != testImpactRepositoryID {
+			if strings.Join(filter.RepositoryIDs, ",") != testImpactRepositoryFilterIDs {
 				return nil
 			}
 			return []facts.Envelope{
@@ -211,7 +213,7 @@ func TestSupplyChainImpactHandlerRequestsParserFilesOnlyForNPMReachability(t *te
 				t.Fatalf("active evidence loads = %d, want %d: %#v", got, want, loader.filters)
 			}
 			filter := loader.filters[0]
-			if got, want := strings.Join(filter.RepositoryIDs, ","), testImpactRepositoryID; got != want {
+			if got, want := strings.Join(filter.RepositoryIDs, ","), testImpactRepositoryFilterIDs; got != want {
 				t.Fatalf("RepositoryIDs = %q, want %q", got, want)
 			}
 			if got := strings.Join(filter.FileRepositoryIDs, ","); got != tc.wantFileRepositoryIDs {

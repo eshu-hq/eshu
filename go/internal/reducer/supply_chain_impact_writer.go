@@ -162,6 +162,7 @@ func supplyChainImpactPayload(write SupplyChainImpactWrite, finding SupplyChainI
 		"image_ref":              finding.ImageRef,
 		"dependency_scope":       finding.DependencyScope,
 		"workload_ids":           uniqueSortedStrings(finding.WorkloadIDs),
+		"deployment_ids":         uniqueSortedStrings(finding.DeploymentIDs),
 		"service_ids":            uniqueSortedStrings(finding.ServiceIDs),
 		"environments":           uniqueSortedStrings(finding.Environments),
 		"detection_profile":      string(finding.DetectionProfile),

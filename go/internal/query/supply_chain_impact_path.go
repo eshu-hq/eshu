@@ -35,6 +35,7 @@ func semanticSupplyChainImpactHops(
 	repositoryEvidence := evidenceFactIDsForSemanticHop(row, "repository")
 	imageEvidence := evidenceFactIDsForSemanticHop(row, "image")
 	workloadEvidence := evidenceFactIDsForSemanticHop(row, "workload")
+	deploymentEvidence := evidenceFactIDsForSemanticHop(row, "deployment")
 	serviceEvidence := evidenceFactIDsForSemanticHop(row, "service")
 	environmentEvidence := evidenceFactIDsForSemanticHop(row, "environment")
 	return []SupplyChainImpactPathHop{
@@ -55,6 +56,12 @@ func semanticSupplyChainImpactHops(
 			len(row.Finding.WorkloadIDs) > 0 || len(workloadEvidence) > 0,
 			workloadEvidence,
 			missingReasonForSemanticHop("workload", missing),
+		),
+		semanticSupplyChainImpactHop(
+			"deployment",
+			len(row.Finding.DeploymentIDs) > 0 || len(deploymentEvidence) > 0,
+			deploymentEvidence,
+			missingReasonForSemanticHop("deployment", missing),
 		),
 		semanticSupplyChainImpactHop(
 			"service",
@@ -120,7 +127,13 @@ func evidenceFactIDsForSemanticHop(
 				factIDs = append(factIDs, fact.FactID)
 			}
 		case "workload":
-			if StringVal(fact.Payload, "workload_id") != "" {
+			if StringVal(fact.Payload, "workload_id") != "" ||
+				payloadEntityKeyHasPrefix(fact.Payload, "workload:") {
+				factIDs = append(factIDs, fact.FactID)
+			}
+		case "deployment":
+			if StringVal(fact.Payload, "deployment_id") != "" ||
+				payloadEntityKeyHasPrefix(fact.Payload, "deployment:") {
 				factIDs = append(factIDs, fact.FactID)
 			}
 		case "service":
@@ -152,6 +165,12 @@ func missingReasonForSemanticHop(hop string, missing []string) []string {
 			if reason == "workload evidence missing" {
 				return []string{reason}
 			}
+		case "deployment":
+			if reason == "deployment exposure evidence missing" ||
+				reason == "runtime deployment evidence not linked to vulnerable package" ||
+				strings.HasPrefix(reason, "deployment evidence ") {
+				return []string{reason}
+			}
 		case "service":
 			if reason == "service evidence missing" ||
 				reason == "service catalog correlation evidence missing" ||
@@ -159,14 +178,21 @@ func missingReasonForSemanticHop(hop string, missing []string) []string {
 				return []string{reason}
 			}
 		case "environment":
-			if reason == "deployment exposure evidence missing" ||
-				reason == "runtime deployment evidence not linked to vulnerable package" ||
-				strings.HasPrefix(reason, "deployment evidence ") {
+			if reason == "environment evidence missing" {
 				return []string{reason}
 			}
 		}
 	}
 	return []string{hop + " evidence missing"}
+}
+
+func payloadEntityKeyHasPrefix(payload map[string]any, prefix string) bool {
+	for _, entityKey := range StringSliceVal(payload, "entity_keys") {
+		if strings.HasPrefix(entityKey, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func supplyChainImpactPathMissingEvidence(missing []string) []string {
@@ -186,6 +212,7 @@ func supplyChainImpactPathMissingReason(reason string) bool {
 		"image or SBOM attachment evidence missing",
 		"deployment exposure evidence missing",
 		"runtime deployment evidence not linked to vulnerable package",
+		"environment evidence missing",
 		"workload evidence missing",
 		"service evidence missing",
 		"service catalog correlation evidence missing":
