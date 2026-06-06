@@ -81,26 +81,31 @@ func (h *CICDHandler) staticWorkflowArtifactEvidence(
 		}
 	}
 
-	artifacts, err := loadRepositoryWorkflowArtifacts(ctx, h.Content, repositoryID, nil)
+	files, err := h.Content.ListRepoFiles(ctx, repositoryID, repositorySemanticEntityLimit)
 	if err != nil {
 		return cicdStaticWorkflowArtifactEvidence{
 			State:  "unavailable",
 			Reason: "workflow_artifact_read_failed",
 		}
 	}
-	rows, _ := artifacts["workflow_artifacts"].([]map[string]any)
-	if len(rows) == 0 {
-		return cicdStaticWorkflowArtifactEvidence{State: "absent"}
-	}
 
-	paths := make([]string, 0, len(rows))
-	for _, row := range rows {
-		path := StringVal(row, "relative_path")
+	count := 0
+	paths := make([]string, 0, len(files))
+	for _, file := range files {
+		if !isGitHubActionsWorkflowFile(file) {
+			continue
+		}
+		count++
+		path := file.RelativePath
 		if path == "" {
 			continue
 		}
 		paths = append(paths, path)
 	}
+	if count == 0 {
+		return cicdStaticWorkflowArtifactEvidence{State: "absent"}
+	}
+
 	slices.Sort(paths)
 	truncated := len(paths) > cicdStaticWorkflowEvidencePathLimit
 	if truncated {
@@ -109,7 +114,7 @@ func (h *CICDHandler) staticWorkflowArtifactEvidence(
 
 	return cicdStaticWorkflowArtifactEvidence{
 		State:     "present",
-		Count:     len(rows),
+		Count:     count,
 		Paths:     paths,
 		Truncated: truncated,
 	}

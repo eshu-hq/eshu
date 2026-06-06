@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,12 +15,28 @@ type recordingCICDRunCorrelationStore struct {
 	lastFilter CICDRunCorrelationFilter
 }
 
+var errUnexpectedContentHydration = errors.New("unexpected workflow artifact content hydration")
+
 func (s *recordingCICDRunCorrelationStore) ListCICDRunCorrelations(
 	_ context.Context,
 	filter CICDRunCorrelationFilter,
 ) ([]CICDRunCorrelationRow, error) {
 	s.lastFilter = filter
 	return append([]CICDRunCorrelationRow(nil), s.rows...), nil
+}
+
+type workflowPathOnlyContentStore struct {
+	fakePortContentStore
+	getFileContentCalls int
+}
+
+func (s *workflowPathOnlyContentStore) GetFileContent(
+	context.Context,
+	string,
+	string,
+) (*FileContent, error) {
+	s.getFileContentCalls++
+	return nil, errUnexpectedContentHydration
 }
 
 func TestCICDListRunCorrelationsRequiresScopeAndLimit(t *testing.T) {
@@ -114,6 +131,54 @@ func TestCICDListRunCorrelationsUsesBoundedPostgresStore(t *testing.T) {
 	}
 	if got, want := resp.NextCursor["after_correlation_id"], "correlation-1"; got != want {
 		t.Fatalf("next_cursor.after_correlation_id = %q, want %q", got, want)
+	}
+}
+
+func TestCICDListRunCorrelationsDoesNotHydrateStaticWorkflowArtifacts(t *testing.T) {
+	t.Parallel()
+
+	content := &workflowPathOnlyContentStore{
+		fakePortContentStore: fakePortContentStore{
+			repoFiles: []FileContent{{
+				RepoID:       "repo://example/api",
+				RelativePath: ".github/workflows/deploy.yml",
+				ArtifactType: "github_actions_workflow",
+			}},
+		},
+	}
+	handler := &CICDHandler{
+		Content:      content,
+		Correlations: &recordingCICDRunCorrelationStore{},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/ci-cd/run-correlations?repository_id=repo://example/api&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got := content.getFileContentCalls; got != 0 {
+		t.Fatalf("GetFileContent calls = %d, want 0 for path-only workflow evidence summary", got)
+	}
+
+	var resp struct {
+		EvidenceSummary cicdRunCorrelationEvidenceSummary `json:"evidence_summary"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := resp.EvidenceSummary.StaticWorkflowArtifacts.State, "present"; got != want {
+		t.Fatalf("static_workflow_artifacts.state = %q, want %q", got, want)
+	}
+	if got, want := resp.EvidenceSummary.StaticWorkflowArtifacts.Paths, []string{".github/workflows/deploy.yml"}; len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("static_workflow_artifacts.paths = %#v, want %#v", got, want)
 	}
 }
 
