@@ -122,14 +122,24 @@ func sbomAttestationAttachmentPayload(
 		"format":              decision.Format,
 		"spec_version":        decision.SpecVersion,
 		"reason":              decision.Reason,
+		"attachment_scope":    decision.AttachmentScope,
 		"canonical_writes":    decision.CanonicalWrites,
 		"component_count":     decision.ComponentCount,
 		"component_evidence":  decision.ComponentEvidence,
 		"warning_summaries":   uniqueSortedStrings(decision.WarningSummaries),
 		"evidence_fact_ids":   uniqueSortedStrings(decision.EvidenceFactIDs),
+		"missing_evidence":    sbomAttestationAttachmentStrings(decision.MissingEvidence),
 		"source_layer_kinds":  uniqueSortedStrings(decision.SourceLayerKinds),
 		"source_layers":       sbomAttestationAttachmentSourceLayers(decision),
 	}
+}
+
+func sbomAttestationAttachmentStrings(values []string) []string {
+	out := uniqueSortedStrings(values)
+	if out == nil {
+		return []string{}
+	}
+	return out
 }
 
 func sbomAttestationAttachmentSourceLayers(decision SBOMAttestationAttachmentDecision) []string {
