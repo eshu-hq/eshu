@@ -173,7 +173,7 @@ No-Regression Evidence:
 go test ./internal/storage/postgres -run 'TestReducerQueueFailDefersSecretsIAMEndpointReadinessPastAttemptBudget|TestReducerQueueClaimDoesNotCountSecretsIAMEndpointReadinessDefers|TestClaimBatchDoesNotCountSecretsIAMEndpointReadinessDefers' -count=1
 ```
 
-This failed before #1391 because over-budget
+This gate failed before #1391 because over-budget
 `secrets_iam_endpoint_not_ready` dead-lettered and both claim paths consumed
 `attempt_count`; it passed after the class became a deferred retry and both
 claim SQL shapes preserved the attempt budget.

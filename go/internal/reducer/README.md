@@ -1428,7 +1428,7 @@ No-Regression Evidence (#1391):
 go test ./internal/storage/postgres -run 'TestReducerQueueFailDefersSecretsIAMEndpointReadinessPastAttemptBudget|TestReducerQueueClaimDoesNotCountSecretsIAMEndpointReadinessDefers|TestClaimBatchDoesNotCountSecretsIAMEndpointReadinessDefers' -count=1
 ```
 
-This failed before the queue dead-lettered an over-budget readiness miss
+This gate failed before the queue dead-lettered an over-budget readiness miss
 and claim SQL always consumed `attempt_count`, then passed once deferred retries
 became non-counting on both single and batch claim paths. The projection lane
 still stays OFF by default until ADR #1314 §14 principal+security sign-off
