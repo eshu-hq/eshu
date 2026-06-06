@@ -591,6 +591,18 @@ const openAPIPathsSupplyChain = `
                               "collection_incomplete_reasons": {"type": "array", "items": {"type": "string"}}
                             }
                           },
+                          "eshu_package": {
+                            "type": "object",
+                            "description": "Eshu-owned dependency evidence matched to the provider alert. observed_version is populated only from Eshu package evidence, never provider alert fields.",
+                            "properties": {
+                              "observed_version": {"type": "string", "description": "Installed or observed package version from Eshu-owned dependency evidence when exact evidence exists."},
+                              "requested_range": {"type": "string", "description": "Manifest/requested dependency range preserved separately from the installed version."},
+                              "dependency_range": {"type": "string", "description": "Raw Eshu dependency range or lockfile version evidence used during matching."},
+                              "dependency_evidence_id": {"type": "string"},
+                              "dependency_evidence_kind": {"type": "string"},
+                              "missing_evidence": {"type": "array", "items": {"type": "string"}, "description": "Explicit evidence gaps such as missing or malformed installed package version evidence."}
+                            }
+                          },
                           "eshu_impact": {
                             "type": "object",
                             "description": "Reducer-owned impact state matched to the alert, when Eshu has admitted owned evidence.",
@@ -605,7 +617,7 @@ const openAPIPathsSupplyChain = `
                           "source_freshness": {"type": "string"},
                           "source_confidence": {"type": "string"}
                         },
-                        "required": ["reconciliation_id", "provider_alert", "eshu_impact", "reconciliation_status"]
+                        "required": ["reconciliation_id", "provider_alert", "eshu_package", "eshu_impact", "reconciliation_status"]
                       }
                     },
                     "count": {"type": "integer"},

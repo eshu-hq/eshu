@@ -17,6 +17,7 @@ type securityAlertConsumption struct {
 	observedAt       time.Time
 	dependencyRange  string
 	observedVersion  string
+	installedVersion string
 	requestedRange   string
 	dependencyPath   []string
 	dependencyDepth  int

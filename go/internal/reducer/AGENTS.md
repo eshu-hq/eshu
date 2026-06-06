@@ -144,6 +144,10 @@ No-Regression Evidence: `go test ./internal/reducer -run 'TestSecurityAlertRecon
 
 No-Observability-Change: the change only adjusts reducer fact replacement identity and the existing Postgres read-model selection for security-alert reconciliations. It adds no route, graph query, queue, worker, runtime knob, metric instrument, or metric label; operators still diagnose the path through existing reducer run spans, reducer execution counters, durable `reducer_security_alert_reconciliation` payloads, query handler spans, and Postgres query duration metrics.
 
+No-Regression Evidence: `go test ./internal/reducer -run 'TestBuildSecurityAlertReconciliations(ClassifiesProviderAlertStates|DoesNotCopyProviderVersionIntoObservedVersion|ReportsMissingAndMalformedObservedVersions)' -count=1`, `go test ./internal/query -run 'Test(SupplyChainListSecurityAlertReconciliationsSeparatesProviderAndEshuState|DecodeSecurityAlertReconciliationRowPreservesOwnedPackageEvidence|OpenAPISpecIncludesSecurityAlertReconciliations)' -count=1`, `go test ./internal/mcp -run 'Test(SecurityAlertReconciliationToolAdvertisesOwnedObservedVersion|ResolveRouteMapsSecurityAlertReconciliationsToBoundedQuery)' -count=1`, and `scripts/test-verify-remote-e2e-target-story.sh` failed before security-alert reconciliation rows exposed Eshu-owned installed-version evidence and the target-story verifier accepted installed/observed version expectations, then passed after the row contract added `eshu_package.observed_version`.
+
+No-Observability-Change: the observed-version change only extends reducer-owned `reducer_security_alert_reconciliation` payloads and the existing HTTP/MCP read model. It adds no route, graph query, queue domain, worker, lease, runtime knob, metric instrument, or metric label; operators still diagnose the path through existing reducer run spans and execution counters, persisted reconciliation payloads, `query.supply_chain_security_alerts` spans, provider-source coverage, and Postgres query duration metrics.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

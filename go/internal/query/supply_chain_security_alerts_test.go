@@ -110,6 +110,13 @@ func TestSupplyChainListSecurityAlertReconciliationsSeparatesProviderAndEshuStat
 					ImpactStatus: "affected_exact",
 					FindingID:    "impact-1",
 				},
+				EshuPackage: SecurityAlertEshuPackageRow{
+					ObservedVersion:        "1.2.0",
+					RequestedRange:         "^1.0.0",
+					DependencyRange:        "1.2.0",
+					DependencyEvidenceID:   "consume-1",
+					DependencyEvidenceKind: "reducer_package_consumption_correlation",
+				},
 				ReconciliationStatus: "matched",
 				Reason:               "provider alert matches owned dependency and reducer impact evidence",
 				EvidenceFactIDs:      []string{"alert-1", "consume-1", "impact-1"},
@@ -159,6 +166,9 @@ func TestSupplyChainListSecurityAlertReconciliationsSeparatesProviderAndEshuStat
 	}
 	if got, want := row.EshuImpact.ImpactStatus, "affected_exact"; got != want {
 		t.Fatalf("EshuImpact.ImpactStatus = %q, want %q", got, want)
+	}
+	if got, want := row.EshuPackage.ObservedVersion, "1.2.0"; got != want {
+		t.Fatalf("EshuPackage.ObservedVersion = %q, want %q", got, want)
 	}
 	if got, want := row.ReconciliationStatus, "matched"; got != want {
 		t.Fatalf("ReconciliationStatus = %q, want %q", got, want)
@@ -281,6 +291,55 @@ func TestDecodeSecurityAlertReconciliationRowPreservesProviderCoverage(t *testin
 	}
 	if got, want := row.ProviderAlert.CollectionIncompleteReasons, []string{"provider_open_alert_page_limit_reached"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("CollectionIncompleteReasons = %#v, want %#v", got, want)
+	}
+}
+
+func TestDecodeSecurityAlertReconciliationRowPreservesOwnedPackageEvidence(t *testing.T) {
+	t.Parallel()
+
+	payload := map[string]any{
+		"provider":                  "github_dependabot",
+		"provider_alert_number":     float64(42),
+		"provider_state":            "open",
+		"repository_id":             "repo://github/example-org/example-repo",
+		"package_id":                "npm://registry.npmjs.org/left-pad",
+		"observed_version":          "1.2.0",
+		"requested_range":           "^1.0.0",
+		"dependency_range":          "1.2.0",
+		"dependency_evidence_id":    "consume-1",
+		"dependency_evidence_kind":  "reducer_package_consumption_correlation",
+		"missing_evidence":          []any{"installed package version malformed"},
+		"reconciliation_status":     "matched",
+		"eshu_impact_status":        "affected_exact",
+		"eshu_impact_finding_id":    "impact-1",
+		"provider_observed_version": "provider-value-must-not-be-used",
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+
+	row, err := decodeSecurityAlertReconciliationRow("reconciliation-1", "inferred", raw)
+	if err != nil {
+		t.Fatalf("decodeSecurityAlertReconciliationRow() error = %v, want nil", err)
+	}
+	if got, want := row.EshuPackage.ObservedVersion, "1.2.0"; got != want {
+		t.Fatalf("EshuPackage.ObservedVersion = %q, want %q", got, want)
+	}
+	if got, want := row.EshuPackage.RequestedRange, "^1.0.0"; got != want {
+		t.Fatalf("EshuPackage.RequestedRange = %q, want %q", got, want)
+	}
+	if got, want := row.EshuPackage.DependencyRange, "1.2.0"; got != want {
+		t.Fatalf("EshuPackage.DependencyRange = %q, want %q", got, want)
+	}
+	if got, want := row.EshuPackage.DependencyEvidenceID, "consume-1"; got != want {
+		t.Fatalf("EshuPackage.DependencyEvidenceID = %q, want %q", got, want)
+	}
+	if got, want := row.EshuPackage.DependencyEvidenceKind, "reducer_package_consumption_correlation"; got != want {
+		t.Fatalf("EshuPackage.DependencyEvidenceKind = %q, want %q", got, want)
+	}
+	if got, want := row.EshuPackage.MissingEvidence, []string{"installed package version malformed"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("EshuPackage.MissingEvidence = %#v, want %#v", got, want)
 	}
 }
 

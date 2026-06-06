@@ -83,16 +83,28 @@ type SecurityAlertEshuImpactRow struct {
 	FindingID    string `json:"finding_id,omitempty"`
 }
 
+// SecurityAlertEshuPackageRow carries Eshu-owned dependency evidence matched to
+// a provider alert. ObservedVersion is never copied from provider alert fields.
+type SecurityAlertEshuPackageRow struct {
+	ObservedVersion        string   `json:"observed_version,omitempty"`
+	RequestedRange         string   `json:"requested_range,omitempty"`
+	DependencyRange        string   `json:"dependency_range,omitempty"`
+	DependencyEvidenceID   string   `json:"dependency_evidence_id,omitempty"`
+	DependencyEvidenceKind string   `json:"dependency_evidence_kind,omitempty"`
+	MissingEvidence        []string `json:"missing_evidence,omitempty"`
+}
+
 // SecurityAlertReconciliationRow is one reducer-owned comparison row.
 type SecurityAlertReconciliationRow struct {
-	ReconciliationID     string                     `json:"reconciliation_id"`
-	ProviderAlert        ProviderSecurityAlertRow   `json:"provider_alert"`
-	EshuImpact           SecurityAlertEshuImpactRow `json:"eshu_impact"`
-	ReconciliationStatus string                     `json:"reconciliation_status"`
-	Reason               string                     `json:"reason,omitempty"`
-	EvidenceFactIDs      []string                   `json:"evidence_fact_ids,omitempty"`
-	SourceFreshness      string                     `json:"source_freshness,omitempty"`
-	SourceConfidence     string                     `json:"source_confidence,omitempty"`
+	ReconciliationID     string                      `json:"reconciliation_id"`
+	ProviderAlert        ProviderSecurityAlertRow    `json:"provider_alert"`
+	EshuPackage          SecurityAlertEshuPackageRow `json:"eshu_package"`
+	EshuImpact           SecurityAlertEshuImpactRow  `json:"eshu_impact"`
+	ReconciliationStatus string                      `json:"reconciliation_status"`
+	Reason               string                      `json:"reason,omitempty"`
+	EvidenceFactIDs      []string                    `json:"evidence_fact_ids,omitempty"`
+	SourceFreshness      string                      `json:"source_freshness,omitempty"`
+	SourceConfidence     string                      `json:"source_confidence,omitempty"`
 }
 
 // SecurityAlertReconciliationResult is the public API row shape.
@@ -359,6 +371,14 @@ func decodeSecurityAlertReconciliationRow(
 		EshuImpact: SecurityAlertEshuImpactRow{
 			ImpactStatus: StringVal(payload, "eshu_impact_status"),
 			FindingID:    StringVal(payload, "eshu_impact_finding_id"),
+		},
+		EshuPackage: SecurityAlertEshuPackageRow{
+			ObservedVersion:        StringVal(payload, "observed_version"),
+			RequestedRange:         StringVal(payload, "requested_range"),
+			DependencyRange:        StringVal(payload, "dependency_range"),
+			DependencyEvidenceID:   StringVal(payload, "dependency_evidence_id"),
+			DependencyEvidenceKind: StringVal(payload, "dependency_evidence_kind"),
+			MissingEvidence:        StringSliceVal(payload, "missing_evidence"),
 		},
 		ReconciliationStatus: StringVal(payload, "reconciliation_status"),
 		Reason:               StringVal(payload, "reason"),
