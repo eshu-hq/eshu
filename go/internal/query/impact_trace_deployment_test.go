@@ -258,6 +258,40 @@ func TestFetchServiceTraceContextIncludesGraphDeploymentEvidenceWithoutContent(t
 	}
 }
 
+func TestBuildDeploymentTraceResponseIncludesArtifactBackedDeliveryPaths(t *testing.T) {
+	t.Parallel()
+
+	ctx := sampleServiceDossierContext()
+
+	got := buildDeploymentTraceResponse("sample-service-api", ctx)
+
+	deliveryPaths := mapSliceValue(got, "delivery_paths")
+	if len(deliveryPaths) == 0 {
+		t.Fatalf("delivery_paths is empty, want deployment evidence artifact paths")
+	}
+	var seenGitOps, seenTerraform bool
+	for _, path := range deliveryPaths {
+		switch StringVal(path, "resolved_id") {
+		case "resolved-gitops":
+			seenGitOps = true
+			if got, want := StringVal(path, "type"), "deployment_evidence"; got != want {
+				t.Fatalf("gitops delivery path type = %q, want %q", got, want)
+			}
+			if got, want := StringVal(path, "artifact_family"), "argocd"; got != want {
+				t.Fatalf("gitops artifact_family = %q, want %q", got, want)
+			}
+		case "resolved-terraform":
+			seenTerraform = true
+			if got, want := StringVal(path, "relationship_type"), "PROVISIONS_DEPENDENCY_FOR"; got != want {
+				t.Fatalf("terraform relationship_type = %q, want %q", got, want)
+			}
+		}
+	}
+	if !seenGitOps || !seenTerraform {
+		t.Fatalf("delivery_paths = %#v, want gitops and terraform artifact paths", deliveryPaths)
+	}
+}
+
 func TestBuildDeploymentTraceResponseSummarizesInstances(t *testing.T) {
 	t.Parallel()
 
