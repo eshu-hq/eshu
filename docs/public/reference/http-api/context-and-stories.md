@@ -154,9 +154,12 @@ fact-summary sections. Mapping modes are:
 Service story and deployment trace keep canonical `cloud_resources` separate
 from `uncorrelated_cloud_resources`. `cloud_resources` requires a materialized
 workload-to-cloud relationship. `uncorrelated_cloud_resources` is a bounded
-candidate list for cloud resources whose name, resource id, or ARN matches the
-service but still lacks that relationship; callers should treat it as missing
-evidence to investigate, not as an attached dependency.
+candidate list for cloud resources whose safe identity handles match the
+service, including `name`, `id`, `kind`, `resource_type`, `resource_id`, `arn`,
+`service_kind`, `account_id`, `region`, `source`, `source_system`, or
+`config_path`. These rows still lack the
+workload-to-cloud relationship; callers should treat them as missing evidence
+to investigate, not as attached dependencies.
 
 Repository story uses the same repository deployment-evidence read path as
 repository context and service story. When repository-scoped deployment evidence
