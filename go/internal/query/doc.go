@@ -109,5 +109,9 @@
 // service_id filters. Target-scoped finding responses keep admitted findings
 // separate from raw collected documentation facts by returning coverage,
 // related_facts, and missing_evidence metadata when facts mention the selected
-// target but no admissible finding exists.
+// target but no admissible finding exists. Explicit target filters count only
+// findings whose payload references match the selected target in coverage
+// metadata, so unrelated repo-source findings do not hide target correlation
+// gaps. Related fact previews use the same explicit target reference before
+// falling back to repo-scoped documentation facts.
 package query

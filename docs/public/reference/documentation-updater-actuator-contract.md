@@ -61,7 +61,10 @@ requires at least one scope or target anchor: `scope_id`, `repo`, `target_id`,
 Target-scoped `list_documentation_findings` responses keep admitted findings in
 `findings`. They may also include `coverage`, `related_facts`, and
 `missing_evidence` so callers can distinguish raw target documentation facts,
-admissible documentation findings, and missing target correlation.
+admissible documentation findings, and missing target correlation. For explicit
+`target_id` or `service_id` filters, `coverage.findings_returned` counts
+findings whose payload references match that selected target rather than every
+repo-source finding on the page.
 
 No-Regression Evidence: `go test ./internal/query ./internal/mcp ./internal/storage/postgres -run 'TestDocumentation|TestListDocumentation|TestBootstrapDefinitionsIncludeDocumentationTargetReferenceIndex' -count=1` failed before target filters, target coverage metadata, MCP routing, and the target-ref index existed, then passed after the bounded readback implementation.
 

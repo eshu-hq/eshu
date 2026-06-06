@@ -240,6 +240,54 @@ func TestDocumentationTargetRefsDoNotCrossPairRepoOrServiceIDs(t *testing.T) {
 	}
 }
 
+func TestDocumentationTargetRefsPreferExplicitServiceOverRepoFallback(t *testing.T) {
+	t.Parallel()
+
+	refs := documentationTargetRefsFromFindingFilter(documentationFindingFilter{
+		Repository: "repo:platform-api",
+		ServiceID:  "service:payment-api",
+	})
+
+	if got, want := refs, []documentationTargetRef{{kind: "service", id: "service:payment-api"}}; !equalDocumentationTargetRefs(got, want) {
+		t.Fatalf("refs = %#v, want %#v", got, want)
+	}
+}
+
+func TestDocumentationCoverageReportsMissingWhenRepoFindingDoesNotMatchTarget(t *testing.T) {
+	t.Parallel()
+
+	filter := documentationFindingFilter{
+		Repository: "repo:platform-api",
+		ServiceID:  "service:payment-api",
+	}
+	findings := []map[string]any{{
+		"finding_id":   "finding:unrelated-repo-doc",
+		"finding_type": "runbook_gap",
+	}}
+	relatedFacts := []map[string]any{{
+		"fact_kind": "documentation_entity_mention",
+		"payload": map[string]any{
+			"candidate_refs": []any{map[string]any{
+				"kind": "service",
+				"id":   "service:payment-api",
+			}},
+		},
+	}}
+
+	coverage := documentationTargetCoverageFromFacts(filter, findings, relatedFacts, false)
+	missing := documentationMissingEvidenceForTarget(coverage)
+
+	if got, want := coverage.FindingsReturned, 0; got != want {
+		t.Fatalf("coverage.FindingsReturned = %d, want %d", got, want)
+	}
+	if got, want := len(missing), 1; got != want {
+		t.Fatalf("len(missing) = %d, want %d", got, want)
+	}
+	if got, want := missing[0].Reason, "documentation_findings_absent"; got != want {
+		t.Fatalf("missing[0].Reason = %q, want %q", got, want)
+	}
+}
+
 func TestOpenAPISpecIncludesDocumentationTargetReadbacks(t *testing.T) {
 	t.Parallel()
 
@@ -277,6 +325,18 @@ func documentationArgsString(args []any) string {
 		}
 	}
 	return strings.Join(parts, " ")
+}
+
+func equalDocumentationTargetRefs(got, want []documentationTargetRef) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func openAPIParametersInclude(parameters []any, want string) bool {

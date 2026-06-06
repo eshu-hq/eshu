@@ -233,7 +233,7 @@ const openAPIPathsEvidence = `
                   "properties": {
                     "findings": {"type": "array", "items": {"type": "object"}},
                     "next_cursor": {"type": "string"},
-                    "coverage": {"type": "object", "description": "Present on target-scoped requests; reports the selected target, visible findings returned, related raw fact count, fact-kind buckets, and truncation."},
+                    "coverage": {"type": "object", "description": "Present on target-scoped requests; reports the selected target, target-matching findings returned for explicit targets, related raw fact count, fact-kind buckets, and truncation."},
                     "related_facts": {"type": "array", "items": {"type": "object"}, "description": "Bounded preview of raw documentation facts that reference the selected target scope."},
                     "missing_evidence": {"type": "array", "items": {"type": "object"}, "description": "Reasons an empty target-scoped findings page is not the same as true documentation absence."}
                   },

@@ -80,7 +80,9 @@ canonical graph or reducer truth.
 Documentation reads follow the same split: target-scoped findings responses can
 include `related_facts`, `coverage`, and `missing_evidence` when raw
 documentation facts reference a repo or service but no admissible finding exists
-for that target.
+for that target. Explicit service or target filters count only target-matching
+findings in `coverage.findings_returned` and bound the raw fact preview to the
+explicit target reference before falling back to repo-scoped facts.
 
 ## Exported surface
 
@@ -294,7 +296,9 @@ wired in `cmd/api/wiring.go`, not here.
   (`query.documentation_evidence_packet`), and
   `telemetry.SpanQueryDocumentationPacketFreshness`
   (`query.documentation_packet_freshness`) on documentation truth evidence
-  routes (`documentation.go`); `telemetry.SpanQueryCodeTopicInvestigation`
+  routes (`documentation.go`); the target-fact preview adds a `postgres.query`
+  span with `db.operation=list_documentation_target_facts`;
+  `telemetry.SpanQueryCodeTopicInvestigation`
   (`query.code_topic_investigation`) on broad code-topic investigation
   (`code_topic.go`); `telemetry.SpanQueryHardcodedSecretInvestigation`
   (`query.hardcoded_secret_investigation`) on redacted hardcoded-secret

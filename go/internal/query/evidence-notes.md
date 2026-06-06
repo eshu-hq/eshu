@@ -130,6 +130,21 @@ span attributes, existing `Neo4jReader.Run` tracing, and the `neo4j.query`
 graph span. No collector, reducer, graph write, queue worker, metric
 instrument, or deployment knob changes.
 
+## Resource investigation cloud candidate evidence
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestInvestigateResourceResolvesExactCloudARN|TestBuildServiceStoryTraceExplainsUncorrelatedCloudCandidates|TestLoadUncorrelatedCloudResourceCandidatesUsesBoundedServiceSelector|TestBuildDeploymentTraceResponseExplainsUncorrelatedCloudCandidates|TestLoadResourceInvestigationSectionsJoinsParallelErrors'
+-count=1` proves resource investigation accepts exact cloud ARNs returned by
+infra search, section traversals keep the canonical graph id and ARN handles,
+and service story/deployment trace expose bounded uncorrelated cloud-resource
+candidates without promoting them into canonical `cloud_resources`.
+
+No-Observability-Change: the candidate read still runs through
+`GraphQuery.Run`, existing `neo4j.query` spans, and
+`eshu_dp_neo4j_query_duration_seconds`; service-story enrichment records the
+`uncorrelated_cloud_resource_candidates` stage through existing
+`service_query.stage_started` and `service_query.stage_completed` log events.
+
 ## Infra resource aggregate hot-path evidence (#690)
 
 The graph-backed infrastructure resource aggregate
