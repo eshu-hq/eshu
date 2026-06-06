@@ -6,7 +6,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
-import { affectedFromModel, affectedServicesGraph, loadVulnerabilityDetail } from "../api/vulnerability";
+import { affectedFromModel, affectedServicesGraph, detailFromModelRow, loadVulnerabilityDetail } from "../api/vulnerability";
 import type { VulnDetail } from "../api/vulnerability";
 import type { ConsoleModel, Severity } from "../console/types";
 import { SEVERITY_COLOR } from "../console/types";
@@ -37,6 +37,11 @@ export function VulnDetailPage({ model, client }: {
   const services = affectedFromModel(id, model.vulnerabilities);
   const graph = affectedServicesGraph(id, services);
 
+  // Fall back to the list row only when the detail endpoint is unavailable.
+  // A successful empty response is an explicit "no advisory evidence" state.
+  const fallback = detail?.provenance === "unavailable" ? detailFromModelRow(id, model.vulnerabilities) : null;
+  const effective = detail?.provenance === "live" ? detail : (fallback ?? detail);
+
   return (
     <div className="page">
       <div className="page-intro">
@@ -47,31 +52,36 @@ export function VulnDetailPage({ model, client }: {
 
       {loading ? (
         <div className="conn-state"><div className="conn-spinner" aria-hidden /><p>Loading advisory…</p></div>
-      ) : !detail || detail.provenance === "unavailable" ? (
+      ) : !effective || effective.provenance === "unavailable" || effective.provenance === "empty" ? (
         <div className="conn-state"><h2>Advisory unavailable</h2><p>The vulnerability detail API did not return this advisory. It requires the vulnerability-intelligence collector and a live connection.</p></div>
       ) : (
         <>
+          {effective.provenance === "derived" ? (
+            <p className="t-mut" style={{ marginBottom: 12, fontSize: ".82rem" }}>
+              Showing advisory facts from impact findings. Extended advisory evidence (EPSS, CVSS vector, CWEs, references) requires the vulnerability-intelligence collector and is not available for this advisory.
+            </p>
+          ) : null}
           <div className="grid g-4">
-            <StatTile label="Severity" value={detail.severity} color={sevColor(detail.severity)} sub={detail.kev ? "KEV-listed" : "not on KEV"} />
-            <StatTile label="CVSS" value={detail.cvss ?? "—"} color="var(--crit)" sub={detail.cvssVector ?? "no vector"} />
-            <StatTile label="EPSS" value={detail.epss !== null ? `${(detail.epss * 100).toFixed(0)}%` : "—"} color="var(--ember)" sub="exploit probability" />
-            <StatTile label="Fix" value={detail.fixedVersion ?? "—"} color={detail.fixedVersion ? "var(--teal)" : "var(--crit)"} sub={detail.fixedVersion ? "patch available" : "no fixed version"} />
+            <StatTile label="Severity" value={effective.severity} color={sevColor(effective.severity)} sub={effective.kev ? "KEV-listed" : "not on KEV"} />
+            <StatTile label="CVSS" value={effective.cvss ?? "—"} color="var(--crit)" sub={effective.cvssVector ?? "no vector"} />
+            <StatTile label="EPSS" value={effective.epss !== null ? `${(effective.epss * 100).toFixed(0)}%` : "—"} color="var(--ember)" sub="exploit probability" />
+            <StatTile label="Fix" value={effective.fixedVersion ?? "—"} color={effective.fixedVersion ? "var(--teal)" : "var(--crit)"} sub={effective.fixedVersion ? "patch available" : "no fixed version"} />
           </div>
 
           <div className="grid mt" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,2fr)", gap: "var(--gap)" }}>
             <div className="grid" style={{ gap: "var(--gap)", alignContent: "start" }}>
               <Panel title="Identity">
                 <div className="kv">
-                  <div><span className="t-mut">Canonical</span><span className="mono">{detail.canonicalId}</span></div>
-                  <div><span className="t-mut">CVE</span><span className="mono">{detail.cveIds.join(", ") || "—"}</span></div>
-                  <div><span className="t-mut">GHSA</span><span className="mono">{detail.ghsaIds.join(", ") || "—"}</span></div>
-                  <div><span className="t-mut">CWE</span><span className="mono">{detail.cwes.join(", ") || "—"}</span></div>
+                  <div><span className="t-mut">Canonical</span><span className="mono">{effective.canonicalId}</span></div>
+                  <div><span className="t-mut">CVE</span><span className="mono">{effective.cveIds.join(", ") || "—"}</span></div>
+                  <div><span className="t-mut">GHSA</span><span className="mono">{effective.ghsaIds.join(", ") || "—"}</span></div>
+                  <div><span className="t-mut">CWE</span><span className="mono">{effective.cwes.join(", ") || "—"}</span></div>
                 </div>
               </Panel>
-              <Panel title={`Affected packages (${detail.packages.length})`}>
-                {detail.packages.length === 0 ? <p className="empty">No affected packages reported.</p> : (
+              <Panel title={`Affected packages (${effective.packages.length})`}>
+                {effective.packages.length === 0 ? <p className="empty">No affected packages reported.</p> : (
                   <ul className="plain-list">
-                    {detail.packages.map((p, i) => (
+                    {effective.packages.map((p, i) => (
                       <li key={`${p.name}-${i}`} className="row" style={{ justifyContent: "space-between" }}>
                         <span className="mono" style={{ fontSize: ".78rem" }}>{p.name}</span>
                         {p.fixedVersion ? <Badge tone="teal">{p.fixedVersion}</Badge> : <Badge tone="crit">none</Badge>}
@@ -80,10 +90,10 @@ export function VulnDetailPage({ model, client }: {
                   </ul>
                 )}
               </Panel>
-              {detail.references.length > 0 ? (
+              {effective.references.length > 0 ? (
                 <Panel title="References">
                   <ul className="plain-list">
-                    {detail.references.slice(0, 8).map((r) => (
+                    {effective.references.slice(0, 8).map((r) => (
                       <li key={r}><a className="link-btn mono" style={{ fontSize: ".74rem" }} href={r} target="_blank" rel="noreferrer">{r}</a></li>
                     ))}
                   </ul>
