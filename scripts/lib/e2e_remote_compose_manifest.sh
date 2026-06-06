@@ -133,8 +133,8 @@ build_manifest() {
 			if service_enabled($service) and $n > 0 then {status: "pass", facts: $n}
 			elif service_enabled($service) then {status: "fail", facts: 0, reason: "no source facts observed for enabled collector service"}
 			elif $n > 0 then {status: "fail", facts: $n, reason: "source facts observed while collector service disabled in remote Compose profile"}
-			elif explicitly_unsupported_hosted($name) then {status: "unsupported", facts: 0, reason: "collector explicitly unsupported in remote Compose profile"}
-			else {status: "skipped", facts: 0, reason: "collector service disabled in remote Compose profile"} end;
+			elif explicitly_unsupported_hosted($name) then {status: "unsupported", facts: 0, reason: "collector explicitly unsupported in remote Compose profile", issue_refs: ["#1375"]}
+			else {status: "skipped", facts: 0, reason: "collector service disabled in remote Compose profile", issue_refs: ["#1375"]} end;
 		def workflow_completed($collector):
 			[$workflow_rows[] | select(.collector_kind == $collector and .status == "completed") | .count] | add // 0;
 		def workflow_row($collector): {completed: workflow_completed($collector)};
@@ -227,12 +227,12 @@ build_manifest() {
 				vulnerability_intelligence: collector_row(sum_source(["vulnerability_intelligence"])),
 				scanner_worker: scanner_worker_row,
 				confluence: collector_row(sum_source(["confluence"])),
-				pagerduty: hosted_collector_row("pagerduty"; "collector-pagerduty"; sum_source(["pagerduty"])),
-				jira: hosted_collector_row("jira"; "collector-jira"; sum_source(["jira"])),
-				grafana: hosted_collector_row("grafana"; "collector-grafana"; sum_source(["grafana"])),
-				prometheus_mimir: hosted_collector_row("prometheus_mimir"; "collector-prometheus-mimir"; sum_source(["prometheus_mimir"])),
-				loki: hosted_collector_row("loki"; "collector-loki"; sum_source(["loki"])),
-				tempo: hosted_collector_row("tempo"; "collector-tempo"; sum_source(["tempo"]))
+				pagerduty: hosted_collector_row("pagerduty"; "collector-pagerduty"; sum_source_kind(["pagerduty"]; "^(incident\\.|change\\.record|incident_routing\\.)")),
+				jira: hosted_collector_row("jira"; "collector-jira"; sum_source_kind(["jira"]; "^work_item\\.")),
+				grafana: hosted_collector_row("grafana"; "collector-grafana"; sum_source_kind(["grafana"]; "^observability\\.(source_instance|observed_dashboard|observed_rule|coverage_warning)$")),
+				prometheus_mimir: hosted_collector_row("prometheus_mimir"; "collector-prometheus-mimir"; sum_source_kind(["prometheus_mimir"]; "^observability\\.(source_instance|observed_target|observed_rule|coverage_warning)$")),
+				loki: hosted_collector_row("loki"; "collector-loki"; sum_source_kind(["loki"]; "^observability\\.(source_instance|observed_log_signal|observed_rule|coverage_warning)$")),
+				tempo: hosted_collector_row("tempo"; "collector-tempo"; sum_source_kind(["tempo"]; "^observability\\.(source_instance|observed_trace_signal|coverage_warning)$"))
 			},
 			reducers: {
 				repository_dependencies: reducer_row("repository_dependencies"; sum_source(["git","package_registry"]); sum_kind("reducer_package_(ownership|consumption|publication)_correlation|reducer_package_correlation")),

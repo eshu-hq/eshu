@@ -131,10 +131,10 @@ write_fact_rows() {
 		if $mode == "with_hosted" then [
 			{source_system: "pagerduty", fact_kind: "incident.record", count: 1},
 			{source_system: "jira", fact_kind: "work_item.record", count: 1},
-			{source_system: "grafana", fact_kind: "observability.grafana_dashboard", count: 1},
-			{source_system: "prometheus_mimir", fact_kind: "observability.metric_signal", count: 1},
-			{source_system: "loki", fact_kind: "observability.log_signal", count: 1},
-			{source_system: "tempo", fact_kind: "observability.trace_signal", count: 1}
+			{source_system: "grafana", fact_kind: "observability.observed_dashboard", count: 1},
+			{source_system: "prometheus_mimir", fact_kind: "observability.observed_target", count: 1},
+			{source_system: "loki", fact_kind: "observability.observed_log_signal", count: 1},
+			{source_system: "tempo", fact_kind: "observability.observed_trace_signal", count: 1}
 		] else [] end
 	' >"${output}"
 }
@@ -160,7 +160,12 @@ assert_all_hosted_rows() {
 		jq -e --arg row "${row}" --arg status "${status}" --arg reason "${reason}" --argjson facts "${facts}" '
 			.collectors[$row].status == $status and
 			.collectors[$row].facts == $facts and
-			.collectors[$row].reason == $reason
+			.collectors[$row].reason == $reason and
+			(if ($status == "skipped" or $status == "unsupported") then
+				((.collectors[$row].issue_refs // []) | index("#1375") != null)
+			else
+				true
+			end)
 		' "${manifest}" >/dev/null || die "${row} was not classified as ${status}"
 	done
 }
@@ -181,6 +186,18 @@ jq -e '
 	all(["pagerduty","jira","grafana","prometheus_mimir","loki","tempo"][]; . as $row |
 		$root.collectors[$row].status == "pass" and $root.collectors[$row].facts == 1)
 ' "${TMP_DIR}/hosted-pass.json" >/dev/null || die "enabled hosted collectors with facts did not pass"
+
+wrong_kind_facts="${TMP_DIR}/facts-with-hosted-wrong-kind.json"
+jq 'map(if (.source_system | IN("pagerduty", "jira", "grafana", "prometheus_mimir", "loki", "tempo")) then .fact_kind = "unrelated.source_fact" else . end)' \
+	"${TMP_DIR}/facts-with-hosted.json" >"${wrong_kind_facts}"
+build_case_manifest \
+	"${wrong_kind_facts}" \
+	"${TMP_DIR}/services-enabled.json" \
+	"${TMP_DIR}/hosted-wrong-kind.json"
+assert_all_hosted_rows \
+	"${TMP_DIR}/hosted-wrong-kind.json" \
+	fail \
+	"no source facts observed for enabled collector service"
 
 build_case_manifest \
 	"${TMP_DIR}/facts-without-hosted.json" \
