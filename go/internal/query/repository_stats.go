@@ -2,24 +2,29 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 )
 
 const (
 	repositoryStatsContentCoverageShape = "content_store_repository_coverage"
 	repositoryStatsIdentityOnlyShape    = "repository_identity_only"
+	repositoryStatsReadTimeout          = 2 * time.Second
 )
 
 // getRepositoryStats returns bounded repository statistics from read models.
 func (h *RepositoryHandler) getRepositoryStats(w http.ResponseWriter, r *http.Request) {
-	repoID, ok := h.resolveRepositoryPathSelector(w, r)
+	ctx, cancel := context.WithTimeout(r.Context(), repositoryStatsReadTimeout)
+	defer cancel()
+
+	repoID, ok := h.resolveRepositoryStatsPathSelector(ctx, w, r)
 	if !ok {
 		return
 	}
 
-	ctx := r.Context()
 	timer := startRepositoryQueryStage(ctx, h.Logger, "repository_stats", repoID, "repository_lookup")
 	repo, repoSource, err := h.repositoryStatsRepositoryRef(ctx, repoID)
 	timer.Done(ctx,
@@ -29,7 +34,7 @@ func (h *RepositoryHandler) getRepositoryStats(w http.ResponseWriter, r *http.Re
 		slog.String("query_shape", "repository_id_lookup"),
 	)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repository failed: %v", err))
+		WriteError(w, repositoryStatsErrorStatus(err), fmt.Sprintf("query repository failed: %v", err))
 		return
 	}
 	if repo == nil {
@@ -54,6 +59,31 @@ func (h *RepositoryHandler) getRepositoryStats(w http.ResponseWriter, r *http.Re
 			"resolved from bounded repository identity and content coverage; missing coverage remains explicit",
 		),
 	)
+}
+
+func (h *RepositoryHandler) resolveRepositoryStatsPathSelector(
+	ctx context.Context,
+	w http.ResponseWriter,
+	r *http.Request,
+) (string, bool) {
+	repoSelector := PathParam(r, "repo_id")
+	if repoSelector == "" {
+		WriteError(w, http.StatusBadRequest, "repo_id is required")
+		return "", false
+	}
+	repoID, err := h.resolveRepositorySelector(ctx, repoSelector)
+	if err != nil {
+		status := repositoryStatsErrorStatus(err)
+		if status == http.StatusInternalServerError {
+			status = http.StatusBadRequest
+		}
+		if isRepositorySelectorNotFound(err) {
+			status = http.StatusNotFound
+		}
+		WriteError(w, status, err.Error())
+		return "", false
+	}
+	return repoID, true
 }
 
 func (h *RepositoryHandler) repositoryStatsRepositoryRef(
@@ -140,6 +170,10 @@ func repositoryStatsCoverageMap(
 			"counts_available":       true,
 			"entity_types_available": true,
 			"whole_graph_traversal":  false,
+			"partial_results":        false,
+			"truncated":              false,
+			"timeout":                false,
+			"timeout_budget":         repositoryStatsReadTimeout.String(),
 			"missing_evidence":       []string{},
 			"file_count_source":      "content_files",
 			"entity_count_source":    "content_entities",
@@ -154,7 +188,11 @@ func repositoryStatsCoverageMap(
 
 	missingEvidence := []string{"content_store_coverage"}
 	lastError := ""
+	timeout := repositoryStatsErrIsTimeout(coverageErr)
 	switch {
+	case timeout:
+		missingEvidence = []string{"content_store_coverage_timeout"}
+		lastError = fmt.Sprintf("content store coverage exceeded %s route timeout", repositoryStatsReadTimeout)
 	case coverageErr != nil:
 		missingEvidence = []string{"content_store_coverage_error"}
 		lastError = coverageErr.Error()
@@ -170,10 +208,25 @@ func repositoryStatsCoverageMap(
 		"counts_available":       false,
 		"entity_types_available": false,
 		"whole_graph_traversal":  false,
+		"partial_results":        true,
+		"truncated":              timeout,
+		"timeout":                timeout,
+		"timeout_budget":         repositoryStatsReadTimeout.String(),
 		"missing_evidence":       missingEvidence,
 		"last_error":             lastError,
 	}
 	return coverageMap
+}
+
+func repositoryStatsErrorStatus(err error) int {
+	if repositoryStatsErrIsTimeout(err) {
+		return http.StatusGatewayTimeout
+	}
+	return http.StatusInternalServerError
+}
+
+func repositoryStatsErrIsTimeout(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded)
 }
 
 func repositoryStatsCoverageLogAttrs(coverageMap map[string]any, coverageErr error) []slog.Attr {
@@ -184,6 +237,9 @@ func repositoryStatsCoverageLogAttrs(coverageMap map[string]any, coverageErr err
 		slog.Bool("counts_available", BoolVal(coverageMap, "counts_available")),
 		slog.Bool("entity_types_available", BoolVal(coverageMap, "entity_types_available")),
 		slog.Bool("whole_graph_traversal", BoolVal(coverageMap, "whole_graph_traversal")),
+		slog.Bool("partial_results", BoolVal(coverageMap, "partial_results")),
+		slog.Bool("truncated", BoolVal(coverageMap, "truncated")),
+		slog.Bool("timeout", BoolVal(coverageMap, "timeout")),
 		slog.Any("missing_evidence", coverageMap["missing_evidence"]),
 	}
 }

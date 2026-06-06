@@ -55,19 +55,29 @@ inventory queries in existing `postgres.query` spans with `db.operation` set to
 selector, verifies the canonical repository identity with a direct
 `Repository{id}` lookup when a graph backend is present, and then reads
 `file_count`, `entity_count`, `languages`, and `entity_types` from the
-content-store coverage read model. It does not run a post-resolution
-whole-graph traversal to compute totals. If content coverage is unavailable,
-`file_count` and `entity_count` are `null`, `languages` and `entity_types` are
-empty, and `coverage.missing_evidence` names the missing evidence instead of
-inventing zero totals.
+content-store coverage read model. Selector resolution, identity verification,
+and content coverage share a route-local 2s read budget. The handler does not
+run a post-resolution whole-graph traversal to compute totals. If content
+coverage is unavailable or times out, `file_count` and `entity_count` are
+`null`, `languages` and `entity_types` are empty, and
+`coverage.missing_evidence` names the missing evidence instead of inventing
+zero totals.
 
 Stats responses include `coverage.source_backend`, `coverage.query_shape`,
 `coverage.counts_available`, `coverage.entity_types_available`,
-`coverage.whole_graph_traversal`, and `coverage.missing_evidence`. The normal
-bounded shape is `coverage.query_shape=content_store_repository_coverage` with
-`coverage.source_backend=content_store`; the explicit missing-evidence shape is
+`coverage.whole_graph_traversal`, `coverage.partial_results`,
+`coverage.truncated`, `coverage.timeout`, `coverage.timeout_budget`, and
+`coverage.missing_evidence`. The normal bounded shape is
+`coverage.query_shape=content_store_repository_coverage` with
+`coverage.source_backend=content_store`, `coverage.partial_results=false`, and
+`coverage.truncated=false`. The explicit missing-evidence shape is
 `coverage.query_shape=repository_identity_only` with
-`coverage.source_backend=unavailable`.
+`coverage.source_backend=unavailable`; coverage timeouts set
+`coverage.partial_results=true`, `coverage.truncated=true`,
+`coverage.timeout=true`, and
+`coverage.missing_evidence=["content_store_coverage_timeout"]`. Selector or
+identity lookup timeouts return `504` because no trustworthy repository
+identity exists for a partial stats response.
 
 No-Regression Evidence: the focused query test covers repository-name and
 canonical-id selectors, proves the stats route does not issue the old optional
@@ -76,12 +86,19 @@ file/entity/language/entity-type counts, and checks that missing content
 coverage returns explicit missing-evidence metadata rather than zero totals:
 `go test ./internal/query -run 'TestGetRepositoryStats|TestContentReaderRepositoryCoverageIncludesEntityTypeCounts' -count=1`.
 
+Performance Evidence: issue #1462 coverage adds route-deadline regressions for
+selector resolution and content coverage plus a large-count response fixture
+with 5,000,000 files and 4,200,000 entities, proving the response stays inside
+the bounded content-store shape without graph aggregation:
+`go test ./internal/query -run 'TestGetRepositoryStats(ReturnsPartialMetadataWhenContentCoverageTimesOut|SelectorResolutionUsesRouteDeadline|ReturnsLargeContentCoverageInsideBoundedShape)' -count=1`.
+
 Observability Evidence: stats calls emit `repository_query.stage_started` and
 `repository_query.stage_completed` log events for `operation=repository_stats`
 with `stage=repository_lookup` and `stage=content_coverage`, including
 `duration_seconds`, `source_backend`, `query_shape`, `counts_available`,
-`entity_types_available`, and `whole_graph_traversal`. `ContentReader` wraps the
-coverage query in a `postgres.query` span with
+`entity_types_available`, `whole_graph_traversal`, `partial_results`,
+`truncated`, and `timeout`. `ContentReader` wraps the coverage query in a
+`postgres.query` span with
 `db.operation=repository_coverage` and
 `db.sql.table=content_files,content_entities`.
 
