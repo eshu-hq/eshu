@@ -11,15 +11,10 @@ func buildNormalizedDeliveryPaths(
 	deploymentEvidence map[string]any,
 ) []map[string]any {
 	canonical := buildDeliveryPaths(deploymentSources, cloudResources, k8sResources, imageRefs, k8sRelationships)
-	rows := make([]map[string]any, 0, len(canonical)+len(mapSliceValue(deploymentEvidence, "delivery_paths")))
+	evidencePaths := deploymentEvidenceDeliveryPaths(deploymentEvidence)
+	rows := make([]map[string]any, 0, len(canonical)+len(evidencePaths))
 	rows = append(rows, canonical...)
-	for _, row := range mapSliceValue(deploymentEvidence, "delivery_paths") {
-		entry := cloneAnyMap(row)
-		if StringVal(entry, "type") == "" {
-			entry["type"] = "repository_delivery_artifact"
-		}
-		rows = append(rows, entry)
-	}
+	rows = append(rows, evidencePaths...)
 
 	seen := make(map[string]struct{}, len(rows))
 	normalized := make([]map[string]any, 0, len(rows))
@@ -36,6 +31,25 @@ func buildNormalizedDeliveryPaths(
 		normalized = append(normalized, entry)
 	}
 	return normalized
+}
+
+func deploymentEvidenceDeliveryPaths(deploymentEvidence map[string]any) []map[string]any {
+	deliveryPaths := mapSliceValue(deploymentEvidence, "delivery_paths")
+	artifacts := mapSliceValue(deploymentEvidence, "artifacts")
+	rows := make([]map[string]any, 0, len(deliveryPaths)+len(artifacts))
+	for _, row := range deliveryPaths {
+		entry := cloneAnyMap(row)
+		if StringVal(entry, "type") == "" {
+			entry["type"] = "repository_delivery_artifact"
+		}
+		rows = append(rows, entry)
+	}
+	for _, artifact := range artifacts {
+		entry := cloneAnyMap(artifact)
+		entry["type"] = "deployment_evidence"
+		rows = append(rows, entry)
+	}
+	return rows
 }
 
 func normalizeDeliveryPathRow(row map[string]any) (map[string]any, bool) {
@@ -71,6 +85,10 @@ func normalizeDeliveryPathRow(row map[string]any) (map[string]any, bool) {
 		if !repositoryDeliveryArtifactHasIdentity(entry) {
 			return nil, false
 		}
+	case "deployment_evidence":
+		if !deploymentEvidenceDeliveryPathHasIdentity(entry) {
+			return nil, false
+		}
 	default:
 		if !genericDeliveryPathHasIdentity(entry) {
 			return nil, false
@@ -89,6 +107,18 @@ func repositoryDeliveryArtifactHasIdentity(entry map[string]any) bool {
 		StringVal(entry, "source_repo") != "" ||
 		StringVal(entry, "service_name") != "" ||
 		StringVal(entry, "workflow_name") != ""
+}
+
+func deploymentEvidenceDeliveryPathHasIdentity(entry map[string]any) bool {
+	return StringVal(entry, "resolved_id") != "" ||
+		StringVal(entry, "path") != "" ||
+		StringVal(entry, "relative_path") != "" ||
+		StringVal(entry, "evidence_kind") != "" ||
+		StringVal(entry, "artifact_family") != "" ||
+		StringVal(entry, "source_repo_id") != "" ||
+		StringVal(entry, "source_repo_name") != "" ||
+		StringVal(entry, "target_repo_id") != "" ||
+		StringVal(entry, "target_repo_name") != ""
 }
 
 func genericDeliveryPathHasIdentity(entry map[string]any) bool {
@@ -135,6 +165,20 @@ func normalizedDeliveryPathKey(entry map[string]any) string {
 			StringVal(entry, "evidence_kind"),
 			StringVal(entry, "source_repo"),
 			StringVal(entry, "service_name"),
+		}, "|")
+	case "deployment_evidence":
+		return strings.Join([]string{
+			pathType,
+			StringVal(entry, "resolved_id"),
+			StringVal(entry, "relationship_type"),
+			StringVal(entry, "source_repo_id"),
+			StringVal(entry, "source_repo_name"),
+			StringVal(entry, "target_repo_id"),
+			StringVal(entry, "target_repo_name"),
+			StringVal(entry, "path"),
+			StringVal(entry, "relative_path"),
+			StringVal(entry, "artifact_family"),
+			StringVal(entry, "evidence_kind"),
 		}, "|")
 	}
 

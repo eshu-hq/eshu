@@ -119,3 +119,29 @@ func TestBuildDeploymentConfigInfluenceResponseReturnsPromptReadyFiles(t *testin
 		}
 	}
 }
+
+func TestBuildDeploymentConfigInfluenceResponseUsesServiceStoryDeploymentEvidence(t *testing.T) {
+	t.Parallel()
+
+	resp := buildDeploymentConfigInfluenceResponse(deploymentConfigInfluenceRequest{
+		ServiceName: "sample-service-api",
+		Limit:       10,
+	}, sampleServiceDossierContext())
+
+	influencingRepos := mapSliceValue(resp, "influencing_repositories")
+	if len(influencingRepos) < 3 {
+		t.Fatalf("influencing_repositories = %#v, want service owner plus deployment evidence repos", influencingRepos)
+	}
+	readFirst := mapSliceValue(resp, "read_first_files")
+	if len(readFirst) == 0 {
+		t.Fatalf("read_first_files is empty, want deployment evidence file handles")
+	}
+	valuesLayers := mapSliceValue(resp, "values_layers")
+	if len(valuesLayers) == 0 {
+		t.Fatalf("values_layers is empty, want service story deployment artifacts as config influence")
+	}
+	coverage := mapValue(resp, "coverage")
+	if got, want := IntVal(coverage, "artifact_candidate_count"), 2; got != want {
+		t.Fatalf("coverage.artifact_candidate_count = %d, want %d", got, want)
+	}
+}
