@@ -122,6 +122,14 @@ Public-safe manifest shape:
   "expected_image_ref": "registry.example/team/api:tag",
   "expected_sbom_subject_digest": "sha256:...",
   "expected_cloud_resource_id": "cloud-resource-id-or-arn",
+  "expected_documentation_scope_id": "optional-doc-source-scope",
+  "expected_documentation_source_id": "optional-doc-source-id",
+  "expected_provider_incident_id": "provider-incident-id",
+  "expected_incident_provider": "pagerduty",
+  "expected_incident_scope_id": "optional-incident-scope",
+  "expected_work_item_key": "ISSUE-123",
+  "expected_work_item_external_url": "https://provider.example/redacted/path",
+  "expected_work_item_provider_id": "provider-work-item-id",
   "minimums": {
     "impact_findings": 1,
     "security_alert_reconciliations": 1,
@@ -129,7 +137,10 @@ Public-safe manifest shape:
     "sbom_attachments": 1,
     "service_catalog_correlations": 1,
     "ci_cd_run_correlations": 1,
-    "cloud_resources": 1
+    "cloud_resources": 1,
+    "documentation_findings": 1,
+    "incident_context": 1,
+    "work_item_evidence": 1
   }
 }
 ```
@@ -142,9 +153,25 @@ CI/CD evidence. Positive image, SBOM, and CI/CD minimums require a shared
 artifact chain instead of unrelated aggregate evidence. A positive
 `cloud_resources` minimum requires `expected_cloud_resource_id`; provider or
 environment aggregates alone are not enough to satisfy a target story. When the
-service-catalog or cloud minimum is positive, set `ESHU_REMOTE_E2E_MCP_URL`
-and, if needed, `ESHU_REMOTE_E2E_MCP_TOKEN`. The verifier exercises MCP
-readbacks over the same target filters as the API proof.
+service-catalog, cloud, documentation, incident, or work-item minimum is
+positive, set `ESHU_REMOTE_E2E_MCP_URL` and, if needed,
+`ESHU_REMOTE_E2E_MCP_TOKEN`. The verifier exercises MCP readbacks over the same
+target filters as the API proof.
+
+Positive `documentation_findings`, `incident_context`, and
+`work_item_evidence` minimums prove provider evidence against the target story,
+not aggregate collector output. Documentation findings are scoped to
+`target_repository_id` through `/api/v0/documentation/findings?repo=...`; the
+optional documentation scope and source fields narrow that read further. A
+positive incident-context minimum requires `expected_provider_incident_id` and
+uses optional incident provider, incident scope, and service id filters against
+both `GET /api/v0/incidents/{incident_id}/context` and MCP
+`get_incident_context`. A positive work-item minimum requires one work-item
+anchor: `expected_work_item_key`, `expected_work_item_external_url`, or
+`expected_work_item_provider_id`. The verifier counts exact target evidence and
+fails closed for unsupported, missing, or aggregate-only responses with
+sanitized reason classes such as `target incident_context=0 below required
+minimum 1`.
 
 Set `expected_security_alert_rows_file` to an operator-local JSON file when the
 proof needs provider-alert row parity, not only a reconciliation count. The
@@ -225,12 +252,14 @@ sources.
 When `ESHU_REMOTE_E2E_TARGET_STORY_FILE` is set, the verifier prints
 `remote E2E target story proof counts` with repository-story, impact,
 security-alert, provider-alert expected-row parity, container-image, SBOM,
-service-catalog, CI/CD, cloud-resource, and MCP readback counts. It does not
+service-catalog, CI/CD, cloud-resource, documentation, incident-context,
+work-item, and MCP readback counts. It does not
 print raw repository selectors, image
 references, service IDs, workload IDs, cloud resource IDs, provider repository
-names, hostnames, package names, URLs, or credentials. API reads request the
-Eshu truth envelope, MCP reads require an envelope resource, and both reject
-successful-looking responses that omit truth level and freshness.
+names, hostnames, package names, incident IDs, work-item keys, URLs, or
+credentials. API reads request the Eshu truth envelope, MCP reads require an
+envelope resource, and both reject successful-looking responses that omit truth
+level and freshness.
 Additional No-Regression Evidence: `scripts/test-verify-remote-e2e-target-story.sh`
 proves the target-story helper accepts aligned repository, vulnerability,
 security-alert, image, SBOM, service-catalog, and CI/CD counts; rejects matching
@@ -241,6 +270,15 @@ missing target cloud-resource evidence; fails missing MCP configuration when
 MCP-backed target proof is required; fails a missing configured manifest file;
 skips only when no target-story file is configured; requires Eshu envelope
 readback; and keeps API/MCP bearer tokens out of curl arguments. This is a
+verifier-only change and does not alter collector scheduling, worker counts,
+graph writes, NornicDB settings, fact emission, or reducer behavior.
+Additional No-Regression Evidence:
+`scripts/test-verify-remote-e2e-target-story-provider-evidence.sh` proves
+documentation, incident-context, and work-item target evidence are checked
+through both HTTP API and MCP; aggregate-only documentation, missing incident
+anchor evidence, missing work-item evidence, missing incident/work-item target
+anchors, and missing MCP configuration fail with sanitized messages; disabled
+provider-evidence minimums pass without MCP configuration. This is still a
 verifier-only change and does not alter collector scheduling, worker counts,
 graph writes, NornicDB settings, fact emission, or reducer behavior.
 Additional Observability Evidence: the existing `/index-status` health reason now names

@@ -12,6 +12,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck source=scripts/lib/remote_e2e_security_alerts.sh
 source "${SCRIPT_DIR}/lib/remote_e2e_security_alerts.sh"
+# shellcheck source=scripts/lib/remote_e2e_target_story_evidence.sh
+source "${SCRIPT_DIR}/lib/remote_e2e_target_story_evidence.sh"
 
 cleanup() {
 	rm -rf "${TMP_DIR}"
@@ -234,30 +236,6 @@ list_limit_for_minimum() {
 	printf '%s' "${value}"
 }
 
-cicd_image_ref_match_count() {
-	local file="$1"
-	local expected="$2"
-	jq -r --arg expected "${expected}" '
-		(.data // .) as $body |
-		[
-			$body.correlations[]?
-			| select((.image_ref // "") == $expected)
-		] | length
-	' "${file}"
-}
-
-cloud_resource_match_count() {
-	local file="$1"
-	local expected="$2"
-	jq -r --arg expected "${expected}" '
-		(.data // .) as $body |
-		[
-			$body.results[]?
-			| select((.resource_id // "") == $expected or (.arn // "") == $expected or (.id // "") == $expected)
-		] | length
-	' "${file}"
-}
-
 main() {
 	if [[ -z "${TARGET_STORY_FILE}" ]]; then
 		echo "remote E2E target story proof skipped: no target story configured"
@@ -278,6 +256,9 @@ main() {
 	local proof_mode repo_selector expected_security_repo expected_service_id expected_workload_id
 	local expected_image_repo expected_image_digest expected_image_ref
 	local expected_sbom_digest expected_cloud_resource_id expected_security_rows_file
+	local expected_documentation_scope_id expected_documentation_source_id
+	local expected_incident_id expected_incident_provider expected_incident_scope_id
+	local expected_work_item_key expected_work_item_external_url expected_work_item_provider_id
 	proof_mode="$(target_story_proof_mode)"
 	repo_selector="$(manifest_string '.target_repository_id')"
 	expected_security_repo="$(manifest_string '.expected_security_alert_repository')"
@@ -289,12 +270,21 @@ main() {
 	expected_sbom_digest="$(manifest_string '.expected_sbom_subject_digest')"
 	expected_cloud_resource_id="$(manifest_string '.expected_cloud_resource_id')"
 	expected_security_rows_file="$(manifest_string '.expected_security_alert_rows_file')"
+	expected_documentation_scope_id="$(manifest_string '.expected_documentation_scope_id')"
+	expected_documentation_source_id="$(manifest_string '.expected_documentation_source_id')"
+	expected_incident_id="$(manifest_string '.expected_provider_incident_id')"
+	expected_incident_provider="$(manifest_string '.expected_incident_provider')"
+	expected_incident_scope_id="$(manifest_string '.expected_incident_scope_id')"
+	expected_work_item_key="$(manifest_string '.expected_work_item_key')"
+	expected_work_item_external_url="$(manifest_string '.expected_work_item_external_url')"
+	expected_work_item_provider_id="$(manifest_string '.expected_work_item_provider_id')"
 	if [[ -z "${repo_selector}" ]]; then
 		echo "target story manifest requires target_repository_id" >&2
 		return 1
 	fi
 
 	local impact_min security_min image_min sbom_min catalog_min cicd_min cloud_min
+	local documentation_min incident_min work_item_min
 	impact_min="$(manifest_int '.minimums.impact_findings' 0)"
 	security_min="$(manifest_int '.minimums.security_alert_reconciliations' 0)"
 	image_min="$(manifest_int '.minimums.container_image_identities' 0)"
@@ -302,6 +292,9 @@ main() {
 	catalog_min="$(manifest_int '.minimums.service_catalog_correlations' 0)"
 	cicd_min="$(manifest_int '.minimums.ci_cd_run_correlations' 0)"
 	cloud_min="$(manifest_int '.minimums.cloud_resources' 0)"
+	documentation_min="$(manifest_int '.minimums.documentation_findings' 0)"
+	incident_min="$(manifest_int '.minimums.incident_context' 0)"
+	work_item_min="$(manifest_int '.minimums.work_item_evidence' 0)"
 	require_non_negative_integer minimums.impact_findings "${impact_min}"
 	require_non_negative_integer minimums.security_alert_reconciliations "${security_min}"
 	require_non_negative_integer minimums.container_image_identities "${image_min}"
@@ -309,6 +302,9 @@ main() {
 	require_non_negative_integer minimums.service_catalog_correlations "${catalog_min}"
 	require_non_negative_integer minimums.ci_cd_run_correlations "${cicd_min}"
 	require_non_negative_integer minimums.cloud_resources "${cloud_min}"
+	require_non_negative_integer minimums.documentation_findings "${documentation_min}"
+	require_non_negative_integer minimums.incident_context "${incident_min}"
+	require_non_negative_integer minimums.work_item_evidence "${work_item_min}"
 	local expected_security_rows_count=0
 	if [[ -n "${expected_security_rows_file}" ]]; then
 		if [[ ! -f "${expected_security_rows_file}" ]]; then
@@ -322,7 +318,7 @@ main() {
 		fi
 	fi
 	validate_target_story_proof_mode "${proof_mode}" "${image_min}" "${sbom_min}"
-	if ((catalog_min > 0 || cloud_min > 0)) && [[ -z "${MCP_URL}" ]]; then
+	if ((catalog_min > 0 || cloud_min > 0 || documentation_min > 0 || incident_min > 0 || work_item_min > 0)) && [[ -z "${MCP_URL}" ]]; then
 		echo "ESHU_REMOTE_E2E_MCP_URL is required when target story MCP proof is required" >&2
 		return 1
 	fi
@@ -334,7 +330,24 @@ main() {
 	local repo_query
 	repo_query="$(urlencode "${repo_selector}")"
 	local impact_count=0 security_count=0 security_expected_rows_count=0 image_count=0 sbom_count=0 catalog_count=0 cicd_count=0 cloud_count=0
-	local mcp_catalog_count=0 mcp_cloud_count=0
+	local documentation_count=0 incident_count=0 work_item_count=0
+	local mcp_catalog_count=0 mcp_cloud_count=0 mcp_documentation_count=0 mcp_incident_count=0 mcp_work_item_count=0
+	read -r documentation_count incident_count work_item_count mcp_documentation_count mcp_incident_count mcp_work_item_count < <(
+		target_story_check_provider_evidence \
+			"${repo_selector}" \
+			"${expected_service_id}" \
+			"${expected_documentation_scope_id}" \
+			"${expected_documentation_source_id}" \
+			"${expected_incident_id}" \
+			"${expected_incident_provider}" \
+			"${expected_incident_scope_id}" \
+			"${expected_work_item_key}" \
+			"${expected_work_item_external_url}" \
+			"${expected_work_item_provider_id}" \
+			"${documentation_min}" \
+			"${incident_min}" \
+			"${work_item_min}"
+	)
 	if ((impact_min > 0)); then
 		local impact_file="${TMP_DIR}/impact-count.json"
 		api_get "/supply-chain/impact/findings/count?repository_id=${repo_query}&profile=comprehensive" "${impact_file}"
@@ -461,7 +474,7 @@ main() {
 		require_min_count mcp_cloud_resources "${mcp_cloud_count}" "${cloud_min}"
 	fi
 
-	printf 'remote E2E target story proof counts: proof_mode=%s repository_story=1 impact_findings=%s security_alert_reconciliations=%s security_alert_expected_rows=%s container_image_identities=%s sbom_attachments=%s service_catalog_correlations=%s ci_cd_run_correlations=%s cloud_resources=%s mcp_service_catalog_correlations=%s mcp_cloud_resources=%s\n' \
+	printf 'remote E2E target story proof counts: proof_mode=%s repository_story=1 impact_findings=%s security_alert_reconciliations=%s security_alert_expected_rows=%s container_image_identities=%s sbom_attachments=%s service_catalog_correlations=%s ci_cd_run_correlations=%s cloud_resources=%s documentation_findings=%s incident_context=%s work_item_evidence=%s mcp_service_catalog_correlations=%s mcp_cloud_resources=%s mcp_documentation_findings=%s mcp_incident_context=%s mcp_work_item_evidence=%s\n' \
 		"${proof_mode}" \
 		"${impact_count}" \
 		"${security_count}" \
@@ -471,8 +484,14 @@ main() {
 		"${catalog_count}" \
 		"${cicd_count}" \
 		"${cloud_count}" \
+		"${documentation_count}" \
+		"${incident_count}" \
+		"${work_item_count}" \
 		"${mcp_catalog_count}" \
-		"${mcp_cloud_count}"
+		"${mcp_cloud_count}" \
+		"${mcp_documentation_count}" \
+		"${mcp_incident_count}" \
+		"${mcp_work_item_count}"
 }
 
 main "$@"
