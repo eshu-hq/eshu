@@ -31,7 +31,7 @@ func TestCollectRecordsURIRedactionsByFieldClass(t *testing.T) {
 	target.SourceURI = "https://vaultuser:s3cr3t@vault.example.com:8200/v1/sys/auth?token=abcd#frag"
 	client := &fakeVaultClient{authMounts: []AuthMount{{Path: "kubernetes/", Accessor: "acc", Method: "kubernetes"}}}
 
-	source := Source{CollectorInstanceID: "vaultlive-1", Instruments: instruments}
+	source := Source{CollectorInstanceID: "vaultlive-1", RedactionKey: testRedactionKey(t), Instruments: instruments}
 	if _, err := source.Collect(context.Background(), target, client); err != nil {
 		t.Fatalf("Collect() error = %v, want nil", err)
 	}
@@ -67,7 +67,7 @@ func TestCollectRecordsNoRedactionForCleanURI(t *testing.T) {
 	target.SourceURI = "https://vault.example.com:8200/v1/sys/auth"
 	client := &fakeVaultClient{authMounts: []AuthMount{{Path: "kubernetes/", Accessor: "acc", Method: "kubernetes"}}}
 
-	source := Source{CollectorInstanceID: "vaultlive-1", Instruments: instruments}
+	source := Source{CollectorInstanceID: "vaultlive-1", RedactionKey: testRedactionKey(t), Instruments: instruments}
 	if _, err := source.Collect(context.Background(), target, client); err != nil {
 		t.Fatalf("Collect() error = %v, want nil", err)
 	}
@@ -94,6 +94,7 @@ func TestSnapshotRecordsScopeFreshness(t *testing.T) {
 	source := &SnapshotSource{
 		Config: Config{
 			CollectorInstanceID: "vaultlive-1",
+			RedactionKey:        testRedactionKey(t),
 			Targets:             []ClusterTarget{{VaultClusterID: "vault-prod", Namespace: "admin", FencingToken: 1}},
 		},
 		ClientFactory: &fakeClientFactory{client: snapshotFixtureClient()},

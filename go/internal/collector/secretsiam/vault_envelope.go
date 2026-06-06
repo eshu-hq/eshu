@@ -27,9 +27,9 @@ func NewVaultAuthMountEnvelope(observation VaultAuthMountObservation) (facts.Env
 	payload := vaultPayload(observation.Context)
 	payload["auth_method"] = authMethod
 	payload["mount_join_key"] = mountKey
-	payload["mount_path_fingerprint"] = fingerprintVaultMountPath(observation.MountPath)
+	payload["mount_path_fingerprint"] = fingerprintVaultMountPath(observation.Context, observation.MountPath)
 	payload["mount_path_depth"] = vaultPathDepth(observation.MountPath)
-	payload["mount_accessor_fingerprint"] = fingerprintVaultValue("mount_accessor", observation.MountAccessor)
+	payload["mount_accessor_fingerprint"] = fingerprintVaultValue(observation.Context, "mount_accessor", observation.MountAccessor)
 	payload["local"] = observation.Local
 	payload["default_lease_ttl_seconds"] = observation.DefaultLeaseTTLSeconds
 	payload["max_lease_ttl_seconds"] = observation.MaxLeaseTTLSeconds
@@ -77,18 +77,18 @@ func NewVaultAuthRoleEnvelope(observation VaultAuthRoleObservation) (facts.Envel
 	payload["auth_method"] = authMethod
 	payload["mount_join_key"] = mountKey
 	payload["role_join_key"] = roleKey
-	payload["role_name_fingerprint"] = fingerprintVaultValue("auth_role", observation.RoleName)
+	payload["role_name_fingerprint"] = fingerprintVaultValue(observation.Context, "auth_role", observation.RoleName)
 	payload["bound_service_account_name_count"] = len(normalizeKeyList(observation.BoundServiceAccountNames))
 	payload["bound_service_account_namespace_count"] = len(normalizeKeyList(observation.BoundServiceAccountNamespaces))
-	payload["bound_service_account_name_fingerprints"] = fingerprintVaultValues("service_account", observation.BoundServiceAccountNames)
-	payload["bound_service_account_namespace_fingerprints"] = fingerprintVaultValues("namespace", observation.BoundServiceAccountNamespaces)
+	payload["bound_service_account_name_fingerprints"] = fingerprintVaultValues(observation.Context, "service_account", observation.BoundServiceAccountNames)
+	payload["bound_service_account_namespace_fingerprints"] = fingerprintVaultValues(observation.Context, "namespace", observation.BoundServiceAccountNamespaces)
 	if len(serviceAccountJoinKeys) > 0 {
 		payload["bound_service_account_join_keys"] = serviceAccountJoinKeys
 	}
 	payload["bound_service_account_selector_wildcard"] = selectorWildcard
 	payload["token_policy_count"] = len(policyKeys)
 	payload["token_policy_join_keys"] = policyKeys
-	payload["token_policy_name_fingerprints"] = fingerprintVaultValues("policy_name", observation.TokenPolicyNames)
+	payload["token_policy_name_fingerprints"] = fingerprintVaultValues(observation.Context, "policy_name", observation.TokenPolicyNames)
 	payload["token_ttl_seconds"] = observation.TokenTTLSeconds
 	return newEnvelope(
 		vaultEnvelopeContext(observation.Context),
@@ -115,9 +115,9 @@ func NewVaultACLPolicyEnvelope(observation VaultACLPolicyObservation) (facts.Env
 	})
 	payload := vaultPayload(observation.Context)
 	payload["policy_join_key"] = policyKey
-	payload["policy_name_fingerprint"] = fingerprintVaultValue("policy_name", observation.PolicyName)
-	payload["policy_hash_fingerprint"] = fingerprintVaultValue("policy_hash", observation.PolicyHash)
-	payload["rules"] = vaultPolicyRulePayloads(observation.Rules)
+	payload["policy_name_fingerprint"] = fingerprintVaultValue(observation.Context, "policy_name", observation.PolicyName)
+	payload["policy_hash_fingerprint"] = fingerprintVaultValue(observation.Context, "policy_hash", observation.PolicyHash)
+	payload["rules"] = vaultPolicyRulePayloads(observation.Context, observation.Rules)
 	payload["rule_count"] = len(observation.Rules)
 	return newEnvelope(
 		vaultEnvelopeContext(observation.Context),
@@ -144,8 +144,8 @@ func NewVaultIdentityEntityEnvelope(observation VaultIdentityEntityObservation) 
 	})
 	payload := vaultPayload(observation.Context)
 	payload["entity_join_key"] = entityKey
-	payload["entity_id_fingerprint"] = fingerprintVaultValue("entity_id", observation.EntityID)
-	payload["entity_name_fingerprint"] = fingerprintVaultValue("entity_name", observation.EntityName)
+	payload["entity_id_fingerprint"] = fingerprintVaultValue(observation.Context, "entity_id", observation.EntityID)
+	payload["entity_name_fingerprint"] = fingerprintVaultValue(observation.Context, "entity_name", observation.EntityName)
 	payload["alias_count"] = observation.AliasCount
 	payload["group_count"] = observation.GroupCount
 	payload["disabled"] = observation.Disabled
@@ -177,15 +177,15 @@ func NewVaultIdentityAliasEnvelope(observation VaultIdentityAliasObservation) (f
 		return facts.Envelope{}, err
 	}
 	stableKey := facts.StableID(facts.VaultIdentityAliasFactKind, map[string]any{
-		"alias_id":         fingerprintVaultValue("alias_id", aliasID),
+		"alias_id":         fingerprintVaultValue(observation.Context, "alias_id", aliasID),
 		"vault_cluster_id": observation.Context.VaultClusterID,
 	})
 	payload := vaultPayload(observation.Context)
-	payload["alias_id_fingerprint"] = fingerprintVaultValue("alias_id", aliasID)
-	payload["alias_name_fingerprint"] = fingerprintVaultValue("alias_name", observation.AliasName)
+	payload["alias_id_fingerprint"] = fingerprintVaultValue(observation.Context, "alias_id", aliasID)
+	payload["alias_name_fingerprint"] = fingerprintVaultValue(observation.Context, "alias_name", observation.AliasName)
 	payload["entity_join_key"] = entityKey
 	payload["mount_join_key"] = mountKey
-	payload["mount_accessor_fingerprint"] = fingerprintVaultValue("mount_accessor", observation.MountAccessor)
+	payload["mount_accessor_fingerprint"] = fingerprintVaultValue(observation.Context, "mount_accessor", observation.MountAccessor)
 	return newEnvelope(
 		vaultEnvelopeContext(observation.Context),
 		facts.VaultIdentityAliasFactKind,
@@ -205,7 +205,7 @@ func NewVaultKVMetadataEnvelope(observation VaultKVMetadataObservation) (facts.E
 	if err != nil {
 		return facts.Envelope{}, err
 	}
-	pathFingerprint := fingerprintVaultPath(observation.Path)
+	pathFingerprint := fingerprintVaultPath(observation.Context, observation.Path)
 	if pathFingerprint == "" {
 		return facts.Envelope{}, fmt.Errorf("vault kv metadata observation requires path")
 	}
@@ -216,7 +216,7 @@ func NewVaultKVMetadataEnvelope(observation VaultKVMetadataObservation) (facts.E
 	})
 	payload := vaultPayload(observation.Context)
 	payload["mount_join_key"] = mountKey
-	payload["mount_path_fingerprint"] = fingerprintVaultMountPath(observation.MountPath)
+	payload["mount_path_fingerprint"] = fingerprintVaultMountPath(observation.Context, observation.MountPath)
 	payload["kv_path_fingerprint"] = pathFingerprint
 	payload["path_depth"] = vaultPathDepth(observation.Path)
 	payload["current_version"] = observation.CurrentVersion
@@ -225,7 +225,7 @@ func NewVaultKVMetadataEnvelope(observation VaultKVMetadataObservation) (facts.E
 	payload["cas_required"] = observation.CASRequired
 	payload["delete_version_after_seconds"] = observation.DeleteVersionAfterSecs
 	payload["custom_metadata_key_count"] = len(normalizeKeyList(observation.CustomMetadataKeys))
-	payload["custom_metadata_key_fingerprints"] = fingerprintVaultValues("custom_metadata_key", observation.CustomMetadataKeys)
+	payload["custom_metadata_key_fingerprints"] = fingerprintVaultValues(observation.Context, "custom_metadata_key", observation.CustomMetadataKeys)
 	return newEnvelope(
 		vaultEnvelopeContext(observation.Context),
 		facts.VaultKVMetadataFactKind,
@@ -256,9 +256,9 @@ func NewVaultSecretEngineMountEnvelope(observation VaultSecretEngineMountObserva
 	})
 	payload := vaultPayload(observation.Context)
 	payload["mount_join_key"] = mountKey
-	payload["mount_path_fingerprint"] = fingerprintVaultMountPath(observation.MountPath)
+	payload["mount_path_fingerprint"] = fingerprintVaultMountPath(observation.Context, observation.MountPath)
 	payload["mount_path_depth"] = vaultPathDepth(observation.MountPath)
-	payload["mount_accessor_fingerprint"] = fingerprintVaultValue("mount_accessor", observation.MountAccessor)
+	payload["mount_accessor_fingerprint"] = fingerprintVaultValue(observation.Context, "mount_accessor", observation.MountAccessor)
 	payload["mount_type"] = mountType
 	payload["kv_version"] = strings.TrimSpace(observation.KVVersion)
 	payload["local"] = observation.Local
@@ -299,9 +299,9 @@ func NewVaultCoverageWarningEnvelope(observation VaultCoverageWarningObservation
 	payload["resource_scope"] = resourceScope
 	payload["error_class"] = strings.TrimSpace(observation.ErrorClass)
 	payload["message_present"] = strings.TrimSpace(observation.Message) != ""
-	payload["message_fingerprint"] = fingerprintVaultValue("warning_message", observation.Message)
+	payload["message_fingerprint"] = fingerprintVaultValue(observation.Context, "warning_message", observation.Message)
 	payload["attribute_count"] = len(observation.Attributes)
-	payload["attribute_key_fingerprints"] = fingerprintVaultValues("attribute_key", mapKeys(observation.Attributes))
+	payload["attribute_key_fingerprints"] = fingerprintVaultValues(observation.Context, "attribute_key", mapKeys(observation.Attributes))
 	return newEnvelope(
 		vaultEnvelopeContext(observation.Context),
 		facts.SecretsIAMCoverageWarningFactKind,
@@ -324,6 +324,8 @@ func validateVaultContext(ctx VaultContext) error {
 		return fmt.Errorf("vault secrets iam observation requires collector_instance_id")
 	case ctx.FencingToken <= 0:
 		return fmt.Errorf("vault secrets iam observation fencing_token must be positive")
+	case ctx.RedactionKey.IsZero():
+		return fmt.Errorf("vault secrets iam observation requires redaction key")
 	default:
 		return nil
 	}

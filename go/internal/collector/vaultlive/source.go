@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -20,6 +21,10 @@ import (
 type Source struct {
 	// CollectorInstanceID identifies the collector instance for fact provenance.
 	CollectorInstanceID string
+	// RedactionKey is deployment-scoped key material for deterministic Vault
+	// metadata markers. It is required because Vault names and paths can reveal
+	// trust topology even though the source never reads secret values.
+	RedactionKey redact.Key
 	// Instruments is optional. When set, the source records
 	// eshu_dp_secrets_iam_source_redactions_total at the redaction site so an
 	// operator can see which credential-bearing field classes are being stripped
@@ -42,6 +47,9 @@ type Source struct {
 func (s Source) Collect(ctx context.Context, target VaultTarget, client Client) ([]facts.Envelope, error) {
 	if client == nil {
 		return nil, fmt.Errorf("vault client is required")
+	}
+	if s.RedactionKey.IsZero() {
+		return nil, fmt.Errorf("vault live source redaction key is required")
 	}
 	// Sanitize the Vault endpoint URL once: a credential-bearing address
 	// (basic-auth userinfo or a token query param) must never reach a fact's
@@ -185,6 +193,7 @@ func (s Source) vaultContext(target VaultTarget, sourceURI string) secretsiam.Va
 		FencingToken:        target.FencingToken,
 		ObservedAt:          target.ObservedAt,
 		SourceURI:           sourceURI,
+		RedactionKey:        s.RedactionKey,
 	}
 }
 

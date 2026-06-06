@@ -128,12 +128,14 @@ capabilities (`read`, `list`).
 
 ## Status and deployment
 
-The Vault source mapping (all seven fact families) is implemented. The live
-`hashicorp/vault/api` client adapter, the `secrets_iam_posture` collector kind,
-claim-driven scheduling, Helm chart values, and the `eshu_dp_secrets_iam_*`
-source metrics are tracked in issue #1356; this page documents the read-only
-permission contract those components will require so operators can provision the
-policy ahead of rollout.
+The Vault source mapping (all seven fact families), no-SDK live API adapter,
+`vault_live` collector kind, claim-driven scheduling, hosted runtime, and
+`eshu_dp_secrets_iam_*` source metrics are implemented. Configure the runtime
+with a claim-capable `vault_live` entry in `ESHU_COLLECTOR_INSTANCES_JSON`, a
+private read-only token environment variable referenced by each target's
+`token_env`, and `ESHU_VAULT_LIVE_REDACTION_KEY` for deterministic HMAC markers
+over Vault names and paths. The collector still emits source facts only;
+reducers and query surfaces own posture truth and graph promotion.
 
 ## Related
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -41,6 +42,7 @@ type ClusterTarget struct {
 // Config configures the snapshot source with one or more Vault targets.
 type Config struct {
 	CollectorInstanceID string
+	RedactionKey        redact.Key
 	Targets             []ClusterTarget
 }
 
@@ -51,6 +53,9 @@ func (c Config) validated() (Config, error) {
 	if len(c.Targets) == 0 {
 		return Config{}, fmt.Errorf("vault live collector requires at least one target")
 	}
+	if c.RedactionKey.IsZero() {
+		return Config{}, fmt.Errorf("vault live collector redaction key is required")
+	}
 	seen := make(map[string]struct{}, len(c.Targets))
 	for i, target := range c.Targets {
 		id := strings.TrimSpace(target.VaultClusterID)
@@ -59,7 +64,7 @@ func (c Config) validated() (Config, error) {
 		}
 		key := id + "\x00" + strings.TrimSpace(target.Namespace)
 		if _, dup := seen[key]; dup {
-			return Config{}, fmt.Errorf("duplicate vault target %q (namespace %q)", id, target.Namespace)
+			return Config{}, fmt.Errorf("duplicate vault target scope")
 		}
 		seen[key] = struct{}{}
 	}
@@ -116,7 +121,7 @@ func (s *SnapshotSource) collectTarget(ctx context.Context, config Config, targe
 	if s.Tracer != nil {
 		var span trace.Span
 		ctx, span = s.Tracer.Start(ctx, telemetry.SpanVaultLiveSnapshot)
-		span.SetAttributes(attribute.String("vault_cluster_id", target.VaultClusterID))
+		span.SetAttributes(attribute.String("scope_kind", string(scope.KindVaultCluster)))
 		defer span.End()
 	}
 
@@ -133,6 +138,7 @@ func (s *SnapshotSource) collectTarget(ctx context.Context, config Config, targe
 
 	envelopes, err := Source{
 		CollectorInstanceID: config.CollectorInstanceID,
+		RedactionKey:        config.RedactionKey,
 		Instruments:         s.Instruments,
 	}.Collect(ctx, VaultTarget{
 		VaultClusterID: target.VaultClusterID,
@@ -186,7 +192,6 @@ func (s *SnapshotSource) collectTarget(ctx context.Context, config Config, targe
 			telemetry.PhaseAttr(telemetry.PhaseDiscovery),
 			slog.String(telemetry.LogKeyScopeID, scopeValue.ScopeID),
 			slog.String(telemetry.LogKeyGenerationID, generationValue.GenerationID),
-			slog.String("vault_cluster_id", target.VaultClusterID),
 			slog.Int("fact_count", len(envelopes)),
 			slog.Float64("duration_seconds", time.Since(start).Seconds()),
 		)
@@ -199,20 +204,13 @@ func (s *SnapshotSource) scopeAndGeneration(target ClusterTarget, observedAt tim
 	if err != nil {
 		return scope.IngestionScope{}, scope.ScopeGeneration{}, err
 	}
-	metadata := map[string]string{"vault_cluster_id": target.VaultClusterID}
-	if ns := strings.TrimSpace(target.Namespace); ns != "" {
-		metadata["namespace"] = ns
-	}
-	if env := strings.TrimSpace(target.Environment); env != "" {
-		metadata["environment"] = env
-	}
 	scopeValue := scope.IngestionScope{
 		ScopeID:       scopeID,
 		SourceSystem:  CollectorKind,
 		ScopeKind:     scope.KindVaultCluster,
 		CollectorKind: scope.CollectorVaultLive,
 		PartitionKey:  target.VaultClusterID,
-		Metadata:      metadata,
+		Metadata:      vaultScopeMetadata(target),
 	}
 	generationValue := scope.ScopeGeneration{
 		ScopeID:       scopeID,
@@ -255,6 +253,32 @@ func hasCoverageWarning(envelopes []facts.Envelope) bool {
 		}
 	}
 	return false
+}
+
+func vaultScopeMetadata(target ClusterTarget) map[string]string {
+	metadata := map[string]string{"vault_cluster_id": strings.TrimSpace(target.VaultClusterID)}
+	if namespace := strings.TrimSpace(target.Namespace); namespace != "" {
+		metadata["namespace_present"] = "true"
+		metadata["namespace_depth"] = fmt.Sprintf("%d", vaultNamespaceDepth(namespace))
+	}
+	if env := strings.TrimSpace(target.Environment); env != "" {
+		metadata["environment"] = env
+	}
+	return metadata
+}
+
+func vaultNamespaceDepth(namespace string) int {
+	namespace = strings.Trim(strings.TrimSpace(namespace), "/")
+	if namespace == "" {
+		return 0
+	}
+	depth := 0
+	for _, part := range strings.Split(namespace, "/") {
+		if strings.TrimSpace(part) != "" {
+			depth++
+		}
+	}
+	return depth
 }
 
 // VaultScopeID returns the deterministic durable scope id for one Vault cluster

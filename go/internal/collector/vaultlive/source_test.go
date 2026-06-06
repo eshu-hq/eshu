@@ -80,7 +80,7 @@ func TestCollectEmitsAuthMountFact(t *testing.T) {
 			},
 		},
 	}
-	source := Source{CollectorInstanceID: "vaultlive-1"}
+	source := Source{CollectorInstanceID: "vaultlive-1", RedactionKey: testRedactionKey(t)}
 
 	envelopes, err := source.Collect(context.Background(), testTarget(), client)
 	if err != nil {
@@ -120,7 +120,7 @@ func TestCollectEmitsAllSevenFactFamilies(t *testing.T) {
 		kvMetadata:   []KVMetadata{{MountPath: "secret/", Path: "payments/db", CurrentVersion: 3, MaxVersions: 10, CustomMetadataKeys: []string{"owner"}}},
 		engineMounts: []SecretEngineMount{{MountPath: "secret/", MountAccessor: "kv_a", MountType: "kv-v2", KVVersion: "2"}},
 	}
-	source := Source{CollectorInstanceID: "vaultlive-1"}
+	source := Source{CollectorInstanceID: "vaultlive-1", RedactionKey: testRedactionKey(t)}
 
 	envelopes, err := source.Collect(context.Background(), testTarget(), client)
 	if err != nil {
@@ -192,7 +192,7 @@ func TestCollectNeverEmitsRawSecretMaterial(t *testing.T) {
 		}},
 		engineMounts: []SecretEngineMount{{MountPath: "RAWENGMOUNT-secret/", MountAccessor: "RAWENGACC-kv", MountType: "kv-v2", KVVersion: "2"}},
 	}
-	source := Source{CollectorInstanceID: "vaultlive-1"}
+	source := Source{CollectorInstanceID: "vaultlive-1", RedactionKey: testRedactionKey(t)}
 
 	target := testTarget()
 	target.Namespace = "RAWNAMESPACE-team"
@@ -260,7 +260,7 @@ func TestCollectSanitizesCredentialBearingSourceURI(t *testing.T) {
 	target.SourceURI = "https://vaultuser:s3cr3t-token@vault.example.com:8200/v1/sys/auth?token=abcd1234#frag"
 	client := &fakeVaultClient{authMounts: []AuthMount{{Path: "kubernetes/", Accessor: "acc", Method: "kubernetes"}}}
 
-	envelopes, err := Source{CollectorInstanceID: "vaultlive-1"}.Collect(context.Background(), target, client)
+	envelopes, err := Source{CollectorInstanceID: "vaultlive-1", RedactionKey: testRedactionKey(t)}.Collect(context.Background(), target, client)
 	if err != nil {
 		t.Fatalf("Collect() error = %v, want nil", err)
 	}
@@ -309,7 +309,7 @@ func TestCollectIsResilientToOneFamilyFailure(t *testing.T) {
 	t.Parallel()
 
 	base := &fakeVaultClient{authMounts: []AuthMount{{Path: "kubernetes/", Accessor: "acc", Method: "kubernetes"}}}
-	envelopes, err := Source{CollectorInstanceID: "vaultlive-1"}.Collect(context.Background(), testTarget(), aclFailClient{base})
+	envelopes, err := Source{CollectorInstanceID: "vaultlive-1", RedactionKey: testRedactionKey(t)}.Collect(context.Background(), testTarget(), aclFailClient{base})
 	if err != nil {
 		t.Fatalf("Collect() error = %v, want nil (one family failure must not fail the generation)", err)
 	}
@@ -351,7 +351,7 @@ func TestCollectContextCancellationIsFatal(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := Source{CollectorInstanceID: "vaultlive-1"}.Collect(ctx, testTarget(), allFailClient{&fakeVaultClient{}})
+	_, err := Source{CollectorInstanceID: "vaultlive-1", RedactionKey: testRedactionKey(t)}.Collect(ctx, testTarget(), allFailClient{&fakeVaultClient{}})
 	if err == nil {
 		t.Fatal("Collect() error = nil, want fatal on context cancellation")
 	}

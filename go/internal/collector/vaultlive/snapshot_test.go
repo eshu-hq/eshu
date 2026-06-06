@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -31,12 +32,22 @@ func fixedClock() func() time.Time {
 	return func() time.Time { return t }
 }
 
+func testRedactionKey(t *testing.T) redact.Key {
+	t.Helper()
+	key, err := redact.NewKey([]byte("vault-live-test-redaction-key"))
+	if err != nil {
+		t.Fatalf("NewKey() error = %v", err)
+	}
+	return key
+}
+
 func TestSnapshotSourceYieldsGenerationPerTarget(t *testing.T) {
 	t.Parallel()
 
 	source := &SnapshotSource{
 		Config: Config{
 			CollectorInstanceID: "vaultlive-1",
+			RedactionKey:        testRedactionKey(t),
 			Targets: []ClusterTarget{
 				{VaultClusterID: "vault-a", Namespace: "admin", FencingToken: 1, SourceURI: "https://a:8200"},
 				{VaultClusterID: "vault-b", Namespace: "team", FencingToken: 1},
@@ -88,6 +99,31 @@ func TestSnapshotSourceYieldsGenerationPerTarget(t *testing.T) {
 	}
 }
 
+func TestSnapshotSourceScopeMetadataDoesNotExposeRawNamespace(t *testing.T) {
+	t.Parallel()
+
+	source := &SnapshotSource{
+		Config: Config{
+			CollectorInstanceID: "vaultlive-1",
+			RedactionKey:        testRedactionKey(t),
+			Targets:             []ClusterTarget{{VaultClusterID: "vault-a", Namespace: "admin/platform", FencingToken: 1}},
+		},
+		ClientFactory: &fakeClientFactory{client: snapshotFixtureClient()},
+		Clock:         fixedClock(),
+	}
+
+	gen, ok, err := source.Next(context.Background())
+	if err != nil || !ok {
+		t.Fatalf("Next() ok=%v err=%v, want generation", ok, err)
+	}
+	if raw := gen.Scope.Metadata["namespace"]; raw != "" {
+		t.Fatalf("scope metadata exposed raw namespace %q", raw)
+	}
+	if got := gen.Scope.Metadata["namespace_present"]; got != "true" {
+		t.Fatalf("scope metadata namespace_present = %q, want true", got)
+	}
+}
+
 func TestSnapshotSourceMarksPartialFreshnessOnCoverageWarning(t *testing.T) {
 	t.Parallel()
 
@@ -95,7 +131,7 @@ func TestSnapshotSourceMarksPartialFreshnessOnCoverageWarning(t *testing.T) {
 
 	// Complete coverage: a fully-listing client yields a complete generation.
 	complete := &SnapshotSource{
-		Config:        Config{CollectorInstanceID: "ci", Targets: []ClusterTarget{{VaultClusterID: "vault-a", Namespace: "admin", FencingToken: 1}}},
+		Config:        Config{CollectorInstanceID: "ci", RedactionKey: testRedactionKey(t), Targets: []ClusterTarget{{VaultClusterID: "vault-a", Namespace: "admin", FencingToken: 1}}},
 		ClientFactory: &fakeClientFactory{client: base},
 		Clock:         fixedClock(),
 	}
@@ -110,7 +146,7 @@ func TestSnapshotSourceMarksPartialFreshnessOnCoverageWarning(t *testing.T) {
 	// Partial coverage: one failing family must mark the generation partial so
 	// status surfaces do not read it as complete.
 	partial := &SnapshotSource{
-		Config:        Config{CollectorInstanceID: "ci", Targets: []ClusterTarget{{VaultClusterID: "vault-b", Namespace: "team", FencingToken: 1}}},
+		Config:        Config{CollectorInstanceID: "ci", RedactionKey: testRedactionKey(t), Targets: []ClusterTarget{{VaultClusterID: "vault-b", Namespace: "team", FencingToken: 1}}},
 		ClientFactory: &fakeClientFactory{client: aclFailClient{base}},
 		Clock:         fixedClock(),
 	}
@@ -132,17 +168,21 @@ func TestSnapshotSourceValidatesConfig(t *testing.T) {
 			ClientFactory: &fakeClientFactory{client: snapshotFixtureClient()},
 		},
 		"no targets": {
-			Config:        Config{CollectorInstanceID: "ci"},
+			Config:        Config{CollectorInstanceID: "ci", RedactionKey: testRedactionKey(t)},
 			ClientFactory: &fakeClientFactory{client: snapshotFixtureClient()},
 		},
 		"duplicate target": {
-			Config: Config{CollectorInstanceID: "ci", Targets: []ClusterTarget{
+			Config: Config{CollectorInstanceID: "ci", RedactionKey: testRedactionKey(t), Targets: []ClusterTarget{
 				{VaultClusterID: "v", Namespace: "n"}, {VaultClusterID: "v", Namespace: "n"},
 			}},
 			ClientFactory: &fakeClientFactory{client: snapshotFixtureClient()},
 		},
+		"missing redaction key": {
+			Config:        Config{CollectorInstanceID: "ci", Targets: []ClusterTarget{{VaultClusterID: "v"}}},
+			ClientFactory: &fakeClientFactory{client: snapshotFixtureClient()},
+		},
 		"nil client factory": {
-			Config: Config{CollectorInstanceID: "ci", Targets: []ClusterTarget{{VaultClusterID: "v"}}},
+			Config: Config{CollectorInstanceID: "ci", RedactionKey: testRedactionKey(t), Targets: []ClusterTarget{{VaultClusterID: "v"}}},
 		},
 	}
 	for name, source := range cases {
@@ -180,7 +220,7 @@ func TestSnapshotSourceSurfacesClientFactoryError(t *testing.T) {
 	t.Parallel()
 
 	source := &SnapshotSource{
-		Config:        Config{CollectorInstanceID: "ci", Targets: []ClusterTarget{{VaultClusterID: "v"}}},
+		Config:        Config{CollectorInstanceID: "ci", RedactionKey: testRedactionKey(t), Targets: []ClusterTarget{{VaultClusterID: "v"}}},
 		ClientFactory: &fakeClientFactory{err: context.DeadlineExceeded},
 		Clock:         fixedClock(),
 	}

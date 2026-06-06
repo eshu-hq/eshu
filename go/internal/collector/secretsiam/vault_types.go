@@ -1,6 +1,10 @@
 package secretsiam
 
-import "time"
+import (
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/redact"
+)
 
 const (
 	// ProviderVault identifies Vault metadata source evidence in the
@@ -27,6 +31,7 @@ type VaultContext struct {
 	FencingToken        int64
 	ObservedAt          time.Time
 	SourceURI           string
+	RedactionKey        redact.Key
 }
 
 // VaultAuthMountObservation describes one Vault auth method mount. Mount paths

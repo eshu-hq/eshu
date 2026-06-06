@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
 func vaultEnvelopeContext(ctx VaultContext) EnvelopeContext {
@@ -23,7 +24,7 @@ func vaultEnvelopeContext(ctx VaultContext) EnvelopeContext {
 func vaultPayload(ctx VaultContext) map[string]any {
 	return map[string]any{
 		"vault_cluster_id":         strings.TrimSpace(ctx.VaultClusterID),
-		"namespace_fingerprint":    fingerprintVaultValue("namespace", ctx.Namespace),
+		"namespace_fingerprint":    fingerprintVaultValue(ctx, "namespace", ctx.Namespace),
 		"namespace_depth":          vaultPathDepth(ctx.Namespace),
 		"provider":                 ProviderVault,
 		"collector_instance_id":    strings.TrimSpace(ctx.CollectorInstanceID),
@@ -36,7 +37,7 @@ func vaultMountJoinKey(ctx VaultContext, mountPath string) (string, error) {
 	if mountPath == "" {
 		return "", fmt.Errorf("vault mount join requires mount_path")
 	}
-	return fingerprintVaultParts("mount_join", ctx.VaultClusterID, ctx.Namespace, mountPath), nil
+	return fingerprintVaultParts(ctx, "mount_join", ctx.VaultClusterID, ctx.Namespace, mountPath), nil
 }
 
 func vaultRoleJoinKey(ctx VaultContext, mountPath, roleName string) (string, error) {
@@ -48,7 +49,7 @@ func vaultRoleJoinKey(ctx VaultContext, mountPath, roleName string) (string, err
 	if roleName == "" {
 		return "", fmt.Errorf("vault role join requires role_name")
 	}
-	return fingerprintVaultParts("auth_role_join", mountKey, roleName), nil
+	return fingerprintVaultParts(ctx, "auth_role_join", mountKey, roleName), nil
 }
 
 func vaultPolicyJoinKey(ctx VaultContext, policyName string) (string, error) {
@@ -56,7 +57,7 @@ func vaultPolicyJoinKey(ctx VaultContext, policyName string) (string, error) {
 	if policyName == "" {
 		return "", fmt.Errorf("vault policy join requires policy_name")
 	}
-	return fingerprintVaultParts("policy_join", ctx.VaultClusterID, ctx.Namespace, policyName), nil
+	return fingerprintVaultParts(ctx, "policy_join", ctx.VaultClusterID, ctx.Namespace, policyName), nil
 }
 
 func vaultEntityJoinKey(ctx VaultContext, entityID string) (string, error) {
@@ -64,7 +65,7 @@ func vaultEntityJoinKey(ctx VaultContext, entityID string) (string, error) {
 	if entityID == "" {
 		return "", fmt.Errorf("vault identity entity join requires entity_id")
 	}
-	return fingerprintVaultParts("entity_join", ctx.VaultClusterID, ctx.Namespace, entityID), nil
+	return fingerprintVaultParts(ctx, "entity_join", ctx.VaultClusterID, ctx.Namespace, entityID), nil
 }
 
 func vaultPolicyJoinKeys(ctx VaultContext, policyNames []string) []string {
@@ -127,14 +128,14 @@ func hasWildcard(values []string) bool {
 	return false
 }
 
-func vaultPolicyRulePayloads(rules []VaultACLPolicyRuleSummary) []map[string]any {
+func vaultPolicyRulePayloads(ctx VaultContext, rules []VaultACLPolicyRuleSummary) []map[string]any {
 	if len(rules) == 0 {
 		return []map[string]any{}
 	}
 	output := make([]map[string]any, 0, len(rules))
 	for _, rule := range rules {
 		output = append(output, map[string]any{
-			"path_fingerprint": fingerprintVaultPath(rule.Path),
+			"path_fingerprint": fingerprintVaultPath(ctx, rule.Path),
 			"path_depth":       vaultPathDepth(rule.Path),
 			"capabilities":     normalizeActionList(rule.Capabilities),
 		})
@@ -142,39 +143,40 @@ func vaultPolicyRulePayloads(rules []VaultACLPolicyRuleSummary) []map[string]any
 	return output
 }
 
-func fingerprintVaultValues(kind string, values []string) []string {
+func fingerprintVaultValues(ctx VaultContext, kind string, values []string) []string {
 	values = normalizeKeyList(values)
 	output := make([]string, 0, len(values))
 	for _, value := range values {
-		output = append(output, fingerprintVaultValue(kind, value))
+		output = append(output, fingerprintVaultValue(ctx, kind, value))
 	}
 	return output
 }
 
-func fingerprintVaultPath(path string) string {
-	return fingerprintVaultValue("path", canonicalVaultPath(path))
+func fingerprintVaultPath(ctx VaultContext, path string) string {
+	return fingerprintVaultValue(ctx, "path", canonicalVaultPath(path))
 }
 
-func fingerprintVaultMountPath(path string) string {
-	return fingerprintVaultValue("mount_path", canonicalVaultPath(path))
+func fingerprintVaultMountPath(ctx VaultContext, path string) string {
+	return fingerprintVaultValue(ctx, "mount_path", canonicalVaultPath(path))
 }
 
-func fingerprintVaultValue(kind, value string) string {
+func fingerprintVaultValue(ctx VaultContext, kind, value string) string {
 	if strings.TrimSpace(value) == "" {
 		return ""
 	}
-	return fingerprintVaultParts(kind, value)
+	return fingerprintVaultParts(ctx, kind, value)
 }
 
-func fingerprintVaultParts(kind string, parts ...string) string {
+func fingerprintVaultParts(ctx VaultContext, kind string, parts ...string) string {
 	normalized := make([]string, 0, len(parts))
 	for _, part := range parts {
 		normalized = append(normalized, strings.TrimSpace(part))
 	}
-	return "sha256:" + facts.StableID("SecretsIAMVaultFingerprint", map[string]any{
+	rawIdentity := facts.StableID("SecretsIAMVaultFingerprint", map[string]any{
 		"kind":  strings.TrimSpace(kind),
 		"parts": normalized,
 	})
+	return redact.String(rawIdentity, "vault_metadata", strings.TrimSpace(kind), ctx.RedactionKey).Marker
 }
 
 func vaultPathDepth(path string) int {

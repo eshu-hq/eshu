@@ -2,8 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"sync/atomic"
+	"time"
 
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -11,39 +15,62 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/vaultlive"
 	"github.com/eshu-hq/eshu/go/internal/collector/vaultlive/vaultapi"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// buildCollectorService wires the read-only Vault metadata snapshot source onto
-// the shared collector commit boundary.
-func buildCollectorService(
+var fallbackClaimSequence uint64
+
+func buildClaimedService(
 	database postgres.ExecQueryer,
 	getenv func(string) string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
-) (collector.Service, error) {
-	config, err := loadRuntimeConfig(getenv)
+) (collector.ClaimedService, error) {
+	config, err := loadClaimedRuntimeConfig(getenv)
 	if err != nil {
-		return collector.Service{}, err
+		return collector.ClaimedService{}, err
+	}
+	source, err := vaultlive.NewClaimedSource(vaultlive.ClaimedSourceConfig{
+		Config:        config.Collector,
+		ClientFactory: vaultClientFactory{auth: config.Auth, instruments: instruments},
+		Tracer:        tracer,
+		Instruments:   instruments,
+		Logger:        logger,
+	})
+	if err != nil {
+		return collector.ClaimedService{}, err
 	}
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
-	return collector.Service{
-		Source: &vaultlive.SnapshotSource{
-			Config:        config.Collector,
-			ClientFactory: vaultClientFactory{auth: config.Auth, instruments: instruments},
-			Tracer:        tracer,
-			Instruments:   instruments,
-			Logger:        logger,
-		},
-		Committer:    committer,
-		PollInterval: config.PollInterval,
-		Tracer:       tracer,
-		Instruments:  instruments,
-		Logger:       logger,
+	return collector.ClaimedService{
+		ControlStore:        postgres.NewWorkflowControlStore(database),
+		Source:              source,
+		Committer:           committer,
+		CollectorKind:       scope.CollectorVaultLive,
+		CollectorInstanceID: config.Instance.InstanceID,
+		OwnerID:             config.OwnerID,
+		ClaimIDFunc:         newClaimID,
+		PollInterval:        config.PollInterval,
+		ClaimLeaseTTL:       config.ClaimLeaseTTL,
+		HeartbeatInterval:   config.HeartbeatInterval,
+		MaxAttempts:         workflow.DefaultClaimMaxAttempts(),
+		Clock:               time.Now,
+		Tracer:              tracer,
+		Instruments:         instruments,
 	}, nil
+}
+
+func newClaimID() string {
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err == nil {
+		return "vault-live-claim-" + hex.EncodeToString(raw[:])
+	}
+	next := atomic.AddUint64(&fallbackClaimSequence, 1)
+	return fmt.Sprintf("vault-live-claim-fallback-%d-%d", time.Now().UTC().UnixNano(), next)
 }
 
 // vaultAuth holds the read-only connection settings for one Vault target. The
@@ -72,9 +99,13 @@ func authKey(clusterID, namespace string) string {
 }
 
 func (f vaultClientFactory) Client(_ context.Context, target vaultlive.ClusterTarget) (vaultlive.Client, error) {
+	scopeID, err := vaultlive.VaultScopeID(target.VaultClusterID, target.Namespace)
+	if err != nil {
+		return nil, fmt.Errorf("build vault target scope_id: %w", err)
+	}
 	auth, ok := f.auth[authKey(target.VaultClusterID, target.Namespace)]
 	if !ok {
-		return nil, fmt.Errorf("no auth config for vault cluster %q namespace %q", target.VaultClusterID, target.Namespace)
+		return nil, fmt.Errorf("no auth config for vault target scope_id %q", scopeID)
 	}
 	client, err := vaultapi.New(vaultapi.Config{
 		Address:   auth.Address,
@@ -83,7 +114,7 @@ func (f vaultClientFactory) Client(_ context.Context, target vaultlive.ClusterTa
 		OnAPICall: f.apiCallObserver(),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("build vault client for cluster %q namespace %q: %w", target.VaultClusterID, target.Namespace, err)
+		return nil, fmt.Errorf("build vault client for vault target scope_id %q: %w", scopeID, err)
 	}
 	return client, nil
 }
