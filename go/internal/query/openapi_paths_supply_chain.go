@@ -120,7 +120,7 @@ const openAPIPathsSupplyChain = `
                           "image_ref": {"type": "string"},
                           "dependency_scope": {"type": "string"},
                           "workload_ids": {"type": "array", "items": {"type": "string"}},
-                          "deployment_ids": {"type": "array", "items": {"type": "string"}, "description": "Deployment mapping anchors from reducer_platform_materialization. These prove a repository/workload has deployment-lane evidence but do not imply environment or runtime image proof."},
+                          "deployment_ids": {"type": "array", "items": {"type": "string"}, "description": "Deployment mapping anchors from repository-scoped reducer_platform_materialization evidence. These prove a repository has deployment-lane evidence but do not imply workload identity, environment, or runtime image proof."},
                           "service_ids": {"type": "array", "items": {"type": "string"}},
                           "environments": {"type": "array", "items": {"type": "string"}},
                           "dependency_path": {"type": "array", "items": {"type": "string"}},

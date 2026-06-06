@@ -400,7 +400,7 @@ func platformMaterializationImpactFact(factID string, repositoryID string, deplo
 	scopeID := "git-repository-scope:" + repositoryID
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: "reducer_platform_materialization",
+		FactKind: platformMaterializationFactKind,
 		ScopeID:  scopeID,
 		Payload: map[string]any{
 			"scope_id":          scopeID,
