@@ -161,6 +161,25 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   bounded `uid = ANY(...)` query). Unlike `graph_projection_phase_state` it proves
   a *specific node* committed, which the scope/generation-keyed phase table
   cannot express across scopes.
+- `secrets_iam_endpoint_not_ready` is a non-counting reducer retry class. It
+  stays `retrying` with normal backoff and preserves the specific failure class,
+  but single and batch claims do not increment `attempt_count` while that class
+  is pending. This lets cross-scope endpoint readiness wait past
+  `ESHU_REDUCER_MAX_ATTEMPTS` without terminally dropping edges.
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run
+'TestReducerQueueFailDefersSecretsIAMEndpointReadinessPastAttemptBudget|TestReducerQueueClaimDoesNotCountSecretsIAMEndpointReadinessDefers|TestClaimBatchDoesNotCountSecretsIAMEndpointReadinessDefers'
+-count=1` failed before #1391 because over-budget
+`secrets_iam_endpoint_not_ready` dead-lettered and both claim paths consumed
+`attempt_count`; it passed after the class became a deferred retry and both
+claim SQL shapes preserved the attempt budget.
+
+Observability Evidence: the change adds no metric or status field. Existing
+queue status, latest-failure, queue-blockage, and
+`eshu_dp_postgres_query_duration_seconds{store="queue"}` signals keep exposing
+retrying/dead-letter counts, `visible_at` backoff, claim latency, and the
+specific `failure_class=secrets_iam_endpoint_not_ready` needed to diagnose
+blocked cross-scope endpoint readiness.
 
 ## Extension points
 

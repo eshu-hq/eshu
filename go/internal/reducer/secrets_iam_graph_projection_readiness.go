@@ -6,6 +6,10 @@ import (
 	"sort"
 )
 
+// SecretsIAMEndpointNotReadyFailureClass identifies a cross-scope endpoint
+// readiness miss that should defer without consuming the reducer retry budget.
+const SecretsIAMEndpointNotReadyFailureClass = "secrets_iam_endpoint_not_ready"
+
 // checkEndpointReadiness gates the secrets/IAM graph projection on uid-exact
 // cross-scope endpoint readiness (issue #1380). It collects the distinct
 // KubernetesWorkload and CloudResource endpoint uids the extracted edges
@@ -98,5 +102,5 @@ func (e secretsIAMEndpointsNotReadyError) Error() string {
 func (secretsIAMEndpointsNotReadyError) Retryable() bool { return true }
 
 func (secretsIAMEndpointsNotReadyError) FailureClass() string {
-	return "secrets_iam_endpoint_not_ready"
+	return SecretsIAMEndpointNotReadyFailureClass
 }

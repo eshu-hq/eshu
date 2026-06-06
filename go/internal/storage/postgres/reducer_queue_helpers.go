@@ -137,8 +137,18 @@ func scanReducerIntent(rows Rows) (reducer.Intent, error) {
 	return intent, nil
 }
 
-func (q ReducerQueue) retryable(cause error, attemptCount int) bool {
-	return reducer.IsRetryable(cause) && attemptCount < q.maxAttempts()
+func (q ReducerQueue) retryable(cause error, failureClass string, attemptCount int) bool {
+	if !reducer.IsRetryable(cause) {
+		return false
+	}
+	if isNonCountingReducerRetryFailureClass(failureClass) {
+		return true
+	}
+	return attemptCount < q.maxAttempts()
+}
+
+func isNonCountingReducerRetryFailureClass(failureClass string) bool {
+	return failureClass == reducer.SecretsIAMEndpointNotReadyFailureClass
 }
 
 func (q ReducerQueue) failIntent(
@@ -158,12 +168,15 @@ func (q ReducerQueue) failIntent(
 		q.LeaseOwner,
 	}
 
-	if q.retryable(cause, intent.AttemptCount) {
-		failureClass = "reducer_retryable"
+	if q.retryable(cause, failureClass, intent.AttemptCount) {
+		retryFailureClass := "reducer_retryable"
+		if isNonCountingReducerRetryFailureClass(failureClass) {
+			retryFailureClass = failureClass
+		}
 		query = retryReducerWorkQuery
 		args = []any{
 			now,
-			failureClass,
+			retryFailureClass,
 			failureMessage,
 			failureDetails,
 			now.Add(q.retryDelay()),
