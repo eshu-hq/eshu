@@ -108,6 +108,10 @@ dependency scope/type when the lockfile reports it, and
 `extraction_reason="lockfile_exact_version"`. Malformed supported lockfiles
 emit `sbom.warning` with `reason="lockfile_malformed"` and the relative
 lockfile path; they do not leak the runtime-local repository root.
+NPM `package-lock.json` package entries may encode dependency edges as version
+range strings. Those ranges are accepted so the lockfile remains usable, but
+they are not emitted as installed-version components unless a sibling lockfile
+entry supplies the exact installed version.
 
 `os_package_extraction` targets are configured inside the selected
 `scanner_worker` collector instance:
@@ -150,12 +154,13 @@ dead-letter, metric, log, or public documentation payloads.
 No-Regression Evidence: scanner-worker runtime behavior is covered by
 `go test ./internal/collector/scannerworker ./internal/collector/scannerworker/imageanalyzer ./internal/collector/scannerworker/sbomgenerator ./internal/collector/ospackagevulnerability/osruntime ./cmd/scanner-worker -count=1`.
 
-No-Regression Evidence: `go test ./cmd/scanner-worker -run 'TestRepositorySBOMSource(ParsesCargoAndComposerLockfiles|ParsesPythonRubyAndGradleLockfiles|EmitsMalformedLockfileWarning)' -count=1`
-proved repository SBOM generation extracts Cargo, Composer, PyPI, RubyGems,
-Gradle/Maven, and NuGet exact lockfile components with ecosystem, relative
-path, dependency scope/type, PURL, and extraction reason, while malformed
-Composer lockfiles produce bounded `sbom.warning` evidence instead of terminal
-analyzer failure or silent clean output.
+No-Regression Evidence: `go test ./cmd/scanner-worker -run 'TestRepositorySBOMSource(ParsesNPMPackageDependencyRanges|ParsesCargoAndComposerLockfiles|ParsesPythonRubyAndGradleLockfiles|EmitsMalformedLockfileWarning)|TestNPMLockDependencyUnmarshalStringResetsPriorObject' -count=1`
+proved repository SBOM generation accepts npm package dependency range maps,
+extracts Cargo, Composer, PyPI, RubyGems, Gradle/Maven, and NuGet exact
+lockfile components with ecosystem, relative path, dependency scope/type, PURL,
+and extraction reason, while malformed Composer lockfiles produce bounded
+`sbom.warning` evidence instead of terminal analyzer failure or silent clean
+output.
 
 Observability Evidence: the runtime records scanner-worker claim, retry,
 dead-letter, facts-emitted, queue-wait, scan-duration, target-count,
