@@ -349,12 +349,9 @@ selector from the private provider configuration or the canonical Eshu
 repository id returned by repository readbacks; the verifier uses those anchors
 only for matching and does not print them.
 
-Use `minimums.documentation_findings`, `minimums.incident_contexts`, and
-`minimums.work_item_evidence` for Confluence/PagerDuty/Jira target evidence.
-Positive source minimums require `ESHU_REMOTE_E2E_MCP_URL`; aggregate collector
-counts are not target proof. Disabled or unsupported source families keep
-minimum `0` and set `unsupported_target_evidence`; missing positive evidence
-reports only `target_not_linked`.
+Use `minimums.documentation_findings`, `minimums.incident_contexts`, and `minimums.work_item_evidence` for Confluence/PagerDuty/Jira target evidence.
+Positive source minimums require `ESHU_REMOTE_E2E_MCP_URL`; aggregate collector counts are not target proof.
+Disabled/unsupported source families keep minimum `0` and set `unsupported_target_evidence` to `collector_disabled`, `source_not_configured`, `capability_not_supported`, or `target_link_not_modeled`; missing positive evidence reports only `target_not_linked`.
 
 ### Reducer Evidence Rows
 
