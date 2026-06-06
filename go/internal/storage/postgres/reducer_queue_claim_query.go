@@ -80,6 +80,18 @@ candidate AS (
             AND aws_nodes.keyspace = 'cloud_resource_uid'
             AND aws_nodes.phase = 'canonical_nodes_committed'
       ))
+      -- IAM permission edge domains use the same CloudResource readiness slice
+      -- as the broad AWS graph-write gate above.
+      AND (domain NOT IN ('iam_escalation_materialization', 'iam_can_perform_materialization') OR EXISTS (
+          SELECT 1
+          FROM graph_projection_phase_state AS iam_permission_nodes
+          WHERE iam_permission_nodes.scope_id = fact_work_items.scope_id
+            AND iam_permission_nodes.acceptance_unit_id = COALESCE(NULLIF(fact_work_items.payload->>'entity_key', ''), fact_work_items.scope_id)
+            AND iam_permission_nodes.source_run_id = fact_work_items.generation_id
+            AND iam_permission_nodes.generation_id = fact_work_items.generation_id
+            AND iam_permission_nodes.keyspace = 'cloud_resource_uid'
+            AND iam_permission_nodes.phase = 'canonical_nodes_committed'
+      ))
       -- The EC2 USES_PROFILE edge (#1146 PR-B) consumes TWO CloudResource node
       -- families that publish their canonical_nodes_committed phase under DIFFERENT
       -- entity keys for the same scope/generation: the EC2 instance source node

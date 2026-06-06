@@ -105,6 +105,17 @@ WITH candidate AS (
             AND aws_nodes.keyspace = 'cloud_resource_uid'
             AND aws_nodes.phase = 'canonical_nodes_committed'
       ))
+      -- IAM permission edge domains use the same CloudResource readiness slice as the broad AWS graph-write gate above.
+      AND (domain NOT IN ('iam_escalation_materialization', 'iam_can_perform_materialization') OR EXISTS (
+          SELECT 1
+          FROM graph_projection_phase_state AS iam_permission_nodes
+          WHERE iam_permission_nodes.scope_id = fact_work_items.scope_id
+            AND iam_permission_nodes.acceptance_unit_id = COALESCE(NULLIF(fact_work_items.payload->>'entity_key', ''), fact_work_items.scope_id)
+            AND iam_permission_nodes.source_run_id = fact_work_items.generation_id
+            AND iam_permission_nodes.generation_id = fact_work_items.generation_id
+            AND iam_permission_nodes.keyspace = 'cloud_resource_uid'
+            AND iam_permission_nodes.phase = 'canonical_nodes_committed'
+      ))
       -- The EC2 USES_PROFILE edge (#1146 PR-B) gates on TWO node families published
       -- under DIFFERENT entity keys for the same scope/generation: the EC2 instance
       -- source node (ec2_instance_node_materialization:<scope>, #1146 PR-A) and the
@@ -238,6 +249,16 @@ WITH candidate AS (
                   AND same_nodes.generation_id = same.generation_id
                   AND same_nodes.keyspace = 'cloud_resource_uid'
                   AND same_nodes.phase = 'canonical_nodes_committed'
+            ))
+            AND (same.domain NOT IN ('iam_escalation_materialization', 'iam_can_perform_materialization') OR EXISTS (
+                SELECT 1
+                FROM graph_projection_phase_state AS same_iam_permission_nodes
+                WHERE same_iam_permission_nodes.scope_id = same.scope_id
+                  AND same_iam_permission_nodes.acceptance_unit_id = COALESCE(NULLIF(same.payload->>'entity_key', ''), same.scope_id)
+                  AND same_iam_permission_nodes.source_run_id = same.generation_id
+                  AND same_iam_permission_nodes.generation_id = same.generation_id
+                  AND same_iam_permission_nodes.keyspace = 'cloud_resource_uid'
+                  AND same_iam_permission_nodes.phase = 'canonical_nodes_committed'
             ))
             AND (same.domain <> 'kubernetes_correlation_materialization' OR EXISTS (
                 SELECT 1

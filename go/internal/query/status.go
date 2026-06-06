@@ -1,6 +1,7 @@
 package query
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -38,13 +39,13 @@ func (h *StatusHandler) getPipelineStatus(w http.ResponseWriter, r *http.Request
 	}
 
 	opts := status.DefaultOptions()
-	report, err := status.LoadReport(r.Context(), h.StatusReader, time.Now(), opts)
+	raw, report, err := loadStatusReport(r.Context(), h.StatusReader, time.Now(), opts)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
 		return
 	}
 
-	WriteJSON(w, http.StatusOK, statusReportToMap(report))
+	WriteJSON(w, http.StatusOK, statusReportToMapWithRaw(report, raw))
 }
 
 // listCollectors returns the known coordinator-managed collector instances.
@@ -150,7 +151,7 @@ func (h *StatusHandler) getIngesterStatus(w http.ResponseWriter, r *http.Request
 		"coordinator":     coordinatorToMap(report.Coordinator),
 		"scope_activity":  scopeActivityToMap(report.ScopeActivity),
 		"stage_summaries": stageSummariesToSlice(report.StageSummaries),
-		"domain_backlogs": domainBacklogsToSlice(report.DomainBacklogs),
+		"domain_backlogs": domainBacklogsToSlice(report.DomainBacklogs, report.QueueBlockages),
 	})
 }
 
@@ -161,7 +162,7 @@ func (h *StatusHandler) getIndexStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	report, err := status.LoadReport(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions())
+	raw, report, err := loadStatusReport(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions())
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
 		return
@@ -177,20 +178,49 @@ func (h *StatusHandler) getIndexStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	payload := map[string]any{
-		"version":          buildinfo.AppVersion(),
-		"status":           report.Health.State,
-		"reasons":          report.Health.Reasons,
-		"repository_count": repoCount,
-		"queue":            queueToMap(report.Queue),
-		"coordinator":      coordinatorToMap(report.Coordinator),
-		"scope_activity":   scopeActivityToMap(report.ScopeActivity),
+		"version":             buildinfo.AppVersion(),
+		"status":              report.Health.State,
+		"reasons":             report.Health.Reasons,
+		"repository_count":    repoCount,
+		"queue":               queueToMap(report.Queue),
+		"coordinator":         coordinatorToMap(report.Coordinator),
+		"scope_activity":      scopeActivityToMap(report.ScopeActivity),
+		"aws_materialization": awsMaterializationStatusToMap(raw.DomainBacklogs, raw.QueueBlockages),
 	}
 	payload["terraform_state"] = terraformStateStatusToMap(report.TerraformState)
 	WriteJSON(w, http.StatusOK, payload)
 }
 
+func loadStatusReport(
+	ctx context.Context,
+	reader status.Reader,
+	asOf time.Time,
+	opts status.Options,
+) (status.RawSnapshot, status.Report, error) {
+	if reader == nil {
+		return status.RawSnapshot{}, status.Report{}, fmt.Errorf("status reader is required")
+	}
+	raw, err := reader.ReadStatusSnapshot(ctx, asOf.UTC())
+	if err != nil {
+		return status.RawSnapshot{}, status.Report{}, fmt.Errorf("read status snapshot: %w", err)
+	}
+	return raw, status.BuildReport(raw, opts), nil
+}
+
 // statusReportToMap converts a status.Report to a JSON-friendly map.
 func statusReportToMap(r status.Report) map[string]any {
+	return statusReportToMapWithAWS(r, r.DomainBacklogs, r.QueueBlockages)
+}
+
+func statusReportToMapWithRaw(r status.Report, raw status.RawSnapshot) map[string]any {
+	return statusReportToMapWithAWS(r, raw.DomainBacklogs, raw.QueueBlockages)
+}
+
+func statusReportToMapWithAWS(
+	r status.Report,
+	awsDomains []status.DomainBacklog,
+	awsBlockages []status.QueueBlockage,
+) map[string]any {
 	result := map[string]any{
 		"version":                buildinfo.AppVersion(),
 		"as_of":                  r.AsOf.Format(time.RFC3339),
@@ -203,7 +233,9 @@ func statusReportToMap(r status.Report) map[string]any {
 		"scope_totals":           r.ScopeTotals,
 		"generation_totals":      r.GenerationTotals,
 		"stage_summaries":        stageSummariesToSlice(r.StageSummaries),
-		"domain_backlogs":        domainBacklogsToSlice(r.DomainBacklogs),
+		"domain_backlogs":        domainBacklogsToSlice(r.DomainBacklogs, r.QueueBlockages),
+		"queue_blockages":        queueBlockagesToSlice(r.QueueBlockages),
+		"aws_materialization":    awsMaterializationStatusToMap(awsDomains, awsBlockages),
 		"flow_summaries":         flowSummariesToSlice(r.FlowSummaries),
 		"retry_policies":         retryPoliciesToSlice(r.RetryPolicies),
 	}
@@ -281,20 +313,33 @@ func stageSummariesToSlice(stages []status.StageSummary) []map[string]any {
 }
 
 // domainBacklogsToSlice converts []DomainBacklog to a slice of maps.
-func domainBacklogsToSlice(domains []status.DomainBacklog) []map[string]any {
+func domainBacklogsToSlice(domains []status.DomainBacklog, blockages []status.QueueBlockage) []map[string]any {
 	if len(domains) == 0 {
 		return []map[string]any{}
 	}
 
+	blockedByDomain := queueBlockageCountsByDomain(blockages)
 	result := make([]map[string]any, 0, len(domains))
 	for _, d := range domains {
+		result = append(result, domainBacklogToMap(d, domainBacklogBuckets(d, blockedByDomain[d.Domain])))
+	}
+	return result
+}
+
+func queueBlockagesToSlice(blockages []status.QueueBlockage) []map[string]any {
+	if len(blockages) == 0 {
+		return []map[string]any{}
+	}
+
+	result := make([]map[string]any, 0, len(blockages))
+	for _, blockage := range blockages {
 		result = append(result, map[string]any{
-			"domain":      d.Domain,
-			"outstanding": d.Outstanding,
-			"retrying":    d.Retrying,
-			"dead_letter": d.DeadLetter,
-			"failed":      d.Failed,
-			"oldest_age":  d.OldestAge.Seconds(),
+			"stage":           blockage.Stage,
+			"domain":          blockage.Domain,
+			"conflict_domain": blockage.ConflictDomain,
+			"conflict_key":    blockage.ConflictKey,
+			"blocked":         blockage.Blocked,
+			"oldest_age":      blockage.OldestAge.Seconds(),
 		})
 	}
 	return result
