@@ -62,6 +62,10 @@ Redaction key and rule-set version are mandatory. The parser fails closed:
 - unknown provider-schema scalars are redacted
 - unknown composites are dropped and counted
 - schema-known composites are captured by the streaming nested walker
+- schema-known sensitive composites, including Lambda environment blocks, are
+  intentionally skipped with `reason=known_sensitive_key`
+- provider shapes without packaged schema proof, including
+  `cloudinit_config.part`, remain unsupported with `reason=schema_unknown`
 - tag keys and values still pass through classification
 
 `ESHU_TERRAFORM_SCHEMA_DIR` can override the packaged provider-schema bundle.

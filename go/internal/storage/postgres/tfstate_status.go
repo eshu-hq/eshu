@@ -92,6 +92,7 @@ func listTerraformStateRecentWarnings(
 		var warningKind string
 		var reason string
 		var source string
+		var sourceHandle string
 		var generationID string
 		var observedAt sql.NullTime
 		if scanErr := rows.Scan(
@@ -100,6 +101,7 @@ func listTerraformStateRecentWarnings(
 			&warningKind,
 			&reason,
 			&source,
+			&sourceHandle,
 			&generationID,
 			&observedAt,
 		); scanErr != nil {
@@ -111,6 +113,7 @@ func listTerraformStateRecentWarnings(
 			WarningKind:     strings.TrimSpace(warningKind),
 			Reason:          strings.TrimSpace(reason),
 			Source:          strings.TrimSpace(source),
+			SourceHandle:    strings.TrimSpace(sourceHandle),
 			GenerationID:    strings.TrimSpace(generationID),
 		}
 		if observedAt.Valid {

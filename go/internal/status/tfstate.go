@@ -27,6 +27,7 @@ type TerraformStateLocatorWarning struct {
 	WarningKind     string
 	Reason          string
 	Source          string
+	SourceHandle    string
 	GenerationID    string
 	ObservedAt      time.Time
 }

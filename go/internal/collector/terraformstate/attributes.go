@@ -15,6 +15,8 @@ type attributeValue struct {
 	TagMap                bool
 	Tags                  []tagValue
 	InvalidTagMap         bool
+	TagMapDropReason      string
+	TagMapSourceShape     string
 	Preclassified         bool
 	PreclassifiedDecision redact.Decision
 }
@@ -47,11 +49,18 @@ func (p *stateParser) readAttributeValues(resourceType string) ([]attributeValue
 		}
 		switch key {
 		case "tags", "tags_all":
-			tags, valid, err := readTagValues(p.decoder, key)
+			tags, dropReason, sourceShape, err := readTagValues(p.decoder, key)
 			if err != nil {
 				return nil, err
 			}
-			attributes = append(attributes, attributeValue{Key: key, TagMap: true, Tags: tags, InvalidTagMap: !valid})
+			attributes = append(attributes, attributeValue{
+				Key:               key,
+				TagMap:            true,
+				Tags:              tags,
+				InvalidTagMap:     dropReason != "",
+				TagMapDropReason:  dropReason,
+				TagMapSourceShape: sourceShape,
+			})
 		default:
 			value, scalar, decision, preclassified, err := p.readAttributeBody(resourceType, key)
 			if err != nil {
@@ -115,6 +124,14 @@ func (p *stateParser) readAttributeBody(resourceType string, key string) (any, b
 // intentionally the parser-local wildcard path used by composite skip logs; a
 // drop decision here must run before the walker sees raw nested values.
 func (p *stateParser) compositeCaptureDecision(resourceType string, key string) redact.Decision {
+	if isHardSensitiveStateAttribute(resourceType, key) {
+		return redact.Decision{
+			Action:         redact.ActionDrop,
+			Reason:         redact.ReasonKnownSensitiveKey,
+			Source:         compositeAttributeSource(key),
+			RuleSetVersion: p.options.RedactionRules.Version(),
+		}
+	}
 	return p.options.RedactionRules.Classify(
 		compositeAttributeSource(key),
 		p.schemaTrust(resourceType, key),

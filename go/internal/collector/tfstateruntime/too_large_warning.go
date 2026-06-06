@@ -6,6 +6,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -82,10 +83,42 @@ func (s ClaimedSource) sourceWarningGeneration(
 			WarningKind: warningKind,
 			Reason:      reason,
 			Source:      string(candidate.Source),
+			Details:     s.sourceWarningDetails(candidate, scopeValue, sourceKey),
 		},
 	})
 	if err != nil {
 		return collector.CollectedGeneration{}, err
 	}
 	return collector.FactsFromSlice(scopeValue, generationValue, []facts.Envelope{warning}), nil
+}
+
+func (s ClaimedSource) sourceWarningDetails(
+	candidate terraformstate.DiscoveryCandidate,
+	scopeValue scope.IngestionScope,
+	sourceKey terraformstate.StateKey,
+) map[string]any {
+	details := map[string]any{
+		"backend_kind":       string(sourceKey.BackendKind),
+		"safe_locator_hash":  scopeValue.Metadata["locator_hash"],
+		"source_handle":      scopeValue.ScopeID,
+		"candidate_identity": terraformstate.LocatorHash(sourceKey),
+		"source_locator": redactionValueMap(redact.String(
+			sourceKey.Locator,
+			"terraform_state_locator",
+			"terraform_state."+string(sourceKey.BackendKind)+".locator",
+			s.RedactionKey,
+		)),
+	}
+	if candidate.TargetScopeID != "" {
+		details["target_scope_id"] = candidate.TargetScopeID
+	}
+	return details
+}
+
+func redactionValueMap(value redact.Value) map[string]any {
+	return map[string]any{
+		"marker": value.Marker,
+		"reason": value.Reason,
+		"source": value.Source,
+	}
 }

@@ -101,8 +101,9 @@ Terraform-state source, parse, resource, redaction, and S3 not-modified metrics
 with bounded labels only. A missing S3 object is reported as
 `warning_kind=state_missing` rather than a retryable collect failure. Do not log
 or trace raw state locators, bucket names, keys, local paths, or work item IDs.
-Use backend kind, result, claim/run correlation, and the locator hash emitted
-in Terraform-state facts when you need to investigate a specific source.
+Use backend kind, result, claim/run correlation, `source_handle`, and the safe
+locator hash emitted in Terraform-state facts when you need to investigate a
+specific source.
 Unsupported composite attributes are reported as
 `warning_kind=unsupported_composite_attribute` summary facts keyed by
 `resource_type`, `attribute_key`, and `reason`; `occurrence_count` carries the
@@ -111,6 +112,10 @@ number of repeated state instances. Other composite safe drops use
 companion `eshu_dp_drift_schema_unknown_composite_total{resource_type,reason}`
 counter still increments for every skip, and warn logs are bounded to the first
 occurrence of each same shape.
+Lambda environment blocks are schema-backed but intentionally omitted as
+`composite_attribute_skipped` with `reason=known_sensitive_key`; unsupported
+provider shapes such as `cloudinit_config.part` remain
+`unsupported_composite_attribute` with `reason=schema_unknown`.
 
 `eshu_dp_tfstate_schema_resolver_entries` reports the number of Terraform
 resource types the loaded provider-schema bundle covers. The bundle is loaded

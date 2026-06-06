@@ -97,8 +97,9 @@ write, or new queue type.
 Observability Evidence: the existing Terraform-state source observation metric
 records `result=state_missing`, warning counters record
 `warning_kind=state_missing` with the bounded safe locator hash, and the emitted
-warning fact carries the source type without exposing bucket names or object
-keys.
+warning fact carries the source type, `source_handle`, `safe_locator_hash`,
+version-aware `candidate_identity`, and a redacted locator marker without
+exposing bucket names or object keys.
 The projector-owned `graph_projection_phase_state` rows and workflow
 completeness rows then show whether the warning-only generation reached the
 durable zero-row projection checkpoint.

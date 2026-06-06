@@ -35,6 +35,7 @@ func (p *stateParser) addSourceWarnings(warnings []SourceWarning) error {
 			WarningKind: strings.TrimSpace(warning.WarningKind),
 			Reason:      strings.TrimSpace(warning.Reason),
 			Source:      strings.TrimSpace(warning.Source),
+			Details:     warning.Details,
 		}
 		if payload.WarningKind == "" || payload.Reason == "" || payload.Source == "" {
 			continue

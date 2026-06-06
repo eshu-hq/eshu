@@ -142,4 +142,91 @@ func TestParserKeepsUnsupportedPackagedCompositeFailClosed(t *testing.T) {
 	if got, want := recorder.last.Reason, terraformstate.CompositeCaptureSkipReasonSchemaUnknown; got != want {
 		t.Fatalf("recorded Reason = %q, want %q", got, want)
 	}
+	warning := factByKind(t, result.Facts, facts.TerraformStateWarningFactKind)
+	if got, want := warning.Payload["warning_kind"], "unsupported_composite_attribute"; got != want {
+		t.Fatalf("warning_kind = %#v, want %#v", got, want)
+	}
+	if got, want := warning.Payload["reason"], terraformstate.CompositeCaptureSkipReasonSchemaUnknown; got != want {
+		t.Fatalf("reason = %#v, want %#v", got, want)
+	}
+	if got, want := warning.Payload["resource_type"], "cloudinit_config"; got != want {
+		t.Fatalf("resource_type = %#v, want %#v", got, want)
+	}
+	if got, want := warning.Payload["attribute_key"], "part"; got != want {
+		t.Fatalf("attribute_key = %#v, want %#v", got, want)
+	}
+}
+
+// TestParserClassifiesSensitivePackagedCompositeAsIntentionalSkip proves
+// schema-backed composites that are unsafe to persist are not reported as
+// provider-schema gaps. Lambda environment blocks are declared by the AWS
+// schema, but Eshu must drop them as intentionally unsupported sensitive state.
+func TestParserClassifiesSensitivePackagedCompositeAsIntentionalSkip(t *testing.T) {
+	t.Parallel()
+
+	resolver, err := terraformstate.LoadPackagedSchemaResolver(terraformschema.DefaultSchemaDir())
+	if err != nil {
+		t.Fatalf("LoadPackagedSchemaResolver() error = %v, want nil", err)
+	}
+	if resolver == nil {
+		t.Fatal("LoadPackagedSchemaResolver() = nil, want resolver loaded from packaged schemas")
+	}
+	if !resolver.HasAttribute("aws_lambda_function", "environment") {
+		t.Fatal("HasAttribute(aws_lambda_function, environment) = false, want packaged AWS schema proof")
+	}
+
+	recorder := &stubCompositeCaptureRecorder{}
+	options := parseFixtureOptions(t)
+	options.SchemaResolver = resolver
+	options.CompositeCaptureMetrics = recorder
+
+	state := `{
+		"serial":17,
+		"lineage":"lineage-123",
+		"resources":[{
+			"mode":"managed",
+			"type":"aws_lambda_function",
+			"name":"worker",
+			"instances":[{
+				"attributes":{
+					"function_name":"worker",
+					"environment":[{"variables":{"TOKEN":"plain-secret"}}]
+				}
+			}]
+		}]
+	}`
+
+	result, err := terraformstate.Parse(context.Background(), strings.NewReader(state), options)
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	assertNoRawSecret(t, result.Facts, "plain-secret")
+	resource := factByKind(t, result.Facts, facts.TerraformStateResourceFactKind)
+	attributes, ok := resource.Payload["attributes"].(map[string]any)
+	if !ok {
+		t.Fatalf("resource attributes = %#v, want map[string]any", resource.Payload["attributes"])
+	}
+	if _, present := attributes["environment"]; present {
+		t.Fatalf("attributes[environment] should be absent for sensitive Lambda environment block, got %#v", attributes["environment"])
+	}
+	if got, want := atomic.LoadInt64(&recorder.calls), int64(1); got != want {
+		t.Fatalf("composite skip calls = %d, want %d", got, want)
+	}
+	if got, want := recorder.last.Reason, terraformstate.CompositeCaptureSkipReasonSensitiveSource; got != want {
+		t.Fatalf("recorded Reason = %q, want %q", got, want)
+	}
+
+	warning := factByKind(t, result.Facts, facts.TerraformStateWarningFactKind)
+	if got, want := warning.Payload["warning_kind"], "composite_attribute_skipped"; got != want {
+		t.Fatalf("warning_kind = %#v, want %#v", got, want)
+	}
+	if got, want := warning.Payload["reason"], terraformstate.CompositeCaptureSkipReasonSensitiveSource; got != want {
+		t.Fatalf("reason = %#v, want %#v", got, want)
+	}
+	if got, want := warning.Payload["resource_type"], "aws_lambda_function"; got != want {
+		t.Fatalf("resource_type = %#v, want %#v", got, want)
+	}
+	if got, want := warning.Payload["attribute_key"], "environment"; got != want {
+		t.Fatalf("attribute_key = %#v, want %#v", got, want)
+	}
 }

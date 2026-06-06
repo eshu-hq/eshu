@@ -99,10 +99,11 @@ error class, freshness state, terminal status, result count, warning count, and
 the bounded collection window.
 
 `terraform_state` carries bounded Terraform-state status. `last_serials` and
-`recent_warnings` remain bounded admin evidence, and `warning_summary` groups
-recent warnings by `warning_kind`, `reason`, public `scope_class`, and `count`
-so release gates can reason about missing-state patterns without reading raw
-facts.
+`recent_warnings` remain bounded admin evidence; recent warning rows include
+public-safe `source_handle` and `safe_locator_hash` fields for source-level
+triage. `warning_summary` groups recent warnings by `warning_kind`, `reason`,
+public `scope_class`, and `count` so release gates can reason about
+missing-state patterns without reading raw facts.
 
 ## Recovery Routes
 

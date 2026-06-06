@@ -45,6 +45,18 @@ done
 subcommand="${1:-}"
 shift || true
 case "${subcommand}" in
+  config)
+    if [[ "${1:-}" == "--services" ]]; then
+      printf '%s\n' \
+        eshu mcp-server ingester projector resolution-engine workflow-coordinator \
+        collector-terraform-state collector-oci-registry collector-package-registry \
+        collector-sbom-attestation collector-security-alerts \
+        collector-vulnerability-intelligence collector-aws-cloud scanner-worker
+      exit 0
+    fi
+    echo "unexpected compose config args: $*" >&2
+    exit 2
+    ;;
   ps)
     service="${@: -1}"
     if [[ -f "${state_dir}/service_ids/${service}" ]]; then
@@ -180,6 +192,10 @@ cat >"${state_dir}/status-index.json" <<'JSON'
     "warning_summary": [
       {"warning_kind":"state_missing","reason":"s3_not_found","scope_class":"s3","count":2},
       {"warning_kind":"state_too_large","reason":"size_limit","scope_class":"local","count":1}
+    ],
+    "recent_warnings": [
+      {"safe_locator_hash":"hash-a","warning_kind":"state_missing","reason":"s3_not_found","source":"graph","source_handle":"state_snapshot:s3:hash-a"},
+      {"safe_locator_hash":"hash-b","warning_kind":"state_missing","reason":"s3_not_found","source":"graph","source_handle":"state_snapshot:s3:hash-b"}
     ]
   }
 }
@@ -192,6 +208,10 @@ cat >"${state_dir}/status-index.json" <<'JSON'
   "terraform_state": {
     "warning_summary": [
       {"warning_kind":"state_missing","reason":"s3_not_found","scope_class":"s3","count":2}
+    ],
+    "recent_warnings": [
+      {"safe_locator_hash":"hash-a","warning_kind":"state_missing","reason":"s3_not_found","source":"graph","source_handle":"state_snapshot:s3:hash-a"},
+      {"safe_locator_hash":"hash-b","warning_kind":"state_missing","reason":"s3_not_found","source":"graph","source_handle":"state_snapshot:s3:hash-b"}
     ]
   }
 }
@@ -200,6 +220,11 @@ export ESHU_REMOTE_E2E_TFSTATE_STATE_MISSING_MAX=2
 expect_pass
 if ! rg -q 'Terraform-state warning summary: warning_kind=state_missing reason=s3_not_found scope_class=s3 count=2' /tmp/eshu-remote-e2e-tfstate.out; then
   printf 'expected Terraform-state warning summary in verifier output\n' >&2
+  sed -n '1,240p' /tmp/eshu-remote-e2e-tfstate.out >&2
+  exit 1
+fi
+if ! rg -q 'Terraform-state warning detail: warning_kind=state_missing reason=s3_not_found source=graph source_handle=state_snapshot:s3:hash-a safe_locator_hash=hash-a' /tmp/eshu-remote-e2e-tfstate.out; then
+  printf 'expected actionable Terraform-state warning detail in verifier output\n' >&2
   sed -n '1,240p' /tmp/eshu-remote-e2e-tfstate.out >&2
   exit 1
 fi

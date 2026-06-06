@@ -29,6 +29,7 @@ type terraformStateWarningJSON struct {
 	WarningKind     string `json:"warning_kind"`
 	Reason          string `json:"reason,omitempty"`
 	Source          string `json:"source,omitempty"`
+	SourceHandle    string `json:"source_handle,omitempty"`
 	GenerationID    string `json:"generation_id,omitempty"`
 	ObservedAt      string `json:"observed_at,omitempty"`
 }
@@ -100,6 +101,7 @@ func warningRowJSON(row TerraformStateLocatorWarning) terraformStateWarningJSON 
 		WarningKind:     row.WarningKind,
 		Reason:          row.Reason,
 		Source:          row.Source,
+		SourceHandle:    row.SourceHandle,
 		GenerationID:    row.GenerationID,
 		ObservedAt:      nullableRFC3339Value(row.ObservedAt),
 	}
