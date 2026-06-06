@@ -77,11 +77,20 @@ func buildServiceInvestigationPacket(
 	workloadContext map[string]any,
 	opts serviceInvestigationOptions,
 ) map[string]any {
+	return buildServiceInvestigationPacketWithContext(serviceName, newServiceStoryBuildContext(workloadContext), opts)
+}
+
+func buildServiceInvestigationPacketWithContext(
+	serviceName string,
+	buildCtx serviceStoryBuildContext,
+	opts serviceInvestigationOptions,
+) map[string]any {
+	workloadContext := buildCtx.workloadContext
 	serviceName = canonicalServiceName(serviceName, workloadContext)
-	evidenceFamilies := serviceInvestigationEvidenceFamilies(workloadContext)
+	evidenceFamilies := serviceInvestigationEvidenceFamiliesWithContext(buildCtx)
 	repositories := serviceInvestigationRepositories(workloadContext, evidenceFamilies)
 	withEvidence := repositoriesWithEvidence(repositories)
-	findings := serviceInvestigationFindings(workloadContext, evidenceFamilies)
+	findings := serviceInvestigationFindingsWithContext(buildCtx, evidenceFamilies)
 	nextCalls := serviceInvestigationNextCalls(serviceName, workloadContext)
 	coverage := serviceInvestigationCoverage(workloadContext, repositories, withEvidence, evidenceFamilies)
 
@@ -108,11 +117,12 @@ func buildServiceInvestigationPacket(
 	return packet
 }
 
-func serviceInvestigationEvidenceFamilies(workloadContext map[string]any) []string {
+func serviceInvestigationEvidenceFamiliesWithContext(buildCtx serviceStoryBuildContext) []string {
+	workloadContext := buildCtx.workloadContext
 	families := make([]string, 0, 6)
-	if apiSurface := mapValue(workloadContext, "api_surface"); len(apiSurface) > 0 &&
-		(IntVal(apiSurface, "endpoint_count") > 0 || IntVal(apiSurface, "spec_count") > 0 ||
-			len(mapSliceValue(apiSurface, "endpoints")) > 0) {
+	if buildCtx.hasAPISurface &&
+		(IntVal(buildCtx.apiSurface, "endpoint_count") > 0 || IntVal(buildCtx.apiSurface, "spec_count") > 0 ||
+			len(mapSliceValue(buildCtx.apiSurface, "endpoints")) > 0) {
 		families = append(families, "api_surface")
 	}
 	if len(mapSliceValue(workloadContext, "instances")) > 0 || len(serviceDeploymentArtifacts(workloadContext)) > 0 {
@@ -229,23 +239,23 @@ func repositoriesWithEvidence(repositories []map[string]any) []map[string]any {
 	return withEvidence
 }
 
-func serviceInvestigationFindings(workloadContext map[string]any, evidenceFamilies []string) []map[string]any {
+func serviceInvestigationFindingsWithContext(buildCtx serviceStoryBuildContext, evidenceFamilies []string) []map[string]any {
 	findings := make([]map[string]any, 0, len(evidenceFamilies))
 	for _, family := range evidenceFamilies {
 		findings = append(findings, map[string]any{
 			"family":        family,
-			"summary":       serviceInvestigationFamilySummary(workloadContext, family),
+			"summary":       serviceInvestigationFamilySummaryWithContext(buildCtx, family),
 			"evidence_path": serviceInvestigationEvidencePath(family),
 		})
 	}
 	return findings
 }
 
-func serviceInvestigationFamilySummary(workloadContext map[string]any, family string) string {
+func serviceInvestigationFamilySummaryWithContext(buildCtx serviceStoryBuildContext, family string) string {
+	workloadContext := buildCtx.workloadContext
 	switch family {
 	case "api_surface":
-		apiSurface := mapValue(workloadContext, "api_surface")
-		return fmt.Sprintf("%d endpoint(s) across %d spec file(s)", IntVal(apiSurface, "endpoint_count"), IntVal(apiSurface, "spec_count"))
+		return fmt.Sprintf("%d endpoint(s) across %d spec file(s)", IntVal(buildCtx.apiSurface, "endpoint_count"), IntVal(buildCtx.apiSurface, "spec_count"))
 	case "deployment_lanes":
 		return fmt.Sprintf("%d runtime instance(s), %d deployment artifact(s)", len(mapSliceValue(workloadContext, "instances")), len(serviceDeploymentArtifacts(workloadContext)))
 	case "documentation":

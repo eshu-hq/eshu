@@ -184,12 +184,14 @@ func enrichServiceQueryContextWithOptions(
 		}
 		workloadContext["deployment_evidence"] = deploymentEvidence
 	}
-	if supportOverview := buildServiceSupportOverview(workloadContext); len(supportOverview) > 0 {
+	buildCtx := newServiceStoryBuildContext(workloadContext)
+	if supportOverview := buildServiceSupportOverviewWithContext(buildCtx); len(supportOverview) > 0 {
 		workloadContext["support_overview"] = supportOverview
 	}
 	timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "overview_assembly")
-	workloadContext["deployment_overview"] = buildServiceDeploymentOverview(workloadContext)
-	workloadContext["story_sections"] = buildServiceStorySections(workloadContext)
+	workloadContext["deployment_overview"] = buildServiceDeploymentOverviewWithContext(buildCtx)
+	workloadContext["story_sections"] = buildServiceStorySectionsWithContext(buildCtx)
+	cacheServiceStoryBuildContext(buildCtx)
 	timer.Done(ctx)
 
 	return nil

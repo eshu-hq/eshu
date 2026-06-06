@@ -30,6 +30,29 @@ func TestServiceStoryDossierUsesAggregateAPICountsAndSpecPaths(t *testing.T) {
 	}
 }
 
+func TestServiceStorySupportOverviewUsesAPISurfaceSpecPathCount(t *testing.T) {
+	t.Parallel()
+
+	ctx := sampleServiceDossierContext()
+	ctx["api_surface"] = map[string]any{
+		"endpoint_count": 73,
+		"method_count":   9,
+		"spec_paths":     []string{"openapi.yaml", "admin.yaml"},
+		"endpoints":      []map[string]any{},
+	}
+	ctx["support_overview"] = buildServiceSupportOverview(ctx)
+
+	got := buildServiceStoryResponse("sample-service-api", ctx)
+	apiSurface := mapValue(got, "api_surface")
+	if got, want := IntVal(apiSurface, "spec_count"), 2; got != want {
+		t.Fatalf("api_surface.spec_count = %d, want len(spec_paths) %d", got, want)
+	}
+	supportOverview := mapValue(got, "support_overview")
+	if got, want := IntVal(supportOverview, "spec_count"), IntVal(apiSurface, "spec_count"); got != want {
+		t.Fatalf("support_overview.spec_count = %d, want api_surface.spec_count %d", got, want)
+	}
+}
+
 func TestServiceStoryDossierBoundsRawPayloadsAndNestedAPISurface(t *testing.T) {
 	t.Parallel()
 

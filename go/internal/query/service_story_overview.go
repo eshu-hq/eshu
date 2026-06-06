@@ -8,12 +8,14 @@ import (
 )
 
 func buildServiceStoryResponse(serviceName string, workloadContext map[string]any) map[string]any {
+	buildCtx := newServiceStoryBuildContext(workloadContext)
+	cacheServiceStoryBuildContext(buildCtx)
 	serviceName = canonicalServiceName(serviceName, workloadContext)
 	response := map[string]any{
 		"service_name":          serviceName,
-		"story":                 buildWorkloadStory(workloadContext),
-		"story_sections":        buildServiceStorySections(workloadContext),
-		"deployment_overview":   buildServiceDeploymentOverview(workloadContext),
+		"story":                 buildWorkloadStoryWithAPISurface(workloadContext, buildCtx.apiSurface, buildCtx.hasAPISurface),
+		"story_sections":        buildServiceStorySectionsWithContext(buildCtx),
+		"deployment_overview":   buildServiceDeploymentOverviewWithContext(buildCtx),
 		"code_to_runtime_trace": buildServiceCodeToRuntimeTrace(workloadContext),
 	}
 	for _, key := range []string{"documentation_overview", "support_overview"} {
@@ -21,9 +23,58 @@ func buildServiceStoryResponse(serviceName string, workloadContext map[string]an
 			response[key] = value
 		}
 	}
-	enrichServiceStoryDossierResponse(response, workloadContext)
-	response["investigation"] = buildServiceInvestigationPacket(serviceName, workloadContext, serviceInvestigationOptions{})
+	enrichServiceStoryDossierResponseWithContext(response, buildCtx)
+	response["investigation"] = buildServiceInvestigationPacketWithContext(serviceName, buildCtx, serviceInvestigationOptions{})
 	return response
+}
+
+type serviceStoryBuildContext struct {
+	workloadContext map[string]any
+	apiSurface      map[string]any
+	hasAPISurface   bool
+}
+
+type serviceStoryAPISurfaceCache struct {
+	apiSurface    map[string]any
+	hasAPISurface bool
+}
+
+const serviceStoryAPISurfaceCacheKey = "__service_story_normalized_api_surface"
+
+func newServiceStoryBuildContext(workloadContext map[string]any) serviceStoryBuildContext {
+	if cached, ok := workloadContext[serviceStoryAPISurfaceCacheKey].(serviceStoryAPISurfaceCache); ok {
+		return serviceStoryBuildContext{
+			workloadContext: workloadContext,
+			apiSurface:      cached.apiSurface,
+			hasAPISurface:   cached.hasAPISurface,
+		}
+	}
+	apiSurface, ok := normalizedServiceAPISurface(workloadContext)
+	return serviceStoryBuildContext{
+		workloadContext: workloadContext,
+		apiSurface:      apiSurface,
+		hasAPISurface:   ok,
+	}
+}
+
+func cacheServiceStoryBuildContext(buildCtx serviceStoryBuildContext) {
+	if buildCtx.workloadContext == nil {
+		return
+	}
+	if _, ok := buildCtx.workloadContext[serviceStoryAPISurfaceCacheKey]; ok {
+		return
+	}
+	buildCtx.workloadContext[serviceStoryAPISurfaceCacheKey] = serviceStoryAPISurfaceCache{
+		apiSurface:    buildCtx.apiSurface,
+		hasAPISurface: buildCtx.hasAPISurface,
+	}
+}
+
+func (c serviceStoryBuildContext) dossierAPISurface() map[string]any {
+	if !c.hasAPISurface {
+		return emptyServiceDossierAPISurface()
+	}
+	return c.apiSurface
 }
 
 func canonicalServiceName(requestedServiceName string, workloadContext map[string]any) string {
@@ -34,6 +85,11 @@ func canonicalServiceName(requestedServiceName string, workloadContext map[strin
 }
 
 func buildServiceDeploymentOverview(workloadContext map[string]any) map[string]any {
+	return buildServiceDeploymentOverviewWithContext(newServiceStoryBuildContext(workloadContext))
+}
+
+func buildServiceDeploymentOverviewWithContext(buildCtx serviceStoryBuildContext) map[string]any {
+	workloadContext := buildCtx.workloadContext
 	instances, _ := workloadContext["instances"].([]map[string]any)
 	platforms := distinctSortedInstanceField(instances, "platform_name")
 	materializedEnvironments := distinctSortedInstanceField(instances, "environment")
@@ -63,8 +119,8 @@ func buildServiceDeploymentOverview(workloadContext map[string]any) map[string]a
 	if networkPaths := mapSliceValue(workloadContext, "network_paths"); len(networkPaths) > 0 {
 		overview["network_path_count"] = len(networkPaths)
 	}
-	if apiSurface := mapValue(workloadContext, "api_surface"); len(apiSurface) > 0 {
-		overview["api_surface"] = buildServiceDossierAPISurface(workloadContext)
+	if buildCtx.hasAPISurface {
+		overview["api_surface"] = buildCtx.apiSurface
 	}
 	if dependents := mapSliceValue(workloadContext, "dependents"); len(dependents) > 0 {
 		overview["dependent_count"] = len(dependents)
@@ -99,8 +155,9 @@ func buildServiceDeploymentOverview(workloadContext map[string]any) map[string]a
 	return overview
 }
 
-func buildServiceStorySections(workloadContext map[string]any) []map[string]any {
-	overview := buildServiceDeploymentOverview(workloadContext)
+func buildServiceStorySectionsWithContext(buildCtx serviceStoryBuildContext) []map[string]any {
+	workloadContext := buildCtx.workloadContext
+	overview := buildServiceDeploymentOverviewWithContext(buildCtx)
 	sections := []map[string]any{
 		{
 			"title": "deployment",
@@ -125,14 +182,14 @@ func buildServiceStorySections(workloadContext map[string]any) []map[string]any 
 			"summary": fmt.Sprintf("%d evidence-backed network path(s) connect entrypoints to runtime targets", len(networkPaths)),
 		})
 	}
-	if apiSurface := mapValue(workloadContext, "api_surface"); len(apiSurface) > 0 {
+	if buildCtx.hasAPISurface {
 		sections = append(sections, map[string]any{
 			"title": "api",
 			"summary": fmt.Sprintf(
 				"%d endpoint(s), %d method(s), %d spec file(s)",
-				IntVal(apiSurface, "endpoint_count"),
-				IntVal(apiSurface, "method_count"),
-				IntVal(apiSurface, "spec_count"),
+				IntVal(buildCtx.apiSurface, "endpoint_count"),
+				IntVal(buildCtx.apiSurface, "method_count"),
+				IntVal(buildCtx.apiSurface, "spec_count"),
 			),
 		})
 	}
@@ -226,6 +283,11 @@ func buildServiceDocumentationOverview(
 }
 
 func buildServiceSupportOverview(workloadContext map[string]any) map[string]any {
+	return buildServiceSupportOverviewWithContext(newServiceStoryBuildContext(workloadContext))
+}
+
+func buildServiceSupportOverviewWithContext(buildCtx serviceStoryBuildContext) map[string]any {
+	workloadContext := buildCtx.workloadContext
 	overview := map[string]any{
 		"dependency_count":           len(mapSliceValue(workloadContext, "dependencies")),
 		"dependent_count":            len(mapSliceValue(workloadContext, "dependents")),
@@ -238,10 +300,10 @@ func buildServiceSupportOverview(workloadContext map[string]any) map[string]any 
 		"has_api_surface":            len(mapValue(workloadContext, "api_surface")) > 0,
 		"has_documentation_overview": len(mapValue(workloadContext, "documentation_overview")) > 0,
 	}
-	if apiSurface := mapValue(workloadContext, "api_surface"); len(apiSurface) > 0 {
-		overview["endpoint_count"] = IntVal(apiSurface, "endpoint_count")
-		overview["method_count"] = IntVal(apiSurface, "method_count")
-		overview["spec_count"] = IntVal(apiSurface, "spec_count")
+	if buildCtx.hasAPISurface {
+		overview["endpoint_count"] = IntVal(buildCtx.apiSurface, "endpoint_count")
+		overview["method_count"] = IntVal(buildCtx.apiSurface, "method_count")
+		overview["spec_count"] = IntVal(buildCtx.apiSurface, "spec_count")
 	}
 	if deploymentEvidence := mapValue(workloadContext, "deployment_evidence"); len(deploymentEvidence) > 0 {
 		overview["deployment_tool_family_count"] = len(stringSliceValue(deploymentEvidence, "tool_families"))

@@ -7,14 +7,15 @@ import (
 
 const serviceStoryItemLimit = 50
 
-func enrichServiceStoryDossierResponse(response map[string]any, workloadContext map[string]any) {
+func enrichServiceStoryDossierResponseWithContext(response map[string]any, buildCtx serviceStoryBuildContext) {
+	workloadContext := buildCtx.workloadContext
 	response["service_identity"] = buildServiceIdentity(workloadContext)
-	response["api_surface"] = buildServiceDossierAPISurface(workloadContext)
+	response["api_surface"] = buildCtx.dossierAPISurface()
 	response["deployment_lanes"] = buildServiceDeploymentLanes(workloadContext)
 	response["upstream_dependencies"] = buildServiceUpstreamDependencies(workloadContext)
 	response["downstream_consumers"] = buildServiceDownstreamConsumers(workloadContext)
 	response["evidence_graph"] = buildServiceEvidenceGraph(workloadContext)
-	response["result_limits"] = buildServiceResultLimits(workloadContext)
+	response["result_limits"] = buildServiceResultLimitsWithContext(buildCtx)
 	rawContextLimits := map[string]any{}
 	for _, key := range []string{
 		"hostnames",
@@ -64,13 +65,7 @@ func buildServiceIdentity(workloadContext map[string]any) map[string]any {
 func buildServiceDossierAPISurface(workloadContext map[string]any) map[string]any {
 	apiSurface := copyMap(mapValue(workloadContext, "api_surface"))
 	if len(apiSurface) == 0 {
-		return map[string]any{
-			"endpoint_count": 0,
-			"method_count":   0,
-			"spec_count":     0,
-			"endpoints":      []map[string]any{},
-			"truncated":      false,
-		}
+		return emptyServiceDossierAPISurface()
 	}
 	endpoints, truncated := capMapRows(mapSliceValue(apiSurface, "endpoints"), serviceStoryItemLimit)
 	apiSurface["endpoints"] = endpoints
@@ -91,6 +86,23 @@ func buildServiceDossierAPISurface(workloadContext map[string]any) map[string]an
 		}
 	}
 	return apiSurface
+}
+
+func normalizedServiceAPISurface(workloadContext map[string]any) (map[string]any, bool) {
+	if len(mapValue(workloadContext, "api_surface")) == 0 {
+		return nil, false
+	}
+	return buildServiceDossierAPISurface(workloadContext), true
+}
+
+func emptyServiceDossierAPISurface() map[string]any {
+	return map[string]any{
+		"endpoint_count": 0,
+		"method_count":   0,
+		"spec_count":     0,
+		"endpoints":      []map[string]any{},
+		"truncated":      false,
+	}
 }
 
 func buildServiceDeploymentLanes(workloadContext map[string]any) []map[string]any {
@@ -283,8 +295,9 @@ func serviceEvidenceGraphEdges(workloadContext map[string]any) ([]map[string]any
 	return capped, len(edges), truncated
 }
 
-func buildServiceResultLimits(workloadContext map[string]any) map[string]any {
-	apiSurface := buildServiceDossierAPISurface(workloadContext)
+func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[string]any {
+	workloadContext := buildCtx.workloadContext
+	apiSurface := buildCtx.dossierAPISurface()
 	endpointCount := IntVal(apiSurface, "endpoint_count")
 	if endpointCount == 0 {
 		endpointCount = len(mapSliceValue(apiSurface, "endpoints"))

@@ -72,6 +72,13 @@ func extractCollection(row map[string]any, key string, transform func(map[string
 
 // buildWorkloadStory creates a narrative summary of a workload's deployment.
 func buildWorkloadStory(ctx map[string]any) string {
+	apiSurface := mapValue(ctx, "api_surface")
+	return buildWorkloadStoryWithAPISurface(ctx, apiSurface, len(apiSurface) > 0)
+}
+
+// buildWorkloadStoryWithAPISurface keeps narrative counts aligned with the
+// normalized service-story API surface used by structured response fields.
+func buildWorkloadStoryWithAPISurface(ctx map[string]any, apiSurface map[string]any, hasAPISurface bool) string {
 	if ctx == nil {
 		return ""
 	}
@@ -94,7 +101,7 @@ func buildWorkloadStory(ctx map[string]any) string {
 		if hostnames := hostnameLabels(mapSliceValue(ctx, "hostnames")); len(hostnames) > 0 {
 			story += " Public entrypoints: " + strings.Join(hostnames, ", ") + "."
 		}
-		if apiSurface := mapValue(ctx, "api_surface"); len(apiSurface) > 0 {
+		if hasAPISurface {
 			story += fmt.Sprintf(
 				" API surface exposes %d endpoint(s) across %d spec file(s).",
 				IntVal(apiSurface, "endpoint_count"),
@@ -124,7 +131,7 @@ func buildWorkloadStory(ctx map[string]any) string {
 	if hostnames := hostnameLabels(mapSliceValue(ctx, "hostnames")); len(hostnames) > 0 {
 		story += " Public entrypoints: " + strings.Join(hostnames, ", ") + "."
 	}
-	if apiSurface := mapValue(ctx, "api_surface"); len(apiSurface) > 0 {
+	if hasAPISurface {
 		story += fmt.Sprintf(
 			" API surface exposes %d endpoint(s) across %d spec file(s).",
 			IntVal(apiSurface, "endpoint_count"),
