@@ -8,6 +8,10 @@ MCP_URL="${ESHU_REMOTE_E2E_MCP_URL:-${ESHU_MCP_URL:-}}"
 MCP_TOKEN="${ESHU_REMOTE_E2E_MCP_TOKEN:-${ESHU_MCP_TOKEN:-${API_KEY}}}"
 API_TIMEOUT_SECONDS="${ESHU_REMOTE_E2E_API_TIMEOUT_SECONDS:-30}"
 TMP_DIR="$(mktemp -d)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck source=scripts/lib/remote_e2e_security_alerts.sh
+source "${SCRIPT_DIR}/lib/remote_e2e_security_alerts.sh"
 
 cleanup() {
 	rm -rf "${TMP_DIR}"
@@ -291,7 +295,7 @@ main() {
 
 	local proof_mode repo_selector expected_security_repo expected_service_id expected_workload_id
 	local expected_image_repo expected_image_digest expected_image_ref
-	local expected_sbom_digest expected_cloud_resource_id
+	local expected_sbom_digest expected_cloud_resource_id expected_security_rows_file
 	proof_mode="$(target_story_proof_mode)"
 	repo_selector="$(manifest_string '.target_repository_id')"
 	expected_security_repo="$(manifest_string '.expected_security_alert_repository')"
@@ -302,6 +306,7 @@ main() {
 	expected_image_ref="$(manifest_string '.expected_image_ref')"
 	expected_sbom_digest="$(manifest_string '.expected_sbom_subject_digest')"
 	expected_cloud_resource_id="$(manifest_string '.expected_cloud_resource_id')"
+	expected_security_rows_file="$(manifest_string '.expected_security_alert_rows_file')"
 	if [[ -z "${repo_selector}" ]]; then
 		echo "target story manifest requires target_repository_id" >&2
 		return 1
@@ -322,6 +327,18 @@ main() {
 	require_non_negative_integer minimums.service_catalog_correlations "${catalog_min}"
 	require_non_negative_integer minimums.ci_cd_run_correlations "${cicd_min}"
 	require_non_negative_integer minimums.cloud_resources "${cloud_min}"
+	local expected_security_rows_count=0
+	if [[ -n "${expected_security_rows_file}" ]]; then
+		if [[ ! -f "${expected_security_rows_file}" ]]; then
+			echo "target security_alert_expected_rows file not found" >&2
+			return 1
+		fi
+		target_story_validate_expected_security_alert_rows "${expected_security_rows_file}"
+		expected_security_rows_count="$(target_story_expected_security_alert_rows_count "${expected_security_rows_file}")"
+		if ((expected_security_rows_count > security_min)); then
+			security_min="${expected_security_rows_count}"
+		fi
+	fi
 	validate_target_story_proof_mode "${proof_mode}" "${image_min}" "${sbom_min}"
 	if ((catalog_min > 0 || cloud_min > 0)) && [[ -z "${MCP_URL}" ]]; then
 		echo "ESHU_REMOTE_E2E_MCP_URL is required when target story MCP proof is required" >&2
@@ -334,7 +351,7 @@ main() {
 
 	local repo_query
 	repo_query="$(urlencode "${repo_selector}")"
-	local impact_count=0 security_count=0 image_count=0 sbom_count=0 catalog_count=0 cicd_count=0 cloud_count=0
+	local impact_count=0 security_count=0 security_expected_rows_count=0 image_count=0 sbom_count=0 catalog_count=0 cicd_count=0 cloud_count=0
 	local mcp_catalog_count=0 mcp_cloud_count=0
 	if ((impact_min > 0)); then
 		local impact_file="${TMP_DIR}/impact-count.json"
@@ -351,8 +368,17 @@ main() {
 		security_limit="$(list_limit_for_minimum security_alert_reconciliations "${security_min}")"
 		local security_file="${TMP_DIR}/security-alert-count.json"
 		api_get "/supply-chain/security-alerts/reconciliations?repository_id=${repo_query}&limit=${security_limit}" "${security_file}"
-		security_count="$(provider_repository_match_count "${security_file}" "${expected_security_repo}")"
+		security_count="$(target_story_provider_repository_match_count "${security_file}" "${expected_security_repo}")"
 		require_min_count security_alert_reconciliations "${security_count}" "${security_min}"
+		if [[ -n "${expected_security_rows_file}" ]]; then
+			local security_missing_count security_mismatch_count security_evidence_gap_count
+			read -r security_expected_rows_count security_missing_count security_mismatch_count security_evidence_gap_count < <(target_story_compare_security_alert_expected_rows "${expected_security_rows_file}" "${security_file}")
+			if ((security_missing_count > 0 || security_mismatch_count > 0 || security_evidence_gap_count > 0)); then
+				printf 'target security_alert_expected_rows missing_count=%s mismatch_count=%s evidence_gap_count=%s\n' \
+					"${security_missing_count}" "${security_mismatch_count}" "${security_evidence_gap_count}" >&2
+				return 1
+			fi
+		fi
 	fi
 	if ((image_min > 0)); then
 		local image_anchor image_param image_file="${TMP_DIR}/container-image-count.json"
@@ -451,10 +477,11 @@ main() {
 		require_min_count mcp_cloud_resources "${mcp_cloud_count}" "${cloud_min}"
 	fi
 
-	printf 'remote E2E target story proof counts: proof_mode=%s repository_story=1 impact_findings=%s security_alert_reconciliations=%s container_image_identities=%s sbom_attachments=%s service_catalog_correlations=%s ci_cd_run_correlations=%s cloud_resources=%s mcp_service_catalog_correlations=%s mcp_cloud_resources=%s\n' \
+	printf 'remote E2E target story proof counts: proof_mode=%s repository_story=1 impact_findings=%s security_alert_reconciliations=%s security_alert_expected_rows=%s container_image_identities=%s sbom_attachments=%s service_catalog_correlations=%s ci_cd_run_correlations=%s cloud_resources=%s mcp_service_catalog_correlations=%s mcp_cloud_resources=%s\n' \
 		"${proof_mode}" \
 		"${impact_count}" \
 		"${security_count}" \
+		"${security_expected_rows_count}" \
 		"${image_count}" \
 		"${sbom_count}" \
 		"${catalog_count}" \
