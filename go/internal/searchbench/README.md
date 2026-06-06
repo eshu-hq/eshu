@@ -60,7 +60,7 @@ See `doc.go` for the godoc-rendered package contract.
   protocol evidence to the same measured hybrid baseline, or recording why the
   phase stopped before evaluation.
 - `ValidateRerankProtocolEvaluation` rejects issue #421 evidence without a
-  shared baseline, rerank record, protocol recommendation, or accepted stopped
+  shared baseline, rerank record, protocol recommendation, or accepted stop
   reason.
 - `RequiredFailureClasses` returns the operator-visible failure classes every
   benchmark must report.
