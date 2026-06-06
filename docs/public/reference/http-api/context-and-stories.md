@@ -169,15 +169,23 @@ can remain until workload materialization catches up.
 No-Regression Evidence: issue #1461 reproduced on current `main` with a
 repository story fixture containing one repository-scoped deployment evidence
 artifact and no materialized workload. The failing baseline returned
-`deployment_surface_unknown`; after the fix, `go test ./internal/query -run
-'Test(GetRepositoryStoryUsesReadModelDeploymentEvidence|BuildRepositoryStoryResponseSummarizesRepositoryOnlyDeploymentEvidence|BuildRepositoryStoryResponseDoesNotMarkDeploymentUnknownWhenWorkloadHasDeliveryEvidence)'
--count=1 -timeout=60s` returns one deployment evidence row, clears only
-`deployment_surface_unknown`, and leaves the workload limitation intact. The
-broader read-path proof ran `go test ./internal/query -run
-'Test(GetRepository(Context|Story).*Deployment|QueryRepoDeploymentEvidence|QueryServiceDeploymentEvidence|BuildRepositoryStoryResponse.*Deployment|BuildServiceStoryResponse.*Deployment|GetServiceStory.*|GetWorkloadStory.*|BuildWorkloadStory.*)'
--count=1 -timeout=120s` plus `go test ./cmd/api ./internal/query
-./internal/mcp -count=1 -timeout=180s`. The proof backend is the query package
-in-memory `ContentStore`/`GraphQuery` harness, exercising the same
+`deployment_surface_unknown`; after the fix, this command returns one deployment
+evidence row, clears only `deployment_surface_unknown`, and leaves the workload
+limitation intact.
+
+```bash
+go test ./internal/query -run 'Test(GetRepositoryStoryUsesReadModelDeploymentEvidence|BuildRepositoryStoryResponseSummarizesRepositoryOnlyDeploymentEvidence|BuildRepositoryStoryResponseDoesNotMarkDeploymentUnknownWhenWorkloadHasDeliveryEvidence)' -count=1 -timeout=60s
+```
+
+The broader read-path proof ran:
+
+```bash
+go test ./internal/query -run 'Test(GetRepository(Context|Story).*Deployment|QueryRepoDeploymentEvidence|QueryServiceDeploymentEvidence|BuildRepositoryStoryResponse.*Deployment|BuildServiceStoryResponse.*Deployment|GetServiceStory.*|GetWorkloadStory.*|BuildWorkloadStory.*)' -count=1 -timeout=120s
+go test ./cmd/api ./internal/query ./internal/mcp -count=1 -timeout=180s
+```
+
+The proof backend is the query package in-memory `ContentStore`/`GraphQuery`
+harness, exercising the same
 NornicDB-compatible `GraphQuery` boundary and the content read model before
 graph fallback. No reducer queue, graph write, or worker row is involved; the
 terminal row count is one deployment evidence artifact read for the repository.

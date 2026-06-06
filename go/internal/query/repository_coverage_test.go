@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"database/sql/driver"
+	"strings"
 	"testing"
 	"time"
 )
@@ -99,6 +100,42 @@ func TestQueryContentStoreCoverageIncludesCompletenessAndGapFields(t *testing.T)
 	}
 	if got, want := summary["content_entity_count"], 7; got != want {
 		t.Fatalf("summary.content_entity_count = %#v, want %#v", got, want)
+	}
+}
+
+func TestQueryMaxIndexedAtRejectsUnknownTableBeforeQuery(t *testing.T) {
+	t.Parallel()
+
+	_, err := queryMaxIndexedAt(
+		t.Context(),
+		nil,
+		"content_files; DROP TABLE content_entities",
+		"repo-coverage",
+	)
+	if err == nil {
+		t.Fatal("queryMaxIndexedAt() error = nil, want unsupported table error")
+	}
+	if !strings.Contains(err.Error(), "unsupported repository coverage indexed_at table") {
+		t.Fatalf("queryMaxIndexedAt() error = %v, want unsupported table validation error", err)
+	}
+}
+
+func TestRepositoryCoverageIndexedAtTableAllowsCoverageTables(t *testing.T) {
+	t.Parallel()
+
+	for _, table := range []string{repositoryCoverageContentFilesTable, repositoryCoverageContentEntitiesTable} {
+		table := table
+		t.Run(table, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := repositoryCoverageIndexedAtTable(table)
+			if err != nil {
+				t.Fatalf("repositoryCoverageIndexedAtTable(%q) error = %v, want nil", table, err)
+			}
+			if got != table {
+				t.Fatalf("repositoryCoverageIndexedAtTable(%q) = %q, want same table", table, got)
+			}
+		})
 	}
 }
 

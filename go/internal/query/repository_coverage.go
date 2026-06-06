@@ -8,6 +8,8 @@ import (
 )
 
 const repositoryGraphCoverageStatsTimeout = 2 * time.Second
+const repositoryCoverageContentFilesTable = "content_files"
+const repositoryCoverageContentEntitiesTable = "content_entities"
 
 func (h *RepositoryHandler) resolveCoverageRepositoryID(ctx context.Context, selector string) (string, error) {
 	return h.resolveRepositorySelector(ctx, selector)
@@ -160,12 +162,16 @@ func (h *RepositoryHandler) queryRepositoryGraphCoverageStats(
 }
 
 func queryMaxIndexedAt(ctx context.Context, db *sql.DB, table string, repoID string) (time.Time, error) {
+	safeTable, err := repositoryCoverageIndexedAtTable(table)
+	if err != nil {
+		return time.Time{}, err
+	}
 	var indexedAt sql.NullTime
-	err := db.QueryRowContext(ctx, fmt.Sprintf(`
+	err = db.QueryRowContext(ctx, fmt.Sprintf(`
 		SELECT max(indexed_at) as indexed_at
 		FROM %s
 		WHERE repo_id = $1
-	`, table), repoID).Scan(&indexedAt)
+	`, safeTable), repoID).Scan(&indexedAt)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -173,6 +179,15 @@ func queryMaxIndexedAt(ctx context.Context, db *sql.DB, table string, repoID str
 		return time.Time{}, nil
 	}
 	return indexedAt.Time.UTC(), nil
+}
+
+func repositoryCoverageIndexedAtTable(table string) (string, error) {
+	switch table {
+	case repositoryCoverageContentFilesTable, repositoryCoverageContentEntitiesTable:
+		return table, nil
+	default:
+		return "", fmt.Errorf("unsupported repository coverage indexed_at table %q", table)
+	}
 }
 
 func computeCoverageGapCounts(
