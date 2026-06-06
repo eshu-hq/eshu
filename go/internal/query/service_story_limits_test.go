@@ -15,6 +15,7 @@ func TestServiceStoryDossierUsesAggregateAPICountsAndSpecPaths(t *testing.T) {
 		"spec_paths":     []string{"openapi.yaml", "admin.yaml"},
 		"endpoints":      []map[string]any{},
 	}
+	ctx["support_overview"] = buildServiceSupportOverview(ctx)
 
 	got := buildServiceStoryResponse("sample-service-api", ctx)
 	apiSurface := mapValue(got, "api_surface")
@@ -23,6 +24,10 @@ func TestServiceStoryDossierUsesAggregateAPICountsAndSpecPaths(t *testing.T) {
 	}
 	if got, want := IntVal(apiSurface, "spec_count"), 2; got != want {
 		t.Fatalf("api_surface.spec_count = %d, want len(spec_paths) %d", got, want)
+	}
+	supportOverview := mapValue(got, "support_overview")
+	if got, want := IntVal(supportOverview, "spec_count"), 2; got != want {
+		t.Fatalf("support_overview.spec_count = %d, want api_surface.spec_count %d", got, want)
 	}
 	limits := mapValue(got, "result_limits")
 	if got, want := IntVal(limits, "endpoint_count"), 73; got != want {

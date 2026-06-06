@@ -303,6 +303,26 @@ with image-ref, evidence, and missing-reason counts. It uses bounded Postgres
 read-model list calls and adds no worker, queue, graph write, metric instrument,
 or metric label.
 
+Service story derives `support_overview.spec_count` from the same bounded
+`api_surface` aggregate and `spec_paths` evidence used by
+`api_surface.spec_count`, so API and MCP readbacks do not report different
+OpenAPI spec counts in the same service dossier.
+
+No-Regression Evidence:
+
+```bash
+cd go && go test ./internal/query -run 'TestServiceStoryDossierUsesAggregateAPICountsAndSpecPaths|TestGetServiceStorySpecCountsAgreeAcrossAPISurfaceAndSupportOverview' -count=1
+cd go && go test ./internal/mcp -run TestDispatchToolServiceStorySpecCountsMatchQueryReadback -count=1
+```
+
+No-Observability-Change: the route keeps the existing `service_query.stage_*`
+structured stage logs under `operation=service_story`, including
+`graph_api_surface`, `service_evidence_content`, `documentation_overview`,
+`deployment_evidence`, and `overview_assembly`, plus existing HTTP envelope
+truth/error reporting. The change only aligns response synthesis from already
+bounded API-surface evidence and adds no graph query, collector call, queue
+worker, metric instrument, span name, or deployment knob.
+
 `POST /api/v0/impact/deployment-config-influence` accepts `service_name` or
 `workload_id`, optional `environment`, and optional `limit`. Use it when the
 caller asks which repositories and files influence image tags, runtime
