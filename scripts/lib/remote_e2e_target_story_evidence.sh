@@ -50,10 +50,8 @@ target_story_incident_context_match_count() {
 		elif ([
 			$body.evidence_path[]?
 			| select((.slot // "") == "incident")
-			| select((.truth_label // "") != "missing_evidence" and (.truth_label // "") != "missing")
+			| select((.truth_label // "") == "exact")
 		] | length) > 0 then
-			1
-		elif (($body.incident.evidence_fact_id // "") != "") then
 			1
 		else
 			0

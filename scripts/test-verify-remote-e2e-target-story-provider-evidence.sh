@@ -130,13 +130,13 @@ JSON
 {"data":{"count":1,"findings":[{"finding_id":"finding:docs:1","repository_id":"repo://example/api","status":"conflict"}],"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
   cat >"${state_dir}/incident-context.json" <<'JSON'
-{"data":{"incident":{"provider":"pagerduty","provider_incident_id":"PABC123","evidence_fact_id":"fact-incident"},"evidence_path":[{"slot":"incident","truth_label":"exact_provider_fact","evidence":[{"fact_kind":"incident.record","fact_id":"fact-incident"}]}],"missing_evidence":[],"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
+{"data":{"incident":{"provider":"pagerduty","provider_incident_id":"PABC123","evidence_fact_id":"fact-incident"},"evidence_path":[{"slot":"incident","truth_label":"exact","evidence":[{"fact_kind":"incident.record","fact_id":"fact-incident"}]}],"missing_evidence":[],"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
   cat >"${state_dir}/work-item-evidence.json" <<'JSON'
 {"data":{"count":1,"evidence":[{"fact_id":"fact-work-item","work_item_key":"OPS-123","evidence_state":"exact_provider_fact"}],"missing_evidence":false,"states":["exact_provider_fact"],"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
   mcp_envelope '{"data":{"count":1,"findings":[{"finding_id":"finding:docs:1","repository_id":"repo://example/api","status":"conflict"}],"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}' >"${state_dir}/mcp-documentation-findings.json"
-  mcp_envelope '{"data":{"incident":{"provider":"pagerduty","provider_incident_id":"PABC123","evidence_fact_id":"fact-incident"},"evidence_path":[{"slot":"incident","truth_label":"exact_provider_fact","evidence":[{"fact_kind":"incident.record","fact_id":"fact-incident"}]}],"missing_evidence":[],"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}' >"${state_dir}/mcp-incident-context.json"
+  mcp_envelope '{"data":{"incident":{"provider":"pagerduty","provider_incident_id":"PABC123","evidence_fact_id":"fact-incident"},"evidence_path":[{"slot":"incident","truth_label":"exact","evidence":[{"fact_kind":"incident.record","fact_id":"fact-incident"}]}],"missing_evidence":[],"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}' >"${state_dir}/mcp-incident-context.json"
   mcp_envelope '{"data":{"count":1,"evidence":[{"fact_id":"fact-work-item","work_item_key":"OPS-123","evidence_state":"exact_provider_fact"}],"missing_evidence":false,"states":["exact_provider_fact"],"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}' >"${state_dir}/mcp-work-item-evidence.json"
 }
 
@@ -237,7 +237,14 @@ expect_fail_with 'target documentation_findings=0 below required minimum 1'
 reset_state
 export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
 cat >"${state_dir}/incident-context.json" <<'JSON'
-{"data":{"incident":{"provider":"pagerduty","provider_incident_id":"PABC123"},"evidence_path":[{"slot":"incident","truth_label":"missing_evidence"}],"missing_evidence":[{"slot":"incident","reason":"unsupported_target_evidence"}],"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
+{"data":{"incident":{"provider":"pagerduty","provider_incident_id":"PABC123"},"evidence_path":[{"slot":"incident","truth_label":"missing"}],"missing_evidence":[{"slot":"incident","reason":"unsupported_target_evidence"}],"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
+JSON
+expect_fail_with 'target incident_context=0 below required minimum 1'
+
+reset_state
+export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
+cat >"${state_dir}/incident-context.json" <<'JSON'
+{"data":{"incident":{"provider":"pagerduty","provider_incident_id":"PABC123"},"evidence_path":[{"slot":"incident","truth_label":"stale","evidence":[{"fact_kind":"incident.record","fact_id":"fact-stale"}]}],"missing_evidence":[],"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
 expect_fail_with 'target incident_context=0 below required minimum 1'
 
