@@ -75,6 +75,7 @@ func securityAlertEcosystemHasMatcher(ecosystem string) bool {
 		string(packageidentity.EcosystemComposer),
 		string(packageidentity.EcosystemMaven),
 		string(packageidentity.EcosystemRubyGems),
+		string(packageidentity.EcosystemOS),
 		"redhat",
 		"fedora",
 		"centos",

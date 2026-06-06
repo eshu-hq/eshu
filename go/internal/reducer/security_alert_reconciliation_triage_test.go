@@ -148,6 +148,45 @@ func TestBuildSecurityAlertReconciliationsKeepsOwnedEvidenceForUnsupportedEcosys
 	}
 }
 
+func TestBuildSecurityAlertReconciliationsTreatsOSAliasesAsSupported(t *testing.T) {
+	t.Parallel()
+
+	repoID := "repo://github/example-org/payments-api"
+	packageID := "pkg:apk/alpine/openssl"
+	envelopes := []facts.Envelope{
+		securityAlertEnvelope("alert-os-provider-only", repoID, map[string]any{
+			"provider":              "github_dependabot",
+			"provider_alert_number": int64(7),
+			"provider_state":        "open",
+			"package_id":            "pkg:apk/alpine/busybox",
+			"ecosystem":             "apk",
+			"package_name":          "busybox",
+			"manifest_path":         "rootfs/apk/installed",
+			"cve_ids":               []string{"CVE-2026-1007"},
+		}),
+		securityAlertEnvelope("alert-os-owned", repoID, map[string]any{
+			"provider":              "github_dependabot",
+			"provider_alert_number": int64(8),
+			"provider_state":        "open",
+			"package_id":            packageID,
+			"ecosystem":             "apk",
+			"package_name":          "openssl",
+			"manifest_path":         "rootfs/apk/installed",
+			"cve_ids":               []string{"CVE-2026-1008"},
+		}),
+		packageConsumptionCorrelationEnvelope("consume-os-owned", repoID, packageID, "rootfs/apk/installed"),
+	}
+
+	decisions := indexSecurityAlertDecisions(BuildSecurityAlertReconciliations(envelopes))
+
+	assertSecurityAlertTriage(t, decisions["alert-os-provider-only"], SecurityAlertReconciliationProviderOnly, "owned_dependency_missing", []SecurityAlertReconciliationMissingEvidence{
+		{Kind: "owned_dependency", Reason: "no_owned_dependency_evidence"},
+	})
+	assertSecurityAlertTriage(t, decisions["alert-os-owned"], SecurityAlertReconciliationUnmatched, "impact_finding_missing", []SecurityAlertReconciliationMissingEvidence{
+		{Kind: "impact_finding", Reason: "no_matching_impact_finding", EvidenceID: "consume-os-owned"},
+	})
+}
+
 func indexSecurityAlertDecisions(
 	decisions []SecurityAlertReconciliationDecision,
 ) map[string]SecurityAlertReconciliationDecision {
