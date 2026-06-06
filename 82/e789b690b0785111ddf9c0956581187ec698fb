@@ -1,0 +1,27 @@
+go/internal/query/repository_context_test.go
+  s_f2f7fbb6f30866::t_eb78d5b2933ad7 395-417
+go/internal/query/repository_story.go
+  s_f2f7fbb6f30866::t_064d6012a5fd99 18-40,57-58,110-111,160-192
+go/internal/query/repository.go
+  s_f2f7fbb6f30866::t_cd8152f62254bc 550,559
+docs/public/reference/http-api/repositories-ingesters-bundles.md
+  s_f2f7fbb6f30866::t_b4ebad832b5e92 72-80,84-87
+go/internal/query/README.md
+  s_f2f7fbb6f30866::t_2525c774cc8e2e 459-463,476-478
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "82e789b690b0785111ddf9c0956581187ec698fb",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
