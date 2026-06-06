@@ -1,7 +1,14 @@
 # NornicDB Canonical Graph And Search Projection Split
 
-Status: proposed decision for issue #430. Design only; no code, schema,
-Compose YAML, Helm chart, or runtime-default change in this PR.
+Status: proposed decision for issue #430. Phase-1 graph-only startup
+stabilization is implemented in Compose, Helm, runtime contract tests, and
+operator docs. The curated search projection remains design- and
+benchmark-gated before any public API, MCP, schema, or graph-write change.
+
+Phase-1 stabilization status: Compose and Helm now pin NornicDB `v1.1.3` and
+set the canonical graph lane to graph-only startup controls. Runtime contract
+tests enforce the graph-only NornicDB controls in Compose, Helm, and the public
+environment reference.
 
 Owners: graph backend, runtime, query, and release-gate maintainers.
 
@@ -186,14 +193,18 @@ Search-lane implementation must expose operator signals for:
 - projection input count, skipped-document count, and redaction/drop reason;
 - first-query lazy-warm trigger count and failure class.
 
-Until implementation lands, this PR has no runtime observability delta.
+Until curated search-lane implementation lands, phase-1 stabilization has no
+new Eshu runtime observability signal; it removes ambient NornicDB search-index
+work from canonical graph startup and keeps the future search-lane telemetry
+requirements explicit.
 
 ## 7. Implementation Breakdown
 
 Recommended child slices:
 
-1. Adopt a pinned NornicDB build with explicit BM25/vector disable or lazy
-   warming, then wire graph-lane Compose/Helm defaults with tests.
+1. Done: adopt a pinned NornicDB build with explicit BM25/vector disable and
+   lazy warming fallback, then wire graph-lane Compose/Helm defaults with
+   tests.
 2. Define and fixture-test `EshuSearchDocument` projection without changing API
    or MCP contracts. The first contract lives in
    `go/internal/searchdocs` and
@@ -217,12 +228,24 @@ one shadow-read and shadow-write comparison.
 
 ## 8. Evidence For This PR
 
-No-Regression Evidence: design-only PR; no Go, Cypher, schema,
-docker-compose YAML, Helm chart, OpenAPI, MCP, or runtime-default files are
-changed.
+No-Regression Evidence: the phase-1 stabilization is a graph backend runtime
+contract change, not a fact, reducer, Cypher, schema, OpenAPI, MCP, or query
+truth change. Compose and Helm now pin NornicDB `v1.1.3`, disable BM25/vector
+search and embedding generation for the canonical graph lane, leave BM25/vector
+warming lazy for deliberate proof runs, and disable search-index persistence.
+Runtime package tests enforce those defaults and the public environment
+reference so the old whole-graph BM25 startup policy cannot drift back
+silently. The operational smoke and image evidence live in
+[NornicDB Tuning Evidence](../../public/reference/nornicdb-tuning-evidence.md).
 
-No-Observability-Change: design-only PR; it names the telemetry required for
-future runtime work and does not alter existing signals.
+No-Observability-Change: this phase does not add an Eshu runtime signal because
+it removes ambient NornicDB search-index work from the canonical graph startup
+path. Operators diagnose the path with existing NornicDB search-build logs,
+`/admin/stats`, `/nornicdb/embed/stats`, Eshu graph schema bootstrap logs,
+graph write timeout details, and runtime queue/admin status. Future curated
+BM25/vector retrieval must add the search-lane build, document-count,
+vector-count, artifact-size, duration, and failure-class signals named in this
+design before it becomes a supported production search surface.
 
 Source check date: 2026-06-02.
 

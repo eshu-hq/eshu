@@ -97,3 +97,49 @@ func TestNornicDBGraphOnlySearchStartupDocsTrackSupportedKnobs(t *testing.T) {
 		t.Fatal("docker-compose.yaml must not advertise unsupported NORNICDB_SEARCH_ENABLED")
 	}
 }
+
+func TestNornicDBEnvironmentDocsTrackGraphOnlySearchControls(t *testing.T) {
+	t.Parallel()
+
+	docs := readRepositoryFile(t, "../../..", "docs/public/reference/environment-ingestion-queues.md")
+	for _, want := range []string{
+		"| `NORNICDB_PERSIST_SEARCH_INDEXES` | `false` in Eshu Compose and Helm |",
+		"| `NORNICDB_SEARCH_BM25_ENABLED` | `false` in Eshu Compose and Helm |",
+		"| `NORNICDB_SEARCH_VECTOR_ENABLED` | `false` in Eshu Compose and Helm |",
+		"| `NORNICDB_SEARCH_BM25_WARMING` | `lazy` in Eshu Compose and Helm |",
+		"| `NORNICDB_SEARCH_VECTOR_WARMING` | `lazy` in Eshu Compose and Helm |",
+	} {
+		if !strings.Contains(docs, want) {
+			t.Fatalf("environment docs missing graph-only NornicDB control row %q", want)
+		}
+	}
+
+	for _, stale := range []string{
+		"| `NORNICDB_PERSIST_SEARCH_INDEXES` | `true` in Eshu Compose and Helm |",
+		"Do not treat unpinned NornicDB BM25/vector disable or lazy-warming variables as",
+		"uses persistence plus disabled embeddings as mitigation",
+	} {
+		if strings.Contains(docs, stale) {
+			t.Fatalf("environment docs still carry stale NornicDB search startup guidance %q", stale)
+		}
+	}
+}
+
+func TestNornicDBGraphSearchSplitDesignTracksImplementedStabilization(t *testing.T) {
+	t.Parallel()
+
+	docs := readRepositoryFile(t, "../../..", "docs/internal/design/430-nornicdb-graph-search-split.md")
+	if strings.Contains(docs, "Design only; no code, schema,") {
+		t.Fatal("issue-430 design doc still says the graph-only startup stabilization has no code or config changes")
+	}
+	normalizedDocs := strings.Join(strings.Fields(docs), " ")
+	for _, want := range []string{
+		"Phase-1 stabilization status:",
+		"Compose and Helm now pin NornicDB `v1.1.3`",
+		"Runtime contract tests enforce the graph-only NornicDB controls",
+	} {
+		if !strings.Contains(normalizedDocs, want) {
+			t.Fatalf("issue-430 design doc missing implemented stabilization status %q", want)
+		}
+	}
+}
