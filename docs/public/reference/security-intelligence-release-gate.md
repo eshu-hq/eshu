@@ -86,9 +86,7 @@ cover repository-only, workload-only, deployment-plus-workload,
 service-attached, stale, and missing service evidence without adding graph
 reads or queue claims to the impact handler.
 
-No-Regression Evidence: issue #1548 keeps service-catalog correlation evidence
-separate from service/workload anchoring. Focused proof:
-`go test ./internal/query -run TestSupplyChainListImpactFindingsDoesNotReportPresentCatalogCorrelationAsMissing -count=1`.
+No-Regression Evidence: issue #1548 keeps service-catalog correlation evidence separate from service/workload anchoring. Baseline parent behavior let repository-only exact catalog evidence fall through to generic service-catalog-correlation-missing evidence; after this change, `go test ./internal/reducer -run 'TestBuildSupplyChainImpactFindings(ConsumesDeploymentOnlyExactServiceCatalogEvidence|ConsumesRepositoryOnlyServiceCatalogEvidence|ReportsScopedUnresolvedServiceCatalogEvidence|AttachesDeploymentLaneEvidence)' -count=1` and `go test ./internal/query -run 'TestBuildSupplyChainImpactExplanation(MapsDeploymentOnlyCatalogAnchorGap|KeepsRepositoryOnlyCatalogHop|UsesCatalogAnchorMissingReason|ReturnsDeploymentLaneHopWithoutEnvironment)' -count=1` passed over in-memory reducer/query fixtures with one repository, one affected package, exact catalog facts, workload/deployment variants, zero queue rows, and no graph writes.
 
 Observability Evidence: no new telemetry series are required. The existing
 `SupplyChainImpactHandler` counters, persisted `evidence_path`,
