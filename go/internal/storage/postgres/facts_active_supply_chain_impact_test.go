@@ -67,6 +67,7 @@ func TestListActiveSupplyChainImpactFactsQueryBoundsRepositoryFollowUp(t *testin
 	for _, want := range []string{
 		"OR (\n          fact.fact_kind IN (",
 		"'vulnerability.suppression'",
+		"'reducer_container_image_identity'",
 		"'reducer_ci_cd_run_correlation'",
 		"'reducer_platform_materialization'",
 		"'reducer_service_catalog_correlation'",
@@ -101,8 +102,13 @@ func TestListActiveSupplyChainImpactFactsQueryLoadsPackageConsumptionByRepositor
 		t.Fatalf("repository follow-up branch end missing:\n%s", listActiveSupplyChainImpactFactsQuery)
 	}
 	repositoryBranch := listActiveSupplyChainImpactFactsQuery[repositoryBranchStart : repositoryBranchStart+repositoryBranchEnd]
-	if !strings.Contains(repositoryBranch, "'reducer_package_consumption_correlation'") {
-		t.Fatalf("repository follow-up branch must load repo-owned package consumption rows:\n%s", repositoryBranch)
+	for _, want := range []string{
+		"'reducer_package_consumption_correlation'",
+		"'reducer_container_image_identity'",
+	} {
+		if !strings.Contains(repositoryBranch, want) {
+			t.Fatalf("repository follow-up branch must load %s rows:\n%s", want, repositoryBranch)
+		}
 	}
 }
 
