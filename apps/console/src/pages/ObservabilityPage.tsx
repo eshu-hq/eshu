@@ -33,9 +33,16 @@ export function ObservabilityPage({ client }: { readonly client?: EshuApiClient 
   const covered = (snap?.rows ?? []).filter((r) => r.covered).length;
   const gaps = total - covered;
   const coverageSource = snap === null ? "loading" : snap.source;
-  const providerEmptyMessage = snap?.source === "unavailable"
+  const providers = snap?.providers ?? [];
+  const allProvidersUnavailable = providers.length > 0
+    ? providers.every((p) => p.source === "unavailable")
+    : snap?.source === "unavailable";
+  const someProvidersUnavailable = providers.some((p) => p.source === "unavailable");
+  const providerEmptyMessage = allProvidersUnavailable
     ? "Observability coverage is unavailable for every provider."
-    : "No observability coverage from this source - requires the grafana/loki/tempo/mimir collectors.";
+    : someProvidersUnavailable
+      ? "Some observability providers are unavailable; no coverage rows were returned yet."
+      : "No observability coverage from this source - requires the grafana/loki/tempo/mimir collectors.";
 
   return (
     <div className="page">
@@ -56,7 +63,7 @@ export function ObservabilityPage({ client }: { readonly client?: EshuApiClient 
           <table className="tbl">
             <thead><tr><th>Provider</th><th>Total</th><th>Covered</th><th>Gaps</th><th>State</th></tr></thead>
             <tbody>
-              {(snap?.providers ?? []).map((p) => (
+              {providers.map((p) => (
                 <tr key={p.provider}>
                   <td className="t-name">{p.provider}</td>
                   <td className="mono">{p.total}</td>
