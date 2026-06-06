@@ -229,18 +229,28 @@ expect_fail_with() {
   fi
 }
 
-if ! target_story_alignment_matches 'git@github.example.com:example/api.git' 'repo://example/api'; then
-  printf 'expected SSH repository selector to align with repository id\n' >&2
-  exit 1
-fi
-if ! target_story_alignment_matches 'https://user@github.example.com/example/api' 'repo://example/api'; then
-  printf 'expected userinfo repository URL to align with repository id\n' >&2
-  exit 1
-fi
-if ! target_story_alignment_matches 'registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' 'oci-registry://registry.example/team/api'; then
-  printf 'expected OCI digest suffix to be stripped for image repository alignment\n' >&2
-  exit 1
-fi
+expect_alignment_match() {
+  local left="$1"
+  local right="$2"
+  if ! target_story_alignment_matches "${left}" "${right}"; then
+    printf 'expected target-story tokens to align: %s vs %s\n' "${left}" "${right}" >&2
+    exit 1
+  fi
+}
+
+expect_alignment_mismatch() {
+  local left="$1"
+  local right="$2"
+  if target_story_alignment_matches "${left}" "${right}"; then
+    printf 'expected target-story tokens to mismatch: %s vs %s\n' "${left}" "${right}" >&2
+    exit 1
+  fi
+}
+
+expect_alignment_match 'repo://example/api' 'git@github.com:example/api.git'
+expect_alignment_match 'repo://example/api' 'https://user@github.com/example/api.git'
+expect_alignment_match 'registry.example.com/team/api' 'registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+expect_alignment_mismatch 'repo://example/api' 'git@github.com:example/other-api.git'
 
 reset_state
 export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
