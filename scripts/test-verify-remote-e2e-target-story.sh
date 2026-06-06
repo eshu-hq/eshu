@@ -3,6 +3,8 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 verifier="${repo_root}/scripts/verify_remote_e2e_target_story.sh"
+# shellcheck source=scripts/lib/remote_e2e_target_story_alignment.sh
+source "${repo_root}/scripts/lib/remote_e2e_target_story_alignment.sh"
 
 tmp_root="$(mktemp -d)"
 trap 'rm -rf "${tmp_root}"' EXIT
@@ -226,6 +228,19 @@ expect_fail_with() {
     exit 1
   fi
 }
+
+if ! target_story_alignment_matches 'git@github.example.com:example/api.git' 'repo://example/api'; then
+  printf 'expected SSH repository selector to align with repository id\n' >&2
+  exit 1
+fi
+if ! target_story_alignment_matches 'https://user@github.example.com/example/api' 'repo://example/api'; then
+  printf 'expected userinfo repository URL to align with repository id\n' >&2
+  exit 1
+fi
+if ! target_story_alignment_matches 'registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' 'oci-registry://registry.example/team/api'; then
+  printf 'expected OCI digest suffix to be stripped for image repository alignment\n' >&2
+  exit 1
+fi
 
 reset_state
 export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"

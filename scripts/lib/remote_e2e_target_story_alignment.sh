@@ -12,12 +12,21 @@ target_story_alignment_manifest_int() {
 	jq -r "${filter} // 0" "${manifest_file}"
 }
 
+target_story_alignment_strip_digest_suffix() {
+	local value="$1"
+	if [[ "${value}" =~ @[[:alnum:]_+.-]+:[[:xdigit:]]{32,}$ ]]; then
+		value="${value%@*}"
+	fi
+	printf '%s\n' "${value}"
+}
+
 target_story_alignment_emit_token() {
 	local token="$1"
 	token="${token,,}"
 	token="${token%%\?*}"
 	token="${token%%#*}"
-	token="${token%@*}"
+	token="$(target_story_alignment_strip_digest_suffix "${token}")"
+	token="${token%.git}"
 	if [[ "${#token}" -ge 3 ]]; then
 		printf '%s\n' "${token}"
 	fi
@@ -28,7 +37,7 @@ target_story_alignment_tokens() {
 	local protocol_stripped path_tail colon_tail underscore_tail tagless_tail
 	value="${value%%\?*}"
 	value="${value%%#*}"
-	value="${value%@*}"
+	value="$(target_story_alignment_strip_digest_suffix "${value}")"
 	target_story_alignment_emit_token "${value}"
 
 	protocol_stripped="${value#*://}"
