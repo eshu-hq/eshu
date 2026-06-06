@@ -283,6 +283,13 @@ export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
 expect_pass
 
 reset_state
+jq -n '{alerts:[{provider_alert_number:42, ecosystem:"npm", package_name:"left-pad", manifest_path:"package-lock.json", vulnerable_range:"<1.2.3", fixed_version:"1.2.3", installed_version:120}]}' >"${state_dir}/expected-security-alerts.json"
+jq --arg expected_rows "${state_dir}/expected-security-alerts.json" '.expected_security_alert_rows_file = $expected_rows' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
+mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
+export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
+expect_fail_with 'target security_alert_expected_rows version fields must be strings'
+
+reset_state
 jq -n '{alerts:[{provider_alert_number:42, ecosystem:"npm", package_name:"left-pad", manifest_path:"package-lock.json", vulnerable_range:"<1.2.3", fixed_version:"1.2.3", observed_version:"1.2.0"}]}' >"${state_dir}/expected-security-alerts.json"
 jq 'del(.data.reconciliations[0].eshu_package) | .data.reconciliations[0].observed_version = "1.2.0"' "${state_dir}/security-alert-count.json" >"${state_dir}/security-alert-count-next.json"
 mv "${state_dir}/security-alert-count-next.json" "${state_dir}/security-alert-count.json"

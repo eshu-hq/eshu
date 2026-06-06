@@ -61,6 +61,23 @@ target_story_validate_expected_security_alert_rows() {
 		echo "target security_alert_expected_rows requires provider_alert_id or provider_alert_number" >&2
 		return 1
 	}
+	jq -e '
+		def expected_alerts:
+			if type == "array" then .
+			else (.alerts // [])
+			end;
+		def string_or_absent($key):
+			(has($key) | not) or (.[$key] == null) or (.[$key] | type == "string");
+		all(expected_alerts[]?;
+			string_or_absent("fixed_version")
+			and string_or_absent("patched_version")
+			and string_or_absent("installed_version")
+			and string_or_absent("observed_version")
+		)
+	' "${expected_file}" >/dev/null || {
+		echo "target security_alert_expected_rows version fields must be strings" >&2
+		return 1
+	}
 }
 
 target_story_compare_security_alert_expected_rows() {
