@@ -35,7 +35,7 @@ function modelWithVulnerability(): ConsoleModel {
         cvss: 8.1,
         kev: false,
         fixedVersion: "7.0.3",
-        services: ["api-node-boats"]
+        services: ["checkout-api"]
       }
     ],
     provenance: {
@@ -58,8 +58,8 @@ describe("VulnDetailPage", () => {
       <MemoryRouter initialEntries={["/vulnerabilities/CVE-2025-13465"]}>
         <Routes>
           <Route
+            element={<VulnDetailPage client={client} model={modelWithVulnerability()} />}
             path="/vulnerabilities/:id"
-            element={<VulnDetailPage model={modelWithVulnerability()} client={client} />}
           />
         </Routes>
       </MemoryRouter>
