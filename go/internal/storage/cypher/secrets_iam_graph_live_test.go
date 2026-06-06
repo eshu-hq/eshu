@@ -74,6 +74,34 @@ func TestSecretsIAMLiveTestRunIDUsesNamespacedNonce(t *testing.T) {
 	}
 }
 
+func registerSecretsIAMLiveDriverClose(t *testing.T, closeFn func(context.Context) error) {
+	t.Helper()
+
+	t.Cleanup(func() {
+		closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer closeCancel()
+		_ = closeFn(closeCtx)
+	})
+}
+
+func TestSecretsIAMLiveDriverCloseRunsAfterResourceCleanup(t *testing.T) {
+	var events []string
+
+	t.Run("order", func(t *testing.T) {
+		registerSecretsIAMLiveDriverClose(t, func(context.Context) error {
+			events = append(events, "close")
+			return nil
+		})
+		t.Cleanup(func() {
+			events = append(events, "resources")
+		})
+	})
+
+	if got, want := strings.Join(events, ","), "resources,close"; got != want {
+		t.Fatalf("cleanup order = %q, want %q", got, want)
+	}
+}
+
 // liveSecretsIAMExecutor adapts a Bolt driver to the cypher.Executor and
 // GroupExecutor seams plus a read helper for read-back assertions.
 type liveSecretsIAMExecutor struct {
@@ -150,11 +178,7 @@ func TestSecretsIAMGraphWriterLiveConformance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open Bolt driver: %v", err)
 	}
-	defer func() {
-		closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer closeCancel()
-		_ = driver.Close(closeCtx)
-	}()
+	registerSecretsIAMLiveDriverClose(t, driver.Close)
 
 	exec := liveSecretsIAMExecutor{driver: driver, database: cfg.DatabaseName}
 	runID := secretsIAMLiveTestRunID(t)
