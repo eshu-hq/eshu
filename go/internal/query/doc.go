@@ -38,6 +38,10 @@
 // list, count, and inventory reads select one current reducer row per provider
 // alert identity before applying default status/state filters, while each
 // returned row keeps reducer reason and evidence fact ids for audit.
+// Service-catalog correlation reads resolve repository selectors before reading
+// reducer facts, return ambiguous candidate repository IDs when the reducer
+// cannot select one repository, and attach missing-evidence classes to empty
+// anchored pages instead of treating missing catalog hops as proof of absence.
 // The companion explain route accepts one finding id or an advisory/CVE plus
 // package, repository, or image digest scope, then hydrates only the finding's
 // referenced evidence facts. It reports advisory, package/version,

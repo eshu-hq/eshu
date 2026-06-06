@@ -32,23 +32,24 @@ type ServiceCatalogCorrelationFilter struct {
 
 // ServiceCatalogCorrelationRow is one durable service-catalog correlation fact.
 type ServiceCatalogCorrelationRow struct {
-	CorrelationID   string
-	Provider        string
-	EntityRef       string
-	EntityType      string
-	DisplayName     string
-	RepositoryID    string
-	ServiceID       string
-	WorkloadID      string
-	OwnerRef        string
-	Lifecycle       string
-	Tier            string
-	Outcome         string
-	Reason          string
-	ProvenanceOnly  bool
-	DriftKind       string
-	DriftStatus     string
-	EvidenceFactIDs []string
+	CorrelationID          string
+	Provider               string
+	EntityRef              string
+	EntityType             string
+	DisplayName            string
+	RepositoryID           string
+	ServiceID              string
+	WorkloadID             string
+	OwnerRef               string
+	Lifecycle              string
+	Tier                   string
+	Outcome                string
+	Reason                 string
+	ProvenanceOnly         bool
+	DriftKind              string
+	DriftStatus            string
+	CandidateRepositoryIDs []string
+	EvidenceFactIDs        []string
 }
 
 type serviceCatalogCorrelationQueryer interface {
@@ -140,7 +141,7 @@ WHERE fact.fact_kind = $1
   AND ($2 = '' OR fact.scope_id = $2)
   AND ($3 = '' OR fact.payload->>'provider' = $3)
   AND ($4 = '' OR fact.payload->>'entity_ref' = $4)
-  AND ($5 = '' OR fact.payload->>'repository_id' = $5)
+  AND ($5 = '' OR fact.payload->>'repository_id' = $5 OR fact.payload->'candidate_repository_ids' ? $5)
   AND ($6 = '' OR fact.payload->>'service_id' = $6)
   AND ($7 = '' OR fact.payload->>'workload_id' = $7)
   AND ($8 = '' OR fact.payload->>'owner_ref' = $8)
@@ -169,22 +170,23 @@ func decodeServiceCatalogCorrelationRow(
 		return ServiceCatalogCorrelationRow{}, fmt.Errorf("decode service catalog correlation: %w", err)
 	}
 	return ServiceCatalogCorrelationRow{
-		CorrelationID:   factID,
-		Provider:        StringVal(payload, "provider"),
-		EntityRef:       StringVal(payload, "entity_ref"),
-		EntityType:      StringVal(payload, "entity_type"),
-		DisplayName:     StringVal(payload, "display_name"),
-		RepositoryID:    StringVal(payload, "repository_id"),
-		ServiceID:       StringVal(payload, "service_id"),
-		WorkloadID:      StringVal(payload, "workload_id"),
-		OwnerRef:        StringVal(payload, "owner_ref"),
-		Lifecycle:       StringVal(payload, "lifecycle"),
-		Tier:            StringVal(payload, "tier"),
-		Outcome:         StringVal(payload, "outcome"),
-		Reason:          StringVal(payload, "reason"),
-		ProvenanceOnly:  BoolVal(payload, "provenance_only"),
-		DriftKind:       StringVal(payload, "drift_kind"),
-		DriftStatus:     StringVal(payload, "drift_status"),
-		EvidenceFactIDs: StringSliceVal(payload, "evidence_fact_ids"),
+		CorrelationID:          factID,
+		Provider:               StringVal(payload, "provider"),
+		EntityRef:              StringVal(payload, "entity_ref"),
+		EntityType:             StringVal(payload, "entity_type"),
+		DisplayName:            StringVal(payload, "display_name"),
+		RepositoryID:           StringVal(payload, "repository_id"),
+		ServiceID:              StringVal(payload, "service_id"),
+		WorkloadID:             StringVal(payload, "workload_id"),
+		OwnerRef:               StringVal(payload, "owner_ref"),
+		Lifecycle:              StringVal(payload, "lifecycle"),
+		Tier:                   StringVal(payload, "tier"),
+		Outcome:                StringVal(payload, "outcome"),
+		Reason:                 StringVal(payload, "reason"),
+		ProvenanceOnly:         BoolVal(payload, "provenance_only"),
+		DriftKind:              StringVal(payload, "drift_kind"),
+		DriftStatus:            StringVal(payload, "drift_status"),
+		CandidateRepositoryIDs: StringSliceVal(payload, "candidate_repository_ids"),
+		EvidenceFactIDs:        StringSliceVal(payload, "evidence_fact_ids"),
 	}, nil
 }

@@ -49,6 +49,7 @@ const openAPIPathsServiceCatalog = `
                           "provenance_only": {"type": "boolean"},
                           "drift_kind": {"type": "string"},
                           "drift_status": {"type": "string"},
+                          "candidate_repository_ids": {"type": "array", "items": {"type": "string"}},
                           "evidence_fact_ids": {"type": "array", "items": {"type": "string"}}
                         },
                         "required": ["correlation_id", "outcome", "provenance_only"]
@@ -57,6 +58,18 @@ const openAPIPathsServiceCatalog = `
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean"},
+                    "missing_evidence": {
+                      "type": "array",
+                      "description": "Stable missing-evidence classes returned when an anchored read has no matching reducer correlation rows.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "class": {"type": "string", "enum": ["repository_service_catalog_correlation", "service_catalog_correlation", "workload_service_catalog_correlation", "entity_service_catalog_correlation", "owner_service_catalog_correlation", "scope_service_catalog_correlation"]},
+                          "reason": {"type": "string"}
+                        },
+                        "required": ["class", "reason"]
+                      }
+                    },
                     "next_cursor": {
                       "type": "object",
                       "properties": {

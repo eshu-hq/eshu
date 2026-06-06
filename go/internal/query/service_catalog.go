@@ -22,23 +22,31 @@ type ServiceCatalogHandler struct {
 
 // ServiceCatalogCorrelationResult is one reducer-owned catalog correlation row.
 type ServiceCatalogCorrelationResult struct {
-	CorrelationID   string   `json:"correlation_id"`
-	Provider        string   `json:"provider,omitempty"`
-	EntityRef       string   `json:"entity_ref,omitempty"`
-	EntityType      string   `json:"entity_type,omitempty"`
-	DisplayName     string   `json:"display_name,omitempty"`
-	RepositoryID    string   `json:"repository_id,omitempty"`
-	ServiceID       string   `json:"service_id,omitempty"`
-	WorkloadID      string   `json:"workload_id,omitempty"`
-	OwnerRef        string   `json:"owner_ref,omitempty"`
-	Lifecycle       string   `json:"lifecycle,omitempty"`
-	Tier            string   `json:"tier,omitempty"`
-	Outcome         string   `json:"outcome"`
-	Reason          string   `json:"reason,omitempty"`
-	ProvenanceOnly  bool     `json:"provenance_only"`
-	DriftKind       string   `json:"drift_kind,omitempty"`
-	DriftStatus     string   `json:"drift_status,omitempty"`
-	EvidenceFactIDs []string `json:"evidence_fact_ids,omitempty"`
+	CorrelationID          string   `json:"correlation_id"`
+	Provider               string   `json:"provider,omitempty"`
+	EntityRef              string   `json:"entity_ref,omitempty"`
+	EntityType             string   `json:"entity_type,omitempty"`
+	DisplayName            string   `json:"display_name,omitempty"`
+	RepositoryID           string   `json:"repository_id,omitempty"`
+	ServiceID              string   `json:"service_id,omitempty"`
+	WorkloadID             string   `json:"workload_id,omitempty"`
+	OwnerRef               string   `json:"owner_ref,omitempty"`
+	Lifecycle              string   `json:"lifecycle,omitempty"`
+	Tier                   string   `json:"tier,omitempty"`
+	Outcome                string   `json:"outcome"`
+	Reason                 string   `json:"reason,omitempty"`
+	ProvenanceOnly         bool     `json:"provenance_only"`
+	DriftKind              string   `json:"drift_kind,omitempty"`
+	DriftStatus            string   `json:"drift_status,omitempty"`
+	CandidateRepositoryIDs []string `json:"candidate_repository_ids,omitempty"`
+	EvidenceFactIDs        []string `json:"evidence_fact_ids,omitempty"`
+}
+
+// ServiceCatalogMissingEvidence explains why an anchored service-catalog read
+// could not return a matching reducer correlation row.
+type ServiceCatalogMissingEvidence struct {
+	Class  string `json:"class"`
+	Reason string `json:"reason"`
 }
 
 // Mount registers service catalog query routes.
@@ -133,6 +141,9 @@ func (h *ServiceCatalogHandler) listCorrelations(w http.ResponseWriter, r *http.
 		"limit":        limit,
 		"truncated":    truncated,
 	}
+	if missing := serviceCatalogMissingEvidence(filter, len(results)); len(missing) > 0 {
+		body["missing_evidence"] = missing
+	}
 	if truncated && len(results) > 0 {
 		body["next_cursor"] = map[string]string{
 			"after_correlation_id": results[len(results)-1].CorrelationID,
@@ -158,4 +169,45 @@ func requiredServiceCatalogCorrelationLimit(w http.ResponseWriter, r *http.Reque
 		return 0, false
 	}
 	return limit, true
+}
+
+func serviceCatalogMissingEvidence(
+	filter ServiceCatalogCorrelationFilter,
+	resultCount int,
+) []ServiceCatalogMissingEvidence {
+	if resultCount > 0 || filter.AfterCorrelationID != "" || filter.Outcome != "" || filter.DriftStatus != "" {
+		return nil
+	}
+	missing := make([]ServiceCatalogMissingEvidence, 0, 3)
+	appendMissing := func(class, reason string) {
+		missing = append(missing, ServiceCatalogMissingEvidence{Class: class, Reason: reason})
+	}
+	if filter.RepositoryID != "" {
+		appendMissing(
+			"repository_service_catalog_correlation",
+			"repository-scoped service catalog correlation evidence missing after repository selector resolution",
+		)
+	}
+	if filter.ServiceID != "" {
+		appendMissing("service_catalog_correlation", "service-scoped service catalog correlation evidence missing")
+	}
+	if filter.WorkloadID != "" {
+		appendMissing("workload_service_catalog_correlation", "workload-scoped service catalog correlation evidence missing")
+	}
+	if len(missing) > 0 {
+		return missing
+	}
+	if filter.EntityRef != "" {
+		appendMissing("entity_service_catalog_correlation", "catalog entity correlation evidence missing")
+	}
+	if filter.OwnerRef != "" {
+		appendMissing("owner_service_catalog_correlation", "catalog owner correlation evidence missing")
+	}
+	if len(missing) > 0 {
+		return missing
+	}
+	if filter.ScopeID != "" {
+		appendMissing("scope_service_catalog_correlation", "scope-scoped service catalog correlation evidence missing")
+	}
+	return missing
 }
