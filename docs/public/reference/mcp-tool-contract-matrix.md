@@ -138,6 +138,10 @@ Cypher.
 
 No-Regression Evidence: focused query, MCP, and telemetry tests cover:
 
+- MCP tool response shaping preserves canonical envelopes and plain JSON
+  handler payloads as `structuredContent`, with resource blocks for exact
+  serialized evidence. `go test ./internal/mcp -count=1` covers the
+  text-summary, structured-payload, and envelope-error paths.
 - Terraform import-plan candidates, including safe S3 and Lambda import blocks,
   request-derived S3 account and region hints, sensitive-resource refusal,
   ARN-only `resource_id` handling, OpenAPI response fields, MCP tool

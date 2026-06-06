@@ -69,8 +69,9 @@ type mcpToolCallParams struct {
 }
 
 type mcpToolResult struct {
-	Content []mcpContent `json:"content"`
-	IsError bool         `json:"isError,omitempty"`
+	Content           []mcpContent `json:"content"`
+	StructuredContent any          `json:"structuredContent,omitempty"`
+	IsError           bool         `json:"isError,omitempty"`
 }
 
 type mcpContent struct {
@@ -391,7 +392,8 @@ func (s *Server) handleMessage(ctx context.Context, req *jsonrpcRequest, authHea
 							},
 						},
 					},
-					IsError: result.IsError,
+					StructuredContent: result.Envelope,
+					IsError:           result.IsError,
 				},
 			}
 		}
@@ -401,7 +403,18 @@ func (s *Server) handleMessage(ctx context.Context, req *jsonrpcRequest, authHea
 			JSONRPC: "2.0",
 			ID:      req.ID,
 			Result: mcpToolResult{
-				Content: []mcpContent{{Type: "text", Text: string(resultJSON)}},
+				Content: []mcpContent{
+					{Type: "text", Text: summarizePlainPayload(result.Value)},
+					{
+						Type: "resource",
+						Resource: &mcpResource{
+							URI:      "eshu://tool-result/payload",
+							MimeType: "application/json",
+							Text:     string(resultJSON),
+						},
+					},
+				},
+				StructuredContent: result.Value,
 			},
 		}
 
@@ -426,6 +439,20 @@ func summarizeEnvelope(envelope *query.ResponseEnvelope) string {
 		}
 		if count, ok := dataMap["affected_count"]; ok {
 			return fmt.Sprintf("Found %v affected result(s).", count)
+		}
+	}
+	return "Eshu query completed."
+}
+
+func summarizePlainPayload(value any) string {
+	switch typed := value.(type) {
+	case []any:
+		return fmt.Sprintf("Returned %d result(s).", len(typed))
+	case map[string]any:
+		for _, key := range []string{"count", "total", "total_findings", "total_reconciliations", "total_correlations", "total_identities", "total_attachments"} {
+			if count, ok := typed[key]; ok {
+				return fmt.Sprintf("Returned %v result(s).", count)
+			}
 		}
 	}
 	return "Eshu query completed."
