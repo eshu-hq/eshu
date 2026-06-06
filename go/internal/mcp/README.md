@@ -128,7 +128,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_supply_chain_impact_findings` | GET | `/api/v0/supply-chain/impact/findings` (accepts repository ids or human repository selectors plus scanner filters such as `advisory_id`, `ecosystem`, `service_id`, `workload_id`, `environment`, `severity`, `profile`, `include_suppressed`, and `suppression_state`; precise rows require supported exact-version evidence such as npm, Maven, Cargo, Pub `pubspec.lock`, NuGet, or Swift `Package.resolved`, and each row carries a `suppression` block with state, source, justification, author, timestamps, reason, and VEX provenance) |
 | `list_advisory_evidence` | GET | `/api/v0/supply-chain/advisories/evidence` |
 | `explain_supply_chain_impact` | GET | `/api/v0/supply-chain/impact/explain` |
-| `list_security_alert_reconciliations` | GET | `/api/v0/supply-chain/security-alerts/reconciliations` (accepts repository ids or human repository selectors) |
+| `list_security_alert_reconciliations` | GET | `/api/v0/supply-chain/security-alerts/reconciliations` (accepts repository ids or human repository selectors; rows include Eshu-owned `eshu_package.observed_version` when installed-version evidence exists) |
 | `list_sbom_attestation_attachments` | GET | `/api/v0/supply-chain/sbom-attestations/attachments` |
 | `count_repositories_by_language` | GET | `/api/v0/repositories/by-language?limit=0` |
 | `list_repositories_by_language` | GET | `/api/v0/repositories/by-language` |
@@ -191,9 +191,11 @@ Provider security alert reconciliation stays transport-only as well. MCP maps
 repository ids or human repository selectors, provider, package, CVE, or GHSA
 anchors plus optional state/status filters to the HTTP read model and preserves
 the response shape that keeps provider alert state separate from Eshu-owned
-impact state. Count and list
-responses include the same provider-source coverage summary as HTTP, so a
-truncated open-alert provider read is visible as `target_incomplete`.
+package and impact state. List rows carry Eshu dependency evidence under
+`eshu_package`; MCP must not copy provider payload fields into
+`observed_version`. Count and list responses include the same provider-source
+coverage summary as HTTP, so a truncated open-alert provider read is visible as
+`target_incomplete`.
 
 IaC management tools also keep MCP as transport only. The HTTP query layer adds
 `safety_gate`, `safety_summary`, import-plan candidate shaping, and

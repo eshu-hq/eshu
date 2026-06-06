@@ -74,11 +74,16 @@ type SecurityAlertReconciliationDecision struct {
 	Status                      SecurityAlertReconciliationStatus
 	EshuImpactStatus            string
 	EshuImpactFindingID         string
+	ObservedVersion             string
+	RequestedRange              string
+	DependencyRange             string
 	Reason                      string
 	CanonicalWrites             int
 	EvidenceFactIDs             []string
 	DependencyEvidenceID        string
+	DependencyEvidenceKind      string
 	ImpactEvidenceID            string
+	MissingEvidence             []string
 }
 
 // BuildSecurityAlertReconciliations compares provider-reported repository
@@ -197,6 +202,7 @@ func extractSecurityAlertConsumptions(envelopes []facts.Envelope) []securityAler
 			observedAt:       envelope.ObservedAt,
 			dependencyRange:  payloadStr(envelope.Payload, "dependency_range"),
 			observedVersion:  payloadStr(envelope.Payload, "observed_version"),
+			installedVersion: payloadStr(envelope.Payload, "installed_version"),
 			requestedRange:   payloadStr(envelope.Payload, "requested_range"),
 			dependencyPath:   payloadOrderedStrings(envelope.Payload, "dependency_path"),
 			dependencyDepth:  supplyChainInt(envelope.Payload, "dependency_depth"),
@@ -235,6 +241,7 @@ func extractSecurityAlertManifestConsumptions(
 				observedAt:       dependency.ObservedAt,
 				dependencyRange:  dependency.DependencyRange,
 				observedVersion:  dependency.ObservedVersion,
+				installedVersion: dependency.InstalledVersion,
 				requestedRange:   dependency.RequestedRange,
 				dependencyPath:   append([]string(nil), dependency.DependencyPath...),
 				dependencyDepth:  dependency.DependencyDepth,
@@ -330,7 +337,7 @@ func classifyProviderSecurityAlert(
 			decision.RepositoryID = staleConsumption.repositoryID
 			decision.RepositoryName = firstNonBlank(staleConsumption.repositoryName, decision.RepositoryName)
 			decision.Status = SecurityAlertReconciliationStale
-			decision.DependencyEvidenceID = staleConsumption.factID
+			applySecurityAlertDependencyEvidence(&decision, alert, staleConsumption)
 			decision.EvidenceFactIDs = uniqueSortedStrings(append(decision.EvidenceFactIDs, staleConsumption.factID))
 			decision.Reason = "newer owned dependency evidence no longer matches the provider alert manifest path"
 			return decision
@@ -341,7 +348,7 @@ func classifyProviderSecurityAlert(
 	}
 	decision.RepositoryID = exactConsumption.repositoryID
 	decision.RepositoryName = firstNonBlank(exactConsumption.repositoryName, decision.RepositoryName)
-	decision.DependencyEvidenceID = exactConsumption.factID
+	applySecurityAlertDependencyEvidence(&decision, alert, exactConsumption)
 	decision.EvidenceFactIDs = uniqueSortedStrings(append(decision.EvidenceFactIDs, exactConsumption.factID))
 
 	alert.RepositoryID = exactConsumption.repositoryID

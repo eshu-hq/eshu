@@ -624,13 +624,16 @@ resolution before reading reducer-owned aggregate facts.
 but they are filters only and are rejected when sent without one of the anchors
 above.
 
-Rows keep `provider_alert` and `eshu_impact` as separate objects. Provider
-alert fields preserve reported alert ID/number, state, dependency ecosystem and
-name, manifest path, dependency scope, relationship, GHSA/CVE IDs, vulnerable
-range, patched version, severity, CVSS, EPSS, CWE, timestamps, and sanitized
-source URL. Eshu impact fields only appear when the reducer matched owned
-impact evidence. Valid reconciliation statuses are `matched`, `unmatched`,
-`stale`, `dismissed`, `fixed`, and `provider_only`.
+Rows keep `provider_alert`, `eshu_package`, and `eshu_impact` as separate
+objects. Provider alert fields preserve reported alert ID/number, state,
+dependency ecosystem and name, manifest path, dependency scope, relationship,
+GHSA/CVE IDs, vulnerable range, patched version, severity, CVSS, EPSS, CWE,
+timestamps, and sanitized source URL. `eshu_package.observed_version` is
+populated only from Eshu-owned dependency evidence when exact installed-version
+evidence exists; range-only or malformed version evidence remains explicit in
+`eshu_package.missing_evidence`. Eshu impact fields only appear when the
+reducer matched owned impact evidence. Valid reconciliation statuses are
+`matched`, `unmatched`, `stale`, `dismissed`, `fixed`, and `provider_only`.
 
 This route does not turn provider alert state into vulnerability impact truth.
 Use `/api/v0/supply-chain/impact/findings` for reducer-owned impact findings.

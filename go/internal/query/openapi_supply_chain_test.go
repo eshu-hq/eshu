@@ -319,12 +319,19 @@ func TestOpenAPISpecIncludesSecurityAlertReconciliations(t *testing.T) {
 	items := mustMapField(t, reconciliations, "items")
 	rowProps := mustMapField(t, items, "properties")
 	providerAlert := mustMapField(t, rowProps, "provider_alert")
+	eshuPackage := mustMapField(t, rowProps, "eshu_package")
 	eshuImpact := mustMapField(t, rowProps, "eshu_impact")
 	providerProps := mustMapField(t, providerAlert, "properties")
+	packageProps := mustMapField(t, eshuPackage, "properties")
 	impactProps := mustMapField(t, eshuImpact, "properties")
 	for _, key := range []string{"provider_alert_id", "provider_state", "package_id", "cve_ids", "ghsa_ids"} {
 		if _, ok := providerProps[key]; !ok {
 			t.Fatalf("provider_alert.properties missing %q", key)
+		}
+	}
+	for _, key := range []string{"observed_version", "requested_range", "dependency_evidence_id", "missing_evidence"} {
+		if _, ok := packageProps[key]; !ok {
+			t.Fatalf("eshu_package.properties missing %q", key)
 		}
 	}
 	if _, ok := impactProps["impact_status"]; !ok {

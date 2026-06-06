@@ -1,6 +1,9 @@
 package mcp
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestResolveRouteMapsSecurityAlertReconciliationsToBoundedQuery(t *testing.T) {
 	t.Parallel()
@@ -33,4 +36,21 @@ func TestResolveRouteMapsSecurityAlertReconciliationsToBoundedQuery(t *testing.T
 	if got, want := route.query["limit"], "25"; got != want {
 		t.Fatalf("route.query[limit] = %q, want %q", got, want)
 	}
+}
+
+func TestSecurityAlertReconciliationToolAdvertisesOwnedObservedVersion(t *testing.T) {
+	t.Parallel()
+
+	for _, tool := range ReadOnlyTools() {
+		if tool.Name != "list_security_alert_reconciliations" {
+			continue
+		}
+		for _, want := range []string{"eshu_package", "observed_version", "missing_evidence"} {
+			if !strings.Contains(tool.Description, want) {
+				t.Fatalf("list_security_alert_reconciliations description missing %q: %s", want, tool.Description)
+			}
+		}
+		return
+	}
+	t.Fatal("list_security_alert_reconciliations tool not registered")
 }

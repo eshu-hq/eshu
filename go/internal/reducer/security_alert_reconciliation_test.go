@@ -36,6 +36,7 @@ func TestBuildSecurityAlertReconciliationsClassifiesProviderAlertStates(t *testi
 		},
 	})
 	consumption := packageConsumptionCorrelationEnvelope("consume-1", repoID, packageID, "package-lock.json")
+	consumption.Payload["installed_version"] = "1.2.0"
 	impact := supplyChainImpactFindingEnvelope("impact-1", repoID, packageID, "CVE-2026-0001", "affected_exact")
 
 	decisions := BuildSecurityAlertReconciliations([]facts.Envelope{alert, consumption, impact})
@@ -51,6 +52,12 @@ func TestBuildSecurityAlertReconciliationsClassifiesProviderAlertStates(t *testi
 	}
 	if got, want := decision.EshuImpactStatus, "affected_exact"; got != want {
 		t.Fatalf("EshuImpactStatus = %q, want %q", got, want)
+	}
+	if got, want := decision.ObservedVersion, "1.2.0"; got != want {
+		t.Fatalf("ObservedVersion = %q, want Eshu-owned observed version %q", got, want)
+	}
+	if got, want := decision.DependencyEvidenceKind, packageConsumptionCorrelationFactKind; got != want {
+		t.Fatalf("DependencyEvidenceKind = %q, want %q", got, want)
 	}
 	if got, want := decision.CanonicalWrites, 0; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
