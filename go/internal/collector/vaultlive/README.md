@@ -49,13 +49,21 @@ the coverage-warning fact and as a `partial` generation freshness hint, never
 silently complete. Context cancellation and a malformed observation remain
 fatal.
 
-`SnapshotSource` (`snapshot.go`) is the runtime driver: it implements
-`collector.Source.Next`, yielding one snapshot generation per configured Vault
-target (scope kind `vault_cluster`, collector kind `vault_live`) with a
-deterministic per-target scope/generation id. The live `vaultapi` client (a
-`net/http`, no-SDK adapter) implements the `Client` seam, and the
-`cmd/collector-vault-live` binary runs the driver over the shared
-`collector.Service` commit boundary.
+`SnapshotSource` (`snapshot.go`) is the serial driver used by fixture and direct
+source tests: it implements `collector.Source.Next`, yielding one snapshot
+generation per configured Vault target (scope kind `vault_cluster`, collector
+kind `vault_live`) with a deterministic per-target scope/generation id.
+`ClaimedSource` (`claimed_source.go`) is the production path: it resolves a
+workflow work item into one configured target, uses the workflow generation id
+and fencing token, and commits through `collector.ClaimedService` in
+`cmd/collector-vault-live`. The live `vaultapi` client is a `net/http`, no-SDK
+adapter implementing the `Client` seam.
+
+`vaultlive.Config` requires deployment-scoped redaction-key material. Vault
+names, paths, accessors, aliases, policy hashes, and warning metadata are
+persisted as deterministic HMAC markers through the `secretsiam` envelope
+builders. The source never reads KV `/data`, tokens, AppRole secret ids, or
+secret values.
 
 Source telemetry: the lane emits `eshu_dp_secrets_iam_source_facts_emitted_total`
 `{source="vault",fact_kind}` (per emitted fact family),
@@ -78,28 +86,24 @@ names the stripped field *shape*, never its value, and the freshness gauge is
 labeled by the bounded `scope_kind` (`vault_cluster`), never a cluster id,
 namespace, or path.
 
-Remaining under #1356: validation against a live/dev Vault.
-
 ## Evidence
 
-No-Regression Evidence: the package is a read-only mapping lane plus a serial
-snapshot driver. The mapping (`Source.Collect`) is single-pass and per-family
-resilient (a family list error becomes a coverage-warning fact, not a generation
-failure) with `slices.Grow` pre-sizing; `SnapshotSource` is driven serially by
-`collector.Service.Next` (one generation per target, the per-target scope id as
-the durable conflict domain) and reuses the shared `collector.Service` commit
-boundary unchanged. It issues no Cypher, performs no graph or canonical writes,
-holds no locks/leases, and runs no queue or concurrent workers; the only fan-out
-is the bounded per-target Vault metadata read in the merged `vaultapi` client
-(depth/total-paths/body-size capped). So there is no new hot-path or backend
-behavior to regress. Correctness is covered by
-`go test ./internal/collector/vaultlive` (all-seven-family emission, the full
-redaction canary, SourceURI sanitization, the metadata-only Client surface
-guard, per-target generation scope/identity, batch drain/reset, config
-validation, and deterministic namespace-scoped scope ids) and
-`go test ./cmd/collector-vault-live` (config + token-from-env parsing). Live
-throughput against a real Vault is validated as part of the remaining #1356
-integration step.
+No-Regression Evidence: the package is a read-only mapping lane plus serial
+snapshot and claim-driven drivers. The mapping (`Source.Collect`) is single-pass
+and per-family resilient (a family list error becomes a coverage-warning fact,
+not a generation failure) with `slices.Grow` pre-sizing. `ClaimedSource` uses one
+workflow work item per target, the target scope id as the durable conflict
+domain, and the shared `collector.ClaimedService` claim, heartbeat, retry, and
+commit boundary. It issues no Cypher, performs no graph or canonical writes, and
+holds no graph locks; the only fan-out is the bounded per-target Vault metadata
+read in the merged `vaultapi` client (depth/total-paths/body-size capped).
+Correctness is covered by `go test ./internal/collector/vaultlive` (all-seven
+family emission, the full redaction canary, SourceURI sanitization, the
+metadata-only Client surface guard, claimed generation/fencing, per-target
+generation scope/identity, batch drain/reset, redaction-key validation, and
+deterministic namespace-scoped scope ids) and `go test ./cmd/collector-vault-live`
+(claim config, token-from-env parsing, redaction-key loading, and claim lease
+validation).
 
 Observability Evidence: the lane emits the secrets/IAM source counters
 `eshu_dp_secrets_iam_source_facts_emitted_total{source="vault",fact_kind}` (in

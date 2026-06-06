@@ -99,6 +99,12 @@ type LokiPlanner interface {
 	PlanLokiWork(context.Context, LokiPlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
+// VaultLivePlanner plans live Vault metadata workflow rows from collector
+// instance configuration.
+type VaultLivePlanner interface {
+	PlanVaultLiveWork(context.Context, VaultLivePlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
+
 // OwnedPackageTargetReader loads active dependency evidence that can bound
 // derived package-registry and vulnerability-intelligence work.
 type OwnedPackageTargetReader interface {
@@ -132,6 +138,7 @@ type Service struct {
 	TempoPlanner                      TempoPlanner
 	GrafanaPlanner                    GrafanaPlanner
 	LokiPlanner                       LokiPlanner
+	VaultLivePlanner                  VaultLivePlanner
 	OwnedPackageTargetReader          OwnedPackageTargetReader
 	OSPackageAdvisoryTargetReader     OSPackageAdvisoryTargetReader
 	SBOMComponentAdvisoryTargetReader SBOMComponentAdvisoryTargetReader
@@ -357,6 +364,15 @@ func (s Service) runReconcile(ctx context.Context) error {
 		return err
 	}
 	if err := s.scheduleLokiWork(ctx, observedAt, instances); err != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:      reconcileOutcomeReconcileError,
+			Duration:     time.Since(startedAt),
+			DesiredCount: desiredCount,
+			DurableCount: durableCount,
+		})
+		return err
+	}
+	if err := s.scheduleVaultLiveWork(ctx, observedAt, instances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),

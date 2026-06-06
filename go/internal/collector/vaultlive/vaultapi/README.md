@@ -31,11 +31,11 @@ client, err := vaultapi.New(vaultapi.Config{
 
 ## Status
 
-Adapter implementation + unit tests against an `httptest` mock Vault. Validation
-against a live/dev Vault and the coordinator claim-driven scheduling wiring are
-the remaining steps of #1356 (the adapter is the dependency-free, testable
-core); response shapes follow the documented Vault KV v2, auth, policy, and
-identity APIs.
+Adapter implementation + unit tests run against an `httptest` mock Vault.
+`cmd/collector-vault-live` now wires this adapter into the claim-driven
+`vault_live` runtime. Response shapes follow the documented Vault KV v2, auth,
+policy, and identity APIs, while the package remains dependency-free per the
+scoped no-SDK rule.
 
 ## Evidence
 
@@ -51,7 +51,8 @@ rejection of hostile LIST keys, and a secret legitimately named `data`). The
 per-call latency/throughput profile against a live Vault is validated as part of
 the #1356 integration step.
 
-No-Observability-Change: this PR adds no telemetry instruments, spans, logs, or
-status fields. The `eshu_dp_secrets_iam_*{source="vault"}` source metrics are
-introduced when the adapter is wired into the claim-driven `vaultlive` runtime
-(the remaining part of #1356); until then there is no runtime path to observe.
+Observability Evidence: the adapter reports bounded API-call observations
+through the `OnAPICall` hook, and the claimed Vault runtime records them as
+`eshu_dp_secrets_iam_source_api_calls_total{source="vault",operation,result}`.
+The adapter does not place paths, addresses, tokens, or response bodies in
+metric labels.

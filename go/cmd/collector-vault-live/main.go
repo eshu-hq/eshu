@@ -92,7 +92,7 @@ func run(parent context.Context) error {
 		StoreName:   "collector_vault_live",
 	}
 
-	runner, err := buildCollectorService(storeDB, os.Getenv, tracer, instruments, logger)
+	runner, err := buildClaimedService(storeDB, os.Getenv, tracer, instruments, logger)
 	if err != nil {
 		return err
 	}

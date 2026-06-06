@@ -45,6 +45,7 @@ freshness, and effective target, rule, log-signal, or trace-signal metadata.
 | OCI Registry Collector | `oci_registry` | explicit registry targets; runtime also supports claim-aware mode | `/usr/local/bin/eshu-collector-oci-registry` | `deploy/helm/eshu/templates/deployment-oci-registry-collector.yaml` |
 | Terraform State Collector | `terraform_state` | workflow claims for configured state sources | `/usr/local/bin/eshu-collector-terraform-state` | `deploy/helm/eshu/templates/deployment-terraform-state-collector.yaml` |
 | AWS Cloud Collector | `aws` | workflow claims for account, region, and service slices | `/usr/local/bin/eshu-collector-aws-cloud` | `deploy/helm/eshu/templates/deployment-aws-cloud-collector.yaml` |
+| Vault Live Collector | `vault_live` | workflow claims for configured Vault cluster/namespace metadata targets | `/usr/local/bin/eshu-collector-vault-live` | not charted |
 | Package Registry Collector | `package_registry` | workflow claims for configured or derived package metadata targets | `/usr/local/bin/eshu-collector-package-registry` | `deploy/helm/eshu/templates/deployment-package-registry-collector.yaml` |
 | SBOM Attestation Collector | `sbom_attestation` | workflow claims for configured SBOM document URLs or OCI referrer documents | `/usr/local/bin/eshu-collector-sbom-attestation` | `deploy/helm/eshu/templates/deployment-sbom-attestation-collector.yaml` |
 | Security Alert Collector | `security_alert` | workflow claims for configured GitHub Dependabot repository-alert targets | `/usr/local/bin/eshu-collector-security-alerts` | `deploy/helm/eshu/templates/deployment-security-alert-collector.yaml` |
@@ -68,6 +69,7 @@ All hosted collector runtimes expose `/healthz`, `/readyz`, `/metrics`, and
 | OCI Registry | Observes tags, manifests, and referrers from explicit `ociRegistryCollector.targets`; runtime also supports claim-aware `oci_registry` instances when `ESHU_COLLECTOR_INSTANCES_JSON` is present. |
 | Terraform State | Claim-driven. Selects one enabled `terraform_state` instance, opens exact local or S3 state sources, redacts sensitive values, and refuses to start without `ESHU_TFSTATE_REDACTION_KEY` and `ESHU_TFSTATE_REDACTION_RULESET_VERSION`. |
 | AWS Cloud | Claim-driven. Selects one enabled `aws` instance, claims account/region/service work, obtains claim-scoped credentials, and commits reported AWS facts for IAM, ECR, ECS, ELBv2, Route 53, EC2 networking, Lambda, EKS, SQS, SNS, EventBridge, GuardDuty, S3, RDS, Redshift (provisioned and Serverless), DynamoDB, CloudWatch Logs, CloudFront, Secrets Manager, SSM Parameter Store, Security Hub, Glue Data Catalog, ElastiCache, MemoryDB, MSK, and Step Functions. |
+| Vault Live | Claim-driven. Selects one enabled `vault_live` instance, resolves each target's read-only `token_env`, calls metadata-only Vault auth, policy, identity, mount, and KV v2 metadata endpoints, and commits only `secrets_iam_posture` source facts. It refuses to start without `ESHU_VAULT_LIVE_REDACTION_KEY`, never reads KV `/data`, and fingerprints Vault paths, names, accessors, aliases, policy hashes, and warning metadata with deterministic HMAC markers. |
 | Package Registry | Claim-driven. Selects one enabled `package_registry` instance, fetches the explicit `metadata_url` or a coordinator-derived npm/PyPI metadata target from owned dependency evidence, and commits package, version, dependency, artifact, and source-hint facts for npm, PyPI, Go module, Maven, NuGet, and generic metadata shapes. Derived Go module, Maven, NuGet, Composer, RubyGems, and Cargo package identities stay bounded to observed owned dependency evidence and emit missing-evidence warnings when no native metadata adapter URL is available. |
 | SBOM Attestation | Claim-driven. Selects one enabled `sbom_attestation` instance, fetches configured CycloneDX/SPDX SBOMs or in-toto attestations from HTTP(S) document URLs or OCI referrer blobs, and commits typed `sbom.*` and `attestation.*` facts. It redacts source URIs, preserves parse warnings as source facts, and keeps signature verification status separate from subject attachment truth. |
 | Security Alert | Claim-driven. Selects one enabled `security_alert` instance, resolves the target `token_env` from the pod environment, refuses non-allowlisted repositories, requires HTTPS for any `api_base_url` override, fetches bounded GitHub Dependabot alert pages, and commits only `security_alert.repository_alert` facts. Provider state remains source evidence; reducers own reconciliation and impact truth. |
@@ -105,6 +107,12 @@ account IDs, PagerDuty URLs, routing keys, or credential values in metric
 labels or status errors. Keep incident, change, and optional live-config
 details in source-fact payloads only when the target environment accepts that
 evidence retention boundary.
+
+For Vault live, do not put Vault tokens, private Vault URLs, mount paths, KV
+paths, policy names, auth role names, entity names, alias names, accessors, raw
+ACL policy bodies, warning messages, or provider response bodies in metric
+labels or status errors. Vault payloads retain bounded enums, counts, and
+deterministic HMAC markers only.
 
 For Jira, do not put site IDs, issue keys, user identities, summaries, metadata
 names, custom-field IDs, remote link URLs, or credential values in metric

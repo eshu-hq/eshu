@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
 func TestNewVaultKVMetadataEnvelopeRedactsPathAndCustomMetadata(t *testing.T) {
@@ -40,6 +41,9 @@ func TestNewVaultKVMetadataEnvelopeRedactsPathAndCustomMetadata(t *testing.T) {
 	}
 	if env.Payload["kv_path_fingerprint"] == "" || env.Payload["mount_join_key"] == "" {
 		t.Fatalf("Vault KV metadata payload missing fingerprints or join keys: %#v", env.Payload)
+	}
+	if got, _ := env.Payload["kv_path_fingerprint"].(string); !strings.HasPrefix(got, "redacted:hmac-sha256:") {
+		t.Fatalf("kv_path_fingerprint = %q, want keyed HMAC marker", got)
 	}
 }
 
@@ -301,7 +305,16 @@ func testVaultContext() VaultContext {
 		CollectorInstanceID: "vault-prod",
 		FencingToken:        11,
 		ObservedAt:          time.Date(2026, 6, 2, 14, 0, 0, 0, time.UTC),
+		RedactionKey:        testSecretsIAMRedactionKey(),
 	}
+}
+
+func testSecretsIAMRedactionKey() redact.Key {
+	key, err := redact.NewKey([]byte("secrets-iam-test-redaction-key"))
+	if err != nil {
+		panic(err)
+	}
+	return key
 }
 
 func payloadContains(payload map[string]any, needle string) bool {

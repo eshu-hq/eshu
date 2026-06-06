@@ -45,6 +45,7 @@ func leakVaultContext() VaultContext {
 		VaultClusterID: "vault-prod", Namespace: "admin",
 		ScopeID: "scope-vault", GenerationID: "gen-1", CollectorInstanceID: "ci-1",
 		FencingToken: 1, ObservedAt: time.Unix(1700000000, 0).UTC(),
+		RedactionKey: testSecretsIAMRedactionKey(),
 	}
 }
 

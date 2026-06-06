@@ -226,6 +226,24 @@ func TestCollectorContractForScannerWorkerHasNoOperationalKeyspaces(t *testing.T
 	}
 }
 
+func TestCollectorContractForVaultLiveHasNoOperationalKeyspaces(t *testing.T) {
+	t.Parallel()
+
+	contract, ok := CollectorContractFor(scope.CollectorVaultLive)
+	if !ok {
+		t.Fatalf("CollectorContractFor(%q) found = false, want true", scope.CollectorVaultLive)
+	}
+	if contract.CollectorKind != scope.CollectorVaultLive {
+		t.Fatalf("CollectorKind = %q, want %q", contract.CollectorKind, scope.CollectorVaultLive)
+	}
+	if len(contract.CanonicalKeyspaces) != 0 {
+		t.Fatalf("CanonicalKeyspaces = %#v, want empty because Vault live emits source facts only", contract.CanonicalKeyspaces)
+	}
+	if len(contract.RequiredPhases) != 0 {
+		t.Fatalf("RequiredPhases = %#v, want empty because reducers own secrets/IAM truth", contract.RequiredPhases)
+	}
+}
+
 func TestCollectorContractForSecurityAlertHasNoOperationalKeyspaces(t *testing.T) {
 	t.Parallel()
 

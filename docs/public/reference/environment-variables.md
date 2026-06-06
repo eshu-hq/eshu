@@ -15,7 +15,7 @@ class from status output, structured logs, traces, or a discovery advisory.
 | --- | --- |
 | API, MCP, local service, auth, Postgres, Bolt, OTEL, pprof, memory, and installer variables | [Runtime And Storage Environment](environment-runtime-storage.md) |
 | Repository discovery, parsing, projector, reducer, queue, graph-write, and NornicDB tuning variables | [Ingestion And Queue Environment](environment-ingestion-queues.md) |
-| Workflow coordinator, Terraform-state, AWS, OCI, package-registry, SBOM-attestation, security-alert, vulnerability-intelligence, Confluence, and webhook variables | [Collector Environment](environment-collectors.md) |
+| Workflow coordinator, Terraform-state, AWS, Vault live, OCI, package-registry, SBOM-attestation, security-alert, vulnerability-intelligence, Confluence, and webhook variables | [Collector Environment](environment-collectors.md) |
 | Docker Compose ports, remote E2E, verifier, live-smoke, and proof-run variables | [Compose And Test Environment](environment-compose-tests.md) |
 | NornicDB write-shape tuning decisions and evidence requirements | [NornicDB Tuning](nornicdb-tuning.md) |
 | Compose service purpose and when to use each Compose file | [Docker Compose](../run-locally/docker-compose.md) |
@@ -63,6 +63,7 @@ Treat these variables as credentials or secret material:
 - `ESHU_POSTGRES_PASSWORD`
 - `ESHU_TFSTATE_REDACTION_KEY`
 - `ESHU_AWS_REDACTION_KEY`
+- `ESHU_VAULT_LIVE_REDACTION_KEY`
 - `ESHU_CONFLUENCE_API_TOKEN`
 - `ESHU_CONFLUENCE_BEARER_TOKEN`
 - webhook secrets and live-smoke registry passwords or bearer tokens
