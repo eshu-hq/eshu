@@ -154,33 +154,27 @@ func (h *PackageRegistryHandler) listPackages(w http.ResponseWriter, r *http.Req
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	truncated := len(rows) > limit
-	if truncated {
-		rows = rows[:limit]
-	}
 	results := make([]PackageRegistryPackageResult, 0, len(rows))
+	identityIssues := make([]PackageRegistryIdentityIssue, 0)
+	truncated := len(rows) > limit
 	for _, row := range rows {
-		results = append(results, PackageRegistryPackageResult{
-			PackageID:        StringVal(row, "package_id"),
-			Ecosystem:        StringVal(row, "ecosystem"),
-			Registry:         StringVal(row, "registry"),
-			Namespace:        StringVal(row, "namespace"),
-			NormalizedName:   StringVal(row, "normalized_name"),
-			PURL:             StringVal(row, "purl"),
-			BOMRef:           StringVal(row, "bom_ref"),
-			PackageManager:   StringVal(row, "package_manager"),
-			SourcePath:       StringVal(row, "source_path"),
-			SourceSpecificID: StringVal(row, "source_specific_id"),
-			Visibility:       StringVal(row, "visibility"),
-			SourceConfidence: StringVal(row, "source_confidence"),
-			VersionCount:     IntVal(row, "version_count"),
-		})
+		result, issue := packageRegistryPackageResultFromRow(row)
+		if issue != nil {
+			identityIssues = append(identityIssues, *issue)
+			continue
+		}
+		if len(results) == limit {
+			truncated = true
+			continue
+		}
+		results = append(results, result)
 	}
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"packages":  results,
-		"count":     len(results),
-		"limit":     limit,
-		"truncated": truncated,
+		"packages":        results,
+		"identity_issues": identityIssues,
+		"count":           len(results),
+		"limit":           limit,
+		"truncated":       truncated,
 	}, BuildTruthEnvelope(
 		h.profile(),
 		packageRegistryPackagesCapability,
