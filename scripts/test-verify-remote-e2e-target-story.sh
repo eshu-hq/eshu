@@ -61,6 +61,9 @@ if ((is_mcp == 1)); then
     list_service_catalog_correlations)
       cat "${state_dir}/mcp-service-catalog.json"
       ;;
+    list_ci_cd_run_correlations)
+      cat "${state_dir}/mcp-cicd.json"
+      ;;
     find_infra_resources)
       cat "${state_dir}/mcp-cloud-resources.json"
       ;;
@@ -99,11 +102,17 @@ case "$*" in
   *"/api/v0/ci-cd/run-correlations/count?repository_id=repo%3A%2F%2Fexample%2Fapi&artifact_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"*)
     cat "${state_dir}/cicd-count.json"
     ;;
+  *"/api/v0/ci-cd/run-correlations?repository_id=repo%3A%2F%2Fexample%2Fapi&artifact_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&limit=1"*)
+    cat "${state_dir}/cicd-list.json"
+    ;;
   *"/api/v0/infra/resources/search"*)
     cat "${state_dir}/cloud-resources.json"
     ;;
   *"/api/v0/ci-cd/run-correlations/count?repository_id=repo%3A%2F%2Fexample%2Fapi&image_ref=registry.example.com%2Fteam%2Fapi%3Aprod"*)
     cat "${state_dir}/cicd-count.json"
+    ;;
+  *"/api/v0/ci-cd/run-correlations?repository_id=repo%3A%2F%2Fexample%2Fapi&image_ref=registry.example.com%2Fteam%2Fapi%3Aprod&limit=1"*)
+    cat "${state_dir}/cicd-list.json"
     ;;
   *)
     echo "unexpected curl target: $*" >&2
@@ -192,11 +201,17 @@ JSON
   cat >"${state_dir}/cicd-count.json" <<'JSON'
 {"data":{"total_correlations":1},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
+  cat >"${state_dir}/cicd-list.json" <<'JSON'
+{"data":{"count":1,"correlations":[{"correlation_id":"cicd-1","provider":"github_actions","run_id":"run-1","repository_id":"repo://example/api","outcome":"exact","provenance_only":false,"canonical_writes":1}],"limit":1,"truncated":false,"evidence_summary":{"static_workflow_artifacts":{"state":"present","count":1,"paths":[".github/workflows/deploy.yml"]},"live_run_correlations":{"state":"present","count":1}}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
+JSON
   cat >"${state_dir}/cloud-resources.json" <<'JSON'
 {"data":{"count":1,"results":[{"id":"cloud-resource:api","resource_id":"arn:aws:lambda:us-east-1:111122223333:function:example-api","arn":"arn:aws:lambda:us-east-1:111122223333:function:example-api","provider":"aws"}],"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
   cat >"${state_dir}/mcp-service-catalog.json" <<'JSON'
 {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":1,\"correlations\":[{\"correlation_id\":\"corr-1\",\"service_id\":\"service:api\"}],\"truncated\":false},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
+JSON
+  cat >"${state_dir}/mcp-cicd.json" <<'JSON'
+{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":1,\"correlations\":[{\"correlation_id\":\"cicd-1\",\"provider\":\"github_actions\",\"run_id\":\"run-1\",\"repository_id\":\"repo://example/api\",\"outcome\":\"exact\",\"provenance_only\":false,\"canonical_writes\":1}],\"limit\":1,\"truncated\":false,\"evidence_summary\":{\"static_workflow_artifacts\":{\"state\":\"present\",\"count\":1,\"paths\":[\".github/workflows/deploy.yml\"]},\"live_run_correlations\":{\"state\":\"present\",\"count\":1}}},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
 JSON
   cat >"${state_dir}/mcp-cloud-resources.json" <<'JSON'
 {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Returned 1 result(s)."},{"type":"resource","resource":{"uri":"eshu://tool-result/envelope","mimeType":"application/eshu.envelope+json","text":"{\"data\":{\"count\":1,\"results\":[{\"id\":\"cloud-resource:api\",\"resource_id\":\"arn:aws:lambda:us-east-1:111122223333:function:example-api\",\"arn\":\"arn:aws:lambda:us-east-1:111122223333:function:example-api\",\"provider\":\"aws\"}],\"truncated\":false},\"truth\":{\"level\":\"exact\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"}}],"isError":false}}
@@ -262,6 +277,21 @@ export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
 expect_pass
 if rg -q 'repo://example/api|oci-registry://registry.example/team/api|arn:aws' /tmp/eshu-remote-e2e-target-story.out; then
   printf 'target-story proof leaked private target values\n' >&2
+  sed -n '1,200p' /tmp/eshu-remote-e2e-target-story.out >&2
+  exit 1
+fi
+if ! rg -F -q '/api/v0/ci-cd/run-correlations?repository_id=repo%3A%2F%2Fexample%2Fapi&artifact_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&limit=1' "${state_dir}/curl-targets"; then
+  printf 'expected target-story verifier to list CI/CD rows by artifact digest\n' >&2
+  sed -n '1,200p' "${state_dir}/curl-targets" >&2
+  exit 1
+fi
+if ! rg -q 'ci_cd_static_workflow_state=present' /tmp/eshu-remote-e2e-target-story.out; then
+  printf 'expected target-story proof to report CI/CD static workflow state\n' >&2
+  sed -n '1,200p' /tmp/eshu-remote-e2e-target-story.out >&2
+  exit 1
+fi
+if ! rg -q 'mcp_ci_cd_live_run_state=present' /tmp/eshu-remote-e2e-target-story.out; then
+  printf 'expected target-story proof to report MCP CI/CD live run state\n' >&2
   sed -n '1,200p' /tmp/eshu-remote-e2e-target-story.out >&2
   exit 1
 fi
@@ -362,6 +392,11 @@ export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
 expect_pass
 if ! rg -F -q '/api/v0/ci-cd/run-correlations/count?repository_id=repo%3A%2F%2Fexample%2Fapi&image_ref=registry.example.com%2Fteam%2Fapi%3Aprod' "${state_dir}/curl-targets"; then
   printf 'expected target-story verifier to count CI/CD rows by image_ref\n' >&2
+  sed -n '1,200p' "${state_dir}/curl-targets" >&2
+  exit 1
+fi
+if ! rg -F -q '/api/v0/ci-cd/run-correlations?repository_id=repo%3A%2F%2Fexample%2Fapi&image_ref=registry.example.com%2Fteam%2Fapi%3Aprod&limit=1' "${state_dir}/curl-targets"; then
+  printf 'expected target-story verifier to list CI/CD rows by image_ref\n' >&2
   sed -n '1,200p' "${state_dir}/curl-targets" >&2
   exit 1
 fi

@@ -117,6 +117,163 @@ func TestCICDListRunCorrelationsUsesBoundedPostgresStore(t *testing.T) {
 	}
 }
 
+func TestCICDListRunCorrelationsExplainsStaticWorkflowOnlyEvidence(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingCICDRunCorrelationStore{}
+	handler := &CICDHandler{
+		Content: fakePortContentStore{
+			repoFiles: []FileContent{{
+				RepoID:       "repo://example/api",
+				RelativePath: ".github/workflows/deploy.yml",
+				ArtifactType: "github_actions_workflow",
+				Content: `name: deploy
+on:
+  push:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: docker build -t registry.example.com/team/api:prod .
+`,
+			}},
+		},
+		Correlations: store,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/ci-cd/run-correlations?repository_id=repo://example/api&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var resp struct {
+		Correlations    []CICDRunCorrelationResult        `json:"correlations"`
+		EvidenceSummary cicdRunCorrelationEvidenceSummary `json:"evidence_summary"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got := len(resp.Correlations); got != 0 {
+		t.Fatalf("len(correlations) = %d, want 0", got)
+	}
+	if got, want := resp.EvidenceSummary.StaticWorkflowArtifacts.State, "present"; got != want {
+		t.Fatalf("static_workflow_artifacts.state = %q, want %q", got, want)
+	}
+	if got, want := resp.EvidenceSummary.StaticWorkflowArtifacts.Count, 1; got != want {
+		t.Fatalf("static_workflow_artifacts.count = %d, want %d", got, want)
+	}
+	if got, want := resp.EvidenceSummary.StaticWorkflowArtifacts.Paths, []string{".github/workflows/deploy.yml"}; len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("static_workflow_artifacts.paths = %#v, want %#v", got, want)
+	}
+	if got, want := resp.EvidenceSummary.LiveRunCorrelations.State, "missing"; got != want {
+		t.Fatalf("live_run_correlations.state = %q, want %q", got, want)
+	}
+	if got, want := resp.EvidenceSummary.LiveRunCorrelations.Reason, "static_workflow_only_live_run_correlation_missing"; got != want {
+		t.Fatalf("live_run_correlations.reason = %q, want %q", got, want)
+	}
+}
+
+func TestCICDListRunCorrelationsExplainsLiveRunEvidence(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingCICDRunCorrelationStore{
+		rows: []CICDRunCorrelationRow{{
+			CorrelationID: "correlation-1",
+			RepositoryID:  "repo://example/api",
+			Provider:      "github_actions",
+			RunID:         "run-1",
+			Outcome:       "exact",
+		}},
+	}
+	handler := &CICDHandler{
+		Content:      fakePortContentStore{},
+		Correlations: store,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/ci-cd/run-correlations?repository_id=repo://example/api&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var resp struct {
+		Count           int                               `json:"count"`
+		EvidenceSummary cicdRunCorrelationEvidenceSummary `json:"evidence_summary"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := resp.Count, 1; got != want {
+		t.Fatalf("count = %d, want %d", got, want)
+	}
+	if got, want := resp.EvidenceSummary.LiveRunCorrelations.State, "present"; got != want {
+		t.Fatalf("live_run_correlations.state = %q, want %q", got, want)
+	}
+	if got, want := resp.EvidenceSummary.LiveRunCorrelations.Count, 1; got != want {
+		t.Fatalf("live_run_correlations.count = %d, want %d", got, want)
+	}
+	if got, want := resp.EvidenceSummary.StaticWorkflowArtifacts.State, "absent"; got != want {
+		t.Fatalf("static_workflow_artifacts.state = %q, want %q", got, want)
+	}
+}
+
+func TestCICDListRunCorrelationsExplainsNoEvidence(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingCICDRunCorrelationStore{}
+	handler := &CICDHandler{
+		Content:      fakePortContentStore{},
+		Correlations: store,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/ci-cd/run-correlations?repository_id=repo://example/api&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var resp struct {
+		EvidenceSummary cicdRunCorrelationEvidenceSummary `json:"evidence_summary"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := resp.EvidenceSummary.StaticWorkflowArtifacts.State, "absent"; got != want {
+		t.Fatalf("static_workflow_artifacts.state = %q, want %q", got, want)
+	}
+	if got, want := resp.EvidenceSummary.LiveRunCorrelations.State, "missing"; got != want {
+		t.Fatalf("live_run_correlations.state = %q, want %q", got, want)
+	}
+	if got, want := resp.EvidenceSummary.Reason, "no_ci_cd_evidence_found"; got != want {
+		t.Fatalf("evidence_summary.reason = %q, want %q", got, want)
+	}
+}
+
 func TestCICDListRunCorrelationsUsesImageRefAnchor(t *testing.T) {
 	t.Parallel()
 

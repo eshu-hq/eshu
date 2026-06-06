@@ -343,7 +343,7 @@ main() {
 	fi
 	validate_target_story_proof_mode "${proof_mode}" "${image_min}" "${sbom_min}"
 	target_story_validate_alignment "${TARGET_STORY_FILE}" "${proof_mode}"
-	if ((catalog_min > 0 || cloud_min > 0)) && [[ -z "${MCP_URL}" ]]; then
+	if ((catalog_min > 0 || cicd_min > 0 || cloud_min > 0)) && [[ -z "${MCP_URL}" ]]; then
 		echo "ESHU_REMOTE_E2E_MCP_URL is required when target story MCP proof is required" >&2
 		return 1
 	fi
@@ -355,7 +355,9 @@ main() {
 	local repo_query
 	repo_query="$(urlencode "${repo_selector}")"
 	local impact_count=0 security_count=0 security_expected_rows_count=0 image_count=0 sbom_count=0 catalog_count=0 cicd_count=0 cloud_count=0
-	local mcp_catalog_count=0 mcp_cloud_count=0
+	local mcp_catalog_count=0 mcp_cicd_count=0 mcp_cloud_count=0
+	local cicd_static_state=not_checked cicd_live_state=not_checked
+	local mcp_cicd_static_state=not_checked mcp_cicd_live_state=not_checked
 	if ((impact_min > 0)); then
 		local impact_file="${TMP_DIR}/impact-count.json"
 		api_get "/supply-chain/impact/findings/count?repository_id=${repo_query}&profile=comprehensive" "${impact_file}"
@@ -453,14 +455,41 @@ main() {
 			return 1
 		fi
 		local cicd_file="${TMP_DIR}/cicd-count.json"
+		local cicd_list_file="${TMP_DIR}/cicd-list.json"
+		local cicd_list_path
 		if [[ -n "${expected_image_digest}" ]]; then
 			api_get "/ci-cd/run-correlations/count?repository_id=${repo_query}&artifact_digest=$(urlencode "${expected_image_digest}")" "${cicd_file}"
+			cicd_list_path="/ci-cd/run-correlations?repository_id=${repo_query}&artifact_digest=$(urlencode "${expected_image_digest}")&limit=$(list_limit_for_minimum ci_cd_run_correlations "${cicd_min}")"
 			cicd_count="$(json_int "${cicd_file}" '.total_correlations')"
 		else
 			api_get "/ci-cd/run-correlations/count?repository_id=${repo_query}&image_ref=$(urlencode "${expected_image_ref}")" "${cicd_file}"
+			cicd_list_path="/ci-cd/run-correlations?repository_id=${repo_query}&image_ref=$(urlencode "${expected_image_ref}")&limit=$(list_limit_for_minimum ci_cd_run_correlations "${cicd_min}")"
 			cicd_count="$(json_int "${cicd_file}" '.total_correlations')"
 		fi
 		require_min_count ci_cd_run_correlations "${cicd_count}" "${cicd_min}"
+		api_get "${cicd_list_path}" "${cicd_list_file}"
+		cicd_static_state="$(jq -r '(.data // .).evidence_summary.static_workflow_artifacts.state // "missing"' "${cicd_list_file}")"
+		cicd_live_state="$(jq -r '(.data // .).evidence_summary.live_run_correlations.state // "missing"' "${cicd_list_file}")"
+		local mcp_cicd_file="${TMP_DIR}/mcp-cicd.json"
+		local mcp_cicd_args
+		if [[ -n "${expected_image_digest}" ]]; then
+			mcp_cicd_args="$(jq -n \
+				--arg repository_id "${repo_selector}" \
+				--arg artifact_digest "${expected_image_digest}" \
+				--argjson limit "$(list_limit_for_minimum ci_cd_run_correlations "${cicd_min}")" \
+				'{repository_id:$repository_id, artifact_digest:$artifact_digest, limit:$limit}')"
+		else
+			mcp_cicd_args="$(jq -n \
+				--arg repository_id "${repo_selector}" \
+				--arg image_ref "${expected_image_ref}" \
+				--argjson limit "$(list_limit_for_minimum ci_cd_run_correlations "${cicd_min}")" \
+				'{repository_id:$repository_id, image_ref:$image_ref, limit:$limit}')"
+		fi
+		mcp_tool_envelope list_ci_cd_run_correlations "${mcp_cicd_args}" "${mcp_cicd_file}"
+		mcp_cicd_count="$(json_int "${mcp_cicd_file}" '.count')"
+		require_min_count mcp_ci_cd_run_correlations "${mcp_cicd_count}" "${cicd_min}"
+		mcp_cicd_static_state="$(jq -r '(.data // .).evidence_summary.static_workflow_artifacts.state // "missing"' "${mcp_cicd_file}")"
+		mcp_cicd_live_state="$(jq -r '(.data // .).evidence_summary.live_run_correlations.state // "missing"' "${mcp_cicd_file}")"
 	fi
 	if ((cloud_min > 0)); then
 		if [[ -z "${expected_cloud_resource_id}" ]]; then
@@ -481,7 +510,7 @@ main() {
 		require_min_count mcp_cloud_resources "${mcp_cloud_count}" "${cloud_min}"
 	fi
 
-	printf 'remote E2E target story proof counts: proof_mode=%s repository_story=1 impact_findings=%s security_alert_reconciliations=%s security_alert_expected_rows=%s container_image_identities=%s sbom_attachments=%s service_catalog_correlations=%s ci_cd_run_correlations=%s cloud_resources=%s mcp_service_catalog_correlations=%s mcp_cloud_resources=%s\n' \
+	printf 'remote E2E target story proof counts: proof_mode=%s repository_story=1 impact_findings=%s security_alert_reconciliations=%s security_alert_expected_rows=%s container_image_identities=%s sbom_attachments=%s service_catalog_correlations=%s ci_cd_run_correlations=%s ci_cd_static_workflow_state=%s ci_cd_live_run_state=%s cloud_resources=%s mcp_service_catalog_correlations=%s mcp_ci_cd_run_correlations=%s mcp_ci_cd_static_workflow_state=%s mcp_ci_cd_live_run_state=%s mcp_cloud_resources=%s\n' \
 		"${proof_mode}" \
 		"${impact_count}" \
 		"${security_count}" \
@@ -490,8 +519,13 @@ main() {
 		"${sbom_count}" \
 		"${catalog_count}" \
 		"${cicd_count}" \
+		"${cicd_static_state}" \
+		"${cicd_live_state}" \
 		"${cloud_count}" \
 		"${mcp_catalog_count}" \
+		"${mcp_cicd_count}" \
+		"${mcp_cicd_static_state}" \
+		"${mcp_cicd_live_state}" \
 		"${mcp_cloud_count}"
 }
 

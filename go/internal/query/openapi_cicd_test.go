@@ -28,4 +28,16 @@ func TestOpenAPISpecIncludesCICDRunCorrelations(t *testing.T) {
 	if got, want := mustMapField(t, itemProperties, "provenance_only")["type"], "boolean"; got != want {
 		t.Fatalf("provenance_only type = %#v, want %#v", got, want)
 	}
+	evidenceSummary := mustMapField(t, properties, "evidence_summary")
+	evidenceProperties := mustMapField(t, evidenceSummary, "properties")
+	staticWorkflow := mustMapField(t, evidenceProperties, "static_workflow_artifacts")
+	staticProperties := mustMapField(t, staticWorkflow, "properties")
+	if got, want := mustMapField(t, staticProperties, "paths")["type"], "array"; got != want {
+		t.Fatalf("static_workflow_artifacts.paths type = %#v, want %#v", got, want)
+	}
+	liveRuns := mustMapField(t, evidenceProperties, "live_run_correlations")
+	liveProperties := mustMapField(t, liveRuns, "properties")
+	if got, want := mustMapField(t, liveProperties, "state")["type"], "string"; got != want {
+		t.Fatalf("live_run_correlations.state type = %#v, want %#v", got, want)
+	}
 }
