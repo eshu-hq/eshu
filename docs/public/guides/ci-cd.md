@@ -4,6 +4,47 @@ Catch dead code before it reaches main. Eshu can run in CI pipelines to flag
 graph-detectable issues at pull request time without requiring manual review
 for the mechanical checks.
 
+## GitHub CodeQL setup
+
+Eshu's repository-owned CodeQL model is GitHub default setup only. Do not check
+in an advanced CodeQL workflow or any workflow step using
+`github/codeql-action/init`, `github/codeql-action/autobuild`,
+`github/codeql-action/analyze`, `codeql database analyze`, or `codeql github
+upload-results` while default setup remains active in repository or
+organization settings. GitHub documents that [CodeQL SARIF uploads are rejected
+while default setup is
+enabled](https://docs.github.com/en/code-security/code-scanning/troubleshooting-sarif-uploads/default-setup-enabled),
+so a checked-in CodeQL result upload would be stale PR signal instead of a
+trustworthy gate.
+
+The `github/codeql-action/upload-sarif` action is not forbidden by itself
+because GitHub supports SARIF uploads from non-CodeQL tools. A workflow that
+uses it for Eshu or another non-CodeQL scanner must keep CodeQL-generated SARIF
+out of the upload path while this default setup model is active.
+
+Go CodeQL is not currently claimed as an Eshu repository-owned required PR
+check. The required Go correctness gates remain the normal build, lint, race
+test, package-doc, hot-path evidence, Helm, docs, and whitespace checks in
+`.github/workflows/test.yml`. If GitHub default setup scans Go, treat that as a
+GitHub-managed security signal, not a checked-in workflow contract controlled
+by this repository.
+
+Moving to advanced CodeQL requires a single PR that first changes the repository
+security setting away from default setup, then updates this CI contract,
+`scripts/verify-codeql-setup.sh`, and the local testing reference. That PR must
+prove the intended Go scope on this repository shape without treating fixture
+modules or generated collector code as first-class application packages. GitHub
+documents that [Go CodeQL uses compiled-language build and extraction
+behavior](https://docs.github.com/en/code-security/reference/code-scanning/codeql/codeql-build-options-and-steps-for-compiled-languages#building-go),
+so the advanced workflow decision must include explicit build-scope evidence.
+
+The CI guard is:
+
+```bash
+scripts/test-verify-codeql-setup.sh
+scripts/verify-codeql-setup.sh
+```
+
 ## GitHub Actions example
 
 ```yaml
