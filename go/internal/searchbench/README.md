@@ -11,12 +11,12 @@ whole-graph search or canonical-truth claims.
 ## Ownership boundary
 
 This package owns validation and scoring for search benchmark evidence,
-semantic retrieval query suites, decay-scoring evaluation records, and
-reranking evaluation records, and protocol recommendation records. It does not
-query Postgres, call NornicDB, invoke cross-encoder rerankers, open GraphQL or
-gRPC clients, write graph state, expose API/MCP routes, or change runtime
-defaults. Live benchmark adapters must measure their backend and then feed
-versioned records through this package.
+semantic retrieval query suites, decay-scoring evaluation records, reranking
+evaluation records, protocol recommendation records, and link-prediction
+candidate evaluation records. It does not query Postgres, call NornicDB, invoke
+cross-encoder rerankers, open GraphQL or gRPC clients, write graph state,
+expose API/MCP routes, or change runtime defaults. Live benchmark adapters must
+measure their backend and then feed versioned records through this package.
 
 ## Exported surface
 
@@ -49,6 +49,13 @@ See `doc.go` for the godoc-rendered package contract.
 - `ValidateProtocolRecommendation` checks whether a protocol expansion
   recommendation has baseline hybrid proof, explicit user value, fallback
   behavior, and preserved API/MCP authorization.
+- `LinkPredictionEvaluation` is the versioned #420 diagnostic relationship
+  candidate evidence record.
+- `ScoreLinkPredictionEvaluation` scores recorded NornicDB stream-procedure
+  candidates without calling NornicDB or writing graph state.
+- `ValidateLinkPredictionEvaluation` enforces candidate shape, positive /
+  negative / ambiguous coverage, candidate truth levels, zero canonical claims,
+  relationship-gap improvement, and telemetry counts by algorithm and decision.
 - `RequiredFailureClasses` returns the operator-visible failure classes every
   benchmark must report.
 
@@ -77,7 +84,10 @@ low-cardinality observation summaries for mode, query count, result-count bounds
 truncation, timeout, candidate truth-level counts, and failure classes. #1298
 stopped evidence carries only the query suite and accepted stop reason; live
 adapters still need to emit runtime observation summaries before claiming
-measured retrieval value.
+measured retrieval value. #420 link-prediction evaluation records carry
+low-cardinality candidate generation counts by `algorithm` and `decision`; live
+adapters must keep graph handles, source handles, target handles, and shared
+neighbors in evidence records, logs, or spans, never metric labels.
 
 ## Gotchas / invariants
 
@@ -97,6 +107,17 @@ measured retrieval value.
 - `truth_scope.level` must remain `derived`, and `truth_scope.basis` must name
   a known search-document evidence basis. Search rank, semantic similarity, and
   link prediction never become canonical graph truth.
+- #420 link-prediction candidates must use `candidate` or `semantic_candidate`
+  truth levels in the internal proof record. These are not public envelope
+  truth levels in this package.
+- #420 candidates must include algorithm, score, source handle, target handle,
+  evidence context, freshness, reason, decision, and an explicit non-canonical
+  truth level.
+- #420 accepts only diagnostic stream-procedure evidence. Auto-TLP materializes
+  edges and is rejected by validation.
+- #420 evidence must include positive, negative, and ambiguous candidates,
+  improve relationship-gap discovery over the recorded baseline, and keep false
+  canonical claim count at zero.
 - Decay scoring can change ranking metadata, but required evidence must remain
   visible after decay and false canonical candidate claims cannot be buried
   outside the top-K.
