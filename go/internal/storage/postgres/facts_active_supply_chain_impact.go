@@ -72,6 +72,7 @@ WHERE fact.fact_kind IN (
       OR (
           fact.fact_kind IN (
               'vulnerability.suppression',
+              'reducer_package_consumption_correlation',
               'reducer_container_image_identity',
               'reducer_ci_cd_run_correlation',
               'reducer_platform_materialization',

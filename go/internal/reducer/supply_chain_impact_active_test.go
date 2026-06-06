@@ -144,6 +144,63 @@ func TestSupplyChainImpactHandlerLoadsActiveWorkloadIdentityForRepositoryFinding
 	}
 }
 
+func TestSupplyChainImpactHandlerLoadsRepositoryPackageConsumptionFollowUp(t *testing.T) {
+	t.Parallel()
+
+	loader := &stubSupplyChainImpactFactLoader{
+		scopeFacts: []facts.Envelope{
+			vulnerabilityCVEFact("cve-1", "CVE-2026-1457", 9.4),
+			vulnerabilityAffectedPackageFact(
+				"affected-1",
+				"CVE-2026-1457",
+				testImpactPackageID,
+				"npm",
+				"example",
+				"1.2.3",
+				"1.3.0",
+			),
+			securityAlertRepositoryAlertImpactFact(
+				"alert-1",
+				testImpactRepositoryID,
+				testImpactPackageID,
+				"CVE-2026-1457",
+			),
+		},
+		activeForFilter: func(filter SupplyChainImpactFactFilter) []facts.Envelope {
+			if strings.Join(filter.RepositoryIDs, ",") != testImpactRepositoryFilterIDs {
+				return nil
+			}
+			return []facts.Envelope{
+				packageConsumptionFactWithRange("consume-1", testImpactPackageID, testImpactRepositoryID, "1.2.3"),
+			}
+		},
+	}
+	writer := &recordingSupplyChainImpactWriter{}
+	handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+
+	_, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-impact",
+		ScopeID:      "security-alerts:repo",
+		GenerationID: "generation-alert",
+		SourceSystem: "security_alert",
+		Domain:       DomainSupplyChainImpact,
+		Cause:        "provider alert observed",
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+
+	if got, want := len(writer.write.Findings), 1; got != want {
+		t.Fatalf("len(Findings) = %d, want %d", got, want)
+	}
+	got := writer.write.Findings[0]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	if got.RepositoryID != testImpactRepositoryID {
+		t.Fatalf("RepositoryID = %q, want %q", got.RepositoryID, testImpactRepositoryID)
+	}
+	assertContainsString(t, got.EvidenceFactIDs, "consume-1")
+}
+
 func TestSupplyChainImpactHandlerRequestsParserFilesOnlyForNPMReachability(t *testing.T) {
 	t.Parallel()
 
@@ -220,5 +277,22 @@ func TestSupplyChainImpactHandlerRequestsParserFilesOnlyForNPMReachability(t *te
 				t.Fatalf("FileRepositoryIDs = %q, want %q", got, tc.wantFileRepositoryIDs)
 			}
 		})
+	}
+}
+
+func securityAlertRepositoryAlertImpactFact(
+	factID string,
+	repositoryID string,
+	packageID string,
+	cveID string,
+) facts.Envelope {
+	return facts.Envelope{
+		FactID:   factID,
+		FactKind: facts.SecurityAlertRepositoryAlertFactKind,
+		Payload: map[string]any{
+			"repository_id": repositoryID,
+			"package_id":    packageID,
+			"cve_ids":       []any{cveID},
+		},
 	}
 }
