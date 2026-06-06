@@ -39,6 +39,11 @@ func applySupplyChainRuntimeContext(
 		finding.EvidencePath = append(finding.EvidencePath, workloadIdentityFactKind)
 		finding.WorkloadIDs = append(finding.WorkloadIDs, workload.workloadID)
 	}
+	for _, lane := range matchingSupplyChainDeploymentLanes(*finding, index.deploymentLanes) {
+		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, lane.factID)
+		finding.EvidencePath = append(finding.EvidencePath, platformMaterializationFactKind)
+		finding.DeploymentIDs = append(finding.DeploymentIDs, lane.deploymentIDs...)
+	}
 	services, serviceMissing := matchingSupplyChainServices(*finding, index.services)
 	missing = append(missing, serviceMissing...)
 	for _, service := range services {
@@ -49,6 +54,7 @@ func applySupplyChainRuntimeContext(
 	}
 	finding.EvidenceFactIDs = uniqueSortedStrings(finding.EvidenceFactIDs)
 	finding.EvidencePath = orderedUniqueStrings(finding.EvidencePath)
+	finding.DeploymentIDs = uniqueSortedStrings(finding.DeploymentIDs)
 	finding.Environments = uniqueSortedStrings(finding.Environments)
 	finding.ServiceIDs = uniqueSortedStrings(finding.ServiceIDs)
 	finding.WorkloadIDs = uniqueSortedStrings(finding.WorkloadIDs)
@@ -115,6 +121,24 @@ func matchingSupplyChainWorkloads(
 			continue
 		}
 		matches = append(matches, workload)
+	}
+	return matches
+}
+
+func matchingSupplyChainDeploymentLanes(
+	finding SupplyChainImpactFinding,
+	lanes []supplyChainDeploymentLaneContext,
+) []supplyChainDeploymentLaneContext {
+	repositoryID := strings.TrimSpace(finding.RepositoryID)
+	if repositoryID == "" {
+		return nil
+	}
+	matches := make([]supplyChainDeploymentLaneContext, 0, len(lanes))
+	for _, lane := range lanes {
+		if lane.repositoryID != repositoryID || len(lane.deploymentIDs) == 0 {
+			continue
+		}
+		matches = append(matches, lane)
 	}
 	return matches
 }

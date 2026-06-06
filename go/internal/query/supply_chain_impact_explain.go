@@ -123,6 +123,7 @@ type SupplyChainImpactExplanationAnchors struct {
 	ImageDigests    []string                         `json:"image_digests,omitempty"`
 	ImageRefs       []string                         `json:"image_refs,omitempty"`
 	Workloads       []string                         `json:"workloads,omitempty"`
+	Deployments     []string                         `json:"deployments,omitempty"`
 	Services        []string                         `json:"services,omitempty"`
 	Environments    []string                         `json:"environments,omitempty"`
 	ProviderAlerts  []SupplyChainProviderAlertAnchor `json:"provider_alerts,omitempty"`

@@ -10,6 +10,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
+const platformMaterializationFactKind = "reducer_platform_materialization"
+
 // PostgresPlatformMaterializationWriter persists one platform-materialization
 // reducer reconciliation into the shared fact store.
 type PostgresPlatformMaterializationWriter struct {
@@ -40,7 +42,7 @@ func (w PostgresPlatformMaterializationWriter) WritePlatformMaterialization(
 		write.IntentID,
 		write.ScopeID,
 		write.GenerationID,
-		"reducer_platform_materialization",
+		platformMaterializationFactKind,
 		platformMaterializationStableFactKey(write),
 		reducerFactCollectorKind(write.SourceSystem),
 		facts.SourceConfidenceInferred,

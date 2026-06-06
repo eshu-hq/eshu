@@ -114,6 +114,7 @@ func TestSupplyChainListImpactFindingsUsesBoundedStore(t *testing.T) {
 				KnownExploited:      true,
 				RuntimeReachability: "package_manifest",
 				RepositoryID:        "repo://example/api",
+				DeploymentIDs:       []string{"deployment:example-api"},
 				DependencyPath:      []string{"vite", "rollup", "example"},
 				DependencyDepth:     3,
 				DirectDependency:    boolPtr(false),
@@ -177,6 +178,9 @@ func TestSupplyChainListImpactFindingsUsesBoundedStore(t *testing.T) {
 	}
 	if resp.Findings[0].DirectDependency == nil || *resp.Findings[0].DirectDependency {
 		t.Fatalf("DirectDependency = %#v, want false", resp.Findings[0].DirectDependency)
+	}
+	if got, want := resp.Findings[0].DeploymentIDs, []string{"deployment:example-api"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("DeploymentIDs = %#v, want %#v", got, want)
 	}
 	if !resp.Truncated {
 		t.Fatal("truncated = false, want true")

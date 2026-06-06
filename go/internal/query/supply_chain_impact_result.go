@@ -40,6 +40,7 @@ type SupplyChainImpactFindingResult struct {
 	ImageRef              string                                  `json:"image_ref,omitempty"`
 	DependencyScope       string                                  `json:"dependency_scope,omitempty"`
 	WorkloadIDs           []string                                `json:"workload_ids,omitempty"`
+	DeploymentIDs         []string                                `json:"deployment_ids,omitempty"`
 	ServiceIDs            []string                                `json:"service_ids,omitempty"`
 	Environments          []string                                `json:"environments,omitempty"`
 	DependencyPath        []string                                `json:"dependency_path,omitempty"`

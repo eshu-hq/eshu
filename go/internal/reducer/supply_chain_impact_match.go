@@ -133,6 +133,27 @@ func supplyChainDeploymentContextFromEnvelope(envelope facts.Envelope) supplyCha
 	}
 }
 
+func supplyChainDeploymentLaneContextFromEnvelope(envelope facts.Envelope) supplyChainDeploymentLaneContext {
+	return supplyChainDeploymentLaneContext{
+		factID:        envelope.FactID,
+		repositoryID:  supplyChainWorkloadRepositoryID(envelope),
+		deploymentIDs: supplyChainDeploymentIDsFromPayload(envelope.Payload),
+	}
+}
+
+func supplyChainDeploymentIDsFromPayload(payload map[string]any) []string {
+	var deploymentIDs []string
+	if deploymentID := payloadStr(payload, "deployment_id"); deploymentID != "" {
+		deploymentIDs = append(deploymentIDs, deploymentID)
+	}
+	for _, entityKey := range payloadOrderedStrings(payload, "entity_keys") {
+		if strings.HasPrefix(entityKey, "deployment:") {
+			deploymentIDs = append(deploymentIDs, entityKey)
+		}
+	}
+	return uniqueSortedStrings(deploymentIDs)
+}
+
 func supplyChainWorkloadContextsFromEnvelope(envelope facts.Envelope) []supplyChainWorkloadContext {
 	repositoryID := supplyChainWorkloadRepositoryID(envelope)
 	workloadIDs := supplyChainWorkloadIDsFromPayload(envelope.Payload)
@@ -200,13 +221,23 @@ func supplyChainWorkloadIDsFromPayload(payload map[string]any) []string {
 func supplyChainServiceContextFromEnvelope(envelope facts.Envelope) supplyChainServiceContext {
 	return supplyChainServiceContext{
 		factID:         envelope.FactID,
-		repositoryID:   payloadStr(envelope.Payload, "repository_id"),
+		repositoryID:   supplyChainServiceRepositoryID(envelope),
 		serviceID:      payloadStr(envelope.Payload, "service_id"),
 		workloadID:     payloadStr(envelope.Payload, "workload_id"),
 		outcome:        payloadStr(envelope.Payload, "outcome"),
 		driftStatus:    payloadStr(envelope.Payload, "drift_status"),
 		provenanceOnly: payloadBool(envelope.Payload, "provenance_only"),
 	}
+}
+
+func supplyChainServiceRepositoryID(envelope facts.Envelope) string {
+	if repositoryID := firstNonBlank(
+		payloadStr(envelope.Payload, "repository_id"),
+		payloadStr(envelope.Payload, "repo_id"),
+	); repositoryID != "" {
+		return repositoryID
+	}
+	return supplyChainWorkloadRepositoryID(envelope)
 }
 
 func supplyChainDependencyScope(payload map[string]any) string {
