@@ -64,14 +64,14 @@ const openAPIPathsPackageRegistry = `
                           "source_confidence": {"type": "string"},
                           "version_count": {"type": "integer"}
                         },
-                        "required": ["reason", "version_count"]
+                        "required": ["reason", "missing_evidence", "version_count"]
                       }
                     },
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean"}
                   },
-                  "required": ["packages", "count", "limit", "truncated"]
+                  "required": ["packages", "identity_issues", "count", "limit", "truncated"]
                 }
               }
             }

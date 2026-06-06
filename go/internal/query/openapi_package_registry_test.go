@@ -75,9 +75,17 @@ func TestOpenAPISpecIncludesPackageRegistryIdentityIssues(t *testing.T) {
 	content := mustMapField(t, mustMapField(t, okResponse, "content"), "application/json")
 	schema := mustMapField(t, content, "schema")
 	properties := mustMapField(t, schema, "properties")
+	required := schema["required"].([]any)
+	if !openAPISliceContains(required, "identity_issues") {
+		t.Fatalf("response required = %#v, want identity_issues", required)
+	}
 	identityIssues := mustMapField(t, properties, "identity_issues")
 	items := mustMapField(t, identityIssues, "items")
 	itemProperties := mustMapField(t, items, "properties")
+	itemRequired := items["required"].([]any)
+	if !openAPISliceContains(itemRequired, "missing_evidence") {
+		t.Fatalf("identity_issues required = %#v, want missing_evidence", itemRequired)
+	}
 	for _, field := range []string{
 		"reason",
 		"missing_evidence",
@@ -91,4 +99,13 @@ func TestOpenAPISpecIncludesPackageRegistryIdentityIssues(t *testing.T) {
 			t.Fatalf("identity_issues schema missing %q: %#v", field, itemProperties)
 		}
 	}
+}
+
+func openAPISliceContains(values []any, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }

@@ -71,7 +71,7 @@ Cypher.
 | `get_repo_context` | repository selector required | singleton context | yes | prompt-ready |
 | `get_relationship_evidence` | resolved relationship id required | singleton evidence packet | yes | prompt-ready |
 | `build_evidence_citation_packet` | explicit file or entity handles required; input array capped at 500 | `limit` up to 50 | yes | prompt-ready for source, docs, manifest, and deployment citations without graph traversal |
-| `list_package_registry_packages` | package id, ecosystem, or name filter | `limit` | yes | prompt-ready |
+| `list_package_registry_packages` | package id, ecosystem, or name filter | `limit` | yes | prompt-ready; returns malformed identity rows under `identity_issues[]` with explicit missing-evidence reasons |
 | `list_package_registry_versions` | package id required | `limit` | yes | prompt-ready |
 | `list_package_registry_dependencies` | package id or version id required | `limit` default 50, optional cursor | yes | prompt-ready; returns `next_cursor` when truncated |
 | `list_package_registry_correlations` | package id or repository id required | `limit` default 50, optional cursor | yes | prompt-ready; separates ownership candidates, publication evidence, and consumption truth |

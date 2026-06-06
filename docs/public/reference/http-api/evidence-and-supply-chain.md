@@ -79,6 +79,12 @@ source-explanation fields: `purl`, `bom_ref`, `package_manager`,
 `source_path`, and `source_specific_id` when the collector source supplies
 them. Dependency responses expose the same identity shape for dependency
 targets as `dependency_purl`, `dependency_bom_ref`, and `dependency_manager`.
+Package list responses always include `identity_issues[]` for malformed graph
+rows that cannot be returned as valid package identities. A blank package id is
+classified with `reason=package_id_missing` and
+`missing_evidence=["package_id"]`; valid scoped or unscoped npm identities with
+`version_count=0` remain normal package rows. HTTP and MCP package-list reads
+return the same response shape.
 
 - `GET /api/v0/package-registry/packages`
 - `GET /api/v0/package-registry/versions`
