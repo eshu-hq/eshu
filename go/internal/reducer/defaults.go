@@ -326,7 +326,7 @@ type DefaultHandlers struct {
 
 	// SecretsIAMGraphWriter projects exact reducer-owned secrets/IAM
 	// read-model rows (identity_trust_chain, secret_access_path) into the four
-	// SecretsIAM* node families and the four resolvable SECRETS_IAM_* edge
+	// SecretsIAM* node families and the five resolvable SECRETS_IAM_* edge
 	// families (ADR #1314 §4). It must be non-nil alongside FactLoader for the
 	// registry to register DomainSecretsIAMGraphProjection; missing either one
 	// keeps the domain unregistered so no projection intent is silently dropped.

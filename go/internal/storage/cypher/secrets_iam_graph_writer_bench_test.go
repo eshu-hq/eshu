@@ -65,6 +65,25 @@ func benchSecretsIAMUsesServiceAccountEdgeRows(n int) []map[string]any {
 	return rows
 }
 
+// benchSecretsIAMAssumesIAMRoleEdgeRows shapes ServiceAccount->CloudResource
+// edges, including the bounded assume_mode property the template SETs.
+func benchSecretsIAMAssumesIAMRoleEdgeRows(n int) []map[string]any {
+	rows := make([]map[string]any, 0, n)
+	for i := 0; i < n; i++ {
+		rows = append(rows, map[string]any{
+			"service_account_uid": fmt.Sprintf("sha256:sa-%d", i),
+			"cloud_resource_uid":  fmt.Sprintf("cloud:iam-role-%d", i),
+			"assume_mode":         "web_identity",
+			"scope_id":            "scope-1",
+			"generation_id":       "gen-1",
+			"evidence_source":     "reducer/secrets-iam-graph",
+			"confidence":          "exact",
+			"evidence_fact_ids":   []string{fmt.Sprintf("f-%d", i)},
+		})
+	}
+	return rows
+}
+
 // benchSecretsIAMAuthVaultRoleEdgeRows shapes ServiceAccount->VaultAuthRole edges.
 func benchSecretsIAMAuthVaultRoleEdgeRows(n int) []map[string]any {
 	rows := make([]map[string]any, 0, n)
@@ -120,7 +139,7 @@ func benchSecretsIAMGrantsSecretReadEdgeRows(n int) []map[string]any {
 
 // BenchmarkSecretsIAMGraphWriter measures the statement-construction and batching
 // cost of the secrets/IAM graph writer (ADR #1314 §12 proof) across all four
-// SecretsIAM* node families and all four resolvable SECRETS_IAM_* edge families
+// SecretsIAM* node families and all five resolvable SECRETS_IAM_* edge families
 // for a realistic per-scope-generation count. The backend executor is a no-op so
 // the benchmark isolates Eshu-owned write-path work (uid-only MERGE node batches
 // and MATCH/MATCH/MERGE edge batches) from graph round trips, proving the write
@@ -135,6 +154,7 @@ func BenchmarkSecretsIAMGraphWriter(b *testing.B) {
 	vaultPolicyNodes := benchSecretsIAMNodeRows(n, "pol")
 	secretPathNodes := benchSecretsIAMSecretPathNodeRows(n)
 	usesSAEdges := benchSecretsIAMUsesServiceAccountEdgeRows(n)
+	assumesIAMRoleEdges := benchSecretsIAMAssumesIAMRoleEdgeRows(n)
 	authRoleEdges := benchSecretsIAMAuthVaultRoleEdgeRows(n)
 	usesPolicyEdges := benchSecretsIAMUsesVaultPolicyEdgeRows(n)
 	grantsEdges := benchSecretsIAMGrantsSecretReadEdgeRows(n)
@@ -158,6 +178,9 @@ func BenchmarkSecretsIAMGraphWriter(b *testing.B) {
 		}
 		if err := writer.WriteUsesServiceAccountEdges(ctx, usesSAEdges); err != nil {
 			b.Fatalf("WriteUsesServiceAccountEdges: %v", err)
+		}
+		if err := writer.WriteAssumesIAMRoleEdges(ctx, assumesIAMRoleEdges); err != nil {
+			b.Fatalf("WriteAssumesIAMRoleEdges: %v", err)
 		}
 		if err := writer.WriteAuthenticatesVaultRoleEdges(ctx, authRoleEdges); err != nil {
 			b.Fatalf("WriteAuthenticatesVaultRoleEdges: %v", err)

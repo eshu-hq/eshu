@@ -2,6 +2,8 @@ package cypher_test
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strings"
@@ -18,7 +20,7 @@ import (
 // secrets/IAM graph writer. It is BACKEND-GATED: it SKIPs cleanly unless
 // ESHU_SECRETS_IAM_GRAPH_LIVE is set AND a Bolt backend is configured, so the
 // default package test run never requires Docker or remote graph credentials. It
-// proves the four SecretsIAM* node families and the four resolvable
+// proves the four SecretsIAM* node families and the five resolvable
 // SECRETS_IAM_* edge families MERGE, read back, and scoped-retract against a real
 // NornicDB/Neo4j-compatible backend. It NEVER fabricates a passing live proof:
 // without a backend it skips, and with a backend it fails on any mismatch.
@@ -36,6 +38,67 @@ func secretsIAMLiveEnabled() bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func secretsIAMLiveTestRunID(t *testing.T) string {
+	t.Helper()
+
+	var nonce [16]byte
+	if _, err := rand.Read(nonce[:]); err != nil {
+		t.Fatalf("generate live secrets/iam test nonce: %v", err)
+	}
+	testName := strings.NewReplacer("/", "-", " ", "-", ":", "-", "#", "-").Replace(t.Name())
+	return fmt.Sprintf("%s-%s", testName, hex.EncodeToString(nonce[:]))
+}
+
+func TestSecretsIAMLiveTestRunIDUsesNamespacedNonce(t *testing.T) {
+	first := secretsIAMLiveTestRunID(t)
+	second := secretsIAMLiveTestRunID(t)
+	prefix := strings.NewReplacer("/", "-", " ", "-", ":", "-", "#", "-").Replace(t.Name()) + "-"
+
+	if first == second {
+		t.Fatalf("live test run IDs collided: %q", first)
+	}
+	for _, got := range []string{first, second} {
+		if !strings.HasPrefix(got, prefix) {
+			t.Fatalf("live test run ID %q missing test namespace prefix %q", got, prefix)
+		}
+		nonce := strings.TrimPrefix(got, prefix)
+		if len(nonce) != 32 {
+			t.Fatalf("live test run ID %q nonce length = %d, want 32", got, len(nonce))
+		}
+		if _, err := hex.DecodeString(nonce); err != nil {
+			t.Fatalf("live test run ID %q nonce is not hex: %v", got, err)
+		}
+	}
+}
+
+func registerSecretsIAMLiveDriverClose(t *testing.T, closeFn func(context.Context) error) {
+	t.Helper()
+
+	t.Cleanup(func() {
+		closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer closeCancel()
+		_ = closeFn(closeCtx)
+	})
+}
+
+func TestSecretsIAMLiveDriverCloseRunsAfterResourceCleanup(t *testing.T) {
+	var events []string
+
+	t.Run("order", func(t *testing.T) {
+		registerSecretsIAMLiveDriverClose(t, func(context.Context) error {
+			events = append(events, "close")
+			return nil
+		})
+		t.Cleanup(func() {
+			events = append(events, "resources")
+		})
+	})
+
+	if got, want := strings.Join(events, ","), "resources,close"; got != want {
+		t.Fatalf("cleanup order = %q, want %q", got, want)
 	}
 }
 
@@ -101,7 +164,7 @@ func (e liveSecretsIAMExecutor) count(ctx context.Context, cypherText string, pa
 }
 
 // TestSecretsIAMGraphWriterLiveConformance writes all four node families and all
-// four edges, reads them back, then proves scoped retract removes only the
+// five edges, reads them back, then proves scoped retract removes only the
 // reducer-owned rows. It skips unless ESHU_SECRETS_IAM_GRAPH_LIVE is enabled.
 func TestSecretsIAMGraphWriterLiveConformance(t *testing.T) {
 	if !secretsIAMLiveEnabled() {
@@ -115,30 +178,46 @@ func TestSecretsIAMGraphWriterLiveConformance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open Bolt driver: %v", err)
 	}
-	defer func() {
-		closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer closeCancel()
-		_ = driver.Close(closeCtx)
-	}()
+	registerSecretsIAMLiveDriverClose(t, driver.Close)
 
 	exec := liveSecretsIAMExecutor{driver: driver, database: cfg.DatabaseName}
-	const scope = "scope:secrets-iam-live"
-	const evidence = "reducer/secrets-iam-graph"
+	runID := secretsIAMLiveTestRunID(t)
+	scope := "scope:test:secrets-iam-live:" + runID
+	evidence := "test/reducer/secrets-iam-graph/" + runID
+	workloadUID := "k8s://test/eshu/secrets-iam/" + runID + "/workload"
+	cloudResourceUID := "cloud:test:eshu:secrets-iam:" + runID + ":iam-role"
+	serviceAccountUID := "test:eshu:secrets-iam:" + runID + ":service-account"
+	vaultAuthRoleUID := "test:eshu:secrets-iam:" + runID + ":vault-auth-role"
+	vaultPolicyUID := "test:eshu:secrets-iam:" + runID + ":vault-policy"
+	secretPathUID := "test:eshu:secrets-iam:" + runID + ":secret-path"
+	vaultMountJoinKey := "test:eshu:secrets-iam:" + runID + ":vault-mount"
+	kvPathFingerprint := "test:eshu:secrets-iam:" + runID + ":kv-path"
 
-	// The workload edge needs a KubernetesWorkload endpoint to MATCH. Create it
-	// (and clean it up) so the workload edge resolves rather than no-opping.
+	// The workload and IAM-role edges need retained endpoint nodes to MATCH.
+	// Create them (and clean them up) so the endpoint edges resolve rather than
+	// no-oping.
 	if err := exec.Execute(ctx, cypher.Statement{
 		Cypher:     `MERGE (w:KubernetesWorkload {uid: $uid})`,
-		Parameters: map[string]any{"uid": "k8s://live/w-1"},
+		Parameters: map[string]any{"uid": workloadUID},
 	}); err != nil {
 		t.Fatalf("seed workload endpoint: %v", err)
+	}
+	if err := exec.Execute(ctx, cypher.Statement{
+		Cypher:     `MERGE (c:CloudResource {uid: $uid})`,
+		Parameters: map[string]any{"uid": cloudResourceUID},
+	}); err != nil {
+		t.Fatalf("seed iam role endpoint: %v", err)
 	}
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cleanupCancel()
 		_ = exec.Execute(cleanupCtx, cypher.Statement{
 			Cypher:     `MATCH (w:KubernetesWorkload {uid: $uid}) DETACH DELETE w`,
-			Parameters: map[string]any{"uid": "k8s://live/w-1"},
+			Parameters: map[string]any{"uid": workloadUID},
+		})
+		_ = exec.Execute(cleanupCtx, cypher.Statement{
+			Cypher:     `MATCH (c:CloudResource {uid: $uid}) DETACH DELETE c`,
+			Parameters: map[string]any{"uid": cloudResourceUID},
 		})
 		_ = cypher.NewSecretsIAMGraphWriter(exec, 0).RetractScope(cleanupCtx, []string{scope}, evidence)
 	})
@@ -161,16 +240,16 @@ func TestSecretsIAMGraphWriterLiveConformance(t *testing.T) {
 		fn   func() error
 	}{
 		{"service-account", func() error {
-			return w.WriteServiceAccountNodes(ctx, []map[string]any{node(map[string]any{"uid": "sha256:sa1"})})
+			return w.WriteServiceAccountNodes(ctx, []map[string]any{node(map[string]any{"uid": serviceAccountUID})})
 		}},
 		{"vault-auth-role", func() error {
-			return w.WriteVaultAuthRoleNodes(ctx, []map[string]any{node(map[string]any{"uid": "sha256:vr1", "vault_mount_join_key": "sha256:mount"})})
+			return w.WriteVaultAuthRoleNodes(ctx, []map[string]any{node(map[string]any{"uid": vaultAuthRoleUID, "vault_mount_join_key": vaultMountJoinKey})})
 		}},
 		{"vault-policy", func() error {
-			return w.WriteVaultPolicyNodes(ctx, []map[string]any{node(map[string]any{"uid": "sha256:pol1"})})
+			return w.WriteVaultPolicyNodes(ctx, []map[string]any{node(map[string]any{"uid": vaultPolicyUID})})
 		}},
 		{"secret-path", func() error {
-			return w.WriteSecretMetadataPathNodes(ctx, []map[string]any{node(map[string]any{"uid": "sha256:path1", "vault_mount_join_key": "sha256:mount", "kv_path_fingerprint": "sha256:kv"})})
+			return w.WriteSecretMetadataPathNodes(ctx, []map[string]any{node(map[string]any{"uid": secretPathUID, "vault_mount_join_key": vaultMountJoinKey, "kv_path_fingerprint": kvPathFingerprint})})
 		}},
 	}
 	for _, write := range writes {
@@ -184,16 +263,19 @@ func TestSecretsIAMGraphWriterLiveConformance(t *testing.T) {
 		fn   func() error
 	}{
 		{"uses-service-account", func() error {
-			return w.WriteUsesServiceAccountEdges(ctx, []map[string]any{node(map[string]any{"workload_uid": "k8s://live/w-1", "service_account_uid": "sha256:sa1", "evidence_fact_ids": []string{"f1"}})})
+			return w.WriteUsesServiceAccountEdges(ctx, []map[string]any{node(map[string]any{"workload_uid": workloadUID, "service_account_uid": serviceAccountUID, "evidence_fact_ids": []string{"f1"}})})
+		}},
+		{"assumes-iam-role", func() error {
+			return w.WriteAssumesIAMRoleEdges(ctx, []map[string]any{node(map[string]any{"service_account_uid": serviceAccountUID, "cloud_resource_uid": cloudResourceUID, "assume_mode": "web_identity", "evidence_fact_ids": []string{"f1"}})})
 		}},
 		{"authenticates-vault-role", func() error {
-			return w.WriteAuthenticatesVaultRoleEdges(ctx, []map[string]any{node(map[string]any{"service_account_uid": "sha256:sa1", "vault_auth_role_uid": "sha256:vr1", "evidence_fact_ids": []string{"f1"}})})
+			return w.WriteAuthenticatesVaultRoleEdges(ctx, []map[string]any{node(map[string]any{"service_account_uid": serviceAccountUID, "vault_auth_role_uid": vaultAuthRoleUID, "evidence_fact_ids": []string{"f1"}})})
 		}},
 		{"uses-vault-policy", func() error {
-			return w.WriteUsesVaultPolicyEdges(ctx, []map[string]any{node(map[string]any{"vault_auth_role_uid": "sha256:vr1", "vault_policy_uid": "sha256:pol1", "evidence_fact_ids": []string{"f1"}})})
+			return w.WriteUsesVaultPolicyEdges(ctx, []map[string]any{node(map[string]any{"vault_auth_role_uid": vaultAuthRoleUID, "vault_policy_uid": vaultPolicyUID, "evidence_fact_ids": []string{"f1"}})})
 		}},
 		{"grants-secret-read", func() error {
-			return w.WriteGrantsSecretReadEdges(ctx, []map[string]any{node(map[string]any{"vault_policy_uid": "sha256:pol1", "secret_path_uid": "sha256:path1", "capabilities": []string{"read"}, "evidence_fact_ids": []string{"f1"}})})
+			return w.WriteGrantsSecretReadEdges(ctx, []map[string]any{node(map[string]any{"vault_policy_uid": vaultPolicyUID, "secret_path_uid": secretPathUID, "capabilities": []string{"read"}, "evidence_fact_ids": []string{"f1"}})})
 		}},
 	}
 	for _, edge := range edgeWrites {
@@ -203,14 +285,29 @@ func TestSecretsIAMGraphWriterLiveConformance(t *testing.T) {
 	}
 
 	// Read-back: every node family and every edge family must be present once.
-	nodeCounts := map[string]string{
-		"SecretsIAMServiceAccount":     `MATCH (n:SecretsIAMServiceAccount {uid: "sha256:sa1", scope_id: $scope}) RETURN count(n)`,
-		"SecretsIAMVaultAuthRole":      `MATCH (n:SecretsIAMVaultAuthRole {uid: "sha256:vr1", scope_id: $scope}) RETURN count(n)`,
-		"SecretsIAMVaultPolicy":        `MATCH (n:SecretsIAMVaultPolicy {uid: "sha256:pol1", scope_id: $scope}) RETURN count(n)`,
-		"SecretsIAMSecretMetadataPath": `MATCH (n:SecretsIAMSecretMetadataPath {uid: "sha256:path1", scope_id: $scope}) RETURN count(n)`,
+	nodeCounts := map[string]struct {
+		query string
+		uid   string
+	}{
+		"SecretsIAMServiceAccount": {
+			query: `MATCH (n:SecretsIAMServiceAccount {uid: $uid, scope_id: $scope}) RETURN count(n)`,
+			uid:   serviceAccountUID,
+		},
+		"SecretsIAMVaultAuthRole": {
+			query: `MATCH (n:SecretsIAMVaultAuthRole {uid: $uid, scope_id: $scope}) RETURN count(n)`,
+			uid:   vaultAuthRoleUID,
+		},
+		"SecretsIAMVaultPolicy": {
+			query: `MATCH (n:SecretsIAMVaultPolicy {uid: $uid, scope_id: $scope}) RETURN count(n)`,
+			uid:   vaultPolicyUID,
+		},
+		"SecretsIAMSecretMetadataPath": {
+			query: `MATCH (n:SecretsIAMSecretMetadataPath {uid: $uid, scope_id: $scope}) RETURN count(n)`,
+			uid:   secretPathUID,
+		},
 	}
-	for label, query := range nodeCounts {
-		got, err := exec.count(ctx, query, map[string]any{"scope": scope})
+	for label, count := range nodeCounts {
+		got, err := exec.count(ctx, count.query, map[string]any{"scope": scope, "uid": count.uid})
 		if err != nil {
 			t.Fatalf("count %s: %v", label, err)
 		}
@@ -221,6 +318,7 @@ func TestSecretsIAMGraphWriterLiveConformance(t *testing.T) {
 
 	edgeCounts := map[string]string{
 		"SECRETS_IAM_USES_SERVICE_ACCOUNT":        `MATCH (:KubernetesWorkload)-[r:SECRETS_IAM_USES_SERVICE_ACCOUNT]->(:SecretsIAMServiceAccount) WHERE r.scope_id = $scope RETURN count(r)`,
+		"SECRETS_IAM_ASSUMES_IAM_ROLE":            `MATCH (:SecretsIAMServiceAccount)-[r:SECRETS_IAM_ASSUMES_IAM_ROLE]->(:CloudResource) WHERE r.scope_id = $scope RETURN count(r)`,
 		"SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE": `MATCH (:SecretsIAMServiceAccount)-[r:SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE]->(:SecretsIAMVaultAuthRole) WHERE r.scope_id = $scope RETURN count(r)`,
 		"SECRETS_IAM_USES_VAULT_POLICY":           `MATCH (:SecretsIAMVaultAuthRole)-[r:SECRETS_IAM_USES_VAULT_POLICY]->(:SecretsIAMVaultPolicy) WHERE r.scope_id = $scope RETURN count(r)`,
 		"SECRETS_IAM_GRANTS_SECRET_READ":          `MATCH (:SecretsIAMVaultPolicy)-[r:SECRETS_IAM_GRANTS_SECRET_READ]->(:SecretsIAMSecretMetadataPath) WHERE r.scope_id = $scope RETURN count(r)`,
@@ -236,12 +334,13 @@ func TestSecretsIAMGraphWriterLiveConformance(t *testing.T) {
 	}
 
 	// Scoped retract removes the four reducer-owned node families (and their
-	// edges), leaving the KubernetesWorkload endpoint intact.
+	// edges), leaving the retained KubernetesWorkload and CloudResource endpoints
+	// intact.
 	if err := w.RetractScope(ctx, []string{scope}, evidence); err != nil {
 		t.Fatalf("retract scope: %v", err)
 	}
-	for label, query := range nodeCounts {
-		got, err := exec.count(ctx, query, map[string]any{"scope": scope})
+	for label, count := range nodeCounts {
+		got, err := exec.count(ctx, count.query, map[string]any{"scope": scope, "uid": count.uid})
 		if err != nil {
 			t.Fatalf("post-retract count %s: %v", label, err)
 		}
@@ -249,11 +348,18 @@ func TestSecretsIAMGraphWriterLiveConformance(t *testing.T) {
 			t.Fatalf("%s survived retract: count = %d, want 0", label, got)
 		}
 	}
-	workloadCount, err := exec.count(ctx, `MATCH (w:KubernetesWorkload {uid: "k8s://live/w-1"}) RETURN count(w)`, nil)
+	workloadCount, err := exec.count(ctx, `MATCH (w:KubernetesWorkload {uid: $uid}) RETURN count(w)`, map[string]any{"uid": workloadUID})
 	if err != nil {
 		t.Fatalf("post-retract workload count: %v", err)
 	}
 	if workloadCount != 1 {
 		t.Fatalf("retract deleted the retained KubernetesWorkload endpoint: count = %d, want 1", workloadCount)
+	}
+	cloudResourceCount, err := exec.count(ctx, `MATCH (c:CloudResource {uid: $uid}) RETURN count(c)`, map[string]any{"uid": cloudResourceUID})
+	if err != nil {
+		t.Fatalf("post-retract CloudResource count: %v", err)
+	}
+	if cloudResourceCount != 1 {
+		t.Fatalf("retract deleted the retained CloudResource endpoint: count = %d, want 1", cloudResourceCount)
 	}
 }

@@ -15,7 +15,7 @@ import (
 )
 
 // SecretsIAMGraphWriter persists and retracts the reducer-owned secrets/IAM
-// graph projection: the four SecretsIAM* node families and the four resolvable
+// graph projection: the four SecretsIAM* node families and the five resolvable
 // SECRETS_IAM_* edge families, plus scoped retract. Implementations MUST be
 // idempotent (uid-only node identity, endpoint-pair edge identity) so reducer
 // retries and duplicate facts converge, and MUST NOT fabricate endpoint nodes:
@@ -41,7 +41,7 @@ type SecretsIAMGraphWriter interface {
 func secretsIAMGraphProjectionDomainDefinition() DomainDefinition {
 	return DomainDefinition{
 		Domain:  DomainSecretsIAMGraphProjection,
-		Summary: "project exact reducer secrets/IAM trust-chain read-model rows into SecretsIAM* nodes and the four resolvable SECRETS_IAM_* edges",
+		Summary: "project exact reducer secrets/IAM trust-chain read-model rows into SecretsIAM* nodes and the five resolvable SECRETS_IAM_* edges",
 		Ownership: OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
