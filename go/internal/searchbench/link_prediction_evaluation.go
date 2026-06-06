@@ -383,6 +383,11 @@ func validateLinkPredictionMetrics(got, want LinkPredictionMetrics) []string {
 			))
 		}
 	}
+	for level := range got.CandidateTruthLevelCounts {
+		if _, ok := want.CandidateTruthLevelCounts[level]; !ok {
+			problems = append(problems, fmt.Sprintf("metrics.candidate_truth_level_counts[%s] is unexpected", level))
+		}
+	}
 	return problems
 }
 
@@ -426,12 +431,16 @@ func validateLinkPredictionTelemetryCounts(
 	seen := make(map[string]struct{}, len(got))
 	for _, count := range got {
 		key := telemetryCountKey(count.Algorithm, count.Decision)
+		if _, ok := seen[key]; ok {
+			problems = append(problems, fmt.Sprintf("telemetry_counts[%s,%s] is duplicated", count.Algorithm, count.Decision))
+			continue
+		}
+		seen[key] = struct{}{}
 		wantCount, ok := wantByKey[key]
 		if !ok {
 			problems = append(problems, fmt.Sprintf("telemetry_counts[%s,%s] is unexpected", count.Algorithm, count.Decision))
 			continue
 		}
-		seen[key] = struct{}{}
 		if count.Count != wantCount {
 			problems = append(problems, fmt.Sprintf(
 				"telemetry_counts[%s,%s] = %d, want %d",

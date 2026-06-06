@@ -166,6 +166,36 @@ func TestValidateLinkPredictionEvaluationRejectsTelemetryMismatch(t *testing.T) 
 	}
 }
 
+func TestValidateLinkPredictionEvaluationRejectsUnexpectedTruthLevelMetric(t *testing.T) {
+	t.Parallel()
+
+	evaluation := validLinkPredictionEvaluation(t)
+	evaluation.Metrics.CandidateTruthLevelCounts[CandidateTruthLevel("canonical")] = 1
+
+	err := ValidateLinkPredictionEvaluation(evaluation)
+	if err == nil {
+		t.Fatal("ValidateLinkPredictionEvaluation() error = nil, want unexpected truth-level count")
+	}
+	if want := "metrics.candidate_truth_level_counts[canonical] is unexpected"; !strings.Contains(err.Error(), want) {
+		t.Fatalf("ValidateLinkPredictionEvaluation() error = %q, want substring %q", err, want)
+	}
+}
+
+func TestValidateLinkPredictionEvaluationRejectsDuplicateTelemetryCount(t *testing.T) {
+	t.Parallel()
+
+	evaluation := validLinkPredictionEvaluation(t)
+	evaluation.TelemetryCounts = append(evaluation.TelemetryCounts, evaluation.TelemetryCounts[0])
+
+	err := ValidateLinkPredictionEvaluation(evaluation)
+	if err == nil {
+		t.Fatal("ValidateLinkPredictionEvaluation() error = nil, want duplicate telemetry count")
+	}
+	if want := "telemetry_counts[common_neighbors,positive] is duplicated"; !strings.Contains(err.Error(), want) {
+		t.Fatalf("ValidateLinkPredictionEvaluation() error = %q, want substring %q", err, want)
+	}
+}
+
 func TestLinkPredictionEvaluationFixtureValidates(t *testing.T) {
 	t.Parallel()
 
