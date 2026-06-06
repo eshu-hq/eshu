@@ -365,10 +365,11 @@ paginated grouped count along one of the dimensions `outcome`, `environment`,
 caller workflow for ecosystem-level questions like "how many runs ended in
 each outcome per environment?" exposed by `list_ci_cd_run_correlations`. It
 re-uses the existing partial indexes on `fact_records` for
-`reducer_ci_cd_run_correlation` (repository_id + commit_sha + artifact_digest
-+ image_ref + environment + outcome, plus provider, environment,
-artifact_digest, image_ref); no
-new schema or graph migration is needed. The aggregate handler validates the
+`reducer_ci_cd_run_correlation`: the composite lookup index covers
+repository_id + commit_sha + artifact_digest + environment + outcome, and
+separate partial lookup indexes cover run/provider, commit_sha,
+artifact_digest, image_ref, and environment; no new schema or graph migration
+is needed. The aggregate handler validates the
 `outcome` filter against the same enum the list endpoint advertises in
 `openapi_paths_cicd.go` (`exact`, `derived`, `ambiguous`, `unresolved`,
 `rejected`), so typos surface as 400 instead of silently returning zero
