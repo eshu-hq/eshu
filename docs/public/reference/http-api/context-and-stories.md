@@ -88,11 +88,16 @@ tag matches are not promoted.
 No-Regression Evidence:
 
 ```bash
-cd go && go test ./internal/query -run 'TestIncidentContext(ChangeCandidateQueryCastsServiceIDParameter|ChangeCandidateQueryCastsNullableTimeParametersEverywhere|QueriesStayBoundedToActiveFacts|HandlerUsesBoundedStore|HandlerReturnsAmbiguousCandidates|HandlerRequiresIncidentIDAndLimit|RuntimeQueriesStayBoundedToExplicitEvidence)' -count=1
+cd go && go test ./internal/query -run 'TestPostgresIncidentContextStoreReadsCollectedPagerDutyIncidentBySourceRecordID|TestPostgresIncidentContextStoreReturnsAmbiguousSourceRecordMatches|TestIncidentContext(ChangeCandidateQueryCastsServiceIDParameter|ChangeCandidateQueryCastsNullableTimeParametersEverywhere|QueriesStayBoundedToActiveFacts|HandlerUsesBoundedStore|HandlerReturnsAmbiguousCandidates|HandlerRequiresIncidentIDAndLimit|RuntimeQueriesStayBoundedToExplicitEvidence)' -count=1
+cd go && go test ./internal/mcp -run 'TestResolveRouteMapsIncidentContextToBoundedQuery|TestDispatchToolIncidentContextReturnsStructuredEnvelopeData' -count=1
+cd go && go test ./internal/storage/postgres -run TestFactRecordSchemaIncludesIncidentContextSourceRecordFallbackIndex -count=1
 ```
 
-This proves incident context reads keep bounded active-fact queries and cast
-fallback-change service and time parameters everywhere they are used.
+This proves incident context reads keep bounded active-fact queries, resolve
+collected PagerDuty `incident.record` facts by `source_record_id` when legacy
+payloads omit `provider_incident_id`, keep the MCP tool response aligned with
+the API envelope, and preserve a partial Postgres index for the source-record
+fallback path.
 
 No-Observability-Change: the route still runs under `query.incident_context`
 with stable `http.route` and `eshu.capability` span attributes, existing

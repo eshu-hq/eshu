@@ -185,6 +185,7 @@ func TestIncidentContextQueriesStayBoundedToActiveFacts(t *testing.T) {
 		"scope.active_generation_id = fact.generation_id",
 		"fact.fact_kind = 'incident.record'",
 		"fact.payload->>'provider_incident_id' = $2",
+		"fact.source_record_id = $2",
 		"($3 = '' OR fact.scope_id = $3)",
 		"LIMIT $4",
 	} {

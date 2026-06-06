@@ -21,7 +21,13 @@ JOIN scope_generations AS generation
   ON generation.scope_id = fact.scope_id
  AND generation.generation_id = fact.generation_id
 WHERE fact.source_system = $1
-  AND fact.payload->>'provider_incident_id' = $2
+  AND (
+      fact.payload->>'provider_incident_id' = $2
+      OR (
+          COALESCE(NULLIF(fact.payload->>'provider_incident_id', ''), '') = ''
+          AND fact.source_record_id = $2
+      )
+  )
   AND ($3 = '' OR fact.scope_id = $3)
   AND fact.fact_kind = 'incident.record'
   AND fact.is_tombstone = FALSE
