@@ -218,8 +218,12 @@ scripts/security_intelligence_release_gate.sh \
 When a private target-story manifest is used, `proof_mode` defaults to
 `code_to_cloud`. That mode requires positive, target-aligned
 `container_image_identities` and `sbom_attachments` minimums plus the matching
-digest or image-reference anchors. Aggregate OCI or SBOM rows from unrelated
-repositories do not satisfy the target story.
+digest or image-reference anchors. It also requires target-scoped MCP readback
+when service-catalog or cloud-resource minimums are positive. Positive
+`cloud_resources` proof requires an explicit `expected_cloud_resource_id`;
+provider or environment aggregates alone do not satisfy the target story.
+Aggregate OCI, SBOM, service, or cloud rows from unrelated repositories do not
+satisfy the target story.
 
 Use `proof_mode: "vulnerability_only"` or `proof_mode: "partial"` only when the
 run intentionally cannot observe the artifact hop, such as a registry account

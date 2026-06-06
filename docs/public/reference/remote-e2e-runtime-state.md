@@ -103,10 +103,10 @@ collector crash, transient provider outage, or retry storm.
 Set `ESHU_REMOTE_E2E_TARGET_STORY_FILE` to an operator-local JSON manifest
 when a focused proof is meant to validate one repository-to-runtime story. The
 manifest stays outside the public repository and may contain private target
-selectors. The verifier reads the manifest, calls bounded API routes, and
-prints only aggregate target counts. This prevents aggregate collector counts
-from passing a run where repository, security-alert, image, SBOM, service, or
-CI/CD evidence belongs to different targets.
+selectors. The verifier reads the manifest, calls bounded API and MCP routes,
+and prints only aggregate target counts. This prevents aggregate collector
+counts from passing a run where repository, security-alert, image, SBOM,
+service, CI/CD, or cloud evidence belongs to different targets.
 
 Public-safe manifest shape:
 
@@ -120,13 +120,15 @@ Public-safe manifest shape:
   "expected_image_digest": "sha256:...",
   "expected_image_ref": "registry.example/team/api:tag",
   "expected_sbom_subject_digest": "sha256:...",
+  "expected_cloud_resource_id": "cloud-resource-id-or-arn",
   "minimums": {
     "impact_findings": 1,
     "security_alert_reconciliations": 1,
     "container_image_identities": 1,
     "sbom_attachments": 1,
     "service_catalog_correlations": 1,
-    "ci_cd_run_correlations": 1
+    "ci_cd_run_correlations": 1,
+    "cloud_resources": 1
   }
 }
 ```
@@ -136,7 +138,12 @@ a vulnerability-only target may leave image and SBOM minimums at `0`, while a
 code-to-cloud release gate should require positive image, SBOM, service, and
 CI/CD evidence. Positive image, SBOM, and CI/CD minimums require a shared
 `expected_image_digest` or `expected_image_ref` so the verifier proves a single
-artifact chain instead of unrelated aggregate evidence.
+artifact chain instead of unrelated aggregate evidence. A positive
+`cloud_resources` minimum requires `expected_cloud_resource_id`; provider or
+environment aggregates alone are not enough to satisfy a target story. When the
+service-catalog or cloud minimum is positive, set `ESHU_REMOTE_E2E_MCP_URL`
+and, if needed, `ESHU_REMOTE_E2E_MCP_TOKEN`. The verifier exercises MCP
+readbacks over the same target filters as the API proof.
 
 Remote E2E Compose supports either an explicit `ESHU_API_KEY` in the env file
 or an auto-generated local token. When `ESHU_API_KEY` is blank, the API writes
@@ -195,22 +202,23 @@ containers into a real evidence-completeness check for exact Terraform-state
 sources.
 When `ESHU_REMOTE_E2E_TARGET_STORY_FILE` is set, the verifier prints
 `remote E2E target story proof counts` with repository-story, impact,
-security-alert, container-image, SBOM, service-catalog, and CI/CD counts. It
-does not print raw repository selectors, image references, service IDs,
-workload IDs, provider repository names, hostnames, package names, URLs, or
-credentials. API reads request the Eshu truth envelope and reject successful
-responses that omit it, keeping truth level and freshness part of the proof
-contract.
+security-alert, container-image, SBOM, service-catalog, CI/CD, cloud-resource,
+and MCP readback counts. It does not print raw repository selectors, image
+references, service IDs, workload IDs, cloud resource IDs, provider repository
+names, hostnames, package names, URLs, or credentials. API reads request the
+Eshu truth envelope, MCP reads require an envelope resource, and both reject
+successful-looking responses that omit truth level and freshness.
 Additional No-Regression Evidence: `scripts/test-verify-remote-e2e-target-story.sh`
 proves the target-story helper accepts aligned repository, vulnerability,
 security-alert, image, SBOM, service-catalog, and CI/CD counts; rejects missing
 target image evidence; rejects provider-alert repository mismatches; rejects
-missing artifact anchors; rejects missing target service evidence; fails a
-missing configured manifest file; skips only when no target-story file is
-configured; requires Eshu envelope readback; and keeps API bearer tokens out of
-curl arguments. This is a verifier-only change and does not alter collector
-scheduling, worker counts, graph writes, NornicDB settings, fact emission, or
-reducer behavior.
+missing artifact anchors; rejects missing target service evidence; rejects
+missing target cloud-resource evidence; fails missing MCP configuration when
+MCP-backed target proof is required; fails a missing configured manifest file;
+skips only when no target-story file is configured; requires Eshu envelope
+readback; and keeps API/MCP bearer tokens out of curl arguments. This is a
+verifier-only change and does not alter collector scheduling, worker counts,
+graph writes, NornicDB settings, fact emission, or reducer behavior.
 Additional Observability Evidence: the existing `/index-status` health reason now names
 recent producer activity when it is the reason an old idle fact queue remains
 `progressing` instead of `stalled`. Operators can correlate that reason with
