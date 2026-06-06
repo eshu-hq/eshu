@@ -9,10 +9,11 @@ import (
 
 func buildServiceStoryResponse(serviceName string, workloadContext map[string]any) map[string]any {
 	buildCtx := newServiceStoryBuildContext(workloadContext)
+	cacheServiceStoryBuildContext(buildCtx)
 	serviceName = canonicalServiceName(serviceName, workloadContext)
 	response := map[string]any{
 		"service_name":          serviceName,
-		"story":                 buildWorkloadStory(workloadContext),
+		"story":                 buildWorkloadStoryWithAPISurface(workloadContext, buildCtx.apiSurface, buildCtx.hasAPISurface),
 		"story_sections":        buildServiceStorySectionsWithContext(buildCtx),
 		"deployment_overview":   buildServiceDeploymentOverviewWithContext(buildCtx),
 		"code_to_runtime_trace": buildServiceCodeToRuntimeTrace(workloadContext),
@@ -58,6 +59,9 @@ func newServiceStoryBuildContext(workloadContext map[string]any) serviceStoryBui
 
 func cacheServiceStoryBuildContext(buildCtx serviceStoryBuildContext) {
 	if buildCtx.workloadContext == nil {
+		return
+	}
+	if _, ok := buildCtx.workloadContext[serviceStoryAPISurfaceCacheKey]; ok {
 		return
 	}
 	buildCtx.workloadContext[serviceStoryAPISurfaceCacheKey] = serviceStoryAPISurfaceCache{

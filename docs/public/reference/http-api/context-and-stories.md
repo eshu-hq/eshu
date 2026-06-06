@@ -161,12 +161,13 @@ evidence to investigate, not as an attached dependency.
 `support_overview.spec_count` uses the same bounded API-surface evidence as
 `api_surface.spec_count`. When graph-backed API evidence has spec paths but no
 precomputed scalar count, story synthesis derives the count from those paths
-instead of reporting zero in support overview.
+instead of reporting zero in support overview or in the human narrative string.
 
 No-Regression Evidence:
 
 ```bash
-cd go && go test ./internal/query -run 'Test(GetServiceStoryReadbackAlignsSupportOverviewSpecCountWithAPISurface|ServiceStorySupportOverviewUsesAPISurfaceSpecPathCount)' -count=1
+cd go && go test ./internal/query -run 'Test(GetServiceStoryReadbackAlignsSupportOverviewSpecCountWithAPISurface|ServiceStorySupportOverviewUsesAPISurfaceSpecPathCount|BuildServiceStoryResponseNormalizesAPISurfaceOnce)' -count=1 -race
+cd go && go test ./internal/query ./internal/mcp -count=1
 cd go && go test ./internal/mcp -run TestDispatchToolServiceStoryPreservesSpecCountConsistency -count=1
 ```
 

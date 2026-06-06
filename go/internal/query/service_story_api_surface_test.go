@@ -110,6 +110,9 @@ func TestGetServiceStoryReadbackAlignsSupportOverviewSpecCountWithAPISurface(t *
 	if got, want := IntVal(supportOverview, "spec_count"), IntVal(apiSurface, "spec_count"); got != want {
 		t.Fatalf("support_overview.spec_count = %d, want api_surface.spec_count %d", got, want)
 	}
+	if story := StringVal(data, "story"); !strings.Contains(story, "2 spec file(s)") {
+		t.Fatalf("story = %q, want normalized spec count", story)
+	}
 }
 
 func TestBuildServiceStoryResponseNormalizesAPISurfaceOnce(t *testing.T) {
@@ -119,7 +122,10 @@ func TestBuildServiceStoryResponseNormalizesAPISurfaceOnce(t *testing.T) {
 		_ = buildServiceStoryResponse("service-edge-api", ctx)
 	})
 
-	const maxAllocsPerResponse = 670
+	// GitHub Actions runs this package under the race detector, which adds a few
+	// bookkeeping allocations. Keep the guard tight enough to catch repeated
+	// API-surface normalization while allowing the race-instrumented build.
+	const maxAllocsPerResponse = 690
 	if allocs > maxAllocsPerResponse {
 		t.Fatalf("allocs per service story response = %.0f, want <= %d", allocs, maxAllocsPerResponse)
 	}
