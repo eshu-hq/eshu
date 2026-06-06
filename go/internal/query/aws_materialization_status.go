@@ -10,6 +10,7 @@ var awsMaterializationDomains = map[string]struct{}{
 	"aws_resource_materialization":                 {},
 	"ec2_instance_node_materialization":            {},
 	"aws_relationship_materialization":             {},
+	"observability_coverage_materialization":       {},
 	"security_group_cidr_materialization":          {},
 	"security_group_rule_materialization":          {},
 	"security_group_reachability_materialization":  {},

@@ -151,6 +151,7 @@ const openAPIPathsStatusAndCompare = `
                     "reasons": {"type": "array", "items": {"type": "string"}},
                     "repository_count": {"type": "integer"},
                     "queue": {"type": "object"},
+                    "queue_blockages": {"type": "array", "items": {"type": "object"}},
                     "scope_activity": {"type": "object"},
                     "aws_materialization": {
                       "type": "object",
@@ -210,6 +211,7 @@ const openAPIPathsStatusAndCompare = `
                     "reasons": {"type": "array", "items": {"type": "string"}},
                     "repository_count": {"type": "integer"},
                     "queue": {"type": "object"},
+                    "queue_blockages": {"type": "array", "items": {"type": "object"}},
                     "scope_activity": {"type": "object"},
                     "aws_materialization": {
                       "type": "object",

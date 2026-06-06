@@ -135,6 +135,10 @@ func TestStatusHandlerIndexStatusExposesAWSMaterializationBuckets(t *testing.T) 
 						Outstanding: 2,
 					},
 					{
+						Domain:      "observability_coverage_materialization",
+						Outstanding: 5,
+					},
+					{
 						Domain:      "code_call_materialization",
 						Outstanding: 9,
 						Retrying:    9,
@@ -182,7 +186,7 @@ func TestStatusHandlerIndexStatusExposesAWSMaterializationBuckets(t *testing.T) 
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v, body=%s", err, rec.Body.String())
 	}
-	if got, want := payload.AWSMaterialization.Pending, 4; got != want {
+	if got, want := payload.AWSMaterialization.Pending, 9; got != want {
 		t.Fatalf("aws_materialization.pending = %d, want %d; body=%s", got, want, rec.Body.String())
 	}
 	if got, want := payload.AWSMaterialization.Blocked, 2; got != want {
@@ -194,7 +198,7 @@ func TestStatusHandlerIndexStatusExposesAWSMaterializationBuckets(t *testing.T) 
 	if got, want := payload.AWSMaterialization.DeadLetter, 1; got != want {
 		t.Fatalf("aws_materialization.dead_letter = %d, want %d; body=%s", got, want, rec.Body.String())
 	}
-	if got, want := len(payload.AWSMaterialization.Domains), 2; got != want {
+	if got, want := len(payload.AWSMaterialization.Domains), 3; got != want {
 		t.Fatalf("aws_materialization.domains len = %d, want %d; body=%s", got, want, rec.Body.String())
 	}
 }
@@ -311,6 +315,12 @@ func TestStatusHandlerIndexStatusUsesDistinctBlockedWorkItems(t *testing.T) {
 				Blocked int    `json:"blocked"`
 			} `json:"domains"`
 		} `json:"aws_materialization"`
+		QueueBlockages []struct {
+			Domain         string `json:"domain"`
+			ConflictDomain string `json:"conflict_domain"`
+			ConflictKey    string `json:"conflict_key"`
+			Blocked        int    `json:"blocked"`
+		} `json:"queue_blockages"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v, body=%s", err, rec.Body.String())
@@ -326,6 +336,15 @@ func TestStatusHandlerIndexStatusUsesDistinctBlockedWorkItems(t *testing.T) {
 	}
 	if got, want := payload.AWSMaterialization.Domains[0].Blocked, 1; got != want {
 		t.Fatalf("aws_materialization.domains[0].blocked = %d, want %d; body=%s", got, want, rec.Body.String())
+	}
+	if got, want := len(payload.QueueBlockages), 2; got != want {
+		t.Fatalf("queue_blockages len = %d, want %d; body=%s", got, want, rec.Body.String())
+	}
+	if got, want := payload.QueueBlockages[0].ConflictDomain, "readiness"; got != want {
+		t.Fatalf("queue_blockages[0].conflict_domain = %q, want %q", got, want)
+	}
+	if got, want := payload.QueueBlockages[0].Blocked, 1; got != want {
+		t.Fatalf("queue_blockages[0].blocked = %d, want distinct blocked work items %d", got, want)
 	}
 }
 

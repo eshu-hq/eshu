@@ -183,6 +183,7 @@ func (h *StatusHandler) getIndexStatus(w http.ResponseWriter, r *http.Request) {
 		"reasons":             report.Health.Reasons,
 		"repository_count":    repoCount,
 		"queue":               queueToMap(report.Queue),
+		"queue_blockages":     queueBlockagesToSlice(raw.QueueBlockages),
 		"coordinator":         coordinatorToMap(report.Coordinator),
 		"scope_activity":      scopeActivityToMap(report.ScopeActivity),
 		"aws_materialization": awsMaterializationStatusToMap(raw.DomainBacklogs, raw.QueueBlockages),
