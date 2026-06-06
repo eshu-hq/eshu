@@ -1,0 +1,21 @@
+go/internal/reducer/service_catalog_correlation_test.go
+  s_f2f7fbb6f30866::t_f0dc41ba9aa7e3 144-146
+go/internal/reducer/service_catalog_correlation_index.go
+  s_f2f7fbb6f30866::t_110c7408583e16 238-240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "e8e11c106b3f65f34cf850a3f224976fad66af89",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
