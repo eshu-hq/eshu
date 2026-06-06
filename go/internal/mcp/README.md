@@ -140,8 +140,8 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `get_service_story` | GET | `/api/v0/services/{service_name}/story` |
 | `investigate_service` | GET | `/api/v0/investigations/services/{service_name}` |
 | `get_file_content` | POST | `/api/v0/content/files/read` |
-| `list_documentation_findings` | GET | `/api/v0/documentation/findings` |
-| `list_documentation_facts` | GET | `/api/v0/documentation/facts` |
+| `list_documentation_findings` | GET | `/api/v0/documentation/findings` with scope, repo, target, and service filters |
+| `list_documentation_facts` | GET | `/api/v0/documentation/facts` with scope, repo, target, service, source, document, section, and search filters |
 | `get_documentation_evidence_packet` | GET | `/api/v0/documentation/findings/{finding_id}/evidence-packet` |
 | `check_documentation_evidence_packet_freshness` | GET | `/api/v0/documentation/evidence-packets/{packet_id}/freshness` |
 | `list_collectors` | GET | `/api/v0/status/collectors` |
@@ -205,6 +205,12 @@ IaC management tools also keep MCP as transport only. The HTTP query layer adds
 sensitive-value redaction before the envelope reaches MCP, so tool callers see
 the same review-required and refused Terraform import-plan actions as HTTP
 callers.
+
+Documentation tools keep the same transport-only contract. Target-scoped
+finding and fact reads forward `repo`, `target_kind`, `target_id`, and
+`service_id` to HTTP so MCP callers see the same `coverage`, `related_facts`,
+and `missing_evidence` metadata as API clients when raw target documentation
+facts exist without admissible findings.
 
 ## Exported surface
 

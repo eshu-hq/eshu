@@ -73,6 +73,9 @@ High-signal invariants for this package:
 - Workflow, AWS pagination, AWS scan-status, webhook, and incident freshness
   stores use fencing or coalescing keys so stale workers or replayed deliveries
   cannot overwrite newer durable truth.
+- Documentation fact readbacks stay bounded by visible finding/source/packet
+  indexes plus `fact_records_documentation_target_refs_idx`, a partial JSONB GIN
+  index over documentation target-reference payloads.
 
 No-Regression Evidence: `go test ./internal/storage/postgres -run 'Test(StatusQueriesExcludeInactiveReducerGenerationsFromLiveReadiness|ReducerQueue(Claim|BatchClaim)SupersedesInactiveGenerationReducerWork|ReducerGraphDrainHasActiveReducerGraphWork|ReducerQueueBlockagesReportAWSRelationshipReadinessWait|QueueObserverQueriesExcludeInactiveReducerGenerations)' -count=1` failed before status/drain/observer predicates joined active scope generation truth, then passed after stale unleased inactive-generation reducer rows were superseded or excluded from live readiness. `go test ./internal/storage/postgres -count=1` passed with the proof-domain harness updated for the audit-total queue snapshot.
 

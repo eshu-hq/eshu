@@ -2,8 +2,6 @@ package query
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -64,7 +62,18 @@ func (cr *ContentReader) documentationFindings(
 		findings = findings[:limit]
 		nextCursor = strconv.Itoa(filter.Offset + limit)
 	}
-	return documentationFindingListReadModel{Findings: findings, NextCursor: nextCursor}, nil
+	readModel := documentationFindingListReadModel{Findings: findings, NextCursor: nextCursor}
+	if documentationTargetScopeFromFindingFilter(filter).hasSelector() {
+		relatedFacts, truncated, err := cr.documentationTargetFacts(ctx, filter)
+		if err != nil {
+			span.RecordError(err)
+			return documentationFindingListReadModel{}, err
+		}
+		readModel.RelatedFacts = relatedFacts
+		readModel.Coverage = documentationTargetCoverageFromFacts(filter, findings, relatedFacts, truncated)
+		readModel.MissingEvidence = documentationMissingEvidenceForTarget(readModel.Coverage)
+	}
+	return readModel, nil
 }
 
 // documentationFacts returns collected documentation facts from fact_records.
@@ -270,7 +279,29 @@ func buildDocumentationFindingsSQL(filter documentationFindingFilter) (string, [
 	}
 	addColumnFilter("fact_records.scope_id", filter.ScopeID)
 	addColumnFilter("fact_records.generation_id", filter.GenerationID)
-	addColumnFilter("ingestion_scopes.payload->>'repo'", filter.Repository)
+	repository := strings.TrimSpace(filter.Repository)
+	if repository != "" {
+		args = append(args, repository)
+		sourceRepoPredicate := fmt.Sprintf("ingestion_scopes.payload->>'repo' = $%d", len(args))
+		targetPredicate, nextArgs := documentationTargetPredicate(
+			args,
+			"fact_records.payload",
+			documentationTargetRefsFromFindingFilter(filter),
+		)
+		args = nextArgs
+		if targetPredicate == "" {
+			clauses = append(clauses, sourceRepoPredicate)
+		} else {
+			clauses = append(clauses, "("+sourceRepoPredicate+" OR "+targetPredicate+")")
+		}
+	} else {
+		clauses, args = appendDocumentationTargetClause(
+			clauses,
+			args,
+			"fact_records.payload",
+			documentationTargetRefsFromFindingFilter(filter),
+		)
+	}
 	addPayloadFilter("finding_type", filter.FindingType)
 	addPayloadFilter("source_id", filter.SourceID)
 	addPayloadFilter("document_id", filter.DocumentID)
@@ -330,6 +361,12 @@ func buildDocumentationFactsSQL(filter documentationFactFilter) (string, []any) 
 	}
 	addColumnFilter("fact_records.scope_id", filter.ScopeID)
 	addColumnFilter("fact_records.generation_id", filter.GenerationID)
+	clauses, args = appendDocumentationTargetClause(
+		clauses,
+		args,
+		"fact_records.payload",
+		documentationTargetRefsFromFactFilter(filter),
+	)
 	addPayloadFilter("source_id", filter.SourceID)
 	addPayloadFilter("document_id", filter.DocumentID)
 	addPayloadFilter("section_id", filter.SectionID)
@@ -378,86 +415,4 @@ func documentationCollectedFactKindSQLList() string {
 		"'" + facts.DocumentationLinkFactKind + "', " +
 		"'" + facts.DocumentationEntityMentionFactKind + "', " +
 		"'" + facts.DocumentationClaimCandidateFactKind + "'"
-}
-
-func scanJSONPayload(rows *sql.Rows) (map[string]any, error) {
-	var raw []byte
-	if err := rows.Scan(&raw); err != nil {
-		return nil, err
-	}
-	payload := map[string]any{}
-	if len(raw) == 0 {
-		return payload, nil
-	}
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return nil, fmt.Errorf("decode payload JSON: %w", err)
-	}
-	return payload, nil
-}
-
-func ensureEvidencePacketURL(finding map[string]any) {
-	if stringFromMap(finding, "evidence_packet_url") != "" {
-		return
-	}
-	findingID := stringFromMap(finding, "finding_id")
-	if findingID == "" {
-		return
-	}
-	finding["evidence_packet_url"] = "/api/v0/documentation/findings/" + findingID + "/evidence-packet"
-}
-
-func documentationPayloadDenied(payload map[string]any) bool {
-	return !documentationVisibilityDecision(payload).allowed
-}
-
-func documentationPermissionReason(packet map[string]any) string {
-	if reason := nestedString(packet, "permissions", "denied_reason"); reason != "" {
-		return reason
-	}
-	if reason := nestedString(packet, "states", "permission_reason"); reason != "" {
-		return reason
-	}
-	if reason := documentationVisibilityDecision(packet).reason; reason != "" {
-		return reason
-	}
-	return "caller cannot view documentation evidence"
-}
-
-type documentationVisibility struct {
-	allowed bool
-	reason  string
-}
-
-func documentationVisibilityDecision(payload map[string]any) documentationVisibility {
-	if strings.EqualFold(nestedString(payload, "states", "permission_decision"), "denied") {
-		return documentationVisibility{reason: "caller cannot view documentation evidence"}
-	}
-	if evaluated, ok := nestedBoolValue(payload, "permissions", "source_acl_evaluated"); ok && !evaluated {
-		return documentationVisibility{reason: "documentation source ACL was not evaluated"}
-	}
-	canRead, ok := nestedBoolValue(payload, "permissions", "viewer_can_read_source")
-	if !ok {
-		return documentationVisibility{reason: "documentation evidence visibility is unknown"}
-	}
-	if !canRead {
-		return documentationVisibility{reason: "caller cannot view documentation evidence"}
-	}
-	return documentationVisibility{allowed: true}
-}
-
-func stringFromMap(values map[string]any, key string) string {
-	value, _ := values[key].(string)
-	return strings.TrimSpace(value)
-}
-
-func nestedString(values map[string]any, objectKey, valueKey string) string {
-	nested, _ := values[objectKey].(map[string]any)
-	value, _ := nested[valueKey].(string)
-	return strings.TrimSpace(value)
-}
-
-func nestedBoolValue(values map[string]any, objectKey, valueKey string) (bool, bool) {
-	nested, _ := values[objectKey].(map[string]any)
-	value, ok := nested[valueKey].(bool)
-	return value, ok
 }

@@ -104,4 +104,10 @@
 // SpanAttrWorkItemEvidence* query, result, evidence-state, and truncation
 // counts; raw URLs, issue summaries, users, and tenant values stay out of
 // metric labels.
+//
+// Documentation finding and fact reads accept repo, target_id, target_kind, and
+// service_id filters. Target-scoped finding responses keep admitted findings
+// separate from raw collected documentation facts by returning coverage,
+// related_facts, and missing_evidence metadata when facts mention the selected
+// target but no admissible finding exists.
 package query
