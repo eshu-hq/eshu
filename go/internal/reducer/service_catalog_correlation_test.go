@@ -141,6 +141,9 @@ func TestBuildServiceCatalogCorrelationDecisionsAdmitsRepoLocalDescriptorScope(t
 	if !slices.Equal(stale.CandidateRepositoryIDs, []string{"repo-archived"}) {
 		t.Fatalf("stale candidates = %v, want repo-archived", stale.CandidateRepositoryIDs)
 	}
+	if !slices.Equal(stale.EvidenceFactIDs, []string{"entity-stale", "repo-archived"}) {
+		t.Fatalf("stale EvidenceFactIDs = %#v, want entity and tombstoned repository facts", stale.EvidenceFactIDs)
+	}
 
 	unscoped := got["component:default/unscoped"]
 	assertServiceCatalogDecision(t, unscoped, ServiceCatalogCorrelationUnresolved)

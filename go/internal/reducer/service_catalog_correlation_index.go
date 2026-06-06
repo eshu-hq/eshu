@@ -235,6 +235,9 @@ func classifyRepoLocalServiceCatalogEntity(
 			decision.Reason = "repo-local catalog descriptor scope matched only tombstoned repository facts"
 			decision.CandidateRepositoryIDs = serviceCatalogRepositoryIDs(staleMatches)
 			decision.DriftStatus = "stale"
+			for _, match := range staleMatches {
+				decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, match.factID)
+			}
 			return decision
 		}
 		decision.Outcome = ServiceCatalogCorrelationUnresolved
