@@ -47,7 +47,11 @@
 // referenced evidence facts. It reports advisory, package/version,
 // dependency-chain, manifest/SBOM/image/workload anchors, freshness, and
 // missing-evidence reasons without adding whole-graph traversal or inventing
-// reachability truth.
+// reachability truth. Repository-scoped service-catalog correlation evidence
+// remains visible in list and explain evidence paths; when that evidence lacks
+// explicit service or workload anchors, the read surface reports
+// service/workload catalog anchor missing instead of claiming catalog evidence
+// is absent.
 //
 // Supply-chain impact rows also carry a reducer suppression decision that
 // captures the VEX or operator-policy state (active, not_affected,

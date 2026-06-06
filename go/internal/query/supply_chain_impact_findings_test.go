@@ -118,9 +118,9 @@ func TestSupplyChainListImpactFindingsUsesBoundedStore(t *testing.T) {
 				DependencyPath:      []string{"vite", "rollup", "example"},
 				DependencyDepth:     3,
 				DirectDependency:    boolPtr(false),
-				MissingEvidence:     []string{"deployment evidence missing"},
-				EvidencePath:        []string{"vulnerability.cve", "vulnerability.affected_package", "package_registry.package_version"},
-				EvidenceFactIDs:     []string{"cve-1", "affected-1", "version-1"},
+				MissingEvidence:     []string{"deployment evidence missing", "service/workload catalog anchor missing"},
+				EvidencePath:        []string{"vulnerability.cve", "vulnerability.affected_package", "package_registry.package_version", "reducer_service_catalog_correlation"},
+				EvidenceFactIDs:     []string{"cve-1", "affected-1", "version-1", "catalog-1"},
 				SourceFreshness:     "active",
 				SourceConfidence:    "inferred",
 			},
@@ -182,6 +182,12 @@ func TestSupplyChainListImpactFindingsUsesBoundedStore(t *testing.T) {
 	if got, want := resp.Findings[0].DeploymentIDs, []string{"deployment:example-api"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("DeploymentIDs = %#v, want %#v", got, want)
 	}
+	if got, want := resp.Findings[0].MissingEvidence, []string{"deployment evidence missing", "service/workload catalog anchor missing"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("MissingEvidence = %#v, want %#v", got, want)
+	}
+	if got, want := resp.Findings[0].EvidencePath, []string{"vulnerability.cve", "vulnerability.affected_package", "package_registry.package_version", "reducer_service_catalog_correlation"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("EvidencePath = %#v, want %#v", got, want)
+	}
 	if !resp.Truncated {
 		t.Fatal("truncated = false, want true")
 	}
@@ -239,8 +245,8 @@ func TestSupplyChainListImpactFindingsDoesNotReportPresentCatalogCorrelationAsMi
 	if containsString(missing, "service catalog correlation evidence missing") {
 		t.Fatalf("MissingEvidence = %#v, must not claim present catalog correlation is missing", missing)
 	}
-	if !containsString(missing, "service catalog entity anchor missing") {
-		t.Fatalf("MissingEvidence = %#v, want service catalog entity anchor missing", missing)
+	if !containsString(missing, serviceCatalogAnchorMissingReason) {
+		t.Fatalf("MissingEvidence = %#v, want %s", missing, serviceCatalogAnchorMissingReason)
 	}
 }
 

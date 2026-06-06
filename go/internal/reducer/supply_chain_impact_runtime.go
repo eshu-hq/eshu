@@ -163,6 +163,9 @@ func matchingSupplyChainServices(
 				rejected = append(rejected, "service catalog evidence provenance-only")
 				continue
 			}
+			if service.serviceID == "" && service.workloadID == "" {
+				rejected = append(rejected, "service/workload catalog anchor missing")
+			}
 			matches = append(matches, service)
 		case string(ServiceCatalogCorrelationStale):
 			rejected = append(rejected, "service catalog evidence stale")

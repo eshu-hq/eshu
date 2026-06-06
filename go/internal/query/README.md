@@ -161,7 +161,12 @@ canonical graph or reducer truth.
   observed version) and `installed_version_malformed` — and the
   upgrade-decision reasons. Older rows that predate remediation
   computation expose a nil `Remediation`; callers must treat that as
-  "no remediation computed yet," not "no fix available."
+  "no remediation computed yet," not "no fix available." Exact
+  repository-scoped `reducer_service_catalog_correlation` evidence remains in
+  `evidence_path` for list, explain, and MCP readbacks; when the catalog row
+  lacks service/workload anchors, the read model preserves the evidence and
+  reports `service/workload catalog anchor missing` instead of reporting
+  missing service-catalog correlation evidence.
 
 **Handler structs**
 

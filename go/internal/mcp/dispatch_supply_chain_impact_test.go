@@ -58,7 +58,9 @@ func TestDispatchToolSupplyChainImpactFindingsReturnsReadinessEnvelope(t *testin
 			"data": map[string]any{
 				"findings": []any{
 					map[string]any{
-						"finding_id": "finding-remediation",
+						"finding_id":       "finding-remediation",
+						"missing_evidence": []any{"service/workload catalog anchor missing"},
+						"evidence_path":    []any{"reducer_service_catalog_correlation"},
 						"remediation": map[string]any{
 							"ecosystem":             "maven",
 							"current_version":       "3.9.8",
@@ -144,7 +146,16 @@ func TestDispatchToolSupplyChainImpactFindingsReturnsReadinessEnvelope(t *testin
 		t.Fatalf("freshness = %#v, want %#v", got, want)
 	}
 	findings := data["findings"].([]any)
-	remediation := findings[0].(map[string]any)["remediation"].(map[string]any)
+	finding := findings[0].(map[string]any)
+	missingEvidence := finding["missing_evidence"].([]any)
+	if got, want := missingEvidence[0], "service/workload catalog anchor missing"; got != want {
+		t.Fatalf("missing_evidence[0] = %#v, want %#v", got, want)
+	}
+	evidencePath := finding["evidence_path"].([]any)
+	if got, want := evidencePath[0], "reducer_service_catalog_correlation"; got != want {
+		t.Fatalf("evidence_path[0] = %#v, want %#v", got, want)
+	}
+	remediation := finding["remediation"].(map[string]any)
 	if got, want := remediation["match_reason"], "maven_range_match"; got != want {
 		t.Fatalf("remediation.match_reason = %#v, want %#v", got, want)
 	}

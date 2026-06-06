@@ -431,7 +431,11 @@ Runtime context is evidence-only. Findings may include `repository_id`,
 explicit deployment or service-catalog facts. Ambiguous images, stale deployment
 evidence, missing workload links, or missing service/environment links stay in
 `missing_evidence[]` instead of being inferred from repository, tag, workload,
-or service names.
+or service names. Exact repository-scoped service-catalog correlation evidence
+is still attached to the finding path. When that correlation lacks explicit
+`service_id` or `workload_id` anchors, the row reports
+`service/workload catalog anchor missing` instead of saying service-catalog
+correlation evidence is absent.
 
 ### Remediation (Safe Upgrade)
 

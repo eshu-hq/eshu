@@ -26,9 +26,14 @@
 // Alpine/APK remediation stays limited to parseable installed versions and
 // single source-attributed fixed branches; missing provenance or ambiguous
 // branches remain explicit missing evidence. Supply-chain impact version
-// matching is ecosystem-aware for npm, Cargo, Pub, Swift, NuGet, Maven, and PyPI PEP 440
-// exact-version evidence; unsupported or malformed ranges fail closed with
-// explicit missing evidence. Security-alert reconciliation facts are keyed by provider alert
+// matching is ecosystem-aware for npm, Cargo, Pub, Swift, NuGet, Maven, and
+// PyPI PEP 440 exact-version evidence; unsupported or malformed ranges fail
+// closed with explicit missing evidence. Exact repository-scoped
+// service-catalog correlation facts stay attached to the supply-chain evidence
+// path, but they do not create service or workload ids unless the catalog row
+// carries those anchors; missing anchors are reported as service/workload
+// catalog anchor missing rather than treating the catalog correlation as
+// absent. Security-alert reconciliation facts are keyed by provider alert
 // identity, package identity, advisory ids, and provider evidence scope so
 // provider-only placeholders are replaced by later matched or stale rows while
 // preserving reason and evidence references for audit. They also carry the

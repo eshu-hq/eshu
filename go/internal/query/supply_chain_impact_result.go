@@ -4,7 +4,7 @@ import "strings"
 
 const (
 	serviceCatalogCorrelationMissingReason = "service catalog correlation evidence missing"
-	serviceCatalogAnchorMissingReason      = "service catalog entity anchor missing"
+	serviceCatalogAnchorMissingReason      = "service/workload catalog anchor missing"
 )
 
 // SupplyChainImpactFindingResult is one reducer-owned vulnerability impact row
