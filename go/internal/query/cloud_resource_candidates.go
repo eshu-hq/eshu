@@ -33,7 +33,7 @@ WHERE $service_name <> ''
     toLower(coalesce(c.service_kind, '')) CONTAINS $service_token OR
     toLower(coalesce(c.account_id, '')) CONTAINS $service_token OR
     toLower(coalesce(c.region, '')) CONTAINS $service_token OR
-    toLower(coalesce(c.source, '')) CONTAINS $service_token OR
+    toLower(coalesce(c.source, c.source_system, '')) CONTAINS $service_token OR
     toLower(coalesce(c.config_path, '')) CONTAINS $service_token
   )
 RETURN DISTINCT coalesce(c.id, c.uid, c.resource_id, c.arn, c.name) AS id,

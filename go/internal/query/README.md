@@ -332,7 +332,7 @@ wired in `cmd/api/wiring.go`, not here.
 No-Regression Evidence:
 
 ```bash
-cd go && go test ./internal/query -run 'TestInvestigateResourceResolvesExactCloudARN|TestBuildServiceStoryTraceExplainsUncorrelatedCloudCandidates|TestLoadUncorrelatedCloudResourceCandidates(MatchesInfraSearchFields|UsesBoundedServiceSelector)|TestBuildDeploymentTraceResponseExplainsUncorrelatedCloudCandidates|TestLoadResourceInvestigationSectionsJoinsParallelErrors' -count=1
+cd go && go test ./internal/query -run 'TestInvestigateResourceResolvesExactCloudARN|TestBuildServiceStoryTraceExplainsUncorrelatedCloudCandidates|TestCloudResourceCandidates(UseInfraSearchSourceFields|ReturnSafeInfraSearchFields)|TestLoadUncorrelatedCloudResourceCandidatesUsesBoundedServiceSelector|TestBuildDeploymentTraceResponseExplainsUncorrelatedCloudCandidates|TestLoadResourceInvestigationSectionsJoinsParallelErrors' -count=1
 ```
 
 This proves resource investigation accepts exact cloud ARNs returned by infra

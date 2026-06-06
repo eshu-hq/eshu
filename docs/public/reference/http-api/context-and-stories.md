@@ -155,8 +155,9 @@ Service story and deployment trace keep canonical `cloud_resources` separate
 from `uncorrelated_cloud_resources`. `cloud_resources` requires a materialized
 workload-to-cloud relationship. `uncorrelated_cloud_resources` is a bounded
 candidate list for cloud resources whose safe identity handles match the
-service, including name, id, resource kind/type, resource id, ARN, service kind,
-account, region, source, or config path. These rows still lack the
+service, including `name`, `id`, `kind`, `resource_type`, `resource_id`, `arn`,
+`service_kind`, `account_id`, `region`, `source`, `source_system`, or
+`config_path`. These rows still lack the
 workload-to-cloud relationship; callers should treat them as missing evidence
 to investigate, not as attached dependencies.
 
