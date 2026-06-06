@@ -51,6 +51,33 @@ inventory queries in existing `postgres.query` spans with `db.operation` set to
 `repository_language_inventory`; responses include `limit`, `offset`, and
 `truncated` so slow or incomplete calls are diagnosable from traces and payloads.
 
+`GET /api/v0/repositories/{repo_id}/story` resolves `{repo_id}` as a repository
+selector and includes `coverage_summary` from the same bounded content-store
+coverage contract used by repository stats. When content coverage is available,
+the story reports `coverage_summary.status=available`,
+`coverage_summary.source_backend=content_store`,
+`coverage_summary.query_shape=content_store_repository_coverage`,
+`coverage_summary.whole_graph_traversal=false`, file/entity counts, language
+and entity-type buckets, and an empty `coverage_summary.missing_evidence`
+array. If coverage is unavailable, the story keeps
+`coverage_summary.status=unavailable` and names the missing evidence, such as
+`content_store_coverage` or `content_store_coverage_error`, instead of emitting
+the old generic coverage limitation.
+
+No-Regression Evidence: the focused repository story regression verifies that
+story, stats, and coverage routes agree for one repository selector with indexed
+content-store counts and that story coverage does not call the graph fallback:
+`go test ./internal/query -run 'TestGetRepositoryStoryUsesContentCoverageWhenStatsAndCoverageRoutesHaveCounts|TestGetRepositoryStats|TestQueryContentStoreCoverage' -count=1`.
+
+Observability Evidence: repository story now emits the existing
+`repository_query.stage_started` and `repository_query.stage_completed` log
+events for `operation=repository_story` with `stage=content_coverage`,
+including `duration_seconds`, `source_backend`, `query_shape`,
+`counts_available`, `entity_types_available`, `whole_graph_traversal`, and
+`missing_evidence`. `ContentReader` continues to wrap the coverage query in a
+`postgres.query` span with `db.operation=repository_coverage` and
+`db.sql.table=content_files,content_entities`.
+
 `GET /api/v0/repositories/{repo_id}/stats` resolves `{repo_id}` as a repository
 selector, verifies the canonical repository identity with a direct
 `Repository{id}` lookup when a graph backend is present, and then reads

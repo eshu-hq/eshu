@@ -283,7 +283,9 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 	repoID = StringVal(row, "id")
 
 	repo := RepoRefFromRow(row)
-	contentCoverage := loadRepositoryContentCoverage(r.Context(), h.Content, repoID)
+	timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "content_coverage")
+	contentCoverage, coverageSummary, coverageErr := h.repositoryStoryContentCoverage(r.Context(), repoID)
+	timer.Done(r.Context(), repositoryStatsCoverageLogAttrs(coverageSummary, coverageErr)...)
 	readModelSummary := loadRepositoryReadModelSummary(r.Context(), h.Content, repoID)
 	timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "graph_summary")
 	storySummary := queryRepositoryStoryGraphSummary(r.Context(), h.Neo4j, map[string]any{"repo_id": repoID}, row, contentCoverage, readModelSummary)
@@ -363,7 +365,7 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 	}
 	infrastructureOverview = attachRepositoryDeploymentEvidence(infrastructureOverview, deploymentEvidence)
 
-	response := buildRepositoryStoryResponse(
+	response := buildRepositoryStoryResponseWithCoverage(
 		repo,
 		fileCount,
 		languages,
@@ -372,6 +374,7 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 		dependencyCount,
 		infrastructureOverview,
 		semanticOverview,
+		coverageSummary,
 	)
 	enrichRepositoryStoryResponseWithEvidence(response, semanticOverview, narrativeFiles)
 
