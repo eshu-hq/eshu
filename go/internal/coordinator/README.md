@@ -457,6 +457,29 @@ No-Regression Evidence: `go test ./internal/coordinator ./internal/scope ./inter
 
 No-Observability-Change: grafana scheduling reuses the existing coordinator reconcile counters, `workflow_runs`, `workflow_work_items`, `requested_scope_set`, and `/api/v0/index-status` surfaces. `requested_scope_set` carries only `scope_id`, `provider`, and target `instance_id`; it never exposes `token_env`, `base_url`, or resource limits, and no new metric, span, or log field was added.
 
+## Maintenance: service.go split (no behavior change)
+
+`service.go` exceeded the 500-line cap, so the four remaining per-collector
+schedule methods (package_registry, vulnerability_intelligence, oci_registry,
+terraform_state) moved into their own `<kind>_service.go` files to match the
+existing convention, and the shared observation recorders moved to
+`service_observations.go`. This is a pure code move: no function body, signature,
+planner wiring, lease timing, queue ordering, fairness key, or admission guard
+changed.
+
+No-Regression Evidence: baseline and after are identical behavior — the move is
+verified by `go test ./internal/coordinator ./internal/scope ./internal/runtime
+-count=1` (pass, on the post-split tree), `go build ./internal/coordinator/...`,
+and `golangci-lint run ./internal/coordinator/...` (0 issues). No claim lease,
+worker count, batch size, conflict/fairness key, queue ordering, reducer graph
+write, or fact-emission path was touched, so the coordinator's terminal queue
+and row-count behavior is unchanged from before the refactor.
+
+No-Observability-Change: the moved code keeps the same reconcile counters,
+`recordReconcile`/`recordReap`/`recordRunReconciliation` calls, structured log
+fields, `workflow_runs`, and `/api/v0/index-status` surfaces. No metric, span,
+or log field was added, removed, or renamed.
+
 ## Related docs
 
 - `docs/public/deployment/service-runtimes.md`
