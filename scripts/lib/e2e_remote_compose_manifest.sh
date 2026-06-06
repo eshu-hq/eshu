@@ -127,14 +127,15 @@ build_manifest() {
 		def collector_row($n):
 			if $n > 0 then {status: "pass", facts: $n}
 			else {status: "fail", facts: 0, reason: "no source facts observed"} end;
+		def hosted_collector_issue_refs: {issue_refs: ["#1375"]};
 		# Hosted collector rows depend on the rendered Compose profile as well
 		# as fact counts so disabled, unsupported, and failed proof are distinct.
 		def hosted_collector_row($name; $service; $n):
 			if service_enabled($service) and $n > 0 then {status: "pass", facts: $n}
-			elif service_enabled($service) then {status: "fail", facts: 0, reason: "no source facts observed for enabled collector service"}
-			elif $n > 0 then {status: "fail", facts: $n, reason: "source facts observed while collector service disabled in remote Compose profile"}
-			elif explicitly_unsupported_hosted($name) then {status: "unsupported", facts: 0, reason: "collector explicitly unsupported in remote Compose profile"}
-			else {status: "skipped", facts: 0, reason: "collector service disabled in remote Compose profile"} end;
+			elif service_enabled($service) then {status: "fail", facts: 0, reason: "no source facts observed for enabled collector service"} + hosted_collector_issue_refs
+			elif $n > 0 then {status: "fail", facts: $n, reason: "source facts observed while collector service disabled in remote Compose profile"} + hosted_collector_issue_refs
+			elif explicitly_unsupported_hosted($name) then {status: "unsupported", facts: 0, reason: "collector explicitly unsupported in remote Compose profile"} + hosted_collector_issue_refs
+			else {status: "skipped", facts: 0, reason: "collector service disabled in remote Compose profile"} + hosted_collector_issue_refs end;
 		def workflow_completed($collector):
 			[$workflow_rows[] | select(.collector_kind == $collector and .status == "completed") | .count] | add // 0;
 		def workflow_row($collector): {completed: workflow_completed($collector)};
@@ -306,6 +307,18 @@ build_manifest() {
 			elif (($required_statuses | any(. == "fail")) or $queue_failed) then "fail"
 			else "partial" end
 		)
+		| .follow_up_issues = ([
+			(
+				.collectors.pagerduty,
+				.collectors.jira,
+				.collectors.grafana,
+				.collectors.prometheus_mimir,
+				.collectors.loki,
+				.collectors.tempo
+			)
+			| select((.status // "") != "pass")
+			| .issue_refs[]?
+		] | unique)
 	' "${stats_file}" >"${output}"
 }
 

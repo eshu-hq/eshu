@@ -58,9 +58,17 @@ assert_static_contract() {
 		'^  collector-jira:$' \
 		'^  collector-pagerduty:$' \
 		'^  collector-confluence:$' \
+		'^  collector-grafana:$' \
+		'^  collector-prometheus-mimir:$' \
+		'^  collector-loki:$' \
+		'^  collector-tempo:$' \
 		'ESHU_JIRA_COLLECTOR_INSTANCE_ID: remote-e2e-jira' \
 		'ESHU_JIRA_JQL:' \
 		'ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID: remote-e2e-pagerduty' \
+		'ESHU_GRAFANA_COLLECTOR_INSTANCE_ID: remote-e2e-grafana' \
+		'ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID: remote-e2e-prometheus-mimir' \
+		'ESHU_LOKI_COLLECTOR_INSTANCE_ID: remote-e2e-loki' \
+		'ESHU_TEMPO_COLLECTOR_INSTANCE_ID: remote-e2e-tempo' \
 		'ESHU_CONFLUENCE_BASE_URL:' \
 		'ESHU_CONFLUENCE_SPACE_ID:' \
 		'ESHU_CONFLUENCE_SPACE_IDS:' \
@@ -69,8 +77,16 @@ assert_static_contract() {
 		'127.0.0.1:19675:6060' \
 		'127.0.0.1:19674:6060' \
 		'127.0.0.1:19668:6060' \
+		'127.0.0.1:19676:6060' \
+		'127.0.0.1:19677:6060' \
+		'127.0.0.1:19678:6060' \
+		'127.0.0.1:19679:6060' \
 		'ESHU_REMOTE_E2E_JIRA_ENABLED=false' \
-		'ESHU_REMOTE_E2E_PAGERDUTY_ENABLED=false'; do
+		'ESHU_REMOTE_E2E_PAGERDUTY_ENABLED=false' \
+		'ESHU_REMOTE_E2E_GRAFANA_ENABLED=false' \
+		'ESHU_REMOTE_E2E_PROMETHEUS_MIMIR_ENABLED=false' \
+		'ESHU_REMOTE_E2E_LOKI_ENABLED=false' \
+		'ESHU_REMOTE_E2E_TEMPO_ENABLED=false'; do
 		if ! rg -q "${want}" \
 			"${REPO_ROOT}/docker-compose.remote-e2e.yaml" \
 			"${REPO_ROOT}/docker-compose.remote-e2e.pprof.yaml" \
@@ -94,13 +110,28 @@ assert_service_absent "${default_services}" collector-jira
 assert_service_absent "${default_services}" collector-pagerduty
 assert_service_absent "${default_services}" collector-confluence
 assert_service_absent "${default_services}" collector-confluence-preflight
+assert_service_absent "${default_services}" collector-grafana
+assert_service_absent "${default_services}" collector-prometheus-mimir
+assert_service_absent "${default_services}" collector-loki
+assert_service_absent "${default_services}" collector-tempo
 
 profiled_services="${TMP_DIR}/profiled-services.txt"
-compose_services "${profiled_services}" --profile jira --profile pagerduty --profile confluence
+compose_services "${profiled_services}" \
+	--profile jira \
+	--profile pagerduty \
+	--profile confluence \
+	--profile grafana \
+	--profile prometheus-mimir \
+	--profile loki \
+	--profile tempo
 assert_service_present "${profiled_services}" collector-jira
 assert_service_present "${profiled_services}" collector-pagerduty
 assert_service_present "${profiled_services}" collector-confluence
 assert_service_present "${profiled_services}" collector-confluence-preflight
+assert_service_present "${profiled_services}" collector-grafana
+assert_service_present "${profiled_services}" collector-prometheus-mimir
+assert_service_present "${profiled_services}" collector-loki
+assert_service_present "${profiled_services}" collector-tempo
 
 rendered="${TMP_DIR}/profiled-config.yaml"
 docker compose --env-file "${REPO_ROOT}/.env.remote-e2e.example" \
@@ -108,11 +139,19 @@ docker compose --env-file "${REPO_ROOT}/.env.remote-e2e.example" \
 	--profile jira \
 	--profile pagerduty \
 	--profile confluence \
+	--profile grafana \
+	--profile prometheus-mimir \
+	--profile loki \
+	--profile tempo \
 	config >"${rendered}"
 
 for want in \
 	'ESHU_JIRA_COLLECTOR_INSTANCE_ID: remote-e2e-jira' \
 	'ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID: remote-e2e-pagerduty' \
+	'ESHU_GRAFANA_COLLECTOR_INSTANCE_ID: remote-e2e-grafana' \
+	'ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID: remote-e2e-prometheus-mimir' \
+	'ESHU_LOKI_COLLECTOR_INSTANCE_ID: remote-e2e-loki' \
+	'ESHU_TEMPO_COLLECTOR_INSTANCE_ID: remote-e2e-tempo' \
 	'ESHU_JIRA_JQL:' \
 	'ESHU_CONFLUENCE_BASE_URL:' \
 	'ESHU_CONFLUENCE_SPACE_ID:' \
@@ -120,7 +159,11 @@ for want in \
 	'ESHU_CONFLUENCE_ROOT_PAGE_ID:' \
 	'remote-e2e-confluence-preflight.sh' \
 	'JIRA_API_TOKEN:' \
-	'PAGERDUTY_API_TOKEN:'; do
+	'PAGERDUTY_API_TOKEN:' \
+	'GRAFANA_API_TOKEN:' \
+	'PROMETHEUS_MIMIR_API_TOKEN:' \
+	'LOKI_API_TOKEN:' \
+	'TEMPO_API_TOKEN:'; do
 	if ! rg -q "${want}" "${rendered}"; then
 		die "profiled render missing ${want}"
 	fi
@@ -131,17 +174,32 @@ if ! rg -q -U 'collector-confluence:\n    profiles:\n(?:.*\n)*    depends_on:\n 
 fi
 
 pprof_rendered="${TMP_DIR}/profiled-pprof-config.yaml"
-compose_pprof_config "${pprof_rendered}" --profile jira --profile pagerduty --profile confluence
+compose_pprof_config "${pprof_rendered}" \
+	--profile jira \
+	--profile pagerduty \
+	--profile confluence \
+	--profile grafana \
+	--profile prometheus-mimir \
+	--profile loki \
+	--profile tempo
 for want in \
 	'collector-jira:' \
 	'collector-pagerduty:' \
 	'collector-confluence:' \
+	'collector-grafana:' \
+	'collector-prometheus-mimir:' \
+	'collector-loki:' \
+	'collector-tempo:' \
 	'ESHU_PPROF_ADDR: 0.0.0.0:6060' \
 	'host_ip: 127.0.0.1' \
 	'target: 6060' \
 	'published: "19675"' \
 	'published: "19674"' \
-	'published: "19668"'; do
+	'published: "19668"' \
+	'published: "19676"' \
+	'published: "19677"' \
+	'published: "19678"' \
+	'published: "19679"'; do
 	if ! rg -q "${want}" "${pprof_rendered}"; then
 		die "profiled pprof render missing ${want}"
 	fi

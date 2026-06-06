@@ -165,6 +165,19 @@ assert_all_hosted_rows() {
 	done
 }
 
+assert_all_hosted_issue_refs() {
+	local manifest="$1" expected_follow_up="$2"
+	local row
+	for row in "${hosted_rows[@]}"; do
+		jq -e --arg row "${row}" '
+			.collectors[$row].issue_refs == ["#1375"]
+		' "${manifest}" >/dev/null || die "${row} did not carry hosted collector issue refs"
+	done
+	jq -e --argjson expected "${expected_follow_up}" '
+		.follow_up_issues == $expected
+	' "${manifest}" >/dev/null || die "manifest follow_up_issues did not match expected hosted collector refs"
+}
+
 write_common_inputs
 
 write_services "${TMP_DIR}/services-enabled.json" enabled
@@ -179,7 +192,9 @@ build_case_manifest \
 jq -e '
 	. as $root |
 	all(["pagerduty","jira","grafana","prometheus_mimir","loki","tempo"][]; . as $row |
-		$root.collectors[$row].status == "pass" and $root.collectors[$row].facts == 1)
+		$root.collectors[$row].status == "pass" and $root.collectors[$row].facts == 1 and
+		(($root.collectors[$row].issue_refs // []) | length) == 0) and
+	($root.follow_up_issues == [])
 ' "${TMP_DIR}/hosted-pass.json" >/dev/null || die "enabled hosted collectors with facts did not pass"
 
 build_case_manifest \
@@ -190,6 +205,7 @@ assert_all_hosted_rows \
 	"${TMP_DIR}/hosted-failed.json" \
 	fail \
 	"no source facts observed for enabled collector service"
+assert_all_hosted_issue_refs "${TMP_DIR}/hosted-failed.json" '["#1375"]'
 
 unsupported_hosted_collectors="pagerduty,jira,grafana,prometheus_mimir,loki,tempo"
 build_case_manifest \
@@ -201,6 +217,7 @@ assert_all_hosted_rows \
 	"${TMP_DIR}/hosted-unsupported-cannot-mask-enabled.json" \
 	fail \
 	"no source facts observed for enabled collector service"
+assert_all_hosted_issue_refs "${TMP_DIR}/hosted-unsupported-cannot-mask-enabled.json" '["#1375"]'
 
 build_case_manifest \
 	"${TMP_DIR}/facts-without-hosted.json" \
@@ -210,6 +227,7 @@ assert_all_hosted_rows \
 	"${TMP_DIR}/hosted-skipped.json" \
 	skipped \
 	"collector service disabled in remote Compose profile"
+assert_all_hosted_issue_refs "${TMP_DIR}/hosted-skipped.json" '["#1375"]'
 
 build_case_manifest \
 	"${TMP_DIR}/facts-with-hosted.json" \
@@ -220,6 +238,7 @@ assert_all_hosted_rows \
 	fail \
 	"source facts observed while collector service disabled in remote Compose profile" \
 	1
+assert_all_hosted_issue_refs "${TMP_DIR}/hosted-disabled-with-facts.json" '["#1375"]'
 
 unsupported_hosted_collectors="pagerduty,jira,grafana,prometheus_mimir,loki,tempo"
 build_case_manifest \
@@ -231,5 +250,6 @@ assert_all_hosted_rows \
 	"${TMP_DIR}/hosted-unsupported.json" \
 	unsupported \
 	"collector explicitly unsupported in remote Compose profile"
+assert_all_hosted_issue_refs "${TMP_DIR}/hosted-unsupported.json" '["#1375"]'
 
 printf 'e2e remote compose hosted manifest tests passed\n'

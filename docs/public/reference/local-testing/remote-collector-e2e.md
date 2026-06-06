@@ -363,15 +363,17 @@ Prometheus/Mimir, Loki, and Tempo. For those rows, a passing collector summary
 requires both a rendered Compose service and a positive source-fact count.
 The checked-in `docker-compose.remote-e2e.yaml` profile does not start those
 six services by default. Jira and PagerDuty have built-in opt-in Compose
-profiles; Grafana, Prometheus/Mimir, Loki, and Tempo still require an
-operator-local Compose override that renders the hosted service and provides
-its private target configuration. Without a rendered hosted service, the
-manifest classifies the row as `skipped` with
-`collector service disabled in remote Compose profile`.
+profiles, and Grafana, Prometheus/Mimir, Loki, and Tempo have matching
+disabled-by-default opt-in profiles for operator-local private targets.
+Without a rendered hosted service, the manifest classifies the row as `skipped`
+with
+`collector service disabled in remote Compose profile`, attaches public
+`issue_refs: ["#1375"]`, and includes `#1375` in `follow_up_issues` so the
+partial proof has an owner.
 
-For Jira and PagerDuty, keep private target values in the operator-local env
-file, set the matching enable flag, and render only the intended profile or
-profiles:
+For hosted providers, keep private target values in the operator-local env
+file, set each matching `ESHU_REMOTE_E2E_*_ENABLED=true` flag, and render only
+the intended profile or profiles:
 
 ```bash
 export ESHU_REMOTE_E2E_ENV_FILE=path/to/private-remote-e2e.env
@@ -380,6 +382,10 @@ docker compose --env-file "${ESHU_REMOTE_E2E_ENV_FILE}" \
   -f docker-compose.remote-e2e.yaml \
   --profile jira \
   --profile pagerduty \
+  --profile grafana \
+  --profile prometheus-mimir \
+  --profile loki \
+  --profile tempo \
   config --services
 ```
 
@@ -395,16 +401,26 @@ being interpolated into `ESHU_COLLECTOR_INSTANCES_JSON`. Use
 `ESHU_PAGERDUTY_API_TOKEN`, and optional bounded PagerDuty limits. Default
 checked-in values leave both collectors disabled and blank.
 
+Use `ESHU_REMOTE_E2E_GRAFANA_ENABLED=true` with `ESHU_GRAFANA_BASE_URL` and
+`ESHU_GRAFANA_API_TOKEN`. Use `ESHU_REMOTE_E2E_PROMETHEUS_MIMIR_ENABLED=true`,
+`ESHU_REMOTE_E2E_LOKI_ENABLED=true`, or `ESHU_REMOTE_E2E_TEMPO_ENABLED=true`
+with the matching base URL and optional token or tenant values. For those
+three collectors, set the matching `*_TOKEN_ENV` variable only when the target
+requires bearer-style authentication; otherwise the collectors can prove
+unauthenticated read-only targets without a token.
+
 The harness distinguishes the non-passing cases:
 
 - `fail`: the hosted collector service is enabled in the rendered Compose
   profile, but no source facts were observed; or source facts appear even
-  though the rendered Compose profile does not include that service.
+  though the rendered Compose profile does not include that service. The row
+  carries `issue_refs: ["#1375"]`.
 - `skipped`: the hosted collector service is absent from the rendered Compose
-  profile.
+  profile. The row carries `issue_refs: ["#1375"]`.
 - `unsupported`: the operator explicitly listed the row in
   `ESHU_REMOTE_E2E_UNSUPPORTED_HOSTED_COLLECTORS` because that hosted collector
-  is not runnable in this proof yet.
+  is not runnable in this proof yet. The row carries
+  `issue_refs: ["#1375"]`.
 
 Use only public row names in
 `ESHU_REMOTE_E2E_UNSUPPORTED_HOSTED_COLLECTORS`, separated by commas:
@@ -412,8 +428,8 @@ Use only public row names in
 put provider URLs, tenant names, instance IDs, tokens, hostnames, or target
 labels in this variable or in the generated manifest. A `skipped` or
 `unsupported` hosted row makes the generated manifest `partial`, not `pass`;
-that is useful evidence for planning, but it is not a clean all-collector
-prerelease gate.
+`follow_up_issues` includes `#1375`. That is useful evidence for planning, but
+it is not a clean all-collector prerelease gate.
 Do not list an enabled hosted collector as unsupported to hide missing source
 facts; enabled services with zero facts are failed proof. Do not treat source
 facts as passing evidence when the rendered Compose profile lacks the matching
@@ -509,11 +525,13 @@ add facts. `scripts/test-e2e-remote-compose-hosted-manifest.sh` isolates the
 hosted collector profile contract for PagerDuty, Jira, Grafana,
 Prometheus/Mimir, Loki, and Tempo: pass requires the rendered service plus
 source facts, enabled services without facts fail, disabled rows are skipped,
-explicit unsupported rows stay partial, and contradictory source facts without
-the rendered service fail. `scripts/test-remote-e2e-hosted-compose-render.sh`
-proves the checked-in remote Compose file keeps Jira and PagerDuty disabled by
-default while rendering `collector-jira` and `collector-pagerduty` under their
-explicit profiles with only public-safe placeholder env. `scripts/test-e2e-remote-compose-reducer-manifest.sh`
+explicit unsupported rows stay partial, contradictory source facts without the
+rendered service fail, and every non-pass hosted row carries the public
+follow-up issue. `scripts/test-remote-e2e-hosted-compose-render.sh`
+proves the checked-in remote Compose file keeps Jira, PagerDuty, Grafana,
+Prometheus/Mimir, Loki, and Tempo disabled by default while rendering their
+collector services under explicit profiles with only public-safe placeholder
+env. `scripts/test-e2e-remote-compose-reducer-manifest.sh`
 proves Terraform relationship table mapping, vulnerability matching through
 `reducer_supply_chain_impact_finding`, explicit missing reducer evidence,
 explicit unsupported reducer rows, and missing readback proof classification.
