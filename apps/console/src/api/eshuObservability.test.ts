@@ -2,9 +2,8 @@ import { describe, expect, it } from "vitest";
 import { loadObservabilityCoverage } from "./eshuObservability";
 import type { EshuApiClient } from "./client";
 
-// The coverage endpoint requires a provider anchor and returns RAW JSON
-// (top-level `correlations`, no eshu envelope), so the adapter must fan out one
-// getJson request per provider and merge the results.
+// The coverage endpoint requires a provider anchor, so the adapter must fan out
+// one getJson request per provider and merge paginated results.
 describe("eshuObservability", () => {
   function fakeClient(opts?: { failTempo?: boolean; failAll?: boolean }): { client: EshuApiClient; calls: string[] } {
     const calls: string[] = [];
@@ -14,10 +13,14 @@ describe("eshuObservability", () => {
         if (opts?.failAll) throw new Error("down");
         if (path.includes("provider=tempo") && opts?.failTempo) throw new Error("tempo down");
         if (path.includes("provider=grafana")) {
+          if (!path.includes("after_correlation_id=")) {
+            return { correlations: [
+              { correlation_id: "g1", provider: "grafana", coverage_signal: "dashboard", observability_object_ref: "checkout-api", coverage_status: "covered", resource_class: "dashboard", source_kind: "kubernetes", freshness_state: "current" }
+            ], truncated: true, next_cursor: { after_correlation_id: "g1" } };
+          }
           return { correlations: [
-            { correlation_id: "g1", provider: "grafana", coverage_signal: "dashboard", observability_object_ref: "api-node-boats", coverage_status: "covered", resource_class: "dashboard", source_kind: "kubernetes", freshness_state: "current" },
             { correlation_id: "g2", provider: "grafana", coverage_signal: "datasource", observability_object_ref: "tempo", coverage_status: "gap", resource_class: "datasource", source_kind: "grafana", freshness_state: "current" }
-          ] };
+          ], truncated: false };
         }
         if (path.includes("provider=loki")) {
           return { correlations: [
@@ -39,8 +42,9 @@ describe("eshuObservability", () => {
   it("fans out one anchored request per provider and merges rows", async () => {
     const { client, calls } = fakeClient();
     const snap = await loadObservabilityCoverage(client);
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(5);
     expect(calls.every((c) => c.includes("provider="))).toBe(true);
+    expect(calls.some((c) => c.includes("after_correlation_id=g1"))).toBe(true);
     expect(snap.source).toBe("live");
     expect(snap.rows).toHaveLength(4); // g1, g2, l1, t1
   });
@@ -56,12 +60,14 @@ describe("eshuObservability", () => {
     expect(prometheus).toMatchObject({ total: 0, covered: 0, gaps: 0 });
   });
 
-  it("skips a failed provider but stays live when others succeed", async () => {
+  it("marks a failed provider unavailable while staying live when others succeed", async () => {
     const { client } = fakeClient({ failTempo: true });
     const snap = await loadObservabilityCoverage(client);
     expect(snap.source).toBe("live");
     expect(snap.rows.some((r) => r.provider === "tempo")).toBe(false);
     expect(snap.rows.some((r) => r.provider === "grafana")).toBe(true);
+    const tempo = snap.providers.find((p) => p.provider === "tempo");
+    expect(tempo).toMatchObject({ provider: "tempo", source: "unavailable", total: 0 });
   });
 
   it("reports unavailable when every provider request fails", async () => {
@@ -69,5 +75,6 @@ describe("eshuObservability", () => {
     const snap = await loadObservabilityCoverage(client);
     expect(snap.source).toBe("unavailable");
     expect(snap.rows).toHaveLength(0);
+    expect(snap.providers.every((p) => p.source === "unavailable")).toBe(true);
   });
 });

@@ -3,8 +3,8 @@
 // GET /api/v0/observability/coverage/correlations for the four observability
 // collectors (grafana, prometheus/mimir, loki, tempo). That endpoint requires an
 // anchor (provider/scope_id/coverage_signal/...), so we fan out one request per
-// provider and merge. The response is RAW JSON (no eshu envelope), so we read it
-// with getJson. Live-API data only — no fabricated rows.
+// provider and merge. getJson handles both envelope and raw JSON responses.
+// Live-API data only - no fabricated rows.
 
 import type { EshuApiClient } from "./client";
 
@@ -36,6 +36,8 @@ export interface ProviderSummary {
   readonly total: number;
   readonly covered: number;
   readonly gaps: number;
+  readonly source: "live" | "empty" | "unavailable";
+  readonly error: string;
 }
 
 // ObservabilitySnapshot is the full coverage view the page renders.
@@ -61,6 +63,10 @@ interface CorrelationRecord {
 interface CoverageResponse {
   readonly correlations?: readonly CorrelationRecord[];
   readonly results?: readonly CorrelationRecord[];
+  readonly truncated?: boolean;
+  readonly next_cursor?: {
+    readonly after_correlation_id?: string;
+  };
 }
 
 function str(v: unknown): string {
@@ -86,28 +92,54 @@ function mapRow(rec: CorrelationRecord, fallbackProvider: string): CoverageRow {
   };
 }
 
-// loadObservabilityCoverage fans out one coverage request per provider and
-// merges the results. A provider whose request fails is skipped; the snapshot is
-// "unavailable" only when every provider request fails, "empty" when all succeed
-// with no rows, and "live" when any rows are returned.
-export async function loadObservabilityCoverage(client: EshuApiClient): Promise<ObservabilitySnapshot> {
-  const settled = await Promise.allSettled(
-    OBSERVABILITY_PROVIDERS.map(async (provider) => {
-      // The endpoint caps limit at 200 (400s above that); 200 is the max page.
+interface ProviderLoadResult {
+  readonly provider: ObservabilityProvider;
+  readonly rows: readonly CoverageRow[];
+  readonly source: ProviderSummary["source"];
+  readonly error: string;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "failed";
+}
+
+async function loadProviderCoverage(client: EshuApiClient, provider: ObservabilityProvider): Promise<ProviderLoadResult> {
+  const rows: CoverageRow[] = [];
+  let afterCorrelationID = "";
+
+  try {
+    for (;;) {
+      const cursor = afterCorrelationID === "" ? "" : `&after_correlation_id=${encodeURIComponent(afterCorrelationID)}`;
       const body = await client.getJson<CoverageResponse>(
-        `/api/v0/observability/coverage/correlations?provider=${provider}&limit=200`
+        `/api/v0/observability/coverage/correlations?provider=${provider}&limit=200${cursor}`
       );
       const recs = body.correlations ?? body.results ?? [];
-      return recs.map((rec) => mapRow(rec, provider));
-    })
-  );
+      rows.push(...recs.map((rec) => mapRow(rec, provider)));
+      if (body.truncated !== true) break;
+      const next = str(body.next_cursor?.after_correlation_id);
+      if (next === "" || next === afterCorrelationID) {
+        throw new Error(`provider ${provider} returned a truncated page without a usable next cursor`);
+      }
+      afterCorrelationID = next;
+    }
+  } catch (error) {
+    return { provider, rows: [], source: "unavailable", error: errorMessage(error) };
+  }
+
+  return { provider, rows, source: rows.length > 0 ? "live" : "empty", error: "" };
+}
+
+// loadObservabilityCoverage fans out one coverage request per provider and
+// merges the results. Failed providers stay visible as unavailable; the snapshot
+// is "unavailable" when no provider returns rows and at least one provider
+// fails, "empty" when all providers succeed with no rows, and "live" when any
+// rows are returned.
+export async function loadObservabilityCoverage(client: EshuApiClient): Promise<ObservabilitySnapshot> {
+  const providerResults = await Promise.all(OBSERVABILITY_PROVIDERS.map((provider) => loadProviderCoverage(client, provider)));
 
   const byId = new Map<string, CoverageRow>();
-  let anyOk = false;
-  for (const result of settled) {
-    if (result.status !== "fulfilled") continue;
-    anyOk = true;
-    for (const row of result.value) {
+  for (const result of providerResults) {
+    for (const row of result.rows) {
       if (!byId.has(row.id)) byId.set(row.id, row);
     }
   }
@@ -115,11 +147,14 @@ export async function loadObservabilityCoverage(client: EshuApiClient): Promise<
 
   const providers: ProviderSummary[] = OBSERVABILITY_PROVIDERS.map((provider) => {
     const owned = rows.filter((r) => r.provider === provider);
+    const result = providerResults.find((p) => p.provider === provider);
     return {
       provider,
       total: owned.length,
       covered: owned.filter((r) => r.covered).length,
-      gaps: owned.filter((r) => !r.covered).length
+      gaps: owned.filter((r) => !r.covered).length,
+      source: result?.source ?? "unavailable",
+      error: result?.error ?? "failed"
     };
   });
 
@@ -129,6 +164,7 @@ export async function loadObservabilityCoverage(client: EshuApiClient): Promise<
     .map(([signal, count]) => ({ signal, count }))
     .sort((a, b) => b.count - a.count);
 
-  const source: ObservabilitySnapshot["source"] = rows.length > 0 ? "live" : anyOk ? "empty" : "unavailable";
+  const anyUnavailable = providerResults.some((p) => p.source === "unavailable");
+  const source: ObservabilitySnapshot["source"] = rows.length > 0 ? "live" : anyUnavailable ? "unavailable" : "empty";
   return { rows, providers, signals, source };
 }
