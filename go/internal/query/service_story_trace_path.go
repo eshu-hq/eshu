@@ -135,7 +135,17 @@ func serviceTraceRuntimeSegment(workloadContext map[string]any) map[string]any {
 }
 
 func serviceTraceCloudDependencySegment(workloadContext map[string]any) map[string]any {
-	return serviceTraceSegment("cloud_dependencies", "cloud_resource_evidence", "derived", mapSliceValue(workloadContext, "cloud_resources"))
+	if resources := mapSliceValue(workloadContext, "cloud_resources"); len(resources) > 0 {
+		return serviceTraceSegment("cloud_dependencies", "cloud_resource_evidence", "derived", resources)
+	}
+	candidates := mapSliceValue(workloadContext, "uncorrelated_cloud_resources")
+	if len(candidates) == 0 {
+		return serviceTraceSegment("cloud_dependencies", "cloud_resource_evidence", "missing_evidence", nil)
+	}
+	segment := serviceTraceSegment("cloud_dependencies", "uncorrelated_cloud_resource_candidates", "missing_evidence", candidates)
+	segment["candidate_count"] = len(candidates)
+	segment["missing_relationship"] = "workload_cloud_relationship"
+	return segment
 }
 
 func serviceTraceRowsFromDeploymentEvidence(workloadContext map[string]any, key string) []map[string]any {

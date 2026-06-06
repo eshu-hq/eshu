@@ -151,6 +151,17 @@ func enrichServiceQueryContextWithOptions(
 				workloadContext["provisioning_source_chains"] = provisioningChains
 			}
 		}
+		if len(mapSliceValue(workloadContext, "cloud_resources")) == 0 {
+			timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "uncorrelated_cloud_resource_candidates")
+			cloudCandidates, err := loadUncorrelatedCloudResourceCandidates(ctx, graph, serviceName, serviceStoryItemLimit)
+			timer.Done(ctx, slog.Int("row_count", len(cloudCandidates)))
+			if err != nil {
+				return fmt.Errorf("load uncorrelated cloud resource candidates: %w", err)
+			}
+			if len(cloudCandidates) > 0 {
+				workloadContext["uncorrelated_cloud_resources"] = cloudCandidates
+			}
+		}
 	}
 
 	timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "documentation_overview")

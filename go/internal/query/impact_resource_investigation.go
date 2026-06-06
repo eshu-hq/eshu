@@ -39,6 +39,7 @@ type resourceInvestigationCandidate struct {
 	ConfigPath    string
 	Source        string
 	ResourceID    string
+	Arn           string
 	ResourceKind  string
 	ResourceClass string
 }
@@ -92,7 +93,7 @@ func (h *ImpactHandler) investigateResource(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	workloads, workloadsTruncated, incomingPaths, incomingTruncated, outgoingPaths, outgoingTruncated, err := h.loadResourceInvestigationSections(r.Context(), req, selected.ID)
+	workloads, workloadsTruncated, incomingPaths, incomingTruncated, outgoingPaths, outgoingTruncated, err := h.loadResourceInvestigationSections(r.Context(), req, selected)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -111,7 +112,7 @@ func (h *ImpactHandler) investigateResource(w http.ResponseWriter, r *http.Reque
 func (h *ImpactHandler) loadResourceInvestigationSections(
 	ctx context.Context,
 	req resourceInvestigationRequest,
-	resourceID string,
+	selected *resourceInvestigationCandidate,
 ) (
 	[]map[string]any,
 	bool,
@@ -135,7 +136,7 @@ func (h *ImpactHandler) loadResourceInvestigationSections(
 	go func() {
 		defer wg.Done()
 		var err error
-		workloads, workloadsTruncated, err = h.resourceInvestigationWorkloads(ctx, req, resourceID)
+		workloads, workloadsTruncated, err = h.resourceInvestigationWorkloads(ctx, req, selected)
 		if err != nil {
 			errCh <- err
 		}
@@ -143,7 +144,7 @@ func (h *ImpactHandler) loadResourceInvestigationSections(
 	go func() {
 		defer wg.Done()
 		var err error
-		incomingPaths, incomingTruncated, err = h.resourceInvestigationRepoPaths(ctx, req, resourceID, "incoming")
+		incomingPaths, incomingTruncated, err = h.resourceInvestigationRepoPaths(ctx, req, selected, "incoming")
 		if err != nil {
 			errCh <- err
 		}
@@ -151,7 +152,7 @@ func (h *ImpactHandler) loadResourceInvestigationSections(
 	go func() {
 		defer wg.Done()
 		var err error
-		outgoingPaths, outgoingTruncated, err = h.resourceInvestigationRepoPaths(ctx, req, resourceID, "outgoing")
+		outgoingPaths, outgoingTruncated, err = h.resourceInvestigationRepoPaths(ctx, req, selected, "outgoing")
 		if err != nil {
 			errCh <- err
 		}
@@ -252,6 +253,7 @@ func resourceInvestigationResolverCypher(req resourceInvestigationRequest) strin
   n.id = $selector OR
   n.uid = $selector OR
   n.resource_id = $selector OR
+  n.arn = $selector OR
   n.name = $selector OR
   n.kind = $selector OR
   coalesce(n.resource_type, n.data_type, '') = $selector
@@ -261,11 +263,13 @@ func resourceInvestigationResolverCypher(req resourceInvestigationRequest) strin
   n.id = $selector OR
   n.uid = $selector OR
   n.resource_id = $selector OR
+  n.arn = $selector OR
   n.name = $selector OR
   n.name CONTAINS $selector OR
   n.kind = $selector OR
   coalesce(n.resource_type, n.data_type, '') = $selector OR
   coalesce(n.resource_type, n.data_type, '') CONTAINS $selector OR
+  coalesce(n.arn, '') CONTAINS $selector OR
   coalesce(n.source, '') CONTAINS $selector OR
   coalesce(n.config_path, '') CONTAINS $selector
 )`
@@ -285,6 +289,7 @@ RETURN coalesce(n.id, n.uid, n.resource_id, n.name) AS id,
        coalesce(n.config_path, '') AS config_path,
        coalesce(n.source, '') AS source,
        coalesce(n.resource_id, '') AS resource_id,
+       coalesce(n.arn, '') AS arn,
        coalesce(n.kind, '') AS resource_kind,
        coalesce(n.resource_category, '') AS resource_class
 ORDER BY name, id
@@ -330,9 +335,10 @@ func resourceInvestigationTypePredicate(resourceType string) string {
 func (h *ImpactHandler) resourceInvestigationWorkloads(
 	ctx context.Context,
 	req resourceInvestigationRequest,
-	resourceID string,
+	selected *resourceInvestigationCandidate,
 ) ([]map[string]any, bool, error) {
 	cypher := `MATCH (resource) WHERE coalesce(resource.id, resource.uid, resource.resource_id, resource.name) = $resource_id
+  OR ($resource_arn <> '' AND resource.arn = $resource_arn)
 MATCH (instance:WorkloadInstance)-[rel:USES]->(resource)
 OPTIONAL MATCH (instance)-[:INSTANCE_OF]->(workload:Workload)
 WITH resource, instance, workload, rel
@@ -347,9 +353,10 @@ RETURN DISTINCT coalesce(workload.id, instance.workload_id, instance.id) AS work
 ORDER BY workload_name, workload_id, instance_id
 LIMIT $limit`
 	rows, err := h.Neo4j.Run(ctx, cypher, map[string]any{
-		"resource_id": resourceID,
-		"environment": req.Environment,
-		"limit":       req.Limit + 1,
+		"resource_id":  selected.ID,
+		"resource_arn": selected.Arn,
+		"environment":  req.Environment,
+		"limit":        req.Limit + 1,
 	})
 	if err != nil {
 		return nil, false, fmt.Errorf("load resource workloads: %w", err)
@@ -376,7 +383,7 @@ LIMIT $limit`
 func (h *ImpactHandler) resourceInvestigationRepoPaths(
 	ctx context.Context,
 	req resourceInvestigationRequest,
-	resourceID string,
+	selected *resourceInvestigationCandidate,
 	direction string,
 ) ([]map[string]any, bool, error) {
 	pattern := fmt.Sprintf("(resource)-[rels*1..%d]->(repo:Repository)", req.MaxDepth)
@@ -384,6 +391,7 @@ func (h *ImpactHandler) resourceInvestigationRepoPaths(
 		pattern = fmt.Sprintf("(resource)<-[rels*1..%d]-(repo:Repository)", req.MaxDepth)
 	}
 	cypher := fmt.Sprintf(`MATCH (resource) WHERE coalesce(resource.id, resource.uid, resource.resource_id, resource.name) = $resource_id
+  OR ($resource_arn <> '' AND resource.arn = $resource_arn)
 MATCH path = %s
 RETURN DISTINCT repo.id AS repo_id,
        repo.name AS repo_name,
@@ -392,7 +400,11 @@ RETURN DISTINCT repo.id AS repo_id,
        [rel IN relationships(path) | {type: type(rel), confidence: rel.confidence, reason: coalesce(rel.reason, rel.evidence_type, '')}] AS hops
 ORDER BY depth, repo_name, repo_id
 LIMIT $limit`, pattern, direction)
-	rows, err := h.Neo4j.Run(ctx, cypher, map[string]any{"resource_id": resourceID, "limit": req.Limit + 1})
+	rows, err := h.Neo4j.Run(ctx, cypher, map[string]any{
+		"resource_id":  selected.ID,
+		"resource_arn": selected.Arn,
+		"limit":        req.Limit + 1,
+	})
 	if err != nil {
 		return nil, false, fmt.Errorf("load resource repository paths: %w", err)
 	}
