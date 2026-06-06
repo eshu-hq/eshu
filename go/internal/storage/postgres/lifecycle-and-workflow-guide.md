@@ -90,10 +90,12 @@ CI artifact digests to active image identity rows without scanning unrelated
 fact payloads.
 Service-catalog correlation reads use
 `fact_records_service_catalog_correlations_entity_idx`,
-`fact_records_service_catalog_correlations_repository_idx`, and
+`fact_records_service_catalog_correlations_repository_idx`,
+`fact_records_service_catalog_correlations_candidate_repository_idx`, and
 `fact_records_service_catalog_correlations_owner_idx` so API/MCP filters by
-scope, provider, entity, repository, service, workload, owner, outcome, and
-drift status stay bounded to `reducer_service_catalog_correlation` facts.
+scope, provider, entity, repository, ambiguous candidate repository, service,
+workload, owner, outcome, and drift status stay bounded to
+`reducer_service_catalog_correlation` facts.
 Repository-language inventory reads use `content_files_language_repo_idx` so
 content-index questions such as "how many TypeScript repos?" can count and page
 by language family without scanning every repository coverage response.

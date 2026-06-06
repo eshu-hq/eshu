@@ -28,4 +28,12 @@ func TestOpenAPISpecIncludesServiceCatalogCorrelations(t *testing.T) {
 	if got, want := mustMapField(t, itemProperties, "provenance_only")["type"], "boolean"; got != want {
 		t.Fatalf("provenance_only type = %#v, want %#v", got, want)
 	}
+	candidates := mustMapField(t, itemProperties, "candidate_repository_ids")
+	if got, want := candidates["type"], "array"; got != want {
+		t.Fatalf("candidate_repository_ids type = %#v, want %#v", got, want)
+	}
+	missing := mustMapField(t, properties, "missing_evidence")
+	if got, want := missing["type"], "array"; got != want {
+		t.Fatalf("missing_evidence type = %#v, want %#v", got, want)
+	}
 }

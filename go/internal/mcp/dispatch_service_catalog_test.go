@@ -1,6 +1,9 @@
 package mcp
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestResolveRouteMapsServiceCatalogCorrelationsToBoundedQuery(t *testing.T) {
 	t.Parallel()
@@ -42,6 +45,24 @@ func TestResolveRouteMapsServiceCatalogCorrelationsToBoundedQuery(t *testing.T) 
 	} {
 		if got := route.query[key]; got != want {
 			t.Fatalf("route.query[%s] = %#v, want %#v", key, got, want)
+		}
+	}
+}
+
+func TestServiceCatalogToolSchemaAdvertisesRepositorySelectors(t *testing.T) {
+	t.Parallel()
+
+	tools := serviceCatalogTools()
+	if got, want := len(tools), 1; got != want {
+		t.Fatalf("len(serviceCatalogTools()) = %d, want %d", got, want)
+	}
+	schema := tools[0].InputSchema.(map[string]any)
+	properties := schema["properties"].(map[string]any)
+	repository := properties["repository_id"].(map[string]any)
+	description := repository["description"].(string)
+	for _, want := range []string{"Repository selector", "canonical ID", "name"} {
+		if !strings.Contains(description, want) {
+			t.Fatalf("repository_id description = %q, want %q", description, want)
 		}
 	}
 }

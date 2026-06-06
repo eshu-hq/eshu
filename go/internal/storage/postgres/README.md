@@ -100,6 +100,9 @@ Primary groups:
   concurrency and Postgres pool-budget notes.
 - Graph projection phase, shared projection intent, acceptance, freshness, and
   readiness helpers used by reducer domains.
+- Fact indexes for reducer-owned package and service-catalog correlations,
+  including service-catalog candidate repository IDs used by ambiguous
+  repository-scoped API/MCP readbacks.
 - Terraform and AWS drift adapters that keep reducer joins bounded by scope,
   generation, ARN allowlists, backend ownership, and active read-model indexes.
 
