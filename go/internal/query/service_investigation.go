@@ -110,7 +110,7 @@ func buildServiceInvestigationPacket(
 
 func serviceInvestigationEvidenceFamilies(workloadContext map[string]any) []string {
 	families := make([]string, 0, 6)
-	if apiSurface := mapValue(workloadContext, "api_surface"); len(apiSurface) > 0 &&
+	if apiSurface, ok := normalizedServiceAPISurface(workloadContext); ok &&
 		(IntVal(apiSurface, "endpoint_count") > 0 || IntVal(apiSurface, "spec_count") > 0 ||
 			len(mapSliceValue(apiSurface, "endpoints")) > 0) {
 		families = append(families, "api_surface")
@@ -244,7 +244,7 @@ func serviceInvestigationFindings(workloadContext map[string]any, evidenceFamili
 func serviceInvestigationFamilySummary(workloadContext map[string]any, family string) string {
 	switch family {
 	case "api_surface":
-		apiSurface := mapValue(workloadContext, "api_surface")
+		apiSurface, _ := normalizedServiceAPISurface(workloadContext)
 		return fmt.Sprintf("%d endpoint(s) across %d spec file(s)", IntVal(apiSurface, "endpoint_count"), IntVal(apiSurface, "spec_count"))
 	case "deployment_lanes":
 		return fmt.Sprintf("%d runtime instance(s), %d deployment artifact(s)", len(mapSliceValue(workloadContext, "instances")), len(serviceDeploymentArtifacts(workloadContext)))

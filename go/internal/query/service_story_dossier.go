@@ -92,6 +92,13 @@ func buildServiceDossierAPISurface(workloadContext map[string]any) map[string]an
 	return apiSurface
 }
 
+func normalizedServiceAPISurface(workloadContext map[string]any) (map[string]any, bool) {
+	if len(mapValue(workloadContext, "api_surface")) == 0 {
+		return nil, false
+	}
+	return buildServiceDossierAPISurface(workloadContext), true
+}
+
 func buildServiceDeploymentLanes(workloadContext map[string]any) []map[string]any {
 	lanes := map[string]map[string]any{}
 	for _, instance := range mapSliceValue(workloadContext, "instances") {

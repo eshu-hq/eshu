@@ -158,6 +158,24 @@ candidate list for cloud resources whose name, resource id, or ARN matches the
 service but still lacks that relationship; callers should treat it as missing
 evidence to investigate, not as an attached dependency.
 
+`support_overview.spec_count` uses the same bounded API-surface evidence as
+`api_surface.spec_count`. When graph-backed API evidence has spec paths but no
+precomputed scalar count, story synthesis derives the count from those paths
+instead of reporting zero in support overview.
+
+No-Regression Evidence:
+
+```bash
+cd go && go test ./internal/query -run 'Test(GetServiceStoryReadbackAlignsSupportOverviewSpecCountWithAPISurface|ServiceStorySupportOverviewUsesAPISurfaceSpecPathCount)' -count=1
+cd go && go test ./internal/mcp -run TestDispatchToolServiceStoryPreservesSpecCountConsistency -count=1
+```
+
+No-Observability-Change: service story spec-count alignment reuses the
+already-loaded bounded `api_surface` map during response assembly. It adds no
+new graph, Postgres, MCP dispatch, queue, collector, or runtime call; the
+existing `service_query.stage_started` and `service_query.stage_completed`
+events still cover the `graph_api_surface` and `overview_assembly` stages.
+
 `POST /api/v0/impact/deployment-config-influence` accepts `service_name` or
 `workload_id`, optional `environment`, and optional `limit`. Use it when the
 caller asks which repositories and files influence image tags, runtime

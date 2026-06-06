@@ -63,8 +63,8 @@ func buildServiceDeploymentOverview(workloadContext map[string]any) map[string]a
 	if networkPaths := mapSliceValue(workloadContext, "network_paths"); len(networkPaths) > 0 {
 		overview["network_path_count"] = len(networkPaths)
 	}
-	if apiSurface := mapValue(workloadContext, "api_surface"); len(apiSurface) > 0 {
-		overview["api_surface"] = buildServiceDossierAPISurface(workloadContext)
+	if apiSurface, ok := normalizedServiceAPISurface(workloadContext); ok {
+		overview["api_surface"] = apiSurface
 	}
 	if dependents := mapSliceValue(workloadContext, "dependents"); len(dependents) > 0 {
 		overview["dependent_count"] = len(dependents)
@@ -125,7 +125,7 @@ func buildServiceStorySections(workloadContext map[string]any) []map[string]any 
 			"summary": fmt.Sprintf("%d evidence-backed network path(s) connect entrypoints to runtime targets", len(networkPaths)),
 		})
 	}
-	if apiSurface := mapValue(workloadContext, "api_surface"); len(apiSurface) > 0 {
+	if apiSurface, ok := normalizedServiceAPISurface(workloadContext); ok {
 		sections = append(sections, map[string]any{
 			"title": "api",
 			"summary": fmt.Sprintf(
@@ -238,7 +238,7 @@ func buildServiceSupportOverview(workloadContext map[string]any) map[string]any 
 		"has_api_surface":            len(mapValue(workloadContext, "api_surface")) > 0,
 		"has_documentation_overview": len(mapValue(workloadContext, "documentation_overview")) > 0,
 	}
-	if apiSurface := mapValue(workloadContext, "api_surface"); len(apiSurface) > 0 {
+	if apiSurface, ok := normalizedServiceAPISurface(workloadContext); ok {
 		overview["endpoint_count"] = IntVal(apiSurface, "endpoint_count")
 		overview["method_count"] = IntVal(apiSurface, "method_count")
 		overview["spec_count"] = IntVal(apiSurface, "spec_count")
