@@ -80,6 +80,9 @@ func TestBuildServiceStoryResponseIncludesCodeToRuntimeTrace(t *testing.T) {
 	if got, want := StringVal(cloud, "status"), "missing_evidence"; got != want {
 		t.Fatalf("cloud_dependencies segment status = %q, want %q", got, want)
 	}
+	if got, want := StringVal(cloud, "basis"), "cloud_resource_evidence"; got != want {
+		t.Fatalf("cloud_dependencies segment basis = %q, want %q", got, want)
+	}
 	missing := StringSliceVal(trace, "missing_segments")
 	if !stringSliceContains(missing, "cloud_dependencies") {
 		t.Fatalf("missing_segments = %#v, want cloud_dependencies", missing)

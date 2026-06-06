@@ -139,11 +139,12 @@ func serviceTraceCloudDependencySegment(workloadContext map[string]any) map[stri
 		return serviceTraceSegment("cloud_dependencies", "cloud_resource_evidence", "derived", resources)
 	}
 	candidates := mapSliceValue(workloadContext, "uncorrelated_cloud_resources")
-	segment := serviceTraceSegment("cloud_dependencies", "uncorrelated_cloud_resource_candidates", "missing_evidence", candidates)
-	if len(candidates) > 0 {
-		segment["candidate_count"] = len(candidates)
-		segment["missing_relationship"] = "workload_cloud_relationship"
+	if len(candidates) == 0 {
+		return serviceTraceSegment("cloud_dependencies", "cloud_resource_evidence", "missing_evidence", nil)
 	}
+	segment := serviceTraceSegment("cloud_dependencies", "uncorrelated_cloud_resource_candidates", "missing_evidence", candidates)
+	segment["candidate_count"] = len(candidates)
+	segment["missing_relationship"] = "workload_cloud_relationship"
 	return segment
 }
 
