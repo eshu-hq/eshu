@@ -139,6 +139,10 @@ func TestPackageRegistryPackageToolNamesHexEcosystemScope(t *testing.T) {
 	if !strings.Contains(description, "hex") {
 		t.Fatalf("ecosystem description = %q, want Hex named among package-registry scopes", description)
 	}
+	if !strings.Contains(packageTool.Description, "identity_issues") ||
+		!strings.Contains(packageTool.Description, "malformed") {
+		t.Fatalf("description = %q, want malformed identity_issues contract", packageTool.Description)
+	}
 }
 
 func TestPackageRegistryCorrelationToolAllowsPublicationRelationship(t *testing.T) {

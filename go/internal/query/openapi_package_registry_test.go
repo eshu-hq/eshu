@@ -58,3 +58,54 @@ func TestOpenAPISpecIncludesPackageRegistryCorrelations(t *testing.T) {
 		t.Fatalf("provenance_only type = %#v, want %#v", got, want)
 	}
 }
+
+func TestOpenAPISpecIncludesPackageRegistryIdentityIssues(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
+	}
+
+	paths := mustMapField(t, spec, "paths")
+	path := mustMapField(t, paths, "/api/v0/package-registry/packages")
+	get := mustMapField(t, path, "get")
+	responses := mustMapField(t, get, "responses")
+	okResponse := mustMapField(t, responses, "200")
+	content := mustMapField(t, mustMapField(t, okResponse, "content"), "application/json")
+	schema := mustMapField(t, content, "schema")
+	properties := mustMapField(t, schema, "properties")
+	required := schema["required"].([]any)
+	if !openAPISliceContains(required, "identity_issues") {
+		t.Fatalf("response required = %#v, want identity_issues", required)
+	}
+	identityIssues := mustMapField(t, properties, "identity_issues")
+	items := mustMapField(t, identityIssues, "items")
+	itemProperties := mustMapField(t, items, "properties")
+	itemRequired := items["required"].([]any)
+	if !openAPISliceContains(itemRequired, "missing_evidence") {
+		t.Fatalf("identity_issues required = %#v, want missing_evidence", itemRequired)
+	}
+	for _, field := range []string{
+		"reason",
+		"missing_evidence",
+		"ecosystem",
+		"registry",
+		"normalized_name",
+		"source_specific_id",
+		"version_count",
+	} {
+		if _, ok := itemProperties[field]; !ok {
+			t.Fatalf("identity_issues schema missing %q: %#v", field, itemProperties)
+		}
+	}
+}
+
+func openAPISliceContains(values []any, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}

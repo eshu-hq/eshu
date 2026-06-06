@@ -43,11 +43,35 @@ const openAPIPathsPackageRegistry = `
                         "required": ["package_id", "version_count"]
                       }
                     },
+                    "identity_issues": {
+                      "type": "array",
+                      "description": "Package-registry graph rows that could not be returned as valid package identities because required identity evidence was missing.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "reason": {"type": "string", "enum": ["package_id_missing"]},
+                          "missing_evidence": {"type": "array", "items": {"type": "string", "enum": ["package_id"]}},
+                          "ecosystem": {"type": "string"},
+                          "registry": {"type": "string"},
+                          "namespace": {"type": "string"},
+                          "normalized_name": {"type": "string"},
+                          "purl": {"type": "string"},
+                          "bom_ref": {"type": "string"},
+                          "package_manager": {"type": "string"},
+                          "source_path": {"type": "string"},
+                          "source_specific_id": {"type": "string"},
+                          "visibility": {"type": "string"},
+                          "source_confidence": {"type": "string"},
+                          "version_count": {"type": "integer"}
+                        },
+                        "required": ["reason", "missing_evidence", "version_count"]
+                      }
+                    },
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean"}
                   },
-                  "required": ["packages", "count", "limit", "truncated"]
+                  "required": ["packages", "identity_issues", "count", "limit", "truncated"]
                 }
               }
             }
