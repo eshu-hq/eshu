@@ -52,7 +52,7 @@ func documentationTools() []ToolDefinition {
 					"section_id":    map[string]any{"type": "string"},
 					"q": map[string]any{
 						"type":        "string",
-						"description": "Case-insensitive search over source display name, document title, section heading, and section content",
+						"description": "Case-insensitive search over source display name, document title, section heading, section content, and link target URI",
 					},
 					"updated_since": map[string]any{
 						"type":        "string",

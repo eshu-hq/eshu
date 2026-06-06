@@ -44,7 +44,9 @@ return `unsupported_capability`.
 
 `list_documentation_facts` accepts `fact_kind`, `scope_id`, `generation_id`,
 `source_id`, `document_id`, `section_id`, `q`, `updated_since`, `limit`, and
-`cursor`. `fact_kind` may use the short forms `source`, `document`, `section`,
+`cursor`. `q` searches source display names, document titles, section headings,
+section content, and documentation link `target_uri` values within the requested
+scope. `fact_kind` may use the short forms `source`, `document`, `section`,
 `link`, `entity_mention`, and `claim_candidate`.
 
 Both list routes use RFC3339 timestamps for `updated_since`; `limit` is bounded
@@ -52,6 +54,14 @@ from 1 through 200; `cursor` is a non-negative offset returned as
 `next_cursor`. Except for `fact_kind=source`, documentation fact listing
 requires at least one scope anchor: `scope_id`, `source_id`, `document_id`, or
 `section_id`.
+
+No-Regression Evidence: `go test ./internal/query -run 'TestContentReaderDocumentationFacts(SearchesLinkTargetURI|ReturnsEmptyForNoMatch|FiltersAndPaginates)|TestDocumentationHandlerRequiresFactScopeOrAnchor|TestBuildDocumentationFactsSQLIsScopedAndBounded|TestOpenAPISpecIncludesDocumentationFacts' -count=1` and `go test ./internal/mcp -run 'TestListDocumentationFacts(SchemaIncludesBoundedFilters|RouteIncludesScopeAndSearchFilters)' -count=1` cover link target URI matches, non-link text matches, no-match responses, scope-required behavior, SQL bounds, OpenAPI, and MCP routing parity.
+
+No-Observability-Change: link target URI matching stays inside the existing
+bounded `documentationFacts` Postgres read and reuses the
+`query.documentation_facts` handler span, `db.operation=list_documentation_facts`
+Postgres instrumentation, and HTTP/MCP envelope paths. It adds no graph write,
+queue, worker, metric instrument, metric label, or runtime deployment knob.
 
 ## Evidence Packet Contract
 
