@@ -17,7 +17,9 @@
 // route builders in dedicated dispatch files, so bounded package, version,
 // dependency, correlation, source-only advisory evidence, vulnerability
 // finding, explanation, SBOM, and attestation attachment requests stay thin;
-// supply-chain schemas preserve ambiguous-subject outcomes instead of hiding
+// SBOM attachment tools forward repository_id to the query layer so unsupported
+// repository scope is rejected there instead of becoming an unscoped aggregate.
+// Supply-chain schemas preserve ambiguous-subject outcomes instead of hiding
 // non-canonical evidence. The supply-chain impact tool exposes
 // include_suppressed and suppression_state inputs so callers can opt in to
 // VEX/operator-suppressed findings and audit suppression reason, source,

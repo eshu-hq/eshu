@@ -1,6 +1,14 @@
 package mcp
 
-import "testing"
+import (
+	"context"
+	"log/slog"
+	"net/http"
+	"strings"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query"
+)
 
 func TestResolveRouteMapsSBOMAttestationAttachmentsToBoundedQuery(t *testing.T) {
 	t.Parallel()
@@ -47,6 +55,73 @@ func TestResolveRouteMapsSBOMAttestationAttachmentsToBoundedQuery(t *testing.T) 
 	}
 }
 
+func TestResolveRouteForwardsSBOMRepositoryScopeToHTTPContract(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		tool string
+		args map[string]any
+	}{
+		{
+			tool: "list_sbom_attestation_attachments",
+			args: map[string]any{"repository_id": "repo://example/api", "limit": float64(25)},
+		},
+		{
+			tool: "count_sbom_attestation_attachments",
+			args: map[string]any{"repository_id": "repo://example/api"},
+		},
+		{
+			tool: "get_sbom_attestation_attachment_inventory",
+			args: map[string]any{"repository_id": "repo://example/api", "limit": float64(25)},
+		},
+	} {
+		tc := tc
+		t.Run(tc.tool, func(t *testing.T) {
+			t.Parallel()
+
+			route, err := resolveRoute(tc.tool, tc.args)
+			if err != nil {
+				t.Fatalf("resolveRoute() error = %v, want nil", err)
+			}
+			if got, want := route.query["repository_id"], "repo://example/api"; got != want {
+				t.Fatalf("route.query[repository_id] = %#v, want %#v", got, want)
+			}
+		})
+	}
+}
+
+func TestDispatchSBOMAggregateRepositoryScopeReturnsHTTPContractError(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingMCPAggregateStore{
+		count: query.SBOMAttestationAttachmentAggregateCount{
+			TotalAttachments:   18,
+			ByAttachmentStatus: map[string]int{"attached_verified": 18},
+			ByArtifactKind:     map[string]int{"sbom": 18},
+		},
+	}
+	handler := &query.SupplyChainHandler{SBOMAttachmentAggregates: store}
+	mux := httpServeMux(handler)
+
+	_, err := dispatchTool(
+		context.Background(),
+		mux,
+		"count_sbom_attestation_attachments",
+		map[string]any{"repository_id": "repo://example/api"},
+		"",
+		slog.Default(),
+	)
+	if err == nil {
+		t.Fatal("dispatchTool() error = nil, want repository_id contract error")
+	}
+	if !strings.Contains(err.Error(), "repository_id") {
+		t.Fatalf("dispatchTool() error = %v, want repository_id contract error", err)
+	}
+	if store.countCalls != 0 {
+		t.Fatalf("CountSBOMAttestationAttachments called %d times, want 0", store.countCalls)
+	}
+}
+
 func TestResolveRouteMapsContainerImageIdentitiesToBoundedQuery(t *testing.T) {
 	t.Parallel()
 
@@ -77,4 +152,33 @@ func TestResolveRouteMapsContainerImageIdentitiesToBoundedQuery(t *testing.T) {
 	if got, want := route.query["limit"], "25"; got != want {
 		t.Fatalf("route.query[limit] = %#v, want %#v", got, want)
 	}
+}
+
+type recordingMCPAggregateStore struct {
+	count      query.SBOMAttestationAttachmentAggregateCount
+	countCalls int
+}
+
+func (s *recordingMCPAggregateStore) CountSBOMAttestationAttachments(
+	_ context.Context,
+	_ query.SBOMAttestationAttachmentAggregateFilter,
+) (query.SBOMAttestationAttachmentAggregateCount, error) {
+	s.countCalls++
+	return s.count, nil
+}
+
+func (s *recordingMCPAggregateStore) SBOMAttestationAttachmentInventory(
+	context.Context,
+	query.SBOMAttestationAttachmentAggregateFilter,
+	query.SBOMAttestationAttachmentInventoryDimension,
+	int,
+	int,
+) ([]query.SBOMAttestationAttachmentInventoryRow, error) {
+	return nil, nil
+}
+
+func httpServeMux(handler *query.SupplyChainHandler) *http.ServeMux {
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	return mux
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -126,6 +127,45 @@ func TestSBOMAttestationAttachmentAggregateCountReturnsRollups(t *testing.T) {
 	}
 	if body.Scope["subject_digest"] != "sha256:abc" {
 		t.Fatalf("scope.subject_digest = %v, want sha256:abc", body.Scope["subject_digest"])
+	}
+}
+
+func TestSBOMAttestationAttachmentAggregateRoutesRejectRepositoryScope(t *testing.T) {
+	t.Parallel()
+
+	store := &stubSBOMAttestationAttachmentAggregateStore{
+		count: SBOMAttestationAttachmentAggregateCount{
+			TotalAttachments:   18,
+			ByAttachmentStatus: map[string]int{"attached_verified": 18},
+			ByArtifactKind:     map[string]int{"sbom": 18},
+		},
+		inventory: []SBOMAttestationAttachmentInventoryRow{
+			{Dimension: SBOMAttestationAttachmentInventoryByAttachmentStatus, Value: "attached_verified", Count: 18},
+		},
+	}
+	handler := &SupplyChainHandler{SBOMAttachmentAggregates: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	for _, target := range []string{
+		"/api/v0/supply-chain/sbom-attestations/attachments/count?repository_id=repo://example/api",
+		"/api/v0/supply-chain/sbom-attestations/attachments/inventory?repository_id=repo://example/api&limit=10",
+	} {
+		t.Run(target, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, target, nil)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+			if got, want := w.Code, http.StatusBadRequest; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+			}
+			if body := w.Body.String(); !strings.Contains(body, "repository_id") {
+				t.Fatalf("body = %s, want repository_id contract error", body)
+			}
+		})
+	}
+	if store.countCalls != 0 || store.invCalls != 0 {
+		t.Fatalf("store called for repository scope (countCalls=%d invCalls=%d)",
+			store.countCalls, store.invCalls)
 	}
 }
 

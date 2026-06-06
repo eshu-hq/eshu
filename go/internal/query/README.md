@@ -215,7 +215,9 @@ target anchor in invalid-argument responses.
   documentation truth findings, and evidence packets (`documentation.go`,
   `documentation_facts.go`)
 - `SupplyChainHandler` — SBOM attachment, image identity, source-only advisory
-  evidence, impact finding, and one-finding impact explanation routes
+  evidence, impact finding, and one-finding impact explanation routes. SBOM
+  attachment reads are subject/document scoped and reject `repository_id`
+  because reducer attachment facts do not carry repository truth
   (`supply_chain.go`)
 - `IncidentHandler` — bounded incident context read packets from active
   incident source facts (`incident_context_handler.go`)

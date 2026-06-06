@@ -42,6 +42,9 @@
 // reducer facts, return ambiguous candidate repository IDs when the reducer
 // cannot select one repository, and attach missing-evidence classes to empty
 // anchored pages instead of treating missing catalog hops as proof of absence.
+// SBOM attachment list, count, and inventory reads reject repository_id because
+// reducer attachment facts are scoped by subject digest or document identity,
+// not repository truth.
 // The companion explain route accepts one finding id or an advisory/CVE plus
 // package, repository, or image digest scope, then hydrates only the finding's
 // referenced evidence facts. It reports advisory, package/version,
