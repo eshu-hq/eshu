@@ -77,6 +77,73 @@ func TestBuildProjectionQueuesSupplyChainImpactForPackageIdentityEvidence(t *tes
 	}
 }
 
+func TestBuildProjectionQueuesSupplyChainImpactForSBOMComponentEvidence(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:      "sbom://registry.example.com/team/api",
+		SourceSystem: "sbom_attestation",
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: "generation-sbom",
+	}
+	projection, err := buildProjection(scopeValue, generation, []facts.Envelope{{
+		FactID:       "fact-sbom-component",
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		FactKind:     facts.SBOMComponentFactKind,
+		Payload: map[string]any{
+			"document_id": "doc-1",
+			"purl":        "pkg:npm/example@1.2.3",
+		},
+		SourceRef: facts.Ref{
+			SourceSystem: "sbom_attestation",
+		},
+	}})
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+
+	intent := requireSupplyChainImpactIntent(t, projection.reducerIntents)
+	if got, want := intent.FactID, "fact-sbom-component"; got != want {
+		t.Fatalf("FactID = %q, want %q", got, want)
+	}
+	if got, want := intent.Reason, "SBOM package evidence observed"; got != want {
+		t.Fatalf("Reason = %q, want %q", got, want)
+	}
+	if got, want := intent.SourceSystem, "sbom_attestation"; got != want {
+		t.Fatalf("SourceSystem = %q, want %q", got, want)
+	}
+}
+
+func TestBuildProjectionQueuesSupplyChainImpactForOCIReferrerEvidence(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:      "oci-registry://registry.example.com/team/api",
+		SourceSystem: "oci_registry",
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: "generation-oci",
+	}
+	projection, err := buildProjection(scopeValue, generation, []facts.Envelope{
+		ociRegistryReferrerEnvelope("fact-oci-referrer-1", scopeValue.ScopeID, generation.GenerationID),
+	})
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+
+	intent := requireSupplyChainImpactIntent(t, projection.reducerIntents)
+	if got, want := intent.FactID, "fact-oci-referrer-1"; got != want {
+		t.Fatalf("FactID = %q, want %q", got, want)
+	}
+	if got, want := intent.Reason, "OCI image subject evidence observed"; got != want {
+		t.Fatalf("Reason = %q, want %q", got, want)
+	}
+}
+
 func TestBuildSupplyChainImpactReducerIntentSkipsSnapshotOnlyEvidence(t *testing.T) {
 	t.Parallel()
 

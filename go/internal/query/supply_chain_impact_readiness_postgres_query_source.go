@@ -80,10 +80,11 @@ unsupported_target_rows AS (
       AND payload->>'repo_id' = $11
     UNION ALL
     -- SBOM targets where the document parser recorded an unsupported field
-    -- or a malformed document. Joined to sbom.document so the subject digest
-    -- scope filter applies; sbom.warning payloads only carry document_id.
-    -- Bounded to an explicit subject_digest anchor so a repository_id-only
-    -- scope cannot collect SBOM warnings from unrelated images.
+    -- or a malformed document. Joined to sbom.document so the requested digest
+    -- or image_ref-derived digest scope filter applies; sbom.warning payloads
+    -- only carry document_id. Bounded to an explicit image anchor so a
+    -- repository_id-only scope cannot collect SBOM warnings from unrelated
+    -- images.
     SELECT
         'sbom_target' AS target_kind,
         NULLIF(TRIM(warn.payload->>'reason'), '') AS reason,
@@ -93,8 +94,7 @@ unsupported_target_rows AS (
     FROM sbom_warning_active AS warn
     JOIN sbom_document_active AS doc
       ON doc.payload->>'document_id' = warn.payload->>'document_id'
-    WHERE $12 <> ''
-      AND doc.payload->>'subject_digest' = $12
+    WHERE doc.payload->>'subject_digest' IN (SELECT digest FROM target_image_digests)
       AND warn.payload->>'reason' IN ('unsupported_field', 'malformed_document')
     UNION ALL
     -- Package-registry metadata documents Eshu observed but skipped because
@@ -130,8 +130,9 @@ unsupported_target_rows AS (
       )
     UNION ALL
     -- Scanner-worker image targets where an analyzer was not configured or
-    -- cannot support the image shape. Bounded to an explicit digest/scope id
-    -- so repository-scoped reads do not report image analyzer gaps globally.
+    -- cannot support the image shape. Bounded to an explicit digest, image_ref,
+    -- or scope id so repository-scoped reads do not report image analyzer gaps
+    -- globally.
     SELECT
         'image_target' AS target_kind,
         NULLIF(TRIM(warn.payload->>'reason'), '') AS reason,
@@ -139,13 +140,26 @@ unsupported_target_rows AS (
         NULL::text AS lockfile_flavor,
         NULL::text AS feature_token
     FROM scanner_worker_warning_active AS warn
-    WHERE $12 <> ''
+    WHERE ($12 <> '' OR $14 <> '')
       AND warn.payload->>'target_kind' = 'image'
       AND warn.payload->>'reason' IN ('analyzer_not_configured', 'image_analyzer_unsupported_target')
       AND (
-          warn.payload->>'image_digest' = $12
-          OR warn.scope_id = $12
-          OR RIGHT(warn.scope_id, LENGTH('@' || $12)) = '@' || $12
+          (
+              $12 <> ''
+              AND (
+                  warn.payload->>'image_digest' = $12
+                  OR warn.scope_id = $12
+                  OR RIGHT(warn.scope_id, LENGTH('@' || $12)) = '@' || $12
+              )
+          )
+          OR (
+              $14 <> ''
+              AND (
+                  warn.payload->>'image_ref' = $14
+                  OR warn.scope_id = $14
+                  OR RIGHT(warn.scope_id, LENGTH('@' || $14)) = '@' || $14
+              )
+          )
       )
 ),
 unsupported_target AS (
@@ -205,7 +219,7 @@ vulnerability_source_state_candidates AS (
                AND target.ecosystem = NULLIF(LOWER(TRIM(state.ecosystem)), '')
            )
     )
-    ORDER BY CASE WHEN scope_id IN ($9, $10, $11, $12) THEN 0 ELSE 1 END,
+    ORDER BY CASE WHEN scope_id IN ($9, $10, $11, $12, $14) THEN 0 ELSE 1 END,
         updated_at DESC,
         source ASC,
         scope_id ASC

@@ -93,6 +93,38 @@ func TestBuildProjectionQueuesSBOMAttestationAttachmentForAttestationStatement(t
 	}
 }
 
+func TestBuildProjectionQueuesSBOMAttestationAttachmentForOCIReferrer(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:      "oci-registry://registry.example.com/team/api",
+		SourceSystem: "oci_registry",
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: "generation-oci",
+	}
+
+	projection, err := buildProjection(scopeValue, generation, []facts.Envelope{
+		ociRegistryReferrerEnvelope("fact-oci-referrer-1", scopeValue.ScopeID, generation.GenerationID),
+	})
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+	for _, intent := range projection.reducerIntents {
+		if intent.Domain == reducer.DomainSBOMAttestationAttachment {
+			if got, want := intent.FactID, "fact-oci-referrer-1"; got != want {
+				t.Fatalf("FactID = %q, want %q", got, want)
+			}
+			if got, want := intent.SourceSystem, "oci_registry"; got != want {
+				t.Fatalf("SourceSystem = %q, want %q", got, want)
+			}
+			return
+		}
+	}
+	t.Fatalf("sbom_attestation_attachment intent missing from %#v", projection.reducerIntents)
+}
+
 func TestBuildSBOMAttestationAttachmentReducerIntentSkipsComponentOnlyEvidence(t *testing.T) {
 	t.Parallel()
 

@@ -52,8 +52,8 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		// per-package OSV rows cannot make unrelated readiness calls
 		// target_incomplete or grow response size without limit.
 		"vulnerability_source_state_candidates AS (",
-		"scope_id IN ($9, $10, $11, $12)",
-		"ORDER BY CASE WHEN scope_id IN ($9, $10, $11, $12) THEN 0 ELSE 1 END",
+		"scope_id IN ($9, $10, $11, $12, $14)",
+		"ORDER BY CASE WHEN scope_id IN ($9, $10, $11, $12, $14) THEN 0 ELSE 1 END",
 		"LIMIT 200",
 		"FROM vulnerability_source_state_candidates",
 		// The unsupported target aggregation must surface the closed set of
@@ -83,7 +83,7 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		"'unsupported_dependency_unsupported'",
 		"FROM package_dependency_gap_active",
 		"warn.payload->>'reason' IN ('unsupported_field', 'malformed_document')",
-		"doc.payload->>'subject_digest' = $12",
+		"doc.payload->>'subject_digest' IN (SELECT digest FROM target_image_digests)",
 		"package_registry_warning_active AS (",
 		"fact.fact_kind = 'package_registry.warning'",
 		"FROM package_registry_warning_active AS warn",
@@ -96,12 +96,18 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		"warn.payload->>'package_id' = $10",
 		"scanner_worker_warning_active AS (",
 		"fact.fact_kind = 'scanner_worker.warning'",
+		"target_image_digests AS (",
+		"identity.payload->>'image_ref' = $14",
+		"OR ($14 <> '' AND payload->>'image_ref' = $14)",
 		"FROM scanner_worker_warning_active AS warn",
 		"warn.payload->>'target_kind' = 'image'",
 		"warn.payload->>'reason' IN ('analyzer_not_configured', 'image_analyzer_unsupported_target')",
 		"warn.payload->>'image_digest' = $12",
+		"warn.payload->>'image_ref' = $14",
 		"warn.scope_id = $12",
+		"warn.scope_id = $14",
 		"RIGHT(warn.scope_id, LENGTH('@' || $12)) = '@' || $12",
+		"RIGHT(warn.scope_id, LENGTH('@' || $14)) = '@' || $14",
 		"FROM package_consumption_correlation_active AS consumption",
 		"consumption.payload->>'repository_id' = $11",
 		"package_registry_active.payload->>'package_id' = package_registry_scope_packages.package_id",
@@ -114,6 +120,7 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		"COUNT(package_registry_active.payload)::int AS fact_count",
 		"BOOL_OR(fact_count = 0)",
 		"MIN(latest_observed_at)",
+		"$9 = '' AND $10 = '' AND $11 = '' AND $12 = '' AND $14 = ''",
 		// Anchor guards: ecosystem and package_manager_file rows only count
 		// when the request carries an explicit repository_id, and sbom_target
 		// rows only count when the request carries an explicit
@@ -122,7 +129,7 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		// globally and a repository_id-only scope would pick up SBOM
 		// warnings from unrelated images.
 		"WHERE $11 <> ''\n      AND payload->>'repo_id' = $11",
-		"WHERE $12 <> ''\n      AND doc.payload->>'subject_digest' = $12",
+		"WHERE doc.payload->>'subject_digest' IN (SELECT digest FROM target_image_digests)",
 	} {
 		if !strings.Contains(listSupplyChainImpactReadinessQuery, want) {
 			t.Fatalf("listSupplyChainImpactReadinessQuery missing %q:\n%s", want, listSupplyChainImpactReadinessQuery)
@@ -138,7 +145,7 @@ func TestPostgresSupplyChainImpactReadinessScopesSourceFreshness(t *testing.T) {
 		"FROM package_consumption_correlation_active AS consumption",
 		"consumption.payload->>'repository_id' = $11",
 		"registry.payload->>'package_id' = $10",
-		"component.payload->>'subject_digest' = $12",
+		"component.payload->>'subject_digest' IN (SELECT digest FROM target_image_digests)",
 		"target_vulnerability_source_scopes AS (",
 		"'vuln-intel://nvd/cve' AS scope_id",
 		"'vuln-intel://cisa/kev' AS scope_id",
@@ -163,7 +170,7 @@ func TestPostgresSupplyChainImpactReadinessScopesAdvisoryFacts(t *testing.T) {
 		"target_advisory_packages AS (",
 		"NULLIF(TRIM($10), '') AS package_id",
 		"consumption.payload->>'repository_id' = $11",
-		"component.payload->>'subject_digest' = $12",
+		"component.payload->>'subject_digest' IN (SELECT digest FROM target_image_digests)",
 		"payload->>'package_id' IN (SELECT package_id FROM target_advisory_packages)",
 		"($9 <> '' AND payload->>'cve_id' = $9)",
 	} {
@@ -246,6 +253,20 @@ func TestPostgresSupplyChainImpactReadinessScansForFactAnchoredScope(t *testing.
 	)
 	if db.called != 1 {
 		t.Fatalf("QueryContext invocations = %d, want 1 for fact-anchored scope", db.called)
+	}
+}
+
+func TestPostgresSupplyChainImpactReadinessScansForImageRefScope(t *testing.T) {
+	t.Parallel()
+
+	db := &countingSupplyChainImpactReadinessQueryer{}
+	store := NewPostgresSupplyChainImpactReadinessStore(db)
+	_, _ = store.ReadSupplyChainImpactReadiness(
+		context.Background(),
+		SupplyChainImpactReadinessQuery{ImageRef: "registry.example.com/team/api:prod"},
+	)
+	if db.called != 1 {
+		t.Fatalf("QueryContext invocations = %d, want 1 for image_ref scope", db.called)
 	}
 }
 

@@ -664,7 +664,10 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   and unparseable outcomes. Component evidence stays evidence only; this
   domain must not emit vulnerability priority or affected-by findings. The
   SBOM attachment index treats multiple distinct attestation subjects as
-  ambiguous, not as a first-subject match.
+  ambiguous, not as a first-subject match. OCI referrer rows can seed the
+  active evidence walk by subject or referrer digest, but attachment facts are
+  emitted only when explicit SBOM document/component or attestation evidence
+  proves the subject.
 - **Supply-chain impact is evidence-first** —
   `SupplyChainImpactHandler` writes `reducer_supply_chain_impact_finding`
   facts only from explicit vulnerability, affected package, owned
@@ -693,8 +696,12 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   can publish repository impact before package-registry enrichment catches up.
   Package-registry identity facts can still bound active vulnerability lookups,
   and the active evidence walk expands through package IDs, PURLs, CVEs, SBOM
-  document IDs, subject digests, repository IDs, and CPE criteria until no new
-  bounded join key appears. Package-registry version facts are upstream metadata
+  document IDs, subject digests, image refs, repository IDs, and CPE criteria
+  until no new bounded join key appears. Raw OCI manifest, index,
+  tag-observation, and referrer rows can trigger repair and supply digest,
+  repository, or image-reference anchors, but impact findings still require
+  joined vulnerability, package, SBOM attachment/component, or reducer-owned
+  image identity evidence. Package-registry version facts are upstream metadata
   and must not be treated as installed versions. CVSS, EPSS, and KEV stay risk
   signals; they never prove reachability without package or runtime evidence,
   and missing deployment evidence remains visible. Exact repository-scoped

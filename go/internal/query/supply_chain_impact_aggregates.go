@@ -50,6 +50,7 @@ type SupplyChainImpactAggregateFilter struct {
 	PackageID         string
 	RepositoryID      string
 	SubjectDigest     string
+	ImageRef          string
 	ImpactStatus      string
 	Ecosystem         string
 	WorkloadID        string
@@ -169,7 +170,8 @@ WITH scoped_facts AS (
 	  AND ($14 = 0 OR COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) >= $14)
 	  AND ($15 = '' OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') = $15)
 	  AND ($16::boolean OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') NOT IN ('not_affected','accepted_risk','false_positive','ignored'))
-),
+	  AND ($17 = '' OR fact.payload->>'image_ref' = $17)
+	),
 ranked_facts AS (
 	SELECT *,
 	       ROW_NUMBER() OVER (
@@ -247,6 +249,7 @@ func (s PostgresSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
 		filter.MinPriorityScore,
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
+		filter.ImageRef,
 	)
 	var total, affected, affectedExact, affectedDerived, possiblyAffected, notAffected sql.NullInt64
 	if err := row.Scan(&total, &affected, &affectedExact, &affectedDerived, &possiblyAffected, &notAffected); err != nil {
@@ -297,6 +300,7 @@ func (s PostgresSupplyChainImpactAggregateStore) fillPriorityBuckets(
 		filter.MinPriorityScore,
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
+		filter.ImageRef,
 	)
 	if err != nil {
 		return fmt.Errorf("count supply chain impact priority buckets: %w", err)
@@ -337,6 +341,7 @@ func (s PostgresSupplyChainImpactAggregateStore) fillSeverityBuckets(
 		filter.MinPriorityScore,
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
+		filter.ImageRef,
 	)
 	if err != nil {
 		return fmt.Errorf("count supply chain impact severity buckets: %w", err)
@@ -358,7 +363,7 @@ SELECT %s AS bucket, COUNT(*) AS bucket_count
 FROM canonical_facts AS fact
 GROUP BY bucket
 ORDER BY bucket_count DESC, bucket
-LIMIT $17 OFFSET $18;
+LIMIT $18 OFFSET $19;
 `
 
 // SupplyChainImpactInventory returns a paginated grouped count along the
@@ -407,6 +412,7 @@ func (s PostgresSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 		filter.MinPriorityScore,
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
+		filter.ImageRef,
 		limit,
 		offset,
 	)

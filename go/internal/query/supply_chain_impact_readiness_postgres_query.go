@@ -177,6 +177,16 @@ vulnerability_source_snapshot_active AS (
       AND fact.is_tombstone = FALSE
       AND generation.status = 'active'
 ),
+target_image_digests AS (
+    SELECT DISTINCT NULLIF(TRIM($12), '') AS digest
+    WHERE $12 <> ''
+    UNION
+    SELECT DISTINCT NULLIF(TRIM(identity.payload->>'digest'), '') AS digest
+    FROM container_image_identity_active AS identity
+    WHERE $14 <> ''
+      AND identity.payload->>'image_ref' = $14
+      AND NULLIF(TRIM(identity.payload->>'digest'), '') IS NOT NULL
+),
 target_vulnerability_source_ecosystems AS (
     SELECT DISTINCT NULLIF(LOWER(TRIM(payload->'entity_metadata'->>'package_manager')), '') AS ecosystem
     FROM package_manifest_active
@@ -195,8 +205,7 @@ target_vulnerability_source_ecosystems AS (
     UNION
     SELECT DISTINCT NULLIF(LOWER(TRIM(component.payload->>'ecosystem')), '') AS ecosystem
     FROM sbom_component_active AS component
-    WHERE $12 <> ''
-      AND component.payload->>'subject_digest' = $12
+    WHERE component.payload->>'subject_digest' IN (SELECT digest FROM target_image_digests)
     UNION
     SELECT DISTINCT NULLIF(LOWER(TRIM(
         CASE
@@ -243,8 +252,7 @@ target_advisory_packages AS (
     UNION
     SELECT DISTINCT NULLIF(TRIM(component.payload->>'package_id'), '') AS package_id
     FROM sbom_component_active AS component
-    WHERE $12 <> ''
-      AND component.payload->>'subject_digest' = $12
+    WHERE component.payload->>'subject_digest' IN (SELECT digest FROM target_image_digests)
       AND NULLIF(TRIM(component.payload->>'package_id'), '') IS NOT NULL
 ),
 vulnerability_advisory AS (
@@ -260,9 +268,9 @@ vulnerability_advisory AS (
     FROM advisory_active
     WHERE (
           ($9 <> '' AND payload->>'cve_id' = $9)
-          OR (($10 <> '' OR $11 <> '' OR $12 <> '')
+          OR (($10 <> '' OR $11 <> '' OR EXISTS (SELECT 1 FROM target_image_digests))
               AND payload->>'package_id' IN (SELECT package_id FROM target_advisory_packages))
-          OR ($9 = '' AND $10 = '' AND $11 = '' AND $12 = '')
+          OR ($9 = '' AND $10 = '' AND $11 = '' AND $12 = '' AND $14 = '')
       )
       AND (
           $13 = ''
@@ -359,7 +367,7 @@ sbom_component AS (
         NULL::text AS source_states_json,
         NULL::text AS unsupported_targets_json
     FROM sbom_component_active
-    WHERE $12 <> '' AND payload->>'subject_digest' = $12
+    WHERE payload->>'subject_digest' IN (SELECT digest FROM target_image_digests)
 ),
 sbom_attestation AS (
     SELECT
@@ -372,7 +380,7 @@ sbom_attestation AS (
         NULL::text AS source_states_json,
         NULL::text AS unsupported_targets_json
     FROM sbom_attestation_active
-    WHERE $12 <> '' AND payload->>'subject_digest' = $12
+    WHERE payload->>'subject_digest' IN (SELECT digest FROM target_image_digests)
 ),
 container_image_identity AS (
     SELECT
@@ -385,7 +393,8 @@ container_image_identity AS (
         NULL::text AS source_states_json,
         NULL::text AS unsupported_targets_json
     FROM container_image_identity_active
-    WHERE $12 <> '' AND payload->>'digest' = $12
+    WHERE payload->>'digest' IN (SELECT digest FROM target_image_digests)
+       OR ($14 <> '' AND payload->>'image_ref' = $14)
 ),
 vulnerability_source_snapshot AS (
     SELECT

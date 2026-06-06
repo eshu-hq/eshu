@@ -153,7 +153,10 @@ target anchor in invalid-argument responses.
   not-affected, accepted-risk, false-positive, ignored, expired,
   provider-dismissed, and scope-mismatched findings without losing the
   authoring source, justification, author, timestamps, evidence reference, or
-  VEX document/statement IDs. Every row also carries a `VulnerableRange`
+  VEX document/statement IDs. The same findings route and its count/inventory
+  aggregates accept `image_ref` as an exact reducer-payload predicate; the read
+  model does not infer image references from repository names, tags, or OCI
+  registry scope strings. Every row also carries a `VulnerableRange`
   string copied from the advisory the reducer's provenance selector picked
   and persisted on the canonical finding payload, so list responses expose
   the same expression as the explain route. Every row also carries a

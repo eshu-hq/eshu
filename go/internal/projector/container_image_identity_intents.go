@@ -33,7 +33,10 @@ func buildContainerImageIdentityReducerIntent(
 
 func containerImageIdentityTriggerFact(envelope facts.Envelope) bool {
 	switch envelope.FactKind {
-	case facts.OCIImageManifestFactKind, facts.OCIImageIndexFactKind, facts.OCIImageTagObservationFactKind:
+	case facts.OCIImageManifestFactKind,
+		facts.OCIImageIndexFactKind,
+		facts.OCIImageTagObservationFactKind,
+		facts.OCIImageReferrerFactKind:
 		return true
 	case facts.AWSImageReferenceFactKind:
 		return true

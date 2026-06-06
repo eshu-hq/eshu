@@ -148,6 +148,26 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			digests = append(digests, payloadStr(envelope.Payload, "digest"))
 			repositoryIDs = append(repositoryIDs, payloadStr(envelope.Payload, "repository_id"))
 			imageRefs = append(imageRefs, payloadStr(envelope.Payload, "image_ref"))
+		case facts.OCIImageManifestFactKind, facts.OCIImageIndexFactKind:
+			digests = append(digests, payloadStr(envelope.Payload, "digest"))
+			repositoryIDs = append(repositoryIDs, ociRepositoryID(envelope.Payload))
+			imageRefs = append(imageRefs, ociRegistryImageRef(envelope.Payload, payloadStr(envelope.Payload, "source_tag")))
+		case facts.OCIImageTagObservationFactKind:
+			digests = append(digests,
+				payloadStr(envelope.Payload, "resolved_digest"),
+				payloadStr(envelope.Payload, "digest"),
+			)
+			repositoryIDs = append(repositoryIDs, ociRepositoryID(envelope.Payload))
+			imageRefs = append(imageRefs,
+				payloadStr(envelope.Payload, "image_ref"),
+				ociRegistryImageRef(envelope.Payload, payloadStr(envelope.Payload, "tag")),
+			)
+		case facts.OCIImageReferrerFactKind:
+			digests = append(digests,
+				payloadStr(envelope.Payload, "subject_digest"),
+				payloadStr(envelope.Payload, "referrer_digest"),
+			)
+			repositoryIDs = append(repositoryIDs, ociRepositoryID(envelope.Payload))
 		case cicdRunCorrelationFactKind:
 			digests = append(digests, payloadStr(envelope.Payload, "artifact_digest"))
 			repositoryIDs = append(repositoryIDs, payloadStr(envelope.Payload, "repository_id"))
@@ -228,6 +248,15 @@ func supplyChainImpactParserFileRepositoryIDs(envelopes []facts.Envelope) []stri
 	}
 
 	return uniqueSortedStrings(repositoryIDs)
+}
+
+func ociRegistryImageRef(payload map[string]any, tag string) string {
+	repositoryID := strings.TrimPrefix(ociRepositoryID(payload), "oci-registry://")
+	tag = strings.TrimSpace(tag)
+	if repositoryID == "" || tag == "" {
+		return ""
+	}
+	return repositoryID + ":" + tag
 }
 
 func npmAffectedPackages(envelopes []facts.Envelope) (map[string]struct{}, map[string][]supplyChainAffectedPackage) {

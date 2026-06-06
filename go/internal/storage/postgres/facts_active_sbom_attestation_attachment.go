@@ -34,21 +34,33 @@ JOIN scope_generations AS generation
  AND generation.generation_id = fact.generation_id
 WHERE fact.fact_kind IN (
     'oci_registry.image_referrer',
-    'reducer_container_image_identity'
+    'reducer_container_image_identity',
+    'sbom.document',
+    'sbom.component',
+    'attestation.statement',
+    'attestation.signature_verification',
+    'sbom.warning'
 )
   AND fact.is_tombstone = FALSE
   AND generation.status = 'active'
   AND (
       fact.payload->>'subject_digest' = ANY($1::text[])
       OR fact.payload->>'digest' = ANY($1::text[])
+      OR fact.payload->>'referrer_digest' = ANY($1::text[])
+      OR fact.payload->>'document_digest' = ANY($1::text[])
+      OR fact.payload->>'document_id' = ANY($1::text[])
+      OR fact.payload->>'statement_digest' = ANY($1::text[])
+      OR fact.payload->>'payload_digest' = ANY($1::text[])
+      OR fact.payload->>'statement_id' = ANY($1::text[])
   )
   AND ($2 = '' OR fact.fact_id > $2)
 ORDER BY fact.fact_id ASC
 LIMIT $3
 `
 
-// ListActiveSBOMAttestationAttachmentFacts loads active referrer and image
-// identity rows for subject digests observed in one SBOM/attestation generation.
+// ListActiveSBOMAttestationAttachmentFacts loads active document, referrer, and
+// image identity rows for digest or document keys observed in one SBOM/attestation
+// generation.
 func (s FactStore) ListActiveSBOMAttestationAttachmentFacts(
 	ctx context.Context,
 	digests []string,

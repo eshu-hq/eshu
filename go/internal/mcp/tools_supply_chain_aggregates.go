@@ -41,6 +41,10 @@ func supplyChainImpactAggregateTools() []ToolDefinition {
 						"type":        "string",
 						"description": "Optional image or artifact digest from SBOM or runtime evidence.",
 					},
+					"image_ref": map[string]any{
+						"type":        "string",
+						"description": "Optional exact image reference stored on reducer-owned impact findings.",
+					},
 					"impact_status": map[string]any{
 						"type":        "string",
 						"description": "Optional reducer impact status filter.",
@@ -137,6 +141,10 @@ func supplyChainImpactAggregateTools() []ToolDefinition {
 					"subject_digest": map[string]any{
 						"type":        "string",
 						"description": "Optional image or artifact digest.",
+					},
+					"image_ref": map[string]any{
+						"type":        "string",
+						"description": "Optional exact image reference stored on reducer-owned impact findings.",
 					},
 					"impact_status": map[string]any{
 						"type":        "string",

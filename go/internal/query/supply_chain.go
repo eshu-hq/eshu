@@ -184,6 +184,7 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		PackageID:         QueryParam(r, "package_id"),
 		RepositoryID:      repositoryID,
 		SubjectDigest:     QueryParam(r, "subject_digest"),
+		ImageRef:          QueryParam(r, "image_ref"),
 		ImpactStatus:      QueryParam(r, "impact_status"),
 		Ecosystem:         QueryParam(r, "ecosystem"),
 		WorkloadID:        QueryParam(r, "workload_id"),
@@ -200,7 +201,7 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		Limit:             limit + 1,
 	}
 	if !filter.hasScope() {
-		WriteError(w, http.StatusBadRequest, "cve_id, advisory_id, package_id, repository_id, subject_digest, impact_status, ecosystem, workload_id, service_id, environment, severity, priority_bucket, or min_priority_score > 0 is required")
+		WriteError(w, http.StatusBadRequest, "cve_id, advisory_id, package_id, repository_id, subject_digest, image_ref, impact_status, ecosystem, workload_id, service_id, environment, severity, priority_bucket, or min_priority_score > 0 is required")
 		return
 	}
 	if h.ImpactFindings == nil {
@@ -236,6 +237,7 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		PackageID:     filter.PackageID,
 		RepositoryID:  filter.RepositoryID,
 		SubjectDigest: filter.SubjectDigest,
+		ImageRef:      filter.ImageRef,
 		Ecosystem:     filter.Ecosystem,
 		WorkloadID:    filter.WorkloadID,
 		ServiceID:     filter.ServiceID,

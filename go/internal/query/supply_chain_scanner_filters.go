@@ -12,7 +12,7 @@ func impactFindingsScannerFilters() scannerFilterSet {
 	return scannerFilterSet{
 		"advisory_id": {}, "cve_id": {}, "ecosystem": {}, "environment": {},
 		"ghsa_id": {}, "impact_status": {}, "osv_id": {}, "package_id": {},
-		"priority_bucket": {}, "profile": {}, "repository_id": {},
+		"image_ref": {}, "priority_bucket": {}, "profile": {}, "repository_id": {},
 		"service_id": {}, "severity": {}, "subject_digest": {}, "workload_id": {},
 	}
 }
@@ -38,7 +38,7 @@ func rejectUnsupportedVulnerabilityScannerFilters(
 ) bool {
 	for _, key := range []string{
 		"advisory_id", "cve_id", "ecosystem", "environment", "ghsa_id",
-		"impact_status", "language", "osv_id", "package_id", "provider_state",
+		"image_ref", "impact_status", "language", "osv_id", "package_id", "provider_state",
 		"provider", "readiness", "reconciliation_status", "repository_id",
 		"service_id", "severity", "status", "subject_digest", "workload_id",
 	} {

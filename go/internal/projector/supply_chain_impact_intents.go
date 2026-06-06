@@ -37,7 +37,12 @@ func supplyChainImpactTriggerFact(envelope facts.Envelope) bool {
 		facts.VulnerabilityEPSSScoreFactKind,
 		facts.VulnerabilityKnownExploitedFactKind,
 		facts.SecurityAlertRepositoryAlertFactKind,
-		facts.PackageRegistryPackageFactKind:
+		facts.PackageRegistryPackageFactKind,
+		facts.SBOMComponentFactKind,
+		facts.OCIImageManifestFactKind,
+		facts.OCIImageIndexFactKind,
+		facts.OCIImageTagObservationFactKind,
+		facts.OCIImageReferrerFactKind:
 		return true
 	default:
 		return false
@@ -50,6 +55,16 @@ func supplyChainImpactReason(envelope facts.Envelope) string {
 	}
 	if envelope.FactKind == facts.PackageRegistryPackageFactKind {
 		return "package registry identity observed"
+	}
+	if envelope.FactKind == facts.SBOMComponentFactKind {
+		return "SBOM package evidence observed"
+	}
+	switch envelope.FactKind {
+	case facts.OCIImageManifestFactKind,
+		facts.OCIImageIndexFactKind,
+		facts.OCIImageTagObservationFactKind,
+		facts.OCIImageReferrerFactKind:
+		return "OCI image subject evidence observed"
 	}
 	return "supply-chain vulnerability evidence observed"
 }

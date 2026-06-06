@@ -27,6 +27,7 @@ func supplyChainImpactFindingsRoute(args map[string]any) *route {
 		"ecosystem":          str(args, "ecosystem"),
 		"environment":        str(args, "environment"),
 		"ghsa_id":            str(args, "ghsa_id"),
+		"image_ref":          str(args, "image_ref"),
 		"impact_status":      str(args, "impact_status"),
 		"limit":              strconv.Itoa(intOr(args, "limit", 50)),
 		"min_priority_score": strconv.Itoa(intOr(args, "min_priority_score", 0)),
