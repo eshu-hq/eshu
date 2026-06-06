@@ -27,6 +27,13 @@ Decay is skipped for:
 - evidence with a non-derived truth level;
 - evidence classes outside the active policy.
 
+Positive examples are derived `ci_run`, `vulnerability_observation`,
+`deployment_event`, `cloud_observation`, and `relationship_candidate` ranking
+items. Negative examples are canonical graph search results, admitted durable
+relationship evidence, and any candidate whose truth label is `exact` or
+`canonical`. Candidates with missing truth labels are invalid and rejected
+before scoring, rather than treated as decay examples.
+
 ## Policy Contract
 
 Each policy includes:
@@ -73,15 +80,23 @@ bridge observations to operator-facing counts by:
 - evidence class;
 - outcome.
 
+The Go data-plane bridge records
+`eshu_dp_search_decay_policy_applications_total` with labels `policy_id`,
+`evidence_class`, and `outcome`.
+
 Do not use evidence ids, graph handles, repository ids, service ids, or other
 high-cardinality values as metric labels.
+
+No-Regression Evidence: `cd go && go test ./internal/searchdecay ./internal/searchdecaytelemetry ./internal/searchbench ./internal/searchdocs ./internal/telemetry -count=1` covers decay scoring, telemetry bridge counts, ranking evaluation, required-evidence visibility, and canonical-skip behavior.
+
+Observability Evidence: `eshu_dp_search_decay_policy_applications_total` records one bounded counter increment per scoring attempt by policy id, evidence class, and outcome, so operators can see which decay policy changed ranking metadata without adding evidence ids or graph handles to metric labels.
 
 ## Verification Gate
 
 Focused package gate:
 
 ```bash
-cd go && go test ./internal/searchdecay ./internal/searchdocs -count=1
+cd go && go test ./internal/searchdecay ./internal/searchdecaytelemetry ./internal/searchbench ./internal/searchdocs -count=1
 ```
 
 Docs changes must also pass:

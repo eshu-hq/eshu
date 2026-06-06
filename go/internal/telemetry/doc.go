@@ -105,6 +105,12 @@
 // see how often Eshu produces an exact advisory-only safe-upgrade path
 // versus how many findings still need additional ecosystem support to
 // graduate from unknown.
+// Search decay scoring registers SearchDecayPolicyApplications
+// (eshu_dp_search_decay_policy_applications_total), labeled by bounded
+// policy_id, evidence_class, and outcome, so operators can diagnose which
+// non-canonical ranking metadata policy affected results without turning
+// evidence ids, graph handles, repository ids, or service ids into metric
+// labels.
 // SpanAttrWorkItemEvidence* constants name the bounded work-item evidence
 // query span counts for query volume, returned rows, evidence states, and
 // truncation without adding tenant, user, issue, URL, or summary values to

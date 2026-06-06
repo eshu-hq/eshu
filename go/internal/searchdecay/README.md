@@ -36,8 +36,9 @@ otherwise uses only the Go standard library.
 ## Telemetry
 
 No OTEL telemetry directly. `Scorer` emits one `Observation` through an optional
-observer. Live callers must bridge those summaries to operator-facing counts by
-policy id, evidence class, and outcome. Do not add evidence ids, graph handles,
+observer. Live callers can use `go/internal/searchdecaytelemetry` to bridge
+those summaries to `eshu_dp_search_decay_policy_applications_total` by policy
+id, evidence class, and outcome. Do not add evidence ids, graph handles,
 repository ids, or service ids as metric labels.
 
 ## Gotchas / invariants

@@ -86,6 +86,7 @@ Use these to locate the phase that changed before opening logs or traces:
 | `eshu_dp_projections_completed_total` | Projection completion volume. |
 | `eshu_dp_reducer_run_duration_seconds` | Reducer handler execution window. |
 | `eshu_dp_canonical_write_duration_seconds` | Canonical graph/content write latency. |
+| `eshu_dp_search_decay_policy_applications_total` | Search decay scoring decisions by policy id, evidence class, and outcome. |
 
 `eshu_dp_projector_stage_duration_seconds` uses bounded `stage` values such as
 `build_projection`, `graph_write`, `content_write`, and `intent_enqueue`.

@@ -135,6 +135,11 @@ type Instruments struct {
 	ContainerImageIdentityDecisions           metric.Int64Counter
 	CICDRunCorrelations                       metric.Int64Counter
 	ServiceCatalogCorrelations                metric.Int64Counter
+	// SearchDecayPolicyApplications counts decay-scoring decisions for
+	// non-canonical search evidence. Labels: policy_id, evidence_class, and
+	// outcome. It is ranking metadata only; it does not count or mutate
+	// canonical graph truth.
+	SearchDecayPolicyApplications metric.Int64Counter
 	// SecretsIAMReducerTrustChains counts reducer-owned secrets/IAM
 	// workload-to-identity read-model chains by result and confidence. Labels
 	// stay bounded; raw IAM role ARNs, ServiceAccount names, Vault role names,
@@ -1399,6 +1404,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ServiceCatalogCorrelations counter: %w", err)
+	}
+
+	inst.SearchDecayPolicyApplications, err = meter.Int64Counter(
+		"eshu_dp_search_decay_policy_applications_total",
+		metric.WithDescription("Total search decay scoring decisions by policy, evidence class, and outcome"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SearchDecayPolicyApplications counter: %w", err)
 	}
 
 	inst.SecretsIAMReducerTrustChains, err = meter.Int64Counter(
@@ -3062,6 +3075,17 @@ func AttrWritePhase(v string) attribute.KeyValue {
 // AttrOutcome returns an outcome attribute for metric recording.
 func AttrOutcome(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionOutcome, v)
+}
+
+// AttrPolicyID returns a policy_id attribute for bounded policy counters.
+func AttrPolicyID(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionPolicyID, v)
+}
+
+// AttrEvidenceClass returns an evidence_class attribute for search and
+// evaluation metrics. The value must be a bounded evidence family.
+func AttrEvidenceClass(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionEvidenceClass, v)
 }
 
 // AttrBackendKind returns a backend_kind attribute for metric recording.
