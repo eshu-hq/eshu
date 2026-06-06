@@ -1,0 +1,30 @@
+scripts/test-verify-remote-e2e-target-story.sh
+  s_f2f7fbb6f30866::t_006ee5fa969e3e 88-90,239-243
+docs/public/reference/remote-e2e-runtime-state.md
+  s_f2f7fbb6f30866::t_92144f6767c059 149-157,245-247
+scripts/verify_remote_e2e_target_story.sh
+  s_f2f7fbb6f30866::t_46710c506f4627 402-403
+  s_f2f7fbb6f30866::t_a719afcf2239ec 15-16,345
+docs/public/reference/local-testing/remote-collector-e2e.md
+  s_f2f7fbb6f30866::t_578720bd4c57be 226-229
+scripts/lib/remote_e2e_target_story_alignment.sh
+  s_f2f7fbb6f30866::t_822edf240f0d0c 39-40,43
+  s_f2f7fbb6f30866::t_7d9497d7068cdb 41-42
+  s_f2f7fbb6f30866::t_2179c1586cc28d 1-38,44-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "2e76a95d9a1237b4646d5939f53c30b6e53ca29d",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
