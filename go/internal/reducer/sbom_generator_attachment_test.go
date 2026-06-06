@@ -20,7 +20,7 @@ const generatorSubjectDigest = "sha256:abcdef0123456789abcdef0123456789abcdef012
 // existing reducer-owned attachment path. The reducer classifies the
 // generator's document as attached_parse_only when a subject digest is
 // present, but reports that evidence as parse-only and unanchored until an OCI
-// referrer or repository attachment path exists. Scanner workers must never
+// referrer proves image attachment. Scanner workers must never
 // short-circuit attachment truth on their own.
 func TestScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment(t *testing.T) {
 	t.Parallel()

@@ -661,7 +661,7 @@ image-attached evidence from parse-only corpus evidence. `image_subject` means
 Eshu saw an OCI referrer tying the SBOM or attestation document to the subject
 digest. `parse_only_unanchored` and `subject_only_unanchored` rows remain
 visible for diagnostics, but they are not image impact evidence until an OCI
-referrer, repository attachment path, or other explicit target anchor exists.
+referrer proves the document is attached to the subject image.
 
 No-Regression Evidence: `go test ./internal/reducer -run
 'Test(BuildSBOMAttestationAttachmentDecisionsClassifiesSubjectsAndTrust|ScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment|PostgresSBOMAttestationAttachmentWriterPersistsAllStatuses)'
