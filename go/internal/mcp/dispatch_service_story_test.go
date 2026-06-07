@@ -68,30 +68,109 @@ func TestResolveRouteMapsServiceStoryCatalogIDAsNameSelector(t *testing.T) {
 	}
 }
 
-func TestDispatchToolServiceSelectorRejectsServiceNameSelector(t *testing.T) {
+func TestResolveRouteMapsServiceStoryRepositoryScopedServiceName(t *testing.T) {
 	t.Parallel()
 
-	for _, toolName := range []string{"get_service_context", "get_service_story"} {
-		toolName := toolName
-		t.Run(toolName, func(t *testing.T) {
-			t.Parallel()
+	route, err := resolveRoute("get_service_story", map[string]any{
+		"service_name":  "sample-service-api",
+		"repository_id": "repository:r_sample",
+		"environment":   "prod",
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.path, "/api/v0/services/sample-service-api/story"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	if got, want := route.query["repo"], "repository:r_sample"; got != want {
+		t.Fatalf("route.query[repo] = %#v, want %#v", got, want)
+	}
+	if got, want := route.query["environment"], "prod"; got != want {
+		t.Fatalf("route.query[environment] = %#v, want %#v", got, want)
+	}
+	if got := route.query["service_id"]; got != "" {
+		t.Fatalf("route.query[service_id] = %#v, want empty for service-name selector", got)
+	}
+}
 
-			result, err := dispatchTool(
-				context.Background(),
-				http.NewServeMux(),
-				toolName,
-				map[string]any{"service_name": "sample-service-api"},
-				"",
-				slog.New(slog.NewTextHandler(io.Discard, nil)),
-			)
-			if err == nil {
-				t.Fatalf("dispatchTool() error = nil, result = %#v; want workload_id selector error", result)
-			}
-			want := toolName + " requires workload_id"
-			if !strings.Contains(err.Error(), want) {
-				t.Fatalf("dispatchTool() error = %q, want %q", err, want)
-			}
+func TestDispatchToolServiceContextRejectsServiceNameSelector(t *testing.T) {
+	t.Parallel()
+
+	result, err := dispatchTool(
+		context.Background(),
+		http.NewServeMux(),
+		"get_service_context",
+		map[string]any{"service_name": "sample-service-api"},
+		"",
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	if err == nil {
+		t.Fatalf("dispatchTool() error = nil, result = %#v; want workload_id selector error", result)
+	}
+	want := "get_service_context requires workload_id"
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("dispatchTool() error = %q, want %q", err, want)
+	}
+}
+
+func TestDispatchToolServiceStoryRepositoryScopedServiceName(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v0/services/sample-service-api/story", func(w http.ResponseWriter, r *http.Request) {
+		if got, want := r.Header.Get("Accept"), query.EnvelopeMIMEType; got != want {
+			t.Fatalf("Accept = %q, want %q", got, want)
+		}
+		if got, want := r.URL.Query().Get("repo"), "repository:r_sample"; got != want {
+			t.Fatalf("repo query = %q, want %q", got, want)
+		}
+		if got, want := r.URL.Query().Get("environment"), "prod"; got != want {
+			t.Fatalf("environment query = %q, want %q", got, want)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"service_identity": map[string]any{
+					"service_id": "workload:sample-service-api",
+					"repo_id":    "repository:r_sample",
+				},
+			},
+			"truth": map[string]any{
+				"level":      "exact",
+				"capability": "platform_impact.context_overview",
+				"profile":    "production",
+				"basis":      "hybrid",
+				"freshness":  map[string]any{"state": "fresh"},
+			},
+			"error": nil,
 		})
+	})
+
+	result, err := dispatchTool(
+		context.Background(),
+		mux,
+		"get_service_story",
+		map[string]any{
+			"service_name":  "sample-service-api",
+			"repository_id": "repository:r_sample",
+			"environment":   "prod",
+		},
+		"",
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	if err != nil {
+		t.Fatalf("dispatchTool() error = %v, want nil", err)
+	}
+	if result.Envelope == nil {
+		t.Fatal("dispatchTool() envelope is nil, want structured service story envelope")
+	}
+	data, ok := result.Envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope data type = %T, want map[string]any", result.Envelope.Data)
+	}
+	identity := mcpMapValue(data, "service_identity")
+	if got, want := query.StringVal(identity, "repo_id"), "repository:r_sample"; got != want {
+		t.Fatalf("service_identity.repo_id = %q, want %q", got, want)
 	}
 }
 
