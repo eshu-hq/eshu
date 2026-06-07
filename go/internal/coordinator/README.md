@@ -123,6 +123,9 @@ fall back to defaults rather than failing; malformed values fail fast.
 - `SBOMAttestationWorkPlanner` — plans hosted SBOM and attestation collection
   runs from configured document or OCI-referrer targets. Each target becomes one
   claimable work item keyed by `scope_id`.
+- `CICDRunWorkPlanner` — plans CI/CD run collection from configured GitHub
+  Actions repository targets. Each target becomes one claimable work item keyed
+  by `scope_id`, and `requested_scope_set` omits credential environment names.
 - `ScannerWorkerWorkPlanner` — plans scanner-worker source-evidence work from
   explicit configured targets. The planner only stores the analyzer, target
   kind, and `scope_id` in workflow metadata; runtime-local roots and artifact

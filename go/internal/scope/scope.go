@@ -34,6 +34,8 @@ const (
 	KindSBOMAttestation ScopeKind = "sbom_attestation"
 	// KindSecurityAlert represents a hosted provider repository-alert scope.
 	KindSecurityAlert ScopeKind = "security_alert"
+	// KindCICDRun represents hosted CI/CD provider workflow-run evidence.
+	KindCICDRun ScopeKind = "ci_cd_run"
 	// KindPagerDutyAccount represents a PagerDuty account or service allowlist scope.
 	KindPagerDutyAccount ScopeKind = "pagerduty_account"
 	// KindJiraSite represents a Jira Cloud site work-item evidence scope.
@@ -69,6 +71,8 @@ const (
 	CollectorSBOMAttestation CollectorKind = "sbom_attestation"
 	// CollectorSecurityAlert represents hosted provider security-alert collectors.
 	CollectorSecurityAlert CollectorKind = "security_alert"
+	// CollectorCICDRun represents hosted CI/CD workflow-run collectors.
+	CollectorCICDRun CollectorKind = "ci_cd_run"
 	// CollectorPagerDuty represents hosted PagerDuty incident evidence collectors.
 	CollectorPagerDuty CollectorKind = "pagerduty"
 	// CollectorJira represents Jira work-item evidence collectors.

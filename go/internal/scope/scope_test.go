@@ -88,6 +88,11 @@ func TestIngestionScopeValidateAllowsAdditionalCollectorKinds(t *testing.T) {
 			collectorKind: CollectorSecurityAlert,
 		},
 		{
+			name:          "ci_cd_run",
+			sourceSystem:  "ci_cd_run",
+			collectorKind: CollectorCICDRun,
+		},
+		{
 			name:          "pagerduty",
 			sourceSystem:  "pagerduty",
 			collectorKind: CollectorPagerDuty,

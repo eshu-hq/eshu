@@ -48,10 +48,10 @@ this. `TransitionTo` enforces the table; forbidden transitions return an error.
 - `CollectorKind` — `CollectorGit`, `CollectorAWS`, `CollectorTerraformState`,
   `CollectorWebhook`, `CollectorDocumentation`, `CollectorOCIRegistry`,
   `CollectorPackageRegistry`, `CollectorVulnerabilityIntelligence`,
-  `CollectorSBOMAttestation`, `CollectorSecurityAlert`, `CollectorPagerDuty`,
-  `CollectorJira`, `CollectorScannerWorker`, `CollectorKubernetesLive`,
-  `CollectorVaultLive`, `CollectorPrometheusMimir`, `CollectorTempo`,
-  `CollectorGrafana`, `CollectorLoki`
+  `CollectorSBOMAttestation`, `CollectorSecurityAlert`, `CollectorCICDRun`,
+  `CollectorPagerDuty`, `CollectorJira`, `CollectorScannerWorker`,
+  `CollectorKubernetesLive`, `CollectorVaultLive`, `CollectorPrometheusMimir`,
+  `CollectorTempo`, `CollectorGrafana`, `CollectorLoki`
 - `TriggerKind` — `TriggerKindSnapshot`
 - `GenerationStatus` — `GenerationStatusPending`, `GenerationStatusActive`,
   `GenerationStatusSuperseded`, `GenerationStatusCompleted`,

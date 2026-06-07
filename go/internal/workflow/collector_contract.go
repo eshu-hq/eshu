@@ -131,6 +131,11 @@ var collectorContracts = map[scope.CollectorKind]CollectorContract{
 		CanonicalKeyspaces: nil,
 		RequiredPhases:     nil,
 	},
+	scope.CollectorCICDRun: {
+		CollectorKind:      scope.CollectorCICDRun,
+		CanonicalKeyspaces: nil,
+		RequiredPhases:     nil,
+	},
 	scope.CollectorPagerDuty: {
 		CollectorKind:      scope.CollectorPagerDuty,
 		CanonicalKeyspaces: nil,
