@@ -95,33 +95,7 @@ func ecosystemTools() []ToolDefinition {
 				"required": []string{"target"},
 			},
 		},
-		{
-			Name:        "find_infra_resources",
-			Description: "Search infrastructure resources (cloud, K8s, Terraform, ArgoCD, Crossplane, Helm) by name or type.",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"query": map[string]any{
-						"type":        "string",
-						"description": "Search query for infrastructure resources",
-					},
-					"category": map[string]any{
-						"type":        "string",
-						"description": "Category of infrastructure to search",
-						"enum":        []string{"k8s", "terraform", "argocd", "crossplane", "helm", "cloud"},
-						"default":     "",
-					},
-					"limit": map[string]any{
-						"type":        "integer",
-						"description": "Maximum infrastructure resources to return",
-						"default":     50,
-						"minimum":     1,
-						"maximum":     200,
-					},
-				},
-				"required": []string{"query"},
-			},
-		},
+		infraResourceSearchTool(),
 		{
 			Name:        "investigate_resource",
 			Description: "Resolve a queue, database, cloud resource, Terraform resource, or Kubernetes object into a bounded investigation packet with workload users, provisioning repositories, source handles, ambiguity metadata, and next calls. Provide query or resource_id.",

@@ -72,9 +72,11 @@ a cap of 10000.
 
 ## Infrastructure And Impact
 
-`/infra/resources/search` accepts `query`, `category`, `kind`, `provider`,
-`resource_service`, `resource_category`, and `limit`. `category=cloud`
-searches canonical `CloudResource` nodes from cloud collector evidence;
+`/infra/resources/search` accepts optional `query` plus `category`, `kind`,
+`provider`, `environment`, `resource_service`, `resource_category`, and
+`limit`. Requests must include either non-empty `query` or at least one
+structured filter. `category=cloud` searches canonical `CloudResource` nodes
+from cloud collector evidence;
 cloud results may include `arn`, `resource_id`, `account_id`, `region`, and
 `service_kind`. Provider filters treat `source_system` as a provider fallback
 only for `CloudResource` rows; source-system provenance on Terraform-state or

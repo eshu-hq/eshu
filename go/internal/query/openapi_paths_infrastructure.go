@@ -5,7 +5,7 @@ const openAPIPathsInfrastructure = `
       "post": {
         "tags": ["infrastructure"],
         "summary": "Search infrastructure resources",
-        "description": "Searches graph-backed infrastructure resources by name, ID, resource type, cloud ARN, or cloud resource ID.",
+        "description": "Searches graph-backed infrastructure resources by name, ID, resource type, cloud ARN, cloud resource ID, or bounded structured filters. Provide query or at least one structured filter.",
         "operationId": "searchInfraResources",
         "requestBody": {
           "required": true,
@@ -13,11 +13,11 @@ const openAPIPathsInfrastructure = `
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["query"],
                 "properties": {
                   "query": {"type": "string"},
                   "kind": {"type": "string"},
                   "provider": {"type": "string"},
+                  "environment": {"type": "string"},
                   "resource_service": {"type": "string"},
                   "resource_category": {
                     "type": "string",
