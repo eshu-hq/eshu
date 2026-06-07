@@ -1,4 +1,5 @@
 import { EshuApiClient } from "./client";
+import { inspectionRequest } from "../test/inspectionRequest";
 import {
   loadCatalogServiceRows,
   loadCatalogRows,
@@ -15,7 +16,7 @@ function clientFor(
   return new EshuApiClient({
     baseUrl: "http://localhost:8080",
     fetcher: async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      const request = new Request(input, init);
+      const request = inspectionRequest(input, init);
       const url = new URL(request.url);
       requests.push(`${url.pathname}${url.search}`);
       const body = routes[url.pathname];

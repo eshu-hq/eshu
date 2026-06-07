@@ -1,11 +1,12 @@
 import { EshuApiClient } from "./client";
+import { inspectionRequest } from "../test/inspectionRequest";
 import { vi } from "vitest";
 
 describe("EshuApiClient", () => {
   it("requests canonical envelope responses from the configured base URL", async () => {
     const calls: Request[] = [];
     const fetcher = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      const request = new Request(input, init);
+      const request = inspectionRequest(input, init);
       calls.push(request);
       return Response.json({
         data: { status: "ok" },
@@ -34,7 +35,7 @@ describe("EshuApiClient", () => {
   it("supports same-origin proxy base URLs for the local console", async () => {
     const calls: Request[] = [];
     const fetcher = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      const request = new Request(input, init);
+      const request = inspectionRequest(input, init);
       calls.push(request);
       return Response.json({
         count: 1,
@@ -59,7 +60,7 @@ describe("EshuApiClient", () => {
   it("sends a bearer token when the local API requires auth", async () => {
     const calls: Request[] = [];
     const fetcher = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      const request = new Request(input, init);
+      const request = inspectionRequest(input, init);
       calls.push(request);
       return Response.json({ status: "healthy" });
     };
@@ -80,7 +81,7 @@ describe("EshuApiClient", () => {
   it("omits authorization when no token is configured", async () => {
     const calls: Request[] = [];
     const fetcher = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      const request = new Request(input, init);
+      const request = inspectionRequest(input, init);
       calls.push(request);
       return Response.json({ status: "healthy" });
     };
@@ -96,6 +97,39 @@ describe("EshuApiClient", () => {
     expect(calls[0]?.headers.has("Authorization")).toBe(false);
   });
 
+  it("attaches an abort signal to every request so a hung endpoint cannot block forever", async () => {
+    const inits: (RequestInit | undefined)[] = [];
+    const fetcher = async (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      inits.push(init);
+      return Response.json({ status: "healthy" });
+    };
+
+    const client = new EshuApiClient({ baseUrl: "/eshu-api/", fetcher });
+
+    await client.getJson("/api/v0/index-status");
+    await client.get("/api/v0/index-status");
+    await client.post("/api/v0/code/dead-code", { limit: 1 });
+    await client.postJson("/api/v0/code/dead-code", { limit: 1 });
+
+    expect(inits).toHaveLength(4);
+    for (const init of inits) {
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+    }
+  });
+
+  it("propagates the abort error when a request exceeds the configured timeout", async () => {
+    const fetcher = (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(init.signal?.reason ?? new DOMException("aborted", "AbortError"));
+        });
+      });
+
+    const client = new EshuApiClient({ baseUrl: "/eshu-api/", fetcher, timeoutMs: 5 });
+
+    await expect(client.getJson("/api/v0/index-status")).rejects.toThrowError();
+  });
+
   it("binds the browser fetch implementation when no custom fetcher is provided", async () => {
     const calls: Request[] = [];
     vi.stubGlobal(
@@ -108,7 +142,7 @@ describe("EshuApiClient", () => {
         if (this !== globalThis) {
           throw new TypeError("Illegal invocation");
         }
-        const request = new Request(input, init);
+        const request = inspectionRequest(input, init);
         calls.push(request);
         return Promise.resolve(Response.json({ status: "healthy" }));
       }
