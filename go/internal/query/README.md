@@ -125,6 +125,15 @@ infer completeness from row count alone.
 - `PostgresAdvisoryEvidenceStore` — Postgres-backed source fact read model
   for `GET /api/v0/supply-chain/advisories/evidence`
   (`supply_chain_advisory_evidence.go`)
+- `AdvisoryCatalogStore` / `PostgresAdvisoryCatalogStore` — browsable,
+  summary-only CVE-intelligence catalog for
+  `GET /api/v0/supply-chain/advisories`. Lists canonical advisories without an
+  advisory/package/repository/service/workload anchor, ordered by CVSS desc then
+  advisory key with keyset pagination and severity/KEV/ecosystem/`q` filters.
+  Rows are known intelligence only and do not imply impact
+  (`supply_chain_advisory_catalog_model.go`,
+  `supply_chain_advisory_catalog_store.go`,
+  `supply_chain_advisory_catalog_handler.go`)
 - `SupplyChainImpactExplanationStore` — port for one-finding supply-chain
   impact explanations that hydrate only referenced evidence fact IDs
   (`supply_chain_impact_explain.go`)

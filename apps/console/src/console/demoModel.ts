@@ -93,6 +93,9 @@ export const demoModel: ConsoleModel = {
     { id: "CVE-2024-0001", package: "sample-lib", severity: "high", cvss: 8.1, kev: false, fixedVersion: "2.0.1", services: ["checkout-service"] }
   ],
   sbom: { total: 3, verified: 1, sbomCount: 2, attestationCount: 1 },
+  dependencies: [
+    { direction: "forward", anchorPackage: "sample-lib", anchorPackageId: "npm://sample-lib", declaringVersion: "1.0.0", relatedPackage: "left-pad", relatedPackageId: "npm://left-pad", ecosystem: "npm", range: "^1.3.0", dependencyType: "runtime", optional: false, edgeId: "dep-1" }
+  ],
   images: [
     {
       id: "oci-image://registry.example/sample/checkout@sha256:abc123", digest: "sha256:abc1234567890def",
@@ -106,6 +109,9 @@ export const demoModel: ConsoleModel = {
     { id: "tf-demo-1", kind: "resource", name: "module.\"checkout\".aws_iam_role.this", type: "aws_iam_role", provider: "aws", service: "aws.iam", module: "checkout", repoId: "checkout-service", relativePath: "iam.tf" },
     { id: "tf-demo-2", kind: "resource", name: "aws_s3_bucket.assets", type: "aws_s3_bucket", provider: "aws", service: "aws.s3", module: "", repoId: "checkout-service", relativePath: "storage.tf" }
   ],
+  advisories: [
+    { id: "CVE-2021-44228", cveId: "CVE-2021-44228", ghsaId: "GHSA-jfh8-c2jp-5v3q", severity: "critical", cvss: 10, kev: true, ecosystems: ["maven"], packageIds: ["pkg:maven/org.apache.logging.log4j/log4j-core"], publishedAt: "2021-12-10" }
+  ],
   truth: {},
   provenance: {
     runtime: "live",
@@ -113,8 +119,10 @@ export const demoModel: ConsoleModel = {
     findings: "live",
     vulnerabilities: "live",
     sbom: "live",
+    dependencies: "live",
     images: "live",
-    iacResources: "live"
+    iacResources: "live",
+    advisories: "live"
   },
   graph: demoGraph,
   relationships: demoRelationships,

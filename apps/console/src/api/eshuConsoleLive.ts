@@ -14,6 +14,7 @@
 import type { EshuApiClient } from "./client";
 import type { EshuTruth, TruthLevel, FreshnessState } from "./envelope";
 import { loadDependencies } from "./eshuDependencies";
+import { fetchAdvisoryCatalogPage } from "./eshuConsoleAdvisories";
 import { imageRowsFromResponse, loadImages } from "./imageInventory";
 import type { ImagePage, ImageRow } from "./imageInventory";
 
@@ -33,6 +34,7 @@ export interface ConsoleSnapshot {
   readonly dependencies: readonly DependencyRow[];
   readonly images: readonly ImageRow[];
   readonly iacResources: readonly IacResourceRow[];
+  readonly advisories: readonly AdvisoryRow[];
   readonly series: SeriesBundle;
   readonly truth: Partial<Record<keyof ConsoleSnapshot, EshuTruth>>;
   readonly provenance: Record<string, SectionProvenance>;
@@ -88,6 +90,7 @@ export interface VulnRow {
   readonly fixedVersion: string | null;
   readonly services: readonly string[];
 }
+
 // DependencyRow is one package dependency edge from GET /api/v0/dependencies.
 // Forward rows describe what the anchor package depends on; reverse rows
 // describe which package depends on the anchor. related identifies the other end
@@ -141,6 +144,22 @@ export interface IacResourceRow {
   readonly repoId: string;
   readonly relativePath: string;
 }
+
+// AdvisoryRow is one row of the browsable vulnerability-intelligence catalog
+// (GET /api/v0/supply-chain/advisories). Unlike VulnRow it is known source
+// intelligence only and does not imply service reachability or impact.
+export interface AdvisoryRow {
+  readonly id: string;
+  readonly cveId: string;
+  readonly ghsaId: string;
+  readonly severity: string;
+  readonly cvss: number;
+  readonly kev: boolean;
+  readonly ecosystems: readonly string[];
+  readonly packageIds: readonly string[];
+  readonly publishedAt: string;
+}
+
 export interface SeriesBundle {
   readonly ingestRate: readonly number[];
   readonly queueDepth: readonly number[];
@@ -220,7 +239,7 @@ interface IacResourcesResponse {
 
 // Impact findings carry a CVSS score but no severity label; derive the standard
 // CVSS v3 qualitative band so the vulnerability list can colour-rank rows.
-function severityFromCvss(cvss: number): string {
+export function severityFromCvss(cvss: number): string {
   if (cvss >= 9) return "critical";
   if (cvss >= 7) return "high";
   if (cvss >= 4) return "medium";
@@ -466,6 +485,15 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     return rows.length > 0 ? rows : null;
   })) ?? [];
 
+  const advisories = (await section(prov, "advisories", async () => {
+    // The browsable CVE-intelligence catalog (known intelligence, not service
+    // reachability). The page paginates further via fetchAdvisoryCatalogPage;
+    // the snapshot seeds only the first, highest-CVSS page.
+    const page = await fetchAdvisoryCatalogPage(client, { limit: 50 });
+    if (page.truth) truth.advisories = page.truth;
+    return page.rows.length > 0 ? [...page.rows] : null;
+  })) ?? [];
+
   const series = await loadSeriesBundle(client, prov);
 
   return {
@@ -479,6 +507,7 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     dependencies,
     images,
     iacResources,
+    advisories,
     series,
     truth,
     provenance: prov

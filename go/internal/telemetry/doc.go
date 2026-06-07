@@ -28,6 +28,8 @@
 // documentation proof. SpanQuerySBOMAttestationAttachments names the
 // digest/document-anchored SBOM and attestation attachment read path.
 // SpanQueryAdvisoryEvidence names the source-only advisory evidence read path,
+// SpanQueryAdvisoryCatalog names the browsable, summary-only CVE-intelligence
+// catalog read path,
 // SpanQueryWorkItemEvidence names the bounded Jira/work-item source evidence
 // read path,
 // and SpanQuerySupplyChainImpactExplanation names the bounded vulnerability
