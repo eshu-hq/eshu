@@ -82,7 +82,9 @@ The corpus section must record:
 
 The source-kind distribution must sum to the document count. Source kinds come
 from `go/internal/searchdocs`, such as `code_entity`, `repository_file`, and
-`runtime_summary`.
+`runtime_summary`. For issue #417 semantic retrieval, `semantic_context`
+records are allowed only when they are explicit derived/read-model labels with
+bounded graph handles.
 
 ## Failure Classes
 
@@ -313,6 +315,13 @@ stop reasons are exclusive with measured runs and latency evidence; a record
 with baseline or candidate run evidence must satisfy the normal recall,
 latency, false-canonical, and observation guardrails.
 
+Issue #417 records the adapter-stage proof artifact at
+[`searchbench-evidence/issue-417-nornicdb-hybrid-retrieval-prototype-v1.json`](searchbench-evidence/issue-417-nornicdb-hybrid-retrieval-prototype-v1.json).
+That file keeps the same 15-query suite and records the remaining blocker:
+bounded semantic-context projection and the hybrid-only NornicDB adapter exist,
+but no live projected corpus plus Postgres baseline run has been measured. It
+also does not claim recall improvement, p95 latency, or readiness.
+
 ## Link Prediction Candidate Evaluation Gate
 
 Issue #420 uses `go/internal/searchbench.LinkPredictionEvaluation` for the
@@ -392,7 +401,7 @@ slower, less diagnosable, or dependent on successful search index rebuild.
 Focused package gate:
 
 ```bash
-cd go && go test ./internal/searchbench ./internal/searchdocs -count=1
+cd go && go test ./internal/searchbench ./internal/searchdocs ./internal/searchnornicdb -count=1
 ```
 
 Docs changes must also pass:

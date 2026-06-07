@@ -18,6 +18,8 @@ const (
 	SourceKindRepositoryFile SourceKind = "repository_file"
 	// SourceKindRuntimeSummary is a document projected from runtime/deployment read models.
 	SourceKindRuntimeSummary SourceKind = "runtime_summary"
+	// SourceKindSemanticContext is a document projected from an explicit semantic context label.
+	SourceKindSemanticContext SourceKind = "semantic_context"
 )
 
 // TruthLevel is the document-level authority for the projected record.

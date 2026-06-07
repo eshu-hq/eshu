@@ -14,7 +14,7 @@ retrieval over Eshu evidence.
 | --- | --- |
 | `id` | Stable document id, prefixed by the source lane. |
 | `repo_id` | Smallest repository scope when available. |
-| `source_kind` | Source lane such as `code_entity`, `repository_file`, or `runtime_summary`. |
+| `source_kind` | Source lane such as `code_entity`, `repository_file`, `runtime_summary`, or `semantic_context`. |
 | `title` | Short display title for ranking and result rendering. |
 | `path` | Repo-relative path when the source is file-backed. |
 | `context_text` | Bounded searchable text. |
@@ -40,10 +40,16 @@ The first projection supports these source lanes:
 | `code_entity` | `content_entities` | Symbol or IaC entity name plus bounded source cache. | repository, content entity, file |
 | `repository_file` | `content_files` | Repo-relative path plus bounded file text. | repository, file |
 | `runtime_summary` | reducer/query read models | Service, workload, and image summary text. | at least one service, workload, image, or source id handle |
+| `semantic_context` | explicit semantic context read models | Curated semantic labels for service, workload, repository, or environment context. | semantic context plus at least one repository, service, workload, environment, or explicit expansion handle |
 
 Future lanes may add vulnerability, incident, work-item, observability, and
 package evidence only after they define source-specific privacy rules and
 positive, negative, and ambiguous fixtures.
+
+`semantic_context` is intentionally narrower than whole-graph search. It is the
+only source kind currently admitted by the issue #417 NornicDB hybrid adapter,
+and its records remain derived/read-model evidence. Semantic retrieval must not
+promote these records to canonical graph truth.
 
 ## Excluded Data
 
@@ -89,7 +95,8 @@ cd go && go test ./internal/searchdocs -count=1
 
 The tests prove:
 
-- positive code entity, repository file, and runtime summary projection;
+- positive code entity, repository file, runtime summary, and semantic context
+  projection;
 - stable document ids and graph handles for bounded expansion;
 - sensitive context, dashboard payloads, log-like metadata, and missing handles
   are rejected;

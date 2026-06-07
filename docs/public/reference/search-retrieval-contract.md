@@ -80,6 +80,32 @@ The observation shape is an internal summary, not an OTEL exporter. Later live
 adapters must bridge it to metrics, spans, or structured logs without using
 high-cardinality anchor ids as metric labels.
 
+## NornicDB Hybrid Prototype
+
+`go/internal/searchnornicdb` implements the issue #417 prototype adapter for the
+pinned NornicDB gRPC `SearchText` API. It is internal-only and admits explicit
+`SemanticContext` labels.
+
+The adapter:
+
+- requires `hybrid` mode;
+- sends the `SemanticContext` label filter to NornicDB;
+- overfetches by one result within the internal maximum so truncation can be
+  observed;
+- rejects NornicDB responses that report non-hybrid `search_method` values;
+- rejects `fallback_triggered=true`;
+- rejects hits that do not carry the `SemanticContext` label;
+- rejects hits outside the request's smallest scope anchor;
+- requires per-item `derived` / `read_model` truth labels and `fresh`
+  freshness;
+- returns only candidate graph handles for later bounded expansion.
+
+The pinned NornicDB gRPC request shape exposes labels but not property filters.
+This branch therefore post-checks the returned candidate scope and does not
+claim full #417 measured acceptance until live evidence proves pre-search
+scoping, or a documented design exception is accepted. There is still no
+whole-graph fallback and no public API/MCP exposure.
+
 ## Response Contract
 
 `BuildResponse` sorts candidates by score descending and document id ascending,
@@ -109,12 +135,15 @@ recall, precision, nDCG, and false-canonical-claim metrics defined for issue
 
 This contract does not:
 
-- call NornicDB;
 - call Postgres;
 - read or write graph state;
 - expose HTTP or MCP routes;
 - add OpenAPI or MCP tool contracts;
 - enable default runtime search.
+
+The internal NornicDB adapter can call NornicDB when explicitly constructed by
+a benchmark or proof harness. The contract still does not enable default
+runtime search or public retrieval.
 
 Those steps require later PRs with telemetry, capability envelopes, backend
 proof, and semantic-evaluation evidence.
@@ -124,7 +153,7 @@ proof, and semantic-evaluation evidence.
 Focused package gate:
 
 ```bash
-cd go && go test ./internal/searchretrieval ./internal/searchdocs ./internal/searchbench -count=1
+cd go && go test ./internal/searchretrieval ./internal/searchdocs ./internal/searchbench ./internal/searchnornicdb -count=1
 ```
 
 Docs changes must also pass:
