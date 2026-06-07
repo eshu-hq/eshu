@@ -68,7 +68,7 @@ func (h *StatusHandler) listCollectors(w http.ResponseWriter, r *http.Request) {
 		"version":              buildinfo.AppVersion(),
 		"collectors":           collectors,
 		"count":                len(collectors),
-		"classification_basis": "workflow coordinator registration plus direct status evidence",
+		"classification_basis": "workflow coordinator registration plus direct status and persisted fact evidence",
 		"updated_at":           collectorRuntimeUpdatedAt(runtimes),
 	})
 }

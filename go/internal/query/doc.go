@@ -20,8 +20,11 @@
 // vulnerability source facts under canonical GHSA/CVE/OSV/NVD identities while
 // preserving CVSS, EPSS, KEV, CWE, range, fixed-version, withdrawn, and
 // disagreement provenance without implying repository, image, workload, or
-// deployment impact. Impact reads pair the bounded reducer-owned findings page
-// with a readiness envelope so a zero-finding answer can be classified as
+// deployment impact. Repository, service, and workload advisory evidence
+// scopes derive only CVE/advisory/package anchors from active reducer-owned
+// impact findings; provider-alert-only rows stay out of this path. Impact
+// reads pair the bounded reducer-owned findings page with a readiness envelope
+// so a zero-finding answer can be classified as
 // not_configured, target_incomplete, evidence_incomplete, ready_zero_findings,
 // ready_with_findings, or unsupported. Unsupported matcher ecosystems, scanner
 // worker image warnings, and other unsupported targets are coverage-gap

@@ -80,14 +80,16 @@ part of the shipped public contract.
 
 `/api/v0/status/collectors` is the canonical collector-status list route.
 `/api/v0/collectors` is the legacy GET alias. The response classifies each
-collector runtime identity using workflow-coordinator registration plus durable
-direct status evidence:
+collector runtime identity using workflow-coordinator registration, durable
+direct status evidence, and active persisted source or reducer fact evidence.
+Persisted evidence is returned only as source names such as `source_facts` or
+`reducer_facts`, aggregate counts, and timestamps:
 
 - `coordinator_managed`: enabled and claim-driven in the workflow coordinator.
 - `direct_mode`: registered but claims are disabled.
 - `disabled`: registered but disabled or deactivated.
-- `unregistered`: direct status evidence exists without a matching coordinator
-  registration.
+- `unregistered`: direct status or persisted fact evidence exists without a
+  matching coordinator registration.
 - `profile_gated`: reserved for profile gates that explicitly surface a status
   row.
 
@@ -113,11 +115,12 @@ The default ingester is `repository`. Status responses include:
 The public API does not include a per-ingester scan POST route. Use
 `POST /api/v0/admin/reindex` or deployment-managed ingestion instead.
 
-No-Regression Evidence: `cd go && go test ./internal/status ./internal/query ./internal/mcp -run 'Test(RenderStatusIncludesCollectorRuntimeCategories|StatusHandlerCollectorsRouteExposesDirectRuntimeEvidence|ListCollectorsRuntimeToolRoutesToStatusCollectors)' -count=1`.
+No-Regression Evidence: `cd go && go test ./internal/status ./internal/query ./internal/storage/postgres ./internal/mcp -run 'Test(RenderStatusIncludesCollectorRuntimeCategories|CollectorRuntimeStatuses(MergesPersistedFactEvidence|MapsUnattributedFactsToSingleCoordinatorInstance)|StatusHandlerCollectorsRouteExposes(DirectRuntimeEvidence|PersistedFactEvidence)|ReadCollectorFactEvidenceUsesBoundedActiveFactMetadata|ListCollectorsRuntimeToolRoutesToStatusCollectors)' -count=1`.
 No-Observability-Change: collector status classification reuses existing
 `/admin/status`, `/api/v0/status/collectors`, `aws_cloud_scans`,
-`vulnerability_sources`, workflow coordinator rows, and MCP HTTP dispatch; it
-does not add a worker, queue, graph query, or new metric label.
+`vulnerability_sources`, workflow coordinator rows, active fact metadata, and
+MCP HTTP dispatch; it adds one bounded Postgres aggregate status read and does
+not add a worker, queue, graph query, or new metric label.
 
 ## Historical Metrics
 

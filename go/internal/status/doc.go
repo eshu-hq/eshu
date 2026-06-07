@@ -19,9 +19,10 @@
 // runtime liveness, bounded failure classes, and package-registry metadata
 // target counts without registry object names, package names, or credentials.
 // CollectorRuntimeStatus rows derive a unified collector inventory from
-// workflow coordinator registrations and durable direct status evidence so
-// coordinator-managed, direct-mode, disabled, and unregistered collectors are
-// visible in one operator view.
+// workflow coordinator registrations, durable direct status evidence, and
+// active persisted source or reducer fact evidence so coordinator-managed,
+// direct-mode, disabled, and unregistered collectors are visible in one
+// operator view.
 // AWSCloudScanStatus rows expose per-account, per-region, per-service AWS
 // scanner liveness, throttle counts, warning state, and commit status so
 // operators can separate throttling, credential failure, budget exhaustion, and

@@ -261,6 +261,10 @@ affected-product/CPE, range, fixed-version, withdrawn, reference, and
 source-disagreement evidence under one canonical advisory identity without
 publishing a supply-chain impact finding or implying repository, image,
 workload, deployment, or reachability impact.
+Repository, service, and workload scoped advisory-evidence requests first
+select active reducer-owned impact findings for that scope, then read the
+matching advisory source facts by the finding's CVE, advisory, and package
+anchors. Provider-alert-only evidence is not used as an advisory-evidence seed.
 
 `GET /api/v0/supply-chain/impact/explain` and the MCP
 `explain_supply_chain_impact` tool use the same reducer-owned finding facts

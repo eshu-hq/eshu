@@ -170,6 +170,141 @@ func TestCollectorRuntimeStatusesMergesDirectEvidenceHealthForRegisteredCollecto
 	}
 }
 
+func TestCollectorRuntimeStatusesMergesPersistedFactEvidence(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 7, 9, 30, 0, 0, time.UTC)
+	instances := []status.CollectorInstanceSummary{
+		{InstanceID: "collector-documentation", CollectorKind: "documentation", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
+		{InstanceID: "collector-jira", CollectorKind: "jira", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
+		{InstanceID: "collector-pagerduty", CollectorKind: "pagerduty", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
+		{InstanceID: "collector-oci", CollectorKind: "oci_registry", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
+		{InstanceID: "collector-package-registry", CollectorKind: "package_registry", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
+		{InstanceID: "collector-sbom", CollectorKind: "sbom_attestation", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
+		{InstanceID: "collector-security-alert", CollectorKind: "security_alert", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
+		{InstanceID: "collector-terraform-state", CollectorKind: "terraform_state", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
+		{InstanceID: "collector-aws", CollectorKind: "aws", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
+		{InstanceID: "collector-vulnerability", CollectorKind: "vulnerability_intelligence", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
+	}
+	for i := range instances {
+		instances[i].LastObservedAt = now.Add(-20 * time.Minute)
+		instances[i].UpdatedAt = now.Add(-19 * time.Minute)
+	}
+
+	report := status.BuildReport(
+		status.RawSnapshot{
+			AsOf: now,
+			Coordinator: &status.CoordinatorSnapshot{
+				CollectorInstances: instances,
+			},
+			CollectorFactEvidence: []status.CollectorFactEvidence{
+				{InstanceID: "collector-documentation", CollectorKind: "documentation", EvidenceSource: "source_facts", ObservationCount: 5, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
+				{InstanceID: "collector-jira", CollectorKind: "jira", EvidenceSource: "source_facts", ObservationCount: 7, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
+				{InstanceID: "collector-pagerduty", CollectorKind: "pagerduty", EvidenceSource: "source_facts", ObservationCount: 4, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
+				{InstanceID: "collector-oci", CollectorKind: "oci_registry", EvidenceSource: "source_facts", ObservationCount: 3, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
+				{InstanceID: "collector-package-registry", CollectorKind: "package_registry", EvidenceSource: "source_facts", ObservationCount: 6, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
+				{InstanceID: "collector-sbom", CollectorKind: "sbom_attestation", EvidenceSource: "source_facts", ObservationCount: 2, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
+				{InstanceID: "collector-sbom", CollectorKind: "sbom_attestation", EvidenceSource: "reducer_facts", ObservationCount: 1, LastObservedAt: now.Add(-8 * time.Minute), UpdatedAt: now.Add(-7 * time.Minute)},
+				{InstanceID: "collector-security-alert", CollectorKind: "security_alert", EvidenceSource: "source_facts", ObservationCount: 8, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
+				{InstanceID: "collector-security-alert", CollectorKind: "security_alert", EvidenceSource: "reducer_facts", ObservationCount: 2, LastObservedAt: now.Add(-8 * time.Minute), UpdatedAt: now.Add(-7 * time.Minute)},
+				{InstanceID: "collector-terraform-state", CollectorKind: "terraform_state", EvidenceSource: "source_facts", ObservationCount: 9, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
+				{InstanceID: "collector-aws", CollectorKind: "aws", EvidenceSource: "source_facts", ObservationCount: 11, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
+				{InstanceID: "collector-aws", CollectorKind: "aws", EvidenceSource: "reducer_facts", ObservationCount: 3, LastObservedAt: now.Add(-8 * time.Minute), UpdatedAt: now.Add(-7 * time.Minute)},
+				{InstanceID: "collector-vulnerability", CollectorKind: "vulnerability_intelligence", EvidenceSource: "source_facts", ObservationCount: 13, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
+			},
+		},
+		status.DefaultOptions(),
+	)
+
+	byID := map[string]status.CollectorRuntimeStatus{}
+	for _, row := range status.CollectorRuntimeStatuses(report) {
+		byID[row.InstanceID] = row
+	}
+	for _, instance := range instances {
+		row := byID[instance.InstanceID]
+		if got, want := row.StatusCategory, status.CollectorRuntimeCoordinatorManaged; got != want {
+			t.Fatalf("%s status category = %q, want %q", instance.InstanceID, got, want)
+		}
+		if got, want := row.Health, "observed"; got != want {
+			t.Fatalf("%s health = %q, want %q", instance.InstanceID, got, want)
+		}
+		if !collectorRuntimeEvidenceContains(row.EvidenceSources, "workflow_coordinator") ||
+			!collectorRuntimeEvidenceContains(row.EvidenceSources, "source_facts") {
+			t.Fatalf("%s evidence sources = %#v, want workflow_coordinator and source_facts", instance.InstanceID, row.EvidenceSources)
+		}
+		if row.ObservationCount == 0 {
+			t.Fatalf("%s observation count = 0, want persisted fact count", instance.InstanceID)
+		}
+	}
+	for _, instanceID := range []string{"collector-sbom", "collector-security-alert", "collector-aws"} {
+		row := byID[instanceID]
+		if !collectorRuntimeEvidenceContains(row.EvidenceSources, "reducer_facts") {
+			t.Fatalf("%s evidence sources = %#v, want reducer_facts", instanceID, row.EvidenceSources)
+		}
+	}
+}
+
+func TestCollectorRuntimeStatusesMapsUnattributedFactsToSingleCoordinatorInstance(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
+	report := status.BuildReport(
+		status.RawSnapshot{
+			AsOf: now,
+			Coordinator: &status.CoordinatorSnapshot{
+				CollectorInstances: []status.CollectorInstanceSummary{{
+					InstanceID:     "collector-aws-claims",
+					CollectorKind:  "aws",
+					Mode:           "continuous",
+					Enabled:        true,
+					ClaimsEnabled:  true,
+					LastObservedAt: now.Add(-20 * time.Minute),
+					UpdatedAt:      now.Add(-19 * time.Minute),
+				}},
+			},
+			AWSCloudScans: []status.AWSCloudScanStatus{{
+				CollectorInstanceID: "collector-aws-direct",
+				AccountID:           "123456789012",
+				Region:              "us-east-1",
+				ServiceKind:         "lambda",
+				Status:              "succeeded",
+				CommitStatus:        "committed",
+				LastObservedAt:      now.Add(-5 * time.Minute),
+				UpdatedAt:           now.Add(-4 * time.Minute),
+			}},
+			CollectorFactEvidence: []status.CollectorFactEvidence{{
+				CollectorKind:    "aws",
+				EvidenceSource:   "source_facts",
+				ObservationCount: 9,
+				LastObservedAt:   now.Add(-3 * time.Minute),
+				UpdatedAt:        now.Add(-2 * time.Minute),
+			}},
+		},
+		status.DefaultOptions(),
+	)
+
+	byID := map[string]status.CollectorRuntimeStatus{}
+	for _, row := range status.CollectorRuntimeStatuses(report) {
+		byID[row.InstanceID] = row
+	}
+	coordinator := byID["collector-aws-claims"]
+	if got, want := coordinator.StatusCategory, status.CollectorRuntimeCoordinatorManaged; got != want {
+		t.Fatalf("coordinator status category = %q, want %q", got, want)
+	}
+	if got, want := coordinator.Health, "observed"; got != want {
+		t.Fatalf("coordinator health = %q, want %q", got, want)
+	}
+	if got, want := coordinator.ObservationCount, 9; got != want {
+		t.Fatalf("coordinator observation count = %d, want %d", got, want)
+	}
+	if !collectorRuntimeEvidenceContains(coordinator.EvidenceSources, "source_facts") {
+		t.Fatalf("coordinator evidence sources = %#v, want source_facts", coordinator.EvidenceSources)
+	}
+	if _, ok := byID["aws-persisted-facts"]; ok {
+		t.Fatal("persisted fact evidence created synthetic aws-persisted-facts row; want merge into single coordinator instance")
+	}
+}
+
 func collectorRuntimeEvidenceContains(values []string, want string) bool {
 	for _, value := range values {
 		if value == want {

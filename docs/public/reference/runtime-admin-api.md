@@ -89,8 +89,9 @@ The JSON report is rendered by `go/internal/status.RenderJSON` and may include:
 - `queue_blockages`
 - `terraform_state`
 
-`collector_runtimes` is a derived, additive view over coordinator registration
-and direct collector status evidence. It classifies rows as
+`collector_runtimes` is a derived, additive view over coordinator registration,
+direct collector status evidence, and active persisted source or reducer fact
+evidence. It classifies rows as
 `coordinator_managed`, `direct_mode`, `disabled`, `unregistered`, or
 `profile_gated` when a profile gate emits an explicit status row. Rows include
 the collector instance ID, kind, runtime mode, coordinator registration flag,

@@ -20,6 +20,11 @@
 // SBOM attachment tools forward repository_id to the query layer so repository
 // scope returns reducer-owned image/SBOM missing evidence instead of becoming
 // an unscoped aggregate.
+// repository, service, and workload advisory scopes are forwarded to HTTP so
+// the query layer can derive advisory anchors from reducer-owned impact
+// findings without promoting provider-alert-only evidence;
+// SBOM attachment tools forward repository_id to the query layer so unsupported
+// repository scope is rejected there instead of becoming an unscoped aggregate.
 // Supply-chain schemas preserve ambiguous-subject outcomes instead of hiding
 // non-canonical evidence. The supply-chain impact tool exposes
 // include_suppressed and suppression_state inputs so callers can opt in to
