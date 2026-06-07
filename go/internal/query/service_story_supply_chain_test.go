@@ -36,9 +36,11 @@ type serviceStorySBOMAttachmentStore struct {
 func (s *serviceStorySBOMAttachmentStore) ListSBOMAttestationAttachments(
 	_ context.Context,
 	filter SBOMAttestationAttachmentFilter,
-) ([]SBOMAttestationAttachmentRow, error) {
+) (SBOMAttestationAttachmentPage, error) {
 	s.filters = append(s.filters, filter)
-	return append([]SBOMAttestationAttachmentRow(nil), s.rowsBySubjectDigest[filter.SubjectDigest]...), nil
+	return SBOMAttestationAttachmentPage{
+		Attachments: append([]SBOMAttestationAttachmentRow(nil), s.rowsBySubjectDigest[filter.SubjectDigest]...),
+	}, nil
 }
 
 func TestServiceStorySupplyChainEvidenceAttachesExactImageAndSBOM(t *testing.T) {

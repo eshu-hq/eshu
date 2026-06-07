@@ -54,7 +54,8 @@ func (h *EntityHandler) enrichServiceStorySupplyChainEvidence(ctx context.Contex
 		if err != nil {
 			return fmt.Errorf("load service story SBOM attachment: %w", err)
 		}
-		sboms, reason := serviceStoryAdmissibleSBOMAttachments(identity.Digest, attachments)
+		missing = append(missing, attachments.MissingEvidence...)
+		sboms, reason := serviceStoryAdmissibleSBOMAttachments(identity.Digest, attachments.Attachments)
 		if reason != "" {
 			missing = append(missing, reason)
 			continue
