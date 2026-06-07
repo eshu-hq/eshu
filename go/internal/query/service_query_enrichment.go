@@ -155,6 +155,18 @@ func enrichServiceQueryContextWithOptions(
 			}
 		}
 		if len(mapSliceValue(workloadContext, "cloud_resources")) == 0 {
+			timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "cloud_resource_dependencies")
+			cloudResources, err := loadServiceCloudResourceDependencies(ctx, graph, safeStr(workloadContext, "id"), serviceName, serviceStoryItemLimit)
+			timer.Done(ctx, slog.Int("row_count", len(cloudResources)))
+			if err != nil {
+				return fmt.Errorf("load service cloud resource dependencies: %w", err)
+			}
+			if len(cloudResources) > 0 {
+				workloadContext["cloud_resources"] = cloudResources
+				delete(workloadContext, "uncorrelated_cloud_resources")
+			}
+		}
+		if len(mapSliceValue(workloadContext, "cloud_resources")) == 0 {
 			timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "uncorrelated_cloud_resource_candidates")
 			cloudCandidates, err := loadUncorrelatedCloudResourceCandidates(ctx, graph, serviceName, serviceStoryItemLimit)
 			timer.Done(ctx, slog.Int("row_count", len(cloudCandidates)))

@@ -201,14 +201,16 @@ fact-summary sections. Mapping modes are:
 - `none`
 
 Service story and deployment trace keep canonical `cloud_resources` separate
-from `uncorrelated_cloud_resources`. `cloud_resources` requires a materialized
-workload-to-cloud relationship. `uncorrelated_cloud_resources` is a bounded
-candidate list for cloud resources whose safe identity handles match the
-service, including `name`, `id`, `kind`, `resource_type`, `resource_id`, `arn`,
-`service_kind`, `account_id`, `region`, `source`, `source_system`, or
-`config_path`. These rows still lack the
-workload-to-cloud relationship; callers should treat them as missing evidence
-to investigate, not as attached dependencies.
+from `uncorrelated_cloud_resources`. `cloud_resources` requires either a
+materialized workload-to-cloud relationship or an exact reducer-owned service
+anchor admitted from cloud resource evidence. `uncorrelated_cloud_resources` is
+a bounded candidate list for cloud resources whose safe identity or anchor
+handles match the service, including `name`, `id`, `kind`, `resource_type`,
+`resource_id`, `arn`, `service_kind`, `account_id`, `region`, `source`,
+`source_system`, `config_path`, or `service_anchor_name_tokens`. These rows
+still lack the workload-to-cloud relationship or exact service anchor; callers
+should treat them as missing evidence to investigate, not as attached
+dependencies.
 
 Repository story uses the same repository deployment-evidence read path as
 repository context and service story. When repository-scoped deployment evidence
@@ -267,6 +269,14 @@ already-loaded bounded `api_surface` map during response assembly. It adds no
 new graph, Postgres, MCP dispatch, queue, collector, or runtime call; the
 existing `service_query.stage_started` and `service_query.stage_completed`
 events still cover the `graph_api_surface` and `overview_assembly` stages.
+
+No-Regression Evidence: service cloud dependency anchor changes must prove the
+reducer row contract, graph writer persistence, service story response, and MCP
+story route with focused Go tests.
+
+No-Observability-Change: service story anchor admission uses existing service
+query stage timing and graph query instrumentation; it adds no collector call,
+queue worker, metric label, runtime knob, or deployment behavior.
 
 `POST /api/v0/impact/deployment-config-influence` accepts `service_name` or
 `workload_id`, optional `environment`, and optional `limit`. Use it when the

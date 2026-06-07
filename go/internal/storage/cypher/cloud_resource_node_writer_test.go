@@ -11,12 +11,12 @@ func cloudResourceRows(n int) []map[string]any {
 	for i := 0; i < n; i++ {
 		rows = append(rows, map[string]any{
 			"uid":                 "uid-" + string(rune('a'+i)),
-			"arn":                 "arn:aws:ec2:us-east-1:111122223333:vpc/vpc-1",
+			"arn":                 "arn:aws:ec2:us-east-1:sample-account:vpc/vpc-1",
 			"resource_id":         "vpc-1",
 			"resource_type":       "aws_ec2_vpc",
 			"name":                "main",
 			"state":               "available",
-			"account_id":          "111122223333",
+			"account_id":          "sample-account",
 			"region":              "us-east-1",
 			"service_kind":        "vpc",
 			"correlation_anchors": []string{"vpc-1"},
@@ -73,6 +73,40 @@ func TestCloudResourceNodeWriterMergesOnUID(t *testing.T) {
 	}
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
+	}
+}
+
+func TestCloudResourceNodeWriterPersistsServiceAnchorFields(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewCloudResourceNodeWriter(executor, 0)
+	rows := cloudResourceRows(1)
+	rows[0]["service_anchor_status"] = "strong"
+	rows[0]["service_anchor_source"] = "attributes.service_name"
+	rows[0]["service_anchor_reason"] = "explicit_service_anchor"
+	rows[0]["service_anchor_names"] = []string{"orders-api"}
+	rows[0]["service_anchor_name_tokens"] = "orders-api"
+	rows[0]["service_name"] = "orders-api"
+
+	if err := writer.WriteCloudResourceNodes(context.Background(), rows, "reducer/aws-resources"); err != nil {
+		t.Fatalf("WriteCloudResourceNodes returned error: %v", err)
+	}
+	if len(executor.calls) != 1 {
+		t.Fatalf("len(calls) = %d, want 1", len(executor.calls))
+	}
+	cypher := executor.calls[0].Cypher
+	for _, want := range []string{
+		"r.service_anchor_status = row.service_anchor_status",
+		"r.service_anchor_source = row.service_anchor_source",
+		"r.service_anchor_reason = row.service_anchor_reason",
+		"r.service_anchor_names = row.service_anchor_names",
+		"r.service_anchor_name_tokens = row.service_anchor_name_tokens",
+		"r.service_name = row.service_name",
+	} {
+		if !strings.Contains(cypher, want) {
+			t.Fatalf("cypher missing %q:\n%s", want, cypher)
+		}
 	}
 }
 

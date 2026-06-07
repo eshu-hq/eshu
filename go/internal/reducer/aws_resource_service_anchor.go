@@ -1,0 +1,117 @@
+package reducer
+
+import "strings"
+
+const (
+	cloudResourceServiceAnchorStatusStrong    = "strong"
+	cloudResourceServiceAnchorStatusAmbiguous = "ambiguous"
+)
+
+type cloudResourceServiceAnchorDecision struct {
+	Status       string
+	Source       string
+	Reason       string
+	WorkloadID   string
+	ServiceName  string
+	ServiceNames []string
+}
+
+// cloudResourceServiceAnchorFields returns reducer-owned service anchor
+// metadata for an aws_resource row. Only exact, single-target anchors are
+// promotable by the service story read model; ambiguous anchors remain visible
+// as drift candidates without becoming canonical dependencies.
+func cloudResourceServiceAnchorFields(payload map[string]any) map[string]any {
+	decision := cloudResourceServiceAnchorDecisionForPayload(payload)
+	if decision.Status == "" {
+		return nil
+	}
+	fields := map[string]any{
+		"service_anchor_status": decision.Status,
+		"service_anchor_source": decision.Source,
+		"service_anchor_reason": decision.Reason,
+	}
+	if decision.WorkloadID != "" {
+		fields["workload_id"] = decision.WorkloadID
+	}
+	if decision.ServiceName != "" {
+		fields["service_name"] = decision.ServiceName
+	}
+	if len(decision.ServiceNames) > 0 {
+		fields["service_anchor_names"] = append([]string(nil), decision.ServiceNames...)
+		fields["service_anchor_name_tokens"] = strings.Join(decision.ServiceNames, " ")
+	}
+	return fields
+}
+
+func cloudResourceServiceAnchorDecisionForPayload(payload map[string]any) cloudResourceServiceAnchorDecision {
+	workloadIDs := payloadStrings(payload, "workload_id", "workload_ids")
+	serviceNames := payloadStrings(payload, "service_name", "service_names")
+	source := explicitServiceAnchorSource(workloadIDs, serviceNames, "payload")
+
+	if len(workloadIDs) == 0 && len(serviceNames) == 0 {
+		attributes := payloadMap(payload, "attributes")
+		if shouldAdmitAWSAttributeServiceAnchor(payloadString(payload, "resource_type")) {
+			serviceNames = payloadStrings(attributes, "service_name", "service_names")
+			source = explicitServiceAnchorSource(nil, serviceNames, "attributes")
+		}
+	}
+
+	workloadIDs = uniqueSortedStrings(workloadIDs)
+	serviceNames = uniqueSortedStrings(serviceNames)
+	if len(workloadIDs) == 0 && len(serviceNames) == 0 {
+		return cloudResourceServiceAnchorDecision{}
+	}
+	if len(workloadIDs) > 1 || len(serviceNames) > 1 {
+		return cloudResourceServiceAnchorDecision{
+			Status:       cloudResourceServiceAnchorStatusAmbiguous,
+			Source:       source,
+			Reason:       "multiple_service_anchors",
+			ServiceNames: serviceNames,
+		}
+	}
+
+	decision := cloudResourceServiceAnchorDecision{
+		Status:       cloudResourceServiceAnchorStatusStrong,
+		Source:       source,
+		Reason:       "explicit_service_anchor",
+		ServiceNames: serviceNames,
+	}
+	if len(workloadIDs) == 1 {
+		decision.WorkloadID = workloadIDs[0]
+		decision.Reason = "explicit_workload_anchor"
+	}
+	if len(serviceNames) == 1 {
+		decision.ServiceName = serviceNames[0]
+		if decision.WorkloadID != "" {
+			decision.Reason = "explicit_workload_and_service_anchor"
+		}
+	}
+	return decision
+}
+
+func explicitServiceAnchorSource(workloadIDs []string, serviceNames []string, prefix string) string {
+	if len(workloadIDs) > 0 && len(serviceNames) > 0 {
+		return prefix + ".workload_id+service_name"
+	}
+	if len(workloadIDs) > 0 {
+		return prefix + ".workload_id"
+	}
+	if len(serviceNames) > 0 {
+		return prefix + ".service_name"
+	}
+	return ""
+}
+
+func shouldAdmitAWSAttributeServiceAnchor(resourceType string) bool {
+	switch strings.TrimSpace(resourceType) {
+	case "aws_apprunner_service",
+		"aws_ecs_service",
+		"aws_proton_service",
+		"aws_vpclattice_listener",
+		"aws_vpclattice_service",
+		"aws_xray_sampling_rule":
+		return true
+	default:
+		return false
+	}
+}
