@@ -1,0 +1,59 @@
+go/internal/query/sbom_attestation_attachment_aggregates.go
+  s_f2f7fbb6f30866::t_a5b3fae54bf23f 55-57,62-64,122-125,145-147,168-170,173,192-194,274-276
+go/internal/mcp/tools_supply_chain.go
+  s_f2f7fbb6f30866::t_926b0ebcdf42c0 288,302
+go/internal/query/sbom_attestation_attachment_aggregates_test.go
+  s_f2f7fbb6f30866::t_88d56ac740b147 259
+  s_f2f7fbb6f30866::t_d0a249ddb9e86e 133-225,239-258,260-266,275
+go/internal/mcp/dispatch_sbom_attachment_aggregates.go
+  s_f2f7fbb6f30866::t_9d0d8e327c0cba 13-14,31-32
+docs/public/reference/mcp-tool-contract-matrix.md
+  s_f2f7fbb6f30866::t_cf55abb0dc4da2 103-105
+go/internal/query/openapi_supply_chain_test.go
+  s_f2f7fbb6f30866::t_4ec764ea7c218f 42-43
+go/internal/query/doc.go
+  s_f2f7fbb6f30866::t_817fb7d420cf4e 45-49
+go/internal/query/sbom_attestation_attachments_test.go
+  s_f2f7fbb6f30866::t_d49acbebec5b3c 189,192-197,209,212-217,219-220,222-223,225-226
+go/internal/mcp/README.md
+  s_f2f7fbb6f30866::t_c906b6d570c447 129
+go/internal/query/sbom_attestation_attachment_aggregates_handler.go
+  s_f2f7fbb6f30866::t_53f587432d8061 166-168,185-192
+go/internal/query/read-models.md
+  s_f2f7fbb6f30866::t_601dd08c7ec94f 483-484,493-496,501-512
+go/internal/query/sbom-attestation-attachment-scope-evidence.md
+  s_f2f7fbb6f30866::t_728173393a24c7 3-8,10-14,16
+docs/public/reference/http-api/evidence-and-supply-chain.md
+  s_f2f7fbb6f30866::t_072bc0df070d9d 789,791-792
+  s_f2f7fbb6f30866::t_bb853e3d3b121f 754-758
+go/internal/query/openapi_paths_sbom_attestation_attachment_aggregate.go
+  s_f2f7fbb6f30866::t_049a93452aaf57 12-14,47-49
+go/internal/mcp/tools_sbom_attachment_aggregates.go
+  s_f2f7fbb6f30866::t_82b551e84525de 28-39,68-70
+go/internal/mcp/dispatch_supply_chain_test.go
+  s_f2f7fbb6f30866::t_c63767194ad081 257,263,266,272,277
+  s_f2f7fbb6f30866::t_e4a4287056fa52 271
+  s_f2f7fbb6f30866::t_066d2bbdda9356 123,131,133
+  s_f2f7fbb6f30866::t_bc150365d454e4 93,98-100,106,114-118,120-121,124-130,132,134-136
+  s_f2f7fbb6f30866::t_debaf0c2bfe893 273-275
+go/internal/query/openapi_paths_supply_chain_sbom.go
+  s_f2f7fbb6f30866::t_eeb57c06538791 13
+go/internal/query/supply_chain.go
+  s_f2f7fbb6f30866::t_dcb4e80fa31f7c 323,332
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "b4df82ca65fb69aa27f72870745b3e649fcf0188",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
