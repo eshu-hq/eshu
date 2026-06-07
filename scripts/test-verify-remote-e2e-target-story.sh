@@ -174,6 +174,21 @@ expect_alignment_match 'registry.example.com/team/api' 'registry.example.com/tea
 expect_alignment_mismatch 'repo://example/api' 'git@github.com:example/other-api.git'
 
 reset_state
+jq '
+  .target_repository_id = "repository:r_opaque_target" |
+  .expected_service_id = "service:checkout-api" |
+  .expected_workload_id = "workload:checkout-api" |
+  .minimums.security_alert_reconciliations = 0 |
+  .minimums.container_image_identities = 0 |
+  .minimums.sbom_attachments = 0 |
+  .minimums.service_catalog_correlations = 1 |
+  .minimums.ci_cd_run_correlations = 0 |
+  .minimums.cloud_resources = 0
+' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
+mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
+target_story_validate_alignment "${state_dir}/target-story.json" code_to_cloud
+
+reset_state
 expect_pass
 rg -F -q '/api/v0/ci-cd/run-correlations?repository_id=repo%3A%2F%2Fexample%2Fapi&artifact_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&limit=1' "${state_dir}/curl-targets"
 rg -x -q 'list_ci_cd_run_correlations' "${state_dir}/mcp-tools"
