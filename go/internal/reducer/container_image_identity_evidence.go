@@ -33,11 +33,12 @@ type parsedContainerImageRef struct {
 
 func extractContainerImageRefs(envelopes []facts.Envelope) []containerImageRefEvidence {
 	byRef := make(map[string]containerImageRefEvidence)
+	ciRuns := containerImageCIRuns(envelopes)
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
 		case factKindContentEntity:
 			for _, imageRef := range contentEntityContainerImages(envelope.Payload) {
-				addContainerImageRef(byRef, imageRef, "", envelope.FactID, containerImageAnchorsFromEnvelope(envelope))
+				addContainerImageRef(byRef, imageRef, "", containerImageAnchorsFromEnvelope(envelope), envelope.FactID)
 			}
 		case facts.CICDWorkflowImageEvidenceFactKind:
 			addWorkflowImageEvidenceRef(byRef, envelope)
@@ -49,11 +50,13 @@ func extractContainerImageRefs(envelopes []facts.Envelope) []containerImageRefEv
 				byRef,
 				payloadStr(envelope.Payload, "target_resource_id"),
 				mapStringValue(envelope.Payload, "attributes", "resolved_image_uri"),
-				envelope.FactID,
 				containerImageAnchorsFromEnvelope(envelope),
+				envelope.FactID,
 			)
 		case facts.AWSImageReferenceFactKind:
 			addAWSImageReference(byRef, envelope)
+		case facts.CICDArtifactFactKind:
+			addCICDArtifactImageReference(byRef, envelope, ciRuns)
 		}
 	}
 	refs := make([]containerImageRefEvidence, 0, len(byRef))
@@ -74,17 +77,41 @@ func addWorkflowImageEvidenceRef(byRef map[string]containerImageRefEvidence, env
 		byRef,
 		payloadStr(envelope.Payload, "image_ref"),
 		"",
-		envelope.FactID,
 		containerImageAnchorsFromEnvelope(envelope),
+		envelope.FactID,
 	)
+}
+
+type containerImageCIRunAnchor struct {
+	repositoryID string
+	factID       string
+}
+
+func containerImageCIRuns(envelopes []facts.Envelope) map[string]containerImageCIRunAnchor {
+	out := make(map[string]containerImageCIRunAnchor)
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.CICDRunFactKind {
+			continue
+		}
+		key := cicdRunKey(envelope.Payload)
+		repositoryID := payloadStr(envelope.Payload, "repository_id")
+		if key == "" || repositoryID == "" {
+			continue
+		}
+		out[key] = containerImageCIRunAnchor{
+			repositoryID: repositoryID,
+			factID:       envelope.FactID,
+		}
+	}
+	return out
 }
 
 func addContainerImageRef(
 	byRef map[string]containerImageRefEvidence,
 	imageRef string,
 	resolvedImageRef string,
-	factID string,
 	anchors containerImageRefAnchors,
+	factIDs ...string,
 ) {
 	parsed, ok := parseContainerImageRef(imageRef)
 	if !ok {
@@ -93,7 +120,7 @@ func addContainerImageRef(
 	ref := byRef[parsed.raw]
 	ref.imageRef = parsed.raw
 	ref.parsed = parsed
-	ref.factIDs = append(ref.factIDs, factID)
+	ref.factIDs = append(ref.factIDs, factIDs...)
 	ref.sourceRepositoryIDs = append(ref.sourceRepositoryIDs, anchors.sourceRepositoryIDs...)
 	ref.workloadIDs = append(ref.workloadIDs, anchors.workloadIDs...)
 	ref.serviceIDs = append(ref.serviceIDs, anchors.serviceIDs...)
@@ -124,7 +151,75 @@ func addAWSImageReference(byRef map[string]containerImageRefEvidence, envelope f
 	}
 	registry := registryID + ".dkr.ecr." + payloadStr(envelope.Payload, "region") + ".amazonaws.com"
 	imageRef := registry + "/" + repositoryName + "@" + digest
-	addContainerImageRef(byRef, imageRef, imageRef, envelope.FactID, containerImageAnchorsFromEnvelope(envelope))
+	addContainerImageRef(byRef, imageRef, imageRef, containerImageAnchorsFromEnvelope(envelope), envelope.FactID)
+}
+
+func addCICDArtifactImageReference(
+	byRef map[string]containerImageRefEvidence,
+	envelope facts.Envelope,
+	runs map[string]containerImageCIRunAnchor,
+) {
+	if payloadStr(envelope.Payload, "artifact_type") != "container_image" {
+		return
+	}
+	imageRef := payloadStr(envelope.Payload, "image_ref")
+	digest := payloadStr(envelope.Payload, "artifact_digest")
+	if imageRef == "" && digest == "" {
+		return
+	}
+	anchors := containerImageAnchorsFromEnvelope(envelope)
+	evidenceFactIDs := []string{envelope.FactID}
+	if run := runs[cicdRunKey(envelope.Payload)]; run.repositoryID != "" {
+		anchors.sourceRepositoryIDs = append(anchors.sourceRepositoryIDs, run.repositoryID)
+		evidenceFactIDs = append(evidenceFactIDs, run.factID)
+	}
+	if digest != "" {
+		if digestImageRef := imageRefWithDigest(imageRef, digest); digestImageRef != "" {
+			addContainerImageRef(byRef, digestImageRef, digestImageRef, anchors, evidenceFactIDs...)
+			return
+		}
+		addContainerImageDigestRef(byRef, digest, anchors, evidenceFactIDs...)
+		return
+	}
+	if imageRef != "" {
+		addContainerImageRef(byRef, imageRef, imageRef, anchors, evidenceFactIDs...)
+		return
+	}
+}
+
+func imageRefWithDigest(imageRef string, digest string) string {
+	parsed, ok := parseContainerImageRef(imageRef)
+	if !ok || parsed.repositoryKey == "" || strings.TrimSpace(digest) == "" {
+		return ""
+	}
+	return parsed.repositoryKey + "@" + strings.TrimSpace(digest)
+}
+
+func addContainerImageDigestRef(
+	byRef map[string]containerImageRefEvidence,
+	digest string,
+	anchors containerImageRefAnchors,
+	factIDs ...string,
+) {
+	digest = strings.TrimSpace(digest)
+	if !strings.HasPrefix(digest, "sha256:") {
+		return
+	}
+	refKey := "digest:" + digest
+	ref := byRef[refKey]
+	ref.imageRef = refKey
+	ref.parsed = parsedContainerImageRef{
+		raw:    refKey,
+		digest: digest,
+	}
+	ref.factIDs = append(ref.factIDs, factIDs...)
+	ref.sourceRepositoryIDs = append(ref.sourceRepositoryIDs, anchors.sourceRepositoryIDs...)
+	ref.workloadIDs = append(ref.workloadIDs, anchors.workloadIDs...)
+	ref.serviceIDs = append(ref.serviceIDs, anchors.serviceIDs...)
+	ref.sourceRepositoryIDs = uniqueSortedStrings(ref.sourceRepositoryIDs)
+	ref.workloadIDs = uniqueSortedStrings(ref.workloadIDs)
+	ref.serviceIDs = uniqueSortedStrings(ref.serviceIDs)
+	byRef[refKey] = ref
 }
 
 func containerImageAnchorsFromEnvelope(envelope facts.Envelope) containerImageRefAnchors {
