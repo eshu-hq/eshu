@@ -2,6 +2,7 @@ package query
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -18,6 +19,28 @@ func TestOpenAPISpecIncludesSBOMAttestationAttachments(t *testing.T) {
 	get := mustMapField(t, path, "get")
 	if got, want := get["operationId"], "listSBOMAttestationAttachments"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
+	}
+	parameters, ok := get["parameters"].([]any)
+	if !ok {
+		t.Fatalf("parameters = %T, want []any", get["parameters"])
+	}
+	var repositoryParam map[string]any
+	for _, parameter := range parameters {
+		parameterMap, ok := parameter.(map[string]any)
+		if !ok {
+			t.Fatalf("parameter = %T, want map[string]any", parameter)
+		}
+		if parameterMap["name"] == "repository_id" {
+			repositoryParam = parameterMap
+			break
+		}
+	}
+	if repositoryParam == nil {
+		t.Fatal("parameters missing repository_id")
+	}
+	description, _ := repositoryParam["description"].(string)
+	if !strings.Contains(description, "Unsupported") || !strings.Contains(description, "rejected") {
+		t.Fatalf("repository_id description = %q, want unsupported/rejected contract", description)
 	}
 	responses := mustMapField(t, get, "responses")
 	twoHundred := mustMapField(t, responses, "200")

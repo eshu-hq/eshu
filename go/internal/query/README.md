@@ -214,11 +214,9 @@ target anchor in invalid-argument responses.
 - `DocumentationHandler` — collected documentation facts, repo or target-scoped
   documentation truth findings, and evidence packets (`documentation.go`,
   `documentation_facts.go`)
-- `SupplyChainHandler` — SBOM attachment, image identity, source-only advisory
-  evidence, impact finding, and one-finding impact explanation routes. SBOM
-  attachment reads are subject/document scoped and reject `repository_id`
-  because reducer attachment facts do not carry repository truth
-  (`supply_chain.go`)
+- `SupplyChainHandler` — SBOM attachment, image identity, advisory evidence,
+  impact finding, and one-finding explanation routes; SBOM attachments reject
+  `repository_id` while preserving subject/document truth and workload/service missing-image evidence (`supply_chain.go`)
 - `IncidentHandler` — bounded incident context read packets from active
   incident source facts (`incident_context_handler.go`)
 - `WorkItemHandler` — ticket-first Jira/work-item source evidence reads from

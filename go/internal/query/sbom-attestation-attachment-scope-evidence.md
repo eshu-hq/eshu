@@ -2,9 +2,12 @@
 
 Repository scope is not a supported SBOM/attestation attachment read anchor.
 Reducer attachment facts expose subject and document identity, plus status and
-artifact kind filters. They do not publish a canonical source repository field,
-so accepting `repository_id` on list, count, or inventory routes would turn an
-unscoped aggregate into false repository-specific evidence.
+artifact kind filters. Some rows also carry repository, workload, service, and
+warning-preview fields as diagnostic evidence, and workload/service source-anchor
+pages can report missing image or image-to-SBOM evidence. Those fields do not
+make `repository_id` a query-safe attachment anchor, so accepting it on list,
+count, or inventory routes would turn an unscoped aggregate into false
+repository-specific evidence.
 
 The remote target-story verifier already uses
 `/supply-chain/sbom-attestations/attachments/count?subject_digest=<digest>` for
