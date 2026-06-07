@@ -59,6 +59,7 @@ func CollectorRuntimeStatuses(report Report) []CollectorRuntimeStatus {
 	}
 	builder.addAWSCloudScans(report.AWSCloudScans)
 	builder.addVulnerabilitySources(report.VulnerabilitySources)
+	builder.addCollectorFactEvidence(report.CollectorFactEvidence)
 	return builder.rows()
 }
 
@@ -165,6 +166,52 @@ func (b *collectorRuntimeStatusBuilder) addVulnerabilitySources(rows []Vulnerabi
 			aggregate.updatedAt,
 		))
 	}
+}
+
+func (b *collectorRuntimeStatusBuilder) addCollectorFactEvidence(rows []CollectorFactEvidence) {
+	for _, row := range rows {
+		instanceID := strings.TrimSpace(row.InstanceID)
+		collectorKind := strings.TrimSpace(row.CollectorKind)
+		if instanceID == "" {
+			instanceID = b.instanceIDForCollectorKind(collectorKind)
+		}
+		b.add(directEvidenceRuntimeStatus(
+			instanceID,
+			collectorKind,
+			row.EvidenceSource,
+			row.ObservationCount,
+			"observed",
+			row.LastObservedAt,
+			row.UpdatedAt,
+		))
+	}
+}
+
+func (b collectorRuntimeStatusBuilder) instanceIDForCollectorKind(collectorKind string) string {
+	if collectorKind == "" {
+		return ""
+	}
+	coordinatorMatches := []string{}
+	for _, status := range b.statuses {
+		if status.CollectorKind != collectorKind || !status.CoordinatorRegistered {
+			continue
+		}
+		coordinatorMatches = append(coordinatorMatches, status.InstanceID)
+	}
+	if len(coordinatorMatches) == 1 {
+		return coordinatorMatches[0]
+	}
+	matches := []string{}
+	for _, status := range b.statuses {
+		if status.CollectorKind != collectorKind {
+			continue
+		}
+		matches = append(matches, status.InstanceID)
+	}
+	if len(matches) == 1 {
+		return matches[0]
+	}
+	return collectorKind + "-persisted-facts"
 }
 
 func (b collectorRuntimeStatusBuilder) rows() []CollectorRuntimeStatus {
