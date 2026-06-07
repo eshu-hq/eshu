@@ -115,6 +115,7 @@ type supplyChainDeploymentContext struct {
 	repositoryID   string
 	environment    string
 	outcome        string
+	provenanceOnly bool
 }
 
 type supplyChainDeploymentLaneContext struct {

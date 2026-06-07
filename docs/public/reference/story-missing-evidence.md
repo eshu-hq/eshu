@@ -47,3 +47,29 @@ Postgres query duration instrumentation, reducer execution counters, and
 admin/status queue summaries. No metric instrument, metric label, span name,
 log key, graph write, queue domain, worker, runtime flag, or pprof behavior was
 added.
+
+## Issue #1668 Operational Anchors
+
+Supply-chain impact findings may attach reducer-proven service and environment
+anchors after package impact is established, but only through explicit
+operational evidence. Repository-scoped CI/CD environment rows attach to a
+finding when the finding already has a reducer-owned workload, service, or
+deployment anchor for the same repository. Repository-only package findings do
+not inherit environments from repository names, image tags, branches, or
+free-text paths, and provenance-only deployment rows remain missing evidence.
+
+No-Regression Evidence: `go test ./internal/reducer -run 'TestBuildSupplyChainImpactFindings(AttachesRepositoryScopedOperationalAnchors|DoesNotAttachRepositoryOnlyEnvironment|KeepsProvenanceOnlyDeploymentEnvironmentMissing|ConnectsRuntimeEvidencePath|KeepsRepositoryOnlyRuntimeHopsMissing|AttachesWorkloadIdentityWithoutServiceCatalog|AttachesDeploymentLaneEvidence|AttachesDeploymentAndWorkloadWithoutServiceCatalog|ConsumesRepositoryOnlyServiceCatalogEvidence|ReportsScopedUnresolvedServiceCatalogEvidence|ConsumesDeploymentOnlyExactServiceCatalogEvidence)' -count=1` failed before repository-scoped CI/CD environment evidence could attach to a workload/service-anchored finding, then passed after the reducer matched those rows through the already-proven operational anchor. `go test ./internal/query -run 'TestSupplyChain(ListImpactFindingsExposesOperationalAnchors|ExplainImpactExposesOperationalAnchors)' -count=1` proves the HTTP list and explain payloads expose the same persisted anchors that MCP dispatch reads through the shared handler.
+
+No-Observability-Change: this change adds no route, graph query, table, queue
+domain, worker, lease, metric instrument, metric label, span name, or log key.
+Operators continue to diagnose the path through existing supply-chain reducer
+execution counters, persisted `reducer_supply_chain_impact_finding` payloads,
+`EvidencePath`, `missing_evidence`, `runtime_reachability`,
+`query.supply_chain_impact_findings`, `query.supply_chain_impact_explanation`,
+Postgres query duration instrumentation, and admin/status queue summaries.
+
+No-Whole-Graph-Traversal Evidence: no Cypher or graph read path changed. The
+reducer only reorders and filters facts already loaded by the bounded
+`ListActiveSupplyChainImpactFacts` repository follow-up allowlist, and the query
+tests read the same persisted row fields that the API and MCP routes already
+return.

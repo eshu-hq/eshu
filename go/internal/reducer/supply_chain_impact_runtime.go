@@ -23,16 +23,6 @@ func applySupplyChainRuntimeContext(
 		return nil
 	}
 	var missing []string
-	deployments, deploymentMissing := matchingSupplyChainDeployments(*finding, index.deployments)
-	missing = append(missing, deploymentMissing...)
-	for _, deployment := range deployments {
-		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, deployment.factID)
-		finding.EvidencePath = append(finding.EvidencePath, cicdRunCorrelationFactKind)
-		finding.Environments = append(finding.Environments, deployment.environment)
-		if finding.RepositoryID == "" {
-			finding.RepositoryID = deployment.repositoryID
-		}
-	}
 	workloads := matchingSupplyChainWorkloads(*finding, index.workloads)
 	for _, workload := range workloads {
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, workload.factID)
@@ -52,6 +42,16 @@ func applySupplyChainRuntimeContext(
 		finding.ServiceIDs = append(finding.ServiceIDs, service.serviceID)
 		finding.WorkloadIDs = append(finding.WorkloadIDs, service.workloadID)
 	}
+	deployments, deploymentMissing := matchingSupplyChainDeployments(*finding, index.deployments)
+	missing = append(missing, deploymentMissing...)
+	for _, deployment := range deployments {
+		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, deployment.factID)
+		finding.EvidencePath = append(finding.EvidencePath, cicdRunCorrelationFactKind)
+		finding.Environments = append(finding.Environments, deployment.environment)
+		if finding.RepositoryID == "" {
+			finding.RepositoryID = deployment.repositoryID
+		}
+	}
 	finding.EvidenceFactIDs = uniqueSortedStrings(finding.EvidenceFactIDs)
 	finding.EvidencePath = orderedUniqueStrings(finding.EvidencePath)
 	finding.DeploymentIDs = uniqueSortedStrings(finding.DeploymentIDs)
@@ -69,7 +69,8 @@ func matchingSupplyChainDeployments(
 	finding SupplyChainImpactFinding,
 	deployments []supplyChainDeploymentContext,
 ) ([]supplyChainDeploymentContext, []string) {
-	if strings.TrimSpace(finding.SubjectDigest) == "" && strings.TrimSpace(finding.ImageRef) == "" {
+	if strings.TrimSpace(finding.SubjectDigest) == "" && strings.TrimSpace(finding.ImageRef) == "" &&
+		!supplyChainFindingHasOperationalAnchor(finding) {
 		return nil, nil
 	}
 	var matches []supplyChainDeploymentContext
@@ -80,6 +81,10 @@ func matchingSupplyChainDeployments(
 		}
 		switch deployment.outcome {
 		case string(CICDRunCorrelationExact), string(CICDRunCorrelationDerived), "":
+			if deployment.provenanceOnly {
+				rejected = append(rejected, "deployment evidence provenance-only")
+				continue
+			}
 			matches = append(matches, deployment)
 		case string(CICDRunCorrelationAmbiguous):
 			rejected = append(rejected, "deployment evidence ambiguous")
@@ -104,7 +109,15 @@ func supplyChainDeploymentMatchesFinding(
 	if finding.ImageRef != "" && deployment.imageRef == finding.ImageRef {
 		return true
 	}
+	if finding.RepositoryID != "" && deployment.repositoryID == finding.RepositoryID &&
+		deployment.environment != "" && supplyChainFindingHasOperationalAnchor(finding) {
+		return true
+	}
 	return false
+}
+
+func supplyChainFindingHasOperationalAnchor(finding SupplyChainImpactFinding) bool {
+	return len(finding.WorkloadIDs) > 0 || len(finding.DeploymentIDs) > 0 || len(finding.ServiceIDs) > 0
 }
 
 func matchingSupplyChainWorkloads(
