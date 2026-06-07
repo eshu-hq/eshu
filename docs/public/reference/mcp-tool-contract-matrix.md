@@ -114,8 +114,8 @@ Cypher.
 | `get_entity_context` | canonical entity id required | singleton context | partial | usable after `resolve_entity`; envelope hardening remains follow-up |
 | `get_workload_context` | canonical workload id required | singleton context | partial | usable after workload resolution; envelope hardening remains follow-up |
 | `get_workload_story` | canonical workload id required | singleton story | partial | usable after workload resolution; envelope hardening remains follow-up |
-| `get_service_context` | service/workload selector required | singleton context | yes | prompt-ready |
-| `get_service_story` | service/workload selector required | singleton story | yes | prompt-ready |
+| `get_service_context` | `workload_id` selector required; value may be a canonical workload ID or service name | singleton context | yes | prompt-ready |
+| `get_service_story` | `workload_id` selector required; value may be a canonical workload ID or service name | singleton story | yes | prompt-ready |
 | `investigate_service` | service name plus optional environment/question | bounded investigation | yes | prompt-ready |
 | `get_incident_context` | provider incident id required; optional provider, scope id, service id, and time window narrow the read | `limit` default 25, max 100 | yes | prompt-ready for on-call incident packets; separates exact provider evidence, intended/applied/live routing evidence, fallback service/time change candidates, derived edges, ambiguous candidates, drifted or permission-hidden routing, and explicit missing evidence |
 | `list_work_item_evidence` | Jira scope id, project key, work-item key, provider issue id, URL fingerprint, external URL, or observed-after window required | `limit` default 25, max 200, optional `after_fact_id` cursor | yes | prompt-ready for ticket-first source evidence; separates exact provider facts, missing evidence, stale evidence, permission-hidden rows, unsupported link types, and rejected unsafe payloads without returning raw URLs or verifying PR/commit/deploy/runtime/image/service truth |
