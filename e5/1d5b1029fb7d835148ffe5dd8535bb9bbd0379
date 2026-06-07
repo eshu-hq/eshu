@@ -1,0 +1,21 @@
+go/internal/query/read-models.md
+  s_f2f7fbb6f30866::t_ab2a25f7919dd9 43-58
+go/internal/query/README.md
+  s_f2f7fbb6f30866::t_7d3a4a44d9fb6b 216-231
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "e51d5b1029fb7d835148ffe5dd8535bb9bbd0379",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
