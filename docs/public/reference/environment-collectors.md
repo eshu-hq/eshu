@@ -169,6 +169,28 @@ collector instance JSON, token env resolution, repository allowlist, and
 provider client as the hosted runtime, makes one bounded request per target,
 and reports only sanitized failure classes.
 
+## CI/CD Run Collector
+
+The CI/CD run collector is claim-only. It selects an enabled `ci_cd_run`
+instance from `ESHU_COLLECTOR_INSTANCES_JSON`. GitHub Actions targets must
+include `token_env`, `repository`, `allowed_repositories`, and bounded
+`max_runs`, `max_jobs`, and `max_artifacts` limits. The runtime resolves the
+credential from the named environment variable and emits only `ci.*` source
+facts. Optional `api_base_url` overrides must use HTTPS because the runtime
+sends the bearer token to that endpoint.
+
+| Variable | Default | Read by | Purpose |
+| --- | --- | --- | --- |
+| `ESHU_CICD_RUN_COLLECTOR_INSTANCE_ID` | required when more than one enabled CI/CD run instance exists | collector-cicd-run | Selects the claim-capable `ci_cd_run` instance. |
+| `ESHU_CICD_RUN_POLL_INTERVAL` | `1s` | collector-cicd-run | Delay between empty workflow-claim polls. |
+| `ESHU_CICD_RUN_CLAIM_LEASE_TTL` | `60s` | collector-cicd-run | Lease TTL used when claiming and refreshing work. |
+| `ESHU_CICD_RUN_HEARTBEAT_INTERVAL` | `20s` | collector-cicd-run | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
+| `ESHU_CICD_RUN_COLLECTOR_OWNER_ID` | host/process-derived | collector-cicd-run | Owner label written into workflow claim rows. |
+
+Provider tokens must come from private environment variables referenced by
+`token_env`; do not commit token values, private repository names, run URLs,
+artifact names, or copied provider payloads to public values files or docs.
+
 ## PagerDuty Collector
 
 The PagerDuty collector is claim-only. It selects an enabled `pagerduty`

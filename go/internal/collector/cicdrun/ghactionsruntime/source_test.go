@@ -6,8 +6,17 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -157,6 +166,75 @@ func TestClaimedSourceClassifiesProviderErrors(t *testing.T) {
 	}
 }
 
+func TestClaimedSourceRecordsProviderTelemetry(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	instruments, err := telemetry.NewInstruments(meterProvider.Meter("ci-cd-run-test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v, want nil", err)
+	}
+	spanRecorder := tracetest.NewSpanRecorder()
+	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spanRecorder))
+	source := newTelemetryTestSource(t, fakeClient{snapshot: telemetryTestSnapshot()}, instruments, tracerProvider)
+
+	if _, _, err := source.NextClaimed(context.Background(), telemetryTestWorkItem()); err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+
+	rm := collectCICDRunMetrics(t, reader)
+	assertCICDRunCounterPoint(t, rm, "eshu_dp_ci_cd_run_provider_requests_total", map[string]string{
+		telemetry.MetricDimensionProvider:    string(cicdrun.ProviderGitHubActions),
+		telemetry.MetricDimensionStatusClass: "success",
+	})
+	assertCICDRunHistogramPoint(t, rm, "eshu_dp_ci_cd_run_fetch_duration_seconds", map[string]string{
+		telemetry.MetricDimensionProvider:    string(cicdrun.ProviderGitHubActions),
+		telemetry.MetricDimensionStatusClass: "success",
+	})
+	assertCICDRunCounterPoint(t, rm, "eshu_dp_ci_cd_run_facts_emitted_total", map[string]string{
+		telemetry.MetricDimensionProvider: "github_actions",
+		telemetry.MetricDimensionFactKind: facts.CICDRunFactKind,
+	})
+	assertCICDRunCounterPoint(t, rm, "eshu_dp_ci_cd_run_partial_generations_total", map[string]string{
+		telemetry.MetricDimensionProvider: "github_actions",
+		telemetry.MetricDimensionReason:   "jobs_truncated",
+	})
+	assertCICDRunCounterLabelsExclude(t, rm, "eshu_dp_ci_cd_run_provider_requests_total", "example/repo", "token-value")
+	if !cicdRunSpanRecorded(spanRecorder, telemetry.SpanCICDRunObserve) {
+		t.Fatalf("span %q was not recorded", telemetry.SpanCICDRunObserve)
+	}
+	if !cicdRunSpanRecorded(spanRecorder, telemetry.SpanCICDRunFetch) {
+		t.Fatalf("span %q was not recorded", telemetry.SpanCICDRunFetch)
+	}
+}
+
+func TestClaimedSourceRecordsRateLimitTelemetry(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	instruments, err := telemetry.NewInstruments(meterProvider.Meter("ci-cd-run-rate-limit-test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v, want nil", err)
+	}
+	source := newTelemetryTestSource(t, fakeClient{err: ErrRateLimited}, instruments, nil)
+
+	_, _, err = source.NextClaimed(context.Background(), telemetryTestWorkItem())
+	if !errors.Is(err, ErrRateLimited) {
+		t.Fatalf("NextClaimed() error = %v, want ErrRateLimited", err)
+	}
+
+	rm := collectCICDRunMetrics(t, reader)
+	assertCICDRunCounterPoint(t, rm, "eshu_dp_ci_cd_run_provider_requests_total", map[string]string{
+		telemetry.MetricDimensionProvider:    "github_actions",
+		telemetry.MetricDimensionStatusClass: "rate_limited",
+	})
+	assertCICDRunCounterPoint(t, rm, "eshu_dp_ci_cd_run_rate_limited_total", map[string]string{
+		telemetry.MetricDimensionProvider: "github_actions",
+	})
+}
+
 type fakeClient struct {
 	snapshot RunSnapshot
 	err      error
@@ -184,4 +262,204 @@ func requireFactKind(t *testing.T, envelopes []facts.Envelope, factKind string) 
 	}
 	t.Fatalf("missing fact kind %q in %#v", factKind, envelopes)
 	return facts.Envelope{}
+}
+
+func newTelemetryTestSource(
+	t *testing.T,
+	client fakeClient,
+	instruments *telemetry.Instruments,
+	tracerProvider *sdktrace.TracerProvider,
+) ClaimedSource {
+	t.Helper()
+	var tracer traceProvider
+	if tracerProvider != nil {
+		tracer = tracerProvider
+	}
+	source, err := NewClaimedSource(SourceConfig{
+		CollectorInstanceID: "ci-cd-primary",
+		Client:              client,
+		Tracer:              tracerFromProvider(tracer),
+		Instruments:         instruments,
+		Targets: []TargetConfig{{
+			ScopeID:             "ci-cd:github-actions:example/repo",
+			Repository:          "example/repo",
+			Token:               "token-value",
+			AllowedRepositories: []string{"example/repo"},
+			MaxRuns:             1,
+			MaxJobs:             10,
+			MaxArtifacts:        10,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("NewClaimedSource() error = %v, want nil", err)
+	}
+	return source
+}
+
+type traceProvider interface {
+	Tracer(string, ...trace.TracerOption) trace.Tracer
+}
+
+func tracerFromProvider(provider traceProvider) trace.Tracer {
+	if provider == nil {
+		return nil
+	}
+	return provider.Tracer(telemetry.DefaultSignalName)
+}
+
+func telemetryTestWorkItem() workflow.WorkItem {
+	return workflow.WorkItem{
+		CollectorKind:       scope.CollectorCICDRun,
+		CollectorInstanceID: "ci-cd-primary",
+		ScopeID:             "ci-cd:github-actions:example/repo",
+		GenerationID:        "generation-1",
+		CurrentFencingToken: 7,
+	}
+}
+
+func telemetryTestSnapshot() RunSnapshot {
+	return RunSnapshot{
+		Workflow: map[string]any{
+			"id":   42,
+			"name": "Publish",
+		},
+		Run: map[string]any{
+			"id":             1001,
+			"run_attempt":    1,
+			"run_number":     88,
+			"name":           "Publish",
+			"event":          "push",
+			"status":         "completed",
+			"conclusion":     "success",
+			"head_sha":       "0123456789abcdef0123456789abcdef01234567",
+			"run_started_at": "2026-06-07T14:59:00Z",
+			"updated_at":     "2026-06-07T15:00:00Z",
+		},
+		JobsPartial: true,
+		Artifacts: []map[string]any{{
+			"id":            501,
+			"name":          "image-digest",
+			"digest":        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"workflow_run":  map[string]any{"id": 1001},
+			"created_at":    "2026-06-07T15:00:01Z",
+			"expires_at":    "2026-06-14T15:00:01Z",
+			"size_in_bytes": 128,
+		}},
+		Warnings: []map[string]any{{"reason": "provider_metadata_partial"}},
+	}
+}
+
+func collectCICDRunMetrics(t *testing.T, reader *sdkmetric.ManualReader) metricdata.ResourceMetrics {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v, want nil", err)
+	}
+	return rm
+}
+
+func assertCICDRunCounterPoint(
+	t *testing.T,
+	rm metricdata.ResourceMetrics,
+	name string,
+	attrs map[string]string,
+) {
+	t.Helper()
+	for _, sm := range rm.ScopeMetrics {
+		for _, metricRecord := range sm.Metrics {
+			if metricRecord.Name != name {
+				continue
+			}
+			sum, ok := metricRecord.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("metric %s has type %T, want Sum[int64]", name, metricRecord.Data)
+			}
+			for _, point := range sum.DataPoints {
+				if cicdRunAttributeSetContains(point.Attributes, attrs) && point.Value > 0 {
+					return
+				}
+			}
+		}
+	}
+	t.Fatalf("metric %s with attrs %v was not recorded", name, attrs)
+}
+
+func assertCICDRunHistogramPoint(
+	t *testing.T,
+	rm metricdata.ResourceMetrics,
+	name string,
+	attrs map[string]string,
+) {
+	t.Helper()
+	for _, sm := range rm.ScopeMetrics {
+		for _, metricRecord := range sm.Metrics {
+			if metricRecord.Name != name {
+				continue
+			}
+			histogram, ok := metricRecord.Data.(metricdata.Histogram[float64])
+			if !ok {
+				t.Fatalf("metric %s has type %T, want Histogram[float64]", name, metricRecord.Data)
+			}
+			for _, point := range histogram.DataPoints {
+				if cicdRunAttributeSetContains(point.Attributes, attrs) && point.Count > 0 {
+					return
+				}
+			}
+		}
+	}
+	t.Fatalf("histogram %s with attrs %v was not recorded", name, attrs)
+}
+
+func assertCICDRunCounterLabelsExclude(
+	t *testing.T,
+	rm metricdata.ResourceMetrics,
+	name string,
+	forbiddenValues ...string,
+) {
+	t.Helper()
+	for _, sm := range rm.ScopeMetrics {
+		for _, metricRecord := range sm.Metrics {
+			if metricRecord.Name != name {
+				continue
+			}
+			sum, ok := metricRecord.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("metric %s has type %T, want Sum[int64]", name, metricRecord.Data)
+			}
+			for _, point := range sum.DataPoints {
+				for _, kv := range point.Attributes.ToSlice() {
+					for _, forbidden := range forbiddenValues {
+						if kv.Value.AsString() == forbidden {
+							t.Fatalf("metric %s label %s leaked forbidden value %q", name, kv.Key, forbidden)
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func cicdRunAttributeSetContains(attrs attribute.Set, want map[string]string) bool {
+	for key, wantValue := range want {
+		var matched bool
+		for _, kv := range attrs.ToSlice() {
+			if string(kv.Key) == key && kv.Value.AsString() == wantValue {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	return true
+}
+
+func cicdRunSpanRecorded(recorder *tracetest.SpanRecorder, name string) bool {
+	for _, span := range recorder.Ended() {
+		if span.Name() == name {
+			return true
+		}
+	}
+	return false
 }

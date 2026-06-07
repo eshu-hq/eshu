@@ -40,9 +40,15 @@ Go's `net/http` client.
 
 ## Telemetry
 
-This package emits no metrics, spans, or logs. Provider request, rate-limit,
-fact-emission, partial-generation, and status telemetry must be added by the
-deployable runtime slice before production enablement.
+This package emits `ci_cd_run.observe` and `ci_cd_run.fetch` spans when callers
+provide a tracer. It records provider request, fetch-duration, rate-limit,
+fact-emission, and partial-generation metrics when callers provide
+`telemetry.Instruments`.
+
+Metric labels stay bounded to provider, status class, fact kind, and partial
+reason. Repository names, workflow run IDs, artifact names, URLs, token
+environment names, token values, and provider response bodies stay out of
+labels.
 
 ## Gotchas / invariants
 
@@ -83,13 +89,36 @@ flowchart LR
 
 ## Evidence
 
+Collector Performance Evidence: `go test ./internal/collector/cicdrun/ghactionsruntime
+-count=1` proves each claim fetches at most one bounded run page, one bounded
+job page, and one bounded artifact page using configured `max_runs`, `max_jobs`,
+and `max_artifacts`; no repository fanout or artifact ZIP download happens in
+this runtime.
+
+Collector Observability Evidence: `go test
+./internal/collector/cicdrun/ghactionsruntime ./internal/telemetry -count=1`
+proves `ci_cd_run.observe`, `ci_cd_run.fetch`,
+`eshu_dp_ci_cd_run_provider_requests_total`,
+`eshu_dp_ci_cd_run_fetch_duration_seconds`,
+`eshu_dp_ci_cd_run_rate_limited_total`,
+`eshu_dp_ci_cd_run_facts_emitted_total`, and
+`eshu_dp_ci_cd_run_partial_generations_total` are wired without repository,
+run, artifact, URL, or token labels.
+
+Collector Deployment Evidence: `go test ./internal/runtime -run
+TestHelmCICDRunCollectorDeployment -count=1` and `helm lint deploy/helm/eshu`
+prove the hosted `eshu-collector-cicd-run` Deployment, metrics Service,
+ServiceMonitor, NetworkPolicy, and PodDisruptionBudget render only when the
+matching claim-driven `ci_cd_run` collector instance is enabled.
+
 No-Regression Evidence: `go test ./internal/collector/cicdrun/ghactionsruntime
 -count=1` and `golangci-lint run ./internal/collector/cicdrun/ghactionsruntime`
 prove claim validation, bounded GitHub Actions snapshot collection, fixture
-normalization, artifact URL redaction, and checked HTTP response cleanup without
-live provider access.
+normalization, artifact URL redaction, checked HTTP response cleanup, provider
+request metrics, rate-limit metrics, fact-emission metrics, partial-generation
+metrics, and source spans without live provider access.
 
-No-Observability-Change: this package introduces the runtime source contract
-only. The deployable command and Helm slice must add provider request, rate
-limit, fact-emission, partial-generation, and status telemetry before production
-enablement.
+Observability Evidence: the hosted command wires the source with
+`telemetry.NewInstruments` and the shared status server. Central collector
+status evidence also admits active `ci_cd_run` facts through the bounded
+Postgres status query.

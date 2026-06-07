@@ -140,6 +140,30 @@
 {{- end }}
 {{- end -}}
 
+{{- define "eshu.renderCICDRunCollectorEnv" -}}
+- name: ESHU_COLLECTOR_INSTANCES_JSON
+  value: {{ required "cicdRunCollector.collectorInstances must contain at least one instance when cicdRunCollector.enabled=true" .Values.cicdRunCollector.collectorInstances | toJson | quote }}
+- name: ESHU_CICD_RUN_COLLECTOR_INSTANCE_ID
+  value: {{ .Values.cicdRunCollector.instanceId | quote }}
+- name: ESHU_CICD_RUN_COLLECTOR_OWNER_ID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: ESHU_CICD_RUN_POLL_INTERVAL
+  value: {{ .Values.cicdRunCollector.pollInterval | quote }}
+{{- with .Values.cicdRunCollector.claimLeaseTTL }}
+- name: ESHU_CICD_RUN_CLAIM_LEASE_TTL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.cicdRunCollector.heartbeatInterval }}
+- name: ESHU_CICD_RUN_HEARTBEAT_INTERVAL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.cicdRunCollector.extraEnv }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
 {{- define "eshu.renderPagerDutyCollectorEnv" -}}
 - name: ESHU_COLLECTOR_INSTANCES_JSON
   value: {{ required "pagerDutyCollector.collectorInstances must contain at least one instance when pagerDutyCollector.enabled=true" .Values.pagerDutyCollector.collectorInstances | toJson | quote }}

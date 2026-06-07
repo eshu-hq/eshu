@@ -9,9 +9,16 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/cicdrun"
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -37,6 +44,8 @@ type SourceConfig struct {
 	Client              Client
 	Targets             []TargetConfig
 	Now                 func() time.Time
+	Tracer              trace.Tracer
+	Instruments         *telemetry.Instruments
 }
 
 // TargetConfig bounds one GitHub Actions repository target.
@@ -69,6 +78,8 @@ type ClaimedSource struct {
 	client              Client
 	targets             map[string]TargetConfig
 	now                 func() time.Time
+	tracer              trace.Tracer
+	instruments         *telemetry.Instruments
 }
 
 // NewClaimedSource validates source configuration and returns a claim-aware
@@ -103,6 +114,8 @@ func NewClaimedSource(config SourceConfig) (ClaimedSource, error) {
 		client:              config.Client,
 		targets:             targets,
 		now:                 now,
+		tracer:              config.Tracer,
+		instruments:         config.Instruments,
 	}, nil
 }
 
@@ -118,10 +131,21 @@ func (s ClaimedSource) NextClaimed(
 	if !ok {
 		return collector.CollectedGeneration{}, false, fmt.Errorf("ci/cd run target %q is not configured", item.ScopeID)
 	}
-	snapshot, err := s.client.FetchLatestRun(ctx, target)
+	startedAt := time.Now()
+	observeCtx, observeSpan := s.startObserve(ctx)
+	defer observeSpan.End()
+	fetchCtx, fetchSpan := s.startFetch(observeCtx)
+	snapshot, err := s.client.FetchLatestRun(fetchCtx, target)
 	if err != nil {
+		statusClass := classifyProviderStatus(err)
+		s.recordFetch(observeCtx, statusClass, startedAt)
+		s.recordRateLimit(observeCtx, statusClass)
+		recordSpanError(fetchSpan, err)
+		recordSpanError(observeSpan, err)
+		fetchSpan.End()
 		return collector.CollectedGeneration{}, false, err
 	}
+	fetchSpan.End()
 	observedAt := s.now().UTC()
 	raw, err := json.Marshal(map[string]any{
 		"workflow":     snapshot.Workflow,
@@ -132,6 +156,7 @@ func (s ClaimedSource) NextClaimed(
 		"warnings":     snapshot.Warnings,
 	})
 	if err != nil {
+		recordSpanError(observeSpan, err)
 		return collector.CollectedGeneration{}, false, fmt.Errorf("marshal github actions snapshot: %w", err)
 	}
 	envelopes, err := cicdrun.GitHubActionsFixtureEnvelopes(raw, cicdrun.FixtureContext{
@@ -143,6 +168,7 @@ func (s ClaimedSource) NextClaimed(
 		SourceURI:           target.SourceURI,
 	})
 	if err != nil {
+		recordSpanError(observeSpan, err)
 		return collector.CollectedGeneration{}, false, fmt.Errorf("normalize github actions snapshot: %w", err)
 	}
 	scopeValue := scope.IngestionScope{
@@ -165,11 +191,16 @@ func (s ClaimedSource) NextClaimed(
 		Status:       scope.GenerationStatusCompleted,
 	}
 	if err := scopeValue.Validate(); err != nil {
+		recordSpanError(observeSpan, err)
 		return collector.CollectedGeneration{}, false, err
 	}
 	if err := generationValue.ValidateForScope(scopeValue); err != nil {
+		recordSpanError(observeSpan, err)
 		return collector.CollectedGeneration{}, false, err
 	}
+	s.recordFacts(observeCtx, envelopes)
+	s.recordPartialGeneration(observeCtx, snapshot)
+	s.recordFetch(observeCtx, "success", startedAt)
 	return collector.FactsFromSlice(scopeValue, generationValue, envelopes), true, nil
 }
 
@@ -305,4 +336,86 @@ func validateTargetURL(field, raw string, requireHTTPS bool) error {
 		return fmt.Errorf("%s must not include credentials", field)
 	}
 	return nil
+}
+
+func (s ClaimedSource) startObserve(ctx context.Context) (context.Context, trace.Span) {
+	if s.tracer == nil {
+		return ctx, trace.SpanFromContext(ctx)
+	}
+	return s.tracer.Start(ctx, telemetry.SpanCICDRunObserve, trace.WithAttributes(
+		attribute.String(telemetry.MetricDimensionProvider, string(cicdrun.ProviderGitHubActions)),
+	))
+}
+
+func (s ClaimedSource) startFetch(ctx context.Context) (context.Context, trace.Span) {
+	if s.tracer == nil {
+		return ctx, trace.SpanFromContext(ctx)
+	}
+	return s.tracer.Start(ctx, telemetry.SpanCICDRunFetch)
+}
+
+func classifyProviderStatus(err error) string {
+	if errors.Is(err, ErrRateLimited) {
+		return "rate_limited"
+	}
+	return "error"
+}
+
+func (s ClaimedSource) recordFetch(ctx context.Context, statusClass string, startedAt time.Time) {
+	if s.instruments == nil {
+		return
+	}
+	attrs := []attribute.KeyValue{
+		telemetry.AttrProvider(string(cicdrun.ProviderGitHubActions)),
+		telemetry.AttrStatusClass(statusClass),
+	}
+	s.instruments.CICDRunProviderRequests.Add(ctx, 1, metric.WithAttributes(attrs...))
+	s.instruments.CICDRunFetchDuration.Record(ctx, time.Since(startedAt).Seconds(), metric.WithAttributes(attrs...))
+}
+
+func (s ClaimedSource) recordRateLimit(ctx context.Context, statusClass string) {
+	if s.instruments == nil || statusClass != "rate_limited" {
+		return
+	}
+	s.instruments.CICDRunRateLimited.Add(ctx, 1, metric.WithAttributes(
+		telemetry.AttrProvider(string(cicdrun.ProviderGitHubActions)),
+	))
+}
+
+func (s ClaimedSource) recordFacts(ctx context.Context, envelopes []facts.Envelope) {
+	if s.instruments == nil {
+		return
+	}
+	for _, envelope := range envelopes {
+		s.instruments.CICDRunFactsEmitted.Add(ctx, 1, metric.WithAttributes(
+			telemetry.AttrProvider(string(cicdrun.ProviderGitHubActions)),
+			telemetry.AttrFactKind(envelope.FactKind),
+		))
+	}
+}
+
+func (s ClaimedSource) recordPartialGeneration(ctx context.Context, snapshot RunSnapshot) {
+	if s.instruments == nil {
+		return
+	}
+	if snapshot.JobsPartial {
+		s.instruments.CICDRunPartialGenerations.Add(ctx, 1, metric.WithAttributes(
+			telemetry.AttrProvider(string(cicdrun.ProviderGitHubActions)),
+			telemetry.AttrReason("jobs_truncated"),
+		))
+	}
+	if len(snapshot.Warnings) > 0 {
+		s.instruments.CICDRunPartialGenerations.Add(ctx, int64(len(snapshot.Warnings)), metric.WithAttributes(
+			telemetry.AttrProvider(string(cicdrun.ProviderGitHubActions)),
+			telemetry.AttrReason("provider_warning"),
+		))
+	}
+}
+
+func recordSpanError(span trace.Span, err error) {
+	if span == nil || err == nil {
+		return
+	}
+	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
 }

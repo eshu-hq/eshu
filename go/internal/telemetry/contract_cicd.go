@@ -3,6 +3,10 @@ package telemetry
 import "slices"
 
 const (
+	// SpanCICDRunObserve wraps one claimed hosted CI/CD run provider target.
+	SpanCICDRunObserve = "ci_cd_run.observe"
+	// SpanCICDRunFetch wraps one bounded CI/CD run provider fetch.
+	SpanCICDRunFetch = "ci_cd_run.fetch"
 	// SpanQueryCICDRunCorrelations wraps reducer-owned CI/CD run correlation
 	// reads from durable facts.
 	SpanQueryCICDRunCorrelations = "query.ci_cd_run_correlations"
@@ -20,6 +24,7 @@ func init() {
 				SpanQueryCICDRunCorrelations,
 				SpanQueryCICDRunCorrelationAggregate,
 			)
+			insertCICDRunSourceSpans()
 			return
 		}
 	}
@@ -29,6 +34,7 @@ func init() {
 				SpanQueryCICDRunCorrelations,
 				SpanQueryCICDRunCorrelationAggregate,
 			)
+			insertCICDRunSourceSpans()
 			return
 		}
 	}
@@ -36,4 +42,21 @@ func init() {
 		SpanQueryCICDRunCorrelations,
 		SpanQueryCICDRunCorrelationAggregate,
 	)
+	insertCICDRunSourceSpans()
+}
+
+func insertCICDRunSourceSpans() {
+	if slices.Contains(spanNames, SpanCICDRunObserve) {
+		return
+	}
+	for idx, name := range spanNames {
+		if name == SpanAWSCollectorClaimProcess {
+			spanNames = slices.Insert(spanNames, idx,
+				SpanCICDRunObserve,
+				SpanCICDRunFetch,
+			)
+			return
+		}
+	}
+	spanNames = append(spanNames, SpanCICDRunObserve, SpanCICDRunFetch)
 }
