@@ -46,6 +46,23 @@ describe("eshuConsoleLive", () => {
             truth: { profile: "production", level: "exact", capability: "x", freshness: { state: "fresh" } }
           };
         }
+        if (path.includes("/api/v0/images")) {
+          return {
+            data: {
+              images: [
+                {
+                  id: "oci-image://reg/team/api@sha256:aaa", digest: "sha256:aaa",
+                  repository_id: "oci-registry://reg/team/api", registry: "reg", repository: "team/api",
+                  name: "api", tag: "1.2.3", media_type: "application/vnd.oci.image.manifest.v1+json",
+                  size_bytes: 1234567, source_system: "oci_registry"
+                }
+              ],
+              count: 1, limit: 50, offset: 0, truncated: false
+            },
+            error: null,
+            truth: { profile: "production", level: "exact", capability: "platform_impact.container_image_list", freshness: { state: "fresh" } }
+          };
+        }
         if (path.includes("/supply-chain/impact/findings")) {
           // List endpoints require an impact_status anchor; affected findings
           // carry a CVSS score but no severity label.
@@ -288,6 +305,17 @@ describe("eshuConsoleLive", () => {
     // No catalog match: strip the internal prefix so the UI shows r_unmapped,
     // not the raw repository:r_unmapped graph id.
     expect(unknown?.services).toEqual(["r_unmapped"]);
+  });
+
+  it("loads the container image inventory head page into the snapshot", async () => {
+    const snap = await loadConsoleSnapshot(fakeClient());
+    expect(snap.images).toHaveLength(1);
+    expect(snap.images[0]).toMatchObject({
+      id: "oci-image://reg/team/api@sha256:aaa", registry: "reg", repository: "team/api",
+      tag: "1.2.3", sizeBytes: 1234567
+    });
+    expect(snap.provenance.images).toBe("live");
+    expect(snap.truth.images?.capability).toBe("platform_impact.container_image_list");
   });
 
   it("loads dashboard trend series from the metrics time-series endpoint", async () => {

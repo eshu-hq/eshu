@@ -14,8 +14,13 @@
 import type { EshuApiClient } from "./client";
 import type { EshuTruth, TruthLevel, FreshnessState } from "./envelope";
 import { loadDependencies } from "./eshuDependencies";
+import { imageRowsFromResponse, loadImages } from "./imageInventory";
+import type { ImagePage, ImageRow } from "./imageInventory";
 
 export type SectionProvenance = "live" | "empty" | "unavailable";
+
+export type { ImageRow, ImagePage };
+export { loadImages };
 
 export interface ConsoleSnapshot {
   readonly runtime: RuntimeSummary;
@@ -26,6 +31,7 @@ export interface ConsoleSnapshot {
   readonly vulnerabilities: readonly VulnRow[];
   readonly sbom: SbomEvidenceRow | null;
   readonly dependencies: readonly DependencyRow[];
+  readonly images: readonly ImageRow[];
   readonly series: SeriesBundle;
   readonly truth: Partial<Record<keyof ConsoleSnapshot, EshuTruth>>;
   readonly provenance: Record<string, SectionProvenance>;
@@ -407,9 +413,32 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     return page.rows.length > 0 ? page.rows : null;
   })) ?? [];
 
+  const images = (await section(prov, "images", async () => {
+    // First page of the bounded (:ContainerImage) inventory. The page itself
+    // paginates via next_cursor on the Images page; the snapshot only needs the
+    // head page to know the section is live vs empty/unavailable.
+    const env = await client.get<{ images?: readonly Record<string, unknown>[] }>("/api/v0/images?limit=50&offset=0");
+    if (env.truth) truth.images = env.truth;
+    const rows = imageRowsFromResponse(env.data);
+    return rows.length > 0 ? rows : null;
+  })) ?? [];
+
   const series = await loadSeriesBundle(client, prov);
 
-  return { runtime, services, languages, ingesters, findings, vulnerabilities, sbom, dependencies, series, truth, provenance: prov };
+  return {
+    runtime,
+    services,
+    languages,
+    ingesters,
+    findings,
+    vulnerabilities,
+    sbom,
+    dependencies,
+    images,
+    series,
+    truth,
+    provenance: prov
+  };
 }
 
 function emptyRuntime(): RuntimeSummary {

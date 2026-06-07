@@ -179,6 +179,47 @@ For indexing workflows, use the CLI or deployment runtime:
 - Kubernetes: repository ingestion is deployment-managed through the ingester
   runtime
 
+## Container Image Inventory Route
+
+`GET /api/v0/images` lists container images observed by the OCI registry
+collector over the authoritative `(:ContainerImage)` graph. It backs the console
+Images browse surface.
+
+- `limit` bounds the page (1..200, default 50); the server reads `limit+1` rows
+  to detect more pages.
+- `offset` continues a previous page; use `next_cursor.offset` from a truncated
+  response rather than computing it by hand.
+- `digest`, `repository_id`, and `tag` are optional exact-match filters.
+  `repository_id` is the OCI repository identity such as
+  `oci-registry://host/path`.
+
+Rows are ordered deterministically by `digest` then `uid` and carry `id`,
+`digest`, `repository_id`, derived `registry` and `repository`, `name`, `tag`,
+`media_type`, `artifact_type`, `config_digest`, `size_bytes`, and
+`source_system`. Fields the graph does not hold are omitted rather than invented.
+The response envelope reports `count`, `limit`, `offset`, `truncated`, and
+`next_cursor` when truncated.
+
+This route surfaces image node properties only. `ContainerImage` nodes carry no
+workload edges in the current graph (`DEPLOYS_FROM` is a repository-to-repository
+relationship), so the route does not return deploying-workload links. For
+source-to-image provenance, use the container image source bridge routes under
+`/api/v0/supply-chain/container-images/identities`.
+
+Performance Evidence: the handler's exact Cypher shape (a bounded
+`(:ContainerImage)` label scan with `limit+1`, `SKIP $offset`, and deterministic
+`ORDER BY img.digest, img.uid`) was measured against the warm local Compose
+NornicDB backend (`nornic` database, `~/bg-repos` corpus, 10 `ContainerImage`
+nodes) over the Bolt-HTTP tx endpoint: warm priming 3.2 ms, then 0.82 ms,
+0.71 ms, 1.02 ms across three runs returning the full 10-row inventory. See
+`go/internal/query/evidence-notes.md` for the full evidence record.
+
+Observability Evidence: the handler emits the `query.container_image_list` span
+with `http.route` and `eshu.capability=platform_impact.container_image_list`,
+the `eshu_dp_query_image_list_duration_seconds` histogram with a low-cardinality
+`outcome` label, and the `eshu_dp_query_image_list_errors_total` counter with a
+bounded `reason` label.
+
 ## Ingester Status Routes
 
 Canonical routes:
