@@ -77,15 +77,7 @@ func buildServiceDossierAPISurface(workloadContext map[string]any) map[string]an
 	if _, ok := apiSurface["method_count"]; !ok {
 		apiSurface["method_count"] = 0
 	}
-	if _, ok := apiSurface["spec_count"]; !ok {
-		apiSurface["spec_count"] = firstPositiveInt(apiSurface, "spec_files_count", "spec_path_count")
-		if apiSurface["spec_count"] == 0 {
-			apiSurface["spec_count"] = len(StringSliceVal(apiSurface, "spec_files"))
-		}
-		if apiSurface["spec_count"] == 0 {
-			apiSurface["spec_count"] = len(StringSliceVal(apiSurface, "spec_paths"))
-		}
-	}
+	apiSurface["spec_count"] = serviceAPISpecCount(apiSurface)
 	return apiSurface
 }
 
@@ -104,6 +96,19 @@ func emptyServiceDossierAPISurface() map[string]any {
 		"endpoints":      []map[string]any{},
 		"truncated":      false,
 	}
+}
+
+// serviceAPISpecCount keeps every service-story section on the same bounded API
+// surface evidence contract, including graph surfaces that expose spec_paths
+// without a separate aggregate spec_count field.
+func serviceAPISpecCount(apiSurface map[string]any) int {
+	if count := firstPositiveInt(apiSurface, "spec_count", "spec_files_count", "spec_path_count"); count > 0 {
+		return count
+	}
+	if count := len(StringSliceVal(apiSurface, "spec_files")); count > 0 {
+		return count
+	}
+	return len(StringSliceVal(apiSurface, "spec_paths"))
 }
 
 func buildServiceDeploymentLanes(workloadContext map[string]any) []map[string]any {
