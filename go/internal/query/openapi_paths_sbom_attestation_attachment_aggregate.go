@@ -26,6 +26,7 @@ const openAPIPathsSBOMAttestationAttachmentAggregate = `
                     "total_attachments": {"type": "integer"},
                     "by_attachment_status": {"type": "object", "additionalProperties": {"type": "integer"}},
                     "by_artifact_kind": {"type": "object", "additionalProperties": {"type": "integer"}},
+                    "missing_evidence": {"type": "array", "items": {"type": "string"}, "description": "Source-scope gap classes such as repository_to_image_evidence_missing or image_to_sbom_evidence_missing."},
                     "scope": {"type": "object"}
                   }
                 }

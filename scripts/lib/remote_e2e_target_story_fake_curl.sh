@@ -65,6 +65,12 @@ if ((is_mcp == 1)); then
 			fi
 			cat "${state_dir}/mcp-cicd.json"
 			;;
+		count_container_image_identities)
+			cat "${state_dir}/mcp-image-count.json"
+			;;
+		count_sbom_attestation_attachments)
+			cat "${state_dir}/mcp-sbom-count.json"
+			;;
 		get_service_story)
 			cat "${state_dir}/mcp-service-story.json"
 			;;
@@ -107,6 +113,9 @@ case "$*" in
 		cat "${state_dir}/image-count.json"
 		;;
 	*"/api/v0/supply-chain/container-images/identities/count?digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"*)
+		cat "${state_dir}/image-count.json"
+		;;
+	*"/api/v0/supply-chain/container-images/identities/count?source_repository_id=repo%3A%2F%2Fexample%2Fapi"*)
 		cat "${state_dir}/image-count.json"
 		;;
 	*"/api/v0/supply-chain/sbom-attestations/attachments/count?repository_id=repo%3A%2F%2Fexample%2Fapi&subject_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"*)

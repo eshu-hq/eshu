@@ -371,7 +371,10 @@ The same handler exposes cheap-summary aggregates over the reducer-owned
 container image identities through a separate Postgres aggregate read model
 (`container_image_identity_aggregates.go`). `CountContainerImageIdentities`
 answers total / per-outcome / per-identity-strength questions over an
-optional digest, image_ref, repository_id, or outcome scope.
+optional digest, image_ref, repository_id, or outcome scope. When a
+`source_repository_id` scope returns zero identities, the count response also
+includes `source_bridge.missing_evidence` with the same public-safe bridge
+classes exposed by the list route.
 `ContainerImageIdentityInventory` returns a paginated grouped count along one
 of the dimensions `outcome`, `identity_strength`, or `repository_id`. The
 aggregate replaces the page-and-iterate caller workflow for ecosystem-level
@@ -388,6 +391,10 @@ with the two rollup maps, grouped inventory shape, truncation marker plus
 limits, negative offsets, and oversized offsets, null `next_offset` when the
 next page would exceed the documented offset bound, and that the
 dimension-to-SQL-expression map is a closed enum.
+`go test ./internal/query -run
+'TestContainerImageIdentityAggregateCountReportsSourceBridgeMissingEvidence'
+-count=1` proves source-scoped count zeroes keep the named bridge classes
+instead of returning only an aggregate zero.
 
 Observability Evidence: the aggregate routes add the
 `query.container_image_identity_aggregate` request span (registered in

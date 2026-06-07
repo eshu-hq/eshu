@@ -66,12 +66,16 @@ func (h *SupplyChainHandler) countContainerImageIdentities(w http.ResponseWriter
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
+	body := map[string]any{
 		"total_identities":     count.TotalIdentities,
 		"by_outcome":           count.ByOutcome,
 		"by_identity_strength": count.ByIdentityStrength,
 		"scope":                containerImageIdentityAggregateScope(filter),
-	}, BuildTruthEnvelope(
+	}
+	if filter.SourceRepositoryID != "" {
+		body["source_bridge"] = containerImageIdentityAggregateSourceBridge(filter.SourceRepositoryID, count)
+	}
+	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
 		containerImageIdentityAggregateCapability,
 		TruthBasisSemanticFacts,
@@ -198,6 +202,21 @@ func containerImageIdentityAggregateScope(filter ContainerImageIdentityAggregate
 		out["outcome"] = filter.Outcome
 	}
 	return out
+}
+
+func containerImageIdentityAggregateSourceBridge(
+	sourceRepositoryID string,
+	count ContainerImageIdentityAggregateCount,
+) ContainerImageIdentitySourceBridge {
+	bridge := ContainerImageIdentitySourceBridge{SourceRepositoryID: sourceRepositoryID}
+	if count.TotalIdentities == 0 {
+		bridge.MissingEvidence = []string{
+			"deployment_image_reference_missing",
+			"image_registry_observation_missing",
+			"source_to_image_correlation_missing",
+		}
+	}
+	return bridge
 }
 
 // validateContainerImageIdentityAggregateOutcome rejects unknown outcome

@@ -64,12 +64,16 @@ func (h *SupplyChainHandler) countSBOMAttestationAttachments(w http.ResponseWrit
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
+	body := map[string]any{
 		"total_attachments":    count.TotalAttachments,
 		"by_attachment_status": count.ByAttachmentStatus,
 		"by_artifact_kind":     count.ByArtifactKind,
 		"scope":                sbomAttestationAttachmentAggregateScope(filter),
-	}, BuildTruthEnvelope(
+	}
+	if len(count.MissingEvidence) > 0 {
+		body["missing_evidence"] = count.MissingEvidence
+	}
+	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
 		sbomAttestationAttachmentAggregateCapability,
 		TruthBasisSemanticFacts,

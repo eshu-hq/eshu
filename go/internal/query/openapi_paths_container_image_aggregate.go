@@ -23,6 +23,7 @@ const openAPIPathsContainerImageIdentityAggregate = `
                     "total_identities": {"type": "integer"},
                     "by_outcome": {"type": "object", "additionalProperties": {"type": "integer"}},
                     "by_identity_strength": {"type": "object", "additionalProperties": {"type": "integer"}},
+                    "source_bridge": {"type": "object", "description": "Source-scoped bridge diagnostics, including missing_evidence when no source-to-image proof is present."},
                     "scope": {"type": "object"}
                   }
                 }
