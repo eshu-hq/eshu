@@ -66,6 +66,8 @@ func TestListTerraformStateRecentWarningsBoundsLimit(t *testing.T) {
 						"s3",
 						"state_in_vcs",
 						"approved_local",
+						"info",
+						"accepted_guardrail",
 						"git_local_file",
 						"state_snapshot:s3:hash-1",
 						"terraform_state:state_snapshot:s3:hash-1:lineage-1:serial:5",
@@ -76,6 +78,8 @@ func TestListTerraformStateRecentWarningsBoundsLimit(t *testing.T) {
 						"s3",
 						"output_value_dropped",
 						"sensitive_composite_output",
+						"info",
+						"accepted_guardrail",
 						"outputs.x",
 						"state_snapshot:s3:hash-1",
 						"terraform_state:state_snapshot:s3:hash-1:lineage-1:serial:5",
@@ -95,6 +99,9 @@ func TestListTerraformStateRecentWarningsBoundsLimit(t *testing.T) {
 	}
 	if rows[0].WarningKind != "state_in_vcs" {
 		t.Fatalf("rows[0].WarningKind = %q, want state_in_vcs", rows[0].WarningKind)
+	}
+	if rows[0].Severity != "info" || rows[0].Actionability != "accepted_guardrail" {
+		t.Fatalf("rows[0] classification = %q/%q, want info/accepted_guardrail", rows[0].Severity, rows[0].Actionability)
 	}
 	if rows[0].SourceHandle != "state_snapshot:s3:hash-1" {
 		t.Fatalf("rows[0].SourceHandle = %q, want state_snapshot:s3:hash-1", rows[0].SourceHandle)

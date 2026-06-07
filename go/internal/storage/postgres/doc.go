@@ -120,6 +120,10 @@
 // addresses first declared beyond the depth window. The drift queries gate
 // on jsonb_array_length > 0 so files whose parser buckets are empty (the
 // base-payload default) are not scanned.
+// Terraform-state admin status warning reads also carry warning
+// severity/actionability from fact payloads so API status can distinguish
+// blocking source evidence from accepted parser guardrails without inspecting
+// raw warning fact history.
 //
 // As of issue #169 the loader also walks terraform_modules facts within the
 // active commit anchor and builds a callee-directory to module-prefix map

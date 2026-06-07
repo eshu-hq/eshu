@@ -17,8 +17,8 @@
 // counts remain in the report as informational detail. The TerraformStateReport
 // section, surfaced under Report.TerraformState, exposes per-locator state
 // serial advance, safe source handles, and recent warning_fact rows grouped by
-// warning_kind so operators can confirm tfstate liveness without scanning the
-// fact stream.
+// warning_kind with severity/actionability classification so operators can
+// separate blocking missing-state evidence from accepted parser guardrails.
 // RegistryCollectorSnapshot rows expose aggregate OCI and package-registry
 // runtime liveness, bounded failure classes, and package-registry metadata
 // target counts without registry object names, package names, or credentials.

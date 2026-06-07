@@ -109,9 +109,11 @@ See `doc.go` for the godoc contract. Key types and functions:
   raw bucket names, S3 keys, or local paths
 - `TerraformStateLocatorWarning` — recent `terraform_state_warning` fact row,
   bounded per locator by `MaxTerraformStateRecentWarnings`; source-level rows
-  may include a public-safe `SourceHandle`
+  may include a public-safe `SourceHandle` plus severity/actionability
+  classification
 - `TerraformStateWarningSummary` — aggregate warning totals by warning kind,
-  reason, and public scope class for release-gate readback
+  reason, public scope class, severity, and actionability for release-gate
+  readback
 - `TerraformStateReport` — operator-facing tfstate section attached to
   `Report.TerraformState`; carries sorted serial rows, recent warnings, and
   warnings grouped by safe locator hash and warning kind plus a compact warning
@@ -169,6 +171,8 @@ and `Backlog` field that together give a quick one-line read on each component.
 ## Dependencies
 
 - `internal/buildinfo` — `AppVersion()` for the version field in rendered output
+- `internal/tfstatewarning` — closed Terraform-state warning
+  severity/actionability classification shared with collector emission
 
 This package does not import `internal/telemetry`, `internal/storage`, or any
 HTTP routing packages. It is imported by `internal/query`, `internal/runtime`,

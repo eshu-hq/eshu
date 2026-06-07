@@ -57,9 +57,13 @@ func NewWarningFact(options WarningFactOptions) (facts.Envelope, error) {
 		"reason":       reason,
 		"source":       warningSource,
 	}
+	if classification, ok := ClassifyWarning(warningKind, reason); ok {
+		payload["severity"] = classification.Severity
+		payload["actionability"] = classification.Actionability
+	}
 	for key, value := range options.Warning.Details {
 		switch key {
-		case "warning_kind", "reason", "source":
+		case "warning_kind", "reason", "source", "severity", "actionability":
 			continue
 		default:
 			payload[key] = value

@@ -249,6 +249,8 @@ const openAPIPathsStatusAndCompare = `
                               "warning_kind": {"type": "string"},
                               "reason": {"type": "string"},
                               "scope_class": {"type": "string"},
+                              "severity": {"type": "string"},
+                              "actionability": {"type": "string"},
                               "count": {"type": "integer"}
                             }
                           }
@@ -262,6 +264,8 @@ const openAPIPathsStatusAndCompare = `
                               "backend_kind": {"type": "string"},
                               "warning_kind": {"type": "string"},
                               "reason": {"type": "string"},
+                              "severity": {"type": "string"},
+                              "actionability": {"type": "string"},
                               "source": {"type": "string"},
                               "source_handle": {"type": "string"}
                             }
@@ -323,6 +327,8 @@ const openAPIPathsStatusAndCompare = `
                               "warning_kind": {"type": "string"},
                               "reason": {"type": "string"},
                               "scope_class": {"type": "string"},
+                              "severity": {"type": "string"},
+                              "actionability": {"type": "string"},
                               "count": {"type": "integer"}
                             }
                           }
@@ -336,6 +342,8 @@ const openAPIPathsStatusAndCompare = `
                               "backend_kind": {"type": "string"},
                               "warning_kind": {"type": "string"},
                               "reason": {"type": "string"},
+                              "severity": {"type": "string"},
+                              "actionability": {"type": "string"},
                               "source": {"type": "string"},
                               "source_handle": {"type": "string"}
                             }

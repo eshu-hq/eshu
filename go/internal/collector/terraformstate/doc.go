@@ -9,8 +9,10 @@
 //
 // Raw Terraform state must stay inside StateSource readers and parser-local
 // windows. Callers receive typed fact envelopes, redaction evidence, bounded
-// parse summaries, and warning counts, not raw state bytes or unredacted
-// attribute values.
+// parse summaries, and classified warning counts, not raw state bytes or
+// unredacted attribute values. Warning facts carry stable reason codes plus
+// severity/actionability for recognized guardrail, provider-schema, source
+// missing, and tag-normalization cases.
 // The parser also emits applied incident-routing source facts for allowlisted
 // PagerDuty and alert-route resources observed in state. Those facts preserve
 // Terraform address, module, provider, state generation, and fingerprinted or

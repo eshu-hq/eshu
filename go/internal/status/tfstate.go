@@ -4,6 +4,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/tfstatewarning"
 )
 
 // TerraformStateLocatorSerial reports the most recent observed state serial for
@@ -26,6 +28,8 @@ type TerraformStateLocatorWarning struct {
 	BackendKind     string
 	WarningKind     string
 	Reason          string
+	Severity        string
+	Actionability   string
 	Source          string
 	SourceHandle    string
 	GenerationID    string
@@ -35,10 +39,12 @@ type TerraformStateLocatorWarning struct {
 // TerraformStateWarningSummary reports bounded Terraform-state warning totals
 // by warning kind, reason, and scope class for release-gate readback.
 type TerraformStateWarningSummary struct {
-	WarningKind string
-	Reason      string
-	ScopeClass  string
-	Count       int
+	WarningKind   string
+	Reason        string
+	ScopeClass    string
+	Severity      string
+	Actionability string
+	Count         int
 }
 
 // MaxTerraformStateRecentWarnings caps the number of recent warning rows the
@@ -65,6 +71,21 @@ func CloneTerraformStateWarnings(rows []TerraformStateLocatorWarning) []Terrafor
 	}
 	cloned := make([]TerraformStateLocatorWarning, len(rows))
 	copy(cloned, rows)
+	for i := range cloned {
+		if strings.TrimSpace(cloned[i].Severity) != "" && strings.TrimSpace(cloned[i].Actionability) != "" {
+			continue
+		}
+		classification, ok := tfstatewarning.Classify(cloned[i].WarningKind, cloned[i].Reason)
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(cloned[i].Severity) == "" {
+			cloned[i].Severity = classification.Severity
+		}
+		if strings.TrimSpace(cloned[i].Actionability) == "" {
+			cloned[i].Actionability = classification.Actionability
+		}
+	}
 	return cloned
 }
 
@@ -133,9 +154,11 @@ func SummarizeTerraformStateWarnings(rows []TerraformStateLocatorWarning) []Terr
 		return nil
 	}
 	type key struct {
-		warningKind string
-		reason      string
-		scopeClass  string
+		warningKind   string
+		reason        string
+		scopeClass    string
+		severity      string
+		actionability string
 	}
 	counts := map[key]int{}
 	for _, row := range rows {
@@ -148,10 +171,20 @@ func SummarizeTerraformStateWarnings(rows []TerraformStateLocatorWarning) []Terr
 		if scopeClass == "" {
 			scopeClass = "unknown"
 		}
+		severity := strings.TrimSpace(row.Severity)
+		actionability := strings.TrimSpace(row.Actionability)
+		if severity == "" || actionability == "" {
+			if classification, ok := tfstatewarning.Classify(warningKind, reason); ok {
+				severity = classification.Severity
+				actionability = classification.Actionability
+			}
+		}
 		counts[key{
-			warningKind: warningKind,
-			reason:      reason,
-			scopeClass:  scopeClass,
+			warningKind:   warningKind,
+			reason:        reason,
+			scopeClass:    scopeClass,
+			severity:      severity,
+			actionability: actionability,
 		}]++
 	}
 	if len(counts) == 0 {
@@ -168,15 +201,23 @@ func SummarizeTerraformStateWarnings(rows []TerraformStateLocatorWarning) []Terr
 		if keys[i].reason != keys[j].reason {
 			return keys[i].reason < keys[j].reason
 		}
-		return keys[i].scopeClass < keys[j].scopeClass
+		if keys[i].scopeClass != keys[j].scopeClass {
+			return keys[i].scopeClass < keys[j].scopeClass
+		}
+		if keys[i].severity != keys[j].severity {
+			return keys[i].severity < keys[j].severity
+		}
+		return keys[i].actionability < keys[j].actionability
 	})
 	summaries := make([]TerraformStateWarningSummary, 0, len(keys))
 	for _, summaryKey := range keys {
 		summaries = append(summaries, TerraformStateWarningSummary{
-			WarningKind: summaryKey.warningKind,
-			Reason:      summaryKey.reason,
-			ScopeClass:  summaryKey.scopeClass,
-			Count:       counts[summaryKey],
+			WarningKind:   summaryKey.warningKind,
+			Reason:        summaryKey.reason,
+			ScopeClass:    summaryKey.scopeClass,
+			Severity:      summaryKey.severity,
+			Actionability: summaryKey.actionability,
+			Count:         counts[summaryKey],
 		})
 	}
 	return summaries

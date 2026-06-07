@@ -91,6 +91,8 @@ func listTerraformStateRecentWarnings(
 		var backendKind string
 		var warningKind string
 		var reason string
+		var severity string
+		var actionability string
 		var source string
 		var sourceHandle string
 		var generationID string
@@ -100,6 +102,8 @@ func listTerraformStateRecentWarnings(
 			&backendKind,
 			&warningKind,
 			&reason,
+			&severity,
+			&actionability,
 			&source,
 			&sourceHandle,
 			&generationID,
@@ -112,6 +116,8 @@ func listTerraformStateRecentWarnings(
 			BackendKind:     strings.TrimSpace(backendKind),
 			WarningKind:     strings.TrimSpace(warningKind),
 			Reason:          strings.TrimSpace(reason),
+			Severity:        strings.TrimSpace(severity),
+			Actionability:   strings.TrimSpace(actionability),
 			Source:          strings.TrimSpace(source),
 			SourceHandle:    strings.TrimSpace(sourceHandle),
 			GenerationID:    strings.TrimSpace(generationID),

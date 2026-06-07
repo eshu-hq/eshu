@@ -24,7 +24,7 @@ func (s ClaimedSource) stateTooLargeWarningGeneration(
 		sourceKey,
 		fencingToken,
 		"state_too_large",
-		"terraform state exceeded configured size ceiling before snapshot identity could be read",
+		"size_limit",
 	)
 }
 
@@ -42,7 +42,7 @@ func (s ClaimedSource) stateMissingWarningGeneration(
 		sourceKey,
 		fencingToken,
 		"state_missing",
-		"terraform state source was missing before snapshot identity could be read",
+		"source_missing",
 	)
 }
 

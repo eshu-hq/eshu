@@ -131,11 +131,11 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
   emits bounded `slog.Warn` lines with the high-cardinality `attribute_key`,
   source path, reason, and diagnostic error. Parser warning facts summarize
   unsupported composite shapes with `warning_kind=unsupported_composite_attribute`,
-  `resource_type`, `attribute_key`, `reason`, and `occurrence_count` so repeated
-  resource instances do not create one warning fact each. Other composite safe
-  drops use `warning_kind=composite_attribute_skipped` with the same bounded
-  shape fields. A nil recorder is allowed for fixtures and early-bootstrap
-  paths. ADR
+  `resource_type`, `attribute_key`, `reason`, `severity`, `actionability`, and
+  `occurrence_count` so repeated resource instances do not create one warning
+  fact each. Other composite safe drops use
+  `warning_kind=composite_attribute_skipped` with the same bounded shape fields.
+  A nil recorder is allowed for fixtures and early-bootstrap paths. ADR
   `2026-05-12-tfstate-parser-composite-capture-for-schema-known-paths`
   owns the contract.
 
@@ -202,6 +202,13 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
   `reason=malformed_tag_map`, or `reason=unsupported_tag_map_shape` so
   operators can separate absent source data from bad source data and
   intentionally unsupported tag shapes.
+- Every emitted `terraform_state_warning` with a recognized stable
+  `warning_kind`/`reason` pair carries `severity` and `actionability`.
+  Missing or too-large state sources are `blocking/blocking_evidence`,
+  unsupported composites are `warning/provider_schema_support`, sensitive
+  composite skips are `info/accepted_guardrail`, null tag maps are
+  `info/accepted_normalization`, and malformed tag maps are
+  `warning/source_normalization_review`.
 - DynamoDB lock metadata is read-only and observational. The reader records the
   digest and a lock ID hash, but consistency decisions still come from the
   opened state body and durable generation metadata.

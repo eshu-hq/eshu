@@ -88,6 +88,10 @@ This preserves the workflow claim fence, completes the stale candidate with a
 `terraform_state_warning` fact, lets the projector publish zero-row
 Terraform-state canonical phase checkpoints, and keeps transient source-open
 errors on the normal retry path.
+The bypass warning facts use stable reason codes (`source_missing` and
+`size_limit`) and carry `severity=blocking` plus
+`actionability=blocking_evidence` so status readbacks can distinguish missing
+source evidence from accepted parser guardrails.
 
 No-Regression Evidence: the missing-source path is covered by
 `go test ./internal/collector/tfstateruntime -run 'TestClaimedSourceEmitsWarningGenerationFor(MissingS3State|OversizedState)' -count=1`.
@@ -103,6 +107,31 @@ exposing bucket names or object keys.
 The projector-owned `graph_projection_phase_state` rows and workflow
 completeness rows then show whether the warning-only generation reached the
 durable zero-row projection checkpoint.
+
+Collector Performance Evidence: warning classification is one closed
+`warning_kind`/`reason` map lookup per emitted warning fact and adds no source
+read, discovery fan-out, parser buffering, worker-count change, queue type, or
+graph write. Focused coverage:
+`go test ./internal/collector/terraformstate ./internal/collector/tfstateruntime -run 'Test(ClassifyWarning|ParserKeepsUnsupportedPackagedCompositeFailClosed|ParserClassifiesCloudinitPartFixtureAsUnsupportedComposite|ParserClassifiesSensitivePackagedCompositeAsIntentionalSkip|ParserWarnsAndContinuesForMalformedTagMaps|ClaimedSourceEmitsWarningGenerationFor(MissingS3State|OversizedState))' -count=1`.
+
+Collector Observability Evidence: the classified warning fact payload feeds the
+existing `terraform_state.warning_summary[]` and
+`terraform_state.recent_warnings[]` status readbacks with `severity` and
+`actionability`, while the existing
+`eshu_dp_tfstate_warnings_emitted_total{warning_kind,safe_locator_hash}` and
+`eshu_dp_drift_schema_unknown_composite_total{resource_type,reason}` metrics
+continue to diagnose warning volume without raw locators or attribute keys in
+metric labels.
+
+Collector Deployment Evidence: no deployment, ServiceMonitor, Helm value,
+collector instance, port, credential, or runtime profile changes are required.
+The existing Terraform-state collector deployment and metrics scrape continue
+to cover this path.
+
+No-Observability-Change: no telemetry instruments, metric names, metric labels,
+span names, or structured-log fields changed. Operators diagnose this path
+through the existing Terraform-state warning counters, composite-skip counter,
+safe warning fact payloads, `/api/v0/status/index`, and `/api/v0/index-status`.
 
 ## Related Docs
 
