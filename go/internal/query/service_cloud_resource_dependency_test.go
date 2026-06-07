@@ -143,6 +143,22 @@ func TestEnrichServiceQueryContextPrefersMaterializedWorkloadCloudRelationship(t
 	if got, want := StringVal(resources[0], "relationship_basis"), "aws_resource_service_anchor"; got != want {
 		t.Fatalf("relationship_basis = %q, want %q", got, want)
 	}
+
+	story := buildServiceStoryResponse("orders-api", workloadContext)
+	trace := mapValue(story, "code_to_runtime_trace")
+	cloud := segmentByName(mapSliceValue(trace, "segments"), "cloud_dependencies")
+	if cloud == nil {
+		t.Fatalf("cloud_dependencies segment missing from trace: %#v", trace)
+	}
+	if got, want := StringVal(cloud, "status"), "derived"; got != want {
+		t.Fatalf("cloud_dependencies status = %q, want %q", got, want)
+	}
+	if got, want := IntVal(cloud, "promoted_count"), 1; got != want {
+		t.Fatalf("cloud_dependencies promoted_count = %d, want %d", got, want)
+	}
+	if missing := StringSliceVal(cloud, "missing_evidence"); len(missing) != 0 {
+		t.Fatalf("cloud_dependencies missing_evidence = %#v, want empty", missing)
+	}
 }
 
 func TestEnrichServiceQueryContextKeepsAmbiguousAWSCloudResourceAnchorAsCandidate(t *testing.T) {
@@ -206,6 +222,78 @@ func TestEnrichServiceQueryContextKeepsAmbiguousAWSCloudResourceAnchorAsCandidat
 	}
 	if got, want := StringVal(cloud, "missing_relationship"), "workload_cloud_relationship"; got != want {
 		t.Fatalf("missing_relationship = %q, want %q", got, want)
+	}
+}
+
+func TestEnrichServiceQueryContextKeepsStaleAWSCloudResourceAnchorAsCandidate(t *testing.T) {
+	t.Parallel()
+
+	db := openContentReaderTestDB(t, emptyServiceQueryContentResults())
+	workloadContext := sampleServiceCloudDependencyContext()
+
+	err := enrichServiceQueryContextWithOptions(
+		context.Background(),
+		fakeGraphReader{
+			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+				if strings.Contains(cypher, "rel:USES") {
+					return nil, nil
+				}
+				if strings.Contains(cypher, "WHERE (n:CloudResource)") {
+					return []map[string]any{
+						{
+							"id":                    "cloud-resource:old-queue",
+							"name":                  "orders-api-old-queue",
+							"resource_type":         "aws_sqs_queue",
+							"provider":              "aws",
+							"service_anchor_status": "stale",
+							"service_anchor_reason": "stale_deployment_evidence",
+						},
+					}, nil
+				}
+				return nil, nil
+			},
+		},
+		NewContentReader(db),
+		workloadContext,
+		serviceQueryEnrichmentOptions{
+			IncludeRelatedModuleUsage: true,
+			Operation:                 "service_story",
+		},
+	)
+	if err != nil {
+		t.Fatalf("enrichServiceQueryContextWithOptions() error = %v, want nil", err)
+	}
+
+	if resources := mapSliceValue(workloadContext, "cloud_resources"); len(resources) != 0 {
+		t.Fatalf("cloud_resources = %#v, want no promoted resource for stale anchor", resources)
+	}
+	candidates := mapSliceValue(workloadContext, "uncorrelated_cloud_resources")
+	if got, want := len(candidates), 1; got != want {
+		t.Fatalf("len(uncorrelated_cloud_resources) = %d, want %d", got, want)
+	}
+	if got, want := StringVal(candidates[0], "candidate_status"), "stale_anchor"; got != want {
+		t.Fatalf("candidate_status = %q, want %q", got, want)
+	}
+	if got, want := StringVal(candidates[0], "service_anchor_reason"), "stale_deployment_evidence"; got != want {
+		t.Fatalf("service_anchor_reason = %q, want %q", got, want)
+	}
+
+	story := buildServiceStoryResponse("orders-api", workloadContext)
+	trace := mapValue(story, "code_to_runtime_trace")
+	cloud := segmentByName(mapSliceValue(trace, "segments"), "cloud_dependencies")
+	if cloud == nil {
+		t.Fatalf("cloud_dependencies segment missing from trace: %#v", trace)
+	}
+	if got, want := StringVal(cloud, "status"), "missing_evidence"; got != want {
+		t.Fatalf("cloud_dependencies status = %q, want %q", got, want)
+	}
+	missing := StringSliceVal(cloud, "missing_evidence")
+	if len(missing) != 1 || missing[0] != "stale_deployment_evidence" {
+		t.Fatalf("cloud_dependencies missing_evidence = %#v, want stale_deployment_evidence", missing)
+	}
+	evidence := mapSliceValue(cloud, "evidence")
+	if got, want := StringVal(evidence[0], "candidate_status"), "stale_anchor"; got != want {
+		t.Fatalf("cloud candidate status = %q, want %q", got, want)
 	}
 }
 

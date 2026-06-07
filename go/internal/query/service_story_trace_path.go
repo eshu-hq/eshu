@@ -163,7 +163,10 @@ func serviceTraceRuntimeSegment(workloadContext map[string]any) map[string]any {
 
 func serviceTraceCloudDependencySegment(workloadContext map[string]any) map[string]any {
 	if resources := mapSliceValue(workloadContext, "cloud_resources"); len(resources) > 0 {
-		return serviceTraceSegment("cloud_dependencies", "cloud_resource_evidence", "derived", resources)
+		segment := serviceTraceSegment("cloud_dependencies", "cloud_resource_evidence", "derived", resources)
+		segment["promoted_count"] = len(resources)
+		segment["missing_evidence"] = []string{}
+		return segment
 	}
 	candidates := mapSliceValue(workloadContext, "uncorrelated_cloud_resources")
 	if len(candidates) == 0 {
@@ -172,7 +175,46 @@ func serviceTraceCloudDependencySegment(workloadContext map[string]any) map[stri
 	segment := serviceTraceSegment("cloud_dependencies", "uncorrelated_cloud_resource_candidates", "missing_evidence", candidates)
 	segment["candidate_count"] = len(candidates)
 	segment["missing_relationship"] = "workload_cloud_relationship"
+	segment["promoted_count"] = 0
+	segment["missing_evidence"] = serviceTraceCloudDependencyMissingEvidence(candidates)
 	return segment
+}
+
+func serviceTraceCloudDependencyMissingEvidence(candidates []map[string]any) []string {
+	if len(candidates) == 0 {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	missing := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		reason := serviceTraceCloudDependencyCandidateMissingEvidence(candidate)
+		if reason == "" {
+			continue
+		}
+		if _, ok := seen[reason]; ok {
+			continue
+		}
+		seen[reason] = struct{}{}
+		missing = append(missing, reason)
+	}
+	sort.Strings(missing)
+	return missing
+}
+
+func serviceTraceCloudDependencyCandidateMissingEvidence(candidate map[string]any) string {
+	if reason := StringVal(candidate, "service_anchor_reason"); reason != "" {
+		return reason
+	}
+	switch StringVal(candidate, "candidate_status") {
+	case "ambiguous_anchor":
+		return "ambiguous_cloud_resource_anchor"
+	case "stale_anchor":
+		return "stale_deployment_evidence"
+	case "weak_anchor":
+		return "weak_cloud_resource_anchor"
+	default:
+		return "workload_cloud_relationship_missing"
+	}
 }
 
 func serviceTraceRowsFromDeploymentEvidence(workloadContext map[string]any, key string) []map[string]any {

@@ -88,6 +88,8 @@ func cloudResourceCandidateStatus(row map[string]any) string {
 	switch StringVal(row, "service_anchor_status") {
 	case "ambiguous":
 		return "ambiguous_anchor"
+	case "stale":
+		return "stale_anchor"
 	case "weak":
 		return "weak_anchor"
 	default:
