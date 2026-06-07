@@ -203,9 +203,14 @@ func (h *CompareHandler) environmentSnapshot(
 	resourcesCypher := `
 		MATCH (i:WorkloadInstance)-[r:USES]->(c:CloudResource)
 		WHERE i.id = $instance_id
-		RETURN c.id as id, c.name as name, c.environment as environment,
+		RETURN c.id as id, c.name as name, coalesce(r.environment, c.environment, '') as environment,
 		       c.kind as kind, c.provider as provider,
-		       r.confidence as confidence, r.reason as reason
+		       r.confidence as confidence, r.reason as reason,
+		       r.relationship_basis as relationship_basis, r.resolution_mode as resolution_mode,
+		       r.evidence_source as evidence_source, r.service_anchor_source as service_anchor_source,
+		       r.service_anchor_reason as service_anchor_reason, r.source_fact_id as source_fact_id,
+		       r.stable_fact_key as stable_fact_key, r.source_system as source_system,
+		       r.source_record_id as source_record_id, r.collector_kind as collector_kind
 		ORDER BY c.name, c.id
 		LIMIT $limit
 	`
@@ -222,13 +227,23 @@ func (h *CompareHandler) environmentSnapshot(
 	cloudResources := make([]map[string]any, 0, len(resourceRows))
 	for _, row := range resourceRows {
 		cloudResources = append(cloudResources, map[string]any{
-			"id":          compareStringVal(row, "id"),
-			"name":        compareStringVal(row, "name"),
-			"environment": compareStringVal(row, "environment"),
-			"kind":        compareStringVal(row, "kind"),
-			"provider":    compareStringVal(row, "provider"),
-			"confidence":  floatVal(row, "confidence"),
-			"reason":      compareStringVal(row, "reason"),
+			"id":                    compareStringVal(row, "id"),
+			"name":                  compareStringVal(row, "name"),
+			"environment":           compareStringVal(row, "environment"),
+			"kind":                  compareStringVal(row, "kind"),
+			"provider":              compareStringVal(row, "provider"),
+			"confidence":            floatVal(row, "confidence"),
+			"reason":                compareStringVal(row, "reason"),
+			"relationship_basis":    compareStringVal(row, "relationship_basis"),
+			"resolution_mode":       compareStringVal(row, "resolution_mode"),
+			"evidence_source":       compareStringVal(row, "evidence_source"),
+			"service_anchor_source": compareStringVal(row, "service_anchor_source"),
+			"service_anchor_reason": compareStringVal(row, "service_anchor_reason"),
+			"source_fact_id":        compareStringVal(row, "source_fact_id"),
+			"stable_fact_key":       compareStringVal(row, "stable_fact_key"),
+			"source_system":         compareStringVal(row, "source_system"),
+			"source_record_id":      compareStringVal(row, "source_record_id"),
+			"collector_kind":        compareStringVal(row, "collector_kind"),
 		})
 	}
 
