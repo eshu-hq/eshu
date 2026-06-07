@@ -1,0 +1,19 @@
+scripts/lib/remote_e2e_target_story_fake_curl.sh
+  s_f2f7fbb6f30866::t_71d301db4cf65d 113-115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "e0453405d4bec6f57c720fbee821ead1cff49810",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
