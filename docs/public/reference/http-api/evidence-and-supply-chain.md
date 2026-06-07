@@ -776,10 +776,14 @@ collector, worker, queue, graph write, metric, span, or log contract changes.
 Lists reducer-owned SBOM and attestation attachment facts. The caller must
 provide `limit` and at least one bounded anchor: `subject_digest`,
 `document_id`, `document_digest`, `repository_id`, `workload_id`, or
-`service_id`. Repository, workload, and service anchors are source scopes over
-reducer-owned attachment facts; callers still need `attachment_scope`,
-`canonical_writes`, and `missing_evidence` before treating a row as attached
-image evidence.
+`service_id`. `repository_id` accepts a canonical source repository id or the
+same human repository selectors used by repository context routes: repository
+name, repo slug, indexed path, local path, or remote URL. Unknown or ambiguous
+repository selectors fail before the attachment read instead of returning a
+misleading empty page. Repository, workload, and service anchors are source
+scopes over reducer-owned attachment facts; callers still need
+`attachment_scope`, `canonical_writes`, and `missing_evidence` before treating
+a row as attached image evidence.
 
 Rows expose `attachment_status`, `parse_status`, and `verification_status`
 separately. Component evidence is returned as document evidence only; this
@@ -810,17 +814,24 @@ payload, API row, OpenAPI fragment, and MCP tool description exposed that
 truth.
 
 No-Regression Evidence: `go test ./internal/query ./internal/mcp -run
-'Test(SupplyChainListSBOMAttestationAttachmentsAcceptsRepositoryScope|SBOMAttestationAttachmentAggregateRoutesForwardSourceScopes|SBOMAttestationAttachmentAggregateQueriesFilterSourceScopes|SBOMAttestationAttachmentAggregateRoutesDoNotDropServiceScope|ResolveRouteForwardsSBOMRepositoryScopeToHTTPContract|DispatchSBOMAggregateRepositoryScopeReturnsScopedCount)'
+'Test(SupplyChainListSBOMAttestationAttachments(AcceptsRepositoryScope|ResolvesRepositorySelectors|RejectsInvalidRepositorySelectors)|SBOMAttestationAttachmentAggregateRoutes(ForwardSourceScopes|ResolveRepositorySelectors|RejectInvalidRepositorySelectors|DoNotDropServiceScope)|SBOMAttestationAttachmentAggregateQueriesFilterSourceScopes|ResolveRouteForwardsSBOMRepositoryScopeToHTTPContract|DispatchSBOMAggregateRepositoryScopeReturnsScopedCount)'
 -count=1` proves repository-scoped SBOM attachment list, count, inventory, and
-MCP aggregate calls keep the source scope instead of dropping it and reading
-unscoped global attachment totals.
+MCP aggregate calls keep the source scope, resolve human repository selectors
+before the bounded read, and reject unknown or ambiguous selectors instead of
+dropping the scope or reading unscoped global attachment totals.
+`scripts/test-verify-remote-e2e-target-story.sh` proves release target-story
+validation starts SBOM proof from `target_repository_id` and only adds
+`subject_digest` when the manifest supplies a digest anchor.
 
-No-Observability-Change: this changes SBOM attachment classification and
-readback fields only. It adds no worker, queue, graph write, query, metric
-instrument, span, metric label, runtime flag, or broad read path. Operators
-continue to diagnose the path through the existing reducer attachment counter by
-status, `query.sbom_attestation_attachments` handler span, Postgres fact-read
-instrumentation, `canonical_writes`, `attachment_scope`, and
+No-Observability-Change: this changes SBOM attachment readback routing only.
+It adds no new SBOM read model, worker, queue, graph write, metric instrument,
+span, metric label, runtime flag, or broad read path. Human repository
+selectors use the existing content-catalog lookup before the bounded SBOM
+attachment read; canonical repository ids skip that lookup. Operators continue
+to diagnose the path through the existing reducer attachment counter by status,
+`query.sbom_attestation_attachments`,
+`query.sbom_attestation_attachment_aggregate`, repository selector errors,
+Postgres fact-read instrumentation, `canonical_writes`, `attachment_scope`, and
 `missing_evidence`.
 
 No-Regression Evidence: `go test ./internal/query -run

@@ -176,6 +176,12 @@ expect_alignment_mismatch 'repo://example/api' 'git@github.com:example/other-api
 
 reset_state
 expect_pass
+rg -F -q '/api/v0/supply-chain/sbom-attestations/attachments/count?repository_id=repo%3A%2F%2Fexample%2Fapi&subject_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' "${state_dir}/curl-targets"
+if rg -F -q '/api/v0/supply-chain/sbom-attestations/attachments/count?subject_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' "${state_dir}/curl-targets"; then
+  printf 'target-story verifier must prove SBOM attachments from the repository selector\n' >&2
+  sed -n '1,200p' "${state_dir}/curl-targets" >&2
+  exit 1
+fi
 rg -F -q '/api/v0/ci-cd/run-correlations?repository_id=repo%3A%2F%2Fexample%2Fapi&artifact_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&limit=1' "${state_dir}/curl-targets"
 rg -x -q 'list_ci_cd_run_correlations' "${state_dir}/mcp-tools"
 if rg -q 'repo://example/api|oci-registry://registry.example/team/api|arn:aws' /tmp/eshu-remote-e2e-target-story.out; then
@@ -315,10 +321,16 @@ fi
 reset_state
 jq '
   del(.expected_image_digest) |
+  del(.expected_sbom_subject_digest) |
   .expected_image_ref = "registry.example.com/team/api:prod"
 ' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
 mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
 expect_pass
+if ! rg -F -q '/api/v0/supply-chain/sbom-attestations/attachments/count?repository_id=repo%3A%2F%2Fexample%2Fapi' "${state_dir}/curl-targets"; then
+  printf 'expected target-story verifier to count SBOM attachments by repository selector without requiring a digest\n' >&2
+  sed -n '1,200p' "${state_dir}/curl-targets" >&2
+  exit 1
+fi
 if ! rg -F -q '/api/v0/ci-cd/run-correlations/count?repository_id=repo%3A%2F%2Fexample%2Fapi&image_ref=registry.example.com%2Fteam%2Fapi%3Aprod' "${state_dir}/curl-targets"; then
   printf 'expected target-story verifier to count CI/CD rows by image_ref\n' >&2
   sed -n '1,200p' "${state_dir}/curl-targets" >&2

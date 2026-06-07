@@ -10,7 +10,7 @@ const openAPIPathsSupplyChainSBOMAttestations = `
           {"name": "digest", "in": "query", "description": "Alias for subject_digest when the caller has an image digest.", "schema": {"type": "string"}},
           {"name": "document_id", "in": "query", "schema": {"type": "string"}},
           {"name": "document_digest", "in": "query", "schema": {"type": "string"}},
-          {"name": "repository_id", "in": "query", "description": "Reducer-owned repository anchor. Missing repository-to-image evidence remains explicit.", "schema": {"type": "string"}},
+          {"name": "repository_id", "in": "query", "description": "Canonical source repository id or human repository selector (name, repo slug, indexed path, local path, or remote URL). Unknown or ambiguous selectors return a selector error before the bounded attachment read.", "schema": {"type": "string"}},
           {"name": "workload_id", "in": "query", "description": "Reducer-admitted workload anchor. Missing workload-to-image evidence remains explicit.", "schema": {"type": "string"}},
           {"name": "service_id", "in": "query", "description": "Reducer-admitted service anchor. Missing service-to-image evidence remains explicit.", "schema": {"type": "string"}},
           {"name": "attachment_status", "in": "query", "schema": {"type": "string", "enum": ["attached_verified", "attached_unverified", "attached_parse_only", "subject_mismatch", "ambiguous_subject", "unknown_subject", "unparseable"]}},

@@ -315,7 +315,7 @@ func supplyChainTools() []ToolDefinition {
 					},
 					"repository_id": map[string]any{
 						"type":        "string",
-						"description": "Reducer-owned repository anchor. Missing repository-to-image evidence is returned as missing_evidence.",
+						"description": "Canonical source repository id or human repository selector: name, repo slug, indexed path, local path, or remote URL. Missing repository-to-image evidence is returned as missing_evidence.",
 					},
 					"workload_id": map[string]any{
 						"type":        "string",

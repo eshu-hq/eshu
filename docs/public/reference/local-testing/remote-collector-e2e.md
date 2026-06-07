@@ -218,9 +218,10 @@ scripts/security_intelligence_release_gate.sh \
 When a private target-story manifest is used, `proof_mode` defaults to
 `code_to_cloud`. That mode requires positive, target-aligned
 `container_image_identities` and `sbom_attachments` minimums plus the matching
-digest or image-reference anchors. It also requires target-scoped MCP readback
-when service-catalog or cloud-resource minimums are positive. Positive
-`cloud_resources` proof requires an explicit `expected_cloud_resource_id`;
+digest or image-reference anchors. SBOM readback starts from `target_repository_id`;
+SBOM digest only narrows that count when present. Target-scoped MCP readback is
+required when service-catalog or cloud-resource minimums are
+positive. Positive `cloud_resources` proof requires `expected_cloud_resource_id`;
 provider or environment aggregates alone do not satisfy the target story.
 Aggregate OCI, SBOM, service, or cloud rows from unrelated repositories do not
 satisfy the target story. In `code_to_cloud` mode, the verifier fails before
@@ -337,16 +338,18 @@ only count labels and sanitized missing-evidence reasons, never raw target
 values. Image identity proof includes `source_repository_id`; it defaults to
 `target_repository_id` and may be overridden with
 `expected_source_repository_id` only when the source selector still aligns with
-the target repository. Use `expected_image_digest` or `expected_image_ref` to
-tie container-image, SBOM, and CI/CD evidence to the same artifact. Digest-backed
+the target repository. SBOM proof also starts from `target_repository_id`;
+`expected_image_digest` or `expected_sbom_subject_digest` narrows that count
+when available. Use `expected_image_digest` or `expected_image_ref` to tie
+container-image, SBOM, and CI/CD evidence to the same artifact. Digest-backed
 CI/CD proof filters count, API list, and MCP list readbacks by
 `artifact_digest`; image-reference proof filters those same readbacks by
 `image_ref` so the verifier does not accept unrelated repository rows. When
 image and SBOM minimums are both positive, the verifier also requires the
 target service story's `code_to_runtime_trace.image_package` segment to expose
 exact image/SBOM evidence through API and MCP readbacks; aggregate evidence
-alone is not enough. Use
-`expected_service_id` or `expected_workload_id` when the proof must validate a
+alone is not enough. Use `expected_service_id` or `expected_workload_id` when
+the proof must validate a
 specific deployed service rather than any reducer-owned service-catalog row for
 the repository. For provider security-alert evidence,
 `expected_security_alert_repository` may be the provider-native repository

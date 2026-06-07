@@ -107,6 +107,15 @@ case "$*" in
 	*"/api/v0/supply-chain/container-images/identities/count?digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"*)
 		cat "${state_dir}/image-count.json"
 		;;
+	*"/api/v0/supply-chain/sbom-attestations/attachments/count?repository_id=repo%3A%2F%2Fexample%2Fapi&subject_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"*)
+		cat "${state_dir}/sbom-count.json"
+		;;
+	*"/api/v0/supply-chain/sbom-attestations/attachments/count?repository_id=repository%3Ar_8f14e45f&subject_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"*)
+		cat "${state_dir}/sbom-count.json"
+		;;
+	*"/api/v0/supply-chain/sbom-attestations/attachments/count?repository_id=repo%3A%2F%2Fexample%2Fapi"*)
+		cat "${state_dir}/sbom-count.json"
+		;;
 	*"/api/v0/supply-chain/sbom-attestations/attachments/count?subject_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"*)
 		cat "${state_dir}/sbom-count.json"
 		;;
