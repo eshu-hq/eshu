@@ -1,9 +1,10 @@
 # Secrets/IAM Graph Promotion ADR And Schema Gate
 
-Status: **GATED IMPLEMENTATION PRESENT - default off.** The DDL, writer,
-fixture proof, benchmark proof, and repo-local NornicDB/Neo4j conformance
-evidence are present, but section 14 principal and security sign-off plus a
-target deployment decision are still required before live activation.
+Status: **ADR APPROVED - SCHEMA AND TARGET ACTIVATION PENDING.** The DDL,
+writer, fixture proof, benchmark proof, repo-local NornicDB/Neo4j conformance
+evidence, and section 14 principal/security approval are present. The
+projection remains default off until `risk:schema` approval, a target deployment
+decision, and flag-on activation proof are recorded.
 
 Issue: #1314. Parent: #25. Depends on the #1313 reducer read-model slice.
 
@@ -54,8 +55,8 @@ labeling before any graph projection is allowed.
 ### 2.1. Prerequisite status
 
 The non-graph prerequisites this gate depends on are merged. This subsection is
-a status snapshot, not activation approval; section 14 remains the authority for
-the principal/security decision and the target deployment flag-on.
+a status snapshot. Section 14 records the principal/security decision; target
+deployment flag-on still requires separate activation proof.
 
 Merged to `main`:
 
@@ -72,8 +73,9 @@ Merged to `main`:
 - The default-off graph projection DDL, writer, reducer domain, endpoint
   readiness gate, retry liveness handling, and repo-local proof artifacts.
 
-What remains gated, pending the section 14 decision: target deployment
-activation and any production claim of graph projection authority.
+What remains gated after the section 14 approval: `risk:schema` approval,
+target deployment activation, and any production claim of graph projection
+authority.
 
 ## 3. Non-Goals
 
@@ -433,14 +435,16 @@ Approve this gate only if reviewers accept:
 6. the implementation carries DDL, writer tests, backend conformance,
    performance evidence, and security review
 
-Until this is approved, no target deployment should enable live Secrets/IAM
-graph projection.
+The section 14 gate is approved. No target deployment should enable live
+Secrets/IAM graph projection until `risk:schema` approval, the deployment
+decision, and flag-on proof are recorded.
 
 The non-graph prerequisites are merged (see section 2.1). Principal and
-security sign-off on the six points above, plus target deployment activation
-proof, are the remaining blockers. Issue #1347 tracks that governance decision;
-issue #1381 tracks activation proof. Neither issue should enable the flag until
-those approvals are recorded.
+security sign-off on the six points above is recorded as approved on
+2026-06-07. `risk:schema` approval and target deployment activation proof are
+the remaining blockers. Issue #1347 tracks the schema/governance gate; issue
+#1381 tracks activation proof. Neither issue should claim the projection is
+active until both approvals and the target deployment proof are recorded.
 
 No-Regression Evidence: design-only gate. This PR changes only an internal
 design document and adds no Go, Cypher, DDL, queue, runtime, API, MCP, or graph
