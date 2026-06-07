@@ -33,6 +33,7 @@ function modelWithVulnerability(): ConsoleModel {
     languages: [],
     ingesters: [],
     findings: [],
+    sbom: null,
     vulnerabilities: [
       {
         id: "CVE-2025-13465",

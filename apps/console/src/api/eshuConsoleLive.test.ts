@@ -248,6 +248,48 @@ describe("eshuConsoleLive", () => {
     expect(page.rows[0].relatedPackage).toBe("npm://r/@eshu/web");
   });
 
+  it("resolves vulnerability service repo ids to human catalog names", async () => {
+    // The impact findings carry only repository_id (e.g. repository:r_1); the
+    // Services column must show the catalog repo/service name, not the raw id.
+    const client = {
+      get: async (path: string) => {
+        if (path.includes("/ecosystem/overview")) {
+          return { data: { repo_count: 1 }, error: null, truth: null };
+        }
+        if (path.includes("/catalog")) {
+          return {
+            data: {
+              services: [{ id: "workload:api-node-boats", name: "api-node-boats", kind: "service", repo_id: "repository:r_1", repo_name: "api-node-boats" }]
+            },
+            error: null, truth: null
+          };
+        }
+        if (path.includes("/supply-chain/impact/findings") && path.includes("impact_status=affected_exact")) {
+          return {
+            data: { findings: [
+              // resolvable via catalog repo_id
+              { advisory_id: "GHSA-aaaa", package_name: "lodash", cvss_score: 8.1, repository_id: "repository:r_1" },
+              // unknown repo id: fall back to a cleaned label, never the raw id
+              { advisory_id: "GHSA-cccc", package_name: "axios", cvss_score: 6.1, repository_id: "repository:r_unmapped" }
+            ] },
+            error: null, truth: null
+          };
+        }
+        return { data: {}, error: null, truth: null };
+      },
+      getJson: async () => ({ status: "healthy", queue: { outstanding: 0 } }),
+      post: async () => ({ data: {}, error: null, truth: null })
+    } as unknown as EshuApiClient;
+
+    const snap = await loadConsoleSnapshot(client);
+    const known = snap.vulnerabilities.find((v) => v.id === "GHSA-aaaa");
+    expect(known?.services).toEqual(["api-node-boats"]);
+    const unknown = snap.vulnerabilities.find((v) => v.id === "GHSA-cccc");
+    // No catalog match: strip the internal prefix so the UI shows r_unmapped,
+    // not the raw repository:r_unmapped graph id.
+    expect(unknown?.services).toEqual(["r_unmapped"]);
+  });
+
   it("loads dashboard trend series from the metrics time-series endpoint", async () => {
     const requested: string[] = [];
     const client = {

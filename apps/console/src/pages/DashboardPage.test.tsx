@@ -91,6 +91,93 @@ describe("DashboardPage", () => {
     ]);
   });
 
+  it("skips a trivial seed and lands the atlas on a higher-degree service", async () => {
+    // First catalog service resolves to a trivial self-edge graph (2 nodes /
+    // 1 edge); the second resolves to a meaningful neighbourhood. The atlas
+    // must fall through to the meaningful one instead of opening on the weak
+    // landing graph.
+    const calls: unknown[] = [];
+    const client = {
+      postJson: async () => ({ entities: [] }),
+      post: async (path: string, body: unknown) => {
+        calls.push({ path, body });
+        const from = requestFrom(body);
+        if (from === "trivial-service") {
+          return {
+            data: {
+              from,
+              resolution: { candidates: [{ id: "workload:trivial-service", labels: ["Workload"], name: "trivial-service" }] },
+              // Self-edge only: the lone neighbour carries the same name as the
+              // center, producing the weak 2-node / 1-edge landing graph.
+              evidence: { relationships: [{ direction: "incoming", entity_name: "trivial-service", entity_labels: ["Repository"], relationship_types: [] }] }
+            },
+            error: null,
+            truth: null
+          };
+        }
+        return {
+          data: {
+            from,
+            resolution: { candidates: [{ id: "workload:hub-service", labels: ["Repository"], name: "hub-service" }] },
+            evidence: { relationships: [
+              { direction: "incoming", entity_id: "workload:a", entity_name: "neighbour-a", entity_labels: ["Repository"], relationship_types: ["DEPENDS_ON"] },
+              { direction: "incoming", entity_id: "workload:b", entity_name: "neighbour-b", entity_labels: ["Repository"], relationship_types: ["DEPENDS_ON"] }
+            ] }
+          },
+          error: null,
+          truth: null
+        };
+      }
+    } as unknown as EshuApiClient;
+
+    render(<DashboardPage model={liveModelWithTrivialThenHub()} client={client} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("3 nodes · 2 edges")).toBeInTheDocument();
+    });
+    expect(await screen.findByText("neighbour-a")).toBeInTheDocument();
+    expect(await screen.findByText("neighbour-b")).toBeInTheDocument();
+    // It probed the trivial seed first, then settled on the meaningful one.
+    expect(calls).toEqual([
+      { path: "/api/v0/impact/entity-map", body: { from: "trivial-service", depth: 2 } },
+      { path: "/api/v0/impact/entity-map", body: { from: "hub-service", depth: 2 } }
+    ]);
+  });
+
+  it("keeps the best available seed when no candidate clears the threshold", async () => {
+    // Every candidate is trivial (1 edge). The atlas must still render the
+    // first candidate's graph rather than blanking — no fabricated edges.
+    const calls: unknown[] = [];
+    const client = {
+      postJson: async () => ({ entities: [] }),
+      post: async (path: string, body: unknown) => {
+        calls.push({ path, body });
+        const from = requestFrom(body);
+        return {
+          data: {
+            from,
+            resolution: { candidates: [{ id: `workload:${from}`, labels: ["Workload"], name: from }] },
+            evidence: { relationships: [{ direction: "incoming", entity_name: from, entity_labels: ["Repository"], relationship_types: [] }] }
+          },
+          error: null,
+          truth: null
+        };
+      }
+    } as unknown as EshuApiClient;
+
+    render(<DashboardPage model={liveModelWithTrivialThenHub()} client={client} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("2 nodes · 1 edges")).toBeInTheDocument();
+    });
+    // Probed both candidates, neither cleared the bar, fell back to the first.
+    expect(calls).toEqual([
+      { path: "/api/v0/impact/entity-map", body: { from: "trivial-service", depth: 2 } },
+      { path: "/api/v0/impact/entity-map", body: { from: "hub-service", depth: 2 } }
+    ]);
+    expect(await screen.findAllByText("trivial-service")).not.toHaveLength(0);
+  });
+
   it("expands a clicked live atlas node through entity-map", async () => {
     const calls: unknown[] = [];
     const client = {
@@ -201,6 +288,21 @@ function liveModelWithServices(): ConsoleModel {
     }
   });
   return model;
+}
+
+function liveModelWithTrivialThenHub(): ConsoleModel {
+  return modelFromSnapshot({
+    ...emptySnapshot(),
+    services: [
+      { environments: [], freshness: "fresh", id: "svc-trivial", kind: "service", name: "trivial-service", repo: "trivial", truth: "exact" },
+      { environments: [], freshness: "fresh", id: "svc-hub", kind: "service", name: "hub-service", repo: "hub", truth: "exact" }
+    ],
+    provenance: { services: "live" },
+    runtime: {
+      deadLetters: 0, inFlight: 0, indexStatus: "complete", instances: 0, platforms: 0,
+      profile: "local_full_stack", queueOutstanding: 0, repositories: 2, succeeded: 2, workloads: 2
+    }
+  });
 }
 
 function requestFrom(body: unknown): string {
