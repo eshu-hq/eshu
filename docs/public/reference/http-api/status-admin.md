@@ -143,11 +143,44 @@ must be at most `30d`, and `step` defaults to `30m`. `step` must be at least
 carries `metric`, `unit`, `window`, `step`, and an ordered `points: [{ t, v }]`
 array.
 
-Series are sourced from the Prometheus/Mimir collector. When no metrics source
-is configured the response is **empty `points` with `truth.freshness.state` of
-`unavailable`** rather than an error, and a metric with no history yet returns
-empty `points` with `building` freshness. This lets the console show real
-point-in-time numbers and enable trend lines only once history exists.
+### Trend Source Requirements
+
+These series are read at request time from a Prometheus-compatible
+`query_range` API. The API reuses the enabled `prometheus_mimir` collector
+instance from `ESHU_COLLECTOR_INSTANCES_JSON` as that read source (selected by
+`ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID` when more than one is enabled).
+The PromQL expressions query Eshu's **own** data-plane self-metrics, including
+`eshu_dp_facts_committed_total`, `eshu_dp_queue_depth`,
+`eshu_dp_canonical_nodes_written_total`, `eshu_dp_canonical_edges_written_total`,
+and `eshu_http_request_duration_seconds_bucket`.
+
+For the trend charts to return points, the configured `base_url` must point at a
+Prometheus or Mimir that **scrapes Eshu's `/metrics` endpoints** (default port
+`9464`, gated by `ESHU_PROMETHEUS_METRICS_ENABLED`). This is a different concern
+from what the `prometheus_mimir` *collector* does: the collector reads metrics
+*from* an external monitoring system *into* the Eshu graph. Pointing the trend
+source at a customer or observability Prometheus that does not scrape Eshu's own
+metrics yields a **successful query with zero matching series**, so the charts
+stay empty even though a source is wired. Wiring the trend source and scraping
+Eshu's self-metrics into it is a deployment-time configuration decision, not an
+application default.
+
+### Empty-State Freshness
+
+The endpoint never fabricates points. The response distinguishes three states
+through `truth.freshness.state`:
+
+| State | Meaning | `truth.level` |
+| --- | --- | --- |
+| `unavailable` | No metrics source is configured. | `fallback` |
+| `building` | A source is configured and the query succeeded, but no samples matched yet — the metric has no history, or the Prometheus does not scrape Eshu's self-metrics. | `derived` |
+| `fresh` | The query returned one or more points. | `derived` |
+
+The console correctly degrades to an empty trend with the "Trend history appears
+when a Prometheus/Mimir metrics source has recent samples" message for both
+`unavailable` and `building`. An empty chart on a stack whose trend source
+points at a Prometheus that does not scrape Eshu is expected behavior, not a
+console or API defect.
 
 ## Durable Admin Controls
 
