@@ -200,6 +200,35 @@ func TestBootstrapDefinitionsIncludeActiveRepositoryFactIndex(t *testing.T) {
 	}
 }
 
+func TestBootstrapDefinitionsIncludeCollectorStatusFactIndex(t *testing.T) {
+	t.Parallel()
+
+	var facts Definition
+	for _, def := range BootstrapDefinitions() {
+		if def.Name == "fact_records" {
+			facts = def
+			break
+		}
+	}
+	if facts.Name == "" {
+		t.Fatal("fact_records definition missing")
+	}
+	for _, want := range []string{
+		"fact_records_collector_status_active_idx",
+		"scope_id,",
+		"generation_id,",
+		"source_system,",
+		"fact_kind,",
+		"observed_at DESC",
+		"ingested_at DESC",
+		"WHERE is_tombstone = FALSE",
+	} {
+		if !strings.Contains(facts.SQL, want) {
+			t.Fatalf("fact_records SQL missing collector-status index marker %q", want)
+		}
+	}
+}
+
 func TestBootstrapDefinitionsIncludeDocumentationFactIndexes(t *testing.T) {
 	t.Parallel()
 

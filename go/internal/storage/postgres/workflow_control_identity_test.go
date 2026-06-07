@@ -44,6 +44,24 @@ func TestWorkflowControlSchemaBackfillsRequiredIdentity(t *testing.T) {
 	}
 }
 
+func TestWorkflowControlSchemaIndexesCollectorScopeGenerationLookup(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"workflow_work_items_collector_scope_generation_updated_idx",
+		"ON workflow_work_items (",
+		"collector_kind,",
+		"scope_id,",
+		"generation_id,",
+		"updated_at DESC,",
+		"work_item_id ASC",
+	} {
+		if !strings.Contains(workflowControlSchemaSQL, want) {
+			t.Fatalf("workflowControlSchemaSQL missing status lookup index marker %q", want)
+		}
+	}
+}
+
 func TestWorkflowControlClaimNextEligibleRequiresCompleteIdentity(t *testing.T) {
 	t.Parallel()
 

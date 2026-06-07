@@ -52,6 +52,14 @@ CREATE INDEX IF NOT EXISTS workflow_work_items_run_idx
 CREATE INDEX IF NOT EXISTS workflow_work_items_registry_status_updated_idx
     ON workflow_work_items (collector_kind, status, updated_at DESC)
     WHERE collector_kind IN ('oci_registry', 'package_registry');
+CREATE INDEX IF NOT EXISTS workflow_work_items_collector_scope_generation_updated_idx
+    ON workflow_work_items (
+        collector_kind,
+        scope_id,
+        generation_id,
+        updated_at DESC,
+        work_item_id ASC
+    );
 CREATE UNIQUE INDEX IF NOT EXISTS workflow_work_items_tfstate_candidate_nonterminal_idx
     ON workflow_work_items (
         collector_instance_id,
