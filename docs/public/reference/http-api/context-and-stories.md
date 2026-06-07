@@ -263,14 +263,19 @@ fact-summary sections. Mapping modes are:
 - `none`
 
 Service story and deployment trace keep canonical `cloud_resources` separate
-from `uncorrelated_cloud_resources`. `cloud_resources` requires either a
-materialized workload-to-cloud relationship or an exact reducer-owned service
-anchor admitted from cloud resource evidence. `uncorrelated_cloud_resources` is
-a bounded candidate list for cloud resources whose safe identity or anchor
-handles match the service, including `name`, `id`, `kind`, `resource_type`,
-`resource_id`, `arn`, `service_kind`, `account_id`, `region`, `source`,
-`source_system`, `config_path`, or `service_anchor_name_tokens`. These rows
-still lack the workload-to-cloud relationship or exact service anchor; callers
+from `uncorrelated_cloud_resources`. `cloud_resources` requires a materialized
+workload-to-cloud relationship, an exact reducer-owned service anchor admitted
+from cloud resource evidence, or explicit `READS_CONFIG_FROM` deployment
+evidence whose path-like or ARN-like config identity matches an AWS SSM
+parameter or Secrets Manager secret `arn`/`resource_id`; trailing wildcard
+markers on config paths are normalized to a concrete prefix before matching.
+Plain service-name substrings are not enough to promote a cloud dependency.
+`uncorrelated_cloud_resources` is a bounded candidate list for cloud resources
+whose safe identity or anchor handles match the service, including `name`,
+`id`, `kind`, `resource_type`, `resource_id`, `arn`, `service_kind`,
+`account_id`, `region`, `source`, `source_system`, `config_path`, or
+`service_anchor_name_tokens`. These rows still lack the workload-to-cloud
+relationship, exact service anchor, or exact config-read evidence; callers
 should treat them as missing evidence to investigate, not as attached
 dependencies.
 
