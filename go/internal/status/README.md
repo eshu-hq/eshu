@@ -211,7 +211,10 @@ strings.
 - **AWS cloud status separates scan and commit.** `AWSCloudScanStatus.Status`
   describes scanner-side outcome such as `partial`, `credential_failed`, or
   `failed`; `CommitStatus` describes whether the fenced fact transaction later
-  committed.
+  committed. A row with scanner status `succeeded` and commit status
+  `committed` is healthy even if older retry metadata is still present; current
+  degraded rows must expose the AWS scan-status evidence source and bounded
+  failure reason in `CollectorRuntimeStatus.Detail`.
 - **AWS freshness status is aggregate only.** `AWSFreshnessSnapshot` shows
   queued, claimed, handed-off, and failed trigger counts plus oldest queued age.
   Resource IDs, ARNs, event IDs, and raw payloads stay out of the status
