@@ -208,6 +208,20 @@ func enrichServiceQueryContextWithOptions(
 		}
 		workloadContext["deployment_evidence"] = deploymentEvidence
 	}
+	timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "support_target_evidence")
+	targetSupport, err := loadServiceStoryTargetSupportForOperation(ctx, content, workloadContext, operation)
+	timer.Done(
+		ctx,
+		slog.Bool("has_result", len(targetSupport) > 0),
+		slog.Int("target_support_evidence_count", IntVal(targetSupport, "evidence_count")),
+		slog.Bool("error", err != nil),
+	)
+	if err != nil {
+		return fmt.Errorf("load service story target support: %w", err)
+	}
+	if len(targetSupport) > 0 {
+		workloadContext["target_support"] = targetSupport
+	}
 	buildCtx := newServiceStoryBuildContext(workloadContext)
 	if supportOverview := buildServiceSupportOverviewWithContext(buildCtx); len(supportOverview) > 0 {
 		workloadContext["support_overview"] = supportOverview

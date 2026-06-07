@@ -204,6 +204,7 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		"FROM aws_scan_status",
 		"FROM aws_freshness_triggers",
 		"recent_failed_runs",
+		"WITH fact_evidence AS (",
 	} {
 		joined := strings.Join(queryer.queries, "\n")
 		if !strings.Contains(joined, want) {

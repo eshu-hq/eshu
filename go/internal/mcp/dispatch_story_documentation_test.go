@@ -137,6 +137,85 @@ func TestDispatchToolRepoStoryPreservesTargetDocumentationReadback(t *testing.T)
 	}
 }
 
+func TestDispatchToolServiceStoryPreservesTargetSupportReadback(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v0/services/payments-api/story", func(w http.ResponseWriter, r *http.Request) {
+		if got, want := r.Header.Get("Accept"), query.EnvelopeMIMEType; got != want {
+			t.Fatalf("Accept = %q, want %q", got, want)
+		}
+		if got, want := r.URL.Query().Get("service_id"), "workload:payments-api"; got != want {
+			t.Fatalf("service_id query = %q, want %q", got, want)
+		}
+		writeMCPStoryDocumentationEnvelope(w, map[string]any{
+			"support_overview": map[string]any{
+				"target_support": map[string]any{
+					"evidence_count":         2,
+					"work_item_count":        1,
+					"incident_routing_count": 1,
+					"evidence": []map[string]any{{
+						"fact_id":   "jira-123",
+						"fact_kind": "work_item.record",
+					}, {
+						"fact_id":   "pd-service",
+						"fact_kind": "incident_routing.observed_pagerduty_service",
+					}},
+					"missing_evidence": []map[string]any{},
+				},
+			},
+		})
+	})
+
+	result := dispatchMCPStoryDocumentationTool(t, mux, "get_service_story", map[string]any{
+		"workload_id": "workload:payments-api",
+	})
+	targetSupport := mcpMapValue(
+		mcpMapValue(mcpEnvelopeData(t, result), "support_overview"),
+		"target_support",
+	)
+	if got, want := query.IntVal(targetSupport, "evidence_count"), 2; got != want {
+		t.Fatalf("target_support.evidence_count = %d, want %d", got, want)
+	}
+	if got := len(mcpMapSliceValue(targetSupport, "missing_evidence")); got != 0 {
+		t.Fatalf("target_support.missing_evidence = %#v, want empty", got)
+	}
+}
+
+func TestDispatchToolRepoStoryPreservesTargetSupportReadback(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v0/repositories/repo-payments-api/story", func(w http.ResponseWriter, r *http.Request) {
+		if got, want := r.Header.Get("Accept"), query.EnvelopeMIMEType; got != want {
+			t.Fatalf("Accept = %q, want %q", got, want)
+		}
+		writeMCPStoryDocumentationEnvelope(w, map[string]any{
+			"support_overview": map[string]any{
+				"target_support": map[string]any{
+					"evidence_count": 1,
+					"evidence": []map[string]any{{
+						"fact_id":   "jira-repo-123",
+						"fact_kind": "work_item.external_link",
+					}},
+					"missing_evidence": []map[string]any{},
+				},
+			},
+		})
+	})
+
+	result := dispatchMCPStoryDocumentationTool(t, mux, "get_repo_story", map[string]any{
+		"repo_id": "repo-payments-api",
+	})
+	targetSupport := mcpMapValue(
+		mcpMapValue(mcpEnvelopeData(t, result), "support_overview"),
+		"target_support",
+	)
+	if got, want := query.IntVal(targetSupport, "evidence_count"), 1; got != want {
+		t.Fatalf("target_support.evidence_count = %d, want %d", got, want)
+	}
+}
+
 func dispatchMCPStoryDocumentationTool(
 	t *testing.T,
 	mux *http.ServeMux,

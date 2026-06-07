@@ -35,6 +35,8 @@ type fakePortContentStore struct {
 	documentationPacketErr      error
 	documentationFreshnessModel documentationEvidencePacketFreshnessReadModel
 	documentationFreshnessErr   error
+	targetSupportModel          serviceStoryTargetSupportReadModel
+	targetSupportErr            error
 	entities                    []EntityContent
 	repoFiles                   []FileContent
 	repositories                []RepositoryCatalogEntry

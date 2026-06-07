@@ -499,6 +499,13 @@ func (c *contentReaderConn) QueryContext(_ context.Context, query string, _ []dr
 		(len(c.results) == 0 || !contentReaderResultColumnsEqual(c.results[0], []string{"incoming_entity_id"})) {
 		return &contentReaderRows{columns: []string{"incoming_entity_id"}, rows: nil}, nil
 	}
+	if strings.Contains(query, "FROM fact_records AS fact") &&
+		strings.Contains(query, "fact.fact_kind = ANY($1::text[])") &&
+		strings.Contains(query, "generation.status = 'active'") &&
+		strings.Contains(query, "source_record_id") &&
+		(len(c.results) == 0 || !contentReaderResultColumnsEqual(c.results[0], []string{"payload"})) {
+		return &contentReaderRows{columns: []string{"payload"}, rows: nil}, nil
+	}
 	if strings.Contains(query, "FROM content_entities") &&
 		strings.Contains(query, "entity_type = $2") &&
 		strings.Contains(query, "LIMIT $3 OFFSET $4") &&
