@@ -192,6 +192,8 @@ func supplyChainServiceContextFromEnvelope(envelope facts.Envelope) supplyChainS
 		repositoryID:   supplyChainServiceRepositoryID(envelope),
 		serviceID:      payloadStr(envelope.Payload, "service_id"),
 		workloadID:     payloadStr(envelope.Payload, "workload_id"),
+		entityRef:      payloadStr(envelope.Payload, "entity_ref"),
+		ownerRef:       payloadStr(envelope.Payload, "owner_ref"),
 		outcome:        payloadStr(envelope.Payload, "outcome"),
 		driftStatus:    payloadStr(envelope.Payload, "drift_status"),
 		provenanceOnly: payloadBool(envelope.Payload, "provenance_only"),

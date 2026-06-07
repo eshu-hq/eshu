@@ -165,6 +165,8 @@ func supplyChainImpactPayload(write SupplyChainImpactWrite, finding SupplyChainI
 		"deployment_ids":         uniqueSortedStrings(finding.DeploymentIDs),
 		"service_ids":            uniqueSortedStrings(finding.ServiceIDs),
 		"environments":           uniqueSortedStrings(finding.Environments),
+		"catalog_entity_refs":    uniqueSortedStrings(finding.CatalogEntityRefs),
+		"catalog_owner_refs":     uniqueSortedStrings(finding.CatalogOwnerRefs),
 		"detection_profile":      string(finding.DetectionProfile),
 		"missing_evidence":       uniqueSortedStrings(finding.MissingEvidence),
 		"evidence_path":          orderedUniqueStrings(finding.EvidencePath),

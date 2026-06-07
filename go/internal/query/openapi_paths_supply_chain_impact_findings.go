@@ -75,6 +75,8 @@ const openAPIPathsSupplyChainImpactFindings = `
                           "deployment_ids": {"type": "array", "items": {"type": "string"}, "description": "Deployment mapping anchors from repository-scoped reducer_platform_materialization evidence. These prove a repository has deployment-lane evidence but do not imply workload identity, environment, or runtime image proof."},
                           "service_ids": {"type": "array", "items": {"type": "string"}},
                           "environments": {"type": "array", "items": {"type": "string"}},
+                          "catalog_entity_refs": {"type": "array", "items": {"type": "string"}, "description": "Reducer-admitted service-catalog entity references attached to the finding evidence path. These are catalog anchors and do not become service_ids unless the reducer fact carries an explicit service_id."},
+                          "catalog_owner_refs": {"type": "array", "items": {"type": "string"}, "description": "Reducer-admitted service-catalog owners attached to the finding evidence path. These preserve ownership context without inventing service or workload identity."},
                           "dependency_path": {"type": "array", "items": {"type": "string"}},
                           "dependency_depth": {"type": "integer"},
                           "direct_dependency": {"type": "boolean"},

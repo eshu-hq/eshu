@@ -38,6 +38,8 @@ func TestBuildSupplyChainImpactFindingsAttachesRepositoryScopedOperationalAnchor
 	assertContainsString(t, got.WorkloadIDs, testImpactWorkloadID)
 	assertContainsString(t, got.ServiceIDs, testImpactServiceID)
 	assertContainsString(t, got.Environments, testImpactEnv)
+	assertContainsString(t, got.CatalogEntityRefs, "api:default/example-api")
+	assertContainsString(t, got.CatalogOwnerRefs, "team:default/platform")
 	assertContainsString(t, got.EvidencePath, workloadIdentityFactKind)
 	assertContainsString(t, got.EvidencePath, serviceCatalogCorrelationFactKind)
 	assertContainsString(t, got.EvidencePath, cicdRunCorrelationFactKind)
