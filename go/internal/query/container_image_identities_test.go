@@ -170,9 +170,10 @@ func TestContainerImageIdentityQueryUsesActiveFactReadModel(t *testing.T) {
 		"generation.status = 'active'",
 		"fact.payload->>'digest' = $2",
 		"fact.payload->>'image_ref' = $3",
-		"fact.payload->>'repository_id' = $4",
-		"fact.payload->>'outcome' = $5",
-		"fact.fact_id > $6",
+		"fact.payload->'source_repository_ids' ? $4",
+		"fact.payload->>'repository_id' = $5",
+		"fact.payload->>'outcome' = $6",
+		"fact.fact_id > $7",
 	} {
 		if !strings.Contains(listContainerImageIdentitiesQuery, want) {
 			t.Fatalf("listContainerImageIdentitiesQuery missing %q:\n%s", want, listContainerImageIdentitiesQuery)

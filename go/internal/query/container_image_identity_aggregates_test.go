@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -121,6 +122,58 @@ func TestContainerImageIdentityAggregateCountReturnsRollups(t *testing.T) {
 	}
 	if body.Scope["repository_id"] != "oci-registry://registry.example/team/api" {
 		t.Fatalf("scope.repository_id = %v, want oci-registry://...", body.Scope["repository_id"])
+	}
+}
+
+func TestContainerImageIdentityAggregateRoutesForwardSourceRepositoryScope(t *testing.T) {
+	t.Parallel()
+
+	sourceRepoID := "repo://example/payments-api"
+	store := &stubContainerImageIdentityAggregateStore{
+		count: ContainerImageIdentityAggregateCount{TotalIdentities: 2},
+		inventory: []ContainerImageIdentityInventoryRow{
+			{Dimension: ContainerImageIdentityInventoryByRepository, Value: "oci-registry://registry.example/team/payments-api", Count: 2},
+		},
+	}
+	handler := &SupplyChainHandler{ContainerImageAggregates: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	countReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/supply-chain/container-images/identities/count?source_repository_id="+sourceRepoID,
+		nil,
+	)
+	countW := httptest.NewRecorder()
+	mux.ServeHTTP(countW, countReq)
+	if got, want := countW.Code, http.StatusOK; got != want {
+		t.Fatalf("count status = %d, want %d; body = %s", got, want, countW.Body.String())
+	}
+	if got, want := store.lastFilter.SourceRepositoryID, sourceRepoID; got != want {
+		t.Fatalf("count SourceRepositoryID = %q, want %q", got, want)
+	}
+	var countBody struct {
+		Scope map[string]any `json:"scope"`
+	}
+	if err := json.Unmarshal(countW.Body.Bytes(), &countBody); err != nil {
+		t.Fatalf("decode count body: %v", err)
+	}
+	if got, want := countBody.Scope["source_repository_id"], sourceRepoID; got != want {
+		t.Fatalf("count scope.source_repository_id = %#v, want %#v", got, want)
+	}
+
+	inventoryReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/supply-chain/container-images/identities/inventory?source_repository_id="+sourceRepoID+"&group_by=repository_id&limit=10",
+		nil,
+	)
+	inventoryW := httptest.NewRecorder()
+	mux.ServeHTTP(inventoryW, inventoryReq)
+	if got, want := inventoryW.Code, http.StatusOK; got != want {
+		t.Fatalf("inventory status = %d, want %d; body = %s", got, want, inventoryW.Body.String())
+	}
+	if got, want := store.lastFilter.SourceRepositoryID, sourceRepoID; got != want {
+		t.Fatalf("inventory SourceRepositoryID = %q, want %q", got, want)
 	}
 }
 
@@ -390,5 +443,22 @@ func TestContainerImageIdentityInventoryGroupExpressionEnumIsClosed(t *testing.T
 	}
 	if _, err := containerImageIdentityInventoryGroupExpression("registry"); err == nil {
 		t.Fatal("containerImageIdentityInventoryGroupExpression must reject unknown dimensions to keep SQL substitution safe")
+	}
+}
+
+func TestContainerImageIdentityAggregateQueriesUseSourceRepositoryAnchor(t *testing.T) {
+	t.Parallel()
+
+	for _, query := range []string{
+		containerImageIdentityAggregateTotalQuery,
+		containerImageIdentityAggregateGroupQueryTemplate,
+		containerImageIdentityInventoryQueryTemplate,
+	} {
+		if !strings.Contains(query, "fact.payload->'source_repository_ids' ? $3") {
+			t.Fatalf("aggregate query missing source repository predicate:\n%s", query)
+		}
+		if !strings.Contains(query, "fact.payload->>'repository_id' = $4") {
+			t.Fatalf("aggregate query must keep repository_id as OCI predicate:\n%s", query)
+		}
 	}
 }

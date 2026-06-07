@@ -95,13 +95,13 @@ case "$*" in
 	*"/api/v0/supply-chain/security-alerts/reconciliations?repository_id=repo%3A%2F%2Fexample%2Fapi&limit=1"*)
 		cat "${state_dir}/security-alert-count.json"
 		;;
-	*"/api/v0/supply-chain/container-images/identities/count?digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&repository_id=oci-registry%3A%2F%2Fregistry.example%2Fteam%2Fapi"*)
+	*"/api/v0/supply-chain/container-images/identities/count?digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&source_repository_id=repo%3A%2F%2Fexample%2Fapi&repository_id=oci-registry%3A%2F%2Fregistry.example%2Fteam%2Fapi"*)
 		cat "${state_dir}/image-count.json"
 		;;
-	*"/api/v0/supply-chain/container-images/identities/count?image_ref=registry.example.com%2Fteam%2Fapi%3Aprod&repository_id=oci-registry%3A%2F%2Fregistry.example%2Fteam%2Fapi"*)
+	*"/api/v0/supply-chain/container-images/identities/count?image_ref=registry.example.com%2Fteam%2Fapi%3Aprod&source_repository_id=repo%3A%2F%2Fexample%2Fapi&repository_id=oci-registry%3A%2F%2Fregistry.example%2Fteam%2Fapi"*)
 		cat "${state_dir}/image-count.json"
 		;;
-	*"/api/v0/supply-chain/container-images/identities/count?digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&repository_id=oci-registry%3A%2F%2Fregistry.example%2Fteam%2Fother-api"*)
+	*"/api/v0/supply-chain/container-images/identities/count?digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&source_repository_id=repo%3A%2F%2Fexample%2Fapi&repository_id=oci-registry%3A%2F%2Fregistry.example%2Fteam%2Fother-api"*)
 		cat "${state_dir}/image-count.json"
 		;;
 	*"/api/v0/supply-chain/container-images/identities/count?digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"*)

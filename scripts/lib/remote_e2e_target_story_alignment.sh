@@ -129,13 +129,14 @@ target_story_validate_alignment() {
 	fi
 
 	local security_min image_min catalog_min sbom_min
-	local expected_security_repo expected_image_repo expected_image_ref
+	local expected_security_repo expected_source_repo expected_image_repo expected_image_ref
 	local expected_service_id expected_workload_id expected_image_digest expected_sbom_digest
 	security_min="$(target_story_alignment_manifest_int "${manifest_file}" '.minimums.security_alert_reconciliations')"
 	image_min="$(target_story_alignment_manifest_int "${manifest_file}" '.minimums.container_image_identities')"
 	catalog_min="$(target_story_alignment_manifest_int "${manifest_file}" '.minimums.service_catalog_correlations')"
 	sbom_min="$(target_story_alignment_manifest_int "${manifest_file}" '.minimums.sbom_attachments')"
 	expected_security_repo="$(target_story_alignment_manifest_string "${manifest_file}" '.expected_security_alert_repository')"
+	expected_source_repo="$(target_story_alignment_manifest_string "${manifest_file}" '.expected_source_repository_id')"
 	expected_image_repo="$(target_story_alignment_manifest_string "${manifest_file}" '.expected_oci_repository_id')"
 	expected_image_ref="$(target_story_alignment_manifest_string "${manifest_file}" '.expected_image_ref')"
 	expected_service_id="$(target_story_alignment_manifest_string "${manifest_file}" '.expected_service_id')"
@@ -147,6 +148,7 @@ target_story_validate_alignment() {
 		target_story_require_aligned_target "${manifest_file}" expected_security_alert_repository "${expected_security_repo}" || return 1
 	fi
 	if ((image_min > 0)); then
+		target_story_require_aligned_target "${manifest_file}" expected_source_repository_id "${expected_source_repo}" || return 1
 		if [[ -n "${expected_image_repo}" ]]; then
 			target_story_require_aligned_target "${manifest_file}" expected_oci_repository_id "${expected_image_repo}" || return 1
 		elif [[ -n "${expected_image_ref}" ]]; then

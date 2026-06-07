@@ -15,33 +15,38 @@ type ContainerImageIdentityStore interface {
 	ListContainerImageIdentities(context.Context, ContainerImageIdentityFilter) ([]ContainerImageIdentityRow, error)
 }
 
-// ContainerImageIdentityFilter bounds identity reads to an image digest,
-// image reference, repository, or reducer outcome.
+// ContainerImageIdentityFilter bounds identity reads to an image digest, image
+// reference, source repository, OCI repository, or reducer outcome.
 type ContainerImageIdentityFilter struct {
-	Digest          string
-	ImageRef        string
-	RepositoryID    string
-	Outcome         string
-	AfterIdentityID string
-	Limit           int
+	Digest             string
+	ImageRef           string
+	SourceRepositoryID string
+	RepositoryID       string
+	Outcome            string
+	AfterIdentityID    string
+	Limit              int
 }
 
 // ContainerImageIdentityRow is one durable image identity fact decoded from
 // the reducer-owned read model.
 type ContainerImageIdentityRow struct {
-	IdentityID       string
-	Digest           string
-	ImageRef         string
-	RepositoryID     string
-	Outcome          string
-	Reason           string
-	IdentityStrength string
-	CanonicalID      string
-	CanonicalWrites  int
-	SourceLayers     []string
-	EvidenceFactIDs  []string
-	SourceFreshness  string
-	SourceConfidence string
+	IdentityID          string
+	Digest              string
+	ImageRef            string
+	RepositoryID        string
+	SourceRepositoryIDs []string
+	WorkloadIDs         []string
+	ServiceIDs          []string
+	Outcome             string
+	Reason              string
+	IdentityStrength    string
+	CanonicalID         string
+	CanonicalWrites     int
+	SourceLayers        []string
+	EvidenceFactIDs     []string
+	MissingEvidence     []string
+	SourceFreshness     string
+	SourceConfidence    string
 }
 
 type containerImageIdentityQueryer interface {
@@ -70,7 +75,7 @@ func (s PostgresContainerImageIdentityStore) ListContainerImageIdentities(
 		return nil, fmt.Errorf("container image identity database is required")
 	}
 	if !filter.hasScope() {
-		return nil, fmt.Errorf("digest, image_ref, repository_id, or outcome is required")
+		return nil, fmt.Errorf("digest, image_ref, source_repository_id, repository_id, or outcome is required")
 	}
 	if filter.Limit <= 0 || filter.Limit > containerImageIdentityMaxLimit+1 {
 		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", containerImageIdentityMaxLimit+1)
@@ -82,6 +87,7 @@ func (s PostgresContainerImageIdentityStore) ListContainerImageIdentities(
 		containerImageIdentityFactKind,
 		filter.Digest,
 		filter.ImageRef,
+		filter.SourceRepositoryID,
 		filter.RepositoryID,
 		filter.Outcome,
 		filter.AfterIdentityID,
@@ -126,16 +132,17 @@ WHERE fact.fact_kind = $1
   AND generation.status = 'active'
   AND ($2 = '' OR fact.payload->>'digest' = $2)
   AND ($3 = '' OR fact.payload->>'image_ref' = $3)
-  AND ($4 = '' OR fact.payload->>'repository_id' = $4)
-  AND ($5 = '' OR fact.payload->>'outcome' = $5)
-  AND ($6 = '' OR fact.fact_id > $6)
+  AND ($4 = '' OR fact.payload->'source_repository_ids' ? $4)
+  AND ($5 = '' OR fact.payload->>'repository_id' = $5)
+  AND ($6 = '' OR fact.payload->>'outcome' = $6)
+  AND ($7 = '' OR fact.fact_id > $7)
 ORDER BY fact.fact_id ASC
-LIMIT $7
+LIMIT $8
 `
 
 func (f ContainerImageIdentityFilter) hasScope() bool {
-	return f.Digest != "" || f.ImageRef != "" || f.RepositoryID != "" ||
-		f.Outcome != ""
+	return f.Digest != "" || f.ImageRef != "" || f.SourceRepositoryID != "" ||
+		f.RepositoryID != "" || f.Outcome != ""
 }
 
 func decodeContainerImageIdentityRow(
@@ -148,18 +155,22 @@ func decodeContainerImageIdentityRow(
 		return ContainerImageIdentityRow{}, fmt.Errorf("decode container image identity: %w", err)
 	}
 	return ContainerImageIdentityRow{
-		IdentityID:       factID,
-		Digest:           StringVal(payload, "digest"),
-		ImageRef:         StringVal(payload, "image_ref"),
-		RepositoryID:     StringVal(payload, "repository_id"),
-		Outcome:          StringVal(payload, "outcome"),
-		Reason:           StringVal(payload, "reason"),
-		IdentityStrength: StringVal(payload, "identity_strength"),
-		CanonicalID:      StringVal(payload, "canonical_id"),
-		CanonicalWrites:  IntVal(payload, "canonical_writes"),
-		SourceLayers:     StringSliceVal(payload, "source_layers"),
-		EvidenceFactIDs:  StringSliceVal(payload, "evidence_fact_ids"),
-		SourceFreshness:  "active",
-		SourceConfidence: sourceConfidence,
+		IdentityID:          factID,
+		Digest:              StringVal(payload, "digest"),
+		ImageRef:            StringVal(payload, "image_ref"),
+		RepositoryID:        StringVal(payload, "repository_id"),
+		SourceRepositoryIDs: StringSliceVal(payload, "source_repository_ids"),
+		WorkloadIDs:         StringSliceVal(payload, "workload_ids"),
+		ServiceIDs:          StringSliceVal(payload, "service_ids"),
+		Outcome:             StringVal(payload, "outcome"),
+		Reason:              StringVal(payload, "reason"),
+		IdentityStrength:    StringVal(payload, "identity_strength"),
+		CanonicalID:         StringVal(payload, "canonical_id"),
+		CanonicalWrites:     IntVal(payload, "canonical_writes"),
+		SourceLayers:        StringSliceVal(payload, "source_layers"),
+		EvidenceFactIDs:     StringSliceVal(payload, "evidence_fact_ids"),
+		MissingEvidence:     StringSliceVal(payload, "missing_evidence"),
+		SourceFreshness:     "active",
+		SourceConfidence:    sourceConfidence,
 	}, nil
 }

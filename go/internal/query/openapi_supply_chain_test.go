@@ -101,6 +101,7 @@ func TestOpenAPISpecIncludesAdvisoryEvidenceRepositoryScope(t *testing.T) {
 	if got := parameterDescriptions["repository_id"]; !strings.Contains(got, "selector") {
 		t.Fatalf("repository_id description = %q, want selector semantics", got)
 	}
+
 	responses := mustMapField(t, get, "responses")
 	twoHundred := mustMapField(t, responses, "200")
 	content := mustMapField(t, twoHundred, "content")
@@ -113,6 +114,55 @@ func TestOpenAPISpecIncludesAdvisoryEvidenceRepositoryScope(t *testing.T) {
 	required := mustStringSliceField(t, schema, "required")
 	if !containsOpenAPIEnumString(required, "scope") {
 		t.Fatalf("required = %#v, want scope", required)
+	}
+}
+
+func TestOpenAPISpecIncludesContainerImageSourceRepositoryBridge(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
+	}
+
+	paths := mustMapField(t, spec, "paths")
+	path := mustMapField(t, paths, "/api/v0/supply-chain/container-images/identities")
+	get := mustMapField(t, path, "get")
+	parameters, ok := get["parameters"].([]any)
+	if !ok {
+		t.Fatalf("parameters = %T, want []any", get["parameters"])
+	}
+	parameterNames := map[string]map[string]any{}
+	for _, parameter := range parameters {
+		parameterMap, ok := parameter.(map[string]any)
+		if !ok {
+			t.Fatalf("parameter = %T, want map[string]any", parameter)
+		}
+		name, _ := parameterMap["name"].(string)
+		parameterNames[name] = parameterMap
+	}
+	if _, ok := parameterNames["source_repository_id"]; !ok {
+		t.Fatal("parameters missing source_repository_id")
+	}
+	repositoryDescription, _ := parameterNames["repository_id"]["description"].(string)
+	if !strings.Contains(repositoryDescription, "not a source repository selector") {
+		t.Fatalf("repository_id description = %q, want OCI-only warning", repositoryDescription)
+	}
+
+	responses := mustMapField(t, get, "responses")
+	twoHundred := mustMapField(t, responses, "200")
+	content := mustMapField(t, twoHundred, "content")
+	appJSON := mustMapField(t, content, "application/json")
+	schema := mustMapField(t, appJSON, "schema")
+	properties := mustMapField(t, schema, "properties")
+	if _, ok := properties["source_bridge"]; !ok {
+		t.Fatal("container identity response missing source_bridge")
+	}
+	identities := mustMapField(t, properties, "identities")
+	items := mustMapField(t, identities, "items")
+	itemProperties := mustMapField(t, items, "properties")
+	if _, ok := itemProperties["source_repository_ids"]; !ok {
+		t.Fatal("container identity item missing source_repository_ids")
 	}
 }
 

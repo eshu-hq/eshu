@@ -25,6 +25,10 @@ func containerImageIdentityAggregateTools() []ToolDefinition {
 						"type":        "string",
 						"description": "Optional OCI repository identity (such as `oci-registry://registry.example/team/api`) to scope the totals.",
 					},
+					"source_repository_id": map[string]any{
+						"type":        "string",
+						"description": "Optional source repository id or selector for bridge-scoped totals; this is not an OCI image repository identity.",
+					},
 					"outcome": map[string]any{
 						"type":        "string",
 						"description": "Optional reducer identity outcome filter applied before counting.",
@@ -56,6 +60,10 @@ func containerImageIdentityAggregateTools() []ToolDefinition {
 					"repository_id": map[string]any{
 						"type":        "string",
 						"description": "Optional OCI repository identity to scope the inventory.",
+					},
+					"source_repository_id": map[string]any{
+						"type":        "string",
+						"description": "Optional source repository id or selector for bridge-scoped inventory; this is not an OCI image repository identity.",
 					},
 					"outcome": map[string]any{
 						"type":        "string",

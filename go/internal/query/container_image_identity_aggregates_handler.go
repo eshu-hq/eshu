@@ -53,7 +53,11 @@ func (h *SupplyChainHandler) countContainerImageIdentities(w http.ResponseWriter
 		return
 	}
 
-	filter := containerImageIdentityAggregateFilterFromRequest(r)
+	sourceRepositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "source_repository_id"))
+	if !ok {
+		return
+	}
+	filter := containerImageIdentityAggregateFilterFromRequest(r, sourceRepositoryID)
 	if !validateContainerImageIdentityAggregateOutcome(w, filter) {
 		return
 	}
@@ -127,7 +131,11 @@ func (h *SupplyChainHandler) containerImageIdentityInventory(w http.ResponseWrit
 	if !ok {
 		return
 	}
-	filter := containerImageIdentityAggregateFilterFromRequest(r)
+	sourceRepositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "source_repository_id"))
+	if !ok {
+		return
+	}
+	filter := containerImageIdentityAggregateFilterFromRequest(r, sourceRepositoryID)
 	if !validateContainerImageIdentityAggregateOutcome(w, filter) {
 		return
 	}
@@ -159,12 +167,16 @@ func (h *SupplyChainHandler) containerImageIdentityInventory(w http.ResponseWrit
 	))
 }
 
-func containerImageIdentityAggregateFilterFromRequest(r *http.Request) ContainerImageIdentityAggregateFilter {
+func containerImageIdentityAggregateFilterFromRequest(
+	r *http.Request,
+	sourceRepositoryID string,
+) ContainerImageIdentityAggregateFilter {
 	return ContainerImageIdentityAggregateFilter{
-		Digest:       QueryParam(r, "digest"),
-		ImageRef:     QueryParam(r, "image_ref"),
-		RepositoryID: QueryParam(r, "repository_id"),
-		Outcome:      QueryParam(r, "outcome"),
+		Digest:             QueryParam(r, "digest"),
+		ImageRef:           QueryParam(r, "image_ref"),
+		SourceRepositoryID: sourceRepositoryID,
+		RepositoryID:       QueryParam(r, "repository_id"),
+		Outcome:            QueryParam(r, "outcome"),
 	}
 }
 
@@ -175,6 +187,9 @@ func containerImageIdentityAggregateScope(filter ContainerImageIdentityAggregate
 	}
 	if filter.ImageRef != "" {
 		out["image_ref"] = filter.ImageRef
+	}
+	if filter.SourceRepositoryID != "" {
+		out["source_repository_id"] = filter.SourceRepositoryID
 	}
 	if filter.RepositoryID != "" {
 		out["repository_id"] = filter.RepositoryID

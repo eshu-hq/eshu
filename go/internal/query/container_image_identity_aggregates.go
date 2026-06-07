@@ -46,10 +46,11 @@ const ContainerImageIdentityAggregateMaxLimit = 500
 // shape we want to support — the dataset is already bounded by `fact_kind`
 // and the active-generation predicate at index lookup time.
 type ContainerImageIdentityAggregateFilter struct {
-	Digest       string
-	ImageRef     string
-	RepositoryID string
-	Outcome      string
+	Digest             string
+	ImageRef           string
+	SourceRepositoryID string
+	RepositoryID       string
+	Outcome            string
 }
 
 // ContainerImageIdentityAggregateCount is the cheap-summary totals envelope
@@ -103,8 +104,9 @@ WHERE fact.fact_kind = 'reducer_container_image_identity'
   AND generation.status = 'active'
   AND ($1 = '' OR fact.payload->>'digest' = $1)
   AND ($2 = '' OR fact.payload->>'image_ref' = $2)
-  AND ($3 = '' OR fact.payload->>'repository_id' = $3)
-  AND ($4 = '' OR fact.payload->>'outcome' = $4);
+  AND ($3 = '' OR fact.payload->'source_repository_ids' ? $3)
+  AND ($4 = '' OR fact.payload->>'repository_id' = $4)
+  AND ($5 = '' OR fact.payload->>'outcome' = $5);
 `
 
 const containerImageIdentityAggregateGroupQueryTemplate = `
@@ -121,8 +123,9 @@ WHERE fact.fact_kind = 'reducer_container_image_identity'
   AND generation.status = 'active'
   AND ($1 = '' OR fact.payload->>'digest' = $1)
   AND ($2 = '' OR fact.payload->>'image_ref' = $2)
-  AND ($3 = '' OR fact.payload->>'repository_id' = $3)
-  AND ($4 = '' OR fact.payload->>'outcome' = $4)
+  AND ($3 = '' OR fact.payload->'source_repository_ids' ? $3)
+  AND ($4 = '' OR fact.payload->>'repository_id' = $4)
+  AND ($5 = '' OR fact.payload->>'outcome' = $5)
 GROUP BY bucket;
 `
 
@@ -140,11 +143,12 @@ WHERE fact.fact_kind = 'reducer_container_image_identity'
   AND generation.status = 'active'
   AND ($1 = '' OR fact.payload->>'digest' = $1)
   AND ($2 = '' OR fact.payload->>'image_ref' = $2)
-  AND ($3 = '' OR fact.payload->>'repository_id' = $3)
-  AND ($4 = '' OR fact.payload->>'outcome' = $4)
+  AND ($3 = '' OR fact.payload->'source_repository_ids' ? $3)
+  AND ($4 = '' OR fact.payload->>'repository_id' = $4)
+  AND ($5 = '' OR fact.payload->>'outcome' = $5)
 GROUP BY bucket
 ORDER BY bucket_count DESC, bucket
-LIMIT $5 OFFSET $6;
+LIMIT $6 OFFSET $7;
 `
 
 // CountContainerImageIdentities returns the cheap-summary totals envelope for
@@ -160,6 +164,7 @@ func (s PostgresContainerImageIdentityAggregateStore) CountContainerImageIdentit
 	args := []any{
 		filter.Digest,
 		filter.ImageRef,
+		filter.SourceRepositoryID,
 		filter.RepositoryID,
 		filter.Outcome,
 	}
@@ -238,6 +243,7 @@ func (s PostgresContainerImageIdentityAggregateStore) ContainerImageIdentityInve
 		q,
 		filter.Digest,
 		filter.ImageRef,
+		filter.SourceRepositoryID,
 		filter.RepositoryID,
 		filter.Outcome,
 		limit,

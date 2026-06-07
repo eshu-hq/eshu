@@ -47,7 +47,7 @@ main() {
 		return 1
 	fi
 
-	local proof_mode repo_selector expected_security_repo expected_service_id expected_workload_id
+	local proof_mode repo_selector expected_security_repo expected_source_repo expected_service_id expected_workload_id
 	local expected_image_repo expected_image_digest expected_image_ref
 	local expected_sbom_digest expected_cloud_resource_id expected_security_rows_file
 	local expected_incident_id expected_incident_provider expected_incident_scope expected_incident_service
@@ -55,6 +55,7 @@ main() {
 	proof_mode="$(target_story_proof_mode)"
 	repo_selector="$(manifest_string '.target_repository_id')"
 	expected_security_repo="$(manifest_string '.expected_security_alert_repository')"
+	expected_source_repo="$(manifest_string '.expected_source_repository_id')"
 	expected_service_id="$(manifest_string '.expected_service_id')"
 	expected_workload_id="$(manifest_string '.expected_workload_id')"
 	expected_image_repo="$(manifest_string '.expected_oci_repository_id')"
@@ -80,6 +81,9 @@ main() {
 	if [[ -z "${repo_selector}" ]]; then
 		echo "target story manifest requires target_repository_id" >&2
 		return 1
+	fi
+	if [[ -z "${expected_source_repo}" ]]; then
+		expected_source_repo="${repo_selector}"
 	fi
 
 	local impact_min security_min image_min sbom_min catalog_min cicd_min cloud_min
@@ -269,6 +273,9 @@ main() {
 		fi
 		local image_path
 		image_path="/supply-chain/container-images/identities/count?${image_param}=$(urlencode "${image_anchor}")"
+		if [[ -n "${expected_source_repo}" ]]; then
+			image_path="${image_path}&source_repository_id=$(urlencode "${expected_source_repo}")"
+		fi
 		if [[ -n "${expected_image_repo}" ]]; then
 			image_path="${image_path}&repository_id=$(urlencode "${expected_image_repo}")"
 		fi
