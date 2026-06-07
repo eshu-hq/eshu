@@ -40,6 +40,22 @@ query spans, truth metadata, `coverage.query_shape`, `coverage.depth`,
 `coverage.limit`, relationship counts, relationship filters, and truncation;
 the new shape keeps those operator-visible fields and updates
 `coverage.query_shape` to identify the direct relationship-family path.
+No-Regression Evidence: `go test ./internal/query -run
+'TestEntityMapPopulatesTypedVerbAndEntityIDForVarLengthEdge' -count=1` covers
+the NornicDB-compatible variable-length traversal row shape from issue #1604:
+one resolved workload anchor, one incoming `DEFINES` relationship family, an
+empty backend-derived `relationship_types` list, and a backend-reported
+`length(path)=0`. The read model now emits the relationship verb as the
+relationship-family literal, avoids `RETURN DISTINCT`, deduplicates equivalent
+rows in Go after the bounded per-family graph calls, and reports a minimum
+one-hop depth so the API/MCP entity map does not label the neighboring
+repository as the anchor itself.
+No-Observability-Change: the fix does not add a route, queue, worker, graph
+write, runtime knob, metric instrument, or metric label. Operators continue to
+diagnose entity-map reads through the existing `query.entity_map` handler span,
+graph query spans, HTTP status/error body, truth envelope, `coverage.depth`,
+`coverage.limit`, relationship filters, returned relationship counts, and
+truncation metadata.
 `PackageRegistryHandler` (`package_registry.go:21`) keeps package-registry
 reads bounded: package and version identity lookups require a package,
 ecosystem, or version anchor, dependency lookup requires `package_id` or

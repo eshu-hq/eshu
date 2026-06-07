@@ -213,6 +213,22 @@ infer completeness from row count alone.
     candidates for ambiguous, sensitive, stale, state-only, or unsupported rows.
 - `ImpactHandler` — blast radius, change surface, deployment trace, resource
   investigation, dependency paths (`impact.go:11`)
+  - Entity-map neighborhood traversal resolves one anchor first, then runs
+    bounded per-relationship-family graph reads. No-Regression Evidence:
+    `go test ./internal/query -run
+    'TestEntityMapPopulatesTypedVerbAndEntityIDForVarLengthEdge' -count=1`
+    covers the NornicDB-compatible variable-length row shape from issue #1604:
+    one resolved workload anchor, one incoming `DEFINES` relationship family,
+    empty backend-derived relationship types, and a backend-reported
+    `length(path)=0`. The query now emits the relationship verb as the family
+    literal, avoids `RETURN DISTINCT`, deduplicates equivalent rows in Go after
+    the bounded graph calls, and reports at least one hop for returned
+    neighbors. No-Observability-Change: entity-map reads still use the existing
+    `query.entity_map` handler span, graph query spans, HTTP status/error body,
+    truth envelope, `coverage.depth`, `coverage.limit`, relationship filters,
+    returned relationship counts, and truncation metadata. The change adds no
+    route, queue, worker, graph write, runtime knob, metric instrument, or
+    metric label.
 - `EvidenceHandler` — relationship evidence drilldown and bounded citation
   packet hydration; citation packets reject more than 500 input handles and
   hydrate at most 50 citations per call (`evidence.go`, `evidence_citation.go`)

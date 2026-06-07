@@ -299,27 +299,27 @@ func TestEntityMapPopulatesTypedVerbAndEntityIDForVarLengthEdge(t *testing.T) {
 
 	resolverRows := []map[string]any{
 		{
-			"id":              "workload:api-node-boats",
-			"name":            "api-node-boats",
+			"id":              "workload:orders-api",
+			"name":            "orders-api",
 			"labels":          []any{"Workload"},
-			"repo_id":         "repository:r_f9600c28",
+			"repo_id":         "repository:r_orders_api",
 			"anchor_label":    "Workload",
 			"anchor_property": "id",
-			"anchor_value":    "workload:api-node-boats",
+			"anchor_value":    "workload:orders-api",
 		},
 	}
 	// Mirror NornicDB var-length behavior: relationship_types empty, depth 0,
 	// but the literal relationship_type is set and entity_id resolves because
 	// the traversal no longer uses RETURN DISTINCT.
 	definesRow := map[string]any{
-		"entity_id":          "repository:r_f9600c28",
-		"entity_name":        "api-node-boats",
+		"entity_id":          "repository:r_orders_api",
+		"entity_name":        "orders-api",
 		"entity_labels":      []any{"Repository"},
 		"direction":          "incoming",
 		"depth":              int64(0),
 		"relationship_type":  "DEFINES",
 		"relationship_types": []any{},
-		"repo_id":            "repository:r_f9600c28",
+		"repo_id":            "repository:r_orders_api",
 	}
 	runRows := make([][]map[string]any, 0,
 		1+len(entityMapDefaultOutgoingRelationships)+len(entityMapDefaultIncomingRelationships))
@@ -343,7 +343,7 @@ func TestEntityMapPopulatesTypedVerbAndEntityIDForVarLengthEdge(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/impact/entity-map",
-		bytes.NewBufferString(`{"from":"api-node-boats","from_type":"service","depth":2}`),
+		bytes.NewBufferString(`{"from":"orders-api","from_type":"service","depth":2}`),
 	)
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	w := httptest.NewRecorder()
@@ -372,7 +372,7 @@ func TestEntityMapPopulatesTypedVerbAndEntityIDForVarLengthEdge(t *testing.T) {
 		t.Fatalf("relationship count = %d, want 1; evidence=%#v", len(relationships), evidence)
 	}
 	row := relationships[0].(map[string]any)
-	if got, want := row["entity_id"], "repository:r_f9600c28"; got != want {
+	if got, want := row["entity_id"], "repository:r_orders_api"; got != want {
 		t.Fatalf("entity_id = %#v, want %#v; row=%#v", got, want, row)
 	}
 	if got, want := row["relationship_type"], "DEFINES"; got != want {
