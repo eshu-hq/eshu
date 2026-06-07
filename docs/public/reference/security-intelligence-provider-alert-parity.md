@@ -50,6 +50,12 @@ Any mismatch must classify whether the cause is missing target collection,
 missing advisory ingestion, version-range matching, unsupported ecosystem,
 provider-only behavior, or an Eshu reducer bug.
 
+Public-safe readback for scoped npm alerts: synthetic `@scope/provider-owned`
+fixtures prove a provider-only alert stays `provider_only` when no owned
+dependency evidence exists, then promotes to `matched` reconciliation and a
+reducer-owned `affected_exact` impact finding when Eshu has lockfile-proven
+transitive dependency evidence for the exact scoped package name.
+
 Operator-local `eshu vuln-scan provider-parity` runs this comparison across a
 local repository allowlist and emits only aggregate-safe output. The public
 summary includes repository count, provider alert count, Eshu finding count,

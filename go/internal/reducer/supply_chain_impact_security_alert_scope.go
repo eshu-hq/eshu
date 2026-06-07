@@ -105,7 +105,7 @@ func securityAlertManifestDependencyMatches(
 		}) {
 			continue
 		}
-		if securityAlertPackageNameMatches(alert, dependency.DependencyName) {
+		if securityAlertPackageNameMatchesDependency(alert, dependency) {
 			return true
 		}
 	}
@@ -129,7 +129,7 @@ func securityAlertManifestDependencyPackageMatches(
 	dependency packageManifestDependency,
 ) bool {
 	for _, alert := range alerts {
-		if securityAlertPackageNameMatches(alert, dependency.DependencyName) {
+		if securityAlertPackageNameMatchesDependency(alert, dependency) {
 			return true
 		}
 	}
