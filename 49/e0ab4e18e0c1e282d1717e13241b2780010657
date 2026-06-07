@@ -1,0 +1,31 @@
+go/internal/mcp/tools_context.go
+  s_f2f7fbb6f30866::t_4f9a39f10d73dc 117-132
+go/internal/mcp/README.md
+  s_f2f7fbb6f30866::t_79ca29de708038 140,265-275
+docs/public/reference/mcp-tool-contract-matrix.md
+  s_f2f7fbb6f30866::t_4801bf36e27668 118
+go/internal/mcp/dispatch_service_story_test.go
+  s_f2f7fbb6f30866::t_4c1bc88ccf3dfb 71,74-95,113-145,147-173
+  s_f2f7fbb6f30866::t_212f7b4b6705ef 96-112
+docs/public/reference/mcp-cookbook.md
+  s_f2f7fbb6f30866::t_b63cd837d1aa35 30-36
+go/internal/mcp/dispatch_service_selector.go
+  s_f2f7fbb6f30866::t_345eb7ee8f8ae5 19-21,36-38,46-53
+  s_f2f7fbb6f30866::t_2d9883a52d4c13 23-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "49e0ab4e18e0c1e282d1717e13241b2780010657",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
