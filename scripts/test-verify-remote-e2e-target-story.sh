@@ -493,6 +493,7 @@ if ! rg -q 'remote E2E target story proof skipped: no target story configured' /
   exit 1
 fi
 "${repo_root}/scripts/test-verify-remote-e2e-target-story-runtime-missing-evidence.sh"
+"${repo_root}/scripts/test-verify-remote-e2e-target-story-artifact-anchors.sh"
 "${repo_root}/scripts/test-verify-remote-e2e-target-story-source-evidence.sh"
 "${repo_root}/scripts/test-verify-remote-e2e-target-story-canonical-ids.sh"
 "${repo_root}/scripts/test-verify-remote-e2e-target-story-cicd-missing-evidence.sh"

@@ -155,6 +155,7 @@ Public-safe manifest shape:
   "expected_oci_repository_id": "oci-registry://registry.example/team/api",
   "expected_image_digest": "sha256:...",
   "expected_image_ref": "registry.example/team/api:tag",
+  "expected_source_revision": "git-or-source-revision",
   "expected_image_package_missing_evidence": [
     "oci_registry_target_outside_scope"
   ],
@@ -239,6 +240,13 @@ digest/image-ref anchor, requires every expected class in
 names such as `source_to_ci_run_evidence_missing` or
 `ci_run_to_image_artifact_evidence_missing`. This proves a named missing hop
 without requiring live provider evidence.
+
+Positive `minimums.container_image_identities` and `minimums.sbom_attachments`
+require matching bounded list rows through API and MCP, not only positive
+aggregate counts. Container-image rows must match the source repository, optional
+OCI repository, digest or image reference, and optional
+`expected_source_revision`. SBOM rows must inherit the target repository anchor
+and optional subject digest.
 
 When source-to-image or image-to-SBOM proof is intentionally absent for the
 selected target, keep `minimums.container_image_identities` or

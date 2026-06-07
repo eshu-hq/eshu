@@ -338,11 +338,15 @@ only count labels and sanitized missing-evidence reasons, never raw target
 values. Image identity proof includes `source_repository_id`; it defaults to
 `target_repository_id` and may be overridden with
 `expected_source_repository_id` only when the source selector still aligns with
-the target repository. SBOM proof also starts from `target_repository_id`;
-`expected_image_digest` or `expected_sbom_subject_digest` narrows that count
-when available. Use `expected_image_digest` or `expected_image_ref` to tie
-container-image, SBOM, and CI/CD evidence to the same artifact. Digest-backed
-CI/CD proof filters count, API list, and MCP list readbacks by
+the target repository. When `expected_source_revision` is set, the verifier
+requires the bounded image identity list row to carry that exact revision.
+SBOM proof also starts from `target_repository_id`; `expected_image_digest` or
+`expected_sbom_subject_digest` narrows that count when available. Use
+`expected_image_digest` or `expected_image_ref` to tie container-image, SBOM,
+and CI/CD evidence to the same artifact. Positive image and SBOM minimums
+require both count and bounded list readbacks through API and MCP; a count-only
+aggregate is not accepted as source-to-image or repository-to-SBOM proof.
+Digest-backed CI/CD proof filters count, API list, and MCP list readbacks by
 `artifact_digest`; image-reference proof filters those same readbacks by
 `image_ref` so the verifier does not accept unrelated repository rows. When live
 CI/CD provider access or artifact bridge evidence is absent by design, leave
@@ -372,7 +376,7 @@ only for matching and does not print them.
 Use `minimums.documentation_findings`, `minimums.incident_contexts`, and `minimums.work_item_evidence` for Confluence/PagerDuty/Jira target evidence. Positive source minimums require `ESHU_REMOTE_E2E_MCP_URL`; aggregate collector counts are not target proof.
 Disabled/unsupported source families keep minimum `0` and set `unsupported_target_evidence` to `collector_disabled`, `source_not_configured`, `capability_not_supported`, or `target_link_not_modeled`; missing positive evidence reports only `target_not_linked`.
 
-No-Regression Evidence: `scripts/test-verify-remote-e2e-target-story-canonical-ids.sh` proves opaque canonical repository selectors reach existing bounded readbacks, unrelated workload selectors still fail through catalog minimums, and no new API/MCP calls were added. `scripts/test-verify-remote-e2e-target-story-runtime-missing-evidence.sh` proves partial runtime proofs report sanitized API and MCP container-image and SBOM count missing-evidence classes without leaking raw target values. `scripts/test-verify-remote-e2e-target-story-image-package-gaps.sh` proves partial image/runtime proofs report sanitized API and MCP `image_package` gap classes plus collector scope without leaking raw target values. No-Observability-Change: target-story proof output remains the existing public-safe count line and missing-evidence errors; raw repository ids, workload ids, digests, image refs, account ids, URLs, and local paths stay hidden.
+No-Regression Evidence: `scripts/test-verify-remote-e2e-target-story-artifact-anchors.sh` proves positive image/SBOM proof requires bounded API and MCP list rows with matching source, repository, artifact, and optional revision anchors. `scripts/test-verify-remote-e2e-target-story-canonical-ids.sh` proves opaque canonical repository selectors reach bounded readbacks and unrelated workload selectors still fail through catalog minimums. `scripts/test-verify-remote-e2e-target-story-runtime-missing-evidence.sh` and `scripts/test-verify-remote-e2e-target-story-image-package-gaps.sh` prove partial runtime proofs report sanitized API/MCP missing-evidence classes without leaking raw target values. No-Observability-Change: target-story proof output remains public-safe counts, states, and missing-evidence classes; raw repository ids, workload ids, digests, image refs, account ids, URLs, and local paths stay hidden.
 
 ### Reducer Evidence Rows
 
@@ -478,36 +482,14 @@ go test ./internal/collector ./internal/collector/awscloud/awsruntime \
 
 ## Focused Regression Gates
 
-Use package tests for focused collector regressions before spending remote
-runtime time:
-
-| Change | Focused gate |
-| --- | --- |
-| API Gateway throttle handling | `cd go && go test ./internal/collector/awscloud/... -count=1` |
-| Scheduled AWS planning and Terraform-state readiness | `cd go && go test ./internal/coordinator ./internal/storage/postgres -count=1` |
-
-Expected throttle observability: AWS API-call and throttle counters increment,
-`aws_warning` records sustained throttling, and
-`aws_scan_status.status=partial` carries `failure_class=throttled`.
-
-The duplicate-suppression conflict domain remains `(collector_kind,
-collector_instance_id, scope_id, acceptance_unit_id)`.
-
-The remote Compose coordinator uses a 30-second reconcile interval. Keep that
-short enough for derived package-registry and vulnerability-intelligence
-targets to be planned after Git/bootstrap dependency facts become active; the
-guarded work admission path suppresses already-open targets instead of relying
-on a long interval. The workflow coordinator starts after the bootstrap-index
-container completes so its initial active-mode reconcile can see active
-dependency facts and enqueue derived package/vulnerability work without waiting
-for a later hourly refresh. Scanner-worker targets are not derived from facts in
-this proof; each configured analyzer target becomes one guarded work item.
-Derived target reads rotate by reconcile bucket, so a bounded full-corpus run
-should show package-registry package identities and OSV package-version targets
-advancing beyond the first sorted page. OSV targets may carry multiple exact
-package-version queries in a single storage-safe querybatch claim; that is
-expected and keeps full-corpus vulnerability collection inside the remote E2E
-runtime budget.
+Run package tests before spending remote runtime. AWS throttle changes use
+`cd go && go test ./internal/collector/awscloud/... -count=1`; scheduled AWS
+planning and Terraform-state readiness use
+`cd go && go test ./internal/coordinator ./internal/storage/postgres -count=1`.
+Throttle proof must show AWS API-call/throttle counters, `aws_warning`, and
+`aws_scan_status.status=partial` with `failure_class=throttled`. The remote
+Compose coordinator keeps a 30-second reconcile interval for derived package and
+vulnerability targets; scanner-worker targets stay explicit.
 
 ## Terraform-State Warning-Only Generations
 
