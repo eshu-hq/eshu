@@ -15,6 +15,8 @@ verify_tfstate_warning_summary() {
 		return 1
 	fi
 
+	print_tfstate_proof_summary "${status_file}"
+
 	local summary_count
 	summary_count="$(jq -r '[.terraform_state.warning_summary[]?] | length' "${status_file}")"
 	if ((summary_count == 0)); then
@@ -41,6 +43,18 @@ verify_tfstate_warning_summary() {
 			| (.count // 0)
 		] | add // 0
 	' "${status_file}")"
+	local state_missing_detail_count
+	state_missing_detail_count="$(jq -r '
+		[
+			.terraform_state.recent_warnings[]?
+			| select((.warning_kind // "") == "state_missing")
+			| select(((.source_handle // "") != "") and ((.safe_locator_hash // "") != ""))
+		] | length
+	' "${status_file}")"
+	if ((state_missing_count > 0 && state_missing_detail_count == 0)); then
+		echo "remote E2E Terraform-state state_missing warning detail missing from status readback" >&2
+		return 1
+	fi
 	if ((state_missing_count > max_state_missing)); then
 		printf 'remote E2E Terraform-state state_missing warnings exceeded: count=%s max=%s\n' \
 			"${state_missing_count}" "${max_state_missing}" >&2
@@ -48,4 +62,41 @@ verify_tfstate_warning_summary() {
 	fi
 	printf 'remote E2E Terraform-state state_missing warning threshold verified: count=%s max=%s\n' \
 		"${state_missing_count}" "${max_state_missing}"
+}
+
+print_tfstate_proof_summary() {
+	local status_file="$1"
+
+	local counts
+	counts="$(jq -r '
+		def unique_hash_count(rows):
+			[
+				rows[]?
+				| (.safe_locator_hash // "")
+				| select(. != "")
+			] | unique | length;
+
+		[
+			unique_hash_count(.terraform_state.last_serials // []),
+			(
+				[
+					.terraform_state.warning_summary[]?
+					| select((.warning_kind // "") == "state_missing")
+					| (.count // 0)
+				] | add // 0
+			)
+		] | @tsv
+	' "${status_file}")"
+
+	local successful_snapshots
+	local missing_states
+	read -r successful_snapshots missing_states <<<"${counts}"
+	local configured_targets=$((successful_snapshots + missing_states))
+	local attempted_reads="${configured_targets}"
+
+	printf 'remote E2E Terraform-state proof summary: configured_targets=%s attempted_reads=%s successful_snapshots=%s missing_states=%s\n' \
+		"${configured_targets}" \
+		"${attempted_reads}" \
+		"${successful_snapshots}" \
+		"${missing_states}"
 }

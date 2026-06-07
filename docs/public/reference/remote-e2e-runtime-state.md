@@ -111,11 +111,14 @@ Set `ESHU_REMOTE_E2E_TFSTATE_STATE_MISSING_MAX` to the maximum allowed
 Terraform-state `state_missing` warning count for the proof. The default is
 `0`, so a release-gate run fails when any configured Terraform-state source was
 missing. The verifier reads `/api/v0/status/index`, prints public-safe
+Terraform-state proof counts for configured targets, attempted reads,
+successful snapshots, and missing states, then prints
 `terraform_state.warning_summary[]` rows grouped by warning kind, reason, and
 scope class, and prints `terraform_state.recent_warnings[]` detail rows for
 `state_missing` with `source_handle` and `safe_locator_hash`. It fails if the
-status payload does not expose the summary array. It does not print raw state
-locators, bucket names, S3 object keys, or local paths.
+status payload does not expose the summary array, or if `state_missing` is
+reported without a bounded sanitized detail handle. It does not print raw state
+locators, bucket names, account IDs, S3 object keys, or local paths.
 
 Set `ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID` to a bounded package ID
 when a representative corpus intentionally includes package metadata that
@@ -287,13 +290,17 @@ When `ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID` is set, the verifier
 also prints `package_registry_metadata_too_large_gaps` from the bounded
 readiness response without printing package names, metadata URLs, or feed
 credentials.
-The verifier also prints Terraform-state warning summary rows from
-`/api/v0/status/index` and fails when total `state_missing` warnings exceed
-`ESHU_REMOTE_E2E_TFSTATE_STATE_MISSING_MAX`. For `state_missing`, it also
-prints bounded warning detail rows with `source_handle` and `safe_locator_hash`
-so operators can identify the missing configured source without raw locators.
-This turns queue-zero plus healthy containers into a real
+The verifier also prints Terraform-state proof counts and warning summary rows
+from `/api/v0/status/index` and fails when total `state_missing` warnings
+exceed `ESHU_REMOTE_E2E_TFSTATE_STATE_MISSING_MAX`. For `state_missing`, it
+also prints bounded warning detail rows with `source_handle` and
+`safe_locator_hash` so operators can identify the missing configured source
+without raw locators. This turns queue-zero plus healthy containers into a real
 evidence-completeness check for exact Terraform-state sources.
+Representative proofs that intentionally omit a configured Terraform-state
+target may raise `ESHU_REMOTE_E2E_TFSTATE_STATE_MISSING_MAX` only for that
+partial run and must record the partial classification in the proof evidence.
+All-collector release gates keep the default zero threshold.
 When `ESHU_REMOTE_E2E_TARGET_STORY_FILE` is set, the verifier prints
 `remote E2E target story proof counts` with repository-story, impact,
 security-alert, provider-alert expected-row parity, container-image, SBOM,
@@ -353,11 +360,12 @@ No-Observability-Change: authenticated validation still uses API and MCP
 status payload. The token location is an operator contract, not a new runtime
 signal, so no metric label or span attribute was added.
 
-No-Regression Evidence: Terraform-state warning summary validation is a
+No-Regression Evidence: Terraform-state proof summary validation is a
 verifier/status-readback change only. It reads the existing bounded
-Terraform-state warning status projection and does not change collector source
-selection, S3 reads, worker claims, queue writes, graph writes, retry behavior,
-or NornicDB settings. Focused coverage is
+Terraform-state status projection once, counts successful snapshot rows and
+`state_missing` warning totals from that response, and does not change
+collector source selection, S3 reads, worker claims, queue writes, graph
+writes, retry behavior, or NornicDB settings. Focused coverage is
 `scripts/test-verify-remote-e2e-tfstate-warnings.sh`,
 `scripts/test-verify-remote-e2e-runtime-state.sh`, and
 `go test ./internal/status ./internal/query -run 'TestBuildReportSummarizesTerraformStateWarnings|TestStatusHandlerStatusIndexExposesTerraformStateWarningSummary' -count=1`.
@@ -366,6 +374,6 @@ Observability Evidence: `/api/v0/status/index` and `/api/v0/index-status`
 surface `terraform_state.warning_summary[]` rows with `warning_kind`, `reason`,
 `scope_class`, and `count`, plus bounded `terraform_state.recent_warnings[]`
 rows with safe handles for source-level triage. The remote verifier prints the
-aggregate rows, the configured `state_missing` threshold outcome, and
-`state_missing` detail handles, so operators can see missing Terraform-state
-evidence without scanning raw facts or logs.
+proof summary, aggregate warning rows, the configured `state_missing` threshold
+outcome, and `state_missing` detail handles, so operators can see successful
+and missing Terraform-state evidence without scanning raw facts or logs.

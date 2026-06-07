@@ -207,24 +207,66 @@ cat >"${state_dir}/status-index.json" <<'JSON'
 {
   "terraform_state": {
     "warning_summary": [
-      {"warning_kind":"state_missing","reason":"s3_not_found","scope_class":"s3","count":2}
+      {"warning_kind":"state_missing","reason":"s3_not_found","scope_class":"s3","count":1}
+    ],
+    "recent_warnings": []
+  }
+}
+JSON
+export ESHU_REMOTE_E2E_TFSTATE_STATE_MISSING_MAX=1
+expect_fail_with 'Terraform-state state_missing warning detail missing from status readback'
+unset ESHU_REMOTE_E2E_TFSTATE_STATE_MISSING_MAX
+
+write_common_state
+cat >"${state_dir}/status-index.json" <<'JSON'
+{
+  "terraform_state": {
+    "last_serials": [
+      {
+        "safe_locator_hash": "hash-ok",
+        "backend_kind": "s3",
+        "serial": 42,
+        "generation_id": "terraform_state:state_snapshot:s3:hash-ok:lineage-ok:serial:42"
+      }
+    ],
+    "warning_summary": [
+      {"warning_kind":"state_missing","reason":"s3_not_found","scope_class":"s3","count":1}
     ],
     "recent_warnings": [
-      {"safe_locator_hash":"hash-a","warning_kind":"state_missing","reason":"s3_not_found","source":"graph","source_handle":"state_snapshot:s3:hash-a"},
-      {"safe_locator_hash":"hash-b","warning_kind":"state_missing","reason":"s3_not_found","source":"graph","source_handle":"state_snapshot:s3:hash-b"}
+      {
+        "safe_locator_hash":"hash-missing",
+        "warning_kind":"state_missing",
+        "reason":"s3_not_found",
+        "source":"graph",
+        "source_handle":"state_snapshot:s3:hash-missing",
+        "raw_bucket":"tfstate-prod",
+        "raw_key":"services/deleted/terraform.tfstate",
+        "account_id":"123456789012",
+        "path":"/secure/local/terraform.tfstate"
+      }
     ]
   }
 }
 JSON
 export ESHU_REMOTE_E2E_TFSTATE_STATE_MISSING_MAX=2
 expect_pass
-if ! rg -q 'Terraform-state warning summary: warning_kind=state_missing reason=s3_not_found scope_class=s3 count=2' /tmp/eshu-remote-e2e-tfstate.out; then
+if ! rg -q 'Terraform-state proof summary: configured_targets=2 attempted_reads=2 successful_snapshots=1 missing_states=1' /tmp/eshu-remote-e2e-tfstate.out; then
+  printf 'expected Terraform-state proof summary in verifier output\n' >&2
+  sed -n '1,240p' /tmp/eshu-remote-e2e-tfstate.out >&2
+  exit 1
+fi
+if ! rg -q 'Terraform-state warning summary: warning_kind=state_missing reason=s3_not_found scope_class=s3 count=1' /tmp/eshu-remote-e2e-tfstate.out; then
   printf 'expected Terraform-state warning summary in verifier output\n' >&2
   sed -n '1,240p' /tmp/eshu-remote-e2e-tfstate.out >&2
   exit 1
 fi
-if ! rg -q 'Terraform-state warning detail: warning_kind=state_missing reason=s3_not_found source=graph source_handle=state_snapshot:s3:hash-a safe_locator_hash=hash-a' /tmp/eshu-remote-e2e-tfstate.out; then
+if ! rg -q 'Terraform-state warning detail: warning_kind=state_missing reason=s3_not_found source=graph source_handle=state_snapshot:s3:hash-missing safe_locator_hash=hash-missing' /tmp/eshu-remote-e2e-tfstate.out; then
   printf 'expected actionable Terraform-state warning detail in verifier output\n' >&2
+  sed -n '1,240p' /tmp/eshu-remote-e2e-tfstate.out >&2
+  exit 1
+fi
+if rg -q 'tfstate-prod|services/deleted|123456789012|/secure/local' /tmp/eshu-remote-e2e-tfstate.out; then
+  printf 'Terraform-state verifier output leaked raw state locator context\n' >&2
   sed -n '1,240p' /tmp/eshu-remote-e2e-tfstate.out >&2
   exit 1
 fi
