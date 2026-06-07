@@ -177,6 +177,7 @@ func TestCollectorRuntimeStatusesMergesPersistedFactEvidence(t *testing.T) {
 	now := time.Date(2026, 6, 7, 9, 30, 0, 0, time.UTC)
 	instances := []status.CollectorInstanceSummary{
 		{InstanceID: "collector-documentation", CollectorKind: "documentation", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
+		{InstanceID: "collector-git-default", CollectorKind: "git", Mode: "continuous", Enabled: true, ClaimsEnabled: false},
 		{InstanceID: "collector-jira", CollectorKind: "jira", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
 		{InstanceID: "collector-pagerduty", CollectorKind: "pagerduty", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
 		{InstanceID: "collector-oci", CollectorKind: "oci_registry", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
@@ -200,6 +201,7 @@ func TestCollectorRuntimeStatusesMergesPersistedFactEvidence(t *testing.T) {
 			},
 			CollectorFactEvidence: []status.CollectorFactEvidence{
 				{InstanceID: "collector-documentation", CollectorKind: "documentation", EvidenceSource: "source_facts", SourceSystems: []string{"confluence"}, ObservationCount: 5, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
+				{InstanceID: "collector-git-default", CollectorKind: "git", EvidenceSource: "source_facts", SourceSystems: []string{"git"}, ObservationCount: 17, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
 				{InstanceID: "collector-jira", CollectorKind: "jira", EvidenceSource: "source_facts", ObservationCount: 7, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
 				{InstanceID: "collector-pagerduty", CollectorKind: "pagerduty", EvidenceSource: "source_facts", ObservationCount: 4, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
 				{InstanceID: "collector-oci", CollectorKind: "oci_registry", EvidenceSource: "source_facts", ObservationCount: 3, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
@@ -223,7 +225,11 @@ func TestCollectorRuntimeStatusesMergesPersistedFactEvidence(t *testing.T) {
 	}
 	for _, instance := range instances {
 		row := byID[instance.InstanceID]
-		if got, want := row.StatusCategory, status.CollectorRuntimeCoordinatorManaged; got != want {
+		wantCategory := status.CollectorRuntimeCoordinatorManaged
+		if !instance.ClaimsEnabled {
+			wantCategory = status.CollectorRuntimeDirectMode
+		}
+		if got, want := row.StatusCategory, wantCategory; got != want {
 			t.Fatalf("%s status category = %q, want %q", instance.InstanceID, got, want)
 		}
 		if got, want := row.Health, "observed"; got != want {
@@ -264,11 +270,19 @@ func TestCollectorRuntimeStatusesMergesPersistedFactEvidence(t *testing.T) {
 	if !renderedCollectorHasSourceSystem(rendered.CollectorRuntimes, "collector-documentation", "confluence") {
 		t.Fatalf("RenderJSON() = %s, want collector-documentation source_systems=confluence", payload)
 	}
+	if !renderedCollectorHasSourceSystem(rendered.CollectorRuntimes, "collector-git-default", "git") {
+		t.Fatalf("RenderJSON() = %s, want collector-git-default source_systems=git", payload)
+	}
 
 	text := status.RenderText(report)
 	if !strings.Contains(text, "collector-documentation kind=documentation") ||
 		!strings.Contains(text, "source_systems=confluence") {
 		t.Fatalf("RenderText() = %s, want documentation source_systems", text)
+	}
+	if !strings.Contains(text, "collector-git-default kind=git") ||
+		!strings.Contains(text, "source_systems=git") ||
+		!strings.Contains(text, "observations=17") {
+		t.Fatalf("RenderText() = %s, want Git source_systems and observations", text)
 	}
 }
 
