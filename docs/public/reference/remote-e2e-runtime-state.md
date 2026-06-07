@@ -262,17 +262,19 @@ When `ESHU_REMOTE_E2E_TARGET_STORY_FILE` is set, the verifier prints
 `remote E2E target story proof counts` with repository-story, impact,
 security-alert, provider-alert expected-row parity, container-image, SBOM,
 service-catalog count, service-catalog local-descriptor state,
-service-catalog external-confirmation state and reason, CI/CD, cloud-resource,
-and MCP readback counts/states including service-catalog
-external-confirmation reason. It does not print raw repository selectors, image
+service-catalog external-confirmation state and reason, CI/CD count plus API
+and MCP list readback counts/states, cloud-resource, and MCP readback
+counts/states including service-catalog external-confirmation reason. It does
+not print raw repository selectors, image
 references, service IDs, workload IDs, cloud resource IDs, provider repository
 names, hostnames, package names, URLs, or credentials. API reads request the
 Eshu truth envelope, MCP reads require an envelope resource, and both reject
 successful-looking responses that omit truth level and freshness.
 Additional No-Regression Evidence: `scripts/test-verify-remote-e2e-target-story.sh`
 proves the target-story helper accepts aligned repository, vulnerability,
-security-alert, image, SBOM, service-catalog, and CI/CD counts; rejects matching
-security-alert counts when expected provider-alert rows mismatch; rejects
+security-alert, image, SBOM, service-catalog, and CI/CD count/API-list/MCP-list
+readbacks; rejects matching security-alert counts when expected provider-alert
+rows mismatch; rejects
 missing target image evidence; rejects provider-alert repository mismatches;
 rejects code-to-cloud manifests whose configured OCI image target does not
 align with the selected repository even when that image target has positive
@@ -283,7 +285,9 @@ MCP-backed target proof is required; fails a missing configured manifest file;
 skips only when no target-story file is configured; requires Eshu envelope
 readback; and keeps API/MCP bearer tokens out of curl arguments. This is a
 verifier-only change and does not alter collector scheduling, worker counts,
-graph writes, NornicDB settings, fact emission, or reducer behavior.
+graph writes, NornicDB settings, fact emission, or reducer behavior. It reuses
+the existing `query.ci_cd_run_correlations` API span, MCP envelope validation,
+and read-model truth/freshness envelopes for CI/CD list diagnosability.
 Additional Observability Evidence: the existing `/index-status` health reason now names
 recent producer activity when it is the reason an old idle fact queue remains
 `progressing` instead of `stalled`. Operators can correlate that reason with
