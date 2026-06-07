@@ -93,9 +93,9 @@ function buildPath(query: CloudResourceQuery): string {
   if (query.resourceType) params.set("resource_type", query.resourceType);
   if (query.region) params.set("region", query.region);
   if (query.accountId) params.set("account_id", query.accountId);
-  // Keyset pagination only: both cursor halves must be present, and id alone is
-  // enough for the server to apply the predicate, so guard on afterId.
-  if (query.cursor && query.cursor.afterId) {
+  // Keyset pagination only: both cursor halves must be present to match the
+  // server's ORDER BY resource_type, id contract.
+  if (query.cursor && query.cursor.afterResourceType && query.cursor.afterId) {
     params.set("after_resource_type", query.cursor.afterResourceType);
     params.set("after_id", query.cursor.afterId);
   }

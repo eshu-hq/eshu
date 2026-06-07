@@ -100,6 +100,17 @@ describe("loadCloudResources", () => {
     expect(path).not.toContain("after_id=");
   });
 
+  it("omits an incomplete keyset cursor", async () => {
+    const capture: { path?: string } = {};
+    await loadCloudResources(fakeClient(capture), {
+      limit: 50,
+      cursor: { afterResourceType: "", afterId: "aws:iam-role:r1" }
+    });
+    const path = capture.path ?? "";
+    expect(path).not.toContain("after_resource_type=");
+    expect(path).not.toContain("after_id=");
+  });
+
   it("propagates a thrown error rather than fabricating an empty page", async () => {
     const client = {
       get: vi.fn(async () => {

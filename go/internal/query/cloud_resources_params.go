@@ -41,12 +41,13 @@ func cloudResourceListFilterFromRequest(r *http.Request) cloudResourceListFilter
 // after_resource_type without after_id is treated as no cursor so the query
 // cannot silently drop the first page.
 func cloudResourceListCursorFromRequest(r *http.Request) cloudResourceListCursor {
+	afterResourceType := strings.TrimSpace(QueryParam(r, "after_resource_type"))
 	afterID := strings.TrimSpace(QueryParam(r, "after_id"))
-	if afterID == "" {
+	if afterResourceType == "" || afterID == "" {
 		return cloudResourceListCursor{}
 	}
 	return cloudResourceListCursor{
-		AfterResourceType: strings.TrimSpace(QueryParam(r, "after_resource_type")),
+		AfterResourceType: afterResourceType,
 		AfterID:           afterID,
 	}
 }

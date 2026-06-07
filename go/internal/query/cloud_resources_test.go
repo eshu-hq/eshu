@@ -209,6 +209,27 @@ func TestListCloudResourcesCursorAppliesKeysetPredicate(t *testing.T) {
 	}
 }
 
+func TestListCloudResourcesIgnoresIncompleteCursor(t *testing.T) {
+	t.Parallel()
+
+	graph := &stubCloudGraphQuery{rows: nil}
+	mux := newCloudHandlerWith(graph)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/cloud/resources?after_id=b2", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if _, present := graph.lastParams["after_id"]; present {
+		t.Fatalf("after_id param present for incomplete cursor: %#v", graph.lastParams)
+	}
+	if strings.Contains(graph.lastCypher, "$after_id") {
+		t.Fatalf("incomplete cursor added keyset predicate: %s", graph.lastCypher)
+	}
+}
+
 func TestListCloudResourcesProviderFilter(t *testing.T) {
 	t.Parallel()
 

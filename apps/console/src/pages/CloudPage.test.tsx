@@ -84,7 +84,11 @@ describe("CloudPage", () => {
   });
 
   it("applies a filter on submit and forwards it to the API", async () => {
-    const get = vi.fn(async () => envelope([row("r1", "role-a")], { truncated: false }));
+    const paths: string[] = [];
+    const get = vi.fn(async (path: string) => {
+      paths.push(path);
+      return envelope([row("r1", "role-a")], { truncated: false });
+    });
     const client = { get } as unknown as EshuApiClient;
 
     render(
@@ -100,7 +104,7 @@ describe("CloudPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
 
     await waitFor(() => {
-      const last = get.mock.calls[get.mock.calls.length - 1][0] as string;
+      const last = paths.at(-1) ?? "";
       expect(last).toContain("resource_type=aws_s3_bucket");
     });
   });
