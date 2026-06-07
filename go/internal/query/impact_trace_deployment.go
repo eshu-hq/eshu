@@ -78,7 +78,11 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query cloud resources: %v", err))
 			return
 		}
+		if len(cloudResources) == 0 {
+			cloudResources = mapSliceValue(ctx, "cloud_resources")
+		}
 		if len(cloudResources) > 0 {
+			ctx["cloud_resources"] = cloudResources
 			delete(ctx, "uncorrelated_cloud_resources")
 		} else if len(mapSliceValue(ctx, "uncorrelated_cloud_resources")) == 0 {
 			cloudCandidates, err := loadUncorrelatedCloudResourceCandidates(r.Context(), h.Neo4j, safeStr(ctx, "name"), serviceStoryItemLimit)

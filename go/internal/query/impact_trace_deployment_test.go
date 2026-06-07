@@ -2,7 +2,10 @@ package query
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"slices"
 	"strings"
@@ -301,6 +304,89 @@ func TestFetchServiceTraceContextIncludesGraphDeploymentEvidenceWithoutContent(t
 	deploymentOverview := mapValue(response, "deployment_overview")
 	if !slices.Contains(stringSliceValue(deploymentOverview, "deployment_tool_families"), "kustomize") {
 		t.Fatalf("deployment_overview.deployment_tool_families = %#v, want kustomize", deploymentOverview["deployment_tool_families"])
+	}
+}
+
+func TestTraceDeploymentChainKeepsConfigDerivedCloudResources(t *testing.T) {
+	t.Parallel()
+
+	db := openContentReaderTestDB(t, emptyServiceQueryContentResults())
+	handler := &ImpactHandler{
+		Neo4j: fakeWorkloadGraphReader{
+			runSingleByMatch: map[string]map[string]any{
+				"w.name = $service_name": {
+					"id":        "workload:orders-api",
+					"name":      "orders-api",
+					"kind":      "service",
+					"repo_id":   "repo-orders",
+					"repo_name": "orders-api",
+					"instances": []any{},
+					"deployment_evidence": map[string]any{
+						"artifacts": []map[string]any{
+							{
+								"relationship_type": "READS_CONFIG_FROM",
+								"matched_value":     "/config/orders-api/*",
+							},
+						},
+					},
+				},
+			},
+			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+				switch {
+				case strings.Contains(cypher, "INSTANCE_OF]-(i:WorkloadInstance)-[rel:USES]->(c:CloudResource)"):
+					return nil, nil
+				case strings.Contains(cypher, "MATCH (c:CloudResource)"):
+					return []map[string]any{
+						{
+							"id":            "cloud-resource:ssm-config",
+							"name":          "/config/orders-api/database-url",
+							"resource_type": "aws_ssm_parameter",
+							"provider":      "aws",
+							"resource_id":   "arn:aws:ssm:example:parameter/config/orders-api/database-url",
+						},
+					}, nil
+				case strings.Contains(cypher, "WHERE (n:CloudResource)"):
+					return nil, nil
+				default:
+					return nil, nil
+				}
+			},
+		},
+		Content: NewContentReader(db),
+	}
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/impact/trace-deployment-chain",
+		strings.NewReader(`{"service_name":"orders-api"}`),
+	)
+	w := httptest.NewRecorder()
+
+	handler.traceDeploymentChain(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("traceDeploymentChain status = %d, body = %s", w.Code, w.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode trace response: %v", err)
+	}
+	resources := mapSliceValue(body, "cloud_resources")
+	if got, want := len(resources), 1; got != want {
+		t.Fatalf("cloud_resources len = %d, want %d; body = %#v", got, want, body)
+	}
+	if got, want := StringVal(resources[0], "relationship_basis"), "deployment_config_read_evidence"; got != want {
+		t.Fatalf("relationship_basis = %q, want %q", got, want)
+	}
+	if candidates := mapSliceValue(body, "uncorrelated_cloud_resources"); len(candidates) != 0 {
+		t.Fatalf("uncorrelated_cloud_resources = %#v, want omitted", candidates)
+	}
+	overview := mapValue(body, "deployment_overview")
+	if got, want := IntVal(overview, "cloud_resource_count"), 1; got != want {
+		t.Fatalf("deployment_overview.cloud_resource_count = %d, want %d", got, want)
+	}
+	summary := mapValue(body, "deployment_fact_summary")
+	if missing := StringSliceVal(summary, "missing_evidence"); len(missing) != 0 {
+		t.Fatalf("deployment_fact_summary.missing_evidence = %#v, want empty", missing)
 	}
 }
 
