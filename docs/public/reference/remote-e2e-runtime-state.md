@@ -147,6 +147,14 @@ Public-safe manifest shape:
   "expected_image_ref": "registry.example/team/api:tag",
   "expected_sbom_subject_digest": "sha256:...",
   "expected_cloud_resource_id": "cloud-resource-id-or-arn",
+  "expected_provider_incident_id": "provider-incident-id",
+  "expected_incident_provider": "pagerduty",
+  "expected_incident_scope_id": "pagerduty-scope-id",
+  "expected_incident_service_id": "service-id",
+  "expected_work_item_scope_id": "jira-scope-id",
+  "expected_work_item_key": "PROJECT-123",
+  "expected_work_item_provider_id": "provider-work-item-id",
+  "expected_work_item_url_fingerprint": "sha256:...",
   "minimums": {
     "impact_findings": 1,
     "security_alert_reconciliations": 1,
@@ -154,7 +162,15 @@ Public-safe manifest shape:
     "sbom_attachments": 1,
     "service_catalog_correlations": 1,
     "ci_cd_run_correlations": 1,
-    "cloud_resources": 1
+    "cloud_resources": 1,
+    "documentation_findings": 1,
+    "incident_contexts": 1,
+    "work_item_evidence": 1
+  },
+  "unsupported_target_evidence": {
+    "documentation_findings": "target_link_not_modeled",
+    "incident_contexts": "capability_not_supported",
+    "work_item_evidence": "source_not_configured"
   }
 }
 ```
@@ -170,9 +186,29 @@ environment aggregates alone are not enough to satisfy a target story. When
 image and SBOM minimums are both positive, the verifier also requires exact API
 and MCP service-story `image_package` readback for the target service, not only
 aggregate supply-chain counts. When the service-story, service-catalog, or
-cloud minimum is positive, set `ESHU_REMOTE_E2E_MCP_URL` and, if needed,
-`ESHU_REMOTE_E2E_MCP_TOKEN`. The verifier exercises MCP readbacks over the same
-target filters as the API proof.
+cloud, documentation, incident, or work-item minimum is positive, set
+`ESHU_REMOTE_E2E_MCP_URL` and, if needed, `ESHU_REMOTE_E2E_MCP_TOKEN`. The
+verifier exercises MCP readbacks over the same target filters as the API proof.
+
+Positive `documentation_findings` minimums call
+`/api/v0/documentation/findings` and `list_documentation_findings` with the
+configured target repository selector and count only findings that still carry
+that repository anchor in the response. Positive `incident_contexts` minimums
+require `expected_provider_incident_id` plus
+`expected_incident_service_id` or `expected_service_id`; the verifier counts
+only incident-context responses whose incident or evidence path proves the
+service, not the echoed query filter. Positive `work_item_evidence` minimums
+require `expected_work_item_key`, `expected_work_item_provider_id`, or
+`expected_work_item_url_fingerprint`; the verifier counts only matching
+ticket-first API and MCP evidence rows. Aggregate Confluence, PagerDuty, or
+Jira collector counts do not satisfy these target checks.
+
+Use `unsupported_target_evidence` only when the corresponding minimum is `0`.
+Allowed reason classes are `collector_disabled`, `source_not_configured`,
+`capability_not_supported`, and `target_link_not_modeled`. Missing positive
+target evidence fails with the sanitized reason class `target_not_linked`;
+the verifier does not print document titles, incident IDs, work-item keys,
+service IDs, provider URLs, repository selectors, or credentials.
 
 In `code_to_cloud` mode, the verifier also checks manifest alignment before
 calling API or MCP routes. The selected repository, provider security-alert
@@ -261,33 +297,40 @@ evidence-completeness check for exact Terraform-state sources.
 When `ESHU_REMOTE_E2E_TARGET_STORY_FILE` is set, the verifier prints
 `remote E2E target story proof counts` with repository-story, impact,
 security-alert, provider-alert expected-row parity, container-image, SBOM,
-service-catalog count, service-catalog local-descriptor state,
-service-catalog external-confirmation state and reason, CI/CD count plus API
-and MCP list readback counts/states, cloud-resource, and MCP readback
-counts/states including service-catalog external-confirmation reason. It does
-not print raw repository selectors, image
+service-story `image_package`, service-catalog count, service-catalog
+local-descriptor state, service-catalog external-confirmation state and reason,
+CI/CD count plus API and MCP list readback counts/states, cloud-resource,
+documentation, incident-context, work-item, and MCP readback counts/states
+including service-story and service-catalog evidence states. It does not print
+raw repository selectors, image
 references, service IDs, workload IDs, cloud resource IDs, provider repository
-names, hostnames, package names, URLs, or credentials. API reads request the
-Eshu truth envelope, MCP reads require an envelope resource, and both reject
-successful-looking responses that omit truth level and freshness.
+names, hostnames, package names, URLs, incident IDs, work-item keys, or
+credentials. API reads request the Eshu truth envelope, MCP reads require an
+envelope resource, and both reject successful-looking responses that omit truth
+level and freshness.
 Additional No-Regression Evidence: `scripts/test-verify-remote-e2e-target-story.sh`
 proves the target-story helper accepts aligned repository, vulnerability,
-security-alert, image, SBOM, service-catalog, and CI/CD count/API-list/MCP-list
-readbacks; rejects matching security-alert counts when expected provider-alert
-rows mismatch; rejects
+security-alert, image, SBOM, service-story `image_package`, service-catalog,
+CI/CD count/API-list/MCP-list readbacks, documentation, incident-context, and
+work-item counts; rejects mismatched security-alert counts when expected
+provider-alert rows mismatch; rejects
 missing target image evidence; rejects provider-alert repository mismatches;
 rejects code-to-cloud manifests whose configured OCI image target does not
 align with the selected repository even when that image target has positive
 evidence;
 rejects missing artifact anchors; rejects missing target service evidence; rejects
-missing target cloud-resource evidence; fails missing MCP configuration when
-MCP-backed target proof is required; fails a missing configured manifest file;
-skips only when no target-story file is configured; requires Eshu envelope
-readback; and keeps API/MCP bearer tokens out of curl arguments. This is a
-verifier-only change and does not alter collector scheduling, worker counts,
-graph writes, NornicDB settings, fact emission, or reducer behavior. It reuses
-the existing `query.ci_cd_run_correlations` API span, MCP envelope validation,
-and read-model truth/freshness envelopes for CI/CD list diagnosability.
+missing target cloud-resource, documentation, incident-context, and work-item
+evidence; rejects aggregate-only documentation, incident, and work-item rows
+that are not linked to the configured target; fails missing MCP configuration
+when MCP-backed target proof is required; accepts disabled optional source
+families only at minimum `0`; records explicit unsupported source-evidence
+reason classes; fails a missing configured manifest file; skips only when no
+target-story file is configured; requires Eshu envelope readback; and keeps
+API/MCP bearer tokens out of curl arguments. This is a verifier-only change and
+does not alter collector scheduling, worker counts, graph writes, NornicDB
+settings, fact emission, or reducer behavior. It reuses the existing
+`query.ci_cd_run_correlations` API span, MCP envelope validation, and
+read-model truth/freshness envelopes for CI/CD list diagnosability.
 Additional Observability Evidence: the existing `/index-status` health reason now names
 recent producer activity when it is the reason an old idle fact queue remains
 `progressing` instead of `stalled`. Operators can correlate that reason with
