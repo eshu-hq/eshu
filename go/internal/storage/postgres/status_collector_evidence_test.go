@@ -146,16 +146,17 @@ func TestReadCollectorFactEvidenceUsesBoundedActiveFactMetadata(t *testing.T) {
 	query := strings.Join(queryer.queries, "\n")
 	for _, want := range []string{
 		"JOIN fact_records AS fact",
-		"fact.generation_id = scope.active_generation_id",
+		"active_scopes AS (",
+		"fact.generation_id = scope.generation_id",
 		"fact.is_tombstone = FALSE",
-		"COUNT(*) AS observation_count",
-		"ARRAY_AGG(DISTINCT source_system ORDER BY source_system)",
+		"SUM(fact.observation_count) AS observation_count",
+		"ARRAY_AGG(DISTINCT fact.source_system ORDER BY fact.source_system)",
 		"AS source_systems",
 		"WHEN fact.fact_kind LIKE 'reducer_%' THEN 'reducer_facts'",
 		"collector_kind IN (",
 		"'git'",
 		"'ci_cd_run'",
-		"FROM workflow_work_items AS workflow_item",
+		"workflow_instances AS (",
 		"LIMIT 200",
 	} {
 		if !strings.Contains(query, want) {
@@ -165,6 +166,33 @@ func TestReadCollectorFactEvidenceUsesBoundedActiveFactMetadata(t *testing.T) {
 	for _, forbidden := range []string{"fact.payload", "source_uri", "source_record_id"} {
 		if strings.Contains(query, forbidden) {
 			t.Fatalf("collector fact evidence query uses private field %q:\n%s", forbidden, query)
+		}
+	}
+}
+
+func TestCollectorFactEvidenceQueryPreAggregatesBeforeWorkflowIdentity(t *testing.T) {
+	t.Parallel()
+
+	query := collectorFactEvidenceQuery
+	for _, want := range []string{
+		"active_scopes AS (",
+		"fact_summary AS (",
+		"workflow_instances AS (",
+		"SUM(fact.observation_count) AS observation_count",
+		"FROM fact_summary AS fact",
+		"LEFT JOIN workflow_instances AS item",
+		"GROUP BY fact.collector_kind, collector_instance_id, fact.evidence_source",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("collector fact evidence query missing bounded aggregate marker %q:\n%s", want, query)
+		}
+	}
+	for _, forbidden := range []string{
+		"LEFT JOIN LATERAL",
+		"FROM workflow_work_items AS workflow_item\n    WHERE workflow_item.collector_kind = scope.collector_kind",
+	} {
+		if strings.Contains(query, forbidden) {
+			t.Fatalf("collector fact evidence query still performs per-fact workflow lookup %q:\n%s", forbidden, query)
 		}
 	}
 }

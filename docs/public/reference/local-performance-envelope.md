@@ -63,6 +63,26 @@ They must also use either `Observability Evidence:` or
 
 ## Current Hot-Path Evidence
 
+### Collector Fact Evidence Status Read (#1678)
+
+No-Regression Evidence: issue #1678 baseline on remote
+`eshu-remote-e2e-bg-qa` timed out the collector fact evidence read under a
+15-second client budget with 3,551,004 `fact_records` rows. The fix changes
+`ReadStatusSnapshot` from a per-fact `workflow_work_items` lateral lookup to
+an active-scope fact pre-aggregation plus one workflow identity lookup per
+`collector_kind`/`scope_id`/`generation_id`. Focused regression proof:
+`go test ./internal/storage/postgres -run
+'TestCollectorFactEvidenceQueryPreAggregatesBeforeWorkflowIdentity|TestReadCollectorFactEvidenceUsesBoundedActiveFactMetadata|TestBootstrapDefinitionsIncludeCollectorStatusFactIndex|TestWorkflowControlSchemaIndexesCollectorScopeGenerationLookup|TestWorkflowControlEmbeddedSchemaMatchesDataPlaneSchema'
+-count=1` verifies the bounded query shape and the two schema indexes. The
+input shape remains active, non-tombstone facts for known collector kinds, and
+the output stays capped at 200 collector/evidence rows.
+
+No-Observability-Change: the read still runs inside `ReadStatusSnapshot`, the
+status API handlers, and the existing Postgres query spans and duration
+metrics. Operators diagnose it through the existing collector status response
+fields, `postgres.query` telemetry, request cancellation, and backend timeout
+signals; no route, worker, metric label, log field, or runtime knob changes.
+
 ### EC2 Block-Device KMS Posture Writer (#1304)
 
 Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench

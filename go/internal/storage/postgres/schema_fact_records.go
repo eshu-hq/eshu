@@ -36,6 +36,16 @@ ALTER TABLE fact_records
     ADD COLUMN IF NOT EXISTS source_confidence TEXT NOT NULL DEFAULT 'unknown';
 CREATE INDEX IF NOT EXISTS fact_records_scope_generation_idx
     ON fact_records (scope_id, generation_id, fact_kind, observed_at DESC);
+CREATE INDEX IF NOT EXISTS fact_records_collector_status_active_idx
+    ON fact_records (
+        scope_id,
+        generation_id,
+        source_system,
+        fact_kind,
+        observed_at DESC,
+        ingested_at DESC
+    )
+    WHERE is_tombstone = FALSE;
 CREATE INDEX IF NOT EXISTS fact_records_stable_key_idx
     ON fact_records (stable_fact_key, generation_id);
 
