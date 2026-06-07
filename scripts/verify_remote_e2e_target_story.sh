@@ -88,12 +88,14 @@ main() {
 
 	local impact_min security_min image_min sbom_min catalog_min cicd_min cloud_min
 	local documentation_min incident_min work_item_min
+	local cicd_missing_expected_count
 	impact_min="$(manifest_int '.minimums.impact_findings' 0)"
 	security_min="$(manifest_int '.minimums.security_alert_reconciliations' 0)"
 	image_min="$(manifest_int '.minimums.container_image_identities' 0)"
 	sbom_min="$(manifest_int '.minimums.sbom_attachments' 0)"
 	catalog_min="$(manifest_int '.minimums.service_catalog_correlations' 0)"
 	cicd_min="$(manifest_int '.minimums.ci_cd_run_correlations' 0)"
+	cicd_missing_expected_count="$(target_story_cicd_expected_missing_evidence_count)"
 	cloud_min="$(manifest_int '.minimums.cloud_resources' 0)"
 	documentation_min="$(manifest_int '.minimums.documentation_findings' 0)"
 	incident_min="$(manifest_int '.minimums.incident_contexts' 0)"
@@ -130,7 +132,7 @@ main() {
 	fi
 	validate_target_story_proof_mode "${proof_mode}" "${image_min}" "${sbom_min}"
 	target_story_validate_alignment "${TARGET_STORY_FILE}" "${proof_mode}"
-	if ((catalog_min > 0 || cicd_min > 0 || cloud_min > 0 || service_story_min > 0 || documentation_min > 0 || incident_min > 0 || work_item_min > 0)) && [[ -z "${MCP_URL}" ]]; then
+	if ((catalog_min > 0 || cicd_min > 0 || cicd_missing_expected_count > 0 || cloud_min > 0 || service_story_min > 0 || documentation_min > 0 || incident_min > 0 || work_item_min > 0)) && [[ -z "${MCP_URL}" ]]; then
 		echo "ESHU_REMOTE_E2E_MCP_URL is required when target story MCP proof is required" >&2
 		return 1
 	fi
@@ -147,6 +149,7 @@ main() {
 	local mcp_catalog_count=0 mcp_cicd_count=0 mcp_cloud_count=0 mcp_documentation_count=0 mcp_incident_count=0 mcp_work_item_count=0
 	local cicd_static_state=not_checked cicd_live_state=not_checked
 	local mcp_cicd_static_state=not_checked mcp_cicd_live_state=not_checked
+	local cicd_missing_evidence=not_checked mcp_cicd_missing_evidence=not_checked
 	local catalog_local_descriptor_state="not_checked"
 	local catalog_external_confirmation_state="not_checked"
 	local catalog_external_confirmation_reason=""
@@ -330,6 +333,12 @@ main() {
 			"${expected_image_digest}" \
 			"${expected_image_ref}" \
 			"${cicd_min}"
+	elif ((cicd_missing_expected_count > 0)); then
+		target_story_verify_cicd_missing_evidence \
+			"${repo_query}" \
+			"${repo_selector}" \
+			"${expected_image_digest}" \
+			"${expected_image_ref}"
 	fi
 	if ((cloud_min > 0)); then
 		if [[ -z "${expected_cloud_resource_id}" ]]; then
@@ -354,7 +363,7 @@ main() {
 	documentation_reason_segment="$(target_story_reason_segment documentation_findings "${documentation_reason}")"
 	incident_reason_segment="$(target_story_reason_segment incident_contexts "${incident_reason}")"
 	work_item_reason_segment="$(target_story_reason_segment work_item_evidence "${work_item_reason}")"
-	printf 'remote E2E target story proof counts: proof_mode=%s repository_story=1 impact_findings=%s security_alert_reconciliations=%s security_alert_expected_rows=%s container_image_identities=%s sbom_attachments=%s service_story_image_package=%s service_catalog_correlations=%s service_catalog_local_descriptors=%s service_catalog_external_confirmation=%s service_catalog_external_confirmation_reason=%s ci_cd_run_correlations=%s ci_cd_static_workflow_state=%s ci_cd_live_run_state=%s cloud_resources=%s mcp_service_story_image_package=%s mcp_service_catalog_correlations=%s mcp_service_catalog_local_descriptors=%s mcp_service_catalog_external_confirmation=%s mcp_service_catalog_external_confirmation_reason=%s mcp_ci_cd_run_correlations=%s mcp_ci_cd_static_workflow_state=%s mcp_ci_cd_live_run_state=%s mcp_cloud_resources=%s documentation_findings=%s incident_contexts=%s work_item_evidence=%s mcp_documentation_findings=%s mcp_incident_contexts=%s mcp_work_item_evidence=%s%s%s%s\n' \
+	printf 'remote E2E target story proof counts: proof_mode=%s repository_story=1 impact_findings=%s security_alert_reconciliations=%s security_alert_expected_rows=%s container_image_identities=%s sbom_attachments=%s service_story_image_package=%s service_catalog_correlations=%s service_catalog_local_descriptors=%s service_catalog_external_confirmation=%s service_catalog_external_confirmation_reason=%s ci_cd_run_correlations=%s ci_cd_static_workflow_state=%s ci_cd_live_run_state=%s ci_cd_missing_evidence=%s cloud_resources=%s mcp_service_story_image_package=%s mcp_service_catalog_correlations=%s mcp_service_catalog_local_descriptors=%s mcp_service_catalog_external_confirmation=%s mcp_service_catalog_external_confirmation_reason=%s mcp_ci_cd_run_correlations=%s mcp_ci_cd_static_workflow_state=%s mcp_ci_cd_live_run_state=%s mcp_ci_cd_missing_evidence=%s mcp_cloud_resources=%s documentation_findings=%s incident_contexts=%s work_item_evidence=%s mcp_documentation_findings=%s mcp_incident_contexts=%s mcp_work_item_evidence=%s%s%s%s\n' \
 		"${proof_mode}" \
 		"${impact_count}" \
 		"${security_count}" \
@@ -369,6 +378,7 @@ main() {
 		"${cicd_count}" \
 		"${cicd_static_state}" \
 		"${cicd_live_state}" \
+		"${cicd_missing_evidence}" \
 		"${cloud_count}" \
 		"${mcp_service_story_count}" \
 		"${mcp_catalog_count}" \
@@ -378,6 +388,7 @@ main() {
 		"${mcp_cicd_count}" \
 		"${mcp_cicd_static_state}" \
 		"${mcp_cicd_live_state}" \
+		"${mcp_cicd_missing_evidence}" \
 		"${mcp_cloud_count}" \
 		"${documentation_count}" \
 		"${incident_count}" \

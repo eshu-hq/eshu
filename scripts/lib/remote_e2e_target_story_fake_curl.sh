@@ -54,8 +54,10 @@ if ((is_mcp == 1)); then
 				and
 				(if $digest != "" then
 					.params.arguments.artifact_digest == $digest
-				else
+				elif $ref != "" then
 					.params.arguments.image_ref == $ref
+				else
+					((.params.arguments.artifact_digest // "") == "" and (.params.arguments.image_ref // "") == "")
 				end)
 			' "${payload_file}" >/dev/null; then
 				echo "list_ci_cd_run_correlations used the wrong target anchor" >&2
@@ -138,6 +140,9 @@ case "$*" in
 		cat "${state_dir}/cicd-count.json"
 		;;
 	*"/api/v0/ci-cd/run-correlations?repository_id=repo%3A%2F%2Fexample%2Fapi&image_ref=registry.example.com%2Fteam%2Fapi%3Aprod&limit=1"*)
+		cat "${state_dir}/cicd-list.json"
+		;;
+	*"/api/v0/ci-cd/run-correlations?repository_id=repo%3A%2F%2Fexample%2Fapi&limit=1"*)
 		cat "${state_dir}/cicd-list.json"
 		;;
 	*)
