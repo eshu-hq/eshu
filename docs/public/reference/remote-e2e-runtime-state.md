@@ -225,15 +225,6 @@ instead of being reported as code-to-cloud evidence. Use `partial` or
 `vulnerability_only` with `proof_mode_reason` when the manifest intentionally
 cannot prove the artifact or runtime hop.
 
-When `target_repository_id` is a canonical opaque repository id such as
-`repository:r_...`, `expected_service_id` and `expected_workload_id` may use
-canonical `service:` or `workload:` selectors that do not share a readable
-repository-name token. The verifier accepts that manifest shape only for
-service/workload alignment and then relies on the bounded service-story and
-service-catalog API/MCP readbacks to prove the relationship. Provider
-repository, OCI repository, image reference, cloud, and digest selectors still
-must align directly with the target chain.
-
 Set `expected_security_alert_rows_file` to an operator-local JSON file when the
 proof needs provider-alert row parity, not only a reconciliation count. The
 file may be either an array or an object with an `alerts` array. Each alert row

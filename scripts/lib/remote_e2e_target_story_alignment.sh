@@ -84,25 +84,6 @@ target_story_alignment_matches() {
 	return 1
 }
 
-target_story_alignment_is_opaque_repository_id() {
-	local value="$1"
-	[[ "${value}" =~ ^repository:r_[0-9a-z_]+$ ]]
-}
-
-target_story_alignment_is_canonical_service_selector() {
-	local value="$1"
-	[[ "${value}" == service:* || "${value}" == workload:* ]]
-}
-
-target_story_alignment_can_defer_to_service_readback() {
-	local repo_selector="$1"
-	local field="$2"
-	local value="$3"
-	[[ "${field}" == "expected_service_id" || "${field}" == "expected_workload_id" ]] || return 1
-	target_story_alignment_is_opaque_repository_id "${repo_selector}" || return 1
-	target_story_alignment_is_canonical_service_selector "${value}"
-}
-
 target_story_require_aligned_target() {
 	local manifest_file="$1"
 	local field="$2"
@@ -113,9 +94,6 @@ target_story_require_aligned_target() {
 		return 0
 	fi
 	if target_story_alignment_matches "${repo_selector}" "${value}"; then
-		return 0
-	fi
-	if target_story_alignment_can_defer_to_service_readback "${repo_selector}" "${field}" "${value}"; then
 		return 0
 	fi
 	printf 'target story alignment mismatch: %s does not align with target_repository_id\n' "${field}" >&2
