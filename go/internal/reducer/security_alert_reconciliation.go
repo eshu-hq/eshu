@@ -249,7 +249,7 @@ func securityAlertManifestConsumptionMatches(
 	if len(alertKeys) == 0 {
 		return false
 	}
-	for _, key := range packageConsumptionKeys(dependency.PackageManager, dependency.DependencyName) {
+	for _, key := range packageConsumptionKeys(dependency.PackageManager, packageManifestDependencyNameCandidates(dependency)...) {
 		if _, ok := alertKeys[key]; ok {
 			return true
 		}
