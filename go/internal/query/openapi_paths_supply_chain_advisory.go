@@ -4,12 +4,15 @@ const openAPIPathsSupplyChainAdvisoryEvidence = `
     "/api/v0/supply-chain/advisories/evidence": {
       "get": {
         "summary": "List source-only advisory evidence",
-        "description": "Requires limit plus cve_id, advisory_id, or package_id. Returns source-specific GHSA, CVE/NVD, OSV, GLAD, EPSS, KEV, CWE, range, fixed-version, withdrawal, reference, and disagreement evidence without implying repository, image, workload, or deployment impact.",
+        "description": "Requires limit plus cve_id, advisory_id, package_id, repository_id, service_id, or workload_id. Repository, service, and workload scopes derive advisory anchors from reducer-owned impact findings before reading source facts. Returns source-specific GHSA, CVE/NVD, OSV, GLAD, EPSS, KEV, CWE, range, fixed-version, withdrawal, reference, and disagreement evidence without implying additional repository, image, workload, or deployment impact.",
         "operationId": "listAdvisoryEvidence",
         "parameters": [
           {"name": "cve_id", "in": "query", "schema": {"type": "string"}},
           {"name": "advisory_id", "in": "query", "schema": {"type": "string"}},
           {"name": "package_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "repository_id", "in": "query", "schema": {"type": "string"}, "description": "Canonical repository id or human repository selector (name, repo slug, indexed path, local path, or remote URL). Unknown or ambiguous selectors return a selector error instead of a broad advisory page."},
+          {"name": "service_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer-admitted service anchor used to select impact findings before reading advisory source facts."},
+          {"name": "workload_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer-admitted workload anchor used to select impact findings before reading advisory source facts."},
           {"name": "source", "in": "query", "schema": {"type": "string"}},
           {"name": "after_advisory_key", "in": "query", "schema": {"type": "string"}},
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
@@ -74,7 +77,8 @@ const openAPIPathsSupplyChainAdvisoryEvidence = `
               }
             }
           },
-          "400": {"description": "Missing limit or advisory scope"},
+          "400": {"description": "Missing limit, advisory scope, or ambiguous selector"},
+          "404": {"description": "Repository selector did not match an indexed repository"},
           "503": {"description": "Postgres source fact read model unavailable"}
         }
       }

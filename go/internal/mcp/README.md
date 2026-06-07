@@ -190,6 +190,10 @@ reachability itself. The SBOM/attestation tool schema accepts only the
 reducer-owned attachment statuses, including `ambiguous_subject`, so
 multi-subject attestations stay visible without becoming canonical image
 attachments.
+`list_advisory_evidence` forwards repository, service, and workload scope to
+HTTP so the query layer can derive advisory anchors from reducer-owned impact
+findings before reading source-only advisory facts. MCP must not synthesize
+advisory evidence from provider alert fields or fetch impact findings itself.
 Provider security alert reconciliation stays transport-only as well. MCP maps
 repository ids or human repository selectors, provider, package, CVE, or GHSA
 anchors plus optional state/status filters to the HTTP read model and preserves

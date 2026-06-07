@@ -164,11 +164,15 @@ inspect digest admission without turning weak or stale tag diagnostics into
 deployment truth.
 The same handler exposes source-only advisory evidence through a Postgres
 read model over active `vulnerability.*` facts. Advisory evidence reads require
-a CVE, advisory, or package anchor plus `limit`, and they group GHSA, CVE/NVD,
-OSV, GLAD, EPSS, KEV, CWE, affected package ranges, fixed versions, affected
-products, references, withdrawal state, and source disagreements under a
-canonical advisory identity without emitting impact findings or inferring that
-any repository, image, workload, or deployment is affected.
+a CVE, advisory, package, repository, service, or workload anchor plus `limit`.
+Repository, service, and workload scopes first select active reducer-owned
+impact findings, then use those finding CVE/advisory/package anchors to read
+advisory source facts. They group GHSA, CVE/NVD, OSV, GLAD, EPSS, KEV, CWE,
+affected package ranges, fixed versions, affected products, references,
+withdrawal state, and source disagreements under a canonical advisory identity
+without emitting impact findings or inferring that any additional repository,
+image, workload, or deployment is affected. Provider-alert-only rows are not
+used as advisory-evidence seeds.
 The same handler exposes supply-chain impact findings through a separate
 Postgres read model. Impact reads require a CVE, package, repository, subject
 digest, or status anchor plus `limit`, and keep CVSS, EPSS, KEV, reachability,
@@ -224,15 +228,20 @@ the existing impact read; observability stays on the existing
 
 No-Regression Evidence: `go test ./internal/query -run
 'TestSupplyChainListAdvisoryEvidence|TestPostgresAdvisoryEvidenceStore|TestBuildAdvisoryEvidenceRows|TestAdvisoryEvidenceQuery' -count=1`
-proves bounded advisory evidence input, active source-fact SQL, canonical
-CVE/GHSA/OSV/NVD identity grouping, EPSS/KEV enrichment, CVSS v3/v4/CWE
-preservation, affected package/product evidence, withdrawn status, fixed-range
-and severity disagreements, pagination, and source-only response shape.
+and `go test ./internal/mcp -run
+'TestResolveRouteMapsAdvisoryEvidenceToBoundedQuery|TestAdvisoryEvidenceToolSchemaAdvertisesRepositoryScope' -count=1`
+prove bounded advisory evidence input, repository selector resolution,
+reducer-impact-only advisory anchoring, active source-fact SQL, MCP
+dispatch/schema parity, canonical CVE/GHSA/OSV/NVD identity grouping, EPSS/KEV
+enrichment, CVSS v3/v4/CWE preservation, affected package/product evidence,
+withdrawn status, fixed-range and severity disagreements, pagination, and
+source-only response shape.
 
-Observability Evidence: the advisory evidence route adds the
+No-Observability-Change: the advisory evidence route reuses the
 `query.advisory_evidence` request span with route and capability attributes. It
 uses the active Postgres fact read model only; it adds no graph query, queue,
-reducer lane, worker, or metric instrument.
+reducer lane, worker, metric instrument, metric label, or runtime deployment
+knob.
 
 The same handler exposes cheap-summary aggregates over the reducer-owned impact
 findings through a separate Postgres aggregate read model

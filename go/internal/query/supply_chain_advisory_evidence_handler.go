@@ -34,16 +34,23 @@ func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http
 	if !ok {
 		return
 	}
+	repositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "repository_id"))
+	if !ok {
+		return
+	}
 	filter := normalizeAdvisoryEvidenceFilter(AdvisoryEvidenceFilter{
 		CVEID:            QueryParam(r, "cve_id"),
 		AdvisoryID:       QueryParam(r, "advisory_id"),
 		PackageID:        QueryParam(r, "package_id"),
+		RepositoryID:     repositoryID,
+		ServiceID:        QueryParam(r, "service_id"),
+		WorkloadID:       QueryParam(r, "workload_id"),
 		Source:           QueryParam(r, "source"),
 		AfterAdvisoryKey: QueryParam(r, "after_advisory_key"),
 		Limit:            limit + 1,
 	})
 	if !filter.hasScope() {
-		WriteError(w, http.StatusBadRequest, "cve_id, advisory_id, or package_id is required")
+		WriteError(w, http.StatusBadRequest, "cve_id, advisory_id, package_id, repository_id, service_id, or workload_id is required")
 		return
 	}
 	if h.AdvisoryEvidence == nil {
@@ -81,7 +88,7 @@ func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http
 		h.profile(),
 		advisoryEvidenceCapability,
 		TruthBasisSemanticFacts,
-		"resolved from active vulnerability source facts; advisory evidence remains source-only and does not imply package, repository, image, workload, or deployment impact",
+		"resolved from active vulnerability source facts; repository, service, and workload scopes use reducer-owned impact findings only as bounded advisory anchors and do not imply additional package, image, workload, or deployment impact",
 	))
 }
 

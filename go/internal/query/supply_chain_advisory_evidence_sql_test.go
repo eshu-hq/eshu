@@ -59,8 +59,8 @@ func TestAdvisoryEvidenceQueryUsesIndexableJSONBPredicates(t *testing.T) {
 		"key_source = 'identity'",
 		"key_source = 'alias'",
 		"UPPER(TRIM(key_value)) LIKE 'CVE-%'",
-		"fact.payload->>'package_id' = $3",
-		"fact.payload->>'purl' = $3",
+		"fact.payload->>'package_id' = pkg.value",
+		"fact.payload->>'purl' = pkg.value",
 	} {
 		if !strings.Contains(listAdvisoryEvidenceQuery, want) {
 			t.Fatalf("listAdvisoryEvidenceQuery missing %q:\n%s", want, listAdvisoryEvidenceQuery)

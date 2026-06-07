@@ -209,6 +209,9 @@ least one bounded anchor:
 - `cve_id`
 - `advisory_id`
 - `package_id`
+- `repository_id`
+- `service_id`
+- `workload_id`
 
 The optional `source` filter narrows an already anchored request. Rows group
 GHSA, CVE/NVD, OSV, GitLab Advisory Database, FIRST EPSS, CISA KEV, CWE,
@@ -217,10 +220,20 @@ and fixed-version evidence under one canonical advisory identity. They also
 surface `source_disagreements[]` for severity, withdrawn status, affected
 ranges, and fixed versions without selecting a winner.
 
+`repository_id` accepts a canonical source repository id or the same human
+repository selectors used by repository context routes. Repository, service,
+and workload scopes first select active reducer-owned impact findings, then use
+only those finding CVE/advisory/package anchors to read advisory source facts.
+Provider-alert-only rows are not used to seed advisory evidence.
+
 This route reads active `vulnerability.*` source facts only. It does not emit
 or imply reducer-owned package, repository, image, workload, deployment, or
 reachability impact. Use the impact routes below when you need admitted impact
 truth.
+
+No-Regression Evidence: `go test ./internal/query -run 'TestSupplyChainListAdvisoryEvidence(ResolvesRepositoryScopedFindings|RejectsUnknownRepositorySelectorBeforeRead)|TestAdvisoryEvidenceQueryDerivesRepositoryScopeFromImpactFindings|TestAdvisoryEvidenceQueryUsesActiveSourceFactReadModel' -count=1` and `go test ./internal/mcp -run 'TestResolveRouteMapsAdvisoryEvidenceToBoundedQuery|TestAdvisoryEvidenceToolSchemaAdvertisesRepositoryScope' -count=1` cover repository selector resolution, reducer-impact-only advisory anchoring, active source-fact reads, and MCP schema/dispatch parity.
+
+No-Observability-Change: repository/service/workload advisory evidence scopes reuse the existing `query.advisory_evidence` span, Postgres query instrumentation, truth envelope, and MCP dispatch logging. The change adds no graph write, worker, queue, metric instrument, metric label, or runtime deployment knob.
 
 `GET /api/v0/supply-chain/vulnerabilities/{advisory_id}`
 
