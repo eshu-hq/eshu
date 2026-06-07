@@ -375,6 +375,11 @@ blocked cross-scope endpoint readiness.
   terminal (the AWS claimed runtime does this via
   `awsruntime.FailureClassStaleFence`) instead of looping it on the
   retryable queue.
+- `AWSScanStatusStore.CommitAWSScan` clears previous commit failure class and
+  message when a retry finally commits a scan whose scanner-side status is
+  `succeeded`. Scanner-side failed, partial, budget-exhausted, and credential
+  failures remain in the row so status readback can still explain active
+  degraded scopes.
 - `WebhookTriggerStore` treats webhook payloads as trigger evidence only. It
   preserves merged pull-request number, URL, and title provenance for bounded
   read-model enrichment, but the Git collector must still fetch the repository

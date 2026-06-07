@@ -92,6 +92,9 @@ func (b *collectorRuntimeStatusBuilder) merge(index int, status CollectorRuntime
 	existing.EvidenceSources = uniqueNonEmptyStrings(append(existing.EvidenceSources, status.EvidenceSources...))
 	existing.SourceSystems = uniqueNonEmptyStrings(append(existing.SourceSystems, status.SourceSystems...))
 	existing.ObservationCount += status.ObservationCount
+	if runtimeHealthRank(status.Health) > runtimeHealthRank(existing.Health) && strings.TrimSpace(status.Detail) != "" {
+		existing.Detail = status.Detail
+	}
 	existing.Health = combineRuntimeHealth(existing.Health, status.Health)
 	if status.LastObservedAt.After(existing.LastObservedAt) {
 		existing.LastObservedAt = status.LastObservedAt
@@ -105,6 +108,7 @@ func (b *collectorRuntimeStatusBuilder) addAWSCloudScans(rows []AWSCloudScanStat
 	type aggregate struct {
 		count          int
 		health         string
+		detail         string
 		lastObservedAt time.Time
 		updatedAt      time.Time
 	}
@@ -116,7 +120,11 @@ func (b *collectorRuntimeStatusBuilder) addAWSCloudScans(rows []AWSCloudScanStat
 		}
 		current := aggregates[instanceID]
 		current.count++
-		current.health = combineRuntimeHealth(current.health, awsCloudScanHealth(row))
+		health := awsCloudScanHealth(row)
+		if health != "observed" && health != "unknown" && runtimeHealthRank(health) > runtimeHealthRank(current.health) {
+			current.detail = awsCloudScanDetail(row)
+		}
+		current.health = combineRuntimeHealth(current.health, health)
 		if row.LastObservedAt.After(current.lastObservedAt) {
 			current.lastObservedAt = row.LastObservedAt
 		}
@@ -126,7 +134,7 @@ func (b *collectorRuntimeStatusBuilder) addAWSCloudScans(rows []AWSCloudScanStat
 		aggregates[instanceID] = current
 	}
 	for instanceID, aggregate := range aggregates {
-		b.add(directEvidenceRuntimeStatus(
+		status := directEvidenceRuntimeStatus(
 			instanceID,
 			"aws",
 			"aws_cloud_scan_status",
@@ -135,7 +143,11 @@ func (b *collectorRuntimeStatusBuilder) addAWSCloudScans(rows []AWSCloudScanStat
 			aggregate.health,
 			aggregate.lastObservedAt,
 			aggregate.updatedAt,
-		))
+		)
+		if aggregate.detail != "" {
+			status.Detail = aggregate.detail
+		}
+		b.add(status)
 	}
 }
 
@@ -292,10 +304,14 @@ func directEvidenceRuntimeStatus(
 }
 
 func awsCloudScanHealth(row AWSCloudScanStatus) string {
+	status := strings.TrimSpace(row.Status)
+	if awsCloudScanSucceeded(status) && strings.TrimSpace(row.CommitStatus) == "committed" {
+		return "observed"
+	}
 	if row.CredentialFailed || row.BudgetExhausted || strings.TrimSpace(row.FailureClass) != "" {
 		return "degraded"
 	}
-	switch strings.TrimSpace(row.Status) {
+	switch status {
 	case "failed", "failed_terminal", "failed_retryable":
 		return "degraded"
 	case "partial":
@@ -305,6 +321,41 @@ func awsCloudScanHealth(row AWSCloudScanStatus) string {
 	default:
 		return "unknown"
 	}
+}
+
+func awsCloudScanSucceeded(status string) bool {
+	switch status {
+	case "succeeded", "success", "completed":
+		return true
+	default:
+		return false
+	}
+}
+
+func awsCloudScanDetail(row AWSCloudScanStatus) string {
+	parts := []string{"aws_cloud_scan_status"}
+	if status := strings.TrimSpace(row.Status); status != "" {
+		parts = append(parts, "status="+status)
+	}
+	if commitStatus := strings.TrimSpace(row.CommitStatus); commitStatus != "" {
+		parts = append(parts, "commit_status="+commitStatus)
+	}
+	if failureClass := strings.TrimSpace(row.FailureClass); failureClass != "" {
+		parts = append(parts, "failure_class="+failureClass)
+	}
+	if row.BudgetExhausted {
+		parts = append(parts, "budget_exhausted=true")
+	}
+	if row.CredentialFailed {
+		parts = append(parts, "credential_failed=true")
+	}
+	if service := strings.TrimSpace(row.ServiceKind); service != "" {
+		parts = append(parts, "service="+service)
+	}
+	if region := strings.TrimSpace(row.Region); region != "" {
+		parts = append(parts, "region="+region)
+	}
+	return strings.Join(parts, " ")
 }
 
 func vulnerabilitySourceHealth(row VulnerabilitySourceState) string {

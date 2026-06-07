@@ -166,6 +166,122 @@ func TestStatusHandlerCollectorsRouteExposesDirectRuntimeEvidence(t *testing.T) 
 	}
 }
 
+func TestStatusHandlerCollectorsRouteExplainsAWSHealthEvidence(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 7, 14, 30, 0, 0, time.UTC)
+	handler := &StatusHandler{
+		StatusReader: fakeStatusReader{
+			snapshot: statuspkg.RawSnapshot{
+				AsOf: now,
+				Coordinator: &statuspkg.CoordinatorSnapshot{
+					CollectorInstances: []statuspkg.CollectorInstanceSummary{{
+						InstanceID:     "collector-aws-claims",
+						CollectorKind:  "aws",
+						Mode:           "continuous",
+						Enabled:        true,
+						ClaimsEnabled:  true,
+						LastObservedAt: now.Add(-20 * time.Minute),
+						UpdatedAt:      now.Add(-19 * time.Minute),
+					}},
+				},
+				AWSCloudScans: []statuspkg.AWSCloudScanStatus{
+					{
+						CollectorInstanceID: "collector-aws-claims",
+						AccountID:           "123456789012",
+						Region:              "us-east-1",
+						ServiceKind:         "iam",
+						Status:              "succeeded",
+						CommitStatus:        "committed",
+						FailureClass:        "commit_failure",
+						LastObservedAt:      now.Add(-4 * time.Minute),
+						LastCompletedAt:     now.Add(-3 * time.Minute),
+						LastSuccessfulAt:    now.Add(-3 * time.Minute),
+						UpdatedAt:           now.Add(-3 * time.Minute),
+					},
+					{
+						CollectorInstanceID: "collector-aws-failed",
+						AccountID:           "123456789012",
+						Region:              "us-west-2",
+						ServiceKind:         "ec2",
+						Status:              "failed_retryable",
+						CommitStatus:        "failed",
+						FailureClass:        "throttled",
+						LastObservedAt:      now.Add(-2 * time.Minute),
+						UpdatedAt:           now.Add(-1 * time.Minute),
+					},
+				},
+				CollectorFactEvidence: []statuspkg.CollectorFactEvidence{{
+					InstanceID:       "collector-aws-claims",
+					CollectorKind:    "aws",
+					EvidenceSource:   "source_facts",
+					SourceSystems:    []string{"aws"},
+					ObservationCount: 17,
+					LastObservedAt:   now.Add(-3 * time.Minute),
+					UpdatedAt:        now.Add(-2 * time.Minute),
+				}},
+			},
+		},
+	}
+
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/status/collectors", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("GET /api/v0/status/collectors status = %d, want %d", got, want)
+	}
+	var payload struct {
+		Collectors []struct {
+			InstanceID string   `json:"instance_id"`
+			Health     string   `json:"health"`
+			Evidence   []string `json:"evidence_sources"`
+			Detail     string   `json:"detail"`
+		} `json:"collectors"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	byID := map[string]struct {
+		health   string
+		evidence []string
+		detail   string
+	}{}
+	for _, collector := range payload.Collectors {
+		byID[collector.InstanceID] = struct {
+			health   string
+			evidence []string
+			detail   string
+		}{
+			health:   collector.Health,
+			evidence: collector.Evidence,
+			detail:   collector.Detail,
+		}
+	}
+	healthy := byID["collector-aws-claims"]
+	if got, want := healthy.health, "observed"; got != want {
+		t.Fatalf("healthy AWS collector health = %q, want %q; body=%s", got, want, rec.Body.String())
+	}
+	if !stringSliceContains(healthy.evidence, "aws_cloud_scan_status") ||
+		!stringSliceContains(healthy.evidence, "source_facts") {
+		t.Fatalf("healthy AWS evidence = %#v, want scan status and source facts", healthy.evidence)
+	}
+	if strings.Contains(healthy.detail, "commit_failure") {
+		t.Fatalf("healthy AWS detail = %q, want stale commit failure omitted", healthy.detail)
+	}
+	failed := byID["collector-aws-failed"]
+	if got, want := failed.health, "degraded"; got != want {
+		t.Fatalf("failed AWS collector health = %q, want %q; body=%s", got, want, rec.Body.String())
+	}
+	if !strings.Contains(failed.detail, "aws_cloud_scan_status") ||
+		!strings.Contains(failed.detail, "failure_class=throttled") {
+		t.Fatalf("failed AWS detail = %q, want evidence source and failure class", failed.detail)
+	}
+}
+
 func TestStatusHandlerCollectorsRouteExposesPersistedFactEvidence(t *testing.T) {
 	t.Parallel()
 

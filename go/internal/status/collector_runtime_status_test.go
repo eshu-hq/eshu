@@ -164,7 +164,85 @@ func TestCollectorRuntimeStatusesMergesDirectEvidenceHealthForRegisteredCollecto
 	if got, want := row.ObservationCount, 1; got != want {
 		t.Fatalf("observation count = %d, want %d", got, want)
 	}
+	if !strings.Contains(row.Detail, "aws_cloud_scan_status") ||
+		!strings.Contains(row.Detail, "failure_class=throttled") {
+		t.Fatalf("detail = %q, want AWS failure reason and evidence source", row.Detail)
+	}
 	for _, want := range []string{"workflow_coordinator", "aws_cloud_scan_status"} {
+		if !collectorRuntimeEvidenceContains(row.EvidenceSources, want) {
+			t.Fatalf("evidence sources = %#v, want %q", row.EvidenceSources, want)
+		}
+	}
+}
+
+func TestCollectorRuntimeStatusesTreatsCommittedSuccessfulAWSScanAsObserved(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 7, 13, 30, 0, 0, time.UTC)
+	report := status.BuildReport(
+		status.RawSnapshot{
+			AsOf: now,
+			Coordinator: &status.CoordinatorSnapshot{
+				CollectorInstances: []status.CollectorInstanceSummary{{
+					InstanceID:     "collector-aws-claims",
+					CollectorKind:  "aws",
+					Mode:           "continuous",
+					Enabled:        true,
+					ClaimsEnabled:  true,
+					LastObservedAt: now.Add(-20 * time.Minute),
+					UpdatedAt:      now.Add(-19 * time.Minute),
+				}},
+			},
+			AWSCloudScans: []status.AWSCloudScanStatus{{
+				CollectorInstanceID: "collector-aws-claims",
+				AccountID:           "123456789012",
+				Region:              "us-east-1",
+				ServiceKind:         "iam",
+				Status:              "succeeded",
+				CommitStatus:        "committed",
+				FailureClass:        "commit_failure",
+				FailureMessage:      "older commit attempt failed before retry",
+				LastObservedAt:      now.Add(-4 * time.Minute),
+				LastCompletedAt:     now.Add(-3 * time.Minute),
+				LastSuccessfulAt:    now.Add(-3 * time.Minute),
+				UpdatedAt:           now.Add(-3 * time.Minute),
+			}},
+			CollectorFactEvidence: []status.CollectorFactEvidence{
+				{
+					InstanceID:       "collector-aws-claims",
+					CollectorKind:    "aws",
+					EvidenceSource:   "source_facts",
+					SourceSystems:    []string{"aws"},
+					ObservationCount: 17,
+					LastObservedAt:   now.Add(-3 * time.Minute),
+					UpdatedAt:        now.Add(-2 * time.Minute),
+				},
+				{
+					InstanceID:       "collector-aws-claims",
+					CollectorKind:    "aws",
+					EvidenceSource:   "reducer_facts",
+					SourceSystems:    []string{"aws"},
+					ObservationCount: 6,
+					LastObservedAt:   now.Add(-2 * time.Minute),
+					UpdatedAt:        now.Add(-1 * time.Minute),
+				},
+			},
+		},
+		status.DefaultOptions(),
+	)
+
+	rows := status.CollectorRuntimeStatuses(report)
+	if got, want := len(rows), 1; got != want {
+		t.Fatalf("runtime rows = %d, want %d: %#v", got, want, rows)
+	}
+	row := rows[0]
+	if got, want := row.Health, "observed"; got != want {
+		t.Fatalf("health = %q, want %q", got, want)
+	}
+	if got, want := row.StatusCategory, status.CollectorRuntimeCoordinatorManaged; got != want {
+		t.Fatalf("status category = %q, want %q", got, want)
+	}
+	for _, want := range []string{"workflow_coordinator", "aws_cloud_scan_status", "source_facts", "reducer_facts"} {
 		if !collectorRuntimeEvidenceContains(row.EvidenceSources, want) {
 			t.Fatalf("evidence sources = %#v, want %q", row.EvidenceSources, want)
 		}
