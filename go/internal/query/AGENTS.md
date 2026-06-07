@@ -106,6 +106,18 @@
   close a session within the call. Do not hold or share sessions across handler
   calls (`neo4j.go:50`).
 
+## Recent evidence notes
+
+- No-Regression Evidence: issue #1604 keeps `POST /api/v0/impact/entity-map`
+  repository/workload relationship rows populated with non-empty `entity_id`,
+  `relationship_type`, and `relationship_types` from typed graph traversal
+  evidence. Focused coverage:
+  `go test ./internal/query -run 'TestEntityMap' -count=1`.
+- No-Observability-Change: issue #1604 changes projection aliases only. The
+  route still uses the existing `query.entity_map` span, graph query spans,
+  truth envelope, coverage query shape, depth, limit, relationship count, and
+  truncation fields.
+
 ## Common changes and how to scope them
 
 - **Add a new HTTP handler** → create a handler struct with `Neo4j GraphQuery`
