@@ -18,10 +18,16 @@ function modelWithVulnerability(): ConsoleModel {
       newVulns: []
     },
     runtime: {
-      profile: "live",
-      graphBackend: "nornicdb",
-      snapshotAt: "2026-06-06T00:00:00Z",
-      freshnessState: "fresh"
+      indexStatus: "healthy",
+      repositories: 0,
+      workloads: 0,
+      platforms: 0,
+      instances: 0,
+      queueOutstanding: 0,
+      inFlight: 0,
+      deadLetters: 0,
+      succeeded: 0,
+      profile: "live"
     },
     services: [],
     languages: [],
@@ -44,7 +50,8 @@ function modelWithVulnerability(): ConsoleModel {
       ingesters: "live",
       findings: "live",
       vulnerabilities: "live"
-    }
+    },
+    truth: {}
   };
 }
 
