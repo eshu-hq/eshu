@@ -379,11 +379,7 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 
 	// ── Infra ──
 	case "find_infra_resources":
-		return &route{method: "POST", path: "/api/v0/infra/resources/search", body: map[string]any{
-			"query":    str(args, "query"),
-			"category": str(args, "category"),
-			"limit":    intOr(args, "limit", 50),
-		}}, nil
+		return infraResourceSearchRoute(args), nil
 	case "count_infra_resources":
 		return infraResourceAggregateCountRoute(args), nil
 	case "get_infra_resource_inventory":

@@ -130,6 +130,33 @@ span attributes, existing `Neo4jReader.Run` tracing, and the `neo4j.query`
 graph span. No collector, reducer, graph write, queue worker, metric
 instrument, or deployment knob changes.
 
+## Infra resource structured-filter search evidence (#1599)
+
+The infrastructure search route accepts a filter-only request when at least
+one bounded structured scope is present: `category`, `kind`, `provider`,
+`environment`, `resource_service`, or `resource_category`. Empty or
+whitespace-only requests still fail before the graph read. Successful requests
+always carry the existing defaulted and capped `LIMIT` parameter plus the
+one-extra-row truncation probe.
+
+Filter-only requests preserve the same direct label predicate used by text
+search, then add equality filters for the supplied structured scope without
+emitting the generic `CONTAINS $query` free-text predicate. Cloud searches keep
+the existing provider and service fallback rules: `source_system` is considered
+a provider only for `CloudResource`, and `service_kind` backs
+`resource_service` for cloud rows that lack Terraform-style properties.
+
+No-Regression Evidence: `go test ./internal/query ./internal/mcp -run
+'TestSearchInfraResources|TestOpenAPIInfraSearchAllowsStructuredFilterScope|TestResolveRouteFindInfraResourcesPreservesStructuredFilters|TestFindInfraResourcesToolSchemaAllowsStructuredFiltersWithoutQuery'
+-count=1` proves structured-filter-only HTTP search, unbounded-request
+rejection, OpenAPI request schema, and MCP routing/schema parity.
+
+No-Observability-Change: the route still runs under
+`query.infra_resource_search` with stable `http.route` and `eshu.capability`
+span attributes, existing `Neo4jReader.Run` tracing, and the `neo4j.query`
+graph span. No collector, reducer, graph write, queue worker, metric
+instrument, or deployment knob changes.
+
 ## Resource investigation cloud candidate evidence
 
 No-Regression Evidence: `go test ./internal/query -run

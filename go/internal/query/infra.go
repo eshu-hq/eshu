@@ -104,9 +104,10 @@ func (h *InfraHandler) profile() QueryProfile {
 	return NormalizeQueryProfile(string(h.Profile))
 }
 
-// searchResources searches infrastructure resources by name or ID.
+// searchResources searches infrastructure resources by name, ID, or bounded
+// structured filters.
 // POST /api/v0/infra/resources/search
-// Body: {"query": "...", "kind": "...", "limit": 50}
+// Body: {"query": "...", "kind": "...", "category": "...", "limit": 50}
 func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
@@ -135,6 +136,7 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 		Kind             string `json:"kind"`
 		Category         string `json:"category"`
 		Provider         string `json:"provider"`
+		Environment      string `json:"environment"`
 		ResourceService  string `json:"resource_service"`
 		ResourceCategory string `json:"resource_category"`
 		Limit            int    `json:"limit"`
@@ -144,23 +146,26 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Query == "" {
-		WriteError(w, http.StatusBadRequest, "query is required")
-		return
-	}
 	if req.Limit <= 0 {
 		req.Limit = 50
 	}
 	if req.Limit > infraSearchMaxLimit {
 		req.Limit = infraSearchMaxLimit
 	}
+	query := strings.TrimSpace(req.Query)
 	kind := strings.TrimSpace(req.Kind)
+	category := strings.TrimSpace(req.Category)
 	provider := strings.TrimSpace(req.Provider)
+	environment := strings.TrimSpace(req.Environment)
 	resourceService := strings.TrimSpace(req.ResourceService)
 	resourceCategory := strings.TrimSpace(req.ResourceCategory)
+	if !infraSearchHasScope(query, kind, category, provider, environment, resourceService, resourceCategory) {
+		WriteError(w, http.StatusBadRequest, "query or structured filter is required")
+		return
+	}
 
 	labels := allInfraLabels
-	if category := strings.TrimSpace(req.Category); category != "" {
+	if category != "" {
 		mapped, ok := infraCategoryLabels[strings.ToLower(category)]
 		if !ok {
 			WriteError(w, http.StatusBadRequest, "unsupported category")
@@ -172,18 +177,20 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	cypher := `
 		MATCH (n)
 		WHERE ` + infraLabelPredicate(labels)
-	if strings.Contains(req.Query, "::") {
-		cypher += `
-		  AND (
-		       coalesce(n.resource_type, n.data_type, '') = $resource_type_query
-		       OR coalesce(n.arn, '') = $query
-		       OR coalesce(n.resource_id, '') = $query
-		)
+	if query != "" {
+		if strings.Contains(query, "::") {
+			cypher += `
+			  AND (
+			       coalesce(n.resource_type, n.data_type, '') = $resource_type_query
+			       OR coalesce(n.arn, '') = $query
+			       OR coalesce(n.resource_id, '') = $query
+			)
 	`
-	} else {
-		cypher += `
-		  AND ` + infraResourceFreeTextPredicate + `
+		} else {
+			cypher += `
+			  AND ` + infraResourceFreeTextPredicate + `
 	`
+		}
 	}
 
 	if kind != "" {
@@ -192,11 +199,14 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	if provider != "" {
 		cypher += " AND " + infraSearchProviderFilterPredicate(labels)
 	}
+	if environment != "" {
+		cypher += " AND n.environment = $environment"
+	}
 	if resourceService != "" {
-		cypher += " AND coalesce(n.resource_service, n.service_kind, '') = $resource_service"
+		cypher += " AND " + infraSearchResourceServiceFilterPredicate(labels)
 	}
 	if resourceCategory != "" {
-		cypher += " AND coalesce(n.resource_category, '') = $resource_category"
+		cypher += " AND n.resource_category = $resource_category"
 	}
 
 	cypher += `
@@ -213,16 +223,19 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 		LIMIT $limit
 	`
 
-	params := map[string]any{
-		"query":               req.Query,
-		"resource_type_query": req.Query,
-		"limit":               req.Limit + 1,
+	params := map[string]any{"limit": req.Limit + 1}
+	if query != "" {
+		params["query"] = query
+		params["resource_type_query"] = query
 	}
 	if kind != "" {
 		params["kind"] = kind
 	}
 	if provider != "" {
 		params["provider"] = provider
+	}
+	if environment != "" {
+		params["environment"] = environment
 	}
 	if resourceService != "" {
 		params["resource_service"] = resourceService
@@ -288,6 +301,15 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	}, BuildTruthEnvelope(h.profile(), "platform_impact.deployment_chain", TruthBasisHybrid, "resolved from infrastructure graph search"))
 }
 
+func infraSearchHasScope(values ...string) bool {
+	for _, value := range values {
+		if value != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // infraLabelPredicate renders fixed internal label choices as direct label
 // predicates so graph backends can use label matching without list functions.
 func infraLabelPredicate(labels []string) string {
@@ -309,6 +331,16 @@ func infraSearchProviderFilterPredicate(labels []string) string {
 		return "(n.provider = $provider OR (n:CloudResource AND n.source_system = $provider))"
 	}
 	return "n.provider = $provider"
+}
+
+func infraSearchResourceServiceFilterPredicate(labels []string) string {
+	if infraLabelsAreCloudOnly(labels) {
+		return "n.service_kind = $resource_service"
+	}
+	if infraLabelsInclude(labels, "CloudResource") {
+		return "(n.resource_service = $resource_service OR n.service_kind = $resource_service)"
+	}
+	return "n.resource_service = $resource_service"
 }
 
 func infraSearchProviderFromRow(row map[string]any, labels []string) string {
