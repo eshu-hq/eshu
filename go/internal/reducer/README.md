@@ -1324,9 +1324,9 @@ Covered by `go test ./internal/reducer -run 'Extract|GraphProjection|AppendAddit
 `go test ./internal/storage/cypher -run SecretsIAMGraph`, and
 `go test ./cmd/reducer -run SecretsIAMGraphProjectionWriter` (flag default-off,
 enabled, and malformed-value cases). Cross-scope readiness gating, retry
-liveness handling, and the §11/§12 repo-local proofs are present. Activating the
-flag for a target deployment remains gated by ADR #1314 §14 principal+security
-sign-off and target deployment proof.
+liveness handling, the §11/§12 repo-local proofs, and ADR #1314 §14
+principal/security sign-off are present. Activating the flag for a target
+deployment remains gated by `risk:schema` approval and target deployment proof.
 
 Observability Evidence: the domain emits the `reducer.secrets_iam_graph_projection`
 span and three bounded-enum counters — `eshu_dp_secrets_iam_graph_nodes_written_total`
@@ -1381,10 +1381,10 @@ generation. The frozen `edge_type`/`skip_reason` dimension keys are unchanged
 (`go test ./internal/telemetry`).
 ### §11/§12 activation proofs (#1381)
 
-The ADR #1314 §11 fixture-truth, §12 performance, and repo-local backend
-conformance proofs now exist. Activation still requires the §14
-principal+security sign-off plus a target deployment decision/proof. The flag
-stays OFF by default and is unchanged; these are proof artifacts only.
+The ADR #1314 §11 fixture-truth, §12 performance, repo-local backend
+conformance proofs, and §14 principal/security sign-off now exist. Activation
+still requires `risk:schema` approval and a target deployment decision/proof.
+The flag stays OFF by default and is unchanged; these are proof artifacts only.
 
 Benchmark Evidence (§12): `BenchmarkSecretsIAMGraphWriter`
 (`go/internal/storage/cypher/secrets_iam_graph_writer_bench_test.go`) writes all
@@ -1435,8 +1435,8 @@ schema readback, focused package gates, and the §12 benchmark rerun.
 
 Activation remains blocked: enabling
 `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED` for live execution still
-requires the ADR #1314 §14 principal+security sign-off, which these proofs do not
-grant.
+requires `risk:schema` approval and target deployment decision/proof, which
+these repo-local proofs do not grant.
 
 ## Cross-scope endpoint-readiness gate (#1380)
 
@@ -1493,8 +1493,8 @@ go test ./internal/storage/postgres -run 'TestReducerQueueFailDefersSecretsIAMEn
 This gate failed before the queue dead-lettered an over-budget readiness miss
 and claim SQL always consumed `attempt_count`, then passed once deferred retries
 became non-counting on both single and batch claim paths. The projection lane
-still stays OFF by default until ADR #1314 §14 principal+security sign-off
-(#1381) records the final activation decision.
+still stays OFF by default until #1347 records `risk:schema` approval and #1381
+records the target deployment activation proof.
 
 ## Workload Cloud Relationship Materialization (#1685)
 

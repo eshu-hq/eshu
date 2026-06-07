@@ -3,12 +3,13 @@
 Issue: #1381. Gate: ADR #1314 sections 11, 12, and 14.
 
 This note records the repo-local proof state for the default-off
-Secrets/IAM graph projection. It does not approve production activation and it
-does not enable `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`.
+Secrets/IAM graph projection and the recorded ADR section 14 approval. It does
+not approve production activation and it does not enable
+`ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`.
 
 ## Result
 
-Satisfied repo-local proof gates:
+Satisfied proof and governance gates:
 
 - Section 11 fixture truth: reducer read-model rows drive graph node and edge
   rows through `SecretsIAMGraphProjectionHandler`.
@@ -18,10 +19,10 @@ Satisfied repo-local proof gates:
   conformance test and the shared backend conformance script.
 - Schema readback: Neo4j proof stack confirmed the four `SecretsIAM*` uid
   constraints plus scope indexes after bootstrap.
+- Section 14 principal/security approval: recorded as approved on 2026-06-07.
 
 Still blocked:
 
-- ADR #1314 section 14 principal and security sign-off.
 - `risk:schema` approval for target activation.
 - Explicit target deployment decision and flag-on live activation proof.
 
