@@ -119,7 +119,11 @@ keeps CI success, environment observations, and shell-only hints separate from
 deployment truth. Repository-scoped list responses include `evidence_summary`
 from the content read model so indexed GitHub Actions workflow files remain
 visible when no live reducer run-correlation rows exist; static workflow
-artifacts are explanatory evidence, not synthetic correlation rows.
+artifacts are explanatory evidence, not synthetic correlation rows. The
+`run_artifact_evidence` summary is computed only from the returned reducer page:
+exact or derived artifact digests and image references are bridge evidence,
+ambiguous artifact outcomes stay ambiguous, and provider-only runs report the
+artifact/image bridge as missing instead of manufacturing deployment truth.
 `ServiceCatalogHandler` (`service_catalog.go:16`) reads reducer-owned service
 catalog ownership and drift correlation facts from Postgres. It requires an
 explicit scope, entity, repository, service, workload, or owner anchor plus

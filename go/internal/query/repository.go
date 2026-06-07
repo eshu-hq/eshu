@@ -14,10 +14,11 @@ var repositoryBaseCypher = fmt.Sprintf(`
 
 // RepositoryHandler exposes HTTP routes for repository queries.
 type RepositoryHandler struct {
-	Neo4j   GraphQuery
-	Content ContentStore
-	Profile QueryProfile
-	Logger  *slog.Logger
+	Neo4j               GraphQuery
+	Content             ContentStore
+	CICDRunCorrelations CICDRunCorrelationStore
+	Profile             QueryProfile
+	Logger              *slog.Logger
 }
 
 // Mount registers all repository routes on the given mux.
@@ -364,6 +365,19 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 		return
 	}
 	infrastructureOverview = attachRepositoryDeploymentEvidence(infrastructureOverview, deploymentEvidence)
+	timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "ci_cd_evidence")
+	ciCDEvidence, err := loadRepositoryScopedCICDEvidence(r.Context(), h.Content, h.CICDRunCorrelations, repoID)
+	timer.Done(r.Context(), slog.Bool("has_result", len(ciCDEvidence) > 0), slog.Bool("error", err != nil))
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load ci/cd evidence: %v", err))
+		return
+	}
+	if len(ciCDEvidence) > 0 {
+		if infrastructureOverview == nil {
+			infrastructureOverview = map[string]any{}
+		}
+		infrastructureOverview["ci_cd_evidence"] = ciCDEvidence
+	}
 
 	response := buildRepositoryStoryResponseWithCoverage(
 		repo,

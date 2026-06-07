@@ -137,7 +137,7 @@ func (h *CICDHandler) listRunCorrelations(w http.ResponseWriter, r *http.Request
 		"count":            len(results),
 		"limit":            limit,
 		"truncated":        truncated,
-		"evidence_summary": h.runCorrelationEvidenceSummary(r.Context(), repositoryID, len(results), truncated),
+		"evidence_summary": h.runCorrelationEvidenceSummary(r.Context(), repositoryID, results, truncated),
 	}
 	if truncated && len(results) > 0 {
 		body["next_cursor"] = map[string]string{

@@ -11,6 +11,7 @@ import (
 type EntityHandler struct {
 	Neo4j                    GraphQuery
 	Content                  ContentStore
+	CICDRunCorrelations      CICDRunCorrelationStore
 	ContainerImageIdentities ContainerImageIdentityStore
 	SBOMAttachments          SBOMAttestationAttachmentStore
 	Profile                  QueryProfile

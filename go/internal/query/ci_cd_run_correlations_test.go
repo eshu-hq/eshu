@@ -245,6 +245,12 @@ jobs:
 	if got, want := resp.EvidenceSummary.LiveRunCorrelations.Reason, "static_workflow_only_live_run_correlation_missing"; got != want {
 		t.Fatalf("live_run_correlations.reason = %q, want %q", got, want)
 	}
+	if got, want := resp.EvidenceSummary.RunArtifactEvidence.State, "missing"; got != want {
+		t.Fatalf("run_artifact_evidence.state = %q, want %q", got, want)
+	}
+	if got, want := resp.EvidenceSummary.RunArtifactEvidence.Reason, "static_workflow_only_live_run_correlation_missing"; got != want {
+		t.Fatalf("run_artifact_evidence.reason = %q, want %q", got, want)
+	}
 }
 
 func TestCICDListRunCorrelationsExplainsLiveRunEvidence(t *testing.T) {
@@ -297,6 +303,12 @@ func TestCICDListRunCorrelationsExplainsLiveRunEvidence(t *testing.T) {
 	if got, want := resp.EvidenceSummary.StaticWorkflowArtifacts.State, "absent"; got != want {
 		t.Fatalf("static_workflow_artifacts.state = %q, want %q", got, want)
 	}
+	if got, want := resp.EvidenceSummary.RunArtifactEvidence.State, "missing"; got != want {
+		t.Fatalf("run_artifact_evidence.state = %q, want %q", got, want)
+	}
+	if got, want := resp.EvidenceSummary.RunArtifactEvidence.Reason, "artifact_or_image_evidence_missing"; got != want {
+		t.Fatalf("run_artifact_evidence.reason = %q, want %q", got, want)
+	}
 }
 
 func TestCICDListRunCorrelationsExplainsNoEvidence(t *testing.T) {
@@ -336,6 +348,12 @@ func TestCICDListRunCorrelationsExplainsNoEvidence(t *testing.T) {
 	}
 	if got, want := resp.EvidenceSummary.Reason, "no_ci_cd_evidence_found"; got != want {
 		t.Fatalf("evidence_summary.reason = %q, want %q", got, want)
+	}
+	if got, want := resp.EvidenceSummary.RunArtifactEvidence.State, "missing"; got != want {
+		t.Fatalf("run_artifact_evidence.state = %q, want %q", got, want)
+	}
+	if got, want := resp.EvidenceSummary.RunArtifactEvidence.Reason, "no_ci_cd_evidence_found"; got != want {
+		t.Fatalf("run_artifact_evidence.reason = %q, want %q", got, want)
 	}
 }
 
