@@ -38,22 +38,43 @@ return `unsupported_capability`.
 ## Request Constraints
 
 `list_documentation_findings` accepts these HTTP query filters:
-`scope_id`, `generation_id`, `repo`, `finding_type`, `source_id`,
-`document_id`, `status`, `truth_level`, `freshness_state`, `updated_since`,
-`limit`, and `cursor`.
+`scope_id`, `generation_id`, `repo`, `target_kind`, `target_id`, `service_id`,
+`finding_type`, `source_id`, `document_id`, `status`, `truth_level`,
+`freshness_state`, `updated_since`, `limit`, and `cursor`. `repo` keeps its
+source-scope behavior and also matches repository target references inside
+documentation payloads.
 
 `list_documentation_facts` accepts `fact_kind`, `scope_id`, `generation_id`,
-`source_id`, `document_id`, `section_id`, `q`, `updated_since`, `limit`, and
-`cursor`. `q` searches source display names, document titles, section headings,
-section content, and documentation link `target_uri` values within the requested
-scope. `fact_kind` may use the short forms `source`, `document`, `section`,
-`link`, `entity_mention`, and `claim_candidate`.
+`repo`, `target_kind`, `target_id`, `service_id`, `source_id`, `document_id`,
+`section_id`, `q`, `updated_since`, `limit`, and `cursor`. `q` searches source
+display names, document titles, section headings, section content, and
+documentation link `target_uri` values within the requested scope. `fact_kind`
+may use the short forms `source`, `document`, `section`, `link`,
+`entity_mention`, and `claim_candidate`.
 
 Both list routes use RFC3339 timestamps for `updated_since`; `limit` is bounded
 from 1 through 200; `cursor` is a non-negative offset returned as
 `next_cursor`. Except for `fact_kind=source`, documentation fact listing
-requires at least one scope anchor: `scope_id`, `source_id`, `document_id`, or
-`section_id`.
+requires at least one scope or target anchor: `scope_id`, `repo`, `target_id`,
+`service_id`, `source_id`, `document_id`, or `section_id`.
+
+Target-scoped `list_documentation_findings` responses keep admitted findings in
+`findings`. They may also include `coverage`, `related_facts`, and
+`missing_evidence` so callers can distinguish raw target documentation facts,
+admissible documentation findings, and missing target correlation. For explicit
+`target_id` or `service_id` filters, `coverage.findings_returned` counts
+findings whose payload references match that selected target rather than every
+repo-source finding on the page.
+
+No-Regression Evidence: `go test ./internal/query ./internal/mcp ./internal/storage/postgres -run 'TestDocumentation|TestListDocumentation|TestBootstrapDefinitionsIncludeDocumentationTargetReferenceIndex' -count=1` failed before target filters, target coverage metadata, MCP routing, and the target-ref index existed, then passed after the bounded readback implementation.
+
+Observability Evidence: target-scoped documentation findings still run under
+`query.documentation_findings` and existing Postgres query spans; the related
+fact preview adds `db.operation=list_documentation_target_facts` over
+`fact_records` and is backed by the partial
+`fact_records_documentation_target_refs_idx` GIN index. No graph write, queue,
+worker, runtime knob, metric instrument, or high-cardinality metric label is
+introduced.
 
 No-Regression Evidence: `go test ./internal/query -run 'TestContentReaderDocumentationFacts(SearchesLinkTargetURI|ReturnsEmptyForNoMatch|FiltersAndPaginates)|TestDocumentationHandlerRequiresFactScopeOrAnchor|TestBuildDocumentationFactsSQLIsScopedAndBounded|TestOpenAPISpecIncludesDocumentationFacts' -count=1` and `go test ./internal/mcp -run 'TestListDocumentationFacts(SchemaIncludesBoundedFilters|RouteIncludesScopeAndSearchFilters)' -count=1` cover link target URI matches, non-link text matches, no-match responses, scope-required behavior, SQL bounds, OpenAPI, and MCP routing parity.
 

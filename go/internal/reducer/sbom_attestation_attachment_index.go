@@ -27,10 +27,29 @@ type sbomAttachmentReferrer struct {
 	referrerDigest string
 }
 
+type sbomAttachmentImageAnchor struct {
+	factID       string
+	digest       string
+	outcome      string
+	writes       int
+	repositories []string
+	workloads    []string
+	services     []string
+}
+
+type sbomAttachmentAnchorContext struct {
+	repositories    []string
+	workloads       []string
+	services        []string
+	evidenceFactIDs []string
+	missingEvidence []string
+}
+
 type sbomAttachmentIndex struct {
 	documents     map[string]sbomAttachmentDocument
 	components    map[string][]facts.Envelope
 	referrers     map[string][]sbomAttachmentReferrer
+	images        map[string][]sbomAttachmentImageAnchor
 	verifications map[string]facts.Envelope
 	warnings      map[string][]facts.Envelope
 }
@@ -40,6 +59,7 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) sbomAttachmentIndex {
 		documents:     map[string]sbomAttachmentDocument{},
 		components:    map[string][]facts.Envelope{},
 		referrers:     map[string][]sbomAttachmentReferrer{},
+		images:        map[string][]sbomAttachmentImageAnchor{},
 		verifications: map[string]facts.Envelope{},
 		warnings:      map[string][]facts.Envelope{},
 	}
@@ -64,6 +84,11 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) sbomAttachmentIndex {
 			referrer := sbomReferrerFromEnvelope(envelope)
 			if referrer.referrerDigest != "" {
 				index.referrers[referrer.referrerDigest] = append(index.referrers[referrer.referrerDigest], referrer)
+			}
+		case containerImageIdentityFactKind:
+			image := sbomAttachmentImageAnchorFromEnvelope(envelope)
+			if image.digest != "" {
+				index.images[image.digest] = append(index.images[image.digest], image)
 			}
 		case facts.AttestationSignatureVerificationFactKind:
 			key := firstNonBlank(payloadString(envelope.Payload, "statement_id"), payloadString(envelope.Payload, "document_id"))
@@ -127,6 +152,18 @@ func sbomReferrerFromEnvelope(envelope facts.Envelope) sbomAttachmentReferrer {
 	}
 }
 
+func sbomAttachmentImageAnchorFromEnvelope(envelope facts.Envelope) sbomAttachmentImageAnchor {
+	return sbomAttachmentImageAnchor{
+		factID:       envelope.FactID,
+		digest:       payloadString(envelope.Payload, "digest"),
+		outcome:      payloadString(envelope.Payload, "outcome"),
+		writes:       supplyChainInt(envelope.Payload, "canonical_writes"),
+		repositories: payloadStrings(envelope.Payload, "source_repository_id", "source_repository_ids"),
+		workloads:    payloadStrings(envelope.Payload, "workload_id", "workload_ids"),
+		services:     payloadStrings(envelope.Payload, "service_id", "service_ids"),
+	}
+}
+
 func classifySBOMAttachmentDocument(
 	doc sbomAttachmentDocument,
 	index sbomAttachmentIndex,
@@ -182,7 +219,9 @@ func sbomAttachmentDecision(
 	index sbomAttachmentIndex,
 ) SBOMAttestationAttachmentDecision {
 	components := componentEvidenceRows(index.components[doc.documentID])
-	scope, missing := sbomAttachmentScope(status, hasImageReferrer)
+	anchors := sbomAttachmentAnchorsForDocument(doc, index)
+	scope, missing := sbomAttachmentScope(status, hasImageReferrer, anchors.hasUsableAnchor())
+	reason = sbomAttachmentAnchoredReason(status, reason, hasImageReferrer, anchors.hasUsableAnchor())
 	return SBOMAttestationAttachmentDecision{
 		DocumentID:         doc.documentID,
 		DocumentDigest:     doc.documentDigest,
@@ -199,10 +238,13 @@ func sbomAttachmentDecision(
 		CanonicalWrites:    sbomAttachmentCanonicalWriteCount(status, hasImageReferrer),
 		ComponentCount:     len(components),
 		ComponentEvidence:  components,
+		RepositoryIDs:      anchors.repositories,
+		WorkloadIDs:        anchors.workloads,
+		ServiceIDs:         anchors.services,
 		WarningSummaries:   warningSummaries(index.warnings[doc.documentID]),
-		EvidenceFactIDs:    uniqueSortedStrings(evidence),
-		MissingEvidence:    missing,
-		SourceLayerKinds:   sbomAttachmentSourceLayerKinds(hasImageReferrer),
+		EvidenceFactIDs:    uniqueSortedStrings(append(evidence, anchors.evidenceFactIDs...)),
+		MissingEvidence:    uniqueSortedStrings(append(missing, anchors.missingEvidence...)),
+		SourceLayerKinds:   sbomAttachmentSourceLayerKinds(hasImageReferrer, anchors.hasUsableAnchor()),
 	}
 }
 
@@ -211,6 +253,27 @@ func sbomAttachmentReason(base string, hasImageReferrer bool) string {
 		return base
 	}
 	return "subject digest reported without OCI referrer or repository attachment evidence"
+}
+
+func sbomAttachmentAnchoredReason(
+	status SBOMAttachmentStatus,
+	reason string,
+	hasImageReferrer bool,
+	hasUsableAnchor bool,
+) string {
+	if hasImageReferrer || !hasUsableAnchor {
+		return reason
+	}
+	switch status {
+	case SBOMAttachmentAttachedVerified:
+		return "subject digest matched through reducer image identity anchor and verification passed"
+	case SBOMAttachmentAttachedUnverified:
+		return "subject digest matched through reducer image identity anchor but verification did not pass"
+	case SBOMAttachmentAttachedParseOnly:
+		return "subject digest matched through reducer image identity anchor with parse-only evidence"
+	default:
+		return reason
+	}
 }
 
 func sbomAttachmentCanonicalWriteCount(status SBOMAttachmentStatus, hasImageReferrer bool) int {
@@ -225,9 +288,16 @@ func sbomAttachmentCanonicalWriteCount(status SBOMAttachmentStatus, hasImageRefe
 	}
 }
 
-func sbomAttachmentScope(status SBOMAttachmentStatus, hasImageReferrer bool) (string, []string) {
+func sbomAttachmentScope(
+	status SBOMAttachmentStatus,
+	hasImageReferrer bool,
+	hasUsableAnchor bool,
+) (string, []string) {
 	if hasImageReferrer {
 		return "image_subject", nil
+	}
+	if hasUsableAnchor {
+		return "subject_only_unanchored", nil
 	}
 	switch status {
 	case SBOMAttachmentAttachedParseOnly:
@@ -247,11 +317,57 @@ func sbomAttachmentScope(status SBOMAttachmentStatus, hasImageReferrer bool) (st
 	}
 }
 
-func sbomAttachmentSourceLayerKinds(hasImageReferrer bool) []string {
-	if hasImageReferrer {
+func sbomAttachmentSourceLayerKinds(hasImageReferrer bool, hasUsableAnchor bool) []string {
+	if hasImageReferrer || hasUsableAnchor {
 		return []string{"observed_resource", "reported"}
 	}
 	return []string{"reported"}
+}
+
+func sbomAttachmentAnchorsForDocument(
+	doc sbomAttachmentDocument,
+	index sbomAttachmentIndex,
+) sbomAttachmentAnchorContext {
+	if doc.subjectDigest == "" {
+		return sbomAttachmentAnchorContext{}
+	}
+	var out sbomAttachmentAnchorContext
+	usable := 0
+	images := index.images[doc.subjectDigest]
+	for _, image := range images {
+		out.evidenceFactIDs = append(out.evidenceFactIDs, image.factID)
+		if !sbomAttachmentImageAnchorUsable(image) {
+			continue
+		}
+		usable++
+		out.repositories = append(out.repositories, image.repositories...)
+		out.workloads = append(out.workloads, image.workloads...)
+		out.services = append(out.services, image.services...)
+	}
+	out.repositories = uniqueSortedStrings(out.repositories)
+	out.workloads = uniqueSortedStrings(out.workloads)
+	out.services = uniqueSortedStrings(out.services)
+	out.evidenceFactIDs = uniqueSortedStrings(out.evidenceFactIDs)
+	if len(images) > 0 && usable == 0 {
+		out.missingEvidence = []string{"repository_to_image_evidence_missing"}
+	}
+	return out
+}
+
+func (c sbomAttachmentAnchorContext) hasUsableAnchor() bool {
+	return len(c.repositories) > 0 || len(c.workloads) > 0 || len(c.services) > 0
+}
+
+func sbomAttachmentImageAnchorUsable(image sbomAttachmentImageAnchor) bool {
+	if image.digest == "" || image.writes <= 0 {
+		return false
+	}
+	switch image.outcome {
+	case string(ContainerImageIdentityExactDigest), string(ContainerImageIdentityTagResolved):
+		return true
+	default:
+		return false
+	}
 }
 
 func componentEvidenceRows(components []facts.Envelope) []map[string]string {

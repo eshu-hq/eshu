@@ -4,7 +4,7 @@ func serviceCatalogTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "list_service_catalog_correlations",
-			Description: "List reducer-owned service catalog ownership and drift correlations by entity, repository, service, workload, owner, or scope.",
+			Description: "List reducer-owned service catalog ownership and drift correlations by entity, repository, service, workload, owner, or scope, including repository-local descriptor evidence and external confirmation state.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

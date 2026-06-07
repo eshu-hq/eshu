@@ -61,45 +61,15 @@ CREATE INDEX IF NOT EXISTS fact_records_jvm_reachability_repo_file_idx
           OR payload->>'relative_path' LIKE '%.sc'
       );
 
-CREATE INDEX IF NOT EXISTS fact_records_documentation_sources_observed_idx
-    ON fact_records (observed_at DESC, fact_id DESC)
-    WHERE fact_kind = 'documentation_source'
-      AND is_tombstone = FALSE;
+CREATE INDEX IF NOT EXISTS fact_records_documentation_sources_observed_idx ON fact_records (observed_at DESC, fact_id DESC) WHERE fact_kind = 'documentation_source' AND is_tombstone = FALSE;
 
-CREATE INDEX IF NOT EXISTS fact_records_documentation_findings_visible_idx
-    ON fact_records (
-        (payload->>'finding_type'),
-        (payload->>'source_id'),
-        (payload->>'document_id'),
-        (payload->>'status'),
-        (payload->>'truth_level'),
-        (payload->>'freshness_state'),
-        observed_at DESC,
-        fact_id DESC
-    )
-    WHERE fact_kind = 'documentation_finding'
-      AND is_tombstone = FALSE
-      AND (payload->'permissions'->>'viewer_can_read_source') = 'true'
-      AND LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'
-      AND LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied';
+CREATE INDEX IF NOT EXISTS fact_records_documentation_findings_visible_idx ON fact_records ((payload->>'finding_type'), (payload->>'source_id'), (payload->>'document_id'), (payload->>'status'), (payload->>'truth_level'), (payload->>'freshness_state'), observed_at DESC, fact_id DESC) WHERE fact_kind = 'documentation_finding' AND is_tombstone = FALSE AND (payload->'permissions'->>'viewer_can_read_source') = 'true' AND LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false' AND LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied';
 
-CREATE INDEX IF NOT EXISTS fact_records_documentation_packets_finding_idx
-    ON fact_records (
-        COALESCE(payload->>'finding_id', payload->'finding'->>'finding_id'),
-        observed_at DESC,
-        fact_id DESC
-    )
-    WHERE fact_kind = 'documentation_evidence_packet'
-      AND is_tombstone = FALSE;
+CREATE INDEX IF NOT EXISTS fact_records_documentation_packets_finding_idx ON fact_records (COALESCE(payload->>'finding_id', payload->'finding'->>'finding_id'), observed_at DESC, fact_id DESC) WHERE fact_kind = 'documentation_evidence_packet' AND is_tombstone = FALSE;
 
-CREATE INDEX IF NOT EXISTS fact_records_documentation_packets_packet_idx
-    ON fact_records (
-        (payload->>'packet_id'),
-        observed_at DESC,
-        fact_id DESC
-    )
-    WHERE fact_kind = 'documentation_evidence_packet'
-      AND is_tombstone = FALSE;
+CREATE INDEX IF NOT EXISTS fact_records_documentation_packets_packet_idx ON fact_records ((payload->>'packet_id'), observed_at DESC, fact_id DESC) WHERE fact_kind = 'documentation_evidence_packet' AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_documentation_target_refs_idx ON fact_records USING GIN (payload jsonb_path_ops) WHERE fact_kind IN ('documentation_entity_mention', 'documentation_claim_candidate', 'documentation_finding') AND is_tombstone = FALSE;
 
 CREATE INDEX IF NOT EXISTS fact_records_active_package_dependency_entity_idx
     ON fact_records (
@@ -261,53 +231,6 @@ CREATE INDEX IF NOT EXISTS fact_records_active_container_image_refs_idx
             OR payload->'metadata' ? 'container_images'
           ))
       );
-
-CREATE INDEX IF NOT EXISTS fact_records_oci_image_referrer_subject_idx
-    ON fact_records (
-        (payload->>'subject_digest'),
-        fact_id ASC,
-        generation_id
-    )
-    WHERE fact_kind = 'oci_registry.image_referrer'
-      AND is_tombstone = FALSE;
-
-CREATE INDEX IF NOT EXISTS fact_records_sbom_attestation_attachments_subject_idx
-    ON fact_records (
-        (payload->>'subject_digest'),
-        (payload->>'attachment_status'),
-        fact_id ASC,
-        generation_id
-    )
-    WHERE fact_kind = 'reducer_sbom_attestation_attachment'
-      AND is_tombstone = FALSE;
-
-CREATE INDEX IF NOT EXISTS fact_records_sbom_attestation_attachments_document_idx
-    ON fact_records (
-        (payload->>'document_id'),
-        fact_id ASC,
-        generation_id
-    )
-    WHERE fact_kind = 'reducer_sbom_attestation_attachment'
-      AND is_tombstone = FALSE;
-
-CREATE INDEX IF NOT EXISTS fact_records_sbom_attestation_attachments_document_digest_idx
-    ON fact_records (
-        (payload->>'document_digest'),
-        fact_id ASC,
-        generation_id
-    )
-    WHERE fact_kind = 'reducer_sbom_attestation_attachment'
-      AND is_tombstone = FALSE;
-
-CREATE INDEX IF NOT EXISTS fact_records_sbom_attestation_attachments_status_idx
-    ON fact_records (
-        (payload->>'attachment_status'),
-        (payload->>'artifact_kind'),
-        fact_id ASC,
-        generation_id
-    )
-    WHERE fact_kind = 'reducer_sbom_attestation_attachment'
-      AND is_tombstone = FALSE;
 
 CREATE INDEX IF NOT EXISTS fact_records_supply_chain_impact_lookup_idx
     ON fact_records (

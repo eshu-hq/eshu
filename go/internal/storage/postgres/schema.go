@@ -43,6 +43,11 @@ var bootstrapDefinitions = []Definition{
 		SQL:  serviceCatalogFactRecordReadIndexesSQL,
 	},
 	{
+		Name: "fact_record_sbom_attestation_indexes",
+		Path: "schema/data-plane/postgres/003a_fact_record_sbom_attestation_indexes.sql",
+		SQL:  factRecordSBOMAttestationReadIndexesSQL,
+	},
+	{
 		Name: "content_store",
 		Path: "schema/data-plane/postgres/004_content_store.sql",
 		SQL:  contentStoreSchemaSQL,

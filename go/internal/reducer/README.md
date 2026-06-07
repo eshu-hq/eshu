@@ -697,7 +697,25 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   bounded join key appears. Package-registry version facts are upstream metadata
   and must not be treated as installed versions. CVSS, EPSS, and KEV stay risk
   signals; they never prove reachability without package or runtime evidence,
-  and missing deployment evidence remains visible.
+  and missing deployment evidence remains visible. Exact repository-scoped
+  `reducer_service_catalog_correlation` facts are attached to the finding
+  evidence path, but they do not create `service_ids` or `workload_ids` unless
+  the fact carries those anchors. Repository-only catalog facts report
+  `service/workload catalog anchor missing` so API and MCP callers can
+  distinguish present exact catalog correlation evidence from a missing
+  service or workload hop.
+
+  No-Regression Evidence: `go test ./internal/reducer -run
+  'TestBuildSupplyChainImpactFindings(ConsumesRepositoryOnlyServiceCatalogEvidence|ReportsScopedUnresolvedServiceCatalogEvidence|AttachesWorkloadIdentityWithoutServiceCatalog|AttachesDeploymentLaneEvidence)'
+  -count=1` failed before repository-only exact service-catalog evidence
+  produced a precise missing-hop reason, then passed after the reducer attached
+  the catalog fact while leaving service/workload anchors empty.
+
+  No-Observability-Change: the change only adjusts in-memory finding
+  finalization over facts already loaded through
+  `ListActiveSupplyChainImpactFacts`; existing reducer counters, persisted
+  `evidence_path`, `evidence_fact_ids`, `service_ids`, `workload_ids`, and
+  `missing_evidence` remain the operator-facing signals.
 - **Go-vulnerability reachability is classified, not invented** —
   `ClassifyGoVulnerabilityReachability` joins `vulnerability.go_module_evidence`
   facts (parsed from repository `go.mod` and `go.sum`), Go ecosystem

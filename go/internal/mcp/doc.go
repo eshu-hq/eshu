@@ -24,8 +24,10 @@
 // justification, expiration, and evidence reference per row. Work-item tools
 // expose bounded Jira source facts as ticket-first evidence while preserving the
 // source-only boundary around PR, commit, deploy, runtime, image, and service
-// truth. Any change that
-// alters request or response shape must update the MCP guide, the HTTP API
-// reference where the route is shared, and the handler tests in the same
-// change.
+// truth. Documentation tools forward repo, target_kind, target_id, and
+// service_id filters to the HTTP read models and preserve coverage,
+// related_facts, and missing_evidence fields so raw documentation target facts
+// are not collapsed into admissible findings. Any change that alters request or
+// response shape must update the MCP guide, the HTTP API reference where the
+// route is shared, and the handler tests in the same change.
 package mcp

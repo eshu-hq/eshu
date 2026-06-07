@@ -9,10 +9,12 @@ import (
 
 // EntityHandler exposes HTTP routes for entity queries.
 type EntityHandler struct {
-	Neo4j   GraphQuery
-	Content ContentStore
-	Profile QueryProfile
-	Logger  *slog.Logger
+	Neo4j                    GraphQuery
+	Content                  ContentStore
+	ContainerImageIdentities ContainerImageIdentityStore
+	SBOMAttachments          SBOMAttestationAttachmentStore
+	Profile                  QueryProfile
+	Logger                   *slog.Logger
 }
 
 // Mount registers all entity routes on the given mux.

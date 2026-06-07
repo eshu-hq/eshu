@@ -281,13 +281,29 @@ func supplyChainTools() []ToolDefinition {
 		},
 		{
 			Name:        "list_sbom_attestation_attachments",
-			Description: "List reducer-owned SBOM and attestation attachment evidence by image digest or document identity. Inspect attachment_scope and missing_evidence before treating parse-only rows as image evidence.",
+			Description: "List reducer-owned SBOM and attestation attachment evidence by source repository, workload, service, image digest, or document identity. Inspect attachment_scope and missing_evidence before treating parse-only rows as image evidence.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"subject_digest": map[string]any{
 						"type":        "string",
 						"description": "Image or artifact digest that anchors the SBOM or attestation attachment.",
+					},
+					"digest": map[string]any{
+						"type":        "string",
+						"description": "Alias for subject_digest when the caller has an image digest.",
+					},
+					"repository_id": map[string]any{
+						"type":        "string",
+						"description": "Canonical source repository id or repository selector. Missing repository-to-image evidence is returned as missing_evidence.",
+					},
+					"workload_id": map[string]any{
+						"type":        "string",
+						"description": "Reducer-admitted workload anchor. Missing workload-to-image evidence is returned as missing_evidence.",
+					},
+					"service_id": map[string]any{
+						"type":        "string",
+						"description": "Reducer-admitted service anchor. Missing service-to-image evidence is returned as missing_evidence.",
 					},
 					"document_id": map[string]any{
 						"type":        "string",

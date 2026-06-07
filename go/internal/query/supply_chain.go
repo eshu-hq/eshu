@@ -68,6 +68,9 @@ type SBOMAttestationAttachmentResult struct {
 	CanonicalWrites    int                    `json:"canonical_writes"`
 	ComponentCount     int                    `json:"component_count"`
 	ComponentEvidence  []ComponentEvidenceRow `json:"component_evidence,omitempty"`
+	RepositoryIDs      []string               `json:"repository_ids,omitempty"`
+	WorkloadIDs        []string               `json:"workload_ids,omitempty"`
+	ServiceIDs         []string               `json:"service_ids,omitempty"`
 	WarningSummaries   []string               `json:"warning_summaries,omitempty"`
 	EvidenceFactIDs    []string               `json:"evidence_fact_ids,omitempty"`
 	MissingEvidence    []string               `json:"missing_evidence,omitempty"`
@@ -309,17 +312,24 @@ func (h *SupplyChainHandler) listSBOMAttachments(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
+	repositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "repository_id"))
+	if !ok {
+		return
+	}
 	filter := SBOMAttestationAttachmentFilter{
-		SubjectDigest:     QueryParam(r, "subject_digest"),
+		SubjectDigest:     firstNonEmptyQueryParam(r, "subject_digest", "digest"),
 		DocumentID:        QueryParam(r, "document_id"),
 		DocumentDigest:    QueryParam(r, "document_digest"),
+		RepositoryID:      repositoryID,
+		WorkloadID:        QueryParam(r, "workload_id"),
+		ServiceID:         QueryParam(r, "service_id"),
 		AttachmentStatus:  QueryParam(r, "attachment_status"),
 		ArtifactKind:      QueryParam(r, "artifact_kind"),
 		AfterAttachmentID: QueryParam(r, "after_attachment_id"),
 		Limit:             limit + 1,
 	}
 	if !filter.hasScope() {
-		WriteError(w, http.StatusBadRequest, "subject_digest, document_id, or document_digest is required")
+		WriteError(w, http.StatusBadRequest, "subject_digest, document_id, document_digest, repository_id, workload_id, or service_id is required")
 		return
 	}
 	if h.SBOMAttachments == nil {
@@ -336,11 +346,12 @@ func (h *SupplyChainHandler) listSBOMAttachments(w http.ResponseWriter, r *http.
 		return
 	}
 
-	rows, err := h.SBOMAttachments.ListSBOMAttestationAttachments(r.Context(), filter)
+	page, err := h.SBOMAttachments.ListSBOMAttestationAttachments(r.Context(), filter)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	rows := page.Attachments
 	truncated := len(rows) > limit
 	if truncated {
 		rows = rows[:limit]
@@ -354,6 +365,9 @@ func (h *SupplyChainHandler) listSBOMAttachments(w http.ResponseWriter, r *http.
 		"count":       len(results),
 		"limit":       limit,
 		"truncated":   truncated,
+	}
+	if len(page.MissingEvidence) > 0 {
+		body["missing_evidence"] = page.MissingEvidence
 	}
 	if truncated && len(results) > 0 {
 		body["next_cursor"] = map[string]string{

@@ -217,9 +217,62 @@ func TestBuildSupplyChainImpactExplanationUsesCatalogAnchorMissingReason(t *test
 		t.Fatalf("Finding.MissingEvidence = %#v, must not claim present catalog correlation is missing", got.Finding.MissingEvidence)
 	}
 	if !containsString(got.Finding.MissingEvidence, serviceCatalogAnchorMissingReason) {
-		t.Fatalf("Finding.MissingEvidence = %#v, want service catalog entity anchor missing", got.Finding.MissingEvidence)
+		t.Fatalf("Finding.MissingEvidence = %#v, want %s", got.Finding.MissingEvidence, serviceCatalogAnchorMissingReason)
 	}
 	assertImpactPathHopMissingReason(t, got.ImpactPath, "service", serviceCatalogAnchorMissingReason)
+}
+
+func TestBuildSupplyChainImpactExplanationKeepsRepositoryOnlyCatalogHop(t *testing.T) {
+	t.Parallel()
+
+	got := BuildSupplyChainImpactExplanation(
+		SupplyChainImpactExplanationFilter{FindingID: "finding-catalog-repo-only"},
+		SupplyChainImpactExplanationRow{
+			Finding: SupplyChainImpactFindingRow{
+				FindingID:           "finding-catalog-repo-only",
+				CVEID:               "CVE-2026-1548",
+				PackageID:           "pkg:npm/example",
+				ImpactStatus:        "affected_exact",
+				RuntimeReachability: "package_manifest",
+				RepositoryID:        "repo://example/api",
+				WorkloadIDs:         []string{"workload:example-api"},
+				EvidencePath: []string{
+					"reducer_package_consumption_correlation",
+					"reducer_workload_identity",
+					serviceCatalogCorrelationFactKind,
+				},
+				EvidenceFactIDs: []string{"consume-1", "workload-1", "catalog-1"},
+				MissingEvidence: []string{
+					"runtime deployment evidence not linked to vulnerable package",
+					serviceCatalogAnchorMissingReason,
+				},
+			},
+			EvidenceFacts: []SupplyChainImpactEvidenceFact{
+				explanationFact("catalog-1", serviceCatalogCorrelationFactKind, map[string]any{
+					"scope_id": "git-repository-scope:repo://example/api",
+					"outcome":  "exact",
+				}),
+			},
+		},
+		SupplyChainImpactReadinessEnvelope{State: ReadinessStateReadyWithFindings},
+	)
+
+	raw, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	impactPath, ok := payload["impact_path"].([]any)
+	if !ok {
+		t.Fatalf("impact_path = %#v, want structured path", payload["impact_path"])
+	}
+	assertImpactPathContainsHop(t, impactPath, "workload", "present")
+	assertImpactPathContainsHop(t, impactPath, "service", "missing_evidence")
+	assertImpactPathContainsMissingEvidence(t, impactPath, "service", serviceCatalogAnchorMissingReason)
+	assertJSONListContains(t, payload["missing_evidence"], serviceCatalogAnchorMissingReason)
 }
 
 func TestBuildSupplyChainImpactExplanationReturnsDeploymentLaneHopWithoutEnvironment(t *testing.T) {
@@ -335,6 +388,22 @@ func assertImpactPathHopMissingReason(
 		return
 	}
 	t.Fatalf("impact_path missing hop %q: %#v", wantHop, impactPath)
+}
+
+func assertImpactPathContainsMissingEvidence(t *testing.T, raw []any, wantHop string, wantReason string) {
+	t.Helper()
+	for _, entry := range raw {
+		hop, ok := entry.(map[string]any)
+		if !ok {
+			t.Fatalf("impact_path entry = %T, want object", entry)
+		}
+		if hop["hop"] != wantHop {
+			continue
+		}
+		assertJSONListContains(t, hop["missing_evidence"], wantReason)
+		return
+	}
+	t.Fatalf("impact_path missing hop %q: %#v", wantHop, raw)
 }
 
 func assertJSONListContains(t *testing.T, raw any, want string) {

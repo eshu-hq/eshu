@@ -271,7 +271,7 @@ const openAPIPathsRepositories = `
       "get": {
         "tags": ["repositories"],
         "summary": "Get repository story",
-        "description": "Returns a structured repository story with deployment and support overviews.",
+        "description": "Returns a structured repository story with deployment, support, and bounded content-store coverage overviews. Missing coverage remains explicit and does not trigger whole-graph traversal.",
         "operationId": "getRepositoryStory",
         "parameters": [
           {"$ref": "#/components/parameters/RepoId"}

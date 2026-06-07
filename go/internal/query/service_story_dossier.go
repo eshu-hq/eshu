@@ -26,6 +26,7 @@ func enrichServiceStoryDossierResponseWithContext(response map[string]any, build
 		"dependents",
 		"consumer_repositories",
 		"provisioning_source_chains",
+		"cloud_resources",
 		"uncorrelated_cloud_resources",
 		"deployment_evidence",
 		"limitations",

@@ -166,10 +166,13 @@ CI/CD evidence. Positive image, SBOM, and CI/CD minimums require a shared
 `expected_image_digest` or `expected_image_ref` so the verifier proves a single
 artifact chain instead of unrelated aggregate evidence. A positive
 `cloud_resources` minimum requires `expected_cloud_resource_id`; provider or
-environment aggregates alone are not enough to satisfy a target story. When the
-service-catalog or cloud minimum is positive, set `ESHU_REMOTE_E2E_MCP_URL`
-and, if needed, `ESHU_REMOTE_E2E_MCP_TOKEN`. The verifier exercises MCP
-readbacks over the same target filters as the API proof.
+environment aggregates alone are not enough to satisfy a target story. When
+image and SBOM minimums are both positive, the verifier also requires exact API
+and MCP service-story `image_package` readback for the target service, not only
+aggregate supply-chain counts. When the service-story, service-catalog, or
+cloud minimum is positive, set `ESHU_REMOTE_E2E_MCP_URL` and, if needed,
+`ESHU_REMOTE_E2E_MCP_TOKEN`. The verifier exercises MCP readbacks over the same
+target filters as the API proof.
 
 In `code_to_cloud` mode, the verifier also checks manifest alignment before
 calling API or MCP routes. The selected repository, provider security-alert
@@ -258,8 +261,10 @@ evidence-completeness check for exact Terraform-state sources.
 When `ESHU_REMOTE_E2E_TARGET_STORY_FILE` is set, the verifier prints
 `remote E2E target story proof counts` with repository-story, impact,
 security-alert, provider-alert expected-row parity, container-image, SBOM,
-service-catalog, CI/CD, cloud-resource, and MCP readback counts. It does not
-print raw repository selectors, image
+service-catalog count, service-catalog local-descriptor state,
+service-catalog external-confirmation state and reason, CI/CD, cloud-resource,
+and MCP readback counts/states including service-catalog
+external-confirmation reason. It does not print raw repository selectors, image
 references, service IDs, workload IDs, cloud resource IDs, provider repository
 names, hostnames, package names, URLs, or credentials. API reads request the
 Eshu truth envelope, MCP reads require an envelope resource, and both reject

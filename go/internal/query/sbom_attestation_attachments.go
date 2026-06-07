@@ -12,19 +12,29 @@ const sbomAttestationAttachmentFactKind = "reducer_sbom_attestation_attachment"
 // SBOMAttestationAttachmentStore reads reducer-owned SBOM and attestation
 // attachment facts.
 type SBOMAttestationAttachmentStore interface {
-	ListSBOMAttestationAttachments(context.Context, SBOMAttestationAttachmentFilter) ([]SBOMAttestationAttachmentRow, error)
+	ListSBOMAttestationAttachments(context.Context, SBOMAttestationAttachmentFilter) (SBOMAttestationAttachmentPage, error)
 }
 
 // SBOMAttestationAttachmentFilter bounds attachment reads to a concrete image
-// digest or document identity.
+// digest, document identity, or reducer-owned source anchor.
 type SBOMAttestationAttachmentFilter struct {
 	SubjectDigest     string
 	DocumentID        string
 	DocumentDigest    string
+	RepositoryID      string
+	WorkloadID        string
+	ServiceID         string
 	AttachmentStatus  string
 	ArtifactKind      string
 	AfterAttachmentID string
 	Limit             int
+}
+
+// SBOMAttestationAttachmentPage carries one bounded attachment page plus
+// scope-level missing-evidence diagnostics for source-anchor reads.
+type SBOMAttestationAttachmentPage struct {
+	Attachments     []SBOMAttestationAttachmentRow
+	MissingEvidence []string
 }
 
 // ComponentEvidenceRow exposes bounded SBOM component evidence attached to a
@@ -57,6 +67,9 @@ type SBOMAttestationAttachmentRow struct {
 	CanonicalWrites    int
 	ComponentCount     int
 	ComponentEvidence  []ComponentEvidenceRow
+	RepositoryIDs      []string
+	WorkloadIDs        []string
+	ServiceIDs         []string
 	WarningSummaries   []string
 	EvidenceFactIDs    []string
 	MissingEvidence    []string
@@ -87,15 +100,15 @@ func NewPostgresSBOMAttestationAttachmentStore(
 func (s PostgresSBOMAttestationAttachmentStore) ListSBOMAttestationAttachments(
 	ctx context.Context,
 	filter SBOMAttestationAttachmentFilter,
-) ([]SBOMAttestationAttachmentRow, error) {
+) (SBOMAttestationAttachmentPage, error) {
 	if s.DB == nil {
-		return nil, fmt.Errorf("sbom attestation attachment database is required")
+		return SBOMAttestationAttachmentPage{}, fmt.Errorf("sbom attestation attachment database is required")
 	}
 	if !filter.hasScope() {
-		return nil, fmt.Errorf("subject_digest, document_id, or document_digest is required")
+		return SBOMAttestationAttachmentPage{}, fmt.Errorf("subject_digest, document_id, document_digest, repository_id, workload_id, or service_id is required")
 	}
 	if filter.Limit <= 0 || filter.Limit > sbomAttestationAttachmentMaxLimit+1 {
-		return nil, fmt.Errorf("limit must be between 1 and %d", sbomAttestationAttachmentMaxLimit)
+		return SBOMAttestationAttachmentPage{}, fmt.Errorf("limit must be between 1 and %d", sbomAttestationAttachmentMaxLimit)
 	}
 
 	rows, err := s.DB.QueryContext(
@@ -107,11 +120,14 @@ func (s PostgresSBOMAttestationAttachmentStore) ListSBOMAttestationAttachments(
 		filter.DocumentDigest,
 		filter.AttachmentStatus,
 		filter.ArtifactKind,
+		filter.RepositoryID,
+		filter.WorkloadID,
+		filter.ServiceID,
 		filter.AfterAttachmentID,
 		filter.Limit,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("list sbom attestation attachments: %w", err)
+		return SBOMAttestationAttachmentPage{}, fmt.Errorf("list sbom attestation attachments: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -121,18 +137,25 @@ func (s PostgresSBOMAttestationAttachmentStore) ListSBOMAttestationAttachments(
 		var sourceConfidence string
 		var payloadBytes []byte
 		if err := rows.Scan(&factID, &sourceConfidence, &payloadBytes); err != nil {
-			return nil, fmt.Errorf("list sbom attestation attachments: %w", err)
+			return SBOMAttestationAttachmentPage{}, fmt.Errorf("list sbom attestation attachments: %w", err)
 		}
 		row, err := decodeSBOMAttestationAttachmentRow(factID, sourceConfidence, payloadBytes)
 		if err != nil {
-			return nil, err
+			return SBOMAttestationAttachmentPage{}, err
 		}
 		out = append(out, row)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list sbom attestation attachments: %w", err)
+		return SBOMAttestationAttachmentPage{}, fmt.Errorf("list sbom attestation attachments: %w", err)
 	}
-	return out, nil
+	missing, err := s.sbomAttestationAttachmentMissingEvidence(ctx, filter)
+	if err != nil {
+		return SBOMAttestationAttachmentPage{}, err
+	}
+	return SBOMAttestationAttachmentPage{
+		Attachments:     out,
+		MissingEvidence: missing,
+	}, nil
 }
 
 const listSBOMAttestationAttachmentsQuery = `
@@ -152,13 +175,111 @@ WHERE fact.fact_kind = $1
   AND ($4 = '' OR fact.payload->>'document_digest' = $4)
   AND ($5 = '' OR fact.payload->>'attachment_status' = $5)
   AND ($6 = '' OR fact.payload->>'artifact_kind' = $6)
-  AND ($7 = '' OR fact.fact_id > $7)
+  AND ($7 = '' OR fact.payload->'repository_ids' ? $7)
+  AND ($8 = '' OR fact.payload->'workload_ids' ? $8)
+  AND ($9 = '' OR fact.payload->'service_ids' ? $9)
+  AND ($10 = '' OR fact.fact_id > $10)
 ORDER BY fact.fact_id ASC
-LIMIT $8
+LIMIT $11
+`
+
+const sbomAttestationAttachmentMissingEvidenceQuery = `
+WITH active_images AS (
+    SELECT DISTINCT fact.payload->>'digest' AS digest
+    FROM fact_records AS fact
+    JOIN ingestion_scopes AS scope
+      ON scope.scope_id = fact.scope_id
+     AND scope.active_generation_id = fact.generation_id
+    JOIN scope_generations AS generation
+      ON generation.scope_id = fact.scope_id
+     AND generation.generation_id = fact.generation_id
+    WHERE fact.fact_kind = 'reducer_container_image_identity'
+      AND fact.is_tombstone = FALSE
+      AND generation.status = 'active'
+      AND COALESCE(NULLIF(fact.payload->>'canonical_writes', ''), '0')::int > 0
+      AND fact.payload->>'outcome' IN ('exact_digest', 'tag_resolved')
+      AND ($1 = '' OR fact.payload->>'digest' = $1)
+      AND ($2 = '' OR fact.payload->'source_repository_ids' ? $2)
+      AND ($3 = '' OR fact.payload->'workload_ids' ? $3)
+      AND ($4 = '' OR fact.payload->'service_ids' ? $4)
+),
+active_attachments AS (
+    SELECT DISTINCT fact.payload->>'subject_digest' AS digest
+    FROM fact_records AS fact
+    JOIN ingestion_scopes AS scope
+      ON scope.scope_id = fact.scope_id
+     AND scope.active_generation_id = fact.generation_id
+    JOIN scope_generations AS generation
+      ON generation.scope_id = fact.scope_id
+     AND generation.generation_id = fact.generation_id
+    WHERE fact.fact_kind = 'reducer_sbom_attestation_attachment'
+      AND fact.is_tombstone = FALSE
+      AND generation.status = 'active'
+      AND fact.payload->>'subject_digest' <> ''
+      AND ($1 = '' OR fact.payload->>'subject_digest' = $1)
+)
+SELECT
+    NOT EXISTS (SELECT 1 FROM active_images) AS missing_image,
+    EXISTS (SELECT 1 FROM active_images)
+      AND NOT EXISTS (
+          SELECT 1
+          FROM active_images AS image
+          JOIN active_attachments AS attachment
+            ON attachment.digest = image.digest
+      ) AS missing_attachment
 `
 
 func (f SBOMAttestationAttachmentFilter) hasScope() bool {
-	return f.SubjectDigest != "" || f.DocumentID != "" || f.DocumentDigest != ""
+	return f.SubjectDigest != "" || f.DocumentID != "" || f.DocumentDigest != "" ||
+		f.RepositoryID != "" || f.WorkloadID != "" || f.ServiceID != ""
+}
+
+func (s PostgresSBOMAttestationAttachmentStore) sbomAttestationAttachmentMissingEvidence(
+	ctx context.Context,
+	filter SBOMAttestationAttachmentFilter,
+) ([]string, error) {
+	if filter.RepositoryID == "" && filter.WorkloadID == "" && filter.ServiceID == "" {
+		return nil, nil
+	}
+	rows, err := s.DB.QueryContext(
+		ctx,
+		sbomAttestationAttachmentMissingEvidenceQuery,
+		filter.SubjectDigest,
+		filter.RepositoryID,
+		filter.WorkloadID,
+		filter.ServiceID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("load sbom attestation attachment missing evidence: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return nil, rows.Err()
+	}
+	var missingImage bool
+	var missingAttachment bool
+	if err := rows.Scan(&missingImage, &missingAttachment); err != nil {
+		return nil, fmt.Errorf("load sbom attestation attachment missing evidence: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("load sbom attestation attachment missing evidence: %w", err)
+	}
+	var missing []string
+	if missingImage {
+		if filter.ServiceID != "" {
+			missing = append(missing, "service_to_image_evidence_missing")
+		}
+		if filter.WorkloadID != "" {
+			missing = append(missing, "workload_to_image_evidence_missing")
+		}
+		if filter.RepositoryID != "" || len(missing) == 0 {
+			missing = append(missing, "repository_to_image_evidence_missing")
+		}
+	}
+	if missingAttachment {
+		missing = append(missing, "image_to_sbom_evidence_missing")
+	}
+	return uniqueSortedNonEmpty(missing), nil
 }
 
 func decodeSBOMAttestationAttachmentRow(
@@ -187,6 +308,9 @@ func decodeSBOMAttestationAttachmentRow(
 		CanonicalWrites:    IntVal(payload, "canonical_writes"),
 		ComponentCount:     IntVal(payload, "component_count"),
 		ComponentEvidence:  componentEvidenceRows(payload["component_evidence"]),
+		RepositoryIDs:      StringSliceVal(payload, "repository_ids"),
+		WorkloadIDs:        StringSliceVal(payload, "workload_ids"),
+		ServiceIDs:         StringSliceVal(payload, "service_ids"),
 		WarningSummaries:   StringSliceVal(payload, "warning_summaries"),
 		EvidenceFactIDs:    StringSliceVal(payload, "evidence_fact_ids"),
 		MissingEvidence:    StringSliceVal(payload, "missing_evidence"),

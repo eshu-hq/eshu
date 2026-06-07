@@ -12,10 +12,12 @@
 5. `go/internal/searchbench/rerank_eval.go` - reranking eval gate.
 6. `go/internal/searchbench/protocol_recommendation.go` - protocol decision
    gate.
-7. `go/internal/searchdocs/README.md` - curated search-document contract.
-8. `docs/public/reference/search-benchmark-evidence.md` - public evidence
+7. `go/internal/searchbench/rerank_protocol_evaluation.go` - issue #421
+   rerank/protocol close-out gate.
+8. `go/internal/searchdocs/README.md` - curated search-document contract.
+9. `docs/public/reference/search-benchmark-evidence.md` - public evidence
    format and proof requirements.
-9. `docs/internal/design/430-nornicdb-graph-search-split.md` - parent design for
+10. `docs/internal/design/430-nornicdb-graph-search-split.md` - parent design for
    keeping graph truth separate from the search lane.
 
 ## Invariants this package enforces
@@ -39,6 +41,9 @@
 - **Protocol expansion must justify user value** - protocol recommendations
   require baseline hybrid evidence, fallback behavior, preserved API/MCP
   authorization, and measured or explicitly deferred value evidence.
+- **Issue #421 stops before baseline** - rerank/protocol close-out evidence
+  must either tie rerank and protocol records to the same measured hybrid
+  baseline or record a stopped reason that names the #417 blocker.
 - **Operational proof** - evidence must include backend identity, effective
   search flags, startup/restart behavior, memory, index artifact size, rebuild
   behavior, failure classes, accuracy metrics, and a recommendation.
@@ -61,6 +66,9 @@
 - **Change protocol recommendations** - cover baseline hybrid proof, candidate
   protocol validation, user value evidence, fallback behavior, API/MCP
   authorization preservation, and latency/cost impact evidence.
+- **Change #421 close-out evidence** - cover shared baseline proof, stopped
+  reason issue links, stop/evidence exclusivity, rerank validation, protocol
+  validation, and the committed JSON artifact.
 - **Change query-suite validation** - cover invalid suite shape, duplicate ids,
   missing scope, and aggregate scoring before changing `suite.go`.
 

@@ -47,7 +47,11 @@
 // referenced evidence facts. It reports advisory, package/version,
 // dependency-chain, manifest/SBOM/image/workload anchors, freshness, and
 // missing-evidence reasons without adding whole-graph traversal or inventing
-// reachability truth.
+// reachability truth. Repository-scoped service-catalog correlation evidence
+// remains visible in list and explain evidence paths; when that evidence lacks
+// explicit service or workload anchors, the read surface reports
+// service/workload catalog anchor missing instead of claiming catalog evidence
+// is absent.
 //
 // Supply-chain impact rows also carry a reducer suppression decision that
 // captures the VEX or operator-policy state (active, not_affected,
@@ -104,4 +108,16 @@
 // SpanAttrWorkItemEvidence* query, result, evidence-state, and truncation
 // counts; raw URLs, issue summaries, users, and tenant values stay out of
 // metric labels.
+//
+// Documentation finding and fact reads accept repo, target_id, target_kind, and
+// service_id filters. Target-scoped finding responses keep admitted findings
+// separate from raw collected documentation facts by returning coverage,
+// related_facts, and missing_evidence metadata when facts mention the selected
+// target but no admissible finding exists. Explicit target filters count only
+// findings whose payload references match the selected target in coverage
+// metadata, so unrelated repo-source findings do not hide target correlation
+// gaps. Related fact previews use the same explicit target reference before
+// falling back to repo-scoped documentation facts. A bare target_kind is not a
+// canonical target selector without target_id or service_id, and invalid
+// documentation fact reads report every accepted scope or target anchor.
 package query

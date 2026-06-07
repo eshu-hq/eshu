@@ -126,10 +126,10 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_work_item_evidence` | GET | `/api/v0/work-items/evidence` |
 | `get_vulnerability_scanner_read_contract` | GET | `/api/v0/supply-chain/vulnerability-scanner/contract` |
 | `list_supply_chain_impact_findings` | GET | `/api/v0/supply-chain/impact/findings` (accepts repository ids or human repository selectors plus scanner filters such as `advisory_id`, `ecosystem`, `service_id`, `workload_id`, `environment`, `severity`, `profile`, `include_suppressed`, and `suppression_state`; precise rows require supported exact-version evidence such as npm, Maven, Cargo, Pub `pubspec.lock`, NuGet, or Swift `Package.resolved`, and each row carries a `suppression` block with state, source, justification, author, timestamps, reason, and VEX provenance) |
+| `list_sbom_attestation_attachments` | GET | `/api/v0/supply-chain/sbom-attestations/attachments` (accepts source repository ids/selectors, `workload_id`, `service_id`, `subject_digest`/`digest`, `document_id`, or `document_digest`; scoped reads return explicit missing repository/workload/service-to-image or image-to-SBOM evidence instead of silently flattening empty pages) |
 | `list_advisory_evidence` | GET | `/api/v0/supply-chain/advisories/evidence` |
 | `explain_supply_chain_impact` | GET | `/api/v0/supply-chain/impact/explain` |
 | `list_security_alert_reconciliations` | GET | `/api/v0/supply-chain/security-alerts/reconciliations` (accepts repository ids or human repository selectors; rows include Eshu-owned `eshu_package.observed_version` when installed-version evidence exists) |
-| `list_sbom_attestation_attachments` | GET | `/api/v0/supply-chain/sbom-attestations/attachments` |
 | `count_repositories_by_language` | GET | `/api/v0/repositories/by-language?limit=0` |
 | `list_repositories_by_language` | GET | `/api/v0/repositories/by-language` |
 | `get_repository_language_inventory` | GET | `/api/v0/repositories/language-inventory` |
@@ -137,11 +137,11 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `investigate_change_surface` | POST | `/api/v0/impact/change-surface/investigate` |
 | `investigate_resource` | POST | `/api/v0/impact/resource-investigation` |
 | `resolve_entity` | POST | `/api/v0/entities/resolve` |
-| `get_service_story` | GET | `/api/v0/services/{service_name}/story` |
+| `get_service_story` | GET | `/api/v0/services/{service_name}/story` (canonical `workload:*` inputs also pass `service_id` for exact service-story selection) |
 | `investigate_service` | GET | `/api/v0/investigations/services/{service_name}` |
 | `get_file_content` | POST | `/api/v0/content/files/read` |
-| `list_documentation_findings` | GET | `/api/v0/documentation/findings` |
-| `list_documentation_facts` | GET | `/api/v0/documentation/facts` |
+| `list_documentation_findings` | GET | `/api/v0/documentation/findings` with scope, repo, target, and service filters |
+| `list_documentation_facts` | GET | `/api/v0/documentation/facts` with scope, repo, target, service, source, document, section, and search filters |
 | `get_documentation_evidence_packet` | GET | `/api/v0/documentation/findings/{finding_id}/evidence-packet` |
 | `check_documentation_evidence_packet_freshness` | GET | `/api/v0/documentation/evidence-packets/{packet_id}/freshness` |
 | `list_collectors` | GET | `/api/v0/status/collectors` |
@@ -206,6 +206,12 @@ sensitive-value redaction before the envelope reaches MCP, so tool callers see
 the same review-required and refused Terraform import-plan actions as HTTP
 callers.
 
+Documentation tools keep the same transport-only contract. Target-scoped
+finding and fact reads forward `repo`, `target_kind`, `target_id`, and
+`service_id` to HTTP so MCP callers see the same `coverage`, `related_facts`,
+and `missing_evidence` metadata as API clients when raw target documentation
+facts exist without admissible findings.
+
 ## Exported surface
 
 | Identifier | File | Notes |
@@ -251,6 +257,9 @@ return the canonical envelope shape.
 `normalizeQualifiedIdentifier` strips the `workload:` prefix from service
 identifiers before building path segments. If a new service tool is added,
 apply this helper when the input may include a type qualifier.
+`get_service_story` also forwards canonical `workload:*` inputs as the
+`service_id` query parameter so target-story MCP readbacks do not fall back to
+name-only service matching.
 
 `contentSearchBody` normalises `repo_ids` to a single `repo_id` when only one
 element is present. The function uses `firstString` to extract the first

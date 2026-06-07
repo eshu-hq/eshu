@@ -79,6 +79,17 @@ func serviceTraceCICDSegment(workloadContext map[string]any) map[string]any {
 }
 
 func serviceTraceImagePackageSegment(workloadContext map[string]any) map[string]any {
+	if supplyChain := serviceStorySupplyChainImagePackage(workloadContext); len(supplyChain) > 0 {
+		evidence := mapSliceValue(supplyChain, "evidence")
+		missing := StringSliceVal(supplyChain, "missing_evidence")
+		segment := serviceTraceSegment("image_package", "container_image_identity_and_sbom_attachment", "exact", evidence)
+		segment["candidate_image_ref_count"] = IntVal(supplyChain, "candidate_image_ref_count")
+		segment["candidate_image_refs"] = StringSliceVal(supplyChain, "candidate_image_refs")
+		segment["image_refs_truncated"] = BoolVal(supplyChain, "image_refs_truncated")
+		segment["missing_evidence"] = missing
+		return segment
+	}
+
 	evidence := make([]map[string]any, 0)
 	for _, key := range []string{"artifacts", "delivery_paths", "delivery_workflows"} {
 		for _, row := range mapSliceValue(mapValue(workloadContext, "deployment_evidence"), key) {
@@ -105,6 +116,9 @@ func serviceTraceImagePackageRows(row map[string]any) []map[string]any {
 			rows = append(rows, serviceTraceImagePackageRow(row, key, value))
 		}
 	}
+	if value := serviceStoryMatchedImageRef(row); value != "" {
+		rows = append(rows, serviceTraceImagePackageRow(row, "matched_value", value))
+	}
 	return rows
 }
 
@@ -114,7 +128,7 @@ func serviceTraceImagePackageRow(row map[string]any, key string, value string) m
 		"tool_family": StringVal(row, "tool_family"),
 		"source_key":  key,
 	}
-	if strings.Contains(key, "image") {
+	if strings.Contains(key, "image") || key == "matched_value" {
 		out["image_ref"] = value
 		return out
 	}
