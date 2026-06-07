@@ -100,6 +100,21 @@ func TestCollectorContractForAWSHasNoOperationalGraphReadinessUntilProjectionLan
 	}
 }
 
+func TestCollectorContractForCICDRunHasNoOperationalGraphReadinessUntilProjectionLands(t *testing.T) {
+	t.Parallel()
+
+	contract, ok := CollectorContractFor(scope.CollectorCICDRun)
+	if !ok {
+		t.Fatalf("CollectorContractFor(%q) found = false, want true", scope.CollectorCICDRun)
+	}
+	if got := len(contract.CanonicalKeyspaces); got != 0 {
+		t.Fatalf("CICDRun CanonicalKeyspaces = %#v, want empty until reducer projection is implemented", contract.CanonicalKeyspaces)
+	}
+	if got := len(contract.RequiredPhases); got != 0 {
+		t.Fatalf("CICDRun RequiredPhases = %#v, want empty until reducer projection is implemented", contract.RequiredPhases)
+	}
+}
+
 func TestRequiredPhasesForCollectorIncludesWebhookAnchorGate(t *testing.T) {
 	t.Parallel()
 

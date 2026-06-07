@@ -120,8 +120,8 @@ Types in this package flow through four phases of the workflow control plane:
   `CollectorTerraformState`, `CollectorAWS`, `CollectorWebhook`,
   `CollectorDocumentation`, `CollectorOCIRegistry`, `CollectorPackageRegistry`,
   `CollectorVulnerabilityIntelligence`, `CollectorSBOMAttestation`,
-  `CollectorSecurityAlert`, `CollectorPagerDuty`, `CollectorJira`,
-  `CollectorScannerWorker`
+  `CollectorSecurityAlert`, `CollectorCICDRun`, `CollectorPagerDuty`,
+  `CollectorJira`, `CollectorScannerWorker`
 - `PhaseRequirement`, `PhasePublicationKey` — per-phase requirement and
   publication checkpoint key types
 

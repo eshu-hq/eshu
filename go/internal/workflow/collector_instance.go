@@ -120,6 +120,9 @@ func validateDurableCollectorConfiguration(kind scope.CollectorKind, enabled boo
 	if kind == scope.CollectorSecurityAlert {
 		return ValidateSecurityAlertCollectorConfiguration(raw)
 	}
+	if kind == scope.CollectorCICDRun {
+		return ValidateCICDRunCollectorConfiguration(raw)
+	}
 	if kind == scope.CollectorVaultLive {
 		if !enabled {
 			return nil
