@@ -293,7 +293,7 @@ cat >"${state_dir}/index-status.json" <<'JSON'
   }
 }
 JSON
-expect_fail_with 'queue completion'
+expect_fail_with 'finite completion'
 
 reset_state
 set_all_services_healthy
@@ -324,7 +324,7 @@ cat >"${state_dir}/index-status.json" <<'JSON'
   }
 }
 JSON
-expect_fail_with 'workflow completion'
+expect_fail_with 'finite completion'
 reset_state
 set_all_services_healthy
 expect_pass

@@ -2,8 +2,8 @@
 
 Use this gate after starting the hosted remote collector E2E Compose stack.
 The gate proves the long-lived runtimes are actually running and that
-checkpointed completeness has reached queue-zero before the run is accepted as
-deployment evidence.
+checkpointed finite proof safety is separate from normal continuous collector
+polling before the run is accepted as deployment evidence.
 
 This catches a specific failure mode: collectors can emit scope generations
 while `projector/source_local` work stays pending if the ingester never starts.
@@ -69,12 +69,18 @@ enabled hosted collector container is missing, stopped, or unhealthy.
 
 Each service must have a container, be `running`, and either have no Docker
 healthcheck or report `healthy`. In smoke and full-corpus modes, the verifier
-then calls `/api/v0/index-status` and requires `status=healthy` with
-`outstanding`, `in_flight`, `pending`, `retrying`, `failed`, and `dead_letter`
-all at zero. It also rejects workflow coordinator state with failed or
-`reducer_converging` runs, blocked completeness rows, or pending completeness
-rows. This keeps queue-zero from masking collectors whose reducer phase
-contract never converged.
+then calls `/api/v0/index-status` and checks finite proof safety instead of
+requiring all continuous collectors to be idle. The finite contract accepts
+`status=healthy` with no background workflow activity, or `status=progressing`
+when the remaining queue and workflow rows are continuous collector polling.
+It still fails when `retrying`, `failed`, `dead_letter`, overdue claims,
+failed workflow runs, or blocked completeness rows are non-zero. If
+`status=healthy` still carries `collection_pending`, `collection_active`,
+`reducer_converging`, pending work-item, claimed work-item, pending
+completeness, or active-claim counts, the verifier fails closed because the
+status payload is internally inconsistent. The verifier prints separate
+`finite completion state` and `continuous collector polling` lines so queue
+activity is visible without making a usable proof look unfinished.
 
 Representative mode keeps scheduled collectors enabled, so it uses a scoped
 terminal contract instead of queue-zero. `/api/v0/index-status` must report
@@ -248,14 +254,17 @@ instead of generating container-local tokens per service.
 
 No-Regression Evidence: `scripts/test-verify-remote-e2e-runtime-state.sh`
 covers the runtime gate against mocked Docker and API responses. The test
-proves that an ingester stuck in `Created`, an unhealthy collector, a non-zero
+proves that an ingester stuck in `Created`, an unhealthy collector, a stalled
 fact queue, and queue-zero plus stale workflow `reducer_converging` /
 pending-completeness state all fail before a run can be accepted, while a
-healthy runtime set with queue-zero and workflow completion passes. It also
-proves representative mode can accept scheduled follow-up work only when
-required aggregate evidence has landed and `retrying`, `failed`, `dead_letter`,
-failed workflow, and blocked-completeness counts are zero, while labeling that
-follow-up work separately from proof safety. It also proves an
+healthy runtime set with queue-zero and workflow completion passes through the
+finite completion contract. `scripts/test-verify-remote-e2e-finite-completion.sh`
+adds focused coverage for bootstrap-style queue-zero completion, continuous
+collector polling with active claims, a stalled queue/backlog, and retrying
+work. It also proves representative mode can accept scheduled follow-up work
+only when required aggregate evidence has landed and `retrying`, `failed`,
+`dead_letter`, failed workflow, and blocked-completeness counts are zero, while
+labeling that follow-up work separately from proof safety. It also proves an
 explicit package-registry too-large metadata gap is accepted only when the
 impact-readiness envelope reports
 `package_registry_metadata/metadata_too_large`. Focused status and Postgres
@@ -271,12 +280,13 @@ scan shape, retry behavior, or NornicDB settings.
 Observability Evidence: the verifier prints each checked service with Docker
 runtime state and health state, keeps API bearer tokens out of process
 arguments, bounds API probes with a max-time, and records the checkpointed
-`/index-status` payload on queue, workflow-completion, or representative
-runtime-safety failure. Representative output now separates unsafe proof
-signals (`retrying`, `failed`, `dead_letter`, failed workflow runs, and blocked
-completeness) from background workflow activity (`outstanding`, `in_flight`,
+`/index-status` payload on finite-completion or representative runtime-safety
+failure. Smoke/full-corpus output now separates finite proof safety
+(`retrying`, `failed`, `dead_letter`, failed workflow runs, and blocked
+completeness) from continuous polling activity (`outstanding`, `in_flight`,
 `pending`, collection run counts, claimed work items, pending completeness, and
-active claims). The existing `/api/v0/index-status`,
+active claims). Representative output keeps the same split with representative
+labels. The existing `/api/v0/index-status`,
 `/api/v0/status/index`, and admin status report now carry workflow coordinator
 `run_status_counts`, `work_item_status_counts`, `completeness_counts`, active
 and overdue claim counts, queue/domain ages, and health reasons that

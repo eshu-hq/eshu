@@ -29,11 +29,11 @@ remote collector E2E stack. It does not start containers. Run it after the
 remote Compose stack is up to prove the API, MCP server, ingester,
 resolution engine, workflow coordinator, and hosted collectors are healthy, and
 the checkpointed runtime state is acceptable, before treating the run as
-deployable proof. Smoke and full-corpus modes require queue-zero;
-representative mode accepts only the scoped terminal contract documented in the
-remote E2E guide so scheduled collectors do not make the inner-loop proof
-nondeterministic. API probes use a bounded max-time and keep bearer tokens out
-of process arguments. It also
+deployable proof. Smoke and full-corpus modes check finite proof safety
+separately from continuous polling; representative mode accepts only the scoped
+terminal contract documented in the remote E2E guide so scheduled collectors do
+not make the inner-loop proof nondeterministic. API probes use a bounded
+max-time and keep bearer tokens out of process arguments. It also
 prints aggregate package, advisory, impact, security-alert, SBOM, and image
 identity counts when those probes are required. Use
 `ESHU_REMOTE_E2E_COMPOSE_FILES` as a colon-separated Compose file list and
