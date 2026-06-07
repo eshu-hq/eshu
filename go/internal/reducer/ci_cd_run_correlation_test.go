@@ -41,6 +41,7 @@ func (s *stubCICDRunCorrelationFactLoader) ListFactsByKind(
 func (s *stubCICDRunCorrelationFactLoader) ListActiveCICDRunCorrelationFacts(
 	context.Context,
 	[]string,
+	[]string,
 ) ([]facts.Envelope, error) {
 	s.activeCall++
 	return append([]facts.Envelope(nil), s.active...), nil
@@ -103,6 +104,28 @@ func TestBuildCICDRunCorrelationDecisionsRetainsTriggerEvidence(t *testing.T) {
 	}
 	if !stringSliceContains(got.EvidenceFactIDs, "trigger-edge") {
 		t.Fatalf("EvidenceFactIDs = %#v, want trigger-edge retained", got.EvidenceFactIDs)
+	}
+}
+
+func TestBuildCICDRunCorrelationDecisionsUsesWorkflowImageEvidence(t *testing.T) {
+	t.Parallel()
+
+	decisions := BuildCICDRunCorrelationDecisions([]facts.Envelope{
+		ciRunFact("run-workflow-image", "github_actions", "repo-api", "abc123"),
+		workflowImageEvidenceFact("workflow-image", "repo-api", "registry.example.com/team/api:prod"),
+		containerImageIdentityFact("image-identity", "repo-api", "registry.example.com/team/api:prod", testCICDDigest),
+	})
+
+	got := cicdDecisionsByRun(decisions)["github_actions:run-workflow-image:1"]
+	assertCICDDecision(t, got, CICDRunCorrelationExact, 1)
+	if got.ImageRef != "registry.example.com/team/api:prod" {
+		t.Fatalf("ImageRef = %q, want workflow image ref", got.ImageRef)
+	}
+	if got.CorrelationKind != "workflow_image" {
+		t.Fatalf("CorrelationKind = %q, want workflow_image", got.CorrelationKind)
+	}
+	if !stringSliceContains(got.EvidenceFactIDs, "workflow-image") {
+		t.Fatalf("EvidenceFactIDs = %#v, want workflow-image", got.EvidenceFactIDs)
 	}
 }
 

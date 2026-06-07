@@ -104,6 +104,24 @@ func TestBuildContainerImageIdentityDecisionsReadsEntityMetadataContainerImages(
 		ContainerImageIdentityTagResolved, testContainerDigest, 1)
 }
 
+func TestBuildContainerImageIdentityDecisionsUsesWorkflowImageEvidenceAsSourceAnchor(t *testing.T) {
+	t.Parallel()
+
+	decisions := BuildContainerImageIdentityDecisions([]facts.Envelope{
+		workflowImageEvidenceFact("workflow-image", "repo-api", "registry.example.com/team/api:prod"),
+		ociTagFact("oci-tag", "prod", testContainerDigest, false, ""),
+	})
+
+	got := decisionsByRef(decisions)["registry.example.com/team/api:prod"]
+	assertContainerImageDecision(t, got, ContainerImageIdentityTagResolved, testContainerDigest, 1)
+	if !slices.Contains(got.SourceRepositoryIDs, "repo-api") {
+		t.Fatalf("SourceRepositoryIDs = %#v, want repo-api", got.SourceRepositoryIDs)
+	}
+	if !slices.Contains(got.EvidenceFactIDs, "workflow-image") {
+		t.Fatalf("EvidenceFactIDs = %#v, want workflow-image", got.EvidenceFactIDs)
+	}
+}
+
 func TestBuildContainerImageIdentityDecisionsRejectsWeakMissingAndAmbiguousTags(t *testing.T) {
 	t.Parallel()
 
@@ -482,6 +500,30 @@ func gitEntityMetadataImageRefFact(factID string, imageRefs ...string) facts.Env
 		},
 	}
 	return envelope
+}
+
+func workflowImageEvidenceFact(factID string, repositoryID string, imageRef string) facts.Envelope {
+	return facts.Envelope{
+		FactID:           factID,
+		ScopeID:          "repo:team-api",
+		GenerationID:     "generation-git",
+		FactKind:         facts.CICDWorkflowImageEvidenceFactKind,
+		SchemaVersion:    facts.CICDSchemaVersion,
+		CollectorKind:    "git",
+		SourceConfidence: facts.SourceConfidenceObserved,
+		ObservedAt:       time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),
+		SourceRef: facts.Ref{
+			SourceSystem: "git",
+		},
+		Payload: map[string]any{
+			"repository_id":   repositoryID,
+			"workflow_path":   ".github/workflows/deploy.yml",
+			"command_kind":    "docker_build",
+			"image_ref":       imageRef,
+			"evidence_class":  "workflow_image_ref",
+			"source_category": "static_workflow",
+		},
+	}
 }
 
 func ociManifestFact(factID string, digest string) facts.Envelope {

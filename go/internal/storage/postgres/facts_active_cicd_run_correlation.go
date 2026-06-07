@@ -37,30 +37,36 @@ JOIN scope_generations AS generation
 WHERE fact.fact_kind = 'reducer_container_image_identity'
   AND fact.is_tombstone = FALSE
   AND generation.status = 'active'
-  AND fact.payload->>'digest' = ANY($1::text[])
-  AND ($2 = '' OR fact.fact_id > $2)
+  AND (
+    fact.payload->>'digest' = ANY($1::text[])
+    OR fact.payload->>'image_ref' = ANY($2::text[])
+  )
+  AND ($3 = '' OR fact.fact_id > $3)
 ORDER BY fact.fact_id ASC
-LIMIT $3
+LIMIT $4
 `
 
 // ListActiveCICDRunCorrelationFacts loads active reducer-owned container image
-// identity rows for the artifact digests observed in one CI/CD run generation.
+// identity rows for the artifact digests or image refs observed in one CI/CD
+// run generation.
 func (s FactStore) ListActiveCICDRunCorrelationFacts(
 	ctx context.Context,
 	digests []string,
+	imageRefs []string,
 ) ([]facts.Envelope, error) {
 	if s.db == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 	digests = cleanStringFilterValues(digests)
-	if len(digests) == 0 {
+	imageRefs = cleanStringFilterValues(imageRefs)
+	if len(digests) == 0 && len(imageRefs) == 0 {
 		return nil, nil
 	}
 
 	var loaded []facts.Envelope
 	var cursorFactID string
 	for {
-		page, err := s.listActiveCICDRunCorrelationFactsPage(ctx, digests, cursorFactID)
+		page, err := s.listActiveCICDRunCorrelationFactsPage(ctx, digests, imageRefs, cursorFactID)
 		if err != nil {
 			return nil, err
 		}
@@ -75,12 +81,14 @@ func (s FactStore) ListActiveCICDRunCorrelationFacts(
 func (s FactStore) listActiveCICDRunCorrelationFactsPage(
 	ctx context.Context,
 	digests []string,
+	imageRefs []string,
 	cursorFactID string,
 ) ([]facts.Envelope, error) {
 	rows, err := s.db.QueryContext(
 		ctx,
 		listActiveCICDRunCorrelationFactsQuery,
 		digests,
+		imageRefs,
 		cursorFactID,
 		listFactsByKindPageSize,
 	)

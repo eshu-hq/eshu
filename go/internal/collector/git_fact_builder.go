@@ -47,6 +47,7 @@ func buildStreamingGeneration(
 		len(snapshot.ContentEntities) + len(snapshot.TerraformStateCandidates) +
 		observabilityFactCount(snapshot.FileData) +
 		serviceCatalogFactCount(repoPath, scopeValue.ScopeID, generation.GenerationID, observedAt, snapshot) +
+		workflowImageEvidenceFactCount(repoPath, snapshot) +
 		7
 
 	factCh := make(chan facts.Envelope, factStreamBuffer)
@@ -141,6 +142,15 @@ func streamFacts(
 				CommitSHA:       meta.CommitSHA,
 			})
 			emitServiceCatalogFactsForContentFile(ch, scopeID, generationID, observedAt, meta.RelativePath, bodyStr)
+			emitWorkflowImageEvidenceFactsForContentFile(
+				ch,
+				repo.ID,
+				scopeID,
+				generationID,
+				observedAt,
+				meta.RelativePath,
+				bodyStr,
+			)
 			snapshot.ContentFileMetas[i] = ContentFileMeta{}
 		}
 		snapshot.ContentFileMetas = nil
@@ -149,6 +159,15 @@ func streamFacts(
 			ch <- contentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fileSnapshot)
 			emitServiceCatalogFactsForContentFile(
 				ch,
+				scopeID,
+				generationID,
+				observedAt,
+				fileSnapshot.RelativePath,
+				fileSnapshot.Body,
+			)
+			emitWorkflowImageEvidenceFactsForContentFile(
+				ch,
+				repo.ID,
 				scopeID,
 				generationID,
 				observedAt,

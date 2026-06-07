@@ -180,15 +180,23 @@ target-story and MCP callers can prove tag-or-reference CI/CD evidence without
 fetching a repository-wide page and filtering client-side.
 Repository-scoped list responses also return `evidence_summary`:
 `static_workflow_artifacts` reports indexed GitHub Actions workflow files from
-the content read model, while `live_run_correlations` reports only
-reducer-owned run correlation rows. `run_artifact_evidence` is a third,
+the content read model, including public-safe counts for explicit workflow
+image refs, unresolved templated image refs, and ambiguous multi-image
+commands. It never returns raw shell commands. `live_run_correlations` reports
+only reducer-owned run correlation rows. `run_artifact_evidence` is a third,
 separate bridge block derived only from returned live rows that carry an
 admitted artifact digest or image reference. Ambiguous artifact matches stay
 `state=ambiguous` and do not become exact build/deploy truth. When static
-workflow files are present but the reducer has no live run rows, the response
-keeps `correlations=[]` and marks
+workflow image refs are present but the reducer has no live run rows, the
+response keeps `correlations=[]` and marks
+`run_artifact_evidence.reason=workflow_image_ref_static_only`; otherwise static
+workflow-only repositories mark
 `live_run_correlations.reason=static_workflow_only_live_run_correlation_missing`
 instead of implying the repository has no CI/CD evidence.
+
+No-Regression Evidence: `go test ./internal/workflowimage ./internal/facts ./internal/collector ./internal/reducer ./internal/storage/postgres ./internal/query -run 'TestExtract|TestCICDRunFactKindsAndSchemaVersions|TestBuildStreamingGenerationEmitsWorkflowImageEvidence|TestBuildContainerImageIdentityDecisionsUsesWorkflowImageEvidenceAsSourceAnchor|TestBuildCICDRunCorrelationDecisionsUsesWorkflowImageEvidence|TestListActiveCICDRunCorrelationFactsQueryIsArtifactBoundedAndPaged|TestCICDListRunCorrelationsExplains(StaticWorkflowImageEvidence|UnresolvedStaticWorkflowImageEvidence)' -count=1` fails if workflow image extraction, durable fact registration, collector emission, image-identity source anchoring, CI/CD correlation, active image-identity lookup, or repository-scoped CI/CD summary classes drift.
+
+No-Observability-Change: workflow image evidence reuses the existing Git collector fact stream, container-image identity reducer counters, CI/CD run-correlation reducer counters, bounded Postgres fact reads, query spans, truth envelope, and HTTP status/error bodies. The change adds no new runtime service, queue domain, worker, graph query, graph write shape, metric instrument, metric label, or runtime knob; operators still diagnose collection through fact counts and collector spans, reducer admission through existing outcome counters, and readback through `query.ci_cd_run_correlations`.
 
 No-Regression Evidence: `go test ./internal/query -run 'TestCICDListRunCorrelationsExplains(StaticWorkflowOnlyEvidence|LiveRunEvidence|WorkflowArtifactDigestEvidence|WorkflowImageRefEvidence|AmbiguousArtifactEvidence|NoEvidence)|TestOpenAPISpecIncludesCICDRunCorrelations' -count=1` and `go test ./internal/mcp -run 'TestDispatchToolCICDRunCorrelationsPreservesArtifactEvidenceSummary|TestResolveRouteMapsCICDRunCorrelationsToBoundedQuery' -count=1` fail if the CI/CD list response or MCP transport stops distinguishing static workflow artifacts, provider run rows, digest/image bridges, ambiguous artifacts, and no-evidence pages.
 
