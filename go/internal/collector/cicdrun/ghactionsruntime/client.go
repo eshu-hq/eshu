@@ -129,7 +129,9 @@ func (c GitHubClient) getJSON(ctx context.Context, target TargetConfig, endpoint
 	if err != nil {
 		return err
 	}
-	defer response.Body.Close()
+	defer func() {
+		_ = response.Body.Close()
+	}()
 	if isRateLimitResponse(response) {
 		return ErrRateLimited
 	}

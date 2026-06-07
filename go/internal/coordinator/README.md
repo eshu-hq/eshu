@@ -247,6 +247,11 @@ warning (`collector_instance_drift_detected`, fields
   controls workflow-run status freshness. Keep them separate when scheduled
   collectors should run infrequently but `/api/v0/index-status` should reflect
   completed workflow work promptly.
+- CI/CD run collector instances schedule through the normal active-mode
+  reconcile loop. The coordinator creates durable workflow rows for configured
+  GitHub Actions repository targets only; provider API calls, rate-limit
+  handling, artifact reads, and fact emission belong to the CI/CD run collector
+  runtime.
 - `last_reaped_claims` spiking above `ExpiredClaimLimit` is not possible; that
   limit caps each reap pass. Repeated spikes at the limit indicate collectors
   are not completing claims within the lease TTL.
@@ -358,6 +363,9 @@ material to metric labels. Rotated target selection, budget-exhausted counts,
 and reason-coded partial-evidence skips remain visible through the bounded
 `requested_scope_set` rows, and package-registry metadata target counts are
 summarized by ecosystem in `/admin/status`.
+
+No-Regression Evidence: `go test ./internal/coordinator ./cmd/workflow-coordinator -run 'TestServiceRunActiveModeSchedulesCICDRunWork|TestCICDRunWorkPlanner' -count=1` proves active-mode reconciliation schedules CI/CD run work through `CICDRunPlanner`, derives the reconcile-bucket plan key from the collector mode and interval, and persists work through the existing open-target admission guard. This is planning only: it creates workflow rows for configured GitHub Actions targets and does not change claim lease timing, worker counts, queue ordering, reducer graph writes, fact emission, or provider API calls.
+No-Observability-Change: CI/CD run scheduling reuses the existing coordinator reconcile counters and duration histogram, `workflow_runs`, `workflow_work_items`, claim status rows, `requested_scope_set`, and `/api/v0/index-status`. The planner keeps credential environment names out of `requested_scope_set`; provider request, rate-limit, and fact-emission telemetry remains gated to the deployable CI/CD collector runtime slice.
 
 No-Regression Evidence: `go test ./internal/coordinator ./internal/workflow -run 'Test(ServiceRunActiveModeSinglePass(PackageRegistry|Vulnerability)DerivedBudgetDoesNotAdmitNextBucket|PackageRegistryCollectorConfigurationRejectsUnknownDerivedPlanningMode|VulnerabilityIntelligenceCollectorConfigurationRejectsUnknownDerivedPlanningMode)' -count=1` proves representative single-pass derived target planning keeps package-registry and vulnerability-intelligence derived work inside one stable plan key across reconcile buckets while preserving rotating mode as the default.
 

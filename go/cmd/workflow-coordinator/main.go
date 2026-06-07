@@ -132,6 +132,7 @@ func run(parent context.Context) error {
 		SBOMAttestationPlanner:            coordinator.SBOMAttestationWorkPlanner{},
 		ScannerWorkerPlanner:              coordinator.ScannerWorkerWorkPlanner{},
 		SecurityAlertPlanner:              coordinator.SecurityAlertWorkPlanner{},
+		CICDRunPlanner:                    coordinator.CICDRunWorkPlanner{},
 		PagerDutyPlanner:                  coordinator.PagerDutyWorkPlanner{},
 		JiraPlanner:                       coordinator.JiraWorkPlanner{},
 		PrometheusMimirPlanner:            coordinator.PrometheusMimirWorkPlanner{},

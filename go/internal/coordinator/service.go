@@ -132,6 +132,7 @@ type Service struct {
 	SBOMAttestationPlanner            SBOMAttestationPlanner
 	ScannerWorkerPlanner              ScannerWorkerPlanner
 	SecurityAlertPlanner              SecurityAlertPlanner
+	CICDRunPlanner                    CICDRunPlanner
 	PagerDutyPlanner                  PagerDutyPlanner
 	JiraPlanner                       JiraPlanner
 	PrometheusMimirPlanner            PrometheusMimirPlanner
@@ -310,6 +311,15 @@ func (s Service) runReconcile(ctx context.Context) error {
 		return err
 	}
 	if err := s.scheduleSecurityAlertWork(ctx, observedAt, instances); err != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:      reconcileOutcomeReconcileError,
+			Duration:     time.Since(startedAt),
+			DesiredCount: desiredCount,
+			DurableCount: durableCount,
+		})
+		return err
+	}
+	if err := s.scheduleCICDRunWork(ctx, observedAt, instances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
