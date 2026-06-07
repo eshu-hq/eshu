@@ -80,7 +80,13 @@ case "$*" in
 	*"/api/v0/repositories/repo%3A%2F%2Fexample%2Fapi/story"*)
 		cat "${state_dir}/repo-story.json"
 		;;
+	*"/api/v0/repositories/repository%3Ar_8f14e45f/story"*)
+		cat "${state_dir}/repo-story.json"
+		;;
 	*"/api/v0/services/api/story"*)
+		cat "${state_dir}/service-story.json"
+		;;
+	*"/api/v0/services/"*"/story?repo=repository%3Ar_8f14e45f"*)
 		cat "${state_dir}/service-story.json"
 		;;
 	*"/api/v0/supply-chain/impact/findings/count?repository_id=repo%3A%2F%2Fexample%2Fapi&profile=comprehensive"*)
@@ -98,10 +104,16 @@ case "$*" in
 	*"/api/v0/supply-chain/container-images/identities/count?digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&repository_id=oci-registry%3A%2F%2Fregistry.example%2Fteam%2Fother-api"*)
 		cat "${state_dir}/image-count.json"
 		;;
+	*"/api/v0/supply-chain/container-images/identities/count?digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"*)
+		cat "${state_dir}/image-count.json"
+		;;
 	*"/api/v0/supply-chain/sbom-attestations/attachments/count?subject_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"*)
 		cat "${state_dir}/sbom-count.json"
 		;;
 	*"/api/v0/service-catalog/correlations?repository_id=repo%3A%2F%2Fexample%2Fapi&limit=1&service_id=service%3Aapi"*)
+		cat "${state_dir}/service-catalog.json"
+		;;
+	*"/api/v0/service-catalog/correlations?repository_id=repository%3Ar_8f14e45f&limit=1&workload_id="*)
 		cat "${state_dir}/service-catalog.json"
 		;;
 	*"/api/v0/ci-cd/run-correlations/count?repository_id=repo%3A%2F%2Fexample%2Fapi&artifact_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"*)

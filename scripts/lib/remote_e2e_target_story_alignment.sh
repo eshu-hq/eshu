@@ -84,6 +84,12 @@ target_story_alignment_matches() {
 	return 1
 }
 
+target_story_alignment_is_opaque_repository_id() {
+	local value
+	value="$(target_story_alignment_lower "$1")"
+	[[ "${value}" =~ ^repository:r_[0-9a-f]{8}$ ]]
+}
+
 target_story_require_aligned_target() {
 	local manifest_file="$1"
 	local field="$2"
@@ -98,6 +104,21 @@ target_story_require_aligned_target() {
 	fi
 	printf 'target story alignment mismatch: %s does not align with target_repository_id\n' "${field}" >&2
 	return 1
+}
+
+target_story_require_service_readback_aligned_target() {
+	local manifest_file="$1"
+	local field="$2"
+	local value="$3"
+	local repo_selector
+	repo_selector="$(target_story_alignment_manifest_string "${manifest_file}" '.target_repository_id')"
+	if [[ -z "${value}" ]]; then
+		return 0
+	fi
+	if target_story_alignment_is_opaque_repository_id "${repo_selector}"; then
+		return 0
+	fi
+	target_story_require_aligned_target "${manifest_file}" "${field}" "${value}"
 }
 
 target_story_validate_alignment() {
@@ -133,8 +154,8 @@ target_story_validate_alignment() {
 		fi
 	fi
 	if ((catalog_min > 0)); then
-		target_story_require_aligned_target "${manifest_file}" expected_service_id "${expected_service_id}" || return 1
-		target_story_require_aligned_target "${manifest_file}" expected_workload_id "${expected_workload_id}" || return 1
+		target_story_require_service_readback_aligned_target "${manifest_file}" expected_service_id "${expected_service_id}" || return 1
+		target_story_require_service_readback_aligned_target "${manifest_file}" expected_workload_id "${expected_workload_id}" || return 1
 	fi
 	if ((sbom_min > 0)) && [[ -n "${expected_image_digest}" && -n "${expected_sbom_digest}" && "${expected_image_digest}" != "${expected_sbom_digest}" ]]; then
 		printf 'target story alignment mismatch: expected_sbom_subject_digest does not match expected_image_digest\n' >&2

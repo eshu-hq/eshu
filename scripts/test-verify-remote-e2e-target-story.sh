@@ -476,5 +476,6 @@ if ! rg -q 'remote E2E target story proof skipped: no target story configured' /
 fi
 
 "${repo_root}/scripts/test-verify-remote-e2e-target-story-source-evidence.sh"
+"${repo_root}/scripts/test-verify-remote-e2e-target-story-canonical-ids.sh"
 
 printf 'verify-remote-e2e-target-story tests passed\n'

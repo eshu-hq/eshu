@@ -225,8 +225,10 @@ provider or environment aggregates alone do not satisfy the target story.
 Aggregate OCI, SBOM, service, or cloud rows from unrelated repositories do not
 satisfy the target story. In `code_to_cloud` mode, the verifier fails before
 API reads when the manifest points the repository, provider security-alert
-repository, OCI/image target, service/workload selectors, or SBOM digest at
-different target chains.
+repository, OCI/image target, or SBOM digest at different target chains.
+Human service/workload selectors still need static repository-token alignment;
+opaque `repository:r_<8-hex>` selectors instead rely on bounded service-story
+and service-catalog readbacks because they carry no service-name tokens.
 
 Use `proof_mode: "vulnerability_only"` or `proof_mode: "partial"` only when the
 run intentionally cannot observe the artifact hop, such as a registry account
@@ -349,9 +351,10 @@ selector from the private provider configuration or the canonical Eshu
 repository id returned by repository readbacks; the verifier uses those anchors
 only for matching and does not print them.
 
-Use `minimums.documentation_findings`, `minimums.incident_contexts`, and `minimums.work_item_evidence` for Confluence/PagerDuty/Jira target evidence.
-Positive source minimums require `ESHU_REMOTE_E2E_MCP_URL`; aggregate collector counts are not target proof.
+Use `minimums.documentation_findings`, `minimums.incident_contexts`, and `minimums.work_item_evidence` for Confluence/PagerDuty/Jira target evidence. Positive source minimums require `ESHU_REMOTE_E2E_MCP_URL`; aggregate collector counts are not target proof.
 Disabled/unsupported source families keep minimum `0` and set `unsupported_target_evidence` to `collector_disabled`, `source_not_configured`, `capability_not_supported`, or `target_link_not_modeled`; missing positive evidence reports only `target_not_linked`.
+
+No-Regression Evidence: `scripts/test-verify-remote-e2e-target-story-canonical-ids.sh` proves opaque canonical repository selectors reach existing bounded readbacks, unrelated workload selectors still fail through catalog minimums, and no new API/MCP calls were added. No-Observability-Change: target-story proof output remains the existing public-safe count line and missing-evidence errors; raw repository ids, workload ids, digests, image refs, account ids, URLs, and local paths stay hidden.
 
 ### Reducer Evidence Rows
 
