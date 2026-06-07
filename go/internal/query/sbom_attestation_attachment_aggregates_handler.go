@@ -38,9 +38,6 @@ func (h *SupplyChainHandler) countSBOMAttestationAttachments(w http.ResponseWrit
 		)
 		return
 	}
-	if !rejectUnsupportedSBOMAttestationAttachmentRepositoryScope(w, r) {
-		return
-	}
 	if h.SBOMAttachmentAggregates == nil {
 		WriteContractError(
 			w,
@@ -97,9 +94,6 @@ func (h *SupplyChainHandler) sbomAttestationAttachmentInventory(w http.ResponseW
 			h.profile(),
 			requiredProfile(sbomAttestationAttachmentAggregateCapability),
 		)
-		return
-	}
-	if !rejectUnsupportedSBOMAttestationAttachmentRepositoryScope(w, r) {
 		return
 	}
 	if h.SBOMAttachmentAggregates == nil {
@@ -169,6 +163,9 @@ func sbomAttestationAttachmentAggregateFilterFromRequest(r *http.Request) SBOMAt
 		SubjectDigest:    QueryParam(r, "subject_digest"),
 		DocumentID:       QueryParam(r, "document_id"),
 		DocumentDigest:   QueryParam(r, "document_digest"),
+		RepositoryID:     QueryParam(r, "repository_id"),
+		WorkloadID:       QueryParam(r, "workload_id"),
+		ServiceID:        QueryParam(r, "service_id"),
 		AttachmentStatus: QueryParam(r, "attachment_status"),
 		ArtifactKind:     QueryParam(r, "artifact_kind"),
 	}
@@ -184,6 +181,15 @@ func sbomAttestationAttachmentAggregateScope(filter SBOMAttestationAttachmentAgg
 	}
 	if filter.DocumentDigest != "" {
 		out["document_digest"] = filter.DocumentDigest
+	}
+	if filter.RepositoryID != "" {
+		out["repository_id"] = filter.RepositoryID
+	}
+	if filter.WorkloadID != "" {
+		out["workload_id"] = filter.WorkloadID
+	}
+	if filter.ServiceID != "" {
+		out["service_id"] = filter.ServiceID
 	}
 	if filter.AttachmentStatus != "" {
 		out["attachment_status"] = filter.AttachmentStatus

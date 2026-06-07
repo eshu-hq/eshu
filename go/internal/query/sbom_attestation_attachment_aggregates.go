@@ -52,11 +52,16 @@ const SBOMAttestationAttachmentAggregateMaxLimit = 500
 // SBOMAttestationAttachmentAggregateFilter narrows aggregate reads. An
 // aggregate without a scope is allowed because the dataset is already
 // bounded to `fact_kind = 'reducer_sbom_attestation_attachment'` and the
-// active-generation predicate at index lookup time.
+// active-generation predicate at index lookup time. Source anchors narrow the
+// read to reducer-owned repository, workload, or service evidence without
+// inventing image attachment truth.
 type SBOMAttestationAttachmentAggregateFilter struct {
 	SubjectDigest    string
 	DocumentID       string
 	DocumentDigest   string
+	RepositoryID     string
+	WorkloadID       string
+	ServiceID        string
 	AttachmentStatus string
 	ArtifactKind     string
 }
@@ -114,7 +119,10 @@ WHERE fact.fact_kind = 'reducer_sbom_attestation_attachment'
   AND ($2 = '' OR fact.payload->>'document_id' = $2)
   AND ($3 = '' OR fact.payload->>'document_digest' = $3)
   AND ($4 = '' OR fact.payload->>'attachment_status' = $4)
-  AND ($5 = '' OR fact.payload->>'artifact_kind' = $5);
+  AND ($5 = '' OR fact.payload->>'artifact_kind' = $5)
+  AND ($6 = '' OR fact.payload->'repository_ids' ? $6)
+  AND ($7 = '' OR fact.payload->'workload_ids' ? $7)
+  AND ($8 = '' OR fact.payload->'service_ids' ? $8);
 `
 
 const sbomAttestationAttachmentAggregateGroupQueryTemplate = `
@@ -134,6 +142,9 @@ WHERE fact.fact_kind = 'reducer_sbom_attestation_attachment'
   AND ($3 = '' OR fact.payload->>'document_digest' = $3)
   AND ($4 = '' OR fact.payload->>'attachment_status' = $4)
   AND ($5 = '' OR fact.payload->>'artifact_kind' = $5)
+  AND ($6 = '' OR fact.payload->'repository_ids' ? $6)
+  AND ($7 = '' OR fact.payload->'workload_ids' ? $7)
+  AND ($8 = '' OR fact.payload->'service_ids' ? $8)
 GROUP BY bucket;
 `
 
@@ -154,9 +165,12 @@ WHERE fact.fact_kind = 'reducer_sbom_attestation_attachment'
   AND ($3 = '' OR fact.payload->>'document_digest' = $3)
   AND ($4 = '' OR fact.payload->>'attachment_status' = $4)
   AND ($5 = '' OR fact.payload->>'artifact_kind' = $5)
+  AND ($6 = '' OR fact.payload->'repository_ids' ? $6)
+  AND ($7 = '' OR fact.payload->'workload_ids' ? $7)
+  AND ($8 = '' OR fact.payload->'service_ids' ? $8)
 GROUP BY bucket
 ORDER BY bucket_count DESC, bucket
-LIMIT $6 OFFSET $7;
+LIMIT $9 OFFSET $10;
 `
 
 // CountSBOMAttestationAttachments returns the cheap-summary totals envelope
@@ -175,6 +189,9 @@ func (s PostgresSBOMAttestationAttachmentAggregateStore) CountSBOMAttestationAtt
 		filter.DocumentDigest,
 		filter.AttachmentStatus,
 		filter.ArtifactKind,
+		filter.RepositoryID,
+		filter.WorkloadID,
+		filter.ServiceID,
 	}
 
 	row := s.DB.QueryRowContext(ctx, sbomAttestationAttachmentAggregateTotalQuery, args...)
@@ -254,6 +271,9 @@ func (s PostgresSBOMAttestationAttachmentAggregateStore) SBOMAttestationAttachme
 		filter.DocumentDigest,
 		filter.AttachmentStatus,
 		filter.ArtifactKind,
+		filter.RepositoryID,
+		filter.WorkloadID,
+		filter.ServiceID,
 		limit,
 		offset,
 	)

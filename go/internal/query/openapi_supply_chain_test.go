@@ -39,8 +39,8 @@ func TestOpenAPISpecIncludesSBOMAttestationAttachments(t *testing.T) {
 		t.Fatal("parameters missing repository_id")
 	}
 	description, _ := repositoryParam["description"].(string)
-	if !strings.Contains(description, "Unsupported") || !strings.Contains(description, "rejected") {
-		t.Fatalf("repository_id description = %q, want unsupported/rejected contract", description)
+	if !strings.Contains(description, "Reducer-owned repository anchor") {
+		t.Fatalf("repository_id description = %q, want supported repository anchor contract", description)
 	}
 	responses := mustMapField(t, get, "responses")
 	twoHundred := mustMapField(t, responses, "200")

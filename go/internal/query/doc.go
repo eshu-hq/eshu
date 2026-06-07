@@ -42,11 +42,11 @@
 // reducer facts, return ambiguous candidate repository IDs when the reducer
 // cannot select one repository, and attach missing-evidence classes to empty
 // anchored pages instead of treating missing catalog hops as proof of absence.
-// SBOM attachment list, count, and inventory reads reject repository_id because
-// repository scope is not attachment truth. Subject/document anchors read
-// reducer attachment truth directly, while workload/service source-anchor pages
-// expose missing image or image-to-SBOM evidence without promoting repository
-// scope into an attachment anchor.
+// SBOM attachment list, count, and inventory reads accept repository, workload,
+// and service source anchors when those anchors are present on reducer-owned
+// attachment facts. Source-scoped reads expose missing image or image-to-SBOM
+// evidence without promoting parse-only rows into canonical image attachment
+// truth.
 // The companion explain route accepts one finding id or an advisory/CVE plus
 // package, repository, or image digest scope, then hydrates only the finding's
 // referenced evidence facts. It reports advisory, package/version,

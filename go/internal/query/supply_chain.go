@@ -312,9 +312,6 @@ func (h *SupplyChainHandler) listSBOMAttachments(w http.ResponseWriter, r *http.
 		)
 		return
 	}
-	if !rejectUnsupportedSBOMAttestationAttachmentRepositoryScope(w, r) {
-		return
-	}
 	limit, ok := requiredSBOMAttestationAttachmentLimit(w, r)
 	if !ok {
 		return
@@ -323,6 +320,7 @@ func (h *SupplyChainHandler) listSBOMAttachments(w http.ResponseWriter, r *http.
 		SubjectDigest:     firstNonEmptyQueryParam(r, "subject_digest", "digest"),
 		DocumentID:        QueryParam(r, "document_id"),
 		DocumentDigest:    QueryParam(r, "document_digest"),
+		RepositoryID:      QueryParam(r, "repository_id"),
 		WorkloadID:        QueryParam(r, "workload_id"),
 		ServiceID:         QueryParam(r, "service_id"),
 		AttachmentStatus:  QueryParam(r, "attachment_status"),
@@ -331,7 +329,7 @@ func (h *SupplyChainHandler) listSBOMAttachments(w http.ResponseWriter, r *http.
 		Limit:             limit + 1,
 	}
 	if !filter.hasScope() {
-		WriteError(w, http.StatusBadRequest, "subject_digest, document_id, document_digest, workload_id, or service_id is required")
+		WriteError(w, http.StatusBadRequest, "subject_digest, document_id, document_digest, repository_id, workload_id, or service_id is required")
 		return
 	}
 	if h.SBOMAttachments == nil {
@@ -396,14 +394,6 @@ func requiredSBOMAttestationAttachmentLimit(w http.ResponseWriter, r *http.Reque
 		return 0, false
 	}
 	return limit, true
-}
-
-func rejectUnsupportedSBOMAttestationAttachmentRepositoryScope(w http.ResponseWriter, r *http.Request) bool {
-	if QueryParam(r, "repository_id") == "" {
-		return true
-	}
-	WriteError(w, http.StatusBadRequest, "repository_id is not supported for SBOM attachment reads; omit repository_id for unscoped totals or filter by subject_digest, document_id, document_digest, workload_id, or service_id")
-	return false
 }
 
 // requestedSupplyChainImpactProfile reads the `profile` query parameter,

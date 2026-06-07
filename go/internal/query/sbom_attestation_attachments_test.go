@@ -186,10 +186,15 @@ func TestSupplyChainListSBOMAttestationAttachmentsAcceptsWorkloadServiceAnchors(
 	}
 }
 
-func TestSupplyChainListSBOMAttestationAttachmentsRejectsRepositoryScope(t *testing.T) {
+func TestSupplyChainListSBOMAttestationAttachmentsAcceptsRepositoryScope(t *testing.T) {
 	t.Parallel()
 
-	store := &recordingSBOMAttestationAttachmentStore{}
+	store := &recordingSBOMAttestationAttachmentStore{
+		page: SBOMAttestationAttachmentPage{
+			Attachments:     []SBOMAttestationAttachmentRow{{AttachmentID: "attachment-1", AttachmentStatus: "attached_verified"}},
+			MissingEvidence: []string{"repository_to_image_evidence_missing"},
+		},
+	}
 	handler := &SupplyChainHandler{SBOMAttachments: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -201,20 +206,24 @@ func TestSupplyChainListSBOMAttestationAttachmentsRejectsRepositoryScope(t *test
 	)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
-	if got, want := w.Code, http.StatusBadRequest; got != want {
+	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if store.calls != 0 {
-		t.Fatalf("ListSBOMAttestationAttachments called %d times, want 0", store.calls)
+	if got, want := store.lastFilter.RepositoryID, "repo://example/api"; got != want {
+		t.Fatalf("RepositoryID = %q, want %q", got, want)
 	}
-	if !strings.Contains(w.Body.String(), "repository_id") {
-		t.Fatalf("body = %s, want repository_id contract error", w.Body.String())
+	var resp struct {
+		Attachments     []SBOMAttestationAttachmentResult `json:"attachments"`
+		MissingEvidence []string                          `json:"missing_evidence"`
 	}
-	if !strings.Contains(w.Body.String(), "omit repository_id") {
-		t.Fatalf("body = %s, want optional unscoped read guidance", w.Body.String())
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
 	}
-	if strings.Contains(w.Body.String(), "use subject_digest") {
-		t.Fatalf("body = %s, must not imply subject/document anchors are required for every SBOM attachment read", w.Body.String())
+	if got, want := len(resp.Attachments), 1; got != want {
+		t.Fatalf("len(attachments) = %d, want %d", got, want)
+	}
+	if got, want := resp.MissingEvidence[0], "repository_to_image_evidence_missing"; got != want {
+		t.Fatalf("missing_evidence[0] = %q, want %q", got, want)
 	}
 }
 

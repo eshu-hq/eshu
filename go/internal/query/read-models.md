@@ -480,7 +480,8 @@ separate Postgres aggregate read model
 (`sbom_attestation_attachment_aggregates.go`).
 `CountSBOMAttestationAttachments` answers total + per-attachment-status +
 per-artifact-kind questions over an optional subject_digest, document_id,
-document_digest, attachment_status, or artifact_kind scope.
+document_digest, repository_id, workload_id, service_id, attachment_status, or
+artifact_kind scope.
 `SBOMAttestationAttachmentInventory` returns a paginated grouped count along
 one of the dimensions `attachment_status`, `artifact_kind`, or
 `subject_digest`. The aggregate replaces the page-and-iterate caller
@@ -489,10 +490,26 @@ verified vs unverified?" exposed by `list_sbom_attestation_attachments`. It
 re-uses the existing partial indexes on `fact_records` for
 `reducer_sbom_attestation_attachment` (subject_digest + attachment_status,
 document_id, document_digest, attachment_status + artifact_kind); no new
-schema or graph migration is needed. The handler validates the
+schema or graph migration is needed. Source-anchor predicates use the
+reducer-owned `repository_ids`, `workload_ids`, and `service_ids` payload arrays,
+so a scoped request with no matching evidence returns scoped zero instead of
+falling back to global attachment totals. The handler validates the
 `attachment_status` and `artifact_kind` filters against the same closed
 enums the list endpoint advertises in `openapi_paths_supply_chain_sbom.go`,
 so typos surface as 400 instead of silently returning zero counts.
+
+No-Regression Evidence: `go test ./internal/query -run
+'Test(SupplyChainListSBOMAttestationAttachmentsAcceptsRepositoryScope|SBOMAttestationAttachmentAggregateRoutesForwardSourceScopes|SBOMAttestationAttachmentAggregateQueriesFilterSourceScopes|SBOMAttestationAttachmentAggregateRoutesDoNotDropServiceScope)'
+-count=1` proves list/count/inventory source scopes are carried into the
+bounded read model and echoed in response scope. This prevents service,
+workload, or repository scoped aggregate requests from returning unscoped
+global attachment totals.
+
+No-Observability-Change: this read-surface change reuses the existing
+`query.sbom_attestation_attachments` and
+`query.sbom_attestation_attachment_aggregate` request spans plus Postgres query
+duration instrumentation. It adds no worker, queue, graph write, metric
+instrument, metric label, runtime flag, or deployment knob.
 
 No-Regression Evidence: `go test ./internal/query -run
 'TestSBOMAttestationAttachmentAggregate|TestSBOMAttestationAttachmentInventoryGroupExpression|TestNextSBOMAttestationAttachmentAggregateOffset'

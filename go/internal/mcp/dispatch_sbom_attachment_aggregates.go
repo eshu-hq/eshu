@@ -10,6 +10,8 @@ func sbomAttestationAttachmentAggregateCountRoute(args map[string]any) *route {
 		"attachment_status": str(args, "attachment_status"),
 		"artifact_kind":     str(args, "artifact_kind"),
 		"repository_id":     str(args, "repository_id"),
+		"workload_id":       str(args, "workload_id"),
+		"service_id":        str(args, "service_id"),
 	}}
 }
 
@@ -26,6 +28,8 @@ func sbomAttestationAttachmentAggregateInventoryRoute(args map[string]any) *rout
 		"attachment_status": str(args, "attachment_status"),
 		"artifact_kind":     str(args, "artifact_kind"),
 		"repository_id":     str(args, "repository_id"),
+		"workload_id":       str(args, "workload_id"),
+		"service_id":        str(args, "service_id"),
 		"limit":             strconv.Itoa(intOr(args, "limit", 100)),
 		"offset":            strconv.Itoa(intOr(args, "offset", 0)),
 	}}

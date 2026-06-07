@@ -130,7 +130,99 @@ func TestSBOMAttestationAttachmentAggregateCountReturnsRollups(t *testing.T) {
 	}
 }
 
-func TestSBOMAttestationAttachmentAggregateRoutesRejectRepositoryScope(t *testing.T) {
+func TestSBOMAttestationAttachmentAggregateRoutesForwardSourceScopes(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		target     string
+		wantFilter SBOMAttestationAttachmentAggregateFilter
+	}{
+		{
+			name:   "repository count",
+			target: "/api/v0/supply-chain/sbom-attestations/attachments/count?repository_id=repo://example/api",
+			wantFilter: SBOMAttestationAttachmentAggregateFilter{
+				RepositoryID: "repo://example/api",
+			},
+		},
+		{
+			name:   "service inventory",
+			target: "/api/v0/supply-chain/sbom-attestations/attachments/inventory?service_id=service:example-api&limit=10",
+			wantFilter: SBOMAttestationAttachmentAggregateFilter{
+				ServiceID: "service:example-api",
+			},
+		},
+		{
+			name:   "workload inventory",
+			target: "/api/v0/supply-chain/sbom-attestations/attachments/inventory?workload_id=workload:example-api&limit=10",
+			wantFilter: SBOMAttestationAttachmentAggregateFilter{
+				WorkloadID: "workload:example-api",
+			},
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			store := &stubSBOMAttestationAttachmentAggregateStore{
+				count: SBOMAttestationAttachmentAggregateCount{
+					TotalAttachments:   0,
+					ByAttachmentStatus: map[string]int{},
+					ByArtifactKind:     map[string]int{},
+				},
+				inventory: []SBOMAttestationAttachmentInventoryRow{},
+			}
+			handler := &SupplyChainHandler{SBOMAttachmentAggregates: store}
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+
+			req := httptest.NewRequest(http.MethodGet, tc.target, nil)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+			if got, want := w.Code, http.StatusOK; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+			}
+			if store.lastFilter.RepositoryID != tc.wantFilter.RepositoryID ||
+				store.lastFilter.WorkloadID != tc.wantFilter.WorkloadID ||
+				store.lastFilter.ServiceID != tc.wantFilter.ServiceID {
+				t.Fatalf("filter = %+v, want source scope %+v", store.lastFilter, tc.wantFilter)
+			}
+			var body struct {
+				TotalAttachments int               `json:"total_attachments"`
+				Scope            map[string]string `json:"scope"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode: %v; body = %s", err, w.Body.String())
+			}
+			wantScope := sbomAttestationAttachmentAggregateScope(tc.wantFilter)
+			for key, wantValue := range wantScope {
+				if got := body.Scope[key]; got != wantValue {
+					t.Fatalf("scope[%s] = %q, want %q; body = %s", key, got, wantValue, w.Body.String())
+				}
+			}
+		})
+	}
+}
+
+func TestSBOMAttestationAttachmentAggregateQueriesFilterSourceScopes(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"fact.payload->'repository_ids' ? $6",
+		"fact.payload->'workload_ids' ? $7",
+		"fact.payload->'service_ids' ? $8",
+	} {
+		if !strings.Contains(sbomAttestationAttachmentAggregateTotalQuery, want) {
+			t.Fatalf("total query missing source-scope predicate %q:\n%s", want, sbomAttestationAttachmentAggregateTotalQuery)
+		}
+		if !strings.Contains(sbomAttestationAttachmentAggregateGroupQueryTemplate, want) {
+			t.Fatalf("group query missing source-scope predicate %q:\n%s", want, sbomAttestationAttachmentAggregateGroupQueryTemplate)
+		}
+		if !strings.Contains(sbomAttestationAttachmentInventoryQueryTemplate, want) {
+			t.Fatalf("inventory query missing source-scope predicate %q:\n%s", want, sbomAttestationAttachmentInventoryQueryTemplate)
+		}
+	}
+}
+
+func TestSBOMAttestationAttachmentAggregateRoutesDoNotDropServiceScope(t *testing.T) {
 	t.Parallel()
 
 	store := &stubSBOMAttestationAttachmentAggregateStore{
@@ -139,10 +231,35 @@ func TestSBOMAttestationAttachmentAggregateRoutesRejectRepositoryScope(t *testin
 			ByAttachmentStatus: map[string]int{"attached_verified": 18},
 			ByArtifactKind:     map[string]int{"sbom": 18},
 		},
-		inventory: []SBOMAttestationAttachmentInventoryRow{
-			{Dimension: SBOMAttestationAttachmentInventoryByAttachmentStatus, Value: "attached_verified", Count: 18},
-		},
 	}
+	handler := &SupplyChainHandler{SBOMAttachmentAggregates: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/supply-chain/sbom-attestations/attachments/count?service_id=service:example-api", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := store.lastFilter.ServiceID, "service:example-api"; got != want {
+		t.Fatalf("ServiceID = %q, want %q", got, want)
+	}
+	var body struct {
+		Scope map[string]string `json:"scope"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v; body = %s", err, w.Body.String())
+	}
+	if got, want := body.Scope["service_id"], "service:example-api"; got != want {
+		t.Fatalf("scope.service_id = %q, want %q", got, want)
+	}
+}
+
+func TestSBOMAttestationAttachmentAggregateRoutesAcceptRepositoryScope(t *testing.T) {
+	t.Parallel()
+
+	store := &stubSBOMAttestationAttachmentAggregateStore{}
 	handler := &SupplyChainHandler{SBOMAttachmentAggregates: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -155,17 +272,10 @@ func TestSBOMAttestationAttachmentAggregateRoutesRejectRepositoryScope(t *testin
 			req := httptest.NewRequest(http.MethodGet, target, nil)
 			w := httptest.NewRecorder()
 			mux.ServeHTTP(w, req)
-			if got, want := w.Code, http.StatusBadRequest; got != want {
+			if got, want := w.Code, http.StatusOK; got != want {
 				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 			}
-			if body := w.Body.String(); !strings.Contains(body, "repository_id") {
-				t.Fatalf("body = %s, want repository_id contract error", body)
-			}
 		})
-	}
-	if store.countCalls != 0 || store.invCalls != 0 {
-		t.Fatalf("store called for repository scope (countCalls=%d invCalls=%d)",
-			store.countCalls, store.invCalls)
 	}
 }
 
