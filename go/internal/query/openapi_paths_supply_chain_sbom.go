@@ -50,16 +50,16 @@ const openAPIPathsSupplyChainSBOMAttestations = `
                           "warning_summaries": {
                             "type": "array",
                             "maxItems": 10,
-                            "description": "Bounded duplicate-collapsed preview of parser warning summaries.",
+                            "description": "Bounded duplicate-collapsed preview of SBOM warning summaries.",
                             "items": {"type": "string"}
                           },
                           "warning_summary_count": {
                             "type": "integer",
-                            "description": "Total warning summary entries recorded on the attachment payload before preview bounding."
+                            "description": "Total SBOM warning occurrences represented by the attachment payload before preview bounding."
                           },
                           "warning_summaries_truncated": {
                             "type": "boolean",
-                            "description": "True when warning_summaries omits duplicate or overflow entries from the recorded warning summaries."
+                            "description": "True when warning_summaries omits duplicate, aggregate, or overflow entries from the recorded warning summaries."
                           }
                         }
                       }

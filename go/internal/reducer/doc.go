@@ -39,7 +39,9 @@
 // preserving reason and evidence references for audit. They also carry the
 // Eshu-owned observed package version and dependency evidence gaps used for
 // reconciliation without copying provider alert fields into observed-version
-// truth.
+// truth. SBOM attachment decisions preserve aggregate warning occurrence counts
+// from source warning facts while keeping warning summaries as bounded previews;
+// scanner workers still emit source facts only and do not own attachment truth.
 // S3 internet exposure materialization writes reducer-owned exposed /
 // not_exposed / unknown posture properties onto existing S3 CloudResource nodes
 // only, preserving unknown evidence as unknown rather than safe.

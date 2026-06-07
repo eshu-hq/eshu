@@ -2,6 +2,7 @@ package reducer_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -128,6 +129,35 @@ func TestScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment(t *testing.T
 	}
 	if len(lockfileDecision.WarningSummaries) != 1 {
 		t.Fatalf("WarningSummaries = %#v, want one malformed lockfile summary", lockfileDecision.WarningSummaries)
+	}
+}
+
+func TestScannerWorkerGeneratedSBOMAggregatedWarningCountFlowsThroughReducerAttachment(t *testing.T) {
+	t.Parallel()
+
+	components := []sbomgenerator.Component{
+		{PURL: "pkg:npm/kept@1.0.0", Name: "kept", Version: "1.0.0"},
+	}
+	for range 25 {
+		components = append(components, sbomgenerator.Component{Type: "library"})
+	}
+	envelopes := runSBOMGenerator(t, sbomgenerator.Inventory{
+		SubjectDigest: generatorSubjectDigest,
+		Components:    components,
+	})
+	decisions := reducer.BuildSBOMAttestationAttachmentDecisions(envelopes)
+	if got, want := len(decisions), 1; got != want {
+		t.Fatalf("decisions = %d, want %d for one generator document", got, want)
+	}
+	decision := decisions[0]
+	if got, want := len(decision.WarningSummaries), 1; got != want {
+		t.Fatalf("WarningSummaries = %#v, want one aggregate warning", decision.WarningSummaries)
+	}
+	if got, want := decision.WarningSummaryCount, 25; got != want {
+		t.Fatalf("WarningSummaryCount = %d, want %d", got, want)
+	}
+	if summary := decision.WarningSummaries[0]; !strings.Contains(summary, "25 components missing") {
+		t.Fatalf("WarningSummaries[0] = %q, want aggregate count", summary)
 	}
 }
 

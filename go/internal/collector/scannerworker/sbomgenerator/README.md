@@ -77,10 +77,14 @@ unparseable, or subject-mismatched.
 - Component facts deduplicate on `purl`-or-`name@version` canonical
   identity (lowercased, whitespace-trimmed). Components that differ only in
   PURL casing, `bom_ref`, or extra metadata collapse to one emitted fact
-  and the duplicates surface as `component_missing_identity` warnings with
-  the canonical identity hint. The component fact ID is derived from the
-  same canonical identity, so two equivalent inputs always produce
-  identical fact IDs across runs.
+  and the duplicates surface as aggregated `component_missing_identity`
+  warnings with the canonical identity hint. Components missing both PURL and
+  `name@version` identity also aggregate by stable warning key. Aggregate
+  warning payloads preserve `occurrence_count` and bounded
+  `sample_component_indexes` so operators can diagnose affected component
+  volume without one warning row per occurrence. The component fact ID is
+  derived from the same canonical identity, so two equivalent inputs always
+  produce identical fact IDs across runs.
 - Repository lockfile inputs must not invent components without exact
   lockfile proof. When the runtime source can name the ecosystem, relative
   lockfile path, package name, installed version, dependency scope/type, or
@@ -89,10 +93,11 @@ unparseable, or subject-mismatched.
   such as `lockfile_malformed`; they are not terminal analyzer failures and
   they are not clean results.
 - Resource-limit breaches dead-letter; they do not silently truncate the
-  output. The analyzer rejects oversized inventories *before* allocating
-  any envelopes by comparing the inventory's worst-case fact count
-  (`1 + len(components) + len(warnings) + 2`) against `MaxFacts`. The
-  analyzer fails before emitting any partial fact bundle.
+  output. The analyzer pre-checks non-component warnings, then checks
+  component and aggregate warning facts while building the bundle. Repeated
+  missing-identity components can collapse into one warning fact, while
+  genuinely high-cardinality unique component output still fails before
+  emitting any partial fact bundle.
 - Runtime sources carry `ResourceUsage` on `Inventory`; the analyzer passes it
   through to `scannerworker.Service` so `sbom_generation` records CPU and
   memory signals with the rest of the scanner-worker metric set.
@@ -124,6 +129,20 @@ relative lockfile path, dependency scope/type, and extraction reason, and
 `sbom.warning` facts preserve malformed lockfile evidence without leaking a raw
 repository root.
 
+No-Regression Evidence:
+`go test ./internal/collector/scannerworker/sbomgenerator -run TestAnalyzerAggregatesRepeatedComponentMissingIdentityWarnings -count=1`
+failed before repeated `component_missing_identity` occurrences collapsed into
+one aggregate warning fact, then passed. The emitted warning preserves
+`occurrence_count`, bounded `sample_component_indexes`, and a stable warning
+key while the claim still validates as scanner-worker source facts only.
+
+Benchmark Evidence: Apple M4 Pro, `go test ./internal/collector/scannerworker/sbomgenerator -run '^$' -bench BenchmarkAnalyzerAggregatedMissingIdentityWarnings -benchmem -benchtime=2s -count=1`.
+Input shape is one valid component plus 10,000 components missing PURL and
+`name@version` identity. Terminal emitted facts per operation: one
+`sbom.document`, one `sbom.component`, and one aggregate `sbom.warning`.
+Result: `BenchmarkAnalyzerAggregatedMissingIdentityWarnings-12` ran 2602
+iterations at `907289 ns/op`, `3187948 B/op`, and `294 allocs/op`.
+
 Reducer Path Evidence:
 `go test ./internal/reducer -run 'TestScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment' -count=1`
 proves the analyzer-emitted document and component facts feed
@@ -132,6 +151,12 @@ proves the analyzer-emitted document and component facts feed
 `unknown_subject` when it is not. It also proves lockfile component evidence
 and malformed lockfile warning summaries flow through reducer attachment
 without letting scanner workers short-circuit attachment truth.
+
+Reducer Path Evidence:
+`go test ./internal/reducer -run TestScannerWorkerGeneratedSBOMAggregatedWarningCountFlowsThroughReducerAttachment -count=1`
+proves aggregate `component_missing_identity` warning counts flow through
+`reducer.BuildSBOMAttestationAttachmentDecisions` into
+`WarningSummaryCount` without expanding raw warning summaries.
 
 Observability Evidence: this package reuses `scanner_worker.*` claim metrics
 and spans from `internal/telemetry`. The `Inventory.ResourceUsage` field feeds

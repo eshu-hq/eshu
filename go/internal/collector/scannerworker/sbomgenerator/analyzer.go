@@ -153,18 +153,23 @@ func (a Analyzer) Analyze(ctx context.Context, input scannerworker.ClaimInput) (
 		)
 	}
 
-	// Pre-check the upper bound on emitted facts so an oversized inventory
-	// dead-letters before allocating per-component envelopes. Each input
-	// component contributes at most one fact (either an sbom.component or a
-	// component_missing_identity warning), plus up to one subject warning and
-	// one no_components_found warning on top of the always-emitted document
-	// fact.
-	maxPossibleFacts := 1 + len(inventory.Components) + len(inventory.Warnings) + 2
-	if maxPossibleFacts > input.Limits.MaxFacts {
+	_, subjectWarning := normalizeSubjectDigest(inventory.SubjectDigest)
+	precheckedFacts := 1 + emittedInventoryWarningCount(inventory.Warnings)
+	if subjectWarning != "" {
+		precheckedFacts++
+	}
+	if len(inventory.Components) == 0 {
+		precheckedFacts++
+	}
+	// Pre-check facts that do not depend on component aggregation. Component
+	// limits are checked while building facts so repeated malformed components
+	// can collapse into one warning row instead of dead-lettering solely
+	// because the raw occurrence count is high.
+	if precheckedFacts > input.Limits.MaxFacts {
 		return scannerworker.AnalyzerResult{}, scannerworker.NewTerminalAnalyzerFailure(
 			scannerworker.FailureClassFactLimitExceeded,
 			scannerworker.ResourceUsage{},
-			fmt.Errorf("sbomgenerator: inventory would emit up to %d facts above max_facts %d", maxPossibleFacts, input.Limits.MaxFacts),
+			fmt.Errorf("sbomgenerator: inventory would emit at least %d facts above max_facts %d", precheckedFacts, input.Limits.MaxFacts),
 		)
 	}
 
@@ -231,29 +236,57 @@ func (a Analyzer) buildFacts(input scannerworker.ClaimInput, inventory Inventory
 	if tool == "" {
 		tool = ToolDefault
 	}
+	subjectWarningFacts := 0
+	if subjectWarning != "" {
+		subjectWarningFacts = 1
+	}
+	inventoryWarningFacts := emittedInventoryWarningCount(inventory.Warnings)
 
 	documentID := newDocumentID(input, subjectDigest, observedAt)
 
 	componentFacts := make([]facts.Envelope, 0, len(inventory.Components))
 	warningFacts := make([]facts.Envelope, 0)
+	componentWarnings := newComponentWarningAggregator()
 	usedIdentities := make(map[string]struct{}, len(inventory.Components))
 	emittedComponents := 0
 
 	for idx, comp := range inventory.Components {
 		identity := componentIdentity(comp)
 		if identity == "" {
-			warningFacts = append(warningFacts, newWarningFact(input, observedAt, documentID, WarningReasonComponentMissingIdentity, fmt.Sprintf("component[%d] missing purl and name+version identity", idx)))
+			componentWarnings.addMissingIdentity(idx, comp, tool)
+			if componentFactUpperBound(len(componentFacts), componentWarnings.factCount(), inventoryWarningFacts, subjectWarningFacts) > input.Limits.MaxFacts {
+				return nil, 0, 0, scannerworker.NewTerminalAnalyzerFailure(
+					scannerworker.FailureClassFactLimitExceeded,
+					scannerworker.ResourceUsage{},
+					fmt.Errorf("sbomgenerator: inventory would emit more than max_facts %d", input.Limits.MaxFacts),
+				)
+			}
 			continue
 		}
 		fact, ok := newComponentFact(input, observedAt, documentID, comp, identity, usedIdentities)
 		if !ok {
-			warningFacts = append(warningFacts, newWarningFact(input, observedAt, documentID, WarningReasonComponentMissingIdentity, fmt.Sprintf("component[%d] duplicates already-emitted identity %q", idx, identity)))
+			componentWarnings.addDuplicateIdentity(idx, comp, identity, tool)
+			if componentFactUpperBound(len(componentFacts), componentWarnings.factCount(), inventoryWarningFacts, subjectWarningFacts) > input.Limits.MaxFacts {
+				return nil, 0, 0, scannerworker.NewTerminalAnalyzerFailure(
+					scannerworker.FailureClassFactLimitExceeded,
+					scannerworker.ResourceUsage{},
+					fmt.Errorf("sbomgenerator: inventory would emit more than max_facts %d", input.Limits.MaxFacts),
+				)
+			}
 			continue
 		}
 		componentFacts = append(componentFacts, fact)
 		emittedComponents++
+		if componentFactUpperBound(len(componentFacts), componentWarnings.factCount(), inventoryWarningFacts, subjectWarningFacts) > input.Limits.MaxFacts {
+			return nil, 0, 0, scannerworker.NewTerminalAnalyzerFailure(
+				scannerworker.FailureClassFactLimitExceeded,
+				scannerworker.ResourceUsage{},
+				fmt.Errorf("sbomgenerator: inventory would emit more than max_facts %d", input.Limits.MaxFacts),
+			)
+		}
 	}
 
+	warningFacts = append(warningFacts, componentWarnings.facts(input, observedAt, documentID)...)
 	for _, warning := range inventory.Warnings {
 		if strings.TrimSpace(warning.Reason) == "" {
 			continue
@@ -281,6 +314,24 @@ func (a Analyzer) buildFacts(input scannerworker.ClaimInput, inventory Inventory
 	all = append(all, componentFacts...)
 	all = append(all, warningFacts...)
 	return all, len(all), emittedComponents, nil
+}
+
+func emittedInventoryWarningCount(warnings []Warning) int {
+	count := 0
+	for _, warning := range warnings {
+		if strings.TrimSpace(warning.Reason) != "" {
+			count++
+		}
+	}
+	return count
+}
+
+func componentFactUpperBound(componentFacts int, componentWarningFacts int, inventoryWarnings int, subjectWarningFacts int) int {
+	noComponentsWarningFacts := 0
+	if componentFacts == 0 {
+		noComponentsWarningFacts = 1
+	}
+	return 1 + componentFacts + componentWarningFacts + inventoryWarnings + subjectWarningFacts + noComponentsWarningFacts
 }
 
 func (a Analyzer) observedAt(input scannerworker.ClaimInput) time.Time {

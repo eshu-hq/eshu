@@ -30,14 +30,17 @@
 // scoped by requested CVE, package, repository-owned ecosystem, or image
 // component ecosystem, plus scoped package-registry freshness for
 // package/repository targets. It strips absent optional fields from the
-// Postgres JSON rollup before decoding. It never invents findings or
-// duplicates reducer matching: supported impact-matcher ecosystems are
-// classified from existing source and reducer facts, while VCS/path/URL,
-// editable, and other provenance-only dependency rows stay unsupported target
-// evidence with stable reason codes. Provider security-alert reconciliation
-// list, count, and inventory reads select one current reducer row per provider
-// alert identity before applying default status/state filters, while each
-// returned row keeps reducer reason and evidence fact ids for audit.
+// Postgres JSON rollup before decoding. SBOM attachment reads expose
+// `warning_summary_count` as the reducer-persisted aggregate occurrence count
+// while keeping `warning_summaries` as a bounded duplicate-collapsed preview.
+// They never invent findings or duplicate reducer matching: supported
+// impact-matcher ecosystems are classified from existing source and reducer
+// facts, while VCS/path/URL, editable, and other provenance-only dependency rows
+// stay unsupported target evidence with stable reason codes. Provider
+// security-alert reconciliation list, count, and inventory reads select one
+// current reducer row per provider alert identity before applying default
+// status/state filters, while each returned row keeps reducer reason and
+// evidence fact ids for audit.
 // Service-catalog correlation reads resolve repository selectors before reading
 // reducer facts, return ambiguous candidate repository IDs when the reducer
 // cannot select one repository, and attach missing-evidence classes to empty

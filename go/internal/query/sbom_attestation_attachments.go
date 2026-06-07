@@ -297,6 +297,10 @@ func decodeSBOMAttestationAttachmentRow(
 		return SBOMAttestationAttachmentRow{}, fmt.Errorf("decode sbom attestation attachment: %w", err)
 	}
 	warnings, warningCount, warningsTruncated := boundedSBOMWarningSummariesFromValue(payload["warning_summaries"])
+	if persistedCount := IntVal(payload, "warning_summary_count"); persistedCount > warningCount {
+		warningCount = persistedCount
+		warningsTruncated = true
+	}
 	return SBOMAttestationAttachmentRow{
 		AttachmentID:              factID,
 		SubjectDigest:             StringVal(payload, "subject_digest"),
