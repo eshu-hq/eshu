@@ -289,6 +289,14 @@ Prometheus/Mimir targets include `provider: "prometheus"` or `"mimir"`,
 `resource_limit`, optional `stale_after`, optional `declared_ids`, and
 `enabled: true`.
 
+The API process reuses the enabled `prometheus_mimir` target as the read source
+for the console trend charts (`GET /api/v0/metrics/timeseries`). Those charts
+query Eshu's own `eshu_dp_*` and `eshu_http_*` self-metrics, so the configured
+`base_url` must point at a Prometheus or Mimir that scrapes Eshu's `/metrics`
+endpoints. A target that ingests an external monitoring system into the graph
+but does not scrape Eshu itself leaves the trend charts empty. See
+[Status and Admin API](http-api/status-admin.md#trend-source-requirements).
+
 Loki targets include `scope_id`, `instance_id`, `base_url`, optional
 `path_prefix`, optional `token_env`, optional `tenant_id` or `tenant_id_env`,
 optional `resource_limit`, optional `label_value_names`, optional
