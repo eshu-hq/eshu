@@ -126,6 +126,8 @@ type SupplyChainImpactExplanationAnchors struct {
 	Deployments     []string                         `json:"deployments,omitempty"`
 	Services        []string                         `json:"services,omitempty"`
 	Environments    []string                         `json:"environments,omitempty"`
+	CatalogEntities []string                         `json:"catalog_entities,omitempty"`
+	CatalogOwners   []string                         `json:"catalog_owners,omitempty"`
 	ProviderAlerts  []SupplyChainProviderAlertAnchor `json:"provider_alerts,omitempty"`
 	EvidenceFactIDs []string                         `json:"evidence_fact_ids,omitempty"`
 }

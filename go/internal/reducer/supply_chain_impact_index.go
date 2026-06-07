@@ -135,6 +135,8 @@ type supplyChainServiceContext struct {
 	repositoryID   string
 	serviceID      string
 	workloadID     string
+	entityRef      string
+	ownerRef       string
 	outcome        string
 	driftStatus    string
 	provenanceOnly bool

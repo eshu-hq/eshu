@@ -48,6 +48,12 @@ func TestSupplyChainListImpactFindingsExposesOperationalAnchors(t *testing.T) {
 	if !reflect.DeepEqual(got.Environments, []string{"prod"}) {
 		t.Fatalf("Environments = %#v, want environment anchor", got.Environments)
 	}
+	if !reflect.DeepEqual(got.CatalogEntityRefs, []string{"api:default/example-api"}) {
+		t.Fatalf("CatalogEntityRefs = %#v, want catalog entity anchor", got.CatalogEntityRefs)
+	}
+	if !reflect.DeepEqual(got.CatalogOwnerRefs, []string{"team:default/platform"}) {
+		t.Fatalf("CatalogOwnerRefs = %#v, want catalog owner anchor", got.CatalogOwnerRefs)
+	}
 	for _, reason := range []string{
 		"environment evidence missing",
 		"service catalog correlation evidence missing",
@@ -70,6 +76,8 @@ func TestSupplyChainExplainImpactExposesOperationalAnchors(t *testing.T) {
 					"repository_id": "repo://example/api",
 					"service_id":    "service:example-api",
 					"workload_id":   "workload:example-api",
+					"entity_ref":    "api:default/example-api",
+					"owner_ref":     "team:default/platform",
 					"outcome":       "exact",
 				}),
 				explanationFact("deploy-1", "reducer_ci_cd_run_correlation", map[string]any{
@@ -108,6 +116,12 @@ func TestSupplyChainExplainImpactExposesOperationalAnchors(t *testing.T) {
 	if !reflect.DeepEqual(resp.Anchors.Environments, []string{"prod"}) {
 		t.Fatalf("Anchors.Environments = %#v, want environment anchor", resp.Anchors.Environments)
 	}
+	if !reflect.DeepEqual(resp.Anchors.CatalogEntities, []string{"api:default/example-api"}) {
+		t.Fatalf("Anchors.CatalogEntities = %#v, want catalog entity anchor", resp.Anchors.CatalogEntities)
+	}
+	if !reflect.DeepEqual(resp.Anchors.CatalogOwners, []string{"team:default/platform"}) {
+		t.Fatalf("Anchors.CatalogOwners = %#v, want catalog owner anchor", resp.Anchors.CatalogOwners)
+	}
 	assertImpactPathHopStatus(t, resp.ImpactPath, "service", "present")
 	assertImpactPathHopStatus(t, resp.ImpactPath, "environment", "present")
 }
@@ -123,6 +137,8 @@ func operationalAnchorFindingRow() SupplyChainImpactFindingRow {
 		WorkloadIDs:         []string{"workload:example-api"},
 		ServiceIDs:          []string{"service:example-api"},
 		Environments:        []string{"prod"},
+		CatalogEntityRefs:   []string{"api:default/example-api"},
+		CatalogOwnerRefs:    []string{"team:default/platform"},
 		EvidencePath: []string{
 			"reducer_package_consumption_correlation",
 			"reducer_workload_identity",

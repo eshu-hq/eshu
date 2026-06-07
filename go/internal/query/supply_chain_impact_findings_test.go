@@ -334,6 +334,33 @@ func boolPtr(value bool) *bool {
 	return &value
 }
 
+func TestDecodeSupplyChainImpactFindingRowPreservesCatalogAnchors(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"cve_id": "CVE-2026-7788",
+		"package_id": "pkg:npm/example",
+		"impact_status": "affected_exact",
+		"catalog_entity_refs": ["api:default/example-api"],
+		"catalog_owner_refs": ["team:default/platform"],
+		"missing_evidence": ["service/workload catalog anchor missing"]
+	}`)
+
+	row, err := decodeSupplyChainImpactFindingRow("finding-1", "inferred", payload)
+	if err != nil {
+		t.Fatalf("decodeSupplyChainImpactFindingRow() error = %v", err)
+	}
+	if got, want := row.CatalogEntityRefs, []string{"api:default/example-api"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("CatalogEntityRefs = %#v, want %#v", got, want)
+	}
+	if got, want := row.CatalogOwnerRefs, []string{"team:default/platform"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("CatalogOwnerRefs = %#v, want %#v", got, want)
+	}
+	if got, want := row.MissingEvidence, []string{"service/workload catalog anchor missing"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("MissingEvidence = %#v, want %#v", got, want)
+	}
+}
+
 func TestDecodeSupplyChainImpactFindingRowPreservesProvenance(t *testing.T) {
 	t.Parallel()
 

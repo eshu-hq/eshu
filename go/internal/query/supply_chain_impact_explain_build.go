@@ -144,6 +144,8 @@ func buildSupplyChainExplanationAnchors(
 		Deployments:     append([]string(nil), row.Finding.DeploymentIDs...),
 		Services:        append([]string(nil), row.Finding.ServiceIDs...),
 		Environments:    append([]string(nil), row.Finding.Environments...),
+		CatalogEntities: append([]string(nil), row.Finding.CatalogEntityRefs...),
+		CatalogOwners:   append([]string(nil), row.Finding.CatalogOwnerRefs...),
 		EvidenceFactIDs: append([]string(nil), row.Finding.EvidenceFactIDs...),
 	}
 	for _, fact := range row.EvidenceFacts {
@@ -160,6 +162,8 @@ func buildSupplyChainExplanationAnchors(
 		appendDeploymentAnchors(&out, fact.Payload)
 		appendUniqueString(&out.Services, StringVal(fact.Payload, "service_id"))
 		appendUniqueString(&out.Environments, StringVal(fact.Payload, "environment"))
+		appendUniqueString(&out.CatalogEntities, StringVal(fact.Payload, "entity_ref"))
+		appendUniqueString(&out.CatalogOwners, StringVal(fact.Payload, "owner_ref"))
 		if out.RepositoryID == "" {
 			out.RepositoryID = StringVal(fact.Payload, "repository_id")
 		}

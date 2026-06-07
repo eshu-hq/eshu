@@ -68,6 +68,27 @@ span attributes for
 spans and `eshu_dp_postgres_query_duration_seconds`; no raw URL, issue summary,
 user, or tenant value is added to metric labels.
 
+## Supply-chain impact catalog anchors (#1668)
+
+Supply-chain impact findings expose `catalog_entity_refs[]` and
+`catalog_owner_refs[]` separately from `service_ids[]` and `workload_ids[]`.
+Repository-scoped exact service-catalog evidence can explain ownership and
+catalog identity without fabricating an operational service or workload anchor.
+
+No-Regression Evidence: `go test ./internal/query -run
+'Test(SupplyChainListImpactFindingsExposesOperationalAnchors|SupplyChainExplainImpactExposesOperationalAnchors|DecodeSupplyChainImpactFindingRowPreservesCatalogAnchors)'
+-count=1` proves list responses, explain anchors, and Postgres payload
+hydration preserve catalog entity/owner anchors while keeping missing-evidence
+reasons intact.
+
+No-Observability-Change: this is a response-shape and decode extension over the
+existing bounded `query.supply_chain_impact_findings` and
+`query.supply_chain_impact_explain` Postgres reads. It adds no route, graph
+query, queue, worker, runtime knob, metric instrument, metric label, or new
+high-cardinality filter; operators continue to diagnose the path through the
+existing query spans, Postgres query duration metrics, truth envelope, and
+durable reducer payload fields.
+
 ## Package registry aggregate hot-path evidence (#689)
 
 The graph-backed package-registry aggregate (`package_registry_aggregates.go`,

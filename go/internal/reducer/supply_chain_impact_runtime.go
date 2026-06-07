@@ -41,6 +41,8 @@ func applySupplyChainRuntimeContext(
 		finding.EvidencePath = append(finding.EvidencePath, serviceCatalogCorrelationFactKind)
 		finding.ServiceIDs = append(finding.ServiceIDs, service.serviceID)
 		finding.WorkloadIDs = append(finding.WorkloadIDs, service.workloadID)
+		finding.CatalogEntityRefs = append(finding.CatalogEntityRefs, service.entityRef)
+		finding.CatalogOwnerRefs = append(finding.CatalogOwnerRefs, service.ownerRef)
 	}
 	deployments, deploymentMissing := matchingSupplyChainDeployments(*finding, index.deployments)
 	missing = append(missing, deploymentMissing...)
@@ -58,6 +60,8 @@ func applySupplyChainRuntimeContext(
 	finding.Environments = uniqueSortedStrings(finding.Environments)
 	finding.ServiceIDs = uniqueSortedStrings(finding.ServiceIDs)
 	finding.WorkloadIDs = uniqueSortedStrings(finding.WorkloadIDs)
+	finding.CatalogEntityRefs = uniqueSortedStrings(finding.CatalogEntityRefs)
+	finding.CatalogOwnerRefs = uniqueSortedStrings(finding.CatalogOwnerRefs)
 	if finding.RuntimeReachability != "known_fixed" &&
 		finding.SubjectDigest != "" && len(deployments) > 0 {
 		finding.RuntimeReachability = "deployed_image"

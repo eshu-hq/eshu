@@ -372,6 +372,8 @@ func serviceCatalogCorrelationImpactFact(
 			"repository_id":     repositoryID,
 			"service_id":        serviceID,
 			"workload_id":       workloadID,
+			"entity_ref":        "api:default/example-api",
+			"owner_ref":         "team:default/platform",
 			"outcome":           outcome,
 			"drift_status":      driftStatus,
 			"provenance_only":   provenanceOnly,

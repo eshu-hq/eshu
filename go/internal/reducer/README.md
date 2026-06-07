@@ -729,22 +729,26 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   and missing deployment evidence remains visible. Exact repository-scoped
   `reducer_service_catalog_correlation` facts are attached to the finding
   evidence path, but they do not create `service_ids` or `workload_ids` unless
-  the fact carries those anchors. Repository-only catalog facts report
+  the fact carries those anchors. Repository-only catalog facts preserve
+  `catalog_entity_refs` and `catalog_owner_refs` when present, then report
   `service/workload catalog anchor missing` so API and MCP callers can
   distinguish present exact catalog correlation evidence from a missing
   service or workload hop.
 
   No-Regression Evidence: `go test ./internal/reducer -run
-  'TestBuildSupplyChainImpactFindings(ConsumesRepositoryOnlyServiceCatalogEvidence|ReportsScopedUnresolvedServiceCatalogEvidence|AttachesWorkloadIdentityWithoutServiceCatalog|AttachesDeploymentLaneEvidence)'
+  'TestBuildSupplyChainImpactFindings(ConsumesRepositoryOnlyServiceCatalogEvidence|ReportsScopedUnresolvedServiceCatalogEvidence|AttachesWorkloadIdentityWithoutServiceCatalog|AttachesDeploymentLaneEvidence|AttachesRepositoryScopedOperationalAnchors)'
   -count=1` failed before repository-only exact service-catalog evidence
-  produced a precise missing-hop reason, then passed after the reducer attached
-  the catalog fact while leaving service/workload anchors empty.
+  produced a precise missing-hop reason and before catalog owner/entity anchors
+  were preserved on impact findings, then passed after the reducer attached the
+  catalog fact while leaving service/workload anchors empty unless explicit IDs
+  exist.
 
   No-Observability-Change: the change only adjusts in-memory finding
   finalization over facts already loaded through
   `ListActiveSupplyChainImpactFacts`; existing reducer counters, persisted
-  `evidence_path`, `evidence_fact_ids`, `service_ids`, `workload_ids`, and
-  `missing_evidence` remain the operator-facing signals.
+  `evidence_path`, `evidence_fact_ids`, `service_ids`, `workload_ids`,
+  `catalog_entity_refs`, `catalog_owner_refs`, and `missing_evidence` remain
+  the operator-facing signals.
 - **Go-vulnerability reachability is classified, not invented** —
   `ClassifyGoVulnerabilityReachability` joins `vulnerability.go_module_evidence`
   facts (parsed from repository `go.mod` and `go.sum`), Go ecosystem

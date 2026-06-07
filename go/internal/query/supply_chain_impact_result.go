@@ -50,6 +50,8 @@ type SupplyChainImpactFindingResult struct {
 	DeploymentIDs         []string                                `json:"deployment_ids,omitempty"`
 	ServiceIDs            []string                                `json:"service_ids,omitempty"`
 	Environments          []string                                `json:"environments,omitempty"`
+	CatalogEntityRefs     []string                                `json:"catalog_entity_refs,omitempty"`
+	CatalogOwnerRefs      []string                                `json:"catalog_owner_refs,omitempty"`
 	DependencyPath        []string                                `json:"dependency_path,omitempty"`
 	DependencyDepth       int                                     `json:"dependency_depth,omitempty"`
 	DirectDependency      *bool                                   `json:"direct_dependency,omitempty"`

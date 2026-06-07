@@ -79,6 +79,8 @@ type SupplyChainImpactFindingRow struct {
 	DeploymentIDs         []string
 	ServiceIDs            []string
 	Environments          []string
+	CatalogEntityRefs     []string
+	CatalogOwnerRefs      []string
 	DependencyPath        []string
 	DependencyDepth       int
 	DirectDependency      *bool
