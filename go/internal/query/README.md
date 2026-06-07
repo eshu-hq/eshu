@@ -85,7 +85,9 @@ findings in `coverage.findings_returned` and bound the raw fact preview to the
 explicit target reference before falling back to repo-scoped facts. A
 `target_kind` value without `target_id` or `service_id` is not treated as a
 target selector, and documentation fact reads name every accepted scope or
-target anchor in invalid-argument responses.
+target anchor in invalid-argument responses. Documentation fact list responses
+return bounded page metadata alongside `facts` so HTTP and MCP callers do not
+infer completeness from row count alone.
 
 ## Exported surface
 
@@ -349,33 +351,9 @@ wired in `cmd/api/wiring.go`, not here.
   `service_query.stage_completed` (via `serviceQueryStageTimer`). Both emit
   `operation`, `stage`, `repo_id`, and `duration_seconds`.
 
-No-Regression Evidence:
-
-```bash
-cd go && go test ./internal/query -run 'TestInvestigateResourceResolvesExactCloudARN|TestBuildServiceStoryTraceExplainsUncorrelatedCloudCandidates|TestCloudResourceCandidates(UseInfraSearchSourceFields|ReturnSafeInfraSearchFields)|TestLoadUncorrelatedCloudResourceCandidatesUsesBoundedServiceSelector|TestBuildDeploymentTraceResponseExplainsUncorrelatedCloudCandidates|TestLoadResourceInvestigationSectionsJoinsParallelErrors' -count=1
-```
-
-This proves resource investigation accepts exact cloud ARNs returned by infra
-search, section traversals keep the canonical graph id and ARN handles, and
-service story/deployment trace expose bounded uncorrelated cloud-resource
-candidates using the same safe CloudResource handles as infrastructure search
-without promoting them into canonical `cloud_resources`.
-
-Remote Docker Compose proof against NornicDB also verified the CloudResource
-free-text predicate shape on a target service with six AWS cloud-resource
-matches. A broad multiline `OR` predicate and direct optional property
-projections returned zero rows on that backend, while the one-line predicate
-with coalesced optional projections returned the six candidates in the
-`uncorrelated_cloud_resource_candidates` service-story stage and preserved
-bounded infra search results. Keep this query text shape aligned with
-`infraResourceFreeTextPredicate`; it is a backend-compatibility contract, not
-formatting.
-
-No-Observability-Change: the new candidate read still runs through
-`GraphQuery.Run`, existing `neo4j.query` spans, and
-`eshu_dp_neo4j_query_duration_seconds`; service-story enrichment records the
-`uncorrelated_cloud_resource_candidates` stage through the existing
-`service_query.stage_started` and `service_query.stage_completed` log events.
+Durable no-regression and observability notes for issue-specific query shapes,
+including CloudResource candidate reads and NornicDB predicate compatibility,
+live in [evidence-notes.md](evidence-notes.md).
 
 ## Operational notes
 

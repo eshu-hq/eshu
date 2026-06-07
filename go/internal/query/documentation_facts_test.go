@@ -27,6 +27,7 @@ func TestDocumentationHandlerListsCollectedFacts(t *testing.T) {
 						"canonical_uri": "https://boats-group.atlassian.net/wiki/spaces/PLAT/pages/123",
 					},
 				}},
+				NextCursor: "1",
 			},
 		},
 		Profile: ProfileProduction,
@@ -36,7 +37,7 @@ func TestDocumentationHandlerListsCollectedFacts(t *testing.T) {
 
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/api/v0/documentation/facts?scope_id=doc-source:confluence:boats-group.atlassian.net:196609&fact_kind=documentation_document&limit=5",
+		"/api/v0/documentation/facts?scope_id=doc-source:confluence:boats-group.atlassian.net:196609&fact_kind=documentation_document&limit=1",
 		nil,
 	)
 	req.Header.Set("Accept", EnvelopeMIMEType)
@@ -54,6 +55,28 @@ func TestDocumentationHandlerListsCollectedFacts(t *testing.T) {
 	facts := data["facts"].([]any)
 	if got, want := len(facts), 1; got != want {
 		t.Fatalf("len(facts) = %d, want %d", got, want)
+	}
+	if got, want := data["count"], float64(1); got != want {
+		t.Fatalf("count = %#v, want %#v", got, want)
+	}
+	if got, want := data["limit"], float64(1); got != want {
+		t.Fatalf("limit = %#v, want %#v", got, want)
+	}
+	if got, want := data["truncated"], true; got != want {
+		t.Fatalf("truncated = %#v, want %#v", got, want)
+	}
+	if got, want := data["next_cursor"], "1"; got != want {
+		t.Fatalf("next_cursor = %#v, want %#v", got, want)
+	}
+	if got, want := data["missing_evidence"], false; got != want {
+		t.Fatalf("missing_evidence = %#v, want %#v", got, want)
+	}
+	states, ok := data["states"].([]any)
+	if !ok {
+		t.Fatalf("states = %#v, want array", data["states"])
+	}
+	if got := len(states); got != 0 {
+		t.Fatalf("len(states) = %d, want 0", got)
 	}
 	fact := facts[0].(map[string]any)
 	if got, want := fact["fact_kind"], "documentation_document"; got != want {
@@ -93,6 +116,60 @@ func TestDocumentationHandlerRequiresFactScopeOrAnchor(t *testing.T) {
 		if !strings.Contains(w.Body.String(), anchor) {
 			t.Fatalf("error body missing anchor %q: %s", anchor, w.Body.String())
 		}
+	}
+}
+
+func TestDocumentationHandlerFactsResponseExplainsScopedEmptyPage(t *testing.T) {
+	t.Parallel()
+
+	handler := &DocumentationHandler{
+		Content: fakePortContentStore{
+			documentationFactsModel: documentationFactListReadModel{},
+		},
+		Profile: ProfileProduction,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/documentation/facts?scope_id=docs-scope&fact_kind=documentation_section&limit=2",
+		nil,
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	var resp ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	data := resp.Data.(map[string]any)
+	facts := data["facts"].([]any)
+	if got := len(facts); got != 0 {
+		t.Fatalf("len(facts) = %d, want 0", got)
+	}
+	if got, want := data["count"], float64(0); got != want {
+		t.Fatalf("count = %#v, want %#v", got, want)
+	}
+	if got, want := data["limit"], float64(2); got != want {
+		t.Fatalf("limit = %#v, want %#v", got, want)
+	}
+	if got, want := data["truncated"], false; got != want {
+		t.Fatalf("truncated = %#v, want %#v", got, want)
+	}
+	if got, want := data["missing_evidence"], true; got != want {
+		t.Fatalf("missing_evidence = %#v, want %#v", got, want)
+	}
+	states := data["states"].([]any)
+	if got, want := states, []any{"no_documentation_facts"}; !equalDocumentationAnySlice(got, want) {
+		t.Fatalf("states = %#v, want %#v", got, want)
+	}
+	if _, ok := data["next_cursor"]; ok {
+		t.Fatalf("next_cursor present on complete empty page: %#v", data["next_cursor"])
 	}
 }
 
@@ -290,4 +367,29 @@ func TestOpenAPISpecIncludesDocumentationFacts(t *testing.T) {
 	if got, want := get["operationId"], "listDocumentationFacts"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
+	schema := get["responses"].(map[string]any)["200"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+	properties := schema["properties"].(map[string]any)
+	for _, name := range []string{"facts", "count", "limit", "truncated", "missing_evidence", "states", "next_cursor"} {
+		if _, ok := properties[name]; !ok {
+			t.Fatalf("documentation facts OpenAPI response missing %q", name)
+		}
+	}
+	required := schema["required"].([]any)
+	for _, name := range []string{"facts", "count", "limit", "truncated", "missing_evidence", "states"} {
+		if !openAPIStringListIncludes(required, name) {
+			t.Fatalf("documentation facts OpenAPI required fields missing %q", name)
+		}
+	}
+	if openAPIStringListIncludes(required, "next_cursor") {
+		t.Fatal("documentation facts OpenAPI requires next_cursor, want present only on truncated pages")
+	}
+}
+
+func openAPIStringListIncludes(values []any, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }

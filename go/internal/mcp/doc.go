@@ -29,7 +29,10 @@
 // truth. Documentation tools forward repo, target_kind, target_id, and
 // service_id filters to the HTTP read models and preserve coverage,
 // related_facts, and missing_evidence fields so raw documentation target facts
-// are not collapsed into admissible findings. Any change that alters request or
-// response shape must update the MCP guide, the HTTP API reference where the
-// route is shared, and the handler tests in the same change.
+// are not collapsed into admissible findings. Documentation fact lists also
+// preserve bounded page metadata (`count`, `limit`, `truncated`,
+// `missing_evidence`, `states`, and `next_cursor` on truncated pages). Any
+// change that alters request or response shape must update the MCP guide, the
+// HTTP API reference where the route is shared, and the handler tests in the
+// same change.
 package mcp

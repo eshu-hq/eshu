@@ -50,6 +50,7 @@ Documentation updater services should use these routes instead of reading graph
 internals directly.
 
 - `GET /api/v0/documentation/findings`
+- `GET /api/v0/documentation/facts`
 - `GET /api/v0/documentation/findings/{finding_id}/evidence-packet`
 - `GET /api/v0/documentation/evidence-packets/{packet_id}/freshness`
 
@@ -61,6 +62,12 @@ families stay visible as `unsupported_claim_type`.
 `GET /api/v0/documentation/findings` accepts filters for finding type, source,
 document, status, truth level, freshness state, scope, generation, repository,
 updated time, limit, and cursor.
+
+`GET /api/v0/documentation/facts` accepts source, document, section, repository,
+target, service, scope, generation, search, updated time, limit, and cursor
+filters. Responses return `facts`, page `count`, normalized `limit`,
+`truncated`, `missing_evidence`, `states`, and `next_cursor` only when the
+bounded page has more rows.
 
 `GET /api/v0/documentation/findings/{finding_id}/evidence-packet` returns the
 bounded packet an external updater can snapshot before it plans a diff. Eshu

@@ -210,7 +210,10 @@ Documentation tools keep the same transport-only contract. Target-scoped
 finding and fact reads forward `repo`, `target_kind`, `target_id`, and
 `service_id` to HTTP so MCP callers see the same `coverage`, `related_facts`,
 and `missing_evidence` metadata as API clients when raw target documentation
-facts exist without admissible findings.
+facts exist without admissible findings. Documentation fact list calls also
+preserve the HTTP bounded-list metadata: `count`, `limit`, `truncated`,
+`missing_evidence`, `states`, and `next_cursor` when a scoped fact page has more
+rows.
 
 ## Exported surface
 

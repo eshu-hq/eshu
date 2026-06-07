@@ -65,10 +65,7 @@ func (h *DocumentationHandler) listFacts(w http.ResponseWriter, r *http.Request)
 		writeDocumentationInternalError(w, r)
 		return
 	}
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"facts":       readModel.Facts,
-		"next_cursor": readModel.NextCursor,
-	}, BuildTruthEnvelope(
+	WriteSuccess(w, r, http.StatusOK, documentationFactsResponse(readModel, page), BuildTruthEnvelope(
 		h.profile(),
 		documentationFactsCapability,
 		TruthBasisSemanticFacts,
@@ -150,4 +147,32 @@ func normalizeDocumentationFactKind(raw string) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+func documentationFactsResponse(readModel documentationFactListReadModel, page documentationPage) map[string]any {
+	facts := readModel.Facts
+	if facts == nil {
+		facts = []map[string]any{}
+	}
+	nextCursor := strings.TrimSpace(readModel.NextCursor)
+	missingEvidence := len(facts) == 0
+	body := map[string]any{
+		"facts":            facts,
+		"count":            len(facts),
+		"limit":            page.limit,
+		"truncated":        nextCursor != "",
+		"missing_evidence": missingEvidence,
+		"states":           documentationFactListStates(missingEvidence),
+	}
+	if nextCursor != "" {
+		body["next_cursor"] = nextCursor
+	}
+	return body
+}
+
+func documentationFactListStates(missingEvidence bool) []string {
+	if missingEvidence {
+		return []string{"no_documentation_facts"}
+	}
+	return []string{}
 }
