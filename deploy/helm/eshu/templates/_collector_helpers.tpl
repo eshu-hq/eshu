@@ -212,6 +212,18 @@
 {{- end }}
 {{- end -}}
 
+{{- define "eshu.renderPrometheusMimirTimeSeriesEnv" -}}
+{{- if .Values.prometheusMimirCollector.enabled }}
+- name: ESHU_COLLECTOR_INSTANCES_JSON
+  value: {{ required "prometheusMimirCollector.collectorInstances must contain at least one instance when prometheusMimirCollector.enabled=true" .Values.prometheusMimirCollector.collectorInstances | toJson | quote }}
+- name: ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID
+  value: {{ .Values.prometheusMimirCollector.instanceId | quote }}
+{{- with .Values.prometheusMimirCollector.extraEnv }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+{{- end -}}
+
 {{- define "eshu.renderLokiCollectorEnv" -}}
 - name: ESHU_COLLECTOR_INSTANCES_JSON
   value: {{ required "lokiCollector.collectorInstances must contain at least one instance when lokiCollector.enabled=true" .Values.lokiCollector.collectorInstances | toJson | quote }}

@@ -18,7 +18,7 @@ export function OperationsPage({ model }: { readonly model: ConsoleModel }): Rea
         <StatTile label="Succeeded" value={fmt(r.succeeded)} color="var(--blue)" sub="work items (run)" />
       </div>
       <div className="grid g-2 mt">
-        <Panel title="Reducer queue depth" sub="Outstanding work items">{model.series.queueDepth.length ? <AreaChart data={model.series.queueDepth} color="var(--violet)" h={180} unit=" items" /> : <p className="empty" style={{ padding: "32px 12px" }}>Current depth above. Trend history requires the metrics time-series API (#1434).</p>}</Panel>
+        <Panel title="Reducer queue depth" sub="Outstanding work items">{model.series.queueDepth.length ? <AreaChart data={model.series.queueDepth} color="var(--violet)" h={180} unit=" items" /> : <p className="empty" style={{ padding: "32px 12px" }}>Current depth above. Trend history appears when the metrics source has recent samples.</p>}</Panel>
         <Panel title="Repositories by language" sub="GET /api/v0/repositories/by-language">{langRows.length ? <BarRows rows={langRows} /> : <p className="empty">No language inventory from this source.</p>}</Panel>
       </div>
       <Panel className="flush mt" title="Collectors / ingesters" sub={`${model.ingesters.length} fact sources`}>

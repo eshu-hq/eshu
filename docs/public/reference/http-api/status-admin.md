@@ -125,9 +125,11 @@ does not add a worker, queue, graph query, or new metric label.
 ordered point series for one metric, for dashboard and operations trend charts.
 Supported `metric` values are `ingest_rate`, `queue_depth`, `dead_letters`,
 `graph_nodes`, `graph_edges`, `query_p50`, `query_p95`, and `query_p99`; an
-unsupported or missing `metric` returns a `400`. `window` defaults to `24h` and
-`step` to `30m`. The response carries `metric`, `unit`, `window`, `step`, and an
-ordered `points: [{ t, v }]` array.
+unsupported or missing `metric` returns a `400`. `window` defaults to `24h`,
+must be at most `30d`, and `step` defaults to `30m`. `step` must be at least
+`10s`, and `window / step` must request at most 2,000 samples. The response
+carries `metric`, `unit`, `window`, `step`, and an ordered `points: [{ t, v }]`
+array.
 
 Series are sourced from the Prometheus/Mimir collector. When no metrics source
 is configured the response is **empty `points` with `truth.freshness.state` of

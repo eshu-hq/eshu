@@ -122,9 +122,10 @@
 - **Add a new capability** → add an entry to `capabilityMatrix` in `contract.go`
   with per-profile max truth levels; add the capability ID constant near the
   existing `const` blocks if reused across handlers; call `BuildTruthEnvelope`
-  with the new ID in the handler; update `specs/capability-matrix.v1.yaml` and
+  with the new ID in the handler; update `specs/capability-matrix.v1.yaml` or a
+  small fragment under `specs/capability-matrix/`, plus
   `docs/public/reference/http-api.md`. Run `go test ./internal/query -count=1`
-  (the `contract_endpoint_test.go` validates matrix coverage). Why:
+  (the `contract_matrix_test.go` validates matrix coverage). Why:
   `BuildTruthEnvelope` panics on unknown capability IDs at handler call time.
 
 - **Change a response shape** → update the handler method, the matching
@@ -213,7 +214,7 @@
 - `capabilityMatrix` entry `RequiredProfile` values — these gate which runtime
   profiles can answer which queries; changes affect CLI, MCP, and HTTP clients
   simultaneously; see `docs/public/reference/http-api.md` and
-  `specs/capability-matrix.v1.yaml`.
+  `specs/capability-matrix.v1.yaml` plus `specs/capability-matrix/*.yaml`.
 - `ResponseEnvelope` and `TruthEnvelope` field names — these are stable wire
   contracts used by MCP tool dispatch and CLI `--json` mode; see
   `docs/public/reference/http-api.md`.

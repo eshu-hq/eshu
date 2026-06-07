@@ -3,6 +3,7 @@ package runtime
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -259,4 +260,16 @@ tempoCollector:
 	assertHelmValueFromEnv(t, manifests, "loki-collector", "LOKI_TENANT")
 	assertHelmValueFromEnv(t, manifests, "tempo-collector", "TEMPO_TOKEN")
 	assertHelmValueFromEnv(t, manifests, "tempo-collector", "TEMPO_TENANT")
+
+	apiContainer := requireHelmContainer(t, requireHelmManifest(t, manifests, "Deployment", "eshu-api"), "eshu")
+	apiEnv := helmEnvByName(apiContainer)
+	assertHelmLiteralEnv(t, apiEnv, "ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID", "metrics-primary")
+	if value := helmString(apiEnv["ESHU_COLLECTOR_INSTANCES_JSON"]["value"]); !strings.Contains(value, `"collector_kind":"prometheus_mimir"`) {
+		t.Fatalf("api ESHU_COLLECTOR_INSTANCES_JSON = %q, want prometheus_mimir collector config", value)
+	}
+	for _, name := range []string{"MIMIR_TOKEN", "MIMIR_TENANT"} {
+		if _, ok := apiEnv[name]["valueFrom"]; !ok {
+			t.Fatalf("api env %s = %#v, want valueFrom for metrics time-series source", name, apiEnv[name])
+		}
+	}
 }

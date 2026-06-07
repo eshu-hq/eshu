@@ -111,6 +111,11 @@ See `doc.go` for the full godoc contract.
 - `ESHU_PPROF_ADDR` — opt-in `net/http/pprof` endpoint via
   `runtime.NewPprofServer`; unset disables the profiler; port-only inputs
   (`:6060`) bind to `127.0.0.1`
+- `ESHU_COLLECTOR_INSTANCES_JSON` plus
+  `ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID` — optional
+  `prometheus_mimir` collector config used to back
+  `/api/v0/metrics/timeseries`. Enabled targets may reference `token_env` and
+  `tenant_id_env`; those env vars must resolve in the API process when present.
 - API key resolved via `runtime.ResolveAPIKey`; Bolt details via
   `runtime.OpenNeo4jDriver`
 
@@ -138,6 +143,9 @@ See `doc.go` for the full godoc contract.
 - `/admin/status` reports the live runtime stage and backlog from `internal/status`.
   A healthy API with empty or stale `admin/status` data means the ingester or
   reducer has not yet populated status rows.
+- `/api/v0/metrics/timeseries` returns empty points with unavailable freshness
+  when no Prometheus/Mimir source is configured. When configured, API startup
+  fails fast on malformed collector JSON or unresolved referenced secret envs.
 - `ESHU_DISABLE_NEO4J=true` with `ESHU_QUERY_PROFILE=local_lightweight` skips graph
   driver initialization; the API then serves Postgres-only content queries.
 - Graceful shutdown waits at most 5 s; in-flight graph or content reads that

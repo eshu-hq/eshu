@@ -227,6 +227,8 @@ infer completeness from row count alone.
 - `WorkItemHandler` — ticket-first Jira/work-item source evidence reads from
   active facts (`work_item_evidence_handler.go`)
 - `StatusHandler` — pipeline and ingester status routes (`status.go:14`)
+- `MetricsHandler` — `/api/v0/metrics/timeseries`; returns unavailable-empty
+  points when no source is configured (`metrics.go`)
 - `CompareHandler` — environment comparison (`compare.go:12`) with the
   story-packet helpers in `compare_story.go`
 - `AdminHandler` — work-item inspection, replay, dead-letter, backfill, reindex
@@ -255,6 +257,9 @@ infer completeness from row count alone.
   basis; panics on unknown capability (`contract.go:547`)
 - `ParseQueryProfile`, `NormalizeQueryProfile`, `ParseGraphBackend` — input
   validation helpers (`contract.go`)
+- `MetricsTimeSeriesSource`, `PrometheusMetricsTimeSeriesSource`, and related
+  types — closed metric series port and Prometheus/Mimir adapter
+  (`metrics.go`, `metrics_prometheus.go`)
 
 **OpenAPI**
 
@@ -488,12 +493,7 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
 
 ## Related docs
 
-- [read-models.md](read-models.md) for route-specific read-model bounds,
-  evidence, and investigation-route contracts.
-- [dead-code-reachability.md](dead-code-reachability.md) for dead-code language
-  roots, exactness blockers, and candidate paging rules.
-- [evidence-notes.md](evidence-notes.md) for issue-specific no-regression and
-  observability notes that do not belong in the package overview.
-- `docs/public/reference/http-api.md` for the public HTTP and envelope contract.
-- `docs/public/reference/dead-code-reachability-spec.md` for the dead-code
-  language maturity contract.
+- [read-models.md](read-models.md) for route-specific bounds and evidence.
+- [dead-code-reachability.md](dead-code-reachability.md) for dead-code rules.
+- [evidence-notes.md](evidence-notes.md) for issue-specific evidence, and
+  `docs/public/reference/http-api.md` for the public HTTP contract.

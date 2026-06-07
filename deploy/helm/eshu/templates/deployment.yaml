@@ -58,6 +58,7 @@ spec:
             {{- include "eshu.renderConnectionTuningEnv" .Values.api.connectionTuning | nindent 12 }}
             {{- include "eshu.renderOtelEnv" (dict "Values" .Values "component" "api") | nindent 12 }}
             {{- include "eshu.renderPrometheusEnv" . | nindent 12 }}
+            {{- include "eshu.renderPrometheusMimirTimeSeriesEnv" . | nindent 12 }}
             {{- include "eshu.renderNeo4jAuthEnv" . | nindent 12 }}
             - name: ESHU_API_KEY
               valueFrom:

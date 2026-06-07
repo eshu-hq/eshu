@@ -81,7 +81,15 @@ func wireAPI(
 	neo4jReader := query.NewNeo4jReader(driver, neo4jDB)
 	contentReader := query.NewContentReader(db)
 	statusReader := pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
-	router, err := newRouter(db, neo4jReader, contentReader, queryProfile, graphBackend, logger)
+	metricsSource, err := metricsTimeSeriesSourceFromEnv(getenv, nil)
+	if err != nil {
+		_ = db.Close()
+		if driver != nil {
+			_ = driver.Close(ctx)
+		}
+		return nil, nil, fmt.Errorf("configure metrics time-series source: %w", err)
+	}
+	router, err := newRouter(db, neo4jReader, contentReader, metricsSource, queryProfile, graphBackend, logger)
 	if err != nil {
 		_ = db.Close()
 		if driver != nil {
@@ -164,6 +172,7 @@ func newRouter(
 	db *sql.DB,
 	neo4jReader query.GraphQuery,
 	contentReader query.ContentStore,
+	metricsSource query.MetricsTimeSeriesSource,
 	queryProfile query.QueryProfile,
 	graphBackend query.GraphBackend,
 	logger *slog.Logger,
@@ -289,10 +298,8 @@ func newRouter(
 			DB:           db,
 			StatusReader: pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db}),
 		},
-		// Metrics time-series. Source is nil until a Prometheus/Mimir collector is
-		// wired; the endpoint then returns empty points with unavailable freshness
-		// rather than failing.
 		Metrics: &query.MetricsHandler{
+			Source:  metricsSource,
 			Profile: queryProfile,
 		},
 		Compare: &query.CompareHandler{

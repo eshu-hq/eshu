@@ -1,12 +1,14 @@
 # Capability Conformance Spec
 
 Capability conformance defines what Eshu may claim in each runtime profile.
-The machine-readable source of truth is `specs/capability-matrix.v1.yaml`.
-The Go query runtime mirrors the same ceilings in
+The machine-readable source of truth is `specs/capability-matrix.v1.yaml` plus
+`specs/capability-matrix/*.yaml` fragments. The Go query runtime mirrors the
+same ceilings in
 `go/internal/query/contract.go`.
 
 Do not copy the full capability list into prose. The YAML matrix and
-`go/internal/query/contract_matrix_test.go` are the contract and drift gate.
+fragments plus `go/internal/query/contract_matrix_test.go` are the contract and
+drift gate.
 
 ## Matrix Fields
 
@@ -85,7 +87,7 @@ Lifecycle rules:
 
 | Change | Requirement |
 | --- | --- |
-| Add | Define every profile row, tool mapping, verification, and Go ceiling. |
+| Add | Define every profile row, tool mapping, verification, and Go ceiling. Prefer a small fragment under `specs/capability-matrix/` for new rows. |
 | Deprecate | Keep the ID with a deprecation note for at least one release. |
 | Remove | Remove only after the deprecation window and client docs update. |
 

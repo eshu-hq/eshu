@@ -3,8 +3,8 @@
 `specs/` holds machine-readable contracts that are consumed by tests and
 documentation.
 
-- `capability-matrix.v1.yaml` defines user-facing capability behavior by
-  runtime profile.
+- `capability-matrix.v1.yaml` plus `capability-matrix/*.yaml` define
+  user-facing capability behavior by runtime profile.
 - `backend-conformance.v1.yaml` defines graph-backend capability classes for
   official adapters.
 

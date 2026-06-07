@@ -27,16 +27,8 @@ func TestCapabilityMatrixMatchesYAMLContract(t *testing.T) {
 	if !ok {
 		t.Fatal("runtime.Caller failed")
 	}
-	matrixPath := filepath.Clean(filepath.Join(filepath.Dir(filename), "..", "..", "..", "specs", "capability-matrix.v1.yaml"))
-	raw, err := os.ReadFile(matrixPath)
-	if err != nil {
-		t.Fatalf("read matrix yaml: %v", err)
-	}
-
-	var parsed matrixYAML
-	if err := yaml.Unmarshal(raw, &parsed); err != nil {
-		t.Fatalf("unmarshal matrix yaml: %v", err)
-	}
+	specsDir := filepath.Clean(filepath.Join(filepath.Dir(filename), "..", "..", "..", "specs"))
+	parsed := loadCapabilityMatrixYAML(t, specsDir)
 
 	if got, want := len(capabilityMatrix), len(parsed.Capabilities); got != want {
 		t.Fatalf("capabilityMatrix size = %d, want %d", got, want)
@@ -66,6 +58,53 @@ func TestCapabilityMatrixMatchesYAMLContract(t *testing.T) {
 			t.Fatalf("Go capabilityMatrix has extra capability %q not present in YAML", capability)
 		}
 	}
+}
+
+func loadCapabilityMatrixYAML(t *testing.T, specsDir string) matrixYAML {
+	t.Helper()
+
+	parsed := readCapabilityMatrixFile(t, filepath.Join(specsDir, "capability-matrix.v1.yaml"))
+	fragmentDir := filepath.Join(specsDir, "capability-matrix")
+	entries, err := os.ReadDir(fragmentDir)
+	if err != nil {
+		t.Fatalf("read capability matrix fragments: %v", err)
+	}
+	seen := map[string]struct{}{}
+	for _, capability := range parsed.Capabilities {
+		seen[capability.Capability] = struct{}{}
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if filepath.Ext(name) != ".yaml" && filepath.Ext(name) != ".yml" {
+			continue
+		}
+		fragment := readCapabilityMatrixFile(t, filepath.Join(fragmentDir, name))
+		for _, capability := range fragment.Capabilities {
+			if _, ok := seen[capability.Capability]; ok {
+				t.Fatalf("duplicate capability %q in matrix fragments", capability.Capability)
+			}
+			seen[capability.Capability] = struct{}{}
+			parsed.Capabilities = append(parsed.Capabilities, capability)
+		}
+	}
+	return parsed
+}
+
+func readCapabilityMatrixFile(t *testing.T, path string) matrixYAML {
+	t.Helper()
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read matrix yaml %s: %v", path, err)
+	}
+	var parsed matrixYAML
+	if err := yaml.Unmarshal(raw, &parsed); err != nil {
+		t.Fatalf("unmarshal matrix yaml %s: %v", path, err)
+	}
+	return parsed
 }
 
 func assertProfileTruthMatch(t *testing.T, capability, profile string, got *TruthLevel, want string) {
