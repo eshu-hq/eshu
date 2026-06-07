@@ -316,6 +316,10 @@ func (s *stubRegistryClient) GetManifest(context.Context, string, string) (distr
 	return s.manifest, nil
 }
 
+func (s *stubRegistryClient) GetBlob(context.Context, string, string) (distribution.BlobResponse, error) {
+	return distribution.BlobResponse{}, nil
+}
+
 func (s *stubRegistryClient) ListReferrers(context.Context, string, string) (distribution.ReferrersResponse, error) {
 	return s.referrers, nil
 }

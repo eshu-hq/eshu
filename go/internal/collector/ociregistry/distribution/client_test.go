@@ -79,6 +79,31 @@ func TestClientListTagsAndManifestUsesEscapedRepositoryPath(t *testing.T) {
 	}
 }
 
+func TestClientGetBlobCapsResponseBodyRead(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/team/api/blobs/"+testDigest {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/vnd.oci.image.config.v1+json")
+		_, _ = w.Write([]byte(strings.Repeat("x", int(maxBlobReadBytes)+4096)))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(ClientConfig{BaseURL: server.URL})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	blob, err := client.GetBlob(context.Background(), "team/api", testDigest)
+	if err != nil {
+		t.Fatalf("GetBlob() error = %v", err)
+	}
+	if got, want := len(blob.Body), int(maxBlobReadBytes)+1; got != want {
+		t.Fatalf("len(blob.Body) = %d, want capped %d", got, want)
+	}
+}
+
 func TestClientListReferrersParsesDescriptors(t *testing.T) {
 	t.Parallel()
 

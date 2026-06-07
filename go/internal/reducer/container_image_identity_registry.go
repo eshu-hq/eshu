@@ -88,6 +88,7 @@ func classifyContainerImageRef(
 	decision := ContainerImageIdentityDecision{
 		ImageRef:            ref.imageRef,
 		SourceRepositoryIDs: uniqueSortedStrings(ref.sourceRepositoryIDs),
+		SourceRevision:      ref.sourceRevision,
 		WorkloadIDs:         uniqueSortedStrings(ref.workloadIDs),
 		ServiceIDs:          uniqueSortedStrings(ref.serviceIDs),
 		Outcome:             ContainerImageIdentityUnresolved,
@@ -130,6 +131,10 @@ func classifyContainerImageRef(
 		decision.Reason = "image reference named a digest observed in registry facts"
 		decision.CanonicalWrites = 1
 		decision.IdentityStrength = "explicit_digest"
+		if ref.sourceLabelEvidence {
+			decision.Reason = "OCI config source label matched one active repository remote and digest was observed in registry facts"
+			decision.IdentityStrength = "oci_config_source_label_with_digest"
+		}
 		decision.EvidenceFactIDs = uniqueSortedStrings(append(decision.EvidenceFactIDs, obs.factIDs...))
 		return decision
 	}

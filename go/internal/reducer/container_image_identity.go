@@ -39,6 +39,7 @@ type ContainerImageIdentityDecision struct {
 	Digest              string
 	RepositoryID        string
 	SourceRepositoryIDs []string
+	SourceRevision      string
 	WorkloadIDs         []string
 	ServiceIDs          []string
 	Outcome             ContainerImageIdentityOutcome
@@ -111,6 +112,11 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 		return Result{}, fmt.Errorf("load active container image identity facts: %w", err)
 	}
 	envelopes = append(envelopes, active...)
+	repositories, err := h.loadActiveRepositoryFacts(ctx)
+	if err != nil {
+		return Result{}, fmt.Errorf("load active repository facts: %w", err)
+	}
+	envelopes = append(envelopes, repositories...)
 
 	decisions := BuildContainerImageIdentityDecisions(envelopes)
 	counts := containerImageIdentityCounts(decisions)
@@ -150,6 +156,20 @@ func (h ContainerImageIdentityHandler) loadActiveContainerImageIdentityFacts(
 		return nil, nil
 	}
 	envelopes, err := loader.ListActiveContainerImageIdentityFacts(ctx)
+	if err != nil {
+		return nil, classifyFactLoadError(err)
+	}
+	return envelopes, nil
+}
+
+func (h ContainerImageIdentityHandler) loadActiveRepositoryFacts(
+	ctx context.Context,
+) ([]facts.Envelope, error) {
+	loader, ok := h.FactLoader.(activeRepositoryFactLoader)
+	if !ok {
+		return nil, nil
+	}
+	envelopes, err := loader.ListActiveRepositoryFacts(ctx)
 	if err != nil {
 		return nil, classifyFactLoadError(err)
 	}
@@ -197,6 +217,7 @@ func BuildContainerImageIdentityDecisions(envelopes []facts.Envelope) []Containe
 func containerImageIdentityFactKinds() []string {
 	return []string{
 		factKindContentEntity,
+		factKindRepository,
 		facts.CICDWorkflowImageEvidenceFactKind,
 		facts.CICDRunFactKind,
 		facts.CICDArtifactFactKind,

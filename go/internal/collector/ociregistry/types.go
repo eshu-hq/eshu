@@ -71,6 +71,12 @@ const (
 	// WarningComputedManifestDigest marks registries that returned manifest
 	// bytes without a Docker-Content-Digest header.
 	WarningComputedManifestDigest = "computed_manifest_digest"
+	// WarningConfigBlobUnavailable marks an image config blob that could not be
+	// read without failing the registry scan.
+	WarningConfigBlobUnavailable = "config_blob_unavailable"
+	// WarningConfigBlobOversized marks an image config blob that exceeded the
+	// collector's bounded provenance label read limit.
+	WarningConfigBlobOversized = "config_blob_oversized"
 	// SeverityInfo marks informational warnings.
 	SeverityInfo = "info"
 	// ReferrersUnsupported records unsupported Referrers API state.
@@ -159,6 +165,7 @@ type ManifestObservation struct {
 	Repository          RepositoryIdentity
 	Descriptor          Descriptor
 	Config              Descriptor
+	ConfigLabels        map[string]string
 	Layers              []Descriptor
 	SourceTag           string
 	GenerationID        string

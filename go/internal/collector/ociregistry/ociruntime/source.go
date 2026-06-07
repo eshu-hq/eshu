@@ -27,6 +27,7 @@ type RegistryClient interface {
 	Ping(context.Context) error
 	ListTags(context.Context, string) ([]string, error)
 	GetManifest(context.Context, string, string) (distribution.ManifestResponse, error)
+	GetBlob(context.Context, string, string) (distribution.BlobResponse, error)
 	ListReferrers(context.Context, string, string) (distribution.ReferrersResponse, error)
 }
 
@@ -220,6 +221,20 @@ func (s *Source) buildEnvelopes(
 		}
 
 		descriptor := ociregistry.Descriptor{Digest: digest, MediaType: mediaType, SizeBytes: manifest.SizeBytes}
+		configLabels, configWarnings, err := s.configProvenanceLabels(
+			ctx,
+			client,
+			target,
+			collectorInstanceID,
+			generationID,
+			observedAt,
+			parsed.Config,
+		)
+		if err != nil {
+			return nil, err
+		}
+		parsed.ConfigLabels = configLabels
+		envelopes = append(envelopes, configWarnings...)
 		tagEnvelope, err := ociregistry.NewTagObservationEnvelope(ociregistry.TagObservation{
 			Repository:          target.identity(),
 			Tag:                 reference,
@@ -288,6 +303,7 @@ func (s *Source) manifestEnvelopes(
 			Repository:          target.identity(),
 			Descriptor:          descriptor,
 			Config:              parsed.Config,
+			ConfigLabels:        parsed.ConfigLabels,
 			Layers:              parsed.Layers,
 			SourceTag:           sourceTag,
 			GenerationID:        generationID,

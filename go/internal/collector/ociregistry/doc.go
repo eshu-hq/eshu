@@ -5,8 +5,10 @@
 // family. It owns repository and digest identity normalization plus
 // reported-confidence envelope builders for repositories, mutable tag
 // observations, manifests, image indexes, descriptors, referrers, and warnings.
-// Builders validate boundary fields, keep tag evidence separate from digest
-// identity, make FactID generation-specific, and redact unknown annotations or
+// Manifest facts may carry redacted image config provenance labels when the
+// runtime can fetch the config blob within its bounded scan limits. Builders
+// validate boundary fields, keep tag evidence separate from digest identity,
+// make FactID generation-specific, and redact unknown annotations, labels, or
 // credential-bearing URLs.
 //
 // Provider adapters for Docker Hub, GHCR, ECR, JFrog, Harbor, Google Artifact

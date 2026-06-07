@@ -88,6 +88,7 @@ type ContainerImageIdentityResult struct {
 	ImageRef            string   `json:"image_ref,omitempty"`
 	RepositoryID        string   `json:"repository_id,omitempty"`
 	SourceRepositoryIDs []string `json:"source_repository_ids,omitempty"`
+	SourceRevision      string   `json:"source_revision,omitempty"`
 	WorkloadIDs         []string `json:"workload_ids,omitempty"`
 	ServiceIDs          []string `json:"service_ids,omitempty"`
 	Outcome             string   `json:"outcome"`

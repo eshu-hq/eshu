@@ -11,10 +11,11 @@ import (
 )
 
 type parsedManifest struct {
-	MediaType string
-	Config    ociregistry.Descriptor
-	Layers    []ociregistry.Descriptor
-	Manifests []ociregistry.Descriptor
+	MediaType    string
+	Config       ociregistry.Descriptor
+	ConfigLabels map[string]string
+	Layers       []ociregistry.Descriptor
+	Manifests    []ociregistry.Descriptor
 }
 
 func parseManifest(response distribution.ManifestResponse) (string, parsedManifest, error) {
