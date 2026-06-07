@@ -239,7 +239,10 @@ conformance is the BACKEND-GATED `TestSecretsIAMGraphWriterLiveConformance`
 edges, reads them back, and proves scoped retract leaves the retained
 `KubernetesWorkload` and `CloudResource` endpoints intact. It SKIPs cleanly
 unless `ESHU_SECRETS_IAM_GRAPH_LIVE=1` and Bolt env are set, so the default run
-never fabricates a live proof.
+never fabricates a live proof. The June 7 proof snapshot in
+`docs/internal/design/1314-secrets-iam-graph-promotion-proof-2026-06-07.md`
+records successful NornicDB and Neo4j live writer conformance plus shared
+backend conformance; production activation remains blocked on ADR #1314 §14.
 
 Observability Evidence: no new metric name is introduced by the writer; the
 reducer projection domain owns the bounded-enum node/edge/skip counters and the

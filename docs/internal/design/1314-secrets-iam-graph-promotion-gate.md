@@ -1,9 +1,9 @@
 # Secrets/IAM Graph Promotion ADR And Schema Gate
 
-Status: **DESIGN PROPOSAL - needs principal and security review before any
-DDL or graph-write implementation.** This note is the issue #1314 gate. It
-does not add schema, code, graph labels, graph edges, API authority, or runtime
-configuration.
+Status: **GATED IMPLEMENTATION PRESENT - default off.** The DDL, writer,
+fixture proof, benchmark proof, and repo-local NornicDB/Neo4j conformance
+evidence are present, but section 14 principal and security sign-off plus a
+target deployment decision are still required before live activation.
 
 Issue: #1314. Parent: #25. Depends on the #1313 reducer read-model slice.
 
@@ -14,8 +14,8 @@ has proven exact, stale, partial, permission-hidden, and unsupported states. The
 graph projection must consume reducer-owned read-model facts only. It must not
 join raw AWS IAM, Kubernetes, or Vault source facts directly into graph truth.
 
-The first graph implementation PR, if this ADR is approved, must be a gated
-projection from exact read-model rows into a redaction-safe graph path:
+The gated graph implementation is a default-off projection from exact read-model
+rows into a redaction-safe graph path:
 
 ```text
 (:KubernetesWorkload {uid})            optional, only if already materialized
@@ -53,10 +53,9 @@ labeling before any graph projection is allowed.
 
 ### 2.1. Prerequisite status
 
-The non-graph prerequisites this gate depends on are either merged or in open,
-reviewed PRs. This subsection is a status snapshot, not a claim that every item
-is merged; the gate is ready for the principal and security decision in section
-14 once the merged-or-in-review prerequisites land.
+The non-graph prerequisites this gate depends on are merged. This subsection is
+a status snapshot, not activation approval; section 14 remains the authority for
+the principal/security decision and the target deployment flag-on.
 
 Merged to `main`:
 
@@ -67,22 +66,14 @@ Merged to `main`:
 - The reducer read model (#1313/#1327) builds and persists the four
   `reducer_secrets_iam_*` fact kinds with the six-state vocabulary
   (`exact`/`partial`/`unresolved`/`stale`/`permission_hidden`/`unsupported`).
-- The identity-trust-chain query + MCP endpoint over that read model.
+- The query + MCP endpoints over the four Secrets/IAM read models.
 - The metadata-only redaction contract this ADR's §7 requires, enforced at the
   `secretsiam` envelope chokepoint.
+- The default-off graph projection DDL, writer, reducer domain, endpoint
+  readiness gate, retry liveness handling, and repo-local proof artifacts.
 
-In open, reviewed PRs (tracked, not yet merged):
-
-- The remaining query/MCP read surface — privilege posture observations, secret
-  access paths, posture gaps, and a posture summary — with all non-exact states
-  surfaced as provenance-only (the invariant admission rule §4 relies on).
-- A live Vault metadata client (`vaultlive/vaultapi`, #1356); the runtime wiring
-  (CollectorKind + claim scheduling) and live validation remain open under #1356.
-- The cross-family secret-leakage guard (#1348) and the confused-deputy
-  `sts:ExternalId` posture rule (#1346).
-
-What remains gated and **not** started, pending the section 14 decision: the
-graph DDL, node/edge promotion writer, and any API/MCP claim of graph authority.
+What remains gated, pending the section 14 decision: target deployment
+activation and any production claim of graph projection authority.
 
 ## 3. Non-Goals
 
@@ -265,7 +256,7 @@ failures once endpoints exist. Status, latest-failure, and blockage surfaces
 continue to expose the specific failure class for operator diagnosis. See
 `go/internal/reducer/README.md` and `go/internal/storage/postgres/README.md`.
 
-The first implementation PR must publish a new canonical-node readiness phase
+The implementation must publish a new canonical-node readiness phase
 for the `SecretsIAM*` node keyspace only after node writes commit. Edge writes
 must gate on:
 
@@ -328,9 +319,10 @@ the shared contract.
 
 ## 11. Fixture And Proof Matrix
 
-Status (#1381): the in-memory fixture-truth proof for every row below EXCEPT the
-live cross-backend Cypher check is built and green. The full load → extract →
-write orchestration runs through `SecretsIAMGraphProjectionHandler` against the
+Status (#1381): the fixture-truth proof, live writer conformance, shared backend
+conformance, and schema readback proofs are attached in
+`1314-secrets-iam-graph-promotion-proof-2026-06-07.md`. The full load → extract
+→ write orchestration runs through `SecretsIAMGraphProjectionHandler` against the
 recording writer in
 `go/internal/reducer/secrets_iam_graph_projection_fixture_truth_test.go`,
 asserting the exact node/edge rows for all four node families and all five edge
@@ -342,10 +334,8 @@ BACKEND-GATED `TestSecretsIAMGraphWriterLiveConformance` in
 node families and five edges, reads them back, and proves scoped retract leaves
 the retained `KubernetesWorkload` and `CloudResource` endpoints intact, but
 SKIPs cleanly unless `ESHU_SECRETS_IAM_GRAPH_LIVE=1` and Bolt env are configured
-(no fabricated live proof). Running the gated live check against both NornicDB
-and Neo4j profiles, and the API/MCP read-surface agreement, remain part of the
-§14-gated activation step — they are not a precondition the build PR can satisfy
-without a backend.
+(no fabricated live proof). The June 7 proof ran that gated check against both
+NornicDB and Neo4j profiles without enabling production graph projection.
 
 The implementation must prove each row below before graph writes can merge.
 
@@ -371,8 +361,9 @@ Postgres read model.
 
 ## 12. Performance Impact Declaration For The Build PR
 
-Status (#1381): proof-ladder steps 1–3 are built and green. Step 3, the writer
-benchmark, ships as `BenchmarkSecretsIAMGraphWriter`
+Status (#1381): proof-ladder steps 1–4 are built and green, with backend proof
+captured in `1314-secrets-iam-graph-promotion-proof-2026-06-07.md`. Step 3, the
+writer benchmark, ships as `BenchmarkSecretsIAMGraphWriter`
 (`go/internal/storage/cypher/secrets_iam_graph_writer_bench_test.go`): it writes
 all four `SecretsIAM*` node families and all five resolvable `SECRETS_IAM_*`
 edge families at 5,000 rows each through the no-op group executor, isolating
@@ -386,10 +377,8 @@ an Apple M4 Pro (`darwin/arm64`, `-benchtime=50x -count=3`): ~20.8–38.7 µs/op
 shape. The writer builds in-memory batches once per scope with no per-row
 token-grouping and no per-edge graph read, satisfying the §12 "no N+1" contract
 and staying far below the ~10% regression stop threshold against the same-shape
-baselines. Step 4 (NornicDB/Neo4j schema/bootstrap conformance) and step 5
-(API/MCP truth check) require a live backend and remain part of the §14-gated
-activation; the BACKEND-GATED live writer conformance test skips cleanly without
-one and never fabricates a passing live proof.
+baselines. The BACKEND-GATED live writer conformance test skips cleanly without
+a configured backend and never fabricates a passing live proof.
 
 Affected stage: reducer-owned graph projection after the
 `secrets_iam_trust_chain` read model.
@@ -441,16 +430,17 @@ Approve this gate only if reviewers accept:
    `IAMRole` keyspace
 4. optional workload edges require an existing `KubernetesWorkload` endpoint
 5. all non-exact states stay provenance-only in Postgres/API/MCP
-6. the first implementation PR must carry DDL, writer tests, backend
-   conformance, performance evidence, and security review
+6. the implementation carries DDL, writer tests, backend conformance,
+   performance evidence, and security review
 
-Until this is approved, no Secrets/IAM graph DDL or graph writes should land.
+Until this is approved, no target deployment should enable live Secrets/IAM
+graph projection.
 
-The non-graph prerequisites are merged or in open reviewed PRs (see section
-2.1). Once those land, a principal and security sign-off on the six points above
-is the remaining thing blocking the first (separately-reviewed) implementation
-PR. Issue #1347 tracks that gated implementation and stays blocked on this
-decision; it is not an implementation task until the gate is approved.
+The non-graph prerequisites are merged (see section 2.1). Principal and
+security sign-off on the six points above, plus target deployment activation
+proof, are the remaining blockers. Issue #1347 tracks that governance decision;
+issue #1381 tracks activation proof. Neither issue should enable the flag until
+those approvals are recorded.
 
 No-Regression Evidence: design-only gate. This PR changes only an internal
 design document and adds no Go, Cypher, DDL, queue, runtime, API, MCP, or graph
@@ -461,51 +451,18 @@ future implementation telemetry requirements are listed in section 13.
 
 ### 5.2. Evidence for the gated steps 1–3 PR (extraction + DDL + writer + domain)
 
-No-Regression Evidence: this PR is pure in-memory extraction, additive schema
-DDL, a backend-neutral Cypher writer, and the reducer projection domain that
-orchestrates them — **the domain is defined but not registered into the live
-reducer registry**, so no graph write executes in production from this PR (it
-runs only against a recording writer in tests). The domain handler is the
-established load → extract → retract → write orchestration (mirroring
-`iam_can_perform`): it writes all four node families before the five edge
-families (so each edge `MATCH` resolves an already-committed node), retracts the
-prior generation before reprojecting (skipped only on a first-generation first
-attempt), and counts skipped rows. Registration into the live registry — which
-needs the Postgres fact loader and the Cypher writer wired — plus cross-scope
-endpoint-readiness gating and the §12 backend benchmark are the next gated step.
-`ExtractSecretsIAMGraphRows` is a single linear pass over the reducer read-model
-facts (bounded by read-model output, not by raw source-fact cross-products),
-building deduped, sorted node/edge rows with no I/O. The DDL additions are
-`CREATE CONSTRAINT/INDEX ... IF NOT EXISTS` for the four `SecretsIAM*` labels
-only — additive, no drop/create, applied idempotently by schema bootstrap before
-any write. `SecretsIAMGraphWriter` mirrors the shipped `iam_can_perform`
-writer: static labels/relationship tokens (no data-driven Cypher), uid-only node
-`MERGE`, `MATCH`/`MATCH`/`MERGE` edges (a missing endpoint is a no-op, never a
-fabricated node), `UNWIND` batches with uid anchors, scope+evidence-scoped
-retract (`DETACH DELETE` on reducer-owned `SecretsIAM*` nodes only; never on
-`CloudResource`/`KubernetesWorkload`), and `WrapRetryableNeo4jError` idempotent
-dispatch. There is no hot-path query or graph behavior to regress. Correctness is
-covered by `go test ./internal/reducer -run Extract` (exact-only admission, all
-five non-exact states, missing-endpoint skip+count, IAM-role-unresolved skip,
-duplicate-delivery idempotency, empty, tombstone/foreign-kind, JSON `[]any` wire
-format, redaction allowlist), `go test ./internal/storage/cypher -run
-SecretsIAMGraph` (node/edge Cypher shape, uid-only MERGE identity, scoped
-retract with no endpoint deletion, batching), and `go test ./internal/graph`
-(schema statements). The §12 writer benchmark on the shipped node/edge writer
-shape and the NornicDB/Neo4j conformance proof land with the reducer-domain PR
-that executes the writer.
+No-Regression Evidence: the implementation uses in-memory extraction, additive
+schema DDL, a backend-neutral Cypher writer, and a reducer projection domain
+that stays off until `cmd/reducer` wires a live writer. Extraction is one linear
+pass over reducer read-model facts, not raw source-fact cross-products. The
+writer uses static labels and relationship tokens, uid-only node `MERGE`,
+endpoint `MATCH` before edge `MERGE`, `UNWIND` batches, scoped retract, and
+retryable backend dispatch.
 
-Observability Evidence: the projection domain emits the `reducer.secrets_iam_
-graph_projection` span and three bounded-enum counters —
-`eshu_dp_secrets_iam_graph_nodes_written_total{node_type}`,
-`eshu_dp_secrets_iam_graph_edges_written_total{edge_type}`, and
-`eshu_dp_secrets_iam_graph_skipped_total{skip_reason}` — plus a structured
-completion log with per-phase durations (load/extract/retract/write) and node/
-edge/skip counts. All metric labels are static extractor constants (node labels,
-relationship tokens, skip reasons); no path, ARN, namespace, or identifier is a
-label. `node_type`/`edge_type`/`skip_reason` are in the frozen
-`TestMetricDimensionKeys` allowlist and the span is in the frozen span contract,
-both asserted by `go test ./internal/telemetry`.
+Observability Evidence: the projection domain emits the
+`reducer.secrets_iam_graph_projection` span and bounded-enum node, edge, and
+skip counters. Metric labels are static extractor constants only. The frozen
+dimension keys and span contract are asserted in telemetry tests.
 
 ### 5.3. Evidence for the IAM-role edge promotion (issue #1379)
 
@@ -517,32 +474,13 @@ existing trust-chain build site from the `aws_iam_principal` fact already
 required for the chain, and extends the extractor + Cypher writer to emit the
 edge when the uid is present (skip+count otherwise).
 
-No-Regression Evidence: the read-model build remains a single pass over facts
-already loaded — the new `secretsIAMRoleCloudResourceUID` is one map lookup plus
-one `cloudResourceUID` hash per exact chain, no new fact load, collector, or
-cross-source join. The extractor adds one bounded edge family to the same linear
-`ExtractSecretsIAMGraphRows` pass (deduped by endpoint-pair, no I/O). The writer
-adds one static-token `MATCH/MATCH/MERGE` Cypher template
-(`SecretsIAMServiceAccount`→existing `CloudResource`); a missing CloudResource
-endpoint is a writer no-op (no fabricated node), and the edge's reducer-owned
-START node is removed by the existing `DETACH DELETE` retract (no new retract
-statement, no `CloudResource` deletion). The change is endpoint-no-op-safe and
-exact-only; absence of the uid preserves the prior skip behavior, so there is no
-hot-path regression. Correctness is covered by `go test ./internal/reducer`
-(build resolves the uid from the principal fact's account/region and matches
-`cloudResourceUID`; blank uid without account/region; web-identity vs
-pod-identity assume mode; extractor emits the edge when resolvable and skips+
-counts when only the fingerprint is present; duplicate-delivery dedupe;
-projection handler writes/omits the edge end-to-end), `go test
-./internal/storage/cypher -run SecretsIAMGraph` (ASSUMES_IAM_ROLE Cypher shape,
-endpoint `MATCH`es, `assume_mode` SET, retract unchanged), and `go test -race
-./internal/reducer`.
+No-Regression Evidence: the read-model build remains a single pass over already
+loaded facts. The extractor adds one endpoint-pair-deduped edge family to the
+same linear pass, and the writer adds one static-token
+`MATCH/MATCH/MERGE` template. Missing `CloudResource` endpoints stay no-op-safe
+and exact-only; no IAM role node is fabricated.
 
-Observability Evidence: no new telemetry surface. The new edge flows through the
-existing `eshu_dp_secrets_iam_graph_edges_written_total{edge_type}` counter with
-`edge_type=SECRETS_IAM_ASSUMES_IAM_ROLE`, and the existing
-`eshu_dp_secrets_iam_graph_skipped_total{skip_reason=
-iam_role_endpoint_unresolved_pending_read_model}` counter still fires when the
-uid is absent, so an operator can see resolved-vs-skipped IAM-role edges per
-generation. The frozen `edge_type`/`skip_reason` dimension keys are unchanged
-(`go test ./internal/telemetry`).
+Observability Evidence: no new telemetry surface. The edge uses the existing
+`eshu_dp_secrets_iam_graph_edges_written_total{edge_type}` counter with
+`edge_type=SECRETS_IAM_ASSUMES_IAM_ROLE`, and unresolved IAM-role endpoints use
+the existing skipped counter reason.

@@ -1292,10 +1292,10 @@ edge `MATCH` resolves an already-committed node), retracts-before-reproject
 Covered by `go test ./internal/reducer -run 'Extract|GraphProjection|AppendAdditiveDomains.*SecretsIAM'`,
 `go test ./internal/storage/cypher -run SecretsIAMGraph`, and
 `go test ./cmd/reducer -run SecretsIAMGraphProjectionWriter` (flag default-off,
-enabled, and malformed-value cases). Activating the flag for live-backend
-execution, cross-scope readiness gating, and the §12 benchmark remain the next
-gated step behind ADR #1314 §11/§12 proofs and the §14 principal+security
-sign-off.
+enabled, and malformed-value cases). Cross-scope readiness gating, retry
+liveness handling, and the §11/§12 repo-local proofs are present. Activating the
+flag for a target deployment remains gated by ADR #1314 §14 principal+security
+sign-off and target deployment proof.
 
 Observability Evidence: the domain emits the `reducer.secrets_iam_graph_projection`
 span and three bounded-enum counters — `eshu_dp_secrets_iam_graph_nodes_written_total`
@@ -1350,9 +1350,10 @@ generation. The frozen `edge_type`/`skip_reason` dimension keys are unchanged
 (`go test ./internal/telemetry`).
 ### §11/§12 activation proofs (#1381)
 
-The ADR #1314 §11 fixture-truth and §12 performance proofs now exist so
-activation is ready the moment the §14 principal+security sign-off lands. The
-flag stays OFF by default and is unchanged; these are proof artifacts only.
+The ADR #1314 §11 fixture-truth, §12 performance, and repo-local backend
+conformance proofs now exist. Activation still requires the §14
+principal+security sign-off plus a target deployment decision/proof. The flag
+stays OFF by default and is unchanged; these are proof artifacts only.
 
 Benchmark Evidence (§12): `BenchmarkSecretsIAMGraphWriter`
 (`go/internal/storage/cypher/secrets_iam_graph_writer_bench_test.go`) writes all
@@ -1395,6 +1396,11 @@ unless `ESHU_SECRETS_IAM_GRAPH_LIVE=1` and Bolt env are configured, so the
 default test run never fabricates a live proof. Run with
 `go test ./internal/storage/cypher ./internal/reducer -run
 'SecretsIAMGraph|GraphProjection' -count=1`.
+
+The June 7 proof snapshot in
+`docs/internal/design/1314-secrets-iam-graph-promotion-proof-2026-06-07.md`
+records NornicDB and Neo4j live writer conformance, shared backend conformance,
+schema readback, focused package gates, and the §12 benchmark rerun.
 
 Activation remains blocked: enabling
 `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED` for live execution still
