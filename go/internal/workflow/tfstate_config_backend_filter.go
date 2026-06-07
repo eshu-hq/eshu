@@ -26,6 +26,10 @@ func validateTerraformStateBackendFilters(
 		if bucket != filter.Bucket {
 			return false, fmt.Errorf("terraform_state discovery backend_filters %d bucket must not have surrounding whitespace", index)
 		}
+		key := strings.Trim(strings.TrimSpace(filter.Key), "/")
+		if key != filter.Key {
+			return false, fmt.Errorf("terraform_state discovery backend_filters %d key must be relative and trimmed", index)
+		}
 		region := strings.ToLower(strings.TrimSpace(filter.Region))
 		if region != filter.Region {
 			return false, fmt.Errorf("terraform_state discovery backend_filters %d region must be lowercase and trimmed", index)

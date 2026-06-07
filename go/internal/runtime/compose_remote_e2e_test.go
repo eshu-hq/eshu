@@ -60,6 +60,7 @@ func TestRemoteE2EComposeExercisesTerraformStateBackendFilterDiscovery(t *testin
 		`"target_scope_id": "aws-e2e"`,
 		`"backend_kind": "s3"`,
 		`"bucket": "${ESHU_TFSTATE_S3_BUCKET:?set ESHU_TFSTATE_S3_BUCKET}"`,
+		`"key": "${ESHU_TFSTATE_S3_KEY:?set ESHU_TFSTATE_S3_KEY}"`,
 		`"region": "${ESHU_TFSTATE_S3_REGION:?set ESHU_TFSTATE_S3_REGION}"`,
 	} {
 		if !strings.Contains(content, want) {

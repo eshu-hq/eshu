@@ -10,9 +10,10 @@ func normalizedBackendFilters(filters []DiscoveryBackendFilter) []DiscoveryBacke
 			TargetScopeID: strings.TrimSpace(filter.TargetScopeID),
 			BackendKind:   BackendKind(strings.ToLower(strings.TrimSpace(string(filter.BackendKind)))),
 			Bucket:        strings.TrimSpace(filter.Bucket),
+			Key:           strings.Trim(strings.TrimSpace(filter.Key), "/"),
 			Region:        strings.ToLower(strings.TrimSpace(filter.Region)),
 		}
-		if item.TargetScopeID == "" && item.BackendKind == "" && item.Bucket == "" && item.Region == "" {
+		if item.TargetScopeID == "" && item.BackendKind == "" && item.Bucket == "" && item.Key == "" && item.Region == "" {
 			continue
 		}
 		if _, ok := seen[item]; ok {

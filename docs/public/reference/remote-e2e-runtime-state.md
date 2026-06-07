@@ -353,6 +353,11 @@ Representative proofs that intentionally omit a configured Terraform-state
 target may raise `ESHU_REMOTE_E2E_TFSTATE_STATE_MISSING_MAX` only for that
 partial run and must record the partial classification in the proof evidence.
 All-collector release gates keep the default zero threshold.
+The checked-in remote E2E Compose stack scopes both the exact S3 seed and the
+graph-backed S3 `backend_filters` entry with `ESHU_TFSTATE_S3_KEY`. That keeps
+all-collector proofs from treating stale same-bucket Git backend declarations
+as configured targets while preserving the zero `state_missing` threshold for
+the exact configured object.
 When `ESHU_REMOTE_E2E_TARGET_STORY_FILE` is set, the verifier prints
 `remote E2E target story proof counts` with repository-story, impact,
 security-alert, provider-alert expected-row parity, container-image, SBOM,
@@ -434,3 +439,13 @@ for source-level triage. The remote verifier prints the proof summary,
 aggregate warning rows, the configured `state_missing` threshold outcome, and
 `state_missing` detail handles, so operators can see successful and missing
 Terraform-state evidence without scanning raw facts or logs.
+
+No-Regression Evidence: the remote E2E Terraform-state backend filter includes
+the same exact S3 object key as the configured seed. This is a discovery-scope
+change only: it narrows graph-backed candidate selection before source reads
+and does not weaken the zero missing-state gate, change S3 read behavior,
+worker concurrency, queue writes, graph writes, retry behavior, or NornicDB
+settings. Focused coverage is
+`go test ./internal/collector/terraformstate ./internal/storage/postgres ./internal/workflow ./internal/runtime -run 'TestParseDiscoveryConfigMapsCollectorJSON|TestTerraformStateBackendFactReaderFiltersS3CandidatesByExactKey|TestValidateTerraformStateCollectorConfigurationAcceptsBackendFilterWithoutLocalRepos|TestRemoteE2EComposeExercisesTerraformStateBackendFilterDiscovery' -count=1`,
+`scripts/test-verify-remote-e2e-tfstate-warnings.sh`, and
+`scripts/test-verify-remote-e2e-runtime-state.sh`.

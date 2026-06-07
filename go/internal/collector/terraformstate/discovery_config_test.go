@@ -16,6 +16,7 @@ func TestParseDiscoveryConfigMapsCollectorJSON(t *testing.T) {
 				"target_scope_id": "aws-prod",
 				"backend_kind": "s3",
 				"bucket": "app-tfstate-prod",
+				"key": "services/api/terraform.tfstate",
 				"region": "us-east-1"
 			}],
 			"seeds": [{
@@ -48,6 +49,9 @@ func TestParseDiscoveryConfigMapsCollectorJSON(t *testing.T) {
 	}
 	if got, want := config.BackendFilters[0].Bucket, "app-tfstate-prod"; got != want {
 		t.Fatalf("BackendFilters[0].Bucket = %q, want %q", got, want)
+	}
+	if got, want := config.BackendFilters[0].Key, "services/api/terraform.tfstate"; got != want {
+		t.Fatalf("BackendFilters[0].Key = %q, want %q", got, want)
 	}
 	if got, want := config.BackendFilters[0].Region, "us-east-1"; got != want {
 		t.Fatalf("BackendFilters[0].Region = %q, want %q", got, want)

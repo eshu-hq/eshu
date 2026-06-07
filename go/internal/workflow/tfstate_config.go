@@ -25,6 +25,7 @@ type terraformStateBackendFilterConfig struct {
 	TargetScopeID string `json:"target_scope_id"`
 	BackendKind   string `json:"backend_kind"`
 	Bucket        string `json:"bucket"`
+	Key           string `json:"key"`
 	Region        string `json:"region"`
 }
 
