@@ -1,0 +1,28 @@
+go/internal/query/evidence-notes.md
+  s_f2f7fbb6f30866::t_591b170773d124 206-224
+go/internal/query/entity_workload_context.go
+  s_f2f7fbb6f30866::t_acaf35755b3caa 112-114
+go/internal/query/service_cloud_resource_dependency_test.go
+  s_f2f7fbb6f30866::t_7df8546975b1c6 263-293
+go/internal/query/cloud_resource_dependencies.go
+  s_f2f7fbb6f30866::t_120b78d0a995e5 102-105,125
+  s_f2f7fbb6f30866::t_cc8d7aa5df0d9b 83-101,106-124,126-203
+go/internal/query/impact_trace_deployment.go
+  s_f2f7fbb6f30866::t_df548c1395e063 84-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "42afe41bfdc97a607da1e8a031e7702999068946",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
