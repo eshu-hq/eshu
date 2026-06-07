@@ -154,6 +154,9 @@ Public-safe manifest shape:
   "expected_oci_repository_id": "oci-registry://registry.example/team/api",
   "expected_image_digest": "sha256:...",
   "expected_image_ref": "registry.example/team/api:tag",
+  "expected_image_package_missing_evidence": [
+    "oci_registry_target_outside_scope"
+  ],
   "expected_ci_cd_missing_evidence": [
     "source_to_ci_run_evidence_missing",
     "ci_run_to_image_artifact_evidence_missing"
@@ -228,8 +231,20 @@ digest/image-ref anchor, requires every expected class in
 `evidence_summary.missing_evidence`, and prints only comma-separated class
 names such as `source_to_ci_run_evidence_missing` or
 `ci_run_to_image_artifact_evidence_missing`. This proves a named missing hop
-without leaking repository names, image refs, digests, provider URLs, tokens,
-or local paths.
+without requiring live provider evidence.
+
+When image/runtime evidence is intentionally outside a focused proof, keep the
+image and SBOM minimums at `0` and set
+`expected_image_package_missing_evidence` to the stable service-story
+`image_package` classes the target proof must observe. The verifier then calls
+bounded API and MCP service-story readbacks, requires those classes, and prints
+only sanitized `image_package_missing_evidence`,
+`image_package_collector_scope`, `mcp_image_package_missing_evidence`, and
+`mcp_image_package_collector_scope` values. This distinguishes an out-of-scope
+OCI target, a pending collector target, an unreadable collector target, a
+scanned-but-missing identity, and a missing deployment image reference without
+printing repository selectors, image refs, digests, account ids, service ids,
+workload ids, URLs, or operator target values.
 
 Use `unsupported_target_evidence` only when the corresponding minimum is `0`.
 Allowed reason classes are `collector_disabled`, `source_not_configured`,
@@ -342,6 +357,7 @@ When `ESHU_REMOTE_E2E_TARGET_STORY_FILE` is set, the verifier prints
 security-alert, provider-alert expected-row parity, container-image, SBOM,
 service-story `image_package`, service-catalog count, service-catalog
 local-descriptor state, service-catalog external-confirmation state and reason,
+service-story image-package missing-evidence and collector-scope summaries,
 CI/CD count plus API and MCP list readback counts/states, cloud-resource,
 documentation, incident-context, work-item, and MCP readback counts/states
 including service-story and service-catalog evidence states. It does not print
@@ -352,12 +368,15 @@ credentials. API reads request the Eshu truth envelope, MCP reads require an
 envelope resource, and both reject successful-looking responses that omit truth
 level and freshness.
 Additional No-Regression Evidence: `scripts/test-verify-remote-e2e-target-story.sh`
+and `scripts/test-verify-remote-e2e-target-story-image-package-gaps.sh`
 proves the target-story helper accepts aligned repository, vulnerability,
 security-alert, image, SBOM, service-story `image_package`, service-catalog,
 CI/CD count/API-list/MCP-list readbacks, documentation, incident-context, and
 work-item counts; rejects mismatched security-alert counts when expected
 provider-alert rows mismatch; rejects
-missing target image evidence; rejects provider-alert repository mismatches;
+missing target image evidence; reports API and MCP service-story image-package
+missing-evidence and collector-scope classes for partial proofs; rejects
+provider-alert repository mismatches;
 rejects code-to-cloud manifests whose configured OCI image target does not
 align with the selected repository even when that image target has positive
 evidence;
