@@ -6,7 +6,8 @@
 // evidence gates, current Postgres content-search baselines, NornicDB backend
 // identity, issue #1264 accuracy and operability metrics, issue #417 hybrid
 // retrieval proof, issue #420 diagnostic relationship candidates, and issue
-// #1298 stopped evidence. It performs no database, graph, protocol, reranker,
-// or NornicDB I/O; live adapters must feed measured observations into this
-// contract and preserve derived or candidate truth labels.
+// #1298 stopped evidence, and issue #421 rerank/protocol close-out evidence.
+// It performs no database, graph, protocol, reranker, or NornicDB I/O; live
+// adapters must feed measured observations into this contract and preserve
+// derived or candidate truth labels.
 package searchbench

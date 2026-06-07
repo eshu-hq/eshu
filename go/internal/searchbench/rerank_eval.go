@@ -71,6 +71,7 @@ func ValidateRerankEvaluation(evaluation RerankEvaluation) error {
 	if len(evaluation.Results) == 0 {
 		problems = append(problems, "results are required")
 	}
+	problems = append(problems, validateRerankEvaluationResults(evaluation.Results)...)
 	return joinedValidationError(problems)
 }
 
@@ -204,6 +205,32 @@ func validateRerankBaselineEvidence(evidence RerankBaselineEvidence) []string {
 	}
 	if evidence.Mode != ModeHybrid {
 		problems = append(problems, "baseline_hybrid_evidence.mode must be hybrid")
+	}
+	return problems
+}
+
+func validateRerankEvaluationResults(results []RerankEvaluationResult) []string {
+	var problems []string
+	seen := make(map[string]int, len(results))
+	for i, result := range results {
+		prefix := fmt.Sprintf("results[%d]", i)
+		documentID := strings.TrimSpace(result.DocumentID)
+		if documentID == "" {
+			problems = append(problems, prefix+".document_id is required")
+		} else if previous, ok := seen[documentID]; ok {
+			problems = append(
+				problems,
+				fmt.Sprintf("%s.document_id duplicates %s from results[%d]", prefix, documentID, previous),
+			)
+		} else {
+			seen[documentID] = i
+		}
+		if result.BaselineRank <= 0 {
+			problems = append(problems, prefix+".baseline_rank is required")
+		}
+		if result.RerankedRank <= 0 {
+			problems = append(problems, prefix+".reranked_rank is required")
+		}
 	}
 	return problems
 }

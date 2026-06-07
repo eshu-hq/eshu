@@ -56,6 +56,12 @@ See `doc.go` for the godoc-rendered package contract.
 - `ValidateLinkPredictionEvaluation` enforces candidate shape, positive /
   negative / ambiguous coverage, candidate truth levels, zero canonical claims,
   relationship-gap improvement, and telemetry counts by algorithm and decision.
+- `RerankProtocolEvaluation` is the versioned issue #421 gate tying rerank and
+  protocol evidence to the same measured hybrid baseline, or recording why the
+  phase stopped before evaluation.
+- `ValidateRerankProtocolEvaluation` rejects issue #421 evidence without a
+  shared baseline, rerank record, protocol recommendation, or accepted stop
+  reason.
 - `RequiredFailureClasses` returns the operator-visible failure classes every
   benchmark must report.
 
@@ -132,6 +138,10 @@ neighbors in evidence records, logs, or spans, never metric labels.
 - Protocol recommendations are decision gates only. They must preserve API/MCP
   authorization, include fallback behavior, and show measured or explicitly
   deferred user value before any live protocol integration is proposed.
+- Issue #421 can proceed only when rerank and protocol evidence reference the
+  same measured `nornicdb_hybrid` baseline. If #417 has not produced measured
+  hybrid evidence, the only valid #421 record is an accepted stop reason that
+  names the #417 blocker.
 - NornicDB runs must record the effective search flags and both clean-volume and
   preserved-volume startup behavior.
 - Backend and mode pairs are fixed: Postgres and NornicDB BM25 use `keyword`,
