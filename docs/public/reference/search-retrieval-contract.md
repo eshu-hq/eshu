@@ -106,6 +106,27 @@ claim full #417 measured acceptance until live evidence proves pre-search
 scoping, or a documented design exception is accepted. There is still no
 whole-graph fallback and no public API/MCP exposure.
 
+## Postgres Keyword Baseline Adapter
+
+`go/internal/searchpostgres` implements the Postgres content-search baseline for
+internal benchmark runs. It wraps the existing Postgres content-store search
+methods, projects rows through `searchdocs`, and returns
+`postgres_content_search` candidates for `keyword` mode only.
+
+The adapter:
+
+- requires repository scope before touching the content store;
+- rejects service, workload, and environment-only scopes because the current
+  content store cannot pre-filter those anchors safely;
+- overfetches by one row per content lane so truncation is observed after
+  normalization;
+- skips rows that `searchdocs` excludes for missing stable handles, excluded
+  source kind, or sensitive context;
+- emits derived content-search documents, not canonical graph truth.
+
+This adapter is benchmark plumbing. It does not add a public route, MCP tool,
+runtime flag, graph write, or NornicDB search enablement.
+
 ## Response Contract
 
 `BuildResponse` sorts candidates by score descending and document id ascending,
@@ -135,15 +156,14 @@ recall, precision, nDCG, and false-canonical-claim metrics defined for issue
 
 This contract does not:
 
-- call Postgres;
 - read or write graph state;
 - expose HTTP or MCP routes;
 - add OpenAPI or MCP tool contracts;
 - enable default runtime search.
 
-The internal NornicDB adapter can call NornicDB when explicitly constructed by
-a benchmark or proof harness. The contract still does not enable default
-runtime search or public retrieval.
+The internal Postgres and NornicDB adapters can call their backends when
+explicitly constructed by a benchmark or proof harness. The contract still does
+not enable default runtime search or public retrieval.
 
 Those steps require later PRs with telemetry, capability envelopes, backend
 proof, and semantic-evaluation evidence.
@@ -153,7 +173,7 @@ proof, and semantic-evaluation evidence.
 Focused package gate:
 
 ```bash
-cd go && go test ./internal/searchretrieval ./internal/searchdocs ./internal/searchbench ./internal/searchnornicdb -count=1
+cd go && go test ./internal/searchretrieval ./internal/searchdocs ./internal/searchbench ./internal/searchnornicdb ./internal/searchpostgres -count=1
 ```
 
 Docs changes must also pass:

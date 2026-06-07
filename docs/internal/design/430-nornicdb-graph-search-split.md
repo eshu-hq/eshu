@@ -209,10 +209,13 @@ Recommended child slices:
    or MCP contracts. The first contract lives in
    `go/internal/searchdocs` and
    `docs/public/reference/search-document-projection.md`.
-3. Add a benchmark harness comparing current Postgres content search with
-   curated NornicDB BM25/vector retrieval. The first harness contract lives in
-   `go/internal/searchbench` and
-   `docs/public/reference/search-benchmark-evidence.md`.
+3. Partially done: add a benchmark harness comparing current Postgres content
+   search with curated NornicDB BM25/vector retrieval. The first harness
+   contract lives in `go/internal/searchbench` and
+   `docs/public/reference/search-benchmark-evidence.md`. The Postgres keyword
+   baseline adapter now lives in `go/internal/searchpostgres`; measured
+   Postgres-vs-NornicDB proof still needs a live suite run before any runtime
+   search change.
 4. Add bounded internal retrieval path for semantic-evaluation queries. The
    first request/response contract lives in `go/internal/searchretrieval` and
    `docs/public/reference/search-retrieval-contract.md`.
@@ -246,6 +249,20 @@ graph write timeout details, and runtime queue/admin status. Future curated
 BM25/vector retrieval must add the search-lane build, document-count,
 vector-count, artifact-size, duration, and failure-class signals named in this
 design before it becomes a supported production search surface.
+
+No-Regression Evidence: the Postgres baseline adapter is internal benchmark
+plumbing. It adds no API/MCP route, graph write, NornicDB call, schema change,
+worker, queue, runtime flag, or default search behavior. It reuses the existing
+Postgres content-store search methods and projects returned rows through
+`searchdocs` so candidates remain repository-scoped, derived content-search
+documents.
+
+No-Observability-Change: the Postgres baseline adapter is not a steady-state
+runtime path. Benchmark callers diagnose it through `searchretrieval.Runner`
+observations for mode, scope anchor, duration, result count, truncation,
+timeout, candidate truth-level counts, and failure classes, plus the existing
+Postgres query instrumentation on the content store. Production search-lane
+telemetry remains gated by Section 6 before any public surface exists.
 
 Source check date: 2026-06-02.
 
