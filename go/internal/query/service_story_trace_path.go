@@ -87,6 +87,9 @@ func serviceTraceImagePackageSegment(workloadContext map[string]any) map[string]
 		segment["candidate_image_refs"] = StringSliceVal(supplyChain, "candidate_image_refs")
 		segment["image_refs_truncated"] = BoolVal(supplyChain, "image_refs_truncated")
 		segment["missing_evidence"] = missing
+		if details := mapSliceValue(supplyChain, "missing_evidence_details"); len(details) > 0 {
+			segment["missing_evidence_details"] = details
+		}
 		return segment
 	}
 

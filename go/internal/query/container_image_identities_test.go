@@ -179,3 +179,25 @@ func TestContainerImageIdentityQueryUsesActiveFactReadModel(t *testing.T) {
 		}
 	}
 }
+
+func TestExplainContainerImageCandidateQueryUsesBoundedOCIScopeReadModel(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"scope.scope_id = $1",
+		"scope.collector_kind = 'oci_registry'",
+		"scope.scope_kind = 'container_registry_repository'",
+		"FROM workflow_work_items AS work",
+		"work.collector_kind = 'oci_registry'",
+		"work.scope_id = $1",
+		"fact.fact_kind = 'oci_registry.warning'",
+		"fact.is_tombstone = FALSE",
+		"generation.status = 'active'",
+		"fact.payload->>'repository_id' = $1",
+		"LIMIT 1",
+	} {
+		if !strings.Contains(explainContainerImageCandidateQuery, want) {
+			t.Fatalf("explainContainerImageCandidateQuery missing %q:\n%s", want, explainContainerImageCandidateQuery)
+		}
+	}
+}
