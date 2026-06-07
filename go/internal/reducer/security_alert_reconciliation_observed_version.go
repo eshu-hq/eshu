@@ -20,8 +20,8 @@ func applySecurityAlertDependencyEvidence(
 		decision.DependencyRange,
 	)
 	decision.ObservedVersion = securityAlertObservedVersion(alert, consumption)
-	decision.MissingEvidence = uniqueSortedStrings(append(
-		decision.MissingEvidence,
+	decision.PackageMissingEvidence = uniqueSortedStrings(append(
+		decision.PackageMissingEvidence,
 		securityAlertObservedVersionMissingEvidence(consumption, decision.ObservedVersion)...,
 	))
 }

@@ -7,31 +7,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// SecurityAlertReconciliationStatus names how one provider alert compares to
-// Eshu-owned dependency and impact evidence.
-type SecurityAlertReconciliationStatus string
-
-const (
-	// SecurityAlertReconciliationMatched means provider alert, owned
-	// dependency evidence, and reducer-owned impact evidence agree.
-	SecurityAlertReconciliationMatched SecurityAlertReconciliationStatus = "matched"
-	// SecurityAlertReconciliationUnmatched means Eshu sees the dependency but
-	// has not admitted matching impact evidence for the provider advisory IDs.
-	SecurityAlertReconciliationUnmatched SecurityAlertReconciliationStatus = "unmatched"
-	// SecurityAlertReconciliationStale means newer owned dependency evidence no
-	// longer matches the provider alert's manifest path.
-	SecurityAlertReconciliationStale SecurityAlertReconciliationStatus = "stale"
-	// SecurityAlertReconciliationDismissed means the provider alert is
-	// dismissed or auto-dismissed at the source.
-	SecurityAlertReconciliationDismissed SecurityAlertReconciliationStatus = "dismissed"
-	// SecurityAlertReconciliationFixed means the provider alert is fixed at the
-	// source.
-	SecurityAlertReconciliationFixed SecurityAlertReconciliationStatus = "fixed"
-	// SecurityAlertReconciliationProviderOnly means the alert has no matching
-	// owned dependency evidence in the active Eshu fact set.
-	SecurityAlertReconciliationProviderOnly SecurityAlertReconciliationStatus = "provider_only"
-)
-
 // SecurityAlertReconciliationDecision is one reducer-owned comparison between
 // a provider-reported repository alert and Eshu-owned evidence.
 type SecurityAlertReconciliationDecision struct {
@@ -78,12 +53,14 @@ type SecurityAlertReconciliationDecision struct {
 	RequestedRange              string
 	DependencyRange             string
 	Reason                      string
+	ReasonCode                  string
+	MissingEvidence             []SecurityAlertReconciliationMissingEvidence
+	PackageMissingEvidence      []string
 	CanonicalWrites             int
 	EvidenceFactIDs             []string
 	DependencyEvidenceID        string
 	DependencyEvidenceKind      string
 	ImpactEvidenceID            string
-	MissingEvidence             []string
 }
 
 // BuildSecurityAlertReconciliations compares provider-reported repository
@@ -319,18 +296,26 @@ func classifyProviderSecurityAlert(
 	case "dismissed", "auto_dismissed":
 		decision.Status = SecurityAlertReconciliationDismissed
 		decision.Reason = "provider alert is dismissed at the source"
+		decision.ReasonCode = securityAlertReasonProviderDismissed
 		return decision
 	case "fixed":
 		decision.Status = SecurityAlertReconciliationFixed
 		decision.Reason = "provider alert is fixed at the source"
+		decision.ReasonCode = securityAlertReasonProviderFixed
 		return decision
 	}
 
 	exactConsumption, staleConsumption, ambiguousConsumption := matchSecurityAlertConsumption(alert, consumptions)
 	if exactConsumption.factID == "" {
 		if ambiguousConsumption {
-			decision.Status = SecurityAlertReconciliationProviderOnly
+			decision.Status = SecurityAlertReconciliationAmbiguous
 			decision.Reason = "provider alert repository scope is ambiguous across owned dependency evidence"
+			decision.ReasonCode = securityAlertReasonOwnedDependencyAmbig
+			decision.MissingEvidence = securityAlertMissingEvidence(
+				"owned_dependency",
+				"multiple_repository_candidates",
+				"",
+			)
 			return decision
 		}
 		if staleConsumption.factID != "" {
@@ -340,22 +325,54 @@ func classifyProviderSecurityAlert(
 			applySecurityAlertDependencyEvidence(&decision, alert, staleConsumption)
 			decision.EvidenceFactIDs = uniqueSortedStrings(append(decision.EvidenceFactIDs, staleConsumption.factID))
 			decision.Reason = "newer owned dependency evidence no longer matches the provider alert manifest path"
+			decision.ReasonCode = securityAlertReasonProviderAlertStale
+			decision.MissingEvidence = securityAlertMissingEvidence(
+				"current_manifest",
+				"provider_manifest_no_longer_observed",
+				staleConsumption.factID,
+			)
+			return decision
+		}
+		if status, reasonCode, missing, ok := securityAlertUnsupportedTriage(alert); ok {
+			decision.Status = status
+			decision.Reason = "provider alert ecosystem is unsupported by the current Eshu impact matcher"
+			decision.ReasonCode = reasonCode
+			decision.MissingEvidence = missing
 			return decision
 		}
 		decision.Status = SecurityAlertReconciliationProviderOnly
 		decision.Reason = "provider alert has no matching owned dependency evidence"
+		decision.ReasonCode = securityAlertReasonOwnedDependencyMissed
+		decision.MissingEvidence = securityAlertMissingEvidence(
+			"owned_dependency",
+			"no_owned_dependency_evidence",
+			"",
+		)
 		return decision
 	}
 	decision.RepositoryID = exactConsumption.repositoryID
 	decision.RepositoryName = firstNonBlank(exactConsumption.repositoryName, decision.RepositoryName)
 	applySecurityAlertDependencyEvidence(&decision, alert, exactConsumption)
 	decision.EvidenceFactIDs = uniqueSortedStrings(append(decision.EvidenceFactIDs, exactConsumption.factID))
+	if status, reasonCode, missing, ok := securityAlertUnsupportedTriage(alert); ok {
+		decision.Status = status
+		decision.Reason = "provider alert ecosystem is unsupported by the current Eshu impact matcher"
+		decision.ReasonCode = reasonCode
+		decision.MissingEvidence = missing
+		return decision
+	}
 
 	alert.RepositoryID = exactConsumption.repositoryID
 	impact := matchSecurityAlertImpact(alert, impacts)
 	if impact.factID == "" {
 		decision.Status = SecurityAlertReconciliationUnmatched
 		decision.Reason = "owned dependency exists but no reducer impact finding matches the provider advisory identifiers"
+		decision.ReasonCode = securityAlertReasonImpactFindingMissing
+		decision.MissingEvidence = securityAlertMissingEvidence(
+			"impact_finding",
+			"no_matching_impact_finding",
+			exactConsumption.factID,
+		)
 		return decision
 	}
 	decision.Status = SecurityAlertReconciliationMatched
@@ -364,6 +381,7 @@ func classifyProviderSecurityAlert(
 	decision.ImpactEvidenceID = impact.factID
 	decision.EvidenceFactIDs = uniqueSortedStrings(append(decision.EvidenceFactIDs, impact.factID))
 	decision.Reason = "provider alert matches owned dependency and reducer impact evidence"
+	decision.ReasonCode = securityAlertReasonMatchedExactImpact
 	return decision
 }
 

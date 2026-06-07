@@ -100,7 +100,7 @@ func TestBuildSecurityAlertReconciliationsReportsMissingAndMalformedObservedVers
 			if got, want := decision.RequestedRange, tc.dependencyRange; got != want {
 				t.Fatalf("RequestedRange = %q, want %q", got, want)
 			}
-			assertContainsString(t, decision.MissingEvidence, tc.wantMissing)
+			assertContainsString(t, decision.PackageMissingEvidence, tc.wantMissing)
 		})
 	}
 }

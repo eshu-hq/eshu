@@ -351,6 +351,18 @@ func TestOpenAPISpecIncludesSecurityAlertReconciliations(t *testing.T) {
 	if _, ok := impactProps["impact_status"]; !ok {
 		t.Fatalf("eshu_impact.properties missing impact_status")
 	}
+	status := mustMapField(t, rowProps, "reconciliation_status")
+	statusEnum := mustStringSliceField(t, status, "enum")
+	for _, want := range []string{"unsupported", "ambiguous"} {
+		if !stringSliceContains(statusEnum, want) {
+			t.Fatalf("reconciliation_status enum = %#v, want %q", statusEnum, want)
+		}
+	}
+	for _, key := range []string{"reason_code", "missing_evidence"} {
+		if _, ok := rowProps[key]; !ok {
+			t.Fatalf("reconciliation row properties missing %q", key)
+		}
+	}
 }
 
 func TestOpenAPISpecIncludesContainerImageIdentities(t *testing.T) {

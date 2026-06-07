@@ -78,8 +78,10 @@ func OpenAPISpec() string {
 			openAPIPathsSecretsIAM+
 			openAPIPathsObservabilityCoverage+
 			openAPIPathsVulnerabilityScannerContract+
+			openAPIPathsSupplyChainContainerImages+
 			openAPIPathsSupplyChain+
 			openAPIPathsSupplyChainImpactAggregate+
+			openAPIPathsSecurityAlerts+
 			openAPIPathsSecurityAlertAggregate+
 			openAPIPathsContainerImageIdentityAggregate+
 			openAPIPathsSupplyChainAdvisoryEvidence+

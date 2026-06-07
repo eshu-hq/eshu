@@ -1,0 +1,5 @@
+# Security Alert Reconciliation Triage Evidence
+
+No-Regression Evidence: `go test ./internal/reducer ./internal/query ./internal/mcp -run 'TestBuildSecurityAlertReconciliationsExplains(TriageOutcomes|AmbiguousOwnedEvidence)|Test(DecodeSecurityAlertReconciliationRowPreservesTriageDetails|SupplyChainListSecurityAlertReconciliationsSurfacesTriageDetails|OpenAPISpecIncludesSecurityAlertReconciliations)|TestSecurityAlertReconciliationToolAdvertisesTriageFields' -count=1` failed before reducer rows carried `reason_code`, `missing_evidence`, `unsupported`, and `ambiguous` triage details, then passed after the reducer persisted those fields and the query/MCP surfaces exposed them.
+
+No-Observability-Change: the change adds no route, queue, worker, graph write, table, metric name, metric label, or runtime knob. Operators continue to diagnose the path through existing reducer execution spans/counters for `security_alert_reconciliation`, persisted `reducer_security_alert_reconciliation` payloads, the `query.supply_chain_security_alerts` handler span, and Postgres read timing through the instrumented reconciliation store.

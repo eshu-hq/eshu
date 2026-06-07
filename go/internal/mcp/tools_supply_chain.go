@@ -231,7 +231,7 @@ func supplyChainTools() []ToolDefinition {
 		},
 		{
 			Name:        "list_security_alert_reconciliations",
-			Description: "List reducer-owned provider security alert reconciliations by repository, provider, package, CVE, or GHSA anchor while keeping provider state separate from Eshu impact state. Rows expose Eshu-owned package evidence under eshu_package, including observed_version and missing_evidence, without copying provider fields into the observed version.",
+			Description: "List reducer-owned provider security alert reconciliations by repository, provider, package, CVE, or GHSA anchor while keeping provider state separate from Eshu impact state. Rows expose Eshu-owned package evidence under eshu_package, including observed_version and missing_evidence, and include reason_code plus structured missing_evidence details for provider_only, stale, unsupported, and ambiguous outcomes.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -263,7 +263,7 @@ func supplyChainTools() []ToolDefinition {
 					"reconciliation_status": map[string]any{
 						"type":        "string",
 						"description": "Reducer comparison filter for an anchored request.",
-						"enum":        []string{"matched", "unmatched", "stale", "dismissed", "fixed", "provider_only"},
+						"enum":        []string{"matched", "unmatched", "stale", "dismissed", "fixed", "provider_only", "unsupported", "ambiguous"},
 					},
 					"after_reconciliation_id": map[string]any{
 						"type":        "string",
