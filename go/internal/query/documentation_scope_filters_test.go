@@ -61,7 +61,7 @@ func TestBuildDocumentationFindingsSQLFiltersPersistedScopeIdentity(t *testing.T
 		"fact_records.scope_id = $1",
 		"fact_records.generation_id = $2",
 		"ingestion_scopes.payload->>'repo' = $3",
-		"fact_records.payload->>'finding_type' = $4",
+		"fact_records.payload->>'finding_type' = $",
 		"ORDER BY fact_records.observed_at DESC, fact_records.fact_id DESC",
 	} {
 		if !strings.Contains(query, fragment) {
@@ -82,8 +82,11 @@ func TestBuildDocumentationFindingsSQLFiltersPersistedScopeIdentity(t *testing.T
 			t.Fatalf("documentation findings SQL contains unqualified joined-column fragment %q: %s", fragment, query)
 		}
 	}
-	if got, want := args[:4], []any{"docs-scope", "gen-1", "acme/api", "command_truth"}; !equalDocumentationAnySlice(got, want) {
-		t.Fatalf("filter args = %#v, want %#v", got, want)
+	if got, want := args[:3], []any{"docs-scope", "gen-1", "acme/api"}; !equalDocumentationAnySlice(got, want) {
+		t.Fatalf("leading filter args = %#v, want %#v", got, want)
+	}
+	if !documentationArgsContain(args, "command_truth") {
+		t.Fatalf("filter args = %#v, want finding_type argument %q", args, "command_truth")
 	}
 }
 
@@ -140,4 +143,13 @@ func equalDocumentationAnySlice(got []any, want []any) bool {
 		}
 	}
 	return true
+}
+
+func documentationArgsContain(args []any, want string) bool {
+	for _, arg := range args {
+		if arg == want {
+			return true
+		}
+	}
+	return false
 }

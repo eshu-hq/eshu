@@ -136,12 +136,16 @@ const openAPIPathsEvidence = `
       "get": {
         "tags": ["documentation"],
         "summary": "List collected documentation facts",
-        "description": "Lists source-neutral documentation facts collected from systems such as Confluence. The route is bounded by limit/cursor and requires a scope or source/document/section anchor.",
+        "description": "Lists source-neutral documentation facts collected from systems such as Confluence. The route is bounded by limit/cursor and requires a scope, target, or source/document/section anchor.",
         "operationId": "listDocumentationFacts",
         "parameters": [
           {"name": "fact_kind", "in": "query", "schema": {"type": "string", "enum": ["source", "document", "section", "link", "entity_mention", "claim_candidate", "documentation_source", "documentation_document", "documentation_section", "documentation_link", "documentation_entity_mention", "documentation_claim_candidate"]}},
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Persisted documentation collector scope identifier"},
           {"name": "generation_id", "in": "query", "schema": {"type": "string"}, "description": "Persisted documentation collector generation identifier"},
+          {"name": "repo", "in": "query", "schema": {"type": "string"}, "description": "Repository target reference to match in documentation mention, claim, or finding payload refs"},
+          {"name": "target_kind", "in": "query", "schema": {"type": "string"}, "description": "Target reference kind such as repository or service"},
+          {"name": "target_id", "in": "query", "schema": {"type": "string"}, "description": "Canonical target reference id to match in documentation payload refs"},
+          {"name": "service_id", "in": "query", "schema": {"type": "string"}, "description": "Service target reference id; shorthand for target_kind=service and target_id=<service_id>"},
           {"name": "source_id", "in": "query", "schema": {"type": "string"}},
           {"name": "document_id", "in": "query", "schema": {"type": "string"}},
           {"name": "section_id", "in": "query", "schema": {"type": "string"}},
@@ -200,7 +204,7 @@ const openAPIPathsEvidence = `
       "get": {
         "tags": ["documentation"],
         "summary": "List documentation truth findings",
-        "description": "Lists read-only documentation truth findings from durable documentation finding facts for external updater actuators.",
+        "description": "Lists read-only documentation truth findings from durable documentation finding facts for external updater actuators. Target-scoped requests also return bounded raw documentation facts and coverage metadata so empty findings are explainable.",
         "operationId": "listDocumentationFindings",
         "parameters": [
           {"name": "finding_type", "in": "query", "schema": {"type": "string"}},
@@ -211,7 +215,10 @@ const openAPIPathsEvidence = `
           {"name": "freshness_state", "in": "query", "schema": {"type": "string"}},
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Persisted documentation verification scope identifier"},
           {"name": "generation_id", "in": "query", "schema": {"type": "string"}, "description": "Persisted documentation verification generation identifier"},
-          {"name": "repo", "in": "query", "schema": {"type": "string"}, "description": "Repository metadata recorded on the documentation ingestion scope"},
+          {"name": "repo", "in": "query", "schema": {"type": "string"}, "description": "Repository metadata recorded on the documentation ingestion scope or repository target reference in documentation payload refs"},
+          {"name": "target_kind", "in": "query", "schema": {"type": "string"}, "description": "Target reference kind such as repository or service"},
+          {"name": "target_id", "in": "query", "schema": {"type": "string"}, "description": "Canonical target reference id to match in documentation payload refs"},
+          {"name": "service_id", "in": "query", "schema": {"type": "string"}, "description": "Service target reference id; shorthand for target_kind=service and target_id=<service_id>"},
           {"name": "updated_since", "in": "query", "schema": {"type": "string", "format": "date-time"}},
           {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200}},
           {"name": "cursor", "in": "query", "schema": {"type": "string"}, "description": "Non-negative integer offset returned as next_cursor"}
@@ -225,7 +232,10 @@ const openAPIPathsEvidence = `
                   "type": "object",
                   "properties": {
                     "findings": {"type": "array", "items": {"type": "object"}},
-                    "next_cursor": {"type": "string"}
+                    "next_cursor": {"type": "string"},
+                    "coverage": {"type": "object", "description": "Present on target-scoped requests; reports the selected target, target-matching findings returned for explicit targets, related raw fact count, fact-kind buckets, and truncation."},
+                    "related_facts": {"type": "array", "items": {"type": "object"}, "description": "Bounded preview of raw documentation facts that reference the selected target scope."},
+                    "missing_evidence": {"type": "array", "items": {"type": "object"}, "description": "Reasons an empty target-scoped findings page is not the same as true documentation absence."}
                   },
                   "required": ["findings", "next_cursor"]
                 }

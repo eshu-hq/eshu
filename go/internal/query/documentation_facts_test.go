@@ -89,6 +89,11 @@ func TestDocumentationHandlerRequiresFactScopeOrAnchor(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 	assertDocumentationError(t, w.Body.Bytes(), "invalid_argument")
+	for _, anchor := range []string{"scope_id", "repo", "target_id", "service_id", "source_id", "document_id", "section_id"} {
+		if !strings.Contains(w.Body.String(), anchor) {
+			t.Fatalf("error body missing anchor %q: %s", anchor, w.Body.String())
+		}
+	}
 }
 
 func TestDocumentationHandlerAllowsSourceFactDiscovery(t *testing.T) {

@@ -30,6 +30,9 @@ type documentationFindingFilter struct {
 	ScopeID        string
 	GenerationID   string
 	Repository     string
+	TargetKind     string
+	TargetID       string
+	ServiceID      string
 	FindingType    string
 	SourceID       string
 	DocumentID     string
@@ -43,8 +46,11 @@ type documentationFindingFilter struct {
 }
 
 type documentationFindingListReadModel struct {
-	Findings   []map[string]any
-	NextCursor string
+	Findings        []map[string]any
+	NextCursor      string
+	RelatedFacts    []map[string]any
+	Coverage        documentationTargetCoverage
+	MissingEvidence []documentationMissingEvidence
 }
 
 type documentationEvidencePacketReadModel struct {
@@ -115,6 +121,9 @@ func (h *DocumentationHandler) listFindings(w http.ResponseWriter, r *http.Reque
 		ScopeID:        QueryParam(r, "scope_id"),
 		GenerationID:   QueryParam(r, "generation_id"),
 		Repository:     QueryParam(r, "repo"),
+		TargetKind:     QueryParam(r, "target_kind"),
+		TargetID:       QueryParam(r, "target_id"),
+		ServiceID:      QueryParam(r, "service_id"),
 		FindingType:    QueryParam(r, "finding_type"),
 		SourceID:       QueryParam(r, "source_id"),
 		DocumentID:     QueryParam(r, "document_id"),
@@ -130,10 +139,7 @@ func (h *DocumentationHandler) listFindings(w http.ResponseWriter, r *http.Reque
 		writeDocumentationInternalError(w, r)
 		return
 	}
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"findings":    readModel.Findings,
-		"next_cursor": readModel.NextCursor,
-	}, BuildTruthEnvelope(
+	WriteSuccess(w, r, http.StatusOK, documentationFindingsResponse(readModel), BuildTruthEnvelope(
 		h.profile(),
 		documentationFindingsCapability,
 		TruthBasisSemanticFacts,

@@ -13,6 +13,10 @@ type documentationFactFilter struct {
 	FactKind     string
 	ScopeID      string
 	GenerationID string
+	Repository   string
+	TargetKind   string
+	TargetID     string
+	ServiceID    string
 	SourceID     string
 	DocumentID   string
 	SectionID    string
@@ -87,6 +91,10 @@ func documentationFactRequestFilter(
 		FactKind:     factKind,
 		ScopeID:      QueryParam(r, "scope_id"),
 		GenerationID: QueryParam(r, "generation_id"),
+		Repository:   QueryParam(r, "repo"),
+		TargetKind:   QueryParam(r, "target_kind"),
+		TargetID:     QueryParam(r, "target_id"),
+		ServiceID:    QueryParam(r, "service_id"),
 		SourceID:     QueryParam(r, "source_id"),
 		DocumentID:   QueryParam(r, "document_id"),
 		SectionID:    QueryParam(r, "section_id"),
@@ -102,7 +110,7 @@ func documentationFactRequestFilter(
 			r,
 			http.StatusBadRequest,
 			ErrorCodeInvalidArgument,
-			"documentation facts require scope_id, source_id, document_id, or section_id",
+			"documentation facts require scope_id, repo, target_id, service_id, source_id, document_id, or section_id",
 			"",
 		)
 		return documentationFactFilter{}, false
@@ -115,6 +123,9 @@ func (f documentationFactFilter) hasScopeOrAnchor() bool {
 		return true
 	}
 	return strings.TrimSpace(f.ScopeID) != "" ||
+		strings.TrimSpace(f.Repository) != "" ||
+		strings.TrimSpace(f.TargetID) != "" ||
+		strings.TrimSpace(f.ServiceID) != "" ||
 		strings.TrimSpace(f.SourceID) != "" ||
 		strings.TrimSpace(f.DocumentID) != "" ||
 		strings.TrimSpace(f.SectionID) != ""

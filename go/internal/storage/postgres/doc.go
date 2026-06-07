@@ -44,6 +44,10 @@
 // active-reference index over OCI digest/tag observations and Git/AWS image
 // references, so an OCI scan can re-evaluate existing runtime references
 // without scanning unrelated facts.
+// Documentation fact readbacks use visible finding, source, packet, and
+// target-reference indexes so repo- or service-scoped documentation queries can
+// distinguish raw target facts from admissible findings without a broad JSONB
+// scan.
 // FactStore.LoadIncidentRoutingEvidence serves the PagerDuty incident-routing
 // graph materialization domain by loading incident-scoped anchors and
 // same-generation routing facts, then resolving Terraform-source
