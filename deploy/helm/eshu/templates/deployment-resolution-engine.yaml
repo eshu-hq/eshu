@@ -163,7 +163,7 @@ spec:
             {{- include "eshu.renderOtelEnv" (dict "Values" $root.Values "component" "resolution-engine") | nindent 12 }}
             {{- include "eshu.renderPrometheusEnv" $root | nindent 12 }}
             {{- include "eshu.renderNeo4jAuthEnv" $root | nindent 12 }}
-            {{- include "eshu.renderEnvMaps" (list $root.Values.env $lane.env) | nindent 12 }}
+            {{- include "eshu.renderEnvMaps" (list $root.Values.env $root.Values.resolutionEngine.env $lane.env) | nindent 12 }}
           ports:
             {{- if $root.Values.observability.prometheus.enabled }}
             - name: metrics

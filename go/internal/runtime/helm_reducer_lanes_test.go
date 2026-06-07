@@ -24,12 +24,17 @@ observability:
 resolutionEngine:
   enabled: true
   replicas: 1
+  env:
+    ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED: "true"
+    ESHU_REDUCER_WORKERS: "3"
   lanes:
     - name: code-graph
       domains:
         - sql_relationship_materialization
         - inheritance_materialization
       replicas: 3
+      env:
+        ESHU_REDUCER_WORKERS: "5"
       resources:
         requests:
           cpu: 750m
@@ -61,6 +66,8 @@ resolutionEngine:
 		"ESHU_REDUCER_CLAIM_DOMAINS",
 		"sql_relationship_materialization,inheritance_materialization",
 	)
+	assertHelmLiteralEnv(t, codeEnv, "ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED", "true")
+	assertHelmLiteralEnv(t, codeEnv, "ESHU_REDUCER_WORKERS", "5")
 	codeResources := helmMap(codeContainer["resources"])
 	codeRequests := helmMap(codeResources["requests"])
 	if got, want := helmString(codeRequests["cpu"]), "750m"; got != want {
@@ -75,6 +82,8 @@ resolutionEngine:
 	cloudContainer := requireHelmContainer(t, cloudDeployment, "resolution-engine")
 	cloudEnv := helmEnvByName(cloudContainer)
 	assertHelmLiteralEnv(t, cloudEnv, "ESHU_REDUCER_CLAIM_DOMAINS", "aws_cloud_runtime_drift")
+	assertHelmLiteralEnv(t, cloudEnv, "ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED", "true")
+	assertHelmLiteralEnv(t, cloudEnv, "ESHU_REDUCER_WORKERS", "3")
 
 	requireHelmManifest(t, manifests, "Service", "eshu-resolution-engine-code-graph-metrics")
 	requireHelmManifest(t, manifests, "Service", "eshu-resolution-engine-cloud-drift-metrics")

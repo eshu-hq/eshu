@@ -320,7 +320,7 @@ const (
 	// read model. See issue #1168.
 	DomainIncidentRoutingMaterialization Domain = "incident_routing_materialization"
 	// DomainSecretsIAMGraphProjection projects exact reducer secrets/IAM
-	// trust-chain read-model rows into the SecretsIAM* graph nodes and the four
+	// trust-chain read-model rows into the SecretsIAM* graph nodes and the five
 	// resolvable SECRETS_IAM_* edges. Only exact rows promote; non-exact states,
 	// privilege-posture observations, and posture gaps stay provenance-only, and a
 	// missing endpoint is skipped and counted, never fabricated (ADR #1314, #1347).
