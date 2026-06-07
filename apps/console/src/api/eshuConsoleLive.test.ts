@@ -388,6 +388,46 @@ describe("eshuConsoleLive", () => {
     expect(snap.truth.advisories?.capability).toBe("supply_chain.advisory_catalog.list");
   });
 
+  it("still resolves a degraded snapshot when one endpoint aborts (timeout)", async () => {
+    // Simulates issue #1680/#1678: index-status hangs and the client aborts it.
+    // The affected section must degrade gracefully (runtime falls back to its
+    // unknown-status baseline) while the rest of the snapshot still resolves,
+    // instead of leaving the app stuck "Connecting…".
+    const abort = (): never => {
+      throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+    };
+    const client = {
+      get: async (path: string) => {
+        if (path.includes("/ecosystem/overview")) abort();
+        if (path.includes("/catalog")) {
+          return {
+            data: { services: [{ id: "workload:api", name: "api", kind: "deployment", repo_name: "api" }] },
+            error: null,
+            truth: { profile: "production", level: "exact", capability: "x", freshness: { state: "fresh" } }
+          };
+        }
+        return { data: {}, error: null, truth: null };
+      },
+      getJson: async (path: string) => {
+        // index-status is the hung endpoint that aborts under timeout.
+        if (path.includes("/index-status")) abort();
+        return {};
+      },
+      post: async () => ({ data: {}, error: null, truth: null })
+    } as unknown as EshuApiClient;
+
+    const snap = await loadConsoleSnapshot(client);
+
+    // The snapshot resolved (no hang). The runtime section swallows its own
+    // optional sub-fetch failures and degrades to the unknown-status baseline
+    // rather than throwing, so the dashboard still renders.
+    expect(snap.runtime.indexStatus).toBe("unknown");
+    expect(snap.runtime.repositories).toBe(0);
+    // A healthy section still rendered live alongside the degraded one.
+    expect(snap.provenance.services).toBe("live");
+    expect(snap.services).toHaveLength(1);
+  });
+
   it("loads dashboard trend series from the metrics time-series endpoint", async () => {
     const requested: string[] = [];
     const client = {

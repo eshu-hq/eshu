@@ -1,4 +1,5 @@
 import { EshuApiClient } from "./client";
+import { inspectionRequest } from "../test/inspectionRequest";
 import { loadWorkspaceStory } from "./repository";
 
 describe("workspace story adapter", () => {
@@ -15,7 +16,7 @@ describe("workspace story adapter", () => {
   it("calls service story routes for private workload stories", async () => {
     const paths: string[] = [];
     const fetcher = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      const request = new Request(input, init);
+      const request = inspectionRequest(input, init);
       paths.push(new URL(request.url).pathname);
       return Response.json({
         data: {

@@ -1,4 +1,5 @@
 import { EshuApiClient } from "./client";
+import { inspectionRequest } from "../test/inspectionRequest";
 import {
   loadServiceChangeSurface,
   normalizeChangeSurfaceInvestigation
@@ -10,7 +11,7 @@ describe("change-surface investigation adapter", () => {
     const client = new EshuApiClient({
       baseUrl: "http://localhost:8080",
       fetcher: async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-        const request = new Request(input, init);
+        const request = inspectionRequest(input, init);
         calls.push(request);
         return Response.json({
           data: changeSurfacePayload(),
