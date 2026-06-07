@@ -342,6 +342,13 @@ var capabilityMatrix = map[string]capabilitySupport{
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	},
+	"platform_impact.container_image_list": {
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalAuthoritative,
+	},
 	"platform_impact.catalog": {
 		LocalLightweightMax:   &truthDerived,
 		LocalAuthoritativeMax: &truthExact,

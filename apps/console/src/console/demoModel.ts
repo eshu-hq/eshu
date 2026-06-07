@@ -93,8 +93,17 @@ export const demoModel: ConsoleModel = {
     { id: "CVE-2024-0001", package: "sample-lib", severity: "high", cvss: 8.1, kev: false, fixedVersion: "2.0.1", services: ["checkout-service"] }
   ],
   sbom: { total: 3, verified: 1, sbomCount: 2, attestationCount: 1 },
+  images: [
+    {
+      id: "oci-image://registry.example/sample/checkout@sha256:abc123", digest: "sha256:abc1234567890def",
+      repositoryId: "oci-registry://registry.example/sample/checkout", registry: "registry.example",
+      repository: "sample/checkout", name: "checkout", tag: "1.4.2",
+      mediaType: "application/vnd.oci.image.manifest.v1+json", artifactType: "",
+      configDigest: "sha256:cfg9876543210", sizeBytes: 28475610, sourceSystem: "oci_registry"
+    }
+  ],
   truth: {},
-  provenance: { runtime: "live", services: "live", findings: "live", vulnerabilities: "live" },
+  provenance: { runtime: "live", services: "live", findings: "live", vulnerabilities: "live", sbom: "live", images: "live" },
   graph: demoGraph,
   relationships: demoRelationships,
   series: demoSeries

@@ -23,6 +23,7 @@ import { DependenciesPage } from "./pages/DependenciesPage";
 import { ExplorerPage } from "./pages/ExplorerPage";
 import { RepositoriesPage } from "./pages/RepositoriesPage";
 import { RepoSourcePage } from "./pages/RepoSourcePage";
+import { ImagesPage } from "./pages/ImagesPage";
 import { ServiceDrawer } from "./components/ServiceDrawer";
 import "./styles.css";
 
@@ -31,6 +32,7 @@ const NAV: readonly { to: string; label: string }[] = [
   { to: "/explorer", label: "Graph Explorer" },
   { to: "/repositories", label: "Repositories" },
   { to: "/catalog", label: "Catalog" },
+  { to: "/images", label: "Images" },
   { to: "/findings", label: "Findings" },
   { to: "/vulnerabilities", label: "Vulnerabilities" },
   { to: "/sbom", label: "SBOM" },
@@ -134,6 +136,7 @@ export function App(): React.JSX.Element {
             <Route path="/repositories" element={<RepositoriesPage client={client} />} />
             <Route path="/repositories/:id/source" element={<RepoSourcePage client={client} />} />
             <Route path="/catalog" element={<CatalogPage model={model} onOpenService={openService} />} />
+            <Route path="/images" element={<ImagesPage client={client} />} />
             <Route path="/findings" element={<FindingsPage model={model} />} />
             <Route path="/vulnerabilities" element={<VulnerabilitiesPage model={model} />} />
             <Route path="/vulnerabilities/:id" element={<VulnDetailPage model={model} client={client} />} />

@@ -264,3 +264,43 @@ Regression guard: `TestGetEcosystemOverviewCountsEachLabelIndependently`.
 No-Observability-Change: the route keeps the same `Neo4jReader.RunSingle` /
 `neo4j.query` graph spans and the same response field shape; no new metric, log
 field, or span is added.
+
+## Container image (OCI) inventory list (#1645)
+
+`GET /api/v0/images` lists container images over the authoritative
+`(:ContainerImage)` graph. The anchor is a single label scan over
+`(:ContainerImage)`, bounded by `limit+1` (default 50, max 200) with optional
+exact filters on `digest`, `repository_id`, and `source_tag`, deterministic
+`ORDER BY img.digest, img.uid`, and offset-based continuation via `next_cursor`.
+`(:ContainerImage)` is the small image-inventory label, not the per-layer
+descriptor population, so a bounded label scan is the correct shape rather than
+an unindexed property anchor. The handler surfaces node properties only; in the
+current graph `ContainerImage` nodes carry no workload edges (`DEPLOYS_FROM` is
+Repository->Repository), so the list never fabricates a deploying-workload
+column.
+
+Performance Evidence: measured the exact handler Cypher shape against the warm
+local Compose backend (NornicDB, `nornic` database, `~/bg-repos` corpus,
+10 `ContainerImage` nodes) over the Bolt-HTTP tx endpoint with `limit+1=51`,
+`offset=0`, and empty filters. Warm priming call: 3.2 ms; three measured runs:
+0.82 ms, 0.71 ms, 1.02 ms wall time. The bounded label scan returns the full
+10-row inventory well inside the sub-second band the histogram buckets expect.
+The running API on `127.0.0.1:8080` already exposes the route
+(`GET /api/v0/images?limit=5` returns `401 unauthenticated` in 2.7 ms, not
+`404`), so the route is mounted; the load-bearing latency proof is the
+query-level measurement above.
+
+Observability Evidence: the handler emits the `query.container_image_list` span
+(`SpanQueryContainerImageList`) with `http.route` and
+`eshu.capability=platform_impact.container_image_list` attributes, the
+`eshu_dp_query_image_list_duration_seconds` histogram with a low-cardinality
+`outcome` label (`ok`, `invalid_request`, `query_error`,
+`unsupported_capability`, `backend_unavailable`), and the
+`eshu_dp_query_image_list_errors_total` counter with a bounded `reason` label.
+Responses carry `limit`, `offset`, `truncated`, and `next_cursor` so a slow or
+incomplete page is diagnosable from traces and payload alone.
+
+No-Regression Evidence: this PR adds a new bounded read; it changes no existing
+query, reducer, queue, or graph-write path. `go test ./internal/query -run
+'Image' -count=1` covers bounds parsing, truncation, filter pass-through, the
+registry/repository split, and the OpenAPI fragment.

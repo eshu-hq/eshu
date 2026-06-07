@@ -78,6 +78,7 @@ func OpenAPISpec() string {
 			openAPIPathsKubernetes+
 			openAPIPathsSecretsIAM+
 			openAPIPathsObservabilityCoverage+
+			openAPIPathsImages+
 			openAPIPathsVulnerabilityScannerContract+
 			openAPIPathsSupplyChainContainerImages+
 			openAPIPathsSupplyChain+

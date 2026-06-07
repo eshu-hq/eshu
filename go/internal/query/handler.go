@@ -124,6 +124,7 @@ type APIRouter struct {
 	Kubernetes            *KubernetesHandler
 	SecretsIAM            *SecretsIAMHandler
 	ObservabilityCoverage *ObservabilityCoverageHandler
+	Images                *ImageHandler
 	SupplyChain           *SupplyChainHandler
 	Incident              *IncidentHandler
 	WorkItems             *WorkItemHandler
@@ -223,6 +224,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Observability coverage
 	if a.ObservabilityCoverage != nil {
 		a.ObservabilityCoverage.Mount(mux)
+	}
+
+	// Container images (OCI)
+	if a.Images != nil {
+		a.Images.Mount(mux)
 	}
 
 	// Supply chain

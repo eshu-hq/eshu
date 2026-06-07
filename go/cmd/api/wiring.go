@@ -286,6 +286,10 @@ func newRouter(
 			Correlations: query.NewPostgresObservabilityCoverageCorrelationStore(db),
 			Profile:      queryProfile,
 		},
+		Images: &query.ImageHandler{
+			Neo4j:   neo4jReader,
+			Profile: queryProfile,
+		},
 		SupplyChain: &query.SupplyChainHandler{
 			Neo4j:                    neo4jReader,
 			Content:                  contentReader,
