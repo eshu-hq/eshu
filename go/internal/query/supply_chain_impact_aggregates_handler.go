@@ -220,6 +220,7 @@ func (h *SupplyChainHandler) supplyChainImpactAggregateFilterFromRequest(
 		PackageID:         QueryParam(r, "package_id"),
 		RepositoryID:      repositoryID,
 		SubjectDigest:     QueryParam(r, "subject_digest"),
+		ImageRef:          QueryParam(r, "image_ref"),
 		ImpactStatus:      QueryParam(r, "impact_status"),
 		Ecosystem:         QueryParam(r, "ecosystem"),
 		WorkloadID:        QueryParam(r, "workload_id"),
@@ -257,6 +258,9 @@ func supplyChainImpactAggregateScope(filter SupplyChainImpactAggregateFilter) ma
 	}
 	if filter.SubjectDigest != "" {
 		out["subject_digest"] = filter.SubjectDigest
+	}
+	if filter.ImageRef != "" {
+		out["image_ref"] = filter.ImageRef
 	}
 	if filter.ImpactStatus != "" {
 		out["impact_status"] = filter.ImpactStatus

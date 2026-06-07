@@ -49,6 +49,10 @@ WHERE fact.fact_kind IN (
     'reducer_platform_materialization',
     'reducer_service_catalog_correlation',
     'reducer_workload_identity',
+    'oci_registry.image_manifest',
+    'oci_registry.image_index',
+    'oci_registry.image_tag_observation',
+    'oci_registry.image_referrer',
     'file',
     'vulnerability.epss_score',
     'vulnerability.known_exploited'
@@ -66,6 +70,8 @@ WHERE fact.fact_kind IN (
       OR fact.payload->'scope'->>'subject_digest' = ANY($4::text[])
       OR fact.payload->>'digest' = ANY($4::text[])
       OR fact.payload->>'artifact_digest' = ANY($4::text[])
+      OR fact.payload->>'referrer_digest' = ANY($4::text[])
+      OR fact.payload->>'resolved_digest' = ANY($4::text[])
       OR fact.payload->>'cpe' = ANY($5::text[])
       OR fact.payload->>'criteria' = ANY($5::text[])
       OR fact.payload->>'document_id' = ANY($6::text[])

@@ -38,12 +38,12 @@ func NewPostgresSupplyChainImpactReadinessStore(
 // ReadSupplyChainImpactReadiness returns one snapshot of evidence-family
 // counts, latest observation, and freshness for the bounded readiness query.
 //
-// The store requires a fact-anchored scope (CVE, package, repository, or
-// subject digest). Advisory narrows source-advisory rows only when one of those
-// anchors is present. Derived scanner filters such as workload, service,
-// environment, ecosystem, severity, or impact_status are echoed in the target
-// scope but do not open a source-fact scan by themselves, because source facts
-// do not carry those reducer-owned attributes.
+// The store requires a fact-anchored scope (CVE, package, repository, subject
+// digest, or image reference). Advisory narrows source-advisory rows only when
+// one of those anchors is present. Derived scanner filters such as workload,
+// service, environment, ecosystem, severity, or impact_status are echoed in the
+// target scope but do not open a source-fact scan by themselves, because source
+// facts do not carry those reducer-owned attributes.
 func (s PostgresSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 	ctx context.Context,
 	query SupplyChainImpactReadinessQuery,
@@ -76,6 +76,7 @@ func (s PostgresSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 		query.RepositoryID,
 		query.SubjectDigest,
 		query.AdvisoryID,
+		query.ImageRef,
 	)
 	if err != nil {
 		return SupplyChainImpactReadinessSnapshot{}, fmt.Errorf("read supply chain impact readiness: %w", err)

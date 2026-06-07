@@ -64,6 +64,7 @@ type SupplyChainImpactTargetScope struct {
 	PackageID     string `json:"package_id,omitempty"`
 	RepositoryID  string `json:"repository_id,omitempty"`
 	SubjectDigest string `json:"subject_digest,omitempty"`
+	ImageRef      string `json:"image_ref,omitempty"`
 	Ecosystem     string `json:"ecosystem,omitempty"`
 	WorkloadID    string `json:"workload_id,omitempty"`
 	ServiceID     string `json:"service_id,omitempty"`
@@ -116,6 +117,7 @@ type SupplyChainImpactReadinessQuery struct {
 	PackageID     string
 	RepositoryID  string
 	SubjectDigest string
+	ImageRef      string
 	Ecosystem     string
 	WorkloadID    string
 	ServiceID     string
@@ -131,7 +133,8 @@ func (q SupplyChainImpactReadinessQuery) hasFactAnchor() bool {
 	return strings.TrimSpace(q.CVEID) != "" ||
 		strings.TrimSpace(q.PackageID) != "" ||
 		strings.TrimSpace(q.RepositoryID) != "" ||
-		strings.TrimSpace(q.SubjectDigest) != ""
+		strings.TrimSpace(q.SubjectDigest) != "" ||
+		strings.TrimSpace(q.ImageRef) != ""
 }
 
 // SupplyChainImpactReadinessSnapshot is the source-only evidence summary the
@@ -398,7 +401,7 @@ func scopeRequiresPackageRegistryMetadata(scope SupplyChainImpactTargetScope, so
 }
 
 func scopeRequiresImageEvidence(scope SupplyChainImpactTargetScope) bool {
-	return scope.SubjectDigest != ""
+	return scope.SubjectDigest != "" || scope.ImageRef != ""
 }
 
 func countFindingsByStatus(findings []SupplyChainImpactFindingResult) map[string]int {

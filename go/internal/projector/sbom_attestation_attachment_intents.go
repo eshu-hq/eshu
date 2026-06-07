@@ -32,7 +32,7 @@ func buildSBOMAttestationAttachmentReducerIntent(
 
 func sbomAttestationAttachmentTriggerFact(envelope facts.Envelope) bool {
 	switch envelope.FactKind {
-	case facts.SBOMDocumentFactKind, facts.AttestationStatementFactKind:
+	case facts.SBOMDocumentFactKind, facts.AttestationStatementFactKind, facts.OCIImageReferrerFactKind:
 		return true
 	default:
 		return false

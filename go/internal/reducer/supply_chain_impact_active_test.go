@@ -8,7 +8,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-const testImpactRepositoryFilterIDs = "git-repository-scope:" + testImpactRepositoryID + "," + testImpactRepositoryID
+const (
+	testImpactReferrerDigest      = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+	testImpactRepositoryFilterIDs = "git-repository-scope:" + testImpactRepositoryID + "," + testImpactRepositoryID
+)
 
 func TestSupplyChainImpactHandlerExpandsActiveEvidenceUntilSBOMImagePathIsLoaded(t *testing.T) {
 	t.Parallel()
@@ -94,6 +97,97 @@ func TestSupplyChainImpactHandlerExpandsActiveEvidenceUntilSBOMImagePathIsLoaded
 	if writer.write.Findings[0].RepositoryID != testImpactRepositoryID {
 		t.Fatalf("RepositoryID = %q, want %q", writer.write.Findings[0].RepositoryID, testImpactRepositoryID)
 	}
+}
+
+func TestSupplyChainImpactHandlerExpandsActiveEvidenceFromOCIReferrer(t *testing.T) {
+	t.Parallel()
+
+	loader := &stubSupplyChainImpactFactLoader{
+		scopeFacts: []facts.Envelope{
+			ociImageReferrerFact(
+				"referrer-1",
+				testImpactSubjectDigest,
+				testImpactReferrerDigest,
+				"application/vnd.cyclonedx+json",
+			),
+		},
+		activeForFilter: func(filter SupplyChainImpactFactFilter) []facts.Envelope {
+			switch {
+			case len(filter.SubjectDigests) > 0:
+				return []facts.Envelope{
+					sbomAttachmentImpactFact("attachment-1", "doc-1", testImpactSubjectDigest),
+					containerImageIdentityImpactFact("image-1", testImpactSubjectDigest, testImpactRepositoryID),
+				}
+			case len(filter.DocumentIDs) > 0:
+				return []facts.Envelope{
+					sbomComponentImpactFact("component-1", "doc-1", testImpactPURL),
+				}
+			case len(filter.PURLs) > 0:
+				affected := vulnerabilityAffectedPackageFact(
+					"affected-1",
+					"CVE-2026-1457",
+					testImpactPackageID,
+					"npm",
+					"example",
+					"1.2.3",
+					"1.3.0",
+				)
+				affected.Payload["purl"] = testImpactPURL
+				return []facts.Envelope{
+					vulnerabilityCVEFact("cve-1", "CVE-2026-1457", 9.4),
+					affected,
+				}
+			default:
+				return nil
+			}
+		},
+	}
+	writer := &recordingSupplyChainImpactWriter{}
+	handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+
+	result, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-impact-oci",
+		ScopeID:      "oci-registry://registry.example.com/team/api",
+		GenerationID: "generation-oci",
+		SourceSystem: "oci_registry",
+		Domain:       DomainSupplyChainImpact,
+		Cause:        "OCI image subject evidence observed",
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+
+	if got, want := len(loader.filters), 4; got != want {
+		t.Fatalf("active evidence loads = %d, want %d: %#v", got, want, loader.filters)
+	}
+	if got, want := strings.Join(loader.filters[0].SubjectDigests, ","), testImpactSubjectDigest+","+testImpactReferrerDigest; got != want {
+		t.Fatalf("initial subject digests = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(loader.filters[1].DocumentIDs, ","), "doc-1"; got != want {
+		t.Fatalf("follow-up document IDs = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(loader.filters[1].RepositoryIDs, ","), testImpactRepositoryFilterIDs; got != want {
+		t.Fatalf("document follow-up repository IDs = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(loader.filters[2].PURLs, ","), testImpactPURL; got != want {
+		t.Fatalf("follow-up PURLs = %q, want %q", got, want)
+	}
+	if result.CanonicalWrites != 1 {
+		t.Fatalf("CanonicalWrites = %d, want 1", result.CanonicalWrites)
+	}
+	if got, want := len(writer.write.Findings), 1; got != want {
+		t.Fatalf("len(Findings) = %d, want %d", got, want)
+	}
+	got := writer.write.Findings[0]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedDerived)
+	if got.SubjectDigest != testImpactSubjectDigest {
+		t.Fatalf("SubjectDigest = %q, want %q", got.SubjectDigest, testImpactSubjectDigest)
+	}
+	if got.RepositoryID != testImpactRepositoryID {
+		t.Fatalf("RepositoryID = %q, want %q", got.RepositoryID, testImpactRepositoryID)
+	}
+	assertContainsString(t, got.EvidenceFactIDs, "attachment-1")
+	assertContainsString(t, got.EvidenceFactIDs, "image-1")
 }
 
 func TestSupplyChainImpactHandlerLoadsActiveWorkloadIdentityForRepositoryFinding(t *testing.T) {

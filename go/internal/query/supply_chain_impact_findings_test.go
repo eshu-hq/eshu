@@ -250,6 +250,29 @@ func TestSupplyChainListImpactFindingsDoesNotReportPresentCatalogCorrelationAsMi
 	}
 }
 
+func TestSupplyChainListImpactFindingsUsesImageRefScope(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingSupplyChainImpactFindingStore{}
+	handler := &SupplyChainHandler{ImpactFindings: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/supply-chain/impact/findings?image_ref=registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := store.lastFilter.ImageRef, "registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; got != want {
+		t.Fatalf("ImageRef = %q, want %q", got, want)
+	}
+}
+
 func TestSupplyChainImpactFindingQueryUsesActiveFactReadModel(t *testing.T) {
 	t.Parallel()
 
@@ -263,6 +286,7 @@ func TestSupplyChainImpactFindingQueryUsesActiveFactReadModel(t *testing.T) {
 		"fact.payload->>'repository_id' = $4",
 		"fact.payload->>'subject_digest' = $5",
 		"fact.payload->>'impact_status' = $6",
+		"fact.payload->>'image_ref' = $16",
 	} {
 		if !strings.Contains(listSupplyChainImpactFindingsQuery, want) {
 			t.Fatalf("listSupplyChainImpactFindingsQuery missing %q:\n%s", want, listSupplyChainImpactFindingsQuery)

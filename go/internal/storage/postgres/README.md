@@ -275,11 +275,20 @@ blocked cross-scope endpoint readiness.
   graph write, worker, runtime knob, metric name, or metric label changed.
 - `ListActiveSupplyChainImpactFacts` includes provider security alerts in the
   same package/repository-bounded read used for vulnerability, package, SBOM,
-  image, and service evidence. This lets alert-seeded impact admission reuse
-  active owned dependency evidence without scanning all repository alerts.
+  image, OCI registry, and service evidence. The selector includes raw OCI
+  manifest, index, tag-observation, and referrer facts only behind package,
+  digest, repository, or image-reference predicates, so reducers can recover
+  image/SBOM anchors without scanning the whole registry fact set. This lets
+  alert-seeded impact admission reuse active owned dependency evidence without
+  scanning all repository alerts.
   Reducer reconciliation keeps provider-scoped repository IDs separate from
   canonical `repository_id` values, so Postgres fact payloads should preserve
   both when the source uses a provider-owned repository namespace.
+- `ListActiveSBOMAttestationAttachmentFacts` keeps attachment repair bounded by
+  subject digest, document id/digest, statement id/digest, payload digest, and
+  referrer digest. It may read active SBOM document/component and attestation
+  evidence plus OCI referrer facts, but it must not infer an attachment unless
+  reducer-owned subject evidence can prove the join.
 - Supply-chain impact parser-file follow-up is separate from normal repository
   follow-up. Repository IDs still load bounded context facts such as workload,
   service, image, CI/CD, and suppression evidence, but active `file` facts only

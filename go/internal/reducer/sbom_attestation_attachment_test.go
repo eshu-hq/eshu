@@ -17,11 +17,12 @@ const (
 )
 
 type stubSBOMAttestationAttachmentFactLoader struct {
-	scopeFacts []facts.Envelope
-	active     []facts.Envelope
-	kindCalls  [][]string
-	activeCall int
-	digests    []string
+	scopeFacts  []facts.Envelope
+	active      []facts.Envelope
+	kindCalls   [][]string
+	activeCall  int
+	digests     []string
+	digestCalls [][]string
 }
 
 func (s *stubSBOMAttestationAttachmentFactLoader) ListFacts(
@@ -48,6 +49,7 @@ func (s *stubSBOMAttestationAttachmentFactLoader) ListActiveSBOMAttestationAttac
 ) ([]facts.Envelope, error) {
 	s.activeCall++
 	s.digests = append([]string(nil), digests...)
+	s.digestCalls = append(s.digestCalls, append([]string(nil), digests...))
 	return append([]facts.Envelope(nil), s.active...), nil
 }
 
@@ -151,7 +153,7 @@ func TestSBOMAttestationAttachmentHandlerLoadsActiveSubjectEvidence(t *testing.T
 	if loader.activeCall != 1 {
 		t.Fatalf("ListActiveSBOMAttestationAttachmentFacts() calls = %d, want 1", loader.activeCall)
 	}
-	if got, want := strings.Join(loader.digests, ","), testSBOMSubjectDigest; got != want {
+	if got, want := strings.Join(loader.digestCalls[0], ","), "doc-verified,sha256:1111111111111111111111111111111111111111111111111111111111111111,"+testSBOMSubjectDigest; got != want {
 		t.Fatalf("active digests = %q, want %q", got, want)
 	}
 	if got, want := strings.Join(loader.kindCalls[0], ","), strings.Join(sbomAttestationAttachmentFactKinds(), ","); got != want {
@@ -160,6 +162,53 @@ func TestSBOMAttestationAttachmentHandlerLoadsActiveSubjectEvidence(t *testing.T
 	if !strings.Contains(result.EvidenceSummary, "attached_verified=1") {
 		t.Fatalf("EvidenceSummary = %q, want attached_verified count", result.EvidenceSummary)
 	}
+}
+
+func TestSBOMAttestationAttachmentHandlerLoadsActiveDocumentEvidenceForReferrer(t *testing.T) {
+	t.Parallel()
+
+	documentDigest := "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+	loader := &stubSBOMAttestationAttachmentFactLoader{
+		scopeFacts: []facts.Envelope{
+			ociImageReferrerFact("referrer-verified", testSBOMSubjectDigest, documentDigest, "application/vnd.cyclonedx+json"),
+		},
+		active: []facts.Envelope{
+			sbomDocumentFact("doc-verified", "doc-verified", testSBOMSubjectDigest, documentDigest, "parsed", "verified"),
+			sbomComponentFact("component-verified", "doc-verified", "pkg:npm/example@1.2.3"),
+		},
+	}
+	writer := &recordingSBOMAttestationAttachmentWriter{}
+	handler := SBOMAttestationAttachmentHandler{
+		FactLoader: loader,
+		Writer:     writer,
+	}
+
+	result, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-sbom-referrer",
+		ScopeID:      "oci-registry://registry.example.com/team/api",
+		GenerationID: "generation-oci",
+		SourceSystem: "oci_registry",
+		Domain:       DomainSBOMAttestationAttachment,
+		Cause:        "OCI referrer subject evidence observed",
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if result.CanonicalWrites != 1 {
+		t.Fatalf("CanonicalWrites = %d, want 1", result.CanonicalWrites)
+	}
+	if got, want := strings.Join(loader.digestCalls[0], ","), documentDigest+","+testSBOMSubjectDigest; got != want {
+		t.Fatalf("active digests = %q, want %q", got, want)
+	}
+	if got, want := len(writer.write.Decisions), 1; got != want {
+		t.Fatalf("len(Decisions) = %d, want %d", got, want)
+	}
+	got := writer.write.Decisions[0]
+	assertSBOMAttachmentDecision(t, got, SBOMAttachmentAttachedVerified, 1)
+	if got.ComponentCount != 1 {
+		t.Fatalf("ComponentCount = %d, want 1", got.ComponentCount)
+	}
+	assertContainsString(t, got.EvidenceFactIDs, "referrer-verified")
 }
 
 func TestPostgresSBOMAttestationAttachmentWriterPersistsAllStatuses(t *testing.T) {

@@ -27,12 +27,12 @@ const supplyChainImpactPayloadFindingIDPresentSQL = `CASE
        END`
 
 const supplyChainImpactSeverityBucketFactSQL = `CASE
-		WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) >= 9.0 THEN 'critical'
-		WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) >= 7.0 THEN 'high'
-		WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) >= 4.0 THEN 'medium'
-		WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) > 0.0  THEN 'low'
-		ELSE 'none'
-	END`
+    WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) >= 9.0 THEN 'critical'
+    WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) >= 7.0 THEN 'high'
+    WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) >= 4.0 THEN 'medium'
+    WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) > 0.0  THEN 'low'
+    ELSE 'none'
+  END`
 
 const listSupplyChainImpactFindingsQuery = `
 WITH scoped_facts AS (
@@ -79,26 +79,27 @@ WHERE fact.fact_kind = $1
                     'not_affected_known_fixed'
                   )
               AND COALESCE(fact.payload->>'observed_version', '') <> ''
-	              AND fact.payload->>'match_reason' IN (
-	                    'npm_semver_affected_range',
-	                    'npm_semver_known_fixed',
-	                    'nuget_semver_affected_range',
-	                    'nuget_semver_known_fixed',
-	                    'cargo_semver_affected_range',
-	                    'cargo_semver_known_fixed',
-	                    'hex_semver_affected_range',
-	                    'hex_semver_known_fixed',
-	                    'maven_range_match',
-	                    'maven_known_fixed',
-	                    'swift_semver_affected_range',
-	                    'swift_semver_known_fixed'
-	                  )
-	           )
-	      )
-  AND ($14 = '' OR fact.payload->>'priority_bucket' = $14)
-  AND ($15 = 0 OR COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) >= $15)
-  AND ($19 = '' OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') = $19)
-  AND ($20::boolean OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') NOT IN ('not_affected','accepted_risk','false_positive','ignored'))
+                AND fact.payload->>'match_reason' IN (
+                      'npm_semver_affected_range',
+                      'npm_semver_known_fixed',
+                      'nuget_semver_affected_range',
+                      'nuget_semver_known_fixed',
+                      'cargo_semver_affected_range',
+                      'cargo_semver_known_fixed',
+                      'hex_semver_affected_range',
+                      'hex_semver_known_fixed',
+                      'maven_range_match',
+                      'maven_known_fixed',
+                      'swift_semver_affected_range',
+                      'swift_semver_known_fixed'
+                    )
+             )
+        )
+    AND ($14 = '' OR fact.payload->>'priority_bucket' = $14)
+    AND ($15 = 0 OR COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) >= $15)
+    AND ($16 = '' OR fact.payload->>'image_ref' = $16)
+    AND ($20 = '' OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') = $20)
+    AND ($21::boolean OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') NOT IN ('not_affected','accepted_risk','false_positive','ignored'))
 ),
 ranked_facts AS (
 SELECT *,
@@ -115,31 +116,31 @@ WHERE canonical_rank = 1
 )
 SELECT finding_id, source_confidence, payload
 FROM canonical_facts
-WHERE $16 = ''
-   OR ($17 = 'finding_id' AND finding_id > $16)
+WHERE $17 = ''
+   OR ($18 = 'finding_id' AND finding_id > $17)
    OR (
-      $17 = 'priority_score_desc'
+      $18 = 'priority_score_desc'
       AND (
-        priority_score < COALESCE((SELECT cursor.priority_score FROM canonical_facts AS cursor WHERE cursor.finding_id = $16), -1)
+        priority_score < COALESCE((SELECT cursor.priority_score FROM canonical_facts AS cursor WHERE cursor.finding_id = $17), -1)
         OR (
-          priority_score = COALESCE((SELECT cursor.priority_score FROM canonical_facts AS cursor WHERE cursor.finding_id = $16), -1)
-          AND finding_id > $16
+          priority_score = COALESCE((SELECT cursor.priority_score FROM canonical_facts AS cursor WHERE cursor.finding_id = $17), -1)
+          AND finding_id > $17
         )
       )
    )
    OR (
-      $17 = 'priority_score_asc'
+      $18 = 'priority_score_asc'
       AND (
-        priority_score > COALESCE((SELECT cursor.priority_score FROM canonical_facts AS cursor WHERE cursor.finding_id = $16), 101)
+        priority_score > COALESCE((SELECT cursor.priority_score FROM canonical_facts AS cursor WHERE cursor.finding_id = $17), 101)
         OR (
-          priority_score = COALESCE((SELECT cursor.priority_score FROM canonical_facts AS cursor WHERE cursor.finding_id = $16), 101)
-          AND finding_id > $16
+          priority_score = COALESCE((SELECT cursor.priority_score FROM canonical_facts AS cursor WHERE cursor.finding_id = $17), 101)
+          AND finding_id > $17
         )
       )
    )
 ORDER BY
-  CASE WHEN $17 = 'priority_score_desc' THEN priority_score END DESC,
-  CASE WHEN $17 = 'priority_score_asc' THEN priority_score END ASC,
+  CASE WHEN $18 = 'priority_score_desc' THEN priority_score END DESC,
+  CASE WHEN $18 = 'priority_score_asc' THEN priority_score END ASC,
   finding_id ASC
-LIMIT $18
+LIMIT $19
 `

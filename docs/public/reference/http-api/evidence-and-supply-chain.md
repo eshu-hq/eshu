@@ -243,7 +243,7 @@ model query runs.
 | `repository_id` | derived, exact, provider-only | Repository selector resolution plus reducer/provider Postgres read models. |
 | `package_id` | exact | Active reducer impact facts and provider reconciliation facts. |
 | `cve_id`, `advisory_id`, `ghsa_id`, `osv_id` | exact, provider-only | Payload advisory identifiers on reducer and provider reconciliation facts. |
-| `subject_digest`, `digest` | exact, missing-evidence driven | Impact, SBOM, and container-image read models. |
+| `subject_digest`, `digest`, `image_ref` | exact, missing-evidence driven | Impact, SBOM, and container-image read models. |
 | `workload_id`, `service_id`, `environment` | derived, missing-evidence driven | Reducer impact arrays populated only from admitted runtime/service evidence. |
 | `ecosystem` | exact, unsupported | Impact payload ecosystem predicate; unsupported ecosystems stay in readiness gaps. |
 | `language` | unsupported | No scanner read model maps source language to vulnerability impact truth. |
@@ -269,6 +269,7 @@ Lists reducer-owned vulnerability impact findings. The caller must provide
 - `package_id`
 - `repository_id`
 - `subject_digest`
+- `image_ref`
 - `impact_status`
 - `ecosystem`
 - `workload_id`
@@ -285,10 +286,20 @@ reducer impact facts; unknown or ambiguous selectors return a selector error.
 The count and inventory aggregate routes use the same repository selector
 resolution before reading reducer-owned aggregate facts. Aggregates also accept
 the list route's `advisory_id`, `ecosystem`, `workload_id`, `service_id`,
-`environment`, `severity`, `profile`, `priority_bucket`,
+`environment`, `severity`, `profile`, `priority_bucket`, `image_ref`,
 `min_priority_score`, `suppression_state`, and `include_suppressed` filters and
 default to the same low-noise precise, unsuppressed semantics. `sort`,
 `after_finding_id`, and list pagination remain list-only controls.
+
+`image_ref` is an exact reducer-owned image reference filter on impact finding
+payloads. It does not infer tags from repository names or container image
+registries; findings appear for an image reference only after reducer evidence
+has joined explicit OCI image identity, SBOM attachment/component, package, and
+advisory facts.
+
+No-Regression Evidence: `go test ./internal/projector -run 'TestBuildProjectionQueues(ContainerImageIdentityForOCIReferrer|SupplyChainImpactForSBOMComponentEvidence|SupplyChainImpactForOCIReferrerEvidence|SBOMAttestationAttachmentForOCIReferrerEvidence)' -count=1`, `go test ./internal/reducer -run 'Test(SupplyChainImpactHandlerExpandsActiveEvidenceFromOCIReferrer|SBOMAttestationAttachmentHandlerLoadsActiveDocumentEvidenceForReferrer)' -count=1`, `go test ./internal/query -run 'TestSupplyChainListImpactFindingsUsesImageRefScope|TestSupplyChainImpactFindingQueryUsesActiveFactReadModel|TestPostgresSupplyChainImpactReadinessScansForImageRefScope' -count=1`, `go test ./internal/mcp -run TestResolveRouteMapsSupplyChainImpactFindingsToBoundedQuery -count=1`, and `go test ./internal/storage/postgres -run 'TestListActive(SupplyChainImpactFactsQueryIsPackageBoundedAndPaged|SBOMAttestationAttachmentFactsQueryIsDigestBoundedAndPaged)' -count=1` failed before reducer/source-fact routing, active evidence reads, API/MCP `image_ref` forwarding, and image-ref readiness anchoring were wired, then passed.
+
+No-Observability-Change: the change reuses existing projector/reducer work items, reducer execution spans and counters, Postgres query timing, `query.supply_chain_impact_findings`, `query.supply_chain_impact_aggregate`, MCP dispatch logging, readiness envelopes, and durable `reducer_supply_chain_impact_finding` / `reducer_sbom_attestation_attachment` payloads. It adds no worker, queue domain, graph write, metric instrument, metric label, or runtime deployment knob.
 
 Valid impact statuses are `affected_exact`, `affected_derived`,
 `possibly_affected`, `not_affected_known_fixed`, and `unknown_impact`.

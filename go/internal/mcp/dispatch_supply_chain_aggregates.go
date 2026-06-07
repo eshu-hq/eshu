@@ -25,6 +25,7 @@ func supplyChainImpactAggregateFilterQuery(args map[string]any) map[string]strin
 		"ecosystem":          str(args, "ecosystem"),
 		"environment":        str(args, "environment"),
 		"ghsa_id":            str(args, "ghsa_id"),
+		"image_ref":          str(args, "image_ref"),
 		"osv_id":             str(args, "osv_id"),
 		"package_id":         str(args, "package_id"),
 		"profile":            str(args, "profile"),

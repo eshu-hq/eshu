@@ -15,6 +15,7 @@ func TestResolveRouteMapsSupplyChainImpactFindingsToBoundedQuery(t *testing.T) {
 	route, err := resolveRoute("list_supply_chain_impact_findings", map[string]any{
 		"after_finding_id": "finding-1",
 		"cve_id":           "CVE-2026-0001",
+		"image_ref":        "registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		"impact_status":    "affected_exact",
 		"profile":          "comprehensive",
 		"limit":            float64(25),
@@ -33,6 +34,9 @@ func TestResolveRouteMapsSupplyChainImpactFindingsToBoundedQuery(t *testing.T) {
 	}
 	if got, want := route.query["impact_status"], "affected_exact"; got != want {
 		t.Fatalf("route.query[impact_status] = %#v, want %#v", got, want)
+	}
+	if got, want := route.query["image_ref"], "registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; got != want {
+		t.Fatalf("route.query[image_ref] = %#v, want %#v", got, want)
 	}
 	if got, want := route.query["limit"], "25"; got != want {
 		t.Fatalf("route.query[limit] = %#v, want %#v", got, want)

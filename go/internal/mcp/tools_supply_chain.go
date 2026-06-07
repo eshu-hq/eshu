@@ -87,6 +87,10 @@ func supplyChainTools() []ToolDefinition {
 						"type":        "string",
 						"description": "Image or artifact digest from SBOM/runtime evidence.",
 					},
+					"image_ref": map[string]any{
+						"type":        "string",
+						"description": "Exact image reference stored on reducer-owned impact findings.",
+					},
 					"impact_status": map[string]any{
 						"type":        "string",
 						"description": "Optional reducer impact status filter.",

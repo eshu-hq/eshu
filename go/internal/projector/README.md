@@ -186,14 +186,15 @@ node and `aws_resource_materialization:<scope>` for the EBS/KMS facts. The
 projector does not join block devices to volumes or KMS keys and does not set
 EC2 graph properties.
 Container-image identity follows the same handoff rule: when a generation
-contains OCI digest/tag facts, AWS image-reference facts, AWS container-image
-relationships, or Git content-entity image references,
+contains OCI digest/tag/referrer facts, AWS image-reference facts, AWS
+container-image relationships, or Git content-entity image references,
 `buildContainerImageIdentityReducerIntent` emits one
 `container_image_identity` reducer intent for that scope/generation. The
 projector still does not join images to workloads or runtime evidence; the
 reducer owns digest-first admission after source-local projection succeeds.
 SBOM and attestation documents use the same reducer-owned boundary. When a
-generation contains an `sbom.document` or `attestation.statement` fact,
+generation contains an `sbom.document`, `attestation.statement`, or OCI
+referrer fact,
 `buildSBOMAttestationAttachmentReducerIntent` emits one
 `sbom_attestation_attachment` reducer intent for that scope/generation. The
 projector does not attach components to images; the reducer owns subject-digest
@@ -366,13 +367,16 @@ backend-specific adapters.
   tag-only facts must not mint canonical image identity. The OCI rows live on
   `CanonicalMaterialization` alongside Terraform rows (`canonical.go:27`), and
   the label map includes the ContainerImage and OciImage labels required by the
-  graph schema. OCI registry generations now enqueue one
-  `DomainContainerImageIdentity` follow-up intent so active Git/AWS image
-  references can be joined against the active OCI digest catalog.
+  graph schema. OCI registry generations now enqueue
+  `DomainContainerImageIdentity` and `DomainSupplyChainImpact` follow-up
+  intents so active Git/AWS image references, SBOM attachment evidence, and
+  package/advisory facts can be joined against the active OCI digest catalog.
 - SBOM component-only generations do not enqueue
   `DomainSBOMAttestationAttachment`. A document or attestation statement is the
   subject anchor; components, dependency edges, external references, and
   warnings only enrich reducer decisions once the document-scoped intent exists.
+  OCI referrers count as an attachment subject anchor because the referrer
+  payload carries both subject and referrer digests.
 - File paths in `EntityRow.FilePath` and `FileRow.Path` are repo-qualified
   (`repoPath/relative_path`) to prevent cross-repository MERGE collisions in the
   graph (`canonical_builder.go:112`).

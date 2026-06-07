@@ -208,13 +208,14 @@ func TestSupplyChainImpactAggregateQueriesUseListProfileAndSuppressionPredicates
 			"COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) >= $14",
 			"COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') = $15",
 			"$16::boolean OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') NOT IN ('not_affected','accepted_risk','false_positive','ignored')",
+			"fact.payload->>'image_ref' = $17",
 		} {
 			if !strings.Contains(query, want) {
 				t.Fatalf("%s aggregate query missing %q:\n%s", name, want, query)
 			}
 		}
 	}
-	if !strings.Contains(supplyChainImpactInventoryQueryTemplate, "LIMIT $17 OFFSET $18") {
+	if !strings.Contains(supplyChainImpactInventoryQueryTemplate, "LIMIT $18 OFFSET $19") {
 		t.Fatalf("inventory query must keep limit/offset after filter parameters:\n%s", supplyChainImpactInventoryQueryTemplate)
 	}
 }
