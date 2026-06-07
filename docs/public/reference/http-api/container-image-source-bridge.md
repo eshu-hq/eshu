@@ -20,6 +20,11 @@ an OCI/image repository identity such as
 `oci-registry://registry.example/team/api`; it is not source-repository truth.
 Callers may combine the two parameters to ask for source bridge evidence inside
 one OCI repository, but the API keeps both fields separate in the response.
+`source_repository_ids` may come from explicit deployment or CI image evidence,
+or from OCI image config provenance labels such as
+`org.opencontainers.image.source` only when the label resolves to exactly one
+known source repository selector. Image names, registry paths, and tags do not
+create source anchors by themselves.
 
 List responses include `source_bridge` when `source_repository_id` is present.
 The bridge summary returns the source repository id, image repository ids, and
@@ -42,6 +47,13 @@ No-Regression Evidence: `go test ./internal/query -run
 -count=1` cover API list/count/inventory source scoping, row response fields,
 missing-hop classification, OpenAPI schema exposure, and MCP route/schema
 parity.
+No-Regression Evidence: `go test ./internal/reducer -run
+'TestBuildContainerImageIdentityDecisions(UsesOCIConfigSourceLabel|RejectsMissingConflictingAndMalformedOCIConfigSourceLabels)|TestSBOMAttachmentInheritsRepositoryAnchorFromLabelProvenImageIdentity'
+-count=1` proves OCI config source/revision labels can create source repository
+anchors only through exact known-repository URL matches, while missing,
+conflicting, malformed, or ambiguous labels stay out of image identity rows.
+The same test proves SBOM attachment decisions inherit repository anchors
+through the reducer image identity path when the subject digest matches.
 
 No-Observability-Change: source-repository bridge reads reuse the existing
 `query.container_image_identities` and

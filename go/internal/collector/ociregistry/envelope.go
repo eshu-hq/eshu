@@ -103,6 +103,9 @@ func NewManifestEnvelope(observation ManifestObservation) (facts.Envelope, error
 	payload["collector_instance_id"] = observation.CollectorInstanceID
 	payload["source_tag"] = strings.TrimSpace(observation.SourceTag)
 	payload["config"] = descriptorMap(observation.Config)
+	if configLabels := redactedAnnotations(observation.ConfigLabels); len(configLabels) > 0 {
+		payload["config_labels"] = configLabels
+	}
 	payload["layers"] = descriptorMaps(observation.Layers)
 	payload["correlation_anchors"] = []string{repository.RepositoryID, descriptor.Digest}
 	return newEnvelope(repository, facts.OCIImageManifestFactKind, facts.OCIImageManifestSchemaVersion, descriptor.DescriptorID, observation.GenerationID, observation.CollectorInstanceID, observation.FencingToken, observation.ObservedAt, observation.SourceURI, descriptor.DescriptorID, payload), nil
@@ -361,7 +364,10 @@ func knownAnnotation(key string) bool {
 		"org.opencontainers.image.source",
 		"org.opencontainers.image.title",
 		"org.opencontainers.image.url",
-		"org.opencontainers.image.version":
+		"org.opencontainers.image.version",
+		"org.label-schema.build-date",
+		"org.label-schema.vcs-ref",
+		"org.label-schema.vcs-url":
 		return true
 	default:
 		return false

@@ -166,6 +166,9 @@ func TestOpenAPISpecIncludesContainerImageSourceRepositoryBridge(t *testing.T) {
 	if _, ok := itemProperties["source_repository_ids"]; !ok {
 		t.Fatal("container identity item missing source_repository_ids")
 	}
+	if _, ok := itemProperties["source_revision"]; !ok {
+		t.Fatal("container identity item missing source_revision")
+	}
 }
 
 func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {

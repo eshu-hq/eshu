@@ -35,6 +35,7 @@ type ContainerImageIdentityRow struct {
 	ImageRef            string
 	RepositoryID        string
 	SourceRepositoryIDs []string
+	SourceRevision      string
 	WorkloadIDs         []string
 	ServiceIDs          []string
 	Outcome             string
@@ -160,6 +161,7 @@ func decodeContainerImageIdentityRow(
 		ImageRef:            StringVal(payload, "image_ref"),
 		RepositoryID:        StringVal(payload, "repository_id"),
 		SourceRepositoryIDs: StringSliceVal(payload, "source_repository_ids"),
+		SourceRevision:      StringVal(payload, "source_revision"),
 		WorkloadIDs:         StringSliceVal(payload, "workload_ids"),
 		ServiceIDs:          StringSliceVal(payload, "service_ids"),
 		Outcome:             StringVal(payload, "outcome"),

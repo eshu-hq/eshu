@@ -66,6 +66,11 @@ emitting facts. Descriptor builders require a valid `sha256:` digest and media
 type; tag builders keep the tag in the payload while anchoring correlation on
 the resolved digest. `FactID` includes `scope_id` and `generation_id`, while
 `StableFactKey` remains the source-stable identity inside a generation.
+When `ociruntime` fetches an image config blob within the bounded size limit,
+manifest envelopes preserve allowlisted config provenance labels such as
+`org.opencontainers.image.source` and `org.opencontainers.image.revision`.
+Unknown config labels are redacted in the same way as unknown descriptor
+annotations.
 
 ## Dependencies
 
@@ -121,8 +126,17 @@ The runtime also emits `oci_registry.scan` and `oci_registry.api_call` spans.
 - Missing registry digest headers are warning evidence. `ociruntime` may
   compute the OCI digest from exact manifest bytes, but it must never infer a
   digest from repository or tag text.
+- Image config labels are optional provenance evidence. Missing, unavailable,
+  oversized, malformed, ambiguous, or conflicting config-label evidence must not
+  become source repository truth.
 - Private registry names, repository paths, tags, and digests must not become
   metric labels.
+
+## Evidence notes
+
+No-Regression Evidence: `go test ./internal/collector/ociregistry/distribution -run TestClientGetBlobCapsResponseBodyRead -count=1` and `go test ./internal/collector/ociregistry/ociruntime -run 'TestSourceNext(PreservesImageConfigProvenanceLabels|WarnsForUnavailableAndOversizedImageConfig)' -count=1` prove bounded image config label fetches cap HTTP blob body reads, preserve allowlisted source/revision labels, redact unknown labels, warn without failing for unavailable config blobs, and skip oversized descriptors before blob fetch.
+
+No-Observability-Change: config-label collection reuses existing `oci_registry.scan` and `oci_registry.api_call` spans plus `eshu_dp_oci_registry_api_calls_total{operation="get_blob"}` and existing warning facts for non-fatal collection gaps. It adds no new collector runtime, queue domain, metric instrument, metric label, graph write, or deployment knob.
 
 ## Related docs
 

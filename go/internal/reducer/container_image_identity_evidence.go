@@ -13,6 +13,8 @@ type containerImageRefEvidence struct {
 	parsed              parsedContainerImageRef
 	resolvedDigest      string
 	sourceRepositoryIDs []string
+	sourceRevision      string
+	sourceLabelEvidence bool
 	workloadIDs         []string
 	serviceIDs          []string
 	factIDs             []string
@@ -34,6 +36,9 @@ type parsedContainerImageRef struct {
 func extractContainerImageRefs(envelopes []facts.Envelope) []containerImageRefEvidence {
 	byRef := make(map[string]containerImageRefEvidence)
 	ciRuns := containerImageCIRuns(envelopes)
+	for _, ref := range extractOCIConfigProvenanceRefs(envelopes) {
+		mergeContainerImageRef(byRef, ref)
+	}
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
 		case factKindContentEntity:
@@ -131,6 +136,33 @@ func addContainerImageRef(
 	ref.workloadIDs = uniqueSortedStrings(ref.workloadIDs)
 	ref.serviceIDs = uniqueSortedStrings(ref.serviceIDs)
 	byRef[parsed.raw] = ref
+}
+
+func mergeContainerImageRef(byRef map[string]containerImageRefEvidence, next containerImageRefEvidence) {
+	if next.imageRef == "" {
+		return
+	}
+	ref := byRef[next.imageRef]
+	if ref.imageRef == "" {
+		ref.imageRef = next.imageRef
+		ref.parsed = next.parsed
+	}
+	if next.resolvedDigest != "" {
+		ref.resolvedDigest = next.resolvedDigest
+	}
+	if next.sourceRevision != "" {
+		ref.sourceRevision = next.sourceRevision
+	}
+	ref.sourceLabelEvidence = ref.sourceLabelEvidence || next.sourceLabelEvidence
+	ref.factIDs = append(ref.factIDs, next.factIDs...)
+	ref.sourceRepositoryIDs = append(ref.sourceRepositoryIDs, next.sourceRepositoryIDs...)
+	ref.workloadIDs = append(ref.workloadIDs, next.workloadIDs...)
+	ref.serviceIDs = append(ref.serviceIDs, next.serviceIDs...)
+	ref.factIDs = uniqueSortedStrings(ref.factIDs)
+	ref.sourceRepositoryIDs = uniqueSortedStrings(ref.sourceRepositoryIDs)
+	ref.workloadIDs = uniqueSortedStrings(ref.workloadIDs)
+	ref.serviceIDs = uniqueSortedStrings(ref.serviceIDs)
+	byRef[next.imageRef] = ref
 }
 
 func addAWSImageReference(byRef map[string]containerImageRefEvidence, envelope facts.Envelope) {

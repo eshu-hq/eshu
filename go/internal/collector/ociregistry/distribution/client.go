@@ -16,6 +16,7 @@ import (
 )
 
 const defaultHTTPTimeout = 30 * time.Second
+const maxBlobReadBytes int64 = 1 << 20
 
 // ClientConfig configures the OCI Distribution HTTP client.
 type ClientConfig struct {
@@ -165,7 +166,7 @@ func (c *Client) GetBlob(ctx context.Context, repository, digest string) (BlobRe
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return BlobResponse{}, statusError("get_blob", resp.StatusCode)
 	}
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBlobReadBytes+1))
 	if err != nil {
 		return BlobResponse{}, fmt.Errorf("read OCI blob body: %w", err)
 	}
