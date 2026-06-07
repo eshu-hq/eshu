@@ -126,6 +126,9 @@ func sbomAttestationAttachmentPayload(
 		"canonical_writes":    decision.CanonicalWrites,
 		"component_count":     decision.ComponentCount,
 		"component_evidence":  decision.ComponentEvidence,
+		"repository_ids":      uniqueSortedStrings(decision.RepositoryIDs),
+		"workload_ids":        uniqueSortedStrings(decision.WorkloadIDs),
+		"service_ids":         uniqueSortedStrings(decision.ServiceIDs),
 		"warning_summaries":   uniqueSortedStrings(decision.WarningSummaries),
 		"evidence_fact_ids":   uniqueSortedStrings(decision.EvidenceFactIDs),
 		"missing_evidence":    sbomAttestationAttachmentStrings(decision.MissingEvidence),
@@ -144,6 +147,11 @@ func sbomAttestationAttachmentStrings(values []string) []string {
 
 func sbomAttestationAttachmentSourceLayers(decision SBOMAttestationAttachmentDecision) []string {
 	layers := []string{string(truth.LayerSourceDeclaration)}
+	for _, kind := range decision.SourceLayerKinds {
+		if kind == "observed_resource" {
+			layers = append(layers, string(truth.LayerObservedResource))
+		}
+	}
 	if decision.CanonicalWrites > 0 {
 		layers = append(layers, string(truth.LayerObservedResource))
 	}

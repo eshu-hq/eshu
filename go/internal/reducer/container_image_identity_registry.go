@@ -67,10 +67,13 @@ func classifyContainerImageRef(
 	index containerImageRegistryIndex,
 ) ContainerImageIdentityDecision {
 	decision := ContainerImageIdentityDecision{
-		ImageRef:        ref.imageRef,
-		Outcome:         ContainerImageIdentityUnresolved,
-		Reason:          "no registry digest observation matched the image reference",
-		EvidenceFactIDs: uniqueSortedStrings(ref.factIDs),
+		ImageRef:            ref.imageRef,
+		SourceRepositoryIDs: uniqueSortedStrings(ref.sourceRepositoryIDs),
+		WorkloadIDs:         uniqueSortedStrings(ref.workloadIDs),
+		ServiceIDs:          uniqueSortedStrings(ref.serviceIDs),
+		Outcome:             ContainerImageIdentityUnresolved,
+		Reason:              "no registry digest observation matched the image reference",
+		EvidenceFactIDs:     uniqueSortedStrings(ref.factIDs),
 	}
 	repositoryID := repositoryIDFromKey(ref.parsed.repositoryKey)
 	if ref.parsed.digest != "" {

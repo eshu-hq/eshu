@@ -8,8 +8,12 @@ func TestResolveRouteMapsSBOMAttestationAttachmentsToBoundedQuery(t *testing.T) 
 	route, err := resolveRoute("list_sbom_attestation_attachments", map[string]any{
 		"after_attachment_id": "attachment-1",
 		"attachment_status":   "attached_verified",
+		"digest":              "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		"limit":               float64(25),
+		"repository_id":       "repo://example/api",
+		"service_id":          "service:example-api",
 		"subject_digest":      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"workload_id":         "workload:example-api",
 	})
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
@@ -22,6 +26,18 @@ func TestResolveRouteMapsSBOMAttestationAttachmentsToBoundedQuery(t *testing.T) 
 	}
 	if got, want := route.query["subject_digest"], "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; got != want {
 		t.Fatalf("route.query[subject_digest] = %#v, want %#v", got, want)
+	}
+	if got, want := route.query["digest"], "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"; got != want {
+		t.Fatalf("route.query[digest] = %#v, want %#v", got, want)
+	}
+	if got, want := route.query["repository_id"], "repo://example/api"; got != want {
+		t.Fatalf("route.query[repository_id] = %#v, want %#v", got, want)
+	}
+	if got, want := route.query["workload_id"], "workload:example-api"; got != want {
+		t.Fatalf("route.query[workload_id] = %#v, want %#v", got, want)
+	}
+	if got, want := route.query["service_id"], "service:example-api"; got != want {
+		t.Fatalf("route.query[service_id] = %#v, want %#v", got, want)
 	}
 	if got, want := route.query["attachment_status"], "attached_verified"; got != want {
 		t.Fatalf("route.query[attachment_status] = %#v, want %#v", got, want)
