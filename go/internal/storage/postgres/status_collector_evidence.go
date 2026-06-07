@@ -3,9 +3,11 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/lib/pq"
 )
 
 const collectorFactEvidenceQuery = `
@@ -17,6 +19,7 @@ SELECT
       WHEN fact.fact_kind LIKE 'reducer_%' THEN 'reducer_facts'
       ELSE 'source_facts'
     END AS evidence_source,
+    NULLIF(BTRIM(fact.source_system), '') AS source_system,
     fact.observed_at,
     fact.ingested_at
 FROM ingestion_scopes AS scope
@@ -60,6 +63,11 @@ SELECT
     collector_kind,
     collector_instance_id,
     evidence_source,
+    COALESCE(
+      ARRAY_AGG(DISTINCT source_system ORDER BY source_system)
+        FILTER (WHERE source_system IS NOT NULL),
+      ARRAY[]::text[]
+    ) AS source_systems,
     COUNT(*) AS observation_count,
     MAX(observed_at) AS last_observed_at,
     MAX(ingested_at) AS updated_at
@@ -83,10 +91,12 @@ func readCollectorFactEvidence(
 	for rows.Next() {
 		var row statuspkg.CollectorFactEvidence
 		var observationCount int64
+		var sourceSystems pq.StringArray
 		if err := rows.Scan(
 			&row.CollectorKind,
 			&row.InstanceID,
 			&row.EvidenceSource,
+			&sourceSystems,
 			&observationCount,
 			&row.LastObservedAt,
 			&row.UpdatedAt,
@@ -96,6 +106,7 @@ func readCollectorFactEvidence(
 		row.CollectorKind = strings.TrimSpace(row.CollectorKind)
 		row.InstanceID = strings.TrimSpace(row.InstanceID)
 		row.EvidenceSource = strings.TrimSpace(row.EvidenceSource)
+		row.SourceSystems = cleanCollectorSourceSystems(sourceSystems)
 		row.ObservationCount = int(observationCount)
 		row.LastObservedAt = row.LastObservedAt.UTC()
 		row.UpdatedAt = row.UpdatedAt.UTC()
@@ -108,4 +119,22 @@ func readCollectorFactEvidence(
 		return nil, fmt.Errorf("read collector fact evidence: %w", err)
 	}
 	return output, nil
+}
+
+func cleanCollectorSourceSystems(values []string) []string {
+	seen := map[string]struct{}{}
+	output := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		output = append(output, value)
+	}
+	sort.Strings(output)
+	return output
 }

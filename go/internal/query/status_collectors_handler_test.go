@@ -189,6 +189,7 @@ func TestStatusHandlerCollectorsRouteExposesPersistedFactEvidence(t *testing.T) 
 					InstanceID:       "collector-documentation",
 					CollectorKind:    "documentation",
 					EvidenceSource:   "source_facts",
+					SourceSystems:    []string{"confluence"},
 					ObservationCount: 4,
 					LastObservedAt:   now.Add(-3 * time.Minute),
 					UpdatedAt:        now.Add(-2 * time.Minute),
@@ -220,6 +221,7 @@ func TestStatusHandlerCollectorsRouteExposesPersistedFactEvidence(t *testing.T) 
 			CollectorKind    string   `json:"collector_kind"`
 			Health           string   `json:"health"`
 			Evidence         []string `json:"evidence_sources"`
+			SourceSystems    []string `json:"source_systems"`
 			ObservationCount int      `json:"observation_count"`
 		} `json:"collectors"`
 	}
@@ -243,5 +245,8 @@ func TestStatusHandlerCollectorsRouteExposesPersistedFactEvidence(t *testing.T) 
 		if !stringSliceContains(collector.Evidence, want) {
 			t.Fatalf("collector evidence = %#v, want %q", collector.Evidence, want)
 		}
+	}
+	if !stringSliceContains(collector.SourceSystems, "confluence") {
+		t.Fatalf("collector source_systems = %#v, want confluence", collector.SourceSystems)
 	}
 }

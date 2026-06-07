@@ -10,6 +10,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/lib/pq"
 )
 
 func TestStatusStoreReadRawSnapshot(t *testing.T) {
@@ -399,6 +400,17 @@ func (r *fakeRows) Scan(dest ...any) error {
 				*target = sql.NullTime{Time: value, Valid: true}
 			default:
 				return fmt.Errorf("row[%d] type = %T, want time.Time or nil", i, row[i])
+			}
+		case *pq.StringArray:
+			switch value := row[i].(type) {
+			case nil:
+				*target = pq.StringArray{}
+			case []string:
+				*target = pq.StringArray(value)
+			case pq.StringArray:
+				*target = value
+			default:
+				return fmt.Errorf("row[%d] type = %T, want string array", i, row[i])
 			}
 		default:
 			return fmt.Errorf("unsupported scan target %T", dest[i])

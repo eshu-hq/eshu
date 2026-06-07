@@ -85,8 +85,9 @@ See `doc.go` for the godoc contract. Key types and functions:
   without payload identifiers
 - `CollectorFactEvidence` — aggregate active fact metadata by collector kind,
   optional coordinator instance, evidence source (`source_facts` or
-  `reducer_facts`), count, and timestamps; it never carries raw payload,
-  source URI, source record ID, repository name, package name, or resource ID
+  `reducer_facts`), bounded source systems, count, and timestamps; it never
+  carries raw payload, source URI, source record ID, repository name, package
+  name, or resource ID
 - `RegistryCollectorSnapshot` — bounded OCI and package-registry runtime status
   counts for configured instances, active scopes, recent completed generations,
   last completed timestamp, retryable/terminal failures, and failure classes
@@ -200,6 +201,11 @@ strings.
   or another deployment inventory API, so a pod with no coordinator row, no
   durable status row, and no active persisted facts remains outside the central
   status contract.
+- **Source systems are source identities, not collector kinds.** Direct-source
+  collectors such as Confluence can emit `collector_kind=documentation` facts
+  with `source_systems=["confluence"]`. Status keeps both values so the fact
+  model stays source-neutral while operators can still see which documentation
+  source is active.
 - **AWS cloud status separates scan and commit.** `AWSCloudScanStatus.Status`
   describes scanner-side outcome such as `partial`, `credential_failed`, or
   `failed`; `CommitStatus` describes whether the fenced fact transaction later

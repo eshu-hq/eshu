@@ -107,8 +107,8 @@ func TestReadCollectorFactEvidenceUsesBoundedActiveFactMetadata(t *testing.T) {
 	queryer := &fakeQueryer{
 		responses: []fakeRows{{
 			rows: [][]any{
-				{"documentation", "collector-documentation", "source_facts", int64(5), now.Add(-3 * time.Minute), now.Add(-2 * time.Minute)},
-				{"aws", "collector-aws", "reducer_facts", int64(2), now.Add(-4 * time.Minute), now.Add(-1 * time.Minute)},
+				{"documentation", "collector-documentation", "source_facts", []string{"confluence"}, int64(5), now.Add(-3 * time.Minute), now.Add(-2 * time.Minute)},
+				{"aws", "collector-aws", "reducer_facts", []string{"aws"}, int64(2), now.Add(-4 * time.Minute), now.Add(-1 * time.Minute)},
 			},
 		}},
 	}
@@ -123,13 +123,15 @@ func TestReadCollectorFactEvidenceUsesBoundedActiveFactMetadata(t *testing.T) {
 	if got[0].CollectorKind != "documentation" ||
 		got[0].InstanceID != "collector-documentation" ||
 		got[0].EvidenceSource != "source_facts" ||
-		got[0].ObservationCount != 5 {
+		got[0].ObservationCount != 5 ||
+		!stringSliceContains(got[0].SourceSystems, "confluence") {
 		t.Fatalf("documentation evidence row = %#v", got[0])
 	}
 	if got[1].CollectorKind != "aws" ||
 		got[1].InstanceID != "collector-aws" ||
 		got[1].EvidenceSource != "reducer_facts" ||
-		got[1].ObservationCount != 2 {
+		got[1].ObservationCount != 2 ||
+		!stringSliceContains(got[1].SourceSystems, "aws") {
 		t.Fatalf("AWS evidence row = %#v", got[1])
 	}
 
@@ -139,6 +141,8 @@ func TestReadCollectorFactEvidenceUsesBoundedActiveFactMetadata(t *testing.T) {
 		"fact.generation_id = scope.active_generation_id",
 		"fact.is_tombstone = FALSE",
 		"COUNT(*) AS observation_count",
+		"ARRAY_AGG(DISTINCT source_system ORDER BY source_system)",
+		"AS source_systems",
 		"WHEN fact.fact_kind LIKE 'reducer_%' THEN 'reducer_facts'",
 		"collector_kind IN (",
 		"FROM workflow_work_items AS workflow_item",

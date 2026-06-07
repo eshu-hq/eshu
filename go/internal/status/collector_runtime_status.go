@@ -41,6 +41,7 @@ type CollectorRuntimeStatus struct {
 	DisplayName           string
 	Health                string
 	EvidenceSources       []string
+	SourceSystems         []string
 	ObservationCount      int
 	LastObservedAt        time.Time
 	UpdatedAt             time.Time
@@ -80,6 +81,7 @@ func (b *collectorRuntimeStatusBuilder) add(status CollectorRuntimeStatus) int {
 		return index
 	}
 	status.EvidenceSources = uniqueNonEmptyStrings(status.EvidenceSources)
+	status.SourceSystems = uniqueNonEmptyStrings(status.SourceSystems)
 	b.byKey[key] = len(b.statuses)
 	b.statuses = append(b.statuses, status)
 	return len(b.statuses) - 1
@@ -88,6 +90,7 @@ func (b *collectorRuntimeStatusBuilder) add(status CollectorRuntimeStatus) int {
 func (b *collectorRuntimeStatusBuilder) merge(index int, status CollectorRuntimeStatus) {
 	existing := &b.statuses[index]
 	existing.EvidenceSources = uniqueNonEmptyStrings(append(existing.EvidenceSources, status.EvidenceSources...))
+	existing.SourceSystems = uniqueNonEmptyStrings(append(existing.SourceSystems, status.SourceSystems...))
 	existing.ObservationCount += status.ObservationCount
 	existing.Health = combineRuntimeHealth(existing.Health, status.Health)
 	if status.LastObservedAt.After(existing.LastObservedAt) {
@@ -127,6 +130,7 @@ func (b *collectorRuntimeStatusBuilder) addAWSCloudScans(rows []AWSCloudScanStat
 			instanceID,
 			"aws",
 			"aws_cloud_scan_status",
+			nil,
 			aggregate.count,
 			aggregate.health,
 			aggregate.lastObservedAt,
@@ -160,6 +164,7 @@ func (b *collectorRuntimeStatusBuilder) addVulnerabilitySources(rows []Vulnerabi
 			instanceID,
 			"vulnerability_intelligence",
 			"vulnerability_source_state",
+			nil,
 			aggregate.count,
 			aggregate.health,
 			time.Time{},
@@ -179,6 +184,7 @@ func (b *collectorRuntimeStatusBuilder) addCollectorFactEvidence(rows []Collecto
 			instanceID,
 			collectorKind,
 			row.EvidenceSource,
+			row.SourceSystems,
 			row.ObservationCount,
 			"observed",
 			row.LastObservedAt,
@@ -264,6 +270,7 @@ func directEvidenceRuntimeStatus(
 	instanceID string,
 	collectorKind string,
 	evidenceSource string,
+	sourceSystems []string,
 	observations int,
 	health string,
 	lastObservedAt time.Time,
@@ -276,6 +283,7 @@ func directEvidenceRuntimeStatus(
 		StatusCategory:   CollectorRuntimeUnregistered,
 		Health:           health,
 		EvidenceSources:  []string{evidenceSource},
+		SourceSystems:    uniqueNonEmptyStrings(sourceSystems),
 		ObservationCount: observations,
 		LastObservedAt:   lastObservedAt,
 		UpdatedAt:        updatedAt,
@@ -371,6 +379,9 @@ func renderCollectorRuntimeStatusLines(rows []CollectorRuntimeStatus) []string {
 			row.CoordinatorRegistered,
 			strings.Join(row.EvidenceSources, ","),
 		)
+		if len(row.SourceSystems) > 0 {
+			line += fmt.Sprintf(" source_systems=%s", strings.Join(row.SourceSystems, ","))
+		}
 		if row.Health != "" {
 			line += fmt.Sprintf(" health=%s", row.Health)
 		}
