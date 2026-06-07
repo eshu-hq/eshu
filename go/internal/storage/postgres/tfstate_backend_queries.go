@@ -53,6 +53,7 @@ WITH backend_filters AS (
     SELECT
         COALESCE(filter_item->>'backend_kind', '') AS backend_kind,
         COALESCE(filter_item->>'bucket', '') AS bucket,
+        COALESCE(filter_item->>'key', '') AS key,
         COALESCE(filter_item->>'region', '') AS region
     FROM jsonb_array_elements($1::jsonb) AS filter_item
 )
@@ -76,6 +77,7 @@ WHERE fact.fact_kind = 'file'
       JOIN backend_filters AS filter ON true
       WHERE (filter.backend_kind = '' OR backend->>'backend_kind' = filter.backend_kind OR backend->>'name' = filter.backend_kind)
         AND (filter.bucket = '' OR backend->>'bucket' = filter.bucket)
+        AND (filter.key = '' OR backend->>'key' = filter.key)
         AND (filter.region = '' OR backend->>'region' = filter.region)
   )
 ORDER BY repo_id ASC, fact.observed_at ASC, fact.fact_id ASC
@@ -140,6 +142,7 @@ WITH backend_filters AS (
     SELECT
         COALESCE(filter_item->>'backend_kind', '') AS backend_kind,
         COALESCE(filter_item->>'bucket', '') AS bucket,
+        COALESCE(filter_item->>'key', '') AS key,
         COALESCE(filter_item->>'region', '') AS region
     FROM jsonb_array_elements($1::jsonb) AS filter_item
 )
@@ -169,6 +172,7 @@ WHERE fact.fact_kind = 'file'
       JOIN backend_filters AS filter ON true
       WHERE (filter.backend_kind = '' OR remote_state->>'backend_kind' = filter.backend_kind OR remote_state->>'name' = filter.backend_kind)
         AND (filter.bucket = '' OR remote_state->>'bucket' = filter.bucket)
+        AND (filter.key = '' OR remote_state->>'key' = filter.key)
         AND (filter.region = '' OR remote_state->>'region' = filter.region)
   )
 ORDER BY repo_id ASC, fact.observed_at ASC, fact.fact_id ASC

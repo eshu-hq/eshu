@@ -51,6 +51,7 @@ func (r TerraformStateBackendFactReader) filteredTerraformStateCandidates(
 type terraformStateBackendFilterQueryItem struct {
 	BackendKind string `json:"backend_kind"`
 	Bucket      string `json:"bucket"`
+	Key         string `json:"key"`
 	Region      string `json:"region"`
 }
 
@@ -60,6 +61,7 @@ func terraformStateBackendFiltersJSON(filters []terraformstate.DiscoveryBackendF
 		items = append(items, terraformStateBackendFilterQueryItem{
 			BackendKind: string(filter.BackendKind),
 			Bucket:      filter.Bucket,
+			Key:         filter.Key,
 			Region:      filter.Region,
 		})
 	}
@@ -112,9 +114,10 @@ func cleanTerraformStateBackendFilters(
 			TargetScopeID: strings.TrimSpace(filter.TargetScopeID),
 			BackendKind:   terraformstate.BackendKind(strings.ToLower(strings.TrimSpace(string(filter.BackendKind)))),
 			Bucket:        strings.TrimSpace(filter.Bucket),
+			Key:           strings.Trim(strings.TrimSpace(filter.Key), "/"),
 			Region:        strings.ToLower(strings.TrimSpace(filter.Region)),
 		}
-		if item.TargetScopeID == "" && item.BackendKind == "" && item.Bucket == "" && item.Region == "" {
+		if item.TargetScopeID == "" && item.BackendKind == "" && item.Bucket == "" && item.Key == "" && item.Region == "" {
 			continue
 		}
 		if _, ok := seen[item]; ok {
@@ -200,20 +203,34 @@ func terraformStateFilterMatchesCandidate(
 		return false
 	}
 	if filter.Bucket == "" {
-		return true
+		return terraformStateFilterKeyMatchesCandidate(filter, candidate)
 	}
-	bucket, ok := terraformStateS3LocatorBucket(candidate.State.Locator)
-	return ok && bucket == filter.Bucket
+	bucket, _, ok := terraformStateS3LocatorBucketKey(candidate.State.Locator)
+	if !ok || bucket != filter.Bucket {
+		return false
+	}
+	return terraformStateFilterKeyMatchesCandidate(filter, candidate)
 }
 
-func terraformStateS3LocatorBucket(locator string) (string, bool) {
+func terraformStateS3LocatorBucketKey(locator string) (string, string, bool) {
 	rest, ok := strings.CutPrefix(locator, "s3://")
 	if !ok {
-		return "", false
+		return "", "", false
 	}
-	bucket, _, ok := strings.Cut(rest, "/")
-	if !ok || bucket == "" {
-		return "", false
+	bucket, key, ok := strings.Cut(rest, "/")
+	if !ok || bucket == "" || key == "" {
+		return "", "", false
 	}
-	return bucket, true
+	return bucket, key, true
+}
+
+func terraformStateFilterKeyMatchesCandidate(
+	filter terraformstate.DiscoveryBackendFilter,
+	candidate terraformstate.DiscoveryCandidate,
+) bool {
+	if filter.Key == "" {
+		return true
+	}
+	_, key, ok := terraformStateS3LocatorBucketKey(candidate.State.Locator)
+	return ok && key == filter.Key
 }

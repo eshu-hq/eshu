@@ -91,7 +91,7 @@ These variables are read by `scripts/sync_local_compose_mcp.sh`.
 | `ESHU_AWS_E2E_REGION` | unset | AWS region used by remote E2E AWS targets. |
 | `ESHU_AWS_E2E_SERVICES` | broad service list in remote E2E Compose | AWS scanner families enabled by the remote E2E proof. |
 | `ESHU_TFSTATE_S3_BUCKET` | unset | Remote E2E Terraform-state S3 bucket. |
-| `ESHU_TFSTATE_S3_KEY` | unset | Remote E2E Terraform-state object key. |
+| `ESHU_TFSTATE_S3_KEY` | unset | Remote E2E Terraform-state object key; also scopes the remote E2E backend filter. |
 | `ESHU_TFSTATE_S3_REGION` | unset | Remote E2E Terraform-state S3 region. |
 
 ## Collector Metrics Ports In Remote E2E

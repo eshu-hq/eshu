@@ -22,6 +22,7 @@ type backendFilterConfig struct {
 	TargetScopeID string `json:"target_scope_id"`
 	BackendKind   string `json:"backend_kind"`
 	Bucket        string `json:"bucket"`
+	Key           string `json:"key"`
 	Region        string `json:"region"`
 }
 
@@ -91,6 +92,7 @@ func backendFilters(configs []backendFilterConfig) []DiscoveryBackendFilter {
 			TargetScopeID: strings.TrimSpace(config.TargetScopeID),
 			BackendKind:   BackendKind(strings.ToLower(strings.TrimSpace(config.BackendKind))),
 			Bucket:        strings.TrimSpace(config.Bucket),
+			Key:           strings.Trim(strings.TrimSpace(config.Key), "/"),
 			Region:        strings.ToLower(strings.TrimSpace(config.Region)),
 		})
 	}

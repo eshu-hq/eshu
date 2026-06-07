@@ -16,6 +16,7 @@ type DiscoveryBackendFilter struct {
 	TargetScopeID string
 	BackendKind   BackendKind
 	Bucket        string
+	Key           string
 	Region        string
 }
 

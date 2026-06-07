@@ -49,7 +49,7 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
   candidates without opening raw state.
 - Graph discovery can be bounded by configured repositories (`local_repos`) or
   by `backend_filters` that search all indexed active Git facts for exact
-  backend declarations matching fields such as backend kind, bucket, and
+  backend declarations matching fields such as backend kind, bucket, key, and
   region.
 - When `local_repos` and `backend_filters` are both configured, discovery
   treats them as a union: repo-scoped exact candidates remain eligible, filtered

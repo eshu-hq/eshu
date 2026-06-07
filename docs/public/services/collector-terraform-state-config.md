@@ -45,7 +45,10 @@ field still works for one AWS identity, but it cannot be mixed with
   tuples.
 - `discovery.local_repos` waits for repo-scoped Git generation readiness.
 - `discovery.backend_filters` reads indexed Git facts for exact backend
-  declarations. It never lists S3 bucket contents.
+  declarations. It never lists S3 bucket contents. S3 filters may include
+  `key` to select one exact object; this is recommended for release and
+  all-collector proofs so stale same-bucket backend declarations do not become
+  configured targets.
 - `discovery.local_state_candidates` must approve each exact `repo_id` and
   repo-relative path before a Git-observed `.tfstate` file is opened.
 

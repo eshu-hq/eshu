@@ -82,6 +82,66 @@ func TestTerraformStateBackendFactReaderReturnsFilteredS3CandidatesAcrossRepos(t
 	}
 }
 
+func TestTerraformStateBackendFactReaderFiltersS3CandidatesByExactKey(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{{
+				"api-infra",
+				[]byte(`[
+					{
+						"backend_kind":"s3",
+						"bucket":"remote-e2e-tfstate",
+						"bucket_is_literal":true,
+						"key":"services/api/terraform.tfstate",
+						"key_is_literal":true,
+						"region":"us-east-1",
+						"region_is_literal":true
+					},
+					{
+						"backend_kind":"s3",
+						"bucket":"remote-e2e-tfstate",
+						"bucket_is_literal":true,
+						"key":"services/deleted/terraform.tfstate",
+						"key_is_literal":true,
+						"region":"us-east-1",
+						"region_is_literal":true
+					}
+				]`),
+			}}},
+			{},
+		},
+	}
+	reader := TerraformStateBackendFactReader{DB: db}
+
+	candidates, err := reader.TerraformStateCandidates(
+		context.Background(),
+		terraformstate.DiscoveryQuery{
+			BackendFilters: []terraformstate.DiscoveryBackendFilter{{
+				TargetScopeID: "aws-e2e",
+				BackendKind:   terraformstate.BackendS3,
+				Bucket:        "remote-e2e-tfstate",
+				Key:           "services/api/terraform.tfstate",
+				Region:        "us-east-1",
+			}},
+		},
+	)
+	if err != nil {
+		t.Fatalf("TerraformStateCandidates() error = %v, want nil", err)
+	}
+	if got, want := len(candidates), 1; got != want {
+		t.Fatalf("len(candidates) = %d, want %d: %#v", got, want, candidates)
+	}
+	if got, want := candidates[0].State.Locator, "s3://remote-e2e-tfstate/services/api/terraform.tfstate"; got != want {
+		t.Fatalf("candidate locator = %q, want %q", got, want)
+	}
+	filterArg := db.queries[0].args[0]
+	if !strings.Contains(filterArg.(string), `"key":"services/api/terraform.tfstate"`) {
+		t.Fatalf("filter arg = %#v, want JSON containing exact key", filterArg)
+	}
+}
+
 func TestTerraformStateBackendFactReaderUnionsRepoScopedAndFilteredS3Candidates(t *testing.T) {
 	t.Parallel()
 
