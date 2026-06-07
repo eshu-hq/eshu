@@ -32,6 +32,7 @@ export interface ConsoleSnapshot {
   readonly sbom: SbomEvidenceRow | null;
   readonly dependencies: readonly DependencyRow[];
   readonly images: readonly ImageRow[];
+  readonly iacResources: readonly IacResourceRow[];
   readonly series: SeriesBundle;
   readonly truth: Partial<Record<keyof ConsoleSnapshot, EshuTruth>>;
   readonly provenance: Record<string, SectionProvenance>;
@@ -125,6 +126,21 @@ export interface DependencyPage {
   readonly nextCursor: { readonly afterName: string; readonly afterEdge: string } | null;
   readonly truth: EshuTruth | null;
 }
+
+// IacResourceRow is one Terraform/IaC node from GET /api/v0/iac/resources. The
+// list defaults to Terraform resources; provider/service/module are present only
+// on canonically attributed nodes, so they may be empty for tfstate-only rows.
+export interface IacResourceRow {
+  readonly id: string;
+  readonly kind: string;
+  readonly name: string;
+  readonly type: string;
+  readonly provider: string;
+  readonly service: string;
+  readonly module: string;
+  readonly repoId: string;
+  readonly relativePath: string;
+}
 export interface SeriesBundle {
   readonly ingestRate: readonly number[];
   readonly queueDepth: readonly number[];
@@ -193,6 +209,13 @@ interface SBOMAttachmentCount {
   readonly total_attachments?: number;
   readonly by_attachment_status?: Readonly<Record<string, number>>;
   readonly by_artifact_kind?: Readonly<Record<string, number>>;
+}
+interface IacResourcesResponse {
+  readonly resources?: readonly {
+    readonly id?: string; readonly kind?: string; readonly name?: string;
+    readonly type?: string; readonly provider?: string; readonly resource_service?: string;
+    readonly module?: string; readonly repo_id?: string; readonly relative_path?: string;
+  }[];
 }
 
 // Impact findings carry a CVSS score but no severity label; derive the standard
@@ -423,6 +446,26 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     return rows.length > 0 ? rows : null;
   })) ?? [];
 
+  const iacResources = (await section(prov, "iacResources", async () => {
+    // Bounded IaC inventory list. The endpoint requires the authoritative graph
+    // (local-authoritative profile or higher); on lower profiles it 501s and the
+    // section is reported "unavailable" rather than failing the whole snapshot.
+    const env = await client.get<IacResourcesResponse>("/api/v0/iac/resources?limit=200");
+    if (env.truth) truth.iacResources = env.truth;
+    const rows: IacResourceRow[] = (env.data?.resources ?? []).map((r) => ({
+      id: String(r.id ?? ""),
+      kind: String(r.kind ?? "resource"),
+      name: String(r.name ?? ""),
+      type: String(r.type ?? ""),
+      provider: String(r.provider ?? ""),
+      service: String(r.resource_service ?? ""),
+      module: String(r.module ?? ""),
+      repoId: String(r.repo_id ?? ""),
+      relativePath: String(r.relative_path ?? "")
+    }));
+    return rows.length > 0 ? rows : null;
+  })) ?? [];
+
   const series = await loadSeriesBundle(client, prov);
 
   return {
@@ -435,6 +478,7 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     sbom,
     dependencies,
     images,
+    iacResources,
     series,
     truth,
     provenance: prov

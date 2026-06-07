@@ -229,6 +229,7 @@ func newRouter(
 			Content:      contentReader,
 			Reachability: query.NewPostgresIaCReachabilityStore(db),
 			Management:   query.NewPostgresIaCManagementStore(db),
+			Graph:        neo4jReader,
 			Profile:      queryProfile,
 		},
 		Impact: &query.ImpactHandler{

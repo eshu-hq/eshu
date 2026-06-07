@@ -314,6 +314,13 @@ var capabilityMatrix = map[string]capabilitySupport{
 		ProductionMax:         &truthDerived,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	},
+	"iac_inventory.resources.list": {
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalAuthoritative,
+	},
 	"platform_impact.deployment_chain": {
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,

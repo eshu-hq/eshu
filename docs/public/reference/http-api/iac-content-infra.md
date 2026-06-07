@@ -8,6 +8,7 @@ comparison. The route list is verified against `go/internal/query`.
 
 | Area | Routes |
 | --- | --- |
+| IaC inventory | `GET /api/v0/iac/resources` |
 | IaC quality | `POST /api/v0/iac/dead` |
 | AWS management and drift | `POST /api/v0/iac/unmanaged-resources`, `POST /api/v0/iac/management-status`, `POST /api/v0/iac/management-status/explain`, `POST /api/v0/iac/terraform-import-plan/candidates`, `POST /api/v0/aws/runtime-drift/findings` |
 | Content | `POST /api/v0/content/files/read`, `POST /api/v0/content/files/lines`, `POST /api/v0/content/entities/read`, `POST /api/v0/content/files/search`, `POST /api/v0/content/entities/search` |
@@ -15,6 +16,54 @@ comparison. The route list is verified against `go/internal/query`.
 | Impact | `POST /api/v0/impact/trace-resource-to-code`, `POST /api/v0/impact/explain-dependency-path`, `POST /api/v0/impact/blast-radius`, `POST /api/v0/impact/change-surface`, `POST /api/v0/impact/change-surface/investigate`, `POST /api/v0/impact/entity-map`, `POST /api/v0/impact/resource-investigation`, `POST /api/v0/compare/environments` |
 
 OpenAPI remains canonical for full request and response schemas.
+
+## IaC Inventory
+
+`GET /api/v0/iac/resources` is a bounded, enveloped browse over the
+authoritative Terraform/IaC graph projection. It backs the Console IaC page and
+any client that needs a stable list of Terraform resources, modules, or data
+sources.
+
+- `kind` selects the node label: `resource` (default, `TerraformResource`),
+  `module` (`TerraformModule`), or `data-source` (`TerraformDataSource`).
+- `type` filters by Terraform resource type (e.g. `aws_iam_role`); for
+  `data-source` it filters the data type. `provider` filters by provider (e.g.
+  `aws`); provider is present only on canonical-sourced nodes, so a provider
+  filter narrows to canonically attributed rows.
+- `module` filters by module name. For resources and data sources it matches the
+  `module."<name>".` address prefix; for modules it matches the module name
+  exactly.
+- `limit` is 1-200 and defaults to 50. The list is keyset-paginated and ordered
+  by `(name, id)`; when `truncated` is true, pass `next_cursor.after_name` and
+  `next_cursor.after_id` back as `after_name` and `after_id` to fetch the next
+  page.
+
+The endpoint requires the local-authoritative profile or higher; lower profiles
+receive `501 unsupported_capability`. When the graph backend is not wired the
+route returns `503`.
+
+### IaC inventory performance and observability
+
+Performance Evidence: `MATCH (n:TerraformResource) ... ORDER BY n.name, n.id
+LIMIT $limit` against NornicDB (Compose `bolt://localhost:7687`, database
+`nornic`) over 2,089 `TerraformResource` nodes. The `resource_type` and
+`provider` filters use the `tf_resource_type` and `tf_resource_provider`
+indexes; the `module` filter is a bounded `STARTS WITH` prefix on `n.name`
+covering both the bare `module.<name>.` and for_each `module.<name>[` address
+forms. Live smoke against a locally built `eshu-api` (production profile)
+pointed at the running stack returned `200` for
+`GET /api/v0/iac/resources?limit=5` in ~0.01-0.02s end to end (cold), ~1ms
+warm; `limit=200` returned in ~0.11s; `kind=module`, `kind=data-source`, and
+`module=` for_each filters each returned `200` in under 0.05s. The bounded
+`limit+1` page keeps the read off the unbounded label scan path. No graph
+schema or write path changed, so this is a new bounded read with no regression
+to existing hot paths.
+
+Observability Evidence: `eshu_dp_iac_resource_list_duration_seconds`
+(histogram, `iac.kind` label) and `eshu_dp_iac_resource_list_errors_total`
+(counter, `iac.kind` + `reason` labels) expose handler latency and failure
+class; the `query.iac_resources` span carries the stable `http.route` and
+`eshu.capability` attributes.
 
 ## IaC Cleanup
 

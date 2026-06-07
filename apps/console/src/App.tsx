@@ -21,6 +21,7 @@ import { SbomPage } from "./pages/SbomPage";
 import { ObservabilityPage } from "./pages/ObservabilityPage";
 import { DependenciesPage } from "./pages/DependenciesPage";
 import { ExplorerPage } from "./pages/ExplorerPage";
+import { IacPage } from "./pages/IacPage";
 import { RepositoriesPage } from "./pages/RepositoriesPage";
 import { RepoSourcePage } from "./pages/RepoSourcePage";
 import { ImagesPage } from "./pages/ImagesPage";
@@ -33,6 +34,7 @@ const NAV: readonly { to: string; label: string }[] = [
   { to: "/repositories", label: "Repositories" },
   { to: "/catalog", label: "Catalog" },
   { to: "/images", label: "Images" },
+  { to: "/iac", label: "IaC" },
   { to: "/findings", label: "Findings" },
   { to: "/vulnerabilities", label: "Vulnerabilities" },
   { to: "/sbom", label: "SBOM" },
@@ -137,6 +139,7 @@ export function App(): React.JSX.Element {
             <Route path="/repositories/:id/source" element={<RepoSourcePage client={client} />} />
             <Route path="/catalog" element={<CatalogPage model={model} onOpenService={openService} />} />
             <Route path="/images" element={<ImagesPage client={client} />} />
+            <Route path="/iac" element={<IacPage model={model} />} />
             <Route path="/findings" element={<FindingsPage model={model} />} />
             <Route path="/vulnerabilities" element={<VulnerabilitiesPage model={model} />} />
             <Route path="/vulnerabilities/:id" element={<VulnDetailPage model={model} client={client} />} />

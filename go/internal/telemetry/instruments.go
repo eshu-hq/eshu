@@ -604,15 +604,23 @@ type Instruments struct {
 	QueueClaimDuration                     metric.Float64Histogram
 	PostgresQueryDuration                  metric.Float64Histogram
 	Neo4jQueryDuration                     metric.Float64Histogram
-	SharedAcceptanceUpsertDuration         metric.Float64Histogram
-	SharedAcceptanceLookupDuration         metric.Float64Histogram
-	SharedAcceptancePrefetchSize           metric.Int64Histogram
-	SharedProjectionIntentWaitDuration     metric.Float64Histogram
-	SharedProjectionProcessingDuration     metric.Float64Histogram
-	SharedProjectionStepDuration           metric.Float64Histogram
-	DocumentationDriftGenerationDuration   metric.Float64Histogram
-	WebhookRequestDuration                 metric.Float64Histogram
-	WebhookStoreDuration                   metric.Float64Histogram
+	// IaCResourceListDuration measures the GET /api/v0/iac/resources handler
+	// duration, and IaCResourceListErrors counts handler failures. They let an
+	// operator see IaC inventory read latency and error rate without parsing
+	// traces. The query package records both through the global meter using the
+	// same instrument names registered here so the frozen contract stays
+	// authoritative.
+	IaCResourceListDuration              metric.Float64Histogram
+	IaCResourceListErrors                metric.Int64Counter
+	SharedAcceptanceUpsertDuration       metric.Float64Histogram
+	SharedAcceptanceLookupDuration       metric.Float64Histogram
+	SharedAcceptancePrefetchSize         metric.Int64Histogram
+	SharedProjectionIntentWaitDuration   metric.Float64Histogram
+	SharedProjectionProcessingDuration   metric.Float64Histogram
+	SharedProjectionStepDuration         metric.Float64Histogram
+	DocumentationDriftGenerationDuration metric.Float64Histogram
+	WebhookRequestDuration               metric.Float64Histogram
+	WebhookStoreDuration                 metric.Float64Histogram
 
 	// Collector concurrency histograms and counters
 	RepoSnapshotDuration metric.Float64Histogram
@@ -2357,6 +2365,25 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register Neo4jQueryDuration histogram: %w", err)
+	}
+
+	iacResourceListBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}
+	inst.IaCResourceListDuration, err = meter.Float64Histogram(
+		"eshu_dp_iac_resource_list_duration_seconds",
+		metric.WithDescription("Bounded IaC resource list (GET /api/v0/iac/resources) handler duration"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(iacResourceListBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IaCResourceListDuration histogram: %w", err)
+	}
+
+	inst.IaCResourceListErrors, err = meter.Int64Counter(
+		"eshu_dp_iac_resource_list_errors_total",
+		metric.WithDescription("Bounded IaC resource list (GET /api/v0/iac/resources) handler errors"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IaCResourceListErrors counter: %w", err)
 	}
 
 	inst.SharedAcceptanceUpsertDuration, err = meter.Float64Histogram(
