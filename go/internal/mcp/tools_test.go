@@ -233,11 +233,20 @@ func TestEveryRegisteredToolHasDispatchRoute(t *testing.T) {
 	tools := ReadOnlyTools()
 	for _, tool := range tools {
 		// Provide minimal args so resolveRoute can build a route.
-		args := map[string]any{}
+		args := minimalDispatchRouteArgs(tool.Name)
 		_, err := resolveRoute(tool.Name, args)
 		if err != nil {
 			t.Errorf("tool %q is registered but has no dispatch route: %v", tool.Name, err)
 		}
+	}
+}
+
+func minimalDispatchRouteArgs(toolName string) map[string]any {
+	switch toolName {
+	case "get_service_context", "get_service_story":
+		return map[string]any{"workload_id": "sample-service-api"}
+	default:
+		return map[string]any{}
 	}
 }
 

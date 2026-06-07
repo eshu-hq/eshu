@@ -68,6 +68,33 @@ func TestResolveRouteMapsServiceStoryCatalogIDAsNameSelector(t *testing.T) {
 	}
 }
 
+func TestDispatchToolServiceSelectorRejectsServiceNameSelector(t *testing.T) {
+	t.Parallel()
+
+	for _, toolName := range []string{"get_service_context", "get_service_story"} {
+		toolName := toolName
+		t.Run(toolName, func(t *testing.T) {
+			t.Parallel()
+
+			result, err := dispatchTool(
+				context.Background(),
+				http.NewServeMux(),
+				toolName,
+				map[string]any{"service_name": "sample-service-api"},
+				"",
+				slog.New(slog.NewTextHandler(io.Discard, nil)),
+			)
+			if err == nil {
+				t.Fatalf("dispatchTool() error = nil, result = %#v; want workload_id selector error", result)
+			}
+			want := toolName + " requires workload_id"
+			if !strings.Contains(err.Error(), want) {
+				t.Fatalf("dispatchTool() error = %q, want %q", err, want)
+			}
+		})
+	}
+}
+
 func TestDispatchToolServiceStoryPreservesSpecCountConsistency(t *testing.T) {
 	t.Parallel()
 

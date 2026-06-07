@@ -88,13 +88,13 @@ func contextTools() []ToolDefinition {
 		},
 		{
 			Name:        "get_service_context",
-			Description: "Alias for workload context that only accepts canonical workload identifiers for service workloads.",
+			Description: "Alias for workload context that accepts service workload selectors through workload_id.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"workload_id": map[string]any{
 						"type":        "string",
-						"description": "Canonical workload identifier for a service",
+						"description": "Service workload identifier, or a service name passed through the workload_id field",
 					},
 					"environment": map[string]any{
 						"type":        "string",
@@ -112,7 +112,7 @@ func contextTools() []ToolDefinition {
 				"properties": map[string]any{
 					"workload_id": map[string]any{
 						"type":        "string",
-						"description": "Service workload identifier or service name",
+						"description": "Service workload identifier, or a service name passed through the workload_id field",
 					},
 					"environment": map[string]any{
 						"type":        "string",
