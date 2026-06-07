@@ -223,6 +223,36 @@ and `list_documentation_target_facts`, plus the same HTTP/MCP truth envelope
 and error reporting. No reducer queue, graph write, collector, worker, metric
 label, runtime knob, or deployment setting changes.
 
+Service and repository story `support_overview` may include `target_support`
+when Jira/work-item or PagerDuty incident-routing source facts carry explicit
+target references for the selected service or repository. The nested object
+contains bounded `evidence`, `evidence_count`, `work_item_count`,
+`incident_routing_count`, `ambiguous_evidence`, `ambiguous_count`, `coverage`,
+`missing_evidence`, `limit`, and `source`. Global collector rows are not target
+truth by themselves: title text, service names, summaries, and generic mentions
+do not attach support evidence. Facts must carry `candidate_refs`,
+`evidence_refs`, or `linked_entities`. If a fact references the selected target
+and another target, the story reports `support_correlation_ambiguous` instead
+of admitting it as exact target support. If no target support facts are present,
+the story reports `support_target_facts_absent`.
+
+No-Regression Evidence:
+
+```bash
+cd go && go test ./internal/query -run 'Test(GetServiceStorySurfacesTargetLinkedSupportEvidence|GetServiceStoryPreservesMissingSupportCorrelation|GetRepositoryStorySurfacesTargetLinkedSupportEvidence|BuildStoryTargetSupport|BuildServiceStoryTargetSupportSQL)' -count=1
+cd go && go test ./internal/mcp -run 'TestDispatchTool(ServiceStoryPreservesTargetSupportReadback|RepoStoryPreservesTargetSupportReadback)' -count=1
+```
+
+Observability Evidence: service story records support readback in
+`service_query.stage_completed` with stage `support_target_evidence`,
+`has_result`, `target_support_evidence_count`, and `error`. Repository story
+emits `repository_query.stage_completed` for `target_support` with
+`has_result`, `evidence_count`, and `error`. The Postgres read model uses the
+existing `postgres.query` span family with operation
+`list_service_story_target_support` against active `fact_records`. No collector,
+reducer queue, graph write, metric instrument, runtime flag, or deployment
+setting changes.
+
 Deployment trace responses are evidence-first and may include deployment,
 GitOps, controller, runtime, cloud, Kubernetes, image, relationship, and
 fact-summary sections. Mapping modes are:

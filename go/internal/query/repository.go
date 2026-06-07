@@ -408,6 +408,26 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 	); len(documentationOverview) > 0 {
 		response["documentation_overview"] = documentationOverview
 	}
+	timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "target_support")
+	targetSupport, err := loadRepositoryStoryTargetSupport(r.Context(), h.Content, repoID)
+	timer.Done(
+		r.Context(),
+		slog.Bool("has_result", len(targetSupport) > 0),
+		slog.Int("evidence_count", IntVal(targetSupport, "evidence_count")),
+		slog.Bool("error", err != nil),
+	)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load target support: %v", err))
+		return
+	}
+	if len(targetSupport) > 0 {
+		supportOverview := mapValue(response, "support_overview")
+		if supportOverview == nil {
+			supportOverview = map[string]any{}
+		}
+		supportOverview["target_support"] = targetSupport
+		response["support_overview"] = supportOverview
+	}
 	enrichRepositoryStoryResponseWithEvidence(response, semanticOverview, narrativeFiles)
 
 	WriteSuccess(

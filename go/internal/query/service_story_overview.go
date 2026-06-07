@@ -345,5 +345,8 @@ func buildServiceSupportOverviewWithContext(buildCtx serviceStoryBuildContext) m
 		overview["delivery_path_count"] = len(mapSliceValue(deploymentEvidence, "delivery_paths"))
 		overview["delivery_workflow_count"] = len(mapSliceValue(deploymentEvidence, "delivery_workflows"))
 	}
+	if targetSupport := mapValue(workloadContext, "target_support"); len(targetSupport) > 0 {
+		overview["target_support"] = targetSupport
+	}
 	return overview
 }
