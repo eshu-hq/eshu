@@ -656,7 +656,29 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   unresolved, and stale tag outcomes stay diagnostic counters until stronger
   evidence proves safe identity. Git parser facts can expose image references
   through `entity_metadata.container_images`; the reducer also accepts the
-  older `metadata.container_images` fixture shape for compatibility.
+  older `metadata.container_images` fixture shape for compatibility. CI/CD
+  `container_image` artifacts can also seed image identity when they carry an
+  artifact digest. The reducer uses the matching CI run's `repository_id` as the
+  source anchor, upgrades mutable tag refs to digest refs when both are present,
+  and admits digest-only artifacts only when one OCI registry observation proves
+  the digest's repository. Digest-only artifacts with multiple registry
+  repositories stay ambiguous and produce no canonical write.
+
+  No-Regression Evidence: `go test ./internal/reducer -run
+  'TestBuildContainerImageIdentityDecisions(ConsumesCICDArtifactDigestWithRepositoryAnchor|PrefersCICDArtifactDigestOverMutableTag|IgnoresNonContainerCICDArtifacts|RejectsDigestOnlyCICDArtifactWhenRegistryDigestIsAmbiguous)|Test(BuildContainerImageIdentity|ContainerImageIdentity|PostgresContainerImageIdentity)'
+  -count=1` proves CI/CD artifact evidence joins through a repository-anchored
+  run, prefers immutable digests over mutable tags, ignores non-container
+  artifacts, and fails closed for digest collisions. The implementation extends
+  the existing in-memory reducer fact pass and registry index; it adds no graph
+  round trip, queue domain, worker, schema change, or API/MCP route.
+
+  No-Observability-Change: container image identity decisions continue to emit
+  `eshu_dp_container_image_identity_decisions_total` by domain and outcome after
+  durable writes succeed. Existing reducer run spans, fact-load timings,
+  execution counters, evidence summaries, and durable
+  `reducer_container_image_identity` payload fields expose source repository
+  anchors, evidence fact IDs, outcomes, identity strength, and missing/ambiguous
+  evidence without adding high-cardinality metric labels.
 - **SBOM attachment keeps trust dimensions separate** —
   `SBOMAttestationAttachmentHandler` writes
   `reducer_sbom_attestation_attachment` facts for attached verified,

@@ -1,6 +1,7 @@
 package reducer
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -62,6 +63,24 @@ func buildContainerImageRegistryIndex(envelopes []facts.Envelope) containerImage
 	return index
 }
 
+func (i containerImageRegistryIndex) observationsForDigest(digest string) []containerImageDigestObservation {
+	digest = strings.TrimSpace(digest)
+	if digest == "" {
+		return nil
+	}
+	observations := make([]containerImageDigestObservation, 0)
+	for _, obs := range i.digests {
+		if obs.digest != digest {
+			continue
+		}
+		observations = append(observations, obs)
+	}
+	sort.SliceStable(observations, func(left, right int) bool {
+		return observations[left].repositoryID < observations[right].repositoryID
+	})
+	return observations
+}
+
 func classifyContainerImageRef(
 	ref containerImageRefEvidence,
 	index containerImageRegistryIndex,
@@ -77,6 +96,30 @@ func classifyContainerImageRef(
 	}
 	repositoryID := repositoryIDFromKey(ref.parsed.repositoryKey)
 	if ref.parsed.digest != "" {
+		if repositoryID == "" {
+			observations := index.observationsForDigest(ref.parsed.digest)
+			if len(observations) != 1 {
+				if len(observations) > 1 {
+					for _, obs := range observations {
+						decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, obs.factIDs...)
+					}
+					decision.Outcome = ContainerImageIdentityAmbiguousTag
+					decision.Reason = "artifact digest matched multiple registry repositories"
+					decision.EvidenceFactIDs = uniqueSortedStrings(decision.EvidenceFactIDs)
+				}
+				return decision
+			}
+			obs := observations[0]
+			decision.ImageRef = imageRefFromOCIRepositoryID(obs.repositoryID, ref.parsed.digest)
+			decision.Digest = ref.parsed.digest
+			decision.RepositoryID = obs.repositoryID
+			decision.Outcome = ContainerImageIdentityExactDigest
+			decision.Reason = "artifact digest matched one registry digest observation"
+			decision.CanonicalWrites = 1
+			decision.IdentityStrength = "artifact_digest_with_registry_observation"
+			decision.EvidenceFactIDs = uniqueSortedStrings(append(decision.EvidenceFactIDs, obs.factIDs...))
+			return decision
+		}
 		obs, ok := index.digests[containerImageDigestKey(repositoryID, ref.parsed.digest)]
 		if !ok {
 			return decision
@@ -132,6 +175,14 @@ func classifyContainerImageRef(
 		decision.EvidenceFactIDs = uniqueSortedStrings(decision.EvidenceFactIDs)
 	}
 	return decision
+}
+
+func imageRefFromOCIRepositoryID(repositoryID string, digest string) string {
+	repository := strings.TrimPrefix(strings.TrimSpace(repositoryID), "oci-registry://")
+	if repository == "" || strings.TrimSpace(digest) == "" {
+		return ""
+	}
+	return repository + "@" + strings.TrimSpace(digest)
 }
 
 func ociDigestObservation(envelope facts.Envelope) (containerImageDigestObservation, bool) {

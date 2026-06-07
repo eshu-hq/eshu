@@ -198,6 +198,8 @@ func containerImageIdentityFactKinds() []string {
 	return []string{
 		factKindContentEntity,
 		facts.CICDWorkflowImageEvidenceFactKind,
+		facts.CICDRunFactKind,
+		facts.CICDArtifactFactKind,
 		facts.AWSRelationshipFactKind,
 		facts.AWSImageReferenceFactKind,
 		facts.OCIImageTagObservationFactKind,
