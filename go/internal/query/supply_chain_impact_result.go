@@ -105,8 +105,15 @@ func buildSupplyChainImpactFindingResult(row SupplyChainImpactFindingRow) Supply
 func normalizedSupplyChainImpactMissingEvidence(row SupplyChainImpactFindingRow) []string {
 	missing := make([]string, 0, len(row.MissingEvidence))
 	hasServiceCatalogEvidence := rowHasServiceCatalogEvidence(row)
+	hasResolvedServiceCatalogAnchor := rowHasResolvedServiceCatalogAnchor(row)
 	for _, reason := range row.MissingEvidence {
+		if reason == serviceCatalogAnchorMissingReason && hasResolvedServiceCatalogAnchor {
+			continue
+		}
 		if reason == serviceCatalogCorrelationMissingReason && hasServiceCatalogEvidence {
+			if hasResolvedServiceCatalogAnchor {
+				continue
+			}
 			reason = serviceCatalogAnchorMissingReason
 		}
 		missing = append(missing, reason)
@@ -127,4 +134,11 @@ func rowHasServiceCatalogEvidence(row SupplyChainImpactFindingRow) bool {
 		}
 	}
 	return false
+}
+
+func rowHasResolvedServiceCatalogAnchor(row SupplyChainImpactFindingRow) bool {
+	if len(row.ServiceIDs) > 0 {
+		return true
+	}
+	return len(row.WorkloadIDs) > 0 && len(row.CatalogEntityRefs) > 0
 }

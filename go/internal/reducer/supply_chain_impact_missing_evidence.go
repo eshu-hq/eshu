@@ -28,7 +28,9 @@ func missingImpactEvidence(finding SupplyChainImpactFinding) []string {
 	}
 	if finding.RuntimeReachability != "known_fixed" && len(finding.ServiceIDs) == 0 {
 		if hasSupplyChainServiceCatalogEvidence(finding) {
-			missing = append(missing, "service/workload catalog anchor missing")
+			if !hasResolvedSupplyChainServiceCatalogAnchor(finding) {
+				missing = append(missing, "service/workload catalog anchor missing")
+			}
 		} else if hasDeployment || hasWorkloadOrService {
 			missing = append(missing, "service catalog correlation evidence missing")
 		} else {
@@ -45,6 +47,13 @@ func hasSupplyChainServiceCatalogEvidence(finding SupplyChainImpactFinding) bool
 		}
 	}
 	return false
+}
+
+func hasResolvedSupplyChainServiceCatalogAnchor(finding SupplyChainImpactFinding) bool {
+	if len(finding.ServiceIDs) > 0 {
+		return true
+	}
+	return len(finding.WorkloadIDs) > 0 && len(finding.CatalogEntityRefs) > 0
 }
 
 func supplyChainReachabilityHasPackageAnchor(runtimeReachability string) bool {
