@@ -329,11 +329,15 @@ func (h *SupplyChainHandler) listSBOMAttachments(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
+	repositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "repository_id"))
+	if !ok {
+		return
+	}
 	filter := SBOMAttestationAttachmentFilter{
 		SubjectDigest:     firstNonEmptyQueryParam(r, "subject_digest", "digest"),
 		DocumentID:        QueryParam(r, "document_id"),
 		DocumentDigest:    QueryParam(r, "document_digest"),
-		RepositoryID:      QueryParam(r, "repository_id"),
+		RepositoryID:      repositoryID,
 		WorkloadID:        QueryParam(r, "workload_id"),
 		ServiceID:         QueryParam(r, "service_id"),
 		AttachmentStatus:  QueryParam(r, "attachment_status"),

@@ -189,15 +189,18 @@ a vulnerability-only target may leave image and SBOM minimums at `0`, while a
 code-to-cloud release gate should require positive image, SBOM, service, and
 CI/CD evidence. Positive image, SBOM, and CI/CD minimums require a shared
 `expected_image_digest` or `expected_image_ref` so the verifier proves a single
-artifact chain instead of unrelated aggregate evidence. A positive
-`cloud_resources` minimum requires `expected_cloud_resource_id`; provider or
-environment aggregates alone are not enough to satisfy a target story. When
-image and SBOM minimums are both positive, the verifier also requires exact API
-and MCP service-story `image_package` readback for the target service, not only
-aggregate supply-chain counts. When the service-story, service-catalog, or
-cloud, documentation, incident, or work-item minimum is positive, set
-`ESHU_REMOTE_E2E_MCP_URL` and, if needed, `ESHU_REMOTE_E2E_MCP_TOKEN`. The
-verifier exercises MCP readbacks over the same target filters as the API proof.
+artifact chain instead of unrelated aggregate evidence. SBOM attachment proof
+starts from `target_repository_id`; `expected_sbom_subject_digest` or
+`expected_image_digest` only narrows that repository-first count when present. A
+positive `cloud_resources` minimum requires `expected_cloud_resource_id`;
+provider or environment aggregates alone are not enough to satisfy a target
+story. When image and SBOM minimums are both positive, the verifier also
+requires exact API and MCP service-story `image_package` readback for the target
+service, not only aggregate supply-chain counts. When the service-story,
+service-catalog, or cloud, documentation, incident, or work-item minimum is
+positive, set `ESHU_REMOTE_E2E_MCP_URL` and, if needed,
+`ESHU_REMOTE_E2E_MCP_TOKEN`. The verifier exercises MCP readbacks over the same
+target filters as the API proof.
 
 Positive `documentation_findings` minimums call
 `/api/v0/documentation/findings` and `list_documentation_findings` with the
@@ -222,11 +225,11 @@ service IDs, provider URLs, repository selectors, or credentials.
 In `code_to_cloud` mode, the verifier also checks manifest alignment before
 calling API or MCP routes. The selected repository, provider security-alert
 repository, OCI repository or image reference, service/workload selectors, and
-SBOM subject digest must describe the same target chain. A positive aggregate
-image, SBOM, service, or cloud count from a different target fails the proof
-instead of being reported as code-to-cloud evidence. Use `partial` or
-`vulnerability_only` with `proof_mode_reason` when the manifest intentionally
-cannot prove the artifact or runtime hop.
+SBOM subject digest, when supplied, must describe the same target chain. A
+positive aggregate image, SBOM, service, or cloud count from a different target
+fails the proof instead of being reported as code-to-cloud evidence. Use
+`partial` or `vulnerability_only` with `proof_mode_reason` when the manifest
+intentionally cannot prove the artifact or runtime hop.
 
 Set `expected_security_alert_rows_file` to an operator-local JSON file when the
 proof needs provider-alert row parity, not only a reconciliation count. The

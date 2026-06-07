@@ -52,7 +52,10 @@ func (h *SupplyChainHandler) countSBOMAttestationAttachments(w http.ResponseWrit
 		return
 	}
 
-	filter := sbomAttestationAttachmentAggregateFilterFromRequest(r)
+	filter, ok := h.sbomAttestationAttachmentAggregateFilterFromRequest(w, r)
+	if !ok {
+		return
+	}
 	if !validateSBOMAttestationAttachmentAggregateFilters(w, filter) {
 		return
 	}
@@ -126,7 +129,10 @@ func (h *SupplyChainHandler) sbomAttestationAttachmentInventory(w http.ResponseW
 	if !ok {
 		return
 	}
-	filter := sbomAttestationAttachmentAggregateFilterFromRequest(r)
+	filter, ok := h.sbomAttestationAttachmentAggregateFilterFromRequest(w, r)
+	if !ok {
+		return
+	}
 	if !validateSBOMAttestationAttachmentAggregateFilters(w, filter) {
 		return
 	}
@@ -158,17 +164,24 @@ func (h *SupplyChainHandler) sbomAttestationAttachmentInventory(w http.ResponseW
 	))
 }
 
-func sbomAttestationAttachmentAggregateFilterFromRequest(r *http.Request) SBOMAttestationAttachmentAggregateFilter {
+func (h *SupplyChainHandler) sbomAttestationAttachmentAggregateFilterFromRequest(
+	w http.ResponseWriter,
+	r *http.Request,
+) (SBOMAttestationAttachmentAggregateFilter, bool) {
+	repositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "repository_id"))
+	if !ok {
+		return SBOMAttestationAttachmentAggregateFilter{}, false
+	}
 	return SBOMAttestationAttachmentAggregateFilter{
 		SubjectDigest:    QueryParam(r, "subject_digest"),
 		DocumentID:       QueryParam(r, "document_id"),
 		DocumentDigest:   QueryParam(r, "document_digest"),
-		RepositoryID:     QueryParam(r, "repository_id"),
+		RepositoryID:     repositoryID,
 		WorkloadID:       QueryParam(r, "workload_id"),
 		ServiceID:        QueryParam(r, "service_id"),
 		AttachmentStatus: QueryParam(r, "attachment_status"),
 		ArtifactKind:     QueryParam(r, "artifact_kind"),
-	}
+	}, true
 }
 
 func sbomAttestationAttachmentAggregateScope(filter SBOMAttestationAttachmentAggregateFilter) map[string]string {

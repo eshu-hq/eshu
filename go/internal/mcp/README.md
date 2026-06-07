@@ -126,7 +126,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_work_item_evidence` | GET | `/api/v0/work-items/evidence` |
 | `get_vulnerability_scanner_read_contract` | GET | `/api/v0/supply-chain/vulnerability-scanner/contract` |
 | `list_supply_chain_impact_findings` | GET | `/api/v0/supply-chain/impact/findings` (accepts repository ids or human repository selectors plus scanner filters such as `advisory_id`, `image_ref`, `ecosystem`, `service_id`, `workload_id`, `environment`, `severity`, `profile`, `include_suppressed`, and `suppression_state`; precise rows require supported exact-version evidence such as npm, Maven, Cargo, Pub `pubspec.lock`, NuGet, or Swift `Package.resolved`, and each row carries a `suppression` block with state, source, justification, author, timestamps, reason, and VEX provenance) |
-| `list_sbom_attestation_attachments` | GET | `/api/v0/supply-chain/sbom-attestations/attachments` (use `subject_digest`/`digest`, `document_id`, `document_digest`, `repository_id`, `workload_id`, or `service_id` for SBOM proof; scoped repository/workload/service reads return explicit missing image or image-to-SBOM evidence instead of silently flattening empty pages) |
+| `list_sbom_attestation_attachments` | GET | `/api/v0/supply-chain/sbom-attestations/attachments` (use `subject_digest`/`digest`, `document_id`, `document_digest`, repository `repository_id` or selector, `workload_id`, or `service_id` for SBOM proof; scoped repository/workload/service reads return explicit missing image or image-to-SBOM evidence instead of silently flattening empty pages) |
 | `list_advisory_evidence` | GET | `/api/v0/supply-chain/advisories/evidence` |
 | `explain_supply_chain_impact` | GET | `/api/v0/supply-chain/impact/explain` |
 | `list_security_alert_reconciliations` | GET | `/api/v0/supply-chain/security-alerts/reconciliations` (accepts repository ids or human repository selectors; rows include Eshu-owned `eshu_package.observed_version` when installed-version evidence exists) |
@@ -186,10 +186,11 @@ a whole-graph traversal.
 Supply-chain tools keep the same transport-only contract. The impact explain
 tool forwards one `finding_id` or advisory/CVE plus package, repository, or
 image-digest scope to the HTTP route; MCP does not hydrate evidence or infer
-reachability itself. The SBOM/attestation tool schema accepts only the
-reducer-owned attachment statuses, including `ambiguous_subject`, so
-multi-subject attestations stay visible without becoming canonical image
-attachments.
+reachability itself. The SBOM/attestation tool forwards repository IDs or human
+repository selectors to the HTTP route, which resolves them before its bounded
+attachment read. Its schema accepts only the reducer-owned attachment statuses,
+including `ambiguous_subject`, so multi-subject attestations stay visible
+without becoming canonical image attachments.
 `list_advisory_evidence` forwards repository, service, and workload scope to
 HTTP so the query layer can derive advisory anchors from reducer-owned impact
 findings before reading source-only advisory facts. MCP must not synthesize

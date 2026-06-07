@@ -287,12 +287,12 @@ main() {
 		if [[ -z "${expected_sbom_digest}" ]]; then
 			expected_sbom_digest="${expected_image_digest}"
 		fi
-		if [[ -z "${expected_sbom_digest}" ]]; then
-			echo "target sbom_attachments requires expected_sbom_subject_digest or expected_image_digest" >&2
-			return 1
-		fi
 		local sbom_file="${TMP_DIR}/sbom-count.json"
-		api_get "/supply-chain/sbom-attestations/attachments/count?subject_digest=$(urlencode "${expected_sbom_digest}")" "${sbom_file}"
+		local sbom_path="/supply-chain/sbom-attestations/attachments/count?repository_id=${repo_query}"
+		if [[ -n "${expected_sbom_digest}" ]]; then
+			sbom_path="${sbom_path}&subject_digest=$(urlencode "${expected_sbom_digest}")"
+		fi
+		api_get "${sbom_path}" "${sbom_file}"
 		sbom_count="$(json_int "${sbom_file}" '.total_attachments')"
 		require_min_count sbom_attachments "${sbom_count}" "${sbom_min}"
 	fi
