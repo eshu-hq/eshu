@@ -158,6 +158,12 @@ Public-safe manifest shape:
   "expected_image_package_missing_evidence": [
     "oci_registry_target_outside_scope"
   ],
+  "expected_container_image_missing_evidence": [
+    "source_to_image_correlation_missing"
+  ],
+  "expected_sbom_missing_evidence": [
+    "repository_to_image_evidence_missing"
+  ],
   "expected_ci_cd_missing_evidence": [
     "source_to_ci_run_evidence_missing",
     "ci_run_to_image_artifact_evidence_missing"
@@ -233,6 +239,18 @@ digest/image-ref anchor, requires every expected class in
 names such as `source_to_ci_run_evidence_missing` or
 `ci_run_to_image_artifact_evidence_missing`. This proves a named missing hop
 without requiring live provider evidence.
+
+When source-to-image or image-to-SBOM proof is intentionally absent for the
+selected target, keep `minimums.container_image_identities` or
+`minimums.sbom_attachments` at `0` and set
+`expected_container_image_missing_evidence` or `expected_sbom_missing_evidence`
+to the stable public-safe count-readback classes the proof must observe. The
+verifier calls bounded API and MCP count readbacks for the same source
+repository, optional OCI repository, and optional digest/image-ref anchor, then
+prints only missing-evidence class names such as
+`source_to_image_correlation_missing` or
+`repository_to_image_evidence_missing`. Aggregate zeroes alone are not accepted
+as a named bridge classification.
 
 When image/runtime evidence is intentionally outside a focused proof, keep the
 image and SBOM minimums at `0` and set

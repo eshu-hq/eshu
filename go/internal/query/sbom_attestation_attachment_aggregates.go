@@ -69,11 +69,13 @@ type SBOMAttestationAttachmentAggregateFilter struct {
 // SBOMAttestationAttachmentAggregateCount is the cheap-summary totals envelope
 // used by the count handler. ByAttachmentStatus and ByArtifactKind are
 // pre-aggregated rollups so callers can answer "attachments per status" and
-// "attachments per artifact kind" without a second round trip.
+// "attachments per artifact kind" without a second round trip. MissingEvidence
+// carries source-scope gap classes for zero or incomplete target readbacks.
 type SBOMAttestationAttachmentAggregateCount struct {
 	TotalAttachments   int
 	ByAttachmentStatus map[string]int
 	ByArtifactKind     map[string]int
+	MissingEvidence    []string
 }
 
 // SBOMAttestationAttachmentInventoryRow is one grouped bucket returned by the
@@ -211,7 +213,25 @@ func (s PostgresSBOMAttestationAttachmentAggregateStore) CountSBOMAttestationAtt
 	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(fact.payload->>'artifact_kind', ''), 'unknown')", out.ByArtifactKind); err != nil {
 		return SBOMAttestationAttachmentAggregateCount{}, err
 	}
+	missing, err := s.sbomAttestationAttachmentAggregateMissingEvidence(ctx, filter)
+	if err != nil {
+		return SBOMAttestationAttachmentAggregateCount{}, err
+	}
+	out.MissingEvidence = missing
 	return out, nil
+}
+
+func (s PostgresSBOMAttestationAttachmentAggregateStore) sbomAttestationAttachmentAggregateMissingEvidence(
+	ctx context.Context,
+	filter SBOMAttestationAttachmentAggregateFilter,
+) ([]string, error) {
+	store := PostgresSBOMAttestationAttachmentStore{DB: s.DB}
+	return store.sbomAttestationAttachmentMissingEvidence(ctx, SBOMAttestationAttachmentFilter{
+		SubjectDigest: filter.SubjectDigest,
+		RepositoryID:  filter.RepositoryID,
+		WorkloadID:    filter.WorkloadID,
+		ServiceID:     filter.ServiceID,
+	})
 }
 
 func (s PostgresSBOMAttestationAttachmentAggregateStore) fillBuckets(

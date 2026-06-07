@@ -243,6 +243,13 @@ artifact metadata through claim-driven workflow targets. Representative remote
 target-story proof still must show either exact live artifact bridge evidence or
 these named API/MCP missing-hop classes for the selected target.
 
+Container image identity count readbacks also expose `source_bridge` when
+`source_repository_id` is present. A scoped zero count now carries the same
+public-safe bridge classes as the list route, including
+`deployment_image_reference_missing`, `image_registry_observation_missing`, and
+`source_to_image_correlation_missing`, so target-story and MCP callers can
+distinguish an honest missing bridge from an unclassified aggregate zero.
+
 No-Regression Evidence: `go test ./internal/workflowimage ./internal/facts ./internal/collector ./internal/reducer ./internal/storage/postgres ./internal/query -run 'TestExtract|TestCICDRunFactKindsAndSchemaVersions|TestBuildStreamingGenerationEmitsWorkflowImageEvidence|TestBuildContainerImageIdentityDecisionsUsesWorkflowImageEvidenceAsSourceAnchor|TestBuildCICDRunCorrelationDecisionsUsesWorkflowImageEvidence|TestListActiveCICDRunCorrelationFactsQueryIsArtifactBoundedAndPaged|TestCICDListRunCorrelationsExplains(StaticWorkflowImageEvidence|UnresolvedStaticWorkflowImageEvidence)' -count=1` fails if workflow image extraction, durable fact registration, collector emission, image-identity source anchoring, CI/CD correlation, active image-identity lookup, or repository-scoped CI/CD summary classes drift.
 
 No-Observability-Change: workflow image evidence reuses the existing Git collector fact stream, container-image identity reducer counters, CI/CD run-correlation reducer counters, bounded Postgres fact reads, query spans, truth envelope, and HTTP status/error bodies. The change adds no new runtime service, queue domain, worker, graph query, graph write shape, metric instrument, metric label, or runtime knob; operators still diagnose collection through fact counts and collector spans, reducer admission through existing outcome counters, and readback through `query.ci_cd_run_correlations`.
@@ -898,6 +905,12 @@ bounded duplicate-collapsed preview, `warning_summary_count` as the total number
 of warning summary entries recorded on the reducer payload, and
 `warning_summaries_truncated=true` when duplicate or overflow entries were
 omitted from the preview. HTTP and MCP readbacks use the same response shape.
+Repository, workload, or service scoped SBOM attachment count readbacks expose
+`missing_evidence[]` as well. When the count is zero because the selected source
+has no admissible image identity, callers see
+`repository_to_image_evidence_missing`, `workload_to_image_evidence_missing`, or
+`service_to_image_evidence_missing`; when an image exists without an attachment,
+callers see `image_to_sbom_evidence_missing`.
 
 No-Regression Evidence: `go test ./internal/reducer -run
 'Test(BuildSBOMAttestationAttachmentDecisionsClassifiesSubjectsAndTrust|ScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment|PostgresSBOMAttestationAttachmentWriterPersistsAllStatuses)'

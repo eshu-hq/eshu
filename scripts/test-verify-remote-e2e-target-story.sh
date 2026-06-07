@@ -492,7 +492,7 @@ if ! rg -q 'remote E2E target story proof skipped: no target story configured' /
   sed -n '1,200p' /tmp/eshu-remote-e2e-target-story.out >&2
   exit 1
 fi
-
+"${repo_root}/scripts/test-verify-remote-e2e-target-story-runtime-missing-evidence.sh"
 "${repo_root}/scripts/test-verify-remote-e2e-target-story-source-evidence.sh"
 "${repo_root}/scripts/test-verify-remote-e2e-target-story-canonical-ids.sh"
 "${repo_root}/scripts/test-verify-remote-e2e-target-story-cicd-missing-evidence.sh"

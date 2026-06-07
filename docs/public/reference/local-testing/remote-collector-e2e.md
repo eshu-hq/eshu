@@ -354,8 +354,13 @@ names. When image and SBOM minimums are both positive, the verifier requires the
 target service story's `code_to_runtime_trace.image_package` segment to expose
 exact image/SBOM evidence through API and MCP readbacks; aggregate evidence
 alone is not enough. For partial image/runtime proofs, keep image and SBOM
-minimums at `0` and set `expected_image_package_missing_evidence` to the stable
-service-story `image_package` classes the API and MCP readbacks must carry. Use
+minimums at `0` and set `expected_container_image_missing_evidence`,
+`expected_sbom_missing_evidence`, or `expected_image_package_missing_evidence`
+to the stable count or service-story missing-evidence classes the API and MCP
+readbacks must carry. The count proof calls
+`count_container_image_identities` and `count_sbom_attestation_attachments`
+with the same target source repository and optional artifact anchors, and
+prints only class names. Use
 `expected_service_id` or `expected_workload_id` when the proof must validate a
 specific deployed service rather than any reducer-owned service-catalog row for
 the repository. For provider security-alert evidence,
@@ -367,7 +372,7 @@ only for matching and does not print them.
 Use `minimums.documentation_findings`, `minimums.incident_contexts`, and `minimums.work_item_evidence` for Confluence/PagerDuty/Jira target evidence. Positive source minimums require `ESHU_REMOTE_E2E_MCP_URL`; aggregate collector counts are not target proof.
 Disabled/unsupported source families keep minimum `0` and set `unsupported_target_evidence` to `collector_disabled`, `source_not_configured`, `capability_not_supported`, or `target_link_not_modeled`; missing positive evidence reports only `target_not_linked`.
 
-No-Regression Evidence: `scripts/test-verify-remote-e2e-target-story-canonical-ids.sh` proves opaque canonical repository selectors reach existing bounded readbacks, unrelated workload selectors still fail through catalog minimums, and no new API/MCP calls were added. `scripts/test-verify-remote-e2e-target-story-image-package-gaps.sh` proves partial image/runtime proofs report sanitized API and MCP `image_package` gap classes plus collector scope without leaking raw target values. No-Observability-Change: target-story proof output remains the existing public-safe count line and missing-evidence errors; raw repository ids, workload ids, digests, image refs, account ids, URLs, and local paths stay hidden.
+No-Regression Evidence: `scripts/test-verify-remote-e2e-target-story-canonical-ids.sh` proves opaque canonical repository selectors reach existing bounded readbacks, unrelated workload selectors still fail through catalog minimums, and no new API/MCP calls were added. `scripts/test-verify-remote-e2e-target-story-runtime-missing-evidence.sh` proves partial runtime proofs report sanitized API and MCP container-image and SBOM count missing-evidence classes without leaking raw target values. `scripts/test-verify-remote-e2e-target-story-image-package-gaps.sh` proves partial image/runtime proofs report sanitized API and MCP `image_package` gap classes plus collector scope without leaking raw target values. No-Observability-Change: target-story proof output remains the existing public-safe count line and missing-evidence errors; raw repository ids, workload ids, digests, image refs, account ids, URLs, and local paths stay hidden.
 
 ### Reducer Evidence Rows
 
