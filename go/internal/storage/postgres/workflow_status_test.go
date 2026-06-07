@@ -100,3 +100,58 @@ func TestReadCoordinatorSnapshotClampsNegativeOldestPendingAge(t *testing.T) {
 		t.Fatalf("readCoordinatorSnapshot().OldestPendingAge = %v, want 0", got.OldestPendingAge)
 	}
 }
+
+func TestReadWorkflowCoordinatorRecentFailuresCountsWindowedRows(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 5, 21, 14, 15, 0, 0, time.UTC)
+	queryer := &fakeQueryer{
+		responses: []fakeRows{
+			{
+				rows: [][]any{
+					{int64(2), int64(1), int64(3)},
+				},
+			},
+		},
+	}
+
+	got, err := readWorkflowCoordinatorRecentFailures(context.Background(), queryer, now, 30*time.Minute)
+	if err != nil {
+		t.Fatalf("readWorkflowCoordinatorRecentFailures() error = %v, want nil", err)
+	}
+	if got == nil {
+		t.Fatal("readWorkflowCoordinatorRecentFailures() = nil, want snapshot")
+	}
+	if got.Window != 30*time.Minute {
+		t.Fatalf("recent failures Window = %v, want 30m", got.Window)
+	}
+	if got.FailedRuns != 2 || got.BlockedCompleteness != 1 || got.TerminalWorkItems != 3 {
+		t.Fatalf("recent failures = %#v, want failed=2 blocked=1 terminal=3", got)
+	}
+	if !got.Active() {
+		t.Fatal("recent failures Active() = false, want true")
+	}
+	// The query must bound by updated_at so aged failures fall out of scope.
+	if !strings.Contains(workflowCoordinatorRecentFailuresQuery, "updated_at >= $1") {
+		t.Fatalf("workflowCoordinatorRecentFailuresQuery missing updated_at window:\n%s", workflowCoordinatorRecentFailuresQuery)
+	}
+}
+
+func TestReadWorkflowCoordinatorRecentFailuresDefaultsWindow(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 5, 21, 14, 15, 0, 0, time.UTC)
+	queryer := &fakeQueryer{
+		responses: []fakeRows{
+			{rows: [][]any{{int64(0), int64(0), int64(0)}}},
+		},
+	}
+
+	got, err := readWorkflowCoordinatorRecentFailures(context.Background(), queryer, now, 0)
+	if err != nil {
+		t.Fatalf("readWorkflowCoordinatorRecentFailures() error = %v, want nil", err)
+	}
+	if got.Window != defaultCoordinatorRecentFailureWindow {
+		t.Fatalf("recent failures Window = %v, want default %v", got.Window, defaultCoordinatorRecentFailureWindow)
+	}
+}

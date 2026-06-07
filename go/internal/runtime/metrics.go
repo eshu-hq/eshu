@@ -262,6 +262,41 @@ func writeCoordinatorMetrics(
 			strconv.Itoa(row.Count),
 		)
 	}
+
+	writeCoordinatorRecentFailureMetrics(writeGauge, baseLabels, snapshot.RecentFailures)
+}
+
+// writeCoordinatorRecentFailureMetrics emits the windowed failure counts that
+// drive the degraded health state, so an operator can see which recent failures
+// kept the indicator red rather than guessing from aged cumulative totals.
+func writeCoordinatorRecentFailureMetrics(
+	writeGauge func(name string, labels map[string]string, value string),
+	baseLabels map[string]string,
+	recent *statuspkg.CoordinatorRecentFailures,
+) {
+	if recent == nil {
+		return
+	}
+	writeGauge(
+		"eshu_runtime_coordinator_recent_failure_window_seconds",
+		baseLabels,
+		fmt.Sprintf("%.0f", recent.Window.Seconds()),
+	)
+	writeGauge(
+		"eshu_runtime_coordinator_recent_failed_runs",
+		baseLabels,
+		strconv.Itoa(recent.FailedRuns),
+	)
+	writeGauge(
+		"eshu_runtime_coordinator_recent_blocked_completeness",
+		baseLabels,
+		strconv.Itoa(recent.BlockedCompleteness),
+	)
+	writeGauge(
+		"eshu_runtime_coordinator_recent_terminal_work_items",
+		baseLabels,
+		strconv.Itoa(recent.TerminalWorkItems),
+	)
 }
 
 type collectorInstanceMetricRow struct {

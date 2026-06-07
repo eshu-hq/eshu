@@ -295,7 +295,14 @@ labels. The existing `/api/v0/index-status`,
 and overdue claim counts, queue/domain ages, and health reasons that
 distinguish fact-queue backlog, shared projection backlog, workflow
 convergence, blocked completeness, failed workflow runs, and stale pending
-workflow work.
+workflow work. The degraded health state is driven by `recent_failures`, a
+bounded window (default 30 minutes by row `updated_at`) covering failed runs,
+blocked completeness, and `failed_terminal`/`expired` work items. The cumulative
+`*_status_counts` totals stay in the payload as informational detail, so a
+recovered stack reports healthy again once failures age out of the window
+instead of staying degraded until rows are pruned. The matching
+`eshu_runtime_coordinator_recent_*` gauges expose the windowed counts so an
+operator can see which recent failures kept the indicator red.
 When `ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID` is set, the verifier
 also prints `package_registry_metadata_too_large_gaps` from the bounded
 readiness response without printing package names, metadata URLs, or feed

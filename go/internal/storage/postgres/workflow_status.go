@@ -68,7 +68,32 @@ SELECT
       0
     ) AS oldest_pending_age_seconds
 `
+	// workflowCoordinatorRecentFailuresQuery counts failures whose row was last
+	// updated within the recent window ($1 = cutoff). It drives the degraded
+	// health state so a recovered stack reports healthy again instead of
+	// staying degraded on aged all-time failures. Each subquery is served by the
+	// existing (status, updated_at DESC) indexes on its table.
+	workflowCoordinatorRecentFailuresQuery = `
+SELECT
+    (SELECT COUNT(*)
+     FROM workflow_runs
+     WHERE status = 'failed'
+       AND updated_at >= $1) AS recent_failed_runs,
+    (SELECT COUNT(*)
+     FROM workflow_run_completeness
+     WHERE status = 'blocked'
+       AND updated_at >= $1) AS recent_blocked_completeness,
+    (SELECT COUNT(*)
+     FROM workflow_work_items
+     WHERE status IN ('failed_terminal', 'expired')
+       AND updated_at >= $1) AS recent_terminal_work_items
+`
 )
+
+// defaultCoordinatorRecentFailureWindow bounds how far back a workflow failure
+// counts toward the degraded health state. Failures older than this window are
+// treated as aged history and surfaced only as cumulative detail.
+const defaultCoordinatorRecentFailureWindow = 30 * time.Minute
 
 func readCoordinatorSnapshot(ctx context.Context, queryer Queryer, asOf time.Time) (*statuspkg.CoordinatorSnapshot, error) {
 	instances, err := listCoordinatorCollectorInstances(ctx, queryer)
@@ -91,6 +116,10 @@ func readCoordinatorSnapshot(ctx context.Context, queryer Queryer, asOf time.Tim
 	if err != nil {
 		return nil, err
 	}
+	recentFailures, err := readWorkflowCoordinatorRecentFailures(ctx, queryer, asOf, defaultCoordinatorRecentFailureWindow)
+	if err != nil {
+		return nil, err
+	}
 	if len(instances) == 0 && len(runCounts) == 0 && len(workItemCounts) == 0 && len(completenessCounts) == 0 && activeClaims == 0 && overdueClaims == 0 && oldestPendingAge == 0 {
 		return nil, nil
 	}
@@ -103,7 +132,50 @@ func readCoordinatorSnapshot(ctx context.Context, queryer Queryer, asOf time.Tim
 		ActiveClaims:         activeClaims,
 		OverdueClaims:        overdueClaims,
 		OldestPendingAge:     oldestPendingAge,
+		RecentFailures:       recentFailures,
 	}, nil
+}
+
+// readWorkflowCoordinatorRecentFailures counts workflow failures whose row was
+// last updated within window before asOf. The result drives the degraded health
+// state; cumulative totals remain on the snapshot for operator detail. A nil
+// window or non-positive window yields the package default.
+func readWorkflowCoordinatorRecentFailures(
+	ctx context.Context,
+	queryer Queryer,
+	asOf time.Time,
+	window time.Duration,
+) (*statuspkg.CoordinatorRecentFailures, error) {
+	if window <= 0 {
+		window = defaultCoordinatorRecentFailureWindow
+	}
+	cutoff := asOf.UTC().Add(-window)
+
+	rows, err := queryer.QueryContext(ctx, workflowCoordinatorRecentFailuresQuery, cutoff)
+	if err != nil {
+		return nil, fmt.Errorf("read workflow coordinator recent failures: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	recent := &statuspkg.CoordinatorRecentFailures{Window: window}
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("read workflow coordinator recent failures: %w", err)
+		}
+		return recent, nil
+	}
+
+	var failedRuns, blockedCompleteness, terminalWorkItems int64
+	if err := rows.Scan(&failedRuns, &blockedCompleteness, &terminalWorkItems); err != nil {
+		return nil, fmt.Errorf("read workflow coordinator recent failures: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read workflow coordinator recent failures: %w", err)
+	}
+	recent.FailedRuns = int(failedRuns)
+	recent.BlockedCompleteness = int(blockedCompleteness)
+	recent.TerminalWorkItems = int(terminalWorkItems)
+	return recent, nil
 }
 
 func listCoordinatorCollectorInstances(ctx context.Context, queryer Queryer) ([]statuspkg.CollectorInstanceSummary, error) {

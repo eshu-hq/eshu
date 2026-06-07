@@ -10,7 +10,11 @@
 // shared projection backlog as unfinished graph-visible work, while lease-only
 // shared-projection activity remains observable without blocking healthy, so
 // code graph and dead-code queries do not look ready while accepted edges are
-// still being written. The TerraformStateReport
+// still being written. The degraded health state weighs workflow-coordinator
+// failures within CoordinatorRecentFailures (a bounded recent window) rather
+// than cumulative all-time counts, so a recovered stack reports healthy again
+// instead of staying degraded until aged failure rows are pruned; cumulative
+// counts remain in the report as informational detail. The TerraformStateReport
 // section, surfaced under Report.TerraformState, exposes per-locator state
 // serial advance, safe source handles, and recent warning_fact rows grouped by
 // warning_kind so operators can confirm tfstate liveness without scanning the

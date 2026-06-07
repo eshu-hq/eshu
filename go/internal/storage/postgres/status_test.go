@@ -203,6 +203,7 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		"SPLIT_PART(fairness_key, ':', 4)",
 		"FROM aws_scan_status",
 		"FROM aws_freshness_triggers",
+		"recent_failed_runs",
 	} {
 		joined := strings.Join(queryer.queries, "\n")
 		if !strings.Contains(joined, want) {
