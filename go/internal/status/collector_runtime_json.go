@@ -13,6 +13,7 @@ type collectorRuntimeStatusJSON struct {
 	DisplayName           string   `json:"display_name,omitempty"`
 	Health                string   `json:"health,omitempty"`
 	EvidenceSources       []string `json:"evidence_sources"`
+	SourceSystems         []string `json:"source_systems,omitempty"`
 	ObservationCount      int      `json:"observation_count,omitempty"`
 	LastObservedAt        string   `json:"last_observed_at,omitempty"`
 	UpdatedAt             string   `json:"updated_at,omitempty"`
@@ -36,6 +37,7 @@ func collectorRuntimeStatusesJSON(rows []CollectorRuntimeStatus) []collectorRunt
 			DisplayName:           row.DisplayName,
 			Health:                row.Health,
 			EvidenceSources:       row.EvidenceSources,
+			SourceSystems:         row.SourceSystems,
 			ObservationCount:      row.ObservationCount,
 			LastObservedAt:        nullableRFC3339Value(row.LastObservedAt),
 			UpdatedAt:             nullableRFC3339Value(row.UpdatedAt),

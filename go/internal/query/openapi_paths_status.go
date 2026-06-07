@@ -78,6 +78,7 @@ const openAPIPathsStatusAndCompare = `
                           "enabled": {"type": "boolean"},
                           "claims_enabled": {"type": "boolean"},
                           "evidence_sources": {"type": "array", "items": {"type": "string"}},
+                          "source_systems": {"type": "array", "items": {"type": "string"}},
                           "observation_count": {"type": "integer"},
                           "health": {"type": "string"},
                           "detail": {"type": "string"}

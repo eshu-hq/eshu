@@ -1,6 +1,7 @@
 package status_test
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -198,7 +199,7 @@ func TestCollectorRuntimeStatusesMergesPersistedFactEvidence(t *testing.T) {
 				CollectorInstances: instances,
 			},
 			CollectorFactEvidence: []status.CollectorFactEvidence{
-				{InstanceID: "collector-documentation", CollectorKind: "documentation", EvidenceSource: "source_facts", ObservationCount: 5, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
+				{InstanceID: "collector-documentation", CollectorKind: "documentation", EvidenceSource: "source_facts", SourceSystems: []string{"confluence"}, ObservationCount: 5, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
 				{InstanceID: "collector-jira", CollectorKind: "jira", EvidenceSource: "source_facts", ObservationCount: 7, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
 				{InstanceID: "collector-pagerduty", CollectorKind: "pagerduty", EvidenceSource: "source_facts", ObservationCount: 4, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
 				{InstanceID: "collector-oci", CollectorKind: "oci_registry", EvidenceSource: "source_facts", ObservationCount: 3, LastObservedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)},
@@ -241,6 +242,33 @@ func TestCollectorRuntimeStatusesMergesPersistedFactEvidence(t *testing.T) {
 		if !collectorRuntimeEvidenceContains(row.EvidenceSources, "reducer_facts") {
 			t.Fatalf("%s evidence sources = %#v, want reducer_facts", instanceID, row.EvidenceSources)
 		}
+	}
+	documentation := byID["collector-documentation"]
+	if !collectorRuntimeEvidenceContains(documentation.SourceSystems, "confluence") {
+		t.Fatalf("documentation source systems = %#v, want confluence", documentation.SourceSystems)
+	}
+
+	payload, err := status.RenderJSON(report)
+	if err != nil {
+		t.Fatalf("RenderJSON() error = %v, want nil", err)
+	}
+	var rendered struct {
+		CollectorRuntimes []struct {
+			InstanceID    string   `json:"instance_id"`
+			SourceSystems []string `json:"source_systems"`
+		} `json:"collector_runtimes"`
+	}
+	if err := json.Unmarshal(payload, &rendered); err != nil {
+		t.Fatalf("json.Unmarshal(RenderJSON()) error = %v, want nil", err)
+	}
+	if !renderedCollectorHasSourceSystem(rendered.CollectorRuntimes, "collector-documentation", "confluence") {
+		t.Fatalf("RenderJSON() = %s, want collector-documentation source_systems=confluence", payload)
+	}
+
+	text := status.RenderText(report)
+	if !strings.Contains(text, "collector-documentation kind=documentation") ||
+		!strings.Contains(text, "source_systems=confluence") {
+		t.Fatalf("RenderText() = %s, want documentation source_systems", text)
 	}
 }
 
@@ -310,6 +338,23 @@ func collectorRuntimeEvidenceContains(values []string, want string) bool {
 		if value == want {
 			return true
 		}
+	}
+	return false
+}
+
+func renderedCollectorHasSourceSystem(
+	rows []struct {
+		InstanceID    string   `json:"instance_id"`
+		SourceSystems []string `json:"source_systems"`
+	},
+	instanceID string,
+	sourceSystem string,
+) bool {
+	for _, row := range rows {
+		if row.InstanceID != instanceID {
+			continue
+		}
+		return collectorRuntimeEvidenceContains(row.SourceSystems, sourceSystem)
 	}
 	return false
 }

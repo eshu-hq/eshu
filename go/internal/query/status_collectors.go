@@ -28,6 +28,7 @@ func collectorRuntimeStatusToMap(row status.CollectorRuntimeStatus) map[string]a
 		"display_name":           row.DisplayName,
 		"health":                 row.Health,
 		"evidence_sources":       row.EvidenceSources,
+		"source_systems":         row.SourceSystems,
 		"observation_count":      row.ObservationCount,
 		"last_observed_at":       nullableRFC3339(row.LastObservedAt),
 		"updated_at":             nullableRFC3339(row.UpdatedAt),

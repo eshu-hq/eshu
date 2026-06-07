@@ -95,7 +95,10 @@ evidence. It classifies rows as
 `coordinator_managed`, `direct_mode`, `disabled`, `unregistered`, or
 `profile_gated` when a profile gate emits an explicit status row. Rows include
 the collector instance ID, kind, runtime mode, coordinator registration flag,
-evidence sources, health label, and timestamps when available.
+evidence sources, bounded `source_systems`, health label, and timestamps when
+available. Source-specific documentation collectors preserve the neutral
+`collector_kind=documentation` fact model while exposing identities such as
+`source_systems=["confluence"]` for operator readback.
 
 Queue and domain age fields include both human-readable duration strings and
 seconds values, such as `oldest_outstanding_age_seconds` and

@@ -83,7 +83,10 @@ part of the shipped public contract.
 collector runtime identity using workflow-coordinator registration, durable
 direct status evidence, and active persisted source or reducer fact evidence.
 Persisted evidence is returned only as source names such as `source_facts` or
-`reducer_facts`, aggregate counts, and timestamps:
+`reducer_facts`, bounded `source_systems`, aggregate counts, and timestamps.
+Direct-source collectors can keep a source-neutral collector kind while still
+surfacing the real source identity; for example, Confluence documentation facts
+appear as `collector_kind=documentation` with `source_systems=["confluence"]`:
 
 - `coordinator_managed`: enabled and claim-driven in the workflow coordinator.
 - `direct_mode`: registered but claims are disabled.
@@ -115,7 +118,7 @@ The default ingester is `repository`. Status responses include:
 The public API does not include a per-ingester scan POST route. Use
 `POST /api/v0/admin/reindex` or deployment-managed ingestion instead.
 
-No-Regression Evidence: `cd go && go test ./internal/status ./internal/query ./internal/storage/postgres ./internal/mcp -run 'Test(RenderStatusIncludesCollectorRuntimeCategories|CollectorRuntimeStatuses(MergesPersistedFactEvidence|MapsUnattributedFactsToSingleCoordinatorInstance)|StatusHandlerCollectorsRouteExposes(DirectRuntimeEvidence|PersistedFactEvidence)|ReadCollectorFactEvidenceUsesBoundedActiveFactMetadata|ListCollectorsRuntimeToolRoutesToStatusCollectors)' -count=1`.
+No-Regression Evidence: `cd go && go test ./internal/status ./internal/query ./internal/storage/postgres ./internal/mcp -run 'Test(RenderStatusIncludesCollectorRuntimeCategories|CollectorRuntimeStatuses(MergesPersistedFactEvidence|MapsUnattributedFactsToSingleCoordinatorInstance)|StatusHandlerCollectorsRouteExposes(DirectRuntimeEvidence|PersistedFactEvidence)|ReadCollectorFactEvidenceUsesBoundedActiveFactMetadata|ListCollectorsRuntimeToolRoutesToStatusCollectors)' -count=1`; `cd go && go test ./internal/status ./internal/query ./internal/storage/postgres -run 'Test(CollectorRuntimeStatusesMergesPersistedFactEvidence|StatusHandlerCollectorsRouteExposesPersistedFactEvidence|ReadCollectorFactEvidenceUsesBoundedActiveFactMetadata)' -count=1` proves source systems survive persisted fact evidence, status projection, and public collector status rendering.
 No-Observability-Change: collector status classification reuses existing
 `/admin/status`, `/api/v0/status/collectors`, `aws_cloud_scans`,
 `vulnerability_sources`, workflow coordinator rows, active fact metadata, and

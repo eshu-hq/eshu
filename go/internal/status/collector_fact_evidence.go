@@ -11,11 +11,16 @@ type CollectorFactEvidence struct {
 	InstanceID       string
 	CollectorKind    string
 	EvidenceSource   string
+	SourceSystems    []string
 	ObservationCount int
 	LastObservedAt   time.Time
 	UpdatedAt        time.Time
 }
 
 func cloneCollectorFactEvidence(rows []CollectorFactEvidence) []CollectorFactEvidence {
-	return slices.Clone(rows)
+	cloned := slices.Clone(rows)
+	for i := range cloned {
+		cloned[i].SourceSystems = slices.Clone(rows[i].SourceSystems)
+	}
+	return cloned
 }
