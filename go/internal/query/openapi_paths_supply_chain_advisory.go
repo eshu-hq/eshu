@@ -69,10 +69,11 @@ const openAPIPathsSupplyChainAdvisoryEvidence = `
                     },
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
+                    "scope": {"type": "object"},
                     "truncated": {"type": "boolean"},
                     "next_cursor": {"type": "object"}
                   },
-                  "required": ["advisories", "count", "limit", "truncated"]
+                  "required": ["advisories", "count", "limit", "scope", "truncated"]
                 }
               }
             }

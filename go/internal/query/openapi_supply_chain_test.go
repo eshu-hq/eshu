@@ -101,6 +101,19 @@ func TestOpenAPISpecIncludesAdvisoryEvidenceRepositoryScope(t *testing.T) {
 	if got := parameterDescriptions["repository_id"]; !strings.Contains(got, "selector") {
 		t.Fatalf("repository_id description = %q, want selector semantics", got)
 	}
+	responses := mustMapField(t, get, "responses")
+	twoHundred := mustMapField(t, responses, "200")
+	content := mustMapField(t, twoHundred, "content")
+	appJSON := mustMapField(t, content, "application/json")
+	schema := mustMapField(t, appJSON, "schema")
+	properties := mustMapField(t, schema, "properties")
+	if _, ok := properties["scope"]; !ok {
+		t.Fatal("advisory evidence response schema missing scope")
+	}
+	required := mustStringSliceField(t, schema, "required")
+	if !containsOpenAPIEnumString(required, "scope") {
+		t.Fatalf("required = %#v, want scope", required)
+	}
 }
 
 func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {

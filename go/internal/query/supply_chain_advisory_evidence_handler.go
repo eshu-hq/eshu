@@ -79,6 +79,7 @@ func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http
 		"advisories": rows,
 		"count":      len(rows),
 		"limit":      limit,
+		"scope":      advisoryEvidenceResponseScope(filter),
 		"truncated":  truncated,
 	}
 	if truncated && len(rows) > 0 {
@@ -90,6 +91,30 @@ func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http
 		TruthBasisSemanticFacts,
 		"resolved from active vulnerability source facts; repository, service, and workload scopes use reducer-owned impact findings only as bounded advisory anchors and do not imply additional package, image, workload, or deployment impact",
 	))
+}
+
+func advisoryEvidenceResponseScope(filter AdvisoryEvidenceFilter) map[string]string {
+	filter = normalizeAdvisoryEvidenceFilter(filter)
+	scope := make(map[string]string, 6)
+	if filter.CVEID != "" {
+		scope["cve_id"] = filter.CVEID
+	}
+	if filter.AdvisoryID != "" {
+		scope["advisory_id"] = filter.AdvisoryID
+	}
+	if filter.PackageID != "" {
+		scope["package_id"] = filter.PackageID
+	}
+	if filter.RepositoryID != "" {
+		scope["repository_id"] = filter.RepositoryID
+	}
+	if filter.ServiceID != "" {
+		scope["service_id"] = filter.ServiceID
+	}
+	if filter.WorkloadID != "" {
+		scope["workload_id"] = filter.WorkloadID
+	}
+	return scope
 }
 
 func requiredAdvisoryEvidenceLimit(w http.ResponseWriter, r *http.Request) (int, bool) {

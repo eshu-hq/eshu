@@ -62,6 +62,7 @@ func TestSupplyChainListAdvisoryEvidenceResolvesRepositoryScopedFindings(t *test
 
 	var resp struct {
 		Advisories []AdvisoryEvidenceRow `json:"advisories"`
+		Scope      map[string]string     `json:"scope"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -71,6 +72,9 @@ func TestSupplyChainListAdvisoryEvidenceResolvesRepositoryScopedFindings(t *test
 	}
 	if got, want := resp.Advisories[0].AdvisoryKey, "CVE-2026-0001"; got != want {
 		t.Fatalf("advisory key = %q, want %q", got, want)
+	}
+	if got, want := resp.Scope["repository_id"], "repo://example/api"; got != want {
+		t.Fatalf("scope.repository_id = %q, want %q; body = %s", got, want, w.Body.String())
 	}
 }
 
