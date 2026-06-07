@@ -29,8 +29,8 @@ export function OperationsPage({ model }: { readonly model: ConsoleModel }): Rea
               <tr key={c.id}>
                 <td><span className="row" style={{ gap: 10 }}><CollectorGlyph kind={c.kind} /><span style={{ fontWeight: 600 }}>{c.kind}</span></span></td>
                 <td className="t-mut mono" style={{ fontSize: ".76rem" }}>{c.id}</td>
-                <td><span className="status-pill" style={{ color: c.state === "healthy" ? "var(--teal)" : c.state === "degraded" ? "var(--med)" : "var(--crit)" }}><i style={{ background: "currentColor" }} />{c.state}</span></td>
-                <td className="mono" style={{ fontSize: ".82rem" }}>{fmt(c.facts)}</td>
+                <td><span className="status-pill" style={{ color: c.state === "healthy" || c.state === "active" ? "var(--teal)" : c.state === "degraded" || c.state === "disabled" ? "var(--med)" : c.state === "deactivated" ? "var(--crit)" : "var(--med)" }}><i style={{ background: "currentColor" }} />{c.state}</span></td>
+                <td className="mono" style={{ fontSize: ".82rem" }}>{c.facts === null ? "—" : fmt(c.facts)}</td>
                 <td><FreshDot state={c.freshness === "building" ? "lagging" : c.freshness === "stale" || c.freshness === "unavailable" ? "stale" : "fresh"} /></td>
               </tr>
             ))}

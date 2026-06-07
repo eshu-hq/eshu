@@ -64,7 +64,15 @@ describe("eshuConsoleLive", () => {
       },
       getJson: async (path: string) => {
         if (path.includes("/index-status")) {
-          return { status: "healthy", repository_count: 33, queue: { outstanding: 2, in_flight: 1, dead_letter: 0, succeeded: 333 } };
+          return {
+            status: "healthy", repository_count: 33,
+            queue: { outstanding: 2, in_flight: 1, dead_letter: 0, succeeded: 333 },
+            coordinator: { collector_instances: [
+              { collector_kind: "grafana", instance_id: "remote-e2e-grafana", enabled: true, last_observed_at: "2026-06-07T05:00:00Z", deactivated_at: null },
+              { collector_kind: "aws", instance_id: "remote-e2e-aws", enabled: true, last_observed_at: "2026-06-07T05:00:00Z", deactivated_at: null },
+              { collector_kind: "loki", instance_id: "remote-e2e-loki", enabled: false, last_observed_at: null, deactivated_at: "2026-06-06T00:00:00Z" }
+            ] }
+          };
         }
         if (path.includes("/status/ingesters")) {
           return { ingesters: [{ name: "repository", health: "healthy", runtime_family: "ingester" }] };
@@ -95,10 +103,16 @@ describe("eshuConsoleLive", () => {
     ]);
   });
 
-  it("maps the ingester list from the raw status/ingesters payload", async () => {
+  it("merges the repository ingester with coordinator collector instances", async () => {
     const snap = await loadConsoleSnapshot(fakeClient());
-    expect(snap.ingesters).toHaveLength(1);
+    // 1 ingester (status/ingesters) + 3 collectors (index-status.coordinator)
+    expect(snap.ingesters).toHaveLength(4);
     expect(snap.ingesters[0]).toMatchObject({ id: "repository", state: "healthy", kind: "ingester" });
+    const grafana = snap.ingesters.find((r) => r.id === "remote-e2e-grafana");
+    expect(grafana).toMatchObject({ kind: "grafana", state: "active", facts: null, freshness: "fresh" });
+    const loki = snap.ingesters.find((r) => r.id === "remote-e2e-loki");
+    // disabled + deactivated collector renders as a stale, non-active row
+    expect(loki).toMatchObject({ kind: "loki", state: "deactivated", facts: null, freshness: "stale" });
   });
 
   it("dedups the catalog by id across services and workloads", async () => {

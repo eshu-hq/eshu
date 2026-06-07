@@ -55,7 +55,9 @@ export interface IngesterRow {
   readonly id: string;
   readonly kind: string;
   readonly state: string;
-  readonly facts: number;
+  // facts is null when the source does not report a fact count (e.g. coordinator
+  // collector instances), so the UI can show "—" rather than a misleading 0.
+  readonly facts: number | null;
   readonly freshness: FreshnessState;
 }
 export interface FindingRow {
@@ -85,12 +87,23 @@ interface EcosystemOverview {
   readonly platform_count?: number;
   readonly instance_count?: number;
 }
+interface CollectorInstanceStatus {
+  readonly collector_kind?: string;
+  readonly instance_id?: string;
+  readonly enabled?: boolean;
+  readonly mode?: string;
+  readonly last_observed_at?: string | null;
+  readonly deactivated_at?: string | null;
+}
 interface IndexStatus {
   readonly status?: string;
   readonly repository_count?: number;
   readonly queue?: {
     readonly outstanding?: number; readonly pending?: number;
     readonly in_flight?: number; readonly dead_letter?: number; readonly succeeded?: number;
+  };
+  readonly coordinator?: {
+    readonly collector_instances?: readonly CollectorInstanceStatus[];
   };
 }
 interface CatalogResponse {
@@ -196,15 +209,40 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
   })) ?? [];
 
   const ingesters = (await section(prov, "ingesters", async () => {
-    // status/ingesters is a raw status payload, not the eshu envelope.
-    const data = await client.getJson<IngesterStatus>("/api/v0/status/ingesters");
-    const rows = (data?.ingesters ?? []).map((g, i) => ({
-      id: String(g.name ?? g.id ?? g.ingester ?? `ingester-${i}`),
-      kind: String(g.runtime_family ?? g.kind ?? g.name ?? g.ingester ?? "ingester"),
-      state: String(g.health ?? g.state ?? g.status ?? "healthy"),
-      facts: Number(g.fact_count ?? g.facts ?? 0),
-      freshness: (g.freshness as FreshnessState) ?? "fresh"
-    }));
+    // Two raw status payloads (not the eshu envelope): status/ingesters reports
+    // the repository ingester; index-status.coordinator.collector_instances
+    // reports every configured collector. Merge both so the operator sees the
+    // full fact-source roster, deduped by id.
+    const rows: IngesterRow[] = [];
+    try {
+      const data = await client.getJson<IngesterStatus>("/api/v0/status/ingesters");
+      for (const [i, g] of (data?.ingesters ?? []).entries()) {
+        rows.push({
+          id: String(g.name ?? g.id ?? g.ingester ?? `ingester-${i}`),
+          kind: String(g.runtime_family ?? g.kind ?? g.name ?? g.ingester ?? "ingester"),
+          state: String(g.health ?? g.state ?? g.status ?? "healthy"),
+          facts: Number(g.fact_count ?? g.facts ?? 0),
+          freshness: (g.freshness as FreshnessState) ?? "fresh"
+        });
+      }
+    } catch { /* ingester status optional */ }
+    try {
+      const st = await client.getJson<IndexStatus>("/api/v0/index-status");
+      for (const c of st.coordinator?.collector_instances ?? []) {
+        const id = String(c.instance_id ?? c.collector_kind ?? "");
+        if (id === "" || rows.some((r) => r.id === id)) continue;
+        const deactivated = c.deactivated_at != null;
+        const enabled = c.enabled !== false;
+        rows.push({
+          id,
+          kind: String(c.collector_kind ?? id),
+          state: deactivated ? "deactivated" : enabled ? "active" : "disabled",
+          // collector instances carry no fact count in this payload.
+          facts: null,
+          freshness: deactivated || !enabled ? "stale" : c.last_observed_at ? "fresh" : "building"
+        });
+      }
+    } catch { /* coordinator status optional */ }
     return rows.length > 0 ? rows : null;
   })) ?? [];
 
