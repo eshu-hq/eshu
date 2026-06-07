@@ -23,6 +23,7 @@ export interface ConsoleSnapshot {
   readonly ingesters: readonly IngesterRow[];
   readonly findings: readonly FindingRow[];
   readonly vulnerabilities: readonly VulnRow[];
+  readonly series: SeriesBundle;
   readonly truth: Partial<Record<keyof ConsoleSnapshot, EshuTruth>>;
   readonly provenance: Record<string, SectionProvenance>;
 }
@@ -77,6 +78,14 @@ export interface VulnRow {
   readonly fixedVersion: string | null;
   readonly services: readonly string[];
 }
+export interface SeriesBundle {
+  readonly ingestRate: readonly number[];
+  readonly queueDepth: readonly number[];
+  readonly graphNodes: readonly number[];
+  readonly graphEdges: readonly number[];
+  readonly queryP99: readonly number[];
+  readonly newVulns: readonly number[];
+}
 
 // ---- endpoint response shapes (partial; see GET /api/v0/openapi.json) ----
 interface EcosystemOverview {
@@ -120,6 +129,7 @@ interface LanguageInventory { readonly languages?: readonly { language: string; 
 interface IngesterStatus { readonly ingesters?: readonly Record<string, unknown>[]; }
 interface DeadCodeResponse { readonly results?: readonly { name?: string; file_path?: string; repo_name?: string; repo_id?: string; classification?: string }[]; }
 interface ImpactFindings { readonly findings?: readonly Record<string, unknown>[]; readonly results?: readonly Record<string, unknown>[]; }
+interface MetricsTimeSeriesResponse { readonly points?: readonly { readonly t?: string; readonly v?: number }[]; }
 
 // Impact findings carry a CVSS score but no severity label; derive the standard
 // CVSS v3 qualitative band so the vulnerability list can colour-rank rows.
@@ -289,7 +299,9 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     return rows.length > 0 ? rows : null;
   })) ?? [];
 
-  return { runtime, services, languages, ingesters, findings, vulnerabilities, truth, provenance: prov };
+  const series = await loadSeriesBundle(client, prov);
+
+  return { runtime, services, languages, ingesters, findings, vulnerabilities, series, truth, provenance: prov };
 }
 
 function emptyRuntime(): RuntimeSummary {
@@ -297,4 +309,42 @@ function emptyRuntime(): RuntimeSummary {
     indexStatus: "unavailable", repositories: 0, workloads: 0, platforms: 0, instances: 0,
     queueOutstanding: 0, inFlight: 0, deadLetters: 0, succeeded: 0, profile: "unknown"
   };
+}
+
+const emptySeries: SeriesBundle = {
+  ingestRate: [], queueDepth: [], graphNodes: [], graphEdges: [], queryP99: [], newVulns: []
+};
+
+async function loadSeriesBundle(
+  client: EshuApiClient,
+  prov: Record<string, SectionProvenance>
+): Promise<SeriesBundle> {
+  const [ingestRate, queueDepth, graphNodes, graphEdges, queryP99] = await Promise.all([
+    loadMetricSeries(client, prov, "ingestRate", "ingest_rate"),
+    loadMetricSeries(client, prov, "queueDepth", "queue_depth"),
+    loadMetricSeries(client, prov, "graphNodes", "graph_nodes"),
+    loadMetricSeries(client, prov, "graphEdges", "graph_edges"),
+    loadMetricSeries(client, prov, "queryP99", "query_p99")
+  ]);
+  return { ...emptySeries, ingestRate, queueDepth, graphNodes, graphEdges, queryP99 };
+}
+
+async function loadMetricSeries(
+  client: EshuApiClient,
+  prov: Record<string, SectionProvenance>,
+  key: keyof Omit<SeriesBundle, "newVulns">,
+  metric: string
+): Promise<readonly number[]> {
+  const values = await section(prov, `series.${key}`, async () => {
+    const env = await client.get<MetricsTimeSeriesResponse>(
+      `/api/v0/metrics/timeseries?metric=${metric}&window=24h&step=30m`
+    );
+    const points = (env.data?.points ?? []).map((point) => point.v).filter(isFiniteNumber);
+    return points.length > 0 ? points : null;
+  });
+  return values ?? [];
+}
+
+function isFiniteNumber(value: number | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }

@@ -16,7 +16,7 @@ readiness, and performance evidence.
 
 | File | Purpose |
 | --- | --- |
-| `specs/capability-matrix.v1.yaml` | User-facing capability and truth contract by runtime profile. |
+| `specs/capability-matrix.v1.yaml` and fragments under `specs/capability-matrix/` | User-facing capability and truth contract by runtime profile. |
 | `specs/backend-conformance.v1.yaml` | Backend behavior classes, profile gates, and promotion status for official graph adapters. |
 | `go/internal/backendconformance/` | Go harness for parsing the backend matrix and running shared read/write corpora. |
 

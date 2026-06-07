@@ -10,8 +10,8 @@ const openAPIPathsMetrics = `
         "operationId": "getMetricsTimeSeries",
         "parameters": [
           {"name": "metric", "in": "query", "required": true, "schema": {"type": "string", "enum": ["ingest_rate", "queue_depth", "dead_letters", "graph_nodes", "graph_edges", "query_p50", "query_p95", "query_p99"]}},
-          {"name": "window", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Lookback window, e.g. 24h. Defaults to 24h."},
-          {"name": "step", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Sample step, e.g. 30m. Defaults to 30m."}
+          {"name": "window", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Lookback window, e.g. 24h. Defaults to 24h and must be at most 30d."},
+          {"name": "step", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Sample step, e.g. 30m. Defaults to 30m, must be at least 10s, and the range must request at most 2000 samples."}
         ],
         "responses": {
           "200": {

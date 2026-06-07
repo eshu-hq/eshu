@@ -4,12 +4,12 @@
 
 import type {
   ConsoleSnapshot, RuntimeSummary, ServiceRow, LanguageRow,
-  IngesterRow, FindingRow, VulnRow, SectionProvenance
+  IngesterRow, FindingRow, VulnRow, SectionProvenance, SeriesBundle
 } from "../api/eshuConsoleLive";
 
 export type {
   ConsoleSnapshot, RuntimeSummary, ServiceRow, LanguageRow,
-  IngesterRow, FindingRow, VulnRow, SectionProvenance
+  IngesterRow, FindingRow, VulnRow, SectionProvenance, SeriesBundle
 };
 
 export type Severity = "critical" | "high" | "medium" | "low" | "info";
@@ -47,21 +47,10 @@ export interface RelationshipRow {
   readonly detail: string;
 }
 
-// Time-series for sparklines/area charts. Demo-only today (no history endpoint).
-export interface SeriesBundle {
-  readonly ingestRate: readonly number[];
-  readonly queueDepth: readonly number[];
-  readonly graphNodes: readonly number[];
-  readonly graphEdges: readonly number[];
-  readonly queryP99: readonly number[];
-  readonly newVulns: readonly number[];
-}
-
 // The full model the UI renders: live snapshot + UI-only extras (graph, series).
 export interface ConsoleModel extends ConsoleSnapshot {
   readonly graph: GraphModel;
   readonly relationships: readonly RelationshipRow[];
-  readonly series: SeriesBundle;
   readonly source: "demo" | "live";
 }
 

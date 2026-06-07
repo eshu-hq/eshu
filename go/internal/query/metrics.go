@@ -2,14 +2,18 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 )
 
 const (
-	timeSeriesDefaultWindow = "24h"
-	timeSeriesDefaultStep   = "30m"
+	timeSeriesDefaultWindow     = "24h"
+	timeSeriesDefaultStep       = "30m"
+	metricsTimeSeriesCapability = "platform_metrics.timeseries"
 )
+
+var errInvalidMetricsRange = errors.New("invalid metrics time-series range")
 
 // MetricPoint is one timestamped sample in a metric series.
 type MetricPoint struct {
@@ -94,6 +98,10 @@ func (h *MetricsHandler) getTimeSeries(w http.ResponseWriter, r *http.Request) {
 
 	points, err := h.Source.RangeQuery(r.Context(), query)
 	if err != nil {
+		if errors.Is(err, errInvalidMetricsRange) {
+			WriteError(w, http.StatusBadRequest, fmt.Sprintf("invalid metrics range: %v", err))
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("metrics query failed: %v", err))
 		return
 	}
@@ -123,20 +131,16 @@ func (h *MetricsHandler) writeSeries(
 	if freshness == FreshnessUnavailable {
 		level = TruthLevelFallback
 	}
+	truth := BuildTruthEnvelope(h.profile(), metricsTimeSeriesCapability, TruthBasisSemanticFacts, reason)
+	truth.Level = level
+	truth.Freshness = TruthFreshness{State: freshness}
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"metric": query.Metric,
 		"unit":   unit,
 		"window": query.Window,
 		"step":   query.Step,
 		"points": points,
-	}, &TruthEnvelope{
-		Level:      level,
-		Capability: "platform_metrics.timeseries",
-		Profile:    h.profile(),
-		Basis:      TruthBasisSemanticFacts,
-		Freshness:  TruthFreshness{State: freshness},
-		Reason:     reason,
-	})
+	}, truth)
 }
 
 func queryParamOrDefault(r *http.Request, name, fallback string) string {

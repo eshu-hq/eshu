@@ -66,6 +66,10 @@
 // explicit service or workload anchors, the read surface reports
 // service/workload catalog anchor missing instead of claiming catalog evidence
 // is absent.
+// Metrics reads expose bounded historical time-series for console trend panels
+// through MetricsHandler. The handler accepts a MetricsTimeSeriesSource, with
+// PrometheusMetricsTimeSeriesSource providing the Prometheus/Mimir query_range
+// implementation when the API runtime is configured with a live metrics source.
 //
 // Supply-chain impact rows also carry a reducer suppression decision that
 // captures the VEX or operator-policy state (active, not_affected,

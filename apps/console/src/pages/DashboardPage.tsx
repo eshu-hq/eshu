@@ -123,7 +123,7 @@ export function DashboardPage({ model, client, onOpenService }: {
 
       <div className="grid mt" style={{ gridTemplateColumns: "minmax(0,1.5fr) minmax(0,1fr)", gap: "var(--gap)" }}>
         <Panel title="Ingestion throughput" sub="Facts committed per minute">
-          {model.series.ingestRate.length ? <AreaChart data={model.series.ingestRate} color="var(--teal)" h={190} unit=" f/m" /> : <p className="empty" style={{ padding: "48px 12px" }}>Trend history requires the metrics time-series API (#1434). Current queue and runtime numbers are shown above.</p>}
+          {model.series.ingestRate.length ? <AreaChart data={model.series.ingestRate} color="var(--teal)" h={190} unit=" f/m" /> : <p className="empty" style={{ padding: "48px 12px" }}>Trend history appears when a Prometheus/Mimir metrics source has recent samples. Current queue and runtime numbers are shown above.</p>}
         </Panel>
         <Panel title="Security posture" sub={`${sevTotals.critical} critical · ${sevTotals.high} high`}>
           <div style={{ display: "grid", placeItems: "center", marginBottom: 12 }}>

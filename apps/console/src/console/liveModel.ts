@@ -3,8 +3,8 @@
 // module owns (a) the snapshot -> UI model lift and (b) an empty model used for
 // the loading / needs-connection / error states. There is no sample or demo data
 // here: an empty model carries real "unavailable" provenance, never fabricated
-// numbers. Graph and series stay empty until their endpoints are wired
-// (see eshuConsoleLive notes and the time-series backend issue).
+// numbers. Graph relationships stay empty until their endpoints are wired;
+// metrics series come from the live time-series API when available.
 
 import type {
   ConsoleModel, ConsoleSnapshot, RuntimeSummary, SeriesBundle, SectionProvenance
@@ -34,14 +34,15 @@ export function emptySnapshot(provenance: SectionProvenance | null = null): Cons
   return {
     runtime: emptyRuntime(),
     services: [], languages: [], ingesters: [], findings: [], vulnerabilities: [],
+    series: emptySeries,
     truth: {}, provenance: prov
   };
 }
 
-// modelFromSnapshot lifts a live snapshot into the UI model. Graph, relationships,
-// and series are not yet provided by the API, so they stay empty until wired.
+// modelFromSnapshot lifts a live snapshot into the UI model. Graph and
+// relationships are not yet provided by the API, so they stay empty until wired.
 export function modelFromSnapshot(snap: ConsoleSnapshot): ConsoleModel {
-  return { ...snap, source: "live", graph: { nodes: [], edges: [] }, relationships: [], series: emptySeries };
+  return { ...snap, source: "live", graph: { nodes: [], edges: [] }, relationships: [] };
 }
 
 // emptyConsoleModel is the model used before/while connecting and after a failed

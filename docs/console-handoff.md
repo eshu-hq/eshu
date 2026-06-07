@@ -67,19 +67,18 @@ invented).
 **Proposed contract:** `GET /api/v0/repositories/{id}/branches`
 → `data: { default_branch, branches: [{ name, last_indexed_at, head_sha }] }`
 
-### ISSUE: api: add historical time-series metrics endpoint
+### SHIPPED: api: historical time-series metrics endpoint
 Labels: area:api, backend
-**Why:** Dashboard/Operations sparklines + trend charts (ingestion throughput,
-queue depth, graph growth, query latency p50/p95/p99) need history. No historical
-series endpoint exists, so those charts are currently dropped to point-in-time
-numbers.
-**Proposed contract:**
+**Why:** Dashboard/Operations sparklines + trend charts use real history for
+ingestion throughput, queue depth, graph growth, and query latency p50/p95/p99.
+**Contract:**
 `GET /api/v0/metrics/timeseries?metric={name}&window={e.g.24h}&step={e.g.30m}`
 where `metric ∈ { ingest_rate, queue_depth, dead_letters, graph_nodes, graph_edges, query_p50, query_p95, query_p99 }`
 → `data: { metric, unit, points: [{ t: ISO8601, v: number }] }`
-**Note:** likely sourced from the Prometheus/Mimir collector already in the stack.
+**Note:** backed by the configured Prometheus/Mimir collector target when
+available.
 **Acceptance:** returns ordered points for the window; empty `points` (not an
-error) when a metric has no history yet.
+error) when the source is not configured or a metric has no history yet.
 
 ### ISSUE: api: add single-vulnerability detail endpoint
 Labels: area:api, backend
@@ -170,10 +169,10 @@ Labels: area:console, frontend
 ### ISSUE: console: dashboard/operations real metrics (+ time-series when available)
 Labels: area:console, frontend
 - Stats from `index-status`, `ecosystem/overview`, `status/pipeline`,
-  `status/ingesters`. Point-in-time only.
-- When `GET /api/v0/metrics/timeseries` lands, re-enable the area charts +
-  sparklines from it. Until then, show the real current numbers without trend
-  lines (no mock series).
+  `status/ingesters`.
+- Area charts and sparklines load from `GET /api/v0/metrics/timeseries` when
+  the API has a configured metrics source with recent samples. Keep the current
+  explicit empty states when history is unavailable; never render mock series.
 
 ---
 
@@ -190,4 +189,3 @@ Labels: area:console, frontend
   `src/api/liveData.ts`. Extend it; don't duplicate.
 - Run `npm run console:typecheck` after each issue; the design environment can't
   typecheck, so keep changes compiling.
-

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -113,6 +114,7 @@ func TestNewRouterMountsPostgresBackedHandlers(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 		query.ProfileLocalFullStack,
 		query.GraphBackendNornicDB,
 		nil,
@@ -155,10 +157,90 @@ func TestNewRouterMountsPostgresBackedHandlers(t *testing.T) {
 	}
 }
 
+func TestMetricsTimeSeriesSourceFromEnvUsesPrometheusMimirCollectorConfig(t *testing.T) {
+	t.Parallel()
+
+	var gotPath string
+	var gotAuthorization string
+	var gotTenant string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotAuthorization = r.Header.Get("Authorization")
+		gotTenant = r.Header.Get("X-Scope-OrgID")
+		query.WriteJSON(w, http.StatusOK, map[string]any{
+			"status": "success",
+			"data": map[string]any{
+				"resultType": "matrix",
+				"result": []map[string]any{{
+					"metric": map[string]string{},
+					"values": [][]any{{float64(1780300800), "3"}},
+				}},
+			},
+		})
+	}))
+	defer server.Close()
+
+	instancesJSON := fmt.Sprintf(`[{
+		"instance_id": "prometheus-mimir-primary",
+		"collector_kind": "prometheus_mimir",
+		"mode": "continuous",
+		"enabled": true,
+		"claims_enabled": true,
+		"configuration": {
+			"targets": [{
+				"provider": "mimir",
+				"scope_id": "mimir:tenant:prod",
+				"instance_id": "ops-prod",
+				"base_url": %q,
+				"path_prefix": "/prometheus",
+				"token_env": "MIMIR_TOKEN",
+				"tenant_id_env": "MIMIR_TENANT",
+				"enabled": true
+			}]
+		}
+	}]`, server.URL)
+	env := map[string]string{
+		"ESHU_COLLECTOR_INSTANCES_JSON":               instancesJSON,
+		"ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID": "prometheus-mimir-primary",
+		"MIMIR_TOKEN":  "token-value",
+		"MIMIR_TENANT": "tenant-prod",
+	}
+
+	source, err := metricsTimeSeriesSourceFromEnv(func(key string) string {
+		return env[key]
+	}, server.Client())
+	if err != nil {
+		t.Fatalf("metricsTimeSeriesSourceFromEnv() error = %v, want nil", err)
+	}
+	if source == nil {
+		t.Fatal("metricsTimeSeriesSourceFromEnv() = nil, want configured source")
+	}
+	points, err := source.RangeQuery(context.Background(), query.MetricsRangeQuery{
+		Metric: "queue_depth",
+		Window: "1h",
+		Step:   "30m",
+	})
+	if err != nil {
+		t.Fatalf("RangeQuery() error = %v, want nil", err)
+	}
+	if got, want := gotPath, "/prometheus/api/v1/query_range"; got != want {
+		t.Fatalf("request path = %q, want %q", got, want)
+	}
+	if got, want := gotAuthorization, "Bearer token-value"; got != want {
+		t.Fatalf("Authorization = %q, want %q", got, want)
+	}
+	if got, want := gotTenant, "tenant-prod"; got != want {
+		t.Fatalf("X-Scope-OrgID = %q, want %q", got, want)
+	}
+	if got, want := len(points), 1; got != want {
+		t.Fatalf("len(points) = %d, want %d", got, want)
+	}
+}
+
 func TestNewRouter_MountsAdminRoutes(t *testing.T) {
 	t.Parallel()
 
-	router, err := newRouter(nil, nil, nil, "production", "neo4j", nil)
+	router, err := newRouter(nil, nil, nil, nil, "production", "neo4j", nil)
 	if err != nil {
 		t.Fatalf("newRouter() error = %v, want nil", err)
 	}

@@ -98,3 +98,29 @@ func TestTimeSeriesEmptyHistoryIsBuildingNotError(t *testing.T) {
 		t.Fatalf("freshness = %#v, want building for empty history", env.Truth.Freshness.State)
 	}
 }
+
+func TestTimeSeriesRejectsInvalidRangeAsBadRequest(t *testing.T) {
+	t.Parallel()
+	handler := &MetricsHandler{Source: fakeMetricsSource{err: errInvalidMetricsRange}}
+	w := requestTimeSeries(t, handler, "/api/v0/metrics/timeseries?metric=queue_depth&window=30d&step=1s", false)
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+}
+
+func TestTimeSeriesCapabilityIsRegistered(t *testing.T) {
+	t.Parallel()
+
+	envelope := BuildTruthEnvelope(
+		ProfileProduction,
+		metricsTimeSeriesCapability,
+		TruthBasisSemanticFacts,
+		"test",
+	)
+	if envelope.Capability != metricsTimeSeriesCapability {
+		t.Fatalf("capability = %q, want %q", envelope.Capability, metricsTimeSeriesCapability)
+	}
+	if envelope.Level != TruthLevelDerived {
+		t.Fatalf("level = %q, want derived", envelope.Level)
+	}
+}

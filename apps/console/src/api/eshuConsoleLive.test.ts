@@ -131,4 +131,37 @@ describe("eshuConsoleLive", () => {
     // cvss 5.9 -> medium band, no fix -> null
     expect(snap.vulnerabilities[1]).toMatchObject({ id: "GHSA-bbbb", severity: "medium", fixedVersion: null });
   });
+
+  it("loads dashboard trend series from the metrics time-series endpoint", async () => {
+    const requested: string[] = [];
+    const client = {
+      get: async (path: string) => {
+        requested.push(path);
+        if (path.includes("/metrics/timeseries")) {
+          const metric = new URL(path, "http://console.test").searchParams.get("metric");
+          return {
+            data: { points: [{ t: "2026-06-01T00:00:00Z", v: metric === "ingest_rate" ? 12 : 4 }] },
+            error: null,
+            truth: { profile: "production", level: "derived", capability: "platform_metrics.timeseries", freshness: { state: "fresh" } }
+          };
+        }
+        if (path.includes("/ecosystem/overview")) {
+          return {
+            data: { repo_count: 1 },
+            error: null,
+            truth: { profile: "production", level: "exact", capability: "x", freshness: { state: "fresh" } }
+          };
+        }
+        return { data: {}, error: null, truth: null };
+      },
+      getJson: async () => ({ status: "healthy", queue: { outstanding: 4 } }),
+      post: async () => ({ data: {}, error: null, truth: null })
+    } as unknown as EshuApiClient;
+
+    const snap = await loadConsoleSnapshot(client);
+    expect(snap.series.ingestRate).toEqual([12]);
+    expect(snap.series.queueDepth).toEqual([4]);
+    expect(requested).toContain("/api/v0/metrics/timeseries?metric=ingest_rate&window=24h&step=30m");
+    expect(requested).toContain("/api/v0/metrics/timeseries?metric=queue_depth&window=24h&step=30m");
+  });
 });
