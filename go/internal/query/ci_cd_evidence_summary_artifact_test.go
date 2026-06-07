@@ -114,6 +114,11 @@ jobs:
 	if got, want := bridge["reason"], "workflow_image_ref_static_only"; got != want {
 		t.Fatalf("run_artifact_evidence.reason = %#v, want %#v", got, want)
 	}
+	missing := stringSliceField(t, mustMapField(t, resp, "evidence_summary"), "missing_evidence")
+	assertStringSet(t, missing, []string{
+		"ci_run_to_image_artifact_evidence_missing",
+		"source_to_ci_run_evidence_missing",
+	})
 }
 
 func TestCICDListRunCorrelationsExplainsUnresolvedStaticWorkflowImageEvidence(t *testing.T) {
@@ -139,6 +144,22 @@ jobs:
 	if got, want := static["evidence_class"], "workflow_image_unresolved"; got != want {
 		t.Fatalf("static_workflow_artifacts.evidence_class = %#v, want %#v", got, want)
 	}
+}
+
+func TestBuildCICDEvidenceSummaryNamesUnavailableLiveProviderEvidence(t *testing.T) {
+	t.Parallel()
+
+	summary := buildCICDRunCorrelationEvidenceSummary(
+		cicdStaticWorkflowArtifactEvidence{State: "present", Count: 1},
+		nil,
+		false,
+		true,
+	)
+
+	assertStringSet(t, summary.MissingEvidence, []string{
+		"ci_run_to_image_artifact_evidence_missing",
+		"live_ci_provider_evidence_unavailable",
+	})
 }
 
 func exerciseCICDRunCorrelationEvidenceSummary(
@@ -184,4 +205,37 @@ func exerciseCICDRunCorrelationEvidenceSummaryWithFiles(
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
 	return resp
+}
+
+func stringSliceField(t *testing.T, parent map[string]any, key string) []string {
+	t.Helper()
+	raw, ok := parent[key].([]any)
+	if !ok {
+		t.Fatalf("%s = %#v, want array", key, parent[key])
+	}
+	out := make([]string, 0, len(raw))
+	for _, item := range raw {
+		value, ok := item.(string)
+		if !ok {
+			t.Fatalf("%s item = %#v, want string", key, item)
+		}
+		out = append(out, value)
+	}
+	return out
+}
+
+func assertStringSet(t *testing.T, got []string, want []string) {
+	t.Helper()
+	seen := make(map[string]int, len(got))
+	for _, item := range got {
+		seen[item]++
+	}
+	for _, item := range want {
+		if seen[item] != 1 {
+			t.Fatalf("missing evidence %q count = %d in %#v, want 1", item, seen[item], got)
+		}
+	}
+	if len(got) != len(want) {
+		t.Fatalf("missing evidence = %#v, want %#v", got, want)
+	}
 }

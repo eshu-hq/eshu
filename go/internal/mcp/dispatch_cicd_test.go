@@ -119,6 +119,55 @@ func TestDispatchToolCICDRunCorrelationsPreservesArtifactEvidenceSummary(t *test
 	}
 }
 
+func TestDispatchToolCICDRunCorrelationsPreservesMissingEvidenceSummary(t *testing.T) {
+	t.Parallel()
+
+	handler := &query.CICDHandler{
+		Correlations: mcpCICDRunCorrelationStore{rows: []query.CICDRunCorrelationRow{{
+			CorrelationID: "correlation-no-artifact",
+			RepositoryID:  "repo://example/api",
+			Provider:      "github_actions",
+			RunID:         "run-1",
+			Outcome:       "exact",
+		}}},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	result, err := dispatchTool(
+		context.Background(),
+		mux,
+		"list_ci_cd_run_correlations",
+		map[string]any{
+			"repository_id": "repo://example/api",
+			"limit":         float64(10),
+		},
+		"",
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	if err != nil {
+		t.Fatalf("dispatchTool() error = %v, want nil", err)
+	}
+	if result.Envelope == nil {
+		t.Fatal("dispatchTool() envelope is nil, want structured CI/CD envelope")
+	}
+	data, ok := result.Envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope data type = %T, want map[string]any", result.Envelope.Data)
+	}
+	summary, ok := data["evidence_summary"].(map[string]any)
+	if !ok {
+		t.Fatalf("evidence_summary = %#v, want object", data["evidence_summary"])
+	}
+	missing, ok := summary["missing_evidence"].([]any)
+	if !ok || len(missing) != 1 {
+		t.Fatalf("missing_evidence = %#v, want one class", summary["missing_evidence"])
+	}
+	if got, want := missing[0], "ci_run_to_image_artifact_evidence_missing"; got != want {
+		t.Fatalf("missing_evidence[0] = %#v, want %#v", got, want)
+	}
+}
+
 type mcpCICDRunCorrelationStore struct {
 	rows []query.CICDRunCorrelationRow
 }

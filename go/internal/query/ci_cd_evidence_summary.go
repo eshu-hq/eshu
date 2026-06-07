@@ -13,6 +13,7 @@ type cicdRunCorrelationEvidenceSummary struct {
 	StaticWorkflowArtifacts cicdStaticWorkflowArtifactEvidence `json:"static_workflow_artifacts"`
 	LiveRunCorrelations     cicdLiveRunCorrelationEvidence     `json:"live_run_correlations"`
 	RunArtifactEvidence     cicdRunArtifactEvidence            `json:"run_artifact_evidence"`
+	MissingEvidence         []string                           `json:"missing_evidence,omitempty"`
 	Reason                  string                             `json:"reason,omitempty"`
 }
 
@@ -69,19 +70,23 @@ func buildCICDRunCorrelationEvidenceSummary(
 	if liveUnavailable {
 		live.State = "unavailable"
 		live.Reason = "run_correlation_read_model_unavailable"
+		artifact := missingCICDRunArtifactEvidence(live.Reason)
 		return cicdRunCorrelationEvidenceSummary{
 			StaticWorkflowArtifacts: static,
 			LiveRunCorrelations:     live,
-			RunArtifactEvidence:     missingCICDRunArtifactEvidence(live.Reason),
+			RunArtifactEvidence:     artifact,
+			MissingEvidence:         cicdSummaryMissingEvidence(static, live, artifact),
 			Reason:                  live.Reason,
 		}
 	}
 	if liveCount > 0 {
+		artifact := cicdRunArtifactEvidenceFromRows(rows)
 		live.State = "present"
 		return cicdRunCorrelationEvidenceSummary{
 			StaticWorkflowArtifacts: static,
 			LiveRunCorrelations:     live,
-			RunArtifactEvidence:     cicdRunArtifactEvidenceFromRows(rows),
+			RunArtifactEvidence:     artifact,
+			MissingEvidence:         cicdSummaryMissingEvidence(static, live, artifact),
 		}
 	}
 
@@ -97,13 +102,48 @@ func buildCICDRunCorrelationEvidenceSummary(
 		summaryReason = "no_ci_cd_evidence_found"
 	}
 	live.Reason = summaryReason
+	artifact := missingCICDRunArtifactEvidence(summaryReason)
 
 	return cicdRunCorrelationEvidenceSummary{
 		StaticWorkflowArtifacts: static,
 		LiveRunCorrelations:     live,
-		RunArtifactEvidence:     missingCICDRunArtifactEvidence(summaryReason),
+		RunArtifactEvidence:     artifact,
+		MissingEvidence:         cicdSummaryMissingEvidence(static, live, artifact),
 		Reason:                  summaryReason,
 	}
+}
+
+func cicdSummaryMissingEvidence(
+	static cicdStaticWorkflowArtifactEvidence,
+	live cicdLiveRunCorrelationEvidence,
+	artifact cicdRunArtifactEvidence,
+) []string {
+	var missing []string
+	switch live.State {
+	case "unavailable":
+		missing = append(missing, "live_ci_provider_evidence_unavailable")
+	case "missing":
+		switch static.State {
+		case "present":
+			missing = append(missing, "source_to_ci_run_evidence_missing")
+		case "absent":
+			missing = append(missing, "ci_cd_evidence_missing")
+		case "unavailable":
+			missing = append(missing, "static_workflow_evidence_unavailable", "source_to_ci_run_evidence_missing")
+		case "not_checked":
+			missing = append(missing, "ci_cd_run_correlation_missing")
+		}
+	}
+	if artifact.State == "missing" {
+		missing = append(missing, "ci_run_to_image_artifact_evidence_missing")
+	}
+	if static.UnresolvedCount > 0 {
+		missing = append(missing, "workflow_image_ref_unresolved")
+	}
+	if static.AmbiguousCount > 0 {
+		missing = append(missing, "workflow_image_ref_ambiguous")
+	}
+	return uniqueSortedNonEmpty(missing)
 }
 
 func cicdRunArtifactEvidenceFromRows(rows []CICDRunCorrelationResult) cicdRunArtifactEvidence {

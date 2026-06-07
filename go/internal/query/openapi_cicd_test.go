@@ -30,6 +30,10 @@ func TestOpenAPISpecIncludesCICDRunCorrelations(t *testing.T) {
 	}
 	evidenceSummary := mustMapField(t, properties, "evidence_summary")
 	evidenceProperties := mustMapField(t, evidenceSummary, "properties")
+	missingEvidence := mustMapField(t, evidenceProperties, "missing_evidence")
+	if got, want := missingEvidence["type"], "array"; got != want {
+		t.Fatalf("missing_evidence type = %#v, want %#v", got, want)
+	}
 	staticWorkflow := mustMapField(t, evidenceProperties, "static_workflow_artifacts")
 	staticProperties := mustMapField(t, staticWorkflow, "properties")
 	if got, want := mustMapField(t, staticProperties, "paths")["type"], "array"; got != want {

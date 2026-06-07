@@ -97,6 +97,11 @@ const openAPIPathsCICD = `
                           },
                           "required": ["state", "count", "artifact_digest_count", "image_ref_count", "ambiguous_count"]
                         },
+                        "missing_evidence": {
+                          "type": "array",
+                          "items": {"type": "string"},
+                          "description": "Stable public-safe missing evidence classes for the source repository to provider run to image artifact bridge."
+                        },
                         "reason": {"type": "string"}
                       },
                       "required": ["static_workflow_artifacts", "live_run_correlations", "run_artifact_evidence"]

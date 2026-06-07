@@ -231,12 +231,21 @@ response keeps `correlations=[]` and marks
 workflow-only repositories mark
 `live_run_correlations.reason=static_workflow_only_live_run_correlation_missing`
 instead of implying the repository has no CI/CD evidence.
+`evidence_summary.missing_evidence[]` gives stable public-safe missing-hop
+classes for the source-to-image bridge without exposing provider URLs, image
+refs, repository names, or shell commands. Current classes include
+`source_to_ci_run_evidence_missing`, `ci_run_to_image_artifact_evidence_missing`,
+`live_ci_provider_evidence_unavailable`, `ci_cd_evidence_missing`,
+`ci_cd_run_correlation_missing`, `static_workflow_evidence_unavailable`,
+`workflow_image_ref_unresolved`, and `workflow_image_ref_ambiguous`. The current
+CI/CD collector lane still has fixture normalization and reducer correlation
+only; hosted provider polling remains a separate live-runtime proof gate.
 
 No-Regression Evidence: `go test ./internal/workflowimage ./internal/facts ./internal/collector ./internal/reducer ./internal/storage/postgres ./internal/query -run 'TestExtract|TestCICDRunFactKindsAndSchemaVersions|TestBuildStreamingGenerationEmitsWorkflowImageEvidence|TestBuildContainerImageIdentityDecisionsUsesWorkflowImageEvidenceAsSourceAnchor|TestBuildCICDRunCorrelationDecisionsUsesWorkflowImageEvidence|TestListActiveCICDRunCorrelationFactsQueryIsArtifactBoundedAndPaged|TestCICDListRunCorrelationsExplains(StaticWorkflowImageEvidence|UnresolvedStaticWorkflowImageEvidence)' -count=1` fails if workflow image extraction, durable fact registration, collector emission, image-identity source anchoring, CI/CD correlation, active image-identity lookup, or repository-scoped CI/CD summary classes drift.
 
 No-Observability-Change: workflow image evidence reuses the existing Git collector fact stream, container-image identity reducer counters, CI/CD run-correlation reducer counters, bounded Postgres fact reads, query spans, truth envelope, and HTTP status/error bodies. The change adds no new runtime service, queue domain, worker, graph query, graph write shape, metric instrument, metric label, or runtime knob; operators still diagnose collection through fact counts and collector spans, reducer admission through existing outcome counters, and readback through `query.ci_cd_run_correlations`.
 
-No-Regression Evidence: `go test ./internal/query -run 'TestCICDListRunCorrelationsExplains(StaticWorkflowOnlyEvidence|LiveRunEvidence|WorkflowArtifactDigestEvidence|WorkflowImageRefEvidence|AmbiguousArtifactEvidence|NoEvidence)|TestOpenAPISpecIncludesCICDRunCorrelations' -count=1` and `go test ./internal/mcp -run 'TestDispatchToolCICDRunCorrelationsPreservesArtifactEvidenceSummary|TestResolveRouteMapsCICDRunCorrelationsToBoundedQuery' -count=1` fail if the CI/CD list response or MCP transport stops distinguishing static workflow artifacts, provider run rows, digest/image bridges, ambiguous artifacts, and no-evidence pages.
+No-Regression Evidence: `go test ./internal/query -run 'TestCICDListRunCorrelationsExplains(StaticWorkflowOnlyEvidence|LiveRunEvidence|WorkflowArtifactDigestEvidence|WorkflowImageRefEvidence|AmbiguousArtifactEvidence|NoEvidence|StaticWorkflowImageEvidence)|TestBuildCICDEvidenceSummaryNamesUnavailableLiveProviderEvidence|TestOpenAPISpecIncludesCICDRunCorrelations' -count=1` and `go test ./internal/mcp -run 'TestDispatchToolCICDRunCorrelationsPreserves(ArtifactEvidenceSummary|MissingEvidenceSummary)|TestResolveRouteMapsCICDRunCorrelationsToBoundedQuery' -count=1` fail if the CI/CD list response or MCP transport stops distinguishing static workflow artifacts, provider run rows, digest/image bridges, ambiguous artifacts, explicit missing-hop classes, and no-evidence pages.
 
 No-Observability-Change: `evidence_summary` reuses the existing bounded CI/CD query span (`query.ci_cd_run_correlations`), repository-scoped content-store file lookup, Postgres/content query instrumentation, truth envelope, and HTTP status/error bodies. The bridge is computed from the already-returned reducer fact page after repository selector resolution, deterministic ordering, `limit+1` truncation probing, and exact payload predicates; it does not add a graph read, broad graph scan, graph write, reducer work, queue, worker, metric instrument, metric label, or runtime knob.
 
