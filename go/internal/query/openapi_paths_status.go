@@ -50,7 +50,7 @@ const openAPIPathsStatusAndCompare = `
       "get": {
         "tags": ["status"],
         "summary": "List collectors",
-        "description": "Returns collector runtime status classified by workflow coordinator registration and direct status evidence.",
+        "description": "Returns collector runtime status classified by workflow coordinator registration, direct status evidence, and persisted source or reducer fact evidence.",
         "operationId": "listCollectors",
         "responses": {
           "200": {
@@ -78,6 +78,7 @@ const openAPIPathsStatusAndCompare = `
                           "enabled": {"type": "boolean"},
                           "claims_enabled": {"type": "boolean"},
                           "evidence_sources": {"type": "array", "items": {"type": "string"}},
+                          "observation_count": {"type": "integer"},
                           "health": {"type": "string"},
                           "detail": {"type": "string"}
                         }

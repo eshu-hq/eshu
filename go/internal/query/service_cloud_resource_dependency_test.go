@@ -284,5 +284,13 @@ func emptyServiceQueryContentResults() []contentReaderQueryResult {
 			},
 			rows: [][]driver.Value{},
 		},
+		{
+			columns: []string{"payload"},
+			rows:    [][]driver.Value{},
+		},
+		{
+			columns: []string{"payload"},
+			rows:    [][]driver.Value{},
+		},
 	}
 }

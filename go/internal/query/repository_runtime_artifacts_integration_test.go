@@ -168,6 +168,14 @@ func TestGetRepositoryStoryIncludesDeploymentArtifactsFromDockerCompose(t *testi
 				},
 			},
 		},
+		{
+			columns: []string{"payload"},
+			rows:    [][]driver.Value{},
+		},
+		{
+			columns: []string{"payload"},
+			rows:    [][]driver.Value{},
+		},
 	})
 
 	handler := &RepositoryHandler{

@@ -229,20 +229,22 @@ func TestPostgresSBOMAttestationAttachmentWriterPersistsAllStatuses(t *testing.T
 		Cause:        "sbom attachment observed",
 		Decisions: []SBOMAttestationAttachmentDecision{
 			{
-				DocumentID:         "doc-verified",
-				DocumentDigest:     "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-				SubjectDigest:      testSBOMSubjectDigest,
-				AttachmentStatus:   SBOMAttachmentAttachedVerified,
-				ParseStatus:        "parsed",
-				VerificationStatus: "passed",
-				VerificationPolicy: "policy://prod",
-				ArtifactKind:       "sbom",
-				Format:             "cyclonedx",
-				SpecVersion:        "1.6",
-				AttachmentScope:    "image_subject",
-				CanonicalWrites:    1,
-				ComponentCount:     2,
-				EvidenceFactIDs:    []string{"doc-fact", "referrer-fact"},
+				DocumentID:          "doc-verified",
+				DocumentDigest:      "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+				SubjectDigest:       testSBOMSubjectDigest,
+				AttachmentStatus:    SBOMAttachmentAttachedVerified,
+				ParseStatus:         "parsed",
+				VerificationStatus:  "passed",
+				VerificationPolicy:  "policy://prod",
+				ArtifactKind:        "sbom",
+				Format:              "cyclonedx",
+				SpecVersion:         "1.6",
+				AttachmentScope:     "image_subject",
+				CanonicalWrites:     1,
+				ComponentCount:      2,
+				WarningSummaries:    []string{"25 components missing purl and name+version identity"},
+				WarningSummaryCount: 25,
+				EvidenceFactIDs:     []string{"doc-fact", "referrer-fact"},
 			},
 			{
 				DocumentID:         "doc-unparseable",
@@ -282,6 +284,9 @@ func TestPostgresSBOMAttestationAttachmentWriterPersistsAllStatuses(t *testing.T
 	}
 	if got, want := payload["attachment_scope"], "image_subject"; got != want {
 		t.Fatalf("attachment_scope = %#v, want %#v", got, want)
+	}
+	if got, want := payload["warning_summary_count"], float64(25); got != want {
+		t.Fatalf("warning_summary_count = %#v, want %#v", got, want)
 	}
 	if missing := payloadSliceStrings(t, payload["missing_evidence"]); len(missing) != 0 {
 		t.Fatalf("missing_evidence = %#v, want empty for image-subject attachment", missing)

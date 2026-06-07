@@ -118,9 +118,10 @@ infer completeness from row count alone.
   Composer evidence gaps stay explicit instead of being classified as
   unsupported.
   (`supply_chain_impact_readiness_postgres.go`)
-- `AdvisoryEvidenceStore` — port for source-only vulnerability advisory
-  evidence grouped by canonical CVE/GHSA/OSV/NVD identity without implying
-  impact (`supply_chain_advisory_evidence.go`)
+- `AdvisoryEvidenceStore` — source-only advisory evidence grouped by canonical
+  CVE/GHSA/OSV/NVD identity. Repository, service, and workload scopes resolve
+  through active reducer-owned impact findings, not provider-alert-only rows
+  (`supply_chain_advisory_evidence.go`)
 - `PostgresAdvisoryEvidenceStore` — Postgres-backed source fact read model
   for `GET /api/v0/supply-chain/advisories/evidence`
   (`supply_chain_advisory_evidence.go`)
@@ -213,6 +214,22 @@ infer completeness from row count alone.
     candidates for ambiguous, sensitive, stale, state-only, or unsupported rows.
 - `ImpactHandler` — blast radius, change surface, deployment trace, resource
   investigation, dependency paths (`impact.go:11`)
+  - Entity-map neighborhood traversal resolves one anchor first, then runs
+    bounded per-relationship-family graph reads. No-Regression Evidence:
+    `go test ./internal/query -run
+    'TestEntityMapPopulatesTypedVerbAndEntityIDForVarLengthEdge' -count=1`
+    covers the NornicDB-compatible variable-length row shape from issue #1604:
+    one resolved workload anchor, one incoming `DEFINES` relationship family,
+    empty backend-derived relationship types, and a backend-reported
+    `length(path)=0`. The query now emits the relationship verb as the family
+    literal, avoids `RETURN DISTINCT`, deduplicates equivalent rows in Go after
+    the bounded graph calls, and reports at least one hop for returned
+    neighbors. No-Observability-Change: entity-map reads still use the existing
+    `query.entity_map` handler span, graph query spans, HTTP status/error body,
+    truth envelope, `coverage.depth`, `coverage.limit`, relationship filters,
+    returned relationship counts, and truncation metadata. The change adds no
+    route, queue, worker, graph write, runtime knob, metric instrument, or
+    metric label.
 - `EvidenceHandler` — relationship evidence drilldown and bounded citation
   packet hydration; citation packets reject more than 500 input handles and
   hydrate at most 50 citations per call (`evidence.go`, `evidence_citation.go`)
@@ -493,7 +510,11 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
 
 ## Related docs
 
-- [read-models.md](read-models.md) for route-specific bounds and evidence.
-- [dead-code-reachability.md](dead-code-reachability.md) for dead-code rules.
-- [evidence-notes.md](evidence-notes.md) for issue-specific evidence, and
-  `docs/public/reference/http-api.md` for the public HTTP contract.
+- [read-models.md](read-models.md) for route-specific read-model bounds,
+  evidence, and investigation-route contracts.
+- [dead-code-reachability.md](dead-code-reachability.md) for dead-code language roots, exactness blockers, and candidate paging rules.
+- [evidence-notes.md](evidence-notes.md) for issue-specific no-regression and
+  observability notes that do not belong in the package overview.
+- `docs/public/reference/http-api.md` for the public HTTP and envelope contract.
+- `docs/public/reference/dead-code-reachability-spec.md` for the dead-code
+  language maturity contract.

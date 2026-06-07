@@ -124,8 +124,8 @@ export function App(): React.JSX.Element {
         ) : null}
         {source.status === "connected" ? (
           <Routes>
-            <Route path="/" element={<DashboardPage model={model} onOpenService={openService} />} />
-            <Route path="/dashboard" element={<DashboardPage model={model} onOpenService={openService} />} />
+            <Route path="/" element={<DashboardPage model={model} client={client} onOpenService={openService} />} />
+            <Route path="/dashboard" element={<DashboardPage model={model} client={client} onOpenService={openService} />} />
             <Route path="/explorer" element={<ExplorerPage model={model} client={client} onOpenService={openService} />} />
             <Route path="/repositories" element={<RepositoriesPage client={client} />} />
             <Route path="/repositories/:id/source" element={<RepoSourcePage client={client} />} />

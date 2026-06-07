@@ -20,8 +20,11 @@
 // vulnerability source facts under canonical GHSA/CVE/OSV/NVD identities while
 // preserving CVSS, EPSS, KEV, CWE, range, fixed-version, withdrawn, and
 // disagreement provenance without implying repository, image, workload, or
-// deployment impact. Impact reads pair the bounded reducer-owned findings page
-// with a readiness envelope so a zero-finding answer can be classified as
+// deployment impact. Repository, service, and workload advisory evidence
+// scopes derive only CVE/advisory/package anchors from active reducer-owned
+// impact findings; provider-alert-only rows stay out of this path. Impact
+// reads pair the bounded reducer-owned findings page with a readiness envelope
+// so a zero-finding answer can be classified as
 // not_configured, target_incomplete, evidence_incomplete, ready_zero_findings,
 // ready_with_findings, or unsupported. Unsupported matcher ecosystems, scanner
 // worker image warnings, and other unsupported targets are coverage-gap
@@ -30,14 +33,17 @@
 // scoped by requested CVE, package, repository-owned ecosystem, or image
 // component ecosystem, plus scoped package-registry freshness for
 // package/repository targets. It strips absent optional fields from the
-// Postgres JSON rollup before decoding. It never invents findings or
-// duplicates reducer matching: supported impact-matcher ecosystems are
-// classified from existing source and reducer facts, while VCS/path/URL,
-// editable, and other provenance-only dependency rows stay unsupported target
-// evidence with stable reason codes. Provider security-alert reconciliation
-// list, count, and inventory reads select one current reducer row per provider
-// alert identity before applying default status/state filters, while each
-// returned row keeps reducer reason and evidence fact ids for audit.
+// Postgres JSON rollup before decoding. SBOM attachment reads expose
+// `warning_summary_count` as the reducer-persisted aggregate occurrence count
+// while keeping `warning_summaries` as a bounded duplicate-collapsed preview.
+// They never invent findings or duplicate reducer matching: supported
+// impact-matcher ecosystems are classified from existing source and reducer
+// facts, while VCS/path/URL, editable, and other provenance-only dependency rows
+// stay unsupported target evidence with stable reason codes. Provider
+// security-alert reconciliation list, count, and inventory reads select one
+// current reducer row per provider alert identity before applying default
+// status/state filters, while each returned row keeps reducer reason and
+// evidence fact ids for audit.
 // Service-catalog correlation reads resolve repository selectors before reading
 // reducer facts, return ambiguous candidate repository IDs when the reducer
 // cannot select one repository, and attach missing-evidence classes to empty
@@ -46,7 +52,10 @@
 // and service source anchors when those anchors are present on reducer-owned
 // attachment facts. Source-scoped reads expose missing image or image-to-SBOM
 // evidence without promoting parse-only rows into canonical image attachment
-// truth.
+// truth. Service-story image-package enrichment treats repository-only
+// deployment image references as candidates, explains configured or unconfigured
+// OCI collector state from bounded read models, and keeps digest, SBOM, and
+// vulnerability truth absent until source collector evidence exists.
 // The companion explain route accepts one finding id or an advisory/CVE plus
 // package, repository, or image digest scope, then hydrates only the finding's
 // referenced evidence facts. It reports advisory, package/version,

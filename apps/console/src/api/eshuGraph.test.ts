@@ -137,6 +137,23 @@ describe("eshuGraph", () => {
     expect(graph.edges).toHaveLength(1);
   });
 
+  it("loadEntityMapGraph rejects API error envelopes instead of rendering a fallback node", async () => {
+    const client = {
+      post: async () => ({
+        data: null,
+        error: {
+          code: "unsupported_capability",
+          message: "entity map is unavailable"
+        },
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+
+    await expect(loadEntityMapGraph(client, "checkout")).rejects.toThrow(
+      "unsupported_capability: entity map is unavailable"
+    );
+  });
+
   it("loadEntityGraph renders the searched node alone when nothing resolves (no bogus entity_id 404)", async () => {
     let postCalled = false;
     const client = {

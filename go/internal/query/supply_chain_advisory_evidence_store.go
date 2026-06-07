@@ -46,7 +46,7 @@ func (s PostgresAdvisoryEvidenceStore) ListAdvisoryEvidence(
 		return nil, fmt.Errorf("advisory evidence database is required")
 	}
 	if !filter.hasScope() {
-		return nil, fmt.Errorf("cve_id, advisory_id, or package_id is required")
+		return nil, fmt.Errorf("cve_id, advisory_id, package_id, repository_id, service_id, or workload_id is required")
 	}
 	if filter.Limit <= 0 || filter.Limit > advisoryEvidenceMaxLimit+1 {
 		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", advisoryEvidenceMaxLimit+1)
@@ -56,9 +56,12 @@ func (s PostgresAdvisoryEvidenceStore) ListAdvisoryEvidence(
 		listAdvisoryEvidenceQuery,
 		pq.Array(advisoryEvidenceFactKinds),
 		pq.Array(advisoryEvidenceLookupIDs(filter)),
-		filter.PackageID,
+		pq.Array(advisoryEvidencePackageIDs(filter)),
 		filter.Source,
 		advisoryEvidenceMaxFactRows,
+		filter.RepositoryID,
+		filter.ServiceID,
+		filter.WorkloadID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list advisory evidence: %w", err)
@@ -94,13 +97,21 @@ func (s PostgresAdvisoryEvidenceStore) ListAdvisoryEvidence(
 }
 
 func (f AdvisoryEvidenceFilter) hasScope() bool {
-	return f.CVEID != "" || f.AdvisoryID != "" || f.PackageID != ""
+	return f.CVEID != "" || f.AdvisoryID != "" || f.PackageID != "" ||
+		f.RepositoryID != "" || f.ServiceID != "" || f.WorkloadID != ""
+}
+
+func (f AdvisoryEvidenceFilter) hasImpactScope() bool {
+	return f.RepositoryID != "" || f.ServiceID != "" || f.WorkloadID != ""
 }
 
 func normalizeAdvisoryEvidenceFilter(filter AdvisoryEvidenceFilter) AdvisoryEvidenceFilter {
 	filter.CVEID = normalizeAdvisoryLookupID(filter.CVEID)
 	filter.AdvisoryID = normalizeAdvisoryLookupID(filter.AdvisoryID)
 	filter.PackageID = strings.TrimSpace(filter.PackageID)
+	filter.RepositoryID = strings.TrimSpace(filter.RepositoryID)
+	filter.ServiceID = strings.TrimSpace(filter.ServiceID)
+	filter.WorkloadID = strings.TrimSpace(filter.WorkloadID)
 	filter.Source = strings.ToLower(strings.TrimSpace(filter.Source))
 	filter.AfterAdvisoryKey = normalizeAdvisoryLookupID(filter.AfterAdvisoryKey)
 	return filter
@@ -116,6 +127,13 @@ func advisoryEvidenceLookupIDs(filter AdvisoryEvidenceFilter) []string {
 	for _, value := range []string{filter.CVEID, filter.AdvisoryID} {
 		addSet(seen, value)
 	}
+	return setToSortedSlice(seen)
+}
+
+func advisoryEvidencePackageIDs(filter AdvisoryEvidenceFilter) []string {
+	filter = normalizeAdvisoryEvidenceFilter(filter)
+	seen := map[string]struct{}{}
+	addSet(seen, filter.PackageID)
 	return setToSortedSlice(seen)
 }
 
@@ -156,6 +174,14 @@ func filterAdvisoryEvidenceRows(rows []AdvisoryEvidenceRow, filter AdvisoryEvide
 		return rows
 	}
 	filter = normalizeAdvisoryEvidenceFilter(filter)
+	if filter.hasImpactScope() {
+		filter.CVEID = ""
+		filter.AdvisoryID = ""
+		filter.PackageID = ""
+	}
+	if filter.CVEID == "" && filter.AdvisoryID == "" && filter.PackageID == "" {
+		return rows
+	}
 	out := make([]AdvisoryEvidenceRow, 0, len(rows))
 	for _, row := range rows {
 		if advisoryEvidenceRowMatchesFilter(row, filter) {

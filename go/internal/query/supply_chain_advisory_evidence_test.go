@@ -14,12 +14,14 @@ import (
 type recordingAdvisoryEvidenceStore struct {
 	rows       []AdvisoryEvidenceRow
 	lastFilter AdvisoryEvidenceFilter
+	calls      int
 }
 
 func (s *recordingAdvisoryEvidenceStore) ListAdvisoryEvidence(
 	_ context.Context,
 	filter AdvisoryEvidenceFilter,
 ) ([]AdvisoryEvidenceRow, error) {
+	s.calls++
 	s.lastFilter = filter
 	return append([]AdvisoryEvidenceRow(nil), s.rows...), nil
 }
@@ -399,7 +401,7 @@ func TestAdvisoryEvidenceQueryUsesActiveSourceFactReadModel(t *testing.T) {
 		"generation.status = 'active'",
 		"fact.payload->>'cve_id' = lookup.value",
 		"fact.payload->>'advisory_id' = lookup.value",
-		"fact.payload->>'package_id' = $3",
+		"fact.payload->>'package_id' = pkg.value",
 		"LOWER(fact.payload->>'source') = $4",
 		"jsonb_array_elements_text",
 		"payload->'correlation_anchors'",

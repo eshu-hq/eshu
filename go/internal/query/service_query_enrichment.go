@@ -180,10 +180,22 @@ func enrichServiceQueryContextWithOptions(
 	}
 
 	timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "documentation_overview")
-	if documentationOverview := buildServiceDocumentationOverview(ctx, graph, workloadContext, evidence); len(documentationOverview) > 0 {
+	documentationOverview := buildServiceDocumentationOverview(ctx, graph, workloadContext, evidence)
+	targetDocumentation, err := loadServiceStoryTargetDocumentationForOperation(ctx, content, workloadContext, operation)
+	timer.Done(
+		ctx,
+		slog.Bool("has_result", len(documentationOverview) > 0 || len(targetDocumentation) > 0),
+		slog.Bool("has_target_documentation", len(targetDocumentation) > 0),
+		slog.Int("target_documentation_finding_count", IntVal(targetDocumentation, "finding_count")),
+		slog.Bool("error", err != nil),
+	)
+	if err != nil {
+		return fmt.Errorf("load service story target documentation: %w", err)
+	}
+	documentationOverview = attachStoryTargetDocumentation(documentationOverview, targetDocumentation)
+	if len(documentationOverview) > 0 {
 		workloadContext["documentation_overview"] = documentationOverview
 	}
-	timer.Done(ctx, slog.Bool("has_result", len(mapValue(workloadContext, "documentation_overview")) > 0))
 	timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "deployment_evidence")
 	deploymentEvidence, err := loadServiceDeploymentEvidence(ctx, graph, content, workloadContext)
 	timer.Done(ctx, slog.Bool("has_result", len(deploymentEvidence) > 0))

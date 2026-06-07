@@ -191,6 +191,38 @@ When a service name matches multiple workloads, service story returns HTTP 409
 with envelope `error.code=ambiguous`, `data=null`, and candidate details. It
 does not choose the first match.
 
+Service and repository story `documentation_overview` may include
+`target_documentation` when the documentation read model has admissible
+external documentation tied to the selected story target. The nested object
+uses the same bounded readback vocabulary as documentation target routes:
+`findings`, `finding_count`, `related_facts`, `related_fact_count`,
+`coverage`, `missing_evidence`, `limit`, and `source`. Service story reads the
+selected service target, including canonical `service_id` selectors forwarded
+by MCP. Repository story reads repository-target documentation. Generic text
+mentions are not enough for admission; the documentation fact or finding must
+carry target references such as `candidate_refs`, `evidence_refs`, or
+`linked_entities`. When target-related facts exist but no admissible finding is
+linked to the target, the story preserves explicit `missing_evidence` instead
+of silently presenting an empty documentation summary.
+
+No-Regression Evidence:
+
+```bash
+cd go && go test ./internal/query -run 'Test(GetServiceStorySurfacesTargetLinkedExternalDocumentation|GetRepositoryStorySurfacesTargetLinkedExternalDocumentation|GetServiceStoryPreservesMissingExternalDocumentationCorrelation|DocumentationPayloadDoesNotMatchGenericMentionWithoutTargetRef)' -count=1
+cd go && go test ./internal/mcp -run 'TestDispatchTool(ServiceStoryPreservesTargetDocumentationReadback|ServiceStoryPreservesMissingDocumentationReadback|RepoStoryPreservesTargetDocumentationReadback)' -count=1
+```
+
+Observability Evidence: service story records the target-documentation read
+inside the existing `service_query.stage_completed` event for
+`documentation_overview` with `has_target_documentation`,
+`target_documentation_finding_count`, and `error` attributes. Repository story
+emits a bounded `repository_query.stage_completed` event for the
+`target_documentation` stage with `has_result`, `finding_count`, and `error`.
+The read model uses existing Postgres spans for `list_documentation_findings`
+and `list_documentation_target_facts`, plus the same HTTP/MCP truth envelope
+and error reporting. No reducer queue, graph write, collector, worker, metric
+label, runtime knob, or deployment setting changes.
+
 Deployment trace responses are evidence-first and may include deployment,
 GitOps, controller, runtime, cloud, Kubernetes, image, relationship, and
 fact-summary sections. Mapping modes are:
@@ -293,14 +325,27 @@ reference through a generic matched value. The story accepts tagged or digested
 container image refs, and it can also carry registry-qualified image repository
 values from Helm config as candidates. Config paths, local build contexts, and
 repository aliases remain non-image evidence. Candidate image references can
-move the missing hop from `deployment_image_reference_missing` to
-`container_image_identity_missing`, but repository-only candidates do not create
-tag, digest, SBOM, or vulnerability impact truth by themselves.
+move the missing hop from `deployment_image_reference_missing` to a specific
+candidate missing reason, but repository-only candidates do not create tag,
+digest, SBOM, or vulnerability impact truth by themselves.
+
+`image_package.missing_evidence_details[]` gives operators the bounded reason
+for each candidate without inventing image identity. Repository-only values use
+`deployment_image_reference_repo_only` and ask for a tag or digest. Tagged or
+digested candidates whose normalized OCI repository id is absent from configured
+OCI registry scope/work-item evidence use `oci_registry_target_outside_scope`
+and name the `candidate_repository_id` to configure. Configured but failed
+collector targets use `oci_registry_target_unreadable` with the bounded
+`failure_class`; pending or claimed targets use
+`oci_registry_target_collection_pending`; targets that scanned but still lack a
+canonical identity use `container_image_identity_scanned_missing`. SBOM gaps
+remain separate attachment reasons such as `sbom_attachment_missing`.
 
 No-Regression Evidence:
 
 ```bash
-cd go && go test ./internal/query ./internal/mcp -run 'Test(ServiceStorySupplyChainEvidence|ServiceStoryDeploymentImageRefs|GetServiceStoryEnvelopeIncludesSupplyChainEvidence|DispatchToolServiceStoryPreservesSupplyChainTrace|ResolveRouteMapsServiceStory)' -count=1
+cd go && go test ./internal/query -run 'TestServiceStorySupplyChainEvidence(AttachesExactImageAndSBOM|ReportsRepoOnlyHelmValuesImageRef|ExplainsRepoOnlyImageCandidate|ExplainsOCIRegistryTargetOutsideScope|BoundsImageRefLookups)|TestExplainContainerImageCandidateQueryUsesBoundedOCIScopeReadModel|TestContainerImageIdentityQueryUsesActiveFactReadModel' -count=1
+cd go && go test ./internal/mcp -run TestDispatchToolServiceStoryPreservesSupplyChainTrace -count=1
 cd .. && scripts/test-verify-remote-e2e-target-story.sh
 ```
 
@@ -308,8 +353,10 @@ Observability Evidence: service-story supply-chain enrichment records a
 `supply_chain_evidence` stage through the existing
 `service_query.stage_started` and `service_query.stage_completed` log events
 with image-ref, evidence, and missing-reason counts. It uses bounded Postgres
-read-model list calls and adds no worker, queue, graph write, metric instrument,
-or metric label.
+read-model list calls plus one repository-id-scoped OCI scope/work-item/warning
+explanation query for each missing tagged or digested candidate. It adds no
+worker, queue, graph write, metric instrument, metric label, or deployment
+knob.
 
 Service story derives `support_overview.spec_count` from the same bounded
 `api_surface` aggregate and `spec_paths` evidence used by

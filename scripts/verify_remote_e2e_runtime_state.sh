@@ -6,6 +6,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 RUNTIME_LIB="${REPO_ROOT}/scripts/lib/compose_verification_runtime_common.sh"
 TFSTATE_WARNINGS_LIB="${REPO_ROOT}/scripts/lib/remote_e2e_tfstate_warnings.sh"
 HOSTED_SERVICES_LIB="${REPO_ROOT}/scripts/lib/remote_e2e_hosted_services.sh"
+FINITE_COMPLETION_LIB="${REPO_ROOT}/scripts/lib/remote_e2e_finite_completion.sh"
 
 COMPOSE_FILES="${ESHU_REMOTE_E2E_COMPOSE_FILES:-docker-compose.remote-e2e.yaml}"
 COMPOSE_ENV_FILE="${ESHU_REMOTE_E2E_ENV_FILE:-}"
@@ -32,6 +33,8 @@ source "${RUNTIME_LIB}"
 source "${TFSTATE_WARNINGS_LIB}"
 # shellcheck source=scripts/lib/remote_e2e_hosted_services.sh disable=SC1091
 source "${HOSTED_SERVICES_LIB}"
+# shellcheck source=scripts/lib/remote_e2e_finite_completion.sh disable=SC1091
+source "${FINITE_COMPLETION_LIB}"
 
 cleanup() {
 	rm -rf "${TMP_DIR}"
@@ -224,34 +227,6 @@ report_skipped_aggregate_count() {
 	printf 'remote E2E aggregate proof count %s skipped: minimum=%s\n' "${label}" "${minimum}"
 }
 
-verify_queue_completion() {
-	echo "Checking checkpointed index completion..."
-	if ! api_get "/index-status" "${INDEX_STATUS_FILE}"; then
-		echo "remote E2E queue completion check could not read ${API_BASE_URL}/index-status" >&2
-		echo "verify the API is reachable and ESHU_REMOTE_E2E_API_KEY is valid when set" >&2
-		return 1
-	fi
-	if jq -e '
-		(.status // "") == "healthy" and
-		((.queue.outstanding // 0) == 0) and
-		((.queue.in_flight // 0) == 0) and
-		((.queue.pending // 0) == 0) and
-		((.queue.retrying // 0) == 0) and
-		((.queue.failed // 0) == 0) and
-		((.queue.dead_letter // 0) == 0)
-	' "${INDEX_STATUS_FILE}" >/dev/null; then
-		jq -r '
-			"remote E2E terminal queue state: outstanding=\(.queue.outstanding // 0) in_flight=\(.queue.in_flight // 0) pending=\(.queue.pending // 0) retrying=\(.queue.retrying // 0) failed=\(.queue.failed // 0) dead_letter=\(.queue.dead_letter // 0)"
-		' "${INDEX_STATUS_FILE}"
-		echo "remote E2E queue completion verified"
-		return 0
-	fi
-
-	echo "remote E2E queue completion not reached" >&2
-	cat "${INDEX_STATUS_FILE}" >&2
-	return 1
-}
-
 verify_representative_runtime_safety() {
 	echo "Checking representative runtime safety..."
 	if ! api_get "/index-status" "${INDEX_STATUS_FILE}"; then
@@ -426,32 +401,6 @@ verify_target_story() {
 		"${SCRIPT_DIR}/verify_remote_e2e_target_story.sh"
 }
 
-verify_workflow_completion() {
-	echo "Checking workflow coordinator completion..."
-	if jq -e '
-		def count_value($section; $name):
-			if ((.coordinator[$section] // null) | type) == "array" then
-				([.coordinator[$section][]? | select(.name == $name) | (.count // 0)] | add // 0)
-			elif ((.coordinator[$section] // null) | type) == "object" then
-				(.coordinator[$section][$name] // 0)
-			else
-				0
-			end;
-		(.coordinator | type == "object") and
-		(count_value("run_status_counts"; "failed") == 0) and
-		(count_value("run_status_counts"; "reducer_converging") == 0) and
-		(count_value("completeness_counts"; "blocked") == 0) and
-		(count_value("completeness_counts"; "pending") == 0)
-	' "${INDEX_STATUS_FILE}" >/dev/null; then
-		echo "remote E2E workflow completion verified"
-		return 0
-	fi
-
-	echo "remote E2E workflow completion not reached" >&2
-	cat "${INDEX_STATUS_FILE}" >&2
-	return 1
-}
-
 main() {
 	eshu_require_tool curl
 	eshu_require_tool docker
@@ -478,12 +427,12 @@ main() {
 		verify_package_registry_metadata_gap
 		verify_representative_runtime_safety
 	else
-		verify_queue_completion
-		verify_workflow_completion
+		verify_remote_e2e_finite_completion
 		verify_tfstate_warning_summary
 		verify_aggregate_counts
 		verify_target_story
 		verify_package_registry_metadata_gap
+		verify_remote_e2e_finite_completion
 	fi
 }
 
