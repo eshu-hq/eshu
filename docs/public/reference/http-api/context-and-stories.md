@@ -364,9 +364,16 @@ new graph, Postgres, MCP dispatch, queue, collector, or runtime call; the
 existing `service_query.stage_started` and `service_query.stage_completed`
 events still cover the `graph_api_surface` and `overview_assembly` stages.
 
-No-Regression Evidence: service cloud dependency anchor changes must prove the
-reducer row contract, graph writer persistence, service story response, and MCP
-story route with focused Go tests.
+No-Regression Evidence:
+
+```bash
+cd go && go test ./internal/query -run 'TestTraceDeploymentChainKeepsConfigDerivedCloudResources|TestLoadServiceCloudResourceDependenciesPromotesReadConfigCloudResource|TestEnrichServiceQueryContextPromotesStrongAWSCloudResourceAnchor|TestBuildDeploymentTraceResponseExplainsUncorrelatedCloudCandidates' -count=1
+```
+
+This proves service story and deployment trace readbacks preserve the same
+canonical cloud-resource classification: exact service anchors and
+`READS_CONFIG_FROM` config-identity matches stay in `cloud_resources`, while
+candidate-only rows stay in `uncorrelated_cloud_resources`.
 
 No-Observability-Change: service story anchor admission uses existing service
 query stage timing and graph query instrumentation; it adds no collector call,
