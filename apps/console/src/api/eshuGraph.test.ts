@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { relationshipsToGraph, loadEntityGraph, loadEntityMapGraph, loadBlastGraph, resolveEntityName, codeRelationshipsToGraph, entityMapToGraph } from "./eshuGraph";
+import { relationshipsToGraph, loadEntityGraph, loadEntityMapGraph, loadBlastGraph, resolveEntityName, codeRelationshipsToGraph, entityMapToGraph, recommendedModeForKind } from "./eshuGraph";
+import { EshuApiHttpError } from "./client";
 import type { EshuApiClient } from "./client";
 
 describe("eshuGraph", () => {
@@ -165,6 +166,41 @@ describe("eshuGraph", () => {
     expect(graph.nodes).toHaveLength(1);
     expect(graph.nodes[0]).toMatchObject({ id: "no-such-entity", hero: true });
     expect(graph.edges).toHaveLength(0);
+  });
+
+  it("loadEntityGraph degrades a 404 from code/relationships to an empty graph (center alone)", async () => {
+    const client = {
+      postJson: async () => ({ entities: [{ id: "workload:api-node-boats", name: "api-node-boats", labels: ["Workload"] }] }),
+      post: async () => { throw new EshuApiHttpError(404); }
+    } as unknown as EshuApiClient;
+    const graph = await loadEntityGraph(client, "api-node-boats");
+    // No code relationships exist for a service: render the resolved node alone,
+    // not a thrown error.
+    expect(graph.nodes).toHaveLength(1);
+    expect(graph.nodes[0]).toMatchObject({ id: "workload:api-node-boats", hero: true });
+    expect(graph.edges).toHaveLength(0);
+  });
+
+  it("loadEntityGraph still surfaces a real server error (500) from code/relationships", async () => {
+    const client = {
+      postJson: async () => ({ entities: [{ id: "content-entity:e_center", name: "createNewVersion", labels: ["Function"] }] }),
+      post: async () => { throw new EshuApiHttpError(500); }
+    } as unknown as EshuApiClient;
+    await expect(loadEntityGraph(client, "createNewVersion")).rejects.toBeInstanceOf(EshuApiHttpError);
+  });
+
+  it("recommendedModeForKind picks direct for code entities and neighborhood for service/infra", () => {
+    expect(recommendedModeForKind("Function")).toBe("direct");
+    expect(recommendedModeForKind("File")).toBe("direct");
+    expect(recommendedModeForKind("Class")).toBe("direct");
+    expect(recommendedModeForKind("Method")).toBe("direct");
+    expect(recommendedModeForKind("Service")).toBe("neighborhood");
+    expect(recommendedModeForKind("Workload")).toBe("neighborhood");
+    expect(recommendedModeForKind("Repository")).toBe("neighborhood");
+    expect(recommendedModeForKind("AwsResource")).toBe("neighborhood");
+    // Unknown kinds keep the existing direct default so code search is unchanged.
+    expect(recommendedModeForKind(undefined)).toBe("direct");
+    expect(recommendedModeForKind("")).toBe("direct");
   });
 
   it("resolveEntityName returns the top candidate, falling back to the raw query", async () => {
