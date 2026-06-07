@@ -47,14 +47,23 @@ describe("CatalogPage", () => {
     expect(onOpenService).toHaveBeenCalledWith("payments-api");
   });
 
-  it("does not render an Environments column the API never populates", () => {
-    // GET /api/v0/catalog carries no per-service environment data, so an
-    // Environments column would be blank for every row. It must not be shown.
+  it("renders the Environments column from per-service catalog data", () => {
+    // GET /api/v0/catalog resolves per-service environments from the graph's
+    // TARGETS_ENVIRONMENT and WorkloadInstance evidence, so the column shows
+    // real environments and an em-dash only when a service genuinely has none.
     render(<CatalogPage model={demoModel} />);
 
-    expect(screen.queryByRole("columnheader", { name: "Environments" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Environments" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Repository" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Truth" })).toBeInTheDocument();
+
+    const checkoutRow = screen.getByText("checkout-service").closest("tr");
+    expect(checkoutRow).not.toBeNull();
+    expect(checkoutRow).toHaveTextContent("prod-us-east-1");
+
+    const libRow = screen.getByText("lib-common").closest("tr");
+    expect(libRow).not.toBeNull();
+    expect(libRow).toHaveTextContent("—");
   });
 
   it("labels the source as demo fixtures vs live", () => {

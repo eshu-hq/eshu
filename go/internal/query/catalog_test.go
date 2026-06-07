@@ -9,50 +9,68 @@ import (
 	"testing"
 )
 
+// catalogGraphRows routes the catalog handler's bounded graph queries to fake
+// result sets. Each query is anchored on a distinct fragment so the fake can
+// return per-query scalar rows, mirroring the backend-portable assembly the
+// handler performs.
+type catalogGraphRows struct {
+	repositories []map[string]any
+	base         []map[string]any
+	repo         []map[string]any
+	instance     []map[string]any
+	evidence     []map[string]any
+}
+
+func (rows catalogGraphRows) reader(t *testing.T, wantLimit int) fakeRepoGraphReader {
+	t.Helper()
+	return fakeRepoGraphReader{
+		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+			switch {
+			case strings.Contains(cypher, "MATCH (r:Repository)"):
+				return rows.repositories, nil
+			case strings.Contains(cypher, "EVIDENCES_REPOSITORY_RELATIONSHIP"):
+				return rows.evidence, nil
+			case strings.Contains(cypher, "MATCH (inst:WorkloadInstance)"):
+				return rows.instance, nil
+			case strings.Contains(cypher, "MATCH (repo:Repository)-[:DEFINES]->(w:Workload)"):
+				return rows.repo, nil
+			case strings.Contains(cypher, "MATCH (w:Workload)"):
+				if wantLimit > 0 {
+					if got, want := params["limit"], wantLimit; got != want {
+						t.Fatalf("workload limit param = %#v, want %#v", got, want)
+					}
+				}
+				return rows.base, nil
+			default:
+				return nil, nil
+			}
+		},
+	}
+}
+
 func TestListCatalogReturnsRepositoriesWorkloadsAndServices(t *testing.T) {
 	t.Parallel()
 
-	handler := &RepositoryHandler{
-		Neo4j: fakeRepoGraphReader{
-			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if got, want := params["limit"], 3; got != want {
-					t.Fatalf("limit param = %#v, want %#v", got, want)
-				}
-				switch {
-				case strings.Contains(cypher, "MATCH (r:Repository)"):
-					return []map[string]any{
-						{
-							"id":         "repository:r_api",
-							"name":       "api-node-boats",
-							"local_path": "/repos/api-node-boats",
-						},
-					}, nil
-				case strings.Contains(cypher, "MATCH (w:Workload)"):
-					return []map[string]any{
-						{
-							"id":             "workload:api-node-boats",
-							"name":           "api-node-boats",
-							"kind":           "service",
-							"repo_id":        "repository:r_api",
-							"repo_name":      "api-node-boats",
-							"instance_count": int64(2),
-							"environments":   []any{"prod", "qa"},
-						},
-						{
-							"id":             "workload:nightly-sync",
-							"name":           "nightly-sync",
-							"kind":           "cronjob",
-							"repo_id":        "repository:r_api",
-							"repo_name":      "api-node-boats",
-							"instance_count": int64(1),
-							"environments":   []any{"prod"},
-						},
-					}, nil
-				default:
-					return nil, nil
-				}
-			},
+	rows := catalogGraphRows{
+		repositories: []map[string]any{
+			{"id": "repository:r_api", "name": "api-node-boats", "local_path": "/repos/api-node-boats"},
 		},
+		base: []map[string]any{
+			{"id": "workload:api-node-boats", "name": "api-node-boats", "kind": "service"},
+			{"id": "workload:nightly-sync", "name": "nightly-sync", "kind": "cronjob"},
+		},
+		repo: []map[string]any{
+			{"id": "workload:api-node-boats", "repo_id": "repository:r_api", "repo_name": "api-node-boats"},
+			{"id": "workload:nightly-sync", "repo_id": "repository:r_api", "repo_name": "api-node-boats"},
+		},
+		instance: []map[string]any{
+			{"id": "workload:api-node-boats", "instance_count": int64(2), "environments": []any{"prod", "qa"}},
+			{"id": "workload:nightly-sync", "instance_count": int64(1), "environments": []any{"prod"}},
+		},
+	}
+
+	handler := &RepositoryHandler{
+		Neo4j:   rows.reader(t, 3),
 		Profile: ProfileLocalAuthoritative,
 	}
 
@@ -80,30 +98,87 @@ func TestListCatalogReturnsRepositoriesWorkloadsAndServices(t *testing.T) {
 	assertCatalogCollectionLength(t, body, "repositories", 1)
 	assertCatalogCollectionLength(t, body, "workloads", 2)
 	assertCatalogCollectionLength(t, body, "services", 1)
+
+	services := body["services"].([]any)
+	service := services[0].(map[string]any)
+	assertEnvironmentSet(t, "api-node-boats", catalogEnvironments(service), []string{"prod", "qa"})
+	if got, want := service["repo_name"], "api-node-boats"; got != want {
+		t.Fatalf("service repo_name = %#v, want %#v", got, want)
+	}
+}
+
+func TestListCatalogMergesInstanceAndDeploymentEvidenceEnvironments(t *testing.T) {
+	t.Parallel()
+
+	rows := catalogGraphRows{
+		base: []map[string]any{
+			{"id": "workload:api-node-boats", "name": "api-node-boats", "kind": "service"},
+			{"id": "workload:api-node-forex", "name": "api-node-forex", "kind": "service"},
+			{"id": "workload:api-node-empty", "name": "api-node-empty", "kind": "service"},
+		},
+		instance: []map[string]any{
+			// Instance-backed service: environments only from WorkloadInstance.
+			{"id": "workload:api-node-boats", "instance_count": int64(2), "environments": []any{"prod", "qa"}},
+		},
+		evidence: []map[string]any{
+			// Instance-less service: environments only from TARGETS_ENVIRONMENT
+			// deployment evidence, emitted as scalar per-edge rows.
+			{"id": "workload:api-node-forex", "environment": "bg-qa"},
+			{"id": "workload:api-node-forex", "environment": "bg-prod"},
+			{"id": "workload:api-node-forex", "environment": "bg-qa"},
+		},
+	}
+
+	handler := &RepositoryHandler{
+		Neo4j:   rows.reader(t, 0),
+		Profile: ProfileLocalAuthoritative,
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/catalog?limit=10", nil)
+	rec := httptest.NewRecorder()
+
+	handler.listCatalog(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+
+	byName := map[string][]string{}
+	for _, raw := range body["services"].([]any) {
+		service := raw.(map[string]any)
+		byName[service["name"].(string)] = catalogEnvironments(service)
+	}
+
+	assertEnvironmentSet(t, "api-node-boats", byName["api-node-boats"], []string{"prod", "qa"})
+	assertEnvironmentSet(t, "api-node-forex", byName["api-node-forex"], []string{"bg-prod", "bg-qa"})
+	if envs, ok := byName["api-node-empty"]; !ok {
+		t.Fatalf("api-node-empty service missing from response")
+	} else if len(envs) != 0 {
+		t.Fatalf("api-node-empty environments = %#v, want empty", envs)
+	}
 }
 
 func TestListCatalogTruncatesEachCollectionByLimit(t *testing.T) {
 	t.Parallel()
 
-	handler := &RepositoryHandler{
-		Neo4j: fakeRepoGraphReader{
-			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-				switch {
-				case strings.Contains(cypher, "MATCH (r:Repository)"):
-					return []map[string]any{
-						{"id": "repository:r_1", "name": "one"},
-						{"id": "repository:r_2", "name": "two"},
-					}, nil
-				case strings.Contains(cypher, "MATCH (w:Workload)"):
-					return []map[string]any{
-						{"id": "workload:w_1", "name": "one", "kind": "service"},
-						{"id": "workload:w_2", "name": "two", "kind": "service"},
-					}, nil
-				default:
-					return nil, nil
-				}
-			},
+	rows := catalogGraphRows{
+		repositories: []map[string]any{
+			{"id": "repository:r_1", "name": "one"},
+			{"id": "repository:r_2", "name": "two"},
 		},
+		base: []map[string]any{
+			{"id": "workload:w_1", "name": "one", "kind": "service"},
+			{"id": "workload:w_2", "name": "two", "kind": "service"},
+		},
+	}
+
+	handler := &RepositoryHandler{
+		Neo4j:   rows.reader(t, 0),
 		Profile: ProfileLocalAuthoritative,
 	}
 
@@ -164,6 +239,34 @@ func TestListCatalogIncludesIdentityOnlyServicesFromReadModel(t *testing.T) {
 	}
 	if got, want := service["materialization_status"], "identity_only"; got != want {
 		t.Fatalf("materialization_status = %#v, want %#v", got, want)
+	}
+}
+
+func catalogEnvironments(service map[string]any) []string {
+	envs := []string{}
+	rawEnvs, ok := service["environments"].([]any)
+	if !ok {
+		return envs
+	}
+	for _, env := range rawEnvs {
+		envs = append(envs, env.(string))
+	}
+	return envs
+}
+
+func assertEnvironmentSet(t *testing.T, name string, got, want []string) {
+	t.Helper()
+	gotSet := map[string]struct{}{}
+	for _, env := range got {
+		gotSet[env] = struct{}{}
+	}
+	if len(gotSet) != len(want) {
+		t.Fatalf("%s environments = %#v, want set %#v", name, got, want)
+	}
+	for _, env := range want {
+		if _, ok := gotSet[env]; !ok {
+			t.Fatalf("%s environments = %#v, missing %q", name, got, env)
+		}
 	}
 }
 

@@ -35,9 +35,9 @@ describe("eshuConsoleLive", () => {
           // across environments) — the adapter must dedup by id.
           return {
             data: {
-              services: [{ id: "workload:api", name: "api", kind: "deployment", repo_name: "api" }],
+              services: [{ id: "workload:api", name: "api", kind: "deployment", repo_name: "api", environments: ["bg-qa", "bg-prod"] }],
               workloads: [
-                { id: "workload:api", name: "api", kind: "deployment", repo_name: "api" },
+                { id: "workload:api", name: "api", kind: "deployment", repo_name: "api", environments: ["bg-qa", "bg-prod"] },
                 { id: "workload:lib-config", name: "lib-config", kind: "library", repo_name: "lib-config" },
                 { id: "workload:lib-config", name: "lib-config", kind: "library", repo_name: "lib-config" }
               ]
@@ -204,6 +204,16 @@ describe("eshuConsoleLive", () => {
     const ids = snap.services.map((s) => s.id);
     expect(ids).toEqual(["workload:api", "workload:lib-config"]);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("maps per-service environments from the catalog response", async () => {
+    const snap = await loadConsoleSnapshot(fakeClient());
+    const api = snap.services.find((s) => s.id === "workload:api");
+    expect(api?.environments).toEqual(["bg-qa", "bg-prod"]);
+    // A service with no environment evidence resolves to an empty array, never
+    // a fabricated value.
+    const lib = snap.services.find((s) => s.id === "workload:lib-config");
+    expect(lib?.environments).toEqual([]);
   });
 
   it("loads affected vulnerabilities with the impact_status anchor and derives severity from CVSS", async () => {
