@@ -130,6 +130,36 @@ collectors.
 | Runtime knobs | Neo4j config reference | [NornicDB Tuning](nornicdb-tuning.md) |
 | Version pinning | `NEO4J_VERSION` | `NORNICDB_IMAGE` |
 
+## Evidence Notes
+
+### Deployment Trace Config Reads
+
+No-Regression Evidence: issue #1696 baseline on `main` showed
+`go test ./internal/query -run TestTraceDeploymentChainKeepsConfigDerivedCloudResources -count=1`
+failing because deployment trace dropped explicit config-derived CloudResource
+rows when workload context did not preserve `deployment_evidence`. After the
+fix, `go test ./internal/query -run 'TestTraceDeploymentChainKeepsConfigDerivedCloudResources|TestConfigDerivedCloudResourceDependenciesRequireConfigReadEvidence' -count=1`,
+`go test ./internal/query -count=1`,
+`go test ./cmd/api ./internal/query ./internal/mcp -count=1`, and
+`go test ./... -count=1` pass.
+
+The covered backend/version contract is the existing NornicDB/Neo4j
+`GraphQuery.Run` deployment-trace read path. The input shape starts from one
+resolved workload or service context and issues config-derived CloudResource
+reads only for explicit `READS_CONFIG_FROM` deployment artifacts. The negative
+guard proves zero graph reads and zero rows when the artifact relationship is
+not `READS_CONFIG_FROM`; positive reads are capped by the existing
+service-story item limit, with each config anchor consuming only the remaining
+result budget.
+
+No-Observability-Change: the helper uses the existing `GraphQuery.Run` adapter,
+`neo4j.query` spans, query-duration metrics, and deployment-trace response
+fields. It introduces no new runtime stage, queue, worker, or telemetry surface.
+The change is safe because uncorrelated CloudResource candidates remain
+unpromoted; only explicit config-read deployment evidence can produce
+`relationship_basis=deployment_config_read_evidence`, preserving the
+missing-relationship contract for name or ARN coincidences.
+
 ## Related Docs
 
 - [NornicDB Pitfalls](nornicdb-pitfalls.md)

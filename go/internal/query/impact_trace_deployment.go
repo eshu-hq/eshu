@@ -81,6 +81,18 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		if len(cloudResources) == 0 {
 			cloudResources = mapSliceValue(ctx, "cloud_resources")
 		}
+		if len(cloudResources) == 0 {
+			cloudResources, err = loadConfigDerivedCloudResourceDependencies(
+				r.Context(),
+				h.Neo4j,
+				mapValue(ctx, "deployment_evidence"),
+				serviceStoryItemLimit,
+			)
+			if err != nil {
+				WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query config-derived cloud resources: %v", err))
+				return
+			}
+		}
 		if len(cloudResources) > 0 {
 			ctx["cloud_resources"] = cloudResources
 			delete(ctx, "uncorrelated_cloud_resources")

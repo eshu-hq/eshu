@@ -260,6 +260,37 @@ func TestEnrichServiceQueryContextDoesNotPromoteWrongTargetAWSCloudResourceAncho
 	}
 }
 
+func TestConfigDerivedCloudResourceDependenciesRequireConfigReadEvidence(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	got, err := loadConfigDerivedCloudResourceDependencies(
+		t.Context(),
+		fakeGraphReader{
+			run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+				calls++
+				return nil, nil
+			},
+		},
+		map[string]any{
+			"artifacts": []map[string]any{{
+				"relationship_type": "DEPLOYS_FROM",
+				"matched_value":     "/config/orders-api/*",
+			}},
+		},
+		serviceStoryItemLimit,
+	)
+	if err != nil {
+		t.Fatalf("loadConfigDerivedCloudResourceDependencies() error = %v, want nil", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("config-derived resources = %#v, want none without READS_CONFIG_FROM", got)
+	}
+	if calls != 0 {
+		t.Fatalf("graph calls = %d, want 0 without READS_CONFIG_FROM evidence", calls)
+	}
+}
+
 func sampleServiceCloudDependencyContext() map[string]any {
 	return map[string]any{
 		"id":        "workload:orders-api",

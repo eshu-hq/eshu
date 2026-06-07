@@ -109,6 +109,9 @@ func (h *EntityHandler) fetchWorkloadContextForOperation(ctx context.Context, wh
 		"repo_name": repoName,
 		"instances": instances,
 	}
+	if deploymentEvidence := mapValue(row, "deployment_evidence"); len(deploymentEvidence) > 0 {
+		result["deployment_evidence"] = deploymentEvidence
+	}
 
 	if repoID != "" {
 		repoParams := map[string]any{"repo_id": repoID}
