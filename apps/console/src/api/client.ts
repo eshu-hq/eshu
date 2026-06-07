@@ -3,6 +3,21 @@ import { EshuEnvelopeError, unwrapEnvelope } from "./envelope";
 
 export const eshuEnvelopeAccept = "application/eshu.envelope+json";
 
+// EshuApiHttpError is thrown when the backend answers with a non-2xx status. It
+// carries the numeric `status` so callers can branch on the HTTP code — e.g. the
+// Explorer treats a 404 from code/relationships (a category mismatch, not a real
+// failure) as an empty graph while still surfacing 5xx/timeout errors. See issue
+// #1725.
+export class EshuApiHttpError extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super(`Eshu API request failed with HTTP ${status}`);
+    this.name = "EshuApiHttpError";
+    this.status = status;
+  }
+}
+
 // eshuDefaultTimeoutMs bounds every client request so one slow or hung backend
 // endpoint (e.g. index-status under a corpus-scale regression) cannot block the
 // console snapshot load forever and leave the app stuck "Connecting to the Eshu
@@ -128,7 +143,7 @@ export class EshuApiClient {
 
   private async parse<TData>(response: Response): Promise<EshuEnvelope<TData>> {
     if (!response.ok) {
-      throw new Error(`Eshu API request failed with HTTP ${response.status}`);
+      throw new EshuApiHttpError(response.status);
     }
     const parsed = (await response.json()) as EshuEnvelope<TData>;
     return parsed;
@@ -136,7 +151,7 @@ export class EshuApiClient {
 
   private async parseJson<TData>(response: Response): Promise<TData> {
     if (!response.ok) {
-      throw new Error(`Eshu API request failed with HTTP ${response.status}`);
+      throw new EshuApiHttpError(response.status);
     }
     const parsed = (await response.json()) as unknown;
     if (isEnvelope(parsed)) {

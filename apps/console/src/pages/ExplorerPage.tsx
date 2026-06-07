@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
 import type { ConsoleModel, GraphLayer, GraphModel, GraphNode } from "../console/types";
 import { LAYER_COLOR, KIND_COLOR, fmt } from "../console/types";
-import { loadEntityGraph, loadEntityMapGraph, resolveEntityName } from "../api/eshuGraph";
+import { loadEntityGraph, loadEntityMapGraph, resolveEntityHandle } from "../api/eshuGraph";
 import { Panel, TruthChip } from "../components/atoms";
 import { GraphCanvas } from "../components/GraphCanvas";
 
@@ -27,10 +27,23 @@ export function ExplorerPage({ model, client, onOpenService }: {
   const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  // hint surfaces a non-error explanation (e.g. a code-empty service that should
+  // try Neighborhood) without the scary red error banner. See issue #1725.
+  const [hint, setHint] = useState("");
   // Deep-link support: when another page links here with ?q=<entity id> (e.g. the
   // Cloud inventory page), seed the search box and expand it once the client is
   // live. seededRef guards against re-expanding on every render or layer toggle.
   const seededRef = useRef(false);
+  // modePinnedRef tracks whether the user manually chose a mode. While unpinned,
+  // a search auto-selects the mode by the resolved entity kind (code → Direct,
+  // service/infra → Neighborhood) so the search lands on the view that has data.
+  // A manual toggle pins the choice and disables auto-selection. See issue #1725.
+  const modePinnedRef = useRef(false);
+
+  function pickMode(m: "direct" | "neighborhood"): void {
+    modePinnedRef.current = true;
+    setMode(m);
+  }
 
   const base = live ? (liveGraph ?? { nodes: [], edges: [] }) : model.graph;
 
@@ -42,18 +55,29 @@ export function ExplorerPage({ model, client, onOpenService }: {
     return { nodes: base.nodes.filter((n) => keep.has(n.id) || base.edges.length === 0), edges };
   }, [base, on]);
 
-  async function expand(name: string): Promise<void> {
+  async function expand(name: string, forcedMode?: "direct" | "neighborhood"): Promise<void> {
     if (!client) return;
-    setBusy(true); setErr("");
+    setBusy(true); setErr(""); setHint("");
     try {
-      // Resolve the typed name to a canonical entity first (entities/resolve),
-      // then expand via direct relationships or the broader entity-map.
-      const resolved = await resolveEntityName(client, name);
-      const g = mode === "neighborhood"
-        ? await loadEntityMapGraph(client, resolved)
-        : await loadEntityGraph(client, resolved);
+      // Resolve the typed name to a canonical entity + kind first
+      // (entities/resolve). When the user has not pinned a mode, follow the
+      // kind-recommended mode so a service/infra search lands on Neighborhood
+      // (which has data) instead of Direct's code-only relationships. A toggle
+      // click passes forcedMode so the new view applies before state settles.
+      const resolved = await resolveEntityHandle(client, name);
+      const effectiveMode = forcedMode ?? (modePinnedRef.current ? mode : resolved.mode);
+      if (effectiveMode !== mode) setMode(effectiveMode);
+      const g = effectiveMode === "neighborhood"
+        ? await loadEntityMapGraph(client, resolved.name)
+        : await loadEntityGraph(client, resolved.name);
       setLiveGraph(g);
       setSel(g.nodes.find((n) => n.hero));
+      // Direct mode with only the center and no edges means the entity has no
+      // indexed code relationships (e.g. a service). Nudge toward Neighborhood
+      // instead of leaving a blank canvas. See issue #1725.
+      if (effectiveMode === "direct" && g.edges.length === 0) {
+        setHint("No direct code relationships for this entity — try Neighborhood.");
+      }
     }
     catch (e) { setErr(e instanceof Error ? e.message : "failed"); }
     finally { setBusy(false); }
@@ -90,8 +114,9 @@ export function ExplorerPage({ model, client, onOpenService }: {
               onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && query) void expand(query); }} />
           </div>
           <button className="btn-ghost active" onClick={() => query && expand(query)} disabled={busy}>{busy ? "Loading…" : "Load"}</button>
-          <div className="seg"><button className={mode === "direct" ? "active" : ""} onClick={() => setMode("direct")}>Direct</button><button className={mode === "neighborhood" ? "active" : ""} onClick={() => setMode("neighborhood")}>Neighborhood</button></div>
+          <div className="seg"><button className={mode === "direct" ? "active" : ""} onClick={() => { pickMode("direct"); if (query) void expand(query, "direct"); }}>Direct</button><button className={mode === "neighborhood" ? "active" : ""} onClick={() => { pickMode("neighborhood"); if (query) void expand(query, "neighborhood"); }}>Neighborhood</button></div>
           {err ? <span className="src-err" style={{ marginTop: 0 }}>⚠ {err}</span> : null}
+          {!err && hint ? <span className="t-mut" style={{ marginTop: 0, fontSize: ".78rem" }}>{hint}</span> : null}
         </div>
       ) : null}
 

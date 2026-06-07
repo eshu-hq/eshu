@@ -6,6 +6,7 @@
 // if your build's payload differs.
 
 import type { EshuApiClient } from "./client";
+import { EshuApiHttpError } from "./client";
 import { EshuEnvelopeError } from "./envelope";
 import type { GraphModel, GraphNode, GraphEdge, GraphLayer } from "../console/types";
 import { resolveEntity } from "./entityResolution";
@@ -118,19 +119,55 @@ export function codeRelationshipsToGraph(data: CodeRelationshipsResponse, fallba
 export async function loadEntityGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
   let entityID = "";
   let displayName = name;
+  let centerType: string | undefined;
   try {
     const resolved = await resolveEntity({ client, name, limit: 1 });
     const top = resolved.candidates[0];
-    if (top?.id) { entityID = top.id; displayName = top.name ?? name; }
+    if (top?.id) { entityID = top.id; displayName = top.name ?? name; centerType = top.type; }
   } catch { /* resolution unavailable — handled below */ }
   if (entityID === "") {
     // code/relationships matches on entity_id only; a raw query string is not a
     // valid id, so render the searched node alone instead of forcing a 404.
-    return { nodes: [{ id: name, kind: kindFor(undefined), label: name, col: 1, hero: true, truth: "exact" }], edges: [] };
+    return centerOnlyGraph(name, name, undefined);
   }
-  const env = await client.post<CodeRelationshipsResponse>("/api/v0/code/relationships", { entity_id: entityID, depth: 1 });
+  let env;
+  try {
+    env = await client.post<CodeRelationshipsResponse>("/api/v0/code/relationships", { entity_id: entityID, depth: 1 });
+  } catch (e) {
+    // code/relationships is keyed to code entities (Function/File/Class…). A
+    // service/workload/infra entity has none, so the endpoint answers 404 — a
+    // category mismatch, not a failure. Degrade to the resolved node alone so the
+    // Explorer can show a clean "no direct code relationships" empty state and
+    // invite the Neighborhood mode. Any other status (500/timeout) still surfaces.
+    // See issue #1725.
+    if (e instanceof EshuApiHttpError && e.status === 404) {
+      return centerOnlyGraph(entityID, displayName, centerType);
+    }
+    throw e;
+  }
   if (env.error) throw new EshuEnvelopeError(env.error);
   return codeRelationshipsToGraph(env.data ?? {}, { id: entityID, name: displayName });
+}
+
+// centerOnlyGraph renders a single hero node — used when an entity resolves but
+// has no direct code relationships (or could not be resolved to an id).
+function centerOnlyGraph(id: string, label: string, type: string | undefined): GraphModel {
+  return { nodes: [{ id, kind: kindFor(type), label, sub: type, col: 1, hero: true, truth: "exact" }], edges: [] };
+}
+
+// recommendedModeForKind chooses the Explorer mode that has data for a resolved
+// entity kind: code entities (Function/File/Class/Method/Symbol) expand through
+// Direct (code/relationships); service/workload/repo/infra/cloud entities expand
+// through Neighborhood (impact/entity-map). Unknown kinds keep Direct so existing
+// code-search behaviour is unchanged. See issue #1725.
+export function recommendedModeForKind(kind: string | undefined): "direct" | "neighborhood" {
+  const k = (kind ?? "").toLowerCase();
+  if (k === "") return "direct";
+  const codeKind = ["function", "file", "class", "method", "symbol", "interface", "field", "variable"].some((c) => k.includes(c));
+  if (codeKind) return "direct";
+  const neighborhoodKind = ["service", "workload", "deployment", "repo", "resource", "aws", "infra", "cloud", "module", "package", "library", "endpoint", "queue", "topic", "bucket", "database", "table"].some((c) => k.includes(c));
+  if (neighborhoodKind) return "neighborhood";
+  return "direct";
 }
 
 // --- impact/entity-map (Neighborhood mode) ----------------------------------
@@ -188,11 +225,31 @@ export async function loadEntityMapGraph(client: EshuApiClient, name: string): P
 // entities/resolve, returning the best candidate. Falls back to the raw query
 // when nothing resolves, so search still works against exact names.
 export async function resolveEntityName(client: EshuApiClient, query: string): Promise<string> {
+  return (await resolveEntityHandle(client, query)).name;
+}
+
+// ResolvedHandle is the canonical name plus the resolved kind and the Explorer
+// mode that has data for that kind. The Explorer uses `mode` to land a search on
+// the right view (Direct for code, Neighborhood for service/infra) before the
+// user toggles. See issue #1725.
+export interface ResolvedHandle {
+  readonly name: string;
+  readonly kind: string;
+  readonly mode: "direct" | "neighborhood";
+}
+
+// resolveEntityHandle resolves a typed query to its canonical name and kind via
+// entities/resolve, then derives the recommended Explorer mode. Falls back to the
+// raw query (and Direct mode) when nothing resolves or resolution is unavailable,
+// so exact-name code search is unchanged.
+export async function resolveEntityHandle(client: EshuApiClient, query: string): Promise<ResolvedHandle> {
   try {
     const result = await resolveEntity({ client, name: query, limit: 1 });
-    return result.candidates[0]?.name ?? query;
+    const top = result.candidates[0];
+    const kind = top?.type ?? top?.labels[0] ?? "";
+    return { name: top?.name ?? query, kind, mode: recommendedModeForKind(kind) };
   } catch {
-    return query;
+    return { name: query, kind: "", mode: "direct" };
   }
 }
 

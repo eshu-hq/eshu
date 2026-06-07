@@ -1,6 +1,6 @@
-import { EshuApiClient } from "./client";
+import { EshuApiClient, EshuApiHttpError } from "./client";
 import { inspectionRequest } from "../test/inspectionRequest";
-import { vi } from "vitest";
+import { expect, it, vi } from "vitest";
 
 describe("EshuApiClient", () => {
   it("requests canonical envelope responses from the configured base URL", async () => {
@@ -128,6 +128,35 @@ describe("EshuApiClient", () => {
     const client = new EshuApiClient({ baseUrl: "/eshu-api/", fetcher, timeoutMs: 5 });
 
     await expect(client.getJson("/api/v0/index-status")).rejects.toThrowError();
+  });
+
+  it("throws a typed EshuApiHttpError carrying the response status on non-2xx", async () => {
+    const fetcher = async (): Promise<Response> =>
+      new Response("not found", { status: 404 });
+    const client = new EshuApiClient({ baseUrl: "/eshu-api/", fetcher });
+
+    const error = await client
+      .post("/api/v0/code/relationships", { entity_id: "workload:x" })
+      .then(() => null)
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(EshuApiHttpError);
+    expect((error as EshuApiHttpError).status).toBe(404);
+    expect((error as EshuApiHttpError).message).toContain("404");
+  });
+
+  it("throws a typed EshuApiHttpError from the JSON helpers too", async () => {
+    const fetcher = async (): Promise<Response> =>
+      new Response("boom", { status: 500 });
+    const client = new EshuApiClient({ baseUrl: "/eshu-api/", fetcher });
+
+    const error = await client
+      .getJson("/api/v0/index-status")
+      .then(() => null)
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(EshuApiHttpError);
+    expect((error as EshuApiHttpError).status).toBe(500);
   });
 
   it("binds the browser fetch implementation when no custom fetcher is provided", async () => {
