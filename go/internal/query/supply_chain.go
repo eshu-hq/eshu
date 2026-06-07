@@ -52,30 +52,32 @@ type SupplyChainHandler struct {
 // SBOMAttestationAttachmentResult is one reducer-owned SBOM or attestation
 // attachment row returned by the public API.
 type SBOMAttestationAttachmentResult struct {
-	AttachmentID       string                 `json:"attachment_id"`
-	SubjectDigest      string                 `json:"subject_digest,omitempty"`
-	DocumentID         string                 `json:"document_id,omitempty"`
-	DocumentDigest     string                 `json:"document_digest,omitempty"`
-	AttachmentStatus   string                 `json:"attachment_status"`
-	ParseStatus        string                 `json:"parse_status,omitempty"`
-	VerificationStatus string                 `json:"verification_status,omitempty"`
-	VerificationPolicy string                 `json:"verification_policy,omitempty"`
-	ArtifactKind       string                 `json:"artifact_kind,omitempty"`
-	Format             string                 `json:"format,omitempty"`
-	SpecVersion        string                 `json:"spec_version,omitempty"`
-	Reason             string                 `json:"reason,omitempty"`
-	AttachmentScope    string                 `json:"attachment_scope,omitempty"`
-	CanonicalWrites    int                    `json:"canonical_writes"`
-	ComponentCount     int                    `json:"component_count"`
-	ComponentEvidence  []ComponentEvidenceRow `json:"component_evidence,omitempty"`
-	RepositoryIDs      []string               `json:"repository_ids,omitempty"`
-	WorkloadIDs        []string               `json:"workload_ids,omitempty"`
-	ServiceIDs         []string               `json:"service_ids,omitempty"`
-	WarningSummaries   []string               `json:"warning_summaries,omitempty"`
-	EvidenceFactIDs    []string               `json:"evidence_fact_ids,omitempty"`
-	MissingEvidence    []string               `json:"missing_evidence,omitempty"`
-	SourceFreshness    string                 `json:"source_freshness,omitempty"`
-	SourceConfidence   string                 `json:"source_confidence,omitempty"`
+	AttachmentID              string                 `json:"attachment_id"`
+	SubjectDigest             string                 `json:"subject_digest,omitempty"`
+	DocumentID                string                 `json:"document_id,omitempty"`
+	DocumentDigest            string                 `json:"document_digest,omitempty"`
+	AttachmentStatus          string                 `json:"attachment_status"`
+	ParseStatus               string                 `json:"parse_status,omitempty"`
+	VerificationStatus        string                 `json:"verification_status,omitempty"`
+	VerificationPolicy        string                 `json:"verification_policy,omitempty"`
+	ArtifactKind              string                 `json:"artifact_kind,omitempty"`
+	Format                    string                 `json:"format,omitempty"`
+	SpecVersion               string                 `json:"spec_version,omitempty"`
+	Reason                    string                 `json:"reason,omitempty"`
+	AttachmentScope           string                 `json:"attachment_scope,omitempty"`
+	CanonicalWrites           int                    `json:"canonical_writes"`
+	ComponentCount            int                    `json:"component_count"`
+	ComponentEvidence         []ComponentEvidenceRow `json:"component_evidence,omitempty"`
+	RepositoryIDs             []string               `json:"repository_ids,omitempty"`
+	WorkloadIDs               []string               `json:"workload_ids,omitempty"`
+	ServiceIDs                []string               `json:"service_ids,omitempty"`
+	WarningSummaries          []string               `json:"warning_summaries,omitempty"`
+	WarningSummaryCount       int                    `json:"warning_summary_count"`
+	WarningSummariesTruncated bool                   `json:"warning_summaries_truncated"`
+	EvidenceFactIDs           []string               `json:"evidence_fact_ids,omitempty"`
+	MissingEvidence           []string               `json:"missing_evidence,omitempty"`
+	SourceFreshness           string                 `json:"source_freshness,omitempty"`
+	SourceConfidence          string                 `json:"source_confidence,omitempty"`
 }
 
 // ContainerImageIdentityResult is one reducer-owned container image identity
@@ -358,7 +360,7 @@ func (h *SupplyChainHandler) listSBOMAttachments(w http.ResponseWriter, r *http.
 	}
 	results := make([]SBOMAttestationAttachmentResult, 0, len(rows))
 	for _, row := range rows {
-		results = append(results, SBOMAttestationAttachmentResult(row))
+		results = append(results, buildSBOMAttestationAttachmentResult(row))
 	}
 	body := map[string]any{
 		"attachments": results,

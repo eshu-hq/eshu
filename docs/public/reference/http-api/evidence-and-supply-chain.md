@@ -770,6 +770,12 @@ remains `0` until OCI referrer evidence proves the document is attached to the
 subject image. `parse_only_unanchored` rows remain visible for diagnostics and
 must surface the missing evidence that blocks image attachment.
 
+Parser warnings are not hidden. Each row returns `warning_summaries` as a
+bounded duplicate-collapsed preview, `warning_summary_count` as the total number
+of warning summary entries recorded on the reducer payload, and
+`warning_summaries_truncated=true` when duplicate or overflow entries were
+omitted from the preview. HTTP and MCP readbacks use the same response shape.
+
 No-Regression Evidence: `go test ./internal/reducer -run
 'Test(BuildSBOMAttestationAttachmentDecisionsClassifiesSubjectsAndTrust|ScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment|PostgresSBOMAttestationAttachmentWriterPersistsAllStatuses)'
 -count=1` and `go test ./internal/query -run
@@ -792,3 +798,22 @@ continue to diagnose the path through the existing reducer attachment counter by
 status, `query.sbom_attestation_attachments` handler span, Postgres fact-read
 instrumentation, `canonical_writes`, `attachment_scope`, and
 `missing_evidence`.
+
+No-Regression Evidence: `go test ./internal/query -run
+'Test(SupplyChainListSBOMAttestationAttachments(BoundsWarningSummaryPreview|UsesBoundedStore)|OpenAPISpecIncludesSBOMAttestationAttachments)'
+-count=1` and `go test ./internal/mcp -run
+'Test(DispatchToolSBOMAttestationAttachmentsReturnsBoundedWarningPreview|ResolveRouteMapsSBOMAttestationAttachmentsToBoundedQuery)'
+-count=1` failed before attachment warning summaries were bounded, then passed
+after the list response returned a duplicate-collapsed warning preview with
+`warning_summary_count` and `warning_summaries_truncated`. The proof uses one
+attachment with 256 duplicate warning summaries and shows response size is
+bounded by attachment `limit` plus the fixed warning preview, not by the full
+warning list.
+
+No-Observability-Change: the warning preview change only reshapes existing
+HTTP/MCP list readbacks after the same scoped, limit-required Postgres read.
+It adds no new query, graph traversal, reducer domain, worker, queue, metric
+instrument, metric label, span, or runtime flag. Operators continue to diagnose
+the route through the existing `query.sbom_attestation_attachments` span,
+truth envelope, limit/truncated cursor fields, Postgres query instrumentation,
+and persisted warning summary entries on the attachment payload.

@@ -312,7 +312,9 @@ Reducer attachment remains separate from collection:
   unverified outcomes.
 - API and MCP readback use `list_sbom_attestation_attachments`; callers should
   rely on attachment status, not raw collector success, before treating SBOM
-  evidence as impact-ready.
+  evidence as impact-ready. Warning summaries are surfaced as a bounded preview
+  plus count and truncation fields, so malformed-input signal remains visible
+  without unbounded API or MCP payloads.
 
 Remote Compose starts a dedicated `scanner-worker` service with separate
 resource-limit env vars: `ESHU_SCANNER_WORKER_CPU_MILLIS`,

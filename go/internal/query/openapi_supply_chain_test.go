@@ -51,7 +51,14 @@ func TestOpenAPISpecIncludesSBOMAttestationAttachments(t *testing.T) {
 	attachments := mustMapField(t, properties, "attachments")
 	items := mustMapField(t, attachments, "items")
 	itemProperties := mustMapField(t, items, "properties")
-	for _, want := range []string{"attachment_scope", "missing_evidence", "canonical_writes"} {
+	for _, want := range []string{
+		"attachment_scope",
+		"missing_evidence",
+		"canonical_writes",
+		"warning_summaries",
+		"warning_summary_count",
+		"warning_summaries_truncated",
+	} {
 		if _, ok := itemProperties[want]; !ok {
 			t.Fatalf("attachment schema missing %q", want)
 		}
