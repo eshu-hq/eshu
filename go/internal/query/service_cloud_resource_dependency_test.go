@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"database/sql/driver"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -78,6 +79,95 @@ func TestEnrichServiceQueryContextPromotesStrongAWSCloudResourceAnchor(t *testin
 	}
 	if got, want := IntVal(mapValue(story, "deployment_overview"), "cloud_resource_count"), 1; got != want {
 		t.Fatalf("deployment_overview.cloud_resource_count = %d, want %d", got, want)
+	}
+}
+
+func TestLoadServiceCloudResourceDependenciesPromotesReadConfigCloudResource(t *testing.T) {
+	t.Parallel()
+
+	var seenCypher string
+	var seenParams map[string]any
+	got, err := loadServiceCloudResourceDependencies(
+		context.Background(),
+		fakeGraphReader{
+			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				seenCypher = cypher
+				seenParams = copyMap(params)
+				return []map[string]any{
+					{
+						"id":            "cloud-resource:ssm-config",
+						"name":          "orders-api/database-url",
+						"resource_type": "aws_ssm_parameter",
+						"provider":      "aws",
+						"resource_id":   "arn:aws:ssm:example:parameter/config/orders-api/database-url",
+					},
+				}, nil
+			},
+		},
+		"workload:orders-api",
+		"orders-api",
+		[]string{"/config/orders-api/*"},
+		serviceStoryItemLimit,
+	)
+	if err != nil {
+		t.Fatalf("loadServiceCloudResourceDependencies() error = %v, want nil", err)
+	}
+	for _, want := range []string{
+		"aws_ssm_parameter",
+		"aws_secretsmanager_secret",
+		"CONTAINS $config_ref_0",
+	} {
+		if !strings.Contains(seenCypher, want) {
+			t.Fatalf("cypher = %q, want config-resource predicate containing %q", seenCypher, want)
+		}
+	}
+	if got, want := seenParams["config_ref_0"], "/config/orders-api/"; got != want {
+		t.Fatalf("config_ref_0 = %#v, want %#v", got, want)
+	}
+	if got, want := len(got), 1; got != want {
+		t.Fatalf("len(resources) = %d, want %d", got, want)
+	}
+	resource := got[0]
+	if got, want := StringVal(resource, "relationship_basis"), "deployment_config_read_evidence"; got != want {
+		t.Fatalf("relationship_basis = %q, want %q", got, want)
+	}
+	if got, want := StringVal(resource, "service_anchor_status"), "strong"; got != want {
+		t.Fatalf("service_anchor_status = %q, want %q", got, want)
+	}
+	if got, want := StringVal(resource, "service_anchor_source"), "deployment_evidence.reads_config_from"; got != want {
+		t.Fatalf("service_anchor_source = %q, want %q", got, want)
+	}
+}
+
+func TestServiceCloudResourceConfigRefsUsesReadConfigIdentityEvidence(t *testing.T) {
+	t.Parallel()
+
+	workloadContext := sampleServiceCloudDependencyContext()
+	workloadContext["deployment_evidence"] = map[string]any{
+		"artifacts": []map[string]any{
+			{
+				"relationship_type": "READS_CONFIG_FROM",
+				"matched_value":     "/config/orders-api/*",
+				"path":              "terraform/services/orders.tf",
+			},
+			{
+				"relationship_type": "PROVISIONS_DEPENDENCY_FOR",
+				"matched_value":     "/config/provisioning-only",
+			},
+			{
+				"relationship_type": "READS_CONFIG_FROM",
+				"path":              "terraform/services/orders.tf",
+			},
+			{
+				"relationship_type": "READS_CONFIG_FROM",
+				"matched_value":     "orders-api",
+			},
+		},
+	}
+
+	got := serviceCloudResourceConfigRefs(workloadContext)
+	if want := []string{"/config/orders-api/"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("config refs = %#v, want %#v", got, want)
 	}
 }
 
