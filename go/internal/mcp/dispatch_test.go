@@ -1,11 +1,6 @@
 package mcp
 
 import (
-	"context"
-	"encoding/json"
-	"io"
-	"log/slog"
-	"net/http"
 	"reflect"
 	"testing"
 )
@@ -121,24 +116,6 @@ func TestResolveRouteMapsRepositoryLanguageToolsToBoundedQueries(t *testing.T) {
 	}
 }
 
-func TestResolveRouteMapsQualifiedServiceIDToServicePath(t *testing.T) {
-	t.Parallel()
-
-	route, err := resolveRoute("get_service_context", map[string]any{
-		"workload_id": "workload:sample-service-api",
-		"environment": "prod",
-	})
-	if err != nil {
-		t.Fatalf("resolveRoute() error = %v, want nil", err)
-	}
-	if got, want := route.path, "/api/v0/services/sample-service-api/context"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
-	}
-	if got, want := route.query["environment"], "prod"; got != want {
-		t.Fatalf("route.query[environment] = %#v, want %#v", got, want)
-	}
-}
-
 func TestResolveRouteMapsRelationshipEvidenceToDrilldownPath(t *testing.T) {
 	t.Parallel()
 
@@ -195,51 +172,6 @@ func TestResolveRouteMapsEvidenceCitationPacketToBoundedBody(t *testing.T) {
 	}
 	if got, want := body["limit"], 10; got != want {
 		t.Fatalf("body[limit] = %#v, want %#v", got, want)
-	}
-}
-
-func TestDispatchToolServiceStoryReturnsStructuredEnvelopeData(t *testing.T) {
-	t.Parallel()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/v0/services/sample-service-api/story", func(w http.ResponseWriter, r *http.Request) {
-		if got, want := r.Header.Get("Accept"), "application/eshu.envelope+json"; got != want {
-			t.Fatalf("Accept = %q, want %q", got, want)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"data": map[string]any{
-				"service_identity": map[string]any{"service_id": "workload:sample-service-api"},
-				"deployment_lanes": []map[string]any{{"lane_type": "k8s_gitops"}},
-				"evidence_graph":   map[string]any{"edges": []map[string]any{{"resolved_id": "resolved-gitops"}}},
-			},
-			"truth": map[string]any{
-				"level":      "exact",
-				"capability": "platform_impact.context_overview",
-				"profile":    "production",
-				"basis":      "hybrid",
-				"freshness":  map[string]any{"state": "fresh"},
-			},
-			"error": nil,
-		})
-	})
-
-	result, err := dispatchTool(
-		context.Background(),
-		mux,
-		"get_service_story",
-		map[string]any{"workload_id": "workload:sample-service-api"},
-		"",
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
-	)
-	if err != nil {
-		t.Fatalf("dispatchTool() error = %v, want nil", err)
-	}
-	if result.Envelope == nil {
-		t.Fatal("dispatchTool() envelope is nil, want structured service story envelope")
-	}
-	if result.Envelope.Data == nil {
-		t.Fatal("dispatchTool() envelope data is nil, want service dossier data")
 	}
 }
 

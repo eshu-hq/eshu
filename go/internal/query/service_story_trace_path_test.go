@@ -145,6 +145,42 @@ func TestBuildServiceStoryTraceExplainsUncorrelatedCloudCandidates(t *testing.T)
 	}
 }
 
+func TestServiceTraceImagePackageSegmentPreservesEvidenceWithPartialMissingReasons(t *testing.T) {
+	t.Parallel()
+
+	ctx := map[string]any{
+		"supply_chain_evidence": map[string]any{
+			"image_package": map[string]any{
+				"evidence": []map[string]any{
+					{
+						"image_ref":              "registry.example.com/team/api:prod",
+						"digest":                 serviceStoryTestDigest,
+						"sbom_attachment_id":     "sbom-attachment-1",
+						"sbom_attachment_status": "attached_verified",
+					},
+				},
+				"missing_evidence": []string{"container_image_identity_missing"},
+			},
+		},
+	}
+
+	segment := serviceTraceImagePackageSegment(ctx)
+	if got, want := StringVal(segment, "status"), "exact"; got != want {
+		t.Fatalf("image_package status = %q, want %q; segment=%#v", got, want, segment)
+	}
+	evidence := mapSliceValue(segment, "evidence")
+	if got, want := len(evidence), 1; got != want {
+		t.Fatalf("image_package evidence count = %d, want %d; segment=%#v", got, want, segment)
+	}
+	if got, want := IntVal(segment, "evidence_count"), 1; got != want {
+		t.Fatalf("image_package evidence_count = %d, want %d", got, want)
+	}
+	missing := StringSliceVal(segment, "missing_evidence")
+	if !stringSliceContains(missing, "container_image_identity_missing") {
+		t.Fatalf("missing_evidence = %#v, want preserved container_image_identity_missing", missing)
+	}
+}
+
 func BenchmarkBuildServiceCodeToRuntimeTraceLargeDossier(b *testing.B) {
 	ctx := sampleServiceDossierContext()
 	ctx["api_surface"] = map[string]any{

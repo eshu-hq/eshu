@@ -137,7 +137,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `investigate_change_surface` | POST | `/api/v0/impact/change-surface/investigate` |
 | `investigate_resource` | POST | `/api/v0/impact/resource-investigation` |
 | `resolve_entity` | POST | `/api/v0/entities/resolve` |
-| `get_service_story` | GET | `/api/v0/services/{service_name}/story` |
+| `get_service_story` | GET | `/api/v0/services/{service_name}/story` (canonical `workload:*` inputs also pass `service_id` for exact service-story selection) |
 | `investigate_service` | GET | `/api/v0/investigations/services/{service_name}` |
 | `get_file_content` | POST | `/api/v0/content/files/read` |
 | `list_documentation_findings` | GET | `/api/v0/documentation/findings` with scope, repo, target, and service filters |
@@ -257,6 +257,9 @@ return the canonical envelope shape.
 `normalizeQualifiedIdentifier` strips the `workload:` prefix from service
 identifiers before building path segments. If a new service tool is added,
 apply this helper when the input may include a type qualifier.
+`get_service_story` also forwards canonical `workload:*` inputs as the
+`service_id` query parameter so target-story MCP readbacks do not fall back to
+name-only service matching.
 
 `contentSearchBody` normalises `repo_ids` to a single `repo_id` when only one
 element is present. The function uses `firstString` to extract the first

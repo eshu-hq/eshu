@@ -278,6 +278,31 @@ No-Observability-Change: service story anchor admission uses existing service
 query stage timing and graph query instrumentation; it adds no collector call,
 queue worker, metric label, runtime knob, or deployment behavior.
 
+Service story `code_to_runtime_trace.image_package` attaches supply-chain
+evidence only when a target deployment image reference resolves to an exact
+container image identity and an admissible SBOM attachment. Ambiguous tags,
+stale identity rows, missing image identities, and unattached SBOM rows stay
+fail-closed as `missing_evidence` reasons so aggregate supply-chain evidence is
+not promoted into a target service story by accident. When one target image has
+valid identity and SBOM evidence but another target image is missing evidence,
+the valid evidence remains in the trace and the missing reason stays explicit.
+Identity and SBOM read-model pages probe one row past the public cap and treat
+over-limit pages as ambiguous rather than admitting a partial page.
+
+No-Regression Evidence:
+
+```bash
+cd go && go test ./internal/query ./internal/mcp -run 'Test(ServiceStorySupplyChainEvidence|ServiceStoryDeploymentImageRefs|GetServiceStoryEnvelopeIncludesSupplyChainEvidence|DispatchToolServiceStoryPreservesSupplyChainTrace|ResolveRouteMapsServiceStory)' -count=1
+cd .. && scripts/test-verify-remote-e2e-target-story.sh
+```
+
+Observability Evidence: service-story supply-chain enrichment records a
+`supply_chain_evidence` stage through the existing
+`service_query.stage_started` and `service_query.stage_completed` log events
+with image-ref, evidence, and missing-reason counts. It uses bounded Postgres
+read-model list calls and adds no worker, queue, graph write, metric instrument,
+or metric label.
+
 `POST /api/v0/impact/deployment-config-influence` accepts `service_name` or
 `workload_id`, optional `environment`, and optional `limit`. Use it when the
 caller asks which repositories and files influence image tags, runtime

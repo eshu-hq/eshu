@@ -9,6 +9,62 @@ import (
 	"testing"
 )
 
+func TestResolveRouteMapsQualifiedServiceIDToServicePath(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("get_service_context", map[string]any{
+		"workload_id": "workload:sample-service-api",
+		"environment": "prod",
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.path, "/api/v0/services/sample-service-api/context"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	if got, want := route.query["environment"], "prod"; got != want {
+		t.Fatalf("route.query[environment] = %#v, want %#v", got, want)
+	}
+}
+
+func TestResolveRouteMapsServiceStoryQualifiedIDToExactSelector(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("get_service_story", map[string]any{
+		"workload_id": "workload:sample-service-api",
+		"environment": "prod",
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.path, "/api/v0/services/sample-service-api/story"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	if got, want := route.query["service_id"], "workload:sample-service-api"; got != want {
+		t.Fatalf("route.query[service_id] = %#v, want %#v", got, want)
+	}
+	if got, want := route.query["environment"], "prod"; got != want {
+		t.Fatalf("route.query[environment] = %#v, want %#v", got, want)
+	}
+}
+
+func TestResolveRouteMapsServiceStoryCatalogIDAsNameSelector(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("get_service_story", map[string]any{
+		"workload_id": "service:sample-service-api",
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.path, "/api/v0/services/sample-service-api/story"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	if got := route.query["service_id"]; got != "" {
+		t.Fatalf("route.query[service_id] = %#v, want empty for catalog service id", got)
+	}
+}
+
 func TestDispatchToolServiceStoryPreservesSpecCountConsistency(t *testing.T) {
 	t.Parallel()
 
@@ -17,10 +73,16 @@ func TestDispatchToolServiceStoryPreservesSpecCountConsistency(t *testing.T) {
 		if got, want := r.Header.Get("Accept"), "application/eshu.envelope+json"; got != want {
 			t.Fatalf("Accept = %q, want %q", got, want)
 		}
+		if got, want := r.URL.Query().Get("service_id"), "workload:sample-service-api"; got != want {
+			t.Fatalf("service_id query = %q, want %q", got, want)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{
 				"api_surface":      map[string]any{"spec_count": 2, "spec_paths": []string{"openapi.yaml", "admin.yaml"}},
+				"deployment_lanes": []map[string]any{{"lane_type": "k8s_gitops"}},
+				"evidence_graph":   map[string]any{"edges": []map[string]any{{"resolved_id": "resolved-gitops"}}},
+				"service_identity": map[string]any{"service_id": "workload:sample-service-api"},
 				"support_overview": map[string]any{"spec_count": 2},
 			},
 			"truth": map[string]any{

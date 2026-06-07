@@ -36,3 +36,10 @@ func normalizeQualifiedIdentifier(value string) string {
 	}
 	return value
 }
+
+func canonicalWorkloadIdentifier(value string) string {
+	if head, tail, ok := strings.Cut(value, ":"); ok && head == "workload" && tail != "" {
+		return value
+	}
+	return ""
+}

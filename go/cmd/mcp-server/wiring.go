@@ -116,6 +116,12 @@ func newMCPQueryRouter(
 	graphBackend query.GraphBackend,
 	logger *slog.Logger,
 ) *query.APIRouter {
+	var containerImageIdentities query.ContainerImageIdentityStore
+	var sbomAttachments query.SBOMAttestationAttachmentStore
+	if db != nil {
+		containerImageIdentities = query.NewPostgresContainerImageIdentityStore(db)
+		sbomAttachments = query.NewPostgresSBOMAttestationAttachmentStore(db)
+	}
 	return &query.APIRouter{
 		Repositories: &query.RepositoryHandler{
 			Neo4j:   neo4jReader,
@@ -123,10 +129,12 @@ func newMCPQueryRouter(
 			Profile: queryProfile,
 		},
 		Entities: &query.EntityHandler{
-			Neo4j:   neo4jReader,
-			Content: contentReader,
-			Profile: queryProfile,
-			Logger:  logger,
+			Neo4j:                    neo4jReader,
+			Content:                  contentReader,
+			ContainerImageIdentities: containerImageIdentities,
+			SBOMAttachments:          sbomAttachments,
+			Profile:                  queryProfile,
+			Logger:                   logger,
 		},
 		Code: &query.CodeHandler{
 			GraphBackend: graphBackend,
