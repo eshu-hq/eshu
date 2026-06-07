@@ -6,6 +6,7 @@
 // if your build's payload differs.
 
 import type { EshuApiClient } from "./client";
+import { EshuEnvelopeError } from "./envelope";
 import type { GraphModel, GraphNode, GraphEdge, GraphLayer } from "../console/types";
 import { resolveEntity } from "./entityResolution";
 
@@ -128,6 +129,7 @@ export async function loadEntityGraph(client: EshuApiClient, name: string): Prom
     return { nodes: [{ id: name, kind: kindFor(undefined), label: name, col: 1, hero: true, truth: "exact" }], edges: [] };
   }
   const env = await client.post<CodeRelationshipsResponse>("/api/v0/code/relationships", { entity_id: entityID, depth: 1 });
+  if (env.error) throw new EshuEnvelopeError(env.error);
   return codeRelationshipsToGraph(env.data ?? {}, { id: entityID, name: displayName });
 }
 
@@ -178,6 +180,7 @@ export async function loadEntityMapGraph(client: EshuApiClient, name: string): P
   // The endpoint's request field is `depth` (1-4); `max_depth` is ignored by the
   // Go decoder and silently defaults the traversal to depth 1.
   const env = await client.post<EntityMapResponse>("/api/v0/impact/entity-map", { from: name, depth: 2 });
+  if (env.error) throw new EshuEnvelopeError(env.error);
   return entityMapToGraph(env.data ?? {}, name);
 }
 

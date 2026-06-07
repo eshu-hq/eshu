@@ -1,14 +1,33 @@
 // pages/DashboardPage.tsx
-import { useState } from "react";
-import type { ConsoleModel, GraphNode } from "../console/types";
+import { useEffect, useMemo, useState } from "react";
+import type { EshuApiClient } from "../api/client";
+import { loadEntityMapGraph, resolveEntityName } from "../api/eshuGraph";
+import type { ConsoleModel, GraphModel, GraphNode, ServiceRow } from "../console/types";
 import { fmt, LAYER_COLOR, SEVERITY_COLOR, uiTruth } from "../console/types";
 import { StatTile, Panel, TruthChip } from "../components/atoms";
 import { AreaChart, Donut, BarRows } from "../components/charts";
 import { GraphCanvas } from "../components/GraphCanvas";
 
-export function DashboardPage({ model, onOpenService }: { readonly model: ConsoleModel; readonly onOpenService?: (name: string) => void }): React.JSX.Element {
+type AtlasState =
+  | { readonly kind: "idle" }
+  | { readonly kind: "loading"; readonly seed: string }
+  | { readonly kind: "error"; readonly message: string; readonly seed: string };
+
+export function DashboardPage({ model, client, onOpenService }: {
+  readonly model: ConsoleModel;
+  readonly client?: EshuApiClient;
+  readonly onOpenService?: (name: string) => void;
+}): React.JSX.Element {
   const r = model.runtime;
-  const [sel, setSel] = useState<GraphNode | undefined>(model.graph.nodes.find((n) => n.hero));
+  const atlasSeed = useMemo(() => liveAtlasSeed(model), [model]);
+  const seededGraph = useMemo<GraphModel>(
+    () => atlasSeed ? { nodes: [atlasSeed], edges: [] } : model.graph,
+    [atlasSeed, model.graph]
+  );
+  const [liveGraph, setLiveGraph] = useState<GraphModel | null>(null);
+  const [atlasState, setAtlasState] = useState<AtlasState>({ kind: "idle" });
+  const graph = liveGraph ?? seededGraph;
+  const [sel, setSel] = useState<GraphNode | undefined>(() => initialSelection(graph));
   const sevTotals = model.vulnerabilities.reduce(
     (a, v) => { const k = v.severity as keyof typeof a; if (k in a) a[k] += 1; return a; },
     { critical: 0, high: 0, medium: 0, low: 0 }
@@ -16,6 +35,51 @@ export function DashboardPage({ model, onOpenService }: { readonly model: Consol
   const relRows = model.relationships.slice().sort((a, b) => b.count - a.count).slice(0, 7)
     .map((x) => ({ label: x.verb, value: x.count, color: LAYER_COLOR[x.layer], detail: x.detail }));
   const serviceNames = new Set(model.services.map((s) => s.name));
+
+  useEffect(() => {
+    setSel((current) => graph.nodes.some((n) => n.id === current?.id) ? current : initialSelection(graph));
+  }, [graph]);
+
+  useEffect(() => {
+    setLiveGraph(null);
+    if (!client || !atlasSeed || model.source !== "live") {
+      setAtlasState({ kind: "idle" });
+      return;
+    }
+
+    let cancelled = false;
+    setAtlasState({ kind: "loading", seed: atlasSeed.label });
+    async function loadSeed(): Promise<void> {
+      try {
+        const resolved = await resolveEntityName(client, atlasSeed.label);
+        const next = await loadEntityMapGraph(client, resolved);
+        if (cancelled) return;
+        setLiveGraph(next);
+        setSel(initialSelection(next));
+        setAtlasState({ kind: "idle" });
+      } catch (error) {
+        if (cancelled) return;
+        setAtlasState({ kind: "error", message: errorMessage(error), seed: atlasSeed.label });
+      }
+    }
+    void loadSeed();
+    return () => { cancelled = true; };
+  }, [atlasSeed, client, model.source]);
+
+  async function expandAtlasNode(node: GraphNode): Promise<void> {
+    setSel(node);
+    if (!client || model.source !== "live") return;
+    setAtlasState({ kind: "loading", seed: node.label });
+    try {
+      const resolved = await resolveEntityName(client, node.label);
+      const next = await loadEntityMapGraph(client, resolved);
+      setLiveGraph(next);
+      setSel(initialSelection(next));
+      setAtlasState({ kind: "idle" });
+    } catch (error) {
+      setAtlasState({ kind: "error", message: errorMessage(error), seed: node.label });
+    }
+  }
 
   return (
     <div className="page">
@@ -28,7 +92,13 @@ export function DashboardPage({ model, onOpenService }: { readonly model: Consol
 
       <Panel className="mt" title="Code-to-cloud relationship atlas" sub="Select a node to inspect its typed evidence">
         <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr) 300px", gap: "var(--gap)", alignItems: "start" }}>
-          <GraphCanvas graph={model.graph} height={460} onSelect={setSel} selectedId={sel?.id} />
+          {graph.nodes.length ? (
+            <GraphCanvas graph={graph} height={460} onSelect={(node) => { void expandAtlasNode(node); }} selectedId={sel?.id} />
+          ) : (
+            <div className="gcanvas" style={{ height: 460, display: "grid", placeItems: "center" }}>
+              <p className="empty">No graph entities are available from the live model yet.</p>
+            </div>
+          )}
           <div className="panel" style={{ background: "var(--bg-field)", boxShadow: "none" }}>
             <div className="panel-body">
               {sel ? (
@@ -37,8 +107,10 @@ export function DashboardPage({ model, onOpenService }: { readonly model: Consol
                   {sel.sub ? <div className="t-mut mono" style={{ fontSize: ".82rem" }}>{sel.sub}</div> : null}
                   {sel.truth ? <TruthChip level={sel.truth} /> : null}
                   {(sel.kind === "service" || sel.kind === "workload") && onOpenService ? <button className="btn-ghost active" style={{ width: "100%", justifyContent: "center" }} onClick={() => onOpenService(sel.label)}>Open spotlight →</button> : null}
+                  {atlasState.kind === "loading" ? <p className="empty">Loading relationships for {atlasState.seed}…</p> : null}
+                  {atlasState.kind === "error" ? <p className="src-err">Relationship atlas unavailable for {atlasState.seed}: {atlasState.message}</p> : null}
                   <div className="insp-evi">
-                    {model.graph.edges.filter((e) => e.s === sel.id || e.t === sel.id).map((e, i) => (
+                    {graph.edges.filter((e) => e.s === sel.id || e.t === sel.id).map((e, i) => (
                       <div className="insp-evi-row" key={i}>{e.verb} {e.s === sel.id ? `→ ${e.t}` : `← ${e.s}`}</div>
                     ))}
                   </div>
@@ -87,4 +159,40 @@ export function DashboardPage({ model, onOpenService }: { readonly model: Consol
       </Panel>
     </div>
   );
+}
+
+function initialSelection(graph: GraphModel): GraphNode | undefined {
+  return graph.nodes.find((node) => node.hero) ?? graph.nodes[0];
+}
+
+function liveAtlasSeed(model: ConsoleModel): GraphNode | undefined {
+  if (model.source !== "live" || model.graph.nodes.length > 0) return undefined;
+  const row = model.services.find((service) => service.name.trim().length > 0);
+  return row ? serviceSeedNode(row) : undefined;
+}
+
+function serviceSeedNode(service: ServiceRow): GraphNode {
+  const label = service.name.trim();
+  const id = service.id.trim() || label;
+  const repo = service.repo.trim();
+  return {
+    col: 1,
+    hero: true,
+    id,
+    kind: serviceKind(service.kind),
+    label,
+    sub: repo || undefined,
+    truth: uiTruth(service.truth)
+  };
+}
+
+function serviceKind(kind: string): string {
+  const lower = kind.toLowerCase();
+  if (lower.includes("workload") || lower.includes("deployment")) return "workload";
+  if (lower.includes("repo")) return "repo";
+  return "service";
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "failed";
 }
