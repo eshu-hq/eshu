@@ -12,28 +12,30 @@
 //
 // TerraformStateWorkPlanner plans Terraform-state collection runs from resolved
 // discovery candidates. OCIRegistryWorkPlanner, PackageRegistryWorkPlanner,
-// VulnerabilityIntelligenceWorkPlanner, JiraWorkPlanner, and LokiWorkPlanner
-// each plan bounded work items without opening provider connections; the Loki
-// planner emits one work item per enabled configured Loki target and partitions
-// claims by a per-target fairness key. Package and vulnerability
-// planners preserve direct and owned target priority ahead of broad fanout and
-// report aggregate skipped-target evidence when an owned-package derivation
-// budget is exhausted or partial dependency evidence cannot safely become an
-// exact vulnerability source query.
-// Service reads one bounded owned-package lookahead beyond each planning budget
-// so requested scope sets can show exhaustion without widening admitted work.
-// PagerDutyWorkPlanner plans incident-evidence work from configured PagerDuty
-// targets. PrometheusMimirWorkPlanner plans bounded metric-metadata work, one
-// item per enabled Prometheus or Grafana Mimir target, partitioned by target
-// scope so concurrent reconciles never contend for one metric source.
+// VulnerabilityIntelligenceWorkPlanner, CICDRunWorkPlanner, JiraWorkPlanner,
+// and LokiWorkPlanner each plan bounded work items without opening provider
+// connections; the Loki planner emits one work item per enabled configured Loki
+// target and partitions claims by a per-target fairness key. Package and
+// vulnerability planners preserve direct and owned target priority ahead of
+// broad fanout and report aggregate skipped-target evidence when an
+// owned-package derivation budget is exhausted or partial dependency evidence
+// cannot safely become an exact vulnerability source query.
+// Service reads one bounded owned-package lookahead beyond each planning
+// budget so requested scope sets can show exhaustion without widening admitted
+// work. CICDRunWorkPlanner plans bounded CI/CD run collection work from
+// configured GitHub Actions repository targets. PagerDutyWorkPlanner plans
+// incident-evidence work from configured PagerDuty targets.
+// PrometheusMimirWorkPlanner plans bounded metric-metadata work, one item per
+// enabled Prometheus or Grafana Mimir target, partitioned by target scope so
+// concurrent reconciles never contend for one metric source.
 // TempoWorkPlanner plans one bounded trace-signal work item per enabled
 // Grafana Tempo target parsed from collector instance configuration, skipping
 // disabled targets. GrafanaWorkPlanner plans one bounded observability work item
 // per enabled Grafana target parsed from configuration.targets, skipping disabled
 // targets and partitioning by a per-target fairness key so concurrent reconciles
-// never claim the same target twice. ScannerWorkerWorkPlanner plans explicit scanner-worker source
-// evidence targets so a healthy worker must still have claimable work before a
-// proof can count source evidence. AWSScheduledWorkPlanner and
+// never claim the same target twice. ScannerWorkerWorkPlanner plans explicit
+// scanner-worker source evidence targets so a healthy worker must still have
+// claimable work before a proof can count source evidence. AWSScheduledWorkPlanner and
 // AWSFreshnessWorkPlanner plan ordinary AWS collector work from configured
 // schedules or webhook freshness triggers.
 // Incident freshness handoff narrows PagerDuty and Jira webhook wake-ups to
