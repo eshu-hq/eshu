@@ -215,10 +215,13 @@ Documentation tools keep the same transport-only contract. Target-scoped
 finding and fact reads forward `repo`, `target_kind`, `target_id`, and
 `service_id` to HTTP so MCP callers see the same `coverage`, `related_facts`,
 and `missing_evidence` metadata as API clients when raw target documentation
-facts exist without admissible findings. Documentation fact list calls also
-preserve the HTTP bounded-list metadata: `count`, `limit`, `truncated`,
-`missing_evidence`, `states`, and `next_cursor` when a scoped fact page has more
-rows.
+facts exist without admissible findings. Source-only external documentation
+facts are also preserved from HTTP as aggregate `coverage.source_only_count`,
+`coverage.source_only_fact_kinds`, and `target_link_not_modeled` missing
+evidence; MCP does not infer target documentation from Confluence names or
+generic mentions. Documentation fact list calls also preserve the HTTP
+bounded-list metadata: `count`, `limit`, `truncated`, `missing_evidence`,
+`states`, and `next_cursor` when a scoped fact page has more rows.
 
 ## Exported surface
 
