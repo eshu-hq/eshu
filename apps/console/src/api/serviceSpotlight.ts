@@ -8,6 +8,11 @@ import {
   type ServiceInvestigation,
   type ServiceInvestigationResponse
 } from "./serviceInvestigation";
+import {
+  serviceSupportFromRecord,
+  type ServiceSupportOverview,
+  type ServiceSupportRecord
+} from "./serviceSupportEvidence";
 import { deploymentGraph } from "./serviceSpotlightGraph";
 import {
   buildServiceTrafficPaths,
@@ -42,6 +47,7 @@ export interface ServiceSpotlight {
   readonly repoName: string;
   readonly relationshipClusters: readonly ServiceRelationshipCluster[];
   readonly summary: string;
+  readonly support?: ServiceSupportOverview;
   readonly trafficPaths?: readonly ServiceTrafficPath[];
   readonly trust: ServiceSpotlightTrust;
 }
@@ -157,6 +163,10 @@ export interface ServiceContextResponse extends ServiceTrafficPathContext {
     readonly downstream_count?: number;
     readonly upstream_count?: number;
   };
+  readonly support_overview?: {
+    readonly target_support?: ServiceSupportRecord;
+  };
+  readonly target_support?: ServiceSupportRecord;
 }
 
 interface EndpointRecord {
@@ -303,6 +313,7 @@ export function serviceSpotlightFromContext(
       relationshipCounts.upstream,
       relationshipCounts.downstream
     ),
+    support: serviceSupportFromRecord(context.support_overview?.target_support ?? context.target_support),
     trafficPaths: buildServiceTrafficPaths(context, name, lanes),
     trust: spotlightTrust(truth)
   };

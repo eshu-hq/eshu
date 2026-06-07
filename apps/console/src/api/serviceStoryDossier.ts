@@ -20,6 +20,7 @@ export interface ServiceStoryDossierResponse {
     readonly service_name?: string;
   };
   readonly service_name?: string;
+  readonly support_overview?: ServiceContextResponse["support_overview"];
   readonly upstream_dependencies?: readonly ServiceStoryDependency[];
 }
 
@@ -94,7 +95,8 @@ export function serviceContextFromStoryDossier(
     name: serviceName,
     network_paths: story.network_paths,
     repo_name: nonEmpty(story.service_identity?.repo_name, serviceName),
-    result_limits: story.result_limits
+    result_limits: story.result_limits,
+    support_overview: story.support_overview
   };
 }
 

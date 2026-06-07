@@ -26,6 +26,7 @@ import { RepositoriesPage } from "./pages/RepositoriesPage";
 import { RepoSourcePage } from "./pages/RepoSourcePage";
 import { ImagesPage } from "./pages/ImagesPage";
 import { CloudPage } from "./pages/CloudPage";
+import { WorkspacePage } from "./pages/WorkspacePage";
 import { ServiceDrawer } from "./components/ServiceDrawer";
 import "./styles.css";
 
@@ -150,6 +151,7 @@ export function App(): React.JSX.Element {
             <Route path="/dependencies" element={<DependenciesPage client={client} />} />
             <Route path="/observability" element={<ObservabilityPage client={client} />} />
             <Route path="/operations" element={<OperationsPage model={model} />} />
+            <Route path="/workspace/:entityKind/:entityId" element={<WorkspacePage />} />
           </Routes>
         ) : (
           <ConnectionState status={source.status} onConnect={() => setOpen(true)} />

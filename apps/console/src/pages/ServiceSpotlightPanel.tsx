@@ -12,6 +12,7 @@ import { ServiceConfigInfluencePanel } from "./ServiceConfigInfluencePanel";
 import { ServiceInvestigationPanel } from "./ServiceInvestigationPanel";
 import { ServiceRelationshipExplorer } from "./ServiceRelationshipExplorer";
 import { ServiceRelationshipWorkbench } from "./ServiceRelationshipWorkbench";
+import { ServiceSupportEvidencePanel } from "./ServiceSupportEvidencePanel";
 import { ServiceTrafficPathPanel } from "./ServiceTrafficPathPanel";
 
 type ServiceAtlasTab = "map" | "traffic" | "impact" | "api";
@@ -90,6 +91,7 @@ export function ServiceSpotlightPanel({
       {activeTab === "impact" ? (
         <div className="service-atlas-tab-panel">
           <ServiceInvestigationPanel investigation={spotlight.investigation} />
+          <ServiceSupportEvidencePanel support={spotlight.support} />
           <ServiceChangeSurfacePanel spotlight={spotlight} />
           <ServiceCodeInvestigationPanel spotlight={spotlight} />
         </div>
