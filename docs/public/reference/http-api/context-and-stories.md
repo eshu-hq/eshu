@@ -288,6 +288,14 @@ valid identity and SBOM evidence but another target image is missing evidence,
 the valid evidence remains in the trace and the missing reason stays explicit.
 Identity and SBOM read-model pages probe one row past the public cap and treat
 over-limit pages as ambiguous rather than admitting a partial page.
+Deployment config evidence such as Helm values may supply a candidate image
+reference through a generic matched value. The story accepts tagged or digested
+container image refs, and it can also carry registry-qualified image repository
+values from Helm config as candidates. Config paths, local build contexts, and
+repository aliases remain non-image evidence. Candidate image references can
+move the missing hop from `deployment_image_reference_missing` to
+`container_image_identity_missing`, but repository-only candidates do not create
+tag, digest, SBOM, or vulnerability impact truth by themselves.
 
 No-Regression Evidence:
 

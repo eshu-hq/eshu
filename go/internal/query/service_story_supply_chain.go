@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/doctruth"
 )
 
 const (
@@ -125,7 +127,59 @@ func serviceStoryMatchedImageRef(row map[string]any) string {
 	if strings.Contains(kind, "image") || strings.Contains(kind, "oci") {
 		return value
 	}
+	if ref := serviceStoryExplicitImageRef(value); ref != "" {
+		return ref
+	}
+	if strings.Contains(kind, "helm") {
+		return serviceStoryRegistryImageRepository(value)
+	}
 	return ""
+}
+
+func serviceStoryExplicitImageRef(raw string) string {
+	ref := doctruth.NormalizeContainerImageRefClaim(raw)
+	if ref == "" {
+		return ""
+	}
+	repository := ref
+	if digestIndex := strings.Index(repository, "@sha256:"); digestIndex >= 0 {
+		repository = repository[:digestIndex]
+	} else if tagIndex := strings.LastIndex(repository, ":"); tagIndex >= 0 {
+		repository = repository[:tagIndex]
+	}
+	if !strings.Contains(repository, "/") && !strings.Contains(repository, ".") {
+		return ""
+	}
+	return ref
+}
+
+func serviceStoryRegistryImageRepository(raw string) string {
+	repository := strings.Trim(strings.TrimSpace(raw), `"'`)
+	if repository == "" ||
+		strings.ContainsAny(repository, " \t\n\r${}") ||
+		strings.Contains(repository, "://") ||
+		strings.Contains(repository, "@") {
+		return ""
+	}
+	if tagIndex := strings.LastIndex(repository, ":"); tagIndex >= 0 {
+		if tagIndex > strings.LastIndex(repository, "/") {
+			return ""
+		}
+	}
+	parts := strings.Split(repository, "/")
+	if len(parts) < 2 {
+		return ""
+	}
+	registry := parts[0]
+	if !strings.Contains(registry, ".") && !strings.Contains(registry, ":") && !strings.EqualFold(registry, "localhost") {
+		return ""
+	}
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." || strings.HasSuffix(part, ".yaml") || strings.HasSuffix(part, ".yml") {
+			return ""
+		}
+	}
+	return repository
 }
 
 func serviceStoryAdmissibleImageIdentity(rows []ContainerImageIdentityRow) (ContainerImageIdentityRow, string) {
