@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
@@ -108,5 +109,51 @@ describe("App shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Impact review" }));
     expect(screen.getByRole("region", { name: "Incidents and issues" })).toBeInTheDocument();
     expect(screen.getByText("Jira PAY-123")).toBeInTheDocument();
+  });
+
+  it("boots the saved connection exactly once under StrictMode and populates the catalog", async () => {
+    // Issue #1727: StrictMode's dev double-invoke must not fire two concurrent
+    // boot connects whose in-flight fetches abort each other and blank out the
+    // Catalog. The bootedRef guard means the catalog (services) endpoint is hit
+    // once and the Catalog page reliably shows the live service.
+    window.localStorage.setItem(
+      "eshu.console.environment",
+      JSON.stringify({ mode: "private", apiBaseUrl: "/eshu-api/", recentApiBaseUrls: ["/eshu-api/"] })
+    );
+    let catalogCalls = 0;
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const path = new URL(new Request(input).url).pathname;
+      if (path === "/eshu-api/api/v0/catalog") {
+        catalogCalls += 1;
+        return Response.json({
+          data: { services: [{ id: "workload:api", name: "api", kind: "service", repo_name: "api" }] }
+        });
+      }
+      if (path === "/eshu-api/api/v0/index-status") {
+        return Response.json({ status: "ready", repository_count: 1, queue: {} });
+      }
+      if (path === "/eshu-api/api/v0/ecosystem/overview") {
+        return Response.json({ data: { repo_count: 1 } });
+      }
+      return Response.json({ data: {} });
+    }));
+
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={["/catalog"]}>
+          <App />
+        </MemoryRouter>
+      </StrictMode>
+    );
+
+    // The Catalog page renders the live service once the boot connect resolves.
+    // "api" appears in both the name and repository cells, so assert on the
+    // entries header (1 entry) and the absence of the empty state instead.
+    expect(await screen.findByText("1 entries")).toBeInTheDocument();
+    expect(screen.queryByText("No catalog entries from this source.")).not.toBeInTheDocument();
+    expect(screen.getAllByText("api").length).toBeGreaterThan(0);
+    // StrictMode double-invokes effects in dev; the boot guard keeps the catalog
+    // fetch to a single call so the requests cannot abort each other.
+    expect(catalogCalls).toBe(1);
   });
 });
