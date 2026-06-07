@@ -103,6 +103,20 @@ Use this root-cause shape:
 4. Fix the actual failure mode.
 5. Add regression coverage and telemetry when runtime behavior changed.
 
+### Never `git stash` across concurrent worktrees
+
+The git stash stack is shared across every worktree of a repository, not
+isolated per worktree. When two agents work in separate worktrees and both run
+`git stash`, their stashes share one stack and collide. We hit this in
+practice: two feature worktrees had their uncommitted changes symmetrically
+swapped (cloud and images change-sets traded places), discovered only at commit
+time. No data was lost because both change-sets were clean and recoverable by
+committing to the correct branch, but it cost real time and risked a bad merge.
+
+Do not use `git stash`, `git stash pop`, or `git stash apply` in this
+repository when more than one worktree may be active. To compare against a clean
+tree, use `git diff`, `git show <ref>:<path>`, or a throwaway worktree instead.
+
 ## Performance And Evidence
 
 Performance work needs a written impact declaration before implementation:

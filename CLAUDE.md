@@ -55,6 +55,11 @@ fixture corpora or offline tooling.
 - MUST create git worktrees before executing plans or PRDs.
 - MUST use the same branch/worktree name across repos when one workflow touches
   multiple repos.
+- MUST NOT use `git stash` (or stash pop/apply) when multiple worktrees may be
+  active. The stash stack is shared across all worktrees of a repo, so
+  concurrent agents stashing in different worktrees corrupt each other's
+  uncommitted work. To compare against a clean tree use `git diff`,
+  `git show <ref>:<path>`, or a throwaway worktree.
 - MUST follow Effective Go for Go, Google Python style for Python fixtures or
   tools, strict typing for TypeScript, HashiCorp Terraform practices, and Helm
   chart best practices.
