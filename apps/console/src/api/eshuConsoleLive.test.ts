@@ -63,6 +63,18 @@ describe("eshuConsoleLive", () => {
             truth: { profile: "production", level: "exact", capability: "platform_impact.container_image_list", freshness: { state: "fresh" } }
           };
         }
+        if (path.includes("/iac/resources")) {
+          return {
+            data: {
+              resources: [
+                { id: "tf1", kind: "resource", name: "module.\"api\".aws_iam_role.this", type: "aws_iam_role", provider: "aws", resource_service: "aws.iam", module: "api", repo_id: "r_1", relative_path: "main.tf" },
+                { id: "tf2", kind: "resource", name: "aws_s3_bucket.logs", type: "aws_s3_bucket" }
+              ]
+            },
+            error: null,
+            truth: { profile: "production", level: "exact", capability: "iac_inventory.resources.list", freshness: { state: "fresh" } }
+          };
+        }
         if (path.includes("/supply-chain/impact/findings")) {
           // List endpoints require an impact_status anchor; affected findings
           // carry a CVSS score but no severity label.
@@ -195,6 +207,18 @@ describe("eshuConsoleLive", () => {
     expect(snap.truth.sbom?.capability).toBe("supply_chain.sbom_attestation_attachments.aggregate");
   });
 
+  it("maps the IaC resource inventory and captures its truth envelope", async () => {
+    const snap = await loadConsoleSnapshot(fakeClient());
+    expect(snap.iacResources).toHaveLength(2);
+    expect(snap.iacResources[0]).toMatchObject({
+      id: "tf1", type: "aws_iam_role", provider: "aws", service: "aws.iam", module: "api", repoId: "r_1", relativePath: "main.tf"
+    });
+    // tfstate-only row keeps optional attribution empty rather than fabricated.
+    expect(snap.iacResources[1]).toMatchObject({ id: "tf2", type: "aws_s3_bucket", provider: "", module: "" });
+    expect(snap.provenance.iacResources).toBe("live");
+    expect(snap.truth.iacResources?.capability).toBe("iac_inventory.resources.list");
+  });
+
   it("marks the SBOM section empty when the count endpoint reports zero attachments", async () => {
     const client = {
       get: async (path: string) => {
@@ -316,6 +340,23 @@ describe("eshuConsoleLive", () => {
     });
     expect(snap.provenance.images).toBe("live");
     expect(snap.truth.images?.capability).toBe("platform_impact.container_image_list");
+  });
+
+  it("reports the IaC section unavailable when the endpoint is not served", async () => {
+    const client = {
+      get: async (path: string) => {
+        if (path.includes("/iac/resources")) throw new Error("501 unsupported_capability");
+        if (path.includes("/ecosystem/overview")) {
+          return { data: { repo_count: 1 }, error: null, truth: null };
+        }
+        return { data: {}, error: null, truth: null };
+      },
+      getJson: async () => ({ status: "healthy", queue: {} }),
+      post: async () => ({ data: {}, error: null, truth: null })
+    } as unknown as EshuApiClient;
+    const snap = await loadConsoleSnapshot(client);
+    expect(snap.iacResources).toEqual([]);
+    expect(snap.provenance.iacResources).toBe("unavailable");
   });
 
   it("loads dashboard trend series from the metrics time-series endpoint", async () => {

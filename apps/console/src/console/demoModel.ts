@@ -102,8 +102,20 @@ export const demoModel: ConsoleModel = {
       configDigest: "sha256:cfg9876543210", sizeBytes: 28475610, sourceSystem: "oci_registry"
     }
   ],
+  iacResources: [
+    { id: "tf-demo-1", kind: "resource", name: "module.\"checkout\".aws_iam_role.this", type: "aws_iam_role", provider: "aws", service: "aws.iam", module: "checkout", repoId: "checkout-service", relativePath: "iam.tf" },
+    { id: "tf-demo-2", kind: "resource", name: "aws_s3_bucket.assets", type: "aws_s3_bucket", provider: "aws", service: "aws.s3", module: "", repoId: "checkout-service", relativePath: "storage.tf" }
+  ],
   truth: {},
-  provenance: { runtime: "live", services: "live", findings: "live", vulnerabilities: "live", sbom: "live", images: "live" },
+  provenance: {
+    runtime: "live",
+    services: "live",
+    findings: "live",
+    vulnerabilities: "live",
+    sbom: "live",
+    images: "live",
+    iacResources: "live"
+  },
   graph: demoGraph,
   relationships: demoRelationships,
   series: demoSeries

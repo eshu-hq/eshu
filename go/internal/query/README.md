@@ -197,8 +197,19 @@ infer completeness from row count alone.
 - `InfraHandler` — infrastructure resource and relationship routes (`infra.go:12`)
   including Terraform backend, import, moved, removed, check, and lockfile
   provider entity labels when they have been projected
-- `IaCHandler` — IaC quality and AWS management routes (`iac.go:22`,
-  `iac_management.go`, `iac_management_surface.go`, `iac_import_plan.go`)
+- `IaCHandler` — IaC quality, AWS management, and IaC inventory routes
+  (`iac.go:22`, `iac_management.go`, `iac_management_surface.go`,
+  `iac_import_plan.go`, `iac_resources.go`)
+  - `GET /api/v0/iac/resources` (`iac_resources.go`) is a bounded,
+    keyset-paginated browse over the authoritative Terraform/IaC graph. It
+    anchors on one of `TerraformResource`, `TerraformModule`, or
+    `TerraformDataSource` (the `kind` selector), filters by `type`, `provider`,
+    and `module`, requires a 1-200 `limit`, orders by `(name, id)`, and uses
+    limit+1 truncation with an `after_name`/`after_id` cursor. It records
+    `eshu_dp_iac_resource_list_duration_seconds` and
+    `eshu_dp_iac_resource_list_errors_total` through the global meter
+    (`iac_resources_metrics.go`). The `Graph` field on `IaCHandler` backs it;
+    when nil the route returns 503.
   - `IaCManagementFindingRow` is the stable read model for AWS-backed IaC
     management status. It exposes the full #124 taxonomy, matched Terraform
     state/config handles, other-IaC ownership hints, service and environment

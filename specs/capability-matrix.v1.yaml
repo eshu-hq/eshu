@@ -222,6 +222,13 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: aws_account_or_scope, verification: [{go_test: ./internal/query}], notes: bounded active-generation read over reducer AWS runtime drift facts with exact/derived/ambiguous/stale/unknown outcomes and rejected promotion status}
       local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 5000, max_scope_size: aws_account_or_scope, verification: [{compose_e2e: aws-runtime-drift-read-model}], notes: bounded active-generation read over reducer AWS runtime drift facts with exact/derived/ambiguous/stale/unknown outcomes and rejected promotion status}
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: aws_account_or_scope, verification: [{remote_validation: prod-aws-runtime-drift-read-model}], notes: bounded active-generation read over reducer AWS runtime drift facts with exact/derived/ambiguous/stale/unknown outcomes and rejected promotion status}
+  - capability: iac_inventory.resources.list
+    tools: [list_iac_resources]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: indexed_workspace, verification: [{integration_test: local-lightweight-unsupported-iac-resources}], notes: requires the authoritative Terraform/IaC graph}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: bounded keyset-paginated list over the authoritative Terraform/IaC graph projection anchored on a single label}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 2000, max_scope_size: indexed_workspace, verification: [{compose_e2e: iac-resource-list}], notes: bounded keyset-paginated list over the authoritative Terraform/IaC graph projection}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 3000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-iac-resource-list}], notes: bounded keyset-paginated list over the authoritative Terraform/IaC graph projection}
   - capability: platform_impact.deployment_chain
     tools: [trace_deployment_chain, find_infra_resources, analyze_infra_relationships]
     profiles:

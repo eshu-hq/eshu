@@ -353,7 +353,12 @@ const (
 	SpanQueryIaCManagementExplanation = "query.iac_management_explanation"
 	SpanQueryIaCTerraformImportPlan   = "query.iac_terraform_import_plan"
 	SpanQueryAWSRuntimeDriftFindings  = "query.aws_runtime_drift_findings"
-	SpanQueryInfraResourceSearch      = "query.infra_resource_search"
+	// SpanQueryIaCResources wraps the bounded Terraform/IaC resource list read
+	// over the authoritative graph (GET /api/v0/iac/resources). It carries the
+	// stable http.route and eshu.capability attributes so the IaC inventory
+	// browse read is distinguishable from dead-IaC and management reads.
+	SpanQueryIaCResources        = "query.iac_resources"
+	SpanQueryInfraResourceSearch = "query.infra_resource_search"
 	// SpanQueryInfraResourceAggregate wraps cheap-summary count and inventory
 	// aggregates over the authoritative infrastructure graph. Replaces the
 	// page-and-iterate caller pattern for ecosystem-level questions like

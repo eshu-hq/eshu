@@ -31,11 +31,16 @@ type IaCHandler struct {
 	Content      ContentStore
 	Reachability IaCReachabilityStore
 	Management   IaCManagementStore
-	Profile      QueryProfile
+	// Graph backs the bounded IaC resource inventory list
+	// (GET /api/v0/iac/resources) over the authoritative Terraform/IaC graph
+	// projection. It is optional: when nil the list route returns 503.
+	Graph   GraphQuery
+	Profile QueryProfile
 }
 
 // Mount registers IaC quality routes on the given mux.
 func (h *IaCHandler) Mount(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/v0/iac/resources", h.listResources)
 	mux.HandleFunc("POST /api/v0/iac/dead", h.handleDeadIaC)
 	mux.HandleFunc("POST /api/v0/iac/unmanaged-resources", h.handleUnmanagedCloudResources)
 	mux.HandleFunc("POST /api/v0/iac/management-status", h.handleIaCManagementStatus)

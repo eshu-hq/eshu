@@ -4,12 +4,14 @@
 
 import type {
   ConsoleSnapshot, RuntimeSummary, ServiceRow, LanguageRow,
-  IngesterRow, FindingRow, VulnRow, SbomEvidenceRow, DependencyRow, ImageRow, SectionProvenance, SeriesBundle
+  IngesterRow, FindingRow, VulnRow, SbomEvidenceRow, DependencyRow, ImageRow, IacResourceRow,
+  SectionProvenance, SeriesBundle
 } from "../api/eshuConsoleLive";
 
 export type {
   ConsoleSnapshot, RuntimeSummary, ServiceRow, LanguageRow,
-  IngesterRow, FindingRow, VulnRow, SbomEvidenceRow, DependencyRow, ImageRow, SectionProvenance, SeriesBundle
+  IngesterRow, FindingRow, VulnRow, SbomEvidenceRow, DependencyRow, ImageRow, IacResourceRow,
+  SectionProvenance, SeriesBundle
 };
 
 export type Severity = "critical" | "high" | "medium" | "low" | "info";
