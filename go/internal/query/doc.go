@@ -46,7 +46,10 @@
 // and service source anchors when those anchors are present on reducer-owned
 // attachment facts. Source-scoped reads expose missing image or image-to-SBOM
 // evidence without promoting parse-only rows into canonical image attachment
-// truth.
+// truth. Service-story image-package enrichment treats repository-only
+// deployment image references as candidates, explains configured or unconfigured
+// OCI collector state from bounded read models, and keeps digest, SBOM, and
+// vulnerability truth absent until source collector evidence exists.
 // The companion explain route accepts one finding id or an advisory/CVE plus
 // package, repository, or image digest scope, then hydrates only the finding's
 // referenced evidence facts. It reports advisory, package/version,

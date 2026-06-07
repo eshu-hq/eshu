@@ -36,6 +36,15 @@ func TestDispatchToolServiceStoryPreservesSupplyChainTrace(t *testing.T) {
 									"identity_evidence_fact_ids": []string{"oci-tag-observation"},
 								},
 							},
+							"missing_evidence_details": []map[string]any{
+								{
+									"candidate_image_ref":     "registry.example.com/team/worker:prod",
+									"candidate_repository_id": "oci-registry://registry.example.com/team/worker",
+									"collector_scope":         "outside_configured_targets",
+									"reason":                  "oci_registry_target_outside_scope",
+									"operator_action":         "add an OCI registry collector target for oci-registry://registry.example.com/team/worker",
+								},
+							},
 						},
 					},
 				},
@@ -94,5 +103,16 @@ func TestDispatchToolServiceStoryPreservesSupplyChainTrace(t *testing.T) {
 	}
 	if got, want := row["sbom_attachment_id"], "sbom-attachment-1"; got != want {
 		t.Fatalf("sbom_attachment_id = %#v, want %#v", got, want)
+	}
+	details, ok := segment["missing_evidence_details"].([]any)
+	if !ok || len(details) != 1 {
+		t.Fatalf("missing_evidence_details = %#v, want one detail row", segment["missing_evidence_details"])
+	}
+	detail, ok := details[0].(map[string]any)
+	if !ok {
+		t.Fatalf("missing_evidence detail type = %T, want object", details[0])
+	}
+	if got, want := detail["reason"], "oci_registry_target_outside_scope"; got != want {
+		t.Fatalf("missing_evidence detail reason = %#v, want %#v", got, want)
 	}
 }

@@ -109,6 +109,9 @@ func TestServiceStorySupplyChainEvidenceAttachesExactImageAndSBOM(t *testing.T) 
 	if missing := StringSliceVal(segment, "missing_evidence"); len(missing) != 0 {
 		t.Fatalf("missing_evidence = %#v, want none", missing)
 	}
+	if _, ok := segment["missing_evidence_details"]; ok {
+		t.Fatalf("missing_evidence_details present for exact image package segment: %#v", segment["missing_evidence_details"])
+	}
 }
 
 func TestGetServiceStoryEnvelopeIncludesSupplyChainEvidence(t *testing.T) {
@@ -332,7 +335,7 @@ func TestServiceStoryDeploymentImageRefsPromotesHelmValuesImageMatchedValue(t *t
 	}
 }
 
-func TestServiceStorySupplyChainEvidenceReportsIdentityMissingForHelmValuesImageRef(t *testing.T) {
+func TestServiceStorySupplyChainEvidenceReportsRepoOnlyHelmValuesImageRef(t *testing.T) {
 	t.Parallel()
 
 	imageStore := &serviceStoryImageIdentityStore{rowsByImageRef: map[string][]ContainerImageIdentityRow{}}
@@ -351,11 +354,8 @@ func TestServiceStorySupplyChainEvidenceReportsIdentityMissingForHelmValuesImage
 	if err := handler.enrichServiceStorySupplyChainEvidence(context.Background(), ctx); err != nil {
 		t.Fatalf("enrichServiceStorySupplyChainEvidence() error = %v, want nil", err)
 	}
-	if got, want := len(imageStore.filters), 1; got != want {
-		t.Fatalf("image identity store calls = %d, want %d", got, want)
-	}
-	if got, want := imageStore.filters[0].ImageRef, serviceStoryTestImageRepository; got != want {
-		t.Fatalf("image identity ImageRef filter = %q, want %q", got, want)
+	if got := len(imageStore.filters); got != 0 {
+		t.Fatalf("image identity store calls = %d, want none for repo-only candidate", got)
 	}
 	segment := serviceTraceImagePackageSegment(ctx)
 	if got, want := StringVal(segment, "status"), "missing_evidence"; got != want {
@@ -363,10 +363,10 @@ func TestServiceStorySupplyChainEvidenceReportsIdentityMissingForHelmValuesImage
 	}
 	missing := StringSliceVal(segment, "missing_evidence")
 	if stringSliceContains(missing, "deployment_image_reference_missing") {
-		t.Fatalf("missing_evidence = %#v, want real missing identity hop", missing)
+		t.Fatalf("missing_evidence = %#v, want repo-only candidate reason", missing)
 	}
-	if !stringSliceContains(missing, "container_image_identity_missing") {
-		t.Fatalf("missing_evidence = %#v, want container_image_identity_missing", missing)
+	if !stringSliceContains(missing, "deployment_image_reference_repo_only") {
+		t.Fatalf("missing_evidence = %#v, want deployment_image_reference_repo_only", missing)
 	}
 	if got, want := IntVal(segment, "candidate_image_ref_count"), 1; got != want {
 		t.Fatalf("candidate_image_ref_count = %d, want %d", got, want)

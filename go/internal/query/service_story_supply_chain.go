@@ -31,11 +31,17 @@ func (h *EntityHandler) enrichServiceStorySupplyChainEvidence(ctx context.Contex
 	}
 	evidence := make([]map[string]any, 0, len(imageRefs))
 	missing := make([]string, 0)
+	missingDetails := make([]map[string]any, 0)
 	if len(imageRefs) == 0 {
 		missing = append(missing, "deployment_image_reference_missing")
 	}
 
 	for _, imageRef := range imageRefs {
+		if detail, ok := serviceStoryRepoOnlyImageCandidateDetail(imageRef); ok {
+			missing = append(missing, StringVal(detail, "reason"))
+			missingDetails = append(missingDetails, detail)
+			continue
+		}
 		identities, err := h.ContainerImageIdentities.ListContainerImageIdentities(ctx, ContainerImageIdentityFilter{
 			ImageRef: imageRef,
 			Limit:    serviceStorySupplyChainProbeLimit,
@@ -45,7 +51,22 @@ func (h *EntityHandler) enrichServiceStorySupplyChainEvidence(ctx context.Contex
 		}
 		identity, reason := serviceStoryAdmissibleImageIdentity(identities)
 		if reason != "" {
+			detail, replacementReason, err := serviceStoryImageCandidateMissingExplanation(
+				ctx,
+				h.ContainerImageIdentities,
+				imageRef,
+				reason,
+			)
+			if err != nil {
+				return err
+			}
+			if replacementReason != "" {
+				reason = replacementReason
+			}
 			missing = append(missing, reason)
+			if len(detail) > 0 {
+				missingDetails = append(missingDetails, detail)
+			}
 			continue
 		}
 
@@ -57,9 +78,13 @@ func (h *EntityHandler) enrichServiceStorySupplyChainEvidence(ctx context.Contex
 			return fmt.Errorf("load service story SBOM attachment: %w", err)
 		}
 		missing = append(missing, attachments.MissingEvidence...)
+		for _, reason := range attachments.MissingEvidence {
+			missingDetails = append(missingDetails, serviceStorySBOMMissingExplanation(imageRef, identity, reason))
+		}
 		sboms, reason := serviceStoryAdmissibleSBOMAttachments(identity.Digest, attachments.Attachments)
 		if reason != "" {
 			missing = append(missing, reason)
+			missingDetails = append(missingDetails, serviceStorySBOMMissingExplanation(imageRef, identity, reason))
 			continue
 		}
 		for _, sbom := range sboms {
@@ -76,6 +101,7 @@ func (h *EntityHandler) enrichServiceStorySupplyChainEvidence(ctx context.Contex
 	serviceStorySetSupplyChainImagePackage(workloadContext, map[string]any{
 		"evidence":                  evidence,
 		"missing_evidence":          uniqueSortedStrings(missing),
+		"missing_evidence_details":  serviceStoryUniqueMissingDetails(missingDetails),
 		"candidate_image_ref_count": len(allImageRefs),
 		"candidate_image_refs":      imageRefs,
 		"image_refs_truncated":      truncated,
