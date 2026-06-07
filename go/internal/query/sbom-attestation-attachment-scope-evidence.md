@@ -1,21 +1,19 @@
 # SBOM Attachment Scope Evidence
 
-Repository scope is not a supported SBOM/attestation attachment read anchor.
-Reducer attachment facts expose subject and document identity, plus status and
-artifact kind filters. Some rows also carry repository, workload, service, and
-warning-preview fields as diagnostic evidence, and workload/service source-anchor
-pages can report missing image or image-to-SBOM evidence. Those fields do not
-make `repository_id` a query-safe attachment anchor, so accepting it on list,
-count, or inventory routes would turn an unscoped aggregate into false
-repository-specific evidence.
+Repository, workload, and service scopes are supported SBOM/attestation
+attachment read anchors when they are applied to reducer-owned attachment facts.
+Reducer attachment facts expose subject and document identity, plus status,
+artifact kind, repository, workload, service, and warning-preview fields. Source
+anchors do not make parse-only rows canonical image evidence; callers still must
+inspect `attachment_scope`, `canonical_writes`, and `missing_evidence`.
 
-The remote target-story verifier already uses
-`/supply-chain/sbom-attestations/attachments/count?subject_digest=<digest>` for
-SBOM proof. Repository proof must come from repository-scoped routes such as
-impact findings, service catalog correlations, CI/CD correlations, container
-image identities, or security-alert reconciliations.
+The list route uses repository/workload/service source anchors to return
+matching attachment rows and missing-hop diagnostics. Count and inventory routes
+apply the same anchors to their aggregate predicates and echo the applied scope,
+so a scoped request with no matching evidence returns scoped zero instead of
+falling back to global totals.
 
-No-Regression Evidence: `go test ./internal/query ./internal/mcp -run 'Test(SupplyChainListSBOMAttestationAttachmentsRejectsRepositoryScope|SBOMAttestationAttachmentAggregateRoutesRejectRepositoryScope|ResolveRouteForwardsSBOMRepositoryScopeToHTTPContract|DispatchSBOMAggregateRepositoryScopeReturnsHTTPContractError)' -count=1` proves repository-scoped SBOM attachment list, count, inventory, and MCP aggregate calls fail before any read-model call. The same tests prove MCP forwards `repository_id` to the HTTP handler instead of dropping it and reading an unscoped count.
+No-Regression Evidence: `go test ./internal/query ./internal/mcp -run 'Test(SupplyChainListSBOMAttestationAttachmentsAcceptsRepositoryScope|SBOMAttestationAttachmentAggregateRoutesForwardSourceScopes|SBOMAttestationAttachmentAggregateQueriesFilterSourceScopes|SBOMAttestationAttachmentAggregateRoutesDoNotDropServiceScope|ResolveRouteForwardsSBOMRepositoryScopeToHTTPContract|DispatchSBOMAggregateRepositoryScopeReturnsScopedCount)' -count=1` proves repository-scoped SBOM attachment list, count, inventory, and MCP aggregate calls keep the source scope instead of dropping it and reading an unscoped count.
 
 No-Observability-Change: the fix adds no new read model, graph query, Postgres
 query, reducer lane, worker, queue, metric, span, or log contract. Valid SBOM

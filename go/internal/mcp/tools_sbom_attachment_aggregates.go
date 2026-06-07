@@ -25,6 +25,18 @@ func sbomAttestationAttachmentAggregateTools() []ToolDefinition {
 						"type":        "string",
 						"description": "Optional digest of the SBOM document or attestation statement.",
 					},
+					"repository_id": map[string]any{
+						"type":        "string",
+						"description": "Optional reducer-owned repository anchor applied before counting.",
+					},
+					"workload_id": map[string]any{
+						"type":        "string",
+						"description": "Optional reducer-admitted workload anchor applied before counting.",
+					},
+					"service_id": map[string]any{
+						"type":        "string",
+						"description": "Optional reducer-admitted service anchor applied before counting.",
+					},
 					"attachment_status": map[string]any{
 						"type":        "string",
 						"description": "Optional reducer attachment status filter applied before counting.",
@@ -53,6 +65,9 @@ func sbomAttestationAttachmentAggregateTools() []ToolDefinition {
 					"subject_digest":  map[string]any{"type": "string", "description": "Optional image digest to scope the inventory."},
 					"document_id":     map[string]any{"type": "string", "description": "Optional SBOM document ID."},
 					"document_digest": map[string]any{"type": "string", "description": "Optional document digest."},
+					"repository_id":   map[string]any{"type": "string", "description": "Optional reducer-owned repository anchor applied before grouping."},
+					"workload_id":     map[string]any{"type": "string", "description": "Optional reducer-admitted workload anchor applied before grouping."},
+					"service_id":      map[string]any{"type": "string", "description": "Optional reducer-admitted service anchor applied before grouping."},
 					"attachment_status": map[string]any{
 						"type":        "string",
 						"description": "Optional reducer attachment status filter applied before grouping.",

@@ -751,11 +751,11 @@ collector, worker, queue, graph write, metric, span, or log contract changes.
 
 Lists reducer-owned SBOM and attestation attachment facts. The caller must
 provide `limit` and at least one bounded anchor: `subject_digest`,
-`document_id`, `document_digest`, `workload_id`, or `service_id`.
-`repository_id` is rejected for this route because repository proof must come
-from repository-scoped routes such as impact findings, service-catalog
-correlations, CI/CD correlations, container image identities, or security-alert
-reconciliations.
+`document_id`, `document_digest`, `repository_id`, `workload_id`, or
+`service_id`. Repository, workload, and service anchors are source scopes over
+reducer-owned attachment facts; callers still need `attachment_scope`,
+`canonical_writes`, and `missing_evidence` before treating a row as attached
+image evidence.
 
 Rows expose `attachment_status`, `parse_status`, and `verification_status`
 separately. Component evidence is returned as document evidence only; this
@@ -786,10 +786,10 @@ payload, API row, OpenAPI fragment, and MCP tool description exposed that
 truth.
 
 No-Regression Evidence: `go test ./internal/query ./internal/mcp -run
-'Test(SupplyChainListSBOMAttestationAttachmentsRejectsRepositoryScope|SBOMAttestationAttachmentAggregateRoutesRejectRepositoryScope|ResolveRouteForwardsSBOMRepositoryScopeToHTTPContract|DispatchSBOMAggregateRepositoryScopeReturnsHTTPContractError)'
+'Test(SupplyChainListSBOMAttestationAttachmentsAcceptsRepositoryScope|SBOMAttestationAttachmentAggregateRoutesForwardSourceScopes|SBOMAttestationAttachmentAggregateQueriesFilterSourceScopes|SBOMAttestationAttachmentAggregateRoutesDoNotDropServiceScope|ResolveRouteForwardsSBOMRepositoryScopeToHTTPContract|DispatchSBOMAggregateRepositoryScopeReturnsScopedCount)'
 -count=1` proves repository-scoped SBOM attachment list, count, inventory, and
-MCP aggregate calls fail before any read-model call while MCP still forwards
-the unsupported `repository_id` argument to the HTTP contract guard.
+MCP aggregate calls keep the source scope instead of dropping it and reading
+unscoped global attachment totals.
 
 No-Observability-Change: this changes SBOM attachment classification and
 readback fields only. It adds no worker, queue, graph write, query, metric

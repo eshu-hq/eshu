@@ -5,7 +5,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -91,20 +90,20 @@ func TestResolveRouteForwardsSBOMRepositoryScopeToHTTPContract(t *testing.T) {
 	}
 }
 
-func TestDispatchSBOMAggregateRepositoryScopeReturnsHTTPContractError(t *testing.T) {
+func TestDispatchSBOMAggregateRepositoryScopeReturnsScopedCount(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingMCPAggregateStore{
 		count: query.SBOMAttestationAttachmentAggregateCount{
-			TotalAttachments:   18,
-			ByAttachmentStatus: map[string]int{"attached_verified": 18},
-			ByArtifactKind:     map[string]int{"sbom": 18},
+			TotalAttachments:   0,
+			ByAttachmentStatus: map[string]int{},
+			ByArtifactKind:     map[string]int{},
 		},
 	}
 	handler := &query.SupplyChainHandler{SBOMAttachmentAggregates: store}
 	mux := httpServeMux(handler)
 
-	_, err := dispatchTool(
+	result, err := dispatchTool(
 		context.Background(),
 		mux,
 		"count_sbom_attestation_attachments",
@@ -112,14 +111,29 @@ func TestDispatchSBOMAggregateRepositoryScopeReturnsHTTPContractError(t *testing
 		"",
 		slog.Default(),
 	)
-	if err == nil {
-		t.Fatal("dispatchTool() error = nil, want repository_id contract error")
+	if err != nil {
+		t.Fatalf("dispatchTool() error = %v, want nil", err)
 	}
-	if !strings.Contains(err.Error(), "repository_id") {
-		t.Fatalf("dispatchTool() error = %v, want repository_id contract error", err)
+	if store.countCalls != 1 {
+		t.Fatalf("CountSBOMAttestationAttachments called %d times, want 1", store.countCalls)
 	}
-	if store.countCalls != 0 {
-		t.Fatalf("CountSBOMAttestationAttachments called %d times, want 0", store.countCalls)
+	if got, want := store.lastFilter.RepositoryID, "repo://example/api"; got != want {
+		t.Fatalf("RepositoryID = %q, want %q", got, want)
+	}
+	envelope, ok := result.Value.(*query.ResponseEnvelope)
+	if !ok {
+		t.Fatalf("result.Value = %T, want query.ResponseEnvelope", result.Value)
+	}
+	data, ok := envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope.Data = %T, want map[string]any", envelope.Data)
+	}
+	scope, ok := data["scope"].(map[string]any)
+	if !ok {
+		t.Fatalf("scope = %T, want map[string]any; data=%#v", data["scope"], data)
+	}
+	if got, want := scope["repository_id"], "repo://example/api"; got != want {
+		t.Fatalf("scope.repository_id = %q, want %q", got, want)
 	}
 }
 
@@ -240,24 +254,27 @@ func TestResolveRouteMapsContainerImageIdentitiesToBoundedQuery(t *testing.T) {
 
 type recordingMCPAggregateStore struct {
 	count      query.SBOMAttestationAttachmentAggregateCount
+	lastFilter query.SBOMAttestationAttachmentAggregateFilter
 	countCalls int
 }
 
 func (s *recordingMCPAggregateStore) CountSBOMAttestationAttachments(
 	_ context.Context,
-	_ query.SBOMAttestationAttachmentAggregateFilter,
+	filter query.SBOMAttestationAttachmentAggregateFilter,
 ) (query.SBOMAttestationAttachmentAggregateCount, error) {
 	s.countCalls++
+	s.lastFilter = filter
 	return s.count, nil
 }
 
 func (s *recordingMCPAggregateStore) SBOMAttestationAttachmentInventory(
-	context.Context,
-	query.SBOMAttestationAttachmentAggregateFilter,
-	query.SBOMAttestationAttachmentInventoryDimension,
-	int,
-	int,
+	_ context.Context,
+	filter query.SBOMAttestationAttachmentAggregateFilter,
+	_ query.SBOMAttestationAttachmentInventoryDimension,
+	_ int,
+	_ int,
 ) ([]query.SBOMAttestationAttachmentInventoryRow, error) {
+	s.lastFilter = filter
 	return nil, nil
 }
 
