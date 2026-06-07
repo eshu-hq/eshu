@@ -15,6 +15,30 @@ func buildRepositoryStoryResponse(
 	infrastructureOverview map[string]any,
 	semanticOverview map[string]any,
 ) map[string]any {
+	return buildRepositoryStoryResponseWithCoverage(
+		repo,
+		fileCount,
+		languages,
+		workloads,
+		platforms,
+		dependencyCount,
+		infrastructureOverview,
+		semanticOverview,
+		nil,
+	)
+}
+
+func buildRepositoryStoryResponseWithCoverage(
+	repo RepoRef,
+	fileCount int,
+	languages []string,
+	workloads []string,
+	platforms []string,
+	dependencyCount int,
+	infrastructureOverview map[string]any,
+	semanticOverview map[string]any,
+	coverageSummary map[string]any,
+) map[string]any {
 	filteredLanguages := nonEmptyStrings(languages)
 	filteredPlatforms := nonEmptyStrings(platforms)
 	filteredWorkloads := nonEmptyStrings(workloads)
@@ -32,7 +56,8 @@ func buildRepositoryStoryResponse(
 		infrastructureOverview,
 	)
 	deploymentOverview = enrichRepositoryDeploymentOverviewWithEvidence(deploymentOverview, deploymentEvidence)
-	limitations := []string{"coverage_not_computed"}
+	coverageSummary = repositoryStoryCoverageSummaryOrDefault(coverageSummary)
+	limitations := repositoryStoryCoverageLimitations(coverageSummary)
 	if !repositoryDeploymentSurfaceKnown(filteredPlatforms, filteredWorkloads, deploymentOverview) {
 		limitations = append(limitations, "deployment_surface_unknown")
 	}
@@ -84,11 +109,8 @@ func buildRepositoryStoryResponse(
 			"language_count":   len(filteredLanguages),
 			"languages":        filteredLanguages,
 		},
-		"coverage_summary": map[string]any{
-			"status": "unknown",
-			"reason": "repository_story_does_not_yet_compute_completeness",
-		},
-		"limitations": limitations,
+		"coverage_summary": coverageSummary,
+		"limitations":      limitations,
 		"drilldowns": map[string]any{
 			"context_path":  "/api/v0/repositories/" + repo.ID + "/context",
 			"stats_path":    "/api/v0/repositories/" + repo.ID + "/stats",
