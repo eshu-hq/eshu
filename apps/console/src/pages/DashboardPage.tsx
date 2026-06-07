@@ -1,14 +1,39 @@
 // pages/DashboardPage.tsx
-import { useState } from "react";
-import type { ConsoleModel, GraphNode } from "../console/types";
+import { useEffect, useState } from "react";
+import type { ConsoleModel, GraphNode, GraphModel } from "../console/types";
 import { fmt, LAYER_COLOR, SEVERITY_COLOR, uiTruth } from "../console/types";
+import type { EshuApiClient } from "../api/client";
+import { loadEntityMapGraph } from "../api/eshuGraph";
 import { StatTile, Panel, TruthChip } from "../components/atoms";
 import { AreaChart, Donut, BarRows } from "../components/charts";
 import { GraphCanvas } from "../components/GraphCanvas";
 
-export function DashboardPage({ model, onOpenService }: { readonly model: ConsoleModel; readonly onOpenService?: (name: string) => void }): React.JSX.Element {
+export function DashboardPage({ model, client, onOpenService }: { readonly model: ConsoleModel; readonly client?: EshuApiClient; readonly onOpenService?: (name: string) => void }): React.JSX.Element {
   const r = model.runtime;
+  // The atlas renders model.graph when present; otherwise it auto-seeds with a
+  // default entity's neighbourhood so the panel shows a live graph on load
+  // instead of an empty "select a node" state.
+  const [atlas, setAtlas] = useState<GraphModel>(model.graph);
   const [sel, setSel] = useState<GraphNode | undefined>(model.graph.nodes.find((n) => n.hero));
+
+  useEffect(() => {
+    let cancelled = false;
+    if (model.graph.nodes.length > 0) {
+      setAtlas(model.graph);
+      setSel(model.graph.nodes.find((n) => n.hero));
+      return;
+    }
+    const seed = model.services[0]?.name;
+    if (!client || !seed) return;
+    void loadEntityMapGraph(client, seed)
+      .then((g) => {
+        if (cancelled || g.nodes.length === 0) return;
+        setAtlas(g);
+        setSel(g.nodes.find((n) => n.hero));
+      })
+      .catch(() => { /* keep the empty atlas; the Graph Explorer is the full surface */ });
+    return () => { cancelled = true; };
+  }, [client, model.graph, model.services]);
   const sevTotals = model.vulnerabilities.reduce(
     (a, v) => { const k = v.severity as keyof typeof a; if (k in a) a[k] += 1; return a; },
     { critical: 0, high: 0, medium: 0, low: 0 }
@@ -28,7 +53,7 @@ export function DashboardPage({ model, onOpenService }: { readonly model: Consol
 
       <Panel className="mt" title="Code-to-cloud relationship atlas" sub="Select a node to inspect its typed evidence">
         <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr) 300px", gap: "var(--gap)", alignItems: "start" }}>
-          <GraphCanvas graph={model.graph} height={460} onSelect={setSel} selectedId={sel?.id} />
+          <GraphCanvas graph={atlas} height={460} onSelect={setSel} selectedId={sel?.id} />
           <div className="panel" style={{ background: "var(--bg-field)", boxShadow: "none" }}>
             <div className="panel-body">
               {sel ? (
@@ -38,7 +63,7 @@ export function DashboardPage({ model, onOpenService }: { readonly model: Consol
                   {sel.truth ? <TruthChip level={sel.truth} /> : null}
                   {(sel.kind === "service" || sel.kind === "workload") && onOpenService ? <button className="btn-ghost active" style={{ width: "100%", justifyContent: "center" }} onClick={() => onOpenService(sel.label)}>Open spotlight →</button> : null}
                   <div className="insp-evi">
-                    {model.graph.edges.filter((e) => e.s === sel.id || e.t === sel.id).map((e, i) => (
+                    {atlas.edges.filter((e) => e.s === sel.id || e.t === sel.id).map((e, i) => (
                       <div className="insp-evi-row" key={i}>{e.verb} {e.s === sel.id ? `→ ${e.t}` : `← ${e.s}`}</div>
                     ))}
                   </div>
