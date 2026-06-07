@@ -146,6 +146,37 @@ func TestBuildSupplyChainImpactFindingsReportsScopedUnresolvedServiceCatalogEvid
 	}
 }
 
+func TestBuildSupplyChainImpactFindingsConsumesRepositoryOnlyServiceCatalogEvidence(t *testing.T) {
+	t.Parallel()
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		vulnerabilityCVEFact("cve-1", "CVE-2026-1548", 9.1),
+		vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-1548", testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),
+		packageConsumptionFactWithRange("consume-1", testImpactPackageID, testImpactRepositoryID, "1.2.3"),
+		workloadIdentityRepositoryScopeImpactFact("workload-1", testImpactRepositoryID, testImpactWorkloadID),
+		serviceCatalogCorrelationRepositoryScopeImpactFact(
+			"catalog-1",
+			testImpactRepositoryID,
+			string(ServiceCatalogCorrelationExact),
+			"matches",
+			false,
+		),
+	})
+
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-1548"]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	assertContainsString(t, got.WorkloadIDs, testImpactWorkloadID)
+	assertContainsString(t, got.EvidencePath, workloadIdentityFactKind)
+	assertContainsString(t, got.EvidencePath, serviceCatalogCorrelationFactKind)
+	assertContainsString(t, got.EvidenceFactIDs, "catalog-1")
+	assertContainsString(t, got.MissingEvidence, "service/workload catalog anchor missing")
+	assertNotContainsString(t, got.MissingEvidence, "service catalog correlation evidence missing")
+	assertNotContainsString(t, got.MissingEvidence, "service evidence missing")
+	if len(got.ServiceIDs) != 0 {
+		t.Fatalf("ServiceIDs = %#v, want no fabricated service identity from repository-only catalog evidence", got.ServiceIDs)
+	}
+}
+
 func TestBuildSupplyChainImpactFindingsAttachesDeploymentLaneEvidence(t *testing.T) {
 	t.Parallel()
 

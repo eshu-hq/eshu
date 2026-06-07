@@ -65,32 +65,29 @@ The gate is intentionally:
 ### Supply-chain impact path proof
 
 Supply-chain impact findings must keep repository, workload, deployment, and
-service hops separate. Repository dependency evidence can attach a workload
-only when reducer-owned `reducer_workload_identity` facts exist for the same
-repository scope. Deployment mapping evidence can attach `deployment_ids`
-only when reducer-owned platform materialization facts exist for the same
-repository scope. Environment hops still require CI/CD or runtime evidence,
-and service ids still require service-catalog correlation evidence. Missing
-service catalog data remains explicit `service evidence missing` or
-`service catalog correlation evidence missing` rather than a guessed service
-id. When the reducer has already attached
-`reducer_service_catalog_correlation` evidence but no service/workload catalog
-anchor is proven, API and MCP readbacks report
-`service catalog entity anchor missing` so callers do not misread present
-catalog-correlation evidence as absent.
+service hops separate. Repository dependency evidence attaches a workload only
+from reducer-owned `reducer_workload_identity` facts in the same repository
+scope. Deployment mapping evidence attaches `deployment_ids` only from
+reducer-owned platform materialization facts in that scope. Environment hops
+still require CI/CD or runtime evidence, and service ids require
+service-catalog correlation evidence with an explicit service or workload
+anchor. Missing service catalog data remains explicit `service evidence missing`
+or `service catalog correlation evidence missing`. Exact repository-scoped
+service-catalog correlations stay attached as evidence, but rows without
+`service_id` and `workload_id` report
+`service/workload catalog anchor missing`.
 
 No-Regression Evidence: issue #680 keeps the active fact walk bounded by the
-existing repository follow-up filter. Runtime-adjacent reducer facts such as
-`reducer_workload_identity` and `reducer_platform_materialization` are loaded
-through repository-scope predicates (`scope_id`, `payload.scope_id`,
-`scope.source_key`, `scope.payload.repo_id`, and `scope.payload.id`) inside
-the same fact-kind-gated branch as the existing runtime correlation facts.
-Focused tests cover repository-only, workload-only, deployment-plus-workload,
-service-attached, and stale/missing service evidence without adding graph
+existing repository follow-up filter. Runtime-adjacent facts are loaded through
+repository-scope predicates (`scope_id`, `payload.scope_id`, `scope.source_key`,
+`scope.payload.repo_id`, and `scope.payload.id`) inside the same fact-kind gate
+as existing runtime correlation facts. Focused reducer, query, and MCP tests
+cover repository-only, workload-only, deployment-plus-workload,
+service-attached, stale, and missing service evidence without adding graph
 reads or queue claims to the impact handler.
 
 No-Regression Evidence: issue #1548 keeps service-catalog correlation evidence
-separate from service catalog entity anchoring. Focused proof:
+separate from service/workload anchoring. Focused proof:
 `go test ./internal/query -run TestSupplyChainListImpactFindingsDoesNotReportPresentCatalogCorrelationAsMissing -count=1`.
 
 Observability Evidence: no new telemetry series are required. The existing
