@@ -4,7 +4,7 @@ func cicdTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "list_ci_cd_run_correlations",
-			Description: "List reducer-owned CI/CD run, artifact, and environment correlations by run, repository, commit, artifact digest, image reference, or environment. Repository-scoped results include an evidence_summary that separates static workflow files, live run rows, and run-to-artifact/image bridge evidence.",
+			Description: "List reducer-owned CI/CD run, artifact, and environment correlations by run, repository, commit, artifact digest, image reference, or environment. Repository-scoped results include an evidence_summary that separates static workflow files, live run rows, run-to-artifact/image bridge evidence, and public-safe missing-hop classes.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
