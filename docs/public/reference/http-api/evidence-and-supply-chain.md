@@ -237,9 +237,11 @@ refs, repository names, or shell commands. Current classes include
 `source_to_ci_run_evidence_missing`, `ci_run_to_image_artifact_evidence_missing`,
 `live_ci_provider_evidence_unavailable`, `ci_cd_evidence_missing`,
 `ci_cd_run_correlation_missing`, `static_workflow_evidence_unavailable`,
-`workflow_image_ref_unresolved`, and `workflow_image_ref_ambiguous`. The current
-CI/CD collector lane still has fixture normalization and reducer correlation
-only; hosted provider polling remains a separate live-runtime proof gate.
+`workflow_image_ref_unresolved`, and `workflow_image_ref_ambiguous`. The hosted
+GitHub Actions collector runtime can now poll bounded live run, job, and
+artifact metadata through claim-driven workflow targets. Representative remote
+target-story proof still must show either exact live artifact bridge evidence or
+these named API/MCP missing-hop classes for the selected target.
 
 No-Regression Evidence: `go test ./internal/workflowimage ./internal/facts ./internal/collector ./internal/reducer ./internal/storage/postgres ./internal/query -run 'TestExtract|TestCICDRunFactKindsAndSchemaVersions|TestBuildStreamingGenerationEmitsWorkflowImageEvidence|TestBuildContainerImageIdentityDecisionsUsesWorkflowImageEvidenceAsSourceAnchor|TestBuildCICDRunCorrelationDecisionsUsesWorkflowImageEvidence|TestListActiveCICDRunCorrelationFactsQueryIsArtifactBoundedAndPaged|TestCICDListRunCorrelationsExplains(StaticWorkflowImageEvidence|UnresolvedStaticWorkflowImageEvidence)' -count=1` fails if workflow image extraction, durable fact registration, collector emission, image-identity source anchoring, CI/CD correlation, active image-identity lookup, or repository-scoped CI/CD summary classes drift.
 

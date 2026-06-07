@@ -154,6 +154,10 @@ Public-safe manifest shape:
   "expected_oci_repository_id": "oci-registry://registry.example/team/api",
   "expected_image_digest": "sha256:...",
   "expected_image_ref": "registry.example/team/api:tag",
+  "expected_ci_cd_missing_evidence": [
+    "source_to_ci_run_evidence_missing",
+    "ci_run_to_image_artifact_evidence_missing"
+  ],
   "expected_sbom_subject_digest": "sha256:...",
   "expected_cloud_resource_id": "cloud-resource-id-or-arn",
   "expected_provider_incident_id": "provider-incident-id",
@@ -214,6 +218,18 @@ require `expected_work_item_key`, `expected_work_item_provider_id`, or
 `expected_work_item_url_fingerprint`; the verifier counts only matching
 ticket-first API and MCP evidence rows. Aggregate Confluence, PagerDuty, or
 Jira collector counts do not satisfy these target checks.
+
+When live CI/CD provider evidence is intentionally unavailable or no run-to-image
+artifact bridge exists yet, keep `minimums.ci_cd_run_correlations` at `0` and
+set `expected_ci_cd_missing_evidence` to the stable public-safe classes the
+target proof must observe. The verifier then calls bounded API and MCP
+`list_ci_cd_run_correlations` readbacks for the same repository and optional
+digest/image-ref anchor, requires every expected class in
+`evidence_summary.missing_evidence`, and prints only comma-separated class
+names such as `source_to_ci_run_evidence_missing` or
+`ci_run_to_image_artifact_evidence_missing`. This proves a named missing hop
+without leaking repository names, image refs, digests, provider URLs, tokens,
+or local paths.
 
 Use `unsupported_target_evidence` only when the corresponding minimum is `0`.
 Allowed reason classes are `collector_disabled`, `source_not_configured`,

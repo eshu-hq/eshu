@@ -345,7 +345,14 @@ container-image, SBOM, and CI/CD evidence to the same artifact. Digest-backed
 CI/CD proof filters count, API list, and MCP list readbacks by
 `artifact_digest`; image-reference proof filters those same readbacks by
 `image_ref` so the verifier does not accept unrelated repository rows. When
-image and SBOM minimums are both positive, the verifier also requires the
+live CI/CD provider access or artifact bridge evidence is absent by design,
+leave `minimums.ci_cd_run_correlations` at `0` and set
+`expected_ci_cd_missing_evidence` to the stable missing-hop classes the
+repository-scoped API and MCP `evidence_summary.missing_evidence` must carry.
+That path still calls bounded API and MCP list readbacks, but prints only the
+class names, not repository selectors, image refs, digests, provider URLs,
+account ids, or local paths. When image and SBOM minimums are both positive,
+the verifier also requires the
 target service story's `code_to_runtime_trace.image_package` segment to expose
 exact image/SBOM evidence through API and MCP readbacks; aggregate evidence
 alone is not enough. Use `expected_service_id` or `expected_workload_id` when
