@@ -28,14 +28,14 @@ function modelWithVulnerability(): ConsoleModel {
       deadLetters: 0,
       succeeded: 0,
       profile: "live"
-    },
-    services: [],
-    languages: [],
-    ingesters: [],
-    findings: [],
-    vulnerabilities: [
-      {
-        id: "CVE-2025-13465",
+	    },
+	    services: [],
+	    languages: [],
+	    ingesters: [],
+	    findings: [],
+	    vulnerabilities: [
+	      {
+	        id: "CVE-2025-13465",
         package: "serialize-javascript",
         severity: "high",
         cvss: 8.1,
@@ -43,20 +43,24 @@ function modelWithVulnerability(): ConsoleModel {
         fixedVersion: "7.0.3",
         services: ["checkout-api"]
       }
-    ],
-    sbom: null,
-    dependencies: [],
-    advisories: [],
-    provenance: {
-      services: "live",
-      languages: "live",
-      ingesters: "live",
-      findings: "live",
-      vulnerabilities: "live",
-      sbom: "empty",
-      dependencies: "empty",
-      advisories: "empty"
-    },
+	    ],
+	    sbom: null,
+	    dependencies: [],
+	    images: [],
+	    iacResources: [],
+	    advisories: [],
+	    provenance: {
+	      services: "live",
+	      languages: "live",
+	      ingesters: "live",
+	      findings: "live",
+	      vulnerabilities: "live",
+	      sbom: "empty",
+	      dependencies: "empty",
+	      images: "empty",
+	      iacResources: "empty",
+	      advisories: "empty"
+	    },
     truth: {}
   };
 }

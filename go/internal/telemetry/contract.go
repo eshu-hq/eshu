@@ -367,7 +367,12 @@ const (
 	// SpanQueryContainerImageList wraps the bounded container-image (OCI) list
 	// read over the authoritative (:ContainerImage) graph that backs the
 	// console Images browse surface.
-	SpanQueryContainerImageList          = "query.container_image_list"
+	SpanQueryContainerImageList = "query.container_image_list"
+	// SpanQueryCloudResourceList wraps the bounded keyset-paged list of cloud
+	// provider resources (CloudResource nodes) served by GET
+	// /api/v0/cloud/resources. Distinct from the aggregate span so operators can
+	// separate per-row inventory browsing from rollup counts.
+	SpanQueryCloudResourceList           = "query.cloud_resource_list"
 	SpanQueryCodeStructuralInventory     = "query.code_structural_inventory"
 	SpanQueryCodeTopicInvestigation      = "query.code_topic_investigation"
 	SpanQueryDeadCodeInvestigation       = "query.dead_code_investigation"

@@ -46,27 +46,27 @@ export function DashboardPage({ model, client, onOpenService }: {
     if (!client || atlasSeeds.length === 0 || model.source !== "live") {
       setAtlasState({ kind: "idle" });
       return;
-    }
+	}
 
-    const liveClient = client;
-    let cancelled = false;
-    setAtlasState({ kind: "loading", seed: atlasSeeds[0].label });
-    async function loadSeed(): Promise<void> {
-      try {
-        const next = await selectSeedGraph(liveClient, atlasSeeds, () => cancelled);
-        if (cancelled) return;
-        if (!next) {
-          setAtlasState({ kind: "idle" });
+	const liveClient = client;
+	let cancelled = false;
+	setAtlasState({ kind: "loading", seed: atlasSeeds[0].label });
+	async function loadSeed(): Promise<void> {
+		try {
+			const next = await selectSeedGraph(liveClient, atlasSeeds, () => cancelled);
+			if (cancelled) return;
+			if (!next) {
+				setAtlasState({ kind: "idle" });
           return;
         }
         setLiveGraph(next.graph);
         setSel(initialSelection(next.graph));
-        setAtlasState({ kind: "idle" });
-      } catch (error) {
-        if (cancelled) return;
-        setAtlasState({ kind: "error", message: errorMessage(error), seed: atlasSeeds[0].label });
-      }
-    }
+			setAtlasState({ kind: "idle" });
+		} catch (error) {
+			if (cancelled) return;
+			setAtlasState({ kind: "error", message: errorMessage(error), seed: atlasSeeds[0].label });
+		}
+	}
     void loadSeed();
     return () => { cancelled = true; };
   }, [atlasSeeds, client, model.source]);

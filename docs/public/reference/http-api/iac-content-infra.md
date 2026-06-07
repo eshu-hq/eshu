@@ -12,7 +12,7 @@ comparison. The route list is verified against `go/internal/query`.
 | IaC quality | `POST /api/v0/iac/dead` |
 | AWS management and drift | `POST /api/v0/iac/unmanaged-resources`, `POST /api/v0/iac/management-status`, `POST /api/v0/iac/management-status/explain`, `POST /api/v0/iac/terraform-import-plan/candidates`, `POST /api/v0/aws/runtime-drift/findings` |
 | Content | `POST /api/v0/content/files/read`, `POST /api/v0/content/files/lines`, `POST /api/v0/content/entities/read`, `POST /api/v0/content/files/search`, `POST /api/v0/content/entities/search` |
-| Infrastructure | `POST /api/v0/infra/resources/search`, `POST /api/v0/infra/relationships`, `GET /api/v0/ecosystem/overview` |
+| Infrastructure | `POST /api/v0/infra/resources/search`, `POST /api/v0/infra/relationships`, `GET /api/v0/ecosystem/overview`, `GET /api/v0/cloud/resources` |
 | Impact | `POST /api/v0/impact/trace-resource-to-code`, `POST /api/v0/impact/explain-dependency-path`, `POST /api/v0/impact/blast-radius`, `POST /api/v0/impact/change-surface`, `POST /api/v0/impact/change-surface/investigate`, `POST /api/v0/impact/entity-map`, `POST /api/v0/impact/resource-investigation`, `POST /api/v0/compare/environments` |
 
 OpenAPI remains canonical for full request and response schemas.
@@ -132,6 +132,55 @@ only for `CloudResource` rows; source-system provenance on Terraform-state or
 other non-cloud nodes is not returned as a cloud provider. Raw tag and
 evidence payload values are not returned by this generic search route.
 `limit` defaults to 50 and is capped at 200.
+
+## Cloud Resource Inventory
+
+`GET /api/v0/cloud/resources` is the bounded browse list for cloud-provider
+resources projected as `CloudResource` graph nodes. It backs the console Cloud
+page and any client that needs to page the full cloud inventory rather than
+search one entity at a time.
+
+Optional equality filters: `provider` (matched against `collector_kind`),
+`resource_type`, `region`, and `account_id`. Unknown filter values simply
+return no rows. `limit` defaults to 50 and is capped at 200.
+
+Paging is keyset, not offset. The response orders by `resource_type` then `id`
+and returns `truncated` plus `next_cursor` when more rows exist. To fetch the
+next page, pass `next_cursor.after_resource_type` and `next_cursor.after_id`
+back as the `after_resource_type` and `after_id` query parameters. The handler
+fetches `limit + 1` rows to detect truncation without a count query, so deep
+pages never use a `SKIP` scan.
+
+Each row projects only fields present on the node: `id`, `resource_type`,
+`name`, `provider`, `region`, `account_id`, `arn`, `service_name`, and `state`.
+Empty optional fields are omitted from the wire payload, and a known
+`service_name` placeholder is scrubbed so it never reaches a client. The
+response carries the authoritative-graph truth envelope; when the active query
+profile cannot serve the authoritative graph the route returns `501`, and `503`
+when the graph backend is unavailable.
+
+Performance Evidence: warm first-page latency for the handler Cypher shape
+(`MATCH (n:CloudResource) RETURN <narrow projection> ORDER BY n.resource_type,
+n.id LIMIT 51`) is ~0.9-1.0 ms against NornicDB over a corpus of 17,022
+`CloudResource` nodes (NornicDB Bolt/HTTP at `127.0.0.1:7474`, database
+`nornic`, default page `limit=50` so the executed `LIMIT` is 51). Warm keyset
+resume (cursor predicate `n.resource_type > $after_resource_type OR
+(n.resource_type = $after_resource_type AND n.id > $after_id)`) and warm
+provider+resource_type filtered pages both measured ~1.0-1.1 ms; cold
+first-touch on each shape was 0.43-0.84 s. The bounded `LIMIT 51` and keyset
+predicate keep every page cheap regardless of depth into the 17k-node set, so
+there is no whole-set scan or offset cost. Measurement commands are the warm-up
+plus three timed `tx/commit` runs of the projection statement recorded on the
+#1643 PR.
+
+Observability Evidence: the route records the
+`eshu_dp_cloud_resource_list_duration_seconds` histogram (outcome label `ok` or
+`query_error`) and the `eshu_dp_cloud_resource_list_errors_total` counter
+(reason label), both registered in `go/internal/telemetry/instruments.go`, plus
+the `query.cloud_resource_list` request span declared in
+`go/internal/telemetry/contract.go`. An operator can chart page latency and the
+error rate, and trace a slow page through the span, without any new
+high-cardinality metric dimension.
 
 Legacy impact routes accept `limit` with default 50 and cap 200, probe one
 extra row, and return `truncated`.

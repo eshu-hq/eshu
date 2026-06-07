@@ -1,5 +1,6 @@
 // pages/ExplorerPage.tsx
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
 import type { ConsoleModel, GraphLayer, GraphModel, GraphNode } from "../console/types";
 import { LAYER_COLOR, KIND_COLOR, fmt } from "../console/types";
@@ -22,9 +23,14 @@ export function ExplorerPage({ model, client, onOpenService }: {
   );
   const [sel, setSel] = useState<GraphNode | undefined>(model.graph.nodes.find((n) => n.hero));
   const [liveGraph, setLiveGraph] = useState<GraphModel | null>(null);
-  const [query, setQuery] = useState("");
+  const [searchParams] = useSearchParams();
+  const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  // Deep-link support: when another page links here with ?q=<entity id> (e.g. the
+  // Cloud inventory page), seed the search box and expand it once the client is
+  // live. seededRef guards against re-expanding on every render or layer toggle.
+  const seededRef = useRef(false);
 
   const base = live ? (liveGraph ?? { nodes: [], edges: [] }) : model.graph;
 
@@ -58,6 +64,17 @@ export function ExplorerPage({ model, client, onOpenService }: {
     if ((n.kind === "service" || n.kind === "workload") && onOpenService) onOpenService(n.label);
     else if (live) void expand(n.label);
   }
+
+  useEffect(() => {
+    const seed = searchParams.get("q");
+    if (!seed || !live || seededRef.current) return;
+    seededRef.current = true;
+    setQuery(seed);
+    void expand(seed);
+    // expand is stable for a given client/mode; intentionally only re-run when the
+    // deep-link param or live state changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, live]);
 
   return (
     <div className="page" style={{ maxWidth: "none" }}>
