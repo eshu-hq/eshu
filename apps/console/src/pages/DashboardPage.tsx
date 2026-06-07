@@ -19,7 +19,8 @@ export function DashboardPage({ model, client, onOpenService }: {
   readonly onOpenService?: (name: string) => void;
 }): React.JSX.Element {
   const r = model.runtime;
-  const atlasSeed = useMemo(() => liveAtlasSeed(model), [model]);
+  const atlasSeeds = useMemo(() => liveAtlasSeeds(model), [model]);
+  const atlasSeed = atlasSeeds[0];
   const seededGraph = useMemo<GraphModel>(
     () => atlasSeed ? { nodes: [atlasSeed], edges: [] } : model.graph,
     [atlasSeed, model.graph]
@@ -42,29 +43,33 @@ export function DashboardPage({ model, client, onOpenService }: {
 
   useEffect(() => {
     setLiveGraph(null);
-    if (!client || !atlasSeed || model.source !== "live") {
+    if (!client || atlasSeeds.length === 0 || model.source !== "live") {
       setAtlasState({ kind: "idle" });
       return;
     }
 
+    const liveClient = client;
     let cancelled = false;
-    setAtlasState({ kind: "loading", seed: atlasSeed.label });
+    setAtlasState({ kind: "loading", seed: atlasSeeds[0].label });
     async function loadSeed(): Promise<void> {
       try {
-        const resolved = await resolveEntityName(client, atlasSeed.label);
-        const next = await loadEntityMapGraph(client, resolved);
+        const next = await selectSeedGraph(liveClient, atlasSeeds, () => cancelled);
         if (cancelled) return;
-        setLiveGraph(next);
-        setSel(initialSelection(next));
+        if (!next) {
+          setAtlasState({ kind: "idle" });
+          return;
+        }
+        setLiveGraph(next.graph);
+        setSel(initialSelection(next.graph));
         setAtlasState({ kind: "idle" });
       } catch (error) {
         if (cancelled) return;
-        setAtlasState({ kind: "error", message: errorMessage(error), seed: atlasSeed.label });
+        setAtlasState({ kind: "error", message: errorMessage(error), seed: atlasSeeds[0].label });
       }
     }
     void loadSeed();
     return () => { cancelled = true; };
-  }, [atlasSeed, client, model.source]);
+  }, [atlasSeeds, client, model.source]);
 
   async function expandAtlasNode(node: GraphNode): Promise<void> {
     setSel(node);
@@ -165,10 +170,47 @@ function initialSelection(graph: GraphModel): GraphNode | undefined {
   return graph.nodes.find((node) => node.hero) ?? graph.nodes[0];
 }
 
-function liveAtlasSeed(model: ConsoleModel): GraphNode | undefined {
-  if (model.source !== "live" || model.graph.nodes.length > 0) return undefined;
-  const row = model.services.find((service) => service.name.trim().length > 0);
-  return row ? serviceSeedNode(row) : undefined;
+// A seed graph is "meaningful" once it has at least this many edges. A single
+// edge is the trivial workload->repository self-edge (2 nodes / 1 edge) that
+// makes for a weak landing atlas, so we keep probing past it.
+const MEANINGFUL_SEED_EDGES = 2;
+
+// Probe at most this many catalog services when hunting for a non-trivial seed.
+// Bounds the entity-map calls on first paint regardless of catalog size.
+const MAX_SEED_PROBES = 8;
+
+// liveAtlasSeeds returns the ordered candidate seed nodes for the live atlas:
+// every named catalog service, in catalog order. The loader probes them in turn
+// and lands on the first that yields a meaningful neighbourhood, falling back to
+// the most-connected candidate it saw. Empty for demo data or once the model
+// already carries a graph.
+function liveAtlasSeeds(model: ConsoleModel): readonly GraphNode[] {
+  if (model.source !== "live" || model.graph.nodes.length > 0) return [];
+  return model.services
+    .filter((service) => service.name.trim().length > 0)
+    .map(serviceSeedNode);
+}
+
+// selectSeedGraph probes candidate seeds in order and returns the first whose
+// live neighbourhood clears MEANINGFUL_SEED_EDGES. If none do, it returns the
+// most-connected graph seen so it still opens on real (never fabricated) edges.
+// Probing is bounded by MAX_SEED_PROBES so first paint stays cheap on large
+// catalogs, and stops early when isCancelled() reports the effect was torn down
+// (e.g. the model changed mid-scan) to avoid wasting reads.
+async function selectSeedGraph(
+  client: EshuApiClient,
+  seeds: readonly GraphNode[],
+  isCancelled: () => boolean
+): Promise<{ readonly seed: GraphNode; readonly graph: GraphModel } | undefined> {
+  let best: { readonly seed: GraphNode; readonly graph: GraphModel } | undefined;
+  for (const seed of seeds.slice(0, MAX_SEED_PROBES)) {
+    if (isCancelled()) return best;
+    const resolved = await resolveEntityName(client, seed.label);
+    const graph = await loadEntityMapGraph(client, resolved);
+    if (graph.edges.length >= MEANINGFUL_SEED_EDGES) return { seed, graph };
+    if (!best || graph.edges.length > best.graph.edges.length) best = { seed, graph };
+  }
+  return best;
 }
 
 function serviceSeedNode(service: ServiceRow): GraphNode {

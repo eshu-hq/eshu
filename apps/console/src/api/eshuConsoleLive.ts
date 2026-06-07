@@ -199,6 +199,17 @@ function severityFromCvss(cvss: number): string {
   return "unknown";
 }
 
+// serviceLabel turns a raw graph id (e.g. repository:r_f9600c28 or
+// repository_r_f9600c28) into a human label. It prefers the catalog repo name
+// and, failing that, strips the internal entity-type prefix (repository:,
+// workload:, service:, with `:` or `_`) so the UI never shows the bare graph id.
+function serviceLabel(id: string, repoNames: ReadonlyMap<string, string>): string {
+  const trimmed = id.trim();
+  const mapped = repoNames.get(trimmed);
+  if (mapped) return mapped;
+  return trimmed.replace(/^(?:repository|workload|service)[:_]/i, "");
+}
+
 async function section<T>(
   prov: Record<string, SectionProvenance>,
   key: string,
@@ -245,6 +256,11 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     } satisfies RuntimeSummary;
   })) ?? emptyRuntime();
 
+  // repo_id -> human name, harvested from the catalog so downstream sections
+  // (e.g. vulnerabilities, which carry only repository_id) can show a readable
+  // service/repo name instead of the raw graph id.
+  const repoNames = new Map<string, string>();
+
   const services = (await section(prov, "services", async () => {
     const env = await client.get<CatalogResponse>("/api/v0/catalog?limit=2000&offset=0");
     const c = env.data ?? {};
@@ -256,6 +272,9 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     // list has unique React keys and no duplicated rows.
     const byId = new Map<string, ServiceRow>();
     for (const w of [...(c.services ?? []), ...(c.workloads ?? [])]) {
+      const repoId = w.repo_id?.trim();
+      const friendly = w.repo_name?.trim() || w.name?.trim();
+      if (repoId && friendly && !repoNames.has(repoId)) repoNames.set(repoId, friendly);
       const id = w.id ?? w.name ?? "";
       if (id === "" || byId.has(id)) continue;
       byId.set(id, {
@@ -350,7 +369,12 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
           cvss,
           kev: Boolean(v.kev ?? v.known_exploited),
           fixedVersion: (v.fixed_version as string) ?? null,
-          services: (v.affected_services as string[]) ?? (v.service_id ? [String(v.service_id)] : v.repository_id ? [String(v.repository_id)] : [])
+          // affected_services is already human-readable; service_id/repository_id
+          // are raw graph ids, so resolve them to catalog names before display.
+          services: (v.affected_services as string[]) ?? (
+            v.service_id ? [serviceLabel(String(v.service_id), repoNames)]
+              : v.repository_id ? [serviceLabel(String(v.repository_id), repoNames)] : []
+          )
         });
       }
     }

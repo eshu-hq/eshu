@@ -47,6 +47,16 @@ describe("CatalogPage", () => {
     expect(onOpenService).toHaveBeenCalledWith("payments-api");
   });
 
+  it("does not render an Environments column the API never populates", () => {
+    // GET /api/v0/catalog carries no per-service environment data, so an
+    // Environments column would be blank for every row. It must not be shown.
+    render(<CatalogPage model={demoModel} />);
+
+    expect(screen.queryByRole("columnheader", { name: "Environments" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Repository" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Truth" })).toBeInTheDocument();
+  });
+
   it("labels the source as demo fixtures vs live", () => {
     const { unmount } = render(<CatalogPage model={demoModel} />);
     expect(screen.getByText("demo fixtures")).toBeInTheDocument();
