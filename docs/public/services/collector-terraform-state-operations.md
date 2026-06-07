@@ -38,14 +38,17 @@ For release validation, use `GET /api/v0/status/index` or
 `terraform_state.last_serials[]` with `terraform_state.warning_summary[]`. The
 remote E2E verifier reports configured targets, attempted reads, successful
 snapshots, and missing states from those bounded status rows. Each warning
-summary row reports `warning_kind`, `reason`, `scope_class`, and `count`. Treat
-`state_missing` as incomplete evidence unless the proof explicitly raises
-`ESHU_REMOTE_E2E_TFSTATE_STATE_MISSING_MAX` for a known partial run. Keep the
-default zero threshold for all-collector release gates.
+summary row reports `warning_kind`, `reason`, `scope_class`, `severity`,
+`actionability`, and `count`. Treat `state_missing` as incomplete evidence
+unless the proof explicitly raises `ESHU_REMOTE_E2E_TFSTATE_STATE_MISSING_MAX`
+for a known partial run. Unsupported composites point to provider-schema
+support, while sensitive skips and accepted tag-map normalization rows do not
+mark the collector failed. Keep the default zero threshold for all-collector
+release gates.
 Use `terraform_state.recent_warnings[]` when a summary row needs source-level
 triage. State-missing rows include a public-safe `source_handle`,
-`safe_locator_hash`, source class, and reason; they do not include raw bucket
-names, object keys, account IDs, or local paths.
+`safe_locator_hash`, source class, reason, severity, and actionability; they
+do not include raw bucket names, object keys, account IDs, or local paths.
 
 Trace spans: `tfstate.collector.claim.process`, `tfstate.discovery.resolve`,
 `tfstate.source.open`, `tfstate.parser.stream`, `tfstate.fact.emit_batch`, and

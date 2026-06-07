@@ -15,7 +15,7 @@ func TestParserEmitsSourceWarnings(t *testing.T) {
 	options := parseFixtureOptions(t)
 	options.SourceWarnings = []terraformstate.SourceWarning{{
 		WarningKind: "state_in_vcs",
-		Reason:      "terraform state file was discovered in git and explicitly approved for ingestion",
+		Reason:      "approved_local",
 		Source:      "git_local_file",
 	}}
 
@@ -32,6 +32,10 @@ func TestParserEmitsSourceWarnings(t *testing.T) {
 	if got, want := warning.Payload["warning_kind"], "state_in_vcs"; got != want {
 		t.Fatalf("warning_kind = %#v, want %#v", got, want)
 	}
+	if got, want := warning.Payload["reason"], "approved_local"; got != want {
+		t.Fatalf("reason = %#v, want %#v", got, want)
+	}
+	assertWarningClassification(t, warning, "info", "accepted_guardrail")
 	if strings.Contains(warning.SourceRef.SourceURI, "terraform.tfstate") {
 		t.Fatalf("SourceRef.SourceURI leaked raw state locator: %#v", warning.SourceRef)
 	}

@@ -92,15 +92,19 @@ func TestStatusHandlerStatusIndexExposesTerraformStateWarningSummary(t *testing.
 	var payload struct {
 		TerraformState struct {
 			WarningSummary []struct {
-				WarningKind string `json:"warning_kind"`
-				Reason      string `json:"reason"`
-				ScopeClass  string `json:"scope_class"`
-				Count       int    `json:"count"`
+				WarningKind   string `json:"warning_kind"`
+				Reason        string `json:"reason"`
+				ScopeClass    string `json:"scope_class"`
+				Severity      string `json:"severity"`
+				Actionability string `json:"actionability"`
+				Count         int    `json:"count"`
 			} `json:"warning_summary"`
 			RecentWarnings []struct {
 				SafeLocatorHash string `json:"safe_locator_hash"`
 				WarningKind     string `json:"warning_kind"`
 				Reason          string `json:"reason"`
+				Severity        string `json:"severity"`
+				Actionability   string `json:"actionability"`
 				Source          string `json:"source"`
 				SourceHandle    string `json:"source_handle"`
 			} `json:"recent_warnings"`
@@ -116,6 +120,8 @@ func TestStatusHandlerStatusIndexExposesTerraformStateWarningSummary(t *testing.
 	if row.WarningKind != "state_missing" ||
 		row.Reason != "s3_not_found" ||
 		row.ScopeClass != "s3" ||
+		row.Severity != "blocking" ||
+		row.Actionability != "blocking_evidence" ||
 		row.Count != 2 {
 		t.Fatalf("warning_summary[0] = %+v, want state_missing/s3_not_found/s3 count=2", row)
 	}
@@ -125,6 +131,8 @@ func TestStatusHandlerStatusIndexExposesTerraformStateWarningSummary(t *testing.
 	first := payload.TerraformState.RecentWarnings[0]
 	if first.WarningKind != "state_missing" ||
 		first.Reason != "s3_not_found" ||
+		first.Severity != "blocking" ||
+		first.Actionability != "blocking_evidence" ||
 		first.Source != "source-a" ||
 		first.SourceHandle != "state_snapshot:s3:hash-a" ||
 		first.SafeLocatorHash != "hash-a" {

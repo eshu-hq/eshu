@@ -121,7 +121,7 @@ func sourceWarningsForCandidate(candidate terraformstate.DiscoveryCandidate) []t
 	}
 	return []terraformstate.SourceWarning{{
 		WarningKind: "state_in_vcs",
-		Reason:      "terraform state file was discovered in git and explicitly approved for ingestion",
+		Reason:      "approved_local",
 		Source:      string(candidate.Source),
 	}}
 }

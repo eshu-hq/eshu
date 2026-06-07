@@ -120,9 +120,10 @@ missing. The verifier reads `/api/v0/status/index`, prints public-safe
 Terraform-state proof counts for configured targets, attempted reads,
 successful snapshots, and missing states, then prints
 `terraform_state.warning_summary[]` rows grouped by warning kind, reason, and
-scope class, and prints `terraform_state.recent_warnings[]` detail rows for
-`state_missing` with `source_handle` and `safe_locator_hash`. It fails if the
-status payload does not expose the summary array, or if `state_missing` is
+scope class with `severity` and `actionability`, and prints
+`terraform_state.recent_warnings[]` detail rows for `state_missing` with
+`source_handle`, `safe_locator_hash`, severity, and actionability. It fails if
+the status payload does not expose the summary array, or if `state_missing` is
 reported without a bounded sanitized detail handle. It does not print raw state
 locators, bucket names, account IDs, S3 object keys, or local paths.
 
@@ -427,8 +428,9 @@ writes, retry behavior, or NornicDB settings. Focused coverage is
 
 Observability Evidence: `/api/v0/status/index` and `/api/v0/index-status`
 surface `terraform_state.warning_summary[]` rows with `warning_kind`, `reason`,
-`scope_class`, and `count`, plus bounded `terraform_state.recent_warnings[]`
-rows with safe handles for source-level triage. The remote verifier prints the
-proof summary, aggregate warning rows, the configured `state_missing` threshold
-outcome, and `state_missing` detail handles, so operators can see successful
-and missing Terraform-state evidence without scanning raw facts or logs.
+`scope_class`, `severity`, `actionability`, and `count`, plus bounded
+`terraform_state.recent_warnings[]` rows with safe handles and classification
+for source-level triage. The remote verifier prints the proof summary,
+aggregate warning rows, the configured `state_missing` threshold outcome, and
+`state_missing` detail handles, so operators can see successful and missing
+Terraform-state evidence without scanning raw facts or logs.

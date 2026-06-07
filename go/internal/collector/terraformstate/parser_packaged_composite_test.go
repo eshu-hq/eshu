@@ -150,6 +150,7 @@ func TestParserKeepsUnsupportedPackagedCompositeFailClosed(t *testing.T) {
 	if got, want := warning.Payload["reason"], terraformstate.CompositeCaptureSkipReasonSchemaUnknown; got != want {
 		t.Fatalf("reason = %#v, want %#v", got, want)
 	}
+	assertWarningClassification(t, warning, "warning", "provider_schema_support")
 	if got, want := warning.Payload["resource_type"], "cloudinit_config"; got != want {
 		t.Fatalf("resource_type = %#v, want %#v", got, want)
 	}
@@ -218,6 +219,7 @@ func TestParserClassifiesCloudinitPartFixtureAsUnsupportedComposite(t *testing.T
 	if got, want := warning.Payload["reason"], terraformstate.CompositeCaptureSkipReasonSchemaUnknown; got != want {
 		t.Fatalf("reason = %#v, want %#v", got, want)
 	}
+	assertWarningClassification(t, warning, "warning", "provider_schema_support")
 	if got, want := warning.Payload["resource_type"], "cloudinit_config"; got != want {
 		t.Fatalf("resource_type = %#v, want %#v", got, want)
 	}
@@ -298,6 +300,7 @@ func TestParserClassifiesSensitivePackagedCompositeAsIntentionalSkip(t *testing.
 	if got, want := warning.Payload["reason"], terraformstate.CompositeCaptureSkipReasonSensitiveSource; got != want {
 		t.Fatalf("reason = %#v, want %#v", got, want)
 	}
+	assertWarningClassification(t, warning, "info", "accepted_guardrail")
 	if got, want := warning.Payload["resource_type"], "aws_lambda_function"; got != want {
 		t.Fatalf("resource_type = %#v, want %#v", got, want)
 	}

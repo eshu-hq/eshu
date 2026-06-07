@@ -100,6 +100,14 @@ func TestParserWarnsAndContinuesForMalformedTagMaps(t *testing.T) {
 		if got, want := warning.Payload["source_shape"], sourceShape; got != want {
 			t.Fatalf("source_shape = %#v, want %q", got, want)
 		}
+		switch reason {
+		case "null_tag_map":
+			assertWarningClassification(t, warning, "info", "accepted_normalization")
+		case "malformed_tag_map":
+			assertWarningClassification(t, warning, "warning", "source_normalization_review")
+		default:
+			assertWarningClassification(t, warning, "info", "accepted_guardrail")
+		}
 	}
 	expectTagMapWarning("resources.aws_instance.web.attributes.tags", "null_tag_map", "null")
 	expectTagMapWarning("resources.aws_instance.web.attributes.tags_all", "unsupported_tag_map_shape", "array")

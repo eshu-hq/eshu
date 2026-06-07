@@ -16,4 +16,7 @@
 // per resource_type, attribute_key, and reason shape. The log carries the
 // high-cardinality attribute_key and source path that stay out of metric
 // labels.
+// Warning-only generations for missing or oversized state sources emit stable
+// reason codes and classified warning facts so status/API readbacks can mark
+// those rows as blocking evidence without exposing raw state locators.
 package tfstateruntime

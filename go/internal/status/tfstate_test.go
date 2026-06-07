@@ -119,6 +119,8 @@ func TestBuildReportSummarizesTerraformStateWarnings(t *testing.T) {
 	if first.WarningKind != "state_missing" ||
 		first.Reason != "path_not_found" ||
 		first.ScopeClass != "local" ||
+		first.Severity != "blocking" ||
+		first.Actionability != "blocking_evidence" ||
 		first.Count != 1 {
 		t.Fatalf("WarningSummary[0] = %+v, want local state_missing/path_not_found count=1", first)
 	}
@@ -126,6 +128,8 @@ func TestBuildReportSummarizesTerraformStateWarnings(t *testing.T) {
 	if second.WarningKind != "state_missing" ||
 		second.Reason != "s3_not_found" ||
 		second.ScopeClass != "s3" ||
+		second.Severity != "blocking" ||
+		second.Actionability != "blocking_evidence" ||
 		second.Count != 2 {
 		t.Fatalf("WarningSummary[1] = %+v, want s3 state_missing/s3_not_found count=2", second)
 	}
@@ -133,6 +137,8 @@ func TestBuildReportSummarizesTerraformStateWarnings(t *testing.T) {
 	if third.WarningKind != "state_too_large" ||
 		third.Reason != "size_limit" ||
 		third.ScopeClass != "unknown" ||
+		third.Severity != "blocking" ||
+		third.Actionability != "blocking_evidence" ||
 		third.Count != 1 {
 		t.Fatalf("WarningSummary[2] = %+v, want unknown state_too_large/size_limit count=1", third)
 	}
@@ -178,13 +184,17 @@ func TestRenderJSONIncludesTerraformStateSection(t *testing.T) {
 				Serial          int64  `json:"serial"`
 			} `json:"last_serials"`
 			WarningSummary []struct {
-				WarningKind string `json:"warning_kind"`
-				Reason      string `json:"reason"`
-				ScopeClass  string `json:"scope_class"`
-				Count       int    `json:"count"`
+				WarningKind   string `json:"warning_kind"`
+				Reason        string `json:"reason"`
+				ScopeClass    string `json:"scope_class"`
+				Severity      string `json:"severity"`
+				Actionability string `json:"actionability"`
+				Count         int    `json:"count"`
 			} `json:"warning_summary"`
 			WarningsByKind map[string]map[string][]struct {
-				WarningKind string `json:"warning_kind"`
+				WarningKind   string `json:"warning_kind"`
+				Severity      string `json:"severity"`
+				Actionability string `json:"actionability"`
 			} `json:"warnings_by_kind"`
 		} `json:"terraform_state"`
 	}
@@ -203,6 +213,8 @@ func TestRenderJSONIncludesTerraformStateSection(t *testing.T) {
 		decoded.TerraformState.WarningSummary[0].WarningKind != "state_in_vcs" ||
 		decoded.TerraformState.WarningSummary[0].Reason != "approved_local" ||
 		decoded.TerraformState.WarningSummary[0].ScopeClass != "s3" ||
+		decoded.TerraformState.WarningSummary[0].Severity != "info" ||
+		decoded.TerraformState.WarningSummary[0].Actionability != "accepted_guardrail" ||
 		decoded.TerraformState.WarningSummary[0].Count != 1 {
 		t.Fatalf("decoded warning_summary = %+v", decoded.TerraformState.WarningSummary)
 	}
@@ -215,10 +227,12 @@ func TestRenderJSONIncludesTerraformStateSummaryOnly(t *testing.T) {
 		AsOf: time.Date(2026, 5, 3, 11, 0, 0, 0, time.UTC),
 		TerraformState: status.TerraformStateReport{
 			WarningSummary: []status.TerraformStateWarningSummary{{
-				WarningKind: "state_missing",
-				Reason:      "s3_not_found",
-				ScopeClass:  "s3",
-				Count:       2,
+				WarningKind:   "state_missing",
+				Reason:        "s3_not_found",
+				ScopeClass:    "s3",
+				Severity:      "blocking",
+				Actionability: "blocking_evidence",
+				Count:         2,
 			}},
 		},
 	}

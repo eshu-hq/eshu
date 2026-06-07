@@ -100,6 +100,12 @@ func TestClaimedSourceEmitsWarningGenerationForOversizedState(t *testing.T) {
 	if got, want := warning.Payload["warning_kind"], "state_too_large"; got != want {
 		t.Fatalf("warning_kind = %#v, want %#v", got, want)
 	}
+	if got, want := warning.Payload["severity"], "blocking"; got != want {
+		t.Fatalf("severity = %#v, want %#v", got, want)
+	}
+	if got, want := warning.Payload["actionability"], "blocking_evidence"; got != want {
+		t.Fatalf("actionability = %#v, want %#v", got, want)
+	}
 	if got, want := warning.Payload["source"], string(terraformstate.DiscoveryCandidateSourceSeed); got != want {
 		t.Fatalf("source = %#v, want %#v", got, want)
 	}
@@ -201,6 +207,15 @@ func TestClaimedSourceEmitsWarningGenerationForMissingS3State(t *testing.T) {
 	warning := factByKind(t, drainRuntimeFacts(t, collected.Facts), facts.TerraformStateWarningFactKind)
 	if got, want := warning.Payload["warning_kind"], "state_missing"; got != want {
 		t.Fatalf("warning_kind = %#v, want %#v", got, want)
+	}
+	if got, want := warning.Payload["reason"], "source_missing"; got != want {
+		t.Fatalf("reason = %#v, want %#v", got, want)
+	}
+	if got, want := warning.Payload["severity"], "blocking"; got != want {
+		t.Fatalf("severity = %#v, want %#v", got, want)
+	}
+	if got, want := warning.Payload["actionability"], "blocking_evidence"; got != want {
+		t.Fatalf("actionability = %#v, want %#v", got, want)
 	}
 	if got, want := warning.Payload["source"], string(terraformstate.DiscoveryCandidateSourceGraph); got != want {
 		t.Fatalf("source = %#v, want %#v", got, want)

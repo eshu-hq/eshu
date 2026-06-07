@@ -67,9 +67,13 @@ func (p *stateParser) emitWarning(warning warningPayload) error {
 		"reason":       warning.Reason,
 		"source":       warning.Source,
 	}
+	if classification, ok := ClassifyWarning(warning.WarningKind, warning.Reason); ok {
+		payload["severity"] = classification.Severity
+		payload["actionability"] = classification.Actionability
+	}
 	for key, value := range warning.Details {
 		switch key {
-		case "warning_kind", "reason", "source":
+		case "warning_kind", "reason", "source", "severity", "actionability":
 			continue
 		default:
 			payload[key] = value

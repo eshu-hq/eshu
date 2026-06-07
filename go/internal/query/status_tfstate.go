@@ -6,10 +6,12 @@ func terraformStateStatusToMap(report status.TerraformStateReport) map[string]an
 	summary := make([]map[string]any, 0, len(report.WarningSummary))
 	for _, row := range report.WarningSummary {
 		summary = append(summary, map[string]any{
-			"warning_kind": row.WarningKind,
-			"reason":       row.Reason,
-			"scope_class":  row.ScopeClass,
-			"count":        row.Count,
+			"warning_kind":  row.WarningKind,
+			"reason":        row.Reason,
+			"scope_class":   row.ScopeClass,
+			"severity":      row.Severity,
+			"actionability": row.Actionability,
+			"count":         row.Count,
 		})
 	}
 	recentWarnings := make([]map[string]any, 0, len(report.RecentWarnings))
@@ -19,6 +21,8 @@ func terraformStateStatusToMap(report status.TerraformStateReport) map[string]an
 			"backend_kind":      row.BackendKind,
 			"warning_kind":      row.WarningKind,
 			"reason":            row.Reason,
+			"severity":          row.Severity,
+			"actionability":     row.Actionability,
 			"source":            row.Source,
 			"source_handle":     row.SourceHandle,
 		})

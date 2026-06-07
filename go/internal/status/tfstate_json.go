@@ -28,6 +28,8 @@ type terraformStateWarningJSON struct {
 	BackendKind     string `json:"backend_kind,omitempty"`
 	WarningKind     string `json:"warning_kind"`
 	Reason          string `json:"reason,omitempty"`
+	Severity        string `json:"severity,omitempty"`
+	Actionability   string `json:"actionability,omitempty"`
 	Source          string `json:"source,omitempty"`
 	SourceHandle    string `json:"source_handle,omitempty"`
 	GenerationID    string `json:"generation_id,omitempty"`
@@ -35,10 +37,12 @@ type terraformStateWarningJSON struct {
 }
 
 type terraformStateWarningSummaryJSON struct {
-	WarningKind string `json:"warning_kind"`
-	Reason      string `json:"reason"`
-	ScopeClass  string `json:"scope_class"`
-	Count       int    `json:"count"`
+	WarningKind   string `json:"warning_kind"`
+	Reason        string `json:"reason"`
+	ScopeClass    string `json:"scope_class"`
+	Severity      string `json:"severity,omitempty"`
+	Actionability string `json:"actionability,omitempty"`
+	Count         int    `json:"count"`
 }
 
 // terraformStateReportJSON projects the report-side TerraformStateReport into
@@ -100,6 +104,8 @@ func warningRowJSON(row TerraformStateLocatorWarning) terraformStateWarningJSON 
 		BackendKind:     row.BackendKind,
 		WarningKind:     row.WarningKind,
 		Reason:          row.Reason,
+		Severity:        row.Severity,
+		Actionability:   row.Actionability,
 		Source:          row.Source,
 		SourceHandle:    row.SourceHandle,
 		GenerationID:    row.GenerationID,
@@ -109,9 +115,11 @@ func warningRowJSON(row TerraformStateLocatorWarning) terraformStateWarningJSON 
 
 func warningSummaryRowJSON(row TerraformStateWarningSummary) terraformStateWarningSummaryJSON {
 	return terraformStateWarningSummaryJSON{ //nolint:staticcheck // keep the public JSON projection explicit and decoupled from the internal summary type.
-		WarningKind: row.WarningKind,
-		Reason:      row.Reason,
-		ScopeClass:  row.ScopeClass,
-		Count:       row.Count,
+		WarningKind:   row.WarningKind,
+		Reason:        row.Reason,
+		ScopeClass:    row.ScopeClass,
+		Severity:      row.Severity,
+		Actionability: row.Actionability,
+		Count:         row.Count,
 	}
 }

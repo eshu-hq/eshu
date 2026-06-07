@@ -66,7 +66,7 @@ func TestParseStreamFactOrderContract(t *testing.T) {
 	options := parseFixtureOptions(t)
 	options.SourceWarnings = []terraformstate.SourceWarning{{
 		WarningKind: "state_in_vcs",
-		Reason:      "terraform state file was discovered in git and explicitly approved for ingestion",
+		Reason:      "approved_local",
 		Source:      "git_local_file",
 	}}
 
@@ -90,7 +90,7 @@ func TestParseStreamFactOrderContract(t *testing.T) {
 	}
 	want := []string{
 		facts.TerraformStateSnapshotFactKind + ":terraform_state_snapshot:snapshot",
-		facts.TerraformStateWarningFactKind + ":terraform_state_warning:warning:state_in_vcs:git_local_file:terraform state file was discovered in git and explicitly approved for ingestion",
+		facts.TerraformStateWarningFactKind + ":terraform_state_warning:warning:state_in_vcs:git_local_file:approved_local",
 		facts.TerraformStateOutputFactKind + ":terraform_state_output:output:plain",
 		facts.TerraformStateModuleFactKind + ":terraform_state_module:module:module.api:resource:module.api.aws_instance.api",
 		facts.TerraformStateProviderBindingFactKind + ":terraform_state_provider_binding:provider_binding:module.api.aws_instance.api:" + providerAddressStableID(t, `provider["registry.terraform.io/hashicorp/aws"]`),
