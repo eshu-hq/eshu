@@ -128,6 +128,22 @@ describe("eshuConsoleLive", () => {
             truth: { profile: "production", level: "exact", capability: "dependencies.list", basis: "authoritative_graph", freshness: { state: "fresh" } }
           };
         }
+        if (path.includes("/supply-chain/advisories")) {
+          // Browsable catalog: known intelligence (not service reachability),
+          // ordered by CVSS with a keyset cursor when truncated.
+          return {
+            data: {
+              advisories: [
+                { advisory_key: "CVE-2021-44228", canonical_id: "CVE-2021-44228", cve_id: "CVE-2021-44228", severity_label: "CRITICAL", cvss_score: 10, kev: true, ecosystems: ["maven"], package_ids: ["pkg:maven/org.apache.logging.log4j/log4j-core"] },
+                { advisory_key: "CVE-2021-45046", canonical_id: "CVE-2021-45046", cve_id: "CVE-2021-45046", cvss_score: 9, kev: false, ecosystems: ["maven"] }
+              ],
+              truncated: true,
+              next_cursor: { after_cvss: 9, after_advisory_key: "CVE-2021-45046" }
+            },
+            error: null,
+            truth: { profile: "production", level: "exact", capability: "supply_chain.advisory_catalog.list", freshness: { state: "fresh" } }
+          };
+        }
         return { data: {}, error: null, truth: null };
       },
       getJson: async (path: string) => {
@@ -357,6 +373,19 @@ describe("eshuConsoleLive", () => {
     const snap = await loadConsoleSnapshot(client);
     expect(snap.iacResources).toEqual([]);
     expect(snap.provenance.iacResources).toBe("unavailable");
+  });
+
+  it("loads the browsable advisory catalog as known intelligence (not impact)", async () => {
+    const snap = await loadConsoleSnapshot(fakeClient());
+    expect(snap.advisories).toHaveLength(2);
+    expect(snap.advisories[0]).toMatchObject({
+      id: "CVE-2021-44228", cveId: "CVE-2021-44228", severity: "critical", cvss: 10, kev: true
+    });
+    expect(snap.advisories[0].ecosystems).toEqual(["maven"]);
+    // CVSS 9 with no severity_label -> derived "critical" band, KEV false.
+    expect(snap.advisories[1]).toMatchObject({ id: "CVE-2021-45046", severity: "critical", kev: false });
+    expect(snap.provenance.advisories).toBe("live");
+    expect(snap.truth.advisories?.capability).toBe("supply_chain.advisory_catalog.list");
   });
 
   it("loads dashboard trend series from the metrics time-series endpoint", async () => {

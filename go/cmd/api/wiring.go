@@ -297,6 +297,7 @@ func newRouter(
 			SBOMAttachments:          query.NewPostgresSBOMAttestationAttachmentStore(db),
 			SBOMAttachmentAggregates: query.NewPostgresSBOMAttestationAttachmentAggregateStore(db),
 			AdvisoryEvidence:         query.NewPostgresAdvisoryEvidenceStore(db),
+			AdvisoryCatalog:          query.NewPostgresAdvisoryCatalogStore(db),
 			ImpactFindings:           query.NewPostgresSupplyChainImpactFindingStore(db),
 			ImpactAggregates:         query.NewPostgresSupplyChainImpactAggregateStore(db),
 			ImpactExplanations:       query.NewPostgresSupplyChainImpactFindingStore(db),

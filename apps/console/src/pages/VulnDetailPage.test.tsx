@@ -33,7 +33,6 @@ function modelWithVulnerability(): ConsoleModel {
     languages: [],
     ingesters: [],
     findings: [],
-    sbom: null,
     vulnerabilities: [
       {
         id: "CVE-2025-13465",
@@ -45,12 +44,18 @@ function modelWithVulnerability(): ConsoleModel {
         services: ["checkout-api"]
       }
     ],
+    sbom: null,
+    dependencies: [],
+    advisories: [],
     provenance: {
       services: "live",
       languages: "live",
       ingesters: "live",
       findings: "live",
-      vulnerabilities: "live"
+      vulnerabilities: "live",
+      sbom: "empty",
+      dependencies: "empty",
+      advisories: "empty"
     },
     truth: {}
   };

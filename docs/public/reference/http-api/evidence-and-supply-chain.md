@@ -251,6 +251,43 @@ scanner report, workload, and remediation plan routes live in
 [Vulnerability Impact](vulnerability-impact.md). They remain source-evidence and
 reducer-truth reads; provider alert reconciliation stays below because it
 explains provider-only and stale rows separately from admitted impact truth.
+`GET /api/v0/supply-chain/advisories`
+
+Browses the vulnerability-intelligence catalog. Unlike the evidence and detail
+routes below, it needs no advisory, package, repository, service, or workload
+anchor: it lists canonical advisories so the console can browse known CVE
+intelligence (for example `CVE-2021-44228` Log4Shell) that is not yet reachable
+in any indexed service.
+
+The caller must provide `limit` (1–200, default 50 in callers). Optional
+filters:
+
+- `severity` — canonical severity label (case-insensitive), e.g. `CRITICAL`
+- `ecosystem` — affected-package ecosystem (case-insensitive), e.g. `npm`
+- `kev` — `true` to limit the page to CISA KEV advisories
+- `q` — prefix match against canonical advisory id, CVE id, GHSA id, affected
+  package id, or PURL
+
+Rows carry summary columns only: `advisory_key`, `canonical_id`, `cve_id`,
+`ghsa_id`, `severity_label`, `cvss_score`, `kev`, `ecosystems[]`,
+`package_ids[]`, `published_at`, and `sources[]`. Results are ordered by
+descending `cvss_score` then ascending `advisory_key`, with keyset pagination
+through `next_cursor.after_cvss` and `next_cursor.after_advisory_key` (both must
+be sent together on the next page).
+
+These rows are known source intelligence and do **not** imply repository, image,
+workload, or deployment impact. Service reachability remains the separate impact
+findings routes. Use
+`GET /api/v0/supply-chain/vulnerabilities/{advisory_id}` for full source
+evidence on one advisory.
+
+This route reads active `vulnerability.cve`, `vulnerability.affected_package`,
+and `vulnerability.known_exploited` source facts only.
+
+No-Regression Evidence: `go test ./internal/query -run 'AdvisoryCatalog' -count=1` covers required/bounded limit, severity/ecosystem/KEV/`q` filter pass-through, keyset cursor parsing, truncation/`next_cursor`, backend-unavailable handling, and the active source-fact read-model query shape (`TestAdvisoryCatalogQueryUsesActiveSourceFactReadModel`).
+
+No-Observability-Change: the catalog read reuses the per-route `query.advisory_catalog` handler span (route + capability attributes) and the existing `eshu_http_request_duration_seconds` histogram, matching the established advisory evidence read pattern. It adds no graph write, worker, queue, new metric instrument, metric label, or runtime deployment knob.
+
 `GET /api/v0/supply-chain/advisories/evidence`
 
 Lists source-only advisory evidence. The caller must provide `limit` and at

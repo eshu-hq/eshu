@@ -9,6 +9,10 @@ const (
 	// SpanQueryAdvisoryEvidence wraps source-only vulnerability advisory
 	// evidence reads from active source facts.
 	SpanQueryAdvisoryEvidence = "query.advisory_evidence"
+	// SpanQueryAdvisoryCatalog wraps the browsable, summary-only catalog read
+	// over active vulnerability source facts. It powers the unanchored
+	// CVE-intelligence list that the console browses.
+	SpanQueryAdvisoryCatalog = "query.advisory_catalog"
 	// SpanQuerySupplyChainImpactFindings wraps reducer-owned vulnerability
 	// impact finding reads from durable facts.
 	SpanQuerySupplyChainImpactFindings = "query.supply_chain_impact_findings"
@@ -53,6 +57,7 @@ func init() {
 				SpanQuerySupplyChainSecurityAlerts,
 				SpanQuerySBOMAttestationAttachments,
 				SpanQueryAdvisoryEvidence,
+				SpanQueryAdvisoryCatalog,
 				SpanQuerySupplyChainImpactFindings,
 				SpanQuerySupplyChainImpactExplanation,
 				SpanQuerySupplyChainImpactAggregate,
@@ -72,6 +77,7 @@ func init() {
 				SpanQuerySupplyChainSecurityAlerts,
 				SpanQuerySBOMAttestationAttachments,
 				SpanQueryAdvisoryEvidence,
+				SpanQueryAdvisoryCatalog,
 				SpanQuerySupplyChainImpactFindings,
 				SpanQuerySupplyChainImpactExplanation,
 				SpanQuerySupplyChainImpactAggregate,
@@ -91,6 +97,7 @@ func init() {
 				SpanQuerySupplyChainSecurityAlerts,
 				SpanQuerySBOMAttestationAttachments,
 				SpanQueryAdvisoryEvidence,
+				SpanQueryAdvisoryCatalog,
 				SpanQuerySupplyChainImpactFindings,
 				SpanQuerySupplyChainImpactExplanation,
 				SpanQuerySupplyChainImpactAggregate,
@@ -107,6 +114,7 @@ func init() {
 		SpanQuerySupplyChainSecurityAlerts,
 		SpanQuerySBOMAttestationAttachments,
 		SpanQueryAdvisoryEvidence,
+		SpanQueryAdvisoryCatalog,
 		SpanQuerySupplyChainImpactFindings,
 		SpanQuerySupplyChainImpactExplanation,
 		SpanQuerySupplyChainImpactAggregate,
