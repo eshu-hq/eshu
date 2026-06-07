@@ -77,7 +77,13 @@ See `doc.go` for the godoc contract. Key types and functions:
 - `CollectorInstanceSummary` — one configured collector runtime instance
 - `CollectorRuntimeStatus` — derived coordinator/direct collector runtime
   classification for `coordinator_managed`, `direct_mode`, `disabled`,
-  `unregistered`, and explicit `profile_gated` status rows
+  `unregistered`, and explicit `profile_gated` status rows; persisted
+  source/reducer fact evidence is reflected as bounded source names and counts
+  without payload identifiers
+- `CollectorFactEvidence` — aggregate active fact metadata by collector kind,
+  optional coordinator instance, evidence source (`source_facts` or
+  `reducer_facts`), count, and timestamps; it never carries raw payload,
+  source URI, source record ID, repository name, package name, or resource ID
 - `RegistryCollectorSnapshot` — bounded OCI and package-registry runtime status
   counts for configured instances, active scopes, recent completed generations,
   last completed timestamp, retryable/terminal failures, and failure classes
@@ -186,10 +192,11 @@ strings.
   wired, `RawSnapshot.Coordinator` is nil and `Report.Coordinator` is nil.
   Callers must nil-check before rendering coordinator lines.
 - **Collector runtime classification is derived.** `CollectorRuntimeStatuses`
-  uses coordinator rows plus durable direct status rows already present in the
-  report. It does not call Kubernetes, Docker, or another deployment inventory
-  API, so a pod with no coordinator row and no durable status row remains
-  outside the central status contract.
+  uses coordinator rows, durable direct status rows already present in the
+  report, and bounded active fact metadata. It does not call Kubernetes, Docker,
+  or another deployment inventory API, so a pod with no coordinator row, no
+  durable status row, and no active persisted facts remains outside the central
+  status contract.
 - **AWS cloud status separates scan and commit.** `AWSCloudScanStatus.Status`
   describes scanner-side outcome such as `partial`, `credential_failed`, or
   `failed`; `CommitStatus` describes whether the fenced fact transaction later
