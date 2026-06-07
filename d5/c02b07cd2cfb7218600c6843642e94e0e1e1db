@@ -1,0 +1,40 @@
+go/internal/query/supply_chain_impact_operational_anchor_test.go
+  s_f2f7fbb6f30866::t_5bfd56032f96d6 68-115,177-232,259-280
+go/internal/query/read-models.md
+  s_f2f7fbb6f30866::t_5b2e7695d0770b 204-209
+go/internal/query/supply_chain_impact_result.go
+  s_f2f7fbb6f30866::t_9729fd84e0feb3 108,110-112,114-116,138-143
+go/internal/reducer/supply_chain_impact_catalog_anchor_test.go
+  s_f2f7fbb6f30866::t_caaa28e1f43a78 42-80
+go/internal/reducer/README.md
+  s_f2f7fbb6f30866::t_9e59e6adad9285 733-738,740-741
+docs/public/reference/http-api/vulnerability-impact.md
+  s_f2f7fbb6f30866::t_94c9b25f6e0397 160-168
+go/internal/query/doc.go
+  s_f2f7fbb6f30866::t_9958e8f8a6e4fd 66-68
+go/internal/reducer/supply_chain_impact_missing_evidence.go
+  s_f2f7fbb6f30866::t_394d9fed050da8 31-33,52-56
+go/internal/reducer/supply_chain_impact_runtime.go
+  s_f2f7fbb6f30866::t_b09cd6ec24fe68 183-184,202-207
+go/internal/query/README.md
+  s_f2f7fbb6f30866::t_7c3dcc41447cad 190-194
+go/internal/query/supply_chain_impact_path.go
+  s_f2f7fbb6f30866::t_5f90e3d81d3783 141-142
+  s_f2f7fbb6f30866::t_4280b5e6882268 140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "d5c02b07cd2cfb7218600c6843642e94e0e1e1db",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
