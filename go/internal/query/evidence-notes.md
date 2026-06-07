@@ -203,6 +203,25 @@ No-Observability-Change: the candidate read still runs through
 `uncorrelated_cloud_resource_candidates` stage through existing
 `service_query.stage_started` and `service_query.stage_completed` log events.
 
+## Deployment trace config-derived cloud resources
+
+Deployment trace may promote CloudResource rows into `cloud_resources` from
+config-read evidence only when deployment evidence includes an explicit
+`READS_CONFIG_FROM` artifact. This keeps config-backed resources visible in the
+code-to-cloud story while preserving the stricter uncorrelated candidate
+contract for name or ARN matches that lack a workload-to-cloud relationship.
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestTraceDeploymentChainKeepsConfigDerivedCloudResources|TestConfigDerivedCloudResourceDependenciesRequireConfigReadEvidence'
+-count=1` failed before the trace preserved workload deployment evidence and
+loaded config-derived CloudResource rows, then passed after explicit config-read
+evidence produced `relationship_basis=deployment_config_read_evidence`.
+
+No-Observability-Change: config-derived resource reads use the existing
+`GraphQuery.Run` adapter and query telemetry, and the deployment-trace handler
+continues to expose the result through the existing `cloud_resources`,
+`deployment_overview`, and `deployment_fact_summary` response fields.
+
 ## Infra resource aggregate hot-path evidence (#690)
 
 The graph-backed infrastructure resource aggregate
