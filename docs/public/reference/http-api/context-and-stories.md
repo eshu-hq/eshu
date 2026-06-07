@@ -149,6 +149,14 @@ clients. It returns repository, workload, and service handles plus counts,
 `limit`, `truncated`, and limitations when the runtime can only return
 repository handles.
 
+Each workload and service handle carries an `environments` array resolved from
+graph evidence: `WorkloadInstance.environment` for materialized instances and
+the `Environment` nodes reached through the defining repository's deployment
+evidence (`(repo)-[:DEFINES]->(workload)` joined with
+`(repo)<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-(:EvidenceArtifact)-[:TARGETS_ENVIRONMENT]->(:Environment)`).
+A handle with no environment edge returns an empty array; environments are never
+inferred from repository or workload names.
+
 The optional `limit` caps each returned collection. The default is 2000 and the
 maximum accepted value is 5000.
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 )
 
@@ -166,41 +167,7 @@ func (h *RepositoryHandler) listCatalogWorkloadsFromGraph(
 	ctx context.Context,
 	limit int,
 ) ([]catalogWorkload, bool, error) {
-	rows, err := h.Neo4j.Run(ctx, `
-		MATCH (w:Workload)
-		OPTIONAL MATCH (repo:Repository)-[:DEFINES]->(w)
-		OPTIONAL MATCH (inst:WorkloadInstance)-[:INSTANCE_OF]->(w)
-		RETURN w.id AS id,
-		       w.name AS name,
-		       coalesce(w.kind, 'workload') AS kind,
-		       collect(DISTINCT repo.id) AS repo_ids,
-		       collect(DISTINCT repo.name) AS repo_names,
-		       collect(DISTINCT inst.environment) AS environments,
-		       count(DISTINCT inst) AS instance_count
-		ORDER BY name, id
-		LIMIT $limit
-	`, map[string]any{"limit": limit + 1})
-	if err != nil {
-		return nil, false, err
-	}
-	rows, truncated := trimCatalogRows(rows, limit)
-	workloads := make([]catalogWorkload, 0, len(rows))
-	for _, row := range rows {
-		workload := catalogWorkload{
-			ID:            StringVal(row, "id"),
-			Name:          StringVal(row, "name"),
-			Kind:          normalizedCatalogWorkloadKind(StringVal(row, "kind")),
-			RepoID:        firstNonEmptyCatalogValue(StringSliceVal(row, "repo_ids"), StringVal(row, "repo_id")),
-			RepoName:      firstNonEmptyCatalogValue(StringSliceVal(row, "repo_names"), StringVal(row, "repo_name")),
-			Environments:  compactStrings(StringSliceVal(row, "environments")),
-			InstanceCount: IntVal(row, "instance_count"),
-		}
-		if workload.Name == "" {
-			workload.Name = workload.ID
-		}
-		workloads = append(workloads, workload)
-	}
-	return workloads, truncated, nil
+	return h.assembleCatalogWorkloadsFromGraph(ctx, limit)
 }
 
 func (h *RepositoryHandler) listCatalogWorkloadIdentitiesFromContent(
@@ -332,13 +299,31 @@ func normalizedCatalogWorkloadKind(kind string) string {
 	return normalized
 }
 
-func firstNonEmptyCatalogValue(values []string, fallback string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
+// mergeCatalogEnvironments unions a workload's environment evidence from
+// WorkloadInstance.environment and TARGETS_ENVIRONMENT deployment evidence into
+// a deduplicated, deterministically ordered set. Both sources are derived from
+// graph edges, so a workload that materializes no WorkloadInstance still
+// reports the environments resolved through its repository's deployment
+// evidence. An empty result means no environment edge exists; it is never
+// fabricated from names.
+func mergeCatalogEnvironments(sources ...[]string) []string {
+	seen := make(map[string]struct{})
+	merged := make([]string, 0)
+	for _, source := range sources {
+		for _, value := range source {
+			trimmed := strings.TrimSpace(value)
+			if trimmed == "" {
+				continue
+			}
+			if _, exists := seen[trimmed]; exists {
+				continue
+			}
+			seen[trimmed] = struct{}{}
+			merged = append(merged, trimmed)
 		}
 	}
-	return fallback
+	sort.Strings(merged)
+	return merged
 }
 
 func compactStrings(values []string) []string {

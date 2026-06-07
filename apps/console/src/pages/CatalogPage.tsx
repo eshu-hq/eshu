@@ -12,18 +12,19 @@ export function CatalogPage({ model, onOpenService }: { readonly model: ConsoleM
       <Panel className="flush" title={`${rows.length} entries`} sub={model.source === "live" ? "live from /api/v0/catalog" : "demo fixtures"}
         action={<div className="searchbox" style={{ minWidth: 220, height: 34 }}><input placeholder="Filter catalog…" value={q} onChange={(e) => setQ(e.target.value)} /></div>}>
         <table className="tbl">
-          <thead><tr><th>Name</th><th>Kind</th><th>Repository</th><th>Truth</th><th>Freshness</th></tr></thead>
+          <thead><tr><th>Name</th><th>Kind</th><th>Repository</th><th>Environments</th><th>Truth</th><th>Freshness</th></tr></thead>
           <tbody>
             {rows.map((s) => (
               <tr key={s.id} onClick={() => onOpenService?.(s.name)} style={{ cursor: "pointer" }}>
                 <td className="t-name">{s.name}</td>
                 <td className="t-mut">{s.kind}</td>
                 <td className="t-mut mono" style={{ fontSize: ".78rem" }}>{s.repo || "—"}</td>
+                <td className="t-mut">{s.environments.length > 0 ? s.environments.join(", ") : "—"}</td>
                 <td><TruthChip level={s.truth === "fallback" ? "inferred" : s.truth === "derived" ? "derived" : "exact"} /></td>
                 <td><FreshDot state={s.freshness === "building" ? "lagging" : s.freshness === "stale" || s.freshness === "unavailable" ? "stale" : "fresh"} /></td>
               </tr>
             ))}
-            {rows.length === 0 ? <tr><td colSpan={5} className="empty">No catalog entries from this source.</td></tr> : null}
+            {rows.length === 0 ? <tr><td colSpan={6} className="empty">No catalog entries from this source.</td></tr> : null}
           </tbody>
         </table>
       </Panel>
