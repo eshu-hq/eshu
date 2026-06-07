@@ -14,12 +14,17 @@ type AdvisoryEvidenceStore interface {
 	ListAdvisoryEvidence(context.Context, AdvisoryEvidenceFilter) ([]AdvisoryEvidenceRow, error)
 }
 
-// AdvisoryEvidenceFilter bounds source-evidence reads to an advisory, CVE, or
-// package anchor. Source narrows an already anchored read.
+// AdvisoryEvidenceFilter bounds source-evidence reads to an advisory, CVE,
+// package, repository, service, or workload anchor. Repository, service, and
+// workload anchors derive advisory lookups only from reducer-owned impact
+// findings; provider-alert-only rows are not advisory evidence anchors.
 type AdvisoryEvidenceFilter struct {
 	CVEID            string
 	AdvisoryID       string
 	PackageID        string
+	RepositoryID     string
+	ServiceID        string
+	WorkloadID       string
 	Source           string
 	AfterAdvisoryKey string
 	Limit            int

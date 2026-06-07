@@ -118,9 +118,10 @@ infer completeness from row count alone.
   Composer evidence gaps stay explicit instead of being classified as
   unsupported.
   (`supply_chain_impact_readiness_postgres.go`)
-- `AdvisoryEvidenceStore` — port for source-only vulnerability advisory
-  evidence grouped by canonical CVE/GHSA/OSV/NVD identity without implying
-  impact (`supply_chain_advisory_evidence.go`)
+- `AdvisoryEvidenceStore` — source-only advisory evidence grouped by canonical
+  CVE/GHSA/OSV/NVD identity. Repository, service, and workload scopes resolve
+  through active reducer-owned impact findings, not provider-alert-only rows
+  (`supply_chain_advisory_evidence.go`)
 - `PostgresAdvisoryEvidenceStore` — Postgres-backed source fact read model
   for `GET /api/v0/supply-chain/advisories/evidence`
   (`supply_chain_advisory_evidence.go`)
@@ -490,8 +491,7 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
 
 - [read-models.md](read-models.md) for route-specific read-model bounds,
   evidence, and investigation-route contracts.
-- [dead-code-reachability.md](dead-code-reachability.md) for dead-code language
-  roots, exactness blockers, and candidate paging rules.
+- [dead-code-reachability.md](dead-code-reachability.md) for dead-code language roots, exactness blockers, and candidate paging rules.
 - [evidence-notes.md](evidence-notes.md) for issue-specific no-regression and
   observability notes that do not belong in the package overview.
 - `docs/public/reference/http-api.md` for the public HTTP and envelope contract.

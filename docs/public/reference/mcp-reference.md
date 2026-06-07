@@ -39,7 +39,7 @@ families are:
 | Context and stories | `resolve_entity`, `get_entity_context`, `get_workload_context`, `get_workload_story`, `get_service_context`, `get_service_story`, `investigate_service`, `get_incident_context`, `list_work_item_evidence` |
 | Content and citations | `get_file_content`, `get_file_lines`, `get_entity_content`, `build_evidence_citation_packet`, `search_file_content`, `search_entity_content` |
 | Package registry | `list_package_registry_packages`, `list_package_registry_versions`, `list_package_registry_dependencies`, `list_package_registry_correlations` |
-| CI/CD and supply chain | `list_ci_cd_run_correlations`, `list_supply_chain_impact_findings`, `explain_supply_chain_impact`, `list_security_alert_reconciliations`, `list_sbom_attestation_attachments` |
+| CI/CD and supply chain | `list_ci_cd_run_correlations`, `list_advisory_evidence`, `list_supply_chain_impact_findings`, `explain_supply_chain_impact`, `list_security_alert_reconciliations`, `list_sbom_attestation_attachments` |
 | Documentation truth | `list_documentation_findings`, `list_documentation_facts`, `get_documentation_evidence_packet`, `check_documentation_evidence_packet_freshness` |
 | Runtime status | `list_ingesters`, `get_ingester_status`, `get_index_status` |
 | Diagnostics | `execute_cypher_query`, `visualize_graph_query` |

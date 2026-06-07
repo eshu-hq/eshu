@@ -65,6 +65,57 @@ func TestOpenAPISpecIncludesSBOMAttestationAttachments(t *testing.T) {
 	}
 }
 
+func TestOpenAPISpecIncludesAdvisoryEvidenceRepositoryScope(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
+	}
+
+	paths := mustMapField(t, spec, "paths")
+	path := mustMapField(t, paths, "/api/v0/supply-chain/advisories/evidence")
+	get := mustMapField(t, path, "get")
+	if got, want := get["operationId"], "listAdvisoryEvidence"; got != want {
+		t.Fatalf("operationId = %#v, want %#v", got, want)
+	}
+	parameters, ok := get["parameters"].([]any)
+	if !ok {
+		t.Fatalf("parameters = %T, want []any", get["parameters"])
+	}
+	parameterDescriptions := map[string]string{}
+	for _, parameter := range parameters {
+		parameterMap, ok := parameter.(map[string]any)
+		if !ok {
+			t.Fatalf("parameter = %T, want map[string]any", parameter)
+		}
+		name, _ := parameterMap["name"].(string)
+		description, _ := parameterMap["description"].(string)
+		parameterDescriptions[name] = description
+	}
+	for _, want := range []string{"repository_id", "service_id", "workload_id"} {
+		if _, ok := parameterDescriptions[want]; !ok {
+			t.Fatalf("parameters missing %q", want)
+		}
+	}
+	if got := parameterDescriptions["repository_id"]; !strings.Contains(got, "selector") {
+		t.Fatalf("repository_id description = %q, want selector semantics", got)
+	}
+	responses := mustMapField(t, get, "responses")
+	twoHundred := mustMapField(t, responses, "200")
+	content := mustMapField(t, twoHundred, "content")
+	appJSON := mustMapField(t, content, "application/json")
+	schema := mustMapField(t, appJSON, "schema")
+	properties := mustMapField(t, schema, "properties")
+	if _, ok := properties["scope"]; !ok {
+		t.Fatal("advisory evidence response schema missing scope")
+	}
+	required := mustStringSliceField(t, schema, "required")
+	if !containsOpenAPIEnumString(required, "scope") {
+		t.Fatalf("required = %#v, want scope", required)
+	}
+}
+
 func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 	t.Parallel()
 
