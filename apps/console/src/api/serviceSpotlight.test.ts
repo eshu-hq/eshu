@@ -2,6 +2,78 @@ import { describe, expect, it } from "vitest";
 import { serviceSpotlightFromContext, type ServiceContextResponse } from "./serviceSpotlight";
 
 describe("serviceSpotlightFromContext", () => {
+  it("normalizes service story support evidence without fabricating links", () => {
+    const spotlight = serviceSpotlightFromContext({
+      ...serviceContext,
+      support_overview: {
+        target_support: {
+          ambiguous_count: 1,
+          evidence: [
+            {
+              fact_id: "jira-123",
+              fact_kind: "work_item.record",
+              observed_at: "2026-06-07T11:33:48Z",
+              payload: {
+                issue_type_name: "Incident",
+                provider: "jira_cloud",
+                status_name: "In Progress",
+                url_present: true,
+                url_redacted: "https://jira.example.test/browse/PAY-123",
+                work_item_key: "PAY-123"
+              },
+              scope_id: "jira:site:example",
+              source_system: "jira"
+            },
+            {
+              fact_id: "pd-service",
+              fact_kind: "incident_routing.observed_pagerduty_service",
+              payload: {
+                outcome: "exact",
+                provider: "pagerduty",
+                service_id: "P-SVC",
+                source_class: "observed",
+                status: "active"
+              },
+              scope_id: "pagerduty:prod",
+              source_system: "pagerduty"
+            }
+          ],
+          evidence_count: 2,
+          incident_routing_count: 1,
+          missing_evidence: [],
+          work_item_count: 1
+        }
+      }
+    }, "api-node-boats");
+
+    expect(spotlight.support).toMatchObject({
+      ambiguousCount: 1,
+      evidenceCount: 2,
+      incidentRoutingCount: 1,
+      missingEvidence: [],
+      workItemCount: 1
+    });
+    expect(spotlight.support?.evidence).toEqual([
+      expect.objectContaining({
+        factId: "jira-123",
+        factKind: "work_item.record",
+        issueType: "Incident",
+        label: "Jira PAY-123",
+        provider: "jira_cloud",
+        sourceUrlText: "https://jira.example.test/browse/PAY-123",
+        status: "In Progress"
+      }),
+      expect.objectContaining({
+        factId: "pd-service",
+        factKind: "incident_routing.observed_pagerduty_service",
+        label: "PagerDuty routing",
+        outcome: "exact",
+        provider: "pagerduty",
+        status: "active"
+      })
+    ]);
+  });
+
   it("keeps Terraform config access out of deployment lane sources", () => {
     const spotlight = serviceSpotlightFromContext(serviceContext, "api-node-boats");
 
