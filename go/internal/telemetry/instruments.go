@@ -612,6 +612,8 @@ type Instruments struct {
 	// authoritative.
 	IaCResourceListDuration              metric.Float64Histogram
 	IaCResourceListErrors                metric.Int64Counter
+	CloudResourceListDuration            metric.Float64Histogram
+	CloudResourceListErrors              metric.Int64Counter
 	SharedAcceptanceUpsertDuration       metric.Float64Histogram
 	SharedAcceptanceLookupDuration       metric.Float64Histogram
 	SharedAcceptancePrefetchSize         metric.Int64Histogram
@@ -2384,6 +2386,24 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IaCResourceListErrors counter: %w", err)
+	}
+
+	inst.CloudResourceListDuration, err = meter.Float64Histogram(
+		"eshu_dp_cloud_resource_list_duration_seconds",
+		metric.WithDescription("Cloud resource list query duration for GET /api/v0/cloud/resources"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(neo4jQueryBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CloudResourceListDuration histogram: %w", err)
+	}
+
+	inst.CloudResourceListErrors, err = meter.Int64Counter(
+		"eshu_dp_cloud_resource_list_errors_total",
+		metric.WithDescription("Cloud resource list query errors for GET /api/v0/cloud/resources"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CloudResourceListErrors counter: %w", err)
 	}
 
 	inst.SharedAcceptanceUpsertDuration, err = meter.Float64Histogram(

@@ -135,6 +135,7 @@ func TestSpanNames(t *testing.T) {
 		"query.iac_resources",
 		"query.infra_resource_search",
 		"query.infra_resource_aggregate",
+		"query.cloud_resource_list",
 		"query.code_topic_investigation",
 		"query.hardcoded_secret_investigation",
 		"query.dead_code_investigation",
