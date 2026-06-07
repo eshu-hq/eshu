@@ -169,6 +169,14 @@ AWS resources to Terraform state; when a generation contains one or more
 `aws_resource` facts, `buildAWSCloudRuntimeDriftReducerIntent` emits one
 `aws_cloud_runtime_drift` reducer intent for the AWS scope/generation so the
 reducer can run the bounded ARN join after source-local projection succeeds.
+The same `aws_resource` generation also emits one
+`workload_cloud_relationship_materialization` intent keyed by
+`aws_resource_materialization:<scope>` so the reducer waits for the
+CloudResource substrate before projecting exact workload-anchored `USES` edges.
+Workload endpoints are still exact `MATCH` anchors in the graph writer; missing
+or unmaterialized workload instances leave the row unwritten rather than
+fabricating a relationship. The projector never writes those service/cloud
+relationships itself.
 RDS posture facts follow that same reducer-owned handoff. When a generation
 contains an `rds_instance_posture` fact,
 `buildRDSPostureMaterializationReducerIntent` emits one

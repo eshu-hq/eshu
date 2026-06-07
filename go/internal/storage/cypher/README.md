@@ -906,6 +906,36 @@ committed zero nodes.
   shape. Only add backend-specific behavior after proving the shared Cypher
   contract cannot express the needed correctness or performance property.
 
+`WorkloadCloudRelationshipWriter` writes reducer-owned `USES` edges from
+existing workload instances to existing cloud resources. Its write shape is
+batched `UNWIND`, `MATCH (resource:CloudResource {uid})`, `MATCH
+(workload:Workload {id})<-[:INSTANCE_OF]-(instance:WorkloadInstance)` plus an
+exact `instance.environment = row.environment` filter, then
+`MERGE (instance)-[:USES]->(resource)` with mutable evidence and source
+provenance fields in `SET`. It never creates endpoint nodes; a missing workload
+instance, missing environment match, or missing CloudResource is a graph no-op
+for that row. Retract matches only
+`(:WorkloadInstance)-[rel:USES]->(:CloudResource)` with the reducer evidence
+source and scope filter.
+
+No-Regression Evidence: `go test ./internal/storage/cypher -run
+'WorkloadCloudRelationshipWriter' -count=1` proves static relationship-token
+interpolation, MATCH-only endpoint anchoring, relationship-property-free MERGE,
+and evidence-scoped retract. The writer follows the same one batched statement
+per chunk pattern as the existing CloudResource edge writers. `go test
+./internal/storage/cypher -run '^$' -bench
+'Benchmark(CloudResourceEdgeWriter|WorkloadCloudRelationshipWriter)$' -benchmem
+-count=1` on Apple M4 Pro measured the existing CloudResource edge writer at
+1.803331 ms/op and the workload-cloud writer at 3.121138 ms/op for the same
+5000-row, batch-500, no-op group-executor shape, preserving bounded batched
+dispatch with no N+1 graph calls.
+
+Observability Evidence: each statement carries phase
+`workload_cloud_relationship_edge`, entity label
+`WORKLOAD_USES_CLOUD_RESOURCE`, and a bounded summary with row count. Existing
+Cypher instrumentation records graph query duration, batch size, retries, and
+statement summary; no new metric labels or backend-specific branches are added.
+
 ## Related docs
 
 - `docs/public/architecture.md` — pipeline and ownership table

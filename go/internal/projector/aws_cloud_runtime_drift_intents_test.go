@@ -33,9 +33,9 @@ func TestBuildProjectionQueuesSingleAWSCloudRuntimeDriftIntent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildProjection() error = %v, want nil", err)
 	}
-	// AWS resource facts enqueue both the runtime-drift intent and the
-	// CloudResource node materialization intent (issue #805).
-	if got, want := len(projection.reducerIntents), 2; got != want {
+	// AWS resource facts enqueue runtime-drift, CloudResource node
+	// materialization (issue #805), and the workload-cloud relationship slice.
+	if got, want := len(projection.reducerIntents), 3; got != want {
 		t.Fatalf("len(reducerIntents) = %d, want %d", got, want)
 	}
 	intent := intentForDomain(t, projection.reducerIntents, reducer.DomainAWSCloudRuntimeDrift)

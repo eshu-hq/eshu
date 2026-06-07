@@ -349,7 +349,7 @@ func TestClaimBatchGatesAWSRelationshipsOnCanonicalCloudResourceReadiness(t *tes
 
 	query := db.queries[0].query
 	for _, want := range []string{
-		"domain NOT IN ('aws_relationship_materialization', 'observability_coverage_materialization', 'iam_can_assume_materialization', 's3_logs_to_materialization', 's3_external_principal_grant_materialization', 'rds_posture_materialization', 'iam_instance_profile_role_materialization', 'ec2_internet_exposure_materialization', 's3_internet_exposure_materialization')",
+		"domain NOT IN ('aws_relationship_materialization', 'workload_cloud_relationship_materialization', 'observability_coverage_materialization', 'iam_can_assume_materialization', 's3_logs_to_materialization', 's3_external_principal_grant_materialization', 'rds_posture_materialization', 'iam_instance_profile_role_materialization', 'ec2_internet_exposure_materialization', 's3_internet_exposure_materialization')",
 		"FROM graph_projection_phase_state AS aws_nodes",
 		"aws_nodes.scope_id = fact_work_items.scope_id",
 		"aws_nodes.acceptance_unit_id = COALESCE(NULLIF(fact_work_items.payload->>'entity_key', ''), fact_work_items.scope_id)",
@@ -357,7 +357,7 @@ func TestClaimBatchGatesAWSRelationshipsOnCanonicalCloudResourceReadiness(t *tes
 		"aws_nodes.generation_id = fact_work_items.generation_id",
 		"aws_nodes.keyspace = 'cloud_resource_uid'",
 		"aws_nodes.phase = 'canonical_nodes_committed'",
-		"same.domain NOT IN ('aws_relationship_materialization', 'observability_coverage_materialization', 'iam_can_assume_materialization', 's3_logs_to_materialization', 's3_external_principal_grant_materialization', 'rds_posture_materialization', 'iam_instance_profile_role_materialization', 'ec2_internet_exposure_materialization', 's3_internet_exposure_materialization')",
+		"same.domain NOT IN ('aws_relationship_materialization', 'workload_cloud_relationship_materialization', 'observability_coverage_materialization', 'iam_can_assume_materialization', 's3_logs_to_materialization', 's3_external_principal_grant_materialization', 'rds_posture_materialization', 'iam_instance_profile_role_materialization', 'ec2_internet_exposure_materialization', 's3_internet_exposure_materialization')",
 		"same_nodes.scope_id = same.scope_id",
 		"same_nodes.acceptance_unit_id = COALESCE(NULLIF(same.payload->>'entity_key', ''), same.scope_id)",
 		"same_nodes.source_run_id = same.generation_id",

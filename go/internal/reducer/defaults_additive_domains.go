@@ -180,6 +180,16 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, awsRelationships)
 	}
+	if handlers.FactLoader != nil && handlers.WorkloadCloudRelationshipEdgeWriter != nil {
+		workloadCloud := workloadCloudRelationshipMaterializationDomainDefinition()
+		workloadCloud.Handler = WorkloadCloudRelationshipMaterializationHandler{
+			FactLoader:           handlers.FactLoader,
+			EdgeWriter:           handlers.WorkloadCloudRelationshipEdgeWriter,
+			ReadinessLookup:      handlers.ReadinessLookup,
+			PriorGenerationCheck: handlers.PriorGenerationCheck,
+		}
+		definitions = append(definitions, workloadCloud)
+	}
 	if handlers.FactLoader != nil && handlers.ObservabilityCoverageEdgeWriter != nil {
 		coverageEdges := observabilityCoverageMaterializationDomainDefinition()
 		coverageEdges.Handler = ObservabilityCoverageMaterializationHandler{

@@ -272,12 +272,10 @@ fact-summary sections. Mapping modes are:
 
 Service story and deployment trace keep canonical `cloud_resources` separate
 from `uncorrelated_cloud_resources`. `cloud_resources` requires a materialized
-workload-to-cloud relationship, an exact reducer-owned service anchor admitted
-from cloud resource evidence, or explicit `READS_CONFIG_FROM` deployment
-evidence whose path-like or ARN-like config identity matches an AWS SSM
-parameter or Secrets Manager secret `arn`/`resource_id`; trailing wildcard
-markers on config paths are normalized to a concrete prefix before matching.
-Plain service-name substrings are not enough to promote a cloud dependency.
+workload-to-cloud relationship owned by the reducer. Exact service anchors and
+explicit `READS_CONFIG_FROM` deployment evidence stay candidate or
+missing-evidence inputs until that reducer-owned `USES` edge exists. Plain
+service-name substrings are not enough to promote a cloud dependency.
 `uncorrelated_cloud_resources` is a bounded candidate list for cloud resources
 whose safe identity or anchor handles match the service, including `name`,
 `id`, `kind`, `resource_type`, `resource_id`, `arn`, `service_kind`,

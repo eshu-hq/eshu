@@ -123,6 +123,13 @@ type DefaultHandlers struct {
 	// on ReadinessLookup so edges never resolve against uncommitted nodes.
 	CloudResourceEdgeWriter CloudResourceEdgeWriter
 
+	// WorkloadCloudRelationshipEdgeWriter projects exact workload anchors on
+	// CloudResource facts into canonical WorkloadInstance USES CloudResource
+	// edges. It must be non-nil alongside FactLoader for the registry to register
+	// DomainWorkloadCloudRelationshipMaterialization; missing either one keeps the
+	// domain unregistered rather than dropping graph truth.
+	WorkloadCloudRelationshipEdgeWriter WorkloadCloudRelationshipEdgeWriter
+
 	// ObservabilityCoverageEdgeWriter projects exact observability coverage
 	// decisions into canonical COVERS edges between CloudResource nodes (issue
 	// #391 PR3). It must be non-nil alongside FactLoader for the registry to

@@ -110,8 +110,14 @@ func deploymentFactSummaryLimitations(instances []map[string]any, configEnvironm
 func (h *ImpactHandler) fetchCloudResources(ctx context.Context, workloadID string) ([]map[string]any, error) {
 	rows, err := h.Neo4j.Run(ctx, `
 		MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:USES]->(c:CloudResource)
-		RETURN DISTINCT c.id as id, c.name as name, c.kind as kind, c.provider as provider, c.environment as environment,
-		       rel.confidence as confidence, rel.reason as reason
+		RETURN DISTINCT c.id as id, c.name as name, c.kind as kind, c.provider as provider,
+		       coalesce(rel.environment, c.environment, i.environment, '') as environment,
+		       rel.confidence as confidence, rel.reason as reason,
+		       rel.relationship_basis as relationship_basis, rel.resolution_mode as resolution_mode,
+		       rel.evidence_source as evidence_source, rel.service_anchor_source as service_anchor_source,
+		       rel.service_anchor_reason as service_anchor_reason, rel.source_fact_id as source_fact_id,
+		       rel.stable_fact_key as stable_fact_key, rel.source_system as source_system,
+		       rel.source_record_id as source_record_id, rel.collector_kind as collector_kind
 		ORDER BY c.name
 	`, map[string]any{"workload_id": workloadID})
 	if err != nil {
@@ -120,13 +126,23 @@ func (h *ImpactHandler) fetchCloudResources(ctx context.Context, workloadID stri
 	resources := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		resources = append(resources, map[string]any{
-			"id":          StringVal(row, "id"),
-			"name":        StringVal(row, "name"),
-			"kind":        StringVal(row, "kind"),
-			"provider":    StringVal(row, "provider"),
-			"environment": StringVal(row, "environment"),
-			"confidence":  floatVal(row, "confidence"),
-			"reason":      StringVal(row, "reason"),
+			"id":                    StringVal(row, "id"),
+			"name":                  StringVal(row, "name"),
+			"kind":                  StringVal(row, "kind"),
+			"provider":              StringVal(row, "provider"),
+			"environment":           StringVal(row, "environment"),
+			"confidence":            floatVal(row, "confidence"),
+			"reason":                StringVal(row, "reason"),
+			"relationship_basis":    StringVal(row, "relationship_basis"),
+			"resolution_mode":       StringVal(row, "resolution_mode"),
+			"evidence_source":       StringVal(row, "evidence_source"),
+			"service_anchor_source": StringVal(row, "service_anchor_source"),
+			"service_anchor_reason": StringVal(row, "service_anchor_reason"),
+			"source_fact_id":        StringVal(row, "source_fact_id"),
+			"stable_fact_key":       StringVal(row, "stable_fact_key"),
+			"source_system":         StringVal(row, "source_system"),
+			"source_record_id":      StringVal(row, "source_record_id"),
+			"collector_kind":        StringVal(row, "collector_kind"),
 		})
 	}
 	return resources, nil

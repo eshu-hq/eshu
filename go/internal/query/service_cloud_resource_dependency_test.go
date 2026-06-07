@@ -3,12 +3,11 @@ package query
 import (
 	"context"
 	"database/sql/driver"
-	"reflect"
 	"strings"
 	"testing"
 )
 
-func TestEnrichServiceQueryContextPromotesStrongAWSCloudResourceAnchor(t *testing.T) {
+func TestEnrichServiceQueryContextKeepsStrongAWSCloudResourceAnchorAsCandidate(t *testing.T) {
 	t.Parallel()
 
 	db := openContentReaderTestDB(t, emptyServiceQueryContentResults())
@@ -18,10 +17,13 @@ func TestEnrichServiceQueryContextPromotesStrongAWSCloudResourceAnchor(t *testin
 	err := enrichServiceQueryContextWithOptions(
 		context.Background(),
 		fakeGraphReader{
-			run: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
+			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				call := recordServiceCloudResourceGraphCall(params)
 				graphCalls = append(graphCalls, call)
-				if isStrongServiceCloudResourceDependencyCall(call) {
+				if strings.Contains(cypher, "rel:USES") {
+					return nil, nil
+				}
+				if strings.Contains(cypher, "WHERE (n:CloudResource)") {
 					return []map[string]any{
 						{
 							"id":                    "cloud-resource:orders-listener",
@@ -47,25 +49,23 @@ func TestEnrichServiceQueryContextPromotesStrongAWSCloudResourceAnchor(t *testin
 	if err != nil {
 		t.Fatalf("enrichServiceQueryContextWithOptions() error = %v, want nil", err)
 	}
-	if got, want := countServiceCloudResourceGraphCalls(graphCalls, isStrongServiceCloudResourceDependencyCall), 1; got != want {
-		t.Fatalf("strong cloud resource dependency graph calls = %d, want %d", got, want)
-	}
-	if got := countServiceCloudResourceGraphCalls(graphCalls, isUncorrelatedCloudResourceCandidateCall); got != 0 {
-		t.Fatalf("uncorrelated cloud resource candidate graph calls = %d, want 0", got)
+	if got, want := countServiceCloudResourceGraphCalls(graphCalls, isUncorrelatedCloudResourceCandidateCall), 1; got != want {
+		t.Fatalf("uncorrelated cloud resource candidate graph calls = %d, want %d", got, want)
 	}
 
 	resources := mapSliceValue(workloadContext, "cloud_resources")
-	if got, want := len(resources), 1; got != want {
+	if got, want := len(resources), 0; got != want {
 		t.Fatalf("len(cloud_resources) = %d, want %d", got, want)
 	}
-	if got, want := StringVal(resources[0], "relationship_basis"), "aws_resource_service_anchor"; got != want {
-		t.Fatalf("relationship_basis = %q, want %q", got, want)
+	candidates := mapSliceValue(workloadContext, "uncorrelated_cloud_resources")
+	if got, want := len(candidates), 1; got != want {
+		t.Fatalf("len(uncorrelated_cloud_resources) = %d, want %d", got, want)
 	}
-	if got, want := StringVal(resources[0], "service_anchor_status"), "strong"; got != want {
+	if got, want := StringVal(candidates[0], "candidate_status"), "uncorrelated"; got != want {
+		t.Fatalf("candidate_status = %q, want %q", got, want)
+	}
+	if got, want := StringVal(candidates[0], "service_anchor_status"), "strong"; got != want {
 		t.Fatalf("service_anchor_status = %q, want %q", got, want)
-	}
-	if candidates := mapSliceValue(workloadContext, "uncorrelated_cloud_resources"); len(candidates) != 0 {
-		t.Fatalf("uncorrelated_cloud_resources = %#v, want omitted when strong anchor promotes", candidates)
 	}
 
 	story := buildServiceStoryResponse("orders-api", workloadContext)
@@ -74,100 +74,74 @@ func TestEnrichServiceQueryContextPromotesStrongAWSCloudResourceAnchor(t *testin
 	if cloud == nil {
 		t.Fatalf("cloud_dependencies segment missing from trace: %#v", trace)
 	}
-	if got, want := StringVal(cloud, "status"), "derived"; got != want {
+	if got, want := StringVal(cloud, "status"), "missing_evidence"; got != want {
 		t.Fatalf("cloud_dependencies status = %q, want %q", got, want)
 	}
-	if got, want := IntVal(mapValue(story, "deployment_overview"), "cloud_resource_count"), 1; got != want {
+	if got, want := StringVal(cloud, "missing_relationship"), "workload_cloud_relationship"; got != want {
+		t.Fatalf("missing_relationship = %q, want %q", got, want)
+	}
+	if got, want := IntVal(mapValue(story, "deployment_overview"), "cloud_resource_count"), 0; got != want {
 		t.Fatalf("deployment_overview.cloud_resource_count = %d, want %d", got, want)
 	}
 }
 
-func TestLoadServiceCloudResourceDependenciesPromotesReadConfigCloudResource(t *testing.T) {
+func TestEnrichServiceQueryContextPrefersMaterializedWorkloadCloudRelationship(t *testing.T) {
 	t.Parallel()
 
-	var seenCypher string
-	var seenParams map[string]any
-	got, err := loadServiceCloudResourceDependencies(
+	db := openContentReaderTestDB(t, emptyServiceQueryContentResults())
+	workloadContext := sampleServiceCloudDependencyContext()
+	materializedCalls := 0
+	fallbackCalls := 0
+
+	err := enrichServiceQueryContextWithOptions(
 		context.Background(),
 		fakeGraphReader{
-			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				seenCypher = cypher
-				seenParams = copyMap(params)
-				return []map[string]any{
-					{
-						"id":            "cloud-resource:ssm-config",
-						"name":          "orders-api/database-url",
-						"resource_type": "aws_ssm_parameter",
-						"provider":      "aws",
-						"resource_id":   "arn:aws:ssm:example:parameter/config/orders-api/database-url",
-					},
-				}, nil
+			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+				if strings.Contains(cypher, "rel:USES") {
+					materializedCalls++
+					return []map[string]any{
+						{
+							"id":                    "cloud-resource:ssm-config",
+							"name":                  "orders-api/database-url",
+							"resource_type":         "aws_ssm_parameter",
+							"provider":              "aws",
+							"region":                "us-east-1",
+							"relationship_basis":    "aws_resource_service_anchor",
+							"resolution_mode":       "explicit_workload_anchor",
+							"evidence_source":       "reducer/workload-cloud-relationship",
+							"service_anchor_source": "payload.workload_id",
+							"service_anchor_reason": "explicit_workload_anchor",
+						},
+					}, nil
+				}
+				if strings.Contains(cypher, "service_anchor_status = 'strong'") {
+					fallbackCalls++
+				}
+				return nil, nil
 			},
 		},
-		"workload:orders-api",
-		"orders-api",
-		[]string{"/config/orders-api/*"},
-		serviceStoryItemLimit,
+		NewContentReader(db),
+		workloadContext,
+		serviceQueryEnrichmentOptions{
+			IncludeRelatedModuleUsage: true,
+			Operation:                 "service_story",
+		},
 	)
 	if err != nil {
-		t.Fatalf("loadServiceCloudResourceDependencies() error = %v, want nil", err)
+		t.Fatalf("enrichServiceQueryContextWithOptions() error = %v, want nil", err)
 	}
-	for _, want := range []string{
-		"aws_ssm_parameter",
-		"aws_secretsmanager_secret",
-		"CONTAINS $config_ref_0",
-	} {
-		if !strings.Contains(seenCypher, want) {
-			t.Fatalf("cypher = %q, want config-resource predicate containing %q", seenCypher, want)
-		}
+	if materializedCalls != 1 {
+		t.Fatalf("materialized cloud dependency calls = %d, want 1", materializedCalls)
 	}
-	if got, want := seenParams["config_ref_0"], "/config/orders-api/"; got != want {
-		t.Fatalf("config_ref_0 = %#v, want %#v", got, want)
+	if fallbackCalls != 0 {
+		t.Fatalf("fallback cloud dependency calls = %d, want 0 when materialized edge exists", fallbackCalls)
 	}
-	if got, want := len(got), 1; got != want {
-		t.Fatalf("len(resources) = %d, want %d", got, want)
+	resources := mapSliceValue(workloadContext, "cloud_resources")
+	if got, want := len(resources), 1; got != want {
+		t.Fatalf("len(cloud_resources) = %d, want %d", got, want)
 	}
-	resource := got[0]
-	if got, want := StringVal(resource, "relationship_basis"), "deployment_config_read_evidence"; got != want {
+	if got, want := StringVal(resources[0], "relationship_basis"), "aws_resource_service_anchor"; got != want {
 		t.Fatalf("relationship_basis = %q, want %q", got, want)
-	}
-	if got, want := StringVal(resource, "service_anchor_status"), "strong"; got != want {
-		t.Fatalf("service_anchor_status = %q, want %q", got, want)
-	}
-	if got, want := StringVal(resource, "service_anchor_source"), "deployment_evidence.reads_config_from"; got != want {
-		t.Fatalf("service_anchor_source = %q, want %q", got, want)
-	}
-}
-
-func TestServiceCloudResourceConfigRefsUsesReadConfigIdentityEvidence(t *testing.T) {
-	t.Parallel()
-
-	workloadContext := sampleServiceCloudDependencyContext()
-	workloadContext["deployment_evidence"] = map[string]any{
-		"artifacts": []map[string]any{
-			{
-				"relationship_type": "READS_CONFIG_FROM",
-				"matched_value":     "/config/orders-api/*",
-				"path":              "terraform/services/orders.tf",
-			},
-			{
-				"relationship_type": "PROVISIONS_DEPENDENCY_FOR",
-				"matched_value":     "/config/provisioning-only",
-			},
-			{
-				"relationship_type": "READS_CONFIG_FROM",
-				"path":              "terraform/services/orders.tf",
-			},
-			{
-				"relationship_type": "READS_CONFIG_FROM",
-				"matched_value":     "orders-api",
-			},
-		},
-	}
-
-	got := serviceCloudResourceConfigRefs(workloadContext)
-	if want := []string{"/config/orders-api/"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("config refs = %#v, want %#v", got, want)
 	}
 }
 
@@ -181,7 +155,7 @@ func TestEnrichServiceQueryContextKeepsAmbiguousAWSCloudResourceAnchorAsCandidat
 		context.Background(),
 		fakeGraphReader{
 			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-				if strings.Contains(cypher, "service_anchor_status = 'strong'") {
+				if strings.Contains(cypher, "rel:USES") {
 					return nil, nil
 				}
 				if strings.Contains(cypher, "WHERE (n:CloudResource)") {
@@ -245,9 +219,9 @@ func TestEnrichServiceQueryContextDoesNotPromoteWrongTargetAWSCloudResourceAncho
 		context.Background(),
 		fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if strings.Contains(cypher, "service_anchor_status = 'strong'") {
-					if params["service_name"] != "orders-api" {
-						t.Fatalf("service_name param = %#v, want selected service", params["service_name"])
+				if strings.Contains(cypher, "rel:USES") {
+					if params["workload_id"] != "workload:orders-api" {
+						t.Fatalf("workload_id param = %#v, want selected workload", params["workload_id"])
 					}
 					return nil, nil
 				}
@@ -329,18 +303,11 @@ func countServiceCloudResourceGraphCalls(
 	return count
 }
 
-func isStrongServiceCloudResourceDependencyCall(call serviceCloudResourceGraphCall) bool {
-	return call.params["workload_id"] == "workload:orders-api" &&
-		call.params["service_name"] == "orders-api" &&
-		call.params["service_token"] == "orders-api" &&
-		call.params["limit"] == serviceStoryItemLimit
-}
-
 func isUncorrelatedCloudResourceCandidateCall(call serviceCloudResourceGraphCall) bool {
 	_, hasWorkloadID := call.params["workload_id"]
 	return !hasWorkloadID &&
-		call.params["service_name"] == "orders-api" &&
-		call.params["service_token"] == "orders-api" &&
+		call.params["query"] == "orders-api" &&
+		call.params["resource_type_query"] == "orders-api" &&
 		call.params["limit"] == serviceStoryItemLimit
 }
 

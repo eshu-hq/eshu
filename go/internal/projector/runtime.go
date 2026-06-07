@@ -249,6 +249,9 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 	if intent, ok := buildAWSResourceMaterializationReducerIntent(scopeValue, generation, inputFacts); ok {
 		intents = append(intents, intent)
 	}
+	if intent, ok := buildWorkloadCloudRelationshipMaterializationReducerIntent(scopeValue, generation, inputFacts); ok {
+		intents = append(intents, intent)
+	}
 	if intent, ok := buildEC2InstanceNodeMaterializationReducerIntent(scopeValue, generation, inputFacts); ok {
 		intents = append(intents, intent)
 	}

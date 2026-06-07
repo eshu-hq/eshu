@@ -81,6 +81,13 @@ const (
 	// relationship edge projection (issue #805) joins against; see
 	// docs/internal/aws-relationship-edge-materialization-design.md.
 	DomainAWSResourceMaterialization Domain = "aws_resource_materialization"
+	// DomainWorkloadCloudRelationshipMaterialization projects exact
+	// reducer-owned service/workload anchors on CloudResource facts into
+	// canonical WorkloadInstance USES CloudResource graph edges. Queue claiming
+	// gates on CloudResource node readiness; the graph writer still uses
+	// MATCH-only endpoint anchoring so missing workload instances are a no-op
+	// instead of fabricated graph truth.
+	DomainWorkloadCloudRelationshipMaterialization Domain = "workload_cloud_relationship_materialization"
 	// DomainEC2InstanceNodeMaterialization materializes ec2_instance_posture facts
 	// into canonical :CloudResource graph nodes on the existing cloud_resource_uid
 	// keyspace (issue #1146 PR-A). The EC2 scanner deliberately does not emit an
