@@ -117,6 +117,7 @@ func (cr *ContentReader) serviceStoryTargetSupportEvidence(
 	)
 	defer span.End()
 
+	factKinds := serviceStoryTargetSupportFactKinds()
 	query, args := buildServiceStoryTargetSupportSQL(filter)
 	if query == "" {
 		return serviceStoryTargetSupportReadModel{}, nil
@@ -146,8 +147,21 @@ func (cr *ContentReader) serviceStoryTargetSupportEvidence(
 	if truncated {
 		facts = facts[:limit]
 	}
+	var sourceOnlySummary serviceStoryTargetSupportSourceOnlySummary
+	if len(facts) == 0 && documentationTargetScopeFromValues(
+		filter.Repository,
+		filter.TargetKind,
+		filter.TargetID,
+		filter.ServiceID,
+	).hasSelector() {
+		sourceOnlySummary, err = cr.serviceStoryTargetSupportSourceOnlySummary(ctx, factKinds)
+		if err != nil {
+			span.RecordError(err)
+			return serviceStoryTargetSupportReadModel{}, err
+		}
+	}
 	return serviceStoryTargetSupportReadModel{
-		Support: buildStoryTargetSupport(filter, facts, truncated),
+		Support: buildStoryTargetSupportWithSourceOnlySummary(filter, facts, truncated, sourceOnlySummary),
 	}, nil
 }
 
