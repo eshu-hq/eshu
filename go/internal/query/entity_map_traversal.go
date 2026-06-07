@@ -70,12 +70,40 @@ func (h *ImpactHandler) entityMapNeighborhoodRows(
 		}
 		rows = append(rows, nextRows...)
 	}
+	rows = dedupeEntityMapRows(rows)
 	sortEntityMapRows(rows)
 	if len(rows) > req.Limit {
 		truncated = true
 		rows = rows[:req.Limit]
 	}
 	return entityMapRelationshipMaps(rows, req.Relationship), truncated, nil
+}
+
+// dedupeEntityMapRows removes duplicate neighborhood rows produced across
+// relationship-family traversals. The traversal Cypher no longer uses RETURN
+// DISTINCT (it nulls the first coalesce column on NornicDB and can widen the
+// match), so equivalent (direction, entity, relationship) rows are collapsed
+// here. The first row for a key wins, preserving the per-spec ordering.
+func dedupeEntityMapRows(rows []map[string]any) []map[string]any {
+	if len(rows) <= 1 {
+		return rows
+	}
+	seen := make(map[string]struct{}, len(rows))
+	deduped := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		key := strings.Join([]string{
+			StringVal(row, "direction"),
+			StringVal(row, "entity_id"),
+			StringVal(row, "entity_name"),
+			StringVal(row, "relationship_type"),
+		}, "\x00")
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		deduped = append(deduped, row)
+	}
+	return deduped
 }
 
 type entityMapTraversalSpec struct {
@@ -108,6 +136,18 @@ func entityMapDefaultOutgoingRelationshipTypes(selected entityMapCandidate) []st
 	return entityMapDefaultOutgoingRelationships
 }
 
+// entityMapTraversalCypher builds the neighborhood traversal for one
+// direction/relationship-family spec. Each spec carries a single relationship
+// family, so the relationship verb is emitted as a string literal rather than
+// derived from relationships(path). This keeps the typed verb stable across
+// graph backends: NornicDB does not populate relationships(path)/length(path)
+// for variable-length patterns, so a path-derived type/depth would be
+// null/zero there.
+//
+// The projection intentionally avoids RETURN DISTINCT. On NornicDB, DISTINCT
+// over a coalesce()-projected entity binding nulls the first projected column
+// (entity_id) and can drop the relationship-family constraint. Deduplication is
+// performed in Go (see dedupeEntityMapRows).
 func entityMapTraversalCypher(selected entityMapCandidate, direction string, relationship string, depth int) string {
 	if depth <= 1 {
 		return entityMapDirectTraversalCypher(selected, direction, relationship)
@@ -121,16 +161,17 @@ func entityMapTraversalCypher(selected entityMapCandidate, direction string, rel
 MATCH path = %s
 WHERE ($environment = '' OR coalesce(entity.environment, '') = '' OR entity.environment = $environment)
   AND ($repo_id = '' OR coalesce(entity.repo_id, '') = '' OR entity.repo_id = $repo_id OR (entity:Repository AND entity.id = $repo_id))
-RETURN DISTINCT coalesce(entity.id, entity.uid, entity.resource_id, entity.path, entity.name) AS entity_id,
+RETURN coalesce(entity.id, entity.uid, entity.resource_id, entity.path, entity.name) AS entity_id,
        coalesce(entity.name, entity.address, entity.qualified_name, entity.path, entity.id, entity.uid) AS entity_name,
        labels(entity) AS entity_labels,
        %q AS direction,
        length(path) AS depth,
+       %q AS relationship_type,
        [rel IN relationships(path) | type(rel)] AS relationship_types,
        coalesce(entity.repo_id, entity.id, '') AS repo_id,
        coalesce(entity.environment, '') AS environment
 ORDER BY depth, entity_name, entity_id
-LIMIT $limit`, selected.AnchorLabel, selected.AnchorProperty, edge, direction)
+LIMIT $limit`, selected.AnchorLabel, selected.AnchorProperty, edge, direction, relationship)
 }
 
 func entityMapDirectTraversalCypher(selected entityMapCandidate, direction string, relationship string) string {
@@ -142,7 +183,7 @@ func entityMapDirectTraversalCypher(selected entityMapCandidate, direction strin
 MATCH %s
 WHERE ($environment = '' OR coalesce(entity.environment, '') = '' OR entity.environment = $environment)
   AND ($repo_id = '' OR coalesce(entity.repo_id, '') = '' OR entity.repo_id = $repo_id OR (entity:Repository AND entity.id = $repo_id))
-RETURN DISTINCT coalesce(entity.id, entity.uid, entity.resource_id, entity.path, entity.name) AS entity_id,
+RETURN coalesce(entity.id, entity.uid, entity.resource_id, entity.path, entity.name) AS entity_id,
        coalesce(entity.name, entity.address, entity.qualified_name, entity.path, entity.id, entity.uid) AS entity_name,
        labels(entity) AS entity_labels,
        %q AS direction,
@@ -207,10 +248,22 @@ func entityMapRelationshipMaps(rows []map[string]any, fallbackRelationship strin
 		})
 		relationship["entity_labels"] = StringSliceVal(row, "entity_labels")
 		relationship["relationship_types"] = types
-		relationship["depth"] = IntVal(row, "depth")
+		relationship["depth"] = entityMapRowDepth(row)
 		relationships = append(relationships, relationship)
 	}
 	return relationships
+}
+
+// entityMapRowDepth returns the traversal hop distance for a neighborhood row,
+// clamped to a minimum of one hop. NornicDB returns length(path)=0 for
+// variable-length patterns, but any returned graph edge is at least one hop
+// from the anchor, so reporting depth 0 would mislabel the node as the anchor
+// itself in the console Graph Explorer.
+func entityMapRowDepth(row map[string]any) int {
+	if depth := IntVal(row, "depth"); depth >= 1 {
+		return depth
+	}
+	return 1
 }
 
 func sortEntityMapRows(rows []map[string]any) {

@@ -287,6 +287,111 @@ func TestEntityMapResolvesTerraformAddressWithoutWholeGraphScan(t *testing.T) {
 	}
 }
 
+// TestEntityMapPopulatesTypedVerbAndEntityIDForVarLengthEdge reproduces issue
+// #1604: NornicDB does not populate relationships(path)/length(path) for
+// variable-length patterns, so a path-derived verb is empty and depth is zero.
+// The repo->workload DEFINES edge therefore arrived with relationship_type
+// null, relationship_types empty, and entity_id null. The traversal now emits
+// the relationship verb as a literal and avoids RETURN DISTINCT, so the row
+// must carry a stable entity_id, the typed verb, and a hop depth of at least 1.
+func TestEntityMapPopulatesTypedVerbAndEntityIDForVarLengthEdge(t *testing.T) {
+	t.Parallel()
+
+	resolverRows := []map[string]any{
+		{
+			"id":              "workload:api-node-boats",
+			"name":            "api-node-boats",
+			"labels":          []any{"Workload"},
+			"repo_id":         "repository:r_f9600c28",
+			"anchor_label":    "Workload",
+			"anchor_property": "id",
+			"anchor_value":    "workload:api-node-boats",
+		},
+	}
+	// Mirror NornicDB var-length behavior: relationship_types empty, depth 0,
+	// but the literal relationship_type is set and entity_id resolves because
+	// the traversal no longer uses RETURN DISTINCT.
+	definesRow := map[string]any{
+		"entity_id":          "repository:r_f9600c28",
+		"entity_name":        "api-node-boats",
+		"entity_labels":      []any{"Repository"},
+		"direction":          "incoming",
+		"depth":              int64(0),
+		"relationship_type":  "DEFINES",
+		"relationship_types": []any{},
+		"repo_id":            "repository:r_f9600c28",
+	}
+	runRows := make([][]map[string]any, 0,
+		1+len(entityMapDefaultOutgoingRelationships)+len(entityMapDefaultIncomingRelationships))
+	runRows = append(runRows, resolverRows)
+	for range entityMapDefaultOutgoingRelationships {
+		runRows = append(runRows, nil)
+	}
+	for _, relationship := range entityMapDefaultIncomingRelationships {
+		if relationship == "DEFINES" {
+			runRows = append(runRows, []map[string]any{definesRow})
+			continue
+		}
+		runRows = append(runRows, nil)
+	}
+
+	graph := &recordingEntityMapGraph{runRows: runRows}
+	handler := &ImpactHandler{Neo4j: graph, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/impact/entity-map",
+		bytes.NewBufferString(`{"from":"api-node-boats","from_type":"service","depth":2}`),
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+
+	// The variable-length traversal must not rely on RETURN DISTINCT (NornicDB
+	// nulls the first coalesce column) and must emit the verb as a literal
+	// rather than deriving it from relationships(path).
+	for _, call := range graph.runCalls[1:] {
+		if strings.Contains(call.cypher, "RETURN DISTINCT") {
+			t.Fatalf("traversal cypher uses RETURN DISTINCT: %s", call.cypher)
+		}
+		if !strings.Contains(call.cypher, "AS relationship_type,") {
+			t.Fatalf("var-length traversal missing literal relationship_type: %s", call.cypher)
+		}
+	}
+
+	data := decodeEntityMapData(t, w)
+	evidence := data["evidence"].(map[string]any)
+	relationships := evidence["relationships"].([]any)
+	if len(relationships) != 1 {
+		t.Fatalf("relationship count = %d, want 1; evidence=%#v", len(relationships), evidence)
+	}
+	row := relationships[0].(map[string]any)
+	if got, want := row["entity_id"], "repository:r_f9600c28"; got != want {
+		t.Fatalf("entity_id = %#v, want %#v; row=%#v", got, want, row)
+	}
+	if got, want := row["relationship_type"], "DEFINES"; got != want {
+		t.Fatalf("relationship_type = %#v, want %#v; row=%#v", got, want, row)
+	}
+	types, ok := row["relationship_types"].([]any)
+	if !ok || len(types) != 1 || types[0] != "DEFINES" {
+		t.Fatalf("relationship_types = %#v, want [DEFINES]; row=%#v", row["relationship_types"], row)
+	}
+	if got, want := row["depth"], float64(1); got != want {
+		t.Fatalf("depth = %#v, want %#v; row=%#v", got, want, row)
+	}
+
+	sections := data["sections"].(map[string]any)
+	if got := sections["defined_by"].([]any); len(got) != 1 {
+		t.Fatalf("defined_by count = %d, want 1; sections=%#v", len(got), sections)
+	}
+}
+
 func decodeEntityMapData(t *testing.T, w *httptest.ResponseRecorder) map[string]any {
 	t.Helper()
 
