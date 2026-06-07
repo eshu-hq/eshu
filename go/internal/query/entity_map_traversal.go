@@ -51,20 +51,21 @@ func (h *ImpactHandler) entityMapNeighborhoodRows(
 	if selected.AnchorLabel == "" || selected.AnchorProperty == "" || selected.AnchorValue == "" {
 		return nil, false, fmt.Errorf("resolved entity is missing a typed traversal anchor")
 	}
+	specs := entityMapTraversalSpecs(selected, req)
 	rows := make([]map[string]any, 0, req.Limit)
 	truncated := false
-	for _, traversal := range entityMapTraversalSpecs(selected, req) {
-		cypher := entityMapTraversalCypher(selected, traversal.direction, traversal.relationship, req.Depth)
+	for _, traversal := range specs {
+		cypher := entityMapTraversalCypher(selected, traversal)
 		nextRows, err := h.Neo4j.Run(ctx, cypher, map[string]any{
-			"from_id":       selected.AnchorValue,
-			"start_repo_id": selected.RepoID,
-			"environment":   req.Environment,
-			"repo_id":       req.RepoID,
-			"limit":         req.Limit + 1,
+			"from_id":     selected.AnchorValue,
+			"environment": req.Environment,
+			"repo_id":     req.RepoID,
+			"limit":       req.Limit + 1,
 		})
 		if err != nil {
 			return nil, false, fmt.Errorf("load %s entity map neighborhood: %w", traversal.direction, err)
 		}
+		nextRows = normalizeEntityMapRows(nextRows, traversal, selected)
 		if len(nextRows) > req.Limit {
 			truncated = true
 			nextRows = nextRows[:req.Limit]
@@ -81,7 +82,7 @@ func (h *ImpactHandler) entityMapNeighborhoodRows(
 }
 
 // dedupeEntityMapRows removes duplicate neighborhood rows produced across
-// relationship-family traversals. The traversal Cypher no longer uses RETURN
+// bounded traversal specs. The traversal Cypher no longer uses RETURN
 // DISTINCT (it nulls the first coalesce column on NornicDB and can widen the
 // match), so equivalent (direction, entity, relationship) rows are collapsed
 // here. The first row for a key wins, preserving the per-spec ordering.
@@ -108,26 +109,51 @@ func dedupeEntityMapRows(rows []map[string]any) []map[string]any {
 }
 
 type entityMapTraversalSpec struct {
-	direction    string
-	relationship string
+	direction     string
+	relationships []string
+	minHops       int
+	maxHops       int
 }
 
 func entityMapTraversalSpecs(selected entityMapCandidate, req entityMapRequest) []entityMapTraversalSpec {
-	if req.Relationship != "" {
-		return []entityMapTraversalSpec{
-			{direction: "outgoing", relationship: req.Relationship},
-			{direction: "incoming", relationship: req.Relationship},
+	directions := []struct {
+		name          string
+		relationships []string
+	}{
+		{name: "outgoing", relationships: entityMapTraversalRelationships(selected, req, "outgoing")},
+		{name: "incoming", relationships: entityMapTraversalRelationships(selected, req, "incoming")},
+	}
+	specs := make([]entityMapTraversalSpec, 0, 2*len(directions))
+	for _, direction := range directions {
+		if len(direction.relationships) == 0 {
+			continue
+		}
+		specs = append(specs, entityMapTraversalSpec{
+			direction:     direction.name,
+			relationships: direction.relationships,
+			minHops:       1,
+			maxHops:       1,
+		})
+		if req.Depth > 1 {
+			specs = append(specs, entityMapTraversalSpec{
+				direction:     direction.name,
+				relationships: direction.relationships,
+				minHops:       2,
+				maxHops:       req.Depth,
+			})
 		}
 	}
-	specs := make([]entityMapTraversalSpec, 0,
-		len(entityMapDefaultOutgoingRelationshipTypes(selected))+len(entityMapDefaultIncomingRelationshipTypes(selected)))
-	for _, relationship := range entityMapDefaultOutgoingRelationshipTypes(selected) {
-		specs = append(specs, entityMapTraversalSpec{direction: "outgoing", relationship: relationship})
-	}
-	for _, relationship := range entityMapDefaultIncomingRelationshipTypes(selected) {
-		specs = append(specs, entityMapTraversalSpec{direction: "incoming", relationship: relationship})
-	}
 	return specs
+}
+
+func entityMapTraversalRelationships(selected entityMapCandidate, req entityMapRequest, direction string) []string {
+	if req.Relationship != "" {
+		return []string{req.Relationship}
+	}
+	if direction == "incoming" {
+		return entityMapDefaultIncomingRelationshipTypes(selected)
+	}
+	return entityMapDefaultOutgoingRelationshipTypes(selected)
 }
 
 func entityMapDefaultOutgoingRelationshipTypes(selected entityMapCandidate) []string {
@@ -137,127 +163,75 @@ func entityMapDefaultOutgoingRelationshipTypes(selected entityMapCandidate) []st
 	return entityMapDefaultOutgoingRelationships
 }
 
-// entityMapTraversalCypher builds the neighborhood traversal for one
-// direction/relationship-family spec. Each spec carries a single relationship
-// family, so the relationship verb is emitted as a string literal rather than
-// derived from relationships(path). This keeps the typed verb stable across
-// graph backends: NornicDB does not populate relationships(path)/length(path)
-// for variable-length patterns, so a path-derived type/depth would be
-// null/zero there.
+// entityMapTraversalCypher builds the neighborhood traversal for one bounded
+// direction spec. Direct specs bind rel and report type(rel), preserving exact
+// edge verbs for first-hop atlas edges. Deeper specs use one variable-length
+// read per direction with the same relationship family set; backends that
+// populate relationships(path) return exact hop verbs, while backends that omit
+// path relationship metadata still return an honestly bounded neighbor row.
 //
 // The projection intentionally avoids RETURN DISTINCT. On NornicDB, DISTINCT
 // over a coalesce()-projected entity binding nulls the first projected column
 // (entity_id) and can drop the relationship-family constraint. Deduplication is
 // performed in Go (see dedupeEntityMapRows).
-func entityMapTraversalCypher(selected entityMapCandidate, direction string, relationship string, depth int) string {
-	if depth <= 1 {
-		return entityMapDirectTraversalCypher(selected, direction, relationship)
+func entityMapTraversalCypher(selected entityMapCandidate, spec entityMapTraversalSpec) string {
+	if spec.maxHops <= 1 {
+		return entityMapDirectTraversalCypher(selected, spec)
 	}
-	relationshipPattern := entityMapVariableRelationshipPattern(selected, direction, relationship)
-	edge := fmt.Sprintf("(start)-[%s*1..%d]->(entity)", relationshipPattern, depth)
-	if direction == "incoming" {
-		edge = fmt.Sprintf("(start)<-[%s*1..%d]-(entity)", relationshipPattern, depth)
-	}
-	return fmt.Sprintf(`MATCH (start:%s {%s: $from_id})
-MATCH path = %s
-WHERE ($environment = '' OR coalesce(entity.environment, '') = '' OR entity.environment = $environment)
-  AND ($repo_id = '' OR coalesce(entity.repo_id, '') = '' OR entity.repo_id = $repo_id OR (entity:Repository AND entity.id = $repo_id))
-RETURN %s AS entity_id,
-       %s AS entity_name,
-       labels(entity) AS entity_labels,
-       %q AS direction,
-       length(path) AS depth,
-       %q AS relationship_type,
-       [rel IN relationships(path) | type(rel)] AS relationship_types,
-       coalesce(entity.repo_id, entity.id, '') AS repo_id,
-       coalesce(entity.environment, '') AS environment
-ORDER BY depth, entity_name, entity_id
-LIMIT $limit`,
-		selected.AnchorLabel,
-		selected.AnchorProperty,
-		edge,
-		entityMapEntityIDExpression(direction, relationship),
-		entityMapEntityNameExpression(),
-		direction,
-		relationship,
-	)
+	return entityMapVariableTraversalCypher(selected, spec)
 }
 
-func entityMapDirectTraversalCypher(selected entityMapCandidate, direction string, relationship string) string {
-	edge := fmt.Sprintf("(start)-[%s]->(entity)", entityMapDirectRelationshipPattern(selected, direction, relationship))
-	if direction == "incoming" {
-		edge = fmt.Sprintf("(start)<-[%s]-(entity)", entityMapDirectRelationshipPattern(selected, direction, relationship))
+const entityMapRawProjection = `entity.id AS id,
+       entity.uid AS uid,
+       entity.resource_id AS resource_id,
+       entity.path AS path,
+       entity.name AS name,
+       entity.address AS address,
+       entity.qualified_name AS qualified_name,
+       entity.repo_id AS repo_id,
+       entity.environment AS environment,
+       labels(entity) AS entity_labels`
+
+func entityMapDirectTraversalCypher(selected entityMapCandidate, spec entityMapTraversalSpec) string {
+	edge := fmt.Sprintf("(start)-[rel:%s]->(entity)", strings.Join(spec.relationships, "|"))
+	if spec.direction == "incoming" {
+		edge = fmt.Sprintf("(start)<-[rel:%s]-(entity)", strings.Join(spec.relationships, "|"))
 	}
 	return fmt.Sprintf(`MATCH (start:%s {%s: $from_id})
 MATCH %s
 WHERE ($environment = '' OR coalesce(entity.environment, '') = '' OR entity.environment = $environment)
-  AND ($repo_id = '' OR coalesce(entity.repo_id, '') = '' OR entity.repo_id = $repo_id OR (entity:Repository AND entity.id = $repo_id))
-RETURN %s AS entity_id,
-       %s AS entity_name,
-       labels(entity) AS entity_labels,
-       %q AS direction,
-       1 AS depth,
-       %q AS relationship_type,
-       coalesce(entity.repo_id, entity.id, '') AS repo_id,
-       coalesce(entity.environment, '') AS environment
-ORDER BY depth, entity_name, entity_id
+  AND ($repo_id = '' OR coalesce(entity.repo_id, '') = '' OR coalesce(entity.repo_id, entity.id, '') = $repo_id)
+RETURN %s,
+       type(rel) AS relationship_type
+ORDER BY name, id
 LIMIT $limit`,
 		selected.AnchorLabel,
 		selected.AnchorProperty,
 		edge,
-		entityMapEntityIDExpression(direction, relationship),
-		entityMapEntityNameExpression(),
-		direction,
-		relationship,
+		entityMapRawProjection,
 	)
 }
 
-func entityMapEntityIDExpression(direction string, relationship string) string {
-	repoDefinesFallback := ""
-	if direction == "incoming" && relationship == "DEFINES" {
-		repoDefinesFallback = `
-         WHEN entity:Repository AND $start_repo_id <> '' THEN $start_repo_id`
+func entityMapVariableTraversalCypher(selected entityMapCandidate, spec entityMapTraversalSpec) string {
+	relationshipPattern := fmt.Sprintf("rels:%s*%d..%d", strings.Join(spec.relationships, "|"), spec.minHops, spec.maxHops)
+	edge := fmt.Sprintf("(start)-[%s]->(entity)", relationshipPattern)
+	if spec.direction == "incoming" {
+		edge = fmt.Sprintf("(start)<-[%s]-(entity)", relationshipPattern)
 	}
-	return fmt.Sprintf(`CASE
-         WHEN entity:Repository AND entity.id IS NOT NULL THEN entity.id
-         WHEN entity:Repository AND entity.repo_id IS NOT NULL THEN entity.repo_id%s
-         WHEN entity.id IS NOT NULL THEN entity.id
-         WHEN entity.uid IS NOT NULL THEN entity.uid
-         WHEN entity.resource_id IS NOT NULL THEN entity.resource_id
-         WHEN entity.path IS NOT NULL THEN entity.path
-         WHEN entity.name IS NOT NULL THEN entity.name
-         ELSE ''
-       END`, repoDefinesFallback)
-}
-
-func entityMapEntityNameExpression() string {
-	return `CASE
-         WHEN entity.name IS NOT NULL THEN entity.name
-         WHEN entity.address IS NOT NULL THEN entity.address
-         WHEN entity.qualified_name IS NOT NULL THEN entity.qualified_name
-         WHEN entity.path IS NOT NULL THEN entity.path
-         WHEN entity.id IS NOT NULL THEN entity.id
-         WHEN entity.uid IS NOT NULL THEN entity.uid
-         ELSE ''
-       END`
-}
-
-func entityMapDirectRelationshipPattern(selected entityMapCandidate, direction string, relationship string) string {
-	return "rel:" + entityMapRelationshipTypes(selected, direction, relationship)
-}
-
-func entityMapVariableRelationshipPattern(selected entityMapCandidate, direction string, relationship string) string {
-	return "rels:" + entityMapRelationshipTypes(selected, direction, relationship)
-}
-
-func entityMapRelationshipTypes(selected entityMapCandidate, direction string, relationship string) string {
-	if relationship != "" {
-		return relationship
-	}
-	if direction == "incoming" {
-		return strings.Join(entityMapDefaultIncomingRelationshipTypes(selected), "|")
-	}
-	return strings.Join(entityMapDefaultOutgoingRelationshipTypes(selected), "|")
+	return fmt.Sprintf(`MATCH (start:%s {%s: $from_id})
+MATCH path = %s
+WHERE ($environment = '' OR coalesce(entity.environment, '') = '' OR entity.environment = $environment)
+  AND ($repo_id = '' OR coalesce(entity.repo_id, '') = '' OR coalesce(entity.repo_id, entity.id, '') = $repo_id)
+RETURN %s,
+       length(path) AS path_length,
+       [rel IN relationships(path) | type(rel)] AS relationship_types
+ORDER BY name, id
+LIMIT $limit`,
+		selected.AnchorLabel,
+		selected.AnchorProperty,
+		edge,
+		entityMapRawProjection,
+	)
 }
 
 func entityMapDefaultIncomingRelationshipTypes(selected entityMapCandidate) []string {

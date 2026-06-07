@@ -138,6 +138,7 @@ func TestEntityMapUsesTypedAnchorAndGroupsBoundedNeighborhood(t *testing.T) {
 				"repo_id":            "repo-payments",
 			},
 		},
+		{},
 		{
 			{
 				"entity_id":          "repo-checkout",
@@ -166,18 +167,21 @@ func TestEntityMapUsesTypedAnchorAndGroupsBoundedNeighborhood(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	if got, want := len(graph.runCalls), 1+len(entityMapDefaultOutgoingRelationships)+len(entityMapDefaultIncomingRelationships); got != want {
-		t.Fatalf("graph Run calls = %d, want resolver plus fixed relationship-family traversals", got)
+	if got, want := len(graph.runCalls), 5; got != want {
+		t.Fatalf("graph Run calls = %d, want resolver plus four bounded traversal specs", got)
 	}
 	if resolver := graph.runCalls[0].cypher; strings.Contains(resolver, "MATCH (n) WHERE") {
 		t.Fatalf("resolver used unlabelled scan: %s", resolver)
 	}
+	var directReads, deeperReads int
 	for _, call := range graph.runCalls[1:] {
 		if !strings.Contains(call.cypher, "MATCH (start:Workload {id: $from_id})") {
 			t.Fatalf("traversal cypher = %s, want typed Workload id anchor", call.cypher)
 		}
-		if !strings.Contains(call.cypher, "*1..2") {
-			t.Fatalf("traversal cypher = %s, want bounded depth", call.cypher)
+		if strings.Contains(call.cypher, "*2..2") {
+			deeperReads++
+		} else {
+			directReads++
 		}
 		if !strings.Contains(call.cypher, "LIMIT $limit") {
 			t.Fatalf("traversal cypher = %s, want limit parameter", call.cypher)
@@ -187,7 +191,7 @@ func TestEntityMapUsesTypedAnchorAndGroupsBoundedNeighborhood(t *testing.T) {
 		}
 		for _, want := range []string{
 			"coalesce(entity.environment, '') = '' OR entity.environment = $environment",
-			"coalesce(entity.repo_id, '') = '' OR entity.repo_id = $repo_id",
+			"coalesce(entity.repo_id, entity.id, '') = $repo_id",
 		} {
 			if !strings.Contains(call.cypher, want) {
 				t.Fatalf("traversal cypher missing %q: %s", want, call.cypher)
@@ -199,6 +203,12 @@ func TestEntityMapUsesTypedAnchorAndGroupsBoundedNeighborhood(t *testing.T) {
 		if got, want := call.params["environment"], "prod"; got != want {
 			t.Fatalf("traversal environment param = %#v, want %#v", got, want)
 		}
+	}
+	if got, want := directReads, 2; got != want {
+		t.Fatalf("direct traversal reads = %d, want %d", got, want)
+	}
+	if got, want := deeperReads, 2; got != want {
+		t.Fatalf("deeper traversal reads = %d, want %d", got, want)
 	}
 
 	data := decodeEntityMapData(t, w)
@@ -219,6 +229,48 @@ func TestEntityMapUsesTypedAnchorAndGroupsBoundedNeighborhood(t *testing.T) {
 	coverage := data["coverage"].(map[string]any)
 	if got, want := coverage["query_shape"], "typed_entity_map_bounded_relationship_family"; got != want {
 		t.Fatalf("coverage.query_shape = %#v, want %#v", got, want)
+	}
+}
+
+func TestEntityMapDepthTwoUsesBoundedTraversalSpecs(t *testing.T) {
+	t.Parallel()
+
+	graph := &recordingEntityMapGraph{runRows: [][]map[string]any{
+		{
+			{
+				"id":              "workload:checkout",
+				"name":            "checkout",
+				"labels":          []any{"Workload"},
+				"repo_id":         "repo-checkout",
+				"anchor_label":    "Workload",
+				"anchor_property": "id",
+				"anchor_value":    "workload:checkout",
+			},
+		},
+	}}
+	handler := &ImpactHandler{Neo4j: graph, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/impact/entity-map",
+		bytes.NewBufferString(`{"from":"checkout","from_type":"service","depth":2,"limit":25}`),
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	if got, max := len(graph.runCalls), 5; got > max {
+		t.Fatalf("graph Run calls = %d, want resolver plus at most four bounded traversal specs", got)
+	}
+	for _, call := range graph.runCalls[1:] {
+		if strings.Contains(call.cypher, "*1..2") {
+			t.Fatalf("traversal cypher = %s, want direct depth-1 read plus separate bounded deeper read", call.cypher)
+		}
 	}
 }
 
@@ -256,8 +308,8 @@ func TestEntityMapResolvesTerraformAddressWithoutWholeGraphScan(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	if got, want := len(graph.runCalls), 1+len(entityMapDefaultOutgoingRelationships)+len(entityMapDefaultIncomingRelationships); got != want {
-		t.Fatalf("graph Run calls = %d, want terraform resolver plus fixed relationship-family traversals", got)
+	if got, want := len(graph.runCalls), 3; got != want {
+		t.Fatalf("graph Run calls = %d, want terraform resolver plus two direct traversal specs", got)
 	}
 	resolver := graph.runCalls[0]
 	if strings.Contains(resolver.cypher, "MATCH (n) WHERE") {
@@ -287,13 +339,10 @@ func TestEntityMapResolvesTerraformAddressWithoutWholeGraphScan(t *testing.T) {
 	}
 }
 
-// TestEntityMapPopulatesTypedVerbAndEntityIDForVarLengthEdge reproduces issue
-// #1604: NornicDB does not populate relationships(path)/length(path) for
-// variable-length patterns, so a path-derived verb is empty and depth is zero.
-// The repo->workload DEFINES edge therefore arrived with relationship_type
-// null, relationship_types empty, and entity_id null. The traversal now emits
-// the relationship verb as a literal and avoids RETURN DISTINCT, so the row
-// must carry a stable entity_id, the typed verb, and a hop depth of at least 1.
+// TestEntityMapPopulatesTypedVerbAndEntityIDForVarLengthEdge covers the #1604
+// row-shape contract after #1723's bounded traversal rewrite: direct
+// relationship reads preserve a typed verb, Go normalization keeps a stable
+// entity id, and depth is clamped to at least one when a backend reports zero.
 func TestEntityMapPopulatesTypedVerbAndEntityIDForVarLengthEdge(t *testing.T) {
 	t.Parallel()
 
@@ -308,9 +357,6 @@ func TestEntityMapPopulatesTypedVerbAndEntityIDForVarLengthEdge(t *testing.T) {
 			"anchor_value":    "workload:orders-api",
 		},
 	}
-	// Mirror NornicDB var-length behavior: relationship_types empty, depth 0,
-	// but the literal relationship_type is set and entity_id resolves because
-	// the traversal no longer uses RETURN DISTINCT.
 	definesRow := map[string]any{
 		"entity_id":          "repository:r_orders_api",
 		"entity_name":        "orders-api",
@@ -321,18 +367,12 @@ func TestEntityMapPopulatesTypedVerbAndEntityIDForVarLengthEdge(t *testing.T) {
 		"relationship_types": []any{},
 		"repo_id":            "repository:r_orders_api",
 	}
-	runRows := make([][]map[string]any, 0,
-		1+len(entityMapDefaultOutgoingRelationships)+len(entityMapDefaultIncomingRelationships))
-	runRows = append(runRows, resolverRows)
-	for range entityMapDefaultOutgoingRelationships {
-		runRows = append(runRows, nil)
-	}
-	for _, relationship := range entityMapDefaultIncomingRelationships {
-		if relationship == "DEFINES" {
-			runRows = append(runRows, []map[string]any{definesRow})
-			continue
-		}
-		runRows = append(runRows, nil)
+	runRows := [][]map[string]any{
+		resolverRows,
+		nil,
+		nil,
+		{definesRow},
+		nil,
 	}
 
 	graph := &recordingEntityMapGraph{runRows: runRows}
@@ -353,31 +393,19 @@ func TestEntityMapPopulatesTypedVerbAndEntityIDForVarLengthEdge(t *testing.T) {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
 
-	// The variable-length traversal must not rely on RETURN DISTINCT (NornicDB
-	// nulls the first coalesce column) and must emit the verb as a literal
-	// rather than deriving it from relationships(path).
 	var definesCall entityMapRunCall
 	foundDefinesCall := false
 	for _, call := range graph.runCalls[1:] {
 		if strings.Contains(call.cypher, "RETURN DISTINCT") {
 			t.Fatalf("traversal cypher uses RETURN DISTINCT: %s", call.cypher)
 		}
-		if !strings.Contains(call.cypher, "AS relationship_type,") {
-			t.Fatalf("var-length traversal missing literal relationship_type: %s", call.cypher)
-		}
-		if strings.Contains(call.cypher, `"DEFINES" AS relationship_type`) {
+		if strings.Contains(call.cypher, "[rel:DEFINES|") {
 			definesCall = call
 			foundDefinesCall = true
 		}
 	}
 	if !foundDefinesCall {
 		t.Fatal("incoming DEFINES traversal call not recorded")
-	}
-	if got, want := definesCall.params["start_repo_id"], "repository:r_orders_api"; got != want {
-		t.Fatalf("start_repo_id param = %#v, want %#v", got, want)
-	}
-	if want := "WHEN entity:Repository AND $start_repo_id <> '' THEN $start_repo_id"; !strings.Contains(definesCall.cypher, want) {
-		t.Fatalf("DEFINES traversal cypher missing repo fallback %q: %s", want, definesCall.cypher)
 	}
 	if strings.Contains(definesCall.cypher, "coalesce(entity.id, entity.uid, entity.resource_id, entity.path, entity.name) AS entity_id") {
 		t.Fatalf("DEFINES traversal cypher still uses fragile multi-property entity_id coalesce: %s", definesCall.cypher)

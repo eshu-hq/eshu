@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -92,11 +94,24 @@ func (h *ImpactHandler) entityMap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	span.SetAttributes(
+		attribute.Int("eshu.entity_map.depth", req.Depth),
+		attribute.Int("eshu.entity_map.limit", req.Limit),
+		attribute.Bool("eshu.entity_map.relationship_filter", req.Relationship != ""),
+	)
+	traversalStart := time.Now()
 	rows, truncated, err := h.entityMapNeighborhoodRows(r.Context(), req, *selected)
+	span.SetAttributes(attribute.Float64("eshu.entity_map.traversal_seconds", time.Since(traversalStart).Seconds()))
 	if err != nil {
+		span.RecordError(err)
+		span.SetAttributes(attribute.Bool("eshu.entity_map.traversal_error", true))
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	span.SetAttributes(
+		attribute.Int("eshu.entity_map.result_count", len(rows)),
+		attribute.Bool("eshu.entity_map.truncated", truncated),
+	)
 	resp := entityMapResponse(req, resolution, rows, truncated)
 	WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(
 		h.profile(),

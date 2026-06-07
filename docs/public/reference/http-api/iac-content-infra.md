@@ -201,6 +201,25 @@ expansion. The default `depth=1` path uses direct incoming and outgoing
 relationship-family queries, so high-cardinality repository edges do not expand
 before `limit` can bound the result. Deeper requests remain bounded by the same
 depth and limit caps, with coverage and truncation fields in the response.
+For `depth>1`, the handler runs at most one direct and one deeper traversal per
+direction instead of one graph query per relationship family.
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestEntityMap' -count=1` covers the console call shape (`from` plus
+`depth=2` and default limit) using resolver plus at most four bounded traversal
+queries. The regression replaces the previous 22 sequential graph reads for a
+service/workload anchor with four direction/depth reads while preserving direct
+edge relationship verbs, typed anchors, limit+1 truncation, and repository
+structural-fanout exclusions.
+
+Observability Evidence: entity-map still emits the existing `query.entity_map`
+handler span and graph query spans, and now annotates the handler span with
+`eshu.entity_map.depth`, `eshu.entity_map.limit`,
+`eshu.entity_map.relationship_filter`, `eshu.entity_map.traversal_seconds`,
+`eshu.entity_map.result_count`, `eshu.entity_map.truncated`, and
+`eshu.entity_map.traversal_error`. Operators can distinguish resolver success,
+bounded traversal duration, result size, truncation, and graph-read errors
+without new high-cardinality metric labels.
 
 Supported first-slice handles include workload and service IDs/names, workload
 instances, repositories, cloud resources, Terraform resources/data
