@@ -334,8 +334,11 @@ If a code-to-cloud proof requires image, SBOM, service, and CI/CD evidence,
 those minimums must be positive. If the run is vulnerability-only, leave the
 runtime minimums at `0` and record that as a partial proof. The verifier prints
 only count labels and sanitized missing-evidence reasons, never raw target
-values. Use `expected_image_digest` or `expected_image_ref` to tie
-container-image, SBOM, and CI/CD evidence to the same artifact. Digest-backed
+values. Image identity proof includes `source_repository_id`; it defaults to
+`target_repository_id` and may be overridden with
+`expected_source_repository_id` only when the source selector still aligns with
+the target repository. Use `expected_image_digest` or `expected_image_ref` to
+tie container-image, SBOM, and CI/CD evidence to the same artifact. Digest-backed
 CI/CD proof filters count, API list, and MCP list readbacks by
 `artifact_digest`; image-reference proof filters those same readbacks by
 `image_ref` so the verifier does not accept unrelated repository rows. When

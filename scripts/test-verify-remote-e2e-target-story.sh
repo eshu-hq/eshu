@@ -22,6 +22,7 @@ write_manifest() {
   "proof_mode": "code_to_cloud",
   "target_repository_id": "repo://example/api",
   "expected_security_alert_repository": "example/api",
+  "expected_source_repository_id": "repo://example/api",
   "expected_service_id": "service:api",
   "expected_oci_repository_id": "oci-registry://registry.example/team/api",
   "expected_image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -222,6 +223,11 @@ reset_state
 jq '.expected_oci_repository_id = "oci-registry://registry.example/team/other-api"' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
 mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
 expect_fail_with 'target story alignment mismatch: expected_oci_repository_id does not align with target_repository_id'
+
+reset_state
+jq '.expected_source_repository_id = "repo://example/other-api"' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
+mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
+expect_fail_with 'target story alignment mismatch: expected_source_repository_id does not align with target_repository_id'
 
 reset_state
 cat >"${state_dir}/cicd-list.json" <<'JSON'
