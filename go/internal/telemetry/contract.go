@@ -359,6 +359,10 @@ const (
 	// page-and-iterate caller pattern for ecosystem-level questions like
 	// "how many resources per provider?".
 	SpanQueryInfraResourceAggregate      = "query.infra_resource_aggregate"
+	// SpanQueryContainerImageList wraps the bounded container-image (OCI) list
+	// read over the authoritative (:ContainerImage) graph that backs the
+	// console Images browse surface.
+	SpanQueryContainerImageList = "query.container_image_list"
 	SpanQueryCodeStructuralInventory     = "query.code_structural_inventory"
 	SpanQueryCodeTopicInvestigation      = "query.code_topic_investigation"
 	SpanQueryDeadCodeInvestigation       = "query.dead_code_investigation"
