@@ -1,0 +1,46 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.9.8",
+  "serial": 17,
+  "lineage": "lineage-123",
+  "resources": [
+    {
+      "mode": "data",
+      "type": "cloudinit_config",
+      "name": "rendered",
+      "provider": "provider[\"registry.terraform.io/hashicorp/cloudinit\"]",
+      "instances": [
+        {
+          "index_key": "shell",
+          "attributes": {
+            "base64_encode": false,
+            "gzip": false,
+            "part": [
+              {
+                "content": "echo synthetic-shell",
+                "content_type": "text/x-shellscript",
+                "filename": "setup.sh"
+              }
+            ],
+            "rendered": "#cloud-config\nruncmd:\n  - echo synthetic-shell"
+          }
+        },
+        {
+          "index_key": "cloud-config",
+          "attributes": {
+            "base64_encode": false,
+            "gzip": false,
+            "part": [
+              {
+                "content": "packages:\n  - curl",
+                "content_type": "text/cloud-config",
+                "merge_type": "list(append)+dict(recurse_array)+str()"
+              }
+            ],
+            "rendered": "#cloud-config\npackages:\n  - curl"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -2,6 +2,7 @@ package terraformstate_test
 
 import (
 	"context"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -154,6 +155,80 @@ func TestParserKeepsUnsupportedPackagedCompositeFailClosed(t *testing.T) {
 	}
 	if got, want := warning.Payload["attribute_key"], "part"; got != want {
 		t.Fatalf("attribute_key = %#v, want %#v", got, want)
+	}
+}
+
+func TestParserClassifiesCloudinitPartFixtureAsUnsupportedComposite(t *testing.T) {
+	t.Parallel()
+
+	state, err := os.ReadFile("testdata/cloudinit_config_part.tfstate.json")
+	if err != nil {
+		t.Fatalf("read cloudinit_config.part fixture: %v", err)
+	}
+
+	resolver, err := terraformstate.LoadPackagedSchemaResolver(terraformschema.DefaultSchemaDir())
+	if err != nil {
+		t.Fatalf("LoadPackagedSchemaResolver() error = %v, want nil", err)
+	}
+	if resolver == nil {
+		t.Fatal("LoadPackagedSchemaResolver() = nil, want resolver loaded from packaged schemas")
+	}
+	if resolver.HasAttribute("cloudinit_config", "part") {
+		t.Fatal("HasAttribute(cloudinit_config, part) = true, want unsupported without packaged cloudinit schema")
+	}
+
+	recorder := &stubCompositeCaptureRecorder{}
+	options := parseFixtureOptions(t)
+	options.SchemaResolver = resolver
+	options.CompositeCaptureMetrics = recorder
+
+	result, err := terraformstate.Parse(context.Background(), strings.NewReader(string(state)), options)
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	cloudinitResources := 0
+	for _, resource := range factsByKind(result.Facts, facts.TerraformStateResourceFactKind) {
+		if got, want := resource.Payload["type"], "cloudinit_config"; got != want {
+			continue
+		}
+		cloudinitResources++
+		attributes, ok := resource.Payload["attributes"].(map[string]any)
+		if !ok {
+			t.Fatalf("resource attributes = %#v, want map[string]any", resource.Payload["attributes"])
+		}
+		if _, present := attributes["part"]; present {
+			t.Fatalf("attributes[part] should be absent for unsupported cloudinit composite, got %#v", attributes["part"])
+		}
+	}
+	if got, want := cloudinitResources, 2; got != want {
+		t.Fatalf("cloudinit resource facts = %d, want %d", got, want)
+	}
+
+	if got, want := atomic.LoadInt64(&recorder.calls), int64(2); got != want {
+		t.Fatalf("composite skip calls = %d, want %d", got, want)
+	}
+	warnings := factsByKind(result.Facts, facts.TerraformStateWarningFactKind)
+	if got, want := len(warnings), 1; got != want {
+		t.Fatalf("warning fact count = %d, want %d: %#v", got, want, warnings)
+	}
+	warning := warnings[0]
+	if got, want := warning.Payload["warning_kind"], "unsupported_composite_attribute"; got != want {
+		t.Fatalf("warning_kind = %#v, want %#v", got, want)
+	}
+	if got, want := warning.Payload["reason"], terraformstate.CompositeCaptureSkipReasonSchemaUnknown; got != want {
+		t.Fatalf("reason = %#v, want %#v", got, want)
+	}
+	if got, want := warning.Payload["resource_type"], "cloudinit_config"; got != want {
+		t.Fatalf("resource_type = %#v, want %#v", got, want)
+	}
+	if got, want := warning.Payload["attribute_key"], "part"; got != want {
+		t.Fatalf("attribute_key = %#v, want %#v", got, want)
+	}
+	if got, want := warning.Payload["occurrence_count"], int64(2); got != want {
+		t.Fatalf("occurrence_count = %#v, want %#v", got, want)
+	}
+	if got, want := result.WarningsByKind["unsupported_composite_attribute"], int64(1); got != want {
+		t.Fatalf("WarningsByKind[unsupported_composite_attribute] = %d, want %d", got, want)
 	}
 }
 

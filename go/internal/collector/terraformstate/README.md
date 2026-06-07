@@ -314,6 +314,11 @@ captured composites, and keeps unknown composites on the existing
 `schema_unknown` warning/metric path. Focused local proof covered the #566
 AWS data-source shapes and the unsupported `cloudinit_config.part` path with
 `go test ./internal/collector/terraformstate -run 'TestLoadPackagedSchemaResolverCoversRemoteE2EDataSourceComposites|TestLoadPackagedSchemaResolverLeavesUnsupportedRemoteE2EGapsUnknown|TestLoadPackagedSchemaResolverFallsBackToEmbeddedSchemas|TestParserCapturesPackagedDataSourceCompositeAttribute|TestParserKeepsUnsupportedPackagedCompositeFailClosed' -count=1`.
+Issue #1587 adds a synthetic Terraform-state fixture for the same
+`cloudinit_config.part` provider-schema gap and proves the parser emits one
+`unsupported_composite_attribute` warning summary with `occurrence_count=2`
+while keeping the composite absent from resource evidence:
+`go test ./internal/collector/terraformstate -run TestParserClassifiesCloudinitPartFixtureAsUnsupportedComposite -count=1`.
 
 Observability Evidence: supported AWS data-source composites now stop emitting
 `schema_unknown` skip records because they land as redacted Terraform-state
