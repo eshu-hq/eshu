@@ -63,8 +63,9 @@
 // dependency-chain, manifest/SBOM/image/workload anchors, freshness, and
 // missing-evidence reasons without adding whole-graph traversal or inventing
 // reachability truth. Repository-scoped service-catalog correlation evidence
-// remains visible in list and explain evidence paths; when that evidence lacks
-// explicit service or workload anchors, the read surface reports
+// remains visible in list and explain evidence paths. Catalog entity refs are
+// reported as catalog anchors without becoming service ids; only catalog
+// evidence that lacks a service id, workload id, and entity ref reports
 // service/workload catalog anchor missing instead of claiming catalog evidence
 // is absent.
 // Metrics reads expose bounded historical time-series for console trend panels

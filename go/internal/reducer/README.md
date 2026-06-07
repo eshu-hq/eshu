@@ -730,10 +730,15 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   `reducer_service_catalog_correlation` facts are attached to the finding
   evidence path, but they do not create `service_ids` or `workload_ids` unless
   the fact carries those anchors. Repository-only catalog facts preserve
-  `catalog_entity_refs` and `catalog_owner_refs` when present, then report
+  `catalog_entity_refs` and `catalog_owner_refs` when present. If the finding
+  already has workload evidence and the catalog fact names a catalog entity,
+  that entity ref is the service-catalog anchor, so the reducer does not emit
+  `service/workload catalog anchor missing`; `service_ids` still stay empty
+  unless the catalog fact carries an explicit service id. Catalog evidence that
+  lacks a service id, workload id, and catalog entity ref still reports
   `service/workload catalog anchor missing` so API and MCP callers can
-  distinguish present exact catalog correlation evidence from a missing
-  service or workload hop.
+  distinguish present but incomplete catalog evidence from absent
+  service-catalog correlation evidence.
 
   No-Regression Evidence: `go test ./internal/reducer -run
   'TestBuildSupplyChainImpactFindings(ConsumesRepositoryOnlyServiceCatalogEvidence|ReportsScopedUnresolvedServiceCatalogEvidence|AttachesWorkloadIdentityWithoutServiceCatalog|AttachesDeploymentLaneEvidence|AttachesRepositoryScopedOperationalAnchors)'

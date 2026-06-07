@@ -137,7 +137,9 @@ func evidenceFactIDsForSemanticHop(
 				factIDs = append(factIDs, fact.FactID)
 			}
 		case "service":
-			if StringVal(fact.Payload, "service_id") != "" {
+			if StringVal(fact.Payload, "service_id") != "" ||
+				(fact.FactKind == serviceCatalogCorrelationFactKind &&
+					StringVal(fact.Payload, "entity_ref") != "") {
 				factIDs = append(factIDs, fact.FactID)
 			}
 		case "environment":

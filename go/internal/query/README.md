@@ -187,10 +187,11 @@ infer completeness from row count alone.
   computation expose a nil `Remediation`; callers must treat that as
   "no remediation computed yet," not "no fix available." Exact
   repository-scoped `reducer_service_catalog_correlation` evidence remains in
-  `evidence_path` for list, explain, and MCP readbacks; when the catalog row
-  lacks service/workload anchors, the read model preserves the evidence and
-  reports `service/workload catalog anchor missing` instead of reporting
-  missing service-catalog correlation evidence.
+  `evidence_path` for list, explain, and MCP readbacks. Catalog entity refs are
+  surfaced as catalog anchors without fabricating `service_ids`; only catalog
+  evidence that lacks a service id, workload id, and catalog entity ref reports
+  `service/workload catalog anchor missing` instead of missing
+  service-catalog correlation evidence.
 
 **Handler structs**
 

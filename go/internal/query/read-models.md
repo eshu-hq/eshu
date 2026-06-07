@@ -201,10 +201,12 @@ Postgres read model. Impact reads require a CVE, package, repository, subject
 digest, or status anchor plus `limit`, and keep CVSS, EPSS, KEV, reachability,
 fixed-version state, and missing evidence as separate fields. Exact
 repository-scoped service-catalog correlations stay visible in
-`evidence_path`; when the reducer has catalog evidence but no explicit
-service/workload anchor, list and explain responses carry
-`service/workload catalog anchor missing` rather than collapsing that into
-absent service-catalog evidence. The explanation route reads exactly one
+`evidence_path`. Catalog entity refs are read-model anchors, but they do not
+become `service_ids` unless reducer evidence supplies an explicit service id.
+When catalog evidence lacks a service id, workload id, and catalog entity ref,
+list and explain responses carry `service/workload catalog anchor missing`
+rather than collapsing that into absent service-catalog evidence. The
+explanation route reads exactly one
 active reducer finding by `finding_id` or
 advisory/CVE plus package, repository, or subject-digest scope, then hydrates
 only the referenced `evidence_fact_ids` so callers can inspect advisory,

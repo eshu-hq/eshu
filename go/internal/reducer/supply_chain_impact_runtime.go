@@ -180,7 +180,8 @@ func matchingSupplyChainServices(
 				rejected = append(rejected, "service catalog evidence provenance-only")
 				continue
 			}
-			if service.serviceID == "" && service.workloadID == "" {
+			if service.serviceID == "" && service.workloadID == "" &&
+				!supplyChainServiceCatalogContextHasResolvedAnchor(finding, service) {
 				rejected = append(rejected, "service/workload catalog anchor missing")
 			}
 			matches = append(matches, service)
@@ -197,4 +198,11 @@ func matchingSupplyChainServices(
 		}
 	}
 	return matches, uniqueSortedStrings(rejected)
+}
+
+func supplyChainServiceCatalogContextHasResolvedAnchor(
+	finding SupplyChainImpactFinding,
+	service supplyChainServiceContext,
+) bool {
+	return len(finding.WorkloadIDs) > 0 && service.entityRef != ""
 }
