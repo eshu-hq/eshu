@@ -125,4 +125,9 @@
 // falling back to repo-scoped documentation facts. A bare target_kind is not a
 // canonical target selector without target_id or service_id, and invalid
 // documentation fact reads report every accepted scope or target anchor.
+// Documentation fact list responses also expose bounded page metadata
+// (`count`, `limit`, `truncated`, `missing_evidence`, `states`, and
+// `next_cursor` on truncated pages) so API and MCP clients can distinguish a
+// complete scoped page from a continuation page or a scoped page with no
+// collected documentation facts.
 package query

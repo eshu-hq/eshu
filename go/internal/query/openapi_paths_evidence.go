@@ -180,9 +180,14 @@ const openAPIPathsEvidence = `
                         "required": ["fact_id", "fact_kind", "scope_id", "generation_id", "source_system", "observed_at", "payload"]
                       }
                     },
-                    "next_cursor": {"type": "string"}
+                    "count": {"type": "integer", "description": "Number of facts returned in this bounded page; not the total population."},
+                    "limit": {"type": "integer"},
+                    "truncated": {"type": "boolean"},
+                    "missing_evidence": {"type": "boolean", "description": "True when the scoped request was valid but returned no documentation facts."},
+                    "states": {"type": "array", "items": {"type": "string"}, "description": "Bounded read states such as no_documentation_facts."},
+                    "next_cursor": {"type": "string", "description": "Cursor to pass as cursor when truncated is true."}
                   },
-                  "required": ["facts", "next_cursor"]
+                  "required": ["facts", "count", "limit", "truncated", "missing_evidence", "states"]
                 }
               }
             }
