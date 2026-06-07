@@ -56,10 +56,11 @@ func (h *ImpactHandler) entityMapNeighborhoodRows(
 	for _, traversal := range entityMapTraversalSpecs(selected, req) {
 		cypher := entityMapTraversalCypher(selected, traversal.direction, traversal.relationship, req.Depth)
 		nextRows, err := h.Neo4j.Run(ctx, cypher, map[string]any{
-			"from_id":     selected.AnchorValue,
-			"environment": req.Environment,
-			"repo_id":     req.RepoID,
-			"limit":       req.Limit + 1,
+			"from_id":       selected.AnchorValue,
+			"start_repo_id": selected.RepoID,
+			"environment":   req.Environment,
+			"repo_id":       req.RepoID,
+			"limit":         req.Limit + 1,
 		})
 		if err != nil {
 			return nil, false, fmt.Errorf("load %s entity map neighborhood: %w", traversal.direction, err)
@@ -161,8 +162,8 @@ func entityMapTraversalCypher(selected entityMapCandidate, direction string, rel
 MATCH path = %s
 WHERE ($environment = '' OR coalesce(entity.environment, '') = '' OR entity.environment = $environment)
   AND ($repo_id = '' OR coalesce(entity.repo_id, '') = '' OR entity.repo_id = $repo_id OR (entity:Repository AND entity.id = $repo_id))
-RETURN coalesce(entity.id, entity.uid, entity.resource_id, entity.path, entity.name) AS entity_id,
-       coalesce(entity.name, entity.address, entity.qualified_name, entity.path, entity.id, entity.uid) AS entity_name,
+RETURN %s AS entity_id,
+       %s AS entity_name,
        labels(entity) AS entity_labels,
        %q AS direction,
        length(path) AS depth,
@@ -171,7 +172,15 @@ RETURN coalesce(entity.id, entity.uid, entity.resource_id, entity.path, entity.n
        coalesce(entity.repo_id, entity.id, '') AS repo_id,
        coalesce(entity.environment, '') AS environment
 ORDER BY depth, entity_name, entity_id
-LIMIT $limit`, selected.AnchorLabel, selected.AnchorProperty, edge, direction, relationship)
+LIMIT $limit`,
+		selected.AnchorLabel,
+		selected.AnchorProperty,
+		edge,
+		entityMapEntityIDExpression(direction, relationship),
+		entityMapEntityNameExpression(),
+		direction,
+		relationship,
+	)
 }
 
 func entityMapDirectTraversalCypher(selected entityMapCandidate, direction string, relationship string) string {
@@ -183,8 +192,8 @@ func entityMapDirectTraversalCypher(selected entityMapCandidate, direction strin
 MATCH %s
 WHERE ($environment = '' OR coalesce(entity.environment, '') = '' OR entity.environment = $environment)
   AND ($repo_id = '' OR coalesce(entity.repo_id, '') = '' OR entity.repo_id = $repo_id OR (entity:Repository AND entity.id = $repo_id))
-RETURN coalesce(entity.id, entity.uid, entity.resource_id, entity.path, entity.name) AS entity_id,
-       coalesce(entity.name, entity.address, entity.qualified_name, entity.path, entity.id, entity.uid) AS entity_name,
+RETURN %s AS entity_id,
+       %s AS entity_name,
        labels(entity) AS entity_labels,
        %q AS direction,
        1 AS depth,
@@ -192,7 +201,45 @@ RETURN coalesce(entity.id, entity.uid, entity.resource_id, entity.path, entity.n
        coalesce(entity.repo_id, entity.id, '') AS repo_id,
        coalesce(entity.environment, '') AS environment
 ORDER BY depth, entity_name, entity_id
-LIMIT $limit`, selected.AnchorLabel, selected.AnchorProperty, edge, direction, relationship)
+LIMIT $limit`,
+		selected.AnchorLabel,
+		selected.AnchorProperty,
+		edge,
+		entityMapEntityIDExpression(direction, relationship),
+		entityMapEntityNameExpression(),
+		direction,
+		relationship,
+	)
+}
+
+func entityMapEntityIDExpression(direction string, relationship string) string {
+	repoDefinesFallback := ""
+	if direction == "incoming" && relationship == "DEFINES" {
+		repoDefinesFallback = `
+         WHEN entity:Repository AND $start_repo_id <> '' THEN $start_repo_id`
+	}
+	return fmt.Sprintf(`CASE
+         WHEN entity:Repository AND entity.id IS NOT NULL THEN entity.id
+         WHEN entity:Repository AND entity.repo_id IS NOT NULL THEN entity.repo_id%s
+         WHEN entity.id IS NOT NULL THEN entity.id
+         WHEN entity.uid IS NOT NULL THEN entity.uid
+         WHEN entity.resource_id IS NOT NULL THEN entity.resource_id
+         WHEN entity.path IS NOT NULL THEN entity.path
+         WHEN entity.name IS NOT NULL THEN entity.name
+         ELSE ''
+       END`, repoDefinesFallback)
+}
+
+func entityMapEntityNameExpression() string {
+	return `CASE
+         WHEN entity.name IS NOT NULL THEN entity.name
+         WHEN entity.address IS NOT NULL THEN entity.address
+         WHEN entity.qualified_name IS NOT NULL THEN entity.qualified_name
+         WHEN entity.path IS NOT NULL THEN entity.path
+         WHEN entity.id IS NOT NULL THEN entity.id
+         WHEN entity.uid IS NOT NULL THEN entity.uid
+         ELSE ''
+       END`
 }
 
 func entityMapDirectRelationshipPattern(selected entityMapCandidate, direction string, relationship string) string {

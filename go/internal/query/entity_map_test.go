@@ -356,6 +356,8 @@ func TestEntityMapPopulatesTypedVerbAndEntityIDForVarLengthEdge(t *testing.T) {
 	// The variable-length traversal must not rely on RETURN DISTINCT (NornicDB
 	// nulls the first coalesce column) and must emit the verb as a literal
 	// rather than deriving it from relationships(path).
+	var definesCall entityMapRunCall
+	foundDefinesCall := false
 	for _, call := range graph.runCalls[1:] {
 		if strings.Contains(call.cypher, "RETURN DISTINCT") {
 			t.Fatalf("traversal cypher uses RETURN DISTINCT: %s", call.cypher)
@@ -363,6 +365,22 @@ func TestEntityMapPopulatesTypedVerbAndEntityIDForVarLengthEdge(t *testing.T) {
 		if !strings.Contains(call.cypher, "AS relationship_type,") {
 			t.Fatalf("var-length traversal missing literal relationship_type: %s", call.cypher)
 		}
+		if strings.Contains(call.cypher, `"DEFINES" AS relationship_type`) {
+			definesCall = call
+			foundDefinesCall = true
+		}
+	}
+	if !foundDefinesCall {
+		t.Fatal("incoming DEFINES traversal call not recorded")
+	}
+	if got, want := definesCall.params["start_repo_id"], "repository:r_orders_api"; got != want {
+		t.Fatalf("start_repo_id param = %#v, want %#v", got, want)
+	}
+	if want := "WHEN entity:Repository AND $start_repo_id <> '' THEN $start_repo_id"; !strings.Contains(definesCall.cypher, want) {
+		t.Fatalf("DEFINES traversal cypher missing repo fallback %q: %s", want, definesCall.cypher)
+	}
+	if strings.Contains(definesCall.cypher, "coalesce(entity.id, entity.uid, entity.resource_id, entity.path, entity.name) AS entity_id") {
+		t.Fatalf("DEFINES traversal cypher still uses fragile multi-property entity_id coalesce: %s", definesCall.cypher)
 	}
 
 	data := decodeEntityMapData(t, w)
