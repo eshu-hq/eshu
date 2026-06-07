@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -122,6 +123,89 @@ func TestDispatchSBOMAggregateRepositoryScopeReturnsHTTPContractError(t *testing
 	}
 }
 
+func TestDispatchToolSBOMAttestationAttachmentsReturnsBoundedWarningPreview(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeSBOMAttestationAttachmentStore{
+		rows: []query.SBOMAttestationAttachmentRow{
+			{
+				AttachmentID:       "attachment-many-warnings",
+				DocumentID:         "doc-many-warnings",
+				AttachmentStatus:   "unparseable",
+				ParseStatus:        "parse_failed",
+				ArtifactKind:       "sbom",
+				WarningSummaries:   repeatedMCPWarningSummaries(256, "lockfile parse warning"),
+				SourceFreshness:    "active",
+				SourceConfidence:   "reported",
+				EvidenceFactIDs:    []string{"warning-fact"},
+				MissingEvidence:    []string{"parseable_document"},
+				AttachmentScope:    "parse_only_unanchored",
+				DocumentDigest:     "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+				SubjectDigest:      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				VerificationPolicy: "not_configured",
+			},
+		},
+	}
+	mux := http.NewServeMux()
+	handler := &query.SupplyChainHandler{
+		SBOMAttachments: store,
+		Profile:         query.ProfileProduction,
+	}
+	handler.Mount(mux)
+
+	result, err := dispatchTool(
+		context.Background(),
+		mux,
+		"list_sbom_attestation_attachments",
+		map[string]any{
+			"document_id": "doc-many-warnings",
+			"limit":       float64(1),
+		},
+		"",
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	if err != nil {
+		t.Fatalf("dispatchTool() error = %v, want nil", err)
+	}
+	if result.Envelope == nil {
+		t.Fatal("dispatchTool() envelope is nil, want SBOM attachment envelope")
+	}
+	data, ok := result.Envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope.Data = %T, want map[string]any", result.Envelope.Data)
+	}
+	attachments, ok := data["attachments"].([]any)
+	if !ok {
+		t.Fatalf("attachments = %T, want []any", data["attachments"])
+	}
+	if got, want := len(attachments), 1; got != want {
+		t.Fatalf("len(attachments) = %d, want %d", got, want)
+	}
+	row, ok := attachments[0].(map[string]any)
+	if !ok {
+		t.Fatalf("attachment = %T, want map[string]any", attachments[0])
+	}
+	warnings, ok := row["warning_summaries"].([]any)
+	if !ok {
+		t.Fatalf("warning_summaries = %T, want []any", row["warning_summaries"])
+	}
+	if got, want := len(warnings), 1; got != want {
+		t.Fatalf("len(warning_summaries) = %d, want %d", got, want)
+	}
+	if got, want := warnings[0], "lockfile parse warning"; got != want {
+		t.Fatalf("warning_summaries[0] = %#v, want %#v", got, want)
+	}
+	if got, want := row["warning_summary_count"], float64(256); got != want {
+		t.Fatalf("warning_summary_count = %#v, want %#v", got, want)
+	}
+	if got, want := row["warning_summaries_truncated"], true; got != want {
+		t.Fatalf("warning_summaries_truncated = %#v, want %#v", got, want)
+	}
+	if got, want := store.lastFilter.Limit, 2; got != want {
+		t.Fatalf("store filter limit = %d, want %d", got, want)
+	}
+}
+
 func TestResolveRouteMapsContainerImageIdentitiesToBoundedQuery(t *testing.T) {
 	t.Parallel()
 
@@ -181,4 +265,27 @@ func httpServeMux(handler *query.SupplyChainHandler) *http.ServeMux {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 	return mux
+}
+
+type fakeSBOMAttestationAttachmentStore struct {
+	rows       []query.SBOMAttestationAttachmentRow
+	lastFilter query.SBOMAttestationAttachmentFilter
+}
+
+func (s *fakeSBOMAttestationAttachmentStore) ListSBOMAttestationAttachments(
+	_ context.Context,
+	filter query.SBOMAttestationAttachmentFilter,
+) (query.SBOMAttestationAttachmentPage, error) {
+	s.lastFilter = filter
+	return query.SBOMAttestationAttachmentPage{
+		Attachments: append([]query.SBOMAttestationAttachmentRow(nil), s.rows...),
+	}, nil
+}
+
+func repeatedMCPWarningSummaries(count int, summary string) []string {
+	warnings := make([]string, count)
+	for i := range warnings {
+		warnings[i] = summary
+	}
+	return warnings
 }

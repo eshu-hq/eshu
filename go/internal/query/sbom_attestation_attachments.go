@@ -7,7 +7,10 @@ import (
 	"fmt"
 )
 
-const sbomAttestationAttachmentFactKind = "reducer_sbom_attestation_attachment"
+const (
+	sbomAttestationAttachmentFactKind            = "reducer_sbom_attestation_attachment"
+	sbomAttestationWarningSummaryPreviewMaxCount = 10
+)
 
 // SBOMAttestationAttachmentStore reads reducer-owned SBOM and attestation
 // attachment facts.
@@ -51,30 +54,32 @@ type ComponentEvidenceRow struct {
 // SBOMAttestationAttachmentRow is one durable SBOM attachment fact decoded from
 // the reducer-owned read model.
 type SBOMAttestationAttachmentRow struct {
-	AttachmentID       string
-	SubjectDigest      string
-	DocumentID         string
-	DocumentDigest     string
-	AttachmentStatus   string
-	ParseStatus        string
-	VerificationStatus string
-	VerificationPolicy string
-	ArtifactKind       string
-	Format             string
-	SpecVersion        string
-	Reason             string
-	AttachmentScope    string
-	CanonicalWrites    int
-	ComponentCount     int
-	ComponentEvidence  []ComponentEvidenceRow
-	RepositoryIDs      []string
-	WorkloadIDs        []string
-	ServiceIDs         []string
-	WarningSummaries   []string
-	EvidenceFactIDs    []string
-	MissingEvidence    []string
-	SourceFreshness    string
-	SourceConfidence   string
+	AttachmentID              string
+	SubjectDigest             string
+	DocumentID                string
+	DocumentDigest            string
+	AttachmentStatus          string
+	ParseStatus               string
+	VerificationStatus        string
+	VerificationPolicy        string
+	ArtifactKind              string
+	Format                    string
+	SpecVersion               string
+	Reason                    string
+	AttachmentScope           string
+	CanonicalWrites           int
+	ComponentCount            int
+	ComponentEvidence         []ComponentEvidenceRow
+	RepositoryIDs             []string
+	WorkloadIDs               []string
+	ServiceIDs                []string
+	WarningSummaries          []string
+	WarningSummaryCount       int
+	WarningSummariesTruncated bool
+	EvidenceFactIDs           []string
+	MissingEvidence           []string
+	SourceFreshness           string
+	SourceConfidence          string
 }
 
 type sbomAttestationAttachmentQueryer interface {
@@ -291,32 +296,86 @@ func decodeSBOMAttestationAttachmentRow(
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		return SBOMAttestationAttachmentRow{}, fmt.Errorf("decode sbom attestation attachment: %w", err)
 	}
+	warnings, warningCount, warningsTruncated := boundedSBOMWarningSummariesFromValue(payload["warning_summaries"])
 	return SBOMAttestationAttachmentRow{
-		AttachmentID:       factID,
-		SubjectDigest:      StringVal(payload, "subject_digest"),
-		DocumentID:         StringVal(payload, "document_id"),
-		DocumentDigest:     StringVal(payload, "document_digest"),
-		AttachmentStatus:   StringVal(payload, "attachment_status"),
-		ParseStatus:        StringVal(payload, "parse_status"),
-		VerificationStatus: StringVal(payload, "verification_status"),
-		VerificationPolicy: StringVal(payload, "verification_policy"),
-		ArtifactKind:       StringVal(payload, "artifact_kind"),
-		Format:             StringVal(payload, "format"),
-		SpecVersion:        StringVal(payload, "spec_version"),
-		Reason:             StringVal(payload, "reason"),
-		AttachmentScope:    StringVal(payload, "attachment_scope"),
-		CanonicalWrites:    IntVal(payload, "canonical_writes"),
-		ComponentCount:     IntVal(payload, "component_count"),
-		ComponentEvidence:  componentEvidenceRows(payload["component_evidence"]),
-		RepositoryIDs:      StringSliceVal(payload, "repository_ids"),
-		WorkloadIDs:        StringSliceVal(payload, "workload_ids"),
-		ServiceIDs:         StringSliceVal(payload, "service_ids"),
-		WarningSummaries:   StringSliceVal(payload, "warning_summaries"),
-		EvidenceFactIDs:    StringSliceVal(payload, "evidence_fact_ids"),
-		MissingEvidence:    StringSliceVal(payload, "missing_evidence"),
-		SourceFreshness:    "active",
-		SourceConfidence:   sourceConfidence,
+		AttachmentID:              factID,
+		SubjectDigest:             StringVal(payload, "subject_digest"),
+		DocumentID:                StringVal(payload, "document_id"),
+		DocumentDigest:            StringVal(payload, "document_digest"),
+		AttachmentStatus:          StringVal(payload, "attachment_status"),
+		ParseStatus:               StringVal(payload, "parse_status"),
+		VerificationStatus:        StringVal(payload, "verification_status"),
+		VerificationPolicy:        StringVal(payload, "verification_policy"),
+		ArtifactKind:              StringVal(payload, "artifact_kind"),
+		Format:                    StringVal(payload, "format"),
+		SpecVersion:               StringVal(payload, "spec_version"),
+		Reason:                    StringVal(payload, "reason"),
+		AttachmentScope:           StringVal(payload, "attachment_scope"),
+		CanonicalWrites:           IntVal(payload, "canonical_writes"),
+		ComponentCount:            IntVal(payload, "component_count"),
+		ComponentEvidence:         componentEvidenceRows(payload["component_evidence"]),
+		RepositoryIDs:             StringSliceVal(payload, "repository_ids"),
+		WorkloadIDs:               StringSliceVal(payload, "workload_ids"),
+		ServiceIDs:                StringSliceVal(payload, "service_ids"),
+		WarningSummaries:          warnings,
+		WarningSummaryCount:       warningCount,
+		WarningSummariesTruncated: warningsTruncated,
+		EvidenceFactIDs:           StringSliceVal(payload, "evidence_fact_ids"),
+		MissingEvidence:           StringSliceVal(payload, "missing_evidence"),
+		SourceFreshness:           "active",
+		SourceConfidence:          sourceConfidence,
 	}, nil
+}
+
+func boundedSBOMWarningSummariesFromValue(raw any) ([]string, int, bool) {
+	switch values := raw.(type) {
+	case []string:
+		return boundedSBOMWarningSummaries(values)
+	case []any:
+		return boundedSBOMWarningSummariesFromAny(values)
+	default:
+		return nil, 0, false
+	}
+}
+
+func boundedSBOMWarningSummariesFromAny(values []any) ([]string, int, bool) {
+	count := 0
+	seen := map[string]struct{}{}
+	preview := make([]string, 0, sbomAttestationWarningSummaryPreviewMaxCount)
+	for _, value := range values {
+		summary, ok := value.(string)
+		if !ok {
+			continue
+		}
+		count++
+		if _, exists := seen[summary]; exists {
+			continue
+		}
+		seen[summary] = struct{}{}
+		if len(preview) < sbomAttestationWarningSummaryPreviewMaxCount {
+			preview = append(preview, summary)
+		}
+	}
+	return preview, count, count > len(preview)
+}
+
+func boundedSBOMWarningSummaries(values []string) ([]string, int, bool) {
+	count := len(values)
+	if count == 0 {
+		return nil, 0, false
+	}
+	seen := map[string]struct{}{}
+	preview := make([]string, 0, sbomAttestationWarningSummaryPreviewMaxCount)
+	for _, summary := range values {
+		if _, exists := seen[summary]; exists {
+			continue
+		}
+		seen[summary] = struct{}{}
+		if len(preview) < sbomAttestationWarningSummaryPreviewMaxCount {
+			preview = append(preview, summary)
+		}
+	}
+	return preview, count, count > len(preview)
 }
 
 func componentEvidenceRows(raw any) []ComponentEvidenceRow {

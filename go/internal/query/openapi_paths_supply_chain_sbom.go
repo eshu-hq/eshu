@@ -46,7 +46,21 @@ const openAPIPathsSupplyChainSBOMAttestations = `
                           "attachment_scope": {"type": "string", "enum": ["image_subject", "parse_only_unanchored", "subject_only_unanchored", "unanchored"]},
                           "missing_evidence": {"type": "array", "items": {"type": "string"}},
                           "canonical_writes": {"type": "integer"},
-                          "component_count": {"type": "integer"}
+                          "component_count": {"type": "integer"},
+                          "warning_summaries": {
+                            "type": "array",
+                            "maxItems": 10,
+                            "description": "Bounded duplicate-collapsed preview of parser warning summaries.",
+                            "items": {"type": "string"}
+                          },
+                          "warning_summary_count": {
+                            "type": "integer",
+                            "description": "Total warning summary entries recorded on the attachment payload before preview bounding."
+                          },
+                          "warning_summaries_truncated": {
+                            "type": "boolean",
+                            "description": "True when warning_summaries omits duplicate or overflow entries from the recorded warning summaries."
+                          }
                         }
                       }
                     },

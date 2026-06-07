@@ -281,7 +281,7 @@ func supplyChainTools() []ToolDefinition {
 		},
 		{
 			Name:        "list_sbom_attestation_attachments",
-			Description: "List reducer-owned SBOM and attestation attachment evidence by source repository, workload, service, image digest, or document identity. Inspect attachment_scope and missing_evidence before treating parse-only rows as image evidence.",
+			Description: "List reducer-owned SBOM and attestation attachment evidence by workload, service, image digest, or document identity; repository_id is rejected by the HTTP contract. Inspect attachment_scope and missing_evidence before treating parse-only rows as image evidence. Parser warning summaries are returned as a bounded preview with warning_summary_count and warning_summaries_truncated.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -295,7 +295,7 @@ func supplyChainTools() []ToolDefinition {
 					},
 					"repository_id": map[string]any{
 						"type":        "string",
-						"description": "Canonical source repository id or repository selector. Missing repository-to-image evidence is returned as missing_evidence.",
+						"description": "Unsupported for SBOM attachment reads; requests carrying repository_id are rejected before read-model access.",
 					},
 					"workload_id": map[string]any{
 						"type":        "string",

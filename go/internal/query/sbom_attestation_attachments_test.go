@@ -218,6 +218,77 @@ func TestSupplyChainListSBOMAttestationAttachmentsRejectsRepositoryScope(t *test
 	}
 }
 
+func TestSupplyChainListSBOMAttestationAttachmentsBoundsWarningSummaryPreview(t *testing.T) {
+	t.Parallel()
+
+	warnings := repeatedSBOMAttachmentWarnings(256, "lockfile parse warning")
+	store := &recordingSBOMAttestationAttachmentStore{
+		page: SBOMAttestationAttachmentPage{
+			Attachments: []SBOMAttestationAttachmentRow{
+				{
+					AttachmentID:       "attachment-many-warnings",
+					DocumentID:         "doc-many-warnings",
+					AttachmentStatus:   "unparseable",
+					ParseStatus:        "parse_failed",
+					ArtifactKind:       "sbom",
+					WarningSummaries:   warnings,
+					SourceFreshness:    "active",
+					SourceConfidence:   "reported",
+					EvidenceFactIDs:    []string{"warning-fact"},
+					MissingEvidence:    []string{"parseable_document"},
+					AttachmentScope:    "parse_only_unanchored",
+					CanonicalWrites:    0,
+					ComponentCount:     0,
+					DocumentDigest:     "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+					SubjectDigest:      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					VerificationPolicy: "not_configured",
+				},
+			},
+		},
+	}
+	handler := &SupplyChainHandler{SBOMAttachments: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/supply-chain/sbom-attestations/attachments?document_id=doc-many-warnings&limit=1",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var resp struct {
+		Attachments []struct {
+			WarningSummaries          []string `json:"warning_summaries"`
+			WarningSummaryCount       int      `json:"warning_summary_count"`
+			WarningSummariesTruncated bool     `json:"warning_summaries_truncated"`
+		} `json:"attachments"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := len(resp.Attachments), 1; got != want {
+		t.Fatalf("len(attachments) = %d, want %d", got, want)
+	}
+	row := resp.Attachments[0]
+	if got, want := row.WarningSummaryCount, len(warnings); got != want {
+		t.Fatalf("warning_summary_count = %d, want %d", got, want)
+	}
+	if !row.WarningSummariesTruncated {
+		t.Fatal("warning_summaries_truncated = false, want true")
+	}
+	if got, want := strings.Join(row.WarningSummaries, ","), "lockfile parse warning"; got != want {
+		t.Fatalf("warning_summaries preview = %q, want %q", got, want)
+	}
+	if got, want := strings.Count(w.Body.String(), "lockfile parse warning"), 1; got != want {
+		t.Fatalf("response warning occurrence count = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+}
+
 func TestSBOMAttestationAttachmentQueryUsesActiveFactReadModel(t *testing.T) {
 	t.Parallel()
 
@@ -286,4 +357,12 @@ func TestSBOMAttestationAttachmentMissingEvidenceQueryExplainsScopedGaps(t *test
 			t.Fatalf("sbomAttestationAttachmentMissingEvidenceQuery missing %q:\n%s", want, sbomAttestationAttachmentMissingEvidenceQuery)
 		}
 	}
+}
+
+func repeatedSBOMAttachmentWarnings(count int, summary string) []string {
+	warnings := make([]string, count)
+	for i := range warnings {
+		warnings[i] = summary
+	}
+	return warnings
 }
