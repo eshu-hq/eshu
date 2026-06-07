@@ -73,7 +73,10 @@ See `doc.go` for the godoc contract. Key types and functions:
   retry delay)
 - `CoordinatorSnapshot` — optional workflow-coordinator state: collector
   instances, run and work-item status counts, completeness counts, active and
-  overdue claims
+  overdue claims, and optional `RecentFailures`
+- `CoordinatorRecentFailures` — failure counts bounded to a recent window
+  (failed runs, blocked completeness, terminal work items) that drive the
+  degraded health state; cumulative counts stay available as detail
 - `CollectorInstanceSummary` — one configured collector runtime instance
 - `CollectorRuntimeStatus` — derived coordinator/direct collector runtime
   classification for `coordinator_managed`, `direct_mode`, `disabled`,
@@ -124,7 +127,7 @@ states (in priority order):
 | State | Condition |
 | --- | --- |
 | `stalled` | Overdue claims, or outstanding backlog with no in-flight work past `StallAfter` |
-| `degraded` | Dead-letter items, failed items, or failed generations present |
+| `degraded` | Dead-letter items, failed items, failed generations, or recent workflow-coordinator failures present. Coordinator failures use `RecentFailures` (a bounded window) when known so aged all-time failures no longer keep the state degraded; absent a window, cumulative coordinator counts apply |
 | `progressing` | Work queued, in flight, pending generation work, or outstanding shared projection intents with active partition leases or still below `StallAfter` |
 | `healthy` | No outstanding queue backlog or shared projection backlog |
 

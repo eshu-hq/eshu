@@ -193,6 +193,15 @@ func coordinatorDegraded(snapshot *CoordinatorSnapshot) bool {
 	return len(coordinatorDegradedReasons(snapshot)) > 0
 }
 
+// coordinatorDegradedReasons returns the operator-facing reasons that put the
+// workflow coordinator into a degraded state.
+//
+// When the snapshot carries a recent-failure window, the degraded state is
+// driven only by failures observed within that window so a recovered stack no
+// longer reports degraded forever on aged all-time failures. Cumulative totals
+// are still appended as informational detail so no data is lost. When the
+// window is absent (nil), the legacy cumulative behavior is preserved so
+// readers that do not compute a window never silently mask active failures.
 func coordinatorDegradedReasons(snapshot *CoordinatorSnapshot) []string {
 	if snapshot == nil {
 		return nil
@@ -200,16 +209,58 @@ func coordinatorDegradedReasons(snapshot *CoordinatorSnapshot) []string {
 	runCounts := toCountMap(snapshot.RunStatusCounts)
 	workItemCounts := toCountMap(snapshot.WorkItemStatusCounts)
 	completenessCounts := toCountMap(snapshot.CompletenessCounts)
+	cumulativeFailedRuns := runCounts["failed"]
+	cumulativeBlocked := completenessCounts["blocked"]
+	cumulativeTerminal := workItemCounts["failed_terminal"] + workItemCounts["expired"]
+
+	if recent := snapshot.RecentFailures; recent != nil {
+		return recentCoordinatorDegradedReasons(recent, cumulativeFailedRuns, cumulativeBlocked, cumulativeTerminal)
+	}
 
 	reasons := make([]string, 0, 3)
-	if runCounts["failed"] > 0 {
-		reasons = append(reasons, fmt.Sprintf("workflow coordinator failed runs=%d", runCounts["failed"]))
+	if cumulativeFailedRuns > 0 {
+		reasons = append(reasons, fmt.Sprintf("workflow coordinator failed runs=%d", cumulativeFailedRuns))
 	}
-	if blocked := completenessCounts["blocked"]; blocked > 0 {
-		reasons = append(reasons, fmt.Sprintf("workflow coordinator blocked completeness=%d", blocked))
+	if cumulativeBlocked > 0 {
+		reasons = append(reasons, fmt.Sprintf("workflow coordinator blocked completeness=%d", cumulativeBlocked))
 	}
-	if terminal := workItemCounts["failed_terminal"] + workItemCounts["expired"]; terminal > 0 {
-		reasons = append(reasons, fmt.Sprintf("workflow coordinator terminal work items=%d", terminal))
+	if cumulativeTerminal > 0 {
+		reasons = append(reasons, fmt.Sprintf("workflow coordinator terminal work items=%d", cumulativeTerminal))
+	}
+	return reasons
+}
+
+// recentCoordinatorDegradedReasons builds degraded reasons from windowed
+// failure counts. State is driven by recent counts; the matching cumulative
+// total is appended in parentheses so operators keep the all-time context.
+func recentCoordinatorDegradedReasons(
+	recent *CoordinatorRecentFailures,
+	cumulativeFailedRuns int,
+	cumulativeBlocked int,
+	cumulativeTerminal int,
+) []string {
+	if !recent.Active() {
+		return nil
+	}
+	window := nonNegativeDuration(recent.Window)
+	reasons := make([]string, 0, 3)
+	if recent.FailedRuns > 0 {
+		reasons = append(reasons, fmt.Sprintf(
+			"workflow coordinator recent failed runs=%d in %s (cumulative=%d)",
+			recent.FailedRuns, window, cumulativeFailedRuns,
+		))
+	}
+	if recent.BlockedCompleteness > 0 {
+		reasons = append(reasons, fmt.Sprintf(
+			"workflow coordinator recent blocked completeness=%d in %s (cumulative=%d)",
+			recent.BlockedCompleteness, window, cumulativeBlocked,
+		))
+	}
+	if recent.TerminalWorkItems > 0 {
+		reasons = append(reasons, fmt.Sprintf(
+			"workflow coordinator recent terminal work items=%d in %s (cumulative=%d)",
+			recent.TerminalWorkItems, window, cumulativeTerminal,
+		))
 	}
 	return reasons
 }

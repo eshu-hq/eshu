@@ -372,7 +372,7 @@ func coordinatorToMap(snapshot *status.CoordinatorSnapshot) map[string]any {
 		})
 	}
 
-	return map[string]any{
+	result := map[string]any{
 		"collector_instances":     instances,
 		"run_status_counts":       namedCountsToSlice(snapshot.RunStatusCounts),
 		"work_item_status_counts": namedCountsToSlice(snapshot.WorkItemStatusCounts),
@@ -381,6 +381,15 @@ func coordinatorToMap(snapshot *status.CoordinatorSnapshot) map[string]any {
 		"overdue_claims":          snapshot.OverdueClaims,
 		"oldest_pending_age":      snapshot.OldestPendingAge.Seconds(),
 	}
+	if recent := snapshot.RecentFailures; recent != nil {
+		result["recent_failures"] = map[string]any{
+			"window_seconds":       recent.Window.Seconds(),
+			"failed_runs":          recent.FailedRuns,
+			"blocked_completeness": recent.BlockedCompleteness,
+			"terminal_work_items":  recent.TerminalWorkItems,
+		}
+	}
+	return result
 }
 
 func namedCountsToSlice(rows []status.NamedCount) []map[string]any {

@@ -127,14 +127,23 @@ type collectorInstanceJSON struct {
 }
 
 type coordinatorSnapshotJSON struct {
-	CollectorInstances   []collectorInstanceJSON `json:"collector_instances"`
-	RunStatusCounts      []namedCountJSON        `json:"run_status_counts"`
-	WorkItemStatusCounts []namedCountJSON        `json:"work_item_status_counts"`
-	CompletenessCounts   []namedCountJSON        `json:"completeness_counts"`
-	ActiveClaims         int                     `json:"active_claims"`
-	OverdueClaims        int                     `json:"overdue_claims"`
-	OldestPendingAge     string                  `json:"oldest_pending_age"`
-	OldestPendingSeconds float64                 `json:"oldest_pending_age_seconds"`
+	CollectorInstances   []collectorInstanceJSON        `json:"collector_instances"`
+	RunStatusCounts      []namedCountJSON               `json:"run_status_counts"`
+	WorkItemStatusCounts []namedCountJSON               `json:"work_item_status_counts"`
+	CompletenessCounts   []namedCountJSON               `json:"completeness_counts"`
+	ActiveClaims         int                            `json:"active_claims"`
+	OverdueClaims        int                            `json:"overdue_claims"`
+	OldestPendingAge     string                         `json:"oldest_pending_age"`
+	OldestPendingSeconds float64                        `json:"oldest_pending_age_seconds"`
+	RecentFailures       *coordinatorRecentFailuresJSON `json:"recent_failures,omitempty"`
+}
+
+type coordinatorRecentFailuresJSON struct {
+	Window              string  `json:"window"`
+	WindowSeconds       float64 `json:"window_seconds"`
+	FailedRuns          int     `json:"failed_runs"`
+	BlockedCompleteness int     `json:"blocked_completeness"`
+	TerminalWorkItems   int     `json:"terminal_work_items"`
 }
 
 type registryCollectorJSON struct {
@@ -326,6 +335,20 @@ func coordinatorJSON(snapshot *CoordinatorSnapshot) *coordinatorSnapshotJSON {
 		OverdueClaims:        snapshot.OverdueClaims,
 		OldestPendingAge:     snapshot.OldestPendingAge.String(),
 		OldestPendingSeconds: snapshot.OldestPendingAge.Seconds(),
+		RecentFailures:       coordinatorRecentFailuresJSONValue(snapshot.RecentFailures),
+	}
+}
+
+func coordinatorRecentFailuresJSONValue(recent *CoordinatorRecentFailures) *coordinatorRecentFailuresJSON {
+	if recent == nil {
+		return nil
+	}
+	return &coordinatorRecentFailuresJSON{
+		Window:              recent.Window.String(),
+		WindowSeconds:       recent.Window.Seconds(),
+		FailedRuns:          recent.FailedRuns,
+		BlockedCompleteness: recent.BlockedCompleteness,
+		TerminalWorkItems:   recent.TerminalWorkItems,
 	}
 }
 
