@@ -136,10 +136,11 @@ func (h *ServiceCatalogHandler) listCorrelations(w http.ResponseWriter, r *http.
 		results = append(results, ServiceCatalogCorrelationResult(row))
 	}
 	body := map[string]any{
-		"correlations": results,
-		"count":        len(results),
-		"limit":        limit,
-		"truncated":    truncated,
+		"correlations":     results,
+		"count":            len(results),
+		"limit":            limit,
+		"truncated":        truncated,
+		"evidence_summary": h.serviceCatalogEvidenceSummary(r.Context(), repositoryID, results, truncated),
 	}
 	if missing := serviceCatalogMissingEvidence(filter, len(results)); len(missing) > 0 {
 		body["missing_evidence"] = missing
