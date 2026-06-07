@@ -191,6 +191,38 @@ When a service name matches multiple workloads, service story returns HTTP 409
 with envelope `error.code=ambiguous`, `data=null`, and candidate details. It
 does not choose the first match.
 
+Service and repository story `documentation_overview` may include
+`target_documentation` when the documentation read model has admissible
+external documentation tied to the selected story target. The nested object
+uses the same bounded readback vocabulary as documentation target routes:
+`findings`, `finding_count`, `related_facts`, `related_fact_count`,
+`coverage`, `missing_evidence`, `limit`, and `source`. Service story reads the
+selected service target, including canonical `service_id` selectors forwarded
+by MCP. Repository story reads repository-target documentation. Generic text
+mentions are not enough for admission; the documentation fact or finding must
+carry target references such as `candidate_refs`, `evidence_refs`, or
+`linked_entities`. When target-related facts exist but no admissible finding is
+linked to the target, the story preserves explicit `missing_evidence` instead
+of silently presenting an empty documentation summary.
+
+No-Regression Evidence:
+
+```bash
+cd go && go test ./internal/query -run 'Test(GetServiceStorySurfacesTargetLinkedExternalDocumentation|GetRepositoryStorySurfacesTargetLinkedExternalDocumentation|GetServiceStoryPreservesMissingExternalDocumentationCorrelation|DocumentationPayloadDoesNotMatchGenericMentionWithoutTargetRef)' -count=1
+cd go && go test ./internal/mcp -run 'TestDispatchTool(ServiceStoryPreservesTargetDocumentationReadback|ServiceStoryPreservesMissingDocumentationReadback|RepoStoryPreservesTargetDocumentationReadback)' -count=1
+```
+
+Observability Evidence: service story records the target-documentation read
+inside the existing `service_query.stage_completed` event for
+`documentation_overview` with `has_target_documentation`,
+`target_documentation_finding_count`, and `error` attributes. Repository story
+emits a bounded `repository_query.stage_completed` event for the
+`target_documentation` stage with `has_result`, `finding_count`, and `error`.
+The read model uses existing Postgres spans for `list_documentation_findings`
+and `list_documentation_target_facts`, plus the same HTTP/MCP truth envelope
+and error reporting. No reducer queue, graph write, collector, worker, metric
+label, runtime knob, or deployment setting changes.
+
 Deployment trace responses are evidence-first and may include deployment,
 GitOps, controller, runtime, cloud, Kubernetes, image, relationship, and
 fact-summary sections. Mapping modes are:
