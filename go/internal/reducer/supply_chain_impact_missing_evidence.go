@@ -27,13 +27,24 @@ func missingImpactEvidence(finding SupplyChainImpactFinding) []string {
 		missing = append(missing, "workload evidence missing")
 	}
 	if finding.RuntimeReachability != "known_fixed" && len(finding.ServiceIDs) == 0 {
-		if hasDeployment || hasWorkloadOrService {
+		if hasSupplyChainServiceCatalogEvidence(finding) {
+			missing = append(missing, "service/workload catalog anchor missing")
+		} else if hasDeployment || hasWorkloadOrService {
 			missing = append(missing, "service catalog correlation evidence missing")
 		} else {
 			missing = append(missing, "service evidence missing")
 		}
 	}
 	return uniqueSortedStrings(missing)
+}
+
+func hasSupplyChainServiceCatalogEvidence(finding SupplyChainImpactFinding) bool {
+	for _, hop := range finding.EvidencePath {
+		if hop == serviceCatalogCorrelationFactKind {
+			return true
+		}
+	}
+	return false
 }
 
 func supplyChainReachabilityHasPackageAnchor(runtimeReachability string) bool {
