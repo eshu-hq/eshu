@@ -71,6 +71,15 @@ func (cr *ContentReader) documentationFindings(
 		}
 		readModel.RelatedFacts = relatedFacts
 		readModel.Coverage = documentationTargetCoverageFromFacts(filter, findings, relatedFacts, truncated)
+		if readModel.Coverage.FindingsReturned == 0 && readModel.Coverage.TargetFactCount == 0 {
+			sourceOnlyCoverage, err := cr.documentationSourceOnlySummary(ctx, filter)
+			if err != nil {
+				span.RecordError(err)
+				return documentationFindingListReadModel{}, err
+			}
+			readModel.Coverage.SourceOnlyCount = sourceOnlyCoverage.SourceOnlyCount
+			readModel.Coverage.SourceOnlyFactKinds = sourceOnlyCoverage.SourceOnlyFactKinds
+		}
 		readModel.MissingEvidence = documentationMissingEvidenceForTarget(readModel.Coverage)
 	}
 	return readModel, nil

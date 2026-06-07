@@ -211,13 +211,19 @@ mentions are not enough for admission; the documentation fact or finding must
 carry target references such as `candidate_refs`, `evidence_refs`, or
 `linked_entities`. When target-related facts exist but no admissible finding is
 linked to the target, the story preserves explicit `missing_evidence` instead
-of silently presenting an empty documentation summary.
+of silently presenting an empty documentation summary. When external
+documentation source facts exist but none carry structured target refs, stories
+and `GET /api/v0/documentation/findings` keep `findings`, `finding_count`,
+`related_facts`, and `related_fact_count` at zero and report
+`target_link_not_modeled` with aggregate `coverage.source_only_count` and
+`coverage.source_only_fact_kinds`; `GET /api/v0/documentation/facts` remains
+target-scoped and does not return source-only Confluence rows for the target.
 
 No-Regression Evidence:
 
 ```bash
-cd go && go test ./internal/query -run 'Test(GetServiceStorySurfacesTargetLinkedExternalDocumentation|GetRepositoryStorySurfacesTargetLinkedExternalDocumentation|GetServiceStoryPreservesMissingExternalDocumentationCorrelation|DocumentationPayloadDoesNotMatchGenericMentionWithoutTargetRef)' -count=1
-cd go && go test ./internal/mcp -run 'TestDispatchTool(ServiceStoryPreservesTargetDocumentationReadback|ServiceStoryPreservesMissingDocumentationReadback|RepoStoryPreservesTargetDocumentationReadback)' -count=1
+cd go && go test ./internal/query -run 'Test(DocumentationHandlerExplainsSourceOnlyDocumentationFacts|ContentReaderDocumentationFindingsReportsSourceOnlyDocumentationFacts|BuildStoryTargetDocumentationExplainsSourceOnlyDocumentationFacts|BuildDocumentationSourceOnlySQLStaysAggregateOnly|GetServiceStorySurfacesTargetLinkedExternalDocumentation|GetRepositoryStorySurfacesTargetLinkedExternalDocumentation|GetServiceStoryPreservesMissingExternalDocumentationCorrelation|DocumentationPayloadDoesNotMatchGenericMentionWithoutTargetRef)' -count=1
+cd go && go test ./internal/mcp -run 'TestDispatchToolServiceStoryPreserves(SourceOnlyDocumentationReadback|MissingDocumentationReadback|TargetDocumentationReadback)' -count=1
 ```
 
 Observability Evidence: service story records the target-documentation read
@@ -227,9 +233,10 @@ inside the existing `service_query.stage_completed` event for
 emits a bounded `repository_query.stage_completed` event for the
 `target_documentation` stage with `has_result`, `finding_count`, and `error`.
 The read model uses existing Postgres spans for `list_documentation_findings`
-and `list_documentation_target_facts`, plus the same HTTP/MCP truth envelope
-and error reporting. No reducer queue, graph write, collector, worker, metric
-label, runtime knob, or deployment setting changes.
+and `list_documentation_target_facts`, plus the aggregate-only
+`count_documentation_source_only_facts` span and the same HTTP/MCP truth
+envelope and error reporting. No reducer queue, graph write, collector,
+worker, metric label, runtime knob, or deployment setting changes.
 
 Service and repository story `support_overview` may include `target_support`
 when Jira/work-item or PagerDuty incident-routing source facts carry explicit

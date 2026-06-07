@@ -96,6 +96,56 @@ func TestDispatchToolServiceStoryPreservesMissingDocumentationReadback(t *testin
 	}
 }
 
+func TestDispatchToolServiceStoryPreservesSourceOnlyDocumentationReadback(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v0/services/payments-api/story", func(w http.ResponseWriter, _ *http.Request) {
+		writeMCPStoryDocumentationEnvelope(w, map[string]any{
+			"documentation_overview": map[string]any{
+				"documentation_file_count": 2,
+				"target_documentation": map[string]any{
+					"finding_count":      0,
+					"findings":           []map[string]any{},
+					"related_fact_count": 0,
+					"related_facts":      []map[string]any{},
+					"coverage": map[string]any{
+						"source_only_count": 42,
+						"source_only_fact_kinds": map[string]any{
+							"documentation_document": 7,
+							"documentation_section":  35,
+						},
+					},
+					"missing_evidence": []map[string]any{{
+						"reason": "target_link_not_modeled",
+						"detail": "external documentation facts exist, but none carry structured refs for the selected target scope",
+					}},
+				},
+			},
+		})
+	})
+
+	result := dispatchMCPStoryDocumentationTool(t, mux, "get_service_story", map[string]any{
+		"workload_id": "workload:payments-api",
+	})
+	overview := mcpMapValue(mcpEnvelopeData(t, result), "documentation_overview")
+	if got, want := query.IntVal(overview, "documentation_file_count"), 2; got != want {
+		t.Fatalf("documentation_overview.documentation_file_count = %d, want %d", got, want)
+	}
+	targetDocumentation := mcpMapValue(overview, "target_documentation")
+	if got := len(mcpMapSliceValue(targetDocumentation, "findings")); got != 0 {
+		t.Fatalf("len(target_documentation.findings) = %d, want 0", got)
+	}
+	coverage := mcpMapValue(targetDocumentation, "coverage")
+	if got, want := query.IntVal(coverage, "source_only_count"), 42; got != want {
+		t.Fatalf("coverage.source_only_count = %d, want %d", got, want)
+	}
+	missing := mcpMapSliceValue(targetDocumentation, "missing_evidence")
+	if got, want := query.StringVal(missing[0], "reason"), "target_link_not_modeled"; got != want {
+		t.Fatalf("missing_evidence[0].reason = %q, want %q", got, want)
+	}
+}
+
 func TestDispatchToolRepoStoryPreservesTargetDocumentationReadback(t *testing.T) {
 	t.Parallel()
 

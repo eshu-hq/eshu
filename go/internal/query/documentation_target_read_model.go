@@ -21,11 +21,13 @@ type documentationTargetScope struct {
 }
 
 type documentationTargetCoverage struct {
-	Target           documentationTargetScope `json:"target,omitempty"`
-	FindingsReturned int                      `json:"findings_returned"`
-	TargetFactCount  int                      `json:"target_fact_count"`
-	TargetFactKinds  map[string]int           `json:"target_fact_kinds,omitempty"`
-	Truncated        bool                     `json:"truncated"`
+	Target              documentationTargetScope `json:"target,omitempty"`
+	FindingsReturned    int                      `json:"findings_returned"`
+	TargetFactCount     int                      `json:"target_fact_count"`
+	TargetFactKinds     map[string]int           `json:"target_fact_kinds,omitempty"`
+	SourceOnlyCount     int                      `json:"source_only_count,omitempty"`
+	SourceOnlyFactKinds map[string]int           `json:"source_only_fact_kinds,omitempty"`
+	Truncated           bool                     `json:"truncated"`
 }
 
 type documentationMissingEvidence struct {
@@ -67,6 +69,7 @@ func documentationFindingsResponse(readModel documentationFindingListReadModel) 
 func (m documentationFindingListReadModel) hasTargetReadback() bool {
 	return m.Coverage.Target.hasSelector() ||
 		m.Coverage.TargetFactCount > 0 ||
+		m.Coverage.SourceOnlyCount > 0 ||
 		len(m.RelatedFacts) > 0 ||
 		len(m.MissingEvidence) > 0
 }
@@ -350,6 +353,12 @@ func documentationMissingEvidenceForTarget(coverage documentationTargetCoverage)
 		return []documentationMissingEvidence{{
 			Reason: "documentation_findings_absent",
 			Detail: "target documentation facts exist but no admissible documentation findings matched the target scope",
+		}}
+	}
+	if coverage.SourceOnlyCount > 0 {
+		return []documentationMissingEvidence{{
+			Reason: "target_link_not_modeled",
+			Detail: "external documentation facts exist, but none carry structured refs for the selected target scope",
 		}}
 	}
 	return []documentationMissingEvidence{{

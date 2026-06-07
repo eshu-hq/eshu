@@ -160,6 +160,25 @@ func (c *contentReaderConn) QueryContext(_ context.Context, query string, _ []dr
 			rows: [][]driver.Value{{int64(0), int64(0), int64(0)}},
 		}, nil
 	}
+	if strings.Contains(query, "COUNT(*) AS documentation_source_only_count") &&
+		(len(c.results) == 0 || !contentReaderResultColumnsEqual(c.results[0], []string{
+			"documentation_source_only_count",
+			"documentation_source_fact_count",
+			"documentation_document_fact_count",
+			"documentation_section_fact_count",
+			"documentation_link_fact_count",
+		})) {
+		return &contentReaderRows{
+			columns: []string{
+				"documentation_source_only_count",
+				"documentation_source_fact_count",
+				"documentation_document_fact_count",
+				"documentation_section_fact_count",
+				"documentation_link_fact_count",
+			},
+			rows: [][]driver.Value{{int64(0), int64(0), int64(0), int64(0), int64(0)}},
+		}, nil
+	}
 	if strings.Contains(query, "FROM content_entities") &&
 		strings.Contains(query, "entity_type = $2") &&
 		strings.Contains(query, "LIMIT $3 OFFSET $4") &&

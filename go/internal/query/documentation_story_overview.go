@@ -105,7 +105,9 @@ func buildStoryTargetDocumentation(
 	if len(missingEvidence) == 0 && readModel.Coverage.Target.hasSelector() {
 		missingEvidence = documentationMissingEvidenceForTarget(readModel.Coverage)
 	}
-	if len(findings) == 0 && len(relatedFacts) == 0 && readModel.Coverage.TargetFactCount == 0 {
+	if len(findings) == 0 && len(relatedFacts) == 0 &&
+		readModel.Coverage.TargetFactCount == 0 &&
+		readModel.Coverage.SourceOnlyCount == 0 {
 		return nil
 	}
 	if findings == nil {
@@ -163,6 +165,12 @@ func documentationTargetCoverageMap(coverage documentationTargetCoverage) map[st
 	if len(coverage.TargetFactKinds) > 0 {
 		out["target_fact_kinds"] = coverage.TargetFactKinds
 	}
+	if coverage.SourceOnlyCount > 0 {
+		out["source_only_count"] = coverage.SourceOnlyCount
+	}
+	if len(coverage.SourceOnlyFactKinds) > 0 {
+		out["source_only_fact_kinds"] = coverage.SourceOnlyFactKinds
+	}
 	return out
 }
 
@@ -189,6 +197,8 @@ func storyTargetDocumentationSummary(targetDocumentation map[string]any) string 
 		return fmt.Sprintf("External documentation includes %d target-linked finding(s).", findingCount)
 	case relatedFactCount > 0:
 		return fmt.Sprintf("External documentation has %d target-related fact(s) but no admitted finding for this target.", relatedFactCount)
+	case IntVal(mapValue(targetDocumentation, "coverage"), "source_only_count") > 0:
+		return "External documentation facts exist, but none carry structured refs for this target."
 	default:
 		return ""
 	}
