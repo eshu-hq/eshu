@@ -361,6 +361,16 @@ service story/deployment trace expose bounded uncorrelated cloud-resource
 candidates using the same safe CloudResource handles as infrastructure search
 without promoting them into canonical `cloud_resources`.
 
+Remote Docker Compose proof against NornicDB also verified the CloudResource
+free-text predicate shape on a target service with six AWS cloud-resource
+matches. A broad multiline `OR` predicate and direct optional property
+projections returned zero rows on that backend, while the one-line predicate
+with coalesced optional projections returned the six candidates in the
+`uncorrelated_cloud_resource_candidates` service-story stage and preserved
+bounded infra search results. Keep this query text shape aligned with
+`infraResourceFreeTextPredicate`; it is a backend-compatibility contract, not
+formatting.
+
 No-Observability-Change: the new candidate read still runs through
 `GraphQuery.Run`, existing `neo4j.query` spans, and
 `eshu_dp_neo4j_query_duration_seconds`; service-story enrichment records the

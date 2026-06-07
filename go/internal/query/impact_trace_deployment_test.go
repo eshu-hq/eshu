@@ -142,13 +142,16 @@ func TestLoadUncorrelatedCloudResourceCandidatesUsesBoundedServiceSelector(t *te
 	if err != nil {
 		t.Fatalf("loadUncorrelatedCloudResourceCandidates() error = %v, want nil", err)
 	}
-	for _, want := range []string{"MATCH (c:CloudResource)", "LIMIT $limit", "toLower(coalesce(c.arn, '')) CONTAINS $service_token"} {
+	for _, want := range []string{"MATCH (n)", "WHERE (n:CloudResource)", "LIMIT $limit", "coalesce(n.arn, '') CONTAINS $query"} {
 		if !strings.Contains(seenCypher, want) {
 			t.Fatalf("candidate cypher missing %q: %s", want, seenCypher)
 		}
 	}
-	if got, want := seenParams["service_token"], "sample-service"; got != want {
-		t.Fatalf("service_token = %#v, want %#v", got, want)
+	if strings.Contains(seenCypher, "toLower(") || strings.Contains(seenCypher, "$service_token") || strings.Contains(seenCypher, "$service_name") {
+		t.Fatalf("candidate cypher must use infra-search-compatible parameterized CONTAINS shape: %s", seenCypher)
+	}
+	if got, want := seenParams["query"], "sample-service"; got != want {
+		t.Fatalf("query = %#v, want %#v", got, want)
 	}
 	if got, want := seenParams["limit"], 3; got != want {
 		t.Fatalf("limit = %#v, want %#v", got, want)

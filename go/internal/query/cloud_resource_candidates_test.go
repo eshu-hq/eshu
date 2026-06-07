@@ -20,16 +20,37 @@ func TestCloudResourceCandidatesUseInfraSearchSourceFields(t *testing.T) {
 		t.Fatalf("loadUncorrelatedCloudResourceCandidates() error = %v, want nil", err)
 	}
 	for _, want := range []string{
-		"MATCH (c:CloudResource)",
+		"MATCH (n)",
+		"WHERE (n:CloudResource)",
 		"LIMIT $limit",
-		"toLower(coalesce(c.arn, '')) CONTAINS $service_token",
-		"toLower(coalesce(c.id, '')) CONTAINS $service_token",
-		"toLower(coalesce(c.source, c.source_system, '')) CONTAINS $service_token",
-		"toLower(coalesce(c.config_path, '')) CONTAINS $service_token",
+		"coalesce(n.arn, '') CONTAINS $query",
+		"coalesce(n.id, '') CONTAINS $query",
+		"coalesce(n.source, '') CONTAINS $query",
+		"coalesce(n.config_path, '') CONTAINS $query",
 	} {
 		if !strings.Contains(seenCypher, want) {
 			t.Fatalf("candidate cypher missing %q: %s", want, seenCypher)
 		}
+	}
+	if strings.Contains(seenCypher, "toLower(") || strings.Contains(seenCypher, "$service_token") || strings.Contains(seenCypher, "$service_name") {
+		t.Fatalf("candidate cypher must use infra-search-compatible parameterized CONTAINS shape: %s", seenCypher)
+	}
+	if strings.Contains(seenCypher, "CONTAINS $query OR\n") {
+		t.Fatalf("candidate cypher must keep the broad CloudResource predicate on one line for NornicDB compatibility: %s", seenCypher)
+	}
+	for _, forbidden := range []string{
+		"n.provider AS provider",
+		"n.service_anchor_status AS service_anchor_status",
+		"n.service_anchor_reason AS service_anchor_reason",
+	} {
+		if strings.Contains(seenCypher, forbidden) {
+			t.Fatalf("candidate cypher must coalesce optional CloudResource projections, found %q in %s", forbidden, seenCypher)
+		}
+	}
+	arnPredicate := "coalesce(n.arn, '') CONTAINS $query"
+	resourceIDPredicate := "coalesce(n.resource_id, '') CONTAINS $query"
+	if arnIndex, resourceIDIndex := strings.Index(seenCypher, arnPredicate), strings.Index(seenCypher, resourceIDPredicate); arnIndex < 0 || resourceIDIndex < 0 || arnIndex > resourceIDIndex {
+		t.Fatalf("candidate cypher must preserve infra-search predicate order for NornicDB compatibility: %s", seenCypher)
 	}
 }
 

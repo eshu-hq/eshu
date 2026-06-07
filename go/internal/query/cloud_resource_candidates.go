@@ -7,6 +7,9 @@ import (
 
 const uncorrelatedCloudResourceCandidateLimit = serviceStoryItemLimit
 
+// infraResourceFreeTextPredicate stays on one line for NornicDB compatibility.
+const infraResourceFreeTextPredicate = "(coalesce(n.name, '') CONTAINS $query OR coalesce(n.id, '') CONTAINS $query OR coalesce(n.kind, '') CONTAINS $query OR coalesce(n.resource_type, n.data_type, '') = $resource_type_query OR coalesce(n.resource_type, n.data_type, '') CONTAINS $resource_type_query OR coalesce(n.arn, '') CONTAINS $query OR coalesce(n.resource_id, '') CONTAINS $query OR coalesce(n.service_kind, '') CONTAINS $query OR coalesce(n.account_id, '') CONTAINS $query OR coalesce(n.region, '') CONTAINS $query OR coalesce(n.source, '') CONTAINS $query OR coalesce(n.config_path, '') CONTAINS $query)"
+
 func loadUncorrelatedCloudResourceCandidates(
 	ctx context.Context,
 	graph GraphQuery,
@@ -21,44 +24,32 @@ func loadUncorrelatedCloudResourceCandidates(
 		limit = uncorrelatedCloudResourceCandidateLimit
 	}
 	rows, err := graph.Run(ctx, `
-MATCH (c:CloudResource)
-WHERE $service_name <> ''
-  AND (
-    toLower(coalesce(c.name, '')) CONTAINS $service_token OR
-    toLower(coalesce(c.id, '')) CONTAINS $service_token OR
-    toLower(coalesce(c.kind, '')) CONTAINS $service_token OR
-    toLower(coalesce(c.resource_type, c.data_type, '')) CONTAINS $service_token OR
-    toLower(coalesce(c.resource_id, '')) CONTAINS $service_token OR
-    toLower(coalesce(c.arn, '')) CONTAINS $service_token OR
-    toLower(coalesce(c.service_kind, '')) CONTAINS $service_token OR
-    toLower(coalesce(c.account_id, '')) CONTAINS $service_token OR
-    toLower(coalesce(c.region, '')) CONTAINS $service_token OR
-    toLower(coalesce(c.source, c.source_system, '')) CONTAINS $service_token OR
-    toLower(coalesce(c.config_path, '')) CONTAINS $service_token OR
-    toLower(coalesce(c.service_anchor_name_tokens, '')) CONTAINS $service_token
-  )
-RETURN DISTINCT coalesce(c.id, c.uid, c.resource_id, c.arn, c.name) AS id,
-       c.name AS name,
-       coalesce(c.kind, c.resource_type, c.data_type, '') AS kind,
-       coalesce(c.resource_type, c.data_type, c.kind, '') AS resource_type,
-       coalesce(c.provider, c.source_system, '') AS provider,
-       coalesce(c.environment, '') AS environment,
-       coalesce(c.source, c.source_system, '') AS source,
-       coalesce(c.config_path, '') AS config_path,
-       coalesce(c.resource_service, c.service_kind, '') AS resource_service,
-       coalesce(c.resource_category, '') AS resource_category,
-       coalesce(c.resource_id, '') AS resource_id,
-       coalesce(c.arn, '') AS arn,
-       coalesce(c.account_id, '') AS account_id,
-       coalesce(c.region, '') AS region,
-       coalesce(c.service_kind, '') AS service_kind,
-       coalesce(c.service_anchor_status, '') AS service_anchor_status,
-       coalesce(c.service_anchor_reason, '') AS service_anchor_reason
-ORDER BY name, id
+MATCH (n)
+WHERE (n:CloudResource)
+  AND `+infraResourceFreeTextPredicate+`
+RETURN coalesce(n.id, '') AS id,
+       coalesce(n.name, '') AS name,
+       coalesce(n.kind, '') AS kind,
+       coalesce(n.provider, '') AS provider,
+       coalesce(n.source_system, '') AS source_system,
+       coalesce(n.environment, '') AS environment,
+       coalesce(n.source, n.source_system, '') AS source,
+       coalesce(n.config_path, '') AS config_path,
+       coalesce(n.resource_type, n.data_type, '') AS resource_type,
+       coalesce(n.resource_service, n.service_kind, '') AS resource_service,
+       coalesce(n.resource_category, '') AS resource_category,
+       coalesce(n.resource_id, '') AS resource_id,
+       coalesce(n.arn, '') AS arn,
+       coalesce(n.account_id, '') AS account_id,
+       coalesce(n.region, '') AS region,
+       coalesce(n.service_kind, '') AS service_kind,
+       coalesce(n.service_anchor_status, '') AS service_anchor_status,
+       coalesce(n.service_anchor_reason, '') AS service_anchor_reason
+ORDER BY n.name
 LIMIT $limit`, map[string]any{
-		"service_name":  serviceName,
-		"service_token": strings.ToLower(serviceName),
-		"limit":         limit,
+		"query":               serviceName,
+		"resource_type_query": serviceName,
+		"limit":               limit,
 	})
 	if err != nil {
 		return nil, err
@@ -70,7 +61,7 @@ LIMIT $limit`, map[string]any{
 			"name":                  StringVal(row, "name"),
 			"kind":                  StringVal(row, "kind"),
 			"resource_type":         StringVal(row, "resource_type"),
-			"provider":              StringVal(row, "provider"),
+			"provider":              firstNonEmptyString(StringVal(row, "provider"), StringVal(row, "source_system")),
 			"environment":           StringVal(row, "environment"),
 			"source":                StringVal(row, "source"),
 			"config_path":           StringVal(row, "config_path"),

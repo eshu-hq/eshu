@@ -182,20 +182,7 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	`
 	} else {
 		cypher += `
-		  AND (
-		       coalesce(n.name, '') CONTAINS $query
-		       OR coalesce(n.id, '') CONTAINS $query
-		       OR coalesce(n.kind, '') CONTAINS $query
-		       OR coalesce(n.resource_type, n.data_type, '') = $resource_type_query
-		       OR coalesce(n.resource_type, n.data_type, '') CONTAINS $resource_type_query
-		       OR coalesce(n.arn, '') CONTAINS $query
-		       OR coalesce(n.resource_id, '') CONTAINS $query
-		       OR coalesce(n.service_kind, '') CONTAINS $query
-		       OR coalesce(n.account_id, '') CONTAINS $query
-		       OR coalesce(n.region, '') CONTAINS $query
-		       OR coalesce(n.source, '') CONTAINS $query
-		       OR coalesce(n.config_path, '') CONTAINS $query
-		)
+		  AND ` + infraResourceFreeTextPredicate + `
 	`
 	}
 
@@ -213,15 +200,15 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cypher += `
-		RETURN n.id as id, n.name as name, labels(n) as labels,
-		       n.kind as kind, n.provider as provider, n.source_system as source_system, n.environment as environment,
-		       coalesce(n.source, n.source_system, '') as source, n.config_path as config_path,
+		RETURN coalesce(n.id, '') as id, coalesce(n.name, '') as name, labels(n) as labels,
+		       coalesce(n.kind, '') as kind, coalesce(n.provider, '') as provider, coalesce(n.source_system, '') as source_system, coalesce(n.environment, '') as environment,
+		       coalesce(n.source, n.source_system, '') as source, coalesce(n.config_path, '') as config_path,
 		       coalesce(n.resource_type, n.data_type, '') as resource_type,
 		       coalesce(n.resource_service, n.service_kind, '') as resource_service,
-		       n.resource_category as resource_category,
-		       n.resource_id as resource_id, n.arn as arn,
-		       n.account_id as account_id, n.region as region,
-		       n.service_kind as service_kind
+		       coalesce(n.resource_category, '') as resource_category,
+		       coalesce(n.resource_id, '') as resource_id, coalesce(n.arn, '') as arn,
+		       coalesce(n.account_id, '') as account_id, coalesce(n.region, '') as region,
+		       coalesce(n.service_kind, '') as service_kind
 		ORDER BY n.name
 		LIMIT $limit
 	`
