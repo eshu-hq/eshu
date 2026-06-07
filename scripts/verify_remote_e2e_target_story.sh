@@ -18,6 +18,8 @@ source "${SCRIPT_DIR}/lib/remote_e2e_target_story_common.sh"
 source "${SCRIPT_DIR}/lib/remote_e2e_target_story_alignment.sh"
 # shellcheck source=scripts/lib/remote_e2e_target_story_readbacks.sh
 source "${SCRIPT_DIR}/lib/remote_e2e_target_story_readbacks.sh"
+# shellcheck source=scripts/lib/remote_e2e_target_story_artifacts.sh
+source "${SCRIPT_DIR}/lib/remote_e2e_target_story_artifacts.sh"
 # shellcheck source=scripts/lib/remote_e2e_target_story_cicd.sh
 source "${SCRIPT_DIR}/lib/remote_e2e_target_story_cicd.sh"
 # shellcheck source=scripts/lib/remote_e2e_service_catalog.sh
@@ -48,7 +50,7 @@ main() {
 	fi
 
 	local proof_mode repo_selector expected_security_repo expected_source_repo expected_service_id expected_workload_id
-	local expected_image_repo expected_image_digest expected_image_ref
+	local expected_image_repo expected_image_digest expected_image_ref expected_source_revision
 	local expected_sbom_digest expected_cloud_resource_id expected_security_rows_file
 	local expected_incident_id expected_incident_provider expected_incident_scope expected_incident_service
 	local expected_work_item_scope expected_work_item_key expected_work_item_provider_id expected_work_item_url_fingerprint
@@ -61,6 +63,7 @@ main() {
 	expected_image_repo="$(manifest_string '.expected_oci_repository_id')"
 	expected_image_digest="$(manifest_string '.expected_image_digest')"
 	expected_image_ref="$(manifest_string '.expected_image_ref')"
+	expected_source_revision="$(manifest_string '.expected_source_revision')"
 	expected_sbom_digest="$(manifest_string '.expected_sbom_subject_digest')"
 	expected_cloud_resource_id="$(manifest_string '.expected_cloud_resource_id')"
 	expected_security_rows_file="$(manifest_string '.expected_security_alert_rows_file')"
@@ -268,32 +271,13 @@ main() {
 		fi
 	fi
 	if ((image_min > 0)); then
-		local image_anchor image_param image_file="${TMP_DIR}/container-image-count.json"
-		if [[ -n "${expected_image_digest}" ]]; then
-			image_anchor="${expected_image_digest}"
-			image_param="digest"
-		elif [[ -n "${expected_image_ref}" ]]; then
-			image_anchor="${expected_image_ref}"
-			image_param="image_ref"
-		else
-			image_anchor=""
-			image_param=""
-		fi
-		if [[ -z "${image_anchor}" ]]; then
-			echo "target container_image_identities requires expected_image_digest or expected_image_ref" >&2
-			return 1
-		fi
-		local image_path
-		image_path="/supply-chain/container-images/identities/count?${image_param}=$(urlencode "${image_anchor}")"
-		if [[ -n "${expected_source_repo}" ]]; then
-			image_path="${image_path}&source_repository_id=$(urlencode "${expected_source_repo}")"
-		fi
-		if [[ -n "${expected_image_repo}" ]]; then
-			image_path="${image_path}&repository_id=$(urlencode "${expected_image_repo}")"
-		fi
-		api_get "${image_path}" "${image_file}"
-		image_count="$(json_int "${image_file}" '.total_identities')"
-		require_min_count container_image_identities "${image_count}" "${image_min}"
+		target_story_verify_container_image_positive_evidence \
+			"${expected_source_repo}" \
+			"${expected_image_repo}" \
+			"${expected_image_digest}" \
+			"${expected_image_ref}" \
+			"${expected_source_revision}" \
+			"${image_min}"
 	elif ((container_image_missing_expected_count > 0)); then
 		target_story_verify_container_image_missing_evidence \
 			"${expected_source_repo}" \
@@ -305,14 +289,11 @@ main() {
 		if [[ -z "${expected_sbom_digest}" ]]; then
 			expected_sbom_digest="${expected_image_digest}"
 		fi
-		local sbom_file="${TMP_DIR}/sbom-count.json"
-		local sbom_path="/supply-chain/sbom-attestations/attachments/count?repository_id=${repo_query}"
-		if [[ -n "${expected_sbom_digest}" ]]; then
-			sbom_path="${sbom_path}&subject_digest=$(urlencode "${expected_sbom_digest}")"
-		fi
-		api_get "${sbom_path}" "${sbom_file}"
-		sbom_count="$(json_int "${sbom_file}" '.total_attachments')"
-		require_min_count sbom_attachments "${sbom_count}" "${sbom_min}"
+		target_story_verify_sbom_positive_evidence \
+			"${repo_query}" \
+			"${repo_selector}" \
+			"${expected_sbom_digest}" \
+			"${sbom_min}"
 	elif ((sbom_missing_expected_count > 0)); then
 		local expected_missing_sbom_digest="${expected_sbom_digest}"
 		if [[ -z "${expected_missing_sbom_digest}" ]]; then

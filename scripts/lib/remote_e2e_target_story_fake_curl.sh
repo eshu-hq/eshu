@@ -68,8 +68,28 @@ if ((is_mcp == 1)); then
 		count_container_image_identities)
 			cat "${state_dir}/mcp-image-count.json"
 			;;
+		list_container_image_identities)
+			if [[ -f "${state_dir}/mcp-image-list.json" ]]; then
+				cat "${state_dir}/mcp-image-list.json"
+			else
+				source_repo="$(jq -r '.expected_source_repository_id // .target_repository_id // "repo://example/api"' "${state_dir}/target-story.json")"
+				image_repo="$(jq -r '.expected_oci_repository_id // "oci-registry://registry.example/team/api"' "${state_dir}/target-story.json")"
+				source_revision="$(jq -r '.expected_source_revision // ""' "${state_dir}/target-story.json")"
+				jq -n --arg source_repo "${source_repo}" --arg image_repo "${image_repo}" --arg source_revision "${source_revision}" \
+					'{jsonrpc:"2.0", id:1, result:{content:[{type:"text", text:"Returned 1 result(s)."},{type:"resource", resource:{uri:"eshu://tool-result/envelope", mimeType:"application/eshu.envelope+json", text:({data:{identities:[{identity_id:"identity-1", digest:"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", image_ref:"registry.example.com/team/api:prod", repository_id:$image_repo, source_repository_ids:[$source_repo], source_revision:$source_revision, outcome:"exact_digest"}], count:1, limit:1, truncated:false}, truth:{level:"exact", freshness:{state:"fresh"}}, error:null} | tostring)}}], isError:false}}'
+			fi
+			;;
 		count_sbom_attestation_attachments)
 			cat "${state_dir}/mcp-sbom-count.json"
+			;;
+		list_sbom_attestation_attachments)
+			if [[ -f "${state_dir}/mcp-sbom-list.json" ]]; then
+				cat "${state_dir}/mcp-sbom-list.json"
+			else
+				repo_selector="$(jq -r '.target_repository_id // "repo://example/api"' "${state_dir}/target-story.json")"
+				jq -n --arg repo_selector "${repo_selector}" \
+					'{jsonrpc:"2.0", id:1, result:{content:[{type:"text", text:"Returned 1 result(s)."},{type:"resource", resource:{uri:"eshu://tool-result/envelope", mimeType:"application/eshu.envelope+json", text:({data:{attachments:[{attachment_id:"sbom-attachment-1", subject_digest:"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", repository_ids:[$repo_selector], attachment_status:"attached_verified"}], count:1, limit:1, truncated:false}, truth:{level:"exact", freshness:{state:"fresh"}}, error:null} | tostring)}}], isError:false}}'
+			fi
 			;;
 		get_service_story)
 			cat "${state_dir}/mcp-service-story.json"
@@ -118,6 +138,29 @@ case "$*" in
 	*"/api/v0/supply-chain/container-images/identities/count?source_repository_id=repo%3A%2F%2Fexample%2Fapi"*)
 		cat "${state_dir}/image-count.json"
 		;;
+	*"/api/v0/supply-chain/container-images/identities?digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&source_repository_id=repo%3A%2F%2Fexample%2Fapi&repository_id=oci-registry%3A%2F%2Fregistry.example%2Fteam%2Fapi&limit=1"*)
+		if [[ -f "${state_dir}/image-list.json" ]]; then
+			cat "${state_dir}/image-list.json"
+		else
+			cat <<'JSON'
+{"data":{"identities":[{"identity_id":"identity-1","digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","image_ref":"registry.example.com/team/api:prod","repository_id":"oci-registry://registry.example/team/api","source_repository_ids":["repo://example/api"],"outcome":"exact_digest"}],"count":1,"limit":1,"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
+JSON
+		fi
+		;;
+	*"/api/v0/supply-chain/container-images/identities?image_ref=registry.example.com%2Fteam%2Fapi%3Aprod&source_repository_id=repo%3A%2F%2Fexample%2Fapi&repository_id=oci-registry%3A%2F%2Fregistry.example%2Fteam%2Fapi&limit=1"*)
+		if [[ -f "${state_dir}/image-list.json" ]]; then
+			cat "${state_dir}/image-list.json"
+		else
+			cat <<'JSON'
+{"data":{"identities":[{"identity_id":"identity-1","digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","image_ref":"registry.example.com/team/api:prod","repository_id":"oci-registry://registry.example/team/api","source_repository_ids":["repo://example/api"],"outcome":"exact_digest"}],"count":1,"limit":1,"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
+JSON
+		fi
+		;;
+	*"/api/v0/supply-chain/container-images/identities?digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&source_repository_id=repository%3Ar_8f14e45f&limit=1"*)
+		cat <<'JSON'
+{"data":{"identities":[{"identity_id":"identity-1","digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","image_ref":"registry.example.com/team/api:prod","source_repository_ids":["repository:r_8f14e45f"],"outcome":"exact_digest"}],"count":1,"limit":1,"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
+JSON
+		;;
 	*"/api/v0/supply-chain/sbom-attestations/attachments/count?repository_id=repo%3A%2F%2Fexample%2Fapi&subject_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"*)
 		cat "${state_dir}/sbom-count.json"
 		;;
@@ -129,6 +172,29 @@ case "$*" in
 		;;
 	*"/api/v0/supply-chain/sbom-attestations/attachments/count?subject_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"*)
 		cat "${state_dir}/sbom-count.json"
+		;;
+	*"/api/v0/supply-chain/sbom-attestations/attachments?repository_id=repo%3A%2F%2Fexample%2Fapi&subject_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&limit=1"*)
+		if [[ -f "${state_dir}/sbom-list.json" ]]; then
+			cat "${state_dir}/sbom-list.json"
+		else
+			cat <<'JSON'
+{"data":{"attachments":[{"attachment_id":"sbom-attachment-1","subject_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","repository_ids":["repo://example/api"],"attachment_status":"attached_verified"}],"count":1,"limit":1,"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
+JSON
+		fi
+		;;
+	*"/api/v0/supply-chain/sbom-attestations/attachments?repository_id=repo%3A%2F%2Fexample%2Fapi&limit=1"*)
+		if [[ -f "${state_dir}/sbom-list.json" ]]; then
+			cat "${state_dir}/sbom-list.json"
+		else
+			cat <<'JSON'
+{"data":{"attachments":[{"attachment_id":"sbom-attachment-1","subject_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","repository_ids":["repo://example/api"],"attachment_status":"attached_verified"}],"count":1,"limit":1,"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
+JSON
+		fi
+		;;
+	*"/api/v0/supply-chain/sbom-attestations/attachments?repository_id=repository%3Ar_8f14e45f&subject_digest=sha256%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&limit=1"*)
+		cat <<'JSON'
+{"data":{"attachments":[{"attachment_id":"sbom-attachment-1","subject_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","repository_ids":["repository:r_8f14e45f"],"attachment_status":"attached_verified"}],"count":1,"limit":1,"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
+JSON
 		;;
 	*"/api/v0/service-catalog/correlations?repository_id=repo%3A%2F%2Fexample%2Fapi&limit=1&service_id=service%3Aapi"*)
 		cat "${state_dir}/service-catalog.json"
