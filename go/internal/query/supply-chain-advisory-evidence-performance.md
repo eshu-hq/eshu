@@ -24,6 +24,17 @@ new DDL in 241s, then returned `CVE-2021-44228` in 0.691s cold and 0.435s /
 ANALYZE` used the three `fact_records_vulnerability_active_*_lookup_v2_idx`
 indexes and completed the present-CVE SQL in 472.419ms.
 
+No-Regression Evidence: issue #1598 adds repository, workload, and service
+scopes by seeding advisory lookup keys from active
+`reducer_supply_chain_impact_finding` rows that already own target impact
+truth. The final result rows still come from active `vulnerability.*` source
+facts, and the impact seed path is gated by equality predicates on
+`repository_id`, `workload_ids`, or `service_ids` plus the existing bounded
+fact-row limit. Focused proof:
+`go test ./internal/query -run 'TestSupplyChainListAdvisoryEvidence|TestAdvisoryEvidence(Query|Lookup)' -count=1`
+and
+`go test ./internal/mcp -run 'TestResolveRouteMapsAdvisoryEvidenceToBoundedQuery' -count=1`.
+
 No-Observability-Change: the route still emits `query.advisory_evidence`, the
 Postgres query duration histogram, HTTP status/error bodies, truth envelope
 metadata, `count`, `limit`, `truncated`, and `next_cursor`. The change adds no

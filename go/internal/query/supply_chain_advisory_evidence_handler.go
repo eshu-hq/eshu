@@ -34,16 +34,23 @@ func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http
 	if !ok {
 		return
 	}
+	repositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "repository_id"))
+	if !ok {
+		return
+	}
 	filter := normalizeAdvisoryEvidenceFilter(AdvisoryEvidenceFilter{
 		CVEID:            QueryParam(r, "cve_id"),
 		AdvisoryID:       QueryParam(r, "advisory_id"),
 		PackageID:        QueryParam(r, "package_id"),
+		RepositoryID:     repositoryID,
+		WorkloadID:       QueryParam(r, "workload_id"),
+		ServiceID:        QueryParam(r, "service_id"),
 		Source:           QueryParam(r, "source"),
 		AfterAdvisoryKey: QueryParam(r, "after_advisory_key"),
 		Limit:            limit + 1,
 	})
 	if !filter.hasScope() {
-		WriteError(w, http.StatusBadRequest, "cve_id, advisory_id, or package_id is required")
+		WriteError(w, http.StatusBadRequest, "cve_id, advisory_id, package_id, repository_id, workload_id, or service_id is required")
 		return
 	}
 	if h.AdvisoryEvidence == nil {
@@ -72,6 +79,7 @@ func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http
 		"advisories": rows,
 		"count":      len(rows),
 		"limit":      limit,
+		"scope":      advisoryEvidenceResponseScope(filter),
 		"truncated":  truncated,
 	}
 	if truncated && len(rows) > 0 {
@@ -83,6 +91,30 @@ func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http
 		TruthBasisSemanticFacts,
 		"resolved from active vulnerability source facts; advisory evidence remains source-only and does not imply package, repository, image, workload, or deployment impact",
 	))
+}
+
+func advisoryEvidenceResponseScope(filter AdvisoryEvidenceFilter) map[string]string {
+	filter = normalizeAdvisoryEvidenceFilter(filter)
+	scope := make(map[string]string, 6)
+	if filter.CVEID != "" {
+		scope["cve_id"] = filter.CVEID
+	}
+	if filter.AdvisoryID != "" {
+		scope["advisory_id"] = filter.AdvisoryID
+	}
+	if filter.PackageID != "" {
+		scope["package_id"] = filter.PackageID
+	}
+	if filter.RepositoryID != "" {
+		scope["repository_id"] = filter.RepositoryID
+	}
+	if filter.WorkloadID != "" {
+		scope["workload_id"] = filter.WorkloadID
+	}
+	if filter.ServiceID != "" {
+		scope["service_id"] = filter.ServiceID
+	}
+	return scope
 }
 
 func requiredAdvisoryEvidenceLimit(w http.ResponseWriter, r *http.Request) (int, bool) {

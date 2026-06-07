@@ -4,12 +4,15 @@ const openAPIPathsSupplyChainAdvisoryEvidence = `
     "/api/v0/supply-chain/advisories/evidence": {
       "get": {
         "summary": "List source-only advisory evidence",
-        "description": "Requires limit plus cve_id, advisory_id, or package_id. Returns source-specific GHSA, CVE/NVD, OSV, GLAD, EPSS, KEV, CWE, range, fixed-version, withdrawal, reference, and disagreement evidence without implying repository, image, workload, or deployment impact.",
+        "description": "Requires limit plus cve_id, advisory_id, package_id, repository_id, workload_id, or service_id. Repository and runtime scopes first select reducer-owned impact findings, then hydrate source-specific GHSA, CVE/NVD, OSV, GLAD, EPSS, KEV, CWE, range, fixed-version, withdrawal, reference, and disagreement evidence without inventing repository, image, workload, or deployment impact.",
         "operationId": "listAdvisoryEvidence",
         "parameters": [
           {"name": "cve_id", "in": "query", "schema": {"type": "string"}},
           {"name": "advisory_id", "in": "query", "schema": {"type": "string"}},
           {"name": "package_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "repository_id", "in": "query", "schema": {"type": "string"}, "description": "Canonical repository id or selector resolved through reducer-owned impact findings."},
+          {"name": "workload_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer-admitted workload id resolved through impact findings before source advisory hydration."},
+          {"name": "service_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer-admitted service id resolved through impact findings before source advisory hydration."},
           {"name": "source", "in": "query", "schema": {"type": "string"}},
           {"name": "after_advisory_key", "in": "query", "schema": {"type": "string"}},
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
@@ -66,10 +69,11 @@ const openAPIPathsSupplyChainAdvisoryEvidence = `
                     },
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
+                    "scope": {"type": "object"},
                     "truncated": {"type": "boolean"},
                     "next_cursor": {"type": "object"}
                   },
-                  "required": ["advisories", "count", "limit", "truncated"]
+                  "required": ["advisories", "count", "limit", "scope", "truncated"]
                 }
               }
             }

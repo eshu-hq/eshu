@@ -166,7 +166,7 @@ func supplyChainTools() []ToolDefinition {
 		},
 		{
 			Name:        "list_advisory_evidence",
-			Description: "List source-only advisory evidence by CVE, advisory, or package without implying repository, image, workload, or deployment impact.",
+			Description: "List source-only advisory evidence by CVE, advisory, package, repository, workload, or service. Repository and runtime scopes first resolve reducer-owned impact findings, then hydrate source advisory evidence without inventing repository, image, workload, or deployment impact.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -181,6 +181,18 @@ func supplyChainTools() []ToolDefinition {
 					"package_id": map[string]any{
 						"type":        "string",
 						"description": "Normalized package identity such as pkg:npm/example.",
+					},
+					"repository_id": map[string]any{
+						"type":        "string",
+						"description": "Canonical repository id or repository selector resolved through reducer-owned impact findings.",
+					},
+					"workload_id": map[string]any{
+						"type":        "string",
+						"description": "Reducer-admitted workload id used to select impact findings before advisory evidence hydration.",
+					},
+					"service_id": map[string]any{
+						"type":        "string",
+						"description": "Reducer-admitted service id used to select impact findings before advisory evidence hydration.",
 					},
 					"source": map[string]any{
 						"type":        "string",

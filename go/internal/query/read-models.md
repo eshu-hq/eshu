@@ -164,11 +164,14 @@ inspect digest admission without turning weak or stale tag diagnostics into
 deployment truth.
 The same handler exposes source-only advisory evidence through a Postgres
 read model over active `vulnerability.*` facts. Advisory evidence reads require
-a CVE, advisory, or package anchor plus `limit`, and they group GHSA, CVE/NVD,
-OSV, GLAD, EPSS, KEV, CWE, affected package ranges, fixed versions, affected
-products, references, withdrawal state, and source disagreements under a
-canonical advisory identity without emitting impact findings or inferring that
-any repository, image, workload, or deployment is affected.
+a CVE, advisory, package, repository, workload, or service anchor plus `limit`.
+Repository, workload, and service scopes first select reducer-owned impact
+findings, then hydrate source advisory rows from those finding
+CVE/advisory/package anchors. The response groups GHSA, CVE/NVD, OSV, GLAD,
+EPSS, KEV, CWE, affected package ranges, fixed versions, affected products,
+references, withdrawal state, and source disagreements under a canonical
+advisory identity without emitting impact findings or inferring that any
+repository, image, workload, or deployment is affected.
 The same handler exposes supply-chain impact findings through a separate
 Postgres read model. Impact reads require a CVE, package, repository, subject
 digest, or status anchor plus `limit`, and keep CVSS, EPSS, KEV, reachability,
@@ -227,7 +230,8 @@ No-Regression Evidence: `go test ./internal/query -run
 proves bounded advisory evidence input, active source-fact SQL, canonical
 CVE/GHSA/OSV/NVD identity grouping, EPSS/KEV enrichment, CVSS v3/v4/CWE
 preservation, affected package/product evidence, withdrawn status, fixed-range
-and severity disagreements, pagination, and source-only response shape.
+and severity disagreements, pagination, repository/service/workload scope
+bridging through reducer-owned impact findings, and source-only response shape.
 
 Observability Evidence: the advisory evidence route adds the
 `query.advisory_evidence` request span with route and capability attributes. It

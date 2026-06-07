@@ -46,6 +46,8 @@ func TestAdvisoryEvidenceQueryUsesIndexableJSONBPredicates(t *testing.T) {
 		"ANY(keys.values)",
 		"fact.payload->'aliases' ? lookup.value",
 		"fact.payload->'correlation_anchors' ? lookup.value",
+		"fact.fact_kind = 'security_alert'",
+		"fact.fact_kind = 'vulnerability.provider_alert'",
 	} {
 		if strings.Contains(listAdvisoryEvidenceQuery, forbidden) {
 			t.Fatalf("listAdvisoryEvidenceQuery contains unbounded predicate %q:\n%s", forbidden, listAdvisoryEvidenceQuery)
@@ -61,6 +63,10 @@ func TestAdvisoryEvidenceQueryUsesIndexableJSONBPredicates(t *testing.T) {
 		"UPPER(TRIM(key_value)) LIKE 'CVE-%'",
 		"fact.payload->>'package_id' = $3",
 		"fact.payload->>'purl' = $3",
+		"impact.fact_kind = 'reducer_supply_chain_impact_finding'",
+		"impact.payload->>'repository_id' = $6",
+		"impact.payload->'workload_ids' ? $7",
+		"impact.payload->'service_ids' ? $8",
 	} {
 		if !strings.Contains(listAdvisoryEvidenceQuery, want) {
 			t.Fatalf("listAdvisoryEvidenceQuery missing %q:\n%s", want, listAdvisoryEvidenceQuery)

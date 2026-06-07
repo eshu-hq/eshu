@@ -261,6 +261,9 @@ affected-product/CPE, range, fixed-version, withdrawn, reference, and
 source-disagreement evidence under one canonical advisory identity without
 publishing a supply-chain impact finding or implying repository, image,
 workload, deployment, or reachability impact.
+When the caller scopes advisory evidence by repository, workload, or service,
+Eshu first selects reducer-owned impact findings for that target and uses only
+their CVE/advisory/package anchors to hydrate the source evidence page.
 
 `GET /api/v0/supply-chain/impact/explain` and the MCP
 `explain_supply_chain_impact` tool use the same reducer-owned finding facts

@@ -179,6 +179,92 @@ func TestSupplyChainListAdvisoryEvidenceUsesBoundedStore(t *testing.T) {
 	}
 }
 
+func TestSupplyChainListAdvisoryEvidenceAcceptsRepositoryScope(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingAdvisoryEvidenceStore{
+		rows: []AdvisoryEvidenceRow{
+			{AdvisoryKey: "CVE-2026-0001", CanonicalID: "CVE-2026-0001"},
+		},
+	}
+	handler := &SupplyChainHandler{AdvisoryEvidence: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/supply-chain/advisories/evidence?repository_id=repo://example/api&source=ghsa&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := store.lastFilter.RepositoryID, "repo://example/api"; got != want {
+		t.Fatalf("RepositoryID = %q, want %q", got, want)
+	}
+	if got, want := store.lastFilter.Source, "ghsa"; got != want {
+		t.Fatalf("Source = %q, want %q", got, want)
+	}
+	if got, want := store.lastFilter.Limit, 11; got != want {
+		t.Fatalf("Limit = %d, want %d", got, want)
+	}
+
+	var resp struct {
+		Scope map[string]string `json:"scope"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := resp.Scope["repository_id"], "repo://example/api"; got != want {
+		t.Fatalf("scope.repository_id = %q, want %q; body = %s", got, want, w.Body.String())
+	}
+}
+
+func TestSupplyChainListAdvisoryEvidenceAcceptsRuntimeScopes(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingAdvisoryEvidenceStore{
+		rows: []AdvisoryEvidenceRow{
+			{AdvisoryKey: "CVE-2026-0001", CanonicalID: "CVE-2026-0001"},
+		},
+	}
+	handler := &SupplyChainHandler{AdvisoryEvidence: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/supply-chain/advisories/evidence?service_id=service:api&workload_id=workload:api&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := store.lastFilter.ServiceID, "service:api"; got != want {
+		t.Fatalf("ServiceID = %q, want %q", got, want)
+	}
+	if got, want := store.lastFilter.WorkloadID, "workload:api"; got != want {
+		t.Fatalf("WorkloadID = %q, want %q", got, want)
+	}
+
+	var resp struct {
+		Scope map[string]string `json:"scope"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := resp.Scope["service_id"], "service:api"; got != want {
+		t.Fatalf("scope.service_id = %q, want %q; body = %s", got, want, w.Body.String())
+	}
+	if got, want := resp.Scope["workload_id"], "workload:api"; got != want {
+		t.Fatalf("scope.workload_id = %q, want %q; body = %s", got, want, w.Body.String())
+	}
+}
+
 func TestPageAdvisoryEvidenceRowsNormalizesCursor(t *testing.T) {
 	t.Parallel()
 
@@ -393,6 +479,10 @@ func TestAdvisoryEvidenceQueryUsesActiveSourceFactReadModel(t *testing.T) {
 	t.Parallel()
 
 	for _, want := range []string{
+		"reducer_supply_chain_impact_finding",
+		"impact.payload->>'repository_id' = $6",
+		"impact.payload->'workload_ids' ? $7",
+		"impact.payload->'service_ids' ? $8",
 		"fact.fact_kind = ANY($1::text[])",
 		"scope.active_generation_id = fact.generation_id",
 		"fact.is_tombstone = FALSE",

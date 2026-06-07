@@ -65,6 +65,50 @@ func TestOpenAPISpecIncludesSBOMAttestationAttachments(t *testing.T) {
 	}
 }
 
+func TestOpenAPISpecIncludesAdvisoryEvidenceTargetScopes(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
+	}
+
+	paths := mustMapField(t, spec, "paths")
+	path := mustMapField(t, paths, "/api/v0/supply-chain/advisories/evidence")
+	get := mustMapField(t, path, "get")
+	parameters, ok := get["parameters"].([]any)
+	if !ok {
+		t.Fatalf("parameters = %T, want []any", get["parameters"])
+	}
+	parameterNames := map[string]bool{}
+	for _, parameter := range parameters {
+		parameterMap, ok := parameter.(map[string]any)
+		if !ok {
+			t.Fatalf("parameter = %T, want map[string]any", parameter)
+		}
+		name, _ := parameterMap["name"].(string)
+		parameterNames[name] = true
+	}
+	for _, want := range []string{"repository_id", "workload_id", "service_id"} {
+		if !parameterNames[want] {
+			t.Fatalf("parameters missing %q", want)
+		}
+	}
+	responses := mustMapField(t, get, "responses")
+	twoHundred := mustMapField(t, responses, "200")
+	content := mustMapField(t, twoHundred, "content")
+	appJSON := mustMapField(t, content, "application/json")
+	schema := mustMapField(t, appJSON, "schema")
+	properties := mustMapField(t, schema, "properties")
+	if _, ok := properties["scope"]; !ok {
+		t.Fatal("advisory evidence schema missing scope")
+	}
+	required := mustStringSliceField(t, schema, "required")
+	if !containsOpenAPIEnumString(required, "scope") {
+		t.Fatalf("required = %#v, want scope", required)
+	}
+}
+
 func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 	t.Parallel()
 

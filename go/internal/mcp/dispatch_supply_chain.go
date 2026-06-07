@@ -60,7 +60,10 @@ func advisoryEvidenceRoute(args map[string]any) *route {
 		"cve_id":             str(args, "cve_id"),
 		"limit":              strconv.Itoa(intOr(args, "limit", 50)),
 		"package_id":         str(args, "package_id"),
+		"repository_id":      str(args, "repository_id"),
+		"service_id":         str(args, "service_id"),
 		"source":             str(args, "source"),
+		"workload_id":        str(args, "workload_id"),
 	}}
 }
 

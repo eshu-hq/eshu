@@ -202,18 +202,23 @@ least one bounded anchor:
 - `cve_id`
 - `advisory_id`
 - `package_id`
+- `repository_id`
+- `workload_id`
+- `service_id`
 
-The optional `source` filter narrows an already anchored request. Rows group
-GHSA, CVE/NVD, OSV, GitLab Advisory Database, FIRST EPSS, CISA KEV, CWE,
-reference, affected-package, affected-product/CPE, withdrawn, affected-range,
-and fixed-version evidence under one canonical advisory identity. They also
-surface `source_disagreements[]` for severity, withdrawn status, affected
-ranges, and fixed versions without selecting a winner.
+Repository, workload, and service scopes first select reducer-owned impact
+findings, then use the finding CVE/advisory/package anchors to hydrate source
+advisory evidence. The optional `source` filter narrows an already anchored
+request. Rows group GHSA, CVE/NVD, OSV, GitLab Advisory Database, FIRST EPSS,
+CISA KEV, CWE, reference, affected-package, affected-product/CPE, withdrawn,
+affected-range, and fixed-version evidence under one canonical advisory
+identity. They also surface `source_disagreements[]` for severity, withdrawn
+status, affected ranges, and fixed versions without selecting a winner.
 
-This route reads active `vulnerability.*` source facts only. It does not emit
-or imply reducer-owned package, repository, image, workload, deployment, or
-reachability impact. Use the impact routes below when you need admitted impact
-truth.
+This route returns active `vulnerability.*` source facts only. Repository and
+runtime scopes are lookup scopes, not impact assertions; the reducer-owned
+impact route remains the source of admitted package, repository, image,
+workload, deployment, and reachability truth.
 
 `GET /api/v0/supply-chain/vulnerabilities/{advisory_id}`
 

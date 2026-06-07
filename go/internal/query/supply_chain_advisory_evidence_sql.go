@@ -104,6 +104,18 @@ seed_candidates AS MATERIALIZED (
           )
           AND fact.fact_kind = ANY($1::text[])
           AND fact.is_tombstone = FALSE
+        UNION ALL
+        SELECT impact.fact_id, impact.scope_id, impact.generation_id, impact.fact_kind, impact.source_confidence, impact.observed_at, impact.payload
+        FROM scope_active_generations AS scope
+        JOIN fact_records AS impact
+          ON impact.scope_id = scope.scope_id
+         AND scope.active_generation_id = impact.generation_id
+        WHERE ($6 <> '' OR $7 <> '' OR $8 <> '')
+          AND impact.fact_kind = 'reducer_supply_chain_impact_finding'
+          AND impact.is_tombstone = FALSE
+          AND ($6 = '' OR impact.payload->>'repository_id' = $6)
+          AND ($7 = '' OR impact.payload->'workload_ids' ? $7)
+          AND ($8 = '' OR impact.payload->'service_ids' ? $8)
     ) AS candidate
     ORDER BY candidate.fact_id
 ),
