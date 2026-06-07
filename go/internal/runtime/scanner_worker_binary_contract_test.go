@@ -129,3 +129,21 @@ func TestJiraCollectorBinaryIsBuiltInstalledAndDocumented(t *testing.T) {
 		}
 	}
 }
+
+func TestCICDRunCollectorBinaryIsBuiltInstalledAndDocumented(t *testing.T) {
+	t.Parallel()
+
+	for file, want := range map[string]string{
+		"Dockerfile":                        "-o /go-bin/eshu-collector-cicd-run ./cmd/collector-cicd-run",
+		"scripts/install-local-binaries.sh": "go build -trimpath -ldflags=\"$LDFLAGS\" -o \"$INSTALL_DIR/eshu-collector-cicd-run\" ./cmd/collector-cicd-run",
+		"go/cmd/README.md":                  "`eshu-collector-cicd-run`",
+		"docs/public/deployment/service-runtimes-collectors.md":         "CI/CD Run Collector",
+		"docs/public/reference/environment-collectors.md":               "ESHU_CICD_RUN_COLLECTOR_INSTANCE_ID",
+		"deploy/helm/eshu/templates/deployment-cicd-run-collector.yaml": "/usr/local/bin/eshu-collector-cicd-run",
+	} {
+		content := readRepositoryFile(t, "../../..", file)
+		if !strings.Contains(content, want) {
+			t.Fatalf("%s missing %q", file, want)
+		}
+	}
+}

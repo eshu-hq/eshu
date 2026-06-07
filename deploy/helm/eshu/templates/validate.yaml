@@ -80,6 +80,23 @@
 {{- fail "securityAlertCollector.collectorInstances must contain an enabled claim-driven security_alert instance matching securityAlertCollector.instanceId" -}}
 {{- end -}}
 {{- end -}}
+{{- if .Values.cicdRunCollector.enabled -}}
+{{- if not .Values.cicdRunCollector.instanceId -}}
+{{- fail "cicdRunCollector.instanceId is required when cicdRunCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.cicdRunCollector.collectorInstances -}}
+{{- fail "cicdRunCollector.collectorInstances must contain at least one instance when cicdRunCollector.enabled=true" -}}
+{{- end -}}
+{{- $cicdRunLocalMatch := false -}}
+{{- range .Values.cicdRunCollector.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "ci_cd_run") (eq (default "" .instance_id) $.Values.cicdRunCollector.instanceId) (default false .enabled) (default false .claims_enabled) -}}
+{{- $cicdRunLocalMatch = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $cicdRunLocalMatch -}}
+{{- fail "cicdRunCollector.collectorInstances must contain an enabled claim-driven ci_cd_run instance matching cicdRunCollector.instanceId" -}}
+{{- end -}}
+{{- end -}}
 {{- if .Values.pagerDutyCollector.enabled -}}
 {{- if not .Values.pagerDutyCollector.instanceId -}}
 {{- fail "pagerDutyCollector.instanceId is required when pagerDutyCollector.enabled=true" -}}

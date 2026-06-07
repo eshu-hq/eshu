@@ -57,6 +57,7 @@ main() {
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-terraform-state" ./cmd/collector-terraform-state
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-package-registry" ./cmd/collector-package-registry
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-sbom-attestation" ./cmd/collector-sbom-attestation
+    go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-cicd-run" ./cmd/collector-cicd-run
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-pagerduty" ./cmd/collector-pagerduty
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-jira" ./cmd/collector-jira
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-grafana" ./cmd/collector-grafana

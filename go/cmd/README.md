@@ -28,6 +28,7 @@ exact binary set on `PATH`.
 | `eshu-collector-package-registry` | `collector-package-registry/` | Long-running package-registry collector |
 | `eshu-collector-sbom-attestation` | `collector-sbom-attestation/` | Long-running hosted SBOM and attestation collector |
 | `eshu-collector-security-alerts` | `collector-security-alerts/` | Long-running hosted provider security-alert collector |
+| `eshu-collector-cicd-run` | `collector-cicd-run/` | Long-running hosted GitHub Actions CI/CD run collector |
 | `eshu-collector-pagerduty` | `collector-pagerduty/` | Long-running PagerDuty incident-context collector |
 | `eshu-collector-jira` | `collector-jira/` | Long-running Jira work-item evidence collector |
 | `eshu-collector-grafana` | `collector-grafana/` | Long-running live Grafana metadata collector |
@@ -54,6 +55,7 @@ flowchart LR
   tfstate[collector-terraform-state] --> postgres
   sbom[collector-sbom-attestation] --> postgres
   alerts[collector-security-alerts] --> postgres
+  cicd[collector-cicd-run] --> postgres
   pagerduty[collector-pagerduty] --> postgres
   jira[collector-jira] --> postgres
   grafana[collector-grafana] --> postgres

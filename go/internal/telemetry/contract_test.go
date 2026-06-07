@@ -203,6 +203,8 @@ func TestSpanNames(t *testing.T) {
 		"kubernetes_live.snapshot",
 		"kubernetes_live.api_call",
 		"vault_live.snapshot",
+		"ci_cd_run.observe",
+		"ci_cd_run.fetch",
 		"aws.collector.claim.process",
 		"aws.credentials.assume_role",
 		"aws.service.scan",

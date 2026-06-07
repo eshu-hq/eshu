@@ -113,6 +113,21 @@ When a bounded GitHub open-alert read reaches `max_pages`, API and MCP
 reconciliation count/list responses expose `coverage.state=target_incomplete`
 and `source_freshness=partial`; this is response metadata, not a metric label.
 
+## CI/CD Run Collector
+
+| Metric | Key labels | Use |
+| --- | --- | --- |
+| `eshu_dp_ci_cd_run_provider_requests_total` | `provider`, `status_class` | Hosted CI/CD run provider request attempts, including success, rate-limited, and error outcomes. |
+| `eshu_dp_ci_cd_run_facts_emitted_total` | `provider`, `fact_kind` | `ci.*` source facts emitted per claimed target. |
+| `eshu_dp_ci_cd_run_rate_limited_total` | `provider` | GitHub Actions rate-limit pressure surfaced to workflow retry handling. |
+| `eshu_dp_ci_cd_run_partial_generations_total` | `provider`, `reason` | Bounded partial evidence such as truncated job pages or provider warnings. |
+| `eshu_dp_ci_cd_run_fetch_duration_seconds` | `provider`, `status_class` | Bounded provider fetch duration for one claimed target. |
+
+Repository names, workflow run IDs, artifact names, URLs, token environment
+names, token values, and provider response bodies stay out of metric labels.
+Use `/admin/status`, workflow failures, and traces to connect a bounded failure
+class to a specific private target in the operator environment.
+
 ## PagerDuty Collector
 
 | Metric | Key labels | Use |

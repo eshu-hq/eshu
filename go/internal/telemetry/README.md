@@ -118,6 +118,10 @@ gauge when a shared-acceptance observer is available.
 | `SecurityAlertProviderRequests` | `eshu_dp_security_alert_provider_requests_total` |
 | `SecurityAlertFactsEmitted` | `eshu_dp_security_alert_facts_emitted_total` |
 | `SecurityAlertRateLimited` | `eshu_dp_security_alert_rate_limited_total` |
+| `CICDRunProviderRequests` | `eshu_dp_ci_cd_run_provider_requests_total` |
+| `CICDRunFactsEmitted` | `eshu_dp_ci_cd_run_facts_emitted_total` |
+| `CICDRunRateLimited` | `eshu_dp_ci_cd_run_rate_limited_total` |
+| `CICDRunPartialGenerations` | `eshu_dp_ci_cd_run_partial_generations_total` |
 | `PagerDutyProviderRequests` | `eshu_dp_pagerduty_provider_requests_total` |
 | `PagerDutyFactsEmitted` | `eshu_dp_pagerduty_facts_emitted_total` |
 | `PagerDutyRateLimited` | `eshu_dp_pagerduty_rate_limited_total` |
@@ -233,9 +237,10 @@ module prefixes across generations.
 | `OCIRegistryScanDuration` | `eshu_dp_oci_registry_scan_duration_seconds` | 0.05–120 s |
 | `PackageRegistryObserveDuration` | `eshu_dp_package_registry_observe_duration_seconds` | 0.01–60 s |
 | `PackageRegistryGenerationLag` | `eshu_dp_package_registry_generation_lag_seconds` | 0.01–60 s |
-| `VulnerabilityIntelligenceFetchDuration` | `eshu_dp_vulnerability_intelligence_fetch_duration_seconds` | 0.01–60 s |
+| `VulnerabilityIntelligenceFetchDuration` | `eshu_dp_vulnerability_intelligence_fetch_duration_seconds` | 0.01-60 s |
 | `SecurityAlertFetchDuration` | `eshu_dp_security_alert_fetch_duration_seconds` | 0.01–60 s |
-| `PagerDutyFetchDuration` | `eshu_dp_pagerduty_fetch_duration_seconds` | 0.01–60 s |
+| `CICDRunFetchDuration` | `eshu_dp_ci_cd_run_fetch_duration_seconds` | 0.01-60 s |
+| `PagerDutyFetchDuration` | `eshu_dp_pagerduty_fetch_duration_seconds` | 0.01-60 s |
 | `PagerDutyGenerationLag` | `eshu_dp_pagerduty_generation_lag_seconds` | 0.01–60 s |
 | `JiraFetchDuration` | `eshu_dp_jira_fetch_duration_seconds` | 0.01–60 s |
 | `GrafanaFetchDuration` | `eshu_dp_grafana_fetch_duration_seconds` | 0.01–60 s |

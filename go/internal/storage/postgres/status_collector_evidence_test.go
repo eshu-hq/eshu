@@ -141,6 +141,7 @@ func TestReadCollectorFactEvidenceUsesBoundedActiveFactMetadata(t *testing.T) {
 		"COUNT(*) AS observation_count",
 		"WHEN fact.fact_kind LIKE 'reducer_%' THEN 'reducer_facts'",
 		"collector_kind IN (",
+		"'ci_cd_run'",
 		"FROM workflow_work_items AS workflow_item",
 		"LIMIT 200",
 	} {

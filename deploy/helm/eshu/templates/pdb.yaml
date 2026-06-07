@@ -161,6 +161,21 @@ spec:
       {{- include "eshu.securityAlertCollectorSelectorLabels" . | nindent 6 }}
 ---
 {{- end }}
+{{- if .Values.cicdRunCollector.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "eshu.cicdRunCollectorFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cicd-run-collector
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "eshu.cicdRunCollectorSelectorLabels" . | nindent 6 }}
+---
+{{- end }}
 {{- if .Values.pagerDutyCollector.enabled }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget

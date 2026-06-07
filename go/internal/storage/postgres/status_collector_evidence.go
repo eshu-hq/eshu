@@ -37,6 +37,7 @@ LEFT JOIN LATERAL (
 ) AS item ON TRUE
 WHERE scope.collector_kind IN (
     'aws',
+    'ci_cd_run',
     'documentation',
     'grafana',
     'jira',
