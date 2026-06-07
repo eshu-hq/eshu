@@ -116,7 +116,9 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 			return
 		}
 		ctx["deployment_sources"] = deploymentSources
-		ctx["cloud_resources"] = cloudResources
+		if len(cloudResources) > 0 {
+			ctx["cloud_resources"] = cloudResources
+		}
 		ctx["k8s_resources"] = k8sResources
 		ctx["image_refs"] = imageRefs
 		if len(imageRegistryTruth) > 0 {

@@ -93,6 +93,10 @@ No-Regression Evidence: `go test ./internal/storage/postgres -run 'TestListActiv
 
 No-Observability-Change: the change only extends the existing bounded repository follow-up allowlist inside `ListActiveSupplyChainImpactFacts`; it adds no route, table, worker, queue domain, graph write, metric label, or broad scan. Operators still diagnose this path through the existing supply-chain reducer execution counters, persisted `reducer_supply_chain_impact_finding` payloads, query readiness envelopes, and Postgres query timing metric `eshu_dp_postgres_query_duration_seconds` for the fact store.
 
+No-Regression Evidence: `go test ./internal/storage/postgres -run 'CollectorFactEvidence|RegistryCollectorStatus' -count=1` failed before `readCollectorFactEvidence` admitted `collector_kind='git'`, then passed after Git repository-ingestion facts joined the existing active non-tombstone fact aggregate. `go test ./internal/status -run 'CollectorRuntimeStatuses|RenderJSON' -count=1` and `go test ./internal/query -run 'StatusHandlerCollectors|StatusOpenAPI' -count=1` passed, proving the status projection and `/api/v0/status/collectors` API readback expose Git observations without adding payload identifiers.
+
+No-Observability-Change: the status aggregate still performs one bounded active-generation fact metadata read grouped by collector kind, optional coordinator instance, evidence source, and source system, capped by `LIMIT 200`. It adds no table, route, worker, queue domain, graph write, metric label, or payload column. Operators diagnose the path through existing `/api/v0/status/collectors` and `/admin/status` collector runtime fields plus `eshu_dp_postgres_query_duration_seconds{store=...,operation=...}` from the Postgres instrumentation wrapper.
+
 ## Exported surface
 
 The full exported store inventory lives in

@@ -205,7 +205,9 @@ strings.
   collectors such as Confluence can emit `collector_kind=documentation` facts
   with `source_systems=["confluence"]`. Status keeps both values so the fact
   model stays source-neutral while operators can still see which documentation
-  source is active.
+  source is active. Git repository-ingestion facts are included in the same
+  persisted source-fact evidence path so repository observations do not appear
+  as zero when repository readbacks are populated.
 - **AWS cloud status separates scan and commit.** `AWSCloudScanStatus.Status`
   describes scanner-side outcome such as `partial`, `credential_failed`, or
   `failed`; `CommitStatus` describes whether the fenced fact transaction later

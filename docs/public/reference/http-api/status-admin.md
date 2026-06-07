@@ -86,7 +86,10 @@ Persisted evidence is returned only as source names such as `source_facts` or
 `reducer_facts`, bounded `source_systems`, aggregate counts, and timestamps.
 Direct-source collectors can keep a source-neutral collector kind while still
 surfacing the real source identity; for example, Confluence documentation facts
-appear as `collector_kind=documentation` with `source_systems=["confluence"]`:
+appear as `collector_kind=documentation` with `source_systems=["confluence"]`.
+Git repository-ingestion facts are included as `collector_kind=git` source-fact
+evidence, so a populated repository readback does not leave Git observations at
+zero in this operator view:
 
 - `coordinator_managed`: enabled and claim-driven in the workflow coordinator.
 - `direct_mode`: registered but claims are disabled.

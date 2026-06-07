@@ -250,3 +250,84 @@ func TestStatusHandlerCollectorsRouteExposesPersistedFactEvidence(t *testing.T) 
 		t.Fatalf("collector source_systems = %#v, want confluence", collector.SourceSystems)
 	}
 }
+
+func TestStatusHandlerCollectorsRouteExposesGitRepositoryEvidence(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 7, 12, 30, 0, 0, time.UTC)
+	handler := &StatusHandler{
+		StatusReader: fakeStatusReader{
+			snapshot: statuspkg.RawSnapshot{
+				AsOf: now,
+				Coordinator: &statuspkg.CoordinatorSnapshot{
+					CollectorInstances: []statuspkg.CollectorInstanceSummary{{
+						InstanceID:     "collector-git-default",
+						CollectorKind:  "git",
+						Mode:           "continuous",
+						Enabled:        true,
+						Bootstrap:      true,
+						ClaimsEnabled:  false,
+						LastObservedAt: now.Add(-30 * time.Minute),
+						UpdatedAt:      now.Add(-29 * time.Minute),
+					}},
+				},
+				CollectorFactEvidence: []statuspkg.CollectorFactEvidence{{
+					InstanceID:       "collector-git-default",
+					CollectorKind:    "git",
+					EvidenceSource:   "source_facts",
+					SourceSystems:    []string{"git"},
+					ObservationCount: 217,
+					LastObservedAt:   now.Add(-4 * time.Minute),
+					UpdatedAt:        now.Add(-3 * time.Minute),
+				}},
+			},
+		},
+	}
+
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/status/collectors", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("GET /api/v0/status/collectors status = %d, want %d", got, want)
+	}
+	var payload struct {
+		Collectors []struct {
+			InstanceID       string   `json:"instance_id"`
+			CollectorKind    string   `json:"collector_kind"`
+			Health           string   `json:"health"`
+			Evidence         []string `json:"evidence_sources"`
+			SourceSystems    []string `json:"source_systems"`
+			ObservationCount int      `json:"observation_count"`
+		} `json:"collectors"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	if len(payload.Collectors) != 1 {
+		t.Fatalf("collectors len = %d, want 1", len(payload.Collectors))
+	}
+	collector := payload.Collectors[0]
+	if got, want := collector.InstanceID, "collector-git-default"; got != want {
+		t.Fatalf("instance_id = %q, want %q", got, want)
+	}
+	if got, want := collector.CollectorKind, "git"; got != want {
+		t.Fatalf("collector_kind = %q, want %q", got, want)
+	}
+	if got, want := collector.Health, "observed"; got != want {
+		t.Fatalf("health = %q, want %q", got, want)
+	}
+	if got, want := collector.ObservationCount, 217; got != want {
+		t.Fatalf("observation_count = %d, want %d", got, want)
+	}
+	if !stringSliceContains(collector.Evidence, "workflow_coordinator") ||
+		!stringSliceContains(collector.Evidence, "source_facts") {
+		t.Fatalf("evidence_sources = %#v, want workflow_coordinator and source_facts", collector.Evidence)
+	}
+	if !stringSliceContains(collector.SourceSystems, "git") {
+		t.Fatalf("source_systems = %#v, want git", collector.SourceSystems)
+	}
+}

@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"sort"
+	"strings"
 )
 
 func buildDeploymentFactSummary(
@@ -123,17 +124,25 @@ func (h *ImpactHandler) fetchCloudResources(ctx context.Context, workloadID stri
 	if err != nil {
 		return nil, err
 	}
+	if len(rows) == 0 {
+		return h.fetchConfigDerivedCloudResources(ctx, workloadID)
+	}
+	return deploymentTraceCloudResourcesFromRows(rows, "")
+}
+
+func deploymentTraceCloudResourcesFromRows(rows []map[string]any, defaultRelationshipBasis string) ([]map[string]any, error) {
 	resources := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		resources = append(resources, map[string]any{
 			"id":                    StringVal(row, "id"),
 			"name":                  StringVal(row, "name"),
 			"kind":                  StringVal(row, "kind"),
+			"resource_type":         StringVal(row, "resource_type"),
 			"provider":              StringVal(row, "provider"),
 			"environment":           StringVal(row, "environment"),
 			"confidence":            floatVal(row, "confidence"),
 			"reason":                StringVal(row, "reason"),
-			"relationship_basis":    StringVal(row, "relationship_basis"),
+			"relationship_basis":    firstNonEmptyString(StringVal(row, "relationship_basis"), defaultRelationshipBasis),
 			"resolution_mode":       StringVal(row, "resolution_mode"),
 			"evidence_source":       StringVal(row, "evidence_source"),
 			"service_anchor_source": StringVal(row, "service_anchor_source"),
@@ -146,6 +155,40 @@ func (h *ImpactHandler) fetchCloudResources(ctx context.Context, workloadID stri
 		})
 	}
 	return resources, nil
+}
+
+func (h *ImpactHandler) fetchConfigDerivedCloudResources(ctx context.Context, workloadID string) ([]map[string]any, error) {
+	serviceName := strings.TrimPrefix(strings.TrimSpace(workloadID), "workload:")
+	if h == nil || h.Neo4j == nil || serviceName == "" {
+		return nil, nil
+	}
+	rows, err := h.Neo4j.Run(ctx, `
+		MATCH (c:CloudResource)
+		WHERE coalesce(c.name, '') CONTAINS $service_name
+		   OR coalesce(c.id, '') CONTAINS $service_name
+		   OR coalesce(c.resource_id, '') CONTAINS $service_name
+		   OR coalesce(c.arn, '') CONTAINS $service_name
+		   OR coalesce(c.config_path, '') CONTAINS $service_name
+		RETURN DISTINCT coalesce(c.id, c.uid, c.resource_id, c.arn, c.name) as id,
+		       coalesce(c.name, '') as name,
+		       coalesce(c.kind, c.resource_type, c.data_type, '') as kind,
+		       coalesce(c.resource_type, c.data_type, c.kind, '') as resource_type,
+		       coalesce(c.provider, c.source_system, '') as provider,
+		       coalesce(c.environment, '') as environment,
+		       coalesce(c.resource_id, '') as resource_id,
+		       coalesce(c.arn, '') as arn,
+		       coalesce(c.account_id, '') as account_id,
+		       coalesce(c.region, '') as region
+		ORDER BY name, id
+		LIMIT $limit
+	`, map[string]any{
+		"service_name": serviceName,
+		"limit":        serviceStoryItemLimit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return deploymentTraceCloudResourcesFromRows(rows, "deployment_config_read_evidence")
 }
 
 func (h *ImpactHandler) fetchK8sResources(

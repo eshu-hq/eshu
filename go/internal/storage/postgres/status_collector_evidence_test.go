@@ -108,6 +108,7 @@ func TestReadCollectorFactEvidenceUsesBoundedActiveFactMetadata(t *testing.T) {
 		responses: []fakeRows{{
 			rows: [][]any{
 				{"documentation", "collector-documentation", "source_facts", []string{"confluence"}, int64(5), now.Add(-3 * time.Minute), now.Add(-2 * time.Minute)},
+				{"git", "collector-git-default", "source_facts", []string{"git"}, int64(17), now.Add(-5 * time.Minute), now.Add(-4 * time.Minute)},
 				{"aws", "collector-aws", "reducer_facts", []string{"aws"}, int64(2), now.Add(-4 * time.Minute), now.Add(-1 * time.Minute)},
 			},
 		}},
@@ -117,8 +118,8 @@ func TestReadCollectorFactEvidenceUsesBoundedActiveFactMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("readCollectorFactEvidence() error = %v, want nil", err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("collector fact evidence rows = %d, want 2", len(got))
+	if len(got) != 3 {
+		t.Fatalf("collector fact evidence rows = %d, want 3", len(got))
 	}
 	if got[0].CollectorKind != "documentation" ||
 		got[0].InstanceID != "collector-documentation" ||
@@ -127,12 +128,19 @@ func TestReadCollectorFactEvidenceUsesBoundedActiveFactMetadata(t *testing.T) {
 		!stringSliceContains(got[0].SourceSystems, "confluence") {
 		t.Fatalf("documentation evidence row = %#v", got[0])
 	}
-	if got[1].CollectorKind != "aws" ||
-		got[1].InstanceID != "collector-aws" ||
-		got[1].EvidenceSource != "reducer_facts" ||
-		got[1].ObservationCount != 2 ||
-		!stringSliceContains(got[1].SourceSystems, "aws") {
-		t.Fatalf("AWS evidence row = %#v", got[1])
+	if got[1].CollectorKind != "git" ||
+		got[1].InstanceID != "collector-git-default" ||
+		got[1].EvidenceSource != "source_facts" ||
+		got[1].ObservationCount != 17 ||
+		!stringSliceContains(got[1].SourceSystems, "git") {
+		t.Fatalf("Git evidence row = %#v", got[1])
+	}
+	if got[2].CollectorKind != "aws" ||
+		got[2].InstanceID != "collector-aws" ||
+		got[2].EvidenceSource != "reducer_facts" ||
+		got[2].ObservationCount != 2 ||
+		!stringSliceContains(got[2].SourceSystems, "aws") {
+		t.Fatalf("AWS evidence row = %#v", got[2])
 	}
 
 	query := strings.Join(queryer.queries, "\n")
@@ -145,6 +153,7 @@ func TestReadCollectorFactEvidenceUsesBoundedActiveFactMetadata(t *testing.T) {
 		"AS source_systems",
 		"WHEN fact.fact_kind LIKE 'reducer_%' THEN 'reducer_facts'",
 		"collector_kind IN (",
+		"'git'",
 		"'ci_cd_run'",
 		"FROM workflow_work_items AS workflow_item",
 		"LIMIT 200",
