@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	serviceStoryTestImageRef = "registry.example.com/team/api:prod"
-	serviceStoryTestDigest   = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	serviceStoryTestImageRepository = "registry.example.com/team/api"
+	serviceStoryTestImageRef        = serviceStoryTestImageRepository + ":prod"
+	serviceStoryTestDigest          = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 )
 
 type serviceStoryImageIdentityStore struct {
@@ -308,6 +309,72 @@ func TestServiceStoryDeploymentImageRefsIgnoreDockerComposeBuildContext(t *testi
 	if refs := serviceStoryDeploymentImageRefs(ctx); len(refs) != 0 {
 		t.Fatalf("serviceStoryDeploymentImageRefs() = %#v, want no build-context image refs", refs)
 	}
+}
+
+func TestServiceStoryDeploymentImageRefsPromotesHelmValuesImageMatchedValue(t *testing.T) {
+	t.Parallel()
+
+	ctx := map[string]any{
+		"deployment_evidence": map[string]any{
+			"artifacts": []map[string]any{
+				serviceStoryHelmValuesArtifact(serviceStoryTestImageRepository),
+				serviceStoryHelmValuesArtifact("charts/api/values-qa.yaml"),
+			},
+		},
+	}
+
+	refs := serviceStoryDeploymentImageRefs(ctx)
+	if got, want := len(refs), 1; got != want {
+		t.Fatalf("serviceStoryDeploymentImageRefs() = %#v, want one image ref", refs)
+	}
+	if got, want := refs[0], serviceStoryTestImageRepository; got != want {
+		t.Fatalf("serviceStoryDeploymentImageRefs()[0] = %q, want %q", got, want)
+	}
+}
+
+func TestServiceStorySupplyChainEvidenceReportsIdentityMissingForHelmValuesImageRef(t *testing.T) {
+	t.Parallel()
+
+	imageStore := &serviceStoryImageIdentityStore{rowsByImageRef: map[string][]ContainerImageIdentityRow{}}
+	handler := &EntityHandler{
+		ContainerImageIdentities: imageStore,
+		SBOMAttachments:          &serviceStorySBOMAttachmentStore{},
+	}
+	ctx := map[string]any{
+		"deployment_evidence": map[string]any{
+			"artifacts": []map[string]any{
+				serviceStoryHelmValuesArtifact(serviceStoryTestImageRepository),
+			},
+		},
+	}
+
+	if err := handler.enrichServiceStorySupplyChainEvidence(context.Background(), ctx); err != nil {
+		t.Fatalf("enrichServiceStorySupplyChainEvidence() error = %v, want nil", err)
+	}
+	if got, want := len(imageStore.filters), 1; got != want {
+		t.Fatalf("image identity store calls = %d, want %d", got, want)
+	}
+	if got, want := imageStore.filters[0].ImageRef, serviceStoryTestImageRepository; got != want {
+		t.Fatalf("image identity ImageRef filter = %q, want %q", got, want)
+	}
+	segment := serviceTraceImagePackageSegment(ctx)
+	if got, want := StringVal(segment, "status"), "missing_evidence"; got != want {
+		t.Fatalf("image_package status = %q, want %q; segment=%#v", got, want, segment)
+	}
+	missing := StringSliceVal(segment, "missing_evidence")
+	if stringSliceContains(missing, "deployment_image_reference_missing") {
+		t.Fatalf("missing_evidence = %#v, want real missing identity hop", missing)
+	}
+	if !stringSliceContains(missing, "container_image_identity_missing") {
+		t.Fatalf("missing_evidence = %#v, want container_image_identity_missing", missing)
+	}
+	if got, want := IntVal(segment, "candidate_image_ref_count"), 1; got != want {
+		t.Fatalf("candidate_image_ref_count = %d, want %d", got, want)
+	}
+}
+
+func serviceStoryHelmValuesArtifact(value string) map[string]any {
+	return map[string]any{"artifact_family": "helm", "evidence_kind": "HELM_VALUES_REFERENCE", "matched_value": value}
 }
 
 func TestServiceStorySupplyChainEvidenceBoundsImageRefLookups(t *testing.T) {
