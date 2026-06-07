@@ -116,6 +116,44 @@ selector error instead of an empty page.
 manifest-backed consumption correlations. Provenance-only rows remain marked
 with `provenance_only=true`.
 
+## Dependency Inventory
+
+`GET /api/v0/dependencies` is a bounded, name-anchored browse over the
+package-native dependency graph. It answers two questions directly, without
+requiring the caller to first resolve an internal package id:
+
+- forward (`direction=forward`, the default): what does a package depend on.
+- reverse (`direction=reverse`): which packages depend on the anchor package.
+
+This complements `GET /api/v0/package-registry/dependencies`, which is anchored
+by exact `package_id`/`version_id`. The dependency inventory anchors on the
+indexed `Package.normalized_name` and walks
+`Package -[:HAS_VERSION]-> PackageVersion -[:DECLARES_DEPENDENCY]->
+PackageDependency -[:DEPENDS_ON_PACKAGE]-> Package`. Repository and service
+ownership are not asserted here; they remain reducer correlation concerns.
+
+Parameters:
+
+- `limit` bounds the page (1..200, default 50). The read requests `limit+1`
+  internally to set `truncated` and a keyset `next_cursor`.
+- `direction` is `forward` or `reverse` (default `forward`).
+- `package` is the normalized package name to anchor on. It is required for
+  `direction=reverse` and optional for `direction=forward` (omit to browse all
+  forward edges).
+- `ecosystem` restricts to one ecosystem such as `npm` or `maven`.
+- `after_name` and `after_edge` page a prior `next_cursor`; they must be sent
+  together.
+
+Each row carries the active `direction`, the anchor identity
+(`anchor_package`, `anchor_package_id`, `anchor_ecosystem`), the declaring
+`declaring_version`, the related package at the other end of the edge
+(`related_package`, `related_package_id`, `related_ecosystem`), and the declared
+edge facts (`dependency_range`, `dependency_type`, `optional`, `edge_id`). For
+reverse rows the declaring package is reported from its `PackageVersion`, because
+declaring packages are not always materialized as `Package` nodes. Responses are
+`exact` truth from the authoritative graph with deterministic ordering and
+keyset paging.
+
 ## Service Catalog Correlation
 
 `GET /api/v0/service-catalog/correlations`

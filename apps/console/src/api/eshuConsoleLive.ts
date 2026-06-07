@@ -13,6 +13,7 @@
 
 import type { EshuApiClient } from "./client";
 import type { EshuTruth, TruthLevel, FreshnessState } from "./envelope";
+import { loadDependencies } from "./eshuDependencies";
 
 export type SectionProvenance = "live" | "empty" | "unavailable";
 
@@ -24,6 +25,7 @@ export interface ConsoleSnapshot {
   readonly findings: readonly FindingRow[];
   readonly vulnerabilities: readonly VulnRow[];
   readonly sbom: SbomEvidenceRow | null;
+  readonly dependencies: readonly DependencyRow[];
   readonly series: SeriesBundle;
   readonly truth: Partial<Record<keyof ConsoleSnapshot, EshuTruth>>;
   readonly provenance: Record<string, SectionProvenance>;
@@ -78,6 +80,44 @@ export interface VulnRow {
   readonly kev: boolean;
   readonly fixedVersion: string | null;
   readonly services: readonly string[];
+}
+// DependencyRow is one package dependency edge from GET /api/v0/dependencies.
+// Forward rows describe what the anchor package depends on; reverse rows
+// describe which package depends on the anchor. related identifies the other end
+// of the edge for the active direction.
+export interface DependencyRow {
+  readonly direction: "forward" | "reverse";
+  readonly anchorPackage: string;
+  readonly anchorPackageId: string;
+  readonly declaringVersion: string;
+  readonly relatedPackage: string;
+  readonly relatedPackageId: string;
+  readonly ecosystem: string;
+  readonly range: string;
+  readonly dependencyType: string;
+  readonly optional: boolean;
+  readonly edgeId: string;
+}
+
+// DependencyQuery anchors a dependency lookup. package is required for reverse
+// and optional (browse) for forward; cursor pages a prior truncated response.
+export interface DependencyQuery {
+  readonly direction: "forward" | "reverse";
+  readonly pkg?: string;
+  readonly ecosystem?: string;
+  readonly afterName?: string;
+  readonly afterEdge?: string;
+  readonly limit?: number;
+}
+
+// DependencyPage is a bounded page of dependency rows plus paging and truth
+// metadata, mirroring the GET /api/v0/dependencies envelope.
+export interface DependencyPage {
+  readonly rows: readonly DependencyRow[];
+  readonly direction: "forward" | "reverse";
+  readonly truncated: boolean;
+  readonly nextCursor: { readonly afterName: string; readonly afterEdge: string } | null;
+  readonly truth: EshuTruth | null;
 }
 export interface SeriesBundle {
   readonly ingestRate: readonly number[];
@@ -337,9 +377,15 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     } satisfies SbomEvidenceRow;
   });
 
+  const dependencies = (await section(prov, "dependencies", async () => {
+    const page = await loadDependencies(client, { direction: "forward", limit: 50 });
+    if (page.truth) truth.dependencies = page.truth;
+    return page.rows.length > 0 ? page.rows : null;
+  })) ?? [];
+
   const series = await loadSeriesBundle(client, prov);
 
-  return { runtime, services, languages, ingesters, findings, vulnerabilities, sbom, series, truth, provenance: prov };
+  return { runtime, services, languages, ingesters, findings, vulnerabilities, sbom, dependencies, series, truth, provenance: prov };
 }
 
 function emptyRuntime(): RuntimeSummary {

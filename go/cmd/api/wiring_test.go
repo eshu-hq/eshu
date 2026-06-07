@@ -118,6 +118,7 @@ func TestNewRouterMountsPostgresBackedHandlers(t *testing.T) {
 		query.ProfileLocalFullStack,
 		query.GraphBackendNornicDB,
 		nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("newRouter() error = %v, want nil", err)
@@ -240,7 +241,7 @@ func TestMetricsTimeSeriesSourceFromEnvUsesPrometheusMimirCollectorConfig(t *tes
 func TestNewRouter_MountsAdminRoutes(t *testing.T) {
 	t.Parallel()
 
-	router, err := newRouter(nil, nil, nil, nil, "production", "neo4j", nil)
+	router, err := newRouter(nil, nil, nil, nil, "production", "neo4j", nil, nil)
 	if err != nil {
 		t.Fatalf("newRouter() error = %v, want nil", err)
 	}
