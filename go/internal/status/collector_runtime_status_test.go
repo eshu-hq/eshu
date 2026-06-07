@@ -171,6 +171,89 @@ func TestCollectorRuntimeStatusesMergesDirectEvidenceHealthForRegisteredCollecto
 	}
 }
 
+func TestCollectorRuntimeStatusesClassifiesAWSScanAndCommitHealth(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 7, 16, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name       string
+		row        status.AWSCloudScanStatus
+		wantHealth string
+		wantDetail string
+	}{
+		{
+			name: "committed success ignores stale failure class",
+			row: status.AWSCloudScanStatus{
+				Status:           "succeeded",
+				CommitStatus:     "committed",
+				FailureClass:     "permission_denied",
+				LastSuccessfulAt: now.Add(-2 * time.Minute),
+			},
+			wantHealth: "observed",
+		},
+		{
+			name:       "failed commit stays degraded",
+			row:        status.AWSCloudScanStatus{Status: "succeeded", CommitStatus: "failed"},
+			wantHealth: "degraded",
+			wantDetail: "commit_status=failed",
+		},
+		{
+			name:       "explicit stale scan stays degraded",
+			row:        status.AWSCloudScanStatus{Status: "stale", CommitStatus: "committed"},
+			wantHealth: "degraded",
+			wantDetail: "scan_status=stale",
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			row := tc.row
+			row.CollectorInstanceID = "collector-aws"
+			row.AccountID = "123456789012"
+			row.Region = "us-east-1"
+			row.ServiceKind = "ec2"
+			row.LastObservedAt = now.Add(-3 * time.Minute)
+			row.LastCompletedAt = now.Add(-2 * time.Minute)
+			row.UpdatedAt = now.Add(-1 * time.Minute)
+			report := status.BuildReport(
+				status.RawSnapshot{
+					AsOf: now,
+					Coordinator: &status.CoordinatorSnapshot{
+						CollectorInstances: []status.CollectorInstanceSummary{{
+							InstanceID:     "collector-aws",
+							CollectorKind:  "aws",
+							Mode:           "continuous",
+							Enabled:        true,
+							ClaimsEnabled:  true,
+							LastObservedAt: now.Add(-15 * time.Minute),
+							UpdatedAt:      now.Add(-14 * time.Minute),
+						}},
+					},
+					AWSCloudScans: []status.AWSCloudScanStatus{row},
+				},
+				status.DefaultOptions(),
+			)
+
+			rows := status.CollectorRuntimeStatuses(report)
+			if got, want := len(rows), 1; got != want {
+				t.Fatalf("runtime rows = %d, want %d: %#v", got, want, rows)
+			}
+			got := rows[0]
+			if got.StatusCategory != status.CollectorRuntimeCoordinatorManaged {
+				t.Fatalf("status category = %q, want %q", got.StatusCategory, status.CollectorRuntimeCoordinatorManaged)
+			}
+			if got.Health != tc.wantHealth {
+				t.Fatalf("health = %q, want %q", got.Health, tc.wantHealth)
+			}
+			if tc.wantDetail != "" && !strings.Contains(got.Detail, tc.wantDetail) {
+				t.Fatalf("detail = %q, want %q", got.Detail, tc.wantDetail)
+			}
+		})
+	}
+}
+
 func TestCollectorRuntimeStatusesMergesPersistedFactEvidence(t *testing.T) {
 	t.Parallel()
 

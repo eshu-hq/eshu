@@ -97,6 +97,10 @@ No-Regression Evidence: `go test ./internal/storage/postgres -run 'CollectorFact
 
 No-Observability-Change: the status aggregate still performs one bounded active-generation fact metadata read grouped by collector kind, optional coordinator instance, evidence source, and source system, capped by `LIMIT 200`. It adds no table, route, worker, queue domain, graph write, metric label, or payload column. Operators diagnose the path through existing `/api/v0/status/collectors` and `/admin/status` collector runtime fields plus `eshu_dp_postgres_query_duration_seconds{store=...,operation=...}` from the Postgres instrumentation wrapper.
 
+No-Regression Evidence: `go test ./internal/status -run 'TestCollectorRuntimeStatuses(ClassifiesAWSScanAndCommitHealth|MergesDirectEvidenceHealthForRegisteredCollector)' -count=1`, `go test ./internal/query -run TestStatusHandlerCollectorsRouteExplainsDegradedAWSEvidence -count=1`, and `go test ./internal/storage/postgres -run 'TestAWSScanStatusStore(CommitClearsFailureDetailsOnCommittedSuccess|UsesExactFenceForObserveAndCommit)' -count=1` prove AWS collector status no longer reports a recovered committed scan as degraded because of stale failure text, still reports commit failures and explicit stale scan rows as degraded, and exposes the bounded degraded reason through `/api/v0/status/collectors` detail plus `aws_cloud_scan_status` evidence.
+
+No-Observability-Change: the change reuses existing `aws_scan_status` rows, `/api/v0/status/collectors` fields, `/admin/status` collector runtime output, and the Postgres instrumentation wrapper signal `eshu_dp_postgres_query_duration_seconds{store=...,operation=...}`. It adds no table, route, worker, queue domain, graph write, metric label, or payload identifier.
+
 ## Exported surface
 
 The full exported store inventory lives in

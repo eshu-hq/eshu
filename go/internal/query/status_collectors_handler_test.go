@@ -166,6 +166,76 @@ func TestStatusHandlerCollectorsRouteExposesDirectRuntimeEvidence(t *testing.T) 
 	}
 }
 
+func TestStatusHandlerCollectorsRouteExplainsDegradedAWSEvidence(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 7, 16, 30, 0, 0, time.UTC)
+	handler := &StatusHandler{
+		StatusReader: fakeStatusReader{
+			snapshot: statuspkg.RawSnapshot{
+				AsOf: now,
+				Coordinator: &statuspkg.CoordinatorSnapshot{
+					CollectorInstances: []statuspkg.CollectorInstanceSummary{{
+						InstanceID:     "collector-aws",
+						CollectorKind:  "aws",
+						Mode:           "continuous",
+						Enabled:        true,
+						ClaimsEnabled:  true,
+						LastObservedAt: now.Add(-10 * time.Minute),
+						UpdatedAt:      now.Add(-9 * time.Minute),
+					}},
+				},
+				AWSCloudScans: []statuspkg.AWSCloudScanStatus{{
+					CollectorInstanceID: "collector-aws",
+					AccountID:           "123456789012",
+					Region:              "us-east-1",
+					ServiceKind:         "ecr",
+					Status:              "succeeded",
+					CommitStatus:        "failed",
+					LastObservedAt:      now.Add(-2 * time.Minute),
+					LastCompletedAt:     now.Add(-1 * time.Minute),
+					UpdatedAt:           now.Add(-1 * time.Minute),
+				}},
+			},
+		},
+	}
+
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/status/collectors", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("GET /api/v0/status/collectors status = %d, want %d", got, want)
+	}
+	var payload struct {
+		Collectors []struct {
+			InstanceID string   `json:"instance_id"`
+			Health     string   `json:"health"`
+			Evidence   []string `json:"evidence_sources"`
+			Detail     string   `json:"detail"`
+		} `json:"collectors"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	if len(payload.Collectors) != 1 {
+		t.Fatalf("collectors len = %d, want 1", len(payload.Collectors))
+	}
+	collector := payload.Collectors[0]
+	if got, want := collector.Health, "degraded"; got != want {
+		t.Fatalf("health = %q, want %q; body=%s", got, want, rec.Body.String())
+	}
+	if !stringSliceContains(collector.Evidence, "aws_cloud_scan_status") {
+		t.Fatalf("evidence_sources = %#v, want aws_cloud_scan_status", collector.Evidence)
+	}
+	if !strings.Contains(collector.Detail, "commit_status=failed") {
+		t.Fatalf("detail = %q, want commit_status=failed", collector.Detail)
+	}
+}
+
 func TestStatusHandlerCollectorsRouteExposesPersistedFactEvidence(t *testing.T) {
 	t.Parallel()
 

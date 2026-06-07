@@ -92,6 +92,9 @@ func (b *collectorRuntimeStatusBuilder) merge(index int, status CollectorRuntime
 	existing.EvidenceSources = uniqueNonEmptyStrings(append(existing.EvidenceSources, status.EvidenceSources...))
 	existing.SourceSystems = uniqueNonEmptyStrings(append(existing.SourceSystems, status.SourceSystems...))
 	existing.ObservationCount += status.ObservationCount
+	if runtimeHealthRank(status.Health) >= runtimeHealthRank(existing.Health) && strings.TrimSpace(status.Detail) != "" {
+		existing.Detail = status.Detail
+	}
 	existing.Health = combineRuntimeHealth(existing.Health, status.Health)
 	if status.LastObservedAt.After(existing.LastObservedAt) {
 		existing.LastObservedAt = status.LastObservedAt
@@ -105,6 +108,7 @@ func (b *collectorRuntimeStatusBuilder) addAWSCloudScans(rows []AWSCloudScanStat
 	type aggregate struct {
 		count          int
 		health         string
+		details        []string
 		lastObservedAt time.Time
 		updatedAt      time.Time
 	}
@@ -115,8 +119,12 @@ func (b *collectorRuntimeStatusBuilder) addAWSCloudScans(rows []AWSCloudScanStat
 			continue
 		}
 		current := aggregates[instanceID]
+		health, detail := awsCloudScanHealthDetail(row)
 		current.count++
-		current.health = combineRuntimeHealth(current.health, awsCloudScanHealth(row))
+		current.health = combineRuntimeHealth(current.health, health)
+		if detail != "" {
+			current.details = append(current.details, detail)
+		}
 		if row.LastObservedAt.After(current.lastObservedAt) {
 			current.lastObservedAt = row.LastObservedAt
 		}
@@ -135,6 +143,7 @@ func (b *collectorRuntimeStatusBuilder) addAWSCloudScans(rows []AWSCloudScanStat
 			aggregate.health,
 			aggregate.lastObservedAt,
 			aggregate.updatedAt,
+			awsCloudScanDetail(aggregate.details),
 		))
 	}
 }
@@ -169,6 +178,7 @@ func (b *collectorRuntimeStatusBuilder) addVulnerabilitySources(rows []Vulnerabi
 			aggregate.health,
 			time.Time{},
 			aggregate.updatedAt,
+			"",
 		))
 	}
 }
@@ -189,6 +199,7 @@ func (b *collectorRuntimeStatusBuilder) addCollectorFactEvidence(rows []Collecto
 			"observed",
 			row.LastObservedAt,
 			row.UpdatedAt,
+			"",
 		))
 	}
 }
@@ -275,7 +286,12 @@ func directEvidenceRuntimeStatus(
 	health string,
 	lastObservedAt time.Time,
 	updatedAt time.Time,
+	detail string,
 ) CollectorRuntimeStatus {
+	detail = strings.TrimSpace(detail)
+	if detail == "" {
+		detail = "status evidence exists without workflow coordinator registration"
+	}
 	return CollectorRuntimeStatus{
 		InstanceID:       instanceID,
 		CollectorKind:    collectorKind,
@@ -287,23 +303,80 @@ func directEvidenceRuntimeStatus(
 		ObservationCount: observations,
 		LastObservedAt:   lastObservedAt,
 		UpdatedAt:        updatedAt,
-		Detail:           "status evidence exists without workflow coordinator registration",
+		Detail:           detail,
 	}
 }
 
-func awsCloudScanHealth(row AWSCloudScanStatus) string {
-	if row.CredentialFailed || row.BudgetExhausted || strings.TrimSpace(row.FailureClass) != "" {
-		return "degraded"
-	}
-	switch strings.TrimSpace(row.Status) {
-	case "failed", "failed_terminal", "failed_retryable":
-		return "degraded"
-	case "partial":
-		return "partial"
-	case "succeeded", "success", "completed":
-		return "observed"
+func awsCloudScanHealthDetail(row AWSCloudScanStatus) (string, string) {
+	status := strings.TrimSpace(row.Status)
+	commitStatus := strings.TrimSpace(row.CommitStatus)
+	switch {
+	case row.CredentialFailed || row.BudgetExhausted:
+		if row.CredentialFailed {
+			return "degraded", "credential_failed=true"
+		}
+		return "degraded", "budget_exhausted=true"
+	case isAWSScanFailure(status), isAWSCommitFailure(commitStatus):
+		if isAWSCommitFailure(commitStatus) {
+			return "degraded", "commit_status=" + commitStatus
+		}
+		return "degraded", "scan_status=" + status
+	case awsCloudScanSucceeded(row):
+		return "observed", "scan_status=" + status + ",commit_status=" + commitStatus
+	case status == "partial", commitStatus == "partial":
+		return "partial", "partial"
+	case strings.TrimSpace(row.FailureClass) != "":
+		return "degraded", "failure_class=" + strings.TrimSpace(row.FailureClass)
 	default:
-		return "unknown"
+		return "unknown", ""
+	}
+}
+
+func awsCloudScanDetail(details []string) string {
+	details = uniqueNonEmptyStrings(details)
+	if len(details) == 0 {
+		return "aws_cloud_scan_status"
+	}
+	return "aws_cloud_scan_status " + strings.Join(details, ",")
+}
+
+func awsCloudScanSucceeded(row AWSCloudScanStatus) bool {
+	return isAWSTerminalSuccess(row.Status) && isAWSCommitSuccess(row.CommitStatus)
+}
+
+func isAWSTerminalSuccess(value string) bool {
+	switch strings.TrimSpace(value) {
+	case "succeeded", "success", "completed":
+		return true
+	default:
+		return false
+	}
+}
+
+func isAWSCommitSuccess(value string) bool {
+	switch strings.TrimSpace(value) {
+	case "committed", "success", "succeeded", "completed":
+		return true
+	default:
+		return false
+	}
+}
+
+func isAWSScanFailure(value string) bool {
+	switch strings.TrimSpace(value) {
+	case "failed", "failed_terminal", "failed_retryable", "credential_failed", "stale":
+		return true
+	default:
+		return false
+	}
+}
+
+func isAWSCommitFailure(value string) bool {
+	switch strings.TrimSpace(value) {
+	case "failed", "failed_terminal", "failed_retryable":
+		return true
+	default:
+		return false
 	}
 }
 

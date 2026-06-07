@@ -217,6 +217,20 @@ func TestAWSScanStatusStoreUsesExactFenceForObserveAndCommit(t *testing.T) {
 	}
 }
 
+func TestAWSScanStatusStoreCommitClearsFailureDetailsOnCommittedSuccess(t *testing.T) {
+	t.Parallel()
+
+	query := strings.Join(strings.Fields(commitAWSScanStatusQuery), " ")
+	for _, want := range []string{
+		"failure_class = CASE WHEN $7 = 'committed' THEN '' WHEN $8 = '' THEN failure_class ELSE $8 END",
+		"failure_message = CASE WHEN $7 = 'committed' THEN '' WHEN $9 = '' THEN failure_message ELSE $9 END",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("CommitAWSScan() query missing committed-success failure reset %q:\n%s", want, query)
+		}
+	}
+}
+
 func assertPostgresPlaceholdersMatchArgs(t *testing.T, query string, argCount int) {
 	t.Helper()
 

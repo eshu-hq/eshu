@@ -191,8 +191,8 @@ const commitAWSScanStatusQuery = `
 UPDATE aws_scan_status
 SET
     commit_status = $7,
-    failure_class = CASE WHEN $8 = '' THEN failure_class ELSE $8 END,
-    failure_message = CASE WHEN $9 = '' THEN failure_message ELSE $9 END,
+    failure_class = CASE WHEN $7 = 'committed' THEN '' WHEN $8 = '' THEN failure_class ELSE $8 END,
+    failure_message = CASE WHEN $7 = 'committed' THEN '' WHEN $9 = '' THEN failure_message ELSE $9 END,
     last_completed_at = CASE WHEN $7 = 'committed' THEN $10 ELSE last_completed_at END,
     last_successful_at = CASE WHEN $7 = 'committed' AND status = 'succeeded' THEN $10 ELSE last_successful_at END,
     updated_at = $10

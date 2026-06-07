@@ -30,5 +30,8 @@
 // AWSCloudScanStatus rows expose per-account, per-region, per-service AWS
 // scanner liveness, throttle counts, warning state, and commit status so
 // operators can separate throttling, credential failure, budget exhaustion, and
-// commit failures without scanning logs.
+// commit failures without scanning logs. Collector runtime health requires both
+// scan and commit success before reporting AWS evidence as observed, keeps
+// explicit stale scan rows degraded, and prevents stale failure text from an
+// older failed scan from overriding a later committed success.
 package status
