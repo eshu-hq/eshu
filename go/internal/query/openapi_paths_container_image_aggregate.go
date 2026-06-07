@@ -8,7 +8,8 @@ const openAPIPathsContainerImageIdentityAggregate = `
         "parameters": [
           {"name": "digest", "in": "query", "schema": {"type": "string"}},
           {"name": "image_ref", "in": "query", "schema": {"type": "string"}},
-          {"name": "repository_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "source_repository_id", "in": "query", "description": "Source repository id or selector used to count source-to-image bridge evidence. This is not an OCI/image repository id.", "schema": {"type": "string"}},
+          {"name": "repository_id", "in": "query", "description": "OCI/image repository identity. This is not a source repository selector.", "schema": {"type": "string"}},
           {"name": "outcome", "in": "query", "schema": {"type": "string", "enum": ["exact_digest", "tag_resolved"]}}
         ],
         "responses": {
@@ -39,7 +40,8 @@ const openAPIPathsContainerImageIdentityAggregate = `
           {"name": "group_by", "in": "query", "schema": {"type": "string", "enum": ["outcome", "identity_strength", "repository_id"], "default": "outcome"}},
           {"name": "digest", "in": "query", "schema": {"type": "string"}},
           {"name": "image_ref", "in": "query", "schema": {"type": "string"}},
-          {"name": "repository_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "source_repository_id", "in": "query", "description": "Source repository id or selector used to group source-to-image bridge evidence. This is not an OCI/image repository id.", "schema": {"type": "string"}},
+          {"name": "repository_id", "in": "query", "description": "OCI/image repository identity. This is not a source repository selector.", "schema": {"type": "string"}},
           {"name": "outcome", "in": "query", "schema": {"type": "string", "enum": ["exact_digest", "tag_resolved"]}},
           {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 500, "default": 100}},
           {"name": "offset", "in": "query", "schema": {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0}}

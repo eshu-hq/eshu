@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -44,6 +45,49 @@ func TestResolveRouteMapsSupplyChainImpactCountDefaultProfileToHTTPDefault(t *te
 	}
 	if got, want := route.query["profile"], ""; got != want {
 		t.Fatalf("route.query[profile] = %#v, want empty so HTTP applies precise default", got)
+	}
+}
+
+func TestResolveRouteMapsContainerImageAggregatesForwardSourceRepositoryScope(t *testing.T) {
+	t.Parallel()
+
+	for _, toolName := range []string{
+		"count_container_image_identities",
+		"get_container_image_identity_inventory",
+	} {
+		toolName := toolName
+		t.Run(toolName, func(t *testing.T) {
+			t.Parallel()
+
+			route, err := resolveRoute(toolName, map[string]any{
+				"source_repository_id": "repo://example/api",
+			})
+			if err != nil {
+				t.Fatalf("resolveRoute() error = %v, want nil", err)
+			}
+			if got, want := route.query["source_repository_id"], "repo://example/api"; got != want {
+				t.Fatalf("route.query[source_repository_id] = %#v, want %#v", got, want)
+			}
+			if got, want := route.query["repository_id"], ""; got != want {
+				t.Fatalf("route.query[repository_id] = %#v, want empty OCI scope", got)
+			}
+		})
+	}
+}
+
+func TestContainerImageAggregateToolSchemasAdvertiseSourceRepositoryScope(t *testing.T) {
+	t.Parallel()
+
+	for _, tool := range containerImageIdentityAggregateTools() {
+		schema := tool.InputSchema.(map[string]any)
+		properties := schema["properties"].(map[string]any)
+		sourceRepository := properties["source_repository_id"].(map[string]any)
+		description := sourceRepository["description"].(string)
+		for _, want := range []string{"source repository", "not an OCI"} {
+			if !strings.Contains(description, want) {
+				t.Fatalf("%s source_repository_id description = %q, want %q", tool.Name, description, want)
+			}
+		}
 	}
 }
 

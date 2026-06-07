@@ -83,19 +83,32 @@ type SBOMAttestationAttachmentResult struct {
 // ContainerImageIdentityResult is one reducer-owned container image identity
 // row returned by the public API.
 type ContainerImageIdentityResult struct {
-	IdentityID       string   `json:"identity_id"`
-	Digest           string   `json:"digest,omitempty"`
-	ImageRef         string   `json:"image_ref,omitempty"`
-	RepositoryID     string   `json:"repository_id,omitempty"`
-	Outcome          string   `json:"outcome"`
-	Reason           string   `json:"reason,omitempty"`
-	IdentityStrength string   `json:"identity_strength,omitempty"`
-	CanonicalID      string   `json:"canonical_id,omitempty"`
-	CanonicalWrites  int      `json:"canonical_writes"`
-	SourceLayers     []string `json:"source_layers,omitempty"`
-	EvidenceFactIDs  []string `json:"evidence_fact_ids,omitempty"`
-	SourceFreshness  string   `json:"source_freshness,omitempty"`
-	SourceConfidence string   `json:"source_confidence,omitempty"`
+	IdentityID          string   `json:"identity_id"`
+	Digest              string   `json:"digest,omitempty"`
+	ImageRef            string   `json:"image_ref,omitempty"`
+	RepositoryID        string   `json:"repository_id,omitempty"`
+	SourceRepositoryIDs []string `json:"source_repository_ids,omitempty"`
+	WorkloadIDs         []string `json:"workload_ids,omitempty"`
+	ServiceIDs          []string `json:"service_ids,omitempty"`
+	Outcome             string   `json:"outcome"`
+	Reason              string   `json:"reason,omitempty"`
+	IdentityStrength    string   `json:"identity_strength,omitempty"`
+	CanonicalID         string   `json:"canonical_id,omitempty"`
+	CanonicalWrites     int      `json:"canonical_writes"`
+	SourceLayers        []string `json:"source_layers,omitempty"`
+	EvidenceFactIDs     []string `json:"evidence_fact_ids,omitempty"`
+	MissingEvidence     []string `json:"missing_evidence,omitempty"`
+	SourceFreshness     string   `json:"source_freshness,omitempty"`
+	SourceConfidence    string   `json:"source_confidence,omitempty"`
+}
+
+// ContainerImageIdentitySourceBridge summarizes source-repository-scoped image
+// identity evidence without reinterpreting OCI repository identity.
+type ContainerImageIdentitySourceBridge struct {
+	SourceRepositoryID string   `json:"source_repository_id"`
+	ImageRepositoryIDs []string `json:"image_repository_ids,omitempty"`
+	MissingEvidence    []string `json:"missing_evidence,omitempty"`
+	Warnings           []string `json:"warnings,omitempty"`
 }
 
 // Mount registers supply-chain query routes.

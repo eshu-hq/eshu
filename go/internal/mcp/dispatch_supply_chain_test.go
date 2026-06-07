@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -224,10 +225,11 @@ func TestResolveRouteMapsContainerImageIdentitiesToBoundedQuery(t *testing.T) {
 	t.Parallel()
 
 	route, err := resolveRoute("list_container_image_identities", map[string]any{
-		"after_identity_id": "identity-1",
-		"digest":            "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		"outcome":           "tag_resolved",
-		"limit":             float64(25),
+		"after_identity_id":    "identity-1",
+		"digest":               "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"outcome":              "tag_resolved",
+		"source_repository_id": "repo://example/api",
+		"limit":                float64(25),
 	})
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
@@ -244,11 +246,38 @@ func TestResolveRouteMapsContainerImageIdentitiesToBoundedQuery(t *testing.T) {
 	if got, want := route.query["outcome"], "tag_resolved"; got != want {
 		t.Fatalf("route.query[outcome] = %#v, want %#v", got, want)
 	}
+	if got, want := route.query["source_repository_id"], "repo://example/api"; got != want {
+		t.Fatalf("route.query[source_repository_id] = %#v, want %#v", got, want)
+	}
 	if got, want := route.query["after_identity_id"], "identity-1"; got != want {
 		t.Fatalf("route.query[after_identity_id] = %#v, want %#v", got, want)
 	}
 	if got, want := route.query["limit"], "25"; got != want {
 		t.Fatalf("route.query[limit] = %#v, want %#v", got, want)
+	}
+}
+
+func TestContainerImageIdentityToolSchemaAdvertisesSourceRepositoryScope(t *testing.T) {
+	t.Parallel()
+
+	var tool ToolDefinition
+	for _, candidate := range supplyChainTools() {
+		if candidate.Name == "list_container_image_identities" {
+			tool = candidate
+			break
+		}
+	}
+	if tool.Name == "" {
+		t.Fatal("list_container_image_identities tool not found")
+	}
+	schema := tool.InputSchema.(map[string]any)
+	properties := schema["properties"].(map[string]any)
+	sourceRepository := properties["source_repository_id"].(map[string]any)
+	description := sourceRepository["description"].(string)
+	for _, want := range []string{"source repository", "not an OCI"} {
+		if !strings.Contains(description, want) {
+			t.Fatalf("source_repository_id description = %q, want %q", description, want)
+		}
 	}
 }
 

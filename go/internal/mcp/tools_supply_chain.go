@@ -18,7 +18,7 @@ func supplyChainTools() []ToolDefinition {
 		},
 		{
 			Name:        "list_container_image_identities",
-			Description: "List reducer-owned container image identity facts by digest, image reference, repository, or outcome.",
+			Description: "List reducer-owned container image identity facts by digest, image reference, source repository bridge, OCI repository, or outcome.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -33,6 +33,10 @@ func supplyChainTools() []ToolDefinition {
 					"repository_id": map[string]any{
 						"type":        "string",
 						"description": "OCI repository identity such as oci-registry://registry.example/team/api.",
+					},
+					"source_repository_id": map[string]any{
+						"type":        "string",
+						"description": "source repository id or selector for bridge reads; this is not an OCI image repository identity.",
 					},
 					"outcome": map[string]any{
 						"type":        "string",
