@@ -2,6 +2,7 @@ package reducer
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -219,32 +220,34 @@ func sbomAttachmentDecision(
 	index sbomAttachmentIndex,
 ) SBOMAttestationAttachmentDecision {
 	components := componentEvidenceRows(index.components[doc.documentID])
+	warnings := warningSummaryRollup(index.warnings[doc.documentID])
 	anchors := sbomAttachmentAnchorsForDocument(doc, index)
 	scope, missing := sbomAttachmentScope(status, hasImageReferrer, anchors.hasUsableAnchor())
 	reason = sbomAttachmentAnchoredReason(status, reason, hasImageReferrer, anchors.hasUsableAnchor())
 	return SBOMAttestationAttachmentDecision{
-		DocumentID:         doc.documentID,
-		DocumentDigest:     doc.documentDigest,
-		SubjectDigest:      doc.subjectDigest,
-		AttachmentStatus:   status,
-		ParseStatus:        doc.parseStatus,
-		VerificationStatus: defaultStatus(verificationStatus, "not_configured"),
-		VerificationPolicy: verificationPolicy,
-		ArtifactKind:       doc.artifactKind,
-		Format:             doc.format,
-		SpecVersion:        doc.specVersion,
-		Reason:             reason,
-		AttachmentScope:    scope,
-		CanonicalWrites:    sbomAttachmentCanonicalWriteCount(status, hasImageReferrer),
-		ComponentCount:     len(components),
-		ComponentEvidence:  components,
-		RepositoryIDs:      anchors.repositories,
-		WorkloadIDs:        anchors.workloads,
-		ServiceIDs:         anchors.services,
-		WarningSummaries:   warningSummaries(index.warnings[doc.documentID]),
-		EvidenceFactIDs:    uniqueSortedStrings(append(evidence, anchors.evidenceFactIDs...)),
-		MissingEvidence:    uniqueSortedStrings(append(missing, anchors.missingEvidence...)),
-		SourceLayerKinds:   sbomAttachmentSourceLayerKinds(hasImageReferrer, anchors.hasUsableAnchor()),
+		DocumentID:          doc.documentID,
+		DocumentDigest:      doc.documentDigest,
+		SubjectDigest:       doc.subjectDigest,
+		AttachmentStatus:    status,
+		ParseStatus:         doc.parseStatus,
+		VerificationStatus:  defaultStatus(verificationStatus, "not_configured"),
+		VerificationPolicy:  verificationPolicy,
+		ArtifactKind:        doc.artifactKind,
+		Format:              doc.format,
+		SpecVersion:         doc.specVersion,
+		Reason:              reason,
+		AttachmentScope:     scope,
+		CanonicalWrites:     sbomAttachmentCanonicalWriteCount(status, hasImageReferrer),
+		ComponentCount:      len(components),
+		ComponentEvidence:   components,
+		RepositoryIDs:       anchors.repositories,
+		WorkloadIDs:         anchors.workloads,
+		ServiceIDs:          anchors.services,
+		WarningSummaries:    warnings.summaries,
+		WarningSummaryCount: warnings.count,
+		EvidenceFactIDs:     uniqueSortedStrings(append(evidence, anchors.evidenceFactIDs...)),
+		MissingEvidence:     uniqueSortedStrings(append(missing, anchors.missingEvidence...)),
+		SourceLayerKinds:    sbomAttachmentSourceLayerKinds(hasImageReferrer, anchors.hasUsableAnchor()),
 	}
 }
 
@@ -390,14 +393,36 @@ func componentEvidenceRows(components []facts.Envelope) []map[string]string {
 	return out
 }
 
-func warningSummaries(warnings []facts.Envelope) []string {
+type warningSummarySet struct {
+	summaries []string
+	count     int
+}
+
+func warningSummaryRollup(warnings []facts.Envelope) warningSummarySet {
 	out := make([]string, 0, len(warnings))
+	count := 0
 	for _, warning := range warnings {
 		if summary := firstNonBlank(payloadString(warning.Payload, "summary"), payloadString(warning.Payload, "reason")); summary != "" {
 			out = append(out, summary)
+			count += warningOccurrenceCount(warning.Payload)
 		}
 	}
-	return uniqueSortedStrings(out)
+	return warningSummarySet{
+		summaries: uniqueSortedStrings(out),
+		count:     count,
+	}
+}
+
+func warningOccurrenceCount(payload map[string]any) int {
+	raw := strings.TrimSpace(fmt.Sprint(payload["occurrence_count"]))
+	if raw == "" || raw == "<nil>" {
+		return 1
+	}
+	count, err := strconv.Atoi(raw)
+	if err != nil || count <= 0 {
+		return 1
+	}
+	return count
 }
 
 func isUnparseableStatus(status string) bool {

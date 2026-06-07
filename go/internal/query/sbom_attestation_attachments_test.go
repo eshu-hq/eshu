@@ -352,6 +352,35 @@ func TestDecodeSBOMAttestationAttachmentRowPreservesAnchorTruth(t *testing.T) {
 	}
 }
 
+func TestDecodeSBOMAttestationAttachmentRowUsesPersistedWarningSummaryCount(t *testing.T) {
+	t.Parallel()
+
+	payload := map[string]any{
+		"document_id":           "doc-aggregated-warnings",
+		"attachment_status":     "attached_parse_only",
+		"warning_summaries":     []string{"25 components missing purl and name+version identity (samples: component[1], component[2])"},
+		"warning_summary_count": 25,
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+
+	row, err := decodeSBOMAttestationAttachmentRow("attachment-aggregated-warnings", "reported", payloadBytes)
+	if err != nil {
+		t.Fatalf("decodeSBOMAttestationAttachmentRow() error = %v", err)
+	}
+	if got, want := row.WarningSummaryCount, 25; got != want {
+		t.Fatalf("WarningSummaryCount = %d, want %d", got, want)
+	}
+	if !row.WarningSummariesTruncated {
+		t.Fatal("WarningSummariesTruncated = false, want true for aggregated occurrence count")
+	}
+	if got, want := strings.Join(row.WarningSummaries, ","), "25 components missing purl and name+version identity (samples: component[1], component[2])"; got != want {
+		t.Fatalf("WarningSummaries = %q, want %q", got, want)
+	}
+}
+
 func TestSBOMAttestationAttachmentMissingEvidenceQueryExplainsScopedGaps(t *testing.T) {
 	t.Parallel()
 

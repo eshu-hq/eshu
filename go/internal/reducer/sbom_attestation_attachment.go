@@ -42,28 +42,29 @@ const (
 
 // SBOMAttestationAttachmentDecision records one reducer attachment decision.
 type SBOMAttestationAttachmentDecision struct {
-	DocumentID         string
-	DocumentDigest     string
-	SubjectDigest      string
-	AttachmentStatus   SBOMAttachmentStatus
-	ParseStatus        string
-	VerificationStatus string
-	VerificationPolicy string
-	ArtifactKind       string
-	Format             string
-	SpecVersion        string
-	Reason             string
-	AttachmentScope    string
-	CanonicalWrites    int
-	ComponentCount     int
-	ComponentEvidence  []map[string]string
-	RepositoryIDs      []string
-	WorkloadIDs        []string
-	ServiceIDs         []string
-	WarningSummaries   []string
-	EvidenceFactIDs    []string
-	MissingEvidence    []string
-	SourceLayerKinds   []string
+	DocumentID          string
+	DocumentDigest      string
+	SubjectDigest       string
+	AttachmentStatus    SBOMAttachmentStatus
+	ParseStatus         string
+	VerificationStatus  string
+	VerificationPolicy  string
+	ArtifactKind        string
+	Format              string
+	SpecVersion         string
+	Reason              string
+	AttachmentScope     string
+	CanonicalWrites     int
+	ComponentCount      int
+	ComponentEvidence   []map[string]string
+	RepositoryIDs       []string
+	WorkloadIDs         []string
+	ServiceIDs          []string
+	WarningSummaries    []string
+	WarningSummaryCount int
+	EvidenceFactIDs     []string
+	MissingEvidence     []string
+	SourceLayerKinds    []string
 }
 
 // SBOMAttestationAttachmentWrite carries decisions for durable publication.
