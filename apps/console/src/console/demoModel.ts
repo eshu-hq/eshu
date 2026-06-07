@@ -92,6 +92,7 @@ export const demoModel: ConsoleModel = {
   vulnerabilities: [
     { id: "CVE-2024-0001", package: "sample-lib", severity: "high", cvss: 8.1, kev: false, fixedVersion: "2.0.1", services: ["checkout-service"] }
   ],
+  sbom: { total: 3, verified: 1, sbomCount: 2, attestationCount: 1 },
   truth: {},
   provenance: { runtime: "live", services: "live", findings: "live", vulnerabilities: "live" },
   graph: demoGraph,
