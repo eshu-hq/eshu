@@ -27,6 +27,13 @@ Start with the story tool when the user wants the current service picture:
 { "workload_id": "payments-api", "environment": "prod" }
 ```
 
+When you start from a repository-scoped target, pass the service name and
+repository selector together:
+
+```json
+{ "service_name": "payments-api", "repository_id": "repository:r_payments", "environment": "prod" }
+```
+
 Use the investigation tool for evidence-first onboarding or a scoped question:
 
 **Tool:** `investigate_service`

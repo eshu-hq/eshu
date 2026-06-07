@@ -114,12 +114,27 @@ func contextTools() []ToolDefinition {
 						"type":        "string",
 						"description": "Service workload identifier, or a service name passed through the workload_id field",
 					},
+					"service_name": map[string]any{
+						"type":        "string",
+						"description": "Optional service name selector when the caller starts from repository-scoped service story context",
+					},
+					"repo": map[string]any{
+						"type":        "string",
+						"description": "Optional repository selector used with service_name to disambiguate service story readback",
+					},
+					"repository_id": map[string]any{
+						"type":        "string",
+						"description": "Optional repository selector alias used with service_name to disambiguate service story readback",
+					},
+					"repo_id": map[string]any{
+						"type":        "string",
+						"description": "Optional repository selector alias used with service_name to disambiguate service story readback",
+					},
 					"environment": map[string]any{
 						"type":        "string",
 						"description": "Optional environment context",
 					},
 				},
-				"required": []string{"workload_id"},
 			},
 		},
 		{
