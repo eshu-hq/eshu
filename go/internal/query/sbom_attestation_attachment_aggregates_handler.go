@@ -38,6 +38,9 @@ func (h *SupplyChainHandler) countSBOMAttestationAttachments(w http.ResponseWrit
 		)
 		return
 	}
+	if !rejectUnsupportedSBOMAttestationAttachmentRepositoryScope(w, r) {
+		return
+	}
 	if h.SBOMAttachmentAggregates == nil {
 		WriteContractError(
 			w,
@@ -94,6 +97,9 @@ func (h *SupplyChainHandler) sbomAttestationAttachmentInventory(w http.ResponseW
 			h.profile(),
 			requiredProfile(sbomAttestationAttachmentAggregateCapability),
 		)
+		return
+	}
+	if !rejectUnsupportedSBOMAttestationAttachmentRepositoryScope(w, r) {
 		return
 	}
 	if h.SBOMAttachmentAggregates == nil {

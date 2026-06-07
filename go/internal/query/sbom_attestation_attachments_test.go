@@ -12,12 +12,14 @@ import (
 type recordingSBOMAttestationAttachmentStore struct {
 	page       SBOMAttestationAttachmentPage
 	lastFilter SBOMAttestationAttachmentFilter
+	calls      int
 }
 
 func (s *recordingSBOMAttestationAttachmentStore) ListSBOMAttestationAttachments(
 	_ context.Context,
 	filter SBOMAttestationAttachmentFilter,
 ) (SBOMAttestationAttachmentPage, error) {
+	s.calls++
 	s.lastFilter = filter
 	page := s.page
 	page.Attachments = append([]SBOMAttestationAttachmentRow(nil), s.page.Attachments...)
@@ -139,7 +141,7 @@ func TestSupplyChainListSBOMAttestationAttachmentsUsesBoundedStore(t *testing.T)
 	}
 }
 
-func TestSupplyChainListSBOMAttestationAttachmentsAcceptsRepositoryWorkloadServiceAnchors(t *testing.T) {
+func TestSupplyChainListSBOMAttestationAttachmentsAcceptsWorkloadServiceAnchors(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingSBOMAttestationAttachmentStore{
@@ -148,22 +150,20 @@ func TestSupplyChainListSBOMAttestationAttachmentsAcceptsRepositoryWorkloadServi
 			MissingEvidence: []string{"image_to_sbom_evidence_missing"},
 		},
 	}
+
 	handler := &SupplyChainHandler{SBOMAttachments: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/api/v0/supply-chain/sbom-attestations/attachments?repository_id=repo://example/api&workload_id=workload:example-api&service_id=service:example-api&digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&limit=10",
+		"/api/v0/supply-chain/sbom-attestations/attachments?workload_id=workload:example-api&service_id=service:example-api&digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&limit=10",
 		nil,
 	)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
-	}
-	if got, want := store.lastFilter.RepositoryID, "repo://example/api"; got != want {
-		t.Fatalf("RepositoryID = %q, want %q", got, want)
 	}
 	if got, want := store.lastFilter.WorkloadID, "workload:example-api"; got != want {
 		t.Fatalf("WorkloadID = %q, want %q", got, want)
@@ -183,6 +183,38 @@ func TestSupplyChainListSBOMAttestationAttachmentsAcceptsRepositoryWorkloadServi
 	}
 	if got, want := resp.MissingEvidence[0], "image_to_sbom_evidence_missing"; got != want {
 		t.Fatalf("missing_evidence[0] = %q, want %q", got, want)
+	}
+}
+
+func TestSupplyChainListSBOMAttestationAttachmentsRejectsRepositoryScope(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingSBOMAttestationAttachmentStore{}
+	handler := &SupplyChainHandler{SBOMAttachments: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/supply-chain/sbom-attestations/attachments?repository_id=repo://example/api&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if store.calls != 0 {
+		t.Fatalf("ListSBOMAttestationAttachments called %d times, want 0", store.calls)
+	}
+	if !strings.Contains(w.Body.String(), "repository_id") {
+		t.Fatalf("body = %s, want repository_id contract error", w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "omit repository_id") {
+		t.Fatalf("body = %s, want optional unscoped read guidance", w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "use subject_digest") {
+		t.Fatalf("body = %s, must not imply subject/document anchors are required for every SBOM attachment read", w.Body.String())
 	}
 }
 
