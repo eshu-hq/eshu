@@ -3,7 +3,7 @@
 // or sample data path. Before a connection exists (or after one fails) the shell
 // shows an explicit loading / needs-connection / error state instead of any
 // fabricated numbers. main.tsx already wraps this in <BrowserRouter>.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Route, Routes } from "react-router-dom";
 import { EshuApiClient } from "./api/client";
 import { loadConsoleSnapshot } from "./api/eshuConsoleLive";
@@ -65,6 +65,12 @@ export function App(): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const [client, setClient] = useState<EshuApiClient | undefined>();
   const [drawer, setDrawer] = useState<string | null>(null);
+  // Boot guard: React StrictMode runs effects twice in development, which would
+  // otherwise fire two concurrent boot connects whose in-flight fetches abort
+  // each other (issue #1727: ERR_ABORTED -> Catalog blank). The ref dedupes the
+  // boot connect to a single run; user-initiated reconnects from the source
+  // popover stay unguarded.
+  const bootedRef = useRef(false);
 
   async function connect(base: string, key: string): Promise<void> {
     setSource((s) => ({ ...s, base, key, status: "connecting", msg: "" }));
@@ -87,9 +93,15 @@ export function App(): React.JSX.Element {
   const openService = (name: string): void => setDrawer(name);
 
   // Boot straight into live data when a saved environment exists. With no saved
-  // environment, stay in "needs-connection" until the operator connects.
+  // environment, stay in "needs-connection" until the operator connects. The
+  // bootedRef guard makes this StrictMode-safe: the discarded first dev run does
+  // not launch a second boot connect that would abort the surviving run's
+  // in-flight fetches and blank out sections like Catalog (issue #1727).
   useEffect(() => {
-    if (hasSavedEnv) void connect(env.apiBaseUrl, env.apiKey || "");
+    if (hasSavedEnv && !bootedRef.current) {
+      bootedRef.current = true;
+      void connect(env.apiBaseUrl, env.apiKey || "");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
