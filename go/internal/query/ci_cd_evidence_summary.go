@@ -10,6 +10,7 @@ const cicdStaticWorkflowEvidencePathLimit = 20
 type cicdRunCorrelationEvidenceSummary struct {
 	StaticWorkflowArtifacts cicdStaticWorkflowArtifactEvidence `json:"static_workflow_artifacts"`
 	LiveRunCorrelations     cicdLiveRunCorrelationEvidence     `json:"live_run_correlations"`
+	RunArtifactEvidence     cicdRunArtifactEvidence            `json:"run_artifact_evidence"`
 	Reason                  string                             `json:"reason,omitempty"`
 }
 
@@ -28,23 +29,53 @@ type cicdLiveRunCorrelationEvidence struct {
 	Reason    string `json:"reason,omitempty"`
 }
 
+type cicdRunArtifactEvidence struct {
+	State               string `json:"state"`
+	Count               int    `json:"count"`
+	ArtifactDigestCount int    `json:"artifact_digest_count"`
+	ImageRefCount       int    `json:"image_ref_count"`
+	AmbiguousCount      int    `json:"ambiguous_count"`
+	Reason              string `json:"reason,omitempty"`
+}
+
 func (h *CICDHandler) runCorrelationEvidenceSummary(
 	ctx context.Context,
 	repositoryID string,
-	liveCount int,
+	rows []CICDRunCorrelationResult,
 	liveTruncated bool,
 ) cicdRunCorrelationEvidenceSummary {
 	static := h.staticWorkflowArtifactEvidence(ctx, repositoryID)
+	return buildCICDRunCorrelationEvidenceSummary(static, rows, liveTruncated, false)
+}
+
+func buildCICDRunCorrelationEvidenceSummary(
+	static cicdStaticWorkflowArtifactEvidence,
+	rows []CICDRunCorrelationResult,
+	liveTruncated bool,
+	liveUnavailable bool,
+) cicdRunCorrelationEvidenceSummary {
+	liveCount := len(rows)
 	live := cicdLiveRunCorrelationEvidence{
 		State:     "missing",
 		Count:     liveCount,
 		Truncated: liveTruncated,
+	}
+	if liveUnavailable {
+		live.State = "unavailable"
+		live.Reason = "run_correlation_read_model_unavailable"
+		return cicdRunCorrelationEvidenceSummary{
+			StaticWorkflowArtifacts: static,
+			LiveRunCorrelations:     live,
+			RunArtifactEvidence:     missingCICDRunArtifactEvidence(live.Reason),
+			Reason:                  live.Reason,
+		}
 	}
 	if liveCount > 0 {
 		live.State = "present"
 		return cicdRunCorrelationEvidenceSummary{
 			StaticWorkflowArtifacts: static,
 			LiveRunCorrelations:     live,
+			RunArtifactEvidence:     cicdRunArtifactEvidenceFromRows(rows),
 		}
 	}
 
@@ -60,7 +91,62 @@ func (h *CICDHandler) runCorrelationEvidenceSummary(
 	return cicdRunCorrelationEvidenceSummary{
 		StaticWorkflowArtifacts: static,
 		LiveRunCorrelations:     live,
+		RunArtifactEvidence:     missingCICDRunArtifactEvidence(summaryReason),
 		Reason:                  summaryReason,
+	}
+}
+
+func cicdRunArtifactEvidenceFromRows(rows []CICDRunCorrelationResult) cicdRunArtifactEvidence {
+	out := cicdRunArtifactEvidence{State: "missing", Reason: "artifact_or_image_evidence_missing"}
+	admittedCount := 0
+	unresolvedCount := 0
+	for _, row := range rows {
+		hasDigest := row.ArtifactDigest != ""
+		hasImageRef := row.ImageRef != ""
+		if !hasDigest && !hasImageRef {
+			continue
+		}
+		switch row.Outcome {
+		case "exact", "derived":
+			admittedCount++
+			if hasDigest {
+				out.ArtifactDigestCount++
+			}
+			if hasImageRef {
+				out.ImageRefCount++
+			}
+		case "ambiguous":
+			out.AmbiguousCount++
+		default:
+			unresolvedCount++
+		}
+	}
+	out.Count = admittedCount + out.AmbiguousCount
+	if out.ArtifactDigestCount > 0 {
+		out.State = "present"
+		out.Reason = "artifact_digest_present"
+		return out
+	}
+	if out.ImageRefCount > 0 {
+		out.State = "present"
+		out.Reason = "image_ref_present"
+		return out
+	}
+	if out.AmbiguousCount > 0 {
+		out.State = "ambiguous"
+		out.Reason = "ambiguous_artifact_evidence"
+		return out
+	}
+	if unresolvedCount > 0 {
+		out.Reason = "artifact_evidence_unresolved"
+	}
+	return out
+}
+
+func missingCICDRunArtifactEvidence(reason string) cicdRunArtifactEvidence {
+	return cicdRunArtifactEvidence{
+		State:  "missing",
+		Reason: reason,
 	}
 }
 

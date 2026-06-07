@@ -48,6 +48,7 @@ func buildRepositoryStoryResponseWithCoverage(
 	}
 	relationshipOverview := mapValue(infrastructureOverview, "relationship_overview")
 	deploymentEvidence := mapValue(infrastructureOverview, "deployment_evidence")
+	ciCDEvidence := mapValue(infrastructureOverview, "ci_cd_evidence")
 	semanticStory := buildRepositorySemanticStory(semanticOverview)
 	deploymentOverview := BuildRepositoryDeploymentOverview(
 		filteredWorkloads,
@@ -136,6 +137,13 @@ func buildRepositoryStoryResponseWithCoverage(
 	}
 	if len(infrastructureOverview) > 0 {
 		response["infrastructure_overview"] = infrastructureOverview
+	}
+	if len(ciCDEvidence) > 0 {
+		response["ci_cd_evidence"] = ciCDEvidence
+		storySections = append(storySections, map[string]any{
+			"title":   "ci_cd",
+			"summary": cicdEvidenceStorySummary(ciCDEvidence),
+		})
 	}
 	if deploymentOverview, ok := response["deployment_overview"].(map[string]any); ok {
 		if evidenceStory := repositoryDeploymentEvidenceStory(deploymentEvidence); evidenceStory != "" {

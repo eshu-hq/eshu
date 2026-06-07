@@ -252,6 +252,25 @@ materialized workload node is not available. In that case
 `deployment_surface_unknown` must not be emitted, but `workload_surface_unknown`
 can remain until workload materialization catches up.
 
+Repository and service story responses also include `ci_cd_evidence` when a
+repository scope is known. This block mirrors
+`GET /api/v0/ci-cd/run-correlations` by keeping static workflow files,
+provider run rows, and run-to-artifact/image bridges separate. Service stories
+reuse the same block in the `code_to_runtime_trace` `ci_cd` segment, so missing
+provider runs, ambiguous artifacts, and digest/image evidence use the same
+reason classes across the CI/CD endpoint, repository story, service story, and
+MCP transport.
+
+No-Regression Evidence: `go test ./internal/query -run 'TestLoadRepositoryScopedCICDEvidenceUsesBoundedRepositoryScope|TestBuild(Repository|Service)StoryResponsePreservesCICDEvidenceSummary' -count=1` fails if repository or service stories stop using a bounded repository-scoped CI/CD readback or stop preserving the CI/CD evidence classes returned by that readback.
+
+Observability Evidence: repository and service story CI/CD readback uses one
+repository-anchored reducer fact read with `limit+1` truncation probing plus the
+existing repository-scoped content file lookup for workflow files. It emits the
+same stage-completed log shape for `repository_story/ci_cd_evidence` and
+`service_story/ci_cd_evidence` with `has_result` and `error`; no graph traversal, broad
+graph scan, graph write, queue, worker, metric instrument, metric label, or
+runtime knob is added.
+
 No-Regression Evidence: issue #1461 reproduced on current `main` with a
 repository story fixture containing one repository-scoped deployment evidence
 artifact and no materialized workload. The failing baseline returned

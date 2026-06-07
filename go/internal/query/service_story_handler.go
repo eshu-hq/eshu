@@ -119,6 +119,16 @@ func (h *EntityHandler) getServiceStory(w http.ResponseWriter, r *http.Request) 
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich service story: %v", err))
 		return
 	}
+	timer := startServiceQueryStage(r.Context(), h.Logger, "service_story", safeStr(ctx, "name"), safeStr(ctx, "repo_id"), "ci_cd_evidence")
+	ciCDEvidence, err := loadRepositoryScopedCICDEvidence(r.Context(), h.Content, h.CICDRunCorrelations, safeStr(ctx, "repo_id"))
+	timer.Done(r.Context(), slog.Bool("has_result", len(ciCDEvidence) > 0), slog.Bool("error", err != nil))
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load service story ci/cd evidence: %v", err))
+		return
+	}
+	if len(ciCDEvidence) > 0 {
+		ctx["ci_cd_evidence"] = ciCDEvidence
+	}
 	if h.ContainerImageIdentities != nil && h.SBOMAttachments != nil {
 		timer := startServiceQueryStage(r.Context(), h.Logger, "service_story", safeStr(ctx, "name"), safeStr(ctx, "repo_id"), "supply_chain_evidence")
 		if err := h.enrichServiceStorySupplyChainEvidence(r.Context(), ctx); err != nil {

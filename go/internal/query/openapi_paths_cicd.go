@@ -5,7 +5,7 @@ const openAPIPathsCICD = `
       "get": {
         "tags": ["ci-cd"],
         "summary": "List CI/CD run correlations",
-        "description": "Lists reducer-owned CI/CD run, artifact, and environment correlations. CI success and shell-only hints are not deployment truth; exact rows require explicit artifact identity evidence. Repository-scoped responses include evidence_summary so static GitHub Actions workflow artifacts are visible even when live run correlation rows are missing.",
+        "description": "Lists reducer-owned CI/CD run, artifact, and environment correlations. CI success and shell-only hints are not deployment truth; exact rows require explicit artifact identity evidence. Repository-scoped responses include evidence_summary so static GitHub Actions workflow artifacts, live run rows, and run-to-artifact/image bridges stay separate even when live run correlation rows are missing.",
         "operationId": "listCICDRunCorrelations",
         "parameters": [
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer scope ID to anchor lookup."},
@@ -74,16 +74,28 @@ const openAPIPathsCICD = `
                         "live_run_correlations": {
                           "type": "object",
                           "properties": {
-                            "state": {"type": "string", "enum": ["present", "missing"]},
+                            "state": {"type": "string", "enum": ["present", "missing", "unavailable"]},
                             "count": {"type": "integer"},
                             "truncated": {"type": "boolean"},
                             "reason": {"type": "string"}
                           },
                           "required": ["state", "count"]
                         },
+                        "run_artifact_evidence": {
+                          "type": "object",
+                          "properties": {
+                            "state": {"type": "string", "enum": ["present", "missing", "ambiguous"]},
+                            "count": {"type": "integer"},
+                            "artifact_digest_count": {"type": "integer"},
+                            "image_ref_count": {"type": "integer"},
+                            "ambiguous_count": {"type": "integer"},
+                            "reason": {"type": "string"}
+                          },
+                          "required": ["state", "count", "artifact_digest_count", "image_ref_count", "ambiguous_count"]
+                        },
                         "reason": {"type": "string"}
                       },
-                      "required": ["static_workflow_artifacts", "live_run_correlations"]
+                      "required": ["static_workflow_artifacts", "live_run_correlations", "run_artifact_evidence"]
                     },
                     "next_cursor": {
                       "type": "object",

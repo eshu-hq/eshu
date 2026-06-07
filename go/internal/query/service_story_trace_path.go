@@ -70,6 +70,16 @@ func serviceTraceCodeEntrypointSegment(workloadContext map[string]any) map[strin
 }
 
 func serviceTraceCICDSegment(workloadContext map[string]any) map[string]any {
+	if ciCDEvidence := mapValue(workloadContext, "ci_cd_evidence"); len(ciCDEvidence) > 0 {
+		segment := serviceTraceSegment(
+			"ci_cd",
+			"ci_cd_run_correlation_readback",
+			"derived",
+			[]map[string]any{{"evidence_summary": ciCDEvidence}},
+		)
+		segment["evidence_summary"] = ciCDEvidence
+		return segment
+	}
 	return serviceTraceSegment(
 		"ci_cd",
 		"delivery_workflows",

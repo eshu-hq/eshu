@@ -23,6 +23,9 @@ func buildServiceStoryResponse(serviceName string, workloadContext map[string]an
 			response[key] = value
 		}
 	}
+	if ciCDEvidence := mapValue(workloadContext, "ci_cd_evidence"); len(ciCDEvidence) > 0 {
+		response["ci_cd_evidence"] = ciCDEvidence
+	}
 	enrichServiceStoryDossierResponseWithContext(response, buildCtx)
 	response["investigation"] = buildServiceInvestigationPacketWithContext(serviceName, buildCtx, serviceInvestigationOptions{})
 	return response
@@ -249,6 +252,12 @@ func buildServiceStorySectionsWithContext(buildCtx serviceStoryBuildContext) []m
 				deliveryPathCount,
 				joinOrNone(toolFamilies),
 			),
+		})
+	}
+	if ciCDEvidence := mapValue(workloadContext, "ci_cd_evidence"); len(ciCDEvidence) > 0 {
+		sections = append(sections, map[string]any{
+			"title":   "ci_cd",
+			"summary": cicdEvidenceStorySummary(ciCDEvidence),
 		})
 	}
 	return sections

@@ -1,6 +1,14 @@
 package mcp
 
-import "testing"
+import (
+	"context"
+	"io"
+	"log/slog"
+	"net/http"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query"
+)
 
 func TestResolveRouteMapsCICDRunCorrelationsToBoundedQuery(t *testing.T) {
 	t.Parallel()
@@ -65,4 +73,59 @@ func TestResolveRouteMapsCICDRunCorrelationAggregatesToImageRefFilter(t *testing
 			}
 		})
 	}
+}
+
+func TestDispatchToolCICDRunCorrelationsPreservesArtifactEvidenceSummary(t *testing.T) {
+	t.Parallel()
+
+	handler := &query.CICDHandler{
+		Correlations: mcpCICDRunCorrelationStore{rows: []query.CICDRunCorrelationRow{{
+			CorrelationID:  "correlation-digest",
+			RepositoryID:   "repo://example/api",
+			Provider:       "github_actions",
+			RunID:          "run-1",
+			Outcome:        "exact",
+			ArtifactDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		}}},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	result, err := dispatchTool(
+		context.Background(),
+		mux,
+		"list_ci_cd_run_correlations",
+		map[string]any{
+			"repository_id": "repo://example/api",
+			"limit":         float64(10),
+		},
+		"",
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	if err != nil {
+		t.Fatalf("dispatchTool() error = %v, want nil", err)
+	}
+	if result.Envelope == nil {
+		t.Fatal("dispatchTool() envelope is nil, want structured CI/CD envelope")
+	}
+	data, ok := result.Envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope data type = %T, want map[string]any", result.Envelope.Data)
+	}
+	summary := data["evidence_summary"].(map[string]any)
+	bridge := summary["run_artifact_evidence"].(map[string]any)
+	if got, want := bridge["reason"], "artifact_digest_present"; got != want {
+		t.Fatalf("run_artifact_evidence.reason = %#v, want %#v", got, want)
+	}
+}
+
+type mcpCICDRunCorrelationStore struct {
+	rows []query.CICDRunCorrelationRow
+}
+
+func (s mcpCICDRunCorrelationStore) ListCICDRunCorrelations(
+	context.Context,
+	query.CICDRunCorrelationFilter,
+) ([]query.CICDRunCorrelationRow, error) {
+	return append([]query.CICDRunCorrelationRow(nil), s.rows...), nil
 }
