@@ -25,6 +25,7 @@ import { IacPage } from "./pages/IacPage";
 import { RepositoriesPage } from "./pages/RepositoriesPage";
 import { RepoSourcePage } from "./pages/RepoSourcePage";
 import { ImagesPage } from "./pages/ImagesPage";
+import { CloudPage } from "./pages/CloudPage";
 import { ServiceDrawer } from "./components/ServiceDrawer";
 import "./styles.css";
 
@@ -32,6 +33,7 @@ const NAV: readonly { to: string; label: string }[] = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/explorer", label: "Graph Explorer" },
   { to: "/repositories", label: "Repositories" },
+  { to: "/cloud", label: "Cloud" },
   { to: "/catalog", label: "Catalog" },
   { to: "/images", label: "Images" },
   { to: "/iac", label: "IaC" },
@@ -137,6 +139,7 @@ export function App(): React.JSX.Element {
             <Route path="/explorer" element={<ExplorerPage model={model} client={client} onOpenService={openService} />} />
             <Route path="/repositories" element={<RepositoriesPage client={client} />} />
             <Route path="/repositories/:id/source" element={<RepoSourcePage client={client} />} />
+            <Route path="/cloud" element={<CloudPage client={client} />} />
             <Route path="/catalog" element={<CatalogPage model={model} onOpenService={openService} />} />
             <Route path="/images" element={<ImagesPage client={client} />} />
             <Route path="/iac" element={<IacPage model={model} />} />

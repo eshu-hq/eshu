@@ -18,6 +18,12 @@ import { fetchAdvisoryCatalogPage } from "./eshuConsoleAdvisories";
 import { imageRowsFromResponse, loadImages } from "./imageInventory";
 import type { ImagePage, ImageRow } from "./imageInventory";
 
+// Cloud inventory rows are loaded live per page by api/cloudResources.ts (the
+// graph holds ~17k CloudResource nodes, too many for the one-shot snapshot). The
+// row type is re-exported here so console view-model consumers have a single
+// import surface for live API row shapes.
+export type { CloudResourceRow } from "./cloudResources";
+
 export type SectionProvenance = "live" | "empty" | "unavailable";
 
 export type { ImageRow, ImagePage };
