@@ -19,11 +19,11 @@ func TestGitHubClientFetchLatestRunUsesBoundedActionsEndpoints(t *testing.T) {
 		}
 		switch r.URL.Path {
 		case "/repos/example/repo/actions/runs":
-			w.Write([]byte(`{"workflow_runs":[{"id":1001,"workflow_id":42,"name":"Publish","run_attempt":1,"head_sha":"0123456789abcdef0123456789abcdef01234567","repository":{"full_name":"example/repo"}}]}`))
+			_, _ = w.Write([]byte(`{"workflow_runs":[{"id":1001,"workflow_id":42,"name":"Publish","run_attempt":1,"head_sha":"0123456789abcdef0123456789abcdef01234567","repository":{"full_name":"example/repo"}}]}`))
 		case "/repos/example/repo/actions/runs/1001/jobs":
-			w.Write([]byte(`{"total_count":2,"jobs":[{"id":2001,"name":"build"}]}`))
+			_, _ = w.Write([]byte(`{"total_count":2,"jobs":[{"id":2001,"name":"build"}]}`))
 		case "/repos/example/repo/actions/runs/1001/artifacts":
-			w.Write([]byte(`{"artifacts":[{"id":3001,"name":"image-digest","workflow_run":{"id":1001,"head_sha":"0123456789abcdef0123456789abcdef01234567"}}]}`))
+			_, _ = w.Write([]byte(`{"artifacts":[{"id":3001,"name":"image-digest","workflow_run":{"id":1001,"head_sha":"0123456789abcdef0123456789abcdef01234567"}}]}`))
 		default:
 			t.Fatalf("unexpected path %s", r.URL.String())
 		}

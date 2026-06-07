@@ -49,6 +49,8 @@ deployable runtime slice before production enablement.
 - Targets must be explicitly configured with `scope_id`, `repository`, `token`,
   and `allowed_repositories`.
 - `max_runs`, `max_jobs`, and `max_artifacts` bound provider request shape.
+- Provider HTTP response bodies are closed after each bounded JSON decode or
+  error-body read so long-running claim loops do not leak connections.
 - Token values and token-bearing URLs never enter facts, logs, metrics, or
   status payloads.
 - Artifact `archive_download_url` values are persisted only after query strings
@@ -82,8 +84,10 @@ flowchart LR
 ## Evidence
 
 No-Regression Evidence: `go test ./internal/collector/cicdrun/ghactionsruntime
--count=1` proves claim validation, bounded GitHub Actions snapshot collection,
-fixture normalization, and artifact URL redaction without live provider access.
+-count=1` and `golangci-lint run ./internal/collector/cicdrun/ghactionsruntime`
+prove claim validation, bounded GitHub Actions snapshot collection, fixture
+normalization, artifact URL redaction, and checked HTTP response cleanup without
+live provider access.
 
 No-Observability-Change: this package introduces the runtime source contract
 only. The deployable command and Helm slice must add provider request, rate
