@@ -128,6 +128,12 @@
 // SpanAttrWorkItemEvidence* query, result, evidence-state, and truncation
 // counts; raw URLs, issue summaries, users, and tenant values stay out of
 // metric labels.
+// Service and repository stories attach support evidence only through explicit
+// candidate_refs, evidence_refs, or linked_entities entries that identify the
+// selected workload/service or repository target. The support read path stays
+// bounded to JSONB containment predicates over those structured references and
+// never scans Jira summaries, issue titles, PagerDuty service names, or mention
+// text to infer target ownership.
 //
 // Documentation finding and fact reads accept repo, target_id, target_kind, and
 // service_id filters. Target-scoped finding responses keep admitted findings

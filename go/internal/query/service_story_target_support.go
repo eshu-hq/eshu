@@ -152,8 +152,8 @@ func (cr *ContentReader) serviceStoryTargetSupportEvidence(
 }
 
 func buildServiceStoryTargetSupportSQL(filter serviceStoryTargetSupportFilter) (string, []any) {
-	scope := documentationTargetScopeFromValues(filter.Repository, filter.TargetKind, filter.TargetID, filter.ServiceID)
-	if !scope.hasSelector() {
+	refs := serviceStorySupportTargetRefs(filter)
+	if len(refs) == 0 {
 		return "", nil
 	}
 	args := []any{}
@@ -167,7 +167,7 @@ func buildServiceStoryTargetSupportSQL(filter serviceStoryTargetSupportFilter) (
 		clauses,
 		args,
 		"fact.payload",
-		documentationTargetRefs(scope),
+		refs,
 	)
 	limit := serviceStoryTargetSupportRowLimit(filter.Limit)
 	args = append(args, limit+1)
@@ -211,12 +211,7 @@ func buildStoryTargetSupport(
 	facts []map[string]any,
 	truncated bool,
 ) map[string]any {
-	refs := documentationTargetRefs(documentationTargetScopeFromValues(
-		filter.Repository,
-		filter.TargetKind,
-		filter.TargetID,
-		filter.ServiceID,
-	))
+	refs := serviceStorySupportTargetRefs(filter)
 	evidence := make([]map[string]any, 0, len(facts))
 	ambiguous := make([]map[string]any, 0)
 	for _, fact := range facts {
@@ -224,7 +219,7 @@ func buildStoryTargetSupport(
 			ambiguous = append(ambiguous, serviceStorySupportEvidenceRow(fact))
 			continue
 		}
-		if !documentationPayloadMatchesTargetRefs(fact, refs) {
+		if !serviceStorySupportPayloadMatchesTargetRefs(fact, refs) {
 			continue
 		}
 		evidence = append(evidence, serviceStorySupportEvidenceRow(fact))
@@ -363,7 +358,7 @@ func supportRefObjectMatchState(
 	}
 	kind := strings.TrimSpace(documentationStringAny(value[kindKey]))
 	for _, ref := range refs {
-		if id == ref.id && (ref.kind == "" || kind == ref.kind) {
+		if id == ref.id && (ref.kind == "" || strings.EqualFold(kind, ref.kind)) {
 			return true, other
 		}
 	}

@@ -157,6 +157,79 @@ func TestBuildStoryTargetSupportKeepsAmbiguousCandidateRefsSeparate(t *testing.T
 	}
 }
 
+func TestBuildStoryTargetSupportMatchesExplicitSupportTargetAliases(t *testing.T) {
+	t.Parallel()
+
+	got := buildStoryTargetSupport(serviceStoryTargetSupportFilter{
+		Repository: "repo-payments-api",
+		TargetKind: "service",
+		TargetID:   "workload:payments-api",
+		ServiceID:  "workload:payments-api",
+		Limit:      serviceStoryTargetSupportLimit,
+	}, []map[string]any{{
+		"fact_id":   "jira-workload-ref",
+		"fact_kind": "work_item.record",
+		"payload": map[string]any{
+			"candidate_refs": []any{map[string]any{
+				"kind": "workload",
+				"id":   "workload:payments-api",
+			}},
+			"work_item_key": "PAY-123",
+		},
+	}, {
+		"fact_id":   "pd-workload-ref",
+		"fact_kind": "incident_routing.observed_pagerduty_service",
+		"payload": map[string]any{
+			"linked_entities": []any{map[string]any{
+				"entity_type": "workload",
+				"entity_id":   "workload:payments-api",
+			}},
+			"service_id": "PAGERDUTY_SERVICE_ID",
+		},
+	}}, false)
+
+	if gotCount, want := IntVal(got, "evidence_count"), 2; gotCount != want {
+		t.Fatalf("evidence_count = %d, want %d: %#v", gotCount, want, got)
+	}
+	if gotCount, want := IntVal(got, "work_item_count"), 1; gotCount != want {
+		t.Fatalf("work_item_count = %d, want %d", gotCount, want)
+	}
+	if gotCount, want := IntVal(got, "incident_routing_count"), 1; gotCount != want {
+		t.Fatalf("incident_routing_count = %d, want %d", gotCount, want)
+	}
+	if gotMissing := mapSliceValue(got, "missing_evidence"); len(gotMissing) != 0 {
+		t.Fatalf("missing_evidence = %#v, want empty", gotMissing)
+	}
+}
+
+func TestBuildStoryTargetSupportMatchesExplicitRepositoryAlias(t *testing.T) {
+	t.Parallel()
+
+	got := buildStoryTargetSupport(serviceStoryTargetSupportFilter{
+		Repository: "repo-payments-api",
+		TargetKind: "repository",
+		TargetID:   "repo-payments-api",
+		Limit:      serviceStoryTargetSupportLimit,
+	}, []map[string]any{{
+		"fact_id":   "jira-repo-ref",
+		"fact_kind": "work_item.external_link",
+		"payload": map[string]any{
+			"evidence_refs": []any{map[string]any{
+				"kind": "repo",
+				"id":   "repo-payments-api",
+			}},
+			"work_item_key": "PAY-456",
+		},
+	}}, false)
+
+	if gotCount, want := IntVal(got, "evidence_count"), 1; gotCount != want {
+		t.Fatalf("evidence_count = %d, want %d: %#v", gotCount, want, got)
+	}
+	if gotMissing := mapSliceValue(got, "missing_evidence"); len(gotMissing) != 0 {
+		t.Fatalf("missing_evidence = %#v, want empty", gotMissing)
+	}
+}
+
 func TestBuildStoryTargetSupportDoesNotMatchGenericServiceName(t *testing.T) {
 	t.Parallel()
 
@@ -246,6 +319,30 @@ func TestBuildServiceStoryTargetSupportSQLIsTargetScopedAndBounded(t *testing.T)
 	if strings.Contains(query, "service_name") || strings.Contains(query, "mention_text") ||
 		strings.Contains(strings.ToLower(query), " like ") || strings.Contains(strings.ToLower(query), "lower(") {
 		t.Fatalf("support SQL must not use name-only predicates:\n%s", query)
+	}
+	joinedArgs := documentationArgsString(args)
+	for _, fragment := range []string{"workload:payments-api", `"kind":"workload"`} {
+		if !strings.Contains(joinedArgs, fragment) {
+			t.Fatalf("support SQL args missing explicit ref alias %q: %#v", fragment, args)
+		}
+	}
+}
+
+func TestBuildRepositoryStoryTargetSupportSQLIncludesRepositoryAlias(t *testing.T) {
+	t.Parallel()
+
+	_, args := buildServiceStoryTargetSupportSQL(serviceStoryTargetSupportFilter{
+		Repository: "repo-payments-api",
+		TargetKind: "repository",
+		TargetID:   "repo-payments-api",
+		Limit:      serviceStoryTargetSupportLimit,
+	})
+
+	joinedArgs := documentationArgsString(args)
+	for _, fragment := range []string{"repo-payments-api", `"kind":"repository"`, `"kind":"repo"`} {
+		if !strings.Contains(joinedArgs, fragment) {
+			t.Fatalf("support SQL args missing explicit repository ref alias %q: %#v", fragment, args)
+		}
 	}
 }
 
