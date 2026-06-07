@@ -139,6 +139,16 @@ infra search, section traversals keep the canonical graph id and ARN handles,
 and service story/deployment trace expose bounded uncorrelated cloud-resource
 candidates without promoting them into canonical `cloud_resources`.
 
+Remote Docker Compose proof against NornicDB verified the same CloudResource
+candidate path on a target service with six AWS cloud-resource matches. The
+service-story stage returned zero rows with a broad multiline `OR` predicate
+and direct optional property projections, then returned all six candidates with
+the one-line `infraResourceFreeTextPredicate` shape and coalesced optional
+projections. The API and MCP service-story readbacks both kept canonical
+`cloud_resources` empty and surfaced those rows only as
+`uncorrelated_cloud_resources` with `missing_relationship` set to
+`workload_cloud_relationship`.
+
 No-Observability-Change: the candidate read still runs through
 `GraphQuery.Run`, existing `neo4j.query` spans, and
 `eshu_dp_neo4j_query_duration_seconds`; service-story enrichment records the

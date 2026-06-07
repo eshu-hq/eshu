@@ -94,7 +94,7 @@ func TestEnrichServiceQueryContextKeepsAmbiguousAWSCloudResourceAnchorAsCandidat
 				if strings.Contains(cypher, "service_anchor_status = 'strong'") {
 					return nil, nil
 				}
-				if strings.Contains(cypher, "MATCH (c:CloudResource)") {
+				if strings.Contains(cypher, "WHERE (n:CloudResource)") {
 					return []map[string]any{
 						{
 							"id":                    "cloud-resource:shared-listener",
@@ -161,7 +161,7 @@ func TestEnrichServiceQueryContextDoesNotPromoteWrongTargetAWSCloudResourceAncho
 					}
 					return nil, nil
 				}
-				if strings.Contains(cypher, "MATCH (c:CloudResource)") {
+				if strings.Contains(cypher, "WHERE (n:CloudResource)") {
 					return nil, nil
 				}
 				return nil, nil

@@ -164,6 +164,20 @@ func TestSearchInfraResourcesFiltersTerraformClassification(t *testing.T) {
 			t.Fatalf("cypher = %q, want fragment %q", reader.lastCypher, fragment)
 		}
 	}
+	for _, fragment := range []string{
+		"coalesce(n.provider, '') as provider",
+		"coalesce(n.source_system, '') as source_system",
+		"coalesce(n.config_path, '') as config_path",
+		"coalesce(n.resource_id, '') as resource_id",
+		"coalesce(n.arn, '') as arn",
+	} {
+		if !strings.Contains(reader.lastCypher, fragment) {
+			t.Fatalf("cypher = %q, want NornicDB-safe optional projection %q", reader.lastCypher, fragment)
+		}
+	}
+	if strings.Contains(reader.lastCypher, "CONTAINS $query\n") || strings.Contains(reader.lastCypher, "CONTAINS $query OR\n") {
+		t.Fatalf("cypher = %q, want one-line CloudResource free-text predicate for NornicDB compatibility", reader.lastCypher)
+	}
 	for _, forbidden := range []string{
 		"coalesce(n.provider, n.source_system, '') = $provider",
 		"n.source_system = $provider",
@@ -361,7 +375,7 @@ func TestSearchInfraResourcesScopesSourceSystemProviderFallbackToCloudResources(
 	for _, want := range []string{
 		"n.provider = $provider",
 		"(n:CloudResource AND n.source_system = $provider)",
-		"n.source_system as source_system",
+		"coalesce(n.source_system, '') as source_system",
 	} {
 		if !strings.Contains(reader.lastCypher, want) {
 			t.Fatalf("cypher = %q, want CloudResource-scoped provider fallback fragment %q", reader.lastCypher, want)
