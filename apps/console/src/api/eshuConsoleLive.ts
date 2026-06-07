@@ -23,6 +23,7 @@ export interface ConsoleSnapshot {
   readonly ingesters: readonly IngesterRow[];
   readonly findings: readonly FindingRow[];
   readonly vulnerabilities: readonly VulnRow[];
+  readonly sbom: SbomEvidenceRow | null;
   readonly series: SeriesBundle;
   readonly truth: Partial<Record<keyof ConsoleSnapshot, EshuTruth>>;
   readonly provenance: Record<string, SectionProvenance>;
@@ -87,6 +88,18 @@ export interface SeriesBundle {
   readonly newVulns: readonly number[];
 }
 
+// SbomEvidenceRow is the cheap SBOM/attestation rollup the snapshot carries so
+// the dashboard can show whether supply-chain attestation evidence exists at a
+// glance. The full subject browse + per-subject provenance live on the SBOM
+// page (see api/sbomEvidence.ts), which calls the same reducer-owned endpoints
+// directly. total/verified are counts only; this row adds no new graph reads.
+export interface SbomEvidenceRow {
+  readonly total: number;
+  readonly verified: number;
+  readonly sbomCount: number;
+  readonly attestationCount: number;
+}
+
 // ---- endpoint response shapes (partial; see GET /api/v0/openapi.json) ----
 interface EcosystemOverview {
   // The API field is repo_count; repository_count is kept as a defensive alias.
@@ -130,6 +143,11 @@ interface IngesterStatus { readonly ingesters?: readonly Record<string, unknown>
 interface DeadCodeResponse { readonly results?: readonly { name?: string; file_path?: string; repo_name?: string; repo_id?: string; classification?: string }[]; }
 interface ImpactFindings { readonly findings?: readonly Record<string, unknown>[]; readonly results?: readonly Record<string, unknown>[]; }
 interface MetricsTimeSeriesResponse { readonly points?: readonly { readonly t?: string; readonly v?: number }[]; }
+interface SBOMAttachmentCount {
+  readonly total_attachments?: number;
+  readonly by_attachment_status?: Readonly<Record<string, number>>;
+  readonly by_artifact_kind?: Readonly<Record<string, number>>;
+}
 
 // Impact findings carry a CVSS score but no severity label; derive the standard
 // CVSS v3 qualitative band so the vulnerability list can colour-rank rows.
@@ -299,9 +317,29 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     return rows.length > 0 ? rows : null;
   })) ?? [];
 
+  // SBOM/attestation evidence: a cheap count rollup for the snapshot. The
+  // count endpoint requires no scope and stays bounded; the full subject browse
+  // and per-subject provenance are loaded on demand by the SBOM page. The
+  // `attached_verified` status names the trusted-attestation count.
+  const sbom = await section(prov, "sbom", async () => {
+    const env = await client.get<SBOMAttachmentCount>("/api/v0/supply-chain/sbom-attestations/attachments/count");
+    const data = env.data ?? {};
+    if (env.truth) truth.sbom = env.truth;
+    const total = Number(data.total_attachments ?? 0);
+    if (total <= 0) return null;
+    const byStatus = data.by_attachment_status ?? {};
+    const byKind = data.by_artifact_kind ?? {};
+    return {
+      total,
+      verified: Number(byStatus.attached_verified ?? 0),
+      sbomCount: Number(byKind.sbom ?? 0),
+      attestationCount: Number(byKind.attestation ?? 0)
+    } satisfies SbomEvidenceRow;
+  });
+
   const series = await loadSeriesBundle(client, prov);
 
-  return { runtime, services, languages, ingesters, findings, vulnerabilities, series, truth, provenance: prov };
+  return { runtime, services, languages, ingesters, findings, vulnerabilities, sbom, series, truth, provenance: prov };
 }
 
 function emptyRuntime(): RuntimeSummary {

@@ -60,6 +60,19 @@ describe("eshuConsoleLive", () => {
           // affected_derived (and any unanchored call) returns nothing here.
           return { data: { findings: [] }, error: null, truth: null };
         }
+        if (path.includes("/sbom-attestations/attachments/count")) {
+          // The cheap count rollup requires no scope; the snapshot derives the
+          // verified count from attached_verified and the per-kind splits.
+          return {
+            data: {
+              total_attachments: 148,
+              by_attachment_status: { attached_verified: 100, attached_parse_only: 48 },
+              by_artifact_kind: { sbom: 120, attestation: 28 }
+            },
+            error: null,
+            truth: { profile: "production", level: "exact", capability: "supply_chain.sbom_attestation_attachments.aggregate", freshness: { state: "fresh" } }
+          };
+        }
         return { data: {}, error: null, truth: null };
       },
       getJson: async (path: string) => {
@@ -130,6 +143,29 @@ describe("eshuConsoleLive", () => {
     });
     // cvss 5.9 -> medium band, no fix -> null
     expect(snap.vulnerabilities[1]).toMatchObject({ id: "GHSA-bbbb", severity: "medium", fixedVersion: null });
+  });
+
+  it("loads the SBOM/attestation count rollup and captures its truth", async () => {
+    const snap = await loadConsoleSnapshot(fakeClient());
+    expect(snap.sbom).toEqual({ total: 148, verified: 100, sbomCount: 120, attestationCount: 28 });
+    expect(snap.provenance.sbom).toBe("live");
+    expect(snap.truth.sbom?.capability).toBe("supply_chain.sbom_attestation_attachments.aggregate");
+  });
+
+  it("marks the SBOM section empty when the count endpoint reports zero attachments", async () => {
+    const client = {
+      get: async (path: string) => {
+        if (path.includes("/sbom-attestations/attachments/count")) {
+          return { data: { total_attachments: 0, by_attachment_status: {}, by_artifact_kind: {} }, error: null, truth: null };
+        }
+        return { data: {}, error: null, truth: null };
+      },
+      getJson: async () => ({ status: "healthy", queue: {} }),
+      post: async () => ({ data: {}, error: null, truth: null })
+    } as unknown as EshuApiClient;
+    const snap = await loadConsoleSnapshot(client);
+    expect(snap.sbom).toBeNull();
+    expect(snap.provenance.sbom).toBe("empty");
   });
 
   it("loads dashboard trend series from the metrics time-series endpoint", async () => {
