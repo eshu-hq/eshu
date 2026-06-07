@@ -64,6 +64,18 @@ func cicdStaticWorkflowArtifactEvidenceMap(value cicdStaticWorkflowArtifactEvide
 	if value.Truncated {
 		out["truncated"] = true
 	}
+	if value.ImageRefCount > 0 {
+		out["image_ref_count"] = value.ImageRefCount
+	}
+	if value.UnresolvedCount > 0 {
+		out["unresolved_count"] = value.UnresolvedCount
+	}
+	if value.AmbiguousCount > 0 {
+		out["ambiguous_count"] = value.AmbiguousCount
+	}
+	if value.EvidenceClass != "" {
+		out["evidence_class"] = value.EvidenceClass
+	}
 	if value.Reason != "" {
 		out["reason"] = value.Reason
 	}

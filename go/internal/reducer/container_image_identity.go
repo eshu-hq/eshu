@@ -197,6 +197,7 @@ func BuildContainerImageIdentityDecisions(envelopes []facts.Envelope) []Containe
 func containerImageIdentityFactKinds() []string {
 	return []string{
 		factKindContentEntity,
+		facts.CICDWorkflowImageEvidenceFactKind,
 		facts.AWSRelationshipFactKind,
 		facts.AWSImageReferenceFactKind,
 		facts.OCIImageTagObservationFactKind,

@@ -134,7 +134,7 @@ func TestCICDListRunCorrelationsUsesBoundedPostgresStore(t *testing.T) {
 	}
 }
 
-func TestCICDListRunCorrelationsDoesNotHydrateStaticWorkflowArtifacts(t *testing.T) {
+func TestCICDListRunCorrelationsHydratesStaticWorkflowArtifactsOnce(t *testing.T) {
 	t.Parallel()
 
 	content := &workflowPathOnlyContentStore{
@@ -164,8 +164,8 @@ func TestCICDListRunCorrelationsDoesNotHydrateStaticWorkflowArtifacts(t *testing
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if got := content.getFileContentCalls; got != 0 {
-		t.Fatalf("GetFileContent calls = %d, want 0 for path-only workflow evidence summary", got)
+	if got := content.getFileContentCalls; got != 1 {
+		t.Fatalf("GetFileContent calls = %d, want 1 bounded workflow evidence hydration", got)
 	}
 
 	var resp struct {
@@ -179,6 +179,9 @@ func TestCICDListRunCorrelationsDoesNotHydrateStaticWorkflowArtifacts(t *testing
 	}
 	if got, want := resp.EvidenceSummary.StaticWorkflowArtifacts.Paths, []string{".github/workflows/deploy.yml"}; len(got) != len(want) || got[0] != want[0] {
 		t.Fatalf("static_workflow_artifacts.paths = %#v, want %#v", got, want)
+	}
+	if got, want := resp.EvidenceSummary.StaticWorkflowArtifacts.Reason, "workflow_image_evidence_read_failed"; got != want {
+		t.Fatalf("static_workflow_artifacts.reason = %q, want %q", got, want)
 	}
 }
 
@@ -199,7 +202,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - run: docker build -t registry.example.com/team/api:prod .
+      - run: echo deploy
 `,
 			}},
 		},

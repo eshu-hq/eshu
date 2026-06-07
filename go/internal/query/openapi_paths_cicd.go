@@ -67,6 +67,10 @@ const openAPIPathsCICD = `
                             "count": {"type": "integer"},
                             "paths": {"type": "array", "items": {"type": "string"}},
                             "truncated": {"type": "boolean"},
+                            "image_ref_count": {"type": "integer"},
+                            "unresolved_count": {"type": "integer"},
+                            "ambiguous_count": {"type": "integer"},
+                            "evidence_class": {"type": "string", "enum": ["workflow_image_ref", "workflow_image_unresolved", "workflow_image_ambiguous"]},
                             "reason": {"type": "string"}
                           },
                           "required": ["state", "count"]

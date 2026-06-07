@@ -6,6 +6,9 @@ const (
 	// CICDPipelineDefinitionFactKind identifies one provider workflow or
 	// pipeline definition observed before a run starts.
 	CICDPipelineDefinitionFactKind = "ci.pipeline_definition"
+	// CICDWorkflowImageEvidenceFactKind identifies a static workflow command
+	// that explicitly names or ambiguously references a container image.
+	CICDWorkflowImageEvidenceFactKind = "ci.workflow_image_evidence"
 	// CICDRunFactKind identifies one provider run execution.
 	CICDRunFactKind = "ci.run"
 	// CICDJobFactKind identifies one provider job under a run.
@@ -29,6 +32,7 @@ const (
 
 var cicdRunFactKinds = []string{
 	CICDPipelineDefinitionFactKind,
+	CICDWorkflowImageEvidenceFactKind,
 	CICDRunFactKind,
 	CICDJobFactKind,
 	CICDStepFactKind,
@@ -40,6 +44,7 @@ var cicdRunFactKinds = []string{
 
 var cicdRunSchemaVersions = map[string]string{
 	CICDPipelineDefinitionFactKind:     CICDSchemaVersion,
+	CICDWorkflowImageEvidenceFactKind:  CICDSchemaVersion,
 	CICDRunFactKind:                    CICDSchemaVersion,
 	CICDJobFactKind:                    CICDSchemaVersion,
 	CICDStepFactKind:                   CICDSchemaVersion,

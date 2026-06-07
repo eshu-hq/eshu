@@ -135,7 +135,10 @@ keeps CI success, environment observations, and shell-only hints separate from
 deployment truth. Repository-scoped list responses include `evidence_summary`
 from the content read model so indexed GitHub Actions workflow files remain
 visible when no live reducer run-correlation rows exist; static workflow
-artifacts are explanatory evidence, not synthetic correlation rows. The
+artifacts are explanatory evidence, not synthetic correlation rows. Static
+workflow summaries also count explicit workflow image refs, unresolved templated
+image commands, and ambiguous multi-image commands without returning raw shell
+commands. The
 `run_artifact_evidence` summary is computed only from the returned reducer page:
 exact or derived artifact digests and image references are bridge evidence,
 ambiguous artifact outcomes stay ambiguous, and provider-only runs report the

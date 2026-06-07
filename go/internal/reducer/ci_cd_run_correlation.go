@@ -76,7 +76,7 @@ type CICDRunCorrelationWriter interface {
 }
 
 type activeCICDRunCorrelationFactLoader interface {
-	ListActiveCICDRunCorrelationFacts(ctx context.Context, digests []string) ([]facts.Envelope, error)
+	ListActiveCICDRunCorrelationFacts(ctx context.Context, digests []string, imageRefs []string) ([]facts.Envelope, error)
 }
 
 // CICDRunCorrelationHandler joins CI/CD run facts with reducer-owned artifact
@@ -103,7 +103,7 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 	if err != nil {
 		return Result{}, fmt.Errorf("load ci/cd run correlation facts: %w", err)
 	}
-	active, err := h.loadActiveCICDRunCorrelationFacts(ctx, ciArtifactDigests(envelopes))
+	active, err := h.loadActiveCICDRunCorrelationFacts(ctx, ciArtifactDigests(envelopes), ciWorkflowImageRefs(envelopes))
 	if err != nil {
 		return Result{}, fmt.Errorf("load active ci/cd artifact identity facts: %w", err)
 	}
@@ -136,12 +136,13 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 func (h CICDRunCorrelationHandler) loadActiveCICDRunCorrelationFacts(
 	ctx context.Context,
 	digests []string,
+	imageRefs []string,
 ) ([]facts.Envelope, error) {
 	loader, ok := h.FactLoader.(activeCICDRunCorrelationFactLoader)
 	if !ok {
 		return nil, nil
 	}
-	envelopes, err := loader.ListActiveCICDRunCorrelationFacts(ctx, digests)
+	envelopes, err := loader.ListActiveCICDRunCorrelationFacts(ctx, digests, imageRefs)
 	if err != nil {
 		return nil, classifyFactLoadError(err)
 	}
@@ -167,6 +168,7 @@ func (h CICDRunCorrelationHandler) emitCounters(ctx context.Context, counts map[
 // CI success or shell text into deployment truth.
 func BuildCICDRunCorrelationDecisions(envelopes []facts.Envelope) []CICDRunCorrelationDecision {
 	runs := map[string]*cicdRunEvidence{}
+	var workflowImages []facts.Envelope
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
 		case facts.CICDRunFactKind:
@@ -196,8 +198,11 @@ func BuildCICDRunCorrelationDecisions(envelopes []facts.Envelope) []CICDRunCorre
 				ev := ensureCICDRunEvidence(runs, key)
 				ev.shellOnly = append(ev.shellOnly, envelope)
 			}
+		case facts.CICDWorkflowImageEvidenceFactKind:
+			workflowImages = append(workflowImages, envelope)
 		}
 	}
+	attachWorkflowImagesToRuns(runs, workflowImages)
 	imageIndex := buildCICDImageIdentityIndex(envelopes)
 	decisions := make([]CICDRunCorrelationDecision, 0, len(runs))
 	for _, ev := range runs {
@@ -216,6 +221,7 @@ func cicdRunCorrelationFactKinds() []string {
 	return []string{
 		facts.CICDRunFactKind,
 		facts.CICDArtifactFactKind,
+		facts.CICDWorkflowImageEvidenceFactKind,
 		facts.CICDEnvironmentObservationFactKind,
 		facts.CICDTriggerEdgeFactKind,
 		facts.CICDStepFactKind,
@@ -272,12 +278,27 @@ func ciArtifactDigests(envelopes []facts.Envelope) []string {
 	return uniqueSortedStrings(digests)
 }
 
+func ciWorkflowImageRefs(envelopes []facts.Envelope) []string {
+	var refs []string
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.CICDWorkflowImageEvidenceFactKind {
+			continue
+		}
+		if payloadString(envelope.Payload, "evidence_class") != "workflow_image_ref" {
+			continue
+		}
+		refs = append(refs, payloadString(envelope.Payload, "image_ref"))
+	}
+	return uniqueSortedStrings(refs)
+}
+
 type cicdRunEvidence struct {
-	run          facts.Envelope
-	artifacts    []facts.Envelope
-	environments []facts.Envelope
-	triggers     []facts.Envelope
-	shellOnly    []facts.Envelope
+	run            facts.Envelope
+	artifacts      []facts.Envelope
+	environments   []facts.Envelope
+	triggers       []facts.Envelope
+	shellOnly      []facts.Envelope
+	workflowImages []facts.Envelope
 }
 
 func ensureCICDRunEvidence(runs map[string]*cicdRunEvidence, key string) *cicdRunEvidence {
@@ -346,6 +367,9 @@ func classifyCICDRunEvidence(ev *cicdRunEvidence, imageIndex map[string][]cicdIm
 		decision.Reason = "shell-only deployment hint suppressed without artifact identity"
 		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, ev.shellOnly[0].FactID)
 		return decision
+	}
+	if workflowDecision, ok := classifyCICDWorkflowImageEvidence(decision, ev.workflowImages, imageIndex); ok {
+		return workflowDecision
 	}
 	for _, artifact := range ev.artifacts {
 		digest := payloadString(artifact.Payload, "artifact_digest")

@@ -86,21 +86,82 @@ func TestCICDListRunCorrelationsExplainsAmbiguousArtifactEvidence(t *testing.T) 
 	}
 }
 
+func TestCICDListRunCorrelationsExplainsStaticWorkflowImageEvidence(t *testing.T) {
+	t.Parallel()
+
+	resp := exerciseCICDRunCorrelationEvidenceSummaryWithFiles(t, nil, []FileContent{{
+		RepoID:       "repo://example/api",
+		RelativePath: ".github/workflows/deploy.yml",
+		ArtifactType: "github_actions_workflow",
+		Content: `name: deploy
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: docker build -t registry.example.com/team/api:prod .
+      - run: docker push registry.example.com/team/api:prod
+`,
+	}})
+
+	static := mustMapField(t, mustMapField(t, resp, "evidence_summary"), "static_workflow_artifacts")
+	if got, want := static["image_ref_count"], float64(1); got != want {
+		t.Fatalf("static_workflow_artifacts.image_ref_count = %#v, want %#v", got, want)
+	}
+	if got, want := static["evidence_class"], "workflow_image_ref"; got != want {
+		t.Fatalf("static_workflow_artifacts.evidence_class = %#v, want %#v", got, want)
+	}
+	bridge := mustMapField(t, mustMapField(t, resp, "evidence_summary"), "run_artifact_evidence")
+	if got, want := bridge["reason"], "workflow_image_ref_static_only"; got != want {
+		t.Fatalf("run_artifact_evidence.reason = %#v, want %#v", got, want)
+	}
+}
+
+func TestCICDListRunCorrelationsExplainsUnresolvedStaticWorkflowImageEvidence(t *testing.T) {
+	t.Parallel()
+
+	resp := exerciseCICDRunCorrelationEvidenceSummaryWithFiles(t, nil, []FileContent{{
+		RepoID:       "repo://example/api",
+		RelativePath: ".github/workflows/deploy.yml",
+		ArtifactType: "github_actions_workflow",
+		Content: `name: deploy
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: docker build -t ${{ env.REGISTRY }}/team/api:${{ github.sha }} .
+`,
+	}})
+
+	static := mustMapField(t, mustMapField(t, resp, "evidence_summary"), "static_workflow_artifacts")
+	if got, want := static["unresolved_count"], float64(1); got != want {
+		t.Fatalf("static_workflow_artifacts.unresolved_count = %#v, want %#v", got, want)
+	}
+	if got, want := static["evidence_class"], "workflow_image_unresolved"; got != want {
+		t.Fatalf("static_workflow_artifacts.evidence_class = %#v, want %#v", got, want)
+	}
+}
+
 func exerciseCICDRunCorrelationEvidenceSummary(
 	t *testing.T,
 	rows []CICDRunCorrelationRow,
 ) map[string]any {
 	t.Helper()
+	return exerciseCICDRunCorrelationEvidenceSummaryWithFiles(t, rows, []FileContent{{
+		RepoID:       "repo://example/api",
+		RelativePath: ".github/workflows/deploy.yml",
+		ArtifactType: "github_actions_workflow",
+	}})
+}
 
+func exerciseCICDRunCorrelationEvidenceSummaryWithFiles(
+	t *testing.T,
+	rows []CICDRunCorrelationRow,
+	files []FileContent,
+) map[string]any {
+	t.Helper()
 	store := &recordingCICDRunCorrelationStore{rows: rows}
 	handler := &CICDHandler{
-		Content: fakePortContentStore{
-			repoFiles: []FileContent{{
-				RepoID:       "repo://example/api",
-				RelativePath: ".github/workflows/deploy.yml",
-				ArtifactType: "github_actions_workflow",
-			}},
-		},
+		Content:      fakePortContentStore{repoFiles: files},
 		Correlations: store,
 	}
 	mux := http.NewServeMux()

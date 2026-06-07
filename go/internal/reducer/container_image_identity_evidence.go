@@ -39,6 +39,8 @@ func extractContainerImageRefs(envelopes []facts.Envelope) []containerImageRefEv
 			for _, imageRef := range contentEntityContainerImages(envelope.Payload) {
 				addContainerImageRef(byRef, imageRef, "", envelope.FactID, containerImageAnchorsFromEnvelope(envelope))
 			}
+		case facts.CICDWorkflowImageEvidenceFactKind:
+			addWorkflowImageEvidenceRef(byRef, envelope)
 		case facts.AWSRelationshipFactKind:
 			if payloadStr(envelope.Payload, "target_type") != "container_image" {
 				continue
@@ -62,6 +64,19 @@ func extractContainerImageRefs(envelopes []facts.Envelope) []containerImageRefEv
 		return refs[i].imageRef < refs[j].imageRef
 	})
 	return refs
+}
+
+func addWorkflowImageEvidenceRef(byRef map[string]containerImageRefEvidence, envelope facts.Envelope) {
+	if payloadStr(envelope.Payload, "evidence_class") != "workflow_image_ref" {
+		return
+	}
+	addContainerImageRef(
+		byRef,
+		payloadStr(envelope.Payload, "image_ref"),
+		"",
+		envelope.FactID,
+		containerImageAnchorsFromEnvelope(envelope),
+	)
 }
 
 func addContainerImageRef(

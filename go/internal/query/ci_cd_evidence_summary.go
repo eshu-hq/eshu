@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"slices"
+
+	"github.com/eshu-hq/eshu/go/internal/workflowimage"
 )
 
 const cicdStaticWorkflowEvidencePathLimit = 20
@@ -15,11 +17,15 @@ type cicdRunCorrelationEvidenceSummary struct {
 }
 
 type cicdStaticWorkflowArtifactEvidence struct {
-	State     string   `json:"state"`
-	Count     int      `json:"count"`
-	Paths     []string `json:"paths,omitempty"`
-	Truncated bool     `json:"truncated,omitempty"`
-	Reason    string   `json:"reason,omitempty"`
+	State           string   `json:"state"`
+	Count           int      `json:"count"`
+	Paths           []string `json:"paths,omitempty"`
+	Truncated       bool     `json:"truncated,omitempty"`
+	ImageRefCount   int      `json:"image_ref_count,omitempty"`
+	UnresolvedCount int      `json:"unresolved_count,omitempty"`
+	AmbiguousCount  int      `json:"ambiguous_count,omitempty"`
+	EvidenceClass   string   `json:"evidence_class,omitempty"`
+	Reason          string   `json:"reason,omitempty"`
 }
 
 type cicdLiveRunCorrelationEvidence struct {
@@ -82,7 +88,11 @@ func buildCICDRunCorrelationEvidenceSummary(
 	summaryReason := "live_run_correlation_missing"
 	switch static.State {
 	case "present":
-		summaryReason = "static_workflow_only_live_run_correlation_missing"
+		if static.ImageRefCount > 0 {
+			summaryReason = "workflow_image_ref_static_only"
+		} else {
+			summaryReason = "static_workflow_only_live_run_correlation_missing"
+		}
 	case "absent":
 		summaryReason = "no_ci_cd_evidence_found"
 	}
@@ -191,6 +201,7 @@ func (h *CICDHandler) staticWorkflowArtifactEvidence(
 	if count == 0 {
 		return cicdStaticWorkflowArtifactEvidence{State: "absent"}
 	}
+	imageRefCount, unresolvedCount, ambiguousCount, imageEvidenceErr := h.staticWorkflowImageEvidenceCounts(ctx, repositoryID, files)
 
 	slices.Sort(paths)
 	truncated := len(paths) > cicdStaticWorkflowEvidencePathLimit
@@ -198,10 +209,58 @@ func (h *CICDHandler) staticWorkflowArtifactEvidence(
 		paths = paths[:cicdStaticWorkflowEvidencePathLimit]
 	}
 
-	return cicdStaticWorkflowArtifactEvidence{
+	out := cicdStaticWorkflowArtifactEvidence{
 		State:     "present",
 		Count:     count,
 		Paths:     paths,
 		Truncated: truncated,
 	}
+	out.ImageRefCount = imageRefCount
+	out.UnresolvedCount = unresolvedCount
+	out.AmbiguousCount = ambiguousCount
+	if imageEvidenceErr != nil {
+		out.Reason = "workflow_image_evidence_read_failed"
+	}
+	switch {
+	case imageRefCount > 0 && ambiguousCount == 0 && unresolvedCount == 0:
+		out.EvidenceClass = workflowimage.EvidenceClassImageRef
+	case ambiguousCount > 0:
+		out.EvidenceClass = workflowimage.EvidenceClassAmbiguous
+	case unresolvedCount > 0:
+		out.EvidenceClass = workflowimage.EvidenceClassUnresolved
+	}
+	return out
+}
+
+func (h *CICDHandler) staticWorkflowImageEvidenceCounts(
+	ctx context.Context,
+	repositoryID string,
+	files []FileContent,
+) (int, int, int, error) {
+	if h == nil || h.Content == nil {
+		return 0, 0, 0, nil
+	}
+	hydrated, err := hydrateRepositoryCandidateFiles(ctx, h.Content, repositoryID, files, isGitHubActionsWorkflowFile)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	exactRefs := map[string]struct{}{}
+	unresolvedCount := 0
+	ambiguousCount := 0
+	for _, file := range hydrated {
+		if !isGitHubActionsWorkflowFile(file) {
+			continue
+		}
+		for _, evidence := range workflowimage.ExtractGitHubActions(file.RelativePath, file.Content) {
+			switch evidence.EvidenceClass {
+			case workflowimage.EvidenceClassImageRef:
+				exactRefs[evidence.ImageRef] = struct{}{}
+			case workflowimage.EvidenceClassUnresolved:
+				unresolvedCount++
+			case workflowimage.EvidenceClassAmbiguous:
+				ambiguousCount++
+			}
+		}
+	}
+	return len(exactRefs), unresolvedCount, ambiguousCount, nil
 }

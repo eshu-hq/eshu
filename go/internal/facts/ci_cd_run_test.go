@@ -8,6 +8,7 @@ func TestCICDRunFactKindsAndSchemaVersions(t *testing.T) {
 	kinds := CICDRunFactKinds()
 	want := []string{
 		CICDPipelineDefinitionFactKind,
+		CICDWorkflowImageEvidenceFactKind,
 		CICDRunFactKind,
 		CICDJobFactKind,
 		CICDStepFactKind,
