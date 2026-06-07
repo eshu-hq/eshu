@@ -118,6 +118,7 @@ type APIRouter struct {
 	Evidence              *EvidenceHandler
 	Documentation         *DocumentationHandler
 	PackageRegistry       *PackageRegistryHandler
+	Dependencies          *DependenciesHandler
 	CICD                  *CICDHandler
 	ServiceCatalog        *ServiceCatalogHandler
 	Kubernetes            *KubernetesHandler
@@ -192,6 +193,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Package registry
 	if a.PackageRegistry != nil {
 		a.PackageRegistry.Mount(mux)
+	}
+
+	// Dependency inventory
+	if a.Dependencies != nil {
+		a.Dependencies.Mount(mux)
 	}
 
 	// CI/CD

@@ -10,6 +10,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
+	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
@@ -89,7 +90,15 @@ func wireAPI(
 		}
 		return nil, nil, fmt.Errorf("configure metrics time-series source: %w", err)
 	}
-	router, err := newRouter(db, neo4jReader, contentReader, metricsSource, queryProfile, graphBackend, logger)
+	instruments, err := telemetry.NewInstruments(otel.Meter("eshu-api"))
+	if err != nil {
+		_ = db.Close()
+		if driver != nil {
+			_ = driver.Close(ctx)
+		}
+		return nil, nil, fmt.Errorf("register query instruments: %w", err)
+	}
+	router, err := newRouter(db, neo4jReader, contentReader, metricsSource, queryProfile, graphBackend, logger, instruments)
 	if err != nil {
 		_ = db.Close()
 		if driver != nil {
@@ -176,6 +185,7 @@ func newRouter(
 	queryProfile query.QueryProfile,
 	graphBackend query.GraphBackend,
 	logger *slog.Logger,
+	instruments *telemetry.Instruments,
 ) (*query.APIRouter, error) {
 	var containerImageIdentities query.ContainerImageIdentityStore
 	var sbomAttachments query.SBOMAttestationAttachmentStore
@@ -242,6 +252,11 @@ func newRouter(
 			Correlations: query.NewPostgresPackageRegistryCorrelationStore(db),
 			Aggregates:   query.NewGraphPackageRegistryAggregateStore(neo4jReader),
 			Profile:      queryProfile,
+		},
+		Dependencies: &query.DependenciesHandler{
+			Neo4j:       neo4jReader,
+			Profile:     queryProfile,
+			Instruments: instruments,
 		},
 		CICD: &query.CICDHandler{
 			Content:      contentReader,

@@ -554,13 +554,27 @@ type Instruments struct {
 	// paths stay operable.
 	DriftSchemaUnknownComposite metric.Int64Counter
 
+	// DependencyListErrors counts failed GET /api/v0/dependencies graph reads,
+	// labeled by the bounded `direction` (forward or reverse) so an operator can
+	// tell whether forward dependency or reverse dependent traversals are
+	// failing. High-cardinality package anchors stay in the span, not the label.
+	//
+	// Owned by query.DependenciesHandler. Tolerates a nil Instruments handle so
+	// the handler stays operable when telemetry is not wired (tests, local
+	// lightweight profile).
+	DependencyListErrors metric.Int64Counter
+
 	// Histograms track distributions
-	CollectorObserveDuration               metric.Float64Histogram
-	TerraformStateClaimWaitDuration        metric.Float64Histogram
-	TerraformStateSnapshotBytes            metric.Int64Histogram
-	TerraformStateParseDuration            metric.Float64Histogram
-	OCIRegistryScanDuration                metric.Float64Histogram
-	KubernetesLiveListDuration             metric.Float64Histogram
+	CollectorObserveDuration        metric.Float64Histogram
+	TerraformStateClaimWaitDuration metric.Float64Histogram
+	TerraformStateSnapshotBytes     metric.Int64Histogram
+	TerraformStateParseDuration     metric.Float64Histogram
+	OCIRegistryScanDuration         metric.Float64Histogram
+	KubernetesLiveListDuration      metric.Float64Histogram
+	// DependencyListDuration measures GET /api/v0/dependencies graph read
+	// latency in seconds, labeled by the bounded `direction` (forward or
+	// reverse). Owned by query.DependenciesHandler; nil-tolerant.
+	DependencyListDuration                 metric.Float64Histogram
 	PackageRegistryObserveDuration         metric.Float64Histogram
 	PackageRegistryGenerationLag           metric.Float64Histogram
 	VulnerabilityIntelligenceFetchDuration metric.Float64Histogram
@@ -2020,6 +2034,25 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register KubernetesLiveListDuration histogram: %w", err)
+	}
+
+	dependencyListBuckets := []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
+	inst.DependencyListDuration, err = meter.Float64Histogram(
+		"eshu_dp_dependency_list_duration_seconds",
+		metric.WithDescription("GET /api/v0/dependencies graph read duration by direction (forward or reverse)"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(dependencyListBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DependencyListDuration histogram: %w", err)
+	}
+
+	inst.DependencyListErrors, err = meter.Int64Counter(
+		"eshu_dp_dependency_list_errors_total",
+		metric.WithDescription("Failed GET /api/v0/dependencies graph reads by direction (forward or reverse)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DependencyListErrors counter: %w", err)
 	}
 
 	packageRegistryBuckets := []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { loadConsoleSnapshot } from "./eshuConsoleLive";
+import { dependenciesPath, loadDependencies } from "./eshuDependencies";
 import type { EshuApiClient } from "./client";
 
 // The console adapter must match the real API response shapes:
@@ -71,6 +72,31 @@ describe("eshuConsoleLive", () => {
             },
             error: null,
             truth: { profile: "production", level: "exact", capability: "supply_chain.sbom_attestation_attachments.aggregate", freshness: { state: "fresh" } }
+          };
+        }
+        if (path.includes("/api/v0/dependencies")) {
+          return {
+            data: {
+              dependencies: [
+                {
+                  direction: "forward",
+                  anchor_package: "@eshu/core",
+                  anchor_package_id: "npm://r/@eshu/core",
+                  declaring_version: "1.0.0",
+                  related_package: "left-pad",
+                  related_package_id: "npm://r/left-pad",
+                  related_ecosystem: "npm",
+                  dependency_range: "^1.3.0",
+                  dependency_type: "runtime",
+                  optional: false,
+                  edge_id: "edge-1"
+                }
+              ],
+              direction: "forward",
+              truncated: false
+            },
+            error: null,
+            truth: { profile: "production", level: "exact", capability: "dependencies.list", basis: "authoritative_graph", freshness: { state: "fresh" } }
           };
         }
         return { data: {}, error: null, truth: null };
@@ -166,6 +192,60 @@ describe("eshuConsoleLive", () => {
     const snap = await loadConsoleSnapshot(client);
     expect(snap.sbom).toBeNull();
     expect(snap.provenance.sbom).toBe("empty");
+  });
+
+  it("loads the default forward dependency browse and captures its truth", async () => {
+    const snap = await loadConsoleSnapshot(fakeClient());
+    expect(snap.dependencies).toHaveLength(1);
+    expect(snap.dependencies[0]).toMatchObject({
+      direction: "forward", anchorPackage: "@eshu/core", relatedPackage: "left-pad",
+      ecosystem: "npm", range: "^1.3.0", optional: false
+    });
+    expect(snap.truth.dependencies?.capability).toBe("dependencies.list");
+    expect(snap.provenance.dependencies).toBe("live");
+  });
+
+  it("builds a reverse dependency path with the package anchor and limit", () => {
+    const path = dependenciesPath({ direction: "reverse", pkg: "tslib", limit: 25 });
+    expect(path).toContain("direction=reverse");
+    expect(path).toContain("package=tslib");
+    expect(path).toContain("limit=25");
+  });
+
+  it("returns a typed reverse dependency page with paging cursor and falls back to id for missing names", async () => {
+    const client = {
+      get: async (path: string) => {
+        expect(path).toContain("direction=reverse");
+        expect(path).toContain("package=tslib");
+        return {
+          data: {
+            dependencies: [
+              {
+                direction: "reverse",
+                anchor_package: "tslib",
+                anchor_package_id: "npm://r/tslib",
+                related_package_id: "npm://r/@eshu/web",
+                related_ecosystem: "npm",
+                dependency_range: "^2.5.0",
+                edge_id: "e1"
+              }
+            ],
+            direction: "reverse",
+            truncated: true,
+            next_cursor: { after_name: "npm://r/@eshu/web", after_edge: "e1" }
+          },
+          error: null,
+          truth: { profile: "production", level: "exact", capability: "dependencies.list", freshness: { state: "fresh" } }
+        };
+      }
+    } as unknown as EshuApiClient;
+
+    const page = await loadDependencies(client, { direction: "reverse", pkg: "tslib" });
+    expect(page.direction).toBe("reverse");
+    expect(page.truncated).toBe(true);
+    expect(page.nextCursor).toEqual({ afterName: "npm://r/@eshu/web", afterEdge: "e1" });
+    // related_package was absent, so the row falls back to the related package id.
+    expect(page.rows[0].relatedPackage).toBe("npm://r/@eshu/web");
   });
 
   it("loads dashboard trend series from the metrics time-series endpoint", async () => {

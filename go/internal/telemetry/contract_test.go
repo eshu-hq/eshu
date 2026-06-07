@@ -183,6 +183,7 @@ func TestSpanNames(t *testing.T) {
 		"query.container_image_identity_aggregate",
 		"query.sbom_attestation_attachment_aggregate",
 		"query.ci_cd_run_correlation_aggregate",
+		"query.dependencies",
 		"scanner_worker.claim.process",
 		"scanner_worker.analyze",
 		"scanner_worker.fact.emit_batch",
