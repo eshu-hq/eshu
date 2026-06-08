@@ -2,6 +2,7 @@ package doctruth
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -10,6 +11,32 @@ type extractedClaim struct {
 	text       string
 	normalized string
 	line       int
+}
+
+// MarkdownClaimHints extracts conservative structured claim hints from
+// Markdown-family text using the same patterns as the active verifier.
+func MarkdownClaimHints(subjectText string, subjectKind string, content string) []ClaimHint {
+	subjectText = strings.TrimSpace(subjectText)
+	subjectKind = strings.TrimSpace(subjectKind)
+	if subjectText == "" || subjectKind == "" {
+		return nil
+	}
+	claims := extractClaims(content)
+	hints := make([]ClaimHint, 0, len(claims))
+	for _, claim := range claims {
+		hints = append(hints, ClaimHint{
+			ClaimType:   claim.claimType,
+			ClaimText:   claim.text,
+			SubjectText: subjectText,
+			SubjectKind: subjectKind,
+			SourceMetadata: map[string]string{
+				"claim_line":       strconv.Itoa(claim.line),
+				"claim_source":     "markdown_claim_extractor",
+				"normalized_claim": claim.normalized,
+			},
+		})
+	}
+	return hints
 }
 
 func extractClaims(content string) []extractedClaim {

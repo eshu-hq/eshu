@@ -1,0 +1,327 @@
+package collector
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
+)
+
+const gitDocumentationSourceType = "repository_markdown"
+
+func gitDocumentationFactCount(
+	repoPath string,
+	repo repositoryidentity.Metadata,
+	scopeID string,
+	generationID string,
+	observedAt time.Time,
+	snapshot RepositorySnapshot,
+) int {
+	total := 0
+	sourceEmitted := false
+	if len(snapshot.ContentFileMetas) > 0 {
+		for _, meta := range snapshot.ContentFileMetas {
+			body, ok := readDocumentationBody(repoPath, meta.RelativePath, nil)
+			if !ok {
+				continue
+			}
+			envelopes, emitted := gitDocumentationEnvelopesForContentFile(
+				repoPath,
+				repo,
+				scopeID,
+				generationID,
+				observedAt,
+				meta.RelativePath,
+				meta.Digest,
+				meta.CommitSHA,
+				body,
+				!sourceEmitted,
+			)
+			total += len(envelopes)
+			sourceEmitted = sourceEmitted || emitted
+		}
+		return total
+	}
+	for _, fileSnapshot := range snapshot.ContentFiles {
+		envelopes, emitted := gitDocumentationEnvelopesForContentFile(
+			repoPath,
+			repo,
+			scopeID,
+			generationID,
+			observedAt,
+			fileSnapshot.RelativePath,
+			fileSnapshot.Digest,
+			fileSnapshot.CommitSHA,
+			[]byte(fileSnapshot.Body),
+			!sourceEmitted,
+		)
+		total += len(envelopes)
+		sourceEmitted = sourceEmitted || emitted
+	}
+	return total
+}
+
+func emitGitDocumentationFactsForContentFile(
+	ch chan<- facts.Envelope,
+	repoPath string,
+	repo repositoryidentity.Metadata,
+	scopeID string,
+	generationID string,
+	observedAt time.Time,
+	relativePath string,
+	digest string,
+	commitSHA string,
+	body []byte,
+	emitSource bool,
+) bool {
+	envelopes, sourceEmitted := gitDocumentationEnvelopesForContentFile(
+		repoPath,
+		repo,
+		scopeID,
+		generationID,
+		observedAt,
+		relativePath,
+		digest,
+		commitSHA,
+		body,
+		emitSource,
+	)
+	for _, envelope := range envelopes {
+		ch <- envelope
+	}
+	return sourceEmitted
+}
+
+func gitDocumentationEnvelopesForContentFile(
+	repoPath string,
+	repo repositoryidentity.Metadata,
+	scopeID string,
+	generationID string,
+	observedAt time.Time,
+	relativePath string,
+	digest string,
+	commitSHA string,
+	body []byte,
+	emitSource bool,
+) ([]facts.Envelope, bool) {
+	sourceURI, ok := documentationSourceURI(relativePath)
+	if !ok || !isMarkdownDocumentationPath(sourceURI) {
+		return nil, false
+	}
+	document, sections, links := extractMarkdownDocumentation(repo, sourceURI, digest, commitSHA, body)
+	out := make([]facts.Envelope, 0, 1+1+len(sections)+len(links))
+	if emitSource {
+		sourcePayload := facts.DocumentationSourcePayload{
+			SourceID:     gitDocumentationSourceID(repo.ID),
+			SourceSystem: "git",
+			ExternalID:   repo.ID,
+			DisplayName:  firstNonEmptyString(repo.Name, repo.RepoSlug, repo.ID),
+			BaseURI:      repo.RemoteURL,
+			SourceType:   gitDocumentationSourceType,
+			ACLSummary: &facts.DocumentationACLSummary{
+				Visibility:    "repository",
+				IsPartial:     true,
+				PartialReason: "repository_acl_not_collected",
+			},
+			SourceMetadata: map[string]string{
+				"repo_id": repo.ID,
+			},
+		}
+		if repo.RepoSlug != "" {
+			sourcePayload.SourceMetadata["repo_slug"] = repo.RepoSlug
+		}
+		out = append(out, gitDocumentationEnvelope(
+			repoPath,
+			repo.ID,
+			scopeID,
+			generationID,
+			observedAt,
+			facts.DocumentationSourceFactKind,
+			facts.DocumentationSourceStableID(sourcePayload),
+			sourcePayload,
+			repoPath,
+		))
+	}
+	sourceFile := filepath.Join(repoPath, filepath.FromSlash(sourceURI))
+	out = append(out, gitDocumentationEnvelope(
+		repoPath,
+		repo.ID,
+		scopeID,
+		generationID,
+		observedAt,
+		facts.DocumentationDocumentFactKind,
+		facts.DocumentationDocumentStableID(document),
+		document,
+		sourceFile,
+	))
+	for _, section := range sections {
+		out = append(out, gitDocumentationEnvelope(
+			repoPath,
+			repo.ID,
+			scopeID,
+			generationID,
+			observedAt,
+			facts.DocumentationSectionFactKind,
+			facts.DocumentationSectionStableID(section),
+			section,
+			sourceFile,
+		))
+	}
+	for _, link := range links {
+		out = append(out, gitDocumentationEnvelope(
+			repoPath,
+			repo.ID,
+			scopeID,
+			generationID,
+			observedAt,
+			facts.DocumentationLinkFactKind,
+			facts.DocumentationLinkStableID(link),
+			link,
+			sourceFile,
+		))
+	}
+	out = append(out, gitDocumentationTruthEnvelopes(
+		repo,
+		scopeID,
+		generationID,
+		observedAt,
+		document,
+		sections,
+		links,
+	)...)
+	return out, emitSource
+}
+
+func readDocumentationBody(repoPath string, relativePath string, body []byte) ([]byte, bool) {
+	if body != nil {
+		return body, true
+	}
+	sourceURI, ok := documentationSourceURI(relativePath)
+	if !ok {
+		return nil, false
+	}
+	raw, err := os.ReadFile(filepath.Join(repoPath, filepath.FromSlash(sourceURI)))
+	if err != nil {
+		return nil, false
+	}
+	return raw, true
+}
+
+func extractMarkdownDocumentation(
+	repo repositoryidentity.Metadata,
+	relativePath string,
+	digest string,
+	commitSHA string,
+	body []byte,
+) (facts.DocumentationDocumentPayload, []facts.DocumentationSectionPayload, []facts.DocumentationLinkPayload) {
+	revisionID := firstNonEmptyString(commitSHA, digest, "unknown")
+	documentID := gitDocumentationDocumentID(repo.ID, relativePath)
+	lines := markdownContentLines(string(body))
+	sections := markdownSections(documentID, revisionID, relativePath, lines)
+	title := documentationTitle(relativePath, sections)
+	document := facts.DocumentationDocumentPayload{
+		SourceID:     gitDocumentationSourceID(repo.ID),
+		DocumentID:   documentID,
+		ExternalID:   relativePath,
+		RevisionID:   revisionID,
+		CanonicalURI: gitDocumentationCanonicalURI(repo, relativePath, commitSHA),
+		Title:        title,
+		DocumentType: markdownDocumentType(relativePath),
+		Format:       "markdown",
+		Language:     "en",
+		ContentHash:  firstNonEmptyString(digest, documentationHashText(string(body))),
+		SourceMetadata: map[string]string{
+			"path":    relativePath,
+			"repo_id": repo.ID,
+		},
+	}
+	if commitSHA != "" {
+		document.SourceMetadata["source_revision"] = commitSHA
+	}
+	links := markdownLinks(relativePath, sections)
+	return document, sections, links
+}
+
+func documentationSourceURI(relativePath string) (string, bool) {
+	sourceURI := path.Clean(filepath.ToSlash(strings.TrimSpace(relativePath)))
+	if sourceURI == "." || path.IsAbs(sourceURI) || sourceURI == ".." || strings.HasPrefix(sourceURI, "../") {
+		return "", false
+	}
+	return sourceURI, true
+}
+
+func gitDocumentationSourceID(repoID string) string {
+	return "doc-source:git:" + repoID
+}
+
+func gitDocumentationDocumentID(repoID string, relativePath string) string {
+	return "doc:git:" + repoID + ":" + relativePath
+}
+
+func gitDocumentationCanonicalURI(repo repositoryidentity.Metadata, relativePath string, revisionID string) string {
+	if repo.RemoteURL == "" {
+		return "git://" + strings.TrimPrefix(repo.ID, "repository:") + "/" + relativePath
+	}
+	base := strings.TrimSuffix(repo.RemoteURL, "/")
+	if strings.Contains(base, "github.com/") && revisionID != "" && revisionID != "unknown" {
+		return base + "/blob/" + revisionID + "/" + relativePath
+	}
+	return base + "#" + relativePath
+}
+
+func gitDocumentationEnvelope(
+	repoPath string,
+	repoID string,
+	scopeID string,
+	generationID string,
+	observedAt time.Time,
+	factKind string,
+	factKey string,
+	payload any,
+	sourceURI string,
+) facts.Envelope {
+	payloadMap, err := documentationPayloadMap(payload)
+	if err != nil {
+		payloadMap = map[string]any{"payload_error": err.Error()}
+	}
+	payloadMap["linked_entities"] = []map[string]string{{
+		"entity_type": "repository",
+		"entity_id":   repoID,
+	}}
+	envelope := factEnvelope(factKind, scopeID, generationID, observedAt, factKey, payloadMap, sourceURI)
+	if factKind == facts.DocumentationSectionFactKind {
+		envelope.SchemaVersion = facts.DocumentationSectionFactSchemaVersion
+	} else {
+		envelope.SchemaVersion = facts.DocumentationFactSchemaVersion
+	}
+	if sourceURI == repoPath {
+		envelope.SourceRef.SourceRecordID = factKey
+	} else {
+		envelope.SourceRef.SourceRecordID = repositoryRelativePath(repoPath, sourceURI)
+	}
+	return envelope
+}
+
+func documentationPayloadMap(payload any) (map[string]any, error) {
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	var out map[string]any
+	if err := json.Unmarshal(encoded, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func documentationHashText(text string) string {
+	sum := sha256.Sum256([]byte(text))
+	return "sha256:" + hex.EncodeToString(sum[:])
+}

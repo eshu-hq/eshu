@@ -18,6 +18,10 @@ OpenAPI endpoint inventories, environment-variable inventories, and telemetry
 dependencies. Claim candidates come from structured `ClaimHint` inputs or
 bounded local-document claim extraction; the extractor and verifier only gate
 them on exact deterministic evidence and provenance.
+Repository collectors may reuse `MarkdownClaimHints` to turn the verifier's
+conservative Markdown claim extraction into non-authoritative claim candidates;
+the verifier path remains the only path that compares claims with truth
+sources and emits findings.
 
 ## Flow
 
