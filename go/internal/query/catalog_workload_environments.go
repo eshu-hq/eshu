@@ -15,9 +15,8 @@ import "context"
 //
 //   - WorkloadInstance.environment for materialized instances, and
 //   - Environment nodes reached through the workload's defining repository
-//     deployment evidence:
-//     (repo)-[:DEFINES]->(w) and
-//     (repo)<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-(:EvidenceArtifact)-[:TARGETS_ENVIRONMENT]->(:Environment).
+//     deployment evidence, traversed as one connected path:
+//     (w)<-[:DEFINES]-(repo)<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-(:EvidenceArtifact)-[:TARGETS_ENVIRONMENT]->(:Environment).
 //
 // A workload that materializes no WorkloadInstance still reports the
 // environments resolved through its deployment evidence. An empty result means
@@ -48,9 +47,16 @@ const catalogWorkloadInstanceEnvironmentCypher = `
 	ORDER BY id
 `
 
+// catalogWorkloadEvidenceEnvironmentCypher resolves per-workload deployment
+// environments through a single connected path. The earlier shape used two
+// MATCH clauses that both anchored on `repo`; on NornicDB that re-anchor
+// cold-plans as a per-repository fanout and takes ~21s at the console's catalog
+// limit (issue #1731) despite returning only a few dozen rows. Expressing the
+// same (workload)<-(repo)<-(artifact)->(environment) relationship as one path
+// keeps the result rows identical while cold-planning in single-digit
+// milliseconds.
 const catalogWorkloadEvidenceEnvironmentCypher = `
-	MATCH (repo:Repository)-[:DEFINES]->(w:Workload)
-	MATCH (repo)<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-(:EvidenceArtifact)-[:TARGETS_ENVIRONMENT]->(env:Environment)
+	MATCH (w:Workload)<-[:DEFINES]-(repo:Repository)<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-(:EvidenceArtifact)-[:TARGETS_ENVIRONMENT]->(env:Environment)
 	RETURN w.id AS id,
 	       env.name AS environment
 	ORDER BY id, environment
