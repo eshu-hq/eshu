@@ -242,6 +242,26 @@ func TestListCatalogIncludesIdentityOnlyServicesFromReadModel(t *testing.T) {
 	}
 }
 
+// TestCatalogEvidenceEnvironmentCypherIsSingleChain guards the cold-plan fix
+// for issue #1731. The deployment-evidence environment query MUST express its
+// (workload)<-(repo)<-(artifact)->(env) relationship as a single connected
+// path, not two MATCH clauses that both anchor on `repo`. On NornicDB the
+// double-MATCH re-anchor cold-plans as a per-repo fanout and takes ~21s at the
+// console's limit, while the single-chain shape returns the identical rows in
+// single-digit milliseconds. Regressing to the double-MATCH form reintroduces
+// the cold catalog timeout, so the shape is pinned here.
+func TestCatalogEvidenceEnvironmentCypherIsSingleChain(t *testing.T) {
+	t.Parallel()
+
+	if strings.Contains(catalogWorkloadEvidenceEnvironmentCypher, "MATCH (repo") &&
+		strings.Count(catalogWorkloadEvidenceEnvironmentCypher, "MATCH ") > 1 {
+		t.Fatalf("evidence environment query must be a single connected path, got two MATCH clauses re-anchoring on repo:\n%s", catalogWorkloadEvidenceEnvironmentCypher)
+	}
+	if !strings.Contains(catalogWorkloadEvidenceEnvironmentCypher, "(w:Workload)<-[:DEFINES]-(repo:Repository)<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-") {
+		t.Fatalf("evidence environment query must traverse workload->repo->artifact->environment as one chain, got:\n%s", catalogWorkloadEvidenceEnvironmentCypher)
+	}
+}
+
 func catalogEnvironments(service map[string]any) []string {
 	envs := []string{}
 	rawEnvs, ok := service["environments"].([]any)

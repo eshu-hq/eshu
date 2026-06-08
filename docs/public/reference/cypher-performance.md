@@ -132,6 +132,43 @@ collectors.
 
 ## Evidence Notes
 
+### Catalog Deployment-Environment Resolution Cold Plan
+
+Performance Evidence: issue #1731. The `GET /api/v0/catalog` handler resolves
+per-workload deployment environments through `catalogWorkloadEvidenceEnvironmentCypher`
+in `go/internal/query/catalog_workload_environments.go`. The earlier shape used
+two MATCH clauses both anchored on `repo`
+(`MATCH (repo:Repository)-[:DEFINES]->(w:Workload)` then
+`MATCH (repo)<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-(:EvidenceArtifact)-[:TARGETS_ENVIRONMENT]->(env:Environment)`).
+On NornicDB that re-anchor cold-plans as a per-repository fanout.
+
+Backend: NornicDB via local Compose Bolt-HTTP (`/db/nornic/tx/commit`). Corpus:
+33 Repository, 21 Workload, 148 EvidenceArtifact, 2 Environment, 148
+EVIDENCES_REPOSITORY_RELATIONSHIP edges, 55 TARGETS_ENVIRONMENT edges. Cold plan
+forced with a unique leading comment per query string; result row count 53 for
+both shapes.
+
+- Before (double-MATCH re-anchor), cold: **21.33s**, 53 rows.
+- After (single connected path
+  `MATCH (w:Workload)<-[:DEFINES]-(repo:Repository)<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-(:EvidenceArtifact)-[:TARGETS_ENVIRONMENT]->(env:Environment)`),
+  cold: **0.005s**, 53 rows.
+
+The other three catalog queries are unaffected and already cold-fast: workload
+base 0.018s, repo 0.017s, instance 0.003s. The before/after row sets were diffed
+and are byte-identical (53 ordered `(id, environment)` pairs), so deployment
+environment accuracy is preserved exactly; the union/dedup stays in
+`mergeCatalogEnvironments`. With the evidence query no longer dominating, the
+cold catalog response drops from ~15-21s (client-timeout territory) to well
+under the console's 15s budget, so the first load after an API restart populates
+the Catalog and Dashboard atlas instead of timing out.
+
+Observability Evidence: the catalog handler keeps the existing
+`GraphQuery.Run` adapter, `neo4j.query` spans, and query-duration metrics for
+each of its four bounded queries. The query shape changed but the per-query
+telemetry surface, scope, limit, and deterministic ordering did not, so an
+operator still sees per-query duration and error signals for the catalog read
+path.
+
 ### Deployment Trace Config Reads
 
 No-Regression Evidence: issue #1696 baseline on `main` showed
