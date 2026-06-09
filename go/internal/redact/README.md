@@ -37,6 +37,13 @@ does not persist raw input or emit telemetry.
   constructs a caller-owned versioned sensitive-key classifier.
 - `RuleSet.Classify(source string, schemaTrust SchemaTrust, fieldKind FieldKind)
   Decision` — returns `preserve`, `redact`, or `drop` for a field path.
+- `HostedGovernanceRegistry() Registry` — returns the central hosted
+  redaction matrix for facts, logs, metric labels, status, graph properties,
+  API/MCP bodies, audit events, docs examples, and onboarding artifacts.
+- `Registry.AssertNoForbiddenCanary(surface, payload)` — checks a payload for
+  synthetic sensitive canaries without echoing the leaked value in errors.
+- `Registry.IsSafeClass(surface, class)` — reports whether a bounded field
+  family is approved for a surface.
 - `String(raw, reason, source string, key Key) Value` — redacts sensitive strings.
 - `Bytes(raw []byte, reason, source string, key Key) Value` — redacts sensitive
   bytes.
@@ -64,6 +71,9 @@ does not persist raw input or emit telemetry.
   provider-specific key lists to this package.
 - Callers must pass classification labels and field paths as reason/source; do
   not put raw secret values in those fields.
+- Hosted governance registry canaries are synthetic public test values. Use
+  them to prove forbidden raw classes are absent from a surface; do not replace
+  source-specific redaction tests with registry-only scans.
 
 ## Dependencies
 
@@ -73,3 +83,7 @@ Standard library only. No internal package imports.
 
 None directly. Callers should count redactions by reason or source class, not by
 marker, and must not attach raw values to spans, metrics, logs, or status.
+
+## Related docs
+
+- `docs/public/reference/hosted-redaction-registry.md`

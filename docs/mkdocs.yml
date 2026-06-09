@@ -189,6 +189,7 @@ nav:
     - Runtime Admin API: reference/runtime-admin-api.md
     - Incremental Freshness Model: reference/incremental-freshness-model.md
     - Semantic Enrichment Posture: reference/semantic-enrichment-posture.md
+    - Hosted Redaction Registry: reference/hosted-redaction-registry.md
     - Tag Taxonomy: reference/tag-taxonomy.md
     - Local Host & Capabilities:
       - Backend Conformance: reference/backend-conformance.md
