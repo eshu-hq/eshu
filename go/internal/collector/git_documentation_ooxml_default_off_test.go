@@ -12,7 +12,6 @@ func TestNonSpreadsheetOOXMLDocumentationFormatsRemainDefaultOff(t *testing.T) {
 
 	repoPath := t.TempDir()
 	relativePaths := []string{
-		"docs/runbook.docx",
 		"docs/review.pptx",
 	}
 	for _, relativePath := range relativePaths {
@@ -33,7 +32,7 @@ func TestNonSpreadsheetOOXMLDocumentationFormatsRemainDefaultOff(t *testing.T) {
 	}
 }
 
-func TestSpreadsheetWorkbookDocumentationFormatsAreDocumentationFiles(t *testing.T) {
+func TestOfficeSpreadsheetDocumentationFormatsAreDocumentationFiles(t *testing.T) {
 	t.Parallel()
 
 	repoPath := t.TempDir()
@@ -41,6 +40,7 @@ func TestSpreadsheetWorkbookDocumentationFormatsAreDocumentationFiles(t *testing
 		relativePath string
 		wantFormat   string
 	}{
+		{relativePath: "docs/runbook.docx", wantFormat: "docx"},
 		{relativePath: "docs/inventory.xlsx", wantFormat: "xlsx"},
 		{relativePath: "docs/legacy.xls", wantFormat: "xls"},
 	} {
