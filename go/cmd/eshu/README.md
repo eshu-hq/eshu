@@ -65,12 +65,14 @@ orchestration. It does not own service runtime internals:
   - documentation truth: `docs verify [path]` verifies local Markdown-family
     documentation claims against the CLI command tree, generated OpenAPI paths,
     and documented Eshu environment variables (`docs.go`)
-  - component package manager: `component init collector|inspect|verify|install|conform|list|enable|disable|uninstall`
+  - component package manager: `component init collector|inspect|verify|install|conform|list|enable|disable|uninstall|inventory|diagnostics`
     scaffolds optional collector component packages and manages local optional
     component manifests, fixture conformance, and activation state with stable
     `--json` output, classified errors, and dry-run planning for install and
-    enable (`component.go`, `component_conform.go`, `component_init.go`,
-    `component_output.go`)
+    enable. The `inventory` and `diagnostics` subcommands are API-backed
+    readbacks for hosted component-extension inventory and policy diagnostics
+    (`component.go`, `component_api.go`, `component_conform.go`,
+    `component_init.go`, `component_output.go`)
   - `graph`, `install` with `nornicdb`, `status`, `start`, `stop`,
     `logs`, `upgrade` (`graph.go`, `graph_install.go`,
     `local_graph.go`)
@@ -109,6 +111,14 @@ or emit OTEL from this dispatcher.
 
 No-Regression Evidence: component package-manager JSON/text behavior is
 covered by `go test ./cmd/eshu -run 'TestComponent' -count=1`.
+
+No-Observability-Change: component inventory and diagnostics are API-backed CLI
+readers. Inventory passes an explicit 1..500 API `limit`; the CLI dispatcher
+emits no OTEL, opens no graph/Postgres drivers, and preserves the API envelope
+that carries hosted registry diagnostics.
+
+No-Regression Evidence: component extension API readback is covered by
+`go test ./cmd/eshu -run 'TestComponentInventoryCommandReadsCanonicalAPIEnvelope|TestComponentDiagnosticsCommandReadsComponentDrilldown' -count=1`.
 
 No-Observability-Change: component init collector scaffolding writes local
 template files only. The generated sample uses SDK validator tests and does not

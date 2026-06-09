@@ -69,8 +69,11 @@ flowchart TB
    (`RepositoryHandler`, `EntityHandler`, `CodeHandler`, `ContentHandler`,
    `InfraHandler`, `IaCHandler`, `ImpactHandler`, `EvidenceHandler`,
    `PackageRegistryHandler`, `CICDHandler`, `SupplyChainHandler`,
-   `IncidentHandler`, `WorkItemHandler`, `StatusHandler`, `CompareHandler`) into
-   a `query.APIRouter` and mounts it.
+   `IncidentHandler`, `WorkItemHandler`, `StatusHandler`,
+   `ComponentExtensionsHandler`, `CompareHandler`) into a `query.APIRouter` and
+   mounts it. Component-extension routes read the configured component registry
+   only when `ESHU_COMPONENT_HOME` is set; otherwise they return an unavailable
+   envelope.
 4. The mounted handler is wrapped by `query.AuthMiddleware`.
 5. `mountRuntimeSurface` creates a shared admin mux via
    `internalruntime.NewStatusAdminMux` exposing `/healthz`, `/readyz`,
@@ -110,6 +113,8 @@ satisfies `query.GraphQuery` and `query.ContentReader` satisfies
 | `ESHU_DISABLE_NEO4J` | — | `true` skips Neo4j dial |
 | `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` | unset | Optional semantic provider profile registry. It carries profile metadata and credential handles only; the MCP server never loads provider keys or calls providers from this config path. |
 | `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` | unset | Optional hosted semantic extraction allowlist by provider profile id, source class, source scope, source selector, limit, redaction mode, and retention posture. Without it, semantic extraction remains policy-disabled. |
+| `ESHU_COMPONENT_HOME` | unset | Optional local component registry readback for `list_component_extensions` and `get_component_extension_diagnostics`; unset returns unavailable. |
+| `ESHU_COMPONENT_TRUST_MODE`, `ESHU_COMPONENT_ALLOW_IDS`, `ESHU_COMPONENT_ALLOW_PUBLISHERS`, `ESHU_COMPONENT_REVOKE_IDS`, `ESHU_COMPONENT_REVOKE_PUBLISHERS`, `ESHU_COMPONENT_CORE_VERSION` | unset | Optional read-only policy diagnostics for component-extension MCP tools. |
 | `DEFAULT_DATABASE` | `neo4j` | Neo4j database name |
 | `ESHU_PPROF_ADDR` | unset (disabled) | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; port-only inputs bind to `127.0.0.1` |
 

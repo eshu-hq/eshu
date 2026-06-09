@@ -72,6 +72,14 @@ eshu component disable dev.eshu.collector.aws \
 eshu component uninstall dev.eshu.collector.aws \
   --component-home ~/.eshu/components \
   --version 0.1.0
+
+eshu component inventory \
+  --service-url https://eshu.example \
+  --limit 100 \
+  --json
+eshu component diagnostics dev.eshu.collector.aws \
+  --service-url https://eshu.example \
+  --json
 ```
 
 `component init collector` writes a new scaffold directory. It defaults to
@@ -205,6 +213,19 @@ local manifest readback only. When trust or revocation flags are supplied, list
 also re-verifies installed manifests and can add `revoked`, `incompatible`, or
 `failed` states without mutating the registry.
 
+`component inventory` and `component diagnostics <component-id>` are API-backed
+readers. They do not inspect the caller's local component home; they read the
+configured API or MCP runtime's `ESHU_COMPONENT_HOME` through
+`GET /api/v0/component-extensions`. Inventory is bounded by `--limit` (default
+100, max 500) and mirrors the API response fields `count`, `total_count`,
+`limit`, and `truncated`. When the runtime has no component home, the response
+is a canonical unavailable envelope with
+`component_registry_unavailable`. Hosted responses include component ID,
+version, publisher, manifest digest, installed/enabled/claim-capable states,
+revocation or policy failure reasons, and stable activation `config_handle`
+values. They do not include local manifest paths, activation config paths,
+provider credentials, or private host paths.
+
 ## Hosted Coordinator Activation
 
 The workflow coordinator can consume the same local registry when
@@ -309,6 +330,11 @@ Operators must still run local verification before install, choose disabled,
 allowlist, or strict mode, honor revocation, and explicitly enable any runtime
 instance. Hosted deployments also need hosted policy approval before an enabled
 component can become claim-capable.
+
+Do not treat index membership as trust in API, MCP, or CLI diagnostics. The
+inventory read surface reports local registry and policy state only: installed,
+enabled, and claim-capable remain separate states, and community-index
+membership never changes the trust verdict.
 
 The first verifier is offline and deterministic. It rejects malformed index
 metadata, duplicate component IDs, duplicate fact-kind claims, mutable artifact

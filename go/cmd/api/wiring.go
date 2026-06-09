@@ -12,6 +12,7 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"go.opentelemetry.io/otel"
 
+	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
@@ -115,6 +116,8 @@ func wireAPI(
 		}
 		return nil, nil, fmt.Errorf("register query instruments: %w", err)
 	}
+	componentHome := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))
+	componentPolicy := componentPolicyFromEnv(getenv)
 	router, err := newRouter(
 		db,
 		neo4jReader,
@@ -125,6 +128,8 @@ func wireAPI(
 		graphBackend,
 		logger,
 		instruments,
+		componentHome,
+		componentPolicy,
 	)
 	if err != nil {
 		_ = db.Close()
@@ -214,6 +219,8 @@ func newRouter(
 	graphBackend query.GraphBackend,
 	logger *slog.Logger,
 	instruments *telemetry.Instruments,
+	componentHome string,
+	componentPolicy component.Policy,
 ) (*query.APIRouter, error) {
 	if statusReader == nil {
 		statusReader = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
@@ -366,6 +373,11 @@ func newRouter(
 			StatusReader: statusReader,
 			Profile:      queryProfile,
 		},
+		ComponentExtensions: &query.ComponentExtensionsHandler{
+			ComponentHome: componentHome,
+			Policy:        componentPolicy,
+			Profile:       queryProfile,
+		},
 		Metrics: &query.MetricsHandler{
 			Source:  metricsSource,
 			Profile: queryProfile,
@@ -394,6 +406,28 @@ func newRouter(
 	router.Admin.Recovery = recoveryHandler
 	router.Admin.Reindexer = reindexer
 	return router, nil
+}
+
+func componentPolicyFromEnv(getenv func(string) string) component.Policy {
+	return component.Policy{
+		Mode:              strings.TrimSpace(getenv("ESHU_COMPONENT_TRUST_MODE")),
+		AllowedIDs:        componentEnvList(getenv("ESHU_COMPONENT_ALLOW_IDS")),
+		AllowedPublishers: componentEnvList(getenv("ESHU_COMPONENT_ALLOW_PUBLISHERS")),
+		RevokedIDs:        componentEnvList(getenv("ESHU_COMPONENT_REVOKE_IDS")),
+		RevokedPublishers: componentEnvList(getenv("ESHU_COMPONENT_REVOKE_PUBLISHERS")),
+		CoreVersion:       strings.TrimSpace(getenv("ESHU_COMPONENT_CORE_VERSION")),
+	}
+}
+
+func componentEnvList(raw string) []string {
+	fields := strings.Split(raw, ",")
+	values := make([]string, 0, len(fields))
+	for _, field := range fields {
+		if value := strings.TrimSpace(field); value != "" {
+			values = append(values, value)
+		}
+	}
+	return values
 }
 
 func mountRuntimeSurface(

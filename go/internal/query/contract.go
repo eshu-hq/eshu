@@ -55,6 +55,7 @@ const (
 	TruthBasisSemanticFacts      TruthBasis = "semantic_facts"
 	TruthBasisContentIndex       TruthBasis = "content_index"
 	TruthBasisHybrid             TruthBasis = "hybrid"
+	TruthBasisRuntimeState       TruthBasis = "runtime_state"
 )
 
 type FreshnessState string
@@ -101,19 +102,20 @@ type ErrorProfiles struct {
 type ErrorCode string
 
 const (
-	ErrorCodeUnsupportedCapability ErrorCode = "unsupported_capability"
-	ErrorCodeAmbiguous             ErrorCode = "ambiguous"
-	ErrorCodeUnauthenticated       ErrorCode = "unauthenticated"
-	ErrorCodeInvalidArgument       ErrorCode = "invalid_argument"
-	ErrorCodeNotFound              ErrorCode = "not_found"
-	ErrorCodePermissionDenied      ErrorCode = "permission_denied"
-	ErrorCodeBackendUnavailable    ErrorCode = "backend_unavailable"
-	ErrorCodeIndexBuilding         ErrorCode = "index_building"
-	ErrorCodeScopeNotFound         ErrorCode = "scope_not_found"
-	ErrorCodeCapabilityDegraded    ErrorCode = "capability_degraded"
-	ErrorCodeOverloaded            ErrorCode = "overloaded"
-	ErrorCodeInternalError         ErrorCode = "internal_error"
-	ErrorCodeReadModelUnavailable  ErrorCode = "documentation_read_model_unavailable"
+	ErrorCodeUnsupportedCapability        ErrorCode = "unsupported_capability"
+	ErrorCodeAmbiguous                    ErrorCode = "ambiguous"
+	ErrorCodeUnauthenticated              ErrorCode = "unauthenticated"
+	ErrorCodeInvalidArgument              ErrorCode = "invalid_argument"
+	ErrorCodeNotFound                     ErrorCode = "not_found"
+	ErrorCodePermissionDenied             ErrorCode = "permission_denied"
+	ErrorCodeBackendUnavailable           ErrorCode = "backend_unavailable"
+	ErrorCodeIndexBuilding                ErrorCode = "index_building"
+	ErrorCodeScopeNotFound                ErrorCode = "scope_not_found"
+	ErrorCodeCapabilityDegraded           ErrorCode = "capability_degraded"
+	ErrorCodeOverloaded                   ErrorCode = "overloaded"
+	ErrorCodeInternalError                ErrorCode = "internal_error"
+	ErrorCodeReadModelUnavailable         ErrorCode = "documentation_read_model_unavailable"
+	ErrorCodeComponentRegistryUnavailable ErrorCode = "component_registry_unavailable"
 )
 
 type ErrorEnvelope struct {
@@ -193,6 +195,20 @@ var capabilityMatrix = map[string]capabilitySupport{
 		LocalFullStackMax:     &truthExact,
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
+	},
+	"component_extensions.inventory": {
+		LocalLightweightMax:   &truthExact,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalLightweight,
+	},
+	"component_extensions.diagnostics": {
+		LocalLightweightMax:   &truthExact,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalLightweight,
 	},
 	"symbol_graph.decorators": {
 		LocalLightweightMax:   &truthDerived,
@@ -576,7 +592,7 @@ func requiredProfile(capability string) QueryProfile {
 
 func basisLevel(basis TruthBasis) TruthLevel {
 	switch basis {
-	case TruthBasisAuthoritativeGraph, TruthBasisSemanticFacts:
+	case TruthBasisAuthoritativeGraph, TruthBasisSemanticFacts, TruthBasisRuntimeState:
 		return TruthLevelExact
 	case TruthBasisContentIndex, TruthBasisHybrid:
 		return TruthLevelDerived

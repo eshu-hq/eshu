@@ -97,6 +97,16 @@ prompt version, redaction version, policy state, freshness, and
 admission/corroboration state. They do not call providers, read the graph,
 expose raw prompts, or mix semantic code hints into deterministic code or
 documentation routes.
+Component extension reads expose runtime component registry state through
+`GET /api/v0/component-extensions` and
+`GET /api/v0/component-extensions/{component_id}/diagnostics`. These routes read
+`component.Registry.Readback` only when the API or MCP runtime was configured
+with `ESHU_COMPONENT_HOME`; otherwise they return a canonical unavailable
+envelope. Responses include component ID, version, publisher, manifest digest,
+lifecycle states, activation `config_handle` values, and policy diagnostics.
+Inventory responses are bounded by `limit` and carry `count`, `total_count`,
+and `truncated`; neither inventory nor diagnostics exposes local manifest paths,
+activation config paths, or community-index membership as trust.
 
 ## Exported surface
 
@@ -213,6 +223,9 @@ documentation routes.
   stories, redacted hardcoded-secret investigation in `code_security_secrets.go`,
   dead-code, complexity, call-chain (`code.go:11`)
 - `ContentHandler` — file and entity content reads (`content_handler.go:11`)
+- `ComponentExtensionsHandler` — optional component package inventory and
+  diagnostics from sanitized runtime registry readback
+  (`component_extensions.go`)
 - `InfraHandler` — infrastructure resource and relationship routes (`infra.go:12`)
   including Terraform backend, import, moved, removed, check, and lockfile
   provider entity labels when they have been projected
@@ -603,6 +616,18 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
   No-Observability-Change: existing repository story/stats timer stages,
   structured logs, MCP envelope parsing, and HTTP status output remain the
   diagnostic surface.
+- Component extension inventory and diagnostics read only the configured local
+  component registry on explicit API/MCP request. No-Observability-Change: this
+  adds no worker, queue, graph query, Postgres query, or metric label, and path
+  redaction plus inventory bounds are applied before HTTP, MCP, or CLI callers
+  receive the envelope.
+  No-Regression Evidence: `go test ./internal/query -run
+  'TestComponentExtensions|TestOpenAPISpecIncludesComponentExtensionRoutes'
+  -count=1`, `go test ./internal/mcp -run
+  'TestComponentExtension|TestReadOnlyToolsIncludesComponentExtensionDiagnostics'
+  -count=1`, and `go test ./cmd/eshu -run
+  'TestComponentInventoryCommandReadsCanonicalAPIEnvelope|TestComponentDiagnosticsCommandReadsComponentDrilldown'
+  -count=1`.
 - The OpenAPI spec is assembled from string fragments in Go source, not from
   runtime reflection. When a handler changes its request or response shape,
   update the matching `openapi_paths_*.go` fragment in the same PR.

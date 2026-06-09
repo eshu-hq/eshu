@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 110
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 114
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,7 +59,7 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 110 tools from the tool definition files.
+`ReadOnlyTools` assembles 114 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
@@ -88,6 +88,7 @@ flowchart TB
 | `documentationTools` | 4 | `tools_documentation.go` |
 | `semanticEvidenceTools` | 2 | `tools_semantic_evidence.go` |
 | `documentationFindingAggregateTools` | 2 | `tools_documentation_aggregates.go` |
+| `componentExtensionTools` | 2 | `tools_component_extensions.go` |
 | `runtimeTools` | 5 | `tools_runtime.go` |
 
 Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
@@ -151,6 +152,8 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_semantic_code_hints` | GET | `/api/v0/semantic/code-hints` with repo, path, entity, provider, prompt, freshness, policy, and corroboration filters |
 | `get_documentation_evidence_packet` | GET | `/api/v0/documentation/findings/{finding_id}/evidence-packet` |
 | `check_documentation_evidence_packet_freshness` | GET | `/api/v0/documentation/evidence-packets/{packet_id}/freshness` |
+| `list_component_extensions` | GET | `/api/v0/component-extensions` with defaulted `limit` |
+| `get_component_extension_diagnostics` | GET | `/api/v0/component-extensions/{component_id}/diagnostics` |
 | `list_collectors` | GET | `/api/v0/status/collectors` |
 | `list_ingesters` | GET | `/api/v0/status/ingesters` |
 | `get_semantic_capability_status` | GET | `/api/v0/status/semantic-extraction` with redacted provider profile, semantic queue, budget, and audit status when configured |
@@ -239,6 +242,15 @@ without raw prompt payloads, credentials, or provider responses. Code hints are
 listed only by `list_semantic_code_hints`; deterministic code and relationship
 tools do not mix them into graph-truth answers.
 
+Component extension tools stay transport-only too. They forward inventory and
+diagnostic requests to the HTTP component-extension routes, which read the
+runtime's configured component registry and trust policy. Inventory forwards a
+bounded `limit` and returns `count`, `total_count`, `limit`, and `truncated`.
+The response carries component ID, version, manifest digest, lifecycle states,
+activation `config_handle` values, and policy diagnostics; MCP never exposes
+local manifest paths, activation config paths, or treats community index
+membership as trust.
+
 ## Exported surface
 
 | Identifier | File | Notes |
@@ -248,7 +260,7 @@ tools do not mix them into graph-truth answers.
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 110 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 114 tool definitions |
 
 ## SSE session model
 

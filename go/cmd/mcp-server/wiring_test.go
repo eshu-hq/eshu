@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/semanticpolicy"
 	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
@@ -96,6 +97,8 @@ func TestNewMCPQueryRouterMountsMCPBackedHandlers(t *testing.T) {
 		query.ProfileLocalFullStack,
 		query.GraphBackendNornicDB,
 		nil,
+		"",
+		component.Policy{},
 	)
 
 	if router.IaC == nil {
@@ -169,6 +172,8 @@ func TestNewMCPQueryRouterUsesSuppliedStatusReader(t *testing.T) {
 		query.ProfileLocalFullStack,
 		query.GraphBackendNornicDB,
 		nil,
+		"",
+		component.Policy{},
 	)
 
 	if router.Status == nil {

@@ -8,7 +8,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 112
+	expectedCount := 114
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -79,6 +79,8 @@ func TestReadOnlyTools(t *testing.T) {
 		"get_documentation_evidence_packet",
 		"check_documentation_evidence_packet_freshness",
 		"get_semantic_capability_status",
+		"list_component_extensions",
+		"get_component_extension_diagnostics",
 		"list_collectors",
 		"list_ingesters",
 		"count_repositories_by_language",
@@ -240,6 +242,13 @@ func TestSemanticEvidenceTools(t *testing.T) {
 	}
 }
 
+func TestComponentExtensionTools(t *testing.T) {
+	tools := componentExtensionTools()
+	if len(tools) != 2 {
+		t.Errorf("Expected 2 component extension tools, got %d", len(tools))
+	}
+}
+
 func TestEveryRegisteredToolHasDispatchRoute(t *testing.T) {
 	tools := ReadOnlyTools()
 	for _, tool := range tools {
@@ -256,6 +265,8 @@ func minimalDispatchRouteArgs(toolName string) map[string]any {
 	switch toolName {
 	case "get_service_context", "get_service_story":
 		return map[string]any{"workload_id": "sample-service-api"}
+	case "get_component_extension_diagnostics":
+		return map[string]any{"component_id": "dev.eshu.collector.aws"}
 	default:
 		return map[string]any{}
 	}
