@@ -46,6 +46,7 @@ plain local source builds without a version override report `dev`.
 | Documentation truth | `eshu docs verify` | Local Markdown claim verification plus optional API-backed container-image truth checks. This is separate from Git collector ingestion of repo-hosted documentation facts. Use command help for flags. |
 | Components | `eshu component` | [Component Package Manager](component-package-manager.md) |
 | System and configuration | `eshu doctor`, `eshu config`, `eshu neo4j setup`, `eshu version` | [CLI System And Configuration](cli-system.md), [Configuration](configuration.md), and [Environment Variables](environment-variables.md) |
+| Assistant guidance | `eshu assistant install`, `eshu assistant status`, `eshu assistant uninstall` | [Assistant Guidance Install](assistant-guidance.md) |
 | Compatibility and shortcuts | old names such as `eshu clean`, `eshu delete`, `eshu add-package`, plus shortcuts such as `eshu i` and `eshu ls` | Compatibility stubs print replacement guidance. Prefer the command-family docs above for current workflows. |
 
 ## API Target Resolution

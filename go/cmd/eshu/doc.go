@@ -21,7 +21,10 @@
 // Bolt health requires a selected protocol version to avoid a
 // TCP-accept/protocol-ready race), backend installation (`install`),
 // admin/operator workflows (`admin ...`), configuration (`config`, `neo4j`),
-// discovery (`find`, `analyze`, `ecosystem`), internal local-service
+// discovery (`find`, `analyze`, `ecosystem`), project-scoped assistant guidance
+// (`assistant install|status|uninstall`, which writes a marked Eshu guidance
+// block into CLAUDE.md, AGENTS.md, and Cursor rules while preserving other
+// content), internal local-service
 // orchestration, and the `doctor` diagnostic. Its local-authoritative graph
 // path first acquires owner.lock, reclaims ownerless live Postgres only after
 // PID, socket, and protocol probes agree, clears rebuildable local
