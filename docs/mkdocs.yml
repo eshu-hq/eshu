@@ -63,6 +63,7 @@ nav:
     - Deploy to EKS: deploy/eks/index.md
     - Prerequisites: deploy/kubernetes/prerequisites.md
     - Storage: deploy/kubernetes/storage.md
+    - Hosted Backup and Restore Proof: deploy/kubernetes/backup-restore-proof.md
     - Helm Quickstart: deploy/kubernetes/helm-quickstart.md
     - Helm Rollout Proof: deploy/kubernetes/helm-rollout-proof.md
     - Helm Values: deploy/kubernetes/helm-values.md

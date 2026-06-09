@@ -80,6 +80,9 @@ Operator sequence:
 6. Verify `GET /api/v0/index-status` reports `status=healthy`,
    `queue.pending=0`, `queue.retrying=0`, `queue.failed=0`, and
    `queue.dead_letter=0`.
+7. Capture the public-safe restore and graph-rebuild summary with
+   `scripts/verify-hosted-backup-restore-proof.sh` when the recovery is part of
+   hosted rollout or incident proof.
 
 Do not delete Postgres during graph recovery unless the intended plan is a full
 source-system recollection. Postgres holds facts, content, queues, workflow

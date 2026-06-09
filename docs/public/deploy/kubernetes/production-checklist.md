@@ -7,6 +7,8 @@ Use this list before a team relies on a Kubernetes deployment.
 - Postgres is reachable from every database-backed workload.
 - Postgres has `pg_trgm` available.
 - Backups and restore tests exist for Postgres.
+- Hosted restore proof has a current public-safe summary from
+  `scripts/verify-hosted-backup-restore-proof.sh`.
 - NornicDB is the graph backend unless you explicitly choose Neo4j.
 - Graph credentials are stored in a Secret, not inline values.
 - The ingester workspace PVC has enough capacity for the repositories you
@@ -40,7 +42,8 @@ Use this list before a team relies on a Kubernetes deployment.
 - OTEL export points at the correct collector.
 - Prometheus metrics and `ServiceMonitor` resources are enabled when your
   platform expects direct scraping.
-- Helm rollback and database restore are both covered by the runbook.
+- Helm rollback, database restore, graph rebuild, queue terminal state, and
+  API/MCP readback are covered by the runbook.
 - Upgrade and rollback declarations separate durable Postgres state, queue
   state, preserved volumes, Helm rollback, Postgres restore, and graph rebuild
   decisions.
