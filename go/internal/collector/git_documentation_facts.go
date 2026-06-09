@@ -254,6 +254,9 @@ func readDocumentationBody(repoPath string, relativePath string, body []byte) ([
 	if !ok {
 		return nil, false
 	}
+	if format.format == "xls" {
+		return nil, true
+	}
 	file, err := os.Open(filepath.Join(repoPath, filepath.FromSlash(sourceURI)))
 	if err != nil {
 		return nil, false
@@ -273,6 +276,9 @@ func readDocumentationCandidateBody(repoPath string, relativePath string, body [
 	sourceURI, format, ok := gitDocumentationSourceURIAndFormat(relativePath)
 	var readLimit int
 	if ok {
+		if format.format == "xls" {
+			return nil, true
+		}
 		readLimit = documentationReadLimitBytes(format)
 	} else {
 		sourceURI, ok = documentationSourceURI(relativePath)
@@ -300,6 +306,9 @@ func documentationReadLimitBytes(format gitDocumentationFormat) int {
 	}
 	if format.format == "notebook" {
 		return notebookMaxBodyBytes
+	}
+	if format.format == "xlsx" {
+		return 50 << 20
 	}
 	return documentationMaxBodyBytes
 }
