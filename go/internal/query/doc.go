@@ -184,4 +184,21 @@
 // every referenced tool against the read-only registry without an import cycle.
 // The contract and catalog are documented in
 // docs/public/reference/query-playbooks.md.
+//
+// VisualizationPacket is a sibling derived-view contract: a compact, bounded
+// subgraph of an existing service-story, evidence-citation, or incident-context
+// response. BuildServiceStoryVisualizationPacket,
+// BuildEvidenceCitationVisualizationPacket, and
+// BuildIncidentContextVisualizationPacket are pure transformations of data the
+// caller already received; they perform no graph access and surface no field
+// beyond the source response. Node and edge IDs are derived deterministically
+// from the underlying entity/handle identity (never iteration order), the
+// subgraph is sorted by stable ID and bounded by VisualizationMaxNodes and
+// VisualizationMaxEdges with explicit truncation, the source TruthEnvelope is
+// copied verbatim, and each node may reference the evidence_citation handle that
+// hydrates it. Unsupported views return an explicit packet with
+// recommended_next_calls rather than erroring, so a client can render an
+// explainable subgraph without raw Cypher. The contract is documented in
+// docs/public/reference/visualization-packets.md; route and MCP wiring is
+// follow-up work.
 package query
