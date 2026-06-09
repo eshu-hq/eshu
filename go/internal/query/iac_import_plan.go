@@ -50,11 +50,6 @@ type terraformImportPlanSummary struct {
 	Refused    int
 }
 
-type terraformImportMapping struct {
-	ResourceType string
-	ImportID     func(IaCManagementFindingRow) string
-}
-
 func (h *IaCHandler) handleTerraformImportPlanCandidates(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
@@ -253,33 +248,6 @@ func terraformImportScopeParts(scopeID string) terraformImportScope {
 		accountID: strings.TrimSpace(parts[1]),
 		region:    strings.TrimSpace(parts[2]),
 	}
-}
-
-func terraformImportMappingForFinding(finding IaCManagementFindingRow) (terraformImportMapping, bool) {
-	switch strings.ToLower(strings.TrimSpace(finding.ResourceType)) {
-	case "s3":
-		return terraformImportMapping{ResourceType: "aws_s3_bucket", ImportID: terraformImportS3BucketID}, true
-	case "lambda":
-		return terraformImportMapping{ResourceType: "aws_lambda_function", ImportID: terraformImportLambdaFunctionID}, true
-	default:
-		return terraformImportMapping{}, false
-	}
-}
-
-func terraformImportS3BucketID(finding IaCManagementFindingRow) string {
-	if strings.TrimSpace(finding.ResourceID) != "" {
-		return strings.TrimSpace(finding.ResourceID)
-	}
-	const s3ARNPrefix = "arn:aws:s3:::"
-	return strings.TrimPrefix(strings.TrimSpace(finding.ARN), s3ARNPrefix)
-}
-
-func terraformImportLambdaFunctionID(finding IaCManagementFindingRow) string {
-	resourceID := strings.TrimSpace(finding.ResourceID)
-	if strings.HasPrefix(resourceID, "function:") {
-		return strings.TrimPrefix(resourceID, "function:")
-	}
-	return resourceID
 }
 
 func terraformResourceName(importID string) string {
