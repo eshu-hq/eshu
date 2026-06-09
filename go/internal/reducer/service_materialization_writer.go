@@ -308,6 +308,7 @@ func serviceMaterializationGenerationPayload(write ServiceMaterializationWrite) 
 		"intent_id":        write.IntentID,
 		"ownership_count":  len(write.Ownership),
 		"deployment_count": len(write.Deployment),
+		"runtime_count":    len(write.Runtime),
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {

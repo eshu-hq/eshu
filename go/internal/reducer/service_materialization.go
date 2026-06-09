@@ -34,6 +34,13 @@ const (
 	// differ.
 	ServiceEvidenceFamilyDeployment = "deployment"
 
+	// ServiceEvidenceFamilyRuntime is the runtime evidence family (#1986): one
+	// generation-stable row per materialized runtime instance of the service's
+	// workload, keyed by the durable platform/environment/workload identity. It
+	// reuses the same lineage, payload-hash, and tombstone machinery as ownership
+	// and deployment; only the row identity and source loader differ.
+	ServiceEvidenceFamilyRuntime = "runtime"
+
 	// ServiceMaterializationStatusPending marks a generation that has been written
 	// but not yet promoted to active. The writer inserts a new generation as
 	// pending so it never collides with the single-active-per-service partial
@@ -79,6 +86,8 @@ type ServiceMaterializationWrite struct {
 	Ownership   []ServiceOwnershipEvidence
 	// Deployment carries the service's resolved deployment relationships (#1985).
 	Deployment []ServiceDeploymentEvidence
+	// Runtime carries the service's materialized runtime instances (#1986).
+	Runtime []ServiceRuntimeEvidence
 }
 
 // ServiceMaterializationWriteResult summarizes one lineage commit. GenerationID
@@ -178,12 +187,13 @@ type serviceEvidenceRow struct {
 }
 
 // normalizeServiceEvidence flattens every family on a write into one ordered,
-// deduped snapshot row set. Ownership and deployment share the same row shape, so
-// the writer and generation fingerprint treat them uniformly.
+// deduped snapshot row set. Ownership, deployment, and runtime share the same row
+// shape, so the writer and generation fingerprint treat them uniformly.
 func normalizeServiceEvidence(write ServiceMaterializationWrite) []serviceEvidenceRow {
-	deduped := make(map[string]serviceEvidenceRow, len(write.Ownership)+len(write.Deployment))
+	deduped := make(map[string]serviceEvidenceRow, len(write.Ownership)+len(write.Deployment)+len(write.Runtime))
 	addServiceOwnershipEvidence(deduped, write.ServiceID, write.Ownership)
 	addServiceDeploymentEvidence(deduped, write.ServiceID, write.Deployment)
+	addServiceRuntimeEvidence(deduped, write.ServiceID, write.Runtime)
 	rows := make([]serviceEvidenceRow, 0, len(deduped))
 	for _, row := range deduped {
 		rows = append(rows, row)

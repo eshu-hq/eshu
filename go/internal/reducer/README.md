@@ -1590,3 +1590,56 @@ status/failure fields, the durable `service_materialization_generations`/
 `service_evidence_snapshots` rows, and the `get_service_changed_since`
 API/MCP/CLI read surface that now reports the deployment family alongside
 ownership.
+
+## Service runtime evidence family (#1986)
+
+The runtime evidence family extends the same service materialization lineage
+(#1943) without a new table or a new reducer domain. On each
+`service_catalog_correlation` intent, `ServiceCatalogCorrelationHandler` (when
+both `MaterializationWriter` and `RuntimeInstanceLoader` are wired) loads the
+correlated services' repositories' materialized runtime instances in one bounded
+`GetRuntimeInstancesForRepos` call, then emits one runtime-family
+`service_evidence_snapshots` row per instance into the same service generation as
+ownership and deployment. The row identity is
+`ServiceRuntimeEvidenceKey(service_id, instance)` =
+`runtime:<service_id>:<platform_kind>:<environment>:<workload_ref>`, where
+`workload_ref` is the durable `WorkloadInstance` id
+(`workload-instance:<workload_name>:<environment>`). The reducer projection
+(`projection.go`) constructs that instance id and the platform kind from durable
+workload/environment identity, and the runtime read model
+(`query.buildServiceDeploymentLanes` over `workloadContext["instances"]`,
+`entity_workload_context.go`) reads `i.id`, `i.environment`, `p.kind`, `p.name`
+off the graph nodes. None of these embed a resolution or materialization
+generation id, so the runtime key is generation-stable — unlike the deployment
+`resolved_id`, which digests the resolution generation. An instance without a
+durable workload ref cannot be keyed and is dropped rather than keyed on an empty
+identity.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'ServiceRuntime|BuildServiceRuntime|ServiceMaterialization|ServiceCatalogHandler'
+-count=1` proves runtime rows carry generation-stable keys (no embedded
+generation/`resolved_id`/`instance_id`), a changed payload hash flips the
+generation while an identical re-materialization is a no-op, dropped instances
+are tombstoned, the runtime family is purely additive (no runtime loader leaves
+the generation without runtime rows and ownership/deployment tests stay green),
+and the repo-scoped instance load runs once per intent. `go test
+./internal/storage/postgres -run TestComputeServiceChangedSinceDelta -count=1`
+proves the family-generic delta SQL (grouped by `evidence_family`) classifies
+runtime added/updated/unchanged/retired/superseded with bounded ordered samples
+and reports the runtime family with zero deltas for a non-runtime fixture, never
+silently dropping it. The runtime rows reuse the existing
+`service_evidence_snapshots_diff_idx` (`generation_id`, `evidence_family`,
+`service_evidence_key`) the Stage-1 delta query already drives, so no new index
+or schema migration is added. Live-Postgres SQL is proven by the same fake
+`Queryer`/`Rows` harness Stage-1 uses; the live SQL gate is the Postgres
+integration suite in CI.
+
+Observability Evidence: this slice adds no new metric instrument, label, queue
+domain, lease, or runtime knob. The runtime family lands inside the existing
+`service_catalog_correlation` reducer execution span/counter and the same service
+materialization commit path Stage-1 already instruments; operators diagnose it
+through reducer run spans, execution counters, `fact_work_items` status/failure
+fields, the durable `service_materialization_generations`/
+`service_evidence_snapshots` rows, and the `get_service_changed_since`
+API/MCP/CLI read surface that now reports the runtime family alongside ownership
+and deployment.

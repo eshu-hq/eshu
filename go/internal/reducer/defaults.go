@@ -241,6 +241,12 @@ type DefaultHandlers struct {
 	// is optional; when nil the existing service-catalog contract is unchanged.
 	ServiceMaterializationWriter ServiceMaterializationWriter
 
+	// ServiceRuntimeInstanceLoader, when set alongside ServiceMaterializationWriter,
+	// supplies the materialized runtime instances for a service's repository so the
+	// runtime evidence family (#1986) is snapshotted into each service generation.
+	// It is optional; when nil the generation simply carries no runtime rows.
+	ServiceRuntimeInstanceLoader RepositoryScopedRuntimeInstanceLoader
+
 	// ObservabilityCoverageCorrelationWriter persists observability coverage
 	// correlation decisions (covered, gap, ambiguous, stale, rejected) for
 	// CloudWatch, CloudWatch Logs, and X-Ray facts.
