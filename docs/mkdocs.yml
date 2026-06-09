@@ -106,6 +106,7 @@ nav:
     - Service Workflows: reference/service-workflows.md
   - Extend Eshu:
     - Overview: extend/index.md
+    - Community Extension Authoring: extend/community-extension-authoring.md
     - Collector Authoring: guides/collector-authoring.md
     - Multi-Cloud Runtime Collector Contract: reference/multi-cloud-collector-contract.md
     - GCP Cloud Collector Contract: reference/gcp-cloud-collector-contract.md
