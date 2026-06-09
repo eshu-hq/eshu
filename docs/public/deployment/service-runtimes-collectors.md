@@ -17,6 +17,14 @@ work; credentials are references only; and isolation, egress, resources, and
 security review must be approved before the workflow coordinator can schedule
 extension claims.
 
+When `ESHU_COMPONENT_HOME` is set on the workflow coordinator, the coordinator
+re-verifies the installed component manifest against the configured
+`ESHU_COMPONENT_TRUST_MODE`, allowlist, revocation list, and core version before
+materializing enabled claim-capable activations as durable collector instances.
+The durable instance configuration carries component identity, manifest digest,
+runtime protocol, adapter, and a stable config handle only. It does not persist
+operator config paths, credential values, or provider targets.
+
 The public Helm chart supports two collector styles:
 
 - Direct collectors with explicit targets in their own values.
@@ -65,9 +73,20 @@ freshness, and effective target, rule, log-signal, or trace-signal metadata.
 | Tempo Collector | `tempo` | workflow claims for configured Tempo query-frontend metadata targets | `/usr/local/bin/eshu-collector-tempo` | `deploy/helm/eshu/templates/deployment-tempo-collector.yaml` |
 | Scanner Worker | `scanner_worker` | workflow claims for CPU-heavy or memory-heavy security analyzer targets | `/usr/local/bin/eshu-scanner-worker` | `deploy/helm/eshu/templates/deployment-scanner-worker.yaml` |
 | Vulnerability Intelligence Collector | `vulnerability_intelligence` | workflow claims for bounded vulnerability source targets (CISA KEV, FIRST EPSS, NVD windows, OSV queries, GitLab Gemnasium, GHSA) or derived owned-package targets | `/usr/local/bin/eshu-collector-vulnerability-intelligence` | `deploy/helm/eshu/templates/deployment-vulnerability-intelligence-collector.yaml` |
+| Component Extension Collector | manifest-declared collector kind | one activation-scoped source-evidence claim per verified claim-capable component activation | component-owned host/runtime | component-owned |
 
 All hosted collector runtimes expose `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` through the shared runtime admin surface.
+
+No-Regression Evidence: `go test ./internal/coordinator -run 'Test(LoadConfig(AddsTrustedClaimCapableComponentActivation|SkipsRevokedComponentActivation|SkipsUntrustedAndIncompatibleComponentActivations|SkipsComponentActivationWithoutClaims)|Service(RunSchedulesComponentExtensionWork|ComponentExtensionReconcileIsIdempotentAcrossRestart)|ComponentExtensionPlannerPlansActivationScopedWork|ShouldScheduleComponentExtension(SurfacesInvalidActivationConfig|IgnoresUnrelatedSchemaVersionConfig))' -count=1` proves the coordinator admits trusted claim-capable component activations, withholds revoked, untrusted, incompatible, and non-claimable activations, rejects unsupported SDK protocols before scheduling, avoids misclassifying unrelated collector configs, and creates one idempotent activation-scoped work item. This is a coordinator planning change only: it uses the existing open-target admission guard, does not change claim lease timing, worker counts, queue ordering, reducer graph writes, fact emission, or provider calls.
+
+No-Observability-Change: component extension scheduling reuses existing
+coordinator reconcile metrics, `collector_instances`, `workflow_runs`,
+`workflow_work_items`, claim status rows, duplicate-work logs, and
+`/api/v0/index-status`. Component runtime failures still flow through the
+claim-aware collector status and failure-class path; component config handles
+are stable identifiers and do not add credential or private path material to
+metric labels.
 
 Central collector inventory comes from durable workflow coordinator registration
 rows, direct collector status rows that a runtime persists, and active persisted

@@ -89,6 +89,14 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("parse ESHU_COLLECTOR_INSTANCES_JSON: %w", err)
 	}
+	componentInstances, err := componentCollectorInstancesFromEnv(getenv)
+	if err != nil {
+		return Config{}, err
+	}
+	instances, err = mergeCollectorInstances(instances, componentInstances)
+	if err != nil {
+		return Config{}, err
+	}
 
 	cfg := Config{
 		DeploymentMode:           deploymentMode,

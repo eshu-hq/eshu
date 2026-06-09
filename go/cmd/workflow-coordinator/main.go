@@ -140,6 +140,7 @@ func run(parent context.Context) error {
 		GrafanaPlanner:                    coordinator.GrafanaWorkPlanner{},
 		LokiPlanner:                       coordinator.LokiWorkPlanner{},
 		VaultLivePlanner:                  coordinator.VaultLiveWorkPlanner{},
+		ComponentExtensionPlanner:         coordinator.ComponentExtensionWorkPlanner{},
 		OwnedPackageTargetReader:          postgres.NewFactStore(ownedPackageTargetsDB),
 		OSPackageAdvisoryTargetReader:     factStore,
 		SBOMComponentAdvisoryTargetReader: factStore,

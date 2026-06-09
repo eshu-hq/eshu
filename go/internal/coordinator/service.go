@@ -105,6 +105,11 @@ type VaultLivePlanner interface {
 	PlanVaultLiveWork(context.Context, VaultLivePlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
+// ComponentExtensionPlanner plans generic component extension workflow rows.
+type ComponentExtensionPlanner interface {
+	PlanComponentExtensionWork(context.Context, ComponentExtensionPlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
+
 // OwnedPackageTargetReader loads active dependency evidence that can bound
 // derived package-registry and vulnerability-intelligence work.
 type OwnedPackageTargetReader interface {
@@ -140,6 +145,7 @@ type Service struct {
 	GrafanaPlanner                    GrafanaPlanner
 	LokiPlanner                       LokiPlanner
 	VaultLivePlanner                  VaultLivePlanner
+	ComponentExtensionPlanner         ComponentExtensionPlanner
 	OwnedPackageTargetReader          OwnedPackageTargetReader
 	OSPackageAdvisoryTargetReader     OSPackageAdvisoryTargetReader
 	SBOMComponentAdvisoryTargetReader SBOMComponentAdvisoryTargetReader
@@ -400,6 +406,15 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
+	if err := s.scheduleComponentExtensionWork(ctx, observedAt, instances); err != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:      reconcileOutcomeReconcileError,
+			Duration:     time.Since(startedAt),
+			DesiredCount: desiredCount,
+			DurableCount: durableCount,
+		})
+		return err
+	}
 	if err := s.scheduleAWSFreshnessWork(ctx, observedAt, instances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
@@ -423,74 +438,5 @@ func (s Service) runReconcile(ctx context.Context) error {
 			"collector_instance_drift", drift,
 		)
 	}
-	return nil
-}
-
-func (s Service) runAWSFreshnessHandoff(ctx context.Context) error {
-	if s.Config.DeploymentMode != deploymentModeActive || !s.Config.ClaimsEnabled || s.AWSFreshnessTriggers == nil {
-		return nil
-	}
-	observedAt := s.now().UTC()
-	instances, err := s.Store.ListCollectorInstances(ctx)
-	if err != nil {
-		return fmt.Errorf("list durable collector instances for AWS freshness handoff: %w", err)
-	}
-	return s.scheduleAWSFreshnessWork(ctx, observedAt, instances)
-}
-
-func (s Service) runActiveMaintenance(ctx context.Context) error {
-	if err := s.runReapExpiredClaims(ctx); err != nil {
-		return fmt.Errorf("reap expired claims: %w", err)
-	}
-	if err := s.runAWSFreshnessHandoff(ctx); err != nil {
-		return fmt.Errorf("handoff AWS freshness triggers: %w", err)
-	}
-	if err := s.runIncidentFreshnessHandoff(ctx); err != nil {
-		return fmt.Errorf("handoff incident freshness triggers: %w", err)
-	}
-	if err := s.runWorkflowReconciliation(ctx); err != nil {
-		return fmt.Errorf("reconcile workflow runs: %w", err)
-	}
-	return nil
-}
-
-func (s Service) runReapExpiredClaims(ctx context.Context) error {
-	startedAt := time.Now()
-	claims, err := s.Store.ReapExpiredClaims(
-		ctx,
-		s.now().UTC(),
-		s.Config.ExpiredClaimLimit,
-		s.Config.ExpiredClaimRequeueDelay,
-	)
-	if err != nil {
-		s.recordReap(ctx, ReapObservation{
-			Outcome:  reaperOutcomeError,
-			Duration: time.Since(startedAt),
-		})
-		return err
-	}
-	s.recordReap(ctx, ReapObservation{
-		Outcome:    reaperOutcomeSuccess,
-		Duration:   time.Since(startedAt),
-		ReapedRows: len(claims),
-	})
-	return nil
-}
-
-func (s Service) runWorkflowReconciliation(ctx context.Context) error {
-	startedAt := time.Now()
-	reconciledRuns, err := s.Store.ReconcileWorkflowRuns(ctx, s.now().UTC())
-	if err != nil {
-		s.recordRunReconciliation(ctx, RunReconciliationObservation{
-			Outcome:  runReconcileOutcomeError,
-			Duration: time.Since(startedAt),
-		})
-		return err
-	}
-	s.recordRunReconciliation(ctx, RunReconciliationObservation{
-		Outcome:        runReconcileOutcomeSuccess,
-		Duration:       time.Since(startedAt),
-		ReconciledRuns: reconciledRuns,
-	})
 	return nil
 }
