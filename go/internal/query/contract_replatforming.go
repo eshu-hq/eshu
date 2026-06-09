@@ -1,0 +1,19 @@
+package query
+
+// replatformingPlanReadinessCapability is the provider-neutral capability that
+// describes replatforming plan and readiness behavior over the source-state
+// taxonomy. It is declared before its serving route/tool lands so the truth
+// contract, capability matrix, and profile gating are fixed first. Lightweight
+// local runtime cannot materialize the reducer-owned evidence the plan needs,
+// so that profile returns unsupported_capability rather than a downgraded plan.
+const replatformingPlanReadinessCapability = "replatforming.plan.readiness"
+
+func init() {
+	capabilityMatrix[replatformingPlanReadinessCapability] = capabilitySupport{
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthDerived,
+		LocalFullStackMax:     &truthDerived,
+		ProductionMax:         &truthDerived,
+		RequiredProfile:       ProfileLocalAuthoritative,
+	}
+}
