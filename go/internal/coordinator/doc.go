@@ -4,8 +4,9 @@
 //
 // Service reconciles declarative collector instances against the durable store
 // on every reconcile interval. In active mode it also applies optional hosted
-// collector egress policy before planning supported collector work, drains
-// expired claims on the reap interval, and advances workflow run progress.
+// collector egress policy before planning supported collector work, requires
+// explicit hosted extension egress policy before planning component extension
+// work, drains expired claims on the reap interval, and advances workflow run progress.
 // Config is loaded from workflow-coordinator environment variables; deployment
 // mode is "dark" or "active" and active mode requires claims enabled with at
 // least one enabled claim-capable collector instance.
@@ -39,9 +40,10 @@
 // AWSFreshnessWorkPlanner plan ordinary AWS collector work from configured
 // schedules or webhook freshness triggers. ComponentExtensionWorkPlanner plans
 // source-evidence-only work for verified claim-capable component activations
-// loaded from the local component registry; it stores component identity,
-// manifest digest, runtime protocol, and a safe config handle, not raw component
-// configuration or credentials.
+// loaded from the local component registry after hosted extension egress policy
+// allows the component identity; it stores component identity, manifest digest,
+// runtime protocol, and a safe config handle, not raw component configuration
+// or credentials.
 // Incident freshness handoff narrows PagerDuty and Jira webhook wake-ups to
 // authorized configured scope IDs before creating normal collector work. Planners
 // produce workflow rows only; claim ownership and fact emission stay with the

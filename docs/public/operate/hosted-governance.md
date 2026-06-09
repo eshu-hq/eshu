@@ -21,7 +21,7 @@ Current shipped behavior:
 | Source ACLs | Deterministic reads use indexed facts and read models. Semantic and extension policy docs describe required source gates. | Complete source-ACL enforcement across every hosted read. |
 | Semantic providers | No-provider mode is supported. Configured provider profiles are handles plus metadata and still require policy before source egress. | That a configured provider profile is permission to send content. |
 | Collector egress | The workflow coordinator can filter enabled claim-capable collectors by `ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON` before scheduled or freshness work is planned. | That Helm NetworkPolicy alone proves collector runtime policy or tenant isolation. |
-| Extensions | Hosted extension policy is operator guidance. Community extension claim execution is not enabled by the shipped chart or Compose stack yet. | That installed or enabled components can collect in hosted mode. |
+| Extensions | Component trust can materialize verified activations, and the workflow coordinator requires `ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON` before planning component-extension claims. The full hosted extension policy file and charted extension runtime remain future work. | That installed or enabled components can collect in hosted mode without an explicit extension egress allow rule. |
 | Network egress | Helm can render restricted NetworkPolicy egress classes for DNS, datastore, graph, internal service, collector providers, semantic providers, and extensions. | That `networkPolicy.egress.mode=broad` is least-privilege proof. |
 | Redaction and retention | The hosted redaction registry defines forbidden raw classes, safe bounded field classes, and synthetic leakage canaries. The hosted retention policy defines design-only deletion, tombstone, and graph-rebuild semantics. Semantic posture docs still require redaction policy and metadata-oriented retention for optional provider work. | That runtime retention and deletion enforcement is implemented end to end. |
 | Audit | Existing status, telemetry, semantic queue, budget, and component diagnostics expose bounded classes and counts. | A complete hosted governance audit ledger until the governance issues land. |
@@ -330,8 +330,10 @@ Compose stack today. For policy review or future rollout:
 2. Stop new coordinator claims for the revoked identity.
 3. Mark pending work ineligible with a bounded reason such as
    `revoked_policy`.
-4. Re-check policy before launching work and before committing facts.
-5. Scale down compromised extension workloads when needed and keep status
+4. Confirm `ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON` no longer allows the
+   component identity before expecting new workflow rows to stop.
+5. Re-check policy before launching work and before committing facts.
+6. Scale down compromised extension workloads when needed and keep status
    fields to component ID, instance ID, reason class, policy revision, and safe
    scope class.
 
@@ -382,6 +384,7 @@ Use these gates for hosted governance-related changes:
 | Hosted NetworkPolicy egress posture | `scripts/test-verify-hosted-network-policy-egress.sh`, `scripts/verify-hosted-network-policy-egress.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml`. |
 | Hosted retention or deletion policy docs | Strict MkDocs build and `git diff --check`; runtime implementation must add focused deletion, tombstone, stale-read, and graph-rebuild tests. |
 | Hosted governance audit events or readbacks | `go test ./internal/governanceaudit ./internal/query -count=1`, package-doc gates, and strict MkDocs build. |
+| Hosted extension egress claim gate | `go test ./internal/coordinator -run 'Test(ParseExtensionEgressPolicyJSON|ExtensionEgressPolicy|LoadConfigParsesExtensionEgressPolicy|ServiceRun.*ComponentExtension|ServiceComponentExtension)' -count=1`, package-doc gates, performance-evidence gate, and strict MkDocs build. |
 | Hosted onboarding or setup CLI | `go test ./cmd/eshu -count=1`. |
 | API/MCP status surfaces | `go test ./internal/query ./internal/mcp ./cmd/api -count=1`. |
 | Semantic extraction status or queue readbacks | `go test ./internal/semanticqueue ./internal/storage/postgres ./internal/status ./internal/query ./internal/telemetry -count=1`. |

@@ -18,6 +18,7 @@ collector targets, and webhook listener variables.
 | `ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_LIMIT` | workflow default | workflow coordinator | Max expired claims reaped per cycle. |
 | `ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_REQUEUE_DELAY` | workflow default | workflow coordinator | Delay before requeueing expired work. |
 | `ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON` | unset | workflow coordinator | Optional hosted collector scheduling egress policy. JSON mode is `restricted` or `broad`; restricted mode requires explicit `collector_kind` allow rules before active-mode claim-capable collectors can plan scheduled or freshness work, deny rules win, and broad mode must not include collector-specific rules. |
+| `ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON` | unset | workflow coordinator | Hosted component-extension scheduling egress policy. Missing policy denies component-extension work; JSON mode is `restricted` or `broad`; restricted mode requires explicit component allow rules before active-mode component-extension work can be planned, deny rules win, and broad mode must not include extension-specific rules. |
 | `ESHU_COLLECTOR_INSTANCES_JSON` | unset | workflow coordinator and claim-aware collectors | Desired collector instance list. Claim-driven runtimes select enabled claim-capable instances from this JSON. |
 
 Active coordinator mode is guarded. The process rejects

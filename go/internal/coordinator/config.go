@@ -30,6 +30,7 @@ type Config struct {
 	ExpiredClaimLimit        int
 	ExpiredClaimRequeueDelay time.Duration
 	CollectorEgressPolicy    CollectorEgressPolicy
+	ExtensionEgressPolicy    ExtensionEgressPolicy
 	CollectorInstances       []workflow.DesiredCollectorInstance
 }
 
@@ -90,6 +91,10 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("parse ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON: %w", err)
 	}
+	extensionEgressPolicy, err := ParseExtensionEgressPolicyJSON(getenv("ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON"))
+	if err != nil {
+		return Config{}, fmt.Errorf("parse ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON: %w", err)
+	}
 	instances, err := workflow.ParseDesiredCollectorInstancesJSON(getenv("ESHU_COLLECTOR_INSTANCES_JSON"))
 	if err != nil {
 		return Config{}, fmt.Errorf("parse ESHU_COLLECTOR_INSTANCES_JSON: %w", err)
@@ -114,6 +119,7 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 		ExpiredClaimLimit:        expiredClaimLimit,
 		ExpiredClaimRequeueDelay: expiredClaimRequeueDelay,
 		CollectorEgressPolicy:    collectorEgressPolicy,
+		ExtensionEgressPolicy:    extensionEgressPolicy,
 		CollectorInstances:       instances,
 	}
 	cfg = cfg.withDefaults()

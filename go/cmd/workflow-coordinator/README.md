@@ -85,6 +85,9 @@ for the full list. Key env vars:
   after reap; default `5s`
 - ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON — optional hosted collector egress
   policy; restricted mode requires per-kind allow rules before planning
+- ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON — optional hosted extension egress
+  policy; missing policy denies component-extension claim planning, restricted
+  mode requires component allow rules, deny wins, and broad mode is explicit
 - ESHU_COLLECTOR_INSTANCES_JSON — JSON array of collector instance objects
 
 Compose exposes the optional metrics port `19469`. Helm keeps deployment mode
@@ -137,6 +140,10 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
 - When `ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON` is set, the coordinator
   filters enabled claim-capable collector instances before scheduled or
   freshness work is planned. Denied collectors create no claimable rows.
+- Component-extension claim planning also requires
+  `ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON`. Missing policy or a restricted
+  policy without a matching component allow rule creates no claimable rows;
+  broad mode is the explicit operator opt-in.
 - Active mode plans Terraform-state, OCI registry, package registry,
   scanner-worker, vulnerability-intelligence installed advisory target work,
   CI/CD run target work, and opt-in scheduled AWS work today. AWS, PagerDuty,
