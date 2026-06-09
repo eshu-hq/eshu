@@ -95,11 +95,43 @@ recorded. It includes:
 - **Indexed repositories** observed by the bounded query.
 - **Starter prompts** sourced from the query playbook catalog, so they always
   name first-class tools.
+- **Starter playbooks** with `playbook_id`, `version`, `prompt_family`, prompt
+  text, ordered tool sequence, and expected answer truth classes.
 - **Next steps** tailored to the first failing stage when onboarding is
   incomplete.
 
 The artifact is safe to commit to a team repo or paste into a ticket: it carries
 no secret value.
+
+## First answer playbooks
+
+Hosted onboarding gives teams the same playbook-backed starting points as the
+public [Starter Prompts](../guides/starter-prompts.md). In the JSON artifact,
+read `starter_playbooks[]`; in Markdown, read the **Starter playbooks** section.
+
+Current catalog-backed starters are:
+
+| Need | Playbook | Tool sequence | Expected truth |
+| --- | --- | --- | --- |
+| Explain and cite a service | `service_story_citation@1.0.0` | `get_service_story` -> `build_evidence_citation_packet` | `deterministic`, then citation `code_hint` |
+| Investigate code topic evidence | `repository_code_topic_investigation@1.0.0` | `investigate_code_topic` -> `get_code_relationship_story` | `code_hint`, then `deterministic` |
+| Cite a documentation finding | `documentation_truth_citation@1.0.0` | `get_documentation_evidence_packet` -> `check_documentation_evidence_packet_freshness` | `semantic_observation`, then freshness `deterministic` |
+
+Read these like answer packets, not generic assistant prose:
+
+- `truth.freshness.state=building` or `stale` means the answer may be useful but
+  not complete; re-run after readiness improves before acting on it.
+- `partial=true`, `truncated=true`, or a limitation means the answer is bounded,
+  not false. Follow `recommended_next_calls` before claiming full coverage.
+- Citation packets hydrate returned handles. If a citation packet is truncated,
+  request the next bounded handle batch instead of widening to raw graph access.
+
+There is no dedicated readiness or hosted-governance playbook in the current
+catalog. Until one exists, hosted onboarding uses staged readiness checks
+(`/healthz`, `/readyz`, index readiness, MCP tools, one bounded query) and the
+prompt-ready status tools such as `get_index_status`. Governance prompts must
+keep the shared-token limitation below visible rather than implying tenant
+isolation.
 
 ## Authorization limitation (read before you share)
 

@@ -21,9 +21,9 @@
 // sync rule set, rejects a broad org-wide glob unless `--confirm-broad` is set,
 // reuses the hosted-setup staged checks, and emits a redacted onboarding
 // artifact (Markdown or JSON) carrying the API/MCP URLs, the token source name
-// (never the value), indexed repositories, queue/completeness status, and
-// starter prompts while documenting the current shared-token authorization
-// limitation; and `first-run-benchmark`,
+// (never the value), indexed repositories, queue/completeness status, starter
+// prompts, and structured starter playbooks while documenting the current
+// shared-token authorization limitation; and `first-run-benchmark`,
 // which scores a captured `first-run --json` envelope against the
 // first-five-minutes onboarding criteria and rejects a health-only "answer"),
 // security intelligence (`vuln-scan repo` with terminal and JSON
