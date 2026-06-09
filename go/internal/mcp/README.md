@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 114
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 117
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,7 +59,7 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 115 tools from the tool definition files.
+`ReadOnlyTools` assembles 117 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
@@ -82,7 +82,8 @@ flowchart TB
 | `sbomAttestationAttachmentAggregateTools` | 2 | `tools_sbom_attachment_aggregates.go` |
 | `incidentContextTools` | 1 | `tools_incident_context.go` |
 | `workItemTools` | 1 | `tools_work_item.go` |
-| `freshnessTools` | 1 | `tools_freshness.go` |
+| `visualizationTools` | 1 | `tools_visualization.go` |
+| `freshnessTools` | 3 | `tools_freshness.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 6 | `tools_content.go` |
 | `documentationTools` | 4 | `tools_documentation.go` |
@@ -128,6 +129,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `count_secrets_iam_posture` | GET | `/api/v0/secrets-iam/posture-summary` |
 | `get_incident_context` | GET | `/api/v0/incidents/{incident_id}/context` |
 | `list_work_item_evidence` | GET | `/api/v0/work-items/evidence` |
+| `derive_visualization_packet` | POST | `/api/v0/visualizations/derive` |
 | `get_generation_lifecycle` | GET | `/api/v0/freshness/generations` |
 | `get_changed_since` | GET | `/api/v0/freshness/changed-since` (repository-scope delta diffing a prior generation against the current active generation by `stable_fact_key`; per-category added/updated/unchanged/retired/superseded counts plus bounded sample handles; unknown scope returns not-found, no current active generation returns an explicit unavailable diff) |
 | `get_service_changed_since` | GET | `/api/v0/freshness/services/changed-since` (service-scope delta diffing a prior service materialization generation against the current active generation by generation-independent `service_evidence_key`; stage 1 reports the ownership family; per-family added/updated/unchanged/retired/superseded counts plus bounded sample handles; unknown service returns service-not-found, no current active generation returns an explicit unavailable diff) |
@@ -174,7 +176,11 @@ truth metadata, source handles, and the canonical `functions` row key.
 `build_evidence_citation_packet` keeps MCP as transport only: dispatch forwards
 the caller's bounded handle array to the HTTP evidence route. The advertised
 schema caps input at 500 handles and the query handler hydrates at most 50
-citations per packet.
+citations per packet. `derive_visualization_packet` follows the same
+transport-only pattern for visualization packets: MCP forwards the caller's
+already-authorized source response and optional source truth to
+`POST /api/v0/visualizations/derive`, preserving the returned canonical
+envelope as structured content and as the envelope resource.
 
 Package-registry tools keep MCP as transport too. Ownership candidates,
 package-version publication evidence, and manifest-backed consumption all come
@@ -261,7 +267,7 @@ membership as trust.
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 114 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 117 tool definitions |
 
 ## SSE session model
 

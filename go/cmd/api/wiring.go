@@ -364,6 +364,7 @@ func newRouter(
 			Evidence: query.NewPostgresWorkItemEvidenceStore(db),
 			Profile:  queryProfile,
 		},
+		Visualization: &query.VisualizationHandler{},
 		Freshness: &query.FreshnessHandler{
 			Generations:         generationLifecycle,
 			ChangedSince:        changedSince,

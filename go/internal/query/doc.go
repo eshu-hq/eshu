@@ -215,9 +215,10 @@
 // copied verbatim, and each node may reference the evidence_citation handle that
 // hydrates it. Unsupported views return an explicit packet with
 // recommended_next_calls rather than erroring, so a client can render an
-// explainable subgraph without raw Cypher. The contract is documented in
-// docs/public/reference/visualization-packets.md; route and MCP wiring is
-// follow-up work.
+// explainable subgraph without raw Cypher. VisualizationHandler exposes
+// POST /api/v0/visualizations/derive, and the MCP derive_visualization_packet
+// tool routes to the same handler. The contract is documented in
+// docs/public/reference/visualization-packets.md.
 //
 // FreshnessHandler serves two bounded freshness drilldowns. The generation
 // lifecycle drilldown at GET /api/v0/freshness/generations under the

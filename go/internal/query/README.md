@@ -366,8 +366,10 @@ activation config paths, or community-index membership as trust.
   truncation, copies the source `TruthEnvelope`, reuses the `evidence_citation`
   handle shape so a node maps back to a citation, and returns an explicit
   unsupported packet with `recommended_next_calls` rather than erroring. Normal
-  visualization flows need no raw Cypher. Route/MCP wiring is follow-up work.
-  See `docs/public/reference/visualization-packets.md`.
+  visualization flows need no raw Cypher. `VisualizationHandler` exposes
+  `POST /api/v0/visualizations/derive`, and MCP routes
+  `derive_visualization_packet` to the same handler. See
+  `docs/public/reference/visualization-packets.md`.
 
 **Handler helpers**
 

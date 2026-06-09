@@ -35,9 +35,6 @@ so any client can render it directly.
 - The packet does **not** introduce a new truth taxonomy. It copies the source
   `TruthEnvelope` and carries per-node/edge truth labels straight from the
   source (for example an incident evidence-path truth label).
-- This contract is the types plus builders only. Wiring it into specific routes
-  and MCP tools is follow-up work. Routes keep returning the canonical response
-  today; the packet is an additive, derived layer.
 
 ## Privacy and authorization invariant
 
@@ -174,6 +171,58 @@ evidence path — the builder returns an explicit packet with `view:
 `recommended_next_calls` pointing at the call that would produce a renderable
 response (for example `get_service_story`, `build_evidence_citation_packet`, or
 `get_incident_context`). It never errors opaquely.
+
+## API and MCP usage
+
+Clients can derive a packet without re-querying graph or content state through:
+
+- HTTP: `POST /api/v0/visualizations/derive`
+- MCP: `derive_visualization_packet`
+
+Both surfaces take the same body:
+
+```json
+{
+  "view": "service_story",
+  "source_response": {
+    "service_identity": {
+      "service_id": "svc-1",
+      "service_name": "payments",
+      "repo_id": "svc-repo"
+    },
+    "upstream_dependencies": [],
+    "downstream_consumers": {}
+  },
+  "source_truth": {
+    "level": "exact",
+    "basis": "authoritative_graph",
+    "freshness": { "state": "fresh" }
+  }
+}
+```
+
+The response data wraps the packet under `visualization_packet`:
+
+```json
+{
+  "visualization_packet": {
+    "view": "service_story",
+    "supported": true,
+    "nodes": [
+      { "id": "viznode:...", "type": "service", "label": "payments", "category": "service" }
+    ],
+    "edges": [],
+    "limits": { "max_nodes": 60, "max_edges": 120, "ordering": "stable_id", "node_count": 1, "edge_count": 0 },
+    "truncation": { "truncated": false, "dropped_node_count": 0, "dropped_edge_count": 0 }
+  }
+}
+```
+
+When the client requests the canonical Eshu envelope, the route copies
+`source_truth` to the envelope truth and the packet truth. The MCP tool returns
+that same envelope in `structuredContent` and in the
+`application/eshu.envelope+json` resource block; the text summary is only a
+bounded convenience string.
 
 ## Reused contracts
 
