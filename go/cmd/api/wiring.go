@@ -269,6 +269,10 @@ func newRouter(
 			Aggregates: query.NewGraphInfraResourceAggregateStore(neo4jReader),
 			Profile:    queryProfile,
 		},
+		CloudInventory: &query.CloudInventoryHandler{
+			Content: contentReader,
+			Profile: queryProfile,
+		},
 		IaC: &query.IaCHandler{
 			Content:      contentReader,
 			Reachability: query.NewPostgresIaCReachabilityStore(db),
