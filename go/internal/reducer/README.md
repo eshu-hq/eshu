@@ -1644,6 +1644,108 @@ fields, the durable `service_materialization_generations`/
 API/MCP/CLI read surface that now reports the runtime family alongside ownership
 and deployment.
 
+### Production runtime instance loader (`GraphServiceRuntimeInstanceLoader`)
+
+The `#1986` emitter above only runs when a `RuntimeInstanceLoader` is wired. The
+production loader is `GraphServiceRuntimeInstanceLoader` (`cmd/reducer/main.go`
+sets `DefaultHandlers.ServiceRuntimeInstanceLoader = reducer.
+GraphServiceRuntimeInstanceLoader{Graph: graphReader}`). It is the graph-backed
+analogue of the Postgres deployment loader: for each correlated service's
+repository it issues one bounded read of the canonical graph and maps the
+materialized `WorkloadInstance`/`Platform` nodes into `ServiceRuntimeInstance`
+values. It reads only durable identity (`i.id`, `i.environment`, `i.name`,
+`i.materialization_confidence`, `p.kind`, `p.name`) — never a `generation_id`,
+`resolved_id`, or `materialization_generation` — so the runtime key stays
+generation-stable.
+
+Query shape and selectivity: the loader mirrors the query surface's
+WorkloadInstance reads (`entity_workload_context.go`
+`fetchWorkloadInstances`/`fetchWorkloadPlatformRows`) so loader truth and API
+truth come from the same node reads, using two scalar queries per repository
+rather than an OPTIONAL map projection. The query layer enforces this shape for
+NornicDB optional-projection safety
+(`TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafety`),
+so the loader follows it deliberately. First the WorkloadInstance read anchors on
+the `workload_instance_repo_id` index (`graph/schema.go`:
+`CREATE INDEX workload_instance_repo_id ... FOR (i:WorkloadInstance) ON
+(i.repo_id)`):
+
+```cypher
+MATCH (i:WorkloadInstance {repo_id: $repo_id})
+RETURN i.repo_id AS repo_id, i.id AS instance_id, i.name AS workload_name,
+       i.environment AS environment,
+       i.materialization_confidence AS materialization_confidence
+ORDER BY instance_id
+```
+
+then the RUNS_ON platforms are read for the exact batch of instance ids, anchored
+on the indexed WorkloadInstance ids (`workload_instance_id` /
+`nornicdb_workload_instance_id_lookup`) so it is one bounded read rather than a
+round trip per instance:
+
+```cypher
+MATCH (i:WorkloadInstance)-[:RUNS_ON]->(p:Platform)
+WHERE i.id IN $instance_ids
+RETURN i.id AS instance_id, p.kind AS platform_kind, p.name AS platform_name
+ORDER BY instance_id, platform_kind
+```
+
+Both are indexed-anchor scalar reads (no OPTIONAL MATCH, no map projection). The
+in-process join keeps an instance that has a durable environment but no inferred
+platform (empty platform fields), and an instance with multiple inferred
+platforms yields one runtime value per platform, which is correct because each
+platform kind is a distinct runtime identity. Expected cardinality is bounded:
+the input is the distinct set of correlated service repositories for one
+`service_catalog_correlation` intent (small), each repository has a handful of
+`WorkloadInstance` nodes, and the `RUNS_ON` fan-out per instance is small. Two
+indexed reads run per repository (instances, then their platforms), so total
+graph round trips are twice the distinct service-repo count for the intent.
+
+Performance Evidence: this read previously did not execute at all — the loader
+was unwired, so the runtime family emitted zero rows in production. The change
+adds two bounded, indexed graph reads per correlated service repository (the
+WorkloadInstance read then its RUNS_ON platform read), gated behind the
+already-additive runtime family (only when `MaterializationWriter` is also
+wired), on the `service_catalog_correlation` reduce path that already performs
+the ownership and deployment reads. Backend: NornicDB (default
+canonical) / Neo4j (compatibility); schema state: the
+`workload_instance_repo_id` index from `graph/schema.go` (apply
+`eshu-bootstrap-data-plane` before `eshu-bootstrap-index`). No-Regression
+Evidence: `go test ./internal/reducer -run
+'GraphServiceRuntimeInstanceLoader|ServiceRuntime|ServiceCatalogHandler' -count=1`
+proves the loader groups instances by repo, drops rows without a durable
+instance id, keeps the platformless instance, returns no instances for
+a repo with none, errors (never silently empties) on a nil graph or a graph read
+failure, and that the handler still runs exactly one bounded load per intent. The
+same suite also drives the runtime family end to end through the real loader
+(`TestServiceCatalogHandlerMaterializesRuntimeFromGraphReads` /
+`...EmitsNoRuntimeWhenGraphEmpty`): a correlated service repository whose graph
+carries a WorkloadInstance/Platform instance materializes a runtime-family
+snapshot row whose generation-stable key is derived from the durable graph
+identity, and a repository with no graph instances emits none while ownership
+still commits.
+
+Graph-truth vs query-truth: the loader reuses the exact WorkloadInstance and
+RUNS_ON platform read shapes the query surface already serves
+(`entity_workload_context.go`), so the runtime evidence and the
+`get_workload_context`/service-story surfaces draw from the same nodes by
+construction. Note on local Compose: the default Compose stack runs only the git
+collector and ships no `catalog-info.yaml`/`opslevel.yml`/`cortex.yaml` fixture,
+so it produces no `service_catalog_correlation` and cannot exercise the runtime
+family locally without a dedicated service-catalog-plus-runtime fixture and a
+second re-materialization generation. The live-SQL changed-since gate is the
+Postgres integration suite in CI; a full Compose changed-since proof would
+require adding that service-catalog runtime fixture, which is out of scope for
+wiring the loader.
+
+Observability Evidence: no new metric instrument, label, queue domain, lease, or
+runtime knob. The loader runs inside the existing `service_catalog_correlation`
+reducer execution span/counter; a read failure surfaces as the wrapped
+`load runtime instances for repo <id>` error on the intent's
+`fact_work_items` status/failure fields, and the resulting rows are diagnosed
+through the same `service_evidence_snapshots` rows and
+`get_service_changed_since` read surface as the rest of the runtime family.
+
 ## Service dependency evidence family (#1987)
 
 The dependencies evidence family extends the same service materialization lineage
