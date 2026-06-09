@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eshu.dev/schemas/collector-sdk/v1alpha1/result.schema.json",
+  "title": "Eshu Collector SDK Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "state", "claim", "generation"],
+  "properties": {
+    "protocol_version": {
+      "const": "collector-sdk/v1alpha1"
+    },
+    "state": {
+      "enum": ["complete", "unchanged", "partial", "retryable", "terminal"]
+    },
+    "claim": {
+      "$ref": "#/$defs/claim"
+    },
+    "generation": {
+      "$ref": "#/$defs/generation"
+    },
+    "facts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/fact"
+      }
+    },
+    "statuses": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/status"
+      }
+    }
+  },
+  "$defs": {
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "component_id",
+        "instance_id",
+        "collector_kind",
+        "source_system",
+        "scope",
+        "source_run_id",
+        "generation_id",
+        "work_item_id",
+        "fencing_token",
+        "attempt",
+        "deadline",
+        "config_handle"
+      ],
+      "properties": {
+        "component_id": { "type": "string", "minLength": 1 },
+        "instance_id": { "type": "string", "minLength": 1 },
+        "collector_kind": { "type": "string", "minLength": 1 },
+        "source_system": { "type": "string", "minLength": 1 },
+        "scope": { "$ref": "#/$defs/scope" },
+        "source_run_id": { "type": "string", "minLength": 1 },
+        "generation_id": { "type": "string", "minLength": 1 },
+        "work_item_id": { "type": "string", "minLength": 1 },
+        "fencing_token": { "type": "string", "minLength": 1 },
+        "attempt": { "type": "integer", "minimum": 1 },
+        "deadline": { "type": "string", "format": "date-time" },
+        "config_handle": { "type": "string", "minLength": 1 }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 }
+      }
+    },
+    "generation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "observed_at"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "observed_at": { "type": "string", "format": "date-time" },
+        "freshness_hint": { "type": "string" }
+      }
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "schema_version",
+        "stable_key",
+        "source_confidence",
+        "observed_at",
+        "source_ref",
+        "payload"
+      ],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "schema_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "stable_key": { "type": "string", "minLength": 1 },
+        "source_confidence": { "enum": ["observed", "reported", "inferred", "derived"] },
+        "observed_at": { "type": "string", "format": "date-time" },
+        "tombstone": { "type": "boolean" },
+        "source_ref": { "$ref": "#/$defs/source_ref" },
+        "payload": { "type": "object" },
+        "redactions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/redaction"
+          }
+        }
+      }
+    },
+    "source_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_system",
+        "scope_id",
+        "generation_id",
+        "fact_key",
+        "uri",
+        "record_id"
+      ],
+      "properties": {
+        "source_system": { "type": "string", "minLength": 1 },
+        "scope_id": { "type": "string", "minLength": 1 },
+        "generation_id": { "type": "string", "minLength": 1 },
+        "fact_key": { "type": "string", "minLength": 1 },
+        "uri": { "type": "string", "minLength": 1 },
+        "record_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "redaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "reason"],
+      "properties": {
+        "field": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["class"],
+      "properties": {
+        "class": { "enum": ["progress", "warning", "failure", "complete"] },
+        "failure_class": { "type": "string" },
+        "retry_after_seconds": { "type": "integer", "minimum": 0 },
+        "partial": { "type": "boolean" },
+        "warning_count": { "type": "integer", "minimum": 0 },
+        "fact_count": { "type": "integer", "minimum": 0 },
+        "source_latency_ms": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

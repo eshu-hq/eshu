@@ -1,0 +1,73 @@
+{
+  "protocol_version": "collector-sdk/v1alpha1",
+  "state": "complete",
+  "claim": {
+    "component_id": "dev.eshu.examples.scorecard",
+    "instance_id": "scorecard-prod",
+    "collector_kind": "scorecard",
+    "source_system": "openssf_scorecard",
+    "scope": {
+      "id": "repo:github.com/eshu-hq/eshu",
+      "kind": "repository"
+    },
+    "source_run_id": "run-20260609",
+    "generation_id": "gen-20260609",
+    "work_item_id": "work-7",
+    "fencing_token": "fence-7",
+    "attempt": 1,
+    "deadline": "2026-06-09T12:00:00Z",
+    "config_handle": "secretref:scorecard-prod"
+  },
+  "generation": {
+    "id": "gen-20260609",
+    "observed_at": "2026-06-09T11:59:00Z",
+    "freshness_hint": "current"
+  },
+  "facts": [
+    {
+      "kind": "dev.eshu.examples.scorecard.snapshot",
+      "schema_version": "1.0.0",
+      "stable_key": "snapshot:github.com/eshu-hq/eshu",
+      "source_confidence": "reported",
+      "observed_at": "2026-06-09T11:59:00Z",
+      "source_ref": {
+        "source_system": "openssf_scorecard",
+        "scope_id": "repo:github.com/eshu-hq/eshu",
+        "generation_id": "gen-20260609",
+        "fact_key": "snapshot:github.com/eshu-hq/eshu",
+        "uri": "https://api.securityscorecards.dev/projects/github.com/eshu-hq/eshu",
+        "record_id": "github.com/eshu-hq/eshu"
+      },
+      "payload": {
+        "score": 8.7,
+        "checks": 12
+      }
+    },
+    {
+      "kind": "dev.eshu.examples.scorecard.snapshot",
+      "schema_version": "1.0.0",
+      "stable_key": "snapshot:github.com/eshu-hq/eshu",
+      "source_confidence": "reported",
+      "observed_at": "2026-06-09T11:59:00Z",
+      "source_ref": {
+        "source_system": "openssf_scorecard",
+        "scope_id": "repo:github.com/eshu-hq/eshu",
+        "generation_id": "gen-20260609",
+        "fact_key": "snapshot:github.com/eshu-hq/eshu",
+        "uri": "https://api.securityscorecards.dev/projects/github.com/eshu-hq/eshu",
+        "record_id": "github.com/eshu-hq/eshu"
+      },
+      "payload": {
+        "score": 2.1,
+        "checks": 12
+      }
+    }
+  ],
+  "statuses": [
+    {
+      "class": "complete",
+      "fact_count": 2,
+      "source_latency_ms": 1200
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "protocol_version": "collector-sdk/v1alpha1",
+  "state": "terminal",
+  "claim": {
+    "component_id": "dev.eshu.examples.scorecard",
+    "instance_id": "scorecard-prod",
+    "collector_kind": "scorecard",
+    "source_system": "openssf_scorecard",
+    "scope": {
+      "id": "repo:github.com/eshu-hq/eshu",
+      "kind": "repository"
+    },
+    "source_run_id": "run-20260609",
+    "generation_id": "gen-20260609",
+    "work_item_id": "work-5",
+    "fencing_token": "fence-5",
+    "attempt": 1,
+    "deadline": "2026-06-09T12:00:00Z",
+    "config_handle": "secretref:scorecard-prod"
+  },
+  "generation": {
+    "id": "gen-20260609",
+    "observed_at": "2026-06-09T11:59:00Z",
+    "freshness_hint": "terminal"
+  },
+  "statuses": [
+    {
+      "class": "failure",
+      "failure_class": "invalid_config",
+      "source_latency_ms": 50
+    }
+  ]
+}

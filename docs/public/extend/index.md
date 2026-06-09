@@ -11,6 +11,7 @@ Reducers and graph writers own canonical graph truth.
 | Need | Start here |
 | --- | --- |
 | Author or review a community extension | [Community Extension Authoring](community-extension-authoring.md) |
+| Build an out-of-tree collector with the public SDK | [Community Extension Authoring](community-extension-authoring.md#collector-sdk-compatibility) |
 | Understand package ownership | [Source Layout](../reference/source-layout.md) |
 | Author a collector | [Collector Authoring](../guides/collector-authoring.md) |
 | Design GCP or Azure runtime collection | [Multi-Cloud Runtime Collector Contract](../reference/multi-cloud-collector-contract.md) |
@@ -25,6 +26,8 @@ Reducers and graph writers own canonical graph truth.
 
 - New collectors write facts, not canonical graph rows.
 - New fact kinds need schema versions and a consumer contract.
+- Out-of-tree collector SDKs emit `collector-sdk/v1alpha1` records that a core
+  host validates before fact commit.
 - Unknown or incompatible plugin facts fail closed.
 - Parser and relationship changes need fixtures for the behavior they claim.
 - Runtime behavior changes need telemetry and a verification gate.

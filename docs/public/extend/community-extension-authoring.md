@@ -119,6 +119,34 @@ and [Fact Envelope Reference](../reference/fact-envelope-reference.md).
 Trust policy and failure behavior live in
 [Plugin Trust Model](../reference/plugin-trust-model.md).
 
+## Collector SDK Compatibility
+
+The first public collector SDK module lives at `sdk/go/collector` with Go module
+path `github.com/eshu-hq/eshu/sdk/go/collector`. It is a public compatibility
+boundary and must not import `github.com/eshu-hq/eshu/go/internal/...`.
+
+The initial SDK module semver line is `v0.1.x`. The initial wire protocol is
+`collector-sdk/v1alpha1`, and the checked-in JSON Schema artifact is
+`sdk/go/collector/schema/collector-sdk-v1alpha1.schema.json`.
+
+Use the SDK types and validator to emit:
+
+- `Claim`, `Scope`, and `Generation` records from a core-owned work item.
+- `Fact` records with declared fact kind, schema version, stable key,
+  source confidence, source reference, redacted payload, and optional tombstone.
+- `Status` and `Result` records for `complete`, `unchanged`, `partial`,
+  `retryable`, and `terminal` outcomes.
+
+`NewValidator(contract).ValidateResult(result)` fails closed before host commit
+when a result uses undeclared fact kinds, unsupported schema versions,
+`source_confidence=unknown`, mismatched source references, unsafe source URIs,
+credential-looking payload keys, unsupported tombstones, or conflicting
+duplicates. Exact duplicate facts are reported as idempotent duplicates.
+
+This SDK module does not launch extensions, validate component manifest protocol
+fields, claim workflow rows, or commit facts by itself. Those host-side
+contracts are separate implementation issues.
+
 ## Local Experimentation Versus Hosted Activation
 
 Local experimentation is allowed to be narrow and explicit:
