@@ -1,0 +1,196 @@
+package mcp
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query"
+)
+
+// summarizeServiceStory renders a bounded service-story dossier summary:
+// service name, API surface size + truncation, dependency/consumer counts, and
+// the top limitation. It reads only from the already-parsed dossier data.
+func summarizeServiceStory(data map[string]any) string {
+	if data == nil {
+		return ""
+	}
+	identity := mcpMapField(data, "service_identity")
+	apiSurface := mcpMapField(data, "api_surface")
+	limits := mcpMapField(data, "result_limits")
+
+	name := query.StringVal(identity, "service_name")
+	if name == "" {
+		name = query.StringVal(identity, "service_id")
+	}
+	if name == "" {
+		name = "service"
+	}
+
+	parts := []string{clampField(name)}
+
+	endpointCount := query.IntVal(apiSurface, "endpoint_count")
+	apiPart := fmt.Sprintf("API surface %d", endpointCount)
+	if query.BoolVal(apiSurface, "truncated") {
+		apiPart += " (truncated)"
+	}
+	parts = append(parts, apiPart)
+
+	parts = append(parts, fmt.Sprintf("deps %d", query.IntVal(limits, "upstream_count")))
+	parts = append(parts, fmt.Sprintf("consumers %d", query.IntVal(limits, "downstream_count")))
+
+	summary := strings.Join(parts, "; ")
+
+	if limitations := query.StringSliceVal(identity, "limitations"); len(limitations) > 0 {
+		summary += "; top limitation: " + clampField(limitations[0])
+		if len(limitations) > 1 {
+			summary += fmt.Sprintf(" (+%d more)", len(limitations)-1)
+		}
+	}
+	return summary
+}
+
+// summarizeServiceInvestigation renders a bounded investigation summary: finding
+// count + truncation, coverage state, and the single recommended next call.
+func summarizeServiceInvestigation(data map[string]any) string {
+	if data == nil {
+		return ""
+	}
+	name := query.StringVal(data, "service_name")
+	if name == "" {
+		name = "service"
+	}
+	findingCount := mcpSliceLen(data, "investigation_findings")
+	coverage := mcpMapField(data, "coverage_summary")
+
+	summary := fmt.Sprintf("%s — %d finding(s)", clampField(name), findingCount)
+	if query.BoolVal(coverage, "truncated") {
+		summary += " (truncated)"
+	}
+	if state := query.StringVal(coverage, "state"); state != "" {
+		summary += "; coverage " + state
+	}
+	if next := mcpFirstStringInSlice(data, "recommended_next_calls", "tool"); next != "" {
+		summary += "; next: " + clampField(next)
+	}
+	return summary
+}
+
+// summarizeIncidentContext renders a bounded incident-context summary: incident
+// title, related-change count, missing/ambiguous evidence counts, and the
+// truncation marker. Missing and ambiguous counts are surfaced so a partial
+// incident packet never reads as a clean success.
+func summarizeIncidentContext(data map[string]any) string {
+	if data == nil {
+		return ""
+	}
+	incident := mcpMapField(data, "incident")
+	title := query.StringVal(incident, "title")
+	if title == "" {
+		title = query.StringVal(incident, "provider_incident_id")
+	}
+	if title == "" {
+		title = "incident"
+	}
+
+	relatedChanges := mcpSliceLen(data, "related_changes")
+	missing := mcpSliceLen(data, "missing_evidence")
+	ambiguous := mcpSliceLen(data, "ambiguous_evidence")
+
+	summary := fmt.Sprintf("%s — %d related change(s)", clampField(title), relatedChanges)
+	summary += fmt.Sprintf("; missing evidence %d", missing)
+	summary += fmt.Sprintf("; ambiguous %d", ambiguous)
+	if query.BoolVal(data, "truncated") {
+		summary += "; truncated"
+	}
+	return summary
+}
+
+// summarizeCitationPacket renders a bounded evidence-citation summary: resolved
+// vs requested handle counts, missing count, and the truncation marker.
+func summarizeCitationPacket(data map[string]any) string {
+	if data == nil {
+		return ""
+	}
+	coverage := mcpMapField(data, "coverage")
+	if coverage == nil {
+		return ""
+	}
+	resolved := query.IntVal(coverage, "resolved_count")
+	missing := query.IntVal(coverage, "missing_count")
+	requested := query.IntVal(coverage, "input_handle_count")
+
+	summary := fmt.Sprintf("coverage: resolved %d/requested %d; missing %d", resolved, requested, missing)
+	if query.BoolVal(coverage, "truncated") {
+		summary += " (truncated)"
+	}
+	return summary
+}
+
+// summarizeIndexStatus renders an actionable index/readiness summary: the health
+// state and the leading reason, rather than an opaque object count.
+func summarizeIndexStatus(data map[string]any) string {
+	if data == nil {
+		return ""
+	}
+	state := query.StringVal(data, "status")
+	if state == "" {
+		return ""
+	}
+	summary := "index status: " + clampField(state)
+	if reasons := query.StringSliceVal(data, "reasons"); len(reasons) > 0 {
+		summary += " — " + clampField(reasons[0])
+		if len(reasons) > 1 {
+			summary += fmt.Sprintf(" (+%d more)", len(reasons)-1)
+		}
+	}
+	return summary
+}
+
+// summarizeIngesterStatus renders an actionable ingester readiness summary: the
+// ingester name, its health state, and the leading health reason.
+func summarizeIngesterStatus(data map[string]any) string {
+	if data == nil {
+		return ""
+	}
+	name := query.StringVal(data, "ingester")
+	if name == "" {
+		return ""
+	}
+	health := mcpMapField(data, "health")
+	state := query.StringVal(health, "state")
+	if state == "" {
+		state = "unknown"
+	}
+	summary := fmt.Sprintf("ingester %s: %s", clampField(name), clampField(state))
+	if reasons := query.StringSliceVal(health, "reasons"); len(reasons) > 0 {
+		summary += " — " + clampField(reasons[0])
+		if len(reasons) > 1 {
+			summary += fmt.Sprintf(" (+%d more)", len(reasons)-1)
+		}
+	}
+	return summary
+}
+
+// summarizeIngesterList renders a bounded ingester-list summary: how many
+// ingesters are registered.
+func summarizeIngesterList(data map[string]any) string {
+	if data == nil {
+		return ""
+	}
+	if _, ok := data["ingesters"]; !ok {
+		return ""
+	}
+	return fmt.Sprintf("%d ingester(s) registered", mcpSliceLen(data, "ingesters"))
+}
+
+// summarizeCollectorList renders a bounded collector-list summary: how many
+// collectors are registered.
+func summarizeCollectorList(data map[string]any) string {
+	if data == nil {
+		return ""
+	}
+	if _, ok := data["collectors"]; !ok {
+		return ""
+	}
+	return fmt.Sprintf("%d collector(s) registered", mcpSliceLen(data, "collectors"))
+}

@@ -382,7 +382,7 @@ func (s *Server) handleMessage(ctx context.Context, req *jsonrpcRequest, authHea
 				ID:      req.ID,
 				Result: mcpToolResult{
 					Content: []mcpContent{
-						{Type: "text", Text: summarizeEnvelope(result.Envelope)},
+						{Type: "text", Text: summarizeToolText(params.Name, result.Envelope)},
 						{
 							Type: "resource",
 							Resource: &mcpResource{
@@ -404,7 +404,7 @@ func (s *Server) handleMessage(ctx context.Context, req *jsonrpcRequest, authHea
 			ID:      req.ID,
 			Result: mcpToolResult{
 				Content: []mcpContent{
-					{Type: "text", Text: summarizePlainPayload(result.Value)},
+					{Type: "text", Text: summarizePlainToolText(params.Name, result.Value)},
 					{
 						Type: "resource",
 						Resource: &mcpResource{
@@ -424,38 +424,6 @@ func (s *Server) handleMessage(ctx context.Context, req *jsonrpcRequest, authHea
 	default:
 		return s.errorResponse(req.ID, -32601, fmt.Sprintf("method not found: %s", req.Method))
 	}
-}
-
-func summarizeEnvelope(envelope *query.ResponseEnvelope) string {
-	if envelope == nil {
-		return "Eshu query completed."
-	}
-	if envelope.Error != nil {
-		return envelope.Error.Message
-	}
-	if dataMap, ok := envelope.Data.(map[string]any); ok {
-		if count, ok := dataMap["count"]; ok {
-			return fmt.Sprintf("Returned %v result(s).", count)
-		}
-		if count, ok := dataMap["affected_count"]; ok {
-			return fmt.Sprintf("Found %v affected result(s).", count)
-		}
-	}
-	return "Eshu query completed."
-}
-
-func summarizePlainPayload(value any) string {
-	switch typed := value.(type) {
-	case []any:
-		return fmt.Sprintf("Returned %d result(s).", len(typed))
-	case map[string]any:
-		for _, key := range []string{"count", "total", "total_findings", "total_reconciliations", "total_correlations", "total_identities", "total_attachments"} {
-			if count, ok := typed[key]; ok {
-				return fmt.Sprintf("Returned %v result(s).", count)
-			}
-		}
-	}
-	return "Eshu query completed."
 }
 
 func (s *Server) errorResponse(id any, code int, msg string) *jsonrpcResponse {

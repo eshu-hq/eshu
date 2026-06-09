@@ -12,6 +12,13 @@ MCP results normally include a human-readable text block and a resource block
 with `mimeType: application/eshu.envelope+json`. Programmatic clients should
 read the resource block.
 
+The text block is a convenience layer for human readers, not the canonical
+contract. For story, investigation, citation, and status tools it is a
+deterministic, bounded summary of the same envelope (truth level, freshness,
+key counts, and any partial/error detail), but it is length-capped and never
+authoritative. The `structuredContent` and resource block stay byte-identical to
+the canonical envelope; only the text changes. Do not parse the text summary.
+
 Important envelope fields:
 
 | Field | Meaning |

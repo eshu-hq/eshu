@@ -124,6 +124,24 @@ For prompt automation, read `structuredContent` first. Use the resource block
 when the client wants the exact serialized payload. The text block is only a
 summary and should not be treated as the evidence-bearing response.
 
+### Text summaries are a convenience layer, not the canonical contract
+
+For story, investigation, citation, and status/readiness tools, the text block
+is a tool-aware, deterministic, bounded summary (for example: service identity
+plus truth level, freshness, API-surface size, dependency and consumer counts,
+and the top limitation for `get_service_story`; resolved-vs-requested coverage
+for `build_evidence_citation_packet`; missing and ambiguous evidence counts for
+`get_incident_context`; health state plus the leading reason for the status
+tools). These summaries surface truth, freshness, and partial/error details so a
+rich or degraded result never collapses into generic success text.
+
+The text summary is still only a convenience for human readers. It is derived
+from the same envelope, is length-capped, and is never the canonical contract.
+The `structuredContent` and the embedded resource block remain byte-identical to
+the canonical envelope the handler produced; only the text string changes.
+Clients MUST read `structuredContent` (or the resource block) for evidence and
+MUST NOT parse the text summary.
+
 ## Related Docs
 
 - [MCP Tool Contract Matrix](mcp-tool-contract-matrix.md)

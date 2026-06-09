@@ -321,6 +321,28 @@ element and sets `repo_id` rather than `repo_ids`.
   them back to text-only summaries; that breaks API/MCP parity for handlers
   that have not adopted the canonical envelope shape yet.
 
+## Text summaries
+
+`summaries.go` and `summaries_families.go` build the human-readable text block
+of `mcpToolResult`. `summarizeToolText` (envelope path) and
+`summarizePlainToolText` (plain JSON path) route by tool name to a deterministic,
+bounded summarizer for story, investigation, citation, and status/readiness
+families, and fall back to the generic `summarizeEnvelope` /
+`summarizePlainPayload` helpers for every other tool.
+
+Rules these summarizers must hold:
+
+- Read only from the already-parsed envelope/payload; never issue a new query.
+- Be pure and deterministic given the input (no maps iterated for output, no
+  time, no randomness).
+- Stay within `maxSummaryLength`; clamp every embedded field with `clampField`.
+- Lead with truth level + freshness when present; surface the error code +
+  reason for errors and the truncation + missing/ambiguous counts for partial
+  results.
+- Never mutate the structured content. The text block is a convenience layer;
+  `structuredContent` and the resource block stay byte-identical to the
+  canonical envelope. `summaries_structured_invariance_test.go` asserts this.
+
 ## Related docs
 
 - `docs/public/guides/mcp-guide.md` — client setup, tool usage, and story-first
