@@ -62,6 +62,12 @@ func TestTimeSeriesEmptyPointsWhenNoSourceConfigured(t *testing.T) {
 	if env.Truth == nil || env.Truth.Freshness.State != FreshnessUnavailable {
 		t.Fatalf("freshness = %#v, want unavailable", env.Truth)
 	}
+	if env.Truth.Freshness.Cause != FreshnessCauseMissingCollectorCompletion {
+		t.Fatalf("cause = %q, want missing_collector_completion", env.Truth.Freshness.Cause)
+	}
+	if env.Truth.Freshness.NextCheck == nil {
+		t.Fatalf("expected a freshness next check on the unavailable series")
+	}
 }
 
 func TestTimeSeriesReturnsSourcePoints(t *testing.T) {
@@ -83,6 +89,12 @@ func TestTimeSeriesReturnsSourcePoints(t *testing.T) {
 	if env.Truth.Freshness.State != FreshnessFresh {
 		t.Fatalf("freshness = %#v, want fresh", env.Truth.Freshness.State)
 	}
+	if env.Truth.Freshness.Cause != "" {
+		t.Fatalf("fresh series must carry no cause, got %q", env.Truth.Freshness.Cause)
+	}
+	if env.Truth.Freshness.NextCheck != nil {
+		t.Fatalf("fresh series must carry no next check")
+	}
 }
 
 func TestTimeSeriesEmptyHistoryIsBuildingNotError(t *testing.T) {
@@ -96,6 +108,12 @@ func TestTimeSeriesEmptyHistoryIsBuildingNotError(t *testing.T) {
 	_ = json.Unmarshal(w.Body.Bytes(), &env)
 	if env.Truth.Freshness.State != FreshnessBuilding {
 		t.Fatalf("freshness = %#v, want building for empty history", env.Truth.Freshness.State)
+	}
+	if env.Truth.Freshness.Cause != FreshnessCauseContentCoverageUnavailable {
+		t.Fatalf("cause = %q, want content_coverage_unavailable", env.Truth.Freshness.Cause)
+	}
+	if env.Truth.Freshness.NextCheck == nil {
+		t.Fatalf("expected a freshness next check on the building series")
 	}
 }
 

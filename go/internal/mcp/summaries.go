@@ -107,8 +107,10 @@ func summarizeEnvelopeError(errEnv *query.ErrorEnvelope) string {
 }
 
 // summarizeTruthPrefix renders the truth level and freshness state (plus a
-// bounded freshness detail when the state is not fresh) so every summary leads
-// with how much to trust the result. Returns "" when no truth is present.
+// bounded freshness cause or detail when the state is not fresh) so every
+// summary leads with how much to trust the result and WHY it lags. Returns ""
+// when no truth is present. The cause and detail are convenience text only; the
+// structured envelope freshness object remains canonical.
 func summarizeTruthPrefix(truth *query.TruthEnvelope) string {
 	if truth == nil {
 		return ""
@@ -119,8 +121,8 @@ func summarizeTruthPrefix(truth *query.TruthEnvelope) string {
 	case level != "" && state != "":
 		prefix := fmt.Sprintf("%s/%s", level, state)
 		if state != string(query.FreshnessFresh) {
-			if detail := strings.TrimSpace(truth.Freshness.Detail); detail != "" {
-				prefix += " (" + clampField(detail) + ")"
+			if note := freshnessNote(truth.Freshness); note != "" {
+				prefix += " (" + clampField(note) + ")"
 			}
 		}
 		return prefix
@@ -130,6 +132,23 @@ func summarizeTruthPrefix(truth *query.TruthEnvelope) string {
 		return state
 	default:
 		return ""
+	}
+}
+
+// freshnessNote renders the convenience explanation for a non-fresh freshness:
+// the proven cause when present (it is the most actionable signal), otherwise
+// the bounded detail. It reads only the already-parsed freshness and never
+// mutates structured content.
+func freshnessNote(freshness query.TruthFreshness) string {
+	cause := strings.TrimSpace(string(freshness.Cause))
+	detail := strings.TrimSpace(freshness.Detail)
+	switch {
+	case cause != "" && detail != "":
+		return "cause: " + cause + "; " + detail
+	case cause != "":
+		return "cause: " + cause
+	default:
+		return detail
 	}
 }
 

@@ -260,7 +260,10 @@ func finalizeUnsupported(packet AnswerPacket, errEnv *ErrorEnvelope) AnswerPacke
 
 // markPartial sets Partial and records the reasons when a supported answer is
 // incomplete: stale or building freshness, an unavailable backend, truncation,
-// or no resolved evidence.
+// or no resolved evidence. When the freshness carries a proven cause, the cause
+// is folded into the partial reasons and its bounded next check is surfaced as a
+// recommended next call, so the packet explains WHY the answer lags and WHERE to
+// drill in.
 func markPartial(packet *AnswerPacket, truth *TruthEnvelope, hasEvidence bool) {
 	if packet.Truncated {
 		packet.Partial = true
@@ -271,17 +274,59 @@ func markPartial(packet *AnswerPacket, truth *TruthEnvelope, hasEvidence bool) {
 	case FreshnessStale:
 		packet.Partial = true
 		packet.UnsupportedReasons = appendReason(packet.UnsupportedReasons,
-			"underlying data is stale")
+			freshnessReason("underlying data is stale", truth.Freshness.Cause))
 	case FreshnessBuilding:
 		packet.Partial = true
 		packet.UnsupportedReasons = appendReason(packet.UnsupportedReasons,
-			"underlying index is still building")
+			freshnessReason("underlying index is still building", truth.Freshness.Cause))
 	}
+	surfaceFreshnessNextCheck(packet, truth.Freshness)
 	if !hasEvidence {
 		packet.Partial = true
 		packet.UnsupportedReasons = appendReason(packet.UnsupportedReasons,
 			"no supporting evidence resolved for this question")
 	}
+}
+
+// freshnessReason augments a base freshness reason with a proven cause when one
+// is present, keeping the base text intact when the cause is unset. It never
+// invents a cause; an empty or invalid cause leaves the base reason unchanged.
+func freshnessReason(base string, cause FreshnessCause) string {
+	if !ValidFreshnessCause(cause) {
+		return base
+	}
+	return fmt.Sprintf("%s (cause: %s)", base, cause)
+}
+
+// surfaceFreshnessNextCheck appends the freshness next check to the packet's
+// recommended next calls when the freshness carries a proven cause and check. It
+// de-duplicates against existing calls so a citation-derived call and a
+// freshness drilldown do not collide.
+func surfaceFreshnessNextCheck(packet *AnswerPacket, freshness TruthFreshness) {
+	if !ValidFreshnessCause(freshness.Cause) || freshness.NextCheck == nil {
+		return
+	}
+	call := freshness.NextCheck.asRecommendedNextCall()
+	if len(call) == 0 {
+		return
+	}
+	for _, existing := range packet.RecommendedNextCalls {
+		if recommendedCallsEqual(existing, call) {
+			return
+		}
+	}
+	packet.RecommendedNextCalls = append(packet.RecommendedNextCalls, call)
+}
+
+// recommendedCallsEqual compares two recommended-next-call maps by their tool,
+// route, and reason so a freshness drilldown is not appended twice.
+func recommendedCallsEqual(a, b map[string]any) bool {
+	for _, key := range []string{"tool", "route", "reason"} {
+		if fmt.Sprintf("%v", a[key]) != fmt.Sprintf("%v", b[key]) {
+			return false
+		}
+	}
+	return true
 }
 
 func envelopeError(env *ResponseEnvelope) *ErrorEnvelope {
