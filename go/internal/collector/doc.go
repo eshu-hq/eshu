@@ -14,11 +14,11 @@
 // emitted for the Terraform-state collector path to approve and read.
 // Repository-hosted Markdown, lightweight text, HTML, API contracts, notebook
 // narrative, conservative delimited spreadsheet files, and deterministic
-// Mermaid/D2 text diagrams become source-neutral documentation facts. Prose
-// surfaces may emit non-authoritative document-evidence claim candidates, but
-// API contract operations, schemas, channels, GraphQL SDL fields, and
-// text-diagram labels or links remain documentation evidence; they do not prove
-// service ownership.
+// Mermaid/D2 text diagrams plus structured PlantUML, Draw.io, Excalidraw, and
+// SVG diagrams become source-neutral documentation facts. Prose surfaces may
+// emit non-authoritative document-evidence claim candidates, but API contract
+// operations, schemas, channels, GraphQL SDL fields, and diagram labels or
+// links remain documentation evidence; they do not prove service ownership.
 // Notebook code-cell source remains parser evidence; Markdown cells, raw cells,
 // and selected stdout/text outputs are the only notebook content that enters
 // the documentation lane. Declared Grafana, Prometheus/Mimir, Loki, and Tempo
