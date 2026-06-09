@@ -356,18 +356,22 @@ activation config paths, or community-index membership as trust.
   `VisualizationMaxNodes`, `VisualizationMaxEdges`,
   `BuildServiceStoryVisualizationPacket`,
   `BuildEvidenceCitationVisualizationPacket`,
-  `BuildIncidentContextVisualizationPacket` — compact, bounded, derived subgraph
-  views over existing story, evidence-citation, and incident-context responses
-  (`visualization_packet.go`, `visualization_packet_story.go`,
-  `visualization_packet_evidence.go`). Each builder is a pure transformation of
-  data the caller already received: it performs no graph access, derives stable
-  node/edge IDs from the underlying entity/handle identity (never iteration
-  order), sorts by stable ID, enforces node/edge bounds with explicit
-  truncation, copies the source `TruthEnvelope`, reuses the `evidence_citation`
-  handle shape so a node maps back to a citation, and returns an explicit
-  unsupported packet with `recommended_next_calls` rather than erroring. Normal
-  visualization flows need no raw Cypher. Route/MCP wiring is follow-up work.
-  See `docs/public/reference/visualization-packets.md`.
+  `BuildEvidenceCitationVisualizationPacketFromMap`,
+  `BuildIncidentContextVisualizationPacket`, and
+  `BuildIncidentContextVisualizationPacketFromMap` — compact, bounded, derived
+  subgraph views over existing story, evidence-citation, and incident-context
+  responses (`visualization_packet.go`, `visualization_packet_story.go`,
+  `visualization_packet_evidence.go`, `visualization_packet_decode.go`). Each
+  builder is a pure transformation of data the caller already received: it
+  performs no graph access, derives stable node/edge IDs from the underlying
+  entity/handle identity (never iteration order), sorts by stable ID, enforces
+  node/edge bounds with explicit truncation, copies the source `TruthEnvelope`,
+  reuses the `evidence_citation` handle shape so a node maps back to a
+  citation, and returns an explicit unsupported packet with
+  `recommended_next_calls` rather than erroring. The `FromMap` adapters decode
+  canonical HTTP/MCP/CLI JSON maps into the same builders; they do not add a new
+  data source. Normal visualization flows need no raw Cypher. Route/MCP wiring
+  is follow-up work. See `docs/public/reference/visualization-packets.md`.
 
 **Handler helpers**
 
