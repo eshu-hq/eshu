@@ -148,6 +148,7 @@ nav:
       - MCP Reference: reference/mcp-reference.md
       - MCP Cookbook: reference/mcp-cookbook.md
     - CLI Reference: reference/cli-reference.md
+    - First-Run Evidence: reference/first-run-evidence.md
     - CLI Indexing: reference/cli-indexing.md
     - CLI Analysis: reference/cli-analysis.md
     - CLI System: reference/cli-system.md
