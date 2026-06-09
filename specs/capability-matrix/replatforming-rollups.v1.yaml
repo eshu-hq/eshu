@@ -1,0 +1,21 @@
+version: v1
+updated_at: 2026-06-09
+owners:
+  - platform-engineering
+# Provider-neutral replatforming drift and readiness rollup capability. The
+# rollup aggregates active AWS runtime drift and IaC findings by account,
+# environment, and service over the source-state taxonomy in
+# docs/public/reference/replatforming-source-state-taxonomy.md, plus an
+# import-readiness view. This fragment is intentionally separate from
+# replatforming.v1.yaml to avoid conflicts with parallel work. It MUST stay in
+# sync with the Go capability row in
+# go/internal/query/contract_replatforming_rollups.go.
+capabilities:
+  - capability: replatforming.rollups.readiness
+    tools:
+      - get_replatforming_rollups
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: account_environment_or_service, verification: [{integration_test: local-lightweight-unsupported-replatforming-rollups}], notes: requires reducer-materialized drift and IaC evidence; lightweight local cannot serve a provider-neutral readiness rollup and must return unsupported_capability}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: account_environment_or_service, verification: [{go_test: ./internal/query}], notes: bounded drift and readiness rollup by account, environment, and service over the source-state taxonomy; preserves per-item source state and counts ambiguous or missing attribution in explicit buckets}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 5000, max_scope_size: account_environment_or_service, verification: [{go_test: ./internal/query}], notes: bounded drift and readiness rollup by account, environment, and service over the source-state taxonomy; preserves per-item source state and counts ambiguous or missing attribution in explicit buckets}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: account_environment_or_service, verification: [{remote_validation: prod-replatforming-rollups}], notes: bounded drift and readiness rollup by account, environment, and service over the source-state taxonomy; preserves per-item source state and counts ambiguous or missing attribution in explicit buckets}

@@ -110,6 +110,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `explain_iac_management_status` | POST | `/api/v0/iac/management-status/explain` |
 | `propose_terraform_import_plan` | POST | `/api/v0/iac/terraform-import-plan/candidates` |
 | `list_aws_runtime_drift_findings` | POST | `/api/v0/aws/runtime-drift/findings` |
+| `get_replatforming_rollups` | POST | `/api/v0/replatforming/rollups` |
 | `get_relationship_evidence` | GET | `/api/v0/evidence/relationships/{resolved_id}` |
 | `build_evidence_citation_packet` | POST | `/api/v0/evidence/citations` |
 | `list_package_registry_packages` | GET | `/api/v0/package-registry/packages` |

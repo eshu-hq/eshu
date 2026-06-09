@@ -255,6 +255,8 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		return &route{method: "POST", path: "/api/v0/iac/terraform-import-plan/candidates", body: terraformImportPlanBody(args)}, nil
 	case "list_aws_runtime_drift_findings":
 		return &route{method: "POST", path: "/api/v0/aws/runtime-drift/findings", body: awsRuntimeDriftFindingsBody(args)}, nil
+	case "get_replatforming_rollups":
+		return &route{method: "POST", path: "/api/v0/replatforming/rollups", body: replatformingRollupsBody(args)}, nil
 	case "calculate_cyclomatic_complexity":
 		return &route{method: "POST", path: "/api/v0/code/complexity", body: map[string]any{
 			"function_name": str(args, "function_name"), "repo_id": str(args, "repo_id"),

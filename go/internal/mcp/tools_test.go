@@ -8,7 +8,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 111
+	expectedCount := 112
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -45,6 +45,7 @@ func TestReadOnlyTools(t *testing.T) {
 		"explain_iac_management_status",
 		"propose_terraform_import_plan",
 		"list_aws_runtime_drift_findings",
+		"get_replatforming_rollups",
 		"get_ecosystem_overview",
 		"get_relationship_evidence",
 		"build_evidence_citation_packet",
@@ -185,8 +186,8 @@ func stringSliceContains(values []string, want string) bool {
 
 func TestCodebaseTools(t *testing.T) {
 	tools := codebaseTools()
-	if len(tools) != 27 {
-		t.Errorf("Expected 27 codebase tools, got %d", len(tools))
+	if len(tools) != 28 {
+		t.Errorf("Expected 28 codebase tools, got %d", len(tools))
 	}
 }
 

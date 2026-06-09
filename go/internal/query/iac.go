@@ -47,6 +47,7 @@ func (h *IaCHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/iac/management-status/explain", h.handleIaCManagementExplanation)
 	mux.HandleFunc("POST /api/v0/iac/terraform-import-plan/candidates", h.handleTerraformImportPlanCandidates)
 	mux.HandleFunc("POST /api/v0/aws/runtime-drift/findings", h.handleAWSRuntimeDriftFindings)
+	mux.HandleFunc("POST /api/v0/replatforming/rollups", h.handleReplatformingRollups)
 }
 
 func (h *IaCHandler) profile() QueryProfile {
