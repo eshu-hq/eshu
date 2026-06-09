@@ -150,6 +150,7 @@ require (
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/eshu-hq/eshu/sdk/go/collector v0.0.0
 	github.com/fergusstrange/embedded-postgres v1.34.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/hashicorp/hcl/v2 v2.24.0
@@ -360,3 +361,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
+
+replace github.com/eshu-hq/eshu/sdk/go/collector => ../sdk/go/collector

@@ -148,6 +148,19 @@ This SDK module does not launch extensions, validate component manifest protocol
 fields, claim workflow rows, or commit facts by itself. Those host-side
 contracts are separate implementation issues.
 
+The core host adapter lives in `go/internal/collector/extensionhost`. It is a
+claim-aware intake adapter, not a plugin API: core builds a bounded JSON
+claim/config/contract request, launches a host-provided runner such as the local
+process harness, validates the returned SDK result, maps accepted facts to
+internal envelopes, and then lets `collector.ClaimedService` commit or mutate
+the workflow claim under the existing fence. Extensions never receive direct
+Postgres, graph, reducer, API, MCP, or workflow-control handles.
+
+The first host adapter path proves local process execution and validation. It
+does not make hosted OCI activation, provenance verification, Helm defaults, or
+remote Compose rollout complete; those remain gated by the follow-up extension
+conformance, reference package, and remote proof issues.
+
 ## Local Experimentation Versus Hosted Activation
 
 Local experimentation is allowed to be narrow and explicit:
