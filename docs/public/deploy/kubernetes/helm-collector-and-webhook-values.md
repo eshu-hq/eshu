@@ -23,6 +23,12 @@ intake. Runtime ownership lives in
 
 Direct collectors render from their own enabled block and required target
 values. Claim-driven collectors also require active workflow coordination.
+Future community extension collectors must also pass the
+[Hosted Extension Operator Policy](../../operate/hosted-extension-policy.md)
+before an enabled component becomes claim-capable. The current chart does not
+consume a generic hosted extension policy block yet; until #1820 and #1922
+land, use the built-in collector values on this page and keep extension policy
+snippets as review guidance only.
 
 ## Claim-Driven Contract
 
