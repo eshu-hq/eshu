@@ -45,7 +45,7 @@ func extractWordDocumentation(
 	)
 	recordOOXMLPreflightMetadata(document.SourceMetadata, preflight)
 	addDocumentationWarnings(document.SourceMetadata, ooxmlPreflightWarnings(preflight)...)
-	if err != nil || !preflight.Safe {
+	if err != nil || ooxmlPreflightBlocksExtraction(preflight) {
 		return document, nil, nil
 	}
 	word, warnings, err := parseDOCXDocument(body)

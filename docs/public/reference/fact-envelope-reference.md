@@ -105,27 +105,26 @@ Payloads must not contain raw provider keys, prompt payloads, bearer tokens,
 secret values, or private provider responses.
 
 Repository-hosted documentation ingestion is part of Git collection. It emits
-source-neutral documentation source, document, section, and link facts for
-Markdown (`.md`, `.mdx`, `.markdown`), lightweight text (`.txt`, `.rst`,
-`.adoc`, `.asciidoc`, `.qmd`), HTML (`.html`, `.htm`), notebook narrative
-(`.ipynb`), bounded DOCX summaries, conservative delimited spreadsheet (`.csv`,
-`.tsv`), bounded XLSX workbook summaries, and bounded PPTX slide summaries under
-the repository scope and attaches a repository `linked_entities` target
-reference for repository-scoped readback. DOCX sections contain bounded heading,
-paragraph, and table text; comments and tracked changes stay metadata-only.
-Spreadsheet sections contain headers, row/column/sample counts, bounded row
-samples, truncation warnings, formula hashes, and redacted sensitive-looking
-cells rather than full table dumps. Hidden XLSX sheets stay metadata-only, and
-legacy `.xls` files emit unsupported warning metadata without reading cell
-bytes. PPTX sections contain visible slide title, body, and table text; hidden
-slides, speaker notes, comments, embedded objects, and external relationships
-stay metadata-only.
+source-neutral documentation facts for Markdown, lightweight text, HTML,
+notebook narrative, DOCX, CSV/TSV, XLSX, PPTX, and ZIP documentation packets
+under the repository scope with repository `linked_entities` targets for
+scoped readback. DOCX sections contain bounded heading, paragraph, and table text;
+comments and tracked changes stay metadata-only.
+Spreadsheet sections contain headers, row/column/sample counts, bounded samples,
+truncation warnings, formula hashes, and redacted sensitive-looking cells. Hidden
+XLSX sheets and legacy `.xls` cell bytes stay metadata-only. PPTX sections contain
+visible slide title, body, and table text; hidden slides, notes, comments,
+embedded objects, and external relationships stay metadata-only.
+ZIP packets emit one outer `documentation_document` plus contained facts for allowed members.
+Contained facts use `archive.zip!/member` identities and archive member metadata; `SourceRef`
+still points at the outer archive. Tar formats, unsafe paths, symlinks, special files,
+nested archives, credential-looking members, unsupported formats, resource limits, and
+compression-ratio hazards are warning metadata, not extracted content.
 Deterministic `doctruth` extraction may add entity-mention and claim-candidate
 facts from bounded sections, but those claims remain `document_evidence` only.
-Reducers and query surfaces decide whether later findings or drift evidence are
-admissible. Local `eshu docs verify` is separate: it actively checks local
-Markdown claims against caller-supplied truth sources and emits findings or
-evidence packets rather than ingesting repository documentation.
+Reducers and query surfaces decide later findings or drift evidence. Local
+`eshu docs verify` checks local Markdown claims against caller-supplied truth
+sources and emits findings or evidence packets instead of ingesting docs.
 
 S3 bucket posture facts are metadata-only AWS collector evidence.
 `s3_external_principal_grant` carries public, cross-account, AWS service, and

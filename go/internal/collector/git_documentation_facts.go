@@ -160,6 +160,21 @@ func gitDocumentationEnvelopesForContentFile(
 	if !ok {
 		return nil, false
 	}
+	if format.format == "zip" {
+		return gitDocumentationArchiveEnvelopes(
+			ctx,
+			repoPath,
+			repo,
+			scopeID,
+			generationID,
+			observedAt,
+			sourceURI,
+			digest,
+			commitSHA,
+			body,
+			emitSource,
+		), emitSource
+	}
 	document, sections, links := extractGitDocumentation(ctx, repo, sourceURI, digest, commitSHA, body, format)
 	out := make([]facts.Envelope, 0, 1+1+len(sections)+len(links))
 	if emitSource {
@@ -309,6 +324,9 @@ func documentationReadLimitBytes(format gitDocumentationFormat) int {
 	}
 	if format.format == "docx" || format.format == "xlsx" || format.format == "pptx" {
 		return 50 << 20
+	}
+	if format.format == "zip" {
+		return 100 << 20
 	}
 	return documentationMaxBodyBytes
 }
