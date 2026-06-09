@@ -1,0 +1,19 @@
+{
+  "collector_instance_id": "gcp-instance-smoke",
+  "poll_interval": "15m",
+  "scopes": [
+    {
+      "parent_scope_kind": "project",
+      "parent_scope_id": "my-project",
+      "asset_type_family": "mixed",
+      "content_family": "resource",
+      "location_bucket": "global",
+      "fencing_token": 7,
+      "credential_ref": "gcp-readonly-sa",
+      "page_files": [
+        "testdata/assets_list_page1.json",
+        "testdata/assets_list_page2.json"
+      ]
+    }
+  ]
+}

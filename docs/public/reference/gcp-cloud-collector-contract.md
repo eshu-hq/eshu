@@ -19,11 +19,20 @@ builder, generation accumulator with fencing, and scoped telemetry instruments
 (`go/internal/collector/gcpcloud`). This slice is fixture-driven and makes no
 live Google Cloud calls.
 
-The rest of this contract remains design-only. Do not add
-`eshu-collector-gcp-cloud`, Helm values, environment variables,
-collector-instance examples, or query claims until later implementation PRs
-prove the claim-driven runtime, reducer path, and chart path. The tag, IAM,
-relationship, DNS, and image-reference fact families are not yet implemented.
+The second slice adds fixture-driven runtime scaffolding: a `collector.Source`
+implementation (`go/internal/collector/gcpcloud/gcpruntime`) that drains Cloud
+Asset Inventory pages through a `PageProvider` seam, fences generations, emits
+the scoped telemetry, and a `cmd/collector-gcp-cloud` binary that wires the
+source and a status-recording committer from a declarative offline config. The
+live Cloud Asset Inventory transport is the documented, unimplemented,
+unwired `gcpruntime.LiveClient` seam; no code or test makes a live Google Cloud
+call.
+
+The rest of this contract remains design-only. Do not add Helm values,
+environment variables, chart claims, reducer admission, or API/MCP readback
+until later implementation PRs prove the reducer path and chart path. The tag,
+IAM, relationship, DNS, and image-reference fact families are not yet
+implemented.
 
 The first implementation slice must be fixture-testable without live Google
 Cloud access. Live smoke tests are promotion proof, not the minimum proof for
@@ -202,3 +211,68 @@ Observability change: the first slice adds the `gcp_cloud_resource` and
 series listed under [Telemetry](#telemetry)
 (`eshu_dp_gcp_cloud_*`). It does not add chart values, environment variables, or
 a runtime binary; those remain deferred.
+
+## Runtime Scaffolding Evidence
+
+This evidence covers the second slice: the `gcpruntime` source and the
+`collector-gcp-cloud` binary. These are hot-path collector files, so they carry
+tracked performance and observability evidence here.
+
+Collector Performance Evidence: see the No-Regression Evidence block below.
+
+Collector Observability Evidence: see the Observability Evidence block below.
+
+Collector Deployment Evidence: this slice adds no Helm chart values, no
+ServiceMonitor, and no environment-variable contract. The binary is
+fixture-driven scaffolding launched with `-config` and `-redaction-key-file`
+file paths only. Deployment, chart, and ServiceMonitor wiring are explicitly
+deferred to a later slice once the reducer path exists, per the Status section
+above. No deployment surface changes in this PR.
+
+No-Observability-Change: this slice wires the existing scoped GCP collector
+instruments registered in the first slice
+(`eshu_dp_gcp_cloud_claims_total`, `eshu_dp_gcp_cloud_pages_total`,
+`eshu_dp_gcp_cloud_page_token_resumes_total`,
+`eshu_dp_gcp_cloud_facts_emitted_total`, `eshu_dp_gcp_cloud_warnings_total`,
+`eshu_dp_gcp_cloud_freshness_lag_seconds`). It registers no new metric series,
+adds no new label keys, and changes no telemetry contract; it only records the
+already-defined series from the new runtime path with the existing bounded
+enum labels.
+
+No-Regression Evidence:
+
+- Baseline: before this slice there was no GCP collector runtime; the source
+  path did not exist, so the comparison is against the empty/no-runtime
+  baseline and against the AWS collector source shape this mirrors.
+- After: `go test ./internal/collector/gcpcloud/gcpruntime/...
+  ./cmd/collector-gcp-cloud/... ./internal/collector/gcpcloud/...
+  ./internal/facts/... -count=1` passes.
+- Backend/version: no graph or database backend is exercised. The source builds
+  facts in memory through the fixture `PageProvider`; the binary commits through
+  the existing `postgres.IngestionStore` unchanged by this slice.
+- Input shape: two-page `assets.list` fixtures (three resources) per scope, plus
+  stale-generation, dangling-page-token, multi-scope, and empty-scope cases.
+- Terminal counts: one `CollectedGeneration` per configured scope; three
+  `gcp_cloud_resource` facts for the two-page fixture; one
+  `gcp_collection_warning` for the stale and page-token-expired cases; zero
+  facts emitted for a fenced-out stale generation beyond its single warning.
+- Telemetry/log/status evidence: see the observability evidence below.
+- Why safe: the source is single-goroutine per `collector.Service`, reuses the
+  existing fixture-tested `Generation`/`GenerationTracker` dedupe and fencing,
+  performs no live call, and adds no new database query, Cypher, lease, or
+  concurrent writer. Pagination resumes strictly by continuation token, so an
+  expired token degrades to a durable partial warning rather than truncation.
+
+Observability Evidence:
+
+- The source records the existing scoped `eshu_dp_gcp_cloud_*` instruments
+  (claims, pages, page-token resumes, facts emitted, warnings, freshness lag)
+  through `gcpcloud.Metrics`. Every label is a bounded enum: collector kind,
+  claim status, parent scope kind, fact kind, warning kind, and outcome.
+- The status committer records `eshu_dp_gcp_cloud_claims_total` with
+  `status=succeeded` or `status=failed` on commit outcome.
+- One structured log line per committed scope reports bounded counts only
+  (page, resource, and warning counts plus the scope id and bounded families).
+  No instrument or log field carries a resource name, project id, label value,
+  IAM member, URL, or credential name. Credentials are referenced by name only
+  and the redaction key is never logged.
