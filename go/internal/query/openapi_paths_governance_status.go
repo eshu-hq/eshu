@@ -27,7 +27,20 @@ const openAPIPathsGovernanceStatus = `
                     "extensions": {"type": "object"},
                     "redaction": {"type": "object"},
                     "retention": {"type": "object"},
-                    "audit": {"type": "object"},
+                    "audit": {
+                      "type": "object",
+                      "properties": {
+                        "state": {"type": "string"},
+                        "event_count": {"type": "integer", "minimum": 0},
+                        "denied_decision_count": {"type": "integer", "minimum": 0},
+                        "unavailable_decision_count": {"type": "integer", "minimum": 0},
+                        "event_type_count": {"type": "integer", "minimum": 0},
+                        "actor_class_count": {"type": "integer", "minimum": 0},
+                        "scope_class_count": {"type": "integer", "minimum": 0},
+                        "reason_count": {"type": "integer", "minimum": 0},
+                        "acl_state_count": {"type": "integer", "minimum": 0}
+                      }
+                    },
                     "aggregates": {"type": "object"},
                     "reasons": {"type": "array", "items": {"type": "string"}},
                     "supported_modes": {"type": "array", "items": {"type": "string"}},

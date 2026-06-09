@@ -449,13 +449,14 @@ documentation fact routes remain unaffected.
 Hosted governance status is also a runtime status projection. `GET
 /api/v0/status/governance` reports only redacted governance mode, policy state,
 source kind, optional policy revision hash, readiness booleans, aggregate
-counts, and low-cardinality reason codes. It derives explicit runtime readback
-from `ESHU_GOVERNANCE_*` settings plus semantic aggregate status; it must not
-emit raw policy JSON, tenant or workspace identifiers, repository or source
-identifiers, credential handles, provider endpoints, prompts, provider
-responses, local paths, or token values. The route uses capability
-`hosted_governance.status` and shares its handler with MCP
-`get_hosted_governance_status`.
+counts, and low-cardinality reason codes. Its `audit` section reports event,
+denied, unavailable, event-type, actor-class, scope-class, reason, and ACL-state
+counts only. It derives explicit runtime readback from `ESHU_GOVERNANCE_*`
+settings plus semantic aggregate status; it must not emit raw policy JSON,
+tenant or workspace identifiers, repository or source identifiers, credential
+handles, provider endpoints, prompts, provider responses, local paths, or token
+values. The route uses capability `hosted_governance.status` and shares its
+handler with MCP `get_hosted_governance_status`.
 
 ## Telemetry
 

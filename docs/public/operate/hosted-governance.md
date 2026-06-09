@@ -265,6 +265,51 @@ helm lint ./deploy/helm/eshu -f values.hosted-governance.yaml
 4. Re-run status checks and keep the failed policy body in private operator
    storage, not public docs or issue comments.
 
+### Governance Audit Review
+
+1. Check `/api/v0/status/governance` or `get_hosted_governance_status`.
+2. Review aggregate audit event, denied decision, unavailable decision,
+   event-type, actor-class, scope-class, reason, and ACL-state counts.
+3. Use the private audit sink for event bodies only after confirming the
+   operator is authorized for that scope.
+4. Keep detailed audit searches bounded by actor class, scope class, decision,
+   reason code, and a narrow time window. Do not search by raw names, paths,
+   URLs, document titles, prompts, or credential handles.
+5. Retain detailed event bodies only in the private audit sink for the hosted
+   policy retention window. Status and MCP surfaces keep aggregate counts only.
+6. Keep actor identifiers, tenant names, repository names, source identifiers,
+   prompts, provider responses, credential handles, private URLs, and token
+   values out of tickets.
+
+### Denied Read Investigation
+
+1. Check `/api/v0/status/governance` or `get_hosted_governance_status`.
+2. Confirm `audit.denied_decision_count` increased and review
+   `audit.actor_class_count`, `audit.scope_class_count`, and
+   `audit.reason_count`.
+3. Query the private audit sink by `event_type=read_authorization`,
+   `decision=denied`, actor class, scope class, reason code, and time window.
+4. If the reason is `subject_scope_missing`, verify the scoped token or service
+   principal policy against the intended low-cardinality scope class.
+5. Put only the event type, actor class, scope class, decision, reason code,
+   correlation id, and timestamp in the ticket.
+
+### Blocked Semantic Egress Audit
+
+1. Check `/api/v0/status/governance` and `/api/v0/status/semantic-extraction`.
+2. Confirm `audit.unavailable_decision_count` or
+   `aggregates.denied_decision_count` increased.
+3. Query the private audit sink by
+   `event_type=semantic_policy_decision`, `decision=denied` or
+   `decision=unavailable`, actor class, source-class scope, reason code, and
+   time window.
+4. If the reason is `egress_policy_missing`, verify that the provider profile,
+   source class, redaction posture, retention posture, and budget posture are
+   configured before enabling egress.
+5. Put only safe classes and reason codes in the ticket; keep prompts, provider
+   responses, source identifiers, provider endpoints, and credential handles in
+   private operator storage.
+
 ### Redaction Regression
 
 1. Check the affected surface in
@@ -336,6 +381,7 @@ Use these gates for hosted governance-related changes:
 | Hosted API/MCP auth, Secret refs, pprof, or docs exposure posture | `scripts/test-verify-hosted-security-posture.sh`, `scripts/verify-hosted-security-posture.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml`. |
 | Hosted NetworkPolicy egress posture | `scripts/test-verify-hosted-network-policy-egress.sh`, `scripts/verify-hosted-network-policy-egress.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml`. |
 | Hosted retention or deletion policy docs | Strict MkDocs build and `git diff --check`; runtime implementation must add focused deletion, tombstone, stale-read, and graph-rebuild tests. |
+| Hosted governance audit events or readbacks | `go test ./internal/governanceaudit ./internal/query -count=1`, package-doc gates, and strict MkDocs build. |
 | Hosted onboarding or setup CLI | `go test ./cmd/eshu -count=1`. |
 | API/MCP status surfaces | `go test ./internal/query ./internal/mcp ./cmd/api -count=1`. |
 | Semantic extraction status or queue readbacks | `go test ./internal/semanticqueue ./internal/storage/postgres ./internal/status ./internal/query ./internal/telemetry -count=1`. |

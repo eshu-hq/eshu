@@ -85,6 +85,16 @@ The governance status report composes explicit runtime readback from
 `mode`, `state`, `source_kind`, optional `policy_revision_hash`, readiness
 booleans, `identity`, `tenancy`, `egress`, `semantic`, `extensions`,
 `redaction`, `retention`, `audit`, aggregate counts, and bounded reason codes.
+The `audit` section reports only event, denied, unavailable, event-type,
+actor-class, scope-class, reason, and ACL-state counts.
+Detailed audit event search is intentionally private until a dedicated query
+surface lands. Operators must bound private audit sink searches by event type,
+actor class, scope class, decision, reason code, correlation id, and a narrow
+time window; raw actor names, tenant names, workspace names, repository paths,
+document titles, provider endpoints, prompts, provider responses, credential
+handles, and tokens are not valid query or ticket fields. Detailed event bodies
+follow the hosted policy retention window in the private audit sink; status and
+MCP readbacks retain aggregate counts only.
 Local development without governance config reports `local_no_policy` and
 `policy_not_configured`; hosted deployments can report `disabled`, `partial`,
 `enforcing`, `stale`, or `invalid` without exposing policy bodies. The route
@@ -92,6 +102,13 @@ must not expose raw policy JSON, tenant or workspace identifiers, repository or
 source identifiers, credential handles, provider endpoints, prompt text,
 provider responses, private paths, or token values. The MCP equivalent is
 `get_hosted_governance_status`.
+
+No-Regression Evidence: `go test ./internal/governanceaudit ./internal/query -run 'Test(NormalizeEvent|Aggregate|GovernanceStatus)' -count=1` proves hosted governance audit events reject unsafe values without echoing them, aggregate only bounded classes, and expose audit counts through the governance status route.
+
+Observability Evidence: hosted governance audit readbacks reuse
+`/api/v0/status/governance`, MCP `get_hosted_governance_status`, and the
+existing governance `audit` section; no new metric, span, log, queue, graph, or
+storage signal is introduced by this contract slice.
 
 The index status payload includes `aws_materialization`, an aggregate reducer
 queue summary for AWS graph/read-model materialization domains. It separates
