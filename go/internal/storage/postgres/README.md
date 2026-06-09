@@ -77,51 +77,28 @@ High-signal invariants for this package:
   unleased older-generation reducer rows once the same scope has a newer active
   generation, and status/drain/observer reads exclude those inactive rows from
   live readiness while preserving the durable work item for audit history.
-- Workflow, AWS pagination, AWS scan-status, webhook, and incident freshness
-  stores use fencing or coalescing keys so stale workers or replayed deliveries
-  cannot overwrite newer durable truth.
+- Workflow, AWS pagination, AWS scan-status, webhook, incident freshness, and
+  hosted tenant/workspace grant stores use fencing, coalescing, or idempotent
+  conflict keys so stale workers or replayed deliveries cannot overwrite newer
+  durable truth.
+- Tenant/workspace grant storage is additive: it persists opaque tenant and
+  workspace IDs, redacted display-handle hashes, scope grants, and repository
+  grants without changing current API, MCP, graph, collector, or workflow
+  enforcement. Active reads require one tenant/workspace boundary and apply
+  status, tombstone, effective-at, expiry, subject-class, and scope-grant
+  predicates inside SQL before returning rows.
 - Documentation fact readbacks stay bounded by visible finding/source/packet
   indexes plus `fact_records_documentation_target_refs_idx`, a partial JSONB GIN
   index over documentation target-reference payloads.
 
-No-Regression Evidence: `go test ./internal/storage/postgres -run 'TestReadWorkflowCoordinatorRecentFailures' -count=1` covers `readWorkflowCoordinatorRecentFailures`, a single windowed read that counts failed workflow runs, blocked completeness, and `failed_terminal`/`expired` work items whose `updated_at` is within the default 30m window. Each subquery is served by the existing `(status, updated_at DESC)` indexes on `workflow_runs`, `workflow_run_completeness`, and `workflow_work_items`; it adds one bounded status-count read per status snapshot (no scan, no join, no graph write). `go test ./internal/storage/postgres ./internal/status -count=1` passed.
+Recent no-regression and observability notes that do not belong in the package
+orientation flow live in [`evidence-notes.md`](evidence-notes.md).
 
-Observability Evidence: the windowed counts surface on the coordinator status payload as `recent_failures` and through the new `eshu_runtime_coordinator_recent_failed_runs`, `eshu_runtime_coordinator_recent_blocked_completeness`, `eshu_runtime_coordinator_recent_terminal_work_items`, and `eshu_runtime_coordinator_recent_failure_window_seconds` gauges (service_name label only), so an operator can see which recent failures kept the degraded indicator red. The Postgres instrumentation wrapper still emits `eshu_dp_postgres_query_duration_seconds{store=...,operation=...}` for the read.
+No-Regression Evidence: `go test ./internal/storage/postgres -run 'Test(BootstrapDefinitionsIncludeTenantWorkspaceGrants|TenantWorkspaceGrantStore)' -count=1` failed before #2047, then passed after adding the tenant/workspace grant schema, idempotent upserts, active bounded reads, and privacy guardrails.
 
-No-Regression Evidence: `go test ./internal/storage/postgres -run 'Test(StatusQueriesExcludeInactiveReducerGenerationsFromLiveReadiness|ReducerQueue(Claim|BatchClaim)SupersedesInactiveGenerationReducerWork|ReducerGraphDrainHasActiveReducerGraphWork|ReducerQueueBlockagesReportAWSRelationshipReadinessWait|QueueObserverQueriesExcludeInactiveReducerGenerations)' -count=1` failed before status/drain/observer predicates joined active scope generation truth, then passed after stale unleased inactive-generation reducer rows were superseded or excluded from live readiness. `go test ./internal/storage/postgres -count=1` passed with the proof-domain harness updated for the audit-total queue snapshot.
-
-No-Observability-Change: existing status fields (`queue`, `domain_backlogs`, `queue_blockages`, `latest_failure`) and queue observer gauges still expose pending, retrying, failed, dead-letter, in-flight, and overdue current-generation work; the Postgres instrumentation wrapper still emits `eshu_dp_postgres_query_duration_seconds{store=...,operation=...}` for these reads and claims.
-
-No-Regression Evidence: `go test ./internal/storage/postgres -run 'TestReducerQueueClaimGatesIAMPermissionMaterializationOnCanonicalCloudResourceReadiness|TestReducerQueueBlockagesReportIAMPermissionReadinessWait|TestReducerQueueBlockagesExposeDistinctDomainBlockedCount' -count=1` failed before the reducer claim and blockage SQL included `iam_escalation_materialization` and `iam_can_perform_materialization` in the CloudResource readiness-gated domain set, then passed once those IAM edge domains stayed unclaimed until `cloud_resource_uid/canonical_nodes_committed` was present, surfaced the missing prerequisite as a readiness blockage, and reported distinct domain blocked work-item counts separately from per-prerequisite rows.
-
-No-Observability-Change: the change adds no table, worker, retry policy, metric name, metric label, graph write, or worker-count change. Operators diagnose the path through the existing reducer queue status fields (`queue`, `domain_backlogs`, `queue_blockages`, `latest_failure`), failure classes from handler-level retryable not-ready errors, and the existing Postgres query timing signal `eshu_dp_postgres_query_duration_seconds{store=...,operation=...}`.
-
-No-Regression Evidence: `go test ./internal/storage/postgres -run 'TestListActiveSupplyChainImpactFactsQuery(LoadsPackageConsumptionByRepository|BoundsRepositoryFollowUp)' -count=1` failed before repository-scoped supply-chain impact expansion loaded `reducer_package_consumption_correlation` rows from the active evidence query, then passed. `go test ./internal/reducer -run 'TestSupplyChainImpactHandler(LoadsRepositoryPackageConsumptionFollowUp|LoadsActiveWorkloadIdentityForRepositoryFinding|ExpandsActiveEvidenceUntilSBOMImagePathIsLoaded)' -count=1` passed, proving the reducer can publish impact findings once the active package-consumption fact is visible.
-
-No-Observability-Change: the change only extends the existing bounded repository follow-up allowlist inside `ListActiveSupplyChainImpactFacts`; it adds no route, table, worker, queue domain, graph write, metric label, or broad scan. Operators still diagnose this path through the existing supply-chain reducer execution counters, persisted `reducer_supply_chain_impact_finding` payloads, query readiness envelopes, and Postgres query timing metric `eshu_dp_postgres_query_duration_seconds` for the fact store.
-
-No-Regression Evidence: `go test ./internal/storage/postgres -run 'CollectorFactEvidence|RegistryCollectorStatus' -count=1` failed before `readCollectorFactEvidence` admitted `collector_kind='git'`, then passed after Git repository-ingestion facts joined the existing active non-tombstone fact aggregate. `go test ./internal/status -run 'CollectorRuntimeStatuses|RenderJSON' -count=1` and `go test ./internal/query -run 'StatusHandlerCollectors|StatusOpenAPI' -count=1` passed, proving the status projection and `/api/v0/status/collectors` API readback expose Git observations without adding payload identifiers.
-
-No-Observability-Change: the status aggregate still performs one bounded active-generation fact metadata read grouped by collector kind, optional coordinator instance, evidence source, and source system, capped by `LIMIT 200`. It adds no table, route, worker, queue domain, graph write, metric label, or payload column. Operators diagnose the path through existing `/api/v0/status/collectors` and `/admin/status` collector runtime fields plus `eshu_dp_postgres_query_duration_seconds{store=...,operation=...}` from the Postgres instrumentation wrapper.
-
-### Cloud inventory evidence loader (issues #1997, #1998)
-
-`PostgresCloudInventoryEvidenceLoader` is the concrete
-`reducer.CloudInventoryEvidenceLoader` that backs `DomainCloudInventoryAdmission`.
-It reads the three provider inventory source fact kinds (`aws_resource`,
-`gcp_cloud_resource`, `azure_cloud_resource`) for one scope generation and maps
-each provider payload into the shared admission record: provider token, source
-fact kind, provider-native raw identity, provider resource type, and the
-observed evidence layer. The raw identity is projected with a `COALESCE` over the
-provider-specific keys (`arn`, `full_resource_name`, `arm_resource_id`), so the
-loader resolves the right key per provider without a per-provider query. The
-admission handler owns identity resolution, evidence folding, and the canonical
-`reducer_cloud_resource_identity` upsert; the loader stays read-only so a stale
-generation it happens to read is still superseded before any canonical write.
-
-No-Regression Evidence: `go test ./internal/storage/postgres -run 'TestPostgresCloudInventoryEvidenceLoader|TestCloudInventoryAdmissionEndToEnd' -count=1` proves the loader reads exactly the three inventory source fact kinds for one `(scope_id, generation_id)`, drops blank-identity and undecodable rows, rejects a blank scope or generation, and that the end-to-end loader -> admission -> writer path upserts three canonical rows, converges on identical canonical fact ids on replay (idempotent under retries and concurrent workers), skips a superseded generation without any load or write, and admits nothing for an empty generation. The single load query is `listCloudInventorySourceFactsForGenerationQuery`, served by the existing `fact_records_scope_generation_idx (scope_id, generation_id, fact_kind, observed_at DESC)` partial-key prefix; it is one index-bounded read per admission intent over one generation with `is_tombstone = FALSE`, no join, no graph write, and no full-table scan. `go test ./internal/storage/postgres ./internal/reducer ./cmd/reducer -count=1` passed.
-
-No-Observability-Change: the loader adds no table, route, worker, queue domain, graph write, metric name, or metric label. The admission handler already emits the bounded `eshu_dp_*` cloud-inventory admission counters (provider/outcome labels only) and the canonical `reducer_cloud_resource_identity` read-model payload that records `management_origin` and the declared/applied/observed evidence flags; the Postgres instrumentation wrapper still emits `eshu_dp_postgres_query_duration_seconds{store=...,operation=...}` for the load. Loader-side decode skips are surfaced through the redaction-aware `cloud_inventory_source_fact_decode` warning log (fact kind plus redacted resource attributes only).
+No-Observability-Change: #2047 adds no route, worker, queue domain, graph write,
+metric name, metric label, runtime default, or API/MCP response field; store
+calls keep using the existing Postgres query/exec spans and duration metric.
 
 ## Exported surface
 
