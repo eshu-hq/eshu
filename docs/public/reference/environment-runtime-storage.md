@@ -24,6 +24,10 @@ local installer.
 | `ESHU_WATCH_PATH` | local service sets it | local child processes | Workspace path handed to local child processes. Do not set manually. |
 | `ESHU_DISABLE_NEO4J` | unset | API, MCP, ingester, local service | Transitional local-lightweight skip flag. Prefer profile/backend settings. |
 
+See [Semantic Enrichment Posture](semantic-enrichment-posture.md) for the
+no-provider invariant, provider-profile gate, source-policy gate, and security
+posture.
+
 ## Local Installer
 
 | Variable | Default | Read by | Purpose |
