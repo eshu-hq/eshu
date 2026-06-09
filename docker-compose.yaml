@@ -353,9 +353,68 @@ services:
       ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
       ESHU_PROMETHEUS_METRICS_ENABLED: "true"
       ESHU_PROMETHEUS_METRICS_PORT: "9464"
+      ESHU_COMPONENT_HOME: /data/.eshu/components
+      ESHU_COMPONENT_TRUST_MODE: ${ESHU_COMPONENT_TRUST_MODE:-disabled}
+      ESHU_COMPONENT_ALLOW_IDS: ${ESHU_COMPONENT_ALLOW_IDS:-}
+      ESHU_COMPONENT_ALLOW_PUBLISHERS: ${ESHU_COMPONENT_ALLOW_PUBLISHERS:-}
+      ESHU_COMPONENT_REVOKE_IDS: ${ESHU_COMPONENT_REVOKE_IDS:-}
+      ESHU_COMPONENT_REVOKE_PUBLISHERS: ${ESHU_COMPONENT_REVOKE_PUBLISHERS:-}
+      ESHU_COMPONENT_CORE_VERSION: ${ESHU_COMPONENT_CORE_VERSION:-}
       ESHU_COLLECTOR_INSTANCES_JSON: '${ESHU_COLLECTOR_INSTANCES_JSON:-[{"instance_id":"collector-git-default","collector_kind":"git","mode":"continuous","enabled":true,"bootstrap":true,"configuration":{"source":"local-compose"}}]}'
       ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE: ${ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE:-dark}
       ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED: "${ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED:-false}"
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+
+  component-extension-collector:
+    profiles:
+      - component-extension-collector
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["/usr/local/bin/eshu-collector-component-extension"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "${ESHU_COMPONENT_EXTENSION_COLLECTOR_HTTP_PORT:-18084}:8080"
+      - "${ESHU_COMPONENT_EXTENSION_COLLECTOR_METRICS_PORT:-19470}:9464"
+    environment:
+      ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_HOME: /tmp/.eshu
+      HOME: /tmp
+      ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
+      ESHU_PROMETHEUS_METRICS_ENABLED: "true"
+      ESHU_PROMETHEUS_METRICS_PORT: "9464"
+      ESHU_COMPONENT_HOME: /data/.eshu/components
+      ESHU_COMPONENT_TRUST_MODE: ${ESHU_COMPONENT_TRUST_MODE:-disabled}
+      ESHU_COMPONENT_ALLOW_IDS: ${ESHU_COMPONENT_ALLOW_IDS:-}
+      ESHU_COMPONENT_ALLOW_PUBLISHERS: ${ESHU_COMPONENT_ALLOW_PUBLISHERS:-}
+      ESHU_COMPONENT_REVOKE_IDS: ${ESHU_COMPONENT_REVOKE_IDS:-}
+      ESHU_COMPONENT_REVOKE_PUBLISHERS: ${ESHU_COMPONENT_REVOKE_PUBLISHERS:-}
+      ESHU_COMPONENT_CORE_VERSION: ${ESHU_COMPONENT_CORE_VERSION:-}
+      ESHU_COMPONENT_COLLECTOR_INSTANCE_ID: ${ESHU_COMPONENT_COLLECTOR_INSTANCE_ID:-}
+      ESHU_COMPONENT_COLLECTOR_OWNER_ID: ${ESHU_COMPONENT_COLLECTOR_OWNER_ID:-}
+      ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL: ${ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL:-1s}
+      ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL: ${ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL:-}
+      ESHU_COMPONENT_COLLECTOR_HEARTBEAT_INTERVAL: ${ESHU_COMPONENT_COLLECTOR_HEARTBEAT_INTERVAL:-}
+      ESHU_COMPONENT_COLLECTOR_SCOPE_KIND: ${ESHU_COMPONENT_COLLECTOR_SCOPE_KIND:-component}
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
     depends_on:
       db-migrate:
         condition: service_completed_successfully

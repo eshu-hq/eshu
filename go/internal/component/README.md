@@ -61,6 +61,12 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
   metadata, and activations.
 - `Activation` records the collector instance, execution mode, claim behavior,
   and optional configuration for an enabled package.
+- `ActivationConfigHandle` derives the stable non-secret handle shared by the
+  coordinator and component extension worker for one activation config.
+- `ActivationHostClaimMetadata`, `ActivationHostClaimScope`, and
+  `LoadActivationHostClaimMetadata` read the optional non-secret `host` block
+  from an activation config. The reader returns only source system, scope ID,
+  and scope kind, and it strips private file paths from read errors.
 - `Error`, `ErrorCode`, and `ErrorSummary` carry stable operator-facing error
   classes, including installed fact-kind ownership conflicts, without embedding
   private filesystem paths in their messages.

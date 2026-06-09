@@ -1,6 +1,16 @@
-source:
-  mode: local-file
-  input: ./testdata/complete.json
-  sourceURI: https://api.securityscorecards.dev/projects/github.com/example/widgets
-freshness:
-  previousDigest: ""
+host:
+  sourceSystem: openssf-scorecard
+  scope:
+    id: github.com/example/widgets
+    kind: repository
+process:
+  command: ./scorecard-collector
+  args:
+    - --sdk-stdio
+config:
+  source:
+    mode: local-file
+    input: ./testdata/complete.json
+    sourceURI: https://api.securityscorecards.dev/projects/github.com/example/widgets
+  freshness:
+    previousDigest: ""

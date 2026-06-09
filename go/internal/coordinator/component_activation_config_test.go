@@ -18,7 +18,7 @@ func TestLoadConfigAddsTrustedClaimCapableComponentActivation(t *testing.T) {
 		InstanceID:    "scorecard-primary",
 		Mode:          "scheduled",
 		ClaimsEnabled: true,
-		ConfigPath:    "configs/private-scorecard.yaml",
+		ConfigPath:    writeScorecardActivationConfig(t),
 	})
 
 	cfg, err := LoadConfig(componentCoordinatorEnv(home, nil))
@@ -49,6 +49,45 @@ func TestLoadConfigAddsTrustedClaimCapableComponentActivation(t *testing.T) {
 	}
 }
 
+func TestLoadConfigAddsActivationHostClaimMetadata(t *testing.T) {
+	t.Parallel()
+
+	home := installScorecardComponent(t)
+	enableScorecardComponent(t, home, component.Activation{
+		InstanceID:    "scorecard-primary",
+		Mode:          "scheduled",
+		ClaimsEnabled: true,
+		ConfigPath:    writeScorecardActivationConfig(t),
+	})
+
+	cfg, err := LoadConfig(componentCoordinatorEnv(home, nil))
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v, want nil", err)
+	}
+	config, ok, err := parseComponentInstanceConfig(cfg.CollectorInstances[0].Configuration)
+	if err != nil {
+		t.Fatalf("parseComponentInstanceConfig() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("parseComponentInstanceConfig() ok = false, want true")
+	}
+	if config.Host == nil {
+		t.Fatalf("component instance config host = nil, want activation host claim metadata")
+	}
+	if got, want := config.Host.SourceSystem, "openssf-scorecard"; got != want {
+		t.Fatalf("host source system = %q, want %q", got, want)
+	}
+	if got, want := config.Host.Scope.ID, "github.com/example/widgets"; got != want {
+		t.Fatalf("host scope id = %q, want %q", got, want)
+	}
+	if got, want := config.Host.Scope.Kind, string(scope.KindRepository); got != want {
+		t.Fatalf("host scope kind = %q, want %q", got, want)
+	}
+	if strings.Contains(cfg.CollectorInstances[0].Configuration, "scorecard.yaml") {
+		t.Fatalf("configuration = %s, did not want raw activation config path", cfg.CollectorInstances[0].Configuration)
+	}
+}
+
 func TestLoadConfigSkipsRevokedComponentActivation(t *testing.T) {
 	t.Parallel()
 
@@ -57,7 +96,7 @@ func TestLoadConfigSkipsRevokedComponentActivation(t *testing.T) {
 		InstanceID:    "scorecard-primary",
 		Mode:          "scheduled",
 		ClaimsEnabled: true,
-		ConfigPath:    "configs/private-scorecard.yaml",
+		ConfigPath:    writeScorecardActivationConfig(t),
 	})
 
 	overrides := map[string]string{
@@ -113,7 +152,7 @@ func TestLoadConfigSkipsUntrustedAndIncompatibleComponentActivations(t *testing.
 				InstanceID:    "scorecard-primary",
 				Mode:          "scheduled",
 				ClaimsEnabled: true,
-				ConfigPath:    "configs/private-scorecard.yaml",
+				ConfigPath:    writeScorecardActivationConfig(t),
 			})
 			overrides := map[string]string{
 				"ESHU_COLLECTOR_INSTANCES_JSON": staticGitCollectorJSON(),
@@ -144,7 +183,7 @@ func TestLoadConfigSkipsComponentActivationWithoutClaims(t *testing.T) {
 		InstanceID:    "scorecard-primary",
 		Mode:          "scheduled",
 		ClaimsEnabled: false,
-		ConfigPath:    "configs/private-scorecard.yaml",
+		ConfigPath:    writeScorecardActivationConfig(t),
 	})
 
 	cfg, err := LoadConfig(componentCoordinatorEnv(home, map[string]string{
@@ -191,6 +230,30 @@ func enableScorecardComponent(t *testing.T, home string, activation component.Ac
 	if _, err := component.NewRegistry(home).Enable("dev.eshu.examples.scorecard", activation); err != nil {
 		t.Fatalf("Enable() error = %v, want nil", err)
 	}
+}
+
+func writeScorecardActivationConfig(t *testing.T) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "scorecard.yaml")
+	raw := `host:
+  sourceSystem: openssf-scorecard
+  scope:
+    id: github.com/example/widgets
+    kind: repository
+process:
+  command: /usr/local/bin/scorecard-collector
+  args:
+    - --sdk-stdio
+config:
+  source:
+    input: /fixtures/scorecard.json
+    sourceURI: https://api.securityscorecards.dev/projects/github.com/example/widgets
+`
+	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
+		t.Fatalf("write scorecard activation config: %v", err)
+	}
+	return path
 }
 
 func componentCoordinatorEnv(home string, overrides map[string]string) func(string) string {

@@ -33,6 +33,14 @@ Run the reference collector against the checked-in fixture:
 go run ./cmd/scorecard-collector --input ./testdata/complete.json
 ```
 
+The `--sdk-stdio` mode reads the host JSON request from stdin and returns one
+collector SDK result on stdout. Process-backed hosted proofs use that mode via
+the activation config file; the default flag mode remains a local demo.
+`config.example.yaml` includes the public host claim identity:
+`sourceSystem=openssf-scorecard`, `scope.id=github.com/example/widgets`, and
+`scope.kind=repository`. The coordinator may copy those three values into
+workflow rows; the raw config path and process command stay local.
+
 Verify the component manifest and local CLI inventory lifecycle:
 
 ```bash
@@ -44,9 +52,10 @@ go -C ../../../go run ./cmd/eshu component verify ../examples/collector-extensio
 scripts/test-local-component-lifecycle.sh
 ```
 
-The digest-pinned image in `manifest.yaml` is a reference placeholder for local
-manifest validation. Publishing a real package must replace it with the built
-artifact digest.
+The digest-pinned image in `manifest.yaml` is reference metadata for manifest
+validation. The current hosted proof path runs the local process adapter;
+publishing a runnable OCI package must replace the placeholder with the built
+artifact digest and use an OCI-capable host.
 
 ## Privacy posture
 

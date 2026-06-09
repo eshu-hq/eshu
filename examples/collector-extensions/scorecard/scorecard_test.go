@@ -218,7 +218,7 @@ func TestManifestMatchesPackageContract(t *testing.T) {
 	if got, want := manifest.Spec.Runtime.SDKProtocol, sdk.ProtocolVersionV1Alpha1; got != want {
 		t.Fatalf("spec.runtime.sdkProtocol = %q, want %q", got, want)
 	}
-	if got, want := manifest.Spec.Runtime.Adapter, "oci"; got != want {
+	if got, want := manifest.Spec.Runtime.Adapter, "process"; got != want {
 		t.Fatalf("spec.runtime.adapter = %q, want %q", got, want)
 	}
 	if got, want := manifest.Spec.Telemetry.MetricsPrefix, MetricsPrefix; got != want {

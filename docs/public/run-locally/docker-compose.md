@@ -133,6 +133,7 @@ enable a profile.
 | Profile | Service | Provides | Use it when |
 | --- | --- | --- | --- |
 | `workflow-coordinator` | `workflow-coordinator` | Collector scheduling and claim ownership control plane on `18082`, with metrics on `19469`. | You need to inspect scheduler state or run an active claim proof. |
+| `component-extension-collector` | `component-extension-collector` | Process-backed component extension worker on `18084`, with metrics on `19470`. | You need a fenced process-adapter component claim proof after the coordinator has planned work. |
 | `webhook-listener` | `webhook-listener` | HTTP intake for GitHub, GitLab, Bitbucket, AWS, PagerDuty, and Jira freshness events on `18083`. | You need to test webhook-driven refresh behavior. |
 
 Start the workflow coordinator in its default dark mode:
@@ -141,7 +142,47 @@ Start the workflow coordinator in its default dark mode:
 docker compose --profile workflow-coordinator up --build workflow-coordinator
 ```
 
-Use active mode only in fenced proof runs.
+The default Compose coordinator mounts the shared Eshu data volume at `/data`
+and reads component activations from `/data/.eshu/components`. This makes
+operator-installed component packages visible to the coordinator, but trust
+still fails closed by default:
+
+- `ESHU_COMPONENT_TRUST_MODE=disabled`
+- `ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED=false`
+- `ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE=dark`
+
+Use active mode and component allowlists only in fenced proof runs. A
+component-backed collector needs `ESHU_COMPONENT_TRUST_MODE=allowlist`,
+matching `ESHU_COMPONENT_ALLOW_IDS` and `ESHU_COMPONENT_ALLOW_PUBLISHERS`,
+`ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE=active`, and
+`ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED=true` before it can create workflow
+claims.
+
+Start the process-backed component extension collector only after installing
+and enabling a trusted process-adapter component. It reads the same shared
+registry path as the coordinator:
+
+```bash
+docker compose --profile component-extension-collector up --build component-extension-collector
+```
+
+Set `ESHU_COMPONENT_COLLECTOR_INSTANCE_ID` when more than one trusted
+claim-capable activation exists. If the activation config has a `host` block,
+the coordinator plans work for that public `sourceSystem` and `scope.id`, and
+the worker sends `host.scope.kind` in the SDK claim. OCI adapter execution is
+not implemented in this worker; use it only for process-adapter proof runs until
+the digest-pinned OCI adapter path lands.
+
+No-Observability-Change: component registry wiring only exposes existing local
+component-manager state to the workflow coordinator and component extension
+collector. The coordinator continues to report claim, work-item, run-status,
+and completeness signals through `/admin/status` and
+`eshu_runtime_coordinator_*` metrics; the worker reports process-backed claim
+state through the existing collector `/admin/status`, failure-class, commit
+counter, and metrics paths.
+
+No-Regression Evidence: component registry Compose wiring is covered by
+`go test ./internal/runtime -run 'TestDefaultComposeWiresComponent(RegistryToWorkflowCoordinator|ExtensionCollector)' -count=1`.
 
 ## Neo4j Stack
 

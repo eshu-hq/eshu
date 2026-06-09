@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -104,12 +105,13 @@ func componentExtensionRequestedScopeSet(
 	config componentInstanceConfig,
 ) string {
 	payload := struct {
-		CollectorInstanceID string `json:"collector_instance_id"`
-		CollectorKind       string `json:"collector_kind"`
-		ComponentID         string `json:"component_id"`
-		ComponentVersion    string `json:"component_version"`
-		ManifestDigest      string `json:"manifest_digest"`
-		ConfigHandle        string `json:"config_handle"`
+		CollectorInstanceID string                                 `json:"collector_instance_id"`
+		CollectorKind       string                                 `json:"collector_kind"`
+		ComponentID         string                                 `json:"component_id"`
+		ComponentVersion    string                                 `json:"component_version"`
+		ManifestDigest      string                                 `json:"manifest_digest"`
+		ConfigHandle        string                                 `json:"config_handle"`
+		Host                *component.ActivationHostClaimMetadata `json:"host,omitempty"`
 		Runtime             struct {
 			SDKProtocol string `json:"sdk_protocol"`
 			Adapter     string `json:"adapter"`
@@ -121,6 +123,9 @@ func componentExtensionRequestedScopeSet(
 		ComponentVersion:    strings.TrimSpace(config.ComponentVersion),
 		ManifestDigest:      strings.TrimSpace(config.ManifestDigest),
 		ConfigHandle:        strings.TrimSpace(config.ConfigHandle),
+	}
+	if host, ok := componentExtensionHostClaim(config); ok {
+		payload.Host = &host
 	}
 	payload.Runtime.SDKProtocol = strings.TrimSpace(config.Runtime.SDKProtocol)
 	payload.Runtime.Adapter = strings.TrimSpace(config.Runtime.Adapter)
@@ -138,7 +143,7 @@ func componentExtensionWorkItem(
 	planKey string,
 	observedAt time.Time,
 ) workflow.WorkItem {
-	scopeID := "component:" + componentExtensionIdentity(config, "")
+	sourceSystem, scopeID := componentExtensionClaimIdentity(config)
 	sourceRunID := "component-run:" + componentExtensionIdentity(config, planKey)
 	generationID := "component-generation:" + componentExtensionIdentity(config, planKey)
 	return workflow.WorkItem{
@@ -146,16 +151,17 @@ func componentExtensionWorkItem(
 		RunID:               runID,
 		CollectorKind:       instance.CollectorKind,
 		CollectorInstanceID: strings.TrimSpace(instance.InstanceID),
-		SourceSystem:        strings.TrimSpace(config.ComponentID),
+		SourceSystem:        sourceSystem,
 		ScopeID:             scopeID,
 		AcceptanceUnitID:    scopeID,
 		SourceRunID:         sourceRunID,
 		GenerationID:        generationID,
 		FairnessKey: fmt.Sprintf(
-			"%s:%s:%s",
+			"%s:%s:%s:%s",
 			strings.TrimSpace(string(instance.CollectorKind)),
 			strings.TrimSpace(instance.InstanceID),
-			strings.TrimSpace(config.ComponentID),
+			sourceSystem,
+			scopeID,
 		),
 		Status:    workflow.WorkItemStatusPending,
 		VisibleAt: observedAt,
@@ -164,12 +170,37 @@ func componentExtensionWorkItem(
 	}
 }
 
+func componentExtensionClaimIdentity(config componentInstanceConfig) (string, string) {
+	if host, ok := componentExtensionHostClaim(config); ok {
+		return host.SourceSystem, host.Scope.ID
+	}
+	scopeID := "component:" + componentExtensionIdentity(config, "")
+	return strings.TrimSpace(config.ComponentID), scopeID
+}
+
+func componentExtensionHostClaim(config componentInstanceConfig) (component.ActivationHostClaimMetadata, bool) {
+	if config.Host == nil {
+		return component.ActivationHostClaimMetadata{}, false
+	}
+	host := config.Host.Normalized()
+	if host.Empty() {
+		return component.ActivationHostClaimMetadata{}, false
+	}
+	return host, true
+}
+
 func componentExtensionIdentity(config componentInstanceConfig, planKey string) string {
-	return facts.StableID("ComponentExtensionWorkflow", map[string]any{
+	identity := map[string]any{
 		"component_id":      strings.TrimSpace(config.ComponentID),
 		"component_version": strings.TrimSpace(config.ComponentVersion),
 		"manifest_digest":   strings.TrimSpace(config.ManifestDigest),
 		"config_handle":     strings.TrimSpace(config.ConfigHandle),
 		"plan_key":          strings.TrimSpace(planKey),
-	})
+	}
+	if host, ok := componentExtensionHostClaim(config); ok {
+		identity["host_source_system"] = host.SourceSystem
+		identity["host_scope_id"] = host.Scope.ID
+		identity["host_scope_kind"] = host.Scope.Kind
+	}
+	return facts.StableID("ComponentExtensionWorkflow", identity)
 }
