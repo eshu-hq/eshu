@@ -1,0 +1,22 @@
+{
+  "generated_at": "2026-06-09T11:59:00Z",
+  "repository": {
+    "name": "github.com/example/widgets",
+    "commit": "0123456789abcdef0123456789abcdef01234567"
+  },
+  "score": 9.1,
+  "checks": [
+    {
+      "name": "Maintained",
+      "score": 10,
+      "reason": "recent commits are present",
+      "details": ["activity observed in the last 90 days"]
+    },
+    {
+      "name": "Maintained",
+      "score": 10,
+      "reason": "recent commits are present",
+      "details": ["activity observed in the last 90 days"]
+    }
+  ]
+}
