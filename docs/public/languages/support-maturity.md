@@ -16,6 +16,24 @@ This matrix tracks the higher-level support bar for each parser beyond
 the raw capability checklist. `-` means this page does not currently make a
 specific support assertion for that dimension.
 
+## Promotion Rules
+
+Maturity is promoted only when the normal consumer path is proven. Parse-only
+behavior is not supported query behavior.
+
+| Target state | Required evidence |
+| --- | --- |
+| `unsupported` to documented source evidence | Parser registry entry, parser fixture, language page update, and explicit limitations. Query and graph columns stay `-` until a read path is proven. |
+| Source evidence to `partial` | The documented subset has parser proof and at least one consumer proof. Unsupported adjacent cases remain named on the language page. |
+| `partial` to `supported` | Parser proof, query or graph/content-backed proof, language page update, matrix update, and docs build in the same change. |
+| Framework or root evidence increase | Positive, negative, and ambiguous fixtures for the exact framework root, callback, route, lifecycle hook, package export, or public API shape. |
+| Dead-code maturity increase | Parser root proof, query suppression or candidate proof, [Dead Code Language Maturity](../reference/dead-code-language-maturity.md) update, and exactness blockers reviewed. |
+
+Dynamic imports, plugin loading, reflection, generated code, and
+framework-specific roots remain blockers until the exact pattern has parser and
+query proof. Unsupported framework/root rows must not claim query surfacing or
+end-to-end indexing.
+
 ## Framework Support Boundary
 
 On this page, "framework support" means Eshu has parser or query evidence for a

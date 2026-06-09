@@ -134,6 +134,53 @@ Do not lower `DefaultConfidenceThreshold` or inflate confidence to force an
 edge. If the signal is weak, keep it weak and let stronger evidence or an
 explicit assertion admit it.
 
+## Relationship Extractor Contribution Kit
+
+Relationship extractors are evidence producers. They do not decide canonical
+truth by themselves, and they do not write graph edges directly. A contribution
+is ready only when extraction, resolution, graph materialization, and query or
+story behavior agree.
+
+Use this checklist:
+
+1. Name the source evidence family and the intended canonical relationship type.
+2. Add extractor tests with positive, negative, and ambiguous fixtures.
+3. Keep provider-specific parsing in the extractor and relationship admission in
+   `Resolve`.
+4. Prove resolver behavior when confidence, assertions, rejections, or aliases
+   affect the candidate.
+5. Prove reducer/materializer behavior before claiming graph truth.
+6. Prove the repository, workload, service, deployment, or story surface that
+   will expose the relationship.
+7. Update this page, the evidence/runtime/story subpage that owns the detail,
+   and any affected language page when parser evidence feeds the relationship.
+8. Run focused relationship tests, query or reducer tests for surfaced truth,
+   `scripts/verify-parser-relationship-kit.sh`, the docs build, and
+   `git diff --check`.
+
+Fixture expectations:
+
+| Fixture class | Required proof |
+| --- | --- |
+| Positive | Strong source evidence emits the intended `EvidenceFact`, survives resolution, and appears on the documented graph/query/story path. |
+| Negative | Similar-looking source evidence that should not create a relationship stays absent or rejected with a clear reason. |
+| Ambiguous | Multi-target, weak, duplicated, stale, or partial evidence remains unresolved, low confidence, or explicitly limited instead of inventing truth. |
+
+Guardrails:
+
+- Parse-only behavior is not supported query behavior. Parser evidence can feed
+  relationships, but the relationship remains unsupported until resolver,
+  materializer, and query/story proof exist.
+- Dynamic imports, plugin loading, reflection, generated code, framework roots,
+  and provider-specific conventions need exact fixtures before they can admit a
+  relationship.
+- Do not collapse domain-specific relationships into `DEPENDS_ON` just because
+  it is easier to materialize.
+- Do not use derived read-side summaries such as `story` or
+  `deployment_overview` as canonical relationship proof.
+- Keep unsupported or partial source states visible in evidence details,
+  limitations, status rows, logs, or query responses.
+
 ## What To Read Next
 
 - Need to change extractors or relationship types:

@@ -92,8 +92,8 @@ admission, graph truth, or query truth.
 | --- | --- |
 | Docs or navigation only | Strict MkDocs build and `git diff --check`. |
 | Collector family or hosted collector runtime | Collector authoring gate plus focused collector, fact, reducer, and runtime tests for the changed surface. |
-| Parser or language support | Parser tests, integration or query proof, affected language docs, and docs build. |
-| Relationship mapping | Extractor/evidence tests, reducer/materialization tests, and query or story proof. |
+| Parser or language support | Parser tests, integration or query proof, affected language docs, `scripts/verify-parser-relationship-kit.sh`, and docs build. |
+| Relationship mapping | Extractor/evidence tests with positive, negative, and ambiguous fixtures, reducer/materialization tests, query or story proof, `scripts/verify-parser-relationship-kit.sh`, and docs build. |
 | Runtime performance or hosted activation | Before/after or no-regression evidence plus observable metrics, traces, logs, or status fields. |
 
 Use [Local Testing](../reference/local-testing.md) as the gate map.
@@ -190,7 +190,9 @@ Use this checklist when triaging an extension PR.
 - Any new parser claim is backed by registry metadata, implementation, tests,
   language docs, and query proof before it is called supported.
 - Any relationship change preserves evidence, resolution, graph materialization,
-  and query/story agreement.
+  and query/story agreement with positive, negative, and ambiguous fixtures.
+- Parse-only behavior is not described as supported query, graph, story, or
+  dead-code behavior.
 
 ### Trust And Hosted Safety
 
@@ -242,6 +244,9 @@ Use this checklist when triaging an extension PR.
   proof, and query/story truth proof.
 - Parser changes include parser fixtures, integration or query coverage, and
   updated language pages or matrices.
+- Parser and relationship changes pass `scripts/verify-parser-relationship-kit.sh`
+  so unsupported maturity claims and missing docs updates are caught before
+  review.
 - Docs, navigation, and README changes pass strict MkDocs and `git diff --check`.
 
 ### Performance And Observability

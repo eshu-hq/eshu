@@ -138,6 +138,38 @@ Direct HTTP response:
 | HTTP 400 `unsupported language "<x>"` | `language` not in the canonical set. |
 | HTTP 400 `unsupported entity_type "<x>"` | `entity_type` not in the enum. |
 
+## Adding Or Promoting Language Query Support
+
+Parse-only behavior is not supported query behavior. A parser can emit rows for
+a language or entity kind while `execute_language_query` still rejects that
+language, omits that entity type, or returns only a lower-authority fallback.
+
+When adding or promoting language-query support:
+
+1. Update the Go registry or handler enum that accepts the `language` or
+   `entity_type` value.
+2. Add focused HTTP or MCP coverage for the accepted value, unsupported-value
+   error behavior, limit handling, and deterministic result shape.
+3. State whether the entity type is graph-backed, graph-first with content
+   fallback, or content-only.
+4. Update the affected language page with the query surface and proof path.
+5. Update this page when accepted values, backing-store behavior, error
+   semantics, truth ceilings, or HTTP/MCP parity changes.
+6. Run `scripts/verify-parser-relationship-kit.sh`, focused query tests, the
+   docs build, and `git diff --check`.
+
+Guardrails:
+
+- Dynamic imports, runtime plugin loading, reflection, generated code,
+  framework discovery, and framework-specific roots remain unsupported query
+  behavior until the query path has focused tests for that exact pattern.
+- A language page can document source evidence or parser metadata without
+  adding it to this DSL. Do not list a value here until the route accepts it.
+- Unsupported languages and entity types must fail cheaply with the documented
+  errors instead of returning empty supported-looking results.
+- If the answer is profile-limited, stale, partial, or unsupported, preserve the
+  normal Eshu truth and error conventions instead of silently downgrading.
+
 ## Related
 
 - [HTTP API Reference](http-api.md)
