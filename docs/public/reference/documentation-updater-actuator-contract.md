@@ -55,8 +55,10 @@ may use the short forms `source`, `document`, `section`, `link`,
 Repo-hosted documentation collected by the Git collector appears on this route as
 source-neutral documentation facts linked to the repository target, including
 API contract sections, bounded DOCX summaries, bounded CSV/TSV table summaries,
-and bounded XLSX visible-sheet summaries. DOCX comments, DOCX tracked changes,
-hidden XLSX sheets, and legacy `.xls` binaries appear only as warning metadata.
+bounded XLSX visible-sheet summaries, and bounded PPTX visible-slide summaries.
+DOCX comments, DOCX tracked changes, hidden XLSX sheets, hidden PPTX slides,
+speaker notes, comments, embedded objects, external relationships, and legacy
+`.xls` binaries appear only as warning metadata.
 It is not the same path as local `eshu docs verify`, which emits verification
 findings and evidence packets for explicitly checked local Markdown claims.
 Repository-hosted API contracts appear on the same facts route as

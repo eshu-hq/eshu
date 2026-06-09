@@ -45,6 +45,8 @@ func extractGitDocumentation(
 		return extractSpreadsheetDocumentation(repo, relativePath, digest, commitSHA, body, format.format)
 	case "xlsx", "xls":
 		return extractWorkbookDocumentation(ctx, repo, relativePath, digest, commitSHA, body, format.format)
+	case "pptx":
+		return extractPresentationDocumentation(ctx, repo, relativePath, digest, commitSHA, body)
 	case "mermaid", "d2", "plantuml", "drawio", "excalidraw", "svg":
 		return extractDiagramDocumentation(ctx, repo, relativePath, digest, commitSHA, body, format.format)
 	default:
@@ -85,6 +87,11 @@ func gitDocumentationFormatForPath(relativePath string) (gitDocumentationFormat,
 			return gitDocumentationFormat{}, false
 		}
 		return gitDocumentationFormat{format: "docx", language: "docx"}, true
+	case ".pptx":
+		if !isDocumentationOfficePath(relativePath) {
+			return gitDocumentationFormat{}, false
+		}
+		return gitDocumentationFormat{format: "pptx", language: "pptx"}, true
 	case ".mmd", ".mermaid":
 		return gitDocumentationFormat{format: "mermaid", language: "mermaid"}, true
 	case ".d2":
