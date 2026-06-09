@@ -64,6 +64,7 @@ nav:
     - Prerequisites: deploy/kubernetes/prerequisites.md
     - Storage: deploy/kubernetes/storage.md
     - Helm Quickstart: deploy/kubernetes/helm-quickstart.md
+    - Helm Rollout Proof: deploy/kubernetes/helm-rollout-proof.md
     - Helm Values: deploy/kubernetes/helm-values.md
     - Helm Runtime Values: deploy/kubernetes/helm-runtime-values.md
     - Helm Collector and Webhook Values: deploy/kubernetes/helm-collector-and-webhook-values.md
