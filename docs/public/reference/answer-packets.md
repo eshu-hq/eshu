@@ -167,7 +167,10 @@ from empty/missing evidence. The packet:
 An empty evidence set on an otherwise-supported capability is treated as
 **partial** (the question is answerable but no evidence resolved), not as a
 confident "no". This prevents "no rows" from being presented as a definitive
-negative answer when the real state is "no evidence yet".
+negative answer when the real state is "no evidence yet". Callers opt into this
+behavior for evidence-centric answers via the builder's `NoEvidence` input
+(the citation builder sets it automatically when a citation packet resolves
+nothing); capabilities whose structured result *is* the evidence leave it unset.
 
 ## Reused contracts
 

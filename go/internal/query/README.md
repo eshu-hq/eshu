@@ -283,6 +283,17 @@ infer completeness from row count alone.
   `Profiles` (`contract.go:101`)
 - `ErrorCode`, `TruthLevel`, `TruthBasis`, `FreshnessState`, `QueryProfile`,
   `GraphBackend` — typed string constants (`contract.go`)
+- `AnswerPacket`, `AnswerPacketInput`, `AnswerTruthClass`, `NewAnswerPacket`,
+  `NewAnswerPacketFromCitations` — evidence-backed answer packet contract and
+  builder (`answer_packet.go`). The packet is a composition layer over the
+  existing envelope: it copies the `TruthEnvelope`, references the canonical
+  `ResponseEnvelope` data, folds `TruthLevel`+`TruthBasis` into a single
+  `AnswerTruthClass` (`deterministic`, `derived`, `fallback`,
+  `semantic_observation`, `code_hint`, `unsupported`), reuses the
+  `evidence_citation` handle and `recommended_next_calls` shapes, and refuses to
+  attach a confident summary to an unsupported (error-built) or no-evidence
+  partial answer. It is a pure contract+builder; route/MCP wiring is follow-up
+  work. See `docs/public/reference/answer-packets.md`.
 
 **Handler helpers**
 
