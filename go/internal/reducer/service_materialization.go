@@ -50,6 +50,17 @@ const (
 	// relationship types and the evidence_family label differ.
 	ServiceEvidenceFamilyDependencies = "dependencies"
 
+	// ServiceEvidenceFamilyDocs is the docs evidence family (#1988): one
+	// generation-stable row per documentation fact that references the service
+	// (documentation entity mention, documentation claim candidate, or semantic
+	// documentation observation), keyed by the fact's durable external identity
+	// (source_system, source_record_id, document_id). It is sourced from
+	// fact_records, not the resolved relationships the deployment/dependencies
+	// families share, and reuses the same lineage, payload-hash, and tombstone
+	// machinery; only the row identity, source loader, and evidence_family label
+	// differ.
+	ServiceEvidenceFamilyDocs = "docs"
+
 	// ServiceMaterializationStatusPending marks a generation that has been written
 	// but not yet promoted to active. The writer inserts a new generation as
 	// pending so it never collides with the single-active-per-service partial
@@ -99,6 +110,8 @@ type ServiceMaterializationWrite struct {
 	Runtime []ServiceRuntimeEvidence
 	// Dependencies carries the service's resolved dependency relationships (#1987).
 	Dependencies []ServiceDependencyEvidence
+	// Docs carries the service's referencing documentation facts (#1988).
+	Docs []ServiceDocumentationEvidence
 }
 
 // ServiceMaterializationWriteResult summarizes one lineage commit. GenerationID
@@ -165,8 +178,8 @@ func canonicalizeEvidencePayload(payload map[string]any) map[string]any {
 // fingerprint across every family. An identical evidence set produces an
 // identical id, so a repeat re-materialization upserts the same generation row
 // (ON CONFLICT DO NOTHING) and is a true no-op: no new generation, no snapshot
-// churn, no false delta. A change in any family (ownership or deployment) changes
-// the fingerprint and flips the generation.
+// churn, no false delta. A change in any family (ownership, deployment, runtime,
+// dependencies, or docs) changes the fingerprint and flips the generation.
 func serviceMaterializationGenerationID(write ServiceMaterializationWrite) string {
 	rows := normalizeServiceEvidence(write)
 	fingerprint := make([]map[string]any, 0, len(rows))
@@ -198,15 +211,16 @@ type serviceEvidenceRow struct {
 }
 
 // normalizeServiceEvidence flattens every family on a write into one ordered,
-// deduped snapshot row set. Ownership, deployment, runtime, and dependencies
-// share the same row shape, so the writer and generation fingerprint treat them
-// uniformly.
+// deduped snapshot row set. Ownership, deployment, runtime, dependencies, and
+// docs share the same row shape, so the writer and generation fingerprint treat
+// them uniformly.
 func normalizeServiceEvidence(write ServiceMaterializationWrite) []serviceEvidenceRow {
-	deduped := make(map[string]serviceEvidenceRow, len(write.Ownership)+len(write.Deployment)+len(write.Runtime)+len(write.Dependencies))
+	deduped := make(map[string]serviceEvidenceRow, len(write.Ownership)+len(write.Deployment)+len(write.Runtime)+len(write.Dependencies)+len(write.Docs))
 	addServiceOwnershipEvidence(deduped, write.ServiceID, write.Ownership)
 	addServiceDeploymentEvidence(deduped, write.ServiceID, write.Deployment)
 	addServiceRuntimeEvidence(deduped, write.ServiceID, write.Runtime)
 	addServiceDependencyEvidence(deduped, write.ServiceID, write.Dependencies)
+	addServiceDocumentationEvidence(deduped, write.ServiceID, write.Docs)
 	rows := make([]serviceEvidenceRow, 0, len(deduped))
 	for _, row := range deduped {
 		rows = append(rows, row)

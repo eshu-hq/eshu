@@ -63,7 +63,8 @@
 // materialization generation lineage instead of an ingestion scope. It reports
 // the ownership (ChangedSinceCategoryOwnership, #1943), deployment
 // (ChangedSinceCategoryDeployment, #1985), runtime
-// (ChangedSinceCategoryRuntime, #1986), and dependencies
-// (ChangedSinceCategoryDependencies, #1987) evidence families; the remaining
-// families append to ServiceChangedSinceCategories as they land.
+// (ChangedSinceCategoryRuntime, #1986), dependencies
+// (ChangedSinceCategoryDependencies, #1987), and docs
+// (ChangedSinceCategoryDocs, #1988) evidence families; the remaining families
+// append to ServiceChangedSinceCategories as they land.
 package status

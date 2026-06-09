@@ -89,6 +89,14 @@ const (
 	// and runtime it is a service-scope category, computed by the service-scope
 	// changed-since surface, so it never appears in ChangedSinceCategories.
 	ChangedSinceCategoryDependencies ChangedSinceCategory = "dependencies"
+	// ChangedSinceCategoryDocs covers service-scope docs evidence rows (#1988): one
+	// row per documentation fact that references the service (documentation entity
+	// mention, documentation claim candidate, or semantic documentation
+	// observation), keyed by the fact's durable external identity. Like ownership,
+	// deployment, runtime, and dependencies it is a service-scope category,
+	// computed by the service-scope changed-since surface, so it never appears in
+	// ChangedSinceCategories.
+	ChangedSinceCategoryDocs ChangedSinceCategory = "docs"
 )
 
 // ChangedSinceCategories is the closed, ordered set of evidence categories this

@@ -57,6 +57,7 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 			MaterializationWriter:        handlers.ServiceMaterializationWriter,
 			DeploymentRelationshipLoader: serviceCatalogDeploymentRelationshipLoader(handlers),
 			RuntimeInstanceLoader:        serviceCatalogRuntimeInstanceLoader(handlers),
+			DocumentationEvidenceLoader:  serviceCatalogDocumentationEvidenceLoader(handlers),
 			Instruments:                  handlers.Instruments,
 		}
 		definitions = append(definitions, serviceCatalog)
@@ -413,4 +414,20 @@ func serviceCatalogRuntimeInstanceLoader(
 		return nil
 	}
 	return handlers.ServiceRuntimeInstanceLoader
+}
+
+// serviceCatalogDocumentationEvidenceLoader returns the service-scoped
+// documentation evidence loader used to materialize the service docs evidence
+// family (#1988), or nil when the family cannot be sourced. The family is only
+// wired when both the service generation lineage writer is present and a
+// documentation evidence loader is configured, so docs evidence is purely
+// additive and never blocks the ownership/deployment/runtime/dependencies
+// lineage.
+func serviceCatalogDocumentationEvidenceLoader(
+	handlers DefaultHandlers,
+) ServiceScopedDocumentationEvidenceLoader {
+	if handlers.ServiceMaterializationWriter == nil || handlers.ServiceDocumentationEvidenceLoader == nil {
+		return nil
+	}
+	return handlers.ServiceDocumentationEvidenceLoader
 }

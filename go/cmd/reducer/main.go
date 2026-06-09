@@ -160,6 +160,7 @@ func buildReducerService(
 	codeCallEdgeBatchSize, codeCallEdgeGroupBatchSize := loadCodeCallEdgeWriterTuning(getenv)
 	inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize := loadSharedEdgeWriterGroupTuning(getenv)
 	serviceMaterializationWriter := serviceMaterializationWriterFor(database)
+	serviceDocumentationEvidenceLoader := serviceDocumentationEvidenceLoaderFor(database)
 	graphBackend, err := runtimecfg.LoadGraphBackend(getenv)
 	if err != nil {
 		return reducer.Service{}, err
@@ -370,7 +371,8 @@ func buildReducerService(
 		ServiceCatalogCorrelationWriter: reducer.PostgresServiceCatalogCorrelationWriter{
 			DB: database,
 		},
-		ServiceMaterializationWriter: serviceMaterializationWriter,
+		ServiceMaterializationWriter:       serviceMaterializationWriter,
+		ServiceDocumentationEvidenceLoader: serviceDocumentationEvidenceLoader,
 		ObservabilityCoverageCorrelationWriter: reducer.PostgresObservabilityCoverageCorrelationWriter{
 			DB: database,
 		},
@@ -476,21 +478,6 @@ func buildReducerService(
 		Instruments:    instruments,
 		Logger:         logger,
 	}, nil
-}
-
-func platformGraphLockerForReducer(database postgres.ExecQueryer) reducer.PlatformGraphLocker {
-	beginner := reducerBeginner(database)
-	if beginner == nil {
-		return nil
-	}
-	return postgres.PlatformGraphLocker{DB: beginner}
-}
-
-func reducerBeginner(database postgres.ExecQueryer) postgres.Beginner {
-	if beginner, ok := database.(postgres.Beginner); ok {
-		return beginner
-	}
-	return nil
 }
 
 func reducerDomainStrings(domains []reducer.Domain) []string {

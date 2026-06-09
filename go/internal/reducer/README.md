@@ -1703,3 +1703,72 @@ fields, the durable `service_materialization_generations`/
 `service_evidence_snapshots` rows, and the `get_service_changed_since`
 API/MCP/CLI read surface that now reports the dependencies family alongside
 ownership, deployment, and runtime.
+
+## Service documentation evidence family (#1988)
+
+The docs evidence family extends the same service materialization lineage (#1943)
+without a new table, index, or reducer domain. Unlike the deployment/dependencies
+families (resolved relationships, repo-keyed) and the runtime family
+(graph-materialized instances, repo-keyed), the docs family is sourced from
+`fact_records` and keyed by SERVICE id: documentation facts link to a service
+through their target refs (`candidate_refs` / `evidence_refs` /
+`linked_entities`), not through a repository generation. On each
+`service_catalog_correlation` intent, `ServiceCatalogCorrelationHandler` (when both
+`MaterializationWriter` and `DocumentationEvidenceLoader` are wired) loads the
+correlated services' referencing documentation facts in ONE bounded
+`GetDocumentationEvidenceForServices` call. Each documentation fact
+(`documentation_entity_mention`, `documentation_claim_candidate`,
+`semantic.documentation_observation`) becomes one docs-family
+`service_evidence_snapshots` row in the same service generation as ownership,
+deployment, runtime, and dependencies.
+
+The row identity is `ServiceDocumentationEvidenceKey(service_id, identity)` =
+`docs:<service_id>:<source_system>:<source_record_id>:<document_id>`, where the
+identity is the documentation fact's durable EXTERNAL identity: `source_system`
+and `source_record_id` are durable `fact_records` columns (the collector emits a
+durable section/document ref into `source_record_id`, e.g. the documentation
+section id), and `document_id` is a durable payload field. The fact's `fact_id`
+is deliberately NOT used: the documentation collectors digest the `generation_id`
+into `FactID`, so keying on it would assign every fact a new key each generation
+and report 100% false churn; the read model treats `generation_id` as a scope
+constraint only, never as identity. The external-identity tuple keeps the same
+fact stable across generations so the FULL OUTER JOIN diff classifies it
+`unchanged`. The production loader
+(`postgres.ServiceDocumentationEvidenceLoader`) reads the active-generation,
+non-tombstone documentation facts that reference the service through the same
+JSONB target-ref containment shapes the query-layer documentation read model uses,
+so the reducer load and the read surface agree on what "references this service"
+means.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'ServiceDocumentation|BuildServiceDocumentation|ServiceMaterialization|ServiceCatalogHandler'
+-count=1` proves docs rows carry generation-stable external-identity keys (no
+embedded `fact_id`/`generation_id`), a changed payload hash flips the generation
+while an identical re-materialization is a no-op, dropped facts are tombstoned,
+records without a complete durable identity are dropped rather than keyed on an
+empty identity, and the docs family is purely additive (no loader leaves the
+generation without docs rows and ownership/deployment/runtime/dependencies tests
+stay green). `go test ./internal/storage/postgres -run
+'TestComputeServiceChangedSinceDelta|TestServiceDocumentationEvidenceLoader'
+-count=1` proves the family-generic delta SQL (grouped by `evidence_family`)
+classifies docs added/updated/unchanged/retired/superseded with bounded ordered
+samples, reports the docs family unavailable (never zero-delta) when no active
+generation exists, reports zero deltas for a non-docs fixture, and the loader
+scopes by service, gates on the active generation and non-tombstone documentation
+facts, and projects only durable identity. The docs rows reuse the existing
+`service_evidence_snapshots_diff_idx` (`generation_id`, `evidence_family`,
+`service_evidence_key`) the Stage-1 delta query already drives; the
+documentation fact read is bounded per service over the documentation fact kinds
+and the active-generation join, so no new index or schema migration is added.
+Live-Postgres SQL is proven by the same fake `Queryer`/`Rows` harness Stage-1
+uses; the live SQL gate is the Postgres integration suite in CI.
+
+Observability Evidence: this slice adds no new metric instrument, label, queue
+domain, lease, or runtime knob. The docs family lands inside the existing
+`service_catalog_correlation` reducer execution span/counter and the same service
+materialization commit path Stage-1 already instruments; operators diagnose it
+through reducer run spans, execution counters, `fact_work_items` status/failure
+fields, the durable `service_materialization_generations`/
+`service_evidence_snapshots` rows, and the `get_service_changed_since`
+API/MCP/CLI read surface that now reports the docs family alongside ownership,
+deployment, runtime, and dependencies.

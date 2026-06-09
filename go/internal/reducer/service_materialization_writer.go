@@ -310,6 +310,7 @@ func serviceMaterializationGenerationPayload(write ServiceMaterializationWrite) 
 		"deployment_count":   len(write.Deployment),
 		"runtime_count":      len(write.Runtime),
 		"dependencies_count": len(write.Dependencies),
+		"docs_count":         len(write.Docs),
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {

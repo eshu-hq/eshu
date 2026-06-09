@@ -107,7 +107,16 @@ type ServiceCatalogCorrelationHandler struct {
 	// as ownership and deployment. It is optional: a nil loader leaves the
 	// generation without runtime rows, preserving the ownership/deployment contract.
 	RuntimeInstanceLoader RepositoryScopedRuntimeInstanceLoader
-	Instruments           *telemetry.Instruments
+	// DocumentationEvidenceLoader, when set alongside MaterializationWriter,
+	// supplies the documentation facts that reference each correlated service so
+	// the docs evidence family (#1988) is materialized into the same generation as
+	// ownership, deployment, runtime, and dependencies. Unlike the relationship and
+	// runtime loaders it is keyed by service id rather than repository id, because
+	// documentation facts link to a service through their target refs, not through
+	// a repository generation. It is optional: a nil loader leaves the generation
+	// without docs rows, preserving the prior families' contract.
+	DocumentationEvidenceLoader ServiceScopedDocumentationEvidenceLoader
+	Instruments                 *telemetry.Instruments
 }
 
 // Handle executes one service catalog correlation reducer intent.
@@ -161,17 +170,19 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent Int
 }
 
 // commitServiceGenerations writes the additive per-service evidence generation
-// lineage (#1943, #1985, #1986, #1987) for every service that has at least one
-// owner-bearing correlation decision. Ownership evidence is sourced from the same
-// decisions that produced the reducer_service_catalog_correlation facts;
-// deployment and dependency evidence (when DeploymentRelationshipLoader is wired)
-// are sourced together from the resolved cross-repo relationships of each
+// lineage (#1943, #1985, #1986, #1987, #1988) for every service that has at
+// least one owner-bearing correlation decision. Ownership evidence is sourced
+// from the same decisions that produced the reducer_service_catalog_correlation
+// facts; deployment and dependency evidence (when DeploymentRelationshipLoader is
+// wired) are sourced together from the resolved cross-repo relationships of each
 // service's repository, partitioned by relationship type; runtime evidence (when
 // RuntimeInstanceLoader is wired) is sourced from the materialized runtime
-// instances of each service's repository. Every family lands in the same
-// generation, so a service generation is the snapshot of all of the service's
-// evidence at materialization time. When MaterializationWriter is nil this is a
-// no-op, preserving the existing correlation contract.
+// instances of each service's repository; docs evidence (when
+// DocumentationEvidenceLoader is wired) is sourced from the documentation facts
+// that reference each service. Every family lands in the same generation, so a
+// service generation is the snapshot of all of the service's evidence at
+// materialization time. When MaterializationWriter is nil this is a no-op,
+// preserving the existing correlation contract.
 func (h ServiceCatalogCorrelationHandler) commitServiceGenerations(
 	ctx context.Context,
 	intent Intent,
@@ -185,6 +196,9 @@ func (h ServiceCatalogCorrelationHandler) commitServiceGenerations(
 		return err
 	}
 	if err := h.attachServiceRuntimeEvidence(ctx, writes, decisions); err != nil {
+		return err
+	}
+	if err := h.attachServiceDocumentationEvidence(ctx, writes); err != nil {
 		return err
 	}
 	for _, write := range writes {
