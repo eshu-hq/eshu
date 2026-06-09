@@ -28,7 +28,15 @@ orchestration. It does not own service runtime internals:
   - guided onboarding: `first-run [path]` walks the smallest truthful path
     from a checkout to one indexed repository, one readiness proof, and one
     bounded API answer (`first_run.go`, `first_run_runtime.go`,
-    `first_run_index.go`, `first_run_report.go`)
+    `first_run_index.go`, `first_run_report.go`); `hosted-setup` runs the
+    first-five-minutes flow against a deployed service, resolving the endpoint
+    and bearer token and running ordered, individually-reported checks
+    (`/healthz`, `/readyz`, status/index readiness, MCP tool visibility, and one
+    bounded query) that separate auth-unavailable, empty-index, stale-readiness,
+    partial-readiness, missing-repo-scope, and mcp-unavailable failures, reports
+    connected only when the bounded query returns, never prints the raw token,
+    and can emit a hosted MCP client snippet (`hosted_setup.go`,
+    `hosted_setup_verify.go`, `hosted_setup_report.go`)
   - security intelligence: `vuln-scan repo [path]` runs the local scan
     readiness contract and reads repository-scoped supply-chain impact findings
     through the API envelope; `vuln-scan provider-parity` compares
@@ -101,6 +109,24 @@ No-Regression Evidence: provider-parity lifecycle behavior is covered by
   paths preserve the underlying error and print actionable next steps. `--json`
   emits the canonical `{data, truth, error}` envelope; `--no-start` is a safe
   mode that only verifies and reports.
+- `eshu hosted-setup` is the first-five-minutes contract for a *deployed*
+  service. It resolves the endpoint and bearer token through the shared remote
+  flags (`--service-url`/`ESHU_SERVICE_URL`, `--api-key`/`ESHU_API_KEY`, then
+  persisted config) and runs ordered, individually-reported stages: endpoint and
+  auth resolved, `/healthz`, `/readyz` (which also proves authentication),
+  status/index readiness via the shared `evaluateScanReadiness` logic, MCP tool
+  visibility, and one bounded `/api/v0/repositories` query. Each failure carries
+  a distinct category — `auth-unavailable`, `unreachable`, `empty-index`,
+  `partial-readiness`, `stale-readiness`, `missing-repo-scope`, or
+  `mcp-unavailable` — so the operator sees exactly which stage failed and why
+  without reading every deployment page. It reports connected only when the
+  bounded query actually returns; health or readiness alone never counts. The
+  raw bearer token is never printed: output carries only a redacted token
+  reference (the `${ESHU_API_KEY}` env reference for snippet-capable platforms,
+  otherwise a masked placeholder). `--platform` emits a hosted MCP client
+  snippet via the shared `mcp setup` snippet helpers; `--repository` asserts a
+  required repository is present in the indexed scope; `--json` emits the
+  canonical `{data, truth, error}` envelope.
 - `eshu vuln-scan repo [path]` reuses `eshu scan` root resolution, bootstrap,
   and readiness proof before reading
   `/api/v0/supply-chain/impact/findings?repository_id=<id>&limit=<n>`.
