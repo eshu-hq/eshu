@@ -59,7 +59,7 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 122 tools from the tool definition files.
+`ReadOnlyTools` assembles 123 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
