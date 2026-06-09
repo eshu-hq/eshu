@@ -85,3 +85,28 @@ cd go && go test ./internal/collector/gcpcloud ./internal/facts -count=1
 cd go && go build ./...
 cd go && golangci-lint run ./internal/collector/gcpcloud/...
 ```
+
+## Performance and Observability Evidence
+
+No-Regression Evidence: this slice adds a new, isolated fixture-driven parsing
+package and changes no existing hot path. Baseline: no GCP collector existed;
+after: bounded in-memory normalization of Cloud Asset Inventory pages with no
+Cypher, no graph or Postgres writes, no worker/lease/queue, and no claim-driven
+runtime binary. Backend/version: none touched (NornicDB/Neo4j, Postgres, and the
+reducer are unchanged; fact kinds are additive). Input shape: bounded CAI
+`assets.list`/`searchAllResources` fixture pages; work is O(resources x pages)
+single-pass with page-token dedupe, so terminal output is one bounded generation
+of `gcp_cloud_resource`/`gcp_collection_warning` facts (row count equals
+deduped fixture resources plus one warning per unsupported kind/scope). Why safe:
+no live calls in tests, stale generations are rejected by fencing token, and
+re-emission of the same generation is idempotent, all proven by fixture tests.
+
+Observability Evidence: the package exports bounded-label data-plane metrics
+`eshu_dp_gcp_cloud_claims_total`, `_api_calls_total`, `_pages_total`,
+`_page_token_resumes_total`, `_facts_emitted_total`, `_warnings_total`, and
+`_freshness_lag_seconds`. Labels are bounded enums only (collector kind, claim
+status, CAI operation, parent scope kind, asset family, content family, status
+class, fact kind, warning kind, outcome); a test asserts no full resource name,
+project id, label, IAM member, or URL appears in any label. An operator reads
+partial-scope coverage, page-token resumes, freshness lag, and warning counts to
+answer whether a scan is complete, fresh, throttled, or partial.
