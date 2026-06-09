@@ -33,5 +33,6 @@ func FirstPartyRulePacks() []RulePack {
 		CloudFormationRulePack(),
 		TerraformConfigStateDriftRulePack(),
 		AWSCloudRuntimeDriftRulePack(),
+		MultiCloudRuntimeDriftRulePack(),
 	}
 }

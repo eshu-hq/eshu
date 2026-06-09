@@ -97,6 +97,16 @@ type DefaultHandlers struct {
 	AWSCloudRuntimeDriftWriter         AWSCloudRuntimeDriftFindingWriter
 	AWSCloudRuntimeDriftLogger         *slog.Logger
 
+	// Multi-cloud runtime drift adapters (issues #1997, #1998). Both must be
+	// non-nil for the registry to register DomainMultiCloudRuntimeDrift; missing
+	// either one would either drop provider-neutral drift evidence before
+	// publication or admit findings with no durable truth surface. The path
+	// mirrors the AWS drift adapters but joins on canonical cloud_resource_uid so
+	// AWS, GCP, and Azure share one drift domain.
+	MultiCloudRuntimeDriftEvidenceLoader MultiCloudRuntimeDriftEvidenceLoader
+	MultiCloudRuntimeDriftWriter         MultiCloudRuntimeDriftFindingWriter
+	MultiCloudRuntimeDriftLogger         *slog.Logger
+
 	// Cloud inventory admission adapters (issues #1997, #1998). Both must be
 	// non-nil for the registry to register DomainCloudInventoryAdmission; missing
 	// either one would either drop provider cloud-inventory facts before
