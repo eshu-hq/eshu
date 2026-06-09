@@ -199,6 +199,9 @@
 // PlaybookCatalog is the versioned source of truth, PlaybookCatalogVersions
 // pins catalog identity, and PlaybookToolNames lets the mcp package cross-check
 // every referenced tool against the read-only registry without an import cycle.
+// QueryPlaybookHandler exposes the same catalog and resolver through read-only
+// API/MCP/CLI surfaces with workflow-plan truth; those surfaces do not execute
+// calls, read graph or Postgres state, or expose raw Cypher.
 // The contract and catalog are documented in
 // docs/public/reference/query-playbooks.md.
 //
@@ -208,17 +211,18 @@
 // BuildEvidenceCitationVisualizationPacket, and
 // BuildIncidentContextVisualizationPacket are pure transformations of data the
 // caller already received; they perform no graph access and surface no field
-// beyond the source response. Node and edge IDs are derived deterministically
-// from the underlying entity/handle identity (never iteration order), the
-// subgraph is sorted by stable ID and bounded by VisualizationMaxNodes and
-// VisualizationMaxEdges with explicit truncation, the source TruthEnvelope is
-// copied verbatim, and each node may reference the evidence_citation handle that
-// hydrates it. Unsupported views return an explicit packet with
-// recommended_next_calls rather than erroring, so a client can render an
-// explainable subgraph without raw Cypher. VisualizationHandler exposes
-// POST /api/v0/visualizations/derive, and the MCP derive_visualization_packet
-// tool routes to the same handler. The contract is documented in
-// docs/public/reference/visualization-packets.md.
+// beyond the source response. Their FromMap adapters decode canonical
+// HTTP/MCP/CLI JSON maps into those same builders without adding a new data
+// source. Node and edge IDs are derived deterministically from the underlying
+// entity/handle identity (never iteration order), the subgraph is sorted by
+// stable ID and bounded by VisualizationMaxNodes and VisualizationMaxEdges with
+// explicit truncation, the source TruthEnvelope is copied verbatim, and each
+// node may reference the evidence_citation handle that hydrates it. Unsupported
+// views return an explicit packet with recommended_next_calls rather than
+// erroring, so a client can render an explainable subgraph without raw Cypher.
+// VisualizationHandler exposes POST /api/v0/visualizations/derive, and the MCP
+// derive_visualization_packet tool routes to the same handler. The contract is
+// documented in docs/public/reference/visualization-packets.md.
 //
 // FreshnessHandler serves two bounded freshness drilldowns. The generation
 // lifecycle drilldown at GET /api/v0/freshness/generations under the

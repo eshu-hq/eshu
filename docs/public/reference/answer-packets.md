@@ -96,7 +96,7 @@ composition explicit and testable.
 | `limitations` | Bounded, human-readable caveats (limit caps, scope bounds). |
 | `truncated` | Mirrors result-set truncation when the underlying query truncated. |
 | `missing_evidence` | Evidence handles that were requested but could not be resolved. |
-| `evidence_handles` | Addressable handles to the evidence behind the answer, in the `evidence_citation` handle shape. |
+| `evidence_handles` | Addressable handles to the evidence behind the answer, in the [evidence citation handle](evidence-citation-handles.md) shape. |
 | `citation_ref` | Reference to a citation packet that hydrates the handles. Optional. |
 | `recommended_next_calls` | Bounded follow-up calls, in the same shape as the evidence-citation `recommended_next_calls`. |
 | `unsupported_reasons` | Why the answer is unsupported or partial. Non-empty whenever `supported` is false or `partial` is true. |
@@ -257,7 +257,8 @@ The answer packet does not duplicate existing shapes. It reuses:
 - `TruthEnvelope`, `TruthLevel`, `TruthBasis`, `TruthFreshness`, and
   `ErrorEnvelope` from `contract.go`.
 - The evidence-handle shape and `recommended_next_calls` convention from
-  `evidence_citation.go`.
+  `evidence_citation.go` and the
+  [Evidence Citation Handle Contract](evidence-citation-handles.md).
 
 When the answer is built from an evidence-citation response, its
 `evidence_handles`, `missing_evidence`, `truncated`, and

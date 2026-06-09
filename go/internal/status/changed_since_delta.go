@@ -70,6 +70,18 @@ const (
 	// (#1943). It is computed by the service-scope changed-since surface, not the
 	// repository-scope surface, so it never appears in ChangedSinceCategories.
 	ChangedSinceCategoryOwnership ChangedSinceCategory = "ownership"
+	// ChangedSinceCategoryDeployment covers service-scope deployment evidence rows
+	// (#1985): one row per resolved deployment relationship for the service's
+	// repository. Like ownership it is a service-scope category, computed by the
+	// service-scope changed-since surface, so it never appears in
+	// ChangedSinceCategories.
+	ChangedSinceCategoryDeployment ChangedSinceCategory = "deployment"
+	// ChangedSinceCategoryRuntime covers service-scope runtime evidence rows
+	// (#1986): one row per materialized runtime instance of the service's workload,
+	// keyed by the durable platform/environment/workload identity. Like ownership
+	// and deployment it is a service-scope category, computed by the service-scope
+	// changed-since surface, so it never appears in ChangedSinceCategories.
+	ChangedSinceCategoryRuntime ChangedSinceCategory = "runtime"
 )
 
 // ChangedSinceCategories is the closed, ordered set of evidence categories this

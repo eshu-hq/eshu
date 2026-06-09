@@ -48,13 +48,18 @@ orchestration. It does not own service runtime internals:
     glob unless `--confirm-broad` is set, reuses the `hosted-setup` staged checks,
     and emits a redacted onboarding artifact (Markdown or JSON via `--out`) that
     carries the API/MCP URLs, the token source name (never the value), indexed
-    repositories, queue/completeness status, and starter prompts, while
-    documenting the current shared-token authorization limitation
+    repositories, queue/completeness status, starter prompts, and structured
+    starter playbooks with playbook IDs, versions, ordered tools, and expected
+    truth classes, while documenting the current shared-token authorization
+    limitation
     (`hosted_onboard.go`, `hosted_onboard_rules.go`, `hosted_onboard_render.go`,
     `hosted_onboard_cmd.go`); `first-run-benchmark`
     scores a captured `first-run --json` envelope against the first-five-minutes
     onboarding criteria and rejects a health-only "answer"
-    (`first_run_benchmark.go`, `first_run_benchmark_cmd.go`)
+    (`first_run_benchmark.go`, `first_run_benchmark_cmd.go`);
+    `answer-quality-scorecard` scores a captured, redacted answer-quality
+    evidence artifact across API, MCP, CLI, and hosted surfaces
+    (`answer_quality_scorecard_cmd.go`)
   - security intelligence: `vuln-scan repo [path]` runs the local scan
     readiness contract and reads repository-scoped supply-chain impact findings
     through the API envelope; `vuln-scan provider-parity` compares
@@ -62,6 +67,9 @@ orchestration. It does not own service runtime internals:
     aggregate-only output (`vuln_scan.go`, `vuln_scan_provider_parity.go`)
   - service tracing: `trace service <name>` renders the API service-story
     dossier through a canonical envelope-aware CLI consumer (`trace.go`)
+  - query playbooks: `playbooks list` and `playbooks resolve <playbook-id>`
+    read the API query-playbook catalog and resolver envelopes without
+    executing the resolved calls (`playbooks.go`)
   - documentation truth: `docs verify [path]` verifies local Markdown-family
     documentation claims against the CLI command tree, generated OpenAPI paths,
     and documented Eshu environment variables (`docs.go`)
@@ -135,6 +143,22 @@ work, or emit OTEL from this dispatcher.
 No-Regression Evidence: component conformance CLI behavior is covered by
 `go test ./cmd/eshu -run 'TestComponentConform|TestComponentCommandTreeIncludesConform' -count=1`.
 
+No-Observability-Change: answer-quality scorecard evaluation is offline CLI
+artifact scoring over already captured and redacted evidence. It starts no Eshu
+runtime, calls no API/MCP endpoint, opens no graph/Postgres driver, and emits no
+OTEL from this dispatcher.
+
+No-Regression Evidence: answer-quality scorecard CLI behavior is covered by
+`go test ./cmd/eshu -run 'TestAnswerQualityScorecardCommand' -count=1`.
+
+No-Observability-Change: hosted-onboard starter playbook guidance is local
+artifact projection from the in-process query playbook catalog. It does not
+start runtimes, call providers, open graph/Postgres drivers, or emit OTEL from
+this dispatcher.
+
+No-Regression Evidence: hosted-onboard starter playbook guidance is covered by
+`go test ./cmd/eshu -run 'TestHostedOnboardArtifactOutputFields|TestHostedOnboardIncompleteConnectionStillSafeArtifact|TestHostedOnboardMarkdownNamesPlaybookIDs' -count=1`.
+
 ## Gotchas / invariants
 
 - `SilenceUsage` and `SilenceErrors` are set on the root command
@@ -194,12 +218,15 @@ No-Regression Evidence: component conformance CLI behavior is covered by
   `<base>/mcp/message` MCP URL (both endpoint-redacted), the token *source name*
   (the `ESHU_API_KEY` env var, never the value), the indexed repositories, a
   queue/completeness status derived from the readiness verdict, and starter
-  prompts sourced from the query playbook catalog. The artifact documents the
-  current single shared-token authorization limitation so it never implies
-  per-team isolation that does not exist. `--out <path>` with `--format md|json`
-  writes the artifact with owner-only permissions; `--json` prints it to stdout;
-  `--platform` adds a hosted MCP client snippet. Like `hosted-setup`, the exit
-  code reflects whether the bounded query actually returned.
+  prompts plus `starter_playbooks[]` sourced from the query playbook catalog.
+  Each structured starter playbook names the playbook ID, version, prompt
+  family, ordered tools, and expected answer truth classes. The artifact
+  documents the current single shared-token authorization limitation so it never
+  implies per-team isolation that does not exist. `--out <path>` with
+  `--format md|json` writes the artifact with owner-only permissions; `--json`
+  prints it to stdout; `--platform` adds a hosted MCP client snippet. Like
+  `hosted-setup`, the exit code reflects whether the bounded query actually
+  returned.
 - `eshu first-run-benchmark` is the dogfood benchmark contract. It consumes a
   captured `first-run --json` envelope (from `--envelope <path>` or stdin) and
   scores it against the first-five-minutes onboarding criteria through the pure
@@ -209,6 +236,15 @@ No-Regression Evidence: component conformance CLI behavior is covered by
   or an error envelope. Optional criteria (time-to-answer, manual-step count)
   record honest `not_measured` values rather than fabricated numbers and never
   flip an otherwise-complete run to FAIL.
+- `eshu answer-quality-scorecard` is the broader answer dogfood contract. It
+  consumes a captured, redacted `answer-quality-scorecard/v1` artifact from
+  `--from <path>` or stdin and scores representative service-story,
+  code-topic, incident-context, supply-chain, documentation-truth,
+  freshness/readiness, and hosted-governance prompts. It exits non-zero when
+  family coverage, usefulness, truth honesty, citation coverage, boundedness,
+  parity, follow-up usefulness, or publish safety fails. The command never
+  captures live answers itself; callers must capture real API/MCP/CLI/hosted
+  outputs, redact them, then score the artifact.
 - `eshu vuln-scan repo [path]` reuses `eshu scan` root resolution, bootstrap,
   and readiness proof before reading
   `/api/v0/supply-chain/impact/findings?repository_id=<id>&limit=<n>`.

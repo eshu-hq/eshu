@@ -80,6 +80,7 @@ nav:
     - Tuning Playbook: operate/tuning-playbook.md
     - Troubleshooting: operate/troubleshooting.md
     - Hosted Project Onboarding: deployment/hosted-onboarding.md
+    - Hosted Governance Posture: operate/hosted-governance.md
     - Hosted Extension Policy: operate/hosted-extension-policy.md
     - Service Runtimes:
       - Overview: deployment/service-runtimes.md
@@ -89,6 +90,7 @@ nav:
     - Local Testing:
       - Overview: reference/local-testing.md
       - First Five Minutes Benchmark: reference/local-testing/first-five-minutes-benchmark.md
+      - Answer Quality Scorecard: reference/local-testing/answer-quality-scorecard.md
       - Remote Collector E2E: reference/local-testing/remote-collector-e2e.md
       - Remote Collector Hosted Profiles: reference/local-testing/remote-collector-hosted-profiles.md
       - Remote Compose Suite Harness: reference/local-testing/remote-compose-suite-harness.md
@@ -189,6 +191,7 @@ nav:
       - Replatforming Source-State Taxonomy: reference/replatforming-source-state-taxonomy.md
       - Replatforming Plan Contract: reference/replatforming-plan-contract.md
       - Answer Packet Contract: reference/answer-packets.md
+      - Evidence Citation Handle Contract: reference/evidence-citation-handles.md
       - Reading Answers: reference/reading-answers.md
       - Query Playbooks: reference/query-playbooks.md
       - Visualization Packet Contract: reference/visualization-packets.md

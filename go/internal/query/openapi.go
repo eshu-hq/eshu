@@ -64,6 +64,7 @@ func OpenAPISpec() string {
 			openAPIPathsAWSRuntimeDrift+
 			openAPIPathsReplatformingRollups+
 			openAPIPathsReplatforming+
+			openAPIPathsReplatformingOwnership+
 			openAPIPathsContent+
 			openAPIPathsMetrics+
 			openAPIPathsAdmin+
@@ -102,6 +103,7 @@ func OpenAPISpec() string {
 			openAPIPathsFreshnessServiceChangedSince+
 			openAPIPathsSemanticStatus+
 			openAPIPathsComponentExtensions+
+			openAPIPathsQueryPlaybooks+
 			openAPIPathsSemanticEvidence+
 			openAPIPathsStatusAndCompare+
 			openAPIComponents,

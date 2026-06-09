@@ -24,6 +24,8 @@ Read the source contracts first. This page does not redefine them:
   ordered tool calls.
 - [Visualization Packet Contract](visualization-packets.md) — rendering a
   story or evidence answer as an explainable subgraph.
+- [Answer Quality Scorecard](local-testing/answer-quality-scorecard.md) —
+  dogfood criteria for comparing captured API, MCP, CLI, and hosted answers.
 
 ## Two layers: envelope and packet
 
@@ -165,11 +167,12 @@ answer:
 
 Citations hydrate handles through `POST /api/v0/evidence/citations` (or the
 `build_evidence_citation_packet` MCP tool). The route accepts at most 500 input
-handles, hydrates at most 50 citations per packet, preserves distinct line ranges
-and reasons for the same file, and returns `coverage.truncated` when you should
-request another packet. It reads the Postgres content store and does not traverse
-the graph. See
-[HTTP Evidence and Supply-Chain Routes](http-api/evidence-and-supply-chain.md#citation-packets).
+handles, hydrates at most 50 citations per packet, preserves distinct line
+ranges and reasons for the same file, and returns `coverage.truncated` when you
+should request another packet. It reads the Postgres content store and does not
+traverse the graph. See
+[HTTP Evidence and Supply-Chain Routes](http-api/evidence-and-supply-chain.md#citation-packets)
+and the [Evidence Citation Handle Contract](evidence-citation-handles.md).
 
 You do **not** need a citation packet when `truth_class` is `deterministic` and
 the structured result already *is* the evidence the caller asked for.

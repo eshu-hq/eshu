@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 117
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 120
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,11 +59,11 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 117 tools from the tool definition files.
+`ReadOnlyTools` assembles 120 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
-| `codebaseTools` | 29 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_call_graph_metrics.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
+| `codebaseTools` | 30 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_call_graph_metrics.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
 | `repositoryLanguageTools` | 3 | `tools_repository_language.go` |
 | `ecosystemTools` | 19 | `tools_ecosystem.go` |
 | `infraResourceAggregateTools` | 2 | `tools_infra_resource_aggregates.go` |
@@ -87,6 +87,7 @@ flowchart TB
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 6 | `tools_content.go` |
 | `documentationTools` | 4 | `tools_documentation.go` |
+| `queryPlaybookTools` | 2 | `tools_query_playbooks.go` |
 | `semanticEvidenceTools` | 2 | `tools_semantic_evidence.go` |
 | `documentationFindingAggregateTools` | 2 | `tools_documentation_aggregates.go` |
 | `componentExtensionTools` | 2 | `tools_component_extensions.go` |
@@ -113,6 +114,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `propose_terraform_import_plan` | POST | `/api/v0/iac/terraform-import-plan/candidates` |
 | `list_aws_runtime_drift_findings` | POST | `/api/v0/aws/runtime-drift/findings` |
 | `get_replatforming_rollups` | POST | `/api/v0/replatforming/rollups` |
+| `find_unmanaged_resource_owners` | POST | `/api/v0/replatforming/ownership-packets` |
 | `get_relationship_evidence` | GET | `/api/v0/evidence/relationships/{resolved_id}` |
 | `build_evidence_citation_packet` | POST | `/api/v0/evidence/citations` |
 | `list_package_registry_packages` | GET | `/api/v0/package-registry/packages` |
@@ -132,7 +134,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `derive_visualization_packet` | POST | `/api/v0/visualizations/derive` |
 | `get_generation_lifecycle` | GET | `/api/v0/freshness/generations` |
 | `get_changed_since` | GET | `/api/v0/freshness/changed-since` (repository-scope delta diffing a prior generation against the current active generation by `stable_fact_key`; per-category added/updated/unchanged/retired/superseded counts plus bounded sample handles; unknown scope returns not-found, no current active generation returns an explicit unavailable diff) |
-| `get_service_changed_since` | GET | `/api/v0/freshness/services/changed-since` (service-scope delta diffing a prior service materialization generation against the current active generation by generation-independent `service_evidence_key`; stage 1 reports the ownership family; per-family added/updated/unchanged/retired/superseded counts plus bounded sample handles; unknown service returns service-not-found, no current active generation returns an explicit unavailable diff) |
+| `get_service_changed_since` | GET | `/api/v0/freshness/services/changed-since` (service-scope delta diffing a prior service materialization generation against the current active generation by generation-independent `service_evidence_key`; reports the ownership, deployment, and runtime families; per-family added/updated/unchanged/retired/superseded counts plus bounded sample handles; unknown service returns service-not-found, no current active generation returns an explicit unavailable diff) |
 | `get_vulnerability_scanner_read_contract` | GET | `/api/v0/supply-chain/vulnerability-scanner/contract` |
 | `list_supply_chain_impact_findings` | GET | `/api/v0/supply-chain/impact/findings` (accepts repository ids or human repository selectors plus scanner filters such as `advisory_id`, `image_ref`, `ecosystem`, `service_id`, `workload_id`, `environment`, `severity`, `profile`, `include_suppressed`, and `suppression_state`; precise rows require supported exact-version evidence such as npm, Maven, Cargo, Pub `pubspec.lock`, NuGet, or Swift `Package.resolved`, and each row carries a `suppression` block with state, source, justification, author, timestamps, reason, and VEX provenance) |
 | `list_sbom_attestation_attachments` | GET | `/api/v0/supply-chain/sbom-attestations/attachments` (use `subject_digest`/`digest`, `document_id`, `document_digest`, repository `repository_id` or selector, `workload_id`, or `service_id` for SBOM proof; scoped repository/workload/service reads return explicit missing image or image-to-SBOM evidence instead of silently flattening empty pages) |
@@ -155,6 +157,8 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_semantic_code_hints` | GET | `/api/v0/semantic/code-hints` with repo, path, entity, provider, prompt, freshness, policy, and corroboration filters |
 | `get_documentation_evidence_packet` | GET | `/api/v0/documentation/findings/{finding_id}/evidence-packet` |
 | `check_documentation_evidence_packet_freshness` | GET | `/api/v0/documentation/evidence-packets/{packet_id}/freshness` |
+| `list_query_playbooks` | GET | `/api/v0/query-playbooks` |
+| `resolve_query_playbook` | POST | `/api/v0/query-playbooks/resolve` |
 | `list_component_extensions` | GET | `/api/v0/component-extensions` with defaulted `limit` |
 | `get_component_extension_diagnostics` | GET | `/api/v0/component-extensions/{component_id}/diagnostics` |
 | `list_collectors` | GET | `/api/v0/status/collectors` |

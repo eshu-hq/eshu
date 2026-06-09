@@ -29,7 +29,7 @@ only in diagnostics sections and local graph debugging.
 | Deployment configuration prompts | `investigate_deployment_config` | Ready | Covers image tags, runtime settings, resource limits, values layers, rendered targets, and read-first file handles. |
 | Resource, queue, database, and cloud-resource prompts | `investigate_resource` | Ready | Resolves ambiguity before returning workload users, provenance paths, source handles, and next calls. |
 | Environment comparison prompts | `compare_environments` | Ready | Returns story, summary, per-side resources, evidence, limitations, and side-specific truncation. |
-| Evidence citation prompts | `build_evidence_citation_packet` | Ready | Accepts explicit file/entity handles only; caps input handles and hydrated citations. |
+| Evidence citation prompts | `build_evidence_citation_packet` | Ready | Accepts explicit citation handles; current runtime hydrates file and entity handles; caps input handles and hydrated citations. |
 | Visualization prompts | `derive_visualization_packet` | Ready | Derives bounded service-story, evidence-citation, or incident-context visualization packets from a source response already returned by an authorized route/tool. |
 | Source and content reads | `get_file_content`, `get_file_lines`, `get_entity_content`, `search_file_content`, `search_entity_content` | Ready | Use after story, investigation, or search tools identify portable handles. |
 | Runtime and indexing status | `get_index_status`, `list_ingesters`, `get_ingester_status` | Ready | Job-id based MCP status tools are not advertised. |

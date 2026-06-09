@@ -32,6 +32,7 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 | Change area | Use this page |
 | --- | --- |
 | Onboarding first-answer dogfood proof | [First five minutes benchmark](local-testing/first-five-minutes-benchmark.md) |
+| Cross-surface answer-quality dogfood proof | [Answer Quality Scorecard](local-testing/answer-quality-scorecard.md) |
 | Remote all-collector Compose proof | [Remote collector E2E](local-testing/remote-collector-e2e.md) |
 | Confluence, Jira, vulnerability source, and live registry smokes | [Collector live smokes](local-testing/collector-live-smokes.md) |
 | Normal package, Compose, graph, Terraform-state, webhook, and docs gates | [Verification gates](local-testing/verification-gates.md) |
@@ -42,10 +43,12 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 
 | If you touched | Minimum verification |
 | --- | --- |
+| Answer-quality scorecard criteria, CLI, or docs | `cd go && go test ./internal/answerquality -count=1`, `cd go && go test ./cmd/eshu -run 'TestAnswerQualityScorecardCommand' -count=1`, and the docs build |
 | Docs, `CLAUDE.md`, `AGENTS.md`, or README files | `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml` |
 | GitHub workflow or CodeQL setup guidance | `scripts/test-verify-codeql-setup.sh` and `scripts/verify-codeql-setup.sh` |
 | CLI/runtime wiring | `cd go && go test ./cmd/eshu ./cmd/api ./cmd/mcp-server -count=1` |
 | Status/admin or completeness contract | `cd go && go test ./internal/status ./internal/query ./cmd/api -count=1` and `cd go && go vet ./internal/status ./internal/query ./cmd/api` |
+| Replatforming plan, ownership-packet, or rollup API/MCP surface | `cd go && go test ./internal/mcp -run TestReplatforming -count=1` (see [Verification gates → Replatforming API/MCP parity proof](local-testing/verification-gates.md#replatforming-apimcp-parity-proof)) |
 | Parser platform or collector snapshot flow | `cd go && go test ./internal/parser ./internal/collector/discovery ./internal/collector -count=1` |
 | Terraform provider-schema evidence or relationship extraction | `cd go && go test ./internal/terraformschema ./internal/relationships ./internal/storage/postgres -count=1` |
 | Parser, language-query, dead-code maturity, or relationship contribution docs | `scripts/verify-parser-relationship-kit.sh` plus the focused parser, query, relationship, or docs gate for the touched surface. |

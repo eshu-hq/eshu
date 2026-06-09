@@ -66,3 +66,14 @@ func replatformingRollupsBody(args map[string]any) map[string]any {
 		"offset":        intOr(args, "offset", 0),
 	}
 }
+
+func replatformingOwnershipBody(args map[string]any) map[string]any {
+	return map[string]any{
+		"scope_id":      str(args, "scope_id"),
+		"account_id":    str(args, "account_id"),
+		"region":        str(args, "region"),
+		"finding_kinds": stringSlice(args, "finding_kinds"),
+		"limit":         intOr(args, "limit", 100),
+		"offset":        intOr(args, "offset", 0),
+	}
+}

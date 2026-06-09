@@ -94,13 +94,16 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok := freshnessRoute(toolName, args); ok {
 		return route, nil
 	}
+	if route, ok := queryPlaybookRoute(toolName, args); ok {
+		return route, nil
+	}
+	if route, ok := visualizationRoute(toolName, args); ok {
+		return route, nil
+	}
+	if route, ok, err := statusRoute(toolName, args); ok {
+		return route, err
+	}
 	switch toolName {
-	case "derive_visualization_packet":
-		return &route{method: "POST", path: "/api/v0/visualizations/derive", body: map[string]any{
-			"view":            str(args, "view"),
-			"source_response": args["source_response"],
-			"source_truth":    args["source_truth"],
-		}}, nil
 	// ── Code ──
 	case "find_code":
 		return &route{method: "POST", path: "/api/v0/code/search", body: map[string]any{
@@ -265,6 +268,8 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		return &route{method: "POST", path: "/api/v0/aws/runtime-drift/findings", body: awsRuntimeDriftFindingsBody(args)}, nil
 	case "get_replatforming_rollups":
 		return &route{method: "POST", path: "/api/v0/replatforming/rollups", body: replatformingRollupsBody(args)}, nil
+	case "find_unmanaged_resource_owners":
+		return &route{method: "POST", path: "/api/v0/replatforming/ownership-packets", body: replatformingOwnershipBody(args)}, nil
 	case "calculate_cyclomatic_complexity":
 		return &route{method: "POST", path: "/api/v0/code/complexity", body: map[string]any{
 			"function_name": str(args, "function_name"), "repo_id": str(args, "repo_id"),
@@ -477,35 +482,6 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"right":       str(args, "right"),
 			"limit":       intOr(args, "limit", 50),
 		}}, nil
-
-	// ── Status ──
-	case "list_collectors":
-		return &route{method: "GET", path: "/api/v0/status/collectors"}, nil
-	case "list_ingesters":
-		return &route{method: "GET", path: "/api/v0/status/ingesters"}, nil
-	case "get_ingester_status":
-		ingester := str(args, "ingester")
-		if ingester == "" {
-			ingester = "repository"
-		}
-		return &route{method: "GET", path: "/api/v0/status/ingesters/" + url.PathEscape(ingester)}, nil
-	case "get_index_status":
-		return &route{method: "GET", path: "/api/v0/index-status"}, nil
-	case "get_semantic_capability_status":
-		return &route{method: "GET", path: "/api/v0/status/semantic-extraction"}, nil
-	case "list_component_extensions":
-		return &route{method: "GET", path: "/api/v0/component-extensions", query: map[string]string{
-			"limit": intString(args, "limit", 100),
-		}}, nil
-	case "get_component_extension_diagnostics":
-		componentID := strings.TrimSpace(str(args, "component_id"))
-		if componentID == "" {
-			return nil, fmt.Errorf("component_id is required")
-		}
-		return &route{
-			method: "GET",
-			path:   "/api/v0/component-extensions/" + url.PathEscape(componentID) + "/diagnostics",
-		}, nil
 
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", toolName)

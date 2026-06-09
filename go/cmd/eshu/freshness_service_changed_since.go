@@ -30,7 +30,7 @@ func newFreshnessServiceChangedSinceCommand() *cobra.Command {
 		RunE:  runFreshnessServiceChangedSince,
 	}
 	cmd.Flags().Bool("json", false, "Write the canonical service changed-since envelope as JSON")
-	cmd.Flags().String("service-id", "", "Exact service id whose ownership evidence lineage to diff (required)")
+	cmd.Flags().String("service-id", "", "Exact service id whose evidence lineage to diff (required)")
 	cmd.Flags().String("since-generation-id", "", "Prior service materialization generation id to diff from (required)")
 	cmd.Flags().Int("sample-limit", 25, "Maximum sample handles per classification per family (max 200)")
 	addRemoteFlags(cmd)
