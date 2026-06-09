@@ -241,6 +241,75 @@ func TestComputeServiceChangedSinceDeltaClassifiesRuntimeFamily(t *testing.T) {
 	}
 }
 
+func TestComputeServiceChangedSinceDeltaClassifiesDependenciesFamily(t *testing.T) {
+	t.Parallel()
+
+	observed := time.Date(2026, 6, 9, 13, 0, 0, 0, time.UTC)
+	queryer := &fakeQueryer{responses: []fakeRows{
+		{rows: serviceScopeRow("svc-a", "gen-current", observed, false)},
+		{rows: [][]any{{"gen-prior", observed.Add(-time.Hour)}}},
+		// The family-generic counts query returns rows for every family present in
+		// the diff. Dependencies carries each verdict; ownership stays unchanged.
+		{rows: [][]any{
+			serviceCountRow("ownership", "unchanged", 2),
+			serviceCountRow("dependencies", "added", 1),
+			serviceCountRow("dependencies", "updated", 1),
+			serviceCountRow("dependencies", "unchanged", 1),
+			serviceCountRow("dependencies", "retired", 1),
+			serviceCountRow("dependencies", "superseded", 1),
+		}},
+		// Sample reads run per family in category order (ownership, deployment,
+		// runtime, dependencies), per non-zero classification in classification
+		// order. The deployment and runtime families have zero counts here, so they
+		// consume no sample reads.
+		{rows: [][]any{{"ownership:svc-a:team-a"}}},           // ownership unchanged
+		{rows: [][]any{{"dependencies:svc-a:dep-added"}}},     // dependencies added
+		{rows: [][]any{{"dependencies:svc-a:dep-updated"}}},   // dependencies updated
+		{rows: [][]any{{"dependencies:svc-a:dep-unchanged"}}}, // dependencies unchanged
+		{rows: [][]any{{"dependencies:svc-a:dep-gone"}}},      // dependencies retired
+		{rows: [][]any{{"dependencies:svc-a:dep-drop"}}},      // dependencies superseded
+	}}
+	store := NewStatusStore(queryer)
+
+	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+		ServiceID:         "svc-a",
+		SinceGenerationID: "gen-prior",
+		SampleLimit:       25,
+	})
+	if err != nil {
+		t.Fatalf("ComputeServiceChangedSinceDelta() error = %v", err)
+	}
+	dependencies := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryDependencies)
+	c := dependencies.Counts
+	if c.Added != 1 || c.Updated != 1 || c.Unchanged != 1 || c.Retired != 1 || c.Superseded != 1 {
+		t.Fatalf("dependencies counts wrong: %+v", c)
+	}
+	if got := dependencies.Samples[statuspkg.ChangedSinceRetired]; len(got) != 1 || got[0].StableFactKey != "dependencies:svc-a:dep-gone" {
+		t.Fatalf("dependencies retired samples wrong: %+v", got)
+	}
+	if got := dependencies.Samples[statuspkg.ChangedSinceSuperseded]; len(got) != 1 || got[0].StableFactKey != "dependencies:svc-a:dep-drop" {
+		t.Fatalf("dependencies superseded samples wrong: %+v", got)
+	}
+	if got := dependencies.Samples[statuspkg.ChangedSinceRetired]; got[0].FactKind != "dependencies" {
+		t.Fatalf("dependencies sample fact_kind = %q, want dependencies", got[0].FactKind)
+	}
+	// Ownership stayed unchanged: a dependencies-only change must not invent
+	// ownership deltas, and the deployment/runtime families report zero deltas
+	// (never silently dropped).
+	owner := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryOwnership)
+	if owner.Counts.Added != 0 || owner.Counts.Updated != 0 || owner.Counts.Retired != 0 || owner.Counts.Superseded != 0 {
+		t.Fatalf("ownership family must not churn on a dependencies-only change: %+v", owner.Counts)
+	}
+	deployment := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryDeployment)
+	if deployment.Counts.Total() != 0 {
+		t.Fatalf("deployment family should report zero deltas for a dependencies-only change: %+v", deployment.Counts)
+	}
+	runtime := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryRuntime)
+	if runtime.Counts.Total() != 0 {
+		t.Fatalf("runtime family should report zero deltas for a dependencies-only change: %+v", runtime.Counts)
+	}
+}
+
 func TestComputeServiceChangedSinceDeltaUnknownServiceNotFound(t *testing.T) {
 	t.Parallel()
 

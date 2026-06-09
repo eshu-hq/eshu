@@ -282,17 +282,21 @@ over generation-stable evidence snapshots (`service_evidence_snapshots`) keyed b
 a generation-independent `service_evidence_key` (for example
 `ownership:<service_id>:<owner_ref>`, `deployment:<service_id>:<identity>`
 (where the deployment identity is a digest of the resolved deployment
-relationship's generation-independent natural key), or
+relationship's generation-independent natural key),
 `runtime:<service_id>:<platform_kind>:<environment>:<workload_ref>` (where
 `workload_ref` is the durable `WorkloadInstance` id, which carries no resolution
-or materialization generation id).
+or materialization generation id), or `dependencies:<service_id>:<identity>`
+(where the dependency identity is a digest of the resolved dependency
+relationship's generation-independent natural key — `DEPENDS_ON` / `USES_MODULE`
+/ `READS_CONFIG_FROM` — and, like deployment, its `resolved_id` embeds the
+resolution generation and is therefore not a stable diff key).
 
 Required parameters: `service_id` (exact) and `since_generation_id` (a prior
 service generation id). Optional `sample_limit` (default 25, max 200) caps the
 per-classification sample handles. The response carries the resolved
 `service_id`, `since_generation_id`, `current_active_generation_id`, and a
 `categories` array. The surface reports the `ownership` (#1943), `deployment`
-(#1985), and `runtime` (#1986) families. Each category carries
+(#1985), `runtime` (#1986), and `dependencies` (#1987) families. Each category carries
 exact `counts` for `added`, `updated`, `unchanged`, `retired`, and `superseded`,
 plus bounded `samples` (`stable_fact_key` carrying the `service_evidence_key`,
 `fact_kind` carrying the evidence family) per classification and a
@@ -308,9 +312,8 @@ state) rather than zero deltas. The capability key is
 `get_service_changed_since` and the CLI helper is `eshu freshness
 service-changed-since`.
 
-The remaining service families (dependencies, docs, incidents,
-vulnerabilities) reuse this lineage and snapshot foundation and are tracked as
-follow-up work.
+The remaining service families (docs, incidents, vulnerabilities) reuse this
+lineage and snapshot foundation and are tracked as follow-up work.
 
 Performance Evidence: the diff is bounded by the requested `sample_limit` and
 keyed by `(scope_id, generation_id, stable_fact_key)`. Counts come from one

@@ -41,6 +41,15 @@ const (
 	// and deployment; only the row identity and source loader differ.
 	ServiceEvidenceFamilyRuntime = "runtime"
 
+	// ServiceEvidenceFamilyDependencies is the dependencies evidence family
+	// (#1987): one generation-stable row per resolved dependency relationship that
+	// involves the service's repository (DEPENDS_ON / USES_MODULE /
+	// READS_CONFIG_FROM), keyed by the relationship's generation-independent natural
+	// key. It shares deployment's resolved_relationships source verbatim and reuses
+	// the same lineage, payload-hash, and tombstone machinery; only the admitted
+	// relationship types and the evidence_family label differ.
+	ServiceEvidenceFamilyDependencies = "dependencies"
+
 	// ServiceMaterializationStatusPending marks a generation that has been written
 	// but not yet promoted to active. The writer inserts a new generation as
 	// pending so it never collides with the single-active-per-service partial
@@ -88,6 +97,8 @@ type ServiceMaterializationWrite struct {
 	Deployment []ServiceDeploymentEvidence
 	// Runtime carries the service's materialized runtime instances (#1986).
 	Runtime []ServiceRuntimeEvidence
+	// Dependencies carries the service's resolved dependency relationships (#1987).
+	Dependencies []ServiceDependencyEvidence
 }
 
 // ServiceMaterializationWriteResult summarizes one lineage commit. GenerationID
@@ -187,13 +198,15 @@ type serviceEvidenceRow struct {
 }
 
 // normalizeServiceEvidence flattens every family on a write into one ordered,
-// deduped snapshot row set. Ownership, deployment, and runtime share the same row
-// shape, so the writer and generation fingerprint treat them uniformly.
+// deduped snapshot row set. Ownership, deployment, runtime, and dependencies
+// share the same row shape, so the writer and generation fingerprint treat them
+// uniformly.
 func normalizeServiceEvidence(write ServiceMaterializationWrite) []serviceEvidenceRow {
-	deduped := make(map[string]serviceEvidenceRow, len(write.Ownership)+len(write.Deployment)+len(write.Runtime))
+	deduped := make(map[string]serviceEvidenceRow, len(write.Ownership)+len(write.Deployment)+len(write.Runtime)+len(write.Dependencies))
 	addServiceOwnershipEvidence(deduped, write.ServiceID, write.Ownership)
 	addServiceDeploymentEvidence(deduped, write.ServiceID, write.Deployment)
 	addServiceRuntimeEvidence(deduped, write.ServiceID, write.Runtime)
+	addServiceDependencyEvidence(deduped, write.ServiceID, write.Dependencies)
 	rows := make([]serviceEvidenceRow, 0, len(deduped))
 	for _, row := range deduped {
 		rows = append(rows, row)

@@ -82,6 +82,13 @@ const (
 	// and deployment it is a service-scope category, computed by the service-scope
 	// changed-since surface, so it never appears in ChangedSinceCategories.
 	ChangedSinceCategoryRuntime ChangedSinceCategory = "runtime"
+	// ChangedSinceCategoryDependencies covers service-scope dependency evidence rows
+	// (#1987): one row per resolved dependency relationship for the service's
+	// repository (DEPENDS_ON / USES_MODULE / READS_CONFIG_FROM), keyed by the
+	// relationship's generation-independent natural key. Like ownership, deployment,
+	// and runtime it is a service-scope category, computed by the service-scope
+	// changed-since surface, so it never appears in ChangedSinceCategories.
+	ChangedSinceCategoryDependencies ChangedSinceCategory = "dependencies"
 )
 
 // ChangedSinceCategories is the closed, ordered set of evidence categories this

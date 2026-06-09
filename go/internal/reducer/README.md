@@ -1643,3 +1643,63 @@ fields, the durable `service_materialization_generations`/
 `service_evidence_snapshots` rows, and the `get_service_changed_since`
 API/MCP/CLI read surface that now reports the runtime family alongside ownership
 and deployment.
+
+## Service dependency evidence family (#1987)
+
+The dependencies evidence family extends the same service materialization lineage
+(#1943) without a new table, index, or reducer domain. It shares the deployment
+family's source verbatim: the same `resolved_relationships` Postgres path and the
+same `RepositoryScopedResolvedRelationshipLoader`
+(`DeploymentRelationshipLoader`). On each `service_catalog_correlation` intent,
+`ServiceCatalogCorrelationHandler` (when both `MaterializationWriter` and
+`DeploymentRelationshipLoader` are wired) loads the correlated services'
+repositories' resolved cross-repo relationships in ONE bounded
+`GetResolvedRelationshipsForRepos` call, then partitions the result by
+relationship type: deployment types (`DEPLOYS_FROM` / `DISCOVERS_CONFIG_IN` /
+`PROVISIONS_DEPENDENCY_FOR` / `RUNS_ON`) feed the deployment family and dependency
+types (`DEPENDS_ON` / `USES_MODULE` / `READS_CONFIG_FROM`) feed the dependencies
+family. Each dependency relationship becomes one dependencies-family
+`service_evidence_snapshots` row in the same service generation as ownership,
+deployment, and runtime.
+
+The row identity is `ServiceDependencyEvidenceKey(service_id, identity)` =
+`dependencies:<service_id>:<identity>`, where `identity` is a sha1 digest of the
+relationship's generation-independent natural key
+(`relationship_type`, `source_repo_id`, `target_repo_id`, `source_entity_id`,
+`target_entity_id`) — the same natural-key contract the deployment family uses.
+The relationship's `resolved_id` is deliberately NOT used: `resolved_id` is
+`relationships.ResolvedRelationshipID(generation_id, …)`, which digests the
+resolution `generation_id` into the id (`relationships/models.go:160-168`), so
+keying on it would assign every edge a new key each resolution generation and
+report 100% false churn. The natural-key digest keeps the same edge stable across
+generations so the FULL OUTER JOIN diff classifies it `unchanged`.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'ServiceDependency|BuildServiceDependency|ServiceMaterialization|ServiceCatalogHandler'
+-count=1` proves dependency rows carry generation-stable natural-tuple keys (no
+embedded generation/`resolved_id`), a changed payload hash flips the generation
+while an identical re-materialization is a no-op, dropped relationships are
+tombstoned, the dependencies family is purely additive (no loader leaves the
+generation without dependency rows and ownership/deployment/runtime tests stay
+green), and both the deployment and dependencies families materialize from the
+SAME single bounded relationship load. `go test ./internal/storage/postgres -run
+TestComputeServiceChangedSinceDelta -count=1` proves the family-generic delta SQL
+(grouped by `evidence_family`) classifies dependencies
+added/updated/unchanged/retired/superseded with bounded ordered samples and
+reports zero deltas for a non-dependency fixture, never silently dropping it. The
+dependency rows reuse the existing `service_evidence_snapshots_diff_idx`
+(`generation_id`, `evidence_family`, `service_evidence_key`) the Stage-1 delta
+query already drives and the `resolved_relationships` repo-scoped read the
+deployment family already uses, so no new index or schema migration is added.
+Live-Postgres SQL is proven by the same fake `Queryer`/`Rows` harness Stage-1
+uses; the live SQL gate is the Postgres integration suite in CI.
+
+Observability Evidence: this slice adds no new metric instrument, label, queue
+domain, lease, or runtime knob. The dependencies family lands inside the existing
+`service_catalog_correlation` reducer execution span/counter and the same service
+materialization commit path Stage-1 already instruments; operators diagnose it
+through reducer run spans, execution counters, `fact_work_items` status/failure
+fields, the durable `service_materialization_generations`/
+`service_evidence_snapshots` rows, and the `get_service_changed_since`
+API/MCP/CLI read surface that now reports the dependencies family alongside
+ownership, deployment, and runtime.
