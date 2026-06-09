@@ -63,6 +63,11 @@ var bootstrapDefinitions = []Definition{
 		SQL:  workItemAuditSchemaSQL,
 	},
 	{
+		Name: "tenant_workspace_grants",
+		Path: "schema/data-plane/postgres/006c_tenant_workspace_grants.sql",
+		SQL:  tenantWorkspaceGrantSchemaSQL,
+	},
+	{
 		Name: "graph_projection_phase_repair_queue",
 		Path: "schema/data-plane/postgres/013_graph_projection_phase_repair_queue.sql",
 		SQL:  graphProjectionPhaseRepairQueueSchemaSQL,
