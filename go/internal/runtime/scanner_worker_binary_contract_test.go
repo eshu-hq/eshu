@@ -21,6 +21,34 @@ func TestScannerWorkerBinaryIsBuiltInstalledAndDocumented(t *testing.T) {
 	}
 }
 
+func TestDockerfileCopiesCollectorSDKBeforeModuleDownload(t *testing.T) {
+	t.Parallel()
+
+	content := readRepositoryFile(t, "../../..", "Dockerfile")
+	sdkCopy := strings.Index(content, "COPY sdk/go/collector/go.mod ./sdk/go/collector/")
+	sdkSourceCopy := strings.Index(content, "COPY sdk/go/collector/ ./sdk/go/collector/")
+	download := strings.Index(content, "go mod download")
+	build := strings.Index(content, "xx-go build")
+	if sdkCopy < 0 {
+		t.Fatal("Dockerfile does not copy sdk/go/collector/go.mod before module download")
+	}
+	if sdkSourceCopy < 0 {
+		t.Fatal("Dockerfile does not copy sdk/go/collector source before building binaries")
+	}
+	if download < 0 {
+		t.Fatal("Dockerfile does not run go mod download")
+	}
+	if build < 0 {
+		t.Fatal("Dockerfile does not build Go binaries")
+	}
+	if sdkCopy > download {
+		t.Fatalf("Dockerfile copies sdk/go/collector/go.mod after go mod download; sdk copy index=%d download index=%d", sdkCopy, download)
+	}
+	if sdkSourceCopy > build {
+		t.Fatalf("Dockerfile copies sdk/go/collector source after building binaries; sdk copy index=%d build index=%d", sdkSourceCopy, build)
+	}
+}
+
 func TestSBOMAttestationCollectorBinaryIsBuiltInstalledAndDocumented(t *testing.T) {
 	t.Parallel()
 
