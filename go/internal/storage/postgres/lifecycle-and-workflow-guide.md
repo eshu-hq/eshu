@@ -56,9 +56,14 @@ filters `is_tombstone = FALSE` as a residual predicate so a repository fact
 tombstoned within a still-active generation is never returned as live, matching
 every sibling active source-local reader.
 `ListActivePackageManifestDependencyFacts` uses
-`fact_records_active_package_dependency_entity_idx` to load only active Git
-manifest dependency entities for the ecosystem/name set in the current
-package-registry reducer intent. `ListOwnedPackageDependencyTargets` uses the
+`fact_records_active_package_dependency_entity_idx` to load only active,
+non-tombstoned Git manifest dependency entities for the ecosystem/name set in
+the current package-registry reducer intent. It filters `is_tombstone = FALSE`
+as a residual predicate on the rows the index scan already visits, so a manifest
+dependency fact tombstoned within a still-active generation is never returned as
+live; the index choice, keyset pagination, and scan shape are unchanged, and the
+guard matches every sibling active source-local reader.
+`ListOwnedPackageDependencyTargets` uses the
 same active-generation dependency predicate with a small ecosystem allowlist
 and hard result cap so the workflow coordinator can derive package-registry and
 vulnerability-intelligence targets without scanning stale generations or the
