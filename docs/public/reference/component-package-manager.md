@@ -27,6 +27,10 @@ Installed is not enabled. Enabled is not claim-capable.
 The CLI commands are local-state operations:
 
 ```bash
+eshu component init collector \
+  --id dev.example.collector.demo \
+  --publisher example \
+  --fact-kind dev.example.demo_observation
 eshu component inspect ./aws-component.yaml
 eshu component verify ./aws-component.yaml \
   --trust-mode allowlist \
@@ -65,6 +69,12 @@ eshu component uninstall dev.eshu.collector.aws \
   --component-home ~/.eshu/components \
   --version 0.1.0
 ```
+
+`component init collector` writes a new scaffold directory. It defaults to
+`./<component-id>` and also accepts `--output <dir>`. It refuses existing output
+directories, unsafe identifiers, and non-namespaced fact kinds. The generated
+package contains a manifest, sample SDK collector code, tests, placeholder-only
+config, a README, and `scripts/verify-local.sh`.
 
 Uninstall fails while a component has active instances.
 

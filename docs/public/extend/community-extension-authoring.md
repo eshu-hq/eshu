@@ -26,22 +26,38 @@ optional.
 
 ## Quickstart
 
-There is no public `eshu component scaffold` command documented today. Start by
-creating a small package directory and making the contracts explicit.
+Start with the scaffold command, then keep the generated contract explicit:
 
-1. Create a working directory with:
-   - `manifest.yaml` for the component package.
-   - `README.md` explaining source scope, fact kinds, privacy posture, and
-     local verification.
-   - sample configuration with placeholder values only.
-   - fixtures that prove positive, negative, empty, retry, duplicate, and stale
-     source states.
-   - focused tests for the owned boundary.
-2. Decide the source scope and generation identity. A collector scope might be a
+```bash
+eshu component init collector \
+  --id dev.example.collector.demo \
+  --publisher example \
+  --fact-kind dev.example.demo_observation
+```
+
+By default the command writes a new `./dev.example.collector.demo` directory.
+Use `--output <dir>` to choose a different new directory. The command refuses
+unsafe identifiers and existing output directories so it does not overwrite
+local config or secrets.
+
+The scaffold creates:
+
+- `manifest.yaml` for the component package.
+- `README.md` explaining source scope, fact kinds, privacy posture, and local
+  verification.
+- sample configuration with placeholder values only.
+- SDK sample code that emits facts through `collector-sdk/v1alpha1`.
+- focused tests that fail if manifest fact declarations, source confidence, SDK
+  contract, and emitted facts disagree.
+- `scripts/verify-local.sh` for local Go tests and component inspect/verify.
+
+After scaffolding:
+
+1. Decide the source scope and generation identity. A collector scope might be a
    repository, account, region, cluster, registry target, dataset, or provider
    tenant slice. The generation must let consumers distinguish current evidence
    from stale rows.
-3. Define every emitted fact before projection:
+2. Define every emitted fact before projection:
    - `fact_kind`
    - `schema_version`
    - `collector_kind`
@@ -49,11 +65,11 @@ creating a small package directory and making the contracts explicit.
    - stable fact key
    - redacted payload shape
    - downstream reducer, projector, or query consumer contract
-4. Write the manifest. The first component manifest API is
+3. Write the manifest. The first component manifest API is
    `eshu.dev/v1alpha1`, `kind: ComponentPackage`, and
    `spec.componentType: collector`. Required fields and local trust behavior are
    defined in [Component Package Manager](../reference/component-package-manager.md).
-5. Verify the manifest locally:
+4. Verify the manifest locally:
 
 ```bash
 eshu component inspect ./manifest.yaml
@@ -63,7 +79,7 @@ eshu component verify ./manifest.yaml \
   --allow-publisher example
 ```
 
-6. If the manifest passes, exercise local package-manager state:
+5. If the manifest passes, exercise local package-manager state:
 
 ```bash
 eshu component install ./manifest.yaml \
@@ -86,7 +102,7 @@ Local install and enable prove local registry, activation, and local claim state
 only. They do not prove hosted readiness, provenance verification, reducer
 admission, graph truth, or query truth.
 
-7. Run the smallest verification gate that proves the touched boundary:
+6. Run the smallest verification gate that proves the touched boundary:
 
 | Change | Minimum proof |
 | --- | --- |

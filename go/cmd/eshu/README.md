@@ -65,10 +65,11 @@ orchestration. It does not own service runtime internals:
   - documentation truth: `docs verify [path]` verifies local Markdown-family
     documentation claims against the CLI command tree, generated OpenAPI paths,
     and documented Eshu environment variables (`docs.go`)
-  - component package manager: `component inspect|verify|install|list|enable|disable|uninstall`
-    manages local optional component manifests and activation state with stable
-    `--json` output, classified errors, and dry-run planning for install and
-    enable (`component.go`, `component_output.go`)
+  - component package manager: `component init collector|inspect|verify|install|list|enable|disable|uninstall`
+    scaffolds optional collector component packages and manages local optional
+    component manifests and activation state with stable `--json` output,
+    classified errors, and dry-run planning for install and enable
+    (`component.go`, `component_init.go`, `component_output.go`)
   - `graph`, `install` with `nornicdb`, `status`, `start`, `stop`,
     `logs`, `upgrade` (`graph.go`, `graph_install.go`,
     `local_graph.go`)
@@ -107,6 +108,14 @@ or emit OTEL from this dispatcher.
 
 No-Regression Evidence: component package-manager JSON/text behavior is
 covered by `go test ./cmd/eshu -run 'TestComponent' -count=1`.
+
+No-Observability-Change: component init collector scaffolding writes local
+template files only. The generated sample uses SDK validator tests and does not
+start Eshu runtimes, claim workflow work, write graph state, or emit OTEL from
+this dispatcher.
+
+No-Regression Evidence: component init collector scaffolding is covered by
+`go test ./cmd/eshu -run 'TestComponentInitCollector' -count=1`.
 
 ## Gotchas / invariants
 
