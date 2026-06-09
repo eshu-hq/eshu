@@ -3,7 +3,11 @@
 //
 // The binary registers root flags (`--database`, `--visual`, `--version`,
 // `-v`) and a tree of subcommands covering local indexing (`index`, `list`, `watch`, `query`,
-// `stats`), security intelligence (`vuln-scan repo` with terminal and JSON
+// `stats`), guided onboarding (`first-run`, which detects the runtime shape,
+// verifies it without destructive auto-start, indexes or reuses one repository,
+// waits for indexing completeness through the shared readiness logic, and runs
+// one bounded API query before reporting success),
+// security intelligence (`vuln-scan repo` with terminal and JSON
 // exit classification plus SARIF and VEX-style report exports that preserve
 // manifest/source paths, line anchors, and image/SBOM subjects from the API
 // findings envelope,
