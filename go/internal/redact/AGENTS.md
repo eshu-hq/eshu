@@ -5,8 +5,9 @@
 1. `go/internal/redact/README.md` — package contract and security invariant.
 2. `go/internal/redact/redact.go` — exported API and marker construction.
 3. `go/internal/redact/policy.go` — collector-neutral classification API.
-4. `go/internal/redact/redact_test.go` and `policy_test.go` — deterministic
-   and fail-closed tests.
+4. `go/internal/redact/registry.go` — hosted governance surface matrix.
+5. `go/internal/redact/redact_test.go`, `policy_test.go`, and
+   `registry_test.go` — deterministic and fail-closed tests.
 
 ## Invariants this package enforces
 
@@ -25,6 +26,8 @@
   preserved.
 - **Collector-neutral** — keep collector-specific key lists, provider schemas,
   and telemetry counters in callers.
+- **Registry errors stay safe** — hosted governance canary checks may name a
+  surface and class, but must not echo the raw canary or payload.
 
 ## Common changes and how to scope them
 
@@ -36,6 +39,9 @@
 - **Add sensitive-key classification behavior** — extend `RuleSet` only when the
   behavior is provider-neutral. Use caller-supplied versioned key lists; never
   embed AWS, Terraform, or cloud-provider lists here.
+- **Add a hosted governance surface** — update `registry.go`, add a
+  `registry_test.go` case, and update
+  `docs/public/reference/hosted-redaction-registry.md`.
 - **Change marker format** — treat this as a compatibility change. Existing
   facts may depend on stable marker strings across generations.
 

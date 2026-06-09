@@ -23,7 +23,7 @@ Current shipped behavior:
 | Collector egress | The workflow coordinator can filter enabled claim-capable collectors by `ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON` before scheduled or freshness work is planned. | That Helm NetworkPolicy alone proves collector runtime policy or tenant isolation. |
 | Extensions | Hosted extension policy is operator guidance. Community extension claim execution is not enabled by the shipped chart or Compose stack yet. | That installed or enabled components can collect in hosted mode. |
 | Network egress | Helm can render restricted NetworkPolicy egress classes for DNS, datastore, graph, internal service, collector providers, semantic providers, and extensions. | That `networkPolicy.egress.mode=broad` is least-privilege proof. |
-| Redaction and retention | Semantic posture docs require redaction policy and metadata-oriented retention for optional provider work. | That all future governance retention and deletion workflows are implemented. |
+| Redaction and retention | The hosted redaction registry defines forbidden raw classes, safe bounded field classes, and synthetic leakage canaries. Semantic posture docs still require redaction policy and metadata-oriented retention for optional provider work. | That all future governance retention and deletion workflows are implemented. |
 | Audit | Existing status, telemetry, semantic queue, budget, and component diagnostics expose bounded classes and counts. | A complete hosted governance audit ledger until the governance issues land. |
 
 Before onboarding, run the [Hosted Security Posture Gate](hosted-security-posture.md)
@@ -264,6 +264,16 @@ helm lint ./deploy/helm/eshu -f values.hosted-governance.yaml
    redaction, and retention settings.
 4. Re-run status checks and keep the failed policy body in private operator
    storage, not public docs or issue comments.
+
+### Redaction Regression
+
+1. Check the affected surface in
+   [Hosted Redaction Registry](../reference/hosted-redaction-registry.md).
+2. Add or update a focused test that calls
+   `Registry.AssertNoForbiddenCanary(surface, payload)` after the owning
+   surface applies its source-specific redaction.
+3. Keep real credentials, private URLs, prompts, source identifiers, and direct
+   personal identifiers out of fixtures and tickets.
 
 ### Extension Revocation
 
