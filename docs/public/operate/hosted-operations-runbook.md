@@ -32,6 +32,7 @@ bounded API or MCP read that proves indexed state is usable.
 | Backup, restore, and graph rebuild proof | [Hosted Backup and Restore Proof](../deploy/kubernetes/backup-restore-proof.md) |
 | Health checks | [Health Checks](health-checks.md) |
 | Telemetry and signal order | [Telemetry](telemetry.md) |
+| Hosted dashboard and alert pack | [Hosted Ops Alert Pack](hosted-ops-alert-pack.md) |
 | MCP clients | [Connect MCP](../mcp/index.md) |
 | Hosted onboarding and governance | [Hosted Project Onboarding](../deployment/hosted-onboarding.md), [Hosted Governance Posture](hosted-governance.md) |
 | Upgrade and rollback | [Upgrade And Rollback](../deploy/kubernetes/upgrades-rollbacks.md) |
@@ -168,7 +169,7 @@ Run this checklist daily during rollout hardening and after every upgrade:
 | Ingestion scope | Repository sync rules remain narrow enough for the intended teams; broad ingestion has an explicit operator decision. |
 | Governance | Shared-token limitations, hosted governance posture, semantic provider policy, extension policy, redaction, and retention caveats are visible before onboarding. |
 | MCP | MCP endpoint, token source, and first useful tool call are verified after every network or auth change. |
-| Telemetry | Dashboards use `service_name` and `service_namespace`; alerts distinguish process health from convergence and completeness. |
+| Telemetry | Dashboards use `service_name` and `service_namespace`; hosted ops alerts distinguish process health from dependency readiness, queue convergence, and answer completeness. |
 
 ## Signal Order During Incidents
 

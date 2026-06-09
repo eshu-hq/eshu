@@ -1,0 +1,134 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: eshu-hosted-operations-alerts
+  namespace: eshu
+  labels:
+    app: eshu
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+    - name: eshu.hosted_ops
+      interval: 30s
+      rules:
+        - alert: EshuHostedMetricsMissing
+          expr: |
+            absent(eshu_runtime_info{service_name="api"})
+            or absent(eshu_runtime_info{service_name="mcp-server"})
+            or absent(eshu_runtime_info{service_name="ingester"})
+            or absent(eshu_runtime_info{service_name="resolution-engine"})
+          for: 5m
+          labels:
+            severity: critical
+            component: telemetry
+            runbook_section: service-monitor
+          annotations:
+            summary: "Hosted Eshu runtime metrics are missing"
+            description: "One or more core runtime metrics streams are absent. Treat this as an observability failure before interpreting dashboard health."
+            runbook: "Check Helm-rendered ServiceMonitors, metrics Services, pod readiness, and Prometheus target discovery before restarting workloads."
+        - alert: EshuHostedDeadLettersPresent
+          expr: sum by (service_name) (eshu_runtime_queue_dead_letter) > 0
+          for: 2m
+          labels:
+            severity: critical
+            component: queue
+            runbook_section: queue-terminal-state
+          annotations:
+            summary: "Hosted Eshu has dead-lettered queue work"
+            description: "Dead-lettered work will not converge without operator action."
+            runbook: "Open /admin/status on the owning runtime, group by failure class in logs, and verify API/MCP readback after replay or repair."
+        - alert: EshuHostedQueueAgeSustained
+          expr: |
+            max by (service_name) (eshu_runtime_queue_oldest_outstanding_age_seconds) > 1800
+            and on (service_name) sum by (service_name) (eshu_runtime_queue_outstanding) > 0
+          for: 15m
+          labels:
+            severity: warning
+            component: queue
+            runbook_section: queue-age
+          annotations:
+            summary: "Hosted Eshu queue age is sustained above 30 minutes"
+            description: "Outstanding work is old enough to affect hosted answer freshness."
+            runbook: "Check queue split, claim duration, reducer execution rate, and graph/Postgres latency before changing worker counts."
+        - alert: EshuHostedReadbackCompletenessDrift
+          expr: |
+            (
+              sum by (service_name) (eshu_runtime_generation_total{state="pending"})
+              + sum by (service_name) (eshu_runtime_generation_total{state="failed"})
+            ) > 0
+            and on (service_name) max by (service_name) (eshu_runtime_queue_oldest_outstanding_age_seconds) > 1800
+          for: 10m
+          labels:
+            severity: warning
+            component: completeness
+            runbook_section: api-mcp-readback
+          annotations:
+            summary: "Hosted Eshu completeness is drifting"
+            description: "Pending or failed generations persist while queue age is high. Pods may be healthy while answers are stale."
+            runbook: "Use /api/v0/index-status, /api/v0/status/hosted-readiness, and one bounded MCP read before declaring the service current."
+        - alert: EshuHostedCollectorClaimStalled
+          expr: |
+            sum by (service_name) (eshu_runtime_coordinator_overdue_claims) > 0
+            or max by (service_name) (eshu_runtime_coordinator_oldest_pending_age_seconds) > 900
+          for: 10m
+          labels:
+            severity: warning
+            component: workflow-coordinator
+            runbook_section: collector-claims
+          annotations:
+            summary: "Hosted collector claims are stalled"
+            description: "Claim-driven collector work is overdue or has waited more than 15 minutes."
+            runbook: "Check workflow coordinator /admin/status, collector instance state, claim lease TTL, and collector logs for the source family before reaping or replaying claims."
+        - alert: EshuHostedDependencyLatencyHigh
+          expr: |
+            histogram_quantile(0.99, sum by (service_name, le) (rate(eshu_dp_postgres_query_duration_seconds_bucket[5m]))) > 1
+            or histogram_quantile(0.99, sum by (service_name, le) (rate(eshu_dp_neo4j_query_duration_seconds_bucket[5m]))) > 2
+            or histogram_quantile(0.99, sum by (service_name, le) (rate(eshu_dp_canonical_write_duration_seconds_bucket[5m]))) > 5
+          for: 10m
+          labels:
+            severity: warning
+            component: dependency
+            runbook_section: dependency-latency
+          annotations:
+            summary: "Hosted Eshu dependency latency is high"
+            description: "Postgres reads, graph queries, or canonical graph/content writes are slow enough to affect readiness and convergence."
+            runbook: "Compare Postgres query spans, graph query spans, canonical write spans, queue age, and reducer run duration before scaling read surfaces."
+        - alert: EshuHostedRuntimeDependencyDegraded
+          expr: |
+            max by (service_name, state) (eshu_runtime_health_state{service_name=~"api|mcp-server|ingester|resolution-engine",state=~"degraded|stalled"}) > 0
+          for: 10m
+          labels:
+            severity: critical
+            component: dependency
+            runbook_section: dependency-health
+          annotations:
+            summary: "Hosted Eshu runtime dependency health is degraded"
+            description: "A core hosted runtime reports degraded or stalled health, which commonly means Postgres, graph backend, schema, or queue dependency failure."
+            runbook: "Use /readyz and /admin/status for the affected runtime, then compare Postgres and graph metrics before changing rollout or worker settings."
+        - alert: EshuHostedSchemaBootstrapFailed
+          expr: sum(kube_job_status_failed{job_name=~".*schema-bootstrap.*"}) > 0
+          for: 2m
+          labels:
+            severity: critical
+            component: schema-bootstrap
+            runbook_section: schema-bootstrap
+          annotations:
+            summary: "Hosted Eshu schema bootstrap Job failed"
+            description: "Schema bootstrap failure blocks safe rollout or graph rebuild."
+            runbook: "Inspect the schema-bootstrap Job logs, verify Postgres and graph connectivity, rerun Helm render proof, and do not promote until API/MCP readback passes."
+        - alert: EshuHostedMCPToolErrors
+          expr: |
+            sum by (service_name) (rate(eshu_mcp_tool_errors_total[5m]))
+            /
+            clamp_min(sum by (service_name) (rate(eshu_mcp_tool_calls_total[5m])), 1)
+            > 0.02
+          for: 5m
+          labels:
+            severity: warning
+            component: mcp
+            runbook_section: api-mcp-readback
+          annotations:
+            summary: "Hosted MCP tool error rate is above 2%"
+            description: "Assistant-facing reads are failing even if process health is green."
+            runbook: "Group MCP errors by tool, check query spans, and compare API readback for the same bounded question before changing client configuration."
