@@ -146,8 +146,10 @@ func executeFirstRun(
 	verifyStep := verifyFirstRunRuntime(deps.Probe, detection, client.BaseURL, opts.NoStart)
 	result = result.addStep(verifyStep.Name, verifyStep.Status, verifyStep.Detail)
 	if verifyStep.Status == firstRunStepFailed {
+		verifyErr := fmt.Errorf("verify runtime: %s", verifyStep.Detail)
+		result = attachFirstRunDiagnostic(result, firstRunVerifySignal(deps, detection, client.BaseURL, verifyErr))
 		result.NextSteps = firstRunNextSteps(result, detection)
-		return result, fmt.Errorf("verify runtime: %s", verifyStep.Detail)
+		return result, verifyErr
 	}
 
 	// Step 3: index the target repository (or reuse an existing index).
@@ -157,6 +159,7 @@ func executeFirstRun(
 	result = result.addStep("index repository", indexed.Status, indexed.Detail)
 	if runErr != nil {
 		result = result.addStep("wait for readiness", firstRunStepFailed, runErr.Error())
+		result = attachFirstRunDiagnostic(result, firstRunReadinessSignal(deps, client, detection, indexed, runErr))
 		result.NextSteps = firstRunNextSteps(result, detection)
 		return result, runErr
 	}
@@ -166,12 +169,19 @@ func executeFirstRun(
 	answer, queryErr := runFirstRunQuery(deps, client)
 	if queryErr != nil {
 		result = result.addStep("first query", firstRunStepFailed, queryErr.Error())
+		result = attachFirstRunDiagnostic(result, firstRunQuerySignal(queryErr))
 		result.NextSteps = firstRunNextSteps(result, detection)
 		return result, fmt.Errorf("first query: %w", queryErr)
 	}
 	result.QueryAnswered = true
 	result.QuerySummary = answer
 	result = result.addStep("first query", firstRunStepOK, answer)
+	// A successful query that found zero repositories is truthful success, but the
+	// operator has nothing to query yet. Attach the empty-index advisory so the
+	// next action is clear without marking the run failed.
+	if isEmptyRepositoriesAnswer(answer) {
+		result = attachFirstRunDiagnostic(result, firstRunEmptyRepoSignal())
+	}
 	result.NextSteps = firstRunNextSteps(result, detection)
 	return result, nil
 }
