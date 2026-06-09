@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 109
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 110
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,7 +59,7 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 109 tools from the tool definition files.
+`ReadOnlyTools` assembles 110 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
@@ -82,6 +82,7 @@ flowchart TB
 | `sbomAttestationAttachmentAggregateTools` | 2 | `tools_sbom_attachment_aggregates.go` |
 | `incidentContextTools` | 1 | `tools_incident_context.go` |
 | `workItemTools` | 1 | `tools_work_item.go` |
+| `freshnessTools` | 1 | `tools_freshness.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 6 | `tools_content.go` |
 | `documentationTools` | 4 | `tools_documentation.go` |
@@ -125,6 +126,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `count_secrets_iam_posture` | GET | `/api/v0/secrets-iam/posture-summary` |
 | `get_incident_context` | GET | `/api/v0/incidents/{incident_id}/context` |
 | `list_work_item_evidence` | GET | `/api/v0/work-items/evidence` |
+| `get_generation_lifecycle` | GET | `/api/v0/freshness/generations` |
 | `get_vulnerability_scanner_read_contract` | GET | `/api/v0/supply-chain/vulnerability-scanner/contract` |
 | `list_supply_chain_impact_findings` | GET | `/api/v0/supply-chain/impact/findings` (accepts repository ids or human repository selectors plus scanner filters such as `advisory_id`, `image_ref`, `ecosystem`, `service_id`, `workload_id`, `environment`, `severity`, `profile`, `include_suppressed`, and `suppression_state`; precise rows require supported exact-version evidence such as npm, Maven, Cargo, Pub `pubspec.lock`, NuGet, or Swift `Package.resolved`, and each row carries a `suppression` block with state, source, justification, author, timestamps, reason, and VEX provenance) |
 | `list_sbom_attestation_attachments` | GET | `/api/v0/supply-chain/sbom-attestations/attachments` (use `subject_digest`/`digest`, `document_id`, `document_digest`, repository `repository_id` or selector, `workload_id`, or `service_id` for SBOM proof; scoped repository/workload/service reads return explicit missing image or image-to-SBOM evidence instead of silently flattening empty pages) |
@@ -244,7 +246,7 @@ tools do not mix them into graph-truth answers.
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 109 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 110 tool definitions |
 
 ## SSE session model
 

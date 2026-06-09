@@ -36,4 +36,13 @@
 // configured, it carries redacted profile state and source-policy gates without
 // credential handles. That informational state never degrades health or blocks
 // deterministic indexing, reducer, API, MCP, or documentation fact paths.
+// GenerationLifecycleRecord, GenerationLifecycleFilter, and
+// GenerationLifecyclePage define the bounded scope-generation drilldown
+// contract: one ordered page of active, pending, superseded, completed, or
+// failed generations joined with the owning scope identity, the per-generation
+// queue rollup (GenerationQueueStatus), and the latest failure
+// (GenerationLatestFailure). The filter clamps the page limit between one and
+// MaxGenerationLifecycleLimit and exposes HasScopeSelector so a named scope,
+// repository, or generation that matches nothing is reported as not-found
+// rather than confident emptiness.
 package status

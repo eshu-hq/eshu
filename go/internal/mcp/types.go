@@ -29,6 +29,7 @@ func ReadOnlyTools() []ToolDefinition {
 	tools = append(tools, sbomAttestationAttachmentAggregateTools()...)
 	tools = append(tools, incidentContextTools()...)
 	tools = append(tools, workItemTools()...)
+	tools = append(tools, freshnessTools()...)
 	tools = append(tools, contextTools()...)
 	tools = append(tools, contentTools()...)
 	tools = append(tools, documentationTools()...)

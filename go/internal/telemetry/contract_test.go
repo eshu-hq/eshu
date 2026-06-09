@@ -171,6 +171,7 @@ func TestSpanNames(t *testing.T) {
 		"query.advisory_evidence",
 		"query.incident_context",
 		"query.work_item_evidence",
+		"query.freshness_generation_lifecycle",
 		"query.advisory_catalog",
 		"vulnerability_intelligence.observe",
 		"vulnerability_intelligence.fetch",

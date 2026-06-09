@@ -94,6 +94,7 @@ func OpenAPISpec() string {
 			openAPIPathsSBOMAttestationAttachmentAggregate+
 			openAPIPathsIncidentContext+
 			openAPIPathsWorkItemEvidence+
+			openAPIPathsFreshnessGenerations+
 			openAPIPathsSemanticStatus+
 			openAPIPathsSemanticEvidence+
 			openAPIPathsStatusAndCompare+

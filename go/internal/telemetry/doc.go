@@ -35,6 +35,8 @@
 // catalog read path,
 // SpanQueryWorkItemEvidence names the bounded Jira/work-item source evidence
 // read path,
+// SpanQueryFreshnessGenerationLifecycle names the bounded scope generation
+// lifecycle drilldown read path,
 // and SpanQuerySupplyChainImpactExplanation names the bounded vulnerability
 // finding/advisory explanation route. Pipeline stage, graph-backend, and
 // failure-class names

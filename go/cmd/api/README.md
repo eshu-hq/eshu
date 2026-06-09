@@ -92,7 +92,7 @@ See `doc.go` for the full godoc contract.
 - `internal/query` — `APIRouter`, `RepositoryHandler`, `EntityHandler`,
   `CodeHandler`, `ContentHandler`, `InfraHandler`, `IaCHandler`, `ImpactHandler`,
   `EvidenceHandler`, `SupplyChainHandler`, `IncidentHandler`, `WorkItemHandler`,
-  `StatusHandler`, `CompareHandler`, `AdminHandler`, `Neo4jReader`,
+  `FreshnessHandler`, `StatusHandler`, `CompareHandler`, `AdminHandler`, `Neo4jReader`,
   `ContentReader`, `AuthMiddleware`, `ParseQueryProfile`, `ParseGraphBackend`
 - `internal/runtime` — `OpenNeo4jDriver`, `ResolveAPIKey`, `NewStatusAdminMux`,
   `NewStatusRequestHandler`
