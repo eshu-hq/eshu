@@ -40,6 +40,8 @@ composition explicit and testable.
 - The packet does **not** replace `ResponseEnvelope`, `TruthEnvelope`, or
   `ErrorEnvelope`. It references the envelope and embeds a compact copy of the
   truth metadata.
+- The packet does **not** make MCP text summaries canonical. MCP text remains a
+  convenience layer; the canonical envelope resource block stays authoritative.
 - The packet does **not** make route payloads non-canonical. Routes keep
   returning canonical envelope data; answer-facing companions are additive.
 
@@ -169,6 +171,30 @@ materialized response map or incident response struct. It performs no graph,
 content-store, provider, collector, reducer, or queue reads and adds no runtime
 span. Existing route spans and structured logs remain the operator-facing proof
 for the underlying data fetch.
+
+## API and MCP exposure
+
+High-value answer routes may expose a packet as additive `data.answer_packet`
+inside the canonical `ResponseEnvelope`. Initial wired routes are:
+
+| Route / tool family | Packet prompt family | Notes |
+| --- | --- | --- |
+| `GET /api/v0/services/{service_name}/story` / `get_service_story` | `service.story` | Service dossier packet with the route story, result limits, and service-story truth. |
+| `GET /api/v0/incidents/{incident_id}/context` / `get_incident_context` | `incident.context` | Incident packet with missing-slot and truncation caveats from the bounded context response. |
+| `POST /api/v0/code/topics/investigate` / `investigate_code_topic` | `code.topic` | Code-topic packet with evidence handles, truncation state, and recommended source/relationship drilldowns. |
+
+Client choice is intentionally simple:
+
+- Read the `ResponseEnvelope` when machine truth, exact payload shape, freshness,
+  or error handling matters.
+- Read MCP text for a short convenience summary in chat clients.
+- Read `data.answer_packet` when a client needs a bounded user-facing answer
+  plan: `truth_class`, `supported`, `partial`, limitations, evidence handles,
+  missing evidence, and next calls.
+
+MCP resource blocks still carry the canonical envelope byte-for-byte. The packet
+is only part of that envelope data, so MCP clients get API/MCP parity without
+losing the canonical source of truth.
 
 ## Canonical truth is preserved
 

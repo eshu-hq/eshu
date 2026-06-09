@@ -105,6 +105,14 @@ func TestIncidentContextHandlerUsesBoundedStore(t *testing.T) {
 	if err := json.Unmarshal(dataBytes, &body); err != nil {
 		t.Fatalf("json.Unmarshal data: %v", err)
 	}
+	data, ok := envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope data type = %T, want map", envelope.Data)
+	}
+	packet := requireAnswerPacketCompanion(t, data, "incident.context")
+	if got, want := packet["primary_tool"], "get_incident_context"; got != want {
+		t.Fatalf("answer_packet.primary_tool = %#v, want %#v", got, want)
+	}
 	assertIncidentEdge(t, body.EvidencePath, IncidentSlotWorkItem, IncidentTruthMissing)
 }
 

@@ -144,18 +144,14 @@ func (h *EntityHandler) getServiceStory(w http.ResponseWriter, r *http.Request) 
 		)
 	}
 
-	WriteSuccess(
-		w,
-		r,
-		http.StatusOK,
-		buildServiceStoryResponse(serviceName, ctx),
-		BuildTruthEnvelope(
-			h.profile(),
-			"platform_impact.context_overview",
-			TruthBasisHybrid,
-			"resolved from service dossier and platform evidence",
-		),
+	data := buildServiceStoryResponse(serviceName, ctx)
+	truth := BuildTruthEnvelope(
+		h.profile(),
+		"platform_impact.context_overview",
+		TruthBasisHybrid,
+		"resolved from service dossier and platform evidence",
 	)
+	WriteSuccess(w, r, http.StatusOK, serviceStoryAnswerData(serviceName, data, truth), truth)
 }
 
 func writeServiceStoryEnvelopeError(
