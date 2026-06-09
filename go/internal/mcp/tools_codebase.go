@@ -269,6 +269,7 @@ func codebaseTools() []ToolDefinition {
 		iacManagementStatusTool(),
 		iacManagementExplanationTool(),
 		terraformImportPlanTool(),
+		composeReplatformingPlanTool(),
 		awsRuntimeDriftFindingsTool(),
 		replatformingRollupsTool(),
 		{
