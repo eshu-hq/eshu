@@ -52,7 +52,7 @@ func extractWorkbookDocumentation(
 	)
 	recordOOXMLPreflightMetadata(document.SourceMetadata, preflight)
 	addDocumentationWarnings(document.SourceMetadata, ooxmlPreflightWarnings(preflight)...)
-	if err != nil || !preflight.Safe {
+	if err != nil || ooxmlPreflightBlocked(preflight) {
 		return document, nil, nil
 	}
 	workbook, err := parseXLSXWorkbook(body)
@@ -124,16 +124,6 @@ func recordOOXMLPreflightMetadata(metadata map[string]string, result ooxmlprefli
 	if result.EmbeddedObjectCount > 0 {
 		metadata["preflight_embedded_object_count"] = strconv.Itoa(result.EmbeddedObjectCount)
 	}
-}
-
-func ooxmlPreflightWarnings(result ooxmlpreflight.Result) []string {
-	warnings := make([]string, 0, len(result.Warnings))
-	for _, warning := range result.Warnings {
-		if warning.Class != "" {
-			warnings = append(warnings, warning.Class)
-		}
-	}
-	return warnings
 }
 
 type xlsxWorkbook struct {
