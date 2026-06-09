@@ -93,6 +93,27 @@ safety-approved `cloud_only` findings in supported families. Ambiguous,
 unknown, stale, state-only, security-review, and unsupported findings are
 returned as refused candidates.
 
+Supported families map an AWS finding to a Terraform resource type and a
+deterministic import ID derived only from the finding ARN/`resource_id`:
+
+| AWS family | Terraform type | Import ID |
+| --- | --- | --- |
+| `s3` | `aws_s3_bucket` | bucket name |
+| `lambda` | `aws_lambda_function` | function name |
+| `sns` | `aws_sns_topic` | topic ARN |
+| `dynamodb` | `aws_dynamodb_table` | table name |
+| `ecr` | `aws_ecr_repository` | repository name |
+| `logs` | `aws_cloudwatch_log_group` | log group name |
+
+A family is only mapped when its import ID is exact and non-secret. Findings
+whose identity is ambiguous (for example SNS subscriptions, DynamoDB indexes,
+and CloudWatch log streams) are refused with `missing_provider_import_id`
+rather than guessed. Families that need a data-plane read, secret value, broad
+policy synthesis, or an unsafe provider identity — including SQS queue URLs,
+IAM, and KMS — stay refused: IAM and KMS are routed to `security_review_required`
+by the safety gate, and unmapped families are refused with
+`unsupported_resource_type`.
+
 Management status values are:
 
 - `managed_by_terraform`
