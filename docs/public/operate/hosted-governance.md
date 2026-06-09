@@ -19,7 +19,7 @@ Current shipped behavior:
 | API/MCP authentication | A deployed service authenticates with a shared bearer token. `/readyz` proves the token is accepted. | Per-team or per-repository read isolation. |
 | Repository scope | `eshu hosted-onboard` validates narrow repository rules and rejects accidental broad globbing unless `--confirm-broad` is set. | Repository onboarding rules as an authorization boundary after data is indexed. |
 | Source ACLs | Deterministic reads use indexed facts and read models. Semantic and extension policy docs describe required source gates. | Complete source-ACL enforcement across every hosted read. |
-| Semantic providers | No-provider mode is supported. Configured provider profiles are handles plus metadata and still require policy before source egress. | That a configured provider profile is permission to send content. |
+| Semantic providers | No-provider mode is supported. Configured provider profiles are handles plus metadata and still require source policy and semantic-provider egress policy before source egress. | That a configured provider profile is permission to send content. |
 | Extensions | Hosted extension policy is operator guidance. Community extension claim execution is not enabled by the shipped chart or Compose stack yet. | That installed or enabled components can collect in hosted mode. |
 | Network egress | Helm can render restricted NetworkPolicy egress classes for DNS, datastore, graph, internal service, collector providers, semantic providers, and extensions. | That `networkPolicy.egress.mode=broad` is least-privilege proof. |
 | Redaction and retention | Semantic posture docs require redaction policy and metadata-oriented retention for optional provider work. | That all future governance retention and deletion workflows are implemented. |
@@ -150,8 +150,9 @@ Public examples should prove the mode without showing credential handles:
 export ESHU_SEMANTIC_PROVIDER_PROFILES_JSON='{"profiles":[{"profile_id":"semantic-local-docs","provider_kind":"ollama","credential_source":{"kind":"cloud_workload_identity"},"model_id":"local-docs-model","source_classes":["documentation"],"source_policy_configured":true}]}'
 ```
 
-Pair the profile with source policy, limits, redaction, and retention. Compose
-development proof is not hosted isolation proof.
+Pair the profile with source policy, semantic-provider egress policy, limits,
+redaction, and retention. Compose development proof is not hosted isolation
+proof.
 
 ### Hosted Provider-Key Mode
 
@@ -159,18 +160,20 @@ Hosted deployments should use Kubernetes Secrets, external secret handles,
 cloud workload identity, or an internal gateway. Do not ask end users to paste a
 provider key into an assistant client, MCP config, issue body, docs page, or PR.
 Operator examples should name only source classes and credential-source classes.
-Pair any provider profile with restricted NetworkPolicy egress for the
-`semanticProviders` class. If provider traffic routes through an internal
+Pair any provider profile with a restricted semantic-provider egress rule in
+`ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` and restricted NetworkPolicy egress for
+the `semanticProviders` class. If provider traffic routes through an internal
 gateway, point the class at that gateway selector rather than enabling broad
 pod egress.
 
 ### Internal Gateway Mode
 
 Use `provider_kind=internal_gateway` when an organization routes provider calls
-through a governed gateway. The gateway still needs source policy, tenant or
-workspace routing, redaction, retention, budget, and audit controls. A gateway
-endpoint in docs should be a generic service URL, not a private hostname.
-Hosted Helm values should express that gateway through
+through a governed gateway. The gateway still needs source policy,
+semantic-provider egress policy, tenant or workspace routing, redaction,
+retention, budget, and audit controls. A gateway endpoint in docs should be a
+generic service URL, not a private hostname. Hosted Helm values should express
+that gateway through
 `networkPolicy.egress.classes.semanticProviders.to` using public-safe label
 selectors in shared examples and concrete selectors in private operator values.
 

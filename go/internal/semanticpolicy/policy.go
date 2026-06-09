@@ -92,11 +92,12 @@ const (
 
 // Policy captures the semantic extraction allowlist for hosted provider use.
 type Policy struct {
-	PolicyID            string   `json:"policy_id"`
-	Enabled             bool     `json:"enabled"`
-	Defaults            Settings `json:"defaults,omitempty"`
-	Rules               []Rule   `json:"rules,omitempty"`
-	DeniedSourceClasses []string `json:"denied_source_classes,omitempty"`
+	PolicyID            string       `json:"policy_id"`
+	Enabled             bool         `json:"enabled"`
+	Defaults            Settings     `json:"defaults,omitempty"`
+	Egress              EgressPolicy `json:"egress,omitempty"`
+	Rules               []Rule       `json:"rules,omitempty"`
+	DeniedSourceClasses []string     `json:"denied_source_classes,omitempty"`
 }
 
 // Rule allows one provider profile to handle selected source classes and scopes.
@@ -221,6 +222,12 @@ func Normalize(policy Policy) (Policy, error) {
 		return Policy{}, fmt.Errorf("denied_source_classes: %w", err)
 	}
 	out.DeniedSourceClasses = denied
+	egress, err := normalizeEgress(policy.Egress)
+	if err != nil {
+		return Policy{}, err
+	}
+	sortEgressProviderRules(egress.SemanticProviders)
+	out.Egress = egress
 
 	seenRules := make(map[string]struct{}, len(policy.Rules))
 	for i, rule := range policy.Rules {
@@ -275,6 +282,10 @@ func Evaluate(
 		scopeMatched = true
 		if !sourceMatches(rule.SourceAllowlist, request) {
 			continue
+		}
+		egressAllowed, reason, detail := egressAllowsRequest(policy.Egress, request)
+		if !egressAllowed {
+			return deny(status.SemanticExtractionDisabledByPolicy, reason, detail, request)
 		}
 		return Decision{
 			Allowed:           true,

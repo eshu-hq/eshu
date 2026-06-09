@@ -109,6 +109,9 @@ func allowedProfileSourceClasses(
 				continue
 			}
 			if slices.Contains(profileClasses, sourceClass) {
+				if !egressAllowsProfileSourceClass(policy.Egress, profile.ProfileID, sourceClass) {
+					continue
+				}
 				allowed[sourceClass] = struct{}{}
 			}
 		}
