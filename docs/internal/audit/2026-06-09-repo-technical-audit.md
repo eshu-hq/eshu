@@ -15,7 +15,8 @@ gates, the repository violates its own 500-line rule on its most critical
 ingestion files, and the deployment seam ships dev-grade defaults (hardcoded
 Helm password, `0.0.0.0` binds, no HTTP server timeouts). Top three risks:
 (1) frontend regressions can merge silently because no TS typecheck or test
-runs in CI; (2) per-package process overhead (~1,818 doc files, 122 unindexed
+runs in CI — and GitHub reports 7 open Dependabot alerts (2 critical) that
+need triage; (2) per-package process overhead (~1,818 doc files, 122 unindexed
 scripts) grows linearly with the codebase and is the main threat to solo-
 maintainer sustainability; (3) production deployments inherit insecure
 defaults unless operators know to override them. Top three opportunities:
@@ -192,6 +193,12 @@ triple **[fact]**; the default graph backend is a niche third-party project
 
 ### Dependencies
 
+- **[fact, High] GitHub reports 7 open Dependabot alerts on the default
+  branch — 2 critical, 4 moderate, 1 low** (reported by GitHub at push time;
+  details at `github.com/eshu-hq/eshu/security/dependabot`). The specific
+  advisories were not enumerable from this audit environment; triage them
+  first — two critical-severity dependency CVEs outrank everything else in
+  this section.
 - **[fact, Low] 147 `aws-sdk-go-v2/service/*` modules** (`go/go.mod`) —
   justified by the AWS collector; cost is build time and binary size.
 - **[judgment, Medium] Bus-factor on the default graph backend.**
@@ -287,6 +294,7 @@ published per PR with a ratchet on `parser`; zero High findings open.
 
 | ID | Task | Effort |
 | --- | --- | --- |
+| T0 | Triage 7 Dependabot alerts (2 critical) | S |
 | T1 | Frontend CI gate | S |
 | T2 | Go coverage reporting in CI | S |
 | T6 | Fix backend-default mismatch + panic in `query/code.go` | S |
@@ -304,6 +312,7 @@ published per PR with a ratchet on `parser`; zero High findings open.
 
 | ID | Task | Files/areas | Acceptance | Effort | Risk | Deps |
 | --- | --- | --- | --- | --- | --- | --- |
+| T0 | Triage Dependabot alerts; bump or pin the two critical-severity deps | `go/go.mod`, `package-lock.json` | Zero open critical alerts | S | Low | — |
 | T4 | Helm refuses default Neo4j password: `fail` in template when `change-me` and no existing secret; document override | `deploy/helm/eshu/values.yaml:827-833`, templates, deploy docs | `helm template` with defaults errors; CI helm-lint passes | M | Medium (breaks lazy installs — intended) | — |
 | T5 | Add `http.Server` Read/Write/Idle timeouts to api/mcp/status servers; audit `sourcecypher` executor for per-query deadline propagation | `go/internal/app`, `go/internal/runtime`, `go/internal/storage/cypher` | Timeouts configurable, defaults set; evidence marker per repo gate | M | Medium | — |
 | T6 | `query/code.go:56-62`: default empty → NornicDB via `ParseGraphBackend`, return error instead of panic | `go/internal/query/code.go` | Regression test for empty/invalid backend; no panic path | S | Low | — |
