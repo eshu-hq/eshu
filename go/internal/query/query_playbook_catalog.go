@@ -16,6 +16,12 @@ func PlaybookCatalog() []QueryPlaybook {
 		serviceStoryCitationPlaybook(),
 		repositoryCodeTopicInvestigationPlaybook(),
 		documentationTruthCitationPlaybook(),
+		incidentContextEvidencePathPlaybook(),
+		supplyChainImpactExplanationPlaybook(),
+		secretsIAMTrustChainPosturePlaybook(),
+		incrementalFreshnessReadinessPlaybook(),
+		hostedOnboardingGovernanceStatusPlaybook(),
+		changeSurfaceSourceInvestigationPlaybook(),
 	}
 }
 
