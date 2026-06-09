@@ -27,8 +27,12 @@ func gitDocumentationFactCount(
 ) int {
 	total := 0
 	sourceEmitted := false
+	documentationPaths := documentationMetaRelativePaths(snapshot.DocumentationFileMetas)
 	if len(snapshot.ContentFileMetas) > 0 {
 		for _, meta := range snapshot.ContentFileMetas {
+			if documentationPaths[meta.RelativePath] {
+				continue
+			}
 			if _, _, ok := gitDocumentationSourceURIAndFormat(meta.RelativePath); !ok {
 				continue
 			}
@@ -53,6 +57,9 @@ func gitDocumentationFactCount(
 		}
 	} else {
 		for _, fileSnapshot := range snapshot.ContentFiles {
+			if documentationPaths[fileSnapshot.RelativePath] {
+				continue
+			}
 			envelopes, emitted := gitDocumentationEnvelopesForContentFile(
 				repoPath,
 				repo,
@@ -230,7 +237,7 @@ func readDocumentationBody(repoPath string, relativePath string, body []byte) ([
 	if body != nil {
 		return body, true
 	}
-	sourceURI, ok := documentationSourceURI(relativePath)
+	sourceURI, format, ok := gitDocumentationSourceURIAndFormat(relativePath)
 	if !ok {
 		return nil, false
 	}
@@ -239,11 +246,28 @@ func readDocumentationBody(repoPath string, relativePath string, body []byte) ([
 		return nil, false
 	}
 	defer func() { _ = file.Close() }()
-	raw, err := io.ReadAll(io.LimitReader(file, int64(documentationMaxBodyBytes+1)))
+	raw, err := io.ReadAll(io.LimitReader(file, int64(documentationReadLimitBytes(format)+1)))
 	if err != nil {
 		return nil, false
 	}
 	return raw, true
+}
+
+func documentationReadLimitBytes(format gitDocumentationFormat) int {
+	if format.format == "notebook" {
+		return notebookMaxBodyBytes
+	}
+	return documentationMaxBodyBytes
+}
+
+func documentationMetaRelativePaths(metas []ContentFileMeta) map[string]bool {
+	paths := make(map[string]bool, len(metas))
+	for _, meta := range metas {
+		if meta.RelativePath != "" {
+			paths[meta.RelativePath] = true
+		}
+	}
+	return paths
 }
 
 func extractMarkdownDocumentationWithFormat(

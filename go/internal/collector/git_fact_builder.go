@@ -123,6 +123,7 @@ func streamFacts(
 
 	// Content file facts — two-phase re-read path or legacy path.
 	gitDocumentationSourceEmitted := false
+	documentationPaths := documentationMetaRelativePaths(snapshot.DocumentationFileMetas)
 	if len(snapshot.ContentFileMetas) > 0 {
 		for i, meta := range snapshot.ContentFileMetas {
 			body, err := os.ReadFile(filepath.Join(repoPath, filepath.FromSlash(meta.RelativePath)))
@@ -153,7 +154,7 @@ func streamFacts(
 				meta.RelativePath,
 				bodyStr,
 			)
-			if emitGitDocumentationFactsForContentFile(
+			if !documentationPaths[meta.RelativePath] && emitGitDocumentationFactsForContentFile(
 				ch,
 				repoPath,
 				repo,
@@ -191,7 +192,7 @@ func streamFacts(
 				fileSnapshot.RelativePath,
 				fileSnapshot.Body,
 			)
-			if emitGitDocumentationFactsForContentFile(
+			if !documentationPaths[fileSnapshot.RelativePath] && emitGitDocumentationFactsForContentFile(
 				ch,
 				repoPath,
 				repo,

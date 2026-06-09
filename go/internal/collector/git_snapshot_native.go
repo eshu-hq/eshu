@@ -137,6 +137,8 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	parserFiles, documentationFiles := partitionNativeSnapshotFiles(fileSet.Files, registry)
 	parserFileSet := fileSet
 	parserFileSet.Files = parserFiles
+	preScanFileSet := parserFileSet
+	preScanFileSet.Files = parserPreScanFiles(parserFileSet.Files)
 	logTerraformStateCandidateDiscovery(ctx, s, repoPath, len(tfstateCandidates))
 	s.logDiscoveryStats(ctx, repoPath, discoveryStats)
 	s.logSnapshotStageTiming(ctx, repoPath, "discovery", discoveryStartedAt,
@@ -172,7 +174,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	preScanStartedAt := time.Now()
 	importsMap, err := engine.PreScanRepositoryPathsWithWorkers(
 		repoPath,
-		parserFileSet.Files,
+		preScanFileSet.Files,
 		effectiveSnapshotParseWorkers(s.ParseWorkers),
 	)
 	if err != nil {
@@ -180,17 +182,17 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	}
 	snapshot.ImportsMap = importsMap
 	s.logSnapshotStageTiming(ctx, repoPath, "pre_scan", preScanStartedAt,
-		slog.Int("file_count", len(parserFileSet.Files)),
+		slog.Int("file_count", len(preScanFileSet.Files)),
 		slog.Int("import_symbol_count", len(importsMap)),
 		slog.Int("pre_scan_workers", effectiveSnapshotParseWorkers(s.ParseWorkers)),
 	)
 	goPackageSemanticPreScanStartedAt := time.Now()
-	goPackageTargets, err := engine.PreScanGoPackageSemanticRoots(repoPath, parserFileSet.Files)
+	goPackageTargets, err := engine.PreScanGoPackageSemanticRoots(repoPath, preScanFileSet.Files)
 	if err != nil {
 		return RepositorySnapshot{}, fmt.Errorf("pre-scan go package interface params for %q: %w", repoPath, err)
 	}
 	s.logSnapshotStageTiming(ctx, repoPath, "go_package_semantic_prescan", goPackageSemanticPreScanStartedAt,
-		slog.Int("file_count", len(parserFileSet.Files)),
+		slog.Int("file_count", len(preScanFileSet.Files)),
 		slog.Int("go_package_target_count", len(goPackageTargets)),
 	)
 

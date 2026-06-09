@@ -115,7 +115,7 @@ func documentationSectionsFromDrafts(
 			ExcerptHash:      documentationHashText(content),
 			SourceStartRef:   draft.startRef,
 			SourceEndRef:     draft.endRef,
-			SourceMetadata:   map[string]string{"path": relativePath},
+			SourceMetadata:   documentationSectionMetadata(relativePath, draft.sourceMetadata),
 			ContainsWarnings: len(warnings) > 0,
 		}
 		addDocumentationWarnings(section.SourceMetadata, warnings...)
@@ -132,6 +132,17 @@ func documentationSectionsFromDrafts(
 		sections = append(sections, section)
 	}
 	return sections
+}
+
+func documentationSectionMetadata(relativePath string, extra map[string]string) map[string]string {
+	metadata := map[string]string{"path": relativePath}
+	for key, value := range extra {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			metadata[key] = value
+		}
+	}
+	return metadata
 }
 
 func markdownLinks(relativePath string, sections []facts.DocumentationSectionPayload) []facts.DocumentationLinkPayload {
@@ -224,11 +235,12 @@ type markdownLine struct {
 }
 
 type markdownSectionDraft struct {
-	level    int
-	heading  string
-	anchor   string
-	startRef string
-	endRef   string
-	content  []string
-	warnings []string
+	level          int
+	heading        string
+	anchor         string
+	startRef       string
+	endRef         string
+	content        []string
+	warnings       []string
+	sourceMetadata map[string]string
 }

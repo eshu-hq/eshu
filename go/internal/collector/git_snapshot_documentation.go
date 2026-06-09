@@ -16,6 +16,13 @@ func partitionNativeSnapshotFiles(files []string, registry parser.Registry) ([]s
 	documentationFiles := []string{}
 	for _, filePath := range files {
 		if isGitDocumentationPath(filePath) {
+			if isNotebookDocumentationPath(filePath) {
+				if isParserPreferredDocumentationPath(filePath, registry) {
+					parserFiles = append(parserFiles, filePath)
+				}
+				documentationFiles = append(documentationFiles, filePath)
+				continue
+			}
 			if isParserPreferredDocumentationPath(filePath, registry) {
 				parserFiles = append(parserFiles, filePath)
 				continue
@@ -28,12 +35,31 @@ func partitionNativeSnapshotFiles(files []string, registry parser.Registry) ([]s
 	return parserFiles, documentationFiles
 }
 
+func parserPreScanFiles(files []string) []string {
+	out := make([]string, 0, len(files))
+	for _, filePath := range files {
+		if isNotebookDocumentationPath(filePath) {
+			continue
+		}
+		out = append(out, filePath)
+	}
+	return out
+}
+
 func isParserPreferredDocumentationPath(filePath string, registry parser.Registry) bool {
+	if strings.ToLower(filepath.Ext(filePath)) == ".ipynb" {
+		_, ok := registry.LookupByPath(filePath)
+		return ok
+	}
 	if strings.ToLower(filepath.Ext(filePath)) != ".txt" {
 		return false
 	}
 	_, ok := registry.LookupByPath(filePath)
 	return ok
+}
+
+func isNotebookDocumentationPath(filePath string) bool {
+	return strings.ToLower(filepath.Ext(filePath)) == ".ipynb"
 }
 
 func documentationFileMetasForPaths(repoPath string, paths []string, commitSHA string) []ContentFileMeta {
