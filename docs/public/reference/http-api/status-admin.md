@@ -59,6 +59,8 @@ public query API status.
 - `GET /api/v0/index-status` returns the same checkpoint summary.
 - `GET /api/v0/status/hosted-readiness` returns a fail-closed hosted operator
   report with JSON by default and a human summary when `?format=text`.
+- `GET /api/v0/status/governance` returns redacted hosted governance mode,
+  policy state, readiness, aggregate counts, and reason-code readbacks.
 - `GET /api/v0/status/semantic-extraction` returns the semantic extraction
   capability status with an Eshu truth envelope when requested by MCP or API
   clients.
@@ -77,6 +79,19 @@ checks pass. Diagnostic pointers reference `/admin/status`,
 `/api/v0/status/index`, `/api/v0/status/collectors`, and repository coverage;
 raw graph backend errors, resource IDs, account-local names, paths, and
 credentials are not included. The MCP equivalent is `get_hosted_readiness`.
+
+The governance status report composes explicit runtime readback from
+`ESHU_GOVERNANCE_*` settings and existing semantic aggregate status. It reports
+`mode`, `state`, `source_kind`, optional `policy_revision_hash`, readiness
+booleans, `identity`, `tenancy`, `egress`, `semantic`, `extensions`,
+`redaction`, `retention`, `audit`, aggregate counts, and bounded reason codes.
+Local development without governance config reports `local_no_policy` and
+`policy_not_configured`; hosted deployments can report `disabled`, `partial`,
+`enforcing`, `stale`, or `invalid` without exposing policy bodies. The route
+must not expose raw policy JSON, tenant or workspace identifiers, repository or
+source identifiers, credential handles, provider endpoints, prompt text,
+provider responses, private paths, or token values. The MCP equivalent is
+`get_hosted_governance_status`.
 
 The index status payload includes `aws_materialization`, an aggregate reducer
 queue summary for AWS graph/read-model materialization domains. It separates

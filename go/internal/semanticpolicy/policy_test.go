@@ -37,7 +37,7 @@ func TestEvaluateRequiresExplicitPolicyAllowlist(t *testing.T) {
 func TestEvaluateAllowsDocumentationWithConfiguredPolicy(t *testing.T) {
 	t.Parallel()
 
-	policy := docsOnlyPolicy()
+	policy := docsOnlyPolicyWithEgress()
 	decision := semanticpolicy.Evaluate(policy, semanticpolicy.Request{
 		ProviderProfileID: "semantic-docs-default",
 		SourceClass:       semanticprofile.SourceDocumentation,
@@ -78,7 +78,7 @@ func TestEvaluateAllowsDocumentationWithConfiguredPolicy(t *testing.T) {
 func TestEvaluateDeniesCodeHintsWhenOnlyDocumentationIsAllowlisted(t *testing.T) {
 	t.Parallel()
 
-	decision := semanticpolicy.Evaluate(docsOnlyPolicy(), semanticpolicy.Request{
+	decision := semanticpolicy.Evaluate(docsOnlyPolicyWithEgress(), semanticpolicy.Request{
 		ProviderProfileID: "semantic-docs-default",
 		SourceClass:       semanticprofile.SourceCodeHints,
 		Scope: semanticpolicy.Scope{
@@ -99,7 +99,7 @@ func TestEvaluateDeniesCodeHintsWhenOnlyDocumentationIsAllowlisted(t *testing.T)
 		t.Fatalf("Evaluate() Reason = %q, want %q", got, want)
 	}
 
-	applied := semanticpolicy.ApplyToProviderStatuses(providerStatuses(), docsOnlyPolicy())
+	applied := semanticpolicy.ApplyToProviderStatuses(providerStatuses(), docsOnlyPolicyWithEgress())
 	report := status.BuildReport(status.RawSnapshot{
 		SemanticExtraction: status.SemanticExtractionStatus{
 			ProviderProfiles: applied,
@@ -237,6 +237,16 @@ func TestLoadFromEnvParsesPolicySettingsBeforeDatastoreConnections(t *testing.T)
 	raw := `{
 		"policy_id": "semantic-hosted-policy",
 		"enabled": true,
+		"egress": {
+			"mode": "restricted",
+			"semantic_providers": [
+				{
+					"provider_profile_id": "semantic-docs-default",
+					"source_classes": ["documentation"],
+					"decision": "allow"
+				}
+			]
+		},
 		"rules": [
 			{
 				"rule_id": "docs-repo-1",

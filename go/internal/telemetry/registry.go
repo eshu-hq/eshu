@@ -113,6 +113,7 @@ var spanNames = []string{
 	SpanQueryInfraResourceSearch,
 	SpanQueryInfraResourceAggregate,
 	SpanQueryCloudResourceList,
+	SpanQueryCloudInventoryReadback,
 	SpanQueryCodeTopicInvestigation,
 	SpanQueryHardcodedSecretInvestigation,
 	SpanQueryDeadCodeInvestigation,

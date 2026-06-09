@@ -71,6 +71,7 @@ func OpenAPISpec() string {
 			openAPIPathsInfrastructure+
 			openAPIPathsInfraResourceAggregate+
 			openAPIPathsCloud+
+			openAPIPathsCloudInventory+
 			openAPIPathsImpact+
 			openAPIPathsEvidence+
 			openAPIPathsDocumentationFindingAggregate+
@@ -102,6 +103,7 @@ func OpenAPISpec() string {
 			openAPIPathsFreshnessChangedSince+
 			openAPIPathsFreshnessServiceChangedSince+
 			openAPIPathsHostedReadiness+
+			openAPIPathsGovernanceStatus+
 			openAPIPathsSemanticStatus+
 			openAPIPathsComponentExtensions+
 			openAPIPathsQueryPlaybooks+

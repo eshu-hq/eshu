@@ -398,8 +398,18 @@ const (
 	// provider resources (CloudResource nodes) served by GET
 	// /api/v0/cloud/resources. Distinct from the aggregate span so operators can
 	// separate per-row inventory browsing from rollup counts.
-	SpanQueryCloudResourceList           = "query.cloud_resource_list"
-	SpanQueryCodeStructuralInventory     = "query.code_structural_inventory"
+	SpanQueryCloudResourceList = "query.cloud_resource_list"
+	// SpanQueryCloudInventoryReadback wraps the bounded, paginated readback of
+	// canonical multi-cloud resource identities (reducer_cloud_resource_identity
+	// rows) served by GET /api/v0/cloud/inventory. It is distinct from the
+	// graph-backed cloud_resource_list span because this read resolves
+	// reducer-owned canonical identity facts from Postgres rather than the
+	// CloudResource graph projection. The span carries only the stable http.route
+	// and eshu.capability attributes; cloud_resource_uid, raw identities,
+	// account/project/subscription scopes, and provider locators stay out of span
+	// and metric labels.
+	SpanQueryCloudInventoryReadback  = "query.cloud_inventory_readback"
+	SpanQueryCodeStructuralInventory = "query.code_structural_inventory"
 	SpanQueryCodeTopicInvestigation      = "query.code_topic_investigation"
 	SpanQueryDeadCodeInvestigation       = "query.dead_code_investigation"
 	SpanQueryChangeSurfaceInvestigation  = "query.change_surface_investigation"

@@ -80,13 +80,14 @@ provider responses, source identifiers, or token-bearing endpoint URLs.
 ## Source Policy Gate
 
 A configured provider profile is only inventory. Semantic extraction requires a
-matching `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` rule before provider egress or
-queue work may happen.
+matching `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` source rule and semantic
+provider egress rule before provider egress or queue work may happen.
 
 The policy must explicitly allow:
 
 - provider profile id
 - source class
+- semantic provider egress in restricted mode, or explicit broad egress opt-in
 - organization, tenant, project, or repository scope
 - source selector such as a path prefix, source id, document id, source URI
   hash, or all sources inside the scope
@@ -100,6 +101,16 @@ Example policy:
 {
   "policy_id": "semantic-hosted-policy",
   "enabled": true,
+  "egress": {
+    "mode": "restricted",
+    "semantic_providers": [
+      {
+        "provider_profile_id": "semantic-docs-default",
+        "source_classes": ["documentation"],
+        "decision": "allow"
+      }
+    ]
+  },
   "rules": [
     {
       "rule_id": "docs-for-repo",
@@ -132,8 +143,11 @@ Example policy:
 
 Profiles and policy are intersected. A profile can have
 `credential_configured=true` while `documentation_observations_enabled=false`
-or `code_hints_enabled=false` because no matching source policy, ACL, source
-selector, or budget allows that class.
+or `code_hints_enabled=false` because no matching source policy, egress rule,
+ACL, source selector, or budget allows that class. `egress.mode=broad` is an
+explicit operator opt-in for deployments that delegate outbound controls to
+another policy system; it cannot include provider-specific allow or deny rules,
+and it is not least-privilege proof.
 
 ## Observations Versus Findings
 
@@ -211,7 +225,7 @@ credential details.
 | --- | --- |
 | Credentials | Store only handles in profile JSON. Never store raw provider keys, bearer tokens, cloud access keys, or secret values in repository files, status payloads, logs, metrics, PRs, or docs. |
 | Redaction | Source content must pass the configured redaction mode before provider egress. Semantic facts retain redaction version and policy state. |
-| Egress | Provider traffic is policy-gated by provider profile, source class, scope, source selector, ACL state, and budget. Empty policy and disabled policy fail closed. |
+| Egress | Provider traffic is policy-gated by provider profile, semantic-provider egress rule, source class, scope, source selector, ACL state, and budget. Empty policy, missing egress policy, disabled policy, and denied provider egress fail closed. |
 | Retention | Prefer metadata-only posture, no prompt body retention, and hash-only prompt/response metadata unless an explicit policy allows a narrower redacted excerpt. |
 | Audit | Public readbacks stay aggregate: queue status, budget totals, failure classes, policy/guard decisions, and actor/ACL classes. They do not expose source IDs, chunk IDs, prompts, provider responses, raw failures, principals, or credentials. |
 | Observability | Metrics and logs use bounded labels such as source class, provider kind, provider profile class, status, failure class, budget state, and budget reason. Private source identifiers belong only in redacted logs or trace attributes when explicitly allowed. |

@@ -113,6 +113,7 @@ type APIRouter struct {
 	Code                  *CodeHandler
 	Content               *ContentHandler
 	Infra                 *InfraHandler
+	CloudInventory        *CloudInventoryHandler
 	IaC                   *IaCHandler
 	Impact                *ImpactHandler
 	Evidence              *EvidenceHandler
@@ -174,6 +175,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Infra
 	if a.Infra != nil {
 		a.Infra.Mount(mux)
+	}
+
+	// Cloud inventory readback (canonical reducer_cloud_resource_identity rows)
+	if a.CloudInventory != nil {
+		a.CloudInventory.Mount(mux)
 	}
 
 	// IaC

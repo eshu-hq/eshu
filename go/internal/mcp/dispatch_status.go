@@ -22,6 +22,8 @@ func statusRoute(toolName string, args map[string]any) (*route, bool, error) {
 		return &route{method: "GET", path: "/api/v0/index-status"}, true, nil
 	case "get_hosted_readiness":
 		return &route{method: "GET", path: "/api/v0/status/hosted-readiness"}, true, nil
+	case "get_hosted_governance_status":
+		return &route{method: "GET", path: "/api/v0/status/governance"}, true, nil
 	case "get_semantic_capability_status":
 		return &route{method: "GET", path: "/api/v0/status/semantic-extraction"}, true, nil
 	case "list_component_extensions":

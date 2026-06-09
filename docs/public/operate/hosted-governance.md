@@ -64,7 +64,14 @@ curl -fsS "$ESHU_SERVICE_URL/healthz"
 curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" "$ESHU_SERVICE_URL/readyz"
 curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" "$ESHU_SERVICE_URL/admin/status"
 curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" "$ESHU_SERVICE_URL/api/v0/status/index"
+curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" "$ESHU_SERVICE_URL/api/v0/status/governance"
 ```
+
+`/api/v0/status/governance` reports only safe mode, state, policy-revision
+hash, readiness booleans, aggregate counts, and reason codes. It must not show
+raw policy bodies, tenant or workspace identifiers, source identifiers,
+credential handles, provider endpoints, prompts, provider responses, or token
+values.
 
 3. Check optional semantic extraction status before enabling provider-backed
    answers:
@@ -86,8 +93,9 @@ curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" \
   "$ESHU_SERVICE_URL/api/v0/component-extensions?limit=100"
 ```
 
-MCP equivalents are `get_semantic_capability_status`,
-`list_component_extensions`, and `get_component_extension_diagnostics`.
+MCP equivalents are `get_hosted_governance_status`,
+`get_semantic_capability_status`, `list_component_extensions`, and
+`get_component_extension_diagnostics`.
 
 5. Generate the team artifact only after the above checks match the intended
    posture:
@@ -102,6 +110,28 @@ eshu hosted-onboard \
 
 The artifact records the token source name and redacted endpoints. It must not
 carry the bearer token value.
+
+### Governance Status Readback
+
+The governance status route reads only safe runtime metadata from these
+environment keys:
+
+| Key | Safe value shape |
+| --- | --- |
+| `ESHU_GOVERNANCE_MODE` | `local_no_policy`, `hosted_single_tenant`, or `hosted_multi_tenant` |
+| `ESHU_GOVERNANCE_STATE` | `disabled`, `partial`, `enforcing`, `stale`, or `invalid` |
+| `ESHU_GOVERNANCE_SOURCE_KIND` | `environment`, `kubernetes_secret`, `config_map`, `postgres_revision`, or `unknown` |
+| `ESHU_GOVERNANCE_POLICY_REVISION_HASH` | Opaque `sha256:` revision hash only |
+| `ESHU_GOVERNANCE_AUTH_MODE` | `none`, `shared_token`, or a future scoped-token class |
+| `ESHU_GOVERNANCE_TENANT_MODE`, `ESHU_GOVERNANCE_WORKSPACE_MODE` | Mode names only, not tenant or workspace identifiers |
+| `ESHU_GOVERNANCE_EGRESS_MODE` | `restricted`, `broad`, or `not_configured` |
+| `ESHU_GOVERNANCE_REDACTION_STATE`, `ESHU_GOVERNANCE_RETENTION_MODE`, `ESHU_GOVERNANCE_AUDIT_STATE`, `ESHU_GOVERNANCE_EXTENSION_MODE` | Low-cardinality posture names |
+| `ESHU_GOVERNANCE_DENIED_DECISION_COUNT`, `ESHU_GOVERNANCE_POLICY_SECTION_COUNT`, `ESHU_GOVERNANCE_STALE_SECTION_COUNT` | Non-negative aggregate counts |
+| `ESHU_GOVERNANCE_REASONS` | Comma-separated reason codes from the hosted governance allowlist |
+
+Do not put raw policy documents, tenant names, workspace names, repository
+names, source identifiers, credential handles, private endpoints, prompts,
+provider responses, local paths, or token values in these keys.
 
 ## Provider Modes
 
@@ -121,8 +151,9 @@ Public examples should prove the mode without showing credential handles:
 export ESHU_SEMANTIC_PROVIDER_PROFILES_JSON='{"profiles":[{"profile_id":"semantic-local-docs","provider_kind":"ollama","credential_source":{"kind":"cloud_workload_identity"},"model_id":"local-docs-model","source_classes":["documentation"],"source_policy_configured":true}]}'
 ```
 
-Pair the profile with source policy, limits, redaction, and retention. Compose
-development proof is not hosted isolation proof.
+Pair the profile with source policy, semantic-provider egress policy, limits,
+redaction, and retention. Compose development proof is not hosted isolation
+proof.
 
 ### Hosted Provider-Key Mode
 
@@ -130,18 +161,20 @@ Hosted deployments should use Kubernetes Secrets, external secret handles,
 cloud workload identity, or an internal gateway. Do not ask end users to paste a
 provider key into an assistant client, MCP config, issue body, docs page, or PR.
 Operator examples should name only source classes and credential-source classes.
-Pair any provider profile with restricted NetworkPolicy egress for the
-`semanticProviders` class. If provider traffic routes through an internal
+Pair any provider profile with a restricted semantic-provider egress rule in
+`ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` and restricted NetworkPolicy egress for
+the `semanticProviders` class. If provider traffic routes through an internal
 gateway, point the class at that gateway selector rather than enabling broad
 pod egress.
 
 ### Internal Gateway Mode
 
 Use `provider_kind=internal_gateway` when an organization routes provider calls
-through a governed gateway. The gateway still needs source policy, tenant or
-workspace routing, redaction, retention, budget, and audit controls. A gateway
-endpoint in docs should be a generic service URL, not a private hostname.
-Hosted Helm values should express that gateway through
+through a governed gateway. The gateway still needs source policy,
+semantic-provider egress policy, tenant or workspace routing, redaction,
+retention, budget, and audit controls. A gateway endpoint in docs should be a
+generic service URL, not a private hostname. Hosted Helm values should express
+that gateway through
 `networkPolicy.egress.classes.semanticProviders.to` using public-safe label
 selectors in shared examples and concrete selectors in private operator values.
 

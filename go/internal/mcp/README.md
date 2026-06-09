@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 121
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 122
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,7 +59,7 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 121 tools from the tool definition files.
+`ReadOnlyTools` assembles 122 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
@@ -67,6 +67,7 @@ flowchart TB
 | `repositoryLanguageTools` | 3 | `tools_repository_language.go` |
 | `ecosystemTools` | 19 | `tools_ecosystem.go` |
 | `infraResourceAggregateTools` | 2 | `tools_infra_resource_aggregates.go` |
+| `cloudInventoryTools` | 1 | `tools_cloud_inventory.go` |
 | `packageRegistryTools` | 2 | `tools_package_registry.go` |
 | `packageRegistryAggregateTools` | 2 | `tools_package_registry_aggregates.go` |
 | `cicdTools` | 1 | `tools_cicd.go` |
@@ -91,7 +92,7 @@ flowchart TB
 | `semanticEvidenceTools` | 2 | `tools_semantic_evidence.go` |
 | `documentationFindingAggregateTools` | 2 | `tools_documentation_aggregates.go` |
 | `componentExtensionTools` | 2 | `tools_component_extensions.go` |
-| `runtimeTools` | 5 | `tools_runtime.go` |
+| `runtimeTools` | 7 | `tools_runtime.go` |
 
 Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 
@@ -164,6 +165,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_collectors` | GET | `/api/v0/status/collectors` |
 | `list_ingesters` | GET | `/api/v0/status/ingesters` |
 | `get_hosted_readiness` | GET | `/api/v0/status/hosted-readiness` with fail-closed queue, collector, projection, and API/MCP query-readback checks |
+| `get_hosted_governance_status` | GET | `/api/v0/status/governance` with redacted governance mode, policy state, readiness booleans, aggregate counts, and low-cardinality reasons |
 | `get_semantic_capability_status` | GET | `/api/v0/status/semantic-extraction` with redacted provider profile, semantic queue, budget, and audit status when configured |
 | `trace_deployment_chain` | POST | `/api/v0/impact/trace-deployment-chain` |
 | `investigate_deployment_config` | POST | `/api/v0/impact/deployment-config-influence` |
