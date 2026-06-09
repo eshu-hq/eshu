@@ -77,11 +77,27 @@ current families are:
 | Incident routing | source collector that observed the routing evidence, including `terraform_state` and optional live `pagerduty` config validation | `incident_routing.applied_pagerduty_resource`, `incident_routing.applied_alert_route`, `incident_routing.observed_pagerduty_service`, `incident_routing.observed_pagerduty_integration`, `incident_routing.coverage_warning` |
 | Jira work items | `jira` | `work_item.record`, `work_item.transition`, `work_item.external_link`, `work_item.project_metadata`, `work_item.issue_type_metadata`, `work_item.status_metadata`, `work_item.workflow_metadata`, `work_item.field_metadata`, `work_item.metadata_warning` |
 | Observability | source collector that observed the evidence, including `git` for declared IaC/GitOps | `observability.source_instance`, `observability.declared_folder`, `observability.declared_dashboard`, `observability.declared_datasource`, `observability.declared_alert_rule`, `observability.declared_scrape_config`, `observability.declared_metric_rule`, `observability.declared_metric_route`, `observability.declared_log_route`, `observability.declared_trace_route`, `observability.applied_resource`, `observability.applied_sync_state`, `observability.observed_dashboard`, `observability.observed_target`, `observability.observed_rule`, `observability.observed_log_signal`, `observability.observed_trace_signal`, `observability.coverage_warning` |
+| Semantic evidence | `semantic_extraction` | `semantic.documentation_observation`, `semantic.code_hint` |
 
 Most current core families use schema version `1.0.0`.
 `documentation_section` uses `1.1.0` because section payloads can carry
 source-native content for updater diff generation. Check the fact-family helper
 before emitting rows.
+
+Semantic evidence facts are optional provenance emitted by semantic extraction
+jobs. `semantic.documentation_observation` preserves an LLM-assisted
+documentation observation with source, chunk, provider profile, model, prompt
+version, extraction mode, redaction version, policy state, confidence,
+freshness, missing evidence, unsupported reason, and admission state.
+`semantic.code_hint` preserves a possible code relationship or entity hint with
+the same replay and safety provenance plus subject/object code entity refs,
+corroboration state, and
+`promotion_policy=requires_deterministic_evidence`. These facts never prove
+service, deployment, runtime, vulnerability, or infrastructure truth by
+themselves. Reducers and query surfaces must require deterministic parser,
+reducer, or provider evidence before presenting a hint as corroborated truth.
+Payloads must not contain raw provider keys, prompt payloads, bearer tokens,
+secret values, or private provider responses.
 
 Repository-hosted Markdown ingestion is part of Git collection. It emits
 source-neutral documentation source, document, section, and link facts for
@@ -408,6 +424,10 @@ Facts are source evidence, not automatic graph truth.
 - Observability facts remain source evidence until reducers compare declared
   IaC, applied state, and live provider evidence for the same service or
   runtime target.
+- Semantic documentation observations and code hints remain provenance until
+  reducers or query consumers explicitly admit them. Model output must not
+  directly promote service, deployment, runtime, vulnerability, or
+  infrastructure truth.
 - GCP and Azure cloud collector facts remain design-only until implemented.
   Their shared source-field and provider-extension baseline is defined in
   [Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md).
