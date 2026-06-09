@@ -15,7 +15,11 @@ const (
 	repositoryStatsReadTimeout          = 2 * time.Second
 )
 
-// getRepositoryStats returns bounded repository statistics from read models.
+// getRepositoryStats returns bounded repository statistics from read models. The
+// response carries the canonical truth envelope plus an additive result_limits
+// drilldown block and an explicit partial_reasons slot so a prompt-ready caller
+// sees fan-out bounds and missing evidence without raw Cypher, while the
+// existing coverage partial_results/truncated/timeout fields are preserved.
 func (h *RepositoryHandler) getRepositoryStats(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), repositoryStatsReadTimeout)
 	defer cancel()
@@ -47,11 +51,15 @@ func (h *RepositoryHandler) getRepositoryStats(w http.ResponseWriter, r *http.Re
 	coverageMap := repositoryStatsCoverageMap(coverage, coverageErr, h.Content != nil)
 	timer.Done(ctx, repositoryStatsCoverageLogAttrs(coverageMap, coverageErr)...)
 
+	response := repositoryStatsResponse(repo, coverage, coverageMap)
+	response["result_limits"] = repositoryStatsResultLimits(response, repoID)
+	response["partial_reasons"] = repositoryStatsPartialReasons(coverageMap)
+
 	WriteSuccess(
 		w,
 		r,
 		http.StatusOK,
-		repositoryStatsResponse(repo, coverage, coverageMap),
+		response,
 		BuildTruthEnvelope(
 			h.profile(),
 			"platform_impact.context_overview",

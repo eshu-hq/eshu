@@ -55,7 +55,7 @@ Cypher.
 | `count_repositories_by_language` | explicit language family | count-only via `limit=0` | yes | prompt-ready; avoids per-repo coverage fan-out |
 | `list_repositories_by_language` | explicit language family | `limit` and `offset` | yes | prompt-ready; returns repository handles and `truncated` |
 | `get_repository_language_inventory` | explicit whole-index language inventory | `limit` and `offset` | yes | prompt-ready; aggregate language buckets only |
-| `get_repository_stats` | repository selector optional; empty selector returns inventory | singleton or inventory | partial | transport-only HTTP stats; singleton coverage can carry `partial_results`, `truncated`, and `timeout` when coverage exceeds the route budget; canonical truth envelope plus `result_limits`/`partial_reasons` hardening is tracked in #1831 |
+| `get_repository_stats` | repository selector optional; empty selector returns inventory | singleton or inventory | yes | prompt-ready; canonical truth envelope (content-index basis for content-backed counts, hybrid when a graph backend verifies identity) plus an additive `result_limits` drilldown block and explicit `partial_reasons` slot on both singleton and inventory forms; existing coverage `partial_results`/`truncated`/`timeout` fields preserved |
 | `execute_language_query` | language and entity type filters, optional repository selector | `limit` | yes | prompt-ready for bounded language scans |
 | `find_function_call_chain` | start and end names required | `max_depth` | yes | prompt-ready when both endpoints are known |
 | `get_ecosystem_overview` | explicit whole-index ecosystem overview | singleton summary | yes | prompt-ready |
