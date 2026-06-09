@@ -208,13 +208,20 @@
 // docs/public/reference/visualization-packets.md; route and MCP wiring is
 // follow-up work.
 //
-// FreshnessHandler serves the bounded generation lifecycle drilldown at
-// GET /api/v0/freshness/generations under the freshness.generation_lifecycle
-// capability. It reads through the GenerationLifecycleReader port (implemented
-// by the Postgres status store) so the handler never depends on a concrete
-// database driver. The route is bounded by limit, ordered deterministically,
-// and reports truncated; a named scope_id, repository, or generation_id that
-// matches nothing returns scope_not_found or not_found instead of an empty
-// list, and the truth freshness state is building when a returned scope has a
-// pending or in-flight generation.
+// FreshnessHandler serves two bounded freshness drilldowns. The generation
+// lifecycle drilldown at GET /api/v0/freshness/generations under the
+// freshness.generation_lifecycle capability reads through the
+// GenerationLifecycleReader port; it is bounded by limit, ordered
+// deterministically, and reports truncated, with scope_not_found or not_found
+// for a named selector that matches nothing and a building freshness state when
+// a returned scope has a pending or in-flight generation. The changed-since
+// summary at GET /api/v0/freshness/changed-since under the
+// freshness.changed_since capability reads through the ChangedSinceReader port;
+// it diffs a prior generation's fact set against the current active generation's
+// fact set keyed by stable_fact_key into per-category (files, content entities,
+// facts) added/updated/unchanged/retired/superseded counts plus bounded sample
+// handles, returns scope_not_found/not_found for unresolved selectors, and maps
+// a scope with no current active generation to an explicit unavailable diff
+// rather than zero deltas. Both ports are implemented by the Postgres status
+// store so the handler never depends on a concrete database driver.
 package query

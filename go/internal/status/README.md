@@ -123,6 +123,24 @@ See `doc.go` for the godoc contract. Key types and functions:
   warnings grouped by safe locator hash and warning kind plus a compact warning
   summary
 
+### Freshness drilldown contracts
+
+- `GenerationLifecycleFilter` / `GenerationLifecycleRecord` /
+  `GenerationLifecyclePage` — bounded scope-generation drilldown: one ordered,
+  limit-clamped page of active/pending/superseded/completed/failed generations
+  with the owning scope identity, per-generation `GenerationQueueStatus` rollup,
+  and `GenerationLatestFailure`. `HasScopeSelector` drives not-found instead of
+  confident emptiness.
+- `ChangedSinceFilter` / `ChangedSinceSummary` / `ChangedSinceCategoryDelta` —
+  bounded repository-scope changed-since delta: a diff of one prior generation's
+  fact set against the current active generation's fact set, grouped into the
+  `ChangedSinceCategory` evidence buckets (files, content entities, facts) and
+  the closed `ChangedSinceClassification` verdict set (added, updated, unchanged,
+  retired, superseded). Counts are exact; `ChangedSinceFilter.Normalize` clamps
+  the per-classification sample handles to `MaxChangedSinceSampleLimit`. The
+  `Unavailable` flag separates a scope with no current active generation from a
+  genuinely empty delta. Service-scope deltas are not modeled here yet.
+
 ### Projection functions
 
 - `LoadReport(ctx, reader, asOf, opts)` — reads snapshot through `Reader` and

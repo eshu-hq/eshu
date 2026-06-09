@@ -278,8 +278,13 @@ documentation routes.
   active facts (`work_item_evidence_handler.go`)
 - `FreshnessHandler` — bounded scope generation lifecycle drilldown at
   `GET /api/v0/freshness/generations` through the `GenerationLifecycleReader`
-  port; named scope/repository/generation misses return not-found
-  (`freshness_generations.go`)
+  port, plus the changed-since delta at
+  `GET /api/v0/freshness/changed-since` through the `ChangedSinceReader` port
+  (diffs a prior generation against the current active generation by
+  `stable_fact_key` into per-category added/updated/unchanged/retired/superseded
+  counts and bounded samples); named scope/repository/generation misses return
+  not-found and no current active generation returns an explicit unavailable diff
+  (`freshness_generations.go`, `freshness_changed_since.go`)
 - `StatusHandler` — pipeline, ingester, index, and semantic extraction status
   routes (`status.go`, `status_semantic_extraction.go`)
 - `MetricsHandler` — `/api/v0/metrics/timeseries`; returns unavailable-empty

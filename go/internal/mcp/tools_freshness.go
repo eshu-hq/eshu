@@ -43,5 +43,37 @@ func freshnessTools() []ToolDefinition {
 				},
 			},
 		},
+		{
+			Name:        "get_changed_since",
+			Description: "Summarize what changed in a repository scope since a prior generation or instant. Diffs the prior generation's fact set against the current active generation's fact set, keyed by stable fact key, into per-category counts (files, content entities, facts) for added, updated, unchanged, retired, and superseded keys plus bounded sample handles. Supply since_generation_id for an exact prior generation or since_observed_at (RFC3339) for the generation observed at or before that instant. Unknown scope/repository returns not-found; a scope with no current active generation returns an explicit unavailable diff rather than zero deltas. Retired and superseded are never collapsed into unchanged.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"scope_id": map[string]any{
+						"type":        "string",
+						"description": "Exact ingestion scope id (required unless repository is set), for example git-repository-scope:owner/repo.",
+					},
+					"repository": map[string]any{
+						"type":        "string",
+						"description": "Canonical repository id (matches repository-kind scopes by source_key; required unless scope_id is set).",
+					},
+					"since_generation_id": map[string]any{
+						"type":        "string",
+						"description": "Prior generation id to diff from (required unless since_observed_at is set).",
+					},
+					"since_observed_at": map[string]any{
+						"type":        "string",
+						"description": "RFC3339 instant; the diff baseline is the generation observed at or before this time (required unless since_generation_id is set).",
+					},
+					"sample_limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum sample handles returned per classification per category.",
+						"default":     25,
+						"minimum":     1,
+						"maximum":     200,
+					},
+				},
+			},
+		},
 	}
 }

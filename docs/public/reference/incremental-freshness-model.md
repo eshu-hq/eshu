@@ -6,9 +6,14 @@ incremental machinery works today: how unchanged work is skipped, how webhook
 triggers relate to authoritative polling, how a scope's generations move
 through their lifecycle, and which surfaces answer freshness questions.
 
-It documents currently implemented behavior only. Eshu does not expose a delta
-or "changed-since" query surface today; freshness is observed through scope
-generations and status surfaces, not through a partial-result API.
+It documents currently implemented behavior only. Eshu exposes a bounded
+repository-scope changed-since delta surface (`GET /api/v0/freshness/changed-since`,
+the `get_changed_since` MCP tool, and `eshu freshness changed-since`) that diffs
+a prior generation's fact set against the current active generation's fact set;
+the lower-level freshness signal is still observed through scope generations and
+status surfaces. Service-scope deltas (deployment, runtime, dependencies, docs,
+incidents, vulnerabilities, ownership) are not computed yet and are tracked as
+follow-up work.
 
 ## What incremental refresh means
 
@@ -192,6 +197,44 @@ harnesses that exercise these surfaces. For the metrics, spans, and logs behind
 freshness and generation progress, see [Telemetry](telemetry/index.md), which
 covers the structured `refresh_skipped` log line emitted on skipped generations.
 
+## How changed-since deltas are computed
+
+The changed-since surface answers "what changed in this repository scope since a
+prior generation or instant?" without re-indexing. It diffs two generations of
+one scope:
+
+- The **prior generation** is the generation named by `since_generation_id`, or
+  the generation observed at or before `since_observed_at` for the scope.
+- The **current generation** is the scope's current
+  `active_generation_id`.
+
+The diff runs over `fact_records`, keyed by `(scope_id, generation_id,
+stable_fact_key)`. Each stable fact key falls into exactly one verdict, grouped
+into evidence categories (files, content entities, and the remaining facts):
+
+| Verdict | Meaning |
+| --- | --- |
+| `added` | Key present in the current generation, absent in the prior. |
+| `updated` | Key present in both; the payload hash (`md5(payload)`) differs. |
+| `unchanged` | Key present in both; the payload hash matches. |
+| `retired` | Key active in the prior generation, explicitly tombstoned in the current generation. |
+| `superseded` | Key active in the prior generation, absent entirely from the current generation. |
+
+Retired and superseded are never collapsed into `unchanged`. Counts are exact
+per category; the per-classification sample handles are bounded by `sample_limit`
+(default 25, max 200) and carry a per-classification `truncated` flag. Ordering
+is deterministic by `stable_fact_key`.
+
+Resolution failures are explicit, never confident emptiness. An unknown
+scope/repository returns `scope_not_found`; a since reference that resolves to no
+generation returns `not_found`; a scope with no current active generation returns
+an `unavailable` diff (and a `building`/`unavailable` freshness state) rather than
+all-zero deltas.
+
+The surface is repository-scope only today. Service-scope deltas (deployment,
+runtime, dependencies, docs, incidents, vulnerabilities, and ownership evidence)
+are larger and are tracked as follow-up work.
+
 ## How hosted teams verify freshness without full re-index churn
 
 Hosted teams do not need to re-index a repository to confirm it is current. The
@@ -229,6 +272,7 @@ rendered from Postgres, not from the graph backend.
 | Why is this specific answer not fresh? | Truth label `freshness.cause` and `freshness.next_check` on the answer envelope | The `next_check` points at the status, generation, coverage, or queue surface to follow. See [Truth Label Protocol](truth-label-protocol.md). |
 | Which MCP tool reports index progress? | `get_index_status` (the `next_check` target for most causes) | Bounded follow-up call carried on freshness causes. |
 | Is a scope current from the CLI? | `eshu` scan-status readiness | Treats `failed` generations as terminal and reports `pending` generations as still catching up. |
+| What changed in a repository scope since a prior generation or instant? | `GET /api/v0/freshness/changed-since` (`get_changed_since` MCP tool, `eshu freshness changed-since`) | Diffs the prior generation's fact set against the current active generation's fact set by `stable_fact_key`. Returns per-category (files, content entities, facts) added/updated/unchanged/retired/superseded counts with bounded sample handles. A scope with no current active generation returns an explicit unavailable diff, never zero deltas. |
 
 `scope_activity` summarizes per-scope observation activity. `generation_history`
 summarizes generation counts by status (including pending and failed).
