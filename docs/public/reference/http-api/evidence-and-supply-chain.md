@@ -68,6 +68,11 @@ target, service, scope, generation, search, updated time, limit, and cursor
 filters. Responses return `facts`, page `count`, normalized `limit`,
 `truncated`, `missing_evidence`, `states`, and `next_cursor` only when the
 bounded page has more rows.
+The optional `fact_kind` filter accepts the canonical
+`semantic.documentation_observation` kind plus `semantic_observation` and
+`documentation_observation` aliases. These rows remain provenance-only semantic
+evidence and do not become documentation findings without reducer-owned
+admission.
 
 `GET /api/v0/documentation/findings/{finding_id}/evidence-packet` returns the
 bounded packet an external updater can snapshot before it plans a diff. Eshu
