@@ -253,14 +253,14 @@ func componentPolicyFromEnv(getenv func(string) string) component.Policy {
 	if mode == "" {
 		mode = component.TrustModeDisabled
 	}
-	return component.Policy{
+	return component.ConfigureProvenanceFromEnv(component.Policy{
 		Mode:              mode,
 		AllowedIDs:        envStringList(getenv(envComponentAllowIDs)),
 		AllowedPublishers: envStringList(getenv(envComponentAllowPublishers)),
 		RevokedIDs:        envStringList(getenv(envComponentRevokeIDs)),
 		RevokedPublishers: envStringList(getenv(envComponentRevokePublishers)),
 		CoreVersion:       strings.TrimSpace(getenv(envComponentCoreVersion)),
-	}
+	}, getenv)
 }
 
 func envDuration(getenv func(string) string, key string, fallback time.Duration) (time.Duration, error) {

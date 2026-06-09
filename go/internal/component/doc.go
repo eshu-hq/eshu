@@ -5,7 +5,9 @@
 // and services. Installation is intentionally inert: runtime launch and work
 // claiming are modeled as separate activation decisions. Runtime metadata
 // declares the collector SDK protocol and adapter a host must understand before
-// an activation can become claim-capable. Registry readback reports
+// an activation can become claim-capable. Strict trust mode can call a narrow
+// provenance verifier to validate digest-pinned OCI artifact signatures and
+// attestations without executing component code. Registry readback reports
 // deterministic lifecycle states, and classified errors give CLI and automation
 // callers stable failure codes without exposing private paths. Manifest
 // fact-family metadata declares schema versions and non-unknown

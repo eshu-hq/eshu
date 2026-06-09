@@ -36,6 +36,12 @@ eshu component verify ./aws-component.yaml \
   --trust-mode allowlist \
   --allow-id dev.eshu.collector.aws \
   --allow-publisher eshu-hq
+eshu component verify ./aws-component.yaml \
+  --trust-mode strict \
+  --allow-id dev.eshu.collector.aws \
+  --allow-publisher eshu-hq \
+  --provenance-certificate-identity https://github.com/eshu-hq/eshu/.github/workflows/release.yml@refs/tags/v0.1.0 \
+  --provenance-oidc-issuer https://token.actions.githubusercontent.com
 eshu component install ./aws-component.yaml \
   --component-home ~/.eshu/components \
   --trust-mode allowlist \
@@ -230,11 +236,13 @@ provider credentials, or private host paths.
 
 The workflow coordinator can consume the same local registry when
 `ESHU_COMPONENT_HOME` is explicitly set on the coordinator process. Hosted
-activation is fail-closed: `ESHU_COMPONENT_TRUST_MODE=allowlist` plus matching
-`ESHU_COMPONENT_ALLOW_IDS` and `ESHU_COMPONENT_ALLOW_PUBLISHERS` are required
-before an enabled component activation can become claim-capable. Revoked IDs,
-revoked publishers, incompatible core ranges, unsupported runtime protocols,
-and unsupported adapters stop new workflow claims.
+activation is fail-closed: `ESHU_COMPONENT_TRUST_MODE=allowlist` requires
+matching `ESHU_COMPONENT_ALLOW_IDS` and `ESHU_COMPONENT_ALLOW_PUBLISHERS`.
+`ESHU_COMPONENT_TRUST_MODE=strict` requires the same allowlist plus the
+Sigstore/Cosign provenance settings described below. Revoked IDs, revoked
+publishers, incompatible core ranges, unsupported runtime protocols,
+unsupported adapters, missing signatures, and unsupported provenance shapes
+stop new workflow claims.
 
 The coordinator materializes trusted claim-capable activations as normal
 `collector_instances` rows, then plans one activation-scoped workflow item for
@@ -274,6 +282,9 @@ JSON errors use stable codes:
 | `incompatible_core` | The manifest's `compatibleCore` range excludes the running Eshu core. |
 | `revoked_package` | The component ID or publisher is revoked. |
 | `untrusted_publisher` | The local trust policy does not allow the component or publisher. |
+| `provenance_required` | Strict mode is missing a verifier, certificate identity, or OIDC issuer. |
+| `provenance_invalid` | Cosign signature, digest-claim, or identity verification failed. |
+| `unsupported_provenance` | Signed attestation material is absent or uses an unsupported predicate shape. |
 | `active_uninstall` | Uninstall was requested for a package version with active instances. |
 | `duplicate_activation` | The requested instance is already enabled. |
 | `fact_kind_collision` | The manifest claims a fact kind already owned by another installed component. |
@@ -314,10 +325,27 @@ content.
 | --- | --- |
 | `disabled` | Reject all optional components. |
 | `allowlist` | Require allowed component ID and publisher. |
-| `strict` | Fail closed until provenance verification is wired in. |
+| `strict` | Require allowed component ID and publisher, then verify every digest-pinned OCI artifact with Cosign signature claims and a supported SLSA provenance attestation. |
 
 Revocation can block a component ID or publisher. Revocation wins over
 allowlists.
+
+Strict mode treats the manifest publisher as an Eshu policy identifier, not as
+the Sigstore certificate identity. Operators must pass the expected certificate
+identity and OIDC issuer explicitly with
+`--provenance-certificate-identity` and `--provenance-oidc-issuer`. The default
+attestation predicate type is `slsaprovenance1`; other predicate shapes are
+rejected until the verifier contract is expanded.
+
+The Cosign check uses `cosign verify` with claim checking enabled and requires
+signature annotations that bind the manifest's component ID, publisher, version,
+compatible core range, SDK protocol, runtime adapter, collector kinds, and
+emitted fact kinds, schema versions, source-confidence values, reducer phases,
+and telemetry prefix. It then runs `cosign verify-attestation --type
+slsaprovenance1` for the same artifact. Eshu does not accept registry token or
+password flags on the component command; registry authentication must come from
+Cosign's normal environment, keychain, or workload identity handling so CLI
+errors never echo credential values.
 
 ## Community Extension Index
 
@@ -398,9 +426,10 @@ component version releases its local fact-kind ownership claim.
 
 ## Current Limits
 
-This first slice does not pull from OCI registries and does not perform
-Sigstore/Cosign verification. Strict mode fails closed instead of pretending to
-verify provenance.
+This slice does not pull runnable OCI images into Eshu or execute component
+code during verify/install. Strict mode can contact registries through the
+operator-selected Cosign verifier to validate signatures and attestations for
+digest-pinned artifacts.
 
 Fixture conformance is local validation. It does not run Docker Compose, start
 the workflow coordinator, claim work, project graph truth, or prove API/query

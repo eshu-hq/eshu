@@ -32,12 +32,16 @@ posture.
 
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
-| `ESHU_COMPONENT_TRUST_MODE` | `disabled` | API, MCP, workflow coordinator, component extension collector | Trust mode for hosted component activations and read-only diagnostics. `allowlist` is required before enabled component instances can become claim-capable. |
+| `ESHU_COMPONENT_TRUST_MODE` | `disabled` | API, MCP, workflow coordinator, component extension collector | Trust mode for hosted component activations and read-only diagnostics. `allowlist` or `strict` is required before enabled component instances can become claim-capable. |
 | `ESHU_COMPONENT_ALLOW_IDS` | unset | API, MCP, workflow coordinator, component extension collector | Comma-separated component IDs allowed for hosted activation and reported diagnostics. |
 | `ESHU_COMPONENT_ALLOW_PUBLISHERS` | unset | API, MCP, workflow coordinator, component extension collector | Comma-separated publisher identities allowed for hosted activation and reported diagnostics. |
 | `ESHU_COMPONENT_REVOKE_IDS` | unset | API, MCP, workflow coordinator, component extension collector | Comma-separated component IDs blocked from receiving new hosted claims and reported diagnostics. |
 | `ESHU_COMPONENT_REVOKE_PUBLISHERS` | unset | API, MCP, workflow coordinator, component extension collector | Comma-separated publishers blocked from receiving new hosted claims and reported diagnostics. |
 | `ESHU_COMPONENT_CORE_VERSION` | build version | API, MCP, workflow coordinator, component extension collector | Optional core version override used for component compatibility checks and reported diagnostics. |
+| `ESHU_COMPONENT_PROVENANCE_CERTIFICATE_IDENTITY` | unset | API, MCP, workflow coordinator, component extension collector | Expected Sigstore certificate identity when `ESHU_COMPONENT_TRUST_MODE=strict`. |
+| `ESHU_COMPONENT_PROVENANCE_OIDC_ISSUER` | unset | API, MCP, workflow coordinator, component extension collector | Expected Sigstore OIDC issuer when `ESHU_COMPONENT_TRUST_MODE=strict`. |
+| `ESHU_COMPONENT_PROVENANCE_PREDICATE_TYPE` | `slsaprovenance1` | API, MCP, workflow coordinator, component extension collector | Supported Cosign attestation predicate type for strict component trust. |
+| `ESHU_COMPONENT_COSIGN_BINARY` | `cosign` | API, MCP, workflow coordinator, component extension collector | Optional Cosign binary override for strict component trust. Do not pass registry tokens through Eshu env; use Cosign's own registry auth mechanisms. |
 | `ESHU_COMPONENT_COLLECTOR_INSTANCE_ID` | unset | component extension collector | Optional selector when more than one trusted claim-capable component activation exists. |
 | `ESHU_COMPONENT_COLLECTOR_OWNER_ID` | `HOSTNAME`, then `collector-component-extension` | component extension collector | Claim owner label for the process-backed component extension worker. |
 | `ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL` | `1s` | component extension collector | Idle poll interval between claim attempts. |

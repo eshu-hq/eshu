@@ -25,7 +25,8 @@ Before a plugin is activated, Eshu must verify:
 - `allowlist`
   - only explicitly approved plugin identities may load
 - `strict`
-  - allowlist plus signature/provenance verification required
+  - allowlist plus Sigstore/Cosign signature and attestation verification
+    required
 
 Installing a component is not the same as activating it. A component may be
 verified and installed in the local registry while still having no enabled
@@ -39,7 +40,29 @@ collector instance. Claim-capable execution is a separate operator decision.
 - compatible Eshu core range
 - emitted fact kinds and schema versions
 
-Preferred signing model: Sigstore/Cosign-compatible OCI artifact signatures.
+Preferred signing model: Sigstore/Cosign-compatible OCI artifact signatures
+with keyless certificate identity and OIDC issuer verification.
+
+## Strict Provenance Contract
+
+Strict mode keeps publisher allowlists and Sigstore identities separate. The
+manifest `metadata.publisher` is a local Eshu policy identifier. The expected
+Sigstore certificate identity and OIDC issuer are operator-supplied trust
+inputs.
+
+For each digest-pinned OCI artifact declared by the manifest, strict mode:
+
+- verifies the Cosign signature with claim checking enabled;
+- requires the configured certificate identity and OIDC issuer;
+- requires signature annotations for component ID, publisher, version,
+  compatible core range, SDK protocol, runtime adapter, collector kinds, and
+  emitted fact kinds, schema versions, source-confidence values, reducer
+  phases, and telemetry prefix;
+- verifies a `slsaprovenance1` attestation for the same artifact.
+
+Missing signatures, digest-claim mismatches, wrong certificate identity,
+unallowlisted publisher IDs, revoked IDs or publishers, incompatible core
+ranges, and unsupported attestation shapes fail closed.
 
 ## Revocation
 
@@ -64,6 +87,6 @@ not silent key replacement.
 - guaranteeing safety of arbitrary plugin code beyond the stated trust checks
 - automatic approval of new publishers
 
-The first local component-manager slice supports disabled and allowlist checks.
-Strict mode fails closed until Sigstore/Cosign or equivalent provenance
-verification is wired in.
+The component-manager strict path verifies provenance through the Cosign CLI
+boundary. Verification and installation do not execute component code; runtime
+activation and claim capability remain separate operator decisions.

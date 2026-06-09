@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	"github.com/eshu-hq/eshu/go/internal/component"
 )
 
 func TestComponentInspectPrintsManifestIdentity(t *testing.T) {
@@ -79,6 +81,45 @@ func TestComponentEnableRejectsMissingInstall(t *testing.T) {
 	}
 }
 
+func TestComponentVerifyStrictUsesCosignProvenanceFlags(t *testing.T) {
+	manifestPath := writeComponentCommandManifest(t)
+	cosignPath, logPath := writeComponentCommandFakeCosign(t)
+	out := &bytes.Buffer{}
+	cmd := newComponentTestCommand(out)
+	cmd.Flags().String(componentTrustModeFlag, component.TrustModeStrict, "")
+	cmd.Flags().StringSlice(componentAllowIDFlag, []string{"dev.eshu.collector.aws"}, "")
+	cmd.Flags().StringSlice(componentAllowPublisherFlag, []string{"eshu-hq"}, "")
+	cmd.Flags().String(componentCosignBinaryFlag, cosignPath, "")
+	cmd.Flags().String(
+		componentProvenanceIdentityFlag,
+		"https://github.com/eshu-hq/eshu/.github/workflows/release.yml@refs/tags/v0.1.0",
+		"",
+	)
+	cmd.Flags().String(componentProvenanceIssuerFlag, "https://token.actions.githubusercontent.com", "")
+
+	if err := runComponentVerify(cmd, []string{manifestPath}); err != nil {
+		t.Fatalf("runComponentVerify() error = %v, want nil", err)
+	}
+	if !strings.Contains(out.String(), "with strict policy") {
+		t.Fatalf("verify output = %q, want strict policy", out.String())
+	}
+	logBytes, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile() error = %v, want nil", err)
+	}
+	log := string(logBytes)
+	for _, want := range []string{
+		"verify ",
+		"verify-attestation ",
+		"--certificate-identity https://github.com/eshu-hq/eshu/.github/workflows/release.yml@refs/tags/v0.1.0",
+		"--certificate-oidc-issuer https://token.actions.githubusercontent.com",
+	} {
+		if !strings.Contains(log, want) {
+			t.Fatalf("cosign args missing %q:\n%s", want, log)
+		}
+	}
+}
+
 func writeComponentCommandManifest(t *testing.T) string {
 	t.Helper()
 
@@ -124,4 +165,21 @@ func newComponentTestCommand(out *bytes.Buffer) *cobra.Command {
 	cmd := &cobra.Command{}
 	cmd.SetOut(out)
 	return cmd
+}
+
+func writeComponentCommandFakeCosign(t *testing.T) (string, string) {
+	t.Helper()
+
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "cosign-args.log")
+	cosignPath := filepath.Join(dir, "cosign")
+	body := `#!/bin/sh
+printf '%s\n' "$*" >> "$COSIGN_ARGS_LOG"
+printf '%s\n' '[]'
+`
+	if err := os.WriteFile(cosignPath, []byte(body), 0o700); err != nil {
+		t.Fatalf("os.WriteFile() error = %v, want nil", err)
+	}
+	t.Setenv("COSIGN_ARGS_LOG", logPath)
+	return cosignPath, logPath
 }
