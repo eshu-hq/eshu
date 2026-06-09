@@ -45,6 +45,12 @@ credential Secret refs, public pprof binding, and public API docs without an
 explicit verifier opt-in. Use `test-verify-hosted-security-posture.sh` for the
 mutation harness.
 
+`verify-hosted-network-policy-egress.sh` renders the Helm chart and verifies
+hosted NetworkPolicy egress posture. It flags broad egress as a governance risk
+and proves restricted mode for DNS, datastore, graph, internal-service,
+collector-provider, semantic-provider, and extension destination classes. Use
+`test-verify-hosted-network-policy-egress.sh` for the mutation harness.
+
 `verify_remote_e2e_runtime_state.sh` is the post-start gate for the hosted
 remote collector E2E stack. It does not start containers. Run it after the
 remote Compose stack is up to prove the API, MCP server, ingester,

@@ -40,6 +40,7 @@ guidance belong in the public Kubernetes docs.
 ```bash
 helm template eshu ./deploy/helm/eshu
 scripts/verify-hosted-security-posture.sh
+scripts/verify-hosted-network-policy-egress.sh
 helm lint ./deploy/helm/eshu
 ```
 

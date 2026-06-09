@@ -56,6 +56,7 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 | Argo CD or GitOps overlay rendered shape | `scripts/test-verify-gitops-rendered-diff-preflight.sh` and `scripts/verify-gitops-rendered-diff-preflight.sh --overlay deploy/argocd/overlays/aws --values values.private.yaml` |
 | Hosted Helm install, upgrade, or rollback proof | `scripts/test-verify-hosted-helm-rollout-proof.sh`, `scripts/verify-hosted-helm-rollout-proof.sh --out-dir .proof/helm-install`, and `helm lint deploy/helm/eshu` |
 | Hosted API/MCP auth, secret, or exposure posture | `scripts/test-verify-hosted-security-posture.sh`, `scripts/verify-hosted-security-posture.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml` |
+| Hosted NetworkPolicy egress posture | `scripts/test-verify-hosted-network-policy-egress.sh`, `scripts/verify-hosted-network-policy-egress.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml` |
 | Hosted backup, restore, or graph-rebuild proof | `scripts/test-verify-hosted-backup-restore-proof.sh` and `scripts/verify-hosted-backup-restore-proof.sh --input restore-proof.json --output-json restore-proof.summary.json --output-markdown restore-proof.summary.md` |
 | Compose-to-Kubernetes runtime parity | `scripts/test-verify-compose-helm-runtime-parity.sh`, `scripts/verify-compose-helm-runtime-parity.sh`, and `helm lint deploy/helm/eshu` |
 | Hosted ops dashboard or alert pack | `scripts/test-verify-hosted-ops-alert-pack.sh`, `scripts/verify-hosted-ops-alert-pack.sh`, and `helm lint deploy/helm/eshu` |
