@@ -49,9 +49,12 @@ domains whose correctness contract is tied to `content_entity.entity_type`,
 such as inheritance and SQL relationships. Both paths select the full
 `facts.Envelope` column shape before calling the shared scanner, so filtered
 reads keep schema version, collector, fencing, and source-confidence metadata.
-`ListActiveRepositoryFacts` pages active Git repository facts through the
-partial `fact_records_active_repository_idx` index so package source
-correlation reads one row per active repository scope, not every fact row.
+`ListActiveRepositoryFacts` pages active, non-tombstoned Git repository facts
+through the partial `fact_records_active_repository_idx` index so package source
+correlation reads one row per active repository scope, not every fact row. It
+filters `is_tombstone = FALSE` as a residual predicate so a repository fact
+tombstoned within a still-active generation is never returned as live, matching
+every sibling active source-local reader.
 `ListActivePackageManifestDependencyFacts` uses
 `fact_records_active_package_dependency_entity_idx` to load only active Git
 manifest dependency entities for the ecosystem/name set in the current
