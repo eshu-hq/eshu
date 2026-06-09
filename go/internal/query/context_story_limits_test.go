@@ -74,6 +74,48 @@ func TestGetEntityContextReturnsResultLimitsAndPartialReasons(t *testing.T) {
 	requireContextResultLimits(t, data, "get_relationship_evidence", "/api/v0/entities/entity-1/context")
 }
 
+// TestWorkloadContextResultLimitsCapsFanoutInPlace proves the workload limits
+// block caps each fan-out slice to the stated limit and only then reports
+// truncated, so the payload never exceeds limit while claiming truncation.
+func TestWorkloadContextResultLimitsCapsFanoutInPlace(t *testing.T) {
+	t.Parallel()
+
+	instances := make([]any, contextStoryItemLimit+10)
+	for i := range instances {
+		instances[i] = map[string]any{"id": i}
+	}
+	ctx := map[string]any{"instances": instances}
+
+	limits := workloadContextResultLimits(ctx, "workload-1", "context")
+
+	if got := len(mapSliceValue(ctx, "instances")); got != contextStoryItemLimit {
+		t.Fatalf("instances payload len = %d, want capped to %d", got, contextStoryItemLimit)
+	}
+	if got, want := limits["instance_count"], contextStoryItemLimit+10; got != want {
+		t.Fatalf("result_limits.instance_count = %v, want total %d", got, want)
+	}
+	if truncated, _ := limits["truncated"].(bool); !truncated {
+		t.Fatal("result_limits.truncated = false, want true when fan-out exceeds the limit")
+	}
+}
+
+// TestWorkloadContextResultLimitsNotTruncatedUnderLimit proves a workload whose
+// fan-out is within the limit is not falsely marked truncated.
+func TestWorkloadContextResultLimitsNotTruncatedUnderLimit(t *testing.T) {
+	t.Parallel()
+
+	ctx := map[string]any{"instances": []any{map[string]any{"id": 1}, map[string]any{"id": 2}}}
+
+	limits := workloadContextResultLimits(ctx, "workload-1", "context")
+
+	if truncated, _ := limits["truncated"].(bool); truncated {
+		t.Fatal("result_limits.truncated = true, want false when fan-out is within the limit")
+	}
+	if got := len(mapSliceValue(ctx, "instances")); got != 2 {
+		t.Fatalf("instances payload len = %d, want 2 unchanged", got)
+	}
+}
+
 func contextEnvelopeHTTPData(t *testing.T, mux *http.ServeMux, path, pathKey, pathValue string) map[string]any {
 	t.Helper()
 

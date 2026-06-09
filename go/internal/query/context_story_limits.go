@@ -37,9 +37,26 @@ func workloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 	instances := mapSliceValue(ctx, "instances")
 	dependents := mapSliceValue(ctx, "dependents")
 	consumers := mapSliceValue(ctx, "consumer_repositories")
-	truncated := len(instances) > contextStoryItemLimit ||
-		len(dependents) > contextStoryItemLimit ||
-		len(consumers) > contextStoryItemLimit
+	instanceTotal := len(instances)
+	dependentTotal := len(dependents)
+	consumerTotal := len(consumers)
+
+	// Cap each fan-out slice in place so the payload honors the stated limit;
+	// truncated then reflects an actual cut rather than claiming truncation
+	// while still returning every row.
+	cappedInstances, instTrunc := capMapRows(instances, contextStoryItemLimit)
+	cappedDependents, depTrunc := capMapRows(dependents, contextStoryItemLimit)
+	cappedConsumers, conTrunc := capMapRows(consumers, contextStoryItemLimit)
+	if instanceTotal > 0 {
+		ctx["instances"] = cappedInstances
+	}
+	if dependentTotal > 0 {
+		ctx["dependents"] = cappedDependents
+	}
+	if consumerTotal > 0 {
+		ctx["consumer_repositories"] = cappedConsumers
+	}
+	truncated := instTrunc || depTrunc || conTrunc
 	drilldownTool := "get_workload_story"
 	if surface == "story" {
 		drilldownTool = "get_workload_context"
@@ -47,9 +64,9 @@ func workloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 	return map[string]any{
 		"limit":             contextStoryItemLimit,
 		"ordering":          "deterministic",
-		"instance_count":    len(instances),
-		"dependent_count":   len(dependents),
-		"consumer_count":    len(consumers),
+		"instance_count":    instanceTotal,
+		"dependent_count":   dependentTotal,
+		"consumer_count":    consumerTotal,
 		"truncated":         truncated,
 		"drilldown_basis":   "resolved_id",
 		"relationship_tool": "get_relationship_evidence",
