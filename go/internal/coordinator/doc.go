@@ -37,7 +37,11 @@
 // scanner-worker source evidence targets so a healthy worker must still have
 // claimable work before a proof can count source evidence. AWSScheduledWorkPlanner and
 // AWSFreshnessWorkPlanner plan ordinary AWS collector work from configured
-// schedules or webhook freshness triggers.
+// schedules or webhook freshness triggers. ComponentExtensionWorkPlanner plans
+// source-evidence-only work for verified claim-capable component activations
+// loaded from the local component registry; it stores component identity,
+// manifest digest, runtime protocol, and a safe config handle, not raw component
+// configuration or credentials.
 // Incident freshness handoff narrows PagerDuty and Jira webhook wake-ups to
 // authorized configured scope IDs before creating normal collector work. Planners
 // produce workflow rows only; claim ownership and fact emission stay with the

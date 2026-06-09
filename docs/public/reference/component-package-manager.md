@@ -160,6 +160,28 @@ local manifest readback only. When trust or revocation flags are supplied, list
 also re-verifies installed manifests and can add `revoked`, `incompatible`, or
 `failed` states without mutating the registry.
 
+## Hosted Coordinator Activation
+
+The workflow coordinator can consume the same local registry when
+`ESHU_COMPONENT_HOME` is explicitly set on the coordinator process. Hosted
+activation is fail-closed: `ESHU_COMPONENT_TRUST_MODE=allowlist` plus matching
+`ESHU_COMPONENT_ALLOW_IDS` and `ESHU_COMPONENT_ALLOW_PUBLISHERS` are required
+before an enabled component activation can become claim-capable. Revoked IDs,
+revoked publishers, incompatible core ranges, unsupported runtime protocols,
+and unsupported adapters stop new workflow claims.
+
+The coordinator materializes trusted claim-capable activations as normal
+`collector_instances` rows, then plans one activation-scoped workflow item for
+the manifest-declared collector kind. The durable collector instance stores a
+component ID, version, publisher, manifest digest, runtime protocol, adapter,
+and stable `config_handle`. It does not store activation config paths,
+provider targets, or credential values. Use `eshu component list --json` with
+the same trust and revoke flags to inspect local policy failure reasons.
+
+Component extension workflow rows are source evidence only until a core reducer
+contract consumes the emitted facts. The coordinator does not create graph
+nodes or edges for extension facts.
+
 JSON errors use stable codes:
 
 | Code | Meaning |
