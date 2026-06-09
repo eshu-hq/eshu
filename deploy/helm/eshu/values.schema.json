@@ -1031,7 +1031,9 @@
     "contentStore": {
       "type": "object",
       "properties": {
-        "dsn": { "type": "string" }
+        "dsn": { "type": "string" },
+        "secretName": { "type": "string" },
+        "dsnKey": { "type": "string" }
       }
     },
     "neo4j": {

@@ -15,6 +15,7 @@ kubectl create namespace eshu
 The chart defaults expect:
 
 - `eshu-api-auth` with key `api-key`
+- `eshu-postgres` with key `dsn`
 - `eshu-neo4j` with keys `username` and `password`
 - `github-app-credentials` when `repoSync.auth.method=githubApp`
 - optional collector credentials only for collectors you enable
@@ -24,6 +25,9 @@ For a direct Kubernetes Secret setup:
 ```bash
 kubectl -n eshu create secret generic eshu-api-auth \
   --from-literal=api-key="$ESHU_API_KEY"
+
+kubectl -n eshu create secret generic eshu-postgres \
+  --from-literal=dsn="$ESHU_POSTGRES_DSN"
 
 kubectl -n eshu create secret generic eshu-neo4j \
   --from-literal=username="$NORNICDB_USERNAME" \
@@ -47,7 +51,8 @@ kubectl -n eshu create secret generic confluence-collector-credentials \
 
 ```yaml
 contentStore:
-  dsn: postgresql://eshu:secret@postgres.platform.svc.cluster.local:5432/eshu
+  secretName: eshu-postgres
+  dsnKey: dsn
 
 neo4j:
   uri: bolt://nornicdb.platform.svc.cluster.local:7687
@@ -82,6 +87,8 @@ scripts/verify-hosted-helm-rollout-proof.sh \
   --namespace eshu \
   --release eshu \
   -f values.eshu.yaml
+
+scripts/verify-hosted-security-posture.sh -f values.eshu.yaml
 
 helm upgrade --install eshu ./deploy/helm/eshu \
   --namespace eshu \

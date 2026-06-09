@@ -1,6 +1,12 @@
 {{- if and .Values.exposure.ingress.enabled .Values.exposure.gateway.enabled -}}
 {{- fail "exposure.ingress.enabled and exposure.gateway.enabled cannot both be true" -}}
 {{- end -}}
+{{- if and .Values.contentStore.dsn .Values.contentStore.secretName -}}
+{{- fail "contentStore.dsn and contentStore.secretName cannot both be set" -}}
+{{- end -}}
+{{- if and .Values.contentStore.secretName (not (.Values.contentStore.dsnKey | default "dsn")) -}}
+{{- fail "contentStore.dsnKey is required when contentStore.secretName is set" -}}
+{{- end -}}
 {{- if and (eq .Values.repoSync.auth.method "ssh") (eq .Values.repoSync.source.mode "githubOrg") -}}
 {{- fail "repoSync.auth.method=ssh requires repoSync.source.mode=explicit or filesystem" -}}
 {{- end -}}

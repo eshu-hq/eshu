@@ -380,10 +380,19 @@ app.kubernetes.io/component: vulnerability-intelligence-collector
 {{ toYaml . }}
 {{- end }}
 {{- end -}}
-
-
 {{- define "eshu.renderContentStoreEnv" -}}
-{{- if .Values.contentStore.dsn }}
+{{- if .Values.contentStore.secretName }}
+- name: ESHU_CONTENT_STORE_DSN
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.contentStore.secretName }}
+      key: {{ .Values.contentStore.dsnKey | default "dsn" }}
+- name: ESHU_POSTGRES_DSN
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.contentStore.secretName }}
+      key: {{ .Values.contentStore.dsnKey | default "dsn" }}
+{{- else if .Values.contentStore.dsn }}
 - name: ESHU_CONTENT_STORE_DSN
   value: {{ .Values.contentStore.dsn | quote }}
 - name: ESHU_POSTGRES_DSN
@@ -410,8 +419,6 @@ app.kubernetes.io/component: vulnerability-intelligence-collector
 {{- include "eshu.renderNeo4jAuthEnv" . | nindent 0 }}
 {{- include "eshu.renderEnvMap" .Values.env | nindent 0 }}
 {{- end -}}
-
-{{/* Bolt credentials are always rendered because the shared client config rejects empty auth fields. */}}
 {{- define "eshu.renderNeo4jAuthEnv" -}}
 {{- if .Values.neo4j.auth.secretName }}
 - name: NEO4J_USERNAME

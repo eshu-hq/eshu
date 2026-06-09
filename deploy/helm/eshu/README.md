@@ -28,6 +28,9 @@ guidance belong in the public Kubernetes docs.
   long-running workloads use direct `/usr/local/bin/eshu-*` binaries.
 - Claim-driven collectors require an active workflow coordinator with claims
   enabled.
+- Production Postgres DSNs should use `contentStore.secretName` and
+  `contentStore.dsnKey`; inline `contentStore.dsn` is for local-only or private
+  operator contexts.
 - Ingress and Gateway API exposure are mutually exclusive.
 - Helm-hook schema bootstrap cannot run against chart-managed NornicDB in the
   same install because hooks run before that backend exists.
@@ -36,6 +39,7 @@ guidance belong in the public Kubernetes docs.
 
 ```bash
 helm template eshu ./deploy/helm/eshu
+scripts/verify-hosted-security-posture.sh
 helm lint ./deploy/helm/eshu
 ```
 

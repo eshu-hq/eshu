@@ -39,6 +39,12 @@ services, critical env wiring, health or metrics probes, Helm core workloads,
 or collector ServiceMonitor template coverage. The mocked harness is
 `test-verify-compose-helm-runtime-parity.sh`.
 
+`verify-hosted-security-posture.sh` renders the Helm chart and fails closed on
+inline credential-shaped env vars, missing API auth Secret refs, empty
+credential Secret refs, public pprof binding, and public API docs without an
+explicit verifier opt-in. Use `test-verify-hosted-security-posture.sh` for the
+mutation harness.
+
 `verify_remote_e2e_runtime_state.sh` is the post-start gate for the hosted
 remote collector E2E stack. It does not start containers. Run it after the
 remote Compose stack is up to prove the API, MCP server, ingester,
