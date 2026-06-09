@@ -1,0 +1,37 @@
+package main
+
+import (
+	"log/slog"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+)
+
+// cloudInventoryAdmissionWiring builds the production adapters for the shared
+// multi-cloud inventory admission domain (issues #1997, #1998).
+//
+// The evidence loader reads the three provider inventory source fact kinds
+// (aws_resource, gcp_cloud_resource, azure_cloud_resource) for one scope
+// generation and maps each into the shared admission record shape. The writer
+// upserts one canonical reducer_cloud_resource_identity row per resolved
+// cloud_resource_uid, idempotent by a deterministic fact id so retries and
+// concurrent workers converge instead of duplicating canonical truth. The
+// generation check supersedes a stale scan before any load or write so a
+// superseded admission never publishes canonical rows.
+//
+// All three are returned together because the reducer registry only registers
+// DomainCloudInventoryAdmission when both the loader and writer are non-nil;
+// keeping the wiring in one helper keeps that contract obvious and keeps the
+// reducer command entrypoint under the package size budget.
+func cloudInventoryAdmissionWiring(
+	database postgres.ExecQueryer,
+	logger *slog.Logger,
+) (reducer.CloudInventoryEvidenceLoader, reducer.CloudInventoryAdmissionWriter, reducer.GenerationFreshnessCheck) {
+	loader := postgres.PostgresCloudInventoryEvidenceLoader{
+		DB:     database,
+		Logger: logger,
+	}
+	writer := reducer.PostgresCloudInventoryAdmissionWriter{DB: database}
+	generationCheck := postgres.NewGenerationFreshnessCheck(database)
+	return loader, writer, generationCheck
+}

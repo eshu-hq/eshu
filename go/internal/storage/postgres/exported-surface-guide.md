@@ -50,6 +50,11 @@ reducer/query adapter.
   `aws_cloud_runtime_drift` reducer domain, including explicit unknown and
   ambiguous owner evidence when coverage or deterministic owner signals are
   insufficient
+- `PostgresCloudInventoryEvidenceLoader` — bounded read of the three provider
+  inventory source fact kinds (`aws_resource`, `gcp_cloud_resource`,
+  `azure_cloud_resource`) for one scope generation, mapped into the shared
+  `reducer.CloudInventoryRecord` shape for the `cloud_inventory_admission`
+  reducer domain (issues #1997, #1998)
 
 **Content stores**
 

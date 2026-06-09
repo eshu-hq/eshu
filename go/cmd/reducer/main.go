@@ -215,6 +215,7 @@ func buildReducerService(
 	graphProjectionRepairQueue := postgres.NewGraphProjectionPhaseRepairQueueStore(database)
 	graphProjectionReadinessLookup := postgres.NewGraphProjectionReadinessLookup(database)
 	graphProjectionReadinessPrefetch := postgres.NewGraphProjectionReadinessPrefetch(database)
+	cloudInventoryEvidenceLoader, cloudInventoryAdmissionWriter, cloudInventoryGenerationCheck := cloudInventoryAdmissionWiring(database, logger)
 	semanticEntityExecutor := semanticEntityExecutorForGraphBackend(
 		neo4jExec,
 		graphBackend,
@@ -338,6 +339,9 @@ func buildReducerService(
 		},
 		AWSCloudRuntimeDriftWriter:          reducer.PostgresAWSCloudRuntimeDriftWriter{DB: database},
 		AWSCloudRuntimeDriftLogger:          logger,
+		CloudInventoryEvidenceLoader:        cloudInventoryEvidenceLoader,
+		CloudInventoryAdmissionWriter:       cloudInventoryAdmissionWriter,
+		CloudInventoryGenerationCheck:       cloudInventoryGenerationCheck,
 		CloudResourceNodeWriter:             cloudResourceNodeWriter,
 		EC2InstanceNodeWriter:               ec2InstanceNodeWriter,
 		CloudResourceEdgeWriter:             cloudResourceEdgeWriter,
