@@ -25,7 +25,10 @@
 // content and keeps that span name in contract_query_spans.go.
 // SpanQueryEvidenceCitationPacket names the prompt-facing citation
 // hydration route that turns explicit content handles into bounded source and
-// documentation proof. SpanQuerySBOMAttestationAttachments names the
+// documentation proof. SpanQuerySemanticEvidence names the opt-in semantic
+// documentation observation and code-hint fact read path, keeping semantic
+// provenance traces separate from deterministic documentation, code, and graph
+// truth routes. SpanQuerySBOMAttestationAttachments names the
 // digest/document-anchored SBOM and attestation attachment read path.
 // SpanQueryAdvisoryEvidence names the source-only advisory evidence read path,
 // SpanQueryAdvisoryCatalog names the browsable, summary-only CVE-intelligence

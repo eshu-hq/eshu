@@ -117,6 +117,7 @@ type APIRouter struct {
 	Impact                *ImpactHandler
 	Evidence              *EvidenceHandler
 	Documentation         *DocumentationHandler
+	SemanticEvidence      *SemanticEvidenceHandler
 	PackageRegistry       *PackageRegistryHandler
 	Dependencies          *DependenciesHandler
 	CICD                  *CICDHandler
@@ -189,6 +190,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Documentation
 	if a.Documentation != nil {
 		a.Documentation.Mount(mux)
+	}
+
+	// Semantic evidence
+	if a.SemanticEvidence != nil {
+		a.SemanticEvidence.Mount(mux)
 	}
 
 	// Package registry

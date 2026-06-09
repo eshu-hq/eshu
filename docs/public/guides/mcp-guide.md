@@ -58,6 +58,14 @@ Use focused tools for exact code questions:
 | What code looks dead? | `investigate_dead_code` |
 | Find hardcoded secrets. | `investigate_hardcoded_secrets` |
 
+Use semantic evidence tools only when you explicitly want optional LLM-assisted
+provenance:
+
+| Question | Start with |
+| --- | --- |
+| Which documentation observations did semantic extraction produce? | `list_semantic_documentation_observations` |
+| Which non-canonical code hints exist for this repo, path, or entity? | `list_semantic_code_hints` |
+
 Use raw Cypher only for diagnostics after named tools cannot answer the
 question.
 

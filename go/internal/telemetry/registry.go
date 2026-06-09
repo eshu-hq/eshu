@@ -100,6 +100,7 @@ var spanNames = []string{
 	SpanQueryDocumentationFacts,
 	SpanQueryDocumentationEvidencePacket,
 	SpanQueryDocumentationPacketFreshness,
+	SpanQuerySemanticEvidence,
 	SpanQueryDocumentationAggregate,
 	SpanQueryDeadIaC,
 	SpanQueryIaCUnmanagedResources,

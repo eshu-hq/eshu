@@ -160,6 +160,13 @@ observations but no admitted finding, the observations may appear as bounded
 `related_facts`. They remain provenance-only evidence and do not increment
 documentation finding counts.
 
+API and MCP callers that explicitly want semantic observation rows can use
+`GET /api/v0/semantic/documentation-observations` or the
+`list_semantic_documentation_observations` MCP tool. Those readbacks expose
+provider profile, prompt version, redaction version, policy state, freshness,
+and admission state from durable facts without raw prompt payloads or provider
+responses.
+
 ## Code Hints Versus Graph Truth
 
 `semantic.code_hint` is a possible code relationship or entity hint. It carries
@@ -177,6 +184,11 @@ Operators should treat code hints like search or review hints:
 - never a replacement for parser or reducer proof
 - never enough to overwrite graph truth on their own
 - safe to omit in no-provider mode
+
+Callers that intentionally want code hints can use
+`GET /api/v0/semantic/code-hints` or the `list_semantic_code_hints` MCP tool.
+Deterministic code and relationship routes do not mix in these hints unless the
+caller opts into the semantic code-hint surface.
 
 ## Local And Hosted Modes
 
