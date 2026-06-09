@@ -25,6 +25,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		AWSCloudScans          []awsCloudScanJSON           `json:"aws_cloud_scans,omitempty"`
 		AWSFreshness           *awsFreshnessJSON            `json:"aws_freshness,omitempty"`
 		VulnerabilitySources   []vulnerabilitySourceJSON    `json:"vulnerability_sources,omitempty"`
+		SemanticExtraction     semanticExtractionJSON       `json:"semantic_extraction"`
 		AWSCloudScansTruncated bool                         `json:"aws_cloud_scans_truncated,omitempty"`
 		AWSCloudScanLimit      int                          `json:"aws_cloud_scan_limit,omitempty"`
 		ScopeActivity          scopeActivityJSON            `json:"scope_activity"`
@@ -50,6 +51,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		AWSCloudScans:          awsCloudScansJSON(report.AWSCloudScans),
 		AWSFreshness:           awsFreshnessJSONFromReport(report.AWSFreshness),
 		VulnerabilitySources:   vulnerabilitySourcesJSON(report.VulnerabilitySources),
+		SemanticExtraction:     semanticExtractionStatusJSON(report.SemanticExtraction),
 		AWSCloudScansTruncated: report.AWSCloudScansTruncated,
 		AWSCloudScanLimit:      awsCloudScanLimitJSON(report),
 		ScopeActivity:          scopeActivityJSONFromReport(report.ScopeActivity),

@@ -238,6 +238,21 @@ const openAPIPathsStatusAndCompare = `
                         "domains": {"type": "array", "items": {"type": "object"}}
                       }
                     },
+                    "semantic_extraction": {
+                      "type": "object",
+                      "properties": {
+                        "state": {"type": "string", "enum": ["unavailable", "available", "available_but_disabled_for_scope", "disabled_by_policy", "provider_unhealthy"]},
+                        "reason": {"type": "string"},
+                        "provider_configured": {"type": "boolean"},
+                        "documentation_observations_enabled": {"type": "boolean"},
+                        "code_hints_enabled": {"type": "boolean"},
+                        "deterministic_paths_affected": {"type": "boolean"},
+                        "deterministic_documentation_unblocked": {"type": "boolean"},
+                        "detail": {"type": "string"},
+                        "updated_at": {"type": "string", "format": "date-time"},
+                        "supported_states": {"type": "array", "items": {"type": "string"}}
+                      }
+                    },
                     "terraform_state": {
                       "type": "object",
                       "properties": {
@@ -314,6 +329,21 @@ const openAPIPathsStatusAndCompare = `
                         "dead_letter": {"type": "integer"},
                         "failed": {"type": "integer"},
                         "domains": {"type": "array", "items": {"type": "object"}}
+                      }
+                    },
+                    "semantic_extraction": {
+                      "type": "object",
+                      "properties": {
+                        "state": {"type": "string", "enum": ["unavailable", "available", "available_but_disabled_for_scope", "disabled_by_policy", "provider_unhealthy"]},
+                        "reason": {"type": "string"},
+                        "provider_configured": {"type": "boolean"},
+                        "documentation_observations_enabled": {"type": "boolean"},
+                        "code_hints_enabled": {"type": "boolean"},
+                        "deterministic_paths_affected": {"type": "boolean"},
+                        "deterministic_documentation_unblocked": {"type": "boolean"},
+                        "detail": {"type": "string"},
+                        "updated_at": {"type": "string", "format": "date-time"},
+                        "supported_states": {"type": "array", "items": {"type": "string"}}
                       }
                     },
                     "terraform_state": {

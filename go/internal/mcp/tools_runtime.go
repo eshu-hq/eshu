@@ -44,5 +44,14 @@ func runtimeTools() []ToolDefinition {
 				"required":   []string{},
 			},
 		},
+		{
+			Name:        "get_semantic_capability_status",
+			Description: "Return semantic extraction capability status, including no-provider unavailable state, code-hint enablement, and whether deterministic paths are affected.",
+			InputSchema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+				"required":   []string{},
+			},
+		},
 	}
 }

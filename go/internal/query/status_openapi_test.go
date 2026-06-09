@@ -17,6 +17,19 @@ func TestOpenAPISpecStatusPathsMatchCurrentContract(t *testing.T) {
 	if _, ok := paths["/api/v0/index-status"]; !ok {
 		t.Fatal("OpenAPI paths missing /api/v0/index-status")
 	}
+	semanticPath := mustMapField(t, paths, "/api/v0/status/semantic-extraction")
+	semanticGet := mustMapField(t, semanticPath, "get")
+	semanticResponses := mustMapField(t, semanticGet, "responses")
+	semanticOK := mustMapField(t, semanticResponses, "200")
+	semanticContent := mustMapField(t, semanticOK, "content")
+	semanticJSON := mustMapField(t, semanticContent, "application/json")
+	semanticSchema := mustMapField(t, semanticJSON, "schema")
+	semanticProperties := mustMapField(t, semanticSchema, "properties")
+	for _, want := range []string{"state", "reason", "code_hints_enabled", "documentation_observations_enabled", "deterministic_paths_affected"} {
+		if _, ok := semanticProperties[want]; !ok {
+			t.Fatalf("/api/v0/status/semantic-extraction response schema missing %q", want)
+		}
+	}
 	if _, ok := paths["/api/v0/ingesters"]; !ok {
 		t.Fatal("OpenAPI paths missing /api/v0/ingesters")
 	}

@@ -8,7 +8,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 106
+	expectedCount := 107
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -75,6 +75,7 @@ func TestReadOnlyTools(t *testing.T) {
 		"list_documentation_facts",
 		"get_documentation_evidence_packet",
 		"check_documentation_evidence_packet_freshness",
+		"get_semantic_capability_status",
 		"list_collectors",
 		"list_ingesters",
 		"count_repositories_by_language",
@@ -217,8 +218,8 @@ func TestContentTools(t *testing.T) {
 
 func TestRuntimeTools(t *testing.T) {
 	tools := runtimeTools()
-	if len(tools) != 4 {
-		t.Errorf("Expected 4 runtime tools, got %d", len(tools))
+	if len(tools) != 5 {
+		t.Errorf("Expected 5 runtime tools, got %d", len(tools))
 	}
 }
 

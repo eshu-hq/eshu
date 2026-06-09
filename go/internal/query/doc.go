@@ -165,4 +165,9 @@
 // confident sentence. The contract is documented in
 // docs/public/reference/answer-packets.md; route and MCP wiring is follow-up
 // work.
+//
+// Semantic extraction status is exposed as runtime capability metadata rather
+// than a graph read: no-provider mode reports unavailable, disables code hints
+// and documentation observations, and leaves deterministic query truth paths
+// unaffected.
 package query

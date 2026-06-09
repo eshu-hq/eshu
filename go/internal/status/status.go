@@ -145,6 +145,7 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		AWSCloudScans:          cloneAWSCloudScanStatuses(raw.AWSCloudScans),
 		AWSFreshness:           cloneAWSFreshnessSnapshot(raw.AWSFreshness),
 		VulnerabilitySources:   cloneVulnerabilitySourceStates(raw.VulnerabilitySources),
+		SemanticExtraction:     normalizeSemanticExtractionStatus(raw.SemanticExtraction),
 		CollectorFactEvidence:  cloneCollectorFactEvidence(raw.CollectorFactEvidence),
 		AWSCloudScansTruncated: raw.AWSCloudScansTruncated,
 		AWSCloudScanLimit:      raw.AWSCloudScanLimit,
@@ -209,6 +210,7 @@ func RenderText(report Report) string {
 	lines = append(lines, renderAWSCloudScanLines(report.AWSCloudScans)...)
 	lines = append(lines, renderAWSFreshnessLines(report.AWSFreshness)...)
 	lines = append(lines, renderVulnerabilitySourceLines(report.VulnerabilitySources)...)
+	lines = append(lines, renderSemanticExtractionLine(report.SemanticExtraction))
 	if report.AWSCloudScansTruncated {
 		lines = append(lines, fmt.Sprintf("AWS cloud scans truncated: limit=%d", report.AWSCloudScanLimit))
 	}

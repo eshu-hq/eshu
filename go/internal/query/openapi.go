@@ -94,6 +94,7 @@ func OpenAPISpec() string {
 			openAPIPathsSBOMAttestationAttachmentAggregate+
 			openAPIPathsIncidentContext+
 			openAPIPathsWorkItemEvidence+
+			openAPIPathsSemanticStatus+
 			openAPIPathsStatusAndCompare+
 			openAPIComponents,
 		"__ESHU_VERSION__",

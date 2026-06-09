@@ -320,6 +320,7 @@ func newRouter(
 			Neo4j:        neo4jReader,
 			DB:           db,
 			StatusReader: pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db}),
+			Profile:      queryProfile,
 		},
 		Metrics: &query.MetricsHandler{
 			Source:  metricsSource,

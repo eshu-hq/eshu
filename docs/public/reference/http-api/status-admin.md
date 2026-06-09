@@ -34,6 +34,11 @@ mounted:
 - `aws_freshness` reports AWS Config/EventBridge freshness backlog using
   aggregate status counts, `oldest_queued_age`, and
   `oldest_queued_age_seconds`.
+- `semantic_extraction` reports optional LLM-assisted semantic extraction as a
+  status field. No-provider mode is `state=unavailable` with
+  `reason=provider_not_configured`; code hints and documentation observations
+  are disabled, and deterministic indexing, reducer, API, MCP, and docs
+  verification paths remain unaffected.
 
 Use `/admin/status` for runtime-local probes. Use `/api/v0/status/*` routes for
 public query API status.
@@ -42,6 +47,9 @@ public query API status.
 
 - `GET /api/v0/status/index` returns the current checkpoint summary.
 - `GET /api/v0/index-status` returns the same checkpoint summary.
+- `GET /api/v0/status/semantic-extraction` returns the semantic extraction
+  capability status with an Eshu truth envelope when requested by MCP or API
+  clients.
 - `GET /api/v0/repositories/{repo_id}/coverage` returns durable repository
   coverage rows for one repository.
 
@@ -67,6 +75,11 @@ includes bounded `terraform_state.recent_warnings[]` rows with `source_handle`,
 `safe_locator_hash`, source class, reason, severity, and actionability for
 source-level triage. Raw state locators, bucket names, object keys, and local
 paths are not included in the public status payload.
+
+The payload also includes `semantic_extraction`. This mirrors
+`/api/v0/status/semantic-extraction` so index-status consumers can tell that
+optional semantic extraction is unavailable or disabled without treating it as a
+failed index, reducer, API, MCP, or documentation fact path.
 
 Run-scoped completeness routes such as `/api/v0/index-runs/{run_id}` are not
 part of the shipped public contract.
@@ -130,6 +143,13 @@ No-Observability-Change: collector status classification reuses existing
 `vulnerability_sources`, workflow coordinator rows, active fact metadata, and
 MCP HTTP dispatch; it adds one bounded Postgres aggregate status read and does
 not add a worker, queue, graph query, or new metric label.
+
+No-Regression Evidence: `cd go && go test ./internal/status -run SemanticExtraction -count=1`; `cd go && go test ./internal/query -run 'SemanticExtraction|StatusOpenAPI|CapabilityMatrixMatchesYAMLContract' -count=1`; `cd go && go test ./internal/mcp -run 'SemanticCapability|ReadOnlyTools|RuntimeTools|EveryRegisteredToolHasDispatchRoute|MCPToolContractMatrixCoversReadOnlyTools' -count=1` prove no-provider semantic extraction reports `unavailable`, keeps health healthy, surfaces the status through API and MCP envelopes, leaves documentation facts on their existing truth envelope, and keeps OpenAPI, the capability matrix, and the MCP tool matrix in sync.
+No-Observability-Change: semantic extraction status is a pure status projection
+with no provider call, graph query, content query, queue, worker, runtime knob,
+metric instrument, or metric label. Operators diagnose it through the existing
+`/admin/status`, `/api/v0/status/index`,
+`/api/v0/status/semantic-extraction`, and MCP dispatch surfaces.
 
 ## Historical Metrics
 
