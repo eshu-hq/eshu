@@ -39,7 +39,7 @@ func (s Service) runIncidentFreshnessHandoff(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("list durable collector instances for incident freshness handoff: %w", err)
 	}
-	return s.scheduleIncidentFreshnessWork(ctx, observedAt, instances)
+	return s.scheduleIncidentFreshnessWork(ctx, observedAt, s.filterCollectorInstancesByEgress(instances))
 }
 
 func (s Service) scheduleIncidentFreshnessWork(

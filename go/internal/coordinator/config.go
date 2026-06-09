@@ -29,6 +29,7 @@ type Config struct {
 	HeartbeatInterval        time.Duration
 	ExpiredClaimLimit        int
 	ExpiredClaimRequeueDelay time.Duration
+	CollectorEgressPolicy    CollectorEgressPolicy
 	CollectorInstances       []workflow.DesiredCollectorInstance
 }
 
@@ -85,6 +86,10 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	collectorEgressPolicy, err := ParseCollectorEgressPolicyJSON(getenv("ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON"))
+	if err != nil {
+		return Config{}, fmt.Errorf("parse ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON: %w", err)
+	}
 	instances, err := workflow.ParseDesiredCollectorInstancesJSON(getenv("ESHU_COLLECTOR_INSTANCES_JSON"))
 	if err != nil {
 		return Config{}, fmt.Errorf("parse ESHU_COLLECTOR_INSTANCES_JSON: %w", err)
@@ -108,6 +113,7 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 		HeartbeatInterval:        heartbeatInterval,
 		ExpiredClaimLimit:        expiredClaimLimit,
 		ExpiredClaimRequeueDelay: expiredClaimRequeueDelay,
+		CollectorEgressPolicy:    collectorEgressPolicy,
 		CollectorInstances:       instances,
 	}
 	cfg = cfg.withDefaults()

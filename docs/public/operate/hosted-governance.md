@@ -20,6 +20,7 @@ Current shipped behavior:
 | Repository scope | `eshu hosted-onboard` validates narrow repository rules and rejects accidental broad globbing unless `--confirm-broad` is set. | Repository onboarding rules as an authorization boundary after data is indexed. |
 | Source ACLs | Deterministic reads use indexed facts and read models. Semantic and extension policy docs describe required source gates. | Complete source-ACL enforcement across every hosted read. |
 | Semantic providers | No-provider mode is supported. Configured provider profiles are handles plus metadata and still require policy before source egress. | That a configured provider profile is permission to send content. |
+| Collector egress | The workflow coordinator can filter enabled claim-capable collectors by `ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON` before scheduled or freshness work is planned. | That Helm NetworkPolicy alone proves collector runtime policy or tenant isolation. |
 | Extensions | Hosted extension policy is operator guidance. Community extension claim execution is not enabled by the shipped chart or Compose stack yet. | That installed or enabled components can collect in hosted mode. |
 | Network egress | Helm can render restricted NetworkPolicy egress classes for DNS, datastore, graph, internal service, collector providers, semantic providers, and extensions. | That `networkPolicy.egress.mode=broad` is least-privilege proof. |
 | Redaction and retention | Semantic posture docs require redaction policy and metadata-oriented retention for optional provider work. | That all future governance retention and deletion workflows are implemented. |
@@ -209,6 +210,18 @@ helm lint ./deploy/helm/eshu -f values.hosted-governance.yaml
    different failure classes.
 5. Keep raw prompts, provider responses, source IDs, credential handles, and
    token-bearing URLs out of tickets.
+
+### Blocked Collector Egress
+
+1. Check the workflow coordinator config source for
+   `ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON`.
+2. Confirm the policy mode is `restricted` or `broad`.
+3. In restricted mode, confirm the collector kind has an explicit allow rule and
+   no overlapping deny rule.
+4. Check coordinator logs for `collector_kind` and reason codes such as
+   `egress_policy_missing` or `egress_provider_denied`.
+5. Keep provider URLs, token environment names, source IDs, account IDs, and
+   webhook payloads out of tickets.
 
 ### Invalid Policy
 
