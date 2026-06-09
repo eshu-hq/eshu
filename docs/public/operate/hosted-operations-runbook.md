@@ -25,6 +25,7 @@ bounded API or MCP read that proves indexed state is usable.
 | Remote all-collector proof | [Remote Collector E2E](../reference/local-testing/remote-collector-e2e.md) |
 | Hosted runtime-state gate | [Remote E2E Runtime State](../reference/remote-e2e-runtime-state.md) |
 | Kubernetes install flow | [Helm Quickstart](../deploy/kubernetes/helm-quickstart.md) |
+| Install, upgrade, and rollback proof artifact | [Helm Rollout Proof](../deploy/kubernetes/helm-rollout-proof.md) |
 | EKS shared-service path | [Deploy To EKS](../deploy/eks/index.md) |
 | GitOps overlays | [Argo CD And GitOps](../deploy/kubernetes/argocd.md) |
 | Production checklist | [Production Checklist](../deploy/kubernetes/production-checklist.md) |
@@ -100,6 +101,12 @@ Render the exact values intended for the cluster:
 helm template eshu ./deploy/helm/eshu \
   --namespace eshu \
   -f values.eshu.yaml
+
+scripts/verify-hosted-helm-rollout-proof.sh \
+  --out-dir .proof/helm-install \
+  --namespace eshu \
+  --release eshu \
+  --values values.eshu.yaml
 ```
 
 Review workload names, images, environment variables, probes, ServiceMonitors,

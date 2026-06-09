@@ -30,6 +30,9 @@ Use this list before a team relies on a Kubernetes deployment.
 - Resolution-engine replica count and Postgres connection limits are sized
   together.
 - API, MCP, logs, metrics, and runtime status are checked during rollout.
+- A hosted Helm rollout proof artifact exists for the current values, chart
+  version, image tag or digest, rendered workloads, schema bootstrap, API/MCP
+  readback, queue state, and first bounded query result.
 - Workflow coordinator claims are active only when you intentionally enable
   claim-driven collectors. The chart requires `workflowCoordinator.enabled=true`,
   `workflowCoordinator.deploymentMode=active`, `workflowCoordinator.claimsEnabled=true`,
@@ -38,3 +41,6 @@ Use this list before a team relies on a Kubernetes deployment.
 - Prometheus metrics and `ServiceMonitor` resources are enabled when your
   platform expects direct scraping.
 - Helm rollback and database restore are both covered by the runbook.
+- Upgrade and rollback declarations separate durable Postgres state, queue
+  state, preserved volumes, Helm rollback, Postgres restore, and graph rebuild
+  decisions.

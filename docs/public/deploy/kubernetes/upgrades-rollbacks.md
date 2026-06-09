@@ -15,11 +15,21 @@ schema, graph schema, and worker behavior move together.
    available.
 5. Check current queue depth, queue age, dead-letter state, and indexing
    completeness.
+6. Write an upgrade-state declaration for durable Postgres state, queue state,
+   graph rebuild assumptions, and preserved volumes.
 
 ```bash
 helm template eshu ./deploy/helm/eshu \
   --namespace eshu \
   -f values.eshu.yaml
+
+scripts/verify-hosted-helm-rollout-proof.sh \
+  --mode upgrade \
+  --out-dir .proof/helm-upgrade \
+  --namespace eshu \
+  --release eshu \
+  --values values.eshu.yaml \
+  --upgrade-state upgrade-state.json
 ```
 
 ## Upgrade
@@ -46,3 +56,7 @@ according to your platform backup runbook. If only the NornicDB graph volume is
 lost or unreadable, preserve it when forensic evidence matters, recreate the
 graph PVC, run schema bootstrap, and rebuild projection from facts or source
 systems.
+
+Before relying on a rollback plan, run the rollout proof in rollback mode with a
+declaration that separately names the Helm rollback command, Postgres restore
+decision point, graph rebuild plan, and operator decision boundary.

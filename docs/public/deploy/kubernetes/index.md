@@ -58,6 +58,8 @@ Unsupported graph backends are not official.
 1. [Prerequisites](prerequisites.md) for cluster, secret, and tool requirements.
 2. [Storage](storage.md) for Postgres, NornicDB, and Neo4j requirements.
 3. [Helm Quickstart](helm-quickstart.md) for the install flow.
-4. [Hosted Operations Runbook](../../operate/hosted-operations-runbook.md) for
+4. [Helm Rollout Proof](helm-rollout-proof.md) for install, upgrade, rollback,
+   API/MCP readback, queue-state, and first-query evidence.
+5. [Hosted Operations Runbook](../../operate/hosted-operations-runbook.md) for
    Compose, API/MCP, Kubernetes, GitOps, and steady-state proof order.
-5. [Production Checklist](production-checklist.md) before exposing the service.
+6. [Production Checklist](production-checklist.md) before exposing the service.

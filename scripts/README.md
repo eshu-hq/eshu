@@ -24,6 +24,13 @@ The `verify_*_compose.sh` scripts are developer and DevOps proof lanes. They
 start their own Compose project, choose ports, and tear the stack down unless
 `ESHU_KEEP_COMPOSE_STACK=true` is set.
 
+`verify-hosted-helm-rollout-proof.sh` creates the public-safe proof artifact for
+hosted Helm install, upgrade, and rollback work. It renders, lints, runs a Helm
+dry-run, summarizes required workloads and schema bootstrap, optionally captures
+API/MCP readback, and fails upgrade or rollback modes when durable-state,
+queue-state, Postgres restore, or graph rebuild assumptions are missing. The
+mocked harness is `test-verify-hosted-helm-rollout-proof.sh`.
+
 `verify_remote_e2e_runtime_state.sh` is the post-start gate for the hosted
 remote collector E2E stack. It does not start containers. Run it after the
 remote Compose stack is up to prove the API, MCP server, ingester,

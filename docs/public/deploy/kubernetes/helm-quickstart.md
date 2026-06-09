@@ -77,10 +77,21 @@ For EKS-specific ingress, IRSA, and External Secrets guidance, use
 ```bash
 helm template eshu ./deploy/helm/eshu -f values.eshu.yaml
 
+scripts/verify-hosted-helm-rollout-proof.sh \
+  --out-dir .proof/helm-install \
+  --namespace eshu \
+  --release eshu \
+  -f values.eshu.yaml
+
 helm upgrade --install eshu ./deploy/helm/eshu \
   --namespace eshu \
   -f values.eshu.yaml
 ```
+
+The proof script records the chart version, app version, image reference,
+rendered workload set, schema-bootstrap hook, and Helm dry-run result before a
+cluster change. Use [Helm Rollout Proof](helm-rollout-proof.md) for live
+API/MCP readback and upgrade or rollback declarations.
 
 ## 5. Check Rollout
 
