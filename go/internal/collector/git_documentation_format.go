@@ -41,6 +41,8 @@ func extractGitDocumentation(
 		return extractNotebookDocumentation(repo, relativePath, digest, commitSHA, body)
 	case "csv", "tsv":
 		return extractSpreadsheetDocumentation(repo, relativePath, digest, commitSHA, body, format.format)
+	case "xlsx", "xls":
+		return extractWorkbookDocumentation(ctx, repo, relativePath, digest, commitSHA, body, format.format)
 	case "mermaid", "d2", "plantuml", "drawio", "excalidraw", "svg":
 		return extractDiagramDocumentation(ctx, repo, relativePath, digest, commitSHA, body, format.format)
 	default:
@@ -105,6 +107,16 @@ func gitDocumentationFormatForPath(relativePath string) (gitDocumentationFormat,
 			return gitDocumentationFormat{}, false
 		}
 		return gitDocumentationFormat{format: "tsv", language: "tsv"}, true
+	case ".xlsx":
+		if !isDocumentationSpreadsheetPath(relativePath) {
+			return gitDocumentationFormat{}, false
+		}
+		return gitDocumentationFormat{format: "xlsx", language: "xlsx"}, true
+	case ".xls":
+		if !isDocumentationSpreadsheetPath(relativePath) {
+			return gitDocumentationFormat{}, false
+		}
+		return gitDocumentationFormat{format: "xls", language: "xls"}, true
 	default:
 		return gitDocumentationFormat{}, false
 	}

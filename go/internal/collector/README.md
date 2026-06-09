@@ -115,11 +115,14 @@ When the stream re-reads repo-hosted service-catalog descriptors
 `servicecatalog` normalizer and emits observed `service_catalog.*` facts under
 the same scope and generation. A documentation-only metadata lane also
 normalizes repo-hosted Markdown, lightweight text, HTML, API contracts, notebook
-narrative, conservative delimited spreadsheets, Mermaid/D2 text diagrams, and
-structured PlantUML, Draw.io, Excalidraw, and SVG diagrams into source-neutral
-documentation facts with repository target refs. API contracts, spreadsheets,
-notebooks, and diagrams emit bounded evidence only; they do not infer service
-ownership or consume parser-owned code-cell source. Diagram extraction runs a
+narrative, conservative delimited spreadsheets, bounded XLSX workbook summaries,
+Mermaid/D2 text diagrams, and structured PlantUML, Draw.io, Excalidraw, and SVG
+diagrams into source-neutral documentation facts with repository target refs.
+API contracts, spreadsheets, notebooks, and diagrams emit bounded evidence only;
+they do not infer service ownership or consume parser-owned code-cell source.
+XLSX extraction runs the OOXML package preflight before recording visible-sheet
+summaries; hidden sheets stay metadata-only and legacy `.xls` files emit an
+unsupported warning without reading cell bytes. Diagram extraction runs a
 deterministic safety preflight before recording text labels and source-path link
 directives; unsafe, external, or malformed diagrams stay document metadata only.
 These claims remain document evidence only; projector, reducer, and query stages
@@ -129,9 +132,9 @@ generation and then observes the source batch drain. Idle polls do not trigger
 it.
 
 No-Regression Evidence: `go test ./internal/collector ./internal/doctruth ./internal/query ./internal/mcp ./internal/storage/postgres -count=1`
-covers repository documentation extraction including CSV/TSV summaries,
-deterministic text and structured diagram facts, deterministic claim hints,
-repository fact readback, and MCP documentation fact routing.
+covers repository documentation extraction including CSV/TSV and XLSX workbook
+summaries, deterministic text and structured diagram facts, deterministic claim
+hints, repository fact readback, and MCP documentation fact routing.
 
 No-Observability-Change: documentation extraction stays inside the existing
 `collector.observe` commit path with body-free snapshot metadata and
