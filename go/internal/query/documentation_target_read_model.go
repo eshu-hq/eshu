@@ -415,7 +415,7 @@ func (cr *ContentReader) documentationTargetFacts(
 func buildDocumentationTargetFactsSQL(filter documentationFindingFilter) (string, []any) {
 	args := []any{}
 	clauses := []string{
-		"fact_records.fact_kind IN ('" + facts.DocumentationEntityMentionFactKind + "', '" + facts.DocumentationClaimCandidateFactKind + "')",
+		"fact_records.fact_kind IN ('" + facts.DocumentationEntityMentionFactKind + "', '" + facts.DocumentationClaimCandidateFactKind + "', '" + facts.SemanticDocumentationObservationFactKind + "')",
 		"fact_records.is_tombstone = FALSE",
 	}
 	addColumnFilter := func(column, value string) {

@@ -155,6 +155,11 @@ This distinction matters for empty states:
 - documentation findings require the documentation fact/read-model contract,
   not raw model output
 
+When a target-scoped documentation read finds semantic documentation
+observations but no admitted finding, the observations may appear as bounded
+`related_facts`. They remain provenance-only evidence and do not increment
+documentation finding counts.
+
 ## Code Hints Versus Graph Truth
 
 `semantic.code_hint` is a possible code relationship or entity hint. It carries

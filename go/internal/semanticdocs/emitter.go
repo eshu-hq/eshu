@@ -260,6 +260,12 @@ func (e *Emitter) payload(section doctruth.SectionInput, observation MockObserva
 			redactionSummary = "unsafe payload rejected before provider egress"
 		}
 	}
+	if !semanticDocsAdmissionStateAllowed(admissionState) {
+		return facts.SemanticDocumentationObservationPayload{}, fmt.Errorf(
+			"semantic documentation emitter admission_state %q must stay provenance-only or finding-candidate before reducer admission",
+			admissionState,
+		)
+	}
 
 	if observationHash == "" {
 		observationHash = prefixedHash("semantic-docs-observation", map[string]any{
@@ -326,6 +332,16 @@ func (e *Emitter) payload(section doctruth.SectionInput, observation MockObserva
 		}},
 		ObservedAt: e.observedAt(section).UTC().Format(time.RFC3339),
 	}, nil
+}
+
+func semanticDocsAdmissionStateAllowed(state string) bool {
+	switch state {
+	case facts.SemanticAdmissionProvenanceOnly,
+		facts.SemanticAdmissionDocumentationFindingCandidate:
+		return true
+	default:
+		return false
+	}
 }
 
 func (e *Emitter) observedAt(section doctruth.SectionInput) time.Time {

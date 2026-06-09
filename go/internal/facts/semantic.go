@@ -65,6 +65,24 @@ const (
 	// SemanticAdmissionDocumentationFindingCandidate allows reducer-owned
 	// documentation finding admission to inspect the observation.
 	SemanticAdmissionDocumentationFindingCandidate = "documentation_finding_candidate"
+	// SemanticAdmissionExact marks an observation admitted only after
+	// deterministic source, graph, or read-model corroboration.
+	SemanticAdmissionExact = "exact"
+	// SemanticAdmissionPartial marks an observation with some corroborated
+	// claim parts but incomplete deterministic support.
+	SemanticAdmissionPartial = "partial"
+	// SemanticAdmissionAmbiguous marks an observation whose candidate targets or
+	// meanings cannot be reduced to one canonical truth.
+	SemanticAdmissionAmbiguous = "ambiguous"
+	// SemanticAdmissionStale marks an observation whose source, ACL, prompt, or
+	// corroborating truth is no longer current.
+	SemanticAdmissionStale = "stale"
+	// SemanticAdmissionUnsafe marks an observation rejected by prompt, source,
+	// response, or payload safety policy.
+	SemanticAdmissionUnsafe = "unsafe"
+	// SemanticAdmissionUnsupported marks an observation kind, source family,
+	// provider mode, or claim family without an admitted reducer rule.
+	SemanticAdmissionUnsupported = "unsupported"
 
 	// SemanticCorroborationUncorroborated marks hints with no deterministic support.
 	SemanticCorroborationUncorroborated = "uncorroborated"
@@ -128,7 +146,14 @@ func ValidateSemanticDocumentationObservationPayload(payload SemanticDocumentati
 		return err
 	}
 	switch payload.AdmissionState {
-	case SemanticAdmissionProvenanceOnly, SemanticAdmissionDocumentationFindingCandidate:
+	case SemanticAdmissionProvenanceOnly,
+		SemanticAdmissionDocumentationFindingCandidate,
+		SemanticAdmissionExact,
+		SemanticAdmissionPartial,
+		SemanticAdmissionAmbiguous,
+		SemanticAdmissionStale,
+		SemanticAdmissionUnsafe,
+		SemanticAdmissionUnsupported:
 		return nil
 	case "":
 		return fmt.Errorf("semantic documentation admission_state must not be blank")

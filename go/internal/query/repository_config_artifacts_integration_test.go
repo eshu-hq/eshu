@@ -155,7 +155,7 @@ spec:
 			rows:    [][]driver.Value{},
 			queryContains: []string{
 				"FROM fact_records",
-				"fact_records.fact_kind IN ('documentation_entity_mention', 'documentation_claim_candidate')",
+				"fact_records.fact_kind IN ('documentation_entity_mention', 'documentation_claim_candidate', 'semantic.documentation_observation')",
 			},
 		},
 	})
