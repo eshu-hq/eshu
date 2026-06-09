@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -14,13 +13,14 @@ import (
 const componentInstanceConfigSchema = "eshu.component.instance.v1"
 
 type componentInstanceConfig struct {
-	SchemaVersion    string                         `json:"schema_version"`
-	ComponentID      string                         `json:"component_id"`
-	ComponentVersion string                         `json:"component_version"`
-	Publisher        string                         `json:"publisher"`
-	ManifestDigest   string                         `json:"manifest_digest"`
-	ConfigHandle     string                         `json:"config_handle"`
-	Runtime          componentInstanceRuntimeConfig `json:"runtime"`
+	SchemaVersion    string                                 `json:"schema_version"`
+	ComponentID      string                                 `json:"component_id"`
+	ComponentVersion string                                 `json:"component_version"`
+	Publisher        string                                 `json:"publisher"`
+	ManifestDigest   string                                 `json:"manifest_digest"`
+	ConfigHandle     string                                 `json:"config_handle"`
+	Host             *component.ActivationHostClaimMetadata `json:"host,omitempty"`
+	Runtime          componentInstanceRuntimeConfig         `json:"runtime"`
 }
 
 type componentInstanceRuntimeConfig struct {
@@ -113,6 +113,14 @@ func componentActivationRuntimeConfig(
 	manifest component.Manifest,
 	activation component.Activation,
 ) (string, error) {
+	host, ok, err := component.LoadActivationHostClaimMetadata(activation.ConfigPath)
+	if err != nil {
+		return "", fmt.Errorf(
+			"load component activation host metadata for %q: %w",
+			strings.TrimSpace(activation.InstanceID),
+			err,
+		)
+	}
 	config := componentInstanceConfig{
 		SchemaVersion:    componentInstanceConfigSchema,
 		ComponentID:      manifest.Metadata.ID,
@@ -125,6 +133,9 @@ func componentActivationRuntimeConfig(
 			Adapter:     manifest.Spec.Runtime.Adapter,
 		},
 	}
+	if ok {
+		config.Host = &host
+	}
 	raw, err := json.Marshal(config)
 	if err != nil {
 		return "", fmt.Errorf("encode component activation configuration: %w", err)
@@ -133,12 +144,7 @@ func componentActivationRuntimeConfig(
 }
 
 func componentConfigHandle(componentID string, version string, activation component.Activation) string {
-	return "component-config:" + facts.StableID("ComponentActivationConfig", map[string]any{
-		"component_id": componentID,
-		"version":      version,
-		"instance_id":  strings.TrimSpace(activation.InstanceID),
-		"config_path":  strings.TrimSpace(activation.ConfigPath),
-	})
+	return component.ActivationConfigHandle(componentID, version, activation)
 }
 
 func envStringList(raw string) []string {
@@ -206,6 +212,17 @@ func parseComponentInstanceConfig(raw string) (componentInstanceConfig, bool, er
 	}
 	if strings.TrimSpace(config.ConfigHandle) == "" {
 		return componentInstanceConfig{}, false, fmt.Errorf("component activation configuration config_handle is required")
+	}
+	if config.Host != nil {
+		host := config.Host.Normalized()
+		if host.Empty() {
+			config.Host = nil
+		} else {
+			if err := host.Validate(); err != nil {
+				return componentInstanceConfig{}, false, err
+			}
+			config.Host = &host
+		}
 	}
 	if strings.TrimSpace(config.Runtime.SDKProtocol) == "" {
 		return componentInstanceConfig{}, false, fmt.Errorf("component activation configuration runtime.sdk_protocol is required")

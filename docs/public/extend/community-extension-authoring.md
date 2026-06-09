@@ -115,6 +115,23 @@ eshu component enable dev.example.collector.demo \
 eshu component list --component-home ./.eshu-components
 ```
 
+For hosted process proofs, the activation config can declare the public source
+identity the SDK claim should carry:
+
+```yaml
+host:
+  sourceSystem: openssf-scorecard
+  scope:
+    id: github.com/example/widgets
+    kind: repository
+```
+
+Only those fields leave the local activation config. Commands, credentials,
+provider URLs, and private paths must stay in local config or environment
+variables. Without a `host` block, component work uses a synthetic component
+scope and should be treated as package-manager provenance, not proof of a real
+external target.
+
 Local install and enable prove local registry, activation, and local claim state
 only. They do not prove hosted readiness, provenance verification, reducer
 admission, graph truth, or query truth.
@@ -140,7 +157,7 @@ Community components must be explicit enough for automated review.
 | Identity | `metadata.id`, `metadata.publisher`, and `metadata.version` are stable, lowercase, and allowlistable. |
 | Compatibility | `spec.compatibleCore` names the supported Eshu core range. Release builds enforce it; local `dev` builds still parse it. |
 | Artifacts | Every artifact image is digest-pinned with a full SHA256 digest. Mutable tags are not acceptable. |
-| Runtime protocol | `spec.runtime.sdkProtocol` declares the collector SDK protocol, currently `collector-sdk/v1alpha1`, and `spec.runtime.adapter` declares the host adapter such as `oci` or `process`. |
+| Runtime protocol | `spec.runtime.sdkProtocol` declares the collector SDK protocol, currently `collector-sdk/v1alpha1`, and `spec.runtime.adapter` declares the host adapter. The first hosted worker runs `process`; `oci` is reserved for the digest-pinned adapter path. |
 | Fact schemas | `spec.emittedFacts[]` declares fact kinds, schema versions, and source-confidence values. |
 | Namespacing | Optional components use collision-resistant fact kinds. Core Eshu fact kinds remain core-owned. |
 | Source confidence | New output uses `observed`, `reported`, `inferred`, or `derived`. `unknown` is compatibility debt, not normal component output. |

@@ -27,6 +27,10 @@ func TestComponentExtensionPlannerPlansActivationScopedWork(t *testing.T) {
 			"component_version":"0.1.0",
 			"manifest_digest":"sha256:1234",
 			"config_handle":"component-config:abcd",
+			"host":{
+				"source_system":"openssf-scorecard",
+				"scope":{"id":"github.com/example/widgets","kind":"repository"}
+			},
 			"runtime":{"sdk_protocol":"collector-sdk/v1alpha1","adapter":"oci"}
 		}`,
 		CreatedAt:      observedAt,
@@ -51,6 +55,13 @@ func TestComponentExtensionPlannerPlansActivationScopedWork(t *testing.T) {
 	var requested struct {
 		ComponentID  string `json:"component_id"`
 		ConfigHandle string `json:"config_handle"`
+		Host         struct {
+			SourceSystem string `json:"source_system"`
+			Scope        struct {
+				ID   string `json:"id"`
+				Kind string `json:"kind"`
+			} `json:"scope"`
+		} `json:"host"`
 	}
 	if err := json.Unmarshal([]byte(run.RequestedScopeSet), &requested); err != nil {
 		t.Fatalf("RequestedScopeSet is not JSON: %v", err)
@@ -60,6 +71,12 @@ func TestComponentExtensionPlannerPlansActivationScopedWork(t *testing.T) {
 	}
 	if got, want := requested.ConfigHandle, "component-config:abcd"; got != want {
 		t.Fatalf("config handle = %q, want %q", got, want)
+	}
+	if got, want := requested.Host.SourceSystem, "openssf-scorecard"; got != want {
+		t.Fatalf("requested host source system = %q, want %q", got, want)
+	}
+	if got, want := requested.Host.Scope.ID, "github.com/example/widgets"; got != want {
+		t.Fatalf("requested host scope id = %q, want %q", got, want)
 	}
 	if got, want := len(items), 1; got != want {
 		t.Fatalf("work items = %d, want %d", got, want)
@@ -71,11 +88,14 @@ func TestComponentExtensionPlannerPlansActivationScopedWork(t *testing.T) {
 	if got, want := item.CollectorInstanceID, "scorecard-primary"; got != want {
 		t.Fatalf("collector instance id = %q, want %q", got, want)
 	}
-	if got, want := item.SourceSystem, "dev.eshu.examples.scorecard"; got != want {
+	if got, want := item.SourceSystem, "openssf-scorecard"; got != want {
 		t.Fatalf("source system = %q, want %q", got, want)
 	}
-	if item.ScopeID == "" || item.AcceptanceUnitID != item.ScopeID {
-		t.Fatalf("scope_id=%q acceptance_unit_id=%q, want same non-empty id", item.ScopeID, item.AcceptanceUnitID)
+	if got, want := item.ScopeID, "github.com/example/widgets"; got != want {
+		t.Fatalf("scope id = %q, want %q", got, want)
+	}
+	if got, want := item.AcceptanceUnitID, "github.com/example/widgets"; got != want {
+		t.Fatalf("acceptance unit id = %q, want %q", got, want)
 	}
 	if got, want := item.Status, workflow.WorkItemStatusPending; got != want {
 		t.Fatalf("status = %q, want %q", got, want)

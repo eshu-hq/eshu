@@ -12,7 +12,7 @@ spec:
     - scorecard
   runtime:
     sdkProtocol: collector-sdk/v1alpha1
-    adapter: oci
+    adapter: process
   artifacts:
     - platform: linux/amd64
       image: ghcr.io/eshu-hq/examples/scorecard-collector@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

@@ -223,6 +223,24 @@ and stable `config_handle`. It does not store activation config paths,
 provider targets, or credential values. Use `eshu component list --json` with
 the same trust and revoke flags to inspect local policy failure reasons.
 
+An activation config may include a safe `host` block:
+
+```yaml
+host:
+  sourceSystem: openssf-scorecard
+  scope:
+    id: github.com/example/widgets
+    kind: repository
+```
+
+When present, the workflow coordinator copies only those three public fields
+into collector instance configuration and planned work rows. `sourceSystem` and
+`scope.id` become the SDK claim's source identity; `scope.kind` tells the
+process-backed worker which SDK scope kind to send. The raw config path,
+process command, credentials, and provider-specific config stay local. When the
+`host` block is absent, the coordinator falls back to a synthetic
+`component:<stable-id>` scope for activation-scoped provenance.
+
 Component extension workflow rows are source evidence only until a core reducer
 contract consumes the emitted facts. The coordinator does not create graph
 nodes or edges for extension facts.
@@ -246,9 +264,9 @@ JSON errors use stable codes:
 | `unverified_package` | Install was attempted without a matching successful verification. |
 | `registry_write_failed` | A local registry or package-content write failed. |
 
-Error messages avoid private local paths other than operator-selected component
-home or activation config paths. Stored manifest paths are not printed in the
-CLI JSON component blocks.
+Error messages avoid stored manifest paths. CLI activation output can show the
+operator-selected activation config path because that is local package-manager
+state; hosted workflow rows and host-metadata read errors do not echo it.
 
 ## Component Home
 
@@ -327,7 +345,10 @@ Runtime protocol fields are checked during manifest validation. Unknown SDK
 protocols or adapters are rejected before install or activation. Declaring a
 supported runtime protocol does not make an installed package claim-capable:
 operators must still enable an instance, hosted policy must approve it, and the
-workflow coordinator or extension host must implement the matching adapter.
+workflow coordinator or extension host must implement the matching adapter. The
+first hosted worker supports `process` activations; `oci` manifests remain
+installable metadata but cannot run until the OCI adapter and runnable digest
+artifact path are implemented.
 
 `compatibleCore` is checked during verification. Release builds compare the
 manifest range against the running Eshu core version. Local source builds that

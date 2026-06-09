@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"golang.org/x/mod/semver"
 )
 
@@ -299,6 +300,17 @@ func (r Registry) registryPath() string {
 
 func (r Registry) manifestPath(componentID, version string) string {
 	return filepath.Join(r.home, "packages", componentID, version, "manifest.yaml")
+}
+
+// ActivationConfigHandle returns the stable, non-secret handle used by hosted
+// coordinator and worker paths for one component activation configuration.
+func ActivationConfigHandle(componentID string, version string, activation Activation) string {
+	return "component-config:" + facts.StableID("ComponentActivationConfig", map[string]any{
+		"component_id": componentID,
+		"version":      version,
+		"instance_id":  strings.TrimSpace(activation.InstanceID),
+		"config_path":  strings.TrimSpace(activation.ConfigPath),
+	})
 }
 
 func (s *registryState) upsert(component InstalledComponent) {

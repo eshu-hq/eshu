@@ -21,6 +21,7 @@ type composeService struct {
 	Healthcheck map[string]any `yaml:"healthcheck"`
 	Image       string         `yaml:"image"`
 	Ports       []any          `yaml:"ports"`
+	Profiles    []string       `yaml:"profiles"`
 	Restart     string         `yaml:"restart"`
 	DependsOn   any            `yaml:"depends_on"`
 	Environment map[string]any `yaml:"environment"`

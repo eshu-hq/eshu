@@ -25,6 +25,7 @@ exact binary set on `PATH`.
 | `eshu-collector-git` | `collector-git/` | Local git-collector helper |
 | `eshu-collector-confluence` | `collector-confluence/` | Long-running Confluence documentation collector |
 | `eshu-collector-terraform-state` | `collector-terraform-state/` | Long-running Terraform-state collector |
+| `eshu-collector-component-extension` | `collector-component-extension/` | Long-running process-backed component extension collector |
 | `eshu-collector-package-registry` | `collector-package-registry/` | Long-running package-registry collector |
 | `eshu-collector-sbom-attestation` | `collector-sbom-attestation/` | Long-running hosted SBOM and attestation collector |
 | `eshu-collector-security-alerts` | `collector-security-alerts/` | Long-running hosted provider security-alert collector |
@@ -52,6 +53,7 @@ flowchart LR
   bootstrap[bootstrap-index] -.one-shot.-> ingester
   bootstrap -.one-shot.-> reducer
   workflow[workflow-coordinator] --> postgres
+  component[collector-component-extension] --> postgres
   tfstate[collector-terraform-state] --> postgres
   sbom[collector-sbom-attestation] --> postgres
   alerts[collector-security-alerts] --> postgres

@@ -9,7 +9,7 @@ local installer.
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
 | `ESHU_HOME` | Platform user-data dir | CLI, local Eshu service, API key resolver | Root for user config, local workspaces, managed binaries, and persisted local API keys. |
-| `ESHU_COMPONENT_HOME` | unset for coordinator; CLI falls back to `ESHU_HOME/components`, then `~/.eshu/components` | CLI component package manager, workflow coordinator | Local component registry home. When set for the workflow coordinator, trusted claim-capable activations can become hosted collector instances. |
+| `ESHU_COMPONENT_HOME` | unset for hosted component runtimes unless deployment config sets it; CLI falls back to `ESHU_HOME/components`, then `~/.eshu/components`; default Compose sets `/data/.eshu/components` for the workflow coordinator and component extension collector | CLI component package manager, workflow coordinator, component extension collector | Local component registry home. When set for hosted component runtimes, trusted claim-capable activations can become scheduled collector instances and process-backed collector claims. |
 | `ESHU_QUERY_PROFILE` | `production` for deployed API/MCP/reducer; local commands set profile explicitly | API, MCP, ingester, reducer, local service | Selects query/runtime profile such as `production`, `local_lightweight`, or `local_authoritative`. |
 | `ESHU_GRAPH_BACKEND` | `nornicdb` | API, MCP, ingester, reducer, local service | Selects graph adapter: `nornicdb` or `neo4j`. |
 | `ESHU_LISTEN_ADDR` | `0.0.0.0:8080` | Go service runtimes | HTTP listen address for services using shared runtime config. |
@@ -32,18 +32,28 @@ posture.
 
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
-| `ESHU_COMPONENT_TRUST_MODE` | `disabled` | workflow coordinator | Trust mode for hosted component activations. `allowlist` is required before enabled component instances can become claim-capable. |
-| `ESHU_COMPONENT_ALLOW_IDS` | unset | workflow coordinator | Comma-separated component IDs allowed for hosted activation. |
-| `ESHU_COMPONENT_ALLOW_PUBLISHERS` | unset | workflow coordinator | Comma-separated publisher identities allowed for hosted activation. |
-| `ESHU_COMPONENT_REVOKE_IDS` | unset | workflow coordinator | Comma-separated component IDs blocked from receiving new hosted claims. |
-| `ESHU_COMPONENT_REVOKE_PUBLISHERS` | unset | workflow coordinator | Comma-separated publishers blocked from receiving new hosted claims. |
-| `ESHU_COMPONENT_CORE_VERSION` | build version | workflow coordinator | Optional core version override used for component compatibility checks. |
+| `ESHU_COMPONENT_TRUST_MODE` | `disabled` | workflow coordinator, component extension collector | Trust mode for hosted component activations. `allowlist` is required before enabled component instances can become claim-capable. |
+| `ESHU_COMPONENT_ALLOW_IDS` | unset | workflow coordinator, component extension collector | Comma-separated component IDs allowed for hosted activation. |
+| `ESHU_COMPONENT_ALLOW_PUBLISHERS` | unset | workflow coordinator, component extension collector | Comma-separated publisher identities allowed for hosted activation. |
+| `ESHU_COMPONENT_REVOKE_IDS` | unset | workflow coordinator, component extension collector | Comma-separated component IDs blocked from receiving new hosted claims. |
+| `ESHU_COMPONENT_REVOKE_PUBLISHERS` | unset | workflow coordinator, component extension collector | Comma-separated publishers blocked from receiving new hosted claims. |
+| `ESHU_COMPONENT_CORE_VERSION` | build version | workflow coordinator, component extension collector | Optional core version override used for component compatibility checks. |
+| `ESHU_COMPONENT_COLLECTOR_INSTANCE_ID` | unset | component extension collector | Optional selector when more than one trusted claim-capable component activation exists. |
+| `ESHU_COMPONENT_COLLECTOR_OWNER_ID` | `HOSTNAME`, then `collector-component-extension` | component extension collector | Claim owner label for the process-backed component extension worker. |
+| `ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL` | `1s` | component extension collector | Idle poll interval between claim attempts. |
+| `ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | component extension collector | Lease TTL for claimed component work items. |
+| `ESHU_COMPONENT_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | component extension collector | Heartbeat interval for claimed component work items; must be less than the lease TTL. |
+| `ESHU_COMPONENT_COLLECTOR_SCOPE_KIND` | `component` | component extension collector | Fallback SDK claim scope kind used when the activation config has no `host.scope.kind`. |
 
 The coordinator skips revoked, incompatible, disabled, or untrusted component
-activations before reconciling collector instances. It stores component ID,
-version, publisher, manifest digest, runtime protocol, adapter, and a stable
-config handle only; operator config paths and credential values stay in the
-component registry or runtime environment.
+activations before reconciling collector instances. The process-backed
+component extension collector applies the same policy before claiming work. The
+runtime stores component ID, version, publisher, manifest digest, runtime
+protocol, adapter, and a stable config handle only; operator config paths and
+credential values stay in the component registry or runtime environment. When
+an activation config contains a `host` block, the coordinator copies only
+`sourceSystem`, `scope.id`, and `scope.kind` into workflow rows, and the worker
+uses `host.scope.kind` for the SDK claim.
 
 ## Local Installer
 
