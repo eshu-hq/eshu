@@ -54,6 +54,14 @@ workflow coordinator. The output is a redacted resource summary suitable for CI
 evidence. Use `test-verify-gitops-rendered-diff-preflight.sh` for the focused
 harness.
 
+`verify-hosted-backup-restore-proof.sh` validates the public-safe hosted
+backup, restore, and graph-rebuild proof packet. It fails closed on stale or
+missing backup evidence, partial restore, graph rebuild without preserved
+Postgres facts, parity drift, nonzero queue terminal state, missing API/MCP
+readback, and private-data-shaped fields. It writes sanitized JSON and Markdown
+summaries only. Use `test-verify-hosted-backup-restore-proof.sh` for the
+mocked harness.
+
 `remote-e2e-corpus-preflight.sh` is the one-shot corpus guard used by
 `docker-compose.remote-e2e.yaml`. Smoke mode is fixture-friendly, representative
 mode is the 20-50 repository inner-loop gate, and full mode is the release

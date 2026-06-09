@@ -29,6 +29,7 @@ bounded API or MCP read that proves indexed state is usable.
 | EKS shared-service path | [Deploy To EKS](../deploy/eks/index.md) |
 | GitOps overlays | [Argo CD And GitOps](../deploy/kubernetes/argocd.md) |
 | Production checklist | [Production Checklist](../deploy/kubernetes/production-checklist.md) |
+| Backup, restore, and graph rebuild proof | [Hosted Backup and Restore Proof](../deploy/kubernetes/backup-restore-proof.md) |
 | Health checks | [Health Checks](health-checks.md) |
 | Telemetry and signal order | [Telemetry](telemetry.md) |
 | MCP clients | [Connect MCP](../mcp/index.md) |
@@ -163,7 +164,7 @@ Run this checklist daily during rollout hardening and after every upgrade:
 | Completeness | `/api/v0/index-status` reports expected freshness, queue state, and repository coverage for the teams using the service. |
 | Queue behavior | Queue depth, oldest age, retry counts, failures, and dead letters are stable or explained by current ingestion. |
 | Graph backend | Graph backend is reachable, schema/bootstrap state is current, and graph-write errors are absent from reducer status and logs. |
-| Postgres | Backups are recent, restore proof exists, and connection limits match runtime scale. |
+| Postgres | Backups are recent, restore proof exists, and connection limits match runtime scale. The restore proof summary records backup age, restore duration, failure class, parity drift, queue terminal state, and API/MCP readback. |
 | Ingestion scope | Repository sync rules remain narrow enough for the intended teams; broad ingestion has an explicit operator decision. |
 | Governance | Shared-token limitations, hosted governance posture, semantic provider policy, extension policy, redaction, and retention caveats are visible before onboarding. |
 | MCP | MCP endpoint, token source, and first useful tool call are verified after every network or auth change. |
@@ -196,6 +197,9 @@ Rollback is not a database restore. If a new image writes durable Postgres state
 that the old image cannot read, use the platform restore plan. If only the graph
 volume is lost, preserve evidence when needed, recreate the graph volume, run
 schema bootstrap, and rebuild projection from Postgres facts or source systems.
+For hosted proof, run
+`scripts/verify-hosted-backup-restore-proof.sh` against an operator-local
+aggregate JSON packet and publish only its sanitized JSON or Markdown summary.
 
 ## Public Artifact Rules
 
