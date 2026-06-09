@@ -11,6 +11,7 @@ comparison. The route list is verified against `go/internal/query`.
 | IaC inventory | `GET /api/v0/iac/resources` |
 | IaC quality | `POST /api/v0/iac/dead` |
 | AWS management and drift | `POST /api/v0/iac/unmanaged-resources`, `POST /api/v0/iac/management-status`, `POST /api/v0/iac/management-status/explain`, `POST /api/v0/iac/terraform-import-plan/candidates`, `POST /api/v0/aws/runtime-drift/findings` |
+| Replatforming | `POST /api/v0/replatforming/plans` |
 | Replatforming rollups | `POST /api/v0/replatforming/rollups` |
 | Content | `POST /api/v0/content/files/read`, `POST /api/v0/content/files/lines`, `POST /api/v0/content/entities/read`, `POST /api/v0/content/files/search`, `POST /api/v0/content/entities/search` |
 | Infrastructure | `POST /api/v0/infra/resources/search`, `POST /api/v0/infra/relationships`, `GET /api/v0/ecosystem/overview`, `GET /api/v0/cloud/resources` |
@@ -201,6 +202,57 @@ glance from the bounded response fields (`source_state_totals`,
 `readiness_totals`, and per-dimension buckets) rather than from a new
 high-cardinality metric, keeping resource identities in traces and logs, not
 metric labels.
+## Replatforming Plans
+
+`POST /api/v0/replatforming/plans` composes one bounded, truth-labeled
+replatforming plan over the same active AWS IaC management and runtime-drift
+findings. It does not introduce a new evidence source: it reuses the
+unmanaged-resource read and the Terraform import-plan composition and projects
+them onto the provider-neutral
+[replatforming plan contract](../replatforming-plan-contract.md). The route is
+read-only and never runs Terraform, imports resources, or mutates cloud or
+repository state.
+
+`scope_kind` is required and names the primary plan dimension: `account`,
+`region`, `service`, `workload`, `repository`, `environment`, or `resource`.
+The read is still bounded by the AWS scope, so `scope_id` or `account_id` is
+required; `region`, `arn`/`resource_id`, `finding_kinds`, `limit`, and `offset`
+narrow the page. `limit` defaults to 100 and is capped at 500.
+
+Each migration packet item carries its `management_status`, `finding_kind`,
+provider-neutral `source_state` (from the
+[source-state taxonomy](../replatforming-source-state-taxonomy.md)),
+`safety_gate`, `source_layers`, `owner_candidates`, and an `import_candidate`.
+Owner candidates that compete, and every owner candidate on an `ambiguous`
+item, name their `ambiguity_reasons`; ownership is never promoted to a single
+fabricated owner. An import candidate is `ready` with an import block only for
+safety-approved supported `cloud_only` findings, and `refused` with reasons
+otherwise. A security-review safety gate forces the item `source_state` to
+`rejected`; ambiguous, unknown, and stale management keep their own taxonomy
+state.
+
+The plan also orders items into deterministic migration waves and blast-radius
+groups. `plan.waves[]` stage items for migration in fixed order —
+`wave-1-early-safe` (import-ready, low-blast-radius, non-gated), `wave-2-review`
+(non-gated but needing review), then `wave-3-blocked` (safety-gated, rejected, or
+ambiguously owned, always last) — and each carries a `rationale` and sorted
+`item_ids`. `plan.blast_radius_groups[]` group items by `severity` (`none`,
+`low`, `medium`, `high`, `blocked`) in ascending order. Severity comes only from
+the dependency-path and missing-evidence counts the findings already carry, never
+a guessed dependency; ambiguous, rejected, and safety-gated items are always
+`blocked`. Each item is stamped with its `wave_id` and `blast_radius_group`. The
+response adds bounded `wave_summaries` and `blast_radius_summaries` (per-wave and
+per-group `item_count`) so a consumer can triage staging without walking every
+item. See the
+[replatforming plan contract](../replatforming-plan-contract.md#waves-and-blast-radius)
+for the full ordering rules.
+
+The response is paginated (`limit`, `offset`, `truncated`, `next_offset`) and
+carries `recommended_next_calls` for the next page plus the management-status
+and drift drill-down reads. The plan's rollup truth never exceeds the
+capability's `derived` profile maximum. Lightweight local profiles cannot
+materialize the reducer-owned drift and IaC evidence and return
+`501 unsupported_capability`.
 
 ## Content
 

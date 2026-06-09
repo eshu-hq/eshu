@@ -63,6 +63,7 @@ func OpenAPISpec() string {
 			openAPIPathsIaCResources+
 			openAPIPathsAWSRuntimeDrift+
 			openAPIPathsReplatformingRollups+
+			openAPIPathsReplatforming+
 			openAPIPathsContent+
 			openAPIPathsMetrics+
 			openAPIPathsAdmin+

@@ -76,7 +76,55 @@ refused candidate that still carries a block.
 
 `waves` order packet items for staged migration; `blast_radius_groups` group
 items by dependency and risk so a wave's impact is explicit before any external
-apply. Both reference items by `item_id`.
+apply. Both reference items by `item_id`. Each item also carries its `wave_id`
+and `blast_radius_group` membership. The ordering is computed in
+`go/internal/query/replatforming_waves.go` and is a **planning hint only**: it
+never implies automatic apply and never fabricates a dependency the plan does not
+already carry.
+
+### Ordering signals
+
+Ordering is derived only from evidence the composed plan already holds — never a
+guessed dependency:
+
+- **Dependency footprint** — the number of `dependency_paths` recorded on the
+  item's finding, used as a downstream-dependent proxy. More paths mean a larger
+  blast radius if the resource is imported, retired, renamed, or moved.
+- **Missing evidence** — the number of explicitly missing-evidence entries,
+  which raises blast-radius uncertainty without inventing dependents.
+- **Safety gate / source state** — a `rejected` or `ambiguous` source state, or a
+  safety gate that requires review, blocks an item from any earlier wave.
+- **Import readiness** — only items with a `ready` import candidate are eligible
+  for the earliest wave, because they have a concrete, safety-approved next step.
+
+Output is deterministic: identical input yields identical waves and groups
+regardless of item order, because every grouping iterates a fixed, sorted key
+order. Item IDs within a wave or group are sorted.
+
+### Waves
+
+| `wave.id` | `order` | Holds |
+| --- | --- | --- |
+| `wave-1-early-safe` | 1 | Import-ready, low-blast-radius, non-gated items: safest early candidates. |
+| `wave-2-review` | 2 | Non-gated items needing review: refused import, weaker evidence, or larger blast radius. |
+| `wave-3-blocked` | 3 (always last) | Safety-gated, rejected, or ambiguously owned items: must wait for stronger evidence or a human safety decision. |
+
+Empty waves are dropped, so a populated plan never carries a fabricated empty
+stage and `order` stays contiguous starting at 1. Each wave carries a `rationale`.
+
+### Blast-radius groups
+
+Groups are emitted in ascending severity. `none`/`low`/`medium`/`high` are driven
+by the dependency-plus-missing-evidence weight (`0`, `1–2`, `3–5`, `6+`).
+`blocked` is independent of footprint: a safety-gated, rejected, or ambiguously
+owned item is always `blocked`, because its evidence — not its size — blocks it.
+
+### Response summaries
+
+The serving route additionally returns bounded `wave_summaries` (per-wave
+`item_count` in staging order) and `blast_radius_summaries` (per-group
+`item_count` in ascending severity), so a consumer can triage staging without
+walking every item.
 
 ## Truth and Authority
 

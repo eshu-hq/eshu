@@ -59,11 +59,11 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 114 tools from the tool definition files.
+`ReadOnlyTools` assembles 115 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
-| `codebaseTools` | 27 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_call_graph_metrics.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
+| `codebaseTools` | 29 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_call_graph_metrics.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
 | `repositoryLanguageTools` | 3 | `tools_repository_language.go` |
 | `ecosystemTools` | 19 | `tools_ecosystem.go` |
 | `infraResourceAggregateTools` | 2 | `tools_infra_resource_aggregates.go` |

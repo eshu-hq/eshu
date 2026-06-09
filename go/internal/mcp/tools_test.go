@@ -44,6 +44,7 @@ func TestReadOnlyTools(t *testing.T) {
 		"get_iac_management_status",
 		"explain_iac_management_status",
 		"propose_terraform_import_plan",
+		"compose_replatforming_plan",
 		"list_aws_runtime_drift_findings",
 		"get_replatforming_rollups",
 		"get_ecosystem_overview",
@@ -188,8 +189,8 @@ func stringSliceContains(values []string, want string) bool {
 
 func TestCodebaseTools(t *testing.T) {
 	tools := codebaseTools()
-	if len(tools) != 28 {
-		t.Errorf("Expected 28 codebase tools, got %d", len(tools))
+	if len(tools) != 29 {
+		t.Errorf("Expected 29 codebase tools, got %d", len(tools))
 	}
 }
 

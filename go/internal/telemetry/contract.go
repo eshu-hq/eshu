@@ -365,6 +365,13 @@ const (
 	// only the stable http.route and eshu.capability attributes; per-resource
 	// identities stay out of span and metric labels.
 	SpanQueryReplatformingRollups = "query.replatforming_rollups"
+	// SpanQueryReplatformingPlan wraps the service-scoped replatforming plan
+	// composition (POST /api/v0/replatforming/plans). It composes a
+	// provider-neutral ReplatformingPlan over reducer-owned IaC management and
+	// runtime-drift evidence and carries the stable http.route and
+	// eshu.capability attributes so the plan compose read is distinguishable from
+	// the underlying unmanaged-resource and import-plan reads.
+	SpanQueryReplatformingPlan = "query.replatforming_plan"
 	// SpanQueryIaCResources wraps the bounded Terraform/IaC resource list read
 	// over the authoritative graph (GET /api/v0/iac/resources). It carries the
 	// stable http.route and eshu.capability attributes so the IaC inventory

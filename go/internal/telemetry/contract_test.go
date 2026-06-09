@@ -141,6 +141,7 @@ func TestSpanNames(t *testing.T) {
 		"query.iac_management_explanation",
 		"query.iac_terraform_import_plan",
 		"query.aws_runtime_drift_findings",
+		"query.replatforming_plan",
 		"query.iac_resources",
 		"query.infra_resource_search",
 		"query.infra_resource_aggregate",
