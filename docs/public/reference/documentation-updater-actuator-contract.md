@@ -53,9 +53,10 @@ may use the short forms `source`, `document`, `section`, `link`,
 `entity_mention`, and `claim_candidate`.
 
 Repo-hosted documentation collected by the Git collector appears on this route as
-source-neutral documentation facts linked to the repository target. It is not
-the same path as local `eshu docs verify`, which emits verification findings
-and evidence packets for explicitly checked local Markdown claims.
+source-neutral documentation facts linked to the repository target, including
+API contract sections and bounded CSV/TSV table summaries. It is not the same
+path as local `eshu docs verify`, which emits verification findings and
+evidence packets for explicitly checked local Markdown claims.
 Repository-hosted API contracts appear on the same facts route as
 `documentation_document`, `documentation_section`, and `documentation_link`
 rows with formats such as `openapi`, `swagger`, `asyncapi`, and `graphql_sdl`.

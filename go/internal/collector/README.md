@@ -116,26 +116,29 @@ When the stream re-reads repo-hosted service-catalog descriptors
 the same scope and generation. A documentation-only metadata lane also
 normalizes repo-hosted Markdown, lightweight text (`.txt`, `.rst`, `.adoc`,
 `.asciidoc`, `.qmd`), HTML (`.html`, `.htm`), API contracts (OpenAPI,
-Swagger, AsyncAPI, and GraphQL SDL), and notebook narrative (`.ipynb`) files
-into source-neutral documentation source, document, section, link, mention,
-and claim-candidate facts with repository target refs. API contract extraction
-emits bounded operation, channel, schema, and SDL-field sections with source
-anchors, but it remains documentation evidence only and does not infer service
-ownership. Notebook extraction keeps parser-owned code-cell handling separate:
-Markdown cells, raw cells, and selected stdout or `text/plain` outputs become
-documentation evidence, while stderr streams, rich binary output, and code-cell
-source stay out of documentation evidence. Notebook JSON is read with a
-separate bounded parse envelope so larger valid notebooks can still emit
-narrative facts without letting embedded outputs grow unbounded. These
-documentation claims remain document evidence only; projector, reducer, and
-query stages own correlation, drift, and truth decisions.
+Swagger, AsyncAPI, and GraphQL SDL), notebook narrative (`.ipynb`), and
+conservative delimited spreadsheets (`.csv`, `.tsv`) into source-neutral
+documentation source, document, section, link, mention, and claim-candidate
+facts with repository target refs. API contract extraction emits bounded
+operation, channel, schema, and SDL-field sections with source anchors, but it
+does not infer service ownership. Spreadsheet sections carry headers, bounded
+row samples, counts, truncation warnings, and redacted sensitive-looking cells
+rather than full table dumps. Notebook extraction keeps parser-owned code-cell
+handling separate: Markdown cells, raw cells, and selected stdout or
+`text/plain` outputs become documentation evidence, while stderr streams, rich
+binary output, and code-cell source stay out of documentation evidence.
+Notebook JSON is read with a separate bounded parse envelope so larger valid
+notebooks can still emit narrative facts without letting embedded outputs grow
+unbounded. These documentation claims remain document evidence only; projector,
+reducer, and query stages own correlation, drift, and truth decisions.
 `AfterBatchDrained` runs only after the service has committed at least one
 generation and then observes the source batch drain. Idle polls do not trigger
 it.
 
 No-Regression Evidence: `go test ./internal/collector ./internal/doctruth ./internal/query ./internal/mcp -count=1`
-covers repository documentation extraction, deterministic claim hints,
-repository fact readback, and MCP documentation fact routing.
+covers repository documentation extraction including CSV/TSV summaries,
+deterministic claim hints, repository fact readback, and MCP documentation fact
+routing.
 
 No-Observability-Change: repository documentation extraction runs inside the
 existing `collector.observe` commit path and reuses body-free snapshot metadata

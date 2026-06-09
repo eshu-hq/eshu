@@ -84,7 +84,6 @@ Most current core families use schema version `1.0.0`.
 source-native content for updater diff generation. Check the fact-family helper
 before emitting rows.
 
-Repository-hosted documentation ingestion is part of Git collection. It emits
 Semantic evidence facts are optional provenance emitted by semantic extraction
 jobs. `semantic.documentation_observation` preserves an LLM-assisted
 documentation observation with source, chunk, provider profile, model, prompt
@@ -100,15 +99,18 @@ reducer, or provider evidence before presenting a hint as corroborated truth.
 Payloads must not contain raw provider keys, prompt payloads, bearer tokens,
 secret values, or private provider responses.
 
-Repository-hosted Markdown ingestion is part of Git collection. It emits
+Repository-hosted documentation ingestion is part of Git collection. It emits
 source-neutral documentation source, document, section, and link facts for
 Markdown (`.md`, `.mdx`, `.markdown`), lightweight text (`.txt`, `.rst`,
-`.adoc`, `.asciidoc`, `.qmd`), and HTML (`.html`, `.htm`) files under the
-repository scope and attaches a repository `linked_entities` target reference
-for repository-scoped readback. Deterministic `doctruth` extraction may add
-entity-mention and claim-candidate facts from bounded sections, but those
-claims remain `document_evidence` only. Reducers and query surfaces decide
-whether later findings or drift evidence are admissible. Local
+`.adoc`, `.asciidoc`, `.qmd`), HTML (`.html`, `.htm`), notebook narrative
+(`.ipynb`), and conservative delimited spreadsheet (`.csv`, `.tsv`) files under
+the repository scope and attaches a repository `linked_entities` target
+reference for repository-scoped readback. Spreadsheet sections contain headers,
+row/column/sample counts, bounded row samples, truncation warnings, and redacted
+sensitive-looking cells rather than full table dumps. Deterministic `doctruth`
+extraction may add entity-mention and claim-candidate facts from bounded
+sections, but those claims remain `document_evidence` only. Reducers and query
+surfaces decide whether later findings or drift evidence are admissible. Local
 `eshu docs verify` is separate: it actively checks local Markdown claims
 against caller-supplied truth sources and emits findings or evidence packets
 rather than ingesting repository documentation.

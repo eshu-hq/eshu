@@ -12,17 +12,18 @@
 // fencing, and batch-drain hooks explicitly. Raw Terraform-state bytes do not
 // enter normal repository snapshots; only metadata-only state candidates are
 // emitted for the Terraform-state collector path to approve and read.
-// Repository-hosted Markdown, lightweight text, HTML, API contracts, and
-// notebook narrative files become source-neutral documentation facts and
-// non-authoritative document-evidence claim candidates only. API contract
-// operations, schemas, channels, and GraphQL SDL fields are documentation
-// evidence; they do not prove service ownership. Notebook code-cell source
-// remains parser evidence; Markdown cells, raw cells, and selected stdout/text
-// outputs are the only notebook content that enters the documentation lane.
-// Declared Grafana, Prometheus/Mimir, Loki, and Tempo observability rows plus
-// applied Argo CD/Kubernetes observability state rows from repository parsers
-// become metadata-only observability source facts; reducers and query surfaces
-// own any later declared/applied/observed coverage truth.
+// Repository-hosted Markdown, lightweight text, HTML, API contracts, notebook
+// narrative, and conservative delimited spreadsheet files become source-neutral
+// documentation facts and non-authoritative document-evidence claim candidates
+// only. API contract operations, schemas, channels, and GraphQL SDL fields are
+// documentation evidence; they do not prove service ownership. Notebook
+// code-cell source remains parser evidence; Markdown cells, raw cells, and
+// selected stdout/text outputs are the only notebook content that enters the
+// documentation lane. Declared Grafana, Prometheus/Mimir, Loki, and Tempo
+// observability rows plus applied
+// Argo CD/Kubernetes observability state rows from repository parsers become
+// metadata-only observability source facts; reducers and query surfaces own any
+// later declared/applied/observed coverage truth.
 //
 // The scannerworker subpackage owns the hosted boundary for isolated security
 // analyzers. It defines claim input, target scope, resource limits,
