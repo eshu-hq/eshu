@@ -121,6 +121,9 @@ These are graph-lane safeguards, not an Eshu semantic-search contract. BM25,
 vector indexing, and embedding generation stay off for the canonical graph
 database. Lazy warming remains the supported fallback if an operator enables a
 specific search index for a deliberate proof run.
+Optional semantic extraction is configured separately through provider profiles
+and source policy; see
+[Semantic Enrichment Posture](../reference/semantic-enrichment-posture.md).
 
 ## Optional Profiles
 
