@@ -9,7 +9,10 @@ secret.
 Use it instead of hand-editing Helm `repoSync` values as the primary onboarding
 model. For the underlying connection checks it reuses, see
 [`eshu hosted-setup`](../reference/cli-reference.md). For the deployment runtime
-map, see [Service Runtimes](service-runtimes.md).
+map, see [Service Runtimes](service-runtimes.md). Before handing the artifact
+to a team, use [Hosted Governance Posture](../operate/hosted-governance.md) to
+confirm the current auth, semantic-provider, extension, redaction, and proof
+boundaries.
 
 ## What it does
 
@@ -112,3 +115,5 @@ The onboarding artifact states this limitation verbatim so it never implies
 isolation that does not exist. Scoped per-team tokens are tracked as a follow-up
 under the hosted-ops capability ([issue #1852](https://github.com/eshu-hq/eshu/issues/1852)).
 Until that lands, do not present the onboarding token as a tenant boundary.
+Use [Hosted Governance Posture](../operate/hosted-governance.md) for the
+operator preflight and runbooks that keep that limitation explicit.
