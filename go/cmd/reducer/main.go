@@ -373,6 +373,14 @@ func buildReducerService(
 		},
 		ServiceMaterializationWriter:       serviceMaterializationWriter,
 		ServiceDocumentationEvidenceLoader: serviceDocumentationEvidenceLoader,
+		// ServiceRuntimeInstanceLoader sources the runtime evidence family (#1986)
+		// from the canonical graph's WorkloadInstance/Platform nodes for each
+		// correlated service's repository. It is wired only alongside
+		// ServiceMaterializationWriter so the runtime family stays purely additive
+		// to the ownership/deployment lineage; the loader anchors on the
+		// workload_instance_repo_id index and runs once per
+		// service-catalog-correlation intent.
+		ServiceRuntimeInstanceLoader: reducer.GraphServiceRuntimeInstanceLoader{Graph: graphReader},
 		ObservabilityCoverageCorrelationWriter: reducer.PostgresObservabilityCoverageCorrelationWriter{
 			DB: database,
 		},
@@ -480,10 +488,5 @@ func buildReducerService(
 	}, nil
 }
 
-func reducerDomainStrings(domains []reducer.Domain) []string {
-	values := make([]string, 0, len(domains))
-	for _, domain := range domains {
-		values = append(values, string(domain))
-	}
-	return values
-}
+// reducerDomainStrings lives in main_helpers.go to keep this file within the
+// repo file-size budget.
