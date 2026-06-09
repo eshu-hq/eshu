@@ -42,7 +42,16 @@ orchestration. It does not own service runtime internals:
     partial-readiness, missing-repo-scope, and mcp-unavailable failures, reports
     connected only when the bounded query returns, never prints the raw token,
     and can emit a hosted MCP client snippet (`hosted_setup.go`,
-    `hosted_setup_verify.go`, `hosted_setup_report.go`); `first-run-benchmark`
+    `hosted_setup_verify.go`, `hosted_setup_report.go`). `hosted-onboard` is the
+    shared-service onboarding workflow: it takes a team name and a repository
+    sync rule set, classifies the rules narrow vs broad and rejects a whole-org
+    glob unless `--confirm-broad` is set, reuses the `hosted-setup` staged checks,
+    and emits a redacted onboarding artifact (Markdown or JSON via `--out`) that
+    carries the API/MCP URLs, the token source name (never the value), indexed
+    repositories, queue/completeness status, and starter prompts, while
+    documenting the current shared-token authorization limitation
+    (`hosted_onboard.go`, `hosted_onboard_rules.go`, `hosted_onboard_render.go`,
+    `hosted_onboard_cmd.go`); `first-run-benchmark`
     scores a captured `first-run --json` envelope against the first-five-minutes
     onboarding criteria and rejects a health-only "answer"
     (`first_run_benchmark.go`, `first_run_benchmark_cmd.go`)
@@ -136,6 +145,23 @@ No-Regression Evidence: provider-parity lifecycle behavior is covered by
   snippet via the shared `mcp setup` snippet helpers; `--repository` asserts a
   required repository is present in the indexed scope; `--json` emits the
   canonical `{data, truth, error}` envelope.
+- `eshu hosted-onboard` is the shared-service onboarding contract for a
+  *deployed* service. It takes a required `--team` name and a repository sync
+  rule set (`--repo owner/name`, repeatable, and `--repo-pattern '^org/team-'`,
+  repeatable). It classifies the rule set narrow vs broad through the pure
+  `classifyRepoRules` function and rejects an accidental whole-org glob (`org/*`,
+  `*`, `.*`, an empty rule set) before any connection check runs unless
+  `--confirm-broad` is supplied. It then reuses the `hosted-setup` staged checks
+  and projects a redacted onboarding artifact: the API URL, the
+  `<base>/mcp/message` MCP URL (both endpoint-redacted), the token *source name*
+  (the `ESHU_API_KEY` env var, never the value), the indexed repositories, a
+  queue/completeness status derived from the readiness verdict, and starter
+  prompts sourced from the query playbook catalog. The artifact documents the
+  current single shared-token authorization limitation so it never implies
+  per-team isolation that does not exist. `--out <path>` with `--format md|json`
+  writes the artifact with owner-only permissions; `--json` prints it to stdout;
+  `--platform` adds a hosted MCP client snippet. Like `hosted-setup`, the exit
+  code reflects whether the bounded query actually returned.
 - `eshu first-run-benchmark` is the dogfood benchmark contract. It consumes a
   captured `first-run --json` envelope (from `--envelope <path>` or stdin) and
   scores it against the first-five-minutes onboarding criteria through the pure
