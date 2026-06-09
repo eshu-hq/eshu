@@ -132,6 +132,7 @@ type APIRouter struct {
 	Freshness             *FreshnessHandler
 	Status                *StatusHandler
 	ComponentExtensions   *ComponentExtensionsHandler
+	Playbooks             *QueryPlaybookHandler
 	Metrics               *MetricsHandler
 	Compare               *CompareHandler
 	Admin                 *AdminHandler
@@ -267,6 +268,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Component extensions
 	if a.ComponentExtensions != nil {
 		a.ComponentExtensions.Mount(mux)
+	}
+
+	// Query playbooks
+	if a.Playbooks != nil {
+		a.Playbooks.Mount(mux)
 	}
 
 	// Metrics

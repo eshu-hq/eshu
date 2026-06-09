@@ -90,14 +90,35 @@ Each catalog playbook declares its own failure modes — for example "service no
 found" recommends `investigate_service`, and "citation packet truncated"
 recommends raising the bounded limit or sending the next handle batch.
 
-## API / MCP exposure
+## API / MCP / CLI exposure
 
-The playbook contract and catalog ship as an in-process Go contract. Exposure
-over a read-only, bounded API/MCP surface is deliberate follow-up work: any such
-surface must keep the truth labels intact, stay read-only, and never expose a
-raw-Cypher step. Until then, prompt surfaces consume the catalog in-process and
-the cross-check test in `go/internal/mcp` guarantees every referenced tool name
-is a real read-only MCP tool.
+The catalog is available through read-only surfaces:
+
+| Surface | Operation | Result |
+| --- | --- | --- |
+| HTTP | `GET /api/v0/query-playbooks` | Lists catalog IDs, versions, prompt families, required inputs, steps, evidence expectations, and failure modes. |
+| HTTP | `POST /api/v0/query-playbooks/resolve` | Resolves `playbook_id` plus declared string inputs into an ordered, bounded call sequence. |
+| MCP | `list_query_playbooks` | Dispatches to the HTTP catalog route and returns the canonical envelope as the structured resource block. |
+| MCP | `resolve_query_playbook` | Dispatches to the HTTP resolver route with `playbook_id` and `inputs`. |
+| CLI | `eshu playbooks list` / `eshu playbooks resolve` | Prints the canonical API envelope as JSON for operator scripting. |
+
+These surfaces report `query.playbooks` truth with `runtime_state` basis because
+they describe deterministic workflow-plan data, not live graph query truth. The
+resolver does not execute calls, read Postgres, read the graph backend, call
+providers, or expose raw Cypher. Unknown playbooks, undeclared inputs, and
+missing required inputs fail with bounded errors.
+
+No-Regression Evidence: `cd go && go test ./cmd/api ./cmd/mcp-server ./cmd/eshu
+./internal/query ./internal/mcp -count=1` covers the HTTP handler, API and MCP
+binary wiring, MCP registry and dispatch, CLI resolver helper, OpenAPI assembly,
+and capability-matrix contract for the static `query.playbooks` surface.
+
+No-Observability-Change: query playbook list and resolve calls read only the
+in-process static catalog and return through the existing HTTP/MCP envelope
+path. They do not open graph or Postgres connections, enqueue work, execute
+resolved calls, start spans for backend reads, or add metric labels; operators
+diagnose failures through the existing HTTP status, canonical error envelope,
+MCP dispatch result, and CLI transport error output.
 
 ## Verification
 
