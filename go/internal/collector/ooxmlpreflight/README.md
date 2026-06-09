@@ -6,14 +6,17 @@
 safety before any Office-document extractor reads document text. It gives future
 documentation collectors a metadata-only guard for resource limits, unsafe
 paths, external relationships, macro-bearing parts, active content, embedded
-objects, and malformed package metadata.
+objects, malformed package metadata, and bounded structure-marker counts.
 
 ## Ownership boundary
 
 This package owns pure preflight classification for Office Open XML packages.
-It reads ZIP directory metadata and bounded package metadata XML only. It does
-not parse document bodies, comments, authors, cell values, speaker notes, image
-bytes, embedded object bytes, or private relationship targets.
+It reads ZIP directory metadata, bounded package metadata XML, and selected
+structure-only XML start elements needed to count tables, tracked changes,
+worksheets, formulas, hidden sheet/slide markers, slides, notes, comments, and
+media parts. It does not persist document bodies, comments, authors, cell
+values, formula bodies, speaker notes, image bytes, embedded object bytes,
+local part names, or private relationship targets.
 
 It does not discover repositories, emit documentation facts, persist rows,
 write graph state, expose API or MCP routes, add runtime knobs, or enable
@@ -27,24 +30,28 @@ See `doc.go` for the godoc-rendered package contract.
 - `Options` sets source-byte, expanded-byte, entry-count, compression-ratio,
   XML-byte, and XML-depth budgets.
 - `Result` reports format, safe/unsafe state, bounded counts, and warning
-  classes.
+  classes. Structure counters are metadata-only counts for annotation parts,
+  hidden content markers, images, DOCX tables and tracked changes, XLSX
+  worksheets/shared strings/formulas, and PPTX slides/notes/media.
 - `Warning` records a stable low-cardinality class and count.
 - `Preflight` classifies one package using an `io.ReaderAt`, source name, byte
   size, context, and options.
 - Format constants: `FormatDOCX`, `FormatXLSX`, and `FormatPPTX`.
 - Warning constants cover unsupported formats, macro-enabled packages,
   malformed containers/XML, resource limits, compression-ratio limits, unsafe
-  paths, external relationships, active content, embedded objects, and
-  cancellation/deadline timeout. Issue-specific warning classes
-  `external_relationship`, `active_content_present`, and
-  `embedded_object_present` are recorded in the #1738 design before collector
-  use.
+  paths, external relationships, active content, embedded objects, skipped
+  annotation text, skipped hidden content, and cancellation/deadline timeout.
+  Issue-specific warning classes `external_relationship`,
+  `active_content_present`, `embedded_object_present`,
+  `annotation_text_skipped`, and `hidden_content_skipped` are recorded in the
+  #1738 design before collector use.
 
 ## Dependencies
 
 The package uses only the Go standard library. `archive/zip` opens the package,
-`encoding/xml` parses bounded content-type and relationship parts, and `context`
-lets callers stop preflight before extraction proceeds.
+`encoding/xml` parses bounded content-type, relationship, and structure-marker
+parts without storing character data, and `context` lets callers stop preflight
+before extraction proceeds.
 
 ## Telemetry
 
@@ -80,12 +87,17 @@ tool, runtime stage, or hosted collector path.
 
 - Preflight never stores raw relationship targets. External relationships are
   counted and classified, not persisted.
+- Structure scanning counts XML tag/attribute markers only. It ignores
+  character data and never returns comments, tracked-change text, sheet names,
+  formulas, shared strings, speaker notes, authors, alt text, or part names.
 - ZIP part paths must be local slash-separated names with no drive prefix,
   absolute path, backslash, `..` segment, empty component, or NUL byte.
 - Macro-enabled extensions and macro-like package parts fail closed with
   `unsupported_macro_enabled`.
 - Compression-ratio checks ignore very small parts to avoid noisy XML-header
   ratios; expanded-byte and entry-count budgets still bound the package.
+- `annotation_text_skipped` and `hidden_content_skipped` are presence warnings;
+  the dedicated structure counters carry the bounded counts.
 - A safe preflight result is not approval to ingest. It only means this guard
   did not find a disqualifying package-level issue.
 

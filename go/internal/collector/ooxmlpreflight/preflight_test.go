@@ -141,6 +141,32 @@ func TestPreflightFlagsUnsafePathsExternalRelationshipsAndActiveParts(t *testing
 	}
 }
 
+func TestPreflightFlagsExternalRelationshipTargetWithoutMode(t *testing.T) {
+	t.Parallel()
+
+	archive := buildOOXMLZip(t, map[string]string{
+		"[Content_Types].xml": contentTypesXML("word/document.xml", "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"),
+		"_rels/.rels":         relationshipsXML(false, "https://private.example.invalid/target"),
+	})
+
+	result, err := Preflight(context.Background(), "runbook.docx", bytes.NewReader(archive), int64(len(archive)), Options{
+		MaxEntries:       10,
+		MaxExpandedBytes: 4096,
+		MaxXMLBytes:      2048,
+	})
+	if err != nil {
+		t.Fatalf("Preflight() error = %v, want nil", err)
+	}
+	if result.Safe {
+		t.Fatal("Safe = true, want false for external relationship target")
+	}
+	assertWarning(t, result, WarningExternalRelationship, 1)
+	if got, want := result.ExternalRelationshipCount, 1; got != want {
+		t.Fatalf("ExternalRelationshipCount = %d, want %d", got, want)
+	}
+	assertNoResultLeak(t, result, "private.example.invalid", "target")
+}
+
 func TestPreflightClassifiesMalformedContainerAndXML(t *testing.T) {
 	t.Parallel()
 
@@ -172,6 +198,28 @@ func TestPreflightClassifiesMalformedContainerAndXML(t *testing.T) {
 	assertWarning(t, result, WarningMalformedXML, 1)
 }
 
+func TestPreflightClassifiesMalformedStructureXML(t *testing.T) {
+	t.Parallel()
+
+	archive := buildOOXMLZip(t, map[string]string{
+		"[Content_Types].xml": contentTypesXML("word/document.xml", "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"),
+		"word/document.xml":   `<w:document><w:body><w:tbl></w:body></w:document>`,
+	})
+
+	result, err := Preflight(context.Background(), "broken.docx", bytes.NewReader(archive), int64(len(archive)), Options{
+		MaxEntries:       10,
+		MaxExpandedBytes: 4096,
+		MaxXMLBytes:      2048,
+	})
+	if err != nil {
+		t.Fatalf("Preflight() error = %v, want nil", err)
+	}
+	if result.Safe {
+		t.Fatal("Safe = true, want false for malformed structure XML")
+	}
+	assertWarning(t, result, WarningMalformedXML, 1)
+}
+
 func TestPreflightClassifiesResourceLimits(t *testing.T) {
 	t.Parallel()
 
@@ -197,6 +245,32 @@ func TestPreflightClassifiesResourceLimits(t *testing.T) {
 	assertWarning(t, result, WarningCompressionRatioExceeded, 1)
 }
 
+func TestPreflightSkipsOversizedStructureXML(t *testing.T) {
+	t.Parallel()
+
+	archive := buildOOXMLZip(t, map[string]string{
+		"[Content_Types].xml": contentTypesXML("word/document.xml", "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"),
+		"word/document.xml":   `<w:document>` + strings.Repeat("private text ", 200) + `<w:tbl/></w:document>`,
+	})
+
+	result, err := Preflight(context.Background(), "runbook.docx", bytes.NewReader(archive), int64(len(archive)), Options{
+		MaxEntries:       10,
+		MaxExpandedBytes: 4096,
+		MaxXMLBytes:      512,
+	})
+	if err != nil {
+		t.Fatalf("Preflight() error = %v, want nil", err)
+	}
+	if result.Safe {
+		t.Fatal("Safe = true, want false for oversized structure XML")
+	}
+	assertWarning(t, result, WarningResourceLimitExceeded, 1)
+	if result.TableMarkerCount != 0 {
+		t.Fatalf("TableMarkerCount = %d, want 0 when structure part exceeds XML budget", result.TableMarkerCount)
+	}
+	assertNoResultLeak(t, result, "private text")
+}
+
 func TestPreflightClassifiesXMLDepthLimit(t *testing.T) {
 	t.Parallel()
 
@@ -218,6 +292,92 @@ func TestPreflightClassifiesXMLDepthLimit(t *testing.T) {
 		t.Fatal("Safe = true, want false for over-depth XML")
 	}
 	assertWarning(t, result, WarningResourceLimitExceeded, 1)
+}
+
+func TestPreflightCountsDOCXStructureMarkers(t *testing.T) {
+	t.Parallel()
+
+	archive := buildOOXMLZip(t, map[string]string{
+		"[Content_Types].xml":   contentTypesXML("word/document.xml", "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"),
+		"word/document.xml":     `<w:document><w:body><w:tbl/><w:ins w:author="private author"/><w:del/></w:body></w:document>`,
+		"word/comments.xml":     `<w:comments><w:comment>private comment text</w:comment></w:comments>`,
+		"word/media/image1.png": "image-bytes",
+	})
+
+	result, err := Preflight(context.Background(), "runbook.docx", bytes.NewReader(archive), int64(len(archive)), Options{
+		MaxEntries:       10,
+		MaxExpandedBytes: 4096,
+		MaxXMLBytes:      2048,
+	})
+	if err != nil {
+		t.Fatalf("Preflight() error = %v, want nil", err)
+	}
+	if result.TableMarkerCount != 1 || result.TrackedChangeMarkerCount != 2 ||
+		result.AnnotationPartCount != 1 || result.ImagePartCount != 1 {
+		t.Fatalf("unexpected DOCX structure counts: %#v", result)
+	}
+	assertWarning(t, result, WarningAnnotationTextSkipped, 1)
+	assertNoResultLeak(t, result, "private author", "private comment text")
+}
+
+func TestPreflightCountsXLSXStructureMarkers(t *testing.T) {
+	t.Parallel()
+
+	archive := buildOOXMLZip(t, map[string]string{
+		"[Content_Types].xml":      contentTypesXML("xl/workbook.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"),
+		"xl/workbook.xml":          `<workbook><sheets><sheet name="private-sheet" state="hidden"/></sheets></workbook>`,
+		"xl/worksheets/sheet1.xml": `<worksheet><sheetData><row><c><f>PRIVATE_FORMULA()</f></c></row></sheetData></worksheet>`,
+		"xl/sharedStrings.xml":     `<sst><si><t>private cell text</t></si></sst>`,
+		"xl/comments1.xml":         `<comments><comment authorId="private-author">private comment text</comment></comments>`,
+	})
+
+	result, err := Preflight(context.Background(), "inventory.xlsx", bytes.NewReader(archive), int64(len(archive)), Options{
+		MaxEntries:       10,
+		MaxExpandedBytes: 4096,
+		MaxXMLBytes:      2048,
+	})
+	if err != nil {
+		t.Fatalf("Preflight() error = %v, want nil", err)
+	}
+	if result.WorksheetPartCount != 1 || result.SharedStringPartCount != 1 ||
+		result.FormulaMarkerCount != 1 || result.HiddenContentCount != 1 ||
+		result.AnnotationPartCount != 1 {
+		t.Fatalf("unexpected XLSX structure counts: %#v", result)
+	}
+	assertWarning(t, result, WarningHiddenContentSkipped, 1)
+	assertWarning(t, result, WarningAnnotationTextSkipped, 1)
+	assertNoResultLeak(t, result, "private-sheet", "PRIVATE_FORMULA", "private cell text", "private-author", "private comment text")
+}
+
+func TestPreflightCountsPPTXStructureMarkers(t *testing.T) {
+	t.Parallel()
+
+	archive := buildOOXMLZip(t, map[string]string{
+		"[Content_Types].xml":             contentTypesXML("ppt/presentation.xml", "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"),
+		"ppt/presentation.xml":            `<p:presentation><p:sldIdLst><p:sldId show="0"/></p:sldIdLst></p:presentation>`,
+		"ppt/slides/slide1.xml":           `<p:sld><p:cSld><p:spTree/></p:cSld></p:sld>`,
+		"ppt/notesSlides/notesSlide1.xml": `<p:notes>private notes text</p:notes>`,
+		"ppt/comments/comment1.xml":       `<p:cm>private comment text</p:cm>`,
+		"ppt/commentAuthors.xml":          `<p:cmAuthor name="private author"/>`,
+		"ppt/media/image1.png":            "image-bytes",
+	})
+
+	result, err := Preflight(context.Background(), "review.pptx", bytes.NewReader(archive), int64(len(archive)), Options{
+		MaxEntries:       10,
+		MaxExpandedBytes: 4096,
+		MaxXMLBytes:      2048,
+	})
+	if err != nil {
+		t.Fatalf("Preflight() error = %v, want nil", err)
+	}
+	if result.SlidePartCount != 1 || result.NotesPartCount != 1 ||
+		result.AnnotationPartCount != 2 || result.HiddenContentCount != 1 ||
+		result.MediaPartCount != 1 {
+		t.Fatalf("unexpected PPTX structure counts: %#v", result)
+	}
+	assertWarning(t, result, WarningHiddenContentSkipped, 1)
+	assertWarning(t, result, WarningAnnotationTextSkipped, 1)
+	assertNoResultLeak(t, result, "private notes text", "private comment text", "private author")
 }
 
 func TestPreflightClassifiesCanceledContextAsTimeout(t *testing.T) {
@@ -290,4 +450,18 @@ func assertWarning(t *testing.T, result Result, class string, wantCount int) {
 		}
 	}
 	t.Fatalf("missing warning %q in %#v", class, result.Warnings)
+}
+
+func assertNoResultLeak(t *testing.T, result Result, disallowed ...string) {
+	t.Helper()
+
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("json.Marshal(result) error = %v, want nil", err)
+	}
+	for _, text := range disallowed {
+		if strings.Contains(string(encoded), text) {
+			t.Fatalf("result leaked %q: %s", text, encoded)
+		}
+	}
 }
