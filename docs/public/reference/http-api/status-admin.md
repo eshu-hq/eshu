@@ -272,8 +272,39 @@ freshness state) rather than zero deltas. Counts are exact; only the samples are
 bounded. The capability key is `freshness.changed_since`. The MCP equivalent is
 `get_changed_since` and the CLI helper is `eshu freshness changed-since`.
 
-Service-scope deltas (deployment, runtime, dependencies, docs, incidents,
-vulnerabilities, ownership) are not computed by this surface yet.
+### Service-scope changed-since
+
+`GET /api/v0/freshness/services/changed-since` answers "what changed for this
+service since a prior service materialization generation?" A service is not an
+ingestion scope, so this surface diffs a per-service generation lineage
+(`service_materialization_generations`, one active generation per `service_id`)
+over generation-stable evidence snapshots (`service_evidence_snapshots`) keyed by
+a generation-independent `service_evidence_key` (for example
+`ownership:<service_id>:<owner_ref>`).
+
+Required parameters: `service_id` (exact) and `since_generation_id` (a prior
+service generation id). Optional `sample_limit` (default 25, max 200) caps the
+per-classification sample handles. The response carries the resolved
+`service_id`, `since_generation_id`, `current_active_generation_id`, and a
+`categories` array. Stage 1 reports the `ownership` family. Each category carries
+exact `counts` for `added`, `updated`, `unchanged`, `retired`, and `superseded`,
+plus bounded `samples` (`stable_fact_key` carrying the `service_evidence_key`,
+`fact_kind` carrying the evidence family) per classification and a
+per-classification `truncated` flag. The classification, `md5`-based
+updated-vs-unchanged detection, and explicit retirement match the repository-scope
+surface; retired and superseded are never collapsed into `unchanged`.
+
+An unknown `service_id` returns `service_not_found`; an unresolved
+`since_generation_id` returns `not_found`; a service with no current active
+generation returns `unavailable=true` (and a `building`/`unavailable` freshness
+state) rather than zero deltas. The capability key is
+`freshness.service_changed_since`. The MCP equivalent is
+`get_service_changed_since` and the CLI helper is `eshu freshness
+service-changed-since`.
+
+The remaining service families (deployment, runtime, dependencies, docs,
+incidents, vulnerabilities) reuse this lineage and snapshot foundation and are
+tracked as follow-up work.
 
 Performance Evidence: the diff is bounded by the requested `sample_limit` and
 keyed by `(scope_id, generation_id, stable_fact_key)`. Counts come from one

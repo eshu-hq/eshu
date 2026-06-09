@@ -159,6 +159,7 @@ func buildReducerService(
 	repairCfg := loadGraphProjectionPhaseRepairConfig(getenv)
 	codeCallEdgeBatchSize, codeCallEdgeGroupBatchSize := loadCodeCallEdgeWriterTuning(getenv)
 	inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize := loadSharedEdgeWriterGroupTuning(getenv)
+	serviceMaterializationWriter := serviceMaterializationWriterFor(database)
 	graphBackend, err := runtimecfg.LoadGraphBackend(getenv)
 	if err != nil {
 		return reducer.Service{}, err
@@ -369,6 +370,7 @@ func buildReducerService(
 		ServiceCatalogCorrelationWriter: reducer.PostgresServiceCatalogCorrelationWriter{
 			DB: database,
 		},
+		ServiceMaterializationWriter: serviceMaterializationWriter,
 		ObservabilityCoverageCorrelationWriter: reducer.PostgresObservabilityCoverageCorrelationWriter{
 			DB: database,
 		},

@@ -235,6 +235,12 @@ type DefaultHandlers struct {
 	// repository correlation decisions.
 	ServiceCatalogCorrelationWriter ServiceCatalogCorrelationWriter
 
+	// ServiceMaterializationWriter, when set, commits the additive per-service
+	// ownership generation lineage (#1943) alongside the correlation facts so the
+	// service-scope changed-since delta has a durable prior snapshot to diff. It
+	// is optional; when nil the existing service-catalog contract is unchanged.
+	ServiceMaterializationWriter ServiceMaterializationWriter
+
 	// ObservabilityCoverageCorrelationWriter persists observability coverage
 	// correlation decisions (covered, gap, ambiguous, stale, rejected) for
 	// CloudWatch, CloudWatch Logs, and X-Ray facts.

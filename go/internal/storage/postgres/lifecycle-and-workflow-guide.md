@@ -355,3 +355,57 @@ even if the derived `trigger_id` algorithm changes. Claimers use
 `handed_off` after the Git selector receives the targeted repository list or
 `failed` with `failed_at`, `failure_class`, and `failure_message` when the
 compatibility handoff cannot complete.
+
+### Service materialization lineage and service-scope changed-since (#1943)
+
+`service_materialization_generations` is the per-service generation lineage and
+`service_evidence_snapshots` the generation-stable evidence snapshot the
+service-scope changed-since delta diffs. The reducer commits them through
+`reducer.PostgresServiceMaterializationWriter` (over the instrumented reducer DB
+via `ServiceMaterializationBeginner`); the read path is
+`StatusStore.ComputeServiceChangedSinceDelta`. This is additive: the existing
+`reducer_service_catalog_correlation` fact and its `stable_fact_key` are
+unchanged.
+
+Conflict domain and concurrency: the conflict key is `service_id`. At most one
+`status = 'active'` generation exists per service, enforced by the partial unique
+index `service_materialization_generations_active_service_idx` (mirroring
+`scope_generations_active_scope_idx`). One commit runs the new-generation insert,
+the prior-active supersession, and the snapshot-row writes in a single
+transaction, so a reader never observes zero or two active generations for a
+service. The generation id is deterministic in the evidence set
+(`md5`-fingerprinted), so an identical re-materialization inserts zero rows
+(`ON CONFLICT (generation_id) DO NOTHING`) and skips supersession and snapshot
+writes — a true no-op with no churn. A dropped owner is written as an
+`is_tombstone = TRUE` snapshot row so the delta classifies it `retired`, never
+silently absent. No serialization-as-fix: services partition by `service_id`, so
+concurrent commits for different services never contend.
+
+Cardinality and query cost: snapshot rows are one per `(generation_id,
+service_evidence_key)`; ownership cardinality is the number of distinct owners
+per service (small, single digits in practice). The delta is a FULL OUTER JOIN of
+two single-generation row sets filtered by `generation_id` and
+`is_tombstone`, served by `service_evidence_snapshots_diff_idx (generation_id,
+evidence_family, service_evidence_key)`; sample reads are bounded by
+`sample_limit + 1` and ordered by `service_evidence_key` through the same index.
+The scope-resolution and prior-generation lookups are single-row index probes on
+`service_materialization_generations`.
+
+Performance Evidence: `go test ./internal/storage/postgres -run
+'ComputeServiceChangedSinceDelta'` exercises the bounded counts + sample read
+shape against the fake Queryer/Rows harness; `go test ./internal/reducer -run
+'TestServiceMaterialization|TestBuildServiceOwnership'` proves the commit,
+supersede, idempotent no-op, and tombstone write paths.
+No-Regression Evidence: the reducer write path is additive and the existing
+`reducer_service_catalog_correlation` contract is unchanged
+(`go test ./internal/reducer -run 'TestServiceCatalogCorrelationHandlerLoads'`
+and `TestPostgresServiceCatalogCorrelationWriterPersistsReducerFacts` stay green).
+Observability Evidence: the lineage commit runs inside the already-instrumented
+`service_catalog_correlation` reducer intent (`reducer.run` span, the
+`ServiceCatalogCorrelations` counter, and `postgres.exec` spans over the
+instrumented DB for every INSERT/UPDATE in the commit transaction). The read
+path is wrapped by the `query.freshness_service_changed_since` span with
+`service_id`, `since_generation_id`, `current_generation_id`, `changed_count`,
+and `unavailable` attributes. No new parallel reducer counter was added; the
+commit is an additive sub-step of an instrumented intent, so reusing its span and
+counter keeps the operator signal coherent rather than fragmenting it.

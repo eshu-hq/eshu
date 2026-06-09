@@ -75,5 +75,30 @@ func freshnessTools() []ToolDefinition {
 				},
 			},
 		},
+		{
+			Name:        "get_service_changed_since",
+			Description: "Summarize what changed for a service since a prior service materialization generation. Diffs the prior service generation's ownership evidence snapshot set against the current active generation's set, keyed by a generation-independent service_evidence_key, into per-family counts (ownership) for added, updated, unchanged, retired, and superseded keys plus bounded sample handles. Supply service_id and since_generation_id. An unknown service_id returns service_not_found; a since reference that matches no service generation returns not_found; a service with no current active generation returns an explicit unavailable diff rather than zero deltas. Retired and superseded are never collapsed into unchanged.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"service_id": map[string]any{
+						"type":        "string",
+						"description": "Exact service id whose ownership evidence lineage to diff.",
+					},
+					"since_generation_id": map[string]any{
+						"type":        "string",
+						"description": "Prior service materialization generation id to diff from.",
+					},
+					"sample_limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum sample handles returned per classification per family.",
+						"default":     25,
+						"minimum":     1,
+						"maximum":     200,
+					},
+				},
+				"required": []string{"service_id", "since_generation_id"},
+			},
+		},
 	}
 }

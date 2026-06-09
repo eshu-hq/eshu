@@ -52,9 +52,10 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 	if handlers.FactLoader != nil && handlers.ServiceCatalogCorrelationWriter != nil {
 		serviceCatalog := serviceCatalogCorrelationDomainDefinition()
 		serviceCatalog.Handler = ServiceCatalogCorrelationHandler{
-			FactLoader:  handlers.FactLoader,
-			Writer:      handlers.ServiceCatalogCorrelationWriter,
-			Instruments: handlers.Instruments,
+			FactLoader:            handlers.FactLoader,
+			Writer:                handlers.ServiceCatalogCorrelationWriter,
+			MaterializationWriter: handlers.ServiceMaterializationWriter,
+			Instruments:           handlers.Instruments,
 		}
 		definitions = append(definitions, serviceCatalog)
 	}

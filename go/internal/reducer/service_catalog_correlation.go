@@ -84,9 +84,14 @@ type activeServiceCatalogRepositoryFactLoader interface {
 // ServiceCatalogCorrelationHandler correlates catalog declarations against
 // active repository facts without letting catalog names create workloads.
 type ServiceCatalogCorrelationHandler struct {
-	FactLoader  FactLoader
-	Writer      ServiceCatalogCorrelationWriter
-	Instruments *telemetry.Instruments
+	FactLoader FactLoader
+	Writer     ServiceCatalogCorrelationWriter
+	// MaterializationWriter, when set, commits the additive per-service ownership
+	// generation lineage (#1943) after the correlation facts are written. It is
+	// optional so the existing reducer_service_catalog_correlation contract is
+	// unchanged when the lineage is not wired.
+	MaterializationWriter ServiceMaterializationWriter
+	Instruments           *telemetry.Instruments
 }
 
 // Handle executes one service catalog correlation reducer intent.
@@ -126,6 +131,10 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent Int
 	}
 	h.emitCounters(ctx, counts)
 
+	if err := h.commitOwnershipGenerations(ctx, intent, decisions); err != nil {
+		return Result{}, fmt.Errorf("commit service ownership generations: %w", err)
+	}
+
 	return Result{
 		IntentID:        intent.IntentID,
 		Domain:          DomainServiceCatalogCorrelation,
@@ -133,6 +142,29 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent Int
 		EvidenceSummary: serviceCatalogCorrelationSummary(len(decisions), counts, writeResult.FactsWritten),
 		CanonicalWrites: writeResult.FactsWritten,
 	}, nil
+}
+
+// commitOwnershipGenerations writes the additive per-service ownership
+// generation lineage (#1943) for every service that has at least one
+// owner-bearing correlation decision. The data is sourced from the same
+// decisions that produced the reducer_service_catalog_correlation facts, so the
+// existing fact's owner_ref read path is the single source of truth; no existing
+// fact key changes. When MaterializationWriter is nil this is a no-op, so the
+// existing correlation contract is preserved.
+func (h ServiceCatalogCorrelationHandler) commitOwnershipGenerations(
+	ctx context.Context,
+	intent Intent,
+	decisions []ServiceCatalogCorrelationDecision,
+) error {
+	if h.MaterializationWriter == nil {
+		return nil
+	}
+	for _, write := range buildServiceOwnershipMaterializations(intent.IntentID, decisions) {
+		if _, err := h.MaterializationWriter.WriteServiceMaterialization(ctx, write); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (h ServiceCatalogCorrelationHandler) loadActiveRepositoryFacts(ctx context.Context) ([]facts.Envelope, error) {

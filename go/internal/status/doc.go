@@ -56,4 +56,11 @@
 // MaxChangedSinceSampleLimit. The Unavailable flag distinguishes a scope with no
 // current active generation from a genuinely empty delta so the surface never
 // reports all-unchanged when it cannot diff.
+//
+// ServiceChangedSinceFilter and ServiceChangedSinceSummary define the
+// service-scope variant (#1943): the same verdict set, counts, sample, and
+// Unavailable shapes, but keyed by service_id and diffed over a per-service
+// materialization generation lineage instead of an ingestion scope. Stage 1
+// reports the ownership evidence family (ChangedSinceCategoryOwnership); the
+// remaining families append to ServiceChangedSinceCategories as they land.
 package status

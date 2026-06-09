@@ -4,12 +4,20 @@ Issue: #1943
 Parent: #1797
 Follow-up to: #1799 (merged repository-scope changed-since)
 
-Status: **Design-only proposal. No runtime surface shipped.** Service-scope
-deltas need a service-generation-lineage architecture decision before any
-correct, bounded delta surface can be built. This document records the
-investigation, names the owning store/read-model contract, explains precisely
-why the #1799 model does not transfer, and recommends a contract for the
-follow-up work.
+Status: **Stage 1 shipped (ownership family).** The additive service-generation
+lineage and the ownership-family delta surface recommended below are implemented:
+`service_materialization_generations` + `service_evidence_snapshots`, the reducer
+write path that commits them, and
+`GET /api/v0/freshness/services/changed-since` (capability
+`freshness.service_changed_since`, MCP `get_service_changed_since`, CLI `eshu
+freshness service-changed-since`). The existing
+`reducer_service_catalog_correlation` fact and its generation-embedding
+`stable_fact_key` were **not** changed (additive option). The remaining six
+families (deployment, runtime, dependencies, docs, incidents, vulnerabilities)
+reuse this lineage/snapshot/delta foundation and are tracked follow-ups. The
+sections below record the original investigation, the owning store/read-model
+contract, why the #1799 model did not transfer directly, and the recommended
+contract that Stage 1 implements.
 
 ## Summary
 

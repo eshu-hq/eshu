@@ -11,9 +11,14 @@ repository-scope changed-since delta surface (`GET /api/v0/freshness/changed-sin
 the `get_changed_since` MCP tool, and `eshu freshness changed-since`) that diffs
 a prior generation's fact set against the current active generation's fact set;
 the lower-level freshness signal is still observed through scope generations and
-status surfaces. Service-scope deltas (deployment, runtime, dependencies, docs,
-incidents, vulnerabilities, ownership) are not computed yet and are tracked as
-follow-up work.
+status surfaces. Service-scope deltas are now **partially available**: the
+ownership family ships through `GET /api/v0/freshness/services/changed-since`,
+the `get_service_changed_since` MCP tool, and `eshu freshness
+service-changed-since`, backed by a per-service generation lineage
+(`service_materialization_generations`) and generation-stable evidence snapshots
+(`service_evidence_snapshots`). The remaining service families (deployment,
+runtime, dependencies, docs, incidents, vulnerabilities) reuse the same lineage
+and snapshot foundation and are tracked as follow-up work.
 
 ## What incremental refresh means
 
@@ -231,16 +236,39 @@ generation returns `not_found`; a scope with no current active generation return
 an `unavailable` diff (and a `building`/`unavailable` freshness state) rather than
 all-zero deltas.
 
-The surface is repository-scope only today. Service-scope deltas (deployment,
-runtime, dependencies, docs, incidents, vulnerabilities, and ownership evidence)
-are deferred: a service is a reducer-materialized correlation spread across many
-source scopes and generations, not a single ingestion scope with one generation
-lineage, so the prior-generation-to-current-generation diff above does not apply
-to it. A correct service-scope delta first needs a versioned service
-materialization snapshot with a generation-independent per-evidence diff key.
-The investigation, the reason each evidence family is not diffable today, and the
-recommended snapshot contract are recorded in the internal design note for
-issue #1943.
+Service-scope deltas are now **partially available**. A service is a
+reducer-materialized correlation spread across many source scopes and
+generations, not a single ingestion scope with one generation lineage, so the
+repository-scope diff above does not apply directly. The fix (issue #1943) is a
+versioned per-service materialization snapshot with a generation-independent
+per-evidence diff key:
+
+- `service_materialization_generations` is the per-service generation lineage
+  (one active generation per `service_id`, enforced by a partial unique index,
+  exactly like `scope_generations`). The reducer commits a new generation on each
+  service re-materialization; an identical re-materialization is a no-op.
+- `service_evidence_snapshots` holds generation-stable evidence rows keyed by a
+  generation-independent `service_evidence_key` (for example
+  `ownership:<service_id>:<owner_ref>`), with a `payload_hash` so updated-vs-
+  unchanged is detected the same way the repository-scope diff uses
+  `md5(payload::text)`, and an `is_tombstone` flag so a dropped evidence row is
+  retired explicitly rather than silently absent.
+
+`GET /api/v0/freshness/services/changed-since` (the `get_service_changed_since`
+MCP tool and `eshu freshness service-changed-since`) diffs a prior service
+generation against the current active generation over these snapshot rows, using
+the same FULL OUTER JOIN classification (added/updated/unchanged/retired/
+superseded), bounded `sample_limit`, deterministic ordering, and `unavailable`
+handling as the repository-scope surface. An unknown `service_id` returns
+`service_not_found`; an unresolved `since_generation_id` returns `not_found`; a
+service with no current active generation returns an explicit `unavailable` diff
+rather than zero deltas.
+
+Stage 1 ships the **ownership** family. The remaining families (deployment,
+runtime, dependencies, docs, incidents, vulnerabilities) reuse this lineage and
+snapshot foundation and are tracked follow-ups. The investigation, the reason
+each evidence family needed this foundation, and the recommended snapshot
+contract are recorded in the internal design note for issue #1943.
 
 ## How hosted teams verify freshness without full re-index churn
 
@@ -280,6 +308,7 @@ rendered from Postgres, not from the graph backend.
 | Which MCP tool reports index progress? | `get_index_status` (the `next_check` target for most causes) | Bounded follow-up call carried on freshness causes. |
 | Is a scope current from the CLI? | `eshu` scan-status readiness | Treats `failed` generations as terminal and reports `pending` generations as still catching up. |
 | What changed in a repository scope since a prior generation or instant? | `GET /api/v0/freshness/changed-since` (`get_changed_since` MCP tool, `eshu freshness changed-since`) | Diffs the prior generation's fact set against the current active generation's fact set by `stable_fact_key`. Returns per-category (files, content entities, facts) added/updated/unchanged/retired/superseded counts with bounded sample handles. A scope with no current active generation returns an explicit unavailable diff, never zero deltas. |
+| What changed for a service since a prior service generation? | `GET /api/v0/freshness/services/changed-since` (`get_service_changed_since` MCP tool, `eshu freshness service-changed-since`) | Diffs a prior service materialization generation against the current active generation over `service_evidence_snapshots`, keyed by generation-independent `service_evidence_key`. Stage 1 reports the ownership family; per-family added/updated/unchanged/retired/superseded counts with bounded sample handles. Unknown `service_id` returns `service_not_found`; no current active generation returns an explicit unavailable diff, never zero deltas. |
 
 `scope_activity` summarizes per-scope observation activity. `generation_history`
 summarizes generation counts by status (including pending and failed).
