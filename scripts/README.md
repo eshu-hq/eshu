@@ -70,6 +70,12 @@ readback, and private-data-shaped fields. It writes sanitized JSON and Markdown
 summaries only. Use `test-verify-hosted-backup-restore-proof.sh` for the
 mocked harness.
 
+`verify-hosted-ops-alert-pack.sh` validates the hosted operations dashboard and
+alert pack. It checks Grafana dashboard JSON, required panels, standalone and
+Prometheus Operator alert parity, required runbook annotations, bounded label
+usage, and Helm ServiceMonitor render shape. Use
+`test-verify-hosted-ops-alert-pack.sh` for the mutation harness.
+
 `remote-e2e-corpus-preflight.sh` is the one-shot corpus guard used by
 `docker-compose.remote-e2e.yaml`. Smoke mode is fixture-friendly, representative
 mode is the 20-50 repository inner-loop gate, and full mode is the release

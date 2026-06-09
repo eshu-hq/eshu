@@ -80,6 +80,7 @@ nav:
     - Health Checks: operate/health-checks.md
     - Telemetry: operate/telemetry.md
     - Freshness and Convergence: operate/freshness-convergence.md
+    - Hosted Ops Alert Pack: operate/hosted-ops-alert-pack.md
     - Tuning Playbook: operate/tuning-playbook.md
     - Troubleshooting: operate/troubleshooting.md
     - Hosted Operations Runbook: operate/hosted-operations-runbook.md

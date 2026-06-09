@@ -1,0 +1,200 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {"type": "grafana", "uid": "-- Grafana --"},
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Hosted Eshu readiness, convergence, dependency, claim, and debug-posture signals. Queries use bounded service, queue, status, state, domain, component, and collector labels only.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "title": "Hosted operations runbook",
+      "type": "link",
+      "url": "https://docs.eshu.dev/operate/hosted-operations-runbook/"
+    }
+  ],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "mimir"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"legend": {"displayMode": "table", "placement": "right"}, "tooltip": {"mode": "multi"}},
+      "targets": [
+        {
+          "expr": "sum by (service_name, state) (eshu_runtime_health_state{service_name=~\"$service\"})",
+          "legendFormat": "{{service_name}} {{state}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Hosted Runtime Health",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "mimir"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "options": {"legend": {"displayMode": "table", "placement": "right"}, "tooltip": {"mode": "multi"}},
+      "targets": [
+        {"expr": "sum(eshu_runtime_queue_pending{service_name=~\"$service\"})", "legendFormat": "pending", "refId": "A"},
+        {"expr": "sum(eshu_runtime_queue_retrying{service_name=~\"$service\"})", "legendFormat": "retrying", "refId": "B"},
+        {"expr": "sum(eshu_runtime_queue_failed{service_name=~\"$service\"})", "legendFormat": "failed", "refId": "C"},
+        {"expr": "sum(eshu_runtime_queue_dead_letter{service_name=~\"$service\"})", "legendFormat": "dead_letter", "refId": "D"}
+      ],
+      "title": "Queue Terminal State",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "mimir"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 7},
+      "id": 3,
+      "options": {"legend": {"displayMode": "table", "placement": "right"}, "tooltip": {"mode": "multi"}},
+      "targets": [
+        {
+          "expr": "max by (service_name) (eshu_runtime_queue_oldest_outstanding_age_seconds{service_name=~\"$service\"})",
+          "legendFormat": "{{service_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Oldest Outstanding Work Age",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "mimir"},
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 7},
+      "id": 4,
+      "options": {"legend": {"displayMode": "table", "placement": "right"}, "tooltip": {"mode": "multi"}},
+      "targets": [
+        {
+          "expr": "sum(rate(eshu_http_requests_total{service_name=~\"$service\", http_status_class=\"5xx\"}[$__rate_interval]))",
+          "legendFormat": "api 5xx",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(eshu_mcp_tool_errors_total{service_name=~\"$service\"}[$__rate_interval]))",
+          "legendFormat": "mcp errors",
+          "refId": "B"
+        }
+      ],
+      "title": "API and MCP Error Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "mimir"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 14},
+      "id": 5,
+      "options": {"legend": {"displayMode": "table", "placement": "right"}, "tooltip": {"mode": "multi"}},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(eshu_dp_postgres_query_duration_seconds_bucket{service_name=~\"$service\"}[$__rate_interval])))",
+          "legendFormat": "postgres p99",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(eshu_dp_neo4j_query_duration_seconds_bucket{service_name=~\"$service\"}[$__rate_interval])))",
+          "legendFormat": "graph query p99",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(eshu_dp_canonical_write_duration_seconds_bucket{service_name=~\"$service\"}[$__rate_interval])))",
+          "legendFormat": "canonical write p99",
+          "refId": "C"
+        }
+      ],
+      "title": "Dependency Latency p99",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "mimir"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 14},
+      "id": 6,
+      "options": {"legend": {"displayMode": "table", "placement": "right"}, "tooltip": {"mode": "multi"}},
+      "targets": [
+        {"expr": "sum(eshu_runtime_coordinator_overdue_claims{service_name=~\"$service\"})", "legendFormat": "overdue claims", "refId": "A"},
+        {"expr": "max(eshu_runtime_coordinator_oldest_pending_age_seconds{service_name=~\"$service\"})", "legendFormat": "oldest pending claim age", "refId": "B"}
+      ],
+      "title": "Collector Claim Health",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "mimir"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 21},
+      "id": 7,
+      "options": {"legend": {"displayMode": "table", "placement": "right"}, "tooltip": {"mode": "multi"}},
+      "targets": [
+        {"expr": "sum(eshu_runtime_generation_total{service_name=~\"$service\", state=\"pending\"})", "legendFormat": "pending generations", "refId": "A"},
+        {"expr": "sum(eshu_runtime_generation_total{service_name=~\"$service\", state=\"failed\"})", "legendFormat": "failed generations", "refId": "B"}
+      ],
+      "title": "Completeness Drift",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "mimir"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 21},
+      "id": 8,
+      "options": {"legend": {"displayMode": "table", "placement": "right"}, "tooltip": {"mode": "multi"}},
+      "targets": [
+        {
+          "expr": "sum by (job_name) (kube_job_status_failed{job_name=~\".*schema-bootstrap.*\"})",
+          "legendFormat": "{{job_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Schema Bootstrap Failure",
+      "type": "timeseries"
+    },
+    {
+      "gridPos": {"h": 5, "w": 24, "x": 0, "y": 28},
+      "id": 9,
+      "options": {
+        "content": "Debug posture checklist: keep pprof private, use port-forward or private listener only, confirm ServiceMonitor coverage before interpreting missing metrics, and use /admin/status plus API/MCP readback before restarting workloads.",
+        "mode": "markdown"
+      },
+      "title": "Debug Posture Checklist",
+      "type": "text"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["eshu", "hosted-ops", "readiness"],
+  "templating": {
+    "list": [
+      {
+        "current": {"selected": false, "text": ".*", "value": ".*"},
+        "datasource": {"type": "prometheus", "uid": "mimir"},
+        "definition": "label_values(eshu_runtime_info, service_name)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "service",
+        "name": "service",
+        "query": "label_values(eshu_runtime_info, service_name)",
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
+      }
+    ]
+  },
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "Eshu Hosted Operations",
+  "uid": "eshu-hosted-operations",
+  "version": 1
+}

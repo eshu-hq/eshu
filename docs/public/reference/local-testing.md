@@ -57,6 +57,7 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 | Hosted Helm install, upgrade, or rollback proof | `scripts/test-verify-hosted-helm-rollout-proof.sh`, `scripts/verify-hosted-helm-rollout-proof.sh --out-dir .proof/helm-install`, and `helm lint deploy/helm/eshu` |
 | Hosted backup, restore, or graph-rebuild proof | `scripts/test-verify-hosted-backup-restore-proof.sh` and `scripts/verify-hosted-backup-restore-proof.sh --input restore-proof.json --output-json restore-proof.summary.json --output-markdown restore-proof.summary.md` |
 | Compose-to-Kubernetes runtime parity | `scripts/test-verify-compose-helm-runtime-parity.sh`, `scripts/verify-compose-helm-runtime-parity.sh`, and `helm lint deploy/helm/eshu` |
+| Hosted ops dashboard or alert pack | `scripts/test-verify-hosted-ops-alert-pack.sh`, `scripts/verify-hosted-ops-alert-pack.sh`, and `helm lint deploy/helm/eshu` |
 | Facts-first indexing, queue, or resolution flow | `cd go && go test ./internal/projector ./internal/reducer ./internal/storage/postgres -count=1` |
 | Recovery, replay, or repair controls | `cd go && go test ./internal/recovery ./internal/runtime ./internal/status -count=1` |
 | Hot-path Cypher, graph writes, queues, workers, leases, batching, or runtime knobs | `scripts/test-verify-performance-evidence.sh` and `scripts/verify-performance-evidence.sh` |
