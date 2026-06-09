@@ -4,8 +4,8 @@ Issue: #1943
 Parent: #1797
 Follow-up to: #1799 (merged repository-scope changed-since)
 
-Status: **Ownership (#1943), deployment (#1985), and runtime (#1986) families
-shipped.** The
+Status: **Ownership (#1943), deployment (#1985), runtime (#1986), and
+dependencies (#1987) families shipped.** The
 additive service-generation lineage and the family-generic delta surface
 recommended below are implemented: `service_materialization_generations` +
 `service_evidence_snapshots`, the reducer write path that commits them, and
@@ -29,10 +29,20 @@ row per materialized runtime instance of the service's workload, keyed by
 (`workload-instance:<workload_name>:<environment>`); the reducer projection
 constructs that id and the platform kind from durable workload/environment
 identity, never from a resolution or materialization generation id, so the key
-is generation-stable (unlike the deployment `resolved_id` trap). The remaining
-families (dependencies, docs, incidents, vulnerabilities) reuse this
-lineage/snapshot/delta foundation and are tracked follow-ups. The sections below
-record the original
+is generation-stable (unlike the deployment `resolved_id` trap). The dependencies
+family (#1987) emits one snapshot row per resolved dependency relationship for a
+service's repository (`DEPENDS_ON` / `USES_MODULE` / `READS_CONFIG_FROM`, the
+complement of the deployment family from the same `resolved_relationships`
+source), keyed by `dependencies:<service_id>:<identity>` where `identity` is a
+digest of the relationship's generation-independent natural key
+(`relationship_type`, `source_repo_id`, `target_repo_id`, `source_entity_id`,
+`target_entity_id`); the relationship's `resolved_id` embeds the resolution
+generation id and is therefore **not** usable as a diff key, so the natural-key
+digest is used instead (the same trap the deployment family avoids). The
+deployment and dependencies families share one bounded `resolved_relationships`
+load and partition it by relationship type. The remaining families (docs,
+incidents, vulnerabilities) reuse this lineage/snapshot/delta foundation and are
+tracked follow-ups. The sections below record the original
 investigation, the owning store/read-model contract, why the #1799 model did not
 transfer directly, and the recommended contract that the shipped families
 implement.

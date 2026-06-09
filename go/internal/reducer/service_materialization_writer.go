@@ -304,11 +304,12 @@ func serviceMaterializationTriggerKind(triggerKind string) string {
 
 func serviceMaterializationGenerationPayload(write ServiceMaterializationWrite) []byte {
 	payload := map[string]any{
-		"service_id":       write.ServiceID,
-		"intent_id":        write.IntentID,
-		"ownership_count":  len(write.Ownership),
-		"deployment_count": len(write.Deployment),
-		"runtime_count":    len(write.Runtime),
+		"service_id":         write.ServiceID,
+		"intent_id":          write.IntentID,
+		"ownership_count":    len(write.Ownership),
+		"deployment_count":   len(write.Deployment),
+		"runtime_count":      len(write.Runtime),
+		"dependencies_count": len(write.Dependencies),
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {

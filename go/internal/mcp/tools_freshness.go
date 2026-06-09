@@ -77,7 +77,7 @@ func freshnessTools() []ToolDefinition {
 		},
 		{
 			Name:        "get_service_changed_since",
-			Description: "Summarize what changed for a service since a prior service materialization generation. Diffs the prior service generation's evidence snapshot set against the current active generation's set, keyed by a generation-independent service_evidence_key, into per-family counts (ownership, deployment, runtime) for added, updated, unchanged, retired, and superseded keys plus bounded sample handles. Supply service_id and since_generation_id. An unknown service_id returns service_not_found; a since reference that matches no service generation returns not_found; a service with no current active generation returns an explicit unavailable diff rather than zero deltas. Retired and superseded are never collapsed into unchanged.",
+			Description: "Summarize what changed for a service since a prior service materialization generation. Diffs the prior service generation's evidence snapshot set against the current active generation's set, keyed by a generation-independent service_evidence_key, into per-family counts (ownership, deployment, runtime, dependencies) for added, updated, unchanged, retired, and superseded keys plus bounded sample handles. Supply service_id and since_generation_id. An unknown service_id returns service_not_found; a since reference that matches no service generation returns not_found; a service with no current active generation returns an explicit unavailable diff rather than zero deltas. Retired and superseded are never collapsed into unchanged.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
