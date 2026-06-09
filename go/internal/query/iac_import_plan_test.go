@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -92,6 +93,20 @@ func TestHandleTerraformImportPlanCandidatesReturnsSafeS3Candidate(t *testing.T)
 	}
 	if got, want := artifact["hcl"], "import {\n  to = aws_s3_bucket.payments_prod_logs\n  id = \"payments-prod-logs\"\n}\n"; got != want {
 		t.Fatalf("artifact.hcl = %q, want %q", got, want)
+	}
+	hint, ok := candidate["config_shape_hint"].(map[string]any)
+	if !ok {
+		t.Fatalf("ready candidate missing config_shape_hint: %#v", candidate["config_shape_hint"])
+	}
+	if got, want := hint["format"], "terraform_resource_skeleton"; got != want {
+		t.Fatalf("config_shape_hint.format = %q, want %q", got, want)
+	}
+	if got, want := hint["resource_address"], "aws_s3_bucket.payments_prod_logs"; got != want {
+		t.Fatalf("config_shape_hint.resource_address = %q, want %q", got, want)
+	}
+	skeleton, _ := hint["hcl_skeleton"].(string)
+	if got := skeleton; !strings.Contains(got, configShapeHintPlaceholder) {
+		t.Fatalf("config_shape_hint.hcl_skeleton lacks placeholder: %q", got)
 	}
 }
 
@@ -241,6 +256,9 @@ func TestHandleTerraformImportPlanCandidatesRefusesSensitiveFinding(t *testing.T
 	if _, ok := candidate["import_block"]; ok {
 		t.Fatalf("refused candidate unexpectedly had import_block: %#v", candidate["import_block"])
 	}
+	if _, ok := candidate["config_shape_hint"]; ok {
+		t.Fatalf("refused candidate unexpectedly had config_shape_hint: %#v", candidate["config_shape_hint"])
+	}
 	refusalReasons := candidate["refusal_reasons"].([]any)
 	if got, want := refusalReasons[0], "security_review_required"; got != want {
 		t.Fatalf("refusal reason = %q, want %q", got, want)
@@ -277,5 +295,11 @@ func TestOpenAPITerraformImportPlanCandidatesIncludesFindingKinds(t *testing.T) 
 	properties := schema["properties"].(map[string]any)
 	if _, ok := properties["finding_kinds"]; !ok {
 		t.Fatal("terraform import-plan OpenAPI response schema missing finding_kinds")
+	}
+	candidatesSchema := properties["candidates"].(map[string]any)
+	itemSchema := candidatesSchema["items"].(map[string]any)
+	itemProps := itemSchema["properties"].(map[string]any)
+	if _, ok := itemProps["config_shape_hint"]; !ok {
+		t.Fatal("terraform import-plan candidate schema missing config_shape_hint")
 	}
 }

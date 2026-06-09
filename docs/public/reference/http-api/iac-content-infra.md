@@ -114,6 +114,37 @@ IAM, and KMS — stay refused: IAM and KMS are routed to `security_review_requir
 by the safety gate, and unmapped families are refused with
 `unsupported_resource_type`.
 
+### Configuration-shape hints
+
+Each ready candidate also carries an optional `config_shape_hint`: a read-only
+structural skeleton that tells an operator which arguments to author for the
+imported resource. It is guidance, not generated configuration.
+
+| Field | Meaning |
+| --- | --- |
+| `format` | Always `terraform_resource_skeleton`. |
+| `resource_address` | Mirrors `suggested_resource_address`. |
+| `provider_alias` | Mirrors the candidate `provider_hint.alias` when present. |
+| `required_arguments` | Argument NAMES Terraform requires for the resource type. |
+| `notable_optional_arguments` | Commonly authored optional argument NAMES. |
+| `omitted_sensitive_arguments` | Sensitive, policy, or data-plane argument NAMES the operator must author out of band. |
+| `hcl_skeleton` | A commented `resource` block listing argument names with `<FILL_IN>` placeholders. |
+| `manual_fill_warnings` | Operator-language notes that every value is a placeholder. |
+
+The hint is read-only response data. Eshu never writes a `.tf` file, never runs
+Terraform, and never imports or mutates cloud state. The hint contains argument
+NAMES, the resource-type label, the already-exposed import identity, and the
+literal `<FILL_IN>` placeholder only. It never emits a real value: no secret,
+no secret metadata, no tag value, no ARN beyond the existing import identity, no
+state locator, no private URL, no policy JSON, no environment variable, and no
+credential name. Sensitive arguments are listed by name under
+`omitted_sensitive_arguments` so the operator authors them manually rather than
+having Eshu synthesize a value.
+
+Refused candidates never carry a `config_shape_hint`. The safety gate runs
+first, so any finding that fails the gate is returned with a refusal reason and
+no hint.
+
 Management status values are:
 
 - `managed_by_terraform`

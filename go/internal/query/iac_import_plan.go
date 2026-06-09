@@ -10,25 +10,26 @@ import (
 )
 
 type terraformImportPlanCandidate struct {
-	ID                       string                  `json:"id"`
-	FindingID                string                  `json:"finding_id"`
-	Status                   string                  `json:"status"`
-	Provider                 string                  `json:"provider"`
-	AccountID                string                  `json:"account_id,omitempty"`
-	Region                   string                  `json:"region,omitempty"`
-	ARN                      string                  `json:"arn,omitempty"`
-	CloudResourceType        string                  `json:"cloud_resource_type,omitempty"`
-	TerraformResourceType    string                  `json:"terraform_resource_type,omitempty"`
-	ImportID                 string                  `json:"import_id,omitempty"`
-	SuggestedResourceAddress string                  `json:"suggested_resource_address,omitempty"`
-	DestinationHint          string                  `json:"destination_hint"`
-	ConfigurationShape       string                  `json:"configuration_shape"`
-	ProviderHint             terraformProviderHint   `json:"provider_hint"`
-	Warnings                 []string                `json:"warnings,omitempty"`
-	RefusalReasons           []string                `json:"refusal_reasons,omitempty"`
-	ImportBlock              string                  `json:"import_block,omitempty"`
-	EvidenceRefs             []string                `json:"evidence_refs,omitempty"`
-	SafetyGate               IaCManagementSafetyGate `json:"safety_gate"`
+	ID                       string                    `json:"id"`
+	FindingID                string                    `json:"finding_id"`
+	Status                   string                    `json:"status"`
+	Provider                 string                    `json:"provider"`
+	AccountID                string                    `json:"account_id,omitempty"`
+	Region                   string                    `json:"region,omitempty"`
+	ARN                      string                    `json:"arn,omitempty"`
+	CloudResourceType        string                    `json:"cloud_resource_type,omitempty"`
+	TerraformResourceType    string                    `json:"terraform_resource_type,omitempty"`
+	ImportID                 string                    `json:"import_id,omitempty"`
+	SuggestedResourceAddress string                    `json:"suggested_resource_address,omitempty"`
+	DestinationHint          string                    `json:"destination_hint"`
+	ConfigurationShape       string                    `json:"configuration_shape"`
+	ProviderHint             terraformProviderHint     `json:"provider_hint"`
+	Warnings                 []string                  `json:"warnings,omitempty"`
+	RefusalReasons           []string                  `json:"refusal_reasons,omitempty"`
+	ImportBlock              string                    `json:"import_block,omitempty"`
+	ConfigShapeHint          *terraformConfigShapeHint `json:"config_shape_hint,omitempty"`
+	EvidenceRefs             []string                  `json:"evidence_refs,omitempty"`
+	SafetyGate               IaCManagementSafetyGate   `json:"safety_gate"`
 }
 
 type terraformProviderHint struct {
@@ -209,6 +210,13 @@ func terraformImportPlanCandidateForFinding(finding IaCManagementFindingRow, fil
 	candidate.ImportID = importID
 	candidate.SuggestedResourceAddress = mapping.ResourceType + "." + terraformResourceName(importID)
 	candidate.ImportBlock = terraformImportBlock(candidate.SuggestedResourceAddress, candidate.ImportID)
+	if hint, ok := configShapeHintForResourceType(
+		candidate.TerraformResourceType,
+		candidate.SuggestedResourceAddress,
+		candidate.ProviderHint.Alias,
+	); ok {
+		candidate.ConfigShapeHint = &hint
+	}
 	return candidate
 }
 

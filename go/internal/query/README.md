@@ -242,6 +242,12 @@ documentation routes.
     same bounded active findings. They generate Terraform `import` blocks only
     for safety-approved supported cloud-only resources and return refused
     candidates for ambiguous, sensitive, stale, state-only, or unsupported rows.
+    Each ready candidate also carries a `config_shape_hint`
+    (`iac_config_shape_hints.go`): a structural resource skeleton listing
+    argument NAMES and `<FILL_IN>` placeholders only. It emits no values — no
+    secrets, tag values, ARNs beyond the import identity, state locators, or
+    policy JSON — and refused candidates receive no hint because the safety gate
+    runs first.
 - `ImpactHandler` — blast radius, change surface, deployment trace, resource
   investigation, dependency paths (`impact.go:11`)
   - Entity-map neighborhood traversal resolves one anchor first, then runs
