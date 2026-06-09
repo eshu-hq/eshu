@@ -57,7 +57,12 @@ type firstRunResult struct {
 	QuerySummary  string               `json:"query_summary,omitempty"`
 	Steps         []firstRunStep       `json:"steps"`
 	NextSteps     []string             `json:"next_steps,omitempty"`
-	Truth         map[string]any       `json:"-"`
+	// Diagnostic is the classified onboarding failure (or empty-index advisory)
+	// attached to the result. It is nil when no failure class matched, so the raw
+	// step detail and runErr remain the sole evidence. When present it always
+	// carries the preserved underlying error so the root cause is never hidden.
+	Diagnostic *onboardingDiagnostic `json:"diagnosis,omitempty"`
+	Truth      map[string]any        `json:"-"`
 }
 
 // succeeded reports whether the first-run reached its truthful end state: a
@@ -116,12 +121,23 @@ func renderFirstRunHuman(w io.Writer, result firstRunResult, runErr error) {
 	if runErr != nil {
 		_, _ = fmt.Fprintf(w, "  cause         : %s\n", runErr.Error())
 	}
+	if result.Diagnostic != nil {
+		_, _ = fmt.Fprintln(w, "Diagnosis:")
+		_, _ = fmt.Fprintf(w, "  %s\n", indentDiagnostic(result.Diagnostic.String()))
+	}
 	if len(result.NextSteps) > 0 {
 		_, _ = fmt.Fprintln(w, "Next steps:")
 		for _, step := range result.NextSteps {
 			_, _ = fmt.Fprintf(w, "  - %s\n", step)
 		}
 	}
+}
+
+// indentDiagnostic re-indents the multi-line diagnostic block so it nests under
+// the "Diagnosis:" header while keeping the summary, recovery steps, docs link,
+// and preserved root cause readable.
+func indentDiagnostic(s string) string {
+	return strings.ReplaceAll(s, "\n", "\n  ")
 }
 
 // firstRunQueryLine describes the first-query outcome for the human summary.
