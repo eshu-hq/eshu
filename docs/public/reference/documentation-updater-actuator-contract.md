@@ -52,7 +52,7 @@ documentation link `target_uri` values within the requested scope. `fact_kind`
 may use the short forms `source`, `document`, `section`, `link`,
 `entity_mention`, and `claim_candidate`.
 
-Repo-hosted Markdown collected by the Git collector appears on this route as
+Repo-hosted documentation collected by the Git collector appears on this route as
 source-neutral documentation facts linked to the repository target. It is not
 the same path as local `eshu docs verify`, which emits verification findings
 and evidence packets for explicitly checked local Markdown claims.

@@ -49,7 +49,7 @@ Run the rollback checklist.
 	if got, want := sourceFacts[0].Payload["source_system"], "git"; got != want {
 		t.Fatalf("source_system = %#v, want %#v", got, want)
 	}
-	if got, want := sourceFacts[0].Payload["source_type"], "repository_markdown"; got != want {
+	if got, want := sourceFacts[0].Payload["source_type"], "repository_documentation"; got != want {
 		t.Fatalf("source_type = %#v, want %#v", got, want)
 	}
 

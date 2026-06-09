@@ -45,6 +45,7 @@ func markdownSections(
 	revisionID string,
 	relativePath string,
 	lines []markdownLine,
+	contentFormat string,
 ) []facts.DocumentationSectionPayload {
 	var drafts []markdownSectionDraft
 	current := -1
@@ -78,20 +79,23 @@ func markdownSections(
 			current = len(drafts) - 1
 		}
 	}
-	return documentationSectionsFromDrafts(documentID, revisionID, relativePath, drafts)
+	return documentationSectionsFromDrafts(documentID, revisionID, relativePath, contentFormat, drafts)
 }
 
 func documentationSectionsFromDrafts(
 	documentID string,
 	revisionID string,
 	relativePath string,
+	contentFormat string,
 	drafts []markdownSectionDraft,
 ) []facts.DocumentationSectionPayload {
 	sections := make([]facts.DocumentationSectionPayload, 0, len(drafts))
 	parentByLevel := map[int]string{}
 	anchorCounts := map[string]int{}
 	for i, draft := range drafts {
-		content := strings.TrimSpace(strings.Join(draft.content, "\n"))
+		content, contentWarnings := boundedDocumentationSectionContent(strings.TrimSpace(strings.Join(draft.content, "\n")))
+		warnings := append([]string{}, draft.warnings...)
+		warnings = append(warnings, contentWarnings...)
 		anchor := firstNonEmptyString(draft.anchor, fmt.Sprintf("%d", i+1))
 		anchorCounts[anchor]++
 		if anchorCounts[anchor] > 1 {
@@ -106,14 +110,15 @@ func documentationSectionsFromDrafts(
 			HeadingText:      draft.heading,
 			OrdinalPath:      []int{i + 1},
 			Content:          content,
-			ContentFormat:    "markdown",
+			ContentFormat:    contentFormat,
 			TextHash:         documentationHashText(strings.TrimSpace(draft.heading + "\n" + content)),
 			ExcerptHash:      documentationHashText(content),
 			SourceStartRef:   draft.startRef,
 			SourceEndRef:     draft.endRef,
 			SourceMetadata:   map[string]string{"path": relativePath},
-			ContainsWarnings: false,
+			ContainsWarnings: len(warnings) > 0,
 		}
+		addDocumentationWarnings(section.SourceMetadata, warnings...)
 		for level := draft.level - 1; level >= 1; level-- {
 			if parent := parentByLevel[level]; parent != "" {
 				section.ParentSectionID = parent
@@ -190,27 +195,18 @@ func markdownAnchor(heading string) string {
 	return strings.Join(fields, "-")
 }
 
-func isMarkdownDocumentationPath(relativePath string) bool {
-	switch strings.ToLower(path.Ext(relativePath)) {
-	case ".md", ".mdx", ".markdown":
-		return true
-	default:
-		return false
-	}
-}
-
-func markdownDocumentType(relativePath string) string {
+func documentationDocumentType(relativePath string, fallback string) string {
 	base := strings.ToLower(path.Base(relativePath))
 	cleanPath := strings.ToLower(relativePath)
 	switch {
-	case base == "readme.md" || base == "readme.mdx" || base == "readme.markdown":
+	case strings.HasPrefix(base, "readme."):
 		return "readme"
 	case strings.Contains(cleanPath, "/adr") || strings.Contains(cleanPath, "architecture decision"):
 		return "adr"
 	case strings.Contains(cleanPath, "runbook"):
 		return "runbook"
 	default:
-		return "markdown"
+		return fallback
 	}
 }
 
@@ -234,4 +230,5 @@ type markdownSectionDraft struct {
 	startRef string
 	endRef   string
 	content  []string
+	warnings []string
 }

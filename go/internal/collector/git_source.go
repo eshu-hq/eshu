@@ -68,6 +68,9 @@ type RepositorySnapshot struct {
 	// When populated, streamFacts re-reads bodies from AbsolutePath at emit time
 	// instead of carrying all bodies in memory.
 	ContentFileMetas []ContentFileMeta `json:"content_file_metas,omitempty"`
+	// DocumentationFileMetas holds body-free repository documentation metadata
+	// for files that should emit documentation facts without parser content rows.
+	DocumentationFileMetas []ContentFileMeta `json:"documentation_file_metas,omitempty"`
 }
 
 // ContentFileSnapshot captures one portable file-content record.
