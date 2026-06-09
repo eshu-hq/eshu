@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -86,12 +88,18 @@ type activeServiceCatalogRepositoryFactLoader interface {
 type ServiceCatalogCorrelationHandler struct {
 	FactLoader FactLoader
 	Writer     ServiceCatalogCorrelationWriter
-	// MaterializationWriter, when set, commits the additive per-service ownership
+	// MaterializationWriter, when set, commits the additive per-service evidence
 	// generation lineage (#1943) after the correlation facts are written. It is
 	// optional so the existing reducer_service_catalog_correlation contract is
 	// unchanged when the lineage is not wired.
 	MaterializationWriter ServiceMaterializationWriter
-	Instruments           *telemetry.Instruments
+	// DeploymentRelationshipLoader, when set alongside MaterializationWriter,
+	// supplies the resolved deployment relationships for each correlated service's
+	// repository so the deployment evidence family (#1985) is materialized into the
+	// same generation as ownership. It is optional: a nil loader leaves the
+	// generation ownership-only, preserving the Stage-1 contract.
+	DeploymentRelationshipLoader RepositoryScopedResolvedRelationshipLoader
+	Instruments                  *telemetry.Instruments
 }
 
 // Handle executes one service catalog correlation reducer intent.
@@ -131,8 +139,8 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent Int
 	}
 	h.emitCounters(ctx, counts)
 
-	if err := h.commitOwnershipGenerations(ctx, intent, decisions); err != nil {
-		return Result{}, fmt.Errorf("commit service ownership generations: %w", err)
+	if err := h.commitServiceGenerations(ctx, intent, decisions); err != nil {
+		return Result{}, fmt.Errorf("commit service materialization generations: %w", err)
 	}
 
 	return Result{
@@ -144,14 +152,16 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent Int
 	}, nil
 }
 
-// commitOwnershipGenerations writes the additive per-service ownership
-// generation lineage (#1943) for every service that has at least one
-// owner-bearing correlation decision. The data is sourced from the same
-// decisions that produced the reducer_service_catalog_correlation facts, so the
-// existing fact's owner_ref read path is the single source of truth; no existing
-// fact key changes. When MaterializationWriter is nil this is a no-op, so the
-// existing correlation contract is preserved.
-func (h ServiceCatalogCorrelationHandler) commitOwnershipGenerations(
+// commitServiceGenerations writes the additive per-service evidence generation
+// lineage (#1943, #1985) for every service that has at least one owner-bearing
+// correlation decision. Ownership evidence is sourced from the same decisions
+// that produced the reducer_service_catalog_correlation facts; deployment
+// evidence (when DeploymentRelationshipLoader is wired) is sourced from the
+// resolved deployment relationships of each service's repository. Both families
+// land in the same generation, so a service generation is the snapshot of all of
+// the service's evidence at materialization time. When MaterializationWriter is
+// nil this is a no-op, preserving the existing correlation contract.
+func (h ServiceCatalogCorrelationHandler) commitServiceGenerations(
 	ctx context.Context,
 	intent Intent,
 	decisions []ServiceCatalogCorrelationDecision,
@@ -159,12 +169,116 @@ func (h ServiceCatalogCorrelationHandler) commitOwnershipGenerations(
 	if h.MaterializationWriter == nil {
 		return nil
 	}
-	for _, write := range buildServiceOwnershipMaterializations(intent.IntentID, decisions) {
+	writes := buildServiceOwnershipMaterializations(intent.IntentID, decisions)
+	if err := h.attachServiceDeploymentEvidence(ctx, writes, decisions); err != nil {
+		return err
+	}
+	for _, write := range writes {
 		if _, err := h.MaterializationWriter.WriteServiceMaterialization(ctx, write); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// attachServiceDeploymentEvidence loads the resolved deployment relationships for
+// the correlated services' repositories and attaches the deployment evidence
+// family to the matching per-service writes. It is a no-op when no loader is
+// wired or no decision carries a repository, so the deployment family is purely
+// additive. The relationships are loaded once for all repositories in a single
+// bounded call, then partitioned per service by repository id; a service whose
+// repository has no deployment relationships simply carries no deployment rows.
+func (h ServiceCatalogCorrelationHandler) attachServiceDeploymentEvidence(
+	ctx context.Context,
+	writes []ServiceMaterializationWrite,
+	decisions []ServiceCatalogCorrelationDecision,
+) error {
+	if h.DeploymentRelationshipLoader == nil || len(writes) == 0 {
+		return nil
+	}
+	repoByService := serviceRepositoryIndex(decisions)
+	repoIDs := distinctServiceRepositoryIDs(writes, repoByService)
+	if len(repoIDs) == 0 {
+		return nil
+	}
+	resolved, err := h.DeploymentRelationshipLoader.GetResolvedRelationshipsForRepos(ctx, repoIDs)
+	if err != nil {
+		return fmt.Errorf("load service deployment relationships: %w", err)
+	}
+	byRepo := groupDeploymentRelationshipsByRepo(resolved)
+	for i := range writes {
+		repoID := repoByService[writes[i].ServiceID]
+		if repoID == "" {
+			continue
+		}
+		writes[i].Deployment = buildServiceDeploymentEvidence(byRepo[repoID])
+	}
+	return nil
+}
+
+// serviceRepositoryIndex maps each service id to the repository id correlated to
+// it. A service with multiple decisions keeps the first repository id seen in
+// deterministic decision order, so the repository binding is stable.
+func serviceRepositoryIndex(decisions []ServiceCatalogCorrelationDecision) map[string]string {
+	index := map[string]string{}
+	for _, decision := range decisions {
+		serviceID := strings.TrimSpace(decision.ServiceID)
+		repoID := strings.TrimSpace(decision.RepositoryID)
+		if serviceID == "" || repoID == "" {
+			continue
+		}
+		if _, ok := index[serviceID]; !ok {
+			index[serviceID] = repoID
+		}
+	}
+	return index
+}
+
+// distinctServiceRepositoryIDs returns the deterministic, deduped set of
+// repository ids backing the services being materialized, so deployment
+// relationships are loaded in one bounded call.
+func distinctServiceRepositoryIDs(
+	writes []ServiceMaterializationWrite,
+	repoByService map[string]string,
+) []string {
+	seen := map[string]struct{}{}
+	repoIDs := make([]string, 0, len(writes))
+	for _, write := range writes {
+		repoID := repoByService[write.ServiceID]
+		if repoID == "" {
+			continue
+		}
+		if _, ok := seen[repoID]; ok {
+			continue
+		}
+		seen[repoID] = struct{}{}
+		repoIDs = append(repoIDs, repoID)
+	}
+	sort.Strings(repoIDs)
+	return repoIDs
+}
+
+// groupDeploymentRelationshipsByRepo buckets resolved deployment relationships by
+// the repository that owns the deployment evidence. A relationship is attributed
+// to the service repository on whichever side carries it: the service deploys
+// from the target (source side) and also owns config it discovers in / depends on
+// (source side), so the source repo is the deployment-evidence owner for the
+// service. Relationships are bucketed under the source repo id.
+func groupDeploymentRelationshipsByRepo(
+	resolved []relationships.ResolvedRelationship,
+) map[string][]relationships.ResolvedRelationship {
+	byRepo := map[string][]relationships.ResolvedRelationship{}
+	for _, rel := range resolved {
+		if !isServiceDeploymentRelationship(rel) {
+			continue
+		}
+		source := strings.TrimSpace(rel.SourceRepoID)
+		if source == "" {
+			continue
+		}
+		byRepo[source] = append(byRepo[source], rel)
+	}
+	return byRepo
 }
 
 func (h ServiceCatalogCorrelationHandler) loadActiveRepositoryFacts(ctx context.Context) ([]facts.Envelope, error) {

@@ -54,13 +54,19 @@
 // convergence or live-only no-IaC routing evidence; unsafe routing outcomes
 // remain provenance-only.
 // PostgresServiceMaterializationWriter commits the additive per-service
-// ownership generation lineage (#1943) the service-scope changed-since delta
-// diffs: one active service_materialization_generations row per service_id
+// evidence generation lineage (#1943, #1985) the service-scope changed-since
+// delta diffs: one active service_materialization_generations row per service_id
 // (conflict key service_id, single active row enforced by a partial unique
 // index) plus generation-stable service_evidence_snapshots rows keyed by a
-// generation-independent service_evidence_key. The generation id is
-// deterministic in the evidence set, so an identical re-materialization is a
-// no-op; a dropped owner is tombstoned, never silently absent. It is wired into
-// ServiceCatalogCorrelationHandler as an optional MaterializationWriter so the
+// generation-independent service_evidence_key. Each generation snapshots every
+// evidence family the writer knows: ownership (ServiceEvidenceFamilyOwnership,
+// keyed by ServiceOwnershipEvidenceKey) and deployment
+// (ServiceEvidenceFamilyDeployment, keyed by ServiceDeploymentEvidenceKey over
+// the resolved deployment relationship's generation-independent natural key).
+// The generation id is deterministic in the full evidence set, so an identical
+// re-materialization is a no-op and a change in any family flips the generation;
+// a dropped evidence row is tombstoned, never silently absent. It is wired into
+// ServiceCatalogCorrelationHandler as an optional MaterializationWriter (with an
+// optional DeploymentRelationshipLoader for the deployment family) so the
 // existing reducer_service_catalog_correlation fact contract is unchanged.
 package reducer

@@ -1538,3 +1538,55 @@ query-duration metrics tagged by statement summary
 `edge=WORKLOAD_USES_CLOUD_RESOURCE`, and service-story query stage timing. The
 queue gate keeps predictable endpoint-readiness waits pending instead of
 inflating retry/failure counters.
+
+## Service deployment evidence family (#1985)
+
+The deployment evidence family extends the Stage-1 service materialization
+lineage (#1943) without a new table or a new reducer domain. On each
+`service_catalog_correlation` intent, `ServiceCatalogCorrelationHandler` (when
+both `MaterializationWriter` and `DeploymentRelationshipLoader` are wired) loads
+the correlated services' repositories' active resolved deployment relationships
+in one bounded `GetResolvedRelationshipsForRepos` call, then emits one
+deployment-family `service_evidence_snapshots` row per relationship into the same
+service generation as ownership. The row identity is
+`ServiceDeploymentEvidenceKey(service_id, identity)` where `identity` is a sha1
+digest of the relationship's generation-independent natural key
+(`relationship_type`, `source_repo_id`, `target_repo_id`, `source_entity_id`,
+`target_entity_id`). The resolver primary key `resolved_id` and the query-layer
+`artifact_id` both embed the resolution generation id, so neither is usable as a
+diff key; the natural-key digest is the identity-vs-generation split from design
+#1231. Only the deployment relationship classes
+(`DEPLOYS_FROM`/`DISCOVERS_CONFIG_IN`/`PROVISIONS_DEPENDENCY_FOR`/`RUNS_ON`) are
+admitted; dependency edges are a separate follow-up family.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'ServiceDeployment|BuildServiceDeployment|ServiceMaterialization|ServiceCatalogHandler'
+-count=1` proves deployment rows carry generation-stable keys (no embedded
+`resolved_id`/generation), a changed payload hash flips the generation while an
+identical re-materialization is a no-op, dropped relationships are tombstoned,
+the deployment family is purely additive (no deployment loader leaves the
+generation ownership-only and Stage-1 ownership tests stay green), and the
+repo-scoped relationship load runs once per intent. `go test
+./internal/storage/postgres -run TestComputeServiceChangedSinceDelta -count=1`
+proves the family-generic delta SQL (grouped by `evidence_family`) classifies
+deployment added/updated/unchanged/retired/superseded with bounded ordered
+samples and reports the deployment family with zero deltas for an
+ownership-only fixture, never silently dropping it. The deployment rows reuse the
+existing `service_evidence_snapshots_diff_idx` (`generation_id`,
+`evidence_family`, `service_evidence_key`) the Stage-1 delta query already
+drives, so no new index or schema migration is added. Live-Postgres SQL is
+proven by the same fake `Queryer`/`Rows` harness Stage-1 uses; the live SQL gate
+is the Postgres integration suite in CI (`scripts/test-verify-package-docs.sh`
+keeps the schema/read-model docs in lockstep, and the compose-backed
+storage/postgres integration gate exercises the real `service_evidence_snapshots`
+table).
+
+Observability Evidence: this slice adds no new metric instrument, label, queue
+domain, lease, or runtime knob. The deployment family lands inside the existing
+`service_catalog_correlation` reducer execution span/counter and the same
+service materialization commit path Stage-1 already instruments; operators
+diagnose it through reducer run spans, execution counters, `fact_work_items`
+status/failure fields, the durable `service_materialization_generations`/
+`service_evidence_snapshots` rows, and the `get_service_changed_since`
+API/MCP/CLI read surface that now reports the deployment family alongside
+ownership.
