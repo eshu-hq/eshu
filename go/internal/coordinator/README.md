@@ -223,9 +223,12 @@ Outcome labels: `success`, `reconcile_error`, `state_read_error` for reconcile;
 `success` and `error` for reap and run-reconcile.
 
 Structured log events: startup mode message (info), collector instance drift
-warning, and collector scheduling skips by egress policy. Drift fields are
+warning, collector scheduling skips by egress policy, and component extension
+scheduling skips by egress policy. Drift fields are
 `desired_collector_instances`, `durable_collector_instances`, and
-`collector_instance_drift`; egress skips include `collector_kind` and `reason`.
+`collector_instance_drift`; collector egress skips include `collector_kind` and
+`reason`; extension egress skips include `collector_kind`, `component_id`,
+`instance_id`, and `reason`.
 
 ## Operational notes
 
@@ -252,6 +255,11 @@ warning, and collector scheduling skips by egress policy. Drift fields are
 - `ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON` filters enabled claim-capable
   instances before planning; restricted mode requires per-kind allow rules,
   deny wins, and broad mode must not carry collector-specific rules.
+- `ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON` filters component-extension
+  scheduling after component trust creates an activation and before workflow
+  rows are planned. Missing policy denies extension claims, restricted mode
+  requires a matching component allow rule, deny wins, and broad mode must be
+  an explicit no-rule opt-in.
 - `last_reaped_claims` spiking above `ExpiredClaimLimit` is not possible; that
   limit caps each reap pass. Repeated spikes at the limit indicate collectors
   are not completing claims within the lease TTL.
@@ -311,6 +319,16 @@ warning, and collector scheduling skips by egress policy. Drift fields are
   stale `scope_id`, disabled collector instance, or wrong provider kind is
   marked failed with `unauthorized_target`; the webhook payload is never used to
   create facts, root-cause claims, deployment links, or Jira/PagerDuty coupling.
+
+No-Regression Evidence: `go test ./internal/coordinator -run 'Test(ParseExtensionEgressPolicyJSON|ExtensionEgressPolicy|LoadConfigParsesExtensionEgressPolicy|ServiceRun.*ComponentExtension|ServiceComponentExtension)' -count=1` proves extension egress policy parsing, restricted default-deny behavior, deny-over-allow precedence, broad-mode validation, config loading, scheduled work suppression, and allowed broad opt-in scheduling. The change filters component-extension scheduling before workflow rows are planned; it does not change claim lease timing, worker counts, queue ordering, reducer graph writes, fact emission, or provider API calls.
+
+Observability Evidence: extension egress skips reuse coordinator reconcile
+metrics, workflow rows, claim status, and `/api/v0/index-status`; denied
+extension work creates no claimable row. The coordinator also emits a bounded
+structured log with `collector_kind`, `component_id`, `instance_id`, and
+low-cardinality `reason` so operators can distinguish `egress_policy_missing`
+from `egress_extension_denied` without exposing provider URLs, credential
+handles, source payloads, or token values.
 
 ## Extension points
 

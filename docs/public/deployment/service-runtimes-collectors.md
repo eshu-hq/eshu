@@ -21,7 +21,10 @@ When `ESHU_COMPONENT_HOME` is set on the workflow coordinator, the coordinator
 re-verifies the installed component manifest against the configured
 `ESHU_COMPONENT_TRUST_MODE`, allowlist, revocation list, core version, and
 strict-mode Cosign provenance settings before materializing enabled
-claim-capable activations as durable collector instances.
+claim-capable activations as durable collector instances. It still requires
+`ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON` before planning component-extension
+workflow rows; missing policy denies extension claims, restricted mode needs a
+matching component allow rule, deny rules win, and broad mode is explicit.
 The durable instance configuration carries component identity, manifest digest,
 runtime protocol, adapter, and a stable config handle only. It does not persist
 operator config paths, credential values, or provider targets.

@@ -50,14 +50,19 @@ posture.
 | `ESHU_COMPONENT_COLLECTOR_SCOPE_KIND` | `component` | component extension collector | Fallback SDK claim scope kind used when the activation config has no `host.scope.kind`. |
 
 The coordinator skips revoked, incompatible, disabled, or untrusted component
-activations before reconciling collector instances. The process-backed
-component extension collector applies the same policy before claiming work. The
-runtime stores component ID, version, publisher, manifest digest, runtime
-protocol, adapter, and a stable config handle only; operator config paths and
-credential values stay in the component registry or runtime environment. When
-an activation config contains a `host` block, the coordinator copies only
-`sourceSystem`, `scope.id`, and `scope.kind` into workflow rows, and the worker
-uses `host.scope.kind` for the SDK claim.
+activations before reconciling collector instances. After trust creates an
+activation, the workflow coordinator still requires
+`ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON` before component-extension work is
+planned; missing policy denies extension claims, restricted mode needs a
+matching component allow rule, deny rules win, and broad mode is an explicit
+opt-in. The process-backed component extension collector applies the same
+component trust policy before claiming work. The runtime stores component ID,
+version, publisher, manifest digest, runtime protocol, adapter, and a stable
+config handle only; operator config paths and credential values stay in the
+component registry or runtime environment. When an activation config contains a
+`host` block, the coordinator copies only `sourceSystem`, `scope.id`, and
+`scope.kind` into workflow rows, and the worker uses `host.scope.kind` for the
+SDK claim.
 
 API and MCP read these variables for diagnostics only. They expose registry
 state, trust-mode booleans, and stable activation config handles, but never raw

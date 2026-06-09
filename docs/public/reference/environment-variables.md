@@ -43,6 +43,7 @@ class from status output, structured logs, traces, or a discovery advisory.
 | `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` | Declare redacted semantic provider profiles using credential handles only; no provider keys. |
 | `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` | Allowlist hosted semantic extraction by provider profile, source class, source scope, limits, redaction posture, and retention posture. |
 | `ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON` | Gate hosted active-mode collector scheduling before claimable work is planned. |
+| `ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON` | Gate hosted component-extension scheduling before claimable work is planned. |
 | `ESHU_GOVERNANCE_AUDIT_EVENT_COUNT` | Report the aggregate hosted governance audit event count without event bodies. |
 | `ESHU_GOVERNANCE_AUDIT_DENIED_DECISION_COUNT` | Report the aggregate denied hosted governance audit decision count. |
 | `ESHU_GOVERNANCE_AUDIT_UNAVAILABLE_DECISION_COUNT` | Report the aggregate hosted governance audit decisions blocked by unavailable policy or sinks. |

@@ -67,7 +67,11 @@ charted collector contract is missing.
 For component extensions, the coordinator reads `ESHU_COMPONENT_HOME` only when
 deployment config sets it, applies `ESHU_COMPONENT_TRUST_MODE` and the
 allow/revoke lists plus strict-mode Cosign provenance settings, and converts
-verified claim-capable activations into normal `collector_instances` rows.
+verified claim-capable activations into normal `collector_instances` rows. It
+then requires `ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON` before planning
+component-extension workflow rows; missing policy denies claims, restricted
+mode needs a matching component allow rule, deny rules win, and broad mode is
+the explicit opt-in.
 Default Compose mounts the shared component registry path for the coordinator
 but keeps trust disabled until the operator sets an allowlist or strict trust
 policy. Revoked, unsigned, or incompatible components stop receiving new work

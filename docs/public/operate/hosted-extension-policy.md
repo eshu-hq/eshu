@@ -3,11 +3,11 @@
 Use this page when deciding whether an optional community extension may run in
 a hosted Eshu deployment.
 
-Current status: this is operator policy guidance for issue #1826. Hosted
-community extension claim execution is not enabled by the shipped chart or
-Compose stack yet. Treat Docker Compose and Helm snippets below as the target
-policy shape for review, not as currently consumed values, until the workflow
-coordinator bridge, extension host, diagnostics, and remote Compose proof land.
+Current status: this is operator policy guidance for issue #1826. The workflow
+coordinator consumes the narrow `ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON`
+claim-planning gate described below. The full hosted extension policy file,
+charted extension runtime, extension host, diagnostics, and remote Compose proof
+remain future implementation work.
 
 ## Three Separate Decisions
 
@@ -145,9 +145,25 @@ limits:
 
 ## Docker Compose Policy Shape
 
-The default Compose stack does not consume hosted community extension policy
-yet. This shape is the intended private operator input once #1820 and #1922
-wire the runtime path:
+The workflow coordinator consumes a narrow extension egress policy before it
+plans component-extension claims:
+
+```bash
+export ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON='{"mode":"restricted","extensions":[{"component_id":"dev.example.collector.scorecard","decision":"allow"}]}'
+docker compose --profile workflow-coordinator up --build workflow-coordinator
+```
+
+Missing policy denies component-extension claims. In restricted mode, a
+matching component allow rule is required and deny rules win. Broad mode must
+be explicit and cannot include extension-specific rules:
+
+```bash
+export ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON='{"mode":"broad"}'
+```
+
+The default Compose stack does not consume the full hosted community extension
+policy file yet. This shape is the intended private operator input once #1820
+and #1922 wire the full runtime path:
 
 ```bash
 export ESHU_HOSTED_EXTENSION_POLICY_FILE=./private/hosted-extension-policy.yaml

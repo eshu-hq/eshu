@@ -21,6 +21,26 @@ func (s Service) scheduleComponentExtensionWork(
 		if !shouldScheduleComponentExtension(instance) {
 			continue
 		}
+		config, configOK, configErr := parseComponentInstanceConfig(instance.Configuration)
+		if configErr == nil && configOK {
+			decision := s.Config.ExtensionEgressPolicy.Decide(ExtensionEgressRequest{
+				ComponentID:   config.ComponentID,
+				InstanceID:    instance.InstanceID,
+				CollectorKind: instance.CollectorKind,
+			})
+			if decision.Action == ExtensionEgressActionDeny {
+				if s.Logger != nil {
+					s.Logger.Info(
+						"workflow coordinator skipped component extension scheduling by egress policy",
+						"collector_kind", instance.CollectorKind,
+						"component_id", config.ComponentID,
+						"instance_id", instance.InstanceID,
+						"reason", decision.Reason,
+					)
+				}
+				continue
+			}
+		}
 		if s.ComponentExtensionPlanner == nil {
 			return fmt.Errorf("component extension planner is required for active component extension collectors")
 		}
