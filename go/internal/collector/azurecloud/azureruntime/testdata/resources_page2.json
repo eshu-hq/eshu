@@ -1,0 +1,28 @@
+{
+  "totalRecords": 3,
+  "count": 1,
+  "resultTruncated": "false",
+  "$skipToken": "",
+  "data": [
+    {
+      "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg-net/providers/Microsoft.Network/virtualNetworks/vnet-core/subnets/web",
+      "name": "web",
+      "type": "microsoft.network/virtualnetworks/subnets",
+      "tenantId": "tenant-abc",
+      "subscriptionId": "11111111-1111-1111-1111-111111111111",
+      "resourceGroup": "rg-net",
+      "location": "eastus",
+      "kind": "",
+      "managedBy": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg-net/providers/Microsoft.Network/virtualNetworks/vnet-core",
+      "apiVersion": "2023-05-01",
+      "sku": null,
+      "identity": null,
+      "tags": {},
+      "properties": {
+        "provisioningState": "Succeeded",
+        "addressPrefix": "10.0.1.0/24"
+      },
+      "timestamp": "2026-06-09T11:32:00Z"
+    }
+  ]
+}

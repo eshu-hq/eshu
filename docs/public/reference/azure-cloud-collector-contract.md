@@ -13,28 +13,49 @@ truth.
 
 ## Status
 
-The first fixture-testable slice has landed in
-`go/internal/collector/azurecloud`. It registers the Azure fact constants and
-schema versions in `go/internal/facts/azure.go`, normalizes ARM resource
-identity, redacts the provider extension payload, and emits
-`azure_cloud_resource` and `azure_collection_warning` source facts from
-fixture Resource Graph pages. It still performs **no live Azure calls**: the
-`PageProvider` seam is fed by fixtures under
-`go/internal/collector/azurecloud/testdata`.
+The first fixture-testable slice landed in `go/internal/collector/azurecloud`.
+It registers the Azure fact constants and schema versions in
+`go/internal/facts/azure.go`, normalizes ARM resource identity, redacts the
+provider extension payload, and emits `azure_cloud_resource` and
+`azure_collection_warning` source facts from fixture Resource Graph pages.
 
-Everything else stays gated. Do not add `eshu-collector-azure-cloud`, Helm
-values, environment variables, collector-instance examples, `collector.Source`
-runtime wiring, a scope `CollectorKind`, or query claims until implementation
-PRs prove the live runtime, reducer path, additional fact kinds, telemetry in
-the shared registry, and chart path. The remaining fact kinds
+The runtime scaffolding slice (issue #1998) has now landed in
+`go/internal/collector/azurecloud/azureruntime` and
+`go/cmd/collector-azure-cloud`. It adds:
+
+- the `azure` scope `CollectorKind` (`scope.CollectorAzure`),
+- a non-claimed `collector.Source` (`azureruntime.Source`) that yields one
+  collected generation per declarative tenant/subscription/management-group
+  scope target by reading Resource Graph pages through the existing
+  `PageProvider` seam with `$skipToken` resume,
+- the `collector-azure-cloud` binary wiring that source into the shared
+  `collector.Service` for atomic fact + generation commit, with credentials
+  referenced by name only.
+
+It still performs **no live Azure calls**. The live Resource Graph/ARM client is
+a documented seam (`azureruntime.LiveProviderFactory`) that is inert and returns
+`ErrLiveProviderGated`; it is never the default. Tests and the binary's offline
+mode use a fixture or file-backed `PageProvider`.
+
+Everything else stays gated. Do not add Helm values, chart paths, claim-driven
+workflow scheduling, or query/MCP readback claims until implementation PRs prove
+the live runtime adapter, reducer path, additional fact kinds, telemetry in the
+shared registry, and chart path. The remaining fact kinds
 (`azure_cloud_relationship`, `azure_tag_observation`,
 `azure_identity_observation`, `azure_resource_change`, `azure_dns_record`,
-`azure_image_reference`) have registered constants but no envelope builders
-yet.
+`azure_image_reference`) have registered constants but no envelope builders yet,
+and reducer admission of `azure_cloud_resource` into the shared `CloudResource`
+keyspace is not implemented.
 
-The first implementation slice must be fixture-testable without live Azure
-access. Live smoke tests are promotion proof, not the minimum proof for the
-source contract.
+The implementation slices remain fixture-testable without live Azure access.
+Live smoke tests are promotion proof, not the minimum proof for the source
+contract.
+
+No-Observability-Change: the live Azure runtime adapter stays gated. The
+runtime scaffolding slice adds a non-claimed source and binary that emit a
+bounded per-target span (`collector.azure.scope_scan`) and reuse the
+package-local bounded-label Azure instruments only. It adds no live Azure call,
+no chart values, no shared-registry telemetry series, and no query claims.
 
 ## Source Truth
 
@@ -209,19 +230,20 @@ The first code PRs must prove these cases before any live smoke:
 
 ## Implementation Order
 
-1. Add fact constants, schema helpers, and fixture payload tests.
+1. Add fact constants, schema helpers, and fixture payload tests. **(done)**
 2. Add a Resource Graph client adapter with mocked `Resources` and
    `resourcechanges` responses.
 3. Add an allowlisted ARM fallback adapter with read-only mocked `GET`
    responses.
-4. Add the claim-driven collector runtime and source fact emission.
+4. Add the collector runtime and source fact emission. **(runtime scaffolding
+   done: `azureruntime.Source` + `collector-azure-cloud` over a fixture/gated
+   `PageProvider`; live adapter and claim-driven scheduling remain gated.)**
 5. Add reducer admission for resource identity, tag evidence, change evidence,
    relationships, and warnings.
 6. Add API/MCP readback truth tests for Azure evidence states.
 7. Add Helm and live-smoke support only after the runtime and reducer contract
    pass fixture gates.
 
-No-Observability-Change: the live Azure runtime stays gated. The first slice
-adds fixture-driven fact emission and package-local bounded telemetry
-instruments only. It adds no live runtime path, chart values, environment
-variables, shared-registry telemetry series, or query claims.
+The remaining live Azure runtime adapter, reducer admission, additional fact
+families, API/MCP readback, and chart wiring stay gated until their own
+implementation PRs land with fixture and live proof.

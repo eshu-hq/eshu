@@ -99,6 +99,14 @@ func TestIngestionScopeValidateAllowsAdditionalScopeKinds(t *testing.T) {
 			partitionKey:  "confluence-platform",
 		},
 		{
+			name:          "azure_subscription",
+			sourceSystem:  "azure",
+			scopeID:       "azure:tenant-abc:subscription:11111111:microsoft.compute:eastus:resource_graph",
+			scopeKind:     KindAccount,
+			collectorKind: CollectorAzure,
+			partitionKey:  "tenant-abc:subscription:11111111",
+		},
+		{
 			name:          "container_registry_repository",
 			sourceSystem:  "oci_registry",
 			scopeID:       "oci-registry-dockerhub-library-busybox",

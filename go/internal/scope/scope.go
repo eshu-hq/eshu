@@ -55,6 +55,11 @@ const (
 	CollectorGit CollectorKind = "git"
 	// CollectorAWS represents the cloud inventory collector.
 	CollectorAWS CollectorKind = "aws"
+	// CollectorAzure represents the read-only Azure cloud inventory collector.
+	// It observes Azure control-plane metadata through Azure Resource Graph for
+	// one bounded tenant, subscription, or management-group shard and emits
+	// provider-specific source facts; it never mutates Azure state.
+	CollectorAzure CollectorKind = "azure"
 	// CollectorTerraformState represents the Terraform state collector.
 	CollectorTerraformState CollectorKind = "terraform_state"
 	// CollectorWebhook represents the event/webhook collector.

@@ -38,9 +38,15 @@
 - MUST apply TDD: add a fixture and a failing test before new emission
   behavior.
 - MUST keep every source file under 500 lines; split before the cap.
-- MUST NOT add a `cmd/` binary, `collector.Source` runtime wiring, Helm values,
-  or scope `CollectorKind` runtime constants in this slice. Those are gated
-  follow-ups that require their own reducer and runtime proof.
+- MUST keep this package the pure fixture-driven fact engine. The
+  `collector.Source` implementation, the `cmd/collector-azure-cloud` binary, and
+  the `PageProviderFactory` seam live in the sibling `azureruntime` package
+  (`go/internal/collector/azurecloud/azureruntime`); see its `AGENTS.md`.
+- MUST NOT add Helm values, chart wiring, claim-driven workflow scheduling, a
+  live-calling default provider, reducer admission, or new fact-kind envelope
+  builders. Those remain gated follow-ups (issue #1998). The `azure` scope
+  `CollectorKind` (`scope.CollectorAzure`) and the non-claimed runtime have
+  landed.
 
 ## Verify
 
