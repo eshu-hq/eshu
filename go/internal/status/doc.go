@@ -45,4 +45,15 @@
 // MaxGenerationLifecycleLimit and exposes HasScopeSelector so a named scope,
 // repository, or generation that matches nothing is reported as not-found
 // rather than confident emptiness.
+//
+// ChangedSinceFilter, ChangedSinceSummary, ChangedSinceCategoryDelta, and the
+// ChangedSinceClassification/ChangedSinceCategory enums define the bounded
+// repository-scope changed-since contract: a diff of one prior generation's fact
+// set against the current active generation's fact set, grouped into evidence
+// categories (files, content entities, facts) and the closed verdict set
+// (added, updated, unchanged, retired, superseded). Counts are exact;
+// ChangedSinceFilter clamps the per-classification sample handles to
+// MaxChangedSinceSampleLimit. The Unavailable flag distinguishes a scope with no
+// current active generation from a genuinely empty delta so the surface never
+// reports all-unchanged when it cannot diff.
 package status

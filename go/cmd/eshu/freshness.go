@@ -50,6 +50,7 @@ func init() {
 	addFreshnessGenerationsFlags(generationsCmd)
 	addRemoteFlags(generationsCmd)
 	freshnessCmd.AddCommand(generationsCmd)
+	freshnessCmd.AddCommand(newFreshnessChangedSinceCommand())
 	rootCmd.AddCommand(freshnessCmd)
 }
 

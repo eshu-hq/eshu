@@ -208,6 +208,62 @@ and the CLI helper is `eshu freshness generations`.
 No-Regression Evidence: `cd go && go test ./internal/status ./internal/storage/postgres ./internal/query ./internal/mcp ./cmd/eshu ./cmd/api -count=1` proves the generation lifecycle types, bounded Postgres read, query handler envelope/not-found behavior, MCP route, CLI envelope, and API wiring stay in sync.
 No-Observability-Change: the drilldown adds one bounded Postgres read joining `scope_generations`, `ingestion_scopes`, and `fact_work_items`, plus the existing `query.freshness_generation_lifecycle` span with low-cardinality result-count, truncated, active-count, and failure-count attributes; it adds no worker, queue, graph query, or new metric label.
 
+## Changed-Since Delta
+
+`GET /api/v0/freshness/changed-since` answers "what changed in this repository
+scope since a prior generation or instant?" without re-indexing. It diffs the
+prior generation's fact set against the scope's current active generation's fact
+set, keyed by `stable_fact_key`.
+
+Required parameters:
+
+- a scope selector: `scope_id` (exact) **or** `repository` (canonical repository
+  id, matches repository-kind scopes by `source_key`)
+- a since reference: `since_generation_id` (exact prior generation) **or**
+  `since_observed_at` (RFC3339; the diff baseline is the generation observed at or
+  before that instant)
+
+Optional `sample_limit` (default 25, max 200) caps the per-classification sample
+handles. The response carries the resolved `scope_id`, `scope_kind`,
+`since_generation_id`/`since_observed_at`, `current_active_generation_id`,
+`current_observed_at`, and a `categories` array. Each category (`files`,
+`content_entities`, `facts`) carries exact `counts` for `added`, `updated`,
+`unchanged`, `retired`, and `superseded`, plus bounded `samples`
+(`stable_fact_key`, `fact_kind`) per classification and a per-classification
+`truncated` flag. `added` is a key new in the current generation; `updated` is a
+key in both whose `md5(payload)` differs; `unchanged` is a key in both with an
+identical payload hash; `retired` is a key tombstoned in the current generation;
+`superseded` is a key dropped entirely on generation rollover. Retired and
+superseded are never collapsed into `unchanged`.
+
+An unknown `scope_id`/`repository` returns `scope_not_found`; a since reference
+that resolves to no generation returns `not_found`; a scope with no current
+active generation returns `unavailable=true` (and a `building`/`unavailable`
+freshness state) rather than zero deltas. Counts are exact; only the samples are
+bounded. The capability key is `freshness.changed_since`. The MCP equivalent is
+`get_changed_since` and the CLI helper is `eshu freshness changed-since`.
+
+Service-scope deltas (deployment, runtime, dependencies, docs, incidents,
+vulnerabilities, ownership) are not computed by this surface yet.
+
+Performance Evidence: the diff is bounded by the requested `sample_limit` and
+keyed by `(scope_id, generation_id, stable_fact_key)`. Counts come from one
+aggregate over `fact_records` filtered to the two generations of one scope, using
+the `fact_records_scope_generation_idx` and `fact_records_stable_key_idx`
+indexes; sample reads run only for non-empty classification buckets and each is
+`ORDER BY stable_fact_key LIMIT sample_limit+1`. Expected cardinality scales with
+the per-generation fact count of a single repository scope (files plus content
+entities plus facts), not the whole repository corpus; no whole-graph or
+cross-scope scan is performed. Live SQL is exercised by the CI integration gate
+against Postgres; the in-process fake `Queryer`/`Rows` harness
+(`internal/storage/postgres/changed_since_test.go`) proves the bounding, diff
+classification, truncation, and resolution-failure behavior.
+
+No-Observability-Change: the surface adds the bounded
+`query.freshness_changed_since` span with low-cardinality scope-id,
+since-generation, current-generation, changed-count, and unavailable attributes;
+it adds no worker, queue, graph query, or new metric label.
+
 ## Historical Metrics
 
 `GET /api/v0/metrics/timeseries?metric={name}&window={24h}&step={30m}` returns an

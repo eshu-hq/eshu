@@ -19,17 +19,20 @@ type GenerationLifecycleReader interface {
 	ListGenerationLifecycle(context.Context, status.GenerationLifecycleFilter) (status.GenerationLifecyclePage, error)
 }
 
-// FreshnessHandler exposes the bounded generation lifecycle drilldown so
-// callers can inspect active, pending, superseded, completed, and failed
-// generation history without scraping broad status payloads.
+// FreshnessHandler exposes the bounded generation lifecycle drilldown and the
+// bounded changed-since delta summary so callers can inspect active, pending,
+// superseded, completed, and failed generation history and diff a prior
+// generation against current truth without scraping broad status payloads.
 type FreshnessHandler struct {
-	Generations GenerationLifecycleReader
-	Profile     QueryProfile
+	Generations  GenerationLifecycleReader
+	ChangedSince ChangedSinceReader
+	Profile      QueryProfile
 }
 
 // Mount registers freshness drilldown routes on the given mux.
 func (h *FreshnessHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc(freshnessGenerationLifecycleRoute, h.listGenerationLifecycle)
+	mux.HandleFunc(freshnessChangedSinceRoute, h.listChangedSince)
 }
 
 func (h *FreshnessHandler) profile() QueryProfile {

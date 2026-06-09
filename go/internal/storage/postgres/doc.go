@@ -159,4 +159,17 @@
 // per-generation failure. It fetches the page limit plus one row to set
 // Truncated and clamps the requested limit through the status filter so a broad
 // scan cannot return an unbounded payload.
+// StatusStore.ComputeChangedSinceDelta serves the bounded repository-scope
+// changed-since delta. It resolves the scope and its current active generation,
+// resolves the prior generation named by since_generation_id or observed at or
+// before since_observed_at, then diffs the two fact_records sets keyed by
+// (scope_id, generation_id, stable_fact_key) via a FULL OUTER JOIN on
+// (fact_category, stable_fact_key) using md5(payload::text) for payload
+// identity. Counts are exact per category and verdict (added, updated,
+// unchanged, retired, superseded); sample reads run only for non-empty buckets
+// and are ordered by stable_fact_key and capped at the sample limit plus one to
+// set Truncated. An unknown scope returns an empty ScopeID, an unresolved since
+// reference returns an empty SinceGenerationID, and a scope with no current
+// active generation returns Unavailable so callers never read zero deltas as
+// confident truth.
 package postgres

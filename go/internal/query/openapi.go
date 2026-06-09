@@ -95,6 +95,7 @@ func OpenAPISpec() string {
 			openAPIPathsIncidentContext+
 			openAPIPathsWorkItemEvidence+
 			openAPIPathsFreshnessGenerations+
+			openAPIPathsFreshnessChangedSince+
 			openAPIPathsSemanticStatus+
 			openAPIPathsSemanticEvidence+
 			openAPIPathsStatusAndCompare+

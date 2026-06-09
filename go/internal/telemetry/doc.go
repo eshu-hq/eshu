@@ -37,6 +37,8 @@
 // read path,
 // SpanQueryFreshnessGenerationLifecycle names the bounded scope generation
 // lifecycle drilldown read path,
+// SpanQueryFreshnessChangedSince names the bounded repository-scope changed-since
+// delta read path,
 // and SpanQuerySupplyChainImpactExplanation names the bounded vulnerability
 // finding/advisory explanation route. Pipeline stage, graph-backend, and
 // failure-class names
