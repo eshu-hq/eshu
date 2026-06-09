@@ -258,11 +258,12 @@ func (s Service) runReconcile(ctx context.Context) error {
 	}
 
 	durableCount := len(instances)
+	schedulingInstances := s.filterCollectorInstancesByEgress(instances)
 	drift := desiredCount - durableCount
 	if drift < 0 {
 		drift = -drift
 	}
-	if err := s.scheduleTerraformStateWork(ctx, observedAt, instances); err != nil {
+	if err := s.scheduleTerraformStateWork(ctx, observedAt, schedulingInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
@@ -271,7 +272,7 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
-	if err := s.scheduleOCIRegistryWork(ctx, observedAt, instances); err != nil {
+	if err := s.scheduleOCIRegistryWork(ctx, observedAt, schedulingInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
@@ -280,7 +281,7 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
-	if err := s.schedulePackageRegistryWork(ctx, observedAt, instances); err != nil {
+	if err := s.schedulePackageRegistryWork(ctx, observedAt, schedulingInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
@@ -289,7 +290,7 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
-	if err := s.scheduleVulnerabilityIntelligenceWork(ctx, observedAt, instances); err != nil {
+	if err := s.scheduleVulnerabilityIntelligenceWork(ctx, observedAt, schedulingInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
@@ -298,7 +299,7 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
-	if err := s.scheduleSBOMAttestationWork(ctx, observedAt, instances); err != nil {
+	if err := s.scheduleSBOMAttestationWork(ctx, observedAt, schedulingInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
@@ -307,7 +308,7 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
-	if err := s.scheduleScannerWorkerWork(ctx, observedAt, instances); err != nil {
+	if err := s.scheduleScannerWorkerWork(ctx, observedAt, schedulingInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
@@ -316,7 +317,7 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
-	if err := s.scheduleSecurityAlertWork(ctx, observedAt, instances); err != nil {
+	if err := s.scheduleSecurityAlertWork(ctx, observedAt, schedulingInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
@@ -325,7 +326,7 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
-	if err := s.scheduleCICDRunWork(ctx, observedAt, instances); err != nil {
+	if err := s.scheduleCICDRunWork(ctx, observedAt, schedulingInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
@@ -334,7 +335,7 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
-	if err := s.schedulePagerDutyWork(ctx, observedAt, instances); err != nil {
+	if err := s.schedulePagerDutyWork(ctx, observedAt, schedulingInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
@@ -343,7 +344,7 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
-	if err := s.scheduleJiraWork(ctx, observedAt, instances); err != nil {
+	if err := s.scheduleJiraWork(ctx, observedAt, schedulingInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
@@ -352,7 +353,7 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
-	if err := s.schedulePrometheusMimirWork(ctx, observedAt, instances); err != nil {
+	if err := s.schedulePrometheusMimirWork(ctx, observedAt, schedulingInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
@@ -361,7 +362,7 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
-	if err := s.scheduleTempoWork(ctx, observedAt, instances); err != nil {
+	if err := s.scheduleTempoWork(ctx, observedAt, schedulingInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
@@ -370,7 +371,7 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
-	if err := s.scheduleGrafanaWork(ctx, observedAt, instances); err != nil {
+	if err := s.scheduleGrafanaWork(ctx, observedAt, schedulingInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
@@ -379,7 +380,7 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
-	if err := s.scheduleLokiWork(ctx, observedAt, instances); err != nil {
+	if err := s.scheduleLokiWork(ctx, observedAt, schedulingInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
@@ -388,7 +389,7 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
-	if err := s.scheduleVaultLiveWork(ctx, observedAt, instances); err != nil {
+	if err := s.scheduleVaultLiveWork(ctx, observedAt, schedulingInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
@@ -397,7 +398,7 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
-	if err := s.scheduleAWSScheduledWork(ctx, observedAt, instances); err != nil {
+	if err := s.scheduleAWSScheduledWork(ctx, observedAt, schedulingInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
@@ -406,7 +407,7 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
-	if err := s.scheduleComponentExtensionWork(ctx, observedAt, instances); err != nil {
+	if err := s.scheduleComponentExtensionWork(ctx, observedAt, schedulingInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
@@ -415,7 +416,7 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
-	if err := s.scheduleAWSFreshnessWork(ctx, observedAt, instances); err != nil {
+	if err := s.scheduleAWSFreshnessWork(ctx, observedAt, schedulingInstances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),

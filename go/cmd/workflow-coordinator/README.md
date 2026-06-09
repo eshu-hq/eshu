@@ -83,6 +83,8 @@ for the full list. Key env vars:
   default `100`
 - ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_REQUEUE_DELAY — visibility delay
   after reap; default `5s`
+- ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON — optional hosted collector egress
+  policy; restricted mode requires per-kind allow rules before planning
 - ESHU_COLLECTOR_INSTANCES_JSON — JSON array of collector instance objects
 
 Compose exposes the optional metrics port `19469`. Helm keeps deployment mode
@@ -132,6 +134,9 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
   ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED=true, and supply at least one
   enabled claim-capable collector instance in ESHU_COLLECTOR_INSTANCES_JSON.
   `Config.Validate` rejects active mode without these conditions.
+- When `ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON` is set, the coordinator
+  filters enabled claim-capable collector instances before scheduled or
+  freshness work is planned. Denied collectors create no claimable rows.
 - Active mode plans Terraform-state, OCI registry, package registry,
   scanner-worker, vulnerability-intelligence installed advisory target work,
   CI/CD run target work, and opt-in scheduled AWS work today. AWS, PagerDuty,

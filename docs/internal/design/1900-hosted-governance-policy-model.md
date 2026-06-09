@@ -3,7 +3,7 @@
 Status: **PROPOSED - SECURITY REVIEW REQUIRED BEFORE RUNTIME ENFORCEMENT.**
 
 Refs #1900. Refs #1774, #1781, #1852, #1899, #1902, #1903, #1905,
-#1906, #1907, #1908, #1909, #1910. See also
+#1906, #1907, #1908, #1909, #1910, #2036. See also
 [Hosted Governance Posture](../../public/operate/hosted-governance.md),
 [Hosted Project Onboarding](../../public/deployment/hosted-onboarding.md),
 [Semantic Enrichment Posture](../../public/reference/semantic-enrichment-posture.md),
@@ -90,6 +90,7 @@ them:
 | Workflow coordinator | Create claims only for identities, tenant/workspace scope, policy revision, source scope, and collector or extension mode allowed by policy. | Must not issue work for stale, partial, revoked, or tenantless hosted policy. |
 | Collectors and ingesters | Observe bounded source scopes, resolve credential handles through runtime identity, emit source facts with policy/audit-safe metadata. | Must not write graph truth, persist raw secrets, or infer authorization from source names. |
 | Semantic extraction | Run provider work only when governance egress, provider profile, semantic source policy, ACL, redaction, retention, and budget all allow. | Must not fall back to provider work when deterministic evidence is missing or policy is absent. |
+| Collector egress | Filter active-mode claim-capable collector instances before scheduled or freshness work can create workflow rows. | Must not treat network reachability or a configured collector instance as policy permission to claim external work. |
 | Component manager and extension host | Verify install trust, evaluate activation, re-check policy before launch and fact commit, surface safe diagnostics. | Must not let installed or enabled components become claim-capable without hosted policy. |
 | Reducer and projection | Preserve facts-first truth, tenant/workspace anchors from facts once #1902 lands, and graph/read-model correctness. | Must not invent tenant boundaries, hide unauthorized data with query-only filters, or change graph truth based on caller identity. |
 | Graph and content stores | Persist facts, content, queues, status, and graph truth under explicit schema contracts. | Must not become the authorization engine through hidden backend-specific filters. |
@@ -189,6 +190,7 @@ governance set already covers the implementation slices:
 | Retention and deletion | #1905 |
 | Redaction registry and leakage proof | #1906 |
 | Provider, collector, and extension egress gates | #1907 |
+| Hosted collector egress claim gate | #2036 |
 | API, MCP, and admin status surfaces | #1908 |
 | Helm network-policy hardening | #1909 |
 | End-to-end hosted governance proof | #1910 |
@@ -199,10 +201,6 @@ API-managed policy write surface, or migration verifier that is not covered by
 
 ## Evidence For This PR
 
-No-Regression Evidence: docs-only design gate; strict MkDocs build and
-`git diff --check` validate the public documentation and repository hygiene.
+No-Regression Evidence: `go test ./internal/coordinator -run 'Test(ParseCollectorEgressPolicyJSON|CollectorEgressPolicy|LoadConfigParsesCollectorEgressPolicy|ServiceRunActiveModeSkipsDeniedCollectorEgress|ServiceIncidentFreshnessSkipsDeniedCollectorEgress)' -count=1` proves collector egress policy parsing, restricted default-deny behavior, deny-over-allow precedence, broad-mode validation, config loading, scheduled work suppression, and incident freshness handoff suppression. The change filters only the scheduler input slice; it does not change claim lease timing, worker counts, queue ordering, reducer graph writes, fact emission, or provider API calls.
 
-No-Observability-Change: this PR changes no runtime, query, collector, reducer,
-queue, graph, status, telemetry, API, MCP, Helm, Compose, or credential-loading
-code. Future implementation issues must add or reuse operator-visible status,
-metrics, spans, logs, and audit fields before enabling governed runtime work.
+Observability Evidence: collector egress skips reuse coordinator reconcile metrics, workflow rows, claim status, and `/api/v0/index-status`; denied scheduled work creates no claimable row. The coordinator also emits a bounded structured log with only `collector_kind` and low-cardinality `reason` so operators can distinguish `egress_policy_missing` from `egress_provider_denied` without exposing provider URLs, token environment names, source IDs, account IDs, or webhook payloads.

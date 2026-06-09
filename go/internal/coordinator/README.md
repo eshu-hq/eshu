@@ -2,16 +2,13 @@
 
 ## Purpose
 
-`internal/coordinator` owns the workflow coordinator's collector reconcile,
-workflow-run reconciliation, AWS freshness handoff, incident freshness handoff,
-and expired-claim reap loops. `Service.Run` ticks through discrete operations —
-collector-instance and
-scheduled-work planning reconciliation (always), workflow-run progress
-reconciliation (active mode only), AWS and incident freshness handoff (active
-mode only), and expired-claim reaping (active mode only) — against a narrow
-`Store` interface backed by Postgres. The package also owns
-`ESHU_WORKFLOW_COORDINATOR_*` env parsing and OTEL instrument registration for
-the coordinator.
+`internal/coordinator` owns collector reconcile, the collector egress gate,
+workflow-run reconciliation, AWS and incident freshness handoff, and
+expired-claim reap loops. `Service.Run` ticks through collector-instance and
+scheduled-work planning reconciliation, active-mode workflow-run progress, AWS
+and incident freshness handoff, and expired-claim reaping against a narrow
+`Store` backed by Postgres. The package also owns
+`ESHU_WORKFLOW_COORDINATOR_*` env parsing and coordinator OTEL instruments.
 
 ## Where this fits in the pipeline
 
@@ -88,7 +85,7 @@ fall back to defaults rather than failing; malformed values fail fast.
 - `Config` — runtime settings: `DeploymentMode`, `ClaimsEnabled`,
   `ReconcileInterval`, `RunReconcileInterval`, `ReapInterval`,
   `ClaimLeaseTTL`, `HeartbeatInterval`, `ExpiredClaimLimit`,
-  `ExpiredClaimRequeueDelay`, `CollectorInstances`.
+  `ExpiredClaimRequeueDelay`, `CollectorEgressPolicy`, `CollectorInstances`.
 - `LoadConfig(getenv)` — parses all `ESHU_WORKFLOW_COORDINATOR_*` and
   `ESHU_COLLECTOR_INSTANCES_JSON` env vars into a validated `Config`.
 - `Metrics` — recording interface: `RecordReconcile`, `RecordReap`,
@@ -226,9 +223,9 @@ Outcome labels: `success`, `reconcile_error`, `state_read_error` for reconcile;
 `success` and `error` for reap and run-reconcile.
 
 Structured log events: startup mode message (info), collector instance drift
-warning (`collector_instance_drift_detected`, fields
-`desired_collector_instances`, `durable_collector_instances`,
-`collector_instance_drift`).
+warning, and collector scheduling skips by egress policy. Drift fields are
+`desired_collector_instances`, `durable_collector_instances`, and
+`collector_instance_drift`; egress skips include `collector_kind` and `reason`.
 
 ## Operational notes
 
@@ -252,6 +249,9 @@ warning (`collector_instance_drift_detected`, fields
   GitHub Actions repository targets only; provider API calls, rate-limit
   handling, artifact reads, and fact emission belong to the CI/CD run collector
   runtime.
+- `ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON` filters enabled claim-capable
+  instances before planning; restricted mode requires per-kind allow rules,
+  deny wins, and broad mode must not carry collector-specific rules.
 - `last_reaped_claims` spiking above `ExpiredClaimLimit` is not possible; that
   limit caps each reap pass. Repeated spikes at the limit indicate collectors
   are not completing claims within the lease TTL.

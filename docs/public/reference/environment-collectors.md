@@ -17,12 +17,20 @@ collector targets, and webhook listener variables.
 | `ESHU_WORKFLOW_COORDINATOR_HEARTBEAT_INTERVAL` | workflow default | workflow coordinator | Collector claim heartbeat interval. |
 | `ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_LIMIT` | workflow default | workflow coordinator | Max expired claims reaped per cycle. |
 | `ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_REQUEUE_DELAY` | workflow default | workflow coordinator | Delay before requeueing expired work. |
+| `ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON` | unset | workflow coordinator | Optional hosted collector scheduling egress policy. JSON mode is `restricted` or `broad`; restricted mode requires explicit `collector_kind` allow rules before active-mode claim-capable collectors can plan scheduled or freshness work, deny rules win, and broad mode must not include collector-specific rules. |
 | `ESHU_COLLECTOR_INSTANCES_JSON` | unset | workflow coordinator and claim-aware collectors | Desired collector instance list. Claim-driven runtimes select enabled claim-capable instances from this JSON. |
 
 Active coordinator mode is guarded. The process rejects
 `ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE=active` unless
 `ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED=true` and at least one enabled
 collector instance has `claims_enabled: true`.
+
+No-Regression Evidence: `go test ./internal/coordinator -run 'Test(ParseCollectorEgressPolicyJSON|CollectorEgressPolicy|LoadConfigParsesCollectorEgressPolicy|ServiceRunActiveModeSkipsDeniedCollectorEgress|ServiceIncidentFreshnessSkipsDeniedCollectorEgress)' -count=1` proves collector egress policy parsing, restricted default-deny behavior, deny-over-allow precedence, broad-mode validation, config loading, scheduled work suppression, and incident freshness suppression. The gate filters scheduler inputs only; it does not change claim lease timing, worker counts, queue ordering, reducer graph writes, fact emission, or provider API calls.
+
+Observability Evidence: denied collector egress creates no claimable row and
+reuses coordinator reconcile metrics, workflow rows, claim status, and
+`/api/v0/index-status`. The bounded structured log includes only
+`collector_kind` and low-cardinality `reason`.
 
 ## Terraform State Collector
 

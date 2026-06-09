@@ -3,12 +3,12 @@
 // loops.
 //
 // Service reconciles declarative collector instances against the durable store
-// on every reconcile interval. In active mode it also plans supported
-// collector work, drains expired claims on the reap interval, and advances
-// workflow run progress. Config is loaded from workflow-coordinator
-// environment variables; deployment mode is "dark" or "active" and active mode
-// requires claims enabled with at least one enabled claim-capable collector
-// instance.
+// on every reconcile interval. In active mode it also applies optional hosted
+// collector egress policy before planning supported collector work, drains
+// expired claims on the reap interval, and advances workflow run progress.
+// Config is loaded from workflow-coordinator environment variables; deployment
+// mode is "dark" or "active" and active mode requires claims enabled with at
+// least one enabled claim-capable collector instance.
 //
 // TerraformStateWorkPlanner plans Terraform-state collection runs from resolved
 // discovery candidates. OCIRegistryWorkPlanner, PackageRegistryWorkPlanner,
