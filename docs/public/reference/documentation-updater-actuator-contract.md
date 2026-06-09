@@ -56,6 +56,10 @@ Repo-hosted documentation collected by the Git collector appears on this route a
 source-neutral documentation facts linked to the repository target. It is not
 the same path as local `eshu docs verify`, which emits verification findings
 and evidence packets for explicitly checked local Markdown claims.
+Repository-hosted API contracts appear on the same facts route as
+`documentation_document`, `documentation_section`, and `documentation_link`
+rows with formats such as `openapi`, `swagger`, `asyncapi`, and `graphql_sdl`.
+Those rows are evidence for callers and do not prove service ownership.
 
 Both list routes use RFC3339 timestamps for `updated_since`; `limit` is bounded
 from 1 through 200; `cursor` is a non-negative offset returned as

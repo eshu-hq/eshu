@@ -10,6 +10,7 @@ import (
 
 const (
 	documentationMaxBodyBytes    = 512 * 1024
+	apiContractMaxBodyBytes      = 2 * 1024 * 1024
 	notebookMaxBodyBytes         = 8 * 1024 * 1024
 	documentationMaxSectionChars = 16 * 1024
 )
@@ -32,6 +33,8 @@ func extractGitDocumentation(
 		return extractMarkdownDocumentationWithFormat(repo, relativePath, digest, commitSHA, body, format.format)
 	case "html":
 		return extractHTMLDocumentation(repo, relativePath, digest, commitSHA, body)
+	case "openapi", "swagger", "asyncapi", "graphql_sdl":
+		return extractAPIContractDocumentation(repo, relativePath, digest, commitSHA, body, format.format)
 	case "notebook":
 		return extractNotebookDocumentation(repo, relativePath, digest, commitSHA, body)
 	default:
@@ -58,6 +61,13 @@ func gitDocumentationFormatForPath(relativePath string) (gitDocumentationFormat,
 		return gitDocumentationFormat{format: "html", language: "html"}, true
 	case ".ipynb":
 		return gitDocumentationFormat{format: "notebook", language: "python"}, true
+	case ".graphql", ".graphqls":
+		return gitDocumentationFormat{format: "graphql_sdl", language: "graphql"}, true
+	case ".json", ".yaml", ".yml":
+		if format, ok := apiContractFormatForPath(relativePath); ok {
+			return format, true
+		}
+		return gitDocumentationFormat{}, false
 	default:
 		return gitDocumentationFormat{}, false
 	}
@@ -69,6 +79,22 @@ func gitDocumentationSourceURIAndFormat(relativePath string) (string, gitDocumen
 		return "", gitDocumentationFormat{}, false
 	}
 	format, ok := gitDocumentationFormatForPath(sourceURI)
+	if !ok {
+		return "", gitDocumentationFormat{}, false
+	}
+	return sourceURI, format, true
+}
+
+func gitDocumentationSourceURIAndFormatForBody(relativePath string, body []byte) (string, gitDocumentationFormat, bool) {
+	sourceURI, format, ok := gitDocumentationSourceURIAndFormat(relativePath)
+	if ok {
+		return sourceURI, format, true
+	}
+	sourceURI, ok = documentationSourceURI(relativePath)
+	if !ok || !isPotentialStructuredAPIContractPath(sourceURI) {
+		return "", gitDocumentationFormat{}, false
+	}
+	format, ok = detectStructuredAPIContractFormat(sourceURI, body)
 	if !ok {
 		return "", gitDocumentationFormat{}, false
 	}
@@ -87,6 +113,13 @@ func isNonDocumentationTextPath(relativePath string) bool {
 func isGitDocumentationPath(filePath string) bool {
 	_, ok := gitDocumentationFormatForPath(filepathToSourceURI(filePath))
 	return ok
+}
+
+func isDocumentationPathOrStructuredAPIContractCandidate(relativePath string) bool {
+	if _, ok := gitDocumentationFormatForPath(relativePath); ok {
+		return true
+	}
+	return isPotentialStructuredAPIContractPath(relativePath)
 }
 
 func filepathToSourceURI(filePath string) string {

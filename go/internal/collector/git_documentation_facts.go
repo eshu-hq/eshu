@@ -33,10 +33,10 @@ func gitDocumentationFactCount(
 			if documentationPaths[meta.RelativePath] {
 				continue
 			}
-			if _, _, ok := gitDocumentationSourceURIAndFormat(meta.RelativePath); !ok {
+			if !isDocumentationPathOrStructuredAPIContractCandidate(meta.RelativePath) {
 				continue
 			}
-			body, ok := readDocumentationBody(repoPath, meta.RelativePath, nil)
+			body, ok := readDocumentationCandidateBody(repoPath, meta.RelativePath, nil)
 			if !ok {
 				continue
 			}
@@ -58,6 +58,9 @@ func gitDocumentationFactCount(
 	} else {
 		for _, fileSnapshot := range snapshot.ContentFiles {
 			if documentationPaths[fileSnapshot.RelativePath] {
+				continue
+			}
+			if !isDocumentationPathOrStructuredAPIContractCandidate(fileSnapshot.RelativePath) {
 				continue
 			}
 			envelopes, emitted := gitDocumentationEnvelopesForContentFile(
@@ -145,7 +148,7 @@ func gitDocumentationEnvelopesForContentFile(
 	body []byte,
 	emitSource bool,
 ) ([]facts.Envelope, bool) {
-	sourceURI, format, ok := gitDocumentationSourceURIAndFormat(relativePath)
+	sourceURI, format, ok := gitDocumentationSourceURIAndFormatForBody(relativePath, body)
 	if !ok {
 		return nil, false
 	}
@@ -253,7 +256,38 @@ func readDocumentationBody(repoPath string, relativePath string, body []byte) ([
 	return raw, true
 }
 
+func readDocumentationCandidateBody(repoPath string, relativePath string, body []byte) ([]byte, bool) {
+	if body != nil {
+		return body, true
+	}
+	sourceURI, format, ok := gitDocumentationSourceURIAndFormat(relativePath)
+	var readLimit int
+	if ok {
+		readLimit = documentationReadLimitBytes(format)
+	} else {
+		sourceURI, ok = documentationSourceURI(relativePath)
+		if !ok || !isPotentialStructuredAPIContractPath(sourceURI) {
+			return nil, false
+		}
+		readLimit = apiContractMaxBodyBytes
+	}
+	file, err := os.Open(filepath.Join(repoPath, filepath.FromSlash(sourceURI)))
+	if err != nil {
+		return nil, false
+	}
+	defer func() { _ = file.Close() }()
+	raw, err := io.ReadAll(io.LimitReader(file, int64(readLimit+1)))
+	if err != nil {
+		return nil, false
+	}
+	return raw, true
+}
+
 func documentationReadLimitBytes(format gitDocumentationFormat) int {
+	switch format.format {
+	case "openapi", "swagger", "asyncapi", "graphql_sdl":
+		return apiContractMaxBodyBytes
+	}
 	if format.format == "notebook" {
 		return notebookMaxBodyBytes
 	}
