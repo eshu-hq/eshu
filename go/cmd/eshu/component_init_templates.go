@@ -120,9 +120,9 @@ query truth.
 
 The manifest uses an OCI image reference with a placeholder SHA256 digest. Build
 and publish an artifact, then replace the digest before a shared install.
-` + "`strict`" + ` trust mode fails closed until provenance verification is wired in
-the Eshu core. Use ` + "`allowlist`" + ` only for local review of this exact component
-ID and publisher.
+` + "`strict`" + ` trust mode requires Cosign signature and SLSA provenance checks
+for the final digest-pinned artifact. Use ` + "`allowlist`" + ` only for local review
+of this exact component ID and publisher.
 
 Keep credentials out of this repository. Use environment variables, secret
 handles, workload identity, or local profiles in private config files.

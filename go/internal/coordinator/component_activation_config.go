@@ -61,14 +61,14 @@ func componentPolicyFromEnv(getenv func(string) string) component.Policy {
 	if mode == "" {
 		mode = component.TrustModeDisabled
 	}
-	return component.Policy{
+	return component.ConfigureProvenanceFromEnv(component.Policy{
 		Mode:              mode,
 		AllowedIDs:        envStringList(getenv("ESHU_COMPONENT_ALLOW_IDS")),
 		AllowedPublishers: envStringList(getenv("ESHU_COMPONENT_ALLOW_PUBLISHERS")),
 		RevokedIDs:        envStringList(getenv("ESHU_COMPONENT_REVOKE_IDS")),
 		RevokedPublishers: envStringList(getenv("ESHU_COMPONENT_REVOKE_PUBLISHERS")),
 		CoreVersion:       strings.TrimSpace(getenv("ESHU_COMPONENT_CORE_VERSION")),
-	}
+	}, getenv)
 }
 
 func desiredInstancesForComponent(

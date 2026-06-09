@@ -158,6 +158,12 @@ matching `ESHU_COMPONENT_ALLOW_IDS` and `ESHU_COMPONENT_ALLOW_PUBLISHERS`,
 `ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED=true` before it can create workflow
 claims.
 
+For a signed artifact proof, use `ESHU_COMPONENT_TRUST_MODE=strict` with the
+same allowlist plus `ESHU_COMPONENT_PROVENANCE_CERTIFICATE_IDENTITY`,
+`ESHU_COMPONENT_PROVENANCE_OIDC_ISSUER`, and optional
+`ESHU_COMPONENT_COSIGN_BINARY`. Keep registry credentials in Cosign's normal
+auth configuration, not in Compose values.
+
 Start the process-backed component extension collector only after installing
 and enabling a trusted process-adapter component. It reads the same shared
 registry path as the coordinator:

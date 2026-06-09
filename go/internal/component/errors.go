@@ -21,6 +21,15 @@ const (
 	// ErrorCodeUntrustedPublisher identifies a package rejected by local trust
 	// policy because its ID, publisher, or provenance is not trusted.
 	ErrorCodeUntrustedPublisher ErrorCode = "untrusted_publisher"
+	// ErrorCodeProvenanceRequired identifies strict trust policy input missing
+	// the required provenance verifier, certificate identity, or issuer.
+	ErrorCodeProvenanceRequired ErrorCode = "provenance_required"
+	// ErrorCodeProvenanceInvalid identifies signature, digest-claim, or
+	// provenance verification material that failed validation.
+	ErrorCodeProvenanceInvalid ErrorCode = "provenance_invalid"
+	// ErrorCodeUnsupportedProvenance identifies signed provenance material that
+	// uses an unsupported attestation shape.
+	ErrorCodeUnsupportedProvenance ErrorCode = "unsupported_provenance"
 	// ErrorCodeFactKindCollision identifies a component fact-kind claim that
 	// overlaps with another installed component owner.
 	ErrorCodeFactKindCollision ErrorCode = "fact_kind_collision"
