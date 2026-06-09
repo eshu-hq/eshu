@@ -59,10 +59,10 @@ flowchart TB
 
 1. `main` calls `telemetry.NewBootstrap("mcp-server")` and initialises OTEL
    providers. On failure it logs with `telemetry.EventAttr` and exits 1.
-2. `wireAPI` validates query profile, graph backend, API key, and optional
-   semantic provider profile metadata before datastore connections. It then
-   opens Postgres via `sql.Open("pgx", pgDSN)` and calls `PingContext`. If
-   `ESHU_QUERY_PROFILE` is not `ProfileLocalLightweight` and
+2. `wireAPI` validates query profile, graph backend, API key, optional semantic
+   provider profile metadata, and optional semantic extraction policy before
+   datastore connections. It then opens Postgres via `sql.Open("pgx", pgDSN)`
+   and calls `PingContext`. If `ESHU_QUERY_PROFILE` is not `ProfileLocalLightweight` and
    `ESHU_DISABLE_NEO4J` is not `true`, it also dials Neo4j via
    `internalruntime.OpenNeo4jDriver`.
 3. `newMCPQueryRouter` wires the MCP-backed `query` handlers
@@ -109,6 +109,7 @@ satisfies `query.GraphQuery` and `query.ContentReader` satisfies
 | `ESHU_QUERY_PROFILE` | `production` | `loadQueryProfile` defaults to `query.ProfileProduction` |
 | `ESHU_DISABLE_NEO4J` | — | `true` skips Neo4j dial |
 | `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` | unset | Optional semantic provider profile registry. It carries profile metadata and credential handles only; the MCP server never loads provider keys or calls providers from this config path. |
+| `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` | unset | Optional hosted semantic extraction allowlist by provider profile id, source class, source scope, source selector, limit, redaction mode, and retention posture. Without it, semantic extraction remains policy-disabled. |
 | `DEFAULT_DATABASE` | `neo4j` | Neo4j database name |
 | `ESHU_PPROF_ADDR` | unset (disabled) | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; port-only inputs bind to `127.0.0.1` |
 
@@ -124,10 +125,10 @@ or spans beyond the startup/connection events.
 
 ## Operational notes
 
-- Validation errors (bad API key, bad profile, bad backend, or malformed
-  semantic provider profile JSON) are returned before any datastore connection.
-  `wireAPI` calls the config validators before opening any connection
-  (`wiring.go:32-45`).
+- Validation errors (bad API key, bad profile, bad backend, malformed semantic
+  provider profile JSON, or malformed semantic extraction policy JSON) are
+  returned before any datastore connection. `wireAPI` calls the config
+  validators before opening any connection (`wiring.go:32-52`).
 - `stdio` mode does not start an HTTP listener. The admin surface (`/healthz`,
   `/readyz`, `/metrics`) is not available in stdio mode.
 - The query API mounted under `/api/` is protected by `query.AuthMiddleware`,
