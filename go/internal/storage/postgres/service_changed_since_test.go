@@ -178,6 +178,69 @@ func TestComputeServiceChangedSinceDeltaClassifiesDeploymentFamily(t *testing.T)
 	}
 }
 
+func TestComputeServiceChangedSinceDeltaClassifiesRuntimeFamily(t *testing.T) {
+	t.Parallel()
+
+	observed := time.Date(2026, 6, 9, 13, 0, 0, 0, time.UTC)
+	queryer := &fakeQueryer{responses: []fakeRows{
+		{rows: serviceScopeRow("svc-a", "gen-current", observed, false)},
+		{rows: [][]any{{"gen-prior", observed.Add(-time.Hour)}}},
+		// The family-generic counts query returns rows for every family present in
+		// the diff. Runtime carries each verdict; ownership stays unchanged.
+		{rows: [][]any{
+			serviceCountRow("ownership", "unchanged", 2),
+			serviceCountRow("runtime", "added", 1),
+			serviceCountRow("runtime", "updated", 1),
+			serviceCountRow("runtime", "unchanged", 1),
+			serviceCountRow("runtime", "retired", 1),
+			serviceCountRow("runtime", "superseded", 1),
+		}},
+		// Sample reads run per family in category order (ownership, deployment,
+		// runtime), per non-zero classification in classification order. The
+		// deployment family has zero counts here, so it consumes no sample reads.
+		{rows: [][]any{{"ownership:svc-a:team-a"}}},                    // ownership unchanged
+		{rows: [][]any{{"runtime:svc-a:kubernetes:prod:wi-checkout"}}}, // runtime added
+		{rows: [][]any{{"runtime:svc-a:kubernetes:prod:wi-payments"}}}, // runtime updated
+		{rows: [][]any{{"runtime:svc-a:ecs:staging:wi-checkout"}}},     // runtime unchanged
+		{rows: [][]any{{"runtime:svc-a:kubernetes:qa:wi-gone"}}},       // runtime retired
+		{rows: [][]any{{"runtime:svc-a:kubernetes:dev:wi-drop"}}},      // runtime superseded
+	}}
+	store := NewStatusStore(queryer)
+
+	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+		ServiceID:         "svc-a",
+		SinceGenerationID: "gen-prior",
+		SampleLimit:       25,
+	})
+	if err != nil {
+		t.Fatalf("ComputeServiceChangedSinceDelta() error = %v", err)
+	}
+	runtime := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryRuntime)
+	c := runtime.Counts
+	if c.Added != 1 || c.Updated != 1 || c.Unchanged != 1 || c.Retired != 1 || c.Superseded != 1 {
+		t.Fatalf("runtime counts wrong: %+v", c)
+	}
+	if got := runtime.Samples[statuspkg.ChangedSinceRetired]; len(got) != 1 || got[0].StableFactKey != "runtime:svc-a:kubernetes:qa:wi-gone" {
+		t.Fatalf("runtime retired samples wrong: %+v", got)
+	}
+	if got := runtime.Samples[statuspkg.ChangedSinceSuperseded]; len(got) != 1 || got[0].StableFactKey != "runtime:svc-a:kubernetes:dev:wi-drop" {
+		t.Fatalf("runtime superseded samples wrong: %+v", got)
+	}
+	if got := runtime.Samples[statuspkg.ChangedSinceRetired]; got[0].FactKind != "runtime" {
+		t.Fatalf("runtime sample fact_kind = %q, want runtime", got[0].FactKind)
+	}
+	// Ownership stayed unchanged: a runtime-only change must not invent ownership
+	// deltas, and the deployment family reports zero deltas (never silently dropped).
+	owner := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryOwnership)
+	if owner.Counts.Added != 0 || owner.Counts.Updated != 0 || owner.Counts.Retired != 0 || owner.Counts.Superseded != 0 {
+		t.Fatalf("ownership family must not churn on a runtime-only change: %+v", owner.Counts)
+	}
+	deployment := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryDeployment)
+	if deployment.Counts.Total() != 0 {
+		t.Fatalf("deployment family should report zero deltas for a runtime-only change: %+v", deployment.Counts)
+	}
+}
+
 func TestComputeServiceChangedSinceDeltaUnknownServiceNotFound(t *testing.T) {
 	t.Parallel()
 

@@ -56,6 +56,7 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 			Writer:                       handlers.ServiceCatalogCorrelationWriter,
 			MaterializationWriter:        handlers.ServiceMaterializationWriter,
 			DeploymentRelationshipLoader: serviceCatalogDeploymentRelationshipLoader(handlers),
+			RuntimeInstanceLoader:        serviceCatalogRuntimeInstanceLoader(handlers),
 			Instruments:                  handlers.Instruments,
 		}
 		definitions = append(definitions, serviceCatalog)
@@ -397,4 +398,19 @@ func serviceCatalogDeploymentRelationshipLoader(
 		return nil
 	}
 	return repoScoped
+}
+
+// serviceCatalogRuntimeInstanceLoader returns the repository-scoped runtime
+// instance loader used to materialize the service runtime evidence family
+// (#1986), or nil when the family cannot be sourced. The family is only wired
+// when both the service generation lineage writer is present and a runtime
+// instance loader is configured, so runtime evidence is purely additive and never
+// blocks the ownership/deployment lineage.
+func serviceCatalogRuntimeInstanceLoader(
+	handlers DefaultHandlers,
+) RepositoryScopedRuntimeInstanceLoader {
+	if handlers.ServiceMaterializationWriter == nil || handlers.ServiceRuntimeInstanceLoader == nil {
+		return nil
+	}
+	return handlers.ServiceRuntimeInstanceLoader
 }

@@ -4,7 +4,8 @@ Issue: #1943
 Parent: #1797
 Follow-up to: #1799 (merged repository-scope changed-since)
 
-Status: **Ownership (#1943) and deployment (#1985) families shipped.** The
+Status: **Ownership (#1943), deployment (#1985), and runtime (#1986) families
+shipped.** The
 additive service-generation lineage and the family-generic delta surface
 recommended below are implemented: `service_materialization_generations` +
 `service_evidence_snapshots`, the reducer write path that commits them, and
@@ -21,9 +22,17 @@ service's repository, keyed by `deployment:<service_id>:<identity>` where
 both embed the resolution generation id, so they are **not** usable as a diff key
 (see the corrected note in item 2 below). The delta SQL groups by
 `evidence_family`, so it needed no shape change — registering the category and
-writing the rows was sufficient. The remaining four families (runtime,
-dependencies, docs, incidents, vulnerabilities) reuse this lineage/snapshot/delta
-foundation and are tracked follow-ups. The sections below record the original
+writing the rows was sufficient. The runtime family (#1986) emits one snapshot
+row per materialized runtime instance of the service's workload, keyed by
+`runtime:<service_id>:<platform_kind>:<environment>:<workload_ref>` where
+`workload_ref` is the durable `WorkloadInstance` id
+(`workload-instance:<workload_name>:<environment>`); the reducer projection
+constructs that id and the platform kind from durable workload/environment
+identity, never from a resolution or materialization generation id, so the key
+is generation-stable (unlike the deployment `resolved_id` trap). The remaining
+families (dependencies, docs, incidents, vulnerabilities) reuse this
+lineage/snapshot/delta foundation and are tracked follow-ups. The sections below
+record the original
 investigation, the owning store/read-model contract, why the #1799 model did not
 transfer directly, and the recommended contract that the shipped families
 implement.
