@@ -23,7 +23,7 @@ Current shipped behavior:
 | Collector egress | The workflow coordinator can filter enabled claim-capable collectors by `ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON` before scheduled or freshness work is planned. | That Helm NetworkPolicy alone proves collector runtime policy or tenant isolation. |
 | Extensions | Hosted extension policy is operator guidance. Community extension claim execution is not enabled by the shipped chart or Compose stack yet. | That installed or enabled components can collect in hosted mode. |
 | Network egress | Helm can render restricted NetworkPolicy egress classes for DNS, datastore, graph, internal service, collector providers, semantic providers, and extensions. | That `networkPolicy.egress.mode=broad` is least-privilege proof. |
-| Redaction and retention | The hosted redaction registry defines forbidden raw classes, safe bounded field classes, and synthetic leakage canaries. Semantic posture docs still require redaction policy and metadata-oriented retention for optional provider work. | That all future governance retention and deletion workflows are implemented. |
+| Redaction and retention | The hosted redaction registry defines forbidden raw classes, safe bounded field classes, and synthetic leakage canaries. The hosted retention policy defines design-only deletion, tombstone, and graph-rebuild semantics. Semantic posture docs still require redaction policy and metadata-oriented retention for optional provider work. | That runtime retention and deletion enforcement is implemented end to end. |
 | Audit | Existing status, telemetry, semantic queue, budget, and component diagnostics expose bounded classes and counts. | A complete hosted governance audit ledger until the governance issues land. |
 
 Before onboarding, run the [Hosted Security Posture Gate](hosted-security-posture.md)
@@ -303,6 +303,18 @@ operator-controlled shared-service procedure:
 5. Record aggregate evidence: which rule set changed, which token source was
    rotated, which policy revision applied, and which queues drained.
 
+### Retention Or Deletion Progress
+
+1. Check the affected data class in
+   [Hosted Retention And Deletion Policy](../reference/hosted-retention-deletion-policy.md).
+2. Confirm new governed work stopped for the affected source class.
+3. Check deletion state, aggregate counts, policy revision hash, and bounded
+   reason codes in governance status.
+4. Wait for reducer repair and graph rebuild before treating reads as current.
+5. Keep tenant names, repository names, source identifiers, prompts, provider
+   responses, credential handles, private URLs, backup object locators, and raw
+   policy bodies out of tickets.
+
 ### Redaction Proof Failure
 
 1. Stop provider egress or disable the affected source policy.
@@ -323,6 +335,7 @@ Use these gates for hosted governance-related changes:
 | Public docs or navigation | Strict MkDocs build and `git diff --check`. |
 | Hosted API/MCP auth, Secret refs, pprof, or docs exposure posture | `scripts/test-verify-hosted-security-posture.sh`, `scripts/verify-hosted-security-posture.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml`. |
 | Hosted NetworkPolicy egress posture | `scripts/test-verify-hosted-network-policy-egress.sh`, `scripts/verify-hosted-network-policy-egress.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml`. |
+| Hosted retention or deletion policy docs | Strict MkDocs build and `git diff --check`; runtime implementation must add focused deletion, tombstone, stale-read, and graph-rebuild tests. |
 | Hosted onboarding or setup CLI | `go test ./cmd/eshu -count=1`. |
 | API/MCP status surfaces | `go test ./internal/query ./internal/mcp ./cmd/api -count=1`. |
 | Semantic extraction status or queue readbacks | `go test ./internal/semanticqueue ./internal/storage/postgres ./internal/status ./internal/query ./internal/telemetry -count=1`. |
