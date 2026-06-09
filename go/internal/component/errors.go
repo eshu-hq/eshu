@@ -41,6 +41,9 @@ const (
 	ErrorCodeNotInstalled ErrorCode = "not_installed"
 	// ErrorCodeInvalidInput identifies invalid local CLI or registry input.
 	ErrorCodeInvalidInput ErrorCode = "invalid_input"
+	// ErrorCodeConformanceFailed identifies a component extension conformance
+	// run that emitted publication or hosted-activation blockers.
+	ErrorCodeConformanceFailed ErrorCode = "conformance_failed"
 	// ErrorCodeUnverifiedPackage identifies install input that has not passed
 	// local verification.
 	ErrorCodeUnverifiedPackage ErrorCode = "unverified_package"

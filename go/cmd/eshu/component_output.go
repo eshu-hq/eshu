@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
+	"github.com/eshu-hq/eshu/go/internal/extensionconformance"
 )
 
 const componentOutputSchemaVersion = "eshu.component.cli.v1"
@@ -21,6 +22,7 @@ type componentCLIOutput struct {
 	Components    []componentCLIComponent       `json:"components,omitempty"`
 	Activation    *componentCLIActivation       `json:"activation,omitempty"`
 	Verification  *component.VerificationResult `json:"verification,omitempty"`
+	Conformance   *extensionconformance.Report  `json:"conformance,omitempty"`
 	Error         *componentCLIError            `json:"error,omitempty"`
 }
 

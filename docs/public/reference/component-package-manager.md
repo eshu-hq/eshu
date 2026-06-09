@@ -48,6 +48,10 @@ eshu component install ./aws-component.yaml \
   --allow-publisher eshu-hq \
   --dry-run \
   --json
+eshu component conform ./aws-component.yaml \
+  --fixture ./testdata/fixtures/complete-result.json \
+  --mode fixture \
+  --json
 eshu component enable dev.eshu.collector.aws \
   --component-home ~/.eshu/components \
   --instance prod-aws \
@@ -76,12 +80,21 @@ directories, unsafe identifiers, and non-namespaced fact kinds. The generated
 package contains a manifest, sample SDK collector code, tests, placeholder-only
 config, a README, and `scripts/verify-local.sh`.
 
+`component conform` runs a read-only extension conformance check against one
+manifest and one or more collector SDK result fixtures. Fixture mode loads the
+manifest through the component contract, derives the host SDK validator contract
+from `spec.emittedFacts`, validates every fixture, repeats host validation so
+the supplied result must stay stable under re-validation, and reports whether
+findings block publication or hosted activation. `--mode compose` is accepted
+as a reserved mode label, but this slice still requires explicit fixtures; it
+is not remote Docker Compose proof.
+
 Uninstall fails while a component has active instances.
 
 Every component subcommand accepts `--json`. JSON output uses
 `schema_version: eshu.component.cli.v1`, a command name, a status, and the
-component, activation, verification, list, or error block that applies to the
-command. The text output remains the default operator summary.
+component, activation, verification, conformance, list, or error block that
+applies to the command. The text output remains the default operator summary.
 
 `install --dry-run` verifies the manifest and trust policy but does not create
 `registry.json` or copy the manifest. `enable --dry-run` validates the selected
@@ -143,6 +156,38 @@ Example list output:
 }
 ```
 
+Example conformance output:
+
+```json
+{
+  "schema_version": "eshu.component.cli.v1",
+  "command": "conform",
+  "status": "passed",
+  "conformance": {
+    "schema_version": "eshu.extension.conformance.v1",
+    "mode": "fixture",
+    "status": "passed",
+    "component_id": "dev.eshu.collector.aws",
+    "component_version": "0.1.0",
+    "summary": {
+      "fixture_count": 1,
+      "fact_count": 4,
+      "duplicate_count": 0,
+      "redaction_count": 0,
+      "tombstone_count": 0,
+      "status_count": 1,
+      "idempotent_reemission_checked": true
+    }
+  }
+}
+```
+
+Conformance findings are fail-closed. Invalid manifests, missing fixtures,
+unreadable fixture JSON, undeclared fact kinds, unsafe payload keys, unsupported
+schema versions, unsupported source confidence values, unsupported tombstones,
+conflicting duplicate stable keys, and reducer phases without a current
+optional-component consumer block both publication and hosted activation.
+
 The stable readback states are:
 
 | State | Meaning |
@@ -193,6 +238,7 @@ JSON errors use stable codes:
 | `active_uninstall` | Uninstall was requested for a package version with active instances. |
 | `duplicate_activation` | The requested instance is already enabled. |
 | `fact_kind_collision` | The manifest claims a fact kind already owned by another installed component. |
+| `conformance_failed` | A local component conformance run emitted publication or hosted-activation blockers. |
 | `corrupted_registry_state` | `registry.json` cannot be decoded or read consistently. |
 | `active_replacement` | Replacement content was supplied for an active installed version. |
 | `not_installed` | The requested component, version, or activation is absent. |
@@ -309,5 +355,7 @@ This first slice does not pull from OCI registries and does not perform
 Sigstore/Cosign verification. Strict mode fails closed instead of pretending to
 verify provenance.
 
-The activation record is local package-manager state. Workflow coordinator
-scheduling still belongs to the existing collector instance control plane.
+Fixture conformance is local validation. It does not run Docker Compose, start
+the workflow coordinator, claim work, project graph truth, or prove API/query
+truth. Hosted rollout still needs runtime proof after the component package,
+SDK adapter, reducer/query consumers, and deployment policy are ready.
