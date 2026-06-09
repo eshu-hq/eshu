@@ -21,6 +21,15 @@ const (
 	// ComponentTypeCollector identifies a component that emits Eshu facts from
 	// an external source of truth.
 	ComponentTypeCollector = "collector"
+	// CollectorSDKProtocolV1Alpha1 identifies the first out-of-tree collector
+	// SDK wire protocol supported by component manifests.
+	CollectorSDKProtocolV1Alpha1 = "collector-sdk/v1alpha1"
+	// RuntimeAdapterOCI identifies a digest-pinned OCI artifact launched by a
+	// core-owned extension host.
+	RuntimeAdapterOCI = "oci"
+	// RuntimeAdapterProcess identifies a local process adapter used only by
+	// explicit host wiring.
+	RuntimeAdapterProcess = "process"
 )
 
 var (
@@ -49,10 +58,18 @@ type Spec struct {
 	CompatibleCore    string            `yaml:"compatibleCore" json:"compatibleCore"`
 	ComponentType     string            `yaml:"componentType" json:"componentType"`
 	CollectorKinds    []string          `yaml:"collectorKinds" json:"collectorKinds"`
+	Runtime           RuntimeContract   `yaml:"runtime" json:"runtime"`
 	Artifacts         []Artifact        `yaml:"artifacts" json:"artifacts"`
 	EmittedFacts      []FactFamily      `yaml:"emittedFacts" json:"emittedFacts"`
 	ConsumerContracts ConsumerContracts `yaml:"consumerContracts" json:"consumerContracts"`
 	Telemetry         Telemetry         `yaml:"telemetry" json:"telemetry"`
+}
+
+// RuntimeContract declares the public SDK protocol and host adapter a
+// component expects before it can become claim-capable.
+type RuntimeContract struct {
+	SDKProtocol string `yaml:"sdkProtocol" json:"sdkProtocol"`
+	Adapter     string `yaml:"adapter" json:"adapter"`
 }
 
 // Artifact points at one runnable component artifact.
@@ -135,6 +152,9 @@ func (m Manifest) Validate() error {
 			return err
 		}
 	}
+	if err := m.Spec.Runtime.Validate(); err != nil {
+		return err
+	}
 	if len(m.Spec.Artifacts) == 0 {
 		return fmt.Errorf("spec.artifacts must include at least one artifact")
 	}
@@ -149,6 +169,25 @@ func (m Manifest) Validate() error {
 		}
 	}
 	return nil
+}
+
+// Validate checks the runtime SDK protocol and host adapter declaration.
+func (r RuntimeContract) Validate() error {
+	switch strings.TrimSpace(r.SDKProtocol) {
+	case "":
+		return fmt.Errorf("spec.runtime.sdkProtocol is required")
+	case CollectorSDKProtocolV1Alpha1:
+	default:
+		return fmt.Errorf("spec.runtime.sdkProtocol %q is unsupported", r.SDKProtocol)
+	}
+	switch strings.TrimSpace(r.Adapter) {
+	case "":
+		return fmt.Errorf("spec.runtime.adapter is required")
+	case RuntimeAdapterOCI, RuntimeAdapterProcess:
+		return nil
+	default:
+		return fmt.Errorf("spec.runtime.adapter %q is unsupported", r.Adapter)
+	}
 }
 
 // Validate checks artifact fields.

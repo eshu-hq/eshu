@@ -22,6 +22,12 @@ func TestLoadManifestAcceptsValidComponentPackage(t *testing.T) {
 	if got, want := manifest.Spec.ComponentType, ComponentTypeCollector; got != want {
 		t.Fatalf("Spec.ComponentType = %q, want %q", got, want)
 	}
+	if got, want := manifest.Spec.Runtime.SDKProtocol, CollectorSDKProtocolV1Alpha1; got != want {
+		t.Fatalf("Spec.Runtime.SDKProtocol = %q, want %q", got, want)
+	}
+	if got, want := manifest.Spec.Runtime.Adapter, RuntimeAdapterOCI; got != want {
+		t.Fatalf("Spec.Runtime.Adapter = %q, want %q", got, want)
+	}
 	if got, want := manifest.Spec.EmittedFacts[0].SourceConfidence, []string{"reported"}; len(got) != len(want) || got[0] != want[0] {
 		t.Fatalf("Spec.EmittedFacts[0].SourceConfidence = %v, want %v", got, want)
 	}
@@ -99,6 +105,51 @@ func TestManifestValidateRejectsInvalidCollectorKind(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "collector kind") {
 		t.Fatalf("Validate() error = %v, want collector kind error", err)
+	}
+}
+
+func TestManifestValidateRequiresCollectorSDKProtocol(t *testing.T) {
+	t.Parallel()
+
+	manifest := validManifest()
+	manifest.Spec.Runtime.SDKProtocol = ""
+
+	err := manifest.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want missing SDK protocol error")
+	}
+	if !strings.Contains(err.Error(), "spec.runtime.sdkProtocol") {
+		t.Fatalf("Validate() error = %v, want SDK protocol error", err)
+	}
+}
+
+func TestManifestValidateRejectsUnsupportedCollectorSDKProtocol(t *testing.T) {
+	t.Parallel()
+
+	manifest := validManifest()
+	manifest.Spec.Runtime.SDKProtocol = "collector-sdk/v2"
+
+	err := manifest.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want unsupported SDK protocol error")
+	}
+	if !strings.Contains(err.Error(), "collector-sdk/v2") {
+		t.Fatalf("Validate() error = %v, want unsupported SDK protocol value", err)
+	}
+}
+
+func TestManifestValidateRejectsUnsupportedRuntimeAdapter(t *testing.T) {
+	t.Parallel()
+
+	manifest := validManifest()
+	manifest.Spec.Runtime.Adapter = "in_process"
+
+	err := manifest.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want unsupported runtime adapter error")
+	}
+	if !strings.Contains(err.Error(), "spec.runtime.adapter") {
+		t.Fatalf("Validate() error = %v, want runtime adapter error", err)
 	}
 }
 
@@ -201,6 +252,10 @@ func validManifest() Manifest {
 			CompatibleCore: ">=0.0.5 <0.1.0",
 			ComponentType:  ComponentTypeCollector,
 			CollectorKinds: []string{"aws"},
+			Runtime: RuntimeContract{
+				SDKProtocol: CollectorSDKProtocolV1Alpha1,
+				Adapter:     RuntimeAdapterOCI,
+			},
 			Artifacts: []Artifact{
 				{
 					Platform: "linux/amd64",
@@ -239,6 +294,9 @@ spec:
   componentType: collector
   collectorKinds:
     - aws
+  runtime:
+    sdkProtocol: collector-sdk/v1alpha1
+    adapter: oci
   artifacts:
     - platform: linux/amd64
       image: ghcr.io/eshu-hq/components/aws-collector@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

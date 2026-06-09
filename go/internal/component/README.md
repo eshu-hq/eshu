@@ -45,7 +45,9 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
 ## Exported surface
 
 - `Manifest`, `Metadata`, `Spec`, `Artifact`, `FactFamily`,
-  `ConsumerContracts`, and `Telemetry` model the component manifest contract.
+  `RuntimeContract`, `ConsumerContracts`, and `Telemetry` model the component
+  manifest contract. `RuntimeContract` declares the supported collector SDK
+  protocol and adapter before a host can consider an activation claim-capable.
   Each `FactFamily` declares supported schema versions and the non-unknown
   source-confidence values the component emits.
 - `LoadManifest(path)` loads and validates a manifest from disk.
@@ -74,6 +76,9 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
 - Registry writes are atomic so a partial write cannot corrupt
   `registry.json`.
 - Component manifests must pin artifact images by digest.
+- Component manifests must declare a supported collector SDK protocol and
+  runtime adapter. The first supported protocol is `collector-sdk/v1alpha1`,
+  and the first supported adapters are `oci` and `process`.
 - Component manifests must declare source-confidence values per emitted fact
   family. `unknown` remains a storage compatibility fallback, not component
   output.

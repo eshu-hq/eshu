@@ -64,6 +64,37 @@ func TestRegistryReadbackClassifiesLifecycleAndPolicyStatus(t *testing.T) {
 	}
 }
 
+func TestRegistryReadbackRequiresExplicitClaimActivation(t *testing.T) {
+	t.Parallel()
+
+	registry := NewRegistry(t.TempDir())
+	manifestPath := writeManifest(t, validManifestYAML())
+	if _, err := registry.Install(manifestPath, allowedVerification()); err != nil {
+		t.Fatalf("Install() error = %v, want nil", err)
+	}
+
+	installedReadback, err := registry.Readback(Policy{})
+	if err != nil {
+		t.Fatalf("installed Readback() error = %v, want nil", err)
+	}
+	assertReadbackStates(t, installedReadback, "installed")
+	assertReadbackMissingStates(t, installedReadback, "enabled", "claim_capable")
+
+	if _, err := registry.Enable("dev.eshu.collector.aws", Activation{
+		InstanceID:    "prod-aws",
+		ClaimsEnabled: false,
+	}); err != nil {
+		t.Fatalf("Enable() error = %v, want nil", err)
+	}
+
+	enabledReadback, err := registry.Readback(Policy{})
+	if err != nil {
+		t.Fatalf("enabled Readback() error = %v, want nil", err)
+	}
+	assertReadbackStates(t, enabledReadback, "installed", "enabled")
+	assertReadbackMissingStates(t, enabledReadback, "claim_capable")
+}
+
 func TestRegistryReadbackIgnoresManifestPathFromRegistryState(t *testing.T) {
 	t.Parallel()
 
@@ -115,6 +146,19 @@ func assertReadbackStates(t *testing.T, readback []RegistryReadbackComponent, wa
 	for _, want := range wantStates {
 		if !slices.Contains(readback[0].States, want) {
 			t.Fatalf("states = %v, want %q", readback[0].States, want)
+		}
+	}
+}
+
+func assertReadbackMissingStates(t *testing.T, readback []RegistryReadbackComponent, missingStates ...string) {
+	t.Helper()
+
+	if len(readback) != 1 {
+		t.Fatalf("len(readback) = %d, want 1", len(readback))
+	}
+	for _, missing := range missingStates {
+		if slices.Contains(readback[0].States, missing) {
+			t.Fatalf("states = %v, want missing %q", readback[0].States, missing)
 		}
 	}
 }

@@ -107,6 +107,7 @@ Community components must be explicit enough for automated review.
 | Identity | `metadata.id`, `metadata.publisher`, and `metadata.version` are stable, lowercase, and allowlistable. |
 | Compatibility | `spec.compatibleCore` names the supported Eshu core range. Release builds enforce it; local `dev` builds still parse it. |
 | Artifacts | Every artifact image is digest-pinned with a full SHA256 digest. Mutable tags are not acceptable. |
+| Runtime protocol | `spec.runtime.sdkProtocol` declares the collector SDK protocol, currently `collector-sdk/v1alpha1`, and `spec.runtime.adapter` declares the host adapter such as `oci` or `process`. |
 | Fact schemas | `spec.emittedFacts[]` declares fact kinds, schema versions, and source-confidence values. |
 | Namespacing | Optional components use collision-resistant fact kinds. Core Eshu fact kinds remain core-owned. |
 | Source confidence | New output uses `observed`, `reported`, `inferred`, or `derived`. `unknown` is compatibility debt, not normal component output. |
@@ -194,7 +195,8 @@ Use this checklist when triaging an extension PR.
 ### Trust And Hosted Safety
 
 - The manifest uses `eshu.dev/v1alpha1`, `ComponentPackage`, and
-  `componentType: collector`.
+  `componentType: collector` with a supported `spec.runtime.sdkProtocol` and
+  `spec.runtime.adapter`.
 - Artifact references are digest-pinned and do not use mutable tags.
 - Local verification uses `disabled` or `allowlist` deliberately. `strict`
   failures are expected until provenance verification is implemented.
