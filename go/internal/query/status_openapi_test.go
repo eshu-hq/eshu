@@ -25,7 +25,16 @@ func TestOpenAPISpecStatusPathsMatchCurrentContract(t *testing.T) {
 	semanticJSON := mustMapField(t, semanticContent, "application/json")
 	semanticSchema := mustMapField(t, semanticJSON, "schema")
 	semanticProperties := mustMapField(t, semanticSchema, "properties")
-	for _, want := range []string{"state", "reason", "code_hints_enabled", "documentation_observations_enabled", "deterministic_paths_affected"} {
+	for _, want := range []string{
+		"state",
+		"reason",
+		"code_hints_enabled",
+		"documentation_observations_enabled",
+		"deterministic_paths_affected",
+		"queue",
+		"budget",
+		"audit",
+	} {
 		if _, ok := semanticProperties[want]; !ok {
 			t.Fatalf("/api/v0/status/semantic-extraction response schema missing %q", want)
 		}

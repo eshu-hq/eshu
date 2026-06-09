@@ -47,6 +47,7 @@ long-lived services.
 | Package Registry Collector | Request, rate-limit, parse-failure, emitted-fact, observation-lag, and failure-class signals. |
 | SBOM Attestation Collector | Claim status, fetch failure class, parse warnings, emitted fact counts, redacted source URI, and reducer attachment status. |
 | Confluence Collector | Request, fetch-duration, permission-denied, document, section, link, and sync-failure metrics. |
+| Semantic Extraction | `semantic_extraction.queue.*` spans, semantic queue depth/age gauges, semantic queue event counters, budget token/cost counters, and redacted `/api/v0/status/semantic-extraction` queue/budget/audit readbacks. |
 | Resolution Engine | Reducer queue wait, run duration, shared projection wait, shared processing, graph/storage spans, and `/admin/status` conflict-domain state. |
 
 Facts are the source of reducer and projector truth. Use fact batch metrics to

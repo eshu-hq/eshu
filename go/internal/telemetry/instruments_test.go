@@ -119,6 +119,9 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.WebhookRequests, "WebhookRequests counter should be registered")
 	assert.NotNil(t, inst.WebhookTriggerDecisions, "WebhookTriggerDecisions counter should be registered")
 	assert.NotNil(t, inst.WebhookStoreOperations, "WebhookStoreOperations counter should be registered")
+	assert.NotNil(t, inst.SemanticExtractionQueueEvents, "SemanticExtractionQueueEvents counter should be registered")
+	assert.NotNil(t, inst.SemanticExtractionBudgetTokens, "SemanticExtractionBudgetTokens counter should be registered")
+	assert.NotNil(t, inst.SemanticExtractionBudgetCostMicros, "SemanticExtractionBudgetCostMicros counter should be registered")
 	assert.NotNil(t, inst.AWSAPICalls, "AWSAPICalls counter should be registered")
 	assert.NotNil(t, inst.AWSThrottles, "AWSThrottles counter should be registered")
 	assert.NotNil(t, inst.AWSAssumeRoleFailed, "AWSAssumeRoleFailed counter should be registered")
@@ -214,6 +217,11 @@ func TestAttrHelpers(t *testing.T) {
 			name:     "AttrSource",
 			attrFunc: func(v string) string { return string(AttrSource(v).Key) },
 			wantKey:  MetricDimensionSource,
+		},
+		{
+			name:     "AttrSourceClass",
+			attrFunc: func(v string) string { return string(AttrSourceClass(v).Key) },
+			wantKey:  MetricDimensionSourceClass,
 		},
 		{
 			name:     "AttrSourceSystem",
@@ -331,6 +339,16 @@ func TestAttrHelpers(t *testing.T) {
 			wantKey:  MetricDimensionProvider,
 		},
 		{
+			name:     "AttrProviderKind",
+			attrFunc: func(v string) string { return string(AttrProviderKind(v).Key) },
+			wantKey:  MetricDimensionProviderKind,
+		},
+		{
+			name:     "AttrProviderProfileClass",
+			attrFunc: func(v string) string { return string(AttrProviderProfileClass(v).Key) },
+			wantKey:  MetricDimensionProviderProfileClass,
+		},
+		{
 			name:     "AttrEventKind",
 			attrFunc: func(v string) string { return string(AttrEventKind(v).Key) },
 			wantKey:  MetricDimensionEventKind,
@@ -384,6 +402,16 @@ func TestAttrHelpers(t *testing.T) {
 			name:     "AttrResourceType",
 			attrFunc: func(v string) string { return string(AttrResourceType(v).Key) },
 			wantKey:  MetricDimensionResourceType,
+		},
+		{
+			name:     "AttrBudgetState",
+			attrFunc: func(v string) string { return string(AttrBudgetState(v).Key) },
+			wantKey:  MetricDimensionBudgetState,
+		},
+		{
+			name:     "AttrBudgetReason",
+			attrFunc: func(v string) string { return string(AttrBudgetReason(v).Key) },
+			wantKey:  MetricDimensionBudgetReason,
 		},
 	}
 

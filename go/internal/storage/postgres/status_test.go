@@ -188,8 +188,8 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		t.Fatalf("ReadRawSnapshot().Coordinator = %#v, want nil", got.Coordinator)
 	}
 
-	if len(queryer.queries) != 25 {
-		t.Fatalf("QueryContext() call count = %d, want 25", len(queryer.queries))
+	if len(queryer.queries) != 26 {
+		t.Fatalf("QueryContext() call count = %d, want 26", len(queryer.queries))
 	}
 	for _, want := range []string{
 		"FROM ingestion_scopes",
@@ -208,6 +208,7 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		"WITH active_scopes AS (",
 		"fact_summary AS (",
 		"workflow_instances AS (",
+		"FROM semantic_extraction_jobs",
 	} {
 		joined := strings.Join(queryer.queries, "\n")
 		if !strings.Contains(joined, want) {
@@ -317,6 +318,12 @@ func (q *fakeQueryer) QueryContext(_ context.Context, query string, _ ...any) (R
 		}
 		if query == producerActivityQuery {
 			return &fakeRows{rows: [][]any{{false, nil}}}, nil
+		}
+		if query == semanticExtractionObservabilityQuery {
+			return &fakeRows{}, nil
+		}
+		if query == semanticQueueDepthQuery || query == semanticQueueOldestAgeQuery {
+			return &fakeRows{}, nil
 		}
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}

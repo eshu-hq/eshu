@@ -134,7 +134,7 @@ Cypher.
 | `list_ingesters` | explicit runtime inventory | `limit` and `offset` | yes | prompt-ready for runtime diagnostics |
 | `get_ingester_status` | ingester id required | singleton status | yes | prompt-ready for runtime diagnostics |
 | `get_index_status` | optional repository selector | singleton status | yes | prompt-ready for runtime diagnostics |
-| `get_semantic_capability_status` | explicit runtime semantic extraction capability status | singleton status | yes | prompt-ready for optional semantic extraction diagnostics; no-provider mode returns unavailable, hosted provider profiles are redacted and source-policy gated, and deterministic paths remain unaffected |
+| `get_semantic_capability_status` | explicit runtime semantic extraction capability status | singleton status | yes | prompt-ready for optional semantic extraction diagnostics; no-provider mode returns unavailable, hosted provider profiles are redacted and source-policy gated, semantic queue/budget/audit readbacks are aggregate-only, and deterministic paths remain unaffected |
 
 ## Verification
 

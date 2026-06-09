@@ -55,6 +55,7 @@ code.
 | `acceptance.*` | Debug shared-acceptance decisions. |
 | `resource.fingerprint`, `resource.identity_kind`, `resource.type` | Correlate cloud or infrastructure resources without exposing raw ARNs, Terraform addresses, or secret-shaped names. |
 | `depth`, `prior_config_addresses`, `state_only_addresses`, `addresses_promoted_to_removed_from_config`, `multi_element.*`, `resource_type`, `attribute_key`, `path`, `error` | Debug Terraform-state drift and composite-capture behavior. |
+| `semantic_extraction.status`, `semantic_extraction.source_class`, `semantic_extraction.provider_kind`, `semantic_extraction.provider_profile_class`, `semantic_extraction.budget_state`, `semantic_extraction.budget_reason` | Debug semantic extraction queue, provider, and budget lifecycle without logging prompts, provider responses, credentials, source IDs, or provider profile IDs. |
 
 High-cardinality values such as file paths, repository paths, package names,
 state locators, image digests, delivery IDs, and raw cloud resource identifiers

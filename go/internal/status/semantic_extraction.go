@@ -55,6 +55,9 @@ type SemanticExtractionStatus struct {
 	DeterministicPathsAffected       bool
 	UpdatedAt                        time.Time
 	ProviderProfiles                 []SemanticProviderProfileStatus
+	Queue                            SemanticExtractionQueueSnapshot
+	Budget                           SemanticExtractionBudgetSnapshot
+	Audit                            SemanticExtractionAuditSnapshot
 }
 
 // SemanticExtractionSupportedStates returns the stable status enum values.
@@ -82,27 +85,29 @@ func normalizeSemanticExtractionStatus(snapshot SemanticExtractionStatus) Semant
 		if len(profiles) > 0 {
 			return semanticExtractionStatusFromProviderProfiles(snapshot, profiles)
 		}
-		return DefaultSemanticExtractionStatus()
+		return defaultSemanticExtractionStatusWithObservability(snapshot, profiles)
 	}
 	if !isSemanticExtractionState(state) {
-		out := DefaultSemanticExtractionStatus()
+		out := defaultSemanticExtractionStatusWithObservability(snapshot, profiles)
 		out.Reason = SemanticExtractionReasonInvalidState
 		out.Detail = fmt.Sprintf("semantic extraction status %q is unsupported; treating semantic extraction as unavailable", state)
 		out.UpdatedAt = snapshot.UpdatedAt
-		out.ProviderProfiles = profiles
 		return out
 	}
 
 	out := SemanticExtractionStatus{
 		State:                            state,
 		Reason:                           strings.TrimSpace(snapshot.Reason),
-		Detail:                           strings.TrimSpace(snapshot.Detail),
+		Detail:                           safeSemanticExtractionDetail(snapshot.Detail),
 		ProviderConfigured:               snapshot.ProviderConfigured,
 		DocumentationObservationsEnabled: snapshot.DocumentationObservationsEnabled,
 		CodeHintsEnabled:                 snapshot.CodeHintsEnabled,
 		DeterministicPathsAffected:       false,
 		UpdatedAt:                        snapshot.UpdatedAt,
 		ProviderProfiles:                 profiles,
+		Queue:                            normalizeSemanticExtractionQueueSnapshot(snapshot.Queue),
+		Budget:                           normalizeSemanticExtractionBudgetSnapshot(snapshot.Budget),
+		Audit:                            normalizeSemanticExtractionAuditSnapshot(snapshot.Audit),
 	}
 	if len(profiles) > 0 {
 		out.ProviderConfigured = out.ProviderConfigured || semanticProfilesConfigured(profiles)
@@ -129,6 +134,19 @@ func normalizeSemanticExtractionStatus(snapshot SemanticExtractionStatus) Semant
 	return out
 }
 
+func defaultSemanticExtractionStatusWithObservability(
+	snapshot SemanticExtractionStatus,
+	profiles []SemanticProviderProfileStatus,
+) SemanticExtractionStatus {
+	out := DefaultSemanticExtractionStatus()
+	out.UpdatedAt = snapshot.UpdatedAt
+	out.ProviderProfiles = profiles
+	out.Queue = normalizeSemanticExtractionQueueSnapshot(snapshot.Queue)
+	out.Budget = normalizeSemanticExtractionBudgetSnapshot(snapshot.Budget)
+	out.Audit = normalizeSemanticExtractionAuditSnapshot(snapshot.Audit)
+	return out
+}
+
 func semanticExtractionStatusFromProviderProfiles(
 	snapshot SemanticExtractionStatus,
 	profiles []SemanticProviderProfileStatus,
@@ -136,6 +154,9 @@ func semanticExtractionStatusFromProviderProfiles(
 	out := SemanticExtractionStatus{
 		UpdatedAt:        snapshot.UpdatedAt,
 		ProviderProfiles: profiles,
+		Queue:            normalizeSemanticExtractionQueueSnapshot(snapshot.Queue),
+		Budget:           normalizeSemanticExtractionBudgetSnapshot(snapshot.Budget),
+		Audit:            normalizeSemanticExtractionAuditSnapshot(snapshot.Audit),
 	}
 	out.ProviderConfigured = semanticProfilesConfigured(profiles)
 	out.DocumentationObservationsEnabled = semanticProfilesAllowSource(profiles, "documentation")
@@ -236,6 +257,27 @@ func defaultSemanticExtractionDetail(state string) string {
 	}
 }
 
+func safeSemanticExtractionDetail(detail string) string {
+	detail = strings.TrimSpace(detail)
+	if detail == "" {
+		return ""
+	}
+	lower := strings.ToLower(detail)
+	for _, unsafe := range []string{
+		"prompt",
+		"response",
+		"secret",
+		"credential",
+		"token",
+		"api key",
+	} {
+		if strings.Contains(lower, unsafe) {
+			return ""
+		}
+	}
+	return detail
+}
+
 func renderSemanticExtractionLine(snapshot SemanticExtractionStatus) string {
 	status := normalizeSemanticExtractionStatus(snapshot)
 	line := fmt.Sprintf(
@@ -248,7 +290,7 @@ func renderSemanticExtractionLine(snapshot SemanticExtractionStatus) string {
 		len(status.ProviderProfiles),
 	)
 	if len(status.ProviderProfiles) == 0 {
-		return line
+		return line + semanticExtractionObservabilityText(status)
 	}
 
 	profileParts := make([]string, 0, len(status.ProviderProfiles))
@@ -264,7 +306,42 @@ func renderSemanticExtractionLine(snapshot SemanticExtractionStatus) string {
 			strings.Join(profile.SourceClasses, ","),
 		))
 	}
-	return line + " " + strings.Join(profileParts, "; ")
+	return line + " " + strings.Join(profileParts, "; ") + semanticExtractionObservabilityText(status)
+}
+
+func semanticExtractionObservabilityText(status SemanticExtractionStatus) string {
+	parts := []string{}
+	if semanticExtractionQueueHasValues(status.Queue) {
+		parts = append(
+			parts,
+			fmt.Sprintf("semantic_queue_total=%d", status.Queue.Total),
+			fmt.Sprintf("semantic_queue_pending=%d", status.Queue.Pending),
+			fmt.Sprintf("semantic_queue_retrying=%d", status.Queue.Retrying),
+			fmt.Sprintf("semantic_queue_dead_letter=%d", status.Queue.DeadLetter),
+			fmt.Sprintf("semantic_budget_exhausted=%d", status.Queue.BudgetExhausted),
+		)
+	}
+	if semanticExtractionBudgetHasValues(status.Budget) {
+		parts = append(
+			parts,
+			fmt.Sprintf("semantic_estimated_input_tokens=%d", status.Budget.EstimatedInputTokens),
+			fmt.Sprintf("semantic_actual_input_tokens=%d", status.Budget.ActualInputTokens),
+			fmt.Sprintf("semantic_estimated_cost_micros=%d", status.Budget.EstimatedCostMicros),
+			fmt.Sprintf("semantic_actual_cost_micros=%d", status.Budget.ActualCostMicros),
+		)
+	}
+	if semanticExtractionAuditHasValues(status.Audit) {
+		parts = append(parts,
+			fmt.Sprintf(
+				"semantic_audit_actor_classes=%s",
+				formatNamedTotals(toCountMap(status.Audit.ActorClassCounts)),
+			),
+		)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " " + strings.Join(parts, " ")
 }
 
 func enabledText(enabled bool) string {
@@ -291,6 +368,9 @@ type semanticExtractionJSON struct {
 	DeterministicPathsAffected       bool                          `json:"deterministic_paths_affected"`
 	UpdatedAt                        string                        `json:"updated_at,omitempty"`
 	ProviderProfiles                 []semanticProviderProfileJSON `json:"provider_profiles,omitempty"`
+	Queue                            *semanticExtractionQueueJSON  `json:"queue,omitempty"`
+	Budget                           *semanticExtractionBudgetJSON `json:"budget,omitempty"`
+	Audit                            *semanticExtractionAuditJSON  `json:"audit,omitempty"`
 	SupportedStates                  []string                      `json:"supported_states"`
 	SupportedProviderProfileStates   []string                      `json:"supported_provider_profile_states"`
 }
@@ -311,6 +391,15 @@ func semanticExtractionStatusJSON(snapshot SemanticExtractionStatus) semanticExt
 	}
 	if !status.UpdatedAt.IsZero() {
 		out.UpdatedAt = status.UpdatedAt.UTC().Format(time.RFC3339)
+	}
+	if semanticExtractionQueueHasValues(status.Queue) {
+		out.Queue = semanticExtractionQueueStatusJSON(status.Queue)
+	}
+	if semanticExtractionBudgetHasValues(status.Budget) {
+		out.Budget = semanticExtractionBudgetStatusJSON(status.Budget)
+	}
+	if semanticExtractionAuditHasValues(status.Audit) {
+		out.Audit = semanticExtractionAuditStatusJSON(status.Audit)
 	}
 	return out
 }

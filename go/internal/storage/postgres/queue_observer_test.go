@@ -22,6 +22,13 @@ func TestQueueObserverStoreQueueDepths(t *testing.T) {
 					{"reducer", "claimed", int64(4)},
 				},
 			},
+			{
+				rows: [][]any{
+					{"semantic_extraction", "pending", int64(2)},
+					{"semantic_extraction", "claimed", int64(1)},
+					{"semantic_extraction", "retrying", int64(1)},
+				},
+			},
 		},
 	}
 
@@ -48,6 +55,15 @@ func TestQueueObserverStoreQueueDepths(t *testing.T) {
 	}
 	if depths["reducer"]["in_flight"] != 4 {
 		t.Fatalf("reducer in_flight = %d, want 4", depths["reducer"]["in_flight"])
+	}
+	if got, want := depths["semantic_extraction"]["pending"], int64(2); got != want {
+		t.Fatalf("semantic_extraction pending = %d, want %d", got, want)
+	}
+	if got, want := depths["semantic_extraction"]["in_flight"], int64(1); got != want {
+		t.Fatalf("semantic_extraction in_flight = %d, want %d", got, want)
+	}
+	if got, want := depths["semantic_extraction"]["retrying"], int64(1); got != want {
+		t.Fatalf("semantic_extraction retrying = %d, want %d", got, want)
 	}
 }
 
@@ -137,6 +153,11 @@ func TestQueueObserverStoreQueueOldestAge(t *testing.T) {
 					{"reducer", 45.0},
 				},
 			},
+			{
+				rows: [][]any{
+					{"semantic_extraction", 30.0},
+				},
+			},
 		},
 	}
 
@@ -151,6 +172,9 @@ func TestQueueObserverStoreQueueOldestAge(t *testing.T) {
 	}
 	if ages["reducer"] != 45.0 {
 		t.Fatalf("reducer age = %f, want 45.0", ages["reducer"])
+	}
+	if ages["semantic_extraction"] != 30.0 {
+		t.Fatalf("semantic_extraction age = %f, want 30.0", ages["semantic_extraction"])
 	}
 }
 

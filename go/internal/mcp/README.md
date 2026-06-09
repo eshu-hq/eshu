@@ -146,7 +146,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `check_documentation_evidence_packet_freshness` | GET | `/api/v0/documentation/evidence-packets/{packet_id}/freshness` |
 | `list_collectors` | GET | `/api/v0/status/collectors` |
 | `list_ingesters` | GET | `/api/v0/status/ingesters` |
-| `get_semantic_capability_status` | GET | `/api/v0/status/semantic-extraction` with redacted provider profile status when configured |
+| `get_semantic_capability_status` | GET | `/api/v0/status/semantic-extraction` with redacted provider profile, semantic queue, budget, and audit status when configured |
 | `trace_deployment_chain` | POST | `/api/v0/impact/trace-deployment-chain` |
 | `investigate_deployment_config` | POST | `/api/v0/impact/deployment-config-influence` |
 

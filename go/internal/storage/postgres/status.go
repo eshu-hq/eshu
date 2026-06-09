@@ -127,6 +127,10 @@ func (s StatusStore) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (st
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
+	semanticExtraction, err := readSemanticExtractionObservability(ctx, s.queryer)
+	if err != nil {
+		return statuspkg.RawSnapshot{}, err
+	}
 
 	return statuspkg.RawSnapshot{
 		AsOf:                         asOf.UTC(),
@@ -151,6 +155,7 @@ func (s StatusStore) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (st
 		AWSCloudScanLimit:            awsCloudScanStatusLimit,
 		TerraformStateLastSerials:    terraformStateEvidence.LastSerials,
 		TerraformStateRecentWarnings: terraformStateEvidence.RecentWarnings,
+		SemanticExtraction:           semanticExtraction,
 	}, nil
 }
 

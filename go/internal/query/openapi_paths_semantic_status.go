@@ -22,6 +22,51 @@ const openAPIPathsSemanticStatus = `
                     "code_hints_enabled": {"type": "boolean"},
                     "deterministic_paths_affected": {"type": "boolean"},
                     "deterministic_documentation_unblocked": {"type": "boolean"},
+                    "queue": {
+                      "type": "object",
+                      "description": "Audit-safe semantic extraction queue aggregates without source identifiers, prompts, provider responses, or credentials.",
+                      "properties": {
+                        "total": {"type": "integer"},
+                        "pending": {"type": "integer"},
+                        "claimed": {"type": "integer"},
+                        "retrying": {"type": "integer"},
+                        "succeeded": {"type": "integer"},
+                        "dead_letter": {"type": "integer"},
+                        "skipped": {"type": "integer"},
+                        "no_provider": {"type": "integer"},
+                        "policy_denied": {"type": "integer"},
+                        "budget_exhausted": {"type": "integer"},
+                        "unsafe": {"type": "integer"},
+                        "provider_unavailable": {"type": "integer"},
+                        "unchanged": {"type": "integer"},
+                        "stale": {"type": "integer"},
+                        "updated_at": {"type": "string", "format": "date-time"}
+                      }
+                    },
+                    "budget": {
+                      "type": "object",
+                      "description": "Redacted semantic extraction token, cost, and budget decision aggregates.",
+                      "properties": {
+                        "estimated_input_tokens": {"type": "integer"},
+                        "estimated_output_tokens": {"type": "integer"},
+                        "estimated_cost_micros": {"type": "integer"},
+                        "actual_input_tokens": {"type": "integer"},
+                        "actual_output_tokens": {"type": "integer"},
+                        "actual_cost_micros": {"type": "integer"},
+                        "remaining_tokens": {"type": "integer"},
+                        "remaining_cost_micros": {"type": "integer"},
+                        "exhausted": {"type": "integer"}
+                      }
+                    },
+                    "audit": {
+                      "type": "object",
+                      "description": "Class-based semantic extraction audit aggregates without principals, source identifiers, prompts, or provider responses.",
+                      "properties": {
+                        "actor_class_counts": {"type": "array", "items": {"type": "object"}},
+                        "acl_state_counts": {"type": "array", "items": {"type": "object"}},
+                        "last_processed_at": {"type": "string", "format": "date-time"}
+                      }
+                    },
                     "provider_profiles": {
                       "type": "array",
                       "items": {

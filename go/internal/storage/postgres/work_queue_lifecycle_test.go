@@ -166,6 +166,11 @@ func (f *fakeExecQueryer) QueryContext(
 		if isWorkflowCoordinatorStatusQuery(query) {
 			return &queueFakeRows{}, nil
 		}
+		if query == semanticExtractionObservabilityQuery ||
+			query == semanticQueueDepthQuery ||
+			query == semanticQueueOldestAgeQuery {
+			return &queueFakeRows{}, nil
+		}
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
 
