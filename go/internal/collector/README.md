@@ -113,8 +113,8 @@ per repository:
 When the stream re-reads repo-hosted service-catalog descriptors
 (`catalog-info.yaml`, `opslevel.yml`, or `cortex.yaml`), it delegates to the
 `servicecatalog` normalizer and emits observed `service_catalog.*` facts under
-the same scope and generation. A documentation-only lane normalizes repo-hosted Markdown, lightweight text, HTML, API contracts, notebooks, spreadsheets, DOCX/XLSX/PPTX summaries, bounded ZIP packets, and deterministic diagrams into source-neutral facts with repository target refs.
-Office annotations and hidden content stay metadata-only while visible content still emits facts. External relationships, embedded objects, macro content, malformed containers, unsafe paths, resource limits, and compression hazards block Office extraction; legacy `.xls` cell bytes stay metadata-only. ZIP packets preflight first, preserve member path/hash provenance, skip unsupported/nested/credential-like members, and block unsafe or resource-hazard archives from emitting contained sections.
+the same scope and generation. A documentation-only lane normalizes repo-hosted Markdown, lightweight text, HTML, API contracts, notebooks, spreadsheets, DOCX/XLSX/PPTX summaries, bounded ZIP/TAR packets, and deterministic diagrams into source-neutral facts with repository target refs.
+Office annotations and hidden content stay metadata-only while visible content still emits facts. External relationships, embedded objects, macro content, malformed containers, unsafe paths, resource limits, and compression hazards block Office extraction; legacy `.xls` cell bytes stay metadata-only. Archive packets preflight first, preserve member path/hash provenance, skip unsupported/nested/credential-like members, and block unsafe or resource-hazard archives from emitting contained sections.
 These claims remain document evidence only; projector, reducer, and query stages
 own correlation, drift, and truth decisions.
 `AfterBatchDrained` runs only after the service has committed at least one

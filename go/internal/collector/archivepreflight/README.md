@@ -54,8 +54,8 @@ their own bounded extraction signals.
 Collector Performance Evidence: `go test ./internal/collector/archivepreflight -count=1`
 proves archive classification is bounded by source bytes, expanded bytes,
 entry count, and compression ratio. `go test ./internal/collector -run
-'ZIPArchive|ArchiveRouting' -count=1` proves `.zip` documentation packets
-route through preflight while `.tar` and `.tar.gz` stay outside documentation
+'ZIPArchive|TARArchive|ArchiveRouting' -count=1` proves reviewed documentation
+packets route through preflight before ZIP, tar, or gzip-compressed tar
 extraction.
 
 Collector Observability Evidence: this package emits no facts, metrics, spans,
@@ -65,8 +65,8 @@ signals while returning warning classes through fact readback.
 
 Collector Deployment Evidence: no Docker Compose, Helm, Service, ServiceMonitor,
 collector binary, runtime flag, or environment-variable path changes in this
-slice. The collector routing test keeps tar formats out of hosted
-documentation ingestion while allowing reviewed ZIP documentation packets.
+slice. Collector routing tests keep archive extraction limited to reviewed
+documentation-oriented ZIP, tar, and gzip-compressed tar packets.
 
 No-Observability-Change: this package is a pure metadata preflight helper. It
 adds no worker, queue consumer, graph write, database query, HTTP handler, MCP

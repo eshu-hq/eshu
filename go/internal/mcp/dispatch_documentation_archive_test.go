@@ -14,7 +14,8 @@ import (
 func TestDispatchToolListsArchiveContainedDocumentationFacts(t *testing.T) {
 	t.Parallel()
 
-	documentID := "doc:git:repository:r_archive:docs/support-packet.zip!/runbook.md"
+	archivePath := "docs/support-packet.tar.gz"
+	documentID := "doc:git:repository:r_archive:" + archivePath + "!/runbook.md"
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v0/documentation/facts", func(w http.ResponseWriter, r *http.Request) {
 		if got, want := r.Header.Get("Accept"), query.EnvelopeMIMEType; got != want {
@@ -31,7 +32,7 @@ func TestDispatchToolListsArchiveContainedDocumentationFacts(t *testing.T) {
 				t.Fatalf("query %q = %q, want %q", key, got, want)
 			}
 		}
-		writeArchiveDocumentationEnvelope(w, documentID)
+		writeArchiveDocumentationEnvelope(w, documentID, archivePath)
 	})
 
 	result, err := dispatchTool(
@@ -63,7 +64,7 @@ func TestDispatchToolListsArchiveContainedDocumentationFacts(t *testing.T) {
 	}
 }
 
-func writeArchiveDocumentationEnvelope(w http.ResponseWriter, documentID string) {
+func writeArchiveDocumentationEnvelope(w http.ResponseWriter, documentID string, archivePath string) {
 	w.Header().Set("Content-Type", query.EnvelopeMIMEType)
 	_ = json.NewEncoder(w).Encode(query.ResponseEnvelope{
 		Data: map[string]any{
@@ -76,7 +77,7 @@ func writeArchiveDocumentationEnvelope(w http.ResponseWriter, documentID string)
 					"content":        "Follow the recovery checklist.",
 					"content_format": "markdown",
 					"source_metadata": map[string]any{
-						"archive_path":        "docs/support-packet.zip",
+						"archive_path":        archivePath,
 						"archive_member_path": "runbook.md",
 					},
 				},

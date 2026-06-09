@@ -23,9 +23,9 @@
 // hidden slides, speaker notes, and comments stay metadata-only while visible
 // content still emits facts. External relationships, embedded objects, macro
 // content, malformed containers, unsafe paths, resource limits, and compression
-// hazards block Office extraction. ZIP archives preserve normalized member paths
+// hazards block Office extraction. ZIP/TAR archives preserve normalized member paths
 // and contained content hashes for allowed documents, while unsafe paths,
-// symlinks, special files, nested archives, credential-like members, tar
+// symlinks, special files, nested archives, credential-like members, unsupported
 // formats, and compression hazards stay warning-only. Prose surfaces may emit
 // non-authoritative document-evidence claim candidates, but API contract
 // operations, schemas, channels, GraphQL SDL fields, spreadsheet cells, slide
