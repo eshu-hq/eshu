@@ -21,6 +21,7 @@ func CoreFactKinds() []string {
 		AWSFactKinds(),
 		CICDRunFactKinds(),
 		EC2InstancePostureFactKinds(),
+		GCPFactKinds(),
 		IncidentContextFactKinds(),
 		IncidentRoutingFactKinds(),
 		KubernetesLiveFactKinds(),

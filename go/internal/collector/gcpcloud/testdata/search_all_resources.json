@@ -1,0 +1,21 @@
+{
+  "readTime": "2026-06-09T12:05:00Z",
+  "results": [
+    {
+      "name": "//compute.googleapis.com/projects/my-project/global/networks/default",
+      "assetType": "compute.googleapis.com/Network",
+      "displayName": "default",
+      "location": "global",
+      "labels": {"env": "prod"},
+      "state": "ACTIVE",
+      "updateTime": "2026-06-09T08:00:00Z",
+      "folders": ["folders/4455667788"],
+      "organization": "organizations/9988776655",
+      "project": "projects/123456789",
+      "additionalAttributes": {
+        "ipCidrRange": "10.0.0.0/8"
+      }
+    }
+  ],
+  "nextPageToken": ""
+}

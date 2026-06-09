@@ -1,0 +1,18 @@
+{
+  "readTime": "2026-06-09T12:00:00Z",
+  "assets": [
+    {
+      "name": "//iam.googleapis.com/projects/my-project/serviceAccounts/svc@my-project.iam.gserviceaccount.com",
+      "assetType": "iam.googleapis.com/ServiceAccount",
+      "updateTime": "2026-06-09T09:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/9988776655"],
+      "resource": {
+        "location": "global",
+        "data": {
+          "displayName": "service account",
+          "email": "svc@my-project.iam.gserviceaccount.com"
+        }
+      }
+    }
+  ]
+}

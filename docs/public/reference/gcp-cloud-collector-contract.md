@@ -12,10 +12,18 @@ relationship graph writes, and API or MCP truth.
 
 ## Status
 
-This contract is design-only. Do not add `eshu-collector-gcp-cloud`, Helm
-values, environment variables, collector-instance examples, or query claims
-until implementation PRs prove the runtime, fact schemas, reducer path,
-fixtures, telemetry, and chart path.
+The first fixture-testable slice is implemented: the `gcp_cloud_resource` and
+`gcp_collection_warning` source fact kinds (`go/internal/facts/gcp.go`), the
+Cloud Asset Inventory parser, identity normalizer, redaction policy, envelope
+builder, generation accumulator with fencing, and scoped telemetry instruments
+(`go/internal/collector/gcpcloud`). This slice is fixture-driven and makes no
+live Google Cloud calls.
+
+The rest of this contract remains design-only. Do not add
+`eshu-collector-gcp-cloud`, Helm values, environment variables,
+collector-instance examples, or query claims until later implementation PRs
+prove the claim-driven runtime, reducer path, and chart path. The tag, IAM,
+relationship, DNS, and image-reference fact families are not yet implemented.
 
 The first implementation slice must be fixture-testable without live Google
 Cloud access. Live smoke tests are promotion proof, not the minimum proof for
@@ -189,5 +197,8 @@ The first code PRs must prove these cases before any live smoke:
 6. Add Helm and live-smoke support only after the runtime and reducer contract
    pass fixture gates.
 
-No-Observability-Change: this page documents a gated design contract only. It
-does not add runtime code, chart values, fact schemas, or telemetry series.
+Observability change: the first slice adds the `gcp_cloud_resource` and
+`gcp_collection_warning` fact schemas and the scoped GCP collector telemetry
+series listed under [Telemetry](#telemetry)
+(`eshu_dp_gcp_cloud_*`). It does not add chart values, environment variables, or
+a runtime binary; those remain deferred.
