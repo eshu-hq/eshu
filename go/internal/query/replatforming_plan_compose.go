@@ -9,8 +9,11 @@ import (
 // scope from already-bounded, safety-normalized IaC management findings. It
 // reuses the Terraform import-plan composition for import candidates and the
 // source-state taxonomy for per-item evidence strength rather than re-deriving
-// cloud truth. The returned plan is structural only; callers validate it against
-// the contract before serving.
+// cloud truth. After mapping each finding to an item it assigns deterministic
+// migration-wave and blast-radius ordering from the dependency and missing-
+// evidence signals the findings already carry, never fabricating a dependency.
+// The returned plan is structural only; callers validate it against the contract
+// before serving.
 func composeReplatformingPlan(
 	scope ReplatformingPlanScope,
 	findings []IaCManagementFindingRow,
@@ -21,6 +24,7 @@ func composeReplatformingPlan(
 	for _, finding := range findings {
 		plan.Items = append(plan.Items, replatformingPlanItemForFinding(finding, filter))
 	}
+	applyReplatformingWaves(&plan, replatformingSignalsForFindings(findings))
 	return plan
 }
 

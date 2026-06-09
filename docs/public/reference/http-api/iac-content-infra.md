@@ -231,6 +231,22 @@ otherwise. A security-review safety gate forces the item `source_state` to
 `rejected`; ambiguous, unknown, and stale management keep their own taxonomy
 state.
 
+The plan also orders items into deterministic migration waves and blast-radius
+groups. `plan.waves[]` stage items for migration in fixed order —
+`wave-1-early-safe` (import-ready, low-blast-radius, non-gated), `wave-2-review`
+(non-gated but needing review), then `wave-3-blocked` (safety-gated, rejected, or
+ambiguously owned, always last) — and each carries a `rationale` and sorted
+`item_ids`. `plan.blast_radius_groups[]` group items by `severity` (`none`,
+`low`, `medium`, `high`, `blocked`) in ascending order. Severity comes only from
+the dependency-path and missing-evidence counts the findings already carry, never
+a guessed dependency; ambiguous, rejected, and safety-gated items are always
+`blocked`. Each item is stamped with its `wave_id` and `blast_radius_group`. The
+response adds bounded `wave_summaries` and `blast_radius_summaries` (per-wave and
+per-group `item_count`) so a consumer can triage staging without walking every
+item. See the
+[replatforming plan contract](../replatforming-plan-contract.md#waves-and-blast-radius)
+for the full ordering rules.
+
 The response is paginated (`limit`, `offset`, `truncated`, `next_offset`) and
 carries `recommended_next_calls` for the next page plus the management-status
 and drift drill-down reads. The plan's rollup truth never exceeds the
