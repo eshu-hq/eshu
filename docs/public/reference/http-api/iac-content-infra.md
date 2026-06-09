@@ -15,7 +15,7 @@ comparison. The route list is verified against `go/internal/query`.
 | Replatforming rollups | `POST /api/v0/replatforming/rollups` |
 | Replatforming ownership packets | `POST /api/v0/replatforming/ownership-packets` |
 | Content | `POST /api/v0/content/files/read`, `POST /api/v0/content/files/lines`, `POST /api/v0/content/entities/read`, `POST /api/v0/content/files/search`, `POST /api/v0/content/entities/search` |
-| Infrastructure | `POST /api/v0/infra/resources/search`, `POST /api/v0/infra/relationships`, `GET /api/v0/ecosystem/overview`, `GET /api/v0/cloud/resources` |
+| Infrastructure | `POST /api/v0/infra/resources/search`, `POST /api/v0/infra/relationships`, `GET /api/v0/ecosystem/overview`, `GET /api/v0/cloud/resources`, `GET /api/v0/cloud/inventory` |
 | Impact | `POST /api/v0/impact/trace-resource-to-code`, `POST /api/v0/impact/explain-dependency-path`, `POST /api/v0/impact/blast-radius`, `POST /api/v0/impact/change-surface`, `POST /api/v0/impact/change-surface/investigate`, `POST /api/v0/impact/entity-map`, `POST /api/v0/impact/resource-investigation`, `POST /api/v0/compare/environments` |
 
 OpenAPI remains canonical for full request and response schemas.
@@ -381,6 +381,58 @@ the `query.cloud_resource_list` request span declared in
 `go/internal/telemetry/contract.go`. An operator can chart page latency and the
 error rate, and trace a slow page through the span, without any new
 high-cardinality metric dimension.
+
+## Canonical Cloud Inventory Readback
+
+`GET /api/v0/cloud/inventory` is the bounded, paginated, truth-labeled readback
+of the reducer-owned canonical multi-cloud resource identity rows
+(`reducer_cloud_resource_identity`, one row per `cloud_resource_uid`). Unlike
+`GET /api/v0/cloud/resources`, which lists `CloudResource` graph nodes, this
+route reads the reducer-resolved canonical identity facts from Postgres, so the
+answer is canonical truth rather than a raw provider observation. It is the
+read surface for the AWS, GCP, and Azure cloud-inventory admission path.
+
+Optional equality filters: `provider` (`aws`, `gcp`, or `azure`),
+`management_origin` (`declared`, `applied`, or `observed`), and the canonical
+scope selector `scope_id` (with provider-flavored aliases `account_id`,
+`project_id`, and `subscription_id`, all targeting the same canonical scope).
+Unknown `provider` or `management_origin` values are rejected with `400`
+(`invalid_argument`) so an unrecognized filter never silently returns the full
+inventory. `limit` defaults to 50, is capped at 200, and `cursor` is a
+non-negative integer offset returned in `next_cursor` of the previous page. The
+handler fetches `limit + 1` rows to detect truncation, ordered by
+`cloud_resource_uid`.
+
+Each row projects only reducer-resolved canonical fields: `cloud_resource_uid`,
+`provider`, `resource_type`, `management_origin`, `scope_id`, `generation_id`,
+the provider-neutral `source_state` (derived from `management_origin` per the
+[multi-cloud collector contract](../multi-cloud-collector-contract.md) Query
+Truth section and the
+[source-state taxonomy](../replatforming-source-state-taxonomy.md)), and a
+per-layer `evidence` object (`declared`, `applied`, `observed`). Raw provider
+identities, locators, tags, and credential names are never echoed. The response
+carries the `semantic_facts` truth envelope; when the active query profile
+cannot materialize the reducer-owned canonical rows (lightweight local) the
+route returns `501` (`unsupported_capability`).
+
+Observability Evidence: the route is wrapped by the
+`query.cloud_inventory_readback` request span declared in
+`go/internal/telemetry/contract.go` and registered in
+`go/internal/telemetry/registry.go`, and the underlying read records the shared
+`postgres.query` span with `db.operation=list_cloud_inventory_identities`. The
+span carries only the stable `http.route` and `eshu.capability` attributes;
+`cloud_resource_uid`, raw identities, and account/project/subscription scopes
+stay out of span labels.
+
+No-Observability-Change: this slice adds the readback span only and introduces
+no new metric series; per-row inventory latency is observable through the
+existing `postgres.query` span and the request span above.
+
+No-Regression Evidence: the readback is a bounded, indexed-by-fact-kind
+`fact_records` read with `LIMIT $n OFFSET $m` and payload-scoped equality
+predicates, the same query shape the documentation facts readback
+(`buildDocumentationFactsSQL`) already serves at repo scale; it adds no
+whole-table scan, graph traversal, or per-row fan-out.
 
 Legacy impact routes accept `limit` with default 50 and cap 200, probe one
 extra row, and return `truncated`.

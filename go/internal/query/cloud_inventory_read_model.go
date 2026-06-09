@@ -1,0 +1,185 @@
+package query
+
+import (
+	"context"
+	"fmt"
+	"strconv"
+	"strings"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+)
+
+// cloudInventoryFactKind is the reducer-owned canonical CloudResource identity
+// fact kind written by the cloud-inventory admission path. The readback reads
+// exactly this kind; it never aggregates provider source facts directly, so the
+// answer is always reducer-resolved canonical truth rather than raw provider
+// observation.
+const cloudInventoryFactKind = "reducer_cloud_resource_identity"
+
+// cloudInventoryIdentities returns canonical CloudResource identity rows from
+// fact_records, filtered by the bounded readback filters and ordered
+// deterministically. It fetches limit+1 rows so the handler can report a keyset
+// continuation offset without a second count query.
+func (cr *ContentReader) cloudInventoryIdentities(
+	ctx context.Context,
+	filter cloudInventoryFilter,
+) (cloudInventoryListReadModel, error) {
+	if cr == nil || cr.db == nil {
+		return cloudInventoryListReadModel{}, nil
+	}
+	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "list_cloud_inventory_identities"),
+			attribute.String("db.sql.table", "fact_records"),
+		),
+	)
+	defer span.End()
+
+	query, args := buildCloudInventoryIdentitiesSQL(filter)
+	rows, err := cr.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		span.RecordError(err)
+		return cloudInventoryListReadModel{}, fmt.Errorf("query cloud inventory identities: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = cloudInventoryReadbackDefaultLimit
+	}
+	resources := make([]map[string]any, 0, limit)
+	for rows.Next() {
+		payload, err := scanJSONPayload(rows)
+		if err != nil {
+			span.RecordError(err)
+			return cloudInventoryListReadModel{}, fmt.Errorf("query cloud inventory identities: %w", err)
+		}
+		resources = append(resources, payload)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		return cloudInventoryListReadModel{}, fmt.Errorf("query cloud inventory identities: %w", err)
+	}
+	nextCursor := ""
+	if len(resources) > limit {
+		resources = resources[:limit]
+		nextCursor = strconv.Itoa(filter.Offset + limit)
+	}
+	return cloudInventoryListReadModel{Resources: resources, NextCursor: nextCursor}, nil
+}
+
+// buildCloudInventoryIdentitiesSQL assembles the bounded canonical-identity list
+// query and its parameters. It anchors on the reducer-owned fact kind, excludes
+// tombstoned rows, applies optional payload-scoped equality filters as bound
+// parameters, orders deterministically by cloud_resource_uid, and fetches
+// limit+1 rows for keyset continuation. The projection returns the envelope
+// metadata plus the canonical payload; the handler view drops raw locators.
+func buildCloudInventoryIdentitiesSQL(filter cloudInventoryFilter) (string, []any) {
+	args := []any{}
+	clauses := []string{
+		"fact_records.fact_kind = '" + cloudInventoryFactKind + "'",
+		"fact_records.is_tombstone = FALSE",
+	}
+	addPayloadFilter := func(field string, value string) {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return
+		}
+		args = append(args, value)
+		clauses = append(clauses, fmt.Sprintf("fact_records.payload->>'%s' = $%d", field, len(args)))
+	}
+	addPayloadFilter("provider", filter.Provider)
+	addPayloadFilter("management_origin", filter.ManagementOrigin)
+	if scope := strings.TrimSpace(filter.ScopeID); scope != "" {
+		args = append(args, scope)
+		clauses = append(clauses, fmt.Sprintf(
+			"(fact_records.scope_id = $%d OR fact_records.payload->>'scope_id' = $%d)",
+			len(args), len(args),
+		))
+	}
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = cloudInventoryReadbackDefaultLimit
+	}
+	args = append(args, limit+1, filter.Offset)
+	query := fmt.Sprintf(`
+SELECT jsonb_build_object(
+    'fact_id', fact_records.fact_id,
+    'fact_kind', fact_records.fact_kind,
+    'scope_id', fact_records.scope_id,
+    'generation_id', fact_records.generation_id,
+    'source_system', fact_records.source_system,
+    'observed_at', fact_records.observed_at,
+    'payload', fact_records.payload
+) AS payload
+FROM fact_records
+WHERE %s
+ORDER BY fact_records.payload->>'cloud_resource_uid', fact_records.fact_id
+LIMIT $%d OFFSET $%d
+`, strings.Join(clauses, " AND "), len(args)-1, len(args))
+	return query, args
+}
+
+// cloudInventoryResourceView projects one canonical identity envelope into the
+// bounded wire shape. It reads only reducer-resolved canonical fields from the
+// nested payload and intentionally omits raw_identity and any provider locator,
+// tag, or credential field so the readback never leaks source-side secrets. The
+// provider-neutral source_state is derived from management_origin per the
+// multi-cloud collector contract Query Truth section.
+func cloudInventoryResourceView(envelope map[string]any) map[string]any {
+	payload, _ := envelope["payload"].(map[string]any)
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	managementOrigin := stringFromMap(payload, "management_origin")
+	view := map[string]any{
+		"cloud_resource_uid": stringFromMap(payload, "cloud_resource_uid"),
+		"provider":           stringFromMap(payload, "provider"),
+		"resource_type":      stringFromMap(payload, "resource_type"),
+		"management_origin":  managementOrigin,
+		"scope_id":           cloudInventoryScopeID(envelope, payload),
+		"generation_id":      stringFromMap(envelope, "generation_id"),
+		"source_state":       string(cloudInventorySourceState(managementOrigin)),
+		"evidence": map[string]any{
+			"declared": boolFromMap(payload, "has_declared_evidence"),
+			"applied":  boolFromMap(payload, "has_applied_evidence"),
+			"observed": boolFromMap(payload, "has_observed_evidence"),
+		},
+	}
+	return view
+}
+
+// cloudInventoryScopeID resolves the canonical scope id, preferring the
+// fact-record column and falling back to the payload copy the reducer writes.
+func cloudInventoryScopeID(envelope, payload map[string]any) string {
+	if scope := stringFromMap(envelope, "scope_id"); scope != "" {
+		return scope
+	}
+	return stringFromMap(payload, "scope_id")
+}
+
+// cloudInventorySourceState maps the reducer management_origin precedence into
+// the provider-neutral source-state taxonomy. A declared origin means a declared
+// IaC layer and the canonical identity agree, which is exact; applied and
+// observed origins are deterministic correlations without full declared proof,
+// which are derived. An unrecognized origin is unknown so a future origin value
+// can never silently present as confident evidence.
+func cloudInventorySourceState(managementOrigin string) ReplatformingSourceState {
+	switch strings.TrimSpace(managementOrigin) {
+	case cloudInventoryManagementOriginDeclared:
+		return ReplatformingSourceStateExact
+	case cloudInventoryManagementOriginApplied, cloudInventoryManagementOriginObserved:
+		return ReplatformingSourceStateDerived
+	default:
+		return ReplatformingSourceStateUnknown
+	}
+}
+
+// boolFromMap reads a boolean payload field, treating a missing or non-boolean
+// value as false so an absent evidence flag never reads as present.
+func boolFromMap(values map[string]any, key string) bool {
+	value, _ := values[key].(bool)
+	return value
+}
