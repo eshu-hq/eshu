@@ -36,6 +36,14 @@ type firstRunOptions struct {
 	Timeout      time.Duration
 	PollInterval time.Duration
 	Profile      string
+	// Report enables the terminal evidence summary in addition to the normal
+	// human or JSON output.
+	Report bool
+	// ReportFormat selects the artifact format ("md" or "json") for ReportOut.
+	ReportFormat string
+	// ReportOut is the optional path the redacted evidence artifact is written
+	// to. An empty value writes no artifact.
+	ReportOut string
 }
 
 func init() {
@@ -55,6 +63,7 @@ process health, and runs one bounded query before reporting success.`,
 	}
 	addFirstRunFlags(firstRunCmd)
 	addRemoteFlags(firstRunCmd)
+	firstRunCmd.AddCommand(newFirstRunReportCmd())
 	rootCmd.AddCommand(firstRunCmd)
 }
 
@@ -64,6 +73,9 @@ func addFirstRunFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("no-start", false, "Never attempt to start a runtime; only verify and report")
 	cmd.Flags().Duration("timeout", 15*time.Minute, "Maximum time to spend proving indexing readiness")
 	cmd.Flags().Duration("poll-interval", 3*time.Second, "Readiness polling interval")
+	cmd.Flags().Bool("report", false, "Print a redacted first-run evidence summary after the run")
+	cmd.Flags().String("report-format", "md", "Evidence artifact format for --report-out: md or json")
+	cmd.Flags().String("report-out", "", "Write a redacted first-run evidence artifact to this path")
 }
 
 // runFirstRun is the cobra entry point. It wires production seams and delegates
@@ -104,11 +116,19 @@ func firstRunOptionsFromCommand(cmd *cobra.Command, args []string) (firstRunOpti
 	timeout, _ := cmd.Flags().GetDuration("timeout")
 	pollInterval, _ := cmd.Flags().GetDuration("poll-interval")
 	profile, _ := cmd.Flags().GetString("profile")
+	report, _ := cmd.Flags().GetBool("report")
+	reportFormat, _ := cmd.Flags().GetString("report-format")
+	reportOut, _ := cmd.Flags().GetString("report-out")
 	if timeout <= 0 {
 		return firstRunOptions{}, fmt.Errorf("timeout must be greater than zero")
 	}
 	if pollInterval <= 0 {
 		return firstRunOptions{}, fmt.Errorf("poll-interval must be greater than zero")
+	}
+	if reportOut != "" {
+		if _, err := normalizeEvidenceFormat(reportFormat); err != nil {
+			return firstRunOptions{}, err
+		}
 	}
 	return firstRunOptions{
 		Path:         path,
@@ -117,6 +137,9 @@ func firstRunOptionsFromCommand(cmd *cobra.Command, args []string) (firstRunOpti
 		Timeout:      timeout,
 		PollInterval: pollInterval,
 		Profile:      profile,
+		Report:       report,
+		ReportFormat: reportFormat,
+		ReportOut:    reportOut,
 	}, nil
 }
 
@@ -265,7 +288,9 @@ func quoteIfEmpty(value string) string {
 }
 
 // finishFirstRun renders the result as JSON or human text and returns runErr so
-// the exit code reflects the truthful outcome.
+// the exit code reflects the truthful outcome. When an evidence report was
+// requested it also emits a redacted summary and/or writes a redacted artifact;
+// a report failure is reported but never masks the run's own outcome.
 func finishFirstRun(cmd *cobra.Command, opts firstRunOptions, result firstRunResult, runErr error) error {
 	if result.Truth == nil {
 		result.Truth = firstRunTruth(result, opts.Profile)
@@ -282,10 +307,40 @@ func finishFirstRun(cmd *cobra.Command, opts firstRunOptions, result firstRunRes
 		if writeErr := writeScanJSON(cmd.OutOrStdout(), envelope); writeErr != nil {
 			return writeErr
 		}
+		emitFirstRunEvidence(cmd, opts, result)
 		return runErr
 	}
 	renderFirstRunHuman(cmd.OutOrStdout(), result, runErr)
+	emitFirstRunEvidence(cmd, opts, result)
 	return runErr
+}
+
+// emitFirstRunEvidence prints the redacted evidence summary and/or writes the
+// redacted artifact when requested. With JSON output the summary goes to stderr
+// so the canonical envelope on stdout stays parseable. Any error is reported on
+// stderr without overriding the run's truthful exit code.
+func emitFirstRunEvidence(cmd *cobra.Command, opts firstRunOptions, result firstRunResult) {
+	if !opts.Report && opts.ReportOut == "" {
+		return
+	}
+	report := buildFirstRunEvidence(result, &firstRunEvidenceInputs{
+		MCPEndpoint: resolveFirstRunMCPEndpoint(),
+		Profile:     opts.Profile,
+	})
+	if opts.Report {
+		summaryOut := cmd.OutOrStdout()
+		if opts.JSON {
+			summaryOut = cmd.ErrOrStderr()
+		}
+		renderEvidenceTerminal(summaryOut, report)
+	}
+	if opts.ReportOut != "" {
+		if err := writeEvidenceArtifact(report, opts.ReportFormat, opts.ReportOut); err != nil {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "evidence artifact: %v\n", err)
+			return
+		}
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "wrote first-run evidence to %s\n", opts.ReportOut)
+	}
 }
 
 // firstRunTruth labels the freshness and completeness of the first-run outcome

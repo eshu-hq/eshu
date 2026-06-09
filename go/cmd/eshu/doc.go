@@ -6,7 +6,10 @@
 // `stats`), guided onboarding (`first-run`, which detects the runtime shape,
 // verifies it without destructive auto-start, indexes or reuses one repository,
 // waits for indexing completeness through the shared readiness logic, and runs
-// one bounded API query before reporting success; `hosted-setup`, the
+// one bounded API query before reporting success, and can emit a redacted
+// first-run evidence artifact via `--report`/`--report-out` or the
+// `first-run report` subcommand that derives indexing state from the readiness
+// verdict and redacts endpoints, paths, and tokens; `hosted-setup`, the
 // first-five-minutes flow for a deployed service that resolves the endpoint and
 // bearer token, runs ordered individually-reported checks (/healthz, /readyz,
 // status/index readiness, MCP tool visibility, and one bounded query),
