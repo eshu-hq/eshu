@@ -131,6 +131,11 @@ func gitDocumentationFormatForPath(relativePath string) (gitDocumentationFormat,
 			return gitDocumentationFormat{}, false
 		}
 		return gitDocumentationFormat{format: "xls", language: "xls"}, true
+	case ".zip":
+		if !isDocumentationArchivePath(relativePath) {
+			return gitDocumentationFormat{}, false
+		}
+		return gitDocumentationFormat{format: "zip", language: "zip"}, true
 	default:
 		return gitDocumentationFormat{}, false
 	}

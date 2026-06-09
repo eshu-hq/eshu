@@ -3,10 +3,10 @@
 ## Purpose
 
 `collector/archivepreflight` classifies bundled documentation archives before
-any archive extractor reads member content. It gives future documentation
-collectors a metadata-only guard for resource limits, unsafe paths, symlinks,
-special files, nested archives, credential-like members, malformed containers,
-and cancellation.
+any archive extractor reads member content. It gives the Git documentation
+packet path and future archive collectors a metadata-only guard for resource
+limits, unsafe paths, symlinks, special files, nested archives,
+credential-like members, malformed containers, and cancellation.
 
 ## Ownership boundary
 
@@ -17,7 +17,8 @@ names, emit documentation facts, persist rows, write graph state, expose API or
 MCP routes, add runtime knobs, or enable hosted/repository ingestion.
 
 Contained-document routing, extraction, fact emission, ACL behavior, and
-security-review enablement belong in separate follow-up slices.
+security-review enablement belong in the owning collector slice that calls this
+preflight helper.
 
 ## Exported surface
 
@@ -45,27 +46,27 @@ or gzip stream, `compress/gzip` unwraps `.tar.gz` and `.tgz` sources, and
 ## Telemetry
 
 None directly. This package has no runtime side effects and no metric, log, or
-trace emission. Future archive collector integration must record bounded
-extraction attempts, warning classes, skipped members, bytes inspected, elapsed
-time, and truncation/resource outcomes through collector telemetry before
-enabling archive ingestion.
+trace emission. The Git documentation packet path records preflight counts and
+warning classes in documentation fact metadata while using existing collector
+telemetry. Future archive collectors that add workers or runtime stages need
+their own bounded extraction signals.
 
-Collector Performance Evidence: `go test ./internal/collector/archivepreflight
--count=1` proves archive classification is bounded by source bytes, expanded
-bytes, entry count, and compression ratio. `go test ./internal/collector -run
-'Archive|DocumentationDefaultOff' -count=1` proves `.zip`, `.tar`, and
-`.tar.gz` remain outside documentation extraction by default.
+Collector Performance Evidence: `go test ./internal/collector/archivepreflight -count=1`
+proves archive classification is bounded by source bytes, expanded bytes,
+entry count, and compression ratio. `go test ./internal/collector -run
+'ZIPArchive|ArchiveRouting' -count=1` proves `.zip` documentation packets
+route through preflight while `.tar` and `.tar.gz` stay outside documentation
+extraction.
 
 Collector Observability Evidence: this package emits no facts, metrics, spans,
-logs, status rows, or graph writes. Future extractor wiring must add runtime
-collector signals for attempted archive preflights, warning classes, skipped
-members, elapsed time, bytes inspected, and resource-limit outcomes before
-enabling archive ingestion.
+logs, status rows, or graph writes. Git ZIP packet extraction stays inside the
+existing `collector.observe`, `collector.stream`, `fact.emit`, and fact-count
+signals while returning warning classes through fact readback.
 
 Collector Deployment Evidence: no Docker Compose, Helm, Service, ServiceMonitor,
 collector binary, runtime flag, or environment-variable path changes in this
-slice. The default-off collector routing test keeps archive packages out of
-hosted documentation ingestion until a reviewed extractor slice enables them.
+slice. The collector routing test keeps tar formats out of hosted
+documentation ingestion while allowing reviewed ZIP documentation packets.
 
 No-Observability-Change: this package is a pure metadata preflight helper. It
 adds no worker, queue consumer, graph write, database query, HTTP handler, MCP

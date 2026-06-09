@@ -13,17 +13,25 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
-func TestDocumentationDefaultOffSkipsArchiveFiles(t *testing.T) {
+func TestDocumentationArchiveRoutingEnablesZIPAndSkipsTarFormats(t *testing.T) {
 	t.Parallel()
 
-	for _, path := range []string{
-		"docs/bundle.zip",
-		"docs/bundle.tar",
-		"docs/bundle.tar.gz",
-		"docs/bundle.tgz",
+	for _, tc := range []struct {
+		path       string
+		wantOK     bool
+		wantFormat string
+	}{
+		{path: "docs/bundle.zip", wantOK: true, wantFormat: "zip"},
+		{path: "docs/bundle.tar", wantOK: false},
+		{path: "docs/bundle.tar.gz", wantOK: false},
+		{path: "docs/bundle.tgz", wantOK: false},
 	} {
-		if _, _, ok := gitDocumentationSourceURIAndFormat(path); ok {
-			t.Fatalf("gitDocumentationSourceURIAndFormat(%q) ok = true, want false", path)
+		_, format, ok := gitDocumentationSourceURIAndFormat(tc.path)
+		if ok != tc.wantOK {
+			t.Fatalf("gitDocumentationSourceURIAndFormat(%q) ok = %v, want %v", tc.path, ok, tc.wantOK)
+		}
+		if tc.wantOK && format.format != tc.wantFormat {
+			t.Fatalf("format = %q, want %q", format.format, tc.wantFormat)
 		}
 	}
 
@@ -45,8 +53,11 @@ func TestDocumentationDefaultOffSkipsArchiveFiles(t *testing.T) {
 		t.Fatalf("SnapshotRepository() error = %v, want nil", err)
 	}
 
-	if len(got.DocumentationFileMetas) != 0 {
-		t.Fatalf("len(DocumentationFileMetas) = %d, want 0: %#v", len(got.DocumentationFileMetas), got.DocumentationFileMetas)
+	if len(got.DocumentationFileMetas) != 1 {
+		t.Fatalf("len(DocumentationFileMetas) = %d, want 1: %#v", len(got.DocumentationFileMetas), got.DocumentationFileMetas)
+	}
+	if got.DocumentationFileMetas[0].RelativePath != "docs/bundle.zip" {
+		t.Fatalf("documentation path = %q, want docs/bundle.zip", got.DocumentationFileMetas[0].RelativePath)
 	}
 	if gotParsedFilePathCount(got.FileData, "bundle.zip") != 0 ||
 		gotParsedFilePathCount(got.FileData, "bundle.tar") != 0 ||

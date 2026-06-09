@@ -208,6 +208,13 @@ reports a stricter member-level ACL. The contained document canonical URI must
 include the archive source URI plus a normalized internal path. It must not
 point at an extraction temp path.
 
+Current ZIP slice: repository-hosted `.zip` packets under documentation paths or
+documentation-oriented basenames may emit an outer archive document and contained
+documentation facts for allowed safe members. `.tar` and `.tar.gz` stay
+default-off. Path traversal, symlinks, special files, resource hazards, nested
+archives, credential-like files, and unsupported members remain warning metadata
+or skipped content.
+
 ## 6. Privacy, ACL, And Metadata Rules
 
 Office internal author fields, last-modified-by fields, comment authors,
