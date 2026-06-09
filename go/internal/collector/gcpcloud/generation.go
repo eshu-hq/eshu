@@ -88,6 +88,11 @@ func (g *Generation) Build() ([]facts.Envelope, error) {
 	return envelopes, nil
 }
 
+// Boundary returns the claim boundary the generation was created with. The
+// runtime uses it to build warning observations (for example page-token
+// expiry) that share the generation's scope and fencing identity.
+func (g *Generation) Boundary() Boundary { return g.boundary }
+
 // PageCount returns the number of pages added to the generation.
 func (g *Generation) PageCount() int { return g.pageCount }
 

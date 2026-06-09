@@ -60,6 +60,10 @@ const (
 	// one bounded tenant, subscription, or management-group shard and emits
 	// provider-specific source facts; it never mutates Azure state.
 	CollectorAzure CollectorKind = "azure"
+	// CollectorGCP represents the read-only Google Cloud Asset Inventory
+	// collector. It observes control-plane resource metadata through Cloud Asset
+	// Inventory and emits redacted source facts; it never reads data-plane content.
+	CollectorGCP CollectorKind = "gcp"
 	// CollectorTerraformState represents the Terraform state collector.
 	CollectorTerraformState CollectorKind = "terraform_state"
 	// CollectorWebhook represents the event/webhook collector.
