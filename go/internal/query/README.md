@@ -311,6 +311,23 @@ infer completeness from row count alone.
   read it, and `PlaybookToolNames` lets the `mcp` package cross-check referenced
   tool names against `ReadOnlyTools` without an import cycle. See
   `docs/public/reference/query-playbooks.md`.
+- `VisualizationPacket`, `VisualizationNode`, `VisualizationEdge`,
+  `VisualizationView`, `VisualizationLimits`, `VisualizationTruncation`,
+  `VisualizationMaxNodes`, `VisualizationMaxEdges`,
+  `BuildServiceStoryVisualizationPacket`,
+  `BuildEvidenceCitationVisualizationPacket`,
+  `BuildIncidentContextVisualizationPacket` — compact, bounded, derived subgraph
+  views over existing story, evidence-citation, and incident-context responses
+  (`visualization_packet.go`, `visualization_packet_story.go`,
+  `visualization_packet_evidence.go`). Each builder is a pure transformation of
+  data the caller already received: it performs no graph access, derives stable
+  node/edge IDs from the underlying entity/handle identity (never iteration
+  order), sorts by stable ID, enforces node/edge bounds with explicit
+  truncation, copies the source `TruthEnvelope`, reuses the `evidence_citation`
+  handle shape so a node maps back to a citation, and returns an explicit
+  unsupported packet with `recommended_next_calls` rather than erroring. Normal
+  visualization flows need no raw Cypher. Route/MCP wiring is follow-up work.
+  See `docs/public/reference/visualization-packets.md`.
 
 **Handler helpers**
 
