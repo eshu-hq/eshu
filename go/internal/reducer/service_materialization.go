@@ -22,10 +22,17 @@ import (
 // parallel, durable snapshot the reducer commits on each re-materialization so a
 // prior service generation can be diffed against the current active one.
 const (
-	// ServiceEvidenceFamilyOwnership is the only evidence family materialized in
-	// Stage 1. The remaining families (deployment, runtime, dependencies, docs,
+	// ServiceEvidenceFamilyOwnership is the Stage-1 evidence family: the owner-ref
+	// truth for a service. The remaining families (runtime, dependencies, docs,
 	// incidents, vulnerabilities) reuse this lineage in follow-up work.
 	ServiceEvidenceFamilyOwnership = "ownership"
+
+	// ServiceEvidenceFamilyDeployment is the deployment evidence family (#1985):
+	// one generation-stable row per resolved deployment relationship that involves
+	// the service's repository. It reuses the same lineage, payload-hash, and
+	// tombstone machinery as ownership; only the row identity and source loader
+	// differ.
+	ServiceEvidenceFamilyDeployment = "deployment"
 
 	// ServiceMaterializationStatusPending marks a generation that has been written
 	// but not yet promoted to active. The writer inserts a new generation as
@@ -59,15 +66,19 @@ type ServiceOwnershipEvidence struct {
 	Retired bool
 }
 
-// ServiceMaterializationWrite carries one service's re-materialized ownership
-// evidence set for durable lineage publication. ServiceID is the conflict key:
-// all generation commits for one service serialize on the single-active-per-
-// service constraint.
+// ServiceMaterializationWrite carries one service's re-materialized evidence set
+// for durable lineage publication. ServiceID is the conflict key: all generation
+// commits for one service serialize on the single-active-per-service constraint.
+// Every family the writer knows lands in the same generation, so a service
+// generation is the snapshot of all of the service's evidence at materialization
+// time; a change in any family flips the generation.
 type ServiceMaterializationWrite struct {
 	IntentID    string
 	ServiceID   string
 	TriggerKind string
 	Ownership   []ServiceOwnershipEvidence
+	// Deployment carries the service's resolved deployment relationships (#1985).
+	Deployment []ServiceDeploymentEvidence
 }
 
 // ServiceMaterializationWriteResult summarizes one lineage commit. GenerationID
@@ -131,14 +142,17 @@ func canonicalizeEvidencePayload(payload map[string]any) map[string]any {
 
 // serviceMaterializationGenerationID derives the deterministic generation id for
 // one materialization from the service id and the full ordered evidence
-// fingerprint. An identical evidence set produces an identical id, so a repeat
-// re-materialization upserts the same generation row (ON CONFLICT DO NOTHING) and
-// is a true no-op: no new generation, no snapshot churn, no false delta.
+// fingerprint across every family. An identical evidence set produces an
+// identical id, so a repeat re-materialization upserts the same generation row
+// (ON CONFLICT DO NOTHING) and is a true no-op: no new generation, no snapshot
+// churn, no false delta. A change in any family (ownership or deployment) changes
+// the fingerprint and flips the generation.
 func serviceMaterializationGenerationID(write ServiceMaterializationWrite) string {
-	fingerprint := make([]map[string]any, 0, len(write.Ownership))
-	rows := normalizeOwnershipEvidence(write.ServiceID, write.Ownership)
+	rows := normalizeServiceEvidence(write)
+	fingerprint := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		fingerprint = append(fingerprint, map[string]any{
+			"family":    row.family,
 			"key":       row.evidenceKey,
 			"hash":      row.payloadHash,
 			"tombstone": row.tombstone,
@@ -150,19 +164,44 @@ func serviceMaterializationGenerationID(write ServiceMaterializationWrite) strin
 	})
 }
 
-// ownershipEvidenceRow is the normalized, deterministic snapshot row shape the
-// writer persists. Rows are sorted by evidence key so the generation fingerprint
-// and write order are stable regardless of input ordering.
-type ownershipEvidenceRow struct {
+// serviceEvidenceRow is the normalized, deterministic snapshot row shape the
+// writer persists for any evidence family. Rows are sorted by (family, key) so
+// the generation fingerprint and write order are stable regardless of input
+// ordering. The family discriminator lets one writer commit every family into
+// the same generation while the delta surface groups by it.
+type serviceEvidenceRow struct {
+	family      string
 	evidenceKey string
-	ownerRef    string
 	payloadHash string
 	tombstone   bool
 	payload     map[string]any
 }
 
-func normalizeOwnershipEvidence(serviceID string, evidence []ServiceOwnershipEvidence) []ownershipEvidenceRow {
-	deduped := make(map[string]ownershipEvidenceRow, len(evidence))
+// normalizeServiceEvidence flattens every family on a write into one ordered,
+// deduped snapshot row set. Ownership and deployment share the same row shape, so
+// the writer and generation fingerprint treat them uniformly.
+func normalizeServiceEvidence(write ServiceMaterializationWrite) []serviceEvidenceRow {
+	deduped := make(map[string]serviceEvidenceRow, len(write.Ownership)+len(write.Deployment))
+	addServiceOwnershipEvidence(deduped, write.ServiceID, write.Ownership)
+	addServiceDeploymentEvidence(deduped, write.ServiceID, write.Deployment)
+	rows := make([]serviceEvidenceRow, 0, len(deduped))
+	for _, row := range deduped {
+		rows = append(rows, row)
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].family != rows[j].family {
+			return rows[i].family < rows[j].family
+		}
+		return rows[i].evidenceKey < rows[j].evidenceKey
+	})
+	return rows
+}
+
+func addServiceOwnershipEvidence(
+	deduped map[string]serviceEvidenceRow,
+	serviceID string,
+	evidence []ServiceOwnershipEvidence,
+) {
 	for _, item := range evidence {
 		ownerRef := strings.TrimSpace(item.OwnerRef)
 		if ownerRef == "" {
@@ -179,22 +218,14 @@ func normalizeOwnershipEvidence(serviceID string, evidence []ServiceOwnershipEvi
 		if ok && existing.tombstone && !item.Retired {
 			continue
 		}
-		deduped[key] = ownershipEvidenceRow{
+		deduped[key] = serviceEvidenceRow{
+			family:      ServiceEvidenceFamilyOwnership,
 			evidenceKey: key,
-			ownerRef:    ownerRef,
 			payloadHash: ServiceEvidencePayloadHash(payload),
 			tombstone:   item.Retired,
 			payload:     payload,
 		}
 	}
-	rows := make([]ownershipEvidenceRow, 0, len(deduped))
-	for _, row := range deduped {
-		rows = append(rows, row)
-	}
-	sort.Slice(rows, func(i, j int) bool {
-		return rows[i].evidenceKey < rows[j].evidenceKey
-	})
-	return rows
 }
 
 // buildServiceOwnershipMaterializations groups correlation decisions into one
