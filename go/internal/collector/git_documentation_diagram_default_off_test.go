@@ -15,11 +15,8 @@ func TestDiagramDocumentationFormatsRemainDefaultOff(t *testing.T) {
 		"docs/architecture.svg",
 		"docs/architecture.drawio",
 		"docs/architecture.excalidraw",
-		"docs/architecture.mmd",
-		"docs/architecture.mermaid",
 		"docs/architecture.puml",
 		"docs/architecture.plantuml",
-		"docs/architecture.d2",
 	}
 	for _, relativePath := range relativePaths {
 		file := filepath.Join(repoPath, filepath.FromSlash(relativePath))

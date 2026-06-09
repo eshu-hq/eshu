@@ -717,7 +717,8 @@ func (s *GitSource) snapshotOneRepository(
 		return CollectedGeneration{}, fmt.Errorf("build repository metadata for %q: %w", repoPath, err)
 	}
 
-	generation := buildStreamingGeneration(
+	generation := buildStreamingGenerationWithContext(
+		ctx,
 		repoPath,
 		metadata,
 		sourceRunID,

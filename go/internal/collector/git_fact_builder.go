@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"os"
@@ -31,6 +32,21 @@ func buildStreamingGeneration(
 	snapshot RepositorySnapshot,
 	isDependency bool,
 ) CollectedGeneration {
+	return buildStreamingGenerationWithContext(context.Background(), repoPath, repo, sourceRunID, observedAt, snapshot, isDependency)
+}
+
+func buildStreamingGenerationWithContext(
+	ctx context.Context,
+	repoPath string,
+	repo repositoryidentity.Metadata,
+	sourceRunID string,
+	observedAt time.Time,
+	snapshot RepositorySnapshot,
+	isDependency bool,
+) CollectedGeneration {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	scopeValue := buildScope(repo)
 	generation := buildGeneration(
 		scopeValue.ScopeID,
@@ -47,12 +63,13 @@ func buildStreamingGeneration(
 		len(snapshot.ContentEntities) + len(snapshot.TerraformStateCandidates) +
 		observabilityFactCount(snapshot.FileData) +
 		serviceCatalogFactCount(repoPath, scopeValue.ScopeID, generation.GenerationID, observedAt, snapshot) +
-		gitDocumentationFactCount(repoPath, repo, scopeValue.ScopeID, generation.GenerationID, observedAt, snapshot) +
+		gitDocumentationFactCount(ctx, repoPath, repo, scopeValue.ScopeID, generation.GenerationID, observedAt, snapshot) +
 		workflowImageEvidenceFactCount(repoPath, snapshot) +
 		7
 
 	factCh := make(chan facts.Envelope, factStreamBuffer)
 	go streamFacts(
+		ctx,
 		factCh,
 		repoPath,
 		repo,
@@ -83,6 +100,7 @@ func buildStreamingGeneration(
 // Legacy path (ContentFiles populated): bodies are already in memory from
 // SnapshotRepository. Each entry is zeroed after sending.
 func streamFacts(
+	ctx context.Context,
 	ch chan<- facts.Envelope,
 	repoPath string,
 	repo repositoryidentity.Metadata,
@@ -155,6 +173,7 @@ func streamFacts(
 				bodyStr,
 			)
 			if !documentationPaths[meta.RelativePath] && emitGitDocumentationFactsForContentFile(
+				ctx,
 				ch,
 				repoPath,
 				repo,
@@ -193,6 +212,7 @@ func streamFacts(
 				fileSnapshot.Body,
 			)
 			if !documentationPaths[fileSnapshot.RelativePath] && emitGitDocumentationFactsForContentFile(
+				ctx,
 				ch,
 				repoPath,
 				repo,
@@ -218,6 +238,7 @@ func streamFacts(
 			continue
 		}
 		if emitGitDocumentationFactsForContentFile(
+			ctx,
 			ch,
 			repoPath,
 			repo,
