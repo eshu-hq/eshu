@@ -537,6 +537,17 @@ type Instruments struct {
 	// WebhookStoreOperations counts durable trigger upserts attempted by the
 	// webhook listener, labeled by provider, outcome, and stored status.
 	WebhookStoreOperations metric.Int64Counter
+	// SemanticExtractionQueueEvents counts semantic extraction queue lifecycle
+	// events by bounded source/provider/profile/budget/status classes. Provider
+	// profile IDs, source IDs, prompts, and provider responses must never be
+	// metric labels.
+	SemanticExtractionQueueEvents metric.Int64Counter
+	// SemanticExtractionBudgetTokens counts semantic extraction token consumption
+	// and estimates by bounded source/provider/profile/budget classes.
+	SemanticExtractionBudgetTokens metric.Int64Counter
+	// SemanticExtractionBudgetCostMicros counts semantic extraction cost micros
+	// and estimates by bounded source/provider/profile/budget classes.
+	SemanticExtractionBudgetCostMicros metric.Int64Counter
 
 	// DriftSchemaUnknownComposite counts Terraform-state composite attributes
 	// the streaming nested walker dropped because the loaded
@@ -1995,6 +2006,30 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register WebhookStoreOperations counter: %w", err)
 	}
 
+	inst.SemanticExtractionQueueEvents, err = meter.Int64Counter(
+		"eshu_dp_semantic_extraction_queue_events_total",
+		metric.WithDescription("Total semantic extraction queue lifecycle events by bounded source, provider, provider profile class, status, failure class, budget state, and budget reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SemanticExtractionQueueEvents counter: %w", err)
+	}
+
+	inst.SemanticExtractionBudgetTokens, err = meter.Int64Counter(
+		"eshu_dp_semantic_extraction_budget_tokens_total",
+		metric.WithDescription("Total semantic extraction estimated and actual token budget usage by bounded source, provider, provider profile class, budget state, and budget reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SemanticExtractionBudgetTokens counter: %w", err)
+	}
+
+	inst.SemanticExtractionBudgetCostMicros, err = meter.Int64Counter(
+		"eshu_dp_semantic_extraction_budget_cost_micros_total",
+		metric.WithDescription("Total semantic extraction estimated and actual cost budget usage in micros by bounded source, provider, provider profile class, budget state, and budget reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SemanticExtractionBudgetCostMicros counter: %w", err)
+	}
+
 	// Register histograms with explicit bucket boundaries where specified
 	collectorBuckets := []float64{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
 	inst.CollectorObserveDuration, err = meter.Float64Histogram(
@@ -3069,6 +3104,11 @@ func AttrSource(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionSource, v)
 }
 
+// AttrSourceClass returns a source_class attribute for metric recording.
+func AttrSourceClass(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionSourceClass, v)
+}
+
 // AttrSourceSystem returns a source_system attribute for metric recording.
 func AttrSourceSystem(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionSourceSystem, v)
@@ -3261,6 +3301,17 @@ func AttrProvider(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionProvider, v)
 }
 
+// AttrProviderKind returns a provider_kind attribute for metric recording.
+func AttrProviderKind(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionProviderKind, v)
+}
+
+// AttrProviderProfileClass returns a provider_profile_class attribute for
+// semantic extraction metric recording.
+func AttrProviderProfileClass(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionProviderProfileClass, v)
+}
+
 // AttrEventKind returns an event_kind attribute for webhook listener metrics.
 func AttrEventKind(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionEventKind, v)
@@ -3347,6 +3398,18 @@ func AttrWarningKind(v string) attribute.KeyValue {
 // in the structured log.
 func AttrResourceType(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionResourceType, v)
+}
+
+// AttrBudgetState returns a budget_state attribute for semantic extraction
+// metrics.
+func AttrBudgetState(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionBudgetState, v)
+}
+
+// AttrBudgetReason returns a budget_reason attribute for semantic extraction
+// metrics.
+func AttrBudgetReason(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionBudgetReason, v)
 }
 
 // AttrCompositeSkipReason returns a reason attribute for

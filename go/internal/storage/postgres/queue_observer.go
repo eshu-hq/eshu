@@ -34,6 +34,38 @@ WHERE status IN ('pending', 'claimed', 'running', 'retrying')
 GROUP BY stage
 `
 
+const semanticQueueDepthQuery = `
+SELECT 'semantic_extraction' AS queue,
+       status,
+       COUNT(*)::BIGINT AS count
+FROM semantic_extraction_jobs
+WHERE status IN ('pending', 'claimed', 'retrying')
+  AND provider_job = true
+GROUP BY status
+ORDER BY status
+`
+
+const semanticQueueOldestAgeQuery = `
+SELECT 'semantic_extraction' AS queue,
+       GREATEST(
+         COALESCE(
+           EXTRACT(
+             EPOCH FROM (
+               $1 - MIN(created_at)
+                 FILTER (WHERE status IN ('pending', 'claimed', 'retrying')
+                         AND provider_job = true)
+             )
+           ),
+           0
+         ),
+         0
+       ) AS oldest_age_seconds
+FROM semantic_extraction_jobs
+WHERE status IN ('pending', 'claimed', 'retrying')
+  AND provider_job = true
+HAVING COUNT(*) > 0
+`
+
 // QueueObserverStore implements telemetry.QueueObserver by querying the
 // fact_work_items table for live queue depth and oldest-item age per stage.
 type QueueObserverStore struct {
@@ -62,18 +94,33 @@ func (s *QueueObserverStore) QueueDepths(ctx context.Context) (map[string]map[st
 		return nil, fmt.Errorf("queue observer queryer is required")
 	}
 
-	rows, err := s.queryer.QueryContext(ctx, queueDepthQuery)
+	result := make(map[string]map[string]int64)
+	if err := s.addQueueDepthRows(ctx, result, queueDepthQuery); err != nil {
+		return nil, err
+	}
+	if err := s.addQueueDepthRows(ctx, result, semanticQueueDepthQuery); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (s *QueueObserverStore) addQueueDepthRows(
+	ctx context.Context,
+	result map[string]map[string]int64,
+	query string,
+) error {
+	rows, err := s.queryer.QueryContext(ctx, query)
 	if err != nil {
-		return nil, fmt.Errorf("queue depths: %w", err)
+		return fmt.Errorf("queue depths: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	result := make(map[string]map[string]int64)
 	for rows.Next() {
 		var stage, status string
 		var count int64
 		if err := rows.Scan(&stage, &status, &count); err != nil {
-			return nil, fmt.Errorf("queue depths scan: %w", err)
+			return fmt.Errorf("queue depths scan: %w", err)
 		}
 		if result[stage] == nil {
 			result[stage] = make(map[string]int64)
@@ -87,10 +134,10 @@ func (s *QueueObserverStore) QueueDepths(ctx context.Context) (map[string]map[st
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("queue depths: %w", err)
+		return fmt.Errorf("queue depths: %w", err)
 	}
 
-	return result, nil
+	return nil
 }
 
 // QueueOldestAge returns the age in seconds of the oldest outstanding item
@@ -100,24 +147,41 @@ func (s *QueueObserverStore) QueueOldestAge(ctx context.Context) (map[string]flo
 		return nil, fmt.Errorf("queue observer queryer is required")
 	}
 
-	rows, err := s.queryer.QueryContext(ctx, queueOldestAgeQuery, s.now())
+	now := s.now()
+	result := make(map[string]float64)
+	if err := s.addQueueOldestAgeRows(ctx, result, queueOldestAgeQuery, now); err != nil {
+		return nil, err
+	}
+	if err := s.addQueueOldestAgeRows(ctx, result, semanticQueueOldestAgeQuery, now); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (s *QueueObserverStore) addQueueOldestAgeRows(
+	ctx context.Context,
+	result map[string]float64,
+	query string,
+	now time.Time,
+) error {
+	rows, err := s.queryer.QueryContext(ctx, query, now)
 	if err != nil {
-		return nil, fmt.Errorf("queue oldest age: %w", err)
+		return fmt.Errorf("queue oldest age: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	result := make(map[string]float64)
 	for rows.Next() {
 		var stage string
 		var ageSeconds float64
 		if err := rows.Scan(&stage, &ageSeconds); err != nil {
-			return nil, fmt.Errorf("queue oldest age scan: %w", err)
+			return fmt.Errorf("queue oldest age scan: %w", err)
 		}
 		result[stage] = ageSeconds
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("queue oldest age: %w", err)
+		return fmt.Errorf("queue oldest age: %w", err)
 	}
 
-	return result, nil
+	return nil
 }

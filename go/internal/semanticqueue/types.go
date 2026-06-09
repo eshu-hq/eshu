@@ -88,19 +88,19 @@ type Provider struct {
 
 // BudgetDecision records audit-safe budget state for one chunk.
 type BudgetDecision struct {
-	Allowed               bool
-	State                 string
-	Reason                string
-	EstimatedInputTokens  int64
-	EstimatedOutputTokens int64
-	EstimatedCostMicros   int64
-	ActualInputTokens     int64
-	ActualOutputTokens    int64
-	ActualCostMicros      int64
-	BudgetUnit            string
-	BudgetWindow          string
-	RemainingTokens       int64
-	RemainingCostMicros   int64
+	Allowed               bool   `json:"allowed"`
+	State                 string `json:"state"`
+	Reason                string `json:"reason"`
+	EstimatedInputTokens  int64  `json:"estimated_input_tokens"`
+	EstimatedOutputTokens int64  `json:"estimated_output_tokens"`
+	EstimatedCostMicros   int64  `json:"estimated_cost_micros"`
+	ActualInputTokens     int64  `json:"actual_input_tokens"`
+	ActualOutputTokens    int64  `json:"actual_output_tokens"`
+	ActualCostMicros      int64  `json:"actual_cost_micros"`
+	BudgetUnit            string `json:"budget_unit"`
+	BudgetWindow          string `json:"budget_window"`
+	RemainingTokens       int64  `json:"remaining_tokens"`
+	RemainingCostMicros   int64  `json:"remaining_cost_micros"`
 }
 
 // SourceChunk is one preflight-approved semantic extraction candidate.
@@ -199,6 +199,8 @@ type Plan struct {
 // Summary captures aggregate queue status without source identifiers.
 type Summary struct {
 	Planned             int
+	Succeeded           int
+	DeadLetter          int
 	Unchanged           int
 	Changed             int
 	Deleted             int

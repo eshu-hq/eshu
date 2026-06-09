@@ -57,3 +57,7 @@ CREATE INDEX IF NOT EXISTS semantic_extraction_jobs_fingerprint_idx
 CREATE INDEX IF NOT EXISTS semantic_extraction_jobs_claim_idx
     ON semantic_extraction_jobs (status, claim_until, updated_at ASC)
     WHERE status IN ('pending', 'retrying');
+
+CREATE INDEX IF NOT EXISTS semantic_extraction_jobs_provider_claim_idx
+    ON semantic_extraction_jobs (scope_id, status, next_attempt_at, claim_until, updated_at ASC, job_id)
+    WHERE status IN ('pending', 'retrying') AND provider_job = true;

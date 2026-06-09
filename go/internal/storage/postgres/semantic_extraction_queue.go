@@ -71,6 +71,10 @@ CREATE INDEX IF NOT EXISTS semantic_extraction_jobs_fingerprint_idx
 CREATE INDEX IF NOT EXISTS semantic_extraction_jobs_claim_idx
     ON semantic_extraction_jobs (status, claim_until, updated_at ASC)
     WHERE status IN ('pending', 'retrying');
+
+CREATE INDEX IF NOT EXISTS semantic_extraction_jobs_provider_claim_idx
+    ON semantic_extraction_jobs (scope_id, status, next_attempt_at, claim_until, updated_at ASC, job_id)
+    WHERE status IN ('pending', 'retrying') AND provider_job = true;
 `
 
 // SemanticExtractionJobSchemaSQL returns the semantic queue DDL.
@@ -215,7 +219,7 @@ func (s SemanticExtractionQueueStore) RetryClaim(
 	if s.db == nil {
 		return errors.New("semantic extraction queue store db is required")
 	}
-	if _, err := s.db.ExecContext(
+	result, err := s.db.ExecContext(
 		ctx,
 		retrySemanticQueueJobQuery,
 		now.UTC(),
@@ -226,10 +230,11 @@ func (s SemanticExtractionQueueStore) RetryClaim(
 		record.JobID,
 		leaseOwner,
 		record.Fingerprint,
-	); err != nil {
+	)
+	if err != nil {
 		return fmt.Errorf("retry semantic extraction job: %w", err)
 	}
-	return nil
+	return semanticExtractionRowsAffected(result)
 }
 
 // DeadLetterClaim persists a terminal dead-letter state behind the lease fence.
@@ -243,7 +248,7 @@ func (s SemanticExtractionQueueStore) DeadLetterClaim(
 	if s.db == nil {
 		return errors.New("semantic extraction queue store db is required")
 	}
-	if _, err := s.db.ExecContext(
+	result, err := s.db.ExecContext(
 		ctx,
 		deadLetterSemanticQueueJobQuery,
 		now.UTC(),
@@ -253,10 +258,11 @@ func (s SemanticExtractionQueueStore) DeadLetterClaim(
 		record.JobID,
 		leaseOwner,
 		record.Fingerprint,
-	); err != nil {
+	)
+	if err != nil {
 		return fmt.Errorf("dead-letter semantic extraction job: %w", err)
 	}
-	return nil
+	return semanticExtractionRowsAffected(result)
 }
 
 const semanticQueueStatusSummaryQuery = `
@@ -273,7 +279,9 @@ WITH next_job AS (
     FROM semantic_extraction_jobs
     WHERE scope_id = $1
       AND status IN ('pending', 'retrying')
+      AND provider_job = true
       AND (claim_until IS NULL OR claim_until <= $2)
+      AND (next_attempt_at IS NULL OR next_attempt_at <= $2)
     ORDER BY updated_at ASC, job_id ASC
     FOR UPDATE SKIP LOCKED
     LIMIT 1
@@ -355,6 +363,7 @@ func buildSemanticQueueUpsert(records []semanticqueue.Record) (string, []any, er
 	}
 	builder.WriteString(" ON CONFLICT (job_id) DO UPDATE SET ")
 	builder.WriteString(strings.Join(semanticQueueUpsertAssignments(), ", "))
+	builder.WriteString(" WHERE semantic_extraction_jobs.status <> 'claimed'")
 	return builder.String(), args, nil
 }
 
@@ -413,6 +422,10 @@ func addSemanticStatusCount(summary *semanticqueue.Summary, status semanticqueue
 	switch status {
 	case semanticqueue.StatusPending, semanticqueue.StatusClaimed, semanticqueue.StatusRetrying:
 		summary.Planned += count
+	case semanticqueue.StatusSucceeded:
+		summary.Succeeded += count
+	case semanticqueue.StatusDeadLetter:
+		summary.DeadLetter += count
 	case semanticqueue.StatusStale:
 		summary.Stale += count
 	case semanticqueue.StatusSkippedNoProvider:

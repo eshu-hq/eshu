@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -40,6 +42,7 @@ func TestBootstrapDefinitionsIncludeSemanticExtractionQueue(t *testing.T) {
 		"semantic_extraction_jobs_scope_generation_status_idx",
 		"semantic_extraction_jobs_fingerprint_idx",
 		"semantic_extraction_jobs_claim_idx",
+		"semantic_extraction_jobs_provider_claim_idx",
 	} {
 		if !strings.Contains(semanticQueue.SQL, want) {
 			t.Fatalf("semantic_extraction_jobs SQL missing %q", want)
@@ -212,6 +215,133 @@ func TestSemanticExtractionQueueStoreRetryAndDeadLetterUseLeaseFence(t *testing.
 	}
 	if !strings.Contains(db.execs[1].query, "status = 'dead_letter'") {
 		t.Fatalf("dead-letter query missing terminal status:\n%s", db.execs[1].query)
+	}
+}
+
+func TestSemanticExtractionQueueStoreSucceedUsesLeaseFence(t *testing.T) {
+	t.Parallel()
+
+	plan := semanticQueueStoragePlan(t)
+	record := plan.Jobs[0]
+	db := &fakeExecQueryer{}
+	store := NewSemanticExtractionQueueStore(db)
+	now := semanticQueueStorageTime().Add(time.Minute)
+	if err := store.SucceedClaim(
+		context.Background(),
+		record,
+		"semantic-worker-1",
+		now,
+		"response-hash-v1",
+		semanticqueue.BudgetDecision{
+			Allowed:            true,
+			State:              semanticqueue.BudgetStateAllowed,
+			Reason:             semanticqueue.BudgetReasonAllowed,
+			ActualInputTokens:  80,
+			ActualOutputTokens: 20,
+			ActualCostMicros:   130,
+		},
+	); err != nil {
+		t.Fatalf("SucceedClaim() error = %v, want nil", err)
+	}
+	if got, want := len(db.execs), 1; got != want {
+		t.Fatalf("exec count = %d, want %d", got, want)
+	}
+	query := db.execs[0].query
+	for _, want := range []string{
+		"status = 'succeeded'",
+		"provider_job = false",
+		"retryable = false",
+		"claim_until = NULL",
+		"lease_owner = NULL",
+		"failure_class = NULL",
+		"response_hash = $",
+		"budget_metadata = $",
+		"WHERE job_id = $",
+		"lease_owner = $",
+		"fingerprint = $",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("success query missing %q:\n%s", want, query)
+		}
+	}
+}
+
+func TestSemanticExtractionQueueStoreClaimMutationsRejectStaleLease(t *testing.T) {
+	t.Parallel()
+
+	plan := semanticQueueStoragePlan(t)
+	record := plan.Jobs[0]
+	now := semanticQueueStorageTime().Add(time.Minute)
+	db := &fakeExecQueryer{
+		execResults: []sql.Result{
+			rowsAffectedResult{rowsAffected: 0},
+			rowsAffectedResult{rowsAffected: 0},
+			rowsAffectedResult{rowsAffected: 0},
+		},
+	}
+	store := NewSemanticExtractionQueueStore(db)
+
+	err := store.RetryClaim(
+		context.Background(),
+		record,
+		"stale-worker",
+		now,
+		now.Add(time.Minute),
+		semanticqueue.Failure{Class: semanticqueue.FailureClassProviderUnavailable},
+	)
+	if !errors.Is(err, ErrSemanticExtractionClaimRejected) {
+		t.Fatalf("RetryClaim() error = %v, want %v", err, ErrSemanticExtractionClaimRejected)
+	}
+	err = store.DeadLetterClaim(
+		context.Background(),
+		record,
+		"stale-worker",
+		now,
+		semanticqueue.Failure{Class: semanticqueue.FailureClassRetryExhausted},
+	)
+	if !errors.Is(err, ErrSemanticExtractionClaimRejected) {
+		t.Fatalf("DeadLetterClaim() error = %v, want %v", err, ErrSemanticExtractionClaimRejected)
+	}
+	err = store.SucceedClaim(
+		context.Background(),
+		record,
+		"stale-worker",
+		now,
+		"response-hash-v1",
+		semanticqueue.BudgetDecision{Allowed: true, State: semanticqueue.BudgetStateAllowed},
+	)
+	if !errors.Is(err, ErrSemanticExtractionClaimRejected) {
+		t.Fatalf("SucceedClaim() error = %v, want %v", err, ErrSemanticExtractionClaimRejected)
+	}
+}
+
+func TestSemanticExtractionQueueStoreClaimSkipsBackoffAndNonProviderRows(t *testing.T) {
+	t.Parallel()
+
+	now := semanticQueueStorageTime()
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{}},
+	}
+	store := NewSemanticExtractionQueueStore(db)
+	_, _, err := store.ClaimNext(
+		context.Background(),
+		"repository:eshu",
+		"semantic-worker-1",
+		now,
+		time.Minute,
+	)
+	if err != nil {
+		t.Fatalf("ClaimNext() error = %v, want nil", err)
+	}
+	query := db.queries[0].query
+	for _, want := range []string{
+		"provider_job = true",
+		"(next_attempt_at IS NULL OR next_attempt_at <= $2)",
+		"FOR UPDATE SKIP LOCKED",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("ClaimNext query missing %q:\n%s", want, query)
+		}
 	}
 }
 

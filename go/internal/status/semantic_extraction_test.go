@@ -339,3 +339,118 @@ func TestRenderStatusIncludesSemanticExtractionNoProvider(t *testing.T) {
 		t.Fatalf("semantic_extraction.deterministic_paths_affected = %#v, want %#v", got, want)
 	}
 }
+
+func TestSemanticExtractionQueueBudgetAndAuditDoNotAffectDeterministicHealth(t *testing.T) {
+	t.Parallel()
+
+	report := status.BuildReport(status.RawSnapshot{
+		AsOf: time.Date(2026, time.June, 9, 6, 0, 0, 0, time.UTC),
+		SemanticExtraction: status.SemanticExtractionStatus{
+			State:                      status.SemanticExtractionAvailable,
+			ProviderConfigured:         true,
+			DeterministicPathsAffected: true,
+			Queue: status.SemanticExtractionQueueSnapshot{
+				Total:           5,
+				Pending:         2,
+				Retrying:        1,
+				DeadLetter:      1,
+				BudgetExhausted: 1,
+				SourceClassCounts: []status.NamedCount{
+					{Name: "documentation", Count: 4},
+				},
+				StatusCounts: []status.NamedCount{
+					{Name: "pending", Count: 2},
+					{Name: "dead_letter", Count: 1},
+				},
+			},
+			Budget: status.SemanticExtractionBudgetSnapshot{
+				EstimatedInputTokens: 500,
+				ActualCostMicros:     250,
+				Exhausted:            1,
+			},
+			Audit: status.SemanticExtractionAuditSnapshot{
+				ActorClassCounts: []status.NamedCount{{Name: "hosted_worker", Count: 5}},
+				ACLStateCounts:   []status.NamedCount{{Name: "acl_allowed", Count: 5}},
+			},
+		},
+	}, status.DefaultOptions())
+
+	if got, want := report.Health.State, "healthy"; got != want {
+		t.Fatalf("Health.State = %q, want %q", got, want)
+	}
+	semantic := report.SemanticExtraction
+	if semantic.DeterministicPathsAffected {
+		t.Fatal("DeterministicPathsAffected = true, want semantic queue/budget to stay advisory")
+	}
+	if got, want := semantic.Queue.BudgetExhausted, 1; got != want {
+		t.Fatalf("Queue.BudgetExhausted = %d, want %d", got, want)
+	}
+	if got, want := semantic.Budget.EstimatedInputTokens, int64(500); got != want {
+		t.Fatalf("Budget.EstimatedInputTokens = %d, want %d", got, want)
+	}
+}
+
+func TestRenderStatusIncludesSemanticExtractionObservability(t *testing.T) {
+	t.Parallel()
+
+	report := status.BuildReport(status.RawSnapshot{
+		SemanticExtraction: status.SemanticExtractionStatus{
+			State:              status.SemanticExtractionAvailable,
+			ProviderConfigured: true,
+			Queue: status.SemanticExtractionQueueSnapshot{
+				Total:           3,
+				Pending:         1,
+				Succeeded:       1,
+				BudgetExhausted: 1,
+				SourceClassCounts: []status.NamedCount{
+					{Name: "documentation", Count: 2},
+				},
+			},
+			Budget: status.SemanticExtractionBudgetSnapshot{
+				EstimatedInputTokens: 220,
+				EstimatedCostMicros:  330,
+				ActualInputTokens:    90,
+				ActualCostMicros:     120,
+				Exhausted:            1,
+			},
+			Audit: status.SemanticExtractionAuditSnapshot{
+				ActorClassCounts: []status.NamedCount{{Name: "hosted_worker", Count: 3}},
+			},
+		},
+	}, status.DefaultOptions())
+
+	text := status.RenderText(report)
+	for _, want := range []string{
+		"semantic_queue_total=3",
+		"semantic_budget_exhausted=1",
+		"semantic_estimated_input_tokens=220",
+		"semantic_actual_cost_micros=120",
+		"semantic_audit_actor_classes=hosted_worker=3",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("RenderText() missing %q:\n%s", want, text)
+		}
+	}
+
+	encoded, err := status.RenderJSON(report)
+	if err != nil {
+		t.Fatalf("RenderJSON() error = %v, want nil", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	semantic := payload["semantic_extraction"].(map[string]any)
+	queue := semantic["queue"].(map[string]any)
+	if got, want := queue["budget_exhausted"], float64(1); got != want {
+		t.Fatalf("queue.budget_exhausted = %#v, want %#v", got, want)
+	}
+	budget := semantic["budget"].(map[string]any)
+	if got, want := budget["estimated_input_tokens"], float64(220); got != want {
+		t.Fatalf("budget.estimated_input_tokens = %#v, want %#v", got, want)
+	}
+	audit := semantic["audit"].(map[string]any)
+	if _, ok := audit["actor_class_counts"]; !ok {
+		t.Fatalf("audit.actor_class_counts missing: %#v", audit)
+	}
+}

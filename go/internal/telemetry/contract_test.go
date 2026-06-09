@@ -12,6 +12,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"scope_id",
 		"scope_kind",
 		"source",
+		"source_class",
 		"source_system",
 		"generation_id",
 		"collector_kind",
@@ -40,6 +41,8 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"kind",
 		"action",
 		"provider",
+		"provider_kind",
+		"provider_profile_class",
 		"event_kind",
 		"decision",
 		"status",
@@ -66,6 +69,8 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"resolution_mode",
 		"endpoint_kind",
 		"principal_kind",
+		"budget_state",
+		"budget_reason",
 		"field_class",
 	}
 
@@ -92,6 +97,9 @@ func TestSpanNames(t *testing.T) {
 		"reducer_intent.enqueue",
 		"reducer.run",
 		"reducer.batch_claim",
+		"semantic_extraction.queue.apply",
+		"semantic_extraction.queue.claim",
+		"semantic_extraction.queue.complete",
 		"reducer.drift_evidence_load",
 		"reducer.aws_runtime_drift_evidence_load",
 		"reducer.aws_relationship_materialization",
@@ -254,6 +262,12 @@ func TestLogKeys(t *testing.T) {
 		"attribute_key",
 		"path",
 		"error",
+		"semantic_extraction.status",
+		"semantic_extraction.source_class",
+		"semantic_extraction.provider_kind",
+		"semantic_extraction.provider_profile_class",
+		"semantic_extraction.budget_state",
+		"semantic_extraction.budget_reason",
 	}
 
 	got := LogKeys()

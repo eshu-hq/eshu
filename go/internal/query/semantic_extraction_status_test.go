@@ -139,6 +139,87 @@ func TestStatusHandlerSemanticExtractionReturnsRedactedProviderProfiles(t *testi
 	}
 }
 
+func TestStatusHandlerSemanticExtractionReturnsQueueBudgetAuditReadbacks(t *testing.T) {
+	t.Parallel()
+
+	const rawProviderResponse = "provider response body must not appear"
+	handler := &StatusHandler{
+		StatusReader: fakeStatusReader{
+			snapshot: statuspkg.RawSnapshot{
+				AsOf: time.Date(2026, time.June, 9, 6, 0, 0, 0, time.UTC),
+				SemanticExtraction: statuspkg.SemanticExtractionStatus{
+					State:              statuspkg.SemanticExtractionAvailable,
+					ProviderConfigured: true,
+					Queue: statuspkg.SemanticExtractionQueueSnapshot{
+						Total:           4,
+						Pending:         2,
+						Succeeded:       1,
+						BudgetExhausted: 1,
+						ProviderProfileCounts: []statuspkg.SemanticExtractionProviderProfileQueueCount{
+							{
+								ProviderKind:         "deepseek",
+								ProviderProfileID:    "semantic-docs-default",
+								ProviderProfileClass: "hosted",
+								Count:                4,
+							},
+						},
+						FailureClassCounts: []statuspkg.NamedCount{{Name: "provider_unavailable", Count: 1}},
+					},
+					Budget: statuspkg.SemanticExtractionBudgetSnapshot{
+						EstimatedInputTokens: 400,
+						ActualCostMicros:     120,
+						Exhausted:            1,
+					},
+					Audit: statuspkg.SemanticExtractionAuditSnapshot{
+						ActorClassCounts: []statuspkg.NamedCount{{Name: "hosted_worker", Count: 4}},
+						ACLStateCounts:   []statuspkg.NamedCount{{Name: "acl_allowed", Count: 4}},
+					},
+					Detail: rawProviderResponse,
+				},
+			},
+		},
+		Profile: ProfileProduction,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/status/semantic-extraction", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("GET /api/v0/status/semantic-extraction status = %d, want %d; body=%s", got, want, rec.Body.String())
+	}
+	if body := rec.Body.String(); strings.Contains(body, rawProviderResponse) ||
+		strings.Contains(body, "prompt_text") || strings.Contains(body, "response_text") {
+		t.Fatalf("semantic extraction status leaked raw provider or prompt data: %s", body)
+	}
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	data := envelope.Data.(map[string]any)
+	if got, want := data["deterministic_paths_affected"], false; got != want {
+		t.Fatalf("data.deterministic_paths_affected = %#v, want %#v", got, want)
+	}
+	queue, ok := data["queue"].(map[string]any)
+	if !ok {
+		t.Fatalf("data.queue missing or wrong type: %#v", data["queue"])
+	}
+	if got, want := queue["budget_exhausted"], float64(1); got != want {
+		t.Fatalf("queue.budget_exhausted = %#v, want %#v", got, want)
+	}
+	budget := data["budget"].(map[string]any)
+	if got, want := budget["estimated_input_tokens"], float64(400); got != want {
+		t.Fatalf("budget.estimated_input_tokens = %#v, want %#v", got, want)
+	}
+	audit := data["audit"].(map[string]any)
+	if _, ok := audit["acl_state_counts"]; !ok {
+		t.Fatalf("audit.acl_state_counts missing: %#v", audit)
+	}
+}
+
 func TestStatusIndexIncludesSemanticExtractionNoProvider(t *testing.T) {
 	t.Parallel()
 

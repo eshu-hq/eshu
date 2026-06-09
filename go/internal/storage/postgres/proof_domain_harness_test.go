@@ -214,6 +214,8 @@ func (db *proofDomainDB) QueryContext(_ context.Context, query string, args ...a
 		// not exercised by the proof harness; return empty rows so the wider
 		// status snapshot can still resolve.
 		return newProofRows(nil), nil
+	case query == semanticExtractionObservabilityQuery:
+		return newProofRows(nil), nil
 	case query == awsFreshnessStatusCountsQuery:
 		return newProofRows(nil), nil
 	case query == awsFreshnessOldestQueuedAgeQuery:

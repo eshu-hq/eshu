@@ -46,7 +46,7 @@ func runtimeTools() []ToolDefinition {
 		},
 		{
 			Name:        "get_semantic_capability_status",
-			Description: "Return semantic extraction capability status, including no-provider unavailable state, redacted provider profiles, code-hint enablement, and whether deterministic paths are affected.",
+			Description: "Return semantic extraction capability status, including no-provider unavailable state, redacted provider profiles, queue, budget, audit readbacks, and whether deterministic paths are affected.",
 			InputSchema: map[string]any{
 				"type":       "object",
 				"properties": map[string]any{},
