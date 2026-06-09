@@ -36,7 +36,10 @@ orchestration. It does not own service runtime internals:
     partial-readiness, missing-repo-scope, and mcp-unavailable failures, reports
     connected only when the bounded query returns, never prints the raw token,
     and can emit a hosted MCP client snippet (`hosted_setup.go`,
-    `hosted_setup_verify.go`, `hosted_setup_report.go`)
+    `hosted_setup_verify.go`, `hosted_setup_report.go`); `first-run-benchmark`
+    scores a captured `first-run --json` envelope against the first-five-minutes
+    onboarding criteria and rejects a health-only "answer"
+    (`first_run_benchmark.go`, `first_run_benchmark_cmd.go`)
   - security intelligence: `vuln-scan repo [path]` runs the local scan
     readiness contract and reads repository-scoped supply-chain impact findings
     through the API envelope; `vuln-scan provider-parity` compares
@@ -127,6 +130,15 @@ No-Regression Evidence: provider-parity lifecycle behavior is covered by
   snippet via the shared `mcp setup` snippet helpers; `--repository` asserts a
   required repository is present in the indexed scope; `--json` emits the
   canonical `{data, truth, error}` envelope.
+- `eshu first-run-benchmark` is the dogfood benchmark contract. It consumes a
+  captured `first-run --json` envelope (from `--envelope <path>` or stdin) and
+  scores it against the first-five-minutes onboarding criteria through the pure
+  `evaluateFirstAnswerBenchmark` function. The benchmark exits non-zero, and the
+  verdict is FAIL, whenever the "first answer" is health-only: no bounded query
+  returned, missing truth metadata, missing source handle, incomplete indexing,
+  or an error envelope. Optional criteria (time-to-answer, manual-step count)
+  record honest `not_measured` values rather than fabricated numbers and never
+  flip an otherwise-complete run to FAIL.
 - `eshu vuln-scan repo [path]` reuses `eshu scan` root resolution, bootstrap,
   and readiness proof before reading
   `/api/v0/supply-chain/impact/findings?repository_id=<id>&limit=<n>`.
