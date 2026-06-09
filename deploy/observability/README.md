@@ -13,11 +13,15 @@ contracts, runtime health semantics, or operator runbooks. Metric names live in
 
 ## Surface
 
-- `alerts.yaml` contains standalone Prometheus rule groups.
+- `alerts.yaml` contains standalone Prometheus rule groups, including the
+  `eshu.freshness` group for generation convergence and trigger handoff.
 - `prometheus-rule.yaml` wraps the same alert intent for Prometheus Operator
-  environments.
+  environments and carries the same `eshu.freshness` group.
 - `otel-collector-config.yaml` receives OTLP, batches telemetry, exports traces
   to Jaeger, and exposes Prometheus metrics.
+- The freshness/convergence dashboard lives at
+  `../grafana/dashboards/eshu-freshness-convergence.json`; its panel-to-metric
+  map is documented in `docs/public/operate/freshness-convergence.md`.
 
 ## Gotchas / Invariants
 
@@ -39,3 +43,4 @@ confirm rule groups load, and check referenced metrics against
 - `docs/public/reference/telemetry/metrics.md`
 - `docs/public/reference/telemetry/runtime-signals.md`
 - `docs/public/operate/index.md`
+- `docs/public/operate/freshness-convergence.md`

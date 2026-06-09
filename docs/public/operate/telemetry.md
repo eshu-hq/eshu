@@ -16,6 +16,7 @@ Eshu exposes four operator views:
 | One repo is slow | ingester metrics | discovery report and collector logs |
 | Graph writes are slow | reducer and graph-write metrics | graph backend traces/logs |
 | Replay or dead-letter behavior looks wrong | recovery metrics | `/admin/status` and recovery logs |
+| Answers look stale or the graph is not converging | [Freshness and Convergence](freshness-convergence.md) dashboard | generation, queue-age, and reducer convergence panels |
 
 Go data-plane metrics use the `eshu_dp_` prefix. Runtime status gauges use the
 `eshu_runtime_` prefix.

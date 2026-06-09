@@ -75,6 +75,7 @@ nav:
     - Overview: operate/index.md
     - Health Checks: operate/health-checks.md
     - Telemetry: operate/telemetry.md
+    - Freshness and Convergence: operate/freshness-convergence.md
     - Tuning Playbook: operate/tuning-playbook.md
     - Troubleshooting: operate/troubleshooting.md
     - Hosted Project Onboarding: deployment/hosted-onboarding.md

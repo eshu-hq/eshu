@@ -365,3 +365,133 @@ spec:
                  - Add more reducer replicas (effective for parallel domains)
                  - Increase shared projection partition count for better parallelism
                  - Optimize domain handlers for batch operations instead of single-item processing
+
+    # Freshness and generation convergence. Disjoint rules so an operator can
+    # tell process-down from queue-stuck from reducer-not-converging from
+    # trigger-handoff-failed from stale-answer. Bounded labels only.
+    - name: eshu.freshness
+      interval: 30s
+      rules:
+        - alert: EshuFreshnessProcessDown
+          expr: absent(eshu_runtime_info{service_name="eshu-reducer"}) == 1
+          for: 2m
+          labels:
+            severity: critical
+            service: eshu-reducer
+            component: freshness
+            freshness_state: process_down
+          annotations:
+            summary: "Reducer runtime is not reporting status metrics — process likely down"
+            description: "No `eshu_runtime_info` series for service_name=eshu-reducer for 2 minutes. The runtime that drains freshness work is not scraping, so no convergence can happen regardless of queue state."
+            runbook: |
+              1. Confirm the pod is running: `kubectl get pods -l app=eshu-reducer`.
+              2. Check the `/healthz` and `/readyz` probes and recent restarts.
+              3. Confirm the metrics endpoint is reachable and the ServiceMonitor still selects the pod.
+              4. This is process-down, not backlog: do not tune workers until the runtime is reporting again.
+              5. Distinguish from EshuFreshnessQueueStuck (process up, queue not draining) and EshuReducerNotConverging (process up, enqueue outpacing execution).
+
+        - alert: EshuFreshnessQueueStuck
+          expr: |
+            (
+              max by (service_name) (eshu_runtime_queue_oldest_outstanding_age_seconds) > 3600
+            )
+            and
+            (
+              max by (service_name) (eshu_runtime_queue_outstanding) > 0
+            )
+            and
+            (
+              max by (service_name) (delta(eshu_runtime_queue_oldest_outstanding_age_seconds[15m])) >= 0
+            )
+          for: 10m
+          labels:
+            severity: critical
+            service: eshu-pipeline
+            component: freshness
+            freshness_state: queue_stuck
+          annotations:
+            summary: "Freshness queue is stuck — oldest work over 1h and not draining"
+            description: "service_name={{ $labels.service_name }} has outstanding work older than 1h whose age is flat or rising over the last 15m. Work is admitted but not completing, so answers stay stale."
+            runbook: |
+              1. Confirm the process is up first (rules out EshuFreshnessProcessDown): check `eshu_runtime_info` and `eshu_runtime_health_state`.
+              2. Inspect queue split: `eshu_runtime_queue_retrying` and `eshu_runtime_queue_dead_letter`. Dead-letter > 0 means work exhausted retries.
+              3. Check `eshu_dp_queue_depth` by `queue` and `status` to find which stage (fact, projector, reducer) owns the backlog.
+              4. Review reducer/projector failure rate: `eshu_dp_projections_completed_total{status="failed"}` and `eshu_dp_reducer_executions_total{status="failed"}`.
+              5. If outstanding is flat with no failures, suspect a stalled lease/claim, not capacity. Do not add workers blindly.
+
+        - alert: EshuReducerNotConverging
+          expr: |
+            (
+              sum(rate(eshu_dp_reducer_intents_enqueued_total[10m]))
+              >
+              sum(rate(eshu_dp_reducer_executions_total[10m])) * 1.2
+            )
+            and
+            (
+              sum(rate(eshu_dp_reducer_intents_enqueued_total[10m])) > 0.1
+            )
+          for: 15m
+          labels:
+            severity: warning
+            service: eshu-reducer
+            component: freshness
+            freshness_state: reducer_not_converging
+          annotations:
+            summary: "Reducer is not converging — intents enqueued outpace executions"
+            description: "Reducer intents are enqueued at more than 1.2x the execution rate for 15m. The reducer is falling behind the change stream and the materialized graph is diverging from the latest facts."
+            runbook: |
+              1. This is convergence lag, not a stopped process: `eshu_runtime_info` should still be present.
+              2. Check execution health by domain: `eshu_dp_reducer_executions_total{status="failed"}` by `domain`.
+              3. Review wait time: `eshu_dp_reducer_queue_wait_seconds` and `eshu_dp_shared_projection_intent_wait_seconds` p95.
+              4. Verify shared projection cycles are completing: `eshu_dp_shared_projection_cycles_total` rate and `eshu_dp_shared_projection_stale_intents_total`.
+              5. Tune partition count before batch size; only add reducer replicas after confirming safe conflict domains.
+
+        - alert: EshuTriggerHandoffFailed
+          expr: |
+            (
+              sum(rate(eshu_dp_webhook_store_operations_total{status="failed"}[10m]))
+              +
+              sum(rate(eshu_dp_webhook_trigger_decisions_total{status="failed"}[10m]))
+            ) > 0
+          for: 10m
+          labels:
+            severity: warning
+            service: eshu-webhook-listener
+            component: freshness
+            freshness_state: trigger_handoff_failed
+          annotations:
+            summary: "Webhook trigger handoff failing — change events not becoming freshness work"
+            description: "Webhook trigger store or decision operations are failing for 10m. External change events are being received but not durably handed off to the freshness pipeline, so the graph will not refresh in response to them."
+            runbook: |
+              1. Inspect failure shape: `eshu_dp_webhook_store_operations_total{status="failed"}` by `outcome` and `eshu_dp_webhook_trigger_decisions_total{status="failed"}` by `decision`/`reason`.
+              2. Confirm the trigger store backend (Postgres) is healthy and reachable from the listener.
+              3. Check listener request edge: `eshu_dp_webhook_requests_total` by `outcome`/`reason` to separate rejected-at-edge from accepted-but-not-stored.
+              4. Labels are bounded enums — no payloads or delivery IDs. For per-event detail use logs/traces, not metrics.
+              5. Distinguish from a healthy ignore path: `decision=ignored` with `status` other than failed is expected and must not alert.
+
+        - alert: EshuStaleAnswerGenerationsPending
+          expr: |
+            (
+              sum(eshu_runtime_generation_total{state="pending"}) > 0
+              or
+              sum(eshu_runtime_generation_total{state="failed"}) > 0
+            )
+            and
+            (
+              max(eshu_runtime_queue_oldest_outstanding_age_seconds) > 1800
+            )
+          for: 15m
+          labels:
+            severity: warning
+            service: eshu-pipeline
+            component: freshness
+            freshness_state: stale_answer
+          annotations:
+            summary: "Answers are stale — generations pending/failed while work ages"
+            description: "Pending or failed generations persist while the oldest outstanding work item is over 30m old. Read-path answers reflect a generation that has not converged, so operators should treat query results as stale until this clears."
+            runbook: |
+              1. Read generation lifecycle: `eshu_runtime_generation_total` by `state` (active, pending, completed, superseded, failed).
+              2. failed > 0 blocks convergence and turns runtime health degraded — resolve failures first.
+              3. Cross-check the queue rules above to find the cause (process-down, queue-stuck, or reducer-not-converging).
+              4. Use `/admin/status` to confirm which generation the read path is serving before forcing a re-index.
+              5. This is a freshness/correctness signal, not a latency signal: do not silence it by scaling read replicas.
