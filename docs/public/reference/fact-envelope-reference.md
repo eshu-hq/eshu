@@ -106,7 +106,8 @@ secret values, or private provider responses.
 
 Repository-hosted documentation ingestion is part of Git collection. It emits
 source-neutral documentation facts for Markdown, lightweight text, HTML,
-notebook narrative, DOCX, CSV/TSV, XLSX, PPTX, and ZIP/TAR documentation packets
+notebook narrative, DOCX, CSV/TSV, XLSX, PPTX, ZIP/TAR documentation packets, and
+default-off media transcript helper output
 under the repository scope with repository `linked_entities` targets for
 scoped readback. DOCX sections contain bounded heading, paragraph, and table text;
 comments and tracked changes stay metadata-only.
@@ -122,6 +123,10 @@ nested archives, credential-looking members, unsupported formats, resource limit
 compression-ratio hazards are warning metadata, not extracted content.
 Deterministic `doctruth` extraction may add entity-mention and claim-candidate
 facts from bounded sections, but those claims remain `document_evidence` only.
+Media transcript helpers emit `documentation_document` and timestamped
+`documentation_section` facts only from reviewed local transcript engine output
+after media preflight; they do not enable repository media discovery, external
+transcription, speaker identity, or operational truth.
 Reducers and query surfaces decide later findings or drift evidence. Local
 `eshu docs verify` checks local Markdown claims against caller-supplied truth
 sources and emits findings or evidence packets instead of ingesting docs.

@@ -1,4 +1,4 @@
-package ocrdoc
+package mediadoc
 
 import (
 	"path"
