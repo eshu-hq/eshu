@@ -8,6 +8,7 @@ Refs #1900. Refs #1774, #1781, #1852, #1899, #1902, #1903, #1905,
 [Hosted Project Onboarding](../../public/deployment/hosted-onboarding.md),
 [Semantic Enrichment Posture](../../public/reference/semantic-enrichment-posture.md),
 [Hosted Redaction Registry](../../public/reference/hosted-redaction-registry.md),
+[Hosted Retention And Deletion Policy](../../public/reference/hosted-retention-deletion-policy.md),
 [Plugin Trust Model](../../public/reference/plugin-trust-model.md),
 [Semantic Extraction Policy](1754-semantic-extraction-policy.md), and
 [Hosted Extension Operator Policy](1826-hosted-extension-operator-policy.md).
