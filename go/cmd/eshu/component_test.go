@@ -93,6 +93,9 @@ metadata:
 spec:
   compatibleCore: ">=0.0.5 <0.1.0"
   componentType: collector
+  runtime:
+    sdkProtocol: collector-sdk/v1alpha1
+    adapter: oci
   collectorKinds:
     - aws
   artifacts:

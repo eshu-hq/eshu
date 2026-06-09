@@ -234,6 +234,8 @@ Required manifest fields:
 | `spec.compatibleCore` | Core version range. Release builds enforce it; local `dev` builds parse it but skip release comparison. |
 | `spec.componentType` | Currently only `collector`. |
 | `spec.collectorKinds` | One or more collector-family identifiers. |
+| `spec.runtime.sdkProtocol` | Collector SDK wire protocol. The first supported value is `collector-sdk/v1alpha1`. |
+| `spec.runtime.adapter` | Host adapter shape. The first supported values are `oci` and `process`. |
 | `spec.artifacts[].image` | Digest-pinned image with a full SHA256 digest. |
 | `spec.emittedFacts[]` | Fact kind, schema versions, and source-confidence values emitted by the component. |
 | `spec.consumerContracts.reducer.phases` | Reducer phase contracts the emitted fact kinds need. |
@@ -241,6 +243,12 @@ Required manifest fields:
 
 Artifacts must be digest-pinned with a SHA256 digest. Mutable tags and short
 or malformed digests are rejected.
+
+Runtime protocol fields are checked during manifest validation. Unknown SDK
+protocols or adapters are rejected before install or activation. Declaring a
+supported runtime protocol does not make an installed package claim-capable:
+operators must still enable an instance, hosted policy must approve it, and the
+workflow coordinator or extension host must implement the matching adapter.
 
 `compatibleCore` is checked during verification. Release builds compare the
 manifest range against the running Eshu core version. Local source builds that
