@@ -24,7 +24,7 @@ Current shipped behavior:
 | Extensions | Component trust can materialize verified activations, and the workflow coordinator requires `ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON` before planning component-extension claims. The full hosted extension policy file and charted extension runtime remain future work. | That installed or enabled components can collect in hosted mode without an explicit extension egress allow rule. |
 | Network egress | Helm can render restricted NetworkPolicy egress classes for DNS, datastore, graph, internal service, collector providers, semantic providers, and extensions. | That `networkPolicy.egress.mode=broad` is least-privilege proof. |
 | Redaction and retention | The hosted redaction registry defines forbidden raw classes, safe bounded field classes, and synthetic leakage canaries. The hosted retention policy defines design-only deletion, tombstone, and graph-rebuild semantics. Semantic posture docs still require redaction policy and metadata-oriented retention for optional provider work. | That runtime retention and deletion enforcement is implemented end to end. |
-| Audit | Existing status, telemetry, semantic queue, budget, and component diagnostics expose bounded classes and counts. | A complete hosted governance audit ledger until the governance issues land. |
+| Audit | The private Postgres audit sink persists validation-safe governance events and feeds aggregate-only API/MCP status counts. Detailed private queries require an operator-authorized storage call bounded by event type, actor class, scope class, decision, reason code, correlation id, and time window. | That public status, metrics, MCP readbacks, docs, or tickets may include raw event bodies, principals, source identifiers, prompts, provider responses, credential handles, private URLs, or token values. |
 
 Before onboarding, run the [Hosted Security Posture Gate](hosted-security-posture.md)
 against the operator values file. It proves API/MCP token references, Postgres
@@ -32,9 +32,9 @@ and graph credential references, pprof binding, and public-docs exposure posture
 without printing credential values.
 
 Tracked follow-up work covers per-team tokens, tenant/workspace isolation,
-governance status, egress gates, redaction proof, audit events, retention, and
-end-to-end hosted governance proof. Until those land, use this page as an
-operator checklist, not as a promise of multi-tenant isolation.
+egress proof, redaction proof, runtime retention enforcement, and end-to-end
+hosted governance proof. Until those land, use this page as an operator
+checklist, not as a promise of multi-tenant isolation.
 
 The shared governance policy model is a design gate, not runtime enforcement
 yet. It keeps current local/no-policy behavior, hosted single-tenant shared
@@ -270,12 +270,12 @@ helm lint ./deploy/helm/eshu -f values.hosted-governance.yaml
 1. Check `/api/v0/status/governance` or `get_hosted_governance_status`.
 2. Review aggregate audit event, denied decision, unavailable decision,
    event-type, actor-class, scope-class, reason, and ACL-state counts.
-3. Use the private audit sink for event bodies only after confirming the
-   operator is authorized for that scope.
+3. Use the private audit sink for detailed event fields only after confirming
+   the operator is authorized for that scope.
 4. Keep detailed audit searches bounded by actor class, scope class, decision,
-   reason code, and a narrow time window. Do not search by raw names, paths,
-   URLs, document titles, prompts, or credential handles.
-5. Retain detailed event bodies only in the private audit sink for the hosted
+   reason code, correlation id, and a narrow time window. Do not search by raw
+   names, paths, URLs, document titles, prompts, or credential handles.
+5. Retain detailed event fields only in the private audit sink for the hosted
    policy retention window. Status and MCP surfaces keep aggregate counts only.
 6. Keep actor identifiers, tenant names, repository names, source identifiers,
    prompts, provider responses, credential handles, private URLs, and token
@@ -383,7 +383,7 @@ Use these gates for hosted governance-related changes:
 | Hosted API/MCP auth, Secret refs, pprof, or docs exposure posture | `scripts/test-verify-hosted-security-posture.sh`, `scripts/verify-hosted-security-posture.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml`. |
 | Hosted NetworkPolicy egress posture | `scripts/test-verify-hosted-network-policy-egress.sh`, `scripts/verify-hosted-network-policy-egress.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml`. |
 | Hosted retention or deletion policy docs | Strict MkDocs build and `git diff --check`; runtime implementation must add focused deletion, tombstone, stale-read, and graph-rebuild tests. |
-| Hosted governance audit events or readbacks | `go test ./internal/governanceaudit ./internal/query -count=1`, package-doc gates, and strict MkDocs build. |
+| Hosted governance audit events or readbacks | `go test ./internal/governanceaudit ./internal/storage/postgres ./internal/query ./cmd/api ./cmd/mcp-server -count=1`, package-doc gates, performance-evidence gate, and strict MkDocs build. |
 | Hosted extension egress claim gate | `go test ./internal/coordinator -run 'Test(ParseExtensionEgressPolicyJSON|ExtensionEgressPolicy|LoadConfigParsesExtensionEgressPolicy|ServiceRun.*ComponentExtension|ServiceComponentExtension)' -count=1`, package-doc gates, performance-evidence gate, and strict MkDocs build. |
 | Hosted onboarding or setup CLI | `go test ./cmd/eshu -count=1`. |
 | API/MCP status surfaces | `go test ./internal/query ./internal/mcp ./cmd/api -count=1`. |

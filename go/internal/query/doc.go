@@ -73,9 +73,11 @@
 // PrometheusMetricsTimeSeriesSource providing the Prometheus/Mimir query_range
 // implementation when the API runtime is configured with a live metrics source.
 // Governance status reads expose only redacted policy mode, state, source kind,
-// revision hash, readiness booleans, aggregate counts, and reason codes; raw
-// policy, tenant, workspace, source, credential, endpoint, prompt, response,
-// path, and token values stay out of API and MCP payloads.
+// revision hash, readiness booleans, aggregate counts, and reason codes. When
+// a private governance audit sink is wired, the route reads only its aggregate
+// summary; raw policy, tenant, workspace, source, detailed audit hashes,
+// correlation ids, credential, endpoint, prompt, response, path, and token
+// values stay out of API and MCP payloads.
 // Story and investigation routes also attach additive answer_metadata
 // companions for prompt-facing clients. The companion normalizes existing
 // evidence handles, missing evidence, limitations, truncation, coverage,

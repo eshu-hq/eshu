@@ -1,6 +1,7 @@
 package query
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -36,6 +37,11 @@ type GovernanceStatusConfig struct {
 	AuditSummary       governanceaudit.Summary
 }
 
+// GovernanceAuditSummaryReader reads aggregate-only governance audit counts.
+type GovernanceAuditSummaryReader interface {
+	Summary(context.Context) (governanceaudit.Summary, error)
+}
+
 func (h *StatusHandler) getGovernanceStatus(w http.ResponseWriter, r *http.Request) {
 	report := status.BuildReport(status.RawSnapshot{}, status.DefaultOptions())
 	if h != nil && h.StatusReader != nil {
@@ -46,7 +52,21 @@ func (h *StatusHandler) getGovernanceStatus(w http.ResponseWriter, r *http.Reque
 		}
 		report = loaded
 	}
-	payload := buildGovernanceStatus(h.governanceConfig(), report.SemanticExtraction)
+	config := h.governanceConfig()
+	if h != nil && h.GovernanceAudit != nil {
+		summary, err := h.GovernanceAudit.Summary(r.Context())
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load governance audit summary: %v", err))
+			return
+		}
+		if governanceAuditSummaryHasValues(summary) {
+			config.AuditSummary = summary
+			if strings.TrimSpace(config.AuditState) == "" || strings.TrimSpace(config.AuditState) == "not_configured" {
+				config.AuditState = "observed"
+			}
+		}
+	}
+	payload := buildGovernanceStatus(config, report.SemanticExtraction)
 	WriteSuccess(w, r, http.StatusOK, payload, governanceStatusTruth(h.profile(), payload))
 }
 
@@ -351,6 +371,13 @@ func governanceAuditActorClassCount(
 		}
 	}
 	return len(names)
+}
+
+func governanceAuditSummaryHasValues(summary governanceaudit.Summary) bool {
+	return summary.Total > 0 || summary.Allowed > 0 || summary.Denied > 0 ||
+		summary.Unavailable > 0 || len(summary.EventTypeCounts) > 0 ||
+		len(summary.DecisionCounts) > 0 || len(summary.ReasonCounts) > 0 ||
+		len(summary.ActorClassCounts) > 0 || len(summary.ScopeClassCounts) > 0
 }
 
 func nonNegative(value int) int {

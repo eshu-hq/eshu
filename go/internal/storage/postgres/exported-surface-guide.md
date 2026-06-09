@@ -159,6 +159,12 @@ reducer/query adapter.
   counts, queue depth
 - `StatusRequestStore` / `NewStatusRequestStore` — async status request
   persistence
+- `GovernanceAuditStore` / `NewGovernanceAuditStore` — validation-safe hosted
+  governance audit persistence with retry-idempotent `Append`, private
+  operator-authorized bounded `List`, aggregate-only `Summary`, and
+  retention-oriented `DeleteExpired`
+- `GovernanceAuditEventsSchemaSQL` — idempotent DDL for the private
+  `governance_audit_events` sink
 
 **Ingestion**
 

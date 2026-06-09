@@ -1,10 +1,14 @@
 package query
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 )
 
 // mockHandler returns 200 with "ok" body when called
@@ -144,6 +148,74 @@ func TestAuthMiddleware_GovernanceStatusRequiresAuth(t *testing.T) {
 	}
 }
 
+func TestAuthMiddlewareWithGovernanceAuditRecordsDeniedReadAuthorization(t *testing.T) {
+	t.Parallel()
+
+	audit := &fakeGovernanceAuditAppender{}
+	handler := AuthMiddlewareWithGovernanceAudit("valid-secret-token", mockHandler(), audit)
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/status/governance", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("X-Correlation-ID", "corr-auth-123")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusUnauthorized; got != want {
+		t.Fatalf("status = %d, want %d", got, want)
+	}
+	if strings.Contains(rec.Body.String(), "valid-secret-token") {
+		t.Fatalf("unauthorized body leaked token: %s", rec.Body.String())
+	}
+	if got, want := len(audit.events), 1; got != want {
+		t.Fatalf("len(audit.events) = %d, want %d", got, want)
+	}
+	event := audit.events[0]
+	if got, want := event.Type, governanceaudit.EventTypeReadAuthorization; got != want {
+		t.Fatalf("event.Type = %q, want %q", got, want)
+	}
+	if got, want := event.ActorClass, governanceaudit.ActorClassAnonymous; got != want {
+		t.Fatalf("event.ActorClass = %q, want %q", got, want)
+	}
+	if got, want := event.ScopeClass, governanceaudit.ScopeClassAdmin; got != want {
+		t.Fatalf("event.ScopeClass = %q, want %q", got, want)
+	}
+	if got, want := event.Decision, governanceaudit.DecisionDenied; got != want {
+		t.Fatalf("event.Decision = %q, want %q", got, want)
+	}
+	if got, want := event.ReasonCode, "authentication_required"; got != want {
+		t.Fatalf("event.ReasonCode = %q, want %q", got, want)
+	}
+	if got, want := event.CorrelationID, "corr-auth-123"; got != want {
+		t.Fatalf("event.CorrelationID = %q, want %q", got, want)
+	}
+	if event.OccurredAt.IsZero() {
+		t.Fatal("event.OccurredAt is zero, want wall clock timestamp")
+	}
+}
+
+func TestAuthMiddlewareWithGovernanceAuditDropsUnsafeCorrelationID(t *testing.T) {
+	t.Parallel()
+
+	audit := &fakeGovernanceAuditAppender{}
+	handler := AuthMiddlewareWithGovernanceAudit("valid-secret-token", mockHandler(), audit)
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/status/governance", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("X-Correlation-ID", "operator.person@example.invalid")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusUnauthorized; got != want {
+		t.Fatalf("status = %d, want %d", got, want)
+	}
+	if got, want := len(audit.events), 1; got != want {
+		t.Fatalf("len(audit.events) = %d, want %d", got, want)
+	}
+	if got := audit.events[0].CorrelationID; got != "" {
+		t.Fatalf("event.CorrelationID = %q, want empty safe value", got)
+	}
+}
+
 func TestAuthMiddleware_DevMode_EmptyToken(t *testing.T) {
 	// Empty token means dev mode: skip auth
 	handler := AuthMiddleware("", mockHandler())
@@ -157,6 +229,15 @@ func TestAuthMiddleware_DevMode_EmptyToken(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected status 200 in dev mode, got %d", rec.Code)
 	}
+}
+
+type fakeGovernanceAuditAppender struct {
+	events []governanceaudit.Event
+}
+
+func (f *fakeGovernanceAuditAppender) Append(_ context.Context, events []governanceaudit.Event) error {
+	f.events = append(f.events, events...)
+	return nil
 }
 
 func TestAuthMiddleware_UnauthorizedResponse(t *testing.T) {
