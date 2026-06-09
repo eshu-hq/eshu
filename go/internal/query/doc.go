@@ -150,7 +150,9 @@
 // (`count`, `limit`, `truncated`, `missing_evidence`, `states`, and
 // `next_cursor` on truncated pages) so API and MCP clients can distinguish a
 // complete scoped page from a continuation page or a scoped page with no
-// collected documentation facts.
+// collected documentation facts. Fact reads include provenance-only
+// semantic.documentation_observation rows, but documentation finding admission
+// remains reducer-owned.
 //
 // AnswerPacket composes existing query truth into a user-ready response plan
 // without losing structured evidence. It is a view over the canonical

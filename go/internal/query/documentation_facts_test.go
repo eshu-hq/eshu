@@ -179,10 +179,7 @@ func TestDocumentationHandlerAllowsSourceFactDiscovery(t *testing.T) {
 	t.Parallel()
 
 	var captured documentationFactFilter
-	handler := &DocumentationHandler{
-		Content: fakePortContentStore{documentationFactsFilter: &captured},
-		Profile: ProfileProduction,
-	}
+	handler := &DocumentationHandler{Content: fakePortContentStore{documentationFactsFilter: &captured}, Profile: ProfileProduction}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -201,25 +198,42 @@ func TestDocumentationHandlerAllowsSourceFactDiscovery(t *testing.T) {
 func TestNormalizeDocumentationFactKindAcceptsSemanticDocumentationObservation(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range []struct {
-		name string
-		raw  string
-	}{
-		{name: "canonical", raw: facts.SemanticDocumentationObservationFactKind},
-		{name: "semantic_observation", raw: "semantic_observation"},
-		{name: "documentation_observation", raw: "documentation_observation"},
+	for _, raw := range []string{
+		facts.SemanticDocumentationObservationFactKind,
+		documentationFactKindAliasSemanticObservation,
+		documentationFactKindAliasDocumentationObservation,
+		documentationFactKindAliasSemanticDocumentationObservation,
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+		got, ok := normalizeDocumentationFactKind(raw)
+		if !ok {
+			t.Fatalf("normalizeDocumentationFactKind(%q) rejected semantic observation alias", raw)
+		}
+		if got, want := got, facts.SemanticDocumentationObservationFactKind; got != want {
+			t.Fatalf("normalizeDocumentationFactKind(%q) = %q, want %q", raw, got, want)
+		}
+	}
+}
 
-			got, ok := normalizeDocumentationFactKind(tc.raw)
-			if !ok {
-				t.Fatalf("normalizeDocumentationFactKind(%q) rejected semantic observation alias", tc.raw)
-			}
-			if got, want := got, facts.SemanticDocumentationObservationFactKind; got != want {
-				t.Fatalf("normalizeDocumentationFactKind(%q) = %q, want %q", tc.raw, got, want)
-			}
-		})
+func TestDocumentationHandlerAllowsSemanticObservationFactDiscovery(t *testing.T) {
+	t.Parallel()
+
+	var captured documentationFactFilter
+	handler := &DocumentationHandler{
+		Content: fakePortContentStore{documentationFactsFilter: &captured},
+		Profile: ProfileProduction,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/documentation/facts?fact_kind=semantic_observation&source_id=doc-source:git:platform-docs&limit=10", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := captured.FactKind, facts.SemanticDocumentationObservationFactKind; got != want {
+		t.Fatalf("FactKind = %q, want %q", got, want)
 	}
 }
 
@@ -444,8 +458,9 @@ func TestOpenAPISpecIncludesDocumentationFacts(t *testing.T) {
 	}
 	factKindEnum := openAPIParameterStringEnum(t, get["parameters"].([]any), "fact_kind")
 	for _, name := range []string{
-		"semantic_observation",
-		"documentation_observation",
+		documentationFactKindAliasSemanticObservation,
+		documentationFactKindAliasDocumentationObservation,
+		documentationFactKindAliasSemanticDocumentationObservation,
 		facts.SemanticDocumentationObservationFactKind,
 	} {
 		if !openAPIStringListIncludes(factKindEnum, name) {

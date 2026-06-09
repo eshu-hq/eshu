@@ -139,7 +139,7 @@ const openAPIPathsEvidence = `
         "description": "Lists source-neutral documentation facts collected from systems such as Confluence. The route is bounded by limit/cursor and requires a scope, target, or source/document/section anchor.",
         "operationId": "listDocumentationFacts",
         "parameters": [
-          {"name": "fact_kind", "in": "query", "schema": {"type": "string", "enum": ["source", "document", "section", "link", "entity_mention", "claim_candidate", "semantic_observation", "documentation_observation", "documentation_source", "documentation_document", "documentation_section", "documentation_link", "documentation_entity_mention", "documentation_claim_candidate", "semantic.documentation_observation"]}},
+          {"name": "fact_kind", "in": "query", "schema": {"type": "string", "enum": ["source", "document", "section", "link", "entity_mention", "claim_candidate", "semantic_observation", "documentation_observation", "semantic_documentation_observation", "documentation_source", "documentation_document", "documentation_section", "documentation_link", "documentation_entity_mention", "documentation_claim_candidate", "semantic.documentation_observation"]}},
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Persisted documentation collector scope identifier"},
           {"name": "generation_id", "in": "query", "schema": {"type": "string"}, "description": "Persisted documentation collector generation identifier"},
           {"name": "repo", "in": "query", "schema": {"type": "string"}, "description": "Repository target reference to match in documentation mention, claim, or finding payload refs"},

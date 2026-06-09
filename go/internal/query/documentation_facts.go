@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	documentationFactKindAliasSemanticObservation      = "semantic_observation"
-	documentationFactKindAliasDocumentationObservation = "documentation_observation"
+	documentationFactKindAliasSemanticObservation              = "semantic_observation"
+	documentationFactKindAliasDocumentationObservation         = "documentation_observation"
+	documentationFactKindAliasSemanticDocumentationObservation = "semantic_documentation_observation"
 )
 
 type documentationFactFilter struct {
@@ -151,6 +152,7 @@ func normalizeDocumentationFactKind(raw string) (string, bool) {
 		return facts.DocumentationClaimCandidateFactKind, true
 	case documentationFactKindAliasSemanticObservation,
 		documentationFactKindAliasDocumentationObservation,
+		documentationFactKindAliasSemanticDocumentationObservation,
 		facts.SemanticDocumentationObservationFactKind:
 		return facts.SemanticDocumentationObservationFactKind, true
 	default:
