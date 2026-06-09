@@ -32,12 +32,13 @@ type Policy struct {
 
 // VerificationResult reports whether a manifest is allowed by policy.
 type VerificationResult struct {
-	Allowed   bool
-	Mode      string
-	Reason    string
-	Component string
-	Publisher string
-	Version   string
+	Allowed   bool      `json:"allowed"`
+	Mode      string    `json:"mode"`
+	Code      ErrorCode `json:"code,omitempty"`
+	Reason    string    `json:"reason,omitempty"`
+	Component string    `json:"component"`
+	Publisher string    `json:"publisher"`
+	Version   string    `json:"version"`
 }
 
 // Verify validates a manifest against the policy.
@@ -47,7 +48,7 @@ func (p Policy) Verify(manifest Manifest) VerificationResult {
 		mode = TrustModeDisabled
 	}
 	if err := manifest.Validate(); err != nil {
-		return VerificationResult{Mode: mode, Reason: err.Error()}
+		return VerificationResult{Mode: mode, Code: ErrorCodeInvalidManifest, Reason: err.Error()}
 	}
 	result := VerificationResult{
 		Mode:      mode,
@@ -56,36 +57,47 @@ func (p Policy) Verify(manifest Manifest) VerificationResult {
 		Version:   manifest.Metadata.Version,
 	}
 	if err := verifyCompatibleCore(manifest.Spec.CompatibleCore, p.coreVersion()); err != nil {
+		result.Code = ErrorCodeIncompatibleCore
+		if strings.Contains(err.Error(), " is invalid:") {
+			result.Code = ErrorCodeInvalidManifest
+		}
 		result.Reason = err.Error()
 		return result
 	}
 	if contains(p.RevokedIDs, manifest.Metadata.ID) {
+		result.Code = ErrorCodeRevokedPackage
 		result.Reason = fmt.Sprintf("component %q is revoked", manifest.Metadata.ID)
 		return result
 	}
 	if contains(p.RevokedPublishers, manifest.Metadata.Publisher) {
+		result.Code = ErrorCodeRevokedPackage
 		result.Reason = fmt.Sprintf("revoked publisher %q", manifest.Metadata.Publisher)
 		return result
 	}
 	switch mode {
 	case TrustModeDisabled:
+		result.Code = ErrorCodeUntrustedPublisher
 		result.Reason = "component trust policy is disabled"
 		return result
 	case TrustModeAllowlist:
 		if !contains(p.AllowedIDs, manifest.Metadata.ID) {
+			result.Code = ErrorCodeUntrustedPublisher
 			result.Reason = fmt.Sprintf("component %q is not allowlisted", manifest.Metadata.ID)
 			return result
 		}
 		if !contains(p.AllowedPublishers, manifest.Metadata.Publisher) {
+			result.Code = ErrorCodeUntrustedPublisher
 			result.Reason = fmt.Sprintf("publisher %q is not allowlisted", manifest.Metadata.Publisher)
 			return result
 		}
 		result.Allowed = true
 		return result
 	case TrustModeStrict:
+		result.Code = ErrorCodeUntrustedPublisher
 		result.Reason = "strict provenance verification is not available in this build"
 		return result
 	default:
+		result.Code = ErrorCodeInvalidInput
 		result.Reason = fmt.Sprintf("unknown trust mode %q", mode)
 		return result
 	}
@@ -101,6 +113,15 @@ func (p Policy) coreVersion() string {
 		return version
 	}
 	return buildinfo.AppVersion()
+}
+
+func (p Policy) isZero() bool {
+	return p.Mode == "" &&
+		len(p.AllowedIDs) == 0 &&
+		len(p.AllowedPublishers) == 0 &&
+		len(p.RevokedIDs) == 0 &&
+		len(p.RevokedPublishers) == 0 &&
+		strings.TrimSpace(p.CoreVersion) == ""
 }
 
 func verifyCompatibleCore(rangeExpression, currentVersion string) error {

@@ -37,6 +37,13 @@ eshu component install ./aws-component.yaml \
   --trust-mode allowlist \
   --allow-id dev.eshu.collector.aws \
   --allow-publisher eshu-hq
+eshu component install ./aws-component.yaml \
+  --component-home ~/.eshu/components \
+  --trust-mode allowlist \
+  --allow-id dev.eshu.collector.aws \
+  --allow-publisher eshu-hq \
+  --dry-run \
+  --json
 eshu component enable dev.eshu.collector.aws \
   --component-home ~/.eshu/components \
   --instance prod-aws \
@@ -44,6 +51,12 @@ eshu component enable dev.eshu.collector.aws \
   --claims \
   --config ./aws-collector.yaml
 eshu component list --component-home ~/.eshu/components
+eshu component list --component-home ~/.eshu/components \
+  --trust-mode allowlist \
+  --allow-id dev.eshu.collector.aws \
+  --allow-publisher eshu-hq \
+  --revoke-id dev.eshu.collector.old \
+  --json
 eshu component disable dev.eshu.collector.aws \
   --component-home ~/.eshu/components \
   --instance prod-aws
@@ -54,6 +67,109 @@ eshu component uninstall dev.eshu.collector.aws \
 ```
 
 Uninstall fails while a component has active instances.
+
+Every component subcommand accepts `--json`. JSON output uses
+`schema_version: eshu.component.cli.v1`, a command name, a status, and the
+component, activation, verification, list, or error block that applies to the
+command. The text output remains the default operator summary.
+
+`install --dry-run` verifies the manifest and trust policy but does not create
+`registry.json` or copy the manifest. `enable --dry-run` validates the selected
+component and activation instance but does not write an activation.
+
+Example install dry run:
+
+```json
+{
+  "schema_version": "eshu.component.cli.v1",
+  "command": "install",
+  "status": "would_install",
+  "dry_run": true,
+  "component": {
+    "id": "dev.eshu.collector.aws",
+    "name": "AWS cloud scanner",
+    "publisher": "eshu-hq",
+    "version": "0.1.0"
+  },
+  "verification": {
+    "allowed": true,
+    "mode": "allowlist",
+    "component": "dev.eshu.collector.aws",
+    "publisher": "eshu-hq",
+    "version": "0.1.0"
+  }
+}
+```
+
+Example list output:
+
+```json
+{
+  "schema_version": "eshu.component.cli.v1",
+  "command": "list",
+  "status": "listed",
+  "components": [
+    {
+      "id": "dev.eshu.collector.aws",
+      "name": "AWS cloud scanner",
+      "publisher": "eshu-hq",
+      "version": "0.1.0",
+      "manifest_digest": "sha256:...",
+      "verified": true,
+      "trust_mode": "allowlist",
+      "installed_at": "2026-06-09T00:00:00Z",
+      "states": ["installed", "enabled", "claim_capable"],
+      "activations": [
+        {
+          "instance_id": "prod-aws",
+          "mode": "scheduled",
+          "claims_enabled": true,
+          "config_path": "./aws-collector.yaml",
+          "enabled_at": "2026-06-09T00:00:00Z"
+        }
+      ]
+    }
+  ]
+}
+```
+
+The stable readback states are:
+
+| State | Meaning |
+| --- | --- |
+| `installed` | The package is present in `registry.json`. |
+| `enabled` | One or more activation records exist. |
+| `claim_capable` | At least one activation can claim workflow work. |
+| `revoked` | Policy re-verification marked the component ID or publisher revoked. |
+| `incompatible` | Policy re-verification found an incompatible core range. |
+| `failed` | Manifest readback or policy re-verification failed. |
+
+`component list --json` accepts the same trust and revocation flags as
+`verify`. When those flags are omitted, list reports stored lifecycle state and
+local manifest readback only. When trust or revocation flags are supplied, list
+also re-verifies installed manifests and can add `revoked`, `incompatible`, or
+`failed` states without mutating the registry.
+
+JSON errors use stable codes:
+
+| Code | Meaning |
+| --- | --- |
+| `invalid_manifest` | The manifest cannot be read, decoded, or validated. |
+| `incompatible_core` | The manifest's `compatibleCore` range excludes the running Eshu core. |
+| `revoked_package` | The component ID or publisher is revoked. |
+| `untrusted_publisher` | The local trust policy does not allow the component or publisher. |
+| `active_uninstall` | Uninstall was requested for a package version with active instances. |
+| `duplicate_activation` | The requested instance is already enabled. |
+| `corrupted_registry_state` | `registry.json` cannot be decoded or read consistently. |
+| `active_replacement` | Replacement content was supplied for an active installed version. |
+| `not_installed` | The requested component, version, or activation is absent. |
+| `invalid_input` | A flag or identifier is invalid. |
+| `unverified_package` | Install was attempted without a matching successful verification. |
+| `registry_write_failed` | A local registry or package-content write failed. |
+
+Error messages avoid private local paths other than operator-selected component
+home or activation config paths. Stored manifest paths are not printed in the
+CLI JSON component blocks.
 
 ## Component Home
 
@@ -70,6 +186,9 @@ The first implementation stores:
 - copied manifests under `packages/<component-id>/<version>/manifest.yaml`
 
 Registry writes use a temporary file and rename in the same directory.
+The v1 CLI keeps that atomic-write behavior for install, enable, disable, and
+uninstall. Dry-run commands do not write either the registry file or package
+content.
 
 ## Trust Modes
 

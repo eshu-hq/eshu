@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -57,7 +56,11 @@ func NewRegistry(home string) Registry {
 // Install validates, copies, and records a verified component manifest.
 func (r Registry) Install(manifestPath string, verification VerificationResult) (InstalledComponent, error) {
 	if !verification.Allowed {
-		return InstalledComponent{}, fmt.Errorf("component package is not verified: %s", verification.Reason)
+		return InstalledComponent{}, Errorf(
+			resultErrorCode(verification, ErrorCodeUnverifiedPackage),
+			"component package is not verified: %s",
+			verification.Reason,
+		)
 	}
 	manifest, err := LoadManifest(manifestPath)
 	if err != nil {
@@ -66,11 +69,11 @@ func (r Registry) Install(manifestPath string, verification VerificationResult) 
 	if verification.Component != manifest.Metadata.ID ||
 		verification.Publisher != manifest.Metadata.Publisher ||
 		verification.Version != manifest.Metadata.Version {
-		return InstalledComponent{}, fmt.Errorf("verification result does not match manifest")
+		return InstalledComponent{}, NewError(ErrorCodeUnverifiedPackage, "verification result does not match manifest")
 	}
 	raw, err := os.ReadFile(manifestPath)
 	if err != nil {
-		return InstalledComponent{}, fmt.Errorf("read component manifest: %w", err)
+		return InstalledComponent{}, WrapError(ErrorCodeInvalidManifest, "read component manifest", err)
 	}
 	manifestDigest := sha256Hex(raw)
 	state, err := r.load()
@@ -80,7 +83,12 @@ func (r Registry) Install(manifestPath string, verification VerificationResult) 
 	if existing := state.findVersion(manifest.Metadata.ID, manifest.Metadata.Version); existing != nil &&
 		len(existing.Activations) > 0 &&
 		existing.ManifestDigest != manifestDigest {
-		return InstalledComponent{}, fmt.Errorf("component %q version %q is active; disable it before replacing package content", manifest.Metadata.ID, manifest.Metadata.Version)
+		return InstalledComponent{}, Errorf(
+			ErrorCodeActiveReplacement,
+			"component %q version %q is active; disable it before replacing package content",
+			manifest.Metadata.ID,
+			manifest.Metadata.Version,
+		)
 	}
 	installed := InstalledComponent{
 		ID:             manifest.Metadata.ID,
@@ -94,10 +102,10 @@ func (r Registry) Install(manifestPath string, verification VerificationResult) 
 		InstalledAt:    time.Now().UTC(),
 	}
 	if err := os.MkdirAll(filepath.Dir(installed.ManifestPath), 0o755); err != nil {
-		return InstalledComponent{}, fmt.Errorf("create component package directory: %w", err)
+		return InstalledComponent{}, WrapError(ErrorCodeRegistryWriteFailed, "create component package directory", err)
 	}
 	if err := os.WriteFile(installed.ManifestPath, raw, 0o600); err != nil {
-		return InstalledComponent{}, fmt.Errorf("copy component manifest: %w", err)
+		return InstalledComponent{}, WrapError(ErrorCodeRegistryWriteFailed, "copy component manifest", err)
 	}
 	state.upsert(installed)
 	if err := r.save(state); err != nil {
@@ -119,32 +127,13 @@ func (r Registry) List() ([]InstalledComponent, error) {
 
 // Enable records one active component instance.
 func (r Registry) Enable(componentID string, activation Activation) (Activation, error) {
-	if err := validateIdentifier("component id", componentID); err != nil {
-		return Activation{}, err
-	}
-	if err := validateIdentifier("instance_id", activation.InstanceID); err != nil {
-		return Activation{}, err
-	}
-	if strings.TrimSpace(activation.Mode) == "" {
-		activation.Mode = "manual"
-	}
-	if err := validateIdentifier("mode", activation.Mode); err != nil {
-		return Activation{}, err
-	}
-	if activation.EnabledAt.IsZero() {
-		activation.EnabledAt = time.Now().UTC()
-	}
 	state, err := r.load()
 	if err != nil {
 		return Activation{}, err
 	}
-	component := state.findLatest(componentID)
-	if component == nil {
-		return Activation{}, fmt.Errorf("component %q is not installed", componentID)
-	}
-	if activeComponent := state.findActivation(componentID, activation.InstanceID); activeComponent != nil &&
-		activeComponent != component {
-		return Activation{}, fmt.Errorf("activation %q is already enabled for component %q version %q", activation.InstanceID, componentID, activeComponent.Version)
+	component, activation, err := state.prepareEnable(componentID, activation)
+	if err != nil {
+		return Activation{}, err
 	}
 	component.upsertActivation(activation)
 	if err := r.save(state); err != nil {
@@ -153,13 +142,58 @@ func (r Registry) Enable(componentID string, activation Activation) (Activation,
 	return activation, nil
 }
 
+// PlanEnable validates an activation without writing registry state.
+func (r Registry) PlanEnable(componentID string, activation Activation) (Activation, error) {
+	state, err := r.load()
+	if err != nil {
+		return Activation{}, err
+	}
+	_, activation, err = state.prepareEnable(componentID, activation)
+	if err != nil {
+		return Activation{}, err
+	}
+	return activation, nil
+}
+
+func (s *registryState) prepareEnable(componentID string, activation Activation) (*InstalledComponent, Activation, error) {
+	if err := validateIdentifier("component id", componentID); err != nil {
+		return nil, Activation{}, WrapError(ErrorCodeInvalidInput, err.Error(), err)
+	}
+	if err := validateIdentifier("instance_id", activation.InstanceID); err != nil {
+		return nil, Activation{}, WrapError(ErrorCodeInvalidInput, err.Error(), err)
+	}
+	if strings.TrimSpace(activation.Mode) == "" {
+		activation.Mode = "manual"
+	}
+	if err := validateIdentifier("mode", activation.Mode); err != nil {
+		return nil, Activation{}, WrapError(ErrorCodeInvalidInput, err.Error(), err)
+	}
+	if activation.EnabledAt.IsZero() {
+		activation.EnabledAt = time.Now().UTC()
+	}
+	component := s.findLatest(componentID)
+	if component == nil {
+		return nil, Activation{}, Errorf(ErrorCodeNotInstalled, "component %q is not installed", componentID)
+	}
+	if activeComponent := s.findActivation(componentID, activation.InstanceID); activeComponent != nil {
+		return nil, Activation{}, Errorf(
+			ErrorCodeDuplicateActivation,
+			"activation %q is already enabled for component %q version %q",
+			activation.InstanceID,
+			componentID,
+			activeComponent.Version,
+		)
+	}
+	return component, activation, nil
+}
+
 // Disable removes one active component instance.
 func (r Registry) Disable(componentID, instanceID string) error {
 	if err := validateIdentifier("component id", componentID); err != nil {
-		return err
+		return WrapError(ErrorCodeInvalidInput, err.Error(), err)
 	}
 	if err := validateIdentifier("instance_id", instanceID); err != nil {
-		return err
+		return WrapError(ErrorCodeInvalidInput, err.Error(), err)
 	}
 	state, err := r.load()
 	if err != nil {
@@ -168,16 +202,16 @@ func (r Registry) Disable(componentID, instanceID string) error {
 	components := state.findActivations(componentID, instanceID)
 	if len(components) == 0 {
 		if state.findLatest(componentID) == nil {
-			return fmt.Errorf("component %q is not installed", componentID)
+			return Errorf(ErrorCodeNotInstalled, "component %q is not installed", componentID)
 		}
-		return fmt.Errorf("activation %q is not enabled for component %q", instanceID, componentID)
+		return Errorf(ErrorCodeNotInstalled, "activation %q is not enabled for component %q", instanceID, componentID)
 	}
 	if len(components) > 1 {
-		return fmt.Errorf("activation %q is enabled for component %q on multiple versions", instanceID, componentID)
+		return Errorf(ErrorCodeDuplicateActivation, "activation %q is enabled for component %q on multiple versions", instanceID, componentID)
 	}
 	component := components[0]
 	if !component.removeActivation(instanceID) {
-		return fmt.Errorf("activation %q is not enabled for component %q", instanceID, componentID)
+		return Errorf(ErrorCodeNotInstalled, "activation %q is not enabled for component %q", instanceID, componentID)
 	}
 	return r.save(state)
 }
@@ -193,14 +227,14 @@ func (r Registry) Uninstall(componentID, version string) error {
 		component := state.Components[i]
 		if component.ID == componentID && component.Version == version {
 			if len(component.Activations) > 0 {
-				return fmt.Errorf("component %q version %q is active", componentID, version)
+				return Errorf(ErrorCodeActiveUninstall, "component %q version %q is active", componentID, version)
 			}
 			index = i
 			break
 		}
 	}
 	if index < 0 {
-		return fmt.Errorf("component %q version %q is not installed", componentID, version)
+		return Errorf(ErrorCodeNotInstalled, "component %q version %q is not installed", componentID, version)
 	}
 	state.Components = append(state.Components[:index], state.Components[index+1:]...)
 	if err := r.save(state); err != nil {
@@ -208,44 +242,44 @@ func (r Registry) Uninstall(componentID, version string) error {
 	}
 	packageDir := filepath.Dir(r.manifestPath(componentID, version))
 	if err := os.RemoveAll(packageDir); err != nil {
-		return fmt.Errorf("remove component package directory: %w", err)
+		return WrapError(ErrorCodeRegistryWriteFailed, "remove component package directory", err)
 	}
 	return nil
 }
 
 func (r Registry) load() (registryState, error) {
 	if r.home == "" || r.home == "." {
-		return registryState{}, fmt.Errorf("component home is required")
+		return registryState{}, NewError(ErrorCodeInvalidInput, "component home is required")
 	}
 	raw, err := os.ReadFile(r.registryPath())
 	if err != nil {
 		if os.IsNotExist(err) {
 			return registryState{}, nil
 		}
-		return registryState{}, fmt.Errorf("read component registry: %w", err)
+		return registryState{}, WrapError(ErrorCodeCorruptedRegistryState, "read component registry", err)
 	}
 	var state registryState
 	if err := json.Unmarshal(raw, &state); err != nil {
-		return registryState{}, fmt.Errorf("decode component registry: %w", err)
+		return registryState{}, WrapError(ErrorCodeCorruptedRegistryState, "decode component registry", err)
 	}
 	return state, nil
 }
 
 func (r Registry) save(state registryState) error {
 	if err := os.MkdirAll(r.home, 0o755); err != nil {
-		return fmt.Errorf("create component home: %w", err)
+		return WrapError(ErrorCodeRegistryWriteFailed, "create component home", err)
 	}
 	sortComponents(state.Components)
 	raw, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
-		return fmt.Errorf("encode component registry: %w", err)
+		return WrapError(ErrorCodeCorruptedRegistryState, "encode component registry", err)
 	}
 	tmp := r.registryPath() + ".tmp"
 	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
-		return fmt.Errorf("write component registry: %w", err)
+		return WrapError(ErrorCodeRegistryWriteFailed, "write component registry", err)
 	}
 	if err := replaceRegistryFile(tmp, r.registryPath()); err != nil {
-		return fmt.Errorf("commit component registry: %w", err)
+		return WrapError(ErrorCodeRegistryWriteFailed, "commit component registry", err)
 	}
 	return nil
 }
