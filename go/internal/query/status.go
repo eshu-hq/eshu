@@ -30,6 +30,7 @@ func (h *StatusHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/ingesters/{ingester}", h.getIngesterStatus)
 	mux.HandleFunc("GET /api/v0/status/index", h.getIndexStatus)
 	mux.HandleFunc("GET /api/v0/index-status", h.getIndexStatus)
+	mux.HandleFunc("GET /api/v0/status/hosted-readiness", h.getHostedReadiness)
 	mux.HandleFunc("GET /api/v0/status/semantic-extraction", h.getSemanticExtractionStatus)
 }
 

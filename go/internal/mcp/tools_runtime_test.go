@@ -31,3 +31,18 @@ func TestSemanticCapabilityRuntimeToolRoutesToStatus(t *testing.T) {
 		t.Fatalf("route.path = %q, want %q", got, want)
 	}
 }
+
+func TestHostedReadinessRuntimeToolRoutesToStatus(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("get_hosted_readiness", map[string]any{})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.method, "GET"; got != want {
+		t.Fatalf("route.method = %q, want %q", got, want)
+	}
+	if got, want := route.path, "/api/v0/status/hosted-readiness"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+}

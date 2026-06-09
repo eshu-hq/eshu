@@ -57,11 +57,26 @@ public query API status.
 
 - `GET /api/v0/status/index` returns the current checkpoint summary.
 - `GET /api/v0/index-status` returns the same checkpoint summary.
+- `GET /api/v0/status/hosted-readiness` returns a fail-closed hosted operator
+  report with JSON by default and a human summary when `?format=text`.
 - `GET /api/v0/status/semantic-extraction` returns the semantic extraction
   capability status with an Eshu truth envelope when requested by MCP or API
   clients.
 - `GET /api/v0/repositories/{repo_id}/coverage` returns durable repository
   coverage rows for one repository.
+
+The hosted readiness report composes existing status and query-readback signals
+without changing Kubernetes probes. It separates process health, dependency
+readiness, queue drain, collector completion, shared projection backlog, and
+first-query truth. The report returns `state=not_ready` with stable
+`failure_classes[]` when the status snapshot is empty, hosted collector
+instances are missing, queue work is stalled or not drained, work is
+dead-lettered, shared projection backlog remains, graph readback fails, or the
+repository readback returns zero rows. It returns `state=ready` only when those
+checks pass. Diagnostic pointers reference `/admin/status`,
+`/api/v0/status/index`, `/api/v0/status/collectors`, and repository coverage;
+raw graph backend errors, resource IDs, account-local names, paths, and
+credentials are not included. The MCP equivalent is `get_hosted_readiness`.
 
 The index status payload includes `aws_materialization`, an aggregate reducer
 queue summary for AWS graph/read-model materialization domains. It separates
@@ -189,6 +204,13 @@ No-Observability-Change: collector status classification reuses existing
 `vulnerability_sources`, workflow coordinator rows, active fact metadata, and
 MCP HTTP dispatch; it adds one bounded Postgres aggregate status read and does
 not add a worker, queue, graph query, or new metric label.
+
+No-Regression Evidence: `cd go && go test ./internal/query ./internal/mcp -run 'Test(StatusHandlerHostedReadiness|OpenAPISpecStatusPathsMatchCurrentContract|HostedReadinessRuntimeToolRoutesToStatus|SummarizePlainToolTextHostedReadiness|ToolDefinitionsIncludeExpectedTools)' -count=1` proves hosted readiness fail-closed states, text summary, OpenAPI coverage, and MCP routing stay aligned.
+No-Observability-Change: hosted readiness reuses existing `/admin/status`,
+`/api/v0/status/index`, `/api/v0/status/collectors`, repository coverage, and
+the bounded graph repository count read used by index status. It adds no
+runtime, worker, queue, metric label, or new provider/backend read beyond that
+operator-facing report composition.
 
 No-Regression Evidence: `cd go && go test ./internal/semanticqueue ./internal/storage/postgres ./internal/status ./internal/query ./internal/telemetry -count=1` proves semantic queue lifecycle fencing, redacted aggregate status, OpenAPI, API envelopes, and telemetry contracts stay in sync.
 Observability Evidence: semantic extraction status now exposes aggregate

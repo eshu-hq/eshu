@@ -156,6 +156,26 @@ func summarizeIndexStatus(data map[string]any) string {
 	return summary
 }
 
+// summarizeHostedReadiness renders the hosted readiness result and first
+// blocking class so MCP clients do not need to inspect the full check list.
+func summarizeHostedReadiness(data map[string]any) string {
+	if data == nil {
+		return ""
+	}
+	state := query.StringVal(data, "state")
+	if state == "" {
+		return ""
+	}
+	summary := "hosted readiness: " + clampField(state)
+	if failures := query.StringSliceVal(data, "failure_classes"); len(failures) > 0 {
+		summary += " — " + clampField(failures[0])
+		if len(failures) > 1 {
+			summary += fmt.Sprintf(" (+%d more)", len(failures)-1)
+		}
+	}
+	return summary
+}
+
 // summarizeIngesterStatus renders an actionable ingester readiness summary: the
 // ingester name, its health state, and the leading health reason.
 func summarizeIngesterStatus(data map[string]any) string {
