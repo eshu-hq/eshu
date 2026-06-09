@@ -94,6 +94,9 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok := freshnessRoute(toolName, args); ok {
 		return route, nil
 	}
+	if route, ok := queryPlaybookRoute(toolName, args); ok {
+		return route, nil
+	}
 	switch toolName {
 	// ── Code ──
 	case "find_code":

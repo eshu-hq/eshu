@@ -64,6 +64,9 @@ orchestration. It does not own service runtime internals:
     aggregate-only output (`vuln_scan.go`, `vuln_scan_provider_parity.go`)
   - service tracing: `trace service <name>` renders the API service-story
     dossier through a canonical envelope-aware CLI consumer (`trace.go`)
+  - query playbooks: `playbooks list` and `playbooks resolve <playbook-id>`
+    read the API query-playbook catalog and resolver envelopes without
+    executing the resolved calls (`playbooks.go`)
   - documentation truth: `docs verify [path]` verifies local Markdown-family
     documentation claims against the CLI command tree, generated OpenAPI paths,
     and documented Eshu environment variables (`docs.go`)

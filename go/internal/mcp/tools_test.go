@@ -8,7 +8,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 117
+	expectedCount := 119
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -80,6 +80,8 @@ func TestReadOnlyTools(t *testing.T) {
 		"list_semantic_code_hints",
 		"get_documentation_evidence_packet",
 		"check_documentation_evidence_packet_freshness",
+		"list_query_playbooks",
+		"resolve_query_playbook",
 		"get_semantic_capability_status",
 		"list_component_extensions",
 		"get_component_extension_diagnostics",
@@ -234,6 +236,13 @@ func TestDocumentationTools(t *testing.T) {
 	tools := documentationTools()
 	if len(tools) != 4 {
 		t.Errorf("Expected 4 documentation tools, got %d", len(tools))
+	}
+}
+
+func TestQueryPlaybookTools(t *testing.T) {
+	tools := queryPlaybookTools()
+	if len(tools) != 2 {
+		t.Errorf("Expected 2 query playbook tools, got %d", len(tools))
 	}
 }
 
