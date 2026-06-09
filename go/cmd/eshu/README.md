@@ -54,7 +54,10 @@ orchestration. It does not own service runtime internals:
     `hosted_onboard_cmd.go`); `first-run-benchmark`
     scores a captured `first-run --json` envelope against the first-five-minutes
     onboarding criteria and rejects a health-only "answer"
-    (`first_run_benchmark.go`, `first_run_benchmark_cmd.go`)
+    (`first_run_benchmark.go`, `first_run_benchmark_cmd.go`);
+    `answer-quality-scorecard` scores a captured, redacted answer-quality
+    evidence artifact across API, MCP, CLI, and hosted surfaces
+    (`answer_quality_scorecard_cmd.go`)
   - security intelligence: `vuln-scan repo [path]` runs the local scan
     readiness contract and reads repository-scoped supply-chain impact findings
     through the API envelope; `vuln-scan provider-parity` compares
@@ -135,6 +138,14 @@ work, or emit OTEL from this dispatcher.
 No-Regression Evidence: component conformance CLI behavior is covered by
 `go test ./cmd/eshu -run 'TestComponentConform|TestComponentCommandTreeIncludesConform' -count=1`.
 
+No-Observability-Change: answer-quality scorecard evaluation is offline CLI
+artifact scoring over already captured and redacted evidence. It starts no Eshu
+runtime, calls no API/MCP endpoint, opens no graph/Postgres driver, and emits no
+OTEL from this dispatcher.
+
+No-Regression Evidence: answer-quality scorecard CLI behavior is covered by
+`go test ./cmd/eshu -run 'TestAnswerQualityScorecardCommand' -count=1`.
+
 ## Gotchas / invariants
 
 - `SilenceUsage` and `SilenceErrors` are set on the root command
@@ -209,6 +220,15 @@ No-Regression Evidence: component conformance CLI behavior is covered by
   or an error envelope. Optional criteria (time-to-answer, manual-step count)
   record honest `not_measured` values rather than fabricated numbers and never
   flip an otherwise-complete run to FAIL.
+- `eshu answer-quality-scorecard` is the broader answer dogfood contract. It
+  consumes a captured, redacted `answer-quality-scorecard/v1` artifact from
+  `--from <path>` or stdin and scores representative service-story,
+  code-topic, incident-context, supply-chain, documentation-truth,
+  freshness/readiness, and hosted-governance prompts. It exits non-zero when
+  family coverage, usefulness, truth honesty, citation coverage, boundedness,
+  parity, follow-up usefulness, or publish safety fails. The command never
+  captures live answers itself; callers must capture real API/MCP/CLI/hosted
+  outputs, redact them, then score the artifact.
 - `eshu vuln-scan repo [path]` reuses `eshu scan` root resolution, bootstrap,
   and readiness proof before reading
   `/api/v0/supply-chain/impact/findings?repository_id=<id>&limit=<n>`.
