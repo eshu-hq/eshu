@@ -24,6 +24,11 @@ Current shipped behavior:
 | Redaction and retention | Semantic posture docs require redaction policy and metadata-oriented retention for optional provider work. | That all future governance retention and deletion workflows are implemented. |
 | Audit | Existing status, telemetry, semantic queue, budget, and component diagnostics expose bounded classes and counts. | A complete hosted governance audit ledger until the governance issues land. |
 
+Before onboarding, run the [Hosted Security Posture Gate](hosted-security-posture.md)
+against the operator values file. It proves API/MCP token references, Postgres
+and graph credential references, pprof binding, and public-docs exposure posture
+without printing credential values.
+
 Tracked follow-up work covers per-team tokens, tenant/workspace isolation,
 governance status, egress gates, redaction proof, audit events, retention, and
 end-to-end hosted governance proof. Until those land, use this page as an
@@ -252,6 +257,7 @@ Use these gates for hosted governance-related changes:
 | Change | Minimum proof |
 | --- | --- |
 | Public docs or navigation | Strict MkDocs build and `git diff --check`. |
+| Hosted API/MCP auth, Secret refs, pprof, or docs exposure posture | `scripts/test-verify-hosted-security-posture.sh`, `scripts/verify-hosted-security-posture.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml`. |
 | Hosted onboarding or setup CLI | `go test ./cmd/eshu -count=1`. |
 | API/MCP status surfaces | `go test ./internal/query ./internal/mcp ./cmd/api -count=1`. |
 | Semantic extraction status or queue readbacks | `go test ./internal/semanticqueue ./internal/storage/postgres ./internal/status ./internal/query ./internal/telemetry -count=1`. |

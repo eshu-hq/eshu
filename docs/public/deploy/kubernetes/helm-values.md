@@ -19,7 +19,7 @@ Use this page to choose the right values page before editing
 | Area | Default |
 | --- | --- |
 | Image | `image.repository=ghcr.io/eshu-hq/eshu`, `image.tag=v0.0.2`, `image.pullPolicy=IfNotPresent`. |
-| Storage | `contentStore.dsn=""`, `env.ESHU_GRAPH_BACKEND=nornicdb`, `neo4j.uri=bolt://neo4j:7687`. |
+| Storage | `contentStore.dsn=""`, `contentStore.secretName=""`, `env.ESHU_GRAPH_BACKEND=nornicdb`, `neo4j.uri=bolt://neo4j:7687`. |
 | Schema bootstrap | `schemaBootstrap.enabled=true`, `schemaBootstrap.useHelmHooks=true`. |
 | Core runtimes | API, MCP, ingester, and resolution engine enabled; ingester PVC size `100Gi`. |
 | Optional runtimes | Workflow coordinator, webhook listener, and hosted collectors disabled. |
@@ -27,14 +27,18 @@ Use this page to choose the right values page before editing
 | Observability | Prometheus and ServiceMonitor disabled. |
 | Security | Non-root pods, read-only root filesystem, dropped capabilities, runtime-default seccomp. |
 
-Pin the image tag per rollout. Supply `contentStore.dsn` for real deployments.
-Claim-driven collectors require an active workflow coordinator.
+Pin the image tag per rollout. For production, prefer
+`contentStore.secretName` plus `contentStore.dsnKey` over inline
+`contentStore.dsn` so Postgres credentials stay in Kubernetes Secrets or
+External Secrets. Claim-driven collectors require an active workflow
+coordinator.
 
 ## Render Before Applying
 
 ```bash
 helm template eshu ./deploy/helm/eshu
 helm template eshu ./deploy/helm/eshu -f values.eshu.yaml
+scripts/verify-hosted-security-posture.sh -f values.eshu.yaml
 helm lint ./deploy/helm/eshu
 helm lint ./deploy/helm/eshu -f values.eshu.yaml
 ```

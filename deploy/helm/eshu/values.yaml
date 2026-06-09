@@ -717,6 +717,8 @@ env:
 
 contentStore:
   dsn: ""
+  secretName: ""
+  dsnKey: dsn
 
 observability:
   environment: ""
