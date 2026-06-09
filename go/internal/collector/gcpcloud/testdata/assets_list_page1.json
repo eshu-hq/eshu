@@ -1,0 +1,35 @@
+{
+  "readTime": "2026-06-09T12:00:00Z",
+  "assets": [
+    {
+      "name": "//compute.googleapis.com/projects/my-project/zones/us-central1-a/instances/vm-1",
+      "assetType": "compute.googleapis.com/Instance",
+      "updateTime": "2026-06-09T11:50:00Z",
+      "ancestors": ["projects/123456789", "folders/4455667788", "organizations/9988776655"],
+      "resource": {
+        "location": "us-central1-a",
+        "data": {
+          "name": "vm-1",
+          "status": "RUNNING",
+          "labels": {"env": "prod", "owner": "alice@example.com"},
+          "networkInterfaces": [{"networkIP": "10.0.0.5", "accessConfigs": [{"natIP": "203.0.113.7"}]}],
+          "metadata": {"items": [{"key": "startup-script", "value": "#!/bin/bash\nexport SECRET=hunter2"}]}
+        }
+      }
+    },
+    {
+      "name": "//storage.googleapis.com/projects/_/buckets/my-bucket",
+      "assetType": "storage.googleapis.com/Bucket",
+      "updateTime": "2026-06-09T10:00:00Z",
+      "ancestors": ["projects/123456789", "organizations/9988776655"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "my-bucket",
+          "labels": {"team": "data"}
+        }
+      }
+    }
+  ],
+  "nextPageToken": "PAGE2TOKEN"
+}

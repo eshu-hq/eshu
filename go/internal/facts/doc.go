@@ -102,5 +102,15 @@
 // schema-version helpers live here for VEX statements, operator-policy
 // suppressions, and provider-dismissal pointers; reducers apply suppressions
 // only when scope matches the finding identity and evidence path, and provider
-// dismissals stay evidence rather than automatic suppressions.
+// dismissals stay evidence rather than automatic suppressions. GCP cloud fact
+// kind constants and schema-version helpers live here for the first GCP
+// collector slice: a Cloud Asset Inventory resource observation
+// (gcp_cloud_resource) and an explicit collection warning (gcp_collection_warning).
+// The resource fact preserves the Cloud Asset Inventory full resource name and
+// adds normalized asset type, project id/number, folder/organization ancestors,
+// location, source timestamps, a redaction policy version, and a versioned
+// provider-specific extension object; it never carries raw IAM policy JSON,
+// secret values, object contents, startup scripts, public or private IP
+// addresses, or provider response bodies. Reducers own canonical CloudResource
+// identity, drift, relationship edges, and query truth.
 package facts

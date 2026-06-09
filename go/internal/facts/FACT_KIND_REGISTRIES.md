@@ -25,6 +25,7 @@ known kind and `ok=false` for unknown input.
 | CI/CD runs | `CICDRunFactKinds()` | `CICDRunSchemaVersion(kind)` |
 | Documentation | constants and payload helpers | kind-specific constants |
 | EC2 posture | `EC2InstancePostureFactKinds()` | `EC2InstancePostureSchemaVersion(kind)` |
+| GCP cloud | `GCPFactKinds()` | `GCPSchemaVersion(kind)` |
 | Incident context | `IncidentContextFactKinds()` | `IncidentContextSchemaVersion(kind)` |
 | Incident routing | `IncidentRoutingFactKinds()` | `IncidentRoutingSchemaVersion(kind)` |
 | Kubernetes live | `KubernetesLiveFactKinds()` | `KubernetesLiveSchemaVersion(kind)` |
