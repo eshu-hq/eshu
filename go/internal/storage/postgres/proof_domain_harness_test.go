@@ -224,6 +224,19 @@ func (db *proofDomainDB) QueryContext(_ context.Context, query string, args ...a
 		return newProofRows(nil), nil
 	case query == registryMetadataTargetStatusQuery:
 		return newProofRows(nil), nil
+	case query == listActiveRepositoryFactsQuery:
+		// Supersession-only active read: visible iff the fact's generation is
+		// the scope's active generation and that generation is active. No
+		// is_tombstone predicate, matching the concrete query.
+		return newProofRows(
+			proofActiveGenerationFactRows(db.state, false, proofActiveRepositoryFactKind),
+		), nil
+	case query == listActiveContainerImageIdentityFactsQuery:
+		// Supersession plus is_tombstone = FALSE: an active-generation
+		// tombstone is still excluded here, unlike the repository read.
+		return newProofRows(
+			proofActiveGenerationFactRows(db.state, true, nil),
+		), nil
 	case strings.Contains(query, "FROM fact_records"):
 		if len(args) != 2 {
 			return nil, fmt.Errorf("list facts args = %d, want 2", len(args))
