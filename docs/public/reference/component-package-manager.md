@@ -192,6 +192,7 @@ JSON errors use stable codes:
 | `untrusted_publisher` | The local trust policy does not allow the component or publisher. |
 | `active_uninstall` | Uninstall was requested for a package version with active instances. |
 | `duplicate_activation` | The requested instance is already enabled. |
+| `fact_kind_collision` | The manifest claims a fact kind already owned by another installed component. |
 | `corrupted_registry_state` | `registry.json` cannot be decoded or read consistently. |
 | `active_replacement` | Replacement content was supplied for an active installed version. |
 | `not_installed` | The requested component, version, or activation is absent. |
@@ -290,6 +291,17 @@ Each `emittedFacts` entry must declare `sourceConfidence`. Allowed values are
 `observed`, `reported`, `inferred`, and `derived`. `unknown` is reserved for
 old stored rows and system fallback data; component manifests cannot declare it
 as normal emitted output.
+
+Each `emittedFacts.kind` must be namespaced with a collision-resistant prefix.
+Core-owned fact kinds from `go/internal/facts` are reserved and cannot be
+claimed by optional components. During install and activation planning, the
+local registry compares the manifest against installed component manifests. A
+different component ID cannot claim a fact kind that is already installed. The
+same component ID can install another version with the same fact kind only when
+the declared schema-version major set is compatible; otherwise the registry
+returns `fact_kind_collision` with the candidate owner, existing owner, fact
+kind, and the operator action needed to proceed. Uninstalling an inactive
+component version releases its local fact-kind ownership claim.
 
 ## Current Limits
 

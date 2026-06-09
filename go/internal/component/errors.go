@@ -21,6 +21,9 @@ const (
 	// ErrorCodeUntrustedPublisher identifies a package rejected by local trust
 	// policy because its ID, publisher, or provenance is not trusted.
 	ErrorCodeUntrustedPublisher ErrorCode = "untrusted_publisher"
+	// ErrorCodeFactKindCollision identifies a component fact-kind claim that
+	// overlaps with another installed component owner.
+	ErrorCodeFactKindCollision ErrorCode = "fact_kind_collision"
 	// ErrorCodeActiveUninstall identifies an uninstall attempt for an active
 	// component version.
 	ErrorCodeActiveUninstall ErrorCode = "active_uninstall"

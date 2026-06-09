@@ -209,6 +209,9 @@ func (f FactFamily) Validate() error {
 	if err := validateIdentifier("fact kind", f.Kind); err != nil {
 		return err
 	}
+	if err := validateComponentFactKind(f.Kind); err != nil {
+		return err
+	}
 	if len(f.SchemaVersions) == 0 {
 		return fmt.Errorf("fact kind %q must declare at least one schema version", f.Kind)
 	}

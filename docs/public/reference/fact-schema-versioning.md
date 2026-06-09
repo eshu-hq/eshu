@@ -20,6 +20,14 @@ Core fact kinds are owned by Eshu. Optional components must use a namespaced
 fact kind such as reverse-DNS or another collision-resistant prefix. Two
 components must not claim the same unowned fact kind.
 
+The Go source of truth for core ownership is `go/internal/facts`: callers use
+`CoreFactKinds()` and `IsCoreFactKind(kind)` rather than copying fact-kind
+lists. Component manifest validation rejects core-owned claims and
+non-namespaced component fact kinds. Component install and activation planning
+also compare installed manifests so a different component ID cannot claim an
+already-installed fact kind. The only local shared-ownership case is another
+version of the same component ID with the same schema-version major set.
+
 ## Compatibility Rules
 
 | Bump | Meaning | Runtime behavior |
