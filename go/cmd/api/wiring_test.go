@@ -7,8 +7,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
+	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
 func TestWireAPIReturnsResolveAPIKeyErrorBeforeConnectingDatastores(t *testing.T) {
@@ -51,6 +54,21 @@ func TestWireAPIReturnsInvalidGraphBackendErrorBeforeConnectingDatastores(t *tes
 	}
 	if !strings.Contains(err.Error(), "load graph backend") {
 		t.Fatalf("wireAPI() error = %q, want load graph backend context", err)
+	}
+}
+
+func TestWireAPIReturnsInvalidSemanticProviderProfilesBeforeConnectingDatastores(t *testing.T) {
+	_, _, err := wireAPI(context.Background(), func(key string) string {
+		if key == semanticprofile.EnvProviderProfilesJSON {
+			return `[{"profile_id":"semantic-docs-default","provider_kind":"deepseek","credential_source":{"kind":"environment_variable","handle":"sk-live-123"},"model_id":"deepseek-chat","source_classes":["documentation"],"source_policy_configured":true}]`
+		}
+		return ""
+	}, nil, nil)
+	if err == nil {
+		t.Fatal("wireAPI() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "load semantic provider profiles") {
+		t.Fatalf("wireAPI() error = %q, want semantic provider profile context", err)
 	}
 }
 
@@ -114,6 +132,7 @@ func TestNewRouterMountsPostgresBackedHandlers(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		staticStatusReader{},
 		nil,
 		query.ProfileLocalFullStack,
 		query.GraphBackendNornicDB,
@@ -155,6 +174,32 @@ func TestNewRouterMountsPostgresBackedHandlers(t *testing.T) {
 	}
 	if router.ObservabilityCoverage.Correlations == nil {
 		t.Fatal("newRouter().ObservabilityCoverage.Correlations = nil, want Postgres read model store")
+	}
+}
+
+func TestNewRouterUsesSuppliedStatusReader(t *testing.T) {
+	t.Parallel()
+
+	reader := staticStatusReader{}
+	router, err := newRouter(
+		nil,
+		nil,
+		nil,
+		reader,
+		nil,
+		query.ProfileLocalFullStack,
+		query.GraphBackendNornicDB,
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("newRouter() error = %v, want nil", err)
+	}
+	if router.Status == nil {
+		t.Fatal("newRouter().Status = nil, want status handler")
+	}
+	if router.Status.StatusReader != reader {
+		t.Fatalf("newRouter().Status.StatusReader = %#v, want supplied reader", router.Status.StatusReader)
 	}
 }
 
@@ -241,7 +286,7 @@ func TestMetricsTimeSeriesSourceFromEnvUsesPrometheusMimirCollectorConfig(t *tes
 func TestNewRouter_MountsAdminRoutes(t *testing.T) {
 	t.Parallel()
 
-	router, err := newRouter(nil, nil, nil, nil, "production", "neo4j", nil, nil)
+	router, err := newRouter(nil, nil, nil, staticStatusReader{}, nil, "production", "neo4j", nil, nil)
 	if err != nil {
 		t.Fatalf("newRouter() error = %v, want nil", err)
 	}
@@ -289,4 +334,10 @@ func TestNewRouter_MountsAdminRoutes(t *testing.T) {
 			}
 		})
 	}
+}
+
+type staticStatusReader struct{}
+
+func (staticStatusReader) ReadStatusSnapshot(context.Context, time.Time) (statuspkg.RawSnapshot, error) {
+	return statuspkg.RawSnapshot{}, nil
 }

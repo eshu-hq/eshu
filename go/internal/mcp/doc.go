@@ -39,8 +39,10 @@
 // preserve bounded page metadata (`count`, `limit`, `truncated`,
 // `missing_evidence`, `states`, and `next_cursor` on truncated pages). Any
 // semantic capability status tool stays transport-only too: it forwards to the
-// status route that reports no-provider mode as unavailable while deterministic
-// indexing, reducer, API, MCP, and documentation fact paths remain unaffected.
+// status route that reports no-provider mode as unavailable and configured
+// provider profiles as redacted, source-policy-gated metadata while
+// deterministic indexing, reducer, API, MCP, and documentation fact paths remain
+// unaffected.
 // Any change that alters request or response shape must update the MCP guide,
 // the HTTP API reference where the route is shared, and the handler tests in
 // the same change.

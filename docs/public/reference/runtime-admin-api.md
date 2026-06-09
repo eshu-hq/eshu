@@ -118,6 +118,15 @@ hints disabled. This status is informational and does not mark health or
 readiness unhealthy; deterministic collectors, parser output, reducer
 projection, API reads, MCP tools, and docs verification remain unaffected.
 
+When `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` defines hosted provider profiles,
+the same section includes `provider_profiles[]` with redacted profile id,
+provider kind, model id, endpoint profile id, credential source kind, source
+classes, credential/source-policy booleans, and profile state. Credential source
+handles and raw keys are never rendered. Provider traffic, credential loading,
+prompt retention, and provider response retention remain out of scope for this
+status surface; source policy must enable a profile's source class before
+documentation observations or code hints report enabled.
+
 `terraform_state` carries bounded Terraform-state status. `last_serials` and
 `recent_warnings` remain bounded admin evidence; recent warning rows include
 public-safe `source_handle` and `safe_locator_hash` fields for source-level

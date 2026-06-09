@@ -168,8 +168,8 @@
 //
 // Semantic extraction status is exposed as runtime capability metadata rather
 // than a graph read: no-provider mode reports unavailable, disables code hints
-// and documentation observations, and leaves deterministic query truth paths
-// unaffected.
+// and documentation observations, configured provider profiles are redacted and
+// source-policy gated, and deterministic query truth paths remain unaffected.
 //
 // QueryPlaybook is a deterministic, bounded, versioned data description of a
 // common starter-prompt or cookbook workflow. A playbook names the ordered

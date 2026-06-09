@@ -38,7 +38,12 @@ mounted:
   status field. No-provider mode is `state=unavailable` with
   `reason=provider_not_configured`; code hints and documentation observations
   are disabled, and deterministic indexing, reducer, API, MCP, and docs
-  verification paths remain unaffected.
+  verification paths remain unaffected. When hosted provider profiles are
+  configured, `provider_profiles[]` reports redacted profile id, provider kind,
+  model id, endpoint profile id, credential source kind, source classes,
+  credential/source-policy booleans, and profile state. It never includes raw
+  keys, credential handles, prompt text, provider responses, or token-bearing
+  endpoint URLs.
 
 Use `/admin/status` for runtime-local probes. Use `/api/v0/status/*` routes for
 public query API status.
@@ -79,7 +84,10 @@ paths are not included in the public status payload.
 The payload also includes `semantic_extraction`. This mirrors
 `/api/v0/status/semantic-extraction` so index-status consumers can tell that
 optional semantic extraction is unavailable or disabled without treating it as a
-failed index, reducer, API, MCP, or documentation fact path.
+failed index, reducer, API, MCP, or documentation fact path. Configured provider
+profiles remain source-policy gated: a profile may report
+`credential_configured=true`, but documentation observations and code hints stay
+disabled until the matching source class is policy-enabled.
 
 Run-scoped completeness routes such as `/api/v0/index-runs/{run_id}` are not
 part of the shipped public contract.
@@ -144,11 +152,11 @@ No-Observability-Change: collector status classification reuses existing
 MCP HTTP dispatch; it adds one bounded Postgres aggregate status read and does
 not add a worker, queue, graph query, or new metric label.
 
-No-Regression Evidence: `cd go && go test ./internal/status -run SemanticExtraction -count=1`; `cd go && go test ./internal/query -run 'SemanticExtraction|StatusOpenAPI|CapabilityMatrixMatchesYAMLContract' -count=1`; `cd go && go test ./internal/mcp -run 'SemanticCapability|ReadOnlyTools|RuntimeTools|EveryRegisteredToolHasDispatchRoute|MCPToolContractMatrixCoversReadOnlyTools' -count=1` prove no-provider semantic extraction reports `unavailable`, keeps health healthy, surfaces the status through API and MCP envelopes, leaves documentation facts on their existing truth envelope, and keeps OpenAPI, the capability matrix, and the MCP tool matrix in sync.
+No-Regression Evidence: `cd go && go test ./internal/semanticprofile ./internal/status -run 'LoadStatuses|SemanticExtraction' -count=1`; `cd go && go test ./internal/query -run 'SemanticExtraction|StatusOpenAPI|CapabilityMatrixMatchesYAMLContract' -count=1`; `cd go && go test ./cmd/api ./cmd/mcp-server -run 'SemanticProviderProfiles|StatusReader' -count=1`; `cd go && go test ./internal/mcp -run 'SemanticCapability|ReadOnlyTools|RuntimeTools|EveryRegisteredToolHasDispatchRoute|MCPToolContractMatrixCoversReadOnlyTools' -count=1` prove no-provider semantic extraction reports `unavailable`, hosted provider profiles are redacted and source-policy gated, health remains healthy, status surfaces through API and MCP envelopes, documentation facts keep their existing truth envelope, and OpenAPI, the capability matrix, and the MCP tool matrix stay in sync.
 No-Observability-Change: semantic extraction status is a pure status projection
-with no provider call, graph query, content query, queue, worker, runtime knob,
-metric instrument, or metric label. Operators diagnose it through the existing
-`/admin/status`, `/api/v0/status/index`,
+with no provider call, graph query, content query, queue, worker, credential
+load, metric instrument, or metric label. Operators diagnose it through the
+existing `/admin/status`, `/api/v0/status/index`,
 `/api/v0/status/semantic-extraction`, and MCP dispatch surfaces.
 
 ## Historical Metrics

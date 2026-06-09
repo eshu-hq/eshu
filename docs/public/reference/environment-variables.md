@@ -40,6 +40,7 @@ class from status output, structured logs, traces, or a discovery advisory.
 | `ESHU_QUERY_PROFILE` | Select runtime/query profile. Do not use it as a performance knob. |
 | `ESHU_FACT_STORE_DSN`, `ESHU_CONTENT_STORE_DSN`, `ESHU_POSTGRES_DSN` | Configure Postgres-backed fact, queue, content, and query stores. |
 | `ESHU_NEO4J_URI`, `NEO4J_URI` | Configure the Bolt endpoint for NornicDB or Neo4j. |
+| `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` | Declare redacted semantic provider profiles using credential handles only; no provider keys. |
 | `ESHU_PPROF_ADDR` | Enable opt-in pprof on a specific runtime for profiling. |
 | `ESHU_DISCOVERY_REPORT` | Write discovery advisory JSON before changing ignored paths or size caps. |
 | `ESHU_DISCOVERY_IGNORED_PATH_GLOBS` | Apply an operator-controlled generated/vendor/archive ignore overlay. |

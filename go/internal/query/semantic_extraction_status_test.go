@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -63,6 +64,78 @@ func TestStatusHandlerSemanticExtractionNoProviderReturnsEnvelope(t *testing.T) 
 	}
 	if got, want := envelope.Truth.Level, TruthLevelFallback; got != want {
 		t.Fatalf("truth.level = %q, want %q", got, want)
+	}
+}
+
+func TestStatusHandlerSemanticExtractionReturnsRedactedProviderProfiles(t *testing.T) {
+	t.Parallel()
+
+	const credentialHandle = "DEEPSEEK_API_KEY"
+	handler := &StatusHandler{
+		StatusReader: fakeStatusReader{
+			snapshot: statuspkg.RawSnapshot{
+				AsOf: time.Date(2026, time.June, 8, 14, 0, 0, 0, time.UTC),
+				SemanticExtraction: statuspkg.SemanticExtractionStatus{
+					ProviderProfiles: []statuspkg.SemanticProviderProfileStatus{
+						{
+							ProfileID:              "semantic-docs-default",
+							DisplayName:            "Documentation default",
+							ProviderKind:           "deepseek",
+							CredentialSourceKind:   "environment_variable",
+							CredentialConfigured:   true,
+							ModelID:                "deepseek-chat",
+							EndpointProfileID:      "deepseek-public-api",
+							SourceClasses:          []string{"documentation"},
+							SourcePolicyConfigured: true,
+							State:                  statuspkg.SemanticProviderProfileConfigured,
+						},
+					},
+				},
+			},
+		},
+		Profile: ProfileProduction,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/status/semantic-extraction", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("GET /api/v0/status/semantic-extraction status = %d, want %d; body=%s", got, want, rec.Body.String())
+	}
+	if body := rec.Body.String(); strings.Contains(body, credentialHandle) {
+		t.Fatalf("semantic extraction status leaked credential handle %q: %s", credentialHandle, body)
+	}
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	data := envelope.Data.(map[string]any)
+	if got, want := data["state"], "available"; got != want {
+		t.Fatalf("data.state = %#v, want %#v", got, want)
+	}
+	if got, want := data["provider_configured"], true; got != want {
+		t.Fatalf("data.provider_configured = %#v, want %#v", got, want)
+	}
+	profiles, ok := data["provider_profiles"].([]any)
+	if !ok {
+		t.Fatalf("data.provider_profiles missing or wrong type: %#v", data["provider_profiles"])
+	}
+	if len(profiles) != 1 {
+		t.Fatalf("len(data.provider_profiles) = %d, want 1", len(profiles))
+	}
+	profile := profiles[0].(map[string]any)
+	if got, want := profile["profile_id"], "semantic-docs-default"; got != want {
+		t.Fatalf("profile.profile_id = %#v, want %#v", got, want)
+	}
+	if got, want := profile["credential_source_kind"], "environment_variable"; got != want {
+		t.Fatalf("profile.credential_source_kind = %#v, want %#v", got, want)
+	}
+	if _, ok := profile["credential_handle"]; ok {
+		t.Fatalf("profile exposed credential_handle: %#v", profile)
 	}
 }
 

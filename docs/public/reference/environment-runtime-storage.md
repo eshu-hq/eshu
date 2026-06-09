@@ -18,6 +18,7 @@ local installer.
 | `ESHU_API_ADDR` | `:8080` for `eshu-api` | API CLI service wrapper | API listen address for scripted service helpers. Prefer CLI flags for direct use. |
 | `ESHU_MCP_TRANSPORT` | `http` | MCP server | MCP transport, `http` or `stdio`. |
 | `ESHU_MCP_ADDR` | `:8080` | MCP server | HTTP MCP listen address. |
+| `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` | unset | API, MCP | Optional semantic extraction provider profile registry. JSON must contain provider metadata and credential handles only; raw provider keys are rejected for environment-variable credential sources and must not be committed. Status output reports redacted profile state and source-policy gating without loading credentials or calling providers. |
 | `ESHU_RUNTIME_DB_TYPE` | CLI flag derived | CLI root command | Legacy CLI database selector. Prefer explicit graph/backend settings. |
 | `ESHU_WATCH_PATH` | local service sets it | local child processes | Workspace path handed to local child processes. Do not set manually. |
 | `ESHU_DISABLE_NEO4J` | unset | API, MCP, ingester, local service | Transitional local-lightweight skip flag. Prefer profile/backend settings. |

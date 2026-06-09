@@ -48,7 +48,11 @@ func semanticExtractionStatusToMap(snapshot status.SemanticExtractionStatus) map
 		"code_hints_enabled":                    statusJSON.CodeHintsEnabled,
 		"deterministic_paths_affected":          statusJSON.DeterministicPathsAffected,
 		"supported_states":                      statusJSON.SupportedStates,
+		"supported_provider_profile_states":     statusJSON.SupportedProviderProfileStates,
 		"deterministic_documentation_unblocked": !statusJSON.DeterministicPathsAffected,
+	}
+	if len(statusJSON.ProviderProfiles) > 0 {
+		result["provider_profiles"] = statusJSON.ProviderProfiles
 	}
 	if statusJSON.Detail != "" {
 		result["detail"] = statusJSON.Detail
@@ -69,7 +73,9 @@ func statusJSONFromSemanticExtraction(snapshot status.SemanticExtractionStatus) 
 		DocumentationObservationsEnabled: normalized.DocumentationObservationsEnabled,
 		CodeHintsEnabled:                 normalized.CodeHintsEnabled,
 		DeterministicPathsAffected:       normalized.DeterministicPathsAffected,
+		ProviderProfiles:                 semanticProviderProfilesToMaps(normalized.ProviderProfiles),
 		SupportedStates:                  status.SemanticExtractionSupportedStates(),
+		SupportedProviderProfileStates:   status.SemanticProviderProfileSupportedStates(),
 	}
 	if !normalized.UpdatedAt.IsZero() {
 		view.UpdatedAt = normalized.UpdatedAt.UTC().Format(time.RFC3339)
@@ -86,7 +92,45 @@ type semanticExtractionStatusView struct {
 	CodeHintsEnabled                 bool
 	DeterministicPathsAffected       bool
 	UpdatedAt                        string
+	ProviderProfiles                 []map[string]any
 	SupportedStates                  []string
+	SupportedProviderProfileStates   []string
+}
+
+func semanticProviderProfilesToMaps(profiles []status.SemanticProviderProfileStatus) []map[string]any {
+	if len(profiles) == 0 {
+		return nil
+	}
+	rows := make([]map[string]any, 0, len(profiles))
+	for _, profile := range profiles {
+		row := map[string]any{
+			"profile_id":               profile.ProfileID,
+			"provider_kind":            profile.ProviderKind,
+			"credential_source_kind":   profile.CredentialSourceKind,
+			"credential_configured":    profile.CredentialConfigured,
+			"source_classes":           profile.SourceClasses,
+			"source_policy_configured": profile.SourcePolicyConfigured,
+			"state":                    profile.State,
+			"reason":                   profile.Reason,
+		}
+		if profile.DisplayName != "" {
+			row["display_name"] = profile.DisplayName
+		}
+		if profile.ModelID != "" {
+			row["model_id"] = profile.ModelID
+		}
+		if profile.EndpointProfileID != "" {
+			row["endpoint_profile_id"] = profile.EndpointProfileID
+		}
+		if profile.Detail != "" {
+			row["detail"] = profile.Detail
+		}
+		if !profile.UpdatedAt.IsZero() {
+			row["updated_at"] = profile.UpdatedAt.UTC().Format(time.RFC3339)
+		}
+		rows = append(rows, row)
+	}
+	return rows
 }
 
 func semanticExtractionStatusTruth(profile QueryProfile, snapshot status.SemanticExtractionStatus) *TruthEnvelope {

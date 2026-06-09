@@ -4,8 +4,11 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
+	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
 func TestWireAPIReturnsResolveAPIKeyErrorBeforeConnectingDatastores(t *testing.T) {
@@ -51,6 +54,21 @@ func TestWireAPIReturnsInvalidGraphBackendErrorBeforeConnectingDatastores(t *tes
 	}
 }
 
+func TestWireAPIReturnsInvalidSemanticProviderProfilesBeforeConnectingDatastores(t *testing.T) {
+	_, _, _, err := wireAPI(context.Background(), func(key string) string {
+		if key == semanticprofile.EnvProviderProfilesJSON {
+			return `[{"profile_id":"semantic-docs-default","provider_kind":"deepseek","credential_source":{"kind":"environment_variable","handle":"sk-live-123"},"model_id":"deepseek-chat","source_classes":["documentation"],"source_policy_configured":true}]`
+		}
+		return ""
+	}, nil, nil)
+	if err == nil {
+		t.Fatal("wireAPI() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "load semantic provider profiles") {
+		t.Fatalf("wireAPI() error = %q, want semantic provider profile context", err)
+	}
+}
+
 func TestNewMCPQueryRouterMountsMCPBackedHandlers(t *testing.T) {
 	t.Parallel()
 
@@ -58,6 +76,7 @@ func TestNewMCPQueryRouterMountsMCPBackedHandlers(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		staticStatusReader{},
 		query.ProfileLocalFullStack,
 		query.GraphBackendNornicDB,
 		nil,
@@ -119,6 +138,28 @@ func TestNewMCPQueryRouterMountsMCPBackedHandlers(t *testing.T) {
 	}
 }
 
+func TestNewMCPQueryRouterUsesSuppliedStatusReader(t *testing.T) {
+	t.Parallel()
+
+	reader := staticStatusReader{}
+	router := newMCPQueryRouter(
+		nil,
+		nil,
+		nil,
+		reader,
+		query.ProfileLocalFullStack,
+		query.GraphBackendNornicDB,
+		nil,
+	)
+
+	if router.Status == nil {
+		t.Fatal("newMCPQueryRouter().Status = nil, want status handler")
+	}
+	if router.Status.StatusReader != reader {
+		t.Fatalf("newMCPQueryRouter().Status.StatusReader = %#v, want supplied reader", router.Status.StatusReader)
+	}
+}
+
 func TestOpenQueryGraphAcceptsNornicDBOnSharedBoltPath(t *testing.T) {
 	t.Parallel()
 
@@ -138,6 +179,12 @@ func TestOpenQueryGraphAcceptsNornicDBOnSharedBoltPath(t *testing.T) {
 	if !strings.Contains(err.Error(), "ESHU_NEO4J_URI") && !strings.Contains(err.Error(), "NEO4J_URI") {
 		t.Fatalf("openQueryGraph() error = %q, want shared bolt config context", err)
 	}
+}
+
+type staticStatusReader struct{}
+
+func (staticStatusReader) ReadStatusSnapshot(context.Context, time.Time) (statuspkg.RawSnapshot, error) {
+	return statuspkg.RawSnapshot{}, nil
 }
 
 func TestOpenQueryGraphDefaultsLocalLightweightDatabaseToNornic(t *testing.T) {

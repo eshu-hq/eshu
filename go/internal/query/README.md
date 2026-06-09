@@ -386,7 +386,11 @@ wired in `cmd/api/wiring.go`, not here.
 
 Semantic extraction status is a runtime status projection, not a graph or
 content read model. `GET /api/v0/status/semantic-extraction` reports no-provider
-mode as `unavailable` with code hints and documentation observations disabled,
+mode as `unavailable` with code hints and documentation observations disabled.
+When semantic provider profiles are configured, the route includes redacted
+`provider_profiles[]` rows with profile id, provider kind, model metadata,
+credential source kind, source classes, source-policy state, and profile
+health/configuration state. It does not expose credential handles or raw keys,
 while deterministic indexing, reducer projection, API reads, MCP tools, and
 documentation fact routes remain unaffected.
 

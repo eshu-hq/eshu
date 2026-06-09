@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
+	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -38,6 +39,10 @@ func wireAPI(
 	graphBackend, err := loadGraphBackend(getenv)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load graph backend: %w", err)
+	}
+	semanticProviderProfiles, err := semanticprofile.LoadStatusesFromEnv(getenv)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load semantic provider profiles: %w", err)
 	}
 
 	apiKey, err := internalruntime.ResolveAPIKey(getenv)
@@ -81,7 +86,10 @@ func wireAPI(
 	// Build query layer
 	neo4jReader := query.NewNeo4jReader(driver, neo4jDB)
 	contentReader := query.NewContentReader(db)
-	statusReader := pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
+	statusReader := status.WithSemanticProviderProfiles(
+		pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db}),
+		semanticProviderProfiles...,
+	)
 	metricsSource, err := metricsTimeSeriesSourceFromEnv(getenv, nil)
 	if err != nil {
 		_ = db.Close()
@@ -98,7 +106,17 @@ func wireAPI(
 		}
 		return nil, nil, fmt.Errorf("register query instruments: %w", err)
 	}
-	router, err := newRouter(db, neo4jReader, contentReader, metricsSource, queryProfile, graphBackend, logger, instruments)
+	router, err := newRouter(
+		db,
+		neo4jReader,
+		contentReader,
+		statusReader,
+		metricsSource,
+		queryProfile,
+		graphBackend,
+		logger,
+		instruments,
+	)
 	if err != nil {
 		_ = db.Close()
 		if driver != nil {
@@ -181,12 +199,16 @@ func newRouter(
 	db *sql.DB,
 	neo4jReader query.GraphQuery,
 	contentReader query.ContentStore,
+	statusReader status.Reader,
 	metricsSource query.MetricsTimeSeriesSource,
 	queryProfile query.QueryProfile,
 	graphBackend query.GraphBackend,
 	logger *slog.Logger,
 	instruments *telemetry.Instruments,
 ) (*query.APIRouter, error) {
+	if statusReader == nil {
+		statusReader = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
+	}
 	var containerImageIdentities query.ContainerImageIdentityStore
 	var sbomAttachments query.SBOMAttestationAttachmentStore
 	if db != nil {
@@ -319,7 +341,7 @@ func newRouter(
 		Status: &query.StatusHandler{
 			Neo4j:        neo4jReader,
 			DB:           db,
-			StatusReader: pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db}),
+			StatusReader: statusReader,
 			Profile:      queryProfile,
 		},
 		Metrics: &query.MetricsHandler{

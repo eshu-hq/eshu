@@ -150,8 +150,8 @@ states (in priority order):
   endpoints; includes health, queue, retry policies, scope activity, generation
   history, stage summaries, domain backlogs, queue blockages, coordinator state,
   derived collector runtime classification, registry collector state, AWS cloud
-  scan state, AWS freshness backlog state, semantic extraction status, and flow
-  lanes
+  scan state, AWS freshness backlog state, semantic extraction status with
+  redacted provider profile rows, and flow lanes
 - `RenderJSON(report)` — stable JSON payload for machine-readable consumption;
   field names are part of the operator contract
 - `NewHTTPHandler(reader, opts)` — returns an `http.Handler` that serves `GET`
@@ -164,6 +164,9 @@ states (in priority order):
   delay)
 - `WithRetryPolicies(reader, policies...)` — decorator that attaches static
   retry metadata to any `Reader` without Postgres persistence
+- `WithSemanticProviderProfiles(reader, profiles...)` — decorator that attaches
+  static, redacted semantic provider profile metadata without loading
+  credentials or persisting profile handles
 - `MergeRetryPolicies(base, overrides...)` — merges policy sets keyed by stage,
   later entries win
 
