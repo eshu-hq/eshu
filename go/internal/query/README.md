@@ -295,6 +295,22 @@ infer completeness from row count alone.
   attach a confident summary to an unsupported (error-built) or no-evidence
   partial answer. It is a pure contract+builder; route/MCP wiring is follow-up
   work. See `docs/public/reference/answer-packets.md`.
+- `QueryPlaybook`, `PlaybookInput`, `PlaybookStep`, `PlaybookParam`,
+  `PlaybookDrilldown`, `PlaybookFailureMode`, `ResolvedPlaybook`, `ResolvedCall`,
+  `PlaybookVersionRef` — machine-readable query playbook contract
+  (`query_playbook.go`, validation in `query_playbook_validate.go`). A playbook
+  is a deterministic, bounded, versioned data description of a starter-prompt or
+  cookbook workflow: ordered first-class tool calls (never raw Cypher), bounded
+  params with default limits, an expected `AnswerTruthClass` and evidence per
+  step, optional drilldowns, and declared failure modes with fallbacks.
+  `(QueryPlaybook).Validate` enforces the structural contract and rejects raw
+  Cypher steps; `(QueryPlaybook).Resolve` deterministically yields the fully
+  specified bounded call sequence from declared inputs alone, reading no external
+  state. `PlaybookCatalog` is the versioned source of truth
+  (`query_playbook_catalog.go`), `PlaybookCatalogVersions` and `LookupPlaybook`
+  read it, and `PlaybookToolNames` lets the `mcp` package cross-check referenced
+  tool names against `ReadOnlyTools` without an import cycle. See
+  `docs/public/reference/query-playbooks.md`.
 
 **Handler helpers**
 

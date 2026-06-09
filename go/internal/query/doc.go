@@ -170,4 +170,18 @@
 // than a graph read: no-provider mode reports unavailable, disables code hints
 // and documentation observations, and leaves deterministic query truth paths
 // unaffected.
+//
+// QueryPlaybook is a deterministic, bounded, versioned data description of a
+// common starter-prompt or cookbook workflow. A playbook names the ordered
+// first-class tool calls (never raw Cypher), their bounded parameters with
+// default limits, the expected AnswerTruthClass and evidence per step, optional
+// drilldowns, and the declared failure modes with recommended fallbacks. It is
+// data, not executable code: Resolve turns a playbook plus declared inputs into
+// a ResolvedPlaybook of fully specified, bounded calls without reading any
+// external or live-backend state, so equal inputs always yield an equal result.
+// PlaybookCatalog is the versioned source of truth, PlaybookCatalogVersions
+// pins catalog identity, and PlaybookToolNames lets the mcp package cross-check
+// every referenced tool against the read-only registry without an import cycle.
+// The contract and catalog are documented in
+// docs/public/reference/query-playbooks.md.
 package query
