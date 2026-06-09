@@ -85,10 +85,19 @@ The current catalog is returned by `PlaybookCatalog()`:
 | `service_story_citation` | 1.0.0 | `service.story` | `get_service_story` → `build_evidence_citation_packet`. Pull the one-call service dossier, then hydrate its evidence handles into a bounded citation packet. |
 | `repository_code_topic_investigation` | 1.0.0 | `code.topic` | `investigate_code_topic` → `get_code_relationship_story`. Rank files and symbols for a topic, then read the graph-backed relationship story behind the top entity. |
 | `documentation_truth_citation` | 1.0.0 | `documentation.truth` | `get_documentation_evidence_packet` → `check_documentation_evidence_packet_freshness`. Resolve a finding into a bounded evidence packet, then confirm it is still current before citing. |
+| `incident_context_evidence_path` | 1.0.0 | `incident.context` | `get_incident_context` → `get_service_story`. Build incident context with linked evidence, then drill into the impacted service when one is selected. |
+| `supply_chain_impact_explanation` | 1.0.0 | `supply-chain.impact` | `explain_supply_chain_impact` → `build_evidence_citation_packet`. Separate provider observations from Eshu-derived package, image, repository, and service state before citing. |
+| `secrets_iam_trust_chain_posture` | 1.0.0 | `secrets-iam.posture` | `list_secrets_iam_identity_trust_chains` → `count_secrets_iam_posture`. Explain exact, partial, and permission-hidden identity posture with bounded trust-chain and secret-access drilldowns. |
+| `incremental_freshness_readiness` | 1.0.0 | `freshness.readiness` | `get_generation_lifecycle` → `get_semantic_capability_status`. Diagnose stale or building answers with lifecycle, changed-since, index, and semantic readiness checks. |
+| `hosted_onboarding_governance_status` | 1.0.0 | `hosted.governance` | `get_index_status` → `get_component_extension_diagnostics`. Summarize hosted onboarding readiness, auth scope, collector health, and governance caveats without exposing secrets. |
+| `change_surface_source_investigation` | 1.0.0 | `change.surface` | `find_change_surface` → `get_relationship_evidence`. Rank affected source, drill into change-surface evidence, and cite exact file or relationship handles. |
 
 Each catalog playbook declares its own failure modes — for example "service not
 found" recommends `investigate_service`, and "citation packet truncated"
-recommends raising the bounded limit or sending the next handle batch.
+recommends raising the bounded limit or sending the next handle batch. The
+second-wave playbooks also declare common answer-experience failure handling for
+unsupported capabilities, missing evidence, stale or building freshness,
+truncated result sets, and ambiguous selectors.
 
 ## API / MCP exposure
 

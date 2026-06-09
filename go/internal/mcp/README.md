@@ -59,7 +59,7 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 115 tools from the tool definition files.
+`ReadOnlyTools` assembles 116 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
@@ -82,7 +82,7 @@ flowchart TB
 | `sbomAttestationAttachmentAggregateTools` | 2 | `tools_sbom_attachment_aggregates.go` |
 | `incidentContextTools` | 1 | `tools_incident_context.go` |
 | `workItemTools` | 1 | `tools_work_item.go` |
-| `freshnessTools` | 1 | `tools_freshness.go` |
+| `freshnessTools` | 3 | `tools_freshness.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 6 | `tools_content.go` |
 | `documentationTools` | 4 | `tools_documentation.go` |
