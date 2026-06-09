@@ -169,7 +169,7 @@ func onboardingRules() []onboardingRule {
 					Class:   onboardingClassQueueFailedWork,
 					Summary: fmt.Sprintf("Queue has blocked work (%s)", queueFailureDetail(s.Queue)),
 					RecoverySteps: []string{
-						"Inspect the failing work: eshu scan --status",
+						"Inspect the failing work: eshu admin facts dead-letter",
 						"Resolve or retry the failed/dead-letter items before re-querying",
 						"Re-run once the queue drains: eshu first-run",
 					},
@@ -203,7 +203,7 @@ func onboardingRules() []onboardingRule {
 					Class:   onboardingClassIndexingNotReady,
 					Summary: "Health is green but indexing is still building or stale",
 					RecoverySteps: []string{
-						"Wait for the queue to drain, then re-check: eshu scan --status",
+						"Wait for the queue to drain, then re-check: eshu index-status",
 						"Increase the readiness budget: eshu first-run --timeout 30m",
 						"Re-run once indexing completes: eshu first-run",
 					},
