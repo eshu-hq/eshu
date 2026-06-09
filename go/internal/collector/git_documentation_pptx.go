@@ -45,7 +45,7 @@ func extractPresentationDocumentation(
 	)
 	recordOOXMLPreflightMetadata(document.SourceMetadata, preflight)
 	addDocumentationWarnings(document.SourceMetadata, ooxmlPreflightWarnings(preflight)...)
-	if err != nil || !preflight.Safe {
+	if err != nil || ooxmlPreflightBlocksExtraction(preflight) {
 		return document, nil, nil
 	}
 	deck, err := parsePPTXDeck(body)

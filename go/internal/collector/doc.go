@@ -20,9 +20,11 @@
 // source-neutral documentation facts. DOCX
 // comments and tracked changes stay metadata-only; legacy XLS files are
 // classified as unsupported binary workbooks without reading cell bytes; PPTX
-// hidden slides, speaker notes, comments, embedded objects, and external
-// relationships stay metadata-only. ZIP archives preserve normalized member
-// paths and contained content hashes for allowed documents, while unsafe paths,
+// hidden slides, speaker notes, and comments stay metadata-only while visible
+// content still emits facts. External relationships, embedded objects, macro
+// content, malformed containers, unsafe paths, resource limits, and compression
+// hazards block Office extraction. ZIP archives preserve normalized member paths
+// and contained content hashes for allowed documents, while unsafe paths,
 // symlinks, special files, nested archives, credential-like members, tar
 // formats, and compression hazards stay warning-only. Prose surfaces may emit
 // non-authoritative document-evidence claim candidates, but API contract
