@@ -79,7 +79,9 @@ const openAPIPathsEntities = `
                     "story": {"type": "string"},
                     "repo_id": {"type": "string"},
                     "repo_name": {"type": "string"},
-                    "relationships": {"type": "array", "items": {"$ref": "#/components/schemas/Relationship"}}
+                    "relationships": {"type": "array", "items": {"$ref": "#/components/schemas/Relationship"}},
+                    "result_limits": {"type": "object", "description": "Additive drilldown block: bounded relationship limit, deterministic ordering, relationship count, truncation flag, and the get_relationship_evidence drilldown plus context path.", "additionalProperties": true},
+                    "partial_reasons": {"type": "array", "description": "Explicit limitations or unsupported-evidence reasons for the entity context read; always present so the envelope shape is stable.", "items": {"type": "string"}}
                   }
                 }
               }
@@ -134,7 +136,9 @@ const openAPIPathsEntities = `
                   "properties": {
                     "workload_id": {"type": "string"},
                     "name": {"type": "string"},
-                    "story": {"type": "string"}
+                    "story": {"type": "string"},
+                    "result_limits": {"type": "object", "description": "Additive drilldown block: bounded limit, deterministic ordering, instance/dependent/consumer counts, truncation flag, and the get_workload_context drilldown plus context path.", "additionalProperties": true},
+                    "partial_reasons": {"type": "array", "description": "Explicit limitations or unsupported-evidence reasons for the workload story read; always present so the envelope shape is stable.", "items": {"type": "string"}}
                   }
                 }
               }
