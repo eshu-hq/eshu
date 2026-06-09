@@ -139,6 +139,12 @@ type Instruments struct {
 	ContainerImageIdentityDecisions           metric.Int64Counter
 	CICDRunCorrelations                       metric.Int64Counter
 	ServiceCatalogCorrelations                metric.Int64Counter
+	// CloudInventoryAdmissions counts reducer cloud-inventory identity admission
+	// records by provider and outcome (admitted, unresolved, ambiguous,
+	// unsupported, skipped). Labels are bounded enums only: provider and outcome.
+	// It never carries resource ids, names, project ids, subscription ids, or
+	// ARNs. It is the reducer phase-count surface for the shared admission path.
+	CloudInventoryAdmissions metric.Int64Counter
 	// SearchDecayPolicyApplications counts decay-scoring decisions for
 	// non-canonical search evidence. Labels: policy_id, evidence_class, and
 	// outcome. It is ranking metadata only; it does not count or mutate
@@ -1476,6 +1482,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ServiceCatalogCorrelations counter: %w", err)
+	}
+
+	inst.CloudInventoryAdmissions, err = meter.Int64Counter(
+		"eshu_dp_cloud_inventory_admissions_total",
+		metric.WithDescription("Total reducer cloud-inventory identity admission records by provider and outcome"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CloudInventoryAdmissions counter: %w", err)
 	}
 
 	inst.SearchDecayPolicyApplications, err = meter.Int64Counter(

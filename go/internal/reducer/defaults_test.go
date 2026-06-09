@@ -434,6 +434,38 @@ func TestImplementedDefaultDomainDefinitionsIncludesAWSCloudRuntimeDriftWhenAdap
 	}
 }
 
+func TestImplementedDefaultDomainDefinitionsOmitsCloudInventoryAdmissionWithoutAdapters(t *testing.T) {
+	t.Parallel()
+
+	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{})
+	for _, def := range definitions {
+		if def.Domain == DomainCloudInventoryAdmission {
+			t.Fatalf("cloud_inventory_admission registered without adapters; want omitted to avoid silent intent drops")
+		}
+	}
+}
+
+func TestImplementedDefaultDomainDefinitionsIncludesCloudInventoryAdmissionWhenAdaptersPresent(t *testing.T) {
+	t.Parallel()
+
+	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
+		CloudInventoryEvidenceLoader:  &stubCloudInventoryEvidenceLoader{},
+		CloudInventoryAdmissionWriter: &stubCloudInventoryAdmissionWriter{},
+	})
+	found := false
+	for _, def := range definitions {
+		if def.Domain == DomainCloudInventoryAdmission {
+			found = true
+			if _, ok := def.Handler.(CloudInventoryAdmissionHandler); !ok {
+				t.Fatalf("cloud_inventory_admission handler type = %T, want CloudInventoryAdmissionHandler", def.Handler)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("cloud_inventory_admission not registered after wiring loader+writer")
+	}
+}
+
 func TestImplementedDefaultDomainDefinitionsOmitsContainerImageIdentityWithoutAdapters(t *testing.T) {
 	t.Parallel()
 

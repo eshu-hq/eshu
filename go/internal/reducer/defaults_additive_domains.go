@@ -139,6 +139,16 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, awsRuntimeDrift)
 	}
+	if handlers.CloudInventoryEvidenceLoader != nil && handlers.CloudInventoryAdmissionWriter != nil {
+		cloudInventory := cloudInventoryAdmissionDomainDefinition()
+		cloudInventory.Handler = CloudInventoryAdmissionHandler{
+			EvidenceLoader:  handlers.CloudInventoryEvidenceLoader,
+			Writer:          handlers.CloudInventoryAdmissionWriter,
+			GenerationCheck: handlers.CloudInventoryGenerationCheck,
+			Instruments:     handlers.Instruments,
+		}
+		definitions = append(definitions, cloudInventory)
+	}
 	if handlers.FactLoader != nil && handlers.CloudResourceNodeWriter != nil {
 		awsResources := awsResourceMaterializationDomainDefinition()
 		awsResources.Handler = AWSResourceMaterializationHandler{

@@ -332,6 +332,19 @@ const (
 	// privilege-posture observations, and posture gaps stay provenance-only, and a
 	// missing endpoint is skipped and counted, never fabricated (ADR #1314, #1347).
 	DomainSecretsIAMGraphProjection Domain = "secrets_iam_graph_projection"
+	// DomainCloudInventoryAdmission admits provider cloud-inventory source facts
+	// (aws_resource, gcp_cloud_resource, azure_cloud_resource) for the current
+	// generation into the shared canonical cloud_resource_uid keyspace. It
+	// resolves provider raw identity — AWS ARN, GCP Cloud Asset Inventory full
+	// resource name, Azure ARM resource id — into one stable uid and publishes
+	// reducer-owned canonical CloudResource read-model facts, one per admitted
+	// resource. It preserves the evidence layer: declared/applied/observed are
+	// distinct inputs and a provider observation never overwrites declared truth.
+	// Blank, malformed, ambiguous, and unsupported identities are counted and
+	// surfaced, never fabricated into a uid. It is graph-neutral: canonical graph
+	// node and edge projection, the multi-cloud drift join, and API/MCP readback
+	// are deferred follow-ups (issues #1997, #1998).
+	DomainCloudInventoryAdmission Domain = "cloud_inventory_admission"
 )
 
 // IntentStatus captures the durable reducer intent lifecycle state.
