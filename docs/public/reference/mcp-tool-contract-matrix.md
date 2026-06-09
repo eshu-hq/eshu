@@ -55,7 +55,7 @@ Cypher.
 | `count_repositories_by_language` | explicit language family | count-only via `limit=0` | yes | prompt-ready; avoids per-repo coverage fan-out |
 | `list_repositories_by_language` | explicit language family | `limit` and `offset` | yes | prompt-ready; returns repository handles and `truncated` |
 | `get_repository_language_inventory` | explicit whole-index language inventory | `limit` and `offset` | yes | prompt-ready; aggregate language buckets only |
-| `get_repository_stats` | repository selector optional; empty selector returns inventory | singleton or inventory | partial | transport-only HTTP stats; singleton coverage can carry `partial_results`, `truncated`, and `timeout` when coverage exceeds the route budget |
+| `get_repository_stats` | repository selector optional; empty selector returns inventory | singleton or inventory | partial | transport-only HTTP stats; singleton coverage can carry `partial_results`, `truncated`, and `timeout` when coverage exceeds the route budget; canonical truth envelope plus `result_limits`/`partial_reasons` hardening is tracked in #1831 |
 | `execute_language_query` | language and entity type filters, optional repository selector | `limit` | yes | prompt-ready for bounded language scans |
 | `find_function_call_chain` | start and end names required | `max_depth` | yes | prompt-ready when both endpoints are known |
 | `get_ecosystem_overview` | explicit whole-index ecosystem overview | singleton summary | yes | prompt-ready |
@@ -111,9 +111,9 @@ Cypher.
 | `investigate_change_surface` | changed path, topic, or entity scope required | bounded investigation | yes | prompt-ready |
 | `compare_environments` | workload plus two environments | per-environment `limit` | yes | prompt-ready; returns story, summary, shared/dedicated resources, evidence, limitations, next calls, and side-specific truncation coverage |
 | `resolve_entity` | name/query plus optional repository selector and type | `limit` | yes | prompt-ready for disambiguation before drilldowns |
-| `get_entity_context` | canonical entity id required | singleton context | partial | usable after `resolve_entity`; envelope hardening remains follow-up |
-| `get_workload_context` | canonical workload id required | singleton context | partial | usable after workload resolution; envelope hardening remains follow-up |
-| `get_workload_story` | canonical workload id required | singleton story | partial | usable after workload resolution; envelope hardening remains follow-up |
+| `get_entity_context` | canonical entity id required | singleton context | yes | prompt-ready after `resolve_entity`; carries the canonical truth envelope plus an additive `result_limits` drilldown block (bounded relationship limit, deterministic ordering, `truncated`, `get_relationship_evidence` drilldown, context path) and an explicit `partial_reasons` slot |
+| `get_workload_context` | canonical workload id required | singleton context | yes | prompt-ready after workload resolution; carries the canonical truth envelope plus an additive `result_limits` drilldown block (bounded limit, deterministic ordering, instance/dependent/consumer counts, `truncated`, `get_workload_story` drilldown, context path) and an explicit `partial_reasons` slot |
+| `get_workload_story` | canonical workload id required | singleton story | yes | prompt-ready after workload resolution; carries the canonical truth envelope plus an additive `result_limits` drilldown block (bounded limit, deterministic ordering, `truncated`, `get_workload_context` drilldown, context path) and an explicit `partial_reasons` slot |
 | `get_service_context` | `workload_id` selector required; value may be a canonical workload ID or service name | singleton context | yes | prompt-ready |
 | `get_service_story` | `workload_id` selector or `service_name` plus optional repository selector (`repo`, `repository_id`, or `repo_id`); `workload_id` may be a canonical workload ID or service name | singleton story | yes | prompt-ready; repository-scoped calls use the same HTTP disambiguation path as API clients |
 | `investigate_service` | service name plus optional environment/question | bounded investigation | yes | prompt-ready |

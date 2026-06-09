@@ -204,6 +204,8 @@ func (h *EntityHandler) getEntityContext(w http.ResponseWriter, r *http.Request)
 			WriteError(w, http.StatusNotFound, "entity not found")
 			return
 		}
+		response["result_limits"] = entityContextResultLimits(response, entityID)
+		response["partial_reasons"] = contextPartialReasons(response)
 		WriteSuccess(w, r, http.StatusOK, response, entityContextTruthEnvelope(h.profile()))
 		return
 	}
@@ -235,6 +237,8 @@ func (h *EntityHandler) getEntityContext(w http.ResponseWriter, r *http.Request)
 	response = enriched[0]
 	attachSemanticSummary(response)
 
+	response["result_limits"] = entityContextResultLimits(response, entityID)
+	response["partial_reasons"] = contextPartialReasons(response)
 	WriteSuccess(w, r, http.StatusOK, response, entityContextTruthEnvelope(h.profile()))
 }
 
@@ -376,71 +380,6 @@ func contentEntityToMap(entity EntityContent) map[string]any {
 	}
 	attachSemanticSummary(result)
 	return result
-}
-
-// getWorkloadContext retrieves the context for a specific workload.
-func (h *EntityHandler) getWorkloadContext(w http.ResponseWriter, r *http.Request) {
-	workloadID := PathParam(r, "workload_id")
-	if workloadID == "" {
-		WriteError(w, http.StatusBadRequest, "workload_id is required")
-		return
-	}
-
-	ctx, err := h.fetchWorkloadContext(r.Context(), "w.id = $workload_id", map[string]any{"workload_id": workloadID})
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
-		return
-	}
-
-	if ctx == nil {
-		WriteError(w, http.StatusNotFound, "workload not found")
-		return
-	}
-	if err := enrichServiceQueryContextWithOptions(r.Context(), h.Neo4j, h.Content, ctx, serviceQueryEnrichmentOptions{
-		IncludeRelatedModuleUsage: true,
-		Logger:                    h.Logger,
-		Operation:                 "workload_context",
-	}); err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich workload context: %v", err))
-		return
-	}
-
-	WriteSuccess(w, r, http.StatusOK, ctx, workloadContextTruthEnvelope(h.profile(), "context"))
-}
-
-// getWorkloadStory retrieves a narrative summary for a workload.
-func (h *EntityHandler) getWorkloadStory(w http.ResponseWriter, r *http.Request) {
-	workloadID := PathParam(r, "workload_id")
-	if workloadID == "" {
-		WriteError(w, http.StatusBadRequest, "workload_id is required")
-		return
-	}
-
-	ctx, err := h.fetchWorkloadContext(r.Context(), "w.id = $workload_id", map[string]any{"workload_id": workloadID})
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
-		return
-	}
-
-	if ctx == nil {
-		WriteError(w, http.StatusNotFound, "workload not found")
-		return
-	}
-	if err := enrichServiceQueryContextWithOptions(r.Context(), h.Neo4j, h.Content, ctx, serviceQueryEnrichmentOptions{
-		IncludeRelatedModuleUsage: true,
-		Logger:                    h.Logger,
-		Operation:                 "workload_story",
-	}); err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich workload story: %v", err))
-		return
-	}
-
-	story := buildWorkloadStory(ctx)
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"workload_id": workloadID,
-		"name":        ctx["name"],
-		"story":       story,
-	}, workloadContextTruthEnvelope(h.profile(), "story"))
 }
 
 // getServiceContext retrieves the context for a service by name.

@@ -52,15 +52,36 @@ responses use `materialization_status=identity_only`,
 Entity context may include semantic narrative fields when normalized semantic
 metadata exists: `semantic_summary`, `semantic_profile`, and `story`.
 
+Entity context, workload context, and workload story responses are prompt-ready:
+alongside the canonical truth envelope they carry two additive fields so a caller
+sees bounds and missing evidence without falling back to raw Cypher.
+
+- `result_limits` is a drilldown block with a bounded `limit`, deterministic
+  `ordering`, fan-out counts (`relationship_count` for entity context;
+  `instance_count`, `dependent_count`, and `consumer_count` for workload
+  context/story), a `truncated` flag, the `drilldown_tool` to call next
+  (`get_relationship_evidence` for entity context, `get_workload_story` from
+  workload context, `get_workload_context` from workload story), the
+  `drilldown_basis`, and the `context_path` for re-reading the route. The entity
+  and workload relationship fan-out is capped in place so the prompt-ready read
+  stays within the route budget and exposes truncation explicitly.
+- `partial_reasons` is always present (possibly empty) and promotes the context
+  payload's `limitations` into an explicit, sorted, de-duplicated array so the
+  envelope shape is stable across complete and partial reads.
+
 No-Regression Evidence:
 
 ```bash
 cd go && go test ./internal/query -run 'TestGet(WorkloadContext|WorkloadStory|EntityContext)ReturnsEnvelopeWhenRequested' -count=1
+cd go && go test ./internal/query -run 'TestGet(WorkloadContext|WorkloadStory|EntityContext)ReturnsResultLimitsAndPartialReasons' -count=1
+cd go && go test ./internal/mcp -run 'TestDispatchTool(WorkloadContext|WorkloadStory|EntityContext)ReturnsHardenedEnvelope' -count=1
 ```
 
 This proves entity context, workload context, and workload story responses honor
-the same envelope negotiation used by repository and service story routes,
-without changing their graph/content lookup shape.
+the same envelope negotiation used by repository and service story routes
+through both HTTP and MCP, and that the additive `result_limits` and
+`partial_reasons` fields are present, without changing their graph/content
+lookup shape.
 
 No-Observability-Change: context/story envelope normalization only changes the
 HTTP response writer selected after the existing query and enrichment paths
