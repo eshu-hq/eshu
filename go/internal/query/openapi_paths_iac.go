@@ -297,6 +297,20 @@ const openAPIPathsIaC = `
                           "warnings": {"type": "array", "items": {"type": "string"}},
                           "refusal_reasons": {"type": "array", "items": {"type": "string"}},
                           "import_block": {"type": "string"},
+                          "config_shape_hint": {
+                            "type": "object",
+                            "description": "Read-only structural skeleton for a ready candidate: argument NAMES and placeholders only, never values. Absent on refused candidates.",
+                            "properties": {
+                              "format": {"type": "string"},
+                              "resource_address": {"type": "string"},
+                              "provider_alias": {"type": "string"},
+                              "required_arguments": {"type": "array", "items": {"type": "string"}},
+                              "notable_optional_arguments": {"type": "array", "items": {"type": "string"}},
+                              "omitted_sensitive_arguments": {"type": "array", "items": {"type": "string"}},
+                              "hcl_skeleton": {"type": "string"},
+                              "manual_fill_warnings": {"type": "array", "items": {"type": "string"}}
+                            }
+                          },
                           "evidence_refs": {"type": "array", "items": {"type": "string"}},
                           "safety_gate": {"type": "object"}
                         }
