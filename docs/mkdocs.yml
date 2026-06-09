@@ -174,6 +174,7 @@ nav:
     - Story Missing Evidence Alignment: reference/story-missing-evidence.md
     - Dependency And Lockfile Coverage: reference/dependency-coverage.md
     - Runtime Admin API: reference/runtime-admin-api.md
+    - Incremental Freshness Model: reference/incremental-freshness-model.md
     - Semantic Enrichment Posture: reference/semantic-enrichment-posture.md
     - Tag Taxonomy: reference/tag-taxonomy.md
     - Local Host & Capabilities:
