@@ -20,12 +20,47 @@ eshu doctor
 
 ## `eshu mcp setup`
 
-`eshu mcp setup` prints a local MCP client configuration snippet. It does not
-detect installed editors, write client config files, or generate database
-credentials.
+`eshu mcp setup` produces platform-specific MCP client configuration. By default
+it prints a safe snippet and writes nothing.
 
 ```bash
-eshu mcp setup
+eshu mcp setup --platform claude
+```
+
+| Flag | Purpose |
+| --- | --- |
+| `--platform <name>` | Target client: `codex`, `claude`, `cursor`, `vscode`, or `generic` (default). |
+| `--hosted` | Generate a hosted HTTP transport block instead of a local stdio launch. |
+| `--write` | Merge the `eshu` server entry into the platform config file, preserving existing servers and keys. Only platforms with a known, safe target support this. |
+| `--target <path>` | Override the file path used by `--write`. |
+| `--verify` | Run staged verification: config generated, client reachable, tools visible, first query successful. |
+| `--service-url`, `--api-key`, `--profile` | Hosted endpoint resolution, same rules as other remote commands. |
+
+Safety guarantees:
+
+- Nothing is written unless `--write` is passed; the default is print-only.
+- `--write` merges rather than clobbers: other MCP servers and unrelated keys in
+  the target file are preserved.
+- Hosted setup never embeds the raw bearer token. Clients that support env-var
+  references receive a `${ESHU_API_KEY}` reference; export the variable before
+  launching the client.
+
+Writable platforms and their default targets:
+
+| Platform | Default `--write` target |
+| --- | --- |
+| `claude` | `.mcp.json` (project scope) |
+| `cursor` | `.cursor/mcp.json` |
+| `vscode` | `.vscode/mcp.json` (uses the `servers` key) |
+
+`codex` and `generic` print a snippet only; copy it into the documented target
+(`~/.codex/config.toml` for Codex).
+
+Verification distinguishes four independent stages so a reachable endpoint is
+never reported as a successful query:
+
+```bash
+eshu mcp setup --hosted --service-url https://eshu.example.com --verify
 ```
 
 Use [Connect MCP](../mcp/index.md) for the full setup flow.

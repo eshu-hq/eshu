@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
+	"github.com/eshu-hq/eshu/go/internal/mcp"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
@@ -50,8 +51,19 @@ func init() {
 	mcpSetupCmd := &cobra.Command{
 		Use:   "setup",
 		Short: "Configure IDE and CLI MCP integrations",
-		RunE:  runMCPSetup,
+		Long: "Print platform-specific MCP client config and optionally install it.\n\n" +
+			"By default this prints a safe snippet and writes nothing. Use --write to\n" +
+			"merge the eshu server entry into the platform config, preserving existing\n" +
+			"servers and keys. Use --hosted with --service-url for an HTTP endpoint;\n" +
+			"the bearer token is emitted as a ${ESHU_API_KEY} reference, never inline.",
+		RunE: runMCPSetup,
 	}
+	mcpSetupCmd.Flags().String("platform", "generic", "Target MCP client: "+strings.Join(supportedPlatformNames(), ", "))
+	mcpSetupCmd.Flags().Bool("hosted", false, "Generate hosted HTTP setup instead of local stdio")
+	mcpSetupCmd.Flags().Bool("write", false, "Merge the config into the platform's file instead of printing it")
+	mcpSetupCmd.Flags().String("target", "", "Override the file path used by --write")
+	mcpSetupCmd.Flags().Bool("verify", false, "Run staged verification (config, reachable, tools, first query)")
+	addRemoteFlags(mcpSetupCmd)
 	mcpCmd.AddCommand(mcpSetupCmd)
 
 	// mcp tools
@@ -92,6 +104,12 @@ func init() {
 		Hidden: false,
 		RunE:   runMCPSetup,
 	}
+	mAlias.Flags().String("platform", "generic", "Target MCP client: "+strings.Join(supportedPlatformNames(), ", "))
+	mAlias.Flags().Bool("hosted", false, "Generate hosted HTTP setup instead of local stdio")
+	mAlias.Flags().Bool("write", false, "Merge the config into the platform's file instead of printing it")
+	mAlias.Flags().String("target", "", "Override the file path used by --write")
+	mAlias.Flags().Bool("verify", false, "Run staged verification (config, reachable, tools, first query)")
+	addRemoteFlags(mAlias)
 	rootCmd.AddCommand(mAlias)
 
 	// Shortcut: eshu start -> mcp start (deprecated)
@@ -231,19 +249,84 @@ func localMCPHTTPEnvFromOwner(layout eshulocal.Layout, host string, port int) ([
 }
 
 func runMCPSetup(cmd *cobra.Command, args []string) error {
-	fmt.Println("MCP Client Setup")
-	fmt.Println("Configure your IDE or CLI tool to use Eshu.")
-	fmt.Println()
-	fmt.Println("Add this to your MCP client configuration:")
-	fmt.Println()
-	fmt.Println(`  {`)
-	fmt.Println(`    "mcpServers": {`)
-	fmt.Println(`      "eshu": {`)
-	fmt.Println(`        "command": "eshu",`)
-	fmt.Println(`        "args": ["mcp", "start"]`)
-	fmt.Println(`      }`)
-	fmt.Println(`    }`)
-	fmt.Println(`  }`)
+	platformName, _ := cmd.Flags().GetString("platform")
+	hosted, _ := cmd.Flags().GetBool("hosted")
+	write, _ := cmd.Flags().GetBool("write")
+	target, _ := cmd.Flags().GetString("target")
+	verify, _ := cmd.Flags().GetBool("verify")
+
+	platform, err := resolvePlatform(platformName)
+	if err != nil {
+		return err
+	}
+
+	req := mcpSetupRequest{Mode: modeLocalStdio}
+	if hosted {
+		req.Mode = modeHostedHTTP
+		client := apiClientFromCmd(cmd)
+		req.ServiceURL = client.BaseURL
+		req.APIKey = client.APIKey
+	}
+
+	if write {
+		return mcpSetupWrite(platform, req, target)
+	}
+
+	if verify {
+		return mcpSetupVerify(cmd, platform, req)
+	}
+
+	snippet, err := renderSetupSnippet(platform, req)
+	if err != nil {
+		return err
+	}
+	fmt.Print(snippet)
+	return nil
+}
+
+// mcpSetupWrite merges the eshu entry into the platform config file and reports
+// where it landed. It never prints a raw token.
+func mcpSetupWrite(platform *mcpPlatform, req mcpSetupRequest, target string) error {
+	if !platform.Writable {
+		return fmt.Errorf("platform %q does not support --write; print the snippet and add it to %s manually",
+			platform.Name, platform.TargetFile)
+	}
+	path := strings.TrimSpace(target)
+	if path == "" {
+		def, err := defaultWriteTarget(platform)
+		if err != nil {
+			return err
+		}
+		path = def
+	}
+	if err := writeMCPServerConfig(platform, req, path); err != nil {
+		return err
+	}
+	printSuccess(fmt.Sprintf("Merged eshu MCP server into %s", describeWriteTarget(path)))
+	return nil
+}
+
+// mcpSetupVerify runs the staged verification, reusing the API client for hosted
+// reachability and the embedded read-only MCP tool surface for tool visibility.
+func mcpSetupVerify(cmd *cobra.Command, platform *mcpPlatform, req mcpSetupRequest) error {
+	snippet, err := renderSetupSnippet(platform, req)
+	if err != nil {
+		snippet = ""
+	}
+
+	var health healthProber
+	var query queryProber
+	if req.Mode == modeHostedHTTP {
+		client := apiClientFromCmd(cmd)
+		health = apiHealthProber{client: client}
+		query = apiQueryProber{client: client}
+	}
+
+	report := runVerification(snippet, mcp.ReadOnlyTools, health, query)
+	fmt.Print(renderVerifyReport(report))
+	if !report.allOK() {
+		return fmt.Errorf("mcp setup verification failed")
+	}
 	return nil
 }
 
