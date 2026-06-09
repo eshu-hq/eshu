@@ -409,7 +409,9 @@ source-controlled evidence.
 Facts are source evidence, not automatic graph truth.
 
 - Documentation facts do not override code, deployment, runtime, or graph
-  truth.
+  truth. API contract documentation sections describe observed operations,
+  channels, schemas, and SDL fields, but reducers must corroborate ownership
+  before any service or interface truth is promoted.
 - Terraform-state facts must be redacted before emission. Terraform-state
   resource rows do not create cloud ownership by themselves.
 - AWS facts are reported provider evidence. Reducers must corroborate workload,

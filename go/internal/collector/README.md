@@ -115,17 +115,20 @@ When the stream re-reads repo-hosted service-catalog descriptors
 `servicecatalog` normalizer and emits observed `service_catalog.*` facts under
 the same scope and generation. A documentation-only metadata lane also
 normalizes repo-hosted Markdown, lightweight text (`.txt`, `.rst`, `.adoc`,
-`.asciidoc`, `.qmd`), HTML (`.html`, `.htm`), and notebook narrative
-(`.ipynb`) files into source-neutral documentation source, document, section,
-link, mention, and claim-candidate facts with repository target refs. Notebook
-extraction keeps parser-owned code-cell handling separate: Markdown cells, raw
-cells, and selected stdout or `text/plain` outputs become documentation
-evidence, while stderr streams, rich binary output, and code-cell source stay
-out of documentation evidence. Notebook JSON is read with a separate bounded
-parse envelope so larger valid notebooks can still emit narrative facts without
-letting embedded outputs grow unbounded. These documentation claims remain
-document evidence only; projector, reducer, and query stages own correlation,
-drift, and truth decisions.
+`.asciidoc`, `.qmd`), HTML (`.html`, `.htm`), API contracts (OpenAPI,
+Swagger, AsyncAPI, and GraphQL SDL), and notebook narrative (`.ipynb`) files
+into source-neutral documentation source, document, section, link, mention,
+and claim-candidate facts with repository target refs. API contract extraction
+emits bounded operation, channel, schema, and SDL-field sections with source
+anchors, but it remains documentation evidence only and does not infer service
+ownership. Notebook extraction keeps parser-owned code-cell handling separate:
+Markdown cells, raw cells, and selected stdout or `text/plain` outputs become
+documentation evidence, while stderr streams, rich binary output, and code-cell
+source stay out of documentation evidence. Notebook JSON is read with a
+separate bounded parse envelope so larger valid notebooks can still emit
+narrative facts without letting embedded outputs grow unbounded. These
+documentation claims remain document evidence only; projector, reducer, and
+query stages own correlation, drift, and truth decisions.
 `AfterBatchDrained` runs only after the service has committed at least one
 generation and then observes the source batch drain. Idle polls do not trigger
 it.
