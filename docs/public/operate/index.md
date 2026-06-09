@@ -16,6 +16,7 @@ queued work.
 | Choose metrics, traces, logs, or admin/status | [Telemetry](telemetry.md) |
 | Tune slow indexing, stale answers, graph timeouts, or memory pressure | [Tuning Playbook](tuning-playbook.md) |
 | Work through common symptoms | [Troubleshooting](troubleshooting.md) |
+| Move from remote Compose proof to hosted Kubernetes operations | [Hosted Operations Runbook](hosted-operations-runbook.md) |
 | Check hosted governance posture before onboarding a team | [Hosted Governance Posture](hosted-governance.md) |
 | Decide whether a community extension may run in hosted Eshu | [Hosted Extension Operator Policy](hosted-extension-policy.md) |
 | Understand service ownership | [Service Runtimes](../deployment/service-runtimes.md) |
