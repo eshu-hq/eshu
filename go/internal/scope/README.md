@@ -50,8 +50,9 @@ this. `TransitionTo` enforces the table; forbidden transitions return an error.
   `CollectorPackageRegistry`, `CollectorVulnerabilityIntelligence`,
   `CollectorSBOMAttestation`, `CollectorSecurityAlert`, `CollectorCICDRun`,
   `CollectorPagerDuty`, `CollectorJira`, `CollectorScannerWorker`,
-  `CollectorKubernetesLive`, `CollectorVaultLive`, `CollectorPrometheusMimir`,
-  `CollectorTempo`, `CollectorGrafana`, `CollectorLoki`
+  `CollectorSemanticExtraction`, `CollectorKubernetesLive`,
+  `CollectorVaultLive`, `CollectorPrometheusMimir`, `CollectorTempo`,
+  `CollectorGrafana`, `CollectorLoki`
 - `TriggerKind` — `TriggerKindSnapshot`
 - `GenerationStatus` — `GenerationStatusPending`, `GenerationStatusActive`,
   `GenerationStatusSuperseded`, `GenerationStatusCompleted`,
@@ -108,6 +109,10 @@ This package emits no metrics, spans, or logs.
   raw repository paths, image names, registry URLs, or other private locators in
   operator-facing retry or dead-letter payloads; use safe locator hashes for
   those diagnostics.
+- Semantic-extraction collector identity marks optional model-assisted
+  provenance. It must not be treated as a deterministic collector for graph
+  promotion, and it must not carry provider keys or raw prompt payloads in
+  scope IDs, partition keys, metadata, logs, metrics, or status.
 - Jira site scope identity is the provider site target boundary. Issue keys,
   summaries, user identities, and remote-link URLs belong in source facts, not
   in scope IDs, partition keys, or metric labels.

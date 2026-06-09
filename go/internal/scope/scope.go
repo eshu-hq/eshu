@@ -79,6 +79,9 @@ const (
 	CollectorJira CollectorKind = "jira"
 	// CollectorScannerWorker represents isolated security analyzer workers.
 	CollectorScannerWorker CollectorKind = "scanner_worker"
+	// CollectorSemanticExtraction represents optional semantic extraction jobs
+	// that emit model-assisted observations and hints as provenance only.
+	CollectorSemanticExtraction CollectorKind = "semantic_extraction"
 	// CollectorKubernetesLive represents the read-only Kubernetes live cluster
 	// collector. It observes a configured cluster's API server with read-only
 	// credentials and emits typed source facts; it never mutates the cluster.

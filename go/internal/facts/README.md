@@ -65,6 +65,15 @@ consume these types as their input or storage shape.
   helpers for documentation sources, documents, sections, links, entity
   mentions, non-authoritative claim candidates, owner references, ACL
   summaries, and evidence references.
+- Semantic evidence payloads — provenance-rich documentation observations and
+  code hints emitted by optional semantic extraction. These facts carry source,
+  chunk, provider-profile, prompt-version, redaction, policy, confidence,
+  freshness, and admission/corroboration state; they are not canonical graph
+  truth by themselves.
+- Semantic validation helpers — `ValidateSemanticDocumentationObservationPayload`
+  and `ValidateSemanticCodeHintPayload` reject missing replay provenance and
+  direct model-to-canonical promotion states before a caller persists semantic
+  output.
 
 Documentation fact kinds use these schema versions:
 
@@ -77,6 +86,33 @@ Documentation fact kinds use these schema versions:
 
 `documentation_section` uses schema version `1.1.0` and may include
 source-native `content` and `content_format` fields for updater diffing.
+
+Semantic evidence fact kinds use schema version `1.0.0` for the first optional
+semantic extraction contract:
+
+- `semantic.documentation_observation`
+- `semantic.code_hint`
+
+Use `SemanticFactKinds` when callers need the accepted semantic evidence set,
+and `SemanticSchemaVersion` when building semantic envelopes. These facts are
+provenance only until a reducer or query consumer explicitly admits them. A
+documentation observation can become a documentation-finding candidate, but it
+does not prove service, deployment, runtime, vulnerability, or infrastructure
+truth. A code hint can point at a possible relationship, but
+`promotion_policy=requires_deterministic_evidence` keeps it non-canonical until
+parser, reducer, or provider evidence corroborates it. Call
+`ValidateSemanticDocumentationObservationPayload` or
+`ValidateSemanticCodeHintPayload` before persisting model output so blank
+source, chunk, provider, freshness, policy, or redaction provenance fails
+closed.
+
+Semantic evidence payloads never contain raw provider keys, prompt payloads,
+private provider responses, bearer tokens, or secret values. Provider identity
+is a named profile and model id. Source identity is a bounded handle plus
+document, section, repository, path, line, page, or external-anchor metadata.
+Chunk identity includes source hash, chunk hash, extractor version, prompt
+version, redaction version, and extraction mode so stale or replayed responses
+can be rejected by later consumers.
 
 Terraform state fact kinds also use schema version `1.0.0` for the first
 collector contract:
@@ -516,6 +552,11 @@ and processing lives in `internal/projector` and `internal/storage/postgres`.
 - Documentation claim candidates are evidence about what documentation says.
   They are not operational truth and must not override source-code, deployment,
   runtime, or graph truth.
+- Semantic documentation observations and code hints follow the same evidence
+  rule. They are optional semantic output with replay provenance; reducers and
+  query surfaces must not promote model output into service, deployment,
+  runtime, vulnerability, or infrastructure truth without deterministic
+  corroboration.
 - Documentation ACL and owner fields are source-reported context. They help
   explain provenance and visibility, but they do not become authorization
   policy inside the facts package.

@@ -74,7 +74,17 @@
 // applied, and observed Grafana-stack evidence, including folders, metric
 // scrape config, metric rules, metric routes, log routes, trace routes, and
 // coverage warnings; reducers compare those facts before presenting coverage
-// or drift truth.
+// or drift truth. Semantic evidence fact kind constants and schema-version
+// helpers live here for optional LLM-assisted documentation observations and
+// code hints. They preserve source, chunk, provider-profile, prompt-version,
+// redaction, policy, confidence, freshness, and replay metadata while keeping
+// model output provenance-only until reducer or query consumers admit it.
+// Semantic facts never carry raw provider keys, prompt payloads, private
+// provider responses, bearer tokens, or secret values, and they do not directly
+// promote service, deployment, runtime, vulnerability, or infrastructure truth.
+// ValidateSemanticDocumentationObservationPayload and
+// ValidateSemanticCodeHintPayload fail closed when semantic output lacks replay
+// provenance or asks for direct canonical promotion.
 // Service catalog fact kind constants and schema-version helpers live here for
 // provider-native entity, ownership, repository link, dependency, API,
 // operational link, scorecard, and warning evidence. Scanner-worker fact kind
