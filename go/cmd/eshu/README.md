@@ -25,6 +25,10 @@ orchestration. It does not own service runtime internals:
   - indexing: `scan`, `index`, `list`, `stats`, `delete`, `clean`, `query`,
     `watch`, `unwatch`, `watching`, `add-package`, `finalize` plus
     `i`/`ls`/`rm`/`w` aliases (`scan.go`, `basic.go`)
+  - guided onboarding: `first-run [path]` walks the smallest truthful path
+    from a checkout to one indexed repository, one readiness proof, and one
+    bounded API answer (`first_run.go`, `first_run_runtime.go`,
+    `first_run_index.go`, `first_run_report.go`)
   - security intelligence: `vuln-scan repo [path]` runs the local scan
     readiness contract and reads repository-scoped supply-chain impact findings
     through the API envelope; `vuln-scan provider-parity` compares
@@ -84,6 +88,19 @@ No-Regression Evidence: provider-parity lifecycle behavior is covered by
   Collector-complete and source-local projection-complete timings remain
   explicit `null` values in JSON because the bootstrap child logs those events
   today but does not expose parent-process structured timestamps.
+- `eshu first-run [path]` is the guided onboarding contract. It runs discrete,
+  individually testable steps: detect the runtime shape (a reachable API wins,
+  then local `eshu-*` binaries on `PATH`, then a `docker-compose.yaml` at the
+  workspace root), verify the runtime is usable without performing any
+  destructive auto-start, index the target repository (reusing an existing
+  drained index when one already serves the target) or run `eshu scan`, wait for
+  indexing completeness through the shared `evaluateScanReadiness` logic rather
+  than process health, then run one bounded `/api/v0/repositories?limit=5`
+  query. It reports overall success only when that bounded query actually
+  returns; readiness or process health alone never counts as success. Failure
+  paths preserve the underlying error and print actionable next steps. `--json`
+  emits the canonical `{data, truth, error}` envelope; `--no-start` is a safe
+  mode that only verifies and reports.
 - `eshu vuln-scan repo [path]` reuses `eshu scan` root resolution, bootstrap,
   and readiness proof before reading
   `/api/v0/supply-chain/impact/findings?repository_id=<id>&limit=<n>`.

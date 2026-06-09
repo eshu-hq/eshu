@@ -37,6 +37,7 @@ plain local source builds without a version override report `dev`.
 | Family | Starts with | Use |
 | --- | --- | --- |
 | Local setup and runtime | `eshu graph`, `eshu mcp`, `eshu api`, `eshu serve`, `eshu install nornicdb` | [Local binaries](../run-locally/local-binaries.md), [Graph Backend Operations](graph-backend-operations.md), [Service Runtimes](../deployment/service-runtimes.md), and [MCP Guide](../guides/mcp-guide.md) |
+| Guided onboarding | `eshu first-run` | Walks the smallest truthful path to one indexed repository, one readiness proof, and one bounded API answer. Detects the runtime shape (reachable API, local binaries, or Docker Compose), verifies it without destructive auto-start, waits for indexing completeness rather than process health, and reports success only when a bounded query returns. Use `--json` for the canonical envelope and `--no-start` for verify-only mode. |
 | Indexing and workspace management | `eshu scan`, `eshu index`, `eshu watch`, `eshu workspace`, `eshu list`, `eshu stats`, `eshu index-status` | [CLI Indexing](cli-indexing.md) and [Index Repositories](../use/index-repositories.md) |
 | Code search and analysis | `eshu find`, `eshu analyze`, `eshu query` | [CLI Analysis](cli-analysis.md), [Ask Code Questions](../use/code-questions.md), and [Language Query DSL](language-query-dsl.md) |
 | Code-to-cloud tracing | `eshu trace service`, `eshu map` | [Trace Infrastructure](../use/trace-infrastructure.md) and [Relationship Mapping](relationship-mapping.md) |
