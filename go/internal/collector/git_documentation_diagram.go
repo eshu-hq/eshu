@@ -142,6 +142,14 @@ func extractTextDiagramContent(body string, format string) diagramExtraction {
 		return extractMermaidDiagramContent(body)
 	case "d2":
 		return extractD2DiagramContent(body)
+	case "plantuml":
+		return extractPlantUMLDiagramContent(body)
+	case "drawio":
+		return extractDrawIODiagramContent(body)
+	case "excalidraw":
+		return extractExcalidrawDiagramContent(body)
+	case "svg":
+		return extractSVGDiagramContent(body)
 	default:
 		return diagramExtraction{}
 	}
@@ -280,17 +288,19 @@ func quotedDiagramStrings(line string) []string {
 }
 
 func cleanDiagramLabel(raw string) string {
-	label := strings.TrimSpace(raw)
-	label = strings.Trim(label, "\"'`")
-	label = strings.Join(strings.Fields(label), " ")
+	label := cleanDiagramText(raw)
+	if containsSensitiveDiagramText(label) {
+		return ""
+	}
 	return label
 }
 
 func cleanDiagramLinkTarget(raw string) string {
-	target := normalizeDocumentationURL(cleanDiagramLabel(raw))
+	target := normalizeDocumentationURL(cleanDiagramText(raw))
 	lower := strings.ToLower(target)
 	cleanPath := path.Clean(target)
 	if target == "" ||
+		containsSensitiveDiagramLinkTarget(target) ||
 		strings.Contains(target, "\\") ||
 		strings.Contains(target, ":") ||
 		strings.HasPrefix(cleanPath, "/") ||
@@ -303,6 +313,12 @@ func cleanDiagramLinkTarget(raw string) string {
 		return ""
 	}
 	return target
+}
+
+func cleanDiagramText(raw string) string {
+	label := strings.TrimSpace(raw)
+	label = strings.Trim(label, "\"'`")
+	return strings.Join(strings.Fields(label), " ")
 }
 
 func uniqueDiagramValues(values []string) []string {
