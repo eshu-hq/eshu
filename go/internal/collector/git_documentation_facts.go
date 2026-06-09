@@ -307,7 +307,7 @@ func documentationReadLimitBytes(format gitDocumentationFormat) int {
 	if format.format == "notebook" {
 		return notebookMaxBodyBytes
 	}
-	if format.format == "docx" || format.format == "xlsx" {
+	if format.format == "docx" || format.format == "xlsx" || format.format == "pptx" {
 		return 50 << 20
 	}
 	return documentationMaxBodyBytes

@@ -114,20 +114,14 @@ When the stream re-reads repo-hosted service-catalog descriptors
 (`catalog-info.yaml`, `opslevel.yml`, or `cortex.yaml`), it delegates to the
 `servicecatalog` normalizer and emits observed `service_catalog.*` facts under
 the same scope and generation. A documentation-only metadata lane also
-normalizes repo-hosted Markdown, lightweight text, HTML, API contracts, notebook
-narrative, bounded DOCX summaries, conservative delimited spreadsheets, bounded
-XLSX workbook summaries, Mermaid/D2 text diagrams, and structured PlantUML,
-Draw.io, Excalidraw, and SVG diagrams into source-neutral documentation facts
-with repository target refs. API contracts, Office documents, spreadsheets,
-notebooks, and diagrams emit bounded evidence only; they do not infer service
-ownership or consume parser-owned code-cell source.
-DOCX extraction runs the OOXML package preflight before recording heading,
-paragraph, and table text; comments and tracked changes stay metadata-only.
-XLSX extraction runs the OOXML package preflight before recording visible-sheet
-summaries; hidden sheets stay metadata-only and legacy `.xls` files emit an
-unsupported warning without reading cell bytes. Diagram extraction runs a
-deterministic safety preflight before recording text labels and source-path link
-directives; unsafe, external, or malformed diagrams stay document metadata only.
+normalizes repo-hosted Markdown, lightweight text, HTML, API contracts, notebook narrative,
+delimited spreadsheets, bounded DOCX/XLSX/PPTX summaries, Mermaid/D2 text diagrams, and
+structured PlantUML, Draw.io, Excalidraw, and SVG diagrams into source-neutral documentation
+facts with repository target refs. These facts emit bounded evidence only; they do not infer
+service ownership or consume parser-owned code-cell source.
+Office extraction runs OOXML preflight before recording DOCX text, XLSX visible sheets, and
+PPTX visible slides. DOCX annotations, XLSX hidden sheets, PPTX hidden slides/notes/comments,
+embedded objects, external relationships, and legacy `.xls` files stay metadata-only.
 These claims remain document evidence only; projector, reducer, and query stages
 own correlation, drift, and truth decisions.
 `AfterBatchDrained` runs only after the service has committed at least one
@@ -135,9 +129,9 @@ generation and then observes the source batch drain. Idle polls do not trigger
 it.
 
 No-Regression Evidence: `go test ./internal/collector ./internal/doctruth ./internal/query ./internal/mcp ./internal/storage/postgres -count=1`
-covers repository documentation extraction including DOCX, CSV/TSV, and XLSX
-summaries, deterministic text and structured diagram facts, deterministic claim
-hints, repository fact readback, and MCP documentation fact routing.
+covers repository documentation extraction including DOCX, CSV/TSV, XLSX, and PPTX summaries,
+deterministic text and structured diagram facts, deterministic claim hints, repository fact
+readback, and MCP documentation fact routing.
 
 No-Observability-Change: documentation extraction stays inside the existing
 `collector.observe` commit path with body-free snapshot metadata and

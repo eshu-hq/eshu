@@ -7,12 +7,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
-func TestNonSpreadsheetOOXMLDocumentationFormatsRemainDefaultOff(t *testing.T) {
+func TestUnsupportedMacroEnabledOOXMLDocumentationFormatsRemainDefaultOff(t *testing.T) {
 	t.Parallel()
 
 	repoPath := t.TempDir()
 	relativePaths := []string{
-		"docs/review.pptx",
+		"docs/runbook.docm",
+		"docs/inventory.xlsm",
+		"docs/review.pptm",
 	}
 	for _, relativePath := range relativePaths {
 		file := filepath.Join(repoPath, filepath.FromSlash(relativePath))
@@ -43,6 +45,7 @@ func TestOfficeSpreadsheetDocumentationFormatsAreDocumentationFiles(t *testing.T
 		{relativePath: "docs/runbook.docx", wantFormat: "docx"},
 		{relativePath: "docs/inventory.xlsx", wantFormat: "xlsx"},
 		{relativePath: "docs/legacy.xls", wantFormat: "xls"},
+		{relativePath: "docs/review.pptx", wantFormat: "pptx"},
 	} {
 		file := filepath.Join(repoPath, filepath.FromSlash(tc.relativePath))
 		writeCollectorTestFile(t, file, "workbook placeholder")
