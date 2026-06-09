@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
-func TestDocumentationArchiveRoutingEnablesZIPAndSkipsTarFormats(t *testing.T) {
+func TestDocumentationArchiveRoutingEnablesArchiveFormats(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -22,9 +22,9 @@ func TestDocumentationArchiveRoutingEnablesZIPAndSkipsTarFormats(t *testing.T) {
 		wantFormat string
 	}{
 		{path: "docs/bundle.zip", wantOK: true, wantFormat: "zip"},
-		{path: "docs/bundle.tar", wantOK: false},
-		{path: "docs/bundle.tar.gz", wantOK: false},
-		{path: "docs/bundle.tgz", wantOK: false},
+		{path: "docs/bundle.tar", wantOK: true, wantFormat: "tar"},
+		{path: "docs/bundle.tar.gz", wantOK: true, wantFormat: "tar.gz"},
+		{path: "docs/bundle.tgz", wantOK: true, wantFormat: "tar.gz"},
 	} {
 		_, format, ok := gitDocumentationSourceURIAndFormat(tc.path)
 		if ok != tc.wantOK {
@@ -53,11 +53,22 @@ func TestDocumentationArchiveRoutingEnablesZIPAndSkipsTarFormats(t *testing.T) {
 		t.Fatalf("SnapshotRepository() error = %v, want nil", err)
 	}
 
-	if len(got.DocumentationFileMetas) != 1 {
-		t.Fatalf("len(DocumentationFileMetas) = %d, want 1: %#v", len(got.DocumentationFileMetas), got.DocumentationFileMetas)
+	if len(got.DocumentationFileMetas) != 4 {
+		t.Fatalf("len(DocumentationFileMetas) = %d, want 4: %#v", len(got.DocumentationFileMetas), got.DocumentationFileMetas)
 	}
-	if got.DocumentationFileMetas[0].RelativePath != "docs/bundle.zip" {
-		t.Fatalf("documentation path = %q, want docs/bundle.zip", got.DocumentationFileMetas[0].RelativePath)
+	gotPaths := map[string]bool{}
+	for _, meta := range got.DocumentationFileMetas {
+		gotPaths[meta.RelativePath] = true
+	}
+	for _, want := range []string{
+		"docs/bundle.zip",
+		"docs/bundle.tar",
+		"docs/bundle.tar.gz",
+		"docs/bundle.tgz",
+	} {
+		if !gotPaths[want] {
+			t.Fatalf("missing documentation path %q in %#v", want, got.DocumentationFileMetas)
+		}
 	}
 	if gotParsedFilePathCount(got.FileData, "bundle.zip") != 0 ||
 		gotParsedFilePathCount(got.FileData, "bundle.tar") != 0 ||

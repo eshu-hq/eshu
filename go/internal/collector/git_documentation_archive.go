@@ -110,10 +110,14 @@ func extractArchiveDocumentation(
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	archiveFormat := "zip"
+	if format, ok := gitDocumentationFormatForPath(relativePath); ok && gitDocumentationFormatIsArchive(format) {
+		archiveFormat = format.format
+	}
 	revisionID := firstNonEmptyString(commitSHA, digest, "unknown")
 	outerID := gitDocumentationDocumentID(repo.ID, relativePath)
 	result := archiveDocumentationResult{
-		outerDocument: archiveDocumentPayload(repo, outerID, relativePath, revisionID, digest, commitSHA, body),
+		outerDocument: archiveDocumentPayload(repo, outerID, relativePath, revisionID, digest, commitSHA, body, archiveFormat),
 	}
 	preflight, err := archivepreflight.Preflight(
 		ctx,
@@ -121,7 +125,7 @@ func extractArchiveDocumentation(
 		bytes.NewReader(body),
 		int64(len(body)),
 		archivepreflight.Options{
-			MaxSourceBytes:      int64(documentationReadLimitBytes(gitDocumentationFormat{format: "zip"})),
+			MaxSourceBytes:      int64(documentationReadLimitBytes(gitDocumentationFormat{format: archiveFormat})),
 			MaxExpandedBytes:    archiveMaxExpandedBytes,
 			MaxEntries:          archiveMaxEntries,
 			MaxCompressionRatio: archiveMaxCompressionRatio,
@@ -132,12 +136,23 @@ func extractArchiveDocumentation(
 	if err != nil || archivePreflightHasFatalWarning(preflight) {
 		return result
 	}
-	reader, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
-	if err != nil {
-		addDocumentationWarnings(result.outerDocument.SourceMetadata, string(archivepreflight.WarningMalformedContainer))
-		return result
+	switch preflight.Format {
+	case archivepreflight.FormatZIP:
+		reader, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+		if err != nil {
+			addDocumentationWarnings(result.outerDocument.SourceMetadata, string(archivepreflight.WarningMalformedContainer))
+			return result
+		}
+		result.extractZIPMembers(ctx, repo, outerID, relativePath, revisionID, commitSHA, reader)
+	case archivepreflight.FormatTAR:
+		result.extractTARMembers(ctx, repo, outerID, relativePath, revisionID, commitSHA, bytes.NewReader(body))
+	case archivepreflight.FormatTARGZ:
+		if err := result.extractTARGZMembers(ctx, repo, outerID, relativePath, revisionID, commitSHA, body); err != nil {
+			addDocumentationWarnings(result.outerDocument.SourceMetadata, string(archivepreflight.WarningMalformedContainer))
+		}
+	default:
+		addDocumentationWarnings(result.outerDocument.SourceMetadata, string(archivepreflight.WarningUnsupportedFormat))
 	}
-	result.extractZIPMembers(ctx, repo, outerID, relativePath, revisionID, commitSHA, reader)
 	return result
 }
 
@@ -149,6 +164,7 @@ func archiveDocumentPayload(
 	digest string,
 	commitSHA string,
 	body []byte,
+	archiveFormat string,
 ) facts.DocumentationDocumentPayload {
 	document := facts.DocumentationDocumentPayload{
 		SourceID:     gitDocumentationSourceID(repo.ID),
@@ -158,13 +174,13 @@ func archiveDocumentPayload(
 		CanonicalURI: gitDocumentationCanonicalURI(repo, relativePath, commitSHA),
 		Title:        documentationTitle(relativePath, nil),
 		DocumentType: "archive",
-		Format:       "zip",
+		Format:       archiveFormat,
 		Language:     "en",
 		ContentHash:  firstNonEmptyString(digest, documentationHashText(string(body))),
 		SourceMetadata: map[string]string{
 			"path":           relativePath,
 			"repo_id":        repo.ID,
-			"archive_format": "zip",
+			"archive_format": archiveFormat,
 		},
 	}
 	if commitSHA != "" {
@@ -214,7 +230,7 @@ func (r *archiveDocumentationResult) extractZIPMembers(
 			continue
 		}
 		format, ok := gitDocumentationFormatForPath(memberPath)
-		if !ok || format.format == "zip" || format.format == "xls" {
+		if !ok || gitDocumentationFormatIsArchive(format) || format.format == "xls" {
 			skipped++
 			addDocumentationWarnings(r.outerDocument.SourceMetadata, archiveUnsupportedWarning(memberPath))
 			continue

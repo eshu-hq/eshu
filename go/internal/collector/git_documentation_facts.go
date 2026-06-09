@@ -160,7 +160,7 @@ func gitDocumentationEnvelopesForContentFile(
 	if !ok {
 		return nil, false
 	}
-	if format.format == "zip" {
+	if gitDocumentationFormatIsArchive(format) {
 		return gitDocumentationArchiveEnvelopes(
 			ctx,
 			repoPath,
@@ -325,7 +325,7 @@ func documentationReadLimitBytes(format gitDocumentationFormat) int {
 	if format.format == "docx" || format.format == "xlsx" || format.format == "pptx" {
 		return 50 << 20
 	}
-	if format.format == "zip" {
+	if gitDocumentationFormatIsArchive(format) {
 		return 100 << 20
 	}
 	return documentationMaxBodyBytes

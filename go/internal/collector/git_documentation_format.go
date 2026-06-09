@@ -63,7 +63,19 @@ func gitDocumentationFormatEmitsTruth(format gitDocumentationFormat) bool {
 	}
 }
 
+func gitDocumentationFormatIsArchive(format gitDocumentationFormat) bool {
+	switch format.format {
+	case "zip", "tar", "tar.gz":
+		return true
+	default:
+		return false
+	}
+}
+
 func gitDocumentationFormatForPath(relativePath string) (gitDocumentationFormat, bool) {
+	if format, ok := gitDocumentationArchiveFormatForPath(relativePath); ok {
+		return format, true
+	}
 	switch strings.ToLower(path.Ext(relativePath)) {
 	case ".md", ".mdx", ".markdown":
 		return gitDocumentationFormat{format: "markdown", language: "markdown"}, true
@@ -131,10 +143,22 @@ func gitDocumentationFormatForPath(relativePath string) (gitDocumentationFormat,
 			return gitDocumentationFormat{}, false
 		}
 		return gitDocumentationFormat{format: "xls", language: "xls"}, true
-	case ".zip":
-		if !isDocumentationArchivePath(relativePath) {
-			return gitDocumentationFormat{}, false
-		}
+	default:
+		return gitDocumentationFormat{}, false
+	}
+}
+
+func gitDocumentationArchiveFormatForPath(relativePath string) (gitDocumentationFormat, bool) {
+	if !isDocumentationArchivePath(relativePath) {
+		return gitDocumentationFormat{}, false
+	}
+	lower := strings.ToLower(filepathToSourceURI(relativePath))
+	switch {
+	case strings.HasSuffix(lower, ".tar.gz"), strings.HasSuffix(lower, ".tgz"):
+		return gitDocumentationFormat{format: "tar.gz", language: "tar.gz"}, true
+	case strings.HasSuffix(lower, ".tar"):
+		return gitDocumentationFormat{format: "tar", language: "tar"}, true
+	case strings.HasSuffix(lower, ".zip"):
 		return gitDocumentationFormat{format: "zip", language: "zip"}, true
 	default:
 		return gitDocumentationFormat{}, false

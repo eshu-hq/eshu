@@ -106,7 +106,7 @@ secret values, or private provider responses.
 
 Repository-hosted documentation ingestion is part of Git collection. It emits
 source-neutral documentation facts for Markdown, lightweight text, HTML,
-notebook narrative, DOCX, CSV/TSV, XLSX, PPTX, and ZIP documentation packets
+notebook narrative, DOCX, CSV/TSV, XLSX, PPTX, and ZIP/TAR documentation packets
 under the repository scope with repository `linked_entities` targets for
 scoped readback. DOCX sections contain bounded heading, paragraph, and table text;
 comments and tracked changes stay metadata-only.
@@ -115,9 +115,9 @@ truncation warnings, formula hashes, and redacted sensitive-looking cells. Hidde
 XLSX sheets and legacy `.xls` cell bytes stay metadata-only. PPTX sections contain
 visible slide title, body, and table text; hidden slides, notes, comments,
 embedded objects, and external relationships stay metadata-only.
-ZIP packets emit one outer `documentation_document` plus contained facts for allowed members.
-Contained facts use `archive.zip!/member` identities and archive member metadata; `SourceRef`
-still points at the outer archive. Tar formats, unsafe paths, symlinks, special files,
+ZIP, tar, and gzip-compressed tar packets emit one outer `documentation_document` plus contained facts for allowed members.
+Contained facts use `archive.ext!/member` identities and archive member metadata; `SourceRef`
+still points at the outer archive. Unsafe paths, symlinks, special files,
 nested archives, credential-looking members, unsupported formats, resource limits, and
 compression-ratio hazards are warning metadata, not extracted content.
 Deterministic `doctruth` extraction may add entity-mention and claim-candidate
