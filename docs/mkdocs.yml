@@ -177,6 +177,7 @@ nav:
       - Truth Label Protocol: reference/truth-label-protocol.md
       - Answer Packet Contract: reference/answer-packets.md
       - Query Playbooks: reference/query-playbooks.md
+      - Visualization Packet Contract: reference/visualization-packets.md
       - Local Data Root Spec: reference/local-data-root-spec.md
       - Local Host Lifecycle: reference/local-host-lifecycle.md
       - Local Performance Envelope: reference/local-performance-envelope.md
