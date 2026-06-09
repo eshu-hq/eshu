@@ -178,6 +178,7 @@ nav:
       - Capability Conformance Spec: reference/capability-conformance-spec.md
       - Truth Label Protocol: reference/truth-label-protocol.md
       - Answer Packet Contract: reference/answer-packets.md
+      - Reading Answers: reference/reading-answers.md
       - Query Playbooks: reference/query-playbooks.md
       - Visualization Packet Contract: reference/visualization-packets.md
       - Local Data Root Spec: reference/local-data-root-spec.md
