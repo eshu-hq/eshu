@@ -1,0 +1,179 @@
+package postgres
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer"
+)
+
+// cloudInventoryAdmissionIntent returns the canonical admission intent under
+// test, bound to one scope generation.
+func cloudInventoryAdmissionIntent() reducer.Intent {
+	return reducer.Intent{
+		IntentID:     "intent-cloud-inventory-1",
+		ScopeID:      "cloud:tenant-1",
+		GenerationID: "gen-1",
+		SourceSystem: "reducer",
+		Domain:       reducer.DomainCloudInventoryAdmission,
+		Cause:        "cloud inventory facts observed",
+	}
+}
+
+// cloudInventorySourceRows returns one source-fact row per provider for the
+// loader query response, mirroring how the three provider collectors persist raw
+// identity under their provider-specific payload keys.
+func cloudInventorySourceRows() [][]any {
+	awsARN := "arn:aws:s3:::managed-bucket"
+	gcpName := "//compute.googleapis.com/projects/p/zones/z/instances/i"
+	azureID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm"
+	return [][]any{
+		{facts.AWSResourceFactKind, awsARN, []byte(`{"arn":"` + awsARN + `","resource_type":"aws_s3_bucket"}`)},
+		{facts.GCPCloudResourceFactKind, gcpName, []byte(`{"full_resource_name":"` + gcpName + `","asset_type":"compute.googleapis.com/Instance"}`)},
+		{facts.AzureCloudResourceFactKind, azureID, []byte(`{"arm_resource_id":"` + azureID + `","resource_type":"microsoft.compute/virtualmachines"}`)},
+	}
+}
+
+// newCloudInventoryAdmissionHandler wires the production loader and writer
+// around the shared admission handler so the test exercises the real
+// load -> resolve -> admit -> upsert path end to end against the fake database.
+func newCloudInventoryAdmissionHandler(db *fakeExecQueryer) reducer.CloudInventoryAdmissionHandler {
+	return reducer.CloudInventoryAdmissionHandler{
+		EvidenceLoader: PostgresCloudInventoryEvidenceLoader{DB: db},
+		Writer:         reducer.PostgresCloudInventoryAdmissionWriter{DB: db},
+	}
+}
+
+// TestCloudInventoryAdmissionEndToEndProducesCanonicalRows proves the full
+// production path: the Postgres loader reads the three provider source fact
+// kinds for one generation, the admission handler resolves each into the shared
+// cloud_resource_uid keyspace, and the Postgres writer upserts one canonical
+// reducer_cloud_resource_identity row per uid with observed management origin.
+func TestCloudInventoryAdmissionEndToEndProducesCanonicalRows(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: cloudInventorySourceRows()}}}
+	handler := newCloudInventoryAdmissionHandler(db)
+
+	result, err := handler.Handle(context.Background(), cloudInventoryAdmissionIntent())
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if result.Status != reducer.ResultStatusSucceeded {
+		t.Fatalf("Status = %q, want %q", result.Status, reducer.ResultStatusSucceeded)
+	}
+	if got, want := result.CanonicalWrites, 3; got != want {
+		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
+	}
+	if got, want := len(db.execs), 3; got != want {
+		t.Fatalf("canonical upserts = %d, want %d", got, want)
+	}
+
+	for _, exec := range db.execs {
+		// Every canonical write targets the reducer-owned fact kind on the
+		// idempotent insert query.
+		if got, want := exec.args[3], "reducer_cloud_resource_identity"; got != want {
+			t.Fatalf("canonical fact kind = %v, want %v", got, want)
+		}
+		payload := cloudInventoryDecodePayload(t, exec.args[14])
+		if got, want := payload["management_origin"], "observed"; got != want {
+			t.Fatalf("management_origin = %v, want %v", got, want)
+		}
+		if payload["has_observed_evidence"] != true {
+			t.Fatalf("has_observed_evidence = %v, want true", payload["has_observed_evidence"])
+		}
+		if payload["has_declared_evidence"] != false || payload["has_applied_evidence"] != false {
+			t.Fatalf("declared/applied evidence must stay false for observed-only inventory: %#v", payload)
+		}
+	}
+}
+
+// TestCloudInventoryAdmissionEndToEndIsIdempotent proves a replayed admission of
+// the same generation derives the same canonical fact ids, so the
+// ON CONFLICT (fact_id) DO UPDATE upsert converges on one row per uid rather
+// than duplicating canonical truth.
+func TestCloudInventoryAdmissionEndToEndIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	first := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: cloudInventorySourceRows()}}}
+	second := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: cloudInventorySourceRows()}}}
+
+	if _, err := newCloudInventoryAdmissionHandler(first).Handle(context.Background(), cloudInventoryAdmissionIntent()); err != nil {
+		t.Fatalf("first Handle() error = %v", err)
+	}
+	if _, err := newCloudInventoryAdmissionHandler(second).Handle(context.Background(), cloudInventoryAdmissionIntent()); err != nil {
+		t.Fatalf("second Handle() error = %v", err)
+	}
+	if len(first.execs) != len(second.execs) {
+		t.Fatalf("exec count drift: first=%d second=%d", len(first.execs), len(second.execs))
+	}
+	for i := range first.execs {
+		firstID, secondID := first.execs[i].args[0], second.execs[i].args[0]
+		if firstID != secondID {
+			t.Fatalf("canonical fact id drifted across replay at row %d: %v != %v", i, firstID, secondID)
+		}
+	}
+}
+
+// TestCloudInventoryAdmissionEndToEndSkipsStaleGeneration proves a superseded
+// generation neither loads source facts nor writes canonical rows.
+func TestCloudInventoryAdmissionEndToEndSkipsStaleGeneration(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: cloudInventorySourceRows()}}}
+	handler := newCloudInventoryAdmissionHandler(db)
+	handler.GenerationCheck = func(context.Context, string, string) (bool, error) {
+		return false, nil
+	}
+
+	result, err := handler.Handle(context.Background(), cloudInventoryAdmissionIntent())
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if result.Status != reducer.ResultStatusSuperseded {
+		t.Fatalf("Status = %q, want %q", result.Status, reducer.ResultStatusSuperseded)
+	}
+	if len(db.queries) != 0 {
+		t.Fatalf("stale generation issued %d loader queries, want 0", len(db.queries))
+	}
+	if len(db.execs) != 0 {
+		t.Fatalf("stale generation wrote %d canonical rows, want 0", len(db.execs))
+	}
+}
+
+// TestCloudInventoryAdmissionEndToEndEmptyGeneration proves an empty generation
+// admits no canonical rows and surfaces a clean success rather than fabricating
+// identities.
+func TestCloudInventoryAdmissionEndToEndEmptyGeneration(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: [][]any{}}}}
+	result, err := newCloudInventoryAdmissionHandler(db).Handle(context.Background(), cloudInventoryAdmissionIntent())
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if result.Status != reducer.ResultStatusSucceeded {
+		t.Fatalf("Status = %q, want %q", result.Status, reducer.ResultStatusSucceeded)
+	}
+	if result.CanonicalWrites != 0 {
+		t.Fatalf("CanonicalWrites = %d, want 0", result.CanonicalWrites)
+	}
+	if len(db.execs) != 0 {
+		t.Fatalf("empty generation wrote %d canonical rows, want 0", len(db.execs))
+	}
+}
+
+func cloudInventoryDecodePayload(t *testing.T, arg any) map[string]any {
+	t.Helper()
+	raw, ok := arg.([]byte)
+	if !ok {
+		t.Fatalf("payload arg type = %T, want []byte", arg)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("decode canonical payload: %v", err)
+	}
+	return payload
+}

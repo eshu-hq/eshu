@@ -104,6 +104,25 @@ No-Regression Evidence: `go test ./internal/storage/postgres -run 'CollectorFact
 
 No-Observability-Change: the status aggregate still performs one bounded active-generation fact metadata read grouped by collector kind, optional coordinator instance, evidence source, and source system, capped by `LIMIT 200`. It adds no table, route, worker, queue domain, graph write, metric label, or payload column. Operators diagnose the path through existing `/api/v0/status/collectors` and `/admin/status` collector runtime fields plus `eshu_dp_postgres_query_duration_seconds{store=...,operation=...}` from the Postgres instrumentation wrapper.
 
+### Cloud inventory evidence loader (issues #1997, #1998)
+
+`PostgresCloudInventoryEvidenceLoader` is the concrete
+`reducer.CloudInventoryEvidenceLoader` that backs `DomainCloudInventoryAdmission`.
+It reads the three provider inventory source fact kinds (`aws_resource`,
+`gcp_cloud_resource`, `azure_cloud_resource`) for one scope generation and maps
+each provider payload into the shared admission record: provider token, source
+fact kind, provider-native raw identity, provider resource type, and the
+observed evidence layer. The raw identity is projected with a `COALESCE` over the
+provider-specific keys (`arn`, `full_resource_name`, `arm_resource_id`), so the
+loader resolves the right key per provider without a per-provider query. The
+admission handler owns identity resolution, evidence folding, and the canonical
+`reducer_cloud_resource_identity` upsert; the loader stays read-only so a stale
+generation it happens to read is still superseded before any canonical write.
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run 'TestPostgresCloudInventoryEvidenceLoader|TestCloudInventoryAdmissionEndToEnd' -count=1` proves the loader reads exactly the three inventory source fact kinds for one `(scope_id, generation_id)`, drops blank-identity and undecodable rows, rejects a blank scope or generation, and that the end-to-end loader -> admission -> writer path upserts three canonical rows, converges on identical canonical fact ids on replay (idempotent under retries and concurrent workers), skips a superseded generation without any load or write, and admits nothing for an empty generation. The single load query is `listCloudInventorySourceFactsForGenerationQuery`, served by the existing `fact_records_scope_generation_idx (scope_id, generation_id, fact_kind, observed_at DESC)` partial-key prefix; it is one index-bounded read per admission intent over one generation with `is_tombstone = FALSE`, no join, no graph write, and no full-table scan. `go test ./internal/storage/postgres ./internal/reducer ./cmd/reducer -count=1` passed.
+
+No-Observability-Change: the loader adds no table, route, worker, queue domain, graph write, metric name, or metric label. The admission handler already emits the bounded `eshu_dp_*` cloud-inventory admission counters (provider/outcome labels only) and the canonical `reducer_cloud_resource_identity` read-model payload that records `management_origin` and the declared/applied/observed evidence flags; the Postgres instrumentation wrapper still emits `eshu_dp_postgres_query_duration_seconds{store=...,operation=...}` for the load. Loader-side decode skips are surfaced through the redaction-aware `cloud_inventory_source_fact_decode` warning log (fact kind plus redacted resource attributes only).
+
 ## Exported surface
 
 The full exported store inventory lives in
