@@ -282,7 +282,8 @@ const openAPIPathsCodeSymbols = `
                     "offset": {"type": "integer"},
                     "truncated": {"type": "boolean"},
                     "source_backend": {"type": "string"},
-                    "coverage": {"type": "object", "additionalProperties": true}
+                    "coverage": {"type": "object", "additionalProperties": true},
+                    "answer_metadata": {"type": "object", "description": "Normalized additive answer metadata with schema_version, evidence_handles, missing_evidence, limitations, truncated, coverage, partial_reasons, and recommended_next_calls."}
                   }
                 }
               }

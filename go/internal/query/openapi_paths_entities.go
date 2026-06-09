@@ -222,7 +222,8 @@ const openAPIPathsEntities = `
                       "description": "Deployment, CI, and environment evidence pointers. Artifacts include source_location plus resolved_id/generation_id for Postgres evidence drilldown; evidence_index groups those pointers by relationship type, artifact family, and evidence kind."
                     },
                     "documentation_overview": {"type": "object"},
-                    "support_overview": {"type": "object"}
+                    "support_overview": {"type": "object"},
+                    "answer_metadata": {"type": "object", "description": "Normalized additive answer metadata with schema_version, evidence_handles, missing_evidence, limitations, truncated, coverage, partial_reasons, and recommended_next_calls."}
                   }
                 }
               }

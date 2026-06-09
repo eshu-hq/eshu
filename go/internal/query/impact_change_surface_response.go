@@ -250,7 +250,7 @@ func (h *ImpactHandler) changeSurfaceResponse(
 	if req.Environment != "" {
 		resp["environment"] = req.Environment
 	}
-	return resp
+	return attachAnswerMetadata(resp)
 }
 
 func splitImpactRows(rows []map[string]any) ([]map[string]any, []map[string]any) {

@@ -90,6 +90,7 @@ type IncidentContextResponse struct {
 	MissingEvidence   []IncidentMissingEvidence        `json:"missing_evidence"`
 	AmbiguousEvidence []IncidentContextEvidenceEdge    `json:"ambiguous_evidence"`
 	Truncated         bool                             `json:"truncated"`
+	AnswerMetadata    AnswerMetadata                   `json:"answer_metadata"`
 }
 
 // IncidentContextIncident is the provider-reported incident anchor.

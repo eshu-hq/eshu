@@ -39,9 +39,10 @@ const openAPIPathsIncidentContext = `
                     },
                     "missing_evidence": {"type": "array", "items": {"type": "object"}},
                     "ambiguous_evidence": {"type": "array", "items": {"type": "object"}},
-                    "truncated": {"type": "boolean"}
+                    "truncated": {"type": "boolean"},
+                    "answer_metadata": {"type": "object", "description": "Normalized additive answer metadata with schema_version, evidence_handles, missing_evidence, limitations, truncated, coverage, partial_reasons, and recommended_next_calls."}
                   },
-                  "required": ["query", "incident", "timeline", "related_changes", "evidence_path", "missing_evidence", "ambiguous_evidence", "truncated"]
+                  "required": ["query", "incident", "timeline", "related_changes", "evidence_path", "missing_evidence", "ambiguous_evidence", "truncated", "answer_metadata"]
                 }
               }
             }
