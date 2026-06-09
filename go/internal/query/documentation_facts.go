@@ -9,6 +9,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+const (
+	documentationFactKindAliasSemanticObservation      = "semantic_observation"
+	documentationFactKindAliasDocumentationObservation = "documentation_observation"
+)
+
 type documentationFactFilter struct {
 	FactKind     string
 	ScopeID      string
@@ -144,6 +149,10 @@ func normalizeDocumentationFactKind(raw string) (string, bool) {
 		return facts.DocumentationEntityMentionFactKind, true
 	case "claim_candidate", facts.DocumentationClaimCandidateFactKind:
 		return facts.DocumentationClaimCandidateFactKind, true
+	case documentationFactKindAliasSemanticObservation,
+		documentationFactKindAliasDocumentationObservation,
+		facts.SemanticDocumentationObservationFactKind:
+		return facts.SemanticDocumentationObservationFactKind, true
 	default:
 		return "", false
 	}

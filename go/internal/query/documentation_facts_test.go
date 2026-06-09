@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 func TestDocumentationHandlerListsCollectedFacts(t *testing.T) {
@@ -196,6 +198,31 @@ func TestDocumentationHandlerAllowsSourceFactDiscovery(t *testing.T) {
 	}
 }
 
+func TestNormalizeDocumentationFactKindAcceptsSemanticDocumentationObservation(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		raw  string
+	}{
+		{name: "canonical", raw: facts.SemanticDocumentationObservationFactKind},
+		{name: "semantic_observation", raw: "semantic_observation"},
+		{name: "documentation_observation", raw: "documentation_observation"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, ok := normalizeDocumentationFactKind(tc.raw)
+			if !ok {
+				t.Fatalf("normalizeDocumentationFactKind(%q) rejected semantic observation alias", tc.raw)
+			}
+			if got, want := got, facts.SemanticDocumentationObservationFactKind; got != want {
+				t.Fatalf("normalizeDocumentationFactKind(%q) = %q, want %q", tc.raw, got, want)
+			}
+		})
+	}
+}
+
 func TestContentReaderDocumentationFactsFiltersAndPaginates(t *testing.T) {
 	t.Parallel()
 
@@ -351,6 +378,38 @@ func TestBuildDocumentationFactsSQLIsScopedAndBounded(t *testing.T) {
 	}
 }
 
+func TestBuildDocumentationFactsSQLDefaultAllowlistIncludesSemanticDocumentationObservation(t *testing.T) {
+	t.Parallel()
+
+	query, _ := buildDocumentationFactsSQL(documentationFactFilter{
+		ScopeID: "docs-scope",
+		Limit:   10,
+	})
+
+	for _, want := range []string{
+		facts.DocumentationSourceFactKind,
+		facts.DocumentationDocumentFactKind,
+		facts.DocumentationSectionFactKind,
+		facts.DocumentationLinkFactKind,
+		facts.DocumentationEntityMentionFactKind,
+		facts.DocumentationClaimCandidateFactKind,
+		facts.SemanticDocumentationObservationFactKind,
+	} {
+		if !strings.Contains(query, "'"+want+"'") {
+			t.Fatalf("documentation facts default SQL allowlist missing %q: %s", want, query)
+		}
+	}
+	for _, unexpected := range []string{
+		facts.DocumentationFindingFactKind,
+		facts.DocumentationEvidencePacketFactKind,
+		facts.SemanticCodeHintFactKind,
+	} {
+		if strings.Contains(query, "'"+unexpected+"'") {
+			t.Fatalf("documentation facts default SQL allowlist includes %q, want provenance-only documentation facts: %s", unexpected, query)
+		}
+	}
+}
+
 func TestOpenAPISpecIncludesDocumentationFacts(t *testing.T) {
 	t.Parallel()
 
@@ -383,6 +442,16 @@ func TestOpenAPISpecIncludesDocumentationFacts(t *testing.T) {
 	if openAPIStringListIncludes(required, "next_cursor") {
 		t.Fatal("documentation facts OpenAPI requires next_cursor, want present only on truncated pages")
 	}
+	factKindEnum := openAPIParameterStringEnum(t, get["parameters"].([]any), "fact_kind")
+	for _, name := range []string{
+		"semantic_observation",
+		"documentation_observation",
+		facts.SemanticDocumentationObservationFactKind,
+	} {
+		if !openAPIStringListIncludes(factKindEnum, name) {
+			t.Fatalf("documentation facts OpenAPI fact_kind enum missing %q", name)
+		}
+	}
 }
 
 func openAPIStringListIncludes(values []any, want string) bool {
@@ -392,4 +461,23 @@ func openAPIStringListIncludes(values []any, want string) bool {
 		}
 	}
 	return false
+}
+
+func openAPIParameterStringEnum(t *testing.T, parameters []any, name string) []any {
+	t.Helper()
+
+	for _, parameter := range parameters {
+		row := parameter.(map[string]any)
+		if row["name"] != name {
+			continue
+		}
+		schema := row["schema"].(map[string]any)
+		enum, ok := schema["enum"].([]any)
+		if !ok {
+			t.Fatalf("OpenAPI parameter %q enum = %#v, want string enum", name, schema["enum"])
+		}
+		return enum
+	}
+	t.Fatalf("OpenAPI parameters missing %q", name)
+	return nil
 }

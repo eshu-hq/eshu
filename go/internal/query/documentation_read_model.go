@@ -423,5 +423,6 @@ func documentationCollectedFactKindSQLList() string {
 		"'" + facts.DocumentationSectionFactKind + "', " +
 		"'" + facts.DocumentationLinkFactKind + "', " +
 		"'" + facts.DocumentationEntityMentionFactKind + "', " +
-		"'" + facts.DocumentationClaimCandidateFactKind + "'"
+		"'" + facts.DocumentationClaimCandidateFactKind + "', " +
+		"'" + facts.SemanticDocumentationObservationFactKind + "'"
 }
