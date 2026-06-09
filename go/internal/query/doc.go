@@ -151,4 +151,18 @@
 // `next_cursor` on truncated pages) so API and MCP clients can distinguish a
 // complete scoped page from a continuation page or a scoped page with no
 // collected documentation facts.
+//
+// AnswerPacket composes existing query truth into a user-ready response plan
+// without losing structured evidence. It is a view over the canonical
+// ResponseEnvelope, not a replacement: it copies the TruthEnvelope, references
+// the envelope data, and reuses the evidence_citation handle and
+// recommended_next_calls shapes. NewAnswerPacket and NewAnswerPacketFromCitations
+// classify the answer into a single AnswerTruthClass derived from the existing
+// TruthLevel and TruthBasis (deterministic, derived, fallback,
+// semantic_observation, code_hint, or unsupported) and refuse to attach a
+// confident summary when the envelope carries an error or an evidence-centric
+// capability resolved no evidence, so an unanswerable question never becomes a
+// confident sentence. The contract is documented in
+// docs/public/reference/answer-packets.md; route and MCP wiring is follow-up
+// work.
 package query
