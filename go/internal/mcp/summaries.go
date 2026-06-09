@@ -46,6 +46,8 @@ func summarizeToolText(toolName string, envelope *query.ResponseEnvelope) string
 		body = summarizeIncidentContext(data)
 	case "build_evidence_citation_packet":
 		body = summarizeCitationPacket(data)
+	case "derive_visualization_packet":
+		body = summarizeVisualizationPacket(data)
 	default:
 		body = ""
 	}
@@ -230,6 +232,46 @@ func summarizePlainPayload(value any) string {
 		}
 	}
 	return "Eshu query completed."
+}
+
+func summarizeVisualizationPacket(data map[string]any) string {
+	packet := mcpMapField(data, "visualization_packet")
+	if packet == nil {
+		return ""
+	}
+	view := strings.TrimSpace(query.StringVal(packet, "view"))
+	nodes := mcpSliceLen(packet, "nodes")
+	edges := mcpSliceLen(packet, "edges")
+	supported, _ := packet["supported"].(bool)
+	if !supported {
+		limitation := firstStringField(packet, "limitations")
+		if limitation != "" {
+			return fmt.Sprintf("visualization %s unsupported: %s", view, clampField(limitation))
+		}
+		return fmt.Sprintf("visualization %s unsupported", view)
+	}
+	return fmt.Sprintf("visualization %s: %d node(s), %d edge(s)", view, nodes, edges)
+}
+
+func firstStringField(m map[string]any, key string) string {
+	if m == nil {
+		return ""
+	}
+	switch values := m[key].(type) {
+	case []any:
+		if len(values) == 0 {
+			return ""
+		}
+		value, _ := values[0].(string)
+		return strings.TrimSpace(value)
+	case []string:
+		if len(values) == 0 {
+			return ""
+		}
+		return strings.TrimSpace(values[0])
+	default:
+		return ""
+	}
 }
 
 // mcpMapField extracts a nested map[string]any from a JSON-parsed map, returning

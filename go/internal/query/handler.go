@@ -129,6 +129,7 @@ type APIRouter struct {
 	SupplyChain           *SupplyChainHandler
 	Incident              *IncidentHandler
 	WorkItems             *WorkItemHandler
+	Visualization         *VisualizationHandler
 	Freshness             *FreshnessHandler
 	Status                *StatusHandler
 	ComponentExtensions   *ComponentExtensionsHandler
@@ -253,6 +254,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Work items
 	if a.WorkItems != nil {
 		a.WorkItems.Mount(mux)
+	}
+
+	// Visualization packets
+	if a.Visualization != nil {
+		a.Visualization.Mount(mux)
 	}
 
 	// Freshness drilldowns

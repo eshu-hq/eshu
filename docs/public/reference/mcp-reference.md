@@ -38,6 +38,7 @@ families are:
 | Repository and relationship drilldowns | `get_repo_summary`, `get_repo_context`, `get_repo_story`, `get_repository_coverage`, `count_repositories_by_language`, `list_repositories_by_language`, `get_repository_language_inventory`, `get_relationship_evidence`, `search_registry_bundles` |
 | Context and stories | `resolve_entity`, `get_entity_context`, `get_workload_context`, `get_workload_story`, `get_service_context`, `get_service_story`, `investigate_service`, `get_incident_context`, `list_work_item_evidence` |
 | Content and citations | `get_file_content`, `get_file_lines`, `get_entity_content`, `build_evidence_citation_packet`, `search_file_content`, `search_entity_content` |
+| Visualization packets | `derive_visualization_packet` |
 | Package registry | `list_package_registry_packages`, `list_package_registry_versions`, `list_package_registry_dependencies`, `list_package_registry_correlations` |
 | CI/CD and supply chain | `list_ci_cd_run_correlations`, `list_advisory_evidence`, `list_supply_chain_impact_findings`, `explain_supply_chain_impact`, `list_security_alert_reconciliations`, `list_sbom_attestation_attachments` |
 | Documentation truth | `list_documentation_findings`, `list_documentation_facts`, `get_documentation_evidence_packet`, `check_documentation_evidence_packet_freshness` |
@@ -132,9 +133,10 @@ is a tool-aware, deterministic, bounded summary (for example: service identity
 plus truth level, freshness, API-surface size, dependency and consumer counts,
 and the top limitation for `get_service_story`; resolved-vs-requested coverage
 for `build_evidence_citation_packet`; missing and ambiguous evidence counts for
-`get_incident_context`; health state plus the leading reason for the status
-tools). These summaries surface truth, freshness, and partial/error details so a
-rich or degraded result never collapses into generic success text.
+`get_incident_context`; node and edge counts for `derive_visualization_packet`;
+health state plus the leading reason for the status tools). These summaries
+surface truth, freshness, and partial/error details so a rich or degraded result
+never collapses into generic success text.
 
 The text summary is still only a convenience for human readers. It is derived
 from the same envelope, is length-capped, and is never the canonical contract.

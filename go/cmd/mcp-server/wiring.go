@@ -275,6 +275,7 @@ func newMCPQueryRouter(
 			Evidence: query.NewPostgresWorkItemEvidenceStore(db),
 			Profile:  queryProfile,
 		},
+		Visualization: &query.VisualizationHandler{},
 		Status: &query.StatusHandler{
 			Neo4j:        neo4jReader,
 			DB:           db,

@@ -375,8 +375,10 @@ activation config paths, or community-index membership as trust.
   citation, and returns an explicit unsupported packet with
   `recommended_next_calls` rather than erroring. The `FromMap` adapters decode
   canonical HTTP/MCP/CLI JSON maps into the same builders; they do not add a new
-  data source. Normal visualization flows need no raw Cypher. Route/MCP wiring
-  is follow-up work. See `docs/public/reference/visualization-packets.md`.
+  data source. Normal visualization flows need no raw Cypher.
+  `VisualizationHandler` exposes `POST /api/v0/visualizations/derive`, and MCP
+  routes `derive_visualization_packet` to the same handler. See
+  `docs/public/reference/visualization-packets.md`.
 
 **Handler helpers**
 

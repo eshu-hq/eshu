@@ -29,7 +29,8 @@ only in diagnostics sections and local graph debugging.
 | Deployment configuration prompts | `investigate_deployment_config` | Ready | Covers image tags, runtime settings, resource limits, values layers, rendered targets, and read-first file handles. |
 | Resource, queue, database, and cloud-resource prompts | `investigate_resource` | Ready | Resolves ambiguity before returning workload users, provenance paths, source handles, and next calls. |
 | Environment comparison prompts | `compare_environments` | Ready | Returns story, summary, per-side resources, evidence, limitations, and side-specific truncation. |
-| Evidence citation prompts | `build_evidence_citation_packet` | Ready | Accepts explicit citation handles; current runtime hydrates file/entity handles only; caps input handles and hydrated citations. |
+| Evidence citation prompts | `build_evidence_citation_packet` | Ready | Accepts explicit citation handles; current runtime hydrates file and entity handles; caps input handles and hydrated citations. |
+| Visualization prompts | `derive_visualization_packet` | Ready | Derives bounded service-story, evidence-citation, or incident-context visualization packets from a source response already returned by an authorized route/tool. |
 | Source and content reads | `get_file_content`, `get_file_lines`, `get_entity_content`, `search_file_content`, `search_entity_content` | Ready | Use after story, investigation, or search tools identify portable handles. |
 | Runtime and indexing status | `get_index_status`, `list_ingesters`, `get_ingester_status` | Ready | Job-id based MCP status tools are not advertised. |
 | Package registry prompts | `list_package_registry_packages`, `list_package_registry_versions` | Ready | Use `limit` and package/version scope. |
@@ -46,6 +47,8 @@ only in diagnostics sections and local graph debugging.
   Server-local paths are not portable prompt contracts.
 - Use `build_evidence_citation_packet` after story or investigation tools return
   handles instead of guessing which files to cite.
+- Use `derive_visualization_packet` after a service story, evidence-citation,
+  or incident-context answer when a client needs renderable nodes and edges.
 - Use `inspect_call_graph_metrics` for recursive and hub-function prompts
   instead of diagnostics-only Cypher.
 
@@ -114,6 +117,7 @@ shipped alongside them. The pattern other aggregates must follow lives at:
 | Surface | Backend | Notes |
 | --- | --- | --- |
 | `build_evidence_citation_packet` / `POST /api/v0/evidence/citations` | Graph + Postgres | Caller passes explicit handle list; the tool documents the input cap and per-handle hydration. No action. |
+| `derive_visualization_packet` / `POST /api/v0/visualizations/derive` | Caller-supplied source response | Pure derivation from an already-authorized answer response; no graph/content read or fan-out. No action. |
 
 ### Needs Read-Model Aggregate (Postgres `fact_records`)
 
