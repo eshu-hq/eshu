@@ -17,6 +17,7 @@ func summarizeServiceStory(data map[string]any) string {
 	identity := mcpMapField(data, "service_identity")
 	apiSurface := mcpMapField(data, "api_surface")
 	limits := mcpMapField(data, "result_limits")
+	metadata := mcpAnswerMetadata(data)
 
 	name := query.StringVal(identity, "service_name")
 	if name == "" {
@@ -30,7 +31,7 @@ func summarizeServiceStory(data map[string]any) string {
 
 	endpointCount := query.IntVal(apiSurface, "endpoint_count")
 	apiPart := fmt.Sprintf("API surface %d", endpointCount)
-	if query.BoolVal(apiSurface, "truncated") {
+	if query.BoolVal(apiSurface, "truncated") || mcpMetadataTruncated(metadata) {
 		apiPart += " (truncated)"
 	}
 	parts = append(parts, apiPart)
@@ -40,7 +41,12 @@ func summarizeServiceStory(data map[string]any) string {
 
 	summary := strings.Join(parts, "; ")
 
-	if limitations := query.StringSliceVal(identity, "limitations"); len(limitations) > 0 {
+	if limitation, count := mcpFirstMetadataReason(metadata, "limitations"); limitation != "" {
+		summary += "; top limitation: " + clampField(limitation)
+		if count > 1 {
+			summary += fmt.Sprintf(" (+%d more)", count-1)
+		}
+	} else if limitations := query.StringSliceVal(identity, "limitations"); len(limitations) > 0 {
 		summary += "; top limitation: " + clampField(limitations[0])
 		if len(limitations) > 1 {
 			summary += fmt.Sprintf(" (+%d more)", len(limitations)-1)
@@ -95,11 +101,15 @@ func summarizeIncidentContext(data map[string]any) string {
 	relatedChanges := mcpSliceLen(data, "related_changes")
 	missing := mcpSliceLen(data, "missing_evidence")
 	ambiguous := mcpSliceLen(data, "ambiguous_evidence")
+	metadata := mcpAnswerMetadata(data)
+	if metadataMissing := mcpMetadataRowsLen(metadata, "missing_evidence"); metadataMissing > 0 {
+		missing = metadataMissing
+	}
 
 	summary := fmt.Sprintf("%s — %d related change(s)", clampField(title), relatedChanges)
 	summary += fmt.Sprintf("; missing evidence %d", missing)
 	summary += fmt.Sprintf("; ambiguous %d", ambiguous)
-	if query.BoolVal(data, "truncated") {
+	if query.BoolVal(data, "truncated") || mcpMetadataTruncated(metadata) {
 		summary += "; truncated"
 	}
 	return summary

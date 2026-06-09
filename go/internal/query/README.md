@@ -468,6 +468,7 @@ documentation fact routes remain unaffected.
   `telemetry.SpanQueryIaCManagementStatus` (`query.iac_management_status`) on
   exact status reads, and `telemetry.SpanQueryIaCManagementExplanation`
   (`query.iac_management_explanation`) on grouped evidence explanations;
+
   `telemetry.SpanQueryIaCTerraformImportPlan`
   (`query.iac_terraform_import_plan`) on read-only Terraform import-plan
   candidate generation; `telemetry.SpanQueryAWSRuntimeDriftFindings`
@@ -490,6 +491,16 @@ documentation fact routes remain unaffected.
   (via `repositoryQueryStageTimer`); `service_query.stage_started`,
   `service_query.stage_completed` (via `serviceQueryStageTimer`). Both emit
   `operation`, `stage`, `repo_id`, and `duration_seconds`.
+
+Answer-facing story and investigation responses attach additive
+`answer_metadata` companions with normalized evidence handles,
+missing-evidence rows, limitations, truncation, coverage, partial reasons, and
+recommended next calls. The companion is derived only from the already-built
+response payload or incident response struct; it performs no graph,
+content-store, provider, reducer, collector, or queue reads and does not add a
+new span. Keep the canonical route fields authoritative and use
+`answer_metadata` only as the prompt-facing adapter for AnswerPacket composition
+or MCP summary text.
 
 Durable no-regression and observability notes for issue-specific query shapes,
 including CloudResource candidate reads and NornicDB predicate compatibility,

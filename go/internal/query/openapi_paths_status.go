@@ -459,7 +459,8 @@ const openAPIPathsStatusAndCompare = `
                     "recommended_next_calls": {"type": "array", "items": {"type": "object"}},
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean"},
-                    "coverage": {"type": "object"}
+                    "coverage": {"type": "object"},
+                    "answer_metadata": {"type": "object", "description": "Normalized additive answer metadata with schema_version, evidence_handles, missing_evidence, limitations, truncated, coverage, partial_reasons, and recommended_next_calls."}
                   }
                 }
               }

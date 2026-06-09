@@ -113,6 +113,73 @@ func TestSummarizeToolTextIncidentContext(t *testing.T) {
 	}
 }
 
+func TestSummarizeToolTextUsesAnswerMetadataWithoutMutatingData(t *testing.T) {
+	env := &query.ResponseEnvelope{
+		Truth: freshTruth(query.TruthLevelDerived, query.FreshnessFresh),
+		Data: map[string]any{
+			"service_identity": map[string]any{
+				"service_name": "payments-api",
+				"limitations":  []any{},
+			},
+			"api_surface":   map[string]any{"endpoint_count": float64(2), "truncated": false},
+			"result_limits": map[string]any{"upstream_count": float64(1), "downstream_count": float64(0)},
+			"answer_metadata": map[string]any{
+				"schema_version":   "answer_metadata.v1",
+				"truncated":        true,
+				"missing_evidence": []any{map[string]any{"reason": "runtime evidence missing"}},
+				"limitations":      []any{map[string]any{"reason": "metadata limitation"}},
+				"coverage":         map[string]any{"query_shape": "service_story"},
+			},
+		},
+	}
+	got := summarizeToolText("get_service_story", env)
+
+	for _, want := range []string{"truncated", "top limitation: metadata limitation"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("service story metadata summary %q missing %q", got, want)
+		}
+	}
+	after, ok := env.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("env.Data type = %T, want map", env.Data)
+	}
+	if _, ok := after["answer_metadata"]; !ok {
+		t.Fatal("summarizeToolText removed answer_metadata from structured data")
+	}
+	if query.StringVal(after["service_identity"].(map[string]any), "service_name") != "payments-api" {
+		t.Fatal("summarizeToolText mutated service_identity")
+	}
+}
+
+func TestSummarizeIncidentContextUsesAnswerMetadataMissingEvidence(t *testing.T) {
+	env := &query.ResponseEnvelope{
+		Truth: freshTruth(query.TruthLevelDerived, query.FreshnessFresh),
+		Data: map[string]any{
+			"incident":           map[string]any{"title": "checkout latency spike"},
+			"related_changes":    []any{},
+			"missing_evidence":   []any{},
+			"ambiguous_evidence": []any{},
+			"answer_metadata": map[string]any{
+				"schema_version": "answer_metadata.v1",
+				"truncated":      true,
+				"missing_evidence": []any{
+					map[string]any{"slot": "image", "reason": "missing image evidence"},
+					map[string]any{"slot": "commit", "reason": "missing commit evidence"},
+				},
+				"coverage": map[string]any{"query_shape": "incident_context_evidence_path"},
+			},
+		},
+	}
+
+	got := summarizeToolText("get_incident_context", env)
+
+	for _, want := range []string{"missing evidence 2", "truncated"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("incident metadata summary %q missing %q", got, want)
+		}
+	}
+}
+
 func TestSummarizeToolTextCitationPacket(t *testing.T) {
 	env := &query.ResponseEnvelope{
 		Truth: freshTruth(query.TruthLevelDerived, query.FreshnessFresh),

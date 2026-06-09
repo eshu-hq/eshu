@@ -72,6 +72,11 @@
 // through MetricsHandler. The handler accepts a MetricsTimeSeriesSource, with
 // PrometheusMetricsTimeSeriesSource providing the Prometheus/Mimir query_range
 // implementation when the API runtime is configured with a live metrics source.
+// Story and investigation routes also attach additive answer_metadata
+// companions for prompt-facing clients. The companion normalizes existing
+// evidence handles, missing evidence, limitations, truncation, coverage,
+// partial reasons, and recommended next calls without changing the canonical
+// route fields or performing additional backend reads.
 //
 // Supply-chain impact rows also carry a reducer suppression decision that
 // captures the VEX or operator-policy state (active, not_affected,

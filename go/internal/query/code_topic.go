@@ -169,7 +169,7 @@ func codeTopicResponse(req codeTopicInvestigationRequest, rows []codeTopicEviden
 			callGraphHandles = append(callGraphHandles, codeTopicCallGraphHandle(row))
 		}
 	}
-	return map[string]any{
+	data := map[string]any{
 		"topic":                  req.Topic,
 		"intent":                 strings.TrimSpace(req.Intent),
 		"scope":                  codeTopicScope(req),
@@ -195,6 +195,7 @@ func codeTopicResponse(req codeTopicInvestigationRequest, rows []codeTopicEviden
 			"empty":               len(rows) == 0,
 		},
 	}
+	return attachAnswerMetadata(data)
 }
 
 func codeTopicEvidenceGroup(row codeTopicEvidenceRow, rank int) map[string]any {
