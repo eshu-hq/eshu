@@ -172,6 +172,19 @@ behavior for evidence-centric answers via the builder's `NoEvidence` input
 (the citation builder sets it automatically when a citation packet resolves
 nothing); capabilities whose structured result *is* the evidence leave it unset.
 
+### Freshness causality flows into the packet
+
+When the envelope's `truth.freshness` carries a proven `cause` (see the
+[Truth Label Protocol](truth-label-protocol.md#freshness-causality)), the
+builder folds that cause into the partial reason — for example
+`underlying data is stale (cause: reducer_backlog)` — and surfaces the
+freshness `next_check` as an additional `recommended_next_calls` entry, so the
+packet explains **why** the answer lags and **where** to drill in. When no cause
+is proven, the generic stale/building reason is kept verbatim and no freshness
+next call is added; the packet never invents a cause. Causality is not
+correctness: a stale-but-caused answer stays `supported` and usable, just
+`partial`.
+
 ## Reused contracts
 
 The answer packet does not duplicate existing shapes. It reuses:

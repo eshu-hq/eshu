@@ -181,3 +181,69 @@ func TestAnswerPacketFromCitationResponseMapsEvidence(t *testing.T) {
 		t.Fatalf("a partial-but-resolved answer keeps its summary")
 	}
 }
+
+// TestAnswerPacketSurfacesStaleFreshnessCause proves a stale envelope carrying a
+// proven cause folds the cause into the partial reasons and surfaces its bounded
+// next check, while keeping the answer usable (still supported, still partial).
+func TestAnswerPacketSurfacesStaleFreshnessCause(t *testing.T) {
+	truth := &TruthEnvelope{
+		Level:     TruthLevelDerived,
+		Basis:     TruthBasisSemanticFacts,
+		Freshness: TruthFreshness{State: FreshnessStale},
+	}
+	WithFreshnessCause(truth, FreshnessCauseReducerBacklog)
+
+	packet := NewAnswerPacket(AnswerPacketInput{
+		PromptFamily: "platform_metrics.timeseries",
+		Question:     "ingest rate trend",
+		Summary:      "trend over 24h",
+		Envelope:     &ResponseEnvelope{Data: map[string]any{"points": 3}, Truth: truth},
+	})
+
+	if !packet.Supported || !packet.Partial {
+		t.Fatalf("expected supported+partial stale packet, got %+v", packet)
+	}
+	foundReason := false
+	for _, reason := range packet.UnsupportedReasons {
+		if strings.Contains(reason, string(FreshnessCauseReducerBacklog)) {
+			foundReason = true
+		}
+	}
+	if !foundReason {
+		t.Fatalf("expected the reducer_backlog cause in partial reasons, got %v", packet.UnsupportedReasons)
+	}
+	foundCall := false
+	for _, call := range packet.RecommendedNextCalls {
+		if _, ok := call["reason"]; ok {
+			foundCall = true
+		}
+	}
+	if !foundCall {
+		t.Fatalf("expected a freshness next-check recommended call, got %+v", packet.RecommendedNextCalls)
+	}
+}
+
+// TestAnswerPacketWithoutFreshnessCauseStaysGeneric proves that when no cause is
+// proven, the packet keeps the generic stale reason and adds no freshness next
+// call: the packet never invents a cause.
+func TestAnswerPacketWithoutFreshnessCauseStaysGeneric(t *testing.T) {
+	truth := &TruthEnvelope{
+		Level:     TruthLevelDerived,
+		Basis:     TruthBasisSemanticFacts,
+		Freshness: TruthFreshness{State: FreshnessStale},
+	}
+	packet := NewAnswerPacket(AnswerPacketInput{
+		PromptFamily: "platform_metrics.timeseries",
+		Question:     "ingest rate trend",
+		Summary:      "trend over 24h",
+		Envelope:     &ResponseEnvelope{Data: map[string]any{"points": 3}, Truth: truth},
+	})
+	for _, reason := range packet.UnsupportedReasons {
+		if strings.Contains(reason, "cause:") {
+			t.Fatalf("did not expect an invented cause, got %v", packet.UnsupportedReasons)
+		}
+	}
+	if len(packet.RecommendedNextCalls) != 0 {
+		t.Fatalf("did not expect a freshness next call without a cause, got %+v", packet.RecommendedNextCalls)
+	}
+}

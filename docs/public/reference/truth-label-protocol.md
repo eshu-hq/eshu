@@ -51,7 +51,7 @@ bounded machine-readable diagnostics.
 | `profile` | `local_lightweight`, `local_authoritative`, `local_full_stack`, or `production`. |
 | `basis` | `authoritative_graph`, `semantic_facts`, `content_index`, or `hybrid`. |
 | `backend` | Optional graph backend identity, currently `neo4j` or `nornicdb`. |
-| `freshness` | Object with `state`, optional `observed_at`, and optional `detail`. |
+| `freshness` | Object with `state`, optional `observed_at`, optional `detail`, optional `cause`, and optional `next_check`. |
 | `reason` | Human-readable explanation for logs, CLI output, and debugging. |
 
 `authoritative` is not a canonical wire field. Clients infer authority from
@@ -63,6 +63,47 @@ Freshness states are:
 - `stale`
 - `building`
 - `unavailable`
+
+## Freshness Causality
+
+When an answer is not `fresh`, the freshness object may explain **why** with a
+bounded `cause` and a recommended `next_check`. Causality is **additive and
+optional**: a handler attaches a cause only when it holds the evidence for it
+(for example a readiness verdict showing a dead-lettered domain, or a
+generation-pending signal). A handler that cannot prove a cause leaves it unset
+and never guesses.
+
+`cause` is a closed enumeration:
+
+| Cause | Meaning |
+| --- | --- |
+| `pending_repo_generation` | A repo's graph generation has not yet completed. |
+| `reducer_backlog` | Queued reducer projection has not yet drained. |
+| `dead_lettered_domain` | A domain's projection failed and is parked for repair. |
+| `missing_collector_completion` | A collector has not reported a completed run for the coverage. |
+| `content_coverage_unavailable` | Content coverage is not yet indexed for the scope. |
+| `unsupported_profile` | The active profile cannot serve authoritative truth for the capability. |
+
+`next_check` is a bounded follow-up call in the `recommended_next_calls` shape
+(a `tool` or `route`, an optional `reason`, and optional bounded `params`). It
+points at a status, generation, coverage, citation, or queue surface a consumer
+can call to learn when the answer will catch up.
+
+### Stale is not wrong
+
+Freshness causality is **distinct from answer correctness**. A `stale`,
+`building`, or `unavailable` answer is not an incorrect answer: it reflects
+truth that was correct at `freshness.observed_at` and has a known, named reason
+for lagging. `cause` explains the lag and `next_check` says where to look for
+the catch-up; neither implies the data is wrong. Correctness is governed by
+`level` and `basis`. A consumer should present a stale answer with its cause and
+next check, not discard it as false.
+
+The cause enumeration and the cause→`next_check` mapping live in
+`go/internal/query/freshness_causality.go`. Causes are wired into handlers
+incrementally; the metrics time-series handler is the first proof-of-contract
+(it attaches `missing_collector_completion` when no collector is reporting and
+`content_coverage_unavailable` when a metric has no indexed history yet).
 
 ## Error Codes
 
