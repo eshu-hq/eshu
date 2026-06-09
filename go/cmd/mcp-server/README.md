@@ -114,7 +114,7 @@ satisfies `query.GraphQuery` and `query.ContentReader` satisfies
 | `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` | unset | Optional semantic provider profile registry. It carries profile metadata and credential handles only; the MCP server never loads provider keys or calls providers from this config path. |
 | `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` | unset | Optional hosted semantic extraction allowlist by provider profile id, source class, source scope, source selector, limit, redaction mode, and retention posture. Without it, semantic extraction remains policy-disabled. |
 | `ESHU_COMPONENT_HOME` | unset | Optional local component registry readback for `list_component_extensions` and `get_component_extension_diagnostics`; unset returns unavailable. |
-| `ESHU_COMPONENT_TRUST_MODE`, `ESHU_COMPONENT_ALLOW_IDS`, `ESHU_COMPONENT_ALLOW_PUBLISHERS`, `ESHU_COMPONENT_REVOKE_IDS`, `ESHU_COMPONENT_REVOKE_PUBLISHERS`, `ESHU_COMPONENT_CORE_VERSION` | unset | Optional read-only policy diagnostics for component-extension MCP tools. |
+| `ESHU_COMPONENT_TRUST_MODE`, `ESHU_COMPONENT_ALLOW_IDS`, `ESHU_COMPONENT_ALLOW_PUBLISHERS`, `ESHU_COMPONENT_REVOKE_IDS`, `ESHU_COMPONENT_REVOKE_PUBLISHERS`, `ESHU_COMPONENT_CORE_VERSION`, `ESHU_COMPONENT_PROVENANCE_CERTIFICATE_IDENTITY`, `ESHU_COMPONENT_PROVENANCE_OIDC_ISSUER`, `ESHU_COMPONENT_PROVENANCE_PREDICATE_TYPE`, `ESHU_COMPONENT_COSIGN_BINARY` | unset | Optional read-only policy diagnostics for component-extension MCP tools. Strict mode uses the provenance and Cosign settings to verify signed digest-pinned artifacts. |
 | `DEFAULT_DATABASE` | `neo4j` | Neo4j database name |
 | `ESHU_PPROF_ADDR` | unset (disabled) | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; port-only inputs bind to `127.0.0.1` |
 

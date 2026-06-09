@@ -19,6 +19,58 @@ go test ./internal/parser ./internal/collector/discovery ./internal/content/shap
   ./internal/projector ./internal/reducer ./cmd/reducer -count=1
 ```
 
+## Replatforming API/MCP Parity Proof
+
+Run this gate when changing any replatforming serving surface: the plan
+(`POST /api/v0/replatforming/plans` / `compose_replatforming_plan`),
+ownership-packet
+(`POST /api/v0/replatforming/ownership-packets` / `find_unmanaged_resource_owners`),
+or rollup
+(`POST /api/v0/replatforming/rollups` / `get_replatforming_rollups`) route or
+tool, or their shared source-state, safety-gate, or readiness logic.
+
+```bash
+cd go
+go test ./internal/mcp -run TestReplatforming -count=1
+```
+
+This is an in-process, fixture-backed proof. It mounts one `query.IaCHandler`
+over a deterministic IaC-management fixture store and drives each request twice:
+once straight through the HTTP route and once through the real MCP dispatch path
+(`dispatchTool` → `resolveRoute` → the same mounted handler →
+`parseCanonicalEnvelope`). It then asserts:
+
+- **API/MCP parity** — for one scope the HTTP route and the MCP tool return the
+  identical canonical envelope `Data` block plus identical truth label (level,
+  basis, capability, freshness). Full-`Data` equality pins bounded results,
+  source-state totals, readiness counts, refusal reasons, and stories to one
+  contract, so the two surfaces cannot diverge silently.
+- **Refusal safety** — safety-gated findings (`security_review_required`,
+  ambiguous, stale, unknown) resolve to the `rejected` source state and a
+  refused import candidate with reasons; they are never silently omitted nor
+  counted as import-ready. Only a safety-approved `cloud_only` finding with a
+  supported import mapping is import-ready.
+- **Profile/truth bounds** — an unsupported runtime profile returns
+  `unsupported_capability` on both surfaces instead of a downgraded answer, and
+  neither surface leaks a confident truth level on the refusal path.
+- **Negative leakage** — a credential-shaped raw tag value never appears in
+  either surface's serialized payload.
+
+The fixture proof is the deterministic CI gate. The operator-facing complement
+is the remote all-collector Compose proof in
+[Remote collector E2E](remote-collector-e2e.md): once a representative or
+full-corpus stack has drained AWS runtime drift, drive the same three routes and
+tools against the live API and MCP server and compare the bounded payloads,
+truth labels, source-state counts, readiness counts, and refusal summary for the
+same scope. The Compose proof records fact counts, queue and dead-letter state,
+and the safety/refusal summary; this in-process gate proves the surfaces agree
+before that run.
+
+No-Observability-Change: this gate exercises the existing replatforming query
+spans and truth envelopes; it adds no metric, span, or log. Runtime diagnosis of
+the same surfaces still uses the `query` handler spans named in
+`go/internal/telemetry/contract.go` and the canonical response envelope.
+
 ## Collector Gates
 
 Use focused checks when changing collector families or source providers.

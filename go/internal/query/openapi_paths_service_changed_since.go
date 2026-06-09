@@ -5,10 +5,10 @@ const openAPIPathsFreshnessServiceChangedSince = `
       "get": {
         "tags": ["freshness"],
         "summary": "Summarize what changed for a service since a prior service generation",
-        "description": "Returns a bounded service-scope changed-since delta for one service (#1943). It diffs a prior service materialization generation's evidence snapshot set against the current active generation's set, keyed by a generation-independent service_evidence_key, into per-evidence-family counts for added, updated, unchanged, retired, and superseded keys plus bounded, deterministic sample handles per classification. Stage 1 reports the ownership family. Supply since_generation_id to diff from an exact prior service generation. An unknown service_id returns service_not_found; a since reference that matches no service generation returns not_found. A service with no current active generation returns an explicit unavailable diff instead of zero deltas. Counts are exact; only the per-classification samples are capped by sample_limit with a per-classification truncated flag.",
+        "description": "Returns a bounded service-scope changed-since delta for one service (#1943). It diffs a prior service materialization generation's evidence snapshot set against the current active generation's set, keyed by a generation-independent service_evidence_key, into per-evidence-family counts for added, updated, unchanged, retired, and superseded keys plus bounded, deterministic sample handles per classification. It reports the ownership (#1943) and deployment (#1985) evidence families. Supply since_generation_id to diff from an exact prior service generation. An unknown service_id returns service_not_found; a since reference that matches no service generation returns not_found. A service with no current active generation returns an explicit unavailable diff instead of zero deltas. Counts are exact; only the per-classification samples are capped by sample_limit with a per-classification truncated flag.",
         "operationId": "summarizeServiceChangedSince",
         "parameters": [
-          {"name": "service_id", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Exact service id whose ownership evidence lineage to diff."},
+          {"name": "service_id", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Exact service id whose evidence lineage to diff."},
           {"name": "since_generation_id", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Prior service materialization generation id to diff from."},
           {"name": "sample_limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 200, "default": 25}, "description": "Maximum sample handles returned per classification per family."}
         ],
@@ -32,7 +32,7 @@ const openAPIPathsFreshnessServiceChangedSince = `
                       "items": {
                         "type": "object",
                         "properties": {
-                          "category": {"type": "string", "enum": ["ownership"]},
+                          "category": {"type": "string", "enum": ["ownership", "deployment"]},
                           "counts": {
                             "type": "object",
                             "properties": {

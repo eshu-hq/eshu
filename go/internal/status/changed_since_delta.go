@@ -70,6 +70,12 @@ const (
 	// (#1943). It is computed by the service-scope changed-since surface, not the
 	// repository-scope surface, so it never appears in ChangedSinceCategories.
 	ChangedSinceCategoryOwnership ChangedSinceCategory = "ownership"
+	// ChangedSinceCategoryDeployment covers service-scope deployment evidence rows
+	// (#1985): one row per resolved deployment relationship for the service's
+	// repository. Like ownership it is a service-scope category, computed by the
+	// service-scope changed-since surface, so it never appears in
+	// ChangedSinceCategories.
+	ChangedSinceCategoryDeployment ChangedSinceCategory = "deployment"
 )
 
 // ChangedSinceCategories is the closed, ordered set of evidence categories this

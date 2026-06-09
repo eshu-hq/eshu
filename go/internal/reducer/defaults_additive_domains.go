@@ -52,10 +52,11 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 	if handlers.FactLoader != nil && handlers.ServiceCatalogCorrelationWriter != nil {
 		serviceCatalog := serviceCatalogCorrelationDomainDefinition()
 		serviceCatalog.Handler = ServiceCatalogCorrelationHandler{
-			FactLoader:            handlers.FactLoader,
-			Writer:                handlers.ServiceCatalogCorrelationWriter,
-			MaterializationWriter: handlers.ServiceMaterializationWriter,
-			Instruments:           handlers.Instruments,
+			FactLoader:                   handlers.FactLoader,
+			Writer:                       handlers.ServiceCatalogCorrelationWriter,
+			MaterializationWriter:        handlers.ServiceMaterializationWriter,
+			DeploymentRelationshipLoader: serviceCatalogDeploymentRelationshipLoader(handlers),
+			Instruments:                  handlers.Instruments,
 		}
 		definitions = append(definitions, serviceCatalog)
 	}
@@ -375,4 +376,25 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 	}
 
 	return definitions
+}
+
+// serviceCatalogDeploymentRelationshipLoader returns the repository-scoped
+// resolved-relationship loader used to materialize the service deployment
+// evidence family (#1985), or nil when the deployment family cannot be sourced.
+// The family is only wired when both the service generation lineage writer is
+// present and the configured resolved-relationship loader exposes the
+// repository-scoped read, so deployment evidence is purely additive and never
+// blocks the Stage-1 ownership lineage. The same nil-tolerant assertion pattern
+// is used by the correlated workload projection input loader.
+func serviceCatalogDeploymentRelationshipLoader(
+	handlers DefaultHandlers,
+) RepositoryScopedResolvedRelationshipLoader {
+	if handlers.ServiceMaterializationWriter == nil || handlers.ResolvedRelationshipLoader == nil {
+		return nil
+	}
+	repoScoped, ok := handlers.ResolvedRelationshipLoader.(RepositoryScopedResolvedRelationshipLoader)
+	if !ok {
+		return nil
+	}
+	return repoScoped
 }

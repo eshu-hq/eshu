@@ -171,7 +171,7 @@ func buildRepositoryStoryResponseWithCoverage(
 		"summary": fmt.Sprintf("%d dependency link(s) and remote=%t", dependencyCount, repo.HasRemote),
 	})
 	response["story_sections"] = storySections
-	return response
+	return attachAnswerMetadata(response)
 }
 
 func repositoryDeploymentSurfaceKnown(
