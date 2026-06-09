@@ -35,6 +35,7 @@ JOIN scope_generations AS generation
  AND generation.generation_id = fact.generation_id
 WHERE fact.fact_kind = 'repository'
   AND fact.source_system = 'git'
+  AND fact.is_tombstone = FALSE
   AND generation.status = 'active'
   AND (
     $1::timestamptz IS NULL
@@ -44,9 +45,26 @@ ORDER BY fact.observed_at ASC, fact.fact_id ASC
 LIMIT $3
 `
 
-// ListActiveRepositoryFacts loads active repository facts across Git-owned
-// scopes. Reducer correlation domains use this as the cross-scope repository
-// catalog instead of scanning source-local package-registry generations.
+// ListActiveRepositoryFacts loads active, non-tombstoned repository facts across
+// Git-owned scopes. Reducer correlation domains use this as the cross-scope
+// repository catalog instead of scanning source-local package-registry
+// generations.
+//
+// The query filters fact.is_tombstone = FALSE so a repository fact tombstoned
+// within a still-active generation is never surfaced as live. The active
+// generation pointer keeps tombstoned rows joinable, so the predicate is the
+// only guard against returning superseded repository identities to correlation
+// consumers. This matches every sibling active source-local reader.
+//
+// No-Regression Evidence: predicate-only narrowing of an existing WHERE clause
+// on the active-generation read. The partial fact_records_active_repository_idx
+// (observed_at, fact_id, generation_id WHERE fact_kind='repository' AND
+// source_system='git') does not cover is_tombstone, so the planner applies the
+// new predicate as a residual filter on rows the index scan already visits; the
+// index choice, the active-generation join, and the scan shape are unchanged.
+// go test ./internal/storage/postgres ./internal/reducer -count=1.
+// No-Observability-Change: reuses the existing FactStore query path and its
+// established storage instrumentation; no new query, span, or metric added.
 func (s FactStore) ListActiveRepositoryFacts(ctx context.Context) ([]facts.Envelope, error) {
 	if s.db == nil {
 		return nil, fmt.Errorf("fact store database is required")

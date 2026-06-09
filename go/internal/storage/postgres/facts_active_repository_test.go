@@ -60,3 +60,29 @@ func TestFactStoreListActiveRepositoryFactsUsesActiveGenerations(t *testing.T) {
 		}
 	}
 }
+
+// TestFactStoreListActiveRepositoryFactsExcludesTombstones is the regression
+// guard for issue #1918: a repository fact tombstoned within a still-active
+// generation must not be returned as live to reducer correlation consumers.
+// The active-generation join keeps tombstoned facts visible (a tombstone
+// supersedes within the same generation), so the read model must filter them
+// out with an explicit predicate, matching every sibling active source-local
+// reader.
+func TestFactStoreListActiveRepositoryFactsExcludesTombstones(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{}},
+	}
+	store := NewFactStore(db)
+
+	if _, err := store.ListActiveRepositoryFacts(context.Background()); err != nil {
+		t.Fatalf("ListActiveRepositoryFacts() error = %v, want nil", err)
+	}
+
+	query := db.queries[0].query
+	if !strings.Contains(query, "fact.is_tombstone = FALSE") {
+		t.Fatalf("query must exclude tombstoned repository facts via %q:\n%s",
+			"fact.is_tombstone = FALSE", query)
+	}
+}
