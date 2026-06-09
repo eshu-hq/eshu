@@ -96,6 +96,46 @@ const openAPIComponents = `  "components": {
           "repo_name": {"type": "string"}
         }
       },
+      "SemanticEvidenceRow": {
+        "type": "object",
+        "description": "Sanitized semantic evidence fact row. Prompt payloads, credentials, and private provider responses are not exposed.",
+        "properties": {
+          "fact_id": {"type": "string"},
+          "fact_kind": {"type": "string", "enum": ["semantic.documentation_observation", "semantic.code_hint"]},
+          "truth_basis": {"type": "string", "enum": ["semantic_observation", "code_hint"]},
+          "provider_profile_id": {"type": "string"},
+          "provider_kind": {"type": "string"},
+          "prompt_version": {"type": "string"},
+          "redaction_version": {"type": "string"},
+          "policy_state": {"type": "string"},
+          "freshness_state": {"type": "string"},
+          "admission_state": {"type": "string"},
+          "corroboration_state": {"type": "string"},
+          "source": {"type": "object", "additionalProperties": true},
+          "chunk": {"type": "object", "additionalProperties": true},
+          "provider": {"type": "object", "additionalProperties": true}
+        }
+      },
+      "SemanticObservationList": {
+        "type": "object",
+        "properties": {
+          "observations": {"type": "array", "items": {"$ref": "#/components/schemas/SemanticEvidenceRow"}},
+          "count": {"type": "integer"},
+          "limit": {"type": "integer"},
+          "truncated": {"type": "boolean"},
+          "next_cursor": {"type": "string"}
+        }
+      },
+      "SemanticCodeHintList": {
+        "type": "object",
+        "properties": {
+          "code_hints": {"type": "array", "items": {"$ref": "#/components/schemas/SemanticEvidenceRow"}},
+          "count": {"type": "integer"},
+          "limit": {"type": "integer"},
+          "truncated": {"type": "boolean"},
+          "next_cursor": {"type": "string"}
+        }
+      },
       "Relationship": {
         "type": "object",
         "properties": {

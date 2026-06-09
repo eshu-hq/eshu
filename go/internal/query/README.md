@@ -88,6 +88,15 @@ target selector, and documentation fact reads name every accepted scope or
 target anchor in invalid-argument responses. Documentation fact list responses
 return bounded page metadata alongside `facts` so HTTP and MCP callers do not
 infer completeness from row count alone.
+Semantic evidence reads are opt-in routes over durable semantic facts:
+`GET /api/v0/semantic/documentation-observations` and
+`GET /api/v0/semantic/code-hints`. They require at least one scope or semantic
+filter, page by `limit+1` with deterministic `observed_at DESC, fact_id DESC`
+ordering, and return sanitized rows with `truth_basis`, provider profile,
+prompt version, redaction version, policy state, freshness, and
+admission/corroboration state. They do not call providers, read the graph,
+expose raw prompts, or mix semantic code hints into deterministic code or
+documentation routes.
 
 ## Exported surface
 
@@ -257,6 +266,9 @@ infer completeness from row count alone.
 - `DocumentationHandler` — collected documentation facts, repo or target-scoped
   documentation truth findings, and evidence packets (`documentation.go`,
   `documentation_facts.go`)
+- `SemanticEvidenceHandler` — opt-in semantic documentation observation and
+  code-hint fact reads (`semantic_evidence.go`,
+  `semantic_evidence_read_model.go`)
 - `SupplyChainHandler` — SBOM attachment, image identity, advisory evidence,
   impact finding, and one-finding explanation routes; SBOM attachments resolve
   repository selectors while preserving subject/document truth and missing-image evidence (`supply_chain.go`)
@@ -409,6 +421,8 @@ documentation fact routes remain unaffected.
   (`query.documentation_packet_freshness`) on documentation truth evidence
   routes (`documentation.go`); the target-fact preview adds a `postgres.query`
   span with `db.operation=list_documentation_target_facts`;
+  `telemetry.SpanQuerySemanticEvidence` (`query.semantic_evidence`) on opt-in
+  semantic observation and code-hint fact reads;
   `telemetry.SpanQueryCodeTopicInvestigation`
   (`query.code_topic_investigation`) on broad code-topic investigation
   (`code_topic.go`); `telemetry.SpanQueryHardcodedSecretInvestigation`

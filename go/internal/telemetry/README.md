@@ -321,6 +321,7 @@ Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`
 `SpanQueryRelationshipEvidence`, `SpanQueryEvidenceCitationPacket`,
 `SpanQueryDocumentationFindings`,
 `SpanQueryDocumentationEvidencePacket`, `SpanQueryDocumentationPacketFreshness`,
+`SpanQuerySemanticEvidence`,
 `SpanQueryDeadIaC`, `SpanQueryIaCUnmanagedResources`,
 `SpanQueryIaCManagementStatus`, `SpanQueryIaCManagementExplanation`,
 `SpanQueryIaCTerraformImportPlan`, `SpanQueryAWSRuntimeDriftFindings`,
@@ -360,6 +361,12 @@ Jira fetch spans use bounded integer attributes for page and output counts:
 `jira.retry_after_seconds`, and `jira.stale_windows`.
 
 Dependency spans: `SpanPostgresExec`, `SpanPostgresQuery`, `SpanNeo4jExecute`.
+
+`SpanQuerySemanticEvidence` covers the opt-in semantic documentation
+observation and code-hint list routes. The underlying Postgres read still emits
+`SpanPostgresQuery` with `db.operation=list_semantic_evidence`, so operators can
+separate semantic provenance inspection from deterministic documentation, code,
+and graph-truth reads without adding a metric label.
 
 The full frozen list is also accessible at runtime via `SpanNames()`.
 

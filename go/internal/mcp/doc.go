@@ -43,6 +43,12 @@
 // provider profiles as redacted, source-policy-gated metadata while
 // deterministic indexing, reducer, API, MCP, and documentation fact paths remain
 // unaffected.
+// Semantic evidence tools follow the same transport-only boundary: they forward
+// to HTTP routes that list durable documentation observations or non-canonical
+// code hints with truth basis, provider profile, prompt version, redaction
+// version, policy state, freshness, and admission or corroboration state. They
+// do not expose raw prompts, credentials, provider responses, or inject code
+// hints into deterministic graph-truth tools.
 // Any change that alters request or response shape must update the MCP guide,
 // the HTTP API reference where the route is shared, and the handler tests in
 // the same change.

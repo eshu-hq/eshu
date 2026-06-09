@@ -105,3 +105,9 @@ public telemetry page that operators use for that signal.
 The incident context read route uses `query.incident_context` with stable
 `http.route` and `eshu.capability` span attributes so on-call lookups can be
 distinguished from generic service context or supply-chain reads.
+
+Semantic evidence list routes use `query.semantic_evidence` with stable
+`http.route` and `eshu.capability` span attributes. The underlying Postgres read
+uses `postgres.query` with `db.operation=list_semantic_evidence`, letting
+operators separate opt-in semantic observation or code-hint inspection from
+deterministic documentation, code, and graph-truth reads.

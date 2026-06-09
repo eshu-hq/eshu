@@ -191,6 +191,9 @@ func TestNewRouterMountsPostgresBackedHandlers(t *testing.T) {
 	if router.ObservabilityCoverage.Correlations == nil {
 		t.Fatal("newRouter().ObservabilityCoverage.Correlations = nil, want Postgres read model store")
 	}
+	if router.SemanticEvidence == nil {
+		t.Fatal("newRouter().SemanticEvidence = nil, want semantic evidence route mounted")
+	}
 }
 
 func TestNewRouterUsesSuppliedStatusReader(t *testing.T) {

@@ -85,6 +85,9 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok := documentationRoute(toolName, args); ok {
 		return route, nil
 	}
+	if route, ok := semanticEvidenceRoute(toolName, args); ok {
+		return route, nil
+	}
 	if route, ok := repositoryRoute(toolName, args); ok {
 		return route, nil
 	}

@@ -152,6 +152,9 @@ func TestNewMCPQueryRouterMountsMCPBackedHandlers(t *testing.T) {
 	if router.ObservabilityCoverage.Correlations == nil {
 		t.Fatal("newMCPQueryRouter().ObservabilityCoverage.Correlations = nil, want Postgres read model store")
 	}
+	if router.SemanticEvidence == nil {
+		t.Fatal("newMCPQueryRouter().SemanticEvidence = nil, want semantic evidence route mounted")
+	}
 }
 
 func TestNewMCPQueryRouterUsesSuppliedStatusReader(t *testing.T) {
