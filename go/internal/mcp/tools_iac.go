@@ -48,6 +48,49 @@ func replatformingRollupsTool() ToolDefinition {
 	}
 }
 
+func replatformingOwnershipTool() ToolDefinition {
+	return ToolDefinition{
+		Name:        "find_unmanaged_resource_owners",
+		Description: "For each active AWS drift finding, compose a bounded ownership packet of owner, repository, module, service, and environment candidates with explicit ambiguity reasons, confidence, freshness, and the read-only safety gate. Candidates come from reducer-owned fields only; a single candidate is derived, never exact, and conflicting candidates are surfaced with ambiguity reasons rather than collapsed to a single guessed owner. Raw tags stay provenance-only and never become owner candidates. Provide scope_id or account_id.",
+		InputSchema: replatformingOwnershipSchema(),
+	}
+}
+
+func replatformingOwnershipSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"scope_id": map[string]any{
+				"type":        "string",
+				"description": "Exact AWS collector scope, for example aws:123456789012:us-east-1:lambda",
+			},
+			"account_id": map[string]any{
+				"type":        "string",
+				"description": "AWS account ID used to bound the active finding read",
+			},
+			"region": map[string]any{
+				"type":        "string",
+				"description": "Optional AWS region when account_id is supplied",
+			},
+			"finding_kinds": map[string]any{
+				"type":        "array",
+				"items":       map[string]any{"type": "string"},
+				"description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, or ambiguous_cloud_resource",
+			},
+			"limit": map[string]any{
+				"type":        "integer",
+				"description": "Maximum findings to compose into the bounded page",
+				"default":     100,
+			},
+			"offset": map[string]any{
+				"type":        "integer",
+				"description": "Zero-based result offset for paging the bounded page",
+				"default":     0,
+			},
+		},
+	}
+}
+
 func replatformingRollupsSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
