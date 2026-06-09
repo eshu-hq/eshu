@@ -199,6 +199,9 @@
 // PlaybookCatalog is the versioned source of truth, PlaybookCatalogVersions
 // pins catalog identity, and PlaybookToolNames lets the mcp package cross-check
 // every referenced tool against the read-only registry without an import cycle.
+// QueryPlaybookHandler exposes the same catalog and resolver through read-only
+// API/MCP/CLI surfaces with workflow-plan truth; those surfaces do not execute
+// calls, read graph or Postgres state, or expose raw Cypher.
 // The contract and catalog are documented in
 // docs/public/reference/query-playbooks.md.
 //

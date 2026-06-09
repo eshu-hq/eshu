@@ -23,9 +23,11 @@
 // artifact (Markdown or JSON) carrying the API/MCP URLs, the token source name
 // (never the value), indexed repositories, queue/completeness status, starter
 // prompts, and structured starter playbooks while documenting the current
-// shared-token authorization limitation; and `first-run-benchmark`,
+// shared-token authorization limitation; `first-run-benchmark`,
 // which scores a captured `first-run --json` envelope against the
-// first-five-minutes onboarding criteria and rejects a health-only "answer"),
+// first-five-minutes onboarding criteria and rejects a health-only "answer";
+// and `answer-quality-scorecard`, which scores captured redacted answer evidence
+// across API, MCP, CLI, and hosted surfaces),
 // security intelligence (`vuln-scan repo` with terminal and JSON
 // exit classification plus SARIF and VEX-style report exports that preserve
 // manifest/source paths, line anchors, and image/SBOM subjects from the API
