@@ -82,6 +82,24 @@ Registry writes use a temporary file and rename in the same directory.
 Revocation can block a component ID or publisher. Revocation wins over
 allowlists.
 
+## Community Extension Index
+
+The community extension index is a reviewed discovery document for component
+packages. Index membership is advisory: it helps operators find a candidate
+manifest, artifact digest, publisher, review record, compatible core range,
+emitted facts, and revocation state, but it never bypasses local trust policy.
+
+Operators must still run local verification before install, choose disabled,
+allowlist, or strict mode, honor revocation, and explicitly enable any runtime
+instance. Hosted deployments also need hosted policy approval before an enabled
+component can become claim-capable.
+
+The first verifier is offline and deterministic. It rejects malformed index
+metadata, duplicate component IDs, duplicate fact-kind claims, mutable artifact
+tags, malformed digests, unsupported lifecycle channels, missing review links,
+and revoked entries marked installable. It does not pull OCI registries, treat
+GitHub topics as authoritative trust, or perform provenance verification.
+
 ## Manifest
 
 The first manifest version is `eshu.dev/v1alpha1`.
