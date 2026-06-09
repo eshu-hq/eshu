@@ -12,8 +12,9 @@ The implementation lives in `go/internal/query/visualization_packet.go`
 (service-story builder), and `go/internal/query/visualization_packet_evidence.go`
 (evidence-citation and incident-context builders). It is a sibling of the
 [Answer Packet Contract](answer-packets.md): it reuses the same `TruthEnvelope`
-and freshness language and the same `evidence_citation` handle shape, so a
-rendered node maps back to a citation handle rather than inventing a new one.
+and freshness language and the same
+[evidence citation handle](evidence-citation-handles.md) shape, so a rendered
+node maps back to a citation handle rather than inventing a new one.
 
 ## Why this contract exists
 
@@ -181,6 +182,7 @@ The visualization packet does not duplicate existing shapes. It reuses:
 
 - `TruthEnvelope`, `TruthLevel`, and `TruthFreshness` from `contract.go`.
 - The `evidence_citation` handle shape and `recommended_next_calls` convention
-  from `evidence_citation.go`.
+  from `evidence_citation.go` and the
+  [Evidence Citation Handle Contract](evidence-citation-handles.md).
 - The service-story dossier response shape from `service_story_dossier.go` and
   the incident `evidence_path` from `incident_context_types.go`.

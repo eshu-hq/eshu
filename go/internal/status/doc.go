@@ -61,7 +61,8 @@
 // service-scope variant (#1943): the same verdict set, counts, sample, and
 // Unavailable shapes, but keyed by service_id and diffed over a per-service
 // materialization generation lineage instead of an ingestion scope. It reports
-// the ownership (ChangedSinceCategoryOwnership, #1943) and deployment
-// (ChangedSinceCategoryDeployment, #1985) evidence families; the remaining
+// the ownership (ChangedSinceCategoryOwnership, #1943), deployment
+// (ChangedSinceCategoryDeployment, #1985), and runtime
+// (ChangedSinceCategoryRuntime, #1986) evidence families; the remaining
 // families append to ServiceChangedSinceCategories as they land.
 package status

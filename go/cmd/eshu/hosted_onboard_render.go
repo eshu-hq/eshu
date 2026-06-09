@@ -54,6 +54,7 @@ func renderHostedOnboardMarkdown(artifact hostedOnboardArtifact) (string, error)
 	fmt.Fprintf(&b, "- MCP tools visible: `%d`\n", artifact.Connection.ToolCount)
 
 	onboardMarkdownList(&b, "Starter prompts", artifact.StarterPrompts)
+	onboardMarkdownStarterPlaybooks(&b, artifact.StarterPlaybooks)
 	onboardMarkdownList(&b, "Next steps", artifact.NextSteps)
 
 	fmt.Fprintf(&b, "\n## Authorization limitation\n\n")
@@ -95,6 +96,7 @@ func renderHostedOnboardTerminal(w io.Writer, artifact hostedOnboardArtifact, ru
 		_, _ = fmt.Fprintf(w, "  cause         : %s\n", runErr.Error())
 	}
 	onboardTerminalList(w, "starter prompts", artifact.StarterPrompts)
+	onboardTerminalStarterPlaybooks(w, artifact.StarterPlaybooks)
 	onboardTerminalList(w, "next steps", artifact.NextSteps)
 	_, _ = fmt.Fprintf(w, "limitation: %s\n", artifact.ScopedIsolationLimitation)
 }
@@ -139,6 +141,25 @@ func onboardMarkdownList(b *strings.Builder, title string, values []string) {
 	}
 }
 
+func onboardMarkdownStarterPlaybooks(b *strings.Builder, playbooks []hostedOnboardStarterPlaybook) {
+	if len(playbooks) == 0 {
+		return
+	}
+	fmt.Fprintf(b, "\n## Starter playbooks\n\n")
+	for _, playbook := range playbooks {
+		fmt.Fprintf(
+			b,
+			"- `%s@%s` (`%s`) tools `%s`; expected truth `%s`; prompt: %s\n",
+			playbook.PlaybookID,
+			playbook.Version,
+			playbook.PromptFamily,
+			strings.Join(playbook.Tools, " -> "),
+			strings.Join(playbook.ExpectedTruthClasses, ", "),
+			playbook.Prompt,
+		)
+	}
+}
+
 // onboardTerminalList writes a titled, indented bullet section to the terminal
 // when the slice is non-empty.
 func onboardTerminalList(w io.Writer, title string, values []string) {
@@ -148,5 +169,23 @@ func onboardTerminalList(w io.Writer, title string, values []string) {
 	_, _ = fmt.Fprintf(w, "%s:\n", title)
 	for _, v := range values {
 		_, _ = fmt.Fprintf(w, "  - %s\n", v)
+	}
+}
+
+func onboardTerminalStarterPlaybooks(w io.Writer, playbooks []hostedOnboardStarterPlaybook) {
+	if len(playbooks) == 0 {
+		return
+	}
+	_, _ = fmt.Fprintln(w, "starter playbooks:")
+	for _, playbook := range playbooks {
+		_, _ = fmt.Fprintf(
+			w,
+			"  - %s@%s (%s): %s; truth=%s\n",
+			playbook.PlaybookID,
+			playbook.Version,
+			playbook.PromptFamily,
+			strings.Join(playbook.Tools, " -> "),
+			strings.Join(playbook.ExpectedTruthClasses, ","),
+		)
 	}
 }

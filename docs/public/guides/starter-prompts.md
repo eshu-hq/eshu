@@ -7,6 +7,25 @@ it.
 For setup, read [Index Repositories](../use/index-repositories.md),
 [Connect MCP](../mcp/index.md), and [MCP Guide](mcp-guide.md).
 
+## Playbook-Backed First Prompts
+
+Use these prompts when you want the assistant or client to follow a known
+workflow instead of guessing tool order. Each row maps to a current
+[Query Playbook](../reference/query-playbooks.md), the ordered first-class tools
+it resolves to, and the answer-packet truth classes to expect.
+
+| Starter prompt | Playbook ID | Ordered tools | Expected truth classes | What to read next |
+| --- | --- | --- | --- | --- |
+| "Build the service story for `<service>` and cite the evidence." | `service_story_citation@1.0.0` | `get_service_story` -> `build_evidence_citation_packet` | `deterministic`, then `code_hint` for citation excerpts | Read `truth.freshness`, `limitations`, and `recommended_next_calls`; if the citation packet is truncated, request the next bounded handle batch. |
+| "Investigate `<topic>` in `<repo>` and read the relationship story." | `repository_code_topic_investigation@1.0.0` | `investigate_code_topic` -> `get_code_relationship_story` | `code_hint`, then `deterministic` when graph relationships exist | Treat ranked content matches as partial until the relationship story or source lines confirm the path. |
+| "Resolve this documentation finding and confirm it is still current." | `documentation_truth_citation@1.0.0` | `get_documentation_evidence_packet` -> `check_documentation_evidence_packet_freshness` | `semantic_observation`, then `deterministic` freshness | If freshness is stale, re-fetch the evidence packet before citing it. |
+
+There is not yet a dedicated readiness or hosted-governance playbook in the
+catalog. For those prompts, use the prompt-ready status tools from the
+[MCP Tool Contract Matrix](../reference/mcp-tool-contract-matrix.md) plus the
+hosted governance docs and caveats; keep shared-token caveats explicit until
+scoped hosted isolation exists.
+
 ## Cross-Repo Framing
 
 - "Investigate `<service>` in `<environment>` across related repositories,

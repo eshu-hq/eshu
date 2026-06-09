@@ -99,7 +99,13 @@ type ServiceCatalogCorrelationHandler struct {
 	// same generation as ownership. It is optional: a nil loader leaves the
 	// generation ownership-only, preserving the Stage-1 contract.
 	DeploymentRelationshipLoader RepositoryScopedResolvedRelationshipLoader
-	Instruments                  *telemetry.Instruments
+	// RuntimeInstanceLoader, when set alongside MaterializationWriter, supplies the
+	// materialized runtime instances for each correlated service's repository so
+	// the runtime evidence family (#1986) is materialized into the same generation
+	// as ownership and deployment. It is optional: a nil loader leaves the
+	// generation without runtime rows, preserving the ownership/deployment contract.
+	RuntimeInstanceLoader RepositoryScopedRuntimeInstanceLoader
+	Instruments           *telemetry.Instruments
 }
 
 // Handle executes one service catalog correlation reducer intent.
@@ -153,14 +159,16 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent Int
 }
 
 // commitServiceGenerations writes the additive per-service evidence generation
-// lineage (#1943, #1985) for every service that has at least one owner-bearing
-// correlation decision. Ownership evidence is sourced from the same decisions
-// that produced the reducer_service_catalog_correlation facts; deployment
-// evidence (when DeploymentRelationshipLoader is wired) is sourced from the
-// resolved deployment relationships of each service's repository. Both families
-// land in the same generation, so a service generation is the snapshot of all of
-// the service's evidence at materialization time. When MaterializationWriter is
-// nil this is a no-op, preserving the existing correlation contract.
+// lineage (#1943, #1985, #1986) for every service that has at least one
+// owner-bearing correlation decision. Ownership evidence is sourced from the same
+// decisions that produced the reducer_service_catalog_correlation facts;
+// deployment evidence (when DeploymentRelationshipLoader is wired) is sourced from
+// the resolved deployment relationships of each service's repository; runtime
+// evidence (when RuntimeInstanceLoader is wired) is sourced from the materialized
+// runtime instances of each service's repository. Every family lands in the same
+// generation, so a service generation is the snapshot of all of the service's
+// evidence at materialization time. When MaterializationWriter is nil this is a
+// no-op, preserving the existing correlation contract.
 func (h ServiceCatalogCorrelationHandler) commitServiceGenerations(
 	ctx context.Context,
 	intent Intent,
@@ -171,6 +179,9 @@ func (h ServiceCatalogCorrelationHandler) commitServiceGenerations(
 	}
 	writes := buildServiceOwnershipMaterializations(intent.IntentID, decisions)
 	if err := h.attachServiceDeploymentEvidence(ctx, writes, decisions); err != nil {
+		return err
+	}
+	if err := h.attachServiceRuntimeEvidence(ctx, writes, decisions); err != nil {
 		return err
 	}
 	for _, write := range writes {
@@ -212,6 +223,40 @@ func (h ServiceCatalogCorrelationHandler) attachServiceDeploymentEvidence(
 			continue
 		}
 		writes[i].Deployment = buildServiceDeploymentEvidence(byRepo[repoID])
+	}
+	return nil
+}
+
+// attachServiceRuntimeEvidence loads the materialized runtime instances for the
+// correlated services' repositories and attaches the runtime evidence family to
+// the matching per-service writes. It is a no-op when no loader is wired or no
+// decision carries a repository, so the runtime family is purely additive. The
+// instances are loaded once for all repositories in a single bounded call, then
+// partitioned per service by repository id; a service whose repository has no
+// runtime instances simply carries no runtime rows.
+func (h ServiceCatalogCorrelationHandler) attachServiceRuntimeEvidence(
+	ctx context.Context,
+	writes []ServiceMaterializationWrite,
+	decisions []ServiceCatalogCorrelationDecision,
+) error {
+	if h.RuntimeInstanceLoader == nil || len(writes) == 0 {
+		return nil
+	}
+	repoByService := serviceRepositoryIndex(decisions)
+	repoIDs := distinctServiceRepositoryIDs(writes, repoByService)
+	if len(repoIDs) == 0 {
+		return nil
+	}
+	instancesByRepo, err := h.RuntimeInstanceLoader.GetRuntimeInstancesForRepos(ctx, repoIDs)
+	if err != nil {
+		return fmt.Errorf("load service runtime instances: %w", err)
+	}
+	for i := range writes {
+		repoID := repoByService[writes[i].ServiceID]
+		if repoID == "" {
+			continue
+		}
+		writes[i].Runtime = buildServiceRuntimeEvidence(instancesByRepo[repoID])
 	}
 	return nil
 }

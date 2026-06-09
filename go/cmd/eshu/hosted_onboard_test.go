@@ -114,9 +114,36 @@ func TestHostedOnboardArtifactOutputFields(t *testing.T) {
 	if len(artifact.StarterPrompts) == 0 {
 		t.Fatal("artifact missing starter prompts")
 	}
+	if len(artifact.StarterPlaybooks) == 0 {
+		t.Fatal("artifact missing starter playbooks")
+	}
+	assertHostedStarterPlaybook(t, artifact.StarterPlaybooks)
 	if strings.TrimSpace(artifact.ScopedIsolationLimitation) == "" {
 		t.Fatal("artifact must document the scoped-token isolation limitation")
 	}
+}
+
+func assertHostedStarterPlaybook(t *testing.T, playbooks []hostedOnboardStarterPlaybook) {
+	t.Helper()
+	for _, playbook := range playbooks {
+		if playbook.PlaybookID != "service_story_citation" {
+			continue
+		}
+		if playbook.Version != "1.0.0" {
+			t.Fatalf("service_story_citation version = %q, want 1.0.0", playbook.Version)
+		}
+		if playbook.PromptFamily != "service.story" {
+			t.Fatalf("service_story_citation prompt family = %q, want service.story", playbook.PromptFamily)
+		}
+		if got, want := strings.Join(playbook.Tools, " -> "), "get_service_story -> build_evidence_citation_packet"; got != want {
+			t.Fatalf("service_story_citation tools = %q, want %q", got, want)
+		}
+		if got, want := strings.Join(playbook.ExpectedTruthClasses, ","), "deterministic,code_hint"; got != want {
+			t.Fatalf("service_story_citation truth classes = %q, want %q", got, want)
+		}
+		return
+	}
+	t.Fatal("starter playbooks missing service_story_citation")
 }
 
 // TestHostedOnboardTokenSourceNameIsReferenceNotValue proves the artifact only
@@ -194,5 +221,31 @@ func TestHostedOnboardIncompleteConnectionStillSafeArtifact(t *testing.T) {
 	}
 	if len(artifact.StarterPrompts) == 0 {
 		t.Fatal("incomplete artifact must still carry starter prompts")
+	}
+	if len(artifact.StarterPlaybooks) == 0 {
+		t.Fatal("incomplete artifact must still carry starter playbooks")
+	}
+}
+
+// TestHostedOnboardMarkdownNamesPlaybookIDs proves the shareable Markdown
+// artifact gives teams concrete playbook IDs rather than generic prompt prose.
+func TestHostedOnboardMarkdownNamesPlaybookIDs(t *testing.T) {
+	t.Parallel()
+	artifact, err := executeHostedOnboard(hostedClientWithKey(), okHostedDeps(), narrowOnboardOptions())
+	if err != nil {
+		t.Fatalf("executeHostedOnboard() err = %v", err)
+	}
+	markdown, err := renderHostedOnboardMarkdown(artifact)
+	if err != nil {
+		t.Fatalf("renderHostedOnboardMarkdown: %v", err)
+	}
+	for _, want := range []string{
+		"`service_story_citation@1.0.0`",
+		"`get_service_story -> build_evidence_citation_packet`",
+		"`deterministic, code_hint`",
+	} {
+		if !strings.Contains(markdown, want) {
+			t.Fatalf("Markdown artifact missing %q:\n%s", want, markdown)
+		}
 	}
 }

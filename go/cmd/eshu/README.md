@@ -48,8 +48,10 @@ orchestration. It does not own service runtime internals:
     glob unless `--confirm-broad` is set, reuses the `hosted-setup` staged checks,
     and emits a redacted onboarding artifact (Markdown or JSON via `--out`) that
     carries the API/MCP URLs, the token source name (never the value), indexed
-    repositories, queue/completeness status, and starter prompts, while
-    documenting the current shared-token authorization limitation
+    repositories, queue/completeness status, starter prompts, and structured
+    starter playbooks with playbook IDs, versions, ordered tools, and expected
+    truth classes, while documenting the current shared-token authorization
+    limitation
     (`hosted_onboard.go`, `hosted_onboard_rules.go`, `hosted_onboard_render.go`,
     `hosted_onboard_cmd.go`); `first-run-benchmark`
     scores a captured `first-run --json` envelope against the first-five-minutes
@@ -146,6 +148,14 @@ OTEL from this dispatcher.
 No-Regression Evidence: answer-quality scorecard CLI behavior is covered by
 `go test ./cmd/eshu -run 'TestAnswerQualityScorecardCommand' -count=1`.
 
+No-Observability-Change: hosted-onboard starter playbook guidance is local
+artifact projection from the in-process query playbook catalog. It does not
+start runtimes, call providers, open graph/Postgres drivers, or emit OTEL from
+this dispatcher.
+
+No-Regression Evidence: hosted-onboard starter playbook guidance is covered by
+`go test ./cmd/eshu -run 'TestHostedOnboardArtifactOutputFields|TestHostedOnboardIncompleteConnectionStillSafeArtifact|TestHostedOnboardMarkdownNamesPlaybookIDs' -count=1`.
+
 ## Gotchas / invariants
 
 - `SilenceUsage` and `SilenceErrors` are set on the root command
@@ -205,12 +215,15 @@ No-Regression Evidence: answer-quality scorecard CLI behavior is covered by
   `<base>/mcp/message` MCP URL (both endpoint-redacted), the token *source name*
   (the `ESHU_API_KEY` env var, never the value), the indexed repositories, a
   queue/completeness status derived from the readiness verdict, and starter
-  prompts sourced from the query playbook catalog. The artifact documents the
-  current single shared-token authorization limitation so it never implies
-  per-team isolation that does not exist. `--out <path>` with `--format md|json`
-  writes the artifact with owner-only permissions; `--json` prints it to stdout;
-  `--platform` adds a hosted MCP client snippet. Like `hosted-setup`, the exit
-  code reflects whether the bounded query actually returned.
+  prompts plus `starter_playbooks[]` sourced from the query playbook catalog.
+  Each structured starter playbook names the playbook ID, version, prompt
+  family, ordered tools, and expected answer truth classes. The artifact
+  documents the current single shared-token authorization limitation so it never
+  implies per-team isolation that does not exist. `--out <path>` with
+  `--format md|json` writes the artifact with owner-only permissions; `--json`
+  prints it to stdout; `--platform` adds a hosted MCP client snippet. Like
+  `hosted-setup`, the exit code reflects whether the bounded query actually
+  returned.
 - `eshu first-run-benchmark` is the dogfood benchmark contract. It consumes a
   captured `first-run --json` envelope (from `--envelope <path>` or stdin) and
   scores it against the first-five-minutes onboarding criteria through the pure

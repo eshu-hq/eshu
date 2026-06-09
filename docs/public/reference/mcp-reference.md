@@ -143,6 +143,11 @@ the canonical envelope the handler produced; only the text string changes.
 Clients MUST read `structuredContent` (or the resource block) for evidence and
 MUST NOT parse the text summary.
 
+Citation handles use the same
+[Evidence Citation Handle Contract](evidence-citation-handles.md) across HTTP
+and MCP. The current runtime hydrates file and entity handles; expanded handle
+kinds must preserve API/MCP parity before they are advertised as hydrated.
+
 ## Related Docs
 
 - [MCP Tool Contract Matrix](mcp-tool-contract-matrix.md)
