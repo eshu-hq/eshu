@@ -97,6 +97,16 @@ type DefaultHandlers struct {
 	AWSCloudRuntimeDriftWriter         AWSCloudRuntimeDriftFindingWriter
 	AWSCloudRuntimeDriftLogger         *slog.Logger
 
+	// Cloud inventory admission adapters (issues #1997, #1998). Both must be
+	// non-nil for the registry to register DomainCloudInventoryAdmission; missing
+	// either one would either drop provider cloud-inventory facts before
+	// admission or admit canonical identities with no durable truth surface.
+	// CloudInventoryGenerationCheck is optional and supersedes stale generations
+	// before any load or write.
+	CloudInventoryEvidenceLoader  CloudInventoryEvidenceLoader
+	CloudInventoryAdmissionWriter CloudInventoryAdmissionWriter
+	CloudInventoryGenerationCheck GenerationFreshnessCheck
+
 	// CloudResourceNodeWriter materializes aws_resource facts into canonical
 	// CloudResource graph nodes (issue #805). It must be non-nil alongside
 	// FactLoader for the registry to register DomainAWSResourceMaterialization;
