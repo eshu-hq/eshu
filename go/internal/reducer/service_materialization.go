@@ -1,0 +1,275 @@
+package reducer
+
+import (
+	"context"
+	"crypto/md5" //nolint:gosec // md5 is a non-cryptographic payload fingerprint, matching the #1799 changed-since hash.
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+)
+
+// Service materialization lineage is the additive foundation for service-scope
+// changed-since deltas (#1943, parent #1797). It mirrors the repository-scope
+// (ingestion_scopes -> scope_generations) lineage that #1799 diffs, but keyed by
+// service_id instead of an ingestion scope.
+//
+// The existing reducer_service_catalog_correlation fact and its
+// generation-embedding stable_fact_key are NOT changed. This lineage is a
+// parallel, durable snapshot the reducer commits on each re-materialization so a
+// prior service generation can be diffed against the current active one.
+const (
+	// ServiceEvidenceFamilyOwnership is the only evidence family materialized in
+	// Stage 1. The remaining families (deployment, runtime, dependencies, docs,
+	// incidents, vulnerabilities) reuse this lineage in follow-up work.
+	ServiceEvidenceFamilyOwnership = "ownership"
+
+	// ServiceMaterializationStatusPending marks a generation that has been written
+	// but not yet promoted to active. The writer inserts a new generation as
+	// pending so it never collides with the single-active-per-service partial
+	// unique index before the prior active generation is superseded.
+	ServiceMaterializationStatusPending = "pending"
+	// ServiceMaterializationStatusActive marks the current generation whose
+	// snapshot rows back the current service read. Exactly one active generation
+	// exists per service_id, enforced by a partial unique index.
+	ServiceMaterializationStatusActive = "active"
+	// ServiceMaterializationStatusSuperseded marks a generation replaced by a
+	// newer active generation for the same service_id.
+	ServiceMaterializationStatusSuperseded = "superseded"
+)
+
+// ServiceOwnershipEvidence is one generation-stable ownership row for a service.
+// The identity is the owner reference; the generation lives in the row, never in
+// the key, so the same owner keeps the same service_evidence_key across
+// generations (the identity-vs-generation distinction from design #1231). A
+// retired owner carries Retired=true so the delta classifies it explicitly
+// rather than letting it vanish into unchanged.
+type ServiceOwnershipEvidence struct {
+	OwnerRef string
+	// Payload is the durable evidence body whose hash drives updated-vs-unchanged
+	// classification. It is hashed with md5(payload json) exactly as #1799 hashes
+	// fact payloads.
+	Payload map[string]any
+	// Retired records an owner that was explicitly removed in this
+	// re-materialization. It is written as a tombstone row so the delta reports it
+	// as retired instead of superseded.
+	Retired bool
+}
+
+// ServiceMaterializationWrite carries one service's re-materialized ownership
+// evidence set for durable lineage publication. ServiceID is the conflict key:
+// all generation commits for one service serialize on the single-active-per-
+// service constraint.
+type ServiceMaterializationWrite struct {
+	IntentID    string
+	ServiceID   string
+	TriggerKind string
+	Ownership   []ServiceOwnershipEvidence
+}
+
+// ServiceMaterializationWriteResult summarizes one lineage commit. GenerationID
+// is the deterministic id derived from the evidence set; Committed is false when
+// an identical generation already existed (idempotent no-op re-materialization).
+type ServiceMaterializationWriteResult struct {
+	GenerationID  string
+	Committed     bool
+	EvidenceRows  int
+	SupersededIDs []string
+}
+
+// ServiceMaterializationWriter persists service-scope generation lineage and the
+// generation-stable per-evidence snapshot rows the changed-since delta diffs.
+type ServiceMaterializationWriter interface {
+	WriteServiceMaterialization(context.Context, ServiceMaterializationWrite) (ServiceMaterializationWriteResult, error)
+}
+
+// ServiceOwnershipEvidenceKey returns the generation-independent identity for one
+// ownership row: ownership:<service_id>:<owner_ref>. The generation is stored in
+// a column, never embedded here, so the same owner keeps a stable key across
+// re-materializations and the FULL OUTER JOIN diff can match updated/unchanged.
+func ServiceOwnershipEvidenceKey(serviceID, ownerRef string) string {
+	return strings.Join([]string{
+		ServiceEvidenceFamilyOwnership,
+		strings.TrimSpace(serviceID),
+		strings.TrimSpace(ownerRef),
+	}, ":")
+}
+
+// ServiceEvidencePayloadHash returns the md5 hex digest of the canonical JSON
+// encoding of an evidence payload. It matches the repository-scope changed-since
+// contract, which detects updated-vs-unchanged with md5(payload::text). A nil or
+// empty payload hashes deterministically so an empty row never looks updated.
+func ServiceEvidencePayloadHash(payload map[string]any) string {
+	encoded, err := json.Marshal(canonicalizeEvidencePayload(payload))
+	if err != nil {
+		// Marshalling a map[string]any of JSON-safe values cannot fail; fall back
+		// to a stable sentinel rather than panicking in the reducer write path.
+		encoded = []byte("{}")
+	}
+	sum := md5.Sum(encoded) //nolint:gosec // non-cryptographic fingerprint.
+	return hex.EncodeToString(sum[:])
+}
+
+func canonicalizeEvidencePayload(payload map[string]any) map[string]any {
+	if len(payload) == 0 {
+		return map[string]any{}
+	}
+	keys := make([]string, 0, len(payload))
+	for key := range payload {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	canonical := make(map[string]any, len(payload))
+	for _, key := range keys {
+		canonical[key] = payload[key]
+	}
+	return canonical
+}
+
+// serviceMaterializationGenerationID derives the deterministic generation id for
+// one materialization from the service id and the full ordered evidence
+// fingerprint. An identical evidence set produces an identical id, so a repeat
+// re-materialization upserts the same generation row (ON CONFLICT DO NOTHING) and
+// is a true no-op: no new generation, no snapshot churn, no false delta.
+func serviceMaterializationGenerationID(write ServiceMaterializationWrite) string {
+	fingerprint := make([]map[string]any, 0, len(write.Ownership))
+	rows := normalizeOwnershipEvidence(write.ServiceID, write.Ownership)
+	for _, row := range rows {
+		fingerprint = append(fingerprint, map[string]any{
+			"key":       row.evidenceKey,
+			"hash":      row.payloadHash,
+			"tombstone": row.tombstone,
+		})
+	}
+	return "service-gen:" + facts.StableID("service_materialization_generation", map[string]any{
+		"service_id":   strings.TrimSpace(write.ServiceID),
+		"evidence_set": fingerprint,
+	})
+}
+
+// ownershipEvidenceRow is the normalized, deterministic snapshot row shape the
+// writer persists. Rows are sorted by evidence key so the generation fingerprint
+// and write order are stable regardless of input ordering.
+type ownershipEvidenceRow struct {
+	evidenceKey string
+	ownerRef    string
+	payloadHash string
+	tombstone   bool
+	payload     map[string]any
+}
+
+func normalizeOwnershipEvidence(serviceID string, evidence []ServiceOwnershipEvidence) []ownershipEvidenceRow {
+	deduped := make(map[string]ownershipEvidenceRow, len(evidence))
+	for _, item := range evidence {
+		ownerRef := strings.TrimSpace(item.OwnerRef)
+		if ownerRef == "" {
+			continue
+		}
+		key := ServiceOwnershipEvidenceKey(serviceID, ownerRef)
+		payload := item.Payload
+		if payload == nil {
+			payload = map[string]any{}
+		}
+		// A later evidence entry for the same owner wins; an explicit retirement
+		// always wins so a re-materialization cannot resurrect a removed owner.
+		existing, ok := deduped[key]
+		if ok && existing.tombstone && !item.Retired {
+			continue
+		}
+		deduped[key] = ownershipEvidenceRow{
+			evidenceKey: key,
+			ownerRef:    ownerRef,
+			payloadHash: ServiceEvidencePayloadHash(payload),
+			tombstone:   item.Retired,
+			payload:     payload,
+		}
+	}
+	rows := make([]ownershipEvidenceRow, 0, len(deduped))
+	for _, row := range deduped {
+		rows = append(rows, row)
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].evidenceKey < rows[j].evidenceKey
+	})
+	return rows
+}
+
+// buildServiceOwnershipMaterializations groups correlation decisions into one
+// ownership materialization per service_id. Only decisions that carry both a
+// service_id and an owner_ref contribute an ownership row; the evidence payload
+// captures the owner-bearing fields so a change to ownership truth flips the row
+// to updated, while an unchanged owner stays unchanged. Output is deterministic:
+// services ordered by id, evidence ordered inside the writer.
+func buildServiceOwnershipMaterializations(
+	intentID string,
+	decisions []ServiceCatalogCorrelationDecision,
+) []ServiceMaterializationWrite {
+	byService := map[string]map[string]ServiceOwnershipEvidence{}
+	for _, decision := range decisions {
+		serviceID := strings.TrimSpace(decision.ServiceID)
+		ownerRef := strings.TrimSpace(decision.OwnerRef)
+		if serviceID == "" || ownerRef == "" {
+			continue
+		}
+		if _, ok := byService[serviceID]; !ok {
+			byService[serviceID] = map[string]ServiceOwnershipEvidence{}
+		}
+		byService[serviceID][ownerRef] = ServiceOwnershipEvidence{
+			OwnerRef: ownerRef,
+			Payload:  ownershipEvidencePayload(decision),
+		}
+	}
+
+	serviceIDs := make([]string, 0, len(byService))
+	for serviceID := range byService {
+		serviceIDs = append(serviceIDs, serviceID)
+	}
+	sort.Strings(serviceIDs)
+
+	writes := make([]ServiceMaterializationWrite, 0, len(serviceIDs))
+	for _, serviceID := range serviceIDs {
+		owners := byService[serviceID]
+		ownerRefs := make([]string, 0, len(owners))
+		for ownerRef := range owners {
+			ownerRefs = append(ownerRefs, ownerRef)
+		}
+		sort.Strings(ownerRefs)
+		ownership := make([]ServiceOwnershipEvidence, 0, len(ownerRefs))
+		for _, ownerRef := range ownerRefs {
+			ownership = append(ownership, owners[ownerRef])
+		}
+		writes = append(writes, ServiceMaterializationWrite{
+			IntentID:  intentID,
+			ServiceID: serviceID,
+			Ownership: ownership,
+		})
+	}
+	return writes
+}
+
+// ownershipEvidencePayload captures the owner-bearing fields whose change should
+// flip an ownership row to updated. It deliberately excludes the generation id
+// and intent id so an identical owner across re-materializations hashes
+// identically and classifies as unchanged.
+func ownershipEvidencePayload(decision ServiceCatalogCorrelationDecision) map[string]any {
+	return map[string]any{
+		"owner_ref":  strings.TrimSpace(decision.OwnerRef),
+		"provider":   strings.TrimSpace(decision.Provider),
+		"entity_ref": strings.TrimSpace(decision.EntityRef),
+		"lifecycle":  strings.TrimSpace(decision.Lifecycle),
+		"tier":       strings.TrimSpace(decision.Tier),
+	}
+}
+
+// validateServiceMaterializationWrite enforces the minimal contract before any
+// durable write so a malformed intent fails fast instead of committing a
+// half-formed generation.
+func validateServiceMaterializationWrite(write ServiceMaterializationWrite) error {
+	if strings.TrimSpace(write.ServiceID) == "" {
+		return fmt.Errorf("service materialization write requires a service_id")
+	}
+	return nil
+}

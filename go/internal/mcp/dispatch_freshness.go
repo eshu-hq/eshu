@@ -24,6 +24,12 @@ func freshnessRoute(toolName string, args map[string]any) (*route, bool) {
 			"since_observed_at":   str(args, "since_observed_at"),
 			"sample_limit":        intString(args, "sample_limit", 25),
 		}}, true
+	case "get_service_changed_since":
+		return &route{method: "GET", path: "/api/v0/freshness/services/changed-since", query: map[string]string{
+			"service_id":          str(args, "service_id"),
+			"since_generation_id": str(args, "since_generation_id"),
+			"sample_limit":        intString(args, "sample_limit", 25),
+		}}, true
 	default:
 		return nil, false
 	}

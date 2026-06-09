@@ -24,15 +24,17 @@ type GenerationLifecycleReader interface {
 // superseded, completed, and failed generation history and diff a prior
 // generation against current truth without scraping broad status payloads.
 type FreshnessHandler struct {
-	Generations  GenerationLifecycleReader
-	ChangedSince ChangedSinceReader
-	Profile      QueryProfile
+	Generations         GenerationLifecycleReader
+	ChangedSince        ChangedSinceReader
+	ServiceChangedSince ServiceChangedSinceReader
+	Profile             QueryProfile
 }
 
 // Mount registers freshness drilldown routes on the given mux.
 func (h *FreshnessHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc(freshnessGenerationLifecycleRoute, h.listGenerationLifecycle)
 	mux.HandleFunc(freshnessChangedSinceRoute, h.listChangedSince)
+	mux.HandleFunc(freshnessServiceChangedSinceRoute, h.listServiceChangedSince)
 }
 
 func (h *FreshnessHandler) profile() QueryProfile {

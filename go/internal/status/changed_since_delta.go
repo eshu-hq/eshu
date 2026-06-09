@@ -66,6 +66,10 @@ const (
 	ChangedSinceCategoryContentEntities ChangedSinceCategory = "content_entities"
 	// ChangedSinceCategoryFacts covers every remaining fact kind.
 	ChangedSinceCategoryFacts ChangedSinceCategory = "facts"
+	// ChangedSinceCategoryOwnership covers service-scope ownership evidence rows
+	// (#1943). It is computed by the service-scope changed-since surface, not the
+	// repository-scope surface, so it never appears in ChangedSinceCategories.
+	ChangedSinceCategoryOwnership ChangedSinceCategory = "ownership"
 )
 
 // ChangedSinceCategories is the closed, ordered set of evidence categories this
