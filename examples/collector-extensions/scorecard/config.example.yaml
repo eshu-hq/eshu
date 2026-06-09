@@ -1,0 +1,6 @@
+source:
+  mode: local-file
+  input: ./testdata/complete.json
+  sourceURI: https://api.securityscorecards.dev/projects/github.com/example/widgets
+freshness:
+  previousDigest: ""

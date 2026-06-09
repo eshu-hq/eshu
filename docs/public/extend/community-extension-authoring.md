@@ -35,6 +35,9 @@ eshu component init collector \
   --fact-kind dev.example.demo_observation
 ```
 
+For a working package that follows this shape, see the
+[Reference Scorecard Extension](reference-scorecard-extension.md).
+
 By default the command writes a new `./dev.example.collector.demo` directory.
 Use `--output <dir>` to choose a different new directory. The command refuses
 unsafe identifiers and existing output directories so it does not overwrite

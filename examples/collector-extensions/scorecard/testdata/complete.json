@@ -1,0 +1,22 @@
+{
+  "generated_at": "2026-06-09T11:59:00Z",
+  "repository": {
+    "name": "github.com/example/widgets",
+    "commit": "0123456789abcdef0123456789abcdef01234567"
+  },
+  "score": 7.4,
+  "checks": [
+    {
+      "name": "Branch-Protection",
+      "score": 8.2,
+      "reason": "default branch requires review",
+      "details": ["required reviews are enabled"]
+    },
+    {
+      "name": "Dangerous-Workflow",
+      "score": 2.0,
+      "reason": "workflow permissions need review",
+      "details": ["workflow uses broad write permissions"]
+    }
+  ]
+}
