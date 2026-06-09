@@ -262,6 +262,43 @@ func TestRegistryInstallRejectsChangedDigestForActiveVersion(t *testing.T) {
 	}
 }
 
+func TestRegistryInstallReplacesChangedDigestForInactiveVersion(t *testing.T) {
+	t.Parallel()
+
+	registry := NewRegistry(t.TempDir())
+	manifestPath := writeManifest(t, validManifestYAML())
+	installed, err := registry.Install(manifestPath, allowedVerification())
+	if err != nil {
+		t.Fatalf("Install() error = %v, want nil", err)
+	}
+	changedManifestPath := writeManifest(
+		t,
+		strings.ReplaceAll(
+			validManifestYAML(),
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		),
+	)
+
+	replaced, err := registry.Install(changedManifestPath, allowedVerification())
+	if err != nil {
+		t.Fatalf("Install() replacement error = %v, want nil", err)
+	}
+	if replaced.ManifestDigest == installed.ManifestDigest {
+		t.Fatalf("replacement digest = %q, want changed digest", replaced.ManifestDigest)
+	}
+	components, err := registry.List()
+	if err != nil {
+		t.Fatalf("List() error = %v, want nil", err)
+	}
+	if got, want := len(components), 1; got != want {
+		t.Fatalf("len(List()) = %d, want %d", got, want)
+	}
+	if got, want := components[0].ManifestDigest, replaced.ManifestDigest; got != want {
+		t.Fatalf("List()[0].ManifestDigest = %q, want %q", got, want)
+	}
+}
+
 func TestRegistryUninstallIgnoresManifestPathFromRegistryState(t *testing.T) {
 	t.Parallel()
 

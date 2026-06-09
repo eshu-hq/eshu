@@ -65,6 +65,10 @@ orchestration. It does not own service runtime internals:
   - documentation truth: `docs verify [path]` verifies local Markdown-family
     documentation claims against the CLI command tree, generated OpenAPI paths,
     and documented Eshu environment variables (`docs.go`)
+  - component package manager: `component inspect|verify|install|list|enable|disable|uninstall`
+    manages local optional component manifests and activation state with stable
+    `--json` output, classified errors, and dry-run planning for install and
+    enable (`component.go`, `component_output.go`)
   - `graph`, `install` with `nornicdb`, `status`, `start`, `stop`,
     `logs`, `upgrade` (`graph.go`, `graph_install.go`,
     `local_graph.go`)
@@ -96,6 +100,13 @@ JSON/error output.
 
 No-Regression Evidence: provider-parity lifecycle behavior is covered by
 `go test ./cmd/eshu -count=1`.
+
+No-Observability-Change: component package-manager output and dry-run planning
+remain local filesystem CLI behavior. They do not start runtimes, call the API,
+or emit OTEL from this dispatcher.
+
+No-Regression Evidence: component package-manager JSON/text behavior is
+covered by `go test ./cmd/eshu -run 'TestComponent' -count=1`.
 
 ## Gotchas / invariants
 

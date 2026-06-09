@@ -89,14 +89,14 @@ type Telemetry struct {
 func LoadManifest(path string) (Manifest, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return Manifest{}, fmt.Errorf("read component manifest: %w", err)
+		return Manifest{}, WrapError(ErrorCodeInvalidManifest, "read component manifest", err)
 	}
 	var manifest Manifest
 	if err := yaml.Unmarshal(raw, &manifest); err != nil {
-		return Manifest{}, fmt.Errorf("decode component manifest: %w", err)
+		return Manifest{}, WrapError(ErrorCodeInvalidManifest, "decode component manifest", err)
 	}
 	if err := manifest.Validate(); err != nil {
-		return Manifest{}, err
+		return Manifest{}, WrapError(ErrorCodeInvalidManifest, err.Error(), err)
 	}
 	return manifest, nil
 }
