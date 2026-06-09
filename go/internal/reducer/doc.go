@@ -54,7 +54,7 @@
 // convergence or live-only no-IaC routing evidence; unsafe routing outcomes
 // remain provenance-only.
 // PostgresServiceMaterializationWriter commits the additive per-service
-// evidence generation lineage (#1943, #1985, #1986, #1987) the service-scope
+// evidence generation lineage (#1943, #1985, #1986, #1987, #1988) the service-scope
 // changed-since delta diffs: one active service_materialization_generations row
 // per service_id (conflict key service_id, single active row enforced by a
 // partial unique index) plus generation-stable service_evidence_snapshots rows
@@ -69,12 +69,17 @@
 // by ServiceDependencyEvidenceKey over the resolved dependency relationship's
 // generation-independent natural key — DEPENDS_ON / USES_MODULE /
 // READS_CONFIG_FROM, the complement of the deployment family from the same
-// resolved_relationships source). The generation id is deterministic in the full
-// evidence set, so an identical re-materialization is a no-op and a change in any
-// family flips the generation; a dropped evidence row is tombstoned, never
-// silently absent. It is wired into ServiceCatalogCorrelationHandler as an
-// optional MaterializationWriter (with an optional DeploymentRelationshipLoader
-// feeding both the deployment and dependencies families from one bounded load,
-// and an optional RuntimeInstanceLoader for the runtime family) so the existing
+// resolved_relationships source), and docs (ServiceEvidenceFamilyDocs, keyed by
+// ServiceDocumentationEvidenceKey over the durable external identity
+// source_system/source_record_id/document_id of each documentation fact that
+// references the service, read from fact_records and keyed by service id rather
+// than repository id). The generation id is deterministic in the full evidence
+// set, so an identical re-materialization is a no-op and a change in any family
+// flips the generation; a dropped evidence row is tombstoned, never silently
+// absent. It is wired into ServiceCatalogCorrelationHandler as an optional
+// MaterializationWriter (with an optional DeploymentRelationshipLoader feeding
+// both the deployment and dependencies families from one bounded load, an
+// optional RuntimeInstanceLoader for the runtime family, and an optional
+// DocumentationEvidenceLoader for the docs family) so the existing
 // reducer_service_catalog_correlation fact contract is unchanged.
 package reducer

@@ -310,6 +310,105 @@ func TestComputeServiceChangedSinceDeltaClassifiesDependenciesFamily(t *testing.
 	}
 }
 
+func TestComputeServiceChangedSinceDeltaClassifiesDocsFamily(t *testing.T) {
+	t.Parallel()
+
+	observed := time.Date(2026, 6, 9, 14, 0, 0, 0, time.UTC)
+	queryer := &fakeQueryer{responses: []fakeRows{
+		{rows: serviceScopeRow("svc-a", "gen-current", observed, false)},
+		{rows: [][]any{{"gen-prior", observed.Add(-time.Hour)}}},
+		// The family-generic counts query returns rows for every family present in
+		// the diff. Docs carries each verdict; ownership stays unchanged.
+		{rows: [][]any{
+			serviceCountRow("ownership", "unchanged", 2),
+			serviceCountRow("docs", "added", 1),
+			serviceCountRow("docs", "updated", 1),
+			serviceCountRow("docs", "unchanged", 1),
+			serviceCountRow("docs", "retired", 1),
+			serviceCountRow("docs", "superseded", 1),
+		}},
+		// Sample reads run per family in category order (ownership, deployment,
+		// runtime, dependencies, docs), per non-zero classification in
+		// classification order. The deployment, runtime, and dependencies families
+		// have zero counts here, so they consume no sample reads.
+		{rows: [][]any{{"ownership:svc-a:team-a"}}},                       // ownership unchanged
+		{rows: [][]any{{"docs:svc-a:confluence:section:add:doc:1"}}},      // docs added
+		{rows: [][]any{{"docs:svc-a:confluence:section:upd:doc:1"}}},      // docs updated
+		{rows: [][]any{{"docs:svc-a:confluence:section:same:doc:1"}}},     // docs unchanged
+		{rows: [][]any{{"docs:svc-a:confluence:section:gone:doc:1"}}},     // docs retired
+		{rows: [][]any{{"docs:svc-a:git_markdown:readme.md#drop:doc:2"}}}, // docs superseded
+	}}
+	store := NewStatusStore(queryer)
+
+	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+		ServiceID:         "svc-a",
+		SinceGenerationID: "gen-prior",
+		SampleLimit:       25,
+	})
+	if err != nil {
+		t.Fatalf("ComputeServiceChangedSinceDelta() error = %v", err)
+	}
+	docs := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryDocs)
+	c := docs.Counts
+	if c.Added != 1 || c.Updated != 1 || c.Unchanged != 1 || c.Retired != 1 || c.Superseded != 1 {
+		t.Fatalf("docs counts wrong: %+v", c)
+	}
+	if got := docs.Samples[statuspkg.ChangedSinceRetired]; len(got) != 1 || got[0].StableFactKey != "docs:svc-a:confluence:section:gone:doc:1" {
+		t.Fatalf("docs retired samples wrong: %+v", got)
+	}
+	if got := docs.Samples[statuspkg.ChangedSinceSuperseded]; len(got) != 1 || got[0].StableFactKey != "docs:svc-a:git_markdown:readme.md#drop:doc:2" {
+		t.Fatalf("docs superseded samples wrong: %+v", got)
+	}
+	if got := docs.Samples[statuspkg.ChangedSinceRetired]; got[0].FactKind != "docs" {
+		t.Fatalf("docs sample fact_kind = %q, want docs", got[0].FactKind)
+	}
+	// Ownership stayed unchanged: a docs-only change must not invent ownership
+	// deltas, and the deployment/runtime/dependencies families report zero deltas
+	// (never silently dropped).
+	owner := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryOwnership)
+	if owner.Counts.Added != 0 || owner.Counts.Updated != 0 || owner.Counts.Retired != 0 || owner.Counts.Superseded != 0 {
+		t.Fatalf("ownership family must not churn on a docs-only change: %+v", owner.Counts)
+	}
+	for _, family := range []statuspkg.ChangedSinceCategory{
+		statuspkg.ChangedSinceCategoryDeployment,
+		statuspkg.ChangedSinceCategoryRuntime,
+		statuspkg.ChangedSinceCategoryDependencies,
+	} {
+		if delta := serviceCategoryDelta(t, summary, family); delta.Counts.Total() != 0 {
+			t.Fatalf("%s family should report zero deltas for a docs-only change: %+v", family, delta.Counts)
+		}
+	}
+}
+
+func TestComputeServiceChangedSinceDeltaUnavailableReportsDocsFamily(t *testing.T) {
+	t.Parallel()
+
+	observed := time.Date(2026, 6, 9, 15, 0, 0, 0, time.UTC)
+	// The service exists but has no current active generation: the diff is
+	// unavailable and every family, docs included, is reported unavailable rather
+	// than as a confident zero-delta.
+	queryer := &fakeQueryer{responses: []fakeRows{
+		{rows: serviceScopeRow("svc-a", "", observed, false)},
+	}}
+	store := NewStatusStore(queryer)
+
+	summary, err := store.ComputeServiceChangedSinceDelta(context.Background(), statuspkg.ServiceChangedSinceFilter{
+		ServiceID:         "svc-a",
+		SinceGenerationID: "gen-prior",
+		SampleLimit:       25,
+	})
+	if err != nil {
+		t.Fatalf("ComputeServiceChangedSinceDelta() error = %v", err)
+	}
+	if !summary.Unavailable {
+		t.Fatal("Unavailable = false, want true for a service with no active generation")
+	}
+	docs := serviceCategoryDelta(t, summary, statuspkg.ChangedSinceCategoryDocs)
+	if !docs.Unavailable {
+		t.Fatalf("docs family must be reported unavailable, not zero-delta: %+v", docs)
+	}
+}
+
 func TestComputeServiceChangedSinceDeltaUnknownServiceNotFound(t *testing.T) {
 	t.Parallel()
 

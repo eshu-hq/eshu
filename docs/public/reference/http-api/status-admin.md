@@ -296,7 +296,8 @@ service generation id). Optional `sample_limit` (default 25, max 200) caps the
 per-classification sample handles. The response carries the resolved
 `service_id`, `since_generation_id`, `current_active_generation_id`, and a
 `categories` array. The surface reports the `ownership` (#1943), `deployment`
-(#1985), `runtime` (#1986), and `dependencies` (#1987) families. Each category carries
+(#1985), `runtime` (#1986), `dependencies` (#1987), and `docs` (#1988) families.
+Each category carries
 exact `counts` for `added`, `updated`, `unchanged`, `retired`, and `superseded`,
 plus bounded `samples` (`stable_fact_key` carrying the `service_evidence_key`,
 `fact_kind` carrying the evidence family) per classification and a
@@ -312,8 +313,8 @@ state) rather than zero deltas. The capability key is
 `get_service_changed_since` and the CLI helper is `eshu freshness
 service-changed-since`.
 
-The remaining service families (docs, incidents, vulnerabilities) reuse this
-lineage and snapshot foundation and are tracked as follow-up work.
+The remaining service families (incidents, vulnerabilities) reuse this lineage
+and snapshot foundation and are tracked as follow-up work.
 
 Performance Evidence: the diff is bounded by the requested `sample_limit` and
 keyed by `(scope_id, generation_id, stable_fact_key)`. Counts come from one

@@ -4,8 +4,8 @@ Issue: #1943
 Parent: #1797
 Follow-up to: #1799 (merged repository-scope changed-since)
 
-Status: **Ownership (#1943), deployment (#1985), runtime (#1986), and
-dependencies (#1987) families shipped.** The
+Status: **Ownership (#1943), deployment (#1985), runtime (#1986),
+dependencies (#1987), and docs (#1988) families shipped.** The
 additive service-generation lineage and the family-generic delta surface
 recommended below are implemented: `service_materialization_generations` +
 `service_evidence_snapshots`, the reducer write path that commits them, and
@@ -40,9 +40,21 @@ digest of the relationship's generation-independent natural key
 generation id and is therefore **not** usable as a diff key, so the natural-key
 digest is used instead (the same trap the deployment family avoids). The
 deployment and dependencies families share one bounded `resolved_relationships`
-load and partition it by relationship type. The remaining families (docs,
-incidents, vulnerabilities) reuse this lineage/snapshot/delta foundation and are
-tracked follow-ups. The sections below record the original
+load and partition it by relationship type. The docs family (#1988) emits one
+snapshot row per documentation fact that references a service (a documentation
+entity mention, claim candidate, or semantic documentation observation, read from
+`fact_records`), keyed by
+`docs:<service_id>:<source_system>:<source_record_id>:<document_id>`; the
+identity uses durable external fact identity (`source_system` and
+`source_record_id` are durable fact columns, `document_id` is a durable payload
+field) and never the generation-bearing `fact_id` or `generation_id`, so it is
+generation-stable. Unlike the relationship and runtime families it is keyed by
+service id rather than repository id, because documentation facts link to a
+service through their target refs, and is loaded by a service-scoped
+`fact_records` query rather than the shared `resolved_relationships` load. The
+remaining families (incidents, vulnerabilities) reuse this
+lineage/snapshot/delta foundation and are tracked follow-ups. The sections below
+record the original
 investigation, the owning store/read-model contract, why the #1799 model did not
 transfer directly, and the recommended contract that the shipped families
 implement.
