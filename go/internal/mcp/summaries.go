@@ -74,6 +74,8 @@ func summarizePlainToolText(toolName string, value any) string {
 	switch toolName {
 	case "get_index_status":
 		body = summarizeIndexStatus(data)
+	case "get_hosted_readiness":
+		body = summarizeHostedReadiness(data)
 	case "get_ingester_status":
 		body = summarizeIngesterStatus(data)
 	case "list_ingesters":

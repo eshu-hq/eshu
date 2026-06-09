@@ -254,6 +254,20 @@ func TestSummarizePlainToolTextIndexStatus(t *testing.T) {
 	}
 }
 
+func TestSummarizePlainToolTextHostedReadiness(t *testing.T) {
+	value := map[string]any{
+		"state":           "not_ready",
+		"failure_classes": []any{"queue_not_drained", "graph_unavailable"},
+	}
+
+	got := summarizePlainToolText("get_hosted_readiness", value)
+	for _, want := range []string{"not_ready", "queue_not_drained"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("hosted readiness summary %q missing %q", got, want)
+		}
+	}
+}
+
 func TestSummarizePlainToolTextIngesterStatus(t *testing.T) {
 	value := map[string]any{
 		"ingester": "repository",
