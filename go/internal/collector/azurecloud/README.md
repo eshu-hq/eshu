@@ -73,3 +73,27 @@ and bounded telemetry-label safety.
 ```bash
 cd go && go test ./internal/collector/azurecloud/... ./internal/facts/ -count=1
 ```
+
+## Performance and Observability Evidence
+
+No-Regression Evidence: this slice adds a new, isolated fixture-driven parsing
+package and changes no existing hot path. Baseline: no Azure collector existed;
+after: bounded in-memory normalization of Azure Resource Graph pages with no
+Cypher, no graph or Postgres writes, no worker/lease/queue, and no claim-driven
+runtime binary. Backend/version: none touched (NornicDB/Neo4j, Postgres, and the
+reducer are unchanged; fact kinds are additive). Input shape: bounded Resource
+Graph fixture pages resumed by skip-token; work is O(resources x pages)
+single-pass, so terminal output is one bounded generation of
+`azure_cloud_resource`/`azure_collection_warning` facts (row count equals deduped
+fixture resources plus one warning per unsupported kind/scope). Why safe: no live
+calls in tests, stale generations are rejected by fencing token, and re-emission
+of the same generation is idempotent, all proven by fixture tests.
+
+Observability Evidence: the package exports bounded-label data-plane metrics
+`eshu_dp_azure_api_calls_total`, `_skip_token_resumes_total`,
+`_partial_scope_total`, `_facts_emitted_total`, and `_freshness_lag_seconds`.
+Labels are bounded enums only (collector kind, scope kind, source lane,
+operation, status class, fact kind, outcome); a test asserts no ARM resource id,
+subscription id, tenant id, resource name, tag, or URL appears in any label. An
+operator reads partial-scope coverage, skip-token resumes, freshness lag, and
+fact counts to answer whether a scan is complete, fresh, throttled, or partial.
