@@ -48,6 +48,7 @@ nav:
     - Visualize Query Results: guides/visualization.md
     - Work With Bundles: guides/bundles.md
     - Shared Infra Trace: guides/shared-infra-trace.md
+    - Hosted Replatforming Runbook: guides/replatforming-runbook.md
     - Fixture Ecosystems: guides/fixture-ecosystems.md
     - CI/CD: guides/ci-cd.md
   - Connect MCP:
