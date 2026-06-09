@@ -98,6 +98,7 @@ func OpenAPISpec() string {
 			openAPIPathsFreshnessGenerations+
 			openAPIPathsFreshnessChangedSince+
 			openAPIPathsSemanticStatus+
+			openAPIPathsComponentExtensions+
 			openAPIPathsSemanticEvidence+
 			openAPIPathsStatusAndCompare+
 			openAPIComponents,

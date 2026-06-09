@@ -42,7 +42,7 @@ families are:
 | CI/CD and supply chain | `list_ci_cd_run_correlations`, `list_advisory_evidence`, `list_supply_chain_impact_findings`, `explain_supply_chain_impact`, `list_security_alert_reconciliations`, `list_sbom_attestation_attachments` |
 | Documentation truth | `list_documentation_findings`, `list_documentation_facts`, `get_documentation_evidence_packet`, `check_documentation_evidence_packet_freshness` |
 | Semantic evidence | `list_semantic_documentation_observations`, `list_semantic_code_hints` |
-| Runtime status | `list_ingesters`, `get_ingester_status`, `get_index_status`, `get_semantic_capability_status` |
+| Runtime status | `list_collectors`, `list_ingesters`, `get_ingester_status`, `get_index_status`, `get_semantic_capability_status`, `list_component_extensions`, `get_component_extension_diagnostics` |
 | Diagnostics | `execute_cypher_query`, `visualize_graph_query` |
 
 ## Content And Repository Identity

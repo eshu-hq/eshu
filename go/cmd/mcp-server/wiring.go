@@ -11,6 +11,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
+	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/semanticpolicy"
@@ -98,7 +99,19 @@ func wireAPI(
 		semanticProviderProfiles...,
 	)
 
-	router := newMCPQueryRouter(db, neo4jReader, contentReader, statusReader, queryProfile, graphBackend, logger)
+	componentHome := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))
+	componentPolicy := componentPolicyFromEnv(getenv)
+	router := newMCPQueryRouter(
+		db,
+		neo4jReader,
+		contentReader,
+		statusReader,
+		queryProfile,
+		graphBackend,
+		logger,
+		componentHome,
+		componentPolicy,
+	)
 
 	mux := http.NewServeMux()
 	router.Mount(mux)
@@ -133,6 +146,8 @@ func newMCPQueryRouter(
 	queryProfile query.QueryProfile,
 	graphBackend query.GraphBackend,
 	logger *slog.Logger,
+	componentHome string,
+	componentPolicy component.Policy,
 ) *query.APIRouter {
 	if statusReader == nil {
 		statusReader = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
@@ -266,12 +281,39 @@ func newMCPQueryRouter(
 			StatusReader: statusReader,
 			Profile:      queryProfile,
 		},
+		ComponentExtensions: &query.ComponentExtensionsHandler{
+			ComponentHome: componentHome,
+			Policy:        componentPolicy,
+			Profile:       queryProfile,
+		},
 		Compare: &query.CompareHandler{
 			Neo4j:   neo4jReader,
 			Content: contentReader,
 			Profile: queryProfile,
 		},
 	}
+}
+
+func componentPolicyFromEnv(getenv func(string) string) component.Policy {
+	return component.Policy{
+		Mode:              strings.TrimSpace(getenv("ESHU_COMPONENT_TRUST_MODE")),
+		AllowedIDs:        componentEnvList(getenv("ESHU_COMPONENT_ALLOW_IDS")),
+		AllowedPublishers: componentEnvList(getenv("ESHU_COMPONENT_ALLOW_PUBLISHERS")),
+		RevokedIDs:        componentEnvList(getenv("ESHU_COMPONENT_REVOKE_IDS")),
+		RevokedPublishers: componentEnvList(getenv("ESHU_COMPONENT_REVOKE_PUBLISHERS")),
+		CoreVersion:       strings.TrimSpace(getenv("ESHU_COMPONENT_CORE_VERSION")),
+	}
+}
+
+func componentEnvList(raw string) []string {
+	fields := strings.Split(raw, ",")
+	values := make([]string, 0, len(fields))
+	for _, field := range fields {
+		if value := strings.TrimSpace(field); value != "" {
+			values = append(values, value)
+		}
+	}
+	return values
 }
 
 func openQueryGraph(

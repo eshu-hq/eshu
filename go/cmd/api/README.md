@@ -61,6 +61,10 @@ advisory evidence is available through the API without requiring graph access.
 `IncidentHandler` and `WorkItemHandler` wire Postgres-backed incident context
 and Jira/work-item source evidence reads so on-call and ticket-first surfaces
 can answer from active facts without provider API calls.
+When `ESHU_COMPONENT_HOME` is configured, `wireAPI` also wires sanitized
+component-extension registry readback and trust-policy diagnostics through the
+query router. If it is unset, the component-extension routes return a canonical
+unavailable envelope rather than guessing at local CLI state.
 
 `mountRuntimeSurface` calls `internalruntime.NewStatusAdminMux` to compose
 `/healthz`, `/readyz`, `/admin/status`, and `/metrics` alongside the API routes.
@@ -119,6 +123,13 @@ See `doc.go` for the full godoc contract.
   allowlist. It names provider profile ids, source classes, scopes, source
   selectors, limits, redaction mode, and retention posture. Without it, provider
   profiles remain visible in status but source policy stays disabled.
+- `ESHU_COMPONENT_HOME` plus `ESHU_COMPONENT_TRUST_MODE`,
+  `ESHU_COMPONENT_ALLOW_IDS`, `ESHU_COMPONENT_ALLOW_PUBLISHERS`,
+  `ESHU_COMPONENT_REVOKE_IDS`, `ESHU_COMPONENT_REVOKE_PUBLISHERS`, and
+  `ESHU_COMPONENT_CORE_VERSION` — optional read-only component-extension
+  inventory and policy diagnostic source for `/api/v0/component-extensions`.
+  Responses use activation config handles and never expose local manifest or
+  config paths.
 - `DEFAULT_DATABASE` — graph database name, default `nornic`
 - `ESHU_PPROF_ADDR` — opt-in `net/http/pprof` endpoint via
   `runtime.NewPprofServer`; unset disables the profiler; port-only inputs

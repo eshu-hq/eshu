@@ -176,6 +176,12 @@
 // than a graph read: no-provider mode reports unavailable, disables code hints
 // and documentation observations, configured provider profiles are redacted and
 // source-policy gated, and deterministic query truth paths remain unaffected.
+// Component extension inventory and diagnostics routes read the runtime
+// component registry when ESHU_COMPONENT_HOME is configured, classify the truth
+// basis as runtime_state, return unavailable when the registry is unset, and
+// expose component ID, version, manifest digest, lifecycle state, activation
+// config handles, and policy diagnostics without server-local manifest or
+// activation config paths.
 //
 // QueryPlaybook is a deterministic, bounded, versioned data description of a
 // common starter-prompt or cookbook workflow. A playbook names the ordered

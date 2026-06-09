@@ -485,6 +485,19 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		return &route{method: "GET", path: "/api/v0/index-status"}, nil
 	case "get_semantic_capability_status":
 		return &route{method: "GET", path: "/api/v0/status/semantic-extraction"}, nil
+	case "list_component_extensions":
+		return &route{method: "GET", path: "/api/v0/component-extensions", query: map[string]string{
+			"limit": intString(args, "limit", 100),
+		}}, nil
+	case "get_component_extension_diagnostics":
+		componentID := strings.TrimSpace(str(args, "component_id"))
+		if componentID == "" {
+			return nil, fmt.Errorf("component_id is required")
+		}
+		return &route{
+			method: "GET",
+			path:   "/api/v0/component-extensions/" + url.PathEscape(componentID) + "/diagnostics",
+		}, nil
 
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", toolName)

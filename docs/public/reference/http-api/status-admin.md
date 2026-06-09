@@ -154,6 +154,35 @@ The default ingester is `repository`. Status responses include:
 The public API does not include a per-ingester scan POST route. Use
 `POST /api/v0/admin/reindex` or deployment-managed ingestion instead.
 
+## Component Extension Inventory
+
+- `GET /api/v0/component-extensions?limit=100`
+- `GET /api/v0/component-extensions/{component_id}/diagnostics`
+
+These routes expose optional component package inventory and policy diagnostics
+from the API or MCP runtime's configured component registry. They read
+`ESHU_COMPONENT_HOME` and the component trust environment on that runtime, not
+the caller's local CLI state. When `ESHU_COMPONENT_HOME` is unset or the
+registry cannot be read safely, the route returns HTTP 503 with the canonical
+`component_registry_unavailable` error.
+
+Successful inventory responses are bounded by `limit` (default 100, max 500)
+and return `count`, `total_count`, and `truncated` so callers know whether the
+page is complete. Rows include component ID, publisher, version, manifest
+digest, installed time, installed, enabled, claim-capable, revoked,
+incompatible, and failed states, activation instance IDs, activation modes,
+claim enablement,
+stable `config_handle` values, and policy diagnostics. They do not expose
+manifest paths, activation config paths, provider credentials, raw config
+payloads, or other server-local host paths. Community extension index
+membership is discovery metadata only and is not reported as trust; the trust
+verdict comes from local registry readback and the configured policy.
+
+The MCP equivalents are `list_component_extensions` with optional `limit` and
+`get_component_extension_diagnostics`. The CLI equivalents are
+`eshu component inventory --limit <n> --json` and
+`eshu component diagnostics <component-id> --json`.
+
 No-Regression Evidence: `cd go && go test ./internal/status ./internal/query ./internal/storage/postgres ./internal/mcp -run 'Test(RenderStatusIncludesCollectorRuntimeCategories|CollectorRuntimeStatuses(MergesPersistedFactEvidence|MapsUnattributedFactsToSingleCoordinatorInstance)|StatusHandlerCollectorsRouteExposes(DirectRuntimeEvidence|PersistedFactEvidence)|ReadCollectorFactEvidenceUsesBoundedActiveFactMetadata|ListCollectorsRuntimeToolRoutesToStatusCollectors)' -count=1`; `cd go && go test ./internal/status ./internal/query ./internal/storage/postgres -run 'Test(CollectorRuntimeStatusesMergesPersistedFactEvidence|StatusHandlerCollectorsRouteExposesPersistedFactEvidence|ReadCollectorFactEvidenceUsesBoundedActiveFactMetadata)' -count=1` proves source systems survive persisted fact evidence, status projection, and public collector status rendering.
 No-Observability-Change: collector status classification reuses existing
 `/admin/status`, `/api/v0/status/collectors`, `aws_cloud_scans`,

@@ -49,6 +49,10 @@
 // version, policy state, freshness, and admission or corroboration state. They
 // do not expose raw prompts, credentials, provider responses, or inject code
 // hints into deterministic graph-truth tools.
+// Component extension tools follow the same transport-only boundary: they
+// forward inventory and diagnostics requests to HTTP registry readback routes,
+// preserve the canonical envelope, and do not expose server-local manifest
+// paths or activation config paths.
 // Any change that alters request or response shape must update the MCP guide,
 // the HTTP API reference where the route is shared, and the handler tests in
 // the same change.
