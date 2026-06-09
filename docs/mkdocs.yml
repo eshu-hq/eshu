@@ -150,6 +150,7 @@ nav:
     - CLI Indexing: reference/cli-indexing.md
     - CLI Analysis: reference/cli-analysis.md
     - CLI System: reference/cli-system.md
+    - Assistant Guidance: reference/assistant-guidance.md
     - CLI K.I.S.S.: reference/cli-kiss.md
     - Configuration: reference/configuration.md
     - Environment Variables: reference/environment-variables.md
