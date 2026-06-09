@@ -7,9 +7,9 @@
 // before runtime setup. Otherwise the binary boots OTEL telemetry, wires the
 // query mux with Postgres-backed package, CI/CD, supply-chain attachment,
 // advisory evidence, work-item evidence, impact finding, impact explanation
-// read models, optional redacted semantic provider profile status, and the
-// shared runtime admin mux, and dispatches MCP tool calls through mcp.Server. The
-// transport is selected by ESHU_MCP_TRANSPORT (`http` by default, also
+// read models, optional redacted semantic provider profile status, optional
+// semantic extraction source policy, and the shared runtime admin mux, and
+// dispatches MCP tool calls through mcp.Server. The transport is selected by ESHU_MCP_TRANSPORT (`http` by default, also
 // `stdio`); HTTP mode listens on ESHU_MCP_ADDR (default :8080) and exposes
 // `/sse`, `/mcp/message`, `/health`, the mounted `/api/*` routes, and the
 // shared `/healthz`, `/readyz`, `/metrics`, `/admin/status` admin surface.

@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
+	"github.com/eshu-hq/eshu/go/internal/semanticpolicy"
 	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -44,6 +45,14 @@ func wireAPI(
 	if err != nil {
 		return nil, nil, fmt.Errorf("load semantic provider profiles: %w", err)
 	}
+	semanticPolicy, err := semanticpolicy.LoadFromEnv(getenv)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load semantic extraction policy: %w", err)
+	}
+	semanticProviderProfiles = semanticpolicy.ApplyToProviderStatuses(
+		semanticProviderProfiles,
+		semanticPolicy,
+	)
 
 	apiKey, err := internalruntime.ResolveAPIKey(getenv)
 	if err != nil {

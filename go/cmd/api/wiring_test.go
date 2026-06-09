@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/semanticpolicy"
 	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
@@ -69,6 +70,21 @@ func TestWireAPIReturnsInvalidSemanticProviderProfilesBeforeConnectingDatastores
 	}
 	if !strings.Contains(err.Error(), "load semantic provider profiles") {
 		t.Fatalf("wireAPI() error = %q, want semantic provider profile context", err)
+	}
+}
+
+func TestWireAPIReturnsInvalidSemanticPolicyBeforeConnectingDatastores(t *testing.T) {
+	_, _, err := wireAPI(context.Background(), func(key string) string {
+		if key == semanticpolicy.EnvPolicyJSON {
+			return `{"enabled":true,"rules":[]}`
+		}
+		return ""
+	}, nil, nil)
+	if err == nil {
+		t.Fatal("wireAPI() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "load semantic extraction policy") {
+		t.Fatalf("wireAPI() error = %q, want semantic extraction policy context", err)
 	}
 }
 
