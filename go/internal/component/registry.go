@@ -80,6 +80,9 @@ func (r Registry) Install(manifestPath string, verification VerificationResult) 
 	if err != nil {
 		return InstalledComponent{}, err
 	}
+	if err := r.validateInstallFactKindClaims(manifest, state); err != nil {
+		return InstalledComponent{}, err
+	}
 	if existing := state.findVersion(manifest.Metadata.ID, manifest.Metadata.Version); existing != nil &&
 		len(existing.Activations) > 0 &&
 		existing.ManifestDigest != manifestDigest {
@@ -135,6 +138,9 @@ func (r Registry) Enable(componentID string, activation Activation) (Activation,
 	if err != nil {
 		return Activation{}, err
 	}
+	if err := r.validateEnableFactKindClaims(*component, state); err != nil {
+		return Activation{}, err
+	}
 	component.upsertActivation(activation)
 	if err := r.save(state); err != nil {
 		return Activation{}, err
@@ -148,8 +154,11 @@ func (r Registry) PlanEnable(componentID string, activation Activation) (Activat
 	if err != nil {
 		return Activation{}, err
 	}
-	_, activation, err = state.prepareEnable(componentID, activation)
+	component, activation, err := state.prepareEnable(componentID, activation)
 	if err != nil {
+		return Activation{}, err
+	}
+	if err := r.validateEnableFactKindClaims(*component, state); err != nil {
 		return Activation{}, err
 	}
 	return activation, nil

@@ -48,8 +48,8 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
   `RuntimeContract`, `ConsumerContracts`, and `Telemetry` model the component
   manifest contract. `RuntimeContract` declares the supported collector SDK
   protocol and adapter before a host can consider an activation claim-capable.
-  Each `FactFamily` declares supported schema versions and the non-unknown
-  source-confidence values the component emits.
+  Each `FactFamily` declares a namespaced, non-core fact kind, supported schema
+  versions, and the non-unknown source-confidence values the component emits.
 - `LoadManifest(path)` loads and validates a manifest from disk.
 - `Policy` and `VerificationResult` implement local trust checks and expose
   stable failure classes for invalid manifests, incompatible core ranges,
@@ -62,7 +62,8 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
 - `Activation` records the collector instance, execution mode, claim behavior,
   and optional configuration for an enabled package.
 - `Error`, `ErrorCode`, and `ErrorSummary` carry stable operator-facing error
-  classes without embedding private filesystem paths in their messages.
+  classes, including installed fact-kind ownership conflicts, without embedding
+  private filesystem paths in their messages.
 - `RegistryReadbackComponent` reports deterministic states such as
   `installed`, `enabled`, `claim_capable`, `revoked`, `incompatible`, and
   `failed`.
@@ -83,6 +84,11 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
   family. `unknown` remains a storage compatibility fallback, not component
   output.
 - Unknown or unsupported package behavior must remain inert at install time.
+- Optional components cannot claim core-owned fact kinds. Installed component
+  fact-kind ownership must stay unique unless the same component ID installs a
+  schema-compatible version that declares the same schema major set.
+- Install, dry-run enable, and enable all use the same fact-kind ownership
+  comparison so old registry state cannot bypass the manifest gate.
 - Duplicate activations are explicit errors. Operators must disable an existing
   instance before enabling the same instance again.
 - Replacement content is accepted only for inactive package versions. Active
@@ -101,4 +107,5 @@ go test ./internal/component -count=1
 The package has focused tests for manifest validation, trust policy decisions,
 registry install/list/readback/enable/disable/uninstall behavior, inactive
 replacement, active replacement rejection, duplicate activation, classified
-errors, and active uninstall protection.
+errors, fact-kind namespace collisions, version-compatible shared ownership,
+uninstall/reinstall ownership release, and active uninstall protection.

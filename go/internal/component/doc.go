@@ -9,5 +9,7 @@
 // deterministic lifecycle states, and classified errors give CLI and automation
 // callers stable failure codes without exposing private paths. Manifest
 // fact-family metadata declares schema versions and non-unknown
-// source-confidence values before a component can be installed.
+// source-confidence values before a component can be installed; local registry
+// checks reject core-owned fact kinds and report installed component fact-kind
+// ownership collisions before install, dry-run enable, or activation.
 package component

@@ -9,7 +9,10 @@
 // help one caller belong elsewhere. Terraform state fact kind constants and
 // schema-version helpers live here so collectors, storage, and replay code use
 // one accepted contract for state snapshots, resources, outputs, modules,
-// provider bindings, tag observations, and warnings. Package registry fact kind
+// provider bindings, tag observations, and warnings. CoreFactKinds and
+// IsCoreFactKind expose the aggregate core-owned fact-kind registry so optional
+// component validation cannot drift from the facts package's accepted
+// contracts. Package registry fact kind
 // constants and schema-version helpers live here for package, version,
 // dependency, artifact, source-hint, vulnerability-hint, event, hosting, and
 // warning evidence reported by package feeds. OCI registry fact kind constants
