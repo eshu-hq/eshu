@@ -16,7 +16,9 @@ Use this list before a team relies on a Kubernetes deployment.
 
 ## Configuration
 
-- `contentStore.dsn` points at the production Postgres database.
+- `contentStore.secretName` and `contentStore.dsnKey` point at the production
+  Postgres DSN Secret; inline `contentStore.dsn` is not used for hosted
+  production values.
 - `neo4j.uri` points at the chosen Bolt endpoint.
 - `env.ESHU_GRAPH_BACKEND`, `env.DEFAULT_DATABASE`, and `env.NEO4J_DATABASE`
   match the chosen backend.
@@ -24,6 +26,12 @@ Use this list before a team relies on a Kubernetes deployment.
 - Repository sync rules are narrow enough for the intended team.
 - Public API docs stay disabled unless you intentionally enable them in the
   chart environment map.
+- `networkPolicy.egress.mode` is set to `restricted` unless a separate cluster
+  policy system owns outbound controls. Broad egress is documented as a
+  temporary governance risk.
+- Restricted NetworkPolicy values include only the required DNS, datastore,
+  graph, internal-service, collector-provider, semantic-provider, and extension
+  destinations.
 
 ## Workloads and operations
 

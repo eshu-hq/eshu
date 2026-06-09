@@ -61,6 +61,79 @@ service:
 
 networkPolicy:
   enabled: true
+  egress:
+    # broad preserves existing chart compatibility. Hosted governance values
+    # should set this to restricted and fill only the required destinations.
+    mode: broad
+    dns:
+      enabled: true
+      to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    datastores:
+      enabled: true
+      to: []
+      ports:
+        - protocol: TCP
+          port: 5432
+    graph:
+      enabled: true
+      to: []
+      ports:
+        - protocol: TCP
+          port: 7687
+    internalServices:
+      enabled: true
+      to: []
+      ports:
+        - protocol: TCP
+          port: 8080
+    classes:
+      api:
+        enabled: true
+        to: []
+        ports:
+          - protocol: TCP
+            port: 443
+      mcp:
+        enabled: true
+        to: []
+        ports:
+          - protocol: TCP
+            port: 443
+      repoSync:
+        enabled: true
+        to: []
+        ports:
+          - protocol: TCP
+            port: 443
+      collectorProviders:
+        enabled: true
+        to: []
+        ports:
+          - protocol: TCP
+            port: 443
+      semanticProviders:
+        enabled: true
+        to: []
+        ports:
+          - protocol: TCP
+            port: 443
+      extensions:
+        enabled: true
+        to: []
+        ports:
+          - protocol: TCP
+            port: 443
 
 apiAuth:
   secretName: eshu-api-auth

@@ -21,6 +21,7 @@ Current shipped behavior:
 | Source ACLs | Deterministic reads use indexed facts and read models. Semantic and extension policy docs describe required source gates. | Complete source-ACL enforcement across every hosted read. |
 | Semantic providers | No-provider mode is supported. Configured provider profiles are handles plus metadata and still require policy before source egress. | That a configured provider profile is permission to send content. |
 | Extensions | Hosted extension policy is operator guidance. Community extension claim execution is not enabled by the shipped chart or Compose stack yet. | That installed or enabled components can collect in hosted mode. |
+| Network egress | Helm can render restricted NetworkPolicy egress classes for DNS, datastore, graph, internal service, collector providers, semantic providers, and extensions. | That `networkPolicy.egress.mode=broad` is least-privilege proof. |
 | Redaction and retention | Semantic posture docs require redaction policy and metadata-oriented retention for optional provider work. | That all future governance retention and deletion workflows are implemented. |
 | Audit | Existing status, telemetry, semantic queue, budget, and component diagnostics expose bounded classes and counts. | A complete hosted governance audit ledger until the governance issues land. |
 
@@ -128,6 +129,10 @@ Hosted deployments should use Kubernetes Secrets, external secret handles,
 cloud workload identity, or an internal gateway. Do not ask end users to paste a
 provider key into an assistant client, MCP config, issue body, docs page, or PR.
 Operator examples should name only source classes and credential-source classes.
+Pair any provider profile with restricted NetworkPolicy egress for the
+`semanticProviders` class. If provider traffic routes through an internal
+gateway, point the class at that gateway selector rather than enabling broad
+pod egress.
 
 ### Internal Gateway Mode
 
@@ -135,6 +140,9 @@ Use `provider_kind=internal_gateway` when an organization routes provider calls
 through a governed gateway. The gateway still needs source policy, tenant or
 workspace routing, redaction, retention, budget, and audit controls. A gateway
 endpoint in docs should be a generic service URL, not a private hostname.
+Hosted Helm values should express that gateway through
+`networkPolicy.egress.classes.semanticProviders.to` using public-safe label
+selectors in shared examples and concrete selectors in private operator values.
 
 ## Safe Example Shapes
 
@@ -258,6 +266,7 @@ Use these gates for hosted governance-related changes:
 | --- | --- |
 | Public docs or navigation | Strict MkDocs build and `git diff --check`. |
 | Hosted API/MCP auth, Secret refs, pprof, or docs exposure posture | `scripts/test-verify-hosted-security-posture.sh`, `scripts/verify-hosted-security-posture.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml`. |
+| Hosted NetworkPolicy egress posture | `scripts/test-verify-hosted-network-policy-egress.sh`, `scripts/verify-hosted-network-policy-egress.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml`. |
 | Hosted onboarding or setup CLI | `go test ./cmd/eshu -count=1`. |
 | API/MCP status surfaces | `go test ./internal/query ./internal/mcp ./cmd/api -count=1`. |
 | Semantic extraction status or queue readbacks | `go test ./internal/semanticqueue ./internal/storage/postgres ./internal/status ./internal/query ./internal/telemetry -count=1`. |

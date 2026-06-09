@@ -1,0 +1,15 @@
+Eshu chart {{ .Chart.Version }} rendered for release {{ .Release.Name }}.
+
+NetworkPolicy:
+{{- if .Values.networkPolicy.enabled }}
+  enabled: true
+  egress mode: {{ .Values.networkPolicy.egress.mode | default "broad" }}
+  {{- if eq (.Values.networkPolicy.egress.mode | default "broad") "broad" }}
+  governance risk: broad egress allows enabled Eshu workloads to open outbound connections without chart-level destination proof. Hosted deployments should set networkPolicy.egress.mode=restricted and configure only required DNS, datastore, graph, internal service, collector provider, semantic provider, and extension destinations.
+  {{- else }}
+  restricted egress: rendered policies deny unrestricted outbound traffic and use configured destination classes.
+  {{- end }}
+{{- else }}
+  enabled: false
+  governance risk: no chart-rendered NetworkPolicy controls pod traffic.
+{{- end }}

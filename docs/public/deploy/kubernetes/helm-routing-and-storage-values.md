@@ -68,6 +68,56 @@ paths internal unless a protected operator layer owns exposure.
 workloads and schema bootstrap. Leave it on unless another cluster policy
 system owns all pod traffic.
 
+`networkPolicy.egress.mode=broad` is the compatibility default and renders
+unrestricted outbound egress. It is explicit because hosted operators should
+treat it as a governance risk, not as least-privilege proof. Set
+`networkPolicy.egress.mode=restricted` for hosted deployments that enforce
+Kubernetes NetworkPolicy.
+
+Restricted egress always renders DNS rules unless `networkPolicy.egress.dns` is
+disabled, and it adds only the configured datastore, graph, internal-service,
+API, MCP, collector-provider, semantic-provider, and extension destinations.
+Policies are additive in Kubernetes: do not combine restricted values with
+another policy that grants unrestricted egress to the same pods.
+
+Example restricted shape:
+
+```yaml
+networkPolicy:
+  enabled: true
+  egress:
+    mode: restricted
+    datastores:
+      to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: postgres
+    graph:
+      to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: nornicdb
+    classes:
+      collectorProviders:
+        to:
+          - namespaceSelector:
+              matchLabels:
+                egress.eshu.io/class: collector-provider
+      semanticProviders:
+        to:
+          - namespaceSelector:
+              matchLabels:
+                egress.eshu.io/class: semantic-provider
+      extensions:
+        to:
+          - namespaceSelector:
+              matchLabels:
+                egress.eshu.io/class: extension
+```
+
+The example uses label selectors only. Keep concrete provider, gateway, and
+database destination details in private operator values.
+
 OpenTelemetry defaults to disabled with OTLP/gRPC settings available under
 `observability.otel`. Prometheus defaults to disabled at `0.0.0.0:9464` with
 scrape path `/metrics`. `ServiceMonitor` resources render only when both
