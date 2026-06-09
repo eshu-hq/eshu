@@ -29,6 +29,15 @@ governance status, egress gates, redaction proof, audit events, retention, and
 end-to-end hosted governance proof. Until those land, use this page as an
 operator checklist, not as a promise of multi-tenant isolation.
 
+The shared governance policy model is a design gate, not runtime enforcement
+yet. It keeps current local/no-policy behavior, hosted single-tenant shared
+service behavior, and future multi-tenant policy revisions separate so later
+implementation work does not blur source-fact truth, authorization, provider
+egress, extension activation, retention, audit, and redacted status ownership.
+Until the implementation issues land, any missing, invalid, stale, or partial
+governance policy must disable optional governed work instead of widening
+access or implying tenant isolation.
+
 ## Preflight Before Onboarding
 
 Run governance preflight before handing a team an onboarding artifact.
