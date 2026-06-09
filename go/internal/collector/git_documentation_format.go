@@ -10,6 +10,7 @@ import (
 
 const (
 	documentationMaxBodyBytes    = 512 * 1024
+	notebookMaxBodyBytes         = 8 * 1024 * 1024
 	documentationMaxSectionChars = 16 * 1024
 )
 
@@ -31,6 +32,8 @@ func extractGitDocumentation(
 		return extractMarkdownDocumentationWithFormat(repo, relativePath, digest, commitSHA, body, format.format)
 	case "html":
 		return extractHTMLDocumentation(repo, relativePath, digest, commitSHA, body)
+	case "notebook":
+		return extractNotebookDocumentation(repo, relativePath, digest, commitSHA, body)
 	default:
 		return extractTextDocumentation(repo, relativePath, digest, commitSHA, body, format.format)
 	}
@@ -53,6 +56,8 @@ func gitDocumentationFormatForPath(relativePath string) (gitDocumentationFormat,
 		return gitDocumentationFormat{format: "asciidoc", language: "asciidoc"}, true
 	case ".html", ".htm":
 		return gitDocumentationFormat{format: "html", language: "html"}, true
+	case ".ipynb":
+		return gitDocumentationFormat{format: "notebook", language: "python"}, true
 	default:
 		return gitDocumentationFormat{}, false
 	}
@@ -89,9 +94,17 @@ func filepathToSourceURI(filePath string) string {
 }
 
 func boundedDocumentationBody(body []byte) (string, []string) {
+	return boundedDocumentationBodyBytes(body, documentationMaxBodyBytes)
+}
+
+func boundedNotebookBody(body []byte) (string, []string) {
+	return boundedDocumentationBodyBytes(body, notebookMaxBodyBytes)
+}
+
+func boundedDocumentationBodyBytes(body []byte, maxBytes int) (string, []string) {
 	warnings := []string{}
-	if len(body) > documentationMaxBodyBytes {
-		body = body[:documentationMaxBodyBytes]
+	if len(body) > maxBytes {
+		body = body[:maxBytes]
 		warnings = append(warnings, "body_truncated")
 	}
 	text := strings.ToValidUTF8(string(body), "")
