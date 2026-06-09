@@ -23,7 +23,11 @@
 // security-group-rule, derived IAM permission, and warning evidence reported by
 // AWS service APIs. The security-group-rule kind is a derived posture fact: one
 // normalized ingress/egress rule the reducer projects into network-reachability
-// edges. The S3 bucket posture fact kind constant and schema-version helpers
+// edges. Azure cloud fact kind constants and schema-version helpers live here
+// for resource, relationship, tag, identity, resource-change, DNS,
+// image-reference, and collection-warning evidence observed through Azure
+// Resource Graph and bounded ARM fallback reads; the first slice emits the
+// resource and collection-warning kinds. The S3 bucket posture fact kind constant and schema-version helpers
 // live here for the derived, metadata-only per-bucket security posture and
 // bounded external-principal grant evidence. S3 posture covers
 // block-public-access, default-encryption detail, versioning and MFA-delete,
