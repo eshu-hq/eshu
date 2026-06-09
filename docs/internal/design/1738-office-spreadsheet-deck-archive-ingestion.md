@@ -260,6 +260,9 @@ cardinality requires it. Accepted classes:
 - `sensitive_value_redacted`
 - `annotation_text_skipped`
 - `hidden_content_skipped`
+- `external_relationship`
+- `active_content_present`
+- `embedded_object_present`
 - `acl_unknown`
 - `partial_extraction`
 
