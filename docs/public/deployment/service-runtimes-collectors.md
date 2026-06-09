@@ -9,6 +9,13 @@ This page covers the collector runtimes that feed Eshu's fact store. Use
 Hosted collectors emit facts through the shared ingestion boundary. They do not
 write graph truth directly. Graph-visible state appears only after the
 resolution engine projects queued work into the configured graph backend.
+Community extensions follow the same facts-first boundary, but hosted
+claim-capable execution also needs the
+[Hosted Extension Operator Policy](../operate/hosted-extension-policy.md):
+install, enable, and claim-capable are separate decisions; revocation stops new
+work; credentials are references only; and isolation, egress, resources, and
+security review must be approved before the workflow coordinator can schedule
+extension claims.
 
 The public Helm chart supports two collector styles:
 

@@ -79,6 +79,7 @@ nav:
     - Tuning Playbook: operate/tuning-playbook.md
     - Troubleshooting: operate/troubleshooting.md
     - Hosted Project Onboarding: deployment/hosted-onboarding.md
+    - Hosted Extension Policy: operate/hosted-extension-policy.md
     - Service Runtimes:
       - Overview: deployment/service-runtimes.md
       - Core Services: deployment/service-runtimes-core.md
