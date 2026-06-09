@@ -27,7 +27,7 @@ func terraformImportPlanTool() ToolDefinition {
 func composeReplatformingPlanTool() ToolDefinition {
 	return ToolDefinition{
 		Name:        "compose_replatforming_plan",
-		Description: "Compose one bounded, truth-labeled replatforming plan for a service or account scope from active AWS IaC management findings, with per-item source state, safety gate, owner candidates, and ready or refused Terraform import candidates. Read-only: never runs Terraform, imports resources, or mutates cloud state. Provide scope_kind plus scope_id or account_id.",
+		Description: "Compose one bounded, truth-labeled replatforming plan for a service or account scope from active AWS IaC management findings, with per-item source state, safety gate, owner candidates, and ready or refused Terraform import candidates. Items are ordered into deterministic migration waves (early-safe, review, then blocked last) and blast-radius groups from dependency and missing-evidence signals the findings already carry. Read-only: never runs Terraform, imports resources, or mutates cloud state. Provide scope_kind plus scope_id or account_id.",
 		InputSchema: composeReplatformingPlanSchema(),
 	}
 }

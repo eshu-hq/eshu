@@ -119,6 +119,8 @@ func (h *IaCHandler) handleReplatformingPlan(w http.ResponseWriter, r *http.Requ
 		"items_count":            len(plan.Items),
 		"ready_import_count":     replatformingReadyImportCount(plan),
 		"refused_import_count":   replatformingRefusedImportCount(plan),
+		"wave_summaries":         replatformingPlanWaveSummaries(plan),
+		"blast_radius_summaries": replatformingPlanBlastRadiusSummaries(plan),
 		"total_findings_count":   totalFindings,
 		"limit":                  filter.Limit,
 		"offset":                 filter.Offset,
@@ -225,12 +227,13 @@ func replatformingPlanNextCalls(filter IaCManagementFilter, nextOffset *int) []m
 
 func replatformingPlanStory(scope ReplatformingPlanScope, plan ReplatformingPlan, total int) string {
 	return fmt.Sprintf(
-		"Replatforming plan for %s scope inspected %d active IaC management findings and composed %d migration packet items (%d ready import candidates, %d refused).",
+		"Replatforming plan for %s scope inspected %d active IaC management findings and composed %d migration packet items (%d ready import candidates, %d refused).%s",
 		scope.Kind,
 		total,
 		len(plan.Items),
 		replatformingReadyImportCount(plan),
 		replatformingRefusedImportCount(plan),
+		replatformingWavesStorySuffix(plan),
 	)
 }
 
