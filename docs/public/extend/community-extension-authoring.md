@@ -1,0 +1,264 @@
+# Community Extension Authoring
+
+Use this page when a community contributor wants to build an optional Eshu
+extension, and when a maintainer needs to review the extension before it is
+trusted in a local or hosted runtime.
+
+The short rule is unchanged: extensions may observe source truth and emit
+versioned facts. Reducers, projectors, graph writers, query handlers, and answer
+packet builders own canonical Eshu truth.
+
+## Choose The Boundary First
+
+Pick one extension boundary before writing code or docs.
+
+| Boundary | Extension may do | Extension must not do | Start with |
+| --- | --- | --- | --- |
+| Collector component | Observe an external source or repository artifact, normalize source records, and emit durable facts with source confidence. | Write canonical graph rows, apply store DDL, shape final answer prose, or claim truth across sources. | [Collector Authoring](../guides/collector-authoring.md) |
+| Parser or language support | Add parser registry metadata, parser implementation, fixtures, and query proof for a language surface. | Document parse-only behavior as supported, or promote unsupported graph behavior. | [Language Support](../contributing-language-support.md) |
+| Relationship mapping | Emit explainable relationship evidence and let resolver/reducer stages admit canonical relationships. | Lower confidence thresholds, inflate weak evidence, or write graph edges directly from extraction code. | [Relationship Mapping](../reference/relationship-mapping.md) |
+| Semantic enrichment | Preserve optional semantic observations or code hints with provider, policy, redaction, and admission provenance. | Send provider traffic without source policy, store raw prompts or keys, or treat model output as graph truth. | [Semantic Enrichment Posture](../reference/semantic-enrichment-posture.md) |
+| Answer enrichment | Build a prompt-facing view over an existing canonical response envelope. | Invent new truth, hide unsupported capability errors, or attach confident prose when evidence is missing. | [Answer Packet Contract](../reference/answer-packets.md) |
+
+If the boundary is unclear, stop and settle ownership before implementation.
+Wrong graph or answer truth is a product failure, even when the extension is
+optional.
+
+## Quickstart
+
+There is no public `eshu component scaffold` command documented today. Start by
+creating a small package directory and making the contracts explicit.
+
+1. Create a working directory with:
+   - `manifest.yaml` for the component package.
+   - `README.md` explaining source scope, fact kinds, privacy posture, and
+     local verification.
+   - sample configuration with placeholder values only.
+   - fixtures that prove positive, negative, empty, retry, duplicate, and stale
+     source states.
+   - focused tests for the owned boundary.
+2. Decide the source scope and generation identity. A collector scope might be a
+   repository, account, region, cluster, registry target, dataset, or provider
+   tenant slice. The generation must let consumers distinguish current evidence
+   from stale rows.
+3. Define every emitted fact before projection:
+   - `fact_kind`
+   - `schema_version`
+   - `collector_kind`
+   - `source_confidence`
+   - stable fact key
+   - redacted payload shape
+   - downstream reducer, projector, or query consumer contract
+4. Write the manifest. The first component manifest API is
+   `eshu.dev/v1alpha1`, `kind: ComponentPackage`, and
+   `spec.componentType: collector`. Required fields and local trust behavior are
+   defined in [Component Package Manager](../reference/component-package-manager.md).
+5. Verify the manifest locally:
+
+```bash
+eshu component inspect ./manifest.yaml
+eshu component verify ./manifest.yaml \
+  --trust-mode allowlist \
+  --allow-id dev.example.collector.demo \
+  --allow-publisher example
+```
+
+6. If the manifest passes, exercise local package-manager state:
+
+```bash
+eshu component install ./manifest.yaml \
+  --component-home ./.eshu-components \
+  --trust-mode allowlist \
+  --allow-id dev.example.collector.demo \
+  --allow-publisher example
+
+eshu component enable dev.example.collector.demo \
+  --component-home ./.eshu-components \
+  --instance demo-local \
+  --mode scheduled \
+  --claims \
+  --config ./config.local.yaml
+
+eshu component list --component-home ./.eshu-components
+```
+
+Local install and enable prove local registry, activation, and local claim state
+only. They do not prove hosted readiness, provenance verification, reducer
+admission, graph truth, or query truth.
+
+7. Run the smallest verification gate that proves the touched boundary:
+
+| Change | Minimum proof |
+| --- | --- |
+| Docs or navigation only | Strict MkDocs build and `git diff --check`. |
+| Collector family or hosted collector runtime | Collector authoring gate plus focused collector, fact, reducer, and runtime tests for the changed surface. |
+| Parser or language support | Parser tests, integration or query proof, affected language docs, and docs build. |
+| Relationship mapping | Extractor/evidence tests, reducer/materialization tests, and query or story proof. |
+| Runtime performance or hosted activation | Before/after or no-regression evidence plus observable metrics, traces, logs, or status fields. |
+
+Use [Local Testing](../reference/local-testing.md) as the gate map.
+
+## Manifest And Fact Contract
+
+Community components must be explicit enough for automated review.
+
+| Contract | Requirement |
+| --- | --- |
+| Identity | `metadata.id`, `metadata.publisher`, and `metadata.version` are stable, lowercase, and allowlistable. |
+| Compatibility | `spec.compatibleCore` names the supported Eshu core range. Release builds enforce it; local `dev` builds still parse it. |
+| Artifacts | Every artifact image is digest-pinned with a full SHA256 digest. Mutable tags are not acceptable. |
+| Fact schemas | `spec.emittedFacts[]` declares fact kinds, schema versions, and source-confidence values. |
+| Namespacing | Optional components use collision-resistant fact kinds. Core Eshu fact kinds remain core-owned. |
+| Source confidence | New output uses `observed`, `reported`, `inferred`, or `derived`. `unknown` is compatibility debt, not normal component output. |
+| Consumer contract | `spec.consumerContracts.reducer.phases` or equivalent structured metadata declares which reducer or query consumer can interpret the fact. |
+| Telemetry | `spec.telemetry.metricsPrefix` names component-owned metrics when the component emits metrics. |
+
+If a fact has no consumer, it can be stored as provenance, but it must not appear
+as active platform truth. See [Fact Schema Versioning](../reference/fact-schema-versioning.md)
+and [Fact Envelope Reference](../reference/fact-envelope-reference.md).
+Trust policy and failure behavior live in
+[Plugin Trust Model](../reference/plugin-trust-model.md).
+
+## Local Experimentation Versus Hosted Activation
+
+Local experimentation is allowed to be narrow and explicit:
+
+- use `--component-home` or `ESHU_COMPONENT_HOME` so test state stays isolated
+- use `allowlist` mode with the exact component ID and publisher under review
+- keep credentials in local ignored files or environment variables
+- record whether verification covered manifest shape, fact emission, reducer
+  admission, graph truth, query truth, or only local package-manager state
+
+Hosted activation is a separate maintainer and operator decision:
+
+- installing a component is not activating it
+- enabling a component is not enough to make it claim-capable in the hosted
+  workflow coordinator
+- strict trust currently fails closed until provenance verification is wired
+- hosted collectors need bounded scopes, read-only permissions, secret handles,
+  resource limits, `/healthz`, `/readyz`, `/metrics`, `/admin/status`, and
+  queue or retry visibility
+- Helm or Compose defaults must not enable a new hosted extension without
+  runtime proof and an explicit operator opt-in
+- the deployed shared bearer token is not a per-team or per-repository
+  isolation boundary
+
+Treat hosted activation as production data-plane work. It needs trust, privacy,
+performance, and observability evidence in addition to local manifest success.
+
+## Maintainer Review Checklist
+
+Use this checklist when triaging an extension PR.
+
+### Scope And Ownership
+
+- The PR names exactly one primary boundary: collector, parser, relationship,
+  semantic enrichment, or answer enrichment.
+- Source truth, scope identity, generation identity, emitted facts, confidence,
+  failure model, and operations signals are written down.
+- Collector code emits facts only. Graph writes, reducer admission, query
+  shaping, and answer prose remain in their owning packages.
+- Any new parser claim is backed by registry metadata, implementation, tests,
+  language docs, and query proof before it is called supported.
+- Any relationship change preserves evidence, resolution, graph materialization,
+  and query/story agreement.
+
+### Trust And Hosted Safety
+
+- The manifest uses `eshu.dev/v1alpha1`, `ComponentPackage`, and
+  `componentType: collector`.
+- Artifact references are digest-pinned and do not use mutable tags.
+- Local verification uses `disabled` or `allowlist` deliberately. `strict`
+  failures are expected until provenance verification is implemented.
+- Revocation behavior is documented for component ID and publisher.
+- Hosted activation is opt-in and does not imply OCI pull or Sigstore/Cosign
+  verification unless the implementation actually wires those checks.
+- Any hosted collector has read-only credentials, bounded targets, retry and
+  dead-letter behavior, resource limits, and operator status surfaces.
+
+### Privacy And Source Safety
+
+- Examples contain no raw provider keys, bearer tokens, cloud access keys,
+  tenant IDs, private hostnames, private repository names, private paths, or
+  source payloads.
+- Credentials are referenced by environment variable, Kubernetes Secret,
+  Vault-like handle, workload identity, or local profile name, never by value.
+- Payloads redact source values before fact emission. Logs, metrics, and status
+  fields use bounded labels and fingerprints instead of high-cardinality or
+  sensitive source data.
+- Semantic enrichment keeps source policy, redaction, retention, provider
+  profile, prompt version, and admission state separate from graph truth.
+
+### Schema And Consumer Compatibility
+
+- Every emitted fact has a stable key, schema version, collector kind, source
+  confidence, scope, generation, observed time, and redacted source reference.
+- New fact kinds are namespaced unless they are accepted into core Eshu.
+- Unsupported major versions fail clearly. New minor fields are not treated as
+  authoritative until the runtime declares support.
+- Existing stored facts have a migration or reindex plan when semantics change.
+- A reducer, projector, query, or explicit provenance-only contract exists
+  before any fact is presented as active platform truth.
+
+### Tests And Verification
+
+- Bug fixes or behavior changes have failing regression coverage before the
+  implementation.
+- Tests cover positive, negative, empty, stale, duplicate, retry, partial
+  failure, and ambiguous cases that fit the boundary.
+- Collector or hosted runtime changes include idempotency, retry, claim/fencing,
+  ordering, dead-letter, and rollback proof where applicable.
+- Relationship changes include extractor/evidence tests, reducer/materializer
+  proof, and query/story truth proof.
+- Parser changes include parser fixtures, integration or query coverage, and
+  updated language pages or matrices.
+- Docs, navigation, and README changes pass strict MkDocs and `git diff --check`.
+
+### Performance And Observability
+
+- Runtime-affecting changes include before/after or no-regression evidence for
+  the same input shape.
+- Metrics, traces, logs, status, or pprof output let an operator identify the
+  source scope, generation, failure class, queue state, and slow stage.
+- New metrics use bounded labels. Source IDs, file paths, resource names,
+  package names, provider URLs, and credentials do not become metric labels.
+- Any `No-Observability-Change:` claim names existing signals that diagnose the
+  path.
+
+### Documentation
+
+- Public docs explain local use, hosted limits, trust mode, fact schemas,
+  telemetry, privacy posture, and verification gates.
+- Contract changes link to the relevant reference pages rather than duplicating
+  stale copies.
+- Docs avoid promising capabilities that are not implemented, including public
+  scaffolding commands, OCI pull, Sigstore/Cosign verification, hosted default
+  enablement, or tenant-scoped hosted tokens.
+
+## Troubleshooting
+
+| Symptom | Likely cause | What to check |
+| --- | --- | --- |
+| `component inspect` rejects the manifest | Wrong `apiVersion`, `kind`, missing metadata, unsupported component type, malformed semantic version, or mutable artifact tag. | Compare the manifest with [Component Package Manager](../reference/component-package-manager.md). |
+| `component verify` rejects in allowlist mode | Component ID or publisher does not exactly match the allowlist, or revocation blocks it. | Re-run with the exact `--allow-id` and `--allow-publisher` under review. |
+| Strict trust mode fails | Provenance verification is not wired in the first component-manager slice. | Treat this as expected fail-closed behavior, not proof that provenance passed. |
+| Facts ingest but graph answers do not change | The fact is provenance-only, unsupported by the reducer/query consumer, stale by generation, or below relationship confidence. | Check the consumer contract, reducer/materializer proof, and query/story proof. |
+| A new relationship is missing | Evidence did not resolve, confidence stayed below threshold, aliases were missing, or reducer materialization has not completed. | Follow [Relationship Mapping Observability](../reference/relationship-mapping-observability.md). |
+| Semantic observations are absent | No provider profile, no matching source policy, disabled source class, exhausted budget, or redaction/policy denial. | Use [Semantic Enrichment Posture](../reference/semantic-enrichment-posture.md) status checks. |
+| Answer enrichment returns unsupported or partial | The underlying envelope is unsupported, stale, truncated, missing evidence, or running under a profile that cannot answer authoritatively. | Read [Reading Eshu Answers](../reference/reading-answers.md). |
+| Hosted collector pod is healthy but no central status appears | The runtime is not registered, not claim-capable, not emitting durable status, or only visible through pod-local endpoints. | Check [Collector Runtime Services](../deployment/service-runtimes-collectors.md). |
+| Docs build fails after adding the page | Missing MkDocs nav entry, broken relative link, duplicate anchor, or invalid Markdown extension syntax. | Run the strict MkDocs command from [Local Testing](../reference/local-testing.md). |
+
+## Related Docs
+
+- [Component Package Manager](../reference/component-package-manager.md)
+- [Plugin Trust Model](../reference/plugin-trust-model.md)
+- [Fact Schema Versioning](../reference/fact-schema-versioning.md)
+- [Fact Envelope Reference](../reference/fact-envelope-reference.md)
+- [Collector Authoring](../guides/collector-authoring.md)
+- [Language Support](../contributing-language-support.md)
+- [Relationship Mapping](../reference/relationship-mapping.md)
+- [Semantic Enrichment Posture](../reference/semantic-enrichment-posture.md)
+- [Answer Packet Contract](../reference/answer-packets.md)
+- [Telemetry Overview](../reference/telemetry/index.md)
+- [Local Testing](../reference/local-testing.md)

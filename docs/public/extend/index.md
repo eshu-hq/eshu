@@ -10,6 +10,7 @@ Reducers and graph writers own canonical graph truth.
 
 | Need | Start here |
 | --- | --- |
+| Author or review a community extension | [Community Extension Authoring](community-extension-authoring.md) |
 | Understand package ownership | [Source Layout](../reference/source-layout.md) |
 | Author a collector | [Collector Authoring](../guides/collector-authoring.md) |
 | Design GCP or Azure runtime collection | [Multi-Cloud Runtime Collector Contract](../reference/multi-cloud-collector-contract.md) |
