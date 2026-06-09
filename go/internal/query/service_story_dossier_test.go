@@ -191,6 +191,14 @@ func TestGetServiceStoryReturnsEnvelopeDataWhenRequested(t *testing.T) {
 	if envelope.Truth == nil || envelope.Truth.Capability != "platform_impact.context_overview" {
 		t.Fatalf("truth = %#v, want platform impact context truth", envelope.Truth)
 	}
+	data, ok := envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope data type = %T, want map", envelope.Data)
+	}
+	packet := requireAnswerPacketCompanion(t, data, "service.story")
+	if got, want := packet["primary_tool"], "get_service_story"; got != want {
+		t.Fatalf("answer_packet.primary_tool = %#v, want %#v", got, want)
+	}
 }
 
 func TestGetServiceStoryReturnsEnvelopeErrorWhenServiceMissing(t *testing.T) {

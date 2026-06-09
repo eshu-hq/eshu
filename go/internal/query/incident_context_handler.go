@@ -94,12 +94,14 @@ func (h *IncidentHandler) getIncidentContext(w http.ResponseWriter, r *http.Requ
 	}
 	snapshot = trimIncidentContextSnapshot(snapshot, limit)
 	snapshot.Query.Limit = limit
-	WriteSuccess(w, r, http.StatusOK, BuildIncidentContextResponse(snapshot), BuildTruthEnvelope(
+	response := BuildIncidentContextResponse(snapshot)
+	truth := BuildTruthEnvelope(
 		h.profile(),
 		incidentContextCapability,
 		TruthBasisSemanticFacts,
 		"resolved from active incident source facts and explicit missing evidence slots; provider APIs are not called from the query path",
-	))
+	)
+	WriteSuccess(w, r, http.StatusOK, incidentContextAnswerData(incidentID, response, truth), truth)
 }
 
 func (h *IncidentHandler) writeIncidentContextError(

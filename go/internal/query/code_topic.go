@@ -110,12 +110,13 @@ func (h *CodeHandler) handleTopicInvestigation(w http.ResponseWriter, r *http.Re
 		results = results[:req.Limit]
 	}
 	data := codeTopicResponse(req, results, truncated)
+	truth := BuildTruthEnvelope(h.profile(), codeTopicCapability, TruthBasisContentIndex, "resolved from bounded content-index topic investigation")
 	WriteSuccess(
 		w,
 		r,
 		http.StatusOK,
-		data,
-		BuildTruthEnvelope(h.profile(), codeTopicCapability, TruthBasisContentIndex, "resolved from bounded content-index topic investigation"),
+		codeTopicAnswerData(req, data, truth),
+		truth,
 	)
 }
 

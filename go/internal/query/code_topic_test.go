@@ -124,6 +124,16 @@ func TestHandleCodeTopicInvestigationReturnsRankedEvidenceAndHandles(t *testing.
 	if got, want := coverage["query_shape"], "content_topic_investigation"; got != want {
 		t.Fatalf("coverage.query_shape = %#v, want %#v", got, want)
 	}
+	packet := requireAnswerPacketCompanion(t, data, "code.topic")
+	if got, want := packet["primary_tool"], "investigate_code_topic"; got != want {
+		t.Fatalf("answer_packet.primary_tool = %#v, want %#v", got, want)
+	}
+	if got, want := packet["partial"], true; got != want {
+		t.Fatalf("answer_packet.partial = %#v, want truncated packet to be partial", got)
+	}
+	if calls, ok := packet["recommended_next_calls"].([]any); !ok || len(calls) == 0 {
+		t.Fatalf("answer_packet.recommended_next_calls = %#v, want next calls", packet["recommended_next_calls"])
+	}
 }
 
 func TestHandleCodeTopicInvestigationExplainsEmptyCoverage(t *testing.T) {
@@ -160,6 +170,16 @@ func TestHandleCodeTopicInvestigationExplainsEmptyCoverage(t *testing.T) {
 	recommendations, ok := data["recommended_next_calls"].([]any)
 	if !ok || len(recommendations) == 0 {
 		t.Fatalf("recommended_next_calls = %#v, want fallback next calls", data["recommended_next_calls"])
+	}
+	packet := requireAnswerPacketCompanion(t, data, "code.topic")
+	if got, want := packet["supported"], true; got != want {
+		t.Fatalf("answer_packet.supported = %#v, want %#v", got, want)
+	}
+	if got, want := packet["partial"], true; got != want {
+		t.Fatalf("answer_packet.partial = %#v, want no-evidence packet to be partial", got)
+	}
+	if summary, ok := packet["summary"].(string); ok && summary != "" {
+		t.Fatalf("answer_packet.summary = %q, want no confident summary without evidence", summary)
 	}
 }
 
