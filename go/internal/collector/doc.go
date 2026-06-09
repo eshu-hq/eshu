@@ -12,8 +12,9 @@
 // fencing, and batch-drain hooks explicitly. Raw Terraform-state bytes do not
 // enter normal repository snapshots; only metadata-only state candidates are
 // emitted for the Terraform-state collector path to approve and read.
-// Repository-hosted Markdown files become source-neutral documentation facts
-// and non-authoritative document-evidence claim candidates only. Declared
+// Repository-hosted Markdown, lightweight text, and HTML documentation files
+// become source-neutral documentation facts and non-authoritative
+// document-evidence claim candidates only. Declared
 // Grafana, Prometheus/Mimir, Loki, and Tempo observability rows plus applied
 // Argo CD/Kubernetes observability state rows from repository parsers become
 // metadata-only observability source facts; reducers and query surfaces own any

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -14,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
-const gitDocumentationSourceType = "repository_markdown"
+const gitDocumentationSourceType = "repository_documentation"
 
 func gitDocumentationFactCount(
 	repoPath string,
@@ -28,6 +29,9 @@ func gitDocumentationFactCount(
 	sourceEmitted := false
 	if len(snapshot.ContentFileMetas) > 0 {
 		for _, meta := range snapshot.ContentFileMetas {
+			if _, _, ok := gitDocumentationSourceURIAndFormat(meta.RelativePath); !ok {
+				continue
+			}
 			body, ok := readDocumentationBody(repoPath, meta.RelativePath, nil)
 			if !ok {
 				continue
@@ -47,19 +51,42 @@ func gitDocumentationFactCount(
 			total += len(envelopes)
 			sourceEmitted = sourceEmitted || emitted
 		}
-		return total
+	} else {
+		for _, fileSnapshot := range snapshot.ContentFiles {
+			envelopes, emitted := gitDocumentationEnvelopesForContentFile(
+				repoPath,
+				repo,
+				scopeID,
+				generationID,
+				observedAt,
+				fileSnapshot.RelativePath,
+				fileSnapshot.Digest,
+				fileSnapshot.CommitSHA,
+				[]byte(fileSnapshot.Body),
+				!sourceEmitted,
+			)
+			total += len(envelopes)
+			sourceEmitted = sourceEmitted || emitted
+		}
 	}
-	for _, fileSnapshot := range snapshot.ContentFiles {
+	for _, meta := range snapshot.DocumentationFileMetas {
+		if _, _, ok := gitDocumentationSourceURIAndFormat(meta.RelativePath); !ok {
+			continue
+		}
+		body, ok := readDocumentationBody(repoPath, meta.RelativePath, nil)
+		if !ok {
+			continue
+		}
 		envelopes, emitted := gitDocumentationEnvelopesForContentFile(
 			repoPath,
 			repo,
 			scopeID,
 			generationID,
 			observedAt,
-			fileSnapshot.RelativePath,
-			fileSnapshot.Digest,
-			fileSnapshot.CommitSHA,
-			[]byte(fileSnapshot.Body),
+			meta.RelativePath,
+			meta.Digest,
+			meta.CommitSHA,
+			body,
 			!sourceEmitted,
 		)
 		total += len(envelopes)
@@ -111,11 +138,11 @@ func gitDocumentationEnvelopesForContentFile(
 	body []byte,
 	emitSource bool,
 ) ([]facts.Envelope, bool) {
-	sourceURI, ok := documentationSourceURI(relativePath)
-	if !ok || !isMarkdownDocumentationPath(sourceURI) {
+	sourceURI, format, ok := gitDocumentationSourceURIAndFormat(relativePath)
+	if !ok {
 		return nil, false
 	}
-	document, sections, links := extractMarkdownDocumentation(repo, sourceURI, digest, commitSHA, body)
+	document, sections, links := extractGitDocumentation(repo, sourceURI, digest, commitSHA, body, format)
 	out := make([]facts.Envelope, 0, 1+1+len(sections)+len(links))
 	if emitSource {
 		sourcePayload := facts.DocumentationSourcePayload{
@@ -207,24 +234,31 @@ func readDocumentationBody(repoPath string, relativePath string, body []byte) ([
 	if !ok {
 		return nil, false
 	}
-	raw, err := os.ReadFile(filepath.Join(repoPath, filepath.FromSlash(sourceURI)))
+	file, err := os.Open(filepath.Join(repoPath, filepath.FromSlash(sourceURI)))
+	if err != nil {
+		return nil, false
+	}
+	defer func() { _ = file.Close() }()
+	raw, err := io.ReadAll(io.LimitReader(file, int64(documentationMaxBodyBytes+1)))
 	if err != nil {
 		return nil, false
 	}
 	return raw, true
 }
 
-func extractMarkdownDocumentation(
+func extractMarkdownDocumentationWithFormat(
 	repo repositoryidentity.Metadata,
 	relativePath string,
 	digest string,
 	commitSHA string,
 	body []byte,
+	format string,
 ) (facts.DocumentationDocumentPayload, []facts.DocumentationSectionPayload, []facts.DocumentationLinkPayload) {
 	revisionID := firstNonEmptyString(commitSHA, digest, "unknown")
 	documentID := gitDocumentationDocumentID(repo.ID, relativePath)
-	lines := markdownContentLines(string(body))
-	sections := markdownSections(documentID, revisionID, relativePath, lines)
+	bodyText, warnings := boundedDocumentationBody(body)
+	lines := markdownContentLines(bodyText)
+	sections := markdownSections(documentID, revisionID, relativePath, lines, format)
 	title := documentationTitle(relativePath, sections)
 	document := facts.DocumentationDocumentPayload{
 		SourceID:     gitDocumentationSourceID(repo.ID),
@@ -233,10 +267,10 @@ func extractMarkdownDocumentation(
 		RevisionID:   revisionID,
 		CanonicalURI: gitDocumentationCanonicalURI(repo, relativePath, commitSHA),
 		Title:        title,
-		DocumentType: markdownDocumentType(relativePath),
-		Format:       "markdown",
+		DocumentType: documentationDocumentType(relativePath, format),
+		Format:       format,
 		Language:     "en",
-		ContentHash:  firstNonEmptyString(digest, documentationHashText(string(body))),
+		ContentHash:  firstNonEmptyString(digest, documentationHashText(bodyText)),
 		SourceMetadata: map[string]string{
 			"path":    relativePath,
 			"repo_id": repo.ID,
@@ -245,6 +279,7 @@ func extractMarkdownDocumentation(
 	if commitSHA != "" {
 		document.SourceMetadata["source_revision"] = commitSHA
 	}
+	addDocumentationWarnings(document.SourceMetadata, warnings...)
 	links := markdownLinks(relativePath, sections)
 	return document, sections, links
 }

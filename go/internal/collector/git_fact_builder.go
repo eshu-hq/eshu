@@ -210,6 +210,30 @@ func streamFacts(
 		}
 		snapshot.ContentFiles = nil
 	}
+	for i, meta := range snapshot.DocumentationFileMetas {
+		body, ok := readDocumentationBody(repoPath, meta.RelativePath, nil)
+		if !ok {
+			snapshot.DocumentationFileMetas[i] = ContentFileMeta{}
+			continue
+		}
+		if emitGitDocumentationFactsForContentFile(
+			ch,
+			repoPath,
+			repo,
+			scopeID,
+			generationID,
+			observedAt,
+			meta.RelativePath,
+			meta.Digest,
+			meta.CommitSHA,
+			body,
+			!gitDocumentationSourceEmitted,
+		) {
+			gitDocumentationSourceEmitted = true
+		}
+		snapshot.DocumentationFileMetas[i] = ContentFileMeta{}
+	}
+	snapshot.DocumentationFileMetas = nil
 
 	// Content entity facts
 	for i, entitySnapshot := range snapshot.ContentEntities {
@@ -246,6 +270,9 @@ func snapshotFreshnessHint(snapshot RepositorySnapshot) string {
 		for _, cf := range snapshot.ContentFiles {
 			writeFreshnessHashf(h, "file:%s:%s\n", cf.RelativePath, cf.Digest)
 		}
+	}
+	for _, meta := range snapshot.DocumentationFileMetas {
+		writeFreshnessHashf(h, "doc:%s:%s\n", meta.RelativePath, meta.Digest)
 	}
 
 	// Hash entity count and identity (lightweight).

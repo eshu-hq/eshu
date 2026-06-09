@@ -60,7 +60,7 @@ current families are:
 
 | Family | Collector kind | Current fact kinds |
 | --- | --- | --- |
-| Documentation | `documentation` for hosted documentation and derived documentation truth, `git` for repo-hosted Markdown source facts | `documentation_source`, `documentation_document`, `documentation_section`, `documentation_link`, `documentation_entity_mention`, `documentation_claim_candidate`, `documentation_finding`, `documentation_evidence_packet` |
+| Documentation | `documentation` for hosted documentation and derived documentation truth, `git` for repo-hosted documentation source facts | `documentation_source`, `documentation_document`, `documentation_section`, `documentation_link`, `documentation_entity_mention`, `documentation_claim_candidate`, `documentation_finding`, `documentation_evidence_packet` |
 | Terraform state | `terraform_state` for collected state, `git` for safe repo-local candidates | `terraform_state_candidate`, `terraform_state_snapshot`, `terraform_state_resource`, `terraform_state_output`, `terraform_state_module`, `terraform_state_provider_binding`, `terraform_state_tag_observation`, `terraform_state_warning` |
 | AWS cloud | `aws` | `aws_resource`, `aws_relationship`, `aws_tag_observation`, `aws_dns_record`, `aws_image_reference`, `aws_security_group_rule`, `aws_iam_permission`, `aws_resource_policy_permission`, `aws_warning` |
 | Secrets/IAM posture | `secrets_iam_posture` | `aws_iam_principal`, `aws_iam_trust_policy`, `aws_iam_permission_policy`, `aws_iam_policy_attachment`, `aws_iam_permission_boundary`, `aws_iam_instance_profile`, `aws_iam_access_analyzer_finding`, `k8s_service_account`, `k8s_rbac_role`, `k8s_rbac_binding`, `k8s_workload_identity_use`, `k8s_service_account_token_posture`, `eks_irsa_annotation`, `eks_pod_identity_association`, `vault_auth_mount`, `vault_auth_role`, `vault_acl_policy`, `vault_identity_entity`, `vault_identity_alias`, `vault_kv_metadata`, `vault_secret_engine_mount`, `secrets_iam_coverage_warning` |
@@ -84,6 +84,7 @@ Most current core families use schema version `1.0.0`.
 source-native content for updater diff generation. Check the fact-family helper
 before emitting rows.
 
+Repository-hosted documentation ingestion is part of Git collection. It emits
 Semantic evidence facts are optional provenance emitted by semantic extraction
 jobs. `semantic.documentation_observation` preserves an LLM-assisted
 documentation observation with source, chunk, provider profile, model, prompt
@@ -101,14 +102,16 @@ secret values, or private provider responses.
 
 Repository-hosted Markdown ingestion is part of Git collection. It emits
 source-neutral documentation source, document, section, and link facts for
-`.md`, `.mdx`, and `.markdown` files under the repository scope and attaches a
-repository `linked_entities` target reference for repository-scoped readback.
-Deterministic `doctruth` extraction may add entity-mention and claim-candidate
-facts from bounded sections, but those claims remain `document_evidence` only.
-Reducers and query surfaces decide whether later findings or drift evidence are
-admissible. Local `eshu docs verify` is separate: it actively checks local
-Markdown claims against caller-supplied truth sources and emits findings or
-evidence packets rather than ingesting repository documentation.
+Markdown (`.md`, `.mdx`, `.markdown`), lightweight text (`.txt`, `.rst`,
+`.adoc`, `.asciidoc`, `.qmd`), and HTML (`.html`, `.htm`) files under the
+repository scope and attaches a repository `linked_entities` target reference
+for repository-scoped readback. Deterministic `doctruth` extraction may add
+entity-mention and claim-candidate facts from bounded sections, but those
+claims remain `document_evidence` only. Reducers and query surfaces decide
+whether later findings or drift evidence are admissible. Local
+`eshu docs verify` is separate: it actively checks local Markdown claims
+against caller-supplied truth sources and emits findings or evidence packets
+rather than ingesting repository documentation.
 
 S3 bucket posture facts are metadata-only AWS collector evidence.
 `s3_external_principal_grant` carries public, cross-account, AWS service, and

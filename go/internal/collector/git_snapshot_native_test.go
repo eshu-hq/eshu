@@ -122,7 +122,7 @@ func TestNativeRepositorySnapshotterReturnsEmptySnapshotForRepoWithoutSupportedF
 	t.Parallel()
 
 	repoRoot := t.TempDir()
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "README.md"), "# hello\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "notes.unsupported"), "hello\n")
 
 	engine, err := parser.DefaultEngine()
 	if err != nil {
@@ -146,6 +146,9 @@ func TestNativeRepositorySnapshotterReturnsEmptySnapshotForRepoWithoutSupportedF
 	}
 	if len(got.ContentFileMetas) != 0 {
 		t.Fatalf("len(ContentFileMetas) = %d, want 0", len(got.ContentFileMetas))
+	}
+	if len(got.DocumentationFileMetas) != 0 {
+		t.Fatalf("len(DocumentationFileMetas) = %d, want 0", len(got.DocumentationFileMetas))
 	}
 	if len(got.ContentEntities) != 0 {
 		t.Fatalf("len(ContentEntities) = %d, want 0", len(got.ContentEntities))

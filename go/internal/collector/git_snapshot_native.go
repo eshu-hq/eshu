@@ -134,6 +134,9 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	}
 	var tfstateCandidates []TerraformStateCandidate
 	fileSet.Files, tfstateCandidates = extractTerraformStateCandidates(repoPath, fileSet.Files)
+	parserFiles, documentationFiles := partitionNativeSnapshotFiles(fileSet.Files, registry)
+	parserFileSet := fileSet
+	parserFileSet.Files = parserFiles
 	logTerraformStateCandidateDiscovery(ctx, s, repoPath, len(tfstateCandidates))
 	s.logDiscoveryStats(ctx, repoPath, discoveryStats)
 	s.logSnapshotStageTiming(ctx, repoPath, "discovery", discoveryStartedAt,
@@ -169,7 +172,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	preScanStartedAt := time.Now()
 	importsMap, err := engine.PreScanRepositoryPathsWithWorkers(
 		repoPath,
-		fileSet.Files,
+		parserFileSet.Files,
 		effectiveSnapshotParseWorkers(s.ParseWorkers),
 	)
 	if err != nil {
@@ -177,17 +180,17 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	}
 	snapshot.ImportsMap = importsMap
 	s.logSnapshotStageTiming(ctx, repoPath, "pre_scan", preScanStartedAt,
-		slog.Int("file_count", len(fileSet.Files)),
+		slog.Int("file_count", len(parserFileSet.Files)),
 		slog.Int("import_symbol_count", len(importsMap)),
 		slog.Int("pre_scan_workers", effectiveSnapshotParseWorkers(s.ParseWorkers)),
 	)
 	goPackageSemanticPreScanStartedAt := time.Now()
-	goPackageTargets, err := engine.PreScanGoPackageSemanticRoots(repoPath, fileSet.Files)
+	goPackageTargets, err := engine.PreScanGoPackageSemanticRoots(repoPath, parserFileSet.Files)
 	if err != nil {
 		return RepositorySnapshot{}, fmt.Errorf("pre-scan go package interface params for %q: %w", repoPath, err)
 	}
 	s.logSnapshotStageTiming(ctx, repoPath, "go_package_semantic_prescan", goPackageSemanticPreScanStartedAt,
-		slog.Int("file_count", len(fileSet.Files)),
+		slog.Int("file_count", len(parserFileSet.Files)),
 		slog.Int("go_package_target_count", len(goPackageTargets)),
 	)
 
@@ -203,7 +206,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	shapeFiles, parsedFiles, languageParseSummary, err := s.buildParsedRepositoryFiles(
 		ctx,
 		repoPath,
-		fileSet,
+		parserFileSet,
 		engine,
 		commitSHA,
 		repository.IsDependency,
@@ -213,9 +216,9 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		return RepositorySnapshot{}, fmt.Errorf("build parsed repository files for %q: %w", repoPath, err)
 	}
 	s.logSnapshotStageTiming(ctx, repoPath, "parse", parseStartedAt,
-		slog.Int("file_count", len(fileSet.Files)),
+		slog.Int("file_count", len(parserFileSet.Files)),
 		slog.Int("parsed_file_count", len(parsedFiles)),
-		slog.Int("skipped_file_count", len(fileSet.Files)-len(parsedFiles)),
+		slog.Int("skipped_file_count", len(parserFileSet.Files)-len(parsedFiles)),
 		slog.Int("parse_workers", effectiveSnapshotParseWorkers(s.ParseWorkers)),
 		slog.Any("language_parse_summary", languageParseSummary),
 	)
@@ -238,6 +241,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	annotateParsedFilesWithEntityIDs(repoPath, parsedFiles, materialization.Entities)
 	snapshot.FileData = parsedFiles
 	snapshot.ContentFileMetas = materializationRecordsToMetas(materialization.Records)
+	snapshot.DocumentationFileMetas = documentationFileMetasForPaths(repoPath, documentationFiles, commitSHA)
 	snapshot.ContentEntities = materializationEntitiesToSnapshots(materialization.Entities, s.now())
 	snapshot.DiscoveryAdvisory = buildDiscoveryAdvisoryReport(
 		repoPath,
@@ -557,7 +561,7 @@ func resolveNativeSnapshotFileSet(
 				return true
 			}
 			_, ok := registry.LookupByPath(path)
-			return ok
+			return ok || isGitDocumentationPath(path)
 		},
 		opts,
 	)
@@ -810,7 +814,9 @@ func resolveNativeSnapshotFileSetForTargets(
 		}
 		if !isTerraformStateCandidateName(filepath.Base(absoluteTarget)) {
 			if _, ok := registry.LookupByPath(absoluteTarget); !ok {
-				continue
+				if !isGitDocumentationPath(absoluteTarget) {
+					continue
+				}
 			}
 		}
 		files = append(files, absoluteTarget)

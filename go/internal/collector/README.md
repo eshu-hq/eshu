@@ -113,8 +113,9 @@ per repository:
 When the stream re-reads repo-hosted service-catalog descriptors
 (`catalog-info.yaml`, `opslevel.yml`, or `cortex.yaml`), it delegates to the
 `servicecatalog` normalizer and emits observed `service_catalog.*` facts under
-the same scope and generation. The same re-read pass normalizes repo-hosted
-Markdown-family docs (`.md`, `.mdx`, `.markdown`) into source-neutral
+the same scope and generation. A documentation-only metadata lane also
+normalizes repo-hosted Markdown, lightweight text (`.txt`, `.rst`, `.adoc`,
+`.asciidoc`, `.qmd`), and HTML (`.html`, `.htm`) files into source-neutral
 documentation source, document, section, link, mention, and claim-candidate
 facts with repository target refs. These documentation claims remain document
 evidence only; projector, reducer, and query stages own correlation, drift, and
@@ -124,12 +125,13 @@ generation and then observes the source batch drain. Idle polls do not trigger
 it.
 
 No-Regression Evidence: `go test ./internal/collector ./internal/doctruth ./internal/query ./internal/mcp -count=1`
-covers repository Markdown extraction, deterministic claim hints, repository
-fact readback, and MCP documentation fact routing.
+covers repository documentation extraction, deterministic claim hints,
+repository fact readback, and MCP documentation fact routing.
 
-No-Observability-Change: repository Markdown extraction runs inside the
-existing content re-read stream and `collector.observe` commit path. It adds no
-worker, queue, graph write, metric label, runtime knob, or deployment profile.
+No-Observability-Change: repository documentation extraction runs inside the
+existing `collector.observe` commit path and reuses body-free snapshot metadata
+with stream-time file re-reads. It adds no worker, queue, graph write, metric
+label, runtime knob, or deployment profile.
 
 ## Exported surface
 
@@ -162,7 +164,8 @@ worker, queue, graph write, metric label, runtime knob, or deployment profile.
 - `SelectedRepository` — `RepoPath`, `RemoteURL`, `IsDependency`, `DisplayName`,
   `Language`, `FileTargets`
 - `RepositorySnapshot` — `RepoPath`, `RemoteURL`, `FileCount`, `ImportsMap`,
-  `FileData`, `ContentFileMetas`, `ContentEntities`, `DiscoveryAdvisory`
+  `FileData`, `ContentFileMetas`, `DocumentationFileMetas`, `ContentEntities`,
+  `DiscoveryAdvisory`
 - `ContentFileSnapshot`, `ContentFileMeta`, `ContentEntitySnapshot` — portable
   file and entity records; `ContentFileMeta` carries no body string. Declared
   PagerDuty module/tfvars rows materialize as `PagerDutyDeclaration` content
