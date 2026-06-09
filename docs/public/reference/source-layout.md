@@ -35,6 +35,7 @@ live in the repository today.
 | `go/internal/truth/` | canonical truth contracts |
 | `deploy/` | deployment assets: Helm chart, minimal Kubernetes manifests, Argo CD examples, and local observability add-ons |
 | `docs/` | operator docs, architecture, workflows, runtime references, and language references |
+| `sdk/` | public extension SDK modules that stay independent from `go/internal` packages |
 | `tests/fixtures/` | parser and ecosystem fixture corpora only |
 
 ## Runtime Binaries
