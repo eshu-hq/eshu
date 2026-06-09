@@ -32,6 +32,25 @@ const openAPIComponents = `  "components": {
       }
     },
     "schemas": {
+      "ReplatformingReadinessCounts": {
+        "type": "object",
+        "description": "Bounded import-readiness view for one replatforming rollup bucket. import_ready, needs_review, and refused stay separate so a refused or unproven item is never presented as ready.",
+        "properties": {
+          "import_ready": {"type": "integer"},
+          "needs_review": {"type": "integer"},
+          "refused": {"type": "integer"}
+        }
+      },
+      "ReplatformingRollupBucket": {
+        "type": "object",
+        "description": "One replatforming rollup group (an account ID, environment name, or service name) with per-source-state counts and the readiness view. Source states are preserved; unsupported, stale, and unavailable are never flattened into a clean total.",
+        "properties": {
+          "key": {"type": "string", "description": "Group key. The explicit __ambiguous__ and __unattributed__ keys hold contested and missing attribution and are never resolved to a guessed owner."},
+          "total": {"type": "integer"},
+          "source_state_counts": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Count per source-state taxonomy value: exact, derived, partial, ambiguous, stale, unavailable, unsupported, unknown, rejected."},
+          "readiness": {"$ref": "#/components/schemas/ReplatformingReadinessCounts"}
+        }
+      },
       "Repository": {
         "type": "object",
         "properties": {

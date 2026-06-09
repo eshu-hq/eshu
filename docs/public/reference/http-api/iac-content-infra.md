@@ -11,6 +11,7 @@ comparison. The route list is verified against `go/internal/query`.
 | IaC inventory | `GET /api/v0/iac/resources` |
 | IaC quality | `POST /api/v0/iac/dead` |
 | AWS management and drift | `POST /api/v0/iac/unmanaged-resources`, `POST /api/v0/iac/management-status`, `POST /api/v0/iac/management-status/explain`, `POST /api/v0/iac/terraform-import-plan/candidates`, `POST /api/v0/aws/runtime-drift/findings` |
+| Replatforming rollups | `POST /api/v0/replatforming/rollups` |
 | Content | `POST /api/v0/content/files/read`, `POST /api/v0/content/files/lines`, `POST /api/v0/content/entities/read`, `POST /api/v0/content/files/search`, `POST /api/v0/content/entities/search` |
 | Infrastructure | `POST /api/v0/infra/resources/search`, `POST /api/v0/infra/relationships`, `GET /api/v0/ecosystem/overview`, `GET /api/v0/cloud/resources` |
 | Impact | `POST /api/v0/impact/trace-resource-to-code`, `POST /api/v0/impact/explain-dependency-path`, `POST /api/v0/impact/blast-radius`, `POST /api/v0/impact/change-surface`, `POST /api/v0/impact/change-surface/investigate`, `POST /api/v0/impact/entity-map`, `POST /api/v0/impact/resource-investigation`, `POST /api/v0/compare/environments` |
@@ -126,6 +127,49 @@ Management status values are:
 - `stale_iac_candidate`
 
 Raw tag values that look credential-like are redacted as `[REDACTED]`.
+
+## Replatforming Rollups
+
+`POST /api/v0/replatforming/rollups` aggregates the same active reducer drift
+and IaC findings into bounded rollups by account, environment, and service. It
+answers "how much of this account, service, or environment is declared,
+applied, observed, unmanaged, stale, ambiguous, or blocked?" without paging
+every row-level finding. It requires `scope_id` or `account_id` and the
+local-authoritative profile or higher; lower profiles receive
+`501 unsupported_capability`. `region`, `finding_kinds`, `limit`, and `offset`
+narrow the bounded page; `limit` defaults to 100 and is capped at 500.
+
+The response groups findings under `dimensions.account`, `dimensions.environment`,
+and `dimensions.service`. Each bucket carries:
+
+- `source_state_counts`: a count per provider-neutral source-state taxonomy
+  value (`exact`, `derived`, `partial`, `ambiguous`, `stale`, `unavailable`,
+  `unsupported`, `unknown`, `rejected`). The full vocabulary is always present;
+  `unsupported`, `stale`, and `unavailable` are never folded into a clean total.
+  See the [source-state taxonomy](../replatforming-source-state-taxonomy.md).
+- `readiness`: `import_ready`, `needs_review`, and `refused` counts. These
+  mirror the row-level Terraform import-plan outcomes, so the rollup's
+  `import_ready` total agrees with that surface for the same findings. A
+  safety-gate refusal is counted as `refused`, never `import_ready`.
+
+Attribution is never guessed. A finding with more than one distinct service or
+environment candidate is counted under the explicit `__ambiguous__` bucket key;
+a finding with no candidate is counted under `__unattributed__`. The
+account-wide `source_state_totals` and `readiness_totals`, plus
+`recommended_next_checks`, give an operator a single at-a-glance adoption and
+readiness view. When `truncated` is true the rollup covers only the bounded
+page; re-run with `offset` or a tighter scope for a full rollup.
+
+### Replatforming rollups observability
+
+No-Observability-Change: this read reuses the shared query-handler instrumentation.
+The `query.replatforming_rollups` span carries only the stable `http.route` and
+`eshu.capability` attributes; per-resource identities (ARNs, account-scoped IDs)
+stay out of span and metric labels. Operators read drift and readiness at a
+glance from the bounded response fields (`source_state_totals`,
+`readiness_totals`, and per-dimension buckets) rather than from a new
+high-cardinality metric, keeping resource identities in traces and logs, not
+metric labels.
 
 ## Content
 

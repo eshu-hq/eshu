@@ -358,6 +358,13 @@ const (
 	SpanQueryIaCManagementExplanation = "query.iac_management_explanation"
 	SpanQueryIaCTerraformImportPlan   = "query.iac_terraform_import_plan"
 	SpanQueryAWSRuntimeDriftFindings  = "query.aws_runtime_drift_findings"
+	// SpanQueryReplatformingRollups wraps the bounded replatforming drift and
+	// readiness rollup read (POST /api/v0/replatforming/rollups). It aggregates
+	// active AWS runtime drift and IaC findings by account, environment, and
+	// service over the provider-neutral source-state taxonomy. The span carries
+	// only the stable http.route and eshu.capability attributes; per-resource
+	// identities stay out of span and metric labels.
+	SpanQueryReplatformingRollups = "query.replatforming_rollups"
 	// SpanQueryIaCResources wraps the bounded Terraform/IaC resource list read
 	// over the authoritative graph (GET /api/v0/iac/resources). It carries the
 	// stable http.route and eshu.capability attributes so the IaC inventory

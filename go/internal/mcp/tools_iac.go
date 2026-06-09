@@ -32,6 +32,49 @@ func awsRuntimeDriftFindingsTool() ToolDefinition {
 	}
 }
 
+func replatformingRollupsTool() ToolDefinition {
+	return ToolDefinition{
+		Name:        "get_replatforming_rollups",
+		Description: "Summarize replatforming drift and readiness as bounded rollups by account, environment, and service over the provider-neutral source-state taxonomy (exact, derived, partial, ambiguous, stale, unavailable, unsupported, unknown, rejected) plus an import-ready vs needs-review vs refused readiness view. Ambiguous or missing attribution is counted under explicit buckets, never guessed. Provide scope_id or account_id.",
+		InputSchema: replatformingRollupsSchema(),
+	}
+}
+
+func replatformingRollupsSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"scope_id": map[string]any{
+				"type":        "string",
+				"description": "Exact AWS collector scope, for example aws:123456789012:us-east-1:lambda",
+			},
+			"account_id": map[string]any{
+				"type":        "string",
+				"description": "AWS account ID used to bound the active finding read",
+			},
+			"region": map[string]any{
+				"type":        "string",
+				"description": "Optional AWS region when account_id is supplied",
+			},
+			"finding_kinds": map[string]any{
+				"type":        "array",
+				"items":       map[string]any{"type": "string"},
+				"description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, or ambiguous_cloud_resource",
+			},
+			"limit": map[string]any{
+				"type":        "integer",
+				"description": "Maximum findings to aggregate into the bounded rollup",
+				"default":     100,
+			},
+			"offset": map[string]any{
+				"type":        "integer",
+				"description": "Zero-based result offset for paging the bounded rollup",
+				"default":     0,
+			},
+		},
+	}
+}
+
 func iacManagementStatusSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
