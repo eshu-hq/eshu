@@ -56,6 +56,37 @@ func TestVerifierComparesCLIEndpointAndEnvClaims(t *testing.T) {
 	}
 }
 
+func TestMarkdownClaimHintsReuseVerifierClaimExtraction(t *testing.T) {
+	t.Parallel()
+
+	hints := doctruth.MarkdownClaimHints("example-service", "repository", ""+
+		"Run `eshu docs verify docs/public`.\n"+
+		"Set ESHU_SERVICE_URL before remote reads.\n"+
+		"Call GET /api/v0/documentation/facts.\n")
+
+	if got, want := len(hints), 3; got != want {
+		t.Fatalf("len(MarkdownClaimHints) = %d, want %d", got, want)
+	}
+	types := map[string]bool{}
+	for _, hint := range hints {
+		if got, want := hint.SubjectText, "example-service"; got != want {
+			t.Fatalf("SubjectText = %q, want %q", got, want)
+		}
+		if got, want := hint.SubjectKind, "repository"; got != want {
+			t.Fatalf("SubjectKind = %q, want %q", got, want)
+		}
+		if hint.SourceMetadata["normalized_claim"] == "" {
+			t.Fatalf("normalized_claim missing from %#v", hint.SourceMetadata)
+		}
+		types[hint.ClaimType] = true
+	}
+	for _, want := range []string{"cli_command", "environment_variable", "http_endpoint"} {
+		if !types[want] {
+			t.Fatalf("missing claim type %q in %#v", want, types)
+		}
+	}
+}
+
 func TestVerifierAcceptsDocumentedArgumentsAndEndpointTemplates(t *testing.T) {
 	t.Parallel()
 

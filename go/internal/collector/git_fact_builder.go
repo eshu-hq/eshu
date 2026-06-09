@@ -47,6 +47,7 @@ func buildStreamingGeneration(
 		len(snapshot.ContentEntities) + len(snapshot.TerraformStateCandidates) +
 		observabilityFactCount(snapshot.FileData) +
 		serviceCatalogFactCount(repoPath, scopeValue.ScopeID, generation.GenerationID, observedAt, snapshot) +
+		gitDocumentationFactCount(repoPath, repo, scopeValue.ScopeID, generation.GenerationID, observedAt, snapshot) +
 		workflowImageEvidenceFactCount(repoPath, snapshot) +
 		7
 
@@ -121,6 +122,7 @@ func streamFacts(
 	snapshot.FileData = nil
 
 	// Content file facts — two-phase re-read path or legacy path.
+	gitDocumentationSourceEmitted := false
 	if len(snapshot.ContentFileMetas) > 0 {
 		for i, meta := range snapshot.ContentFileMetas {
 			body, err := os.ReadFile(filepath.Join(repoPath, filepath.FromSlash(meta.RelativePath)))
@@ -151,6 +153,21 @@ func streamFacts(
 				meta.RelativePath,
 				bodyStr,
 			)
+			if emitGitDocumentationFactsForContentFile(
+				ch,
+				repoPath,
+				repo,
+				scopeID,
+				generationID,
+				observedAt,
+				meta.RelativePath,
+				meta.Digest,
+				meta.CommitSHA,
+				body,
+				!gitDocumentationSourceEmitted,
+			) {
+				gitDocumentationSourceEmitted = true
+			}
 			snapshot.ContentFileMetas[i] = ContentFileMeta{}
 		}
 		snapshot.ContentFileMetas = nil
@@ -174,6 +191,21 @@ func streamFacts(
 				fileSnapshot.RelativePath,
 				fileSnapshot.Body,
 			)
+			if emitGitDocumentationFactsForContentFile(
+				ch,
+				repoPath,
+				repo,
+				scopeID,
+				generationID,
+				observedAt,
+				fileSnapshot.RelativePath,
+				fileSnapshot.Digest,
+				fileSnapshot.CommitSHA,
+				[]byte(fileSnapshot.Body),
+				!gitDocumentationSourceEmitted,
+			) {
+				gitDocumentationSourceEmitted = true
+			}
 			snapshot.ContentFiles[i] = ContentFileSnapshot{}
 		}
 		snapshot.ContentFiles = nil

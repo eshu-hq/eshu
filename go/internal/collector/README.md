@@ -113,12 +113,23 @@ per repository:
 When the stream re-reads repo-hosted service-catalog descriptors
 (`catalog-info.yaml`, `opslevel.yml`, or `cortex.yaml`), it delegates to the
 `servicecatalog` normalizer and emits observed `service_catalog.*` facts under
-the same scope and generation. The Git collector does not mint service,
-workload, or repository identity from those manifests; projector and reducer
-stages own correlation truth.
+the same scope and generation. The same re-read pass normalizes repo-hosted
+Markdown-family docs (`.md`, `.mdx`, `.markdown`) into source-neutral
+documentation source, document, section, link, mention, and claim-candidate
+facts with repository target refs. These documentation claims remain document
+evidence only; projector, reducer, and query stages own correlation, drift, and
+truth decisions.
 `AfterBatchDrained` runs only after the service has committed at least one
 generation and then observes the source batch drain. Idle polls do not trigger
 it.
+
+No-Regression Evidence: `go test ./internal/collector ./internal/doctruth ./internal/query ./internal/mcp -count=1`
+covers repository Markdown extraction, deterministic claim hints, repository
+fact readback, and MCP documentation fact routing.
+
+No-Observability-Change: repository Markdown extraction runs inside the
+existing content re-read stream and `collector.observe` commit path. It adds no
+worker, queue, graph write, metric label, runtime knob, or deployment profile.
 
 ## Exported surface
 
