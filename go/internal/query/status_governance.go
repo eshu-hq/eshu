@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -32,6 +33,7 @@ type GovernanceStatusConfig struct {
 	PolicySectionCount int
 	StaleSectionCount  int
 	Reasons            []string
+	AuditSummary       governanceaudit.Summary
 }
 
 func (h *StatusHandler) getGovernanceStatus(w http.ResponseWriter, r *http.Request) {
@@ -82,6 +84,11 @@ func GovernanceStatusConfigFromEnv(
 		PolicySectionCount: intFromEnv(getenv("ESHU_GOVERNANCE_POLICY_SECTION_COUNT")),
 		StaleSectionCount:  intFromEnv(getenv("ESHU_GOVERNANCE_STALE_SECTION_COUNT")),
 		Reasons:            envList(getenv("ESHU_GOVERNANCE_REASONS")),
+		AuditSummary: governanceaudit.Summary{
+			Total:       intFromEnv(getenv("ESHU_GOVERNANCE_AUDIT_EVENT_COUNT")),
+			Denied:      intFromEnv(getenv("ESHU_GOVERNANCE_AUDIT_DENIED_DECISION_COUNT")),
+			Unavailable: intFromEnv(getenv("ESHU_GOVERNANCE_AUDIT_UNAVAILABLE_DECISION_COUNT")),
+		},
 	}
 }
 
@@ -214,15 +221,25 @@ func governanceSemantic(semantic status.SemanticExtractionStatus) map[string]any
 }
 
 func governanceAudit(config GovernanceStatusConfig, semantic status.SemanticExtractionStatus) map[string]any {
+	summary := normalizeGovernanceAuditSummary(config.AuditSummary)
 	return map[string]any{
-		"state":             config.AuditState,
-		"actor_class_count": len(semantic.Audit.ActorClassCounts),
-		"acl_state_count":   len(semantic.Audit.ACLStateCounts),
+		"state":                      config.AuditState,
+		"event_count":                summary.Total,
+		"denied_decision_count":      summary.Denied,
+		"unavailable_decision_count": summary.Unavailable,
+		"event_type_count":           len(summary.EventTypeCounts),
+		"actor_class_count":          governanceAuditActorClassCount(summary, semantic.Audit),
+		"scope_class_count":          len(summary.ScopeClassCounts),
+		"reason_count":               len(summary.ReasonCounts),
+		"acl_state_count":            len(semantic.Audit.ACLStateCounts),
 	}
 }
 
 func governanceAggregates(config GovernanceStatusConfig, semantic status.SemanticExtractionStatus) map[string]any {
 	denied := config.DeniedDecisions
+	if denied == 0 {
+		denied = normalizeGovernanceAuditSummary(config.AuditSummary).Denied
+	}
 	if denied == 0 {
 		denied = semantic.Queue.PolicyDenied
 	}
@@ -290,6 +307,55 @@ func safeRevisionHash(value string) string {
 		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
 			return ""
 		}
+	}
+	return value
+}
+
+func normalizeGovernanceAuditSummary(summary governanceaudit.Summary) governanceaudit.Summary {
+	summary.Total = nonNegative(summary.Total)
+	summary.Allowed = nonNegative(summary.Allowed)
+	summary.Denied = nonNegative(summary.Denied)
+	summary.Unavailable = nonNegative(summary.Unavailable)
+	summary.EventTypeCounts = normalizeGovernanceAuditCounts(summary.EventTypeCounts)
+	summary.DecisionCounts = normalizeGovernanceAuditCounts(summary.DecisionCounts)
+	summary.ReasonCounts = normalizeGovernanceAuditCounts(summary.ReasonCounts)
+	summary.ActorClassCounts = normalizeGovernanceAuditCounts(summary.ActorClassCounts)
+	summary.ScopeClassCounts = normalizeGovernanceAuditCounts(summary.ScopeClassCounts)
+	return summary
+}
+
+func normalizeGovernanceAuditCounts(rows []governanceaudit.Count) []governanceaudit.Count {
+	out := make([]governanceaudit.Count, 0, len(rows))
+	for _, row := range rows {
+		if strings.TrimSpace(row.Name) == "" || row.Count <= 0 {
+			continue
+		}
+		out = append(out, governanceaudit.Count{Name: strings.TrimSpace(row.Name), Count: row.Count})
+	}
+	return out
+}
+
+func governanceAuditActorClassCount(
+	summary governanceaudit.Summary,
+	semanticAudit status.SemanticExtractionAuditSnapshot,
+) int {
+	names := map[string]struct{}{}
+	for _, row := range summary.ActorClassCounts {
+		if name := strings.TrimSpace(row.Name); name != "" && row.Count > 0 {
+			names[name] = struct{}{}
+		}
+	}
+	for _, row := range semanticAudit.ActorClassCounts {
+		if name := strings.TrimSpace(row.Name); name != "" && row.Count > 0 {
+			names[name] = struct{}{}
+		}
+	}
+	return len(names)
+}
+
+func nonNegative(value int) int {
+	if value < 0 {
+		return 0
 	}
 	return value
 }

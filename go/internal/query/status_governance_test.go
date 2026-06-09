@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -263,6 +264,109 @@ func TestGovernanceStatusConfigDropsUnsafeStatusValues(t *testing.T) {
 		t.Fatalf("policy_revision_hash = %#v, want %#v", got, want)
 	}
 	requireStringSliceContains(t, payload["reasons"], "policy_invalid")
+}
+
+func TestGovernanceStatusReportsAuditAggregates(t *testing.T) {
+	t.Parallel()
+
+	envelope, body := governanceStatusEnvelope(t, &StatusHandler{
+		StatusReader: fakeStatusReader{
+			snapshot: statuspkg.RawSnapshot{
+				SemanticExtraction: statuspkg.SemanticExtractionStatus{
+					Audit: statuspkg.SemanticExtractionAuditSnapshot{
+						ActorClassCounts: []statuspkg.NamedCount{
+							{Name: string(governanceaudit.ActorClassScopedToken), Count: 3},
+							{Name: "hosted_worker", Count: 1},
+						},
+					},
+				},
+			},
+		},
+		Profile: ProfileProduction,
+		Governance: GovernanceStatusConfig{
+			Mode:       "hosted_single_tenant",
+			State:      "enforcing",
+			AuthMode:   "scoped_token",
+			TenantMode: "single_tenant",
+			AuditState: "observed",
+			AuditSummary: governanceaudit.Summary{
+				Total:       4,
+				Denied:      2,
+				Unavailable: 1,
+				EventTypeCounts: []governanceaudit.Count{
+					{Name: string(governanceaudit.EventTypeReadAuthorization), Count: 2},
+				},
+				ActorClassCounts: []governanceaudit.Count{
+					{Name: string(governanceaudit.ActorClassScopedToken), Count: 2},
+				},
+				ScopeClassCounts: []governanceaudit.Count{
+					{Name: string(governanceaudit.ScopeClassRepository), Count: 2},
+				},
+				ReasonCounts: []governanceaudit.Count{
+					{Name: "subject_scope_missing", Count: 2},
+				},
+			},
+		},
+	})
+
+	for _, forbidden := range []string{
+		"operator.person@example.invalid",
+		"repo://private/source",
+		"Bearer unsafe-token",
+		"credential_handle",
+	} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("governance audit status leaked %q: %s", forbidden, body)
+		}
+	}
+
+	data := envelope.Data.(map[string]any)
+	audit := data["audit"].(map[string]any)
+	if got, want := audit["event_count"], float64(4); got != want {
+		t.Fatalf("audit.event_count = %#v, want %#v", got, want)
+	}
+	if got, want := audit["denied_decision_count"], float64(2); got != want {
+		t.Fatalf("audit.denied_decision_count = %#v, want %#v", got, want)
+	}
+	if got, want := audit["unavailable_decision_count"], float64(1); got != want {
+		t.Fatalf("audit.unavailable_decision_count = %#v, want %#v", got, want)
+	}
+	if got, want := audit["event_type_count"], float64(1); got != want {
+		t.Fatalf("audit.event_type_count = %#v, want %#v", got, want)
+	}
+	if got, want := audit["actor_class_count"], float64(2); got != want {
+		t.Fatalf("audit.actor_class_count = %#v, want %#v", got, want)
+	}
+	if got, want := audit["reason_count"], float64(1); got != want {
+		t.Fatalf("audit.reason_count = %#v, want %#v", got, want)
+	}
+	aggregates := data["aggregates"].(map[string]any)
+	if got, want := aggregates["denied_decision_count"], float64(2); got != want {
+		t.Fatalf("aggregates.denied_decision_count = %#v, want %#v", got, want)
+	}
+}
+
+func TestGovernanceStatusConfigFromEnvParsesAuditCounts(t *testing.T) {
+	t.Parallel()
+
+	values := map[string]string{
+		"ESHU_GOVERNANCE_AUDIT_EVENT_COUNT":                "7",
+		"ESHU_GOVERNANCE_AUDIT_DENIED_DECISION_COUNT":      "3",
+		"ESHU_GOVERNANCE_AUDIT_UNAVAILABLE_DECISION_COUNT": "2",
+	}
+	config := GovernanceStatusConfigFromEnv(func(key string) string {
+		return values[key]
+	}, true)
+
+	if got, want := config.AuditSummary.Total, 7; got != want {
+		t.Fatalf("AuditSummary.Total = %d, want %d", got, want)
+	}
+	if got, want := config.AuditSummary.Denied, 3; got != want {
+		t.Fatalf("AuditSummary.Denied = %d, want %d", got, want)
+	}
+	if got, want := config.AuditSummary.Unavailable, 2; got != want {
+		t.Fatalf("AuditSummary.Unavailable = %d, want %d", got, want)
+	}
 }
 
 func governanceStatusEnvelope(t *testing.T, handler *StatusHandler) (ResponseEnvelope, string) {
