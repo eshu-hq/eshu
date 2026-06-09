@@ -57,6 +57,7 @@ func wireAPI(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("resolve api key: %w", err)
 	}
+	governanceStatus := query.GovernanceStatusConfigFromEnv(getenv, apiKey != "")
 
 	driver, neo4jDB, err := openQueryGraph(ctx, getenv, queryProfile, logger)
 	if err != nil {
@@ -111,6 +112,7 @@ func wireAPI(
 		logger,
 		componentHome,
 		componentPolicy,
+		governanceStatus,
 	)
 
 	mux := http.NewServeMux()
@@ -148,6 +150,7 @@ func newMCPQueryRouter(
 	logger *slog.Logger,
 	componentHome string,
 	componentPolicy component.Policy,
+	governanceStatus query.GovernanceStatusConfig,
 ) *query.APIRouter {
 	if statusReader == nil {
 		statusReader = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
@@ -281,6 +284,7 @@ func newMCPQueryRouter(
 			DB:           db,
 			StatusReader: statusReader,
 			Profile:      queryProfile,
+			Governance:   governanceStatus,
 		},
 		ComponentExtensions: &query.ComponentExtensionsHandler{
 			ComponentHome: componentHome,

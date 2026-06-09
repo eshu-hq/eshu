@@ -54,6 +54,15 @@ func runtimeTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "get_hosted_governance_status",
+			Description: "Return redacted hosted governance status across policy mode, shared-token posture, tenancy, egress, semantic, extension, redaction, retention, audit, and aggregate decision readbacks.",
+			InputSchema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+				"required":   []string{},
+			},
+		},
+		{
 			Name:        "get_semantic_capability_status",
 			Description: "Return semantic extraction capability status, including no-provider unavailable state, redacted provider profiles, queue, budget, audit readbacks, and whether deterministic paths are affected.",
 			InputSchema: map[string]any{

@@ -1,0 +1,8 @@
+capabilities:
+  - capability: hosted_governance.status
+    tools: [get_hosted_governance_status]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 100, max_scope_size: runtime_status, verification: [{go_test: ./internal/query}], notes: redacted governance status with local no-policy mode, safe reason codes, and no raw policy, source, credential, provider endpoint, prompt, or response data}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 100, max_scope_size: runtime_status, verification: [{go_test: ./internal/query}], notes: redacted governance status derived from runtime config and aggregate status readbacks; graph sidecar not required}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 100, max_scope_size: runtime_status, verification: [{go_test: ./internal/query}], notes: redacted governance status with aggregate policy, semantic, extension, retention, redaction, egress, and audit posture}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 100, max_scope_size: runtime_status, verification: [{remote_validation: prod-hosted-governance-status}], notes: deployed governance status exposes only safe mode, state, hash, readiness booleans, aggregate counts, and low-cardinality reason codes}

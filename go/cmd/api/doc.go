@@ -8,7 +8,8 @@
 // router and the shared runtime admin mux, including Postgres-backed supply
 // chain attachment, advisory evidence, work-item evidence, impact finding,
 // impact explanation reads, optional redacted semantic provider profile status,
-// optional semantic extraction source policy, optional component-extension
+// optional semantic extraction source policy, optional hosted governance status
+// readback from safe ESHU_GOVERNANCE_* metadata, optional component-extension
 // registry diagnostics when ESHU_COMPONENT_HOME is set, and an optional
 // Prometheus/Mimir metrics time-series source for console trends. It listens on ESHU_API_ADDR
 // (default :8080) wrapped in otelhttp instrumentation. On SIGINT or SIGTERM it

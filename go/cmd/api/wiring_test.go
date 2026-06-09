@@ -157,6 +157,7 @@ func TestNewRouterMountsPostgresBackedHandlers(t *testing.T) {
 		nil,
 		"",
 		component.Policy{},
+		query.GovernanceStatusConfig{},
 	)
 	if err != nil {
 		t.Fatalf("newRouter() error = %v, want nil", err)
@@ -215,6 +216,7 @@ func TestNewRouterUsesSuppliedStatusReader(t *testing.T) {
 		nil,
 		"",
 		component.Policy{},
+		query.GovernanceStatusConfig{},
 	)
 	if err != nil {
 		t.Fatalf("newRouter() error = %v, want nil", err)
@@ -310,7 +312,20 @@ func TestMetricsTimeSeriesSourceFromEnvUsesPrometheusMimirCollectorConfig(t *tes
 func TestNewRouter_MountsAdminRoutes(t *testing.T) {
 	t.Parallel()
 
-	router, err := newRouter(nil, nil, nil, staticStatusReader{}, nil, "production", "neo4j", nil, nil, "", component.Policy{})
+	router, err := newRouter(
+		nil,
+		nil,
+		nil,
+		staticStatusReader{},
+		nil,
+		"production",
+		"neo4j",
+		nil,
+		nil,
+		"",
+		component.Policy{},
+		query.GovernanceStatusConfig{},
+	)
 	if err != nil {
 		t.Fatalf("newRouter() error = %v, want nil", err)
 	}

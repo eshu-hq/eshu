@@ -123,6 +123,19 @@ See `doc.go` for the full godoc contract.
   allowlist. It names provider profile ids, source classes, scopes, source
   selectors, limits, redaction mode, and retention posture. Without it, provider
   profiles remain visible in status but source policy stays disabled.
+- `ESHU_GOVERNANCE_MODE`, `ESHU_GOVERNANCE_STATE`,
+  `ESHU_GOVERNANCE_SOURCE_KIND`, `ESHU_GOVERNANCE_POLICY_REVISION_HASH`,
+  `ESHU_GOVERNANCE_AUTH_MODE`, `ESHU_GOVERNANCE_TENANT_MODE`,
+  `ESHU_GOVERNANCE_WORKSPACE_MODE`, `ESHU_GOVERNANCE_EGRESS_MODE`,
+  `ESHU_GOVERNANCE_REDACTION_STATE`, `ESHU_GOVERNANCE_RETENTION_MODE`,
+  `ESHU_GOVERNANCE_AUDIT_STATE`, `ESHU_GOVERNANCE_EXTENSION_MODE`,
+  `ESHU_GOVERNANCE_DENIED_DECISION_COUNT`,
+  `ESHU_GOVERNANCE_POLICY_SECTION_COUNT`,
+  `ESHU_GOVERNANCE_STALE_SECTION_COUNT`, and `ESHU_GOVERNANCE_REASONS` —
+  optional safe metadata for `/api/v0/status/governance`. These values must be
+  mode names, hashes, counts, or reason codes only; do not put raw policy,
+  tenant, workspace, source, credential, endpoint, prompt, response, path, or
+  token values in them.
 - `ESHU_COMPONENT_HOME` plus `ESHU_COMPONENT_TRUST_MODE`,
   `ESHU_COMPONENT_ALLOW_IDS`, `ESHU_COMPONENT_ALLOW_PUBLISHERS`,
   `ESHU_COMPONENT_REVOKE_IDS`, `ESHU_COMPONENT_REVOKE_PUBLISHERS`,

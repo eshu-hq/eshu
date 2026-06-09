@@ -63,7 +63,14 @@ curl -fsS "$ESHU_SERVICE_URL/healthz"
 curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" "$ESHU_SERVICE_URL/readyz"
 curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" "$ESHU_SERVICE_URL/admin/status"
 curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" "$ESHU_SERVICE_URL/api/v0/status/index"
+curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" "$ESHU_SERVICE_URL/api/v0/status/governance"
 ```
+
+`/api/v0/status/governance` reports only safe mode, state, policy-revision
+hash, readiness booleans, aggregate counts, and reason codes. It must not show
+raw policy bodies, tenant or workspace identifiers, source identifiers,
+credential handles, provider endpoints, prompts, provider responses, or token
+values.
 
 3. Check optional semantic extraction status before enabling provider-backed
    answers:
@@ -85,8 +92,9 @@ curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" \
   "$ESHU_SERVICE_URL/api/v0/component-extensions?limit=100"
 ```
 
-MCP equivalents are `get_semantic_capability_status`,
-`list_component_extensions`, and `get_component_extension_diagnostics`.
+MCP equivalents are `get_hosted_governance_status`,
+`get_semantic_capability_status`, `list_component_extensions`, and
+`get_component_extension_diagnostics`.
 
 5. Generate the team artifact only after the above checks match the intended
    posture:
@@ -101,6 +109,28 @@ eshu hosted-onboard \
 
 The artifact records the token source name and redacted endpoints. It must not
 carry the bearer token value.
+
+### Governance Status Readback
+
+The governance status route reads only safe runtime metadata from these
+environment keys:
+
+| Key | Safe value shape |
+| --- | --- |
+| `ESHU_GOVERNANCE_MODE` | `local_no_policy`, `hosted_single_tenant`, or `hosted_multi_tenant` |
+| `ESHU_GOVERNANCE_STATE` | `disabled`, `partial`, `enforcing`, `stale`, or `invalid` |
+| `ESHU_GOVERNANCE_SOURCE_KIND` | `environment`, `kubernetes_secret`, `config_map`, `postgres_revision`, or `unknown` |
+| `ESHU_GOVERNANCE_POLICY_REVISION_HASH` | Opaque `sha256:` revision hash only |
+| `ESHU_GOVERNANCE_AUTH_MODE` | `none`, `shared_token`, or a future scoped-token class |
+| `ESHU_GOVERNANCE_TENANT_MODE`, `ESHU_GOVERNANCE_WORKSPACE_MODE` | Mode names only, not tenant or workspace identifiers |
+| `ESHU_GOVERNANCE_EGRESS_MODE` | `restricted`, `broad`, or `not_configured` |
+| `ESHU_GOVERNANCE_REDACTION_STATE`, `ESHU_GOVERNANCE_RETENTION_MODE`, `ESHU_GOVERNANCE_AUDIT_STATE`, `ESHU_GOVERNANCE_EXTENSION_MODE` | Low-cardinality posture names |
+| `ESHU_GOVERNANCE_DENIED_DECISION_COUNT`, `ESHU_GOVERNANCE_POLICY_SECTION_COUNT`, `ESHU_GOVERNANCE_STALE_SECTION_COUNT` | Non-negative aggregate counts |
+| `ESHU_GOVERNANCE_REASONS` | Comma-separated reason codes from the hosted governance allowlist |
+
+Do not put raw policy documents, tenant names, workspace names, repository
+names, source identifiers, credential handles, private endpoints, prompts,
+provider responses, local paths, or token values in these keys.
 
 ## Provider Modes
 

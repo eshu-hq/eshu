@@ -17,6 +17,7 @@ type StatusHandler struct {
 	DB           *sql.DB
 	StatusReader status.Reader
 	Profile      QueryProfile
+	Governance   GovernanceStatusConfig
 }
 
 // Mount registers status query routes on the given mux.
@@ -31,6 +32,7 @@ func (h *StatusHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/status/index", h.getIndexStatus)
 	mux.HandleFunc("GET /api/v0/index-status", h.getIndexStatus)
 	mux.HandleFunc("GET /api/v0/status/hosted-readiness", h.getHostedReadiness)
+	mux.HandleFunc("GET /api/v0/status/governance", h.getGovernanceStatus)
 	mux.HandleFunc("GET /api/v0/status/semantic-extraction", h.getSemanticExtractionStatus)
 }
 

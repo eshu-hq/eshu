@@ -92,7 +92,7 @@ flowchart TB
 | `semanticEvidenceTools` | 2 | `tools_semantic_evidence.go` |
 | `documentationFindingAggregateTools` | 2 | `tools_documentation_aggregates.go` |
 | `componentExtensionTools` | 2 | `tools_component_extensions.go` |
-| `runtimeTools` | 5 | `tools_runtime.go` |
+| `runtimeTools` | 7 | `tools_runtime.go` |
 
 Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 
@@ -165,6 +165,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_collectors` | GET | `/api/v0/status/collectors` |
 | `list_ingesters` | GET | `/api/v0/status/ingesters` |
 | `get_hosted_readiness` | GET | `/api/v0/status/hosted-readiness` with fail-closed queue, collector, projection, and API/MCP query-readback checks |
+| `get_hosted_governance_status` | GET | `/api/v0/status/governance` with redacted governance mode, policy state, readiness booleans, aggregate counts, and low-cardinality reasons |
 | `get_semantic_capability_status` | GET | `/api/v0/status/semantic-extraction` with redacted provider profile, semantic queue, budget, and audit status when configured |
 | `trace_deployment_chain` | POST | `/api/v0/impact/trace-deployment-chain` |
 | `investigate_deployment_config` | POST | `/api/v0/impact/deployment-config-influence` |
