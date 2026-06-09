@@ -136,6 +136,46 @@ func TestClassifyQueueFailedWork(t *testing.T) {
 	}
 }
 
+// TestRecoveryStepsReferenceRealCommands guards against recovery hints that
+// point at non-existent CLI surfaces. `eshu scan` has no `--status` flag; the
+// readiness surface is `eshu index-status` and dead-letter work is inspected
+// with `eshu admin facts dead-letter`.
+func TestRecoveryStepsReferenceRealCommands(t *testing.T) {
+	queueSignal := onboardingSignal{
+		Step:       onboardingStepReadiness,
+		Underlying: rootCauseErr(),
+		Readiness:  scanReadinessVerdict{Terminal: true, Reason: "queue has dead-letter work"},
+		Queue:      scanQueue{DeadLetter: 3, Failed: 1},
+	}
+	buildingSignal := onboardingSignal{
+		Step:       onboardingStepReadiness,
+		Underlying: rootCauseErr(),
+		Readiness:  scanReadinessVerdict{Reason: "queue still has outstanding work"},
+		Queue:      scanQueue{Outstanding: 12, Pending: 12},
+	}
+
+	for _, tc := range []struct {
+		name     string
+		signal   onboardingSignal
+		wantStep string
+	}{
+		{"queue-failed", queueSignal, "eshu admin facts dead-letter"},
+		{"indexing-building", buildingSignal, "eshu index-status"},
+	} {
+		got, ok := classifyOnboardingFailure(tc.signal)
+		if !ok {
+			t.Fatalf("%s: classifyOnboardingFailure() ok = false", tc.name)
+		}
+		joined := strings.Join(got.RecoverySteps, "\n")
+		if strings.Contains(joined, "scan --status") {
+			t.Fatalf("%s: recovery steps reference non-existent `eshu scan --status`: %q", tc.name, joined)
+		}
+		if !strings.Contains(joined, tc.wantStep) {
+			t.Fatalf("%s: recovery steps = %q, want a step referencing %q", tc.name, joined, tc.wantStep)
+		}
+	}
+}
+
 // TestClassifyNoRepositoriesMatch covers an empty repository-selector result.
 func TestClassifyNoRepositoriesMatch(t *testing.T) {
 	signal := onboardingSignal{
