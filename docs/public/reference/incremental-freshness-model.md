@@ -233,7 +233,14 @@ all-zero deltas.
 
 The surface is repository-scope only today. Service-scope deltas (deployment,
 runtime, dependencies, docs, incidents, vulnerabilities, and ownership evidence)
-are larger and are tracked as follow-up work.
+are deferred: a service is a reducer-materialized correlation spread across many
+source scopes and generations, not a single ingestion scope with one generation
+lineage, so the prior-generation-to-current-generation diff above does not apply
+to it. A correct service-scope delta first needs a versioned service
+materialization snapshot with a generation-independent per-evidence diff key.
+The investigation, the reason each evidence family is not diffable today, and the
+recommended snapshot contract are recorded in the internal design note for
+issue #1943.
 
 ## How hosted teams verify freshness without full re-index churn
 
