@@ -91,6 +91,40 @@ func TestListDocumentationFactsRouteIncludesScopeAndSearchFilters(t *testing.T) 
 	}
 }
 
+func TestListDocumentationFactsRouteIncludesDiagramReadbackFilters(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("list_documentation_facts", map[string]any{
+		"fact_kind":   "section",
+		"repo":        "repository:r_diagram",
+		"source_id":   "doc-source:git:repository:r_diagram",
+		"document_id": "doc:git:repository:r_diagram:docs/architecture.mmd",
+		"q":           "Documentation API",
+		"limit":       float64(10),
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.method, "GET"; got != want {
+		t.Fatalf("method = %q, want %q", got, want)
+	}
+	if got, want := route.path, "/api/v0/documentation/facts"; got != want {
+		t.Fatalf("path = %q, want %q", got, want)
+	}
+	for key, want := range map[string]string{
+		"fact_kind":   "section",
+		"repo":        "repository:r_diagram",
+		"source_id":   "doc-source:git:repository:r_diagram",
+		"document_id": "doc:git:repository:r_diagram:docs/architecture.mmd",
+		"q":           "Documentation API",
+		"limit":       "10",
+	} {
+		if got := route.query[key]; got != want {
+			t.Fatalf("route.query[%q] = %#v, want %#v", key, got, want)
+		}
+	}
+}
+
 func TestListDocumentationFindingsSchemaIncludesRoutedFilters(t *testing.T) {
 	t.Parallel()
 

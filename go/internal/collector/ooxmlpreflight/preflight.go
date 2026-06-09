@@ -2,7 +2,6 @@ package ooxmlpreflight
 
 import (
 	"archive/zip"
-	"bytes"
 	"context"
 	"encoding/xml"
 	"errors"
@@ -13,6 +12,8 @@ import (
 	"sort"
 	"strings"
 )
+
+var errXMLBytesExceeded = errors.New("xml byte budget exceeded")
 
 const (
 	// FormatDOCX identifies an OOXML word-processing package.
@@ -28,7 +29,7 @@ const (
 	WarningUnsupportedMacroEnabled = "unsupported_macro_enabled"
 	// WarningMalformedContainer marks ZIP container parse failures.
 	WarningMalformedContainer = "malformed_container"
-	// WarningMalformedXML marks malformed package metadata or relationship XML.
+	// WarningMalformedXML marks malformed package metadata, relationship, or structure XML.
 	WarningMalformedXML = "malformed_xml"
 	// WarningResourceLimitExceeded marks source, entry-count, expanded-byte, or XML limits.
 	WarningResourceLimitExceeded = "resource_limit_exceeded"
@@ -42,6 +43,10 @@ const (
 	WarningActiveContent = "active_content_present"
 	// WarningEmbeddedObject marks embedded object package parts.
 	WarningEmbeddedObject = "embedded_object_present"
+	// WarningAnnotationTextSkipped marks skipped comments or tracked-change text.
+	WarningAnnotationTextSkipped = "annotation_text_skipped"
+	// WarningHiddenContentSkipped marks skipped hidden sheet, slide, or text content.
+	WarningHiddenContentSkipped = "hidden_content_skipped"
 	// WarningTimeout marks caller cancellation or deadline during preflight.
 	WarningTimeout = "timeout"
 )
@@ -84,6 +89,17 @@ type Result struct {
 	ExternalRelationshipCount int       `json:"external_relationship_count"`
 	ActiveContentCount        int       `json:"active_content_count"`
 	EmbeddedObjectCount       int       `json:"embedded_object_count"`
+	AnnotationPartCount       int       `json:"annotation_part_count"`
+	HiddenContentCount        int       `json:"hidden_content_count"`
+	ImagePartCount            int       `json:"image_part_count"`
+	TableMarkerCount          int       `json:"table_marker_count"`
+	TrackedChangeMarkerCount  int       `json:"tracked_change_marker_count"`
+	WorksheetPartCount        int       `json:"worksheet_part_count"`
+	SharedStringPartCount     int       `json:"shared_string_part_count"`
+	FormulaMarkerCount        int       `json:"formula_marker_count"`
+	SlidePartCount            int       `json:"slide_part_count"`
+	NotesPartCount            int       `json:"notes_part_count"`
+	MediaPartCount            int       `json:"media_part_count"`
 }
 
 type recorder struct {
@@ -212,6 +228,13 @@ func (r *recorder) warn(class string) {
 	r.result.Safe = false
 }
 
+func (r *recorder) warnOnce(class string) {
+	if _, ok := r.seen[class]; ok {
+		return
+	}
+	r.warn(class)
+}
+
 func (r *recorder) finalize() Result {
 	if len(r.result.Warnings) > 0 {
 		r.result.Safe = false
@@ -281,6 +304,7 @@ func compressionRatioExceeded(file *zip.File, maxRatio float64) bool {
 
 func (r *recorder) classifyPartName(name string) {
 	lower := strings.ToLower(strings.TrimPrefix(name, "/"))
+	r.classifyStructurePartName(lower)
 	switch {
 	case strings.Contains(lower, "vbaproject.bin"):
 		r.warn(WarningUnsupportedMacroEnabled)
@@ -296,8 +320,8 @@ func (r *recorder) classifyPartName(name string) {
 }
 
 func shouldParseXMLMetadata(name string) bool {
-	lower := strings.ToLower(name)
-	return lower == "[content_types].xml" || isRelationshipPart(lower)
+	lower := strings.ToLower(strings.TrimPrefix(name, "/"))
+	return lower == "[content_types].xml" || isRelationshipPart(lower) || shouldParseStructureXMLMetadata(lower)
 }
 
 func isRelationshipPart(name string) bool {
@@ -314,19 +338,35 @@ func parseXMLMetadata(ctx context.Context, file *zip.File, options Options, rec 
 		rec.warn(WarningResourceLimitExceeded)
 		return false
 	}
-	body, ok := readZipPart(file, options.MaxXMLBytes, rec)
-	if !ok {
+	reader, err := file.Open()
+	if err != nil {
+		rec.warn(WarningMalformedContainer)
 		return false
 	}
-	decoder := xml.NewDecoder(bytes.NewReader(body))
+	defer func() {
+		if err := reader.Close(); err != nil {
+			rec.warn(WarningMalformedContainer)
+		}
+	}()
+
+	budgeted := &xmlBudgetReader{reader: reader, remaining: options.MaxXMLBytes}
+	decoder := xml.NewDecoder(budgeted)
 	depth := 0
 	for {
+		if err := ctx.Err(); err != nil {
+			rec.warn(WarningTimeout)
+			return false
+		}
 		token, err := decoder.Token()
 		if err == io.EOF {
 			return true
 		}
 		if err != nil {
-			rec.warn(WarningMalformedXML)
+			if errors.Is(err, errXMLBytesExceeded) {
+				rec.warn(WarningResourceLimitExceeded)
+			} else {
+				rec.warn(WarningMalformedXML)
+			}
 			return false
 		}
 		switch typed := token.(type) {
@@ -345,35 +385,28 @@ func parseXMLMetadata(ctx context.Context, file *zip.File, options Options, rec 
 	}
 }
 
-func readZipPart(file *zip.File, maxBytes uint64, rec *recorder) ([]byte, bool) {
-	reader, err := file.Open()
-	if err != nil {
-		rec.warn(WarningMalformedContainer)
-		return nil, false
-	}
-	defer func() {
-		if err := reader.Close(); err != nil {
-			rec.warn(WarningMalformedContainer)
-		}
-	}()
+type xmlBudgetReader struct {
+	reader    io.Reader
+	remaining uint64
+}
 
-	limited := io.LimitReader(reader, int64(maxBytes)+1)
-	body, err := io.ReadAll(limited)
-	if err != nil {
-		rec.warn(WarningMalformedContainer)
-		return nil, false
+func (r *xmlBudgetReader) Read(p []byte) (int, error) {
+	if r.remaining == 0 {
+		return 0, errXMLBytesExceeded
 	}
-	if uint64(len(body)) > maxBytes {
-		rec.warn(WarningResourceLimitExceeded)
-		return nil, false
+	if uint64(len(p)) > r.remaining {
+		p = p[:r.remaining]
 	}
-	return body, true
+	n, err := r.reader.Read(p)
+	r.remaining -= uint64(n)
+	return n, err
 }
 
 func (r *recorder) classifyXMLElement(start xml.StartElement) {
+	r.classifyStructureXMLElement(start)
 	switch strings.ToLower(start.Name.Local) {
 	case "relationship":
-		if hasAttrValue(start, "TargetMode", "External") {
+		if hasAttrValue(start, "TargetMode", "External") || externalRelationshipTarget(attrValue(start, "Target")) {
 			r.warn(WarningExternalRelationship)
 			r.result.ExternalRelationshipCount++
 		}
@@ -408,4 +441,10 @@ func attrValue(start xml.StartElement, name string) string {
 
 func hasAttrValue(start xml.StartElement, name, value string) bool {
 	return strings.EqualFold(attrValue(start, name), value)
+}
+
+func externalRelationshipTarget(target string) bool {
+	trimmed := strings.TrimSpace(target)
+	lower := strings.ToLower(trimmed)
+	return strings.Contains(lower, "://") || strings.HasPrefix(trimmed, `\\`) || hasWindowsDrivePrefix(trimmed)
 }

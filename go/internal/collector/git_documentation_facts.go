@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -18,6 +19,7 @@ import (
 const gitDocumentationSourceType = "repository_documentation"
 
 func gitDocumentationFactCount(
+	ctx context.Context,
 	repoPath string,
 	repo repositoryidentity.Metadata,
 	scopeID string,
@@ -41,6 +43,7 @@ func gitDocumentationFactCount(
 				continue
 			}
 			envelopes, emitted := gitDocumentationEnvelopesForContentFile(
+				ctx,
 				repoPath,
 				repo,
 				scopeID,
@@ -64,6 +67,7 @@ func gitDocumentationFactCount(
 				continue
 			}
 			envelopes, emitted := gitDocumentationEnvelopesForContentFile(
+				ctx,
 				repoPath,
 				repo,
 				scopeID,
@@ -88,6 +92,7 @@ func gitDocumentationFactCount(
 			continue
 		}
 		envelopes, emitted := gitDocumentationEnvelopesForContentFile(
+			ctx,
 			repoPath,
 			repo,
 			scopeID,
@@ -106,6 +111,7 @@ func gitDocumentationFactCount(
 }
 
 func emitGitDocumentationFactsForContentFile(
+	ctx context.Context,
 	ch chan<- facts.Envelope,
 	repoPath string,
 	repo repositoryidentity.Metadata,
@@ -119,6 +125,7 @@ func emitGitDocumentationFactsForContentFile(
 	emitSource bool,
 ) bool {
 	envelopes, sourceEmitted := gitDocumentationEnvelopesForContentFile(
+		ctx,
 		repoPath,
 		repo,
 		scopeID,
@@ -137,6 +144,7 @@ func emitGitDocumentationFactsForContentFile(
 }
 
 func gitDocumentationEnvelopesForContentFile(
+	ctx context.Context,
 	repoPath string,
 	repo repositoryidentity.Metadata,
 	scopeID string,
@@ -152,7 +160,7 @@ func gitDocumentationEnvelopesForContentFile(
 	if !ok {
 		return nil, false
 	}
-	document, sections, links := extractGitDocumentation(repo, sourceURI, digest, commitSHA, body, format)
+	document, sections, links := extractGitDocumentation(ctx, repo, sourceURI, digest, commitSHA, body, format)
 	out := make([]facts.Envelope, 0, 1+1+len(sections)+len(links))
 	if emitSource {
 		sourcePayload := facts.DocumentationSourcePayload{
@@ -224,15 +232,17 @@ func gitDocumentationEnvelopesForContentFile(
 			sourceFile,
 		))
 	}
-	out = append(out, gitDocumentationTruthEnvelopes(
-		repo,
-		scopeID,
-		generationID,
-		observedAt,
-		document,
-		sections,
-		links,
-	)...)
+	if gitDocumentationFormatEmitsTruth(format) {
+		out = append(out, gitDocumentationTruthEnvelopes(
+			repo,
+			scopeID,
+			generationID,
+			observedAt,
+			document,
+			sections,
+			links,
+		)...)
+	}
 	return out, emitSource
 }
 
@@ -243,6 +253,9 @@ func readDocumentationBody(repoPath string, relativePath string, body []byte) ([
 	sourceURI, format, ok := gitDocumentationSourceURIAndFormat(relativePath)
 	if !ok {
 		return nil, false
+	}
+	if format.format == "xls" {
+		return nil, true
 	}
 	file, err := os.Open(filepath.Join(repoPath, filepath.FromSlash(sourceURI)))
 	if err != nil {
@@ -263,6 +276,9 @@ func readDocumentationCandidateBody(repoPath string, relativePath string, body [
 	sourceURI, format, ok := gitDocumentationSourceURIAndFormat(relativePath)
 	var readLimit int
 	if ok {
+		if format.format == "xls" {
+			return nil, true
+		}
 		readLimit = documentationReadLimitBytes(format)
 	} else {
 		sourceURI, ok = documentationSourceURI(relativePath)
@@ -290,6 +306,9 @@ func documentationReadLimitBytes(format gitDocumentationFormat) int {
 	}
 	if format.format == "notebook" {
 		return notebookMaxBodyBytes
+	}
+	if format.format == "docx" || format.format == "xlsx" || format.format == "pptx" {
+		return 50 << 20
 	}
 	return documentationMaxBodyBytes
 }

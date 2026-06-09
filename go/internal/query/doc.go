@@ -150,9 +150,13 @@
 // (`count`, `limit`, `truncated`, `missing_evidence`, `states`, and
 // `next_cursor` on truncated pages) so API and MCP clients can distinguish a
 // complete scoped page from a continuation page or a scoped page with no
-// collected documentation facts. Fact reads include provenance-only
-// semantic.documentation_observation rows, but documentation finding admission
-// remains reducer-owned.
+// collected documentation facts.
+// Semantic evidence reads are separate opt-in routes over durable semantic
+// fact rows. They expose sanitized documentation observations and non-canonical
+// code hints with truth basis, provider profile, prompt version, redaction
+// version, policy state, freshness, and admission or corroboration state; they
+// do not expose raw prompts, credentials, provider responses, or silently add
+// semantic hints to deterministic query routes.
 //
 // AnswerPacket composes existing query truth into a user-ready response plan
 // without losing structured evidence. It is a view over the canonical

@@ -134,6 +134,17 @@ func (h *MetricsHandler) writeSeries(
 	truth := BuildTruthEnvelope(h.profile(), metricsTimeSeriesCapability, TruthBasisSemanticFacts, reason)
 	truth.Level = level
 	truth.Freshness = TruthFreshness{State: freshness}
+	// Attach a freshness cause only on the proven branch. This handler holds the
+	// evidence for exactly two non-fresh states: an unavailable series means the
+	// Prometheus/Mimir collector is not reporting (missing collector completion),
+	// and a building series means the metric has no indexed history yet (content
+	// coverage unavailable). No other cause is provable here, so none is guessed.
+	switch freshness {
+	case FreshnessUnavailable:
+		WithFreshnessCause(truth, FreshnessCauseMissingCollectorCompletion)
+	case FreshnessBuilding:
+		WithFreshnessCause(truth, FreshnessCauseContentCoverageUnavailable)
+	}
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"metric": query.Metric,
 		"unit":   unit,

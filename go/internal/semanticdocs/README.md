@@ -52,9 +52,11 @@ query, HTTP handler, MCP tool, or runtime stage.
 
 ## Gotchas / invariants
 
-- Observations are evidence only. `Emitter` validates that admission stays
-  `provenance_only` or `documentation_finding_candidate`; it never emits
-  canonical truth.
+- Observations are evidence only. `Emitter` validates that mocked provider
+  output admission stays `provenance_only` or
+  `documentation_finding_candidate`; reducer admission states such as `exact`,
+  `partial`, `ambiguous`, `stale`, `unsafe`, and `unsupported` belong to later
+  reducer-owned stages.
 - Provider identity is a profile handle. Raw provider keys, bearer tokens,
   request bodies, prompt payloads, and private provider responses do not belong
   in this package.

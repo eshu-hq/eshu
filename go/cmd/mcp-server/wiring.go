@@ -196,6 +196,10 @@ func newMCPQueryRouter(
 			Aggregates: query.NewPostgresDocumentationFindingAggregateStore(db),
 			Profile:    queryProfile,
 		},
+		SemanticEvidence: &query.SemanticEvidenceHandler{
+			Content: contentReader,
+			Profile: queryProfile,
+		},
 		PackageRegistry: &query.PackageRegistryHandler{
 			Neo4j:        neo4jReader,
 			Content:      contentReader,

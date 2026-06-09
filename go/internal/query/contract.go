@@ -70,6 +70,17 @@ type TruthFreshness struct {
 	State      FreshnessState `json:"state"`
 	ObservedAt string         `json:"observed_at,omitempty"`
 	Detail     string         `json:"detail,omitempty"`
+	// Cause names WHY the answer is not fresh, drawn from the closed
+	// FreshnessCause enumeration. It is set only when a handler holds the
+	// evidence for the cause (for example a readiness verdict or a
+	// generation-pending signal) and is left empty otherwise; handlers MUST NOT
+	// guess. Causality is not correctness: a cause explains a known lag, it does
+	// not imply the answer is wrong. Attach it through WithFreshnessCause.
+	Cause FreshnessCause `json:"cause,omitempty"`
+	// NextCheck is the bounded follow-up call that drills into Cause (a status,
+	// generation, coverage, citation, or queue surface). It is populated
+	// alongside Cause by WithFreshnessCause and nil when no cause is set.
+	NextCheck *FreshnessNextCheck `json:"next_check,omitempty"`
 }
 
 type TruthEnvelope struct {

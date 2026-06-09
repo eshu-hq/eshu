@@ -342,6 +342,11 @@ const (
 	SpanQueryDocumentationFacts           = "query.documentation_facts"
 	SpanQueryDocumentationEvidencePacket  = "query.documentation_evidence_packet"
 	SpanQueryDocumentationPacketFreshness = "query.documentation_packet_freshness"
+	// SpanQuerySemanticEvidence wraps opt-in semantic documentation observation
+	// and code-hint fact reads. It is separate from deterministic documentation,
+	// code, and graph-truth routes so API/MCP callers can distinguish semantic
+	// provenance from canonical truth in traces.
+	SpanQuerySemanticEvidence = "query.semantic_evidence"
 	// SpanQueryDocumentationAggregate wraps cheap-summary count and inventory
 	// aggregates over reducer-owned documentation findings. Replaces the
 	// page-and-iterate caller pattern for ecosystem-level questions like

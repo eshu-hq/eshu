@@ -13,13 +13,21 @@
 // enter normal repository snapshots; only metadata-only state candidates are
 // emitted for the Terraform-state collector path to approve and read.
 // Repository-hosted Markdown, lightweight text, HTML, API contracts, notebook
-// narrative, and conservative delimited spreadsheet files become source-neutral
-// documentation facts and non-authoritative document-evidence claim candidates
-// only. API contract operations, schemas, channels, and GraphQL SDL fields are
-// documentation evidence; they do not prove service ownership. Notebook
-// code-cell source remains parser evidence; Markdown cells, raw cells, and
-// selected stdout/text outputs are the only notebook content that enters the
-// documentation lane. Declared Grafana, Prometheus/Mimir, Loki, and Tempo
+// narrative, bounded DOCX summaries, conservative delimited spreadsheet files,
+// bounded XLSX workbook summaries, bounded PPTX slide summaries, and
+// deterministic Mermaid/D2 text diagrams plus structured PlantUML, Draw.io,
+// Excalidraw, and SVG diagrams become source-neutral documentation facts. DOCX
+// comments and tracked changes stay metadata-only; legacy XLS files are
+// classified as unsupported binary workbooks without reading cell bytes; PPTX
+// hidden slides, speaker notes, comments, embedded objects, and external
+// relationships stay metadata-only. Prose surfaces may emit non-authoritative
+// document-evidence claim candidates, but API contract operations, schemas,
+// channels, GraphQL SDL fields, spreadsheet cells, slide text, and diagram
+// labels or links remain documentation evidence; they do not prove service
+// ownership.
+// Notebook code-cell source remains parser evidence; Markdown cells, raw cells,
+// and selected stdout/text outputs are the only notebook content that enters
+// the documentation lane. Declared Grafana, Prometheus/Mimir, Loki, and Tempo
 // observability rows plus applied
 // Argo CD/Kubernetes observability state rows from repository parsers become
 // metadata-only observability source facts; reducers and query surfaces own any

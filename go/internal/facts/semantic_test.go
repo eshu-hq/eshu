@@ -149,6 +149,42 @@ func TestSemanticDocumentationObservationOutcomeClasses(t *testing.T) {
 	}
 }
 
+func TestSemanticDocumentationObservationAdmissionStates(t *testing.T) {
+	t.Parallel()
+
+	for _, admissionState := range []string{
+		SemanticAdmissionExact,
+		SemanticAdmissionPartial,
+		SemanticAdmissionAmbiguous,
+		SemanticAdmissionStale,
+		SemanticAdmissionUnsafe,
+		SemanticAdmissionUnsupported,
+	} {
+		admissionState := admissionState
+		t.Run(admissionState, func(t *testing.T) {
+			t.Parallel()
+
+			payload := semanticDocumentationObservationFixture()
+			payload.AdmissionState = admissionState
+			if admissionState == SemanticAdmissionStale {
+				payload.FreshnessState = SemanticFreshnessStale
+				payload.MissingEvidence = []string{"current_source_hash"}
+			}
+			if admissionState == SemanticAdmissionUnsafe {
+				payload.RedactionState = SemanticRedactionUnsafePayload
+				payload.UnsupportedReason = SemanticRedactionUnsafePayload
+			}
+			if admissionState == SemanticAdmissionUnsupported {
+				payload.UnsupportedReason = "unsupported_observation_kind"
+			}
+
+			if err := ValidateSemanticDocumentationObservationPayload(payload); err != nil {
+				t.Fatalf("ValidateSemanticDocumentationObservationPayload(%q) error = %v, want nil", admissionState, err)
+			}
+		})
+	}
+}
+
 func TestValidateSemanticDocumentationObservationPayloadRejectsUnsafeAdmission(t *testing.T) {
 	t.Parallel()
 

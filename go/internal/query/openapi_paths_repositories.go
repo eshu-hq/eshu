@@ -28,7 +28,7 @@ const openAPIPathsRepositories = `
       "get": {
         "tags": ["repositories"],
         "summary": "List repositories",
-        "description": "Returns a bounded page of indexed repositories.",
+        "description": "Returns a bounded page of indexed repositories. This route also serves the inventory (empty-selector) form of get_repository_stats, so the response carries an additive result_limits drilldown block and an explicit partial_reasons slot alongside the existing truncated paging field.",
         "operationId": "listRepositories",
         "parameters": [
           {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 100, "minimum": 1, "maximum": 500}},
@@ -49,7 +49,9 @@ const openAPIPathsRepositories = `
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
                     "offset": {"type": "integer"},
-                    "truncated": {"type": "boolean"}
+                    "truncated": {"type": "boolean"},
+                    "result_limits": {"type": "object", "description": "Additive drilldown block for the inventory form of get_repository_stats: bounded page limit/offset, deterministic ordering, repository count, truncation flag, and the get_repository_stats drilldown plus inventory context path.", "additionalProperties": true},
+                    "partial_reasons": {"type": "array", "description": "Explicit reasons the inventory page is partial, e.g. repository_inventory_truncated when more repositories exist beyond the page; always present so the envelope shape is stable.", "items": {"type": "string"}}
                   }
                 }
               }

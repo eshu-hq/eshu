@@ -89,6 +89,11 @@ jobs. `semantic.documentation_observation` preserves an LLM-assisted
 documentation observation with source, chunk, provider profile, model, prompt
 version, extraction mode, redaction version, policy state, confidence,
 freshness, missing evidence, unsupported reason, and admission state.
+Observation admission can be pre-reducer provenance
+(`provenance_only`, `documentation_finding_candidate`) or reducer-owned
+documentation admission (`exact`, `partial`, `ambiguous`, `stale`, `unsafe`,
+`unsupported`). Only reducer-admitted exact documentation observations can
+become exact documentation findings.
 `semantic.code_hint` preserves a possible code relationship or entity hint with
 the same replay and safety provenance plus subject/object code entity refs,
 corroboration state, and
@@ -103,17 +108,24 @@ Repository-hosted documentation ingestion is part of Git collection. It emits
 source-neutral documentation source, document, section, and link facts for
 Markdown (`.md`, `.mdx`, `.markdown`), lightweight text (`.txt`, `.rst`,
 `.adoc`, `.asciidoc`, `.qmd`), HTML (`.html`, `.htm`), notebook narrative
-(`.ipynb`), and conservative delimited spreadsheet (`.csv`, `.tsv`) files under
+(`.ipynb`), bounded DOCX summaries, conservative delimited spreadsheet (`.csv`,
+`.tsv`), bounded XLSX workbook summaries, and bounded PPTX slide summaries under
 the repository scope and attaches a repository `linked_entities` target
-reference for repository-scoped readback. Spreadsheet sections contain headers,
-row/column/sample counts, bounded row samples, truncation warnings, and redacted
-sensitive-looking cells rather than full table dumps. Deterministic `doctruth`
-extraction may add entity-mention and claim-candidate facts from bounded
-sections, but those claims remain `document_evidence` only. Reducers and query
-surfaces decide whether later findings or drift evidence are admissible. Local
-`eshu docs verify` is separate: it actively checks local Markdown claims
-against caller-supplied truth sources and emits findings or evidence packets
-rather than ingesting repository documentation.
+reference for repository-scoped readback. DOCX sections contain bounded heading,
+paragraph, and table text; comments and tracked changes stay metadata-only.
+Spreadsheet sections contain headers, row/column/sample counts, bounded row
+samples, truncation warnings, formula hashes, and redacted sensitive-looking
+cells rather than full table dumps. Hidden XLSX sheets stay metadata-only, and
+legacy `.xls` files emit unsupported warning metadata without reading cell
+bytes. PPTX sections contain visible slide title, body, and table text; hidden
+slides, speaker notes, comments, embedded objects, and external relationships
+stay metadata-only.
+Deterministic `doctruth` extraction may add entity-mention and claim-candidate
+facts from bounded sections, but those claims remain `document_evidence` only.
+Reducers and query surfaces decide whether later findings or drift evidence are
+admissible. Local `eshu docs verify` is separate: it actively checks local
+Markdown claims against caller-supplied truth sources and emits findings or
+evidence packets rather than ingesting repository documentation.
 
 S3 bucket posture facts are metadata-only AWS collector evidence.
 `s3_external_principal_grant` carries public, cross-account, AWS service, and

@@ -2,8 +2,8 @@
 
 Status: **PROPOSED - SECURITY REVIEW AND IMPLEMENTATION PROOF REQUIRED.**
 
-Refs: #1741, #1748. Parent: #1733. Related baseline: #1734 / PR #1749
-Git-hosted Markdown documentation fact ingestion and
+Refs: #1741, #1748, #1875. Parent: #1733. Related baseline: #1734 /
+PR #1749, Git-hosted Markdown documentation fact ingestion and
 `1738-office-spreadsheet-deck-archive-ingestion.md`.
 
 ## 1. Decision
@@ -29,6 +29,11 @@ The facts record what an allowed source said at a source revision. They do not
 create code, deployment, incident, work-item, service, ownership, or runtime
 truth by themselves. Reducers, query surfaces, and documentation truth checkers
 own later comparison, admission, drift findings, and truth labels.
+
+The next Google Workspace implementation slice is #1875. It is limited to
+mocked clients, synthetic IDs, default-off behavior, and fact readback proof.
+It must not add live provider calls, chart options, Compose wiring, or public
+operator docs.
 
 ## 2. Non-Goals
 
@@ -87,8 +92,12 @@ Google Workspace live collection must require at least one allowlist:
 
 The collector must reject `allDrives`, domain-wide search, user-root search, or
 unbounded modified-time queries unless a later security review approves the
-mode with a hard cap and an audit reason. Drive listing must prefer `user` or
-`drive` corpora and treat incomplete search as partial evidence, not success.
+mode with a hard cap and an audit reason. Google's Drive `files.list` API
+supports `user`, `domain`, `drive`, and `allDrives` corpora and recommends
+`user` or `drive` over `allDrives` for efficiency. Eshu must therefore prefer
+file IDs, bounded folder traversal, or `corpora=drive` plus `driveId` for
+shared-drive scopes. Incomplete Drive search or rejected page tokens produce
+partial evidence, not success.
 
 Offline/export ingestion must require an import manifest with:
 
@@ -114,17 +123,18 @@ allowlisted Drive file ID. The collector must fetch provider metadata, verify
 download/export capability, and export the source object to a reviewed document
 format before document extraction.
 
-Initial export mapping:
+Initial export mapping, aligned with Google's Workspace export MIME table:
 
 | Workspace type | Preferred export | Existing extractor path |
 | --- | --- | --- |
-| Google Doc | DOCX, with HTML or plain text only for explicit fallback tests | Office document ingestion |
-| Google Sheet | XLSX for workbook structure; CSV only for explicitly named sheet slices | Spreadsheet ingestion |
-| Google Slide | PPTX | Deck ingestion |
+| Google Doc | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` (`.docx`), with `text/markdown`, HTML ZIP, or plain text only for explicit fallback tests | Office document ingestion |
+| Google Sheet | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` (`.xlsx`) for workbook structure; `text/csv` or `text/tab-separated-values` only for explicitly named first-sheet slices | Spreadsheet ingestion |
+| Google Slide | `application/vnd.openxmlformats-officedocument.presentationml.presentation` (`.pptx`) | Deck ingestion |
 
 The Drive export response is a bounded byte stream for a requested MIME type.
-Implementation must enforce an Eshu-side byte limit at or below the provider
-limit and classify over-limit responses as `resource_limit_exceeded`. If
+Google Workspace documents exported through `files.export` are provider-limited
+to 10 MB, so implementation must enforce an Eshu-side byte limit at or below
+that limit and classify over-limit responses as `resource_limit_exceeded`. If
 Drive reports the file cannot be downloaded or exported, the collector emits
 metadata-only facts with `download_not_allowed`.
 
@@ -132,14 +142,21 @@ metadata-only facts with `download_not_allowed`.
 
 Live collectors may read credentials only from process environment, mounted
 secret files, or runtime identity providers already approved by deployment
-policy. The first Google Workspace design should prefer one of:
+policy. The first Google Workspace implementation should prefer one of:
 
 - OAuth access with the narrowest approved Drive scope for explicitly shared
-  files.
+  files, such as per-file `drive.file` when the deployment can use a picker or
+  explicit share flow.
 - A service account or delegated identity limited to an explicit Drive, folder,
   or file allowlist.
 - An external credential helper that returns an in-memory token and does not
   write a token cache under the Eshu workspace.
+
+Google classifies broad Drive scopes such as `drive.readonly`,
+`drive.metadata.readonly`, and `drive` as restricted scopes. A live collector
+that needs those scopes must remain private or security-reviewed before any
+runtime option ships. The design must reject an implementation that silently
+upgrades from `drive.file` to restricted all-Drive scopes.
 
 The collector must not persist refresh tokens, access tokens, service account
 JSON, private keys, OAuth client secrets, or credential-helper output. It must
@@ -174,8 +191,11 @@ document bodies must not appear in logs, metric labels, public docs, fixture
 names, or public evidence. If the value is needed for joins or de-duplication,
 store a stable fingerprint and the provider identity kind.
 
-Evidence packet reads must deny document body excerpts when ACL is missing,
-partial without an approved policy, or denied for the requesting principal.
+Drive permission reads are paginated and can return a next-page token; failed
+permission pagination must set `acl_partial` rather than dropping missing
+permissions. Evidence packet reads must deny document body excerpts when ACL is
+missing, partial without an approved policy, or denied for the requesting
+principal.
 
 ## 8. Fact Mapping
 
@@ -362,12 +382,13 @@ content, tenant identifiers, private URLs, emails, or tokens.
 
 1. Land this design note and get security review agreement on source scope,
    credential model, ACL shape, redaction, and fixture policy.
-2. Add shared documentation export/import manifest types and parser tests with
+2. Implement #1875 with mocked Google Drive clients, synthetic IDs, explicit
+   allowlist validation, export mapping, ACL summaries, and documentation fact
+   readback while remaining default-off and runtime-free.
+3. Add shared documentation export/import manifest types and parser tests with
    synthetic GitHub, Jira, Slack, and Teams export fixtures.
-3. Implement offline/export ingestion first, emitting documentation facts only
+4. Implement offline/export ingestion first, emitting documentation facts only
    and no runtime chart option.
-4. Add Google Workspace mocked-client tests for Drive allowlists, export format
-   handling, ACL metadata, and failure classes.
 5. Implement the Google Workspace live collector behind disabled local config,
    with credentials read only from env or runtime identity.
 6. Add telemetry and status rows for any live collector or claim-driven importer
@@ -379,7 +400,20 @@ content, tenant identifiers, private URLs, emails, or tokens.
 9. After security approval, add public operator docs, config examples with
    placeholder values only, and chart/Compose defaults that remain disabled.
 
-## 13. Security Review Gates
+## 13. Official API References
+
+- Google Drive API download and export guide:
+  https://developers.google.com/workspace/drive/api/guides/manage-downloads
+- Google Workspace export MIME types:
+  https://developers.google.com/workspace/drive/api/guides/ref-export-formats
+- Google Drive `files.list` reference:
+  https://developers.google.com/workspace/drive/api/reference/rest/v3/files/list
+- Google Drive API scopes:
+  https://developers.google.com/workspace/drive/api/guides/api-specific-auth
+- Google Drive permissions listing:
+  https://developers.google.com/workspace/drive/api/reference/rest/v3/permissions/list
+
+## 14. Security Review Gates
 
 Security review must explicitly sign off before production ingestion on:
 

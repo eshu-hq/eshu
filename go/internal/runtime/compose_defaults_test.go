@@ -87,6 +87,22 @@ func TestDefaultComposeFilesDoNotStartTelemetry(t *testing.T) {
 	}
 }
 
+func TestDefaultComposePassesSemanticConfigOnlyToReadSurfaces(t *testing.T) {
+	t.Parallel()
+
+	doc := readComposeDocument(t, "docker-compose.yaml")
+	for _, serviceName := range []string{"eshu", "mcp-server"} {
+		service := requireComposeService(t, doc, serviceName)
+		assertComposeEnv(t, service, "ESHU_SEMANTIC_PROVIDER_PROFILES_JSON", "${ESHU_SEMANTIC_PROVIDER_PROFILES_JSON:-}")
+		assertComposeEnv(t, service, "ESHU_SEMANTIC_EXTRACTION_POLICY_JSON", "${ESHU_SEMANTIC_EXTRACTION_POLICY_JSON:-}")
+	}
+	for _, serviceName := range []string{"bootstrap-index", "ingester", "resolution-engine"} {
+		service := requireComposeService(t, doc, serviceName)
+		assertComposeEnvMissing(t, service, "ESHU_SEMANTIC_PROVIDER_PROFILES_JSON")
+		assertComposeEnvMissing(t, service, "ESHU_SEMANTIC_EXTRACTION_POLICY_JSON")
+	}
+}
+
 func TestTelemetryComposeOverlayDefinesTelemetryStack(t *testing.T) {
 	t.Parallel()
 

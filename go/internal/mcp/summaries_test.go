@@ -234,3 +234,46 @@ func TestSummaryBoundedAndTruncatesLimitations(t *testing.T) {
 		t.Fatalf("summary length %d exceeds cap %d", len(got), maxSummaryLength)
 	}
 }
+
+// TestSummarizeToolTextMentionsFreshnessCause proves a proven freshness cause is
+// surfaced in the convenience text while the structured envelope is untouched.
+func TestSummarizeToolTextMentionsFreshnessCause(t *testing.T) {
+	truth := &query.TruthEnvelope{
+		Level:     query.TruthLevelDerived,
+		Freshness: query.TruthFreshness{State: query.FreshnessStale},
+	}
+	query.WithFreshnessCause(truth, query.FreshnessCauseDeadLetteredDomain)
+	env := &query.ResponseEnvelope{
+		Truth: truth,
+		Data:  map[string]any{"count": float64(2)},
+	}
+
+	got := summarizeToolText("unknown_tool", env)
+	if !strings.Contains(got, "stale") {
+		t.Fatalf("summary %q should surface stale freshness", got)
+	}
+	if !strings.Contains(got, string(query.FreshnessCauseDeadLetteredDomain)) {
+		t.Fatalf("summary %q should mention the dead_lettered_domain cause", got)
+	}
+
+	// Structured content remains canonical: the summary must not mutate it.
+	if env.Truth.Freshness.Cause != query.FreshnessCauseDeadLetteredDomain {
+		t.Fatalf("summary mutated the structured cause: %q", env.Truth.Freshness.Cause)
+	}
+	if env.Truth.Freshness.NextCheck == nil {
+		t.Fatalf("summary dropped the structured next check")
+	}
+}
+
+// TestSummarizeToolTextFreshAnswerOmitsCause proves a fresh answer surfaces no
+// cause note even if one were somehow attached, matching the not-fresh gate.
+func TestSummarizeToolTextFreshAnswerOmitsCause(t *testing.T) {
+	env := &query.ResponseEnvelope{
+		Truth: freshTruth(query.TruthLevelExact, query.FreshnessFresh),
+		Data:  map[string]any{"count": float64(1)},
+	}
+	got := summarizeToolText("unknown_tool", env)
+	if strings.Contains(got, "cause:") {
+		t.Fatalf("fresh summary %q should not carry a cause note", got)
+	}
+}

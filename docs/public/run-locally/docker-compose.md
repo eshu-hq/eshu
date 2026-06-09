@@ -41,6 +41,60 @@ state, facts, queues, status, content, and recovery data.
 | `ingester` | Continuous repository sync, discovery, parsing, and fact emission. |
 | `resolution-engine` | Reducer queue drain, graph projection, repair, and shared materialization. |
 
+## Semantic Provider Modes
+
+The default stack is a no-provider semantic mode. Leave
+`ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` and
+`ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` unset to keep source-only indexing,
+documentation fact reads, API reads, MCP tools, and reducer projection fully
+deterministic. In this mode `/api/v0/status/semantic-extraction` reports
+semantic extraction as unavailable or policy-disabled instead of failing
+ingestion.
+
+The `eshu` and `mcp-server` services pass those two optional variables through
+when they are set in the Compose environment. Bootstrap, ingester, and reducer
+services do not read provider profiles from the default Compose file; provider
+configuration only affects the read-surface status projection until a dedicated
+semantic worker path is enabled.
+
+For a local gateway or Ollama-style development profile, use the
+`local_dev_profile` credential-source kind and store only a profile handle in
+the provider JSON. Do not put a local endpoint token, provider key, prompt body,
+or provider response in the environment:
+
+```bash
+export ESHU_SEMANTIC_PROVIDER_PROFILES_JSON='{"profiles":[{"profile_id":"semantic-local-ollama","provider_kind":"ollama","credential_source":{"kind":"local_dev_profile","handle":"ollama-local"},"model_id":"llama3.1:8b","source_classes":["documentation"],"source_policy_configured":true}]}'
+export ESHU_SEMANTIC_EXTRACTION_POLICY_JSON='{"policy_id":"semantic-local-docs","enabled":true,"rules":[{"rule_id":"docs-local","provider_profile_id":"semantic-local-ollama","source_classes":["documentation"],"scopes":[{"kind":"repository","id":"local"}],"source_allowlist":[{"kind":"all","value":"*"}],"settings":{"limits":{"max_chunk_bytes":8192,"max_tokens_per_chunk":2048,"max_daily_tokens":50000},"redaction":{"mode":"strict","policy_ref":"semantic-redaction-v1"},"retention":{"posture":"metadata_only","prompt":"none","response":"hash_only"}}}]}'
+docker compose up --build eshu mcp-server
+```
+
+For a secret-backed development profile, keep the provider key in the
+referenced environment variable and keep the profile JSON to handles and model
+metadata:
+
+```bash
+# Load DEEPSEEK_API_KEY from a private env file or shell secret manager first.
+export ESHU_SEMANTIC_PROVIDER_PROFILES_JSON='{"profiles":[{"profile_id":"semantic-docs-deepseek","provider_kind":"deepseek","credential_source":{"kind":"environment_variable","handle":"DEEPSEEK_API_KEY"},"model_id":"deepseek-chat","source_classes":["documentation"],"source_policy_configured":true}]}'
+export ESHU_SEMANTIC_EXTRACTION_POLICY_JSON='{"policy_id":"semantic-local-docs","enabled":true,"rules":[{"rule_id":"docs-local","provider_profile_id":"semantic-docs-deepseek","source_classes":["documentation"],"scopes":[{"kind":"repository","id":"local"}],"source_allowlist":[{"kind":"path_prefix","value":"docs/"}],"settings":{"limits":{"max_chunk_bytes":8192,"max_tokens_per_chunk":2048,"max_daily_tokens":100000,"max_daily_cost_micros":2500000},"redaction":{"mode":"strict","policy_ref":"semantic-redaction-v1"},"retention":{"posture":"metadata_only","prompt":"none","response":"hash_only"}}}]}'
+docker compose up --build eshu mcp-server
+```
+
+These local modes are development conveniences. Hosted deployments should use
+the governed provider-profile and source-policy path, with credentials supplied
+by Kubernetes Secrets, Vault-style handles, or workload identity rather than
+shell history or Compose command lines.
+
+No-Regression Evidence: `go test ./internal/runtime -run
+'TestDefaultComposePassesSemanticConfigOnlyToReadSurfaces|TestDockerComposeDocsDescribeSemanticProviderModes'
+-count=1` proves the default Compose stack passes optional semantic profile and
+policy JSON only to API and MCP read surfaces, while bootstrap, ingester, and
+reducer stay on deterministic no-provider defaults.
+
+No-Observability-Change: this Compose slice adds no provider worker, queue
+consumer, graph write, prompt construction, credential load, metric instrument,
+span, or log payload. Existing semantic status readbacks and queue/budget
+signals remain the operator-facing diagnostics.
+
 The NornicDB service defaults to a pinned multi-arch Docker manifest:
 `timothyswt/nornicdb-cpu-bge:v1.1.3@sha256:42af69852ae0f34a905a0877668025d53b3783bb864549810d868e1bf94f3752`.
 Leave `NORNICDB_PLATFORM` unset for normal local runs. Docker selects the
@@ -67,6 +121,9 @@ These are graph-lane safeguards, not an Eshu semantic-search contract. BM25,
 vector indexing, and embedding generation stay off for the canonical graph
 database. Lazy warming remains the supported fallback if an operator enables a
 specific search index for a deliberate proof run.
+Optional semantic extraction is configured separately through provider profiles
+and source policy; see
+[Semantic Enrichment Posture](../reference/semantic-enrichment-posture.md).
 
 ## Optional Profiles
 

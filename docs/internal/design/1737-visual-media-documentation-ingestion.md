@@ -131,6 +131,24 @@ column, truncation, and confidence metadata. Embedded files, JavaScript,
 annotation text, form field values, and signatures are recorded only as counts
 and warning classes until separately reviewed.
 
+The first text extractor must use an isolated helper boundary rather than
+linking a PDF text parser into the long-running ingester or hosted collector.
+The reviewed candidate is Poppler `pdftotext` because its documented contract is
+plain-text conversion from a PDF input to a text output, including stdout
+output. Eshu must wrap it in a per-file helper process with network access
+disabled, a private non-executable temp directory, context cancellation,
+source-byte and output-byte limits, a page range cap, wall-time and memory
+limits supplied by the runtime sandbox, and cleanup on every exit path.
+
+Go-native PDF libraries may be used only for preflight, validation, page-count,
+encryption, metadata, or attachment detection until a follow-up benchmark and
+security review proves page-text extraction quality, cancellation behavior,
+malformed-input handling, and memory bounds. `pdfcpu` is the preferred Go
+candidate for that validation lane because its public API and CLI support PDF
+validation, encryption handling, metadata/content extraction surfaces, and
+context-aware reads. The already landed `pdfpreflight` package remains the
+default-off first guard and uses only bounded standard-library marker scans.
+
 ### 7.2 Diagrams
 
 Diagram ingestion emits one `documentation_document` per diagram revision and
@@ -311,3 +329,8 @@ and status fields before claiming readiness.
 - `docs/public/reference/telemetry/index.md`
 - `go/internal/facts/documentation.go`
 - `go/internal/doctruth/README.md`
+- Poppler project: https://poppler.freedesktop.org/
+- Poppler `pdftotext` manual:
+  https://cgit.freedesktop.org/poppler/poppler/tree/utils/pdftotext.1
+- pdfcpu package documentation:
+  https://pkg.go.dev/github.com/pdfcpu/pdfcpu/pkg/pdfcpu

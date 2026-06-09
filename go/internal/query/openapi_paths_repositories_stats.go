@@ -7,7 +7,7 @@ const openAPIPathsRepositoriesStats = `
       "get": {
         "tags": ["repositories"],
         "summary": "Get repository statistics",
-        "description": "Returns timeout-bounded repository statistics from content-store coverage when available. Counts are null and coverage.missing_evidence explains the gap when the read model is unavailable or times out; the handler does not fall back to whole-graph traversal.",
+        "description": "Returns timeout-bounded repository statistics from content-store coverage when available. Counts are null and coverage.missing_evidence explains the gap when the read model is unavailable or times out; the handler does not fall back to whole-graph traversal. The response carries the canonical truth envelope plus an additive result_limits drilldown block and an explicit partial_reasons slot; the existing coverage partial_results/truncated/timeout fields are preserved.",
         "operationId": "getRepositoryStats",
         "parameters": [
           {"$ref": "#/components/parameters/RepoId"}
@@ -45,7 +45,9 @@ const openAPIPathsRepositoriesStats = `
                         "content_last_indexed_at": {"type": "string"},
                         "last_error": {"type": "string"}
                       }
-                    }
+                    },
+                    "result_limits": {"type": "object", "description": "Additive drilldown block: bounded language/entity-type limit, deterministic ordering, language and entity-type counts, truncation flag, and the get_repository_coverage drilldown plus stats context path.", "additionalProperties": true},
+                    "partial_reasons": {"type": "array", "description": "Explicit missing-evidence and timeout reasons for the stats read; always present so the envelope shape is stable across complete and partial reads.", "items": {"type": "string"}}
                   }
                 }
               }

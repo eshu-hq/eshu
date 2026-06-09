@@ -31,4 +31,9 @@ func TestOpenAPIRepositoryStatsDocumentsTimeoutMetadata(t *testing.T) {
 			t.Fatalf("coverage schema missing %s", field)
 		}
 	}
+	for _, field := range []string{"result_limits", "partial_reasons"} {
+		if _, ok := properties[field]; !ok {
+			t.Fatalf("stats schema missing additive %s block", field)
+		}
+	}
 }

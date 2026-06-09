@@ -117,6 +117,8 @@ When no provider is configured it returns `state=unavailable`,
 hints disabled. This status is informational and does not mark health or
 readiness unhealthy; deterministic collectors, parser output, reducer
 projection, API reads, MCP tools, and docs verification remain unaffected.
+For the full no-provider, provider-profile, policy, and security model, see
+[Semantic Enrichment Posture](semantic-enrichment-posture.md).
 
 When `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` defines hosted provider profiles,
 the same section includes `provider_profiles[]` with redacted profile id,

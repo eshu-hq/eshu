@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"path"
 	"strings"
 
@@ -21,6 +22,7 @@ type gitDocumentationFormat struct {
 }
 
 func extractGitDocumentation(
+	ctx context.Context,
 	repo repositoryidentity.Metadata,
 	relativePath string,
 	digest string,
@@ -37,10 +39,27 @@ func extractGitDocumentation(
 		return extractAPIContractDocumentation(repo, relativePath, digest, commitSHA, body, format.format)
 	case "notebook":
 		return extractNotebookDocumentation(repo, relativePath, digest, commitSHA, body)
+	case "docx":
+		return extractWordDocumentation(ctx, repo, relativePath, digest, commitSHA, body)
 	case "csv", "tsv":
 		return extractSpreadsheetDocumentation(repo, relativePath, digest, commitSHA, body, format.format)
+	case "xlsx", "xls":
+		return extractWorkbookDocumentation(ctx, repo, relativePath, digest, commitSHA, body, format.format)
+	case "pptx":
+		return extractPresentationDocumentation(ctx, repo, relativePath, digest, commitSHA, body)
+	case "mermaid", "d2", "plantuml", "drawio", "excalidraw", "svg":
+		return extractDiagramDocumentation(ctx, repo, relativePath, digest, commitSHA, body, format.format)
 	default:
 		return extractTextDocumentation(repo, relativePath, digest, commitSHA, body, format.format)
+	}
+}
+
+func gitDocumentationFormatEmitsTruth(format gitDocumentationFormat) bool {
+	switch format.format {
+	case "mermaid", "d2", "plantuml", "drawio", "excalidraw", "svg":
+		return false
+	default:
+		return true
 	}
 }
 
@@ -63,6 +82,28 @@ func gitDocumentationFormatForPath(relativePath string) (gitDocumentationFormat,
 		return gitDocumentationFormat{format: "html", language: "html"}, true
 	case ".ipynb":
 		return gitDocumentationFormat{format: "notebook", language: "python"}, true
+	case ".docx":
+		if !isDocumentationOfficePath(relativePath) {
+			return gitDocumentationFormat{}, false
+		}
+		return gitDocumentationFormat{format: "docx", language: "docx"}, true
+	case ".pptx":
+		if !isDocumentationOfficePath(relativePath) {
+			return gitDocumentationFormat{}, false
+		}
+		return gitDocumentationFormat{format: "pptx", language: "pptx"}, true
+	case ".mmd", ".mermaid":
+		return gitDocumentationFormat{format: "mermaid", language: "mermaid"}, true
+	case ".d2":
+		return gitDocumentationFormat{format: "d2", language: "d2"}, true
+	case ".puml", ".plantuml":
+		return gitDocumentationFormat{format: "plantuml", language: "plantuml"}, true
+	case ".drawio":
+		return gitDocumentationFormat{format: "drawio", language: "drawio"}, true
+	case ".excalidraw":
+		return gitDocumentationFormat{format: "excalidraw", language: "excalidraw"}, true
+	case ".svg":
+		return gitDocumentationFormat{format: "svg", language: "svg"}, true
 	case ".graphql", ".graphqls":
 		return gitDocumentationFormat{format: "graphql_sdl", language: "graphql"}, true
 	case ".json", ".yaml", ".yml":
@@ -80,6 +121,16 @@ func gitDocumentationFormatForPath(relativePath string) (gitDocumentationFormat,
 			return gitDocumentationFormat{}, false
 		}
 		return gitDocumentationFormat{format: "tsv", language: "tsv"}, true
+	case ".xlsx":
+		if !isDocumentationSpreadsheetPath(relativePath) {
+			return gitDocumentationFormat{}, false
+		}
+		return gitDocumentationFormat{format: "xlsx", language: "xlsx"}, true
+	case ".xls":
+		if !isDocumentationSpreadsheetPath(relativePath) {
+			return gitDocumentationFormat{}, false
+		}
+		return gitDocumentationFormat{format: "xls", language: "xls"}, true
 	default:
 		return gitDocumentationFormat{}, false
 	}

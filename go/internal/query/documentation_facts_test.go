@@ -96,6 +96,82 @@ func TestDocumentationHandlerListsCollectedFacts(t *testing.T) {
 	}
 }
 
+func TestDocumentationHandlerListsDiagramFacts(t *testing.T) {
+	t.Parallel()
+
+	var captured documentationFactFilter
+	handler := &DocumentationHandler{
+		Content: fakePortContentStore{
+			documentationFactsFilter: &captured,
+			documentationFactsModel: documentationFactListReadModel{
+				Facts: []map[string]any{{
+					"fact_id":       "fact:diagram:section:1",
+					"fact_kind":     "documentation_section",
+					"scope_id":      "scope-diagram",
+					"generation_id": "gen-diagram",
+					"payload": map[string]any{
+						"document_id":    "doc:git:repository:r_diagram:docs/architecture.mmd",
+						"section_id":     "section:diagram",
+						"heading_text":   "architecture",
+						"content":        "Repository Docs\nDocumentation API",
+						"content_format": "mermaid",
+						"source_metadata": map[string]any{
+							"path":          "docs/architecture.mmd",
+							"format_family": "diagram",
+						},
+						"linked_entities": []any{map[string]any{
+							"entity_type": "repository",
+							"entity_id":   "repository:r_diagram",
+						}},
+					},
+				}},
+			},
+		},
+		Profile: ProfileProduction,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/documentation/facts?repo=repository:r_diagram&fact_kind=section&q=Documentation%20API&limit=1",
+		nil,
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := captured.Repository, "repository:r_diagram"; got != want {
+		t.Fatalf("Repository = %q, want %q", got, want)
+	}
+	if got, want := captured.FactKind, "documentation_section"; got != want {
+		t.Fatalf("FactKind = %q, want %q", got, want)
+	}
+	if got, want := captured.Query, "Documentation API"; got != want {
+		t.Fatalf("Query = %q, want %q", got, want)
+	}
+	var resp ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	data := resp.Data.(map[string]any)
+	facts := data["facts"].([]any)
+	if got, want := len(facts), 1; got != want {
+		t.Fatalf("len(facts) = %d, want %d", got, want)
+	}
+	payload := facts[0].(map[string]any)["payload"].(map[string]any)
+	if got, want := payload["content_format"], "mermaid"; got != want {
+		t.Fatalf("payload.content_format = %#v, want %#v", got, want)
+	}
+	metadata := payload["source_metadata"].(map[string]any)
+	if got, want := metadata["format_family"], "diagram"; got != want {
+		t.Fatalf("payload.source_metadata.format_family = %#v, want %#v", got, want)
+	}
+}
+
 func TestDocumentationHandlerRequiresFactScopeOrAnchor(t *testing.T) {
 	t.Parallel()
 

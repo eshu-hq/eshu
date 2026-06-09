@@ -10,11 +10,11 @@ and cancellation.
 
 ## Ownership boundary
 
-This package owns pure preflight classification for `.zip` and `.tar` archives.
-It reads archive directory/header metadata only. It does not unpack members to
-disk, parse contained document bodies, store member names, emit documentation
-facts, persist rows, write graph state, expose API or MCP routes, add runtime
-knobs, or enable hosted/repository ingestion.
+This package owns pure preflight classification for `.zip`, `.tar`, `.tar.gz`,
+and `.tgz` archives. It reads archive directory/header metadata only. It does
+not unpack members to disk, parse contained document bodies, store member
+names, emit documentation facts, persist rows, write graph state, expose API or
+MCP routes, add runtime knobs, or enable hosted/repository ingestion.
 
 Contained-document routing, extraction, fact emission, ACL behavior, and
 security-review enablement belong in separate follow-up slices.
@@ -30,7 +30,7 @@ See `doc.go` for the godoc-rendered package contract.
 - `Warning` records a stable low-cardinality class and count.
 - `Preflight` classifies one archive using an `io.ReaderAt`, source name, byte
   size, context, and options.
-- Format constants: `FormatZIP` and `FormatTAR`.
+- Format constants: `FormatZIP`, `FormatTAR`, and `FormatTARGZ`.
 - Warning constants cover unsupported formats, malformed containers, resource
   limits, compression-ratio limits, unsafe paths, symlinks, special files,
   nested archives, credential-like members, and cancellation/deadline timeout.
@@ -38,8 +38,9 @@ See `doc.go` for the godoc-rendered package contract.
 ## Dependencies
 
 The package uses only the Go standard library. `archive/zip` opens ZIP central
-directory metadata, `archive/tar` streams tar headers from an `io.SectionReader`,
-and `context` lets callers stop preflight before extraction proceeds.
+directory metadata, `archive/tar` streams tar headers from an `io.SectionReader`
+or gzip stream, `compress/gzip` unwraps `.tar.gz` and `.tgz` sources, and
+`context` lets callers stop preflight before extraction proceeds.
 
 ## Telemetry
 
@@ -90,3 +91,4 @@ tool, runtime stage, or hosted collector path.
 - `docs/public/reference/local-testing.md`
 - Go `archive/zip`: https://pkg.go.dev/archive/zip
 - Go `archive/tar`: https://pkg.go.dev/archive/tar
+- Go `compress/gzip`: https://pkg.go.dev/compress/gzip

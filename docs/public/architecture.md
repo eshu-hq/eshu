@@ -166,6 +166,7 @@ Focused references own the details:
 | Collector and reducer readiness | [Collector And Reducer Readiness](reference/collector-reducer-readiness.md) |
 | Component packages and activation | [Component Package Manager](reference/component-package-manager.md) |
 | Fact schema and plugin trust | [Fact Schema Versioning](reference/fact-schema-versioning.md), [Plugin Trust Model](reference/plugin-trust-model.md) |
+| Optional hosted semantic enrichment posture | [Semantic Enrichment Posture](reference/semantic-enrichment-posture.md) |
 
 ## Backend Seam
 

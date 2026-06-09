@@ -101,3 +101,119 @@ func TestFactStoreUpsertFactsPersistsDocumentationDocument(t *testing.T) {
 		t.Fatalf("payload arg = %#v, want documentation document json payload", db.execs[0].args[16])
 	}
 }
+
+func TestFactStoreUpsertFactsPersistsDiagramDocumentationFacts(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{}
+	store := NewFactStore(db)
+
+	section := facts.DocumentationSectionPayload{
+		DocumentID:       "doc:git:repository:r_diagram:docs/architecture.mmd",
+		RevisionID:       "abc123",
+		SectionID:        "section:diagram",
+		SectionAnchor:    "diagram",
+		HeadingText:      "architecture",
+		OrdinalPath:      []int{1},
+		Content:          "Repository Docs\nDocumentation API",
+		ContentFormat:    "mermaid",
+		TextHash:         "sha256:diagram-text",
+		ExcerptHash:      "sha256:diagram-excerpt",
+		SourceStartRef:   "diagram:text",
+		SourceEndRef:     "diagram:text",
+		SourceMetadata:   map[string]string{"path": "docs/architecture.mmd", "format_family": "diagram"},
+		ContainsWarnings: false,
+	}
+	link := facts.DocumentationLinkPayload{
+		DocumentID:     section.DocumentID,
+		RevisionID:     section.RevisionID,
+		SectionID:      section.SectionID,
+		LinkID:         "link:section:diagram:1",
+		TargetURI:      "docs/runbook.md",
+		TargetKind:     "source_path",
+		AnchorTextHash: "sha256:runbook",
+		SourceMetadata: map[string]string{"path": "docs/architecture.mmd", "format_family": "diagram"},
+	}
+	envelopes := []facts.Envelope{
+		{
+			FactID:           facts.DocumentationSectionStableID(section),
+			ScopeID:          "scope-diagram",
+			GenerationID:     "gen-diagram",
+			FactKind:         facts.DocumentationSectionFactKind,
+			StableFactKey:    facts.DocumentationSectionStableID(section),
+			SchemaVersion:    facts.DocumentationSectionFactSchemaVersion,
+			CollectorKind:    string(scope.CollectorDocumentation),
+			SourceConfidence: facts.SourceConfidenceObserved,
+			ObservedAt:       time.Date(2026, time.June, 9, 5, 50, 0, 0, time.UTC),
+			Payload: map[string]any{
+				"document_id":       section.DocumentID,
+				"revision_id":       section.RevisionID,
+				"section_id":        section.SectionID,
+				"section_anchor":    section.SectionAnchor,
+				"heading_text":      section.HeadingText,
+				"ordinal_path":      []int{1},
+				"content":           section.Content,
+				"content_format":    section.ContentFormat,
+				"text_hash":         section.TextHash,
+				"excerpt_hash":      section.ExcerptHash,
+				"source_start_ref":  section.SourceStartRef,
+				"source_end_ref":    section.SourceEndRef,
+				"source_metadata":   section.SourceMetadata,
+				"contains_warnings": section.ContainsWarnings,
+			},
+			SourceRef: facts.Ref{
+				SourceSystem:   string(scope.CollectorDocumentation),
+				ScopeID:        "scope-diagram",
+				GenerationID:   "gen-diagram",
+				FactKey:        "section:diagram",
+				SourceURI:      "docs/architecture.mmd",
+				SourceRecordID: section.SectionID,
+			},
+		},
+		{
+			FactID:           facts.DocumentationLinkStableID(link),
+			ScopeID:          "scope-diagram",
+			GenerationID:     "gen-diagram",
+			FactKind:         facts.DocumentationLinkFactKind,
+			StableFactKey:    facts.DocumentationLinkStableID(link),
+			SchemaVersion:    facts.DocumentationFactSchemaVersion,
+			CollectorKind:    string(scope.CollectorDocumentation),
+			SourceConfidence: facts.SourceConfidenceObserved,
+			ObservedAt:       time.Date(2026, time.June, 9, 5, 50, 0, 0, time.UTC),
+			Payload: map[string]any{
+				"document_id":      link.DocumentID,
+				"revision_id":      link.RevisionID,
+				"section_id":       link.SectionID,
+				"link_id":          link.LinkID,
+				"target_uri":       link.TargetURI,
+				"target_kind":      link.TargetKind,
+				"anchor_text_hash": link.AnchorTextHash,
+				"source_metadata":  link.SourceMetadata,
+			},
+			SourceRef: facts.Ref{
+				SourceSystem:   string(scope.CollectorDocumentation),
+				ScopeID:        "scope-diagram",
+				GenerationID:   "gen-diagram",
+				FactKey:        "link:diagram",
+				SourceURI:      "docs/architecture.mmd",
+				SourceRecordID: link.LinkID,
+			},
+		},
+	}
+
+	if err := store.UpsertFacts(context.Background(), envelopes); err != nil {
+		t.Fatalf("UpsertFacts() error = %v, want nil", err)
+	}
+	if got, want := len(db.execs), 1; got != want {
+		t.Fatalf("exec count = %d, want %d", got, want)
+	}
+	if got, want := len(db.execs[0].args), columnsPerFactRow*len(envelopes); got != want {
+		t.Fatalf("arg count = %d, want %d", got, want)
+	}
+	payload := string(db.execs[0].args[16].([]byte)) + "\n" + string(db.execs[0].args[columnsPerFactRow+16].([]byte))
+	for _, want := range []string{"Documentation API", "docs/runbook.md", "format_family", "diagram"} {
+		if !strings.Contains(payload, want) {
+			t.Fatalf("payload JSON missing %q: %s", want, payload)
+		}
+	}
+}

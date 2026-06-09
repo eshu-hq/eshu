@@ -138,6 +138,7 @@ nav:
       - HTTP API:
         - Overview: reference/http-api.md
         - Status And Admin: reference/http-api/status-admin.md
+        - Semantic Evidence: reference/http-api/semantic-evidence.md
         - Evidence And Supply Chain: reference/http-api/evidence-and-supply-chain.md
         - Container Image Source Bridge: reference/http-api/container-image-source-bridge.md
         - Vulnerability Impact: reference/http-api/vulnerability-impact.md
@@ -173,6 +174,7 @@ nav:
     - Story Missing Evidence Alignment: reference/story-missing-evidence.md
     - Dependency And Lockfile Coverage: reference/dependency-coverage.md
     - Runtime Admin API: reference/runtime-admin-api.md
+    - Semantic Enrichment Posture: reference/semantic-enrichment-posture.md
     - Tag Taxonomy: reference/tag-taxonomy.md
     - Local Host & Capabilities:
       - Backend Conformance: reference/backend-conformance.md
