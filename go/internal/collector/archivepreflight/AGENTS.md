@@ -43,11 +43,13 @@
   members return explicit skip classes.
 - Caller cancellation or deadline returns `timeout` and no partially trusted
   safe result.
+- Gzip-compressed tar support is still only archive metadata preflight. Do not
+  treat `.tar.gz` or `.tgz` as permission to route contained documents.
 
 ## Anti-patterns
 
 - Extracting archive members to disk in preflight.
 - Recording member names or source names in result payloads.
 - Treating archive preflight as hosted ingestion approval.
-- Adding `.tar.gz`, `.tgz`, nested archive recursion, or contained-document
-  routing without a separate security-reviewed implementation slice.
+- Adding nested archive recursion or contained-document routing without a
+  separate security-reviewed implementation slice.

@@ -3,6 +3,7 @@ package archivepreflight
 import (
 	"archive/tar"
 	"archive/zip"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
@@ -19,6 +20,8 @@ const (
 	FormatZIP = "zip"
 	// FormatTAR identifies an uncompressed tar archive.
 	FormatTAR = "tar"
+	// FormatTARGZ identifies a gzip-compressed tar archive.
+	FormatTARGZ = "tar.gz"
 )
 
 const (
@@ -130,6 +133,8 @@ func Preflight(ctx context.Context, sourceName string, reader io.ReaderAt, size 
 		return preflightZip(ctx, reader, size, opts, &rec), nil
 	case FormatTAR:
 		return preflightTar(ctx, reader, size, opts, &rec), nil
+	case FormatTARGZ:
+		return preflightTarGzip(ctx, reader, size, opts, &rec), nil
 	default:
 		rec.warn(WarningUnsupportedFormat)
 		return rec.finalize(), nil
@@ -190,11 +195,36 @@ func preflightZip(ctx context.Context, reader io.ReaderAt, size int64, options O
 
 func preflightTar(ctx context.Context, reader io.ReaderAt, size int64, options Options, rec *recorder) Result {
 	tr := tar.NewReader(io.NewSectionReader(reader, 0, size))
+	scanTarReader(ctx, tr, options, rec, 0, false)
+	return rec.finalize()
+}
+
+func preflightTarGzip(ctx context.Context, reader io.ReaderAt, size int64, options Options, rec *recorder) Result {
+	gr, err := gzip.NewReader(io.NewSectionReader(reader, 0, size))
+	if err != nil {
+		rec.warn(WarningMalformedContainer)
+		return rec.finalize()
+	}
+	defer func() {
+		_ = gr.Close()
+	}()
+	scanTarReader(ctx, tar.NewReader(gr), options, rec, size, true)
+	return rec.finalize()
+}
+
+func scanTarReader(
+	ctx context.Context,
+	tr *tar.Reader,
+	options Options,
+	rec *recorder,
+	sourceBytes int64,
+	checkCompressionRatio bool,
+) bool {
 	seenAny := false
 	for {
 		if err := ctx.Err(); err != nil {
 			rec.warn(WarningTimeout)
-			return rec.finalize()
+			return false
 		}
 		header, err := tr.Next()
 		if err == io.EOF {
@@ -202,36 +232,50 @@ func preflightTar(ctx context.Context, reader io.ReaderAt, size int64, options O
 		}
 		if err != nil {
 			rec.warn(WarningMalformedContainer)
-			return rec.finalize()
+			return false
 		}
 		seenAny = true
-		rec.observeEntry(options)
-		rec.classifyTarHeader(header, options)
+		if !rec.observeEntry(options) {
+			return false
+		}
+		if !rec.classifyTarHeader(header, options) {
+			return false
+		}
+		if checkCompressionRatio &&
+			archiveCompressionRatioExceeded(sourceBytes, rec.result.ExpandedBytes, options.MaxCompressionRatio) {
+			rec.warn(WarningCompressionRatioExceeded)
+			return false
+		}
 	}
 	if !seenAny {
 		rec.warn(WarningMalformedContainer)
+		return false
 	}
-	return rec.finalize()
+	return true
 }
 
-func (r *recorder) observeEntry(options Options) {
+func (r *recorder) observeEntry(options Options) bool {
 	r.result.EntryCount++
 	if r.result.EntryCount > options.MaxEntries && !r.entryCountWarning {
 		r.warn(WarningResourceLimitExceeded)
 		r.entryCountWarning = true
+		return false
 	}
+	return r.result.EntryCount <= options.MaxEntries
 }
 
-func (r *recorder) observeExpandedBytes(size int64, options Options) {
+func (r *recorder) observeExpandedBytes(size int64, options Options) bool {
 	if size < 0 {
 		r.warn(WarningMalformedContainer)
-		return
+		return false
 	}
 	r.result.ExpandedBytes += size
 	if r.result.ExpandedBytes > options.MaxExpandedBytes && !r.expandedBytesWarning {
 		r.warn(WarningResourceLimitExceeded)
 		r.expandedBytesWarning = true
+		return false
 	}
+	return r.result.ExpandedBytes <= options.MaxExpandedBytes
 }
 
 func (r *recorder) classifyZipMode(mode fs.FileMode) bool {
@@ -248,7 +292,7 @@ func (r *recorder) classifyZipMode(mode fs.FileMode) bool {
 	return false
 }
 
-func (r *recorder) classifyTarHeader(header *tar.Header, options Options) {
+func (r *recorder) classifyTarHeader(header *tar.Header, options Options) bool {
 	if unsafeMemberName(header.Name) {
 		r.warn(WarningArchivePathEscape)
 	}
@@ -257,7 +301,9 @@ func (r *recorder) classifyTarHeader(header *tar.Header, options Options) {
 		r.result.DirectoryCount++
 	case tar.TypeReg, 0:
 		r.result.RegularFileCount++
-		r.observeExpandedBytes(header.Size, options)
+		if !r.observeExpandedBytes(header.Size, options) {
+			return false
+		}
 		r.classifyMemberName(header.Name)
 	case tar.TypeSymlink, tar.TypeLink:
 		r.result.SymlinkCount++
@@ -269,6 +315,7 @@ func (r *recorder) classifyTarHeader(header *tar.Header, options Options) {
 		r.result.SpecialFileCount++
 		r.warn(WarningArchiveSpecialFileSkipped)
 	}
+	return true
 }
 
 func (r *recorder) classifyMemberName(name string) {
@@ -315,6 +362,8 @@ func formatForSource(sourceName string) string {
 		return FormatZIP
 	case strings.HasSuffix(lower, ".tar"):
 		return FormatTAR
+	case strings.HasSuffix(lower, ".tar.gz"), strings.HasSuffix(lower, ".tgz"):
+		return FormatTARGZ
 	default:
 		return ""
 	}
@@ -328,6 +377,16 @@ func zipCompressionRatioExceeded(file *zip.File, maxRatio float64) bool {
 		return file.UncompressedSize64 > 0
 	}
 	return float64(file.UncompressedSize64)/float64(file.CompressedSize64) > maxRatio
+}
+
+func archiveCompressionRatioExceeded(sourceBytes int64, expandedBytes int64, maxRatio float64) bool {
+	if expandedBytes < int64(ratioCheckMinSize) {
+		return false
+	}
+	if sourceBytes == 0 {
+		return expandedBytes > 0
+	}
+	return float64(expandedBytes)/float64(sourceBytes) > maxRatio
 }
 
 func unsafeMemberName(name string) bool {
