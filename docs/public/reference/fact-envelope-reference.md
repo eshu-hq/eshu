@@ -89,6 +89,11 @@ jobs. `semantic.documentation_observation` preserves an LLM-assisted
 documentation observation with source, chunk, provider profile, model, prompt
 version, extraction mode, redaction version, policy state, confidence,
 freshness, missing evidence, unsupported reason, and admission state.
+Observation admission can be pre-reducer provenance
+(`provenance_only`, `documentation_finding_candidate`) or reducer-owned
+documentation admission (`exact`, `partial`, `ambiguous`, `stale`, `unsafe`,
+`unsupported`). Only reducer-admitted exact documentation observations can
+become exact documentation findings.
 `semantic.code_hint` preserves a possible code relationship or entity hint with
 the same replay and safety provenance plus subject/object code entity refs,
 corroboration state, and

@@ -45,8 +45,9 @@
   return an error instead of falling back to raw credentials.
 - Missing section revision or excerpt hash means replay provenance is
   incomplete; do not emit an observation.
-- Unsupported admission state means model output is trying to bypass reducer
-  admission; fail closed.
+- Reducer admission states such as `exact`, `partial`, `ambiguous`, `stale`,
+  `unsafe`, and `unsupported` mean model output is trying to bypass reducer
+  admission from this package; fail closed.
 - Unsafe redaction means no observation text survives in the payload.
 
 ## Anti-patterns

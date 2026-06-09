@@ -331,6 +331,12 @@ func TestEmitterRejectsMissingProviderAndReplayProvenance(t *testing.T) {
 	}}); err == nil {
 		t.Fatal("Emit() error = nil, want unsupported admission state error")
 	}
+	if _, err := emitter.Emit(context.Background(), semanticSectionFixture(), []MockObservation{{
+		ObservationType: "summary",
+		AdmissionState:  facts.SemanticAdmissionExact,
+	}}); err == nil {
+		t.Fatal("Emit() error = nil, want reducer admission state rejected before reducer")
+	}
 }
 
 func semanticPayloadFromEnvelope(t *testing.T, envelope facts.Envelope) facts.SemanticDocumentationObservationPayload {

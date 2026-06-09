@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 func TestDocumentationHandlerExplainsRepoScopedTargetFactsWithoutFindings(t *testing.T) {
@@ -189,7 +191,7 @@ func TestBuildDocumentationTargetFactsSQLIsTargetScopedAndBounded(t *testing.T) 
 	})
 
 	for _, fragment := range []string{
-		"fact_records.fact_kind IN ('documentation_entity_mention', 'documentation_claim_candidate')",
+		"fact_records.fact_kind IN ('documentation_entity_mention', 'documentation_claim_candidate', 'semantic.documentation_observation')",
 		"fact_records.scope_id = $",
 		"fact_records.generation_id = $",
 		"fact_records.payload->>'source_id' = $",
@@ -210,6 +212,86 @@ func TestBuildDocumentationTargetFactsSQLIsTargetScopedAndBounded(t *testing.T) 
 		if !strings.Contains(joinedArgs, fragment) {
 			t.Fatalf("documentation target facts SQL args missing fragment %q: %#v", fragment, args)
 		}
+	}
+}
+
+func TestBuildDocumentationTargetFactsSQLIncludesSemanticObservationProvenance(t *testing.T) {
+	t.Parallel()
+
+	query, _ := buildDocumentationTargetFactsSQL(documentationFindingFilter{
+		Repository: "repo:payments",
+		TargetKind: "service",
+		TargetID:   "service:payments-api",
+		Limit:      5,
+	})
+
+	for _, want := range []string{
+		facts.DocumentationEntityMentionFactKind,
+		facts.DocumentationClaimCandidateFactKind,
+		facts.SemanticDocumentationObservationFactKind,
+	} {
+		if !strings.Contains(query, "'"+want+"'") {
+			t.Fatalf("documentation target facts SQL missing %q:\n%s", want, query)
+		}
+	}
+	if strings.Contains(query, facts.SemanticCodeHintFactKind) {
+		t.Fatalf("documentation target facts SQL included code hints, want documentation provenance only:\n%s", query)
+	}
+}
+
+func TestBuildStoryTargetDocumentationKeepsSemanticObservationProvenanceOnly(t *testing.T) {
+	t.Parallel()
+
+	got := buildStoryTargetDocumentation(documentationFindingFilter{
+		Repository: "repo:payments",
+		TargetKind: "service",
+		TargetID:   "service:payments-api",
+		Limit:      documentationStoryReadLimit,
+	}, documentationFindingListReadModel{
+		RelatedFacts: []map[string]any{{
+			"fact_id":   "fact:semantic-doc-observation",
+			"fact_kind": facts.SemanticDocumentationObservationFactKind,
+			"payload": map[string]any{
+				"observation_type": "runbook_step",
+				"admission_state":  facts.SemanticAdmissionPartial,
+				"freshness_state":  facts.SemanticFreshnessFresh,
+				"provider": map[string]any{
+					"provider_profile_id": "semantic-docs-test",
+				},
+				"evidence_refs": []any{map[string]any{
+					"kind": "service",
+					"id":   "service:payments-api",
+				}},
+			},
+		}},
+		Coverage: documentationTargetCoverage{
+			Target: documentationTargetScope{
+				Repository: "repo:payments",
+				TargetKind: "service",
+				TargetID:   "service:payments-api",
+			},
+			FindingsReturned: 0,
+			TargetFactCount:  1,
+			TargetFactKinds:  map[string]int{facts.SemanticDocumentationObservationFactKind: 1},
+		},
+	})
+
+	if gotCount := IntVal(got, "finding_count"); gotCount != 0 {
+		t.Fatalf("finding_count = %d, want 0 for semantic observations before finding admission", gotCount)
+	}
+	if gotCount := IntVal(got, "related_fact_count"); gotCount != 1 {
+		t.Fatalf("related_fact_count = %d, want one semantic observation fact", gotCount)
+	}
+	coverage := mapValue(got, "coverage")
+	kinds, ok := coverage["target_fact_kinds"].(map[string]int)
+	if !ok {
+		t.Fatalf("target_fact_kinds type = %T, want map[string]int", coverage["target_fact_kinds"])
+	}
+	if gotCount := kinds[facts.SemanticDocumentationObservationFactKind]; gotCount != 1 {
+		t.Fatalf("semantic observation target_fact_kinds count = %d, want 1", gotCount)
+	}
+	if gotSummary, want := storyTargetDocumentationSummary(got), "External documentation has 1 target-related fact(s) but no admitted finding for this target."; gotSummary != want {
+		t.Fatalf("story summary = %q, want %q", gotSummary, want)
 	}
 }
 
