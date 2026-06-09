@@ -2,16 +2,16 @@
 
 ## Purpose
 
-`internal/semanticpolicy` evaluates hosted semantic extraction source policy. It
-turns a configured provider profile plus source, scope, ACL, allowlist, budget,
-redaction, and retention settings into a single reason-coded decision before any
-prompt or queue work exists.
+`internal/semanticpolicy` evaluates hosted semantic extraction source and
+egress policy. It turns a configured provider profile plus source, scope, ACL,
+allowlist, egress posture, budget, redaction, and retention settings into a
+single reason-coded decision before any prompt or queue work exists.
 
 ## Ownership boundary
 
 This package owns the pure policy contract for semantic extraction. It validates
-operator policy JSON, source classes, source selectors, scope selectors, limits,
-redaction posture, and retention posture.
+operator policy JSON, semantic provider egress rules, source classes, source
+selectors, scope selectors, limits, redaction posture, and retention posture.
 
 It does not own provider profile parsing (`internal/semanticprofile`), prompt
 safety/redaction execution, provider clients, queue persistence, observation
@@ -23,7 +23,9 @@ terminal for provider egress.
 See `doc.go` for the godoc-rendered contract.
 
 - `EnvPolicyJSON` names `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON`.
-- `Policy`, `Rule`, `Scope`, and `SourceSelector` model explicit allowlists.
+- `Policy`, `Rule`, `Scope`, and `SourceSelector` model explicit source allowlists.
+- `EgressPolicy` and `EgressProviderRule` model restricted or broad semantic
+  provider egress posture.
 - `Settings`, `Limits`, `Redaction`, and `Retention` carry the bounded runtime
   settings inherited by allowed semantic work.
 - `Request` names the exact source decision input.
@@ -51,13 +53,16 @@ handles.
 ## Gotchas / invariants
 
 - Policy denies by default. Empty policy, disabled policy, unsupported source
-  class, missing profile, stale ACL, and unallowlisted source all return a
-  denied `Decision`.
+  class, missing profile, stale ACL, missing egress policy, denied egress, and
+  unallowlisted source all return a denied `Decision`.
 - Provider profiles alone are not enough. API and MCP status only report source
   policy as configured after this package intersects provider profile source
-  classes with explicit policy rules.
+  classes with explicit policy rules and semantic provider egress rules.
 - ACL state must be `allowed`; `denied`, `partial`, `missing`, and `stale` fail
   closed.
+- `egress.mode=broad` is an explicit operator opt-in and cannot include
+  provider-specific rules. Restricted mode requires a provider-profile and
+  source-class allow rule before provider work can be planned.
 - Retention is intentionally narrow: metadata-only posture with no prompt body
   retention and hash-only prompt metadata; response retention may be hash-only
   or bounded redacted excerpts.

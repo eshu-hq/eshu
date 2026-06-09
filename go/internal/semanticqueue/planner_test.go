@@ -250,6 +250,16 @@ func TestPlanRecordsTerminalAndRetryablePreflightStates(t *testing.T) {
 			wantRetry:  false,
 		},
 		{
+			name: "egress denied is terminal",
+			mutate: func(request *semanticqueue.PlanRequest) {
+				request.Chunks[0].Policy.Allowed = false
+				request.Chunks[0].Policy.State = "disabled_by_policy"
+				request.Chunks[0].Policy.Reason = semanticpolicy.ReasonEgressProviderDenied
+			},
+			wantStatus: semanticqueue.StatusSkippedPolicy,
+			wantRetry:  false,
+		},
+		{
 			name: "budget exhausted is terminal",
 			mutate: func(request *semanticqueue.PlanRequest) {
 				request.Chunks[0].Budget.Allowed = false
