@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"os"
 	"path/filepath"
@@ -19,6 +20,7 @@ func TestDocumentationDefaultOffSkipsArchiveFiles(t *testing.T) {
 		"docs/bundle.zip",
 		"docs/bundle.tar",
 		"docs/bundle.tar.gz",
+		"docs/bundle.tgz",
 	} {
 		if _, _, ok := gitDocumentationSourceURIAndFormat(path); ok {
 			t.Fatalf("gitDocumentationSourceURIAndFormat(%q) ok = true, want false", path)
@@ -28,7 +30,10 @@ func TestDocumentationDefaultOffSkipsArchiveFiles(t *testing.T) {
 	repoRoot := t.TempDir()
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "app.py"), "def handler():\n    return 1\n")
 	writeCollectorTestBytes(t, filepath.Join(repoRoot, "docs", "bundle.zip"), defaultOffZipFixture(t))
-	writeCollectorTestBytes(t, filepath.Join(repoRoot, "docs", "bundle.tar"), defaultOffTarFixture(t))
+	tarBody := defaultOffTarFixture(t)
+	writeCollectorTestBytes(t, filepath.Join(repoRoot, "docs", "bundle.tar"), tarBody)
+	writeCollectorTestBytes(t, filepath.Join(repoRoot, "docs", "bundle.tar.gz"), gzipCollectorTestBytes(t, tarBody))
+	writeCollectorTestBytes(t, filepath.Join(repoRoot, "docs", "bundle.tgz"), gzipCollectorTestBytes(t, tarBody))
 
 	engine, err := parser.DefaultEngine()
 	if err != nil {
@@ -43,7 +48,10 @@ func TestDocumentationDefaultOffSkipsArchiveFiles(t *testing.T) {
 	if len(got.DocumentationFileMetas) != 0 {
 		t.Fatalf("len(DocumentationFileMetas) = %d, want 0: %#v", len(got.DocumentationFileMetas), got.DocumentationFileMetas)
 	}
-	if gotParsedFilePathCount(got.FileData, "bundle.zip") != 0 || gotParsedFilePathCount(got.FileData, "bundle.tar") != 0 {
+	if gotParsedFilePathCount(got.FileData, "bundle.zip") != 0 ||
+		gotParsedFilePathCount(got.FileData, "bundle.tar") != 0 ||
+		gotParsedFilePathCount(got.FileData, "bundle.tar.gz") != 0 ||
+		gotParsedFilePathCount(got.FileData, "bundle.tgz") != 0 {
 		t.Fatalf("archive files entered parser file data: %#v", got.FileData)
 	}
 }
@@ -97,4 +105,18 @@ func writeCollectorTestBytes(t *testing.T, path string, body []byte) {
 	if err := os.WriteFile(path, body, 0o644); err != nil {
 		t.Fatalf("WriteFile(%q) error = %v, want nil", path, err)
 	}
+}
+
+func gzipCollectorTestBytes(t *testing.T, body []byte) []byte {
+	t.Helper()
+
+	var buffer bytes.Buffer
+	writer := gzip.NewWriter(&buffer)
+	if _, err := writer.Write(body); err != nil {
+		t.Fatalf("gzip Write() error = %v, want nil", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("gzip Close() error = %v, want nil", err)
+	}
+	return buffer.Bytes()
 }
