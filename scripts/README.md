@@ -31,6 +31,14 @@ API/MCP readback, and fails upgrade or rollback modes when durable-state,
 queue-state, Postgres restore, or graph rebuild assumptions are missing. The
 mocked harness is `test-verify-hosted-helm-rollout-proof.sh`.
 
+`verify-compose-helm-runtime-parity.sh` is the static hosted deployability
+gate for Compose-to-Kubernetes runtime parity. It renders default Compose,
+remote E2E Compose, profile-expanded remote collectors, observability remote
+collectors, and Helm with ServiceMonitors enabled, then fails on missing
+services, critical env wiring, health or metrics probes, Helm core workloads,
+or collector ServiceMonitor template coverage. The mocked harness is
+`test-verify-compose-helm-runtime-parity.sh`.
+
 `verify_remote_e2e_runtime_state.sh` is the post-start gate for the hosted
 remote collector E2E stack. It does not start containers. Run it after the
 remote Compose stack is up to prove the API, MCP server, ingester,

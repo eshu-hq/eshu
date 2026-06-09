@@ -277,6 +277,10 @@ intelligence, scanner-worker, AWS cloud, and optional Confluence, Jira, and
 PagerDuty collectors. Add `docker-compose.remote-e2e.observability.yaml` for
 optional Grafana, Prometheus/Mimir, Loki, and Tempo workers. The stack is
 standalone and defaults the Compose project to `eshu-remote-e2e`.
+Run `scripts/verify-compose-helm-runtime-parity.sh` before treating Compose and
+Helm deployment evidence as aligned. The verifier checks this stack against the
+static service-contract shape in
+[Runtime Parity Matrix](../deploy/kubernetes/runtime-parity-matrix.md).
 Its package-registry and vulnerability-intelligence derived target planners run
 with `planning_mode=single_pass` so representative proofs stay bounded by the
 configured derived target budget instead of rotating through a new owned-package

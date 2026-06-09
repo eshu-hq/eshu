@@ -60,6 +60,8 @@ Unsupported graph backends are not official.
 3. [Helm Quickstart](helm-quickstart.md) for the install flow.
 4. [Helm Rollout Proof](helm-rollout-proof.md) for install, upgrade, rollback,
    API/MCP readback, queue-state, and first-query evidence.
-5. [Hosted Operations Runbook](../../operate/hosted-operations-runbook.md) for
+5. [Runtime Parity Matrix](runtime-parity-matrix.md) for Compose, remote E2E
+   Compose, and Helm service-contract checks.
+6. [Hosted Operations Runbook](../../operate/hosted-operations-runbook.md) for
    Compose, API/MCP, Kubernetes, GitOps, and steady-state proof order.
-6. [Production Checklist](production-checklist.md) before exposing the service.
+7. [Production Checklist](production-checklist.md) before exposing the service.
