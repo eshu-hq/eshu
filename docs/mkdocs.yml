@@ -84,6 +84,7 @@ nav:
       - Bootstrap Services: deployment/service-runtimes-bootstrap.md
     - Local Testing:
       - Overview: reference/local-testing.md
+      - First Five Minutes Benchmark: reference/local-testing/first-five-minutes-benchmark.md
       - Remote Collector E2E: reference/local-testing/remote-collector-e2e.md
       - Remote Collector Hosted Profiles: reference/local-testing/remote-collector-hosted-profiles.md
       - Remote Compose Suite Harness: reference/local-testing/remote-compose-suite-harness.md

@@ -6,14 +6,16 @@
 // `stats`), guided onboarding (`first-run`, which detects the runtime shape,
 // verifies it without destructive auto-start, indexes or reuses one repository,
 // waits for indexing completeness through the shared readiness logic, and runs
-// one bounded API query before reporting success; and `hosted-setup`, the
+// one bounded API query before reporting success; `hosted-setup`, the
 // first-five-minutes flow for a deployed service that resolves the endpoint and
 // bearer token, runs ordered individually-reported checks (/healthz, /readyz,
 // status/index readiness, MCP tool visibility, and one bounded query),
 // distinguishes auth-unavailable, empty-index, stale-readiness,
 // partial-readiness, missing-repo-scope, and mcp-unavailable failures, reports
 // connected only when the bounded query actually returns, never prints the raw
-// token, and can emit a hosted MCP client snippet),
+// token, and can emit a hosted MCP client snippet; and `first-run-benchmark`,
+// which scores a captured `first-run --json` envelope against the
+// first-five-minutes onboarding criteria and rejects a health-only "answer"),
 // security intelligence (`vuln-scan repo` with terminal and JSON
 // exit classification plus SARIF and VEX-style report exports that preserve
 // manifest/source paths, line anchors, and image/SBOM subjects from the API
