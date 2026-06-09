@@ -122,6 +122,28 @@ func TestAuthMiddleware_PublicPaths(t *testing.T) {
 	}
 }
 
+func TestAuthMiddleware_GovernanceStatusRequiresAuth(t *testing.T) {
+	t.Parallel()
+
+	handler := AuthMiddleware("valid-secret-token", mockHandler())
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/status/governance", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusUnauthorized; got != want {
+		t.Fatalf("status = %d, want %d", got, want)
+	}
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	if envelope.Error == nil || envelope.Error.Code != ErrorCodeUnauthenticated {
+		t.Fatalf("envelope.Error = %#v, want unauthenticated", envelope.Error)
+	}
+}
+
 func TestAuthMiddleware_DevMode_EmptyToken(t *testing.T) {
 	// Empty token means dev mode: skip auth
 	handler := AuthMiddleware("", mockHandler())

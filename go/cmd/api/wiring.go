@@ -59,6 +59,7 @@ func wireAPI(
 	if err != nil {
 		return nil, nil, fmt.Errorf("resolve api key: %w", err)
 	}
+	governanceStatus := query.GovernanceStatusConfigFromEnv(getenv, apiKey != "")
 
 	driver, neo4jDB, err := openQueryGraph(ctx, getenv, queryProfile, logger)
 	if err != nil {
@@ -130,6 +131,7 @@ func wireAPI(
 		instruments,
 		componentHome,
 		componentPolicy,
+		governanceStatus,
 	)
 	if err != nil {
 		_ = db.Close()
@@ -221,6 +223,7 @@ func newRouter(
 	instruments *telemetry.Instruments,
 	componentHome string,
 	componentPolicy component.Policy,
+	governanceStatus query.GovernanceStatusConfig,
 ) (*query.APIRouter, error) {
 	if statusReader == nil {
 		statusReader = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
@@ -376,6 +379,7 @@ func newRouter(
 			DB:           db,
 			StatusReader: statusReader,
 			Profile:      queryProfile,
+			Governance:   governanceStatus,
 		},
 		ComponentExtensions: &query.ComponentExtensionsHandler{
 			ComponentHome: componentHome,
