@@ -65,11 +65,12 @@ orchestration. It does not own service runtime internals:
   - documentation truth: `docs verify [path]` verifies local Markdown-family
     documentation claims against the CLI command tree, generated OpenAPI paths,
     and documented Eshu environment variables (`docs.go`)
-  - component package manager: `component init collector|inspect|verify|install|list|enable|disable|uninstall`
+  - component package manager: `component init collector|inspect|verify|install|conform|list|enable|disable|uninstall`
     scaffolds optional collector component packages and manages local optional
-    component manifests and activation state with stable `--json` output,
-    classified errors, and dry-run planning for install and enable
-    (`component.go`, `component_init.go`, `component_output.go`)
+    component manifests, fixture conformance, and activation state with stable
+    `--json` output, classified errors, and dry-run planning for install and
+    enable (`component.go`, `component_conform.go`, `component_init.go`,
+    `component_output.go`)
   - `graph`, `install` with `nornicdb`, `status`, `start`, `stop`,
     `logs`, `upgrade` (`graph.go`, `graph_install.go`,
     `local_graph.go`)
@@ -116,6 +117,13 @@ this dispatcher.
 
 No-Regression Evidence: component init collector scaffolding is covered by
 `go test ./cmd/eshu -run 'TestComponentInitCollector' -count=1`.
+
+No-Observability-Change: component conformance runs local manifest and fixture
+validation only. It does not start Eshu runtimes, call the API, claim workflow
+work, or emit OTEL from this dispatcher.
+
+No-Regression Evidence: component conformance CLI behavior is covered by
+`go test ./cmd/eshu -run 'TestComponentConform|TestComponentCommandTreeIncludesConform' -count=1`.
 
 ## Gotchas / invariants
 

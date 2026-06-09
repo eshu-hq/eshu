@@ -82,7 +82,21 @@ eshu component verify ./manifest.yaml \
   --allow-publisher example
 ```
 
-5. If the manifest passes, exercise local package-manager state:
+5. Validate emitted fixture results against the manifest-derived SDK contract:
+
+```bash
+eshu component conform ./manifest.yaml \
+  --fixture ./testdata/fixtures/complete-result.json \
+  --mode fixture \
+  --json
+```
+
+Fixture conformance is fail-closed for undeclared fact kinds, unsafe payload
+keys, unsupported schema versions, conflicting duplicate stable keys, and
+reducer phases that do not have an optional-component consumer yet. A passed fixture
+run does not prove Docker Compose, reducer graph truth, or API query truth.
+
+6. If the manifest and fixtures pass, exercise local package-manager state:
 
 ```bash
 eshu component install ./manifest.yaml \
@@ -105,7 +119,7 @@ Local install and enable prove local registry, activation, and local claim state
 only. They do not prove hosted readiness, provenance verification, reducer
 admission, graph truth, or query truth.
 
-6. Run the smallest verification gate that proves the touched boundary:
+7. Run the smallest verification gate that proves the touched boundary:
 
 | Change | Minimum proof |
 | --- | --- |
