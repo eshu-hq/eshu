@@ -59,11 +59,11 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 115 tools from the tool definition files.
+`ReadOnlyTools` assembles 117 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
-| `codebaseTools` | 29 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_call_graph_metrics.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
+| `codebaseTools` | 30 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_call_graph_metrics.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
 | `repositoryLanguageTools` | 3 | `tools_repository_language.go` |
 | `ecosystemTools` | 19 | `tools_ecosystem.go` |
 | `infraResourceAggregateTools` | 2 | `tools_infra_resource_aggregates.go` |
@@ -112,6 +112,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `propose_terraform_import_plan` | POST | `/api/v0/iac/terraform-import-plan/candidates` |
 | `list_aws_runtime_drift_findings` | POST | `/api/v0/aws/runtime-drift/findings` |
 | `get_replatforming_rollups` | POST | `/api/v0/replatforming/rollups` |
+| `find_unmanaged_resource_owners` | POST | `/api/v0/replatforming/ownership-packets` |
 | `get_relationship_evidence` | GET | `/api/v0/evidence/relationships/{resolved_id}` |
 | `build_evidence_citation_packet` | POST | `/api/v0/evidence/citations` |
 | `list_package_registry_packages` | GET | `/api/v0/package-registry/packages` |

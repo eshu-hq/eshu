@@ -49,6 +49,7 @@ func (h *IaCHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/aws/runtime-drift/findings", h.handleAWSRuntimeDriftFindings)
 	mux.HandleFunc("POST /api/v0/replatforming/rollups", h.handleReplatformingRollups)
 	mux.HandleFunc("POST "+replatformingPlanRoute, h.handleReplatformingPlan)
+	mux.HandleFunc("POST /api/v0/replatforming/ownership-packets", h.handleReplatformingOwnershipPackets)
 }
 
 func (h *IaCHandler) profile() QueryProfile {
