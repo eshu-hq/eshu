@@ -172,6 +172,42 @@ The data-plane telemetry contract includes
 `source_class`, `provider_kind`, `provider_profile_class`, `status`,
 `failure_class`, `budget_state`, and `budget_reason`.
 
+## Generation Lifecycle Drilldown
+
+`GET /api/v0/freshness/generations` returns a bounded, ordered page of scope
+generation lifecycle rows so operators and agents can inspect active, pending,
+superseded, completed, and failed generation history without scraping the broad
+pipeline status payload.
+
+Filters (all optional; supply a scope selector for a scoped answer):
+
+- `scope_id` exact ingestion scope id
+- `repository` canonical repository id (matches repository-kind scopes by
+  `source_key`)
+- `collector_kind`, `source_system`
+- `generation_id` exact generation
+- `status` one of `pending`, `active`, `superseded`, `completed`, `failed`
+
+The read is bounded by `limit` (default 50, max 500) and ordered by
+`observed_at DESC, generation_id ASC`. The handler fetches `limit+1` rows to set
+`truncated`. Each record carries the scope identity (`scope_kind`,
+`source_system`, `collector_kind`), the scope's `current_active_generation_id`,
+`is_active`, `trigger_kind`, `freshness_hint`, the observed/ingested/activated/
+superseded timestamps, the per-generation `queue_status` rollup
+(`total`, `outstanding`, `in_flight`, `retrying`, `succeeded`, `failed`,
+`dead_letter`), and `latest_failure` (`failure_class`, `failure_message`) when a
+work item for that generation recorded a failure.
+
+A named `scope_id`, `repository`, or `generation_id` selector that matches
+nothing returns an explicit `scope_not_found` or `not_found` error instead of an
+empty list. The truth envelope marks `freshness.state=building` when a returned
+scope has a pending or in-flight generation. The capability key is
+`freshness.generation_lifecycle`. The MCP equivalent is `get_generation_lifecycle`
+and the CLI helper is `eshu freshness generations`.
+
+No-Regression Evidence: `cd go && go test ./internal/status ./internal/storage/postgres ./internal/query ./internal/mcp ./cmd/eshu ./cmd/api -count=1` proves the generation lifecycle types, bounded Postgres read, query handler envelope/not-found behavior, MCP route, CLI envelope, and API wiring stay in sync.
+No-Observability-Change: the drilldown adds one bounded Postgres read joining `scope_generations`, `ingestion_scopes`, and `fact_work_items`, plus the existing `query.freshness_generation_lifecycle` span with low-cardinality result-count, truncated, active-count, and failure-count attributes; it adds no worker, queue, graph query, or new metric label.
+
 ## Historical Metrics
 
 `GET /api/v0/metrics/timeseries?metric={name}&window={24h}&step={30m}` returns an

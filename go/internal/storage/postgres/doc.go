@@ -152,4 +152,11 @@
 // facts. ReducerQueue readiness gates keep EC2 internet-exposure work waiting
 // for the EC2 instance CloudResource canonical-nodes phase before graph writes
 // are claimed.
+// StatusStore.ListGenerationLifecycle serves the bounded generation lifecycle
+// drilldown: one ordered page (observed_at DESC, generation_id ASC) of
+// scope_generations joined with ingestion_scopes, a correlated LATERAL queue
+// rollup over fact_work_items per (scope_id, generation_id), and the latest
+// per-generation failure. It fetches the page limit plus one row to set
+// Truncated and clamps the requested limit through the status filter so a broad
+// scan cannot return an unbounded payload.
 package postgres

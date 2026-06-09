@@ -207,4 +207,14 @@
 // explainable subgraph without raw Cypher. The contract is documented in
 // docs/public/reference/visualization-packets.md; route and MCP wiring is
 // follow-up work.
+//
+// FreshnessHandler serves the bounded generation lifecycle drilldown at
+// GET /api/v0/freshness/generations under the freshness.generation_lifecycle
+// capability. It reads through the GenerationLifecycleReader port (implemented
+// by the Postgres status store) so the handler never depends on a concrete
+// database driver. The route is bounded by limit, ordered deterministically,
+// and reports truncated; a named scope_id, repository, or generation_id that
+// matches nothing returns scope_not_found or not_found instead of an empty
+// list, and the truth freshness state is building when a returned scope has a
+// pending or in-flight generation.
 package query

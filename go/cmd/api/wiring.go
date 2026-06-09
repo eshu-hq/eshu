@@ -220,9 +220,11 @@ func newRouter(
 	}
 	var containerImageIdentities query.ContainerImageIdentityStore
 	var sbomAttachments query.SBOMAttestationAttachmentStore
+	var generationLifecycle query.GenerationLifecycleReader
 	if db != nil {
 		containerImageIdentities = query.NewPostgresContainerImageIdentityStore(db)
 		sbomAttachments = query.NewPostgresSBOMAttestationAttachmentStore(db)
+		generationLifecycle = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
 	}
 	router := &query.APIRouter{
 		Repositories: &query.RepositoryHandler{
@@ -350,6 +352,10 @@ func newRouter(
 		WorkItems: &query.WorkItemHandler{
 			Evidence: query.NewPostgresWorkItemEvidenceStore(db),
 			Profile:  queryProfile,
+		},
+		Freshness: &query.FreshnessHandler{
+			Generations: generationLifecycle,
+			Profile:     queryProfile,
 		},
 		Status: &query.StatusHandler{
 			Neo4j:        neo4jReader,

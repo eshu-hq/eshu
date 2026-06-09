@@ -28,6 +28,7 @@ const openAPISpecPrefix = `{
     {"name": "evidence", "description": "Evidence drilldown and provenance queries"},
     {"name": "admin", "description": "Administrative control and inspection routes"},
     {"name": "status", "description": "Pipeline and ingester status"},
+    {"name": "freshness", "description": "Ingestion freshness and generation lifecycle drilldowns"},
     {"name": "compare", "description": "Environment comparison"}
   ],
   "paths": {

@@ -1,0 +1,22 @@
+package mcp
+
+// freshnessRoute maps freshness drilldown tools to bounded internal HTTP
+// routes. MCP stays pure transport: it forwards scope, repository, collector,
+// source-system, generation, status, and limit selectors to the API and lets
+// the handler enforce bounding, ordering, and not-found behavior.
+func freshnessRoute(toolName string, args map[string]any) (*route, bool) {
+	switch toolName {
+	case "get_generation_lifecycle":
+		return &route{method: "GET", path: "/api/v0/freshness/generations", query: map[string]string{
+			"scope_id":       str(args, "scope_id"),
+			"repository":     str(args, "repository"),
+			"collector_kind": str(args, "collector_kind"),
+			"source_system":  str(args, "source_system"),
+			"generation_id":  str(args, "generation_id"),
+			"status":         str(args, "status"),
+			"limit":          intString(args, "limit", 50),
+		}}, true
+	default:
+		return nil, false
+	}
+}

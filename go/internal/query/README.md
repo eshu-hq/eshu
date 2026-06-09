@@ -276,6 +276,10 @@ documentation routes.
   incident source facts (`incident_context_handler.go`)
 - `WorkItemHandler` — ticket-first Jira/work-item source evidence reads from
   active facts (`work_item_evidence_handler.go`)
+- `FreshnessHandler` — bounded scope generation lifecycle drilldown at
+  `GET /api/v0/freshness/generations` through the `GenerationLifecycleReader`
+  port; named scope/repository/generation misses return not-found
+  (`freshness_generations.go`)
 - `StatusHandler` — pipeline, ingester, index, and semantic extraction status
   routes (`status.go`, `status_semantic_extraction.go`)
 - `MetricsHandler` — `/api/v0/metrics/timeseries`; returns unavailable-empty
