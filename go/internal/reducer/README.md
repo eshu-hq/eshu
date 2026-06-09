@@ -67,6 +67,7 @@ canonical-write or bounded counter-emission requirements.
 | `DomainInheritanceMaterialization` | Materialize inheritance, override, and alias edges |
 | `DomainPackageSourceCorrelation` | Classify package-registry source hints and package-version publication evidence without ownership promotion |
 | `DomainAWSCloudRuntimeDrift` | Publish admitted AWS runtime orphan, unmanaged, unknown, and ambiguous drift findings as canonical reducer facts |
+| `DomainMultiCloudRuntimeDrift` | Publish admitted provider-neutral runtime orphan, unmanaged, ambiguous, and unknown drift findings keyed on canonical `cloud_resource_uid` for AWS, GCP, and Azure |
 | `DomainContainerImageIdentity` | Join Git, OCI registry, and runtime image references into digest-keyed reducer facts |
 | `DomainCICDRunCorrelation` | Correlate CI/CD runs, artifacts, and environments with artifact identity evidence |
 | `DomainServiceCatalogCorrelation` | Correlate service-catalog entities with explicit repository links, repo-local descriptor scope, and ownership evidence without inventing workloads |
@@ -131,6 +132,44 @@ labeled by `result` and `confidence`; `eshu_dp_secrets_iam_posture_observations_
 is labeled by bounded `risk_type` and `severity`. The handler summary records
 seed fact count, loaded fact count, model counts, written fact count, and
 whether the loader truncated.
+
+## Multi-Cloud Runtime Drift (issues #1997, #1998)
+
+`DomainMultiCloudRuntimeDrift` reuses the AWS structural drift join
+(`cloudruntime.Classify`) but keys every candidate on canonical
+`cloud_resource_uid` so AWS, GCP, and Azure share one
+orphaned/unmanaged/ambiguous/unknown vocabulary instead of three forked paths.
+`multicloud.BuildCandidates` skips rows whose provider identity does not resolve
+to a canonical uid (counted as unresolved, never fabricated), emits config
+evidence only when a config layer is actually present (so an unmanaged resource
+is never falsely promoted to managed), and lets a reducer `ambiguous`/`unknown`
+override win over the bare structural join so conflicting or unproven ownership
+is never presented as managed. `MultiCloudRuntimeDriftHandler` writes
+`reducer_multi_cloud_runtime_drift_finding` facts through
+`PostgresMultiCloudRuntimeDriftWriter`, read back by
+`postgres.MultiCloudRuntimeDriftFindingStore`. The domain is graph-neutral and
+additive: it registers only when both a `MultiCloudRuntimeDriftEvidenceLoader`
+and writer are wired.
+
+No-Regression Evidence: `go test ./internal/correlation/drift/multicloud
+./internal/correlation/rules -count=1` proves the GCP/Azure orphaned, unmanaged,
+ambiguous, and unknown classifications, uid keying, unresolved/converged skips,
+and declared-config non-overwrite. `go test ./internal/reducer -run 'MultiCloud'
+-race -count=1` proves publication, no-emit-before-durable-write, redaction,
+idempotent replay (stable fact id and stable_fact_key), and concurrent-worker
+key stability. `go test ./internal/storage/postgres -run 'MultiCloud' -count=1`
+proves the scope-bounded, active-generation-joined read surface. `go test
+./internal/correlation/drift/cloudruntime ./internal/reducer -run
+'AWSCloudRuntimeDrift' -count=1` proves the AWS drift path did not regress.
+
+Observability Evidence: the handler reuses the existing
+`eshu_dp_correlation_orphan_detected_total`,
+`eshu_dp_correlation_unmanaged_detected_total`, and
+`eshu_dp_correlation_rule_matches_total` counters, labeled by the bounded
+`multi_cloud_runtime_drift` pack name and rule name only — never the canonical
+uid, raw identity, provider scope, tags, or addresses. Admitted-finding logs
+carry a bounded `drift.provider` label and route the correlation key through
+`telemetry.SafeResourceLogAttrs`, so raw provider identities never reach logs.
 
 ## S3 External Principal Grant Projection (issue #1231)
 
@@ -650,6 +689,19 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   `AWSCloudRuntimeDriftHandler` writes `reducer_aws_cloud_runtime_drift_finding`
   facts through `PostgresAWSCloudRuntimeDriftWriter`; graph nodes and MCP/API
   read models need their own frozen shape before Cypher lands.
+- **Multi-cloud runtime drift shares one path keyed on `cloud_resource_uid`** —
+  `MultiCloudRuntimeDriftHandler` reuses the AWS structural join
+  (`cloudruntime.Classify`) but joins on the canonical identity keyspace so AWS,
+  GCP, and Azure emit one orphaned/unmanaged/ambiguous/unknown vocabulary. It
+  writes `reducer_multi_cloud_runtime_drift_finding` facts through
+  `PostgresMultiCloudRuntimeDriftWriter`, read back by
+  `postgres.MultiCloudRuntimeDriftFindingStore` (issues #1997, #1998). The domain
+  is additive: it registers only when both a `MultiCloudRuntimeDriftEvidenceLoader`
+  and writer are wired, so an unwired loader leaves the domain unregistered rather
+  than dropping intents. The Postgres uid-join evidence loader (joining
+  `reducer_cloud_resource_identity`, Terraform-state, and Terraform-config facts
+  by `cloud_resource_uid`) and the provider-generalized query/MCP surfaces are the
+  next slices; graph nodes stay deferred exactly like the AWS drift domain.
 - **Container image identity is digest-first** —
   `ContainerImageIdentityHandler` writes `reducer_container_image_identity`
   facts only for explicit digest or single-tag-to-digest matches. Ambiguous,

@@ -76,6 +76,13 @@ const (
 	// findings as canonical reducer facts. The domain stays graph-neutral until
 	// the drift node and query shape are frozen.
 	DomainAWSCloudRuntimeDrift Domain = "aws_cloud_runtime_drift"
+	// DomainMultiCloudRuntimeDrift publishes admitted provider-neutral
+	// runtime-vs-IaC drift findings keyed on canonical cloud_resource_uid for
+	// AWS, GCP, and Azure (issues #1997, #1998). It mirrors
+	// DomainAWSCloudRuntimeDrift but joins on the shared identity keyspace so the
+	// orphaned/unmanaged/ambiguous/unknown vocabulary is shared across providers.
+	// The domain stays graph-neutral until the drift node and query shape freeze.
+	DomainMultiCloudRuntimeDrift Domain = "multi_cloud_runtime_drift"
 	// DomainAWSResourceMaterialization materializes aws_resource facts into
 	// canonical CloudResource graph nodes. It is the node substrate the AWS
 	// relationship edge projection (issue #805) joins against; see
