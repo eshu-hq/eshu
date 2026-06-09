@@ -1,6 +1,7 @@
 package component
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -16,18 +17,20 @@ const (
 	// publishers.
 	TrustModeAllowlist = "allowlist"
 	// TrustModeStrict requires provenance verification. The first local slice
-	// fails closed for strict mode until a real verifier is wired in.
+	// requires allowlist approval plus verified artifact provenance.
 	TrustModeStrict = "strict"
 )
 
 // Policy describes local component trust rules.
 type Policy struct {
-	Mode              string
-	AllowedIDs        []string
-	AllowedPublishers []string
-	RevokedIDs        []string
-	RevokedPublishers []string
-	CoreVersion       string
+	Mode               string
+	AllowedIDs         []string
+	AllowedPublishers  []string
+	RevokedIDs         []string
+	RevokedPublishers  []string
+	CoreVersion        string
+	Provenance         ProvenancePolicy
+	ProvenanceVerifier ProvenanceVerifier
 }
 
 // VerificationResult reports whether a manifest is allowed by policy.
@@ -43,6 +46,14 @@ type VerificationResult struct {
 
 // Verify validates a manifest against the policy.
 func (p Policy) Verify(manifest Manifest) VerificationResult {
+	return p.VerifyContext(context.Background(), manifest)
+}
+
+// VerifyContext validates a manifest against the policy.
+func (p Policy) VerifyContext(ctx context.Context, manifest Manifest) VerificationResult {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	mode := p.Mode
 	if mode == "" {
 		mode = TrustModeDisabled
@@ -56,11 +67,8 @@ func (p Policy) Verify(manifest Manifest) VerificationResult {
 		Publisher: manifest.Metadata.Publisher,
 		Version:   manifest.Metadata.Version,
 	}
-	if err := verifyCompatibleCore(manifest.Spec.CompatibleCore, p.coreVersion()); err != nil {
-		result.Code = ErrorCodeIncompatibleCore
-		if strings.Contains(err.Error(), " is invalid:") {
-			result.Code = ErrorCodeInvalidManifest
-		}
+	if err := verifyCompatibleCoreRangeSyntax(manifest.Spec.CompatibleCore); err != nil {
+		result.Code = ErrorCodeInvalidManifest
 		result.Reason = err.Error()
 		return result
 	}
@@ -74,27 +82,49 @@ func (p Policy) Verify(manifest Manifest) VerificationResult {
 		result.Reason = fmt.Sprintf("revoked publisher %q", manifest.Metadata.Publisher)
 		return result
 	}
+	if err := verifyCompatibleCore(manifest.Spec.CompatibleCore, p.coreVersion()); err != nil {
+		result.Code = ErrorCodeIncompatibleCore
+		result.Reason = err.Error()
+		return result
+	}
 	switch mode {
 	case TrustModeDisabled:
 		result.Code = ErrorCodeUntrustedPublisher
 		result.Reason = "component trust policy is disabled"
 		return result
 	case TrustModeAllowlist:
-		if !contains(p.AllowedIDs, manifest.Metadata.ID) {
-			result.Code = ErrorCodeUntrustedPublisher
-			result.Reason = fmt.Sprintf("component %q is not allowlisted", manifest.Metadata.ID)
-			return result
-		}
-		if !contains(p.AllowedPublishers, manifest.Metadata.Publisher) {
-			result.Code = ErrorCodeUntrustedPublisher
-			result.Reason = fmt.Sprintf("publisher %q is not allowlisted", manifest.Metadata.Publisher)
+		if !p.verifyAllowlist(manifest, &result) {
 			return result
 		}
 		result.Allowed = true
 		return result
 	case TrustModeStrict:
-		result.Code = ErrorCodeUntrustedPublisher
-		result.Reason = "strict provenance verification is not available in this build"
+		if !p.verifyAllowlist(manifest, &result) {
+			return result
+		}
+		requirement, err := p.Provenance.requirement()
+		if err != nil {
+			result.Code = ErrorCodeOf(err)
+			if result.Code == "" {
+				result.Code = ErrorCodeProvenanceRequired
+			}
+			result.Reason = err.Error()
+			return result
+		}
+		if p.ProvenanceVerifier == nil {
+			result.Code = ErrorCodeProvenanceRequired
+			result.Reason = "strict provenance verification requires a configured verifier"
+			return result
+		}
+		if err := p.ProvenanceVerifier.VerifyProvenance(ctx, manifest, requirement); err != nil {
+			result.Code = ErrorCodeOf(err)
+			if result.Code == "" {
+				result.Code = ErrorCodeProvenanceInvalid
+			}
+			result.Reason = err.Error()
+			return result
+		}
+		result.Allowed = true
 		return result
 	default:
 		result.Code = ErrorCodeInvalidInput
@@ -115,13 +145,29 @@ func (p Policy) coreVersion() string {
 	return buildinfo.AppVersion()
 }
 
+func (p Policy) verifyAllowlist(manifest Manifest, result *VerificationResult) bool {
+	if !contains(p.AllowedIDs, manifest.Metadata.ID) {
+		result.Code = ErrorCodeUntrustedPublisher
+		result.Reason = fmt.Sprintf("component %q is not allowlisted", manifest.Metadata.ID)
+		return false
+	}
+	if !contains(p.AllowedPublishers, manifest.Metadata.Publisher) {
+		result.Code = ErrorCodeUntrustedPublisher
+		result.Reason = fmt.Sprintf("publisher %q is not allowlisted", manifest.Metadata.Publisher)
+		return false
+	}
+	return true
+}
+
 func (p Policy) isZero() bool {
 	return p.Mode == "" &&
 		len(p.AllowedIDs) == 0 &&
 		len(p.AllowedPublishers) == 0 &&
 		len(p.RevokedIDs) == 0 &&
 		len(p.RevokedPublishers) == 0 &&
-		strings.TrimSpace(p.CoreVersion) == ""
+		strings.TrimSpace(p.CoreVersion) == "" &&
+		p.Provenance.isZero() &&
+		p.ProvenanceVerifier == nil
 }
 
 func verifyCompatibleCore(rangeExpression, currentVersion string) error {
@@ -142,6 +188,13 @@ func verifyCompatibleCore(rangeExpression, currentVersion string) error {
 		if !comparator.matches(comparison) {
 			return fmt.Errorf("component is incompatible with Eshu core %q; requires %q", currentVersion, rangeExpression)
 		}
+	}
+	return nil
+}
+
+func verifyCompatibleCoreRangeSyntax(rangeExpression string) error {
+	if _, err := parseCoreRange(rangeExpression); err != nil {
+		return fmt.Errorf("spec.compatibleCore %q is invalid: %w", rangeExpression, err)
 	}
 	return nil
 }

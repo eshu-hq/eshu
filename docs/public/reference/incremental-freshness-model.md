@@ -12,12 +12,12 @@ the `get_changed_since` MCP tool, and `eshu freshness changed-since`) that diffs
 a prior generation's fact set against the current active generation's fact set;
 the lower-level freshness signal is still observed through scope generations and
 status surfaces. Service-scope deltas are now **partially available**: the
-ownership family ships through `GET /api/v0/freshness/services/changed-since`,
-the `get_service_changed_since` MCP tool, and `eshu freshness
-service-changed-since`, backed by a per-service generation lineage
-(`service_materialization_generations`) and generation-stable evidence snapshots
-(`service_evidence_snapshots`). The remaining service families (deployment,
-runtime, dependencies, docs, incidents, vulnerabilities) reuse the same lineage
+ownership, deployment, and runtime families ship through
+`GET /api/v0/freshness/services/changed-since`, the `get_service_changed_since`
+MCP tool, and `eshu freshness service-changed-since`, backed by a per-service
+generation lineage (`service_materialization_generations`) and generation-stable
+evidence snapshots (`service_evidence_snapshots`). The remaining service families
+(dependencies, docs, incidents, vulnerabilities) reuse the same lineage
 and snapshot foundation and are tracked as follow-up work.
 
 ## What incremental refresh means
@@ -249,10 +249,19 @@ per-evidence diff key:
   service re-materialization; an identical re-materialization is a no-op.
 - `service_evidence_snapshots` holds generation-stable evidence rows keyed by a
   generation-independent `service_evidence_key` (for example
-  `ownership:<service_id>:<owner_ref>`), with a `payload_hash` so updated-vs-
-  unchanged is detected the same way the repository-scope diff uses
-  `md5(payload::text)`, and an `is_tombstone` flag so a dropped evidence row is
-  retired explicitly rather than silently absent.
+  `ownership:<service_id>:<owner_ref>`, `deployment:<service_id>:<identity>`
+  (where the deployment identity is a digest of the resolved deployment
+  relationship's generation-independent natural key — its `resolved_id` embeds
+  the resolution generation and is therefore not a stable diff key), or
+  `runtime:<service_id>:<platform_kind>:<environment>:<workload_ref>` (where
+  `workload_ref` is the durable `WorkloadInstance` id
+  `workload-instance:<workload_name>:<environment>`, which carries no resolution
+  or materialization generation id), with a
+  `payload_hash` so updated-vs-unchanged is detected the same way the
+  repository-scope diff uses `md5(payload::text)`, and an `is_tombstone` flag so a
+  dropped evidence row is retired explicitly rather than silently absent. The
+  rows carry an `evidence_family` column, so the delta groups by family and a new
+  family appears once its rows are written without a delta-SQL change.
 
 `GET /api/v0/freshness/services/changed-since` (the `get_service_changed_since`
 MCP tool and `eshu freshness service-changed-since`) diffs a prior service
@@ -264,11 +273,13 @@ handling as the repository-scope surface. An unknown `service_id` returns
 service with no current active generation returns an explicit `unavailable` diff
 rather than zero deltas.
 
-Stage 1 ships the **ownership** family. The remaining families (deployment,
-runtime, dependencies, docs, incidents, vulnerabilities) reuse this lineage and
-snapshot foundation and are tracked follow-ups. The investigation, the reason
-each evidence family needed this foundation, and the recommended snapshot
-contract are recorded in the internal design note for issue #1943.
+The **ownership** (#1943), **deployment** (#1985), and **runtime** (#1986)
+families ship. The remaining families (dependencies, docs, incidents,
+vulnerabilities) reuse this lineage and snapshot foundation and are tracked
+follow-ups. The
+investigation, the reason each evidence family needed this foundation, and the
+recommended snapshot contract are recorded in the internal design note for issue
+#1943.
 
 ## How hosted teams verify freshness without full re-index churn
 
@@ -308,7 +319,7 @@ rendered from Postgres, not from the graph backend.
 | Which MCP tool reports index progress? | `get_index_status` (the `next_check` target for most causes) | Bounded follow-up call carried on freshness causes. |
 | Is a scope current from the CLI? | `eshu` scan-status readiness | Treats `failed` generations as terminal and reports `pending` generations as still catching up. |
 | What changed in a repository scope since a prior generation or instant? | `GET /api/v0/freshness/changed-since` (`get_changed_since` MCP tool, `eshu freshness changed-since`) | Diffs the prior generation's fact set against the current active generation's fact set by `stable_fact_key`. Returns per-category (files, content entities, facts) added/updated/unchanged/retired/superseded counts with bounded sample handles. A scope with no current active generation returns an explicit unavailable diff, never zero deltas. |
-| What changed for a service since a prior service generation? | `GET /api/v0/freshness/services/changed-since` (`get_service_changed_since` MCP tool, `eshu freshness service-changed-since`) | Diffs a prior service materialization generation against the current active generation over `service_evidence_snapshots`, keyed by generation-independent `service_evidence_key`. Stage 1 reports the ownership family; per-family added/updated/unchanged/retired/superseded counts with bounded sample handles. Unknown `service_id` returns `service_not_found`; no current active generation returns an explicit unavailable diff, never zero deltas. |
+| What changed for a service since a prior service generation? | `GET /api/v0/freshness/services/changed-since` (`get_service_changed_since` MCP tool, `eshu freshness service-changed-since`) | Diffs a prior service materialization generation against the current active generation over `service_evidence_snapshots`, keyed by generation-independent `service_evidence_key`. Reports the ownership (#1943), deployment (#1985), and runtime (#1986) families; per-family added/updated/unchanged/retired/superseded counts with bounded sample handles. Unknown `service_id` returns `service_not_found`; no current active generation returns an explicit unavailable diff, never zero deltas. |
 
 `scope_activity` summarizes per-scope observation activity. `generation_history`
 summarizes generation counts by status (including pending and failed).

@@ -159,7 +159,7 @@ Telemetry requirements:
 
 | Case | Required behavior |
 | --- | --- |
-| Invalid manifest | Component verification fails before install or activation. Strict mode fails closed until provenance support exists. |
+| Invalid manifest | Component verification fails before install or activation. Strict mode requires configured Cosign signature and SLSA provenance checks for the final digest-pinned artifact. |
 | Invalid operator config | Enabled instance is not claim-capable; if already claimed, the claim fails terminal with `invalid_config`. |
 | Invalid claim input | Core extension host rejects the launch before running the extension and releases or terminal-fails according to whether the row is corrupt. |
 | Source auth failure | Retryable for transient credential/provider errors; terminal for malformed or missing required credential references. Secret values never enter facts, logs, or labels. |

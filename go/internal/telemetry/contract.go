@@ -372,6 +372,13 @@ const (
 	// eshu.capability attributes so the plan compose read is distinguishable from
 	// the underlying unmanaged-resource and import-plan reads.
 	SpanQueryReplatformingPlan = "query.replatforming_plan"
+	// SpanQueryReplatformingOwnership wraps the bounded unmanaged-resource
+	// ownership packet read (POST /api/v0/replatforming/ownership-packets). It
+	// composes owner, repository, module, service, and environment candidates for
+	// active AWS drift findings from reducer-owned fields. The span carries only
+	// the stable http.route and eshu.capability attributes; per-resource
+	// identities and candidate values stay out of span and metric labels.
+	SpanQueryReplatformingOwnership = "query.replatforming_ownership"
 	// SpanQueryIaCResources wraps the bounded Terraform/IaC resource list read
 	// over the authoritative graph (GET /api/v0/iac/resources). It carries the
 	// stable http.route and eshu.capability attributes so the IaC inventory

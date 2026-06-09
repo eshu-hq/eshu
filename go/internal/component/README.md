@@ -6,9 +6,10 @@
 component manifests, applies local trust policy, records installed packages,
 and tracks whether an installed package is activated for a collector instance.
 
-This package does not download remote artifacts, start collectors, mutate core
+This package does not pull runnable artifacts, start collectors, mutate core
 storage schemas, or write customer documentation. It is the read/write boundary
-for package-manager state only.
+for package-manager state and the policy boundary for optional provenance
+verification.
 
 ## Where this fits in the pipeline
 
@@ -30,7 +31,8 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
 1. `LoadManifest` reads a YAML component manifest from disk and validates its
    top-level contract.
 2. `Policy.Verify` evaluates the manifest against the selected trust mode,
-   allowlists, and revocation lists.
+   allowlists, revocation lists, compatible-core range, and optional
+   provenance verifier.
 3. `Registry.Install` persists the manifest under the component home and records
    the manifest digest in `registry.json`.
 4. `Registry.PlanEnable` validates an activation without writing state.
@@ -51,9 +53,13 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
   Each `FactFamily` declares a namespaced, non-core fact kind, supported schema
   versions, and the non-unknown source-confidence values the component emits.
 - `LoadManifest(path)` loads and validates a manifest from disk.
-- `Policy` and `VerificationResult` implement local trust checks and expose
-  stable failure classes for invalid manifests, incompatible core ranges,
-  revoked packages, and untrusted publishers.
+- `Policy`, `ProvenancePolicy`, `ProvenanceVerifier`, and
+  `VerificationResult` implement local trust checks and expose stable failure
+  classes for invalid manifests, incompatible core ranges, revoked packages,
+  untrusted publishers, and unavailable, invalid, or unsupported provenance.
+- `CosignProvenanceVerifier` shells out to the operator-selected Cosign binary
+  to verify digest-pinned artifact signatures and SLSA attestations without
+  executing component code.
 - `NewRegistry(home)` creates a file-backed installed component registry.
 - `Registry.Install`, `List`, `Readback`, `PlanEnable`, `Enable`, `Disable`,
   and `Uninstall` manage local install and activation state.
@@ -79,7 +85,8 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
 - Git remains built in. Optional collectors and services must be installed and
   enabled explicitly.
 - Installed does not mean enabled. Enabled does not mean claim-capable.
-- Trust policy fails closed when provenance cannot be verified.
+- Trust policy fails closed when provenance cannot be verified. Revocation wins
+  over otherwise compatible or allowlisted packages.
 - Registry writes are atomic so a partial write cannot corrupt
   `registry.json`.
 - Component manifests must pin artifact images by digest.

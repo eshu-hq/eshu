@@ -10,11 +10,15 @@ import "strings"
 // categories it reports. Stage 1 reports the ownership family only.
 
 // ServiceChangedSinceCategories is the closed, ordered set of service evidence
-// families this surface computes. Stage 1 ships ownership; the remaining
-// families (deployment, runtime, dependencies, docs, incidents, vulnerabilities)
-// are tracked follow-ups that append here as they land.
+// families this surface computes. Ownership (#1943), deployment (#1985), and
+// runtime (#1986) ship; the remaining families (dependencies, docs, incidents,
+// vulnerabilities) are tracked follow-ups that append here as they land. The
+// delta SQL groups by evidence_family, so a new family appears automatically
+// once its rows are written and its category is registered here.
 var ServiceChangedSinceCategories = []ChangedSinceCategory{
 	ChangedSinceCategoryOwnership,
+	ChangedSinceCategoryDeployment,
+	ChangedSinceCategoryRuntime,
 }
 
 // ServiceChangedSinceFilter bounds a service-scope changed-since summary to one

@@ -13,6 +13,7 @@ comparison. The route list is verified against `go/internal/query`.
 | AWS management and drift | `POST /api/v0/iac/unmanaged-resources`, `POST /api/v0/iac/management-status`, `POST /api/v0/iac/management-status/explain`, `POST /api/v0/iac/terraform-import-plan/candidates`, `POST /api/v0/aws/runtime-drift/findings` |
 | Replatforming | `POST /api/v0/replatforming/plans` |
 | Replatforming rollups | `POST /api/v0/replatforming/rollups` |
+| Replatforming ownership packets | `POST /api/v0/replatforming/ownership-packets` |
 | Content | `POST /api/v0/content/files/read`, `POST /api/v0/content/files/lines`, `POST /api/v0/content/entities/read`, `POST /api/v0/content/files/search`, `POST /api/v0/content/entities/search` |
 | Infrastructure | `POST /api/v0/infra/resources/search`, `POST /api/v0/infra/relationships`, `GET /api/v0/ecosystem/overview`, `GET /api/v0/cloud/resources` |
 | Impact | `POST /api/v0/impact/trace-resource-to-code`, `POST /api/v0/impact/explain-dependency-path`, `POST /api/v0/impact/blast-radius`, `POST /api/v0/impact/change-surface`, `POST /api/v0/impact/change-surface/investigate`, `POST /api/v0/impact/entity-map`, `POST /api/v0/impact/resource-investigation`, `POST /api/v0/compare/environments` |
@@ -253,6 +254,57 @@ and drift drill-down reads. The plan's rollup truth never exceeds the
 capability's `derived` profile maximum. Lightweight local profiles cannot
 materialize the reducer-owned drift and IaC evidence and return
 `501 unsupported_capability`.
+
+## Replatforming Ownership Packets
+
+`POST /api/v0/replatforming/ownership-packets` answers "who likely owns this
+unmanaged AWS resource, and what is missing?" For each active reducer drift
+finding it composes a bounded ownership packet of owner, repository, module,
+service, and environment **candidates** with explicit ambiguity reasons,
+confidence, freshness, and the read-only safety gate. It requires `scope_id` or
+`account_id` and the local-authoritative profile or higher; lower profiles
+receive `501 unsupported_capability`. `region`, `finding_kinds`, `limit`, and
+`offset` narrow the bounded page; `limit` defaults to 100 and is capped at 500.
+
+Each packet in `ownership_packets` carries:
+
+- `owner_candidates`: every candidate attribution, grouped by `kind` (`account`,
+  `repository`, `module`, `service`, `environment`) with a `confidence` of
+  `derived` or `ambiguous`. `exact` is reserved for a reducer-proved match such
+  as a matched Terraform state address; a single reducer candidate is `derived`,
+  never `exact`. When more than one deterministic candidate of a kind conflicts,
+  each candidate is `ambiguous` and carries `ambiguity_reasons` listing the
+  contested values. The candidates are never collapsed to a single guessed
+  owner.
+- `matched_terraform_state_address`, `matched_terraform_config_file`, and
+  `matched_terraform_module_path` when the reducer correlated them.
+- `source_state`: the provider-neutral source state after the safety gate; a
+  refused finding is `rejected` and never reported as ready. See the
+  [source-state taxonomy](../replatforming-source-state-taxonomy.md).
+- `freshness`: per-item freshness, so a stale or unavailable finding is visibly
+  not fresh.
+- `missing_evidence`: attribution layers that resolved nothing
+  (`service_attribution`, `environment_attribution`, `repository_attribution`,
+  `terraform_state_address`), surfaced explicitly rather than read as agreement.
+- `recommended_next_calls`: bounded follow-up collector or query calls to
+  resolve a missing or contested attribution.
+
+Raw tags remain provenance evidence and never become owner candidates; a
+tag or name coincidence never becomes exact ownership. The top-level
+`ambiguous_count`, `unattributed_count`, and `rejected_count` give an operator a
+single at-a-glance view of how much attribution is contested, missing, or
+safety-gated. When `truncated` is true the page is bounded; re-run with `offset`
+or a tighter scope.
+
+### Replatforming ownership observability
+
+No-Observability-Change: this read reuses the shared query-handler
+instrumentation. The `query.replatforming_ownership` span carries only the
+stable `http.route` and `eshu.capability` attributes; per-resource identities
+(ARNs, account-scoped IDs) and candidate values stay out of span and metric
+labels. Operators read contested and missing attribution from the bounded
+response counts (`ambiguous_count`, `unattributed_count`, `rejected_count`)
+rather than from a new high-cardinality metric.
 
 ## Content
 

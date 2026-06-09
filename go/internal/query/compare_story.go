@@ -61,7 +61,7 @@ func environmentCompareResponse(
 		"recommended_next_calls": environmentCompareNextCalls(workload, req, comparison, leftTruncated || rightTruncated),
 		"coverage":               coverage,
 	}
-	return resp
+	return attachAnswerMetadata(resp)
 }
 
 func missingEnvironmentSnapshot(environment string) map[string]any {

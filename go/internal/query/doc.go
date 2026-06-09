@@ -72,6 +72,11 @@
 // through MetricsHandler. The handler accepts a MetricsTimeSeriesSource, with
 // PrometheusMetricsTimeSeriesSource providing the Prometheus/Mimir query_range
 // implementation when the API runtime is configured with a live metrics source.
+// Story and investigation routes also attach additive answer_metadata
+// companions for prompt-facing clients. The companion normalizes existing
+// evidence handles, missing evidence, limitations, truncation, coverage,
+// partial reasons, and recommended next calls without changing the canonical
+// route fields or performing additional backend reads.
 //
 // Supply-chain impact rows also carry a reducer suppression decision that
 // captures the VEX or operator-policy state (active, not_affected,
@@ -203,16 +208,17 @@
 // BuildEvidenceCitationVisualizationPacket, and
 // BuildIncidentContextVisualizationPacket are pure transformations of data the
 // caller already received; they perform no graph access and surface no field
-// beyond the source response. Node and edge IDs are derived deterministically
-// from the underlying entity/handle identity (never iteration order), the
-// subgraph is sorted by stable ID and bounded by VisualizationMaxNodes and
-// VisualizationMaxEdges with explicit truncation, the source TruthEnvelope is
-// copied verbatim, and each node may reference the evidence_citation handle that
-// hydrates it. Unsupported views return an explicit packet with
-// recommended_next_calls rather than erroring, so a client can render an
-// explainable subgraph without raw Cypher. The contract is documented in
-// docs/public/reference/visualization-packets.md; route and MCP wiring is
-// follow-up work.
+// beyond the source response. Their FromMap adapters decode canonical
+// HTTP/MCP/CLI JSON maps into those same builders without adding a new data
+// source. Node and edge IDs are derived deterministically from the underlying
+// entity/handle identity (never iteration order), the subgraph is sorted by
+// stable ID and bounded by VisualizationMaxNodes and VisualizationMaxEdges with
+// explicit truncation, the source TruthEnvelope is copied verbatim, and each
+// node may reference the evidence_citation handle that hydrates it. Unsupported
+// views return an explicit packet with recommended_next_calls rather than
+// erroring, so a client can render an explainable subgraph without raw Cypher.
+// The contract is documented in docs/public/reference/visualization-packets.md;
+// route and MCP wiring is follow-up work.
 //
 // FreshnessHandler serves two bounded freshness drilldowns. The generation
 // lifecycle drilldown at GET /api/v0/freshness/generations under the

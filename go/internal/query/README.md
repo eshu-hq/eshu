@@ -356,18 +356,22 @@ activation config paths, or community-index membership as trust.
   `VisualizationMaxNodes`, `VisualizationMaxEdges`,
   `BuildServiceStoryVisualizationPacket`,
   `BuildEvidenceCitationVisualizationPacket`,
-  `BuildIncidentContextVisualizationPacket` — compact, bounded, derived subgraph
-  views over existing story, evidence-citation, and incident-context responses
-  (`visualization_packet.go`, `visualization_packet_story.go`,
-  `visualization_packet_evidence.go`). Each builder is a pure transformation of
-  data the caller already received: it performs no graph access, derives stable
-  node/edge IDs from the underlying entity/handle identity (never iteration
-  order), sorts by stable ID, enforces node/edge bounds with explicit
-  truncation, copies the source `TruthEnvelope`, reuses the `evidence_citation`
-  handle shape so a node maps back to a citation, and returns an explicit
-  unsupported packet with `recommended_next_calls` rather than erroring. Normal
-  visualization flows need no raw Cypher. Route/MCP wiring is follow-up work.
-  See `docs/public/reference/visualization-packets.md`.
+  `BuildEvidenceCitationVisualizationPacketFromMap`,
+  `BuildIncidentContextVisualizationPacket`, and
+  `BuildIncidentContextVisualizationPacketFromMap` — compact, bounded, derived
+  subgraph views over existing story, evidence-citation, and incident-context
+  responses (`visualization_packet.go`, `visualization_packet_story.go`,
+  `visualization_packet_evidence.go`, `visualization_packet_decode.go`). Each
+  builder is a pure transformation of data the caller already received: it
+  performs no graph access, derives stable node/edge IDs from the underlying
+  entity/handle identity (never iteration order), sorts by stable ID, enforces
+  node/edge bounds with explicit truncation, copies the source `TruthEnvelope`,
+  reuses the `evidence_citation` handle shape so a node maps back to a
+  citation, and returns an explicit unsupported packet with
+  `recommended_next_calls` rather than erroring. The `FromMap` adapters decode
+  canonical HTTP/MCP/CLI JSON maps into the same builders; they do not add a new
+  data source. Normal visualization flows need no raw Cypher. Route/MCP wiring
+  is follow-up work. See `docs/public/reference/visualization-packets.md`.
 
 **Handler helpers**
 
@@ -468,6 +472,7 @@ documentation fact routes remain unaffected.
   `telemetry.SpanQueryIaCManagementStatus` (`query.iac_management_status`) on
   exact status reads, and `telemetry.SpanQueryIaCManagementExplanation`
   (`query.iac_management_explanation`) on grouped evidence explanations;
+
   `telemetry.SpanQueryIaCTerraformImportPlan`
   (`query.iac_terraform_import_plan`) on read-only Terraform import-plan
   candidate generation; `telemetry.SpanQueryAWSRuntimeDriftFindings`
@@ -490,6 +495,16 @@ documentation fact routes remain unaffected.
   (via `repositoryQueryStageTimer`); `service_query.stage_started`,
   `service_query.stage_completed` (via `serviceQueryStageTimer`). Both emit
   `operation`, `stage`, `repo_id`, and `duration_seconds`.
+
+Answer-facing story and investigation responses attach additive
+`answer_metadata` companions with normalized evidence handles,
+missing-evidence rows, limitations, truncation, coverage, partial reasons, and
+recommended next calls. The companion is derived only from the already-built
+response payload or incident response struct; it performs no graph,
+content-store, provider, reducer, collector, or queue reads and does not add a
+new span. Keep the canonical route fields authoritative and use
+`answer_metadata` only as the prompt-facing adapter for AnswerPacket composition
+or MCP summary text.
 
 Durable no-regression and observability notes for issue-specific query shapes,
 including CloudResource candidate reads and NornicDB predicate compatibility,

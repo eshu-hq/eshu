@@ -260,6 +260,83 @@ func mcpSliceLen(m map[string]any, key string) int {
 	}
 }
 
+func mcpAnswerMetadata(data map[string]any) map[string]any {
+	if data == nil {
+		return nil
+	}
+	switch metadata := data["answer_metadata"].(type) {
+	case map[string]any:
+		return metadata
+	case query.AnswerMetadata:
+		return map[string]any{
+			"schema_version":         metadata.SchemaVersion,
+			"evidence_handles":       metadata.EvidenceHandles,
+			"missing_evidence":       metadata.MissingEvidence,
+			"limitations":            metadata.Limitations,
+			"truncated":              metadata.Truncated,
+			"coverage":               metadata.Coverage,
+			"partial_reasons":        metadata.PartialReasons,
+			"recommended_next_calls": metadata.RecommendedNextCalls,
+		}
+	default:
+		return nil
+	}
+}
+
+func mcpMetadataTruncated(metadata map[string]any) bool {
+	return query.BoolVal(metadata, "truncated")
+}
+
+func mcpMetadataRowsLen(metadata map[string]any, key string) int {
+	if metadata == nil {
+		return 0
+	}
+	return mcpValueSliceLen(metadata[key])
+}
+
+func mcpFirstMetadataReason(metadata map[string]any, key string) (string, int) {
+	rows := mcpMetadataRows(metadata, key)
+	for _, row := range rows {
+		for _, reasonKey := range []string{"reason", "kind", "slot"} {
+			if reason := query.StringVal(row, reasonKey); reason != "" {
+				return reason, len(rows)
+			}
+		}
+	}
+	return "", len(rows)
+}
+
+func mcpMetadataRows(metadata map[string]any, key string) []map[string]any {
+	if metadata == nil {
+		return nil
+	}
+	switch typed := metadata[key].(type) {
+	case []map[string]any:
+		return typed
+	case []any:
+		rows := make([]map[string]any, 0, len(typed))
+		for _, item := range typed {
+			if row, ok := item.(map[string]any); ok {
+				rows = append(rows, row)
+			}
+		}
+		return rows
+	default:
+		return nil
+	}
+}
+
+func mcpValueSliceLen(value any) int {
+	switch typed := value.(type) {
+	case []any:
+		return len(typed)
+	case []map[string]any:
+		return len(typed)
+	default:
+		return 0
+	}
+}
+
 // mcpFirstStringInSlice returns the named string field of the first row in a
 // slice value, or "" when the slice is empty or the field is absent. It is used
 // to surface the single recommended next call deterministically.

@@ -25,7 +25,8 @@ It validates that the repository rules are narrow. A whole-org glob such as
 redacted onboarding artifact safe to hand to the project team.
 
 The artifact records the API URL, MCP URL, token source name, indexed
-repositories, queue/completeness status, and starter prompts. It never embeds a
+repositories, queue/completeness status, starter prompts, and structured starter
+playbooks with IDs, ordered tools, and expected truth classes. It never embeds a
 bearer token value and documents the current shared-token authorization
 limitation so it never implies per-team isolation that does not exist.`,
 		Args: cobra.NoArgs,
