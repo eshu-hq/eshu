@@ -1,0 +1,28 @@
+{
+  "totalRecords": 5000,
+  "count": 1,
+  "resultTruncated": "true",
+  "$skipToken": "",
+  "data": [
+    {
+      "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg-app/providers/Microsoft.Web/sites/app-frontend",
+      "name": "app-frontend",
+      "type": "microsoft.web/sites",
+      "tenantId": "tenant-abc",
+      "subscriptionId": "11111111-1111-1111-1111-111111111111",
+      "resourceGroup": "rg-app",
+      "location": "eastus",
+      "kind": "app,linux",
+      "managedBy": "",
+      "apiVersion": "2023-01-01",
+      "sku": {"name": "P1v3", "tier": "PremiumV3"},
+      "identity": {"type": "SystemAssigned"},
+      "tags": {"env": "prod"},
+      "properties": {
+        "provisioningState": "Succeeded",
+        "defaultHostName": "app-frontend.azurewebsites.net"
+      },
+      "timestamp": "2026-06-09T11:33:00Z"
+    }
+  ]
+}

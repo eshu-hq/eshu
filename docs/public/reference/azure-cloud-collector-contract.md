@@ -13,10 +13,24 @@ truth.
 
 ## Status
 
-This contract is design-only. Do not add `eshu-collector-azure-cloud`, Helm
-values, environment variables, collector-instance examples, or query claims
-until implementation PRs prove the runtime, fact schemas, reducer path,
-fixtures, telemetry, and chart path.
+The first fixture-testable slice has landed in
+`go/internal/collector/azurecloud`. It registers the Azure fact constants and
+schema versions in `go/internal/facts/azure.go`, normalizes ARM resource
+identity, redacts the provider extension payload, and emits
+`azure_cloud_resource` and `azure_collection_warning` source facts from
+fixture Resource Graph pages. It still performs **no live Azure calls**: the
+`PageProvider` seam is fed by fixtures under
+`go/internal/collector/azurecloud/testdata`.
+
+Everything else stays gated. Do not add `eshu-collector-azure-cloud`, Helm
+values, environment variables, collector-instance examples, `collector.Source`
+runtime wiring, a scope `CollectorKind`, or query claims until implementation
+PRs prove the live runtime, reducer path, additional fact kinds, telemetry in
+the shared registry, and chart path. The remaining fact kinds
+(`azure_cloud_relationship`, `azure_tag_observation`,
+`azure_identity_observation`, `azure_resource_change`, `azure_dns_record`,
+`azure_image_reference`) have registered constants but no envelope builders
+yet.
 
 The first implementation slice must be fixture-testable without live Azure
 access. Live smoke tests are promotion proof, not the minimum proof for the
@@ -207,5 +221,7 @@ The first code PRs must prove these cases before any live smoke:
 7. Add Helm and live-smoke support only after the runtime and reducer contract
    pass fixture gates.
 
-No-Observability-Change: this page documents a gated design contract only. It
-does not add runtime code, chart values, fact schemas, or telemetry series.
+No-Observability-Change: the live Azure runtime stays gated. The first slice
+adds fixture-driven fact emission and package-local bounded telemetry
+instruments only. It adds no live runtime path, chart values, environment
+variables, shared-registry telemetry series, or query claims.
