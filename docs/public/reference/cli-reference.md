@@ -78,6 +78,11 @@ Some API-backed commands do not register per-command remote flags yet. Use
 and API-backed commands that rely on config, environment, or the localhost
 default.
 
+Runtime-only environment variables such as
+`ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` are documented in
+[Environment Variables](environment-variables.md). They are read by API/MCP
+runtimes, not by CLI target resolution, and must carry credential handles only.
+
 `eshu vuln-scan repo [path]` is the local-scan exception to the localhost
 fallback. If no service URL is configured by flag, persisted config, or
 `ESHU_SERVICE_URL`, it starts or attaches to the workspace-local authoritative

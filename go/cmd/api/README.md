@@ -47,11 +47,14 @@ then calls `wireAPI`. Failure at any wiring step releases already-acquired
 connections and exits; the `cleanup` closure returned by `wireAPI` closes Postgres
 and the graph driver on normal shutdown.
 
-`wireAPI` resolves `ESHU_QUERY_PROFILE` and `ESHU_GRAPH_BACKEND`, opens the graph
-driver via `openQueryGraph` (skipped when `ESHU_QUERY_PROFILE=local_lightweight`),
-opens and pings Postgres, then calls `newRouter` to build the `query.APIRouter`
-with all handler structs wired to the concrete `query.Neo4jReader` and
-`query.ContentReader` adapters. The supply-chain handler also wires
+`wireAPI` resolves `ESHU_QUERY_PROFILE`, `ESHU_GRAPH_BACKEND`, and optional
+semantic provider profile metadata, opens the graph driver via `openQueryGraph`
+(skipped when `ESHU_QUERY_PROFILE=local_lightweight`), opens and pings Postgres,
+then calls `newRouter` to build the `query.APIRouter` with all handler structs
+wired to the concrete `query.Neo4jReader` and `query.ContentReader` adapters.
+The API and runtime admin surfaces share the same decorated status reader so
+semantic provider profile status stays redacted and consistent. The supply-chain
+handler also wires
 `AdvisoryEvidence` to `query.NewPostgresAdvisoryEvidenceStore` so source-only
 advisory evidence is available through the API without requiring graph access.
 `IncidentHandler` and `WorkItemHandler` wire Postgres-backed incident context
@@ -107,6 +110,10 @@ See `doc.go` for the full godoc contract.
 - `ESHU_GRAPH_BACKEND` — `neo4j` or `nornicdb`
 - `ESHU_DISABLE_NEO4J` — with the local-lightweight profile, skips the
   graph driver
+- `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` — optional provider profile registry
+  for semantic extraction status. It accepts profile metadata and credential
+  handles only; the API never loads provider keys or calls providers from this
+  config path, and status output omits credential handles.
 - `DEFAULT_DATABASE` — graph database name, default `nornic`
 - `ESHU_PPROF_ADDR` — opt-in `net/http/pprof` endpoint via
   `runtime.NewPprofServer`; unset disables the profiler; port-only inputs
@@ -175,9 +182,10 @@ See `doc.go` for the full godoc contract.
   with an explicit error if both `ESHU_POSTGRES_DSN` and the legacy
   `ESHU_CONTENT_STORE_DSN` are empty (`wiring.go:42`).
 
-- Invalid `ESHU_QUERY_PROFILE` or `ESHU_GRAPH_BACKEND` values fail at startup via
-  `ParseQueryProfile` and `ParseGraphBackend`; there is no silent default for
-  unrecognized values.
+- Invalid `ESHU_QUERY_PROFILE`, `ESHU_GRAPH_BACKEND`, or
+  `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` values fail at startup before datastore
+  connections; there is no silent default for unrecognized provider kinds,
+  credential source kinds, source classes, or pasted environment-variable keys.
 
 - `wireAPI` returns a cleanup closure. `PrometheusHandler` and all acquired
   connections are freed when the closure runs; partial wiring failures still

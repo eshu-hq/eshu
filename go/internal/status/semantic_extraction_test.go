@@ -95,6 +95,207 @@ func TestSemanticExtractionProviderConfiguredMatchesState(t *testing.T) {
 	}
 }
 
+func TestSemanticExtractionProviderProfilesEnableScopedCapabilities(t *testing.T) {
+	t.Parallel()
+
+	report := status.BuildReport(status.RawSnapshot{
+		SemanticExtraction: status.SemanticExtractionStatus{
+			ProviderProfiles: []status.SemanticProviderProfileStatus{
+				{
+					ProfileID:              "semantic-code-hints",
+					DisplayName:            "Code hints",
+					ProviderKind:           "deepseek",
+					CredentialSourceKind:   "environment_variable",
+					CredentialConfigured:   true,
+					ModelID:                "deepseek-chat",
+					EndpointProfileID:      "deepseek-public-api",
+					SourceClasses:          []string{"code_hints"},
+					SourcePolicyConfigured: true,
+					State:                  status.SemanticProviderProfileConfigured,
+				},
+				{
+					ProfileID:              "semantic-docs-default",
+					DisplayName:            "Documentation default",
+					ProviderKind:           "deepseek",
+					CredentialSourceKind:   "environment_variable",
+					CredentialConfigured:   true,
+					ModelID:                "deepseek-chat",
+					EndpointProfileID:      "deepseek-public-api",
+					SourceClasses:          []string{"documentation"},
+					SourcePolicyConfigured: true,
+					State:                  status.SemanticProviderProfileConfigured,
+				},
+			},
+		},
+	}, status.DefaultOptions())
+
+	semantic := report.SemanticExtraction
+	if got, want := semantic.State, status.SemanticExtractionAvailable; got != want {
+		t.Fatalf("SemanticExtraction.State = %q, want %q", got, want)
+	}
+	if !semantic.ProviderConfigured {
+		t.Fatal("ProviderConfigured = false, want true")
+	}
+	if !semantic.DocumentationObservationsEnabled {
+		t.Fatal("DocumentationObservationsEnabled = false, want true")
+	}
+	if !semantic.CodeHintsEnabled {
+		t.Fatal("CodeHintsEnabled = false, want true")
+	}
+	if len(semantic.ProviderProfiles) != 2 {
+		t.Fatalf("len(ProviderProfiles) = %d, want 2", len(semantic.ProviderProfiles))
+	}
+	if got, want := semantic.ProviderProfiles[0].ProfileID, "semantic-code-hints"; got != want {
+		t.Fatalf("ProviderProfiles[0].ProfileID = %q, want sorted %q", got, want)
+	}
+	if got, want := semantic.ProviderProfiles[1].ProfileID, "semantic-docs-default"; got != want {
+		t.Fatalf("ProviderProfiles[1].ProfileID = %q, want sorted %q", got, want)
+	}
+}
+
+func TestSemanticExtractionProviderProfilesRemainPolicyGated(t *testing.T) {
+	t.Parallel()
+
+	report := status.BuildReport(status.RawSnapshot{
+		SemanticExtraction: status.SemanticExtractionStatus{
+			ProviderProfiles: []status.SemanticProviderProfileStatus{
+				{
+					ProfileID:              "semantic-docs-default",
+					ProviderKind:           "deepseek",
+					CredentialSourceKind:   "environment_variable",
+					CredentialConfigured:   true,
+					ModelID:                "deepseek-chat",
+					SourceClasses:          []string{"documentation"},
+					SourcePolicyConfigured: false,
+					State:                  status.SemanticProviderProfileConfigured,
+				},
+			},
+		},
+	}, status.DefaultOptions())
+
+	semantic := report.SemanticExtraction
+	if got, want := semantic.State, status.SemanticExtractionDisabledByPolicy; got != want {
+		t.Fatalf("SemanticExtraction.State = %q, want %q", got, want)
+	}
+	if !semantic.ProviderConfigured {
+		t.Fatal("ProviderConfigured = false, want true because profile metadata is configured")
+	}
+	if semantic.DocumentationObservationsEnabled {
+		t.Fatal("DocumentationObservationsEnabled = true, want false while source policy is absent")
+	}
+	if semantic.CodeHintsEnabled {
+		t.Fatal("CodeHintsEnabled = true, want false while source policy is absent")
+	}
+	if got, want := semantic.Reason, status.SemanticExtractionReasonPolicyDisabled; got != want {
+		t.Fatalf("SemanticExtraction.Reason = %q, want %q", got, want)
+	}
+}
+
+func TestSemanticExtractionUnhealthyProviderProfileRemainsConfigured(t *testing.T) {
+	t.Parallel()
+
+	report := status.BuildReport(status.RawSnapshot{
+		SemanticExtraction: status.SemanticExtractionStatus{
+			ProviderProfiles: []status.SemanticProviderProfileStatus{
+				{
+					ProfileID:              "semantic-docs-default",
+					ProviderKind:           "deepseek",
+					CredentialSourceKind:   "environment_variable",
+					CredentialConfigured:   true,
+					ModelID:                "deepseek-chat",
+					SourceClasses:          []string{"documentation"},
+					SourcePolicyConfigured: true,
+					State:                  status.SemanticProviderProfileUnhealthy,
+				},
+			},
+		},
+	}, status.DefaultOptions())
+
+	semantic := report.SemanticExtraction
+	if got, want := semantic.State, status.SemanticExtractionProviderUnhealthy; got != want {
+		t.Fatalf("SemanticExtraction.State = %q, want %q", got, want)
+	}
+	if !semantic.ProviderConfigured {
+		t.Fatal("ProviderConfigured = false, want true for unhealthy configured profile")
+	}
+	if semantic.DocumentationObservationsEnabled {
+		t.Fatal("DocumentationObservationsEnabled = true, want false while provider is unhealthy")
+	}
+	if semantic.CodeHintsEnabled {
+		t.Fatal("CodeHintsEnabled = true, want false while provider is unhealthy")
+	}
+}
+
+func TestRenderStatusIncludesRedactedSemanticProviderProfiles(t *testing.T) {
+	t.Parallel()
+
+	const credentialHandle = "DEEPSEEK_API_KEY"
+	report := status.BuildReport(status.RawSnapshot{
+		SemanticExtraction: status.SemanticExtractionStatus{
+			ProviderProfiles: []status.SemanticProviderProfileStatus{
+				{
+					ProfileID:              "semantic-docs-default",
+					DisplayName:            "Documentation default",
+					ProviderKind:           "deepseek",
+					CredentialSourceKind:   "environment_variable",
+					CredentialConfigured:   true,
+					ModelID:                "deepseek-chat",
+					EndpointProfileID:      "deepseek-public-api",
+					SourceClasses:          []string{"documentation"},
+					SourcePolicyConfigured: true,
+					State:                  status.SemanticProviderProfileConfigured,
+				},
+			},
+		},
+	}, status.DefaultOptions())
+
+	text := status.RenderText(report)
+	for _, want := range []string{
+		"provider_profiles=1",
+		"profile=semantic-docs-default",
+		"provider=deepseek",
+		"credential_source=environment_variable",
+		"credential_configured=true",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("RenderText() missing %q:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, credentialHandle) {
+		t.Fatalf("RenderText() leaked credential handle %q:\n%s", credentialHandle, text)
+	}
+
+	encoded, err := status.RenderJSON(report)
+	if err != nil {
+		t.Fatalf("RenderJSON() error = %v, want nil", err)
+	}
+	if strings.Contains(string(encoded), credentialHandle) {
+		t.Fatalf("RenderJSON() leaked credential handle %q:\n%s", credentialHandle, encoded)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	semantic, ok := payload["semantic_extraction"].(map[string]any)
+	if !ok {
+		t.Fatalf("semantic_extraction missing or wrong type: %s", encoded)
+	}
+	profiles, ok := semantic["provider_profiles"].([]any)
+	if !ok {
+		t.Fatalf("provider_profiles missing or wrong type: %#v", semantic["provider_profiles"])
+	}
+	if len(profiles) != 1 {
+		t.Fatalf("len(provider_profiles) = %d, want 1", len(profiles))
+	}
+	profile := profiles[0].(map[string]any)
+	if _, ok := profile["credential_handle"]; ok {
+		t.Fatalf("provider profile exposed credential_handle: %#v", profile)
+	}
+	if got, want := profile["credential_source_kind"], "environment_variable"; got != want {
+		t.Fatalf("credential_source_kind = %#v, want %#v", got, want)
+	}
+}
+
 func TestRenderStatusIncludesSemanticExtractionNoProvider(t *testing.T) {
 	t.Parallel()
 

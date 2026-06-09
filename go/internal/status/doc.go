@@ -32,7 +32,8 @@
 // operators can separate throttling, credential failure, budget exhaustion, and
 // commit failures without scanning logs.
 // SemanticExtractionStatus reports optional LLM-assisted extraction liveness as
-// unavailable when no provider is configured; that informational state never
-// degrades health or blocks deterministic indexing, reducer, API, MCP, or
-// documentation fact paths.
+// unavailable when no provider is configured; when provider profiles are
+// configured, it carries redacted profile state and source-policy gates without
+// credential handles. That informational state never degrades health or blocks
+// deterministic indexing, reducer, API, MCP, or documentation fact paths.
 package status

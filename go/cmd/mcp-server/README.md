@@ -59,8 +59,10 @@ flowchart TB
 
 1. `main` calls `telemetry.NewBootstrap("mcp-server")` and initialises OTEL
    providers. On failure it logs with `telemetry.EventAttr` and exits 1.
-2. `wireAPI` opens Postgres via `sql.Open("pgx", pgDSN)` and calls
-   `PingContext`. If `ESHU_QUERY_PROFILE` is not `ProfileLocalLightweight` and
+2. `wireAPI` validates query profile, graph backend, API key, and optional
+   semantic provider profile metadata before datastore connections. It then
+   opens Postgres via `sql.Open("pgx", pgDSN)` and calls `PingContext`. If
+   `ESHU_QUERY_PROFILE` is not `ProfileLocalLightweight` and
    `ESHU_DISABLE_NEO4J` is not `true`, it also dials Neo4j via
    `internalruntime.OpenNeo4jDriver`.
 3. `newMCPQueryRouter` wires the MCP-backed `query` handlers
@@ -72,7 +74,9 @@ flowchart TB
 4. The mounted handler is wrapped by `query.AuthMiddleware`.
 5. `mountRuntimeSurface` creates a shared admin mux via
    `internalruntime.NewStatusAdminMux` exposing `/healthz`, `/readyz`,
-   `/metrics`, and `/admin/status`.
+   `/metrics`, and `/admin/status`. The admin mux and mounted `/api/v0/status/*`
+   routes share the same status reader so semantic provider profile rows are
+   redacted consistently.
 6. `mcp.NewServer` is called with the authed query handler.
 7. Transport selection reads `ESHU_MCP_TRANSPORT`:
    - `stdio` — `Server.Run` reads newline-delimited JSON-RPC from stdin;
@@ -104,6 +108,7 @@ satisfies `query.GraphQuery` and `query.ContentReader` satisfies
 | `ESHU_GRAPH_BACKEND` | — | parsed by `query.ParseGraphBackend`; defaults to NornicDB |
 | `ESHU_QUERY_PROFILE` | `production` | `loadQueryProfile` defaults to `query.ProfileProduction` |
 | `ESHU_DISABLE_NEO4J` | — | `true` skips Neo4j dial |
+| `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` | unset | Optional semantic provider profile registry. It carries profile metadata and credential handles only; the MCP server never loads provider keys or calls providers from this config path. |
 | `DEFAULT_DATABASE` | `neo4j` | Neo4j database name |
 | `ESHU_PPROF_ADDR` | unset (disabled) | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; port-only inputs bind to `127.0.0.1` |
 
@@ -119,10 +124,10 @@ or spans beyond the startup/connection events.
 
 ## Operational notes
 
-- Validation errors (bad API key, bad profile, bad backend) are returned before
-  any datastore connection. `wireAPI` calls `loadQueryProfile`,
-  `loadGraphBackend`, and `internalruntime.ResolveAPIKey` before opening any
-  connection (`wiring.go:32-41`).
+- Validation errors (bad API key, bad profile, bad backend, or malformed
+  semantic provider profile JSON) are returned before any datastore connection.
+  `wireAPI` calls the config validators before opening any connection
+  (`wiring.go:32-45`).
 - `stdio` mode does not start an HTTP listener. The admin surface (`/healthz`,
   `/readyz`, `/metrics`) is not available in stdio mode.
 - The query API mounted under `/api/` is protected by `query.AuthMiddleware`,

@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
+	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -36,6 +37,10 @@ func wireAPI(
 	graphBackend, err := loadGraphBackend(getenv)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("load graph backend: %w", err)
+	}
+	semanticProviderProfiles, err := semanticprofile.LoadStatusesFromEnv(getenv)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("load semantic provider profiles: %w", err)
 	}
 
 	apiKey, err := internalruntime.ResolveAPIKey(getenv)
@@ -79,8 +84,12 @@ func wireAPI(
 	// Build query layer
 	neo4jReader := query.NewNeo4jReader(driver, neo4jDB)
 	contentReader := query.NewContentReader(db)
+	statusReader := status.WithSemanticProviderProfiles(
+		pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db}),
+		semanticProviderProfiles...,
+	)
 
-	router := newMCPQueryRouter(db, neo4jReader, contentReader, queryProfile, graphBackend, logger)
+	router := newMCPQueryRouter(db, neo4jReader, contentReader, statusReader, queryProfile, graphBackend, logger)
 
 	mux := http.NewServeMux()
 	router.Mount(mux)
@@ -88,7 +97,6 @@ func wireAPI(
 	// Wrap with auth middleware (protects all /api/v0/* routes when mounted by MCP server)
 	authedHandler := query.AuthMiddleware(apiKey, mux)
 
-	statusReader := pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
 	adminMux, err := mountRuntimeSurface("mcp-server", statusReader, prometheusHandler)
 	if err != nil {
 		_ = db.Close()
@@ -112,10 +120,14 @@ func newMCPQueryRouter(
 	db *sql.DB,
 	neo4jReader query.GraphQuery,
 	contentReader query.ContentStore,
+	statusReader status.Reader,
 	queryProfile query.QueryProfile,
 	graphBackend query.GraphBackend,
 	logger *slog.Logger,
 ) *query.APIRouter {
+	if statusReader == nil {
+		statusReader = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
+	}
 	var containerImageIdentities query.ContainerImageIdentityStore
 	var sbomAttachments query.SBOMAttestationAttachmentStore
 	if db != nil {
@@ -238,7 +250,7 @@ func newMCPQueryRouter(
 		Status: &query.StatusHandler{
 			Neo4j:        neo4jReader,
 			DB:           db,
-			StatusReader: pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db}),
+			StatusReader: statusReader,
 			Profile:      queryProfile,
 		},
 		Compare: &query.CompareHandler{
