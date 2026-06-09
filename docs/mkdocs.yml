@@ -187,6 +187,7 @@ nav:
       - Capability Conformance Spec: reference/capability-conformance-spec.md
       - Truth Label Protocol: reference/truth-label-protocol.md
       - Replatforming Source-State Taxonomy: reference/replatforming-source-state-taxonomy.md
+      - Replatforming Plan Contract: reference/replatforming-plan-contract.md
       - Answer Packet Contract: reference/answer-packets.md
       - Reading Answers: reference/reading-answers.md
       - Query Playbooks: reference/query-playbooks.md
