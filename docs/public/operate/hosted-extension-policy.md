@@ -30,8 +30,9 @@ Evaluate policy in this order:
    enablement.
 2. `disabled` rejects all optional components.
 3. `allowlist` requires the exact component ID and publisher.
-4. `strict` also requires provenance verification. Strict mode currently fails
-   closed until Sigstore/Cosign or equivalent provenance checks are wired.
+4. `strict` also requires Cosign signature verification, configured Sigstore
+   certificate identity and OIDC issuer, digest-claim checking, and a supported
+   SLSA provenance attestation for every manifest artifact.
 5. Compatible core range, SDK protocol, declared fact kinds, and reducer
    consumer contracts must match the running Eshu core.
 6. Enabled instances need bounded source scope, credential references, resource
@@ -41,9 +42,10 @@ Evaluate policy in this order:
 
 Use bounded reason classes in tickets and runbooks:
 `revoked_policy`, `disabled_policy`, `untrusted_publisher`,
-`provenance_required`, `incompatible_core`, `invalid_config`,
-`credential_reference_missing`, `isolation_profile_denied`,
-`tenant_scope_denied`, and `claim_capability_denied`.
+`provenance_required`, `provenance_invalid`, `unsupported_provenance`,
+`incompatible_core`, `invalid_config`, `credential_reference_missing`,
+`isolation_profile_denied`, `tenant_scope_denied`, and
+`claim_capability_denied`.
 
 ## Revocation Behavior
 
@@ -266,7 +268,8 @@ Hosted community extension execution must wait for security review and
 implementation proof. The gate is not complete until reviewers sign off on:
 
 - whether allowlist plus digest pinning is acceptable for any hosted test
-  deployment before strict provenance lands;
+  deployment when strict provenance is not configured for the candidate
+  artifact;
 - which egress and service-account isolation profile is acceptable;
 - whether credential handle names may appear in status or only credential-source
   classes may appear;
@@ -277,7 +280,7 @@ Implementation follow-ups are already tracked:
 
 | Issue | Purpose |
 | --- | --- |
-| #1819 | Strict plugin provenance verification. |
+| #1819 | Strict plugin provenance verification with Cosign identity checks. |
 | #1820 | Wire enabled components into hosted workflow coordinator scheduling. |
 | #1825 | Expose component inventory and extension diagnostics through API, MCP, and CLI. |
 | #1922 | Build the core collector extension host adapter. |

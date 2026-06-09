@@ -272,6 +272,7 @@ func codebaseTools() []ToolDefinition {
 		composeReplatformingPlanTool(),
 		awsRuntimeDriftFindingsTool(),
 		replatformingRollupsTool(),
+		replatformingOwnershipTool(),
 		{
 			Name:        "calculate_cyclomatic_complexity",
 			Description: "Calculate the cyclomatic complexity of a specific function to measure its complexity.",

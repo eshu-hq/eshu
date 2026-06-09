@@ -33,7 +33,7 @@ families are:
 | Family | Tools |
 | --- | --- |
 | Code search and analysis | `find_code`, `find_symbol`, `inspect_code_inventory`, `investigate_import_dependencies`, `inspect_call_graph_metrics`, `investigate_code_topic`, `investigate_hardcoded_secrets`, `get_code_relationship_story`, `analyze_code_relationships`, `find_dead_code`, `investigate_dead_code`, `calculate_cyclomatic_complexity`, `find_most_complex_functions`, `inspect_code_quality`, `execute_language_query`, `find_function_call_chain` |
-| IaC and cloud management | `find_dead_iac`, `find_unmanaged_resources`, `get_iac_management_status`, `explain_iac_management_status`, `propose_terraform_import_plan`, `compose_replatforming_plan`, `list_aws_runtime_drift_findings`, `get_replatforming_rollups` |
+| IaC and cloud management | `find_dead_iac`, `find_unmanaged_resources`, `get_iac_management_status`, `explain_iac_management_status`, `propose_terraform_import_plan`, `compose_replatforming_plan`, `list_aws_runtime_drift_findings`, `get_replatforming_rollups`, `find_unmanaged_resource_owners` |
 | Infrastructure and impact | `get_ecosystem_overview`, `trace_deployment_chain`, `investigate_deployment_config`, `find_blast_radius`, `find_infra_resources`, `investigate_resource`, `analyze_infra_relationships`, `trace_resource_to_code`, `explain_dependency_path`, `find_change_surface`, `investigate_change_surface`, `compare_environments` |
 | Repository and relationship drilldowns | `get_repo_summary`, `get_repo_context`, `get_repo_story`, `get_repository_coverage`, `count_repositories_by_language`, `list_repositories_by_language`, `get_repository_language_inventory`, `get_relationship_evidence`, `search_registry_bundles` |
 | Context and stories | `resolve_entity`, `get_entity_context`, `get_workload_context`, `get_workload_story`, `get_service_context`, `get_service_story`, `investigate_service`, `get_incident_context`, `list_work_item_evidence` |
@@ -142,6 +142,11 @@ The `structuredContent` and the embedded resource block remain byte-identical to
 the canonical envelope the handler produced; only the text string changes.
 Clients MUST read `structuredContent` (or the resource block) for evidence and
 MUST NOT parse the text summary.
+
+Citation handles use the same
+[Evidence Citation Handle Contract](evidence-citation-handles.md) across HTTP
+and MCP. The current runtime hydrates file and entity handles; expanded handle
+kinds must preserve API/MCP parity before they are advertised as hydrated.
 
 ## Related Docs
 

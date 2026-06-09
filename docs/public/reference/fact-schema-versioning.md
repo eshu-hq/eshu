@@ -49,8 +49,8 @@ For optional component packages, local manifest validation checks declared fact
 kinds, schema versions, collector kinds, source-confidence values, compatible
 core range, and digest-pinned artifacts. Current local component trust policy is
 configuration-driven: disabled mode rejects all optional components, allowlist
-mode accepts allowed identities and publishers, and strict mode fails closed
-until provenance verification is wired.
+mode accepts allowed identities and publishers, and strict mode additionally
+requires configured Sigstore/Cosign signature and SLSA provenance verification.
 
 ## In-Store Migration
 

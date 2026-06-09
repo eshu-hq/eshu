@@ -122,7 +122,7 @@ func (w PostgresServiceMaterializationWriter) WriteServiceMaterialization(
 
 	now := reducerWriterNow(w.Now)
 	generationID := serviceMaterializationGenerationID(write)
-	rows := normalizeOwnershipEvidence(write.ServiceID, write.Ownership)
+	rows := normalizeServiceEvidence(write)
 
 	tx, err := w.DB.BeginServiceMaterializationTx(ctx)
 	if err != nil {
@@ -146,7 +146,7 @@ func (w PostgresServiceMaterializationWriter) commit(
 	tx ServiceMaterializationTx,
 	write ServiceMaterializationWrite,
 	generationID string,
-	rows []ownershipEvidenceRow,
+	rows []serviceEvidenceRow,
 	now time.Time,
 ) (ServiceMaterializationWriteResult, error) {
 	// Insert the new generation as pending first. A pending row never collides
@@ -207,7 +207,7 @@ func (w PostgresServiceMaterializationWriter) insertGeneration(
 		now,
 		ServiceMaterializationStatusPending,
 		nil,
-		serviceMaterializationGenerationPayload(write, len(write.Ownership)),
+		serviceMaterializationGenerationPayload(write),
 	)
 	if err != nil {
 		return false, fmt.Errorf("insert service materialization generation: %w", err)
@@ -271,19 +271,19 @@ func (w PostgresServiceMaterializationWriter) insertEvidenceRow(
 	ctx context.Context,
 	tx ServiceMaterializationTx,
 	serviceID, generationID string,
-	row ownershipEvidenceRow,
+	row serviceEvidenceRow,
 	now time.Time,
 ) error {
 	payloadJSON, err := json.Marshal(canonicalizeEvidencePayload(row.payload))
 	if err != nil {
-		return fmt.Errorf("marshal service ownership evidence payload: %w", err)
+		return fmt.Errorf("marshal service %s evidence payload: %w", row.family, err)
 	}
 	if _, err := tx.ExecContext(
 		ctx,
 		insertServiceEvidenceSnapshotQuery,
 		generationID,
 		serviceID,
-		ServiceEvidenceFamilyOwnership,
+		row.family,
 		row.evidenceKey,
 		row.payloadHash,
 		row.tombstone,
@@ -302,11 +302,13 @@ func serviceMaterializationTriggerKind(triggerKind string) string {
 	return triggerKind
 }
 
-func serviceMaterializationGenerationPayload(write ServiceMaterializationWrite, ownershipCount int) []byte {
+func serviceMaterializationGenerationPayload(write ServiceMaterializationWrite) []byte {
 	payload := map[string]any{
-		"service_id":      write.ServiceID,
-		"intent_id":       write.IntentID,
-		"ownership_count": ownershipCount,
+		"service_id":       write.ServiceID,
+		"intent_id":        write.IntentID,
+		"ownership_count":  len(write.Ownership),
+		"deployment_count": len(write.Deployment),
+		"runtime_count":    len(write.Runtime),
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {

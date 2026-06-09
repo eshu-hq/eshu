@@ -56,7 +56,9 @@ and stop at the first terminal denial:
    version range, or policy revision wins over all allowlists and prior state.
 2. **Trust gate.** `disabled` denies all optional components; `allowlist`
    requires exact component and publisher approval; `strict` also requires
-   provenance verification from #1819.
+   configured Cosign signature verification, Sigstore certificate identity and
+   OIDC issuer checks, digest-claim checking, and supported SLSA provenance
+   attestations for every manifest artifact.
 3. **Compatibility gate.** `compatibleCore`, SDK protocol, declared fact
    families, reducer consumer contracts, and telemetry prefix must be accepted
    by the running core.
@@ -74,8 +76,9 @@ and stop at the first terminal denial:
 Allowed decisions should name the policy revision, component ID, instance ID,
 collector kind, scope class, trust mode, and isolation profile. Denied decisions
 must use bounded reason classes such as `revoked_policy`, `disabled_policy`,
-`untrusted_publisher`, `provenance_required`, `incompatible_core`,
-`invalid_config`, `credential_reference_missing`, `isolation_profile_denied`,
+`untrusted_publisher`, `provenance_required`, `provenance_invalid`,
+`unsupported_provenance`, `incompatible_core`, `invalid_config`,
+`credential_reference_missing`, `isolation_profile_denied`,
 `tenant_scope_denied`, or `claim_capability_denied`.
 
 ## Policy Shape

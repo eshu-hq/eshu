@@ -226,7 +226,8 @@ Hosted activation is a separate maintainer and operator decision:
 - installing a component is not activating it
 - enabling a component is not enough to make it claim-capable in the hosted
   workflow coordinator
-- strict trust currently fails closed until provenance verification is wired
+- strict trust requires configured Sigstore/Cosign signature and SLSA
+  provenance verification for each digest-pinned artifact
 - hosted collectors need bounded scopes, read-only permissions, secret handles,
   resource limits, `/healthz`, `/readyz`, `/metrics`, `/admin/status`, and
   queue or retry visibility
@@ -263,11 +264,12 @@ Use this checklist when triaging an extension PR.
   `componentType: collector` with a supported `spec.runtime.sdkProtocol` and
   `spec.runtime.adapter`.
 - Artifact references are digest-pinned and do not use mutable tags.
-- Local verification uses `disabled` or `allowlist` deliberately. `strict`
-  failures are expected until provenance verification is implemented.
+- Local verification uses `disabled`, `allowlist`, or `strict` deliberately.
+  `strict` requires the expected Sigstore certificate identity and OIDC issuer,
+  and fails closed when signatures or supported attestations are absent.
 - Revocation behavior is documented for component ID and publisher.
-- Hosted activation is opt-in and does not imply OCI pull or Sigstore/Cosign
-  verification unless the implementation actually wires those checks.
+- Hosted activation is opt-in and does not imply OCI pull or Cosign
+  verification unless the deployment path explicitly configures strict trust.
 - Any hosted collector has read-only credentials, bounded targets, retry and
   dead-letter behavior, resource limits, and operator status surfaces.
 

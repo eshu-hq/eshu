@@ -63,6 +63,18 @@ type hostedOnboardConnection struct {
 	Stages []hostedSetupStage `json:"stages"`
 }
 
+// hostedOnboardStarterPlaybook is the structured playbook guidance embedded in
+// onboarding artifacts. It mirrors the query catalog enough for a team or
+// assistant to start with first-class tools without resolving the catalog.
+type hostedOnboardStarterPlaybook struct {
+	PlaybookID           string   `json:"playbook_id"`
+	Version              string   `json:"version"`
+	PromptFamily         string   `json:"prompt_family"`
+	Prompt               string   `json:"prompt"`
+	Tools                []string `json:"tools"`
+	ExpectedTruthClasses []string `json:"expected_truth_classes"`
+}
+
 // hostedOnboardArtifact is the redacted, hand-to-a-team onboarding artifact. It
 // is a presentation layer over the reused hosted-setup result: every endpoint is
 // redacted and only the token SOURCE NAME is ever recorded, never the value, so
@@ -91,6 +103,9 @@ type hostedOnboardArtifact struct {
 	Connection hostedOnboardConnection `json:"connection"`
 	// StarterPrompts are bounded first prompts referencing first-class tools.
 	StarterPrompts []string `json:"starter_prompts"`
+	// StarterPlaybooks are structured starter workflows from the query playbook
+	// catalog, including IDs, versions, ordered tools, and expected truth classes.
+	StarterPlaybooks []hostedOnboardStarterPlaybook `json:"starter_playbooks"`
 	// SetupSnippet is the optional redacted MCP client snippet.
 	SetupSnippet string `json:"setup_snippet,omitempty"`
 	// ScopedIsolationLimitation documents the shared-token reality so the
@@ -152,6 +167,7 @@ func newHostedOnboardArtifact(team string, client *APIClient, opts hostedOnboard
 		IndexState:                "unknown",
 		QueueStatus:               "not checked: rule set rejected before connection checks",
 		StarterPrompts:            hostedStarterPrompts(),
+		StarterPlaybooks:          hostedStarterPlaybooks(),
 		ScopedIsolationLimitation: hostedOnboardScopedIsolationLimitation,
 	}
 }
@@ -176,6 +192,7 @@ func buildHostedOnboardArtifact(team string, opts hostedOnboardOptions, scope ho
 			Stages:        result.Stages,
 		},
 		StarterPrompts:            hostedStarterPrompts(),
+		StarterPlaybooks:          hostedStarterPlaybooks(),
 		SetupSnippet:              result.SetupHint,
 		ScopedIsolationLimitation: hostedOnboardScopedIsolationLimitation,
 		NextSteps:                 result.NextSteps,
@@ -267,12 +284,10 @@ func hostedTokenSourceNameFromRef(tokenRef string) string {
 // real first-class tools; a stable fallback is used only if the catalog is
 // empty.
 func hostedStarterPrompts() []string {
-	prompts := make([]string, 0, 3)
-	for _, playbook := range query.PlaybookCatalog() {
-		prompt := strings.TrimSpace(playbook.Description)
-		if prompt == "" {
-			prompt = strings.TrimSpace(playbook.Name)
-		}
+	playbooks := hostedStarterPlaybooks()
+	prompts := make([]string, 0, len(playbooks))
+	for _, playbook := range playbooks {
+		prompt := strings.TrimSpace(playbook.Prompt)
 		if prompt != "" {
 			prompts = append(prompts, prompt)
 		}
@@ -285,4 +300,30 @@ func hostedStarterPrompts() []string {
 		}
 	}
 	return prompts
+}
+
+func hostedStarterPlaybooks() []hostedOnboardStarterPlaybook {
+	catalog := query.PlaybookCatalog()
+	playbooks := make([]hostedOnboardStarterPlaybook, 0, len(catalog))
+	for _, playbook := range catalog {
+		prompt := strings.TrimSpace(playbook.Description)
+		if prompt == "" {
+			prompt = strings.TrimSpace(playbook.Name)
+		}
+		tools := make([]string, 0, len(playbook.Steps))
+		truthClasses := make([]string, 0, len(playbook.Steps))
+		for _, step := range playbook.Steps {
+			tools = append(tools, step.Tool)
+			truthClasses = append(truthClasses, string(step.ExpectedTruth))
+		}
+		playbooks = append(playbooks, hostedOnboardStarterPlaybook{
+			PlaybookID:           playbook.ID,
+			Version:              playbook.Version,
+			PromptFamily:         playbook.PromptFamily,
+			Prompt:               prompt,
+			Tools:                tools,
+			ExpectedTruthClasses: truthClasses,
+		})
+	}
+	return playbooks
 }

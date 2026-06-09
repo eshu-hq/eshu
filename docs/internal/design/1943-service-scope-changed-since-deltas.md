@@ -4,20 +4,38 @@ Issue: #1943
 Parent: #1797
 Follow-up to: #1799 (merged repository-scope changed-since)
 
-Status: **Stage 1 shipped (ownership family).** The additive service-generation
-lineage and the ownership-family delta surface recommended below are implemented:
-`service_materialization_generations` + `service_evidence_snapshots`, the reducer
-write path that commits them, and
+Status: **Ownership (#1943), deployment (#1985), and runtime (#1986) families
+shipped.** The
+additive service-generation lineage and the family-generic delta surface
+recommended below are implemented: `service_materialization_generations` +
+`service_evidence_snapshots`, the reducer write path that commits them, and
 `GET /api/v0/freshness/services/changed-since` (capability
 `freshness.service_changed_since`, MCP `get_service_changed_since`, CLI `eshu
 freshness service-changed-since`). The existing
 `reducer_service_catalog_correlation` fact and its generation-embedding
-`stable_fact_key` were **not** changed (additive option). The remaining six
-families (deployment, runtime, dependencies, docs, incidents, vulnerabilities)
-reuse this lineage/snapshot/delta foundation and are tracked follow-ups. The
-sections below record the original investigation, the owning store/read-model
-contract, why the #1799 model did not transfer directly, and the recommended
-contract that Stage 1 implements.
+`stable_fact_key` were **not** changed (additive option). The deployment family
+(#1985) emits one snapshot row per resolved deployment relationship for a
+service's repository, keyed by `deployment:<service_id>:<identity>` where
+`identity` is a digest of the relationship's generation-independent natural key
+(`relationship_type`, `source_repo_id`, `target_repo_id`, `source_entity_id`,
+`target_entity_id`); the resolver `resolved_id` and query-layer `artifact_id`
+both embed the resolution generation id, so they are **not** usable as a diff key
+(see the corrected note in item 2 below). The delta SQL groups by
+`evidence_family`, so it needed no shape change — registering the category and
+writing the rows was sufficient. The runtime family (#1986) emits one snapshot
+row per materialized runtime instance of the service's workload, keyed by
+`runtime:<service_id>:<platform_kind>:<environment>:<workload_ref>` where
+`workload_ref` is the durable `WorkloadInstance` id
+(`workload-instance:<workload_name>:<environment>`); the reducer projection
+constructs that id and the platform kind from durable workload/environment
+identity, never from a resolution or materialization generation id, so the key
+is generation-stable (unlike the deployment `resolved_id` trap). The remaining
+families (dependencies, docs, incidents, vulnerabilities) reuse this
+lineage/snapshot/delta foundation and are tracked follow-ups. The sections below
+record the original
+investigation, the owning store/read-model contract, why the #1799 model did not
+transfer directly, and the recommended contract that the shipped families
+implement.
 
 ## Summary
 
@@ -182,10 +200,21 @@ service re-correlation, with:
 2. **A generation-stable per-evidence diff key.** Each family must emit a
    per-service evidence row keyed by a **generation-independent**
    `service_evidence_key` (for example
-   `deployment:<service_id>:<resolved_relationship_id>`,
+   `deployment:<service_id>:<relationship_natural_key_digest>`,
    `incident:<service_id>:<provider>:<incident_ref>`,
    `vulnerability:<service_id>:<advisory_id>`,
-   `ownership:<service_id>:<owner_ref>`). The `reducer_service_catalog_correlation`
+   `ownership:<service_id>:<owner_ref>`).
+   **Deployment correction (#1985):** the deployment row must **not** key on
+   `resolved_id` (the resolved-relationship Postgres primary key) or the
+   query-layer `artifact_id`. Both embed the resolution generation id —
+   `relationships.ResolvedRelationshipID` digests the generation into the id, and
+   `query.deploymentEvidenceArtifactID` digests `resolved_id` — so keying on
+   either reproduces the all-churn failure this document warns about for the
+   ownership correlation key. The shipped deployment family instead digests the
+   relationship's generation-independent natural key (`relationship_type`,
+   `source_repo_id`, `target_repo_id`, `source_entity_id`, `target_entity_id`),
+   which is stable across resolution generations. The
+   `reducer_service_catalog_correlation`
    key must be reworked to drop `generation_id` from the identity so the same
    correlation keeps its key across generations (the generation belongs in the
    row's generation column, never in the identity key — this is the same

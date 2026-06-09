@@ -28,7 +28,7 @@ func buildServiceStoryResponse(serviceName string, workloadContext map[string]an
 	}
 	enrichServiceStoryDossierResponseWithContext(response, buildCtx)
 	response["investigation"] = buildServiceInvestigationPacketWithContext(serviceName, buildCtx, serviceInvestigationOptions{})
-	return response
+	return attachAnswerMetadata(response)
 }
 
 type serviceStoryBuildContext struct {

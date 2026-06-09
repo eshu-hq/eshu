@@ -12,24 +12,28 @@ import (
 )
 
 const (
-	componentHomeFlag            = "component-home"
-	componentTrustModeFlag       = "trust-mode"
-	componentAllowIDFlag         = "allow-id"
-	componentAllowPublisherFlag  = "allow-publisher"
-	componentRevokeIDFlag        = "revoke-id"
-	componentRevokePublisherFlag = "revoke-publisher"
-	componentInstanceFlag        = "instance"
-	componentModeFlag            = "mode"
-	componentClaimsFlag          = "claims"
-	componentConfigFlag          = "config"
-	componentVersionFlag         = "version"
-	componentJSONFlag            = "json"
-	componentDryRunFlag          = "dry-run"
-	componentFixtureFlag         = "fixture"
-	componentInitIDFlag          = "id"
-	componentInitPublisherFlag   = "publisher"
-	componentInitFactKindFlag    = "fact-kind"
-	componentInitOutputFlag      = "output"
+	componentHomeFlag                    = "component-home"
+	componentTrustModeFlag               = "trust-mode"
+	componentAllowIDFlag                 = "allow-id"
+	componentAllowPublisherFlag          = "allow-publisher"
+	componentRevokeIDFlag                = "revoke-id"
+	componentRevokePublisherFlag         = "revoke-publisher"
+	componentCosignBinaryFlag            = "cosign-binary"
+	componentProvenanceIdentityFlag      = "provenance-certificate-identity"
+	componentProvenanceIssuerFlag        = "provenance-oidc-issuer"
+	componentProvenancePredicateTypeFlag = "provenance-predicate-type"
+	componentInstanceFlag                = "instance"
+	componentModeFlag                    = "mode"
+	componentClaimsFlag                  = "claims"
+	componentConfigFlag                  = "config"
+	componentVersionFlag                 = "version"
+	componentJSONFlag                    = "json"
+	componentDryRunFlag                  = "dry-run"
+	componentFixtureFlag                 = "fixture"
+	componentInitIDFlag                  = "id"
+	componentInitPublisherFlag           = "publisher"
+	componentInitFactKindFlag            = "fact-kind"
+	componentInitOutputFlag              = "output"
 )
 
 var componentCmd = &cobra.Command{
@@ -373,6 +377,14 @@ func addTrustFlagsWithDefault(cmd *cobra.Command, defaultMode string) {
 	cmd.Flags().StringSlice(componentAllowPublisherFlag, nil, "Allowed component publisher")
 	cmd.Flags().StringSlice(componentRevokeIDFlag, nil, "Revoked component ID")
 	cmd.Flags().StringSlice(componentRevokePublisherFlag, nil, "Revoked component publisher")
+	cmd.Flags().String(componentCosignBinaryFlag, "", "Cosign verifier binary for strict component trust")
+	cmd.Flags().String(componentProvenanceIdentityFlag, "", "Expected Sigstore certificate identity for strict component trust")
+	cmd.Flags().String(componentProvenanceIssuerFlag, "", "Expected Sigstore OIDC issuer for strict component trust")
+	cmd.Flags().String(
+		componentProvenancePredicateTypeFlag,
+		component.DefaultProvenancePredicateType,
+		"Cosign attestation predicate type for strict component trust",
+	)
 }
 
 func componentPolicyFromFlags(cmd *cobra.Command) component.Policy {
@@ -381,13 +393,26 @@ func componentPolicyFromFlags(cmd *cobra.Command) component.Policy {
 	allowedPublishers, _ := cmd.Flags().GetStringSlice(componentAllowPublisherFlag)
 	revokedIDs, _ := cmd.Flags().GetStringSlice(componentRevokeIDFlag)
 	revokedPublishers, _ := cmd.Flags().GetStringSlice(componentRevokePublisherFlag)
-	return component.Policy{
+	cosignBinary, _ := cmd.Flags().GetString(componentCosignBinaryFlag)
+	provenanceIdentity, _ := cmd.Flags().GetString(componentProvenanceIdentityFlag)
+	provenanceIssuer, _ := cmd.Flags().GetString(componentProvenanceIssuerFlag)
+	provenancePredicateType, _ := cmd.Flags().GetString(componentProvenancePredicateTypeFlag)
+	policy := component.Policy{
 		Mode:              mode,
 		AllowedIDs:        allowedIDs,
 		AllowedPublishers: allowedPublishers,
 		RevokedIDs:        revokedIDs,
 		RevokedPublishers: revokedPublishers,
+		Provenance: component.ProvenancePolicy{
+			CertificateIdentity: provenanceIdentity,
+			OIDCIssuer:          provenanceIssuer,
+			PredicateType:       provenancePredicateType,
+		},
 	}
+	if mode == component.TrustModeStrict {
+		policy.ProvenanceVerifier = component.CosignProvenanceVerifier{Command: cosignBinary}
+	}
+	return policy
 }
 
 func componentHomeFromFlags(cmd *cobra.Command) string {

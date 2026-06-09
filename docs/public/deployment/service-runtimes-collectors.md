@@ -19,8 +19,9 @@ extension claims.
 
 When `ESHU_COMPONENT_HOME` is set on the workflow coordinator, the coordinator
 re-verifies the installed component manifest against the configured
-`ESHU_COMPONENT_TRUST_MODE`, allowlist, revocation list, and core version before
-materializing enabled claim-capable activations as durable collector instances.
+`ESHU_COMPONENT_TRUST_MODE`, allowlist, revocation list, core version, and
+strict-mode Cosign provenance settings before materializing enabled
+claim-capable activations as durable collector instances.
 The durable instance configuration carries component identity, manifest digest,
 runtime protocol, adapter, and a stable config handle only. It does not persist
 operator config paths, credential values, or provider targets.

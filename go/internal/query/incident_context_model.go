@@ -81,7 +81,7 @@ func BuildIncidentContextResponse(snapshot IncidentContextSnapshot) IncidentCont
 		ambiguous = []IncidentContextEvidenceEdge{}
 	}
 
-	return IncidentContextResponse{
+	response := IncidentContextResponse{
 		Query:             snapshot.Query,
 		Incident:          snapshot.Incident,
 		Timeline:          timeline,
@@ -91,6 +91,8 @@ func BuildIncidentContextResponse(snapshot IncidentContextSnapshot) IncidentCont
 		AmbiguousEvidence: ambiguous,
 		Truncated:         snapshot.Truncated,
 	}
+	response.AnswerMetadata = incidentContextAnswerMetadata(response)
+	return response
 }
 
 func normalizeIncidentContextEdge(edge IncidentContextEvidenceEdge) IncidentContextEvidenceEdge {

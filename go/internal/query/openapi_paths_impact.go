@@ -307,7 +307,8 @@ const openAPIPathsImpact = `
                     "limit": {"type": "integer"},
                     "offset": {"type": "integer"},
                     "truncated": {"type": "boolean"},
-                    "source_backend": {"type": "string"}
+                    "source_backend": {"type": "string"},
+                    "answer_metadata": {"type": "object", "description": "Normalized additive answer metadata with schema_version, evidence_handles, missing_evidence, limitations, truncated, coverage, partial_reasons, and recommended_next_calls."}
                   }
                 }
               }

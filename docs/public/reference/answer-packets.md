@@ -42,6 +42,8 @@ composition explicit and testable.
   truth metadata.
 - The packet does **not** make MCP text summaries canonical. MCP text remains a
   convenience layer; the canonical envelope resource block stays authoritative.
+- The packet does **not** make route payloads non-canonical. Routes keep
+  returning canonical envelope data; answer-facing companions are additive.
 
 ## The AnswerPacket
 
@@ -96,13 +98,79 @@ composition explicit and testable.
 | `limitations` | Bounded, human-readable caveats (limit caps, scope bounds). |
 | `truncated` | Mirrors result-set truncation when the underlying query truncated. |
 | `missing_evidence` | Evidence handles that were requested but could not be resolved. |
-| `evidence_handles` | Addressable handles to the evidence behind the answer, in the `evidence_citation` handle shape. |
+| `evidence_handles` | Addressable handles to the evidence behind the answer, in the [evidence citation handle](evidence-citation-handles.md) shape. |
 | `citation_ref` | Reference to a citation packet that hydrates the handles. Optional. |
 | `recommended_next_calls` | Bounded follow-up calls, in the same shape as the evidence-citation `recommended_next_calls`. |
 | `unsupported_reasons` | Why the answer is unsupported or partial. Non-empty whenever `supported` is false or `partial` is true. |
 
 The packet never carries a confident `summary` while `supported` is false. That
 invariant is the core acceptance test for this contract.
+
+## Normalized answer metadata
+
+Story and investigation routes that answer user questions include an additive
+`answer_metadata` companion. It is attached to the canonical `data` payload and
+does not replace existing route fields. The companion is currently emitted by:
+
+- `GET /api/v0/services/{service_name}/story`
+- `GET /api/v0/repositories/{repo_id}/story`
+- `POST /api/v0/code/topics/investigate`
+- `POST /api/v0/impact/change-surface/investigate`
+- `GET /api/v0/incidents/{incident_id}/context`
+- `POST /api/v0/compare/environments`
+
+```jsonc
+{
+  "answer_metadata": {
+    "schema_version": "answer_metadata.v1",
+    "evidence_handles": [
+      { "kind": "entity", "entity_id": "go:func:resolveAuth" }
+    ],
+    "missing_evidence": [
+      { "slot": "image", "reason": "no image evidence has been linked yet" }
+    ],
+    "limitations": [
+      { "kind": "result_truncated", "reason": "result truncated; not all evidence is included" }
+    ],
+    "truncated": true,
+    "coverage": {
+      "query_shape": "content_topic_investigation",
+      "truncated": true
+    },
+    "partial_reasons": ["result_truncated", "missing_evidence"],
+    "recommended_next_calls": [
+      { "tool": "get_code_relationship_story", "reason": "read the top matched entity relationship story" }
+    ]
+  }
+}
+```
+
+### Metadata fields
+
+| Field | Contract |
+| --- | --- |
+| `schema_version` | Stable metadata schema identifier. Current value: `answer_metadata.v1`. |
+| `evidence_handles` | Bounded handles already present in the route payload, normalized to citation-compatible keys when possible. |
+| `missing_evidence` | Structured missing evidence rows or slots. Reason-only rows are allowed for incident-style missing path slots. |
+| `limitations` | Bounded caveats from route limitations, identity limitations, or truncation. |
+| `truncated` | `true` when the route, coverage, or result-limit metadata reports truncation. |
+| `coverage` | The route's existing `coverage`, `coverage_summary`, or `result_limits` block copied as normalized coverage. |
+| `partial_reasons` | Stable reason codes derived from truncation, missing evidence, non-complete coverage state, and limitation kinds. |
+| `recommended_next_calls` | Existing route follow-up calls copied without adding new graph or content reads. |
+
+### Migration guidance
+
+Clients should keep reading the canonical route fields they already depend on.
+New answer-facing clients can read `answer_metadata` first, then fall back to
+route-specific fields while older deployments are rolling forward. Existing
+fields remain authoritative: the companion summarizes them so AnswerPacket
+composition and MCP text summaries do not need custom parsing for every route.
+
+No-Observability-Change: `answer_metadata` is built from the already
+materialized response map or incident response struct. It performs no graph,
+content-store, provider, collector, reducer, or queue reads and adds no runtime
+span. Existing route spans and structured logs remain the operator-facing proof
+for the underlying data fetch.
 
 ## API and MCP exposure
 
@@ -215,7 +283,8 @@ The answer packet does not duplicate existing shapes. It reuses:
 - `TruthEnvelope`, `TruthLevel`, `TruthBasis`, `TruthFreshness`, and
   `ErrorEnvelope` from `contract.go`.
 - The evidence-handle shape and `recommended_next_calls` convention from
-  `evidence_citation.go`.
+  `evidence_citation.go` and the
+  [Evidence Citation Handle Contract](evidence-citation-handles.md).
 
 When the answer is built from an evidence-citation response, its
 `evidence_handles`, `missing_evidence`, `truncated`, and
