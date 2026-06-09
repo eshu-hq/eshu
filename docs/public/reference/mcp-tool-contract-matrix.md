@@ -21,7 +21,7 @@ Cypher.
 | Security hardcoded secrets | `investigate_hardcoded_secrets` | Redacted content-index investigation returns severity, confidence, suppression notes, source handles, paging, and truncation. | None |
 | Deployment, GitOps, and resource tracing | `trace_deployment_chain`, `trace_resource_to_code`, `investigate_deployment_config`, story tools | Deployment and resource prompts use story or bounded trace routes. | None |
 | Environment comparison | `compare_environments` | Workload/environment comparison returns a bounded story packet with evidence, limitations, coverage, and next calls. | None |
-| Runtime and indexing status prompts | `get_index_status`, `list_collectors`, `list_ingesters`, `get_ingester_status` | Runtime prompts use shipped status tools instead of stale job-status names. | None |
+| Runtime and indexing status prompts | `get_index_status`, `get_semantic_capability_status`, `list_collectors`, `list_ingesters`, `get_ingester_status` | Runtime prompts use shipped status tools instead of stale job-status names and report optional semantic extraction as unavailable when no provider is configured. | None |
 | Documentation/confluence prompts | story routes, `list_documentation_facts`, plus `build_evidence_citation_packet` | Exact source, docs, manifest, collected documentation facts, and deployment proof use bounded fact reads or citation packets from returned handles. | None |
 | Structural code inventory | `inspect_code_inventory` | Content-index inventory covers functions, classes, file-local entities, decorators, methods, and file-level counts. | None |
 | Incident response prompts | `get_incident_context`, `list_work_item_evidence` | Incident context returns PagerDuty source evidence, declared/applied/live routing slots, fallback change candidates, explicit missing Jira/PR/build/commit slots, deployable/runtime/image slots only when explicit service-catalog, image-identity, and Kubernetes reducer evidence exists, build/commit slots only when reducer-owned CI/CD run correlations match the selected image, PR slots from provider merged-PR evidence tied to the selected commit, and work-item slots from Jira remote links or issue-key evidence. Work-item evidence reads expose Jira source facts directly when the caller starts from a ticket, project, scope, observed window, or URL fingerprint. | Root-cause attribution, service-health inference, blast-radius inference, and Jira-only PR verification remain out of scope. |
@@ -134,6 +134,7 @@ Cypher.
 | `list_ingesters` | explicit runtime inventory | `limit` and `offset` | yes | prompt-ready for runtime diagnostics |
 | `get_ingester_status` | ingester id required | singleton status | yes | prompt-ready for runtime diagnostics |
 | `get_index_status` | optional repository selector | singleton status | yes | prompt-ready for runtime diagnostics |
+| `get_semantic_capability_status` | explicit runtime semantic extraction capability status | singleton status | yes | prompt-ready for optional semantic extraction diagnostics; no-provider mode returns unavailable, code hints disabled, documentation observations disabled, and deterministic paths unaffected |
 
 ## Verification
 

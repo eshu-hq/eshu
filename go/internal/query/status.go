@@ -16,6 +16,7 @@ type StatusHandler struct {
 	Neo4j        GraphQuery
 	DB           *sql.DB
 	StatusReader status.Reader
+	Profile      QueryProfile
 }
 
 // Mount registers status query routes on the given mux.
@@ -29,6 +30,7 @@ func (h *StatusHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/ingesters/{ingester}", h.getIngesterStatus)
 	mux.HandleFunc("GET /api/v0/status/index", h.getIndexStatus)
 	mux.HandleFunc("GET /api/v0/index-status", h.getIndexStatus)
+	mux.HandleFunc("GET /api/v0/status/semantic-extraction", h.getSemanticExtractionStatus)
 }
 
 // getPipelineStatus returns the full pipeline status report from Postgres.
@@ -173,6 +175,7 @@ func (h *StatusHandler) getIndexStatus(w http.ResponseWriter, r *http.Request) {
 		"coordinator":         coordinatorToMap(report.Coordinator),
 		"scope_activity":      scopeActivityToMap(report.ScopeActivity),
 		"aws_materialization": awsMaterializationStatusToMap(raw.DomainBacklogs, raw.QueueBlockages),
+		"semantic_extraction": semanticExtractionStatusToMap(report.SemanticExtraction),
 	}
 	payload["terraform_state"] = terraformStateStatusToMap(report.TerraformState)
 	WriteJSON(w, http.StatusOK, payload)
@@ -224,6 +227,7 @@ func statusReportToMapWithAWS(
 		"domain_backlogs":        domainBacklogsToSlice(r.DomainBacklogs, r.QueueBlockages),
 		"queue_blockages":        queueBlockagesToSlice(r.QueueBlockages),
 		"aws_materialization":    awsMaterializationStatusToMap(awsDomains, awsBlockages),
+		"semantic_extraction":    semanticExtractionStatusToMap(r.SemanticExtraction),
 		"flow_summaries":         flowSummariesToSlice(r.FlowSummaries),
 		"retry_policies":         retryPoliciesToSlice(r.RetryPolicies),
 	}

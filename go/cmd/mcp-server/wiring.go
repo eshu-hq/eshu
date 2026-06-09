@@ -239,6 +239,7 @@ func newMCPQueryRouter(
 			Neo4j:        neo4jReader,
 			DB:           db,
 			StatusReader: pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db}),
+			Profile:      queryProfile,
 		},
 		Compare: &query.CompareHandler{
 			Neo4j:   neo4jReader,

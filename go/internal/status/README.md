@@ -104,6 +104,10 @@ See `doc.go` for the godoc contract. Key types and functions:
 - `VulnerabilitySourceState` — per vulnerability source target checkpoint,
   freshness, retry, result count, warning count, and terminal state; does not
   expose raw advisory payloads, source URLs, package names, or API keys
+- `SemanticExtractionStatus` — optional LLM-assisted extraction liveness. The
+  zero-key default is `unavailable` with code hints and documentation
+  observations disabled; deterministic indexing, reducer projection, API reads,
+  MCP tools, and docs verification stay unaffected and healthy.
 - `TerraformStateLocatorSerial` — most recent observed serial per
   Terraform-state scope, keyed by safe locator hash so the report never carries
   raw bucket names, S3 keys, or local paths
@@ -146,7 +150,8 @@ states (in priority order):
   endpoints; includes health, queue, retry policies, scope activity, generation
   history, stage summaries, domain backlogs, queue blockages, coordinator state,
   derived collector runtime classification, registry collector state, AWS cloud
-  scan state, AWS freshness backlog state, and flow lanes
+  scan state, AWS freshness backlog state, semantic extraction status, and flow
+  lanes
 - `RenderJSON(report)` — stable JSON payload for machine-readable consumption;
   field names are part of the operator contract
 - `NewHTTPHandler(reader, opts)` — returns an `http.Handler` that serves `GET`

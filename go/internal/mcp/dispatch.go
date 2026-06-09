@@ -475,6 +475,8 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		return &route{method: "GET", path: "/api/v0/status/ingesters/" + url.PathEscape(ingester)}, nil
 	case "get_index_status":
 		return &route{method: "GET", path: "/api/v0/index-status"}, nil
+	case "get_semantic_capability_status":
+		return &route{method: "GET", path: "/api/v0/status/semantic-extraction"}, nil
 
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", toolName)

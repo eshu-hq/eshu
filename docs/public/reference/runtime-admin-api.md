@@ -77,6 +77,7 @@ The JSON report is rendered by `go/internal/status.RenderJSON` and may include:
 - `aws_cloud_scans`
 - `aws_freshness`
 - `vulnerability_sources`
+- `semantic_extraction`
 - `aws_cloud_scans_truncated`
 - `aws_cloud_scan_limit`
 - `scope_activity`
@@ -109,6 +110,13 @@ target state when the vulnerability intelligence collector has attempted a
 target. Each row carries last attempt/success timestamps, next retry, last
 error class, freshness state, terminal status, result count, warning count, and
 the bounded collection window.
+
+`semantic_extraction` reports optional LLM-assisted semantic extraction status.
+When no provider is configured it returns `state=unavailable`,
+`reason=provider_not_configured`, and both documentation observations and code
+hints disabled. This status is informational and does not mark health or
+readiness unhealthy; deterministic collectors, parser output, reducer
+projection, API reads, MCP tools, and docs verification remain unaffected.
 
 `terraform_state` carries bounded Terraform-state status. `last_serials` and
 `recent_warnings` remain bounded admin evidence; recent warning rows include

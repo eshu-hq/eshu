@@ -264,7 +264,8 @@ infer completeness from row count alone.
   incident source facts (`incident_context_handler.go`)
 - `WorkItemHandler` — ticket-first Jira/work-item source evidence reads from
   active facts (`work_item_evidence_handler.go`)
-- `StatusHandler` — pipeline and ingester status routes (`status.go:14`)
+- `StatusHandler` — pipeline, ingester, index, and semantic extraction status
+  routes (`status.go`, `status_semantic_extraction.go`)
 - `MetricsHandler` — `/api/v0/metrics/timeseries`; returns unavailable-empty
   points when no source is configured (`metrics.go`)
 - `CompareHandler` — environment comparison (`compare.go:12`) with the
@@ -312,7 +313,7 @@ infer completeness from row count alone.
 
 **OpenAPI**
 
-- `OpenAPISpec()` — concatenates twelve `openapi_paths_*.go` fragments and
+- `OpenAPISpec()` — concatenates the `openapi_paths_*.go` fragments and
   `openAPIComponents` into one JSON string (`openapi.go:49`); security prompt
   routes live in `openapi_paths_code_security.go`
 - `ServeOpenAPI`, `ServeSwaggerUI`, `ServeReDoc` — HTTP handlers for
@@ -349,6 +350,12 @@ Handlers depend on the `GraphQuery` and `ContentStore` ports, not on
 `neo4jdriver.DriverWithContext` or `*sql.DB` directly. `Neo4jReader` and
 `ContentReader` are the only concrete types that touch drivers, and they are
 wired in `cmd/api/wiring.go`, not here.
+
+Semantic extraction status is a runtime status projection, not a graph or
+content read model. `GET /api/v0/status/semantic-extraction` reports no-provider
+mode as `unavailable` with code hints and documentation observations disabled,
+while deterministic indexing, reducer projection, API reads, MCP tools, and
+documentation fact routes remain unaffected.
 
 ## Telemetry
 

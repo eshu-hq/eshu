@@ -25,6 +25,7 @@ type RawSnapshot struct {
 	AWSCloudScans         []AWSCloudScanStatus
 	AWSFreshness          AWSFreshnessSnapshot
 	VulnerabilitySources  []VulnerabilitySourceState
+	SemanticExtraction    SemanticExtractionStatus
 	CollectorFactEvidence []CollectorFactEvidence
 	// AWSCloudScansTruncated reports that the reader returned the configured
 	// row cap instead of every AWS scan tuple.
@@ -91,6 +92,7 @@ type Report struct {
 	AWSCloudScans          []AWSCloudScanStatus
 	AWSFreshness           AWSFreshnessSnapshot
 	VulnerabilitySources   []VulnerabilitySourceState
+	SemanticExtraction     SemanticExtractionStatus
 	CollectorFactEvidence  []CollectorFactEvidence
 	AWSCloudScansTruncated bool
 	AWSCloudScanLimit      int
