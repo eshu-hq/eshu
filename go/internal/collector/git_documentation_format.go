@@ -37,6 +37,8 @@ func extractGitDocumentation(
 		return extractAPIContractDocumentation(repo, relativePath, digest, commitSHA, body, format.format)
 	case "notebook":
 		return extractNotebookDocumentation(repo, relativePath, digest, commitSHA, body)
+	case "csv", "tsv":
+		return extractSpreadsheetDocumentation(repo, relativePath, digest, commitSHA, body, format.format)
 	default:
 		return extractTextDocumentation(repo, relativePath, digest, commitSHA, body, format.format)
 	}
@@ -68,6 +70,16 @@ func gitDocumentationFormatForPath(relativePath string) (gitDocumentationFormat,
 			return format, true
 		}
 		return gitDocumentationFormat{}, false
+	case ".csv":
+		if !isDocumentationSpreadsheetPath(relativePath) {
+			return gitDocumentationFormat{}, false
+		}
+		return gitDocumentationFormat{format: "csv", language: "csv"}, true
+	case ".tsv":
+		if !isDocumentationSpreadsheetPath(relativePath) {
+			return gitDocumentationFormat{}, false
+		}
+		return gitDocumentationFormat{format: "tsv", language: "tsv"}, true
 	default:
 		return gitDocumentationFormat{}, false
 	}
