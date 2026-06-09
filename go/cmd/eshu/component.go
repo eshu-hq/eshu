@@ -25,6 +25,10 @@ const (
 	componentVersionFlag         = "version"
 	componentJSONFlag            = "json"
 	componentDryRunFlag          = "dry-run"
+	componentInitIDFlag          = "id"
+	componentInitPublisherFlag   = "publisher"
+	componentInitFactKindFlag    = "fact-kind"
+	componentInitOutputFlag      = "output"
 )
 
 var componentCmd = &cobra.Command{
@@ -77,6 +81,16 @@ func init() {
 		Args:  cobra.ExactArgs(1),
 		RunE:  runComponentUninstall,
 	}
+	initCmd := &cobra.Command{
+		Use:   "init",
+		Short: "Scaffold a new component package",
+	}
+	initCollectorCmd := &cobra.Command{
+		Use:   "collector",
+		Short: "Scaffold a collector component package",
+		Args:  cobra.NoArgs,
+		RunE:  runComponentInitCollector,
+	}
 
 	addComponentHomeFlag(installCmd)
 	addComponentHomeFlag(listCmd)
@@ -89,6 +103,7 @@ func init() {
 	for _, cmd := range []*cobra.Command{inspectCmd, verifyCmd, installCmd, listCmd, enableCmd, disableCmd, uninstallCmd} {
 		addComponentJSONFlag(cmd)
 	}
+	addComponentJSONFlag(initCollectorCmd)
 	installCmd.Flags().Bool(componentDryRunFlag, false, "Verify install and render the planned result without writing component state")
 	enableCmd.Flags().String(componentInstanceFlag, "", "Collector instance ID to enable")
 	enableCmd.Flags().String(componentModeFlag, "manual", "Collector activation mode")
@@ -97,8 +112,13 @@ func init() {
 	enableCmd.Flags().Bool(componentDryRunFlag, false, "Validate activation and render the planned result without writing component state")
 	disableCmd.Flags().String(componentInstanceFlag, "", "Collector instance ID to disable")
 	uninstallCmd.Flags().String(componentVersionFlag, "", "Component version to uninstall")
+	initCollectorCmd.Flags().String(componentInitIDFlag, "", "Component ID, for example dev.example.collector.demo")
+	initCollectorCmd.Flags().String(componentInitPublisherFlag, "", "Component publisher allowlist identity")
+	initCollectorCmd.Flags().String(componentInitFactKindFlag, "", "Namespaced fact kind emitted by the scaffold")
+	initCollectorCmd.Flags().String(componentInitOutputFlag, "", "Output directory; defaults to ./<component-id>")
 
-	componentCmd.AddCommand(inspectCmd, verifyCmd, installCmd, listCmd, enableCmd, disableCmd, uninstallCmd)
+	initCmd.AddCommand(initCollectorCmd)
+	componentCmd.AddCommand(initCmd, inspectCmd, verifyCmd, installCmd, listCmd, enableCmd, disableCmd, uninstallCmd)
 }
 
 func runComponentInspect(cmd *cobra.Command, args []string) error {
