@@ -73,6 +73,10 @@ readback surfaces already carry the emitted documentation facts.
 - WebP remains unsupported unless a decoder dependency review lands first.
 - Multi-frame GIF input is OCRed as frame zero only and keeps the
   `partial_extraction` warning.
+- Source identity fields are redacted when they contain scheme-bearing URIs,
+  private URLs, hostnames, or embedded local paths. Keep raw locations out of
+  document IDs, external IDs, canonical URIs, source URIs, and source record
+  IDs.
 - Sensitive-looking OCR text is not persisted as content. The section keeps
   redaction metadata and stable hashes instead.
 - OCR text remains document evidence. This package must not emit entity

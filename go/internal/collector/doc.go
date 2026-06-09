@@ -31,6 +31,9 @@
 // operations, schemas, channels, GraphQL SDL fields, spreadsheet cells, slide
 // text, archive membership, and diagram labels or links remain documentation
 // evidence; they do not prove service ownership.
+// Default-off media transcript helpers can build timestamped documentation
+// facts from reviewed local transcript output after media preflight, but media
+// files are not enabled in repository discovery by this package.
 // Notebook code-cell source remains parser evidence; Markdown cells, raw cells,
 // and selected stdout/text outputs are the only notebook content that enters
 // the documentation lane. Declared Grafana, Prometheus/Mimir, Loki, and Tempo

@@ -48,8 +48,9 @@ func TestExtractRedactsUnsafeSourceLocations(t *testing.T) {
 	engine := &fakeEngine{}
 	req := testRequest("file:///Users/example/private.png", body, engine)
 	req.SourceURI = "file:///Users/example/private.png"
-	req.CanonicalURI = "https://internal.example.invalid/private.png"
-	req.ExternalID = "/Users/example/private.png"
+	req.CanonicalURI = "git://private.example.invalid/Users/example/private.png"
+	req.DocumentID = "doc:git:/Users/example/private.png"
+	req.ExternalID = "media:/Users/example/private.png"
 	result, err := Extract(context.Background(), req)
 	if err != nil {
 		t.Fatalf("Extract() error = %v, want nil", err)
@@ -60,13 +61,13 @@ func TestExtractRedactsUnsafeSourceLocations(t *testing.T) {
 		t.Fatalf("json.Marshal() error = %v, want nil", err)
 	}
 	documentJSON := string(encoded)
-	for _, disallowed := range []string{"internal.example.invalid", "/Users/example/private.png", "file:///Users"} {
+	for _, disallowed := range []string{"private.example.invalid", "/Users/example/private.png", "file:///Users"} {
 		if strings.Contains(documentJSON, disallowed) {
 			t.Fatalf("document payload leaked %q: %s", disallowed, documentJSON)
 		}
 	}
 	metadata := stringMapValue(t, document, "source_metadata")
-	for _, key := range []string{"canonical_uri_redacted", "external_id_redacted"} {
+	for _, key := range []string{"canonical_uri_redacted", "document_id_redacted", "external_id_redacted"} {
 		if got, want := metadata[key], "true"; got != want {
 			t.Fatalf("source_metadata[%q] = %q, want %q", key, got, want)
 		}
