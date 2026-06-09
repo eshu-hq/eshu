@@ -25,6 +25,13 @@ func TestToolCallStructuredContentUnchanged(t *testing.T) {
 			},
 			"api_surface":   map[string]any{"endpoint_count": float64(8), "truncated": true},
 			"result_limits": map[string]any{"upstream_count": float64(2), "downstream_count": float64(4)},
+			"answer_packet": map[string]any{
+				"prompt_family": "service.story",
+				"primary_tool":  "get_service_story",
+				"truth_class":   "deterministic",
+				"supported":     true,
+				"partial":       false,
+			},
 		},
 		"truth": map[string]any{
 			"level":     "exact",
@@ -94,6 +101,17 @@ func TestToolCallStructuredContentUnchanged(t *testing.T) {
 
 	if resourceText != string(canonical) {
 		t.Fatalf("resource block drifted from canonical envelope:\n got: %s\nwant: %s", resourceText, canonical)
+	}
+	data, ok := envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope data type = %T, want map", envelope.Data)
+	}
+	packet, ok := data["answer_packet"].(map[string]any)
+	if !ok {
+		t.Fatalf("data.answer_packet = %#v, want object", data["answer_packet"])
+	}
+	if got, want := packet["primary_tool"], "get_service_story"; got != want {
+		t.Fatalf("answer_packet.primary_tool = %#v, want %#v", got, want)
 	}
 
 	// The text block must be the tool-aware summary, not the canonical envelope,
