@@ -1,0 +1,51 @@
+{
+  "totalRecords": 3,
+  "count": 2,
+  "resultTruncated": "false",
+  "$skipToken": "skip-token-page-2",
+  "data": [
+    {
+      "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg-app/providers/Microsoft.Compute/virtualMachines/vm-web-01",
+      "name": "vm-web-01",
+      "type": "microsoft.compute/virtualmachines",
+      "tenantId": "tenant-abc",
+      "subscriptionId": "11111111-1111-1111-1111-111111111111",
+      "resourceGroup": "rg-app",
+      "location": "eastus",
+      "kind": "",
+      "managedBy": "",
+      "apiVersion": "2023-09-01",
+      "sku": {"name": "Standard_D2s_v3", "tier": "Standard"},
+      "identity": {"type": "SystemAssigned"},
+      "tags": {"env": "prod", "team": "platform"},
+      "properties": {
+        "provisioningState": "Succeeded",
+        "hardwareProfile": {"vmSize": "Standard_D2s_v3"},
+        "osProfile": {"adminPassword": "hunter2", "computerName": "vm-web-01"},
+        "customData": "base64-cloud-init-with-secrets"
+      },
+      "timestamp": "2026-06-09T11:30:00Z"
+    },
+    {
+      "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg-data/providers/Microsoft.Storage/storageAccounts/acctdata01",
+      "name": "acctdata01",
+      "type": "microsoft.storage/storageaccounts",
+      "tenantId": "tenant-abc",
+      "subscriptionId": "11111111-1111-1111-1111-111111111111",
+      "resourceGroup": "rg-data",
+      "location": "eastus",
+      "kind": "StorageV2",
+      "managedBy": "",
+      "apiVersion": "2023-01-01",
+      "sku": {"name": "Standard_LRS", "tier": "Standard"},
+      "identity": null,
+      "tags": {"env": "prod"},
+      "properties": {
+        "provisioningState": "Succeeded",
+        "primaryEndpoints": {"blob": "https://acctdata01.blob.core.windows.net/"},
+        "connectionString": "DefaultEndpointsProtocol=https;AccountKey=SECRET=="
+      },
+      "timestamp": "2026-06-09T11:31:00Z"
+    }
+  ]
+}
