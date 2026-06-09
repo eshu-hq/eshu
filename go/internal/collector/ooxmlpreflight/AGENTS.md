@@ -13,9 +13,11 @@
 - Keep this package pure. No repository discovery, collector wiring, fact
   emission, storage calls, graph writes, API/MCP routes, goroutines, provider
   calls, or telemetry side effects belong here.
-- Return metadata-only decisions. Do not persist document text, spreadsheet
-  values, slide notes, comments, authors, private relationship targets, local
-  paths, embedded object bytes, image bytes, credentials, or secrets.
+- Return metadata-only decisions. Bounded structure scans may count selected XML
+  start elements and safe state attributes, but they must ignore character data.
+  Do not persist document text, spreadsheet values, formula bodies, sheet names,
+  slide notes, comments, authors, private relationship targets, local paths,
+  embedded object bytes, image bytes, credentials, or secrets.
 - Preserve low-cardinality warning classes. Do not add raw ZIP part names,
   relationship targets, source paths, user names, tenant names, or private URLs
   to warning fields.
@@ -38,7 +40,8 @@
 
 - Malformed ZIP containers return `malformed_container` rather than an empty
   safe result.
-- Malformed content-type or relationship XML returns `malformed_xml`.
+- Malformed content-type, relationship, or structure-marker XML returns
+  `malformed_xml`.
 - Unsafe paths return `archive_path_escape` even if Go's ZIP reader accepts the
   archive under the current `GODEBUG` setting.
 - Caller cancellation or deadline returns `timeout` and no partially trusted
@@ -46,8 +49,8 @@
 
 ## Anti-patterns
 
-- Reading full document XML, comments, workbook cells, slide notes, or embedded
-  object bytes in preflight.
+- Reading or storing document text, comments, workbook cell values, formula
+  bodies, slide notes, authors, alt text, or embedded object bytes in preflight.
 - Recording relationship target strings or package part names in result
   payloads.
 - Treating preflight as hosted ingestion approval.
