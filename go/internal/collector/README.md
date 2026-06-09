@@ -114,36 +114,29 @@ When the stream re-reads repo-hosted service-catalog descriptors
 (`catalog-info.yaml`, `opslevel.yml`, or `cortex.yaml`), it delegates to the
 `servicecatalog` normalizer and emits observed `service_catalog.*` facts under
 the same scope and generation. A documentation-only metadata lane also
-normalizes repo-hosted Markdown, lightweight text (`.txt`, `.rst`, `.adoc`,
-`.asciidoc`, `.qmd`), HTML (`.html`, `.htm`), API contracts (OpenAPI,
-Swagger, AsyncAPI, and GraphQL SDL), notebook narrative (`.ipynb`), and
-conservative delimited spreadsheets (`.csv`, `.tsv`) into source-neutral
-documentation source, document, section, link, mention, and claim-candidate
-facts with repository target refs. API contract extraction emits bounded
-operation, channel, schema, and SDL-field sections with source anchors, but it
-does not infer service ownership. Spreadsheet sections carry headers, bounded
-row samples, counts, truncation warnings, and redacted sensitive-looking cells
-rather than full table dumps. Notebook extraction keeps parser-owned code-cell
-handling separate: Markdown cells, raw cells, and selected stdout or
-`text/plain` outputs become documentation evidence, while stderr streams, rich
-binary output, and code-cell source stay out of documentation evidence.
-Notebook JSON is read with a separate bounded parse envelope so larger valid
-notebooks can still emit narrative facts without letting embedded outputs grow
-unbounded. These documentation claims remain document evidence only; projector,
-reducer, and query stages own correlation, drift, and truth decisions.
+normalizes repo-hosted Markdown, lightweight text, HTML, API contracts, notebook
+narrative, conservative delimited spreadsheets, and deterministic Mermaid/D2
+text diagrams into source-neutral documentation facts with repository target
+refs. API contracts, spreadsheets, notebooks, and diagrams emit bounded evidence
+only; they do not infer service ownership or consume parser-owned code-cell
+source. Diagram extraction runs a deterministic safety preflight before
+recording text labels and source-path link directives; unsafe, external, or
+malformed diagrams stay document metadata only. These claims remain document
+evidence only; projector, reducer, and query stages own correlation, drift, and
+truth decisions.
 `AfterBatchDrained` runs only after the service has committed at least one
 generation and then observes the source batch drain. Idle polls do not trigger
 it.
 
-No-Regression Evidence: `go test ./internal/collector ./internal/doctruth ./internal/query ./internal/mcp -count=1`
+No-Regression Evidence: `go test ./internal/collector ./internal/doctruth ./internal/query ./internal/mcp ./internal/storage/postgres -count=1`
 covers repository documentation extraction including CSV/TSV summaries,
-deterministic claim hints, repository fact readback, and MCP documentation fact
-routing.
+deterministic diagram text facts, deterministic claim hints, repository fact
+readback, and MCP documentation fact routing.
 
-No-Observability-Change: repository documentation extraction runs inside the
-existing `collector.observe` commit path and reuses body-free snapshot metadata
-with stream-time file re-reads. It adds no worker, queue, graph write, metric
-label, runtime knob, or deployment profile.
+No-Observability-Change: documentation extraction stays inside the existing
+`collector.observe` commit path with body-free snapshot metadata and
+stream-time file re-reads. It adds no worker, queue, graph write, metric label,
+runtime knob, or deployment profile.
 
 ## Exported surface
 

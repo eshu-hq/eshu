@@ -13,13 +13,15 @@
 // enter normal repository snapshots; only metadata-only state candidates are
 // emitted for the Terraform-state collector path to approve and read.
 // Repository-hosted Markdown, lightweight text, HTML, API contracts, notebook
-// narrative, and conservative delimited spreadsheet files become source-neutral
-// documentation facts and non-authoritative document-evidence claim candidates
-// only. API contract operations, schemas, channels, and GraphQL SDL fields are
-// documentation evidence; they do not prove service ownership. Notebook
-// code-cell source remains parser evidence; Markdown cells, raw cells, and
-// selected stdout/text outputs are the only notebook content that enters the
-// documentation lane. Declared Grafana, Prometheus/Mimir, Loki, and Tempo
+// narrative, conservative delimited spreadsheet files, and deterministic
+// Mermaid/D2 text diagrams become source-neutral documentation facts. Prose
+// surfaces may emit non-authoritative document-evidence claim candidates, but
+// API contract operations, schemas, channels, GraphQL SDL fields, and
+// text-diagram labels or links remain documentation evidence; they do not prove
+// service ownership.
+// Notebook code-cell source remains parser evidence; Markdown cells, raw cells,
+// and selected stdout/text outputs are the only notebook content that enters
+// the documentation lane. Declared Grafana, Prometheus/Mimir, Loki, and Tempo
 // observability rows plus applied
 // Argo CD/Kubernetes observability state rows from repository parsers become
 // metadata-only observability source facts; reducers and query surfaces own any
