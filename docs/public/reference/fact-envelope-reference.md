@@ -103,13 +103,15 @@ Repository-hosted documentation ingestion is part of Git collection. It emits
 source-neutral documentation source, document, section, and link facts for
 Markdown (`.md`, `.mdx`, `.markdown`), lightweight text (`.txt`, `.rst`,
 `.adoc`, `.asciidoc`, `.qmd`), HTML (`.html`, `.htm`), notebook narrative
-(`.ipynb`), conservative delimited spreadsheet (`.csv`, `.tsv`), and bounded
-XLSX workbook summary files under the repository scope and attaches a repository
-`linked_entities` target reference for repository-scoped readback. Spreadsheet
-sections contain headers, row/column/sample counts, bounded row samples,
-truncation warnings, formula hashes, and redacted sensitive-looking cells rather
-than full table dumps. Hidden XLSX sheets stay metadata-only, and legacy `.xls`
-files emit unsupported warning metadata without reading cell bytes.
+(`.ipynb`), bounded DOCX summaries, conservative delimited spreadsheet (`.csv`,
+`.tsv`), and bounded XLSX workbook summary files under the repository scope and
+attaches a repository `linked_entities` target reference for repository-scoped
+readback. DOCX sections contain bounded heading, paragraph, and table text;
+comments and tracked changes stay metadata-only. Spreadsheet sections contain
+headers, row/column/sample counts, bounded row samples, truncation warnings,
+formula hashes, and redacted sensitive-looking cells rather than full table
+dumps. Hidden XLSX sheets stay metadata-only, and legacy `.xls` files emit
+unsupported warning metadata without reading cell bytes.
 Deterministic `doctruth` extraction may add entity-mention and claim-candidate
 facts from bounded sections, but those claims remain `document_evidence` only.
 Reducers and query surfaces decide whether later findings or drift evidence are
