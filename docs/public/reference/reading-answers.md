@@ -24,6 +24,8 @@ Read the source contracts first. This page does not redefine them:
   ordered tool calls.
 - [Visualization Packet Contract](visualization-packets.md) — rendering a
   story or evidence answer as an explainable subgraph.
+- [Answer Quality Scorecard](local-testing/answer-quality-scorecard.md) —
+  dogfood criteria for comparing captured API, MCP, CLI, and hosted answers.
 
 ## Two layers: envelope and packet
 

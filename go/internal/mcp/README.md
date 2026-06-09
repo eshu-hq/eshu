@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 114
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 119
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,7 +59,7 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 117 tools from the tool definition files.
+`ReadOnlyTools` assembles 119 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
@@ -86,6 +86,7 @@ flowchart TB
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 6 | `tools_content.go` |
 | `documentationTools` | 4 | `tools_documentation.go` |
+| `queryPlaybookTools` | 2 | `tools_query_playbooks.go` |
 | `semanticEvidenceTools` | 2 | `tools_semantic_evidence.go` |
 | `documentationFindingAggregateTools` | 2 | `tools_documentation_aggregates.go` |
 | `componentExtensionTools` | 2 | `tools_component_extensions.go` |
@@ -154,6 +155,8 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_semantic_code_hints` | GET | `/api/v0/semantic/code-hints` with repo, path, entity, provider, prompt, freshness, policy, and corroboration filters |
 | `get_documentation_evidence_packet` | GET | `/api/v0/documentation/findings/{finding_id}/evidence-packet` |
 | `check_documentation_evidence_packet_freshness` | GET | `/api/v0/documentation/evidence-packets/{packet_id}/freshness` |
+| `list_query_playbooks` | GET | `/api/v0/query-playbooks` |
+| `resolve_query_playbook` | POST | `/api/v0/query-playbooks/resolve` |
 | `list_component_extensions` | GET | `/api/v0/component-extensions` with defaulted `limit` |
 | `get_component_extension_diagnostics` | GET | `/api/v0/component-extensions/{component_id}/diagnostics` |
 | `list_collectors` | GET | `/api/v0/status/collectors` |

@@ -8,6 +8,11 @@ import (
 
 const EnvelopeMIMEType = "application/eshu.envelope+json"
 
+// CapabilityQueryPlaybooks identifies deterministic query playbook catalog and
+// resolver reads. The capability returns workflow-plan truth, not live graph
+// query truth.
+const CapabilityQueryPlaybooks = "query.playbooks"
+
 type QueryProfile string
 
 const (
@@ -148,6 +153,13 @@ var (
 )
 
 var capabilityMatrix = map[string]capabilitySupport{
+	CapabilityQueryPlaybooks: {
+		LocalLightweightMax:   &truthExact,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalLightweight,
+	},
 	"code_search.exact_symbol": {
 		LocalLightweightMax:   &truthExact,
 		LocalAuthoritativeMax: &truthExact,

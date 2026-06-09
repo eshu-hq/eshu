@@ -216,6 +216,9 @@ activation config paths, or community-index membership as trust.
 
 - `APIRouter` — top-level mux; call `Mount` to register all routes
   (`handler.go:110`)
+- `QueryPlaybookHandler` — catalog and resolver routes for deterministic
+  workflow-plan truth: `GET /api/v0/query-playbooks` and
+  `POST /api/v0/query-playbooks/resolve` (`query_playbook_handler.go`)
 - `RepositoryHandler` — `GET /api/v0/repositories*` routes (`repository.go:21`)
 - `EntityHandler` — entity resolution, workload/service context routes, service dossier stories, and service investigation coverage (`entity.go:11`, `service_story_handler.go:9`, `service_investigation.go:17`)
 - `CodeHandler` — code search, symbol lookup, structural inventory, import
@@ -349,7 +352,9 @@ activation config paths, or community-index membership as trust.
   state. `PlaybookCatalog` is the versioned source of truth
   (`query_playbook_catalog.go`), `PlaybookCatalogVersions` and `LookupPlaybook`
   read it, and `PlaybookToolNames` lets the `mcp` package cross-check referenced
-  tool names against `ReadOnlyTools` without an import cycle. See
+  tool names against `ReadOnlyTools` without an import cycle.
+  `QueryPlaybookHandler` exposes the catalog through API/MCP/CLI surfaces that
+  do not execute calls, read graph or Postgres state, or expose raw Cypher. See
   `docs/public/reference/query-playbooks.md`.
 - `VisualizationPacket`, `VisualizationNode`, `VisualizationEdge`,
   `VisualizationView`, `VisualizationLimits`, `VisualizationTruncation`,
