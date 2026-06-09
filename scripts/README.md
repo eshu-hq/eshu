@@ -39,6 +39,14 @@ identity counts when those probes are required. Use
 `ESHU_REMOTE_E2E_COMPOSE_FILES` as a colon-separated Compose file list and
 `ESHU_REMOTE_E2E_ENV_FILE` when the stack uses a private env file.
 
+`verify-gitops-rendered-diff-preflight.sh` renders the Helm chart with Argo CD
+overlay value files before a GitOps controller syncs them. It fails on
+placeholder rendered values, unpinned image tags, chart-invalid exposure or
+schema-bootstrap combinations, and claim-driven collectors without an active
+workflow coordinator. The output is a redacted resource summary suitable for CI
+evidence. Use `test-verify-gitops-rendered-diff-preflight.sh` for the focused
+harness.
+
 `remote-e2e-corpus-preflight.sh` is the one-shot corpus guard used by
 `docker-compose.remote-e2e.yaml`. Smoke mode is fixture-friendly, representative
 mode is the 20-50 repository inner-loop gate, and full mode is the release
