@@ -106,6 +106,27 @@ Stats responses include `coverage.source_backend`, `coverage.query_shape`,
 identity lookup timeouts return `504` because no trustworthy repository
 identity exists for a partial stats response.
 
+Stats responses also carry the canonical truth envelope plus an additive
+`result_limits` drilldown block and an explicit `partial_reasons` slot, matching
+the prompt-ready context routes. The truth basis is `content_index` for
+content-backed counts and `hybrid` when a graph backend verifies repository
+identity; a transport-only count is never promoted to graph truth.
+`result_limits` reports the bounded language/entity-type limit, deterministic
+ordering, `language_count`, `entity_type_count`, a `truncated` flag, the
+`get_repository_coverage` drilldown, and the stats `context_path`.
+`partial_reasons` is always present and lists the coverage `missing_evidence`
+plus `content_store_coverage_timeout` when the read times out. These fields are
+additive: the existing `coverage.partial_results`, `coverage.truncated`, and
+`coverage.timeout` fields are preserved.
+
+The empty-selector inventory form of `get_repository_stats` is served by
+`GET /api/v0/repositories`, which carries the same envelope shape: an additive
+`result_limits` block (bounded page limit/offset, deterministic name-then-id
+ordering, `repository_count`, `truncated`, the `get_repository_stats`
+drilldown, and the `/api/v0/repositories` context path) and a `partial_reasons`
+slot that names `repository_inventory_truncated` when more repositories exist
+beyond the returned page. The existing list `truncated` field is preserved.
+
 No-Regression Evidence: the focused query test covers repository-name and
 canonical-id selectors, proves the stats route does not issue the old optional
 graph aggregation after selector resolution, verifies content-store

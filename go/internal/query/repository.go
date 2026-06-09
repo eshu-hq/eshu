@@ -43,11 +43,14 @@ func (h *RepositoryHandler) profile() QueryProfile {
 	return NormalizeQueryProfile(string(h.Profile))
 }
 
-// listRepositories returns a bounded page of indexed repositories.
+// listRepositories returns a bounded page of indexed repositories. It also
+// serves the inventory (empty-selector) form of get_repository_stats, so the
+// response carries an additive result_limits drilldown block and an explicit
+// partial_reasons slot, preserving the existing truncated paging field.
 func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Request) {
 	page := repositoryListPageFromRequest(r)
 	if h == nil {
-		WriteSuccess(w, r, http.StatusOK, repositoryListResponse([]map[string]any{}, page, false), nil)
+		WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse([]map[string]any{}, page, false), nil)
 		return
 	}
 	if h.Neo4j == nil {
@@ -57,7 +60,7 @@ func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Requ
 			return
 		}
 		repos, truncated := pageRepositoryMaps(repos, page)
-		WriteSuccess(w, r, http.StatusOK, repositoryListResponse(repos, page, truncated), BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisContentIndex, "resolved from bounded repository content catalog"))
+		WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated), BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisContentIndex, "resolved from bounded repository content catalog"))
 		return
 	}
 
@@ -94,7 +97,7 @@ func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Requ
 		repos = append(repos, repo)
 	}
 
-	WriteSuccess(w, r, http.StatusOK, repositoryListResponse(repos, page, truncated), BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
+	WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated), BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
 }
 
 func (h *RepositoryHandler) listRepositoriesFromContent(ctx context.Context) ([]map[string]any, error) {
@@ -442,67 +445,4 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 			"resolved from bounded repository story, content coverage, and platform evidence",
 		),
 	)
-}
-
-// getRepositoryCoverage returns content store coverage for the repository.
-func (h *RepositoryHandler) getRepositoryCoverage(w http.ResponseWriter, r *http.Request) {
-	repoID, ok := h.resolveRepositoryPathSelector(w, r)
-	if !ok {
-		return
-	}
-
-	resolvedRepoID, err := h.resolveCoverageRepositoryID(r.Context(), repoID)
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
-		return
-	}
-	if resolvedRepoID == "" {
-		WriteError(w, http.StatusNotFound, "repository not found")
-		return
-	}
-	repoID = resolvedRepoID
-
-	// Get content store coverage
-	coverage, err := h.queryContentStoreCoverage(r.Context(), repoID)
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("coverage query failed: %v", err))
-		return
-	}
-
-	WriteJSON(w, http.StatusOK, coverage)
-}
-
-func (h *RepositoryHandler) resolveRepositorySelector(ctx context.Context, selector string) (string, error) {
-	return resolveRepositorySelectorExact(ctx, h.Neo4j, h.Content, selector)
-}
-
-func (h *RepositoryHandler) resolveRepositoryPathSelector(w http.ResponseWriter, r *http.Request) (string, bool) {
-	repoSelector := PathParam(r, "repo_id")
-	if repoSelector == "" {
-		WriteError(w, http.StatusBadRequest, "repo_id is required")
-		return "", false
-	}
-	repoID, err := h.resolveRepositorySelector(r.Context(), repoSelector)
-	if err != nil {
-		status := http.StatusBadRequest
-		if isRepositorySelectorNotFound(err) {
-			status = http.StatusNotFound
-		}
-		WriteError(w, status, err.Error())
-		return "", false
-	}
-	return repoID, true
-}
-
-func repositoryCatalogMap(entry RepositoryCatalogEntry) map[string]any {
-	return map[string]any{
-		"id":            entry.ID,
-		"name":          entry.Name,
-		"path":          entry.Path,
-		"local_path":    entry.LocalPath,
-		"remote_url":    entry.RemoteURL,
-		"repo_slug":     entry.RepoSlug,
-		"has_remote":    entry.HasRemote,
-		"is_dependency": false,
-	}
 }

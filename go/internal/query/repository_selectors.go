@@ -1,0 +1,78 @@
+package query
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+)
+
+// getRepositoryCoverage returns content store coverage for the repository.
+func (h *RepositoryHandler) getRepositoryCoverage(w http.ResponseWriter, r *http.Request) {
+	repoID, ok := h.resolveRepositoryPathSelector(w, r)
+	if !ok {
+		return
+	}
+
+	resolvedRepoID, err := h.resolveCoverageRepositoryID(r.Context(), repoID)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		return
+	}
+	if resolvedRepoID == "" {
+		WriteError(w, http.StatusNotFound, "repository not found")
+		return
+	}
+	repoID = resolvedRepoID
+
+	// Get content store coverage
+	coverage, err := h.queryContentStoreCoverage(r.Context(), repoID)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("coverage query failed: %v", err))
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, coverage)
+}
+
+// resolveRepositorySelector resolves a repository selector (canonical id, name,
+// or slug) to its canonical repository id using the graph and content backends.
+func (h *RepositoryHandler) resolveRepositorySelector(ctx context.Context, selector string) (string, error) {
+	return resolveRepositorySelectorExact(ctx, h.Neo4j, h.Content, selector)
+}
+
+// resolveRepositoryPathSelector reads the {repo_id} path parameter, resolves it
+// to a canonical repository id, and writes the appropriate HTTP error when the
+// selector is missing, ambiguous, or not found. It returns false when the caller
+// must stop after an error response has already been written.
+func (h *RepositoryHandler) resolveRepositoryPathSelector(w http.ResponseWriter, r *http.Request) (string, bool) {
+	repoSelector := PathParam(r, "repo_id")
+	if repoSelector == "" {
+		WriteError(w, http.StatusBadRequest, "repo_id is required")
+		return "", false
+	}
+	repoID, err := h.resolveRepositorySelector(r.Context(), repoSelector)
+	if err != nil {
+		status := http.StatusBadRequest
+		if isRepositorySelectorNotFound(err) {
+			status = http.StatusNotFound
+		}
+		WriteError(w, status, err.Error())
+		return "", false
+	}
+	return repoID, true
+}
+
+// repositoryCatalogMap projects a content-store catalog entry into the wire map
+// shape used by repository list and stats responses.
+func repositoryCatalogMap(entry RepositoryCatalogEntry) map[string]any {
+	return map[string]any{
+		"id":            entry.ID,
+		"name":          entry.Name,
+		"path":          entry.Path,
+		"local_path":    entry.LocalPath,
+		"remote_url":    entry.RemoteURL,
+		"repo_slug":     entry.RepoSlug,
+		"has_remote":    entry.HasRemote,
+		"is_dependency": false,
+	}
+}
