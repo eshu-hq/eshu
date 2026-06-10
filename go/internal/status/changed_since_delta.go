@@ -106,6 +106,14 @@ const (
 	// computed by the service-scope changed-since surface, so it never appears in
 	// ChangedSinceCategories.
 	ChangedSinceCategoryIncidents ChangedSinceCategory = "incidents"
+	// ChangedSinceCategoryVulnerabilities covers service-scope vulnerabilities
+	// evidence rows (#1990): one row per (supply-chain advisory, affected package)
+	// pair affecting a package the service depends on, keyed by the advisory's
+	// durable canonical id and the affected package ecosystem/name. Like ownership,
+	// deployment, runtime, dependencies, docs, and incidents it is a service-scope
+	// category, computed by the service-scope changed-since surface, so it never
+	// appears in ChangedSinceCategories.
+	ChangedSinceCategoryVulnerabilities ChangedSinceCategory = "vulnerabilities"
 )
 
 // ChangedSinceCategories is the closed, ordered set of evidence categories this

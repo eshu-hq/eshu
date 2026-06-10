@@ -22,6 +22,7 @@ var ServiceChangedSinceCategories = []ChangedSinceCategory{
 	ChangedSinceCategoryDependencies,
 	ChangedSinceCategoryDocs,
 	ChangedSinceCategoryIncidents,
+	ChangedSinceCategoryVulnerabilities,
 }
 
 // ServiceChangedSinceFilter bounds a service-scope changed-since summary to one

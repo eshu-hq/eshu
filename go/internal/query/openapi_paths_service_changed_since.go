@@ -5,7 +5,7 @@ const openAPIPathsFreshnessServiceChangedSince = `
       "get": {
         "tags": ["freshness"],
         "summary": "Summarize what changed for a service since a prior service generation",
-        "description": "Returns a bounded service-scope changed-since delta for one service (#1943). It diffs a prior service materialization generation's evidence snapshot set against the current active generation's set, keyed by a generation-independent service_evidence_key, into per-evidence-family counts for added, updated, unchanged, retired, and superseded keys plus bounded, deterministic sample handles per classification. It reports the ownership (#1943), deployment (#1985), runtime (#1986), dependencies (#1987), docs (#1988), and incidents (#1989) evidence families. Supply since_generation_id to diff from an exact prior service generation. An unknown service_id returns service_not_found; a since reference that matches no service generation returns not_found. A service with no current active generation returns an explicit unavailable diff instead of zero deltas. Counts are exact; only the per-classification samples are capped by sample_limit with a per-classification truncated flag.",
+        "description": "Returns a bounded service-scope changed-since delta for one service (#1943). It diffs a prior service materialization generation's evidence snapshot set against the current active generation's set, keyed by a generation-independent service_evidence_key, into per-evidence-family counts for added, updated, unchanged, retired, and superseded keys plus bounded, deterministic sample handles per classification. It reports the ownership (#1943), deployment (#1985), runtime (#1986), dependencies (#1987), docs (#1988), incidents (#1989), and vulnerabilities (#1990) evidence families. Supply since_generation_id to diff from an exact prior service generation. An unknown service_id returns service_not_found; a since reference that matches no service generation returns not_found. A service with no current active generation returns an explicit unavailable diff instead of zero deltas. Counts are exact; only the per-classification samples are capped by sample_limit with a per-classification truncated flag.",
         "operationId": "summarizeServiceChangedSince",
         "parameters": [
           {"name": "service_id", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Exact service id whose evidence lineage to diff."},
@@ -32,7 +32,7 @@ const openAPIPathsFreshnessServiceChangedSince = `
                       "items": {
                         "type": "object",
                         "properties": {
-                          "category": {"type": "string", "enum": ["ownership", "deployment", "runtime", "dependencies", "docs", "incidents"]},
+                          "category": {"type": "string", "enum": ["ownership", "deployment", "runtime", "dependencies", "docs", "incidents", "vulnerabilities"]},
                           "counts": {
                             "type": "object",
                             "properties": {
