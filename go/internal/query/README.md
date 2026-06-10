@@ -93,6 +93,11 @@ durable finding facts. They keep the per-document permission predicates, apply
 scoped-token repository and scope grants before grouping, ordering, limits, and
 offsets, and return zero or empty buckets without touching the store when a
 scoped token has no repository grants.
+Documentation evidence packet and packet-freshness reads apply the same grant
+intersection before returning packet payloads, freshness fields, not-found
+metadata, or permission-denied metadata. Empty scoped grants short-circuit to
+the existing not-found response without a store read, so out-of-grant packet
+identifiers and payload-derived denial reasons do not leak.
 Semantic evidence reads are opt-in routes over durable semantic facts:
 `GET /api/v0/semantic/documentation-observations` and
 `GET /api/v0/semantic/code-hints`. They require at least one scope or semantic

@@ -77,6 +77,11 @@ type documentationReadModelStore interface {
 	documentationFacts(context.Context, documentationFactFilter) (documentationFactListReadModel, error)
 	documentationEvidencePacket(context.Context, string) (documentationEvidencePacketReadModel, error)
 	documentationEvidencePacketFreshness(context.Context, string, string) (documentationEvidencePacketFreshnessReadModel, error)
+	documentationEvidencePacketWithFilter(context.Context, documentationEvidencePacketFilter) (documentationEvidencePacketReadModel, error)
+	documentationEvidencePacketFreshnessWithFilter(
+		context.Context,
+		documentationEvidencePacketFreshnessFilter,
+	) (documentationEvidencePacketFreshnessReadModel, error)
 }
 
 // Mount registers documentation truth routes.
@@ -181,7 +186,13 @@ func (h *DocumentationHandler) getEvidencePacket(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
-	readModel, err := store.documentationEvidencePacket(r.Context(), findingID)
+	filter := documentationEvidencePacketFilter{FindingID: findingID}
+	filter, ok = documentationEvidencePacketFilterWithRepositoryAccess(r.Context(), filter)
+	if !ok {
+		writeDocumentationPacketNotFound(w, r)
+		return
+	}
+	readModel, err := store.documentationEvidencePacketWithFilter(r.Context(), filter)
 	if err != nil {
 		writeDocumentationInternalError(w, r)
 		return
@@ -191,14 +202,7 @@ func (h *DocumentationHandler) getEvidencePacket(w http.ResponseWriter, r *http.
 		return
 	}
 	if !readModel.Available || len(readModel.Packet) == 0 {
-		writeDocumentationError(
-			w,
-			r,
-			http.StatusNotFound,
-			ErrorCodeNotFound,
-			"documentation evidence packet not found",
-			"",
-		)
+		writeDocumentationPacketNotFound(w, r)
 		return
 	}
 	WriteSuccess(w, r, http.StatusOK, readModel.Packet, BuildTruthEnvelope(
@@ -231,7 +235,16 @@ func (h *DocumentationHandler) getPacketFreshness(w http.ResponseWriter, r *http
 	if !ok {
 		return
 	}
-	readModel, err := store.documentationEvidencePacketFreshness(r.Context(), packetID, packetVersion)
+	filter := documentationEvidencePacketFreshnessFilter{
+		PacketID:           packetID,
+		SavedPacketVersion: packetVersion,
+	}
+	filter, ok = documentationEvidencePacketFreshnessFilterWithRepositoryAccess(r.Context(), filter)
+	if !ok {
+		writeDocumentationPacketNotFound(w, r)
+		return
+	}
+	readModel, err := store.documentationEvidencePacketFreshnessWithFilter(r.Context(), filter)
 	if err != nil {
 		writeDocumentationInternalError(w, r)
 		return
@@ -241,14 +254,7 @@ func (h *DocumentationHandler) getPacketFreshness(w http.ResponseWriter, r *http
 		return
 	}
 	if !readModel.Available {
-		writeDocumentationError(
-			w,
-			r,
-			http.StatusNotFound,
-			ErrorCodeNotFound,
-			"documentation evidence packet not found",
-			"",
-		)
+		writeDocumentationPacketNotFound(w, r)
 		return
 	}
 	WriteSuccess(w, r, http.StatusOK, readModel, BuildTruthEnvelope(
@@ -384,6 +390,17 @@ func writeDocumentationPermissionDenied(w http.ResponseWriter, r *http.Request, 
 		reason = "caller cannot view documentation evidence"
 	}
 	writeDocumentationError(w, r, http.StatusForbidden, ErrorCodePermissionDenied, reason, "")
+}
+
+func writeDocumentationPacketNotFound(w http.ResponseWriter, r *http.Request) {
+	writeDocumentationError(
+		w,
+		r,
+		http.StatusNotFound,
+		ErrorCodeNotFound,
+		"documentation evidence packet not found",
+		"",
+	)
 }
 
 func writeDocumentationError(

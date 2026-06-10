@@ -92,6 +92,56 @@ func TestAuthMiddlewareWithScopedTokensAllowsDocumentationAggregateRoutes(t *tes
 	}
 }
 
+func TestAuthMiddlewareWithScopedTokensAllowsDocumentationEvidencePacketRoutes(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		method string
+		path   string
+	}{
+		{
+			name:   "packet by finding",
+			method: http.MethodGet,
+			path:   "/api/v0/documentation/findings/finding:docs:1/evidence-packet",
+		},
+		{
+			name:   "packet freshness",
+			method: http.MethodGet,
+			path:   "/api/v0/documentation/evidence-packets/doc-packet:1/freshness",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			resolver := &fakeScopedTokenResolver{
+				context: AuthContext{
+					Mode:                 AuthModeScoped,
+					TenantID:             "tenant_a",
+					WorkspaceID:          "workspace_a",
+					AllowedRepositoryIDs: []string{"repository:team-a"},
+				},
+				ok: true,
+			}
+			handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if _, ok := AuthContextFromContext(r.Context()); !ok {
+					t.Fatal("AuthContextFromContext() ok = false, want true")
+				}
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+			req.Header.Set("Authorization", "Bearer scoped-token")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			if got, want := rec.Code, http.StatusOK; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+			}
+		})
+	}
+}
+
 func TestDocumentationHandlerScopedEmptyGrantReturnsEmptyListsWithoutRead(t *testing.T) {
 	t.Parallel()
 
