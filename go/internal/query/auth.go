@@ -290,7 +290,8 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 		"/api/v0/content/files/lines",
 		"/api/v0/content/entities/read",
 		"/api/v0/content/files/search",
-		"/api/v0/content/entities/search":
+		"/api/v0/content/entities/search",
+		"/api/v0/evidence/citations":
 		return true
 	default:
 		return false

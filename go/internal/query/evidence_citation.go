@@ -266,10 +266,17 @@ func (h *EvidenceHandler) evidenceCitationFileContents(
 	ctx context.Context,
 	handles []evidenceCitationHandle,
 ) (map[evidenceCitationFileKey]FileContent, error) {
+	access := repositoryAccessFilterFromContext(ctx)
+	if access.empty() {
+		return map[evidenceCitationFileKey]FileContent{}, nil
+	}
 	lookups := make([]evidenceCitationFileLookup, 0)
 	seen := make(map[evidenceCitationFileKey]struct{}, len(handles))
 	for _, handle := range handles {
 		if handle.Kind != "file" {
+			continue
+		}
+		if !access.allowsRepositoryID(handle.RepoID) {
 			continue
 		}
 		key := evidenceCitationFileKey{repoID: handle.RepoID, relativePath: handle.RelativePath}
@@ -304,6 +311,10 @@ func (h *EvidenceHandler) evidenceCitationEntityContents(
 	ctx context.Context,
 	handles []evidenceCitationHandle,
 ) (map[string]*EntityContent, error) {
+	access := repositoryAccessFilterFromContext(ctx)
+	if access.empty() {
+		return map[string]*EntityContent{}, nil
+	}
 	entityIDs := make([]string, 0)
 	seen := make(map[string]struct{}, len(handles))
 	for _, handle := range handles {
@@ -320,7 +331,11 @@ func (h *EvidenceHandler) evidenceCitationEntityContents(
 		return map[string]*EntityContent{}, nil
 	}
 	if store, ok := h.Content.(evidenceCitationEntityBatchStore); ok {
-		return store.GetEntityContents(ctx, entityIDs)
+		entities, err := store.GetEntityContents(ctx, entityIDs)
+		if err != nil {
+			return nil, err
+		}
+		return filterEvidenceCitationEntitiesForAccess(entities, access), nil
 	}
 
 	results := make(map[string]*EntityContent, len(entityIDs))
@@ -329,11 +344,28 @@ func (h *EvidenceHandler) evidenceCitationEntityContents(
 		if err != nil {
 			return nil, err
 		}
-		if entity != nil {
+		if entity != nil && access.allowsRepositoryID(entity.RepoID) {
 			results[entityID] = entity
 		}
 	}
 	return results, nil
+}
+
+func filterEvidenceCitationEntitiesForAccess(
+	entities map[string]*EntityContent,
+	access repositoryAccessFilter,
+) map[string]*EntityContent {
+	if !access.scoped() {
+		return entities
+	}
+	filtered := make(map[string]*EntityContent, len(entities))
+	for entityID, entity := range entities {
+		if entity == nil || !access.allowsRepositoryID(entity.RepoID) {
+			continue
+		}
+		filtered[entityID] = entity
+	}
+	return filtered
 }
 
 func citationFromFile(rank int, handle evidenceCitationHandle, file FileContent) evidenceCitation {
