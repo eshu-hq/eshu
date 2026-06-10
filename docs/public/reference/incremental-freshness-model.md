@@ -12,13 +12,16 @@ the `get_changed_since` MCP tool, and `eshu freshness changed-since`) that diffs
 a prior generation's fact set against the current active generation's fact set;
 the lower-level freshness signal is still observed through scope generations and
 status surfaces. Service-scope deltas are now **partially available**: the
-ownership, deployment, runtime, dependencies, and docs families ship through
-`GET /api/v0/freshness/services/changed-since`, the `get_service_changed_since`
-MCP tool, and `eshu freshness service-changed-since`, backed by a per-service
-generation lineage (`service_materialization_generations`) and generation-stable
-evidence snapshots (`service_evidence_snapshots`). The remaining service families
-(incidents, vulnerabilities) reuse the same lineage and snapshot foundation and
-are tracked as follow-up work.
+ownership, deployment, runtime, dependencies, docs, and incidents families ship
+through `GET /api/v0/freshness/services/changed-since`, the
+`get_service_changed_since` MCP tool, and `eshu freshness service-changed-since`,
+backed by a per-service generation lineage
+(`service_materialization_generations`) and generation-stable evidence snapshots
+(`service_evidence_snapshots`). The incidents family's production loader is held
+behind a durable PagerDuty-provider-to-Eshu-catalog service-id join that is still
+a follow-up, so it materializes rows once that join exists; the remaining service
+family (vulnerabilities) reuses the same lineage and snapshot foundation and is
+tracked as follow-up work.
 
 ## What incremental refresh means
 
@@ -268,7 +271,13 @@ per-evidence diff key:
   a documentation entity mention, claim candidate, or semantic documentation
   observation — read from `fact_records`; `source_system` and `source_record_id`
   are durable fact columns and `document_id` is a durable payload field, none of
-  which embed the generation-bearing `fact_id` or `generation_id`), with a
+  which embed the generation-bearing `fact_id` or `generation_id`), or
+  `incidents:<service_id>:<provider>:<provider_incident_id>:<slot>:<evidence_kind>:<evidence_id>`
+  (the durable routing identity of an exact PagerDuty incident-routing evidence
+  row, one per routing slot `intended_routing` / `applied_routing` /
+  `live_routing`; `evidence_id` is the source fact's generation-independent
+  `StableFactKey` or durable content-entity id, never the routing graph row's
+  envelope `FactID`, which digests the generation), with a
   `payload_hash` so updated-vs-unchanged is detected the same way the
   repository-scope diff uses `md5(payload::text)`, and an `is_tombstone` flag so a
   dropped evidence row is retired explicitly rather than silently absent. The
@@ -286,9 +295,11 @@ service with no current active generation returns an explicit `unavailable` diff
 rather than zero deltas.
 
 The **ownership** (#1943), **deployment** (#1985), **runtime** (#1986),
-**dependencies** (#1987), and **docs** (#1988) families ship. The remaining
-families (incidents, vulnerabilities) reuse this lineage and snapshot foundation
-and are tracked follow-ups. The
+**dependencies** (#1987), **docs** (#1988), and **incidents** (#1989) families
+ship. The incidents family's production loader is held behind a durable
+PagerDuty-provider-to-Eshu-catalog service-id join (a tracked #1989 follow-up), so
+its rows materialize once that join exists. The remaining family (vulnerabilities)
+reuses this lineage and snapshot foundation and is a tracked follow-up. The
 investigation, the reason each evidence family needed this foundation, and the
 recommended snapshot contract are recorded in the internal design note for issue
 #1943.
@@ -331,7 +342,7 @@ rendered from Postgres, not from the graph backend.
 | Which MCP tool reports index progress? | `get_index_status` (the `next_check` target for most causes) | Bounded follow-up call carried on freshness causes. |
 | Is a scope current from the CLI? | `eshu` scan-status readiness | Treats `failed` generations as terminal and reports `pending` generations as still catching up. |
 | What changed in a repository scope since a prior generation or instant? | `GET /api/v0/freshness/changed-since` (`get_changed_since` MCP tool, `eshu freshness changed-since`) | Diffs the prior generation's fact set against the current active generation's fact set by `stable_fact_key`. Returns per-category (files, content entities, facts) added/updated/unchanged/retired/superseded counts with bounded sample handles. A scope with no current active generation returns an explicit unavailable diff, never zero deltas. |
-| What changed for a service since a prior service generation? | `GET /api/v0/freshness/services/changed-since` (`get_service_changed_since` MCP tool, `eshu freshness service-changed-since`) | Diffs a prior service materialization generation against the current active generation over `service_evidence_snapshots`, keyed by generation-independent `service_evidence_key`. Reports the ownership (#1943), deployment (#1985), runtime (#1986), dependencies (#1987), and docs (#1988) families; per-family added/updated/unchanged/retired/superseded counts with bounded sample handles. Unknown `service_id` returns `service_not_found`; no current active generation returns an explicit unavailable diff, never zero deltas. |
+| What changed for a service since a prior service generation? | `GET /api/v0/freshness/services/changed-since` (`get_service_changed_since` MCP tool, `eshu freshness service-changed-since`) | Diffs a prior service materialization generation against the current active generation over `service_evidence_snapshots`, keyed by generation-independent `service_evidence_key`. Reports the ownership (#1943), deployment (#1985), runtime (#1986), dependencies (#1987), docs (#1988), and incidents (#1989) families; per-family added/updated/unchanged/retired/superseded counts with bounded sample handles. Unknown `service_id` returns `service_not_found`; no current active generation returns an explicit unavailable diff, never zero deltas. |
 
 `scope_activity` summarizes per-scope observation activity. `generation_history`
 summarizes generation counts by status (including pending and failed).

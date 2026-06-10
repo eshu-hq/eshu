@@ -97,6 +97,15 @@ const (
 	// computed by the service-scope changed-since surface, so it never appears in
 	// ChangedSinceCategories.
 	ChangedSinceCategoryDocs ChangedSinceCategory = "docs"
+	// ChangedSinceCategoryIncidents covers service-scope incidents evidence rows
+	// (#1989): one row per exact PagerDuty incident-routing evidence row that routes
+	// to the service (one per routing slot: intended / applied / live), keyed by the
+	// row's durable routing identity (provider, provider_incident_id, slot,
+	// evidence_kind, and the generation-independent evidence id). Like ownership,
+	// deployment, runtime, dependencies, and docs it is a service-scope category,
+	// computed by the service-scope changed-since surface, so it never appears in
+	// ChangedSinceCategories.
+	ChangedSinceCategoryIncidents ChangedSinceCategory = "incidents"
 )
 
 // ChangedSinceCategories is the closed, ordered set of evidence categories this

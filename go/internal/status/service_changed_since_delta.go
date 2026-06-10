@@ -11,9 +11,9 @@ import "strings"
 
 // ServiceChangedSinceCategories is the closed, ordered set of service evidence
 // families this surface computes. Ownership (#1943), deployment (#1985), runtime
-// (#1986), dependencies (#1987), and docs (#1988) ship; the remaining families
-// (incidents, vulnerabilities) are tracked follow-ups that append here as they
-// land. The delta SQL groups by evidence_family, so a new family appears
+// (#1986), dependencies (#1987), docs (#1988), and incidents (#1989) ship; the
+// remaining family (vulnerabilities) is a tracked follow-up that appends here as
+// it lands. The delta SQL groups by evidence_family, so a new family appears
 // automatically once its rows are written and its category is registered here.
 var ServiceChangedSinceCategories = []ChangedSinceCategory{
 	ChangedSinceCategoryOwnership,
@@ -21,6 +21,7 @@ var ServiceChangedSinceCategories = []ChangedSinceCategory{
 	ChangedSinceCategoryRuntime,
 	ChangedSinceCategoryDependencies,
 	ChangedSinceCategoryDocs,
+	ChangedSinceCategoryIncidents,
 }
 
 // ServiceChangedSinceFilter bounds a service-scope changed-since summary to one

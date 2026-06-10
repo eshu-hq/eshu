@@ -116,7 +116,19 @@ type ServiceCatalogCorrelationHandler struct {
 	// a repository generation. It is optional: a nil loader leaves the generation
 	// without docs rows, preserving the prior families' contract.
 	DocumentationEvidenceLoader ServiceScopedDocumentationEvidenceLoader
-	Instruments                 *telemetry.Instruments
+	// IncidentEvidenceLoader, when set alongside MaterializationWriter, supplies the
+	// exact PagerDuty incident-routing evidence that routes to each correlated
+	// service so the incidents evidence family (#1989) is materialized into the same
+	// generation as the prior families. Like the documentation loader it is keyed by
+	// Eshu catalog service id rather than repository id. It is optional and is
+	// intentionally left nil in production today: resolving the PagerDuty provider
+	// service id to the Eshu catalog service id needs a durable join that does not
+	// exist in the materialization path yet (the #1989 follow-up), so wiring it now
+	// would require a fuzzy name match that violates correlation truth. A nil loader
+	// leaves the generation without incidents rows, preserving the prior families'
+	// contract.
+	IncidentEvidenceLoader ServiceScopedIncidentEvidenceLoader
+	Instruments            *telemetry.Instruments
 }
 
 // Handle executes one service catalog correlation reducer intent.
@@ -179,10 +191,12 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent Int
 // RuntimeInstanceLoader is wired) is sourced from the materialized runtime
 // instances of each service's repository; docs evidence (when
 // DocumentationEvidenceLoader is wired) is sourced from the documentation facts
-// that reference each service. Every family lands in the same generation, so a
-// service generation is the snapshot of all of the service's evidence at
-// materialization time. When MaterializationWriter is nil this is a no-op,
-// preserving the existing correlation contract.
+// that reference each service; incidents evidence (when IncidentEvidenceLoader is
+// wired) is sourced from the exact PagerDuty incident-routing evidence that routes
+// to each service. Every family lands in the same generation, so a service
+// generation is the snapshot of all of the service's evidence at materialization
+// time. When MaterializationWriter is nil this is a no-op, preserving the existing
+// correlation contract.
 func (h ServiceCatalogCorrelationHandler) commitServiceGenerations(
 	ctx context.Context,
 	intent Intent,
@@ -199,6 +213,9 @@ func (h ServiceCatalogCorrelationHandler) commitServiceGenerations(
 		return err
 	}
 	if err := h.attachServiceDocumentationEvidence(ctx, writes); err != nil {
+		return err
+	}
+	if err := h.attachServiceIncidentEvidence(ctx, writes); err != nil {
 		return err
 	}
 	for _, write := range writes {
