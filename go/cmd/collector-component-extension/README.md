@@ -3,18 +3,20 @@
 ## Purpose
 
 `collector-component-extension` runs trusted, claim-capable component
-activations through the process-backed collector SDK host. It consumes workflow
-claims planned by the workflow coordinator, launches the configured extension
-process with a bounded JSON request, validates the SDK result, and commits
-accepted facts through the normal claimed collector boundary.
+activations through the collector SDK host. It consumes workflow
+claims planned by the workflow coordinator, launches the manifest-declared
+adapter (process or OCI) with a bounded JSON request, validates the SDK result,
+and commits accepted facts through the normal claimed collector boundary.
 
 ## Ownership boundary
 
 This binary owns component activation readback, process-runner configuration,
 and claim-aware host wiring for public collector SDK extensions. It does not
-install components, publish packages, pull OCI images, verify Sigstore
-provenance, write graph truth, or expose API/MCP inventory. Reducers remain the
-only owner of graph nodes and relationships derived from extension facts.
+install components, publish packages, embed an OCI registry client, verify
+Sigstore provenance, write graph truth, or expose API/MCP inventory. The OCI
+adapter delegates the digest-pinned image pull and run to the host container
+runtime (`docker`/`podman`). Reducers remain the only owner of graph nodes and
+relationships derived from extension facts.
 
 ## Exported surface
 
@@ -56,12 +58,18 @@ collector, and storage packages.
   workflow planning. It may name `sourceSystem`, `scope.id`, and `scope.kind`
   so the SDK claim matches the external source instead of a synthetic component
   scope.
-- The worker supports `spec.runtime.adapter: process` only. OCI execution is
-  intentionally blocked until a runnable digest-pinned artifact adapter lands.
+- The worker supports `spec.runtime.adapter: process` and
+  `spec.runtime.adapter: oci`. The OCI image is read only from the component's
+  verified manifest artifact (digest-pinned and platform-matched); the
+  activation config file supplies isolation knobs (`oci.network`, `oci.user`,
+  `oci.env`, `oci.extra_args`, stdout/stderr limits) but never the image, so a
+  config edit cannot repoint the worker at an unverified artifact. Publishing
+  the reference image and remote-Compose execution proof are tracked separately
+  (#1923/#2126).
 - Claim retries, terminal failure, stale fencing, heartbeats, and completion
   are owned by `collector.ClaimedService`; do not bypass that boundary.
 
-No-Regression Evidence: `go test ./cmd/collector-component-extension -run 'TestLoadRuntimeConfig|TestBuildClaimedService' -count=1` proves the worker selects one trusted claim-capable process activation, rejects untrusted and unsupported OCI activations, applies activation host scope metadata, wires `extensionhost.Source`, and preserves `collector.ClaimedService` max-attempt behavior for the component claim conflict domain.
+No-Regression Evidence: `go test ./cmd/collector-component-extension -run 'TestLoadRuntimeConfig|TestRunnerForAdapter|TestOCIArtifactImage|TestBuildClaimedService' -count=1` proves the worker selects one trusted claim-capable activation, builds a `ProcessRunner` for the process adapter and a digest-pinned `OCIRunner` (image from the verified manifest artifact) for the oci adapter, rejects unsupported adapters, applies activation host scope metadata, wires `extensionhost.Source`, and preserves `collector.ClaimedService` max-attempt behavior for the component claim conflict domain.
 
 No-Observability-Change: the worker adds no new metric labels, queue domains,
 graph writes, or API/MCP routes. Operators diagnose progress and failure

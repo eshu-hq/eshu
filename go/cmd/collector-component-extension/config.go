@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	goruntime "runtime"
 	"strings"
 	"time"
 
@@ -42,7 +43,7 @@ type runtimeConfig struct {
 	PollInterval       time.Duration
 	ClaimLeaseTTL      time.Duration
 	HeartbeatInterval  time.Duration
-	Runner             extensionhost.ProcessRunner
+	Runner             extensionhost.Runner
 	ExtensionConfig    map[string]any
 	ComponentConfig    component.Activation
 	ManifestDigest     string
@@ -59,7 +60,22 @@ type activationCandidate struct {
 type componentRuntimeFile struct {
 	Host    component.ActivationHostClaimMetadata `json:"host" yaml:"host"`
 	Process processRuntimeConfig                  `json:"process" yaml:"process"`
+	OCI     ociRuntimeConfig                      `json:"oci" yaml:"oci"`
 	Config  map[string]any                        `json:"config" yaml:"config"`
+}
+
+// ociRuntimeConfig carries operator-controlled isolation knobs for the OCI
+// adapter. The digest-pinned image itself is never taken from this file; it is
+// read from the component's verified manifest artifact so a config edit cannot
+// repoint the worker at an unverified image.
+type ociRuntimeConfig struct {
+	Runtime          string   `json:"runtime" yaml:"runtime"`
+	Network          string   `json:"network" yaml:"network"`
+	User             string   `json:"user" yaml:"user"`
+	Env              []string `json:"env" yaml:"env"`
+	ExtraArgs        []string `json:"extra_args" yaml:"extra_args"`
+	StdoutLimitBytes int64    `json:"stdout_limit_bytes" yaml:"stdout_limit_bytes"`
+	StderrLimitBytes int64    `json:"stderr_limit_bytes" yaml:"stderr_limit_bytes"`
 }
 
 type processRuntimeConfig struct {
@@ -80,18 +96,11 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 	if err != nil {
 		return runtimeConfig{}, err
 	}
-	if strings.TrimSpace(candidate.manifest.Spec.Runtime.Adapter) != component.RuntimeAdapterProcess {
-		return runtimeConfig{}, fmt.Errorf(
-			"component extension adapter %q is not runnable by this worker; only %q is supported",
-			candidate.manifest.Spec.Runtime.Adapter,
-			component.RuntimeAdapterProcess,
-		)
-	}
 	fileConfig, err := loadComponentRuntimeFile(candidate.activation.ConfigPath)
 	if err != nil {
 		return runtimeConfig{}, err
 	}
-	runner, err := processRunnerFromConfig(fileConfig.Process)
+	runner, err := runnerForAdapter(candidate.manifest, fileConfig)
 	if err != nil {
 		return runtimeConfig{}, err
 	}
@@ -221,6 +230,71 @@ func sanitizedActivationConfigReadError(err error) error {
 	default:
 		return errors.New("read failed")
 	}
+}
+
+// runnerForAdapter builds the SDK runner declared by the component's verified
+// manifest. The process adapter remains the local-development path; the OCI
+// adapter launches the manifest's digest-pinned artifact under container
+// isolation. Any other adapter is not runnable by this worker.
+func runnerForAdapter(manifest component.Manifest, fileConfig componentRuntimeFile) (extensionhost.Runner, error) {
+	switch strings.TrimSpace(manifest.Spec.Runtime.Adapter) {
+	case component.RuntimeAdapterProcess:
+		return processRunnerFromConfig(fileConfig.Process)
+	case component.RuntimeAdapterOCI:
+		return ociRunnerFromConfig(manifest, fileConfig.OCI)
+	default:
+		return nil, fmt.Errorf(
+			"component extension adapter %q is not runnable by this worker; only %q and %q are supported",
+			manifest.Spec.Runtime.Adapter,
+			component.RuntimeAdapterProcess,
+			component.RuntimeAdapterOCI,
+		)
+	}
+}
+
+// ociRunnerFromConfig builds an OCI runner whose image is the manifest's
+// digest-pinned artifact for the worker's platform. The config file only
+// supplies isolation knobs, never the image, so a config edit cannot repoint
+// the worker at an unverified artifact.
+func ociRunnerFromConfig(manifest component.Manifest, config ociRuntimeConfig) (extensionhost.OCIRunner, error) {
+	image, err := ociArtifactImage(manifest)
+	if err != nil {
+		return extensionhost.OCIRunner{}, err
+	}
+	return extensionhost.OCIRunner{
+		Runtime:          strings.TrimSpace(config.Runtime),
+		ImageRef:         image,
+		Network:          strings.TrimSpace(config.Network),
+		User:             strings.TrimSpace(config.User),
+		Env:              trimStringSlice(config.Env),
+		ExtraArgs:        trimStringSlice(config.ExtraArgs),
+		StdoutLimitBytes: config.StdoutLimitBytes,
+		StderrLimitBytes: config.StderrLimitBytes,
+	}, nil
+}
+
+// ociArtifactImage selects the manifest artifact image for the worker's
+// platform, falling back to a single declared artifact. The manifest validator
+// already guarantees each artifact image is digest-pinned.
+func ociArtifactImage(manifest component.Manifest) (string, error) {
+	artifacts := manifest.Spec.Artifacts
+	if len(artifacts) == 0 {
+		return "", fmt.Errorf("component %q declares no artifacts for the oci adapter", manifest.Metadata.ID)
+	}
+	platform := goruntime.GOOS + "/" + goruntime.GOARCH
+	for _, artifact := range artifacts {
+		if strings.TrimSpace(artifact.Platform) == platform {
+			return strings.TrimSpace(artifact.Image), nil
+		}
+	}
+	if len(artifacts) == 1 {
+		return strings.TrimSpace(artifacts[0].Image), nil
+	}
+	return "", fmt.Errorf(
+		"component %q declares no oci artifact for platform %q",
+		manifest.Metadata.ID,
+		platform,
+	)
 }
 
 func processRunnerFromConfig(config processRuntimeConfig) (extensionhost.ProcessRunner, error) {
