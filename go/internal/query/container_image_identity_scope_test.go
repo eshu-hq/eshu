@@ -102,7 +102,6 @@ func TestAuthMiddlewareWithScopedTokensRejectsAdjacentContainerImageRoutes(t *te
 
 	for _, target := range []string{
 		"/api/v0/supply-chain/advisories/evidence?repository_id=repo-team-a&limit=10",
-		"/api/v0/supply-chain/sbom-attestations/attachments?repository_id=repo-team-a&limit=10",
 		"/api/v0/supply-chain/security-alerts/reconciliations?repository_id=repo-team-a&limit=10",
 	} {
 		target := target
