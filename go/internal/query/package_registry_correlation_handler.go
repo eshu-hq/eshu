@@ -48,12 +48,25 @@ func (h *PackageRegistryHandler) listCorrelations(w http.ResponseWriter, r *http
 		return
 	}
 	packageID := QueryParam(r, "package_id")
-	repositoryID, ok := resolveRepositorySelectorForRequest(w, r, h.Neo4j, h.Content, QueryParam(r, "repository_id"))
-	if !ok {
+	repositorySelector := QueryParam(r, "repository_id")
+	if packageID == "" && repositorySelector == "" {
+		WriteError(w, http.StatusBadRequest, "package_id or repository_id is required")
 		return
 	}
-	if packageID == "" && repositoryID == "" {
-		WriteError(w, http.StatusBadRequest, "package_id or repository_id is required")
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptyPackageRegistryCorrelationPage(w, r, limit)
+		return
+	}
+	repositoryID, ok := resolveRepositorySelectorForRequestWithAccess(
+		w,
+		r,
+		h.Neo4j,
+		h.Content,
+		repositorySelector,
+		access,
+	)
+	if !ok {
 		return
 	}
 	if h.Correlations == nil {
@@ -70,13 +83,15 @@ func (h *PackageRegistryHandler) listCorrelations(w http.ResponseWriter, r *http
 		return
 	}
 
-	rows, err := h.Correlations.ListPackageRegistryCorrelations(r.Context(), PackageRegistryCorrelationFilter{
+	filter := PackageRegistryCorrelationFilter{
 		PackageID:          packageID,
 		RepositoryID:       repositoryID,
 		RelationshipKind:   QueryParam(r, "relationship_kind"),
 		AfterCorrelationID: QueryParam(r, "after_correlation_id"),
 		Limit:              limit + 1,
-	})
+	}
+	filter = packageRegistryCorrelationFilterWithRepositoryAccess(filter, access)
+	rows, err := h.Correlations.ListPackageRegistryCorrelations(r.Context(), filter)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -106,4 +121,34 @@ func (h *PackageRegistryHandler) listCorrelations(w http.ResponseWriter, r *http
 		TruthBasisSemanticFacts,
 		"resolved from reducer-owned package ownership, publication, and consumption correlation facts",
 	))
+}
+
+func (h *PackageRegistryHandler) writeEmptyPackageRegistryCorrelationPage(
+	w http.ResponseWriter,
+	r *http.Request,
+	limit int,
+) {
+	WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"correlations": []PackageRegistryCorrelationResult{},
+		"count":        0,
+		"limit":        limit,
+		"truncated":    false,
+	}, BuildTruthEnvelope(
+		h.profile(),
+		packageRegistryCorrelationsCapability,
+		TruthBasisSemanticFacts,
+		"resolved from reducer-owned package ownership, publication, and consumption correlation facts",
+	))
+}
+
+func packageRegistryCorrelationFilterWithRepositoryAccess(
+	filter PackageRegistryCorrelationFilter,
+	access repositoryAccessFilter,
+) PackageRegistryCorrelationFilter {
+	if !access.scoped() {
+		return filter
+	}
+	filter.AllowedRepositoryIDs = append([]string(nil), access.allowedRepositoryIDs...)
+	filter.AllowedScopeIDs = append([]string(nil), access.allowedScopeIDs...)
+	return filter
 }

@@ -95,13 +95,14 @@
 // redacted hosted governance and semantic extraction status routes, bounded
 // semantic evidence reads, documentation finding/fact list reads,
 // documentation finding aggregate reads, documentation evidence packet and
-// packet-freshness reads, service catalog correlation reads, component
-// extension inventory and diagnostics readbacks, collector status readbacks,
-// ingester status readbacks, and hosted readiness readbacks are also available
-// to scoped tokens because they read only deterministic in-process catalog or
-// contract data, normalized runtime posture data, sanitized fact rows,
-// sanitized local registry posture, or aggregate runtime counters. They leave
-// live-data playbook step targets, scanner result routes, provider payloads,
+// packet-freshness reads, service catalog correlation reads, package registry
+// correlation reads, component extension inventory and diagnostics readbacks,
+// collector status readbacks, ingester status readbacks, and hosted readiness
+// readbacks are also available to scoped tokens because they read only
+// deterministic in-process catalog or contract data, normalized runtime posture
+// data, sanitized fact rows, sanitized local registry posture, or aggregate
+// runtime counters. They leave live-data playbook step targets, scanner result
+// routes, provider payloads,
 // local filesystem paths, collector instance details, source-system detail,
 // queue conflict keys, and tenant data routes behind their own scoped route
 // gates.

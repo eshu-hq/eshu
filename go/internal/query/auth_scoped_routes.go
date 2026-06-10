@@ -59,6 +59,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedServiceCatalogCorrelationRoute(r) {
 		return true
 	}
+	if scopedPackageRegistryCorrelationRoute(r) {
+		return true
+	}
 	if scopedComponentExtensionRoute(r) {
 		return true
 	}
@@ -187,6 +190,10 @@ func scopedDocumentationPacketFreshnessRoute(path string) bool {
 
 func scopedServiceCatalogCorrelationRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/service-catalog/correlations"
+}
+
+func scopedPackageRegistryCorrelationRoute(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/package-registry/correlations"
 }
 
 func scopedHostedGovernanceStatusRoute(r *http.Request) bool {

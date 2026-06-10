@@ -330,7 +330,10 @@
   lookups use `package_id`, and dependency lookups use `package_id` or
   `version_id`. Do not add whole-graph package scans, and do not present
   package source hints as ownership, publication ownership, or runtime
-  consumption truth.
+  consumption truth. Scoped tokens may read only package-registry correlations
+  after repository/scope grants are applied before ordering and limits; adjacent
+  package identity, version, dependency, count, and inventory routes stay
+  fail-closed until each has route-specific proof.
 
 - **Vulnerability impact responses always carry readiness** —
   `SupplyChainHandler.listImpactFindings` (`supply_chain.go`) must call
