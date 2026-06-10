@@ -300,6 +300,10 @@ func newRouter(
 			Content: contentReader,
 			Profile: queryProfile,
 		},
+		CloudRuntimeDrift: &query.CloudRuntimeDriftHandler{
+			Store:   query.NewPostgresMultiCloudRuntimeDriftStore(db),
+			Profile: queryProfile,
+		},
 		IaC: &query.IaCHandler{
 			Content:      contentReader,
 			Reachability: query.NewPostgresIaCReachabilityStore(db),

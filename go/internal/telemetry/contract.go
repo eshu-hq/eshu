@@ -409,7 +409,17 @@ const (
 	// account/project/subscription scopes, and provider locators stay out of span
 	// and metric labels.
 	SpanQueryCloudInventoryReadback  = "query.cloud_inventory_readback"
-	SpanQueryCodeStructuralInventory = "query.code_structural_inventory"
+	// SpanQueryCloudRuntimeDriftFindings wraps the bounded, paginated readback of
+	// provider-neutral runtime drift findings (reducer_multi_cloud_runtime_drift_finding
+	// rows) served by POST /api/v0/cloud/runtime-drift/findings. It is distinct
+	// from the AWS-specific aws_runtime_drift_findings span because this read
+	// resolves the provider-neutral drift fact keyed on canonical
+	// cloud_resource_uid so AWS, GCP, and Azure findings share one surface. The
+	// span carries only the stable http.route and eshu.capability attributes;
+	// cloud_resource_uid, raw identities, scope ids, and provider locators stay
+	// out of span and metric labels.
+	SpanQueryCloudRuntimeDriftFindings = "query.cloud_runtime_drift_findings"
+	SpanQueryCodeStructuralInventory   = "query.code_structural_inventory"
 	SpanQueryCodeTopicInvestigation      = "query.code_topic_investigation"
 	SpanQueryDeadCodeInvestigation       = "query.dead_code_investigation"
 	SpanQueryChangeSurfaceInvestigation  = "query.change_surface_investigation"
