@@ -103,6 +103,13 @@ grants before ordering, limits, cursors, counts, local descriptor summaries, and
 missing-evidence metadata. Empty grants return an empty bounded page without
 reading correlation or descriptor stores, and out-of-grant repository selectors
 fail during selector resolution instead of computing catalog metadata.
+Package registry correlation reads apply the same scoped-token grant
+intersection before ordering, limits, cursors, counts, and truncation.
+Package-only anchors still intersect reducer correlation facts with allowed
+repository or scope grants, empty grants return an empty bounded page without a
+store read, and out-of-grant repository selectors fail during selector
+resolution. Package identity, version, dependency, count, and inventory routes
+remain fail-closed for scoped tokens until each route has its own proof.
 Semantic evidence reads are opt-in routes over durable semantic facts:
 `GET /api/v0/semantic/documentation-observations` and
 `GET /api/v0/semantic/code-hints`. They require at least one scope or semantic

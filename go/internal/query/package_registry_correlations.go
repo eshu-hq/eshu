@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+
+	"github.com/lib/pq"
 )
 
 const (
@@ -24,11 +26,13 @@ type PackageRegistryCorrelationStore interface {
 // PackageRegistryCorrelationFilter bounds package correlation reads to one
 // package or repository, with optional relationship-kind and cursor filters.
 type PackageRegistryCorrelationFilter struct {
-	PackageID          string
-	RepositoryID       string
-	RelationshipKind   string
-	AfterCorrelationID string
-	Limit              int
+	PackageID            string
+	RepositoryID         string
+	RelationshipKind     string
+	AfterCorrelationID   string
+	AllowedRepositoryIDs []string
+	AllowedScopeIDs      []string
+	Limit                int
 }
 
 // PackageRegistryCorrelationRow is one durable package ownership, publication,
@@ -97,6 +101,8 @@ func (s PostgresPackageRegistryCorrelationStore) ListPackageRegistryCorrelations
 		filter.RelationshipKind,
 		filter.AfterCorrelationID,
 		filter.Limit,
+		pq.Array(filter.AllowedRepositoryIDs),
+		pq.Array(filter.AllowedScopeIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list package registry correlations: %w", err)
@@ -138,6 +144,12 @@ WHERE fact.fact_kind = ANY($1::text[])
   AND ($3 = '' OR fact.payload->>'repository_id' = $3)
   AND ($4 = '' OR fact.payload->>'relationship_kind' = $4)
   AND ($5 = '' OR fact.fact_id > $5)
+  AND (
+    (COALESCE(cardinality($7::text[]), 0) = 0 AND COALESCE(cardinality($8::text[]), 0) = 0)
+    OR fact.payload->>'repository_id' = ANY($7::text[])
+    OR fact.payload->'candidate_repository_ids' ?| $7::text[]
+    OR fact.scope_id = ANY($8::text[])
+  )
 ORDER BY fact.fact_id ASC
 LIMIT $6
 `
