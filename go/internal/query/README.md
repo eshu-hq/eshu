@@ -191,6 +191,16 @@ leaving collector instance identifiers, display names, tenant and workspace
 values, queue conflict keys, repository/source identifiers, provider payloads,
 local paths, and credentials out of the payload.
 
+Collector status is the same runtime-status family. `GET
+/api/v0/status/collectors` keeps the shared-token per-instance readback for
+operators, but scoped-token responses collapse collector runtimes into aggregate
+rows keyed by safe operational categories. Scoped responses keep collector kind,
+runtime mode, status category, health, counts, evidence-source summaries, and
+aggregate timestamps while leaving collector instance identifiers, display
+names, source-system detail, queue conflict keys, tenant/workspace values,
+provider payloads, local paths, and credentials out of the payload. The legacy
+`/api/v0/collectors` alias remains unavailable to scoped tokens.
+
 ## Telemetry
 
 - Spans: `telemetry.SpanQueryRelationshipEvidence` (`query.relationship_evidence`)

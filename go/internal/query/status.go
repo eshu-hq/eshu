@@ -69,6 +69,9 @@ func (h *StatusHandler) listCollectors(w http.ResponseWriter, r *http.Request) {
 
 	runtimes := status.CollectorRuntimeStatuses(report)
 	collectors := collectorRuntimeStatusesToSlice(runtimes)
+	if scopedAuthContext(r.Context()) {
+		collectors = scopedCollectorRuntimeStatusesToSlice(runtimes)
+	}
 
 	WriteJSON(w, http.StatusOK, map[string]any{
 		"version":              buildinfo.AppVersion(),

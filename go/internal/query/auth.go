@@ -309,6 +309,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedComponentExtensionRoute(r) {
 		return true
 	}
+	if scopedCollectorStatusRoute(r) {
+		return true
+	}
 	if scopedIngesterStatusRoute(r) {
 		return true
 	}
@@ -397,6 +400,10 @@ func scopedComponentExtensionRoute(r *http.Request) bool {
 	}
 	componentID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, prefix), suffix)
 	return componentID != "" && !strings.Contains(componentID, "/")
+}
+
+func scopedCollectorStatusRoute(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/status/collectors"
 }
 
 func scopedIngesterStatusRoute(r *http.Request) bool {
