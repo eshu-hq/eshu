@@ -152,6 +152,13 @@ identifiers, or backup object locators.
 | Graph rebuild after deletion | Rebuilt graph excludes retracted nodes and edges, while API/MCP reads expose tombstone or stale truth for prior evidence. |
 | Backup restore | Restored data replays deletion and retention-expiry markers before any query surface is marked current. |
 
+The public-safe retention-state proof gate is
+`scripts/verify-hosted-governance-retention-proof.sh`. It validates aggregate
+proof for configured retention, local not-configured behavior, deletion pending,
+deletion complete, graph rebuild required, API/MCP parity, and secret/private
+locator scans. It proves bounded readback and summary hygiene only; it does not
+claim runtime deletion enforcement.
+
 No-Regression Evidence: strict docs build proves this page and navigation render.
 Implementation PRs must add focused tests for the relevant scenario before
 changing runtime behavior.
