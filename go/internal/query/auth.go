@@ -306,6 +306,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedSemanticExtractionStatusRoute(r) {
 		return true
 	}
+	if scopedComponentExtensionRoute(r) {
+		return true
+	}
 	if r.Method != http.MethodPost {
 		return false
 	}
@@ -373,6 +376,24 @@ func scopedHostedGovernanceStatusRoute(r *http.Request) bool {
 
 func scopedSemanticExtractionStatusRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/status/semantic-extraction"
+}
+
+func scopedComponentExtensionRoute(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	if r.URL.Path == "/api/v0/component-extensions" {
+		return true
+	}
+	const (
+		prefix = "/api/v0/component-extensions/"
+		suffix = "/diagnostics"
+	)
+	if !strings.HasPrefix(r.URL.Path, prefix) || !strings.HasSuffix(r.URL.Path, suffix) {
+		return false
+	}
+	componentID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, prefix), suffix)
+	return componentID != "" && !strings.Contains(componentID, "/")
 }
 
 func scopedContextRoute(path string, prefix string) bool {

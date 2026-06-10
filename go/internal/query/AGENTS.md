@@ -242,6 +242,24 @@
   or response field; existing HTTP route attribution and semantic extraction
   status truth envelopes diagnose the redacted runtime readback path.
 
+- **Component extension scoped-token route evidence** — #2084 opens only
+  `GET /api/v0/component-extensions` and
+  `GET /api/v0/component-extensions/{component_id}/diagnostics` because
+  `ComponentExtensionsHandler` returns bounded local component registry posture:
+  package ids, names, publishers, versions, manifest digests, lifecycle states,
+  activation config handles, trust-policy booleans, and stable policy/error
+  codes. Local manifest paths, activation config paths, raw component config,
+  registry file paths, credentials, endpoints, tenant/workspace ids, repository
+  ids, graph reads, content reads, and provider payloads remain outside the
+  response. No-Regression Evidence: `go test ./internal/query -run
+  'Test(ComponentExtensionsHandler|AuthMiddlewareWithScopedTokensAllowsComponentExtensionRoutes)'
+  -count=1` and `go test ./internal/mcp -run
+  'Test(ComponentExtensionToolsResolveToQueryRoutes|TestDispatchToolComponentExtensionsAllowsScopedRoutes)'
+  -count=1`. No-Observability-Change: the route adds no graph write, graph
+  read, content read, provider call, collector call, metric label, runtime knob,
+  or response field; existing HTTP route attribution and component-extension
+  truth envelopes diagnose the bounded local registry readback path.
+
 - **Package registry reads stay anchored** — `PackageRegistryHandler` in
   `package_registry.go` must require `limit` plus a route-specific anchor
   before graph reads: package lookups use `package_id` or `ecosystem`, version

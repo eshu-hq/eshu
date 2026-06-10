@@ -184,6 +184,114 @@ func TestComponentExtensionsHandlerBoundsInventoryWithLimit(t *testing.T) {
 	}
 }
 
+func TestAuthMiddlewareWithScopedTokensAllowsComponentExtensionRoutes(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	const componentID = "dev.eshu.collector.aws"
+	installComponentForQueryTest(t, home, componentID, "AWS cloud scanner", "")
+	manifestPath := filepath.Join(home, "packages", componentID, "0.1.0", "manifest.yaml")
+	if err := os.Remove(manifestPath); err != nil {
+		t.Fatalf("os.Remove(%q) error = %v, want nil", manifestPath, err)
+	}
+
+	handler := &ComponentExtensionsHandler{
+		ComponentHome: home,
+		Profile:       ProfileProduction,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	resolver := &fakeScopedTokenResolver{
+		context: AuthContext{
+			Mode:        AuthModeScoped,
+			TenantID:    "tenant-a",
+			WorkspaceID: "workspace-a",
+		},
+		ok: true,
+	}
+	authHandler := AuthMiddlewareWithScopedTokens("", resolver, mux)
+
+	inventoryReq := httptest.NewRequest(http.MethodGet, "/api/v0/component-extensions?limit=1", nil)
+	inventoryReq.Header.Set("Authorization", "Bearer scoped-token")
+	inventoryReq.Header.Set("Accept", EnvelopeMIMEType)
+	inventoryRec := httptest.NewRecorder()
+	authHandler.ServeHTTP(inventoryRec, inventoryReq)
+	if got, want := inventoryRec.Code, http.StatusOK; got != want {
+		t.Fatalf("inventory status = %d, want %d; body=%s", got, want, inventoryRec.Body.String())
+	}
+	assertComponentExtensionResponseRedacted(t, inventoryRec.Body.String(), home, manifestPath)
+	var inventoryEnvelope struct {
+		Data  ComponentExtensionInventoryResponse `json:"data"`
+		Truth *TruthEnvelope                      `json:"truth"`
+		Error *ErrorEnvelope                      `json:"error"`
+	}
+	if err := json.Unmarshal(inventoryRec.Body.Bytes(), &inventoryEnvelope); err != nil {
+		t.Fatalf("json.Unmarshal(inventory) error = %v, want nil", err)
+	}
+	if inventoryEnvelope.Error != nil {
+		t.Fatalf("inventory error = %#v, want nil", inventoryEnvelope.Error)
+	}
+	if inventoryEnvelope.Truth == nil || inventoryEnvelope.Truth.Capability != componentExtensionsInventoryCapability {
+		t.Fatalf("inventory truth = %#v, want component extension inventory truth", inventoryEnvelope.Truth)
+	}
+	if got, want := inventoryEnvelope.Data.Count, 1; got != want {
+		t.Fatalf("inventory count = %d, want %d", got, want)
+	}
+
+	diagnosticsReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/component-extensions/"+componentID+"/diagnostics",
+		nil,
+	)
+	diagnosticsReq.Header.Set("Authorization", "Bearer scoped-token")
+	diagnosticsReq.Header.Set("Accept", EnvelopeMIMEType)
+	diagnosticsRec := httptest.NewRecorder()
+	authHandler.ServeHTTP(diagnosticsRec, diagnosticsReq)
+	if got, want := diagnosticsRec.Code, http.StatusOK; got != want {
+		t.Fatalf("diagnostics status = %d, want %d; body=%s", got, want, diagnosticsRec.Body.String())
+	}
+	assertComponentExtensionResponseRedacted(t, diagnosticsRec.Body.String(), home, manifestPath)
+	var diagnosticsEnvelope struct {
+		Data  ComponentExtensionDiagnosticsResponse `json:"data"`
+		Truth *TruthEnvelope                        `json:"truth"`
+		Error *ErrorEnvelope                        `json:"error"`
+	}
+	if err := json.Unmarshal(diagnosticsRec.Body.Bytes(), &diagnosticsEnvelope); err != nil {
+		t.Fatalf("json.Unmarshal(diagnostics) error = %v, want nil", err)
+	}
+	if diagnosticsEnvelope.Error != nil {
+		t.Fatalf("diagnostics error = %#v, want nil", diagnosticsEnvelope.Error)
+	}
+	if diagnosticsEnvelope.Truth == nil || diagnosticsEnvelope.Truth.Capability != componentExtensionsDiagnosticsCapability {
+		t.Fatalf("diagnostics truth = %#v, want component extension diagnostics truth", diagnosticsEnvelope.Truth)
+	}
+	if got, want := diagnosticsEnvelope.Data.Component.ID, componentID; got != want {
+		t.Fatalf("diagnostics component id = %q, want %q", got, want)
+	}
+}
+
+func assertComponentExtensionResponseRedacted(
+	t *testing.T,
+	body string,
+	forbiddenValues ...string,
+) {
+	t.Helper()
+
+	forbidden := append([]string{
+		"manifest.yaml",
+		"manifest_path",
+		"config_path",
+	}, forbiddenValues...)
+	for _, value := range forbidden {
+		if value == "" {
+			continue
+		}
+		if strings.Contains(body, value) {
+			t.Fatalf("component extension response leaked %q: %s", value, body)
+		}
+	}
+}
+
 func TestOpenAPISpecIncludesComponentExtensionRoutes(t *testing.T) {
 	t.Parallel()
 
