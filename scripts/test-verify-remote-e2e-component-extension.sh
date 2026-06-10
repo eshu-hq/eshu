@@ -21,7 +21,7 @@ bash -n "${verifier}" || die "verifier failed bash syntax check"
 
 # --list names every proof check without running anything.
 list_log="$(bash "${verifier}" --list)"
-for needle in "inventory:" "workflow:" "facts:" "redaction canary:"; do
+for needle in "inventory:" "workflow:" "facts:" "provenance:" "redaction canary:"; do
 	rg --fixed-strings --quiet "${needle}" <<<"${list_log}" \
 		|| die "--list output missing ${needle}"
 done
@@ -31,7 +31,7 @@ bash "${verifier}" --artifacts "${fixtures}/good" >/dev/null \
 	|| die "verifier rejected the good proof artifacts"
 
 # Each bad artifact set must fail closed.
-for bad in bad_retry bad_no_facts bad_leak; do
+for bad in bad_retry bad_no_facts bad_leak bad_provenance; do
 	if bash "${verifier}" --artifacts "${fixtures}/${bad}" >/dev/null 2>&1; then
 		die "verifier accepted bad artifacts: ${bad}"
 	fi
