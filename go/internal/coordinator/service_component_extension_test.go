@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -34,6 +35,7 @@ func TestServiceRunSchedulesComponentExtensionWork(t *testing.T) {
 	store := &fakeStore{
 		instances: []workflow.CollectorInstance{instance},
 	}
+	audit := &fakeGovernanceAuditAppender{}
 	service := Service{
 		Config: Config{
 			DeploymentMode:    deploymentModeActive,
@@ -53,6 +55,7 @@ func TestServiceRunSchedulesComponentExtensionWork(t *testing.T) {
 			}},
 		},
 		Store:                     store,
+		GovernanceAudit:           audit,
 		ComponentExtensionPlanner: ComponentExtensionWorkPlanner{},
 		Clock:                     func() time.Time { return now },
 	}
@@ -69,6 +72,9 @@ func TestServiceRunSchedulesComponentExtensionWork(t *testing.T) {
 	if got, want := store.enqueuedItems[0].CollectorKind, scope.CollectorKind("scorecard"); got != want {
 		t.Fatalf("collector kind = %q, want %q", got, want)
 	}
+	if got := len(audit.events); got != 0 {
+		t.Fatalf("audit events = %d, want 0 for allowed extension work represented by workflow rows", got)
+	}
 }
 
 func TestServiceRunSkipsComponentExtensionWithoutEgressPolicy(t *testing.T) {
@@ -77,6 +83,7 @@ func TestServiceRunSkipsComponentExtensionWithoutEgressPolicy(t *testing.T) {
 	now := time.Date(2026, time.June, 9, 13, 45, 0, 0, time.UTC)
 	instance := testScorecardComponentInstance(now)
 	store := &fakeStore{instances: []workflow.CollectorInstance{instance}}
+	audit := &fakeGovernanceAuditAppender{}
 	service := Service{
 		Config: Config{
 			DeploymentMode:    deploymentModeActive,
@@ -92,6 +99,7 @@ func TestServiceRunSkipsComponentExtensionWithoutEgressPolicy(t *testing.T) {
 			}},
 		},
 		Store:                     store,
+		GovernanceAudit:           audit,
 		ComponentExtensionPlanner: ComponentExtensionWorkPlanner{},
 		Clock:                     func() time.Time { return now },
 	}
@@ -105,6 +113,34 @@ func TestServiceRunSkipsComponentExtensionWithoutEgressPolicy(t *testing.T) {
 	if got := len(store.enqueuedItems); got != 0 {
 		t.Fatalf("enqueued items = %d, want 0 without extension egress policy", got)
 	}
+	if got, want := len(audit.events), 1; got != want {
+		t.Fatalf("audit events = %d, want %d", got, want)
+	}
+	event := audit.events[0]
+	if got, want := event.Type, governanceaudit.EventTypeExtensionActivation; got != want {
+		t.Fatalf("event.Type = %q, want %q", got, want)
+	}
+	if got, want := event.ActorClass, governanceaudit.ActorClassServicePrincipal; got != want {
+		t.Fatalf("event.ActorClass = %q, want %q", got, want)
+	}
+	if got, want := event.ServicePrincipalID, "svc:workflow-coordinator"; got != want {
+		t.Fatalf("event.ServicePrincipalID = %q, want %q", got, want)
+	}
+	if got, want := event.ScopeClass, governanceaudit.ScopeClassExtensionComponent; got != want {
+		t.Fatalf("event.ScopeClass = %q, want %q", got, want)
+	}
+	if got, want := event.Decision, governanceaudit.DecisionUnavailable; got != want {
+		t.Fatalf("event.Decision = %q, want %q", got, want)
+	}
+	if got, want := event.ReasonCode, ExtensionEgressReasonMissing; got != want {
+		t.Fatalf("event.ReasonCode = %q, want %q", got, want)
+	}
+	if event.ScopeIDHash == "" {
+		t.Fatal("event.ScopeIDHash is empty, want hashed component identity")
+	}
+	if _, err := governanceaudit.NormalizeEvent(event); err != nil {
+		t.Fatalf("NormalizeEvent() error = %v, want nil", err)
+	}
 }
 
 func TestServiceRunSkipsDeniedComponentExtensionEgress(t *testing.T) {
@@ -113,6 +149,7 @@ func TestServiceRunSkipsDeniedComponentExtensionEgress(t *testing.T) {
 	now := time.Date(2026, time.June, 9, 13, 50, 0, 0, time.UTC)
 	instance := testScorecardComponentInstance(now)
 	store := &fakeStore{instances: []workflow.CollectorInstance{instance}}
+	audit := &fakeGovernanceAuditAppender{}
 	service := Service{
 		Config: Config{
 			DeploymentMode:        deploymentModeActive,
@@ -129,6 +166,7 @@ func TestServiceRunSkipsDeniedComponentExtensionEgress(t *testing.T) {
 			}},
 		},
 		Store:                     store,
+		GovernanceAudit:           audit,
 		ComponentExtensionPlanner: ComponentExtensionWorkPlanner{},
 		Clock:                     func() time.Time { return now },
 	}
@@ -141,6 +179,19 @@ func TestServiceRunSkipsDeniedComponentExtensionEgress(t *testing.T) {
 	}
 	if got := len(store.enqueuedItems); got != 0 {
 		t.Fatalf("enqueued items = %d, want 0 for denied extension egress", got)
+	}
+	if got, want := len(audit.events), 1; got != want {
+		t.Fatalf("audit events = %d, want %d", got, want)
+	}
+	event := audit.events[0]
+	if got, want := event.Decision, governanceaudit.DecisionDenied; got != want {
+		t.Fatalf("event.Decision = %q, want %q", got, want)
+	}
+	if got, want := event.ReasonCode, ExtensionEgressReasonDenied; got != want {
+		t.Fatalf("event.ReasonCode = %q, want %q", got, want)
+	}
+	if _, err := governanceaudit.NormalizeEvent(event); err != nil {
+		t.Fatalf("NormalizeEvent() error = %v, want nil", err)
 	}
 }
 

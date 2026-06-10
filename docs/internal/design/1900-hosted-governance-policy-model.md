@@ -206,3 +206,24 @@ API-managed policy write surface, or migration verifier that is not covered by
 No-Regression Evidence: `go test ./internal/coordinator -run 'Test(ParseCollectorEgressPolicyJSON|CollectorEgressPolicy|LoadConfigParsesCollectorEgressPolicy|ServiceRunActiveModeSkipsDeniedCollectorEgress|ServiceIncidentFreshnessSkipsDeniedCollectorEgress)' -count=1` proves collector egress policy parsing, restricted default-deny behavior, deny-over-allow precedence, broad-mode validation, config loading, scheduled work suppression, and incident freshness handoff suppression. The change filters only the scheduler input slice; it does not change claim lease timing, worker counts, queue ordering, reducer graph writes, fact emission, or provider API calls.
 
 Observability Evidence: collector egress skips reuse coordinator reconcile metrics, workflow rows, claim status, and `/api/v0/index-status`; denied scheduled work creates no claimable row. The coordinator also emits a bounded structured log with only `collector_kind` and low-cardinality `reason` so operators can distinguish `egress_policy_missing` from `egress_provider_denied` without exposing provider URLs, token environment names, source IDs, account IDs, or webhook payloads.
+
+No-Regression Evidence: issue #2106 adds coordinator governance audit writes for
+denied or unavailable hosted collector and component-extension egress decisions.
+Focused coverage in `go test ./internal/coordinator -run 'TestServiceRunActiveModeSkipsDeniedCollectorEgress|TestServiceRun(SchedulesComponentExtensionWork|SkipsComponentExtensionWithoutEgressPolicy|SkipsDeniedComponentExtensionEgress)' -count=1`
+proves denied collector and extension decisions still create no claimable row,
+missing extension egress records `decision=unavailable`, denied egress records
+`decision=denied`, allowed extension work creates workflow rows without an extra
+audit event, and all emitted events pass `governanceaudit.NormalizeEvent`.
+The production coordinator wires `GovernanceAuditStore` through the existing
+instrumented Postgres path and ensures the private audit schema at startup.
+
+Observability Evidence: denied or missing-policy coordinator egress decisions
+append `collector_activation` or `extension_activation` events with
+`service_principal` actor class, hashed collector/component scope, deterministic
+bucketed correlation IDs, and low-cardinality reason codes. The private store
+deduplicates exact retry events by event id and `/api/v0/status/governance`
+surfaces aggregate event type, decision, scope class, actor class, and reason
+counts without event bodies. If the audit append fails, the coordinator returns
+a reconcile error after creating no claimable row; existing reconcile metrics,
+structured egress-skip logs, workflow rows, claim status, and index status
+remain the operator path for scheduling progress and failures.

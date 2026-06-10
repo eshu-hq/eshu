@@ -15,7 +15,11 @@ func (s Service) runAWSFreshnessHandoff(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("list durable collector instances for AWS freshness handoff: %w", err)
 	}
-	return s.scheduleAWSFreshnessWork(ctx, observedAt, s.filterCollectorInstancesByEgress(instances))
+	filtered, err := s.filterCollectorInstancesByEgress(ctx, observedAt, instances)
+	if err != nil {
+		return err
+	}
+	return s.scheduleAWSFreshnessWork(ctx, observedAt, filtered)
 }
 
 func (s Service) runActiveMaintenance(ctx context.Context) error {

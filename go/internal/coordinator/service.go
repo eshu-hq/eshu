@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -20,6 +21,11 @@ type Store interface {
 	EnqueueWorkItems(context.Context, []workflow.WorkItem) error
 	ReapExpiredClaims(context.Context, time.Time, int, time.Duration) ([]workflow.Claim, error)
 	ReconcileWorkflowRuns(context.Context, time.Time) (int, error)
+}
+
+// GovernanceAuditAppender records validation-safe hosted governance audit events.
+type GovernanceAuditAppender interface {
+	Append(context.Context, []governanceaudit.Event) error
 }
 
 // TerraformStatePlanner plans Terraform-state workflow rows from collector
@@ -155,6 +161,7 @@ type Service struct {
 	AWSFreshnessPlanner               AWSFreshnessPlanner
 	AWSFreshnessEvents                awsFreshnessEventCounter
 	IncidentFreshnessTriggers         IncidentFreshnessTriggerStore
+	GovernanceAudit                   GovernanceAuditAppender
 	Clock                             func() time.Time
 }
 
@@ -259,7 +266,16 @@ func (s Service) runReconcile(ctx context.Context) error {
 	}
 
 	durableCount := len(instances)
-	schedulingInstances := s.filterCollectorInstancesByEgress(instances)
+	schedulingInstances, err := s.filterCollectorInstancesByEgress(ctx, observedAt, instances)
+	if err != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:      reconcileOutcomeReconcileError,
+			Duration:     time.Since(startedAt),
+			DesiredCount: desiredCount,
+			DurableCount: durableCount,
+		})
+		return err
+	}
 	drift := desiredCount - durableCount
 	if drift < 0 {
 		drift = -drift

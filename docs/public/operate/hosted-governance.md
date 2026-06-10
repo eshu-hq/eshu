@@ -241,7 +241,10 @@ helm lint ./deploy/helm/eshu -f values.hosted-governance.yaml
    redaction mode, and retention posture all match.
 4. Treat policy-denied, unsafe, provider-unavailable, and budget-exhausted as
    different failure classes.
-5. Keep raw prompts, provider responses, source IDs, credential handles, and
+5. Current semantic policy and queue planning are pure evaluation paths. Use
+   semantic status and policy-denied queue rows as the source of truth until a
+   source-level semantic planner owns a private governance audit writer.
+6. Keep raw prompts, provider responses, source IDs, credential handles, and
    token-bearing URLs out of tickets.
 
 ### Blocked Collector Egress
@@ -294,15 +297,17 @@ helm lint ./deploy/helm/eshu -f values.hosted-governance.yaml
 5. Put only the event type, actor class, scope class, decision, reason code,
    correlation id, and timestamp in the ticket.
 
-### Blocked Semantic Egress Audit
+### Blocked Semantic Egress
 
-1. Check `/api/v0/status/governance` and `/api/v0/status/semantic-extraction`.
-2. Confirm `audit.unavailable_decision_count` or
-   `aggregates.denied_decision_count` increased.
-3. Query the private audit sink by
-   `event_type=semantic_policy_decision`, `decision=denied` or
-   `decision=unavailable`, actor class, source-class scope, reason code, and
-   time window.
+1. Check `/api/v0/status/semantic-extraction`.
+2. Confirm the redacted provider profile, source-policy, policy-denied,
+   unsafe-payload, provider-unavailable, and budget-exhausted counts before
+   enabling provider traffic.
+3. Current semantic egress decisions intentionally do not append governance
+   audit events because the shipped semantic policy and queue packages are pure
+   parser/planner code with no provider work writer. Do not expect
+   `event_type=semantic_policy_decision` rows until a source-level semantic
+   planner owns an audit sink.
 4. If the reason is `egress_policy_missing`, verify that the provider profile,
    source class, redaction posture, retention posture, and budget posture are
    configured before enabling egress.
