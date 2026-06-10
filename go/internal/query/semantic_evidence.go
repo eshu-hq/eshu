@@ -30,38 +30,40 @@ type semanticEvidenceStore interface {
 }
 
 type semanticEvidenceFilter struct {
-	FactKind           string
-	FactID             string
-	ScopeID            string
-	GenerationID       string
-	Repository         string
-	TargetKind         string
-	TargetID           string
-	ServiceID          string
-	SourceClass        string
-	SourceID           string
-	DocumentID         string
-	SectionID          string
-	RelativePath       string
-	EntityID           string
-	ProviderProfileID  string
-	ProviderKind       string
-	PromptVersion      string
-	RedactionVersion   string
-	ExtractionMode     string
-	PolicyState        string
-	RedactionState     string
-	FreshnessState     string
-	AdmissionState     string
-	CorroborationState string
-	ObservationType    string
-	HintType           string
-	RelationshipKind   string
-	Query              string
-	UpdatedSince       *time.Time
-	Limit              int
-	Cursor             string
-	Offset             int
+	FactKind             string
+	FactID               string
+	ScopeID              string
+	GenerationID         string
+	Repository           string
+	TargetKind           string
+	TargetID             string
+	ServiceID            string
+	SourceClass          string
+	SourceID             string
+	DocumentID           string
+	SectionID            string
+	RelativePath         string
+	EntityID             string
+	ProviderProfileID    string
+	ProviderKind         string
+	PromptVersion        string
+	RedactionVersion     string
+	ExtractionMode       string
+	PolicyState          string
+	RedactionState       string
+	FreshnessState       string
+	AdmissionState       string
+	CorroborationState   string
+	ObservationType      string
+	HintType             string
+	RelationshipKind     string
+	Query                string
+	UpdatedSince         *time.Time
+	AllowedScopeIDs      []string
+	AllowedRepositoryIDs []string
+	Limit                int
+	Cursor               string
+	Offset               int
 }
 
 type semanticEvidenceListReadModel struct {
@@ -137,6 +139,17 @@ func (h *SemanticEvidenceHandler) list(
 		)
 		return
 	}
+	var hasAuthorizedRows bool
+	filter, hasAuthorizedRows = semanticEvidenceFilterWithRepositoryAccess(r.Context(), filter)
+	if !hasAuthorizedRows {
+		WriteSuccess(w, r, http.StatusOK, semanticEvidenceResponse(responseKey, semanticEvidenceListReadModel{}, page), BuildTruthEnvelope(
+			h.profile(),
+			capability,
+			TruthBasisSemanticFacts,
+			"resolved from durable semantic evidence facts",
+		))
+		return
+	}
 	store, ok := h.semanticStore()
 	if !ok {
 		writeSemanticEvidenceError(
@@ -167,6 +180,22 @@ func (h *SemanticEvidenceHandler) list(
 		TruthBasisSemanticFacts,
 		"resolved from durable semantic evidence facts",
 	))
+}
+
+func semanticEvidenceFilterWithRepositoryAccess(
+	ctx context.Context,
+	filter semanticEvidenceFilter,
+) (semanticEvidenceFilter, bool) {
+	access := repositoryAccessFilterFromContext(ctx)
+	if !access.scoped() {
+		return filter, true
+	}
+	if access.empty() {
+		return filter, false
+	}
+	filter.AllowedRepositoryIDs = append([]string(nil), access.allowedRepositoryIDs...)
+	filter.AllowedScopeIDs = append([]string(nil), access.allowedScopeIDs...)
+	return filter, true
 }
 
 func (h *SemanticEvidenceHandler) semanticStore() (semanticEvidenceStore, bool) {

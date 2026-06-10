@@ -89,6 +89,90 @@ func TestSemanticEvidenceHandlerListsDocumentationObservationsWithTruthMetadata(
 	}
 }
 
+func TestSemanticEvidenceHandlerScopedEmptyGrantReturnsEmptyWithoutRead(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeSemanticEvidenceStore{
+		readModel: semanticEvidenceListReadModel{
+			Rows: []map[string]any{{
+				"fact_id":   "fact:semantic-doc-out-of-scope",
+				"fact_kind": facts.SemanticDocumentationObservationFactKind,
+			}},
+		},
+	}
+	handler := &SemanticEvidenceHandler{Content: store, Profile: ProfileProduction}
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/semantic/documentation-observations?provider_profile_id=semantic-docs-default&limit=25",
+		nil,
+	)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:        AuthModeScoped,
+		TenantID:    "tenant-a",
+		WorkspaceID: "workspace-a",
+	}))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+
+	handler.listDocumentationObservations(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	if store.calls != 0 {
+		t.Fatalf("semantic evidence store calls = %d, want 0 for empty scoped grants", store.calls)
+	}
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	data := envelope.Data.(map[string]any)
+	rows := data["observations"].([]any)
+	if got := len(rows); got != 0 {
+		t.Fatalf("len(observations) = %d, want 0", got)
+	}
+	if got, want := data["truncated"], false; got != want {
+		t.Fatalf("truncated = %#v, want %#v", got, want)
+	}
+}
+
+func TestSemanticEvidenceHandlerAllScopeScopedAdminKeepsUnboundedSemanticFilter(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeSemanticEvidenceStore{
+		readModel: semanticEvidenceListReadModel{
+			Rows: []map[string]any{{
+				"fact_id":   "fact:semantic-doc-admin-visible",
+				"fact_kind": facts.SemanticDocumentationObservationFactKind,
+			}},
+		},
+	}
+	handler := &SemanticEvidenceHandler{Content: store, Profile: ProfileProduction}
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/semantic/documentation-observations?provider_profile_id=semantic-docs-default&limit=25",
+		nil,
+	)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:      AuthModeScoped,
+		TenantID:  "tenant-admin",
+		AllScopes: true,
+	}))
+	rec := httptest.NewRecorder()
+
+	handler.listDocumentationObservations(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	if got, want := store.calls, 1; got != want {
+		t.Fatalf("semantic evidence store calls = %d, want %d", got, want)
+	}
+	if len(store.filter.AllowedRepositoryIDs) != 0 || len(store.filter.AllowedScopeIDs) != 0 {
+		t.Fatalf("all-scope admin filter has scoped bounds: %#v", store.filter)
+	}
+}
+
 func TestBuildSemanticEvidenceSQLFiltersCodeHintsByScopeAndProvider(t *testing.T) {
 	t.Parallel()
 
@@ -135,6 +219,47 @@ func TestBuildSemanticEvidenceSQLFiltersCodeHintsByScopeAndProvider(t *testing.T
 	}
 	if got, want := args[len(args)-1], 50; got != want {
 		t.Fatalf("offset arg = %#v, want %#v", got, want)
+	}
+}
+
+func TestBuildSemanticEvidenceSQLAppliesScopedRepositoryAuthorizationBeforePaging(t *testing.T) {
+	t.Parallel()
+
+	query, args := buildSemanticEvidenceSQL(semanticEvidenceFilter{
+		FactKind:             facts.SemanticCodeHintFactKind,
+		Repository:           "repo-team-a",
+		ProviderProfileID:    "semantic-code-default",
+		AllowedRepositoryIDs: []string{"repo-team-a", "repo-team-a"},
+		AllowedScopeIDs:      []string{"repo-scope-a"},
+		Limit:                10,
+	})
+
+	for _, fragment := range []string{
+		"fact_records.payload->'source'->>'repository_id' = $",
+		"fact_records.scope_id IN (",
+		"fact_records.payload->'source'->>'repository_id' IN (",
+		"fact_records.payload->'subject'->>'repository_id' IN (",
+		"jsonb_array_elements(COALESCE(fact_records.payload->'object_refs'",
+		"ORDER BY fact_records.observed_at DESC, fact_records.fact_id DESC",
+		"LIMIT $",
+	} {
+		if !strings.Contains(query, fragment) {
+			t.Fatalf("semantic evidence SQL missing fragment %q:\n%s", fragment, query)
+		}
+	}
+	authIndex := strings.Index(query, "fact_records.scope_id IN (")
+	orderIndex := strings.Index(query, "ORDER BY")
+	if authIndex < 0 || orderIndex < 0 || authIndex > orderIndex {
+		t.Fatalf("authorization predicate must appear before ORDER BY:\n%s", query)
+	}
+	if got, want := args[len(args)-4], "repo-team-a"; got != want {
+		t.Fatalf("first auth arg = %#v, want %#v; args=%#v", got, want, args)
+	}
+	if got, want := args[len(args)-3], "repo-scope-a"; got != want {
+		t.Fatalf("second auth arg = %#v, want %#v; args=%#v", got, want, args)
+	}
+	if got, want := args[len(args)-2], 11; got != want {
+		t.Fatalf("limit arg = %#v, want %#v; args=%#v", got, want, args)
 	}
 }
 
@@ -223,12 +348,14 @@ type fakeSemanticEvidenceStore struct {
 	filter    semanticEvidenceFilter
 	readModel semanticEvidenceListReadModel
 	err       error
+	calls     int
 }
 
 func (s *fakeSemanticEvidenceStore) semanticEvidence(
 	_ context.Context,
 	filter semanticEvidenceFilter,
 ) (semanticEvidenceListReadModel, error) {
+	s.calls++
 	s.filter = filter
 	return s.readModel, s.err
 }
