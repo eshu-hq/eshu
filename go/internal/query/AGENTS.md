@@ -206,6 +206,24 @@
   knob, or response field; existing HTTP route attribution and scanner-contract
   truth envelopes diagnose the static route.
 
+- **Hosted governance status scoped-token route evidence** — #2080 opens only
+  `GET /api/v0/status/governance` because `StatusHandler.getGovernanceStatus`
+  returns redacted runtime governance posture: normalized modes, safe revision
+  hashes, booleans, and aggregate counts. Existing governance status tests
+  prove policy bodies, private source IDs, credential handles, raw provider
+  details, prompts, provider responses, private endpoint-like values, and local
+  paths are not returned. The route does not read graph, content, repositories,
+  supply-chain findings, provider payloads, collectors, raw tenants, raw
+  workspaces, or token values. No-Regression Evidence: `go test
+  ./internal/query -run
+  'Test(StatusHandlerGovernance|GovernanceStatus|AuthMiddlewareWithScopedTokensAllowsGovernanceStatusRoute)'
+  -count=1` and `go test ./internal/mcp -run
+  'TestHostedGovernanceRuntimeToolRoutesToStatus|TestDispatchToolGovernanceStatusAllowsScopedRoute'
+  -count=1`. No-Observability-Change: the route adds no graph write, graph
+  read, content read, provider call, collector call, metric label, runtime knob,
+  or response field; existing HTTP route attribution and governance status
+  truth envelopes diagnose the redacted runtime readback path.
+
 - **Package registry reads stay anchored** — `PackageRegistryHandler` in
   `package_registry.go` must require `limit` plus a route-specific anchor
   before graph reads: package lookups use `package_id` or `ecosystem`, version

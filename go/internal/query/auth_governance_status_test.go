@@ -1,0 +1,78 @@
+package query
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+)
+
+func TestAuthMiddlewareWithScopedTokensAllowsGovernanceStatusRoute(t *testing.T) {
+	t.Parallel()
+
+	const (
+		rawPolicyBody    = `{"tenant":"private-team","endpoint":"https://private.invalid"}`
+		privateSourceID  = "repo:private-team/private-service"
+		credentialHandle = "UNSAFE_CREDENTIAL_MARKER"
+	)
+	statusHandler := &StatusHandler{
+		StatusReader: fakeStatusReader{
+			snapshot: statuspkg.RawSnapshot{
+				AsOf: time.Date(2026, 6, 10, 4, 0, 0, 0, time.UTC),
+			},
+		},
+		Profile: ProfileProduction,
+		Governance: GovernanceStatusConfig{
+			Mode:               "hosted_multi_tenant",
+			State:              "enforcing",
+			SourceKind:         "kubernetes_secret",
+			PolicyRevisionHash: "sha256:abcdef1234567890",
+			AuthMode:           "scoped_token",
+			TenantMode:         "multi_tenant",
+			WorkspaceMode:      "multi_workspace",
+			EgressMode:         "restricted",
+			RedactionState:     "configured",
+			AuditState:         "observed",
+			ExtensionMode:      "strict",
+			Reasons:            []string{rawPolicyBody, privateSourceID, credentialHandle},
+		},
+	}
+	mux := http.NewServeMux()
+	statusHandler.Mount(mux)
+	resolver := &fakeScopedTokenResolver{
+		context: AuthContext{
+			Mode:        AuthModeScoped,
+			TenantID:    "tenant-a",
+			WorkspaceID: "workspace-a",
+		},
+		ok: true,
+	}
+	handler := AuthMiddlewareWithScopedTokens("", resolver, mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/status/governance", nil)
+	req.Header.Set("Authorization", "Bearer scoped-token")
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, forbidden := range []string{rawPolicyBody, privateSourceID, credentialHandle, "private-team", "private.invalid"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("governance status leaked %q: %s", forbidden, body)
+		}
+	}
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	if envelope.Truth == nil || envelope.Truth.Capability != hostedGovernanceStatusCapability {
+		t.Fatalf("truth = %#v, want governance status truth", envelope.Truth)
+	}
+}
