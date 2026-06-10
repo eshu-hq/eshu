@@ -49,6 +49,8 @@ docker compose --env-file .env.remote-e2e.example \
   -f docker-compose.remote-e2e.yaml config
 
 scripts/test-remote-e2e-hosted-compose-render.sh
+scripts/test-verify-hosted-governance-remote-compose-proof.sh
+scripts/verify-hosted-governance-remote-compose-proof.sh
 ```
 
 For a real remote proof, keep the private env file, source selectors, provider
@@ -69,6 +71,17 @@ If the remote stack fails, classify the failure before changing settings:
 render error, missing private env value, provider auth denial, stale image,
 backend health, schema/index state, queue retry, graph-write timeout, or query
 shape.
+
+After the remote stack is running from the private operator environment, add the
+live hosted governance proof:
+
+```bash
+scripts/verify-hosted-governance-remote-compose-proof.sh --runtime
+```
+
+The default verifier proves local governance and remote render shape. The
+`--runtime` mode additionally runs the remote runtime-state gate and is the
+promotion evidence before Helm, Kubernetes, GitOps, or EKS rollout.
 
 ### 2. Prove API And MCP Usability
 

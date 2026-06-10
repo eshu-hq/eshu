@@ -58,6 +58,7 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 | Hosted API/MCP auth, secret, or exposure posture | `scripts/test-verify-hosted-security-posture.sh`, `scripts/verify-hosted-security-posture.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml` |
 | Hosted NetworkPolicy egress posture | `scripts/test-verify-hosted-network-policy-egress.sh`, `scripts/verify-hosted-network-policy-egress.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml` |
 | Hosted governance local proof posture | `scripts/test-verify-hosted-governance-proof.sh`, `scripts/verify-hosted-governance-proof.sh`, and the docs build |
+| Hosted governance remote Compose proof | `scripts/test-verify-hosted-governance-remote-compose-proof.sh`, `scripts/verify-hosted-governance-remote-compose-proof.sh`, and `scripts/verify-hosted-governance-remote-compose-proof.sh --runtime` after the remote Compose stack is running |
 | Hosted backup, restore, or graph-rebuild proof | `scripts/test-verify-hosted-backup-restore-proof.sh` and `scripts/verify-hosted-backup-restore-proof.sh --input restore-proof.json --output-json restore-proof.summary.json --output-markdown restore-proof.summary.md` |
 | Compose-to-Kubernetes runtime parity | `scripts/test-verify-compose-helm-runtime-parity.sh`, `scripts/verify-compose-helm-runtime-parity.sh`, and `helm lint deploy/helm/eshu` |
 | Hosted ops dashboard or alert pack | `scripts/test-verify-hosted-ops-alert-pack.sh`, `scripts/verify-hosted-ops-alert-pack.sh`, and `helm lint deploy/helm/eshu` |
