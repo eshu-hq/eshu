@@ -5,7 +5,17 @@ Parent: #1797
 Follow-up to: #1799 (merged repository-scope changed-since)
 
 Status: **Ownership (#1943), deployment (#1985), runtime (#1986),
-dependencies (#1987), and docs (#1988) families shipped.** The
+dependencies (#1987), docs (#1988), and incidents (#1989) families shipped.**
+The incidents family (#1989) ships the reducer emitter, category, and
+family-generic delta surface, but its production loader is intentionally left
+nil in `cmd/reducer`: keying it by the Eshu catalog `service_id` needs a durable
+PagerDuty-provider-service-id-to-catalog-service-id join that does not exist in
+the materialization path yet (only a fuzzy name fingerprint, which would violate
+correlation truth), and the reducer-side incident-routing input carries only the
+generation-bearing `FactID`, not the durable `StableFactKey` the incidents key
+needs. Both are tracked as the #1989 production-wiring follow-up; the nil-tolerant
+loader seam lands the family additively so it activates once the durable join and
+durable id exist. The
 additive service-generation lineage and the family-generic delta surface
 recommended below are implemented: `service_materialization_generations` +
 `service_evidence_snapshots`, the reducer write path that commits them, and
@@ -52,9 +62,21 @@ generation-stable. Unlike the relationship and runtime families it is keyed by
 service id rather than repository id, because documentation facts link to a
 service through their target refs, and is loaded by a service-scoped
 `fact_records` query rather than the shared `resolved_relationships` load. The
-remaining families (incidents, vulnerabilities) reuse this
-lineage/snapshot/delta foundation and are tracked follow-ups. The sections below
-record the original
+incidents family (#1989) emits one snapshot row per exact PagerDuty
+incident-routing slot (`intended_routing` / `applied_routing` / `live_routing`)
+that routes to a service, keyed by
+`incidents:<service_id>:<provider>:<provider_incident_id>:<slot>:<evidence_kind>:<evidence_id>`;
+the `evidence_id` is the source fact's generation-independent `StableFactKey` (or
+the durable content-entity id for the intended slot), NEVER the routing graph
+row's envelope `FactID`, which digests the generation (the
+`collector/terraformstate/pagerduty_applied.go` and
+`collector/pagerduty/config_envelope.go` envelopes build `FactID =
+StableID(..., {..., generation_id})`). Its reducer emitter, category, and the
+family-generic delta surface ship; its production loader is deferred (see the
+Status note above) behind a durable provider-to-catalog `service_id` join and the
+threading of `StableFactKey` into the incident-routing read model. The remaining
+family (vulnerabilities) reuses this lineage/snapshot/delta foundation and is a
+tracked follow-up. The sections below record the original
 investigation, the owning store/read-model contract, why the #1799 model did not
 transfer directly, and the recommended contract that the shipped families
 implement.

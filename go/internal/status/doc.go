@@ -64,7 +64,8 @@
 // the ownership (ChangedSinceCategoryOwnership, #1943), deployment
 // (ChangedSinceCategoryDeployment, #1985), runtime
 // (ChangedSinceCategoryRuntime, #1986), dependencies
-// (ChangedSinceCategoryDependencies, #1987), and docs
-// (ChangedSinceCategoryDocs, #1988) evidence families; the remaining families
-// append to ServiceChangedSinceCategories as they land.
+// (ChangedSinceCategoryDependencies, #1987), docs
+// (ChangedSinceCategoryDocs, #1988), and incidents
+// (ChangedSinceCategoryIncidents, #1989) evidence families; the remaining family
+// appends to ServiceChangedSinceCategories as it lands.
 package status

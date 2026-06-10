@@ -1927,6 +1927,87 @@ fields, the durable `service_materialization_generations`/
 API/MCP/CLI read surface that now reports the docs family alongside ownership,
 deployment, runtime, and dependencies.
 
+## Service incidents evidence family (#1989)
+
+The incidents evidence family extends the same service materialization lineage
+(#1943) without a new table, index, or reducer domain. Like the docs family it is
+keyed by SERVICE id, not repository id. Its source is exact PagerDuty
+incident-routing evidence: each correlated service's routing slots
+(`intended_routing` / `applied_routing` / `live_routing`) become one
+incidents-family `service_evidence_snapshots` row per slot in the same service
+generation as ownership, deployment, runtime, dependencies, and docs. When both
+`MaterializationWriter` and `IncidentEvidenceLoader` are wired,
+`ServiceCatalogCorrelationHandler` loads the correlated services' routing evidence
+in ONE bounded `GetIncidentEvidenceForServices` call.
+
+The row identity is `ServiceIncidentEvidenceKey(service_id, identity)` =
+`incidents:<service_id>:<provider>:<provider_incident_id>:<slot>:<evidence_kind>:<evidence_id>`.
+`provider`, `provider_incident_id`, `slot`, and `evidence_kind` are durable. The
+`evidence_id` is the source fact's generation-INDEPENDENT `StableFactKey` (for the
+applied/live routing facts) or the durable content-entity id (for the intended
+slot). It is deliberately NOT the routing graph row's `evidence_id`, which is the
+envelope `FactID`: both `collector/terraformstate/pagerduty_applied.go` and
+`collector/pagerduty/config_envelope.go` build `FactID =
+StableID(..., {..., generation_id})`, and the collector envelope tests assert
+`FactID` differs across generations while `StableFactKey` does not — so keying on
+`FactID` would report 100% false churn. The applied fact's `state_generation_id`
+(per-run metadata) is excluded from both the key and the hashed payload. A record
+missing any durable identity component is dropped rather than keyed on a
+generation-bearing or empty identity.
+
+Production loader DEFERRED (correlation truth). The production
+`IncidentEvidenceLoader` is intentionally left nil in `cmd/reducer` today, so the
+incidents family is currently exercised only through the reducer emitter and the
+family-generic delta surface, not from live routing facts. Two durable joins do
+not exist in the materialization path yet:
+
+1. Incident routing evidence carries the PagerDuty PROVIDER service id
+   (`incident.Service.ID`), while the service-scope changed-since surface diffs by
+   the Eshu CATALOG `service_id` (the catalog entityRef). There is no resolved
+   durable provider-to-catalog join — only a fuzzy service-name fingerprint, which
+   would violate correlation truth — and the `IncidentRoutingEvidence` graph node
+   has no edge to the `Service` node.
+2. The reducer-side `IncidentRoutingEvidenceInput` applied/observed types carry
+   only the generation-bearing `FactID`, not the durable `StableFactKey` a
+   correct incidents key needs. Threading `StableFactKey` through that read model
+   is an additive change to the incident-routing source path.
+
+Both are tracked as the #1989 production-wiring follow-up. The nil-tolerant seam
+(`ServiceScopedIncidentEvidenceLoader` + `attachServiceIncidentEvidence`) lands
+the family additively so it activates the moment the durable join and durable id
+exist, without a correlation-truth violation in the interim. This mirrors the
+docs/dependencies precedent of shipping the loader seam ahead of full wiring.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'ServiceIncident|BuildServiceIncident|ServiceMaterialization|ServiceCatalogHandler'
+-count=1` proves incidents rows carry generation-stable durable-identity keys (no
+embedded `fact_id`/`generation_id`/`state_generation_id`), the same durable
+routing row keys identically across generations (anti-churn cross-generation
+stability), a changed payload hash flips the generation while an identical
+re-materialization is a no-op, dropped rows are tombstoned, records without a
+complete durable identity are dropped, and the family is purely additive (no
+loader leaves the generation without incidents rows and the prior families' tests
+stay green). `go test ./internal/storage/postgres -run
+'TestComputeServiceChangedSinceDelta' -count=1` proves the family-generic delta SQL
+(grouped by `evidence_family`) classifies incidents
+added/updated/unchanged/retired/superseded with bounded ordered samples, reports
+no false incident deltas for an unchanged generation, and reports zero deltas for
+the other families on an incidents-only change. The incidents rows reuse the
+existing `service_evidence_snapshots_diff_idx` (`generation_id`, `evidence_family`,
+`service_evidence_key`); no new index or schema migration is added. Live-Postgres
+SQL is proven by the same fake `Queryer`/`Rows` harness Stage-1 uses; the live SQL
+gate is the Postgres integration suite in CI.
+
+Observability Evidence: this slice adds no new metric instrument, label, queue
+domain, lease, or runtime knob. The incidents family lands inside the existing
+`service_catalog_correlation` reducer execution span/counter and the same service
+materialization commit path Stage-1 already instruments; operators diagnose it
+through reducer run spans, execution counters, `fact_work_items` status/failure
+fields, the durable `service_materialization_generations`/
+`service_evidence_snapshots` rows, and the `get_service_changed_since`
+API/MCP/CLI read surface that now reports the incidents family alongside the prior
+five.
+
 ## Cloud inventory identity admission (issues #1997, #1998)
 
 `DomainCloudInventoryAdmission` admits provider cloud-inventory source facts
