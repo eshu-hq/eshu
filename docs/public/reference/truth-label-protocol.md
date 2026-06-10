@@ -126,6 +126,51 @@ Current query error codes are:
 Unsupported capability errors include the capability and current/required
 profiles when the handler has that information.
 
+## Authorization vs Evidence Truth
+
+Authorization outcomes and evidence-truth outcomes answer different questions and
+must never be flattened into each other. Authorization describes the **caller**;
+truth/freshness describes **what Eshu knows**, independent of who is asking.
+
+Authorization outcomes (about the caller):
+
+- `unauthenticated` — no credential, or a credential that resolved to no
+  identity. The caller has not proven who they are.
+- `permission_denied` — the caller is authenticated but not authorized for the
+  requested route, repository, or source. A scoped per-team token receives this
+  on a route that is not yet proven tenant-filtered, and an out-of-grant
+  repository selector resolves to `not_found` rather than disclosing that the
+  repository exists. A scoped token whose grants authorize no repositories
+  receives the route's existing bounded empty/zero shape — never a
+  `permission_denied` dressed up as evidence, and never an unbounded read.
+
+Evidence-truth outcomes (about the data, for an authorized caller):
+
+- `missing_evidence` — Eshu is authorized to answer but has no admissible
+  evidence for the target yet. This is not a permission problem.
+- `freshness.state = stale` / `building` — the evidence exists but is behind or
+  still materializing. Stale is not wrong (see [Stale is not wrong](#stale-is-not-wrong));
+  a stale answer is still the caller's authorized answer.
+- `unsupported_capability` / `capability_degraded` — the route or runtime
+  profile does not support the query. The caller may be fully authorized; the
+  capability simply is not available here.
+
+Source ACL state is a third, distinct axis. When a source collector observes
+that content is permission-hidden or permission-denied at the origin (for
+example a private document the integration token cannot read), that bounded ACL
+state is carried into readbacks and into semantic extraction policy. It is not
+the same as freshness (the data may be perfectly fresh yet not visible to the
+source identity) and not the same as unsupported capability (the route works,
+but the source forbids the content). Semantic extraction fails closed when
+source ACL state is anything other than `allowed`, so denied, missing, partial,
+or stale ACL never silently becomes provider egress.
+
+The invariant: preserve `missing_evidence`, `stale`, `building`, and
+`unsupported_capability` as themselves. Do not collapse them into
+`permission_denied`, and do not present a `permission_denied` or out-of-grant
+result as missing or empty evidence that a reader could misinterpret as a clean
+"nothing found" answer.
+
 ## Per-Item Truth
 
 List responses may contain mixed-confidence entries. Individual items may carry
