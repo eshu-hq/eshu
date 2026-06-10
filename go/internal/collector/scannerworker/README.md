@@ -42,7 +42,10 @@ graph projection phases.
   safe target-scope derivation for scanner work items.
 - `Service` — claim loop that copies workflow claims into `ClaimInput`, runs an
   analyzer, validates source-fact output, commits under the claim fence, and
-  records retry or dead-letter state.
+  records retry or dead-letter state. Hosted tenant, workspace, subject-class,
+  and policy-revision identity are copied from the work item into the commit
+  mutation so persistence can re-check the active grant without exposing raw
+  target locators.
 - `WarningAnalyzer` — safe built-in analyzer used when no concrete scanner is
   configured; it emits `scanner_worker.warning`.
 
@@ -105,6 +108,9 @@ uses `failure_class=commit_failed` and the log adds a bounded
   value for both, but storage forbids a scope from parenting itself.
 - Claim input rejects mismatched claim IDs, fencing tokens, owners, lease
   expirations, expired claims, and non-scanner workflow items.
+- Commit mutations carry hosted tenant boundaries as an all-or-none group. A
+  missing, stale, tombstoned, or expired grant makes persistence fail under the
+  claim fence and routes the worker through retry or dead-letter handling.
 - The built-in warning analyzer is not a clean finding. It preserves proof that
   the hosted worker claimed and committed source evidence without pretending a
   real scanner ran. Warning payloads carry `analysis_status=not_scanned` and

@@ -12,6 +12,8 @@
 // fencing, and batch-drain hooks explicitly. Raw Terraform-state bytes do not
 // enter normal repository snapshots; only metadata-only state candidates are
 // emitted for the Terraform-state collector path to approve and read.
+// Claim-aware collection copies hosted tenant boundaries from workflow work
+// items into commit mutations so storage can fence fact persistence.
 // Repository-hosted Markdown, lightweight text, HTML, API contracts, notebook
 // narrative, bounded DOCX summaries, conservative delimited spreadsheet files,
 // bounded XLSX workbook summaries, bounded PPTX slide summaries, bounded ZIP

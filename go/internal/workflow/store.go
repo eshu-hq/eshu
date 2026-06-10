@@ -18,15 +18,22 @@ type ClaimSelector struct {
 
 // ClaimMutation carries the fenced mutation arguments for one claim epoch.
 type ClaimMutation struct {
-	WorkItemID     string
-	ClaimID        string
-	FencingToken   int64
-	OwnerID        string
-	ObservedAt     time.Time
-	LeaseDuration  time.Duration
-	FailureClass   string
-	FailureMessage string
-	VisibleAt      time.Time
+	WorkItemID    string
+	ClaimID       string
+	FencingToken  int64
+	OwnerID       string
+	ObservedAt    time.Time
+	LeaseDuration time.Duration
+	// Tenant boundary fields are optional for legacy shared-mode work, but
+	// hosted claim-aware collectors set all four so the fact commit boundary
+	// can re-check and lock the active grant before persisting source facts.
+	TenantID           string
+	WorkspaceID        string
+	SubjectClass       string
+	PolicyRevisionHash string
+	FailureClass       string
+	FailureMessage     string
+	VisibleAt          time.Time
 	// Resolved* fields optionally replace a planned work-item phase identity
 	// when a collector can only know the final reducer checkpoint tuple after
 	// opening the source. Terraform-state work uses this to move from candidate

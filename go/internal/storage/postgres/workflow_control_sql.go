@@ -216,6 +216,7 @@ WITH candidate AS (
                 AND tenant_scope_grants.tombstoned_at IS NULL
                 AND tenant_scope_grants.effective_at <= $1
                 AND (tenant_scope_grants.expires_at IS NULL OR tenant_scope_grants.expires_at > $1)
+              FOR SHARE OF tenant_scope_grants, tenants, workspaces
           )
       )
       AND claim.fencing_token = $3
@@ -275,6 +276,7 @@ WITH candidate AS (
                 AND tenant_scope_grants.tombstoned_at IS NULL
                 AND tenant_scope_grants.effective_at <= $1
                 AND (tenant_scope_grants.expires_at IS NULL OR tenant_scope_grants.expires_at > $1)
+              FOR SHARE OF tenant_scope_grants, tenants, workspaces
           )
       )
       AND claim.fencing_token = $3

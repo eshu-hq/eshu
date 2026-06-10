@@ -140,7 +140,8 @@ No-Observability-Change: documentation extraction stays inside existing `collect
 - `Committer` — interface: `CommitScopeGeneration(ctx, scope, generation, <-chan facts.Envelope) error`
 - `ClaimedCommitter` — optional fence-aware commit interface used by
   `ClaimedService` so claim ownership can be verified in the same transaction
-  that persists facts
+  that persists facts; hosted claim mutations also carry the work item's tenant
+  boundary so storage can re-check the active grant before fact writes
 - `CollectedGeneration` — `Scope`, `Generation`, `Facts` channel, `FactCount`,
   optional `DiscoveryAdvisory`
 - `GitSource` — implements `Source`; fields include `Selector`,
@@ -194,7 +195,9 @@ No-Observability-Change: documentation extraction stays inside existing `collect
   workflow-coordinator-gated collection; `MaxAttempts` bounds per-work-item
   retries so a recurring retryable failure escalates to terminal with class
   `attempt_budget_exhausted` (issue #612 safety net). Leave `MaxAttempts` at
-  zero to preserve legacy unbounded behavior.
+  zero to preserve legacy unbounded behavior. Hosted work items copy their
+  tenant, workspace, subject-class, and policy-revision identity into the
+  commit mutation before `ClaimedCommitter` persists facts.
 - `FailureClassAttemptBudgetExhausted` — exported failure-class label that
   `ClaimedService` writes to `workflow_claims.failure_class` and
   `workflow_work_items.last_failure_class` when the retry budget escalates a

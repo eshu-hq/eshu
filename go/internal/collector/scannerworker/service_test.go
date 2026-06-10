@@ -21,6 +21,10 @@ func TestServiceProcessesClaimAndCommitsSourceFacts(t *testing.T) {
 	t.Parallel()
 
 	item := testScannerWorkItem()
+	item.TenantID = "tenant-a"
+	item.WorkspaceID = "workspace-a"
+	item.SubjectClass = "scanner_worker"
+	item.PolicyRevisionHash = "policy-a"
 	claim := testScannerClaim(item)
 	store := &recordingClaimStore{}
 	committer := &recordingClaimCommitter{}
@@ -54,6 +58,12 @@ func TestServiceProcessesClaimAndCommitsSourceFacts(t *testing.T) {
 	}
 	if len(committer.facts) != 1 {
 		t.Fatalf("committed facts = %d, want 1", len(committer.facts))
+	}
+	if got := committer.mutation; got.TenantID != item.TenantID ||
+		got.WorkspaceID != item.WorkspaceID ||
+		got.SubjectClass != item.SubjectClass ||
+		got.PolicyRevisionHash != item.PolicyRevisionHash {
+		t.Fatalf("commit mutation tenant boundary = %#v, want boundary from work item", got)
 	}
 	if committer.facts[0].FactKind != facts.ScannerWorkerAnalysisFactKind {
 		t.Fatalf("committed fact kind = %q, want scanner source fact", committer.facts[0].FactKind)

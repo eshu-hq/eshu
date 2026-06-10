@@ -302,7 +302,32 @@ func validateClaimMutation(mutation workflow.ClaimMutation) error {
 	if mutation.ObservedAt.IsZero() {
 		return fmt.Errorf("observed at is required")
 	}
+	if _, err := validateClaimMutationTenantBoundary(mutation); err != nil {
+		return err
+	}
 	return nil
+}
+
+func validateClaimMutationTenantBoundary(mutation workflow.ClaimMutation) (bool, error) {
+	values := []string{
+		mutation.TenantID,
+		mutation.WorkspaceID,
+		mutation.SubjectClass,
+		mutation.PolicyRevisionHash,
+	}
+	present := 0
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			present++
+		}
+	}
+	if present == 0 {
+		return false, nil
+	}
+	if present != len(values) {
+		return false, fmt.Errorf("claim tenant boundary requires tenant_id, workspace_id, subject_class, and policy_revision_hash")
+	}
+	return true, nil
 }
 
 func validateCompleteClaimMutation(mutation workflow.ClaimMutation) error {

@@ -282,12 +282,16 @@ func (s Service) resourceLimits() (ResourceLimits, error) {
 
 func (s Service) claimMutation(item workflow.WorkItem, claim workflow.Claim) workflow.ClaimMutation {
 	return workflow.ClaimMutation{
-		WorkItemID:    item.WorkItemID,
-		ClaimID:       claim.ClaimID,
-		FencingToken:  claim.FencingToken,
-		OwnerID:       claim.OwnerID,
-		ObservedAt:    s.now(),
-		LeaseDuration: s.ClaimLeaseTTL,
+		WorkItemID:         item.WorkItemID,
+		ClaimID:            claim.ClaimID,
+		FencingToken:       claim.FencingToken,
+		OwnerID:            claim.OwnerID,
+		ObservedAt:         s.now(),
+		LeaseDuration:      s.ClaimLeaseTTL,
+		TenantID:           item.TenantID,
+		WorkspaceID:        item.WorkspaceID,
+		SubjectClass:       item.SubjectClass,
+		PolicyRevisionHash: item.PolicyRevisionHash,
 	}
 }
 
