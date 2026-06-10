@@ -266,21 +266,24 @@ func TestServiceMaterializationVulnerabilitiesChangeFlipsGeneration(t *testing.T
 	}
 }
 
-// fakeServiceScopedVulnerabilityLoader returns advisory records keyed by Eshu
-// catalog service id.
-type fakeServiceScopedVulnerabilityLoader struct {
-	byService map[string][]ServiceVulnerabilityRecord
+// fakeRepoScopedVulnerabilityLoader returns supply-chain advisory records keyed by
+// canonical repository id, recording the exact repository id set it was asked for
+// so a test can prove the load is bounded, once, and repository-scoped.
+type fakeRepoScopedVulnerabilityLoader struct {
+	byRepo    map[string][]ServiceVulnerabilityRecord
 	calls     int
+	lastRepos []string
 }
 
-func (f *fakeServiceScopedVulnerabilityLoader) GetVulnerabilityEvidenceForServices(
+func (f *fakeRepoScopedVulnerabilityLoader) GetSupplyChainAdvisoriesForRepos(
 	_ context.Context,
-	serviceIDs []string,
+	repoIDs []string,
 ) (map[string][]ServiceVulnerabilityRecord, error) {
 	f.calls++
+	f.lastRepos = append([]string(nil), repoIDs...)
 	out := map[string][]ServiceVulnerabilityRecord{}
-	for _, serviceID := range serviceIDs {
-		out[serviceID] = f.byService[serviceID]
+	for _, repoID := range repoIDs {
+		out[repoID] = f.byRepo[repoID]
 	}
 	return out, nil
 }
@@ -298,9 +301,11 @@ func TestServiceCatalogHandlerCommitsVulnerabilitiesFamilyWhenWired(t *testing.T
 			repositoryFact("repo-checkout", "checkout", "https://github.com/acme/checkout.git", false),
 		},
 	}
-	vulnerabilityLoader := &fakeServiceScopedVulnerabilityLoader{
-		byService: map[string][]ServiceVulnerabilityRecord{
-			"svc-checkout": {affectedAdvisoryRecord()},
+	// Correlation truth: the advisory is attributed to the service ONLY because its
+	// repository (repo-checkout) carries a supply-chain impact finding.
+	vulnerabilityLoader := &fakeRepoScopedVulnerabilityLoader{
+		byRepo: map[string][]ServiceVulnerabilityRecord{
+			"repo-checkout": {affectedAdvisoryRecord()},
 		},
 	}
 	materialization := newFakeServiceMaterializationStore()
@@ -323,6 +328,9 @@ func TestServiceCatalogHandlerCommitsVulnerabilitiesFamilyWhenWired(t *testing.T
 	if vulnerabilityLoader.calls != 1 {
 		t.Fatalf("vulnerability loader calls = %d, want 1 bounded load", vulnerabilityLoader.calls)
 	}
+	if len(vulnerabilityLoader.lastRepos) != 1 || vulnerabilityLoader.lastRepos[0] != "repo-checkout" {
+		t.Fatalf("repo-scoped load = %v, want [repo-checkout]", vulnerabilityLoader.lastRepos)
+	}
 
 	var vulnerabilityRows int
 	for _, rows := range materialization.snapshots {
@@ -334,6 +342,60 @@ func TestServiceCatalogHandlerCommitsVulnerabilitiesFamilyWhenWired(t *testing.T
 	}
 	if vulnerabilityRows == 0 {
 		t.Fatal("expected at least one vulnerabilities-family snapshot row after correlation with advisory evidence")
+	}
+}
+
+// TestServiceCatalogHandlerAttributesVulnerabilityOnlyViaRepositoryFinding is the
+// correlation-truth negative case: an advisory finding that belongs to a DIFFERENT
+// repository must never be attributed to a service whose repository carries no
+// finding. The only durable join is service -> repository -> finding; a service
+// gets an advisory only through its own repository's impact finding.
+func TestServiceCatalogHandlerAttributesVulnerabilityOnlyViaRepositoryFinding(t *testing.T) {
+	t.Parallel()
+
+	loader := &stubServiceCatalogCorrelationFactLoader{
+		scopeFacts: []facts.Envelope{
+			serviceTypedCatalogEntityFact("entity", "component:default/checkout", "Checkout"),
+			serviceCatalogOwnershipFact("ownership", "component:default/checkout", "team-payments"),
+			serviceCatalogRepositoryIDLinkFact("repo-link", "component:default/checkout", "repo-checkout"),
+		},
+		activeRepos: []facts.Envelope{
+			repositoryFact("repo-checkout", "checkout", "https://github.com/acme/checkout.git", false),
+		},
+	}
+	// The finding lives on a different repository, so it must NOT attach to the
+	// checkout service. Loading by repo-checkout returns nothing for repo-other.
+	vulnerabilityLoader := &fakeRepoScopedVulnerabilityLoader{
+		byRepo: map[string][]ServiceVulnerabilityRecord{
+			"repo-other": {affectedAdvisoryRecord()},
+		},
+	}
+	materialization := newFakeServiceMaterializationStore()
+	handler := ServiceCatalogCorrelationHandler{
+		FactLoader:                  loader,
+		Writer:                      &recordingServiceCatalogCorrelationWriter{},
+		MaterializationWriter:       PostgresServiceMaterializationWriter{DB: materialization, Now: time.Now},
+		VulnerabilityEvidenceLoader: vulnerabilityLoader,
+	}
+
+	if _, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent",
+		ScopeID:      "service-catalog-manifest://repo-checkout/catalog-info.yaml",
+		GenerationID: "gen",
+		Domain:       DomainServiceCatalogCorrelation,
+		SourceSystem: "service_catalog",
+	}); err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if len(vulnerabilityLoader.lastRepos) != 1 || vulnerabilityLoader.lastRepos[0] != "repo-checkout" {
+		t.Fatalf("repo-scoped load = %v, want [repo-checkout]", vulnerabilityLoader.lastRepos)
+	}
+	for _, rows := range materialization.snapshots {
+		for _, row := range rows {
+			if strings.HasPrefix(row.evidenceKey, ServiceEvidenceFamilyVulnerabilities+":") {
+				t.Fatal("advisory finding on a different repository must not attach to this service")
+			}
+		}
 	}
 }
 

@@ -130,16 +130,15 @@ type ServiceCatalogCorrelationHandler struct {
 	IncidentEvidenceLoader ServiceScopedIncidentEvidenceLoader
 	// VulnerabilityEvidenceLoader, when set alongside MaterializationWriter,
 	// supplies the supply-chain advisory evidence affecting each correlated
-	// service so the vulnerabilities evidence family (#1990) is materialized into
-	// the same generation as the prior families. Like the documentation and
-	// incident loaders it is keyed by Eshu catalog service id rather than
-	// repository id. It is optional and is intentionally left nil in production
-	// today: resolving an advisory to the services it affects needs a durable
-	// service -> repository -> package -> advisory join that does not exist in the
-	// materialization path yet (the #1990 follow-up). A nil loader leaves the
-	// generation without vulnerabilities rows, preserving the prior families'
-	// contract.
-	VulnerabilityEvidenceLoader ServiceScopedVulnerabilityEvidenceLoader
+	// service's repository so the vulnerabilities evidence family (#1990) is
+	// materialized into the same generation as the prior families. Like the
+	// deployment, dependencies, and runtime loaders it is keyed by repository id:
+	// a service is attributed an advisory only through a real
+	// reducer_supply_chain_impact_finding on its repository, the durable
+	// dependency-derived impact, never a fuzzy advisory-to-service name match
+	// (#2127). It is optional: a nil loader leaves the generation without
+	// vulnerabilities rows, preserving the prior families' contract.
+	VulnerabilityEvidenceLoader ServiceVulnerabilityAdvisoryLoader
 	Instruments                 *telemetry.Instruments
 }
 
@@ -230,7 +229,7 @@ func (h ServiceCatalogCorrelationHandler) commitServiceGenerations(
 	if err := h.attachServiceIncidentEvidence(ctx, writes); err != nil {
 		return err
 	}
-	if err := h.attachServiceVulnerabilityEvidence(ctx, writes); err != nil {
+	if err := h.attachServiceVulnerabilityEvidence(ctx, writes, decisions); err != nil {
 		return err
 	}
 	for _, write := range writes {

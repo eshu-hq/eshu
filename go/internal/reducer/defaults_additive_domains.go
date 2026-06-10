@@ -58,6 +58,7 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 			DeploymentRelationshipLoader: serviceCatalogDeploymentRelationshipLoader(handlers),
 			RuntimeInstanceLoader:        serviceCatalogRuntimeInstanceLoader(handlers),
 			DocumentationEvidenceLoader:  serviceCatalogDocumentationEvidenceLoader(handlers),
+			VulnerabilityEvidenceLoader:  serviceCatalogVulnerabilityEvidenceLoader(handlers),
 			Instruments:                  handlers.Instruments,
 		}
 		definitions = append(definitions, serviceCatalog)
@@ -451,4 +452,20 @@ func serviceCatalogDocumentationEvidenceLoader(
 		return nil
 	}
 	return handlers.ServiceDocumentationEvidenceLoader
+}
+
+// serviceCatalogVulnerabilityEvidenceLoader returns the repository-scoped
+// supply-chain advisory loader used to materialize the service vulnerabilities
+// evidence family (#1990, #2127), or nil when the family cannot be sourced. The
+// family is only wired when both the service generation lineage writer is present
+// and a supply-chain advisory loader is configured, so vulnerabilities evidence is
+// purely additive and never blocks the ownership/deployment/runtime/dependencies/
+// docs lineage.
+func serviceCatalogVulnerabilityEvidenceLoader(
+	handlers DefaultHandlers,
+) ServiceVulnerabilityAdvisoryLoader {
+	if handlers.ServiceMaterializationWriter == nil || handlers.ServiceVulnerabilityAdvisoryLoader == nil {
+		return nil
+	}
+	return handlers.ServiceVulnerabilityAdvisoryLoader
 }

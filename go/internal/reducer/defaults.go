@@ -274,6 +274,15 @@ type DefaultHandlers struct {
 	// It is optional; when nil the generation simply carries no docs rows.
 	ServiceDocumentationEvidenceLoader ServiceScopedDocumentationEvidenceLoader
 
+	// ServiceVulnerabilityAdvisoryLoader, when set alongside
+	// ServiceMaterializationWriter, supplies the supply-chain advisory findings on
+	// each correlated service's repository so the vulnerabilities evidence family
+	// (#1990) is snapshotted into each service generation. It is keyed by repository
+	// id: a service is attributed an advisory only through a real
+	// reducer_supply_chain_impact_finding on its repository (#2127). It is optional;
+	// when nil the generation simply carries no vulnerabilities rows.
+	ServiceVulnerabilityAdvisoryLoader ServiceVulnerabilityAdvisoryLoader
+
 	// ObservabilityCoverageCorrelationWriter persists observability coverage
 	// correlation decisions (covered, gap, ambiguous, stale, rejected) for
 	// CloudWatch, CloudWatch Logs, and X-Ray facts.

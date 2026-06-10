@@ -336,6 +336,17 @@ blocked cross-scope endpoint readiness.
   Reducer reconciliation keeps provider-scoped repository IDs separate from
   canonical `repository_id` values, so Postgres fact payloads should preserve
   both when the source uses a provider-owned repository namespace.
+- `GetSupplyChainAdvisoriesForRepos` (issue #2127) is the repo-scoped read that
+  sources the service vulnerabilities evidence family (#1990). It loads active,
+  non-tombstone `reducer_supply_chain_impact_finding` facts filtered by
+  `payload->>'repository_id'`, paged by the `fact_id` keyset, and maps each
+  finding to a `reducer.ServiceVulnerabilityRecord` grouped by repository id. It
+  is served by the partial index
+  `fact_records_supply_chain_impact_repository_lookup_idx`
+  (`payload->>'repository_id'`, `fact_id ASC`, `generation_id`) under the
+  `reducer_supply_chain_impact_finding` + `is_tombstone = FALSE` predicate. A
+  service is attributed an advisory only through a real impact finding on its
+  repository; there is no fuzzy advisory-to-service name match.
 - `ListActiveSBOMAttestationAttachmentFacts` keeps attachment repair bounded by
   subject digest, document id/digest, statement id/digest, payload digest, and
   referrer digest. It may read active SBOM document/component and attestation

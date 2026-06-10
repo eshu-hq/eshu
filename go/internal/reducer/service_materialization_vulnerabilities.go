@@ -7,31 +7,29 @@ import (
 	"strings"
 )
 
-// ServiceScopedVulnerabilityEvidenceLoader returns the current vulnerability
-// (supply-chain advisory) evidence for one or more correlated services,
-// regardless of which fact generation produced it. It is the vulnerabilities
-// analogue of ServiceScopedIncidentEvidenceLoader: keyed by Eshu catalog service
-// id, not repository id, because a service is affected by an advisory only
-// indirectly (service -> repositories -> packages -> advisory) and the resolved
-// service linkage is what the changed-since surface diffs by.
+// ServiceVulnerabilityAdvisoryLoader returns the supply-chain advisory evidence
+// that affects one or more repositories, regardless of which fact generation
+// produced it. It is the vulnerabilities analogue of
+// RepositoryScopedResolvedRelationshipLoader: keyed by canonical repository id,
+// not service id, because a service is attributed an advisory ONLY through a real
+// supply-chain impact finding on its repository
+// (service -> repository -> supply_chain_impact_finding -> advisory). The handler
+// resolves each service to its repository via serviceRepositoryIndex(decisions)
+// and partitions the loaded advisories per service by repository id, mirroring how
+// the deployment, dependencies, and runtime families source their evidence.
 //
-// CONTRACT (correlation truth). The map key MUST be the durable Eshu catalog
-// service id (the entityRef the service-scope changed-since surface diffs by).
-// Advisory evidence is advisory-centric and carries no service id natively
-// (AdvisoryEvidenceRow has canonical_id and affected packages, never a
-// service_id); resolving an advisory to the services it affects requires a
-// durable service -> repository -> package -> advisory join that does not exist
-// in the materialization path today. Until that durable join lands the
-// production loader is intentionally NOT wired (see
-// cmd/reducer/service_materialization.go and the #1990 follow-up). The returned
-// records MUST carry only durable external advisory/package identity (the
-// advisory canonical id and the affected package ecosystem/name), never an
-// evidence fact_id or generation id, so the vulnerabilities service_evidence_key
-// stays generation-stable.
-type ServiceScopedVulnerabilityEvidenceLoader interface {
-	GetVulnerabilityEvidenceForServices(
+// CONTRACT (correlation truth). The map key MUST be the canonical repository id.
+// The returned advisories are the materialized reducer_supply_chain_impact_finding
+// rows for that repository: a service is attributed an advisory only when its
+// repository carries a real, dependency-derived impact finding, never through a
+// fuzzy advisory-to-service name match. The returned records MUST carry only
+// durable external advisory/package identity (the advisory canonical id and the
+// affected package ecosystem/name), never an evidence fact_id or generation id, so
+// the vulnerabilities service_evidence_key stays generation-stable.
+type ServiceVulnerabilityAdvisoryLoader interface {
+	GetSupplyChainAdvisoriesForRepos(
 		ctx context.Context,
-		serviceIDs []string,
+		repoIDs []string,
 	) (map[string][]ServiceVulnerabilityRecord, error)
 }
 
@@ -241,39 +239,43 @@ func addServiceVulnerabilityEvidence(
 }
 
 // attachServiceVulnerabilityEvidence loads the supply-chain advisory evidence that
-// affects the correlated services and attaches the vulnerabilities evidence family
-// to the matching per-service writes. It is a no-op when no loader is wired or
-// there are no writes, so the vulnerabilities family is purely additive. The
-// records are loaded once for all services in a single bounded call keyed by Eshu
-// catalog service id; a service with no advisory evidence simply carries no
+// affects the correlated services' repositories and attaches the vulnerabilities
+// evidence family to the matching per-service writes. It is a no-op when no loader
+// is wired or no decision carries a repository, so the vulnerabilities family is
+// purely additive. The advisories are loaded once for all repositories in a single
+// bounded call keyed by repository id, then partitioned per service by repository
+// id, mirroring attachServiceRelationshipEvidence and attachServiceRuntimeEvidence;
+// a service whose repository has no supply-chain impact finding simply carries no
 // vulnerabilities rows.
 //
-// The production loader is intentionally NOT wired today: resolving an advisory to
-// the services it affects needs a durable service -> repository -> package ->
-// advisory join that does not exist in the materialization path (see the #1990
-// follow-up). This seam is nil-tolerant so the family lands without a
-// correlation-truth violation and is activated once the durable join exists.
+// CORRELATION TRUTH. A service is attributed an advisory only when its repository
+// has a real reducer_supply_chain_impact_finding (a dependency-derived impact),
+// never through a fuzzy advisory-to-service name match. The repository binding is
+// the durable serviceRepositoryIndex(decisions) join the prior families already
+// use, so the linkage carries the same correlation-truth guarantee.
 func (h ServiceCatalogCorrelationHandler) attachServiceVulnerabilityEvidence(
 	ctx context.Context,
 	writes []ServiceMaterializationWrite,
+	decisions []ServiceCatalogCorrelationDecision,
 ) error {
 	if h.VulnerabilityEvidenceLoader == nil || len(writes) == 0 {
 		return nil
 	}
-	serviceIDs := distinctMaterializationServiceIDs(writes)
-	if len(serviceIDs) == 0 {
+	repoByService := serviceRepositoryIndex(decisions)
+	repoIDs := distinctServiceRepositoryIDs(writes, repoByService)
+	if len(repoIDs) == 0 {
 		return nil
 	}
-	recordsByService, err := h.VulnerabilityEvidenceLoader.GetVulnerabilityEvidenceForServices(ctx, serviceIDs)
+	advisoriesByRepo, err := h.VulnerabilityEvidenceLoader.GetSupplyChainAdvisoriesForRepos(ctx, repoIDs)
 	if err != nil {
 		return fmt.Errorf("load service vulnerability evidence: %w", err)
 	}
 	for i := range writes {
-		serviceID := strings.TrimSpace(writes[i].ServiceID)
-		if serviceID == "" {
+		repoID := repoByService[writes[i].ServiceID]
+		if repoID == "" {
 			continue
 		}
-		writes[i].Vulnerabilities = buildServiceVulnerabilityEvidence(recordsByService[serviceID])
+		writes[i].Vulnerabilities = buildServiceVulnerabilityEvidence(advisoriesByRepo[repoID])
 	}
 	return nil
 }
