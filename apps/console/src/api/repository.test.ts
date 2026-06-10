@@ -1,7 +1,6 @@
 import { EshuApiClient } from "./client";
 import { inspectionRequest } from "../test/inspectionRequest";
 import { loadWorkspaceStory } from "./repository";
-
 describe("workspace story adapter", () => {
   it("loads demo workspace stories from typed fixtures", async () => {
     const story = await loadWorkspaceStory({
@@ -9,10 +8,8 @@ describe("workspace story adapter", () => {
       entityKind: "workloads",
       mode: "demo"
     });
-
     expect(story?.title).toBe("checkout-service");
   });
-
   it("calls service story routes for private workload stories", async () => {
     const paths: string[] = [];
     const fetcher = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -36,21 +33,18 @@ describe("workspace story adapter", () => {
       baseUrl: "http://localhost:8080",
       fetcher
     });
-
     const story = await loadWorkspaceStory({
       client,
       entityId: "workload:checkout-service",
       entityKind: "workloads",
       mode: "private"
     });
-
     expect(paths).toEqual([
       "/api/v0/services/workload%3Acheckout-service/story",
       "/api/v0/impact/deployment-config-influence"
     ]);
     expect(story?.story).toContain("ArgoCD");
   });
-
   it("loads legacy repository story payloads from the live HTTP API", async () => {
     const client = new EshuApiClient({
       baseUrl: "http://localhost:8080",
@@ -75,9 +69,9 @@ describe("workspace story adapter", () => {
           limitations: ["coverage_not_computed"],
           repository: {
             id: "repository:r_1",
-            name: "mobius-tools"
+            name: "platform-tools"
           },
-          story: "Repository mobius-tools contains 41 indexed files.",
+          story: "Repository platform-tools contains 41 indexed files.",
           story_sections: [
             {
               summary: "41 indexed files across 2 language families",
@@ -86,24 +80,22 @@ describe("workspace story adapter", () => {
           ],
           subject: {
             id: "repository:r_1",
-            name: "mobius-tools",
+            name: "platform-tools",
             type: "repository"
           }
         })
     });
-
     const story = await loadWorkspaceStory({
       client,
       entityId: "repository:r_1",
       entityKind: "repositories",
       mode: "private"
     });
-
-    expect(story?.title).toBe("mobius-tools");
+    expect(story?.title).toBe("platform-tools");
     expect(story?.deploymentPath).toEqual(["Runs through ArgoCD into prod."]);
     expect(story?.deploymentGraph.nodes.map((node) => node.label)).toEqual([
-      "mobius-tools repo",
-      "mobius-tools service",
+      "platform-tools repo",
+      "platform-tools service",
       "GitHub Actions: cd-helm",
       "Helm artifact"
     ]);
@@ -123,7 +115,6 @@ describe("workspace story adapter", () => {
     );
     expect(story?.limitations).toEqual(["coverage_not_computed"]);
   });
-
   it("promotes ArgoCD context evidence into the main workspace model", async () => {
     const client = new EshuApiClient({
       baseUrl: "http://localhost:8080",
@@ -181,14 +172,12 @@ describe("workspace story adapter", () => {
         });
       }
     });
-
     const story = await loadWorkspaceStory({
       client,
       entityId: "repository:r_aba334de",
       entityKind: "repositories",
       mode: "private"
     });
-
     expect(story?.story).toContain("iac-eks-argocd references it");
     expect(story?.evidence[0]).toMatchObject({
       basis: "DISCOVERS_CONFIG_IN",
@@ -198,7 +187,6 @@ describe("workspace story adapter", () => {
     expect(story?.deploymentGraph.nodes.map((node) => node.label)).toContain("ArgoCD ApplicationSet");
     expect(story?.deploymentGraph.nodes.map((node) => node.label)).toContain("iac-eks-argocd");
   });
-
   it("uses service story dossiers for single-workload repository deployment graphs", async () => {
     const paths: string[] = [];
     const client = new EshuApiClient({
@@ -206,11 +194,11 @@ describe("workspace story adapter", () => {
       fetcher: async (input: RequestInfo | URL): Promise<Response> => {
         const path = new URL(new Request(input).url).pathname;
         paths.push(path);
-        if (path === "/api/v0/services/boats-chatgpt-app/story") {
+        if (path === "/api/v0/services/items-chatgpt-app/story") {
           return Response.json({
             service_identity: {
-              repo_name: "boats-chatgpt-app",
-              service_name: "boats-chatgpt-app"
+              repo_name: "items-chatgpt-app",
+              service_name: "items-chatgpt-app"
             },
             api_surface: {
               endpoint_count: 38,
@@ -227,13 +215,13 @@ describe("workspace story adapter", () => {
             },
             deployment_lanes: [
               {
-                environments: ["bg-prod"],
+                environments: ["prod"],
                 lane_type: "k8s_gitops",
                 resolved_ids: ["rel:k8s"],
                 source_repositories: ["iac-eks-argocd", "helm-charts"]
               },
               {
-                environments: ["bg-prod"],
+                environments: ["prod"],
                 lane_type: "ecs_terraform",
                 resolved_ids: ["rel:ecs"],
                 source_repositories: ["terraform-stack-node10"]
@@ -244,7 +232,7 @@ describe("workspace story adapter", () => {
                 {
                   consumer_kinds: ["service_reference_consumer"],
                   repository: "terraform-stack-node10",
-                  sample_paths: ["environments/bg-prod/ecs.tf"]
+                  sample_paths: ["environments/prod/ecs.tf"]
                 }
               ]
             },
@@ -262,23 +250,23 @@ describe("workspace story adapter", () => {
                 {
                   artifact_family: "argocd",
                   evidence_kind: "ARGOCD_APPLICATIONSET_DISCOVERY",
-                  path: "applicationsets/devops/core-mcps/boats-search-mcp.yaml",
+                  path: "applicationsets/devops/core-mcps/items-search-mcp.yaml",
                   relationship_type: "DISCOVERS_CONFIG_IN",
                   source_repo_name: "iac-eks-argocd"
                 },
                 {
                   artifact_family: "helm",
-                  environment: "bg-qa",
+                  environment: "qa",
                   evidence_kind: "HELM_CHART_REFERENCE",
-                  path: "charts/boats-chatgpt-app/Chart.yaml",
+                  path: "charts/items-chatgpt-app/Chart.yaml",
                   relationship_type: "DEPLOYS_FROM",
                   source_repo_name: "helm-charts"
                 },
                 {
                   artifact_family: "terraform",
-                  environment: "bg-prod",
+                  environment: "prod",
                   evidence_kind: "TERRAFORM_ECS_SERVICE",
-                  path: "environments/bg-prod/ecs.tf",
+                  path: "environments/prod/ecs.tf",
                   relationship_type: "PROVISIONS_DEPENDENCY_FOR",
                   source_repo_name: "terraform-stack-node10"
                 }
@@ -301,7 +289,7 @@ describe("workspace story adapter", () => {
               ],
               recommended_next_calls: [
                 {
-                  arguments: { workload_id: "boats-chatgpt-app" },
+                  arguments: { workload_id: "items-chatgpt-app" },
                   reason: "retrieve the full one-call dossier",
                   tool: "get_service_story"
                 }
@@ -309,16 +297,16 @@ describe("workspace story adapter", () => {
               repositories_with_evidence: [
                 {
                   evidence_families: ["api_surface", "deployment_lanes"],
-                  repo_name: "boats-chatgpt-app",
+                  repo_name: "items-chatgpt-app",
                   roles: ["service_owner"]
                 }
               ]
             },
             instances: [
               {
-                environment: "bg-prod",
+                environment: "prod",
                 platforms: [
-                  { platform_kind: "kubernetes", platform_name: "bg-prod" },
+                  { platform_kind: "kubernetes", platform_name: "prod" },
                   { platform_kind: "ecs", platform_name: "node10" }
                 ]
               }
@@ -326,7 +314,7 @@ describe("workspace story adapter", () => {
             provisioning_source_chains: [
               {
                 repository: "terraform-stack-node10",
-                sample_paths: ["environments/bg-prod/ecs.tf"]
+                sample_paths: ["environments/prod/ecs.tf"]
               }
             ]
           });
@@ -342,29 +330,29 @@ describe("workspace story adapter", () => {
               {
                 evidence_kind: "helm_values_reference",
                 matched_alias: "image.tag",
-                matched_value: "ghcr.io/boats/boats-chatgpt-app:1.2.3",
-                relative_path: "clusters/bg-prod/boats-chatgpt-app/values.yaml",
+                matched_value: "ghcr.io/items/items-chatgpt-app:1.2.3",
+                relative_path: "clusters/prod/items-chatgpt-app/values.yaml",
                 repo_name: "iac-eks-argocd"
               }
             ],
             influencing_repositories: [
-              { repo_name: "boats-chatgpt-app", roles: ["service_owner"] },
+              { repo_name: "items-chatgpt-app", roles: ["service_owner"] },
               { repo_name: "iac-eks-argocd", roles: ["deployment_source"] }
             ],
             read_first_files: [
               {
                 evidence_kinds: ["helm_values_reference"],
                 next_call: "get_file_lines",
-                relative_path: "clusters/bg-prod/boats-chatgpt-app/values.yaml",
+                relative_path: "clusters/prod/items-chatgpt-app/values.yaml",
                 repo_name: "iac-eks-argocd"
               }
             ],
-            service_name: "boats-chatgpt-app",
-            story: "boats-chatgpt-app is influenced by 1 values layer.",
+            service_name: "items-chatgpt-app",
+            story: "items-chatgpt-app is influenced by 1 values layer.",
             values_layers: [
               {
                 evidence_kind: "helm_values_reference",
-                relative_path: "clusters/bg-prod/boats-chatgpt-app/values.yaml",
+                relative_path: "clusters/prod/items-chatgpt-app/values.yaml",
                 repo_name: "iac-eks-argocd"
               }
             ]
@@ -385,78 +373,66 @@ describe("workspace story adapter", () => {
               }
             ],
             workload_count: 1,
-            workloads: ["boats-chatgpt-app"]
+            workloads: ["items-chatgpt-app"]
           },
           drilldowns: {
             context_path: "/api/v0/repositories/repository:r_5ea26675/context"
           },
           repository: {
             id: "repository:r_5ea26675",
-            name: "boats-chatgpt-app"
+            name: "items-chatgpt-app"
           },
           story_sections: [{ summary: "69 indexed file(s)", title: "codebase" }],
           subject: {
             id: "repository:r_5ea26675",
-            name: "boats-chatgpt-app",
+            name: "items-chatgpt-app",
             type: "repository"
           }
         });
       }
     });
-
     const story = await loadWorkspaceStory({
       client,
       entityId: "repository:r_5ea26675",
       entityKind: "repositories",
       mode: "private"
     });
-
-    expect(paths).toContain("/api/v0/services/boats-chatgpt-app/story");
+    expect(paths).toContain("/api/v0/services/items-chatgpt-app/story");
     expect(story?.serviceSpotlight?.api.endpointCount).toBe(38);
     expect(story?.serviceSpotlight?.api.methodCount).toBe(44);
     expect(story?.serviceSpotlight?.api.endpoints[0]?.path).toBe("/getListing");
-    expect(story?.serviceSpotlight?.lanes.map((lane) => lane.label)).toEqual([
-      "Kubernetes GitOps",
-      "ECS Terraform"
-    ]);
-    expect(story?.serviceSpotlight?.dependencies[0]?.targetName).toBe(
-      "core-engineering-automation"
-    );
+    expect(story?.serviceSpotlight?.lanes.map((lane) => lane.label)).toEqual(["Kubernetes GitOps", "ECS Terraform"]);
+    expect(story?.serviceSpotlight?.dependencies[0]?.targetName).toBe("core-engineering-automation");
     expect(story?.serviceSpotlight?.investigation.coverage.state).toBe("partial");
     expect(story?.serviceSpotlight?.investigation.coverage.repositoryCount).toBe(26);
-    expect(story?.serviceSpotlight?.investigation.nextCalls[0]?.tool).toBe(
-      "get_service_story"
-    );
+    expect(story?.serviceSpotlight?.investigation.nextCalls[0]?.tool).toBe("get_service_story");
     expect(story?.serviceSpotlight?.configInfluence?.sections[1].items[0]).toMatchObject({
       label: "image.tag",
       repoName: "iac-eks-argocd"
     });
-    expect(story?.serviceSpotlight?.consumers[0]?.repository).toBe(
-      "terraform-stack-node10"
-    );
+    expect(story?.serviceSpotlight?.consumers[0]?.repository).toBe("terraform-stack-node10");
     expect(story?.deploymentGraph.nodes.map((node) => node.label)).toEqual([
-      "boats-chatgpt-app repo",
-      "boats-chatgpt-app service",
+      "items-chatgpt-app repo",
+      "items-chatgpt-app service",
       "iac-eks-argocd",
       "ArgoCD ApplicationSet",
       "helm-charts",
       "Helm chart/values",
-      "bg-qa",
+      "qa",
       "terraform-stack-node10",
       "Terraform ECS",
-      "bg-prod",
+      "prod",
       "GitHub Actions: cd-docker",
       "Docker image"
     ]);
     expect(story?.deploymentGraph.nodes.map((node) => node.label)).not.toContain("push");
   });
-
   it("uses service consumer repositories as deployment evidence when artifact rows are absent", async () => {
     const client = new EshuApiClient({
       baseUrl: "http://localhost:8080",
       fetcher: async (input: RequestInfo | URL): Promise<Response> => {
         const path = new URL(new Request(input).url).pathname;
-        if (path === "/api/v0/services/boats-chatgpt-app/story") {
+        if (path === "/api/v0/services/items-chatgpt-app/story") {
           return Response.json({
             downstream_consumers: {
               content_consumers: [
@@ -464,15 +440,13 @@ describe("workspace story adapter", () => {
                   consumer_kinds: ["service_reference_consumer"],
                   evidence_kinds: ["repository_reference"],
                   repository: "iac-eks-argocd",
-                  sample_paths: [
-                    "applicationsets/devops/core-mcps/boats-search-mcp.yaml"
-                  ]
+                  sample_paths: ["applicationsets/devops/core-mcps/items-search-mcp.yaml"]
                 },
                 {
                   consumer_kinds: ["service_reference_consumer"],
                   evidence_kinds: ["repository_reference"],
                   repository: "helm-charts",
-                  sample_paths: ["charts/boats-chatgpt-app/Chart.yaml"]
+                  sample_paths: ["charts/items-chatgpt-app/Chart.yaml"]
                 }
               ]
             },
@@ -487,31 +461,29 @@ describe("workspace story adapter", () => {
         return Response.json({
           deployment_overview: {
             workload_count: 1,
-            workloads: ["boats-chatgpt-app"]
+            workloads: ["items-chatgpt-app"]
           },
           drilldowns: {
-            context_path: "/api/v0/repositories/repository:r_boats/context"
+            context_path: "/api/v0/repositories/repository:r_items/context"
           },
           repository: {
-            id: "repository:r_boats",
-            name: "boats-chatgpt-app"
+            id: "repository:r_items",
+            name: "items-chatgpt-app"
           },
           subject: {
-            id: "repository:r_boats",
-            name: "boats-chatgpt-app",
+            id: "repository:r_items",
+            name: "items-chatgpt-app",
             type: "repository"
           }
         });
       }
     });
-
     const story = await loadWorkspaceStory({
       client,
-      entityId: "repository:r_boats",
+      entityId: "repository:r_items",
       entityKind: "repositories",
       mode: "private"
     });
-
     expect(story?.story).toContain("iac-eks-argocd and helm-charts reference it");
     expect(story?.evidence).toContainEqual(
       expect.objectContaining({

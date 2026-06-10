@@ -21,15 +21,15 @@ describe("ExplorerPage mode-by-kind (issue #1725)", () => {
     const calls: string[] = [];
     const client = {
       postJson: async () => ({
-        entities: [{ id: "workload:api-node-boats", name: "api-node-boats", labels: ["Workload"], type: "Workload" }]
+        entities: [{ id: "workload:catalog-api", name: "catalog-api", labels: ["Workload"], type: "Workload" }]
       }),
       post: async (path: string) => {
         calls.push(path);
         return {
           data: {
-            from: "api-node-boats",
-            resolution: { candidates: [{ id: "workload:api-node-boats", name: "api-node-boats", labels: ["Workload"] }] },
-            evidence: { relationships: [{ entity_id: "repository:r1", entity_name: "boats", entity_labels: ["Repository"], direction: "incoming", relationship_type: "DEFINES" }] }
+            from: "catalog-api",
+            resolution: { candidates: [{ id: "workload:catalog-api", name: "catalog-api", labels: ["Workload"] }] },
+            evidence: { relationships: [{ entity_id: "repository:r1", entity_name: "items", entity_labels: ["Repository"], direction: "incoming", relationship_type: "DEFINES" }] }
           },
           error: null,
           truth: null
@@ -37,7 +37,7 @@ describe("ExplorerPage mode-by-kind (issue #1725)", () => {
       }
     } as unknown as EshuApiClient;
 
-    renderExplorer(client, "api-node-boats");
+    renderExplorer(client, "catalog-api");
 
     // The service search must route to impact/entity-map, never code/relationships.
     await waitFor(() => expect(calls).toContain("/api/v0/impact/entity-map"));

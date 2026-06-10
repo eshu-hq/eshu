@@ -18,7 +18,7 @@ func TestParseCargoCfgManifest(t *testing.T) {
 			text: `
 # workspace root
 [package]
-name = "api-node-boats" # comment after value
+name = "catalog-api" # comment after value
 version = "0.1.0"
 
 [workspace]
@@ -36,7 +36,7 @@ libc = "0.2"
 windows-sys = { version = "0.52" }
 `,
 			want: cargoCfgManifest{
-				PackageName:           "api-node-boats",
+				PackageName:           "catalog-api",
 				WorkspaceMembers:      []string{"crates/core", "tools/xtask"},
 				FeatureNames:          []string{"cli", "default", "serde"},
 				DefaultFeatureMembers: []string{"serde", "tokio?/rt"},

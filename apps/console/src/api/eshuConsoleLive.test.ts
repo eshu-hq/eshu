@@ -35,9 +35,9 @@ describe("eshuConsoleLive", () => {
           // across environments) — the adapter must dedup by id.
           return {
             data: {
-              services: [{ id: "workload:api", name: "api", kind: "deployment", repo_name: "api", environments: ["bg-qa", "bg-prod"] }],
+              services: [{ id: "workload:api", name: "api", kind: "deployment", repo_name: "api", environments: ["qa", "prod"] }],
               workloads: [
-                { id: "workload:api", name: "api", kind: "deployment", repo_name: "api", environments: ["bg-qa", "bg-prod"] },
+                { id: "workload:api", name: "api", kind: "deployment", repo_name: "api", environments: ["qa", "prod"] },
                 { id: "workload:lib-config", name: "lib-config", kind: "library", repo_name: "lib-config" },
                 { id: "workload:lib-config", name: "lib-config", kind: "library", repo_name: "lib-config" }
               ]
@@ -209,7 +209,7 @@ describe("eshuConsoleLive", () => {
   it("maps per-service environments from the catalog response", async () => {
     const snap = await loadConsoleSnapshot(fakeClient());
     const api = snap.services.find((s) => s.id === "workload:api");
-    expect(api?.environments).toEqual(["bg-qa", "bg-prod"]);
+    expect(api?.environments).toEqual(["qa", "prod"]);
     // A service with no environment evidence resolves to an empty array, never
     // a fabricated value.
     const lib = snap.services.find((s) => s.id === "workload:lib-config");
@@ -326,7 +326,7 @@ describe("eshuConsoleLive", () => {
         if (path.includes("/catalog")) {
           return {
             data: {
-              services: [{ id: "workload:api-node-boats", name: "api-node-boats", kind: "service", repo_id: "repository:r_1", repo_name: "api-node-boats" }]
+              services: [{ id: "workload:catalog-api", name: "catalog-api", kind: "service", repo_id: "repository:r_1", repo_name: "catalog-api" }]
             },
             error: null, truth: null
           };
@@ -350,7 +350,7 @@ describe("eshuConsoleLive", () => {
 
     const snap = await loadConsoleSnapshot(client);
     const known = snap.vulnerabilities.find((v) => v.id === "GHSA-aaaa");
-    expect(known?.services).toEqual(["api-node-boats"]);
+    expect(known?.services).toEqual(["catalog-api"]);
     const unknown = snap.vulnerabilities.find((v) => v.id === "GHSA-cccc");
     // No catalog match: strip the internal prefix so the UI shows r_unmapped,
     // not the raw repository:r_unmapped graph id.

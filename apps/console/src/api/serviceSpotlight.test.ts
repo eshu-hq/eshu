@@ -17,7 +17,6 @@ describe("serviceSpotlightFromContext", () => {
                 issue_type_name: "Incident",
                 provider: "jira_cloud",
                 status_name: "In Progress",
-                url_present: true,
                 url_redacted: "https://jira.example.test/browse/PAY-123",
                 work_item_key: "PAY-123"
               },
@@ -44,7 +43,7 @@ describe("serviceSpotlightFromContext", () => {
           work_item_count: 1
         }
       }
-    }, "api-node-boats");
+    }, "catalog-api");
 
     expect(spotlight.support).toMatchObject({
       ambiguousCount: 1,
@@ -75,7 +74,7 @@ describe("serviceSpotlightFromContext", () => {
   });
 
   it("keeps Terraform config access out of deployment lane sources", () => {
-    const spotlight = serviceSpotlightFromContext(serviceContext, "api-node-boats");
+    const spotlight = serviceSpotlightFromContext(serviceContext, "catalog-api");
 
     expect(spotlight.lanes).toEqual([
       expect.objectContaining({
@@ -93,7 +92,7 @@ describe("serviceSpotlightFromContext", () => {
     ]);
 
     const ecsLane = spotlight.lanes.find((lane) => lane.label === "ECS");
-    expect(ecsLane?.sourceRepos).not.toContain("terraform-stack-boattrader");
+    expect(ecsLane?.sourceRepos).not.toContain("terraform-stack-marketplace");
     expect(ecsLane?.relationshipTypes).not.toContain("READS_CONFIG_FROM");
 
     const configAccess = spotlight.relationshipClusters.find((cluster) =>
@@ -105,7 +104,7 @@ describe("serviceSpotlightFromContext", () => {
       technology: "terraform"
     }));
     expect(configAccess?.repositories.map((repo) => repo.repository)).toContain(
-      "terraform-stack-boattrader"
+      "terraform-stack-marketplace"
     );
 
     const deployment = spotlight.relationshipClusters.find((cluster) =>
@@ -121,14 +120,14 @@ describe("serviceSpotlightFromContext", () => {
       ...serviceContext,
       deployment_lanes: [
         {
-          environments: ["bg-dev", "bg-prod"],
+          environments: ["dev", "prod"],
           lane_type: "ecs",
           relationship_types: ["PROVISIONS_DEPENDENCY_FOR", "READS_CONFIG_FROM"],
           resolved_ids: ["ecs-service", "iam-permission"],
-          source_repositories: ["terraform-stack-node10", "terraform-stack-boattrader"]
+          source_repositories: ["terraform-stack-node10", "terraform-stack-marketplace"]
         }
       ]
-    }, "api-node-boats");
+    }, "catalog-api");
 
     expect(spotlight.lanes).toEqual([
       expect.objectContaining({
@@ -150,45 +149,45 @@ const serviceContext: ServiceContextResponse = {
         path: "applicationsets/api-node/kustomization.yaml",
         relationship_type: "DEPLOYS_FROM",
         source_repo_name: "iac-eks-argocd",
-        target_repo_name: "api-node-boats"
+        target_repo_name: "catalog-api"
       },
       {
         artifact_family: "helm",
         evidence_kind: "HELM_VALUES_REFERENCE",
-        path: "argocd/api-node-boats/overlays/bg-qa/values.yaml",
+        path: "argocd/catalog-api/overlays/qa/values.yaml",
         relationship_type: "DEPLOYS_FROM",
         source_repo_name: "helm-charts",
-        target_repo_name: "api-node-boats"
+        target_repo_name: "catalog-api"
       },
       {
         artifact_family: "kustomize",
         evidence_kind: "KUSTOMIZE_RESOURCE_REFERENCE",
-        path: "api-node-platform/files/base.json",
+        path: "platform-api/files/base.json",
         relationship_type: "DEPLOYS_FROM",
         source_repo_name: "helm-charts",
-        target_repo_name: "api-node-boats"
+        target_repo_name: "catalog-api"
       },
       {
         artifact_family: "terraform",
         evidence_kind: "TERRAFORM_ECS_SERVICE",
-        path: "environments/bg-dev/ecs.tf",
+        path: "environments/dev/ecs.tf",
         relationship_type: "PROVISIONS_DEPENDENCY_FOR",
         source_repo_name: "terraform-stack-node10",
-        target_repo_name: "api-node-boats"
+        target_repo_name: "catalog-api"
       },
       {
         artifact_family: "terraform",
         evidence_kind: "TERRAFORM_IAM_PERMISSION",
-        path: "environments/bg-dev/resources.tf",
+        path: "environments/dev/resources.tf",
         relationship_type: "READS_CONFIG_FROM",
-        source_repo_name: "terraform-stack-boattrader",
-        target_repo_name: "api-node-boats"
+        source_repo_name: "terraform-stack-marketplace",
+        target_repo_name: "catalog-api"
       }
     ]
   },
   instances: [
     {
-      environment: "bg-prod",
+      environment: "prod",
       platforms: [
         {
           platform_kind: "kubernetes",
@@ -197,7 +196,7 @@ const serviceContext: ServiceContextResponse = {
       ]
     },
     {
-      environment: "bg-dev",
+      environment: "dev",
       platforms: [
         {
           platform_kind: "ecs",
@@ -206,6 +205,6 @@ const serviceContext: ServiceContextResponse = {
       ]
     }
   ],
-  name: "api-node-boats",
-  repo_name: "api-node-boats"
+  name: "catalog-api",
+  repo_name: "catalog-api"
 };

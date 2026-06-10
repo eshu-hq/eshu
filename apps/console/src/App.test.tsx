@@ -69,12 +69,12 @@ describe("App shell", () => {
       if (path === "/eshu-api/api/v0/catalog") {
         return Response.json({ data: { services: [], workloads: [] } });
       }
-      if (path === "/eshu-api/api/v0/services/api-node-boats/story") {
+      if (path === "/eshu-api/api/v0/services/catalog-api/story") {
         return Response.json({
           api_surface: { endpoint_count: 1, endpoints: [], method_count: 1 },
           service_identity: {
-            repo_name: "api-node-boats",
-            service_name: "api-node-boats"
+            repo_name: "catalog-api",
+            service_name: "catalog-api"
           },
           support_overview: {
             target_support: {
@@ -99,7 +99,7 @@ describe("App shell", () => {
     }));
 
     render(
-      <MemoryRouter initialEntries={["/workspace/services/api-node-boats"]}>
+      <MemoryRouter initialEntries={["/workspace/services/catalog-api"]}>
         <App />
       </MemoryRouter>
     );

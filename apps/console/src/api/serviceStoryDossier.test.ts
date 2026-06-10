@@ -3,7 +3,7 @@ import { serviceContextFromStoryDossier, type ServiceStoryDossierResponse } from
 
 describe("serviceContextFromStoryDossier", () => {
   it("preserves target support evidence for repository workspace service stories", () => {
-    const context = serviceContextFromStoryDossier(dossier, "api-node-boats");
+    const context = serviceContextFromStoryDossier(dossier, "catalog-api");
 
     expect(context.support_overview?.target_support).toMatchObject({
       evidence_count: 1,
@@ -15,8 +15,8 @@ describe("serviceContextFromStoryDossier", () => {
 
 const dossier: ServiceStoryDossierResponse = {
   service_identity: {
-    repo_name: "api-node-boats",
-    service_name: "api-node-boats"
+    repo_name: "catalog-api",
+    service_name: "catalog-api"
   },
   support_overview: {
     target_support: {

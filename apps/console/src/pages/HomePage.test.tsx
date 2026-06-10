@@ -13,8 +13,8 @@ describe("HomePage", () => {
           repositories: [
             {
               id: "repository:r_1",
-              local_path: "/Users/allen/repos/mobius/mobius-tools",
-              name: "mobius-tools"
+              local_path: "/workspace/sample/platform-tools",
+              name: "platform-tools"
             }
           ]
         })
@@ -31,9 +31,9 @@ describe("HomePage", () => {
     );
 
     fireEvent.change(screen.getByLabelText("Search Eshu"), {
-      target: { value: "mobius" }
+      target: { value: "platform" }
     });
-    fireEvent.click(await screen.findByRole("button", { name: /mobius-tools/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /platform-tools/i }));
 
     expect(screen.getByRole("heading", { name: "Workspace opened" })).toBeInTheDocument();
   });

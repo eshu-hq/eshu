@@ -53,7 +53,7 @@ func TestTerraformParsePagerDutyDeclarationsFromModules(t *testing.T) {
 	t.Parallel()
 
 	filePath := writeHCLTestFile(t, "team-checkout.tf", `module "checkout_pagerduty_service" {
-  source  = "boatsgroup.pe.jfrog.io/TF__BG/pagerduty-service/aws"
+  source  = "sampleorg.pe.jfrog.io/TF__SAMPLE/pagerduty-service/aws"
   version = "~> 2.0"
 
   name                    = local.checkout_params.pagerduty_service_name
@@ -136,7 +136,7 @@ module "pagerduty_runbook" {
 func TestTerraformParsePagerDutyDeclarationsFromTFVars(t *testing.T) {
 	t.Parallel()
 
-	filePath := writeHCLTestFileAt(t, filepath.Join("environments", "bg-qa", "terraform.tfvars"), `environment_vars = {
+	filePath := writeHCLTestFileAt(t, filepath.Join("environments", "qa", "terraform.tfvars"), `environment_vars = {
   checkout = {
     pagerduty_service_name            = "QA Checkout"
     pagerduty_service_description     = "Checkout Service"
@@ -178,7 +178,7 @@ func TestTerraformParsePagerDutyDeclarationsFromTFVars(t *testing.T) {
 	if got, want := checkout["declaration_kind"], "tfvars"; got != want {
 		t.Fatalf("declaration_kind = %#v, want %#v", got, want)
 	}
-	if got, want := checkout["environment"], "bg-qa"; got != want {
+	if got, want := checkout["environment"], "qa"; got != want {
 		t.Fatalf("environment = %#v, want %#v", got, want)
 	}
 	if got, want := checkout["service_name"], "QA Checkout"; got != want {

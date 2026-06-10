@@ -45,11 +45,11 @@ const spotlightWithSupport: ServiceSpotlight = {
     repositories: []
   },
   lanes: [],
-  name: "api-node-boats",
+  name: "catalog-api",
   relationshipClusters: [],
   relationshipCounts: { downstream: 0, graphDependents: 0, references: 0, upstream: 0 },
-  repoName: "api-node-boats",
-  summary: "api-node-boats service story.",
+  repoName: "catalog-api",
+  summary: "catalog-api service story.",
   support: {
     ambiguousCount: 1,
     evidence: [

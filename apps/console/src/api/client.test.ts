@@ -39,7 +39,7 @@ describe("EshuApiClient", () => {
       calls.push(request);
       return Response.json({
         count: 1,
-        repositories: [{ id: "repository:r_1", name: "mobius-tools" }]
+        repositories: [{ id: "repository:r_1", name: "platform-tools" }]
       });
     };
 
@@ -54,7 +54,7 @@ describe("EshuApiClient", () => {
     }>("/api/v0/repositories");
 
     expect(calls[0]?.url).toBe("http://localhost:5174/eshu-api/api/v0/repositories");
-    expect(payload.repositories[0]?.name).toBe("mobius-tools");
+    expect(payload.repositories[0]?.name).toBe("platform-tools");
   });
 
   it("sends a bearer token when the local API requires auth", async () => {

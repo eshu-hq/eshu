@@ -44,7 +44,7 @@ function ServiceDrawer({ id, onClose, onOpenService, data }) {
   const stages = isLib
     ? [
       { title: "Source", items: [{ label: s.repo.split("/").pop(), sub: s.host + " · " + s.repo, verb: "REPO", color: "#f3ebdd" }] },
-      { title: "Publish", items: [{ label: "@dmm/" + s.name, sub: "npm · v" + s.version, verb: "PUBLISHES", color: "#2dd4bf" }] },
+      { title: "Publish", items: [{ label: "@sample/" + s.name, sub: "npm · v" + s.version, verb: "PUBLISHES", color: "#2dd4bf" }] },
       { title: "Consumers", items: [{ label: s.callers + " importers", sub: "across the estate", verb: "IMPORTS", color: "#c4b59a" }] }
     ]
     : [
@@ -184,8 +184,8 @@ function Dashboard({ onOpenService, heroMode, graphStyle, chartStyle, data }) {
       ) : heroMode === "spotlight" ? (
         <div className="mt"><FeaturedService onOpenService={onOpenService} /></div>
       ) : (
-        <Panel className="mt" title="Code-to-cloud relationship atlas" sub="api-node-boats neighbourhood — repo, image, client, runtime, infra, security & ops evidence" glyph={<Icon.graph />}
-          action={<button className="btn-ghost" onClick={() => onOpenService("api-node-boats")}>Open spotlight →</button>}>
+        <Panel className="mt" title="Code-to-cloud relationship atlas" sub="catalog-api neighbourhood — repo, image, client, runtime, infra, security & ops evidence" glyph={<Icon.graph />}
+          action={<button className="btn-ghost" onClick={() => onOpenService("catalog-api")}>Open spotlight →</button>}>
           <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr) 300px", gap: "var(--gap)", alignItems: "start" }}>
             <GraphCanvas graph={D.graph} layout={graphStyle} height={500} onSelect={handleSelect} selectedId={sel && sel.id} />
             <div className="panel" style={{ background: "var(--bg-field)", boxShadow: "none" }}>

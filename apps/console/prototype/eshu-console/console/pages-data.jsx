@@ -25,7 +25,7 @@ function Explorer({ onOpenService, graphStyle, setGraphStyle, verifiedOnly, data
   return (
     <div className="page" style={{ maxWidth: "none" }}>
       <div className="page-intro row" style={{ justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
-        <div><h2>Graph Explorer</h2><p>Pan, zoom and drill into the live NornicDB graph. Switch between the api-node-boats focus view and the full indexed estate, toggle relationship layers, then select any node.</p></div>
+        <div><h2>Graph Explorer</h2><p>Pan, zoom and drill into the live NornicDB graph. Switch between the catalog-api focus view and the full indexed estate, toggle relationship layers, then select any node.</p></div>
         <div className="row" style={{ gap: 8 }}>
           <div className="seg"><button className={scope === "focus" ? "active" : ""} onClick={() => setScope("focus")}>Focus</button><button className={scope === "estate" ? "active" : ""} onClick={() => { setScope("estate"); setGraphStyle("radial"); }}>Full estate</button></div>
           <div className="seg"><button className={graphStyle === "layered" ? "active" : ""} onClick={() => setGraphStyle("layered")}>Layered</button><button className={graphStyle === "radial" ? "active" : ""} onClick={() => setGraphStyle("radial")}>Radial</button></div>
@@ -47,7 +47,7 @@ function Explorer({ onOpenService, graphStyle, setGraphStyle, verifiedOnly, data
       <div className="explorer-layout">
         <div className="gcanvas-shell">
           <GraphCanvas graph={filteredGraph} layout={graphStyle} height={640} onSelect={setSel} selectedId={sel && sel.id} />
-          <div className="t-mut" style={{ fontSize: ".74rem", marginTop: 8 }}>{scope === "estate" ? D.services.length + " indexed services & libraries · real @dmm/* dependency edges" : "api-node-boats neighbourhood · curated evidence"}</div>
+          <div className="t-mut" style={{ fontSize: ".74rem", marginTop: 8 }}>{scope === "estate" ? D.services.length + " indexed services & libraries · real @sample/* dependency edges" : "catalog-api neighbourhood · curated evidence"}</div>
         </div>
         <Panel title="Inspector" glyph={<Icon.search />}>
           {sel ? <NodeInspector node={sel} onOpenService={onOpenService} /> : <p className="empty">Select a node.</p>}

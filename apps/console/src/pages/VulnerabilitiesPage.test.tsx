@@ -41,14 +41,14 @@ describe("VulnerabilitiesPage", () => {
           cvss: 7.5,
           kev: false,
           fixedVersion: null,
-          services: ["api-node-boats"]
+          services: ["catalog-api"]
         }
       ]
     };
 
     renderPage(model);
 
-    expect(screen.getByText("api-node-boats")).toBeInTheDocument();
+    expect(screen.getByText("catalog-api")).toBeInTheDocument();
     expect(screen.queryByText(/^repository[:_]/)).not.toBeInTheDocument();
   });
 

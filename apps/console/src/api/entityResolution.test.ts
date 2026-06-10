@@ -10,12 +10,12 @@ describe("resolveEntity", () => {
           count: 2,
           entities: [
             {
-              entity_id: "workload:api-node-boats",
+              entity_id: "workload:catalog-api",
               labels: ["Workload"],
-              name: "api-node-boats"
+              name: "catalog-api"
             },
             {
-              file_path: "services/api-node-boats/main.tf",
+              file_path: "services/catalog-api/main.tf",
               id: "repo:terraform-stack-node10",
               labels: ["Repository"],
               name: "terraform-stack-node10",
@@ -39,7 +39,7 @@ describe("resolveEntity", () => {
     const result = await resolveEntity({
       client: new EshuApiClient({ baseUrl: "/eshu-api/", fetcher }),
       limit: 1,
-      name: "api-node-boats",
+      name: "catalog-api",
       type: "repository"
     });
 
@@ -48,7 +48,7 @@ describe("resolveEntity", () => {
       expect.objectContaining({
         body: JSON.stringify({
           limit: 1,
-          name: "api-node-boats",
+          name: "catalog-api",
           type: "repository"
         }),
         method: "POST"
@@ -58,15 +58,15 @@ describe("resolveEntity", () => {
       candidates: [
         {
           filePath: "",
-          id: "workload:api-node-boats",
+          id: "workload:catalog-api",
           labels: ["Workload"],
-          name: "api-node-boats",
+          name: "catalog-api",
           repoId: "",
           repoName: "",
           type: "Workload"
         },
         {
-          filePath: "services/api-node-boats/main.tf",
+          filePath: "services/catalog-api/main.tf",
           id: "repo:terraform-stack-node10",
           labels: ["Repository"],
           name: "terraform-stack-node10",
