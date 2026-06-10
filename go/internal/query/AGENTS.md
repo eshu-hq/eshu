@@ -126,6 +126,21 @@
   handler spans, content-store `postgres.query` spans, HTTP route attribution,
   and truth envelopes diagnose the bounded citation hydration path.
 
+- **Entity context scoped-token route evidence** — #2070 opens only
+  `GET /api/v0/entities/{entity_id}/context` after `EntityHandler` applies
+  `AuthContext` bounds to empty grants, graph entity predicates, repo-identity
+  hydration, and content fallback rows. Scoped graph context reads add an
+  authorized repository predicate before relationship hydration; scoped content
+  fallback treats out-of-grant entity rows as not found before reading
+  relationships. No-Regression Evidence: `go test ./internal/query -run
+  'Test(GetEntityContext.*Scoped|GetEntityContext.*Grant|GetEntityContext.*Fallback|AuthMiddlewareWithScopedTokensAllowsEntityContextRoute)'
+  -count=1` and `go test ./internal/mcp -run
+  TestDispatchToolEntityContextAllowsScopedEntityContextRoute -count=1`.
+  No-Observability-Change: the route adds no graph write, metric label,
+  runtime knob, or response field; existing entity context truth envelopes,
+  graph query spans, HTTP route attribution, and content-store Postgres spans
+  diagnose the bounded read path.
+
 - **Package registry reads stay anchored** — `PackageRegistryHandler` in
   `package_registry.go` must require `limit` plus a route-specific anchor
   before graph reads: package lookups use `package_id` or `ecosystem`, version

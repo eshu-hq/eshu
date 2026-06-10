@@ -197,9 +197,32 @@ func (h *EntityHandler) getEntityContext(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		WriteError(w, http.StatusNotFound, "entity not found")
+		return
+	}
+
 	cypher := `
 		MATCH (e) WHERE e.id = $entity_id
+	`
+	if access.scoped() {
+		cypher += `
+		AND EXISTS {
+			MATCH (e)<-[:CONTAINS]-(scopeFile:File)<-[:REPO_CONTAINS]-(scopeRepo:Repository)
+			WHERE ` + access.graphCondition("scopeRepo") + `
+		}
+	`
+	}
+	cypher += `
 		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
+	`
+	if access.scoped() {
+		cypher += `
+		WHERE ` + access.graphCondition("r") + `
+	`
+	}
+	cypher += `
 		OPTIONAL MATCH (e)-[rel]->(target)
 		RETURN e.id as id, labels(e) as labels, e.name as name,
 		       f.relative_path as file_path,
@@ -211,7 +234,7 @@ func (h *EntityHandler) getEntityContext(w http.ResponseWriter, r *http.Request)
 		       collect(DISTINCT {type: type(rel), target_name: target.name, target_id: target.id}) as relationships
 	`
 
-	params := map[string]any{"entity_id": entityID}
+	params := access.graphParams(map[string]any{"entity_id": entityID})
 	var row map[string]any
 	var err error
 	if h.Neo4j != nil {
@@ -255,6 +278,10 @@ func (h *EntityHandler) getEntityContext(w http.ResponseWriter, r *http.Request)
 	}
 	if err := hydrateResolvedEntityRepoIdentity(r.Context(), h.Neo4j, h.Content, []map[string]any{response}); err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("hydrate entity repo identity: %v", err))
+		return
+	}
+	if access.scoped() && !access.allowsRepositoryID(StringVal(response, "repo_id")) {
+		WriteError(w, http.StatusNotFound, "entity not found")
 		return
 	}
 	enriched, err := h.enrichEntityResultsWithContentMetadata(r.Context(), []map[string]any{response}, StringVal(response, "repo_id"), StringVal(row, "name"), 1)
@@ -320,28 +347,6 @@ func (h *EntityHandler) resolveEntityFromContent(
 		results = append(results, contentEntityToMap(row))
 	}
 	return results, nil
-}
-
-func (h *EntityHandler) getEntityContextFromContent(ctx context.Context, entityID string) (map[string]any, error) {
-	if h == nil || h.Content == nil || entityID == "" {
-		return nil, nil
-	}
-
-	entity, err := h.Content.GetEntityContent(ctx, entityID)
-	if err != nil || entity == nil {
-		return nil, err
-	}
-
-	response := contentEntityToMap(*entity)
-	relationshipSet, err := buildContentRelationshipSet(ctx, h.Content, *entity)
-	if err != nil {
-		return nil, err
-	}
-	relationships := append([]map[string]any{}, relationshipSet.incoming...)
-	relationships = append(relationships, relationshipSet.outgoing...)
-	response["relationships"] = relationships
-	attachSemanticSummary(response)
-	return response, nil
 }
 
 func contentEntityTypeForResolve(typeName string) string {

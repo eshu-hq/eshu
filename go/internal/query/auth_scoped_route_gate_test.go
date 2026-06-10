@@ -271,7 +271,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsEvidenceCitationRouteWithEmptyGrant
 	}
 }
 
-func TestAuthMiddlewareWithScopedTokensRejectsAllScopeOnUnsupportedRoute(t *testing.T) {
+func TestAuthMiddlewareWithScopedTokensAllowsEntityContextRoute(t *testing.T) {
 	t.Parallel()
 
 	resolver := &fakeScopedTokenResolver{
@@ -283,9 +283,42 @@ func TestAuthMiddlewareWithScopedTokensRejectsAllScopeOnUnsupportedRoute(t *test
 		},
 		ok: true,
 	}
-	handler := AuthMiddlewareWithScopedTokens("", resolver, mockHandler())
+	handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth, ok := AuthContextFromContext(r.Context())
+		if !ok {
+			t.Fatal("AuthContextFromContext() ok = false, want true")
+		}
+		if !auth.AllScopes {
+			t.Fatalf("auth.AllScopes = false, want true")
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/entities/service:payments/context", nil)
+	req.Header.Set("Authorization", "Bearer scoped-token")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+}
+
+func TestAuthMiddlewareWithScopedTokensRejectsAllScopeOnUnsupportedEntityRoute(t *testing.T) {
+	t.Parallel()
+
+	resolver := &fakeScopedTokenResolver{
+		context: AuthContext{
+			Mode:        AuthModeScoped,
+			TenantID:    "tenant-a",
+			WorkspaceID: "workspace-a",
+			AllScopes:   true,
+		},
+		ok: true,
+	}
+	handler := AuthMiddlewareWithScopedTokens("", resolver, mockHandler())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/entities/service:payments/relationships", nil)
 	req.Header.Set("Authorization", "Bearer scoped-token")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
