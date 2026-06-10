@@ -19,5 +19,11 @@ func (h *CodeHandler) applyRepositorySelector(w http.ResponseWriter, r *http.Req
 }
 
 func (h *CodeHandler) resolveRepositorySelector(ctx context.Context, selector string) (string, error) {
-	return resolveRepositorySelectorExact(ctx, h.Neo4j, h.Content, selector)
+	return resolveRepositorySelectorExactForAccess(
+		ctx,
+		h.Neo4j,
+		h.Content,
+		selector,
+		repositoryAccessFilterFromContext(ctx),
+	)
 }

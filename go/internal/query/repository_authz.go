@@ -1,6 +1,9 @@
 package query
 
-import "context"
+import (
+	"context"
+	"sort"
+)
 
 type repositoryAccessFilter struct {
 	allScopes            bool
@@ -101,4 +104,16 @@ func (f repositoryAccessFilter) filterRepositoryMaps(repos []map[string]any) []m
 		}
 	}
 	return filtered
+}
+
+func (f repositoryAccessFilter) repositorySearchIDs() []string {
+	if !f.scoped() {
+		return nil
+	}
+	ids := make([]string, 0, len(f.allowed))
+	for id := range f.allowed {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids
 }

@@ -64,6 +64,21 @@
   spans, `repository_query.stage_*` logs, result limits, partial reasons, and
   truncation metadata diagnose the path.
 
+- **Code search scoped-token route evidence** — #2062 opens only
+  `POST /api/v0/code/search` after `CodeHandler` applies `AuthContext` bounds to
+  repository selector ambiguity, graph search predicates, and content fallback
+  calls. Scoped graph search adds the repository/scope-id predicate before
+  `LIMIT`; scoped content fallback queries authorized repositories individually
+  and never calls all-repository content methods. No-Regression Evidence:
+  `go test ./internal/query -run
+  'Test(CodeSearch|AuthMiddlewareWithScopedTokensAllowsCodeSearch)' -count=1`
+  and `go test ./internal/mcp -run
+  TestDispatchToolFindCodeAllowsScopedCodeSearchRoute -count=1`.
+  No-Observability-Change: the route adds no graph write, metric label, runtime
+  knob, or response field; existing code search truth envelopes, graph query
+  spans, HTTP route attribution, and content-store Postgres spans diagnose the
+  bounded read path.
+
 - **Package registry reads stay anchored** — `PackageRegistryHandler` in
   `package_registry.go` must require `limit` plus a route-specific anchor
   before graph reads: package lookups use `package_id` or `ecosystem`, version
