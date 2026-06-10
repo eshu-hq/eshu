@@ -1,0 +1,12 @@
+{
+  "component_extensions": [
+    {
+      "id": "dev.eshu.examples.scorecard",
+      "publisher": "eshu-hq",
+      "installed": true,
+      "enabled": true,
+      "trusted": true,
+      "claim_capable": true
+    }
+  ]
+}
