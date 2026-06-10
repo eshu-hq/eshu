@@ -44,14 +44,25 @@ func TestInvestigateServiceRouteReturnsCoverageAndRecommendations(t *testing.T) 
 	handler := &EntityHandler{
 		Neo4j: fakeWorkloadGraphReader{
 			runSingleByMatch: map[string]map[string]any{
-				"w.name = $service_name": {
+				"w.id = $workload_id": {
 					"id":      "workload:service-edge-api",
 					"name":    "service-edge-api",
 					"kind":    "service",
 					"repo_id": "repo-service-edge-api",
 				},
+				"MATCH (r:Repository {id: $repo_id})": {
+					"repo_name": "service-edge-api",
+				},
 			},
 			runByMatch: map[string][]map[string]any{
+				"w.name = $service_name": {
+					{
+						"id":      "workload:service-edge-api",
+						"name":    "service-edge-api",
+						"kind":    "service",
+						"repo_id": "repo-service-edge-api",
+					},
+				},
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
 				"K8sResource OR":                      {},
 				"fn.name IN":                          {},

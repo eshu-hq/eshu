@@ -10,6 +10,34 @@ const openAPIPathsInvestigations = `
         "parameters": [
           {"$ref": "#/components/parameters/ServiceName"},
           {
+            "name": "service_id",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "Optional canonical workload id used to disambiguate the service selector"
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "Optional repository selector used to disambiguate the service"
+          },
+          {
+            "name": "repository_id",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "Optional repository selector alias"
+          },
+          {
+            "name": "repo_id",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "Optional repository selector alias"
+          },
+          {
             "name": "environment",
             "in": "query",
             "required": false,

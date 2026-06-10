@@ -86,9 +86,10 @@
 // before pagination, counts, ambiguity, and not-found decisions so out-of-scope
 // repositories do not leak through metadata. Code search, entity resolution,
 // content read/search routes, evidence citation packets, entity context reads,
-// and service/workload context or story reads apply the same bounds to selector
-// resolution, graph predicates, exact content lookups, candidate ambiguity,
-// citation handle hydration, repo-identity hydration, and content fallback
+// service/workload context or story reads, and service investigation reads
+// apply the same bounds to selector resolution, graph predicates, exact content
+// lookups, candidate ambiguity, citation handle hydration, repo-identity
+// hydration, coverage metadata, recommended next calls, and content fallback
 // calls before allowing scoped-token API or MCP reads.
 // Story and investigation routes also attach additive answer_metadata
 // companions for prompt-facing clients. The companion normalizes existing

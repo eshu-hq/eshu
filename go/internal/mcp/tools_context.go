@@ -147,6 +147,18 @@ func contextTools() []ToolDefinition {
 						"type":        "string",
 						"description": "Service name or canonical workload identifier to investigate",
 					},
+					"repo": map[string]any{
+						"type":        "string",
+						"description": "Optional repository selector used with service_name to disambiguate service investigation readback",
+					},
+					"repository_id": map[string]any{
+						"type":        "string",
+						"description": "Optional repository selector alias used with service_name to disambiguate service investigation readback",
+					},
+					"repo_id": map[string]any{
+						"type":        "string",
+						"description": "Optional repository selector alias used with service_name to disambiguate service investigation readback",
+					},
 					"environment": map[string]any{
 						"type":        "string",
 						"description": "Optional environment context",

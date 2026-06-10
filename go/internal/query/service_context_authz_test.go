@@ -166,6 +166,88 @@ func TestGetServiceContextReadModelFallbackFiltersOutOfScopeRepository(t *testin
 	}
 }
 
+func TestInvestigateServiceCandidateQueryAppliesScopedAuthBeforeAmbiguity(t *testing.T) {
+	t.Parallel()
+
+	candidateQuerySeen := false
+	reader := fakeWorkloadGraphReader{
+		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+			if strings.Contains(cypher, "w.name = $service_name") {
+				candidateQuerySeen = true
+				requireScopedWorkloadPredicate(t, cypher, params)
+				return []map[string]any{{
+					"id":      "workload:payments",
+					"name":    "payments",
+					"kind":    "service",
+					"repo_id": "repo-team-a",
+				}}, nil
+			}
+			return nil, nil
+		},
+		runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+			if strings.Contains(cypher, "w.id = $workload_id") {
+				return map[string]any{
+					"id":      "workload:payments",
+					"name":    "payments",
+					"kind":    "service",
+					"repo_id": "repo-team-a",
+				}, nil
+			}
+			if strings.Contains(cypher, "MATCH (r:Repository") {
+				return map[string]any{"repo_name": "payments"}, nil
+			}
+			return nil, nil
+		},
+	}
+	handler := &EntityHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/investigations/services/payments", nil)
+	req.SetPathValue("service_name", "payments")
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:                 AuthModeScoped,
+		TenantID:             "tenant-a",
+		WorkspaceID:          "workspace-a",
+		AllowedRepositoryIDs: []string{"repo-team-a"},
+	}))
+	rec := httptest.NewRecorder()
+
+	handler.investigateService(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	if !candidateQuerySeen {
+		t.Fatal("service candidate query was not called")
+	}
+}
+
+func TestInvestigateServiceEmptyGrantReturnsNotFoundWithoutBackendCalls(t *testing.T) {
+	t.Parallel()
+
+	reader := &recordingServiceContextGraphReader{}
+	content := &recordingServiceContextContentStore{}
+	handler := &EntityHandler{Neo4j: reader, Content: content, Profile: ProfileLocalAuthoritative}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/investigations/services/payments", nil)
+	req.SetPathValue("service_name", "payments")
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:        AuthModeScoped,
+		TenantID:    "tenant-a",
+		WorkspaceID: "workspace-a",
+	}))
+	rec := httptest.NewRecorder()
+
+	handler.investigateService(rec, req)
+
+	if got, want := rec.Code, http.StatusNotFound; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	if reader.runSingleCalls != 0 || reader.runCalls != 0 {
+		t.Fatalf("graph calls = runSingle:%d run:%d, want none", reader.runSingleCalls, reader.runCalls)
+	}
+	if content.resolveRepositoryCalls != 0 || content.summaryCalls != 0 {
+		t.Fatalf("content calls = resolve:%d summary:%d, want none", content.resolveRepositoryCalls, content.summaryCalls)
+	}
+}
+
 func requireScopedWorkloadPredicate(t *testing.T, cypher string, params map[string]any) {
 	t.Helper()
 

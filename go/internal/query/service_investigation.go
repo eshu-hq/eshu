@@ -1,6 +1,7 @@
 package query
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -35,9 +36,63 @@ func (h *EntityHandler) investigateService(w http.ResponseWriter, r *http.Reques
 		WriteError(w, http.StatusBadRequest, "service_name is required")
 		return
 	}
+	if repositoryAccessFilterFromContext(r.Context()).empty() {
+		WriteError(w, http.StatusNotFound, "service not found")
+		return
+	}
 
-	ctx, err := h.fetchServiceWorkloadContext(r.Context(), serviceName, "service_investigation")
+	ctx, err := h.fetchServiceWorkloadContextWithSelector(r.Context(), serviceWorkloadSelector{
+		ServiceName: serviceName,
+		ServiceID:   QueryParam(r, "service_id"),
+		Repository:  firstNonEmptyString(QueryParam(r, "repo"), QueryParam(r, "repository_id"), QueryParam(r, "repo_id")),
+		Environment: QueryParam(r, "environment"),
+	}, "service_investigation")
 	if err != nil {
+		var ambiguous serviceWorkloadAmbiguousError
+		if errors.As(err, &ambiguous) {
+			writeServiceStoryEnvelopeError(
+				w,
+				r,
+				http.StatusConflict,
+				ErrorCodeAmbiguous,
+				ambiguous.Error(),
+				map[string]any{
+					"status":     "ambiguous",
+					"selector":   ambiguous.Selector,
+					"candidates": serviceWorkloadCandidateMaps(ambiguous.Candidates),
+					"truncated":  ambiguous.Truncated,
+				},
+			)
+			return
+		}
+		var repoAmbiguous repositorySelectorAmbiguousError
+		if errors.As(err, &repoAmbiguous) {
+			writeServiceStoryEnvelopeError(
+				w,
+				r,
+				http.StatusConflict,
+				ErrorCodeAmbiguous,
+				repoAmbiguous.Error(),
+				map[string]any{
+					"status":     "ambiguous",
+					"selector":   repoAmbiguous.Selector,
+					"candidates": repoAmbiguous.Matches,
+					"truncated":  false,
+				},
+			)
+			return
+		}
+		if isRepositorySelectorNotFound(err) {
+			writeServiceStoryEnvelopeError(
+				w,
+				r,
+				http.StatusNotFound,
+				ErrorCodeScopeNotFound,
+				err.Error(),
+				nil,
+			)
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 		return
 	}

@@ -369,7 +369,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsServiceAndWorkloadContextRoutes(t *
 	}
 }
 
-func TestAuthMiddlewareWithScopedTokensRejectsServiceInvestigationRoute(t *testing.T) {
+func TestAuthMiddlewareWithScopedTokensAllowsServiceInvestigationRoute(t *testing.T) {
 	t.Parallel()
 
 	resolver := &fakeScopedTokenResolver{
@@ -381,14 +381,19 @@ func TestAuthMiddlewareWithScopedTokensRejectsServiceInvestigationRoute(t *testi
 		},
 		ok: true,
 	}
-	handler := AuthMiddlewareWithScopedTokens("", resolver, mockHandler())
+	handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := AuthContextFromContext(r.Context()); !ok {
+			t.Fatal("AuthContextFromContext() ok = false, want true")
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/investigations/services/payments", nil)
 	req.Header.Set("Authorization", "Bearer scoped-token")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if got, want := rec.Code, http.StatusForbidden; got != want {
+	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
 }

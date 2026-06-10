@@ -291,6 +291,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if r.Method == http.MethodGet && scopedServiceContextRoute(r.URL.Path) {
 		return true
 	}
+	if r.Method == http.MethodGet && scopedServiceInvestigationRoute(r.URL.Path) {
+		return true
+	}
 	if r.Method != http.MethodPost {
 		return false
 	}
@@ -325,6 +328,15 @@ func scopedWorkloadContextRoute(path string) bool {
 
 func scopedServiceContextRoute(path string) bool {
 	return scopedContextRoute(path, "/api/v0/services/")
+}
+
+func scopedServiceInvestigationRoute(path string) bool {
+	const prefix = "/api/v0/investigations/services/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	selector := strings.TrimPrefix(path, prefix)
+	return selector != "" && !strings.Contains(selector, "/")
 }
 
 func scopedContextRoute(path string, prefix string) bool {

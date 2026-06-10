@@ -347,11 +347,18 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	case "get_service_story":
 		return serviceStoryRoute(args)
 	case "investigate_service":
-		return &route{method: "GET", path: "/api/v0/investigations/services/" + url.PathEscape(normalizeQualifiedIdentifier(str(args, "service_name"))), query: map[string]string{
+		q := map[string]string{
 			"environment": str(args, "environment"),
 			"intent":      str(args, "intent"),
 			"question":    str(args, "question"),
-		}}, nil
+		}
+		if serviceID := canonicalWorkloadIdentifier(str(args, "service_name")); serviceID != "" {
+			q["service_id"] = serviceID
+		}
+		if repo := serviceStoryRepositorySelector(args); repo != "" {
+			q["repo"] = repo
+		}
+		return &route{method: "GET", path: "/api/v0/investigations/services/" + url.PathEscape(normalizeQualifiedIdentifier(str(args, "service_name"))), query: q}, nil
 	case "get_incident_context":
 		incidentID := str(args, "provider_incident_id")
 		if incidentID == "" {
