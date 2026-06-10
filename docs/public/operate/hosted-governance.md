@@ -59,8 +59,11 @@ scripts/verify-hosted-governance-proof.sh
 
 The local gate composes focused API/MCP scoped-token governance tests, redaction
 and audit readback canaries, hosted security posture proof, and NetworkPolicy
-egress proof. It is source-only and must not require live hosts, clusters,
-private values, provider credentials, or tenant data.
+egress proof. It also proves local no-policy governance status, no-provider
+semantic status, and no-provider semantic queue planning so deterministic paths
+remain available without provider credentials or governance policy. It is
+source-only and must not require live hosts, clusters, private values, provider
+credentials, or tenant data.
 
 2. Confirm the endpoint and token source are operator-managed:
 

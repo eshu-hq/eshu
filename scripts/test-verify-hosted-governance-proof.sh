@@ -24,5 +24,10 @@ rg --fixed-strings --quiet "scripts/test-verify-hosted-network-policy-egress.sh"
 rg --fixed-strings --quiet "scripts/verify-hosted-network-policy-egress.sh" "${list_log}"
 rg --fixed-strings --quiet "scoped-token API governance status and redaction canaries" "${list_log}"
 rg --fixed-strings --quiet "scoped-token MCP governance parity" "${list_log}"
+rg --fixed-strings --quiet "local no-policy governance and no-provider semantic status" "${list_log}"
+rg --fixed-strings --quiet "semantic no-provider runtime status" "${list_log}"
+rg --fixed-strings --quiet "semantic queue no-provider planning" "${list_log}"
+rg --fixed-strings --quiet "go test ./internal/status" "${list_log}"
+rg --fixed-strings --quiet "go test ./internal/semanticqueue" "${list_log}"
 
 printf 'hosted governance proof verifier tests passed\n'
