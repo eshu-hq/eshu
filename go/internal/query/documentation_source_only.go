@@ -94,6 +94,14 @@ func buildDocumentationSourceOnlySQL(filter documentationFindingFilter) (string,
 	addColumnFilter("fact.generation_id", filter.GenerationID)
 	addPayloadFilter("source_id", filter.SourceID)
 	addPayloadFilter("document_id", filter.DocumentID)
+	clauses, args = appendDocumentationAuthorizationClause(
+		clauses,
+		args,
+		"fact",
+		"scope",
+		filter.AllowedRepositoryIDs,
+		filter.AllowedScopeIDs,
+	)
 	return fmt.Sprintf(`
 SELECT
     COUNT(*) AS documentation_source_only_count,
