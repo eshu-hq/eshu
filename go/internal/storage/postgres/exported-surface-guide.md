@@ -55,6 +55,13 @@ reducer/query adapter.
   `azure_cloud_resource`) for one scope generation, mapped into the shared
   `reducer.CloudInventoryRecord` shape for the `cloud_inventory_admission`
   reducer domain (issues #1997, #1998)
+- `PostgresMultiCloudRuntimeDriftEvidenceLoader` — bounded observed →
+  active Terraform state → owned Terraform config join for the
+  `multi_cloud_runtime_drift` reducer domain, keyed on canonical
+  `cloud_resource_uid` so AWS, GCP, and Azure share one drift path; resolves
+  every layer through `cloudinventory` without inventing a second keyspace and
+  reuses the shared `tfstatebackend` config-owner resolution (issues #1997,
+  #1998)
 
 **Content stores**
 

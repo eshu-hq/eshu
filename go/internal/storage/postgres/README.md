@@ -110,6 +110,32 @@ No-Observability-Change: #2047 adds no route, worker, queue domain, graph write,
 metric name, metric label, runtime default, or API/MCP response field; store
 calls keep using the existing Postgres query/exec spans and duration metric.
 
+### Multi-cloud runtime drift evidence loader (issues #1997, #1998)
+
+`PostgresMultiCloudRuntimeDriftEvidenceLoader` is the concrete
+`reducer.MultiCloudRuntimeDriftEvidenceLoader` that backs
+`DomainMultiCloudRuntimeDrift`. It builds the provider-neutral drift join on one
+canonical `cloud_resource_uid` keyspace so AWS, GCP, and Azure share a single
+path. The loader runs three bounded reads: (1) observed inventory facts
+(`aws_resource`, `gcp_cloud_resource`, `azure_cloud_resource`) for one
+`(scope_id, generation_id)`, resolving each provider's native raw identity (ARN,
+full resource name, ARM id) into the shared uid through
+`cloudinventory.ResolveProviderIdentity`; (2) active `terraform_state_resource`
+rows whose provider-native identity (matched from `attributes.arn`,
+`attributes.id`, or `attributes.self_link`) re-resolves to one of those uids,
+bounded by a JSON allowlist of the observed identities so a stale generation
+cannot widen the join; and (3) Terraform config rows resolved per state backend
+owner through the same shared `tfstatebackend` resolver the AWS drift domain uses,
+joined to state by Terraform address. Observed-only resolves to orphaned,
+cloud+state without config to unmanaged, conflicting state owners for one uid to
+ambiguous, and an unresolved config owner to unknown. The loader never invents a
+second keyspace, never fabricates a uid for an unresolved identity, and never
+promotes a provider observation over declared Terraform config.
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run 'TestPostgresMultiCloudRuntimeDriftEvidenceLoader' -count=1` proves the loader joins observed+state+config by uid across the three providers, classifies orphaned/unmanaged/ambiguous/unknown, resolves a Terraform state identity to the same uid as the observed fact, drops identities that cannot key into the shared keyspace, rejects blank scope/generation and a nil DB, short-circuits the state/config scans on an empty observed set (one query only), and stays stable under concurrent loads. The observed scan reuses `listMultiCloudObservedResourcesForGenerationQuery`, served by the existing `fact_records_scope_generation_idx (scope_id, generation_id, fact_kind, observed_at DESC)` partial-key prefix; the state scan (`listActiveStateResourcesForMultiCloudIdentitiesQuery`) is bounded by the observed-identity JSON allowlist and the `ingestion_scopes.active_generation_id` join, with `is_tombstone = FALSE` on both reads and no full-table scan. `go test ./internal/storage/postgres ./internal/reducer ./cmd/reducer -count=1` and `go test ./internal/reducer -run MultiCloudRuntimeDrift -race -count=1` passed; this is purely additive read wiring beside the unchanged AWS drift loader, so the AWS path does not regress.
+
+No-Observability-Change: the loader adds no table, route, worker, queue domain, graph write, metric name, or metric label. It is wrapped by the new `reducer.multi_cloud_runtime_drift_evidence_load` span whose child `postgres.query` spans expose the observed, state, and config sub-scans; the publication handler already emits the bounded multi-cloud drift counters and the canonical `reducer_multi_cloud_runtime_drift_finding` payload, and the Postgres instrumentation wrapper still emits `eshu_dp_postgres_query_duration_seconds{store=...,operation=...}` for each read. Loader-side decode and unresolved-identity skips are surfaced through the redaction-aware `multi_cloud_observed_unresolved` and `multi_cloud_state_payload_decode` warning logs (fact kind plus redacted resource attributes only).
+
 ## Exported surface
 
 The full exported store inventory lives in
