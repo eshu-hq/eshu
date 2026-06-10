@@ -111,6 +111,21 @@
   plus HTTP route attribution and truth envelopes, diagnose the bounded read
   path.
 
+- **Evidence citation scoped-token route evidence** — #2068 opens only
+  `POST /api/v0/evidence/citations` after `EvidenceHandler` applies
+  `AuthContext` bounds to file-handle hydration and entity-result filtering.
+  Empty scoped grants return zero resolved citations without content-store
+  hydration; out-of-scope file handles are never sent to the file batch reader,
+  and out-of-scope entity rows are treated as missing before citation payloads
+  are built. No-Regression Evidence: `go test ./internal/query -run
+  'Test(EvidenceHandler.*Citation.*(Scoped|AllScope)|AuthMiddlewareWithScopedTokensAllowsEvidenceCitationRoute)'
+  -count=1` and `go test ./internal/mcp -run
+  TestDispatchToolEvidenceCitationAllowsScopedCitationRoute -count=1`.
+  No-Observability-Change: the route adds no graph write, metric label,
+  runtime knob, or response field; existing `query.evidence_citation_packet`
+  handler spans, content-store `postgres.query` spans, HTTP route attribution,
+  and truth envelopes diagnose the bounded citation hydration path.
+
 - **Package registry reads stay anchored** — `PackageRegistryHandler` in
   `package_registry.go` must require `limit` plus a route-specific anchor
   before graph reads: package lookups use `package_id` or `ecosystem`, version
