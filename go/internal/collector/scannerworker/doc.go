@@ -11,6 +11,7 @@
 // explicit scanner_worker.warning evidence, not a safe, affected, or scanned
 // result. Target kind derivation stays bounded to repository, image, or
 // artifact enums so telemetry and failure payloads do not leak raw locators.
-// Hosted workers must either commit source evidence or record a bounded retry
-// or dead-letter payload.
+// Hosted workers carry tenant boundaries into commit mutations and must either
+// commit source evidence under the active grant or record a bounded retry or
+// dead-letter payload.
 package scannerworker

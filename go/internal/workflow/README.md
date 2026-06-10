@@ -58,9 +58,11 @@ Types in this package flow through four phases of the workflow control plane:
    with a `ClaimSelector` to acquire a `WorkItem` and `Claim`. They advance the
    claim via `HeartbeatClaim`, `CompleteClaim`, `ReleaseClaim`,
    `FailClaimRetryable`, or `FailClaimTerminal` using a `ClaimMutation` carrying
-   the `FencingToken` for optimistic concurrency. The coordinator's
-   `ControlStore.ReapExpiredClaims` reclaims ownership of claims whose
-   `LeaseExpiresAt` has passed.
+   the `FencingToken` for optimistic concurrency. Hosted claim-aware collectors
+   also copy tenant, workspace, subject-class, and policy-revision identity into
+   the mutation so storage can re-check the active grant at fact commit time.
+   The coordinator's `ControlStore.ReapExpiredClaims` reclaims ownership of
+   claims whose `LeaseExpiresAt` has passed.
 
 4. **Run progress and completeness** — reducer phases publish checkpoints that
    the coordinator observes. `ReconcileRunProgress(snapshot, observedAt)` takes
@@ -107,7 +109,8 @@ Types in this package flow through four phases of the workflow control plane:
 - `ControlStore` — the full durable surface (thirteen methods) implemented by
   `storage/postgres`
 - `ClaimSelector`, `ClaimMutation`, `ClaimedWorkItem` — claim operation
-  arguments and return shapes
+  arguments and return shapes; hosted `ClaimMutation` values carry the optional
+  tenant boundary as an all-or-none group for commit-time grant checks
 - `ClaimMutation.Resolved*` — optional completion-time phase identity fields
   used when planned work cannot know the final reducer checkpoint tuple until
   source open. Terraform-state claims use these fields to replace candidate

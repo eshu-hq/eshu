@@ -87,12 +87,11 @@ High-signal invariants for this package:
   normalized safe fields, and uses `ON CONFLICT DO NOTHING` so retried writes
   are idempotent without storing raw principals, source names, prompts,
   provider responses, credential handles, private URLs, or token values.
-- Tenant/workspace grant storage is additive: it persists opaque tenant and
-  workspace IDs, redacted display-handle hashes, scope grants, and repository
-  grants without changing current API, MCP, graph, collector, or workflow
-  enforcement. Active reads require one tenant/workspace boundary and apply
-  status, tombstone, effective-at, expiry, subject-class, and scope-grant
-  predicates inside SQL before returning rows.
+- Tenant/workspace grant storage persists opaque tenant and workspace IDs,
+  redacted display-handle hashes, scope grants, and repository grants. Active
+  reads and claimed fact commits apply status, tombstone, effective-at, expiry,
+  subject-class, and policy-revision predicates inside SQL before returning
+  rows or writing source facts.
 - Scoped API token storage is additive: it persists only opaque tenant and
   workspace IDs, token hashes, subject hashes, active bounds, expiry,
   revocation, and policy revision hashes without storing raw bearer tokens or
@@ -101,14 +100,9 @@ High-signal invariants for this package:
   indexes plus `fact_records_documentation_target_refs_idx`, a partial JSONB GIN
   index over documentation target-reference payloads.
 
-Recent no-regression and observability notes that do not belong in the package
-orientation flow live in [`evidence-notes.md`](evidence-notes.md).
-
-No-Regression Evidence: `go test ./internal/storage/postgres -run 'Test(BootstrapDefinitionsIncludeTenantWorkspaceGrants|TenantWorkspaceGrantStore)' -count=1` failed before #2047, then passed after adding the tenant/workspace grant schema, idempotent upserts, active bounded reads, and privacy guardrails.
-
-No-Observability-Change: #2047 adds no route, worker, queue domain, graph write,
-metric name, metric label, runtime default, or API/MCP response field; store
-calls keep using the existing Postgres query/exec spans and duration metric.
+No-Regression Evidence: scoped hot-path notes live in
+[`evidence-notes.md`](evidence-notes.md), including #2059 claimed fact commit
+tenant-grant fencing. No-Observability-Change: #2059 adds no new signal shape.
 
 ### Multi-cloud runtime drift evidence loader (issues #1997, #1998)
 

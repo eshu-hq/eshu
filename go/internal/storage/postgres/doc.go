@@ -136,7 +136,9 @@
 // tenant/workspace/policy revision identity on workflow work items; guarded
 // planning treats that identity as part of target eligibility, and claim
 // heartbeat/complete paths re-check active tenant scope grants before accepting
-// stale hosted work.
+// stale hosted work. IngestionStore re-checks and locks the same active tenant
+// grant before claimed source facts are written, so grant revocation waits for
+// the commit transaction instead of racing past it.
 //
 // State-only addresses absent from the prior-config address set keep
 // PreviouslyDeclaredInConfig=false and surface as added_in_state — the

@@ -187,7 +187,9 @@ reducer/query adapter.
 
 **Ingestion**
 
-- `IngestionStore` / `NewIngestionStore` — scope and generation upserts
+- `IngestionStore` / `NewIngestionStore` — scope and generation upserts plus
+  claim-fenced fact commits that re-check and lock hosted tenant grants before
+  writing source facts when the claim mutation carries a tenant boundary
 
 **Relationships**
 
@@ -199,7 +201,8 @@ reducer/query adapter.
 
 - `WorkflowControlStore` / `NewWorkflowControlStore` — claim, heartbeat,
   release with lease fencing; `ErrWorkflowClaimRejected`, `ClaimSelector`,
-  `ClaimMutation`
+  `ClaimMutation`, including optional hosted tenant boundary fields copied into
+  claimed fact commits
 - `WebhookTriggerStore` / `NewWebhookTriggerStore` —
   `StoreTrigger`, `ClaimQueuedTriggers`, `MarkTriggersHandedOff`,
   `MarkTriggersFailed`, and `WebhookTriggerSchemaSQL`

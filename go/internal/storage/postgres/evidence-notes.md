@@ -39,6 +39,16 @@ counts, while existing `eshu_dp_workflow_coordinator_reconcile_total`,
 `eshu_dp_postgres_query_duration_seconds{store="tenant_workspace_grants"}` show
 queue progress, duplicate convergence, grant reads, and stale-claim rejection.
 
+## Claimed Fact Commit Tenant Grant Fencing (#2059)
+
+No-Regression Evidence: `go test ./internal/collector ./internal/collector/scannerworker ./internal/storage/postgres -run 'TestClaimedServiceClaimsHeartbeatsCommitsAndCompletes|TestServiceProcessesClaimAndCommitsSourceFacts|TestIngestionStoreCommitClaimedScopeGeneration|TestValidateClaimMutationTenantBoundary|TestHeartbeatWorkflowClaimQueryLocksActiveTenantGrant|TestWorkflowControlStoreHeartbeatClaimRejectsInactiveTenantGrant|TestCompleteWorkflowClaimQueryChecksActiveTenantGrant' -count=1` proves claim-aware collectors carry hosted tenant boundaries into commit mutations and claimed fact commits reject revoked, stale-policy, deleted-workspace, or expired grants before fact or projector work rows are written.
+
+No-Observability-Change: #2059 adds no metric name, label, worker, queue, route,
+runtime default, or API/MCP field. Denials return the existing bounded
+`ErrWorkflowClaimRejected` path and remain visible through workflow retry or
+dead-letter state plus existing Postgres query/exec spans and
+`eshu_dp_postgres_query_duration_seconds`.
+
 ## Cloud Inventory Evidence Loader (issues #1997, #1998)
 
 `PostgresCloudInventoryEvidenceLoader` is the concrete
