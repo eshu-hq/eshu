@@ -17,6 +17,26 @@ to diagnose the route through existing `repository_query.stage_*` logs, the
 repository response `result_limits`, `partial_reasons`, and `truncated`
 metadata.
 
+## Scoped route fail-closed gate (#2049)
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestAuthMiddlewareWithScopedTokens(RejectsUnsupportedScopedRoute|RejectsScopedMutationOnAllowedPath|AllowsSharedTokenOnUnsupportedRoute|AllowsRepositoryListWithEmptyGrant|RejectsAllScopeOnUnsupportedRoute|AuditsUnsupportedScopedRoute|AttachesAuthContext|PublicPathSkipsResolver)'
+-count=1` failed before the route gate because scoped tokens reached
+unsupported data routes and non-GET requests on the repository list path. It
+passed after the shared auth middleware allowed only explicitly
+tenant-filtered scoped routes and returned `permission_denied` before invoking
+unsupported handlers. Empty grants can still reach the repository canary, while
+all-scope scoped tokens remain fail-closed on unsupported routes. Scoped route
+denials also emit validation-safe governance audit events when an audit sink is
+wired. Shared-token and public-path behavior remained unchanged.
+
+No-Observability-Change: #2049 changes only pre-handler authorization routing
+for scoped bearer tokens. It adds no graph read, content-store read, queue,
+worker, runtime knob, response field, metric instrument, or metric label.
+Operators can still diagnose denied calls through the existing HTTP status,
+structured error envelope, correlation id, request logs, and unchanged route
+handler spans for requests that are allowed to reach handlers.
+
 ## Incident context routing evidence (#1142)
 
 Incident context now includes three routing slots before deployable/runtime
