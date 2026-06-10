@@ -59,8 +59,11 @@ scripts/verify-hosted-governance-proof.sh
 
 The local gate composes focused API/MCP scoped-token governance tests, redaction
 and audit readback canaries, hosted security posture proof, and NetworkPolicy
-egress proof. It is source-only and must not require live hosts, clusters,
-private values, provider credentials, or tenant data.
+egress proof. It also proves local no-policy governance status, no-provider
+semantic status, and no-provider semantic queue planning so deterministic paths
+remain available without provider credentials or governance policy. It is
+source-only and must not require live hosts, clusters, private values, provider
+credentials, or tenant data.
 
 2. Confirm the endpoint and token source are operator-managed:
 
@@ -233,6 +236,44 @@ helm template eshu ./deploy/helm/eshu -f values.hosted-governance.yaml
 helm lint ./deploy/helm/eshu -f values.hosted-governance.yaml
 ```
 
+Generate the public-safe hosted governance Helm proof before promoting a
+governance rollout past remote Compose:
+
+```bash
+scripts/test-verify-hosted-governance-helm-proof.sh
+scripts/verify-hosted-governance-helm-proof.sh \
+  --out-dir .proof/governance-helm \
+  --values values.hosted-governance.yaml
+```
+
+The verifier composes the hosted Helm rollout proof, hosted security posture
+proof, and hosted NetworkPolicy egress proof. It requires
+`networkPolicy.egress.mode=restricted` and API/MCP governance status env keys
+for mode, state, source kind, auth mode, and egress mode. Put those keys in
+`api.env` and `mcpServer.env` in the operator values file so both read
+surfaces expose the same governance status posture. The summary artifact keeps
+only chart/app version, safe image reference, values digest, proof-layer
+status, workload counts, schema-bootstrap status, and governance status-env
+results.
+
+Run the negative-leakage proof after collecting public-safe surface artifacts
+from the private proof environment:
+
+```bash
+scripts/test-verify-hosted-governance-negative-leakage-proof.sh
+scripts/verify-hosted-governance-negative-leakage-proof.sh \
+  --manifest leakage-proof.json \
+  --output-json leakage-proof.summary.json \
+  --output-markdown leakage-proof.summary.md
+```
+
+The manifest references operator-local artifacts for facts, logs, metric
+labels, status errors, graph properties, API bodies, MCP bodies, audit events,
+generated docs, and onboarding artifacts. It also declares the synthetic
+canaries that must not appear in any referenced artifact. The verifier writes
+only surface names, record counts, byte counts, line counts, SHA-256 digests,
+and pass/fail status.
+
 ## Operator Runbooks
 
 ### Denied Reads
@@ -403,6 +444,8 @@ Use these gates for hosted governance-related changes:
 | Hosted governance local proof posture | `scripts/test-verify-hosted-governance-proof.sh`, `scripts/verify-hosted-governance-proof.sh`, strict MkDocs build, and `git diff --check`. |
 | Hosted governance remote Compose proof | `scripts/test-verify-hosted-governance-remote-compose-proof.sh`, `scripts/verify-hosted-governance-remote-compose-proof.sh`, and `scripts/verify-hosted-governance-remote-compose-proof.sh --runtime` from the private remote Compose operator environment. |
 | Hosted governance proof artifact | `scripts/test-verify-hosted-governance-proof-artifact.sh`, `scripts/verify-hosted-governance-proof-artifact.sh --input governance-proof.json --output-json governance-proof.summary.json --output-markdown governance-proof.summary.md`, strict MkDocs build, and `git diff --check`. |
+| Hosted governance Helm proof | `scripts/test-verify-hosted-governance-helm-proof.sh`, `scripts/verify-hosted-governance-helm-proof.sh --out-dir .proof/governance-helm --values values.eshu.yaml`, `helm lint deploy/helm/eshu -f values.eshu.yaml`, strict MkDocs build, and `git diff --check`. |
+| Hosted governance negative leakage proof | `scripts/test-verify-hosted-governance-negative-leakage-proof.sh`, `scripts/verify-hosted-governance-negative-leakage-proof.sh --manifest leakage-proof.json --output-json leakage-proof.summary.json --output-markdown leakage-proof.summary.md`, strict MkDocs build, and `git diff --check`. |
 | Hosted retention or deletion policy docs | Strict MkDocs build and `git diff --check`; runtime implementation must add focused deletion, tombstone, stale-read, and graph-rebuild tests. |
 | Hosted governance audit events or readbacks | `go test ./internal/governanceaudit ./internal/storage/postgres ./internal/query ./cmd/api ./cmd/mcp-server -count=1`, package-doc gates, performance-evidence gate, and strict MkDocs build. |
 | Hosted extension egress claim gate | `go test ./internal/coordinator -run 'Test(ParseExtensionEgressPolicyJSON|ExtensionEgressPolicy|LoadConfigParsesExtensionEgressPolicy|ServiceRun.*ComponentExtension|ServiceComponentExtension)' -count=1`, package-doc gates, performance-evidence gate, and strict MkDocs build. |

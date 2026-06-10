@@ -143,6 +143,19 @@ write_rollback_state() {
 JSON
 }
 
+chart_field() {
+    local field="$1"
+    awk -v key="${field}:" '
+        $1 == key {
+            value = $2
+            gsub(/^"/, "", value)
+            gsub(/"$/, "", value)
+            print value
+            exit
+        }
+    ' "${repo}/deploy/helm/eshu/Chart.yaml"
+}
+
 repo="${tmp_root}/repo"
 mkdir -p "${repo}"
 cp -R "${repo_root}/deploy" "${repo}/deploy"
@@ -169,9 +182,11 @@ artifact="${out_dir}/hosted-helm-rollout-proof.json"
     sed -n '1,120p' "${repo}/gate.err" >&2
     exit 1
 }
-jq -e '.chart.version == "0.0.3-pre-release-7"' "${artifact}" >/dev/null \
+expected_chart_version="$(chart_field version)"
+expected_app_version="$(chart_field appVersion)"
+jq -e --arg expected "${expected_chart_version}" '.chart.version == $expected' "${artifact}" >/dev/null \
     || { printf 'chart version was not captured\n' >&2; exit 1; }
-jq -e '.chart.app_version == "v0.0.3-pre-release-4"' "${artifact}" >/dev/null \
+jq -e --arg expected "${expected_app_version}" '.chart.app_version == $expected' "${artifact}" >/dev/null \
     || { printf 'app version was not captured\n' >&2; exit 1; }
 jq -e '.install.helm_lint == "pass" and .install.helm_dry_run == "pass"' "${artifact}" >/dev/null \
     || { printf 'install lint and dry-run status were not captured\n' >&2; exit 1; }

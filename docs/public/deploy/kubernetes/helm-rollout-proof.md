@@ -9,6 +9,19 @@ The verifier does not persist rendered manifests, raw endpoint bodies, bearer
 tokens, database DSNs, private hostnames, or source payloads. Keep private
 values files and endpoint details outside the repository.
 
+For hosted governance promotion, run the governance-specific wrapper after
+preparing an operator values file with restricted egress and governance status
+environment values:
+
+```bash
+scripts/verify-hosted-governance-helm-proof.sh \
+  --out-dir .proof/governance-helm \
+  --values values.eshu.yaml
+```
+
+That wrapper composes this rollout proof with hosted security posture and
+NetworkPolicy egress proof, then writes only public-safe summary artifacts.
+
 ## Install Proof
 
 Run the proof from the repository root after writing the same values file you
