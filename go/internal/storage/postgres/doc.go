@@ -1,7 +1,7 @@
 // Package postgres owns Eshu's relational persistence: facts, queue state,
 // content store, status, recovery data, decisions, webhook refresh triggers,
-// incident freshness triggers, AWS scan status, and workflow coordination
-// tables.
+// incident freshness triggers, AWS scan status, hosted tenant/workspace grant
+// state, and workflow coordination tables.
 //
 // The package wraps the Postgres driver with OTEL-instrumented helpers and
 // exposes typed access to queue claim, lease, batch, and recovery
@@ -113,6 +113,17 @@
 // SBOM/attestation attachment readers use the same active-generation keyset
 // page shape, with referrer-subject, subject-digest, document, document-digest,
 // and status indexes so MCP/API reads stay digest-first and bounded.
+// TenantWorkspaceGrantStore persists the additive hosted isolation control
+// plane: tenants, workspaces, scope grants, and repository grants. It stores
+// opaque IDs plus redacted display-handle hashes, requires tenant/workspace
+// bounds on reads, filters out inactive, tombstoned, not-yet-effective, and
+// expired rows inside SQL, and keeps repository grants joined to an active
+// scope grant so later read enforcement cannot widen beyond source-scope
+// truth.
+// ScopedAPITokenStore adds the default-off hash-only token registry for that
+// control plane. It stores bearer-token digests, scoped subject hashes, expiry,
+// revocation, and policy revision hashes while relying on the tenant/workspace
+// tables for active boundary checks.
 //
 // State-only addresses absent from the prior-config address set keep
 // PreviouslyDeclaredInConfig=false and surface as added_in_state — the

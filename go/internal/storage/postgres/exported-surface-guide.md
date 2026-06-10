@@ -148,6 +148,18 @@ reducer/query adapter.
 - `DecisionStore` / `NewDecisionStore` — upserts `projection_decisions` and
   `projection_decision_evidence`; `DecisionFilter` for scoped reads
 
+**Hosted tenant/workspace grants**
+
+- `TenantWorkspaceGrantStore` / `NewTenantWorkspaceGrantStore` — additive
+  hosted isolation storage for `tenants`, `workspaces`,
+  `tenant_scope_grants`, and `tenant_repository_grants`
+- `TenantRecord`, `WorkspaceRecord`, `TenantScopeGrant`,
+  `TenantRepositoryGrant`, and `TenantWorkspaceGrantQuery` — typed rows and
+  bounded active-grant read filters for future hosted enforcement
+- `ScopedAPITokenStore` / `NewScopedAPITokenStore` — hash-only hosted token
+  registry backed by tenant/workspace rows; reads return active scoped subject
+  bounds only and never accept raw token values
+
 **Recovery**
 
 - `RecoveryStore` / `NewRecoveryStore` — replays `dead_letter` and `failed`
@@ -202,7 +214,8 @@ reducer/query adapter.
   `SharedIntentSchemaSQL`, `SharedProjectionAcceptanceSchemaSQL`,
   `GraphProjectionPhaseStateSchemaSQL`, `GraphProjectionPhaseRepairQueueSchemaSQL`,
   `WorkflowControlSchemaSQL`, `WorkflowCoordinatorStateSchemaSQL`,
-  `IaCReachabilitySchemaSQL`, `VulnerabilitySourceStateSchemaSQL`
+  `IaCReachabilitySchemaSQL`, `VulnerabilitySourceStateSchemaSQL`,
+  `TenantWorkspaceGrantSchemaSQL`, `ScopedAPITokenSchemaSQL`
 
 **IaC reachability**
 

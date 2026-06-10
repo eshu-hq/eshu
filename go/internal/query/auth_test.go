@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -328,4 +329,140 @@ func TestAuthMiddleware_CaseSensitiveScheme(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAuthMiddlewareWithScopedTokensAttachesAuthContext(t *testing.T) {
+	t.Parallel()
+
+	resolver := &fakeScopedTokenResolver{
+		context: AuthContext{
+			Mode:                 AuthModeScoped,
+			TenantID:             "tenant_a",
+			WorkspaceID:          "workspace_a",
+			SubjectClass:         "team",
+			SubjectIDHash:        "sha256:subject",
+			PolicyRevisionHash:   "sha256:policy",
+			AllowedScopeIDs:      []string{"scope_a"},
+			AllowedRepositoryIDs: []string{"repo_a"},
+		},
+		ok: true,
+	}
+	handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth, ok := AuthContextFromContext(r.Context())
+		if !ok {
+			t.Fatal("AuthContextFromContext() ok = false, want true")
+		}
+		if auth.Mode != AuthModeScoped || auth.TenantID != "tenant_a" ||
+			auth.WorkspaceID != "workspace_a" || auth.AllScopes {
+			t.Fatalf("auth context = %#v, want scoped tenant/workspace", auth)
+		}
+		if len(auth.AllowedScopeIDs) != 1 || auth.AllowedScopeIDs[0] != "scope_a" {
+			t.Fatalf("AllowedScopeIDs = %#v, want scope_a", auth.AllowedScopeIDs)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories", nil)
+	req.Header.Set("Authorization", "Bearer scoped-token")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if resolver.token != "scoped-token" {
+		t.Fatalf("resolver token = %q, want scoped-token", resolver.token)
+	}
+}
+
+func TestAuthMiddlewareWithScopedTokensFallsBackToSharedTokenContext(t *testing.T) {
+	t.Parallel()
+
+	resolver := &fakeScopedTokenResolver{}
+	handler := AuthMiddlewareWithScopedTokens("shared-token", resolver, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth, ok := AuthContextFromContext(r.Context())
+		if !ok {
+			t.Fatal("AuthContextFromContext() ok = false, want true")
+		}
+		if auth.Mode != AuthModeShared || !auth.AllScopes {
+			t.Fatalf("auth context = %#v, want shared all-scope context", auth)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories", nil)
+	req.Header.Set("Authorization", "Bearer shared-token")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAuthMiddlewareWithScopedTokensRejectsUnknownScopedToken(t *testing.T) {
+	t.Parallel()
+
+	handler := AuthMiddlewareWithScopedTokens("", &fakeScopedTokenResolver{}, mockHandler())
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories", nil)
+	req.Header.Set("Authorization", "Bearer missing-token")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", rec.Code)
+	}
+}
+
+func TestAuthMiddlewareWithScopedTokensResolverError(t *testing.T) {
+	t.Parallel()
+
+	handler := AuthMiddlewareWithScopedTokens("", &fakeScopedTokenResolver{
+		err: errors.New("lookup failed"),
+	}, mockHandler())
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories", nil)
+	req.Header.Set("Authorization", "Bearer scoped-token")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", rec.Code)
+	}
+}
+
+func TestAuthMiddlewareWithScopedTokensPublicPathSkipsResolver(t *testing.T) {
+	t.Parallel()
+
+	resolver := &fakeScopedTokenResolver{err: errors.New("must not be called")}
+	handler := AuthMiddlewareWithScopedTokens("", resolver, mockHandler())
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if resolver.called {
+		t.Fatal("resolver called for public path")
+	}
+}
+
+type fakeScopedTokenResolver struct {
+	context AuthContext
+	ok      bool
+	err     error
+	token   string
+	called  bool
+}
+
+func (f *fakeScopedTokenResolver) ResolveScopedToken(
+	_ context.Context,
+	token string,
+) (AuthContext, bool, error) {
+	f.called = true
+	f.token = token
+	return f.context, f.ok, f.err
 }
