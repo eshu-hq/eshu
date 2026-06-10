@@ -53,11 +53,17 @@ func (h *SupplyChainHandler) countContainerImageIdentities(w http.ResponseWriter
 		return
 	}
 
-	sourceRepositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "source_repository_id"))
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptyContainerImageIdentityCount(w, r)
+		return
+	}
+	sourceRepositoryID, ok := h.resolveContainerImageSourceRepositorySelector(w, r, QueryParam(r, "source_repository_id"), access)
 	if !ok {
 		return
 	}
 	filter := containerImageIdentityAggregateFilterFromRequest(r, sourceRepositoryID)
+	filter.AllowedSourceRepositoryIDs = access.repositorySearchIDs()
 	if !validateContainerImageIdentityAggregateOutcome(w, filter) {
 		return
 	}
@@ -135,11 +141,17 @@ func (h *SupplyChainHandler) containerImageIdentityInventory(w http.ResponseWrit
 	if !ok {
 		return
 	}
-	sourceRepositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "source_repository_id"))
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptyContainerImageIdentityInventory(w, r, dimension, limit, offset)
+		return
+	}
+	sourceRepositoryID, ok := h.resolveContainerImageSourceRepositorySelector(w, r, QueryParam(r, "source_repository_id"), access)
 	if !ok {
 		return
 	}
 	filter := containerImageIdentityAggregateFilterFromRequest(r, sourceRepositoryID)
+	filter.AllowedSourceRepositoryIDs = access.repositorySearchIDs()
 	if !validateContainerImageIdentityAggregateOutcome(w, filter) {
 		return
 	}

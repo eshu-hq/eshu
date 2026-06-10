@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+
+	"github.com/lib/pq"
 )
 
 const containerImageIdentityFactKind = "reducer_container_image_identity"
@@ -25,6 +27,17 @@ type ContainerImageIdentityFilter struct {
 	Outcome            string
 	AfterIdentityID    string
 	Limit              int
+	// AllowedSourceRepositoryIDs carries the scoped-token grant set (the union
+	// of granted repository and ingestion-scope ids). When empty the read is
+	// unrestricted (shared token, all-scope admin, or local dev mode). When
+	// populated the query keeps only identities whose source_repository_ids
+	// overlap the granted set, so a scoped caller never sees image identities
+	// it cannot attribute to a granted git repository. Identity facts key on
+	// the OCI repository_id and an OCI registry ingestion scope, neither of
+	// which is a durable join to a git-repo grant, so source_repository_ids
+	// overlap is the only correct attribution and uncorrelated images stay
+	// invisible to scoped tokens.
+	AllowedSourceRepositoryIDs []string
 }
 
 // ContainerImageIdentityRow is one durable image identity fact decoded from
@@ -93,6 +106,7 @@ func (s PostgresContainerImageIdentityStore) ListContainerImageIdentities(
 		filter.Outcome,
 		filter.AfterIdentityID,
 		filter.Limit,
+		pq.Array(filter.AllowedSourceRepositoryIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list container image identities: %w", err)
@@ -137,6 +151,10 @@ WHERE fact.fact_kind = $1
   AND ($5 = '' OR fact.payload->>'repository_id' = $5)
   AND ($6 = '' OR fact.payload->>'outcome' = $6)
   AND ($7 = '' OR fact.fact_id > $7)
+  AND (
+        COALESCE(cardinality($9::text[]), 0) = 0
+        OR fact.payload->'source_repository_ids' ?| $9::text[]
+      )
 ORDER BY fact.fact_id ASC
 LIMIT $8
 `

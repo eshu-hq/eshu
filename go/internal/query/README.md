@@ -143,6 +143,26 @@ dispatch tests.
 No-Observability-Change: existing supply-chain impact query spans, truth
 envelopes, readiness envelopes, limits, cursors, truncation, count, and
 inventory metadata diagnose the bounded reads.
+Container image identity list, count, and inventory reads
+(`GET /api/v0/supply-chain/container-images/identities`, `/identities/count`,
+and `/identities/inventory`, plus the matching `list_container_image_identities`,
+`count_container_image_identities`, and `get_container_image_identity_inventory`
+MCP tools) require a different scoped-token predicate than the other families:
+identity facts key on the OCI `repository_id` and an OCI registry ingestion
+scope, neither of which is a durable join to a git-repository grant. The only
+correct attribution is the fact's `source_repository_ids`, so scoped reads keep
+only identities whose `source_repository_ids` overlap the union of granted
+repository and scope ids, before counts, grouping, ordering, limits, offsets,
+truncation, and the source bridge. Images with no source correlation are
+invisible to scoped tokens. Empty grants return the existing zero/empty shapes
+without store reads, and out-of-grant `source_repository_id` selectors fail
+during selector resolution without a store read. Shared-token, all-scope admin,
+and local behavior are unchanged.
+No-Regression Evidence: focused container image identity scoped-token query and
+MCP dispatch tests.
+No-Observability-Change: existing container image identity query spans, truth
+envelopes, limits, cursors, truncation, count, and inventory metadata diagnose
+the bounded reads.
 Semantic evidence reads are opt-in routes over durable semantic facts:
 `GET /api/v0/semantic/documentation-observations` and
 `GET /api/v0/semantic/code-hints`. They require at least one scope or semantic

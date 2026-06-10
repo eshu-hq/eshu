@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"github.com/lib/pq"
 )
 
 // ContainerImageIdentityAggregateStore reads cheap-summary aggregates over
@@ -51,6 +53,12 @@ type ContainerImageIdentityAggregateFilter struct {
 	SourceRepositoryID string
 	RepositoryID       string
 	Outcome            string
+	// AllowedSourceRepositoryIDs carries the scoped-token grant set (the union
+	// of granted repository and ingestion-scope ids). Empty means unrestricted;
+	// when populated the aggregate counts and inventory buckets cover only
+	// identities whose source_repository_ids overlap the granted set, so
+	// uncorrelated images never inflate a scoped caller's totals.
+	AllowedSourceRepositoryIDs []string
 }
 
 // ContainerImageIdentityAggregateCount is the cheap-summary totals envelope
@@ -106,7 +114,11 @@ WHERE fact.fact_kind = 'reducer_container_image_identity'
   AND ($2 = '' OR fact.payload->>'image_ref' = $2)
   AND ($3 = '' OR fact.payload->'source_repository_ids' ? $3)
   AND ($4 = '' OR fact.payload->>'repository_id' = $4)
-  AND ($5 = '' OR fact.payload->>'outcome' = $5);
+  AND ($5 = '' OR fact.payload->>'outcome' = $5)
+  AND (
+        COALESCE(cardinality($6::text[]), 0) = 0
+        OR fact.payload->'source_repository_ids' ?| $6::text[]
+      );
 `
 
 const containerImageIdentityAggregateGroupQueryTemplate = `
@@ -126,6 +138,10 @@ WHERE fact.fact_kind = 'reducer_container_image_identity'
   AND ($3 = '' OR fact.payload->'source_repository_ids' ? $3)
   AND ($4 = '' OR fact.payload->>'repository_id' = $4)
   AND ($5 = '' OR fact.payload->>'outcome' = $5)
+  AND (
+        COALESCE(cardinality($6::text[]), 0) = 0
+        OR fact.payload->'source_repository_ids' ?| $6::text[]
+      )
 GROUP BY bucket;
 `
 
@@ -146,9 +162,13 @@ WHERE fact.fact_kind = 'reducer_container_image_identity'
   AND ($3 = '' OR fact.payload->'source_repository_ids' ? $3)
   AND ($4 = '' OR fact.payload->>'repository_id' = $4)
   AND ($5 = '' OR fact.payload->>'outcome' = $5)
+  AND (
+        COALESCE(cardinality($6::text[]), 0) = 0
+        OR fact.payload->'source_repository_ids' ?| $6::text[]
+      )
 GROUP BY bucket
 ORDER BY bucket_count DESC, bucket
-LIMIT $6 OFFSET $7;
+LIMIT $7 OFFSET $8;
 `
 
 // CountContainerImageIdentities returns the cheap-summary totals envelope for
@@ -167,6 +187,7 @@ func (s PostgresContainerImageIdentityAggregateStore) CountContainerImageIdentit
 		filter.SourceRepositoryID,
 		filter.RepositoryID,
 		filter.Outcome,
+		pq.Array(filter.AllowedSourceRepositoryIDs),
 	}
 
 	row := s.DB.QueryRowContext(ctx, containerImageIdentityAggregateTotalQuery, args...)
@@ -246,6 +267,7 @@ func (s PostgresContainerImageIdentityAggregateStore) ContainerImageIdentityInve
 		filter.SourceRepositoryID,
 		filter.RepositoryID,
 		filter.Outcome,
+		pq.Array(filter.AllowedSourceRepositoryIDs),
 		limit,
 		offset,
 	)
