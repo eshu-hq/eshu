@@ -191,7 +191,16 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	repositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "repository_id"))
+	// Resolve scoped-token grants before any reducer or readiness store read.
+	// An empty grant returns the bounded zero-findings page without touching
+	// the impact, readiness, or repository-selector stores so a scoped caller
+	// with no authorized repositories cannot probe cross-tenant evidence.
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptyImpactFindingsPage(w, r, limit, profile)
+		return
+	}
+	repositoryID, ok := h.resolveSupplyChainImpactRepositorySelector(w, r, QueryParam(r, "repository_id"), access)
 	if !ok {
 		return
 	}
@@ -216,6 +225,10 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		IncludeSuppressed: includeSuppressed,
 		AfterFindingID:    QueryParam(r, "after_finding_id"),
 		Limit:             limit + 1,
+	}
+	if access.scoped() {
+		filter.AllowedRepositoryIDs = append([]string(nil), access.allowedRepositoryIDs...)
+		filter.AllowedScopeIDs = append([]string(nil), access.allowedScopeIDs...)
 	}
 	if !filter.hasScope() {
 		WriteError(w, http.StatusBadRequest, "cve_id, advisory_id, package_id, repository_id, subject_digest, image_ref, impact_status, ecosystem, workload_id, service_id, environment, severity, priority_bucket, or min_priority_score > 0 is required")
