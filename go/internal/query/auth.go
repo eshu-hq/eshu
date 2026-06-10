@@ -300,6 +300,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedVulnerabilityScannerContractRoute(r) {
 		return true
 	}
+	if scopedHostedGovernanceStatusRoute(r) {
+		return true
+	}
 	if r.Method != http.MethodPost {
 		return false
 	}
@@ -359,6 +362,10 @@ func scopedQueryPlaybookRoute(r *http.Request) bool {
 func scopedVulnerabilityScannerContractRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet &&
 		r.URL.Path == "/api/v0/supply-chain/vulnerability-scanner/contract"
+}
+
+func scopedHostedGovernanceStatusRoute(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/status/governance"
 }
 
 func scopedContextRoute(path string, prefix string) bool {
