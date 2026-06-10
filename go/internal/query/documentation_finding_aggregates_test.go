@@ -418,10 +418,17 @@ func TestDocumentationFindingAggregateBackendErrorsDoNotLeakDetails(t *testing.T
 func TestDocumentationFindingAggregateSQLIncludesPermissionPredicates(t *testing.T) {
 	t.Parallel()
 
+	groupExpr, err := documentationFindingInventoryGroupExpression(DocumentationFindingInventoryByStatus)
+	if err != nil {
+		t.Fatalf("documentationFindingInventoryGroupExpression() error = %v", err)
+	}
+	countSQL, _ := buildDocumentationFindingAggregateTotalSQL(DocumentationFindingAggregateFilter{})
+	groupSQL, _ := buildDocumentationFindingAggregateGroupSQL(DocumentationFindingAggregateFilter{}, groupExpr)
+	inventorySQL, _ := buildDocumentationFindingInventorySQL(DocumentationFindingAggregateFilter{}, groupExpr, 10, 0)
 	for name, q := range map[string]string{
-		"count":     documentationFindingAggregateTotalQuery,
-		"group":     documentationFindingAggregateGroupQueryTemplate,
-		"inventory": documentationFindingInventoryQueryTemplate,
+		"count":     countSQL,
+		"group":     groupSQL,
+		"inventory": inventorySQL,
 	} {
 		name, q := name, q
 		t.Run(name, func(t *testing.T) {

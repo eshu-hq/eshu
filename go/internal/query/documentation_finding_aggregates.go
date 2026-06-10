@@ -57,15 +57,19 @@ const DocumentationFindingAggregateMaxLimit = 500
 // DocumentationFindingAggregateFilter narrows aggregate reads. An aggregate
 // without a scope is allowed because the dataset is already bounded to
 // `fact_kind = 'documentation_finding'` plus the permission predicates at
-// index lookup time.
+// index lookup time. AllowedRepositoryIDs and AllowedScopeIDs are injected by
+// the handler from AuthContext for scoped tokens and must be applied before
+// grouping, ordering, and paging.
 type DocumentationFindingAggregateFilter struct {
-	ScopeID        string
-	FindingType    string
-	SourceID       string
-	DocumentID     string
-	Status         string
-	TruthLevel     string
-	FreshnessState string
+	ScopeID              string
+	FindingType          string
+	SourceID             string
+	DocumentID           string
+	Status               string
+	TruthLevel           string
+	FreshnessState       string
+	AllowedRepositoryIDs []string
+	AllowedScopeIDs      []string
 }
 
 // DocumentationFindingAggregateCount is the cheap-summary totals envelope
@@ -106,49 +110,6 @@ func NewPostgresDocumentationFindingAggregateStore(
 	return PostgresDocumentationFindingAggregateStore{DB: db}
 }
 
-// The permission predicates are constants (not optional) because they gate
-// the entire partial index in schema_fact_records.go. Skipping them would
-// (a) miss the index entirely and (b) leak counts from documents the caller
-// cannot read.
-const documentationFindingAggregatePermissionFilter = `
-  AND fact_records.fact_kind = 'documentation_finding'
-  AND fact_records.is_tombstone = FALSE
-  AND (fact_records.payload->'permissions'->>'viewer_can_read_source') = 'true'
-  AND LOWER(COALESCE(fact_records.payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'
-  AND LOWER(COALESCE(fact_records.payload->'states'->>'permission_decision', '')) <> 'denied'
-`
-
-const documentationFindingAggregateOptionalFilters = `
-  AND ($1 = '' OR fact_records.scope_id = $1)
-  AND ($2 = '' OR fact_records.payload->>'finding_type' = $2)
-  AND ($3 = '' OR fact_records.payload->>'source_id' = $3)
-  AND ($4 = '' OR fact_records.payload->>'document_id' = $4)
-  AND ($5 = '' OR fact_records.payload->>'status' = $5)
-  AND ($6 = '' OR fact_records.payload->>'truth_level' = $6)
-  AND ($7 = '' OR fact_records.payload->>'freshness_state' = $7)
-`
-
-var documentationFindingAggregateTotalQuery = `
-SELECT COUNT(*) AS total
-FROM fact_records
-WHERE TRUE` + documentationFindingAggregatePermissionFilter + documentationFindingAggregateOptionalFilters + ";"
-
-var documentationFindingAggregateGroupQueryTemplate = `
-SELECT %s AS bucket, COUNT(*) AS bucket_count
-FROM fact_records
-WHERE TRUE` + documentationFindingAggregatePermissionFilter + documentationFindingAggregateOptionalFilters + `
-GROUP BY bucket;
-`
-
-var documentationFindingInventoryQueryTemplate = `
-SELECT %s AS bucket, COUNT(*) AS bucket_count
-FROM fact_records
-WHERE TRUE` + documentationFindingAggregatePermissionFilter + documentationFindingAggregateOptionalFilters + `
-GROUP BY bucket
-ORDER BY bucket_count DESC, bucket
-LIMIT $8 OFFSET $9;
-`
-
 // CountDocumentationFindings returns the cheap-summary totals envelope for
 // the scoped findings slice.
 func (s PostgresDocumentationFindingAggregateStore) CountDocumentationFindings(
@@ -159,17 +120,8 @@ func (s PostgresDocumentationFindingAggregateStore) CountDocumentationFindings(
 		return DocumentationFindingAggregateCount{}, fmt.Errorf("documentation finding aggregate database is required")
 	}
 
-	args := []any{
-		filter.ScopeID,
-		filter.FindingType,
-		filter.SourceID,
-		filter.DocumentID,
-		filter.Status,
-		filter.TruthLevel,
-		filter.FreshnessState,
-	}
-
-	row := s.DB.QueryRowContext(ctx, documentationFindingAggregateTotalQuery, args...)
+	q, args := buildDocumentationFindingAggregateTotalSQL(filter)
+	row := s.DB.QueryRowContext(ctx, q, args...)
 	var total sql.NullInt64
 	if err := row.Scan(&total); err != nil {
 		return DocumentationFindingAggregateCount{}, fmt.Errorf("count documentation findings: %w", err)
@@ -181,13 +133,13 @@ func (s PostgresDocumentationFindingAggregateStore) CountDocumentationFindings(
 		ByTruthLevel:     map[string]int{},
 		ByFreshnessState: map[string]int{},
 	}
-	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(fact_records.payload->>'status', ''), 'unknown')", out.ByStatus); err != nil {
+	if err := s.fillBuckets(ctx, filter, "COALESCE(NULLIF(fact_records.payload->>'status', ''), 'unknown')", out.ByStatus); err != nil {
 		return DocumentationFindingAggregateCount{}, err
 	}
-	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(fact_records.payload->>'truth_level', ''), 'unknown')", out.ByTruthLevel); err != nil {
+	if err := s.fillBuckets(ctx, filter, "COALESCE(NULLIF(fact_records.payload->>'truth_level', ''), 'unknown')", out.ByTruthLevel); err != nil {
 		return DocumentationFindingAggregateCount{}, err
 	}
-	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(fact_records.payload->>'freshness_state', ''), 'unknown')", out.ByFreshnessState); err != nil {
+	if err := s.fillBuckets(ctx, filter, "COALESCE(NULLIF(fact_records.payload->>'freshness_state', ''), 'unknown')", out.ByFreshnessState); err != nil {
 		return DocumentationFindingAggregateCount{}, err
 	}
 	return out, nil
@@ -195,11 +147,11 @@ func (s PostgresDocumentationFindingAggregateStore) CountDocumentationFindings(
 
 func (s PostgresDocumentationFindingAggregateStore) fillBuckets(
 	ctx context.Context,
-	args []any,
+	filter DocumentationFindingAggregateFilter,
 	groupExpr string,
 	dst map[string]int,
 ) error {
-	q := fmt.Sprintf(documentationFindingAggregateGroupQueryTemplate, groupExpr)
+	q, args := buildDocumentationFindingAggregateGroupSQL(filter, groupExpr)
 	rows, err := s.DB.QueryContext(ctx, q, args...)
 	if err != nil {
 		return fmt.Errorf("group documentation findings: %w", err)
@@ -241,20 +193,8 @@ func (s PostgresDocumentationFindingAggregateStore) DocumentationFindingInventor
 	if offset < 0 {
 		offset = 0
 	}
-	q := fmt.Sprintf(documentationFindingInventoryQueryTemplate, groupExpr)
-	rows, err := s.DB.QueryContext(
-		ctx,
-		q,
-		filter.ScopeID,
-		filter.FindingType,
-		filter.SourceID,
-		filter.DocumentID,
-		filter.Status,
-		filter.TruthLevel,
-		filter.FreshnessState,
-		limit,
-		offset,
-	)
+	q, args := buildDocumentationFindingInventorySQL(filter, groupExpr, limit, offset)
+	rows, err := s.DB.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("inventory documentation findings: %w", err)
 	}
@@ -276,6 +216,95 @@ func (s PostgresDocumentationFindingAggregateStore) DocumentationFindingInventor
 		return nil, fmt.Errorf("iterate documentation finding inventory rows: %w", err)
 	}
 	return out, nil
+}
+
+func buildDocumentationFindingAggregateTotalSQL(filter DocumentationFindingAggregateFilter) (string, []any) {
+	clauses, args := documentationFindingAggregateClauses(filter)
+	return fmt.Sprintf(`
+SELECT COUNT(*) AS total
+FROM fact_records%s
+WHERE %s;
+`, documentationFindingAggregateScopeJoin(filter), strings.Join(clauses, " AND ")), args
+}
+
+func buildDocumentationFindingAggregateGroupSQL(
+	filter DocumentationFindingAggregateFilter,
+	groupExpr string,
+) (string, []any) {
+	clauses, args := documentationFindingAggregateClauses(filter)
+	return fmt.Sprintf(`
+SELECT %s AS bucket, COUNT(*) AS bucket_count
+FROM fact_records%s
+WHERE %s
+GROUP BY bucket;
+`, groupExpr, documentationFindingAggregateScopeJoin(filter), strings.Join(clauses, " AND ")), args
+}
+
+func buildDocumentationFindingInventorySQL(
+	filter DocumentationFindingAggregateFilter,
+	groupExpr string,
+	limit int,
+	offset int,
+) (string, []any) {
+	clauses, args := documentationFindingAggregateClauses(filter)
+	args = append(args, limit, offset)
+	return fmt.Sprintf(`
+SELECT %s AS bucket, COUNT(*) AS bucket_count
+FROM fact_records%s
+WHERE %s
+GROUP BY bucket
+ORDER BY bucket_count DESC, bucket
+LIMIT $%d OFFSET $%d;
+`, groupExpr, documentationFindingAggregateScopeJoin(filter), strings.Join(clauses, " AND "), len(args)-1, len(args)), args
+}
+
+func documentationFindingAggregateClauses(filter DocumentationFindingAggregateFilter) ([]string, []any) {
+	args := []any{}
+	clauses := []string{
+		"fact_records.fact_kind = 'documentation_finding'",
+		"fact_records.is_tombstone = FALSE",
+		"(fact_records.payload->'permissions'->>'viewer_can_read_source') = 'true'",
+		"LOWER(COALESCE(fact_records.payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'",
+		"LOWER(COALESCE(fact_records.payload->'states'->>'permission_decision', '')) <> 'denied'",
+	}
+	addColumnFilter := func(field string, value string) {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return
+		}
+		args = append(args, value)
+		clauses = append(clauses, fmt.Sprintf("%s = $%d", field, len(args)))
+	}
+	addPayloadFilter := func(field string, value string) {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return
+		}
+		args = append(args, value)
+		clauses = append(clauses, fmt.Sprintf("fact_records.payload->>'%s' = $%d", field, len(args)))
+	}
+	addColumnFilter("fact_records.scope_id", filter.ScopeID)
+	addPayloadFilter("finding_type", filter.FindingType)
+	addPayloadFilter("source_id", filter.SourceID)
+	addPayloadFilter("document_id", filter.DocumentID)
+	addPayloadFilter("status", filter.Status)
+	addPayloadFilter("truth_level", filter.TruthLevel)
+	addPayloadFilter("freshness_state", filter.FreshnessState)
+	return appendDocumentationAuthorizationClause(
+		clauses,
+		args,
+		"fact_records",
+		"ingestion_scopes",
+		filter.AllowedRepositoryIDs,
+		filter.AllowedScopeIDs,
+	)
+}
+
+func documentationFindingAggregateScopeJoin(filter DocumentationFindingAggregateFilter) string {
+	if documentationAuthorizationApplies(filter.AllowedRepositoryIDs, filter.AllowedScopeIDs) {
+		return "\nLEFT JOIN ingestion_scopes ON ingestion_scopes.scope_id = fact_records.scope_id"
+	}
+	return ""
 }
 
 // documentationFindingInventoryGroupExpression maps the dimension enum to

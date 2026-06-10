@@ -93,8 +93,9 @@
 // calls before allowing scoped-token API or MCP reads. Query playbook catalog
 // and resolver routes, the vulnerability scanner read-contract route, and the
 // redacted hosted governance and semantic extraction status routes, bounded
-// semantic evidence reads, documentation finding/fact list reads, component
-// extension inventory and diagnostics readbacks, collector status readbacks,
+// semantic evidence reads, documentation finding/fact list reads,
+// documentation finding aggregate reads, component extension inventory and
+// diagnostics readbacks, collector status readbacks,
 // ingester status readbacks, and hosted readiness readbacks are also available
 // to scoped tokens because they read only deterministic in-process catalog or
 // contract data, normalized runtime posture data, sanitized fact rows,
