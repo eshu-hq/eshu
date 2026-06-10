@@ -62,6 +62,7 @@ func (s PostgresAdvisoryEvidenceStore) ListAdvisoryEvidence(
 		filter.RepositoryID,
 		filter.ServiceID,
 		filter.WorkloadID,
+		pq.Array(filter.AllowedSourceRepositoryIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list advisory evidence: %w", err)

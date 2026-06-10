@@ -134,10 +134,10 @@ existing zero-findings / zero-count / empty-inventory shapes — list reports
 `readiness_unavailable` so zero findings is never misread as "no
 vulnerabilities" — without reading the impact, readiness, or aggregate stores,
 and out-of-grant repository selectors fail during selector resolution without a
-store read. Adjacent supply-chain routes (impact explain, advisory evidence,
-advisory detail, SBOM attestation attachments, container-image identities, and
-security-alert reconciliations) stay fail-closed for scoped tokens until each is
-separately proven tenant-filtered.
+store read. Adjacent supply-chain routes (impact explain, advisory detail, SBOM
+attestation attachments, container-image identities, and security-alert
+reconciliations) stay fail-closed for scoped tokens until each is separately
+proven tenant-filtered.
 No-Regression Evidence: focused supply-chain impact scoped-token query and MCP
 dispatch tests.
 No-Observability-Change: existing supply-chain impact query spans, truth
@@ -203,6 +203,23 @@ and MCP dispatch tests.
 No-Observability-Change: existing security-alert reconciliation query spans,
 truth envelopes, coverage, limits, cursors, truncation, count, and inventory
 metadata diagnose the bounded reads.
+Advisory-evidence reads (`GET /api/v0/supply-chain/advisories/evidence`, MCP
+`list_advisory_evidence`) follow a different scoped-token contract because the
+facts are global CVE/advisory data with no repository of their own. The bare
+`cve_id`/`advisory_id`/`package_id` path returns public advisory data to any
+authenticated caller regardless of grants. The
+repository/service/workload-anchored path derives advisory anchors from
+reducer impact findings, so scoped reads intersect those impact findings with
+the granted repository/scope set (`fact.payload->>'repository_id'` or
+`fact.scope_id`) inside the `impact_candidates` CTE before advisory facts are
+seeded, and an out-of-grant repository selector fails as not-found before any
+store read. A scoped caller therefore learns only which advisories affect its
+own repositories while still being able to look up public advisory detail by
+id. Shared-token, all-scope admin, and local behavior are unchanged.
+No-Regression Evidence: focused advisory-evidence scoped-token query and MCP
+dispatch tests.
+No-Observability-Change: existing advisory-evidence query span, truth envelope,
+limits, and source-only freshness metadata diagnose the bounded reads.
 Semantic evidence reads are opt-in routes over durable semantic facts:
 `GET /api/v0/semantic/documentation-observations` and
 `GET /api/v0/semantic/code-hints`. They require at least one scope or semantic

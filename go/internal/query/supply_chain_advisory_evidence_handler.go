@@ -34,20 +34,28 @@ func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http
 	if !ok {
 		return
 	}
-	repositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "repository_id"))
+	// Advisory evidence facts are global CVE/advisory data with no repository
+	// of their own, so the bare cve_id/advisory_id/package_id path is public.
+	// The repository-anchored path resolves under scoped grants: an out-of-grant
+	// repository selector fails as not-found, and the grant set is intersected
+	// with the impact findings that derive advisory anchors so a scoped caller
+	// only learns advisories affecting its own repositories.
+	access := repositoryAccessFilterFromContext(r.Context())
+	repositoryID, ok := resolveRepositorySelectorForRequestWithAccess(w, r, h.Neo4j, h.Content, QueryParam(r, "repository_id"), access)
 	if !ok {
 		return
 	}
 	filter := normalizeAdvisoryEvidenceFilter(AdvisoryEvidenceFilter{
-		CVEID:            QueryParam(r, "cve_id"),
-		AdvisoryID:       QueryParam(r, "advisory_id"),
-		PackageID:        QueryParam(r, "package_id"),
-		RepositoryID:     repositoryID,
-		ServiceID:        QueryParam(r, "service_id"),
-		WorkloadID:       QueryParam(r, "workload_id"),
-		Source:           QueryParam(r, "source"),
-		AfterAdvisoryKey: QueryParam(r, "after_advisory_key"),
-		Limit:            limit + 1,
+		CVEID:                      QueryParam(r, "cve_id"),
+		AdvisoryID:                 QueryParam(r, "advisory_id"),
+		PackageID:                  QueryParam(r, "package_id"),
+		RepositoryID:               repositoryID,
+		ServiceID:                  QueryParam(r, "service_id"),
+		WorkloadID:                 QueryParam(r, "workload_id"),
+		Source:                     QueryParam(r, "source"),
+		AfterAdvisoryKey:           QueryParam(r, "after_advisory_key"),
+		Limit:                      limit + 1,
+		AllowedSourceRepositoryIDs: access.repositorySearchIDs(),
 	})
 	if !filter.hasScope() {
 		WriteError(w, http.StatusBadRequest, "cve_id, advisory_id, package_id, repository_id, service_id, or workload_id is required")

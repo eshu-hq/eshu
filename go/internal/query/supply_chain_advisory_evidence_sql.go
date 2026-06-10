@@ -53,6 +53,11 @@ impact_candidates AS MATERIALIZED (
       AND (selector.service_id = '' OR fact.payload->'service_ids' ? selector.service_id)
       AND (selector.workload_id = '' OR fact.payload->'workload_ids' ? selector.workload_id)
       AND (
+          COALESCE(cardinality($9::text[]), 0) = 0
+          OR fact.payload->>'repository_id' = ANY($9::text[])
+          OR fact.scope_id = ANY($9::text[])
+      )
+      AND (
           NOT EXISTS (SELECT 1 FROM explicit_lookup_ids)
           OR EXISTS (
               SELECT 1
