@@ -88,6 +88,11 @@ target selector, and documentation fact reads name every accepted scope or
 target anchor in invalid-argument responses. Documentation fact list responses
 return bounded page metadata alongside `facts` so HTTP and MCP callers do not
 infer completeness from row count alone.
+Documentation finding aggregate count and inventory reads summarize the same
+durable finding facts. They keep the per-document permission predicates, apply
+scoped-token repository and scope grants before grouping, ordering, limits, and
+offsets, and return zero or empty buckets without touching the store when a
+scoped token has no repository grants.
 Semantic evidence reads are opt-in routes over durable semantic facts:
 `GET /api/v0/semantic/documentation-observations` and
 `GET /api/v0/semantic/code-hints`. They require at least one scope or semantic
@@ -222,8 +227,11 @@ out of the payload.
   (`query.documentation_evidence_packet`), and
   `telemetry.SpanQueryDocumentationPacketFreshness`
   (`query.documentation_packet_freshness`) on documentation truth evidence
-  routes (`documentation.go`); the target-fact preview adds a `postgres.query`
-  span with `db.operation=list_documentation_target_facts`;
+  routes (`documentation.go`); `telemetry.SpanQueryDocumentationAggregate`
+  (`query.documentation_aggregate`) on documentation finding count and
+  inventory routes (`documentation_finding_aggregates_handler.go`); the
+  target-fact preview adds a `postgres.query` span with
+  `db.operation=list_documentation_target_facts`;
   `telemetry.SpanQuerySemanticEvidence` (`query.semantic_evidence`) on opt-in
   semantic observation and code-hint fact reads;
   `telemetry.SpanQueryCodeTopicInvestigation`

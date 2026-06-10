@@ -43,6 +43,17 @@ func (h *DocumentationHandler) countDocumentationFindings(w http.ResponseWriter,
 	}
 
 	filter := documentationFindingAggregateFilterFromRequest(r)
+	var ok bool
+	filter, ok = documentationFindingAggregateFilterWithRepositoryAccess(r.Context(), filter)
+	if !ok {
+		WriteSuccess(w, r, http.StatusOK, documentationFindingEmptyAggregateCountResponse(filter), BuildTruthEnvelope(
+			h.profile(),
+			documentationFindingAggregateCapability,
+			TruthBasisSemanticFacts,
+			"resolved from durable documentation finding facts; scoped token grants authorize no repositories",
+		))
+		return
+	}
 	count, err := h.Aggregates.CountDocumentationFindings(r.Context(), filter)
 	if err != nil {
 		// Match the rest of the documentation handler family: surface a
@@ -110,6 +121,27 @@ func (h *DocumentationHandler) documentationFindingInventory(w http.ResponseWrit
 		return
 	}
 	filter := documentationFindingAggregateFilterFromRequest(r)
+	var scopedOK bool
+	filter, scopedOK = documentationFindingAggregateFilterWithRepositoryAccess(r.Context(), filter)
+	if !scopedOK {
+		body := map[string]any{
+			"buckets":     []DocumentationFindingInventoryRow{},
+			"count":       0,
+			"limit":       limit,
+			"offset":      offset,
+			"group_by":    string(dimension),
+			"truncated":   false,
+			"next_offset": nil,
+			"scope":       documentationFindingAggregateScope(filter),
+		}
+		WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
+			h.profile(),
+			documentationFindingAggregateCapability,
+			TruthBasisSemanticFacts,
+			"resolved from durable documentation finding facts; scoped token grants authorize no repositories",
+		))
+		return
+	}
 
 	rows, err := h.Aggregates.DocumentationFindingInventory(r.Context(), filter, dimension, limit+1, offset)
 	if err != nil {
@@ -177,6 +209,16 @@ func documentationFindingAggregateScope(filter DocumentationFindingAggregateFilt
 		out["freshness_state"] = filter.FreshnessState
 	}
 	return out
+}
+
+func documentationFindingEmptyAggregateCountResponse(filter DocumentationFindingAggregateFilter) map[string]any {
+	return map[string]any{
+		"total_findings":     0,
+		"by_status":          map[string]int{},
+		"by_truth_level":     map[string]int{},
+		"by_freshness_state": map[string]int{},
+		"scope":              documentationFindingAggregateScope(filter),
+	}
 }
 
 func isSupportedDocumentationFindingInventoryDimension(d DocumentationFindingInventoryDimension) bool {

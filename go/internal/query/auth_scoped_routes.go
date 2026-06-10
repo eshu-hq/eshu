@@ -50,6 +50,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedDocumentationListRoute(r) {
 		return true
 	}
+	if scopedDocumentationAggregateRoute(r) {
+		return true
+	}
 	if scopedComponentExtensionRoute(r) {
 		return true
 	}
@@ -125,6 +128,17 @@ func scopedDocumentationListRoute(r *http.Request) bool {
 	case r.Method == http.MethodGet && r.URL.Path == "/api/v0/documentation/findings":
 		return true
 	case r.Method == http.MethodGet && r.URL.Path == "/api/v0/documentation/facts":
+		return true
+	default:
+		return false
+	}
+}
+
+func scopedDocumentationAggregateRoute(r *http.Request) bool {
+	switch {
+	case r.Method == http.MethodGet && r.URL.Path == "/api/v0/documentation/findings/count":
+		return true
+	case r.Method == http.MethodGet && r.URL.Path == "/api/v0/documentation/findings/inventory":
 		return true
 	default:
 		return false
