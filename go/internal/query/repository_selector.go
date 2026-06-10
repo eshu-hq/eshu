@@ -27,11 +27,24 @@ func (e repositorySelectorAmbiguousError) Error() string {
 }
 
 func resolveRepositorySelectorExact(ctx context.Context, graph GraphQuery, content ContentStore, selector string) (string, error) {
+	return resolveRepositorySelectorExactForAccess(ctx, graph, content, selector, repositoryAccessFilter{allScopes: true})
+}
+
+func resolveRepositorySelectorExactForAccess(
+	ctx context.Context,
+	graph GraphQuery,
+	content ContentStore,
+	selector string,
+	access repositoryAccessFilter,
+) (string, error) {
 	selector = strings.TrimSpace(selector)
 	if selector == "" {
 		return "", nil
 	}
 	if looksCanonicalRepositoryID(selector) {
+		if !access.allowsRepositoryID(selector) {
+			return "", repositorySelectorNotFoundError{Selector: selector}
+		}
 		return selector, nil
 	}
 
@@ -40,6 +53,7 @@ func resolveRepositorySelectorExact(ctx context.Context, graph GraphQuery, conte
 		if err != nil {
 			return "", fmt.Errorf("match repositories: %w", err)
 		}
+		entries = access.filterCatalogEntries(entries)
 		matches := resolveRepositoryCatalogMatches(entries, selector)
 		switch len(matches) {
 		case 0:
@@ -51,17 +65,23 @@ func resolveRepositorySelectorExact(ctx context.Context, graph GraphQuery, conte
 	}
 
 	if graph != nil {
+		if access.empty() {
+			return "", repositorySelectorNotFoundError{Selector: selector}
+		}
 		rows, err := graph.Run(ctx, `
 			MATCH (r:Repository)
-			WHERE r.id = $repo_selector
+			WHERE (
+			   r.id = $repo_selector
 			   OR r.name = $repo_selector
 			   OR r.path = $repo_selector
 			   OR r.local_path = $repo_selector
 			   OR r.remote_url = $repo_selector
 			   OR r.repo_slug = $repo_selector
+			)
+			`+access.graphPredicate("r")+`
 			RETURN r.id as id
 			ORDER BY r.id
-		`, map[string]any{"repo_selector": selector})
+		`, access.graphParams(map[string]any{"repo_selector": selector}))
 		if err != nil {
 			return "", fmt.Errorf("query graph repository selector: %w", err)
 		}
@@ -69,14 +89,17 @@ func resolveRepositorySelectorExact(ctx context.Context, graph GraphQuery, conte
 		case 0:
 			row, err := graph.RunSingle(ctx, `
 				MATCH (r:Repository)
-				WHERE r.id = $repo_selector
+				WHERE (
+				   r.id = $repo_selector
 				   OR r.name = $repo_selector
 				   OR r.path = $repo_selector
 				   OR r.local_path = $repo_selector
 				   OR r.remote_url = $repo_selector
 				   OR r.repo_slug = $repo_selector
+				)
+				`+access.graphPredicate("r")+`
 				RETURN r.id as id
-			`, map[string]any{"repo_selector": selector})
+			`, access.graphParams(map[string]any{"repo_selector": selector}))
 			if err != nil {
 				return "", fmt.Errorf("query graph repository selector: %w", err)
 			}

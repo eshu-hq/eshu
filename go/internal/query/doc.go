@@ -78,10 +78,12 @@
 // summary; raw policy, tenant, workspace, source, detailed audit hashes,
 // correlation ids, credential, endpoint, prompt, response, path, and token
 // values stay out of API and MCP payloads.
-// AuthContext carries the default-off scoped-token request bounds used by
-// future hosted isolation enforcement. Middleware resolves raw bearer tokens at
-// the edge, stores only scoped tenant/workspace/subject hashes on the request
-// context, and keeps handlers free of token material.
+// AuthContext carries scoped-token request bounds used by hosted isolation
+// enforcement. Middleware resolves raw bearer tokens at the edge, stores only
+// scoped tenant/workspace/subject hashes on the request context, and keeps
+// handlers free of token material. Repository list and selector canary routes
+// apply these bounds before pagination, counts, ambiguity, and not-found
+// decisions so out-of-scope repositories do not leak through metadata.
 // Story and investigation routes also attach additive answer_metadata
 // companions for prompt-facing clients. The companion normalizes existing
 // evidence handles, missing evidence, limitations, truncation, coverage,

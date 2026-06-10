@@ -5,6 +5,18 @@ notes for `internal/query`. Keep the package overview in `README.md`; put longer
 evidence records here when they would otherwise push the overview past the
 repository line budget.
 
+## Repository tenant-isolation canary (#2048)
+
+No-Regression Evidence: `go test ./internal/query -run 'Test(RepositoryList.*ScopedAuth|ResolveRepositorySelector.*ScopedAuth|ResolveRepositorySelectorDenies|RepositoryListSharedAuth|RepositoryListAllScopeAdmin)' -count=1` failed before the canary because repository list queries had no scoped predicate, content fallback paged before filtering, duplicate-name selectors considered repositories outside the token grant, and canonical out-of-scope IDs resolved successfully. It passed after repository list and selector resolution applied `AuthContext` allowed repository/scope IDs before pagination, count metadata, ambiguity, and not-found decisions.
+
+No-Observability-Change: #2048 changes only the repository read predicate and
+in-memory content fallback filter. It adds no route, runtime, worker, queue,
+metric name, metric label, graph write, or response field. Operators continue
+to diagnose the route through existing `repository_query.stage_*` logs, the
+`GraphQuery.Run`/`RunSingle` spans and duration metrics, and the unchanged
+repository response `result_limits`, `partial_reasons`, and `truncated`
+metadata.
+
 ## Incident context routing evidence (#1142)
 
 Incident context now includes three routing slots before deployable/runtime

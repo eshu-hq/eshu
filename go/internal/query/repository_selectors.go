@@ -37,7 +37,7 @@ func (h *RepositoryHandler) getRepositoryCoverage(w http.ResponseWriter, r *http
 // resolveRepositorySelector resolves a repository selector (canonical id, name,
 // or slug) to its canonical repository id using the graph and content backends.
 func (h *RepositoryHandler) resolveRepositorySelector(ctx context.Context, selector string) (string, error) {
-	return resolveRepositorySelectorExact(ctx, h.Neo4j, h.Content, selector)
+	return resolveRepositorySelectorExactForAccess(ctx, h.Neo4j, h.Content, selector, repositoryAccessFilterFromContext(ctx))
 }
 
 // resolveRepositoryPathSelector reads the {repo_id} path parameter, resolves it
