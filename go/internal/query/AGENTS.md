@@ -224,6 +224,24 @@
   or response field; existing HTTP route attribution and governance status
   truth envelopes diagnose the redacted runtime readback path.
 
+- **Semantic extraction status scoped-token route evidence** — #2082 opens only
+  `GET /api/v0/status/semantic-extraction` because
+  `StatusHandler.getSemanticExtractionStatus` returns redacted runtime semantic
+  extraction posture: provider availability state, source-class enablement,
+  deterministic-path impact, supported enum values, aggregate queue counts,
+  budget counters, and audit class counts. Provider profile detail text stays
+  out of the response; raw prompts, provider responses, credential handles,
+  token values, private endpoints, tenant/workspace ids, repository/source ids,
+  graph reads, content reads, and provider payloads remain outside the status
+  route. No-Regression Evidence: `go test ./internal/query -run
+  'Test(StatusHandlerSemanticExtraction|AuthMiddlewareWithScopedTokensAllowsSemanticExtractionStatusRoute)'
+  -count=1` and `go test ./internal/mcp -run
+  'TestSemanticCapabilityRuntimeToolRoutesToStatus|TestDispatchToolSemanticExtractionStatusAllowsScopedRoute'
+  -count=1`. No-Observability-Change: the route adds no graph write, graph
+  read, content read, provider call, collector call, metric label, runtime knob,
+  or response field; existing HTTP route attribution and semantic extraction
+  status truth envelopes diagnose the redacted runtime readback path.
+
 - **Package registry reads stay anchored** — `PackageRegistryHandler` in
   `package_registry.go` must require `limit` plus a route-specific anchor
   before graph reads: package lookups use `package_id` or `ecosystem`, version

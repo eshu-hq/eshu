@@ -143,9 +143,6 @@ func semanticProviderProfilesToMaps(profiles []status.SemanticProviderProfileSta
 		if profile.EndpointProfileID != "" {
 			row["endpoint_profile_id"] = profile.EndpointProfileID
 		}
-		if profile.Detail != "" {
-			row["detail"] = profile.Detail
-		}
 		if !profile.UpdatedAt.IsZero() {
 			row["updated_at"] = profile.UpdatedAt.UTC().Format(time.RFC3339)
 		}
