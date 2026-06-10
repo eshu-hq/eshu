@@ -80,13 +80,11 @@ func (h *CICDHandler) listRunCorrelations(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	repositoryID, ok := resolveRepositorySelectorForRequest(w, r, nil, h.Content, QueryParam(r, "repository_id"))
-	if !ok {
-		return
-	}
+	access := repositoryAccessFilterFromContext(r.Context())
+	repositorySelector := QueryParam(r, "repository_id")
 	filter := CICDRunCorrelationFilter{
 		ScopeID:            QueryParam(r, "scope_id"),
-		RepositoryID:       repositoryID,
+		RepositoryID:       repositorySelector,
 		CommitSHA:          QueryParam(r, "commit_sha"),
 		Provider:           QueryParam(r, "provider"),
 		ProviderRunID:      firstNonEmpty(QueryParam(r, "provider_run_id"), QueryParam(r, "run_id")),
@@ -105,6 +103,22 @@ func (h *CICDHandler) listRunCorrelations(w http.ResponseWriter, r *http.Request
 		WriteError(w, http.StatusBadRequest, "provider is required when provider_run_id is the only anchor")
 		return
 	}
+	if access.empty() {
+		h.writeEmptyCICDRunCorrelationPage(w, r, limit)
+		return
+	}
+	repositoryID, ok := resolveRepositorySelectorForRequestWithAccess(
+		w,
+		r,
+		nil,
+		h.Content,
+		repositorySelector,
+		access,
+	)
+	if !ok {
+		return
+	}
+	filter.RepositoryID = repositoryID
 	if h.Correlations == nil {
 		WriteContractError(
 			w,
@@ -119,6 +133,7 @@ func (h *CICDHandler) listRunCorrelations(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	filter = cicdRunCorrelationFilterWithRepositoryAccess(filter, access)
 	rows, err := h.Correlations.ListCICDRunCorrelations(r.Context(), filter)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -150,6 +165,37 @@ func (h *CICDHandler) listRunCorrelations(w http.ResponseWriter, r *http.Request
 		TruthBasisSemanticFacts,
 		"resolved from reducer-owned CI/CD run correlation facts; deployment promotion stays absent unless artifact identity evidence is exact",
 	))
+}
+
+func (h *CICDHandler) writeEmptyCICDRunCorrelationPage(
+	w http.ResponseWriter,
+	r *http.Request,
+	limit int,
+) {
+	WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"correlations":     []CICDRunCorrelationResult{},
+		"count":            0,
+		"limit":            limit,
+		"truncated":        false,
+		"evidence_summary": h.runCorrelationEvidenceSummary(r.Context(), "", nil, false),
+	}, BuildTruthEnvelope(
+		h.profile(),
+		cicdRunCorrelationsCapability,
+		TruthBasisSemanticFacts,
+		"resolved from reducer-owned CI/CD run correlation facts; deployment promotion stays absent unless artifact identity evidence is exact",
+	))
+}
+
+func cicdRunCorrelationFilterWithRepositoryAccess(
+	filter CICDRunCorrelationFilter,
+	access repositoryAccessFilter,
+) CICDRunCorrelationFilter {
+	if !access.scoped() {
+		return filter
+	}
+	filter.AllowedRepositoryIDs = append([]string(nil), access.allowedRepositoryIDs...)
+	filter.AllowedScopeIDs = append([]string(nil), access.allowedScopeIDs...)
+	return filter
 }
 
 func requiredCICDRunCorrelationLimit(w http.ResponseWriter, r *http.Request) (int, bool) {

@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"github.com/lib/pq"
 )
 
 // CICDRunCorrelationAggregateStore reads cheap-summary aggregates over
@@ -48,14 +50,16 @@ const CICDRunCorrelationAggregateMaxLimit = 500
 // shape we want to support — the dataset is already bounded by `fact_kind`
 // and the active-generation predicate at index lookup time.
 type CICDRunCorrelationAggregateFilter struct {
-	ScopeID        string
-	RepositoryID   string
-	CommitSHA      string
-	Provider       string
-	ArtifactDigest string
-	ImageRef       string
-	Environment    string
-	Outcome        string
+	ScopeID              string
+	RepositoryID         string
+	CommitSHA            string
+	Provider             string
+	ArtifactDigest       string
+	ImageRef             string
+	Environment          string
+	Outcome              string
+	AllowedRepositoryIDs []string
+	AllowedScopeIDs      []string
 }
 
 // CICDRunCorrelationAggregateCount is the cheap-summary totals envelope used
@@ -115,7 +119,12 @@ WHERE fact.fact_kind = 'reducer_ci_cd_run_correlation'
   AND ($5 = '' OR fact.payload->>'artifact_digest' = $5)
   AND ($6 = '' OR fact.payload->>'image_ref' = $6)
   AND ($7 = '' OR fact.payload->>'environment' = $7)
-  AND ($8 = '' OR fact.payload->>'outcome' = $8);
+  AND ($8 = '' OR fact.payload->>'outcome' = $8)
+  AND (
+    (COALESCE(cardinality($9::text[]), 0) = 0 AND COALESCE(cardinality($10::text[]), 0) = 0)
+    OR fact.payload->>'repository_id' = ANY($9::text[])
+    OR fact.scope_id = ANY($10::text[])
+  );
 `
 
 const cicdRunCorrelationAggregateGroupQueryTemplate = `
@@ -138,6 +147,11 @@ WHERE fact.fact_kind = 'reducer_ci_cd_run_correlation'
   AND ($6 = '' OR fact.payload->>'image_ref' = $6)
   AND ($7 = '' OR fact.payload->>'environment' = $7)
   AND ($8 = '' OR fact.payload->>'outcome' = $8)
+  AND (
+    (COALESCE(cardinality($9::text[]), 0) = 0 AND COALESCE(cardinality($10::text[]), 0) = 0)
+    OR fact.payload->>'repository_id' = ANY($9::text[])
+    OR fact.scope_id = ANY($10::text[])
+  )
 GROUP BY bucket;
 `
 
@@ -161,6 +175,11 @@ WHERE fact.fact_kind = 'reducer_ci_cd_run_correlation'
   AND ($6 = '' OR fact.payload->>'image_ref' = $6)
   AND ($7 = '' OR fact.payload->>'environment' = $7)
   AND ($8 = '' OR fact.payload->>'outcome' = $8)
+  AND (
+    (COALESCE(cardinality($11::text[]), 0) = 0 AND COALESCE(cardinality($12::text[]), 0) = 0)
+    OR fact.payload->>'repository_id' = ANY($11::text[])
+    OR fact.scope_id = ANY($12::text[])
+  )
 GROUP BY bucket
 ORDER BY bucket_count DESC, bucket
 LIMIT $9 OFFSET $10;
@@ -185,6 +204,8 @@ func (s PostgresCICDRunCorrelationAggregateStore) CountCICDRunCorrelations(
 		filter.ImageRef,
 		filter.Environment,
 		filter.Outcome,
+		pq.Array(filter.AllowedRepositoryIDs),
+		pq.Array(filter.AllowedScopeIDs),
 	}
 
 	row := s.DB.QueryRowContext(ctx, cicdRunCorrelationAggregateTotalQuery, args...)
@@ -273,6 +294,8 @@ func (s PostgresCICDRunCorrelationAggregateStore) CICDRunCorrelationInventory(
 		filter.Outcome,
 		limit,
 		offset,
+		pq.Array(filter.AllowedRepositoryIDs),
+		pq.Array(filter.AllowedScopeIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("inventory ci/cd run correlations: %w", err)

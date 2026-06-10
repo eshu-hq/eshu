@@ -38,6 +38,18 @@ func (h *CICDHandler) countRunCorrelations(w http.ResponseWriter, r *http.Reques
 		)
 		return
 	}
+	access := repositoryAccessFilterFromContext(r.Context())
+	filter, ok := h.cicdRunCorrelationAggregateFilterFromRequest(w, r, access)
+	if !ok {
+		return
+	}
+	if !validateCICDRunCorrelationAggregateOutcome(w, filter) {
+		return
+	}
+	if access.empty() {
+		h.writeEmptyCICDRunCorrelationAggregateCount(w, r)
+		return
+	}
 	if h.Aggregates == nil {
 		WriteContractError(
 			w,
@@ -49,14 +61,6 @@ func (h *CICDHandler) countRunCorrelations(w http.ResponseWriter, r *http.Reques
 			h.profile(),
 			requiredProfile(cicdRunCorrelationAggregateCapability),
 		)
-		return
-	}
-
-	filter, ok := h.cicdRunCorrelationAggregateFilterFromRequest(w, r)
-	if !ok {
-		return
-	}
-	if !validateCICDRunCorrelationAggregateOutcome(w, filter) {
 		return
 	}
 	count, err := h.Aggregates.CountCICDRunCorrelations(r.Context(), filter)
@@ -100,19 +104,6 @@ func (h *CICDHandler) runCorrelationInventory(w http.ResponseWriter, r *http.Req
 		)
 		return
 	}
-	if h.Aggregates == nil {
-		WriteContractError(
-			w,
-			r,
-			http.StatusServiceUnavailable,
-			"CI/CD run correlation aggregates require the Postgres reducer read model",
-			ErrorCodeBackendUnavailable,
-			cicdRunCorrelationAggregateCapability,
-			h.profile(),
-			requiredProfile(cicdRunCorrelationAggregateCapability),
-		)
-		return
-	}
 
 	dimension := CICDRunCorrelationInventoryDimension(QueryParam(r, "group_by"))
 	if dimension == "" {
@@ -130,11 +121,29 @@ func (h *CICDHandler) runCorrelationInventory(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
-	filter, ok := h.cicdRunCorrelationAggregateFilterFromRequest(w, r)
+	access := repositoryAccessFilterFromContext(r.Context())
+	filter, ok := h.cicdRunCorrelationAggregateFilterFromRequest(w, r, access)
 	if !ok {
 		return
 	}
 	if !validateCICDRunCorrelationAggregateOutcome(w, filter) {
+		return
+	}
+	if access.empty() {
+		h.writeEmptyCICDRunCorrelationInventory(w, r, dimension, limit, offset)
+		return
+	}
+	if h.Aggregates == nil {
+		WriteContractError(
+			w,
+			r,
+			http.StatusServiceUnavailable,
+			"CI/CD run correlation aggregates require the Postgres reducer read model",
+			ErrorCodeBackendUnavailable,
+			cicdRunCorrelationAggregateCapability,
+			h.profile(),
+			requiredProfile(cicdRunCorrelationAggregateCapability),
+		)
 		return
 	}
 
@@ -168,12 +177,25 @@ func (h *CICDHandler) runCorrelationInventory(w http.ResponseWriter, r *http.Req
 func (h *CICDHandler) cicdRunCorrelationAggregateFilterFromRequest(
 	w http.ResponseWriter,
 	r *http.Request,
+	access repositoryAccessFilter,
 ) (CICDRunCorrelationAggregateFilter, bool) {
-	repositoryID, ok := resolveRepositorySelectorForRequest(w, r, nil, h.Content, QueryParam(r, "repository_id"))
-	if !ok {
-		return CICDRunCorrelationAggregateFilter{}, false
+	repositorySelector := QueryParam(r, "repository_id")
+	repositoryID := repositorySelector
+	if !access.empty() {
+		var ok bool
+		repositoryID, ok = resolveRepositorySelectorForRequestWithAccess(
+			w,
+			r,
+			nil,
+			h.Content,
+			repositorySelector,
+			access,
+		)
+		if !ok {
+			return CICDRunCorrelationAggregateFilter{}, false
+		}
 	}
-	return CICDRunCorrelationAggregateFilter{
+	filter := CICDRunCorrelationAggregateFilter{
 		ScopeID:        QueryParam(r, "scope_id"),
 		RepositoryID:   repositoryID,
 		CommitSHA:      QueryParam(r, "commit_sha"),
@@ -182,7 +204,62 @@ func (h *CICDHandler) cicdRunCorrelationAggregateFilterFromRequest(
 		ImageRef:       QueryParam(r, "image_ref"),
 		Environment:    QueryParam(r, "environment"),
 		Outcome:        QueryParam(r, "outcome"),
-	}, true
+	}
+	return cicdRunCorrelationAggregateFilterWithRepositoryAccess(filter, access), true
+}
+
+func cicdRunCorrelationAggregateFilterWithRepositoryAccess(
+	filter CICDRunCorrelationAggregateFilter,
+	access repositoryAccessFilter,
+) CICDRunCorrelationAggregateFilter {
+	if !access.scoped() {
+		return filter
+	}
+	filter.AllowedRepositoryIDs = append([]string(nil), access.allowedRepositoryIDs...)
+	filter.AllowedScopeIDs = append([]string(nil), access.allowedScopeIDs...)
+	return filter
+}
+
+func (h *CICDHandler) writeEmptyCICDRunCorrelationAggregateCount(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"total_correlations": 0,
+		"by_outcome":         map[string]int{},
+		"by_environment":     map[string]int{},
+		"by_provider":        map[string]int{},
+		"scope":              map[string]string{},
+	}, BuildTruthEnvelope(
+		h.profile(),
+		cicdRunCorrelationAggregateCapability,
+		TruthBasisSemanticFacts,
+		"resolved from reducer-owned CI/CD run correlation facts; outcome, environment, and provider rollups stay separate",
+	))
+}
+
+func (h *CICDHandler) writeEmptyCICDRunCorrelationInventory(
+	w http.ResponseWriter,
+	r *http.Request,
+	dimension CICDRunCorrelationInventoryDimension,
+	limit int,
+	offset int,
+) {
+	WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"buckets":     []CICDRunCorrelationInventoryRow{},
+		"count":       0,
+		"limit":       limit,
+		"offset":      offset,
+		"group_by":    string(dimension),
+		"truncated":   false,
+		"next_offset": nil,
+		"scope":       map[string]string{},
+	}, BuildTruthEnvelope(
+		h.profile(),
+		cicdRunCorrelationAggregateCapability,
+		TruthBasisSemanticFacts,
+		"resolved from reducer-owned CI/CD run correlation facts; one grouped bucket per row, ordered by count desc",
+	))
 }
 
 func cicdRunCorrelationAggregateScope(filter CICDRunCorrelationAggregateFilter) map[string]string {

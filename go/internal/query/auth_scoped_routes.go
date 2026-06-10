@@ -62,6 +62,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedPackageRegistryCorrelationRoute(r) {
 		return true
 	}
+	if scopedCICDRunCorrelationRoute(r) {
+		return true
+	}
 	if scopedComponentExtensionRoute(r) {
 		return true
 	}
@@ -194,6 +197,20 @@ func scopedServiceCatalogCorrelationRoute(r *http.Request) bool {
 
 func scopedPackageRegistryCorrelationRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/package-registry/correlations"
+}
+
+func scopedCICDRunCorrelationRoute(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	switch r.URL.Path {
+	case "/api/v0/ci-cd/run-correlations",
+		"/api/v0/ci-cd/run-correlations/count",
+		"/api/v0/ci-cd/run-correlations/inventory":
+		return true
+	default:
+		return false
+	}
 }
 
 func scopedHostedGovernanceStatusRoute(r *http.Request) bool {

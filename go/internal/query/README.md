@@ -110,6 +110,16 @@ repository or scope grants, empty grants return an empty bounded page without a
 store read, and out-of-grant repository selectors fail during selector
 resolution. Package identity, version, dependency, count, and inventory routes
 remain fail-closed for scoped tokens until each route has its own proof.
+CI/CD run correlation list, count, and inventory reads also intersect
+scoped-token repository and scope grants before ordering, limits, cursors,
+aggregate rollups, grouping, offsets, truncation, and count metadata. Commit,
+provider-run, artifact-digest, image-ref, and environment anchors still require
+an allowed repository or scope match in reducer facts; empty grants return
+zero/empty bounded shapes without store or content reads, and out-of-grant
+repository selectors fail during selector resolution.
+No-Regression Evidence: focused CI/CD scoped-token query and MCP dispatch tests.
+No-Observability-Change: existing CI/CD query spans, truth envelopes, limits,
+cursors, truncation, count, and inventory metadata diagnose the bounded reads.
 Semantic evidence reads are opt-in routes over durable semantic facts:
 `GET /api/v0/semantic/documentation-observations` and
 `GET /api/v0/semantic/code-hints`. They require at least one scope or semantic

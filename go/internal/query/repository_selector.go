@@ -125,23 +125,6 @@ func resolveRepositorySelectorExactForAccess(
 	return "", repositorySelectorNotFoundError{Selector: selector}
 }
 
-func resolveRepositorySelectorForRequest(
-	w http.ResponseWriter,
-	r *http.Request,
-	graph GraphQuery,
-	content ContentStore,
-	selector string,
-) (string, bool) {
-	return resolveRepositorySelectorForRequestWithAccess(
-		w,
-		r,
-		graph,
-		content,
-		selector,
-		repositoryAccessFilter{allScopes: true},
-	)
-}
-
 func resolveRepositorySelectorForRequestWithAccess(
 	w http.ResponseWriter,
 	r *http.Request,
