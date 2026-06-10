@@ -17,6 +17,7 @@ still owned by source-specific components.
 flowchart LR
   CFG["ESHU_COLLECTOR_INSTANCES_JSON\n(declarative config)"] --> SVC["coordinator.Service"]
   SVC --> WCS["WorkflowControlStore\n(Postgres)"]
+  SVC --> AUD["GovernanceAuditStore\n(Postgres)"]
   WCS --> ADM["/healthz /readyz\n/metrics /admin/status"]
 ```
 
@@ -31,7 +32,7 @@ flowchart TB
   A["run(ctx)\nboot OTEL + Postgres"] --> B["LoadConfig\nparse ESHU_WORKFLOW_COORDINATOR_* vars"]
   B --> C["NewMetrics\nregister OTEL instruments"]
   C --> D["NewWorkflowControlStore\nwrap Postgres connection"]
-  D --> E["coordinator.Service{Config, Store, Metrics, Logger}"]
+  D --> E["coordinator.Service{Config, Store, GovernanceAudit, Metrics, Logger}"]
   E --> F["NewHostedWithStatusServer\nmount /healthz /readyz /metrics /admin/status"]
   F --> G["service.Run(ctx)"]
   G --> H["runReconcile\n(always, every ReconcileInterval)\nplans supported scheduled work in active mode"]
@@ -53,7 +54,9 @@ flowchart TB
 4. `NewMetrics` registers OTEL instruments against the
    `eshu_dp_workflow_coordinator_` prefix.
 5. `NewWorkflowControlStore` wraps the connection as the `Store`
-   implementation.
+   implementation. `NewGovernanceAuditStore` wraps the same Postgres
+   connection through an instrumented `governance_audit` store and ensures the
+   private audit sink schema exists.
 6. `coordinator.Service` is wired with all dependencies, including
    Terraform-state, OCI registry, package registry, scanner-worker, vulnerability
    installed advisory target readers, CI/CD run, scheduled AWS, AWS freshness,
@@ -113,7 +116,7 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
   the coordinator loop and config parsing
 - `internal/workflow` — type contracts consumed by `coordinator.Service`
 - `internal/storage/postgres` — `NewWorkflowControlStore`, `NewStatusStore`;
-  Postgres-backed store implementations
+  `NewGovernanceAuditStore`; Postgres-backed store implementations
 - `internal/app` — `NewHostedWithStatusServer`; hosts the service with the
   shared admin surface
 - `internal/runtime` — `OpenPostgres`, `WithPrometheusHandler`; Postgres
@@ -143,11 +146,14 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
   `Config.Validate` rejects active mode without these conditions.
 - When `ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON` is set, the coordinator
   filters enabled claim-capable collector instances before scheduled or
-  freshness work is planned. Denied collectors create no claimable rows.
+  freshness work is planned. Denied collectors create no claimable rows and
+  append validation-safe governance audit events when the private sink is
+  available.
 - Component-extension claim planning also requires
   `ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON`. Missing policy or a restricted
   policy without a matching component allow rule creates no claimable rows;
-  broad mode is the explicit operator opt-in.
+  broad mode is the explicit operator opt-in. Missing or denied extension
+  egress decisions append validation-safe governance audit events.
 - Active mode plans Terraform-state, OCI registry, package registry,
   scanner-worker, vulnerability-intelligence installed advisory target work,
   CI/CD run target work, and opt-in scheduled AWS work today. AWS, PagerDuty,

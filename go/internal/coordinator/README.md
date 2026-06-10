@@ -200,6 +200,9 @@ fall back to defaults rather than failing; malformed values fail fast.
   and target identity used by the AWS freshness planner.
 - `internal/webhook` — normalized PagerDuty and Jira incident freshness
   triggers used by the coordinator handoff.
+- `internal/governanceaudit` — validation-safe event envelope for denied or
+  unavailable hosted collector and extension egress decisions that create no
+  workflow row.
 
 ## Telemetry
 
@@ -229,6 +232,15 @@ scheduling skips by egress policy. Drift fields are
 `collector_instance_drift`; collector egress skips include `collector_kind` and
 `reason`; extension egress skips include `collector_kind`, `component_id`,
 `instance_id`, and `reason`.
+
+Denied or unavailable hosted collector and component-extension egress decisions
+also append validation-safe governance audit events when a private audit sink is
+wired. Events use `service_principal` actor class, hashed collector or
+component scope, low-cardinality reason codes, and no provider URLs, source
+IDs, account IDs, component paths, credentials, prompts, responses, or payloads.
+Allowed collector and extension decisions do not append audit events because
+the durable workflow rows, claim state, reconcile metrics, and status surfaces
+already prove the allowed scheduling path.
 
 ## Operational notes
 
@@ -260,6 +272,10 @@ scheduling skips by egress policy. Drift fields are
   rows are planned. Missing policy denies extension claims, restricted mode
   requires a matching component allow rule, deny wins, and broad mode must be
   an explicit no-rule opt-in.
+- If the private governance audit sink is unavailable while a denied or
+  missing-policy egress decision is being recorded, the coordinator returns a
+  reconcile error after creating no claimable row. The next reconcile retries
+  the same bucket with deterministic hashed scope and correlation fields.
 - `last_reaped_claims` spiking above `ExpiredClaimLimit` is not possible; that
   limit caps each reap pass. Repeated spikes at the limit indicate collectors
   are not completing claims within the lease TTL.
@@ -274,42 +290,12 @@ scheduling skips by egress policy. Drift fields are
   instances are still fully target-validated before reconciliation and
   planning.
 - Derived package and vulnerability target planning is visible in
-  `workflow_runs.requested_scope_set`. Planned entries include a
-  `target_class`: `configured_direct` for explicit package or advisory scopes,
-  `owned_package` for targets derived from active owned dependency evidence,
-  `installed_os_package` for targets derived from exact installed OS package
-  evidence, `sbom_component` for targets derived from attached SBOM component
-  evidence, and `broad` for broad package-registry scans. Installed-evidence
-  entries also carry `source_family` as `os_package` or `sbom_component`.
-  Package-registry derived entries include `derived=true` and `package_name`;
-  vulnerability derived entries include `source`, `ecosystem`, and either exact
-  `package_name`/`version`, bounded `versions`, or bounded `queries` for OSV
-  querybatch work. If a
-  derivation-enabled instance plans no work, first check the owned dependency
-  fact query or installed-evidence reader, then confirm the evidence is active
-  and exact enough for the collector family. OS package derivation requires
-  vendor repository/source proof, package-manager proof, exact installed
-  version, package name, and image/scope subject evidence. SBOM derivation
-  requires an attached subject digest plus PURL-derived ecosystem, package name,
-  and exact version; component payload versions that conflict with the PURL
-  version are skipped as contradictory installed evidence. Package-registry
-  derived npm and PyPI targets have native
-  metadata URLs; Go module, Maven, NuGet, Composer, RubyGems, and Cargo derived
-  targets intentionally surface missing metadata-source evidence until native
-  adapters land. Bounded reads rotate by reconcile bucket, and the
-  planner preserves that reader order so direct and owned targets do not sit
-  behind unrelated broad fanout. Derived reads include one bounded lookahead
-  target beyond the planning budget. If that lookahead proves the owned-package
-  or installed-evidence derivation budget is exhausted,
-  `requested_scope_set.skipped_targets` records aggregate
-  `derived_target_budget_exhausted` evidence with selected and observed skipped
-  counts, the configured limit, collector kind, target class, source family
-  where present, and bounded ecosystem/source labels. Partial-evidence skip
-  reasons such as `derived_target_missing_source`,
-  `derived_target_missing_subject`, `derived_target_missing_purl`, and
-  `derived_target_missing_version` use the same aggregate shape. It does not
-  include package names, versions, repository paths, image digests, PURLs, or
-  advisory payloads.
+  `workflow_runs.requested_scope_set`. Planned entries carry bounded
+  `target_class` and, for installed evidence, `source_family` values so
+  operators can separate direct, owned, installed, SBOM, and broad target
+  sources. Budget exhaustion and partial-evidence skips are aggregated by stable
+  reason codes without repository paths, image digests, PURLs, advisory
+  payloads, or credential material.
 - Derived target planning defaults to `rotating`, which advances the bounded
   owned-package slice by reconcile bucket. `planning_mode=single_pass` pins the
   plan key and rotation offset for representative proofs so a completed bucket
@@ -320,7 +306,7 @@ scheduling skips by egress policy. Drift fields are
   marked failed with `unauthorized_target`; the webhook payload is never used to
   create facts, root-cause claims, deployment links, or Jira/PagerDuty coupling.
 
-No-Regression Evidence: `go test ./internal/coordinator -run 'Test(ParseExtensionEgressPolicyJSON|ExtensionEgressPolicy|LoadConfigParsesExtensionEgressPolicy|ServiceRun.*ComponentExtension|ServiceComponentExtension)' -count=1` proves extension egress policy parsing, restricted default-deny behavior, deny-over-allow precedence, broad-mode validation, config loading, scheduled work suppression, and allowed broad opt-in scheduling. The change filters component-extension scheduling before workflow rows are planned; it does not change claim lease timing, worker counts, queue ordering, reducer graph writes, fact emission, or provider API calls.
+No-Regression Evidence: `go test ./internal/coordinator -run 'Test(ParseExtensionEgressPolicyJSON|ExtensionEgressPolicy|LoadConfigParsesExtensionEgressPolicy|ServiceRun.*ComponentExtension|ServiceComponentExtension)' -count=1` proves extension egress policy parsing, restricted default-deny behavior, deny-over-allow precedence, broad-mode validation, config loading, scheduled work suppression, allowed broad opt-in scheduling, and governance audit event emission for missing or denied extension egress. The change filters component-extension scheduling before workflow rows are planned; it does not change claim lease timing, worker counts, queue ordering, reducer graph writes, fact emission, or provider API calls.
 
 Observability Evidence: extension egress skips reuse coordinator reconcile
 metrics, workflow rows, claim status, and `/api/v0/index-status`; denied
@@ -328,7 +314,10 @@ extension work creates no claimable row. The coordinator also emits a bounded
 structured log with `collector_kind`, `component_id`, `instance_id`, and
 low-cardinality `reason` so operators can distinguish `egress_policy_missing`
 from `egress_extension_denied` without exposing provider URLs, credential
-handles, source payloads, or token values.
+handles, source payloads, or token values. When wired to
+`GovernanceAuditAppender`, the same skipped decisions are also visible through
+aggregate governance audit counts by event type, decision, scope class, actor
+class, and reason code.
 
 ## Extension points
 
@@ -481,33 +470,6 @@ metrics, `workflow_runs`, `workflow_run_completeness`, and
 `/api/v0/index-status`. Duplicate target suppression emits
 `reason=target_already_planned`, `planned_work_items`, `enqueued_work_items`,
 `skipped_work_items`, and `trigger_kind` in structured coordinator logs.
-
-No-Regression Evidence: `go test ./internal/coordinator ./internal/scope ./internal/runtime -run Grafana -count=1` (plus the full `go test ./internal/coordinator ./internal/scope ./internal/runtime -count=1` suite) proves the grafana scheduler plans one claimable work item per enabled `configuration.targets[]` entry, skips disabled targets, filters by requested scope IDs, derives deterministic `RunID`/`WorkItemID`/`GenerationID` from the instance and plan key so repeated reconciles are idempotent, and rejects wrong collector kinds. The change adds a planner that produces workflow rows only; it does not alter claim lease timing, worker counts, queue ordering, reducer graph writes, or fact emission. The grafana planner partitions concurrent work by the per-target fairness key `grafana:<instance_id>:<target instance_id|scope_id>` and reuses the existing `(collector_kind, collector_instance_id, scope_id, acceptance_unit_id)` open-target admission guard, so no two concurrent reconciles claim the same Grafana target.
-
-No-Observability-Change: grafana scheduling reuses the existing coordinator reconcile counters, `workflow_runs`, `workflow_work_items`, `requested_scope_set`, and `/api/v0/index-status` surfaces. `requested_scope_set` carries only `scope_id`, `provider`, and target `instance_id`; it never exposes `token_env`, `base_url`, or resource limits, and no new metric, span, or log field was added.
-
-## Maintenance: service.go split (no behavior change)
-
-`service.go` exceeded the 500-line cap, so the four remaining per-collector
-schedule methods (package_registry, vulnerability_intelligence, oci_registry,
-terraform_state) moved into their own `<kind>_service.go` files to match the
-existing convention, and the shared observation recorders moved to
-`service_observations.go`. This is a pure code move: no function body, signature,
-planner wiring, lease timing, queue ordering, fairness key, or admission guard
-changed.
-
-No-Regression Evidence: baseline and after are identical behavior — the move is
-verified by `go test ./internal/coordinator ./internal/scope ./internal/runtime
--count=1` (pass, on the post-split tree), `go build ./internal/coordinator/...`,
-and `golangci-lint run ./internal/coordinator/...` (0 issues). No claim lease,
-worker count, batch size, conflict/fairness key, queue ordering, reducer graph
-write, or fact-emission path was touched, so the coordinator's terminal queue
-and row-count behavior is unchanged from before the refactor.
-
-No-Observability-Change: the moved code keeps the same reconcile counters,
-`recordReconcile`/`recordReap`/`recordRunReconciliation` calls, structured log
-fields, `workflow_runs`, and `/api/v0/index-status` surfaces. No metric, span,
-or log field was added, removed, or renamed.
 
 ## Related docs
 

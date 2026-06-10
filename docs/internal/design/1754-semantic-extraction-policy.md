@@ -86,9 +86,11 @@ config parser/evaluator state and reuses existing `/admin/status`,
 `/api/v0/status/index`, `/api/v0/status/semantic-extraction`, and semantic
 queue policy-denied rows. It adds no worker, queue table, graph query, provider
 call, credential read, metric instrument, metric label, span, or log payload.
-Future provider execution, collector egress, or audit work must add bounded
-metrics, spans, logs, status fields, and audit evidence before enabling network
-traffic.
+Issue #2106 intentionally leaves semantic egress as a no-audit-event path
+because the shipped semantic policy and queue packages have no source-level
+provider-work writer or private audit sink dependency. Future provider
+execution must add bounded metrics, spans, logs, status fields, and governance
+audit evidence before enabling network traffic.
 
 No-Regression Evidence: issue #1907 focused red/green coverage in
 `cd go && go test ./internal/semanticpolicy ./internal/semanticqueue -count=1`

@@ -96,6 +96,16 @@ func run(parent context.Context) error {
 	if err := tenantGrantStore.EnsureSchema(parent); err != nil {
 		return err
 	}
+	governanceAuditDB := &postgres.InstrumentedDB{
+		Inner:       postgres.SQLDB{DB: db},
+		Tracer:      providers.TracerProvider.Tracer(telemetry.DefaultSignalName),
+		Instruments: instruments,
+		StoreName:   "governance_audit",
+	}
+	governanceAuditStore := postgres.NewGovernanceAuditStore(governanceAuditDB)
+	if err := governanceAuditStore.EnsureSchema(parent); err != nil {
+		return err
+	}
 	awsFreshnessDB := &postgres.InstrumentedDB{
 		Inner:       postgres.SQLDB{DB: db},
 		Tracer:      providers.TracerProvider.Tracer(telemetry.DefaultSignalName),
@@ -160,6 +170,7 @@ func run(parent context.Context) error {
 		AWSFreshnessPlanner:               coordinator.AWSFreshnessWorkPlanner{},
 		AWSFreshnessEvents:                instruments.AWSFreshnessEvents,
 		IncidentFreshnessTriggers:         incidentFreshnessStore,
+		GovernanceAudit:                   governanceAuditStore,
 		Metrics:                           metrics,
 		Logger:                            logger,
 	}

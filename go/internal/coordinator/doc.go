@@ -49,5 +49,8 @@
 // produce workflow rows only. When a workflow tenant boundary is configured,
 // Service intersects planned work items with active tenant/workspace scope
 // grants before durable rows exist, and claim ownership and fact emission stay
-// with the collector runtimes.
+// with the collector runtimes. When wired with a GovernanceAuditAppender,
+// denied or unavailable collector and component-extension egress decisions append
+// validation-safe audit events with hashed scope identity and low-cardinality
+// reason codes before the coordinator skips claimable work.
 package coordinator

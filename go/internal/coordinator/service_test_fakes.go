@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -30,6 +31,19 @@ type fakeOwnedPackageTargetReader struct {
 	requests []workflow.OwnedPackageDependencyTargetFilter
 	targets  []workflow.OwnedPackageDependencyTarget
 	err      error
+}
+
+type fakeGovernanceAuditAppender struct {
+	events []governanceaudit.Event
+	err    error
+}
+
+func (f *fakeGovernanceAuditAppender) Append(_ context.Context, events []governanceaudit.Event) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.events = append(f.events, events...)
+	return nil
 }
 
 func (f *fakeOwnedPackageTargetReader) ListOwnedPackageDependencyTargets(

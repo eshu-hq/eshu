@@ -29,6 +29,9 @@ func (s Service) scheduleComponentExtensionWork(
 				CollectorKind: instance.CollectorKind,
 			})
 			if decision.Action == ExtensionEgressActionDeny {
+				if err := s.recordExtensionEgressAudit(ctx, observedAt, instance, config, decision); err != nil {
+					return fmt.Errorf("record component extension egress audit for %q: %w", instance.InstanceID, err)
+				}
 				if s.Logger != nil {
 					s.Logger.Info(
 						"workflow coordinator skipped component extension scheduling by egress policy",
