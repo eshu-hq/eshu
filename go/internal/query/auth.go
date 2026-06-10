@@ -285,6 +285,12 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if r.Method == http.MethodGet && scopedEntityContextRoute(r.URL.Path) {
 		return true
 	}
+	if r.Method == http.MethodGet && scopedWorkloadContextRoute(r.URL.Path) {
+		return true
+	}
+	if r.Method == http.MethodGet && scopedServiceContextRoute(r.URL.Path) {
+		return true
+	}
 	if r.Method != http.MethodPost {
 		return false
 	}
@@ -311,6 +317,25 @@ func scopedEntityContextRoute(path string) bool {
 	}
 	entityID := strings.TrimSuffix(strings.TrimPrefix(path, prefix), suffix)
 	return entityID != "" && !strings.Contains(entityID, "/")
+}
+
+func scopedWorkloadContextRoute(path string) bool {
+	return scopedContextRoute(path, "/api/v0/workloads/")
+}
+
+func scopedServiceContextRoute(path string) bool {
+	return scopedContextRoute(path, "/api/v0/services/")
+}
+
+func scopedContextRoute(path string, prefix string) bool {
+	for _, suffix := range []string{"/context", "/story"} {
+		if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
+			continue
+		}
+		selector := strings.TrimSuffix(strings.TrimPrefix(path, prefix), suffix)
+		return selector != "" && !strings.Contains(selector, "/")
+	}
+	return false
 }
 
 // constantTimeEqual compares two strings in constant time to prevent timing attacks.

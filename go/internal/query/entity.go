@@ -451,6 +451,10 @@ func (h *EntityHandler) getServiceContext(w http.ResponseWriter, r *http.Request
 		WriteError(w, http.StatusBadRequest, "service_name is required")
 		return
 	}
+	if repositoryAccessFilterFromContext(r.Context()).empty() {
+		WriteError(w, http.StatusNotFound, "service not found")
+		return
+	}
 
 	ctx, err := h.fetchServiceWorkloadContext(r.Context(), serviceName, "service_context")
 	if err != nil {

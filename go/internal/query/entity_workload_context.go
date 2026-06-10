@@ -44,6 +44,10 @@ func (h *EntityHandler) fetchServiceWorkloadContext(ctx context.Context, service
 // fetchWorkloadContextForOperation queries workload context and tags timing
 // logs with the caller operation that will render the context.
 func (h *EntityHandler) fetchWorkloadContextForOperation(ctx context.Context, whereClause string, params map[string]any, operation string) (map[string]any, error) {
+	access := repositoryAccessFilterFromContext(ctx)
+	if access.empty() {
+		return nil, nil
+	}
 	serviceName := StringVal(params, "service_name")
 	if serviceName == "" {
 		serviceName = StringVal(params, "workload_id")
@@ -52,6 +56,8 @@ func (h *EntityHandler) fetchWorkloadContextForOperation(ctx context.Context, wh
 		operation = "workload_context"
 	}
 	timer := startServiceQueryStage(ctx, h.Logger, operation, serviceName, "", "workload_lookup")
+	params = access.graphParams(params)
+	whereClause = scopedWorkloadWhereClause(whereClause, access)
 	baseCypher := fmt.Sprintf(`
 		MATCH (w:Workload) WHERE %s
 		RETURN w.id as id, w.name as name, w.kind as kind, w.repo_id as repo_id
@@ -81,7 +87,7 @@ func (h *EntityHandler) fetchWorkloadContextForOperation(ctx context.Context, wh
 	if repoID != "" {
 		repoName, err = h.fetchRepositoryNameByID(ctx, repoID)
 	} else {
-		repoID, repoName, err = h.fetchWorkloadRepository(ctx, followupWhereClause, followupParams)
+		repoID, repoName, err = h.fetchWorkloadRepositoryForAccess(ctx, followupWhereClause, followupParams, access)
 	}
 	timer.Done(ctx, slog.String("resolved_repo_id", repoID))
 	if err != nil {
@@ -132,9 +138,16 @@ func (h *EntityHandler) fetchServiceReadModelWorkloadContext(ctx context.Context
 	if h.Content == nil {
 		return nil, nil
 	}
+	access := repositoryAccessFilterFromContext(ctx)
+	if access.empty() {
+		return nil, nil
+	}
 	repo, err := h.Content.ResolveRepository(ctx, serviceName)
 	if err != nil || repo == nil {
 		return nil, err
+	}
+	if !access.allowsRepositoryID(repo.ID) {
+		return nil, nil
 	}
 
 	summary := loadRepositoryReadModelSummary(ctx, h.Content, repo.ID)
@@ -209,15 +222,22 @@ func (h *EntityHandler) fetchRepositoryNameByID(ctx context.Context, repoID stri
 	return StringVal(row, "repo_name"), nil
 }
 
-// fetchWorkloadRepository resolves the repository link without OPTIONAL MATCH,
-// avoiding backend-specific projection behavior in graph read paths.
-func (h *EntityHandler) fetchWorkloadRepository(ctx context.Context, whereClause string, params map[string]any) (string, string, error) {
+// fetchWorkloadRepositoryForAccess resolves the repository link without
+// OPTIONAL MATCH while preserving scoped repository authorization.
+func (h *EntityHandler) fetchWorkloadRepositoryForAccess(
+	ctx context.Context,
+	whereClause string,
+	params map[string]any,
+	access repositoryAccessFilter,
+) (string, string, error) {
+	params = access.graphParams(params)
 	cypher := fmt.Sprintf(`
 		MATCH (w:Workload) WHERE %s
 		MATCH (r:Repository)-[:DEFINES]->(w)
+		%s
 		RETURN r.id as repo_id, r.name as repo_name
 		LIMIT 1
-	`, whereClause)
+	`, whereClause, access.graphWhereClause("r"))
 	rows, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
 		return "", "", err
@@ -226,6 +246,21 @@ func (h *EntityHandler) fetchWorkloadRepository(ctx context.Context, whereClause
 		return "", "", nil
 	}
 	return StringVal(rows[0], "repo_id"), StringVal(rows[0], "repo_name"), nil
+}
+
+func scopedWorkloadWhereClause(whereClause string, access repositoryAccessFilter) string {
+	if !access.scoped() {
+		return whereClause
+	}
+	return whereClause + `
+			AND (
+				w.repo_id IN $allowed_repository_ids
+				OR w.repo_id IN $allowed_scope_ids
+				OR EXISTS {
+					MATCH (scopeRepo:Repository)-[:DEFINES]->(w)
+					WHERE ` + access.graphCondition("scopeRepo") + `
+				}
+			)`
 }
 
 // fetchWorkloadInstances assembles instance and platform fields from scalar
