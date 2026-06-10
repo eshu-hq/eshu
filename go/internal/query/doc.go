@@ -90,7 +90,10 @@
 // apply the same bounds to selector resolution, graph predicates, exact content
 // lookups, candidate ambiguity, citation handle hydration, repo-identity
 // hydration, coverage metadata, recommended next calls, and content fallback
-// calls before allowing scoped-token API or MCP reads.
+// calls before allowing scoped-token API or MCP reads. Query playbook catalog
+// and resolver routes are also available to scoped tokens because they read
+// only deterministic in-process catalog data and leave live-data playbook step
+// targets behind their own scoped route gates.
 // Story and investigation routes also attach additive answer_metadata
 // companions for prompt-facing clients. The companion normalizes existing
 // evidence handles, missing evidence, limitations, truncation, coverage,

@@ -175,6 +175,21 @@
   logs, graph query spans, HTTP route attribution, truth envelopes, result
   limits, and partial reasons diagnose the bounded investigation read path.
 
+- **Query playbook scoped-token route evidence** — #2076 opens only
+  `GET /api/v0/query-playbooks` and `POST /api/v0/query-playbooks/resolve`
+  because `QueryPlaybookHandler` reads deterministic in-process catalog data
+  and never calls graph, Postgres, providers, collectors, or tenant data stores.
+  Live-data route targets referenced by resolved playbook steps remain governed
+  by their own scoped-route allowlist entries. No-Regression Evidence:
+  `go test ./internal/query -run
+  'Test(QueryPlaybookHandler|AuthMiddlewareWithScopedTokensAllowsQueryPlaybookRoutes)'
+  -count=1` and `go test ./internal/mcp -run
+  'Test(QueryPlaybook|TestDispatchToolQueryPlaybooksAllowsScopedRoutes)'
+  -count=1`. No-Observability-Change: the route family adds no graph write,
+  graph read, Postgres read, metric label, runtime knob, or response field;
+  existing HTTP route attribution and query-playbooks truth envelopes diagnose
+  the static catalog/resolver path.
+
 - **Package registry reads stay anchored** — `PackageRegistryHandler` in
   `package_registry.go` must require `limit` plus a route-specific anchor
   before graph reads: package lookups use `package_id` or `ecosystem`, version

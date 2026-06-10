@@ -294,6 +294,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if r.Method == http.MethodGet && scopedServiceInvestigationRoute(r.URL.Path) {
 		return true
 	}
+	if scopedQueryPlaybookRoute(r) {
+		return true
+	}
 	if r.Method != http.MethodPost {
 		return false
 	}
@@ -337,6 +340,17 @@ func scopedServiceInvestigationRoute(path string) bool {
 	}
 	selector := strings.TrimPrefix(path, prefix)
 	return selector != "" && !strings.Contains(selector, "/")
+}
+
+func scopedQueryPlaybookRoute(r *http.Request) bool {
+	switch {
+	case r.Method == http.MethodGet && r.URL.Path == "/api/v0/query-playbooks":
+		return true
+	case r.Method == http.MethodPost && r.URL.Path == "/api/v0/query-playbooks/resolve":
+		return true
+	default:
+		return false
+	}
 }
 
 func scopedContextRoute(path string, prefix string) bool {
