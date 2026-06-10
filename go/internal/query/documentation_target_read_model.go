@@ -444,7 +444,19 @@ func buildDocumentationTargetFactsSQL(filter documentationFindingFilter) (string
 		"fact_records.payload",
 		documentationTargetRefsFromFindingFilter(filter),
 	)
+	clauses, args = appendDocumentationAuthorizationClause(
+		clauses,
+		args,
+		"fact_records",
+		"ingestion_scopes",
+		filter.AllowedRepositoryIDs,
+		filter.AllowedScopeIDs,
+	)
 	limit := documentationTargetFactLimit(filter.Limit)
+	scopeJoin := ""
+	if documentationAuthorizationApplies(filter.AllowedRepositoryIDs, filter.AllowedScopeIDs) {
+		scopeJoin = "\nLEFT JOIN ingestion_scopes ON ingestion_scopes.scope_id = fact_records.scope_id"
+	}
 	args = append(args, limit+1)
 	return fmt.Sprintf(`
 SELECT jsonb_build_object(
@@ -459,10 +471,11 @@ SELECT jsonb_build_object(
     'payload', fact_records.payload
 ) AS payload
 FROM fact_records
+%s
 WHERE %s
 ORDER BY fact_records.observed_at DESC, fact_records.fact_id DESC
 LIMIT $%d
-`, strings.Join(clauses, " AND "), len(args)), args
+`, scopeJoin, strings.Join(clauses, " AND "), len(args)), args
 }
 
 func documentationTargetFactLimit(limit int) int {

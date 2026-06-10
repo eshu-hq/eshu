@@ -27,22 +27,24 @@ type DocumentationHandler struct {
 }
 
 type documentationFindingFilter struct {
-	ScopeID        string
-	GenerationID   string
-	Repository     string
-	TargetKind     string
-	TargetID       string
-	ServiceID      string
-	FindingType    string
-	SourceID       string
-	DocumentID     string
-	Status         string
-	TruthLevel     string
-	FreshnessState string
-	UpdatedSince   *time.Time
-	Limit          int
-	Cursor         string
-	Offset         int
+	ScopeID              string
+	GenerationID         string
+	Repository           string
+	TargetKind           string
+	TargetID             string
+	ServiceID            string
+	FindingType          string
+	SourceID             string
+	DocumentID           string
+	Status               string
+	TruthLevel           string
+	FreshnessState       string
+	UpdatedSince         *time.Time
+	Limit                int
+	Cursor               string
+	Offset               int
+	AllowedScopeIDs      []string
+	AllowedRepositoryIDs []string
 }
 
 type documentationFindingListReadModel struct {
@@ -117,7 +119,7 @@ func (h *DocumentationHandler) listFindings(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	readModel, err := store.documentationFindings(r.Context(), documentationFindingFilter{
+	filter := documentationFindingFilter{
 		ScopeID:        QueryParam(r, "scope_id"),
 		GenerationID:   QueryParam(r, "generation_id"),
 		Repository:     QueryParam(r, "repo"),
@@ -134,7 +136,18 @@ func (h *DocumentationHandler) listFindings(w http.ResponseWriter, r *http.Reque
 		Limit:          page.limit,
 		Cursor:         page.cursor,
 		Offset:         page.offset,
-	})
+	}
+	filter, ok = documentationFindingFilterWithRepositoryAccess(r.Context(), filter)
+	if !ok {
+		WriteSuccess(w, r, http.StatusOK, documentationFindingsResponse(documentationFindingListReadModel{}), BuildTruthEnvelope(
+			h.profile(),
+			documentationFindingsCapability,
+			TruthBasisSemanticFacts,
+			"resolved from durable documentation finding facts",
+		))
+		return
+	}
+	readModel, err := store.documentationFindings(r.Context(), filter)
 	if err != nil {
 		writeDocumentationInternalError(w, r)
 		return

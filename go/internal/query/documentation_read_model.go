@@ -321,6 +321,14 @@ func buildDocumentationFindingsSQL(filter documentationFindingFilter) (string, [
 		args = append(args, *filter.UpdatedSince)
 		clauses = append(clauses, fmt.Sprintf("fact_records.observed_at >= $%d", len(args)))
 	}
+	clauses, args = appendDocumentationAuthorizationClause(
+		clauses,
+		args,
+		"fact_records",
+		"ingestion_scopes",
+		filter.AllowedRepositoryIDs,
+		filter.AllowedScopeIDs,
+	)
 	limit := filter.Limit
 	if limit <= 0 {
 		limit = 50
@@ -393,9 +401,21 @@ func buildDocumentationFactsSQL(filter documentationFactFilter) (string, []any) 
 		args = append(args, *filter.UpdatedSince)
 		clauses = append(clauses, fmt.Sprintf("fact_records.observed_at >= $%d", len(args)))
 	}
+	clauses, args = appendDocumentationAuthorizationClause(
+		clauses,
+		args,
+		"fact_records",
+		"ingestion_scopes",
+		filter.AllowedRepositoryIDs,
+		filter.AllowedScopeIDs,
+	)
 	limit := filter.Limit
 	if limit <= 0 {
 		limit = 50
+	}
+	scopeJoin := ""
+	if documentationAuthorizationApplies(filter.AllowedRepositoryIDs, filter.AllowedScopeIDs) {
+		scopeJoin = "\nLEFT JOIN ingestion_scopes ON ingestion_scopes.scope_id = fact_records.scope_id"
 	}
 	args = append(args, limit+1, filter.Offset)
 	return fmt.Sprintf(`
@@ -411,10 +431,11 @@ SELECT jsonb_build_object(
     'payload', fact_records.payload
 ) AS payload
 FROM fact_records
+%s
 WHERE %s
 ORDER BY fact_records.observed_at DESC, fact_records.fact_id DESC
 LIMIT $%d OFFSET $%d
-`, strings.Join(clauses, " AND "), len(args)-1, len(args)), args
+`, scopeJoin, strings.Join(clauses, " AND "), len(args)-1, len(args)), args
 }
 
 func documentationCollectedFactKindSQLList() string {

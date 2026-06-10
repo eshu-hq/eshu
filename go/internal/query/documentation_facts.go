@@ -16,21 +16,23 @@ const (
 )
 
 type documentationFactFilter struct {
-	FactKind     string
-	ScopeID      string
-	GenerationID string
-	Repository   string
-	TargetKind   string
-	TargetID     string
-	ServiceID    string
-	SourceID     string
-	DocumentID   string
-	SectionID    string
-	Query        string
-	UpdatedSince *time.Time
-	Limit        int
-	Cursor       string
-	Offset       int
+	FactKind             string
+	ScopeID              string
+	GenerationID         string
+	Repository           string
+	TargetKind           string
+	TargetID             string
+	ServiceID            string
+	SourceID             string
+	DocumentID           string
+	SectionID            string
+	Query                string
+	UpdatedSince         *time.Time
+	Limit                int
+	Cursor               string
+	Offset               int
+	AllowedScopeIDs      []string
+	AllowedRepositoryIDs []string
 }
 
 type documentationFactListReadModel struct {
@@ -60,6 +62,16 @@ func (h *DocumentationHandler) listFacts(w http.ResponseWriter, r *http.Request)
 	}
 	filter, ok := documentationFactRequestFilter(w, r, page, updatedSince)
 	if !ok {
+		return
+	}
+	filter, ok = documentationFactFilterWithRepositoryAccess(r.Context(), filter)
+	if !ok {
+		WriteSuccess(w, r, http.StatusOK, documentationFactsResponse(documentationFactListReadModel{}, page), BuildTruthEnvelope(
+			h.profile(),
+			documentationFactsCapability,
+			TruthBasisSemanticFacts,
+			"resolved from durable collected documentation facts",
+		))
 		return
 	}
 	store, ok := h.documentationStore(w, r)
