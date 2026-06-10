@@ -15,6 +15,7 @@ func ReadOnlyTools() []ToolDefinition {
 	tools = append(tools, ecosystemTools()...)
 	tools = append(tools, infraResourceAggregateTools()...)
 	tools = append(tools, cloudInventoryTools()...)
+	tools = append(tools, cloudRuntimeDriftTools()...)
 	tools = append(tools, packageRegistryTools()...)
 	tools = append(tools, packageRegistryAggregateTools()...)
 	tools = append(tools, cicdTools()...)

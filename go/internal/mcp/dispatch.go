@@ -88,6 +88,9 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok := cloudInventoryRoute(toolName, args); ok {
 		return route, nil
 	}
+	if route, ok := cloudRuntimeDriftRoute(toolName, args); ok {
+		return route, nil
+	}
 	if route, ok := semanticEvidenceRoute(toolName, args); ok {
 		return route, nil
 	}

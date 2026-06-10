@@ -1,0 +1,27 @@
+version: v1
+updated_at: 2026-06-09
+owners:
+  - platform-engineering
+# Provider-neutral multi-cloud runtime drift readback (issues #1997, #1998). This
+# surfaces the reducer-owned reducer_multi_cloud_runtime_drift_finding rows (one
+# per canonical cloud_resource_uid) as a bounded, paginated, truth-labeled list
+# filterable by provider (aws/gcp/azure), canonical scope, and finding_kind. The
+# serving route (POST /api/v0/cloud/runtime-drift/findings) and MCP tool
+# (list_cloud_runtime_drift_findings) read durable canonical drift facts; they
+# never fabricate truth or leak raw provider locators, and unsafe findings are
+# refused (source_state=rejected with a refused action) rather than silently
+# omitted. It is the provider-neutral peer of the AWS-specific
+# aws_runtime_drift.findings.list capability, covering AWS, GCP, and Azure
+# findings through one canonical fact. Lightweight local runtime cannot
+# materialize the reducer-owned drift findings and returns unsupported_capability.
+# See docs/public/reference/multi-cloud-collector-contract.md (Query Truth) and
+# docs/public/reference/replatforming-source-state-taxonomy.md for the per-item
+# source-state vocabulary surfaced alongside management_status.
+capabilities:
+  - capability: cloud_runtime_drift.readback.list
+    tools: [list_cloud_runtime_drift_findings]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: account_project_or_subscription, verification: [{integration_test: local-lightweight-unsupported-cloud-runtime-drift-readback}], notes: requires reducer-materialized reducer_multi_cloud_runtime_drift_finding rows; lightweight local cannot serve a provider-neutral runtime drift readback and must return unsupported_capability}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: account_project_or_subscription, verification: [{go_test: ./internal/query}], notes: bounded paginated readback of reducer-owned reducer_multi_cloud_runtime_drift_finding rows with provider, normalized identity, finding_kind, management_status, provider-neutral source state, and refusal-safety posture}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 5000, max_scope_size: account_project_or_subscription, verification: [{go_test: ./internal/query}], notes: bounded paginated readback of reducer-owned reducer_multi_cloud_runtime_drift_finding rows with provider, normalized identity, finding_kind, management_status, provider-neutral source state, and refusal-safety posture}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: account_project_or_subscription, verification: [{remote_validation: prod-cloud-runtime-drift-readback}], notes: bounded paginated readback of reducer-owned reducer_multi_cloud_runtime_drift_finding rows with provider, normalized identity, finding_kind, management_status, provider-neutral source state, and refusal-safety posture}

@@ -161,7 +161,7 @@ content reads keyed by a portable handle. These stay as is. Examples:
 `find_blast_radius`, `find_change_surface`, `investigate_change_surface`,
 `find_dead_iac`, `find_unmanaged_resources`, `get_iac_management_status`,
 `explain_iac_management_status`, `propose_terraform_import_plan`,
-`list_aws_runtime_drift_findings`.
+`list_aws_runtime_drift_findings`, `list_cloud_runtime_drift_findings`.
 
 ### Aggregate Contract Requirements
 
