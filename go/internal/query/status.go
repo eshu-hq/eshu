@@ -13,11 +13,12 @@ import (
 
 // StatusHandler provides HTTP endpoints for pipeline status queries.
 type StatusHandler struct {
-	Neo4j        GraphQuery
-	DB           *sql.DB
-	StatusReader status.Reader
-	Profile      QueryProfile
-	Governance   GovernanceStatusConfig
+	Neo4j           GraphQuery
+	DB              *sql.DB
+	StatusReader    status.Reader
+	GovernanceAudit GovernanceAuditSummaryReader
+	Profile         QueryProfile
+	Governance      GovernanceStatusConfig
 }
 
 // Mount registers status query routes on the given mux.

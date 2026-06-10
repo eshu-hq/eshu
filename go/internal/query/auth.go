@@ -1,9 +1,13 @@
 package query
 
 import (
+	"context"
 	"crypto/subtle"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 )
 
 // publicHTTPPaths lists routes that bypass authentication.
@@ -19,6 +23,13 @@ var publicHTTPPaths = map[string]bool{
 	"/api/v0/redoc":        true,
 }
 
+const governanceAuditAppendTimeout = 500 * time.Millisecond
+
+// GovernanceAuditAppender records validation-safe governance audit events.
+type GovernanceAuditAppender interface {
+	Append(context.Context, []governanceaudit.Event) error
+}
+
 // AuthMiddleware wraps an HTTP handler with bearer token authentication.
 //
 // If token is empty, authentication is disabled (dev mode).
@@ -28,6 +39,17 @@ var publicHTTPPaths = map[string]bool{
 //
 // Returns 401 Unauthorized with a JSON error body if authentication fails.
 func AuthMiddleware(token string, next http.Handler) http.Handler {
+	return AuthMiddlewareWithGovernanceAudit(token, next, nil)
+}
+
+// AuthMiddlewareWithGovernanceAudit wraps an HTTP handler with bearer token
+// authentication and records denied read-authorization events when a private
+// audit sink is available.
+func AuthMiddlewareWithGovernanceAudit(
+	token string,
+	next http.Handler,
+	audit GovernanceAuditAppender,
+) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Dev mode: skip auth when token is empty
 		if token == "" {
@@ -47,6 +69,7 @@ func AuthMiddleware(token string, next http.Handler) http.Handler {
 
 		// Validate scheme and credentials
 		if !found || strings.ToLower(strings.TrimSpace(scheme)) != "bearer" {
+			recordReadAuthorizationDenied(r, audit)
 			unauthorizedResponse(w, r)
 			return
 		}
@@ -54,12 +77,14 @@ func AuthMiddleware(token string, next http.Handler) http.Handler {
 		// Trim whitespace from credentials
 		credentials = strings.TrimSpace(credentials)
 		if credentials == "" {
+			recordReadAuthorizationDenied(r, audit)
 			unauthorizedResponse(w, r)
 			return
 		}
 
 		// Compare tokens using constant-time comparison
 		if !constantTimeEqual(credentials, token) {
+			recordReadAuthorizationDenied(r, audit)
 			unauthorizedResponse(w, r)
 			return
 		}
@@ -67,6 +92,38 @@ func AuthMiddleware(token string, next http.Handler) http.Handler {
 		// Auth succeeded
 		next.ServeHTTP(w, r)
 	})
+}
+
+func recordReadAuthorizationDenied(r *http.Request, audit GovernanceAuditAppender) {
+	if audit == nil {
+		return
+	}
+	event := governanceaudit.Event{
+		Type:          governanceaudit.EventTypeReadAuthorization,
+		ActorClass:    governanceaudit.ActorClassAnonymous,
+		ScopeClass:    governanceaudit.ScopeClassAdmin,
+		Decision:      governanceaudit.DecisionDenied,
+		ReasonCode:    "authentication_required",
+		CorrelationID: safeAuditCorrelationID(documentationCorrelationID(r)),
+		OccurredAt:    time.Now().UTC(),
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), governanceAuditAppendTimeout)
+	defer cancel()
+	_ = audit.Append(ctx, []governanceaudit.Event{event})
+}
+
+func safeAuditCorrelationID(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > 96 {
+		return ""
+	}
+	for _, r := range value {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') &&
+			r != '_' && r != '-' && r != ':' {
+			return ""
+		}
+	}
+	return value
 }
 
 // constantTimeEqual compares two strings in constant time to prevent timing attacks.

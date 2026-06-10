@@ -99,6 +99,7 @@ func wireAPI(
 		pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db}),
 		semanticProviderProfiles...,
 	)
+	governanceAudit := pgstatus.NewGovernanceAuditStore(pgstatus.SQLDB{DB: db})
 
 	componentHome := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))
 	componentPolicy := componentPolicyFromEnv(getenv)
@@ -113,13 +114,14 @@ func wireAPI(
 		componentHome,
 		componentPolicy,
 		governanceStatus,
+		governanceAudit,
 	)
 
 	mux := http.NewServeMux()
 	router.Mount(mux)
 
 	// Wrap with auth middleware (protects all /api/v0/* routes when mounted by MCP server)
-	authedHandler := query.AuthMiddleware(apiKey, mux)
+	authedHandler := query.AuthMiddlewareWithGovernanceAudit(apiKey, mux, governanceAudit)
 
 	adminMux, err := mountRuntimeSurface("mcp-server", statusReader, prometheusHandler)
 	if err != nil {
@@ -151,9 +153,13 @@ func newMCPQueryRouter(
 	componentHome string,
 	componentPolicy component.Policy,
 	governanceStatus query.GovernanceStatusConfig,
+	governanceAudit query.GovernanceAuditSummaryReader,
 ) *query.APIRouter {
 	if statusReader == nil {
 		statusReader = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
+	}
+	if governanceAudit == nil && db != nil {
+		governanceAudit = pgstatus.NewGovernanceAuditStore(pgstatus.SQLDB{DB: db})
 	}
 	var containerImageIdentities query.ContainerImageIdentityStore
 	var sbomAttachments query.SBOMAttestationAttachmentStore
@@ -280,11 +286,12 @@ func newMCPQueryRouter(
 		},
 		Visualization: &query.VisualizationHandler{},
 		Status: &query.StatusHandler{
-			Neo4j:        neo4jReader,
-			DB:           db,
-			StatusReader: statusReader,
-			Profile:      queryProfile,
-			Governance:   governanceStatus,
+			Neo4j:           neo4jReader,
+			DB:              db,
+			StatusReader:    statusReader,
+			GovernanceAudit: governanceAudit,
+			Profile:         queryProfile,
+			Governance:      governanceStatus,
 		},
 		ComponentExtensions: &query.ComponentExtensionsHandler{
 			ComponentHome: componentHome,

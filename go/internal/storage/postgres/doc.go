@@ -152,6 +152,10 @@
 // facts. ReducerQueue readiness gates keep EC2 internet-exposure work waiting
 // for the EC2 instance CloudResource canonical-nodes phase before graph writes
 // are claimed.
+// GovernanceAuditStore persists validation-safe hosted governance audit events
+// in a private sink, derives deterministic event ids for retry idempotency, and
+// exposes only authorized bounded detailed reads plus aggregate summaries for
+// status surfaces.
 // StatusStore.ListGenerationLifecycle serves the bounded generation lifecycle
 // drilldown: one ordered page (observed_at DESC, generation_id ASC) of
 // scope_generations joined with ingestion_scopes, a correlated LATERAL queue

@@ -117,6 +117,16 @@ func wireAPI(
 		}
 		return nil, nil, fmt.Errorf("register query instruments: %w", err)
 	}
+	governanceAuditDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	if instruments != nil {
+		governanceAuditDB = &pgstatus.InstrumentedDB{
+			Inner:       governanceAuditDB,
+			Tracer:      otel.Tracer("eshu-api"),
+			Instruments: instruments,
+			StoreName:   "governance_audit",
+		}
+	}
+	governanceAudit := pgstatus.NewGovernanceAuditStore(governanceAuditDB)
 	componentHome := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))
 	componentPolicy := componentPolicyFromEnv(getenv)
 	router, err := newRouter(
@@ -132,6 +142,7 @@ func wireAPI(
 		componentHome,
 		componentPolicy,
 		governanceStatus,
+		governanceAudit,
 	)
 	if err != nil {
 		_ = db.Close()
@@ -154,7 +165,7 @@ func wireAPI(
 	}
 
 	// Wrap with auth middleware
-	authedMux := query.AuthMiddleware(apiKey, mux)
+	authedMux := query.AuthMiddlewareWithGovernanceAudit(apiKey, mux, governanceAudit)
 
 	cleanup := func() {
 		_ = db.Close()
@@ -224,9 +235,22 @@ func newRouter(
 	componentHome string,
 	componentPolicy component.Policy,
 	governanceStatus query.GovernanceStatusConfig,
+	governanceAudit query.GovernanceAuditSummaryReader,
 ) (*query.APIRouter, error) {
 	if statusReader == nil {
 		statusReader = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
+	}
+	if governanceAudit == nil && db != nil {
+		governanceAuditDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+		if instruments != nil {
+			governanceAuditDB = &pgstatus.InstrumentedDB{
+				Inner:       governanceAuditDB,
+				Tracer:      otel.Tracer("eshu-api"),
+				Instruments: instruments,
+				StoreName:   "governance_audit",
+			}
+		}
+		governanceAudit = pgstatus.NewGovernanceAuditStore(governanceAuditDB)
 	}
 	var containerImageIdentities query.ContainerImageIdentityStore
 	var sbomAttachments query.SBOMAttestationAttachmentStore
@@ -379,11 +403,12 @@ func newRouter(
 			Profile:             queryProfile,
 		},
 		Status: &query.StatusHandler{
-			Neo4j:        neo4jReader,
-			DB:           db,
-			StatusReader: statusReader,
-			Profile:      queryProfile,
-			Governance:   governanceStatus,
+			Neo4j:           neo4jReader,
+			DB:              db,
+			StatusReader:    statusReader,
+			GovernanceAudit: governanceAudit,
+			Profile:         queryProfile,
+			Governance:      governanceStatus,
 		},
 		ComponentExtensions: &query.ComponentExtensionsHandler{
 			ComponentHome: componentHome,

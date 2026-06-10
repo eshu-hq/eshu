@@ -41,8 +41,9 @@ flowchart TB
   C --> J["DecisionStore\nprojection_decisions\nprojection_decision_evidence"]
   C --> K["RecoveryStore\nreplay dead_letter / failed\nwork items"]
   C --> L["WorkflowControlStore\nworkflow coordinator\nclaim lease fencing"]
+  C --> M["GovernanceAuditStore\ngovernance_audit_events\nprivate bounded audit sink"]
   C --> N["IncidentFreshnessStore\nincident_freshness_triggers\nFOR UPDATE SKIP LOCKED"]
-  E --> M["Beginner.Begin\natomic ack transaction:\nsupersede active → supersede obsolete terminal → activate → update scope → mark succeeded"]
+  E --> O["Beginner.Begin\natomic ack transaction:\nsupersede active → supersede obsolete terminal → activate → update scope → mark succeeded"]
 ```
 
 ## Lifecycle / workflow
@@ -80,9 +81,18 @@ High-signal invariants for this package:
 - Workflow, AWS pagination, AWS scan-status, webhook, and incident freshness
   stores use fencing or coalescing keys so stale workers or replayed deliveries
   cannot overwrite newer durable truth.
+- `GovernanceAuditStore` validates every event through
+  `governanceaudit.NormalizeEvent`, derives a deterministic event id from the
+  normalized safe fields, and uses `ON CONFLICT DO NOTHING` so retried writes
+  are idempotent without storing raw principals, source names, prompts,
+  provider responses, credential handles, private URLs, or token values.
 - Documentation fact readbacks stay bounded by visible finding/source/packet
   indexes plus `fact_records_documentation_target_refs_idx`, a partial JSONB GIN
   index over documentation target-reference payloads.
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run 'Test(BootstrapDefinitionsIncludeGovernanceAuditEvents|GovernanceAuditStore)' -count=1` proves the private audit schema is bootstrap-registered and file-mirrored, writes reject unsafe events before persistence without echoing rejected values, duplicate retry writes converge on one deterministic event row, detailed queries require explicit operator authorization and bounded filters, retention deletes only rows older than the cutoff, and aggregate summaries read low-cardinality classes without selecting detailed identifiers.
+
+Observability Evidence: API status wiring wraps the audit store with `InstrumentedDB{StoreName:"governance_audit"}`, so private summary reads and writes use the existing `postgres.query`/`postgres.exec` spans and `eshu_dp_postgres_query_duration_seconds{store="governance_audit",operation="read|write"}` timing signal. Public API and MCP governance status surfaces expose only aggregate counts and reason classes.
 
 No-Regression Evidence: `go test ./internal/storage/postgres -run 'TestReadWorkflowCoordinatorRecentFailures' -count=1` covers `readWorkflowCoordinatorRecentFailures`, a single windowed read that counts failed workflow runs, blocked completeness, and `failed_terminal`/`expired` work items whose `updated_at` is within the default 30m window. Each subquery is served by the existing `(status, updated_at DESC)` indexes on `workflow_runs`, `workflow_run_completeness`, and `workflow_work_items`; it adds one bounded status-count read per status snapshot (no scan, no join, no graph write). `go test ./internal/storage/postgres ./internal/status -count=1` passed.
 
@@ -135,6 +145,9 @@ Primary groups:
 - Database adapters: `ExecQueryer`, `Transaction`, `Beginner`, `SQLDB`,
   `SQLTx`, `InstrumentedDB`.
 - Fact, queue, recovery, status, workflow, and webhook stores.
+- Governance audit store for validation-safe private event persistence,
+  authorized bounded detailed reads, retention pruning, and aggregate-only
+  status readback.
 - Installed advisory target readers for active OS package and active attached
   SBOM component evidence used by vulnerability-intelligence planning.
 - Content stores and content writers, including bounded entity-batch
