@@ -190,6 +190,22 @@
   existing HTTP route attribution and query-playbooks truth envelopes diagnose
   the static catalog/resolver path.
 
+- **Vulnerability scanner contract scoped-token route evidence** — #2078 opens
+  only `GET /api/v0/supply-chain/vulnerability-scanner/contract` because
+  `SupplyChainHandler.getVulnerabilityScannerReadContract` returns a
+  deterministic in-process route/filter contract and never calls graph,
+  Postgres, providers, collectors, repositories, tenants, or token stores. Live
+  scanner findings, counts, inventories, explanations, and provider-alert
+  routes stay governed by their own scoped-route allowlist entries.
+  No-Regression Evidence: `go test ./internal/query -run
+  'Test(VulnerabilityScannerReadContract|AuthMiddlewareWithScopedTokensAllowsScannerContractRoute)'
+  -count=1` and `go test ./internal/mcp -run
+  'Test(ResolveRouteMapsVulnerabilityScannerContract|DispatchToolScannerContractAllowsScopedRoute)'
+  -count=1`. No-Observability-Change: the route adds no graph write, graph
+  read, Postgres read, provider call, collector call, metric label, runtime
+  knob, or response field; existing HTTP route attribution and scanner-contract
+  truth envelopes diagnose the static route.
+
 - **Package registry reads stay anchored** — `PackageRegistryHandler` in
   `package_registry.go` must require `limit` plus a route-specific anchor
   before graph reads: package lookups use `package_id` or `ecosystem`, version
