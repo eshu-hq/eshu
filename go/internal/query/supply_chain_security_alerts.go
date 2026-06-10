@@ -37,21 +37,32 @@ func (h *SupplyChainHandler) listSecurityAlertReconciliations(w http.ResponseWri
 	if !rejectUnsupportedVulnerabilityScannerFilters(w, r, securityAlertScannerFilters()) {
 		return
 	}
+	// Empty scoped grants return the zero-row page without resolving a selector
+	// or reading the reconciliation store.
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptySecurityAlertReconciliationPage(w, r, limit)
+		return
+	}
 	repositoryID, repositoryScopeIDs, ok := h.resolveSupplyChainSecurityAlertRepositorySelector(w, r, QueryParam(r, "repository_id"))
 	if !ok {
 		return
 	}
+	if h.securityAlertReconciliationOutOfGrant(w, r, access, repositoryID) {
+		return
+	}
 	filter := SecurityAlertReconciliationFilter{
-		RepositoryID:          repositoryID,
-		RepositoryScopeIDs:    repositoryScopeIDs,
-		Provider:              QueryParam(r, "provider"),
-		PackageID:             QueryParam(r, "package_id"),
-		CVEID:                 QueryParam(r, "cve_id"),
-		GHSAID:                QueryParam(r, "ghsa_id"),
-		ProviderState:         QueryParam(r, "provider_state"),
-		ReconciliationStatus:  QueryParam(r, "reconciliation_status"),
-		AfterReconciliationID: QueryParam(r, "after_reconciliation_id"),
-		Limit:                 limit + 1,
+		RepositoryID:               repositoryID,
+		RepositoryScopeIDs:         repositoryScopeIDs,
+		Provider:                   QueryParam(r, "provider"),
+		PackageID:                  QueryParam(r, "package_id"),
+		CVEID:                      QueryParam(r, "cve_id"),
+		GHSAID:                     QueryParam(r, "ghsa_id"),
+		ProviderState:              QueryParam(r, "provider_state"),
+		ReconciliationStatus:       QueryParam(r, "reconciliation_status"),
+		AfterReconciliationID:      QueryParam(r, "after_reconciliation_id"),
+		Limit:                      limit + 1,
+		AllowedSourceRepositoryIDs: access.repositorySearchIDs(),
 	}
 	if !filter.hasScope() {
 		WriteError(w, http.StatusBadRequest, securityAlertReconciliationAnchorRequiredMessage)

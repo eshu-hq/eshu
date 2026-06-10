@@ -56,7 +56,12 @@ func (h *SupplyChainHandler) countSecurityAlertReconciliations(w http.ResponseWr
 		return
 	}
 
-	filter, ok := h.securityAlertReconciliationAggregateFilterFromRequest(w, r)
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptySecurityAlertReconciliationCount(w, r)
+		return
+	}
+	filter, ok := h.securityAlertReconciliationAggregateFilterFromRequest(w, r, access)
 	if !ok {
 		return
 	}
@@ -139,7 +144,12 @@ func (h *SupplyChainHandler) securityAlertReconciliationInventory(w http.Respons
 	if !ok {
 		return
 	}
-	filter, ok := h.securityAlertReconciliationAggregateFilterFromRequest(w, r)
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptySecurityAlertReconciliationInventory(w, r, dimension, limit, offset)
+		return
+	}
+	filter, ok := h.securityAlertReconciliationAggregateFilterFromRequest(w, r, access)
 	if !ok {
 		return
 	}
@@ -174,20 +184,25 @@ func (h *SupplyChainHandler) securityAlertReconciliationInventory(w http.Respons
 func (h *SupplyChainHandler) securityAlertReconciliationAggregateFilterFromRequest(
 	w http.ResponseWriter,
 	r *http.Request,
+	access repositoryAccessFilter,
 ) (SecurityAlertReconciliationAggregateFilter, bool) {
 	repositoryID, repositoryScopeIDs, ok := h.resolveSupplyChainSecurityAlertRepositorySelector(w, r, QueryParam(r, "repository_id"))
 	if !ok {
 		return SecurityAlertReconciliationAggregateFilter{}, false
 	}
+	if h.securityAlertReconciliationOutOfGrant(w, r, access, repositoryID) {
+		return SecurityAlertReconciliationAggregateFilter{}, false
+	}
 	return SecurityAlertReconciliationAggregateFilter{
-		RepositoryID:         repositoryID,
-		RepositoryScopeIDs:   repositoryScopeIDs,
-		Provider:             QueryParam(r, "provider"),
-		PackageID:            QueryParam(r, "package_id"),
-		CVEID:                QueryParam(r, "cve_id"),
-		GHSAID:               QueryParam(r, "ghsa_id"),
-		ProviderState:        QueryParam(r, "provider_state"),
-		ReconciliationStatus: QueryParam(r, "reconciliation_status"),
+		RepositoryID:               repositoryID,
+		RepositoryScopeIDs:         repositoryScopeIDs,
+		Provider:                   QueryParam(r, "provider"),
+		PackageID:                  QueryParam(r, "package_id"),
+		CVEID:                      QueryParam(r, "cve_id"),
+		GHSAID:                     QueryParam(r, "ghsa_id"),
+		ProviderState:              QueryParam(r, "provider_state"),
+		ReconciliationStatus:       QueryParam(r, "reconciliation_status"),
+		AllowedSourceRepositoryIDs: access.repositorySearchIDs(),
 	}, true
 }
 
