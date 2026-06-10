@@ -150,7 +150,13 @@ func authMiddleware(
 				return
 			}
 			if ok {
-				next.ServeHTTP(w, r.WithContext(ContextWithAuthContext(r.Context(), normalizeAuthContext(auth))))
+				auth = normalizeAuthContext(auth)
+				if auth.Mode == AuthModeScoped && !scopedHTTPRouteSupportsTenantFilter(r) {
+					recordScopedRouteAuthorizationDenied(r, audit, auth)
+					scopedRouteDeniedResponse(w, r)
+					return
+				}
+				next.ServeHTTP(w, r.WithContext(ContextWithAuthContext(r.Context(), auth)))
 				return
 			}
 		}
@@ -177,6 +183,34 @@ func recordReadAuthorizationDenied(r *http.Request, audit GovernanceAuditAppende
 		ReasonCode:    "authentication_required",
 		CorrelationID: safeAuditCorrelationID(documentationCorrelationID(r)),
 		OccurredAt:    time.Now().UTC(),
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), governanceAuditAppendTimeout)
+	defer cancel()
+	_ = audit.Append(ctx, []governanceaudit.Event{event})
+}
+
+func recordScopedRouteAuthorizationDenied(
+	r *http.Request,
+	audit GovernanceAuditAppender,
+	auth AuthContext,
+) {
+	if audit == nil {
+		return
+	}
+	actorClass := governanceaudit.ActorClassScopedToken
+	if auth.SubjectIDHash == "" {
+		actorClass = governanceaudit.ActorClassAnonymous
+	}
+	event := governanceaudit.Event{
+		Type:               governanceaudit.EventTypeReadAuthorization,
+		ActorClass:         actorClass,
+		ActorIDHash:        auth.SubjectIDHash,
+		ScopeClass:         governanceaudit.ScopeClassAdmin,
+		Decision:           governanceaudit.DecisionDenied,
+		ReasonCode:         "scoped_route_not_enabled",
+		CorrelationID:      safeAuditCorrelationID(documentationCorrelationID(r)),
+		PolicyRevisionHash: auth.PolicyRevisionHash,
+		OccurredAt:         time.Now().UTC(),
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), governanceAuditAppendTimeout)
 	defer cancel()
@@ -236,6 +270,12 @@ func cleanedAuthStrings(values []string) []string {
 	return cleaned
 }
 
+func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
+	// Only add routes here after the handler filters counts, limits,
+	// truncation, ambiguity, and not-found metadata from AuthContext.
+	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/repositories"
+}
+
 // constantTimeEqual compares two strings in constant time to prevent timing attacks.
 func constantTimeEqual(a, b string) bool {
 	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
@@ -255,6 +295,23 @@ func unauthorizedResponse(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusUnauthorized, map[string]string{
 		"error_code":     string(ErrorCodeUnauthenticated),
 		"message":        "authentication is required",
+		"correlation_id": documentationCorrelationID(r),
+	})
+}
+
+func scopedRouteDeniedResponse(w http.ResponseWriter, r *http.Request) {
+	const message = "scoped authorization is not yet enabled for this route"
+	if acceptsEnvelope(r) {
+		WriteJSON(w, http.StatusForbidden, ResponseEnvelope{Error: &ErrorEnvelope{
+			Code:          ErrorCodePermissionDenied,
+			Message:       message,
+			CorrelationID: documentationCorrelationID(r),
+		}})
+		return
+	}
+	WriteJSON(w, http.StatusForbidden, map[string]string{
+		"error_code":     string(ErrorCodePermissionDenied),
+		"message":        message,
 		"correlation_id": documentationCorrelationID(r),
 	})
 }
