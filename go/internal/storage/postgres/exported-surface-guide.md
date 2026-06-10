@@ -156,6 +156,9 @@ reducer/query adapter.
 - `TenantRecord`, `WorkspaceRecord`, `TenantScopeGrant`,
   `TenantRepositoryGrant`, and `TenantWorkspaceGrantQuery` — typed rows and
   bounded active-grant read filters for future hosted enforcement
+- `ScopedAPITokenStore` / `NewScopedAPITokenStore` — hash-only hosted token
+  registry backed by tenant/workspace rows; reads return active scoped subject
+  bounds only and never accept raw token values
 
 **Recovery**
 
@@ -206,7 +209,7 @@ reducer/query adapter.
   `GraphProjectionPhaseStateSchemaSQL`, `GraphProjectionPhaseRepairQueueSchemaSQL`,
   `WorkflowControlSchemaSQL`, `WorkflowCoordinatorStateSchemaSQL`,
   `IaCReachabilitySchemaSQL`, `VulnerabilitySourceStateSchemaSQL`,
-  `TenantWorkspaceGrantSchemaSQL`
+  `TenantWorkspaceGrantSchemaSQL`, `ScopedAPITokenSchemaSQL`
 
 **IaC reachability**
 

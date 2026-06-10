@@ -81,12 +81,10 @@ High-signal invariants for this package:
   hosted tenant/workspace grant stores use fencing, coalescing, or idempotent
   conflict keys so stale workers or replayed deliveries cannot overwrite newer
   durable truth.
-- Tenant/workspace grant storage is additive: it persists opaque tenant and
-  workspace IDs, redacted display-handle hashes, scope grants, and repository
-  grants without changing current API, MCP, graph, collector, or workflow
-  enforcement. Active reads require one tenant/workspace boundary and apply
-  status, tombstone, effective-at, expiry, subject-class, and scope-grant
-  predicates inside SQL before returning rows.
+- Hosted isolation storage is additive: tenant/workspace grant rows and
+  scoped API token rows persist opaque IDs, redacted hashes, active bounds,
+  expiry, revocation, and policy revision hashes without changing current API,
+  MCP, graph, collector, or workflow enforcement.
 - Documentation fact readbacks stay bounded by visible finding/source/packet
   indexes plus `fact_records_documentation_target_refs_idx`, a partial JSONB GIN
   index over documentation target-reference payloads.

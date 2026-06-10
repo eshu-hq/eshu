@@ -120,6 +120,10 @@
 // expired rows inside SQL, and keeps repository grants joined to an active
 // scope grant so later read enforcement cannot widen beyond source-scope
 // truth.
+// ScopedAPITokenStore adds the default-off hash-only token registry for that
+// control plane. It stores bearer-token digests, scoped subject hashes, expiry,
+// revocation, and policy revision hashes while relying on the tenant/workspace
+// tables for active boundary checks.
 //
 // State-only addresses absent from the prior-config address set keep
 // PreviouslyDeclaredInConfig=false and surface as added_in_state — the

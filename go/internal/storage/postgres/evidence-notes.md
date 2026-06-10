@@ -15,6 +15,17 @@ diagnose store calls through the existing Postgres instrumentation wrapper
 wrap the store's `ExecQueryer`; runtime enforcement and status/audit surfacing
 are left to follow-up enforcement issues.
 
+## Scoped API Tokens (#1852)
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run 'Test(BootstrapDefinitionsIncludeScopedAPITokens|ScopedAPITokenStore)' -count=1` failed before `ScopedAPITokenStore` and `scoped_api_tokens` bootstrap DDL existed, then passed after adding hash-only token upserts, active tenant/workspace bounded lookup, expiry/revocation predicates, and validation that rejects blank token hashes. The table is additive and does not store raw bearer tokens, tenant names, workspace names, provider credentials, API/MCP response fields, or graph truth.
+
+No-Observability-Change: #1852 scoped-token registry plumbing adds no route,
+worker, queue domain, graph write, metric name, metric label, runtime default,
+or API/MCP response field. Runtime wiring and per-request enforcement are
+follow-up work; when callers opt into the store through an instrumented
+Postgres adapter, existing query/exec spans and
+`eshu_dp_postgres_query_duration_seconds` cover the SQL.
+
 ## Cloud Inventory Evidence Loader (issues #1997, #1998)
 
 `PostgresCloudInventoryEvidenceLoader` is the concrete
