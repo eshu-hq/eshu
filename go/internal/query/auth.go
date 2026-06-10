@@ -276,7 +276,10 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if r.Method == http.MethodGet && r.URL.Path == "/api/v0/repositories" {
 		return true
 	}
-	return r.Method == http.MethodPost && r.URL.Path == "/api/v0/code/search"
+	if r.Method == http.MethodPost && r.URL.Path == "/api/v0/code/search" {
+		return true
+	}
+	return r.Method == http.MethodPost && r.URL.Path == "/api/v0/entities/resolve"
 }
 
 // constantTimeEqual compares two strings in constant time to prevent timing attacks.

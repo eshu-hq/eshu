@@ -84,9 +84,9 @@
 // free of token material, and fails closed before unsupported scoped routes
 // reach handlers. Repository list and selector canary routes apply these bounds
 // before pagination, counts, ambiguity, and not-found decisions so out-of-scope
-// repositories do not leak through metadata. Code search applies the same
-// bounds to selector resolution, graph predicates, and content fallback calls
-// before allowing scoped-token API or MCP reads.
+// repositories do not leak through metadata. Code search and entity resolution
+// apply the same bounds to selector resolution, graph predicates, and content
+// fallback calls before allowing scoped-token API or MCP reads.
 // Story and investigation routes also attach additive answer_metadata
 // companions for prompt-facing clients. The companion normalizes existing
 // evidence handles, missing evidence, limitations, truncation, coverage,

@@ -79,6 +79,21 @@
   spans, HTTP route attribution, and content-store Postgres spans diagnose the
   bounded read path.
 
+- **Entity resolution scoped-token route evidence** — #2064 opens only
+  `POST /api/v0/entities/resolve` after `EntityHandler` applies `AuthContext`
+  bounds to selector ambiguity, graph entity predicates, repo-identity
+  hydration, and content fallback calls. Scoped graph resolution adds the
+  repository/scope-id predicate before `LIMIT`; scoped content fallback queries
+  authorized repositories individually and never calls all-repository content
+  methods. No-Regression Evidence: `go test ./internal/query -run
+  'Test(ResolveEntity.*Scoped|ResolveEntity.*Grant|ResolveEntity.*AllScope|AuthMiddlewareWithScopedTokensAllowsEntityResolve)'
+  -count=1` and `go test ./internal/mcp -run
+  TestDispatchToolResolveEntityAllowsScopedEntityResolveRoute -count=1`.
+  No-Observability-Change: the route adds no graph write, metric label, runtime
+  knob, or response field; existing entity resolution truth envelopes, graph
+  query spans, HTTP route attribution, and content-store Postgres spans diagnose
+  the bounded read path.
+
 - **Package registry reads stay anchored** — `PackageRegistryHandler` in
   `package_registry.go` must require `limit` plus a route-specific anchor
   before graph reads: package lookups use `package_id` or `ecosystem`, version

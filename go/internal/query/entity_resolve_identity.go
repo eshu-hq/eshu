@@ -10,6 +10,7 @@ func hydrateResolvedEntityRepoIdentity(ctx context.Context, graph GraphQuery, co
 	if len(entities) == 0 {
 		return nil
 	}
+	access := repositoryAccessFilterFromContext(ctx)
 
 	for _, entity := range entities {
 		clearResolvedEntityRepoProjectionPlaceholders(entity)
@@ -37,12 +38,14 @@ func hydrateResolvedEntityRepoIdentity(ctx context.Context, graph GraphQuery, co
 		MATCH (e) WHERE e.id = entity_id
 		OPTIONAL MATCH (repo:Repository)-[:DEFINES]->(direct:Workload)
 		WHERE direct = e
+		` + access.graphPredicate("repo") + `
 		OPTIONAL MATCH (repoViaInstance:Repository)-[:DEFINES]->(instanceWorkload:Workload)<-[:INSTANCE_OF]-(e)
+		` + access.graphWhereClause("repoViaInstance") + `
 		RETURN entity_id,
 		       coalesce(repo.id, repoViaInstance.id) AS repo_id,
 		       coalesce(repo.name, repoViaInstance.name) AS repo_name
 	`
-	rows, err := graph.Run(ctx, query, map[string]any{"entity_ids": sortedUniqueStrings(entityIDs)})
+	rows, err := graph.Run(ctx, query, access.graphParams(map[string]any{"entity_ids": sortedUniqueStrings(entityIDs)}))
 	if err != nil {
 		return fmt.Errorf("hydrate resolved entity repo identity: %w", err)
 	}
@@ -82,6 +85,7 @@ func hydrateResolvedEntityRepoIdentityFromContent(
 		return nil
 	}
 
+	access := repositoryAccessFilterFromContext(ctx)
 	repoIDsNeedingName := make([]string, 0, len(entities))
 	for _, entity := range entities {
 		if repoID := entityString(entity, "repo_id"); repoID != "" && entityString(entity, "repo_name") == "" {
@@ -99,6 +103,9 @@ func hydrateResolvedEntityRepoIdentityFromContent(
 			return fmt.Errorf("hydrate resolved entity repo identity from content: %w", err)
 		}
 		if row == nil || strings.TrimSpace(row.RepoID) == "" {
+			continue
+		}
+		if !access.allowsRepositoryID(row.RepoID) {
 			continue
 		}
 		if entityString(entity, "repo_id") == "" {
