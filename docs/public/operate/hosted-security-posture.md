@@ -21,6 +21,13 @@ when it finds:
 The gate is posture evidence only. It does not prove API/MCP answer readiness,
 queue convergence, source completeness, or tenant isolation.
 
+For hosted governance preflight, run
+`scripts/verify-hosted-governance-proof.sh` as the local source-only gate before
+remote Compose or Kubernetes proof. It composes this security posture check
+with focused API/MCP governance, redaction, audit, and NetworkPolicy egress
+proofs without requiring live hosts, clusters, private values, or provider
+credentials.
+
 ## Safe Values Shape
 
 Use Secret references for shared API auth, Postgres, graph auth, GitHub App
@@ -80,6 +87,8 @@ kubectl -n eshu create secret generic eshu-neo4j \
 ## Verification
 
 ```bash
+scripts/test-verify-hosted-governance-proof.sh
+scripts/verify-hosted-governance-proof.sh
 scripts/test-verify-hosted-security-posture.sh
 scripts/verify-hosted-security-posture.sh -f values.eshu.yaml
 helm lint deploy/helm/eshu -f values.eshu.yaml
