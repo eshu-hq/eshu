@@ -62,9 +62,10 @@ func (h *ContentHandler) readFile(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusBadRequest, "relative_path is required")
 		return
 	}
-	resolvedRepoID, err := h.resolveRepositorySelector(r.Context(), req.RepoID)
+	access := repositoryAccessFilterFromContext(r.Context())
+	resolvedRepoID, err := h.resolveRepositorySelectorForAccess(r.Context(), req.RepoID, access)
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+		writeContentSelectorError(w, err)
 		return
 	}
 	req.RepoID = resolvedRepoID
@@ -105,9 +106,10 @@ func (h *ContentHandler) readFileLines(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusBadRequest, "relative_path is required")
 		return
 	}
-	resolvedRepoID, err := h.resolveRepositorySelector(r.Context(), req.RepoID)
+	access := repositoryAccessFilterFromContext(r.Context())
+	resolvedRepoID, err := h.resolveRepositorySelectorForAccess(r.Context(), req.RepoID, access)
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+		writeContentSelectorError(w, err)
 		return
 	}
 	req.RepoID = resolvedRepoID
@@ -142,12 +144,21 @@ func (h *ContentHandler) readEntity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		WriteError(w, http.StatusNotFound, "entity not found")
+		return
+	}
 	ec, err := h.Content.GetEntityContent(r.Context(), req.EntityID)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if ec == nil {
+		WriteError(w, http.StatusNotFound, "entity not found")
+		return
+	}
+	if !access.allowsRepositoryID(ec.RepoID) {
 		WriteError(w, http.StatusNotFound, "entity not found")
 		return
 	}
@@ -170,7 +181,7 @@ func (h *ContentHandler) searchFiles(w http.ResponseWriter, r *http.Request) {
 	}
 	req, err = h.normalizeContentSearchRequest(r.Context(), req)
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+		writeContentSelectorError(w, err)
 		return
 	}
 
@@ -202,7 +213,7 @@ func (h *ContentHandler) searchEntities(w http.ResponseWriter, r *http.Request) 
 	}
 	req, err = h.normalizeContentSearchRequest(r.Context(), req)
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+		writeContentSelectorError(w, err)
 		return
 	}
 
@@ -300,13 +311,18 @@ func (req contentSearchRequest) explicitRepoIDs() []string {
 	return repoIDs
 }
 
-func (h *ContentHandler) resolveRepositorySelector(ctx context.Context, selector string) (string, error) {
-	return resolveRepositorySelectorExact(ctx, nil, h.Content, selector)
+func (h *ContentHandler) resolveRepositorySelectorForAccess(
+	ctx context.Context,
+	selector string,
+	access repositoryAccessFilter,
+) (string, error) {
+	return resolveRepositorySelectorExactForAccess(ctx, nil, h.Content, selector, access)
 }
 
 func (h *ContentHandler) normalizeContentSearchRequest(ctx context.Context, req contentSearchRequest) (contentSearchRequest, error) {
+	access := repositoryAccessFilterFromContext(ctx)
 	if req.RepoID != "" {
-		repoID, err := h.resolveRepositorySelector(ctx, req.RepoID)
+		repoID, err := h.resolveRepositorySelectorForAccess(ctx, req.RepoID, access)
 		if err != nil {
 			return contentSearchRequest{}, err
 		}
@@ -315,12 +331,15 @@ func (h *ContentHandler) normalizeContentSearchRequest(ctx context.Context, req 
 		return req, nil
 	}
 	if len(req.RepoIDs) == 0 {
+		if access.scoped() {
+			req.RepoIDs = access.repositorySearchIDs()
+		}
 		return req, nil
 	}
 	resolved := make([]string, 0, len(req.RepoIDs))
 	seen := make(map[string]struct{}, len(req.RepoIDs))
 	for _, selector := range req.RepoIDs {
-		repoID, err := h.resolveRepositorySelector(ctx, selector)
+		repoID, err := h.resolveRepositorySelectorForAccess(ctx, selector, access)
 		if err != nil {
 			return contentSearchRequest{}, err
 		}
@@ -335,6 +354,9 @@ func (h *ContentHandler) normalizeContentSearchRequest(ctx context.Context, req 
 }
 
 func (h *ContentHandler) searchFilesByScope(ctx context.Context, req contentSearchRequest) ([]FileContent, bool, error) {
+	if repositoryAccessFilterFromContext(ctx).empty() {
+		return []FileContent{}, false, nil
+	}
 	if searcher, ok := h.Content.(pagedContentSearcher); ok {
 		results, err := searcher.searchFiles(ctx, req)
 		if err != nil {
@@ -370,6 +392,9 @@ func (h *ContentHandler) searchFilesByScope(ctx context.Context, req contentSear
 }
 
 func (h *ContentHandler) searchEntitiesByScope(ctx context.Context, req contentSearchRequest) ([]EntityContent, bool, error) {
+	if repositoryAccessFilterFromContext(ctx).empty() {
+		return []EntityContent{}, false, nil
+	}
 	if searcher, ok := h.Content.(pagedContentSearcher); ok {
 		results, err := searcher.searchEntities(ctx, req)
 		if err != nil {
@@ -402,6 +427,14 @@ func (h *ContentHandler) searchEntitiesByScope(ctx context.Context, req contentS
 	}
 	results, err := h.Content.SearchEntityContentAnyRepo(ctx, req.pattern(), probeLimit)
 	return trimEntityContentSearchPage(results, req.limit()), len(results) > req.limit(), err
+}
+
+func writeContentSelectorError(w http.ResponseWriter, err error) {
+	status := http.StatusBadRequest
+	if isRepositorySelectorNotFound(err) {
+		status = http.StatusNotFound
+	}
+	WriteError(w, status, err.Error())
 }
 
 func contentSearchResponse(results any, req contentSearchRequest, truncated bool) map[string]any {

@@ -94,6 +94,23 @@
   query spans, HTTP route attribution, and content-store Postgres spans diagnose
   the bounded read path.
 
+- **Content scoped-token route evidence** — #2066 opens only the content
+  file/entity read and search routes after `ContentHandler` applies
+  `AuthContext` bounds to repository selector resolution, no-repo search scope,
+  exact entity read repo checks, and empty-grant short-circuits. Scoped search
+  uses authorized repository IDs before result counting and truncation; scoped
+  exact reads return not found for out-of-grant rows without returning payload
+  fields. No-Regression Evidence: `go test ./internal/query -run
+  'Test(ContentHandlerScoped|ContentHandlerAllScope|AuthMiddlewareWithScopedTokensAllowsContentRoutes)'
+  -count=1` and `go test ./internal/mcp -run
+  TestDispatchToolSearchFileContentAllowsScopedContentSearchRoute -count=1`.
+  No-Observability-Change: the route family adds no graph write, metric label,
+  runtime knob, or response field; existing content-store `postgres.query`
+  spans with `db.operation=get_file_content`, `get_file_lines`,
+  `get_entity_content`, `search_file_content`, and `search_entity_content`,
+  plus HTTP route attribution and truth envelopes, diagnose the bounded read
+  path.
+
 - **Package registry reads stay anchored** — `PackageRegistryHandler` in
   `package_registry.go` must require `limit` plus a route-specific anchor
   before graph reads: package lookups use `package_id` or `ecosystem`, version

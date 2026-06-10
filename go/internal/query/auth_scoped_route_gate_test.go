@@ -191,6 +191,54 @@ func TestAuthMiddlewareWithScopedTokensAllowsEntityResolveWithEmptyGrant(t *test
 	}
 }
 
+func TestAuthMiddlewareWithScopedTokensAllowsContentRoutesWithEmptyGrant(t *testing.T) {
+	t.Parallel()
+
+	routes := []struct {
+		name   string
+		method string
+		path   string
+	}{
+		{name: "read file", method: http.MethodPost, path: "/api/v0/content/files/read"},
+		{name: "read file lines", method: http.MethodPost, path: "/api/v0/content/files/lines"},
+		{name: "read entity", method: http.MethodPost, path: "/api/v0/content/entities/read"},
+		{name: "search files", method: http.MethodPost, path: "/api/v0/content/files/search"},
+		{name: "search entities", method: http.MethodPost, path: "/api/v0/content/entities/search"},
+	}
+	for _, tc := range routes {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			resolver := &fakeScopedTokenResolver{
+				context: AuthContext{
+					Mode:        AuthModeScoped,
+					TenantID:    "tenant_a",
+					WorkspaceID: "workspace_a",
+				},
+				ok: true,
+			}
+			handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				auth, ok := AuthContextFromContext(r.Context())
+				if !ok {
+					t.Fatal("AuthContextFromContext() ok = false, want true")
+				}
+				if auth.AllScopes || len(auth.AllowedRepositoryIDs) != 0 || len(auth.AllowedScopeIDs) != 0 {
+					t.Fatalf("auth context = %#v, want empty scoped grant", auth)
+				}
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+			req.Header.Set("Authorization", "Bearer scoped-token")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			if got, want := rec.Code, http.StatusOK; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+			}
+		})
+	}
+}
+
 func TestAuthMiddlewareWithScopedTokensRejectsAllScopeOnUnsupportedRoute(t *testing.T) {
 	t.Parallel()
 
