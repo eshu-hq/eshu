@@ -143,6 +143,10 @@ func (h *CodeHandler) searchGraphEntitiesWithExact(ctx context.Context, repoID, 
 	if h == nil || h.Neo4j == nil {
 		return h.searchEntityContentWithExact(ctx, repoID, query, language, limit, exact)
 	}
+	access := repositoryAccessFilterFromContext(ctx)
+	if access.empty() || (repoID != "" && !access.allowsRepositoryID(repoID)) {
+		return []map[string]any{}, nil
+	}
 
 	cypher := `
 		MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
@@ -159,6 +163,9 @@ func (h *CodeHandler) searchGraphEntitiesWithExact(ctx context.Context, repoID, 
 	if repoID != "" {
 		cypher += " AND r.id = $repo_id"
 		params["repo_id"] = repoID
+	} else if access.scoped() {
+		cypher += access.graphPredicate("r")
+		params = access.graphParams(params)
 	}
 
 	if language != "" {
@@ -217,6 +224,10 @@ func (h *CodeHandler) searchEntityContentWithExact(ctx context.Context, repoID, 
 		sourceMatches []EntityContent
 		err           error
 	)
+	access := repositoryAccessFilterFromContext(ctx)
+	if access.empty() || (repoID != "" && !access.allowsRepositoryID(repoID)) {
+		return []map[string]any{}, nil
+	}
 	if repoID != "" {
 		nameMatches, err = h.Content.SearchEntitiesByName(ctx, repoID, "", pattern, limit)
 		if err != nil {
@@ -225,6 +236,26 @@ func (h *CodeHandler) searchEntityContentWithExact(ctx context.Context, repoID, 
 		sourceMatches, err = h.Content.SearchEntityContent(ctx, repoID, pattern, limit)
 		if err != nil {
 			return nil, err
+		}
+	} else if access.scoped() {
+		for _, allowedRepoID := range access.repositorySearchIDs() {
+			if len(nameMatches) < limit {
+				rows, searchErr := h.Content.SearchEntitiesByName(ctx, allowedRepoID, "", pattern, limit-len(nameMatches))
+				if searchErr != nil {
+					return nil, searchErr
+				}
+				nameMatches = append(nameMatches, rows...)
+			}
+			if len(sourceMatches) < limit {
+				rows, searchErr := h.Content.SearchEntityContent(ctx, allowedRepoID, pattern, limit-len(sourceMatches))
+				if searchErr != nil {
+					return nil, searchErr
+				}
+				sourceMatches = append(sourceMatches, rows...)
+			}
+			if len(nameMatches) >= limit && len(sourceMatches) >= limit {
+				break
+			}
 		}
 	} else {
 		nameMatches, err = h.Content.SearchEntitiesByNameAnyRepo(ctx, "", pattern, limit)

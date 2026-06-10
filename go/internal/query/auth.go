@@ -273,7 +273,10 @@ func cleanedAuthStrings(values []string) []string {
 func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	// Only add routes here after the handler filters counts, limits,
 	// truncation, ambiguity, and not-found metadata from AuthContext.
-	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/repositories"
+	if r.Method == http.MethodGet && r.URL.Path == "/api/v0/repositories" {
+		return true
+	}
+	return r.Method == http.MethodPost && r.URL.Path == "/api/v0/code/search"
 }
 
 // constantTimeEqual compares two strings in constant time to prevent timing attacks.
