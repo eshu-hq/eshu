@@ -35,6 +35,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedVulnerabilityScannerContractRoute(r) {
 		return true
 	}
+	if scopedSupplyChainImpactRoute(r) {
+		return true
+	}
 	if scopedHostedGovernanceStatusRoute(r) {
 		return true
 	}
@@ -133,6 +136,27 @@ func scopedQueryPlaybookRoute(r *http.Request) bool {
 func scopedVulnerabilityScannerContractRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet &&
 		r.URL.Path == "/api/v0/supply-chain/vulnerability-scanner/contract"
+}
+
+// scopedSupplyChainImpactRoute reports whether the request targets one of the
+// reducer-owned vulnerability impact read routes that compute counts, limits,
+// truncation, aggregate grouping, and offsets over only the scoped-token's
+// granted repositories. Adjacent supply-chain routes (impact explain, advisory
+// evidence, advisory detail, SBOM attestation attachments, container-image
+// identities, and security-alert reconciliations) stay fail-closed for scoped
+// tokens until each is separately proven tenant-filtered.
+func scopedSupplyChainImpactRoute(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	switch r.URL.Path {
+	case "/api/v0/supply-chain/impact/findings",
+		"/api/v0/supply-chain/impact/findings/count",
+		"/api/v0/supply-chain/impact/inventory":
+		return true
+	default:
+		return false
+	}
 }
 
 func scopedDocumentationListRoute(r *http.Request) bool {

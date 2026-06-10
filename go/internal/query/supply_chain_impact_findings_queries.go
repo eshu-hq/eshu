@@ -100,6 +100,11 @@ WHERE fact.fact_kind = $1
     AND ($16 = '' OR fact.payload->>'image_ref' = $16)
     AND ($20 = '' OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') = $20)
     AND ($21::boolean OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') NOT IN ('not_affected','accepted_risk','false_positive','ignored'))
+    AND (
+          (COALESCE(cardinality($22::text[]), 0) = 0 AND COALESCE(cardinality($23::text[]), 0) = 0)
+          OR fact.payload->>'repository_id' = ANY($22::text[])
+          OR fact.scope_id = ANY($23::text[])
+        )
 ),
 ranked_facts AS (
 SELECT *,

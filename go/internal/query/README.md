@@ -120,6 +120,29 @@ repository selectors fail during selector resolution.
 No-Regression Evidence: focused CI/CD scoped-token query and MCP dispatch tests.
 No-Observability-Change: existing CI/CD query spans, truth envelopes, limits,
 cursors, truncation, count, and inventory metadata diagnose the bounded reads.
+Supply-chain vulnerability impact list, count, and inventory reads
+(`GET /api/v0/supply-chain/impact/findings`, `/findings/count`, and
+`/inventory`, plus the matching `list_supply_chain_impact_findings`,
+`count_supply_chain_impact_findings`, and `get_supply_chain_impact_inventory`
+MCP tools) intersect reducer impact facts with scoped-token repository and scope
+grants inside the canonical-facts CTE, before deduplication, ordering, limits,
+truncation, cursors, aggregate grouping, offsets, and count metadata.
+Non-repository anchors (CVE, advisory, package, image digest/ref, service,
+workload, environment, severity, priority, and suppression filters) still
+require an allowed repository or ingestion-scope match. Empty grants return the
+existing zero-findings / zero-count / empty-inventory shapes — list reports
+`readiness_unavailable` so zero findings is never misread as "no
+vulnerabilities" — without reading the impact, readiness, or aggregate stores,
+and out-of-grant repository selectors fail during selector resolution without a
+store read. Adjacent supply-chain routes (impact explain, advisory evidence,
+advisory detail, SBOM attestation attachments, container-image identities, and
+security-alert reconciliations) stay fail-closed for scoped tokens until each is
+separately proven tenant-filtered.
+No-Regression Evidence: focused supply-chain impact scoped-token query and MCP
+dispatch tests.
+No-Observability-Change: existing supply-chain impact query spans, truth
+envelopes, readiness envelopes, limits, cursors, truncation, count, and
+inventory metadata diagnose the bounded reads.
 Semantic evidence reads are opt-in routes over durable semantic facts:
 `GET /api/v0/semantic/documentation-observations` and
 `GET /api/v0/semantic/code-hints`. They require at least one scope or semantic

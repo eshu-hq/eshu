@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
+	"github.com/lib/pq"
 )
 
 // SupplyChainImpactFindingStore reads reducer-owned vulnerability impact
@@ -32,6 +34,16 @@ type SupplyChainImpactFindingFilter struct {
 	SuppressionState, AfterFindingID       string
 	MinPriorityScore, Limit                int
 	IncludeSuppressed                      bool
+	// AllowedRepositoryIDs and AllowedScopeIDs carry scoped-token repository
+	// and ingestion-scope grants. When both are empty the read is
+	// unrestricted (shared token, all-scope admin, or local dev mode). When
+	// either is populated the query intersects impact facts with the granted
+	// set before ordering, limits, truncation, and cursor metadata so a
+	// scoped caller never observes or counts out-of-grant findings — even
+	// when the request anchors on a non-repository selector such as CVE,
+	// advisory, package, image, service, workload, or environment.
+	AllowedRepositoryIDs []string
+	AllowedScopeIDs      []string
 }
 
 // SupplyChainImpactFindingRow is one durable impact finding decoded from
@@ -227,6 +239,8 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 		filter.Limit,
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
+		pq.Array(filter.AllowedRepositoryIDs),
+		pq.Array(filter.AllowedScopeIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list supply chain impact findings: %w", err)

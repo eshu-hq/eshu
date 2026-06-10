@@ -56,7 +56,14 @@ func (h *SupplyChainHandler) countImpactFindings(w http.ResponseWriter, r *http.
 		return
 	}
 
-	filter, ok := h.supplyChainImpactAggregateFilterFromRequest(w, r)
+	// Empty scoped grants return the zero-count shape without reading the
+	// aggregate store or resolving a repository selector.
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptyImpactCount(w, r)
+		return
+	}
+	filter, ok := h.supplyChainImpactAggregateFilterFromRequest(w, r, access)
 	if !ok {
 		return
 	}
@@ -141,7 +148,14 @@ func (h *SupplyChainHandler) impactInventory(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	filter, ok := h.supplyChainImpactAggregateFilterFromRequest(w, r)
+	// Empty scoped grants return the empty inventory page without reading the
+	// aggregate store or resolving a repository selector.
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptyImpactInventory(w, r, dimension, limit, offset)
+		return
+	}
+	filter, ok := h.supplyChainImpactAggregateFilterFromRequest(w, r, access)
 	if !ok {
 		return
 	}
@@ -178,8 +192,9 @@ func (h *SupplyChainHandler) impactInventory(w http.ResponseWriter, r *http.Requ
 func (h *SupplyChainHandler) supplyChainImpactAggregateFilterFromRequest(
 	w http.ResponseWriter,
 	r *http.Request,
+	access repositoryAccessFilter,
 ) (SupplyChainImpactAggregateFilter, bool) {
-	repositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "repository_id"))
+	repositoryID, ok := h.resolveSupplyChainImpactRepositorySelector(w, r, QueryParam(r, "repository_id"), access)
 	if !ok {
 		return SupplyChainImpactAggregateFilter{}, false
 	}
@@ -214,7 +229,7 @@ func (h *SupplyChainHandler) supplyChainImpactAggregateFilterFromRequest(
 	if !ok {
 		return SupplyChainImpactAggregateFilter{}, false
 	}
-	return SupplyChainImpactAggregateFilter{
+	filter := SupplyChainImpactAggregateFilter{
 		CVEID:             QueryParam(r, "cve_id"),
 		AdvisoryID:        advisoryID,
 		PackageID:         QueryParam(r, "package_id"),
@@ -232,7 +247,12 @@ func (h *SupplyChainHandler) supplyChainImpactAggregateFilterFromRequest(
 		MinPriorityScore:  minPriorityScore,
 		SuppressionState:  suppressionState,
 		IncludeSuppressed: includeSuppressed,
-	}, true
+	}
+	if access.scoped() {
+		filter.AllowedRepositoryIDs = append([]string(nil), access.allowedRepositoryIDs...)
+		filter.AllowedScopeIDs = append([]string(nil), access.allowedScopeIDs...)
+	}
+	return filter, true
 }
 
 func requestedSupplyChainImpactAggregateProfile(filter SupplyChainImpactAggregateFilter) string {
