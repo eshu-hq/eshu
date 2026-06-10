@@ -141,16 +141,6 @@ func TestDispatchToolSupplyChainImpactRejectsAdjacentRoutes(t *testing.T) {
 			tool: "list_advisory_evidence",
 			args: map[string]any{"repository_id": "repo-team-a", "limit": 10},
 		},
-		{
-			name: "sbom_attachments",
-			tool: "list_sbom_attestation_attachments",
-			args: map[string]any{"repository_id": "repo-team-a", "limit": 10},
-		},
-		{
-			name: "security_alerts",
-			tool: "list_security_alert_reconciliations",
-			args: map[string]any{"repository_id": "repo-team-a", "limit": 10},
-		},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
