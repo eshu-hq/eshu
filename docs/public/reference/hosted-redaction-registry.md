@@ -42,6 +42,20 @@ the owning surface has already applied its source-specific redaction rules. The
 helper returns the surface and sensitive class that leaked, but never echoes the
 raw canary or payload.
 
+For operator proof bundles, use the hosted governance negative-leakage verifier:
+
+```bash
+scripts/verify-hosted-governance-negative-leakage-proof.sh \
+  --manifest leakage-proof.json \
+  --output-json leakage-proof.summary.json \
+  --output-markdown leakage-proof.summary.md
+```
+
+The manifest must cover facts, logs, metric labels, status errors, graph
+properties, API bodies, MCP bodies, audit events, generated docs, and onboarding
+artifacts. Referenced files stay local to the operator proof environment; the
+summary records only counts and SHA-256 digests.
+
 Registry canaries are not production secrets and are not a replacement for
 source-specific fixtures. Cloud, Terraform, semantic, plugin, API, MCP, and
 collector packages must keep their own schema-aware redaction tests because only
