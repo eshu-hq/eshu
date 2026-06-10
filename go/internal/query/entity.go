@@ -59,13 +59,22 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	limit := normalizeResolveEntityLimit(req.Limit)
+	access := repositoryAccessFilterFromContext(r.Context())
 	if req.RepoID != "" {
-		resolvedRepoID, err := resolveRepositorySelectorExact(r.Context(), h.Neo4j, h.Content, req.RepoID)
+		resolvedRepoID, err := resolveRepositorySelectorExactForAccess(r.Context(), h.Neo4j, h.Content, req.RepoID, access)
 		if err != nil {
-			WriteError(w, http.StatusBadRequest, err.Error())
+			status := http.StatusBadRequest
+			if isRepositorySelectorNotFound(err) {
+				status = http.StatusNotFound
+			}
+			WriteError(w, status, err.Error())
 			return
 		}
 		req.RepoID = resolvedRepoID
+	}
+	if access.empty() {
+		WriteSuccess(w, r, http.StatusOK, resolvedEntityResponse([]map[string]any{}, limit, false), entityResolveTruthEnvelope(h.profile()))
+		return
 	}
 
 	cypher := `MATCH (e) WHERE e.name = $name`
@@ -91,10 +100,29 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 			}
 		`
 		params["repo_id"] = req.RepoID
+	} else if access.scoped() {
+		cypher += `
+			AND EXISTS {
+				MATCH (e)<-[:CONTAINS]-(scopeFile:File)<-[:REPO_CONTAINS]-(scopeRepo:Repository)
+				WHERE ` + access.graphCondition("scopeRepo") + `
+			}
+		`
+		params = access.graphParams(params)
 	}
 
 	cypher += `
 		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
+	`
+	if req.RepoID != "" {
+		cypher += `
+		WHERE r.id = $repo_id
+	`
+	} else if access.scoped() {
+		cypher += `
+		WHERE ` + access.graphCondition("r") + `
+	`
+	}
+	cypher += `
 		RETURN e.id as id, labels(e) as labels, e.name as name,
 		       f.relative_path as file_path,
 		       r.id as repo_id, r.name as repo_name,
@@ -158,7 +186,7 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 		entities, truncated = trimResolvedEntityPage(entities, limit)
 	}
 
-	WriteSuccess(w, r, http.StatusOK, resolvedEntityResponse(entities, limit, truncated), BuildTruthEnvelope(h.profile(), "code_search.fuzzy_symbol", TruthBasisHybrid, "resolved from bounded graph and content entity resolution"))
+	WriteSuccess(w, r, http.StatusOK, resolvedEntityResponse(entities, limit, truncated), entityResolveTruthEnvelope(h.profile()))
 }
 
 // getEntityContext retrieves the context for a specific entity.
@@ -251,10 +279,14 @@ func (h *EntityHandler) resolveEntityFromContent(
 ) ([]map[string]any, error) {
 	if h == nil || h.Content == nil || repoID == "" || name == "" {
 		if h == nil || h.Content == nil || name == "" {
-			return nil, nil
+			return []map[string]any{}, nil
 		}
 	}
 
+	access := repositoryAccessFilterFromContext(ctx)
+	if access.empty() || (repoID != "" && !access.allowsRepositoryID(repoID)) {
+		return []map[string]any{}, nil
+	}
 	entityType := contentEntityTypeForResolve(typeName)
 	var (
 		rows []EntityContent
@@ -264,6 +296,17 @@ func (h *EntityHandler) resolveEntityFromContent(
 		rows, err = h.Content.SearchEntitiesByName(ctx, repoID, entityType, name, limit)
 		if err != nil {
 			return nil, err
+		}
+	} else if access.scoped() {
+		for _, allowedRepoID := range access.repositorySearchIDs() {
+			if len(rows) >= limit {
+				break
+			}
+			scopedRows, searchErr := h.Content.SearchEntitiesByName(ctx, allowedRepoID, entityType, name, limit-len(rows))
+			if searchErr != nil {
+				return nil, searchErr
+			}
+			rows = append(rows, scopedRows...)
 		}
 	} else {
 		rows, err = h.Content.SearchEntitiesByNameAnyRepo(ctx, entityType, name, limit)

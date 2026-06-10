@@ -25,6 +25,15 @@ func resolvedEntityResponse(entities []map[string]any, limit int, truncated bool
 	}
 }
 
+func entityResolveTruthEnvelope(profile QueryProfile) *TruthEnvelope {
+	return BuildTruthEnvelope(
+		profile,
+		"code_search.fuzzy_symbol",
+		TruthBasisHybrid,
+		"resolved from bounded graph and content entity resolution",
+	)
+}
+
 func trimResolvedEntityPage(entities []map[string]any, limit int) ([]map[string]any, bool) {
 	if len(entities) <= limit {
 		return entities, false

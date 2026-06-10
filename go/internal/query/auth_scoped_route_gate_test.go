@@ -159,6 +159,38 @@ func TestAuthMiddlewareWithScopedTokensAllowsCodeSearchWithEmptyGrant(t *testing
 	}
 }
 
+func TestAuthMiddlewareWithScopedTokensAllowsEntityResolveWithEmptyGrant(t *testing.T) {
+	t.Parallel()
+
+	resolver := &fakeScopedTokenResolver{
+		context: AuthContext{
+			Mode:        AuthModeScoped,
+			TenantID:    "tenant_a",
+			WorkspaceID: "workspace_a",
+		},
+		ok: true,
+	}
+	handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth, ok := AuthContextFromContext(r.Context())
+		if !ok {
+			t.Fatal("AuthContextFromContext() ok = false, want true")
+		}
+		if auth.AllScopes || len(auth.AllowedRepositoryIDs) != 0 || len(auth.AllowedScopeIDs) != 0 {
+			t.Fatalf("auth context = %#v, want empty scoped grant", auth)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/entities/resolve", nil)
+	req.Header.Set("Authorization", "Bearer scoped-token")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+}
+
 func TestAuthMiddlewareWithScopedTokensRejectsAllScopeOnUnsupportedRoute(t *testing.T) {
 	t.Parallel()
 
