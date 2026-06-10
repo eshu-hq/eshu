@@ -208,23 +208,29 @@ func (l PostgresMultiCloudRuntimeDriftEvidenceLoader) loadObservedResources(
 }
 
 // loadActiveStateResourcesByUID joins active Terraform-state rows to observed
-// uids through an allowlist of the observed provider raw identities. The match is
-// exact-string, identical to the AWS loader's ARN allowlist: a Terraform-state
-// row joins only when its provider-native identity attribute equals the observed
-// raw identity verbatim. Azure ARM ids are case-insensitive per Azure, so a
-// state row whose attributes.id differs only in casing from the observed
-// arm_resource_id will not join here and the resource will read as orphaned
-// rather than mismatched; this fails safe and is tracked as a follow-up
-// (case-folded Azure state matching) rather than guessing a join.
+// uids through an allowlist of the observed provider raw identities. AWS ARNs and
+// GCP full resource names are case-significant and match exactly. Azure ARM ids
+// are case-insensitive per Azure, and the shared cloud_resource_uid keyspace
+// lower-cases them before hashing, so the Azure side of the join is case-folded:
+// the SQL surfaces a /subscriptions/-rooted state row whose attributes.id differs
+// only in casing from the observed arm_resource_id, and this loader maps the
+// returned state identity back to the observed uid through an exact lookup first
+// and an Azure-only case-folded lookup second (see uidForMatchedStateIdentity). A
+// state identity that resolves to no observed uid carries no canonical join key
+// and is dropped rather than guessed onto the wrong resource.
 func (l PostgresMultiCloudRuntimeDriftEvidenceLoader) loadActiveStateResourcesByUID(
 	ctx context.Context,
 	identityByUID map[string]string,
 ) (map[string][]multiCloudStateRow, error) {
 	identities := make([]string, 0, len(identityByUID))
 	uidByIdentity := make(map[string]string, len(identityByUID))
+	uidByAzureFold := make(map[string]string, len(identityByUID))
 	for uid, identity := range identityByUID {
 		identities = append(identities, identity)
 		uidByIdentity[identity] = uid
+		if key, ok := azureStateFoldKey(identity); ok {
+			uidByAzureFold[key] = uid
+		}
 	}
 	sort.Strings(identities)
 
@@ -249,7 +255,7 @@ func (l PostgresMultiCloudRuntimeDriftEvidenceLoader) loadActiveStateResourcesBy
 		if err := rows.Scan(&scopeID, &generationID, &address, &matchedIdentity, &payload); err != nil {
 			return nil, fmt.Errorf("scan active terraform state resource for multi cloud identity: %w", err)
 		}
-		uid, ok := uidByIdentity[strings.TrimSpace(matchedIdentity)]
+		uid, ok := uidForMatchedStateIdentity(uidByIdentity, uidByAzureFold, matchedIdentity)
 		if !ok {
 			// The matched identity is not the one that produced an observed uid
 			// (for example a coincidental cross-provider attribute collision); the

@@ -49,34 +49,58 @@ ORDER BY fact.fact_kind ASC, raw_identity ASC, fact.fact_id ASC
 // so stale caller input cannot widen the join.
 //
 // Terraform stores the provider-native identity inside attributes under a
-// provider-specific key, so the join checks the union of the three identity
-// keys (AWS arn, Azure id, GCP self_link or id). COALESCE over those keys keys
-// the row by whichever identity is present; the loader re-resolves the matched
-// identity into the canonical uid keyspace so a coincidental match in the wrong
+// provider-specific key, so the state side projects the union of the three
+// identity keys (AWS arn, Azure id, GCP self_link or id) via COALESCE into one
+// native_identity. Both sides reduce that identity to a match_key: AWS ARNs and
+// GCP full resource names are case-significant and key verbatim, while Azure ARM
+// ids (rooted at /subscriptions/) are case-insensitive per Azure and the shared
+// cloud_resource_uid keyspace lower-cases them, so the match_key folds Azure-
+// shaped identities to lower case. The equijoin on match_key therefore lets an
+// Azure state row whose attributes.id differs only in casing from the observed
+// arm_resource_id join, while AWS/GCP casing differences stay distinct. The
+// loader re-resolves the returned native_identity into the canonical uid
+// keyspace (exact, then Azure case-folded) so a coincidental match in the wrong
 // provider keyspace is dropped rather than joined.
 const listActiveStateResourcesForMultiCloudIdentitiesQuery = `
 WITH requested_identities AS (
-    SELECT DISTINCT value AS identity
+    SELECT DISTINCT
+        btrim(value) AS identity,
+        CASE
+            WHEN lower(btrim(value)) LIKE '/subscriptions/%' THEN lower(btrim(value))
+            ELSE btrim(value)
+        END AS match_key
     FROM jsonb_array_elements_text($1::jsonb) AS value
     WHERE btrim(value) <> ''
+),
+state_resources AS (
+    SELECT
+        fact.scope_id      AS scope_id,
+        fact.generation_id AS generation_id,
+        fact.fact_id       AS fact_id,
+        fact.payload       AS payload,
+        COALESCE(
+            fact.payload->'attributes'->>'arn',
+            fact.payload->'attributes'->>'id',
+            fact.payload->'attributes'->>'self_link'
+        ) AS native_identity
+    FROM fact_records AS fact
+    JOIN ingestion_scopes AS scope
+      ON scope.scope_id = fact.scope_id
+     AND scope.active_generation_id = fact.generation_id
+    WHERE fact.fact_kind = 'terraform_state_resource'
+      AND fact.is_tombstone = FALSE
 )
 SELECT
-    fact.scope_id            AS state_scope_id,
-    fact.generation_id       AS state_generation_id,
-    fact.payload->>'address' AS address,
-    matched.identity         AS matched_identity,
-    fact.payload             AS payload
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
+    state.scope_id            AS state_scope_id,
+    state.generation_id       AS state_generation_id,
+    state.payload->>'address' AS address,
+    state.native_identity     AS matched_identity,
+    state.payload             AS payload
+FROM state_resources AS state
 JOIN requested_identities AS matched
-  ON matched.identity = COALESCE(
-        fact.payload->'attributes'->>'arn',
-        fact.payload->'attributes'->>'id',
-        fact.payload->'attributes'->>'self_link'
-     )
-WHERE fact.fact_kind = 'terraform_state_resource'
-  AND fact.is_tombstone = FALSE
-ORDER BY matched.identity ASC, fact.scope_id ASC, fact.payload->>'address' ASC, fact.fact_id ASC
+  ON matched.match_key = CASE
+        WHEN lower(state.native_identity) LIKE '/subscriptions/%' THEN lower(state.native_identity)
+        ELSE state.native_identity
+     END
+ORDER BY state.native_identity ASC, state.scope_id ASC, state.payload->>'address' ASC, state.fact_id ASC
 `
