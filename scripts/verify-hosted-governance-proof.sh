@@ -43,6 +43,9 @@ command -v bash >/dev/null 2>&1 || die "bash is required"
 
 query_pattern='Test(AuthMiddleware_GovernanceStatusRequiresAuth|AuthMiddlewareWithScopedTokens(RejectsUnsupportedScopedRoute|AuditsUnsupportedScopedRoute|AllowsGovernanceStatusRoute|AllowsSemanticExtractionStatusRoute|AllowsComponentExtensionRoutes|AllowsCollectorStatusRoute|AllowsIngesterStatusRoutes|AllowsHostedReadinessRoute)|StatusHandlerGovernance|GovernanceStatusReadsPrivateAuditSinkAggregates)'
 mcp_pattern='Test(HostedGovernanceRuntimeToolRoutesToStatus|DispatchToolGovernanceStatusAllowsScopedRoute|DispatchToolSemanticExtractionStatusAllowsScopedRoute|DispatchToolComponentExtensionsAllowsScopedRoutes|DispatchToolCollectorStatusAllowsScopedRoute|DispatchToolIngesterStatusAllowsScopedRoutes|DispatchToolHostedReadinessAllowsScopedRoute)'
+local_no_policy_query_pattern='Test(StatusHandlerGovernanceLocalNoPolicyReturnsEnvelope|StatusHandlerSemanticExtractionNoProviderReturnsEnvelope|StatusIndexIncludesSemanticExtractionNoProvider)'
+semantic_status_pattern='Test(SemanticExtractionDefaultsUnavailableWithoutAffectingHealth|RenderStatusIncludesSemanticExtractionNoProvider)'
+semantic_queue_pattern='TestPlan(NoProviderModeCreatesNoProviderJobs|ZeroValueProviderFailsClosedToNoProvider)'
 
 print_step() {
 	local label="$1"
@@ -53,6 +56,12 @@ print_step() {
 if [[ "${list_only}" == "true" ]]; then
 	print_step "scoped-token API governance status and redaction canaries" \
 		"go test ./internal/query -run '${query_pattern}' -count=1"
+	print_step "local no-policy governance and no-provider semantic status" \
+		"go test ./internal/query -run '${local_no_policy_query_pattern}' -count=1"
+	print_step "semantic no-provider runtime status" \
+		"go test ./internal/status -run '${semantic_status_pattern}' -count=1"
+	print_step "semantic queue no-provider planning" \
+		"go test ./internal/semanticqueue -run '${semantic_queue_pattern}' -count=1"
 	print_step "scoped-token MCP governance parity" \
 		"go test ./internal/mcp -run '${mcp_pattern}' -count=1"
 	print_step "hosted security posture verifier self-test" \
@@ -77,6 +86,12 @@ run_step() {
 	cd "${repo_root}/go"
 	run_step "scoped-token API governance status and redaction canaries" \
 		go test ./internal/query -run "${query_pattern}" -count=1
+	run_step "local no-policy governance and no-provider semantic status" \
+		go test ./internal/query -run "${local_no_policy_query_pattern}" -count=1
+	run_step "semantic no-provider runtime status" \
+		go test ./internal/status -run "${semantic_status_pattern}" -count=1
+	run_step "semantic queue no-provider planning" \
+		go test ./internal/semanticqueue -run "${semantic_queue_pattern}" -count=1
 	run_step "scoped-token MCP governance parity" \
 		go test ./internal/mcp -run "${mcp_pattern}" -count=1
 )
