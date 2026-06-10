@@ -141,6 +141,25 @@
   graph query spans, HTTP route attribution, and content-store Postgres spans
   diagnose the bounded read path.
 
+- **Service/workload context scoped-token route evidence** — #2072 opens only
+  `GET /api/v0/workloads/{workload_id}/context`,
+  `GET /api/v0/workloads/{workload_id}/story`,
+  `GET /api/v0/services/{service_name}/context`, and
+  `GET /api/v0/services/{service_name}/story` after `EntityHandler` applies
+  `AuthContext` bounds to empty grants, workload lookup predicates, service
+  candidate selection, repository selector disambiguation, and read-model
+  fallback rows. Service investigation remains fail-closed for scoped tokens
+  until split separately. No-Regression Evidence: `go test ./internal/query
+  -run
+  'Test(GetWorkload|GetService|ServiceWorkload|AuthMiddlewareWithScopedTokens)'
+  -count=1` and `go test ./internal/mcp -run
+  'TestDispatchTool(Service|Workload|ServiceAndWorkload)|TestEveryRegisteredToolHasDispatchRoute'
+  -count=1`. No-Observability-Change: the route family adds no graph write,
+  metric label, runtime knob, or response field; existing service query
+  `service_query.stage_*` logs, graph query spans, HTTP route attribution,
+  truth envelopes, result limits, and partial reasons diagnose the bounded
+  read path.
+
 - **Package registry reads stay anchored** — `PackageRegistryHandler` in
   `package_registry.go` must require `limit` plus a route-specific anchor
   before graph reads: package lookups use `package_id` or `ecosystem`, version

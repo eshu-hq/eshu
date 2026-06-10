@@ -39,6 +39,21 @@ func (h *EntityHandler) getServiceStory(w http.ResponseWriter, r *http.Request) 
 		WriteError(w, http.StatusBadRequest, "service_name is required")
 		return
 	}
+	if repositoryAccessFilterFromContext(r.Context()).empty() {
+		if acceptsEnvelope(r) {
+			WriteJSON(w, http.StatusNotFound, ResponseEnvelope{
+				Data: nil,
+				Error: &ErrorEnvelope{
+					Code:       ErrorCodeNotFound,
+					Message:    "service not found",
+					Capability: "platform_impact.context_overview",
+				},
+			})
+			return
+		}
+		WriteError(w, http.StatusNotFound, "service not found")
+		return
+	}
 
 	ctx, err := h.fetchServiceWorkloadContextWithSelector(r.Context(), serviceWorkloadSelector{
 		ServiceName: serviceName,

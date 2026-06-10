@@ -105,7 +105,13 @@ func (h *EntityHandler) resolveServiceTraceRepoSelector(ctx context.Context, rep
 	if strings.TrimSpace(repoSelector) == "" {
 		return "", nil
 	}
-	return resolveRepositorySelectorExact(ctx, h.Neo4j, h.Content, repoSelector)
+	return resolveRepositorySelectorExactForAccess(
+		ctx,
+		h.Neo4j,
+		h.Content,
+		repoSelector,
+		repositoryAccessFilterFromContext(ctx),
+	)
 }
 
 func (h *EntityHandler) collectServiceWorkloadCandidates(
@@ -113,6 +119,9 @@ func (h *EntityHandler) collectServiceWorkloadCandidates(
 	selector serviceWorkloadSelector,
 	repoID string,
 ) ([]serviceWorkloadCandidate, bool, error) {
+	if repositoryAccessFilterFromContext(ctx).empty() {
+		return nil, false, nil
+	}
 	limit := serviceWorkloadCandidateLimit + 1
 	all := make([]serviceWorkloadCandidate, 0, limit)
 	if selector.ServiceID != "" {
@@ -217,11 +226,14 @@ func (h *EntityHandler) queryServiceWorkloadCandidates(
 	limit int,
 	matchBasis string,
 ) ([]serviceWorkloadCandidate, error) {
-	params := map[string]any{paramName: paramValue}
+	access := repositoryAccessFilterFromContext(ctx)
+	params := access.graphParams(map[string]any{paramName: paramValue})
 	whereParts := []string{whereClause}
 	if repoID != "" {
 		whereParts = append(whereParts, "w.repo_id = $repo_id")
 		params["repo_id"] = repoID
+	} else if access.scoped() {
+		whereParts = append(whereParts, workloadScopePredicate("w", access))
 	}
 
 	var cypher string
@@ -264,11 +276,14 @@ func (h *EntityHandler) queryServiceInstanceCandidates(
 	limit int,
 	matchBasis string,
 ) ([]serviceWorkloadCandidate, error) {
-	params := map[string]any{"service_name": selector.ServiceName}
+	access := repositoryAccessFilterFromContext(ctx)
+	params := access.graphParams(map[string]any{"service_name": selector.ServiceName})
 	whereParts := []string{"w.id = i.workload_id"}
 	if repoID != "" {
 		whereParts = append(whereParts, "w.repo_id = $repo_id")
 		params["repo_id"] = repoID
+	} else if access.scoped() {
+		whereParts = append(whereParts, workloadScopePredicate("w", access))
 	}
 	if selector.Environment != "" {
 		whereParts = append(whereParts, "i.environment = $environment")
@@ -288,6 +303,12 @@ func (h *EntityHandler) queryServiceInstanceCandidates(
 		LIMIT %d
 	`, instanceWhere, strings.Join(whereParts, " AND "), limit)
 	return h.serviceWorkloadCandidatesFromQuery(ctx, cypher, params, matchBasis)
+}
+
+func workloadScopePredicate(alias string, access repositoryAccessFilter) string {
+	return "(" + alias + ".repo_id IN $allowed_repository_ids OR " +
+		alias + ".repo_id IN $allowed_scope_ids OR EXISTS { MATCH (scopeRepo:Repository)-[:DEFINES]->(" +
+		alias + ") WHERE " + access.graphCondition("scopeRepo") + " })"
 }
 
 func (h *EntityHandler) serviceWorkloadCandidatesFromQuery(

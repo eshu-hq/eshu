@@ -15,6 +15,10 @@ func (h *EntityHandler) getWorkloadContext(w http.ResponseWriter, r *http.Reques
 		WriteError(w, http.StatusBadRequest, "workload_id is required")
 		return
 	}
+	if repositoryAccessFilterFromContext(r.Context()).empty() {
+		WriteError(w, http.StatusNotFound, "workload not found")
+		return
+	}
 
 	ctx, err := h.fetchWorkloadContext(r.Context(), "w.id = $workload_id", map[string]any{"workload_id": workloadID})
 	if err != nil {
@@ -48,6 +52,10 @@ func (h *EntityHandler) getWorkloadStory(w http.ResponseWriter, r *http.Request)
 	workloadID := PathParam(r, "workload_id")
 	if workloadID == "" {
 		WriteError(w, http.StatusBadRequest, "workload_id is required")
+		return
+	}
+	if repositoryAccessFilterFromContext(r.Context()).empty() {
+		WriteError(w, http.StatusNotFound, "workload not found")
 		return
 	}
 

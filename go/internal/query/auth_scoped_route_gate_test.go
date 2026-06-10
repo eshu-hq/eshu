@@ -328,6 +328,71 @@ func TestAuthMiddlewareWithScopedTokensRejectsAllScopeOnUnsupportedEntityRoute(t
 	}
 }
 
+func TestAuthMiddlewareWithScopedTokensAllowsServiceAndWorkloadContextRoutes(t *testing.T) {
+	t.Parallel()
+
+	routes := []string{
+		"/api/v0/workloads/workload:payments/context",
+		"/api/v0/workloads/workload:payments/story",
+		"/api/v0/services/payments/context",
+		"/api/v0/services/payments/story",
+	}
+	for _, route := range routes {
+		t.Run(route, func(t *testing.T) {
+			t.Parallel()
+
+			resolver := &fakeScopedTokenResolver{
+				context: AuthContext{
+					Mode:        AuthModeScoped,
+					TenantID:    "tenant-a",
+					WorkspaceID: "workspace-a",
+					AllScopes:   true,
+				},
+				ok: true,
+			}
+			handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if _, ok := AuthContextFromContext(r.Context()); !ok {
+					t.Fatal("AuthContextFromContext() ok = false, want true")
+				}
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, route, nil)
+			req.Header.Set("Authorization", "Bearer scoped-token")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			if got, want := rec.Code, http.StatusOK; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestAuthMiddlewareWithScopedTokensRejectsServiceInvestigationRoute(t *testing.T) {
+	t.Parallel()
+
+	resolver := &fakeScopedTokenResolver{
+		context: AuthContext{
+			Mode:        AuthModeScoped,
+			TenantID:    "tenant-a",
+			WorkspaceID: "workspace-a",
+			AllScopes:   true,
+		},
+		ok: true,
+	}
+	handler := AuthMiddlewareWithScopedTokens("", resolver, mockHandler())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/investigations/services/payments", nil)
+	req.Header.Set("Authorization", "Bearer scoped-token")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusForbidden; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+}
+
 func TestAuthMiddlewareWithScopedTokensAuditsUnsupportedScopedRoute(t *testing.T) {
 	t.Parallel()
 

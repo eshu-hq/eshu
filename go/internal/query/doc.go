@@ -85,10 +85,11 @@
 // reach handlers. Repository list and selector canary routes apply these bounds
 // before pagination, counts, ambiguity, and not-found decisions so out-of-scope
 // repositories do not leak through metadata. Code search, entity resolution,
-// content read/search routes, evidence citation packets, and entity context
-// reads apply the same bounds to selector resolution, graph predicates, exact
-// content lookups, citation handle hydration, repo-identity hydration, and
-// content fallback calls before allowing scoped-token API or MCP reads.
+// content read/search routes, evidence citation packets, entity context reads,
+// and service/workload context or story reads apply the same bounds to selector
+// resolution, graph predicates, exact content lookups, candidate ambiguity,
+// citation handle hydration, repo-identity hydration, and content fallback
+// calls before allowing scoped-token API or MCP reads.
 // Story and investigation routes also attach additive answer_metadata
 // companions for prompt-facing clients. The companion normalizes existing
 // evidence handles, missing evidence, limitations, truncation, coverage,
