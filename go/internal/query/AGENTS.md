@@ -260,6 +260,24 @@
   or response field; existing HTTP route attribution and component-extension
   truth envelopes diagnose the bounded local registry readback path.
 
+- **Ingester status scoped-token route evidence** — #2086 opens only
+  `GET /api/v0/status/ingesters` and
+  `GET /api/v0/status/ingesters/{ingester}` because `StatusHandler` returns
+  bounded runtime health, queue, scope-activity, stage-summary, domain-backlog,
+  and coordinator aggregate counters for the repository ingester. Scoped-token
+  detail responses replace coordinator instance rows with aggregate counts so
+  collector instance ids, display names, tenant/workspace values, queue conflict
+  keys, repository/source ids, graph reads, content reads, credentials,
+  endpoints, local paths, and provider payloads remain outside the payload.
+  No-Regression Evidence: `go test ./internal/query -run
+  'Test(AuthMiddlewareWithScopedTokensAllowsIngesterStatusRoutes|StatusHandler)'
+  -count=1` and `go test ./internal/mcp -run
+  'Test(ListIngestersRuntimeToolRoutesToStatusIngesters|GetIngesterStatusRuntimeToolRoutesToRepositoryStatus|DispatchToolIngesterStatusAllowsScopedRoutes)'
+  -count=1`. No-Observability-Change: the route adds no graph write, graph
+  read, content read, provider call, collector call, metric label, runtime knob,
+  or response field for shared-token callers; existing HTTP route attribution
+  and runtime status fields diagnose the bounded status readback path.
+
 - **Package registry reads stay anchored** — `PackageRegistryHandler` in
   `package_registry.go` must require `limit` plus a route-specific anchor
   before graph reads: package lookups use `package_id` or `ecosystem`, version

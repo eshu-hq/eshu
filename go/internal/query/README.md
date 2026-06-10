@@ -110,306 +110,27 @@ activation config paths, or community-index membership as trust.
 
 ## Exported surface
 
-**Ports and adapters**
+The package exports four groups of contracts:
 
-- `GraphQuery` — read-only graph port: `Run` and `RunSingle`; implemented by
-  `Neo4jReader` (`ports.go:9`)
-- `ContentStore` — Postgres content port: file, entity, and catalog reads;
-  implemented by `ContentReader` (`ports.go:14`)
-- `Neo4jReader` — concrete graph adapter; satisfies `GraphQuery` (`neo4j.go:18`)
-- `ContentReader` — concrete Postgres content adapter; satisfies `ContentStore`
-  (`content_reader.go:16`)
-- `PostgresIaCReachabilityStore` — reducer-materialized IaC cleanup findings
-  (`iac_reachability_store.go`)
-- `IaCReachabilityStore` — port for IaC cleanup findings (`iac.go:74`)
-- `SupplyChainImpactReadinessStore` — port for bounded readiness counts and
-  scoped source and package-registry metadata freshness
-  (`supply_chain_impact_readiness.go`)
-- `PostgresSupplyChainImpactReadinessStore` — Postgres-backed readiness store
-  that runs one bounded CTE per impact-findings response, scopes vulnerability
-  source-cache snapshot and durable source-state metadata by requested CVE,
-  package, repository-owned ecosystem, or image component ecosystem, surfaces
-  package-registry metadata freshness for package/repository scopes, exposes
-  VCS/path/URL/editable dependency rows as `dependency_source` unsupported
-  target evidence with stable reason codes, and strips absent optional fields
-  from the JSON rollup. Readiness treats Composer as a supported
-  impact-matcher ecosystem alongside the existing supported matchers, so
-  Composer evidence gaps stay explicit instead of being classified as
-  unsupported.
-  (`supply_chain_impact_readiness_postgres.go`)
-- `AdvisoryEvidenceStore` — source-only advisory evidence grouped by canonical
-  CVE/GHSA/OSV/NVD identity. Repository, service, and workload scopes resolve
-  through active reducer-owned impact findings, not provider-alert-only rows
-  (`supply_chain_advisory_evidence.go`)
-- `PostgresAdvisoryEvidenceStore` — Postgres-backed source fact read model
-  for `GET /api/v0/supply-chain/advisories/evidence`
-  (`supply_chain_advisory_evidence.go`)
-- `AdvisoryCatalogStore` / `PostgresAdvisoryCatalogStore` — browsable,
-  summary-only CVE-intelligence catalog for
-  `GET /api/v0/supply-chain/advisories`. Lists canonical advisories without an
-  advisory/package/repository/service/workload anchor, ordered by CVSS desc then
-  advisory key with keyset pagination and severity/KEV/ecosystem/`q` filters.
-  Rows are known intelligence only and do not imply impact
-  (`supply_chain_advisory_catalog_model.go`,
-  `supply_chain_advisory_catalog_store.go`,
-  `supply_chain_advisory_catalog_handler.go`)
-- `SupplyChainImpactExplanationStore` — port for one-finding supply-chain
-  impact explanations that hydrate only referenced evidence fact IDs
-  (`supply_chain_impact_explain.go`)
-- `PostgresSupplyChainImpactFindingStore` — also implements the explanation
-  port by reading exactly one active reducer impact finding and its referenced
-  evidence facts (`supply_chain_impact_explain_postgres.go`)
-- `SecurityAlertReconciliationStore` — port for reducer-owned provider alert
-  comparison rows, including partial provider-source freshness from capped
-  open-alert collection (`security_alert_reconciliation.go`)
-- `PostgresSecurityAlertReconciliationStore` — Postgres-backed security alert
-  reconciliation read model for bounded API/MCP reads; default pages select one
-  current row per provider alert identity before state/status filters and
-  cursor pagination (`security_alert_reconciliation.go`)
-- `SupplyChainImpactFindingRow` — reducer-owned vulnerability impact finding
-  row that keeps `observed_version`, `requested_range`, `fixed_version`, and
-  `match_reason` separate so API and MCP clients can explain version matching
-  without collapsing range-only, unsupported, malformed, affected, and
-  known-fixed states. Legacy rows without an explicit detection profile are
-  backfilled as precise only for supported exact-version match reasons,
-  including npm, NuGet, Cargo, Maven, Pub, Swift, and Composer paths. Pub rows
-  preserve exact hosted `pubspec.lock` versions while manifest ranges stay
-  comprehensive. Composer rows preserve exact lockfile versions,
-  manifest-only ranges, require versus require-dev scope, transitive paths, and
-  missing-evidence reasons from reducer truth rather than reclassifying them in
-  the read layer. Every row carries a `Suppression` block decoded from the
-  reducer's VEX/operator-policy decision so the `include_suppressed` toggle
-  and `suppression_state` filter on
-  `GET /api/v0/supply-chain/impact/findings` can hide, surface, and explain
-  not-affected, accepted-risk, false-positive, ignored, expired,
-  provider-dismissed, and scope-mismatched findings without losing the
-  authoring source, justification, author, timestamps, evidence reference, or
-  VEX document/statement IDs. The same findings route and its count/inventory
-  aggregates accept `image_ref` as an exact reducer-payload predicate; the read
-  model does not infer image references from repository names, tags, or OCI
-  registry scope strings. Every row also carries a `VulnerableRange`
-  string copied from the advisory the reducer's provenance selector picked
-  and persisted on the canonical finding payload, so list responses expose
-  the same expression as the explain route. Every row also carries a
-  `Remediation` block (issue #595) with the installed version, vulnerable
-  range, selected fixed-version source, match reason, first patched version,
-  every published fixed-version branch, manifest range, manifest_allows_fix
-  tri-state, direct/transitive designation, parent_package required for
-  transitive upgrades,
-  ecosystem, an exact|partial|unknown confidence label, and a closed
-  reason enum so API and MCP callers can explain the advisory-only
-  safe-upgrade path without re-reading raw advisory or lockfile facts.
-  Reason codes include both first-class missing-evidence outcomes —
-  `installed_version_missing` (multi-branch advisory + no parseable
-  observed version) and `installed_version_malformed` — and the
-  upgrade-decision reasons. Older rows that predate remediation
-  computation expose a nil `Remediation`; callers must treat that as
-  "no remediation computed yet," not "no fix available." Exact
-  repository-scoped `reducer_service_catalog_correlation` evidence remains in
-  `evidence_path` for list, explain, and MCP readbacks. Catalog entity refs are
-  surfaced as catalog anchors without fabricating `service_ids`; only catalog
-  evidence that lacks a service id, workload id, and catalog entity ref reports
-  `service/workload catalog anchor missing` instead of missing
-  service-catalog correlation evidence.
+- Ports and adapters: `GraphQuery`, `ContentStore`, `Neo4jReader`,
+  `ContentReader`, metrics sources, and route-specific stores such as
+  supply-chain readiness, advisory evidence, IaC reachability, freshness, and
+  metrics time-series ports.
+- Handler structs: `APIRouter` plus route owners including repository, entity,
+  code, content, component-extension, infrastructure, IaC, impact, evidence,
+  documentation, semantic-evidence, supply-chain, incident, work-item,
+  freshness, status, metrics, compare, and admin handlers.
+- Response contracts: `ResponseEnvelope`, `TruthEnvelope`, `ErrorEnvelope`,
+  `AnswerPacket`, query playbooks, visualization packets, and the typed
+  constants that describe truth level, freshness, profile, backend, and errors.
+- Helpers: uniform response writers, JSON/path/query parsers, bearer-token
+  middleware, truth-envelope builders, OpenAPI assembly, and graph row
+  extraction helpers.
 
-**Handler structs**
-
-- `APIRouter` — top-level mux; call `Mount` to register all routes
-  (`handler.go:110`)
-- `QueryPlaybookHandler` — catalog and resolver routes for deterministic
-  workflow-plan truth: `GET /api/v0/query-playbooks` and
-  `POST /api/v0/query-playbooks/resolve` (`query_playbook_handler.go`)
-- `RepositoryHandler` — `GET /api/v0/repositories*` routes (`repository.go:21`)
-- `EntityHandler` — entity resolution, workload/service context routes, service dossier stories, and service investigation coverage (`entity.go:11`, `service_story_handler.go:9`, `service_investigation.go:17`)
-- `CodeHandler` — code search, symbol lookup, structural inventory, import
-  dependency investigation, call graph metrics, relationships, relationship
-  stories, redacted hardcoded-secret investigation in `code_security_secrets.go`,
-  dead-code, complexity, call-chain (`code.go:11`)
-- `ContentHandler` — file and entity content reads (`content_handler.go:11`)
-- `ComponentExtensionsHandler` — optional component package inventory and
-  diagnostics from sanitized runtime registry readback
-  (`component_extensions.go`)
-- `InfraHandler` — infrastructure resource and relationship routes (`infra.go:12`)
-  including Terraform backend, import, moved, removed, check, and lockfile
-  provider entity labels when they have been projected
-- `IaCHandler` — IaC quality, AWS management, and IaC inventory routes
-  (`iac.go:22`, `iac_management.go`, `iac_management_surface.go`,
-  `iac_import_plan.go`, `iac_resources.go`)
-  - `GET /api/v0/iac/resources` (`iac_resources.go`) is a bounded,
-    keyset-paginated browse over the authoritative Terraform/IaC graph. It
-    anchors on one of `TerraformResource`, `TerraformModule`, or
-    `TerraformDataSource` (the `kind` selector), filters by `type`, `provider`,
-    and `module`, requires a 1-200 `limit`, orders by `(name, id)`, and uses
-    limit+1 truncation with an `after_name`/`after_id` cursor. It records
-    `eshu_dp_iac_resource_list_duration_seconds` and
-    `eshu_dp_iac_resource_list_errors_total` through the global meter
-    (`iac_resources_metrics.go`). The `Graph` field on `IaCHandler` backs it;
-    when nil the route returns 503.
-  - `IaCManagementFindingRow` is the stable read model for AWS-backed IaC
-    management status. It exposes the full #124 taxonomy, matched Terraform
-    state/config handles, other-IaC ownership hints, service and environment
-    candidates, dependency paths, warning flags, missing evidence, and
-    provenance evidence atoms. Raw tag evidence remains provenance-only and
-    does not promote ownership, service, or environment truth. Sensitive
-    tag/evidence values are redacted before the row leaves the query layer, and
-    `safety_gate` names review-required findings plus refused follow-up actions
-    such as Terraform import-plan generation.
-  - Terraform import-plan candidates are read-only response shaping over the
-    same bounded active findings. They generate Terraform `import` blocks only
-    for safety-approved supported cloud-only resources and return refused
-    candidates for ambiguous, sensitive, stale, state-only, or unsupported rows.
-    Each ready candidate also carries a `config_shape_hint`
-    (`iac_config_shape_hints.go`): a structural resource skeleton listing
-    argument NAMES and `<FILL_IN>` placeholders only. It emits no values — no
-    secrets, tag values, ARNs beyond the import identity, state locators, or
-    policy JSON — and refused candidates receive no hint because the safety gate
-    runs first.
-- `ImpactHandler` — blast radius, change surface, deployment trace, resource
-  investigation, dependency paths (`impact.go:11`)
-  - Entity-map neighborhood traversal resolves one anchor first, then runs
-    bounded per-relationship-family graph reads. No-Regression Evidence:
-    `go test ./internal/query -run
-    'TestEntityMapPopulatesTypedVerbAndEntityIDForVarLengthEdge' -count=1`
-    covers the NornicDB-compatible variable-length row shape from issue #1604:
-    one resolved workload anchor, one incoming `DEFINES` relationship family,
-    empty backend-derived relationship types, and a backend-reported
-    `length(path)=0`. The query now emits the relationship verb as the family
-    literal, avoids `RETURN DISTINCT`, deduplicates equivalent rows in Go after
-    the bounded graph calls, and reports at least one hop for returned
-    neighbors. No-Observability-Change: entity-map reads still use the existing
-    `query.entity_map` handler span, graph query spans, HTTP status/error body,
-    truth envelope, `coverage.depth`, `coverage.limit`, relationship filters,
-    returned relationship counts, and truncation metadata. The change adds no
-    route, queue, worker, graph write, runtime knob, metric instrument, or
-    metric label.
-- `EvidenceHandler` — relationship evidence drilldown and bounded citation
-  packet hydration; citation packets reject more than 500 input handles and
-  hydrate at most 50 citations per call (`evidence.go`, `evidence_citation.go`)
-- `DocumentationHandler` — collected documentation facts, repo or target-scoped
-  documentation truth findings, and evidence packets (`documentation.go`,
-  `documentation_facts.go`)
-- `SemanticEvidenceHandler` — opt-in semantic documentation observation and
-  code-hint fact reads (`semantic_evidence.go`,
-  `semantic_evidence_read_model.go`)
-- `SupplyChainHandler` — SBOM attachment, image identity, advisory evidence,
-  impact finding, and one-finding explanation routes; SBOM attachments resolve
-  repository selectors while preserving subject/document truth and missing-image evidence (`supply_chain.go`)
-- `IncidentHandler` — bounded incident context read packets from active
-  incident source facts (`incident_context_handler.go`)
-- `WorkItemHandler` — ticket-first Jira/work-item source evidence reads from
-  active facts (`work_item_evidence_handler.go`)
-- `FreshnessHandler` — bounded scope generation lifecycle drilldown at
-  `GET /api/v0/freshness/generations` through the `GenerationLifecycleReader`
-  port, plus the changed-since delta at
-  `GET /api/v0/freshness/changed-since` through the `ChangedSinceReader` port
-  (diffs a prior generation against the current active generation by
-  `stable_fact_key` into per-category added/updated/unchanged/retired/superseded
-  counts and bounded samples); named scope/repository/generation misses return
-  not-found and no current active generation returns an explicit unavailable diff
-  (`freshness_generations.go`, `freshness_changed_since.go`)
-- `StatusHandler` — pipeline, ingester, index, hosted governance, and semantic
-  extraction status routes (`status.go`, `status_governance.go`,
-  `status_semantic_extraction.go`)
-- `MetricsHandler` — `/api/v0/metrics/timeseries`; returns unavailable-empty
-  points when no source is configured (`metrics.go`)
-- `CompareHandler` — environment comparison (`compare.go:12`) with the
-  story-packet helpers in `compare_story.go`
-- `AdminHandler` — work-item inspection, replay, dead-letter, backfill, reindex
-  (`admin.go:153`)
-
-**Response contract types**
-
-- `ResponseEnvelope` — top-level wire envelope: `Data`, `Truth`, `Error`
-  (`contract.go:108`)
-- `TruthEnvelope` — truth metadata: `Level`, `Capability`, `Profile`, `Basis`,
-  `Backend`, `Freshness`, `Reason` (`contract.go:75`)
-- `TruthFreshness` — freshness state and observation timestamp (`contract.go:69`)
-- `ErrorEnvelope` — structured error: `Code`, `Message`, `Capability`,
-  `Profiles` (`contract.go:101`)
-- `ErrorCode`, `TruthLevel`, `TruthBasis`, `FreshnessState`, `QueryProfile`,
-  `GraphBackend` — typed string constants (`contract.go`)
-- `AnswerPacket`, `AnswerPacketInput`, `AnswerTruthClass`, `NewAnswerPacket`,
-  `NewAnswerPacketFromCitations` — evidence-backed answer packet contract and
-  builder (`answer_packet.go`). The packet is a composition layer over the
-  existing envelope: it copies the `TruthEnvelope`, references the canonical
-  `ResponseEnvelope` data, folds `TruthLevel`+`TruthBasis` into a single
-  `AnswerTruthClass` (`deterministic`, `derived`, `fallback`,
-  `semantic_observation`, `code_hint`, `unsupported`), reuses the
-  `evidence_citation` handle and `recommended_next_calls` shapes, and refuses to
-  attach a confident summary to an unsupported (error-built) or no-evidence
-  partial answer. It is a pure contract+builder; route/MCP wiring is follow-up
-  work. See `docs/public/reference/answer-packets.md`.
-- `QueryPlaybook`, `PlaybookInput`, `PlaybookStep`, `PlaybookParam`,
-  `PlaybookDrilldown`, `PlaybookFailureMode`, `ResolvedPlaybook`, `ResolvedCall`,
-  `PlaybookVersionRef` — machine-readable query playbook contract
-  (`query_playbook.go`, validation in `query_playbook_validate.go`). A playbook
-  is a deterministic, bounded, versioned data description of a starter-prompt or
-  cookbook workflow: ordered first-class tool calls (never raw Cypher), bounded
-  params with default limits, an expected `AnswerTruthClass` and evidence per
-  step, optional drilldowns, and declared failure modes with fallbacks.
-  `(QueryPlaybook).Validate` enforces the structural contract and rejects raw
-  Cypher steps; `(QueryPlaybook).Resolve` deterministically yields the fully
-  specified bounded call sequence from declared inputs alone, reading no external
-  state. `PlaybookCatalog` is the versioned source of truth
-  (`query_playbook_catalog.go`), `PlaybookCatalogVersions` and `LookupPlaybook`
-  read it, and `PlaybookToolNames` lets the `mcp` package cross-check referenced
-  tool names against `ReadOnlyTools` without an import cycle.
-  `QueryPlaybookHandler` exposes the catalog through API/MCP/CLI surfaces that
-  do not execute calls, read graph or Postgres state, or expose raw Cypher. See
-  `docs/public/reference/query-playbooks.md`.
-- `VisualizationPacket`, `VisualizationNode`, `VisualizationEdge`,
-  `VisualizationView`, `VisualizationLimits`, `VisualizationTruncation`,
-  `VisualizationMaxNodes`, `VisualizationMaxEdges`,
-  `BuildServiceStoryVisualizationPacket`,
-  `BuildEvidenceCitationVisualizationPacket`,
-  `BuildEvidenceCitationVisualizationPacketFromMap`,
-  `BuildIncidentContextVisualizationPacket`, and
-  `BuildIncidentContextVisualizationPacketFromMap` — compact, bounded, derived
-  subgraph views over existing story, evidence-citation, and incident-context
-  responses (`visualization_packet.go`, `visualization_packet_story.go`,
-  `visualization_packet_evidence.go`, `visualization_packet_decode.go`). Each
-  builder is a pure transformation of data the caller already received: it
-  performs no graph access, derives stable node/edge IDs from the underlying
-  entity/handle identity (never iteration order), sorts by stable ID, enforces
-  node/edge bounds with explicit truncation, copies the source `TruthEnvelope`,
-  reuses the `evidence_citation` handle shape so a node maps back to a
-  citation, and returns an explicit unsupported packet with
-  `recommended_next_calls` rather than erroring. The `FromMap` adapters decode
-  canonical HTTP/MCP/CLI JSON maps into the same builders; they do not add a new
-  data source. Normal visualization flows need no raw Cypher.
-  `VisualizationHandler` exposes `POST /api/v0/visualizations/derive`, and MCP
-  routes `derive_visualization_packet` to the same handler. See
-  `docs/public/reference/visualization-packets.md`.
-
-**Handler helpers**
-
-- `WriteJSON`, `WriteError`, `WriteSuccess`, `WriteContractError` — uniform
-  response writers (`handler.go`)
-- `ReadJSON`, `QueryParam`, `QueryParamInt`, `PathParam` — request parsing
-  helpers (`handler.go`)
-- `AuthMiddleware` — bearer-token middleware used by `cmd/api` (`auth.go:30`)
-- `BuildTruthEnvelope` — builds a `TruthEnvelope` from profile, capability, and
-  basis; panics on unknown capability (`contract.go:547`)
-- `ParseQueryProfile`, `NormalizeQueryProfile`, `ParseGraphBackend` — input
-  validation helpers (`contract.go`)
-- `MetricsTimeSeriesSource`, `PrometheusMetricsTimeSeriesSource`, and related
-  types — closed metric series port and Prometheus/Mimir adapter
-  (`metrics.go`, `metrics_prometheus.go`)
-
-**OpenAPI**
-
-- `OpenAPISpec()` — concatenates the `openapi_paths_*.go` fragments and
-  `openAPIComponents` into one JSON string (`openapi.go:49`); security prompt
-  routes live in `openapi_paths_code_security.go`
-- `ServeOpenAPI`, `ServeSwaggerUI`, `ServeReDoc` — HTTP handlers for
-  `/api/v0/openapi.json`, `/api/v0/docs`, `/api/v0/redoc` (`openapi.go`)
-
-**Graph row helpers**
-
-- `StringVal`, `BoolVal`, `IntVal`, `StringSliceVal`, `RepoRefFromRow`,
-  `RepoProjection` — safe Neo4j result-row extractors (`neo4j.go`)
-
-See `doc.go` for the full godoc contract.
+See `doc.go` for the godoc contract, `read-models.md` for route-specific
+read-model bounds, and public reference docs for long-lived API/MCP wire
+contracts. Keep detailed route evidence near the owning implementation or
+scoped `AGENTS.md` entry instead of expanding this index.
 
 ## Dependencies
 
@@ -459,6 +180,16 @@ correlation ids, credential handles, provider endpoints, prompts, provider
 responses, local paths, or token values. The route uses capability
 `hosted_governance.status` and shares its handler with MCP
 `get_hosted_governance_status`.
+
+Ingester status is a runtime status projection from `internal/status`.
+`GET /api/v0/status/ingesters` and
+`GET /api/v0/status/ingesters/{ingester}` remain shared-token status routes for
+full operational readback, but scoped-token detail responses expose coordinator
+counts instead of collector instance rows. Scoped responses keep runtime health,
+queue, stage-summary, scope-activity, and domain-backlog counters visible while
+leaving collector instance identifiers, display names, tenant and workspace
+values, queue conflict keys, repository/source identifiers, provider payloads,
+local paths, and credentials out of the payload.
 
 ## Telemetry
 

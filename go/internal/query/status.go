@@ -134,13 +134,18 @@ func (h *StatusHandler) getIngesterStatus(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	coordinator := coordinatorToMap(report.Coordinator)
+	if scopedAuthContext(r.Context()) {
+		coordinator = scopedCoordinatorToMap(report.Coordinator)
+	}
+
 	WriteJSON(w, http.StatusOK, map[string]any{
 		"version":         buildinfo.AppVersion(),
 		"ingester":        ingester,
 		"runtime_family":  "ingester",
 		"health":          healthToMap(report.Health),
 		"queue":           queueToMap(report.Queue),
-		"coordinator":     coordinatorToMap(report.Coordinator),
+		"coordinator":     coordinator,
 		"scope_activity":  scopeActivityToMap(report.ScopeActivity),
 		"stage_summaries": stageSummariesToSlice(report.StageSummaries),
 		"domain_backlogs": domainBacklogsToSlice(report.DomainBacklogs, report.QueueBlockages),
