@@ -139,6 +139,26 @@ when "extension"
   abort "extension case did not render workflow-coordinator" unless policy
   abort "extension egress missing from workflow-coordinator" unless marker?(policy, "extension")
   puts "verified restricted extension egress"
+when "missing-policy"
+  # Restricted mode with no provider class destinations must fail closed: no
+  # workload may carry any external provider egress marker.
+  ["collector-provider", "semantic-provider", "extension"].each do |value|
+    leaked = policies.select { |policy| marker?(policy, value) }.map { |policy| component(policy) || policy.dig("metadata", "name") }
+    abort "missing-policy leaked #{value} egress onto: #{leaked.join(", ")}" unless leaked.empty?
+  end
+  puts "verified restricted missing-policy fail-closed egress"
+when "collector-provider-denied"
+  # A configured collector-provider destination must not render while the class
+  # is disabled: revocation wins over a stale destination.
+  leaked = policies.select { |policy| marker?(policy, "collector-provider") }.map { |policy| component(policy) || policy.dig("metadata", "name") }
+  abort "denied collector-provider egress still rendered onto: #{leaked.join(", ")}" unless leaked.empty?
+  puts "verified denied collector-provider egress is fail-closed"
+when "extension-revoked"
+  # A configured extension destination must not render while the extension
+  # class is disabled: revocation wins over a stale destination.
+  leaked = policies.select { |policy| marker?(policy, "extension") }.map { |policy| component(policy) || policy.dig("metadata", "name") }
+  abort "revoked extension egress still rendered onto: #{leaked.join(", ")}" unless leaked.empty?
+  puts "verified revoked extension egress is fail-closed"
 else
   puts "verified restricted NetworkPolicy egress"
 end
@@ -242,3 +262,65 @@ networkPolicy:
                 egress.eshu.io/class: extension
 YAML
 run_values_case "extension" "restricted" "extension" "${extension_values}"
+
+# Fail-closed: restricted mode with no provider class destinations must render
+# no external egress for any workload (missing policy denies by default).
+missing_values="${tmp_dir}/missing-policy.yaml"
+cat >"${missing_values}" <<'YAML'
+workflowCoordinator:
+  enabled: true
+confluenceCollector:
+  enabled: true
+  baseUrl: https://confluence.example.com
+  spaceId: DOCS
+  credentials:
+    secretName: confluence-credentials
+    bearerTokenKey: token
+networkPolicy:
+  egress:
+    mode: restricted
+YAML
+run_values_case "missing-policy" "restricted" "missing-policy" "${missing_values}"
+
+# Fail-closed: a configured collector-provider destination must not render when
+# the class is disabled (provider denial wins over a stale destination).
+denied_values="${tmp_dir}/denied-collector.yaml"
+cat >"${denied_values}" <<'YAML'
+confluenceCollector:
+  enabled: true
+  baseUrl: https://confluence.example.com
+  spaceId: DOCS
+  credentials:
+    secretName: confluence-credentials
+    bearerTokenKey: token
+networkPolicy:
+  egress:
+    mode: restricted
+    classes:
+      collectorProviders:
+        enabled: false
+        to:
+          - namespaceSelector:
+              matchLabels:
+                egress.eshu.io/class: collector-provider
+YAML
+run_values_case "denied-collector" "restricted" "collector-provider-denied" "${denied_values}"
+
+# Fail-closed: a configured extension destination must not render when the
+# extension class is disabled (extension revocation).
+revoked_values="${tmp_dir}/revoked-extension.yaml"
+cat >"${revoked_values}" <<'YAML'
+workflowCoordinator:
+  enabled: true
+networkPolicy:
+  egress:
+    mode: restricted
+    classes:
+      extensions:
+        enabled: false
+        to:
+          - namespaceSelector:
+              matchLabels:
+                egress.eshu.io/class: extension
+YAML
+run_values_case "revoked-extension" "restricted" "extension-revoked" "${revoked_values}"

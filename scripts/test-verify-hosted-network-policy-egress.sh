@@ -17,6 +17,12 @@ rg --fixed-strings --quiet "broad egress mode is a hosted governance risk" "${de
 rg --fixed-strings --quiet "verified restricted collector-provider egress" "${default_log}"
 rg --fixed-strings --quiet "verified restricted semantic-provider egress" "${default_log}"
 rg --fixed-strings --quiet "verified restricted extension egress" "${default_log}"
+# Fail-closed negative cases: a configured destination must not render when its
+# class is disabled (provider denied / extension revoked), and restricted mode
+# with no provider classes must render no external egress at all.
+rg --fixed-strings --quiet "verified restricted missing-policy fail-closed egress" "${default_log}"
+rg --fixed-strings --quiet "verified denied collector-provider egress is fail-closed" "${default_log}"
+rg --fixed-strings --quiet "verified revoked extension egress is fail-closed" "${default_log}"
 
 invalid_values="${tmp_dir}/invalid-mode.yaml"
 cat >"${invalid_values}" <<'YAML'

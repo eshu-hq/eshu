@@ -118,6 +118,15 @@ networkPolicy:
 The example uses label selectors only. Keep concrete provider, gateway, and
 database destination details in private operator values.
 
+Restricted egress fails closed. A provider class with no `to` destinations
+renders no outbound rule for that class, so missing policy denies provider
+egress by default. Setting a class `enabled: false` suppresses its rule even
+when destinations are still configured, so denying a provider or revoking an
+extension wins over a stale destination. `scripts/verify-hosted-network-policy-egress.sh`
+proves all of these cases against the rendered chart: allowed provider, denied
+provider, missing policy, broad egress opt-in, and extension revocation;
+`scripts/test-verify-hosted-network-policy-egress.sh` self-tests the verifier.
+
 OpenTelemetry defaults to disabled with OTLP/gRPC settings available under
 `observability.otel`. Prometheus defaults to disabled at `0.0.0.0:9464` with
 scrape path `/metrics`. `ServiceMonitor` resources render only when both
