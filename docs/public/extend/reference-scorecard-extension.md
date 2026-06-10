@@ -63,6 +63,32 @@ scripts/verify-remote-e2e-component-extension.sh --artifacts <run-dir>
 scripts/verify-remote-e2e-component-extension.sh --list   # show the checks
 ```
 
+To run the proof against a live stack, layer the component-extension overlay on
+the base Compose file. It builds a proof image (the eshu runtime base plus the
+reference `scorecard-collector` binary and an idempotent install/enable init),
+shares one component home across the coordinator and worker, and puts the
+coordinator in active/claims-enabled mode under an allowlist trust policy and an
+explicit hosted-extension egress allow rule:
+
+```bash
+docker build -t eshu:local -f Dockerfile .
+docker compose \
+  -f docker-compose.yaml \
+  -f docs/public/run-locally/docker-compose.component-extension.yaml \
+  --profile component-extension-collector up -d --build
+
+# Capture runtime truth into normalized artifacts and verify them:
+scripts/run-remote-e2e-component-extension.sh --artifacts <run-dir>
+```
+
+`run-remote-e2e-component-extension.sh` reads the component CLI trust readback,
+the `workflow_work_items` terminal states, and the committed
+`dev.eshu.examples.scorecard.*` fact counts from the running stack, emits the
+three artifacts below (counts and states only, never payloads), and runs the
+verifier against them. A passing run reports `installed`/`enabled`/`trusted`
+true, every scorecard work item `completed`, and non-zero `snapshot`, `check`,
+and `warning` fact families.
+
 The artifacts directory holds three bounded captures from the run:
 
 - `inventory.json` — the `GET /api/v0/component-extensions` readback; the

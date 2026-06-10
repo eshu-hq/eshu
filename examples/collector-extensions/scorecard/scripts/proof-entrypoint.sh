@@ -10,7 +10,6 @@ set -eu
 component_home="${ESHU_COMPONENT_HOME:?ESHU_COMPONENT_HOME is required}"
 package_dir="/opt/scorecard"
 manifest="${package_dir}/manifest.yaml"
-core_version="${ESHU_COMPONENT_CORE_VERSION:-dev}"
 instance_id="${ESHU_COMPONENT_COLLECTOR_INSTANCE_ID:-scorecard-remote}"
 
 # A process-adapter activation config that resolves the bundled collector
@@ -36,8 +35,7 @@ eshu component install "${manifest}" \
   --component-home "${component_home}" \
   --trust-mode allowlist \
   --allow-id dev.eshu.examples.scorecard \
-  --allow-publisher eshu-hq \
-  --core-version "${core_version}"
+  --allow-publisher eshu-hq
 
 eshu component enable dev.eshu.examples.scorecard \
   --component-home "${component_home}" \

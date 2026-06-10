@@ -27,7 +27,9 @@ USER root
 COPY --from=scorecard-build /out/scorecard-collector /usr/local/bin/scorecard-collector
 COPY examples/collector-extensions/scorecard /opt/scorecard
 COPY examples/collector-extensions/scorecard/scripts/proof-entrypoint.sh /usr/local/bin/proof-entrypoint.sh
-RUN mkdir -p /component-home && chown -R eshu:eshu /component-home /opt/scorecard
+COPY examples/collector-extensions/scorecard/scripts/proof-install.sh /usr/local/bin/proof-install.sh
+RUN chmod +x /usr/local/bin/proof-entrypoint.sh /usr/local/bin/proof-install.sh /usr/local/bin/scorecard-collector \
+    && mkdir -p /component-home && chown -R eshu:eshu /component-home /opt/scorecard
 ENV ESHU_COMPONENT_HOME=/component-home
 USER eshu
 ENTRYPOINT ["/usr/local/bin/proof-entrypoint.sh"]
