@@ -6,7 +6,8 @@ the core `collector.ClaimedService` path.
 The package owns only the intake boundary:
 
 - build a bounded JSON request from a durable `workflow.WorkItem`
-- launch a host-provided runner such as `ProcessRunner`
+- launch a host-provided runner: `ProcessRunner` (local process) or `OCIRunner`
+  (digest-pinned OCI artifact under container isolation)
 - validate the result with `sdk/go/collector`
 - compare the returned claim identity with the host claim
 - map accepted SDK facts into internal `facts.Envelope` values
@@ -24,7 +25,8 @@ retryable/terminal classified errors for existing workflow claim mutations.
 
 Collector Performance Evidence: `go test ./internal/collector/extensionhost
 -count=1` exercises the local host path without live network, database, graph,
-or reducer handles. The process runner enforces bounded stdout and stderr, the
+or reducer handles. The process and OCI runners both enforce bounded stdout and
+stderr and decode exactly one SDK result, the
 source performs one SDK validation pass per claimed result, and exact duplicate
 facts are collapsed before commit handoff so retry delivery does not amplify
 same-generation fact streams.
@@ -37,10 +39,13 @@ workflow claim status, collector runtime status derivation, fact evidence, and
 the optional host-owned status recorder.
 
 Collector Deployment Evidence: this package adds no Helm template, Compose
-service, ServiceMonitor, default component activation, OCI puller, or hosted
-claim scheduler wiring. It is a core library path for explicit host runners;
-remote Compose proof and hosted rollout remain gated by the follow-up
-out-of-tree collector proof issues.
+service, ServiceMonitor, default component activation, or hosted claim
+scheduler wiring. `OCIRunner` delegates the digest-pinned image pull and run to
+the host container runtime (`docker`/`podman`) rather than embedding a registry
+client, and `cmd/collector-component-extension` sources the image only from the
+component's verified manifest artifact. It is a core library path for explicit
+host runners; publishing the reference image and remote Compose proof remain
+gated by the follow-up out-of-tree collector proof issues.
 
 No-Observability-Change: the package records bounded SDK status records through
 an injected `StatusRecorder` and otherwise relies on existing

@@ -50,10 +50,14 @@ func TestLoadRuntimeConfigSelectsTrustedProcessActivation(t *testing.T) {
 	if got, want := config.OwnerID, "component-owner-a"; got != want {
 		t.Fatalf("OwnerID = %q, want %q", got, want)
 	}
-	if got, want := config.Runner.Command, "/usr/local/bin/scorecard-collector"; got != want {
+	processRunner, ok := config.Runner.(extensionhost.ProcessRunner)
+	if !ok {
+		t.Fatalf("Runner = %T, want extensionhost.ProcessRunner for the process adapter", config.Runner)
+	}
+	if got, want := processRunner.Command, "/usr/local/bin/scorecard-collector"; got != want {
 		t.Fatalf("Runner.Command = %q, want %q", got, want)
 	}
-	if got, want := strings.Join(config.Runner.Args, " "), "--sdk-stdio"; got != want {
+	if got, want := strings.Join(processRunner.Args, " "), "--sdk-stdio"; got != want {
 		t.Fatalf("Runner.Args = %q, want %q", got, want)
 	}
 	source, ok := config.ExtensionConfig["source"].(map[string]any)
@@ -86,24 +90,29 @@ func TestLoadRuntimeConfigRejectsUntrustedActivation(t *testing.T) {
 	}
 }
 
-func TestLoadRuntimeConfigRejectsUnsupportedOCIAdapter(t *testing.T) {
+func TestLoadRuntimeConfigBuildsOCIRunnerFromManifestArtifact(t *testing.T) {
 	t.Parallel()
 
 	componentHome := t.TempDir()
 	installEnabledComponent(t, componentHome, component.RuntimeAdapterOCI, writeComponentExtensionConfig(t))
 
-	_, err := loadRuntimeConfig(mapEnv(map[string]string{
+	config, err := loadRuntimeConfig(mapEnv(map[string]string{
 		envComponentHome:            componentHome,
 		envComponentTrustMode:       component.TrustModeAllowlist,
 		envComponentAllowIDs:        "dev.eshu.examples.scorecard",
 		envComponentAllowPublishers: "eshu-hq",
 		envComponentCoreVersion:     "dev",
 	}))
-	if err == nil {
-		t.Fatal("loadRuntimeConfig() error = nil, want unsupported OCI adapter rejection")
+	if err != nil {
+		t.Fatalf("loadRuntimeConfig() error = %v, want nil for the OCI adapter", err)
 	}
-	if !strings.Contains(err.Error(), "component extension adapter \"oci\" is not runnable") {
-		t.Fatalf("loadRuntimeConfig() error = %q, want adapter rejection", err)
+	ociRunner, ok := config.Runner.(extensionhost.OCIRunner)
+	if !ok {
+		t.Fatalf("Runner = %T, want extensionhost.OCIRunner for the oci adapter", config.Runner)
+	}
+	const wantImage = "ghcr.io/eshu-hq/examples/scorecard-collector@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	if ociRunner.ImageRef != wantImage {
+		t.Fatalf("OCIRunner.ImageRef = %q, want manifest digest %q", ociRunner.ImageRef, wantImage)
 	}
 }
 
