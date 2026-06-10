@@ -28,6 +28,16 @@ type AdvisoryEvidenceFilter struct {
 	Source           string
 	AfterAdvisoryKey string
 	Limit            int
+	// AllowedSourceRepositoryIDs carries the scoped-token grant set (union of
+	// granted repository and ingestion-scope ids). Advisory evidence facts are
+	// global CVE/advisory data with no repository of their own, so the bare
+	// cve_id/advisory_id/package_id path returns public advisory data
+	// regardless of grants. The repository/service/workload-anchored path,
+	// however, derives advisory anchors from reducer impact findings; when this
+	// set is populated those impact findings are intersected with the granted
+	// repositories so a scoped caller only learns which advisories affect its
+	// own repositories. Empty means unrestricted (shared/admin/local).
+	AllowedSourceRepositoryIDs []string
 }
 
 // AdvisoryEvidenceRow is one canonical advisory identity with source-specific

@@ -101,7 +101,7 @@ func TestAuthMiddlewareWithScopedTokensRejectsAdjacentContainerImageRoutes(t *te
 	}))
 
 	for _, target := range []string{
-		"/api/v0/supply-chain/advisories/evidence?repository_id=repo-team-a&limit=10",
+		"/api/v0/supply-chain/advisories?limit=10",
 	} {
 		target := target
 		t.Run(target, func(t *testing.T) {

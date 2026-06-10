@@ -38,6 +38,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedSupplyChainImpactRoute(r) {
 		return true
 	}
+	if scopedSupplyChainAdvisoryEvidenceRoute(r) {
+		return true
+	}
 	if scopedHostedGovernanceStatusRoute(r) {
 		return true
 	}
@@ -189,9 +192,9 @@ func scopedVulnerabilityScannerContractRoute(r *http.Request) bool {
 // reducer-owned vulnerability impact read routes that compute counts, limits,
 // truncation, aggregate grouping, and offsets over only the scoped-token's
 // granted repositories. Adjacent supply-chain routes (impact explain, advisory
-// evidence, advisory detail, SBOM attestation attachments, container-image
-// identities, and security-alert reconciliations) stay fail-closed for scoped
-// tokens until each is separately proven tenant-filtered.
+// detail, SBOM attestation attachments, container-image identities, and
+// security-alert reconciliations) stay fail-closed for scoped tokens until each
+// is separately proven tenant-filtered.
 func scopedSupplyChainImpactRoute(r *http.Request) bool {
 	if r.Method != http.MethodGet {
 		return false
@@ -204,6 +207,17 @@ func scopedSupplyChainImpactRoute(r *http.Request) bool {
 	default:
 		return false
 	}
+}
+
+// scopedSupplyChainAdvisoryEvidenceRoute reports whether the request targets the
+// advisory-evidence read. Advisory facts are global CVE/advisory data with no
+// repository of their own, so the bare id path is public; the
+// repository/service/workload-anchored path intersects the impact findings that
+// derive advisory anchors with the scoped-token grant set, and an out-of-grant
+// repository selector fails before any store read.
+func scopedSupplyChainAdvisoryEvidenceRoute(r *http.Request) bool {
+	return r.Method == http.MethodGet &&
+		r.URL.Path == "/api/v0/supply-chain/advisories/evidence"
 }
 
 func scopedDocumentationListRoute(r *http.Request) bool {

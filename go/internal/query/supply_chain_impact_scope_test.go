@@ -123,7 +123,6 @@ func TestAuthMiddlewareWithScopedTokensRejectsAdjacentSupplyChainImpactRoutes(t 
 	// each is separately proven tenant-filtered (issue #2124 scope).
 	for _, target := range []string{
 		"/api/v0/supply-chain/impact/explain?repository_id=repo-team-a&advisory_id=CVE-2026-0001",
-		"/api/v0/supply-chain/advisories/evidence?repository_id=repo-team-a&limit=10",
 		"/api/v0/supply-chain/advisories?limit=10",
 		"/api/v0/supply-chain/vulnerabilities/CVE-2026-0001",
 	} {
