@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+
+	"github.com/lib/pq"
 )
 
 const cicdRunCorrelationFactKind = "reducer_ci_cd_run_correlation"
@@ -17,17 +19,19 @@ type CICDRunCorrelationStore interface {
 // CICDRunCorrelationFilter bounds run-correlation reads to a concrete repo,
 // commit, run, artifact digest, environment, or scope.
 type CICDRunCorrelationFilter struct {
-	ScopeID            string
-	RepositoryID       string
-	CommitSHA          string
-	Provider           string
-	ProviderRunID      string
-	ArtifactDigest     string
-	ImageRef           string
-	Environment        string
-	Outcome            string
-	AfterCorrelationID string
-	Limit              int
+	ScopeID              string
+	RepositoryID         string
+	CommitSHA            string
+	Provider             string
+	ProviderRunID        string
+	ArtifactDigest       string
+	ImageRef             string
+	Environment          string
+	Outcome              string
+	AfterCorrelationID   string
+	AllowedRepositoryIDs []string
+	AllowedScopeIDs      []string
+	Limit                int
 }
 
 // CICDRunCorrelationRow is one durable CI/CD correlation fact decoded from
@@ -98,6 +102,8 @@ func (s PostgresCICDRunCorrelationStore) ListCICDRunCorrelations(
 		filter.Outcome,
 		filter.AfterCorrelationID,
 		filter.Limit,
+		pq.Array(filter.AllowedRepositoryIDs),
+		pq.Array(filter.AllowedScopeIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list ci/cd run correlations: %w", err)
@@ -145,6 +151,11 @@ WHERE fact.fact_kind = $1
   AND ($9 = '' OR fact.payload->>'environment' = $9)
   AND ($10 = '' OR fact.payload->>'outcome' = $10)
   AND ($11 = '' OR fact.fact_id > $11)
+  AND (
+    (COALESCE(cardinality($13::text[]), 0) = 0 AND COALESCE(cardinality($14::text[]), 0) = 0)
+    OR fact.payload->>'repository_id' = ANY($13::text[])
+    OR fact.scope_id = ANY($14::text[])
+  )
 ORDER BY fact.fact_id ASC
 LIMIT $12
 `

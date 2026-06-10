@@ -333,7 +333,10 @@
   consumption truth. Scoped tokens may read only package-registry correlations
   after repository/scope grants are applied before ordering and limits; adjacent
   package identity, version, dependency, count, and inventory routes stay
-  fail-closed until each has route-specific proof.
+  fail-closed until each has route-specific proof. Scoped tokens may read CI/CD
+  run correlation list/count/inventory routes only after repository/scope grants
+  are applied before ordering, limits, grouping, offsets, and truncation; README
+  carries the focused no-regression and no-observability markers.
 
 - **Vulnerability impact responses always carry readiness** —
   `SupplyChainHandler.listImpactFindings` (`supply_chain.go`) must call
