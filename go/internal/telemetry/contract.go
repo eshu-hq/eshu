@@ -208,6 +208,12 @@ const (
 	// drift loader. Child Postgres query spans expose the AWS-resource scan,
 	// bounded active-state ARN join, and config-owner lookup per state scope.
 	SpanReducerAWSRuntimeDriftEvidenceLoad = "reducer.aws_runtime_drift_evidence_load"
+	// SpanReducerMultiCloudRuntimeDriftEvidenceLoad wraps the Postgres
+	// multi-cloud runtime drift loader (issues #1997, #1998). Child Postgres
+	// query spans expose the observed provider-inventory scan, the bounded
+	// active-state identity join, and the config-owner lookup per state scope so
+	// a trace shows which sub-scan is slow without instrumenting each call site.
+	SpanReducerMultiCloudRuntimeDriftEvidenceLoad = "reducer.multi_cloud_runtime_drift_evidence_load"
 	// SpanReducerAWSRelationshipMaterialization wraps the AWS relationship edge
 	// projection (issue #805): fact load, in-memory join-index build, target
 	// resolution across the three join modes, and the batched MATCH-MATCH-MERGE

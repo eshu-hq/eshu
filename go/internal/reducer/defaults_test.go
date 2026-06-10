@@ -434,6 +434,38 @@ func TestImplementedDefaultDomainDefinitionsIncludesAWSCloudRuntimeDriftWhenAdap
 	}
 }
 
+func TestImplementedDefaultDomainDefinitionsOmitsMultiCloudRuntimeDriftWithoutAdapters(t *testing.T) {
+	t.Parallel()
+
+	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{})
+	for _, def := range definitions {
+		if def.Domain == DomainMultiCloudRuntimeDrift {
+			t.Fatalf("multi_cloud_runtime_drift registered without adapters; want omitted to avoid silent intent drops")
+		}
+	}
+}
+
+func TestImplementedDefaultDomainDefinitionsIncludesMultiCloudRuntimeDriftWhenAdaptersPresent(t *testing.T) {
+	t.Parallel()
+
+	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
+		MultiCloudRuntimeDriftEvidenceLoader: &stubMultiCloudRuntimeDriftEvidenceLoader{},
+		MultiCloudRuntimeDriftWriter:         &stubMultiCloudRuntimeDriftFindingWriter{},
+	})
+	found := false
+	for _, def := range definitions {
+		if def.Domain == DomainMultiCloudRuntimeDrift {
+			found = true
+			if _, ok := def.Handler.(MultiCloudRuntimeDriftHandler); !ok {
+				t.Fatalf("multi_cloud_runtime_drift handler type = %T, want MultiCloudRuntimeDriftHandler", def.Handler)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("multi_cloud_runtime_drift not registered after wiring loader+writer")
+	}
+}
+
 func TestImplementedDefaultDomainDefinitionsOmitsCloudInventoryAdmissionWithoutAdapters(t *testing.T) {
 	t.Parallel()
 

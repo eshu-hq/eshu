@@ -165,18 +165,9 @@ func buildReducerService(
 	if err != nil {
 		return reducer.Service{}, err
 	}
-	nornicDBGroupedWrites := false
-	if graphBackend == runtimecfg.GraphBackendNornicDB {
-		nornicDBGroupedWrites, err = nornicDBCanonicalGroupedWrites(getenv)
-		if err != nil {
-			return reducer.Service{}, err
-		}
-		if nornicDBGroupedWrites {
-			logger.Warn("NornicDB semantic grouped writes enabled for conformance",
-				"graph_backend", string(graphBackend),
-				"grouped_writes", true,
-				"env_var", nornicDBCanonicalGroupedWritesEnv)
-		}
+	nornicDBGroupedWrites, err := resolveNornicDBGroupedWrites(getenv, graphBackend, logger)
+	if err != nil {
+		return reducer.Service{}, err
 	}
 
 	edgeWriterForHandlers := newHandlerEdgeWriter(neo4jExec, neo4jBatchSize(getenv), instruments, logger, inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize)
@@ -216,6 +207,7 @@ func buildReducerService(
 	graphProjectionReadinessLookup := postgres.NewGraphProjectionReadinessLookup(database)
 	graphProjectionReadinessPrefetch := postgres.NewGraphProjectionReadinessPrefetch(database)
 	cloudInventoryEvidenceLoader, cloudInventoryAdmissionWriter, cloudInventoryGenerationCheck := cloudInventoryAdmissionWiring(database, logger)
+	multiCloudRuntimeDriftEvidenceLoader, multiCloudRuntimeDriftWriter, multiCloudRuntimeDriftLogger := multiCloudRuntimeDriftWiring(database, tracer, instruments, logger)
 	semanticEntityExecutor := semanticEntityExecutorForGraphBackend(
 		neo4jExec,
 		graphBackend,
@@ -339,9 +331,14 @@ func buildReducerService(
 		},
 		AWSCloudRuntimeDriftWriter:          reducer.PostgresAWSCloudRuntimeDriftWriter{DB: database},
 		AWSCloudRuntimeDriftLogger:          logger,
-		CloudInventoryEvidenceLoader:        cloudInventoryEvidenceLoader,
-		CloudInventoryAdmissionWriter:       cloudInventoryAdmissionWriter,
-		CloudInventoryGenerationCheck:       cloudInventoryGenerationCheck,
+		// Multi-cloud runtime drift wiring (issues #1997, #1998); see
+		// multiCloudRuntimeDriftWiring for the uid-keyed join contract.
+		MultiCloudRuntimeDriftEvidenceLoader: multiCloudRuntimeDriftEvidenceLoader,
+		MultiCloudRuntimeDriftWriter:         multiCloudRuntimeDriftWriter,
+		MultiCloudRuntimeDriftLogger:         multiCloudRuntimeDriftLogger,
+		CloudInventoryEvidenceLoader:         cloudInventoryEvidenceLoader,
+		CloudInventoryAdmissionWriter:        cloudInventoryAdmissionWriter,
+		CloudInventoryGenerationCheck:        cloudInventoryGenerationCheck,
 		CloudResourceNodeWriter:             cloudResourceNodeWriter,
 		EC2InstanceNodeWriter:               ec2InstanceNodeWriter,
 		CloudResourceEdgeWriter:             cloudResourceEdgeWriter,

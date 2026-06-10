@@ -103,6 +103,15 @@
 // absent from config. Unresolved backend ownership produces unknown-management
 // evidence and ambiguous backend ownership produces ambiguous-management
 // evidence because config absence is not proven.
+// PostgresMultiCloudRuntimeDriftEvidenceLoader serves the reducer's
+// provider-neutral runtime drift handler: it loads observed AWS, GCP, and Azure
+// inventory facts for one scope generation, resolves each provider raw identity
+// into the shared cloud_resource_uid keyspace, joins active
+// terraform_state_resource facts whose provider-native identity re-resolves to
+// the same uid, and reuses the AWS loader's state-backend config resolution to
+// decide config presence. It keys every layer on the canonical uid instead of an
+// ARN so AWS, GCP, and Azure share one drift path, and it never fabricates a uid
+// for an identity that cannot key into the shared keyspace.
 // AWSCloudRuntimeDriftFindingStore is the fact-backed read side for that
 // publication path; it rejects unscoped filters, keeps reads on the
 // active generation, validates account and region values before building the
