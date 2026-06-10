@@ -98,6 +98,11 @@ intersection before returning packet payloads, freshness fields, not-found
 metadata, or permission-denied metadata. Empty scoped grants short-circuit to
 the existing not-found response without a store read, so out-of-grant packet
 identifiers and payload-derived denial reasons do not leak.
+Service catalog correlation reads intersect scoped-token repository and scope
+grants before ordering, limits, cursors, counts, local descriptor summaries, and
+missing-evidence metadata. Empty grants return an empty bounded page without
+reading correlation or descriptor stores, and out-of-grant repository selectors
+fail during selector resolution instead of computing catalog metadata.
 Semantic evidence reads are opt-in routes over durable semantic facts:
 `GET /api/v0/semantic/documentation-observations` and
 `GET /api/v0/semantic/code-hints`. They require at least one scope or semantic

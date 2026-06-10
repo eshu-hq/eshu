@@ -20,17 +20,19 @@ type ServiceCatalogCorrelationStore interface {
 // ServiceCatalogCorrelationFilter bounds catalog reads to a concrete catalog
 // entity, repository, service, workload, owner, or ingestion scope.
 type ServiceCatalogCorrelationFilter struct {
-	ScopeID            string
-	Provider           string
-	EntityRef          string
-	RepositoryID       string
-	ServiceID          string
-	WorkloadID         string
-	OwnerRef           string
-	Outcome            string
-	DriftStatus        string
-	AfterCorrelationID string
-	Limit              int
+	ScopeID              string
+	Provider             string
+	EntityRef            string
+	RepositoryID         string
+	ServiceID            string
+	WorkloadID           string
+	OwnerRef             string
+	Outcome              string
+	DriftStatus          string
+	AfterCorrelationID   string
+	AllowedRepositoryIDs []string
+	AllowedScopeIDs      []string
+	Limit                int
 }
 
 // ServiceCatalogCorrelationRow is one durable service-catalog correlation fact.
@@ -104,6 +106,8 @@ func (s PostgresServiceCatalogCorrelationStore) ListServiceCatalogCorrelations(
 		filter.DriftStatus,
 		filter.AfterCorrelationID,
 		filter.Limit,
+		pq.Array(filter.AllowedRepositoryIDs),
+		pq.Array(filter.AllowedScopeIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list service catalog correlations: %w", err)
@@ -201,6 +205,12 @@ WHERE fact.fact_kind = $1
   AND ($9 = '' OR fact.payload->>'outcome' = $9)
   AND ($10 = '' OR fact.payload->>'drift_status' = $10)
   AND ($11 = '' OR fact.fact_id > $11)
+  AND (
+    (COALESCE(cardinality($13::text[]), 0) = 0 AND COALESCE(cardinality($14::text[]), 0) = 0)
+    OR fact.payload->>'repository_id' = ANY($13::text[])
+    OR fact.payload->'candidate_repository_ids' ?| $13::text[]
+    OR fact.scope_id = ANY($14::text[])
+  )
 ORDER BY fact.fact_id ASC
 LIMIT $12
 `
