@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
@@ -454,15 +455,23 @@ type fakeScopedTokenResolver struct {
 	context AuthContext
 	ok      bool
 	err     error
-	token   string
-	called  bool
+
+	// mu guards the capture fields because a single resolver instance is
+	// shared across parallel subtests (e.g. the package-registry adjacent-route
+	// table), which call ResolveScopedToken concurrently. Without it the shared
+	// fake data-races under -race and aborts unrelated tests in the package.
+	mu     sync.Mutex
+	token  string
+	called bool
 }
 
 func (f *fakeScopedTokenResolver) ResolveScopedToken(
 	_ context.Context,
 	token string,
 ) (AuthContext, bool, error) {
+	f.mu.Lock()
 	f.called = true
 	f.token = token
+	f.mu.Unlock()
 	return f.context, f.ok, f.err
 }
