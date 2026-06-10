@@ -22,7 +22,7 @@ describe("ServiceTrafficPathPanel", () => {
               repo_name: "iac-eks-argocd"
             },
             {
-              file_path: "infra/api-node-boats.tf",
+              file_path: "infra/catalog-api.tf",
               id: "entity:origin-alb-primary",
               labels: ["TerraformBlock"],
               name: "origin-alb-primary",
@@ -50,9 +50,9 @@ describe("ServiceTrafficPathPanel", () => {
     );
     vi.stubGlobal("fetch", fetcher);
 
-    render(<ServiceTrafficPathPanel paths={[trafficPath]} serviceName="api-node-boats" />);
+    render(<ServiceTrafficPathPanel paths={[trafficPath]} serviceName="catalog-api" />);
 
-    const graph = screen.getByRole("img", { name: "api-node-boats traffic path" });
+    const graph = screen.getByRole("img", { name: "catalog-api traffic path" });
     fireEvent.click(within(graph).getByLabelText("Resolve Origin origin-alb-primary"));
 
     expect(await screen.findByRole("heading", { name: "Resolve selected node" }))
@@ -81,13 +81,13 @@ describe("ServiceTrafficPathPanel", () => {
 
 const trafficPath: ServiceTrafficPath = {
   edge: "CloudFront distribution",
-  environment: "bg-prod",
+  environment: "prod",
   evidenceKind: "aws_cloudfront_distribution",
-  hostname: "api-node-boats.prod.bgrp.io",
+  hostname: "catalog-api.prod.example.internal",
   origin: "origin-alb-primary",
   reason: "CloudFront distribution E123",
-  runtime: "bg-prod",
+  runtime: "prod",
   sourceRepo: "terraform-stack-node10",
   visibility: "public",
-  workload: "api-node-boats"
+  workload: "catalog-api"
 };

@@ -29,8 +29,8 @@ describe("change-surface investigation adapter", () => {
 
     const result = await loadServiceChangeSurface({
       client,
-      repoName: "api-node-boats",
-      serviceName: "api-node-boats"
+      repoName: "catalog-api",
+      serviceName: "catalog-api"
     });
 
     expect(new URL(calls[0]?.url ?? "").pathname).toBe(
@@ -39,13 +39,13 @@ describe("change-surface investigation adapter", () => {
     await expect(calls[0]?.json()).resolves.toMatchObject({
       limit: 16,
       max_depth: 4,
-      repo_id: "api-node-boats",
-      service_name: "api-node-boats"
+      repo_id: "catalog-api",
+      service_name: "catalog-api"
     });
     expect(result.impact.totalCount).toBe(5);
     expect(result.directImpact.map((node) => node.name)).toEqual([
-      "api-node-communicator",
-      "api-node-spam-fraud"
+      "sample-communicator",
+      "sample-spam-fraud"
     ]);
     expect(result.transitiveImpact.map((node) => node.depth)).toEqual([2, 3]);
     expect(result.codeSurface.symbols[0]?.name).toBe("postLead");
@@ -81,7 +81,7 @@ describe("change-surface investigation adapter", () => {
 
     const contentOnly = normalizeChangeSurfaceInvestigation({
       code_surface: {
-        changed_files: [{ relative_path: "server/routes/leads.ts", repo_id: "api-node-boats" }],
+        changed_files: [{ relative_path: "server/routes/leads.ts", repo_id: "catalog-api" }],
         evidence_groups: [],
         matched_file_count: 1,
         symbol_count: 0,
@@ -123,13 +123,13 @@ describe("change-surface investigation adapter", () => {
       },
       recommended_next_calls: [
         {
-          args: { repo_id: "api-node-boats", topic: "api-node-boats routes" },
+          args: { repo_id: "catalog-api", topic: "catalog-api routes" },
           tool: "investigate_code_topic"
         }
       ],
       target_resolution: {
         candidates: [],
-        input: "api-node-boats",
+        input: "catalog-api",
         status: "no_match",
         target_type: "service",
         truncated: false
@@ -149,7 +149,7 @@ function changeSurfacePayload(): Record<string, unknown> {
       changed_files: [
         {
           relative_path: "server/routes/leads.ts",
-          repo_id: "api-node-boats"
+          repo_id: "catalog-api"
         }
       ],
       coverage: {
@@ -180,7 +180,7 @@ function changeSurfacePayload(): Record<string, unknown> {
           relative_path: "server/routes/leads.ts"
         }
       ],
-      topic: "api-node-boats deployment and lead flow"
+      topic: "catalog-api deployment and lead flow"
     },
     coverage: {
       direct_count: 2,
@@ -193,17 +193,17 @@ function changeSurfacePayload(): Record<string, unknown> {
     direct_impact: [
       {
         depth: 1,
-        id: "workload:api-node-communicator",
+        id: "workload:sample-communicator",
         labels: ["Workload"],
-        name: "api-node-communicator",
-        repo_id: "api-node-communicator"
+        name: "sample-communicator",
+        repo_id: "sample-communicator"
       },
       {
         depth: 1,
-        id: "workload:api-node-spam-fraud",
+        id: "workload:sample-spam-fraud",
         labels: ["Workload"],
-        name: "api-node-spam-fraud",
-        repo_id: "api-node-spam-fraud"
+        name: "sample-spam-fraud",
+        repo_id: "sample-spam-fraud"
       }
     ],
     impact_summary: {
@@ -213,26 +213,26 @@ function changeSurfacePayload(): Record<string, unknown> {
     },
     recommended_next_calls: [
       {
-        args: { target: "workload:api-node-boats", limit: 16 },
+        args: { target: "workload:catalog-api", limit: 16 },
         tool: "find_change_surface"
       }
     ],
     scope: {
       limit: 16,
       max_depth: 4,
-      repo_id: "api-node-boats",
-      target: "api-node-boats",
+      repo_id: "catalog-api",
+      target: "catalog-api",
       target_type: "service",
-      topic: "api-node-boats deployment and lead flow"
+      topic: "catalog-api deployment and lead flow"
     },
     source_backend: "hybrid_graph_and_content",
     target_resolution: {
       candidates: [],
-      input: "api-node-boats",
+      input: "catalog-api",
       selected: {
-        id: "workload:api-node-boats",
+        id: "workload:catalog-api",
         labels: ["Workload"],
-        name: "api-node-boats"
+        name: "catalog-api"
       },
       status: "resolved",
       target_type: "service",
@@ -250,7 +250,7 @@ function changeSurfacePayload(): Record<string, unknown> {
         depth: 3,
         id: "resource:queue",
         labels: ["CloudResource"],
-        name: "bm.leads.boats queue"
+        name: "bm.leads.items queue"
       }
     ],
     truncated: false

@@ -33,12 +33,12 @@ const repositoriesResponse = {
   repositories: [
     {
       id: "repository:r_1",
-      local_path: "/Users/allen/repos/mobius/mobius-tools",
-      name: "mobius-tools"
+      local_path: "/workspace/sample/platform-tools",
+      name: "platform-tools"
     },
     {
       id: "repository:r_2",
-      local_path: "/Users/allen/repos/mobius/iac-eks-pcg",
+      local_path: "/workspace/sample/iac-eks-pcg",
       name: "iac-eks-pcg"
     }
   ]
@@ -52,7 +52,7 @@ describe("live Eshu data adapters", () => {
     });
 
     expect(candidates.map((candidate) => candidate.label)).toEqual([
-      "mobius-tools",
+      "platform-tools",
       "iac-eks-pcg"
     ]);
   });
@@ -166,7 +166,7 @@ describe("live Eshu data adapters", () => {
         "/api/v0/repositories": repositoriesResponse,
         "/api/v0/repositories/repository%3Ar_1/story": {
           drilldowns: { context_path: "/api/v0/repositories/repository:r_1/context" },
-          repository: { name: "mobius-tools" }
+          repository: { name: "platform-tools" }
         },
         "/api/v0/repositories/repository%3Ar_1/context": {},
         "/api/v0/repositories/repository%3Ar_2/story": {
@@ -280,11 +280,11 @@ describe("live Eshu data adapters", () => {
     });
 
     expect(rows).toContainEqual({
-      coverage: "/Users/allen/repos/mobius/mobius-tools",
+      coverage: "/workspace/sample/platform-tools",
       freshness: "indexed",
       id: "repository:r_1",
       kind: "repositories",
-      name: "mobius-tools"
+      name: "platform-tools"
     });
   });
 
@@ -295,33 +295,33 @@ describe("live Eshu data adapters", () => {
           repositories: [
             {
               id: "repository:r_1",
-              local_path: "/Users/allen/repos/mobius/api-node-boats",
-              name: "api-node-boats"
+              local_path: "/workspace/sample/catalog-api",
+              name: "catalog-api"
             }
           ],
           services: [
             {
               environments: ["ecs-prod", "eks-prod"],
-              id: "workload:api-node-boats",
+              id: "workload:catalog-api",
               kind: "service",
-              name: "api-node-boats",
-              repo_name: "api-node-boats"
+              name: "catalog-api",
+              repo_name: "catalog-api"
             }
           ],
           workloads: [
             {
               environments: ["ecs-prod", "eks-prod"],
-              id: "workload:api-node-boats",
+              id: "workload:catalog-api",
               kind: "service",
-              name: "api-node-boats",
-              repo_name: "api-node-boats"
+              name: "catalog-api",
+              repo_name: "catalog-api"
             },
             {
               environments: ["prod"],
               id: "workload:billing-sync",
               kind: "cronjob",
               name: "billing-sync",
-              repo_name: "api-node-boats"
+              repo_name: "catalog-api"
             }
           ]
         }
@@ -330,26 +330,26 @@ describe("live Eshu data adapters", () => {
     });
 
     expect(rows).toContainEqual({
-      coverage: "/Users/allen/repos/mobius/api-node-boats",
+      coverage: "/workspace/sample/catalog-api",
       freshness: "indexed",
       id: "repository:r_1",
       kind: "repositories",
-      name: "api-node-boats"
+      name: "catalog-api"
     });
     expect(rows).toContainEqual({
-      coverage: "api-node-boats across ecs-prod, eks-prod",
+      coverage: "catalog-api across ecs-prod, eks-prod",
       environments: ["ecs-prod", "eks-prod"],
       freshness: "graph",
-      id: "workload:api-node-boats",
+      id: "workload:catalog-api",
       instanceCount: undefined,
       kind: "services",
       materializationStatus: "graph",
-      name: "api-node-boats",
-      ownerRepo: "api-node-boats",
+      name: "catalog-api",
+      ownerRepo: "catalog-api",
       workloadKind: "service"
     });
     expect(rows).toContainEqual({
-      coverage: "api-node-boats across prod",
+      coverage: "catalog-api across prod",
       environments: ["prod"],
       freshness: "graph",
       id: "workload:billing-sync",
@@ -357,10 +357,10 @@ describe("live Eshu data adapters", () => {
       kind: "workloads",
       materializationStatus: "graph",
       name: "billing-sync",
-      ownerRepo: "api-node-boats",
+      ownerRepo: "catalog-api",
       workloadKind: "cronjob"
     });
-    expect(rows.filter((row) => row.id === "workload:api-node-boats")).toHaveLength(1);
+    expect(rows.filter((row) => row.id === "workload:catalog-api")).toHaveLength(1);
   });
 
   it("derives service catalog rows from repository stories", async () => {
@@ -396,9 +396,9 @@ describe("live Eshu data adapters", () => {
               results: [
                 {
                   classification: "unused",
-                  file_path: "server/src/api/boatsClient.ts",
+                  file_path: "server/src/api/itemsClient.ts",
                   name: "parseRange",
-                  repo_name: "boats-chatgpt-app"
+                  repo_name: "items-chatgpt-app"
                 }
               ]
             },
@@ -416,9 +416,9 @@ describe("live Eshu data adapters", () => {
 
     expect(rows).toEqual([
       {
-        entity: "boats-chatgpt-app",
+        entity: "items-chatgpt-app",
         findingType: "Dead code",
-        location: "server/src/api/boatsClient.ts",
+        location: "server/src/api/itemsClient.ts",
         name: "parseRange",
         truthLevel: "derived"
       }
@@ -433,7 +433,7 @@ describe("live Eshu data adapters", () => {
             results: [
               {
                 classification: "unused",
-                file_path: "server/src/api/boatsClient.ts",
+                file_path: "server/src/api/itemsClient.ts",
                 name: "parseRange",
                 repo_id: "repository:r_1"
               }
@@ -452,6 +452,6 @@ describe("live Eshu data adapters", () => {
       mode: "private"
     });
 
-    expect(rows[0]?.entity).toBe("mobius-tools");
+    expect(rows[0]?.entity).toBe("platform-tools");
   });
 });

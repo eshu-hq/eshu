@@ -216,7 +216,7 @@ function selectRelationshipRepositories(
 function relationshipScore(repository: RepositoryRecord): number {
   const name = nonEmpty(repository.name, repository.repo_slug, repository.id).toLowerCase();
   let score = 0;
-  for (const token of ["argocd", "helm", "iac", "chart", "portal", "boats", "pcg"]) {
+  for (const token of ["argocd", "helm", "iac", "chart", "portal", "items", "pcg"]) {
     if (name.includes(token)) {
       score += 4;
     }

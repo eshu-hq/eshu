@@ -28,7 +28,7 @@ describe("DeploymentGraphView", () => {
         },
         {
           column: 1,
-          detail: "applicationsets/devops/core-mcps/boats-search-mcp.yaml",
+          detail: "applicationsets/devops/core-mcps/items-search-mcp.yaml",
           id: "evidence:argocd:iac-eks-argocd",
           kind: "evidence",
           label: "ArgoCD ApplicationSet",
@@ -38,7 +38,7 @@ describe("DeploymentGraphView", () => {
           column: 3,
           id: "target:service",
           kind: "service",
-          label: "boats-chatgpt-app service",
+          label: "items-chatgpt-app service",
           lane: "service"
         }
       ]
@@ -56,7 +56,7 @@ describe("DeploymentGraphView", () => {
     fireEvent.click(screen.getByRole("button", { name: /ArgoCD ApplicationSet evidence/i }));
 
     expect(
-      screen.getByText(/applicationsets\/devops\/core-mcps\/boats-search-mcp\.yaml/i)
+      screen.getByText(/applicationsets\/devops\/core-mcps\/items-search-mcp\.yaml/i)
     ).toBeInTheDocument();
 
     fireEvent.click(
@@ -82,11 +82,11 @@ describe("DeploymentGraphView", () => {
         {
           label: "targets",
           source: "evidence:helm",
-          target: "environment:bg-qa"
+          target: "environment:qa"
         },
         {
           label: "configures",
-          source: "environment:bg-qa",
+          source: "environment:qa",
           target: "target:service"
         }
       ],
@@ -107,9 +107,9 @@ describe("DeploymentGraphView", () => {
         },
         {
           column: 2,
-          id: "environment:bg-qa",
+          id: "environment:qa",
           kind: "environment",
-          label: "bg-qa",
+          label: "qa",
           lane: "helm"
         },
         {
@@ -128,17 +128,17 @@ describe("DeploymentGraphView", () => {
         },
         {
           column: 0,
-          id: "source:terraform-stack-myboats",
+          id: "source:terraform-stack-saved-items",
           kind: "repository",
-          label: "terraform-stack-myboats",
-          lane: "terraform-myboats"
+          label: "terraform-stack-saved-items",
+          lane: "terraform-saved-items"
         },
         {
           column: 1,
-          id: "evidence:terraform-myboats",
+          id: "evidence:terraform-saved-items",
           kind: "evidence",
           label: "Terraform ECS",
-          lane: "terraform-myboats"
+          lane: "terraform-saved-items"
         },
         {
           column: 3,

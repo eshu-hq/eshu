@@ -29,7 +29,7 @@ describe("WorkspacePage", () => {
             direct_story: ["Runs through ArgoCD into prod."]
           },
           limitations: ["coverage_not_computed"],
-          story: "Repository mobius-tools contains indexed files.",
+          story: "Repository platform-tools contains indexed files.",
           story_sections: [
             {
               summary: "41 indexed files across 2 language families",
@@ -38,7 +38,7 @@ describe("WorkspacePage", () => {
           ],
           subject: {
             id: "repository:r_1",
-            name: "mobius-tools",
+            name: "platform-tools",
             type: "repository"
           }
         })
@@ -53,7 +53,7 @@ describe("WorkspacePage", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByRole("heading", { name: "mobius-tools" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "platform-tools" })).toBeInTheDocument();
     expect(screen.getByText(/contains 41 indexed files/i)).toBeInTheDocument();
     expect(screen.getByText("exact")).toBeInTheDocument();
     expect(screen.getByText("fresh")).toBeInTheDocument();
@@ -72,11 +72,11 @@ describe("WorkspacePage", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         const path = new URL(new Request(input).url).pathname;
-        if (path.endsWith("/api/v0/services/api-node-boats/story")) {
+        if (path.endsWith("/api/v0/services/catalog-api/story")) {
           return Response.json({
             service_identity: {
-              repo_name: "api-node-boats",
-              service_name: "api-node-boats"
+              repo_name: "catalog-api",
+              service_name: "catalog-api"
             },
             api_surface: {
               endpoint_count: 38,
@@ -93,13 +93,13 @@ describe("WorkspacePage", () => {
             },
             deployment_lanes: [
               {
-                environments: ["bg-prod"],
+                environments: ["prod"],
                 lane_type: "k8s_gitops",
                 resolved_ids: ["rel:k8s"],
                 source_repositories: ["helm-charts"]
               },
               {
-                environments: ["bg-prod"],
+                environments: ["prod"],
                 lane_type: "ecs_terraform",
                 resolved_ids: ["rel:ecs"],
                 source_repositories: ["terraform-stack-node10"]
@@ -110,7 +110,7 @@ describe("WorkspacePage", () => {
                 {
                   consumer_kinds: ["service_reference_consumer"],
                   repository: "terraform-stack-node10",
-                  sample_paths: ["environments/bg-prod/ecs.tf"]
+                  sample_paths: ["environments/prod/ecs.tf"]
                 }
               ]
             },
@@ -145,16 +145,16 @@ describe("WorkspacePage", () => {
         return Response.json({
           deployment_overview: {
             workload_count: 1,
-            workloads: ["api-node-boats"]
+            workloads: ["catalog-api"]
           },
           drilldowns: {
             context_path: "/api/v0/repositories/repository:r_472ddee5/context"
           },
-          story: "Repository api-node-boats contains indexed files.",
+          story: "Repository catalog-api contains indexed files.",
           story_sections: [{ summary: "538 indexed files", title: "codebase" }],
           subject: {
             id: "repository:r_472ddee5",
-            name: "api-node-boats",
+            name: "catalog-api",
             type: "repository"
           }
         });
@@ -170,7 +170,7 @@ describe("WorkspacePage", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { level: 1, name: "api-node-boats" })
+      await screen.findByRole("heading", { level: 1, name: "catalog-api" })
     ).toBeInTheDocument();
     expect(screen.getAllByText(/38 endpoint/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Kubernetes/i).length).toBeGreaterThan(0);
@@ -188,10 +188,10 @@ describe("WorkspacePage", () => {
       vi.fn(async () =>
         Response.json({
           service_identity: {
-            repo_name: "api-node-boats",
-            service_name: "api-node-boats"
+            repo_name: "catalog-api",
+            service_name: "catalog-api"
           },
-          story: "Workload api-node-boats is defined in repository api-node-boats.",
+          story: "Workload catalog-api is defined in repository catalog-api.",
           story_sections: [
             {
               summary: "38 endpoint(s), 44 method(s), 1 spec file(s)",
@@ -223,14 +223,14 @@ describe("WorkspacePage", () => {
           },
           deployment_lanes: [
             {
-              environments: ["bg-dev", "bg-prod", "bg-qa"],
+              environments: ["dev", "prod", "qa"],
               lane_type: "ecs_terraform",
               relationship_types: ["PROVISIONS_DEPENDENCY_FOR", "READS_CONFIG_FROM"],
               resolved_ids: ["rel:ecs"],
               source_repositories: ["terraform-stack-node10"]
             },
             {
-              environments: ["bg-dev", "bg-prod", "bg-qa", "ops-prod", "ops-qa"],
+              environments: ["dev", "prod", "qa", "ops-prod", "ops-test"],
               lane_type: "k8s_gitops",
               relationship_types: ["DEPLOYS_FROM"],
               resolved_ids: ["rel:k8s"],
@@ -256,7 +256,7 @@ describe("WorkspacePage", () => {
           hostnames: [
             {
               environment: "prod",
-              hostname: "api-node-boats.prod.bgrp.io",
+              hostname: "catalog-api.prod.example.internal",
               relative_path: "config/production.json"
             }
           ],
@@ -287,7 +287,7 @@ describe("WorkspacePage", () => {
             ],
             recommended_next_calls: [
               {
-                arguments: { workload_id: "api-node-boats" },
+                arguments: { workload_id: "catalog-api" },
                 reason: "retrieve the full one-call dossier",
                 tool: "get_service_story"
               },
@@ -304,7 +304,7 @@ describe("WorkspacePage", () => {
             repositories_with_evidence: [
               {
                 evidence_families: ["api_surface", "deployment_lanes"],
-                repo_name: "api-node-boats",
+                repo_name: "catalog-api",
                 roles: ["service_owner"]
               }
             ]
@@ -314,7 +314,7 @@ describe("WorkspacePage", () => {
     );
 
     render(
-      <MemoryRouter initialEntries={["/workspace/services/workload:api-node-boats"]}>
+      <MemoryRouter initialEntries={["/workspace/services/workload:catalog-api"]}>
         <Routes>
           <Route element={<WorkspacePage />} path="/workspace/:entityKind/:entityId" />
         </Routes>
@@ -322,7 +322,7 @@ describe("WorkspacePage", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { level: 1, name: "api-node-boats" })
+      await screen.findByRole("heading", { level: 1, name: "catalog-api" })
     ).toBeInTheDocument();
     expect(screen.queryByText("Files")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "API and relationships" }));
@@ -331,7 +331,7 @@ describe("WorkspacePage", () => {
     expect(screen.getAllByText(/ECS Terraform/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Kubernetes GitOps/i).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Traffic and config" }));
-    expect(screen.getByText("api-node-boats.prod.bgrp.io")).toBeInTheDocument();
+    expect(screen.getByText("catalog-api.prod.example.internal")).toBeInTheDocument();
     const fetchCallCountBeforeImpact = vi.mocked(globalThis.fetch).mock.calls.length;
     fireEvent.click(screen.getByRole("button", { name: "Impact review" }));
     await waitFor(() =>

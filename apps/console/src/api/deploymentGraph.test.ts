@@ -5,14 +5,14 @@ describe("deploymentGraphFromStory", () => {
   it("preserves typed relationship verbs instead of flattening every lane into deployment", () => {
     const story: StoryResponse = {
       deployment_overview: {
-        workloads: ["api-node-boats"]
+        workloads: ["catalog-api"]
       },
       repository: {
-        name: "api-node-boats"
+        name: "catalog-api"
       },
       subject: {
-        id: "repository:r_api_node_boats",
-        name: "api-node-boats",
+        id: "repository:r_api_node_items",
+        name: "catalog-api",
         type: "repository"
       }
     };
@@ -21,27 +21,27 @@ describe("deploymentGraphFromStory", () => {
         artifacts: [
           {
             artifact_family: "helm",
-            environment: "bg-qa",
+            environment: "qa",
             evidence_kind: "HELM_VALUES_REFERENCE",
-            path: "argocd/api-node-boats/values.yaml",
+            path: "argocd/catalog-api/values.yaml",
             relationship_type: "DEPLOYS_FROM",
             source_repo_name: "helm-charts"
           },
           {
             artifact_family: "terraform",
-            environment: "bg-dev",
+            environment: "dev",
             evidence_kind: "TERRAFORM_ECS_SERVICE",
-            path: "services/api-node-boats/ecs.tf",
+            path: "services/catalog-api/ecs.tf",
             relationship_type: "PROVISIONS_DEPENDENCY_FOR",
             source_repo_name: "terraform-stack-node10"
           },
           {
             artifact_family: "terraform",
-            environment: "bg-dev",
+            environment: "dev",
             evidence_kind: "TERRAFORM_SSM_PARAMETER",
-            path: "parameters/api-node-boats.tf",
+            path: "parameters/catalog-api.tf",
             relationship_type: "READS_CONFIG_FROM",
-            source_repo_name: "terraform-stack-boattrader"
+            source_repo_name: "terraform-stack-marketplace"
           }
         ]
       }

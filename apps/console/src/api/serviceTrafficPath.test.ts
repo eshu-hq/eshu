@@ -3,7 +3,7 @@ import { buildServiceTrafficPaths } from "./serviceTrafficPath";
 
 const lanes: readonly ServiceDeploymentLane[] = [
   {
-    environments: ["bg-prod"],
+    environments: ["prod"],
     evidenceCount: 4,
     label: "ECS lane",
     relationshipTypes: ["DEPLOYS_TO"],
@@ -28,18 +28,18 @@ describe("buildServiceTrafficPaths", () => {
         network_paths: [
           {
             environment: "prod",
-            from: "api-node-boats.prod.bgrp.io",
+            from: "catalog-api.prod.example.internal",
             from_type: "hostname",
             path_type: "hostname_to_runtime",
             platform_kind: "ecs",
             reason: "content_hostname_reference",
-            to: "bg-prod-ecs",
+            to: "prod-ecs",
             to_type: "runtime_platform",
             visibility: "public"
           }
         ]
       },
-      "api-node-boats",
+      "catalog-api",
       lanes
     );
 
@@ -48,13 +48,13 @@ describe("buildServiceTrafficPaths", () => {
         edge: "Public hostname",
         environment: "prod",
         evidenceKind: "hostname_to_runtime",
-        hostname: "api-node-boats.prod.bgrp.io",
+        hostname: "catalog-api.prod.example.internal",
         origin: "runtime platform",
         reason: "content_hostname_reference",
-        runtime: "bg-prod-ecs",
+        runtime: "prod-ecs",
         sourceRepo: "terraform-stack-node10",
         visibility: "public",
-        workload: "api-node-boats"
+        workload: "catalog-api"
       }
     ]);
   });
@@ -68,13 +68,13 @@ describe("buildServiceTrafficPaths", () => {
               api_kind: "v2",
               api_mappings: [{ api_id: "api-123", stage: "prod" }],
               certificate_arns: ["arn:aws:acm:us-east-1:123:certificate/cert-1"],
-              domain_name: "api-node-boats.prod.bgrp.io",
+              domain_name: "catalog-api.prod.example.internal",
               regional_domain_name: "d-api.execute-api.us-east-1.amazonaws.com"
             }
           ]
         }
       },
-      "api-node-boats",
+      "catalog-api",
       lanes
     );
 
@@ -83,13 +83,13 @@ describe("buildServiceTrafficPaths", () => {
         edge: "API Gateway v2",
         environment: "prod",
         evidenceKind: "aws_apigateway_domain_name",
-        hostname: "api-node-boats.prod.bgrp.io",
+        hostname: "catalog-api.prod.example.internal",
         origin: "d-api.execute-api.us-east-1.amazonaws.com",
         reason: "custom domain maps to API api-123",
-        runtime: "bg-prod",
+        runtime: "prod",
         sourceRepo: "terraform-stack-node10",
         visibility: "public",
-        workload: "api-node-boats"
+        workload: "catalog-api"
       }
     ]);
   });
@@ -100,7 +100,7 @@ describe("buildServiceTrafficPaths", () => {
         edge_runtime_evidence: {
           cloudfront_distributions: [
             {
-              aliases: ["api-node-boats.prod.bgrp.io"],
+              aliases: ["catalog-api.prod.example.internal"],
               domain_name: "d123.cloudfront.net",
               id: "E123",
               origins: [{ domain_name: "origin-alb-primary", id: "origin-alb-primary" }]
@@ -108,22 +108,22 @@ describe("buildServiceTrafficPaths", () => {
           ]
         }
       },
-      "api-node-boats",
+      "catalog-api",
       lanes
     );
 
     expect(paths).toEqual([
       {
         edge: "E123",
-        environment: "bg-prod",
+        environment: "prod",
         evidenceKind: "aws_cloudfront_distribution",
-        hostname: "api-node-boats.prod.bgrp.io",
+        hostname: "catalog-api.prod.example.internal",
         origin: "origin-alb-primary",
         reason: "CloudFront distribution E123",
-        runtime: "bg-prod",
+        runtime: "prod",
         sourceRepo: "terraform-stack-node10",
         visibility: "public",
-        workload: "api-node-boats"
+        workload: "catalog-api"
       }
     ]);
   });

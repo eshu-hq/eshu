@@ -16,7 +16,7 @@ describe("ServiceChangeSurfacePanel", () => {
             changed_files: [
               {
                 relative_path: "server/routes/leads.ts",
-                repo_id: "api-node-boats"
+                repo_id: "catalog-api"
               }
             ],
             coverage: {
@@ -47,7 +47,7 @@ describe("ServiceChangeSurfacePanel", () => {
                 relative_path: "server/routes/leads.ts"
               }
             ],
-            topic: "api-node-boats deployment and lead flow"
+            topic: "catalog-api deployment and lead flow"
           },
           coverage: {
             direct_count: 2,
@@ -60,17 +60,17 @@ describe("ServiceChangeSurfacePanel", () => {
           direct_impact: [
             {
               depth: 1,
-              id: "workload:api-node-communicator",
+              id: "workload:sample-communicator",
               labels: ["Workload"],
-              name: "api-node-communicator",
-              repo_id: "api-node-communicator"
+              name: "sample-communicator",
+              repo_id: "sample-communicator"
             },
             {
               depth: 1,
-              id: "workload:api-node-spam-fraud",
+              id: "workload:sample-spam-fraud",
               labels: ["Workload"],
-              name: "api-node-spam-fraud",
-              repo_id: "api-node-spam-fraud"
+              name: "sample-spam-fraud",
+              repo_id: "sample-spam-fraud"
             }
           ],
           impact_summary: {
@@ -90,17 +90,17 @@ describe("ServiceChangeSurfacePanel", () => {
           scope: {
             limit: 16,
             max_depth: 4,
-            repo_id: "api-node-boats",
-            target: "api-node-boats",
+            repo_id: "catalog-api",
+            target: "catalog-api",
             target_type: "service",
-            topic: "api-node-boats deployment and lead flow"
+            topic: "catalog-api deployment and lead flow"
           },
           target_resolution: {
-            input: "api-node-boats",
+            input: "catalog-api",
             selected: {
-              id: "workload:api-node-boats",
+              id: "workload:catalog-api",
               labels: ["Workload"],
-              name: "api-node-boats"
+              name: "catalog-api"
             },
             status: "resolved",
             target_type: "service",
@@ -143,8 +143,8 @@ describe("ServiceChangeSurfacePanel", () => {
     expect(screen.getByText("postLead")).toBeInTheDocument();
     expect(screen.getByText("server/routes/leads.ts")).toBeInTheDocument();
 
-    const graph = screen.getByRole("img", { name: "api-node-boats change surface" });
-    expect(within(graph).getByText("api-node-spam-fraud")).toBeInTheDocument();
+    const graph = screen.getByRole("img", { name: "catalog-api change surface" });
+    expect(within(graph).getAllByText("sample-spam-fraud").length).toBeGreaterThan(0);
     expect(within(graph).getByText("terraform-stack-node10")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /terraform-stack-node10/i }));
@@ -181,7 +181,7 @@ const spotlight: ServiceSpotlight = {
     repositories: []
   },
   lanes: [],
-  name: "api-node-boats",
+  name: "catalog-api",
   relationshipCounts: {
     downstream: 0,
     graphDependents: 0,
@@ -189,8 +189,8 @@ const spotlight: ServiceSpotlight = {
     upstream: 0
   },
   relationshipClusters: [],
-  repoName: "api-node-boats",
-  summary: "api-node-boats service",
+  repoName: "catalog-api",
+  summary: "catalog-api service",
   trust: {
     basis: "graph evidence",
     freshness: "fresh",

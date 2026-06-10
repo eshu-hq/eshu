@@ -6,7 +6,7 @@ describe("ServiceRelationshipWorkbench", () => {
   it("renders an interactive relationship graph with semantic drilldowns", () => {
     render(<ServiceRelationshipWorkbench spotlight={spotlight} />);
 
-    expect(screen.getByRole("img", { name: "api-node-boats relationship map" }))
+    expect(screen.getByRole("img", { name: "catalog-api relationship map" }))
       .toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Deployment flow" }))
       .toHaveAttribute("aria-pressed", "true");
@@ -19,11 +19,11 @@ describe("ServiceRelationshipWorkbench", () => {
     expect(screen.getByRole("button", { name: "Expand graph widget" }))
       .toHaveAttribute("aria-pressed", "false");
 
-    const deploymentGraph = screen.getByRole("img", { name: "api-node-boats relationship map" });
+    const deploymentGraph = screen.getByRole("img", { name: "catalog-api relationship map" });
     const workbench = screen.getByRole("region", { name: "Interactive relationship story" });
     const mapStage = screen.getByTestId("relationship-map-stage");
     const viewport = within(deploymentGraph).getByTestId("relationship-map-viewport");
-    expect(within(mapStage).getByRole("img", { name: "api-node-boats relationship map" }))
+    expect(within(mapStage).getByRole("img", { name: "catalog-api relationship map" }))
       .toBeInTheDocument();
     expect(within(mapStage).getByRole("complementary", { name: "Relationship inspector" }))
       .toBeInTheDocument();
@@ -41,10 +41,10 @@ describe("ServiceRelationshipWorkbench", () => {
     expect(screen.getByRole("button", { name: "Collapse graph widget" }))
       .toHaveAttribute("aria-pressed", "true");
 
-    expect(within(deploymentGraph).getByText("api-node-boats")).toBeInTheDocument();
+    expect(within(deploymentGraph).getByText("catalog-api")).toBeInTheDocument();
     expect(within(deploymentGraph).getByText("terraform-stack-node10")).toBeInTheDocument();
     expect(within(deploymentGraph).getByText("iac-eks-argocd")).toBeInTheDocument();
-    expect(within(deploymentGraph).queryByText("terraform-stack-boattrader")).not.toBeInTheDocument();
+    expect(within(deploymentGraph).queryByText("terraform-stack-marketplace")).not.toBeInTheDocument();
 
     const terraformNode = within(deploymentGraph).getByRole("button", {
       name: /Inspect terraform-stack-node10 Terraform resource/i
@@ -55,7 +55,7 @@ describe("ServiceRelationshipWorkbench", () => {
     const terraformInspector = screen.getByRole("complementary", { name: "Relationship inspector" });
     expect(within(terraformInspector).getByRole("tab", { name: "Summary" }))
       .toHaveAttribute("aria-selected", "true");
-    expect(within(terraformInspector).getByText(/provisions runtime dependencies for api-node-boats/i))
+    expect(within(terraformInspector).getByText(/provisions runtime dependencies for catalog-api/i))
       .toBeInTheDocument();
     expect(within(terraformInspector).queryByText(/PROVISIONS_DEPENDENCY_FOR/))
       .not.toBeInTheDocument();
@@ -66,7 +66,7 @@ describe("ServiceRelationshipWorkbench", () => {
     expect(within(terraformInspector).getByText(/TERRAFORM_ECS_SERVICE/)).toBeInTheDocument();
 
     fireEvent.click(within(terraformInspector).getByRole("tab", { name: "Evidence paths" }));
-    expect(within(terraformInspector).getByText("environments/bg-dev/ecs.tf")).toBeInTheDocument();
+    expect(within(terraformInspector).getByText("environments/dev/ecs.tf")).toBeInTheDocument();
 
     fireEvent.click(
       within(deploymentGraph).getByRole("button", {
@@ -77,7 +77,7 @@ describe("ServiceRelationshipWorkbench", () => {
     const inspector = screen.getByRole("complementary", { name: "Relationship inspector" });
     const selectionSummary = screen.getByRole("status", { name: "Selected relationship" });
     expect(within(selectionSummary).getByText("DEPLOYS_FROM")).toBeInTheDocument();
-    expect(within(selectionSummary).getByText(/iac-eks-argocd -> api-node-boats/i))
+    expect(within(selectionSummary).getByText(/iac-eks-argocd -> catalog-api/i))
       .toBeInTheDocument();
     expect(within(inspector).getByText("Selected relationship")).toBeInTheDocument();
     expect(within(inspector).getByRole("tab", { name: "Summary" }))
@@ -96,8 +96,8 @@ describe("ServiceRelationshipWorkbench", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Config dependencies" }));
 
-    const configGraph = screen.getByRole("img", { name: "api-node-boats relationship map" });
-    expect(within(configGraph).getByText("terraform-stack-boattrader")).toBeInTheDocument();
+    const configGraph = screen.getByRole("img", { name: "catalog-api relationship map" });
+    expect(within(configGraph).getByText("terraform-stack-marketplace")).toBeInTheDocument();
     expect(within(configGraph).getAllByText("READS_CONFIG_FROM").length).toBeGreaterThan(0);
     expect(within(configGraph).queryByText("iac-eks-argocd")).not.toBeInTheDocument();
   });
@@ -130,7 +130,7 @@ const spotlight: ServiceSpotlight = {
   },
   lanes: [
     {
-      environments: ["bg-dev", "bg-prod", "bg-qa"],
+      environments: ["dev", "prod", "qa"],
       evidenceCount: 1,
       label: "ECS Terraform",
       relationshipTypes: ["PROVISIONS_DEPENDENCY_FOR"],
@@ -138,7 +138,7 @@ const spotlight: ServiceSpotlight = {
       sourceRepos: ["terraform-stack-node10"]
     },
     {
-      environments: ["bg-prod"],
+      environments: ["prod"],
       evidenceCount: 2,
       label: "Kubernetes GitOps",
       relationshipTypes: ["DEPLOYS_FROM"],
@@ -146,7 +146,7 @@ const spotlight: ServiceSpotlight = {
       sourceRepos: ["iac-eks-argocd", "helm-charts"]
     }
   ],
-  name: "api-node-boats",
+  name: "catalog-api",
   relationshipCounts: {
     downstream: 4,
     graphDependents: 2,
@@ -170,7 +170,7 @@ const spotlight: ServiceSpotlight = {
         },
         {
           evidenceKinds: ["HELM_VALUES_REFERENCE"],
-          paths: ["argocd/api-node-boats/values.yaml"],
+          paths: ["argocd/catalog-api/values.yaml"],
           relationshipTypes: ["DEPLOYS_FROM"],
           repository: "helm-charts",
           technology: "helm"
@@ -187,7 +187,7 @@ const spotlight: ServiceSpotlight = {
       repositories: [
         {
           evidenceKinds: ["TERRAFORM_ECS_SERVICE"],
-          paths: ["environments/bg-dev/ecs.tf"],
+          paths: ["environments/dev/ecs.tf"],
           relationshipTypes: ["PROVISIONS_DEPENDENCY_FOR"],
           repository: "terraform-stack-node10",
           technology: "terraform"
@@ -204,24 +204,24 @@ const spotlight: ServiceSpotlight = {
       repositories: [
         {
           evidenceKinds: ["TERRAFORM_IAM_PERMISSION"],
-          paths: ["environments/bg-dev/resources.tf"],
+          paths: ["environments/dev/resources.tf"],
           relationshipTypes: ["READS_CONFIG_FROM"],
           repository: "terraform-stack-node10",
           technology: "terraform"
         },
         {
           evidenceKinds: ["TERRAFORM_IAM_PERMISSION"],
-          paths: ["environments/bg-dev/resources.tf"],
+          paths: ["environments/dev/resources.tf"],
           relationshipTypes: ["READS_CONFIG_FROM"],
-          repository: "terraform-stack-boattrader",
+          repository: "terraform-stack-marketplace",
           technology: "terraform"
         }
       ],
       technology: "terraform"
     }
   ],
-  repoName: "api-node-boats",
-  summary: "api-node-boats service story.",
+  repoName: "catalog-api",
+  summary: "catalog-api service story.",
   trafficPaths: [],
   trust: {
     basis: "hybrid",

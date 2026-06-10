@@ -13,7 +13,7 @@ describe("eshuGraph", () => {
         body = b;
         return {
           data: {
-            target: "api-node-boats",
+            target: "catalog-api",
             target_type: "repository",
             affected: [
               { repo: "lib-common", hops: 1 },
@@ -27,13 +27,13 @@ describe("eshuGraph", () => {
       }
     } as unknown as EshuApiClient;
 
-    const graph = await loadBlastGraph(client, "api-node-boats");
+    const graph = await loadBlastGraph(client, "catalog-api");
     expect(calledPath).toBe("/api/v0/impact/blast-radius");
-    expect(body).toMatchObject({ target: "api-node-boats", target_type: "repository" });
+    expect(body).toMatchObject({ target: "catalog-api", target_type: "repository" });
     const hero = graph.nodes.find((n) => n.hero);
-    expect(hero?.label).toBe("api-node-boats");
+    expect(hero?.label).toBe("catalog-api");
     // Only the origin + the one real dependent; placeholder/empty rows dropped.
-    expect(graph.nodes.map((n) => n.label).sort()).toEqual(["api-node-boats", "lib-common"]);
+    expect(graph.nodes.map((n) => n.label).sort()).toEqual(["catalog-api", "lib-common"]);
     expect(graph.edges).toHaveLength(1);
     expect(graph.edges[0]).toMatchObject({ s: "lib-common", t: hero?.id, verb: "DEPENDS_ON" });
   });
@@ -41,12 +41,12 @@ describe("eshuGraph", () => {
   it("loadBlastGraph renders the origin alone when there are no real dependents", async () => {
     const client = {
       post: async () => ({
-        data: { target: "api-node-boats", affected: [{ repo: "DISTINCT affected.name" }] },
+        data: { target: "catalog-api", affected: [{ repo: "DISTINCT affected.name" }] },
         error: null,
         truth: null
       })
     } as unknown as EshuApiClient;
-    const graph = await loadBlastGraph(client, "api-node-boats");
+    const graph = await loadBlastGraph(client, "catalog-api");
     expect(graph.nodes).toHaveLength(1);
     expect(graph.nodes[0]?.hero).toBe(true);
     expect(graph.edges).toHaveLength(0);
@@ -104,20 +104,20 @@ describe("eshuGraph", () => {
 
   it("entityMapToGraph centers on the resolved candidate and maps evidence.relationships by direction", () => {
     const graph = entityMapToGraph({
-      from: "api-node-boats",
-      resolution: { candidates: [{ id: "workload:api-node-boats", name: "api-node-boats", labels: ["Workload"] }] },
+      from: "catalog-api",
+      resolution: { candidates: [{ id: "workload:catalog-api", name: "catalog-api", labels: ["Workload"] }] },
       evidence: { relationships: [
-        { entity_id: "repository:r_f9600c28", entity_name: "api-node-boats", entity_labels: ["Repository"], direction: "incoming", relationship_type: "DEFINES" },
+        { entity_id: "repository:r_f9600c28", entity_name: "catalog-api", entity_labels: ["Repository"], direction: "incoming", relationship_type: "DEFINES" },
         // no relationship_type (singular) — must fall back to relationship_types[0]
         { entity_id: "workload:payments", entity_name: "payments", entity_labels: ["Workload"], direction: "outgoing", relationship_types: ["DEPENDS_ON"] }
       ] }
-    }, "api-node-boats");
+    }, "catalog-api");
     const hero = graph.nodes.find((n) => n.hero);
-    expect(hero?.id).toBe("workload:api-node-boats");
+    expect(hero?.id).toBe("workload:catalog-api");
     // nodes are keyed by entity_id, not the display name
     expect(graph.nodes.some((n) => n.id === "workload:payments" && n.label === "payments")).toBe(true);
-    expect(graph.edges.find((e) => e.verb === "DEFINES")).toMatchObject({ s: "repository:r_f9600c28", t: "workload:api-node-boats" });
-    expect(graph.edges.find((e) => e.verb === "DEPENDS_ON")).toMatchObject({ s: "workload:api-node-boats", t: "workload:payments", layer: "runtime" });
+    expect(graph.edges.find((e) => e.verb === "DEFINES")).toMatchObject({ s: "repository:r_f9600c28", t: "workload:catalog-api" });
+    expect(graph.edges.find((e) => e.verb === "DEPENDS_ON")).toMatchObject({ s: "workload:catalog-api", t: "workload:payments", layer: "runtime" });
   });
 
   it("loadEntityMapGraph posts impact/entity-map with from and parses evidence.relationships", async () => {
@@ -170,14 +170,14 @@ describe("eshuGraph", () => {
 
   it("loadEntityGraph degrades a 404 from code/relationships to an empty graph (center alone)", async () => {
     const client = {
-      postJson: async () => ({ entities: [{ id: "workload:api-node-boats", name: "api-node-boats", labels: ["Workload"] }] }),
+      postJson: async () => ({ entities: [{ id: "workload:catalog-api", name: "catalog-api", labels: ["Workload"] }] }),
       post: async () => { throw new EshuApiHttpError(404); }
     } as unknown as EshuApiClient;
-    const graph = await loadEntityGraph(client, "api-node-boats");
+    const graph = await loadEntityGraph(client, "catalog-api");
     // No code relationships exist for a service: render the resolved node alone,
     // not a thrown error.
     expect(graph.nodes).toHaveLength(1);
-    expect(graph.nodes[0]).toMatchObject({ id: "workload:api-node-boats", hero: true });
+    expect(graph.nodes[0]).toMatchObject({ id: "workload:catalog-api", hero: true });
     expect(graph.edges).toHaveLength(0);
   });
 
