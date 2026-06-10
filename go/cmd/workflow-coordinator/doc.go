@@ -11,7 +11,10 @@
 // `/readyz`, `/metrics`, and `/admin/status` admin surface. Deployment mode
 // (dark by default, active when the deployment knobs documented in the
 // runtime contract are set) gates scheduled planning, freshness handoff, reap,
-// and run-reconciliation loops; trigger normalization, provider API calls, and
-// collector lease ownership remain outside this binary. SIGINT and SIGTERM
-// trigger clean shutdown through the hosted runtime drain.
+// and run-reconciliation loops. When a hosted tenant boundary is configured,
+// the binary also wires the tenant grant store so coordinator planning and
+// claim completion can reject missing, revoked, or stale scope grants; trigger
+// normalization, provider API calls, and collector lease ownership remain
+// outside this binary. SIGINT and SIGTERM trigger clean shutdown through the
+// hosted runtime drain.
 package main

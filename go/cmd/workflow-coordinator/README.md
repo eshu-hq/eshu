@@ -88,6 +88,10 @@ for the full list. Key env vars:
 - ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON — optional hosted extension egress
   policy; missing policy denies component-extension claim planning, restricted
   mode requires component allow rules, deny wins, and broad mode is explicit
+- ESHU_WORKFLOW_COORDINATOR_TENANT_BOUNDARY_JSON — optional hosted tenant
+  boundary with opaque `tenant_id`, `workspace_id`, `subject_class`, and
+  `policy_revision_hash`; when set, planned work must intersect an active
+  tenant scope grant before any claimable row is created
 - ESHU_COLLECTOR_INSTANCES_JSON — JSON array of collector instance objects
 
 Compose exposes the optional metrics port `19469`. Helm keeps deployment mode

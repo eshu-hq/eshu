@@ -86,6 +86,16 @@ func run(parent context.Context) error {
 	}
 
 	store := postgres.NewWorkflowControlStore(postgres.SQLDB{DB: db})
+	tenantGrantDB := &postgres.InstrumentedDB{
+		Inner:       postgres.SQLDB{DB: db},
+		Tracer:      providers.TracerProvider.Tracer(telemetry.DefaultSignalName),
+		Instruments: instruments,
+		StoreName:   "tenant_workspace_grants",
+	}
+	tenantGrantStore := postgres.NewTenantWorkspaceGrantStore(tenantGrantDB)
+	if err := tenantGrantStore.EnsureSchema(parent); err != nil {
+		return err
+	}
 	awsFreshnessDB := &postgres.InstrumentedDB{
 		Inner:       postgres.SQLDB{DB: db},
 		Tracer:      providers.TracerProvider.Tracer(telemetry.DefaultSignalName),
@@ -142,6 +152,7 @@ func run(parent context.Context) error {
 		VaultLivePlanner:                  coordinator.VaultLiveWorkPlanner{},
 		ComponentExtensionPlanner:         coordinator.ComponentExtensionWorkPlanner{},
 		OwnedPackageTargetReader:          postgres.NewFactStore(ownedPackageTargetsDB),
+		TenantGrantReader:                 tenantGrantReader{store: tenantGrantStore},
 		OSPackageAdvisoryTargetReader:     factStore,
 		SBOMComponentAdvisoryTargetReader: factStore,
 		AWSScheduledPlanner:               coordinator.AWSScheduledWorkPlanner{},

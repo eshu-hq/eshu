@@ -26,5 +26,8 @@
 // service-allowlist, or site targets with credential environment references
 // before the coordinator plans claimable evidence work. Optional PagerDuty
 // live-configuration validation fields are checked at the same workflow
-// boundary so service and integration reads stay bounded.
+// boundary so service and integration reads stay bounded. Hosted work items may
+// carry tenant, workspace, subject-class, and policy-revision identity together
+// so storage and collectors can fence claim eligibility without changing graph
+// truth per tenant.
 package workflow

@@ -11,7 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-const enqueueWorkflowWorkItemValueFormat = "($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, NULLIF($%d, ''), $%d, $%d, NULLIF($%d, ''), $%d, NULLIF($%d, ''), NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, ''), NULLIF($%d, ''), $%d, $%d)"
+const enqueueWorkflowWorkItemValueFormat = "($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, NULLIF($%d, ''), $%d, $%d, NULLIF($%d, ''), $%d, NULLIF($%d, ''), NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, ''), NULLIF($%d, ''), $%d, $%d)"
 
 func (s *WorkflowControlStore) enqueueWorkItemBatch(ctx context.Context, items []workflow.WorkItem) error {
 	return s.enqueueWorkItemBatchWithExecutor(ctx, s.db, items)
@@ -35,7 +35,8 @@ func (s *WorkflowControlStore) enqueueWorkItemBatchWithExecutor(
 			enqueueWorkflowWorkItemValueFormat,
 			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8,
 			offset+9, offset+10, offset+11, offset+12, offset+13, offset+14, offset+15,
-			offset+16, offset+17, offset+18, offset+19, offset+20, offset+21, offset+22, offset+23,
+			offset+16, offset+17, offset+18, offset+19, offset+20, offset+21, offset+22,
+			offset+23, offset+24, offset+25, offset+26, offset+27,
 		)
 		args = append(args,
 			item.WorkItemID,
@@ -44,6 +45,10 @@ func (s *WorkflowControlStore) enqueueWorkItemBatchWithExecutor(
 			item.CollectorInstanceID,
 			item.SourceSystem,
 			item.ScopeID,
+			item.TenantID,
+			item.WorkspaceID,
+			item.SubjectClass,
+			item.PolicyRevisionHash,
 			item.AcceptanceUnitID,
 			item.SourceRunID,
 			item.GenerationID,
@@ -168,6 +173,10 @@ func scanClaimedWorkflowWorkItem(rows Rows) (workflow.WorkItem, workflow.Claim, 
 	var claim workflow.Claim
 	var collectorKind string
 	var sourceSystem string
+	var tenantID string
+	var workspaceID string
+	var subjectClass string
+	var policyRevisionHash string
 	var acceptanceUnitID string
 	var sourceRunID string
 	var generationID string
@@ -186,6 +195,10 @@ func scanClaimedWorkflowWorkItem(rows Rows) (workflow.WorkItem, workflow.Claim, 
 		&item.CollectorInstanceID,
 		&sourceSystem,
 		&item.ScopeID,
+		&tenantID,
+		&workspaceID,
+		&subjectClass,
+		&policyRevisionHash,
 		&acceptanceUnitID,
 		&sourceRunID,
 		&generationID,
@@ -212,6 +225,10 @@ func scanClaimedWorkflowWorkItem(rows Rows) (workflow.WorkItem, workflow.Claim, 
 	}
 
 	item.SourceSystem = strings.TrimSpace(sourceSystem)
+	item.TenantID = strings.TrimSpace(tenantID)
+	item.WorkspaceID = strings.TrimSpace(workspaceID)
+	item.SubjectClass = strings.TrimSpace(subjectClass)
+	item.PolicyRevisionHash = strings.TrimSpace(policyRevisionHash)
 	item.AcceptanceUnitID = strings.TrimSpace(acceptanceUnitID)
 	item.SourceRunID = strings.TrimSpace(sourceRunID)
 	item.GenerationID = strings.TrimSpace(generationID)

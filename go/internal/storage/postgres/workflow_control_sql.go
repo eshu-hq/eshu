@@ -26,6 +26,10 @@ INSERT INTO workflow_work_items (
     collector_instance_id,
     source_system,
     scope_id,
+    tenant_id,
+    workspace_id,
+    subject_class,
+    policy_revision_hash,
     acceptance_unit_id,
     source_run_id,
     generation_id,
@@ -88,6 +92,10 @@ claimed_item AS (
         item.collector_instance_id,
         item.source_system,
         item.scope_id,
+        item.tenant_id,
+        item.workspace_id,
+        item.subject_class,
+        item.policy_revision_hash,
         item.acceptance_unit_id,
         item.source_run_id,
         item.generation_id,
@@ -145,6 +153,10 @@ SELECT
     claimed_item.collector_instance_id,
     claimed_item.source_system,
     claimed_item.scope_id,
+    claimed_item.tenant_id,
+    claimed_item.workspace_id,
+    claimed_item.subject_class,
+    claimed_item.policy_revision_hash,
     claimed_item.acceptance_unit_id,
     claimed_item.source_run_id,
     claimed_item.generation_id,
@@ -182,6 +194,30 @@ WITH candidate AS (
       AND item.current_fencing_token = $3
       AND item.current_owner_id = $4
       AND item.status = 'claimed'
+      AND (
+          item.tenant_id = ''
+          OR EXISTS (
+              SELECT 1
+              FROM tenant_scope_grants
+              JOIN tenants
+                ON tenants.tenant_id = tenant_scope_grants.tenant_id
+              JOIN workspaces
+                ON workspaces.tenant_id = tenant_scope_grants.tenant_id
+               AND workspaces.workspace_id = tenant_scope_grants.workspace_id
+              WHERE tenant_scope_grants.tenant_id = item.tenant_id
+                AND tenant_scope_grants.workspace_id = item.workspace_id
+                AND tenant_scope_grants.scope_id = item.scope_id
+                AND tenant_scope_grants.subject_class = item.subject_class
+                AND tenant_scope_grants.policy_revision_hash = item.policy_revision_hash
+                AND tenants.status = 'active'
+                AND workspaces.status = 'active'
+                AND tenants.tombstoned_at IS NULL
+                AND workspaces.tombstoned_at IS NULL
+                AND tenant_scope_grants.tombstoned_at IS NULL
+                AND tenant_scope_grants.effective_at <= $1
+                AND (tenant_scope_grants.expires_at IS NULL OR tenant_scope_grants.expires_at > $1)
+          )
+      )
       AND claim.fencing_token = $3
       AND claim.owner_id = $4
       AND claim.status = 'active'
@@ -217,6 +253,30 @@ WITH candidate AS (
       AND item.current_fencing_token = $3
       AND item.current_owner_id = $4
       AND item.status = 'claimed'
+      AND (
+          item.tenant_id = ''
+          OR EXISTS (
+              SELECT 1
+              FROM tenant_scope_grants
+              JOIN tenants
+                ON tenants.tenant_id = tenant_scope_grants.tenant_id
+              JOIN workspaces
+                ON workspaces.tenant_id = tenant_scope_grants.tenant_id
+               AND workspaces.workspace_id = tenant_scope_grants.workspace_id
+              WHERE tenant_scope_grants.tenant_id = item.tenant_id
+                AND tenant_scope_grants.workspace_id = item.workspace_id
+                AND tenant_scope_grants.scope_id = item.scope_id
+                AND tenant_scope_grants.subject_class = item.subject_class
+                AND tenant_scope_grants.policy_revision_hash = item.policy_revision_hash
+                AND tenants.status = 'active'
+                AND workspaces.status = 'active'
+                AND tenants.tombstoned_at IS NULL
+                AND workspaces.tombstoned_at IS NULL
+                AND tenant_scope_grants.tombstoned_at IS NULL
+                AND tenant_scope_grants.effective_at <= $1
+                AND (tenant_scope_grants.expires_at IS NULL OR tenant_scope_grants.expires_at > $1)
+          )
+      )
       AND claim.fencing_token = $3
       AND claim.owner_id = $4
       AND claim.status = 'active'

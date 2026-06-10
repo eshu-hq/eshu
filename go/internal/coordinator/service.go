@@ -147,6 +147,7 @@ type Service struct {
 	VaultLivePlanner                  VaultLivePlanner
 	ComponentExtensionPlanner         ComponentExtensionPlanner
 	OwnedPackageTargetReader          OwnedPackageTargetReader
+	TenantGrantReader                 TenantGrantReader
 	OSPackageAdvisoryTargetReader     OSPackageAdvisoryTargetReader
 	SBOMComponentAdvisoryTargetReader SBOMComponentAdvisoryTargetReader
 	AWSScheduledPlanner               AWSScheduledPlanner
