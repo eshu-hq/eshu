@@ -49,6 +49,7 @@ func (h *RepositoryHandler) profile() QueryProfile {
 // partial_reasons slot, preserving the existing truncated paging field.
 func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Request) {
 	page := repositoryListPageFromRequest(r)
+	access := repositoryAccessFilterFromContext(r.Context())
 	if h == nil {
 		WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse([]map[string]any{}, page, false), nil)
 		return
@@ -59,20 +60,26 @@ func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Requ
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 			return
 		}
+		repos = access.filterRepositoryMaps(repos)
 		repos, truncated := pageRepositoryMaps(repos, page)
 		WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated), BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisContentIndex, "resolved from bounded repository content catalog"))
+		return
+	}
+	if access.empty() {
+		WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse([]map[string]any{}, page, false), BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
 		return
 	}
 
 	cypher := fmt.Sprintf(`
 		MATCH (r:Repository)
+		%s
 		RETURN %s, coalesce(r.is_dependency, false) as is_dependency
 		ORDER BY r.name, r.id
 		SKIP $offset
 		LIMIT $limit
-	`, RepoProjection("r"))
+	`, access.graphWhereClause("r"), RepoProjection("r"))
 
-	rows, err := h.Neo4j.Run(r.Context(), cypher, map[string]any{"offset": page.Offset, "limit": page.Limit + 1})
+	rows, err := h.Neo4j.Run(r.Context(), cypher, access.graphParams(map[string]any{"offset": page.Offset, "limit": page.Limit + 1}))
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 		return

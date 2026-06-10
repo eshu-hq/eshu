@@ -54,6 +54,16 @@
   change that adds a field or changes a route must update the matching fragment
   in the same PR, or the live spec diverges from actual behavior.
 
+- **Repository tenant-isolation canary evidence** — #2048 filters repository
+  list and selector reads from `AuthContext` before pagination, counts,
+  ambiguity, and not-found decisions. No-Regression Evidence:
+  `go test ./internal/query -run
+  'Test(RepositoryList.*ScopedAuth|ResolveRepositorySelector.*ScopedAuth|ResolveRepositorySelectorDenies|RepositoryListSharedAuth|RepositoryListAllScopeAdmin)'
+  -count=1`. No-Observability-Change: the canary adds no route, graph write,
+  metric, label, runtime knob, or response field; existing repository query
+  spans, `repository_query.stage_*` logs, result limits, partial reasons, and
+  truncation metadata diagnose the path.
+
 - **Package registry reads stay anchored** — `PackageRegistryHandler` in
   `package_registry.go` must require `limit` plus a route-specific anchor
   before graph reads: package lookups use `package_id` or `ecosystem`, version
