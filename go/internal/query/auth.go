@@ -108,6 +108,20 @@ func AuthMiddlewareWithScopedTokens(
 	return authMiddleware(token, resolver, next, nil)
 }
 
+// AuthMiddlewareWithScopedTokensAndGovernanceAudit wraps an HTTP handler with
+// shared-token compatibility, optional scoped-token resolution, and denied
+// read-authorization audit events. A nil resolver disables scoped-token
+// resolution, leaving shared-token (or dev-mode when token is empty) behavior
+// unchanged.
+func AuthMiddlewareWithScopedTokensAndGovernanceAudit(
+	token string,
+	resolver ScopedTokenResolver,
+	next http.Handler,
+	audit GovernanceAuditAppender,
+) http.Handler {
+	return authMiddleware(token, resolver, next, audit)
+}
+
 func authMiddleware(
 	token string,
 	resolver ScopedTokenResolver,

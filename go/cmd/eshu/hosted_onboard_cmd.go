@@ -27,8 +27,9 @@ redacted onboarding artifact safe to hand to the project team.
 The artifact records the API URL, MCP URL, token source name, indexed
 repositories, queue/completeness status, starter prompts, and structured starter
 playbooks with IDs, ordered tools, and expected truth classes. It never embeds a
-bearer token value and documents the current shared-token authorization
-limitation so it never implies per-team isolation that does not exist.`,
+bearer token value and references the scoped per-team token the operator should
+register for this team's repository scope, noting that the fallback shared token
+stays broad until that scoped token is provisioned.`,
 		Args: cobra.NoArgs,
 		RunE: runHostedOnboard,
 	}

@@ -1,0 +1,85 @@
+# scopedtoken
+
+Resolves hosted per-team bearer tokens into bounded authorization contexts for
+the Eshu API and MCP read surface (issue #1852, epic #1899).
+
+## Why
+
+The hosted surface authenticates with one shared bearer token via
+`query.AuthMiddleware*`; every holder can read every indexed repository. This
+package closes that gap: an operator-managed registry maps a token to a tenant,
+workspace, and the repository / ingestion-scope ids it may read. The
+`query.AuthContext` it returns flows through the existing scoped-route gate and
+the per-family bounded query filters (repositories, code search, documentation,
+service/package/CI-CD correlations, supply-chain impact, container-image
+identities, …), so a per-team token reads only its onboarded scope.
+
+## Contract
+
+- `LoadRegistryFromFile(path)` reads and validates a JSON registry document and
+  returns a `*Registry`. It **fails closed**: malformed JSON, a bad token hash,
+  a duplicate hash, a missing tenant/workspace, or an unsupported version is a
+  hard error. Error messages never include token-hash material.
+- `(*Registry).ResolveScopedToken(ctx, credential)` implements
+  `query.ScopedTokenResolver`. It hashes the presented credential with SHA-256
+  and returns the matching `AuthContext` (`Mode = scoped`). An empty or
+  unrecognized credential returns `(zero, false, nil)` so the caller falls
+  through to shared-token or unauthenticated handling. It never logs or returns
+  the credential.
+- The registry is read-only after construction and safe for concurrent use.
+
+## Security model
+
+- The registry file stores only `token_sha256` (lowercase hex SHA-256), never
+  the token. A leaked file cannot be replayed because SHA-256 is
+  preimage-resistant.
+- Lookup is by hash of attacker-controlled input; forging a match requires a
+  preimage, so a hash-map lookup is sufficient (the standard hashed-API-key
+  pattern).
+- No token, credential, hash, path, or grant id is ever placed in an error,
+  log line, or metric label by this package.
+
+## Registry file format
+
+```json
+{
+  "version": 1,
+  "tokens": [
+    {
+      "token_sha256": "<lowercase hex sha256 of the bearer token>",
+      "tenant_id": "team-payments",
+      "workspace_id": "team-payments",
+      "subject_class": "team_token",
+      "subject_id_hash": "<opaque low-cardinality label>",
+      "policy_revision_hash": "<opaque>",
+      "all_scopes": false,
+      "allowed_scope_ids": ["git-repository-scope:acme/payments"],
+      "allowed_repository_ids": ["repo://acme/payments"]
+    }
+  ]
+}
+```
+
+`all_scopes: true` marks an admin-equivalent scoped token. With `all_scopes`
+false and empty grants the token authorizes no repositories and reads return
+bounded empty/zero shapes.
+
+## Wiring
+
+The API and MCP servers load the registry from `ESHU_SCOPED_TOKENS_FILE`
+(`internalruntime.ScopedTokenResolverFromEnv`) and pass it to
+`query.AuthMiddlewareWithScopedTokensAndGovernanceAudit`. When the variable is
+unset the resolver is nil and shared-token / local dev-mode behavior is
+unchanged.
+
+## Operator issuance & rotation
+
+The registry file is the issuance and rotation surface:
+
+- **Issue**: generate a random token, compute `sha256` of it, add an entry with
+  the hash and the team's grants, deliver the token to the team over a secure
+  channel, and reload (restart) the API/MCP pods.
+- **Rotate**: replace the entry's `token_sha256` with the new token's hash.
+- **Revoke**: remove the entry.
+
+See `docs/public/operate/hosted-governance.md` for the operator runbook.

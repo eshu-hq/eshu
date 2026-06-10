@@ -138,7 +138,7 @@ environment keys:
 | `ESHU_GOVERNANCE_STATE` | `disabled`, `partial`, `enforcing`, `stale`, or `invalid` |
 | `ESHU_GOVERNANCE_SOURCE_KIND` | `environment`, `kubernetes_secret`, `config_map`, `postgres_revision`, or `unknown` |
 | `ESHU_GOVERNANCE_POLICY_REVISION_HASH` | Opaque `sha256:` revision hash only |
-| `ESHU_GOVERNANCE_AUTH_MODE` | `none`, `shared_token`, or a future scoped-token class |
+| `ESHU_GOVERNANCE_AUTH_MODE` | `none`, `shared_token`, or `scoped_token` |
 | `ESHU_GOVERNANCE_TENANT_MODE`, `ESHU_GOVERNANCE_WORKSPACE_MODE` | Mode names only, not tenant or workspace identifiers |
 | `ESHU_GOVERNANCE_EGRESS_MODE` | `restricted`, `broad`, or `not_configured` |
 | `ESHU_GOVERNANCE_REDACTION_STATE`, `ESHU_GOVERNANCE_RETENTION_MODE`, `ESHU_GOVERNANCE_AUDIT_STATE`, `ESHU_GOVERNANCE_EXTENSION_MODE` | Low-cardinality posture names |
@@ -396,13 +396,58 @@ Compose stack today. For policy review or future rollout:
    fields to component ID, instance ID, reason class, policy revision, and safe
    scope class.
 
+### Scoped Per-Team Tokens
+
+The API and MCP read surface resolves bearer tokens through an optional,
+operator-managed scoped-token registry before falling back to the shared token.
+A scoped token maps to a tenant, workspace, and the repository / ingestion-scope
+ids it may read, so a per-team token reads only that team's onboarded scope. The
+registry file is the issuance, rotation, and revocation surface; it stores only
+the SHA-256 hash of each token, never the token itself.
+
+Enable it by pointing `ESHU_SCOPED_TOKENS_FILE` at a secret-mounted JSON
+registry. When the variable is unset, the surface keeps shared-token (or local
+dev-mode) behavior unchanged. A malformed or unreadable registry fails startup
+closed rather than running without isolation.
+
+```json
+{
+  "version": 1,
+  "tokens": [
+    {
+      "token_sha256": "<lowercase hex sha256 of the bearer token>",
+      "tenant_id": "team-payments",
+      "workspace_id": "team-payments",
+      "subject_class": "team_token",
+      "all_scopes": false,
+      "allowed_scope_ids": ["git-repository-scope:acme/payments"],
+      "allowed_repository_ids": ["repo://acme/payments"]
+    }
+  ]
+}
+```
+
+Operator lifecycle:
+
+1. **Issue**: generate a random token, compute its `sha256`, add an entry with
+   the hash and the team's repository/scope grants, deliver the token to the
+   team over a secure channel, and reload (restart) the API/MCP pods. Never
+   write the plaintext token into the registry, logs, issues, or commits.
+2. **Rotate**: replace the entry's `token_sha256` with the new token's hash and
+   reload.
+3. **Revoke**: remove the entry and reload.
+
+Only routes proven tenant-filtered are reachable with a scoped token; every
+other route stays fail-closed with `permission_denied`. Empty grants
+(`all_scopes` false with no allowed ids) return bounded empty/zero reads.
+
 ### Tenant Offboarding
 
-Until scoped tokens and hosted tenant isolation land, offboarding is an
-operator-controlled shared-service procedure:
+Tenant offboarding combines scoped-token revocation with rule and state cleanup:
 
 1. Remove or narrow repository sync rules for the team.
-2. Rotate the shared bearer token if the team had access to it.
+2. Remove the team's scoped-token entry from `ESHU_SCOPED_TOKENS_FILE` and
+   reload; rotate the shared bearer token as well if the team ever held it.
 3. Disable provider policy rules and extension instances scoped to the team.
 4. Rebuild or delete indexed state according to the retention policy that
    applies to the deployment.

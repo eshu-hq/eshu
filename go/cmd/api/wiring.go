@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
+	"github.com/eshu-hq/eshu/go/internal/scopedtoken"
 	"github.com/eshu-hq/eshu/go/internal/semanticpolicy"
 	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
 	"github.com/eshu-hq/eshu/go/internal/status"
@@ -58,6 +59,10 @@ func wireAPI(
 	apiKey, err := internalruntime.ResolveAPIKey(getenv)
 	if err != nil {
 		return nil, nil, fmt.Errorf("resolve api key: %w", err)
+	}
+	scopedTokenResolver, err := scopedtoken.ResolverFromEnv(getenv)
+	if err != nil {
+		return nil, nil, fmt.Errorf("resolve scoped token registry: %w", err)
 	}
 	governanceStatus := query.GovernanceStatusConfigFromEnv(getenv, apiKey != "")
 
@@ -164,8 +169,8 @@ func wireAPI(
 		return nil, nil, fmt.Errorf("mount runtime surface: %w", err)
 	}
 
-	// Wrap with auth middleware
-	authedMux := query.AuthMiddlewareWithGovernanceAudit(apiKey, mux, governanceAudit)
+	// Wrap with auth middleware (shared token + optional scoped-token registry)
+	authedMux := query.AuthMiddlewareWithScopedTokensAndGovernanceAudit(apiKey, scopedTokenResolver, mux, governanceAudit)
 
 	cleanup := func() {
 		_ = db.Close()
