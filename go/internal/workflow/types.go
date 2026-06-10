@@ -160,6 +160,10 @@ type WorkItem struct {
 	CollectorInstanceID string
 	SourceSystem        string
 	ScopeID             string
+	TenantID            string
+	WorkspaceID         string
+	SubjectClass        string
+	PolicyRevisionHash  string
 	AcceptanceUnitID    string
 	SourceRunID         string
 	GenerationID        string
@@ -261,6 +265,9 @@ func (w WorkItem) Validate() error {
 	if err := validateIdentifier("scope_id", w.ScopeID); err != nil {
 		return err
 	}
+	if err := validateTenantBoundary(w); err != nil {
+		return err
+	}
 	if err := validateIdentifier("acceptance_unit_id", w.AcceptanceUnitID); err != nil {
 		return err
 	}
@@ -287,6 +294,28 @@ func (w WorkItem) Validate() error {
 	}
 	if w.UpdatedAt.Before(w.CreatedAt) {
 		return fmt.Errorf("updated_at must not be before created_at")
+	}
+	return nil
+}
+
+func validateTenantBoundary(w WorkItem) error {
+	values := []string{
+		w.TenantID,
+		w.WorkspaceID,
+		w.SubjectClass,
+		w.PolicyRevisionHash,
+	}
+	present := 0
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			present++
+		}
+	}
+	if present == 0 {
+		return nil
+	}
+	if present != len(values) {
+		return fmt.Errorf("tenant_id, workspace_id, subject_class, and policy_revision_hash must be set together")
 	}
 	return nil
 }

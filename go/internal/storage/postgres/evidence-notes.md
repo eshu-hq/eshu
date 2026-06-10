@@ -26,6 +26,19 @@ follow-up work; when callers opt into the store through an instrumented
 Postgres adapter, existing query/exec spans and
 `eshu_dp_postgres_query_duration_seconds` cover the SQL.
 
+## Workflow Tenant Grant Fencing (#2050)
+
+No-Regression Evidence: `go test ./internal/workflow ./internal/coordinator ./internal/storage/postgres ./cmd/workflow-coordinator -count=1` proves workflow work items preserve optional tenant, workspace, subject-class, and policy-revision identity; coordinator planning denies configured hosted work without an active matching grant; guarded target eligibility treats the tenant boundary as part of duplicate convergence; and claim heartbeat/complete SQL re-checks active, non-tombstoned, non-expired tenant scope grants before stale hosted claims can finish.
+
+Observability Evidence: the change adds no high-cardinality metrics. Denied
+planning uses the existing workflow coordinator structured log path with bounded
+reason `tenant_scope_missing_or_stale_policy` plus planned/authorized/denied
+counts, while existing `eshu_dp_workflow_coordinator_reconcile_total`,
+`eshu_dp_workflow_coordinator_reconcile_duration_seconds`,
+`workflow_runs`, `workflow_work_items`, `workflow_claims`, and
+`eshu_dp_postgres_query_duration_seconds{store="tenant_workspace_grants"}` show
+queue progress, duplicate convergence, grant reads, and stale-claim rejection.
+
 ## Cloud Inventory Evidence Loader (issues #1997, #1998)
 
 `PostgresCloudInventoryEvidenceLoader` is the concrete

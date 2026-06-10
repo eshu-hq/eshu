@@ -105,10 +105,10 @@ func TestWorkflowControlEnqueuePreservesRequiredGenerationID(t *testing.T) {
 		t.Fatalf("EnqueueWorkItems() error = %v, want nil", err)
 	}
 	query := db.execs[0].query
-	if strings.Contains(query, "NULLIF($9, '')") {
+	if strings.Contains(query, "NULLIF($13, '')") {
 		t.Fatalf("enqueue query still converts generation_id to NULL:\n%s", query)
 	}
-	if !strings.Contains(query, "$9, NULLIF($10, '')") {
+	if !strings.Contains(query, "$13, NULLIF($14, '')") {
 		t.Fatalf("enqueue query missing direct generation_id placeholder:\n%s", query)
 	}
 }

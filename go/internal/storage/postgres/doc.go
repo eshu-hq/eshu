@@ -123,7 +123,11 @@
 // ScopedAPITokenStore adds the default-off hash-only token registry for that
 // control plane. It stores bearer-token digests, scoped subject hashes, expiry,
 // revocation, and policy revision hashes while relying on the tenant/workspace
-// tables for active boundary checks.
+// tables for active boundary checks. WorkflowControlStore persists optional
+// tenant/workspace/policy revision identity on workflow work items; guarded
+// planning treats that identity as part of target eligibility, and claim
+// heartbeat/complete paths re-check active tenant scope grants before accepting
+// stale hosted work.
 //
 // State-only addresses absent from the prior-config address set keep
 // PreviouslyDeclaredInConfig=false and surface as added_in_state — the

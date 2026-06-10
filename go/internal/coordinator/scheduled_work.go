@@ -12,19 +12,40 @@ func (s Service) createWorkflowWorkIfNoOpenTargets(
 	run workflow.Run,
 	items []workflow.WorkItem,
 ) (int, error) {
-	enqueued, err := s.Store.CreateRunWithWorkItemsIfNoOpenTargets(ctx, run, items)
+	authorizedItems, denied, err := s.authorizeWorkflowWorkItems(ctx, run, items)
 	if err != nil {
 		return 0, err
 	}
-	if enqueued < len(items) && s.Logger != nil {
+	if denied > 0 && s.Logger != nil {
+		s.Logger.Info(
+			"workflow coordinator skipped workflow work by tenant grant",
+			"collector_kind", instance.CollectorKind,
+			"trigger_kind", run.TriggerKind,
+			"planned_work_items", len(items),
+			"authorized_work_items", len(authorizedItems),
+			"denied_work_items", denied,
+			"reason", "tenant_scope_missing_or_stale_policy",
+		)
+	}
+	if len(authorizedItems) == 0 {
+		return 0, nil
+	}
+	if denied > 0 {
+		run = filterWorkflowRunRequestedScopeSet(run, authorizedItems)
+	}
+	enqueued, err := s.Store.CreateRunWithWorkItemsIfNoOpenTargets(ctx, run, authorizedItems)
+	if err != nil {
+		return 0, err
+	}
+	if enqueued < len(authorizedItems) && s.Logger != nil {
 		s.Logger.Info(
 			"workflow coordinator skipped duplicate workflow work",
 			"collector_kind", instance.CollectorKind,
 			"collector_instance_id", instance.InstanceID,
 			"trigger_kind", run.TriggerKind,
-			"planned_work_items", len(items),
+			"planned_work_items", len(authorizedItems),
 			"enqueued_work_items", enqueued,
-			"skipped_work_items", len(items)-enqueued,
+			"skipped_work_items", len(authorizedItems)-enqueued,
 			"reason", "target_already_planned",
 		)
 	}

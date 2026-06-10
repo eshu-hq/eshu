@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -31,6 +32,7 @@ type Config struct {
 	ExpiredClaimRequeueDelay time.Duration
 	CollectorEgressPolicy    CollectorEgressPolicy
 	ExtensionEgressPolicy    ExtensionEgressPolicy
+	TenantBoundary           WorkflowTenantBoundary
 	CollectorInstances       []workflow.DesiredCollectorInstance
 }
 
@@ -95,6 +97,10 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("parse ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON: %w", err)
 	}
+	tenantBoundary, err := parseWorkflowTenantBoundaryJSON(getenv("ESHU_WORKFLOW_COORDINATOR_TENANT_BOUNDARY_JSON"))
+	if err != nil {
+		return Config{}, fmt.Errorf("parse ESHU_WORKFLOW_COORDINATOR_TENANT_BOUNDARY_JSON: %w", err)
+	}
 	instances, err := workflow.ParseDesiredCollectorInstancesJSON(getenv("ESHU_COLLECTOR_INSTANCES_JSON"))
 	if err != nil {
 		return Config{}, fmt.Errorf("parse ESHU_COLLECTOR_INSTANCES_JSON: %w", err)
@@ -120,6 +126,7 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 		ExpiredClaimRequeueDelay: expiredClaimRequeueDelay,
 		CollectorEgressPolicy:    collectorEgressPolicy,
 		ExtensionEgressPolicy:    extensionEgressPolicy,
+		TenantBoundary:           tenantBoundary,
 		CollectorInstances:       instances,
 	}
 	cfg = cfg.withDefaults()
@@ -161,6 +168,9 @@ func (c Config) Validate() error {
 	if c.ExpiredClaimRequeueDelay < 0 {
 		return fmt.Errorf("workflow coordinator expired claim requeue delay must not be negative")
 	}
+	if err := c.TenantBoundary.validate(); err != nil {
+		return err
+	}
 	activeClaimCollectors := 0
 	for _, instance := range c.CollectorInstances {
 		if err := instance.Validate(); err != nil {
@@ -182,6 +192,29 @@ func (c Config) Validate() error {
 		}
 	}
 	return nil
+}
+
+type workflowTenantBoundaryConfig struct {
+	TenantID           string `json:"tenant_id"`
+	WorkspaceID        string `json:"workspace_id"`
+	SubjectClass       string `json:"subject_class"`
+	PolicyRevisionHash string `json:"policy_revision_hash"`
+}
+
+func parseWorkflowTenantBoundaryJSON(raw string) (WorkflowTenantBoundary, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return WorkflowTenantBoundary{}, nil
+	}
+	var decoded workflowTenantBoundaryConfig
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		return WorkflowTenantBoundary{}, err
+	}
+	boundary := WorkflowTenantBoundary(decoded).normalize()
+	if err := boundary.validate(); err != nil {
+		return WorkflowTenantBoundary{}, err
+	}
+	return boundary, nil
 }
 
 func (c Config) withDefaults() Config {

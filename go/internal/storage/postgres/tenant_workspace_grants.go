@@ -74,6 +74,7 @@ type TenantWorkspaceGrantQuery struct {
 	TenantID     string
 	WorkspaceID  string
 	SubjectClass string
+	ScopeIDs     []string
 	AsOf         time.Time
 	Limit        int
 }
@@ -224,6 +225,7 @@ func (s *TenantWorkspaceGrantStore) ListScopeGrants(
 		query.WorkspaceID,
 		query.SubjectClass,
 		query.AsOf,
+		query.ScopeIDs,
 		query.Limit,
 	)
 	if err != nil {
@@ -264,6 +266,7 @@ func (s *TenantWorkspaceGrantStore) ListRepositoryGrants(
 		query.WorkspaceID,
 		query.SubjectClass,
 		query.AsOf,
+		query.ScopeIDs,
 		query.Limit,
 	)
 	if err != nil {
@@ -345,6 +348,7 @@ func normalizeGrantQuery(query TenantWorkspaceGrantQuery) TenantWorkspaceGrantQu
 	query.TenantID = strings.TrimSpace(query.TenantID)
 	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
 	query.SubjectClass = strings.TrimSpace(query.SubjectClass)
+	query.ScopeIDs = normalizeGrantScopeIDs(query.ScopeIDs)
 	query.AsOf = query.AsOf.UTC()
 	if query.Limit == 0 {
 		query.Limit = defaultTenantWorkspaceGrantLimit

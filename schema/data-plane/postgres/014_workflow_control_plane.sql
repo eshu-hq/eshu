@@ -18,6 +18,10 @@ CREATE TABLE IF NOT EXISTS workflow_work_items (
     collector_instance_id TEXT NOT NULL,
     source_system TEXT NOT NULL,
     scope_id TEXT NOT NULL,
+    tenant_id TEXT NOT NULL DEFAULT '',
+    workspace_id TEXT NOT NULL DEFAULT '',
+    subject_class TEXT NOT NULL DEFAULT '',
+    policy_revision_hash TEXT NOT NULL DEFAULT '',
     acceptance_unit_id TEXT NOT NULL,
     source_run_id TEXT NOT NULL,
     generation_id TEXT NOT NULL,
@@ -74,6 +78,18 @@ ALTER TABLE workflow_work_items
     ADD COLUMN IF NOT EXISTS source_system TEXT DEFAULT '';
 
 ALTER TABLE workflow_work_items
+    ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT '';
+
+ALTER TABLE workflow_work_items
+    ADD COLUMN IF NOT EXISTS workspace_id TEXT DEFAULT '';
+
+ALTER TABLE workflow_work_items
+    ADD COLUMN IF NOT EXISTS subject_class TEXT DEFAULT '';
+
+ALTER TABLE workflow_work_items
+    ADD COLUMN IF NOT EXISTS policy_revision_hash TEXT DEFAULT '';
+
+ALTER TABLE workflow_work_items
     ADD COLUMN IF NOT EXISTS acceptance_unit_id TEXT DEFAULT '';
 
 ALTER TABLE workflow_work_items
@@ -106,6 +122,22 @@ SET source_system = collector_kind
 WHERE source_system IS NULL OR source_system = '';
 
 UPDATE workflow_work_items
+SET tenant_id = ''
+WHERE tenant_id IS NULL;
+
+UPDATE workflow_work_items
+SET workspace_id = ''
+WHERE workspace_id IS NULL;
+
+UPDATE workflow_work_items
+SET subject_class = ''
+WHERE subject_class IS NULL;
+
+UPDATE workflow_work_items
+SET policy_revision_hash = ''
+WHERE policy_revision_hash IS NULL;
+
+UPDATE workflow_work_items
 SET acceptance_unit_id = scope_id
 WHERE acceptance_unit_id IS NULL OR acceptance_unit_id = '';
 
@@ -116,6 +148,10 @@ WHERE source_run_id IS NULL OR source_run_id = '';
 ALTER TABLE workflow_work_items
     ALTER COLUMN generation_id SET NOT NULL,
     ALTER COLUMN source_system SET NOT NULL,
+    ALTER COLUMN tenant_id SET NOT NULL,
+    ALTER COLUMN workspace_id SET NOT NULL,
+    ALTER COLUMN subject_class SET NOT NULL,
+    ALTER COLUMN policy_revision_hash SET NOT NULL,
     ALTER COLUMN acceptance_unit_id SET NOT NULL,
     ALTER COLUMN source_run_id SET NOT NULL;
 

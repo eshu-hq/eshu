@@ -189,7 +189,7 @@ func (s *WorkflowControlStore) workItemsWithoutOpenTargets(
 }
 
 func workflowEligibleTargetsQuery(runID string, items []workflow.WorkItem) (string, []any) {
-	args := make([]any, 0, 1+len(items)*5)
+	args := make([]any, 0, 1+len(items)*9)
 	args = append(args, runID)
 
 	var values strings.Builder
@@ -197,15 +197,19 @@ func workflowEligibleTargetsQuery(runID string, items []workflow.WorkItem) (stri
 		if i > 0 {
 			values.WriteString(",\n")
 		}
-		base := 2 + i*5
+		base := 2 + i*9
 		fmt.Fprintf(
 			&values,
-			"    ($%d::int, $%d::text, $%d::text, $%d::text, $%d::text)",
+			"    ($%d::int, $%d::text, $%d::text, $%d::text, $%d::text, $%d::text, $%d::text, $%d::text, $%d::text)",
 			base,
 			base+1,
 			base+2,
 			base+3,
 			base+4,
+			base+5,
+			base+6,
+			base+7,
+			base+8,
 		)
 		args = append(
 			args,
@@ -213,12 +217,26 @@ func workflowEligibleTargetsQuery(runID string, items []workflow.WorkItem) (stri
 			string(item.CollectorKind),
 			item.CollectorInstanceID,
 			item.ScopeID,
+			item.TenantID,
+			item.WorkspaceID,
+			item.SubjectClass,
+			item.PolicyRevisionHash,
 			item.AcceptanceUnitID,
 		)
 	}
 
 	query := fmt.Sprintf(`
-WITH planned_targets(ordinal, collector_kind, collector_instance_id, scope_id, acceptance_unit_id) AS (
+WITH planned_targets(
+    ordinal,
+    collector_kind,
+    collector_instance_id,
+    scope_id,
+    tenant_id,
+    workspace_id,
+    subject_class,
+    policy_revision_hash,
+    acceptance_unit_id
+) AS (
 VALUES
 %s
 )
@@ -232,6 +250,10 @@ WHERE NOT EXISTS (
     WHERE item.collector_kind = planned.collector_kind
       AND item.collector_instance_id = planned.collector_instance_id
       AND item.scope_id = planned.scope_id
+      AND item.tenant_id = planned.tenant_id
+      AND item.workspace_id = planned.workspace_id
+      AND item.subject_class = planned.subject_class
+      AND item.policy_revision_hash = planned.policy_revision_hash
       AND item.acceptance_unit_id = planned.acceptance_unit_id
       AND run.status NOT IN ('complete', 'failed')
 )
@@ -242,6 +264,10 @@ AND NOT EXISTS (
       AND item.collector_kind = planned.collector_kind
       AND item.collector_instance_id = planned.collector_instance_id
       AND item.scope_id = planned.scope_id
+      AND item.tenant_id = planned.tenant_id
+      AND item.workspace_id = planned.workspace_id
+      AND item.subject_class = planned.subject_class
+      AND item.policy_revision_hash = planned.policy_revision_hash
       AND item.acceptance_unit_id = planned.acceptance_unit_id
 )
 ORDER BY planned.ordinal

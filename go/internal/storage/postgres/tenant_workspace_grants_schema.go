@@ -196,8 +196,9 @@ WHERE g.tenant_id = $1
   AND g.tombstoned_at IS NULL
   AND g.effective_at <= $4
   AND (g.expires_at IS NULL OR g.expires_at > $4)
+  AND (COALESCE(cardinality($5::text[]), 0) = 0 OR g.scope_id = ANY($5::text[]))
 ORDER BY g.scope_id ASC
-LIMIT $5
+LIMIT $6
 `
 
 const listTenantRepositoryGrantsQuery = `
@@ -232,6 +233,7 @@ WHERE g.tenant_id = $1
   AND sg.effective_at <= $4
   AND (g.expires_at IS NULL OR g.expires_at > $4)
   AND (sg.expires_at IS NULL OR sg.expires_at > $4)
+  AND (COALESCE(cardinality($5::text[]), 0) = 0 OR g.scope_id = ANY($5::text[]))
 ORDER BY g.repo_id ASC
-LIMIT $5
+LIMIT $6
 `

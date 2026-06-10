@@ -155,14 +155,15 @@ func TestTenantWorkspaceGrantStoreListsOnlyActiveScopeGrants(t *testing.T) {
 		"g.tombstoned_at IS NULL",
 		"g.effective_at <= $4",
 		"(g.expires_at IS NULL OR g.expires_at > $4)",
+		"g.scope_id = ANY($5::text[])",
 		"ORDER BY g.scope_id ASC",
-		"LIMIT $5",
+		"LIMIT $6",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("scope grant query missing %q:\n%s", want, query)
 		}
 	}
-	wantArgs := []any{"tenant_a", "workspace_a", "runtime", now, 25}
+	wantArgs := []any{"tenant_a", "workspace_a", "runtime", now, []string{}, 25}
 	if !sameArgs(db.queries[0].args, wantArgs) {
 		t.Fatalf("scope grant query args = %#v, want %#v", db.queries[0].args, wantArgs)
 	}
@@ -211,8 +212,9 @@ func TestTenantWorkspaceGrantStoreListsOnlyActiveRepositoryGrants(t *testing.T) 
 		"g.tombstoned_at IS NULL",
 		"sg.tombstoned_at IS NULL",
 		"(g.expires_at IS NULL OR g.expires_at > $4)",
+		"g.scope_id = ANY($5::text[])",
 		"ORDER BY g.repo_id ASC",
-		"LIMIT $5",
+		"LIMIT $6",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("repository grant query missing %q:\n%s", want, query)
@@ -254,6 +256,16 @@ func sameArgs(got []any, want []any) bool {
 			gotValue, ok := got[i].(time.Time)
 			if !ok || !gotValue.Equal(wantValue) {
 				return false
+			}
+		case []string:
+			gotValue, ok := got[i].([]string)
+			if !ok || len(gotValue) != len(wantValue) {
+				return false
+			}
+			for index := range gotValue {
+				if gotValue[index] != wantValue[index] {
+					return false
+				}
 			}
 		default:
 			if got[i] != wantValue {

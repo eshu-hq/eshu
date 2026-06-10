@@ -46,6 +46,8 @@
 // or credentials.
 // Incident freshness handoff narrows PagerDuty and Jira webhook wake-ups to
 // authorized configured scope IDs before creating normal collector work. Planners
-// produce workflow rows only; claim ownership and fact emission stay with the
-// collector runtimes.
+// produce workflow rows only. When a workflow tenant boundary is configured,
+// Service intersects planned work items with active tenant/workspace scope
+// grants before durable rows exist, and claim ownership and fact emission stay
+// with the collector runtimes.
 package coordinator
