@@ -106,6 +106,23 @@
   rows before querying; do not add unbounded fact-table scans for management
   APIs.
 
+## Evidence notes
+
+Performance Evidence: #2050 changes workflow claim admission and completion
+guards from an unfenced baseline to the same indexed workflow row shape plus one
+active tenant-scope grant predicate keyed by opaque tenant/workspace/scope and
+policy revision. The focused workflow/coordinator/Postgres package suite proves
+the after shape on Postgres-backed workflow rows, including denied planning,
+one admitted hosted work item, duplicate convergence with tenant boundary keys,
+and terminal completion guarded by non-tombstoned, non-expired grant rows.
+
+Observability Evidence: #2050 adds no high-cardinality metric label or runtime
+worker knob. Operators diagnose the path through bounded coordinator logs for
+`tenant_scope_missing_or_stale_policy`, planned/authorized/denied counts,
+`workflow_runs`, `workflow_work_items`, `workflow_claims`, coordinator reconcile
+metrics, and existing Postgres query spans and duration metrics for the
+`tenant_workspace_grants` and workflow stores.
+
 ## Common changes and how to scope them
 
 - **Add a new Postgres store** → implement against `ExecQueryer`; add a
