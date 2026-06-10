@@ -297,6 +297,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedQueryPlaybookRoute(r) {
 		return true
 	}
+	if scopedVulnerabilityScannerContractRoute(r) {
+		return true
+	}
 	if r.Method != http.MethodPost {
 		return false
 	}
@@ -351,6 +354,11 @@ func scopedQueryPlaybookRoute(r *http.Request) bool {
 	default:
 		return false
 	}
+}
+
+func scopedVulnerabilityScannerContractRoute(r *http.Request) bool {
+	return r.Method == http.MethodGet &&
+		r.URL.Path == "/api/v0/supply-chain/vulnerability-scanner/contract"
 }
 
 func scopedContextRoute(path string, prefix string) bool {
