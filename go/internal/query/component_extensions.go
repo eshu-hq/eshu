@@ -326,7 +326,7 @@ func componentExtensionDiagnostics(
 	}
 	if entry.Error != nil {
 		diagnostics.PolicyCode = entry.Error.Code
-		diagnostics.PolicyReason = entry.Error.Message
+		diagnostics.PolicyReason = safeComponentExtensionErrorMessage(entry.Error.Code)
 	}
 	return diagnostics
 }
@@ -335,7 +335,22 @@ func componentExtensionError(summary *component.ErrorSummary) *ComponentExtensio
 	if summary == nil {
 		return nil
 	}
-	return &ComponentExtensionError{Code: summary.Code, Message: summary.Message}
+	return &ComponentExtensionError{Code: summary.Code, Message: safeComponentExtensionErrorMessage(summary.Code)}
+}
+
+func safeComponentExtensionErrorMessage(code component.ErrorCode) string {
+	switch code {
+	case component.ErrorCodeInvalidManifest:
+		return "component manifest is invalid or unavailable"
+	case component.ErrorCodeIncompatibleCore:
+		return "component is incompatible with this Eshu runtime"
+	case component.ErrorCodeRevokedPackage:
+		return "component package is revoked by policy"
+	case component.ErrorCodeUntrustedPublisher:
+		return "component publisher is not trusted by policy"
+	default:
+		return "component extension readback failed"
+	}
 }
 
 func formatComponentExtensionTime(value time.Time) string {
