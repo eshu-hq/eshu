@@ -293,13 +293,7 @@ func (l PostgresMultiCloudRuntimeDriftEvidenceLoader) loadConfigByStateScope(
 			})
 		}
 	}
-	awsLoader := PostgresAWSCloudRuntimeDriftEvidenceLoader{
-		DB:             l.DB,
-		ConfigResolver: l.ConfigResolver,
-		Tracer:         l.Tracer,
-		Logger:         l.Logger,
-		Instruments:    l.Instruments,
-	}
+	awsLoader := PostgresAWSCloudRuntimeDriftEvidenceLoader(l)
 	return awsLoader.loadConfigByStateScope(ctx, awsStateByARN)
 }
 
