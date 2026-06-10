@@ -260,6 +260,25 @@
   or response field; existing HTTP route attribution and component-extension
   truth envelopes diagnose the bounded local registry readback path.
 
+- **Collector status scoped-token route evidence** — #2088 opens only
+  `GET /api/v0/status/collectors` because `StatusHandler.listCollectors`
+  returns aggregate runtime posture for scoped tokens: collector kind,
+  runtime/category/health buckets, collector counts, coordinator/enabled/
+  bootstrap/claim counts, evidence-source summaries, observation counts, and
+  aggregate timestamps. Scoped responses do not expose collector instance ids,
+  display names, source systems, detail text, tenant/workspace values, queue
+  conflict keys, repository/source ids, graph reads, content reads,
+  credentials, endpoints, local paths, or provider payloads. The legacy
+  `/api/v0/collectors` route remains fail-closed for scoped tokens.
+  No-Regression Evidence: `go test ./internal/query -run
+  'Test(AuthMiddlewareWithScopedTokensAllowsCollectorStatusRoute|StatusHandler)'
+  -count=1` and `go test ./internal/mcp -run
+  'Test(ListCollectorsRuntimeToolRoutesToStatusCollectors|DispatchToolCollectorStatusAllowsScopedRoute)'
+  -count=1`. No-Observability-Change: the route adds no graph write, graph
+  read, content read, provider call, collector call, metric label, runtime knob,
+  or response field for shared-token callers; existing HTTP route attribution
+  and runtime status fields diagnose the bounded status readback path.
+
 - **Ingester status scoped-token route evidence** — #2086 opens only
   `GET /api/v0/status/ingesters` and
   `GET /api/v0/status/ingesters/{ingester}` because `StatusHandler` returns
