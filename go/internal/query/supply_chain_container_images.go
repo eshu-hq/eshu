@@ -35,18 +35,26 @@ func (h *SupplyChainHandler) listContainerImageIdentities(w http.ResponseWriter,
 	if !ok {
 		return
 	}
-	sourceRepositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "source_repository_id"))
+	// Empty scoped grants return the zero-identities page without resolving a
+	// selector or reading the identity store.
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptyContainerImageIdentityPage(w, r, limit)
+		return
+	}
+	sourceRepositoryID, ok := h.resolveContainerImageSourceRepositorySelector(w, r, QueryParam(r, "source_repository_id"), access)
 	if !ok {
 		return
 	}
 	filter := ContainerImageIdentityFilter{
-		Digest:             QueryParam(r, "digest"),
-		ImageRef:           QueryParam(r, "image_ref"),
-		SourceRepositoryID: sourceRepositoryID,
-		RepositoryID:       QueryParam(r, "repository_id"),
-		Outcome:            QueryParam(r, "outcome"),
-		AfterIdentityID:    QueryParam(r, "after_identity_id"),
-		Limit:              limit + 1,
+		Digest:                     QueryParam(r, "digest"),
+		ImageRef:                   QueryParam(r, "image_ref"),
+		SourceRepositoryID:         sourceRepositoryID,
+		RepositoryID:               QueryParam(r, "repository_id"),
+		Outcome:                    QueryParam(r, "outcome"),
+		AfterIdentityID:            QueryParam(r, "after_identity_id"),
+		Limit:                      limit + 1,
+		AllowedSourceRepositoryIDs: access.repositorySearchIDs(),
 	}
 	if !filter.hasScope() {
 		WriteError(w, http.StatusBadRequest, "digest, image_ref, source_repository_id, repository_id, or outcome is required")

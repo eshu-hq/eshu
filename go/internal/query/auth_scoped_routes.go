@@ -68,6 +68,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedCICDRunCorrelationRoute(r) {
 		return true
 	}
+	if scopedContainerImageIdentityRoute(r) {
+		return true
+	}
 	if scopedComponentExtensionRoute(r) {
 		return true
 	}
@@ -221,6 +224,28 @@ func scopedServiceCatalogCorrelationRoute(r *http.Request) bool {
 
 func scopedPackageRegistryCorrelationRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/package-registry/correlations"
+}
+
+// scopedContainerImageIdentityRoute reports whether the request targets one of
+// the reducer-owned container image identity read routes that intersect
+// source_repository_ids with the scoped-token grant set before counts,
+// grouping, ordering, limits, offsets, truncation, and the source bridge.
+// Identity facts key on the OCI repository_id and an OCI registry ingestion
+// scope, so attribution to a granted git repository flows only through the
+// source_repository_ids overlap; images with no source correlation stay
+// invisible to scoped tokens.
+func scopedContainerImageIdentityRoute(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	switch r.URL.Path {
+	case "/api/v0/supply-chain/container-images/identities",
+		"/api/v0/supply-chain/container-images/identities/count",
+		"/api/v0/supply-chain/container-images/identities/inventory":
+		return true
+	default:
+		return false
+	}
 }
 
 func scopedCICDRunCorrelationRoute(r *http.Request) bool {

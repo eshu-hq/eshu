@@ -127,7 +127,6 @@ func TestAuthMiddlewareWithScopedTokensRejectsAdjacentSupplyChainImpactRoutes(t 
 		"/api/v0/supply-chain/advisories?limit=10",
 		"/api/v0/supply-chain/vulnerabilities/CVE-2026-0001",
 		"/api/v0/supply-chain/sbom-attestations/attachments?repository_id=repo-team-a&limit=10",
-		"/api/v0/supply-chain/container-images/identities?repository_id=repo-team-a&limit=10",
 		"/api/v0/supply-chain/security-alerts/reconciliations?repository_id=repo-team-a&limit=10",
 	} {
 		target := target
