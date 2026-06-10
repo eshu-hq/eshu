@@ -59,7 +59,7 @@ func (h *StatusHandler) getHostedReadiness(w http.ResponseWriter, r *http.Reques
 	}
 
 	repositoryCount, graphErr := h.readHostedRepositoryCount(r.Context())
-	payload := buildHostedReadinessReport(raw, report, repositoryCount, graphErr)
+	payload := buildHostedReadinessReport(raw, report, repositoryCount, graphErr, scopedAuthContext(r.Context()))
 	if QueryParam(r, "format") == "text" {
 		writeHostedReadinessText(w, payload)
 		return
@@ -86,6 +86,7 @@ func buildHostedReadinessReport(
 	report status.Report,
 	repositoryCount int,
 	graphErr error,
+	scoped bool,
 ) hostedReadinessReport {
 	builder := hostedReadinessBuilder{}
 	builder.addPass("process_health", "API served the hosted readiness route")
@@ -104,6 +105,10 @@ func buildHostedReadinessReport(
 	if failureClasses == nil {
 		failureClasses = []string{}
 	}
+	coordinator := coordinatorToMap(report.Coordinator)
+	if scoped {
+		coordinator = scopedCoordinatorToMap(report.Coordinator)
+	}
 	return hostedReadinessReport{
 		Version:         buildinfo.AppVersion(),
 		State:           state,
@@ -113,7 +118,7 @@ func buildHostedReadinessReport(
 		FailureClasses:  failureClasses,
 		RepositoryCount: repositoryCount,
 		Queue:           queueToMap(report.Queue),
-		Coordinator:     coordinatorToMap(report.Coordinator),
+		Coordinator:     coordinator,
 		Checks:          builder.checks,
 		DiagnosticPaths: []hostedDiagnosticTarget{
 			{Name: "admin_status", Path: "/admin/status"},

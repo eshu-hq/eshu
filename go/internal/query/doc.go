@@ -94,13 +94,14 @@
 // and resolver routes, the vulnerability scanner read-contract route, and the
 // redacted hosted governance and semantic extraction status routes, plus
 // bounded component extension inventory and diagnostics readbacks, collector
-// status readbacks, and ingester status readbacks are also available to scoped
-// tokens because they read only deterministic in-process catalog or contract
-// data, normalized runtime posture data, sanitized local registry posture, or
-// aggregate runtime counters. They leave live-data playbook step targets,
-// scanner result routes, provider payloads, local filesystem paths, collector
-// instance details, source-system detail, queue conflict keys, and tenant data
-// routes behind their own scoped route gates.
+// status readbacks, ingester status readbacks, and hosted readiness readbacks
+// are also available to scoped tokens because they read only deterministic
+// in-process catalog or contract data, normalized runtime posture data,
+// sanitized local registry posture, or aggregate runtime counters. They leave
+// live-data playbook step targets, scanner result routes, provider payloads,
+// local filesystem paths, collector instance details, source-system detail,
+// queue conflict keys, and tenant data routes behind their own scoped route
+// gates.
 // Story and investigation routes also attach additive answer_metadata
 // companions for prompt-facing clients. The companion normalizes existing
 // evidence handles, missing evidence, limitations, truncation, coverage,
