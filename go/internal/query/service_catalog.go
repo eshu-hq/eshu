@@ -87,15 +87,11 @@ func (h *ServiceCatalogHandler) listCorrelations(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
-	repositoryID, ok := resolveRepositorySelectorForRequest(w, r, nil, h.Content, QueryParam(r, "repository_id"))
-	if !ok {
-		return
-	}
 	filter := ServiceCatalogCorrelationFilter{
 		ScopeID:            QueryParam(r, "scope_id"),
 		Provider:           QueryParam(r, "provider"),
 		EntityRef:          QueryParam(r, "entity_ref"),
-		RepositoryID:       repositoryID,
+		RepositoryID:       QueryParam(r, "repository_id"),
 		ServiceID:          QueryParam(r, "service_id"),
 		WorkloadID:         QueryParam(r, "workload_id"),
 		OwnerRef:           QueryParam(r, "owner_ref"),
@@ -108,6 +104,24 @@ func (h *ServiceCatalogHandler) listCorrelations(w http.ResponseWriter, r *http.
 		WriteError(w, http.StatusBadRequest, "scope_id, entity_ref, repository_id, service_id, workload_id, or owner_ref is required")
 		return
 	}
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptyServiceCatalogCorrelationPage(w, r, limit)
+		return
+	}
+	repositoryID, ok := resolveRepositorySelectorForRequestWithAccess(
+		w,
+		r,
+		nil,
+		h.Content,
+		filter.RepositoryID,
+		access,
+	)
+	if !ok {
+		return
+	}
+	filter.RepositoryID = repositoryID
+	filter = serviceCatalogCorrelationFilterWithRepositoryAccess(filter, access)
 	if h.Correlations == nil {
 		WriteContractError(
 			w,
@@ -158,6 +172,36 @@ func (h *ServiceCatalogHandler) listCorrelations(w http.ResponseWriter, r *http.
 	))
 }
 
+func (h *ServiceCatalogHandler) writeEmptyServiceCatalogCorrelationPage(
+	w http.ResponseWriter,
+	r *http.Request,
+	limit int,
+) {
+	body := map[string]any{
+		"correlations": []ServiceCatalogCorrelationResult{},
+		"count":        0,
+		"limit":        limit,
+		"truncated":    false,
+		"evidence_summary": ServiceCatalogEvidenceSummary{
+			LocalDescriptors: ServiceCatalogLocalDescriptorEvidence{
+				State:  "not_checked",
+				Reason: "repository_scope_required",
+			},
+			ExternalCatalogConfirmation: ServiceCatalogExternalCatalogEvidence{
+				State:  "missing",
+				Reason: "repository_scope_required",
+			},
+			Reason: "repository_scope_required",
+		},
+	}
+	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
+		h.profile(),
+		serviceCatalogCorrelationsCapability,
+		TruthBasisSemanticFacts,
+		"resolved from reducer-owned service catalog correlation facts; catalog declarations remain provenance until corroborated",
+	))
+}
+
 func requiredServiceCatalogCorrelationLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
 	raw := QueryParam(r, "limit")
 	if raw == "" {
@@ -170,6 +214,18 @@ func requiredServiceCatalogCorrelationLimit(w http.ResponseWriter, r *http.Reque
 		return 0, false
 	}
 	return limit, true
+}
+
+func serviceCatalogCorrelationFilterWithRepositoryAccess(
+	filter ServiceCatalogCorrelationFilter,
+	access repositoryAccessFilter,
+) ServiceCatalogCorrelationFilter {
+	if !access.scoped() {
+		return filter
+	}
+	filter.AllowedRepositoryIDs = append([]string(nil), access.allowedRepositoryIDs...)
+	filter.AllowedScopeIDs = append([]string(nil), access.allowedScopeIDs...)
+	return filter
 }
 
 func serviceCatalogMissingEvidence(

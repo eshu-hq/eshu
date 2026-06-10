@@ -132,7 +132,25 @@ func resolveRepositorySelectorForRequest(
 	content ContentStore,
 	selector string,
 ) (string, bool) {
-	repoID, err := resolveRepositorySelectorExact(r.Context(), graph, content, selector)
+	return resolveRepositorySelectorForRequestWithAccess(
+		w,
+		r,
+		graph,
+		content,
+		selector,
+		repositoryAccessFilter{allScopes: true},
+	)
+}
+
+func resolveRepositorySelectorForRequestWithAccess(
+	w http.ResponseWriter,
+	r *http.Request,
+	graph GraphQuery,
+	content ContentStore,
+	selector string,
+	access repositoryAccessFilter,
+) (string, bool) {
+	repoID, err := resolveRepositorySelectorExactForAccess(r.Context(), graph, content, selector, access)
 	if err != nil {
 		status := http.StatusBadRequest
 		if isRepositorySelectorNotFound(err) {
