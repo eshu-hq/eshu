@@ -309,6 +309,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedComponentExtensionRoute(r) {
 		return true
 	}
+	if scopedIngesterStatusRoute(r) {
+		return true
+	}
 	if r.Method != http.MethodPost {
 		return false
 	}
@@ -394,6 +397,18 @@ func scopedComponentExtensionRoute(r *http.Request) bool {
 	}
 	componentID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, prefix), suffix)
 	return componentID != "" && !strings.Contains(componentID, "/")
+}
+
+func scopedIngesterStatusRoute(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	if r.URL.Path == "/api/v0/status/ingesters" {
+		return true
+	}
+	const prefix = "/api/v0/status/ingesters/"
+	ingester := strings.TrimPrefix(r.URL.Path, prefix)
+	return ingester != r.URL.Path && ingester != "" && !strings.Contains(ingester, "/")
 }
 
 func scopedContextRoute(path string, prefix string) bool {
