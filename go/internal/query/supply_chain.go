@@ -344,21 +344,29 @@ func (h *SupplyChainHandler) listSBOMAttachments(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
-	repositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "repository_id"))
+	// Empty scoped grants return the zero-attachments page without resolving a
+	// selector or reading the attachment store.
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptySBOMAttachmentPage(w, r, limit)
+		return
+	}
+	repositoryID, ok := h.resolveSBOMAttachmentRepositorySelector(w, r, QueryParam(r, "repository_id"), access)
 	if !ok {
 		return
 	}
 	filter := SBOMAttestationAttachmentFilter{
-		SubjectDigest:     firstNonEmptyQueryParam(r, "subject_digest", "digest"),
-		DocumentID:        QueryParam(r, "document_id"),
-		DocumentDigest:    QueryParam(r, "document_digest"),
-		RepositoryID:      repositoryID,
-		WorkloadID:        QueryParam(r, "workload_id"),
-		ServiceID:         QueryParam(r, "service_id"),
-		AttachmentStatus:  QueryParam(r, "attachment_status"),
-		ArtifactKind:      QueryParam(r, "artifact_kind"),
-		AfterAttachmentID: QueryParam(r, "after_attachment_id"),
-		Limit:             limit + 1,
+		SubjectDigest:              firstNonEmptyQueryParam(r, "subject_digest", "digest"),
+		DocumentID:                 QueryParam(r, "document_id"),
+		DocumentDigest:             QueryParam(r, "document_digest"),
+		RepositoryID:               repositoryID,
+		WorkloadID:                 QueryParam(r, "workload_id"),
+		ServiceID:                  QueryParam(r, "service_id"),
+		AttachmentStatus:           QueryParam(r, "attachment_status"),
+		ArtifactKind:               QueryParam(r, "artifact_kind"),
+		AfterAttachmentID:          QueryParam(r, "after_attachment_id"),
+		Limit:                      limit + 1,
+		AllowedSourceRepositoryIDs: access.repositorySearchIDs(),
 	}
 	if !filter.hasScope() {
 		WriteError(w, http.StatusBadRequest, "subject_digest, document_id, document_digest, repository_id, workload_id, or service_id is required")
