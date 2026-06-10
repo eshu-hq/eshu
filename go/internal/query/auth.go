@@ -282,6 +282,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if r.Method == http.MethodPost && r.URL.Path == "/api/v0/entities/resolve" {
 		return true
 	}
+	if r.Method == http.MethodGet && scopedEntityContextRoute(r.URL.Path) {
+		return true
+	}
 	if r.Method != http.MethodPost {
 		return false
 	}
@@ -296,6 +299,18 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	default:
 		return false
 	}
+}
+
+func scopedEntityContextRoute(path string) bool {
+	const (
+		prefix = "/api/v0/entities/"
+		suffix = "/context"
+	)
+	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
+		return false
+	}
+	entityID := strings.TrimSuffix(strings.TrimPrefix(path, prefix), suffix)
+	return entityID != "" && !strings.Contains(entityID, "/")
 }
 
 // constantTimeEqual compares two strings in constant time to prevent timing attacks.
