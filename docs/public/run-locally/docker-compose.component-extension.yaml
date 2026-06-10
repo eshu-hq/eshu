@@ -1,0 +1,88 @@
+# Overlay that turns the base docker-compose.yaml into a Scorecard
+# component-extension remote Compose proof harness (#2126/#1923).
+#
+# It builds the proof image (eshu base + the reference scorecard-collector
+# binary + an install/enable entrypoint), enables the component into the shared
+# component home that the workflow coordinator and the component-extension
+# collector both mount, and puts the coordinator in active/claims-enabled mode
+# under an allowlist trust policy so it plans a Scorecard claim the collector
+# runs through the process adapter.
+#
+# Usage (from repo root):
+#   docker build -t eshu:local -f Dockerfile .
+#   docker compose \
+#     -f docker-compose.yaml \
+#     -f docs/public/run-locally/docker-compose.component-extension.yaml \
+#     --profile component-extension-collector up -d --build
+#   scripts/run-remote-e2e-component-extension.sh   # capture + verify
+#
+# Scorecard facts are source evidence only; the proof asserts no graph nodes or
+# edges are written for them.
+
+services:
+  # One-shot init: install + enable the Scorecard component into the shared
+  # component home before the coordinator and collector start, so active-mode
+  # reconciliation sees an enabled claim-capable instance immediately.
+  component-extension-install:
+    profiles:
+      - component-extension-collector
+    build:
+      context: .
+      dockerfile: examples/collector-extensions/scorecard/Dockerfile
+      args:
+        ESHU_IMAGE: eshu:local
+    entrypoint: ["/usr/local/bin/proof-install.sh"]
+    # The shared eshu_data volume is created empty and root-owned (nocopy), so
+    # the init populates the component home as root and makes it world-readable
+    # for the coordinator and collector (uid 10001).
+    user: "0:0"
+    environment:
+      ESHU_COMPONENT_HOME: /data/.eshu/components
+      ESHU_COMPONENT_COLLECTOR_INSTANCE_ID: scorecard-remote
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+
+  workflow-coordinator:
+    environment:
+      ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE: active
+      ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED: "true"
+      ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL: 5s
+      ESHU_COMPONENT_TRUST_MODE: allowlist
+      ESHU_COMPONENT_ALLOW_IDS: dev.eshu.examples.scorecard
+      ESHU_COMPONENT_ALLOW_PUBLISHERS: eshu-hq
+      ESHU_COMPONENT_CORE_VERSION: dev
+      # Hosted extension egress fails closed without an explicit allow rule.
+      # This restricted policy allows only the Scorecard reference component.
+      ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON: >-
+        {"mode":"restricted","extensions":[{"component_id":"dev.eshu.examples.scorecard","instance_id":"scorecard-remote","collector_kind":"scorecard","decision":"allow"}]}
+    depends_on:
+      component-extension-install:
+        condition: service_completed_successfully
+
+  component-extension-collector:
+    build:
+      context: .
+      dockerfile: examples/collector-extensions/scorecard/Dockerfile
+      args:
+        ESHU_IMAGE: eshu:local
+    # The shared component home is populated by component-extension-install, so
+    # the collector runs the worker directly.
+    entrypoint: ["/usr/local/bin/eshu-collector-component-extension"]
+    environment:
+      ESHU_COMPONENT_TRUST_MODE: allowlist
+      ESHU_COMPONENT_ALLOW_IDS: dev.eshu.examples.scorecard
+      ESHU_COMPONENT_ALLOW_PUBLISHERS: eshu-hq
+      ESHU_COMPONENT_CORE_VERSION: dev
+      ESHU_COMPONENT_COLLECTOR_INSTANCE_ID: scorecard-remote
+      ESHU_COMPONENT_COLLECTOR_OWNER_ID: scorecard-remote-worker
+      ESHU_COMPONENT_COLLECTOR_SCOPE_KIND: repository
+    depends_on:
+      component-extension-install:
+        condition: service_completed_successfully

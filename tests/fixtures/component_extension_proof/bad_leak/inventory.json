@@ -1,0 +1,9 @@
+{
+  "component_extensions": [
+    {
+      "id": "dev.eshu.examples.scorecard",
+      "installed": true, "enabled": true, "trusted": true,
+      "config_path": "/Users/operator/secrets/scorecard.yaml"
+    }
+  ]
+}

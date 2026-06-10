@@ -100,6 +100,14 @@ func TestComponentExtensionPlannerPlansActivationScopedWork(t *testing.T) {
 	if got, want := item.Status, workflow.WorkItemStatusPending; got != want {
 		t.Fatalf("status = %q, want %q", got, want)
 	}
+	// The claimed-collection runtime invariant for non-terraform kinds requires
+	// the planned generation to also be the source run id (see
+	// collector.validateClaimedGeneration): a component generation IS its run.
+	// Diverging prefixes fail the claim at runtime, so the planner must mint a
+	// single identity for both fields.
+	if item.GenerationID == "" || item.GenerationID != item.SourceRunID {
+		t.Fatalf("GenerationID = %q SourceRunID = %q, want same nonblank value", item.GenerationID, item.SourceRunID)
+	}
 }
 
 func TestShouldScheduleComponentExtensionSurfacesInvalidActivationConfig(t *testing.T) {

@@ -144,8 +144,12 @@ func componentExtensionWorkItem(
 	observedAt time.Time,
 ) workflow.WorkItem {
 	sourceSystem, scopeID := componentExtensionClaimIdentity(config)
-	sourceRunID := "component-run:" + componentExtensionIdentity(config, planKey)
+	// A component generation IS its run: the claimed-collection runtime invariant
+	// for non-terraform kinds requires GenerationID == SourceRunID (see
+	// collector.validateClaimedGeneration). Mint a single identity for both, as
+	// every other non-terraform scheduler does.
 	generationID := "component-generation:" + componentExtensionIdentity(config, planKey)
+	sourceRunID := generationID
 	return workflow.WorkItem{
 		WorkItemID:          "component-work:" + componentExtensionIdentity(config, planKey),
 		RunID:               runID,
