@@ -53,6 +53,7 @@ func buildSemanticEvidenceSQL(filter semanticEvidenceFilter) (string, []any) {
 	addPayloadFilter("fact_records.payload->>'hint_type'", filter.HintType)
 	addPayloadFilter("fact_records.payload->>'relationship_kind'", filter.RelationshipKind)
 	clauses, args = appendSemanticEvidenceRepositoryClause(clauses, args, filter)
+	clauses, args = appendSemanticEvidenceAuthorizationClause(clauses, args, filter)
 	if strings.TrimSpace(filter.Query) != "" {
 		args = append(args, "%"+strings.ToLower(strings.TrimSpace(filter.Query))+"%")
 		clauses = append(clauses, fmt.Sprintf(`LOWER(
@@ -115,6 +116,53 @@ func appendSemanticEvidenceRepositoryClause(
 		"fact_records.payload",
 		documentationTargetRefsFromSemanticEvidenceFilter(filter),
 	)
+}
+
+func appendSemanticEvidenceAuthorizationClause(
+	clauses []string,
+	args []any,
+	filter semanticEvidenceFilter,
+) ([]string, []any) {
+	ids := uniqueSemanticEvidenceAccessIDs(filter.AllowedRepositoryIDs, filter.AllowedScopeIDs)
+	if len(ids) == 0 {
+		return clauses, args
+	}
+	placeholders := make([]string, 0, len(ids))
+	for _, id := range ids {
+		args = append(args, id)
+		placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)))
+	}
+	inList := strings.Join(placeholders, ", ")
+	clauses = append(clauses, fmt.Sprintf(`(
+	fact_records.scope_id IN (%[1]s)
+	OR fact_records.payload->'source'->>'repository_id' IN (%[1]s)
+	OR fact_records.payload->'subject'->>'repository_id' IN (%[1]s)
+	OR EXISTS (
+		SELECT 1
+		FROM jsonb_array_elements(COALESCE(fact_records.payload->'object_refs', '[]'::jsonb)) AS object_ref
+		WHERE object_ref->>'repository_id' IN (%[1]s)
+	)
+)`, inList))
+	return clauses, args
+}
+
+func uniqueSemanticEvidenceAccessIDs(groups ...[]string) []string {
+	seen := map[string]struct{}{}
+	out := []string{}
+	for _, group := range groups {
+		for _, value := range group {
+			value = strings.TrimSpace(value)
+			if value == "" {
+				continue
+			}
+			if _, ok := seen[value]; ok {
+				continue
+			}
+			seen[value] = struct{}{}
+			out = append(out, value)
+		}
+	}
+	return out
 }
 
 func documentationTargetRefsFromSemanticEvidenceFilter(filter semanticEvidenceFilter) []documentationTargetRef {

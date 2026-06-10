@@ -314,6 +314,16 @@
   or response field for shared-token callers; existing HTTP route attribution
   and runtime status fields diagnose the bounded status readback path.
 
+- **Semantic evidence scoped-token route evidence** — #2110 opens only
+  `GET /api/v0/semantic/documentation-observations` and
+  `GET /api/v0/semantic/code-hints` after `SemanticEvidenceHandler` intersects
+  the fact-record read model with `AuthContext` repository/scope grants before
+  ordering and paging. Empty grants return empty pages without broad fact reads.
+  No-Regression Evidence: `go test ./internal/query -run
+  'Test(AuthMiddlewareWithScopedTokensAllowsSemanticEvidenceRoutes|SemanticEvidenceHandlerScopedEmptyGrantReturnsEmptyWithoutRead|BuildSemanticEvidenceSQL.*Semantic)' -count=1`
+  and `go test ./internal/mcp -run
+  'Test(DispatchToolSemanticEvidenceAllowsScopedRoutes|SemanticEvidenceToolsRouteToBoundedHTTPReads)' -count=1`.
+
 - **Package registry reads stay anchored** — `PackageRegistryHandler` in
   `package_registry.go` must require `limit` plus a route-specific anchor
   before graph reads: package lookups use `package_id` or `ecosystem`, version

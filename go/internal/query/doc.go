@@ -92,16 +92,16 @@
 // hydration, coverage metadata, recommended next calls, and content fallback
 // calls before allowing scoped-token API or MCP reads. Query playbook catalog
 // and resolver routes, the vulnerability scanner read-contract route, and the
-// redacted hosted governance and semantic extraction status routes, plus
-// bounded component extension inventory and diagnostics readbacks, collector
-// status readbacks, ingester status readbacks, and hosted readiness readbacks
-// are also available to scoped tokens because they read only deterministic
-// in-process catalog or contract data, normalized runtime posture data,
-// sanitized local registry posture, or aggregate runtime counters. They leave
-// live-data playbook step targets, scanner result routes, provider payloads,
-// local filesystem paths, collector instance details, source-system detail,
-// queue conflict keys, and tenant data routes behind their own scoped route
-// gates.
+// redacted hosted governance and semantic extraction status routes, bounded
+// semantic evidence reads, component extension inventory and diagnostics
+// readbacks, collector status readbacks, ingester status readbacks, and hosted
+// readiness readbacks are also available to scoped tokens because they read
+// only deterministic in-process catalog or contract data, normalized runtime
+// posture data, sanitized fact rows, sanitized local registry posture, or
+// aggregate runtime counters. They leave live-data playbook step targets,
+// scanner result routes, provider payloads, local filesystem paths, collector
+// instance details, source-system detail, queue conflict keys, and tenant data
+// routes behind their own scoped route gates.
 // Story and investigation routes also attach additive answer_metadata
 // companions for prompt-facing clients. The companion normalizes existing
 // evidence handles, missing evidence, limitations, truncation, coverage,

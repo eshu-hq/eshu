@@ -309,6 +309,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedSemanticExtractionStatusRoute(r) {
 		return true
 	}
+	if scopedSemanticEvidenceRoute(r) {
+		return true
+	}
 	if scopedComponentExtensionRoute(r) {
 		return true
 	}
@@ -389,6 +392,19 @@ func scopedHostedReadinessRoute(r *http.Request) bool {
 
 func scopedSemanticExtractionStatusRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/status/semantic-extraction"
+}
+
+func scopedSemanticEvidenceRoute(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	switch r.URL.Path {
+	case "/api/v0/semantic/documentation-observations",
+		"/api/v0/semantic/code-hints":
+		return true
+	default:
+		return false
+	}
 }
 
 func scopedComponentExtensionRoute(r *http.Request) bool {
