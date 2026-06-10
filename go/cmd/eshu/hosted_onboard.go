@@ -9,14 +9,17 @@ import (
 )
 
 // hostedOnboardScopedIsolationLimitation documents, in the artifact itself, the
-// current hosted authorization reality: the deployed API/MCP surface enforces a
-// single shared bearer token (query.AuthMiddleware) with no per-team or
-// per-repository scoping. An onboarding artifact must not imply isolation that
-// does not exist, so this limitation is recorded verbatim and tracked by a
-// follow-up issue.
-const hostedOnboardScopedIsolationLimitation = "The hosted service authenticates with a single shared bearer token; " +
-	"there is no per-team or per-repository token scoping today. Every holder of the token can read every indexed repository. " +
-	"Treat the token source as a shared-service credential, not a tenant-isolated secret. Tracked follow-up: scoped per-team tokens (#1852)."
+// hosted authorization model and the action required for tenant isolation.
+// Scoped per-team tokens now exist (#1852): the API/MCP surface resolves tokens
+// through an operator-managed registry (ESHU_SCOPED_TOKENS_FILE) into bounded
+// repository/scope grants. The artifact references that scoped-token source so
+// it never implies isolation an operator has not actually provisioned, and is
+// explicit that the fallback shared token remains broad until a scoped token is
+// registered for this team's repository scope.
+const hostedOnboardScopedIsolationLimitation = "Register a scoped per-team token for the repositories listed above in the hosted " +
+	"scoped-token registry (ESHU_SCOPED_TOKENS_FILE) so it reads only this team's scope; see the hosted-governance operator guide for " +
+	"issuance and rotation. Until a scoped token is registered, the shared bearer token grants every holder read access to every indexed " +
+	"repository — treat the shared token as a shared-service credential, not a tenant-isolated secret."
 
 // hostedOnboardOptions captures the resolved hosted-onboard command inputs.
 type hostedOnboardOptions struct {

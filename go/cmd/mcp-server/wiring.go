@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
+	"github.com/eshu-hq/eshu/go/internal/scopedtoken"
 	"github.com/eshu-hq/eshu/go/internal/semanticpolicy"
 	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
 	"github.com/eshu-hq/eshu/go/internal/status"
@@ -56,6 +57,10 @@ func wireAPI(
 	apiKey, err := internalruntime.ResolveAPIKey(getenv)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("resolve api key: %w", err)
+	}
+	scopedTokenResolver, err := scopedtoken.ResolverFromEnv(getenv)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("resolve scoped token registry: %w", err)
 	}
 	governanceStatus := query.GovernanceStatusConfigFromEnv(getenv, apiKey != "")
 
@@ -120,8 +125,9 @@ func wireAPI(
 	mux := http.NewServeMux()
 	router.Mount(mux)
 
-	// Wrap with auth middleware (protects all /api/v0/* routes when mounted by MCP server)
-	authedHandler := query.AuthMiddlewareWithGovernanceAudit(apiKey, mux, governanceAudit)
+	// Wrap with auth middleware (shared token + optional scoped-token registry;
+	// protects all /api/v0/* routes when mounted by MCP server)
+	authedHandler := query.AuthMiddlewareWithScopedTokensAndGovernanceAudit(apiKey, scopedTokenResolver, mux, governanceAudit)
 
 	adminMux, err := mountRuntimeSurface("mcp-server", statusReader, prometheusHandler)
 	if err != nil {
