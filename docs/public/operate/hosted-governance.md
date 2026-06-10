@@ -49,7 +49,20 @@ access or implying tenant isolation.
 
 Run governance preflight before handing a team an onboarding artifact.
 
-1. Confirm the endpoint and token source are operator-managed:
+1. Run the local hosted governance proof gate before remote Compose,
+   Kubernetes, or GitOps promotion:
+
+```bash
+scripts/test-verify-hosted-governance-proof.sh
+scripts/verify-hosted-governance-proof.sh
+```
+
+The local gate composes focused API/MCP scoped-token governance tests, redaction
+and audit readback canaries, hosted security posture proof, and NetworkPolicy
+egress proof. It is source-only and must not require live hosts, clusters,
+private values, provider credentials, or tenant data.
+
+2. Confirm the endpoint and token source are operator-managed:
 
 ```bash
 export ESHU_SERVICE_URL=https://eshu.example.com
@@ -57,7 +70,7 @@ export ESHU_SERVICE_URL=https://eshu.example.com
 eshu hosted-setup --service-url "$ESHU_SERVICE_URL"
 ```
 
-2. Check process health, dependency readiness, and completeness:
+3. Check process health, dependency readiness, and completeness:
 
 ```bash
 curl -fsS "$ESHU_SERVICE_URL/healthz"
@@ -73,7 +86,7 @@ raw policy bodies, tenant or workspace identifiers, source identifiers,
 credential handles, provider endpoints, prompts, provider responses, or token
 values.
 
-3. Check optional semantic extraction status before enabling provider-backed
+4. Check optional semantic extraction status before enabling provider-backed
    answers:
 
 ```bash
@@ -85,7 +98,7 @@ No-provider mode should report unavailable or policy-disabled semantic
 extraction without failing deterministic API, MCP, ingestion, reducer, or docs
 verification paths.
 
-4. If component packages are configured on the deployed runtime, inspect only
+5. If component packages are configured on the deployed runtime, inspect only
    the redacted inventory and diagnostics:
 
 ```bash
@@ -97,7 +110,7 @@ MCP equivalents are `get_hosted_governance_status`,
 `get_semantic_capability_status`, `list_component_extensions`, and
 `get_component_extension_diagnostics`.
 
-5. Generate the team artifact only after the above checks match the intended
+6. Generate the team artifact only after the above checks match the intended
    posture:
 
 ```bash
@@ -382,6 +395,7 @@ Use these gates for hosted governance-related changes:
 | Public docs or navigation | Strict MkDocs build and `git diff --check`. |
 | Hosted API/MCP auth, Secret refs, pprof, or docs exposure posture | `scripts/test-verify-hosted-security-posture.sh`, `scripts/verify-hosted-security-posture.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml`. |
 | Hosted NetworkPolicy egress posture | `scripts/test-verify-hosted-network-policy-egress.sh`, `scripts/verify-hosted-network-policy-egress.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml`. |
+| Hosted governance local proof posture | `scripts/test-verify-hosted-governance-proof.sh`, `scripts/verify-hosted-governance-proof.sh`, strict MkDocs build, and `git diff --check`. |
 | Hosted retention or deletion policy docs | Strict MkDocs build and `git diff --check`; runtime implementation must add focused deletion, tombstone, stale-read, and graph-rebuild tests. |
 | Hosted governance audit events or readbacks | `go test ./internal/governanceaudit ./internal/storage/postgres ./internal/query ./cmd/api ./cmd/mcp-server -count=1`, package-doc gates, performance-evidence gate, and strict MkDocs build. |
 | Hosted extension egress claim gate | `go test ./internal/coordinator -run 'Test(ParseExtensionEgressPolicyJSON|ExtensionEgressPolicy|LoadConfigParsesExtensionEgressPolicy|ServiceRun.*ComponentExtension|ServiceComponentExtension)' -count=1`, package-doc gates, performance-evidence gate, and strict MkDocs build. |
