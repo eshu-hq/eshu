@@ -184,6 +184,25 @@ dispatch tests.
 No-Observability-Change: existing SBOM attachment query spans, truth envelopes,
 limits, cursors, truncation, count, and inventory metadata diagnose the bounded
 reads.
+Provider security-alert reconciliation list, count, and inventory reads
+(`GET /api/v0/supply-chain/security-alerts/reconciliations`,
+`/reconciliations/count`, and `/reconciliations/inventory`, plus the matching
+`list_security_alert_reconciliations`, `count_security_alert_reconciliations`,
+and `get_security_alert_reconciliation_inventory` MCP tools) intersect
+reconciliation facts with the scoped-token grant set (matching `repository_id`,
+`provider_repository_id`, or `scope_id`) inside the `security_alert_current`
+ranking CTE, before deduplication, ordering, limits, offsets, cursors, grouping,
+and count metadata. The existing provider-scope selector resolution is preserved;
+out-of-grant repository selectors fail with a not-found response before the
+reconciliation store read, and empty grants return the existing zero/empty
+shapes without store reads. Non-repository anchors (provider, CVE, GHSA,
+package) still require a granted-repository match. Shared-token, all-scope
+admin, and local behavior are unchanged.
+No-Regression Evidence: focused security-alert reconciliation scoped-token query
+and MCP dispatch tests.
+No-Observability-Change: existing security-alert reconciliation query spans,
+truth envelopes, coverage, limits, cursors, truncation, count, and inventory
+metadata diagnose the bounded reads.
 Semantic evidence reads are opt-in routes over durable semantic facts:
 `GET /api/v0/semantic/documentation-observations` and
 `GET /api/v0/semantic/code-hints`. They require at least one scope or semantic

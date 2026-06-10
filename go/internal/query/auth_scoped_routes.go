@@ -83,6 +83,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedSBOMAttestationAttachmentRoute(r) {
 		return true
 	}
+	if scopedSecurityAlertReconciliationRoute(r) {
+		return true
+	}
 	if r.Method != http.MethodPost {
 		return false
 	}
@@ -152,6 +155,25 @@ func scopedSBOMAttestationAttachmentRoute(r *http.Request) bool {
 	case "/api/v0/supply-chain/sbom-attestations/attachments",
 		"/api/v0/supply-chain/sbom-attestations/attachments/count",
 		"/api/v0/supply-chain/sbom-attestations/attachments/inventory":
+		return true
+	default:
+		return false
+	}
+}
+
+// scopedSecurityAlertReconciliationRoute reports whether the request targets one
+// of the reducer-owned provider security-alert reconciliation read routes.
+// Reconciliation facts carry a git repository_id plus provider keys; scoped
+// reads intersect those with the grant set and out-of-grant repository
+// selectors fail before the reconciliation store read.
+func scopedSecurityAlertReconciliationRoute(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	switch r.URL.Path {
+	case "/api/v0/supply-chain/security-alerts/reconciliations",
+		"/api/v0/supply-chain/security-alerts/reconciliations/count",
+		"/api/v0/supply-chain/security-alerts/reconciliations/inventory":
 		return true
 	default:
 		return false
