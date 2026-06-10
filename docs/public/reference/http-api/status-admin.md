@@ -354,8 +354,8 @@ service generation id). Optional `sample_limit` (default 25, max 200) caps the
 per-classification sample handles. The response carries the resolved
 `service_id`, `since_generation_id`, `current_active_generation_id`, and a
 `categories` array. The surface reports the `ownership` (#1943), `deployment`
-(#1985), `runtime` (#1986), `dependencies` (#1987), `docs` (#1988), and
-`incidents` (#1989) families. Each category carries
+(#1985), `runtime` (#1986), `dependencies` (#1987), `docs` (#1988),
+`incidents` (#1989), and `vulnerabilities` (#1990) families. Each category carries
 exact `counts` for `added`, `updated`, `unchanged`, `retired`, and `superseded`,
 plus bounded `samples` (`stable_fact_key` carrying the `service_evidence_key`,
 `fact_kind` carrying the evidence family) per classification and a
@@ -373,9 +373,11 @@ service-changed-since`.
 
 The incidents family's production loader is held behind a durable
 PagerDuty-provider-to-Eshu-catalog service-id join that is a tracked #1989
-follow-up, so its rows materialize once that join exists. The remaining service
-family (vulnerabilities) reuses this lineage and snapshot foundation and is a
-tracked follow-up.
+follow-up, and the vulnerabilities family's loader is held behind a durable
+service-to-repository-to-package-to-advisory join that is a tracked #1990
+follow-up, so their rows materialize once those joins exist. All six service
+evidence families now ship the emitter, category, delta surface, and a
+nil-tolerant loader seam.
 
 Performance Evidence: the diff is bounded by the requested `sample_limit` and
 keyed by `(scope_id, generation_id, stable_fact_key)`. Counts come from one

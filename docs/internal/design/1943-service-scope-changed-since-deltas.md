@@ -4,8 +4,9 @@ Issue: #1943
 Parent: #1797
 Follow-up to: #1799 (merged repository-scope changed-since)
 
-Status: **Ownership (#1943), deployment (#1985), runtime (#1986),
-dependencies (#1987), docs (#1988), and incidents (#1989) families shipped.**
+Status: **All six service evidence families shipped: ownership (#1943),
+deployment (#1985), runtime (#1986), dependencies (#1987), docs (#1988),
+incidents (#1989), and vulnerabilities (#1990).**
 The incidents family (#1989) ships the reducer emitter, category, and
 family-generic delta surface, but its production loader is intentionally left
 nil in `cmd/reducer`: keying it by the Eshu catalog `service_id` needs a durable

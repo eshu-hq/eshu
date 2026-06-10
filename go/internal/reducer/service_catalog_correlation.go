@@ -128,7 +128,19 @@ type ServiceCatalogCorrelationHandler struct {
 	// leaves the generation without incidents rows, preserving the prior families'
 	// contract.
 	IncidentEvidenceLoader ServiceScopedIncidentEvidenceLoader
-	Instruments            *telemetry.Instruments
+	// VulnerabilityEvidenceLoader, when set alongside MaterializationWriter,
+	// supplies the supply-chain advisory evidence affecting each correlated
+	// service so the vulnerabilities evidence family (#1990) is materialized into
+	// the same generation as the prior families. Like the documentation and
+	// incident loaders it is keyed by Eshu catalog service id rather than
+	// repository id. It is optional and is intentionally left nil in production
+	// today: resolving an advisory to the services it affects needs a durable
+	// service -> repository -> package -> advisory join that does not exist in the
+	// materialization path yet (the #1990 follow-up). A nil loader leaves the
+	// generation without vulnerabilities rows, preserving the prior families'
+	// contract.
+	VulnerabilityEvidenceLoader ServiceScopedVulnerabilityEvidenceLoader
+	Instruments                 *telemetry.Instruments
 }
 
 // Handle executes one service catalog correlation reducer intent.
@@ -216,6 +228,9 @@ func (h ServiceCatalogCorrelationHandler) commitServiceGenerations(
 		return err
 	}
 	if err := h.attachServiceIncidentEvidence(ctx, writes); err != nil {
+		return err
+	}
+	if err := h.attachServiceVulnerabilityEvidence(ctx, writes); err != nil {
 		return err
 	}
 	for _, write := range writes {
