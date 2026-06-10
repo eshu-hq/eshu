@@ -311,12 +311,13 @@ return the canonical envelope shape.
 `normalizeQualifiedIdentifier` strips the `workload:` prefix from service
 identifiers before building path segments. If a new service tool is added,
 apply this helper when the input may include a type qualifier.
-`get_service_story` also forwards canonical `workload:*` inputs as the
-`service_id` query parameter so target-story MCP readbacks do not fall back to
-name-only service matching. When a caller starts from repository context, it can
-send `service_name` with `repo`, `repository_id`, or `repo_id`; MCP forwards the
-repository selector as the HTTP `repo` query parameter so the query handler owns
-the same disambiguation path as API callers.
+`get_service_story` and `investigate_service` also forward canonical
+`workload:*` inputs as the `service_id` query parameter so target-story and
+investigation MCP readbacks do not fall back to name-only service matching.
+When a caller starts from repository context, it can send `service_name` with
+`repo`, `repository_id`, or `repo_id`; MCP forwards the repository selector as
+the HTTP `repo` query parameter so the query handler owns the same
+disambiguation path as API callers.
 
 `get_service_context` requires the MCP `workload_id` argument. The value is
 mapped into the HTTP service selector path after qualified identifier

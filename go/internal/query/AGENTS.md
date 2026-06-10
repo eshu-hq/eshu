@@ -148,8 +148,7 @@
   `GET /api/v0/services/{service_name}/story` after `EntityHandler` applies
   `AuthContext` bounds to empty grants, workload lookup predicates, service
   candidate selection, repository selector disambiguation, and read-model
-  fallback rows. Service investigation remains fail-closed for scoped tokens
-  until split separately. No-Regression Evidence: `go test ./internal/query
+  fallback rows. No-Regression Evidence: `go test ./internal/query
   -run
   'Test(GetWorkload|GetService|ServiceWorkload|AuthMiddlewareWithScopedTokens)'
   -count=1` and `go test ./internal/mcp -run
@@ -159,6 +158,22 @@
   `service_query.stage_*` logs, graph query spans, HTTP route attribution,
   truth envelopes, result limits, and partial reasons diagnose the bounded
   read path.
+
+- **Service investigation scoped-token route evidence** — #2074 opens only
+  `GET /api/v0/investigations/services/{service_name}` after `EntityHandler`
+  applies `AuthContext` bounds to empty grants, service candidate selection,
+  repository selector disambiguation, environment filtering, read-model
+  fallback rows, coverage metadata, and recommended next calls. MCP dispatch
+  for `investigate_service` remains transport-only and forwards service,
+  repository, and environment selectors through the shared HTTP handler.
+  No-Regression Evidence: `go test ./internal/query -run
+  'Test(AuthMiddlewareWithScopedTokensAllowsServiceInvestigationRoute|InvestigateService)'
+  -count=1` and `go test ./internal/mcp -run
+  TestDispatchToolInvestigateServiceAllowsScopedRoute -count=1`.
+  No-Observability-Change: the route adds no graph write, metric label,
+  runtime knob, or response field; existing service query `service_query.stage_*`
+  logs, graph query spans, HTTP route attribution, truth envelopes, result
+  limits, and partial reasons diagnose the bounded investigation read path.
 
 - **Package registry reads stay anchored** — `PackageRegistryHandler` in
   `package_registry.go` must require `limit` plus a route-specific anchor
