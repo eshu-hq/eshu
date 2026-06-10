@@ -53,6 +53,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedDocumentationAggregateRoute(r) {
 		return true
 	}
+	if scopedDocumentationEvidencePacketRoute(r) {
+		return true
+	}
 	if scopedComponentExtensionRoute(r) {
 		return true
 	}
@@ -143,6 +146,40 @@ func scopedDocumentationAggregateRoute(r *http.Request) bool {
 	default:
 		return false
 	}
+}
+
+func scopedDocumentationEvidencePacketRoute(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	if scopedDocumentationFindingPacketRoute(r.URL.Path) {
+		return true
+	}
+	return scopedDocumentationPacketFreshnessRoute(r.URL.Path)
+}
+
+func scopedDocumentationFindingPacketRoute(path string) bool {
+	const (
+		prefix = "/api/v0/documentation/findings/"
+		suffix = "/evidence-packet"
+	)
+	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
+		return false
+	}
+	findingID := strings.TrimSuffix(strings.TrimPrefix(path, prefix), suffix)
+	return findingID != "" && !strings.Contains(findingID, "/")
+}
+
+func scopedDocumentationPacketFreshnessRoute(path string) bool {
+	const (
+		prefix = "/api/v0/documentation/evidence-packets/"
+		suffix = "/freshness"
+	)
+	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
+		return false
+	}
+	packetID := strings.TrimSuffix(strings.TrimPrefix(path, prefix), suffix)
+	return packetID != "" && !strings.Contains(packetID, "/")
 }
 
 func scopedHostedGovernanceStatusRoute(r *http.Request) bool {

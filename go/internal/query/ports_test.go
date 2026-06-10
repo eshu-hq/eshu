@@ -18,32 +18,34 @@ func (fakePortGraphQuery) RunSingle(context.Context, string, map[string]any) (ma
 }
 
 type fakePortContentStore struct {
-	coverage                    RepositoryContentCoverage
-	summary                     repositoryReadModelSummary
-	relationshipReadModel       repositoryRelationshipReadModel
-	entryPoints                 repositoryEntryPointReadModel
-	deploymentEvidence          repositoryDeploymentEvidenceReadModel
-	deploymentEvidenceErr       error
-	relationshipEvidence        relationshipEvidenceReadModel
-	documentationFindingsModel  documentationFindingListReadModel
-	documentationFindingsErr    error
-	documentationFindingsFilter *documentationFindingFilter
-	documentationFactsModel     documentationFactListReadModel
-	documentationFactsErr       error
-	documentationFactsFilter    *documentationFactFilter
-	documentationPacketModel    documentationEvidencePacketReadModel
-	documentationPacketErr      error
-	documentationFreshnessModel documentationEvidencePacketFreshnessReadModel
-	documentationFreshnessErr   error
-	targetSupportModel          serviceStoryTargetSupportReadModel
-	targetSupportErr            error
-	entities                    []EntityContent
-	repoFiles                   []FileContent
-	repositories                []RepositoryCatalogEntry
-	languageRepos               []RepositoryLanguageRepository
-	languageCounts              map[string]RepositoryLanguageAggregate
-	languageInventory           []RepositoryLanguageInventoryRow
-	workloadIdentities          []CatalogWorkloadIdentityEntry
+	coverage                     RepositoryContentCoverage
+	summary                      repositoryReadModelSummary
+	relationshipReadModel        repositoryRelationshipReadModel
+	entryPoints                  repositoryEntryPointReadModel
+	deploymentEvidence           repositoryDeploymentEvidenceReadModel
+	deploymentEvidenceErr        error
+	relationshipEvidence         relationshipEvidenceReadModel
+	documentationFindingsModel   documentationFindingListReadModel
+	documentationFindingsErr     error
+	documentationFindingsFilter  *documentationFindingFilter
+	documentationFactsModel      documentationFactListReadModel
+	documentationFactsErr        error
+	documentationFactsFilter     *documentationFactFilter
+	documentationPacketModel     documentationEvidencePacketReadModel
+	documentationPacketErr       error
+	documentationPacketFilter    *documentationEvidencePacketFilter
+	documentationFreshnessModel  documentationEvidencePacketFreshnessReadModel
+	documentationFreshnessErr    error
+	documentationFreshnessFilter *documentationEvidencePacketFreshnessFilter
+	targetSupportModel           serviceStoryTargetSupportReadModel
+	targetSupportErr             error
+	entities                     []EntityContent
+	repoFiles                    []FileContent
+	repositories                 []RepositoryCatalogEntry
+	languageRepos                []RepositoryLanguageRepository
+	languageCounts               map[string]RepositoryLanguageAggregate
+	languageInventory            []RepositoryLanguageInventoryRow
+	workloadIdentities           []CatalogWorkloadIdentityEntry
 }
 
 func (f fakePortContentStore) GetFileContent(_ context.Context, repoID, relativePath string) (*FileContent, error) {
@@ -249,11 +251,37 @@ func (f fakePortContentStore) documentationEvidencePacket(context.Context, strin
 	return f.documentationPacketModel, nil
 }
 
+func (f fakePortContentStore) documentationEvidencePacketWithFilter(
+	_ context.Context,
+	filter documentationEvidencePacketFilter,
+) (documentationEvidencePacketReadModel, error) {
+	if f.documentationPacketFilter != nil {
+		*f.documentationPacketFilter = filter
+	}
+	if f.documentationPacketErr != nil {
+		return documentationEvidencePacketReadModel{}, f.documentationPacketErr
+	}
+	return f.documentationPacketModel, nil
+}
+
 func (f fakePortContentStore) documentationEvidencePacketFreshness(
 	context.Context,
 	string,
 	string,
 ) (documentationEvidencePacketFreshnessReadModel, error) {
+	if f.documentationFreshnessErr != nil {
+		return documentationEvidencePacketFreshnessReadModel{}, f.documentationFreshnessErr
+	}
+	return f.documentationFreshnessModel, nil
+}
+
+func (f fakePortContentStore) documentationEvidencePacketFreshnessWithFilter(
+	_ context.Context,
+	filter documentationEvidencePacketFreshnessFilter,
+) (documentationEvidencePacketFreshnessReadModel, error) {
+	if f.documentationFreshnessFilter != nil {
+		*f.documentationFreshnessFilter = filter
+	}
 	if f.documentationFreshnessErr != nil {
 		return documentationEvidencePacketFreshnessReadModel{}, f.documentationFreshnessErr
 	}
