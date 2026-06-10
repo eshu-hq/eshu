@@ -260,6 +260,23 @@
   or response field; existing HTTP route attribution and component-extension
   truth envelopes diagnose the bounded local registry readback path.
 
+- **Hosted readiness scoped-token route evidence** — #2090 opens only
+  `GET /api/v0/status/hosted-readiness` because `StatusHandler` returns
+  bounded hosted readiness checks, queue counters, repository count, diagnostic
+  route names, and aggregate coordinator counters. Scoped responses replace
+  coordinator instance rows with `scopedCoordinatorToMap`, so collector instance
+  ids, display names, tenant/workspace values, queue conflict keys,
+  repository/source ids, graph row detail, provider payloads, local paths, and
+  credentials stay outside the payload. No-Regression Evidence: `go test
+  ./internal/query -run
+  'Test(AuthMiddlewareWithScopedTokensAllowsHostedReadinessRoute|StatusHandlerHostedReadiness)'
+  -count=1` and `go test ./internal/mcp -run
+  'TestDispatchToolHostedReadinessAllowsScopedRoute' -count=1`.
+  No-Observability-Change: the route adds no graph write, content read,
+  provider call, collector call, metric label, runtime knob, or response field
+  for shared-token callers; existing HTTP route attribution and hosted readiness
+  status fields diagnose the bounded status readback path.
+
 - **Collector status scoped-token route evidence** — #2088 opens only
   `GET /api/v0/status/collectors` because `StatusHandler.listCollectors`
   returns aggregate runtime posture for scoped tokens: collector kind,

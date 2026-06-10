@@ -303,6 +303,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedHostedGovernanceStatusRoute(r) {
 		return true
 	}
+	if scopedHostedReadinessRoute(r) {
+		return true
+	}
 	if scopedSemanticExtractionStatusRoute(r) {
 		return true
 	}
@@ -378,6 +381,10 @@ func scopedVulnerabilityScannerContractRoute(r *http.Request) bool {
 
 func scopedHostedGovernanceStatusRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/status/governance"
+}
+
+func scopedHostedReadinessRoute(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/status/hosted-readiness"
 }
 
 func scopedSemanticExtractionStatusRoute(r *http.Request) bool {
