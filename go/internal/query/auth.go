@@ -25,9 +25,54 @@ var publicHTTPPaths = map[string]bool{
 
 const governanceAuditAppendTimeout = 500 * time.Millisecond
 
+type authContextKey struct{}
+
+// AuthMode names the source of an authenticated request context.
+type AuthMode string
+
+const (
+	// AuthModeShared identifies the legacy shared bearer-token path.
+	AuthModeShared AuthMode = "shared"
+	// AuthModeScoped identifies a token resolved through the scoped registry.
+	AuthModeScoped AuthMode = "scoped"
+)
+
+// AuthContext carries request-scoped authorization bounds for query handlers.
+type AuthContext struct {
+	Mode                 AuthMode
+	TenantID             string
+	WorkspaceID          string
+	SubjectClass         string
+	SubjectIDHash        string
+	PolicyRevisionHash   string
+	AllScopes            bool
+	AllowedScopeIDs      []string
+	AllowedRepositoryIDs []string
+}
+
+// ScopedTokenResolver resolves a presented bearer credential into an auth
+// context without exposing raw token values to handlers.
+type ScopedTokenResolver interface {
+	ResolveScopedToken(context.Context, string) (AuthContext, bool, error)
+}
+
 // GovernanceAuditAppender records validation-safe governance audit events.
 type GovernanceAuditAppender interface {
 	Append(context.Context, []governanceaudit.Event) error
+}
+
+// AuthContextFromContext returns the authenticated request context, if any.
+func AuthContextFromContext(ctx context.Context) (AuthContext, bool) {
+	if ctx == nil {
+		return AuthContext{}, false
+	}
+	auth, ok := ctx.Value(authContextKey{}).(AuthContext)
+	return auth, ok
+}
+
+// ContextWithAuthContext returns a child context carrying authorization bounds.
+func ContextWithAuthContext(ctx context.Context, auth AuthContext) context.Context {
+	return context.WithValue(ctx, authContextKey{}, auth)
 }
 
 // AuthMiddleware wraps an HTTP handler with bearer token authentication.
@@ -39,7 +84,7 @@ type GovernanceAuditAppender interface {
 //
 // Returns 401 Unauthorized with a JSON error body if authentication fails.
 func AuthMiddleware(token string, next http.Handler) http.Handler {
-	return AuthMiddlewareWithGovernanceAudit(token, next, nil)
+	return authMiddleware(token, nil, next, nil)
 }
 
 // AuthMiddlewareWithGovernanceAudit wraps an HTTP handler with bearer token
@@ -50,31 +95,46 @@ func AuthMiddlewareWithGovernanceAudit(
 	next http.Handler,
 	audit GovernanceAuditAppender,
 ) http.Handler {
+	return authMiddleware(token, nil, next, audit)
+}
+
+// AuthMiddlewareWithScopedTokens wraps an HTTP handler with shared-token
+// compatibility plus optional scoped-token resolution.
+func AuthMiddlewareWithScopedTokens(
+	token string,
+	resolver ScopedTokenResolver,
+	next http.Handler,
+) http.Handler {
+	return authMiddleware(token, resolver, next, nil)
+}
+
+func authMiddleware(
+	token string,
+	resolver ScopedTokenResolver,
+	next http.Handler,
+	audit GovernanceAuditAppender,
+) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Dev mode: skip auth when token is empty
-		if token == "" {
+		// Dev mode: skip auth when token is empty.
+		if token == "" && resolver == nil {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		// Public paths: skip auth
+		// Public paths: skip auth.
 		if publicHTTPPaths[r.URL.Path] {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		// Extract Authorization header
 		authorization := r.Header.Get("Authorization")
 		scheme, credentials, found := strings.Cut(authorization, " ")
-
-		// Validate scheme and credentials
 		if !found || strings.ToLower(strings.TrimSpace(scheme)) != "bearer" {
 			recordReadAuthorizationDenied(r, audit)
 			unauthorizedResponse(w, r)
 			return
 		}
 
-		// Trim whitespace from credentials
 		credentials = strings.TrimSpace(credentials)
 		if credentials == "" {
 			recordReadAuthorizationDenied(r, audit)
@@ -82,15 +142,26 @@ func AuthMiddlewareWithGovernanceAudit(
 			return
 		}
 
-		// Compare tokens using constant-time comparison
-		if !constantTimeEqual(credentials, token) {
+		if resolver != nil {
+			auth, ok, err := resolver.ResolveScopedToken(r.Context(), credentials)
+			if err != nil {
+				recordReadAuthorizationDenied(r, audit)
+				unauthorizedResponse(w, r)
+				return
+			}
+			if ok {
+				next.ServeHTTP(w, r.WithContext(ContextWithAuthContext(r.Context(), normalizeAuthContext(auth))))
+				return
+			}
+		}
+
+		if token == "" || !constantTimeEqual(credentials, token) {
 			recordReadAuthorizationDenied(r, audit)
 			unauthorizedResponse(w, r)
 			return
 		}
 
-		// Auth succeeded
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(w, r.WithContext(ContextWithAuthContext(r.Context(), sharedAuthContext())))
 	})
 }
 
@@ -124,6 +195,45 @@ func safeAuditCorrelationID(value string) string {
 		}
 	}
 	return value
+}
+
+func sharedAuthContext() AuthContext {
+	return AuthContext{
+		Mode:         AuthModeShared,
+		SubjectClass: "shared_token",
+		AllScopes:    true,
+	}
+}
+
+func normalizeAuthContext(auth AuthContext) AuthContext {
+	if auth.Mode == "" {
+		auth.Mode = AuthModeScoped
+	}
+	auth.TenantID = strings.TrimSpace(auth.TenantID)
+	auth.WorkspaceID = strings.TrimSpace(auth.WorkspaceID)
+	auth.SubjectClass = strings.TrimSpace(auth.SubjectClass)
+	auth.SubjectIDHash = strings.TrimSpace(auth.SubjectIDHash)
+	auth.PolicyRevisionHash = strings.TrimSpace(auth.PolicyRevisionHash)
+	auth.AllowedScopeIDs = cleanedAuthStrings(auth.AllowedScopeIDs)
+	auth.AllowedRepositoryIDs = cleanedAuthStrings(auth.AllowedRepositoryIDs)
+	return auth
+}
+
+func cleanedAuthStrings(values []string) []string {
+	cleaned := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		cleaned = append(cleaned, value)
+	}
+	return cleaned
 }
 
 // constantTimeEqual compares two strings in constant time to prevent timing attacks.

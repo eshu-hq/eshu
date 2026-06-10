@@ -93,6 +93,10 @@ High-signal invariants for this package:
   enforcement. Active reads require one tenant/workspace boundary and apply
   status, tombstone, effective-at, expiry, subject-class, and scope-grant
   predicates inside SQL before returning rows.
+- Scoped API token storage is additive: it persists only opaque tenant and
+  workspace IDs, token hashes, subject hashes, active bounds, expiry,
+  revocation, and policy revision hashes without storing raw bearer tokens or
+  changing current API, MCP, graph, collector, or workflow enforcement.
 - Documentation fact readbacks stay bounded by visible finding/source/packet
   indexes plus `fact_records_documentation_target_refs_idx`, a partial JSONB GIN
   index over documentation target-reference payloads.
