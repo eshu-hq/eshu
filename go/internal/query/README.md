@@ -163,6 +163,27 @@ MCP dispatch tests.
 No-Observability-Change: existing container image identity query spans, truth
 envelopes, limits, cursors, truncation, count, and inventory metadata diagnose
 the bounded reads.
+SBOM/attestation attachment list, count, and inventory reads
+(`GET /api/v0/supply-chain/sbom-attestations/attachments`, `/attachments/count`,
+and `/attachments/inventory`, plus the matching `list_sbom_attestation_attachments`,
+`count_sbom_attestation_attachments`, and `get_sbom_attestation_attachment_inventory`
+MCP tools) use the same `source_repository_ids`-style attribution as container
+image identities: attachment facts key on an image `subject_digest` but carry
+git `repository_ids`, so scoped reads keep only attachments whose
+`repository_ids` overlap the union of granted repository and scope ids before
+counts, grouping, ordering, limits, offsets, and truncation. The
+`missing_evidence` probe is grant-bounded in both its `active_images`
+(`source_repository_ids`) and `active_attachments` (`repository_ids`) CTEs so a
+scoped token cannot detect an out-of-grant image or attachment digest.
+Attachments with no granted-repo correlation are invisible to scoped tokens.
+Empty grants return the existing zero/empty shapes without store reads, and
+out-of-grant repository selectors fail during selector resolution without a
+store read. Shared-token, all-scope admin, and local behavior are unchanged.
+No-Regression Evidence: focused SBOM attachment scoped-token query and MCP
+dispatch tests.
+No-Observability-Change: existing SBOM attachment query spans, truth envelopes,
+limits, cursors, truncation, count, and inventory metadata diagnose the bounded
+reads.
 Semantic evidence reads are opt-in routes over durable semantic facts:
 `GET /api/v0/semantic/documentation-observations` and
 `GET /api/v0/semantic/code-hints`. They require at least one scope or semantic

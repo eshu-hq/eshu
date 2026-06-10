@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"github.com/lib/pq"
 )
 
 // SBOMAttestationAttachmentAggregateStore reads cheap-summary aggregates over
@@ -64,6 +66,11 @@ type SBOMAttestationAttachmentAggregateFilter struct {
 	ServiceID        string
 	AttachmentStatus string
 	ArtifactKind     string
+	// AllowedSourceRepositoryIDs carries the scoped-token grant set (union of
+	// granted repository and ingestion-scope ids). When populated, aggregate
+	// counts, inventory buckets, and the missing-evidence probe cover only
+	// attachments whose repository_ids overlap the grant set.
+	AllowedSourceRepositoryIDs []string
 }
 
 // SBOMAttestationAttachmentAggregateCount is the cheap-summary totals envelope
@@ -124,7 +131,11 @@ WHERE fact.fact_kind = 'reducer_sbom_attestation_attachment'
   AND ($5 = '' OR fact.payload->>'artifact_kind' = $5)
   AND ($6 = '' OR fact.payload->'repository_ids' ? $6)
   AND ($7 = '' OR fact.payload->'workload_ids' ? $7)
-  AND ($8 = '' OR fact.payload->'service_ids' ? $8);
+  AND ($8 = '' OR fact.payload->'service_ids' ? $8)
+  AND (
+        COALESCE(cardinality($9::text[]), 0) = 0
+        OR fact.payload->'repository_ids' ?| $9::text[]
+      );
 `
 
 const sbomAttestationAttachmentAggregateGroupQueryTemplate = `
@@ -147,6 +158,10 @@ WHERE fact.fact_kind = 'reducer_sbom_attestation_attachment'
   AND ($6 = '' OR fact.payload->'repository_ids' ? $6)
   AND ($7 = '' OR fact.payload->'workload_ids' ? $7)
   AND ($8 = '' OR fact.payload->'service_ids' ? $8)
+  AND (
+        COALESCE(cardinality($9::text[]), 0) = 0
+        OR fact.payload->'repository_ids' ?| $9::text[]
+      )
 GROUP BY bucket;
 `
 
@@ -170,9 +185,13 @@ WHERE fact.fact_kind = 'reducer_sbom_attestation_attachment'
   AND ($6 = '' OR fact.payload->'repository_ids' ? $6)
   AND ($7 = '' OR fact.payload->'workload_ids' ? $7)
   AND ($8 = '' OR fact.payload->'service_ids' ? $8)
+  AND (
+        COALESCE(cardinality($9::text[]), 0) = 0
+        OR fact.payload->'repository_ids' ?| $9::text[]
+      )
 GROUP BY bucket
 ORDER BY bucket_count DESC, bucket
-LIMIT $9 OFFSET $10;
+LIMIT $10 OFFSET $11;
 `
 
 // CountSBOMAttestationAttachments returns the cheap-summary totals envelope
@@ -194,6 +213,7 @@ func (s PostgresSBOMAttestationAttachmentAggregateStore) CountSBOMAttestationAtt
 		filter.RepositoryID,
 		filter.WorkloadID,
 		filter.ServiceID,
+		pq.Array(filter.AllowedSourceRepositoryIDs),
 	}
 
 	row := s.DB.QueryRowContext(ctx, sbomAttestationAttachmentAggregateTotalQuery, args...)
@@ -227,10 +247,11 @@ func (s PostgresSBOMAttestationAttachmentAggregateStore) sbomAttestationAttachme
 ) ([]string, error) {
 	store := PostgresSBOMAttestationAttachmentStore{DB: s.DB}
 	return store.sbomAttestationAttachmentMissingEvidence(ctx, SBOMAttestationAttachmentFilter{
-		SubjectDigest: filter.SubjectDigest,
-		RepositoryID:  filter.RepositoryID,
-		WorkloadID:    filter.WorkloadID,
-		ServiceID:     filter.ServiceID,
+		SubjectDigest:              filter.SubjectDigest,
+		RepositoryID:               filter.RepositoryID,
+		WorkloadID:                 filter.WorkloadID,
+		ServiceID:                  filter.ServiceID,
+		AllowedSourceRepositoryIDs: filter.AllowedSourceRepositoryIDs,
 	})
 }
 
@@ -294,6 +315,7 @@ func (s PostgresSBOMAttestationAttachmentAggregateStore) SBOMAttestationAttachme
 		filter.RepositoryID,
 		filter.WorkloadID,
 		filter.ServiceID,
+		pq.Array(filter.AllowedSourceRepositoryIDs),
 		limit,
 		offset,
 	)

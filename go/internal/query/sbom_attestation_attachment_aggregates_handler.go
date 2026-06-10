@@ -52,7 +52,12 @@ func (h *SupplyChainHandler) countSBOMAttestationAttachments(w http.ResponseWrit
 		return
 	}
 
-	filter, ok := h.sbomAttestationAttachmentAggregateFilterFromRequest(w, r)
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptySBOMAttachmentCount(w, r)
+		return
+	}
+	filter, ok := h.sbomAttestationAttachmentAggregateFilterFromRequest(w, r, access)
 	if !ok {
 		return
 	}
@@ -133,7 +138,12 @@ func (h *SupplyChainHandler) sbomAttestationAttachmentInventory(w http.ResponseW
 	if !ok {
 		return
 	}
-	filter, ok := h.sbomAttestationAttachmentAggregateFilterFromRequest(w, r)
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptySBOMAttachmentInventory(w, r, dimension, limit, offset)
+		return
+	}
+	filter, ok := h.sbomAttestationAttachmentAggregateFilterFromRequest(w, r, access)
 	if !ok {
 		return
 	}
@@ -171,20 +181,22 @@ func (h *SupplyChainHandler) sbomAttestationAttachmentInventory(w http.ResponseW
 func (h *SupplyChainHandler) sbomAttestationAttachmentAggregateFilterFromRequest(
 	w http.ResponseWriter,
 	r *http.Request,
+	access repositoryAccessFilter,
 ) (SBOMAttestationAttachmentAggregateFilter, bool) {
-	repositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "repository_id"))
+	repositoryID, ok := h.resolveSBOMAttachmentRepositorySelector(w, r, QueryParam(r, "repository_id"), access)
 	if !ok {
 		return SBOMAttestationAttachmentAggregateFilter{}, false
 	}
 	return SBOMAttestationAttachmentAggregateFilter{
-		SubjectDigest:    QueryParam(r, "subject_digest"),
-		DocumentID:       QueryParam(r, "document_id"),
-		DocumentDigest:   QueryParam(r, "document_digest"),
-		RepositoryID:     repositoryID,
-		WorkloadID:       QueryParam(r, "workload_id"),
-		ServiceID:        QueryParam(r, "service_id"),
-		AttachmentStatus: QueryParam(r, "attachment_status"),
-		ArtifactKind:     QueryParam(r, "artifact_kind"),
+		SubjectDigest:              QueryParam(r, "subject_digest"),
+		DocumentID:                 QueryParam(r, "document_id"),
+		DocumentDigest:             QueryParam(r, "document_digest"),
+		RepositoryID:               repositoryID,
+		WorkloadID:                 QueryParam(r, "workload_id"),
+		ServiceID:                  QueryParam(r, "service_id"),
+		AttachmentStatus:           QueryParam(r, "attachment_status"),
+		ArtifactKind:               QueryParam(r, "artifact_kind"),
+		AllowedSourceRepositoryIDs: access.repositorySearchIDs(),
 	}, true
 }
 

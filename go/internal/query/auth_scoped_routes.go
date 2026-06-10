@@ -80,6 +80,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedIngesterStatusRoute(r) {
 		return true
 	}
+	if scopedSBOMAttestationAttachmentRoute(r) {
+		return true
+	}
 	if r.Method != http.MethodPost {
 		return false
 	}
@@ -130,6 +133,25 @@ func scopedQueryPlaybookRoute(r *http.Request) bool {
 	case r.Method == http.MethodGet && r.URL.Path == "/api/v0/query-playbooks":
 		return true
 	case r.Method == http.MethodPost && r.URL.Path == "/api/v0/query-playbooks/resolve":
+		return true
+	default:
+		return false
+	}
+}
+
+// scopedSBOMAttestationAttachmentRoute reports whether the request targets one
+// of the reducer-owned SBOM/attestation attachment read routes. Attachment
+// facts key on an image subject_digest but carry git repository_ids, so scoped
+// reads intersect repository_ids (and the missing-evidence probe) with the
+// grant set; attachments with no granted-repo correlation stay invisible.
+func scopedSBOMAttestationAttachmentRoute(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	switch r.URL.Path {
+	case "/api/v0/supply-chain/sbom-attestations/attachments",
+		"/api/v0/supply-chain/sbom-attestations/attachments/count",
+		"/api/v0/supply-chain/sbom-attestations/attachments/inventory":
 		return true
 	default:
 		return false

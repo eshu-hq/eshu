@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+
+	"github.com/lib/pq"
 )
 
 const (
@@ -31,6 +33,15 @@ type SBOMAttestationAttachmentFilter struct {
 	ArtifactKind      string
 	AfterAttachmentID string
 	Limit             int
+	// AllowedSourceRepositoryIDs carries the scoped-token grant set (the union
+	// of granted repository and ingestion-scope ids). Attachment facts carry
+	// git repository_ids but key on an image subject_digest, so the durable
+	// git attribution is the repository_ids array. When populated, reads keep
+	// only attachments whose repository_ids overlap the grant set, and the
+	// missing-evidence probe is bounded to granted source repositories — an
+	// attachment with no granted-repo correlation stays invisible to scoped
+	// tokens. Empty means unrestricted (shared/admin/local).
+	AllowedSourceRepositoryIDs []string
 }
 
 // SBOMAttestationAttachmentPage carries one bounded attachment page plus
@@ -130,6 +141,7 @@ func (s PostgresSBOMAttestationAttachmentStore) ListSBOMAttestationAttachments(
 		filter.ServiceID,
 		filter.AfterAttachmentID,
 		filter.Limit,
+		pq.Array(filter.AllowedSourceRepositoryIDs),
 	)
 	if err != nil {
 		return SBOMAttestationAttachmentPage{}, fmt.Errorf("list sbom attestation attachments: %w", err)
@@ -184,6 +196,10 @@ WHERE fact.fact_kind = $1
   AND ($8 = '' OR fact.payload->'workload_ids' ? $8)
   AND ($9 = '' OR fact.payload->'service_ids' ? $9)
   AND ($10 = '' OR fact.fact_id > $10)
+  AND (
+        COALESCE(cardinality($12::text[]), 0) = 0
+        OR fact.payload->'repository_ids' ?| $12::text[]
+      )
 ORDER BY fact.fact_id ASC
 LIMIT $11
 `
@@ -207,6 +223,10 @@ WITH active_images AS (
       AND ($2 = '' OR fact.payload->'source_repository_ids' ? $2)
       AND ($3 = '' OR fact.payload->'workload_ids' ? $3)
       AND ($4 = '' OR fact.payload->'service_ids' ? $4)
+      AND (
+            COALESCE(cardinality($5::text[]), 0) = 0
+            OR fact.payload->'source_repository_ids' ?| $5::text[]
+          )
 ),
 active_attachments AS (
     SELECT DISTINCT fact.payload->>'subject_digest' AS digest
@@ -222,6 +242,10 @@ active_attachments AS (
       AND generation.status = 'active'
       AND fact.payload->>'subject_digest' <> ''
       AND ($1 = '' OR fact.payload->>'subject_digest' = $1)
+      AND (
+            COALESCE(cardinality($5::text[]), 0) = 0
+            OR fact.payload->'repository_ids' ?| $5::text[]
+          )
 )
 SELECT
     NOT EXISTS (SELECT 1 FROM active_images) AS missing_image,
@@ -253,6 +277,7 @@ func (s PostgresSBOMAttestationAttachmentStore) sbomAttestationAttachmentMissing
 		filter.RepositoryID,
 		filter.WorkloadID,
 		filter.ServiceID,
+		pq.Array(filter.AllowedSourceRepositoryIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("load sbom attestation attachment missing evidence: %w", err)
