@@ -15,7 +15,7 @@ spec:
     adapter: process
   artifacts:
     - platform: linux/amd64
-      image: ghcr.io/eshu-hq/examples/scorecard-collector@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      image: ghcr.io/eshu-hq/examples/scorecard-collector@sha256:0160c9735262dae29f8b8b30fbc60676902dec5568dadded8f04f1b39c01879e
   emittedFacts:
     - kind: dev.eshu.examples.scorecard.snapshot
       schemaVersions:
