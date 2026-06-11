@@ -156,7 +156,13 @@
 // or issue-key evidence, and active Jira project/status metadata can explain the
 // selected work item's project visibility and status category without reading
 // raw issue bodies. Jira-only pull-request URLs do not verify pull request
-// identity by themselves.
+// identity by themselves. Scoped tokens authorize an incident-context read only
+// when the incident correlates to a granted repository through the reducer-owned
+// durable incident→repository edge (IncidentRepositoryAuthorizer over
+// reducer_incident_repository_correlation, exact/derived outcomes only); an
+// out-of-grant owner, a missing durable edge, or an empty grant all fail closed
+// as not-found with no existence disclosure. Shared, admin, and local callers
+// skip the authorizer.
 //
 // WorkItemHandler, WorkItemEvidenceFilter, and WorkItemEvidenceRow expose
 // Jira/work-item source facts directly for ticket-first prompts. They require a
