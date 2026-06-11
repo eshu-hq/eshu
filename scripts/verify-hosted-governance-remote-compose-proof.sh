@@ -61,7 +61,11 @@ if [[ "${list_only}" == "true" ]]; then
 		"go test ./internal/query -run '${scoped_negative_read_pattern}' -count=1"
 	print_step "remote Compose render shape" \
 		"scripts/test-remote-e2e-hosted-compose-render.sh"
+	print_step "two-team scoped cross-scope denial proof verifier self-test" \
+		"scripts/test-verify-two-team-governance-proof.sh"
 	if [[ "${runtime}" == "true" ]]; then
+		print_step "live two-team scoped cross-scope denial proof" \
+			"scripts/run-two-team-governance-proof.sh"
 		print_step "live remote Compose runtime-state proof" \
 			"scripts/verify_remote_e2e_runtime_state.sh"
 	else
@@ -89,12 +93,16 @@ run_step "local hosted governance proof execution" \
 )
 run_step "remote Compose render shape" \
 	bash "${repo_root}/scripts/test-remote-e2e-hosted-compose-render.sh"
+run_step "two-team scoped cross-scope denial proof verifier self-test" \
+	bash "${repo_root}/scripts/test-verify-two-team-governance-proof.sh"
 
 if [[ "${runtime}" == "true" ]]; then
+	run_step "live two-team scoped cross-scope denial proof" \
+		bash "${repo_root}/scripts/run-two-team-governance-proof.sh"
 	run_step "live remote Compose runtime-state proof" \
 		bash "${repo_root}/scripts/verify_remote_e2e_runtime_state.sh"
 else
-	printf 'live remote Compose runtime proof skipped; rerun with --runtime after starting the remote Compose stack from a private operator environment\n'
+	printf 'live two-team denial + remote Compose runtime proof skipped; rerun with --runtime to stand up the stack and assert cross-scope denial from a private operator environment\n'
 fi
 
 printf 'hosted governance remote Compose proof verification passed\n'

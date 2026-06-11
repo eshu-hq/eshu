@@ -1,0 +1,7 @@
+{
+  "eshu_commit": "abcdef0",
+  "backend": "nornicdb",
+  "registry_token_count": 3,
+  "metrics_handle": ":9464/metrics",
+  "counts_and_states_only": true
+}

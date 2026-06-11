@@ -1,0 +1,13 @@
+{
+  "tenant": "team-b",
+  "own_repo": "repo-beta",
+  "other_repo": "repo-alpha",
+  "api_repository_count": 1,
+  "api_own_repo_present": "true",
+  "api_other_repo_present": "false",
+  "api_other_repo_selector_status": 403,
+  "mcp_repository_count": 1,
+  "mcp_own_repo_present": "true",
+  "mcp_other_repo_present": "false",
+  "mcp_other_repo_selector_status": 403
+}
