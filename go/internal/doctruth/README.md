@@ -52,6 +52,11 @@ explicit statuses: `valid`, `contradicted`, `missing_evidence`, and
 - Ambiguous or unmatched subject mentions suppress claim candidate emission.
 - Every emitted claim candidate carries document, revision, section, and excerpt
   hash provenance.
+- When `SectionInput.SourceACLState` is set from the owning source/document
+  fact, the bounded source access posture is propagated verbatim onto the
+  derived mention and claim evidence facts' `acl_summary`; it is omitted when no
+  bounded ACL claim was observed and a non-allowed posture is never upgraded to
+  allowed. This is factual propagation only, never a disclosure decision.
 - Every verification finding carries document, section, normalized claim,
   status, permission, and packet identity. A parsed claim is not valid unless
   it matched a supplied truth source.

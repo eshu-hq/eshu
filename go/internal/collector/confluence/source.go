@@ -219,6 +219,7 @@ func (s *Source) documentationTruthEnvelopes(
 			Links:          linksForSection(links, section.SectionID),
 			ClaimHints:     s.claimHints(page, section),
 			ObservedAt:     generationValue.ObservedAt,
+			SourceACLState: facts.BoundedSourceACLState(documentPayload.ACLSummary),
 		})
 		if err != nil {
 			return nil, err
