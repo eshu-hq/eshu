@@ -74,6 +74,16 @@ type SectionInput struct {
 	MentionHints   []MentionHint
 	ClaimHints     []ClaimHint
 	ObservedAt     time.Time
+	// SourceACLState is the bounded source access posture observed for the
+	// document this section belongs to, using the
+	// allowed|denied|partial|missing|stale vocabulary (see the
+	// facts.SourceACLState* constants). Callers set it from the owning
+	// source/document fact's acl_summary so the extractor can propagate it onto
+	// the derived mention and claim evidence facts (#2178). It is left empty
+	// when the document asserted no bounded ACL claim; an empty or non-bounded
+	// value is omitted from evidence payloads rather than defaulted, and a
+	// non-allowed observation is never upgraded to allowed.
+	SourceACLState string
 }
 
 // Options configures optional extraction dependencies.
@@ -297,6 +307,7 @@ func (e *Extractor) resolveMention(section SectionInput, candidate mentionCandid
 		ResolutionStatus: status,
 		CandidateRefs:    refs,
 		ExcerptHash:      section.ExcerptHash,
+		ACLSummary:       evidenceACLSummary(section.SourceACLState),
 		SourceMetadata: map[string]string{
 			"mention_source":   candidate.from,
 			"source_start_ref": section.SourceStartRef,
@@ -361,6 +372,7 @@ func (e *Extractor) claimCandidate(
 		ExcerptHash:      section.ExcerptHash,
 		SubjectMentionID: mention.payload.MentionID,
 		ObjectMentionIDs: objectMentionIDs,
+		ACLSummary:       evidenceACLSummary(section.SourceACLState),
 		Authority:        facts.DocumentationClaimAuthorityDocumentEvidence,
 		EvidenceRefs: []facts.DocumentationEvidenceRef{{
 			Kind:       "document_section",

@@ -152,7 +152,17 @@ type DocumentationEntityMentionPayload struct {
 	ResolutionStatus string                     `json:"resolution_status"`
 	CandidateRefs    []DocumentationEvidenceRef `json:"candidate_refs,omitempty"`
 	ExcerptHash      string                     `json:"excerpt_hash,omitempty"`
-	SourceMetadata   map[string]string          `json:"source_metadata,omitempty"`
+	// ACLSummary carries the bounded source access posture observed for the
+	// document this mention was extracted from, propagated verbatim from the
+	// owning source/document fact (see DocumentationACLSummary.SourceACLState).
+	// It is additive evidence metadata: a mention inherits its document's
+	// observed source_acl_state so the docs-evidence projection and readbacks
+	// carry the posture end-to-end. It is omitted when the document asserted no
+	// bounded ACL claim (absence means "no ACL claim"); a denied, partial,
+	// missing, or stale observation is never upgraded to allowed. It is
+	// factual propagation only and never decides disclosure or enforcement.
+	ACLSummary     *DocumentationACLSummary `json:"acl_summary,omitempty"`
+	SourceMetadata map[string]string        `json:"source_metadata,omitempty"`
 }
 
 // DocumentationClaimCandidatePayload describes a non-authoritative claim found in documentation.
@@ -169,7 +179,18 @@ type DocumentationClaimCandidatePayload struct {
 	ObjectMentionIDs []string                   `json:"object_mention_ids,omitempty"`
 	EvidenceRefs     []DocumentationEvidenceRef `json:"evidence_refs,omitempty"`
 	Authority        string                     `json:"authority"`
-	SourceMetadata   map[string]string          `json:"source_metadata,omitempty"`
+	// ACLSummary carries the bounded source access posture observed for the
+	// document this claim candidate was extracted from, propagated verbatim
+	// from the owning source/document fact (see
+	// DocumentationACLSummary.SourceACLState). It is additive evidence
+	// metadata: a claim inherits its document's observed source_acl_state so
+	// the docs-evidence projection and readbacks carry the posture end-to-end.
+	// It is omitted when the document asserted no bounded ACL claim (absence
+	// means "no ACL claim"); a denied, partial, missing, or stale observation
+	// is never upgraded to allowed. It is factual propagation only and never
+	// decides disclosure or enforcement.
+	ACLSummary     *DocumentationACLSummary `json:"acl_summary,omitempty"`
+	SourceMetadata map[string]string        `json:"source_metadata,omitempty"`
 }
 
 // DocumentationSourceStableID returns a stable ID for a documentation source.

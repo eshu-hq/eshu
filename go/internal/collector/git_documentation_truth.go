@@ -50,6 +50,7 @@ func gitDocumentationTruthEnvelopes(
 			MentionHints:   mentionHints,
 			ClaimHints:     claimHints,
 			ObservedAt:     observedAt,
+			SourceACLState: facts.BoundedSourceACLState(document.ACLSummary),
 		})
 		if err != nil {
 			continue

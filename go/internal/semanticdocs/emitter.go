@@ -330,6 +330,7 @@ func (e *Emitter) payload(section doctruth.SectionInput, observation MockObserva
 			URI:        section.CanonicalURI,
 			Confidence: facts.SourceConfidenceObserved,
 		}},
+		ACLSummary: observationACLSummary(section.SourceACLState),
 		ObservedAt: e.observedAt(section).UTC().Format(time.RFC3339),
 	}, nil
 }

@@ -11,4 +11,11 @@
 // DeploymentDriftAnalyzer compares service_deployment claim candidates with
 // caller-supplied Eshu truth and returns read-only findings that preserve match,
 // conflict, ambiguous, unsupported, stale, and building states.
+//
+// When a caller sets SectionInput.SourceACLState from the owning
+// source/document fact, the extractor propagates that bounded source access
+// posture verbatim onto the derived mention and claim evidence facts'
+// acl_summary, so the docs-evidence projection and readbacks carry the posture
+// end-to-end. It is omitted when no bounded ACL claim was observed; this is
+// factual propagation only and never a disclosure or enforcement decision.
 package doctruth

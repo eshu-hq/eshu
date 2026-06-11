@@ -131,6 +131,15 @@ and processing lives in `internal/projector` and `internal/storage/postgres`.
   private URLs. Choosing a conservative default for unobserved sources is a
   disclosure decision reserved for security review and the reducer/query
   surfaces, not the facts package.
+- The optional `ACLSummary` on the derived documentation evidence payloads
+  (`DocumentationEntityMentionPayload`, `DocumentationClaimCandidatePayload`, and
+  `SemanticDocumentationObservationPayload`) carries the same bounded posture
+  propagated verbatim from the source/document the evidence was extracted from
+  (`BoundedSourceACLState`). A mention, claim, or observation inherits its
+  document's observed `source_acl_state` so the docs-evidence projection and
+  readbacks carry the posture end-to-end. It is omitted when the document
+  asserted no bounded ACL claim. This is factual propagation of an observed
+  posture, never a disclosure or enforcement decision.
 - Documentation section payloads can carry source-native body content for
   downstream diff generation. Callers must treat that content as sensitive
   source data: persist it only through the fact store and never add it to logs,

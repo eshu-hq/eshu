@@ -62,6 +62,11 @@ query, HTTP handler, MCP tool, or runtime stage.
   in this package.
 - Unsafe redaction state forces `provenance_only` and drops observation text.
   The caller must not try to rescue unsafe model text here.
+- When `SectionInput.SourceACLState` is set from the owning source/document
+  fact, the bounded source access posture is propagated verbatim onto the
+  observation payload's `acl_summary`; it is omitted when no bounded ACL claim
+  was observed and a non-allowed posture is never upgraded to allowed. This is
+  factual propagation only, never a disclosure decision.
 - Stable fact identity is based on replay provenance such as source hash, chunk
   hash, prompt version, redaction version, extractor version, and provider
   profile. Display text can change without changing the replay identity unless

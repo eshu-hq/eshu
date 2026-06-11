@@ -27,6 +27,25 @@ const (
 	SourceACLStateStale = semanticpolicy.ACLStale
 )
 
+// BoundedSourceACLState returns the bounded source-ACL-state carried on a
+// document or source acl_summary so a collector can propagate it verbatim onto
+// the derived documentation evidence facts (mention, claim, observation) for
+// #2178. It returns the empty string when summary is nil or carries no bounded
+// ACL claim, so an unobserved or non-bounded posture is omitted from the
+// evidence fact rather than defaulted. It is factual propagation only: it copies
+// the observed state verbatim, never upgrades a denied, partial, missing, or
+// stale observation to allowed, and never synthesizes a value the source did
+// not assert.
+func BoundedSourceACLState(summary *DocumentationACLSummary) string {
+	if summary == nil {
+		return ""
+	}
+	if !ValidSourceACLState(summary.SourceACLState) {
+		return ""
+	}
+	return summary.SourceACLState
+}
+
 // ValidSourceACLState reports whether value is one of the bounded
 // source-ACL-state constants. The empty string is not valid here; callers that
 // observe no ACL signal omit the field rather than store an empty value.

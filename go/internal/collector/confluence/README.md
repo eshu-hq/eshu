@@ -90,7 +90,11 @@ downstream evidence packet producers must still prove
 `viewer_can_read_source=true` before exposing excerpts or body content. Because
 the per-source and per-page restriction set is not collected, the read is
 incomplete, so the bounded `source_acl_state` on those ACL summaries is
-`partial` (fail closed; never upgraded to `allowed`).
+`partial` (fail closed; never upgraded to `allowed`). The same bounded
+`source_acl_state` is propagated verbatim from the document onto the derived
+`documentation_entity_mention` and `documentation_claim_candidate` evidence
+facts, so the docs-evidence projection and readbacks carry the posture
+end-to-end; it is omitted when the document asserts no bounded ACL claim.
 
 The optional truth extraction seam is deterministic and read-only. The
 Confluence collector does not infer claims from broad prose and does not load an

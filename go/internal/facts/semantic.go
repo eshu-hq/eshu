@@ -351,7 +351,18 @@ type SemanticDocumentationObservationPayload struct {
 	RedactionSummary    string                     `json:"redaction_summary,omitempty"`
 	AdmissionState      string                     `json:"admission_state"`
 	EvidenceRefs        []DocumentationEvidenceRef `json:"evidence_refs,omitempty"`
-	ObservedAt          string                     `json:"observed_at,omitempty"`
+	// ACLSummary carries the bounded source access posture observed for the
+	// document this observation was extracted from, propagated verbatim from
+	// the owning documentation source/document fact (see
+	// DocumentationACLSummary.SourceACLState). It is additive evidence
+	// metadata: an observation inherits its document's observed
+	// source_acl_state so the docs-evidence projection and readbacks carry the
+	// posture end-to-end. It is omitted when the document asserted no bounded
+	// ACL claim (absence means "no ACL claim"); a denied, partial, missing, or
+	// stale observation is never upgraded to allowed. It is factual
+	// propagation only and never decides disclosure or enforcement.
+	ACLSummary *DocumentationACLSummary `json:"acl_summary,omitempty"`
+	ObservedAt string                   `json:"observed_at,omitempty"`
 }
 
 // SemanticCodeHintPayload describes one non-canonical code relationship hint.
