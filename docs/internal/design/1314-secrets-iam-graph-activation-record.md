@@ -2,11 +2,12 @@
 
 Issue [#1381](https://github.com/eshu-hq/eshu/issues/1381) / [#1347](https://github.com/eshu-hq/eshu/issues/1347). Gate: ADR #1314 §11 / §12 / §14.
 
-**Status: NOT ACTIVATED.** This is the durable governance + evidence record that
-closes #1381. Activation is recorded here and the flag is enabled in exactly one
-target deployment **only after** the §1 approval and §2 decision below are filled
-in and signed. An empty section means that gate is not yet closed; do not enable
-the flag.
+**Status: NOT ACTIVATED — `risk:schema` approval in principle recorded
+2026-06-11 (§1); awaiting §2 target-deployment decision and §4 flag-on live
+proof.** This is the durable governance + evidence record that closes #1381.
+The flag is enabled in exactly one target deployment **only after** §2 names it
+and §4 proof is captured. An empty section means that gate is not yet closed; do
+not enable the flag.
 
 This record does not grant approval. It is the form a principal/security
 reviewer and an operator complete. The procedure they follow is the
@@ -30,30 +31,40 @@ The projection stays behind the default-off flag
 `DomainSecretsIAMGraphProjection` unregistered, so no live graph write happens
 until the flag is enabled in a target deployment.
 
-## 1. `risk:schema` activation approval — TO BE COMPLETED
+## 1. `risk:schema` activation approval — APPROVED IN PRINCIPLE; BINDS ON §2
 
 The principal/security reviewer responsible for the schema/risk surface
 completes and signs this. By signing, they attest all four points.
 
 | Field | Value |
 | --- | --- |
-| Approver (name / role) | _TBD_ |
-| Date | _TBD_ |
-| Target deployment identifier | _TBD_ |
-| Backend (NornicDB or Neo4j) | _TBD_ |
+| Approver (name / role) | Allen Sanabria (repo owner / principal) |
+| Date | 2026-06-11 |
+| Target deployment identifier | _TBD — required before enablement (see §2)_ |
+| Backend (NornicDB or Neo4j) | _TBD — required before enablement (see §2)_ |
 
-Attestations (check each before signing):
+The repo owner gave `risk:schema` activation approval in principle on 2026-06-11.
+This approval **binds to a specific deployment once §2 names one**; the two
+deployment-specific attestations below stay unchecked until the target backend
+is named and verified. Approval in principle does **not** enable the flag and
+does **not** close #1381/#1347 — §2 (target decision), §3 (enable in that
+deployment only), and §4 (flag-on live proof) still gate enablement.
+
+Attestations:
 
 - [ ] The preconditions above are present and current for **this** deployment.
-- [ ] The §7 metadata-only redaction contract is the one enforced by
+      _(Pending: no target deployment named.)_
+- [x] The §7 metadata-only redaction contract is the one enforced by
       `TestExtractRowsCarryNoForbiddenProperties`, and no change has widened the
       property allowlist since the §14 sign-off.
 - [ ] The four `SecretsIAM*` uid constraints and scope indexes exist in the
-      **target** backend, not only in the proof stacks.
-- [ ] Schema-level activation is approved for the single target deployment named
-      above.
+      **target** backend, not only in the proof stacks. _(Pending: no target
+      backend named.)_
+- [x] Schema-level activation is approved in principle, to bind to the single
+      target deployment named in §2.
 
-**Signature: _____________________**
+**Signature: Allen Sanabria (repo owner), 2026-06-11 — approval in principle,
+binds on §2.**
 
 ## 2. Target-deployment decision — TO BE COMPLETED
 
