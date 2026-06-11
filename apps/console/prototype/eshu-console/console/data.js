@@ -499,6 +499,71 @@
       return rows.length ? rows : null;
     });
 
+    // ---- cloud resources (GET /api/v0/cloud/resources -> CloudResource nodes) ----
+    await section("cloudResources", async () => {
+      const env = await client.get("/api/v0/cloud/resources?limit=200");
+      const d = env.data || {};
+      const arr = d.resources || d.results || (Array.isArray(d) ? d : []);
+      const obsSignal = { aws_cloudwatch_alarm: "alerts", aws_cloudwatch_dashboard: "dashboards", aws_cloudwatch_logs_log_group: "logs", aws_xray_sampling_rule: "traces", aws_amp_workspace: "metrics", aws_grafana_workspace: "dashboards", aws_synthetics_canary: "synthetics", azure_monitor_workspace: "metrics" };
+      const lvl = chipTruth((env.truth && env.truth.level) || "exact");
+      const rows = arr.map((r) => ({
+        uid: r.id || r.cloud_resource_uid || "", provider: (r.provider || r.collector_kind || "aws").replace(/_cloud$/, ""),
+        account: r.account_id || r.scope_id || "", region: r.region || "", type: r.resource_type || "aws_resource",
+        family: resourceFamily[r.resource_type] || "compute", name: r.name || r.resource_id || r.id,
+        resourceId: r.resource_id || "", ref: r.arn || r.id || "", service: r.service_name || null,
+        tf: r.state ? /managed|declared|applied/.test(String(r.state)) : true, truth: lvl, freshness: "fresh",
+        signal: obsSignal[r.resource_type] || null
+      })).filter((r) => r.uid);
+      return rows.length ? rows : null;
+    });
+
+    // ---- dead code (POST /api/v0/code/dead-code -> analyzer candidates) ----
+    await section("deadCode", async () => {
+      const env = await client.post("/api/v0/code/dead-code", { limit: 100 });
+      const d = env.data || {};
+      const lvl = chipTruth((env.truth && env.truth.level) || "derived");
+      const rows = (d.results || []).map((r, i) => ({
+        id: "dc-" + i, repo: r.repo_name || r.repo_id || "repository", symbol: r.name || "symbol",
+        file: r.file_path || r.relative_path || "", line: r.line || r.start_line || 0,
+        kind: String(r.entity_kind || r.classification || "function").toLowerCase(),
+        refs: r.reference_count || 0, confidence: lvl, age: "live", loc: r.loc || r.line_count || 0,
+        reason: r.reason || r.classification || "No inbound CALLS / IMPORTS edges"
+      }));
+      return rows.length ? rows : null;
+    });
+
+    // ---- code imports + call-graph + service deps (powers Code graph + repo Groups) ----
+    // Best-effort per-repo hydration; field names map to the documented query_types,
+    // and any repo without import data simply keeps the demo-derived view.
+    await section("codeImports", async () => {
+      const svcs = out.services || services;
+      const repoSvcs = svcs.filter((s) => s.repo).slice(0, 40);
+      if (!repoSvcs.length) return null;
+      const nameToId = {}; svcs.forEach((s) => { nameToId[s.name] = s.id; });
+      const map = {};
+      for (const s of repoSvcs) {
+        try {
+          const mod = await client.post("/api/v0/code/imports/investigate", { repo_id: s.id, query_type: "module_dependencies", limit: 80 });
+          const md = mod.data || {};
+          const deps = md.dependencies || md.modules || [];
+          const modEdges = deps.map((d) => ({ s: d.source_module || d.source || d.from || s.name, t: d.target_module || d.target || d.to || d.module || d.name })).filter((e) => e.s && e.t);
+          let hubs = [];
+          try { const cg = await client.post("/api/v0/code/call-graph/metrics", { repo_id: s.id, metric: "hub_functions", limit: 8 }); hubs = ((cg.data && (cg.data.hub_functions || cg.data.results)) || []).map((h) => ({ name: h.name || h.function || h.symbol || "fn", c: h.references || h.callers || h.degree || 0 })); } catch (e) {}
+          let cycles = [];
+          try { const cyc = await client.post("/api/v0/code/imports/investigate", { repo_id: s.id, query_type: "file_import_cycles", limit: 20 }); cycles = (cyc.data && cyc.data.cycles) || []; } catch (e) {}
+          try {
+            const pk = await client.post("/api/v0/code/imports/investigate", { repo_id: s.id, query_type: "package_imports", limit: 100 });
+            const pkgs = (pk.data && (pk.data.dependencies || pk.data.modules || pk.data.package_imports)) || [];
+            const dep = [];
+            pkgs.forEach((p) => { const nm = String(p.package || p.name || p.target_module || "").replace(/^@dmm\//, ""); if (nameToId[nm] && nameToId[nm] !== s.id) dep.push(nameToId[nm]); });
+            if (dep.length) s.deps = Array.from(new Set(dep));
+          } catch (e) {}
+          map[s.id] = { modEdges, hubs, cycles };
+        } catch (e) { /* repo without import evidence — keep demo-derived view */ }
+      }
+      return Object.keys(map).length ? map : null;
+    });
+
     return out;
   }
 
