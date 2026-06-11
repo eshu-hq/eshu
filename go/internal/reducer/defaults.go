@@ -417,6 +417,26 @@ type DefaultHandlers struct {
 	// IncidentRoutingEvidenceWriter projects exact PagerDuty routing evidence into
 	// canonical IncidentRoutingEvidence graph nodes and evidence relationships.
 	IncidentRoutingEvidenceWriter IncidentRoutingEvidenceWriter
+
+	// AppliedPagerDutyServiceRoutingLoader loads applied PagerDuty service
+	// routing facts (provider service id + Terraform backend locator) for the
+	// incident-repository correlation domain. It must be non-nil alongside
+	// IncidentRepositoryCorrelationWriter to register
+	// DomainIncidentRepositoryCorrelation; the BackendRepositoryResolver is also
+	// required so the durable backend-locator-to-repository join can run.
+	AppliedPagerDutyServiceRoutingLoader AppliedPagerDutyServiceRoutingLoader
+
+	// BackendRepositoryResolver resolves a Terraform backend locator to its
+	// single owning config repository for the incident-repository correlation
+	// domain. A nil resolver leaves every correlation unresolved (no durable
+	// edge), so it must be wired for the domain to emit edges.
+	BackendRepositoryResolver BackendRepositoryResolver
+
+	// IncidentRepositoryCorrelationWriter persists durable
+	// incident-routing-to-repository correlation decisions. It must be non-nil
+	// alongside AppliedPagerDutyServiceRoutingLoader to register
+	// DomainIncidentRepositoryCorrelation.
+	IncidentRepositoryCorrelationWriter IncidentRepositoryCorrelationWriter
 }
 
 // NewDefaultRegistry constructs the canonical reducer catalog for the default

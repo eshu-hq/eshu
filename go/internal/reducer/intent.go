@@ -333,6 +333,21 @@ const (
 	// derived, and missing routing stays provenance-only in the incident-context
 	// read model. See issue #1168.
 	DomainIncidentRoutingMaterialization Domain = "incident_routing_materialization"
+	// DomainIncidentRepositoryCorrelation correlates applied PagerDuty
+	// incident-routing evidence to its owning config repository through the
+	// durable Terraform backend-locator join, emitting one reducer-owned
+	// reducer_incident_repository_correlation fact per PagerDuty provider service
+	// id. The join is structural, not name-based: an applied
+	// incident_routing.applied_pagerduty_resource fact carries the real provider
+	// service id (incident.Service.ID) plus the backend (kind, locator_hash) that
+	// the tfstatebackend resolver maps to a single owning repository. Only exact
+	// and derived single-owner resolutions carry a durable repository edge; blank
+	// provider ids, name-fingerprint-only matches, multi-repo ambiguity, and
+	// unresolved backends stay provenance-only so a downstream scoped-token
+	// predicate is fail-closed. It is the prerequisite durable edge for scoped
+	// incident-context reads (#2161, blocking #2144) and never lets a PagerDuty
+	// service name create repository truth.
+	DomainIncidentRepositoryCorrelation Domain = "incident_repository_correlation"
 	// DomainSecretsIAMGraphProjection projects exact reducer secrets/IAM
 	// trust-chain read-model rows into the SecretsIAM* graph nodes and the five
 	// resolvable SECRETS_IAM_* edges. Only exact rows promote; non-exact states,

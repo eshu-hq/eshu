@@ -2008,6 +2008,74 @@ fields, the durable `service_materialization_generations`/
 API/MCP/CLI read surface that now reports the incidents family alongside the prior
 five.
 
+## Durable incident → repository correlation (#2161)
+
+`DomainIncidentRepositoryCorrelation` is the prerequisite durable edge for
+scoped-token incident-context reads (#2144). It correlates a PagerDuty incident
+to its owning config repository through a **structural** join, never the
+PagerDuty service name. The chain is durable end to end:
+`incident.Service.ID` → an `incident_routing.applied_pagerduty_resource` fact
+whose `provider_object_id` equals that id → that fact's Terraform
+`(backend_kind, locator_hash)` → the single owning config repository resolved by
+the shared `tfstatebackend.Resolver`. The same backend-locator resolver the
+config/state and cloud-runtime drift domains use anchors ownership, so every
+backend-ownership consumer agrees.
+
+The handler reuses the exact/derived/ambiguous/rejected discipline of
+`service_catalog_correlation`. `BuildIncidentRepositoryCorrelations` groups
+applied rows by provider service id and resolves each distinct backend locator
+once (memoized). Only a single owning repository across an unambiguous backend
+emits a durable edge: `exact` when the provider id matched by raw equality,
+`derived` when it matched after normalization. A blank provider id
+(name-fingerprint only) is `rejected`, the same provider id applied under two
+distinct backend locators or claimed by more than one repo is `ambiguous`
+(fork/mirror disagreement never false-merges), and a backend no Eshu repo owns is
+`unresolved`. Every non-edge outcome stays `provenance_only` with no
+`repository_id`, so the downstream #2144 scoped predicate is fail-closed: an
+incident with no durable repository edge is not visible to a scoped token. The
+writer persists `reducer_incident_repository_correlation` facts keyed
+deterministically by `(scope, generation, provider, provider_service_id)`, so
+retries and an `exact`→`ambiguous` flip converge on one row via
+`ON CONFLICT (fact_id) DO UPDATE`. The domain is additive: it registers only when
+both `AppliedPagerDutyServiceRoutingLoader` and
+`IncidentRepositoryCorrelationWriter` are wired, and a nil
+`BackendRepositoryResolver` leaves every correlation unresolved (no edge).
+
+Performance Evidence: this is a hot-path reducer domain.
+Baseline: no prior implementation (new additive domain; the prior #2144/#2161
+investigation found no durable join and shipped nothing on this path).
+After: `go test ./internal/reducer -run '^$' -bench
+BenchmarkBuildIncidentRepositoryCorrelations -benchmem -count=1` on Apple M4 Pro
+(go1.26, arm64) classifies 512 applied service rows fanned over 4 distinct
+backend locators in ~168µs/op, 279KB/op, 2583 allocs/op. Input shape: 512 rows,
+512 distinct provider service ids, 4 distinct `(backend_kind, locator_hash)`
+keys. Terminal counts: 512 decisions, with the `stubBackendRepositoryResolver`
+consulted exactly once per distinct backend locator (asserted by
+`TestBuildIncidentRepositoryCorrelationsMemoizesResolver`), so resolver load —
+the only cross-scope query in the path — scales with distinct backends, not with
+incident count. The classification is O(rows) with map-bounded resolution; it
+runs once per `incident_repository_correlation` intent inside the existing
+reducer worker pool, adding no new lease, queue domain, or batch knob.
+
+No-Regression Evidence: `go test ./internal/reducer ./cmd/reducer
+./internal/storage/postgres -count=1` and `go test ./internal/reducer -race -run
+'IncidentRepositoryCorrelation|BuildIncidentRepositoryCorrelations' -count=1`
+prove exact/derived edges, name-only rejection, unresolved/ambiguous/fork-mirror
+no-edge, resolver memoization, deterministic idempotent fact ids, loader null
+handling, and the resolver adapter's no-owner/ambiguous-owner/single-owner
+translation. No existing reducer projection path is modified, so the touched
+hot-path packages' prior suites stay green.
+
+Observability Evidence: `eshu_dp_incident_repository_correlations_total` is
+labeled by bounded `domain` and `outcome`
+(exact/derived/ambiguous/unresolved/rejected) only — never repo ids, provider
+service ids, or backend locators. The handler `EvidenceSummary` records
+`evaluated`, per-outcome counts, and `facts_written` so an operator can see at
+3 AM how often a confident tenant-safe edge was found versus how often routing
+stayed provenance-only, alongside the existing reducer run span,
+`fact_work_items` status/failure fields, and the durable
+`reducer_incident_repository_correlation` rows.
+
 ## Service vulnerabilities evidence family (#1990, #2127)
 
 The vulnerabilities evidence family extends the same service materialization

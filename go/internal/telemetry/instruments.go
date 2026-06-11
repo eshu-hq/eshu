@@ -139,6 +139,15 @@ type Instruments struct {
 	ContainerImageIdentityDecisions           metric.Int64Counter
 	CICDRunCorrelations                       metric.Int64Counter
 	ServiceCatalogCorrelations                metric.Int64Counter
+	// IncidentRepositoryCorrelations counts reducer-owned durable
+	// incident-routing-to-repository correlation decisions by reducer domain and
+	// outcome (exact, derived, ambiguous, unresolved, rejected). Only exact and
+	// derived outcomes carry a durable repository edge; the counter lets an
+	// operator see how often a confident tenant-safe link was found versus how
+	// often the routing stayed provenance-only. Labels are bounded enums only:
+	// domain and outcome. It never carries repo ids, provider service ids, or
+	// backend locators.
+	IncidentRepositoryCorrelations metric.Int64Counter
 	// CloudInventoryAdmissions counts reducer cloud-inventory identity admission
 	// records by provider and outcome (admitted, unresolved, ambiguous,
 	// unsupported, skipped). Labels are bounded enums only: provider and outcome.
@@ -1482,6 +1491,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ServiceCatalogCorrelations counter: %w", err)
+	}
+
+	inst.IncidentRepositoryCorrelations, err = meter.Int64Counter(
+		"eshu_dp_incident_repository_correlations_total",
+		metric.WithDescription("Total durable incident-routing-to-repository correlation decisions by reducer domain and outcome"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IncidentRepositoryCorrelations counter: %w", err)
 	}
 
 	inst.CloudInventoryAdmissions, err = meter.Int64Counter(

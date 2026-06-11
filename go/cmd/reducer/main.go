@@ -13,7 +13,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/app"
-	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
@@ -23,21 +22,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
-
-func main() {
-	if handled, err := buildinfo.PrintVersionFlag(os.Args[1:], os.Stdout, "eshu-reducer"); handled {
-		if err != nil {
-			_, _ = fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		return
-	}
-
-	if err := run(context.Background()); err != nil {
-		slog.Error("reducer failed", "error", err)
-		os.Exit(1)
-	}
-}
 
 func run(parent context.Context) error {
 	// Initialize telemetry
@@ -208,6 +192,7 @@ func buildReducerService(
 	graphProjectionReadinessPrefetch := postgres.NewGraphProjectionReadinessPrefetch(database)
 	cloudInventoryEvidenceLoader, cloudInventoryAdmissionWriter, cloudInventoryGenerationCheck := cloudInventoryAdmissionWiring(database, logger)
 	multiCloudRuntimeDriftEvidenceLoader, multiCloudRuntimeDriftWriter, multiCloudRuntimeDriftLogger := multiCloudRuntimeDriftWiring(database, tracer, instruments, logger)
+	incidentRepoCorrelationLoader, incidentRepoCorrelationResolver, incidentRepoCorrelationWriter := incidentRepositoryCorrelationWiring(database)
 	semanticEntityExecutor := semanticEntityExecutorForGraphBackend(
 		neo4jExec,
 		graphBackend,
@@ -410,6 +395,10 @@ func buildReducerService(
 		},
 		IncidentRoutingEvidenceLoader: factStore,
 		IncidentRoutingEvidenceWriter: incidentRoutingEvidenceWriter,
+		// Durable incident -> repository correlation (#2161); see helper for rationale.
+		AppliedPagerDutyServiceRoutingLoader: incidentRepoCorrelationLoader,
+		BackendRepositoryResolver:            incidentRepoCorrelationResolver,
+		IncidentRepositoryCorrelationWriter:  incidentRepoCorrelationWriter,
 	})
 	if err != nil {
 		return reducer.Service{}, err
