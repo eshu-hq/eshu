@@ -87,11 +87,25 @@ observed a bounded source-ACL posture. It is a distinct access-posture axis kept
 separate from the binary `permissions` decision and from `freshness_state`:
 it can represent `partial` or `stale` ACL that the binary permission flag
 cannot, and a finding can be fresh yet denied. The field is omitted when the
-source asserted no bounded ACL claim (absence means "no ACL claim"). It is
-informational truth metadata only and does not change which findings or rows are
-returned. Honest denied-vs-missing disclosure, the default for an unobserved
-source, and fail-closed access enforcement are deferred to security review
-(#2164); the existing binary read-visibility filter is unchanged.
+source asserted no bounded ACL claim (absence means "no ACL claim").
+
+Each finding and packet also carries a bounded `access_disposition` enforced
+from `source_acl_state` and the per-caller read decision (#2164):
+
+| Disposition | Behavior |
+| --- | --- |
+| `visible` | Content intact. |
+| `access_denied` | Caller authenticated-but-not-authorized. The row is disclosed (not silently dropped) with `permission_denied: true` and `content_withheld: true`, and its protected content is stripped — only bounded identity/state fields remain. The single evidence-packet read returns `403 permission_denied` with no body. |
+| `partial` | Returned with a partial marker and `content_withheld: true`; protected content boundaries are respected. |
+| `stale` | Surfaced as stale on the ACL axis; the source is permitted-but-stale so content stays intact. |
+| `missing` | Source not found/deleted at the origin; disclosed as missing with no content. |
+
+A reader can therefore distinguish "no evidence" from "evidence exists but is
+denied, partial, or stale." Withholding is fail-closed: a denied or partial
+source never has its content or excerpt returned. The disclosure is a distinct
+axis from the freshness/truth taxonomy (#2138): `freshness_state`, `truth_level`,
+`missing_evidence`, `unsupported_reason`, and the other truth labels are
+preserved on a withheld row and never collapsed into the permission error.
 
 ## Package Registry
 

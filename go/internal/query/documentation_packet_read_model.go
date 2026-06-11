@@ -46,21 +46,24 @@ func (cr *ContentReader) documentationEvidencePacketWithFilter(
 		span.RecordError(err)
 		return documentationEvidencePacketReadModel{}, fmt.Errorf("query documentation evidence packet: %w", err)
 	}
-	if documentationPayloadDenied(packet) {
+	// Honest source-ACL disclosure (#2164 USER-APPROVED policy). A denied packet
+	// (binary per-caller deny or a bounded "denied" posture) is access-denied with
+	// content withheld: the read model reports Denied so the handler returns a
+	// permission_denied error and never returns the protected packet body. A
+	// partial packet is returned available but with its protected content withheld
+	// behind a partial marker. A stale packet (permitted-but-stale) is returned
+	// with content intact and surfaced as stale on the distinct ACL axis. The
+	// existing freshness/truth labels (#2138) are preserved and never collapsed.
+	readable := binaryReadableFromPermissions(packet)
+	boundedState := boundedSourceACLState(packet)
+	disposition := boundedAccessDisposition(boundedState, readable)
+	if disposition == accessDispositionDenied {
 		return documentationEvidencePacketReadModel{
 			Denied:       true,
 			DeniedReason: documentationPermissionReason(packet),
 		}, nil
 	}
-	// Surface the bounded source_acl_state as a distinct access-posture axis
-	// (#2164/#1901) when the collector asserted one on the packet's acl_summary,
-	// alongside (never folded into) the existing binary Denied/freshness fields.
-	// partial/stale ACL — which the binary Denied flag cannot represent — now has
-	// its own representation. Additive metadata only: the value is lifted to a
-	// stable top-level field and the binary visibility decision above is
-	// unchanged. Honest denied-vs-missing disclosure is the #2164 security-review
-	// tail.
-	surfaceSourceACLState(packet, packet)
+	applySourceACLDisclosure(packet, readable)
 	return documentationEvidencePacketReadModel{Available: true, Packet: packet}, nil
 }
 
@@ -100,7 +103,14 @@ func (cr *ContentReader) documentationEvidencePacketFreshnessWithFilter(
 		span.RecordError(err)
 		return documentationEvidencePacketFreshnessReadModel{}, fmt.Errorf("query documentation evidence packet freshness: %w", err)
 	}
-	if documentationPayloadDenied(packet) {
+	// Freshness reports only bounded version/state metadata (no content), but a
+	// denied posture (binary deny or bounded "denied") is still access-denied:
+	// disclosing a packet's freshness for a source the caller cannot read would
+	// leak its existence/recency. Partial and stale postures are permitted to
+	// report freshness; the disclosure axis is reported separately by the packet
+	// readback. (#2164 USER-APPROVED policy.)
+	readable := binaryReadableFromPermissions(packet)
+	if boundedAccessDisposition(boundedSourceACLState(packet), readable) == accessDispositionDenied {
 		return documentationEvidencePacketFreshnessReadModel{
 			Denied:       true,
 			DeniedReason: documentationPermissionReason(packet),

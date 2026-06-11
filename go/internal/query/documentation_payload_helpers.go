@@ -33,10 +33,6 @@ func ensureEvidencePacketURL(finding map[string]any) {
 	finding["evidence_packet_url"] = "/api/v0/documentation/findings/" + findingID + "/evidence-packet"
 }
 
-func documentationPayloadDenied(payload map[string]any) bool {
-	return !documentationVisibilityDecision(payload).allowed
-}
-
 func documentationPermissionReason(packet map[string]any) string {
 	if reason := nestedString(packet, "permissions", "denied_reason"); reason != "" {
 		return reason

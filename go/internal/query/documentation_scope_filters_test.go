@@ -57,7 +57,9 @@ func TestBuildDocumentationFindingsSQLFiltersPersistedScopeIdentity(t *testing.T
 		"LEFT JOIN ingestion_scopes",
 		"fact_records.fact_kind = 'documentation_finding'",
 		"fact_records.is_tombstone = FALSE",
-		"(fact_records.payload->'permissions'->>'viewer_can_read_source') = 'true'",
+		// The per-caller visibility predicate is no longer a silent SQL drop
+		// (#2164 disclosure policy); disclosure is enforced in Go. Scope-identity
+		// filters below are unaffected.
 		"fact_records.scope_id = $1",
 		"fact_records.generation_id = $2",
 		"ingestion_scopes.payload->>'repo' = $3",

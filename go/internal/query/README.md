@@ -341,28 +341,45 @@ documentation routes.
 Documentation findings, documentation evidence packets, and semantic-evidence
 rows surface an optional bounded `source_acl_state` (`allowed`, `denied`,
 `partial`, `missing`, `stale`) the collector observed on the fact's
-`acl_summary` (#2164, #1901 vertical). It is surfaced as a DISTINCT
-access-posture axis kept separate from freshness and the binary permission
-decision: a row can be fresh yet denied, or stale yet allowed, and `partial` or
-`stale` ACL — which the binary permission flag cannot express — now has its own
-representation. The reader fails closed: only a bounded value from
-`facts.ValidSourceACLState` is surfaced verbatim (a `boundedSourceACLState`
-helper drops empty, absent, or non-bounded values), so absence means "no ACL
-claim" and the field is omitted. This slice only EXPOSES the value the collector
-and reducer already carry; it changes no access decision and returns the same
-rows as before. Honest denied-vs-missing disclosure, the default for an
-unobserved source, and fail-closed access enforcement are the deferred
-security-review tail (#2164).
+`acl_summary` (#2164, #1901 vertical). It is a DISTINCT access-posture axis kept
+separate from freshness and the binary permission decision: a row can be fresh
+yet denied, or stale yet allowed, and `partial` or `stale` ACL — which the binary
+permission flag cannot express — has its own representation. The reader fails
+closed: only a bounded value from `facts.ValidSourceACLState` is read verbatim (a
+`boundedSourceACLState` helper drops empty, absent, or non-bounded values), so
+absence means "no ACL claim."
+
+On top of that surfacing, `source_acl_disclosure.go` enforces the USER-APPROVED
+disclosure policy (#2164). `applySourceACLDisclosure` maps the bounded posture
+and the per-caller read decision onto a bounded `access_disposition`
+(`visible`/`access_denied`/`partial`/`stale`/`missing`) and, for any posture that
+is not cleanly readable, strips every field outside a bounded identity/state
+allowlist so no protected content/excerpt is returned:
+
+- `denied` (or a binary-denied caller) → `access_denied` with
+  `permission_denied: true`, `content_withheld: true`, content stripped. The
+  findings list discloses the row instead of silently dropping it; the single
+  evidence-packet read returns `403 permission_denied`.
+- `partial` → `partial` marker with `content_withheld: true`.
+- `stale` → surfaced as stale, content intact (permitted-but-stale).
+- `missing` → disclosed as missing.
+- `allowed`/no-claim → `visible`.
+
+Withholding is fail-closed (allowlist, not denylist) and the #2138 truth labels
+(`freshness_state`, `truth_level`, `admission_state`, `corroboration_state`,
+`missing_evidence`, `unsupported_reason`) are preserved on a withheld row and
+never collapsed into the access marker. Per-row dispositions are recorded as
+bounded, content-free span attributes (`eshu.query.source_acl.*_count`); no
+source id, path, title, url, or user identity appears in any label.
 
 No-Regression Evidence: `go test ./internal/query -run
-'SourceACLState|SemanticEvidencePublicRow|DocumentationFindingsSurfaces|DocumentationEvidencePacket'
--count=1` proves every bounded `source_acl_state` is surfaced verbatim on
-documentation findings, evidence packets, and semantic-evidence rows, is omitted
-when absent or non-bounded, and is independent of `freshness_state`/`policy_state`
-(a fresh row can be denied, a stale row allowed) with no row added or dropped;
+'SourceACLDisposition|ApplySourceACLDisclosure|EnforcementProofMatrix|EvidencePacketEnforcement|SemanticEvidenceRowEnforcement|ACLDistinctFromFreshness|DisclosesDenied|DisclosesUnknown'
+-count=1` proves the full disclosure matrix (allowed/denied/partial/stale/missing),
+content-withheld on denied and partial, the ACL axis independent of freshness
+(fresh+denied, stale+allowed), and the #2138 labels preserved on withheld rows;
 `go test ./cmd/api ./cmd/mcp-server ./internal/query ./internal/mcp -count=1`
 keeps the API and MCP envelope contracts green (MCP proxies the same routes, so
-the field surfaces with parity).
+the disclosure surfaces with parity).
 No-Observability-Change: this slice adds no metric instrument, label, span,
 queue, worker, or runtime knob, and adds no source ids, paths, titles, urls, or
 user identities to any label. The field rides the existing
