@@ -13,6 +13,28 @@ type IncidentContextStore interface {
 	ReadIncidentContext(context.Context, IncidentContextFilter) (IncidentContextSnapshot, error)
 }
 
+// IncidentRepositoryAuthorizer resolves the durable owning repositories an
+// incident correlates to through the reducer-owned incident→repository
+// correlation edge (reducer_incident_repository_correlation). Only confident
+// exact/derived edges are returned; ambiguous, unresolved, rejected, or
+// name-fingerprint-only routing carries no durable repository and yields an empty
+// result so a scoped-token read fails closed (not-found) instead of leaking an
+// incident bound only to a fuzzy service-name match. It is the query-side seam
+// over the durable edge landed by the incident-repository correlation reducer.
+type IncidentRepositoryAuthorizer interface {
+	// ResolveDurableIncidentRepositories returns the distinct durable repository
+	// ids correlated to one incident. provider and providerIncidentID identify the
+	// incident; scopeID optionally narrows the incident anchor when the same
+	// provider incident id appears in more than one ingestion scope. An empty,
+	// non-error result means the incident has no durable owning repository.
+	ResolveDurableIncidentRepositories(
+		ctx context.Context,
+		provider string,
+		providerIncidentID string,
+		scopeID string,
+	) ([]string, error)
+}
+
 // IncidentContextFilter bounds one incident-context read.
 type IncidentContextFilter struct {
 	Provider           string

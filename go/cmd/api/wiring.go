@@ -397,8 +397,9 @@ func newRouter(
 			Profile:                  queryProfile,
 		},
 		Incident: &query.IncidentHandler{
-			Context: query.NewPostgresIncidentContextStore(db),
-			Profile: queryProfile,
+			Context:    query.NewPostgresIncidentContextStore(db),
+			Authorizer: query.NewPostgresIncidentRepositoryAuthorizer(db),
+			Profile:    queryProfile,
 		},
 		WorkItems: &query.WorkItemHandler{
 			Evidence: query.NewPostgresWorkItemEvidenceStore(db),

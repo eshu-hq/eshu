@@ -13,7 +13,11 @@ import (
 // IncidentHandler exposes incident-context read-model routes.
 type IncidentHandler struct {
 	Context IncidentContextStore
-	Profile QueryProfile
+	// Authorizer resolves the durable incident→repository correlation edge that
+	// bounds scoped-token reads. It is required in production so scoped tokens
+	// fail closed; shared, admin, and local callers never consult it.
+	Authorizer IncidentRepositoryAuthorizer
+	Profile    QueryProfile
 }
 
 // Mount registers incident-context query routes.
@@ -78,7 +82,7 @@ func (h *IncidentHandler) getIncidentContext(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	filter := IncidentContextFilter{
+	filter := normalizeIncidentContextFilter(IncidentContextFilter{
 		Provider:           QueryParam(r, "provider"),
 		ProviderIncidentID: incidentID,
 		ScopeID:            QueryParam(r, "scope_id"),
@@ -86,6 +90,9 @@ func (h *IncidentHandler) getIncidentContext(w http.ResponseWriter, r *http.Requ
 		Since:              QueryParam(r, "since"),
 		Until:              QueryParam(r, "until"),
 		Limit:              limit + 1,
+	})
+	if !h.authorizeScopedIncidentContext(w, r, filter.Provider, filter.ProviderIncidentID, filter.ScopeID) {
+		return
 	}
 	snapshot, err := h.Context.ReadIncidentContext(r.Context(), filter)
 	if err != nil {
