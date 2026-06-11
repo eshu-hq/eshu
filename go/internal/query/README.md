@@ -289,6 +289,37 @@ prompt version, redaction version, policy state, freshness, and
 admission/corroboration state. They do not call providers, read the graph,
 expose raw prompts, or mix semantic code hints into deterministic code or
 documentation routes.
+
+Documentation findings, documentation evidence packets, and semantic-evidence
+rows surface an optional bounded `source_acl_state` (`allowed`, `denied`,
+`partial`, `missing`, `stale`) the collector observed on the fact's
+`acl_summary` (#2164, #1901 vertical). It is surfaced as a DISTINCT
+access-posture axis kept separate from freshness and the binary permission
+decision: a row can be fresh yet denied, or stale yet allowed, and `partial` or
+`stale` ACL — which the binary permission flag cannot express — now has its own
+representation. The reader fails closed: only a bounded value from
+`facts.ValidSourceACLState` is surfaced verbatim (a `boundedSourceACLState`
+helper drops empty, absent, or non-bounded values), so absence means "no ACL
+claim" and the field is omitted. This slice only EXPOSES the value the collector
+and reducer already carry; it changes no access decision and returns the same
+rows as before. Honest denied-vs-missing disclosure, the default for an
+unobserved source, and fail-closed access enforcement are the deferred
+security-review tail (#2164).
+
+No-Regression Evidence: `go test ./internal/query -run
+'SourceACLState|SemanticEvidencePublicRow|DocumentationFindingsSurfaces|DocumentationEvidencePacket'
+-count=1` proves every bounded `source_acl_state` is surfaced verbatim on
+documentation findings, evidence packets, and semantic-evidence rows, is omitted
+when absent or non-bounded, and is independent of `freshness_state`/`policy_state`
+(a fresh row can be denied, a stale row allowed) with no row added or dropped;
+`go test ./cmd/api ./cmd/mcp-server ./internal/query ./internal/mcp -count=1`
+keeps the API and MCP envelope contracts green (MCP proxies the same routes, so
+the field surfaces with parity).
+No-Observability-Change: this slice adds no metric instrument, label, span,
+queue, worker, or runtime knob, and adds no source ids, paths, titles, urls, or
+user identities to any label. The field rides the existing
+`query.semantic_evidence`/documentation readback spans and truth envelopes.
+
 Component extension reads expose runtime component registry state through
 `GET /api/v0/component-extensions` and
 `GET /api/v0/component-extensions/{component_id}/diagnostics`. These routes read

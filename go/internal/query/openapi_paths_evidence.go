@@ -295,7 +295,8 @@ const openAPIPathsEvidence = `
                     "evidence_refs": {"type": "array", "items": {"type": "object"}},
                     "truth": {"type": "object"},
                     "permissions": {"type": "object"},
-                    "states": {"type": "object"}
+                    "states": {"type": "object"},
+                    "source_acl_state": {"type": "string", "enum": ["allowed", "denied", "partial", "missing", "stale"], "description": "Optional bounded source-ACL-state observation from the collector, surfaced as a distinct access-posture axis separate from the binary permissions decision and from states.freshness_state. Represents partial/stale ACL the binary permissions object cannot. Omitted when the source asserted no bounded ACL claim. Informational truth metadata only: it does not yet change disclosure (denied-vs-missing) or enforce access; that is deferred to security review (#2164)."}
                   },
                   "required": ["packet_id", "packet_version", "generated_at", "finding", "document", "section", "bounded_excerpt", "linked_entities", "current_truth", "evidence_refs", "truth", "permissions", "states"]
                 }

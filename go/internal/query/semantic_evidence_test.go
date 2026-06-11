@@ -344,6 +344,78 @@ func TestSemanticEvidencePublicRowDropsProviderInternals(t *testing.T) {
 	}
 }
 
+// TestSemanticEvidencePublicRowSurfacesBoundedSourceACLState proves the bounded
+// source_acl_state observed on the payload's acl_summary is surfaced verbatim as
+// a distinct access-posture axis on the public semantic-evidence row, alongside
+// (never folded into) freshness_state/policy_state/admission_state. ACL and
+// freshness are independent axes: a fresh row can be denied and a stale row can
+// be allowed, so the test asserts both axes survive independently.
+func TestSemanticEvidencePublicRowSurfacesBoundedSourceACLState(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		freshness string
+		acl       string
+	}{
+		{facts.SemanticFreshnessFresh, facts.SourceACLStateDenied},
+		{facts.SemanticFreshnessStale, facts.SourceACLStateAllowed},
+		{facts.SemanticFreshnessFresh, facts.SourceACLStatePartial},
+		{facts.SemanticFreshnessFresh, facts.SourceACLStateMissing},
+		{facts.SemanticFreshnessStale, facts.SourceACLStateStale},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.freshness+"_"+tc.acl, func(t *testing.T) {
+			t.Parallel()
+			row := semanticEvidencePublicRow(map[string]any{
+				"fact_id":   "fact:semantic-doc-1",
+				"fact_kind": facts.SemanticDocumentationObservationFactKind,
+				"payload": map[string]any{
+					"freshness_state": tc.freshness,
+					"policy_state":    facts.SemanticPolicyAllowed,
+					"acl_summary":     map[string]any{"source_acl_state": tc.acl},
+				},
+			})
+			if got := row["source_acl_state"]; got != tc.acl {
+				t.Fatalf("row[source_acl_state] = %#v, want %q (verbatim)", got, tc.acl)
+			}
+			if got := row["freshness_state"]; got != tc.freshness {
+				t.Fatalf("row[freshness_state] = %#v, want %q (independent axis)", got, tc.freshness)
+			}
+			if got := row["policy_state"]; got != facts.SemanticPolicyAllowed {
+				t.Fatalf("row[policy_state] = %#v, want %q (independent axis)", got, facts.SemanticPolicyAllowed)
+			}
+		})
+	}
+}
+
+// TestSemanticEvidencePublicRowOmitsAbsentSourceACLState proves a row whose
+// payload carries no bounded ACL claim surfaces no source_acl_state field
+// (absence means "no ACL claim"), and that a non-bounded value is dropped rather
+// than surfaced (fail closed).
+func TestSemanticEvidencePublicRowOmitsAbsentSourceACLState(t *testing.T) {
+	t.Parallel()
+
+	for name, payload := range map[string]map[string]any{
+		"no acl_summary": {"freshness_state": facts.SemanticFreshnessFresh},
+		"empty state":    {"acl_summary": map[string]any{"source_acl_state": ""}},
+		"non-bounded":    {"acl_summary": map[string]any{"source_acl_state": "unknown"}},
+	} {
+		payload := payload
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			row := semanticEvidencePublicRow(map[string]any{
+				"fact_id":   "fact:semantic-doc-1",
+				"fact_kind": facts.SemanticDocumentationObservationFactKind,
+				"payload":   payload,
+			})
+			if _, present := row["source_acl_state"]; present {
+				t.Fatalf("source_acl_state surfaced for payload %q with no bounded claim: %#v", name, row)
+			}
+		})
+	}
+}
+
 type fakeSemanticEvidenceStore struct {
 	filter    semanticEvidenceFilter
 	readModel semanticEvidenceListReadModel
