@@ -53,10 +53,16 @@ func (h *InfraHandler) countInfraResources(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptyInfraResourceCount(w, r)
+		return
+	}
 	filter, ok := infraResourceAggregateFilterFromRequest(w, r)
 	if !ok {
 		return
 	}
+	filter = applyInfraResourceAggregateAccess(filter, access)
 	count, err := h.Aggregates.CountInfraResources(r.Context(), filter)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -128,10 +134,16 @@ func (h *InfraHandler) infraResourceInventory(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptyInfraResourceInventory(w, r, dimension, limit, offset)
+		return
+	}
 	filter, ok := infraResourceAggregateFilterFromRequest(w, r)
 	if !ok {
 		return
 	}
+	filter = applyInfraResourceAggregateAccess(filter, access)
 
 	rows, err := h.Aggregates.InfraResourceInventory(r.Context(), filter, dimension, limit+1, offset)
 	if err != nil {

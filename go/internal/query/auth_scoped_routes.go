@@ -89,6 +89,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedSecurityAlertReconciliationRoute(r) {
 		return true
 	}
+	if scopedInfraResourceAggregateRoute(r) {
+		return true
+	}
 	if r.Method != http.MethodPost {
 		return false
 	}
@@ -177,6 +180,27 @@ func scopedSecurityAlertReconciliationRoute(r *http.Request) bool {
 	case "/api/v0/supply-chain/security-alerts/reconciliations",
 		"/api/v0/supply-chain/security-alerts/reconciliations/count",
 		"/api/v0/supply-chain/security-alerts/reconciliations/inventory":
+		return true
+	default:
+		return false
+	}
+}
+
+// scopedInfraResourceAggregateRoute reports whether the request targets one of
+// the graph-backed infra resource aggregate read routes (count, inventory).
+// These aggregate over the whole-graph infrastructure corpus; scoped tokens
+// bind a repository-anchored predicate (see infraResourceScopePredicate) so
+// totals, rollups, and inventory buckets are computed over only the resources
+// attributable to granted repositories. The infra search and relationship
+// routes carry their own graph queries and stay fail-closed for scoped tokens
+// until each is separately proven tenant-filtered.
+func scopedInfraResourceAggregateRoute(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	switch r.URL.Path {
+	case "/api/v0/infra/resources/count",
+		"/api/v0/infra/resources/inventory":
 		return true
 	default:
 		return false
