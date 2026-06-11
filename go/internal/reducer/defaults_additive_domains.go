@@ -380,6 +380,16 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, incidentRouting)
 	}
+	if handlers.AppliedPagerDutyServiceRoutingLoader != nil && handlers.IncidentRepositoryCorrelationWriter != nil {
+		incidentRepoCorrelation := incidentRepositoryCorrelationDomainDefinition()
+		incidentRepoCorrelation.Handler = IncidentRepositoryCorrelationHandler{
+			Loader:      handlers.AppliedPagerDutyServiceRoutingLoader,
+			Resolver:    handlers.BackendRepositoryResolver,
+			Writer:      handlers.IncidentRepositoryCorrelationWriter,
+			Instruments: handlers.Instruments,
+		}
+		definitions = append(definitions, incidentRepoCorrelation)
+	}
 	if handlers.DeployableUnitCorrelationHandler != nil {
 		definitions = append(definitions, DomainDefinition{
 			Domain:  DomainDeployableUnitCorrelation,
