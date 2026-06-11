@@ -29,6 +29,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if r.Method == http.MethodGet && scopedServiceInvestigationRoute(r.URL.Path) {
 		return true
 	}
+	if r.Method == http.MethodGet && scopedIncidentContextRoute(r.URL.Path) {
+		return true
+	}
 	if scopedQueryPlaybookRoute(r) {
 		return true
 	}
@@ -127,6 +130,26 @@ func scopedEntityContextRoute(path string) bool {
 	}
 	entityID := strings.TrimSuffix(strings.TrimPrefix(path, prefix), suffix)
 	return entityID != "" && !strings.Contains(entityID, "/")
+}
+
+// scopedIncidentContextRoute reports whether the request targets the
+// single-incident context read GET /api/v0/incidents/{incident_id}/context. The
+// handler authorizes the read against the reducer-owned durable
+// incident→repository correlation edge (reducer_incident_repository_correlation,
+// exact/derived outcomes only): an incident whose durable owning repository is
+// outside the scoped grant, or that has no durable edge at all, is served as
+// not-found with no existence disclosure. Adjacent incident sub-resources stay
+// fail-closed for scoped tokens until each is separately proven tenant-filtered.
+func scopedIncidentContextRoute(path string) bool {
+	const (
+		prefix = "/api/v0/incidents/"
+		suffix = "/context"
+	)
+	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
+		return false
+	}
+	incidentID := strings.TrimSuffix(strings.TrimPrefix(path, prefix), suffix)
+	return incidentID != "" && !strings.Contains(incidentID, "/")
 }
 
 func scopedWorkloadContextRoute(path string) bool {

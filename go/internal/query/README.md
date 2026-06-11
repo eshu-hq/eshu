@@ -305,6 +305,29 @@ No-Observability-Change: the existing IaC resource list query span
 `limit` / `truncated` / `next_cursor` response metadata, and per-kind duration /
 error metrics diagnose the bounded reads; the scope predicate adds no new spans,
 metrics, or fields.
+Incident-context reads (`GET /api/v0/incidents/{incident_id}/context`, MCP
+`get_incident_context`) authorize scoped tokens against the reducer-owned durable
+incident→repository correlation edge (`reducer_incident_repository_correlation`,
+exact/derived outcomes only). The handler resolves the incident's PagerDuty
+provider service id (`payload->'service'->>'id'`) and joins it to the durable
+edge on `(provider, provider_service_id)`, keeping only edge-bearing
+correlations (`provenance_only = false` and a non-blank `repository_id`); the
+fuzzy service-name fingerprint never authorizes. A scoped read proceeds only when
+at least one durable owning repository is granted. An out-of-grant owner, an
+incident with no durable edge (ambiguous, unresolved, rejected, or
+name-fingerprint-only routing), and an empty-grant token all return an identical
+not-found envelope with no incident id, service id, or repository id, so a scoped
+caller cannot tell an out-of-grant incident apart from one that does not exist.
+Empty grants fail closed before any read. Shared-token, all-scope admin, and
+local behavior are unchanged: the durable-edge authorizer is consulted only in
+scoped mode.
+No-Regression Evidence: focused incident-context scoped-token query and MCP
+dispatch tests (route gate allow/adjacent-reject, empty-grant no-store-read,
+in-grant served, out-of-grant not-found, no-durable-edge not-found, shared
+unchanged).
+No-Observability-Change: existing incident-context query span
+(`SpanQueryIncidentContext`), truth envelope, limits, truncation, and
+missing-evidence metadata diagnose the bounded reads.
 Semantic evidence reads are opt-in routes over durable semantic facts:
 `GET /api/v0/semantic/documentation-observations` and
 `GET /api/v0/semantic/code-hints`. They require at least one scope or semantic
