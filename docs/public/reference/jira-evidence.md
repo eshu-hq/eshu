@@ -29,7 +29,7 @@ The current implemented fact kinds are:
 | --- | --- | --- |
 | `work_item.record` | One Jira issue returned from a bounded search window. | Source-reported work-item state only; private summaries, users, project names, and source URLs are redacted or fingerprinted. |
 | `work_item.transition` | One Jira changelog item for a collected issue. | Source-reported lifecycle evidence only; user authors and sensitive/custom field values are redacted. |
-| `work_item.external_link` | One Jira remote issue link attached to a collected issue. | Source-reported external-link evidence only; URLs, titles, and summaries are redacted while URL fingerprints and provider support state remain. |
+| `work_item.external_link` | One Jira remote issue link attached to a collected issue. | Source-reported external-link evidence only; URLs, titles, and summaries are redacted while URL fingerprints and provider support state remain. A confidently typed GitHub PR or GitLab MR link also persists `linked_repository_id` (the canonical repository id resolved from the URL before redaction); un-canonicalizable or ambiguous links omit it. |
 | `work_item.project_metadata` | One Jira project definition. | Source-reported project context only; project names and URLs are fingerprinted, and archived/deleted state remains source evidence. |
 | `work_item.issue_type_metadata` | One Jira issue-type definition. | Source-reported issue-type context only; names and descriptions are fingerprinted. |
 | `work_item.status_metadata` | One Jira status definition. | Source-reported status context only; names and descriptions are fingerprinted while status category remains bounded context. |
@@ -201,6 +201,25 @@ not verify the remote system or the relationship named in the URL.
 
 An incident-context read may show the Jira link as enrichment, but missing Jira
 links are a valid evidence state and must not block PagerDuty incident reads.
+
+### Durable repository link before redaction
+
+For a confidently typed GitHub pull-request or GitLab merge-request link, the
+collector resolves the URL to a canonical repository id via
+`repositoryidentity.CanonicalRepositoryID` **before** the raw URL is redacted,
+and persists only that id as `linked_repository_id` on the
+`work_item.external_link` fact. The raw URL stays redacted: `url` is empty,
+`url_fingerprint` remains the one-way `sha256`, and `url_redacted` stays true.
+
+`linked_repository_id` is the same generation-independent identifier Eshu
+already stores for every repository. It is a hash of the normalized repository
+remote and carries no raw URL, query parameter, credential, ACL principal, or
+user identity. The collector persists it only on a confident exact/derived
+canonicalization to a known `owner/repo` (GitHub) or `group[/subgroup]/repo`
+(GitLab) shape; non-repository, malformed, or ambiguous links omit the field
+entirely rather than store a guessed id. This deliberate resolve-before-redact
+step is the durable join key that lets scoped work-item reads intersect a
+repository grant set; it does not by itself promote any PR/commit truth.
 
 ## Fixture Matrix
 

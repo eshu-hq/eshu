@@ -81,6 +81,18 @@ values are not allowed in metric labels or status errors.
 - Remote-link URLs and Jira self/browse URLs have sensitive query parameters
   removed before normalization and are represented by fingerprints in
   envelopes.
+- For a confidently typed GitHub pull-request or GitLab merge-request link, the
+  collector resolves the URL to a canonical repository id via
+  `repositoryidentity.CanonicalRepositoryID` *before* the raw URL is redacted
+  and persists only that id as `linked_repository_id` on the
+  `work_item.external_link` fact. The raw URL stays redacted (the existing
+  `url`/`url_fingerprint`/`url_redacted` contract is unchanged). The id is the
+  same generation-independent identifier Eshu stores for every repository and
+  carries no raw URL, query parameter, credential, or user identity. Links that
+  do not canonicalize to a known owner/repo (GitHub) or group/repo (GitLab)
+  shape, or that are ambiguous, omit the field entirely — never a guessed id.
+  This deliberate resolve-before-redact step is a privacy boundary approved
+  under security review and is the durable join key for scoped work-item reads.
 - Duplicate remote links inside one issue collection are collapsed by provider
   link ID, global ID, or URL.
 - Empty Jira projects or updated windows commit a successful empty generation.
