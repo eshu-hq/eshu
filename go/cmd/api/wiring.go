@@ -259,15 +259,9 @@ func newRouter(
 	}
 	var containerImageIdentities query.ContainerImageIdentityStore
 	var sbomAttachments query.SBOMAttestationAttachmentStore
-	var generationLifecycle query.GenerationLifecycleReader
-	var changedSince query.ChangedSinceReader
-	var serviceChangedSince query.ServiceChangedSinceReader
 	if db != nil {
 		containerImageIdentities = query.NewPostgresContainerImageIdentityStore(db)
 		sbomAttachments = query.NewPostgresSBOMAttestationAttachmentStore(db)
-		generationLifecycle = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
-		changedSince = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
-		serviceChangedSince = pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db})
 	}
 	router := &query.APIRouter{
 		Repositories: &query.RepositoryHandler{
@@ -335,83 +329,26 @@ func newRouter(
 			Content: contentReader,
 			Profile: queryProfile,
 		},
-		PackageRegistry: &query.PackageRegistryHandler{
-			Neo4j:        neo4jReader,
-			Content:      contentReader,
-			Correlations: query.NewPostgresPackageRegistryCorrelationStore(db),
-			Aggregates:   query.NewGraphPackageRegistryAggregateStore(neo4jReader),
-			Profile:      queryProfile,
-		},
+		PackageRegistry: newPackageRegistryHandler(db, neo4jReader, contentReader, queryProfile),
 		Dependencies: &query.DependenciesHandler{
 			Neo4j:       neo4jReader,
 			Profile:     queryProfile,
 			Instruments: instruments,
 		},
-		CICD: &query.CICDHandler{
-			Content:      contentReader,
-			Correlations: query.NewPostgresCICDRunCorrelationStore(db),
-			Aggregates:   query.NewPostgresCICDRunCorrelationAggregateStore(db),
-			Profile:      queryProfile,
-		},
-		ServiceCatalog: &query.ServiceCatalogHandler{
-			Content:      contentReader,
-			Correlations: query.NewPostgresServiceCatalogCorrelationStore(db),
-			Profile:      queryProfile,
-		},
-		Kubernetes: &query.KubernetesHandler{
-			Correlations: query.NewPostgresKubernetesCorrelationStore(db),
-			Profile:      queryProfile,
-		},
-		SecretsIAM: &query.SecretsIAMHandler{
-			IdentityTrustChains:          query.NewPostgresSecretsIAMIdentityTrustChainStore(db),
-			PrivilegePostureObservations: query.NewPostgresSecretsIAMPrivilegePostureObservationStore(db),
-			SecretAccessPaths:            query.NewPostgresSecretsIAMSecretAccessPathStore(db),
-			PostureGaps:                  query.NewPostgresSecretsIAMPostureGapStore(db),
-			Summary:                      query.NewPostgresSecretsIAMPostureSummaryStore(db),
-			Profile:                      queryProfile,
-		},
-		ObservabilityCoverage: &query.ObservabilityCoverageHandler{
-			Content:      contentReader,
-			Correlations: query.NewPostgresObservabilityCoverageCorrelationStore(db),
-			Profile:      queryProfile,
-		},
+		CICD:                  newCICDHandler(db, contentReader, queryProfile),
+		ServiceCatalog:        newServiceCatalogHandler(db, contentReader, queryProfile),
+		Kubernetes:            newKubernetesHandler(db, queryProfile),
+		SecretsIAM:            newSecretsIAMHandler(db, queryProfile),
+		ObservabilityCoverage: newObservabilityCoverageHandler(db, contentReader, queryProfile),
 		Images: &query.ImageHandler{
 			Neo4j:   neo4jReader,
 			Profile: queryProfile,
 		},
-		SupplyChain: &query.SupplyChainHandler{
-			Neo4j:                    neo4jReader,
-			Content:                  contentReader,
-			SBOMAttachments:          query.NewPostgresSBOMAttestationAttachmentStore(db),
-			SBOMAttachmentAggregates: query.NewPostgresSBOMAttestationAttachmentAggregateStore(db),
-			AdvisoryEvidence:         query.NewPostgresAdvisoryEvidenceStore(db),
-			AdvisoryCatalog:          query.NewPostgresAdvisoryCatalogStore(db),
-			ImpactFindings:           query.NewPostgresSupplyChainImpactFindingStore(db),
-			ImpactAggregates:         query.NewPostgresSupplyChainImpactAggregateStore(db),
-			ImpactExplanations:       query.NewPostgresSupplyChainImpactFindingStore(db),
-			ContainerImageIdentities: query.NewPostgresContainerImageIdentityStore(db),
-			ContainerImageAggregates: query.NewPostgresContainerImageIdentityAggregateStore(db),
-			SecurityAlerts:           query.NewPostgresSecurityAlertReconciliationStore(db),
-			SecurityAlertAggregates:  query.NewPostgresSecurityAlertReconciliationAggregateStore(db),
-			Readiness:                query.NewPostgresSupplyChainImpactReadinessStore(db),
-			Profile:                  queryProfile,
-		},
-		Incident: &query.IncidentHandler{
-			Context:    query.NewPostgresIncidentContextStore(db),
-			Authorizer: query.NewPostgresIncidentRepositoryAuthorizer(db),
-			Profile:    queryProfile,
-		},
-		WorkItems: &query.WorkItemHandler{
-			Evidence: query.NewPostgresWorkItemEvidenceStore(db),
-			Profile:  queryProfile,
-		},
+		SupplyChain:   newSupplyChainHandler(db, neo4jReader, contentReader, queryProfile),
+		Incident:      newIncidentHandler(db, queryProfile),
+		WorkItems:     newWorkItemHandler(db, queryProfile),
 		Visualization: &query.VisualizationHandler{},
-		Freshness: &query.FreshnessHandler{
-			Generations:         generationLifecycle,
-			ChangedSince:        changedSince,
-			ServiceChangedSince: serviceChangedSince,
-			Profile:             queryProfile,
-		},
+		Freshness:     newFreshnessHandler(db, queryProfile),
 		Status: &query.StatusHandler{
 			Neo4j:           neo4jReader,
 			DB:              db,
