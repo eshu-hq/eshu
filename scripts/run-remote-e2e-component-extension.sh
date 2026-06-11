@@ -113,5 +113,33 @@ fact_rows="$(docker exec "${postgres}" psql -U eshu -d eshu -tAF'|' -c \
 	printf '\n}\n'
 } >"${artifacts_dir}/facts.json"
 
+# 4. Provenance: the immutable facts that make this run reproducible and
+#    auditable — Eshu commit, component digest, SDK/core versions, graph
+#    backend, queue terminal state, and the telemetry handle. Only low-cardinality
+#    identifiers, version strings, and port-only metric handles are recorded, so
+#    no host path, hostname, IP, or credential can leak into the proof surface.
+eshu_commit="$(git -C "${repo_root}" rev-parse --short HEAD 2>/dev/null || echo "unknown")"
+core_version="$(docker exec "${collector}" eshu version 2>/dev/null | rg -o '[0-9A-Za-z._+-]+$' | head -1 || echo "unknown")"
+sdk_version="$(printf '%s' "${cli_json}" | rg -o '"sdk_protocol"\s*:\s*"[^"]*"' | rg -o '[^":]+/[^"]+' | head -1 || echo "")"
+[[ -n "${sdk_version}" ]] || sdk_version="collector-sdk"
+backend="$(docker exec "${collector}" printenv ESHU_GRAPH_BACKEND 2>/dev/null || echo "nornicdb")"
+# Queue terminal state: the distinct set of scorecard work-item statuses.
+queue_state="$(docker exec "${postgres}" psql -U eshu -d eshu -tAc \
+	"SELECT string_agg(DISTINCT status, ',' ORDER BY status) FROM workflow_work_items WHERE collector_kind='scorecard';" 2>/dev/null | tr -d '[:space:]')"
+[[ -n "${queue_state}" ]] || queue_state="none"
+cat >"${artifacts_dir}/provenance.json" <<JSON
+{
+  "eshu_commit": "${eshu_commit}",
+  "component_id": "${component_id}",
+  "component_digest": "${digest}",
+  "core_version": "${core_version}",
+  "sdk_version": "${sdk_version}",
+  "backend": "${backend}",
+  "queue_terminal_state": "${queue_state}",
+  "metrics_handle": ":9464/metrics",
+  "source_evidence_only": true
+}
+JSON
+
 printf 'captured proof artifacts to %s\n' "${artifacts_dir}"
 "${repo_root}/scripts/verify-remote-e2e-component-extension.sh" --artifacts "${artifacts_dir}"

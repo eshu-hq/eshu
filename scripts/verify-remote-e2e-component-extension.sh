@@ -23,6 +23,7 @@ Verifies recorded Scorecard component-extension proof artifacts:
   inventory.json        component-extensions API readback
   workflow-items.json   component workflow item terminal states
   facts.json            committed dev.eshu.examples.scorecard.* fact counts
+  provenance.json       Eshu commit, digest, SDK/core versions, backend, telemetry
 
 The artifacts directory is produced by running the component-extension Compose
 harness against a stack (see docs/public/extend/reference-scorecard-extension.md).
@@ -70,7 +71,8 @@ component-extension proof checks:
   1. inventory: ${component_id} reads back installed=true, enabled=true, trusted=true
   2. workflow: component workflow item terminal success; no retrying/failed/dead-letter
   3. facts: at least one committed fact for ${fact_families[*]}
-  4. redaction canary: no host paths, private keys, bearer tokens, or raw IPs in artifacts
+  4. provenance: records eshu_commit, component_digest, core/sdk versions, backend, queue terminal state, telemetry handle
+  5. redaction canary: no host paths, private keys, bearer tokens, or raw IPs in artifacts
 CHECKS
 }
 
@@ -85,7 +87,8 @@ fi
 inventory="${artifacts_dir}/inventory.json"
 workflow_items="${artifacts_dir}/workflow-items.json"
 facts="${artifacts_dir}/facts.json"
-for required in "${inventory}" "${workflow_items}" "${facts}"; do
+provenance="${artifacts_dir}/provenance.json"
+for required in "${inventory}" "${workflow_items}" "${facts}" "${provenance}"; do
 	[[ -f "${required}" ]] || die "missing required artifact: ${required}"
 done
 
@@ -115,8 +118,20 @@ for family in "${fact_families[@]}"; do
 done
 [[ "${fact_seen}" == true ]] || die "no committed dev.eshu.examples.scorecard.* facts"
 
-# 4. Redaction canary across every artifact.
-for artifact in "${inventory}" "${workflow_items}" "${facts}"; do
+# 4. Provenance: every reproducibility/audit field must be present and non-empty
+#    so the run records what built it and where it ran. Each field is matched as
+#    a non-empty, non-"unknown" string value.
+for field in eshu_commit component_digest core_version sdk_version backend queue_terminal_state metrics_handle; do
+	rg --quiet "\"${field}\"[[:space:]]*:[[:space:]]*\"[^\"]+\"" "${provenance}" \
+		|| die "provenance missing or empty field: ${field}"
+done
+rg --quiet '"eshu_commit"[[:space:]]*:[[:space:]]*"unknown"' "${provenance}" \
+	&& die "provenance eshu_commit is unknown (capture ran outside a checkout)"
+rg --quiet '"component_digest"[[:space:]]*:[[:space:]]*"sha256:[A-Fa-f0-9]{8,}"' "${provenance}" \
+	|| die "provenance component_digest is not a sha256 digest"
+
+# 5. Redaction canary across every artifact.
+for artifact in "${inventory}" "${workflow_items}" "${facts}" "${provenance}"; do
 	for pattern in "${forbidden_patterns[@]}"; do
 		if rg --quiet "${pattern}" "${artifact}"; then
 			die "forbidden material matched /${pattern}/ in $(basename "${artifact}")"

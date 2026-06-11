@@ -89,7 +89,7 @@ verifier against them. A passing run reports `installed`/`enabled`/`trusted`
 true, every scorecard work item `completed`, and non-zero `snapshot`, `check`,
 and `warning` fact families.
 
-The artifacts directory holds three bounded captures from the run:
+The artifacts directory holds four bounded captures from the run:
 
 - `inventory.json` — the `GET /api/v0/component-extensions` readback; the
   verifier requires `installed`, `enabled`, and `trusted` true for
@@ -99,6 +99,13 @@ The artifacts directory holds three bounded captures from the run:
   `retrying`/`failed`/`dead_letter` item.
 - `facts.json` — committed fact counts; the verifier requires at least one
   `dev.eshu.examples.scorecard.*` family with a non-zero count.
+- `provenance.json` — the immutable run identity: `eshu_commit`,
+  `component_digest`, `core_version`, `sdk_version`, `backend`,
+  `queue_terminal_state`, and a port-only `metrics_handle`. The verifier
+  requires every field present and non-empty, the commit resolved (not
+  `unknown`), and the digest a `sha256:` value, so a run records what built it
+  and where it ran. Only version strings, a digest, and a port-only telemetry
+  handle are recorded — never a host path, hostname, IP, or credential.
 
 A redaction canary fails the proof if any artifact contains a host-local path,
 private-key marker, bearer token, or raw IP address. Scorecard facts remain
