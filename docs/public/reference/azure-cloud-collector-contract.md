@@ -73,10 +73,14 @@ it resolves no endpoints and writes no graph edge). The
 is implemented and unit-proven: it fingerprints every
 principal/client/object/tenant GUID with the redaction key (raw GUIDs never
 persist) and carries the bounded identity type, role class, and assignment scope
-as policy evidence only. The remaining fact kinds (`azure_resource_change`,
-`azure_dns_record`,
-`azure_image_reference`) have registered constants but no envelope builders yet;
-their fact-kind-specific reducer handling follows once those builders exist.
+as policy evidence only. The `azure_resource_change`, `azure_dns_record`, and
+`azure_image_reference` envelope builders (`NewResourceChangeEnvelope`,
+`NewDNSRecordEnvelope`, `NewImageReferenceEnvelope`) are implemented and
+unit-proven: change records carry changed property paths plus a fingerprinted
+actor (a delete is a tombstone candidate only); DNS records fingerprint the
+record name and every target; image references are digest-first with a
+fingerprinted container name. All Azure source fact-family envelope builders are
+now implemented; scan-loop emission and reducer admission for each follow.
 
 The implemented slices remain fixture-testable without live Azure access.
 Live smoke tests are promotion proof, not the minimum proof for the source
