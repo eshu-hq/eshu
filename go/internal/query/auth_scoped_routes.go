@@ -92,6 +92,12 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedInfraResourceAggregateRoute(r) {
 		return true
 	}
+	if scopedInfraSearchRoute(r) {
+		return true
+	}
+	if scopedInfraRelationshipsRoute(r) {
+		return true
+	}
 	if r.Method != http.MethodPost {
 		return false
 	}
@@ -191,9 +197,7 @@ func scopedSecurityAlertReconciliationRoute(r *http.Request) bool {
 // These aggregate over the whole-graph infrastructure corpus; scoped tokens
 // bind a repository-anchored predicate (see infraResourceScopePredicate) so
 // totals, rollups, and inventory buckets are computed over only the resources
-// attributable to granted repositories. The infra search and relationship
-// routes carry their own graph queries and stay fail-closed for scoped tokens
-// until each is separately proven tenant-filtered.
+// attributable to granted repositories.
 func scopedInfraResourceAggregateRoute(r *http.Request) bool {
 	if r.Method != http.MethodGet {
 		return false
@@ -205,6 +209,27 @@ func scopedInfraResourceAggregateRoute(r *http.Request) bool {
 	default:
 		return false
 	}
+}
+
+// scopedInfraSearchRoute reports whether the request targets the graph-backed
+// infra resource search route. The search handler runs its own whole-graph
+// Cypher; scoped tokens bind the same repository-anchored predicate
+// (infraResourceScopePredicate) so the matched rows, counts, limit, and
+// truncation are computed over only the resources attributable to granted
+// repositories, and an empty-grant scoped token returns a bounded empty page
+// without a graph read.
+func scopedInfraSearchRoute(r *http.Request) bool {
+	return r.Method == http.MethodPost && r.URL.Path == "/api/v0/infra/resources/search"
+}
+
+// scopedInfraRelationshipsRoute reports whether the request targets the
+// graph-backed infra relationship route. The handler anchors the seed node and
+// every returned neighbor to a granted repository via infraResourceScopePredicate
+// so a relationship is visible only when both endpoints are attributable to a
+// granted repository; an out-of-grant or unanchorable seed returns not_found
+// (no existence disclosure) and an empty grant fails closed without a graph read.
+func scopedInfraRelationshipsRoute(r *http.Request) bool {
+	return r.Method == http.MethodPost && r.URL.Path == "/api/v0/infra/relationships"
 }
 
 func scopedVulnerabilityScannerContractRoute(r *http.Request) bool {

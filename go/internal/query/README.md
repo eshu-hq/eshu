@@ -238,8 +238,7 @@ grant filter (the production `workloadScopePredicate` shape). Nodes with no
 granted `repo_id` and no USES path from a granted repository (for example
 tfstate-only TerraformBackend / TerraformLockProvider nodes that carry no
 durable repository signal) match nothing and stay invisible to scoped tokens.
-Empty grants return the bounded zero/empty shapes without a graph read, and the
-infra search and relationship routes stay fail-closed for scoped tokens.
+Empty grants return the bounded zero/empty shapes without a graph read.
 Shared-token, all-scope admin, and local behavior are unchanged: the predicate
 renders only in scoped mode, so the unscoped Cypher is byte-identical.
 No-Regression Evidence: the scoped predicate and grant parameters render only
@@ -250,6 +249,37 @@ empty-grant no-store-read, and grant-propagation tests.
 No-Observability-Change: existing infra resource aggregate query span
 (`SpanQueryInfraResourceAggregate`), truth envelope, per-dimension rollups,
 limits, offsets, truncation, and inventory metadata diagnose the bounded reads.
+Infra resource search (`POST /api/v0/infra/resources/search`, MCP
+`find_infra_resources`) and infra relationships
+(`POST /api/v0/infra/relationships`, MCP `analyze_infra_relationships`) run
+their own whole-graph Cypher rather than the aggregate store, so they reuse the
+same `infraResourceScopePredicate` (`infra_scope.go`). Search appends the
+predicate to its `MATCH (n)` WHERE chain so the matched rows, `count`, `limit`,
+and `truncated` flag are computed over only granted-repository resources; an
+empty-grant scoped token returns the bounded empty page without a graph read.
+Relationships anchor the seed node `n` and every OPTIONAL MATCH neighbor
+(`target` / `source`) to a granted repository: a relationship is visible only
+when both endpoints are attributable to a granted repository, an out-of-grant or
+unanchorable seed returns `not_found` (no existence disclosure, indistinguishable
+from a missing entity), a neighbor that fails the predicate is dropped from the
+edge list (the OPTIONAL MATCH leaves it null), and an empty grant fails closed
+without a graph read. The durable join is the same two-arm shape: canonical IaC
+entity nodes match on `repo_id`, CloudResource nodes match through the
+`(:Repository)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(:WorkloadInstance)-[:USES]->`
+chain. No fuzzy name or provider-id boundary is used.
+No-Regression Evidence: focused infra search and relationship scoped-token query
+and MCP dispatch tests (`go test ./internal/query ./internal/mcp -run
+'InfraSearch|InfraRelationships|InfraSearchAndRelationships'`) assert the gate
+allows both routes, the unscoped Cypher carries no grant predicate or `scopeRepo`
+traversal (the pinned `MATCH (n) WHERE n.id = $entity_id` anchor is preserved),
+the scoped Cypher binds the anchor + neighbor predicates and grant parameters,
+empty grants short-circuit before the graph, and out-of-grant seeds return
+`not_found`.
+No-Observability-Change: the existing infra search query span
+(`SpanQueryInfraResourceSearch`), relationship handler truth envelope, and
+`results` / `count` / `limit` / `truncated` and `outgoing` / `incoming` response
+metadata diagnose the bounded reads; the scope predicate adds no new spans,
+metrics, or fields.
 Semantic evidence reads are opt-in routes over durable semantic facts:
 `GET /api/v0/semantic/documentation-observations` and
 `GET /api/v0/semantic/code-hints`. They require at least one scope or semantic
