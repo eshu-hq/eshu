@@ -1,0 +1,11 @@
+{
+  "eshu_commit": "40e2876d0",
+  "component_id": "dev.eshu.examples.scorecard",
+  "component_digest": "sha256:d697b829cf0b74cb114a2227778cc0f1c1e7b1a98e9572ff5b24e1183ac04c89",
+  "core_version": "dev",
+  "sdk_version": "collector-sdk/v1alpha1",
+  "backend": "nornicdb",
+  "queue_terminal_state": "completed",
+  "metrics_handle": ":9464/metrics",
+  "source_evidence_only": true
+}

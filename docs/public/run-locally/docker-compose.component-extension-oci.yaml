@@ -1,0 +1,90 @@
+# Overlay that turns the base docker-compose.yaml into a Scorecard
+# component-extension remote Compose proof harness for the OCI adapter
+# (#1980/#1923).
+#
+# Unlike docker-compose.component-extension.yaml (process adapter), the worker
+# here does NOT exec a bundled binary. It launches the digest-pinned Scorecard
+# artifact image with `docker run` through the host container runtime (mounted
+# socket), under the adapter's isolation flags (no network, read-only root,
+# uid 65532, all caps dropped, no-new-privileges). The artifact image and its
+# immutable digest are produced and pinned by the harness, not committed.
+#
+# Usage (from repo root): drive it through the orchestration script, which
+# stands up a local registry, builds + pushes the artifact, captures the digest,
+# brings up this overlay, then captures + verifies:
+#
+#   scripts/run-remote-e2e-component-extension-oci.sh
+#
+# Scorecard facts are source evidence only; the proof asserts no graph nodes or
+# edges are written for them.
+
+services:
+  # One-shot init: rewrite the OCI manifest artifact to the real digest-pinned
+  # local-registry ref, then install + enable the Scorecard component under the
+  # OCI adapter into the shared component home before the coordinator/collector
+  # start.
+  component-extension-install:
+    profiles:
+      - component-extension-collector
+    build:
+      context: .
+      dockerfile: examples/collector-extensions/scorecard/oci.worker.Dockerfile
+      args:
+        ESHU_IMAGE: eshu:local
+    entrypoint: ["/usr/local/bin/proof-install-oci.sh"]
+    user: "0:0"
+    environment:
+      ESHU_COMPONENT_HOME: /data/.eshu/components
+      ESHU_COMPONENT_COLLECTOR_INSTANCE_ID: scorecard-remote-oci
+      # Real digest-pinned local-registry ref supplied by the host harness.
+      ESHU_SCORECARD_OCI_IMAGE: ${ESHU_SCORECARD_OCI_IMAGE:?set by run-remote-e2e-component-extension-oci.sh}
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+
+  workflow-coordinator:
+    environment:
+      ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE: active
+      ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED: "true"
+      ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL: 5s
+      ESHU_COMPONENT_TRUST_MODE: allowlist
+      ESHU_COMPONENT_ALLOW_IDS: dev.eshu.examples.scorecard
+      ESHU_COMPONENT_ALLOW_PUBLISHERS: eshu-hq
+      ESHU_COMPONENT_CORE_VERSION: dev
+      # Hosted extension egress fails closed without an explicit allow rule.
+      ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON: >-
+        {"mode":"restricted","extensions":[{"component_id":"dev.eshu.examples.scorecard","instance_id":"scorecard-remote-oci","collector_kind":"scorecard","decision":"allow"}]}
+    depends_on:
+      component-extension-install:
+        condition: service_completed_successfully
+
+  component-extension-collector:
+    build:
+      context: .
+      dockerfile: examples/collector-extensions/scorecard/oci.worker.Dockerfile
+      args:
+        ESHU_IMAGE: eshu:local
+    entrypoint: ["/usr/local/bin/eshu-collector-component-extension"]
+    # Root + mounted docker socket so the OCI adapter can launch the
+    # digest-pinned artifact through the host runtime. The launched artifact is
+    # still confined by the adapter isolation flags.
+    user: "0:0"
+    environment:
+      ESHU_COMPONENT_TRUST_MODE: allowlist
+      ESHU_COMPONENT_ALLOW_IDS: dev.eshu.examples.scorecard
+      ESHU_COMPONENT_ALLOW_PUBLISHERS: eshu-hq
+      ESHU_COMPONENT_CORE_VERSION: dev
+      ESHU_COMPONENT_COLLECTOR_INSTANCE_ID: scorecard-remote-oci
+      ESHU_COMPONENT_COLLECTOR_OWNER_ID: scorecard-remote-oci-worker
+      ESHU_COMPONENT_COLLECTOR_SCOPE_KIND: repository
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      component-extension-install:
+        condition: service_completed_successfully

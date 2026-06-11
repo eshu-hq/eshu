@@ -53,9 +53,13 @@ scripts/test-local-component-lifecycle.sh
 ```
 
 The digest-pinned image in `manifest.yaml` is reference metadata for manifest
-validation. The current hosted proof path runs the local process adapter;
-publishing a runnable OCI package must replace the placeholder with the built
-artifact digest and use an OCI-capable host.
+validation. The process-adapter proof path runs the local process adapter. The
+OCI-adapter path is proven end to end by `manifest.oci.yaml` (`adapter: oci`),
+the standalone `Dockerfile.oci` artifact image, the `oci.worker.Dockerfile`
+worker image, and `scripts/proof-install-oci.sh`, driven by
+`scripts/run-remote-e2e-component-extension-oci.sh`. See the
+[Reference Scorecard Extension](../../../docs/public/extend/reference-scorecard-extension.md)
+docs for the OCI adapter proof.
 
 ## Privacy posture
 
