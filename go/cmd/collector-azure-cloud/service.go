@@ -1,7 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -9,8 +13,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud/azureruntime"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
+
+// redactionKeyFileEnv names the env var holding the path to the read-only
+// redaction key material used to fingerprint azure_tag_observation values. When
+// unset, the collector runs with a zero key and emits no tag observation facts,
+// so tag values are never fingerprinted or carried without an operator key.
+const redactionKeyFileEnv = "ESHU_AZURE_REDACTION_KEY_FILE"
 
 // buildCollectorService constructs the non-claimed Azure cloud collector
 // service from declarative environment configuration. It selects the
@@ -36,6 +47,10 @@ func buildCollectorService(
 	if err != nil {
 		return collector.Service{}, err
 	}
+	redactionKey, err := loadRedactionKey(getenv(redactionKeyFileEnv))
+	if err != nil {
+		return collector.Service{}, err
+	}
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
 	return collector.Service{
@@ -43,6 +58,7 @@ func buildCollectorService(
 			Config:          config,
 			ProviderFactory: factory,
 			Metrics:         metrics,
+			RedactionKey:    redactionKey,
 			Tracer:          tracer,
 			Logger:          logger,
 		},
@@ -51,6 +67,27 @@ func buildCollectorService(
 		Tracer:       tracer,
 		Logger:       logger,
 	}, nil
+}
+
+// loadRedactionKey reads the read-only redaction key material from the file at
+// path. An empty path returns a zero key, which disables azure_tag_observation
+// emission (tag values are never fingerprinted or carried without a key). A
+// configured-but-unreadable or blank key file is a hard error so the collector
+// never silently runs keyless when a key was intended. The material is never
+// logged.
+func loadRedactionKey(path string) (redact.Key, error) {
+	if strings.TrimSpace(path) == "" {
+		return redact.Key{}, nil
+	}
+	material, err := os.ReadFile(filepath.Clean(path))
+	if err != nil {
+		return redact.Key{}, fmt.Errorf("read azure redaction key file: %w", err)
+	}
+	key, err := redact.NewKey(material)
+	if err != nil {
+		return redact.Key{}, fmt.Errorf("azure redaction key: %w", err)
+	}
+	return key, nil
 }
 
 // buildProviderFactory selects the page provider seam. The file-backed offline

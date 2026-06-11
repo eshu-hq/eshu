@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -37,6 +38,10 @@ type Source struct {
 	// Metrics records bounded-label Azure collector telemetry. A nil value
 	// disables Azure-specific metrics.
 	Metrics azurecloud.Metrics
+	// RedactionKey keys azure_tag_observation value fingerprinting. A zero key
+	// (the default) disables tag observation emission entirely, so tag values
+	// are never fingerprinted or carried without an operator-provided key.
+	RedactionKey redact.Key
 	// Tracer optionally traces per-target scans. Nil disables tracing.
 	Tracer trace.Tracer
 	// Logger optionally emits structured per-target diagnostics. Nil disables
@@ -111,7 +116,7 @@ func (s *Source) scanTarget(
 		return collector.CollectedGeneration{}, fmt.Errorf("azure page provider factory returned nil provider")
 	}
 
-	result, err := azurecloud.NewCollector(provider, s.Metrics).Collect(ctx, boundary)
+	result, err := azurecloud.NewCollector(provider, s.Metrics, azurecloud.WithRedactionKey(s.RedactionKey)).Collect(ctx, boundary)
 	if err != nil {
 		return collector.CollectedGeneration{}, fmt.Errorf("collect azure scope generation: %w", err)
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
 // maxResourceGraphPages bounds one Azure scan so a malformed provider response
@@ -61,6 +62,10 @@ type ScanResult struct {
 	Truncated bool
 	// Partial reports whether scope access was partial.
 	Partial bool
+	// TagObservationCount counts azure_tag_observation facts emitted. It is
+	// zero unless the collector was given a redaction key (tag values are never
+	// fingerprinted or carried without one).
+	TagObservationCount int
 }
 
 // Collector turns fixture or live Resource Graph pages into ordered Azure
@@ -68,17 +73,36 @@ type ScanResult struct {
 // fact emission, and bounded telemetry. It does not commit facts, schedule
 // claims, choose credentials, or write graph truth.
 type Collector struct {
-	provider PageProvider
-	metrics  Metrics
+	provider     PageProvider
+	metrics      Metrics
+	redactionKey redact.Key
+}
+
+// CollectorOption configures an optional Collector behavior.
+type CollectorOption func(*Collector)
+
+// WithRedactionKey enables azure_tag_observation emission keyed by the given
+// redaction key. Tag values are fingerprinted with this key (never stored raw),
+// so a zero key (the default) means no tag observation facts are emitted at all.
+func WithRedactionKey(key redact.Key) CollectorOption {
+	return func(c *Collector) {
+		c.redactionKey = key
+	}
 }
 
 // NewCollector builds a Collector over a PageProvider. A nil Metrics is
-// tolerated; telemetry recording becomes a no-op.
-func NewCollector(provider PageProvider, metrics Metrics) *Collector {
+// tolerated; telemetry recording becomes a no-op. Without WithRedactionKey the
+// collector emits resource and warning facts only; tag observation emission
+// requires a redaction key so tag values are never carried unfingerprinted.
+func NewCollector(provider PageProvider, metrics Metrics, opts ...CollectorOption) *Collector {
 	if metrics == nil {
 		metrics = NopMetrics{}
 	}
-	return &Collector{provider: provider, metrics: metrics}
+	c := &Collector{provider: provider, metrics: metrics}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 // Collect reads all Resource Graph pages for the boundary, emits one
@@ -140,6 +164,9 @@ func (c *Collector) Collect(ctx context.Context, boundary Boundary) (ScanResult,
 
 	c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureCloudResourceFactKind, result.ResourceCount)
 	c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureCollectionWarningFactKind, result.WarningCount)
+	if result.TagObservationCount > 0 {
+		c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureTagObservationFactKind, result.TagObservationCount)
+	}
 	return result, nil
 }
 
@@ -161,12 +188,25 @@ func (c *Collector) emitPageResources(boundary Boundary, page ResourceGraphPage,
 			result.WarningCount++
 			continue
 		}
-		env, err := NewResourceEnvelope(rowToObservation(boundary, row, identity))
+		observation := rowToObservation(boundary, row, identity)
+		env, err := NewResourceEnvelope(observation)
 		if err != nil {
 			return fmt.Errorf("build azure_cloud_resource fact: %w", err)
 		}
 		result.Facts = append(result.Facts, env)
 		result.ResourceCount++
+
+		// Emit a paired azure_tag_observation only when a redaction key is set
+		// and the resource carries usable tags. Without a key, tag values are
+		// never fingerprinted or carried; the resource fact still emits.
+		if !c.redactionKey.IsZero() && hasUsableTag(observation.Tags) {
+			tagEnv, err := NewTagObservationEnvelope(observation, c.redactionKey)
+			if err != nil {
+				return fmt.Errorf("build azure_tag_observation fact: %w", err)
+			}
+			result.Facts = append(result.Facts, tagEnv)
+			result.TagObservationCount++
+		}
 	}
 	return nil
 }
