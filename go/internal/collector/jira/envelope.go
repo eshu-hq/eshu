@@ -143,6 +143,13 @@ func NewWorkItemExternalLinkEnvelope(ctx EnvelopeContext, link ExternalLink) (fa
 		"correlation_anchor_class": externalLinkAnchorClass(link),
 		"provider_support_state":   externalLinkSupportState(link),
 	}
+	// Resolve the typed PR/MR URL to a canonical repository id BEFORE the raw
+	// URL is dropped above. Persist the durable id only on a confident
+	// canonicalization; ambiguous or non-repository links omit the field
+	// entirely rather than store a guessed id. The raw URL stays redacted.
+	if repoID := linkedRepositoryID(link); repoID != "" {
+		payload["linked_repository_id"] = repoID
+	}
 	return workItemEnvelope(ctx, facts.WorkItemExternalLinkFactKind, stableFactKey, payload, recordID, ctx.SourceURI), nil
 }
 

@@ -319,7 +319,11 @@ matrix are defined in [Jira Evidence Contract](jira-evidence.md). Jira payloads
 carry `redaction_policy_version=jira_work_item_v1`; private summaries, user
 identifiers, raw Jira URLs, remote-link URLs, remote-link titles, and
 remote-link summaries are represented by presence booleans or URL fingerprints,
-not raw values.
+not raw values. A confidently typed GitHub PR or GitLab MR
+`work_item.external_link` also carries `linked_repository_id`, the canonical
+repository id resolved from the link URL before redaction; it is the same
+identifier Eshu stores for every repository and carries no raw URL or secret,
+and un-canonicalizable or ambiguous links omit it.
 `work_item.record`, `work_item.transition`, `work_item.external_link`, and the
 Jira metadata fact kinds preserve Jira work-item state, changelog IDs,
 remote-link IDs, project/status/workflow context, custom-field schema classes,
