@@ -37,19 +37,43 @@ a documented seam (`azureruntime.LiveProviderFactory`) that is inert and returns
 `ErrLiveProviderGated`; it is never the default. Tests and the binary's offline
 mode use a fixture or file-backed `PageProvider`.
 
-Everything else stays gated. Do not add Helm values, chart paths, claim-driven
-workflow scheduling, or query/MCP readback claims until implementation PRs prove
-the live runtime adapter, reducer path, additional fact kinds, telemetry in the
-shared registry, and chart path. The remaining fact kinds
-(`azure_cloud_relationship`, `azure_tag_observation`,
-`azure_identity_observation`, `azure_resource_change`, `azure_dns_record`,
-`azure_image_reference`) have registered constants but no envelope builders yet,
-and reducer admission of `azure_cloud_resource` into the shared `CloudResource`
-keyspace is not implemented.
+Shared multi-cloud reducer admission and API/MCP readback for the
+`azure_cloud_resource` identity are now implemented and fixture-proven. The
+additive `cloud_inventory_admission` reducer domain
+(`go/internal/reducer/cloud_inventory_admission.go`, wired in
+`go/cmd/reducer`) admits `azure_cloud_resource` into the shared `CloudResource`
+identity keyspace (`cloud_resource_uid`) as the reducer-owned
+`reducer_cloud_resource_identity` read model, keying on the
+`arm_resource_id` via deterministic provider identity resolution
+(`go/internal/correlation/cloudinventory`), with
+declared-over-applied-over-observed management-origin precedence,
+ambiguous/unsupported/unresolved accounting, and stale-generation supersession.
+The `GET /api/v0/cloud/inventory` handler
+(`go/internal/query/cloud_inventory_readback.go`) and the
+`list_cloud_resource_inventory` MCP tool return bounded, truth-labeled Azure
+identity rows (exact, semantic-facts basis) without leaking raw provider
+locators.
 
-The implementation slices remain fixture-testable without live Azure access.
+Everything else stays gated. Do not add Helm values, chart paths, claim-driven
+workflow scheduling, or a live Resource Graph/ARM transport until implementation
+PRs prove the live runtime adapter (`azureruntime.LiveProviderFactory`) and
+chart path. The remaining fact kinds (`azure_cloud_relationship`,
+`azure_tag_observation`, `azure_identity_observation`, `azure_resource_change`,
+`azure_dns_record`, `azure_image_reference`) have registered constants but no
+envelope builders yet; their fact-kind-specific reducer handling follows once
+those builders exist.
+
+The implemented slices remain fixture-testable without live Azure access.
 Live smoke tests are promotion proof, not the minimum proof for the source
 contract.
+
+No-Regression Evidence: `go test ./internal/reducer ./internal/query
+./internal/mcp -run CloudInventory -count=1` and `go test
+./internal/storage/postgres -run CloudInventory -count=1` prove
+`azure_cloud_resource` admission into the shared `cloud_resource_uid` keyspace,
+management-origin precedence, ambiguous/unsupported/unresolved accounting,
+stale-generation supersession, and bounded truth-labeled readback that never
+leaks raw provider locators.
 
 No-Observability-Change: the live Azure runtime adapter stays gated. The
 runtime scaffolding slice adds a non-claimed source and binary that emit a
