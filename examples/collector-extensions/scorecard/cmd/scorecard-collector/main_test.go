@@ -85,4 +85,16 @@ func TestRunSDKStdioUsesHostClaimAndConfig(t *testing.T) {
 	if len(result.Facts) == 0 {
 		t.Fatal("result emitted no facts")
 	}
+	// The OCI reference-image proof (#1980) runs this exact stdin contract inside
+	// a digest-pinned container and asserts all three declared fact families come
+	// back, so guard them here at the program boundary too.
+	families := map[string]int{}
+	for _, fact := range result.Facts {
+		families[fact.Kind]++
+	}
+	for _, kind := range []string{scorecard.FactKindSnapshot, scorecard.FactKindCheck, scorecard.FactKindWarning} {
+		if families[kind] == 0 {
+			t.Fatalf("result missing fact family %q; emitted families = %v", kind, families)
+		}
+	}
 }

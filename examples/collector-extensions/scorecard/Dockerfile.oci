@@ -1,0 +1,35 @@
+# Standalone reference Scorecard collector OCI image for the component-extension
+# OCI adapter proof (#1980). Unlike the process-adapter proof image (Dockerfile,
+# which layers on the eshu runtime), this is a minimal, self-contained artifact:
+# the pure-Go scorecard-collector binary plus its deterministic fixture, with a
+# non-root entrypoint that speaks the collector SDK stdio contract.
+#
+# The extensionhost.OCIRunner launches this with:
+#   docker run --rm -i --network none --read-only \
+#     --user 65532:65532 --cap-drop ALL --security-opt no-new-privileges \
+#     <repo>@sha256:<digest>
+# It receives one SDK host request on stdin and emits one SDK result on stdout.
+# No network, a read-only rootfs, dropped capabilities, and a non-root user mean
+# the artifact gets no Eshu Postgres/graph/reducer/API/MCP/workflow handles —
+# only the bounded request. The fixture is baked in so the container needs no
+# network and no writable mount.
+#
+# Build + push + run is driven by scripts/verify-oci-scorecard-adapter.sh, which
+# resolves the immutable digest after push and exercises the run contract above.
+FROM golang:1.26-alpine AS build
+RUN apk add --no-cache ca-certificates
+WORKDIR /src
+COPY sdk ./sdk
+COPY examples/collector-extensions/scorecard ./examples/collector-extensions/scorecard
+RUN cd examples/collector-extensions/scorecard \
+    && CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' \
+       -o /out/scorecard-collector ./cmd/scorecard-collector
+
+FROM gcr.io/distroless/static-debian12:nonroot
+# The fixture is the deterministic Scorecard report the proof reads; it is
+# world-readable so the non-root runtime user can open it under a read-only
+# rootfs. The activation config points source.input at this path.
+COPY --from=build /out/scorecard-collector /usr/local/bin/scorecard-collector
+COPY examples/collector-extensions/scorecard/testdata/complete.json /var/lib/scorecard/complete.json
+USER 65532:65532
+ENTRYPOINT ["/usr/local/bin/scorecard-collector", "--sdk-stdio"]

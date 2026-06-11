@@ -114,6 +114,40 @@ them until a reducer/query contract promotes them. The worker honors the
 manifest adapter: `process` for local runs and `oci` for a digest-pinned
 artifact (see the component extension collector).
 
+## OCI Adapter Proof
+
+The process-adapter harness above proves the SDK claim/commit boundary, but it
+cannot prove image pull, digest resolution, or container isolation. The OCI
+adapter proof closes that gap with a standalone, minimal reference image
+(`examples/collector-extensions/scorecard/Dockerfile.oci`: the pure-Go
+`scorecard-collector` binary plus its baked fixture on a distroless non-root
+base) and a live verifier:
+
+```bash
+scripts/verify-oci-scorecard-adapter.sh           # build, push, resolve digest, run isolated
+scripts/verify-oci-scorecard-adapter.sh --list    # show the checks
+```
+
+The verifier builds the image, pushes it to a registry (a throwaway local
+`registry:2` by default), resolves the immutable `repo@sha256:<digest>`
+reference, then launches that digest-pinned artifact through the exact contract
+`extensionhost.OCIRunner` uses:
+
+```
+docker run --rm -i --network none --read-only \
+  --user 65532:65532 --cap-drop ALL --security-opt no-new-privileges \
+  <repo>@sha256:<digest>
+```
+
+It feeds one SDK host request on stdin (its `config.source.input` points at the
+in-image fixture, never a host path) and asserts the three
+`dev.eshu.examples.scorecard.*` families come back on stdout, with the same
+redaction canary applied. No network, a read-only rootfs, dropped capabilities,
+and a non-root user mean the artifact receives no Eshu Postgres, graph, reducer,
+API, MCP, or workflow handles — only the bounded request. Publishing the image
+to a shared registry and pinning the resulting digest in the manifest artifact
+is the remaining registry-publish step.
+
 ## Hosted Limits
 
 The reference manifest uses a placeholder digest so local validation can prove
