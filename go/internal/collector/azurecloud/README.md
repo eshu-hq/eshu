@@ -56,11 +56,17 @@ and the [Multi-Cloud Runtime Collector Contract](../../../../docs/public/referen
   fingerprints every principal/client/object/tenant GUID with the redaction key
   (raw GUIDs never persist) and carries the bounded identity type, role class,
   and assignment scope as policy evidence only, with a stable key independent of
-  the redaction key so key rotation does not split rows. The remaining contract
-  fact kinds (`azure_resource_change`, `azure_dns_record`,
-  `azure_image_reference`) have registered constants and schema versions in
-  `internal/facts/azure.go` but no envelope builders yet. Reducer admission of
-  tag evidence is a further follow-up (#2192).
+  the redaction key so key rotation does not split rows. The
+  `azure_resource_change`, `azure_dns_record`, and `azure_image_reference`
+  envelope builders (`NewResourceChangeEnvelope`, `NewDNSRecordEnvelope`,
+  `NewImageReferenceEnvelope`) now also exist and are unit-proven — change
+  records carry changed property paths plus a fingerprinted actor (a delete is a
+  tombstone candidate only); DNS records fingerprint the record name and every
+  target; image references are digest-first with a fingerprinted container name.
+  **All Azure source fact-family envelope builders are now implemented**; what
+  remains per kind is wiring emission into the scan loop (credential binary
+  surface, #2197) and reducer admission. Reducer admission of tag evidence is
+  already wired (#2192).
 
 ## Invariants
 
