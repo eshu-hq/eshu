@@ -10,6 +10,11 @@ func TestGCPFactKindRegistry(t *testing.T) {
 	want := []string{
 		GCPCloudResourceFactKind,
 		GCPCollectionWarningFactKind,
+		GCPCloudRelationshipFactKind,
+		GCPTagObservationFactKind,
+		GCPIAMPolicyObservationFactKind,
+		GCPDNSRecordFactKind,
+		GCPImageReferenceFactKind,
 	}
 	if len(kinds) != len(want) {
 		t.Fatalf("len(GCPFactKinds()) = %d, want %d", len(kinds), len(want))
