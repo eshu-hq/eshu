@@ -38,17 +38,20 @@ and the [Multi-Cloud Runtime Collector Contract](../../../../docs/public/referen
   claiming Azure runtime before it is implemented and fixture-proven.
 - No reducer admission, no `cloud_resource_uid` resolution, no graph projection,
   no API/MCP readback. Those are reducer-owned follow-ups.
-- Only `azure_cloud_resource` and `azure_collection_warning` are emitted by the
-  scan loop. The `azure_tag_observation` envelope builder
-  (`NewTagObservationEnvelope`) and its keyed value-fingerprint helper
-  (`FingerprintTagValues`) now exist and are unit-proven, but are not yet wired
-  into `Collector.emitPageResources` — emission requires threading a
-  `redact.Key` through the collector/runtime/binary launch surface and is the
-  security-reviewed follow-up tracked in #2192. The remaining contract fact kinds
+- `azure_cloud_resource` and `azure_collection_warning` are always emitted.
+  `azure_tag_observation` is emitted **only when a redaction key is configured**:
+  `Collector` takes an optional `WithRedactionKey`, and `emitPageResources`
+  pairs each tagged resource with one tag-evidence fact whose values are keyed
+  fingerprints (`FingerprintTagValues`); without a key, tag values are never
+  fingerprinted or carried and no tag observation fact is emitted. The runtime
+  source threads the key from `azureruntime.Source.RedactionKey`, loaded by the
+  `collector-azure-cloud` binary from `ESHU_AZURE_REDACTION_KEY_FILE` (a blank
+  or unreadable configured file fails closed). The remaining contract fact kinds
   (`azure_cloud_relationship`, `azure_identity_observation`,
   `azure_resource_change`, `azure_dns_record`, `azure_image_reference`) have
   registered constants and schema versions in `internal/facts/azure.go` but no
-  envelope builders yet.
+  envelope builders yet. Reducer admission of tag evidence is a further follow-up
+  (#2192).
 
 ## Invariants
 

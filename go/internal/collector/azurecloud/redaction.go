@@ -111,6 +111,19 @@ func RedactExtension(raw map[string]any) ExtensionRedaction {
 	}
 }
 
+// hasUsableTag reports whether a tag map has at least one non-blank key, i.e.
+// whether NewTagObservationEnvelope would produce a fact rather than reject the
+// input as missing evidence. The emission path uses it to skip untagged
+// resources without treating the builder's empty-input error as fatal.
+func hasUsableTag(tags map[string]string) bool {
+	for k := range tags {
+		if strings.TrimSpace(k) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // FingerprintTagValues fingerprints Azure tag values into deterministic,
 // key-derived markers while preserving the tag keys, so reducers can correlate
 // resources that share a tag value without tag value text ever becoming a graph
