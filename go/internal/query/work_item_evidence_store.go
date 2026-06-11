@@ -54,6 +54,7 @@ func (s PostgresWorkItemEvidenceStore) ListWorkItemEvidence(
 		filter.URLFingerprint,
 		nullableWorkItemEvidenceTime(filter.ObservedAfter),
 		filter.AfterFactID,
+		pq.Array(filter.AllowedRepositoryIDs),
 		filter.Limit,
 	)
 	if err != nil {

@@ -104,6 +104,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedIaCResourceListRoute(r) {
 		return true
 	}
+	if scopedWorkItemEvidenceRoute(r) {
+		return true
+	}
 	if r.Method != http.MethodPost {
 		return false
 	}
@@ -268,6 +271,22 @@ func scopedInfraRelationshipsRoute(r *http.Request) bool {
 // token returns a bounded empty page without a graph read.
 func scopedIaCResourceListRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/iac/resources"
+}
+
+// scopedWorkItemEvidenceRoute reports whether the request targets the
+// source-only work-item evidence read GET /api/v0/work-items/evidence.
+// Work-item facts key on the provider project scope (scope_id, project_key,
+// work_item_key), not a git repository, so scoped reads intersect the work
+// item's durable linked_repository_id (resolved by the Jira collector from a
+// confidently typed GitHub PR or GitLab MR link before redaction, #2160) with
+// the grant set. A work item with no durable linked_repository_id — every fact
+// kind except a canonicalized external_link, or an out-of-grant project
+// selector — stays invisible to scoped tokens (fail-closed), never a
+// provider-scope leak. The exact evidence path is matched so adjacent
+// work-item sub-resources stay deny-by-default until each is separately proven
+// tenant-filtered, and the admin POST query route remains admin-only.
+func scopedWorkItemEvidenceRoute(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/work-items/evidence"
 }
 
 func scopedVulnerabilityScannerContractRoute(r *http.Request) bool {
