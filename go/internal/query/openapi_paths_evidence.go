@@ -236,7 +236,7 @@ const openAPIPathsEvidence = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "findings": {"type": "array", "items": {"type": "object"}},
+                    "findings": {"type": "array", "items": {"type": "object"}, "description": "Each finding carries an access_disposition (visible|access_denied|partial|stale|missing) enforced from its bounded source_acl_state and per-caller read decision (#2164). A finding the caller cannot read is disclosed with access_disposition=access_denied, permission_denied=true, content_withheld=true, and its protected content stripped — it is NOT silently dropped, so a reader can distinguish 'no evidence' from 'evidence exists but is denied/partial/stale'. The freshness/truth labels (#2138) are preserved on a withheld finding and never collapsed into the permission error."},
                     "next_cursor": {"type": "string"},
                     "coverage": {"type": "object", "description": "Present on target-scoped requests; reports the selected target, target-matching findings returned for explicit targets, related raw fact count, fact-kind buckets, and truncation."},
                     "related_facts": {"type": "array", "items": {"type": "object"}, "description": "Bounded preview of raw documentation facts that reference the selected target scope."},
@@ -296,9 +296,11 @@ const openAPIPathsEvidence = `
                     "truth": {"type": "object"},
                     "permissions": {"type": "object"},
                     "states": {"type": "object"},
-                    "source_acl_state": {"type": "string", "enum": ["allowed", "denied", "partial", "missing", "stale"], "description": "Optional bounded source-ACL-state observation from the collector, surfaced as a distinct access-posture axis separate from the binary permissions decision and from states.freshness_state. Represents partial/stale ACL the binary permissions object cannot. Omitted when the source asserted no bounded ACL claim. Informational truth metadata only: it does not yet change disclosure (denied-vs-missing) or enforce access; that is deferred to security review (#2164)."}
+                    "source_acl_state": {"type": "string", "enum": ["allowed", "denied", "partial", "missing", "stale"], "description": "Optional bounded source-ACL-state observation from the collector, surfaced as a distinct access-posture axis separate from the binary permissions decision and from states.freshness_state (#2138). Represents partial/stale ACL the binary permissions object cannot. Omitted when the source asserted no bounded ACL claim."},
+                    "access_disposition": {"type": "string", "enum": ["visible", "partial", "stale", "missing"], "description": "Bounded access disposition enforced from source_acl_state (#2164). visible: full packet body. partial: protected content (finding/document/section/bounded_excerpt/evidence_refs) withheld behind a partial marker, content_withheld=true. stale: permitted-but-stale, body intact. A denied posture never reaches this 200 body; it returns 403 permission_denied with no packet."},
+                    "content_withheld": {"type": "boolean", "description": "Set true when the protected packet content was withheld because the access posture (partial) is not cleanly readable. Only bounded identity/state fields remain."}
                   },
-                  "required": ["packet_id", "packet_version", "generated_at", "finding", "document", "section", "bounded_excerpt", "linked_entities", "current_truth", "evidence_refs", "truth", "permissions", "states"]
+                  "required": ["packet_id", "packet_version"]
                 }
               }
             }

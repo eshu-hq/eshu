@@ -238,13 +238,22 @@ func semanticEvidencePublicRow(raw map[string]any) map[string]any {
 	copyNestedString(out, payload, "chunk", "redaction_version")
 	copyNestedString(out, payload, "chunk", "extractor_version")
 	copyNestedString(out, payload, "chunk", "extraction_mode")
-	// source_acl_state is a distinct access-posture axis (#2164/#1901), surfaced
-	// alongside (never folded into) policy_state/freshness_state/admission_state/
-	// corroboration_state/redaction_state. It is omitted unless the collector
-	// asserted a bounded value on the payload's acl_summary (fail closed). This is
-	// informational truth metadata only; it does not yet gate which rows are
-	// returned (disclosure/enforcement is the #2164 security-review tail).
+	// Honest source-ACL disclosure (#2164 USER-APPROVED policy). source_acl_state
+	// is a distinct access-posture axis surfaced alongside (never folded into)
+	// policy_state/freshness_state/admission_state/corroboration_state/
+	// redaction_state. Semantic-evidence facts carry no per-caller documentation
+	// permissions object, so the bounded source_acl_state on the payload's
+	// acl_summary is the sole posture signal: denied withholds the observation
+	// content (observation_text/hint_text/evidence_refs) behind an access-denied
+	// disposition, partial withholds content behind a partial marker, stale is
+	// surfaced as stale with content intact, missing is disclosed as missing, and
+	// allowed / no-claim stays visible. The #2138 truth labels (freshness_state,
+	// admission_state, corroboration_state, missing_evidence, unsupported_reason)
+	// are preserved on a withheld row and never collapsed into the access marker.
+	// Surface the bounded state from the raw payload onto the projected row first,
+	// then enforce disclosure against the projected row.
 	surfaceSourceACLState(out, payload)
+	applySourceACLDisclosure(out, true)
 	return out
 }
 

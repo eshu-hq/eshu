@@ -10,7 +10,14 @@ import (
 	"testing"
 )
 
-func TestContentReaderDocumentationFindingsSkipsDeniedVisibility(t *testing.T) {
+// TestContentReaderDocumentationFindingsDisclosesDeniedVisibility proves the
+// approved disclosure policy (#2164): a finding the caller cannot read is no
+// longer silently dropped. It is returned with an access-denied disposition,
+// permission_denied + content_withheld set, and its protected content
+// (summary/permissions denied_reason) stripped — while a readable finding is
+// returned intact alongside it. A reader can now distinguish "no evidence" from
+// "evidence exists but is denied."
+func TestContentReaderDocumentationFindingsDisclosesDeniedVisibility(t *testing.T) {
 	t.Parallel()
 
 	hidden := []byte(`{
@@ -51,15 +58,44 @@ func TestContentReaderDocumentationFindingsSkipsDeniedVisibility(t *testing.T) {
 	if err != nil {
 		t.Fatalf("documentationFindings() error = %v, want nil", err)
 	}
-	if gotLen, want := len(got.Findings), 1; gotLen != want {
-		t.Fatalf("len(Findings) = %d, want %d; findings = %#v", gotLen, want, got.Findings)
+	if gotLen, want := len(got.Findings), 2; gotLen != want {
+		t.Fatalf("len(Findings) = %d, want %d (denied row disclosed, not dropped); findings = %#v", gotLen, want, got.Findings)
 	}
-	if got, want := got.Findings[0]["finding_id"], "finding:visible"; got != want {
-		t.Fatalf("finding_id = %#v, want %#v", got, want)
+	denied := got.Findings[0]
+	if denied["finding_id"] != "finding:hidden" {
+		t.Fatalf("findings[0].finding_id = %#v, want denied row 'finding:hidden'", denied["finding_id"])
+	}
+	if denied[accessDispositionResponseKey] != accessDispositionDenied {
+		t.Fatalf("denied access_disposition = %#v, want %q", denied[accessDispositionResponseKey], accessDispositionDenied)
+	}
+	if denied[permissionDeniedResponseKey] != true {
+		t.Fatalf("denied permission_denied = %#v, want true", denied[permissionDeniedResponseKey])
+	}
+	if denied[contentWithheldResponseKey] != true {
+		t.Fatalf("denied content_withheld = %#v, want true", denied[contentWithheldResponseKey])
+	}
+	if _, leaked := denied["summary"]; leaked {
+		t.Fatalf("denied row leaked content 'summary': %#v", denied)
+	}
+	if _, leaked := denied["permissions"]; leaked {
+		t.Fatalf("denied row leaked 'permissions' object (may contain denied_reason): %#v", denied)
+	}
+	if _, leaked := denied["evidence_packet_url"]; leaked {
+		t.Fatalf("denied row leaked evidence_packet_url to protected packet: %#v", denied)
+	}
+	if got.Findings[1]["finding_id"] != "finding:visible" {
+		t.Fatalf("findings[1].finding_id = %#v, want 'finding:visible'", got.Findings[1]["finding_id"])
+	}
+	if got.Findings[1]["summary"] != "public deployment drift" {
+		t.Fatalf("visible row lost its content: %#v", got.Findings[1])
 	}
 }
 
-func TestContentReaderDocumentationFindingsSkipsUnknownVisibility(t *testing.T) {
+// TestContentReaderDocumentationFindingsDisclosesUnknownVisibility proves a
+// finding whose read visibility was never evaluated (unknown) fails closed: it
+// is disclosed as access-denied with content withheld, not silently dropped and
+// not surfaced with content.
+func TestContentReaderDocumentationFindingsDisclosesUnknownVisibility(t *testing.T) {
 	t.Parallel()
 
 	unknown := []byte(`{
@@ -93,38 +129,39 @@ func TestContentReaderDocumentationFindingsSkipsUnknownVisibility(t *testing.T) 
 	if err != nil {
 		t.Fatalf("documentationFindings() error = %v, want nil", err)
 	}
-	if gotLen, want := len(got.Findings), 1; gotLen != want {
-		t.Fatalf("len(Findings) = %d, want %d; findings = %#v", gotLen, want, got.Findings)
+	if gotLen, want := len(got.Findings), 2; gotLen != want {
+		t.Fatalf("len(Findings) = %d, want %d (unknown row disclosed, not dropped); findings = %#v", gotLen, want, got.Findings)
 	}
-	if got, want := got.Findings[0]["finding_id"], "finding:visible"; got != want {
-		t.Fatalf("finding_id = %#v, want %#v", got, want)
+	unknownRow := got.Findings[0]
+	if unknownRow["finding_id"] != "finding:unknown" {
+		t.Fatalf("findings[0].finding_id = %#v, want 'finding:unknown'", unknownRow["finding_id"])
 	}
-}
-
-func TestBuildDocumentationFindingsSQLUsesCaseInsensitiveDeniedPredicate(t *testing.T) {
-	t.Parallel()
-
-	query, _ := buildDocumentationFindingsSQL(documentationFindingFilter{Limit: 50})
-	if !strings.Contains(query, "LOWER(COALESCE(fact_records.payload->'states'->>'permission_decision', '')) <> 'denied'") {
-		t.Fatalf("documentation findings SQL missing case-insensitive denied predicate: %s", query)
+	if unknownRow[accessDispositionResponseKey] != accessDispositionDenied {
+		t.Fatalf("unknown access_disposition = %#v, want %q (fails closed)", unknownRow[accessDispositionResponseKey], accessDispositionDenied)
+	}
+	if _, leaked := unknownRow["summary"]; leaked {
+		t.Fatalf("unknown-visibility row leaked content: %#v", unknownRow)
 	}
 }
 
-func TestBuildDocumentationFindingsSQLRequiresExplicitReadVisibility(t *testing.T) {
+// TestBuildDocumentationFindingsSQLDropsSilentVisibilityFilters proves the
+// per-caller content-visibility predicates are NO LONGER applied as a silent SQL
+// drop (#2164 USER-APPROVED policy). Those rows must reach Go so they can be
+// disclosed honestly with content withheld rather than filtered to "nothing
+// found." The cross-tenant authorization clause is a distinct boundary and is
+// asserted elsewhere.
+func TestBuildDocumentationFindingsSQLDropsSilentVisibilityFilters(t *testing.T) {
 	t.Parallel()
 
 	query, _ := buildDocumentationFindingsSQL(documentationFindingFilter{Limit: 50})
-	if !strings.Contains(query, "(fact_records.payload->'permissions'->>'viewer_can_read_source') = 'true'") {
-		t.Fatalf("documentation findings SQL should require explicit read visibility: %s", query)
-	}
-}
-
-func TestBuildDocumentationFindingsSQLSkipsUnevaluatedSourceACL(t *testing.T) {
-	t.Parallel()
-
-	query, _ := buildDocumentationFindingsSQL(documentationFindingFilter{Limit: 50})
-	if !strings.Contains(query, "LOWER(COALESCE(fact_records.payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'") {
-		t.Fatalf("documentation findings SQL should skip unevaluated source ACLs before pagination: %s", query)
+	for _, banned := range []string{
+		"LOWER(COALESCE(fact_records.payload->'states'->>'permission_decision', '')) <> 'denied'",
+		"(fact_records.payload->'permissions'->>'viewer_can_read_source') = 'true'",
+		"LOWER(COALESCE(fact_records.payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'",
+	} {
+		if strings.Contains(query, banned) {
+			t.Fatalf("documentation findings SQL must not silently drop on visibility predicate %q; disclosure is enforced in Go: %s", banned, query)
+		}
 	}
 }
 

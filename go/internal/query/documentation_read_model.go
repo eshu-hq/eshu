@@ -41,27 +41,32 @@ func (cr *ContentReader) documentationFindings(
 		limit = 50
 	}
 	findings := make([]map[string]any, 0, limit)
+	var disclosure sourceACLDisclosureCounts
 	for rows.Next() {
 		payload, err := scanJSONPayload(rows)
 		if err != nil {
 			span.RecordError(err)
 			return documentationFindingListReadModel{}, fmt.Errorf("query documentation findings: %w", err)
 		}
-		if documentationPayloadDenied(payload) {
-			continue
+		// Honest source-ACL disclosure (#2164 USER-APPROVED policy): instead of
+		// silently dropping a finding the caller cannot read, surface it with an
+		// access-denied/partial/stale disposition and the protected content
+		// withheld. The binary per-caller read decision is the authoritative
+		// authorization axis; the bounded source_acl_state drives the
+		// partial/stale/missing markers. A missing source is disclosed as missing
+		// (callers treat it as empty). The existing freshness/truth labels (#2138)
+		// are preserved and never collapsed into the permission error.
+		readable := binaryReadableFromPermissions(payload)
+		if readable {
+			// Only attach the evidence-packet URL for rows whose content is not
+			// withheld; the URL points at the protected packet body.
+			ensureEvidencePacketURL(payload)
 		}
-		ensureEvidencePacketURL(payload)
-		// Surface the bounded source_acl_state as a distinct access-posture axis
-		// (#2164/#1901) when the collector asserted one on the finding's
-		// acl_summary, alongside (never folded into) the existing
-		// truth_level/freshness_state/permission fields. Additive metadata only:
-		// this lifts the value to a stable top-level field and does not change
-		// which findings are returned. The binary fail-closed filter above is
-		// unchanged; honest denied-vs-missing disclosure is the #2164
-		// security-review tail.
-		surfaceSourceACLState(payload, payload)
+		disp := applySourceACLDisclosure(payload, readable)
+		disclosure.record(disp.disposition)
 		findings = append(findings, payload)
 	}
+	disclosure.annotateSpan(span)
 	if err := rows.Err(); err != nil {
 		span.RecordError(err)
 		return documentationFindingListReadModel{}, fmt.Errorf("query documentation findings: %w", err)
@@ -166,12 +171,17 @@ func (cr *ContentReader) documentationEvidencePacketFreshness(
 
 func buildDocumentationFindingsSQL(filter documentationFindingFilter) (string, []any) {
 	args := []any{}
+	// The per-caller content-visibility predicates (viewer_can_read_source,
+	// source_acl_evaluated, permission_decision) are intentionally NOT applied as
+	// a silent SQL drop anymore (#2164 USER-APPROVED disclosure policy). Rows that
+	// fail those predicates are returned with content withheld and an access-denied
+	// disposition so a reader can distinguish "no evidence" from "evidence exists
+	// but is denied/partial/stale," instead of being filtered to clean "nothing
+	// found." Withholding is enforced in Go by applyDocumentationFindingDisclosure;
+	// the cross-tenant authorization clause below is a distinct boundary and stays.
 	clauses := []string{
 		"fact_records.fact_kind = '" + facts.DocumentationFindingFactKind + "'",
 		"fact_records.is_tombstone = FALSE",
-		"(fact_records.payload->'permissions'->>'viewer_can_read_source') = 'true'",
-		"LOWER(COALESCE(fact_records.payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'",
-		"LOWER(COALESCE(fact_records.payload->'states'->>'permission_decision', '')) <> 'denied'",
 	}
 	addColumnFilter := func(field string, value string) {
 		value = strings.TrimSpace(value)

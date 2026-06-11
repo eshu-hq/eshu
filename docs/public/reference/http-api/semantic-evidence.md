@@ -30,10 +30,19 @@ Rows also carry an optional `source_acl_state`
 observed a bounded source-ACL posture. It is a distinct access-posture axis kept
 separate from `freshness_state` and `policy_state`: a row can be fresh and
 denied, or stale and allowed. The field is omitted when the source asserted no
-bounded ACL claim (absence means "no ACL claim"). It is informational truth
-metadata only and does not yet change which rows are returned. Disclosing a
-denied versus missing source, choosing a conservative default for an unobserved
-source, and failing closed on access are deferred to security review (#2164).
+bounded ACL claim (absence means "no ACL claim").
+
+Each row also carries a bounded `access_disposition` enforced from
+`source_acl_state` (#2164). A `denied` source is disclosed with
+`access_disposition: access_denied`, `permission_denied: true`, and
+`content_withheld: true`, and its observation/hint text and evidence refs are
+stripped; a `partial` source is returned with `content_withheld: true` behind a
+partial marker; a `stale` source is surfaced as stale with content intact; a
+`missing` source is disclosed as missing; `allowed` or no-claim rows stay
+`visible`. Withholding is fail-closed — denied or partial content is never
+returned. The `freshness_state`, `admission_state`, `corroboration_state`,
+`missing_evidence`, and `unsupported_reason` truth labels (#2138) are preserved
+on a withheld row and never collapsed into the access marker.
 
 `semantic.code_hint` rows remain opt-in. Deterministic code, relationship,
 documentation finding, and graph-truth routes do not mix in code hints unless a
