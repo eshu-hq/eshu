@@ -24,6 +24,14 @@ import (
 // carries it under source). The generation-bearing fact_id and generation_id are
 // deliberately not projected, so the reducer cannot key on them.
 //
+// source_acl_state is the bounded source-ACL-state observation
+// (allowed|denied|partial|missing|stale) the collector emits on the fact's
+// acl_summary (facts.DocumentationACLSummary.SourceACLState). It is read verbatim
+// and COALESCEd to the empty string when the fact carries no ACL summary, so a
+// fact with no observed access-posture signal yields no ACL claim. The reducer
+// validates and projects it; this read never upgrades, defaults, or invents a
+// value the collector did not assert.
+//
 // Parameter order:
 //
 //	$1 service_id (the service whose documentation evidence is loaded)
@@ -37,7 +45,8 @@ SELECT
     COALESCE(fact.payload->>'document_id', fact.payload->'source'->>'document_id', ''),
     fact.fact_kind,
     COALESCE(fact.source_uri, ''),
-    COALESCE(fact.payload->>'observation_hash', '')
+    COALESCE(fact.payload->>'observation_hash', ''),
+    COALESCE(fact.payload->'acl_summary'->>'source_acl_state', '')
 FROM fact_records AS fact
 JOIN scope_generations AS generation
   ON generation.scope_id = fact.scope_id
@@ -131,6 +140,7 @@ func (l ServiceDocumentationEvidenceLoader) loadForService(
 			&record.FactKind,
 			&record.SourceURI,
 			&record.ObservationHash,
+			&record.SourceACLState,
 		); scanErr != nil {
 			return nil, fmt.Errorf("scan service documentation evidence: %w", scanErr)
 		}

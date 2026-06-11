@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 // ServiceScopedDocumentationEvidenceLoader returns the current documentation
@@ -81,6 +83,17 @@ type ServiceDocumentationRecord struct {
 	// hashed into the payload so a content change flips the row to updated). It is
 	// optional and not part of the identity.
 	ObservationHash string
+	// SourceACLState is the bounded source-ACL-state observation the collector
+	// emitted on this documentation fact (facts.DocumentationACLSummary.
+	// SourceACLState), using the allowed|denied|partial|missing|stale vocabulary.
+	// It is an access-posture axis distinct from freshness (#2138): the reducer
+	// carries it verbatim into the read model and never folds it into freshness,
+	// upgrades a non-allowed observation to allowed, or synthesizes a value the
+	// collector did not assert. It is optional and not part of the identity; an
+	// empty or non-bounded value means "no ACL claim" and is omitted from the
+	// projected payload (fail closed; default-when-unknown is reserved for the
+	// query surface and security review, #2164).
+	SourceACLState string
 	// Retired records a documentation fact that was explicitly removed in this
 	// re-materialization. It is written as a tombstone row.
 	Retired bool
@@ -133,8 +146,15 @@ func serviceDocumentationEvidenceIdentity(record ServiceDocumentationRecord) str
 // documentation record whose change should flip the row to updated. It
 // deliberately excludes the fact_id and any generation id so an unchanged record
 // across re-materializations hashes identically and classifies as unchanged.
+//
+// source_acl_state is projected as a distinct observable field alongside (never
+// folded into) the content fields: it is added only when the collector observed
+// a bounded ACL state (see projectedSourceACLState), so an unobserved or
+// non-bounded value leaves the field absent ("no ACL claim", fail closed) and
+// cannot churn the row hash. A changed bounded ACL state flips the row to
+// updated because it changes the hashed payload.
 func serviceDocumentationEvidencePayload(record ServiceDocumentationRecord) map[string]any {
-	return map[string]any{
+	payload := map[string]any{
 		"source_system":    strings.TrimSpace(record.SourceSystem),
 		"source_record_id": strings.TrimSpace(record.SourceRecordID),
 		"document_id":      strings.TrimSpace(record.DocumentID),
@@ -142,6 +162,27 @@ func serviceDocumentationEvidencePayload(record ServiceDocumentationRecord) map[
 		"source_uri":       strings.TrimSpace(record.SourceURI),
 		"observation_hash": strings.TrimSpace(record.ObservationHash),
 	}
+	if state := projectedSourceACLState(record.SourceACLState); state != "" {
+		payload["source_acl_state"] = state
+	}
+	return payload
+}
+
+// projectedSourceACLState returns the collector-observed source_acl_state to
+// project verbatim, or the empty string when there is no ACL claim to carry. It
+// fails closed: only a bounded allowed|denied|partial|missing|stale value is
+// projected, so an unobserved (empty) or non-bounded value is dropped rather
+// than surfaced as an authoritative ACL claim. The reducer never upgrades a
+// non-allowed observation to allowed or invents a default the collector did not
+// assert (correlation-truth); choosing a conservative default for unobserved
+// sources is a disclosure decision reserved for the query surface and security
+// review (#2164).
+func projectedSourceACLState(value string) string {
+	value = strings.TrimSpace(value)
+	if !facts.ValidSourceACLState(value) {
+		return ""
+	}
+	return value
 }
 
 // documentationRecordHasDurableIdentity reports whether a record carries enough
