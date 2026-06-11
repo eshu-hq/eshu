@@ -26,12 +26,24 @@ import (
 func cloudInventoryAdmissionWiring(
 	database postgres.ExecQueryer,
 	logger *slog.Logger,
-) (reducer.CloudInventoryEvidenceLoader, reducer.CloudInventoryAdmissionWriter, reducer.GenerationFreshnessCheck) {
+) (
+	reducer.CloudInventoryEvidenceLoader,
+	reducer.CloudInventoryAdmissionWriter,
+	reducer.GenerationFreshnessCheck,
+	reducer.CloudTagEvidenceLoader,
+) {
 	loader := postgres.PostgresCloudInventoryEvidenceLoader{
 		DB:     database,
 		Logger: logger,
 	}
 	writer := reducer.PostgresCloudInventoryAdmissionWriter{DB: database}
 	generationCheck := postgres.NewGenerationFreshnessCheck(database)
-	return loader, writer, generationCheck
+	// Tag-evidence loader attaches azure_tag_observation fingerprints onto the
+	// canonical resource sharing their uid (#2192). It is additive: a nil loader
+	// would leave the AWS/GCP resource path unchanged.
+	tagEvidenceLoader := postgres.PostgresCloudTagEvidenceLoader{
+		DB:     database,
+		Logger: logger,
+	}
+	return loader, writer, generationCheck, tagEvidenceLoader
 }

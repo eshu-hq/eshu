@@ -190,7 +190,7 @@ func buildReducerService(
 	graphProjectionRepairQueue := postgres.NewGraphProjectionPhaseRepairQueueStore(database)
 	graphProjectionReadinessLookup := postgres.NewGraphProjectionReadinessLookup(database)
 	graphProjectionReadinessPrefetch := postgres.NewGraphProjectionReadinessPrefetch(database)
-	cloudInventoryEvidenceLoader, cloudInventoryAdmissionWriter, cloudInventoryGenerationCheck := cloudInventoryAdmissionWiring(database, logger)
+	cloudInventoryEvidenceLoader, cloudInventoryAdmissionWriter, cloudInventoryGenerationCheck, cloudInventoryTagEvidenceLoader := cloudInventoryAdmissionWiring(database, logger)
 	multiCloudRuntimeDriftEvidenceLoader, multiCloudRuntimeDriftWriter, multiCloudRuntimeDriftLogger := multiCloudRuntimeDriftWiring(database, tracer, instruments, logger)
 	incidentRepoCorrelationLoader, incidentRepoCorrelationResolver, incidentRepoCorrelationWriter := incidentRepositoryCorrelationWiring(database)
 	semanticEntityExecutor := semanticEntityExecutorForGraphBackend(
@@ -324,6 +324,7 @@ func buildReducerService(
 		CloudInventoryEvidenceLoader:         cloudInventoryEvidenceLoader,
 		CloudInventoryAdmissionWriter:        cloudInventoryAdmissionWriter,
 		CloudInventoryGenerationCheck:        cloudInventoryGenerationCheck,
+		CloudInventoryTagEvidenceLoader:      cloudInventoryTagEvidenceLoader,
 		CloudResourceNodeWriter:              cloudResourceNodeWriter,
 		EC2InstanceNodeWriter:                ec2InstanceNodeWriter,
 		CloudResourceEdgeWriter:              cloudResourceEdgeWriter,

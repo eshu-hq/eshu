@@ -110,6 +110,19 @@ func cloudInventoryAdmissionPayload(
 	write CloudInventoryAdmissionWrite,
 	resource AdmittedCloudResource,
 ) map[string]any {
+	payload := cloudInventoryAdmissionBasePayload(write, resource)
+	if len(resource.TagValueFingerprints) > 0 {
+		// Tag value fingerprints are keyed markers, never raw values, so they are
+		// safe to persist and surface for value-blind tag correlation.
+		payload["tag_value_fingerprints"] = resource.TagValueFingerprints
+	}
+	return payload
+}
+
+func cloudInventoryAdmissionBasePayload(
+	write CloudInventoryAdmissionWrite,
+	resource AdmittedCloudResource,
+) map[string]any {
 	return map[string]any{
 		"reducer_domain":        string(DomainCloudInventoryAdmission),
 		"intent_id":             write.IntentID,

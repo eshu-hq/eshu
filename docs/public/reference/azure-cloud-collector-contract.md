@@ -54,14 +54,21 @@ The `GET /api/v0/cloud/inventory` handler
 identity rows (exact, semantic-facts basis) without leaking raw provider
 locators.
 
+`azure_tag_observation` is now fully wired: the collector emits keyed
+tag-value-fingerprint facts behind a redaction key, and the shared
+`cloud_inventory_admission` reducer domain attaches those fingerprints onto the
+canonical resource sharing their `cloud_resource_uid` (tags never admit a
+resource on their own), surfaced as `tag_value_fingerprints` on the
+`GET /api/v0/cloud/inventory` readback. Tag value text never crosses the wire;
+only the keyed markers do.
+
 Everything else stays gated. Do not add Helm values, chart paths, claim-driven
 workflow scheduling, or a live Resource Graph/ARM transport until implementation
 PRs prove the live runtime adapter (`azureruntime.LiveProviderFactory`) and
 chart path. The remaining fact kinds (`azure_cloud_relationship`,
-`azure_tag_observation`, `azure_identity_observation`, `azure_resource_change`,
-`azure_dns_record`, `azure_image_reference`) have registered constants but no
-envelope builders yet; their fact-kind-specific reducer handling follows once
-those builders exist.
+`azure_identity_observation`, `azure_resource_change`, `azure_dns_record`,
+`azure_image_reference`) have registered constants but no envelope builders yet;
+their fact-kind-specific reducer handling follows once those builders exist.
 
 The implemented slices remain fixture-testable without live Azure access.
 Live smoke tests are promotion proof, not the minimum proof for the source
@@ -73,7 +80,12 @@ No-Regression Evidence: `go test ./internal/reducer ./internal/query
 `azure_cloud_resource` admission into the shared `cloud_resource_uid` keyspace,
 management-origin precedence, ambiguous/unsupported/unresolved accounting,
 stale-generation supersession, and bounded truth-labeled readback that never
-leaks raw provider locators.
+leaks raw provider locators. `go test ./internal/reducer ./internal/storage/postgres
+./internal/query -run 'CloudTag|CloudInventoryAdmissionAttachesTagEvidence|CloudInventoryAdmissionWithoutTagLoader|ResourceViewSurfacesTagFingerprints|ResourceViewOmitsTagsWhenAbsent' -count=1`
+proves tag-evidence fingerprints attach only to the resource sharing their uid,
+never admit a resource on their own, leave the AWS/GCP path unchanged when no
+tag loader is configured, and surface as `tag_value_fingerprints` on the
+readback without exposing tag value text.
 
 No-Observability-Change: the live Azure runtime adapter stays gated. The
 runtime scaffolding slice adds a non-claimed source and binary that emit a
