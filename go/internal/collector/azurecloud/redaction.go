@@ -1,8 +1,11 @@
 package azurecloud
 
 import (
+	"slices"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
 // RedactionPolicyVersion identifies the Azure cloud collector sensitive-key and
@@ -10,6 +13,16 @@ import (
 // payloads. It is persisted on every fact so downstream reducers and audits can
 // prove which redaction policy produced a payload.
 const RedactionPolicyVersion = "azure-resource-graph-2026-06-09"
+
+// redactionReasonTagValue is the stable classification label attached to
+// fingerprinted Azure tag values so audits can prove why the value was redacted.
+const redactionReasonTagValue = "azure_tag_value"
+
+// maxTagObservationEntries bounds the number of tags carried on a single
+// azure_tag_observation fact. A pathological resource with thousands of tags
+// cannot emit an unbounded payload; excess tags are dropped deterministically
+// (by sorted key) and the fact records truncation as explicit evidence.
+const maxTagObservationEntries = 50
 
 // azureForbiddenExtensionTokens lists case/separator sub-tokens that mark an
 // extension field as secret-like or data-plane. Any extension key whose token
@@ -96,6 +109,50 @@ func RedactExtension(raw map[string]any) ExtensionRedaction {
 		RedactedKeys: keys,
 		Redacted:     len(keys) > 0,
 	}
+}
+
+// FingerprintTagValues fingerprints Azure tag values into deterministic,
+// key-derived markers while preserving the tag keys, so reducers can correlate
+// resources that share a tag value without tag value text ever becoming a graph
+// property (Azure cloud collector contract: "compare Azure tags without making
+// tag value text a graph property").
+//
+// Keys are trimmed and de-duplicated; blank keys are dropped. The result is
+// bounded to maxTagObservationEntries by sorted key, so a resource with an
+// unbounded tag set cannot emit an unbounded fact. It returns the
+// key-to-fingerprint map, the sorted retained keys, and whether the input was
+// truncated. A nil/empty input (or a key set that is entirely blank) yields a
+// nil map and no truncation, so callers can treat "no tags" as missing evidence.
+func FingerprintTagValues(tags map[string]string, key redact.Key) (map[string]string, []string, bool) {
+	if len(tags) == 0 {
+		return nil, nil, false
+	}
+	trimmed := make(map[string]string, len(tags))
+	for k, v := range tags {
+		kt := strings.TrimSpace(k)
+		if kt == "" {
+			continue
+		}
+		trimmed[kt] = v
+	}
+	if len(trimmed) == 0 {
+		return nil, nil, false
+	}
+	keys := make([]string, 0, len(trimmed))
+	for k := range trimmed {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	truncated := false
+	if len(keys) > maxTagObservationEntries {
+		keys = keys[:maxTagObservationEntries]
+		truncated = true
+	}
+	out := make(map[string]string, len(keys))
+	for _, k := range keys {
+		out[k] = redact.String(trimmed[k], redactionReasonTagValue, "azure_tag:"+k, key).Marker
+	}
+	return out, slices.Clone(keys), truncated
 }
 
 func redactMap(input map[string]any, dropped map[string]struct{}) map[string]any {
