@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
 // AzureExtensionSchemaVersion versions the provider-specific extension object
@@ -83,6 +84,82 @@ func NewResourceEnvelope(observation ResourceObservation) (facts.Envelope, error
 		observation.Boundary,
 		facts.AzureCloudResourceFactKind,
 		facts.AzureCloudResourceSchemaVersion,
+		stableKey,
+		sourceRecordID(observation.SourceRecordID, identity.Normalized),
+		observation.SourceURI,
+		payload,
+	), nil
+}
+
+// NewTagObservationEnvelope builds the durable azure_tag_observation fact for
+// one resource's tags. Tag values are fingerprinted with the provided redaction
+// key so tag value text never reaches durable facts; tag keys are preserved as
+// correlation taxonomy. The stable fact key is derived from the normalized ARM
+// identity, resource type, and source lane only, so tag value churn does not
+// split idempotent re-emission of the same generation.
+//
+// It returns an error when the observation carries no usable tags (an empty tag
+// observation is missing evidence, not a clean match) or when the redaction key
+// is zero (fingerprinting must never run keyless). Callers must skip emission
+// for untagged resources rather than treating the error as fatal.
+func NewTagObservationEnvelope(observation ResourceObservation, key redact.Key) (facts.Envelope, error) {
+	if err := validateBoundary(observation.Boundary); err != nil {
+		return facts.Envelope{}, err
+	}
+	if key.IsZero() {
+		return facts.Envelope{}, fmt.Errorf("azure tag observation requires a redaction key")
+	}
+	armResourceID := strings.TrimSpace(observation.ARMResourceID)
+	if armResourceID == "" {
+		return facts.Envelope{}, fmt.Errorf("azure tag observation requires arm_resource_id")
+	}
+	identity := observation.Identity
+	if strings.TrimSpace(identity.Normalized) == "" {
+		parsed, err := ParseARMIdentity(armResourceID)
+		if err != nil {
+			return facts.Envelope{}, fmt.Errorf("normalize arm identity: %w", err)
+		}
+		identity = parsed
+	}
+
+	fingerprints, tagKeys, truncated := FingerprintTagValues(observation.Tags, key)
+	if len(fingerprints) == 0 {
+		return facts.Envelope{}, fmt.Errorf("azure tag observation requires at least one tag")
+	}
+
+	stableKey := facts.StableID(facts.AzureTagObservationFactKind, map[string]any{
+		"normalized_id": identity.Normalized,
+		"resource_type": identity.ResourceType,
+		"source_lane":   observation.Boundary.SourceLane,
+		"tenant_id":     observation.Boundary.TenantID,
+	})
+
+	payload := map[string]any{
+		"collector_kind":           CollectorKind,
+		"collector_instance_id":    observation.Boundary.CollectorInstanceID,
+		"tenant_id":                observation.Boundary.TenantID,
+		"scope_kind":               observation.Boundary.ScopeKind,
+		"provider_scope_id":        observation.Boundary.ProviderScopeID,
+		"source_lane":              observation.Boundary.SourceLane,
+		"arm_resource_id":          armResourceID,
+		"subscription_id":          identity.SubscriptionID,
+		"resource_group":           identity.ResourceGroup,
+		"provider_namespace":       identity.ProviderNamespace,
+		"resource_type":            identity.ResourceType,
+		"resource_name":            identity.ResourceName,
+		"normalized_resource_id":   identity.Normalized,
+		"tag_value_fingerprints":   fingerprints,
+		"tag_keys":                 tagKeys,
+		"tag_count":                len(fingerprints),
+		"tag_truncated":            truncated,
+		"provider_time":            timeOrNil(observation.ProviderTime),
+		"redaction_policy_version": RedactionPolicyVersion,
+	}
+
+	return newEnvelope(
+		observation.Boundary,
+		facts.AzureTagObservationFactKind,
+		facts.AzureTagObservationSchemaVersion,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, identity.Normalized),
 		observation.SourceURI,

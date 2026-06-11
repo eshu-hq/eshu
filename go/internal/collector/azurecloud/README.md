@@ -38,9 +38,14 @@ and the [Multi-Cloud Runtime Collector Contract](../../../../docs/public/referen
   claiming Azure runtime before it is implemented and fixture-proven.
 - No reducer admission, no `cloud_resource_uid` resolution, no graph projection,
   no API/MCP readback. Those are reducer-owned follow-ups.
-- Only `azure_cloud_resource` and `azure_collection_warning` are emitted. The
-  remaining contract fact kinds (`azure_cloud_relationship`,
-  `azure_tag_observation`, `azure_identity_observation`,
+- Only `azure_cloud_resource` and `azure_collection_warning` are emitted by the
+  scan loop. The `azure_tag_observation` envelope builder
+  (`NewTagObservationEnvelope`) and its keyed value-fingerprint helper
+  (`FingerprintTagValues`) now exist and are unit-proven, but are not yet wired
+  into `Collector.emitPageResources` — emission requires threading a
+  `redact.Key` through the collector/runtime/binary launch surface and is the
+  security-reviewed follow-up tracked in #2192. The remaining contract fact kinds
+  (`azure_cloud_relationship`, `azure_identity_observation`,
   `azure_resource_change`, `azure_dns_record`, `azure_image_reference`) have
   registered constants and schema versions in `internal/facts/azure.go` but no
   envelope builders yet.
