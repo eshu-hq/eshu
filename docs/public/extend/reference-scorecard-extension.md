@@ -194,6 +194,32 @@ the launched artifact stays confined by the adapter isolation flags. The base
 `eshu:local` image must be built from the same checkout, since the worker image
 layers on it — the driver rebuilds it by default.
 
+## Publishing The Reference Image
+
+The proofs above pin a locally built digest. To make the canonical artifact in
+`manifest.oci.yaml` publicly pullable (issues #1980/#2169), a maintainer
+publishes it to the org registry and pins the resulting digest. Both steps are
+scripts, so no credential is embedded in the repo:
+
+```bash
+# 1. Log in to the registry with a token that can write packages, then publish
+#    the multi-arch reference image and print its immutable digest:
+echo "$CR_PAT" | docker login ghcr.io -u <username> --password-stdin
+examples/collector-extensions/scorecard/scripts/publish-reference-image.sh
+
+# 2. Pin the printed repo@sha256:<digest> into manifest.oci.yaml and manifest.yaml:
+examples/collector-extensions/scorecard/scripts/pin-published-digest.sh \
+  ghcr.io/eshu-hq/examples/scorecard-collector@sha256:<digest>
+```
+
+`publish-reference-image.sh` builds `Dockerfile.oci` for `linux/amd64` and
+`linux/arm64` and pushes it to `ghcr.io/<owner>/examples/scorecard-collector`
+(registry, owner, version, and platforms are overridable; the defaults match the
+manifest). `pin-published-digest.sh` rewrites the single artifact image in both
+manifests to the digest-pinned reference and refuses any ref that is not
+digest-pinned. After pinning, run `eshu component verify` and `git diff --check`
+before committing the updated manifests.
+
 ## Hosted Limits
 
 The reference manifest uses a placeholder digest so local validation can prove
