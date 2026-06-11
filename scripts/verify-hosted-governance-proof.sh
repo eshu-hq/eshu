@@ -68,6 +68,8 @@ if [[ "${list_only}" == "true" ]]; then
 		"scripts/test-verify-hosted-governance-retention-proof.sh"
 	print_step "two-team scoped cross-scope denial proof verifier self-test" \
 		"scripts/test-verify-two-team-governance-proof.sh"
+	print_step "live K8s two-team scoped cross-scope denial proof verifier self-test" \
+		"scripts/test-verify-k8s-two-team-governance-proof.sh"
 	print_step "hosted security posture verifier self-test" \
 		"scripts/test-verify-hosted-security-posture.sh"
 	print_step "hosted security posture Helm render proof" \
@@ -106,6 +108,8 @@ run_step "hosted governance retention-state proof self-test" \
 	bash "${repo_root}/scripts/test-verify-hosted-governance-retention-proof.sh"
 run_step "two-team scoped cross-scope denial proof verifier self-test" \
 	bash "${repo_root}/scripts/test-verify-two-team-governance-proof.sh"
+run_step "live K8s two-team scoped cross-scope denial proof verifier self-test" \
+	bash "${repo_root}/scripts/test-verify-k8s-two-team-governance-proof.sh"
 run_step "hosted security posture Helm render proof" \
 	bash "${repo_root}/scripts/verify-hosted-security-posture.sh"
 run_step "hosted NetworkPolicy egress verifier self-test" \

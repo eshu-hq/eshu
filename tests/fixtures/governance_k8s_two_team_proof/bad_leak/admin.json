@@ -1,0 +1,7 @@
+{
+  "tenant": "admin",
+  "repository_count": 2,
+  "team_a_repo": "repository:repoTeamAlpha",
+  "team_b_repo": "repository:repoTeamBeta",
+  "token_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+}

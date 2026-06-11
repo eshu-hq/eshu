@@ -1,0 +1,6 @@
+{
+  "applied_count": 1,
+  "api_policy_applied": "false",
+  "mcp_policy_applied": "true",
+  "egress_mode": "restricted"
+}

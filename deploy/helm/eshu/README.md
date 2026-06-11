@@ -34,6 +34,12 @@ guidance belong in the public Kubernetes docs.
 - Ingress and Gateway API exposure are mutually exclusive.
 - Helm-hook schema bootstrap cannot run against chart-managed NornicDB in the
   same install because hooks run before that backend exists.
+- `api.extraVolumes`/`api.extraVolumeMounts` (and the `mcpServer` equivalents)
+  mount extra read-only material such as an operator-managed scoped-token
+  registry Secret. Pair them with `api.env`/`mcpServer.env` to point
+  `ESHU_SCOPED_TOKENS_FILE` at the mounted path. Only set
+  `ESHU_SCOPED_TOKENS_FILE` once the Secret exists: a missing file makes the API
+  fail closed at startup.
 
 ## Verification
 
