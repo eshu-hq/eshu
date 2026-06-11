@@ -125,9 +125,12 @@ LIMIT $%d OFFSET $%d
 // cloudInventoryResourceView projects one canonical identity envelope into the
 // bounded wire shape. It reads only reducer-resolved canonical fields from the
 // nested payload and intentionally omits raw_identity and any provider locator,
-// tag, or credential field so the readback never leaks source-side secrets. The
-// provider-neutral source_state is derived from management_origin per the
-// multi-cloud collector contract Query Truth section.
+// raw tag value, or credential field so the readback never leaks source-side
+// secrets. Tag value fingerprints (keyed, non-reversible markers) are surfaced
+// when present so callers can correlate resources by shared tag value without
+// the tag value text ever crossing the wire. The provider-neutral source_state
+// is derived from management_origin per the multi-cloud collector contract
+// Query Truth section.
 func cloudInventoryResourceView(envelope map[string]any) map[string]any {
 	payload, _ := envelope["payload"].(map[string]any)
 	if payload == nil {
@@ -148,7 +151,30 @@ func cloudInventoryResourceView(envelope map[string]any) map[string]any {
 			"observed": boolFromMap(payload, "has_observed_evidence"),
 		},
 	}
+	if fingerprints := cloudInventoryTagFingerprints(payload); len(fingerprints) > 0 {
+		view["tag_value_fingerprints"] = fingerprints
+	}
 	return view
+}
+
+// cloudInventoryTagFingerprints reads the keyed tag value fingerprint map from a
+// canonical identity payload, keeping only string markers under non-blank keys.
+// The markers are non-reversible, so surfacing them never exposes tag values.
+func cloudInventoryTagFingerprints(payload map[string]any) map[string]string {
+	object, ok := payload["tag_value_fingerprints"].(map[string]any)
+	if !ok || len(object) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(object))
+	for key, value := range object {
+		if marker, ok := value.(string); ok && strings.TrimSpace(key) != "" && marker != "" {
+			out[key] = marker
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // cloudInventoryScopeID resolves the canonical scope id, preferring the

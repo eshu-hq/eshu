@@ -116,6 +116,11 @@ type DefaultHandlers struct {
 	CloudInventoryEvidenceLoader  CloudInventoryEvidenceLoader
 	CloudInventoryAdmissionWriter CloudInventoryAdmissionWriter
 	CloudInventoryGenerationCheck GenerationFreshnessCheck
+	// CloudInventoryTagEvidenceLoader is optional; when set, tag-evidence
+	// fingerprints (e.g. azure_tag_observation) attach to the canonical resource
+	// sharing their cloud_resource_uid. A nil loader leaves the AWS/GCP resource
+	// admission path unchanged.
+	CloudInventoryTagEvidenceLoader CloudTagEvidenceLoader
 
 	// CloudResourceNodeWriter materializes aws_resource facts into canonical
 	// CloudResource graph nodes (issue #805). It must be non-nil alongside

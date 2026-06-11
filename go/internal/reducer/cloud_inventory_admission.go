@@ -84,6 +84,11 @@ type AdmittedCloudResource struct {
 	HasAppliedEvidence bool
 	// HasObservedEvidence reports whether an observed layer contributed.
 	HasObservedEvidence bool
+	// TagValueFingerprints carries keyed tag value fingerprints (tag key ->
+	// fingerprint marker) attached from tag-evidence facts that share this uid.
+	// It is nil unless a TagEvidenceLoader contributed evidence; tag value text
+	// is never present, only the keyed markers from the collector.
+	TagValueFingerprints map[string]string
 }
 
 // CloudInventoryAdmissionSummary counts the non-admitted resolution outcomes so
@@ -161,6 +166,11 @@ type CloudInventoryAdmissionHandler struct {
 	// GenerationCheck, when set, supersedes stale generations before any load or
 	// write so a superseded scan never publishes canonical rows.
 	GenerationCheck GenerationFreshnessCheck
+	// TagEvidenceLoader, when set, loads tag-evidence facts (e.g.
+	// azure_tag_observation) whose fingerprints attach to the canonical resource
+	// sharing their cloud_resource_uid. A nil loader leaves the admission path
+	// unchanged, so the AWS/GCP resource path carries no tag fingerprints.
+	TagEvidenceLoader CloudTagEvidenceLoader
 	// Instruments, when set, records bounded admission phase counts.
 	Instruments *telemetry.Instruments
 }
@@ -201,6 +211,14 @@ func (h CloudInventoryAdmissionHandler) Handle(ctx context.Context, intent Inten
 	}
 
 	resources, summary := admitCloudInventoryRecords(records)
+
+	if h.TagEvidenceLoader != nil {
+		tagRecords, err := h.TagEvidenceLoader.LoadCloudTagEvidence(ctx, intent.ScopeID, intent.GenerationID)
+		if err != nil {
+			return Result{}, fmt.Errorf("load cloud tag evidence: %w", err)
+		}
+		attachCloudTagEvidence(resources, tagRecords)
+	}
 
 	writeResult, err := h.Writer.WriteCloudInventoryAdmission(ctx, CloudInventoryAdmissionWrite{
 		IntentID:     intent.IntentID,

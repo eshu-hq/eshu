@@ -409,8 +409,12 @@ the provider-neutral `source_state` (derived from `management_origin` per the
 [multi-cloud collector contract](../multi-cloud-collector-contract.md) Query
 Truth section and the
 [source-state taxonomy](../replatforming-source-state-taxonomy.md)), and a
-per-layer `evidence` object (`declared`, `applied`, `observed`). Raw provider
-identities, locators, tags, and credential names are never echoed. The response
+per-layer `evidence` object (`declared`, `applied`, `observed`). When tag
+evidence attached to the resource (currently `azure_tag_observation`), the row
+also carries `tag_value_fingerprints`: a map of tag key to keyed,
+non-reversible value fingerprint, so callers can correlate resources that share
+a tag value without the tag value text crossing the wire. Raw provider
+identities, locators, raw tag values, and credential names are never echoed. The response
 carries the `semantic_facts` truth envelope; when the active query profile
 cannot materialize the reducer-owned canonical rows (lightweight local) the
 route returns `501` (`unsupported_capability`).
