@@ -162,7 +162,12 @@ type Service struct {
 	AWSFreshnessEvents                awsFreshnessEventCounter
 	IncidentFreshnessTriggers         IncidentFreshnessTriggerStore
 	GovernanceAudit                   GovernanceAuditAppender
-	Clock                             func() time.Time
+	// SemanticProviderWorker is the optional egress-gated semantic-provider
+	// execution worker. It is nil unless explicitly configured, and even when
+	// configured it makes no real provider traffic unless its default-OFF
+	// execution flag and an enabled provider client are both supplied.
+	SemanticProviderWorker *SemanticProviderWorker
+	Clock                  func() time.Time
 }
 
 // Run periodically reconciles declarative collector instance state and, in

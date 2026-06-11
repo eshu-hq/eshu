@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -190,6 +191,7 @@ func (s SemanticExtractionQueueStore) ClaimNext(
 	}
 	var status string
 	var attemptCount int64
+	var sourceClass, providerKind, providerProfileID, providerProfileClass sql.NullString
 	record := semanticqueue.Record{}
 	if err := rows.Scan(
 		&record.JobID,
@@ -199,11 +201,19 @@ func (s SemanticExtractionQueueStore) ClaimNext(
 		&record.GenerationID,
 		&status,
 		&attemptCount,
+		&sourceClass,
+		&providerKind,
+		&providerProfileID,
+		&providerProfileClass,
 	); err != nil {
 		return semanticqueue.Record{}, false, fmt.Errorf("scan semantic extraction job claim: %w", err)
 	}
 	record.Status = semanticqueue.Status(status)
 	record.AttemptCount = int(attemptCount)
+	record.SourceClass = sourceClass.String
+	record.ProviderKind = providerKind.String
+	record.ProviderProfileID = providerProfileID.String
+	record.ProviderProfileClass = providerProfileClass.String
 	return record, true, nil
 }
 
@@ -296,7 +306,8 @@ SET status = 'claimed',
 FROM next_job
 WHERE jobs.job_id = next_job.job_id
 RETURNING jobs.job_id, jobs.work_item_id, jobs.fingerprint, jobs.scope_id,
-    jobs.generation_id, jobs.status, jobs.attempt_count
+    jobs.generation_id, jobs.status, jobs.attempt_count, jobs.source_class,
+    jobs.provider_kind, jobs.provider_profile_id, jobs.provider_profile_class
 `
 
 const retrySemanticQueueJobQuery = `

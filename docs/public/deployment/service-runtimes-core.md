@@ -79,6 +79,35 @@ at reconciliation time. Use `eshu component list --json` with the same policy
 values to inspect local policy failure reasons until the central inventory API
 is enabled.
 
+### Semantic-provider execution worker (default OFF, no live traffic)
+
+The coordinator can also run the egress-gated semantic-provider execution
+worker. It claims semantic extraction jobs and re-checks semantic egress
+fail-closed before any provider call. It is **OFF by default and makes no
+outbound provider traffic by default**:
+
+- `ESHU_SEMANTIC_PROVIDER_WORKER_ENABLED` (default `false`) turns the claim loop
+  on. When unset, the worker is a no-op.
+- `ESHU_SEMANTIC_PROVIDER_EXECUTION_ENABLED` (default `false`) is the explicit,
+  documented flag that permits real outbound provider traffic. It only takes
+  effect when a concrete, security-reviewed provider client is also wired. The
+  shipped build wires the no-network `DisabledSemanticProviderClient`, so even
+  with this flag set, an egress-allowed claim terminates as
+  `provider_execution_not_enabled` and no provider is contacted.
+- `ESHU_SEMANTIC_PROVIDER_WORKER_SCOPE_IDS_JSON` is a JSON array of queue scope
+  ids to drain; required when the worker is enabled.
+- `ESHU_SEMANTIC_PROVIDER_WORKER_LEASE_TTL` (default `1m`),
+  `ESHU_SEMANTIC_PROVIDER_WORKER_MAX_CLAIMS_PER_PASS` (default `32`), and
+  `ESHU_SEMANTIC_PROVIDER_WORKER_LEASE_OWNER` tune the lease-fenced claim loop.
+- The worker re-checks egress against `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON`. A
+  missing or non-allowlisted egress policy fails closed: the job is skipped to
+  `skipped_policy` and a redacted governance audit event is recorded with no
+  provider host, endpoint, URL, or credential.
+
+Real provider traffic remains blocked on security and schema review. A concrete
+network provider client is intentionally not shipped here and must arrive in a
+future security-reviewed PR.
+
 ## Verification
 
 Use focused Go tests for one service boundary. Use Compose or Helm rendering

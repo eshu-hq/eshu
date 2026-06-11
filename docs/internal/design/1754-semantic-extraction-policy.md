@@ -92,6 +92,25 @@ provider-work writer or private audit sink dependency. Future provider
 execution must add bounded metrics, spans, logs, status fields, and governance
 audit evidence before enabling network traffic.
 
+Issue #2168 introduces that provider-execution worker (the
+`coordinator.SemanticProviderWorker`) with the egress gate built into its claim
+path, satisfying the observability requirement above. The worker claims semantic
+extraction jobs, re-checks egress fail-closed via `semanticpolicy.EvaluateEgress`
+before any provider dispatch, and dispatches only through an explicitly enabled
+provider client. It ships **no real provider traffic**: the worker is OFF by
+default (`ESHU_SEMANTIC_PROVIDER_WORKER_ENABLED`), and the default
+`DisabledSemanticProviderClient` performs no network I/O, so an egress-allowed
+claim terminates as `provider_execution_not_enabled`. Real outbound traffic
+additionally requires the default-OFF `ESHU_SEMANTIC_PROVIDER_EXECUTION_ENABLED`
+flag plus a concrete client that a future PR supplies after security and schema
+review. Every egress decision emits the
+`eshu_dp_workflow_coordinator_semantic_provider_claim_total` counter (bounded
+`outcome`, `provider_kind`, `provider_profile_class`, `source_class` labels), a
+redacted structured log, and an `EventTypeSemanticPolicyDecision` governance
+audit event with a hashed provider-profile scope id and low-cardinality reason
+code. No provider host, endpoint, URL, credential, raw prompt, or raw response
+appears in any label, log field, or audit field.
+
 No-Regression Evidence: issue #1907 focused red/green coverage in
 `cd go && go test ./internal/semanticpolicy ./internal/semanticqueue -count=1`
 proves allowed provider, denied provider, missing egress policy, broad egress
