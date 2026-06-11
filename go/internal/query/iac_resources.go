@@ -124,6 +124,16 @@ func (h *IaCHandler) listResources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	access := repositoryAccessFilterFromContext(r.Context())
+	// Empty-grant scoped tokens (no granted repository or ingestion scope) can
+	// match nothing, so return a bounded empty page without touching the
+	// authoritative graph.
+	if access.empty() {
+		metrics.recordDuration(r.Context(), string(kind), time.Since(start).Seconds())
+		writeIaCResourceEmptyPage(w, r, h.profile(), kind, limit)
+		return
+	}
+
 	filter := iacResourceFilter{
 		Kind:      kind,
 		Type:      QueryParam(r, "type"),
@@ -136,7 +146,7 @@ func (h *IaCHandler) listResources(w http.ResponseWriter, r *http.Request) {
 		Limit: limit + 1,
 	}
 
-	cypher, params := buildIaCResourceQuery(filter)
+	cypher, params := buildIaCResourceQuery(filter, access)
 	rows, err := h.Graph.Run(r.Context(), cypher, params)
 	if err != nil {
 		metrics.recordError(r.Context(), string(kind), "graph_error")
@@ -215,11 +225,11 @@ func requiredIaCResourceLimit(w http.ResponseWriter, r *http.Request) (int, bool
 // indexed equality on resource_type/data_type and provider where present, and
 // keyset-paginates on (name, id) so ORDER BY is deterministic and the cursor is
 // stable across pages.
-func buildIaCResourceQuery(filter iacResourceFilter) (string, map[string]any) {
+func buildIaCResourceQuery(filter iacResourceFilter, access repositoryAccessFilter) (string, map[string]any) {
 	label := iacResourceKindLabels[filter.Kind]
 	params := map[string]any{"limit": filter.Limit}
 
-	clauses := make([]string, 0, 4)
+	clauses := make([]string, 0, 5)
 	if filter.Type != "" {
 		if filter.Kind == iacResourceKindDataSource {
 			clauses = append(clauses, "n.data_type = $type")
@@ -261,6 +271,14 @@ func buildIaCResourceQuery(filter iacResourceFilter) (string, map[string]any) {
 		clauses = append(clauses, "(n.name > $after_name OR (n.name = $after_name AND n.id > $after_id))")
 		params["after_name"] = filter.AfterName
 		params["after_id"] = filter.AfterID
+	}
+
+	// Scoped tokens bound the list to nodes whose durable repo_id is in the
+	// granted repository / ingestion-scope set. The clause and its parameters
+	// render only in scoped mode, so the unscoped query is byte-identical.
+	if clause := iacResourceScopeClause(access); clause != "" {
+		clauses = append(clauses, clause)
+		iacResourceScopeParams(access, params)
 	}
 
 	where := ""

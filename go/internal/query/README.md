@@ -280,6 +280,31 @@ No-Observability-Change: the existing infra search query span
 `results` / `count` / `limit` / `truncated` and `outgoing` / `incoming` response
 metadata diagnose the bounded reads; the scope predicate adds no new spans,
 metrics, or fields.
+IaC resource browse (`GET /api/v0/iac/resources`, HTTP-only; no MCP tool maps to
+it) scans one canonical Terraform/IaC label per call (`TerraformResource`,
+`TerraformModule`, `TerraformDataSource`). Every node in those labels carries a
+durable `repo_id` property — the same disjunct-1 anchor the infra resource
+aggregate / search / relationship routes bind against — so the scoped predicate
+(`iacResourceScopeClause`, `iac_resources_scope.go`) is the direct
+`n.repo_id IN $allowed_repository_ids OR n.repo_id IN $allowed_scope_ids` compare
+appended to the list WHERE chain. It omits the CloudResource USES `EXISTS`
+disjunct because the three scanned labels always carry `repo_id`, so the hot list
+read avoids an unnecessary subquery traversal. The listed rows, `count`, the
+`limit+1` truncation flag, and the keyset `next_cursor` are computed over only
+granted-repository nodes; a node whose `repo_id` is not granted stays invisible.
+An empty-grant scoped token returns the bounded empty page without a graph read.
+No-Regression Evidence: focused scoped tests
+(`go test ./internal/query -run 'IaCResource|ScopedIaCResource'`) assert the gate
+allows the route and rejects adjacent IaC routes (`POST /api/v0/iac/dead`), the
+unscoped Cypher and parameters carry no grant predicate or `allowed_*` arrays
+(byte-identical to the pre-scoped read), the scoped Cypher binds the repo
+predicate before `ORDER BY` with both grant arrays, and empty grants
+short-circuit before the graph.
+No-Observability-Change: the existing IaC resource list query span
+(`SpanQueryIaCResources`), truth envelope, `kind` / `resources` / `count` /
+`limit` / `truncated` / `next_cursor` response metadata, and per-kind duration /
+error metrics diagnose the bounded reads; the scope predicate adds no new spans,
+metrics, or fields.
 Semantic evidence reads are opt-in routes over durable semantic facts:
 `GET /api/v0/semantic/documentation-observations` and
 `GET /api/v0/semantic/code-hints`. They require at least one scope or semantic

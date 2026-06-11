@@ -98,6 +98,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedInfraRelationshipsRoute(r) {
 		return true
 	}
+	if scopedIaCResourceListRoute(r) {
+		return true
+	}
 	if r.Method != http.MethodPost {
 		return false
 	}
@@ -232,6 +235,18 @@ func scopedInfraRelationshipsRoute(r *http.Request) bool {
 	return r.Method == http.MethodPost && r.URL.Path == "/api/v0/infra/relationships"
 }
 
+// scopedIaCResourceListRoute reports whether the request targets the
+// graph-backed IaC resource browse read. The handler scans one canonical
+// Terraform/IaC label (TerraformResource, TerraformModule, TerraformDataSource),
+// each of whose nodes carries a durable `repo_id` property; scoped tokens bind a
+// repository-anchored predicate (see iacResourceScopeClause) so the listed rows,
+// count, limit+1 truncation, and keyset cursor are computed over only the
+// resources attributable to granted repositories, and an empty-grant scoped
+// token returns a bounded empty page without a graph read.
+func scopedIaCResourceListRoute(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/iac/resources"
+}
+
 func scopedVulnerabilityScannerContractRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet &&
 		r.URL.Path == "/api/v0/supply-chain/vulnerability-scanner/contract"
@@ -267,62 +282,6 @@ func scopedSupplyChainImpactRoute(r *http.Request) bool {
 func scopedSupplyChainAdvisoryEvidenceRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet &&
 		r.URL.Path == "/api/v0/supply-chain/advisories/evidence"
-}
-
-func scopedDocumentationListRoute(r *http.Request) bool {
-	switch {
-	case r.Method == http.MethodGet && r.URL.Path == "/api/v0/documentation/findings":
-		return true
-	case r.Method == http.MethodGet && r.URL.Path == "/api/v0/documentation/facts":
-		return true
-	default:
-		return false
-	}
-}
-
-func scopedDocumentationAggregateRoute(r *http.Request) bool {
-	switch {
-	case r.Method == http.MethodGet && r.URL.Path == "/api/v0/documentation/findings/count":
-		return true
-	case r.Method == http.MethodGet && r.URL.Path == "/api/v0/documentation/findings/inventory":
-		return true
-	default:
-		return false
-	}
-}
-
-func scopedDocumentationEvidencePacketRoute(r *http.Request) bool {
-	if r.Method != http.MethodGet {
-		return false
-	}
-	if scopedDocumentationFindingPacketRoute(r.URL.Path) {
-		return true
-	}
-	return scopedDocumentationPacketFreshnessRoute(r.URL.Path)
-}
-
-func scopedDocumentationFindingPacketRoute(path string) bool {
-	const (
-		prefix = "/api/v0/documentation/findings/"
-		suffix = "/evidence-packet"
-	)
-	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
-		return false
-	}
-	findingID := strings.TrimSuffix(strings.TrimPrefix(path, prefix), suffix)
-	return findingID != "" && !strings.Contains(findingID, "/")
-}
-
-func scopedDocumentationPacketFreshnessRoute(path string) bool {
-	const (
-		prefix = "/api/v0/documentation/evidence-packets/"
-		suffix = "/freshness"
-	)
-	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
-		return false
-	}
-	packetID := strings.TrimSuffix(strings.TrimPrefix(path, prefix), suffix)
-	return packetID != "" && !strings.Contains(packetID, "/")
 }
 
 func scopedServiceCatalogCorrelationRoute(r *http.Request) bool {
