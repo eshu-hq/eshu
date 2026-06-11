@@ -564,6 +564,23 @@
       return Object.keys(map).length ? map : null;
     });
 
+    // ---- observability coverage correlations (#391: GET /api/v0/observability/coverage/correlations) ----
+    await section("obsCoverage", async () => {
+      const env = await client.get("/api/v0/observability/coverage/correlations?limit=200");
+      const d = env.data || {};
+      const rows = d.correlations || d.results || [];
+      if (!rows.length) return null;
+      const sigMap = { alarm: "alerts", dashboard: "dashboards", scrape_target: "metrics", rule: "alerts", log_signal: "logs", trace_signal: "traces" };
+      const cov = {};
+      rows.forEach((r) => {
+        const ref = r.target_service_ref || r.target_uid; if (!ref) return;
+        const sig = sigMap[r.coverage_signal]; if (!sig) return;
+        const state = r.coverage_status === "gap" ? "gap" : r.coverage_status === "covered" ? "covered" : (r.outcome === "exact" || r.outcome === "derived" ? "covered" : r.outcome === "stale" ? "partial" : "gap");
+        (cov[ref] = cov[ref] || {})[sig] = { state, ref: r.observability_object_ref || r.observability_resource_uid, freshness: r.freshness_state };
+      });
+      return Object.keys(cov).length ? cov : null;
+    });
+
     return out;
   }
 
