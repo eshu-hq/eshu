@@ -53,20 +53,32 @@ func (h *WorkItemHandler) listWorkItemEvidence(w http.ResponseWriter, r *http.Re
 	if !ok {
 		return
 	}
+	// Resolve scoped-token grants before the store read. An empty grant returns
+	// the bounded zero-evidence page without touching the work-item store; a
+	// non-empty grant binds the linked_repository_id intersection predicate so a
+	// scoped caller observes only work items whose durable repository link is
+	// granted. Shared, admin, and local callers carry no grant set and keep the
+	// unscoped read path.
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptyWorkItemEvidencePage(w, r, limit)
+		return
+	}
 	observedAfter, ok := parseOptionalWorkItemEvidenceTime(w, r, "observed_after")
 	if !ok {
 		return
 	}
 	filter := normalizeWorkItemEvidenceFilter(WorkItemEvidenceFilter{
-		ScopeID:            QueryParam(r, "scope_id"),
-		ProjectKey:         QueryParam(r, "project_key"),
-		WorkItemKey:        QueryParam(r, "work_item_key"),
-		ProviderWorkItemID: QueryParam(r, "provider_work_item_id"),
-		ExternalURL:        QueryParam(r, "external_url"),
-		URLFingerprint:     QueryParam(r, "url_fingerprint"),
-		ObservedAfter:      observedAfter,
-		AfterFactID:        QueryParam(r, "after_fact_id"),
-		Limit:              limit + 1,
+		ScopeID:              QueryParam(r, "scope_id"),
+		ProjectKey:           QueryParam(r, "project_key"),
+		WorkItemKey:          QueryParam(r, "work_item_key"),
+		ProviderWorkItemID:   QueryParam(r, "provider_work_item_id"),
+		ExternalURL:          QueryParam(r, "external_url"),
+		URLFingerprint:       QueryParam(r, "url_fingerprint"),
+		ObservedAfter:        observedAfter,
+		AfterFactID:          QueryParam(r, "after_fact_id"),
+		Limit:                limit + 1,
+		AllowedRepositoryIDs: access.repositorySearchIDs(),
 	})
 	if !filter.hasScope() {
 		WriteError(w, http.StatusBadRequest, "scope_id, project_key, work_item_key, provider_work_item_id, external_url, url_fingerprint, or observed_after is required")

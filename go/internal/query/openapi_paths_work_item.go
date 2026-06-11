@@ -46,6 +46,7 @@ const openAPIPathsWorkItemEvidence = `
                           "provider_changelog_id": {"type": "string"},
                           "provider_remote_link_id": {"type": "string"},
                           "correlation_anchor_class": {"type": "string"},
+                          "linked_repository_id": {"type": "string", "description": "Canonical repository id resolved from a confidently typed GitHub PR or GitLab MR link before redaction; carries no raw URL or secret. Scoped tokens are authorized on this id. Omitted for links that did not canonicalize."},
                           "url_fingerprint": {"type": "string"},
                           "url_present": {"type": "boolean"},
                           "url_redacted": {"type": "boolean"},

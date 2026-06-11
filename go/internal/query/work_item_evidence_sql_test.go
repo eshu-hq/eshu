@@ -24,8 +24,10 @@ func TestWorkItemEvidenceQueryUsesActiveFactReadModel(t *testing.T) {
 		"fact.payload->>'source_url_fingerprint' = $6",
 		"fact.observed_at >= $7",
 		"fact.fact_id > $8",
+		"cardinality($9::text[]) = 0",
+		"fact.payload->>'linked_repository_id' = ANY($9::text[])",
 		"ORDER BY fact.fact_id ASC",
-		"LIMIT $9",
+		"LIMIT $10",
 	} {
 		if !strings.Contains(listWorkItemEvidenceQuery, want) {
 			t.Fatalf("listWorkItemEvidenceQuery missing %q:\n%s", want, listWorkItemEvidenceQuery)

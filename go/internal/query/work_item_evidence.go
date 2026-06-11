@@ -63,6 +63,15 @@ type WorkItemEvidenceFilter struct {
 	ObservedAfter      time.Time
 	AfterFactID        string
 	Limit              int
+
+	// AllowedRepositoryIDs carries the scoped-token grant set (union of granted
+	// repository and ingestion-scope ids) intersected against each work item's
+	// durable linked_repository_id. It is empty for shared/admin/local callers,
+	// which bypass the grant predicate entirely; a non-empty value bounds a
+	// scoped read so a work item is visible only when its durable repository link
+	// is granted. A scoped token with an empty grant must short-circuit before
+	// the store read rather than pass an empty slice here.
+	AllowedRepositoryIDs []string
 }
 
 // WorkItemEvidenceRow is one redacted source-fact row from a work-item
@@ -106,7 +115,15 @@ type WorkItemEvidenceRow struct {
 	AnchorClass            string `json:"correlation_anchor_class,omitempty"`
 	ProviderSupportState   string `json:"provider_support_state,omitempty"`
 	RedactionPolicyVersion string `json:"redaction_policy_version,omitempty"`
-	RawURL                 string `json:"-"`
+	// LinkedRepositoryID is the durable canonical repository id the Jira
+	// collector resolves from a confidently typed GitHub PR or GitLab MR link
+	// before redaction (see collector/jira linked_repository.go). It is the same
+	// generation-independent id Eshu stores for every repository and carries no
+	// raw URL, query parameter, credential, or user identity. It is empty for
+	// non-link facts and for links that did not canonicalize. Scoped-token reads
+	// authorize a work item only when this id is within the caller's grant set.
+	LinkedRepositoryID string `json:"linked_repository_id,omitempty"`
+	RawURL             string `json:"-"`
 }
 
 type workItemEvidenceFactRow struct {
@@ -188,6 +205,7 @@ func buildWorkItemEvidenceRows(facts []workItemEvidenceFactRow) []WorkItemEviden
 			AnchorClass:            StringVal(payload, "correlation_anchor_class"),
 			ProviderSupportState:   StringVal(payload, "provider_support_state"),
 			RedactionPolicyVersion: StringVal(payload, "redaction_policy_version"),
+			LinkedRepositoryID:     StringVal(payload, "linked_repository_id"),
 		}
 		rows = append(rows, row)
 	}

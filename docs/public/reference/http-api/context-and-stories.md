@@ -163,6 +163,23 @@ stale evidence, permission-hidden evidence, missing evidence, or rejected unsafe
 payloads, but PR, commit, deployment, runtime artifact, image, service, and
 incident truth require provider or reducer evidence outside Jira.
 
+A confidently typed GitHub pull-request or GitLab merge-request external link
+also returns `linked_repository_id`, the canonical repository id the Jira
+collector resolves from the link URL before redaction. It is the same
+generation-independent id Eshu stores for every repository and carries no raw
+URL, query parameter, credential, or user identity; un-canonicalizable or
+ambiguous links omit it.
+
+Scoped tokens authorize this route on `linked_repository_id`. A work item is
+visible to a scoped token only when its durable `linked_repository_id` is within
+the token's granted repository set; a multi-repo work item is visible for the
+granted subset only. Work-item facts with no durable repository link — every
+fact kind except a canonicalized external link, or a `scope_id`/`project_key`/
+`work_item_key` selector that never resolved a repository — stay invisible to
+scoped tokens (fail-closed), never surfaced as provider-scope rows. An empty
+grant returns the bounded zero-evidence page without a store read. Shared,
+admin, and local callers are unchanged and read the full work-item corpus.
+
 ## Catalog
 
 `GET /api/v0/catalog` is the bounded navigation surface for Console and MCP
