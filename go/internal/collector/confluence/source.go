@@ -131,9 +131,13 @@ func (s *Source) factEnvelopes(
 		SourceType:   sourceType(s.Config),
 		Labels:       nonEmptyStrings(firstNonEmpty(spaceValue.Key, s.Config.SpaceKey)),
 		ACLSummary: &facts.DocumentationACLSummary{
-			Visibility:    "credential_viewable",
-			IsPartial:     true,
-			PartialReason: "confluence_source_restrictions_not_collected",
+			Visibility: "credential_viewable",
+			IsPartial:  true,
+			// Confluence reads are credential-viewable but the per-source
+			// restriction set is not collected, so the ACL read is incomplete
+			// and stays partial (fail closed; never upgraded to allowed).
+			SourceACLState: facts.SourceACLStatePartial,
+			PartialReason:  "confluence_source_restrictions_not_collected",
 		},
 		SourceMetadata: map[string]string{
 			"page_count":    strconv.Itoa(len(pages)),

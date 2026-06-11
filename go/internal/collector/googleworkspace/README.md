@@ -67,6 +67,12 @@ metric, span, log, or status row.
 - Docs export to DOCX, Sheets export to XLSX, and Slides export to PPTX.
 - Per-file failures produce metadata-only document facts and do not emit
   sections.
+- Document ACL summaries carry the bounded `source_acl_state`
+  (`allowed|denied|partial|missing|stale`) derived from the observed posture:
+  permission-denied or download-denied maps to `denied`, deleted or trashed
+  maps to `missing`, a stale revision maps to `stale`, and a partial ACL read
+  maps to `partial`. A successful read does not collect the full restriction
+  set, so the field is omitted rather than upgraded to `allowed`.
 - The emitted facts remain documentation evidence only and must not become
   operational graph truth inside this package.
 

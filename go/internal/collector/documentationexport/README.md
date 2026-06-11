@@ -56,6 +56,12 @@ references, do not retain source-native message or comment IDs as section IDs,
 and redact token-bearing URLs, credential-looking local paths, and local
 absolute paths. Attachment binaries and private-channel content are not parsed
 here because preflight rejects those manifests before file bytes are inspected.
+Source and document ACL summaries carry the bounded `source_acl_state`
+(`allowed|denied|partial|missing|stale`) derived from the manifest ACL policy:
+an evaluated policy (`source_acl_evaluated`) is the only documentation producer
+that asserts `allowed`, a partial policy maps to `partial`, and an unavailable
+policy observes no posture so the field is omitted (no default-when-unknown
+guess; that disclosure decision is reserved for security review).
 
 ## Related docs
 - `docs/internal/design/1741-1748-google-workspace-and-external-export-ingestion.md`

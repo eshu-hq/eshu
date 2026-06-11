@@ -121,6 +121,16 @@ and processing lives in `internal/projector` and `internal/storage/postgres`.
 - Documentation ACL and owner fields are source-reported context. They help
   explain provenance and visibility, but they do not become authorization
   policy inside the facts package.
+- `DocumentationACLSummary.SourceACLState` is an optional, bounded source-ACL
+  observation using the `allowed|denied|partial|missing|stale` vocabulary shared
+  with `semanticpolicy` (see the `SourceACLState*` constants). It is additive and
+  backward-compatible: collectors set it only when they observe a real
+  access-posture signal at the origin and omit it entirely otherwise — absence
+  means "no ACL claim". A denied, partial, missing, or stale observation is never
+  upgraded to allowed, and the field carries no raw principals, identities, or
+  private URLs. Choosing a conservative default for unobserved sources is a
+  disclosure decision reserved for security review and the reducer/query
+  surfaces, not the facts package.
 - Documentation section payloads can carry source-native body content for
   downstream diff generation. Callers must treat that content as sensitive
   source data: persist it only through the fact store and never add it to logs,
