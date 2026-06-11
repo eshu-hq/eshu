@@ -28,15 +28,40 @@ live Cloud Asset Inventory transport is the documented, unimplemented,
 unwired `gcpruntime.LiveClient` seam; no code or test makes a live Google Cloud
 call.
 
-The rest of this contract remains design-only. Do not add Helm values,
-environment variables, chart claims, reducer admission, or API/MCP readback
-until later implementation PRs prove the reducer path and chart path. The tag,
-IAM, relationship, DNS, and image-reference fact families are not yet
-implemented.
+Shared multi-cloud reducer admission and API/MCP readback for the
+`gcp_cloud_resource` identity are now implemented and fixture-proven. The
+additive `cloud_inventory_admission` reducer domain
+(`go/internal/reducer/cloud_inventory_admission.go`, wired in
+`go/cmd/reducer`) admits `gcp_cloud_resource` into the shared `CloudResource`
+identity keyspace (`cloud_resource_uid`) as the reducer-owned
+`reducer_cloud_resource_identity` read model, using deterministic provider
+identity resolution (`go/internal/correlation/cloudinventory`),
+declared-over-applied-over-observed management-origin precedence,
+ambiguous/unsupported/unresolved accounting, and stale-generation supersession.
+The `GET /api/v0/cloud/inventory` handler
+(`go/internal/query/cloud_inventory_readback.go`) and the
+`list_cloud_resource_inventory` MCP tool return bounded, truth-labeled GCP
+identity rows (exact, semantic-facts basis) without leaking raw provider
+locators.
 
-The first implementation slice must be fixture-testable without live Google
-Cloud access. Live smoke tests are promotion proof, not the minimum proof for
-the source contract.
+The rest of this contract remains gated. Do not add Helm values, environment
+variables, chart claims, or a live Cloud Asset Inventory transport until later
+implementation PRs prove the live runtime adapter (`gcpruntime.LiveClient`) and
+chart path. The tag, IAM, relationship, DNS, and image-reference fact families
+are not yet implemented; their fact-kind-specific reducer handling and any GCP
+graph projection follow once those envelope builders exist.
+
+The implemented slices stay fixture-testable without live Google Cloud access.
+Live smoke tests are promotion proof, not the minimum proof for the source
+contract.
+
+No-Regression Evidence: `go test ./internal/reducer ./internal/query
+./internal/mcp -run CloudInventory -count=1` and `go test
+./internal/storage/postgres -run CloudInventory -count=1` prove `gcp_cloud_resource`
+admission into the shared `cloud_resource_uid` keyspace, management-origin
+precedence, ambiguous/unsupported/unresolved accounting, stale-generation
+supersession, and bounded truth-labeled readback that never leaks raw provider
+locators.
 
 ## Source Truth
 
