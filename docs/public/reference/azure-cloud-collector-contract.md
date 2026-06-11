@@ -68,8 +68,13 @@ PRs prove the live runtime adapter (`azureruntime.LiveProviderFactory`) and
 chart path. The `azure_cloud_relationship` envelope builder
 (`NewRelationshipEnvelope`) is implemented and unit-proven as provenance-only
 (both endpoint ARM identities, relationship type, and a bounded support state;
-it resolves no endpoints and writes no graph edge). The remaining fact kinds
-(`azure_identity_observation`, `azure_resource_change`, `azure_dns_record`,
+it resolves no endpoints and writes no graph edge). The
+`azure_identity_observation` envelope builder (`NewIdentityObservationEnvelope`)
+is implemented and unit-proven: it fingerprints every
+principal/client/object/tenant GUID with the redaction key (raw GUIDs never
+persist) and carries the bounded identity type, role class, and assignment scope
+as policy evidence only. The remaining fact kinds (`azure_resource_change`,
+`azure_dns_record`,
 `azure_image_reference`) have registered constants but no envelope builders yet;
 their fact-kind-specific reducer handling follows once those builders exist.
 

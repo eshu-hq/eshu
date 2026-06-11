@@ -50,11 +50,17 @@ and the [Multi-Cloud Runtime Collector Contract](../../../../docs/public/referen
   envelope builder (`NewRelationshipEnvelope`) now exists and is unit-proven —
   provenance-only: it preserves both endpoint ARM identities, the relationship
   type, and a bounded support state, resolving no endpoints and writing no graph
-  edge — but is not yet wired into the scan loop (#2197). The remaining contract
-  fact kinds (`azure_identity_observation`, `azure_resource_change`,
-  `azure_dns_record`, `azure_image_reference`) have registered constants and
-  schema versions in `internal/facts/azure.go` but no envelope builders yet.
-  Reducer admission of tag evidence is a further follow-up (#2192).
+  edge — but is not yet wired into the scan loop (#2197). The
+  `azure_identity_observation` envelope builder
+  (`NewIdentityObservationEnvelope`) is also implemented and unit-proven: it
+  fingerprints every principal/client/object/tenant GUID with the redaction key
+  (raw GUIDs never persist) and carries the bounded identity type, role class,
+  and assignment scope as policy evidence only, with a stable key independent of
+  the redaction key so key rotation does not split rows. The remaining contract
+  fact kinds (`azure_resource_change`, `azure_dns_record`,
+  `azure_image_reference`) have registered constants and schema versions in
+  `internal/facts/azure.go` but no envelope builders yet. Reducer admission of
+  tag evidence is a further follow-up (#2192).
 
 ## Invariants
 
