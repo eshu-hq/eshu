@@ -960,6 +960,8 @@
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
+        "extraVolumes": { "type": "array", "items": { "type": "object" } },
+        "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
         "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
         "resources": { "type": "object" }
       }
@@ -974,6 +976,8 @@
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
+        "extraVolumes": { "type": "array", "items": { "type": "object" } },
+        "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
         "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
         "resources": { "type": "object" }
       }

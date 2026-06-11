@@ -1,0 +1,183 @@
+# Helm values for the live Kubernetes two-team hosted governance cross-scope
+# denial proof (#1910). scripts/run-k8s-two-team-governance-proof.sh installs the
+# chart with these values into a unique namespace on a single-node cluster
+# (OrbStack), mounts an operator-managed scoped-token registry Secret into the
+# API and MCP server, and asserts cross-scope denial through the live surfaces.
+#
+# The driver overrides image.repository/tag/pullPolicy, contentStore.secretName,
+# and the apiAuth Secret at install time so this file carries no host-specific or
+# secret material. It pins the governance-relevant knobs (restricted egress,
+# scoped-token mounts, bundled NornicDB, filesystem repo seeding) that the proof
+# depends on.
+
+image:
+  pullPolicy: IfNotPresent
+
+# Bundle NornicDB so the proof needs no external graph backend. With the bundled
+# backend present the schema-bootstrap Helm hook must be disabled (the chart
+# fails fast otherwise) and run as an ordinary post-install Job instead.
+nornicdb:
+  enabled: true
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+  persistence:
+    enabled: false
+
+schemaBootstrap:
+  enabled: true
+  useHelmHooks: false
+  # Bundled NornicDB needs a few seconds to accept Bolt connections after its
+  # pod reports listening. Allow the schema-bootstrap Job several retries so it
+  # rides through that warmup instead of exhausting one attempt on a transient
+  # connection-refused race.
+  backoffLimit: 8
+  activeDeadlineSeconds: 900
+
+neo4j:
+  uri: bolt://eshu-nornicdb:7687
+  auth:
+    secretName: ""
+    username: neo4j
+    password: change-me
+
+# Single-node proof: trim every workload to fit a laptop cluster.
+api:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  # Mount the operator-managed scoped-token registry Secret read-only. The Secret
+  # is optional so the API starts cleanly in phase 1 (admin enumeration) before
+  # the registry exists. The driver creates the eshu-scoped-tokens Secret and
+  # then sets ESHU_SCOPED_TOKENS_FILE via a helm upgrade so the API fails closed
+  # on any malformed registry and enforces per-tenant grants on every scoped-read
+  # route. ESHU_SCOPED_TOKENS_FILE is intentionally NOT set here: pointing it at
+  # an absent file would make the API fail closed at startup before the Secret
+  # exists.
+  extraVolumes:
+    - name: scoped-tokens
+      secret:
+        secretName: eshu-scoped-tokens
+        optional: true
+  extraVolumeMounts:
+    - name: scoped-tokens
+      mountPath: /run/secrets/eshu-scoped-tokens
+      readOnly: true
+
+mcpServer:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  extraVolumes:
+    - name: scoped-tokens
+      secret:
+        secretName: eshu-scoped-tokens
+        optional: true
+  extraVolumeMounts:
+    - name: scoped-tokens
+      mountPath: /run/secrets/eshu-scoped-tokens
+      readOnly: true
+
+resolutionEngine:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+# The ingester runs the continuous repo-sync loop. The proof seeds repositories
+# out of band with a one-shot bootstrap-index Job (filesystem fixtures), so the
+# ingester is disabled here to keep the single-node footprint small. repoSync is
+# left in filesystem mode for documentation parity with the seed Job.
+ingester:
+  replicas: 1
+  persistence:
+    enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+repoSync:
+  enabled: false
+  bootstrap: false
+  source:
+    mode: filesystem
+    filesystemRoot: /fixtures
+  auth:
+    method: token
+
+# Fail-closed egress posture: required for the hosted governance Helm proof gate.
+networkPolicy:
+  enabled: true
+  egress:
+    mode: restricted
+    datastores:
+      enabled: true
+      to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    graph:
+      enabled: true
+      to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: nornicdb
+      ports:
+        - protocol: TCP
+          port: 7687
+    internalServices:
+      enabled: true
+      to: []
+      ports:
+        - protocol: TCP
+          port: 8080
+    classes:
+      api:
+        enabled: false
+      mcp:
+        enabled: false
+      repoSync:
+        enabled: false
+      collectorProviders:
+        enabled: false
+      semanticProviders:
+        enabled: false
+      extensions:
+        enabled: false
+
+env:
+  ESHU_GRAPH_BACKEND: nornicdb
+  DEFAULT_DATABASE: nornic
+  NEO4J_DATABASE: nornic
+  ESHU_GOVERNANCE_MODE: hosted_multi_tenant
+  ESHU_GOVERNANCE_STATE: enforcing
+  ESHU_GOVERNANCE_SOURCE_KIND: kubernetes_secret
+  ESHU_GOVERNANCE_AUTH_MODE: shared_token
+  ESHU_GOVERNANCE_EGRESS_MODE: restricted

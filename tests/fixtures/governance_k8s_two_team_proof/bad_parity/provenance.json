@@ -1,0 +1,9 @@
+{
+  "eshu_commit": "abc1234",
+  "backend": "nornicdb",
+  "platform": "kubernetes",
+  "kubernetes_version": "v1.34.8",
+  "registry_token_count": 3,
+  "metrics_handle": ":9464/metrics",
+  "counts_and_states_only": true
+}

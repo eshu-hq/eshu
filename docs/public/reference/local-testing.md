@@ -84,6 +84,38 @@ gate in [Remote E2E Runtime State](remote-e2e-runtime-state.md). It verifies
 the API, MCP server, ingester, resolution engine, workflow coordinator, hosted
 collectors, and checkpointed queue-zero signal.
 
+## Two-Team K8s Governance Proof
+
+`scripts/run-k8s-two-team-governance-proof.sh` deploys the Helm chart to a local
+Kubernetes cluster (OrbStack), provisions two teams' scoped tokens via a mounted
+read-only Secret, and asserts cross-scope isolation live through the API and MCP:
+each team sees only its own repositories, the other team's repository is absent,
+out-of-grant single-repo selectors return 403, unauthenticated requests return
+401, and the restricted NetworkPolicy egress is applied. `helm uninstall` plus
+namespace delete run on success and failure. `scripts/verify-hosted-governance-proof.sh`
+runs the verifier self-test (good plus bad fixtures) as part of the aggregate
+gate.
+
+The chart hooks that enable this proof — `api.extraVolumes` /
+`api.extraVolumeMounts` and the matching `mcpServer.*` values — are additive and
+default to `[]`, so an operator that does not opt in renders a byte-identical
+runtime. `deploy/helm/eshu/ci/governance-two-team-k8s.values.yaml` is test-only
+and is not part of a shipped runtime profile.
+
+No-Regression Evidence: the chart hooks are opt-in, empty-by-default Pod volume
+mounts; they add no Cypher, graph write, worker claim, lease, batch, queue, or
+concurrency knob and do not change the default-rendered Deployment runtime. Live
+proof on OrbStack Kubernetes v1.34.8 (single node): two-team scoped reads stay
+isolated (each team count=1, other team's repo absent, API/MCP parity),
+out-of-grant selector 403, unauthenticated 401, NetworkPolicy restricted egress
+applied; all pods reached Ready and the namespace was torn down clean. The
+scoped-token authorization itself is the unchanged graph/SQL already exercised by
+the merged scoped-read suites.
+
+No-Observability-Change: the proof reads existing spans, metrics, status, and the
+documented `/api/v0/repositories` and MCP responses; no telemetry, metric label,
+span, or status field is added or altered by the chart hooks.
+
 ## Discovery Advisory Playbook
 
 Use [Discovery advisory](local-testing/discovery-advisory.md) when a repository
