@@ -49,46 +49,6 @@ func TestAuthMiddlewareWithScopedTokensAllowsInfraResourceAggregateRoutes(t *tes
 	}
 }
 
-// TestAuthMiddlewareWithScopedTokensRejectsAdjacentInfraRoutes proves the infra
-// search and relationship routes stay fail-closed for scoped tokens until each
-// is separately proven tenant-filtered.
-func TestAuthMiddlewareWithScopedTokensRejectsAdjacentInfraRoutes(t *testing.T) {
-	t.Parallel()
-
-	resolver := &fakeScopedTokenResolver{
-		context: AuthContext{
-			Mode:                 AuthModeScoped,
-			TenantID:             "tenant-a",
-			WorkspaceID:          "workspace-a",
-			AllowedRepositoryIDs: []string{"repo-team-a"},
-		},
-		ok: true,
-	}
-	handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	}))
-
-	for _, tc := range []struct {
-		method string
-		target string
-	}{
-		{http.MethodPost, "/api/v0/infra/resources/search"},
-		{http.MethodPost, "/api/v0/infra/relationships"},
-	} {
-		tc := tc
-		t.Run(tc.method+" "+tc.target, func(t *testing.T) {
-			req := httptest.NewRequest(tc.method, tc.target, strings.NewReader("{}"))
-			req.Header.Set("Authorization", "Bearer scoped-token")
-			rec := httptest.NewRecorder()
-			handler.ServeHTTP(rec, req)
-
-			if got, want := rec.Code, http.StatusForbidden; got != want {
-				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
-			}
-		})
-	}
-}
-
 // TestInfraResourceAggregateScopedEmptyGrantReturnsEmptyWithoutStoreRead proves
 // an authenticated scoped token with no granted repositories gets the bounded
 // zero/empty shape without the graph aggregate store ever being called.

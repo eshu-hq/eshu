@@ -175,6 +175,12 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 		labels = mapped
 	}
 
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptyInfraSearch(w, r, req.Limit)
+		return
+	}
+
 	cypher := `
 		MATCH (n)
 		WHERE ` + infraLabelPredicate(labels)
@@ -209,6 +215,7 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	if resourceCategory != "" {
 		cypher += " AND n.resource_category = $resource_category"
 	}
+	cypher += infraSearchScopeClause(access)
 
 	cypher += `
 		RETURN coalesce(n.id, '') as id, coalesce(n.name, '') as name, labels(n) as labels,
@@ -244,6 +251,7 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	if resourceCategory != "" {
 		params["resource_category"] = resourceCategory
 	}
+	access.graphParams(params)
 
 	rows, err := h.Neo4j.Run(r.Context(), cypher, params)
 	if err != nil {
@@ -398,10 +406,16 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		WriteError(w, http.StatusNotFound, "entity not found")
+		return
+	}
+
 	cypher := `
-		MATCH (n) WHERE n.id = $entity_id
-		OPTIONAL MATCH (n)-[r]->(target)
-		OPTIONAL MATCH (source)-[r2]->(n)
+		MATCH (n) WHERE n.id = $entity_id` + infraRelationshipAnchorClause(access) + `
+		OPTIONAL MATCH (n)-[r]->(target)` + infraRelationshipNeighborClause(access, "target") + `
+		OPTIONAL MATCH (source)-[r2]->(n)` + infraRelationshipNeighborClause(access, "source") + `
 		RETURN n.id as id, n.name as name, labels(n) as labels,
 		       collect(DISTINCT {
 		           direction: 'outgoing',
@@ -422,6 +436,7 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 	params := map[string]any{
 		"entity_id": req.EntityID,
 	}
+	access.graphParams(params)
 
 	row, err := h.Neo4j.RunSingle(r.Context(), cypher, params)
 	if err != nil {
