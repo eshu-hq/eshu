@@ -85,6 +85,18 @@ function DeadCode({ data, onOpenService }) {
 /* symbol/module-level relationships for one repo: IMPORTS (module) + CALLS (function) */
 function buildCodeGraph(D, svc) {
   if (!svc) return { nodes: [], edges: [], dead: [] };
+  const dead0 = (D.deadCode || []).filter((d) => d.repo === svc.id);
+  // live: module dependency graph from /api/v0/code/imports/investigate
+  const live = D.codeImports && D.codeImports[svc.id];
+  if (live && live.modEdges && live.modEdges.length) {
+    const ids = new Set();
+    live.modEdges.forEach((e) => { ids.add(e.s); ids.add(e.t); });
+    const short = (m) => String(m).split("/").pop();
+    const nodes = Array.from(ids).map((m, i) => ({ id: m, label: short(m), sub: m, kind: i === 0 ? "repo" : "library", col: Math.min(4, i % 5) }));
+    const edges = live.modEdges.map((e) => ({ s: e.s, t: e.t, verb: "IMPORTS", layer: "code" }));
+    dead0.forEach((d) => nodes.push({ id: "dead:" + d.id, label: d.symbol, sub: d.file, col: 5, kind: "vuln", dead: true }));
+    return { nodes, edges, dead: dead0, hubs: live.hubs, cycles: live.cycles };
+  }
   const base = svc.name.replace(/^api-node-|^job-node-|^webapp-node-/, "");
   const ext = D.lang[svc.lang] && svc.lang === "go" ? "go" : svc.lang === "py" ? "py" : "ts";
   const N = (id, label, col, kind) => ({ id, label, sub: id, col, kind: kind || "library" });
@@ -127,7 +139,7 @@ function CodeGraph({ data, onOpenService }) {
   const g = useMemoCd(() => buildCodeGraph(D, svc), [D, svc]);
   // hotspots = most inbound edges (import + call)
   const inbound = {};g.edges.forEach((e) => inbound[e.t] = (inbound[e.t] || 0) + 1);
-  const hotspots = g.nodes.filter((n) => !n.dead).map((n) => ({ n, c: inbound[n.id] || 0 })).sort((a, b) => b.c - a.c).slice(0, 5);
+  const hotspots = (g.hubs && g.hubs.length) ? g.hubs.map((h) => ({ n: { id: h.name, label: h.name }, c: h.c })).slice(0, 5) : g.nodes.filter((n) => !n.dead).map((n) => ({ n, c: inbound[n.id] || 0 })).sort((a, b) => b.c - a.c).slice(0, 5);
   const importEdges = g.edges.filter((e) => e.verb === "IMPORTS").length;
   const callEdges = g.edges.filter((e) => e.verb === "CALLS").length;
 
@@ -157,8 +169,10 @@ function CodeGraph({ data, onOpenService }) {
           <div className="kv-list">
             {hotspots.map((h) => <div className="kv" key={h.n.id}><span className="mono" style={{ fontSize: ".76rem" }}>{h.n.label}</span><strong>{h.c}</strong></div>)}
           </div>
-          <div className="section-label" style={{ marginTop: 16 }}>Import cycles</div>
-          <p className="t-mut" style={{ fontSize: ".8rem", margin: 0 }}><span style={{ color: "var(--teal)" }}>◆ none detected</span> — module graph is acyclic.</p>
+          <div className="section-label" style={{ marginTop: 16 }}>Import cycles{g.cycles && g.cycles.length ? " · " + g.cycles.length : ""}</div>
+          {g.cycles && g.cycles.length ? (
+            <div className="conn-list">{g.cycles.slice(0, 6).map((c, i) => <div className="dead-row" key={i}><span className="mono" style={{ color: "var(--med)" }}>{Array.isArray(c) ? c.map((m) => String(m).split("/").pop()).join(" → ") : String(c.cycle || c.path || c)}</span></div>)}</div>
+          ) : <p className="t-mut" style={{ fontSize: ".8rem", margin: 0 }}><span style={{ color: "var(--teal)" }}>◆ none detected</span> — module graph is acyclic.</p>}
           <div className="section-label" style={{ marginTop: 16 }}>Dead in this repo · {g.dead.length}</div>
           {g.dead.length ? (
             <div className="conn-list">
