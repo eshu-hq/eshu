@@ -73,7 +73,11 @@
 // ServiceDocumentationEvidenceKey over the durable external identity
 // source_system/source_record_id/document_id of each documentation fact that
 // references the service, read from fact_records and keyed by service id rather
-// than repository id), and incidents (ServiceEvidenceFamilyIncidents, keyed by
+// than repository id; each docs row also carries the collector-observed bounded
+// source_acl_state — allowed|denied|partial|missing|stale — verbatim in its
+// payload as an access-posture axis distinct from freshness, omitted when the
+// fact asserts no bounded ACL claim and never upgraded to allowed, #2163), and
+// incidents (ServiceEvidenceFamilyIncidents, keyed by
 // ServiceIncidentEvidenceKey over the durable routing identity
 // provider/provider_incident_id/slot/evidence_kind/evidence_id of each exact
 // PagerDuty incident-routing evidence row, where evidence_id is the source fact's

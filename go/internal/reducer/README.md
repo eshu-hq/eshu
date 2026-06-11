@@ -1894,6 +1894,57 @@ JSONB target-ref containment shapes the query-layer documentation read model use
 so the reducer load and the read surface agree on what "references this service"
 means.
 
+### Source ACL state projection (#2163, #1901 vertical)
+
+Each docs-family row also carries the bounded `source_acl_state`
+(`allowed|denied|partial|missing|stale`) the collector emits on the documentation
+fact's `acl_summary` (`facts.DocumentationACLSummary.SourceACLState`, #2162). The
+loader reads it verbatim from `fact.payload->'acl_summary'->>'source_acl_state'`,
+`COALESCE`d to the empty string, and `serviceDocumentationEvidencePayload` projects
+it into the snapshot payload only when it is one of the bounded states
+(`projectedSourceACLState` validates against `facts.ValidSourceACLState`). It is an
+access-posture axis kept DISTINCT from freshness (#2138 truth-label taxonomy): the
+reducer never folds it into freshness, never upgrades a denied/partial/missing/stale
+observation to allowed, and never synthesizes a default the collector did not
+assert. When the fact carries no bounded ACL signal the field is omitted from the
+payload entirely (absence means "no ACL claim", fail closed). Because it lives in
+the hashed observable payload, a changed bounded ACL state flips the row to
+`updated` while an unobserved or unchanged state cannot churn the generation. The
+documentation evidence fact kinds (`documentation_entity_mention`,
+`documentation_claim_candidate`, `semantic.documentation_observation`) do not yet
+carry an `acl_summary`, so today the projected payload omits the field for them; the
+projection is additive and forward-compatible for when those facts carry the bounded
+state. Choosing a conservative default for unobserved sources, and disclosing the
+field on the read surface, are deferred to the query child (#2164) and security
+review; this reducer slice only carries the collector value verbatim and never
+surfaces it.
+
+No-Regression Evidence: `go test ./internal/reducer -run 'TestDocsEvidence' -count=1`
+proves the docs payload carries every bounded `source_acl_state` verbatim, omits an
+unobserved state, drops a non-bounded value rather than projecting it, and that a
+changed bounded state flips the row hash while an identical state stays unchanged
+(anti-churn); `go test ./internal/storage/postgres -run
+'TestServiceDocumentationEvidenceLoader' -count=1` proves the loader reads
+`source_acl_state` from `acl_summary` and scans the empty string when the fact has no
+ACL summary. The projection adds one COALESCE'd JSONB text read to the same bounded
+per-service documentation query (no new index, scan, join, or row), so it is a
+constant-factor addition to an already-bounded read with no new generation, lease,
+worker, batch, or queue domain; the row hash is computed by the same
+`ServiceEvidencePayloadHash` the family already uses. `go test ./internal/reducer
+-race -run 'TestDocsEvidence|TestServiceMaterializationDocsChangeFlipsGeneration|TestServiceCatalogHandlerCommitsDocsFamilyWhenWired'
+-count=1` passes under the race detector, confirming the additive field introduces
+no shared-state hazard in the existing worker/lease materialization path.
+
+Observability Evidence: No-Observability-Change: this slice adds no metric
+instrument, label, span, queue domain, lease, or runtime knob. The ACL field rides
+the existing docs-family `service_evidence_snapshots` payload inside the
+`service_catalog_correlation` reducer execution span/counter and the same
+materialization commit path Stage-1 already instruments; operators observe it
+through the existing reducer run spans, execution counters, `fact_work_items`
+status/failure fields, and the durable `service_materialization_generations`/
+`service_evidence_snapshots` rows. No read surface exposes the value yet (deferred
+to #2164), so no new operator-facing signal is required.
+
 No-Regression Evidence: `go test ./internal/reducer -run
 'ServiceDocumentation|BuildServiceDocumentation|ServiceMaterialization|ServiceCatalogHandler'
 -count=1` proves docs rows carry generation-stable external-identity keys (no
