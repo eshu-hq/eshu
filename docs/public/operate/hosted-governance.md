@@ -441,6 +441,46 @@ Only routes proven tenant-filtered are reachable with a scoped token; every
 other route stays fail-closed with `permission_denied`. Empty grants
 (`all_scopes` false with no allowed ids) return bounded empty/zero reads.
 
+#### Two-Team Cross-Scope Denial Proof
+
+The scoped-token denial behavior is proven end-to-end against a live API and MCP
+stack, not only in unit tests. The harness stands up a Docker Compose stack with
+the two-team overlay, ingests repositories, seeds two scoped tokens (one per
+team) plus an admin token through `ESHU_SCOPED_TOKENS_FILE`, and asserts that
+each team reads only its own repository through the real API and MCP surfaces:
+
+```bash
+# Self-test the verifier against recorded good/bad artifacts (no stack needed):
+scripts/test-verify-two-team-governance-proof.sh
+
+# Live proof: build + run the stack, seed two scoped tokens, assert the
+# cross-scope denial matrix, then verify. Uses a unique compose project name and
+# remapped host ports so it does not collide with other local stacks.
+scripts/run-two-team-governance-proof.sh
+```
+
+The driver and overlay live at
+`docs/public/run-locally/docker-compose.governance-two-team.yaml` and
+`scripts/run-two-team-governance-proof.sh`. The live run asserts, on both the
+API and the MCP tool-dispatch path:
+
+- an admin (`all_scopes`) token enumerates every ingested repository;
+- team-A's token lists only team-A's repository and never team-B's (and vice
+  versa) — the denied cross-scope read;
+- the single-repository context selector for an out-of-grant repository fails
+  closed with `403 permission_denied` (that richer route is not scope-enabled,
+  so scoped tokens cannot reach it at all);
+- unauthenticated repository reads are rejected with `401` on both surfaces; and
+- the API and MCP readbacks agree (parity).
+
+The captured proof artifacts record counts and HTTP states only — never response
+bodies, raw tokens, or token hashes — so the redaction canary holds by
+construction. The live driver is operator-gated; CI and the local governance
+gate run the verifier self-test through
+`scripts/verify-hosted-governance-proof.sh`, and `--runtime` on
+`scripts/verify-hosted-governance-remote-compose-proof.sh` runs the live driver
+from a private operator environment.
+
 ### Tenant Offboarding
 
 Tenant offboarding combines scoped-token revocation with rule and state cleanup:
@@ -488,6 +528,7 @@ Use these gates for hosted governance-related changes:
 | Hosted NetworkPolicy egress posture | `scripts/test-verify-hosted-network-policy-egress.sh`, `scripts/verify-hosted-network-policy-egress.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml`. |
 | Hosted governance local proof posture | `scripts/test-verify-hosted-governance-proof.sh`, `scripts/verify-hosted-governance-proof.sh`, strict MkDocs build, and `git diff --check`. |
 | Hosted governance remote Compose proof | `scripts/test-verify-hosted-governance-remote-compose-proof.sh`, `scripts/verify-hosted-governance-remote-compose-proof.sh`, and `scripts/verify-hosted-governance-remote-compose-proof.sh --runtime` from the private remote Compose operator environment. |
+| Two-team scoped cross-scope denial proof | `scripts/test-verify-two-team-governance-proof.sh` (source-only verifier self-test), and `scripts/run-two-team-governance-proof.sh` for the live API/MCP cross-scope denial proof from a Docker Compose operator environment. |
 | Hosted governance proof artifact | `scripts/test-verify-hosted-governance-proof-artifact.sh`, `scripts/verify-hosted-governance-proof-artifact.sh --input governance-proof.json --output-json governance-proof.summary.json --output-markdown governance-proof.summary.md`, strict MkDocs build, and `git diff --check`. |
 | Hosted governance Helm proof | `scripts/test-verify-hosted-governance-helm-proof.sh`, `scripts/verify-hosted-governance-helm-proof.sh --out-dir .proof/governance-helm --values values.eshu.yaml`, `helm lint deploy/helm/eshu -f values.eshu.yaml`, strict MkDocs build, and `git diff --check`. |
 | Hosted governance negative leakage proof | `scripts/test-verify-hosted-governance-negative-leakage-proof.sh`, `scripts/verify-hosted-governance-negative-leakage-proof.sh --manifest leakage-proof.json --output-json leakage-proof.summary.json --output-markdown leakage-proof.summary.md`, strict MkDocs build, and `git diff --check`. |

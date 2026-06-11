@@ -1,0 +1,6 @@
+{
+  "tenant": "admin",
+  "repository_count": 2,
+  "team_a_repo": "repo-alpha",
+  "team_b_repo": "repo-beta"
+}
