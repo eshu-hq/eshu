@@ -41,6 +41,45 @@ type EgressProviderRule struct {
 	Decision          string   `json:"decision"`
 }
 
+// EgressDecision is the fail-closed semantic provider egress result for one
+// claim-path re-check. It carries no raw provider host, credential, endpoint, or
+// URL so it is safe to attach to redacted telemetry, logs, and audit labels.
+type EgressDecision struct {
+	// Allowed reports whether outbound semantic provider egress is permitted.
+	Allowed bool
+	// Reason is a bounded, low-cardinality reason code (allowed, egress_policy_missing,
+	// or egress_provider_denied).
+	Reason string
+	// Detail is a short non-secret explanation suitable for operator logs.
+	Detail string
+}
+
+// EvaluateEgress re-checks semantic provider egress for one provider profile and
+// source class without re-running source allowlist, scope, ACL, or budget rules.
+//
+// It is the claim-path egress gate for the semantic-provider execution worker: a
+// claimed queue row already passed the full source-level Evaluate decision when
+// it was planned, but egress posture can change between planning and dispatch, so
+// the worker MUST re-confirm egress immediately before any provider call. The
+// check is fail-closed: a missing policy, a missing allowlist match, or an
+// explicit deny all return Allowed=false. Egress is permitted only by an explicit
+// restricted-mode allow rule or an explicit broad-mode operator opt-in.
+func EvaluateEgress(policy Policy, providerProfileID, sourceClass string) EgressDecision {
+	normalized, err := Normalize(policy)
+	if err != nil {
+		return EgressDecision{
+			Allowed: false,
+			Reason:  ReasonEgressPolicyMissing,
+			Detail:  "semantic provider egress policy is invalid",
+		}
+	}
+	allowed, reason, detail := egressAllowsRequest(normalized.Egress, Request{
+		ProviderProfileID: strings.TrimSpace(providerProfileID),
+		SourceClass:       strings.TrimSpace(sourceClass),
+	})
+	return EgressDecision{Allowed: allowed, Reason: reason, Detail: detail}
+}
+
 func normalizeEgress(policy EgressPolicy) (EgressPolicy, error) {
 	out := EgressPolicy{
 		Mode: strings.TrimSpace(policy.Mode),

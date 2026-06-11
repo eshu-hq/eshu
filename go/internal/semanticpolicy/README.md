@@ -33,6 +33,12 @@ See `doc.go` for the godoc-rendered contract.
   rule ids, and normalized settings.
 - `LoadFromEnv`, `ParsePolicyJSON`, and `Normalize` parse and validate policy.
 - `Evaluate` applies policy, provider status, source allowlists, and ACL state.
+- `EvaluateEgress` and `EgressDecision` are the focused claim-path egress
+  re-check used by the semantic-provider execution worker immediately before any
+  provider dispatch. It re-confirms only provider-profile and source-class egress
+  posture and fails closed on a missing policy, missing allow rule, or explicit
+  deny. It carries no provider host, endpoint, URL, or credential, so its result
+  is safe for redacted telemetry, logs, and audit labels.
 - `ApplyToProviderStatuses` projects policy allowlists into redacted status rows.
 
 ## Dependencies

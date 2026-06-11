@@ -96,9 +96,29 @@ for the full list. Key env vars:
   `policy_revision_hash`; when set, planned work must intersect an active
   tenant scope grant before any claimable row is created
 - ESHU_COLLECTOR_INSTANCES_JSON — JSON array of collector instance objects
+- ESHU_SEMANTIC_PROVIDER_WORKER_ENABLED — turns the egress-gated
+  semantic-provider execution worker claim loop on; default `false` (no-op when
+  unset)
+- ESHU_SEMANTIC_PROVIDER_EXECUTION_ENABLED — explicit, default-OFF flag that
+  permits real outbound provider traffic; only effective with a concrete enabled
+  provider client (a future security-reviewed PR). The shipped build wires the
+  no-network `DisabledSemanticProviderClient`, so egress-allowed claims still
+  make no provider call and terminate as `provider_execution_not_enabled`
+- ESHU_SEMANTIC_PROVIDER_WORKER_SCOPE_IDS_JSON — JSON array of queue scope ids to
+  drain; required when the worker is enabled
+- ESHU_SEMANTIC_PROVIDER_WORKER_LEASE_TTL — semantic claim lease TTL; default
+  `1m`
+- ESHU_SEMANTIC_PROVIDER_WORKER_MAX_CLAIMS_PER_PASS — max semantic jobs drained
+  per scope per pass; default `32`
+- ESHU_SEMANTIC_PROVIDER_WORKER_LEASE_OWNER — lease owner id for the semantic
+  worker; default `svc:semantic-provider-worker`
+- ESHU_SEMANTIC_EXTRACTION_POLICY_JSON — the existing semantic extraction policy
+  contract; the worker re-checks egress against it at claim time and fails
+  closed when it is missing
 
 Compose exposes the optional metrics port `19469`. Helm keeps deployment mode
-`dark` and claims disabled by default.
+`dark` and claims disabled by default. The semantic-provider execution worker is
+off by default and ships no live provider traffic.
 
 ## Exported surface
 

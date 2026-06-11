@@ -74,11 +74,19 @@ func run(parent context.Context) error {
 	if err != nil {
 		return err
 	}
+	semanticWorkerCfg, err := coordinator.LoadSemanticProviderWorkerConfig(os.Getenv)
+	if err != nil {
+		return err
+	}
 
 	meter := providers.MeterProvider.Meter(telemetry.DefaultSignalName)
 	metrics, err := coordinator.NewMetrics(meter)
 	if err != nil {
 		return fmt.Errorf("coordinator metrics: %w", err)
+	}
+	semanticWorkerMetrics, err := coordinator.NewSemanticProviderWorkerMetrics(meter)
+	if err != nil {
+		return fmt.Errorf("semantic provider worker metrics: %w", err)
 	}
 	instruments, err := telemetry.NewInstruments(meter)
 	if err != nil {
@@ -173,6 +181,25 @@ func run(parent context.Context) error {
 		GovernanceAudit:                   governanceAuditStore,
 		Metrics:                           metrics,
 		Logger:                            logger,
+	}
+	if semanticWorkerCfg.Enabled {
+		// Default no-network client: real outbound provider traffic is intentionally
+		// not wired here. A concrete enabled client is supplied by a future,
+		// security-reviewed PR. With this default the worker only claims, gates
+		// egress, audits decisions, and terminates allowed jobs as provider-disabled.
+		serviceRunner.SemanticProviderWorker = &coordinator.SemanticProviderWorker{
+			Config:          semanticWorkerCfg,
+			Claimer:         postgres.NewSemanticExtractionQueueStore(postgres.SQLDB{DB: db}),
+			Client:          coordinator.DisabledSemanticProviderClient{},
+			GovernanceAudit: governanceAuditStore,
+			Metrics:         semanticWorkerMetrics,
+			Logger:          logger,
+		}
+		logger.Info(
+			"semantic provider execution worker enabled",
+			"execution_enabled", semanticWorkerCfg.ExecutionEnabled,
+			"scope_count", len(semanticWorkerCfg.ScopeIDs),
+		)
 	}
 	statusReader := postgres.NewStatusStore(postgres.SQLQueryer{DB: db})
 	service, err := app.NewHostedWithStatusServer(

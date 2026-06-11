@@ -106,6 +106,56 @@ func TestEvaluateDeniesWhenEgressAllowAndDenyOverlap(t *testing.T) {
 	}
 }
 
+func TestEvaluateEgressFailsClosedWithoutPolicy(t *testing.T) {
+	t.Parallel()
+
+	decision := semanticpolicy.EvaluateEgress(docsOnlyPolicy(), "semantic-docs-default", semanticprofile.SourceDocumentation)
+	if decision.Allowed {
+		t.Fatal("EvaluateEgress() Allowed = true, want false without egress policy")
+	}
+	if got, want := decision.Reason, semanticpolicy.ReasonEgressPolicyMissing; got != want {
+		t.Fatalf("EvaluateEgress() Reason = %q, want %q", got, want)
+	}
+}
+
+func TestEvaluateEgressAllowsExplicitRestrictedRule(t *testing.T) {
+	t.Parallel()
+
+	decision := semanticpolicy.EvaluateEgress(docsOnlyPolicyWithEgress(), "semantic-docs-default", semanticprofile.SourceDocumentation)
+	if !decision.Allowed {
+		t.Fatalf("EvaluateEgress() Allowed = false, want true with restricted allow rule: %#v", decision)
+	}
+	if got, want := decision.Reason, semanticpolicy.ReasonAllowed; got != want {
+		t.Fatalf("EvaluateEgress() Reason = %q, want %q", got, want)
+	}
+}
+
+func TestEvaluateEgressDeniesProfileOutsideAllowlist(t *testing.T) {
+	t.Parallel()
+
+	decision := semanticpolicy.EvaluateEgress(docsOnlyPolicyWithEgress(), "semantic-other-profile", semanticprofile.SourceDocumentation)
+	if decision.Allowed {
+		t.Fatal("EvaluateEgress() Allowed = true, want false for profile outside allowlist")
+	}
+	if got, want := decision.Reason, semanticpolicy.ReasonEgressProviderDenied; got != want {
+		t.Fatalf("EvaluateEgress() Reason = %q, want %q", got, want)
+	}
+}
+
+func TestEvaluateEgressAllowsBroadOptIn(t *testing.T) {
+	t.Parallel()
+
+	policy := docsOnlyPolicy()
+	policy.Egress.Mode = semanticpolicy.EgressModeBroad
+	decision := semanticpolicy.EvaluateEgress(policy, "semantic-docs-default", semanticprofile.SourceDocumentation)
+	if !decision.Allowed {
+		t.Fatalf("EvaluateEgress() Allowed = false, want true with broad opt-in: %#v", decision)
+	}
+	if got, want := decision.Reason, semanticpolicy.ReasonAllowed; got != want {
+		t.Fatalf("EvaluateEgress() Reason = %q, want %q", got, want)
+	}
+}
+
 func TestApplyToProviderStatusesRequiresSemanticProviderEgress(t *testing.T) {
 	t.Parallel()
 

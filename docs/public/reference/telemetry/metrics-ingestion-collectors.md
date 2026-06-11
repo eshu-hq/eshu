@@ -356,6 +356,7 @@ labels.
 | `eshu_dp_workflow_coordinator_collector_instance_drift` | none | Absolute drift between desired and durable collector instances. |
 | `eshu_dp_workflow_coordinator_last_reaped_claims` | none | Claims reaped by the last successful reap pass. |
 | `eshu_dp_workflow_coordinator_last_reconciled_runs` | none | Runs reconciled by the last successful run reconciliation pass. |
+| `eshu_dp_workflow_coordinator_semantic_provider_claim_total` | `outcome`, `provider_kind`, `provider_profile_class`, `source_class` | Semantic-provider worker claim outcomes by egress decision and terminal disposition (`egress_denied`, `egress_policy_missing`, `provider_disabled`, `dispatched`, `provider_unavailable`). Labels are redacted and low-cardinality; no provider host, endpoint, URL, or credential is emitted. |
 
 ## Webhook Listener
 

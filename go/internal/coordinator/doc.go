@@ -53,4 +53,15 @@
 // denied or unavailable collector and component-extension egress decisions append
 // validation-safe audit events with hashed scope identity and low-cardinality
 // reason codes before the coordinator skips claimable work.
+//
+// SemanticProviderWorker is the egress-gated semantic-provider execution worker.
+// It claims semantic extraction jobs, re-checks semantic egress fail-closed with
+// semanticpolicy.EvaluateEgress before any provider dispatch, audits every egress
+// decision, and dispatches only through an explicitly enabled provider client.
+// The worker ships no real provider traffic by default: it is OFF unless
+// ESHU_SEMANTIC_PROVIDER_WORKER_ENABLED is set, and the default
+// DisabledSemanticProviderClient performs no network I/O, so an egress-allowed
+// claim terminates as provider_execution_not_enabled. Real outbound traffic
+// additionally requires the default-OFF ESHU_SEMANTIC_PROVIDER_EXECUTION_ENABLED
+// flag and a concrete enabled client supplied by a future security-reviewed PR.
 package coordinator

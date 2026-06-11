@@ -319,6 +319,65 @@ handles, source payloads, or token values. When wired to
 aggregate governance audit counts by event type, decision, scope class, actor
 class, and reason code.
 
+## Semantic-provider execution worker
+
+`SemanticProviderWorker` is the egress-gated semantic-provider execution worker
+(`semantic_provider_worker.go`). It claims semantic extraction jobs from the
+`semantic_extraction_jobs` queue (`SemanticExtractionQueueStore.ClaimNext`),
+re-checks semantic egress fail-closed via `semanticpolicy.EvaluateEgress`
+**before any provider dispatch is even considered**, and only then consults the
+provider client. The worker runs from `runActiveMaintenance` on the reap ticker
+when active-mode claims are enabled and a worker is configured.
+
+The worker ships **no real provider traffic by default**. Two independent
+default-OFF gates protect outbound traffic: `ESHU_SEMANTIC_PROVIDER_WORKER_ENABLED`
+turns the claim loop on, and `ESHU_SEMANTIC_PROVIDER_EXECUTION_ENABLED` plus a
+concrete `Enabled()` provider client are both required before any dispatch. The
+default client is `DisabledSemanticProviderClient`, which performs no network I/O
+and returns `ErrSemanticProviderExecutionNotEnabled`. With the default client, an
+egress-allowed claim is terminated as `provider_execution_not_enabled` and no
+provider is contacted. A concrete network client is intentionally out of scope
+and must arrive in a future security-reviewed PR.
+
+Decisions are fail-closed: a denied provider profile/source class or a missing
+egress policy skips the claim to `skipped_policy` behind the lease fence
+(`SkipClaimByPolicy`) and emits a redacted `EventTypeSemanticPolicyDecision`
+governance audit event (hashed provider-profile scope id, low-cardinality reason
+code, no provider host, endpoint, URL, or credential).
+
+Performance Evidence: `BenchmarkSemanticWorkerEgressGatedClaimLoop` measures the
+full gated claim cycle with the default no-network client. Baseline on Apple
+M4 Pro, Go test harness, single pending documentation job per iteration:
+~953 ns/op, 2200 B/op, 14 allocs/op. After is identical to baseline because the
+default client performs no network or queue I/O beyond the in-memory egress gate
+and a single lifecycle write; terminal queue disposition is exactly one row per
+claim (skipped_policy on deny, dead_letter/provider-disabled on allow). The
+claim loop is lease-fenced and bounded by `MaxClaimsPerPass` per scope, so a
+single scope cannot starve the loop. No serialization workaround was introduced:
+the postgres `ClaimNext` query uses `FOR UPDATE SKIP LOCKED` so concurrent
+workers claim disjoint rows.
+
+No-Regression Evidence: `go test ./internal/coordinator -run 'TestSemanticWorker|TestLoadSemanticProviderWorkerConfig' -race -count=1`
+proves denied-egress fail-closed skip, missing-egress-policy fail-closed skip,
+allowed-egress + default-disabled-client no-network termination, the disabled
+client never dispatching even when the execution flag is on, allowed-egress +
+enabled test client dispatching only after the gate, default-OFF worker no-op,
+config defaults-off parsing, and a race-tested concurrent claim loop that
+processes each job exactly once. Storage proof:
+`go test ./internal/storage/postgres -run 'TestSemanticExtractionQueueStore(Claim|SkipByPolicy)' -count=1`
+proves the lease-fenced claim returns provider profile/source class for the
+egress re-check and the policy-skip transition is terminal behind the fence.
+
+Observability Evidence: the worker emits the
+`eshu_dp_workflow_coordinator_semantic_provider_claim_total` counter dimensioned
+by bounded `outcome` (`egress_denied`, `egress_policy_missing`,
+`provider_disabled`, `dispatched`, `provider_unavailable`), `provider_kind`,
+`provider_profile_class`, and `source_class`; redacted structured logs
+distinguishing the egress-skip and provider-disabled outcomes; and the redacted
+`EventTypeSemanticPolicyDecision` governance audit event for every egress
+decision. No provider host, endpoint, URL, credential, raw prompt, or raw
+response appears in any metric label, log field, or audit field.
+
 ## Extension points
 
 No-Regression Evidence: incident freshness handoff coverage includes:

@@ -135,6 +135,10 @@ func TestSemanticExtractionQueueStoreClaimUsesLeaseFencingAndSkipLocked(t *testi
 				"generation-1",
 				string(semanticqueue.StatusClaimed),
 				int64(1),
+				sql.NullString{String: "documentation", Valid: true},
+				sql.NullString{String: "semantic-docs", Valid: true},
+				sql.NullString{String: "semantic-docs-default", Valid: true},
+				sql.NullString{String: "managed", Valid: true},
 			}}},
 		},
 	}
@@ -155,6 +159,15 @@ func TestSemanticExtractionQueueStoreClaimUsesLeaseFencingAndSkipLocked(t *testi
 	if got, want := record.Status, semanticqueue.StatusClaimed; got != want {
 		t.Fatalf("record.Status = %q, want %q", got, want)
 	}
+	if got, want := record.SourceClass, "documentation"; got != want {
+		t.Fatalf("record.SourceClass = %q, want %q", got, want)
+	}
+	if got, want := record.ProviderProfileID, "semantic-docs-default"; got != want {
+		t.Fatalf("record.ProviderProfileID = %q, want %q", got, want)
+	}
+	if got, want := record.ProviderProfileClass, "managed"; got != want {
+		t.Fatalf("record.ProviderProfileClass = %q, want %q", got, want)
+	}
 	query := db.queries[0].query
 	for _, want := range []string{
 		"FOR UPDATE SKIP LOCKED",
@@ -162,6 +175,8 @@ func TestSemanticExtractionQueueStoreClaimUsesLeaseFencingAndSkipLocked(t *testi
 		"claim_until = $",
 		"status IN ('pending', 'retrying')",
 		"(claim_until IS NULL OR claim_until <= $",
+		"jobs.source_class",
+		"jobs.provider_profile_id",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("ClaimNext query missing %q:\n%s", want, query)
@@ -215,6 +230,58 @@ func TestSemanticExtractionQueueStoreRetryAndDeadLetterUseLeaseFence(t *testing.
 	}
 	if !strings.Contains(db.execs[1].query, "status = 'dead_letter'") {
 		t.Fatalf("dead-letter query missing terminal status:\n%s", db.execs[1].query)
+	}
+}
+
+func TestSemanticExtractionQueueStoreSkipByPolicyUsesLeaseFenceAndTerminalStatus(t *testing.T) {
+	t.Parallel()
+
+	plan := semanticQueueStoragePlan(t)
+	record := plan.Jobs[0]
+	db := &fakeExecQueryer{}
+	store := NewSemanticExtractionQueueStore(db)
+	now := semanticQueueStorageTime().Add(time.Minute)
+	if err := store.SkipClaimByPolicy(
+		context.Background(),
+		record,
+		"semantic-worker-1",
+		now,
+		semanticpolicy.ReasonEgressProviderDenied,
+	); err != nil {
+		t.Fatalf("SkipClaimByPolicy() error = %v, want nil", err)
+	}
+	if got, want := len(db.execs), 1; got != want {
+		t.Fatalf("exec count = %d, want %d", got, want)
+	}
+	query := db.execs[0].query
+	for _, want := range []string{
+		"status = 'skipped_policy'",
+		"provider_job = false",
+		"retryable = false",
+		"WHERE job_id = $",
+		"lease_owner = $",
+		"fingerprint = $",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("skip-by-policy query missing %q:\n%s", want, query)
+		}
+	}
+}
+
+func TestSemanticExtractionQueueStoreSkipByPolicyRequiresLeaseOwner(t *testing.T) {
+	t.Parallel()
+
+	plan := semanticQueueStoragePlan(t)
+	record := plan.Jobs[0]
+	store := NewSemanticExtractionQueueStore(&fakeExecQueryer{})
+	if err := store.SkipClaimByPolicy(
+		context.Background(),
+		record,
+		"  ",
+		semanticQueueStorageTime(),
+		semanticpolicy.ReasonEgressProviderDenied,
+	); err == nil {
+		t.Fatal("SkipClaimByPolicy() error = nil, want lease owner error")
 	}
 }
 

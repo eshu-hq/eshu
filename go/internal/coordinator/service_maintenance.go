@@ -32,10 +32,24 @@ func (s Service) runActiveMaintenance(ctx context.Context) error {
 	if err := s.runIncidentFreshnessHandoff(ctx); err != nil {
 		return fmt.Errorf("handoff incident freshness triggers: %w", err)
 	}
+	if err := s.runSemanticProviderClaims(ctx); err != nil {
+		return fmt.Errorf("drain semantic provider claims: %w", err)
+	}
 	if err := s.runWorkflowReconciliation(ctx); err != nil {
 		return fmt.Errorf("reconcile workflow runs: %w", err)
 	}
 	return nil
+}
+
+// runSemanticProviderClaims drains the egress-gated semantic-provider execution
+// worker when one is configured and claims are enabled. The worker re-checks
+// semantic egress fail-closed before any provider dispatch and, with the default
+// disabled client, performs no outbound provider traffic.
+func (s Service) runSemanticProviderClaims(ctx context.Context) error {
+	if s.Config.DeploymentMode != deploymentModeActive || !s.Config.ClaimsEnabled || s.SemanticProviderWorker == nil {
+		return nil
+	}
+	return s.SemanticProviderWorker.Run(ctx)
 }
 
 func (s Service) runReapExpiredClaims(ctx context.Context) error {
