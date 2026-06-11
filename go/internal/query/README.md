@@ -220,6 +220,36 @@ No-Regression Evidence: focused advisory-evidence scoped-token query and MCP
 dispatch tests.
 No-Observability-Change: existing advisory-evidence query span, truth envelope,
 limits, and source-only freshness metadata diagnose the bounded reads.
+Infra resource aggregate reads (`GET /api/v0/infra/resources/count` and
+`/inventory`, plus the matching `count_infra_resources` and
+`get_infra_resource_inventory` MCP tools) are graph-backed whole-graph `MATCH (n)` scans
+over the closed infrastructure label set. Scoped tokens bind a
+repository-anchored predicate so totals, per-provider / per-environment /
+per-label rollups, and inventory buckets are computed over only the resources
+attributable to granted repositories. The predicate is fail-closed with two
+durable joins: canonical IaC entity nodes (TerraformResource, K8sResource,
+CloudFormationResource, ArgoCDApplication, HelmChart, ...) carry a durable
+`repo_id` property, so the direct property compare against the grant arrays is
+the join; CloudResource nodes carry no `repo_id` and anchor to a repository only
+through the canonical
+`(:Repository)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(:WorkloadInstance)-[:USES]->(n)`
+chain, matched by an `EXISTS` subquery anchored on the indexed `Repository.id`
+grant filter (the production `workloadScopePredicate` shape). Nodes with no
+granted `repo_id` and no USES path from a granted repository (for example
+tfstate-only TerraformBackend / TerraformLockProvider nodes that carry no
+durable repository signal) match nothing and stay invisible to scoped tokens.
+Empty grants return the bounded zero/empty shapes without a graph read, and the
+infra search and relationship routes stay fail-closed for scoped tokens.
+Shared-token, all-scope admin, and local behavior are unchanged: the predicate
+renders only in scoped mode, so the unscoped Cypher is byte-identical.
+No-Regression Evidence: the scoped predicate and grant parameters render only
+when the filter carries a grant set; focused tests assert the unscoped where
+clause is unchanged (no `$allowed_repository_ids` / `scopeRepo` traversal) and
+the scoped query binds the repository-anchored predicate, alongside the gate,
+empty-grant no-store-read, and grant-propagation tests.
+No-Observability-Change: existing infra resource aggregate query span
+(`SpanQueryInfraResourceAggregate`), truth envelope, per-dimension rollups,
+limits, offsets, truncation, and inventory metadata diagnose the bounded reads.
 Semantic evidence reads are opt-in routes over durable semantic facts:
 `GET /api/v0/semantic/documentation-observations` and
 `GET /api/v0/semantic/code-hints`. They require at least one scope or semantic

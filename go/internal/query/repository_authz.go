@@ -117,3 +117,24 @@ func (f repositoryAccessFilter) repositorySearchIDs() []string {
 	sort.Strings(ids)
 	return ids
 }
+
+// grantedRepositoryIDs returns a copy of the scoped-token's granted repository
+// ids (empty for shared/admin/local). Callers that bind a graph predicate on
+// the `$allowed_repository_ids` parameter use this alongside grantedScopeIDs so
+// the two arrays stay distinct, matching repositoryAccessFilter.graphParams.
+func (f repositoryAccessFilter) grantedRepositoryIDs() []string {
+	if !f.scoped() {
+		return nil
+	}
+	return append([]string(nil), f.allowedRepositoryIDs...)
+}
+
+// grantedScopeIDs returns a copy of the scoped-token's granted ingestion-scope
+// ids (empty for shared/admin/local). Pairs with grantedRepositoryIDs for graph
+// predicates that bind the `$allowed_scope_ids` parameter.
+func (f repositoryAccessFilter) grantedScopeIDs() []string {
+	if !f.scoped() {
+		return nil
+	}
+	return append([]string(nil), f.allowedScopeIDs...)
+}

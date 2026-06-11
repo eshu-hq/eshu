@@ -62,14 +62,31 @@ const InfraResourceAggregateMaxLimit = 500
 // InfraResourceAggregateFilter narrows aggregate reads. `Category` selects
 // one of the documented infraCategoryLabels keys (k8s, terraform, argocd,
 // crossplane, helm); empty means all infrastructure labels.
+//
+// AllowedRepositoryIDs / AllowedScopeIDs carry a scoped-token's granted
+// repository and ingestion-scope ids. When either is non-empty the aggregate
+// binds a repository-anchored predicate so counts, rollups, inventory buckets,
+// and totals are computed over only the resources attributable to the granted
+// repositories (see infraResourceScopePredicate). Both empty means unrestricted
+// (shared / admin / local), and the rendered Cypher is byte-identical to the
+// pre-scoped query. The handler short-circuits empty-grant scoped tokens before
+// the store is ever called, so a populated filter always has at least one id.
 type InfraResourceAggregateFilter struct {
-	Category         string
-	Kind             string
-	ResourceType     string
-	Provider         string
-	Environment      string
-	ResourceService  string
-	ResourceCategory string
+	Category             string
+	Kind                 string
+	ResourceType         string
+	Provider             string
+	Environment          string
+	ResourceService      string
+	ResourceCategory     string
+	AllowedRepositoryIDs []string
+	AllowedScopeIDs      []string
+}
+
+// scoped reports whether the filter carries a scoped-token grant set that must
+// bound the aggregate to repository-attributable resources.
+func (f InfraResourceAggregateFilter) scoped() bool {
+	return len(f.AllowedRepositoryIDs) > 0 || len(f.AllowedScopeIDs) > 0
 }
 
 // InfraResourceAggregateCount is the cheap-summary totals envelope used by
@@ -298,7 +315,38 @@ func infraResourceAggregateWhereClause(labels []string, filter InfraResourceAggr
 	if filter.ResourceCategory != "" {
 		clauses = append(clauses, "n.resource_category = $resource_category")
 	}
+	if filter.scoped() {
+		clauses = append(clauses, infraResourceScopePredicate("n"))
+	}
 	return "WHERE " + strings.Join(clauses, " AND ")
+}
+
+// infraResourceScopePredicate bounds the whole-graph infra `MATCH (n)` to
+// resources attributable to a scoped-token's granted repositories. The
+// predicate has three disjuncts and is fail-closed: a node matches only when it
+// resolves to a granted repository, otherwise it is excluded from every count,
+// rollup, and inventory bucket.
+//
+//  1. Canonical IaC entity nodes (TerraformResource, K8sResource,
+//     CloudFormationResource, ArgoCDApplication, HelmChart, ...) carry a durable
+//     `repo_id` property written by the canonical entity projector, so the
+//     direct property compare against the grant arrays is the durable join.
+//  2. CloudResource nodes carry no `repo_id`; they anchor to a repository only
+//     through the canonical USES chain
+//     (:Repository)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(:WorkloadInstance)-[:USES]->(n).
+//     The EXISTS subquery is anchored on the indexed Repository.id grant filter,
+//     mirroring the production workloadScopePredicate traversal shape.
+//
+// Nodes with no granted `repo_id` and no USES path from a granted repository
+// (for example tfstate-only TerraformBackend / TerraformLockProvider nodes that
+// carry no durable repository signal) match nothing and stay invisible to
+// scoped tokens. The predicate renders only in scoped mode; the unscoped query
+// shape is unchanged.
+func infraResourceScopePredicate(alias string) string {
+	return "(" + alias + ".repo_id IN $allowed_repository_ids OR " +
+		alias + ".repo_id IN $allowed_scope_ids OR EXISTS { " +
+		"MATCH (scopeRepo:Repository)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(:WorkloadInstance)-[:USES]->(" + alias + ") " +
+		"WHERE (scopeRepo.id IN $allowed_repository_ids OR scopeRepo.id IN $allowed_scope_ids) })"
 }
 
 func infraResourceAggregateParams(filter InfraResourceAggregateFilter) map[string]any {
@@ -320,6 +368,14 @@ func infraResourceAggregateParams(filter InfraResourceAggregateFilter) map[strin
 	}
 	if filter.ResourceCategory != "" {
 		params["resource_category"] = filter.ResourceCategory
+	}
+	if filter.scoped() {
+		// Bind both grant arrays unconditionally in scoped mode so the
+		// $allowed_repository_ids / $allowed_scope_ids parameters referenced by
+		// infraResourceScopePredicate always resolve, even when one side is
+		// empty (for example a token granted only ingestion scopes).
+		params["allowed_repository_ids"] = append([]string(nil), filter.AllowedRepositoryIDs...)
+		params["allowed_scope_ids"] = append([]string(nil), filter.AllowedScopeIDs...)
 	}
 	return params
 }
