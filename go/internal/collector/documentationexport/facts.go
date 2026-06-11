@@ -163,11 +163,20 @@ func aclSummary(policy string) *facts.DocumentationACLSummary {
 	summary := &facts.DocumentationACLSummary{Visibility: "unknown"}
 	switch policy {
 	case exportmanifestpreflight.ACLPolicyEvaluated:
+		// The source ACL was evaluated before import: assert allowed. This is
+		// the only documentation producer that observes a complete ACL
+		// evaluation, so it is the only one that may report allowed.
 		summary.PartialReason = ""
+		summary.SourceACLState = facts.SourceACLStateAllowed
 	case exportmanifestpreflight.ACLPolicyPartial:
 		summary.IsPartial = true
+		summary.SourceACLState = facts.SourceACLStatePartial
 		summary.PartialReason = "acl_partial"
 	default:
+		// ACL evidence is unavailable: no access-posture signal was observed,
+		// so the bounded state is omitted (absence means "no ACL claim").
+		// Deciding a conservative default here is a disclosure policy call
+		// reserved for security review and the reducer/query children.
 		summary.IsPartial = true
 		summary.PartialReason = "acl_unavailable"
 	}

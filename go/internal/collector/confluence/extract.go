@@ -24,9 +24,12 @@ func documentPayload(sourceID string, baseURL string, page Page) facts.Documenta
 		Labels:           labelNames(pageLabels(page)),
 		OwnerRefs:        ownerRefs(page),
 		ACLSummary: &facts.DocumentationACLSummary{
-			Visibility:    "credential_viewable",
-			IsPartial:     true,
-			PartialReason: "confluence_page_restrictions_not_collected",
+			Visibility: "credential_viewable",
+			IsPartial:  true,
+			// Per-page restrictions are not collected, so the ACL read is
+			// incomplete and stays partial (fail closed; never allowed).
+			SourceACLState: facts.SourceACLStatePartial,
+			PartialReason:  "confluence_page_restrictions_not_collected",
 		},
 		SourceMetadata: map[string]string{
 			"space_id":  page.SpaceID,

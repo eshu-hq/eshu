@@ -87,7 +87,10 @@ services can build diffs without asking the collector to write back to
 Confluence. Confluence source and document ACL summaries are marked
 `credential_viewable` and partial when page restrictions are not collected;
 downstream evidence packet producers must still prove
-`viewer_can_read_source=true` before exposing excerpts or body content.
+`viewer_can_read_source=true` before exposing excerpts or body content. Because
+the per-source and per-page restriction set is not collected, the read is
+incomplete, so the bounded `source_acl_state` on those ACL summaries is
+`partial` (fail closed; never upgraded to `allowed`).
 
 The optional truth extraction seam is deterministic and read-only. The
 Confluence collector does not infer claims from broad prose and does not load an

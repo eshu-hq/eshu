@@ -49,14 +49,22 @@ type DocumentationOwnerRef struct {
 
 // DocumentationACLSummary records bounded access metadata reported by a documentation source.
 type DocumentationACLSummary struct {
-	Visibility    string   `json:"visibility"`
-	ReaderGroups  []string `json:"reader_groups,omitempty"`
-	WriterGroups  []string `json:"writer_groups,omitempty"`
-	ReaderUsers   []string `json:"reader_users,omitempty"`
-	WriterUsers   []string `json:"writer_users,omitempty"`
-	HasInherited  bool     `json:"has_inherited,omitempty"`
-	IsPartial     bool     `json:"is_partial,omitempty"`
-	PartialReason string   `json:"partial_reason,omitempty"`
+	Visibility   string   `json:"visibility"`
+	ReaderGroups []string `json:"reader_groups,omitempty"`
+	WriterGroups []string `json:"writer_groups,omitempty"`
+	ReaderUsers  []string `json:"reader_users,omitempty"`
+	WriterUsers  []string `json:"writer_users,omitempty"`
+	HasInherited bool     `json:"has_inherited,omitempty"`
+	IsPartial    bool     `json:"is_partial,omitempty"`
+	// SourceACLState is the bounded, additive source-ACL-state observation for
+	// this documentation content/evidence fact. It uses the
+	// allowed|denied|partial|missing|stale vocabulary (see the
+	// SourceACLState* constants). It is set only when the collector observes a
+	// real access-posture signal at the origin, and is omitted entirely when no
+	// ACL signal was observed (absence means "no ACL claim"). A denied,
+	// partial, missing, or stale observation is never upgraded to allowed.
+	SourceACLState string `json:"source_acl_state,omitempty"`
+	PartialReason  string `json:"partial_reason,omitempty"`
 }
 
 // DocumentationEvidenceRef references evidence used by a documentation payload.

@@ -42,7 +42,7 @@ func documentPayload(
 		Title:          titleForKind(file.Kind),
 		DocumentType:   "workspace_" + string(file.Kind),
 		Format:         "google_workspace_export",
-		ACLSummary:     aclSummary(permission),
+		ACLSummary:     aclSummary(permission, failure),
 		SourceMetadata: metadata,
 		ContentHash:    safeFingerprint(file.ID + ":" + file.RevisionID),
 	}
@@ -102,18 +102,43 @@ func linkPayload(document facts.DocumentationDocumentPayload, link Link, index i
 	}
 }
 
-func aclSummary(permission PermissionSummary) *facts.DocumentationACLSummary {
+func aclSummary(permission PermissionSummary, failure FailureClass) *facts.DocumentationACLSummary {
 	visibility := firstNonEmpty(permission.Visibility, "unknown")
 	return &facts.DocumentationACLSummary{
-		Visibility:    visibility,
-		ReaderGroups:  safePrincipalList(permission.ReaderGroups),
-		WriterGroups:  safePrincipalList(permission.WriterGroups),
-		ReaderUsers:   safePrincipalList(permission.ReaderUsers),
-		WriterUsers:   safePrincipalList(permission.WriterUsers),
-		HasInherited:  permission.HasInherited,
-		IsPartial:     permission.IsPartial,
-		PartialReason: safeReason(permission.PartialReason),
+		Visibility:     visibility,
+		ReaderGroups:   safePrincipalList(permission.ReaderGroups),
+		WriterGroups:   safePrincipalList(permission.WriterGroups),
+		ReaderUsers:    safePrincipalList(permission.ReaderUsers),
+		WriterUsers:    safePrincipalList(permission.WriterUsers),
+		HasInherited:   permission.HasInherited,
+		IsPartial:      permission.IsPartial,
+		SourceACLState: sourceACLState(permission, failure),
+		PartialReason:  safeReason(permission.PartialReason),
 	}
+}
+
+// sourceACLState maps the observed Google Workspace access posture to the
+// bounded source-ACL-state vocabulary. It fails closed: a permission-denied
+// read is denied, a deleted or trashed source is missing, a stale revision is
+// stale, and any partial ACL read stays partial. When no access-posture signal
+// was observed it returns the empty string so the field is omitted, and it
+// never asserts allowed because successful reads here do not collect the full
+// source restriction set.
+func sourceACLState(permission PermissionSummary, failure FailureClass) string {
+	switch failure {
+	case FailurePermissionDenied, FailureDownloadNotAllowed:
+		return facts.SourceACLStateDenied
+	case FailureSourceDeleted, FailureSourceTrashed:
+		return facts.SourceACLStateMissing
+	case FailureSourceRevisionStale:
+		return facts.SourceACLStateStale
+	case FailureACLPartial:
+		return facts.SourceACLStatePartial
+	}
+	if permission.IsPartial {
+		return facts.SourceACLStatePartial
+	}
+	return ""
 }
 
 func envelope(
