@@ -203,7 +203,9 @@ function deriveObservability(D) {
     const res = bySvc[s.id] || [];
     const has = (sig) => res.find((r) => r.signal === sig);
     const tier = s.tier;
+    const live = D.obsCoverage && (D.obsCoverage[s.name] || D.obsCoverage[s.id]);
     function status(sig) {
+      if (live && live[sig]) return { state: live[sig].state, live: true };
       const r = has(sig);
       if (r) return { state: r.freshness === "stale" ? "partial" : "covered", res: r };
       if (sig === "metrics") return { state: tier === "tier-3" ? "partial" : "covered" };
