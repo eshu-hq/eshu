@@ -1,0 +1,174 @@
+/* Eshu Console — Code intelligence: Dead code (analyzer findings) + Code graph
+   (symbol/module CALLS + IMPORTS relationships). Grounded in the real
+   /api/v0/code/dead-code output and the code-layer call/import graph.
+   Exports to window. Loaded after drill.jsx. */
+const { useState: useStateCd, useMemo: useMemoCd } = React;
+
+const DEADKIND = {
+  function: { label: "function", color: "#14b8a6" },
+  class: { label: "class", color: "#8b5cf6" },
+  const: { label: "const", color: "#f5b73d" },
+  export: { label: "export", color: "#22d3ee" },
+  route: { label: "route", color: "#4f8cff" },
+  file: { label: "file", color: "#c4b59a" }
+};
+
+/* ================================================================ DEAD CODE */
+function DeadCode({ data, onOpenService }) {
+  const D = data || ESHU;
+  const all = D.deadCode || [];
+  const [kind, setKind] = useStateCd("all");
+  const [conf, setConf] = useStateCd("all");
+  const [q, setQ] = useStateCd("");
+  const kinds = Array.from(new Set(all.map((d) => d.kind)));
+  const rows = all.filter((d) =>
+    (kind === "all" || d.kind === kind) && (conf === "all" || d.confidence === conf) &&
+    (q === "" || (d.symbol + d.file + d.repo).toLowerCase().includes(q.toLowerCase())));
+  const repos = Array.from(new Set(all.map((d) => d.repo)));
+  const totalLoc = all.reduce((a, d) => a + (d.loc || 0), 0);
+  const byKind = {};all.forEach((d) => byKind[d.kind] = (byKind[d.kind] || 0) + 1);
+  const grouped = {};rows.forEach((d) => (grouped[d.repo] = grouped[d.repo] || []).push(d));
+
+  return (
+    <div className="page">
+      <div className="page-intro"><h2>Dead code</h2><p>Unreferenced symbols the analyzer found with <strong>zero inbound</strong> <span className="mono">CALLS</span> / <span className="mono">IMPORTS</span> edges — safe-to-delete candidates from <span className="mono">/api/v0/code/dead-code</span>. Each carries its confidence and the reason it reads as dead. Select a row to open the owning repo.</p></div>
+
+      <div className="grid g-4">
+        <StatTile label="Dead symbols" value={all.length} color="var(--ember)" sub="0 references" />
+        <StatTile label="Repos affected" value={repos.length} color="var(--blue)" sub={"of " + D.services.filter((s) => s.repo).length + " indexed"} />
+        <StatTile label="Est. dead LOC" value={fmt(totalLoc)} color="var(--violet)" sub="reclaimable" />
+        <StatTile label="High confidence" value={all.filter((d) => d.confidence === "exact").length} color="var(--teal)" sub="exact — no call sites" />
+      </div>
+
+      <div className="repo-toolbar mt">
+        <div className="searchbox" style={{ minWidth: 240, height: 38, margin: 0, flex: 1 }}><Icon.search size={16} /><input placeholder="Find a symbol, file or repo…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+        <div className="seg">{["all"].concat(kinds).map((k) => <button key={k} className={kind === k ? "active" : ""} onClick={() => setKind(k)}>{k === "all" ? "All kinds" : (DEADKIND[k] || {}).label || k}{k !== "all" ? " · " + byKind[k] : ""}</button>)}</div>
+        <div className="seg">{["all", "exact", "derived", "inferred"].map((c) => <button key={c} className={conf === c ? "active" : ""} onClick={() => setConf(c)}>{c === "all" ? "Any" : c}</button>)}</div>
+      </div>
+
+      <Panel className="flush mt" title={rows.length + " candidates"} sub="Grouped by repository · click to open the repo" glyph={<Icon.findings />}>
+        <table className="tbl">
+          <thead><tr><th>Symbol</th><th>Kind</th><th>Location</th><th>Refs</th><th>LOC</th><th>Confidence</th><th>Why dead</th><th></th></tr></thead>
+          <tbody>
+            {Object.keys(grouped).map((repo) => {
+              const svc = D.servicesById[repo];
+              return (
+                <React.Fragment key={repo}>
+                  <tr className="group-row"><td colSpan={8}><span className="group-label" style={{ color: "var(--ember)" }}>{svc ? svc.name : repo}</span><span className="group-meta">{grouped[repo].length} dead · {fmt(grouped[repo].reduce((a, d) => a + (d.loc || 0), 0))} LOC</span></td></tr>
+                  {grouped[repo].map((d) => {
+                    const dk = DEADKIND[d.kind] || { label: d.kind, color: "var(--muted)" };
+                    return (
+                      <tr key={d.id} className="cloud-row" onClick={() => svc && onOpenService(repo)} style={{ cursor: "pointer" }}>
+                        <td className="cell-stack"><span className="mono" style={{ color: "var(--bone)", fontWeight: 600 }}>{d.symbol}</span></td>
+                        <td><span className="dead-kind" style={{ "--dk": dk.color }}>{dk.label}</span></td>
+                        <td className="t-mut mono" style={{ fontSize: ".74rem" }}>{d.file}:{d.line}</td>
+                        <td><span className="mono" style={{ color: "var(--crit)", fontWeight: 700 }}>0</span></td>
+                        <td className="t-mut mono" style={{ fontSize: ".78rem" }}>{d.loc}</td>
+                        <td><TruthChip level={d.confidence} /></td>
+                        <td className="t-mut" style={{ fontSize: ".78rem", maxWidth: 320 }}>{d.reason}</td>
+                        <td style={{ color: "var(--subtle)" }}><Icon.arrow size={15} /></td>
+                      </tr>
+                    );
+                  })}
+                </React.Fragment>
+              );
+            })}
+            {rows.length === 0 ? <tr><td colSpan={8}><p className="empty">No dead-code candidates match.</p></td></tr> : null}
+          </tbody>
+        </table>
+      </Panel>
+    </div>
+  );
+}
+
+/* =============================================================== CODE GRAPH */
+/* symbol/module-level relationships for one repo: IMPORTS (module) + CALLS (function) */
+function buildCodeGraph(D, svc) {
+  if (!svc) return { nodes: [], edges: [], dead: [] };
+  const base = svc.name.replace(/^api-node-|^job-node-|^webapp-node-/, "");
+  const ext = D.lang[svc.lang] && svc.lang === "go" ? "go" : svc.lang === "py" ? "py" : "ts";
+  const N = (id, label, col, kind) => ({ id, label, sub: id, col, kind: kind || "library" });
+  const nodes = [
+    N("index", "index." + ext, 0, "repo"),
+    N("app", "app." + ext, 1, "library"),
+    N("routes", "routes/" + base, 2, "client"),
+    N("service", "services/" + base + ".service", 3, "service"),
+    N("model", "models/" + base, 4, "library"),
+    N("db", "lib/db", 4, "library"),
+    N("logger", "lib/logger", 4, "library")
+  ];
+  const edges = [
+    { s: "index", t: "app", verb: "IMPORTS", layer: "code" },
+    { s: "app", t: "routes", verb: "IMPORTS", layer: "code" },
+    { s: "routes", t: "service", verb: "IMPORTS", layer: "code" },
+    { s: "service", t: "model", verb: "IMPORTS", layer: "code" },
+    { s: "service", t: "db", verb: "IMPORTS", layer: "code" },
+    { s: "service", t: "logger", verb: "IMPORTS", layer: "code" },
+    { s: "routes", t: "service", verb: "CALLS", layer: "code" },
+    { s: "service", t: "db", verb: "CALLS", layer: "code" }
+  ];
+  // cross-repo: consumers import the boats client
+  if ((svc.deps || []).includes("api-node-boats") && svc.id !== "api-node-boats") {
+    nodes.push(N("client:boats", "@dmm/api-node-boats-client", 4, "client"));
+    edges.push({ s: "service", t: "client:boats", verb: "IMPORTS", layer: "code" });
+    edges.push({ s: "service", t: "client:boats", verb: "CALLS", layer: "code" });
+  }
+  // dead-code symbols for this repo become orphan nodes (no inbound edges)
+  const dead = (D.deadCode || []).filter((d) => d.repo === svc.id);
+  dead.forEach((d, i) => nodes.push({ id: "dead:" + d.id, label: d.symbol, sub: d.file, col: 5, kind: "vuln", dead: true }));
+  return { nodes, edges, dead };
+}
+
+function CodeGraph({ data, onOpenService }) {
+  const D = data || ESHU;
+  const repos = D.services.filter((s) => s.repo);
+  const [repoId, setRepoId] = useStateCd((repos.find((s) => s.id === "api-node-boats") || repos[0] || {}).id);
+  const svc = D.servicesById[repoId];
+  const g = useMemoCd(() => buildCodeGraph(D, svc), [D, svc]);
+  // hotspots = most inbound edges (import + call)
+  const inbound = {};g.edges.forEach((e) => inbound[e.t] = (inbound[e.t] || 0) + 1);
+  const hotspots = g.nodes.filter((n) => !n.dead).map((n) => ({ n, c: inbound[n.id] || 0 })).sort((a, b) => b.c - a.c).slice(0, 5);
+  const importEdges = g.edges.filter((e) => e.verb === "IMPORTS").length;
+  const callEdges = g.edges.filter((e) => e.verb === "CALLS").length;
+
+  return (
+    <div className="page" style={{ maxWidth: "none" }}>
+      <div className="page-intro row" style={{ justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
+        <div><h2>Code graph</h2><p>Symbol &amp; module relationships at code grain — <span className="mono">IMPORTS</span> (module) and <span className="mono">CALLS</span> (function), resolved from the AST + import bindings. Orphan nodes on the right are <span style={{ color: "var(--crit)" }}>dead code</span>. A finer grain than the service Graph Explorer.</p></div>
+        <select className="code-repo-select mono" value={repoId} onChange={(e) => setRepoId(e.target.value)}>
+          {repos.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+      </div>
+
+      <div className="grid g-4">
+        <StatTile label="Modules" value={g.nodes.filter((n) => !n.dead).length} color="var(--teal)" sub={svc ? svc.repo : ""} />
+        <StatTile label="Import edges" value={importEdges} color="var(--blue)" sub="module graph" />
+        <StatTile label="Call edges" value={callEdges} color="var(--ember)" sub="function call-graph" />
+        <StatTile label="Dead symbols" value={g.dead.length} color="var(--crit)" sub={g.dead.length ? "orphaned" : "none in repo"} onClick={() => { location.hash = "deadcode"; }} cta="Dead code" />
+      </div>
+
+      <div className="explorer-layout mt">
+        <div className="gcanvas-shell">
+          <GraphCanvas graph={g} layout="layered" height={560} onSelect={(n) => { if (n.id === "service" || n.id === "index") onOpenService(repoId); }} />
+          <div className="t-mut" style={{ fontSize: ".74rem", marginTop: 8 }}>{svc ? svc.name + " · " + (D.lang[svc.lang] || {}).label + " · routes → service → model/lib, with cross-repo client imports" : ""}. Click <span className="mono">service</span> or <span className="mono">index</span> to open the service spotlight.</div>
+        </div>
+        <Panel title="Analyzer" glyph={<Icon.spark />}>
+          <div className="section-label">Hotspots · most-referenced</div>
+          <div className="kv-list">
+            {hotspots.map((h) => <div className="kv" key={h.n.id}><span className="mono" style={{ fontSize: ".76rem" }}>{h.n.label}</span><strong>{h.c}</strong></div>)}
+          </div>
+          <div className="section-label" style={{ marginTop: 16 }}>Import cycles</div>
+          <p className="t-mut" style={{ fontSize: ".8rem", margin: 0 }}><span style={{ color: "var(--teal)" }}>◆ none detected</span> — module graph is acyclic.</p>
+          <div className="section-label" style={{ marginTop: 16 }}>Dead in this repo · {g.dead.length}</div>
+          {g.dead.length ? (
+            <div className="conn-list">
+              {g.dead.map((d) => <button type="button" className="dead-row" key={d.id} onClick={() => { location.hash = "deadcode"; }}><span className="mono">{d.symbol}</span><span className="t-mut">{(DEADKIND[d.kind] || {}).label}</span></button>)}
+            </div>
+          ) : <p className="empty" style={{ padding: "6px 0", textAlign: "left" }}>No dead code in {svc ? svc.name : "this repo"}.</p>}
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { DeadCode, CodeGraph, buildCodeGraph });

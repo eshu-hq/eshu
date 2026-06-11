@@ -16,9 +16,17 @@ const NAV = [
     { id: "explorer", label: "Graph Explorer", icon: "graph" }
   ] },
   { group: "Inventory", items: [
-    { id: "catalog", label: "Catalog", icon: "catalog", count: () => ESHU.services.length },
-    { id: "findings", label: "Findings", icon: "findings", count: () => ESHU.findings.length },
-    { id: "vulnerabilities", label: "Vulnerabilities", icon: "vuln", alert: true, count: () => ESHU.vulns.filter((v) => v.severity === "critical").length }
+    { id: "repos", label: "Repositories", icon: "catalog", count: () => ESHU.services.filter((s) => s.repo).length },
+    { id: "catalog", label: "Catalog", icon: "box", count: () => ESHU.services.length },
+    { id: "findings", label: "Findings", icon: "findings", alert: true, count: () => ESHU.findings.length + ESHU.vulns.length }
+  ] },
+  { group: "Code", items: [
+    { id: "deadcode", label: "Dead code", icon: "findings", count: () => ESHU.deadCode.length },
+    { id: "codegraph", label: "Code graph", icon: "branch" }
+  ] },
+  { group: "Cloud & Telemetry", items: [
+    { id: "cloud", label: "Cloud", icon: "cloud", count: () => ESHU.cloudResources.length },
+    { id: "observability", label: "Observability", icon: "pulse" }
   ] },
   { group: "System", items: [
     { id: "admin", label: "Operations", icon: "admin" }
@@ -28,16 +36,21 @@ const NAV = [
 const TITLES = {
   dashboard: ["Dashboard", "Read-only code-to-cloud graph status & evidence"],
   explorer: ["Graph Explorer", "Drill into the live NornicDB relationship graph"],
+  repos: ["Repositories", "Browse every indexed source repository"],
   catalog: ["Catalog", "Services, repositories & workloads"],
-  findings: ["Findings", "What needs human attention"],
-  vulnerabilities: ["Vulnerabilities", "Correlated vulnerability intelligence"],
+  findings: ["Findings", "What needs human attention — one worklist"],
+  deadcode: ["Dead code", "Unreferenced symbols — analyzer findings"],
+  codegraph: ["Code graph", "Symbol & module relationships (CALLS / IMPORTS)"],
+  vulnerabilities: ["Findings", "CVE register — vulnerability intelligence"],
+  cloud: ["Cloud", "Multi-cloud resource inventory — code-to-cloud"],
+  observability: ["Observability", "Signal coverage correlated per service"],
   admin: ["Operations", "Eshu runtime & NornicDB backend health"]
 };
 
 function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [route, setRoute] = useStateA(() => (location.hash || "#dashboard").slice(1).split("?")[0] || "dashboard");
-  const [drawerId, setDrawerId] = useStateA(null);
+  const [drawer, setDrawer] = useStateA(null);
   const [graphStyle, setGraphStyle] = useStateA(t.graphStyle);
   const [verifiedOnly, setVerifiedOnly] = useStateA(false);
   const [srcOpen, setSrcOpen] = useStateA(false);
@@ -66,7 +79,7 @@ function App() {
   const liveSections = source.live ? Object.keys(source.live.prov || {}).filter((k) => source.live.prov[k] === "live") : [];
 
   useEffectA(() => {
-    const onHash = () => setRoute((location.hash || "#dashboard").slice(1) || "dashboard");
+    const onHash = () => setRoute(((location.hash || "#dashboard").slice(1).split("?")[0]) || "dashboard");
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -78,14 +91,22 @@ function App() {
     r.setAttribute("data-density", t.density);
   }, [t.accent, t.surface, t.density]);
   useEffectA(() => {
-    function onKey(e) { if (e.key === "Escape") { setDrawerId(null); setSrcOpen(false); } }
+    function onKey(e) { if (e.key === "Escape") { setDrawer(null); setSrcOpen(false); } }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   useEffectA(() => { document.documentElement.setAttribute("data-verified", verifiedOnly ? "on" : "off"); }, [verifiedOnly]);
 
   function go(id) { location.hash = id; setRoute(id); }
-  const openService = (id) => setDrawerId(id);
+  const openService = (id) => setDrawer({ type: "service", id });
+  const openNode = (node, graph) => {
+    const sid = resolveServiceId(node, data);
+    if (sid) setDrawer({ type: "service", id: sid });
+    else setDrawer({ type: "node", node, graph: graph || data.graph });
+  };
+  const openCollector = (collector) => setDrawer({ type: "collector", collector });
+  function openVuln(cve) { setDrawer(null); location.hash = "vulnerabilities?cve=" + encodeURIComponent(cve); setRoute("vulnerabilities"); }
+  const goAndClose = (route) => { setDrawer(null); go(route); };
 
   const [title, sub] = TITLES[route] || TITLES.dashboard;
 
@@ -153,15 +174,22 @@ function App() {
           <div className="prov-banner warn"><Icon.bolt size={14} /> Eshu API unavailable at <span className="mono">{source.base}</span>{source.msg ? " · " + source.msg : ""}. Showing demo facts. Serve this page behind the /eshu-api/ proxy (browser can't reach localhost cross-origin).</div>
         ) : null}
 
-        {route === "dashboard" ? <Dashboard data={data} onOpenService={openService} heroMode={t.heroMode} graphStyle={graphStyle} chartStyle={t.chartStyle} /> : null}
-        {route === "explorer" ? <Explorer data={data} onOpenService={openService} graphStyle={graphStyle} setGraphStyle={(v) => { setGraphStyle(v); setTweak("graphStyle", v); }} verifiedOnly={verifiedOnly} /> : null}
+        {route === "dashboard" ? <Dashboard data={data} onOpenService={openService} onOpenNode={openNode} heroMode={t.heroMode} graphStyle={graphStyle} chartStyle={t.chartStyle} /> : null}
+        {route === "explorer" ? <Explorer data={data} onOpenService={openService} onOpenNode={openNode} graphStyle={graphStyle} setGraphStyle={(v) => { setGraphStyle(v); setTweak("graphStyle", v); }} verifiedOnly={verifiedOnly} /> : null}
+        {route === "repos" ? <Repos data={data} onOpenService={openService} onOpenNode={openNode} /> : null}
         {route === "catalog" ? <Catalog data={data} onOpenService={openService} /> : null}
-        {route === "findings" ? <Findings data={data} onOpenService={openService} verifiedOnly={verifiedOnly} /> : null}
-        {route === "vulnerabilities" ? <Vulnerabilities data={data} onOpenService={openService} chartStyle={t.chartStyle} verifiedOnly={verifiedOnly} /> : null}
-        {route === "admin" ? <Admin data={data} source={source} /> : null}
+        {route === "findings" ? <Findings data={data} onOpenService={openService} onOpenVuln={openVuln} verifiedOnly={verifiedOnly} /> : null}
+        {route === "deadcode" ? <DeadCode data={data} onOpenService={openService} /> : null}
+        {route === "codegraph" ? <CodeGraph data={data} onOpenService={openService} /> : null}
+        {route === "vulnerabilities" ? <Vulnerabilities data={data} onOpenService={openService} onOpenNode={openNode} chartStyle={t.chartStyle} verifiedOnly={verifiedOnly} /> : null}
+        {route === "cloud" ? <Cloud data={data} onOpenService={openService} onOpenNode={openNode} /> : null}
+        {route === "observability" ? <Observability data={data} onOpenService={openService} onOpenNode={openNode} onOpenCollector={openCollector} /> : null}
+        {route === "admin" ? <Admin data={data} source={source} onOpenCollector={openCollector} onOpenNode={openNode} /> : null}
       </div>
 
-      {drawerId ? <ServiceDrawer id={drawerId} data={data} onClose={() => setDrawerId(null)} onOpenService={openService} /> : null}
+      {drawer && drawer.type === "service" ? <ServiceDrawer id={drawer.id} data={data} onClose={() => setDrawer(null)} onOpenService={openService} onOpenVuln={openVuln} onOpenNode={openNode} /> : null}
+      {drawer && drawer.type === "node" ? <NodeDrawer node={drawer.node} graph={drawer.graph} data={data} onClose={() => setDrawer(null)} onOpenNode={openNode} onOpenService={openService} onOpenVuln={openVuln} onGo={goAndClose} /> : null}
+      {drawer && drawer.type === "collector" ? <CollectorDrawer collector={drawer.collector} data={data} onClose={() => setDrawer(null)} onGo={goAndClose} onOpenNode={openNode} /> : null}
 
       <TweaksPanel title="Tweaks">
         <TweakSection label="Theme" />
