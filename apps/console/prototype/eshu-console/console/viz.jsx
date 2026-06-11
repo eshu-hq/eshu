@@ -196,16 +196,17 @@ function SeverityBar({ counts, sev }) {
 }
 
 /* ------------------------------------------------------------- atoms */
-function StatTile({ label, value, sub, spark, color = "var(--teal)", trend }) {
+function StatTile({ label, value, sub, spark, color = "var(--teal)", trend, onClick, cta }) {
+  const Tag = onClick ? "button" : "div";
   return (
-    <div className="stat-tile">
+    <Tag className={"stat-tile" + (onClick ? " stat-tile-btn" : "")} {...onClick ? { type: "button", onClick } : {}}>
       <div className="stat-tile-head"><span>{label}</span>{trend ? <em className={"trend " + trend.dir}>{trend.text}</em> : null}</div>
       <div className="stat-tile-body">
         <strong>{value}</strong>
         {spark ? <Sparkline data={spark} color={color} w={86} h={30} /> : null}
       </div>
-      {sub ? <div className="stat-tile-sub">{sub}</div> : null}
-    </div>
+      {sub ? <div className="stat-tile-sub">{sub}{cta ? <span className="stat-tile-cta">{cta} →</span> : null}</div> : null}
+    </Tag>
   );
 }
 
@@ -239,7 +240,7 @@ function Panel({ title, sub, action, children, className, glyph }) {
 /* tiny collector glyph (monogram chip) */
 function CollectorGlyph({ kind, size = 26 }) {
   const k = ESHU.collectorKinds[kind] || { color: "#999", label: kind };
-  const txt = { git: "Git", aws: "AWS", terraform_state: "TF", oci_registry: "OCI", kubernetes: "K8s", vulnerability_intelligence: "CVE", security_alert: "SEC", pagerduty: "PD", jira: "JR", confluence: "DOC", prometheus_mimir: "PR", sbom_attestation: "SB" }[kind] || "·";
+  const txt = { git: "Git", aws: "AWS", terraform_state: "TF", oci_registry: "OCI", kubernetes: "K8s", vulnerability_intelligence: "CVE", security_alert: "SEC", pagerduty: "PD", jira: "JR", confluence: "DOC", prometheus_mimir: "PR", sbom_attestation: "SB", cloudwatch: "CW", otel_traces: "OT", grafana_loki: "LK", datadog: "DD", cloudflare: "CF", grafana_synthetic: "SY" }[kind] || "·";
   return <span className="cglyph" style={{ width: size, height: size, color: k.color, borderColor: k.color }} title={k.label}>{txt}</span>;
 }
 
