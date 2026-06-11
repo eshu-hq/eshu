@@ -46,12 +46,15 @@ and the [Multi-Cloud Runtime Collector Contract](../../../../docs/public/referen
   fingerprinted or carried and no tag observation fact is emitted. The runtime
   source threads the key from `azureruntime.Source.RedactionKey`, loaded by the
   `collector-azure-cloud` binary from `ESHU_AZURE_REDACTION_KEY_FILE` (a blank
-  or unreadable configured file fails closed). The remaining contract fact kinds
-  (`azure_cloud_relationship`, `azure_identity_observation`,
-  `azure_resource_change`, `azure_dns_record`, `azure_image_reference`) have
-  registered constants and schema versions in `internal/facts/azure.go` but no
-  envelope builders yet. Reducer admission of tag evidence is a further follow-up
-  (#2192).
+  or unreadable configured file fails closed). The `azure_cloud_relationship`
+  envelope builder (`NewRelationshipEnvelope`) now exists and is unit-proven —
+  provenance-only: it preserves both endpoint ARM identities, the relationship
+  type, and a bounded support state, resolving no endpoints and writing no graph
+  edge — but is not yet wired into the scan loop (#2197). The remaining contract
+  fact kinds (`azure_identity_observation`, `azure_resource_change`,
+  `azure_dns_record`, `azure_image_reference`) have registered constants and
+  schema versions in `internal/facts/azure.go` but no envelope builders yet.
+  Reducer admission of tag evidence is a further follow-up (#2192).
 
 ## Invariants
 

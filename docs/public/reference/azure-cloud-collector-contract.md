@@ -65,8 +65,11 @@ only the keyed markers do.
 Everything else stays gated. Do not add Helm values, chart paths, claim-driven
 workflow scheduling, or a live Resource Graph/ARM transport until implementation
 PRs prove the live runtime adapter (`azureruntime.LiveProviderFactory`) and
-chart path. The remaining fact kinds (`azure_cloud_relationship`,
-`azure_identity_observation`, `azure_resource_change`, `azure_dns_record`,
+chart path. The `azure_cloud_relationship` envelope builder
+(`NewRelationshipEnvelope`) is implemented and unit-proven as provenance-only
+(both endpoint ARM identities, relationship type, and a bounded support state;
+it resolves no endpoints and writes no graph edge). The remaining fact kinds
+(`azure_identity_observation`, `azure_resource_change`, `azure_dns_record`,
 `azure_image_reference`) have registered constants but no envelope builders yet;
 their fact-kind-specific reducer handling follows once those builders exist.
 
