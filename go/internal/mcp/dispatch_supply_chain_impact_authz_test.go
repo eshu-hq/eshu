@@ -18,9 +18,15 @@ func TestDispatchToolSupplyChainImpactAllowsScopedRoutes(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
+	// okEnvelope runs on the dispatch goroutine (a parallel subtest's goroutine),
+	// not the parent test goroutine, so it MUST NOT call t.Fatal: FailNow from a
+	// non-owning goroutine panics the package test binary under Go 1.26. A missing
+	// AuthContext is surfaced as a 5xx error response and asserted on the subtest
+	// goroutine via result.IsError below (#2152).
 	okEnvelope := func(w http.ResponseWriter, r *http.Request, body map[string]any) {
 		if _, ok := query.AuthContextFromContext(r.Context()); !ok {
-			t.Fatal("AuthContextFromContext() ok = false, want true")
+			query.WriteError(w, http.StatusInternalServerError, "AuthContextFromContext() ok = false, want true")
+			return
 		}
 		query.WriteSuccess(w, r, http.StatusOK, body, query.BuildTruthEnvelope(
 			query.ProfileProduction,
@@ -121,8 +127,13 @@ func TestDispatchToolSupplyChainImpactRejectsAdjacentRoutes(t *testing.T) {
 		},
 		ok: true,
 	}
+	// This handler runs on the dispatch goroutine (a parallel subtest's
+	// goroutine), not the parent test goroutine, so it MUST NOT call t.Fatal:
+	// FailNow from a non-owning goroutine panics the package test binary under
+	// Go 1.26. A scoped token reaching this handler is a fail-closed breach; we
+	// signal it as a 200 response and assert on the subtest goroutine via
+	// result.IsError below (#2152).
 	handler := query.AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		t.Fatal("adjacent supply-chain impact route reached the handler under a scoped token")
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -153,7 +164,7 @@ func TestDispatchToolSupplyChainImpactRejectsAdjacentRoutes(t *testing.T) {
 				t.Fatalf("dispatchTool() error = %v, want nil", err)
 			}
 			if !result.IsError {
-				t.Fatalf("dispatchTool() IsError = false, want true for fail-closed adjacent route; envelope = %#v", result.Envelope)
+				t.Fatalf("%s: dispatchTool() IsError = false, want true for fail-closed adjacent route; scoped token reached the handler. envelope = %#v", tc.tool, result.Envelope)
 			}
 		})
 	}
