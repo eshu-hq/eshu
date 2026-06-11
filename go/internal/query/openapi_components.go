@@ -164,6 +164,7 @@ const openAPIComponents = `  "components": {
           "freshness_state": {"type": "string"},
           "admission_state": {"type": "string"},
           "corroboration_state": {"type": "string"},
+          "source_acl_state": {"type": "string", "enum": ["allowed", "denied", "partial", "missing", "stale"], "description": "Bounded source-ACL-state observation from the collector, surfaced as a distinct access-posture axis kept separate from freshness_state and policy_state. Omitted when the source asserted no bounded ACL claim. Informational truth metadata only: it does not yet change which rows are returned (denied-vs-missing disclosure and fail-closed enforcement are deferred to security review, #2164)."},
           "source": {"type": "object", "additionalProperties": true},
           "chunk": {"type": "object", "additionalProperties": true},
           "provider": {"type": "object", "additionalProperties": true}

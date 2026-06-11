@@ -52,6 +52,15 @@ func (cr *ContentReader) documentationEvidencePacketWithFilter(
 			DeniedReason: documentationPermissionReason(packet),
 		}, nil
 	}
+	// Surface the bounded source_acl_state as a distinct access-posture axis
+	// (#2164/#1901) when the collector asserted one on the packet's acl_summary,
+	// alongside (never folded into) the existing binary Denied/freshness fields.
+	// partial/stale ACL — which the binary Denied flag cannot represent — now has
+	// its own representation. Additive metadata only: the value is lifted to a
+	// stable top-level field and the binary visibility decision above is
+	// unchanged. Honest denied-vs-missing disclosure is the #2164 security-review
+	// tail.
+	surfaceSourceACLState(packet, packet)
 	return documentationEvidencePacketReadModel{Available: true, Packet: packet}, nil
 }
 

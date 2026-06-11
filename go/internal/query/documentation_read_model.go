@@ -51,6 +51,15 @@ func (cr *ContentReader) documentationFindings(
 			continue
 		}
 		ensureEvidencePacketURL(payload)
+		// Surface the bounded source_acl_state as a distinct access-posture axis
+		// (#2164/#1901) when the collector asserted one on the finding's
+		// acl_summary, alongside (never folded into) the existing
+		// truth_level/freshness_state/permission fields. Additive metadata only:
+		// this lifts the value to a stable top-level field and does not change
+		// which findings are returned. The binary fail-closed filter above is
+		// unchanged; honest denied-vs-missing disclosure is the #2164
+		// security-review tail.
+		surfaceSourceACLState(payload, payload)
 		findings = append(findings, payload)
 	}
 	if err := rows.Err(); err != nil {

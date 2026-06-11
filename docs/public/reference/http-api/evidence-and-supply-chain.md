@@ -81,6 +81,18 @@ does not draft text or write documentation through this route.
 `GET /api/v0/documentation/evidence-packets/{packet_id}/freshness` lets an
 updater check whether a saved packet is stale before publishing a diff.
 
+Documentation findings and evidence packets carry an optional `source_acl_state`
+(`allowed`, `denied`, `partial`, `missing`, or `stale`) when the collector
+observed a bounded source-ACL posture. It is a distinct access-posture axis kept
+separate from the binary `permissions` decision and from `freshness_state`:
+it can represent `partial` or `stale` ACL that the binary permission flag
+cannot, and a finding can be fresh yet denied. The field is omitted when the
+source asserted no bounded ACL claim (absence means "no ACL claim"). It is
+informational truth metadata only and does not change which findings or rows are
+returned. Honest denied-vs-missing disclosure, the default for an unobserved
+source, and fail-closed access enforcement are deferred to security review
+(#2164); the existing binary read-visibility filter is unchanged.
+
 ## Package Registry
 
 Package registry routes expose identity materialized from package registry

@@ -25,6 +25,16 @@ state, freshness state, and admission or corroboration state. Responses do not
 include raw prompt bodies, provider credentials, credential handles, or private
 provider responses.
 
+Rows also carry an optional `source_acl_state`
+(`allowed`, `denied`, `partial`, `missing`, or `stale`) when the collector
+observed a bounded source-ACL posture. It is a distinct access-posture axis kept
+separate from `freshness_state` and `policy_state`: a row can be fresh and
+denied, or stale and allowed. The field is omitted when the source asserted no
+bounded ACL claim (absence means "no ACL claim"). It is informational truth
+metadata only and does not yet change which rows are returned. Disclosing a
+denied versus missing source, choosing a conservative default for an unobserved
+source, and failing closed on access are deferred to security review (#2164).
+
 `semantic.code_hint` rows remain opt-in. Deterministic code, relationship,
 documentation finding, and graph-truth routes do not mix in code hints unless a
 caller requests the semantic code-hints route directly.

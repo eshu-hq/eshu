@@ -238,6 +238,13 @@ func semanticEvidencePublicRow(raw map[string]any) map[string]any {
 	copyNestedString(out, payload, "chunk", "redaction_version")
 	copyNestedString(out, payload, "chunk", "extractor_version")
 	copyNestedString(out, payload, "chunk", "extraction_mode")
+	// source_acl_state is a distinct access-posture axis (#2164/#1901), surfaced
+	// alongside (never folded into) policy_state/freshness_state/admission_state/
+	// corroboration_state/redaction_state. It is omitted unless the collector
+	// asserted a bounded value on the payload's acl_summary (fail closed). This is
+	// informational truth metadata only; it does not yet gate which rows are
+	// returned (disclosure/enforcement is the #2164 security-review tail).
+	surfaceSourceACLState(out, payload)
 	return out
 }
 
