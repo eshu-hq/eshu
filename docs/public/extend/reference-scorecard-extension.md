@@ -17,9 +17,10 @@ fixtures, and local package-manager proof without private credentials.
 - `eshu component inspect`, `verify`, `install`, `enable`, and `list` can show
   the package in local CLI inventory with isolated component state.
 
-It does not prove hosted scheduling, OCI pull, Sigstore or Cosign provenance,
-API/MCP extension inventory, reducer admission, graph truth, or answer changes.
-Those remain core-owned follow-up lanes.
+It does not prove hosted scheduling, Sigstore or Cosign provenance, API/MCP
+extension inventory, reducer admission, graph truth, or answer changes. Those
+remain core-owned follow-up lanes. OCI image pull, digest resolution, and
+container isolation are proven separately by the OCI adapter proof below.
 
 ## Fact Families
 
@@ -147,6 +148,51 @@ and a non-root user mean the artifact receives no Eshu Postgres, graph, reducer,
 API, MCP, or workflow handles — only the bounded request. Publishing the image
 to a shared registry and pinning the resulting digest in the manifest artifact
 is the remaining registry-publish step.
+
+### End-to-End In-Compose Run
+
+The verifier above proves the OCI run contract in isolation. The in-Compose
+harness (issue #2156) proves the remaining single-container wiring: the running
+`component-extension-collector` worker claims a Scorecard work item, launches the
+digest-pinned artifact with `docker run` through the host container runtime, and
+commits `dev.eshu.examples.scorecard.*` facts through `collector.ClaimedService`
+— in one Compose run.
+
+```bash
+# Self-test the OCI verifier (no stack required):
+scripts/test-verify-remote-e2e-component-extension-oci.sh
+
+# Full live run: registry + build/push + digest + Compose up + capture + verify:
+scripts/run-remote-e2e-component-extension-oci.sh --artifacts <run-dir>
+```
+
+`run-remote-e2e-component-extension-oci.sh` stands up a dedicated local
+`registry:2`, builds and pushes `Dockerfile.oci`, resolves the immutable
+`repo@sha256:<digest>` reference, and layers
+`docs/public/run-locally/docker-compose.component-extension-oci.yaml` on the base
+Compose file. That overlay builds an OCI worker image
+(`examples/collector-extensions/scorecard/oci.worker.Dockerfile`: the eshu base
+plus the `docker` CLI), mounts the host runtime socket into the collector
+service, and pins the manifest artifact (`manifest.oci.yaml`, `adapter: oci`) to
+the resolved digest in the shared component home. The worker reads the
+digest-pinned image only from the verified manifest artifact, never from
+operator config, and launches it under the same `--network none --read-only
+--user 65532:65532 --cap-drop ALL --security-opt no-new-privileges` isolation as
+the standalone verifier.
+
+The driver captures the shared `inventory.json`, `workflow-items.json`,
+`facts.json`, and `provenance.json` artifacts, then adds `provenance-oci.json`
+recording `adapter: oci` and the digest-pinned `oci_image`. The OCI verifier
+(`scripts/verify-remote-e2e-component-extension-oci.sh`) runs every shared check
+plus: `adapter` is `oci`, `oci_image` is digest-pinned (`repo@sha256:<64 hex>`),
+the run provenance fields are present, and the redaction canary holds over the
+OCI provenance. Scorecard facts remain source evidence only — the proof asserts
+no graph nodes or edges are written for them.
+
+The worker runs as root in the proof solely to read the mounted runtime socket;
+the launched artifact stays confined by the adapter isolation flags. The base
+`eshu:local` image must be built from the same checkout, since the worker image
+layers on it — the driver rebuilds it by default.
 
 ## Hosted Limits
 

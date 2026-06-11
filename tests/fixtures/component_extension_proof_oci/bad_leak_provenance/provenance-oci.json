@@ -1,0 +1,11 @@
+{
+  "adapter": "oci",
+  "component_id": "dev.eshu.examples.scorecard",
+  "oci_image": "localhost:5000/eshu-examples/scorecard-collector@sha256:ce4713796316fcc35ce937f9126832d2da4feca2d2d9fc1ce589ba6d43b121cc",
+  "eshu_commit": "0000000000000000000000000000000000000000",
+  "core_version": "dev",
+  "sdk_protocol": "collector-sdk/v1alpha1",
+  "backend": "nornicdb",
+  "queue_terminal_state": "completed",
+  "metrics_handle": "http://10.1.2.3:19470/metrics"
+}
