@@ -326,4 +326,42 @@ describe("CodeGraphPage", () => {
 
     await waitFor(() => expect(screen.getByText(/Failed to load live dead-code candidates/)).toBeInTheDocument());
   });
+
+  it("surfaces Eshu error envelopes from live code relationships", async () => {
+    const model: ConsoleModel = {
+      ...demoModel,
+      findings: [
+        {
+          id: "dead-1",
+          type: "Dead code",
+          entity: "api-node-boats",
+          title: "Unreferenced symbol post",
+          detail: "server/handlers/install.ts · unused",
+          truth: "derived",
+          entityId: "content-entity:e1",
+          filePath: "server/handlers/install.ts"
+        }
+      ]
+    };
+    const client = {
+      post: async () => ({
+        data: null,
+        error: {
+          code: "unsupported_capability",
+          message: "code relationships unavailable"
+        },
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/code-graph"]}>
+        <CodeGraphPage model={model} client={client} />
+      </MemoryRouter>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("unsupported_capability: code relationships unavailable")).toBeInTheDocument()
+    );
+  });
 });

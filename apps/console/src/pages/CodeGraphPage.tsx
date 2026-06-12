@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
 import { loadDeadCodePage } from "../api/deadCode";
+import { EshuEnvelopeError } from "../api/envelope";
 import { codeRelationshipsToGraph } from "../api/eshuGraph";
 import type { CodeRelationshipsResponse } from "../api/eshuGraph";
 import { loadRepositoryNameMap } from "../api/repoCatalog";
@@ -74,6 +75,7 @@ export function CodeGraphPage({ model, client }: {
     void client.post<CodeRelationshipsResponse>("/api/v0/code/relationships", { entity_id: selected.entityId, max_depth: 1 })
       .then((env) => {
         if (cancelled) return;
+        if (env.error) throw new EshuEnvelopeError(env.error);
         const loaded = codeRelationshipsToGraph(env.data ?? {}, {
           id: selected.entityId ?? selected.id,
           name: symbolFromFinding(selected)
