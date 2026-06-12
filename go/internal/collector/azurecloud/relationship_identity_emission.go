@@ -1,6 +1,9 @@
 package azurecloud
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 // relationshipFromManagedBy derives a provenance-only `managed_by` relationship
 // from a resource row's ARM `managedBy` field — the ARM id of the owning
@@ -22,30 +25,69 @@ func relationshipFromManagedBy(boundary Boundary, row ResourceRow) (Relationship
 	}, true
 }
 
-// systemAssignedIdentityFromRow derives a system-assigned managed-identity
-// observation from a resource row's ARM `identity` block. It returns false
-// unless the block is system-assigned and carries a principal id, so a resource
-// with no identity (or a system-assigned identity the provider has not yet
-// populated a principal for) emits no identity fact. User-assigned identities,
-// which live under `userAssignedIdentities`, are a separate follow-up.
-func systemAssignedIdentityFromRow(boundary Boundary, row ResourceRow) (IdentityObservation, bool) {
+// identityObservationsFromRow derives the managed-identity observations from a
+// resource row's ARM `identity` block: the system-assigned identity (when the
+// block is system-assigned and carries a principal id) plus one per
+// user-assigned identity under `userAssignedIdentities`. A resource with no
+// identity, or whose declared identities carry no principal/client id yet,
+// produces no observation. Observations are deterministically ordered so
+// re-emission of a generation is idempotent.
+func identityObservationsFromRow(boundary Boundary, row ResourceRow) []IdentityObservation {
 	if len(row.Identity) == 0 {
-		return IdentityObservation{}, false
+		return nil
 	}
-	if !strings.Contains(strings.ToLower(identityString(row.Identity, "type")), "systemassigned") {
-		return IdentityObservation{}, false
+	tenant := strings.TrimSpace(identityString(row.Identity, "tenantId"))
+	var out []IdentityObservation
+	if strings.Contains(strings.ToLower(identityString(row.Identity, "type")), "systemassigned") {
+		if principal := strings.TrimSpace(identityString(row.Identity, "principalId")); principal != "" {
+			out = append(out, IdentityObservation{
+				Boundary:      boundary,
+				ARMResourceID: row.ID,
+				IdentityType:  IdentityTypeSystemAssigned,
+				PrincipalID:   principal,
+				TenantID:      tenant,
+			})
+		}
 	}
-	principal := strings.TrimSpace(identityString(row.Identity, "principalId"))
-	if principal == "" {
-		return IdentityObservation{}, false
+	return append(out, userAssignedIdentityObservations(boundary, row, tenant)...)
+}
+
+// userAssignedIdentityObservations derives one identity observation per
+// user-assigned managed identity under the ARM `userAssignedIdentities` map,
+// keyed by the user-assigned identity's own ARM id. Entries with no principal or
+// client id are skipped; the result is sorted by the identity's ARM id so
+// emission order is deterministic.
+func userAssignedIdentityObservations(boundary Boundary, row ResourceRow, tenant string) []IdentityObservation {
+	raw, ok := row.Identity["userAssignedIdentities"].(map[string]any)
+	if !ok || len(raw) == 0 {
+		return nil
 	}
-	return IdentityObservation{
-		Boundary:      boundary,
-		ARMResourceID: row.ID,
-		IdentityType:  IdentityTypeSystemAssigned,
-		PrincipalID:   principal,
-		TenantID:      strings.TrimSpace(identityString(row.Identity, "tenantId")),
-	}, true
+	armIDs := make([]string, 0, len(raw))
+	for armID := range raw {
+		armIDs = append(armIDs, armID)
+	}
+	sort.Strings(armIDs)
+	var out []IdentityObservation
+	for _, armID := range armIDs {
+		entry, ok := raw[armID].(map[string]any)
+		if !ok {
+			continue
+		}
+		principal := strings.TrimSpace(identityString(entry, "principalId"))
+		client := strings.TrimSpace(identityString(entry, "clientId"))
+		if principal == "" && client == "" {
+			continue
+		}
+		out = append(out, IdentityObservation{
+			Boundary:      boundary,
+			ARMResourceID: row.ID,
+			IdentityType:  IdentityTypeUserAssigned,
+			PrincipalID:   principal,
+			ClientID:      client,
+			TenantID:      tenant,
+		})
+	}
+	return out
 }
 
 // identityString reads a string field from a raw ARM identity block, returning

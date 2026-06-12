@@ -1,0 +1,38 @@
+{
+  "totalRecords": 1,
+  "count": 1,
+  "resultTruncated": "false",
+  "$skipToken": "",
+  "data": [
+    {
+      "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg-app/providers/Microsoft.Compute/virtualMachines/vm-multi",
+      "name": "vm-multi",
+      "type": "microsoft.compute/virtualmachines",
+      "tenantId": "tenant-abc",
+      "subscriptionId": "11111111-1111-1111-1111-111111111111",
+      "resourceGroup": "rg-app",
+      "location": "eastus",
+      "kind": "",
+      "managedBy": "",
+      "apiVersion": "2023-09-01",
+      "identity": {
+        "type": "SystemAssigned, UserAssigned",
+        "principalId": "aaaaaaaa-1111-2222-3333-444444444444",
+        "tenantId": "99999999-9999-9999-9999-999999999999",
+        "userAssignedIdentities": {
+          "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg-app/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uami-a": {
+            "principalId": "bbbbbbbb-1111-2222-3333-444444444444",
+            "clientId": "dddddddd-1111-2222-3333-444444444444"
+          },
+          "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg-app/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uami-b": {
+            "principalId": "cccccccc-1111-2222-3333-444444444444",
+            "clientId": "eeeeeeee-1111-2222-3333-444444444444"
+          }
+        }
+      },
+      "tags": {"env": "prod"},
+      "properties": {"provisioningState": "Succeeded"},
+      "timestamp": "2026-06-09T11:30:00Z"
+    }
+  ]
+}

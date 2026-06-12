@@ -233,10 +233,11 @@ func (c *Collector) emitPageResources(boundary Boundary, page ResourceGraphPage,
 			result.RelationshipCount++
 		}
 
-		// Emit a system-assigned managed-identity observation when a redaction
-		// key is set; principal GUIDs are fingerprinted, never carried raw.
+		// Emit managed-identity observations (system-assigned + user-assigned)
+		// when a redaction key is set; principal/client GUIDs are fingerprinted,
+		// never carried raw.
 		if !c.redactionKey.IsZero() {
-			if idObs, ok := systemAssignedIdentityFromRow(observation.Boundary, row); ok {
+			for _, idObs := range identityObservationsFromRow(observation.Boundary, row) {
 				idEnv, err := NewIdentityObservationEnvelope(idObs, c.redactionKey)
 				if err != nil {
 					return fmt.Errorf("build azure_identity_observation fact: %w", err)
