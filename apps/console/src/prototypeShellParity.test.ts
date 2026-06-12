@@ -21,4 +21,13 @@ describe("prototype shell parity", () => {
     expect(app).toContain('{ id: "repos", label: "Repositories", icon: "catalog", count: repositoryNavCount }');
     expect(app).not.toContain('count: (m) => m.services.filter((s) => s.repo).length');
   });
+
+  it("keeps the standalone repositories route deriving names from repo slugs", () => {
+    const page = repoFile("apps/console/prototype/eshu-console/console/pages-repositories-parity.jsx");
+
+    expect(page).toContain("function repoDisplayName(repo)");
+    expect(page).toContain("repoSlugLeaf(repoText(repo.repo_slug))");
+    expect(page).toContain("repoDisplayName(repo)");
+    expect(page).not.toContain("name: repoText(repo.name) || repoText(repo.id)");
+  });
 });

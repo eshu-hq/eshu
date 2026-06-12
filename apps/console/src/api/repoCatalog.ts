@@ -38,12 +38,27 @@ interface RepoListResponse { readonly repositories?: readonly RepoRecord[]; }
 
 function str(v: unknown): string { return typeof v === "string" ? v : ""; }
 
+function repoSlugLeaf(slug: string): string {
+  const parts = slug.split(/[\\/]/).filter(Boolean);
+  return parts.length > 0 ? parts[parts.length - 1] ?? "" : "";
+}
+
+function isOpaqueRepositoryId(value: string): boolean {
+  return value.startsWith("repository:");
+}
+
+function repoDisplayName(repo: RepoRecord): string {
+  const name = str(repo.name);
+  if (name !== "" && !isOpaqueRepositoryId(name)) return name;
+  return repoSlugLeaf(str(repo.repo_slug)) || name || str(repo.id);
+}
+
 export async function loadRepositories(client: EshuApiClient): Promise<readonly RepoListItem[]> {
   const env = await client.get<RepoListResponse>("/api/v0/repositories?limit=500&offset=0");
   if (env.error) throw new EshuEnvelopeError(env.error);
   return (env.data?.repositories ?? []).map((r) => ({
     id: str(r.id) || str(r.name),
-    name: str(r.name) || str(r.id),
+    name: repoDisplayName(r),
     repoSlug: str(r.repo_slug),
     remoteUrl: str(r.remote_url),
     isDependency: r.is_dependency === true

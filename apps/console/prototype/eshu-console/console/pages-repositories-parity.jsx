@@ -18,6 +18,17 @@
     return typeof value === "number" && Number.isFinite(value) ? value : null;
   }
 
+  function repoSlugLeaf(slug) {
+    const parts = slug.split(/[\\/]/).filter(Boolean);
+    return parts.length ? parts[parts.length - 1] : "";
+  }
+
+  function repoDisplayName(repo) {
+    const name = repoText(repo.name);
+    if (name && !name.startsWith("repository:")) return name;
+    return repoSlugLeaf(repoText(repo.repo_slug)) || name || repoText(repo.id);
+  }
+
   function repoGroupKey(repo) {
     const name = repo.name.toLowerCase();
     const slugGroup = repo.repoSlug.split("/").find((part) => part.trim().length > 0);
@@ -55,7 +66,7 @@
     return (data.repositories || []).map((repo) => ({
       id: repoText(repo.id) || repoText(repo.name),
       isDependency: repo.is_dependency === true,
-      name: repoText(repo.name) || repoText(repo.id),
+      name: repoDisplayName(repo),
       remoteUrl: repoText(repo.remote_url),
       repoSlug: repoText(repo.repo_slug)
     })).filter((repo) => repo.id);

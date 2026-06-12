@@ -33,6 +33,21 @@ describe("repoCatalog", () => {
     expect(names.get("repository:r2")).toBe("helm-charts");
   });
 
+  it("uses the repository slug leaf instead of an opaque id when name is missing", async () => {
+    const client = {
+      get: async () => ({
+        data: { repositories: [
+          { id: "repository:r_078043f1", repo_slug: "boatsgroup/api-node-platform" },
+          { id: "repository:r_dd626fe7", name: "repository:r_dd626fe7", repo_slug: "platform/iac-eks-argocd" }
+        ] }, error: null, truth: null
+      })
+    } as unknown as EshuApiClient;
+
+    const repos = await loadRepositories(client);
+
+    expect(repos.map((repo) => repo.name)).toEqual(["api-node-platform", "iac-eks-argocd"]);
+  });
+
   it("propagates repository list error envelopes instead of returning no repositories", async () => {
     const client = {
       get: async () => ({
