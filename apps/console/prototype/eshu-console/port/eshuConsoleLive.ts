@@ -163,8 +163,8 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
   })) ?? [];
 
   const languages = (await section(prov, "languages", async () => {
-    const env = await client.get<LanguageInventory>("/api/v0/repositories/by-language?limit=100&offset=0");
-    const rows = (env.data?.languages ?? []).map((l) => ({ language: l.language, count: l.count }));
+    const env = await client.get<LanguageInventory>("/api/v0/repositories/language-inventory?limit=100&offset=0");
+    const rows = (env.data?.languages ?? []).map((l) => ({ language: l.language, count: l.repository_count ?? l.count ?? 0 }));
     return rows.length > 0 ? rows : null;
   })) ?? [];
 

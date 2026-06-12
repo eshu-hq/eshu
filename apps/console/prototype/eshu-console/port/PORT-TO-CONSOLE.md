@@ -34,8 +34,9 @@ not the surface a dashboard should consume — use the HTTP API on `:8080`.
 3. Open `http://localhost:5174/index-console.html`.
 4. Click the **Demo data** pill (top-right) → **Live Eshu API** → base `/eshu-api/`,
    paste your **API key**, **Connect**.
-   - The key lives only in memory + `localStorage` (`eshu.console.environment`),
-     matching the real console. It is never written to source.
+   - The key lives only in memory for the current session. The prototype stores
+     the recent API base URL in `localStorage` (`eshu.console.environment`), but
+     never persists the API key or writes it to source.
 5. Live sections (runtime, catalog, languages, ingesters, dead-code findings,
    supply-chain vulnerabilities) hydrate from the graph; panels without a live
    endpoint keep demo facts and say so in the banner.
@@ -47,7 +48,7 @@ The client + mappers already live in `console/data.js` (`ESHU.EshuApiClient`,
 | -------------------- | -------- |
 | Dashboard / Ops stats| `GET /api/v0/ecosystem/overview`, `GET /api/v0/index-status` |
 | Catalog              | `GET /api/v0/catalog?limit=2000` |
-| Language chart       | `GET /api/v0/repositories/by-language` |
+| Language chart       | `GET /api/v0/repositories/language-inventory` |
 | Collectors           | `GET /api/v0/status/ingesters` |
 | Findings             | `POST /api/v0/code/dead-code` |
 | Vulnerabilities      | `GET /api/v0/supply-chain/impact/findings` |
@@ -104,6 +105,7 @@ The prototype is structured to make this mechanical:
 ## Security note
 
 The API key is a bearer credential. It is entered at runtime into the data-source
-panel and persisted only in the browser's `localStorage` (same as the real
-console's `eshu.console.environment`). It is **not** committed to any file in this
+panel and kept only in memory for the current session. The browser may persist
+the recent API base URL in `localStorage` (`eshu.console.environment`), but the
+API key is **not** persisted there and is not committed to any file in this
 package. Rotate it if it has been shared in plaintext anywhere.
