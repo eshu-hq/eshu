@@ -25,4 +25,18 @@ describe("OperationsPage", () => {
     expect(screen.getByText("Query latency")).toBeInTheDocument();
     expect(screen.getByText("p50 3ms · p95 7ms · p99 11ms")).toBeInTheDocument();
   });
+
+  it("renders live graph growth series when metrics samples are available", () => {
+    render(<OperationsPage model={{
+      ...demoModel,
+      series: {
+        ...demoModel.series,
+        graphNodes: [41000, 41120],
+        graphEdges: [128000, 129200]
+      }
+    }} />);
+
+    expect(screen.getByText("Graph growth")).toBeInTheDocument();
+    expect(screen.getByText("41.1k nodes · 129.2k edges")).toBeInTheDocument();
+  });
 });

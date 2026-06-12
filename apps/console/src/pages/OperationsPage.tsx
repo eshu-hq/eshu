@@ -9,6 +9,10 @@ export function OperationsPage({ model }: { readonly model: ConsoleModel }): Rea
   const langRows = model.languages.slice().sort((a, b) => b.count - a.count)
     .map((l) => ({ label: l.language, value: l.count }));
   const queryLatencySummary = latencySummary(model.series.queryP50, model.series.queryP95, model.series.queryP99);
+  const graphGrowthSummary = graphSummary(model.series.graphNodes, model.series.graphEdges);
+  const graphGrowthRows = graphRows(model.series.graphNodes, model.series.graphEdges);
+  const graphGrowthTrend = model.series.graphEdges.length ? model.series.graphEdges : model.series.graphNodes;
+  const graphGrowthTrendColor = model.series.graphEdges.length ? "var(--ember)" : "var(--teal)";
   return (
     <div className="page">
       <div className="page-intro"><h2>Operations</h2><p>Eshu runtime &amp; NornicDB backend health. Source: <strong style={{ color: model.source === "live" ? "var(--teal)" : "var(--bone)" }}>{model.source === "live" ? "live API" : "demo"}</strong>.</p></div>
@@ -24,6 +28,14 @@ export function OperationsPage({ model }: { readonly model: ConsoleModel }): Rea
           {model.series.queryP99.length ? <AreaChart data={model.series.queryP99} color="var(--crit)" h={180} unit="ms" /> : <p className="empty" style={{ padding: "32px 12px" }}>Query latency history appears when the metrics source has recent samples.</p>}
         </Panel>
       </div>
+      <Panel className="mt" title="Graph growth" sub={graphGrowthSummary ?? "GET /api/v0/metrics/timeseries"}>
+        {graphGrowthTrend.length ? (
+          <div className="grid g-2" style={{ alignItems: "center" }}>
+            <AreaChart data={graphGrowthTrend} color={graphGrowthTrendColor} h={180} />
+            <BarRows rows={graphGrowthRows} />
+          </div>
+        ) : <p className="empty" style={{ padding: "32px 12px" }}>Graph growth history appears when the metrics source has recent samples.</p>}
+      </Panel>
       <Panel className="mt" title="Repositories by language" sub="GET /api/v0/repositories/language-inventory">{langRows.length ? <BarRows rows={langRows} /> : <p className="empty">No language inventory from this source.</p>}</Panel>
       <Panel className="flush mt" title="Collectors / ingesters" sub={`${model.ingesters.length} fact sources`}>
         <table className="tbl">
@@ -61,4 +73,23 @@ function latencySummary(
   const p99 = lastSeriesValue(queryP99);
   if (p50 === null && p95 === null && p99 === null) return null;
   return `p50 ${p50 ?? "—"}ms · p95 ${p95 ?? "—"}ms · p99 ${p99 ?? "—"}ms`;
+}
+
+function graphSummary(graphNodes: readonly number[], graphEdges: readonly number[]): string | null {
+  const nodes = lastSeriesValue(graphNodes);
+  const edges = lastSeriesValue(graphEdges);
+  if (nodes === null && edges === null) return null;
+  return `${nodes === null ? "—" : fmt(nodes)} nodes · ${edges === null ? "—" : fmt(edges)} edges`;
+}
+
+function graphRows(
+  graphNodes: readonly number[],
+  graphEdges: readonly number[]
+): readonly { readonly label: string; readonly value: number; readonly color: string }[] {
+  const nodes = lastSeriesValue(graphNodes);
+  const edges = lastSeriesValue(graphEdges);
+  const rows: { label: string; value: number; color: string }[] = [];
+  if (nodes !== null) rows.push({ label: "nodes", value: nodes, color: "var(--teal)" });
+  if (edges !== null) rows.push({ label: "edges", value: edges, color: "var(--ember)" });
+  return rows;
 }
