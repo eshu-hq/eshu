@@ -1,7 +1,8 @@
 // eshuConsoleLive.ts
-// Drop into apps/console/src/api/. Maps the real Eshu HTTP API (v0) into the
-// view-models the redesigned console renders. Uses the existing EshuApiClient
-// and envelope contract — nothing here flattens truth or freshness.
+// Historical seed adapter for the first prototype port. Do not copy this file
+// into production as the current console contract; use apps/console/src/api/
+// instead. The production loaders are broader and cover Images, IaC, SBOM,
+// Dependencies, observability, advisories, and source drilldowns.
 //
 //   import { EshuApiClient } from "./client";
 //   const client = new EshuApiClient({ baseUrl: "/eshu-api/", apiKey });

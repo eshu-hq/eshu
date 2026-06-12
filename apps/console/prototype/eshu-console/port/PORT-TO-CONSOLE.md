@@ -1,8 +1,9 @@
 # Porting the redesigned console into `apps/console` + live API
 
-This package contains the redesigned Eshu console (dark graph-first UI) and a
-TypeScript adapter that maps the **real Eshu HTTP API (`/api/v0/*`)** into the
-view-models the UI renders. Two ways to run it against your live stack.
+This package contains the redesigned Eshu console (dark graph-first UI), a
+standalone demo dataset, and a live-loader shim that maps the **real Eshu HTTP
+API (`/api/v0/*`)** into the same prototype view-models. Two ways to run it
+against your live stack.
 
 ---
 
@@ -59,37 +60,34 @@ The client + mappers already live in `console/data.js` (`ESHU.EshuApiClient`,
 
 ---
 
-## Path B — adopt the design into the real `apps/console` (production)
+## Path B — keep the production console aligned
 
-The prototype is structured to make this mechanical:
+Use the production loaders in `apps/console/src/api/` as the current contract.
+They are stricter and broader than the historical `port/eshuConsoleLive.ts`
+seed: they include Images, IaC, SBOM, Dependencies, advisories, observability
+coverage, metrics series, and repo/source drilldowns. When a prototype surface
+is added, update both:
 
-1. **API layer.** Copy `eshuConsoleLive.ts` → `apps/console/src/api/`. It uses the
-   existing `EshuApiClient` and `envelope.ts` types and returns a typed
-   `ConsoleSnapshot`. Call it from a page loader the way `DashboardPage.tsx`
-   already calls `loadDashboardSnapshot`:
-   ```ts
-   const client = environment.mode === "private"
-     ? new EshuApiClient({ apiKey: environment.apiKey, baseUrl: environment.apiBaseUrl })
-     : undefined;
-   const snapshot = client ? await loadConsoleSnapshot(client) : demoSnapshot;
-   ```
-   It preserves `truth.level` (`exact|derived|fallback`) and
-   `freshness.state` (`fresh|stale|building|unavailable`) per section, and reports
-   `provenance` so panels render "live" vs "not available" instead of failing.
+1. **Live console API layer.** Add or adjust typed loaders under
+   `apps/console/src/api/`, with tests next to the loader and page. Do not copy
+   `port/eshuConsoleLive.ts` into production as the full adapter.
 
-2. **Visual system.** `console/styles.css` is framework-agnostic CSS (tokens +
+2. **Prototype live loader.** Update `console/live-parity-loader.js` so the
+   standalone prototype can hydrate the same section when pointed at `/eshu-api/`.
+   Keep API keys session-only.
+
+3. **Visual system.** `console/styles.css` is framework-agnostic CSS (tokens +
    component classes). Drop it in and replace the current console CSS, or port the
    `:root` token block first and migrate panel-by-panel.
 
-3. **Components.** The pages in `console/*.jsx` are plain React (no app-specific
-   deps) — port them to `.tsx` and swap the `ESHU` global for the `ConsoleSnapshot`
-   loader above. Suggested order: Dashboard → Catalog → Findings → Operations →
-   Vulnerabilities → Graph Explorer.
+4. **Components.** The pages in `console/*.jsx` are plain React (no app-specific
+   deps). Keep their public route hashes aligned with `apps/console/src/App.tsx`
+   via `console/routes.js` so design-tool flows match live console URLs.
 
-4. **Truth mapping.** UI chips expect `exact | derived | inferred`; the API emits
+5. **Truth mapping.** UI chips expect `exact | derived | inferred`; the API emits
    `fallback` where the prototype shows `inferred`. `chipTruth()` in `data.js`
-   (and the `TruthLevel` passthrough in `eshuConsoleLive.ts`) is the single place
-   that mapping lives.
+   is the prototype mapping; the live TypeScript loaders preserve `TruthLevel`
+   and section provenance.
 
 ---
 
