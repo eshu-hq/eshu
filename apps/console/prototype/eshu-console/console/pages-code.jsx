@@ -13,6 +13,13 @@ const DEADKIND = {
   file: { label: "file", color: "#c4b59a" }
 };
 
+function deadCodeSourceHash(d) {
+  if (!d || !d.repo || !d.file) return window.ESHU_ROUTES.hashFor("deadcode");
+  const params = new URLSearchParams({ path: d.file });
+  if (d.line) params.set("lineStart", String(d.line));
+  return window.ESHU_ROUTES.hashFor("reposource", "/" + encodeURIComponent(d.repo) + "/source?" + params.toString());
+}
+
 /* ================================================================ DEAD CODE */
 function DeadCode({ data, onOpenService }) {
   const D = data || ESHU;
@@ -31,7 +38,7 @@ function DeadCode({ data, onOpenService }) {
 
   return (
     <div className="page">
-      <div className="page-intro"><h2>Dead code</h2><p>Unreferenced symbols the analyzer found with <strong>zero inbound</strong> <span className="mono">CALLS</span> / <span className="mono">IMPORTS</span> edges — safe-to-delete candidates from <span className="mono">/api/v0/code/dead-code</span>. Each carries its confidence and the reason it reads as dead. Select a row to open the owning repo.</p></div>
+      <div className="page-intro"><h2>Dead code</h2><p>Unreferenced symbols the analyzer found with <strong>zero inbound</strong> <span className="mono">CALLS</span> / <span className="mono">IMPORTS</span> edges — safe-to-delete candidates from <span className="mono">/api/v0/code/dead-code</span>. Each carries its confidence and the reason it reads as dead. Select a location to open the source file.</p></div>
 
       <div className="grid g-4">
         <StatTile label="Dead symbols" value={all.length} color="var(--ember)" sub="0 references" />
@@ -46,7 +53,7 @@ function DeadCode({ data, onOpenService }) {
         <div className="seg">{["all", "exact", "derived", "inferred"].map((c) => <button key={c} className={conf === c ? "active" : ""} onClick={() => setConf(c)}>{c === "all" ? "Any" : c}</button>)}</div>
       </div>
 
-      <Panel className="flush mt" title={rows.length + " candidates"} sub="Grouped by repository · click to open the repo" glyph={<Icon.findings />}>
+      <Panel className="flush mt" title={rows.length + " candidates"} sub="Grouped by repository · locations open source" glyph={<Icon.findings />}>
         <table className="tbl">
           <thead><tr><th>Symbol</th><th>Kind</th><th>Location</th><th>Refs</th><th>LOC</th><th>Confidence</th><th>Why dead</th><th></th></tr></thead>
           <tbody>
@@ -61,7 +68,9 @@ function DeadCode({ data, onOpenService }) {
                       <tr key={d.id} className="cloud-row" onClick={() => svc && onOpenService(repo)} style={{ cursor: "pointer" }}>
                         <td className="cell-stack"><span className="mono" style={{ color: "var(--bone)", fontWeight: 600 }}>{d.symbol}</span></td>
                         <td><span className="dead-kind" style={{ "--dk": dk.color }}>{dk.label}</span></td>
-                        <td className="t-mut mono" style={{ fontSize: ".74rem" }}>{d.file}:{d.line}</td>
+                        <td className="t-mut mono" style={{ fontSize: ".74rem" }}>
+                          <a className="mono" href={deadCodeSourceHash(d)} title="Open source" onClick={(e) => e.stopPropagation()}>{d.file}:{d.line}</a>
+                        </td>
                         <td><span className="mono" style={{ color: "var(--crit)", fontWeight: 700 }}>0</span></td>
                         <td className="t-mut mono" style={{ fontSize: ".78rem" }}>{d.loc}</td>
                         <td><TruthChip level={d.confidence} /></td>

@@ -1,4 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
 import { DeadCodePage } from "./DeadCodePage";
 import { demoModel } from "../console/demoModel";
@@ -25,7 +27,7 @@ function envelope(results: readonly Record<string, unknown>[]) {
 
 describe("DeadCodePage", () => {
   it("renders the dedicated dead-code workbench from finding rows", () => {
-    render(<DeadCodePage model={demoModel} />);
+    renderDeadCode(<DeadCodePage model={demoModel} />);
 
     expect(screen.getByRole("heading", { name: "Dead code" })).toBeInTheDocument();
     expect(screen.getByLabelText("Dead-code workbench")).toBeInTheDocument();
@@ -53,7 +55,7 @@ describe("DeadCodePage", () => {
         }
       ]
     };
-    render(<DeadCodePage model={model} />);
+    renderDeadCode(<DeadCodePage model={model} />);
 
     fireEvent.click(screen.getByRole("button", { name: /unused/ }));
 
@@ -67,7 +69,7 @@ describe("DeadCodePage", () => {
       findings: demoModel.findings.filter((finding) => finding.type !== "Dead code")
     };
 
-    render(<DeadCodePage model={empty} />);
+    renderDeadCode(<DeadCodePage model={empty} />);
 
     expect(screen.getByText("No dead-code candidates from this source.")).toBeInTheDocument();
   });
@@ -92,11 +94,15 @@ describe("DeadCodePage", () => {
     }]));
     const client = { get, post } as unknown as EshuApiClient;
 
-    render(<DeadCodePage client={client} model={{ ...demoModel, findings: [] }} />);
+    renderDeadCode(<DeadCodePage client={client} model={{ ...demoModel, findings: [] }} />);
 
     await waitFor(() => expect(screen.getByText("Unreferenced symbol unusedRoute")).toBeInTheDocument());
     expect(screen.getByText("api-node-platform")).toBeInTheDocument();
     expect(screen.queryByText("repository:r1")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "server/routes.ts:10" })).toHaveAttribute(
+      "href",
+      "/repositories/repository%3Ar1/source?path=server%2Froutes.ts&lineStart=10"
+    );
     expect(post).toHaveBeenLastCalledWith("/api/v0/code/dead-code", { limit: 100 });
 
     fireEvent.change(screen.getByLabelText("Repository selector"), { target: { value: "repository:r1" } });
@@ -111,3 +117,7 @@ describe("DeadCodePage", () => {
     expect(screen.getByText(/100 candidate scan/)).toBeInTheDocument();
   });
 });
+
+function renderDeadCode(element: ReactElement): ReturnType<typeof render> {
+  return render(<MemoryRouter>{element}</MemoryRouter>);
+}

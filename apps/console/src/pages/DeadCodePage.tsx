@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
 import { loadDeadCodePage } from "../api/deadCode";
 import type { DeadCodePage as LiveDeadCodePage } from "../api/deadCode";
@@ -184,20 +185,25 @@ function DeadCodeGroup({ group }: { readonly group: DeadCodeGroupModel }): React
           <span className="group-meta">{group.rows.length} dead · {fmt(loc)} LOC</span>
         </td>
       </tr>
-      {group.rows.map((finding) => (
-        <tr key={finding.id} className="cloud-row">
-          <td className="cell-stack">
-            <span className="mono" style={{ color: "var(--bone)", fontWeight: 600 }}>{symbolFromFinding(finding)}</span>
-            <small>{finding.title}</small>
-          </td>
-          <td><Badge tone="neutral">{kindFromFinding(finding)}</Badge></td>
-          <td className="t-mut mono" style={{ fontSize: ".74rem" }}>{locationFromFinding(finding)}</td>
-          <td><span className="mono" style={{ color: "var(--crit)", fontWeight: 700 }}>0</span></td>
-          <td className="t-mut mono" style={{ fontSize: ".78rem" }}>{locFromFinding(finding) || "—"}</td>
-          <td><TruthChip level={uiTruth(finding.truth)} /></td>
-          <td className="t-mut" style={{ fontSize: ".78rem", maxWidth: 360 }}>{classificationFromFinding(finding) || "candidate"}</td>
-        </tr>
-      ))}
+      {group.rows.map((finding) => {
+        const href = sourceHref(finding);
+        return (
+          <tr key={finding.id} className="cloud-row">
+            <td className="cell-stack">
+              <span className="mono" style={{ color: "var(--bone)", fontWeight: 600 }}>{symbolFromFinding(finding)}</span>
+              <small>{finding.title}</small>
+            </td>
+            <td><Badge tone="neutral">{kindFromFinding(finding)}</Badge></td>
+            <td className="t-mut mono" style={{ fontSize: ".74rem" }}>
+              {href ? <Link className="mono" to={href}>{locationFromFinding(finding)}</Link> : locationFromFinding(finding)}
+            </td>
+            <td><span className="mono" style={{ color: "var(--crit)", fontWeight: 700 }}>0</span></td>
+            <td className="t-mut mono" style={{ fontSize: ".78rem" }}>{locFromFinding(finding) || "—"}</td>
+            <td><TruthChip level={uiTruth(finding.truth)} /></td>
+            <td className="t-mut" style={{ fontSize: ".78rem", maxWidth: 360 }}>{classificationFromFinding(finding) || "candidate"}</td>
+          </tr>
+        );
+      })}
     </>
   );
 }
@@ -249,6 +255,16 @@ function kindFromFinding(finding: FindingRow): string {
 function locationFromFinding(finding: FindingRow): string {
   const path = finding.filePath ?? finding.detail.split(" · ")[0] ?? "source path unavailable";
   return finding.startLine ? `${path}:${finding.startLine}` : path;
+}
+
+function sourceHref(finding: FindingRow): string | null {
+  const filePath = finding.filePath;
+  const repository = finding.repoId ?? finding.entity;
+  if (!filePath || !repository) return null;
+  const params = new URLSearchParams({ path: filePath });
+  if (finding.startLine !== undefined) params.set("lineStart", String(finding.startLine));
+  if (finding.endLine !== undefined) params.set("lineEnd", String(finding.endLine));
+  return `/repositories/${encodeURIComponent(repository)}/source?${params.toString()}`;
 }
 
 function locFromFinding(finding: FindingRow): number {

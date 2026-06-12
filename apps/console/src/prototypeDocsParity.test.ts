@@ -84,4 +84,12 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("Repository source unavailable");
     expect(page).toContain("indexed ref");
   });
+
+  it("keeps prototype dead-code locations wired to repository source deep links", () => {
+    const page = repoFile("apps/console/prototype/eshu-console/console/pages-code.jsx");
+
+    expect(page).toContain('hashFor("reposource"');
+    expect(page).toContain("lineStart");
+    expect(page).toContain("Open source");
+  });
 });
