@@ -282,5 +282,20 @@ func DefaultDomainDefinitions() []DomainDefinition {
 				},
 			},
 		},
+		{
+			Domain:  DomainDocumentationMaterialization,
+			Summary: "materialize canonical DOCUMENTS edges from exact documentation entity mentions to resolved code entities and workloads",
+			Ownership: OwnershipShape{
+				CrossSource:    true,
+				CrossScope:     true,
+				CanonicalWrite: true,
+			},
+			TruthContract: truth.Contract{
+				CanonicalKind: "documentation_materialization",
+				SourceLayers: []truth.Layer{
+					truth.LayerSourceDeclaration,
+				},
+			},
+		},
 	}
 }

@@ -37,6 +37,10 @@ const (
 	// override, and alias edges from parser entity bases and trait adaptation
 	// metadata.
 	DomainInheritanceMaterialization Domain = "inheritance_materialization"
+	// DomainDocumentationMaterialization materializes canonical DOCUMENTS edges
+	// from exact documentation entity mentions to the code entities or workloads
+	// they resolve to.
+	DomainDocumentationMaterialization Domain = "documentation_materialization"
 	// DomainConfigStateDrift correlates Terraform config (parsed HCL) against
 	// Terraform state to detect five drift kinds. Cross-source, cross-scope,
 	// non-canonical-write — counters and structured logs are the v1 surface.

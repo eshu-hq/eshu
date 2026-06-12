@@ -56,6 +56,10 @@ type DefaultHandlers struct {
 	// metadata.
 	InheritanceEdgeWriter SharedProjectionEdgeWriter
 
+	// DocumentationEdgeWriter writes canonical DOCUMENTS edges from reducer-owned
+	// exact documentation entity mentions.
+	DocumentationEdgeWriter SharedProjectionEdgeWriter
+
 	// Cross-repo relationship resolution adapters. All optional; nil disables
 	// cross-repo resolution during deployment_mapping reduction.
 	EvidenceFactLoader         EvidenceFactLoader

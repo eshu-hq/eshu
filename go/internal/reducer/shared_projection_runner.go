@@ -32,6 +32,7 @@ var sharedProjectionDomains = []string{
 	DomainPlatformInfra,
 	DomainWorkloadDependency,
 	DomainInheritanceEdges,
+	DomainDocumentationEdges,
 	DomainSQLRelationships,
 }
 

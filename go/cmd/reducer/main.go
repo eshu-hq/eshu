@@ -273,6 +273,7 @@ func buildReducerService(
 		SemanticEntityWriter:               semanticEntityWriter,
 		SQLRelationshipEdgeWriter:          edgeWriterForHandlers,
 		InheritanceEdgeWriter:              edgeWriterForHandlers,
+		DocumentationEdgeWriter:            edgeWriterForHandlers,
 		EvidenceFactLoader:                 relationshipStore,
 		AssertionLoader:                    relationshipStore,
 		ResolutionPersister:                relationshipStore,

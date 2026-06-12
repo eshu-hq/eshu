@@ -20,6 +20,7 @@ Common node types include:
 - **`Image`**
 - **`Endpoint`**
 - **`Environment`**
+- **`DocumentationSection`** (identity-only; section body stays in Postgres)
 
 ## Relationship patterns
 
@@ -30,6 +31,7 @@ Some edges describe direct technical structure:
 - `(:Class)-[:IMPLEMENTS]->(:Interface)`
 - `(:Function)-[:INSTANTIATES]->(:Class)`
 - `(:File)-[:CONTAINS]->(:Function)`
+- `(:DocumentationSection)-[:DOCUMENTS]->(:Function)`
 - `(:Repository)-[:DEFINES]->(:Workload)`
 - `(:Repository)-[:EXPOSES_ENDPOINT]->(:Endpoint)`
 - `(:Workload)-[:EXPOSES_ENDPOINT]->(:Endpoint)`

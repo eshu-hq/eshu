@@ -16,6 +16,7 @@ const (
 	DomainCodeCalls          = "code_calls"
 	DomainSQLRelationships   = "sql_relationships"
 	DomainInheritanceEdges   = "inheritance_edges"
+	DomainDocumentationEdges = "documentation_edges"
 )
 
 // SharedProjectionIntentRow is one durable shared-domain projection intent.
@@ -92,7 +93,7 @@ func sharedProjectionReadinessPhase(domain string) (GraphProjectionPhase, bool) 
 	switch domain {
 	case DomainCodeCalls:
 		return GraphProjectionPhaseCanonicalNodesCommitted, true
-	case DomainSQLRelationships, DomainInheritanceEdges:
+	case DomainSQLRelationships, DomainInheritanceEdges, DomainDocumentationEdges:
 		return GraphProjectionPhaseSemanticNodesCommitted, true
 	default:
 		return "", false
