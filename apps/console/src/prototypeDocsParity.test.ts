@@ -28,13 +28,25 @@ describe("prototype documentation parity", () => {
   });
 
   it("uses the same observability provider vocabulary as the live console", () => {
+    const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
+    const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-cloud.jsx");
+    const overlay = repoFile("apps/console/prototype/eshu-console/console/pages-observability-parity.jsx");
     const loader = repoFile("apps/console/prototype/eshu-console/console/live-parity-loader.js");
 
+    expect(html).toContain("console/pages-observability-parity.jsx");
+    expect(app).toContain("<Observability data={data} client={liveClient}");
     expect(page).toContain("grafana, prometheus/mimir, loki, and tempo");
     expect(page).toContain("obsCoverageSnapshot");
     expect(page).toContain("Coverage correlations");
     expect(page).toContain("Provider coverage");
+    expect(overlay).toContain("provider=grafana");
+    expect(overlay).toContain("provider=prometheus");
+    expect(overlay).toContain("provider=loki");
+    expect(overlay).toContain("provider=tempo");
+    expect(overlay).toContain("after_correlation_id");
+    expect(overlay).toContain("No live observability coverage correlations");
+    expect(overlay).toContain("Live observability coverage unavailable");
     expect(loader).toContain("obsCoverageSnapshot");
     expect(loader).toContain("providerResults");
     expect(page).not.toContain("Prometheus, CloudWatch, OpenTelemetry, Loki, Datadog");

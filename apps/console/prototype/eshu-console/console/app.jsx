@@ -221,7 +221,7 @@ function App() {
         {route === "vulnerabilities" ? <Vulnerabilities data={data} onOpenService={openService} onOpenNode={openNode} chartStyle={t.chartStyle} verifiedOnly={verifiedOnly} /> : null}
         {route === "topology" ? <Topology data={data} client={liveClient} onOpenNode={openNode} onOpenService={openService} /> : null}
         {route === "cloud" ? <Cloud data={data} client={liveClient} onOpenService={openService} onOpenNode={openNode} /> : null}
-        {route === "observability" ? <Observability data={data} onOpenService={openService} onOpenNode={openNode} onOpenCollector={openCollector} /> : null}
+        {route === "observability" ? <Observability data={data} client={liveClient} onOpenService={openService} onOpenNode={openNode} onOpenCollector={openCollector} /> : null}
         {route === "sbom" ? <SBOM data={data} onOpenService={openService} /> : null}
         {route === "dependencies" ? <Dependencies data={data} onOpenService={openService} /> : null}
         {route === "workspace" ? <Workspace data={data} client={liveClient} onOpenService={openService} onOpenNode={openNode} /> : null}
