@@ -142,10 +142,16 @@ describe("prototype documentation parity", () => {
 
   it("keeps prototype dead-code locations wired to repository source deep links", () => {
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-code.jsx");
+    const loader = repoFile("apps/console/prototype/eshu-console/console/data.js");
 
     expect(page).toContain('hashFor("reposource"');
     expect(page).toContain("lineStart");
     expect(page).toContain("Open source");
+    expect(loader).toContain("repoNameById");
+    expect(loader).toContain("repoId:");
+    expect(loader).toContain("repoName:");
+    expect(loader).toContain("entityId:");
+    expect(loader).toContain("endLine:");
   });
 
   it("keeps the prototype code graph on current live code contracts", () => {

@@ -522,9 +522,10 @@
       const env = await client.post("/api/v0/code/dead-code", { limit: 100 });
       const d = env.data || {};
       const lvl = chipTruth((env.truth && env.truth.level) || "derived");
+      const repoNameById = {}; (out.services || []).forEach((s) => { if (s.id && s.name) repoNameById[s.id] = s.name; if (s.repo && s.name) repoNameById[s.repo] = s.name; });
       const rows = (d.results || []).map((r, i) => ({
-        id: "dc-" + i, repo: r.repo_name || r.repo_id || "repository", symbol: r.name || "symbol",
-        file: r.file_path || r.relative_path || "", line: r.line || r.start_line || 0,
+        id: "dc-" + i, entityId: r.entity_id || "", repoId: r.repo_id || "", repoName: r.repo_name || repoNameById[r.repo_id] || "", repo: r.repo_name || repoNameById[r.repo_id] || r.repo_id || "repository", symbol: r.name || "symbol",
+        file: r.file_path || r.relative_path || "", line: r.line || r.start_line || 0, endLine: r.end_line || r.line || r.start_line || 0,
         kind: String(r.entity_kind || r.classification || "function").toLowerCase(),
         refs: r.reference_count || 0, confidence: lvl, age: "live", loc: r.loc || r.line_count || 0,
         reason: r.reason || r.classification || "No inbound CALLS / IMPORTS edges"
