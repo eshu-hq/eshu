@@ -119,10 +119,17 @@ describe("prototype documentation parity", () => {
 
   it("keeps prototype Operations connected-live mode on supported metric contracts", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
+    const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-operations-parity.jsx");
     const guide = repoFile("apps/console/prototype/eshu-console/port/PORT-TO-CONSOLE.md");
 
     expect(html).toContain("console/pages-operations-parity.jsx");
+    expect(app).toContain("writeTps: []");
+    expect(app).toContain("cacheHit: []");
+    expect(app).toContain("newVulns: []");
+    expect(app).not.toContain("Array.isArray(source.writeTps)");
+    expect(app).not.toContain("Array.isArray(source.cacheHit)");
+    expect(app).not.toContain("Array.isArray(source.newVulns)");
     expect(page).toContain("window.Admin = Admin");
     expect(page).toContain("GET /api/v0/metrics/timeseries");
     expect(page).toContain("queueDepth");

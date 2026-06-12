@@ -90,12 +90,12 @@ function liveMetrics(metrics) {
     deadLetters: Array.isArray(source.deadLetters) ? source.deadLetters : [],
     graphNodes: Array.isArray(source.graphNodes) ? source.graphNodes : [],
     graphEdges: Array.isArray(source.graphEdges) ? source.graphEdges : [],
-    writeTps: Array.isArray(source.writeTps) ? source.writeTps : [],
+    writeTps: [],
     queryP50: Array.isArray(source.queryP50) ? source.queryP50 : [],
     queryP95: Array.isArray(source.queryP95) ? source.queryP95 : [],
     queryP99: Array.isArray(source.queryP99) ? source.queryP99 : [],
-    cacheHit: Array.isArray(source.cacheHit) ? source.cacheHit : [],
-    newVulns: Array.isArray(source.newVulns) ? source.newVulns : []
+    cacheHit: [],
+    newVulns: []
   };
 }
 
