@@ -110,7 +110,8 @@ is added, update both:
   `dead_letters`, `graph_nodes`, `graph_edges`, `query_p50`, `query_p95`, and
   `query_p99` series. Prototype sparklines without a live metric name, such as
   write-throughput, cache-hit, and vulnerability-feed intake decoration, stay
-  demo-only until issue #2216 defines named live contracts.
+  demo-mode only; connected live Operations renders explicit contract-pending states
+  until issue #2216 defines named live contracts.
 - **Vuln CVSS/EPSS/KEV detail** depends on the vulnerability-intelligence collector
   being enabled and scheduled with bounded source targets. Keep the UI empty/limited
   instead of fabricating rows until issue #2217 proves the live runtime collector path

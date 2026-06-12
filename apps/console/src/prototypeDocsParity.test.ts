@@ -117,6 +117,26 @@ describe("prototype documentation parity", () => {
     expect(prototypeApp).not.toContain("sections without a live endpoint show demo facts");
   });
 
+  it("keeps prototype Operations connected-live mode on supported metric contracts", () => {
+    const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
+    const page = repoFile("apps/console/prototype/eshu-console/console/pages-operations-parity.jsx");
+    const guide = repoFile("apps/console/prototype/eshu-console/port/PORT-TO-CONSOLE.md");
+
+    expect(html).toContain("console/pages-operations-parity.jsx");
+    expect(page).toContain("window.Admin = Admin");
+    expect(page).toContain("GET /api/v0/metrics/timeseries");
+    expect(page).toContain("queueDepth");
+    expect(page).toContain("deadLetters");
+    expect(page).toContain("graphNodes");
+    expect(page).toContain("graphEdges");
+    expect(page).toContain("queryP99");
+    expect(page).toContain("Metric contract pending");
+    expect(page).toContain("issue #2216");
+    expect(page).not.toContain("writeTps.at(-1)");
+    expect(page).not.toContain("cacheHit.at(-1)");
+    expect(guide).toContain("connected live Operations renders explicit contract-pending states");
+  });
+
   it("keeps the prototype service drawer provenance copy conditional on source mode", () => {
     const prototypeApp = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
     const corePages = repoFile("apps/console/prototype/eshu-console/console/pages-core.jsx");
