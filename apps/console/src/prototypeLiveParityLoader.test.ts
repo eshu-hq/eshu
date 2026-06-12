@@ -287,4 +287,41 @@ describe("prototype live parity loader", () => {
     });
     expect(model.prov.deadCode).toBe("live");
   });
+
+  it("marks prototype live sections unavailable when APIs return error envelopes", async () => {
+    const win = loadPrototypeWindow();
+    const client: PrototypeClient = {
+      paths: [],
+      async get(path: string): Promise<unknown> {
+        this.paths.push(path);
+        if (path.includes("/cloud/inventory")) {
+          return {
+            data: {
+              resources: [{
+                cloud_resource_uid: "aws:123:instance:i-1",
+                provider: "aws",
+                resource_type: "ec2_instance",
+                scope_id: "cloud-scope:aws:123"
+              }]
+            },
+            error: { message: "cloud inventory query failed" }
+          };
+        }
+        if (path.includes("/observability/coverage/correlations")) return { data: { correlations: [] } };
+        if (path.includes("/metrics/timeseries")) return { data: { points: [] } };
+        if (path.includes("/repositories?limit=500&offset=0")) return { data: { repositories: [] } };
+        if (path.includes("/supply-chain/sbom-attestations/attachments/count")) return { data: { total_attachments: 0 } };
+        return { data: { advisories: [], buckets: [], dependencies: [], images: [], languages: [], resources: [] } };
+      },
+      async post(path: string): Promise<unknown> {
+        this.paths.push(path);
+        return { data: { results: [] } };
+      }
+    };
+
+    const model = await win.ESHU.loadLive(client);
+
+    expect(model.cloudInventory).toBeUndefined();
+    expect(model.prov.cloudInventory).toBe("error:cloud inventory query failed");
+  });
 });

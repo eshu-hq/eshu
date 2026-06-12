@@ -21,6 +21,17 @@
   function truthLevel(env) {
     return env && env.truth && env.truth.level ? env.truth.level : "exact";
   }
+  function envelopeErrorMessage(error) {
+    if (!error) return "";
+    if (typeof error === "string") return error;
+    if (typeof error !== "object") return "api error";
+    return str(error.message) || str(error.code) || "api error";
+  }
+  function apiData(env) {
+    const message = envelopeErrorMessage(env && env.error);
+    if (message) throw new Error(message);
+    return env && env.data ? env.data : {};
+  }
   async function section(out, key, fn) {
     try {
       const value = await fn();
@@ -240,7 +251,7 @@
     return (existing || []).concat(canonical.filter((row) => row.uid && !seen[row.uid]));
   }
   function mapMetricPoints(env) {
-    const points = (env.data && env.data.points) || [];
+    const points = apiData(env).points || [];
     return points.map((point) => num(point.v)).filter((value) => Number.isFinite(value));
   }
 
@@ -310,7 +321,8 @@
     for (const provider of OBSERVABILITY_PROVIDERS) {
       try {
         const env = await client.get("/api/v0/observability/coverage/correlations?provider=" + provider + "&limit=200");
-        const recs = (env.data && (env.data.correlations || env.data.results)) || [];
+        const data = apiData(env);
+        const recs = (data.correlations || data.results) || [];
         recs.forEach((row) => {
           const ref = str(row.target_service_ref) || str(row.target_uid);
           const sig = coverageSignal(row);
@@ -366,13 +378,13 @@
 
     await section(out, "langInventory", async () => {
       const env = await client.get("/api/v0/repositories/language-inventory?limit=100&offset=0");
-      const rows = ((env.data && env.data.languages) || []).map(mapLanguage).filter((row) => row.label);
+      const rows = (apiData(env).languages || []).map(mapLanguage).filter((row) => row.label);
       return rows.length ? { langInventory: rows } : null;
     });
 
     await section(out, "cloudInventory", async () => {
       const env = await client.get("/api/v0/cloud/inventory?limit=50");
-      const data = env.data || {};
+      const data = apiData(env);
       const rows = ((data.resources) || []).map(mapCloudInventoryRow).filter((row) => row.uid);
       if (!rows.length) return null;
       const resources = rows.map((row) => cloudInventoryResource(row, env));
@@ -394,44 +406,46 @@
 
     await section(out, "imageInventory", async () => {
       const env = await client.get("/api/v0/images?limit=50&offset=0");
-      const rows = ((env.data && env.data.images) || []).map((row) => mapImage(row, env)).filter((row) => row.id);
+      const rows = (apiData(env).images || []).map((row) => mapImage(row, env)).filter((row) => row.id);
       return rows.length ? { imageInventory: rows } : null;
     });
 
     await section(out, "iacParityRows", async () => {
       const env = await client.get("/api/v0/iac/resources?limit=200");
-      const rows = ((env.data && env.data.resources) || []).map((row) => mapIac(row, env)).filter((row) => row.id);
+      const rows = (apiData(env).resources || []).map((row) => mapIac(row, env)).filter((row) => row.id);
       return rows.length ? { iacParityRows: rows } : null;
     });
 
     await section(out, "sbomInventory", async () => {
       const countEnv = await client.get("/api/v0/supply-chain/sbom-attestations/attachments/count");
       const invEnv = await client.get("/api/v0/supply-chain/sbom-attestations/attachments/inventory?group_by=subject_digest&limit=50&offset=0");
-      const buckets = ((invEnv.data && invEnv.data.buckets) || []).map(mapSbomBucket).filter((row) => row.id);
+      const countData = apiData(countEnv);
+      const invData = apiData(invEnv);
+      const buckets = (invData.buckets || []).map(mapSbomBucket).filter((row) => row.id);
       return {
         sbomSummary: {
-          total: num(countEnv.data && countEnv.data.total_attachments),
-          byStatus: (countEnv.data && countEnv.data.by_attachment_status) || {},
-          byArtifactKind: (countEnv.data && countEnv.data.by_artifact_kind) || {},
+          total: num(countData.total_attachments),
+          byStatus: countData.by_attachment_status || {},
+          byArtifactKind: countData.by_artifact_kind || {},
           truth: truthLevel(countEnv)
         },
         sbomInventory: {
-          groupBy: str(invEnv.data && invEnv.data.group_by) || "subject_digest",
+          groupBy: str(invData.group_by) || "subject_digest",
           buckets,
-          truncated: Boolean(invEnv.data && invEnv.data.truncated)
+          truncated: Boolean(invData.truncated)
         }
       };
     });
 
     await section(out, "advisoryCatalog", async () => {
       const env = await client.get("/api/v0/supply-chain/advisories?limit=50");
-      const rows = ((env.data && env.data.advisories) || []).map(mapAdvisory).filter((row) => row.id);
+      const rows = (apiData(env).advisories || []).map(mapAdvisory).filter((row) => row.id);
       return rows.length ? { advisoryCatalog: rows } : null;
     });
 
     await section(out, "dependencyInventory", async () => {
       const env = await client.get("/api/v0/dependencies?direction=forward&limit=50");
-      const rows = ((env.data && env.data.dependencies) || []).map(mapDependency).filter((row) => row.id);
+      const rows = (apiData(env).dependencies || []).map(mapDependency).filter((row) => row.id);
       return rows.length ? { dependencyInventory: rows } : null;
     });
 
