@@ -202,7 +202,9 @@ export interface DeploymentArtifactRecord {
   readonly path?: string;
   readonly relationship_type?: string;
   readonly resolved_id?: string;
+  readonly source_repo_id?: string;
   readonly source_repo_name?: string;
+  readonly target_repo_id?: string;
   readonly target_repo_name?: string;
 }
 

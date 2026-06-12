@@ -275,16 +275,23 @@ describe("prototype documentation parity", () => {
   });
 
   it("keeps the prototype topology route on current live service topology contracts", () => {
+    const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
+    const chain = repoFile("apps/console/prototype/eshu-console/console/deployment-chain-parity.js");
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-live-parity.jsx");
     const guide = repoFile("apps/console/prototype/eshu-console/port/PORT-TO-CONSOLE.md");
 
+    expect(html).toContain("console/deployment-chain-parity.js");
     expect(app).toContain("<Topology data={data} client={liveClient}");
     expect(app).toContain("data.servicesById = {}");
     expect(page).toContain("/api/v0/services/");
     expect(page).toContain("/story");
     expect(page).toContain("/context");
     expect(page).toContain("traffic evidence unavailable");
+    expect(page).toContain("liveDeploymentChainGraph");
+    expect(chain).toContain("DEPLOYS_HELM");
+    expect(chain).toContain("PACKAGES");
+    expect(chain).toContain("deployment_evidence.artifacts");
     expect(guide).toContain("GET /api/v0/services/{name}/story");
     expect(guide).toContain("GET /api/v0/services/{name}/context");
   });

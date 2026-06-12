@@ -59,6 +59,74 @@ describe("buildServiceTopology", () => {
     expect(graph.edges.every((edge) => edge.provenance === "live" || edge.provenance === "unavailable")).toBe(true);
   });
 
+  it("renders deployment artifact chains instead of generic delivery placeholders", () => {
+    const graph = buildServiceTopology({
+      deploymentArtifacts: [
+        {
+          artifact_family: "kustomize",
+          relationship_type: "DEPLOYS_FROM",
+          source_repo_id: "repository:iac",
+          source_repo_name: "iac-eks-argocd",
+          target_repo_id: "repository:service",
+          target_repo_name: "api-node-boats"
+        },
+        {
+          artifact_family: "helm",
+          path: "charts/api-node-boats/Chart.yaml",
+          relationship_type: "DEPLOYS_FROM",
+          source_repo_id: "repository:helm",
+          source_repo_name: "helm-charts",
+          target_repo_id: "repository:service",
+          target_repo_name: "api-node-boats"
+        }
+      ],
+      service,
+      trafficPaths: [trafficPath()]
+    });
+
+    expect(graph.nodes.map((node) => node.label)).toEqual(expect.arrayContaining([
+      "iac-eks-argocd",
+      "helm-charts",
+      "api-node-boats"
+    ]));
+    expect(graph.nodes.map((node) => node.label)).not.toContain("Delivery evidence");
+    expect(graph.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ s: "repository:iac", t: "repository:helm", verb: "DEPLOYS_HELM", layer: "deploy" }),
+      expect.objectContaining({ s: "repository:helm", t: "repository:service", verb: "PACKAGES", layer: "deploy" }),
+      expect.objectContaining({ s: "repository:service", t: "workload", verb: "DEPLOYS_FROM", layer: "deploy" })
+    ]));
+    expect(graph.edges.some((edge) => edge.verb === "BUILDS" || edge.verb === "DEPLOYS")).toBe(false);
+  });
+
+  it("marks topology live when deployment artifacts exist without traffic evidence", () => {
+    const graph = buildServiceTopology({
+      deploymentArtifacts: [{
+        artifact_family: "helm",
+        path: "charts/api-node-boats/Chart.yaml",
+        relationship_type: "DEPLOYS_FROM",
+        source_repo_id: "repository:helm",
+        source_repo_name: "helm-charts",
+        target_repo_id: "repository:service",
+        target_repo_name: "api-node-boats"
+      }],
+      service,
+      trafficPaths: []
+    });
+
+    expect(graph.meta.provenance).toBe("live");
+    expect(graph.nodes.map((node) => node.label)).toEqual(expect.arrayContaining([
+      "Entry evidence pending",
+      "helm-charts",
+      "api-node-boats"
+    ]));
+    expect(graph.edges).toContainEqual(expect.objectContaining({
+      s: "repository:service",
+      t: "workload",
+      verb: "DEPLOYS_FROM",
+      provenance: "live"
+    }));
+  });
+
   it("fits long labels into bounded nodes", () => {
     const graph = buildServiceTopology({
       service: {

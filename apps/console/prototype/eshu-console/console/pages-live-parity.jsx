@@ -223,6 +223,7 @@ function liveTopologyGraph(service, story, context) {
   const repoName = topologyNonEmpty(path && path.sourceRepo, merged.repo_name, service.repo, "source repo pending");
   const serviceName = topologyNonEmpty(path && path.workload, merged.name, service.name);
   const runtime = topologyNonEmpty(path && path.runtime, firstTopologyLaneValue(lanes, "environments"), (service.envs || [])[0], "runtime pending");
+  const deployChain = window.liveDeploymentChainGraph && window.liveDeploymentChainGraph((merged.deployment_evidence || {}).artifacts, repoName, serviceName);
   const nodes = [];
   const edges = [];
   function add(node) { nodes.push(node); }
@@ -236,14 +237,19 @@ function liveTopologyGraph(service, story, context) {
   } else {
     add({ id: "entry-pending", kind: "workitem", label: "Entry evidence pending", sub: "traffic evidence unavailable", col: 0 });
   }
-  add({ id: "repo", kind: "repo", label: repoName, sub: "source repository", col: 1 });
-  add({ id: "delivery", kind: "service", label: "Delivery evidence", sub: lanes.length ? lanes.map((l) => l.label).slice(0, 2).join(" + ") : "deployment lane pending", col: 2 });
   add({ id: "runtime", kind: "workload", label: runtime, sub: topologyNonEmpty(path && path.environment, runtime), col: 3 });
   add({ id: "workload", kind: "workload", label: serviceName, sub: service.kind + " · " + service.truth, col: 4, hero: true });
   edge(path ? "origin" : "entry-pending", "runtime", "RUNS_ON", "runtime");
   edge("runtime", "workload", "HOSTS", "runtime");
-  edge("repo", "delivery", "BUILDS", "deploy");
-  edge("delivery", "workload", "DEPLOYS", "deploy");
+  if (deployChain) {
+    deployChain.nodes.forEach(add);
+    deployChain.edges.forEach((item) => edge(item.s, item.t, item.verb, item.layer));
+  } else {
+    add({ id: "repo", kind: "repo", label: repoName, sub: "source repository", col: 1 });
+    add({ id: "delivery", kind: "service", label: "Delivery evidence", sub: lanes.length ? lanes.map((l) => l.label).slice(0, 2).join(" + ") : "deployment lane pending", col: 2 });
+    edge("repo", "delivery", "BUILDS", "deploy");
+    edge("delivery", "workload", "DEPLOYS", "deploy");
+  }
   return {
     graph: { nodes, edges },
     meta: {

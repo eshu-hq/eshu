@@ -6,6 +6,7 @@ import {
   type ServiceStoryDossierResponse
 } from "./serviceStoryDossier";
 import {
+  type DeploymentArtifactRecord,
   serviceSpotlightFromContext,
   type ServiceContextResponse,
   type ServiceDependency,
@@ -58,6 +59,7 @@ export interface ServiceTopology {
 }
 
 export interface ServiceTopologyInput {
+  readonly deploymentArtifacts?: readonly DeploymentArtifactRecord[];
   readonly service: ServiceRow;
   readonly dependencies?: readonly ServiceDependency[];
   readonly lanes?: readonly ServiceDeploymentLane[];
@@ -96,11 +98,10 @@ export async function loadServiceTopology(
     return buildServiceTopology({ service, trafficPaths: [] });
   }
 
-  const spotlight = serviceSpotlightFromContext(
-    mergeServiceContexts(storyContext, context),
-    service.name
-  );
+  const mergedContext = mergeServiceContexts(storyContext, context);
+  const spotlight = serviceSpotlightFromContext(mergedContext, service.name);
   return buildServiceTopology({
+    deploymentArtifacts: mergedContext.deployment_evidence?.artifacts ?? [],
     dependencies: spotlight.dependencies,
     lanes: spotlight.lanes,
     repoName: spotlight.repoName,
@@ -197,29 +198,32 @@ export function buildServiceTopology(input: ServiceTopologyInput): ServiceTopolo
     x: 1178,
     y: 236
   });
-  add({
-    id: "repo",
-    kind: "repo",
-    label: repoName,
-    provenance: repoName === "source repo pending" ? "unavailable" : "live",
-    sub: "source repository",
-    x: 398,
-    y: 392
-  });
-  add({
-    id: "delivery",
-    kind: "service",
-    label: "Delivery evidence",
-    provenance: input.lanes?.length ? "live" : "unavailable",
-    sub: deliverySub(input.lanes),
-    x: 724,
-    y: 392
-  });
 
   edge(path === undefined ? "entry-pending" : "origin", "runtime", "RUNS_ON", "runtime", entryProvenance);
   edge("runtime", "workload", "HOSTS", "runtime", entryProvenance);
-  edge("repo", "delivery", "BUILDS", "deploy", repoName === "source repo pending" ? "unavailable" : "live");
-  edge("delivery", "workload", "DEPLOYS", "deploy", input.lanes?.length ? "live" : "unavailable");
+  const hasDeploymentChain = addDeploymentChain(input.deploymentArtifacts ?? [], repoName, serviceName, add, edge);
+  if (!hasDeploymentChain) {
+    add({
+      id: "repo",
+      kind: "repo",
+      label: repoName,
+      provenance: repoName === "source repo pending" ? "unavailable" : "live",
+      sub: "source repository",
+      x: 398,
+      y: 392
+    });
+    add({
+      id: "delivery",
+      kind: "service",
+      label: "Delivery evidence",
+      provenance: input.lanes?.length ? "live" : "unavailable",
+      sub: deliverySub(input.lanes),
+      x: 724,
+      y: 392
+    });
+    edge("repo", "delivery", "BUILDS", "deploy", repoName === "source repo pending" ? "unavailable" : "live");
+    edge("delivery", "workload", "DEPLOYS", "deploy", input.lanes?.length ? "live" : "unavailable");
+  }
 
   return {
     edges,
@@ -227,11 +231,98 @@ export function buildServiceTopology(input: ServiceTopologyInput): ServiceTopolo
       dependencyCount: input.dependencies?.length ?? 0,
       environment,
       exposure: path?.visibility ?? "traffic evidence unavailable",
-      provenance: entryProvenance,
+      provenance: path === undefined && !hasDeploymentChain ? "unavailable" : "live",
       serviceName
     },
     nodes
   };
+}
+
+interface DeploymentRepoRef {
+  readonly id: string;
+  readonly name: string;
+}
+
+function addDeploymentChain(
+  artifacts: readonly DeploymentArtifactRecord[],
+  repoName: string,
+  serviceName: string,
+  add: (node: Omit<TopologyNode, "h" | "w"> & Partial<Pick<TopologyNode, "h" | "w">>) => TopologyNode,
+  edge: (
+    s: string,
+    t: string,
+    verb: string,
+    layer: TopologyEdge["layer"],
+    provenance: TopologyProvenance
+  ) => void
+): boolean {
+  const deployArtifacts = artifacts.filter((artifact) =>
+    nonEmpty(artifact.relationship_type).toUpperCase() === "DEPLOYS_FROM"
+  );
+  if (deployArtifacts.length === 0) return false;
+
+  const sourceRepo = deployArtifacts
+    .map((artifact) => repoFromDeploymentArtifact(artifact, "target"))
+    .find((repo) => repo?.name === repoName || repo?.name === serviceName) ??
+    { id: `repository:${repoName}`, name: repoName };
+  const charts = uniqueRepos(deployArtifacts
+    .filter(isHelmDeploymentArtifact)
+    .map((artifact) => repoFromDeploymentArtifact(artifact, "source"))
+    .filter((repo): repo is DeploymentRepoRef => repo !== undefined && repo.id !== sourceRepo.id));
+  const chartIds = new Set(charts.map((repo) => repo.id));
+  const controllers = uniqueRepos(deployArtifacts
+    .filter(isDeploymentControllerArtifact)
+    .map((artifact) => repoFromDeploymentArtifact(artifact, "source"))
+    .filter((repo): repo is DeploymentRepoRef =>
+      repo !== undefined && repo.id !== sourceRepo.id && !chartIds.has(repo.id)
+    ));
+
+  add({ id: sourceRepo.id, kind: "repo", label: sourceRepo.name, provenance: "live", sub: "source repository", x: 724, y: 392 });
+  charts.forEach((repo, index) => {
+    add({ id: repo.id, kind: "repo", label: repo.name, provenance: "live", sub: "Helm chart", x: 398, y: 392 + index * 72 });
+    edge(repo.id, sourceRepo.id, "PACKAGES", "deploy", "live");
+  });
+  controllers.forEach((repo, index) => {
+    add({ id: repo.id, kind: "repo", label: repo.name, provenance: "live", sub: "Deployment controller", x: 126, y: 392 + index * 72 });
+    if (charts.length === 0) {
+      edge(repo.id, sourceRepo.id, "DEPLOYS_FROM", "deploy", "live");
+      return;
+    }
+    charts.forEach((chart) => edge(repo.id, chart.id, "DEPLOYS_HELM", "deploy", "live"));
+  });
+  edge(sourceRepo.id, "workload", "DEPLOYS_FROM", "deploy", "live");
+  return true;
+}
+
+function repoFromDeploymentArtifact(
+  artifact: DeploymentArtifactRecord,
+  side: "source" | "target"
+): DeploymentRepoRef | undefined {
+  const id = nonEmpty(side === "source" ? artifact.source_repo_id : artifact.target_repo_id);
+  const name = nonEmpty(side === "source" ? artifact.source_repo_name : artifact.target_repo_name);
+  if (id.length === 0 && name.length === 0) return undefined;
+  return { id: id || `repository:${name}`, name: name || id };
+}
+
+function uniqueRepos(repos: readonly DeploymentRepoRef[]): readonly DeploymentRepoRef[] {
+  const seen = new Set<string>();
+  return repos.filter((repo) => {
+    if (seen.has(repo.id)) return false;
+    seen.add(repo.id);
+    return true;
+  });
+}
+
+function isHelmDeploymentArtifact(artifact: DeploymentArtifactRecord): boolean {
+  const family = nonEmpty(artifact.artifact_family).toLowerCase();
+  const path = nonEmpty(artifact.path).toLowerCase();
+  const sourceRepo = nonEmpty(artifact.source_repo_name).toLowerCase();
+  return family === "helm" && (path.endsWith("/chart.yaml") || sourceRepo.includes("helm") || sourceRepo.includes("chart"));
+}
+
+function isDeploymentControllerArtifact(artifact: DeploymentArtifactRecord): boolean {
+  const family = nonEmpty(artifact.artifact_family).toLowerCase();
+  return family === "argocd" || family === "kustomize";
 }
 
 function mergeServiceContexts(
