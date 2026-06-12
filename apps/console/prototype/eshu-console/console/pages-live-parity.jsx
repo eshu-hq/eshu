@@ -268,7 +268,7 @@ function Images({ data, onOpenService }) {
 
   return (
     <div className="page">
-      <div className="page-intro"><h2>Images</h2><p>Container images associated with indexed services, joined to package and vulnerability evidence.</p></div>
+      <div className="page-intro"><h2>Images</h2><p>Container images from <span className="mono">GET /api/v0/images</span>, joined to service and vulnerability evidence.</p></div>
       <div className="grid g-4">
         <StatTile label="Images" value={images.length} color="var(--blue)" sub="service image refs" />
         <StatTile label="Vulnerable" value={vulnerable} color="var(--crit)" sub="images with advisories" />
@@ -287,7 +287,7 @@ function Images({ data, onOpenService }) {
               <td><TruthChip level={row.truth} /></td>
               <td style={{ color: "var(--subtle)" }}><Icon.arrow size={15} /></td>
             </tr>
-          ))}</tbody>
+          ))}{images.length === 0 ? <tr><td colSpan={6} className="empty">No container images from this source.</td></tr> : null}</tbody>
         </table>
       </Panel>
     </div>
@@ -304,7 +304,7 @@ function IaC({ data, onOpenService }) {
 
   return (
     <div className="page">
-      <div className="page-intro"><h2>IaC</h2><p>Terraform state and ArgoCD application evidence connected back to cloud resources and services.</p></div>
+      <div className="page-intro"><h2>IaC</h2><p>Terraform state and ArgoCD application evidence from <span className="mono">GET /api/v0/iac/resources</span>.</p></div>
       <div className="grid g-4">
         <StatTile label="IaC objects" value={rows.length} color="#8b5cf6" sub="Terraform + ArgoCD" />
         <StatTile label="Terraform resources" value={terraform} color="var(--teal)" sub="declared cloud resources" />
@@ -329,7 +329,7 @@ function IaC({ data, onOpenService }) {
                 <td><TruthChip level={r.truth} /></td>
               </tr>
             );
-          })}</tbody>
+          })}{filtered.length === 0 ? <tr><td colSpan={6} className="empty">No Terraform/IaC resources have been indexed yet.</td></tr> : null}</tbody>
         </table>
       </Panel>
     </div>
@@ -347,7 +347,7 @@ function SBOM({ data, onOpenService }) {
 
   return (
     <div className="page">
-      <div className="page-intro"><h2>SBOM</h2><p>Package and advisory evidence correlated to deployed service images and source manifests.</p></div>
+      <div className="page-intro"><h2>SBOM</h2><p>Package and advisory evidence from <span className="mono">GET /api/v0/supply-chain/sbom-attestations/attachments</span>.</p></div>
       <div className="grid g-4">
         <StatTile label={liveBuckets ? "Subjects" : "Packages"} value={packages} color="var(--teal)" sub={liveBuckets ? "grouped SBOM buckets" : "affected package names"} />
         <StatTile label="SBOM attachments" value={total} color="var(--crit)" sub="attestation evidence" />
@@ -366,7 +366,7 @@ function SBOM({ data, onOpenService }) {
               <td className="mono" style={{ fontSize: ".76rem" }}>{r.fix || (r.count ? fmt(r.count) + " attachment(s)" : "—")}</td>
               <td>{r.source}</td>
             </tr>
-          ))}</tbody>
+          ))}{rows.length === 0 ? <tr><td colSpan={6} className="empty">No SBOM/attestation subjects from this source.</td></tr> : null}</tbody>
         </table>
       </Panel>
     </div>
@@ -382,7 +382,7 @@ function Dependencies({ data, onOpenService }) {
 
   return (
     <div className="page">
-      <div className="page-intro"><h2>Dependencies</h2><p>Service, library and datastore dependencies inferred from package imports, catalog metadata and cloud resource joins.</p></div>
+      <div className="page-intro"><h2>Dependencies</h2><p>Service, library and datastore dependencies from <span className="mono">GET /api/v0/dependencies</span>.</p></div>
       <div className="grid g-4">
         <StatTile label="Edges" value={rows.length} color="var(--teal)" sub="code + infra" />
         <StatTile label="Code deps" value={rows.filter((r) => r.layer === "code").length} color="var(--blue)" sub="package imports" />
@@ -401,7 +401,7 @@ function Dependencies({ data, onOpenService }) {
               <td className="mono" style={{ fontSize: ".76rem" }}>{r.layer}</td>
               <td>{r.system || (r.target && r.target.system)}</td>
             </tr>
-          ))}</tbody>
+          ))}{filtered.length === 0 ? <tr><td colSpan={5} className="empty">No dependency edges from this source.</td></tr> : null}</tbody>
         </table>
       </Panel>
     </div>

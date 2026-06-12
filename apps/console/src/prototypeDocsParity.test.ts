@@ -325,6 +325,19 @@ describe("prototype documentation parity", () => {
     }
   });
 
+  it("keeps prototype live inventory pages honest when live rows are empty", () => {
+    const page = repoFile("apps/console/prototype/eshu-console/console/pages-live-parity.jsx");
+
+    expect(page).toContain("GET /api/v0/images");
+    expect(page).toContain("GET /api/v0/iac/resources");
+    expect(page).toContain("GET /api/v0/dependencies");
+    expect(page).toContain("GET /api/v0/supply-chain/sbom-attestations/attachments");
+    expect(page).toContain("No container images from this source.");
+    expect(page).toContain("No Terraform/IaC resources have been indexed yet.");
+    expect(page).toContain("No SBOM/attestation subjects from this source.");
+    expect(page).toContain("No dependency edges from this source.");
+  });
+
   it("keeps prototype dead-code locations wired to repository source deep links", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-code.jsx");
