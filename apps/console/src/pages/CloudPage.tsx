@@ -18,6 +18,7 @@ import type { GraphEdge, GraphModel, GraphNode } from "../console/types";
 import { Panel, TruthChip, FreshDot, StatTile, Badge } from "../components/atoms";
 import { GraphCanvas } from "../components/GraphCanvas";
 import { uiTruth, uiFresh } from "../console/types";
+import { CloudInventoryPanel } from "./CloudInventoryPanel";
 
 const PAGE_LIMIT = 50;
 
@@ -163,6 +164,8 @@ export function CloudPage({ client }: { readonly client?: EshuApiClient }): Reac
           </div>
         </Panel>
       </div>
+
+      <CloudInventoryPanel accountId={applied.accountId} client={client} provider={applied.provider} />
 
       <div className="row mt" style={{ justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <div className="seg" role="group" aria-label="Cloud view">
