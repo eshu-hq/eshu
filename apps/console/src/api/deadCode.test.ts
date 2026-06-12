@@ -87,4 +87,20 @@ describe("deadCode", () => {
       type: "Dead code"
     });
   });
+
+  it("rejects Eshu error envelopes instead of returning an empty page", async () => {
+    const post = vi.fn(async () => ({
+      data: null,
+      error: {
+        code: "unsupported_capability",
+        message: "dead-code analysis unavailable"
+      },
+      truth: null
+    }));
+    const client = { post } as unknown as EshuApiClient;
+
+    await expect(loadDeadCodePage(client, { limit: 100 })).rejects.toThrow(
+      "unsupported_capability: dead-code analysis unavailable"
+    );
+  });
 });

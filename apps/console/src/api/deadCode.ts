@@ -1,5 +1,5 @@
 import type { EshuApiClient } from "./client";
-import type { TruthLevel } from "./envelope";
+import { EshuEnvelopeError, type TruthLevel } from "./envelope";
 import type { FindingRow } from "./eshuConsoleLive";
 
 export interface DeadCodeQuery {
@@ -48,6 +48,7 @@ export async function loadDeadCodePage(
   repoNames?: ReadonlyMap<string, string>
 ): Promise<DeadCodePage> {
   const env = await client.post<DeadCodeResponse>("/api/v0/code/dead-code", deadCodePostBody(query));
+  if (env.error) throw new EshuEnvelopeError(env.error);
   const payload = env.data ?? {};
   const truthLevel = env.truth?.level ?? "derived";
   return {

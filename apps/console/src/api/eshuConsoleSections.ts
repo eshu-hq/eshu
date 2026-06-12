@@ -8,7 +8,7 @@
 
 import type { EshuApiClient } from "./client";
 import { deadCodeRowsFromResponse, type DeadCodeResponse } from "./deadCode";
-import type { EshuTruth, FreshnessState } from "./envelope";
+import { EshuEnvelopeError, type EshuTruth, type FreshnessState } from "./envelope";
 import { loadDependencies } from "./eshuDependencies";
 import { fetchAdvisoryCatalogPage } from "./eshuConsoleAdvisories";
 import { iacResourceRowsFromResponse } from "./iacResources";
@@ -228,6 +228,7 @@ export async function loadIngesters(client: EshuApiClient): Promise<readonly Ing
 // code-analysis surfaces do not expose internal graph ids.
 export async function loadFindings(client: EshuApiClient, ctx?: SectionContext): Promise<readonly FindingRow[] | null> {
   const env = await client.post<DeadCodeResponse>("/api/v0/code/dead-code", { limit: 25 });
+  if (env.error) throw new EshuEnvelopeError(env.error);
   const rows = deadCodeRowsFromResponse(env.data, env.truth?.level ?? "derived", ctx?.repoNames);
   return rows.length > 0 ? rows : null;
 }

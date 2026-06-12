@@ -60,4 +60,21 @@ describe("eshuConsoleSections findings", () => {
 
     expect(rows?.[0]?.entity).toBe("api-node-boats");
   });
+
+  it("rejects dead-code error envelopes so snapshot provenance marks findings unavailable", async () => {
+    const client = {
+      post: async () => ({
+        data: null,
+        error: {
+          code: "unsupported_capability",
+          message: "dead-code analysis unavailable"
+        },
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+
+    await expect(loadFindings(client)).rejects.toThrow(
+      "unsupported_capability: dead-code analysis unavailable"
+    );
+  });
 });
