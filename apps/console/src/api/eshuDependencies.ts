@@ -8,6 +8,7 @@
 // loader.
 
 import type { EshuApiClient } from "./client";
+import { EshuEnvelopeError } from "./envelope";
 import type { DependencyRow, DependencyQuery, DependencyPage } from "./eshuConsoleLive";
 
 interface DependencyRecord {
@@ -75,6 +76,7 @@ export async function loadDependencies(
   query: DependencyQuery
 ): Promise<DependencyPage> {
   const env = await client.get<DependenciesResponse>(dependenciesPath(query));
+  if (env.error) throw new EshuEnvelopeError(env.error);
   const records = env.data?.dependencies ?? [];
   const rows = records.map(dependencyRowFromRecord);
   const cursor = env.data?.next_cursor;

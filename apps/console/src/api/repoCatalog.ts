@@ -4,6 +4,7 @@
 // over response shape (see GET /api/v0/openapi.json); never fabricates counts.
 
 import type { EshuApiClient } from "./client";
+import { EshuEnvelopeError } from "./envelope";
 
 export interface RepoListItem {
   readonly id: string;
@@ -39,6 +40,7 @@ function str(v: unknown): string { return typeof v === "string" ? v : ""; }
 
 export async function loadRepositories(client: EshuApiClient): Promise<readonly RepoListItem[]> {
   const env = await client.get<RepoListResponse>("/api/v0/repositories?limit=500&offset=0");
+  if (env.error) throw new EshuEnvelopeError(env.error);
   return (env.data?.repositories ?? []).map((r) => ({
     id: str(r.id) || str(r.name),
     name: str(r.name) || str(r.id),
@@ -74,6 +76,7 @@ function num(v: unknown): number | null {
 export async function loadRepositoryDetail(client: EshuApiClient, id: string): Promise<RepoDetail> {
   try {
     const statsEnv = await client.get<StatsResponse>(`/api/v0/repositories/${encodeURIComponent(id)}/stats`);
+    if (statsEnv.error) throw new EshuEnvelopeError(statsEnv.error);
     const s = statsEnv.data ?? {};
     let highlights: string[] = [];
     try {

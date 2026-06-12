@@ -33,6 +33,22 @@ describe("repoCatalog", () => {
     expect(names.get("repository:r2")).toBe("helm-charts");
   });
 
+  it("propagates repository list error envelopes instead of returning no repositories", async () => {
+    const client = {
+      get: async () => ({
+        data: null,
+        error: {
+          code: "unsupported_runtime_profile",
+          message: "repository list unavailable",
+          capability: "repository.list"
+        },
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+
+    await expect(loadRepositories(client)).rejects.toThrow("unsupported_runtime_profile");
+  });
+
   it("maps repo detail from stats + story, preserving null counts (no fabrication)", async () => {
     const client = {
       get: async (path: string) => {
@@ -55,6 +71,26 @@ describe("repoCatalog", () => {
     const client = { get: async () => { throw new Error("401"); } } as unknown as EshuApiClient;
     const detail = await loadRepositoryDetail(client, "repo-1");
     expect(detail.provenance).toBe("unavailable");
+    expect(detail.stats.fileCount).toBeNull();
+  });
+
+  it("returns an unavailable detail when stats returns an Eshu error envelope", async () => {
+    const client = {
+      get: async () => ({
+        data: null,
+        error: {
+          code: "unsupported_runtime_profile",
+          message: "repository stats unavailable",
+          capability: "repository.stats"
+        },
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+
+    const detail = await loadRepositoryDetail(client, "repo-1");
+
+    expect(detail.provenance).toBe("unavailable");
+    expect(detail.name).toBe("repo-1");
     expect(detail.stats.fileCount).toBeNull();
   });
 });

@@ -22,6 +22,22 @@ describe("repoSource", () => {
     expect(f).toMatchObject({ name: "main.go", size: 50, language: "go" });
   });
 
+  it("propagates tree error envelopes instead of rendering an empty tree", async () => {
+    const client = {
+      get: async () => ({
+        data: null,
+        error: {
+          code: "unsupported_runtime_profile",
+          message: "repository tree unavailable",
+          capability: "repository.tree"
+        },
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+
+    await expect(loadRepoTree(client, "repo-1")).rejects.toThrow("unsupported_runtime_profile");
+  });
+
   it("loads utf-8 file content and decodes it as text", async () => {
     const client = { get: async () => ({ data: { path: "README.md", ref: "abc", encoding: "utf-8", content: "# Hi\n", size: 5, language: "markdown", truncated: false }, error: null, truth: null }) } as unknown as EshuApiClient;
     const file = await loadRepoFile(client, "repo-1", "README.md");
@@ -39,5 +55,24 @@ describe("repoSource", () => {
     const client = { get: async () => { throw new Error("404"); } } as unknown as EshuApiClient;
     const file = await loadRepoFile(client, "repo-1", "missing");
     expect(file.provenance).toBe("unavailable");
+  });
+
+  it("returns unavailable provenance when content returns an Eshu error envelope", async () => {
+    const client = {
+      get: async () => ({
+        data: null,
+        error: {
+          code: "unsupported_runtime_profile",
+          message: "repository content unavailable",
+          capability: "repository.content"
+        },
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+
+    const file = await loadRepoFile(client, "repo-1", "README.md");
+
+    expect(file.provenance).toBe("unavailable");
+    expect(file.content).toBe("");
   });
 });

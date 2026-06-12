@@ -6,6 +6,7 @@
 // single indexed ref. Defensive over response shape; never fabricates files.
 
 import type { EshuApiClient } from "./client";
+import { EshuEnvelopeError } from "./envelope";
 
 export interface TreeEntry {
   readonly name: string;
@@ -45,6 +46,7 @@ function str(v: unknown): string { return typeof v === "string" ? v : ""; }
 export async function loadRepoTree(client: EshuApiClient, id: string, path = ""): Promise<RepoTree> {
   const qs = path ? `?path=${encodeURIComponent(path)}` : "";
   const env = await client.get<TreeResponse>(`/api/v0/repositories/${encodeURIComponent(id)}/tree${qs}`);
+  if (env.error) throw new EshuEnvelopeError(env.error);
   const data = env.data ?? {};
   const entries: TreeEntry[] = (data.entries ?? []).map((e): TreeEntry => ({
     name: str(e.name),
