@@ -102,14 +102,18 @@
       const id = edge.source_id || edge.source_name;
       if (!id) return;
       const verb = String(edge.type || "RELATED").toUpperCase();
-      if (id !== centerId && !nodes.has(id)) nodes.set(id, node(id, edge.source_name || id, relationshipNodeKind(verb), relationshipNodeSub(verb, "incoming"), 0, false, "exact"));
+      if (id !== centerId && !nodes.has(id)) {
+        nodes.set(id, node(id, edge.source_name || id, edge.source_type ? kindFor(edge.source_type) : relationshipNodeKind(verb), edge.source_type || relationshipNodeSub(verb, "incoming"), 0, false, "exact", sourceLocationFromEdge(edge, "source")));
+      }
       edges.push({ s: id, t: centerId, verb, layer: layerFor(verb) });
     });
     (data.outgoing || []).forEach((edge) => {
       const id = edge.target_id || edge.target_name;
       if (!id) return;
       const verb = String(edge.type || "RELATED").toUpperCase();
-      if (id !== centerId && !nodes.has(id)) nodes.set(id, node(id, edge.target_name || id, relationshipNodeKind(verb), relationshipNodeSub(verb, "outgoing"), 2, false, "exact"));
+      if (id !== centerId && !nodes.has(id)) {
+        nodes.set(id, node(id, edge.target_name || id, edge.target_type ? kindFor(edge.target_type) : relationshipNodeKind(verb), edge.target_type || relationshipNodeSub(verb, "outgoing"), 2, false, "exact", sourceLocationFromEdge(edge, "target")));
+      }
       edges.push({ s: centerId, t: id, verb, layer: layerFor(verb) });
     });
     return { nodes: Array.from(nodes.values()), edges };
@@ -139,6 +143,15 @@
       endLine: data.end_line
     };
   }
+
+  function sourceLocationFromEdge(edge, side) {
+    const prefix = side === "source" ? "source_" : "target_";
+    const repoId = textField(edge[prefix + "repo_id"]) || textField(edge.repo_id);
+    const filePath = textField(edge[prefix + "file_path"]) || textField(edge.file_path);
+    if (!repoId || !filePath) return null;
+    return { repoId, repoName: textField(edge[prefix + "repo_name"]) || textField(edge.repo_name), filePath, startLine: edge[prefix + "start_line"] || edge.start_line, endLine: edge[prefix + "end_line"] || edge.end_line };
+  }
+  function textField(value) { return typeof value === "string" ? value.trim() : ""; }
 
   async function loadDirectGraph(client, resolved) {
     if (!resolved.id) return { graph: centerOnly(resolved.name, resolved.name, resolved.kind), resolved };

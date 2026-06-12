@@ -188,6 +188,8 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("loadRepositoryDeploymentStoryGraph");
     expect(page).toContain("relationshipNodeKind");
     expect(page).toContain("relationshipNodeSub");
+    expect(page).toContain("sourceLocationFromEdge");
+    expect(page).toContain("sourceHref(value)");
     expect(page).toContain("repoId");
     expect(page).toContain("sourceLocation");
     expect(page).toContain('hashFor("reposource"');
