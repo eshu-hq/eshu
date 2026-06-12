@@ -108,7 +108,17 @@ function deadCodeRepositoryLabel(
   if (explicitName) return explicitName;
   const repoId = row.repo_id?.trim();
   if (repoId && repoNames?.has(repoId)) return repoNames.get(repoId) ?? repoId;
-  return nonEmpty(repoId, "repository");
+  return repositoryFallbackLabel(repoId);
+}
+
+function repositoryFallbackLabel(repoId: string | undefined): string {
+  const id = repoId?.trim();
+  if (!id) return "repository";
+  const prefixed = id.match(/^repository[:_](.+)$/i);
+  if (!prefixed) return id;
+  const suffix = prefixed[1] ?? "";
+  if (/^r_[0-9a-f]+$/i.test(suffix) || /^r[0-9a-f]+$/i.test(suffix)) return "unresolved repository";
+  return suffix || "repository";
 }
 
 function nonEmpty(...values: readonly (string | undefined)[]): string {

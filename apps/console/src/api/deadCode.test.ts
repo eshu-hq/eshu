@@ -88,6 +88,39 @@ describe("deadCode", () => {
     });
   });
 
+  it("uses repository names for labels without leaking unresolved internal repo ids", async () => {
+    const post = vi.fn(async () => envelope([
+      {
+        entity_id: "function:f1",
+        file_path: "server/routes.ts",
+        name: "unusedRoute",
+        repo_id: "repository:r1"
+      },
+      {
+        entity_id: "function:f2",
+        file_path: "server/profile.ts",
+        name: "unusedProfile",
+        repo_id: "repository:r_078043f1"
+      },
+      {
+        entity_id: "function:f3",
+        file_path: "server/search.ts",
+        name: "unusedSearch",
+        repo_id: "repository:api-node-search"
+      }
+    ]));
+    const client = { post } as unknown as EshuApiClient;
+
+    const page = await loadDeadCodePage(client, { limit: 100 }, new Map([["repository:r1", "api-node-platform"]]));
+
+    expect(page.rows.map((row) => row.entity)).toEqual([
+      "api-node-platform",
+      "unresolved repository",
+      "api-node-search"
+    ]);
+    expect(page.rows[1]?.repoId).toBe("repository:r_078043f1");
+  });
+
   it("rejects Eshu error envelopes instead of returning an empty page", async () => {
     const post = vi.fn(async () => ({
       data: null,

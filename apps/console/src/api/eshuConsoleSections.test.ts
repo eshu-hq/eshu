@@ -13,7 +13,7 @@ import {
 } from "./eshuConsoleSections";
 
 describe("eshuConsoleSections findings", () => {
-  it("falls back from an empty dead-code repo name to the repo id", async () => {
+  it("falls back from an empty dead-code repo name to an unresolved label", async () => {
     const client = {
       post: async () => ({
         data: {
@@ -37,7 +37,7 @@ describe("eshuConsoleSections findings", () => {
 
     const rows = await loadFindings(client);
 
-    expect(rows?.[0]?.entity).toBe("repository:r_1");
+    expect(rows?.[0]?.entity).toBe("unresolved repository");
   });
 
   it("resolves dead-code repo ids through the catalog repo name map", async () => {
