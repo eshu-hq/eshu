@@ -17,11 +17,13 @@
 
   function canonicalRoute(route) {
     if (route.indexOf("workspace/") === 0) return "workspace";
+    if (route.indexOf("repositories/") === 0 && route.indexOf("/source") > 0) return "reposource";
     return ROUTE_ALIASES[route] || route;
   }
 
   function publicRoute(route) {
     const canonical = canonicalRoute(route);
+    if (canonical === "reposource") return "repositories";
     return PUBLIC_ROUTES[canonical] || canonical;
   }
 
@@ -29,12 +31,19 @@
     if (canonicalRoute(route) === "workspace" && suffix && suffix.indexOf("/") === 0) {
       return "#workspace" + suffix;
     }
+    if (canonicalRoute(route) === "reposource" && suffix && suffix.indexOf("/") === 0) {
+      return "#repositories" + suffix;
+    }
     return "#" + publicRoute(route) + (suffix || "");
   }
 
   function setHash(route, suffix) {
     if (canonicalRoute(route) === "workspace" && suffix && suffix.indexOf("/") === 0) {
       window.location.hash = "workspace" + suffix;
+      return;
+    }
+    if (canonicalRoute(route) === "reposource" && suffix && suffix.indexOf("/") === 0) {
+      window.location.hash = "repositories" + suffix;
       return;
     }
     window.location.hash = publicRoute(route) + (suffix || "");

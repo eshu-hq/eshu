@@ -70,4 +70,18 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("Evidence story");
     expect(page).toContain("Workspace unavailable");
   });
+
+  it("keeps the prototype repository source route on the live query contracts", () => {
+    const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
+    const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
+    const page = repoFile("apps/console/prototype/eshu-console/console/pages-source-parity.jsx");
+
+    expect(html).toContain("console/pages-source-parity.jsx");
+    expect(app).toContain('route === "reposource"');
+    expect(page).toContain("/api/v0/repositories/");
+    expect(page).toContain("/tree");
+    expect(page).toContain("/content?path=");
+    expect(page).toContain("Repository source unavailable");
+    expect(page).toContain("indexed ref");
+  });
 });

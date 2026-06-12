@@ -93,9 +93,15 @@ is added, update both:
 
 ## What stays representative until wired
 
-- **Graph Explorer edges** — the focus/estate graph is still the static
-  sample dependency graph. Live-wire it with `POST /api/v0/code/relationships`
-  (per-node `IMPORTS`/`CALLS`) and `POST /api/v0/impact/blast-radius`.
+- **Demo-mode graph edges** — the bundled focus/estate graph remains a static
+  sample for design-tool work without a backend. In Live mode, the prototype
+  Graph Explorer resolves handles with `POST /api/v0/entities/resolve`, loads
+  Direct code edges with `POST /api/v0/code/relationships`, and loads
+  Neighborhood story/entity context through `GET /api/v0/services/{name}/context`
+  with `POST /api/v0/impact/entity-map` fallback.
+- **Repository branch selection** — source browsing uses
+  `GET /api/v0/repositories/{id}/tree` and `/content?path=` for the indexed ref.
+  Multi-branch selection remains gated on the production branches API.
 - **Time-series gaps** — dashboard and Operations trend lines hydrate from
   `GET /api/v0/metrics/timeseries` when a metrics source is configured. Prototype
   sparklines without a live metric name, such as write-throughput and cache-hit

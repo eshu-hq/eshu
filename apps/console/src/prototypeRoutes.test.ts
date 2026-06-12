@@ -28,6 +28,7 @@ describe("prototype route helpers", () => {
     expect(routes.canonicalRoute("operations")).toBe("admin");
     expect(routes.canonicalRoute("workspace/repositories/repository:r_1")).toBe("workspace");
     expect(routes.canonicalRoute("workspace/services/api-node-platform")).toBe("workspace");
+    expect(routes.canonicalRoute("repositories/repository:r_1/source")).toBe("reposource");
 
     expect(routes.publicRoute("repos")).toBe("repositories");
     expect(routes.publicRoute("deadcode")).toBe("dead-code");
@@ -35,5 +36,6 @@ describe("prototype route helpers", () => {
     expect(routes.publicRoute("admin")).toBe("operations");
     expect(routes.hashFor("vulnerabilities", "?cve=CVE-2026-0001")).toBe("#vulnerabilities?cve=CVE-2026-0001");
     expect(routes.hashFor("workspace", "/services/api-node-platform")).toBe("#workspace/services/api-node-platform");
+    expect(routes.hashFor("reposource", "/repository:r_1/source?path=server%2Findex.ts")).toBe("#repositories/repository:r_1/source?path=server%2Findex.ts");
   });
 });

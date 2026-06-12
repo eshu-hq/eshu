@@ -56,6 +56,7 @@ const TITLES = {
   dashboard: ["Dashboard", "Read-only code-to-cloud graph status & evidence"],
   explorer: ["Graph Explorer", "Drill into the live NornicDB relationship graph"],
   repos: ["Repositories", "Browse every indexed source repository"],
+  reposource: ["Repository source", "Indexed repository tree and source viewer"],
   catalog: ["Catalog", "Services, repositories & workloads"],
   findings: ["Findings", "What needs human attention — one worklist"],
   images: ["Images", "Container image inventory and package risk"],
@@ -206,6 +207,7 @@ function App() {
         {route === "dashboard" ? <Dashboard data={data} onOpenService={openService} onOpenNode={openNode} heroMode={t.heroMode} graphStyle={graphStyle} chartStyle={t.chartStyle} /> : null}
         {route === "explorer" ? <Explorer data={data} client={liveClient} onOpenService={openService} onOpenNode={openNode} graphStyle={graphStyle} setGraphStyle={(v) => { setGraphStyle(v); setTweak("graphStyle", v); }} verifiedOnly={verifiedOnly} /> : null}
         {route === "repos" ? <Repos data={data} onOpenService={openService} onOpenNode={openNode} /> : null}
+        {route === "reposource" ? <RepoSource data={data} client={liveClient} /> : null}
         {route === "catalog" ? <Catalog data={data} onOpenService={openService} /> : null}
         {route === "findings" ? <Findings data={data} onOpenService={openService} onOpenVuln={openVuln} verifiedOnly={verifiedOnly} /> : null}
         {route === "images" ? <Images data={data} onOpenService={openService} /> : null}
