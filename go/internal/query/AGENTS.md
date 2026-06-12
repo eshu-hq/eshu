@@ -496,3 +496,26 @@
   `docs/public/reference/http-api.md`.
 - `EnvelopeMIMEType` (`application/eshu.envelope+json`) — changing this MIME type
   breaks every client that has already adopted envelope negotiation.
+
+## Edge resolution provenance surfacing (#2225)
+
+The relationship-story reads (`code_relationship_story_graph.go`,
+`code_relationship_story_nornicdb.go`) return `rel.confidence as confidence` and
+`rel.resolution_method as resolution_method` so `CALLS`/`REFERENCES` edges carry
+the per-edge provenance written under ADR #2222. `relationshipStoryRowsWithHandles`
+drops both keys when nil/empty so legacy edges omit them rather than surfacing a
+null tier. The `Relationship` OpenAPI schema gains `resolution_method`.
+
+No-Regression Evidence: `go test ./internal/query -run 'RelationshipStory|OpenAPI' -count=1`
+and `go test ./internal/query ./internal/mcp ./cmd/api -count=1` pass;
+`TestHandleRelationshipStorySurfacesEdgeProvenance` fails before the RETURN and
+row-shaping changes and passes after. The change adds two scalar projections to
+the existing relationship-story RETURN — no new `MATCH`, traversal, `ORDER BY`,
+or pagination shape, and the bounded `SKIP`/`LIMIT` are unchanged — so the read
+plan is invariant on both Neo4j and NornicDB.
+
+No-Observability-Change: this change adds no route, graph write, queue, worker,
+runtime knob, metric instrument, or metric label. Operators still diagnose the
+relationship-story read through the existing `neo4j.query` spans, query-duration
+metrics, and the answer-level `TruthEnvelope`; per-edge provenance rides as two
+additive response fields.

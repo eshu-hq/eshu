@@ -252,6 +252,7 @@ func normalizeNornicDBRelationshipRows(rows []map[string]any) []map[string]any {
 		item := cloneQueryAnyMap(row)
 		removeNornicDBPlaceholderProperty(item, "call_kind")
 		removeNornicDBPlaceholderProperty(item, "reason")
+		removeNornicDBPlaceholderProperty(item, "resolution_method")
 		normalized = append(normalized, item)
 	}
 	return normalized
