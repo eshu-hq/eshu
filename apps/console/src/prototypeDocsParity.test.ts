@@ -160,9 +160,18 @@ describe("prototype documentation parity", () => {
     expect(graphExtras).toContain('D.org === "live"');
     expect(graphExtras).toContain("Live graph relationship returned by the active query.");
     expect(graphExtras).toContain("relationship source metadata unavailable");
+    expect(graphExtras).toContain("function entityMapEdgeEvidence(rel, verb, incoming)");
     expect(graphExtras).not.toContain("(ESHU.relationships || []).find");
     expect(graphCanvas).toContain("function GraphCanvas({ graph, data");
     expect(graphCanvas).toContain("<EdgeCard edge={card.edge} graph={graph} data={data}");
+  });
+
+  it("keeps prototype entity-map graph edges carrying source-backed row metadata", () => {
+    const dashboard = repoFile("apps/console/prototype/eshu-console/console/pages-dashboard-parity.jsx");
+    const explorer = repoFile("apps/console/prototype/eshu-console/console/pages-explorer-parity.jsx");
+
+    expect(dashboard).toContain("evidence: entityMapEdgeEvidence(rel, verb, incoming)");
+    expect(explorer).toContain("evidence: entityMapEdgeEvidence(rel, verb, incoming)");
   });
 
   it("keeps prototype Operations connected-live mode on supported metric contracts", () => {

@@ -47,7 +47,7 @@
       const verb = String(rel.relationship_type || (Array.isArray(rel.relationship_types) && rel.relationship_types[0]) || "RELATED").toUpperCase();
       const incoming = String(rel.direction || "outgoing").toLowerCase() === "incoming";
       if (!nodes.has(id)) nodes.set(id, { id, label: label || id, kind: kindFor(relLabels), sub: relLabels[0] || "", col: incoming ? 0 : 2, truth: "exact" });
-      edges.push(incoming ? { s: id, t: centerId, verb, layer: layerFor(verb) } : { s: centerId, t: id, verb, layer: layerFor(verb) });
+      edges.push(incoming ? { s: id, t: centerId, verb, layer: layerFor(verb), evidence: entityMapEdgeEvidence(rel, verb, incoming) } : { s: centerId, t: id, verb, layer: layerFor(verb), evidence: entityMapEdgeEvidence(rel, verb, incoming) });
     });
     return { nodes: Array.from(nodes.values()), edges };
   }

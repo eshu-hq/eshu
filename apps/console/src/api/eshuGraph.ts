@@ -143,6 +143,7 @@ interface EntityMapRel {
   readonly entity_id?: string; readonly entity_name?: string; readonly entity_labels?: readonly string[];
   readonly direction?: string;
   readonly relationship_type?: string; readonly relationship_types?: readonly string[];
+  readonly relationship_source?: string; readonly repo_id?: string; readonly environment?: string; readonly depth?: number;
 }
 interface EntityMapResponse {
   readonly from?: string;
@@ -171,10 +172,22 @@ export function entityMapToGraph(data: EntityMapResponse, fallbackName: string):
     const incoming = (r.direction ?? "outgoing").toLowerCase() === "incoming";
     if (!nodes.has(id)) nodes.set(id, { id, kind: kindFor(type), label: label || id, sub: type, col: incoming ? 0 : 2, truth: "exact" });
     edges.push(incoming
-      ? { s: id, t: centerId, verb, layer: layerFor(verb) }
-      : { s: centerId, t: id, verb, layer: layerFor(verb) });
+      ? { s: id, t: centerId, verb, layer: layerFor(verb), evidence: entityMapEdgeEvidence(r, incoming) }
+      : { s: centerId, t: id, verb, layer: layerFor(verb), evidence: entityMapEdgeEvidence(r, incoming) });
   });
   return { nodes: [...nodes.values()], edges };
+}
+
+function entityMapEdgeEvidence(r: EntityMapRel, incoming: boolean): readonly string[] {
+  const labels = (r.entity_labels ?? []).filter(Boolean).join(", ");
+  return [
+    `relationship source: ${r.relationship_source ?? "graph"}`,
+    `direction: ${incoming ? "incoming" : "outgoing"}`,
+    labels ? `entity labels: ${labels}` : "",
+    r.repo_id ? `repo: ${r.repo_id}` : "",
+    r.environment ? `environment: ${r.environment}` : "",
+    r.depth !== undefined ? `depth: ${r.depth}` : ""
+  ].filter((value): value is string => value !== "");
 }
 
 interface DeploymentArtifactRecord {

@@ -48,6 +48,18 @@ function edgeProvidedFacts(edge) {
   return facts.filter(Boolean);
 }
 
+function entityMapEdgeEvidence(rel, verb, incoming) {
+  const labels = Array.isArray(rel.entity_labels) ? rel.entity_labels.filter(Boolean).join(", ") : "";
+  return [
+    "relationship source: " + String(rel.relationship_source || "graph"),
+    "direction: " + (incoming ? "incoming" : "outgoing"),
+    labels ? "entity labels: " + labels : "",
+    rel.repo_id ? "repo: " + rel.repo_id : "",
+    rel.environment ? "environment: " + rel.environment : "",
+    rel.depth != null ? "depth: " + rel.depth : ""
+  ].filter(Boolean);
+}
+
 /* resolve human-readable evidence for an edge within a graph */
 function edgeEvidence(edge, graph, data) {
   const D = data || ESHU;
@@ -201,4 +213,4 @@ function GraphInspector({ sel, graph, data, onOpenService, onOpenNode, onSelectN
   );
 }
 
-Object.assign(window, { VERB_META, edgeEvidence, nodeConnections, Breadcrumb, EdgeInspector, NodeDrillInspector, GraphInspector });
+Object.assign(window, { VERB_META, edgeEvidence, entityMapEdgeEvidence, nodeConnections, Breadcrumb, EdgeInspector, NodeDrillInspector, GraphInspector });

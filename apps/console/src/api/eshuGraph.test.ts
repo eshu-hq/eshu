@@ -161,17 +161,17 @@ describe("eshuGraph", () => {
       from: "catalog-api",
       resolution: { candidates: [{ id: "workload:catalog-api", name: "catalog-api", labels: ["Workload"] }] },
       evidence: { relationships: [
-        { entity_id: "repository:r_f9600c28", entity_name: "catalog-api", entity_labels: ["Repository"], direction: "incoming", relationship_type: "DEFINES" },
+        { entity_id: "repository:r_f9600c28", entity_name: "catalog-api", entity_labels: ["Repository"], direction: "incoming", relationship_type: "DEFINES", relationship_source: "graph", repo_id: "repository:r_f9600c28", depth: 1 },
         // no relationship_type (singular) — must fall back to relationship_types[0]
-        { entity_id: "workload:payments", entity_name: "payments", entity_labels: ["Workload"], direction: "outgoing", relationship_types: ["DEPENDS_ON"] }
+        { entity_id: "workload:payments", entity_name: "payments", entity_labels: ["Workload"], direction: "outgoing", relationship_types: ["DEPENDS_ON"], environment: "bg-prod" }
       ] }
     }, "catalog-api");
     const hero = graph.nodes.find((n) => n.hero);
     expect(hero?.id).toBe("workload:catalog-api");
     // nodes are keyed by entity_id, not the display name
     expect(graph.nodes.some((n) => n.id === "workload:payments" && n.label === "payments")).toBe(true);
-    expect(graph.edges.find((e) => e.verb === "DEFINES")).toMatchObject({ s: "repository:r_f9600c28", t: "workload:catalog-api" });
-    expect(graph.edges.find((e) => e.verb === "DEPENDS_ON")).toMatchObject({ s: "workload:catalog-api", t: "workload:payments", layer: "runtime" });
+    expect(graph.edges.find((e) => e.verb === "DEFINES")).toMatchObject({ s: "repository:r_f9600c28", t: "workload:catalog-api", evidence: ["relationship source: graph", "direction: incoming", "entity labels: Repository", "repo: repository:r_f9600c28", "depth: 1"] });
+    expect(graph.edges.find((e) => e.verb === "DEPENDS_ON")).toMatchObject({ s: "workload:catalog-api", t: "workload:payments", layer: "runtime", evidence: ["relationship source: graph", "direction: outgoing", "entity labels: Workload", "environment: bg-prod"] });
   });
 
   it("loadEntityMapGraph posts impact/entity-map with from and parses evidence.relationships", async () => {

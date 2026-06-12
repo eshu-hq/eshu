@@ -48,6 +48,7 @@ export interface GraphEdge {
   readonly t: string;
   readonly verb: string;
   readonly layer: GraphLayer;
+  readonly evidence?: readonly string[];
 }
 
 export interface GraphModel {
