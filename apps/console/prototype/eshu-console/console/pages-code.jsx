@@ -399,7 +399,7 @@ function CodeGraph({ data, client, onOpenService }) {
 
       <div className="explorer-layout mt">
         <div className="gcanvas-shell">
-          <GraphCanvas graph={g} layout="layered" height={560} onSelect={selectGraphNode} selectedId={focusedNode && focusedNode.id} />
+          <GraphCanvas graph={g} data={D} layout="layered" height={560} onSelect={selectGraphNode} selectedId={focusedNode && focusedNode.id} />
           {liveState.status === "error" ? <p className="src-err">{liveState.error}</p> : null}
           <div className="t-mut" style={{ fontSize: ".74rem", marginTop: 8 }}>{liveMode ? ((selectedCandidate && (selectedCandidate.symbol + " · " + selectedCandidate.file)) || "No live dead-code candidate selected.") : (svc ? svc.name + " · " + (D.lang[svc.lang] || {}).label + " · routes → service → model/lib, with cross-repo client imports" : "")}</div>
         </div>

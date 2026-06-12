@@ -284,7 +284,7 @@
           {story.stats.map((stat) => <StatTile key={stat.label} label={stat.label} value={stat.value} sub={stat.detail} color="var(--teal)" />)}
         </div>
         <Panel className="flush mt" title="Deployment evidence map" sub="Repository, chart, controller, and workload evidence" glyph={<Icon.graph />}>
-          <GraphCanvas graph={graph} layout="layered" height={420} onSelect={(node) => onOpenNode && onOpenNode(node, graph)} />
+          <GraphCanvas graph={graph} data={D} layout="layered" height={420} onSelect={(node) => onOpenNode && onOpenNode(node, graph)} />
           {deployEdges.length ? (
             <div className="insp-evi mt">
               <div className="insp-kind">Typed deployment chain</div>

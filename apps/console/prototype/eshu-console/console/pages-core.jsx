@@ -156,7 +156,7 @@ function ServiceDrawer({ id, onClose, onOpenService, onOpenVuln, onOpenNode, dat
           <div className="blast-expand" ref={callersRef}>
             <div className="section-label" style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}><span style={{ whiteSpace: "nowrap" }}>{isLib ? "Importers" : "Callers"}</span> <span className="t-mut" style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>{isLib ? "repos that import" : "services that depend directly on"} {s.name} — click a node to open it</span></div>
             {callersGraph.nodes.length > 1 ?
-            <GraphCanvas graph={callersGraph} layout="radial" height={300} onSelect={(n) => {if (D.servicesById && D.servicesById[n.id]) onOpenService(n.id);}} selectedId={s.id} /> :
+            <GraphCanvas graph={callersGraph} data={D} layout="radial" height={300} onSelect={(n) => {if (D.servicesById && D.servicesById[n.id]) onOpenService(n.id);}} selectedId={s.id} /> :
             <p className="empty">No direct {isLib ? "importers" : "callers"} indexed for {s.name}.</p>}
           </div> :
           null}
@@ -165,7 +165,7 @@ function ServiceDrawer({ id, onClose, onOpenService, onOpenVuln, onOpenNode, dat
           <div className="blast-expand">
             <div className="section-label" style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}><span style={{ whiteSpace: "nowrap" }}>Impact graph</span> <span className="t-mut" style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>transitive dependents that break if {s.name} fails — click a node to open it</span></div>
             {blastGraph.nodes.length > 1 ?
-            <GraphCanvas graph={blastGraph} layout="radial" height={300} onSelect={(n) => {if (D.servicesById && D.servicesById[n.id]) onOpenService(n.id);}} selectedId={s.id} /> :
+            <GraphCanvas graph={blastGraph} data={D} layout="radial" height={300} onSelect={(n) => {if (D.servicesById && D.servicesById[n.id]) onOpenService(n.id);}} selectedId={s.id} /> :
             <p className="empty">No downstream dependents indexed — {s.name} is a leaf in the current graph.</p>}
           </div> :
           null}
@@ -178,7 +178,7 @@ function ServiceDrawer({ id, onClose, onOpenService, onOpenVuln, onOpenNode, dat
             </div>
             {netOpen ? (
               <div className="node-hood">
-                <GraphCanvas graph={netGraph} layout="radial" height={300} onSelect={(n) => onOpenNode && onOpenNode(n, netGraph)} selectedId={"svc:" + s.id} />
+                <GraphCanvas graph={netGraph} data={D} layout="radial" height={300} onSelect={(n) => onOpenNode && onOpenNode(n, netGraph)} selectedId={"svc:" + s.id} />
               </div>
             ) : <p className="t-mut" style={{ fontSize: ".82rem", margin: 0, lineHeight: 1.5 }}>VPC, security group, IRSA role &amp; datastores for {s.name} — every node declared by Terraform and clickable. Expand to see the topology.</p>}
           </div>
@@ -334,7 +334,7 @@ function Dashboard({ onOpenService, onOpenNode, heroMode, graphStyle, chartStyle
       <Panel className="mt" title="Code-to-cloud relationship atlas" sub="api-node-boats neighbourhood — click any node or relationship edge to read its evidence" glyph={<Icon.graph />}
       action={<button className="btn-ghost" onClick={() => onOpenService("api-node-boats")}>Open spotlight →</button>}>
           <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr) 300px", gap: "var(--gap)", alignItems: "start" }}>
-            <GraphCanvas graph={D.graph} layout={graphStyle} height={500}
+            <GraphCanvas graph={D.graph} data={D} layout={graphStyle} height={500}
               onSelect={selectNode} onSelectEdge={selectEdge} onClear={() => setSel(null)}
               selectedId={sel && sel.type === "node" ? sel.node.id : null}
               selectedEdge={sel && sel.type === "edge" ? sel.edge : null} />

@@ -152,6 +152,19 @@ describe("prototype documentation parity", () => {
     expect(drill).not.toContain("ESHU.nodeDetail[node.id]");
   });
 
+  it("keeps prototype graph edge evidence honest for connected live data", () => {
+    const graphExtras = repoFile("apps/console/prototype/eshu-console/console/graph-extras.jsx");
+    const graphCanvas = repoFile("apps/console/prototype/eshu-console/console/graph.jsx");
+
+    expect(graphExtras).toContain("function edgeEvidence(edge, graph, data)");
+    expect(graphExtras).toContain('D.org === "live"');
+    expect(graphExtras).toContain("Live graph relationship returned by the active query.");
+    expect(graphExtras).toContain("relationship source metadata unavailable");
+    expect(graphExtras).not.toContain("(ESHU.relationships || []).find");
+    expect(graphCanvas).toContain("function GraphCanvas({ graph, data");
+    expect(graphCanvas).toContain("<EdgeCard edge={card.edge} graph={graph} data={data}");
+  });
+
   it("keeps prototype Operations connected-live mode on supported metric contracts", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");

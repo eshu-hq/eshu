@@ -44,7 +44,7 @@ function edgePath(a, b) {
   return `M${a.x} ${a.y} C${c1x} ${a.y} ${c2x} ${b.y} ${b.x} ${b.y}`;
 }
 
-function GraphCanvas({ graph, layout = "layered", height = 560, onSelect, onSelectEdge, onExpand, onClear, selectedId, selectedEdge, expandedIds, showLabels = true, density, tracePath = null }) {
+function GraphCanvas({ graph, data, layout = "layered", height = 560, onSelect, onSelectEdge, onExpand, onClear, selectedId, selectedEdge, expandedIds, showLabels = true, density, tracePath = null }) {
   const [vt, setVt] = useStateG({ x: 0, y: 0, k: 1 });
   const [hover, setHover] = useStateG(null);
   const [hoverEdge, setHoverEdge] = useStateG(null);
@@ -213,7 +213,7 @@ function GraphCanvas({ graph, layout = "layered", height = 560, onSelect, onSele
         </g>
         <rect className="gcanvas-vignette" width={VBW} height={VBH} fill="url(#g-vignette)" pointerEvents="none" />
       </svg>
-      {card ? <EdgeCard edge={card.edge} graph={graph} onClose={() => setCard(null)} onOpenNode={(id) => { setCard(null); const nd = graph.nodes.find((n) => n.id === id); if (nd && onSelect) onSelect(nd); }} /> : null}
+      {card ? <EdgeCard edge={card.edge} graph={graph} data={data} onClose={() => setCard(null)} onOpenNode={(id) => { setCard(null); const nd = graph.nodes.find((n) => n.id === id); if (nd && onSelect) onSelect(nd); }} /> : null}
       <GraphLegend />
     </div>
   );
@@ -231,8 +231,8 @@ function GraphLegend() {
 }
 
 /* floating in-canvas evidence card for a clicked edge (graphs without a side inspector) */
-function EdgeCard({ edge, graph, onClose, onOpenNode }) {
-  const info = edgeEvidence(edge, graph);
+function EdgeCard({ edge, graph, data, onClose, onOpenNode }) {
+  const info = edgeEvidence(edge, graph, data);
   const col = ESHU.layerColor[edge.layer] || "var(--teal)";
   return (
     <div className="edge-card" style={{ "--ec": col }} role="dialog" aria-label="Relationship evidence">

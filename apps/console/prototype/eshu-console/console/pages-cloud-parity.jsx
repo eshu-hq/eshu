@@ -127,10 +127,11 @@
 
   function Cloud({ data, client, onOpenService, onOpenNode }) {
     if (!client) return <DemoCloud data={data} client={client} onOpenService={onOpenService} onOpenNode={onOpenNode} />;
-    return <LiveCloud client={client} />;
+    return <LiveCloud data={data || ESHU} client={client} />;
   }
 
-  function LiveCloud({ client }) {
+  function LiveCloud({ data, client }) {
+    const D = data || ESHU;
     const emptyFilters = { provider: "", resourceType: "", region: "", accountId: "" };
     const [page, setPage] = useStateCP(null);
     const [busy, setBusy] = useStateCP(false);
@@ -253,7 +254,7 @@
 
         {view === "network" ? (
           <Panel className="flush mt" title="Network topology" sub={"Account -> region -> family -> resources - " + (selectedAccount || "no account selected")} glyph={<Icon.branch />}>
-            {busy && page === null ? <div className="conn-state" style={{ padding: 40 }}><div className="conn-spinner" aria-hidden /><p>Loading cloud resources...</p></div> : graph.nodes.length ? <GraphCanvas graph={graph} layout="layered" height={520} onSelect={(node) => window.ESHU_ROUTES.setHash("explorer", "?q=" + encodeURIComponent(node.id))} /> : <p className="empty">{err ? "Failed to load: " + err : "No cloud resources match this scope."}</p>}
+            {busy && page === null ? <div className="conn-state" style={{ padding: 40 }}><div className="conn-spinner" aria-hidden /><p>Loading cloud resources...</p></div> : graph.nodes.length ? <GraphCanvas graph={graph} data={D} layout="layered" height={520} onSelect={(node) => window.ESHU_ROUTES.setHash("explorer", "?q=" + encodeURIComponent(node.id))} /> : <p className="empty">{err ? "Failed to load: " + err : "No cloud resources match this scope."}</p>}
           </Panel>
         ) : (
           <Panel className="flush mt" title={"Cloud resources - page " + pageNumber} sub="Grouped by family - live" glyph={<Icon.cloud />}>

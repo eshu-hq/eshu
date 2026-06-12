@@ -228,7 +228,7 @@ function Cloud({ data, client, onOpenService, onOpenNode }) {
 
       {view === "network" ? (
         <Panel className="flush mt" title="Network topology" sub={"Terraform → VPC → cluster → services → datastores · " + (D.cloudAccounts.find((a) => a.id === netAcct) || {}).account + " · click any node to drill"} glyph={<Icon.branch />}>
-          <GraphCanvas graph={net} layout="layered" height={580} onSelect={(n) => onOpenNode(n, net)} />
+          <GraphCanvas graph={net} data={D} layout="layered" height={580} onSelect={(n) => onOpenNode(n, net)} />
         </Panel>
       ) : (
       <>

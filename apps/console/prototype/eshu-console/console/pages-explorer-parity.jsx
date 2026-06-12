@@ -447,7 +447,7 @@
 
         <div className="explorer-layout">
           <div className="gcanvas-shell">
-            <GraphCanvas graph={filtered} layout={layout} height={640} onSelect={setSelected} selectedId={selected && selected.id} />
+            <GraphCanvas graph={filtered} data={D} layout={layout} height={640} onSelect={setSelected} selectedId={selected && selected.id} />
           </div>
           <Panel title="Inspector">
             {selected ? (

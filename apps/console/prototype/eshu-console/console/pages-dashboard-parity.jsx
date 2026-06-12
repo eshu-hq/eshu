@@ -121,7 +121,7 @@
         <Panel className="mt" title="Code-to-cloud relationship atlas" sub="Live entity-map neighbourhood - click any node to inspect it" glyph={<Icon.graph />}
           action={sel && props.onOpenService ? <button className="btn-ghost" onClick={() => props.onOpenService(sel.label)}>Open spotlight -&gt;</button> : null}>
           <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr) 300px", gap: "var(--gap)", alignItems: "start" }}>
-            <GraphCanvas graph={graph} layout={props.graphStyle || "layered"} height={500} onSelect={setSelected} selectedId={sel && sel.id} />
+            <GraphCanvas graph={graph} data={D} layout={props.graphStyle || "layered"} height={500} onSelect={setSelected} selectedId={sel && sel.id} />
             <div className="panel" style={{ background: "var(--bg-field)", boxShadow: "none" }}>
               <div className="panel-body">
                 {sel ? (

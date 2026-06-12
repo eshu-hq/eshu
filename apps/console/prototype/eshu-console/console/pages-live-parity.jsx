@@ -456,7 +456,7 @@ function Topology({ data, client, onOpenNode, onOpenService }) {
         <StatTile label="Runtime target" value={meta.environment || "pending"} color="var(--teal)" sub={client ? "/api/v0/services/{name}/context" : "bg-prod cluster"} />
       </div>
       <Panel className="flush mt" title={meta.serviceName + " - deployment topology"} sub="What deploys what, and where the resulting workload runs" glyph={<Icon.branch />}>
-        <GraphCanvas graph={graph} layout="layered" height={620} onSelect={(n) => onOpenNode && onOpenNode(n, graph)} />
+        <GraphCanvas graph={graph} data={D} layout="layered" height={620} onSelect={(n) => onOpenNode && onOpenNode(n, graph)} />
       </Panel>
     </div>
   );

@@ -231,7 +231,7 @@ function NodeDrawer({ node, graph, data, onClose, onOpenNode, onOpenService, onO
           <div>
             <div className="section-label">Neighbourhood · click any node to drill</div>
             <div className="node-hood">
-              <GraphCanvas graph={hood} layout="radial" height={250} showLabels
+              <GraphCanvas graph={hood} data={D} layout="radial" height={250} showLabels
                 onSelect={(n) => { if (n.id !== node.id) openOriginal(n); }} selectedId={node.id} />
             </div>
           </div>
