@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
+import { loadRepositoryNameMap } from "../api/repoCatalog";
 import { decodeRepoFile, loadRepoFile, loadRepoTree } from "../api/repoSource";
 import type { RepoFile, RepoTree } from "../api/repoSource";
 import { Panel, Badge } from "../components/atoms";
@@ -22,6 +23,21 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
   const [treeErr, setTreeErr] = useState("");
   const [file, setFile] = useState<RepoFile | null>(null);
   const [fileBusy, setFileBusy] = useState(false);
+  const [repositoryLabel, setRepositoryLabel] = useState(id);
+
+  useEffect(() => {
+    let cancelled = false;
+    setRepositoryLabel(id);
+    if (!client || id === "") return () => { cancelled = true; };
+    void loadRepositoryNameMap(client)
+      .then((repoNames) => {
+        if (!cancelled) setRepositoryLabel(repoNames.get(id) ?? id);
+      })
+      .catch(() => {
+        if (!cancelled) setRepositoryLabel(id);
+      });
+    return () => { cancelled = true; };
+  }, [client, id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +75,7 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
     <div className="page" style={{ maxWidth: "none" }}>
       <div className="page-intro">
         <Link to="/repositories" className="link-btn">← Repositories</Link>
-        <h2 style={{ marginTop: 8 }}>{id} <span className="t-mut" style={{ fontSize: "0.8rem", fontWeight: 400 }}>· source</span></h2>
+        <h2 style={{ marginTop: 8 }}>{repositoryLabel} <span className="t-mut" style={{ fontSize: "0.8rem", fontWeight: 400 }}>· source</span></h2>
         <p>File tree + viewer from <span className="mono">/repositories/{"{id}"}/tree</span> and <span className="mono">/content</span>. Branch selection is pending the branches API (#1433); showing the indexed ref{tree?.ref ? <> <Badge tone="neutral">{tree.ref.slice(0, 10)}</Badge></> : null}.</p>
       </div>
 

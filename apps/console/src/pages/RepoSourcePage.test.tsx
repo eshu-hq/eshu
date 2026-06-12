@@ -47,6 +47,42 @@ describe("RepoSourcePage", () => {
     expect(screen.getByTestId("source-line-2")).toHaveClass("is-highlighted");
   });
 
+  it("labels raw repository-id source routes with the repository name", async () => {
+    const client = {
+      get: async (path: string) => {
+        if (path === "/api/v0/repositories?limit=500&offset=0") {
+          return {
+            data: {
+              repositories: [{ id: "repository:r_1", name: "api-node-platform" }]
+            },
+            error: null,
+            truth: null
+          };
+        }
+        return {
+          data: {
+            ref: "main",
+            path: "",
+            entries: []
+          },
+          error: null,
+          truth: null
+        };
+      }
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/repositories/repository%3Ar_1/source"]}>
+        <Routes>
+          <Route path="/repositories/:id/source" element={<RepoSourcePage client={client} />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole("heading", { name: /api-node-platform/ })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /repository:r_1/ })).not.toBeInTheDocument();
+  });
+
   it("keeps file selections shareable by updating the source URL", async () => {
     const client = {
       get: async (path: string) => {

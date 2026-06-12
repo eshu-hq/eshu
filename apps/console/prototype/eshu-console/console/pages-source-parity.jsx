@@ -32,6 +32,11 @@
     );
   }
 
+  function repoSourceDisplayName(D, repoId) {
+    const svc = serviceForRepo(D, repoId);
+    return (svc && (svc.name || svc.id)) || repoId;
+  }
+
   function flattenTree(items, prefix) {
     const rows = [];
     (items || []).forEach((item) => {
@@ -126,6 +131,13 @@
     };
   }
 
+  async function liveRepoDisplayName(client, repoId) {
+    const env = await client.get("/api/v0/repositories?limit=500&offset=0");
+    const repos = (env.data && env.data.repositories) || [];
+    const match = repos.find((repo) => repo && (repo.id === repoId || repo.name === repoId));
+    return (match && (match.name || match.id)) || repoId;
+  }
+
   function RepoSource({ data, client }) {
     const D = data || ESHU;
     const [{ repoId, filePath, lineStart, lineEnd }, setRoute] = useStateSP(sourceRoute);
@@ -134,6 +146,7 @@
     const [treeErr, setTreeErr] = useStateSP("");
     const [file, setFile] = useStateSP(null);
     const [fileErr, setFileErr] = useStateSP("");
+    const [repoLabel, setRepoLabel] = useStateSP(repoSourceDisplayName(D, repoId));
 
     useEffectSP(() => {
       function onHash() {
@@ -153,6 +166,16 @@
         .catch((e) => { if (!cancelled) setTreeErr((e && e.message) || "failed"); });
       return () => { cancelled = true; };
     }, [D, client, repoId, path]);
+
+    useEffectSP(() => {
+      let cancelled = false;
+      setRepoLabel(repoSourceDisplayName(D, repoId));
+      if (!client) return () => { cancelled = true; };
+      liveRepoDisplayName(client, repoId)
+        .then((label) => { if (!cancelled) setRepoLabel(label); })
+        .catch(() => { if (!cancelled) setRepoLabel(repoId); });
+      return () => { cancelled = true; };
+    }, [D, client, repoId]);
 
     useEffectSP(() => {
       let cancelled = false;
@@ -178,7 +201,7 @@
       <div className="page" style={{ maxWidth: "none" }}>
         <div className="page-intro">
           <a className="link-btn" href={window.ESHU_ROUTES.hashFor("repos")}>{"<-"} Repositories</a>
-          <h2 style={{ marginTop: 8 }}>{repoId} <span className="t-mut" style={{ fontSize: "0.8rem", fontWeight: 400 }}>· source</span></h2>
+          <h2 style={{ marginTop: 8 }}>{repoLabel} <span className="t-mut" style={{ fontSize: "0.8rem", fontWeight: 400 }}>· source</span></h2>
           <p>File tree and code viewer from <span className="mono">/api/v0/repositories/{"{id}"}/tree</span> and <span className="mono">/content?path=</span>. Branch selection is pending; showing the indexed ref{tree && tree.ref ? <Badge tone="neutral">{String(tree.ref).slice(0, 10)}</Badge> : null}.</p>
         </div>
 

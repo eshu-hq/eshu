@@ -190,6 +190,8 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("/content?path=");
     expect(page).toContain("Repository source unavailable");
     expect(page).toContain("indexed ref");
+    expect(page).toContain("repoSourceDisplayName");
+    expect(page).not.toContain("<h2 style={{ marginTop: 8 }}>{repoId}");
   });
 
   it("keeps prototype dead-code locations wired to repository source deep links", () => {
