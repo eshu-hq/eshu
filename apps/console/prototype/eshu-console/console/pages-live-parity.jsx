@@ -308,11 +308,13 @@ function IaC({ data, onOpenService }) {
           <thead><tr><th>Name</th><th>Kind</th><th>Source</th><th>Owner</th><th>Scope</th><th>Truth</th></tr></thead>
           <tbody>{filtered.slice(0, 120).map((r) => {
             const svc = r.ownerId && D.servicesById[r.ownerId];
+            const source = r.relativePath || r.source;
+            const line = r.lineNumber ? ":" + r.lineNumber : "";
             return (
               <tr key={r.id} onClick={() => svc && onOpenService(svc.id)} style={{ cursor: svc ? "pointer" : "default" }}>
-                <td className="t-name">{r.name}</td>
+                <td className="t-name">{r.name}<div className="t-mut mono" style={{ fontSize: ".72rem" }}>{r.resourceName || r.category || "resource"}</div></td>
                 <td className="mono" style={{ fontSize: ".76rem" }}>{r.kind}</td>
-                <td><Badge tone={r.source === "Terraform state" ? "teal" : "neutral"}>{r.source}</Badge></td>
+                <td><Badge tone={source === "Terraform state" ? "teal" : "neutral"}>{source}{line}</Badge></td>
                 <td>{r.owner}</td>
                 <td className="mono" style={{ fontSize: ".76rem" }}>{r.account} · {r.region}</td>
                 <td><TruthChip level={r.truth} /></td>

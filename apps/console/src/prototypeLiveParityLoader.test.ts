@@ -47,13 +47,14 @@ interface PrototypeModel {
     readonly range: string;
     readonly dependencyType: string;
   }[];
-  readonly sbomInventory?: {
-    readonly buckets: readonly {
-      readonly value: string;
-      readonly dimension: string;
-      readonly count: number;
-    }[];
-  };
+  readonly iacParityRows?: readonly {
+    readonly category: string;
+    readonly lineNumber: number | null;
+    readonly relativePath: string;
+    readonly repoId: string;
+    readonly resourceName: string;
+  }[];
+  readonly sbomInventory?: { readonly buckets: readonly { readonly value: string; readonly dimension: string; readonly count: number }[] };
   readonly langInventory?: readonly { readonly label: string; readonly value: number }[];
   readonly metrics?: {
     readonly ingestRate?: readonly number[];
@@ -195,6 +196,14 @@ function liveClient(): PrototypeClient {
           }
         };
       }
+      if (path.includes("/iac/resources")) {
+        return {
+          data: {
+            resources: [{ id: "iac-resource:aws_s3_bucket.logs", kind: "resource", name: "aws_s3_bucket.logs", resource_name: "logs", type: "aws_s3_bucket", provider: "aws", resource_service: "api-node-platform", resource_category: "storage", module: "modules/logs", repo_id: "repository:iac", relative_path: "terraform/logs.tf", line_number: 42 }]
+          },
+          truth: { level: "exact", freshness: { state: "fresh" } }
+        };
+      }
       if (path.includes("/supply-chain/advisories")) {
         return {
           data: {
@@ -316,6 +325,13 @@ describe("prototype live parity loader", () => {
       id: "cloud-scope:gcp:project-synthetic",
       provider: "gcp",
       account: "cloud-scope:gcp:project-synthetic"
+    });
+    expect(model.iacParityRows?.[0]).toMatchObject({
+      category: "storage",
+      lineNumber: 42,
+      relativePath: "terraform/logs.tf",
+      repoId: "repository:iac",
+      resourceName: "logs"
     });
     expect(model.prov.cloudInventory).toBe("live");
     expect(model.advisoryCatalog?.[0]).toMatchObject({

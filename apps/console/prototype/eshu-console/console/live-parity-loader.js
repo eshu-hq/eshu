@@ -93,10 +93,15 @@
   function mapIac(row, env) {
     return {
       id: str(row.id),
+      category: str(row.resource_category),
       name: str(row.name) || str(row.resource_name) || str(row.id),
       kind: str(row.type) || str(row.kind) || "resource",
+      lineNumber: typeof row.line_number === "number" && Number.isFinite(row.line_number) ? row.line_number : null,
       ownerId: str(row.resource_service),
       owner: str(row.resource_service) || "shared platform",
+      relativePath: str(row.relative_path),
+      repoId: str(row.repo_id),
+      resourceName: str(row.resource_name),
       source: str(row.relative_path) ? str(row.relative_path) : "Terraform state",
       account: str(row.provider),
       region: str(row.module),
