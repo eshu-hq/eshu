@@ -224,6 +224,22 @@ describe("prototype documentation parity", () => {
     }
   });
 
+  it("keeps prototype live unwrap helpers rejecting API error envelopes", () => {
+    const helperPages = [
+      repoFile("apps/console/prototype/eshu-console/console/pages-repositories-parity.jsx"),
+      repoFile("apps/console/prototype/eshu-console/console/pages-cloud-parity.jsx"),
+      repoFile("apps/console/prototype/eshu-console/console/pages-observability-parity.jsx"),
+      repoFile("apps/console/prototype/eshu-console/console/pages-dashboard-parity.jsx"),
+      repoFile("apps/console/prototype/eshu-console/console/pages-live-parity.jsx"),
+      repoFile("apps/console/prototype/eshu-console/console/pages-cloud.jsx")
+    ];
+
+    for (const page of helperPages) {
+      expect(page).toContain("response && response.error");
+      expect(page).toContain("throw new Error");
+    }
+  });
+
   it("keeps prototype dead-code locations wired to repository source deep links", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-code.jsx");

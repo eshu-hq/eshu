@@ -12,6 +12,7 @@ const PROVIDER_META = {
 };
 
 function cloudEnvelopeData(response) {
+  if (response && response.error) throw new Error(response.error.message || response.error.code || "api error");
   return response && response.data && response.error !== undefined ? response.data : response;
 }
 

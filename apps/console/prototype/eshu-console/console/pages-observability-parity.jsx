@@ -22,6 +22,7 @@
   ];
 
   function envData(response) {
+    if (response && response.error) throw new Error(response.error.message || response.error.code || "api error");
     return response && Object.prototype.hasOwnProperty.call(response, "data") ? response.data : response;
   }
 
