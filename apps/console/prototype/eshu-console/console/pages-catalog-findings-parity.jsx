@@ -36,7 +36,7 @@ function findingRows(data, verifiedOnly) {
   })));
 }
 
-function Catalog(props) {
+function CatalogParityPage(props) {
   if (!props.client && DemoCatalogPage) return <DemoCatalogPage {...props} />;
   const D = props.data || ESHU;
   const rows = catalogRows(D);
@@ -62,7 +62,7 @@ function Catalog(props) {
   );
 }
 
-function Findings(props) {
+function FindingsParityPage(props) {
   if (!props.client && DemoFindingsPage) return <DemoFindingsPage {...props} />;
   const D = props.data || ESHU;
   const rows = findingRows(D, props.verifiedOnly).sort((a, b) => (SEVERITY_RANK_CF[b.severity] || 0) - (SEVERITY_RANK_CF[a.severity] || 0));
@@ -96,5 +96,5 @@ function Findings(props) {
   );
 }
 
-window.Catalog = Catalog;
-window.Findings = Findings;
+window.Catalog = CatalogParityPage;
+window.Findings = FindingsParityPage;

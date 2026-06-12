@@ -116,11 +116,11 @@ function opsLiveOperations({ data, source }) {
   );
 }
 
-function Admin(props) {
+function AdminParityPage(props) {
   const source = props && props.source;
   const connectedLive = source && source.mode === "live" && source.status === "connected";
   if (!connectedLive && DemoAdminPage) return <DemoAdminPage {...props} />;
   return opsLiveOperations(props || {});
 }
 
-window.Admin = Admin;
+window.Admin = AdminParityPage;

@@ -38,4 +38,12 @@ describe("prototype shell parity", () => {
     expect(page).toContain("issue #2239");
     expect(page).not.toContain("clustered by domain evidence");
   });
+
+  it("keeps demo-mode parity overrides from recursively capturing themselves", () => {
+    const catalogFindings = repoFile("apps/console/prototype/eshu-console/console/pages-catalog-findings-parity.jsx");
+    const operations = repoFile("apps/console/prototype/eshu-console/console/pages-operations-parity.jsx");
+
+    expect(catalogFindings).not.toMatch(/function\s+(Catalog|Findings)\s*\(/);
+    expect(operations).not.toMatch(/function\s+Admin\s*\(/);
+  });
 });
