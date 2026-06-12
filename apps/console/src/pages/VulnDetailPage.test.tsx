@@ -31,14 +31,14 @@ function modelWithVulnerability(): ConsoleModel {
       deadLetters: 0,
       succeeded: 0,
       profile: "live"
-	    },
-	    services: [],
-	    languages: [],
-	    ingesters: [],
-	    findings: [],
-	    vulnerabilities: [
-	      {
-	        id: "CVE-2025-13465",
+    },
+    services: [],
+    languages: [],
+    ingesters: [],
+    findings: [],
+    vulnerabilities: [
+      {
+        id: "CVE-2025-13465",
         package: "serialize-javascript",
         severity: "high",
         cvss: 8.1,
@@ -46,30 +46,52 @@ function modelWithVulnerability(): ConsoleModel {
         fixedVersion: "7.0.3",
         services: ["checkout-api"]
       }
-	    ],
-	    sbom: null,
-	    dependencies: [],
-	    images: [],
-	    iacResources: [],
-	    advisories: [],
-	    provenance: {
-	      services: "live",
-	      languages: "live",
-	      ingesters: "live",
-	      findings: "live",
-	      vulnerabilities: "live",
-	      sbom: "empty",
-	      dependencies: "empty",
-	      images: "empty",
-	      iacResources: "empty",
-	      advisories: "empty"
-	    },
+    ],
+    sbom: null,
+    dependencies: [],
+    images: [],
+    iacResources: [],
+    advisories: [],
+    provenance: {
+      services: "live",
+      languages: "live",
+      ingesters: "live",
+      findings: "live",
+      vulnerabilities: "live",
+      sbom: "empty",
+      dependencies: "empty",
+      images: "empty",
+      iacResources: "empty",
+      advisories: "empty"
+    },
     truth: {}
   };
 }
 
 describe("VulnDetailPage", () => {
-  it("shows an unavailable state when the live advisory response is empty", async () => {
+  it("shows an unavailable state when the advisory and impact rows are empty", async () => {
+    const client = {
+      get: async () => ({ data: null, truth: null, error: null })
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/vulnerabilities/CVE-2025-00000"]}>
+        <Routes>
+          <Route
+            element={<VulnDetailPage client={client} model={modelWithVulnerability()} />}
+            path="/vulnerabilities/:id"
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Advisory unavailable" })).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Severity")).not.toBeInTheDocument();
+  });
+
+  it("falls back to source-backed impact facts when extended advisory evidence is empty", async () => {
     const client = {
       get: async () => ({ data: null, truth: null, error: null })
     } as unknown as EshuApiClient;
@@ -86,8 +108,11 @@ describe("VulnDetailPage", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Advisory unavailable" })).toBeInTheDocument();
+      expect(screen.getByText("Severity")).toBeInTheDocument();
     });
-    expect(screen.queryByText("Severity")).not.toBeInTheDocument();
+    expect(screen.getByText("high")).toBeInTheDocument();
+    expect(screen.getByText("serialize-javascript")).toBeInTheDocument();
+    expect(screen.getByText(/Showing reachable impact facts from/)).toBeInTheDocument();
+    expect(screen.getByText("GET /api/v0/supply-chain/impact/findings")).toBeInTheDocument();
   });
 });
