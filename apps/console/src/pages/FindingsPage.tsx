@@ -9,22 +9,31 @@ export function FindingsPage({ model }: { readonly model: ConsoleModel }): React
   rows.forEach((row) => byType.set(row.type, (byType.get(row.type) ?? 0) + 1));
   return (
     <div className="page">
-      <div className="page-intro"><h2>Findings</h2><p>Unified worklist for dead code and reachable vulnerabilities. Each row links to the live drilldown surface that owns the evidence.</p></div>
+      <div className="page-intro">
+        <h2>Findings</h2>
+        <p>
+          Unified worklist for dead code and reachable vulnerabilities from{" "}
+          <span className="mono">POST /api/v0/code/dead-code</span> and{" "}
+          <span className="mono">GET /api/v0/supply-chain/impact/findings</span>.
+          Each row links to the live drilldown surface that owns the evidence.
+        </p>
+      </div>
       <div className="grid g-4">
-        <StatTile label="Open findings" value={rows.length} color="var(--ember)" sub={model.source === "live" ? "live from the graph" : "demo"} />
+        <StatTile label="Open findings" value={rows.length} color="var(--ember)" sub={model.source === "live" ? "live worklist rows" : "demo"} />
         <StatTile label="Dead code" value={byType.get("Dead code") ?? 0} color="var(--violet)" sub="graph-backed candidates" />
         <StatTile label="Vulnerability" value={byType.get("Vulnerability") ?? 0} color="var(--crit)" sub="reachable advisories" />
         <StatTile label="Types" value={byType.size} color="var(--blue)" sub="distinct categories" />
       </div>
       <Panel className="flush mt" title="Unified worklist">
         <table className="tbl">
-          <thead><tr><th>Finding</th><th>Type</th><th>Entity</th><th>Truth</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Finding</th><th>Type</th><th>Entity</th><th>Source</th><th>Truth</th><th>Actions</th></tr></thead>
           <tbody>
             {rows.map((row) => (
               <tr key={row.id}>
                 <td className="cell-stack" style={{ maxWidth: 460 }}><span style={{ color: "var(--bone)", fontWeight: 600 }}>{row.title}</span><small>{row.detail}</small></td>
                 <td><Badge tone={row.type === "Vulnerability" ? "crit" : "neutral"}>{row.type}</Badge></td>
                 <td className="t-name" style={{ fontSize: ".8rem" }}>{row.entity}</td>
+                <td className="t-mut mono" style={{ fontSize: ".76rem" }}>{row.source}</td>
                 <td><TruthChip level={row.truth} /></td>
                 <td>
                   <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
@@ -33,7 +42,7 @@ export function FindingsPage({ model }: { readonly model: ConsoleModel }): React
                 </td>
               </tr>
             ))}
-            {rows.length === 0 ? <tr><td colSpan={5} className="empty">No findings from this source.</td></tr> : null}
+            {rows.length === 0 ? <tr><td colSpan={6} className="empty">No findings from this source.</td></tr> : null}
           </tbody>
         </table>
       </Panel>
@@ -52,6 +61,7 @@ interface WorklistRow {
   readonly entity: string;
   readonly title: string;
   readonly detail: string;
+  readonly source: string;
   readonly truth: "exact" | "derived" | "inferred";
   readonly actions: readonly WorklistAction[];
 }
@@ -75,6 +85,7 @@ function findingRow(finding: FindingRow): WorklistRow {
     detail: finding.detail,
     entity: finding.entity,
     id: finding.id,
+    source: findingSource(finding),
     title: finding.title,
     truth: uiTruth(finding.truth),
     type: finding.type
@@ -95,8 +106,15 @@ function vulnerabilityRow(vulnerability: VulnRow): WorklistRow {
     detail,
     entity: primaryEntity,
     id: `vulnerability:${vulnerability.id}`,
+    source: "GET /api/v0/supply-chain/impact/findings",
     title: `${vulnerability.id} · ${vulnerability.package}`,
     truth: "derived",
     type: "Vulnerability"
   };
+}
+
+function findingSource(finding: FindingRow): string {
+  if (finding.type === "Dead code") return "POST /api/v0/code/dead-code";
+  if (finding.type === "Vulnerability") return "GET /api/v0/supply-chain/impact/findings";
+  return "live graph finding row";
 }

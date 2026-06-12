@@ -73,6 +73,39 @@ describe("FindingsPage", () => {
       "/explorer?q=api-node-boats"
     );
   });
+
+  it("shows the live source contract for each worklist row", () => {
+    const model: ConsoleModel = {
+      ...demoModel,
+      source: "live",
+      findings: [{
+        id: "dead-1",
+        type: "Dead code",
+        entity: "api-node-boats",
+        title: "Unreferenced symbol unusedRoute",
+        detail: "server/routes.ts · unused",
+        truth: "derived",
+        entityId: "content-entity:e1",
+        filePath: "server/routes.ts"
+      }],
+      vulnerabilities: [{
+        id: "CVE-2026-1234",
+        package: "lodash",
+        severity: "high",
+        cvss: 8.1,
+        kev: false,
+        fixedVersion: null,
+        services: ["api-node-boats"]
+      }]
+    };
+
+    renderFindings(model);
+
+    expect(screen.getByRole("columnheader", { name: "Source" })).toBeInTheDocument();
+    expect(screen.getByText("live worklist rows")).toBeInTheDocument();
+    expect(sourceCells("POST /api/v0/code/dead-code")).toHaveLength(1);
+    expect(sourceCells("GET /api/v0/supply-chain/impact/findings")).toHaveLength(1);
+  });
 });
 
 function renderFindings(model: ConsoleModel): ReturnType<typeof render> {
@@ -81,4 +114,8 @@ function renderFindings(model: ConsoleModel): ReturnType<typeof render> {
       <FindingsPage model={model} />
     </MemoryRouter>
   );
+}
+
+function sourceCells(text: string): readonly HTMLElement[] {
+  return screen.getAllByText(text).filter((element) => element.tagName === "TD");
 }
