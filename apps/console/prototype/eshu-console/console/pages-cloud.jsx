@@ -66,6 +66,29 @@ function buildCloudNetwork(D, accountId) {
     if (sg) { push(mk(sg, 2)); edges.push({ s: snid, t: sg.uid, verb: "SECURED_BY", layer: "infra" }); if (vpc) edges.push({ s: sg.uid, t: vpc.uid, verb: "ATTACHED_TO", layer: "infra" }); }
     res.filter((r) => r.service === sid && r.family === "storage").forEach((ds) => { push(mk(ds, 4)); edges.push({ s: snid, t: ds.uid, verb: "STORES_IN", layer: "infra" }); });
   });
+  if (!edges.length && res.length) return buildCanonicalCloudNetwork(D, accountId, res);
+  return { nodes, edges };
+}
+
+function buildCanonicalCloudNetwork(D, accountId, res) {
+  const acc = D.cloudAccounts.find((a) => a.id === accountId) || {};
+  const nodes = [], edges = [], seen = new Set();
+  const push = (n) => { if (!seen.has(n.id)) { seen.add(n.id); nodes.push(n); } };
+  const rootId = "scope:" + accountId;
+  push({ id: rootId, kind: acc.provider || "aws", label: acc.label || accountId, sub: "canonical inventory scope", col: 0, hero: true });
+  res.forEach((r) => {
+    const origin = r.managementOrigin || (r.tf ? "declared" : "observed");
+    const originId = "origin:" + accountId + ":" + origin;
+    const family = r.family || "other";
+    const familyId = "family:" + accountId + ":" + family;
+    const fm = D.cloudFamilies[family] || { label: family, color: "var(--muted)" };
+    push({ id: originId, kind: origin === "declared" ? "tf" : "aws", label: origin || "inventory", sub: "management origin", col: 1 });
+    push({ id: familyId, kind: CLOUD_FAM_KIND[family] || "aws", label: fm.label, sub: "resource family", col: 2 });
+    push({ id: r.uid, kind: CLOUD_FAM_KIND[family] || "aws", label: r.name || r.type || r.uid, sub: cloudResLabel(r.type), col: 3, _res: r });
+    edges.push({ s: rootId, t: originId, verb: "CONTAINS", layer: "infra" });
+    edges.push({ s: originId, t: familyId, verb: "GROUPS", layer: "infra" });
+    edges.push({ s: familyId, t: r.uid, verb: "HAS_RESOURCE", layer: "infra" });
+  });
   return { nodes, edges };
 }
 
@@ -103,8 +126,8 @@ function Cloud({ data, client, onOpenService, onOpenNode }) {
   const [view, setView] = useStateC("network");
   const [inventory, setInventory] = useStateC(null);
   const [inventoryState, setInventoryState] = useStateC("demo");
-  const awsAccounts = D.cloudAccounts.filter((a) => a.provider === "aws");
-  const [netAcct, setNetAcct] = useStateC(awsAccounts[0] ? awsAccounts[0].id : "aws-prod");
+  const networkAccounts = D.cloudAccounts;
+  const [netAcct, setNetAcct] = useStateC(networkAccounts[0] ? networkAccounts[0].id : "aws-prod");
   const net = useMemoC(() => buildCloudNetwork(D, netAcct), [D, netAcct]);
   const famKeys = Object.keys(D.cloudFamilies);
   const providers = Array.from(new Set(all.map((r) => r.provider)));
@@ -114,7 +137,7 @@ function Cloud({ data, client, onOpenService, onOpenNode }) {
     (fam === "all" || r.family === fam) &&
     (q === "" || (r.name + r.type + r.account + (r.service || "")).toLowerCase().includes(q.toLowerCase()))
   );
-  const tfPct = Math.round((all.filter((r) => r.tf).length / all.length) * 100);
+  const tfPct = all.length ? Math.round((all.filter((r) => r.tf).length / all.length) * 100) : 0;
   const obsCount = all.filter((r) => r.family === "observability").length;
   const famCounts = famKeys.map((k) => ({ label: D.cloudFamilies[k].label, value: all.filter((r) => r.family === k).length, color: D.cloudFamilies[k].color }));
 
@@ -156,7 +179,7 @@ function Cloud({ data, client, onOpenService, onOpenNode }) {
           <div className="acct-list">
             {D.cloudAccounts.map((a) => {
               const n = all.filter((r) => r.account === a.id).length;
-              const pm = PROVIDER_META[a.provider];
+              const pm = PROVIDER_META[a.provider] || { label: a.provider || "Provider", color: "var(--muted)" };
               return (
                 <div className="acct-row" key={a.id}>
                   <span className="acct-prov" style={{ "--pc": pm.color }}><i />{pm.label}</span>
@@ -198,7 +221,7 @@ function Cloud({ data, client, onOpenService, onOpenNode }) {
           <button className={view === "table" ? "active" : ""} onClick={() => setView("table")}>Table</button>
         </div>
         {view === "network" ? (
-          <div className="seg branch-seg"><Icon.cloud size={14} />{awsAccounts.map((a) => <button key={a.id} className={netAcct === a.id ? "active" : ""} onClick={() => setNetAcct(a.id)}>{a.label} · {a.env}</button>)}</div>
+          <div className="seg branch-seg"><Icon.cloud size={14} />{networkAccounts.map((a) => <button key={a.id} className={netAcct === a.id ? "active" : ""} onClick={() => setNetAcct(a.id)}>{a.label} · {a.env}</button>)}</div>
         ) : null}
       </div>
 

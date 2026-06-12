@@ -1,5 +1,4 @@
-/* Extends the standalone prototype live loader with newer console surfaces.
-   Kept outside data.js so the legacy fixture file does not keep growing. */
+/* Extends the standalone prototype live loader with newer console surfaces. */
 (function () {
   if (!window.ESHU || typeof window.ESHU.loadLive !== "function") return;
 
@@ -152,6 +151,94 @@
     };
   }
 
+  function cloudResourceFamily(resourceType) {
+    const type = str(resourceType).toLowerCase();
+    if (type.indexOf("iam") >= 0 || type.indexOf("role") >= 0 || type.indexOf("policy") >= 0) return "identity";
+    if (type.indexOf("s3") >= 0 || type.indexOf("rds") >= 0 || type.indexOf("dynamo") >= 0 ||
+        type.indexOf("elasticache") >= 0 || type.indexOf("opensearch") >= 0 || type.indexOf("storage") >= 0) return "storage";
+    if (type.indexOf("vpc") >= 0 || type.indexOf("subnet") >= 0 || type.indexOf("security_group") >= 0 ||
+        type.indexOf("gateway") >= 0 || type.indexOf("route") >= 0 || type.indexOf("network") >= 0) return "networking";
+    if (type.indexOf("eks") >= 0 || type.indexOf("ecs") >= 0 || type.indexOf("lambda") >= 0 ||
+        type.indexOf("apigateway") >= 0 || type.indexOf("compute") >= 0 || type.indexOf("instance") >= 0) return "compute";
+    if (type.indexOf("cloudwatch") >= 0 || type.indexOf("grafana") >= 0 || type.indexOf("log") >= 0 ||
+        type.indexOf("alarm") >= 0 || type.indexOf("monitor") >= 0) return "observability";
+    return "other";
+  }
+
+  function cloudResourceName(uid, resourceType) {
+    const clean = str(uid);
+    if (!clean) return str(resourceType) || "cloud resource";
+    const parts = clean.split(":").filter(Boolean);
+    return parts.length ? parts[parts.length - 1] : clean;
+  }
+
+  function cloudInventoryEvidence(evidence) {
+    return {
+      declared: Boolean(evidence && evidence.declared),
+      applied: Boolean(evidence && evidence.applied),
+      observed: Boolean(evidence && evidence.observed)
+    };
+  }
+
+  function mapCloudInventoryRow(row) {
+    const uid = str(row.cloud_resource_uid);
+    const evidence = cloudInventoryEvidence(row.evidence || {});
+    return {
+      uid,
+      provider: str(row.provider),
+      resourceType: str(row.resource_type),
+      origin: str(row.management_origin),
+      scope: str(row.scope_id),
+      sourceState: str(row.source_state),
+      evidence
+    };
+  }
+
+  function cloudInventoryResource(row, env) {
+    return {
+      uid: row.uid,
+      provider: row.provider || "unknown",
+      account: row.scope || row.provider || "unknown",
+      region: "",
+      type: row.resourceType || "cloud_resource",
+      family: cloudResourceFamily(row.resourceType),
+      name: cloudResourceName(row.uid, row.resourceType),
+      resourceId: row.uid,
+      ref: row.uid,
+      service: null,
+      tf: row.origin === "declared" || row.evidence.declared === true,
+      truth: row.sourceState || truthLevel(env),
+      freshness: "fresh",
+      signal: null,
+      sourceState: row.sourceState,
+      managementOrigin: row.origin
+    };
+  }
+  function cloudInventoryAccounts(rows, existing, resources) {
+    const accounts = {};
+    (existing || []).forEach((row) => { if (row && row.id) accounts[row.id] = row; });
+    (resources || []).forEach((row) => { const id = row && row.account; if (id && !accounts[id]) accounts[id] = { id, provider: row.provider || "unknown", label: id, account: id, region: row.region || "", env: "live" }; });
+    rows.forEach((row) => {
+      const id = row.scope || row.provider || "unknown";
+      if (!accounts[id]) {
+        accounts[id] = {
+          id,
+          provider: row.provider || "unknown",
+          label: id,
+          account: id,
+          region: "",
+          env: row.origin || "inventory"
+        };
+      }
+    });
+    return Object.keys(accounts).map((key) => accounts[key]);
+  }
+
+  function mergeCloudResources(existing, canonical) {
+    const seen = {};
+    (existing || []).forEach((row) => { if (row && row.uid) seen[row.uid] = true; });
+    return (existing || []).concat(canonical.filter((row) => row.uid && !seen[row.uid]));
+  }
   async function loadRepositoryNameLookup(client) {
     const env = await client.get("/api/v0/repositories?limit=500&offset=0");
     const rows = (env.data && env.data.repositories) || [];
@@ -331,6 +418,28 @@
       const env = await client.get("/api/v0/repositories/language-inventory?limit=100&offset=0");
       const rows = ((env.data && env.data.languages) || []).map(mapLanguage).filter((row) => row.label);
       return rows.length ? { langInventory: rows } : null;
+    });
+
+    await section(out, "cloudInventory", async () => {
+      const env = await client.get("/api/v0/cloud/inventory?limit=50");
+      const data = env.data || {};
+      const rows = ((data.resources) || []).map(mapCloudInventoryRow).filter((row) => row.uid);
+      if (!rows.length) return null;
+      const resources = rows.map((row) => cloudInventoryResource(row, env));
+      const accounts = cloudInventoryAccounts(rows, out.cloudAccounts, out.cloudResources);
+      const cloudAccounts = accounts.length ? accounts : out.cloudAccounts;
+      return {
+        cloudInventory: {
+          count: typeof data.count === "number" ? data.count : rows.length,
+          rows,
+          truncated: Boolean(data.truncated),
+          nextCursor: str(data.next_cursor)
+        },
+        cloudFamilies: Object.assign({}, window.ESHU.cloudFamilies || {}, out.cloudFamilies || {}, { other: { label: "Other", color: "#8b5cf6", icon: "box" } }),
+        cloudResources: mergeCloudResources(out.cloudResources, resources),
+        cloudAccounts,
+        runtime: Object.assign({}, out.runtime || {}, { cloudResources: typeof data.count === "number" ? data.count : rows.length })
+      };
     });
 
     await section(out, "imageInventory", async () => {

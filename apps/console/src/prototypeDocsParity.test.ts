@@ -2,8 +2,12 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
+function repoRoot(): string {
+  return process.cwd().endsWith("apps/console") ? resolve(process.cwd(), "../..") : process.cwd();
+}
+
 function repoFile(path: string): string {
-  return readFileSync(resolve(process.cwd(), path), "utf8");
+  return readFileSync(resolve(repoRoot(), path), "utf8");
 }
 
 describe("prototype documentation parity", () => {
@@ -44,6 +48,8 @@ describe("prototype documentation parity", () => {
     expect(app).toContain("<Cloud data={data} client={liveClient}");
     expect(page).toContain("/api/v0/cloud/inventory");
     expect(page).toContain("Canonical inventory");
+    expect(page).toContain("buildCanonicalCloudNetwork");
+    expect(page).toContain("HAS_RESOURCE");
     expect(page).toContain("No canonical inventory rows");
     expect(guide).toContain("GET /api/v0/cloud/inventory");
   });

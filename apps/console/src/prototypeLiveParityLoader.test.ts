@@ -12,6 +12,20 @@ interface PrototypeClient {
 interface PrototypeModel {
   readonly prov: Record<string, string>;
   readonly advisoryCatalog?: readonly { readonly id: string; readonly severity: string; readonly cvss: number; readonly kev: boolean }[];
+  readonly cloudAccounts?: readonly { readonly id: string; readonly provider: string; readonly account: string }[];
+  readonly cloudInventory?: {
+    readonly count: number;
+    readonly rows: readonly { readonly uid: string; readonly provider: string; readonly resourceType: string; readonly scope: string }[];
+  };
+  readonly cloudResources?: readonly {
+    readonly uid: string;
+    readonly provider: string;
+    readonly account: string;
+    readonly type: string;
+    readonly family: string;
+    readonly name: string;
+    readonly tf: boolean;
+  }[];
   readonly langInventory?: readonly { readonly label: string; readonly value: number }[];
   readonly metrics?: {
     readonly ingestRate?: readonly number[];
@@ -29,7 +43,11 @@ interface PrototypeWindow {
   };
 }
 
-const loaderPath = resolve(process.cwd(), "apps/console/prototype/eshu-console/console/live-parity-loader.js");
+function repoRoot(): string {
+  return process.cwd().endsWith("apps/console") ? resolve(process.cwd(), "../..") : process.cwd();
+}
+
+const loaderPath = resolve(repoRoot(), "apps/console/prototype/eshu-console/console/live-parity-loader.js");
 
 function loadPrototypeWindow(): PrototypeWindow {
   const win: PrototypeWindow = {
@@ -80,6 +98,31 @@ function liveClient(): PrototypeClient {
         return {
           data: {
             points: [{ t: "2026-06-01T00:00:00Z", v: metric === "ingest_rate" ? 12 : 4 }]
+          }
+        };
+      }
+      if (path.includes("/cloud/inventory")) {
+        return {
+          data: {
+            count: 1,
+            limit: 50,
+            truncated: false,
+            resources: [{
+              cloud_resource_uid: "gcp:project-synthetic:compute.googleapis.com/Instance:vm-1",
+              provider: "gcp",
+              resource_type: "compute.googleapis.com/Instance",
+              management_origin: "declared",
+              scope_id: "cloud-scope:gcp:project-synthetic",
+              source_state: "exact",
+              evidence: { declared: true, applied: true, observed: false }
+            }]
+          },
+          error: null,
+          truth: {
+            profile: "production",
+            level: "exact",
+            capability: "cloud_inventory.readback.list",
+            freshness: { state: "fresh" }
           }
         };
       }
@@ -148,6 +191,28 @@ describe("prototype live parity loader", () => {
     expect(model.metrics?.queueDepth).toEqual([4]);
     expect(model.metrics?.queryP99).toEqual([4]);
     expect(model.prov.metrics).toBe("live");
+    expect(client.paths).toContain("/api/v0/cloud/inventory?limit=50");
+    expect(model.cloudInventory?.rows[0]).toMatchObject({
+      uid: "gcp:project-synthetic:compute.googleapis.com/Instance:vm-1",
+      provider: "gcp",
+      resourceType: "compute.googleapis.com/Instance",
+      scope: "cloud-scope:gcp:project-synthetic"
+    });
+    expect(model.cloudResources?.[0]).toMatchObject({
+      uid: "gcp:project-synthetic:compute.googleapis.com/Instance:vm-1",
+      provider: "gcp",
+      account: "cloud-scope:gcp:project-synthetic",
+      type: "compute.googleapis.com/Instance",
+      family: "compute",
+      name: "vm-1",
+      tf: true
+    });
+    expect(model.cloudAccounts?.[0]).toMatchObject({
+      id: "cloud-scope:gcp:project-synthetic",
+      provider: "gcp",
+      account: "cloud-scope:gcp:project-synthetic"
+    });
+    expect(model.prov.cloudInventory).toBe("live");
     expect(model.advisoryCatalog?.[0]).toMatchObject({
       id: "CVE-2026-0001",
       severity: "critical",
