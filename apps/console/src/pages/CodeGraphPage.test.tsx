@@ -202,6 +202,56 @@ describe("CodeGraphPage", () => {
     expect(screen.getByRole("combobox")).toHaveValue("dead-2");
   });
 
+  it("selects a dead-code candidate from the code-graph URL parameter", async () => {
+    const model: ConsoleModel = {
+      ...demoModel,
+      findings: [
+        {
+          id: "dead-1",
+          type: "Dead code",
+          entity: "api-node-boats",
+          title: "Unreferenced symbol post",
+          detail: "server/handlers/install.ts · unused",
+          truth: "derived",
+          entityId: "content-entity:e1",
+          filePath: "server/handlers/install.ts",
+          startLine: 17,
+          endLine: 54,
+          labels: ["Function"],
+          classification: "unused",
+          repoId: "repository:r_1"
+        },
+        {
+          id: "dead-2",
+          type: "Dead code",
+          entity: "api-node-boats",
+          title: "Unreferenced symbol put",
+          detail: "server/handlers/profile.ts · unused",
+          truth: "derived",
+          entityId: "content-entity:e2",
+          filePath: "server/handlers/profile.ts",
+          startLine: 41,
+          endLine: 75,
+          labels: ["Function"],
+          classification: "unused",
+          repoId: "repository:r_1"
+        }
+      ]
+    };
+
+    render(
+      <MemoryRouter initialEntries={["/code-graph?candidate=dead-2"]}>
+        <CodeGraphPage model={model} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("combobox")).toHaveValue("dead-2");
+    expect(screen.getByRole("link", { name: "server/handlers/profile.ts:41-75" })).toHaveAttribute(
+      "href",
+      "/repositories/repository%3Ar_1/source?path=server%2Fhandlers%2Fprofile.ts&lineStart=41&lineEnd=75"
+    );
+  });
+
   it("loads live dead-code candidates and uses the documented relationships depth field", async () => {
     const calls: { readonly path: string; readonly body: unknown }[] = [];
     const client = {

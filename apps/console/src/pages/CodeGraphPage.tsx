@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
 import { loadDeadCodePage } from "../api/deadCode";
 import { codeRelationshipsToGraph } from "../api/eshuGraph";
@@ -17,7 +17,9 @@ export function CodeGraphPage({ model, client }: {
   const snapshotCandidates = useMemo(() => model.findings.filter((finding) => finding.type === "Dead code"), [model.findings]);
   const [liveCandidates, setLiveCandidates] = useState<readonly FindingRow[] | null>(null);
   const candidates = liveCandidates ?? snapshotCandidates;
-  const [selectedId, setSelectedId] = useState(candidates[0]?.id ?? "");
+  const [searchParams] = useSearchParams();
+  const candidateParam = searchParams.get("candidate") ?? searchParams.get("q") ?? "";
+  const [selectedId, setSelectedId] = useState(candidateIdFromParam(candidates, candidateParam) ?? candidates[0]?.id ?? "");
   const selected = candidates.find((finding) => finding.id === selectedId) ?? candidates[0];
   const [graph, setGraph] = useState<GraphModel>({ nodes: [], edges: [] });
   const [focusedNodeId, setFocusedNodeId] = useState<string | undefined>(selected?.entityId);
@@ -45,6 +47,20 @@ export function CodeGraphPage({ model, client }: {
       });
     return () => { cancelled = true; };
   }, [client, model.source]);
+
+  useEffect(() => {
+    const nextId = candidateIdFromParam(candidates, candidateParam);
+    if (nextId && nextId !== selectedId) {
+      const next = candidates.find((finding) => finding.id === nextId);
+      setSelectedId(nextId);
+      setFocusedNodeId(next?.entityId ?? nextId);
+      return;
+    }
+    if (!selectedId && candidates[0]) {
+      setSelectedId(candidates[0].id);
+      setFocusedNodeId(candidates[0].entityId ?? candidates[0].id);
+    }
+  }, [candidateParam, candidates, selectedId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -224,6 +240,17 @@ function findingForNode(node: GraphNode | undefined, candidates: readonly Findin
 
 function symbolFromFinding(finding: FindingRow): string {
   return finding.title.replace(/^Unreferenced symbol\s+/i, "").trim() || finding.title;
+}
+
+function candidateIdFromParam(candidates: readonly FindingRow[], param: string): string | undefined {
+  const value = param.trim().toLowerCase();
+  if (value === "") return undefined;
+  return candidates.find((finding) =>
+    finding.id.toLowerCase() === value ||
+    finding.entityId?.toLowerCase() === value ||
+    symbolFromFinding(finding).toLowerCase() === value ||
+    finding.filePath?.toLowerCase() === value
+  )?.id;
 }
 
 function locationFromFinding(finding: FindingRow | undefined): string {

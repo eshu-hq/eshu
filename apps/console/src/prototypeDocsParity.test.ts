@@ -220,6 +220,7 @@ describe("prototype documentation parity", () => {
 
     expect(html).toContain("console/live-dead-code-loader.js");
     expect(page).toContain('hashFor("reposource"');
+    expect(page).toContain('hashFor("codegraph", "?candidate="');
     expect(page).toContain("lineStart");
     expect(page).toContain("Open source");
     expect(deadCodeLoader).toContain("/api/v0/code/dead-code");
@@ -240,6 +241,7 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("deadCodeSourceRepo");
     expect(page).toContain("focusedNode");
     expect(page).toContain("locationLabel");
+    expect(page).toContain("codeGraphCandidateParam");
   });
 
   it("keeps the prototype topology route on current live service topology contracts", () => {

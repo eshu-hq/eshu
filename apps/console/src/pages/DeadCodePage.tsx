@@ -158,13 +158,13 @@ export function DeadCodePage({
         <Panel className="flush" title={`${filtered.length} candidates`} sub={`Grouped by repository · ${source}`}>
           <div className="table-scroll">
             <table className="tbl wide">
-              <thead><tr><th>Symbol</th><th>Kind</th><th>Location</th><th>Refs</th><th>LOC</th><th>Confidence</th><th>Why dead</th></tr></thead>
+              <thead><tr><th>Symbol</th><th>Kind</th><th>Location</th><th>Refs</th><th>LOC</th><th>Confidence</th><th>Why dead</th><th>Actions</th></tr></thead>
               <tbody>
                 {grouped.map((group) => (
                   <DeadCodeGroup key={group.repository} group={group} />
                 ))}
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={7} className="empty">{err ? `Failed to load: ${err}` : busy ? "Loading dead-code candidates..." : "No dead-code candidates from this source."}</td></tr>
+                  <tr><td colSpan={8} className="empty">{err ? `Failed to load: ${err}` : busy ? "Loading dead-code candidates..." : "No dead-code candidates from this source."}</td></tr>
                 ) : null}
               </tbody>
             </table>
@@ -180,7 +180,7 @@ function DeadCodeGroup({ group }: { readonly group: DeadCodeGroupModel }): React
   return (
     <>
       <tr className="group-row">
-        <td colSpan={7}>
+        <td colSpan={8}>
           <span className="group-label" style={{ color: "var(--ember)" }}>{group.repository}</span>
           <span className="group-meta">{group.rows.length} dead · {fmt(loc)} LOC</span>
         </td>
@@ -201,6 +201,7 @@ function DeadCodeGroup({ group }: { readonly group: DeadCodeGroupModel }): React
             <td className="t-mut mono" style={{ fontSize: ".78rem" }}>{locFromFinding(finding) || "—"}</td>
             <td><TruthChip level={uiTruth(finding.truth)} /></td>
             <td className="t-mut" style={{ fontSize: ".78rem", maxWidth: 360 }}>{classificationFromFinding(finding) || "candidate"}</td>
+            <td><Link className="btn-ghost" to={codeGraphHref(finding)}>Open graph</Link></td>
           </tr>
         );
       })}
@@ -265,6 +266,10 @@ function sourceHref(finding: FindingRow): string | null {
   if (finding.startLine !== undefined) params.set("lineStart", String(finding.startLine));
   if (finding.endLine !== undefined) params.set("lineEnd", String(finding.endLine));
   return `/repositories/${encodeURIComponent(repository)}/source?${params.toString()}`;
+}
+
+function codeGraphHref(finding: FindingRow): string {
+  return `/code-graph?candidate=${encodeURIComponent(finding.id)}`;
 }
 
 function locFromFinding(finding: FindingRow): number {

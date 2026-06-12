@@ -103,6 +103,10 @@ describe("DeadCodePage", () => {
       "href",
       "/repositories/repository%3Ar1/source?path=server%2Froutes.ts&lineStart=10"
     );
+    expect(screen.getByRole("link", { name: "Open graph" })).toHaveAttribute(
+      "href",
+      "/code-graph?candidate=function%3Af1"
+    );
     expect(post).toHaveBeenLastCalledWith("/api/v0/code/dead-code", { limit: 100 });
 
     fireEvent.change(screen.getByLabelText("Repository selector"), { target: { value: "repository:r1" } });

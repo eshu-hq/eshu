@@ -26,6 +26,11 @@ function sourceHref(d) {
   return deadCodeSourceHash(d);
 }
 
+function codeGraphHash(d) {
+  if (!d || !d.id) return window.ESHU_ROUTES.hashFor("codegraph");
+  return window.ESHU_ROUTES.hashFor("codegraph", "?candidate=" + encodeURIComponent(d.id));
+}
+
 function deadCodeSourceRepo(d) {
   return (d && (d.repoId || d.repo || d.repoName)) || "";
 }
@@ -54,6 +59,24 @@ function locationLabel(d) {
   if (d.line && d.endLine && d.endLine !== d.line) return file + ":" + d.line + "-" + d.endLine;
   if (d.line) return file + ":" + d.line;
   return file;
+}
+
+function codeGraphCandidateParam() {
+  const parts = String(location.hash || "").split("?");
+  if (parts.length < 2) return "";
+  const params = new URLSearchParams(parts.slice(1).join("?"));
+  return params.get("candidate") || params.get("q") || "";
+}
+
+function candidateForParam(candidates, param) {
+  const value = String(param || "").trim().toLowerCase();
+  if (!value) return null;
+  return candidates.find((d) =>
+    String(d.id || "").toLowerCase() === value ||
+    String(d.entityId || "").toLowerCase() === value ||
+    String(d.symbol || "").toLowerCase() === value ||
+    String(d.file || "").toLowerCase() === value
+  ) || null;
 }
 
 function codeRelationshipsGraph(payload, selected, candidates) {
@@ -144,7 +167,7 @@ function DeadCode({ data, onOpenService }) {
                         <td className="t-mut mono" style={{ fontSize: ".78rem" }}>{d.loc}</td>
                         <td><TruthChip level={d.confidence} /></td>
                         <td className="t-mut" style={{ fontSize: ".78rem", maxWidth: 320 }}>{d.reason}</td>
-                        <td style={{ color: "var(--subtle)" }}><Icon.arrow size={15} /></td>
+                        <td><a className="btn-ghost" href={codeGraphHash(d)} onClick={(e) => e.stopPropagation()}>Open graph</a></td>
                       </tr>
                     );
                   })}
@@ -213,7 +236,7 @@ function CodeGraph({ data, client, onOpenService }) {
   const D = data || ESHU;
   const liveMode = !!(client && D.prov && D.prov.deadCode === "live");
   const liveCandidates = liveMode ? (D.deadCode || []).filter((d) => d.entityId) : [];
-  const [candidateId, setCandidateId] = useStateCd((liveCandidates[0] || {}).id || "");
+  const [candidateId, setCandidateId] = useStateCd((candidateForParam(liveCandidates, codeGraphCandidateParam()) || liveCandidates[0] || {}).id || "");
   const selectedCandidate = liveCandidates.find((d) => d.id === candidateId) || liveCandidates[0];
   const [liveState, setLiveState] = useStateCd({ status: "idle", graph: null, error: "" });
   const [focusedNodeId, setFocusedNodeId] = useStateCd((selectedCandidate || {}).entityId || "");
@@ -222,6 +245,12 @@ function CodeGraph({ data, client, onOpenService }) {
   const svc = D.servicesById[repoId];
   const demoGraph = useMemoCd(() => buildCodeGraph(D, svc), [D, svc]);
   useEffectCd(() => {
+    const requested = candidateForParam(liveCandidates, codeGraphCandidateParam());
+    if (requested && requested.id !== candidateId) {
+      setCandidateId(requested.id);
+      setFocusedNodeId(requested.entityId || requested.id);
+      return;
+    }
     if (!candidateId && liveCandidates[0]) setCandidateId(liveCandidates[0].id);
   }, [candidateId, liveCandidates.length]);
   useEffectCd(() => {
