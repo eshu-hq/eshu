@@ -5,23 +5,21 @@ const { useEffect: useEffectP, useMemo: useMemoP, useState: useStateP } = React;
 
 function serviceImages(D) {
   if (Array.isArray(D.imageInventory) && D.imageInventory.length) {
-    return D.imageInventory.map((image) => {
-      const service = matchImageService(D, image);
-      const vulnCount = service ? (D.vulns || []).filter((v) => (v.services || []).includes(service.id)).length : 0;
-      return {
-        service,
-        image: image.image || image.name || image.digest,
-        tag: image.tag || "—",
-        vulnCount,
-        truth: image.truth || "exact",
-        sourceSystem: image.sourceSystem || image.registry || "registry"
-      };
-    });
+    return D.imageInventory.map((image) => ({
+      id: image.id || image.digest || image.image,
+      digest: image.digest || "",
+      registry: image.registry || "",
+      repository: image.repository || image.name || image.image || "",
+      tag: image.tag || "",
+      mediaType: image.mediaType || image.artifactType || "",
+      sizeBytes: typeof image.sizeBytes === "number" ? image.sizeBytes : null,
+      truth: image.truth || "exact",
+      sourceSystem: image.sourceSystem || image.registry || "registry"
+    }));
   }
   return D.services.filter((s) => s.image).map((s) => {
-    const vulnCount = (D.vulns || []).filter((v) => (v.services || []).includes(s.id)).length;
     const tag = String(s.image).split(":").pop() || "latest";
-    return { service: s, image: s.image, tag, vulnCount, truth: s.truth, sourceSystem: "service catalog" };
+    return { id: s.image, digest: "", registry: "", repository: s.image, tag, mediaType: "", sizeBytes: null, truth: s.truth, sourceSystem: "service catalog" };
   });
 }
 
@@ -94,12 +92,6 @@ function dependencyRows(D) {
     }));
     return deps.concat(stores);
   });
-}
-
-function matchImageService(D, image) {
-  const imageText = String(image.image || image.name || image.repository || "");
-  const tag = image.tag ? ":" + image.tag : "";
-  return D.services.find((s) => s.image && (s.image.includes(imageText) || (tag && s.image.endsWith(tag)))) || null;
 }
 
 function platformTopologyGraph(D) {
@@ -264,28 +256,30 @@ function liveTopologyGraph(service, story, context) {
 function Images({ data, onOpenService }) {
   const D = data || ESHU;
   const images = useMemoP(() => serviceImages(D), [D]);
-  const vulnerable = images.filter((r) => r.vulnCount > 0).length;
+  const registries = new Set(images.map((r) => r.registry).filter(Boolean)).size;
+  const repositories = new Set(images.map((r) => r.repository).filter(Boolean)).size;
+  const tagged = images.filter((r) => r.tag).length;
 
   return (
     <div className="page">
-      <div className="page-intro"><h2>Images</h2><p>Container images from <span className="mono">GET /api/v0/images</span>, joined to service and vulnerability evidence.</p></div>
+      <div className="page-intro"><h2>Images</h2><p>Container images from <span className="mono">GET /api/v0/images</span>: digest, tags, registry/repository, media type, and size.</p></div>
       <div className="grid g-4">
-        <StatTile label="Images" value={images.length} color="var(--blue)" sub="service image refs" />
-        <StatTile label="Vulnerable" value={vulnerable} color="var(--crit)" sub="images with advisories" />
-        <StatTile label="Registries" value="1" color="var(--teal)" sub="ECR source" />
-        <StatTile label="SBOM coverage" value={Math.max(0, images.length - vulnerable) + "/" + images.length} color="var(--med)" sub="package evidence present" />
+        <StatTile label="Images" value={images.length} color="var(--blue)" sub="bounded page from OCI inventory" />
+        <StatTile label="Registries" value={registries} color="var(--teal)" sub="distinct in this page" />
+        <StatTile label="Repositories" value={repositories} color="var(--violet)" sub="image repositories" />
+        <StatTile label="Tagged" value={tagged} color="var(--ember)" sub="rows with tags" />
       </div>
-      <Panel className="flush mt" title="Image inventory" sub="Click a service image to open its service context" glyph={<Icon.box />}>
+      <Panel className="flush mt" title="Image inventory" sub="image node properties only" glyph={<Icon.box />}>
         <table className="tbl">
-          <thead><tr><th>Image</th><th>Service</th><th>Tag</th><th>Advisories</th><th>Truth</th><th></th></tr></thead>
+          <thead><tr><th>Repository</th><th>Tag</th><th>Digest</th><th>Media type</th><th>Size</th><th>Truth</th></tr></thead>
           <tbody>{images.map((row) => (
-            <tr key={row.image} onClick={() => row.service && onOpenService(row.service.id)} style={{ cursor: row.service ? "pointer" : "default" }}>
-              <td className="mono" style={{ fontSize: ".78rem" }}>{row.image}</td>
-              <td className="t-name">{row.service ? row.service.name : "—"}</td>
-              <td><Badge tone="teal">{row.tag}</Badge></td>
-              <td><span className={row.vulnCount ? "nav-count alert" : "nav-count"}>{row.vulnCount}</span></td>
+            <tr key={row.id || row.repository || row.digest}>
+              <td className="t-name">{row.repository || "—"}{row.registry ? <div className="t-mut mono" style={{ fontSize: ".72rem" }}>{row.registry}</div> : null}</td>
+              <td>{row.tag ? <Badge tone="teal">{row.tag}</Badge> : <span className="t-mut">—</span>}</td>
+              <td className="mono" style={{ fontSize: ".74rem" }}>{row.digest ? (row.digest.length > 19 ? row.digest.slice(0, 19) + "…" : row.digest) : "—"}</td>
+              <td className="mono" style={{ fontSize: ".72rem" }}>{row.mediaType || "—"}</td>
+              <td>{row.sizeBytes === null ? "—" : fmt(row.sizeBytes)}</td>
               <td><TruthChip level={row.truth} /></td>
-              <td style={{ color: "var(--subtle)" }}><Icon.arrow size={15} /></td>
             </tr>
           ))}{images.length === 0 ? <tr><td colSpan={6} className="empty">No container images from this source.</td></tr> : null}</tbody>
         </table>

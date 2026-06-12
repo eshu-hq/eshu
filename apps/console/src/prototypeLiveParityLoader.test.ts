@@ -33,6 +33,13 @@ interface PrototypeModel {
     readonly name: string;
     readonly tf: boolean;
   }[];
+  readonly imageInventory?: readonly {
+    readonly id: string;
+    readonly registry: string;
+    readonly repository: string;
+    readonly tag: string;
+    readonly sizeBytes: number | null;
+  }[];
   readonly langInventory?: readonly { readonly label: string; readonly value: number }[];
   readonly metrics?: {
     readonly ingestRate?: readonly number[];
@@ -138,6 +145,24 @@ function liveClient(): PrototypeClient {
           }
         };
       }
+      if (path.includes("/images")) {
+        return {
+          data: {
+            images: [{
+              id: "oci-image://reg/team/api@sha256:aaa",
+              digest: "sha256:aaa",
+              registry: "reg",
+              repository: "team/api",
+              tag: "1.2.3",
+              size_bytes: 1234,
+              media_type: "application/vnd.oci.image.manifest.v1+json",
+              source_system: "oci_registry"
+            }]
+          },
+          error: null,
+          truth: { level: "exact", freshness: { state: "fresh" } }
+        };
+      }
       if (path.includes("/supply-chain/sbom-attestations/attachments/count")) {
         return { data: { total_attachments: 0 } };
       }
@@ -225,6 +250,16 @@ describe("prototype live parity loader", () => {
       name: "vm-1",
       tf: true
     });
+    expect(client.paths).toContain("/api/v0/images?limit=50&offset=0");
+    expect(model.imageInventory?.[0]).toMatchObject({
+      id: "oci-image://reg/team/api@sha256:aaa",
+      registry: "reg",
+      repository: "team/api",
+      tag: "1.2.3",
+      sizeBytes: 1234
+    });
+    expect(model.imageInventory?.[0]).not.toHaveProperty("service");
+    expect(model.imageInventory?.[0]).not.toHaveProperty("vulnCount");
     expect(model.cloudAccounts?.[0]).toMatchObject({
       id: "cloud-scope:gcp:project-synthetic",
       provider: "gcp",

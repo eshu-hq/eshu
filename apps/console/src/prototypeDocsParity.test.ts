@@ -13,6 +13,7 @@ function repoFile(path: string): string {
 describe("prototype documentation parity", () => {
   it("documents the live parity endpoints exposed by the prototype loader", () => {
     const guide = repoFile("apps/console/prototype/eshu-console/port/PORT-TO-CONSOLE.md");
+    const livePages = repoFile("apps/console/prototype/eshu-console/console/pages-live-parity.jsx");
 
     expect(guide).toContain("GET /api/v0/images");
     expect(guide).toContain("GET /api/v0/iac/resources");
@@ -30,6 +31,9 @@ describe("prototype documentation parity", () => {
     expect(guide).not.toContain("panels without live rows keep demo facts");
     expect(guide).not.toContain("Copy `eshuConsoleLive.ts`");
     expect(guide).toContain("Use the production loaders in `apps/console/src/api/` as the current contract");
+    expect(livePages).toContain("digest, tags, registry/repository, media type, and size");
+    expect(livePages).not.toContain("joined to service and vulnerability evidence");
+    expect(livePages).not.toContain("vulnCount");
   });
 
   it("uses the same observability provider vocabulary as the live console", () => {
