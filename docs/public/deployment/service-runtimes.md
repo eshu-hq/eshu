@@ -37,6 +37,9 @@ Long-running HTTP runtimes expose the shared admin surface:
 - `/readyz` for dependency readiness
 - `/metrics` for Prometheus signals
 - `/admin/status` for runtime backlog, generation, and failure state
+- `/admin/replay`, `/admin/refinalize`, and
+  `/admin/replay-collector-generations` only on runtimes configured with the
+  recovery handler
 
 A green pod is not proof that indexing finished. Use the completeness routes
 before treating a graph as current:

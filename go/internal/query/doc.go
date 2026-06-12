@@ -78,6 +78,9 @@
 // summary; raw policy, tenant, workspace, source, detailed audit hashes,
 // correlation ids, credential, endpoint, prompt, response, path, and token
 // values stay out of API and MCP payloads.
+// Hosted readiness also treats collector generation dead letters and unresolved
+// replay requests as not-ready source-level replay work without exposing fact
+// payloads, source paths, or provider responses.
 // AuthContext carries scoped-token request bounds used by hosted isolation
 // enforcement. Middleware resolves raw bearer tokens at the edge, stores only
 // scoped tenant/workspace/subject hashes on the request context, keeps handlers

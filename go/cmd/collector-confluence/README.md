@@ -57,6 +57,9 @@ sync with `scope_id`, `page_count`, `failure_count`, and `freshness_hint`.
 Shared collector metrics carry `collector_kind=documentation` and
 `source_system=confluence`. Logs and metrics must not include page titles,
 stored body content, or body excerpts.
+Commit failures before projector work exists are recorded in the shared
+collector generation dead-letter store and surfaced through runtime status
+without storing Confluence page bodies, titles, or URLs.
 
 | Signal | Type | Labels | What it is for |
 | --- | --- | --- | --- |

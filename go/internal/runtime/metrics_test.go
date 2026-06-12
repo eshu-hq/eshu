@@ -45,6 +45,12 @@ func TestStatusMetricsHandlerServesRuntimeMetrics(t *testing.T) {
 				OverdueClaims:        0,
 			},
 			GenerationCounts: []statuspkg.NamedCount{{Name: "completed", Count: 3}},
+			CollectorGenerationDeadLetters: statuspkg.CollectorGenerationDeadLetterSnapshot{
+				DeadLetter:          2,
+				ReplayRequested:     1,
+				ReplayAttempts:      3,
+				OldestDeadLetterAge: 2 * time.Minute,
+			},
 			RetryPolicies: []statuspkg.RetryPolicySummary{
 				{Stage: "projector", MaxAttempts: 4, RetryDelay: 42 * time.Second},
 			},
@@ -73,6 +79,10 @@ func TestStatusMetricsHandlerServesRuntimeMetrics(t *testing.T) {
 		`eshu_runtime_queue_outstanding{service_name="collector-git"} 2`,
 		`eshu_runtime_queue_dead_letter{service_name="collector-git"} 1`,
 		`eshu_runtime_queue_oldest_outstanding_age_seconds{service_name="collector-git"} 45`,
+		`eshu_runtime_collector_generation_dead_letter{service_name="collector-git"} 2`,
+		`eshu_runtime_collector_generation_replay_requested{service_name="collector-git"} 1`,
+		`eshu_runtime_collector_generation_replay_attempts{service_name="collector-git"} 3`,
+		`eshu_runtime_collector_generation_dead_letter_oldest_age_seconds{service_name="collector-git"} 120`,
 		`eshu_runtime_health_state{service_name="collector-git",state="degraded"} 1`,
 		`eshu_runtime_retry_policy_max_attempts{service_name="collector-git",stage="projector"} 4`,
 		`eshu_runtime_retry_policy_retry_delay_seconds{service_name="collector-git",stage="projector"} 42`,

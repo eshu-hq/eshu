@@ -31,6 +31,10 @@
 // scanner liveness, throttle counts, warning state, and commit status so
 // operators can separate throttling, credential failure, budget exhaustion, and
 // commit failures without scanning logs.
+// CollectorGenerationDeadLetterSnapshot reports commit failures that happened
+// before projector work existed, so operators can separate source-level replay
+// requests from normal queue replay; unresolved dead-letter and replay-request
+// rows keep health degraded until a later successful source commit clears them.
 // SemanticExtractionStatus reports optional LLM-assisted extraction liveness as
 // unavailable when no provider is configured; when provider profiles are
 // configured, it carries redacted profile state and source-policy gates without

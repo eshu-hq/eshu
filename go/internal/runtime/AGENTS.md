@@ -31,9 +31,10 @@
   backend. Do not fork this logic into callers.
 
 - **Admin endpoints are not authenticated** — `NewAdminMux` mounts `/healthz`,
-  `/readyz`, `/admin/status`, `/metrics`, and optionally `/admin/replay` and
-  `/admin/refinalize` without authentication. These must be served only on the
-  admin/metrics port, never on the public API port.
+  `/readyz`, `/admin/status`, `/metrics`, and optionally `/admin/replay`,
+  `/admin/refinalize`, and `/admin/replay-collector-generations` without
+  authentication. These must be served only on the admin/metrics port, never on
+  the public API port.
 
 - **Retry defaults are positive** — `LoadRetryPolicyConfig` rejects
   `MaxAttempts ≤ 0` or `RetryDelay ≤ 0`. Do not set either to zero or
@@ -155,7 +156,8 @@
   string changes the deployment contract for all binaries; see
   `docs/public/reference/backend-conformance.md`.
 - Admin route contract (`/healthz`, `/readyz`, `/admin/status`, `/metrics`,
-  `/admin/replay`, `/admin/refinalize`) — Kubernetes probes, dashboards, and
+  `/admin/replay`, `/admin/refinalize`,
+  `/admin/replay-collector-generations`) — Kubernetes probes, dashboards, and
   operator runbooks depend on these paths; path or method changes require
   coordinated infra updates.
 - `RetryPolicyConfig` defaults — all long-running binaries inherit these;

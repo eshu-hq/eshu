@@ -26,7 +26,10 @@ type RawSnapshot struct {
 	AWSFreshness          AWSFreshnessSnapshot
 	VulnerabilitySources  []VulnerabilitySourceState
 	SemanticExtraction    SemanticExtractionStatus
-	CollectorFactEvidence []CollectorFactEvidence
+	// CollectorGenerationDeadLetters captures commit failures that happened
+	// before normal projector/reducer queue rows existed.
+	CollectorGenerationDeadLetters CollectorGenerationDeadLetterSnapshot
+	CollectorFactEvidence          []CollectorFactEvidence
 	// AWSCloudScansTruncated reports that the reader returned the configured
 	// row cap instead of every AWS scan tuple.
 	AWSCloudScansTruncated bool
@@ -73,29 +76,30 @@ type StageSummary struct {
 
 // Report is the operator-facing summary rendered by CLI and future admin APIs.
 type Report struct {
-	AsOf                   time.Time
-	Health                 HealthSummary
-	FlowSummaries          []FlowSummary
-	Queue                  QueueSnapshot
-	RetryPolicies          []RetryPolicySummary
-	ScopeActivity          ScopeActivitySnapshot
-	GenerationHistory      GenerationHistorySnapshot
-	GenerationTransitions  []GenerationTransitionSnapshot
-	ScopeTotals            map[string]int
-	GenerationTotals       map[string]int
-	StageSummaries         []StageSummary
-	DomainBacklogs         []DomainBacklog
-	QueueBlockages         []QueueBlockage
-	LatestQueueFailure     *QueueFailureSnapshot
-	Coordinator            *CoordinatorSnapshot
-	RegistryCollectors     []RegistryCollectorSnapshot
-	AWSCloudScans          []AWSCloudScanStatus
-	AWSFreshness           AWSFreshnessSnapshot
-	VulnerabilitySources   []VulnerabilitySourceState
-	SemanticExtraction     SemanticExtractionStatus
-	CollectorFactEvidence  []CollectorFactEvidence
-	AWSCloudScansTruncated bool
-	AWSCloudScanLimit      int
+	AsOf                           time.Time
+	Health                         HealthSummary
+	FlowSummaries                  []FlowSummary
+	Queue                          QueueSnapshot
+	RetryPolicies                  []RetryPolicySummary
+	ScopeActivity                  ScopeActivitySnapshot
+	GenerationHistory              GenerationHistorySnapshot
+	GenerationTransitions          []GenerationTransitionSnapshot
+	ScopeTotals                    map[string]int
+	GenerationTotals               map[string]int
+	StageSummaries                 []StageSummary
+	DomainBacklogs                 []DomainBacklog
+	QueueBlockages                 []QueueBlockage
+	LatestQueueFailure             *QueueFailureSnapshot
+	Coordinator                    *CoordinatorSnapshot
+	RegistryCollectors             []RegistryCollectorSnapshot
+	AWSCloudScans                  []AWSCloudScanStatus
+	AWSFreshness                   AWSFreshnessSnapshot
+	VulnerabilitySources           []VulnerabilitySourceState
+	SemanticExtraction             SemanticExtractionStatus
+	CollectorGenerationDeadLetters CollectorGenerationDeadLetterSnapshot
+	CollectorFactEvidence          []CollectorFactEvidence
+	AWSCloudScansTruncated         bool
+	AWSCloudScanLimit              int
 	// TerraformState carries the operator-facing tfstate admin status section
 	// derived from RawSnapshot.TerraformStateLastSerials and
 	// RawSnapshot.TerraformStateRecentWarnings. Empty when the reader did not

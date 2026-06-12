@@ -224,24 +224,25 @@ func statusReportToMapWithAWS(
 	awsBlockages []status.QueueBlockage,
 ) map[string]any {
 	result := map[string]any{
-		"version":                buildinfo.AppVersion(),
-		"as_of":                  r.AsOf.Format(time.RFC3339),
-		"health":                 healthToMap(r.Health),
-		"coordinator":            coordinatorToMap(r.Coordinator),
-		"collector_runtimes":     collectorRuntimeStatusesToSlice(status.CollectorRuntimeStatuses(r)),
-		"queue":                  queueToMap(r.Queue),
-		"scope_activity":         scopeActivityToMap(r.ScopeActivity),
-		"generation_history":     generationHistoryToMap(r.GenerationHistory),
-		"generation_transitions": generationTransitionsToSlice(r.GenerationTransitions),
-		"scope_totals":           r.ScopeTotals,
-		"generation_totals":      r.GenerationTotals,
-		"stage_summaries":        stageSummariesToSlice(r.StageSummaries),
-		"domain_backlogs":        domainBacklogsToSlice(r.DomainBacklogs, r.QueueBlockages),
-		"queue_blockages":        queueBlockagesToSlice(r.QueueBlockages),
-		"aws_materialization":    awsMaterializationStatusToMap(awsDomains, awsBlockages),
-		"semantic_extraction":    semanticExtractionStatusToMap(r.SemanticExtraction),
-		"flow_summaries":         flowSummariesToSlice(r.FlowSummaries),
-		"retry_policies":         retryPoliciesToSlice(r.RetryPolicies),
+		"version":                           buildinfo.AppVersion(),
+		"as_of":                             r.AsOf.Format(time.RFC3339),
+		"health":                            healthToMap(r.Health),
+		"coordinator":                       coordinatorToMap(r.Coordinator),
+		"collector_runtimes":                collectorRuntimeStatusesToSlice(status.CollectorRuntimeStatuses(r)),
+		"queue":                             queueToMap(r.Queue),
+		"scope_activity":                    scopeActivityToMap(r.ScopeActivity),
+		"generation_history":                generationHistoryToMap(r.GenerationHistory),
+		"generation_transitions":            generationTransitionsToSlice(r.GenerationTransitions),
+		"scope_totals":                      r.ScopeTotals,
+		"generation_totals":                 r.GenerationTotals,
+		"stage_summaries":                   stageSummariesToSlice(r.StageSummaries),
+		"domain_backlogs":                   domainBacklogsToSlice(r.DomainBacklogs, r.QueueBlockages),
+		"queue_blockages":                   queueBlockagesToSlice(r.QueueBlockages),
+		"aws_materialization":               awsMaterializationStatusToMap(awsDomains, awsBlockages),
+		"semantic_extraction":               semanticExtractionStatusToMap(r.SemanticExtraction),
+		"collector_generation_dead_letters": collectorGenerationDeadLettersToMap(r.CollectorGenerationDeadLetters),
+		"flow_summaries":                    flowSummariesToSlice(r.FlowSummaries),
+		"retry_policies":                    retryPoliciesToSlice(r.RetryPolicies),
 	}
 	result["terraform_state"] = terraformStateStatusToMap(r.TerraformState)
 
@@ -270,6 +271,18 @@ func queueToMap(q status.QueueSnapshot) map[string]any {
 		"oldest_outstanding_age":    q.OldestOutstandingAge.Seconds(),
 		"oldest_outstanding_age_ms": q.OldestOutstandingAge.Milliseconds(),
 		"overdue_claims":            q.OverdueClaims,
+	}
+}
+
+func collectorGenerationDeadLettersToMap(
+	s status.CollectorGenerationDeadLetterSnapshot,
+) map[string]any {
+	return map[string]any{
+		"dead_letter":               s.DeadLetter,
+		"replay_requested":          s.ReplayRequested,
+		"replay_attempts":           s.ReplayAttempts,
+		"oldest_dead_letter_age":    s.OldestDeadLetterAge.Seconds(),
+		"oldest_dead_letter_age_ms": s.OldestDeadLetterAge.Milliseconds(),
 	}
 }
 

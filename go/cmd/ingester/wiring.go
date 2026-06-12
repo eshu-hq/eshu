@@ -194,6 +194,7 @@ func buildIngesterCollectorService(
 			Logger:                 logger,
 		},
 		Committer:         committer,
+		DeadLetters:       postgres.NewCollectorGenerationDeadLetterStore(database),
 		PollInterval:      ingesterCollectorPollInterval,
 		AfterBatchDrained: ingesterDeferredRelationshipMaintenance(committer, tracer, instruments, logger),
 		Tracer:            tracer,
@@ -362,13 +363,6 @@ func buildIngesterProjectorRuntime(
 		Instruments:                   instruments,
 		Logger:                        logger,
 	}, nil
-}
-
-func packageRegistryIdentityLocker(database postgres.ExecQueryer) projector.PackageRegistryIdentityLocker {
-	if beginner, ok := database.(postgres.Beginner); ok {
-		return postgres.PackageRegistryIdentityLocker{DB: beginner}
-	}
-	return nil
 }
 
 func openIngesterCanonicalWriter(

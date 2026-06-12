@@ -10,8 +10,8 @@ func TestBootstrapDefinitionsAreOrderedAndComplete(t *testing.T) {
 	t.Parallel()
 
 	defs := BootstrapDefinitions()
-	if len(defs) != 32 {
-		t.Fatalf("BootstrapDefinitions() len = %d, want 32", len(defs))
+	if len(defs) != 33 {
+		t.Fatalf("BootstrapDefinitions() len = %d, want 33", len(defs))
 	}
 
 	wantNames := []string{
@@ -24,6 +24,7 @@ func TestBootstrapDefinitionsAreOrderedAndComplete(t *testing.T) {
 		"fact_work_items",
 		"fact_work_item_audit",
 		"semantic_extraction_jobs",
+		"collector_generation_dead_letters",
 		"governance_audit_events",
 		"tenant_workspace_grants",
 		"scoped_api_tokens",

@@ -170,7 +170,12 @@ reducer/query adapter.
 **Recovery**
 
 - `RecoveryStore` / `NewRecoveryStore` — replays `dead_letter` and `failed`
-  work items to `pending`
+  work items to `pending` and marks collector generation commit failures for
+  source-level replay
+- `CollectorGenerationDeadLetterStore` /
+  `NewCollectorGenerationDeadLetterStore` — records commit failures before
+  normal projector work items exist, reports unresolved status aggregates, and
+  updates matching generations to `replay_requested` or `replayed`
 
 **Status**
 

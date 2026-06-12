@@ -3,5 +3,7 @@
 // The package owns admin HTTP surfaces, metrics endpoints, the opt-in
 // net/http/pprof endpoint, lifecycle wiring, retry policy defaults, API key
 // checks, auto-generated local API key state, and data-store configuration
-// shared by the API, MCP, ingester, reducer, and helper binaries.
+// shared by the API, MCP, ingester, reducer, and helper binaries. Recovery
+// routes include work-item replay, refinalize, and collector generation
+// source-level replay requests.
 package runtime

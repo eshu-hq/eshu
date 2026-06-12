@@ -265,6 +265,50 @@ func TestRenderTextDoesNotRepeatTopLevelSummaries(t *testing.T) {
 	}
 }
 
+func TestBuildReportDegradesOnCollectorGenerationDeadLetters(t *testing.T) {
+	t.Parallel()
+
+	report := status.BuildReport(
+		status.RawSnapshot{
+			AsOf: time.Date(2026, 6, 12, 18, 45, 0, 0, time.UTC),
+			CollectorGenerationDeadLetters: status.CollectorGenerationDeadLetterSnapshot{
+				DeadLetter:          2,
+				ReplayRequested:     1,
+				ReplayAttempts:      3,
+				OldestDeadLetterAge: 2 * time.Minute,
+			},
+		},
+		status.DefaultOptions(),
+	)
+
+	if got, want := report.Health.State, "degraded"; got != want {
+		t.Fatalf("BuildReport().Health.State = %q, want %q", got, want)
+	}
+	if !strings.Contains(strings.Join(report.Health.Reasons, "; "), "2 collector generations are dead-lettered") {
+		t.Fatalf("BuildReport().Health.Reasons = %v, want collector generation reason", report.Health.Reasons)
+	}
+	if !strings.Contains(strings.Join(report.Health.Reasons, "; "), "1 collector generation replay request is unresolved") {
+		t.Fatalf("BuildReport().Health.Reasons = %v, want unresolved replay request reason", report.Health.Reasons)
+	}
+	rendered := status.RenderText(report)
+	if !strings.Contains(
+		rendered,
+		"Collector generation dead letters: dead_letter=2 replay_requested=1 replay_attempts=3 oldest=2m0s",
+	) {
+		t.Fatalf("RenderText() missing collector generation dead-letter line:\n%s", rendered)
+	}
+	payload, err := status.RenderJSON(report)
+	if err != nil {
+		t.Fatalf("RenderJSON() error = %v, want nil", err)
+	}
+	if !strings.Contains(string(payload), "\"collector_generation_dead_letters\"") {
+		t.Fatalf("RenderJSON() = %s, want collector_generation_dead_letters", payload)
+	}
+	if !strings.Contains(string(payload), "\"oldest_dead_letter_age_seconds\": 120") {
+		t.Fatalf("RenderJSON() = %s, want dead-letter age seconds", payload)
+	}
+}
+
 func TestBuildReportAddsFlowSummaries(t *testing.T) {
 	t.Parallel()
 

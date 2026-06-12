@@ -132,6 +132,7 @@ type StreamErrorClaimedCommitter interface {
 type Service struct {
 	Source       Source
 	Committer    Committer
+	DeadLetters  GenerationDeadLetterSink // optional durable quarantine for commit failures
 	PollInterval time.Duration
 	// AfterBatchDrained runs once after at least one committed generation and
 	// the current source batch is exhausted.
@@ -186,6 +187,11 @@ func (s Service) Run(ctx context.Context) error {
 		}
 		s.annotateCollectorObserve(observation, collected)
 		if err := s.commitWithTelemetry(observation.Context, collected, observation.StartedAt); err != nil {
+			err = s.recordGenerationDeadLetter(observation.Context, collected, "commit_failure", err)
+			s.endCollectorObserve(observation, err)
+			return err
+		}
+		if err := s.completeGenerationDeadLetterReplay(observation.Context, collected); err != nil {
 			s.endCollectorObserve(observation, err)
 			return err
 		}
@@ -243,6 +249,51 @@ func (s Service) endCollectorObserve(observation CollectorObservation, err error
 		observation.Span.SetStatus(codes.Error, err.Error())
 	}
 	observation.Span.End()
+}
+
+func (s Service) recordGenerationDeadLetter(
+	ctx context.Context,
+	collected CollectedGeneration,
+	failureClass string,
+	cause error,
+) error {
+	if s.DeadLetters == nil {
+		return cause
+	}
+
+	record := GenerationDeadLetter{
+		Scope:            collected.Scope,
+		Generation:       collected.Generation,
+		FailureClass:     failureClass,
+		FailureMessage:   cause.Error(),
+		PayloadReference: generationDeadLetterPayloadReference(collected.Scope, collected.Generation),
+		DeadLetteredAt:   time.Now().UTC(),
+	}
+	if err := s.DeadLetters.RecordGenerationDeadLetter(ctx, record); err != nil {
+		return errors.Join(cause, fmt.Errorf("record generation dead-letter: %w", err))
+	}
+	return cause
+}
+
+func (s Service) completeGenerationDeadLetterReplay(ctx context.Context, collected CollectedGeneration) error {
+	completer, ok := s.DeadLetters.(GenerationDeadLetterReplayCompleter)
+	if !ok {
+		return nil
+	}
+	completionCtx, cancel := context.WithTimeout(
+		context.WithoutCancel(ctx),
+		generationDeadLetterReplayCompletionTimeout,
+	)
+	defer cancel()
+	err := completer.CompleteGenerationDeadLetterReplay(completionCtx, GenerationDeadLetterReplayCompletion{
+		Scope:       collected.Scope,
+		Generation:  collected.Generation,
+		CompletedAt: time.Now().UTC(),
+	})
+	if err != nil {
+		return fmt.Errorf("complete generation replay: %w", err)
+	}
+	return nil
 }
 
 func (s Service) commitWithTelemetry(ctx context.Context, collected CollectedGeneration, startedAt time.Time) error {

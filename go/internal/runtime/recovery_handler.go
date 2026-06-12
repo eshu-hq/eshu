@@ -27,6 +27,7 @@ func NewRecoveryHandler(handler *recovery.Handler) (*RecoveryHandler, error) {
 // Mount registers recovery routes on the given mux.
 func (h *RecoveryHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("/admin/replay", h.handleReplay)
+	mux.HandleFunc("/admin/replay-collector-generations", h.handleReplayCollectorGenerations)
 	mux.HandleFunc("/admin/refinalize", h.handleRefinalize)
 }
 
@@ -76,6 +77,52 @@ func (h *RecoveryHandler) handleReplay(w http.ResponseWriter, r *http.Request) {
 		Stage:       string(result.Stage),
 		Replayed:    result.Replayed,
 		WorkItemIDs: result.WorkItemIDs,
+	})
+}
+
+type collectorGenerationReplayRequest struct {
+	ScopeIDs      []string `json:"scope_ids"`
+	FailureClass  string   `json:"failure_class"`
+	CollectorKind string   `json:"collector_kind"`
+	Limit         int      `json:"limit"`
+}
+
+type collectorGenerationReplayResponse struct {
+	Status        string   `json:"status"`
+	Replayed      int      `json:"replayed"`
+	GenerationIDs []string `json:"generation_ids"`
+}
+
+// handleReplayCollectorGenerations marks failed collector generations for
+// source-level replay.
+func (h *RecoveryHandler) handleReplayCollectorGenerations(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req collectorGenerationReplayRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		return
+	}
+
+	result, err := h.handler.ReplayCollectorGenerations(r.Context(), recovery.CollectorGenerationReplayFilter{
+		ScopeIDs:      req.ScopeIDs,
+		FailureClass:  req.FailureClass,
+		CollectorKind: req.CollectorKind,
+		Limit:         req.Limit,
+	})
+	if err != nil {
+		writeJSONError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, collectorGenerationReplayResponse{
+		Status:        "replay_requested",
+		Replayed:      result.Replayed,
+		GenerationIDs: result.GenerationIDs,
 	})
 }
 

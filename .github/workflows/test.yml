@@ -60,9 +60,13 @@ jobs:
         working-directory: go
         run: go build ./...
 
+      - name: Clear non-race Go cache
+        working-directory: go
+        run: go clean -cache -testcache
+
       - name: Run Go tests with race detector
         working-directory: go
-        run: go test ./... -count=1 -race -timeout 300s
+        run: go test ./... -count=1 -race -timeout 300s -p 2
 
       - name: Lint Helm chart
         run: helm lint deploy/helm/eshu

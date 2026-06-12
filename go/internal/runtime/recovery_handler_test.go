@@ -111,6 +111,62 @@ func TestRecoveryHandlerReplayPropagatesStoreError(t *testing.T) {
 	}
 }
 
+func TestRecoveryHandlerReplayCollectorGenerationsReturnsReplayRequests(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeRecoveryStore{
+		collectorGenerationReplayResult: recovery.CollectorGenerationReplayResult{
+			Replayed:      1,
+			GenerationIDs: []string{"generation-456"},
+		},
+	}
+	handler := mustNewRecoveryHandler(t, store)
+
+	body := mustMarshal(t, collectorGenerationReplayRequest{
+		ScopeIDs:      []string{"scope-123"},
+		FailureClass:  "commit_failure",
+		CollectorKind: "git",
+		Limit:         10,
+	})
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/admin/replay-collector-generations", bytes.NewReader(body))
+
+	handler.handleReplayCollectorGenerations(recorder, request)
+
+	if got, want := recorder.Code, http.StatusOK; got != want {
+		t.Fatalf("POST /admin/replay-collector-generations status = %d, want %d", got, want)
+	}
+
+	var resp collectorGenerationReplayResponse
+	mustUnmarshal(t, recorder.Body.Bytes(), &resp)
+	if resp.Status != "replay_requested" {
+		t.Fatalf("response status = %q, want replay_requested", resp.Status)
+	}
+	if resp.Replayed != 1 || len(resp.GenerationIDs) != 1 || resp.GenerationIDs[0] != "generation-456" {
+		t.Fatalf("response = %#v, want generation replay request", resp)
+	}
+	if got := store.collectorGenerationReplayFilter.CollectorKind; got != "git" {
+		t.Fatalf("store collector kind = %q, want git", got)
+	}
+}
+
+func TestRecoveryHandlerReplayCollectorGenerationsRejectsBlankCollectorKind(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeRecoveryStore{}
+	handler := mustNewRecoveryHandler(t, store)
+
+	body := mustMarshal(t, collectorGenerationReplayRequest{ScopeIDs: []string{"scope-123"}})
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/admin/replay-collector-generations", bytes.NewReader(body))
+
+	handler.handleReplayCollectorGenerations(recorder, request)
+
+	if got, want := recorder.Code, http.StatusUnprocessableEntity; got != want {
+		t.Fatalf("POST /admin/replay-collector-generations invalid request status = %d, want %d", got, want)
+	}
+}
+
 func TestRecoveryHandlerRefinalizeReturnsEnqueuedScopes(t *testing.T) {
 	t.Parallel()
 
@@ -195,6 +251,15 @@ func TestRecoveryHandlerMount(t *testing.T) {
 	if got, want := recorder.Code, http.StatusOK; got != want {
 		t.Fatalf("mounted POST /admin/replay status = %d, want %d", got, want)
 	}
+
+	collectorBody := mustMarshal(t, collectorGenerationReplayRequest{CollectorKind: "git"})
+	collectorRecorder := httptest.NewRecorder()
+	collectorRequest := httptest.NewRequest(http.MethodPost, "/admin/replay-collector-generations", bytes.NewReader(collectorBody))
+	mux.ServeHTTP(collectorRecorder, collectorRequest)
+
+	if got, want := collectorRecorder.Code, http.StatusOK; got != want {
+		t.Fatalf("mounted POST /admin/replay-collector-generations status = %d, want %d", got, want)
+	}
 }
 
 // --- helpers ---
@@ -237,10 +302,13 @@ func mustUnmarshal(t *testing.T, data []byte, v any) {
 // --- fakes ---
 
 type fakeRecoveryStore struct {
-	replayResult     recovery.ReplayResult
-	replayErr        error
-	refinalizeResult recovery.RefinalizeResult
-	refinalizeErr    error
+	replayResult                    recovery.ReplayResult
+	replayErr                       error
+	refinalizeResult                recovery.RefinalizeResult
+	refinalizeErr                   error
+	collectorGenerationReplayFilter recovery.CollectorGenerationReplayFilter
+	collectorGenerationReplayResult recovery.CollectorGenerationReplayResult
+	collectorGenerationReplayErr    error
 }
 
 func (f *fakeRecoveryStore) ReplayFailedWorkItems(
@@ -257,4 +325,13 @@ func (f *fakeRecoveryStore) RefinalizeScopeProjections(
 	_ time.Time,
 ) (recovery.RefinalizeResult, error) {
 	return f.refinalizeResult, f.refinalizeErr
+}
+
+func (f *fakeRecoveryStore) ReplayCollectorGenerations(
+	_ context.Context,
+	filter recovery.CollectorGenerationReplayFilter,
+	_ time.Time,
+) (recovery.CollectorGenerationReplayResult, error) {
+	f.collectorGenerationReplayFilter = filter
+	return f.collectorGenerationReplayResult, f.collectorGenerationReplayErr
 }

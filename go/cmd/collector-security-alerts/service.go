@@ -42,6 +42,7 @@ func buildClaimedService(
 		ControlStore:        postgres.NewWorkflowControlStore(database),
 		Source:              source,
 		Committer:           committer,
+		DeadLetters:         postgres.NewCollectorGenerationDeadLetterStore(database),
 		CollectorKind:       scope.CollectorSecurityAlert,
 		CollectorInstanceID: config.Instance.InstanceID,
 		OwnerID:             config.OwnerID,

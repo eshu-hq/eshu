@@ -61,6 +61,9 @@ See `doc.go` for the godoc contract. Key types and functions:
   metric labels
 - `QueueBlockage` — conflict-domain-blocked work: stage, domain, conflict
   domain, conflict key, blocked count, oldest age
+- `CollectorGenerationDeadLetterSnapshot` — commit failures that happened
+  before projector work items existed, including dead-lettered count,
+  unresolved replay-requested count, replay attempts, and oldest dead-letter age
 - `DomainBacklog` — backlog depth and active in-flight work for one reducer or
   projection domain
 - `ScopeActivitySnapshot` — active, changed, unchanged scope counts for
@@ -158,18 +161,19 @@ states (in priority order):
 | State | Condition |
 | --- | --- |
 | `stalled` | Overdue claims, or outstanding backlog with no in-flight work past `StallAfter` |
-| `degraded` | Dead-letter items, failed items, failed generations, or recent workflow-coordinator failures present. Coordinator failures use `RecentFailures` (a bounded window) when known so aged all-time failures no longer keep the state degraded; absent a window, cumulative coordinator counts apply |
+| `degraded` | Dead-letter items, unresolved collector generation dead letters or replay requests, failed items, failed generations, or recent workflow-coordinator failures present. Coordinator failures use `RecentFailures` (a bounded window) when known so aged all-time failures no longer keep the state degraded; absent a window, cumulative coordinator counts apply |
 | `progressing` | Work queued, in flight, pending generation work, or outstanding shared projection intents with active partition leases or still below `StallAfter` |
 | `healthy` | No outstanding queue backlog or shared projection backlog |
 
 ### Rendering and serving
 
 - `RenderText(report)` — compact multi-line text for CLI and plain-text admin
-  endpoints; includes health, queue, retry policies, scope activity, generation
-  history, stage summaries, domain backlogs, queue blockages, coordinator state,
-  derived collector runtime classification, registry collector state, AWS cloud
-  scan state, AWS freshness backlog state, semantic extraction status with
-  redacted provider profile rows, and flow lanes
+  endpoints; includes health, queue, retry policies, collector generation
+  dead-letter state, scope activity, generation history, stage summaries,
+  domain backlogs, queue blockages, coordinator state, derived collector runtime
+  classification, registry collector state, AWS cloud scan state, AWS freshness
+  backlog state, semantic extraction status with redacted provider profile rows,
+  and flow lanes
 - `RenderJSON(report)` — stable JSON payload for machine-readable consumption;
   field names are part of the operator contract
 - `NewHTTPHandler(reader, opts)` — returns an `http.Handler` that serves `GET`
@@ -211,6 +215,9 @@ surface. The `QueueFailureSnapshot` values it carries come from the queue-failur
 records that `internal/storage/postgres` reads; those values must not be
 promoted to metric labels because they carry high-cardinality message and details
 strings.
+Collector generation dead-letter state is a status surface only. Runtime
+metrics derive aggregate gauges from it; failure messages and payload references
+stay out of metric labels.
 
 ## Gotchas / invariants
 

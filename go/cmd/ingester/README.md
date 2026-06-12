@@ -99,6 +99,11 @@ re-triggers `deployment_mapping` so the reducer can produce
 `resolved_relationships`. A failure in either call exits the ingester to prevent
 partial backfill state.
 
+The collector service also wires the shared collector generation dead-letter
+store. Commit failures before projector work exists are surfaced through
+`/admin/status` and can be marked for source-level replay through
+`/admin/replay-collector-generations` after the commit failure is fixed.
+
 The projector service runs in the same process and drains the projector queue
 filled by the collector. Worker count defaults to `min(NumCPU, 8)`; on
 `local_authoritative` + NornicDB it defaults to the developer or host CPU count

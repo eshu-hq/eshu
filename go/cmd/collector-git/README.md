@@ -56,6 +56,9 @@ runtime logger before snapshot workers start: `git repository sync started`,
 repository id, repository ordinal/count, elapsed seconds, branch when known,
 and bounded failure class while redacting credential-bearing URLs and avoiding
 full local checkout paths.
+Commit failures before projector work exists are recorded in the shared
+collector generation dead-letter store and surfaced through runtime status
+without storing fact payloads or local checkout paths.
 
 ## Gotchas / invariants
 
