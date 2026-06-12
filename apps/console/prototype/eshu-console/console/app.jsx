@@ -106,6 +106,10 @@ function App() {
   function useDemo() { setLiveClient(null); setSource((s) => ({ ...s, mode: "demo", status: "idle", msg: "", live: null })); setSrcOpen(false); }
 
   const data = (source.mode === "live" && source.live) ? Object.assign({}, ESHU, source.live) : ESHU;
+  if (source.mode === "live" && Array.isArray(data.services)) {
+    data.servicesById = {};
+    data.services.forEach((service) => { data.servicesById[service.id] = service; });
+  }
   const liveSections = source.live ? Object.keys(source.live.prov || {}).filter((k) => source.live.prov[k] === "live") : [];
 
   useEffectA(() => {
@@ -215,7 +219,7 @@ function App() {
         {route === "deadcode" ? <DeadCode data={data} onOpenService={openService} /> : null}
         {route === "codegraph" ? <CodeGraph data={data} client={liveClient} onOpenService={openService} /> : null}
         {route === "vulnerabilities" ? <Vulnerabilities data={data} onOpenService={openService} onOpenNode={openNode} chartStyle={t.chartStyle} verifiedOnly={verifiedOnly} /> : null}
-        {route === "topology" ? <Topology data={data} onOpenNode={openNode} /> : null}
+        {route === "topology" ? <Topology data={data} client={liveClient} onOpenNode={openNode} onOpenService={openService} /> : null}
         {route === "cloud" ? <Cloud data={data} onOpenService={openService} onOpenNode={openNode} /> : null}
         {route === "observability" ? <Observability data={data} onOpenService={openService} onOpenNode={openNode} onOpenCollector={openCollector} /> : null}
         {route === "sbom" ? <SBOM data={data} onOpenService={openService} /> : null}

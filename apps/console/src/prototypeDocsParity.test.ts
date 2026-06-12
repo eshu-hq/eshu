@@ -102,4 +102,19 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("max_depth");
     expect(page).toContain("sourceHref");
   });
+
+  it("keeps the prototype topology route on current live service topology contracts", () => {
+    const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
+    const page = repoFile("apps/console/prototype/eshu-console/console/pages-live-parity.jsx");
+    const guide = repoFile("apps/console/prototype/eshu-console/port/PORT-TO-CONSOLE.md");
+
+    expect(app).toContain("<Topology data={data} client={liveClient}");
+    expect(app).toContain("data.servicesById = {}");
+    expect(page).toContain("/api/v0/services/");
+    expect(page).toContain("/story");
+    expect(page).toContain("/context");
+    expect(page).toContain("traffic evidence unavailable");
+    expect(guide).toContain("GET /api/v0/services/{name}/story");
+    expect(guide).toContain("GET /api/v0/services/{name}/context");
+  });
 });

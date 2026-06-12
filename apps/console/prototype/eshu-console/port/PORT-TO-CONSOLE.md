@@ -58,6 +58,7 @@ The client + mappers already live in `console/data.js` (`ESHU.EshuApiClient`,
 | SBOM                 | `GET /api/v0/supply-chain/sbom-attestations/attachments/count`, `GET /api/v0/supply-chain/sbom-attestations/attachments/inventory` |
 | Dependencies         | `GET /api/v0/dependencies` |
 | Observability        | `GET /api/v0/observability/coverage/correlations?provider=` |
+| Topology             | `GET /api/v0/services/{name}/story`, `GET /api/v0/services/{name}/context` |
 
 ---
 
