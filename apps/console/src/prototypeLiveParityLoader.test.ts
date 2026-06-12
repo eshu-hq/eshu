@@ -40,6 +40,13 @@ interface PrototypeModel {
     readonly tag: string;
     readonly sizeBytes: number | null;
   }[];
+  readonly dependencyInventory?: readonly {
+    readonly anchorPackage: string;
+    readonly relatedPackage: string;
+    readonly declaringVersion: string;
+    readonly range: string;
+    readonly dependencyType: string;
+  }[];
   readonly langInventory?: readonly { readonly label: string; readonly value: number }[];
   readonly metrics?: {
     readonly ingestRate?: readonly number[];
@@ -181,6 +188,29 @@ function liveClient(): PrototypeClient {
           }
         };
       }
+      if (path.includes("/dependencies")) {
+        return {
+          data: {
+            dependencies: [{
+              direction: "forward",
+              anchor_package: "@eshu/core",
+              anchor_package_id: "pkg:npm/%40eshu/core",
+              declaring_version: "1.0.0",
+              related_package: "left-pad",
+              related_package_id: "pkg:npm/left-pad",
+              related_ecosystem: "npm",
+              dependency_range: "^1.3.0",
+              dependency_type: "runtime",
+              optional: false,
+              edge_id: "dep-edge-1"
+            }],
+            direction: "forward",
+            truncated: false
+          },
+          error: null,
+          truth: { level: "exact", freshness: { state: "fresh" } }
+        };
+      }
       return { data: { images: [], resources: [], buckets: [], dependencies: [] } };
     },
     async post(path: string): Promise<unknown> {
@@ -273,6 +303,14 @@ describe("prototype live parity loader", () => {
       kev: true
     });
     expect(model.prov.advisoryCatalog).toBe("live");
+    expect(client.paths).toContain("/api/v0/dependencies?direction=forward&limit=50");
+    expect(model.dependencyInventory?.[0]).toMatchObject({
+      anchorPackage: "@eshu/core",
+      relatedPackage: "left-pad",
+      declaringVersion: "1.0.0",
+      range: "^1.3.0",
+      dependencyType: "runtime"
+    });
   });
 
   it("keeps live dead-code candidates even when source metadata is partial", async () => {

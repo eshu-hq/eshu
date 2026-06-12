@@ -107,11 +107,13 @@
   function mapDependency(row) {
     return {
       id: str(row.edge_id) || [str(row.anchor_package), str(row.related_package)].join("->"),
-      sourceLabel: str(row.anchor_package) || str(row.anchor_package_id) || "package",
-      targetLabel: str(row.related_package) || str(row.related_package_id) || "dependency",
-      verb: row.direction === "reverse" ? "DEPENDED_ON_BY" : "DEPENDS_ON",
-      layer: "code",
-      system: str(row.related_ecosystem),
+      direction: row.direction === "reverse" ? "reverse" : "forward",
+      anchorPackage: str(row.anchor_package) || str(row.anchor_package_id) || "package",
+      anchorPackageId: str(row.anchor_package_id),
+      declaringVersion: str(row.declaring_version),
+      relatedPackage: str(row.related_package) || str(row.related_package_id) || "dependency",
+      relatedPackageId: str(row.related_package_id),
+      ecosystem: str(row.related_ecosystem),
       range: str(row.dependency_range),
       dependencyType: str(row.dependency_type),
       optional: row.optional === true

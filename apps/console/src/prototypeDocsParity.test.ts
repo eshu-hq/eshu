@@ -34,6 +34,9 @@ describe("prototype documentation parity", () => {
     expect(livePages).toContain("digest, tags, registry/repository, media type, and size");
     expect(livePages).not.toContain("joined to service and vulnerability evidence");
     expect(livePages).not.toContain("vulnCount");
+    expect(livePages).toContain("Package dependency inventory");
+    expect(livePages).toContain("Anchor package");
+    expect(livePages).not.toContain("Service, library and datastore dependencies");
   });
 
   it("uses the same observability provider vocabulary as the live console", () => {
@@ -396,7 +399,7 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("No container images from this source.");
     expect(page).toContain("No Terraform/IaC resources have been indexed yet.");
     expect(page).toContain("No SBOM/attestation subjects from this source.");
-    expect(page).toContain("No dependency edges from this source.");
+    expect(page).toContain("No package dependencies in the indexed package graph yet.");
   });
 
   it("keeps prototype Catalog and Findings honest in connected-live mode", () => {

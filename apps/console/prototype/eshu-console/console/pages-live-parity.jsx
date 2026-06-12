@@ -76,21 +76,22 @@ function sbomRows(D) {
 function dependencyRows(D) {
   if (Array.isArray(D.dependencyInventory) && D.dependencyInventory.length) return D.dependencyInventory;
   return D.services.flatMap((s) => {
-    const deps = (s.deps || []).map((id) => ({
-      id: s.id + "->" + id,
-      source: s,
-      target: D.servicesById[id] || { id, name: id, kind: "external", system: "external" },
-      verb: "DEPENDS_ON",
-      layer: "code"
-    }));
-    const stores = (s.stores || []).map((store) => ({
-      id: s.id + "->store:" + store,
-      source: s,
-      target: { id: store, name: store, kind: "datastore", system: "cloud" },
-      verb: "STORES_IN",
-      layer: "infra"
-    }));
-    return deps.concat(stores);
+    return (s.deps || []).map((id) => {
+      const target = D.servicesById[id] || { id, name: id };
+      return {
+        id: s.id + "->" + id,
+        direction: "forward",
+        anchorPackage: s.name,
+        anchorPackageId: s.repo || s.id,
+        declaringVersion: s.version || "",
+        relatedPackage: target.name,
+        relatedPackageId: target.id,
+        ecosystem: "demo",
+        range: "",
+        dependencyType: "runtime",
+        optional: false
+      };
+    });
   });
 }
 
@@ -370,32 +371,33 @@ function SBOM({ data, onOpenService }) {
 function Dependencies({ data, onOpenService }) {
   const D = data || ESHU;
   const rows = useMemoP(() => dependencyRows(D), [D]);
-  const [layer, setLayer] = useStateP("all");
-  const filtered = rows.filter((r) => layer === "all" || r.layer === layer);
-  const groups = ["all", "code", "infra"];
+  const optional = rows.filter((r) => r.optional).length;
+  const ecosystems = new Set(rows.map((r) => r.ecosystem).filter(Boolean)).size;
+  const forward = rows.filter((r) => r.direction !== "reverse").length;
 
   return (
     <div className="page">
-      <div className="page-intro"><h2>Dependencies</h2><p>Service, library and datastore dependencies from <span className="mono">GET /api/v0/dependencies</span>.</p></div>
+      <div className="page-intro"><h2>Dependencies</h2><p>Package dependency inventory from <span className="mono">GET /api/v0/dependencies</span>: forward rows answer what an anchor package depends on; reverse rows answer who depends on it.</p></div>
       <div className="grid g-4">
-        <StatTile label="Edges" value={rows.length} color="var(--teal)" sub="code + infra" />
-        <StatTile label="Code deps" value={rows.filter((r) => r.layer === "code").length} color="var(--blue)" sub="package imports" />
-        <StatTile label="Datastores" value={rows.filter((r) => r.layer === "infra").length} color="var(--ember)" sub="storage dependencies" />
-        <StatTile label="Services" value={D.services.filter((s) => s.kind !== "lib").length} color="var(--teal)" sub="running workloads" />
+        <StatTile label="Edges" value={rows.length} color="var(--teal)" sub="bounded package graph page" />
+        <StatTile label="Forward" value={forward} color="var(--blue)" sub="depends-on rows" />
+        <StatTile label="Ecosystems" value={ecosystems} color="var(--violet)" sub="package ecosystems" />
+        <StatTile label="Optional" value={optional} color="var(--ember)" sub="optional edges" />
       </div>
-      <div className="dep-toggle mt">{groups.map((g) => <button key={g} className={layer === g ? "active" : ""} onClick={() => setLayer(g)}>{g === "all" ? "All" : g}</button>)}</div>
-      <Panel className="flush mt" title={filtered.length + " dependency edges"} sub="Click any endpoint to open the service drawer" glyph={<Icon.branch />}>
+      <Panel className="flush mt" title={rows.length + " package dependency rows"} sub="package-native graph edges" glyph={<Icon.branch />}>
         <table className="tbl">
-          <thead><tr><th>Source</th><th>Verb</th><th>Target</th><th>Layer</th><th>System</th></tr></thead>
-          <tbody>{filtered.map((r) => (
+          <thead><tr><th>Anchor package</th><th>Version</th><th>Depends on</th><th>Ecosystem</th><th>Range</th><th>Type</th><th>Optional</th></tr></thead>
+          <tbody>{rows.map((r) => (
             <tr key={r.id}>
-              <td>{r.source ? <button className="dep-chip" onClick={() => onOpenService(r.source.id)}>{r.source.name}</button> : <span className="t-name">{r.sourceLabel}</span>}</td>
-              <td><Badge tone={r.layer === "code" ? "teal" : "neutral"}>{r.verb}</Badge></td>
-              <td>{r.target && D.servicesById[r.target.id] ? <button className="dep-chip" onClick={() => onOpenService(r.target.id)}>{r.target.name}</button> : <span className="t-name">{r.targetLabel || (r.target && r.target.name)}</span>}</td>
-              <td className="mono" style={{ fontSize: ".76rem" }}>{r.layer}</td>
-              <td>{r.system || (r.target && r.target.system)}</td>
+              <td className="t-name">{r.anchorPackage || "—"}</td>
+              <td className="mono" style={{ fontSize: ".76rem" }}>{r.declaringVersion || "—"}</td>
+              <td className="t-name mono" style={{ fontSize: ".82rem" }} title={r.relatedPackageId}>{r.relatedPackage || "—"}</td>
+              <td className="t-mut" style={{ fontSize: ".78rem" }}>{r.ecosystem || "—"}</td>
+              <td className="mono" style={{ fontSize: ".76rem" }}>{r.range || "—"}</td>
+              <td>{r.dependencyType ? <Badge tone="teal">{r.dependencyType}</Badge> : <span className="t-mut">—</span>}</td>
+              <td>{r.optional ? <Badge tone="warn">optional</Badge> : <span className="t-mut">no</span>}</td>
             </tr>
-          ))}{filtered.length === 0 ? <tr><td colSpan={5} className="empty">No dependency edges from this source.</td></tr> : null}</tbody>
+          ))}{rows.length === 0 ? <tr><td colSpan={7} className="empty">No package dependencies in the indexed package graph yet.</td></tr> : null}</tbody>
         </table>
       </Panel>
     </div>
