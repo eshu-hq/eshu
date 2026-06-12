@@ -108,13 +108,17 @@ describe("prototype documentation parity", () => {
     const prototypeApp = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
 
     expect(prototypeApp).toContain("function liveConsoleData");
+    expect(prototypeApp).toContain('source.mode === "live" ? liveConsoleData(ESHU, source.live) : ESHU');
     expect(prototypeApp).toContain('org: "live"');
     expect(prototypeApp).toContain('services: liveArray(live, "services")');
     expect(prototypeApp).toContain('vulns: liveArray(live, "vulns")');
     expect(prototypeApp).toContain("graph: (live && live.graph) || { nodes: [], edges: [] }");
     expect(prototypeApp).toContain("unsupported sections show explicit empty/unavailable states");
     expect(prototypeApp).not.toContain("Object.assign({}, ESHU, source.live)");
+    expect(prototypeApp).not.toContain('source.live) ? liveConsoleData(ESHU, source.live) : ESHU');
     expect(prototypeApp).not.toContain("sections without a live endpoint show demo facts");
+    expect(prototypeApp).not.toContain("Showing demo facts");
+    expect(prototypeApp).not.toContain("showing demo");
   });
 
   it("keeps the prototype shell footer on the selected data source", () => {

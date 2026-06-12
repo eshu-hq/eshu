@@ -183,7 +183,7 @@ function App() {
   }
   function useDemo() { setLiveClient(null); setSource((s) => ({ ...s, mode: "demo", status: "idle", msg: "", live: null })); setSrcOpen(false); }
 
-  const data = (source.mode === "live" && source.live) ? liveConsoleData(ESHU, source.live) : ESHU;
+  const data = source.mode === "live" ? liveConsoleData(ESHU, source.live) : ESHU;
   if (source.mode === "live" && Array.isArray(data.services)) {
     data.servicesById = {};
     data.services.forEach((service) => { data.servicesById[service.id] = service; });
@@ -331,7 +331,7 @@ function App() {
           <div className="prov-banner"><Icon.db size={14} /> Live Eshu API · <span className="mono">{source.base}</span> — {liveSections.length ? liveSections.join(", ") + " from live graph/API loaders" : "connected"}; unsupported sections show explicit empty/unavailable states.</div>
         ) : null}
         {source.mode === "live" && source.status === "unavailable" ? (
-          <div className="prov-banner warn"><Icon.bolt size={14} /> Eshu API unavailable at <span className="mono">{source.base}</span>{source.msg ? " · " + source.msg : ""}. Showing demo facts. Serve this page behind the /eshu-api/ proxy (browser can't reach localhost cross-origin).</div>
+          <div className="prov-banner warn"><Icon.bolt size={14} /> Eshu API unavailable at <span className="mono">{source.base}</span>{source.msg ? " · " + source.msg : ""}. Rendering unavailable live state. Select Demo data to inspect bundled fixtures.</div>
         ) : null}
 
         {route === "dashboard" ? <Dashboard data={data} client={liveClient} source={source} onOpenService={openService} onOpenNode={openNode} heroMode={t.heroMode} graphStyle={graphStyle} chartStyle={t.chartStyle} /> : null}
@@ -413,7 +413,7 @@ function SourcePopover({ source, onDemo, onConnect, onClose }) {
             <button className="btn-ghost active" onClick={() => onConnect(base, key)}>Connect</button>
           </div>
           <input className="popover-input mono" type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="Authorization: Bearer … (API key)" style={{ width: "100%", marginTop: 6 }} autoComplete="off" />
-          {source.mode === "live" && source.status === "unavailable" ? <span className="src-err">⚠ {source.msg || "unreachable"} — showing demo</span> : null}
+          {source.mode === "live" && source.status === "unavailable" ? <span className="src-err">⚠ {source.msg || "unreachable"} — unavailable live state</span> : null}
           {source.mode === "live" && source.status === "connected" ? <span className="src-ok">✓ connected</span> : null}
         </div>
         <p className="t-mut" style={{ fontSize: ".7rem", margin: "4px 2px 0", lineHeight: 1.5 }}>Local Compose proxies <span className="mono">/eshu-api/</span> → <span className="mono">127.0.0.1:8080</span>. Truth & freshness from the envelope are preserved, never flattened.</p>
