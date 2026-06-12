@@ -83,9 +83,11 @@ export function TopologyPage({
       <div className="page-intro">
         <h2>Topology</h2>
         <p>
-          Service-level code-to-cloud topology from live story, traffic, deployment,
-          and runtime evidence. Missing cloud-resource segments stay explicit instead
-          of being invented.
+          Service-level code-to-cloud topology from{" "}
+          <span className="mono">GET /api/v0/services/{"{name}"}/story</span>{" "}
+          and{" "}
+          <span className="mono">GET /api/v0/services/{"{name}"}/context</span>.
+          Missing cloud-resource segments stay explicit instead of being invented.
         </p>
       </div>
 

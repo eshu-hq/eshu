@@ -59,6 +59,8 @@ describe("TopologyPage", () => {
     render(<TopologyPage client={client} model={model()} onOpenService={vi.fn()} />);
 
     expect(screen.getByRole("heading", { name: "Topology" })).toBeInTheDocument();
+    expect(screen.getByText("GET /api/v0/services/{name}/story")).toBeInTheDocument();
+    expect(screen.getByText("GET /api/v0/services/{name}/context")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("www.boats.com")).toBeInTheDocument());
     expect(screen.getByText("E2BGBOATS")).toBeInTheDocument();
     expect(screen.getByText("boats/api-node-boats")).toBeInTheDocument();
