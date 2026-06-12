@@ -85,7 +85,7 @@ interface SBOMAttachmentCount {
   readonly by_attachment_status?: Readonly<Record<string, number>>;
   readonly by_artifact_kind?: Readonly<Record<string, number>>;
 }
-interface IacResourcesResponse { readonly resources?: Parameters<typeof iacResourceRowsFromResponse>[0]["resources"]; }
+interface IacResourcesResponse { readonly resources?: NonNullable<Parameters<typeof iacResourceRowsFromResponse>[0]>["resources"]; }
 
 // Impact findings carry a CVSS score but no severity label; derive the standard
 // CVSS v3 qualitative band so the vulnerability list can colour-rank rows.
@@ -230,10 +230,6 @@ export async function loadFindings(client: EshuApiClient, ctx?: SectionContext):
   const env = await client.post<DeadCodeResponse>("/api/v0/code/dead-code", { limit: 25 });
   const rows = deadCodeRowsFromResponse(env.data, env.truth?.level ?? "derived", ctx?.repoNames);
   return rows.length > 0 ? rows : null;
-}
-
-function nonEmpty(...values: readonly (string | undefined)[]): string {
-  return values.find((value) => value !== undefined && value.trim().length > 0)?.trim() ?? "";
 }
 
 // loadVulnerabilities reads the affected impact findings (reachable in indexed

@@ -1,4 +1,5 @@
 import type { EshuApiClient } from "./client";
+import type { TruthLevel } from "./envelope";
 import type { FindingRow } from "./eshuConsoleLive";
 
 export interface DeadCodeQuery {
@@ -63,8 +64,8 @@ export async function loadDeadCodePage(
 }
 
 export function deadCodeRowsFromResponse(
-  response: DeadCodeResponse | undefined,
-  truthLevel: string,
+  response: DeadCodeResponse | null | undefined,
+  truthLevel: TruthLevel,
   repoNames?: ReadonlyMap<string, string>
 ): readonly FindingRow[] {
   return (response?.results ?? []).map((row, index) => {

@@ -56,7 +56,7 @@ describe("buildServiceTopology", () => {
     expect(graph.meta.provenance).toBe("unavailable");
     expect(graph.nodes.map((node) => node.label)).toContain("Entry evidence pending");
     expect(graph.nodes.map((node) => node.label)).not.toContain("CloudFront");
-    expect(graph.edges.every((edge) => edge.provenance !== "fabricated")).toBe(true);
+    expect(graph.edges.every((edge) => edge.provenance === "live" || edge.provenance === "unavailable")).toBe(true);
   });
 
   it("fits long labels into bounded nodes", () => {

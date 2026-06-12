@@ -32,7 +32,7 @@ function matches(row: IacResourceRow, q: string, filters: IacFilters, client: Es
   // With a live client, typed/provider/module/kind filters are server-side. Keep
   // the browser filter limited to free-text within the current bounded page.
   if (!client) {
-    if (filters.kind !== "" && row.kind !== filters.kind) return false;
+    if (row.kind !== filters.kind) return false;
     if (filters.type !== "" && row.type !== filters.type) return false;
     if (filters.provider !== "" && row.provider !== filters.provider) return false;
     if (filters.module !== "" && row.module !== filters.module) return false;

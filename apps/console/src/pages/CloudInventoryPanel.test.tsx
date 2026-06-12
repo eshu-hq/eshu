@@ -5,7 +5,7 @@ import { CloudInventoryPanel } from "./CloudInventoryPanel";
 
 describe("CloudInventoryPanel", () => {
   it("renders canonical source-state rollups from the inventory readback", async () => {
-    const get = vi.fn(async () => ({
+    const get = vi.fn(async (_path: string) => ({
       data: {
         resources: [
           {
@@ -51,7 +51,7 @@ describe("CloudInventoryPanel", () => {
     expect(screen.getByText("derived · 1")).toBeInTheDocument();
     expect(screen.getByText("AWS::S3::Bucket")).toBeInTheDocument();
     expect(screen.getByText("observed")).toBeInTheDocument();
-    const path = get.mock.calls[0]?.[0] as string;
+    const path = get.mock.calls[0]?.[0] ?? "";
     expect(path).toContain("/api/v0/cloud/inventory");
     expect(path).toContain("account_id=111122223333");
     expect(path).toContain("provider=aws");

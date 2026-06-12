@@ -8,7 +8,7 @@ import {
   type TopologyKind,
   type TopologyNode
 } from "../api/serviceTopology";
-import type { ConsoleModel, ServiceRow } from "../console/types";
+import type { ConsoleModel } from "../console/types";
 import { LAYER_COLOR } from "../console/types";
 import { Badge, Panel, StatTile } from "../components/atoms";
 import "./topology.css";

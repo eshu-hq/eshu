@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { describe, expect, it } from "vitest";
 
@@ -11,7 +12,7 @@ interface RouteHelpers {
 
 function loadRoutes(): RouteHelpers {
   const win: { ESHU_ROUTES?: RouteHelpers } = {};
-  const path = resolve(process.cwd(), "apps/console/prototype/eshu-console/console/routes.js");
+  const path = resolve(dirname(fileURLToPath(import.meta.url)), "../prototype/eshu-console/console/routes.js");
   vm.runInNewContext(readFileSync(path, "utf8"), { window: win, Object });
   if (win.ESHU_ROUTES === undefined) throw new Error("route helpers did not load");
   return win.ESHU_ROUTES;

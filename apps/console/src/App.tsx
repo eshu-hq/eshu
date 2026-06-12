@@ -90,9 +90,9 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
     label: "Cloud & Telemetry",
     items: [
       { to: "/topology", label: "Topology", icon: GitBranch },
-      { to: "/cloud", label: "Cloud", icon: Cloud, count: (m) => nonZero(m.cloudResources?.length ?? 0) },
+      { to: "/cloud", label: "Cloud", icon: Cloud },
       { to: "/observability", label: "Observability", icon: Waves },
-      { to: "/sbom", label: "SBOM", icon: PackageSearch, count: (m) => nonZero(m.sbomEvidence?.length ?? 0) },
+      { to: "/sbom", label: "SBOM", icon: PackageSearch, count: (m) => nonZero(m.sbom?.total ?? 0) },
       { to: "/dependencies", label: "Dependencies", icon: Boxes, count: (m) => nonZero(m.dependencies?.length ?? 0) }
     ]
   },
