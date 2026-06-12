@@ -6,9 +6,11 @@
 // coverage table. No fabricated rows - honest empty/error states.
 import { useEffect, useState } from "react";
 import type { EshuApiClient } from "../api/client";
-import { loadObservabilityCoverage } from "../api/eshuObservability";
+import { loadObservabilityCoverage, OBSERVABILITY_PROVIDERS } from "../api/eshuObservability";
 import type { CoverageRow, ObservabilitySnapshot } from "../api/eshuObservability";
 import { Panel, StatTile, Badge } from "../components/atoms";
+
+const PROVIDER_ANCHORS = OBSERVABILITY_PROVIDERS.join(", ");
 
 export function ObservabilityPage({ client }: { readonly client?: EshuApiClient }): React.JSX.Element {
   const [snap, setSnap] = useState<ObservabilitySnapshot | null>(null);
@@ -49,7 +51,11 @@ export function ObservabilityPage({ client }: { readonly client?: EshuApiClient 
     <div className="page">
       <div className="page-intro">
         <h2>Observability</h2>
-        <p>Coverage correlations for grafana, prometheus/mimir, loki, and tempo - <span className="mono">GET /api/v0/observability/coverage/correlations</span>.</p>
+        <p>
+          Live coverage correlations from{" "}
+          <span className="mono">GET /api/v0/observability/coverage/correlations</span>.
+          Provider anchors: {PROVIDER_ANCHORS}.
+        </p>
       </div>
 
       <div className="grid g-4">

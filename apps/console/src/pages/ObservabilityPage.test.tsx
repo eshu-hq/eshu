@@ -10,6 +10,7 @@ describe("ObservabilityPage", () => {
 
     render(<ObservabilityPage client={client} />);
 
+    expect(screen.getByText(/provider anchors: grafana, prometheus, loki, tempo/i)).toBeInTheDocument();
     expect(screen.getAllByText("Loading observability coverage...").length).toBeGreaterThan(0);
     expect(screen.queryByText(/No observability coverage/)).not.toBeInTheDocument();
   });
