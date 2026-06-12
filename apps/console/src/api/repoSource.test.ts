@@ -1,8 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { decodeRepoFile, loadRepoFile, loadRepoTree } from "./repoSource";
+import { decodeRepoFile, loadRepoBranches, loadRepoFile, loadRepoTree } from "./repoSource";
 import type { EshuApiClient } from "./client";
 
 describe("repoSource", () => {
+  it("loads repository branches as the derived indexed ref list", async () => {
+    let calledPath = "";
+    const client = {
+      get: async (path: string) => {
+        calledPath = path;
+        return {
+          data: {
+            default_branch: "",
+            branches: [{ name: "", head_sha: "abc123def456", last_indexed_at: "2026-06-01T09:00:00Z" }]
+          },
+          error: null,
+          truth: null
+        };
+      }
+    } as unknown as EshuApiClient;
+
+    const refs = await loadRepoBranches(client, "repo-1");
+
+    expect(calledPath).toBe("/api/v0/repositories/repo-1/branches");
+    expect(refs).toEqual({
+      defaultBranch: "",
+      branches: [{ name: "", headSha: "abc123def456", lastIndexedAt: "2026-06-01T09:00:00Z" }]
+    });
+  });
+
   it("maps tree entries (dir child_count + file size/language) and the ref", async () => {
     let calledPath = "";
     const client = {

@@ -223,9 +223,12 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("/api/v0/repositories/");
     expect(page).toContain("/tree");
     expect(page).toContain("/content?path=");
+    expect(page).toContain("/branches");
+    expect(page).toContain("Indexed ref");
     expect(page).toContain("Repository source unavailable");
-    expect(page).toContain("indexed ref");
+    expect(page).toContain("demo-indexed-ref");
     expect(page).toContain("repoSourceDisplayName");
+    expect(page).not.toContain("Branch selection is pending");
     expect(page).not.toContain("<h2 style={{ marginTop: 8 }}>{repoId}");
   });
 

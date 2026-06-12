@@ -83,6 +83,44 @@ describe("RepoSourcePage", () => {
     expect(screen.queryByRole("heading", { name: /repository:r_1/ })).not.toBeInTheDocument();
   });
 
+  it("shows the indexed repository ref returned by the branches endpoint", async () => {
+    const client = {
+      get: async (path: string) => {
+        if (path === "/api/v0/repositories/repository%3Ar_1/branches") {
+          return {
+            data: {
+              default_branch: "",
+              branches: [{ name: "", head_sha: "abc123def456", last_indexed_at: "2026-06-01T09:00:00Z" }]
+            },
+            error: null,
+            truth: null
+          };
+        }
+        return {
+          data: {
+            ref: "abc123def456",
+            path: "",
+            entries: []
+          },
+          error: null,
+          truth: null
+        };
+      }
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/repositories/repository%3Ar_1/source"]}>
+        <Routes>
+          <Route path="/repositories/:id/source" element={<RepoSourcePage client={client} />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("Indexed ref")).toBeInTheDocument();
+    expect(screen.getByText("abc123def4")).toBeInTheDocument();
+    expect(screen.queryByText(/Branch selection is pending/)).not.toBeInTheDocument();
+  });
+
   it("keeps file selections shareable by updating the source URL", async () => {
     const client = {
       get: async (path: string) => {

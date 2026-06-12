@@ -129,6 +129,17 @@
     return { ref: data.ref || "", path: data.path || path, entries };
   }
 
+  async function liveBranches(client, repoId) {
+    const env = await client.get("/api/v0/repositories/" + encodeURIComponent(repoId) + "/branches");
+    const data = apiData(env);
+    const branches = (data.branches || []).map((branch) => ({
+      name: branch.name || "",
+      headSha: branch.head_sha || "",
+      lastIndexedAt: branch.last_indexed_at || null
+    })).filter((branch) => branch.name || branch.headSha);
+    return { defaultBranch: data.default_branch || "", branches };
+  }
+
   async function liveFile(client, repoId, path) {
     const env = await client.get("/api/v0/repositories/" + encodeURIComponent(repoId) + "/content?path=" + encodeURIComponent(path));
     const data = apiData(env);
@@ -160,6 +171,8 @@
     const [file, setFile] = useStateSP(null);
     const [fileErr, setFileErr] = useStateSP("");
     const [repoLabel, setRepoLabel] = useStateSP(repoSourceDisplayName(D, repoId));
+    const [branches, setBranches] = useStateSP(null);
+    const [branchesErr, setBranchesErr] = useStateSP("");
 
     useEffectSP(() => {
       function onHash() {
@@ -179,6 +192,16 @@
         .catch((e) => { if (!cancelled) setTreeErr((e && e.message) || "failed"); });
       return () => { cancelled = true; };
     }, [D, client, repoId, path]);
+
+    useEffectSP(() => {
+      let cancelled = false;
+      setBranches(null); setBranchesErr("");
+      if (!client) return () => { cancelled = true; };
+      liveBranches(client, repoId)
+        .then((value) => { if (!cancelled) setBranches(value); })
+        .catch((e) => { if (!cancelled) setBranchesErr((e && e.message) || "failed"); });
+      return () => { cancelled = true; };
+    }, [client, repoId]);
 
     useEffectSP(() => {
       let cancelled = false;
@@ -210,12 +233,22 @@
     }
 
     const crumbs = path ? path.split("/") : [];
+    const indexedRef = (branches && branches.branches[0] && branches.branches[0].headSha) || (tree && tree.ref) || "";
+    const indexedBranchName = (branches && branches.branches[0] && branches.branches[0].name) || (branches && branches.defaultBranch) || "";
+    const lastIndexedAt = (branches && branches.branches[0] && branches.branches[0].lastIndexedAt) || null;
     return (
       <div className="page" style={{ maxWidth: "none" }}>
         <div className="page-intro">
           <a className="link-btn" href={window.ESHU_ROUTES.hashFor("repos")}>{"<-"} Repositories</a>
           <h2 style={{ marginTop: 8 }}>{repoLabel} <span className="t-mut" style={{ fontSize: "0.8rem", fontWeight: 400 }}>· source</span></h2>
-          <p>File tree and code viewer from <span className="mono">/api/v0/repositories/{"{id}"}/tree</span> and <span className="mono">/content?path=</span>. Branch selection is pending; showing the indexed ref{tree && tree.ref ? <Badge tone="neutral">{String(tree.ref).slice(0, 10)}</Badge> : null}.</p>
+          <p>File tree and code viewer from <span className="mono">/api/v0/repositories/{"{id}"}/tree</span>, <span className="mono">/content?path=</span>, and <span className="mono">/branches</span>.</p>
+          <div className="explorer-filters" style={{ gap: 8, marginTop: 10 }}>
+            <span className="t-mut">Indexed ref</span>
+            {indexedRef ? <Badge tone="neutral">{String(indexedRef).slice(0, 10)}</Badge> : <Badge tone="neutral">unavailable</Badge>}
+            {indexedBranchName ? <span className="t-mut mono">{indexedBranchName}</span> : null}
+            {lastIndexedAt ? <span className="t-mut mono">{new Date(lastIndexedAt).toLocaleString()}</span> : null}
+            {branchesErr ? <span className="t-mut">ref list unavailable: {branchesErr}</span> : null}
+          </div>
         </div>
 
         <div className="explorer-filters" style={{ gap: 4 }}>

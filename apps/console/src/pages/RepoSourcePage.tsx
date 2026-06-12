@@ -1,14 +1,13 @@
 // pages/RepoSourcePage.tsx
 // File-tree + code-viewer for a repository, wired to the merged tree (#1431) and
-// content (#1432) endpoints. The tree/content reflect the single indexed ref;
-// the multi-branch selector is gated on the branches API (#1433) and shown as a
-// disabled note until then. No fabricated tree or contents.
+// content (#1432) endpoints plus the derived branch ref list (#1433). No
+// fabricated tree, branch names, or contents.
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
 import { loadRepositoryNameMap } from "../api/repoCatalog";
-import { decodeRepoFile, loadRepoFile, loadRepoTree } from "../api/repoSource";
-import type { RepoFile, RepoTree } from "../api/repoSource";
+import { decodeRepoFile, loadRepoBranches, loadRepoFile, loadRepoTree } from "../api/repoSource";
+import type { RepoBranches, RepoFile, RepoTree } from "../api/repoSource";
 import { Panel, Badge } from "../components/atoms";
 
 export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }): React.JSX.Element {
@@ -24,6 +23,8 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
   const [file, setFile] = useState<RepoFile | null>(null);
   const [fileBusy, setFileBusy] = useState(false);
   const [repositoryLabel, setRepositoryLabel] = useState(id);
+  const [branches, setBranches] = useState<RepoBranches | null>(null);
+  const [branchesErr, setBranchesErr] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -51,6 +52,17 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
 
   useEffect(() => {
     let cancelled = false;
+    if (!client) { setBranches(null); setBranchesErr("requires a live connection"); return; }
+    setBranches(null);
+    setBranchesErr("");
+    void loadRepoBranches(client, id)
+      .then((refs) => { if (!cancelled) setBranches(refs); })
+      .catch((e) => { if (!cancelled) setBranchesErr(e instanceof Error ? e.message : "failed"); });
+    return () => { cancelled = true; };
+  }, [client, id]);
+
+  useEffect(() => {
+    let cancelled = false;
     if (!client || requestedFile === "") return () => { cancelled = true; };
     setPath(parentPath(requestedFile));
     setFileBusy(true);
@@ -70,13 +82,23 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
   }
 
   const crumbs = path ? path.split("/") : [];
+  const indexedRef = branches?.branches[0]?.headSha || tree?.ref || "";
+  const indexedBranchName = branches?.branches[0]?.name || branches?.defaultBranch || "";
+  const lastIndexedAt = branches?.branches[0]?.lastIndexedAt ?? null;
 
   return (
     <div className="page" style={{ maxWidth: "none" }}>
       <div className="page-intro">
         <Link to="/repositories" className="link-btn">← Repositories</Link>
         <h2 style={{ marginTop: 8 }}>{repositoryLabel} <span className="t-mut" style={{ fontSize: "0.8rem", fontWeight: 400 }}>· source</span></h2>
-        <p>File tree + viewer from <span className="mono">/repositories/{"{id}"}/tree</span> and <span className="mono">/content</span>. Branch selection is pending the branches API (#1433); showing the indexed ref{tree?.ref ? <> <Badge tone="neutral">{tree.ref.slice(0, 10)}</Badge></> : null}.</p>
+        <p>File tree + viewer from <span className="mono">/repositories/{"{id}"}/tree</span>, <span className="mono">/content</span>, and <span className="mono">/branches</span>.</p>
+        <div className="explorer-filters" style={{ gap: 8, marginTop: 10 }}>
+          <span className="t-mut">Indexed ref</span>
+          {indexedRef ? <Badge tone="neutral">{indexedRef.slice(0, 10)}</Badge> : <Badge tone="neutral">unavailable</Badge>}
+          {indexedBranchName ? <span className="t-mut mono">{indexedBranchName}</span> : null}
+          {lastIndexedAt ? <span className="t-mut mono">{new Date(lastIndexedAt).toLocaleString()}</span> : null}
+          {branchesErr ? <span className="t-mut">ref list unavailable: {branchesErr}</span> : null}
+        </div>
       </div>
 
       <div className="explorer-filters" style={{ gap: 4 }}>

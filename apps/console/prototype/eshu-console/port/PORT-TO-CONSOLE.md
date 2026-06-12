@@ -48,6 +48,7 @@ The client + mappers already live in `console/data.js` (`ESHU.EshuApiClient`,
 | -------------------- | -------- |
 | Dashboard / Ops stats| `GET /api/v0/ecosystem/overview`, `GET /api/v0/index-status`, `GET /api/v0/metrics/timeseries` |
 | Repositories         | `GET /api/v0/repositories`, `GET /api/v0/repositories/{id}/stats`, `GET /api/v0/repositories/{id}/story` |
+| Repository source    | `GET /api/v0/repositories/{id}/tree`, `GET /api/v0/repositories/{id}/content?path=`, `GET /api/v0/repositories/{id}/branches` |
 | Catalog              | `GET /api/v0/catalog?limit=2000` |
 | Language chart       | `GET /api/v0/repositories/language-inventory` |
 | Collectors           | `GET /api/v0/status/ingesters` |
@@ -100,8 +101,9 @@ is added, update both:
 ## What stays representative until wired
 
 - **Repository branch selection** — source browsing uses
-  `GET /api/v0/repositories/{id}/tree` and `/content?path=` for the indexed ref.
-  Multi-branch selection remains gated on the production branches API.
+  `GET /api/v0/repositories/{id}/tree`, `/content?path=`, and `/branches`.
+  The current `/branches` route exposes the derived indexed commit ref; true
+  multi-branch selection remains gated on ingested Git ref names.
 - **Time-series gaps** — dashboard and Operations trend lines hydrate from
   `GET /api/v0/metrics/timeseries` when a metrics source is configured. Prototype
   sparklines without a live metric name, such as write-throughput and cache-hit
