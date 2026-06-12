@@ -197,8 +197,11 @@ export interface AdvisoryRow {
 export interface SeriesBundle {
   readonly ingestRate: readonly number[];
   readonly queueDepth: readonly number[];
+  readonly deadLetters: readonly number[];
   readonly graphNodes: readonly number[];
   readonly graphEdges: readonly number[];
+  readonly queryP50: readonly number[];
+  readonly queryP95: readonly number[];
   readonly queryP99: readonly number[];
   readonly newVulns: readonly number[];
 }

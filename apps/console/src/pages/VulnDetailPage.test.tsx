@@ -12,8 +12,11 @@ function modelWithVulnerability(): ConsoleModel {
     series: {
       ingestRate: [],
       queueDepth: [],
+      deadLetters: [],
       graphNodes: [],
       graphEdges: [],
+      queryP50: [],
+      queryP95: [],
       queryP99: [],
       newVulns: []
     },

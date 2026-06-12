@@ -11,7 +11,9 @@ import type {
 } from "./types";
 
 export const emptySeries: SeriesBundle = {
-  ingestRate: [], queueDepth: [], graphNodes: [], graphEdges: [], queryP99: [], newVulns: []
+  ingestRate: [], queueDepth: [], deadLetters: [],
+  graphNodes: [], graphEdges: [], queryP50: [], queryP95: [], queryP99: [],
+  newVulns: []
 };
 
 const SNAPSHOT_SECTIONS = [

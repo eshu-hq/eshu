@@ -105,9 +105,12 @@ is added, update both:
   The current `/branches` route exposes the derived indexed commit ref; true
   multi-branch selection remains gated on ingested Git ref names.
 - **Time-series gaps** — dashboard and Operations trend lines hydrate from
-  `GET /api/v0/metrics/timeseries` when a metrics source is configured. Prototype
-  sparklines without a live metric name, such as write-throughput and cache-hit
-  decoration, stay demo-only.
+  `GET /api/v0/metrics/timeseries` when a metrics source is configured. The
+  live/prototype loaders use the supported `ingest_rate`, `queue_depth`,
+  `dead_letters`, `graph_nodes`, `graph_edges`, `query_p50`, `query_p95`, and
+  `query_p99` series. Prototype sparklines without a live metric name, such as
+  write-throughput, cache-hit, and vulnerability-feed intake decoration, stay
+  demo-only until issue #2216 defines named live contracts.
 - **Vuln CVSS/EPSS/KEV detail** depends on the vulnerability-intelligence collector
   being enabled; otherwise `supply-chain/impact/findings` returns an empty/limited set.
 

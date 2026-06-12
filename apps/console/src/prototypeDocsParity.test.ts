@@ -20,6 +20,8 @@ describe("prototype documentation parity", () => {
     expect(guide).toContain("GET /api/v0/supply-chain/advisories");
     expect(guide).toContain("GET /api/v0/dependencies");
     expect(guide).toContain("GET /api/v0/metrics/timeseries");
+    expect(guide).toContain("`dead_letters`, `graph_nodes`, `graph_edges`, `query_p50`, `query_p95`, and");
+    expect(guide).toContain("issue #2216 defines named live contracts");
     expect(guide).toContain("GET /api/v0/observability/coverage/correlations?provider=");
     expect(guide).not.toContain("Graph drill (next)");
     expect(guide).not.toContain("no historical series endpoint");

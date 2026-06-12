@@ -332,7 +332,9 @@ export async function loadAdvisories(client: EshuApiClient, ctx: SectionContext)
 // emptySeries is the all-empty trend baseline the series bundle starts from so
 // any unavailable metric reports an empty series rather than fabricated points.
 export const emptySeries: SeriesBundle = {
-  ingestRate: [], queueDepth: [], graphNodes: [], graphEdges: [], queryP99: [], newVulns: []
+  ingestRate: [], queueDepth: [], deadLetters: [],
+  graphNodes: [], graphEdges: [], queryP50: [], queryP95: [], queryP99: [],
+  newVulns: []
 };
 
 // loadSeriesBundle fetches every dashboard trend metric concurrently and folds
@@ -342,14 +344,17 @@ export async function loadSeriesBundle(
   client: EshuApiClient,
   section: <T>(key: string, load: () => Promise<T | null>) => Promise<T | null>
 ): Promise<SeriesBundle> {
-  const [ingestRate, queueDepth, graphNodes, graphEdges, queryP99] = await Promise.all([
+  const [ingestRate, queueDepth, deadLetters, graphNodes, graphEdges, queryP50, queryP95, queryP99] = await Promise.all([
     loadMetricSeries(client, section, "ingestRate", "ingest_rate"),
     loadMetricSeries(client, section, "queueDepth", "queue_depth"),
+    loadMetricSeries(client, section, "deadLetters", "dead_letters"),
     loadMetricSeries(client, section, "graphNodes", "graph_nodes"),
     loadMetricSeries(client, section, "graphEdges", "graph_edges"),
+    loadMetricSeries(client, section, "queryP50", "query_p50"),
+    loadMetricSeries(client, section, "queryP95", "query_p95"),
     loadMetricSeries(client, section, "queryP99", "query_p99")
   ]);
-  return { ...emptySeries, ingestRate, queueDepth, graphNodes, graphEdges, queryP99 };
+  return { ...emptySeries, ingestRate, queueDepth, deadLetters, graphNodes, graphEdges, queryP50, queryP95, queryP99 };
 }
 
 async function loadMetricSeries(

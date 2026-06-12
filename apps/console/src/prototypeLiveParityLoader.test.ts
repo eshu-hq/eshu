@@ -37,8 +37,11 @@ interface PrototypeModel {
   readonly metrics?: {
     readonly ingestRate?: readonly number[];
     readonly queueDepth?: readonly number[];
+    readonly deadLetters?: readonly number[];
     readonly graphNodes?: readonly number[];
     readonly graphEdges?: readonly number[];
+    readonly queryP50?: readonly number[];
+    readonly queryP95?: readonly number[];
     readonly queryP99?: readonly number[];
   };
   readonly obsCoverage?: Record<string, Record<string, { readonly state: string; readonly ref: string; readonly freshness: string }>>;
@@ -193,11 +196,17 @@ describe("prototype live parity loader", () => {
     expect(client.paths).toContain("/api/v0/supply-chain/advisories?limit=50");
     expect(client.paths).toContain("/api/v0/metrics/timeseries?metric=ingest_rate&window=24h&step=30m");
     expect(client.paths).toContain("/api/v0/metrics/timeseries?metric=queue_depth&window=24h&step=30m");
+    expect(client.paths).toContain("/api/v0/metrics/timeseries?metric=dead_letters&window=24h&step=30m");
     expect(client.paths).toContain("/api/v0/metrics/timeseries?metric=graph_nodes&window=24h&step=30m");
     expect(client.paths).toContain("/api/v0/metrics/timeseries?metric=graph_edges&window=24h&step=30m");
+    expect(client.paths).toContain("/api/v0/metrics/timeseries?metric=query_p50&window=24h&step=30m");
+    expect(client.paths).toContain("/api/v0/metrics/timeseries?metric=query_p95&window=24h&step=30m");
     expect(client.paths).toContain("/api/v0/metrics/timeseries?metric=query_p99&window=24h&step=30m");
     expect(model.metrics?.ingestRate).toEqual([12]);
     expect(model.metrics?.queueDepth).toEqual([4]);
+    expect(model.metrics?.deadLetters).toEqual([4]);
+    expect(model.metrics?.queryP50).toEqual([4]);
+    expect(model.metrics?.queryP95).toEqual([4]);
     expect(model.metrics?.queryP99).toEqual([4]);
     expect(model.prov.metrics).toBe("live");
     expect(client.paths).toContain("/api/v0/cloud/inventory?limit=50");

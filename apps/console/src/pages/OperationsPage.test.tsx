@@ -9,4 +9,20 @@ describe("OperationsPage", () => {
     expect(screen.getByText("GET /api/v0/repositories/language-inventory")).toBeInTheDocument();
     expect(screen.queryByText("GET /api/v0/repositories/by-language")).not.toBeInTheDocument();
   });
+
+  it("renders live query latency series when metrics samples are available", () => {
+    render(<OperationsPage model={{
+      ...demoModel,
+      series: {
+        ...demoModel.series,
+        deadLetters: [0, 1],
+        queryP50: [3],
+        queryP95: [7],
+        queryP99: [11]
+      }
+    }} />);
+
+    expect(screen.getByText("Query latency")).toBeInTheDocument();
+    expect(screen.getByText("p50 3ms · p95 7ms · p99 11ms")).toBeInTheDocument();
+  });
 });

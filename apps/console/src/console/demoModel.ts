@@ -25,8 +25,11 @@ function ramp(seed: number, n: number, base: number, amp: number, drift: number)
 const demoSeries: SeriesBundle = {
   ingestRate: ramp(11, 48, 620, 200, 1),
   queueDepth: ramp(22, 48, 180, 110, -2),
+  deadLetters: ramp(33, 48, 3, 4, -0.05),
   graphNodes: ramp(44, 48, 41000, 400, 240),
   graphEdges: ramp(55, 48, 128000, 1200, 900),
+  queryP50: ramp(77, 48, 4, 2, 0),
+  queryP95: ramp(88, 48, 12, 5, 0),
   queryP99: ramp(99, 48, 28, 12, 0),
   newVulns: ramp(123, 14, 3, 5, -0.1)
 };

@@ -7,8 +7,11 @@
   const METRIC_SERIES = [
     ["ingestRate", "ingest_rate"],
     ["queueDepth", "queue_depth"],
+    ["deadLetters", "dead_letters"],
     ["graphNodes", "graph_nodes"],
     ["graphEdges", "graph_edges"],
+    ["queryP50", "query_p50"],
+    ["queryP95", "query_p95"],
     ["queryP99", "query_p99"]
   ];
 
