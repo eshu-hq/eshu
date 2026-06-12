@@ -238,7 +238,7 @@ SET rel.confidence = 0.95,
 
 // --- Retraction Cypher ---
 
-const retractInheritanceEdgesCypher = `MATCH (child)-[rel:INHERITS|OVERRIDES|ALIASES]->()
+const retractInheritanceEdgesCypher = `MATCH (child)-[rel:INHERITS|OVERRIDES|ALIASES|IMPLEMENTS]->()
 WHERE child.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`

@@ -195,6 +195,8 @@ func inheritanceRelationshipSummary(cypher string) string {
 		return "OVERRIDES"
 	case strings.Contains(cypher, "rel:ALIASES"):
 		return "ALIASES"
+	case strings.Contains(cypher, "rel:IMPLEMENTS"):
+		return "IMPLEMENTS"
 	default:
 		return "INHERITS"
 	}
