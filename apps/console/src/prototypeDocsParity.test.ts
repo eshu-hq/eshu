@@ -105,7 +105,12 @@ describe("prototype documentation parity", () => {
   it("does not describe connected live prototype mode as falling back to demo facts", () => {
     const prototypeApp = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
 
+    expect(prototypeApp).toContain("function liveConsoleData");
+    expect(prototypeApp).toContain('services: liveArray(live, "services")');
+    expect(prototypeApp).toContain('vulns: liveArray(live, "vulns")');
+    expect(prototypeApp).toContain("graph: live.graph || { nodes: [], edges: [] }");
     expect(prototypeApp).toContain("unsupported sections show explicit empty/unavailable states");
+    expect(prototypeApp).not.toContain("Object.assign({}, ESHU, source.live)");
     expect(prototypeApp).not.toContain("sections without a live endpoint show demo facts");
   });
 

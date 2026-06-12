@@ -73,6 +73,81 @@ const TITLES = {
   admin: ["Operations", "Eshu runtime & NornicDB backend health"]
 };
 
+function liveArray(live, key) {
+  return Array.isArray(live && live[key]) ? live[key] : [];
+}
+
+function lastMetric(metrics, key) {
+  const values = metrics && Array.isArray(metrics[key]) ? metrics[key] : [];
+  return values.length ? values[values.length - 1] : 0;
+}
+
+function liveMetrics(metrics) {
+  const source = metrics || {};
+  return {
+    ingestRate: Array.isArray(source.ingestRate) ? source.ingestRate : [],
+    queueDepth: Array.isArray(source.queueDepth) ? source.queueDepth : [],
+    deadLetters: Array.isArray(source.deadLetters) ? source.deadLetters : [],
+    graphNodes: Array.isArray(source.graphNodes) ? source.graphNodes : [],
+    graphEdges: Array.isArray(source.graphEdges) ? source.graphEdges : [],
+    writeTps: Array.isArray(source.writeTps) ? source.writeTps : [],
+    queryP50: Array.isArray(source.queryP50) ? source.queryP50 : [],
+    queryP95: Array.isArray(source.queryP95) ? source.queryP95 : [],
+    queryP99: Array.isArray(source.queryP99) ? source.queryP99 : [],
+    cacheHit: Array.isArray(source.cacheHit) ? source.cacheHit : [],
+    newVulns: Array.isArray(source.newVulns) ? source.newVulns : []
+  };
+}
+
+function liveRuntime(live, metrics) {
+  const source = (live && live.runtime) || {};
+  const services = liveArray(live, "services");
+  const cloudResources = liveArray(live, "cloudResources");
+  return Object.assign({}, source, {
+    nodes: lastMetric(metrics, "graphNodes"),
+    edges: lastMetric(metrics, "graphEdges"),
+    repos: source.repos || source.repositories || 0,
+    workloads: source.workloads || 0,
+    services: services.length,
+    cloudResources: cloudResources.length,
+    queueOutstanding: source.queueOutstanding || 0,
+    inFlight: source.inFlight || 0,
+    deadLetters: source.deadLetters || 0,
+    succeeded: source.succeeded || 0,
+    indexStatus: source.indexStatus || "unavailable",
+    backendVersion: source.backendVersion || "live"
+  });
+}
+
+function liveConsoleData(base, live) {
+  const metrics = liveMetrics(live && live.metrics);
+  return Object.assign({}, base, live || {}, {
+    services: liveArray(live, "services"),
+    vulns: liveArray(live, "vulns"),
+    findings: liveArray(live, "findings"),
+    relationships: liveArray(live, "relationships"),
+    collectors: liveArray(live, "collectors"),
+    cloudAccounts: liveArray(live, "cloudAccounts"),
+    cloudResources: liveArray(live, "cloudResources"),
+    imageInventory: liveArray(live, "imageInventory"),
+    iacParityRows: liveArray(live, "iacParityRows"),
+    dependencyInventory: liveArray(live, "dependencyInventory"),
+    advisoryCatalog: liveArray(live, "advisoryCatalog"),
+    deadCode: liveArray(live, "deadCode"),
+    argocdApps: liveArray(live, "argocdApps"),
+    langInventory: liveArray(live, "langInventory"),
+    graph: live.graph || { nodes: [], edges: [] },
+    nodeDetail: live.nodeDetail || {},
+    codeImports: live.codeImports || {},
+    obsCoverage: live.obsCoverage || {},
+    obsCoverageSnapshot: live.obsCoverageSnapshot || { rows: [], providers: [], signals: [], source: "empty" },
+    sbomSummary: live.sbomSummary || { total: 0, byStatus: {}, byArtifactKind: {}, truth: null },
+    sbomInventory: live.sbomInventory || { groupBy: "subject_digest", buckets: [], truncated: false },
+    metrics,
+    runtime: liveRuntime(live, metrics)
+  });
+}
+
 function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [route, setRoute] = useStateA(() => canonicalRoute((location.hash || "#dashboard").slice(1).split("?")[0] || "dashboard"));
@@ -107,7 +182,7 @@ function App() {
   }
   function useDemo() { setLiveClient(null); setSource((s) => ({ ...s, mode: "demo", status: "idle", msg: "", live: null })); setSrcOpen(false); }
 
-  const data = (source.mode === "live" && source.live) ? Object.assign({}, ESHU, source.live) : ESHU;
+  const data = (source.mode === "live" && source.live) ? liveConsoleData(ESHU, source.live) : ESHU;
   if (source.mode === "live" && Array.isArray(data.services)) {
     data.servicesById = {};
     data.services.forEach((service) => { data.servicesById[service.id] = service; });
