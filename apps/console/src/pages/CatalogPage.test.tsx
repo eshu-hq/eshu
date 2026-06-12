@@ -73,6 +73,7 @@ describe("CatalogPage", () => {
 
     const live: ConsoleModel = { ...demoModel, source: "live" };
     render(<CatalogPage model={live} />);
-    expect(screen.getByText("live from /api/v0/catalog")).toBeInTheDocument();
+    expect(screen.getByText("live catalog rows")).toBeInTheDocument();
+    expect(screen.getByText("GET /api/v0/catalog?limit=2000")).toBeInTheDocument();
   });
 });

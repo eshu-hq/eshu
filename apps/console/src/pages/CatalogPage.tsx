@@ -8,8 +8,15 @@ export function CatalogPage({ model, onOpenService }: { readonly model: ConsoleM
   const rows = model.services.filter((s) => q === "" || `${s.name} ${s.repo} ${s.kind}`.toLowerCase().includes(q.toLowerCase()));
   return (
     <div className="page">
-      <div className="page-intro"><h2>Catalog</h2><p>Every indexed service, repository and workload with coverage, freshness and truth level.</p></div>
-      <Panel className="flush" title={`${rows.length} entries`} sub={model.source === "live" ? "live from /api/v0/catalog" : "demo fixtures"}
+      <div className="page-intro">
+        <h2>Catalog</h2>
+        <p>
+          Every indexed service, repository and workload from{" "}
+          <span className="mono">GET /api/v0/catalog?limit=2000</span>, with
+          coverage, freshness and truth level.
+        </p>
+      </div>
+      <Panel className="flush" title={`${rows.length} entries`} sub={model.source === "live" ? "live catalog rows" : "demo fixtures"}
         action={<div className="searchbox" style={{ minWidth: 220, height: 34 }}><input placeholder="Filter catalog…" value={q} onChange={(e) => setQ(e.target.value)} /></div>}>
         <table className="tbl">
           <thead><tr><th>Name</th><th>Kind</th><th>Repository</th><th>Environments</th><th>Truth</th><th>Freshness</th></tr></thead>
