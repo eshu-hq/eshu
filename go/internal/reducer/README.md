@@ -2278,3 +2278,33 @@ worker, lease, runtime knob, metric instrument, or metric label. The existing
 `code call materialization completed` completion log (fact, repository, and row
 counts plus per-phase timings) stays the operator signal; the new field appears
 inside existing durable intent payloads.
+
+## DOCUMENTS edges (#2231)
+
+`DocumentationEdgeMaterializationHandler` (domain
+`documentation_materialization`) projects `DOCUMENTS` edges from documentation
+entity mentions to the code entities or workloads they resolve to, into the new
+`documentation_edges` shared-projection domain. It is correlation-truth strict:
+only a mention whose `resolution_status` is `exact` and that carries exactly one
+candidate ref produces an edge; ambiguous, unmatched, and multi-candidate
+mentions do not. A candidate whose kind is `service` is dropped because no
+Service graph node exists — provenance never fabricates a node. The source
+`DocumentationSection` node is identity-only (uid derived from the logical
+document/section pair, plus a bounded excerpt handle); section bodies stay in
+the Postgres content/fact store (design 430). Documentation is scope-scoped, so
+the retract anchors on `section.scope_id`, not a repository id.
+
+No-Regression Evidence: `go test ./internal/reducer -run 'DocumentationEdge' -count=1`,
+`go test ./internal/storage/cypher -run 'Documentation' -count=1`, and
+`go test ./internal/reducer ./internal/storage/cypher ./cmd/reducer -count=1`
+fail before the domain exists and pass after. The handler runs one bounded
+fact-kind scan (`documentation_entity_mention`) per scope generation, builds
+edge rows with no new graph read, and writes through the existing batched
+`UNWIND … MERGE` shared-projection edge path; cardinality is bounded by exact
+mention count. The domain-list guard tests were updated to include the new
+domain.
+
+No-Observability-Change: the new domain reuses the shared-projection edge writer
+and its existing batch counters, statement summaries, and graph query-duration
+metrics, plus a `documentation materialization started`/`completed` log pair in
+the existing reducer log style. No new metric instrument or label is added.

@@ -243,6 +243,7 @@ func TestNewDefaultRegistryRegistersImplementedDomainsOnly(t *testing.T) {
 		DomainCloudAssetResolution,
 		DomainCodeCallMaterialization,
 		DomainDeploymentMapping,
+		DomainDocumentationMaterialization,
 		DomainInheritanceMaterialization,
 		DomainSemanticEntityMaterialization,
 		DomainSQLRelationshipMaterialization,
