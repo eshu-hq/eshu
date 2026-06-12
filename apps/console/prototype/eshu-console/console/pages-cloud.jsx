@@ -298,6 +298,9 @@ const STATE_GLYPH = { covered: "●", partial: "◐", gap: "○" };
 
 function Observability({ data, onOpenService, onOpenNode, onOpenCollector }) {
   const D = data || ESHU;
+  const liveSnap = D.obsCoverageSnapshot || null;
+  const liveRows = liveSnap && liveSnap.rows ? liveSnap.rows : [];
+  const liveProviders = liveSnap && liveSnap.providers ? liveSnap.providers : [];
   const { rows, SIGNALS } = useMemoC(() => deriveObservability(D), [D]);
   const obsCollectors = D.collectors.filter((c) => COLLECTOR_DOMAIN.Observability.includes(c.kind));
 
@@ -345,6 +348,23 @@ function Observability({ data, onOpenService, onOpenNode, onOpenCollector }) {
           })}
         </div>
       </Panel>
+
+      {liveSnap ? (
+        <Panel className="mt" title="Provider coverage" sub={"GET /api/v0/observability/coverage/correlations · " + liveSnap.source} glyph={<Icon.pulse />}>
+          <div className="signal-source-grid">
+            {liveProviders.map((p) => (
+              <div className="signal-source" key={p.provider}>
+                <span className="cglyph" style={{ width: 28, height: 28 }}>{p.provider.slice(0, 1).toUpperCase()}</span>
+                <span className="cell-stack" style={{ minWidth: 0 }}>
+                  <span style={{ fontWeight: 600, fontSize: ".84rem" }}>{p.provider}</span>
+                  <small className="mono">{p.covered}/{p.total} covered · {p.gaps} gaps</small>
+                </span>
+                <span className={"status-pill " + (p.source === "unavailable" ? "bad" : "")}><i />{p.source}</span>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
 
       <Panel className="flush mt" title="Coverage matrix" sub="Per service × signal — ● covered · ◐ partial · ○ gap" glyph={<Icon.spark />}>
         <div className="cov-scroll">
@@ -410,6 +430,27 @@ function Observability({ data, onOpenService, onOpenNode, onOpenCollector }) {
           </table>
         </Panel>
       </div>
+
+      {liveSnap ? (
+        <Panel className="flush mt" title="Coverage correlations" sub={liveRows.length + " reducer-owned rows"} glyph={<Icon.db />}>
+          <table className="tbl">
+            <thead><tr><th>Provider</th><th>Signal</th><th>Object</th><th>Target</th><th>Freshness</th><th>Status</th></tr></thead>
+            <tbody>
+              {liveRows.slice(0, 80).map((row) => (
+                <tr key={row.id}>
+                  <td className="t-name">{row.provider}</td>
+                  <td className="mono t-mut" style={{ fontSize: ".78rem" }}>{row.signal}</td>
+                  <td className="t-mut" style={{ fontSize: ".78rem" }}>{row.object || "—"}</td>
+                  <td className="t-mut" style={{ fontSize: ".78rem" }}>{row.target || "—"}</td>
+                  <td className="mono t-mut" style={{ fontSize: ".74rem" }}>{row.freshness || "—"}</td>
+                  <td>{row.covered ? <Badge tone="teal">{row.status}</Badge> : <Badge tone="crit">{row.status}</Badge>}</td>
+                </tr>
+              ))}
+              {liveRows.length === 0 ? <tr><td colSpan={6}><p className="empty">No live coverage correlations from this source.</p></td></tr> : null}
+            </tbody>
+          </table>
+        </Panel>
+      ) : null}
     </div>
   );
 }

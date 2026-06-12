@@ -25,8 +25,14 @@ describe("prototype documentation parity", () => {
 
   it("uses the same observability provider vocabulary as the live console", () => {
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-cloud.jsx");
+    const loader = repoFile("apps/console/prototype/eshu-console/console/live-parity-loader.js");
 
     expect(page).toContain("grafana, prometheus/mimir, loki, and tempo");
+    expect(page).toContain("obsCoverageSnapshot");
+    expect(page).toContain("Coverage correlations");
+    expect(page).toContain("Provider coverage");
+    expect(loader).toContain("obsCoverageSnapshot");
+    expect(loader).toContain("providerResults");
     expect(page).not.toContain("Prometheus, CloudWatch, OpenTelemetry, Loki, Datadog");
   });
 

@@ -245,14 +245,32 @@
     return map[sig] || sig;
   }
 
+  function mapCoverageRow(row, provider) {
+    const status = str(row.coverage_status) || "unknown";
+    return {
+      id: str(row.correlation_id) || [provider, coverageSignal(row), str(row.observability_object_ref), str(row.target_service_ref)].join(":"),
+      provider: str(row.provider) || provider,
+      signal: coverageSignal(row) || "unknown",
+      object: str(row.observability_object_ref) || str(row.observability_resource_uid),
+      target: str(row.target_service_ref) || str(row.target_uid),
+      resourceClass: str(row.resource_class),
+      sourceKind: str(row.source_kind),
+      freshness: str(row.freshness_state),
+      status,
+      covered: status.toLowerCase() === "covered",
+      reason: str(row.reason)
+    };
+  }
+
   async function loadObservabilityCoverage(client) {
     const coverage = {};
-    const errors = [];
+    const rows = [];
+    const providerResults = [];
     for (const provider of OBSERVABILITY_PROVIDERS) {
       try {
         const env = await client.get("/api/v0/observability/coverage/correlations?provider=" + provider + "&limit=200");
-        const rows = (env.data && (env.data.correlations || env.data.results)) || [];
-        rows.forEach((row) => {
+        const recs = (env.data && (env.data.correlations || env.data.results)) || [];
+        recs.forEach((row) => {
           const ref = str(row.target_service_ref) || str(row.target_uid);
           const sig = coverageSignal(row);
           if (!ref || !sig) return;
@@ -264,13 +282,37 @@
             freshness: str(row.freshness_state)
           };
         });
+        recs.forEach((row) => rows.push(mapCoverageRow(row, provider)));
+        providerResults.push({ provider, source: recs.length ? "live" : "empty", error: "" });
       } catch (e) {
-        errors.push((e && e.message) || "failed");
+        providerResults.push({ provider, source: "unavailable", error: (e && e.message) || "failed" });
       }
     }
-    if (Object.keys(coverage).length) return coverage;
-    if (errors.length) throw new Error(errors[0]);
-    return null;
+    const byId = {};
+    rows.forEach((row) => { if (!byId[row.id]) byId[row.id] = row; });
+    const uniqueRows = Object.keys(byId).map((key) => byId[key]);
+    const signals = {};
+    uniqueRows.forEach((row) => { signals[row.signal] = (signals[row.signal] || 0) + 1; });
+    const providers = providerResults.map((result) => {
+      const owned = uniqueRows.filter((row) => row.provider === result.provider);
+      return {
+        provider: result.provider,
+        total: owned.length,
+        covered: owned.filter((row) => row.covered).length,
+        gaps: owned.filter((row) => !row.covered).length,
+        source: result.source,
+        error: result.error
+      };
+    });
+    return {
+      coverage,
+      snapshot: {
+        rows: uniqueRows,
+        providers,
+        signals: Object.keys(signals).map((signal) => ({ signal, count: signals[signal] })).sort((a, b) => b.count - a.count),
+        source: uniqueRows.length ? "live" : providerResults.some((p) => p.source === "unavailable") ? "unavailable" : "empty"
+      }
+    };
   }
 
   window.ESHU.loadLive = async function loadLiveWithParity(client) {
@@ -335,8 +377,8 @@
     });
 
     await section(out, "obsCoverage", async () => {
-      const coverage = await loadObservabilityCoverage(client);
-      return coverage ? { obsCoverage: coverage } : null;
+      const result = await loadObservabilityCoverage(client);
+      return result ? { obsCoverage: result.coverage, obsCoverageSnapshot: result.snapshot } : null;
     });
 
     await section(out, "metrics", async () => {
