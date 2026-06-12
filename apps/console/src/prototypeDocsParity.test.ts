@@ -30,6 +30,18 @@ describe("prototype documentation parity", () => {
     expect(page).not.toContain("Prometheus, CloudWatch, OpenTelemetry, Loki, Datadog");
   });
 
+  it("keeps the prototype cloud route on the canonical inventory contract", () => {
+    const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
+    const page = repoFile("apps/console/prototype/eshu-console/console/pages-cloud.jsx");
+    const guide = repoFile("apps/console/prototype/eshu-console/port/PORT-TO-CONSOLE.md");
+
+    expect(app).toContain("<Cloud data={data} client={liveClient}");
+    expect(page).toContain("/api/v0/cloud/inventory");
+    expect(page).toContain("Canonical inventory");
+    expect(page).toContain("No canonical inventory rows");
+    expect(guide).toContain("GET /api/v0/cloud/inventory");
+  });
+
   it("keeps the prototype vulnerability surface split like the live console", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-vulnerability-parity.jsx");

@@ -3,13 +3,45 @@
    uid = hash(account, region, resource_type, resource_id)) and the observability
    coverage-correlation read model (which service has metrics/logs/traces/alerts; gaps).
    Exports to window. Loaded after drill.jsx. */
-const { useState: useStateC, useMemo: useMemoC } = React;
+const { useEffect: useEffectC, useState: useStateC, useMemo: useMemoC } = React;
 
 const PROVIDER_META = {
   aws: { label: "AWS", color: "#ff9d2e" },
   azure: { label: "Azure", color: "#4f8cff" },
   gcp: { label: "GCP", color: "#22d3ee" }
 };
+
+function cloudEnvelopeData(response) {
+  return response && response.data && response.error !== undefined ? response.data : response;
+}
+
+function cloudText(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function cloudEvidenceFlags(evidence) {
+  const flags = [];
+  if (evidence && evidence.declared) flags.push("declared");
+  if (evidence && evidence.applied) flags.push("applied");
+  if (evidence && evidence.observed) flags.push("observed");
+  return flags;
+}
+
+async function loadCanonicalCloudInventory(client) {
+  const data = cloudEnvelopeData(await client.get("/api/v0/cloud/inventory?limit=50")) || {};
+  return {
+    count: typeof data.count === "number" ? data.count : (data.resources || []).length,
+    rows: (data.resources || []).map((row) => ({
+      uid: cloudText(row.cloud_resource_uid),
+      provider: cloudText(row.provider),
+      resourceType: cloudText(row.resource_type),
+      origin: cloudText(row.management_origin),
+      scope: cloudText(row.scope_id),
+      sourceState: cloudText(row.source_state),
+      evidence: cloudEvidenceFlags(row.evidence || {})
+    })).filter((row) => row.uid)
+  };
+}
 
 /* ---- network topology graph for an account: Terraform → VPC → cluster/NAT → services → datastores */
 function buildCloudNetwork(D, accountId) {
@@ -62,13 +94,15 @@ function buildServiceNetwork(D, s) {
 }
 
 /* ===================================================================== CLOUD */
-function Cloud({ data, onOpenService, onOpenNode }) {
+function Cloud({ data, client, onOpenService, onOpenNode }) {
   const D = data || ESHU;
   const all = D.cloudResources;
   const [provider, setProvider] = useStateC("all");
   const [fam, setFam] = useStateC("all");
   const [q, setQ] = useStateC("");
   const [view, setView] = useStateC("network");
+  const [inventory, setInventory] = useStateC(null);
+  const [inventoryState, setInventoryState] = useStateC("demo");
   const awsAccounts = D.cloudAccounts.filter((a) => a.provider === "aws");
   const [netAcct, setNetAcct] = useStateC(awsAccounts[0] ? awsAccounts[0].id : "aws-prod");
   const net = useMemoC(() => buildCloudNetwork(D, netAcct), [D, netAcct]);
@@ -83,6 +117,20 @@ function Cloud({ data, onOpenService, onOpenNode }) {
   const tfPct = Math.round((all.filter((r) => r.tf).length / all.length) * 100);
   const obsCount = all.filter((r) => r.family === "observability").length;
   const famCounts = famKeys.map((k) => ({ label: D.cloudFamilies[k].label, value: all.filter((r) => r.family === k).length, color: D.cloudFamilies[k].color }));
+
+  useEffectC(() => {
+    let cancelled = false;
+    if (!client) { setInventory(null); setInventoryState("demo"); return; }
+    setInventoryState("loading");
+    loadCanonicalCloudInventory(client)
+      .then((result) => {
+        if (!cancelled) { setInventory(result); setInventoryState("live"); }
+      })
+      .catch((e) => {
+        if (!cancelled) { setInventory({ count: 0, rows: [], error: (e && e.message) || "failed" }); setInventoryState("unavailable"); }
+      });
+    return () => { cancelled = true; };
+  }, [client]);
 
   function openRes(res) {
     const { node, graph } = cloudResourceGraph(res, D);
@@ -121,6 +169,28 @@ function Cloud({ data, onOpenService, onOpenNode }) {
           </div>
         </Panel>
       </div>
+
+      <Panel className="flush mt" title="Canonical inventory" sub={client ? "GET /api/v0/cloud/inventory" : "Connect live to inspect canonical reducer inventory"} glyph={<Icon.cloud />}>
+        {inventoryState === "loading" ? (
+          <div className="conn-state" style={{ padding: 28 }}><div className="conn-spinner" aria-hidden /><p>Loading canonical cloud inventory...</p></div>
+        ) : inventory && inventory.rows.length ? (
+          <table className="tbl">
+            <thead><tr><th>Resource UID</th><th>Provider</th><th>Type</th><th>Scope</th><th>State</th><th>Evidence</th></tr></thead>
+            <tbody>{inventory.rows.map((row) => (
+              <tr key={row.uid}>
+                <td className="mono" style={{ fontSize: ".76rem" }}>{row.uid}</td>
+                <td><Badge tone="neutral">{row.provider || "provider"}</Badge></td>
+                <td className="mono" style={{ fontSize: ".76rem" }}>{row.resourceType || "resource"}</td>
+                <td className="mono" style={{ fontSize: ".76rem" }}>{row.scope || row.origin || "scope pending"}</td>
+                <td>{row.sourceState || "unknown"}</td>
+                <td><div className="row wrap" style={{ gap: 5 }}>{row.evidence.length ? row.evidence.map((flag) => <Badge key={flag} tone="teal">{flag}</Badge>) : <Badge tone="neutral">none</Badge>}</div></td>
+              </tr>
+            ))}</tbody>
+          </table>
+        ) : (
+          <p className="empty">{inventory && inventory.error ? "Canonical inventory unavailable: " + inventory.error : "No canonical inventory rows returned yet."}</p>
+        )}
+      </Panel>
 
       <div className="row mt" style={{ justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <div className="dep-toggle" style={{ margin: 0 }}>

@@ -220,7 +220,7 @@ function App() {
         {route === "codegraph" ? <CodeGraph data={data} client={liveClient} onOpenService={openService} /> : null}
         {route === "vulnerabilities" ? <Vulnerabilities data={data} onOpenService={openService} onOpenNode={openNode} chartStyle={t.chartStyle} verifiedOnly={verifiedOnly} /> : null}
         {route === "topology" ? <Topology data={data} client={liveClient} onOpenNode={openNode} onOpenService={openService} /> : null}
-        {route === "cloud" ? <Cloud data={data} onOpenService={openService} onOpenNode={openNode} /> : null}
+        {route === "cloud" ? <Cloud data={data} client={liveClient} onOpenService={openService} onOpenNode={openNode} /> : null}
         {route === "observability" ? <Observability data={data} onOpenService={openService} onOpenNode={openNode} onOpenCollector={openCollector} /> : null}
         {route === "sbom" ? <SBOM data={data} onOpenService={openService} /> : null}
         {route === "dependencies" ? <Dependencies data={data} onOpenService={openService} /> : null}

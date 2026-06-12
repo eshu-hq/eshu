@@ -59,6 +59,7 @@ The client + mappers already live in `console/data.js` (`ESHU.EshuApiClient`,
 | Dependencies         | `GET /api/v0/dependencies` |
 | Observability        | `GET /api/v0/observability/coverage/correlations?provider=` |
 | Topology             | `GET /api/v0/services/{name}/story`, `GET /api/v0/services/{name}/context` |
+| Cloud canonical inventory | `GET /api/v0/cloud/inventory` |
 
 ---
 
