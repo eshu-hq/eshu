@@ -334,8 +334,8 @@ function App() {
         {route === "explorer" ? <Explorer data={data} client={liveClient} onOpenService={openService} onOpenNode={openNode} graphStyle={graphStyle} setGraphStyle={(v) => { setGraphStyle(v); setTweak("graphStyle", v); }} verifiedOnly={verifiedOnly} /> : null}
         {route === "repos" ? <Repos data={data} client={liveClient} onOpenService={openService} onOpenNode={openNode} /> : null}
         {route === "reposource" ? <RepoSource data={data} client={liveClient} /> : null}
-        {route === "catalog" ? <Catalog data={data} onOpenService={openService} /> : null}
-        {route === "findings" ? <Findings data={data} onOpenService={openService} onOpenVuln={openVuln} verifiedOnly={verifiedOnly} /> : null}
+        {route === "catalog" ? <Catalog data={data} client={liveClient} onOpenService={openService} /> : null}
+        {route === "findings" ? <Findings data={data} client={liveClient} onOpenService={openService} onOpenVuln={openVuln} verifiedOnly={verifiedOnly} /> : null}
         {route === "images" ? <Images data={data} onOpenService={openService} /> : null}
         {route === "iac" ? <IaC data={data} onOpenService={openService} /> : null}
         {route === "deadcode" ? <DeadCode data={data} onOpenService={openService} /> : null}

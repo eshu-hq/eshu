@@ -338,6 +338,23 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("No dependency edges from this source.");
   });
 
+  it("keeps prototype Catalog and Findings honest in connected-live mode", () => {
+    const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
+    const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
+    const page = repoFile("apps/console/prototype/eshu-console/console/pages-catalog-findings-parity.jsx");
+
+    expect(html).toContain("console/pages-catalog-findings-parity.jsx");
+    expect(app).toContain("<Catalog data={data} client={liveClient}");
+    expect(app).toContain("<Findings data={data} client={liveClient}");
+    expect(page).toContain("GET /api/v0/catalog?limit=2000");
+    expect(page).toContain("POST /api/v0/code/dead-code");
+    expect(page).toContain("GET /api/v0/supply-chain/impact/findings");
+    expect(page).toContain("No catalog entries from this source.");
+    expect(page).toContain("No findings from this source.");
+    expect(page).toContain("window.Catalog = Catalog");
+    expect(page).toContain("window.Findings = Findings");
+  });
+
   it("keeps prototype dead-code locations wired to repository source deep links", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-code.jsx");
