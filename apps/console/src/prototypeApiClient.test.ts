@@ -25,7 +25,11 @@ function prototypeScriptPaths(): readonly string[] {
   const html = readFileSync(htmlPath, "utf8");
   const scripts = Array.from(html.matchAll(/<script src="([^"]+)"><\/script>/g))
     .map((match) => match[1])
-    .filter((src) => src === "console/data.js" || src === "console/live-client-envelope.js");
+    .filter((src) => (
+      src === "console/data.js" ||
+      src === "console/live-api-client.js" ||
+      src === "console/live-client-envelope.js"
+    ));
   return scripts.map((src) => resolve(repoRoot(), "apps/console/prototype/eshu-console", src));
 }
 
@@ -65,5 +69,26 @@ describe("prototype API client", () => {
     const client = new eshu.EshuApiClient({ baseUrl: "/eshu-api/" });
 
     await expect(client.get("/api/v0/index-status")).rejects.toThrow("index status query failed");
+  });
+
+  it("preserves Eshu error envelope code and message for prototype live calls", async () => {
+    const eshu = loadPrototypeEshu(async () => ({
+      ok: true,
+      async json() {
+        return {
+          data: { incoming: [], outgoing: [] },
+          error: {
+            code: "unsupported_capability",
+            message: "code relationships unavailable"
+          },
+          truth: null
+        };
+      }
+    }));
+
+    const client = new eshu.EshuApiClient({ baseUrl: "/eshu-api/" });
+
+    await expect(client.post("/api/v0/code/relationships", { entity_id: "content-entity:e1" }))
+      .rejects.toThrow("unsupported_capability: code relationships unavailable");
   });
 });

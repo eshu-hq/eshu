@@ -23,7 +23,11 @@ function deadCodeSourceHash(d) {
 }
 
 function sourceHref(d) {
-  return deadCodeSourceHash(d);
+  return sourceAvailable(d) ? deadCodeSourceHash(d) : "";
+}
+
+function sourceAvailable(d) {
+  return !!(d && deadCodeSourceRepo(d) && d.file);
 }
 
 function codeGraphHash(d) {
@@ -121,6 +125,20 @@ function relationshipNodeSub(verb, direction) {
   return direction + " " + String(verb || "RELATED").toUpperCase();
 }
 
+function envelopeErrorMessage(error) {
+  if (!error) return "";
+  if (typeof error === "string") return error;
+  if (typeof error !== "object") return "api error";
+  if (error.code && error.message) return String(error.code) + ": " + String(error.message);
+  return String(error.message || error.code || "api error");
+}
+
+function apiData(env) {
+  const message = envelopeErrorMessage(env && env.error);
+  if (message) throw new Error(message);
+  return env && env.data ? env.data : {};
+}
+
 function deadOnlyLiveGraph(selected, candidates) {
   if (!selected) return { nodes: [], edges: [], dead: [] };
   return codeRelationshipsGraph({ entity_id: selected.entityId || selected.id, name: selected.symbol, incoming: [], outgoing: [] }, selected, candidates);
@@ -175,7 +193,7 @@ function DeadCode({ data, onOpenService }) {
                         <td className="cell-stack"><span className="mono" style={{ color: "var(--bone)", fontWeight: 600 }}>{d.symbol}</span></td>
                         <td><span className="dead-kind" style={{ "--dk": dk.color }}>{dk.label}</span></td>
                         <td className="t-mut mono" style={{ fontSize: ".74rem" }}>
-                          <a className="mono" href={deadCodeSourceHash(d)} title="Open source" onClick={(e) => e.stopPropagation()}>{d.file}:{d.line}</a>
+                          {sourceAvailable(d) ? <a className="mono" href={deadCodeSourceHash(d)} title="Open source" onClick={(e) => e.stopPropagation()}>{locationLabel(d)}</a> : <span>{locationLabel(d)}</span>}
                         </td>
                         <td><span className="mono" style={{ color: "var(--crit)", fontWeight: 700 }}>0</span></td>
                         <td className="t-mut mono" style={{ fontSize: ".78rem" }}>{d.loc}</td>
@@ -277,7 +295,8 @@ function CodeGraph({ data, client, onOpenService }) {
     setLiveState({ status: "loading", graph: deadOnlyLiveGraph(selectedCandidate, liveCandidates), error: "" });
     client.post("/api/v0/code/relationships", { entity_id: selectedCandidate.entityId, max_depth: 1 })
       .then((env) => {
-        if (!cancelled) setLiveState({ status: "ready", graph: codeRelationshipsGraph((env && env.data) || {}, selectedCandidate, liveCandidates), error: "" });
+        const data = apiData(env);
+        if (!cancelled) setLiveState({ status: "ready", graph: codeRelationshipsGraph(data, selectedCandidate, liveCandidates), error: "" });
       })
       .catch((e) => {
         if (!cancelled) setLiveState({ status: "error", graph: deadOnlyLiveGraph(selectedCandidate, liveCandidates), error: (e && e.message) || "failed to load code graph" });
@@ -342,12 +361,12 @@ function CodeGraph({ data, client, onOpenService }) {
                 </div>
                 <div className="kv-list" style={{ marginTop: 10 }}>
                   <div className="kv"><span>Repository</span><strong>{deadCodeRepoLabel(focusedCandidate)}</strong></div>
-                  <div className="kv"><span>Location</span>{focusedCandidate ? <a className="mono" href={sourceHref(focusedCandidate)}>{locationLabel(focusedCandidate)}</a> : <strong className="mono">{focusedNode.sub || "source path unavailable"}</strong>}</div>
+                  <div className="kv"><span>Location</span>{sourceAvailable(focusedCandidate) ? <a className="mono" href={sourceHref(focusedCandidate)}>{locationLabel(focusedCandidate)}</a> : <strong className="mono">{locationLabel(focusedCandidate) || focusedNode.sub || "source path unavailable"}</strong>}</div>
                   <div className="kv"><span>Graph degree</span><strong>{focusedDegree}</strong></div>
                   <div className="kv"><span>Evidence</span><strong>{(focusedCandidate && focusedCandidate.confidence) || focusedNode.truth || "derived"}</strong></div>
                 </div>
                 <div className="row" style={{ gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-                  {focusedCandidate ? <a className="btn-ghost active" href={sourceHref(focusedCandidate)}>Open source</a> : null}
+                  {sourceAvailable(focusedCandidate) ? <a className="btn-ghost active" href={sourceHref(focusedCandidate)}>Open source</a> : null}
                   <a className="btn-ghost" href={window.ESHU_ROUTES.hashFor("explorer", "?q=" + encodeURIComponent(explorerQuery))}>Explore repo graph</a>
                 </div>
               </div>

@@ -7,6 +7,7 @@
     if (!error) return "";
     if (typeof error === "string") return error;
     if (typeof error !== "object") return "api error";
+    if (error.code && error.message) return String(error.code) + ": " + String(error.message);
     return String(error.message || error.code || "api error");
   }
 
