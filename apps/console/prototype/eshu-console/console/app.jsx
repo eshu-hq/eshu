@@ -81,6 +81,7 @@ function App() {
   const [verifiedOnly, setVerifiedOnly] = useStateA(false);
   const [srcOpen, setSrcOpen] = useStateA(false);
   const [liveClient, setLiveClient] = useStateA(null);
+  const [searchQuery, setSearchQuery] = useStateA("");
   const STORE = "eshu.console.environment";
   const [source, setSource] = useStateA(() => {
     try { const e = JSON.parse(localStorage.getItem(STORE) || "{}"); return { mode: "demo", base: e.apiBaseUrl || "/eshu-api/", key: "", status: "idle", msg: "", live: null }; }
@@ -141,6 +142,25 @@ function App() {
   const openCollector = (collector) => setDrawer({ type: "collector", collector });
   function openVuln(cve) { setDrawer(null); setRouteHash("vulnerabilities", "?cve=" + encodeURIComponent(cve)); setRoute("vulnerabilities"); }
   const goAndClose = (route) => { setDrawer(null); go(route); };
+  function submitSearch(event) {
+    event.preventDefault();
+    const query = searchQuery.trim();
+    if (!query) return;
+    const needle = query.toLowerCase();
+    const service = (data.services || []).find((s) => [s.name, s.id, s.repo].filter(Boolean).some((value) => String(value).toLowerCase().includes(needle)));
+    if (service) {
+      openService(service.id || service.name);
+      return;
+    }
+    const vulnerabilityId = prototypeVulnerabilitySearchTarget(data, needle);
+    if (vulnerabilityId) {
+      openVuln(vulnerabilityId);
+      return;
+    }
+    setDrawer(null);
+    setRouteHash("explorer", "?q=" + encodeURIComponent(query));
+    setRoute("explorer");
+  }
 
   const [title, sub] = TITLES[route] || TITLES.dashboard;
 
@@ -181,11 +201,11 @@ function App() {
       <div className="main">
         <header className="topbar">
           <div className="topbar-title"><h1>{title}</h1><span>{sub}</span></div>
-          <div className="searchbox">
+          <form className="searchbox" onSubmit={submitSearch}>
             <Icon.search size={16} />
-            <input placeholder="Search repos, services, CVEs, evidence…" />
+            <input placeholder="Search repos, services, CVEs, evidence…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
             <kbd>⌘K</kbd>
-          </div>
+          </form>
           <button className={cx("topbar-btn verify-btn", verifiedOnly && "on")} title="Show verified evidence only (hide inferred / representative facts)" onClick={() => setVerifiedOnly((v) => !v)}>
             <Icon.shield />
           </button>
@@ -247,6 +267,16 @@ function App() {
       </TweaksPanel>
     </div>
   );
+}
+
+function prototypeVulnerabilitySearchTarget(D, needle) {
+  const reachable = (D.vulns || []).find((v) => String(v.cve || "").toLowerCase() === needle);
+  if (reachable) return reachable.cve;
+  const advisory = (D.advisoryCatalog || []).find((row) =>
+    [row.id, row.cve, row.ghsa].filter(Boolean).some((value) => String(value).toLowerCase() === needle)
+  );
+  if (!advisory) return null;
+  return advisory.cve || advisory.ghsa || advisory.id;
 }
 
 function SourcePopover({ source, onDemo, onConnect, onClose }) {

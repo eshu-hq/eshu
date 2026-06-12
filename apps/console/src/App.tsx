@@ -196,6 +196,11 @@ export function App(): React.JSX.Element {
       openService(service.name);
       return;
     }
+    const vulnerabilityId = vulnerabilitySearchTarget(visibleModel, needle);
+    if (vulnerabilityId) {
+      navigate(`/vulnerabilities/${encodeURIComponent(vulnerabilityId)}`);
+      return;
+    }
     navigate(`/explorer?q=${encodeURIComponent(query)}`);
   }
 
@@ -314,6 +319,16 @@ function verifiedConsoleModel(model: ConsoleModel): ConsoleModel {
       edges: model.graph.edges.filter((edge) => nodeIds.has(edge.s) && nodeIds.has(edge.t))
     }
   };
+}
+
+function vulnerabilitySearchTarget(model: ConsoleModel, needle: string): string | null {
+  const exactVulnerability = model.vulnerabilities.find((row) => row.id.toLowerCase() === needle);
+  if (exactVulnerability) return exactVulnerability.id;
+  const exactAdvisory = model.advisories.find((row) =>
+    [row.id, row.cveId, row.ghsaId].some((value) => value.toLowerCase() === needle)
+  );
+  if (exactAdvisory) return exactAdvisory.cveId || exactAdvisory.ghsaId || exactAdvisory.id;
+  return null;
 }
 
 function nonZero(value: number): number | null {

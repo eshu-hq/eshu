@@ -220,4 +220,61 @@ describe("App shell", () => {
     expect(screen.queryByText("Unreferenced symbol legacyRoute")).not.toBeInTheDocument();
     expect(screen.getByText("No findings from this source.")).toBeInTheDocument();
   });
+
+  it("routes CVE searches to vulnerability detail instead of graph explorer", async () => {
+    window.localStorage.setItem(
+      "eshu.console.environment",
+      JSON.stringify({ mode: "private", apiBaseUrl: "/eshu-api/", recentApiBaseUrls: ["/eshu-api/"] })
+    );
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const path = new URL(new Request(input).url).pathname;
+      if (path === "/eshu-api/api/v0/index-status") {
+        return Response.json({ status: "ready", repository_count: 1, queue: {} });
+      }
+      if (path === "/eshu-api/api/v0/ecosystem/overview") {
+        return Response.json({ data: { repo_count: 1 } });
+      }
+      if (path === "/eshu-api/api/v0/catalog") {
+        return Response.json({ data: { services: [] } });
+      }
+      if (path === "/eshu-api/api/v0/supply-chain/impact/findings") {
+        return Response.json({
+          data: {
+            findings: [{
+              advisory_id: "CVE-2024-0001",
+              cvss_score: 8.1,
+              package_name: "sample-lib",
+              repository_id: "repository:r1"
+            }]
+          }
+        });
+      }
+      if (path === "/eshu-api/api/v0/supply-chain/vulnerabilities/CVE-2024-0001") {
+        return Response.json({
+          data: {
+            canonical_id: "CVE-2024-0001",
+            cve_ids: ["CVE-2024-0001"],
+            sources: [{ cvss_score: 8.1, severity_label: "high" }],
+            affected_packages: [{ package_name: "sample-lib", fixed_version: "2.0.1" }]
+          }
+        });
+      }
+      return Response.json({ data: {} });
+    }));
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    const input = await screen.findByLabelText("Search Eshu");
+    fireEvent.change(input, { target: { value: "CVE-2024-0001" } });
+    const form = input.closest("form");
+    expect(form).not.toBeNull();
+    fireEvent.submit(form!);
+
+    expect(await screen.findByRole("heading", { name: "CVE-2024-0001" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Graph Explorer" })).not.toBeInTheDocument();
+  });
 });

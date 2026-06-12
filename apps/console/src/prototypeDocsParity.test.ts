@@ -97,6 +97,17 @@ describe("prototype documentation parity", () => {
     expect(prototypeApp).toContain("Show verified evidence only");
   });
 
+  it("keeps prototype topbar search wired to live-style vulnerability routing", () => {
+    const liveApp = repoFile("apps/console/src/App.tsx");
+    const prototypeApp = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
+
+    expect(liveApp).toContain("vulnerabilitySearchTarget");
+    expect(liveApp).toContain("navigate(`/vulnerabilities/${encodeURIComponent(vulnerabilityId)}`)");
+    expect(prototypeApp).toContain("onSubmit={submitSearch}");
+    expect(prototypeApp).toContain("prototypeVulnerabilitySearchTarget");
+    expect(prototypeApp).toContain('setRouteHash("vulnerabilities", "?cve=" + encodeURIComponent(cve))');
+  });
+
   it("keeps the prototype repositories route on the live repository contract", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
