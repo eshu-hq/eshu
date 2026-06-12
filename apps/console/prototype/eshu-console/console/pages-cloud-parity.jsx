@@ -1,6 +1,6 @@
 /* Eshu Console - prototype cloud live parity overlay.
    Demo mode delegates to the original rich cloud page. Live mode uses the same
-   bounded cloud resources endpoint as the production console. */
+   bounded cloud resources and canonical inventory endpoints as production. */
 (function () {
   const DemoCloud = window.Cloud;
   const { useEffect: useEffectCP, useMemo: useMemoCP, useState: useStateCP } = React;
@@ -29,6 +29,14 @@
     return "/api/v0/cloud/resources?" + params.toString();
   }
 
+  function buildInventoryPath(filters) {
+    const params = new URLSearchParams();
+    params.set("limit", "50");
+    if (filters.provider) params.set("provider", filters.provider);
+    if (filters.accountId) params.set("account_id", filters.accountId);
+    return "/api/v0/cloud/inventory?" + params.toString();
+  }
+
   function rowFromResource(row) {
     return {
       id: text(row.id),
@@ -43,6 +51,28 @@
     };
   }
 
+  function bool(value) {
+    return value === true;
+  }
+
+  function rowFromInventory(row) {
+    const evidence = row.evidence || {};
+    return {
+      cloudResourceUid: text(row.cloud_resource_uid),
+      provider: text(row.provider),
+      resourceType: text(row.resource_type),
+      managementOrigin: text(row.management_origin),
+      scopeId: text(row.scope_id),
+      generationId: text(row.generation_id),
+      sourceState: text(row.source_state),
+      evidence: {
+        declared: bool(evidence.declared),
+        applied: bool(evidence.applied),
+        observed: bool(evidence.observed)
+      }
+    };
+  }
+
   async function loadCloudPage(client, filters, cursor) {
     const env = await client.get(buildCloudPath(filters, cursor));
     const data = cloudData(env) || {};
@@ -53,6 +83,18 @@
       count: typeof data.count === "number" ? data.count : rows.length,
       truncated: data.truncated === true,
       nextCursor: data.truncated && text(next.after_id) ? { afterResourceType: text(next.after_resource_type), afterId: text(next.after_id) } : null,
+      truth: env.truth || {}
+    };
+  }
+
+  async function loadInventoryPage(client, filters) {
+    const env = await client.get(buildInventoryPath(filters));
+    const data = cloudData(env) || {};
+    const rows = (data.resources || []).map(rowFromInventory).filter((row) => row.cloudResourceUid);
+    return {
+      rows,
+      count: typeof data.count === "number" ? data.count : rows.length,
+      truncated: data.truncated === true,
       truth: env.truth || {}
     };
   }
@@ -95,6 +137,24 @@
       byKey[id].count += 1;
     });
     return Object.keys(byKey).map((key) => byKey[key]).sort((a, b) => b.count - a.count || a.id.localeCompare(b.id));
+  }
+
+  function countBy(rows, keyFn) {
+    const counts = {};
+    rows.forEach((row) => {
+      const key = keyFn(row) || "unknown";
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    return Object.keys(counts).map((key) => ({ key, count: counts[key] })).sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
+  }
+
+  function evidenceText(row) {
+    const labels = [
+      row.evidence.declared ? "declared" : "",
+      row.evidence.applied ? "applied" : "",
+      row.evidence.observed ? "observed" : ""
+    ].filter(Boolean);
+    return labels.length ? labels.join(" - ") : "none";
   }
 
   function cloudGraph(rows, accountId) {
@@ -141,6 +201,9 @@
     const [filters, setFilters] = useStateCP(emptyFilters);
     const [stack, setStack] = useStateCP([null]);
     const [networkAccount, setNetworkAccount] = useStateCP("");
+    const [inventory, setInventory] = useStateCP(null);
+    const [inventoryBusy, setInventoryBusy] = useStateCP(false);
+    const [inventoryErr, setInventoryErr] = useStateCP("");
 
     function fetchPage(nextFilters, cursor) {
       setBusy(true);
@@ -160,12 +223,25 @@
       return () => { cancelled = true; };
     }, [client, filters.provider, filters.resourceType, filters.region, filters.accountId]);
 
+    useEffectCP(() => {
+      let cancelled = false;
+      setInventoryBusy(true);
+      setInventoryErr("");
+      loadInventoryPage(client, filters)
+        .then((next) => { if (!cancelled) { setInventory(next); setInventoryBusy(false); } })
+        .catch((error) => { if (!cancelled) { setInventory(null); setInventoryErr((error && error.message) || "failed"); setInventoryBusy(false); } });
+      return () => { cancelled = true; };
+    }, [client, filters.provider, filters.accountId]);
+
     const rows = page && page.rows ? page.rows : [];
     const families = useMemoCP(() => familyRollups(rows), [rows]);
     const accounts = useMemoCP(() => accountRollups(rows), [rows]);
     const selectedAccount = networkAccount || (accounts[0] && accounts[0].id) || "";
     const graph = useMemoCP(() => cloudGraph(rows, selectedAccount), [rows, selectedAccount]);
     const pageNumber = stack.length;
+    const inventoryRows = inventory && inventory.rows ? inventory.rows : [];
+    const inventoryStates = useMemoCP(() => countBy(inventoryRows, (row) => row.sourceState), [inventoryRows]);
+    const inventoryOrigins = useMemoCP(() => countBy(inventoryRows, (row) => row.managementOrigin), [inventoryRows]);
 
     function applyFilters(event) {
       event.preventDefault();
@@ -232,6 +308,36 @@
             </div>
           </Panel>
         </div>
+
+        <Panel className="mt" title="Canonical inventory" sub={inventory ? inventory.count + " canonical identities" + (inventory.truncated ? " - more available" : "") : inventoryBusy ? "loading canonical identities" : "GET /api/v0/cloud/inventory"} glyph={<Icon.cloud />}>
+          {inventoryErr ? <p className="empty" style={{ textAlign: "left" }}>Canonical inventory unavailable: {inventoryErr}</p> : null}
+          {inventoryBusy && inventory === null ? <div className="conn-state compact"><div className="conn-spinner" aria-hidden /><p>Loading canonical cloud inventory...</p></div> : null}
+          {inventoryRows.length ? (
+            <>
+              <div className="row" style={{ gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+                {inventoryStates.map((state) => <Badge key={state.key} tone={state.key === "exact" ? "teal" : "neutral"}>{state.key} - {state.count}</Badge>)}
+                {inventoryOrigins.map((origin) => <Badge key={origin.key} tone="neutral">{origin.key} - {origin.count}</Badge>)}
+              </div>
+              <div className="table-scroll">
+                <table className="tbl">
+                  <thead><tr><th>Resource type</th><th>Provider</th><th>Scope</th><th>Source state</th><th>Evidence</th></tr></thead>
+                  <tbody>
+                    {inventoryRows.slice(0, 8).map((row) => (
+                      <tr key={row.cloudResourceUid}>
+                        <td className="mono" style={{ fontSize: ".76rem" }}>{row.resourceType || "-"}</td>
+                        <td className="t-name">{row.provider || "-"}</td>
+                        <td className="t-mut mono" style={{ fontSize: ".74rem" }}>{row.scopeId || "-"}</td>
+                        <td><Badge tone={row.sourceState === "exact" ? "teal" : "neutral"}>{row.sourceState || "unknown"}</Badge></td>
+                        <td className="t-mut" style={{ fontSize: ".76rem" }}>{evidenceText(row)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : null}
+          {!inventoryBusy && !inventoryErr && inventory !== null && inventoryRows.length === 0 ? <p className="empty" style={{ textAlign: "left" }}>No canonical cloud inventory rows matched this scope.</p> : null}
+        </Panel>
 
         <div className="row mt" style={{ justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <div className="dep-toggle" style={{ margin: 0 }}>
