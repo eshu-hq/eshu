@@ -51,6 +51,7 @@ The client + mappers already live in `console/data.js` (`ESHU.EshuApiClient`,
 | Language chart       | `GET /api/v0/repositories/language-inventory` |
 | Collectors           | `GET /api/v0/status/ingesters` |
 | Findings             | `POST /api/v0/code/dead-code` |
+| Code Graph           | `POST /api/v0/code/dead-code`, `POST /api/v0/code/relationships` |
 | Vulnerabilities      | `GET /api/v0/supply-chain/impact/findings`, `GET /api/v0/supply-chain/advisories` |
 | Images               | `GET /api/v0/images` |
 | IaC                  | `GET /api/v0/iac/resources` |

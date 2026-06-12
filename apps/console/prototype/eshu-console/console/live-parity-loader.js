@@ -47,6 +47,13 @@
       }
       return client.get(path);
     };
+    wrapped.post = async function post(path, body) {
+      if (path.indexOf("/api/v0/code/imports/investigate") === 0 ||
+          path.indexOf("/api/v0/code/call-graph/metrics") === 0) {
+        return { data: { dependencies: [], modules: [], package_imports: [], cycles: [], results: [] } };
+      }
+      return client.post(path, body);
+    };
     return wrapped;
   }
 
@@ -145,6 +152,30 @@
     };
   }
 
+  function mapDeadCode(row, index, env) {
+    const labels = Array.isArray(row.labels) ? row.labels : [];
+    const line = num(row.line) || num(row.start_line);
+    const endLine = num(row.end_line) || line;
+    return {
+      id: str(row.entity_id) || "dc-" + index,
+      entityId: str(row.entity_id),
+      repo: str(row.repo_name) || str(row.repo_id) || "repository",
+      repoId: str(row.repo_id),
+      repoName: str(row.repo_name),
+      symbol: str(row.name) || "symbol",
+      file: str(row.file_path) || str(row.relative_path),
+      line,
+      endLine,
+      kind: (str(labels[0]) || str(row.entity_kind) || "function").toLowerCase(),
+      refs: num(row.reference_count),
+      confidence: truthLevel(env),
+      age: "live",
+      loc: num(row.loc) || num(row.line_count),
+      reason: str(row.reason) || str(row.classification) || "No inbound CALLS / IMPORTS edges",
+      classification: str(row.classification)
+    };
+  }
+
   function mapMetricPoints(env) {
     const points = (env.data && env.data.points) || [];
     return points.map((point) => num(point.v)).filter((value) => Number.isFinite(value));
@@ -223,6 +254,12 @@
   window.ESHU.loadLive = async function loadLiveWithParity(client) {
     const out = await baseLoadLive(baseClient(client));
     out.prov = out.prov || {};
+
+    await section(out, "deadCode", async () => {
+      const env = await client.post("/api/v0/code/dead-code", { limit: 100 });
+      const rows = ((env.data && env.data.results) || []).map((row, index) => mapDeadCode(row, index, env)).filter((row) => row.entityId && row.file);
+      return rows.length ? { deadCode: rows } : null;
+    });
 
     await section(out, "langInventory", async () => {
       const env = await client.get("/api/v0/repositories/language-inventory?limit=100&offset=0");

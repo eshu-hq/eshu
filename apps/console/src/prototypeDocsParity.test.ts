@@ -92,4 +92,14 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("lineStart");
     expect(page).toContain("Open source");
   });
+
+  it("keeps the prototype code graph on current live code contracts", () => {
+    const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
+    const page = repoFile("apps/console/prototype/eshu-console/console/pages-code.jsx");
+
+    expect(app).toContain("<CodeGraph data={data} client={liveClient}");
+    expect(page).toContain("/api/v0/code/relationships");
+    expect(page).toContain("max_depth");
+    expect(page).toContain("sourceHref");
+  });
 });

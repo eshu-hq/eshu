@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 interface PrototypeClient {
   readonly paths: string[];
   get(path: string): Promise<unknown>;
+  post(path: string, body: unknown): Promise<unknown>;
 }
 
 interface PrototypeModel {
@@ -36,6 +37,8 @@ function loadPrototypeWindow(): PrototypeWindow {
       async loadLive(client: PrototypeClient) {
         await client.get("/api/v0/repositories/by-language?limit=100&offset=0");
         await client.get("/api/v0/observability/coverage/correlations?limit=200");
+        await client.post("/api/v0/code/imports/investigate", { repo_id: "repository:r1", query_type: "module_dependencies", limit: 80 });
+        await client.post("/api/v0/code/call-graph/metrics", { repo_id: "repository:r1", metric: "hub_functions", limit: 8 });
         return { prov: {} };
       }
     }
@@ -99,6 +102,13 @@ function liveClient(): PrototypeClient {
         };
       }
       return { data: { images: [], resources: [], buckets: [], dependencies: [] } };
+    },
+    async post(path: string): Promise<unknown> {
+      this.paths.push(path);
+      if (path.includes("/code/imports/investigate") || path.includes("/code/call-graph/metrics")) {
+        throw new Error("legacy prototype code graph endpoints should be shielded in live mode");
+      }
+      return { data: {} };
     }
   };
 }
@@ -112,6 +122,8 @@ describe("prototype live parity loader", () => {
 
     expect(client.paths).toContain("/api/v0/repositories/language-inventory?limit=100&offset=0");
     expect(client.paths.some((path) => path.includes("/repositories/by-language"))).toBe(false);
+    expect(client.paths.some((path) => path.includes("/code/imports/investigate"))).toBe(false);
+    expect(client.paths.some((path) => path.includes("/code/call-graph/metrics"))).toBe(false);
     expect(client.paths).toEqual(expect.arrayContaining([
       "/api/v0/observability/coverage/correlations?provider=grafana&limit=200",
       "/api/v0/observability/coverage/correlations?provider=prometheus&limit=200",
