@@ -30,4 +30,12 @@ describe("prototype shell parity", () => {
     expect(page).toContain("repoDisplayName(repo)");
     expect(page).not.toContain("name: repoText(repo.name) || repoText(repo.id)");
   });
+
+  it("keeps standalone repository grouping copy honest about current evidence", () => {
+    const page = repoFile("apps/console/prototype/eshu-console/console/pages-repositories-parity.jsx");
+
+    expect(page).toContain("Groups currently use repository names and slug metadata");
+    expect(page).toContain("issue #2239");
+    expect(page).not.toContain("clustered by domain evidence");
+  });
 });

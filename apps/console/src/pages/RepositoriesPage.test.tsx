@@ -31,6 +31,8 @@ describe("RepositoriesPage", () => {
     render(<RepositoriesPage client={client} model={demoModel} />, { wrapper: MemoryRouter });
 
     expect(await screen.findByText("Repository groups")).toBeInTheDocument();
+    expect(screen.getByText(/Groups currently use repository names and slug metadata/)).toBeInTheDocument();
+    expect(screen.queryByText(/clustered by domain evidence/)).not.toBeInTheDocument();
     const groupWorkbench = screen.getByLabelText("Repository group workbench");
     expect(groupWorkbench).toBeInTheDocument();
     expect(within(groupWorkbench).getByText("Shared Libraries")).toBeInTheDocument();

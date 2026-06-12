@@ -257,7 +257,9 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("/api/v0/repositories?limit=500&offset=0");
     expect(page).toContain("/stats");
     expect(page).toContain("/story");
-    expect(page).toContain("clustered by domain evidence");
+    expect(page).toContain("Groups currently use repository names and slug metadata");
+    expect(page).toContain("issue #2239");
+    expect(page).not.toContain("clustered by domain evidence");
     expect(page).toContain('name === "api-node-boats"');
     expect(page).toContain('name === "job-node-sitemaps-generator"');
     expect(page).toContain("Marketplace");

@@ -62,7 +62,7 @@ export function RepositoriesPage({ client, model }: {
     <div className="page">
       <div className="page-intro">
         <h2>Repositories</h2>
-        <p>Groups clusters indexed repositories by repository and package evidence, preserving API slug groups when available. Grid browses them like a Git host.</p>
+        <p>Groups currently use repository names and slug metadata; first-class source-backed grouping evidence is tracked in issue #2239. Grid browses repositories like a Git host.</p>
       </div>
 
       <div className="repo-toolbar">
@@ -76,7 +76,7 @@ export function RepositoriesPage({ client, model }: {
       </div>
 
       <div className="grid g-4">
-        <StatTile label="Repository groups" value={groups.length} color="var(--teal)" sub="clustered by domain evidence" />
+        <StatTile label="Repository groups" value={groups.length} color="var(--teal)" sub="name/slug grouping" />
         <StatTile label="Repositories" value={rows.length} color="var(--blue)" sub={sourceLabel} />
         <StatTile label="Dependency repos" value={dependencyCount} color="var(--ember)" sub="marked by the API" />
         <StatTile label="Most populated" value={mostPopulated} color="var(--violet)" sub="largest live group" />

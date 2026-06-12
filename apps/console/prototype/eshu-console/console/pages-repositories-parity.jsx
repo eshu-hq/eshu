@@ -146,13 +146,13 @@
 
     return (
       <div className="page">
-        <div className="page-intro"><h2>Repositories</h2><p>Live repository list from <span className="mono">GET /api/v0/repositories</span>. Select a repository to read its stats and story.</p></div>
+        <div className="page-intro"><h2>Repositories</h2><p>Live repository list from <span className="mono">GET /api/v0/repositories</span>. Groups currently use repository names and slug metadata; first-class source-backed grouping evidence is tracked in issue #2239.</p></div>
         <div className="repo-toolbar">
           <div className="searchbox" style={{ minWidth: 260, height: 38, margin: 0, flex: 1 }}><Icon.search size={16} /><input placeholder="Find a group or repository..." value={q} onChange={(e) => setQ(e.target.value)} /></div>
           <div className="dep-toggle" style={{ margin: 0 }}><button className={view === "groups" ? "active" : ""} onClick={() => setView("groups")}>Groups</button><button className={view === "grid" ? "active" : ""} onClick={() => setView("grid")}>Grid</button></div>
         </div>
         <div className="grid g-4">
-          <StatTile label="Repository groups" value={groups.length} color="var(--teal)" sub="clustered by domain evidence" />
+          <StatTile label="Repository groups" value={groups.length} color="var(--teal)" sub="name/slug grouping" />
           <StatTile label="Repositories" value={rows.length} color="var(--blue)" sub="GET /api/v0/repositories" />
           <StatTile label="Dependency repos" value={depCount} color="var(--ember)" sub="marked by the API" />
           <StatTile label="Most populated" value={(groups[0] && groups[0].key) || "-"} color="var(--violet)" sub="largest live group" />
