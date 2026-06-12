@@ -203,10 +203,17 @@ function DeadCode({ data, onOpenService }) {
   const rows = all.filter((d) =>
     (kind === "all" || d.kind === kind) && (conf === "all" || d.confidence === conf) &&
     (q === "" || (d.symbol + d.file + d.repo).toLowerCase().includes(q.toLowerCase())));
-  const repos = Array.from(new Set(all.map((d) => d.repo)));
+  const repos = Array.from(new Set(all.map((d) => deadCodeRepoKey(d))));
   const totalLoc = all.reduce((a, d) => a + (d.loc || 0), 0);
   const byKind = {};all.forEach((d) => byKind[d.kind] = (byKind[d.kind] || 0) + 1);
-  const grouped = {};rows.forEach((d) => (grouped[d.repo] = grouped[d.repo] || []).push(d));
+  const grouped = {};
+  const groupedLabels = {};
+  rows.forEach((d) => {
+    const key = deadCodeRepoKey(d);
+    grouped[key] = grouped[key] || [];
+    groupedLabels[key] = deadCodeRepoLabel(d);
+    grouped[key].push(d);
+  });
 
   return (
     <div className="page">
@@ -233,7 +240,7 @@ function DeadCode({ data, onOpenService }) {
               const svc = D.servicesById[repo];
               return (
                 <React.Fragment key={repo}>
-                  <tr className="group-row"><td colSpan={8}><span className="group-label" style={{ color: "var(--ember)" }}>{svc ? svc.name : repo}</span><span className="group-meta">{grouped[repo].length} dead · {fmt(grouped[repo].reduce((a, d) => a + (d.loc || 0), 0))} LOC</span></td></tr>
+                  <tr className="group-row"><td colSpan={8}><span className="group-label" style={{ color: "var(--ember)" }}>{svc ? svc.name : groupedLabels[repo]}</span><span className="group-meta">{grouped[repo].length} dead · {fmt(grouped[repo].reduce((a, d) => a + (d.loc || 0), 0))} LOC</span></td></tr>
                   {grouped[repo].map((d) => {
                     const dk = DEADKIND[d.kind] || { label: d.kind, color: "var(--muted)" };
                     return (

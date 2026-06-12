@@ -44,7 +44,17 @@
     const repoId = str(row.repo_id);
     if (explicit) return explicit;
     if (repoId && repoNames && repoNames[repoId]) return repoNames[repoId];
-    return repoId || "repository";
+    return repositoryFallbackLabel(repoId);
+  }
+
+  function repositoryFallbackLabel(repoId) {
+    const id = str(repoId).trim();
+    if (!id) return "repository";
+    const prefixed = id.match(/^repository[:_](.+)$/i);
+    if (!prefixed) return id;
+    const suffix = prefixed[1] || "";
+    if (/^r_[0-9a-f]+$/i.test(suffix) || /^r[0-9a-f]+$/i.test(suffix)) return "unresolved repository";
+    return suffix || "repository";
   }
 
   function mapDeadCode(row, index, env, repoNames) {

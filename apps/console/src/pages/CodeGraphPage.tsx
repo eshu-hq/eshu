@@ -93,7 +93,7 @@ export function CodeGraphPage({ model, client }: {
     return () => { cancelled = true; };
   }, [client, selected, candidates]);
 
-  const deadInRepo = candidates.filter((finding) => selected && finding.entity === selected.entity);
+  const deadInRepo = candidates.filter((finding) => selected && sameRepositoryScope(finding, selected));
   const importEdges = graph.edges.filter((edge) => edge.verb === "IMPORTS").length;
   const callEdges = graph.edges.filter((edge) => edge.verb === "CALLS").length;
   const hotspots = hotspotRows(graph);
@@ -102,6 +102,7 @@ export function CodeGraphPage({ model, client }: {
   const focusedDegree = focusedNode ? graph.edges.filter((edge) => edge.s === focusedNode.id || edge.t === focusedNode.id).length : 0;
   const focusedSourceHref = focusedFinding ? sourceHref(focusedFinding) : sourceHrefFromNode(focusedNode);
   const focusedRepository = focusedFinding?.entity ?? focusedNode?.source?.repoName ?? focusedNode?.source?.repoId ?? selected?.entity ?? "unknown";
+  const explorerQuery = explorerQueryFor(focusedNode, focusedFinding, focusedRepository);
   const focusedLocation = focusedFinding ? locationFromFinding(focusedFinding) : locationFromNode(focusedNode);
   const focusedSourceStatus = sourceMetadataStatus(focusedNode, focusedFinding, focusedSourceHref);
 
@@ -172,7 +173,7 @@ export function CodeGraphPage({ model, client }: {
               </div>
               <div className="row" style={{ gap: 8, flexWrap: "wrap", marginTop: 12 }}>
                 {focusedSourceHref ? <Link className="btn-ghost active" to={focusedSourceHref}>Open source</Link> : null}
-                <Link className="btn-ghost" to={`/explorer?q=${encodeURIComponent(focusedRepository === "unknown" ? focusedNode.label : focusedRepository)}`}>Explore repo graph</Link>
+                <Link className="btn-ghost" to={`/explorer?q=${encodeURIComponent(explorerQuery)}`}>Explore repo graph</Link>
                 {focusedFinding?.filePath ? <Link className="btn-ghost" to={`/dead-code?q=${encodeURIComponent(focusedFinding.filePath)}`}>Filter dead code</Link> : null}
               </div>
               {focusedSourceStatus ? <p className="t-mut" style={{ fontSize: ".78rem", margin: "8px 0 0" }}>{focusedSourceStatus}</p> : null}
@@ -211,7 +212,7 @@ export function CodeGraphPage({ model, client }: {
 function withDeadSiblings(graph: GraphModel, selected: FindingRow, candidates: readonly FindingRow[]): GraphModel {
   const nodes = [...graph.nodes];
   const existing = new Set(nodes.map((node) => node.id));
-  for (const finding of candidates.filter((row) => row.entity === selected.entity)) {
+  for (const finding of candidates.filter((row) => sameRepositoryScope(row, selected))) {
     const id = `dead:${finding.id}`;
     if (!existing.has(id)) {
       existing.add(id);
@@ -219,6 +220,14 @@ function withDeadSiblings(graph: GraphModel, selected: FindingRow, candidates: r
     }
   }
   return { nodes, edges: graph.edges };
+}
+
+function sameRepositoryScope(left: FindingRow, right: FindingRow): boolean {
+  return repositoryScopeKey(left) === repositoryScopeKey(right);
+}
+
+function repositoryScopeKey(finding: FindingRow): string {
+  return finding.repoId?.trim() || finding.entity.trim() || finding.id;
 }
 
 function deadOnlyGraph(selected: FindingRow | undefined, candidates: readonly FindingRow[]): GraphModel {
@@ -292,6 +301,18 @@ function sourceHrefFromNode(node: GraphNode | undefined): string | null {
   if (source.startLine !== undefined) params.set("lineStart", String(source.startLine));
   if (source.endLine !== undefined) params.set("lineEnd", String(source.endLine));
   return `/repositories/${encodeURIComponent(source.repoId)}/source?${params.toString()}`;
+}
+
+function explorerQueryFor(
+  node: GraphNode | undefined,
+  finding: FindingRow | undefined,
+  repositoryLabel: string
+): string {
+  const label = repositoryLabel.trim();
+  if (label && label !== "unknown" && label !== "unresolved repository") return label;
+  if (finding?.repoId) return finding.repoId;
+  if (node?.source?.repoId) return node.source.repoId;
+  return label === "unknown" && node ? node.label : label;
 }
 
 function sourceMetadataStatus(

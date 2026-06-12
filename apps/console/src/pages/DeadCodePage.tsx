@@ -76,7 +76,7 @@ export function DeadCodePage({
     matchesQuery(finding, query)
   );
   const grouped = groupByRepository(filtered);
-  const repositories = unique(all.map((finding) => finding.entity).filter(Boolean));
+  const repositories = unique(all.map(repositoryScopeKey).filter(Boolean));
   const totalLoc = all.reduce((sum, finding) => sum + locFromFinding(finding), 0);
   const highConfidence = all.filter((finding) => finding.classification === "unused" || finding.truth === "exact").length;
   const source = client ? (busy ? "loading" : err ? "unavailable" : "live") : model.source;
@@ -161,7 +161,7 @@ export function DeadCodePage({
               <thead><tr><th>Symbol</th><th>Kind</th><th>Location</th><th>Refs</th><th>LOC</th><th>Confidence</th><th>Why dead</th><th>Actions</th></tr></thead>
               <tbody>
                 {grouped.map((group) => (
-                  <DeadCodeGroup key={group.repository} group={group} />
+                  <DeadCodeGroup key={group.key} group={group} />
                 ))}
                 {filtered.length === 0 ? (
                   <tr><td colSpan={8} className="empty">{err ? `Failed to load: ${err}` : busy ? "Loading dead-code candidates..." : "No dead-code candidates from this source."}</td></tr>
@@ -210,19 +210,29 @@ function DeadCodeGroup({ group }: { readonly group: DeadCodeGroupModel }): React
 }
 
 interface DeadCodeGroupModel {
+  readonly key: string;
   readonly repository: string;
   readonly rows: readonly FindingRow[];
 }
 
 function groupByRepository(rows: readonly FindingRow[]): readonly DeadCodeGroupModel[] {
-  const groups = new Map<string, FindingRow[]>();
+  const groups = new Map<string, { readonly label: string; readonly rows: FindingRow[] }>();
   for (const row of rows) {
-    const key = row.entity || "repository";
-    groups.set(key, [...(groups.get(key) ?? []), row]);
+    const key = repositoryScopeKey(row);
+    const group = groups.get(key);
+    if (group) {
+      groups.set(key, { label: group.label, rows: [...group.rows, row] });
+    } else {
+      groups.set(key, { label: row.entity || "repository", rows: [row] });
+    }
   }
   return [...groups.entries()]
-    .map(([repository, groupRows]) => ({ repository, rows: groupRows }))
+    .map(([key, group]) => ({ key, repository: group.label, rows: group.rows }))
     .sort((a, b) => b.rows.length - a.rows.length || a.repository.localeCompare(b.repository));
+}
+
+function repositoryScopeKey(finding: FindingRow): string {
+  return finding.repoId?.trim() || finding.entity.trim() || finding.id;
 }
 
 function unique(values: readonly string[]): readonly string[] {
