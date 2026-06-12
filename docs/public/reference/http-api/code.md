@@ -74,12 +74,18 @@ truncation metadata, source handles, and coverage.
 `POST /api/v0/code/relationships` accepts either `entity_id` or `name`. Optional
 filters include `direction`, `relationship_type`, `transitive`, and
 `max_depth`. Set `transitive=true` with `relationship_type=CALLS` for indirect
-callers or callees; `max_depth` caps traversal.
+callers or callees; `max_depth` caps traversal. Graph-backed direct edges expose
+per-edge `resolution_method`, derived `confidence`, and `reason` when the graph
+edge carries resolution provenance. Legacy or content-fallback rows omit those
+fields instead of emitting empty provenance.
 
 `POST /api/v0/code/relationships/story` resolves one target first. If the target
 is ambiguous, it returns bounded candidates instead of guessing. It supports
 direct relationships, bounded transitive `CALLS`, class hierarchy prompts, and
-override prompts.
+override prompts. Relationship rows use the same additive edge-provenance fields
+as direct relationship answers, so API and MCP callers can distinguish stronger
+semantic resolution from weaker name-based resolution without changing envelope
+truth labels.
 
 `POST /api/v0/code/call-chain` finds a bounded path between `start` and `end`,
 or between `start_entity_id` and `end_entity_id`. `repo_id` scopes both

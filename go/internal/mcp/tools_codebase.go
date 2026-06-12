@@ -96,7 +96,7 @@ func codebaseTools() []ToolDefinition {
 		securityInvestigationTool(),
 		{
 			Name:        "get_code_relationship_story",
-			Description: "Get a bounded relationship story for one resolved code symbol, including ambiguity candidates, direct callers/callees/imports, optional transitive CALLS traversal, truncation, and source handles. Provide target or entity_id.",
+			Description: "Get a bounded relationship story for one resolved code symbol, including ambiguity candidates, direct callers/callees/imports, per-edge confidence and resolution_method, optional transitive CALLS traversal, truncation, and source handles. Provide target or entity_id.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -156,7 +156,7 @@ func codebaseTools() []ToolDefinition {
 		},
 		{
 			Name:        "analyze_code_relationships",
-			Description: "Analyze code relationships like 'who calls this function' or 'class hierarchy'. Supported query types include: find_callers, find_callees, find_all_callers, find_all_callees, find_importers, who_modifies, class_hierarchy, overrides, dead_code, call_chain, module_deps, variable_scope, find_complexity, find_functions_by_argument, find_functions_by_decorator.",
+			Description: "Analyze code relationships like 'who calls this function' or 'class hierarchy'. Relationship story results include per-edge confidence and resolution_method when graph provenance is available. Supported query types include: find_callers, find_callees, find_all_callers, find_all_callees, find_importers, who_modifies, class_hierarchy, overrides, dead_code, call_chain, module_deps, variable_scope, find_complexity, find_functions_by_argument, find_functions_by_decorator.",
 			InputSchema: analyzeCodeRelationshipsSchema(),
 		},
 		{

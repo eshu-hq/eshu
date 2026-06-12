@@ -352,6 +352,7 @@ func relationshipStoryRowsWithHandles(rows []map[string]any) []map[string]any {
 		if targetID := StringVal(item, "target_id"); targetID != "" {
 			item["target_handle"] = "entity:" + targetID
 		}
+		pruneEmptyRelationshipProvenance(item)
 		out = append(out, item)
 	}
 	return out

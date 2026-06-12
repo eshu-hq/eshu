@@ -201,8 +201,9 @@ const openAPIComponents = `  "components": {
           "target_id": {"type": "string"},
           "source_name": {"type": "string"},
           "source_id": {"type": "string"},
-          "confidence": {"type": "number"},
-          "reason": {"type": "string"}
+          "confidence": {"type": "number", "description": "Derived edge confidence from resolution_method. Omitted for legacy or content-fallback rows without graph-edge provenance."},
+          "resolution_method": {"type": "string", "enum": ["scip", "declared", "same_file", "import_binding", "type_inferred", "scope_unique_name", "repo_unique_name", "unspecified"], "description": "Closed vocabulary describing how the edge target was resolved. Omitted for legacy or content-fallback rows without graph-edge provenance."},
+          "reason": {"type": "string", "description": "Mechanism-level explanation for the edge resolution method when available."}
         }
       },
       "FileContent": {
