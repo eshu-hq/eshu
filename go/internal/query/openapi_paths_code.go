@@ -1,6 +1,8 @@
 package query
 
-const openAPIPathsCode = `
+const openAPIPathsCode = openAPIPathsCodeCore + openAPIPathsCodeComplexity
+
+const openAPIPathsCodeCore = `
     "/api/v0/code/search": {
       "post": {
         "tags": ["code"], "summary": "Search code entities",
@@ -220,7 +222,8 @@ const openAPIPathsCode = `
                   },
                   "relationship_type": {
                     "type": "string",
-                    "description": "Optional relationship type filter such as CALLS, IMPORTS, or REFERENCES."
+                    "enum": ["CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES", "IMPLEMENTS", "INSTANTIATES", "USES_METACLASS"],
+                    "description": "Optional relationship type filter such as CALLS, IMPORTS, REFERENCES, IMPLEMENTS, or INSTANTIATES."
                   },
                   "transitive": {
                     "type": "boolean",
@@ -288,7 +291,7 @@ const openAPIPathsCode = `
                   "repo_id": {"type": "string", "description": "Optional repository selector (canonical ID, name, slug, or path) for name resolution."},
                   "language": {"type": "string", "description": "Optional language filter for name resolution."},
                   "direction": {"type": "string", "enum": ["incoming", "outgoing", "both"], "default": "both"},
-                  "relationship_type": {"type": "string", "enum": ["CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES"], "default": "CALLS"},
+                  "relationship_type": {"type": "string", "enum": ["CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES", "IMPLEMENTS", "INSTANTIATES"], "default": "CALLS"},
                   "include_transitive": {"type": "boolean", "description": "When true, follows CALLS edges with bounded breadth-first traversal.", "default": false},
                   "max_depth": {"type": "integer", "description": "Maximum transitive CALLS or class hierarchy depth (default 5, max 10).", "default": 5, "maximum": 10},
                   "limit": {"type": "integer", "description": "Maximum relationship rows or ambiguity candidates (default 25, max 200).", "default": 25, "maximum": 200},
@@ -476,63 +479,6 @@ const openAPIPathsCode = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "500": {"$ref": "#/components/responses/InternalError"}
-        }
-      }
-    },
-    "/api/v0/code/complexity": {
-      "post": {
-        "tags": ["code"],
-        "summary": "Get complexity metrics",
-        "description": "Returns relationship-based complexity metrics for an entity or a bounded list of the most complex functions.",
-        "operationId": "getComplexity",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "entity_id": {"type": "string"},
-                  "function_name": {"type": "string"},
-                  "repo_id": {"type": "string"},
-                  "limit": {"type": "integer", "default": 10, "minimum": 1, "maximum": 100}
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Complexity metrics",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "entity_id": {"type": "string"},
-                    "name": {"type": "string"},
-                    "labels": {"type": "array", "items": {"type": "string"}},
-                    "file_path": {"type": "string"},
-                    "repo_id": {"type": "string"},
-                    "repo_name": {"type": "string"},
-                    "language": {"type": "string"},
-                    "start_line": {"type": "integer"},
-                    "end_line": {"type": "integer"},
-                    "metadata": {"type": "object", "additionalProperties": true},
-                    "outgoing_count": {"type": "integer"},
-                    "incoming_count": {"type": "integer"},
-                    "total_relationships": {"type": "integer"},
-                    "results": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-                    "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"}
-                  }
-                }
-              }
-            }
-          },
-          "400": {"$ref": "#/components/responses/BadRequest"},
-          "404": {"$ref": "#/components/responses/NotFound"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }

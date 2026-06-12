@@ -73,13 +73,17 @@ truncation metadata, source handles, and coverage.
 
 `POST /api/v0/code/relationships` accepts either `entity_id` or `name`. Optional
 filters include `direction`, `relationship_type`, `transitive`, and
-`max_depth`. Set `transitive=true` with `relationship_type=CALLS` for indirect
-callers or callees; `max_depth` caps traversal.
+`max_depth`. Direct relationship filters include `CALLS`, `IMPORTS`,
+`REFERENCES`, `INHERITS`, `OVERRIDES`, `IMPLEMENTS`, and `INSTANTIATES`; the
+lower-level direct route also accepts `USES_METACLASS`. Set `transitive=true`
+with `relationship_type=CALLS` for indirect callers or callees; `max_depth`
+caps traversal.
 
 `POST /api/v0/code/relationships/story` resolves one target first. If the target
 is ambiguous, it returns bounded candidates instead of guessing. It supports
 direct relationships, bounded transitive `CALLS`, class hierarchy prompts, and
-override prompts.
+override prompts. It also exposes bounded interface implementation and
+instantiation stories with `relationship_type=IMPLEMENTS` or `INSTANTIATES`.
 
 `POST /api/v0/code/call-chain` finds a bounded path between `start` and `end`,
 or between `start_entity_id` and `end_entity_id`. `repo_id` scopes both

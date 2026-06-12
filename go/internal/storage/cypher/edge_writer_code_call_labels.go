@@ -23,6 +23,18 @@ var codeReferenceEndpointLabels = map[string]struct{}{
 	"TypeAlias": {},
 }
 
+var codeInstantiationSourceLabels = map[string]struct{}{
+	"Class":    {},
+	"File":     {},
+	"Function": {},
+	"Struct":   {},
+}
+
+var codeInstantiationTargetLabels = map[string]struct{}{
+	"Class":  {},
+	"Struct": {},
+}
+
 func buildCodeCallRowMap(
 	payload map[string]any,
 	evidenceSource string,
@@ -63,7 +75,14 @@ func buildCodeCallRowMap(
 		rowMap["callee_entity_type"] = targetLabel
 	}
 
-	if rowMap["call_kind"] == "jsx_component" || payloadString(payload, "relationship_type") == "REFERENCES" {
+	relationshipType := payloadString(payload, "relationship_type")
+	if relationshipType == "INSTANTIATES" {
+		if isCodeInstantiationSourceLabel(sourceLabel) && isCodeInstantiationTargetLabel(targetLabel) {
+			return buildLabelScopedCodeInstantiationCypher(sourceLabel, targetLabel), rowMap, true
+		}
+		return batchCanonicalCodeInstantiationUpsertCypher, rowMap, true
+	}
+	if rowMap["call_kind"] == "jsx_component" || relationshipType == "REFERENCES" {
 		if isCodeReferenceEndpointLabel(sourceLabel) && isCodeReferenceEndpointLabel(targetLabel) {
 			return buildLabelScopedCodeReferenceCypher(sourceLabel, targetLabel), rowMap, true
 		}
@@ -85,6 +104,16 @@ func isCodeReferenceEndpointLabel(label string) bool {
 	return ok
 }
 
+func isCodeInstantiationSourceLabel(label string) bool {
+	_, ok := codeInstantiationSourceLabels[label]
+	return ok
+}
+
+func isCodeInstantiationTargetLabel(label string) bool {
+	_, ok := codeInstantiationTargetLabels[label]
+	return ok
+}
+
 func buildLabelScopedCodeCallCypher(sourceLabel string, targetLabel string) string {
 	return fmt.Sprintf(`UNWIND $rows AS row
 MATCH (source:%s {uid: row.caller_entity_id})
@@ -103,6 +132,17 @@ MATCH (target:%s {uid: row.callee_entity_id})
 MERGE (source)-[rel:REFERENCES]->(target)
 SET rel.confidence = 0.95,
     rel.reason = 'Parser and symbol analysis resolved a code reference edge',
+    rel.evidence_source = row.evidence_source,
+    rel.call_kind = row.call_kind`, sourceLabel, targetLabel)
+}
+
+func buildLabelScopedCodeInstantiationCypher(sourceLabel string, targetLabel string) string {
+	return fmt.Sprintf(`UNWIND $rows AS row
+MATCH (source:%s {uid: row.caller_entity_id})
+MATCH (target:%s {uid: row.callee_entity_id})
+MERGE (source)-[rel:INSTANTIATES]->(target)
+SET rel.confidence = 0.95,
+    rel.reason = 'Parser constructor-call metadata resolved a code instantiation edge',
     rel.evidence_source = row.evidence_source,
     rel.call_kind = row.call_kind`, sourceLabel, targetLabel)
 }
@@ -152,6 +192,8 @@ func edgeStatementSummary(domain string, cypher string, rowCount int) string {
 
 func codeCallRelationshipSummary(cypher string) string {
 	switch {
+	case strings.Contains(cypher, "rel:INSTANTIATES"):
+		return "INSTANTIATES"
 	case strings.Contains(cypher, "rel:REFERENCES"):
 		return "REFERENCES"
 	case strings.Contains(cypher, "rel:USES_METACLASS"):
@@ -163,6 +205,8 @@ func codeCallRelationshipSummary(cypher string) string {
 
 func inheritanceRelationshipSummary(cypher string) string {
 	switch {
+	case strings.Contains(cypher, "rel:IMPLEMENTS"):
+		return "IMPLEMENTS"
 	case strings.Contains(cypher, "rel:OVERRIDES"):
 		return "OVERRIDES"
 	case strings.Contains(cypher, "rel:ALIASES"):

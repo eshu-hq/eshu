@@ -236,7 +236,7 @@ func nornicDBNodePatternWithProperty(alias string, label string, property string
 
 func nornicDBRelationshipPattern(relationshipType string) string {
 	switch strings.ToUpper(strings.TrimSpace(relationshipType)) {
-	case "CALLS", "REFERENCES", "IMPORTS", "INHERITS", "OVERRIDES", "USES_METACLASS":
+	case "CALLS", "REFERENCES", "IMPORTS", "INHERITS", "OVERRIDES", "IMPLEMENTS", "INSTANTIATES", "USES_METACLASS":
 		return ":" + strings.ToUpper(strings.TrimSpace(relationshipType))
 	default:
 		return ""

@@ -37,7 +37,7 @@ func TestBuildDeadCodeIncomingProbeCypherUsesBatchedExactEntityLookup(t *testing
 	cypher := buildDeadCodeIncomingBatchProbeCypher("Function")
 	for _, want := range []string{
 		"UNWIND $entity_ids AS entity_id",
-		"MATCH (e:Function {uid: entity_id})<-[:CALLS|IMPORTS|REFERENCES|INHERITS|EXECUTES]-(source)",
+		"MATCH (e:Function {uid: entity_id})<-[:CALLS|IMPORTS|REFERENCES|INHERITS|IMPLEMENTS|INSTANTIATES|EXECUTES]-(source)",
 		"RETURN DISTINCT coalesce(e.uid, e.id) as incoming_entity_id",
 	} {
 		if !strings.Contains(cypher, want) {

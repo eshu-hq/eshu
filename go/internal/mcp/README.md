@@ -108,7 +108,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `investigate_hardcoded_secrets` | POST | `/api/v0/code/security/secrets/investigate` |
 | `investigate_dead_code` | POST | `/api/v0/code/dead-code/investigate` |
 | `get_code_relationship_story` | POST | `/api/v0/code/relationships/story` |
-| `analyze_code_relationships` | POST | `/api/v0/code/relationships/story` for callers/callees/importers/class hierarchy/overrides; `/api/v0/code/relationships` for unresolved compatibility fallbacks |
+| `analyze_code_relationships` | POST | `/api/v0/code/relationships/story` for callers/callees/importers/implementers/instantiators/class hierarchy/overrides; `/api/v0/code/relationships` for unresolved compatibility fallbacks |
 | `find_dead_iac` | POST | `/api/v0/iac/dead` |
 | `find_unmanaged_resources` | POST | `/api/v0/iac/unmanaged-resources` |
 | `get_iac_management_status` | POST | `/api/v0/iac/management-status` |
@@ -170,6 +170,11 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `get_semantic_capability_status` | GET | `/api/v0/status/semantic-extraction` with redacted provider profile, semantic queue, budget, and audit status when configured |
 | `trace_deployment_chain` | POST | `/api/v0/impact/trace-deployment-chain` |
 | `investigate_deployment_config` | POST | `/api/v0/impact/deployment-config-influence` |
+
+`analyze_code_relationships` keeps implementation and instantiation prompts
+transport-only. `find_implementers` and `find_implementations` map to bounded
+`IMPLEMENTS` relationship stories; `find_instantiators` and
+`find_instantiations` map to bounded `INSTANTIATES` relationship stories.
 
 `investigate_import_dependencies` passes paging and scope arguments directly to
 the HTTP handler. The handler rejects negative bounds and returns exactly one

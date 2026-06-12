@@ -148,6 +148,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 		if anonymousTail, ok := parsePHPAnonymousClass(trimmed); ok {
 			name := phpAnonymousClassName(lineNumber)
 			bases := parsePHPBases("class", anonymousTail)
+			implementedInterfaces := parsePHPImplementedInterfaces("class", anonymousTail)
 			item := map[string]any{
 				"name":        name,
 				"line_number": lineNumber,
@@ -156,6 +157,9 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 			}
 			if len(bases) > 0 {
 				item["bases"] = bases
+			}
+			if len(implementedInterfaces) > 0 {
+				item["implemented_interfaces"] = implementedInterfaces
 			}
 			if strings.Contains(anonymousTail, "extends") && len(bases) > 0 {
 				classParentTypes[name] = normalizePHPImportedTypeName(bases[0], importAliases)
@@ -172,6 +176,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 		if matches := phpTypePattern.FindStringSubmatch(trimmed); len(matches) == 4 {
 			name := matches[2]
 			bases := parsePHPBases(matches[1], matches[3])
+			implementedInterfaces := parsePHPImplementedInterfaces(matches[1], matches[3])
 			item := map[string]any{
 				"name":        name,
 				"line_number": lineNumber,
@@ -180,6 +185,9 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 			}
 			if len(bases) > 0 {
 				item["bases"] = bases
+			}
+			if len(implementedInterfaces) > 0 {
+				item["implemented_interfaces"] = implementedInterfaces
 			}
 			switch matches[1] {
 			case "class":
@@ -415,7 +423,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 				continue
 			}
 			className := shared.LastPathSegment(match[1], `\`)
-			appendUniquePHPCall(payload, seenCalls, className, className, lineNumber, extractPHPCallArgs(lines, index, rawLine, match[0]), contextName, contextKind, contextLine, normalizePHPImportedTypeName(className, importAliases))
+			appendUniquePHPConstructorCall(payload, seenCalls, className, lineNumber, extractPHPCallArgs(lines, index, rawLine, match[0]), contextName, contextKind, contextLine, importAliases)
 		}
 		if !strings.Contains(trimmed, "->") && !strings.Contains(trimmed, "::") && !strings.Contains(trimmed, "new ") && !phpFunctionPattern.MatchString(trimmed) {
 			for _, match := range phpFunctionCallPattern.FindAllStringSubmatch(trimmed, -1) {

@@ -10,8 +10,8 @@ import (
 )
 
 // DeadCodeIncomingEntityIDs returns candidate entity IDs that have completed
-// reducer code-call, metaclass, or inheritance incoming edges in the relational
-// read model.
+// reducer code-call, instantiation, metaclass, or inheritance incoming edges in
+// the relational read model. Inheritance includes implementation edges.
 func (cr *ContentReader) DeadCodeIncomingEntityIDs(
 	ctx context.Context,
 	repoID string,

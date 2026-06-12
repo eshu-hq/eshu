@@ -190,6 +190,52 @@ func TestResolveRouteMapsAnalyzeCodeRelationshipsOverridesToStory(t *testing.T) 
 	}
 }
 
+func TestResolveRouteMapsAnalyzeCodeRelationshipsImplementationAndInstantiationStories(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                 string
+		queryType            string
+		wantDirection        string
+		wantRelationshipType string
+	}{
+		{name: "find implementers", queryType: "find_implementers", wantDirection: "incoming", wantRelationshipType: "IMPLEMENTS"},
+		{name: "find implementations", queryType: "find_implementations", wantDirection: "outgoing", wantRelationshipType: "IMPLEMENTS"},
+		{name: "find instantiators", queryType: "find_instantiators", wantDirection: "incoming", wantRelationshipType: "INSTANTIATES"},
+		{name: "find instantiations", queryType: "find_instantiations", wantDirection: "outgoing", wantRelationshipType: "INSTANTIATES"},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			route, err := resolveRoute("analyze_code_relationships", map[string]any{
+				"query_type": tt.queryType,
+				"target":     "PaymentProcessor",
+				"repo_id":    "repo-1",
+				"limit":      13,
+			})
+			if err != nil {
+				t.Fatalf("resolveRoute() error = %v, want nil", err)
+			}
+			if got, want := route.path, "/api/v0/code/relationships/story"; got != want {
+				t.Fatalf("route.path = %q, want %q", got, want)
+			}
+			body := requireRouteBody(t, route)
+			if got, want := body["direction"], tt.wantDirection; got != want {
+				t.Fatalf("body[direction] = %#v, want %#v", got, want)
+			}
+			if got, want := body["relationship_type"], tt.wantRelationshipType; got != want {
+				t.Fatalf("body[relationship_type] = %#v, want %#v", got, want)
+			}
+			if got, want := body["limit"], 13; got != want {
+				t.Fatalf("body[limit] = %#v, want %#v", got, want)
+			}
+		})
+	}
+}
+
 func TestResolveRouteMapsAnalyzeCodeRelationshipsCallChain(t *testing.T) {
 	t.Parallel()
 

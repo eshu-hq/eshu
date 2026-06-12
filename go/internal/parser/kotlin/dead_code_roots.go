@@ -1,6 +1,9 @@
 package kotlin
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 func kotlinAnnotations(line string) []string {
 	matches := kotlinAnnotationPattern.FindAllStringSubmatch(line, -1)
@@ -171,6 +174,49 @@ func kotlinImplementedTypes(line string) []string {
 		types = append(types, name)
 	}
 	return types
+}
+
+func kotlinImplementedInterfaceMetadataTypes(line string) []string {
+	colonIndex := strings.Index(line, ":")
+	if colonIndex < 0 {
+		return nil
+	}
+	tail := line[colonIndex+1:]
+	if braceIndex := strings.Index(tail, "{"); braceIndex >= 0 {
+		tail = tail[:braceIndex]
+	}
+	parts := strings.Split(tail, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if strings.Contains(part, "(") {
+			continue
+		}
+		name := kotlinShortName(strings.TrimSpace(part))
+		if genericIndex := strings.Index(name, "<"); genericIndex >= 0 {
+			name = name[:genericIndex]
+		}
+		name = strings.TrimSuffix(name, "?")
+		if name != "" {
+			values = append(values, name)
+		}
+	}
+	return dedupeSortedKotlinStrings(values)
+}
+
+func dedupeSortedKotlinStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			seen[value] = struct{}{}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for value := range seen {
+		out = append(out, value)
+	}
+	slices.Sort(out)
+	return out
 }
 
 func kotlinIsGradlePluginApply(line string, name string) bool {

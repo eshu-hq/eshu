@@ -201,7 +201,7 @@ func (r relationshipStoryRequest) normalizedRelationshipType() (string, error) {
 		return "CALLS", nil
 	}
 	switch relationshipType {
-	case "CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES":
+	case "CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES", "IMPLEMENTS", "INSTANTIATES":
 		return relationshipType, nil
 	default:
 		return "", fmt.Errorf("relationship_type %q is not supported", strings.TrimSpace(r.RelationshipType))

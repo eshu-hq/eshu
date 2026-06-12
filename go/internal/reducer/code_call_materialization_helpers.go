@@ -201,6 +201,9 @@ func codeCallPreferredPath(rawPath string, relativePath string) string {
 }
 
 func codeCallFunctionCandidateNames(item map[string]any) []string {
+	if codeCallFunctionIsConstructor(item) {
+		return nil
+	}
 	names := make([]string, 0, 5)
 	appendName := func(value string) {
 		trimmed := strings.TrimSpace(value)

@@ -26,9 +26,9 @@ The capability matrix marks `local_authoritative`, `local_full_stack`, and
 is unsupported because dead-code analysis requires the graph plus root metadata.
 
 The implementation scans graph or content-backed entity candidates, removes
-symbols with incoming `CALLS`, `IMPORTS`, `REFERENCES`, `INHERITS`, or
-`EXECUTES` edges, applies the default root policy, and returns bounded results
-with truncation metadata.
+symbols with incoming `CALLS`, `IMPORTS`, `REFERENCES`, `INHERITS`,
+`IMPLEMENTS`, `INSTANTIATES`, or `EXECUTES` edges, applies the default root
+policy, and returns bounded results with truncation metadata.
 
 ## Exactness Rule
 

@@ -33,15 +33,15 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "class_declaration":
-			appendCSharpNamedType(payload, "classes", node, source)
+			appendCSharpNamedType(payload, "classes", node, source, facts)
 		case "interface_declaration":
-			appendCSharpNamedType(payload, "interfaces", node, source)
+			appendCSharpNamedType(payload, "interfaces", node, source, facts)
 		case "struct_declaration":
-			appendCSharpNamedType(payload, "structs", node, source)
+			appendCSharpNamedType(payload, "structs", node, source, facts)
 		case "enum_declaration":
-			appendCSharpNamedType(payload, "enums", node, source)
+			appendCSharpNamedType(payload, "enums", node, source, facts)
 		case "record_declaration":
-			appendCSharpNamedType(payload, "records", node, source)
+			appendCSharpNamedType(payload, "records", node, source, facts)
 		case "property_declaration":
 			appendNamedType(payload, "properties", node, source, "c_sharp")
 		case "method_declaration", "constructor_declaration", "local_function_statement":
@@ -146,7 +146,13 @@ func csharpFirstIdentifier(node *tree_sitter.Node) *tree_sitter.Node {
 	return result
 }
 
-func appendCSharpNamedType(payload map[string]any, bucket string, node *tree_sitter.Node, source []byte) {
+func appendCSharpNamedType(
+	payload map[string]any,
+	bucket string,
+	node *tree_sitter.Node,
+	source []byte,
+	facts csharpSemanticFacts,
+) {
 	nameNode := node.ChildByFieldName("name")
 	name := shared.NodeText(nameNode, source)
 	if strings.TrimSpace(name) == "" {
@@ -162,7 +168,52 @@ func appendCSharpNamedType(payload map[string]any, bucket string, node *tree_sit
 	if bases := csharpBaseNames(node, source); len(bases) > 0 {
 		item["bases"] = bases
 	}
+	if implementedInterfaces := csharpImplementedInterfaceNames(node, source, facts); len(implementedInterfaces) > 0 {
+		item["implemented_interfaces"] = implementedInterfaces
+	}
 	shared.AppendBucket(payload, bucket, item)
+}
+
+func csharpImplementedInterfaceNames(
+	node *tree_sitter.Node,
+	source []byte,
+	facts csharpSemanticFacts,
+) []string {
+	if node == nil {
+		return nil
+	}
+	bases := csharpBaseNamesInOrder(node, source)
+	if len(bases) == 0 {
+		return nil
+	}
+	if node.Kind() == "struct_declaration" {
+		return shared.DedupeNonEmptyStrings(bases)
+	}
+	if node.Kind() != "class_declaration" {
+		return nil
+	}
+
+	values := make([]string, 0, len(bases))
+	for index, base := range bases {
+		if csharpBaseIsLocalInterface(base, facts) || index > 0 {
+			values = append(values, base)
+		}
+	}
+	return shared.DedupeNonEmptyStrings(values)
+}
+
+func csharpBaseIsLocalInterface(base string, facts csharpSemanticFacts) bool {
+	if strings.TrimSpace(base) == "" {
+		return false
+	}
+	if info := facts.typeInfo(base, base); info.kind == "interface_declaration" {
+		return true
+	}
+	simpleName := csharpLastTypeSegment(base)
+	if simpleName == "" || facts.interfaceSimpleNameCounts[simpleName] != 1 {
+		return false
+	}
+	return facts.typeInfo(simpleName, "").kind == "interface_declaration"
 }
 
 func appendNamedType(payload map[string]any, bucket string, node *tree_sitter.Node, source []byte, lang string) {

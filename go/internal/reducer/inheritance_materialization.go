@@ -34,8 +34,9 @@ var inheritanceContentEntityTypes = []string{
 }
 
 // InheritanceMaterializationHandler reduces one inheritance follow-up into
-// canonical INHERITS, OVERRIDES, and ALIASES edge writes using parser entity
-// bases and PHP trait adaptation metadata.
+// canonical INHERITS, IMPLEMENTS, OVERRIDES, and ALIASES edge writes using
+// parser entity bases, implemented-interface metadata, and PHP trait
+// adaptation metadata.
 type InheritanceMaterializationHandler struct {
 	FactLoader           FactLoader
 	EdgeWriter           SharedProjectionEdgeWriter
@@ -154,8 +155,9 @@ func (h InheritanceMaterializationHandler) shouldSkipInheritanceRetract(ctx cont
 }
 
 // ExtractInheritanceRows builds canonical child/parent edge rows from content
-// entity facts that carry bases or trait adaptation metadata. It performs
-// intra-repo name matching only; cross-repo inheritance is out of scope.
+// entity facts that carry bases, implemented-interface metadata, or trait
+// adaptation metadata. It performs intra-repo name matching only; cross-repo
+// inheritance is out of scope.
 func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]any) {
 	if len(envelopes) == 0 {
 		return nil, nil
@@ -190,12 +192,17 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 		}
 
 		bases := inheritancePayloadBases(env.Payload)
+		implementedInterfaces := inheritancePayloadImplementedInterfaces(env.Payload)
 		traitAdaptations := inheritancePayloadTraitAdaptations(env.Payload)
-		if len(bases) == 0 && len(traitAdaptations) == 0 {
+		if len(bases) == 0 && len(implementedInterfaces) == 0 && len(traitAdaptations) == 0 {
 			continue
 		}
+		implementedSet := inheritanceStringSet(implementedInterfaces)
 
 		for _, baseName := range bases {
+			if _, implemented := implementedSet[baseName]; implemented {
+				continue
+			}
 			parent, ok := entityIndex[inheritanceIndexKey{repoID: repoID, name: baseName}]
 			if !ok {
 				continue
@@ -214,6 +221,28 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 				"parent_entity_type": parent.entityType,
 				"repo_id":            repoID,
 				"relationship_type":  "INHERITS",
+			})
+		}
+
+		for _, interfaceName := range implementedInterfaces {
+			parent, ok := entityIndex[inheritanceIndexKey{repoID: repoID, name: interfaceName}]
+			if !ok || parent.entityType != "Interface" {
+				continue
+			}
+
+			edgeKey := childEntityID + "->" + parent.id + ":IMPLEMENTS"
+			if _, dup := seenEdges[edgeKey]; dup {
+				continue
+			}
+			seenEdges[edgeKey] = struct{}{}
+
+			rows = append(rows, map[string]any{
+				"child_entity_id":    childEntityID,
+				"child_entity_type":  entityType,
+				"parent_entity_id":   parent.id,
+				"parent_entity_type": parent.entityType,
+				"repo_id":            repoID,
+				"relationship_type":  "IMPLEMENTS",
 			})
 		}
 
@@ -413,6 +442,21 @@ func collectInheritanceRepoIDs(envelopes []facts.Envelope) []string {
 // metadata in a content_entity fact payload.
 func inheritancePayloadBases(payload map[string]any) []string {
 	return semanticPayloadMetadataStringSlice(payload, "bases")
+}
+
+func inheritancePayloadImplementedInterfaces(payload map[string]any) []string {
+	return semanticPayloadMetadataStringSlice(payload, "implemented_interfaces")
+}
+
+func inheritanceStringSet(values []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if value == "" {
+			continue
+		}
+		set[value] = struct{}{}
+	}
+	return set
 }
 
 // buildInheritanceRetractRows builds retract rows for each repository.

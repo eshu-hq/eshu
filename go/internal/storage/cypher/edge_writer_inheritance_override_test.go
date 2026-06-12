@@ -126,6 +126,49 @@ func TestEdgeWriterWriteEdgesInheritanceFallsBackWhenEndpointLabelsMissing(t *te
 	}
 }
 
+func TestEdgeWriterWriteEdgesInheritanceDispatchesImplements(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			IntentID:     "i1",
+			RepositoryID: "repo-a",
+			Payload: map[string]any{
+				"child_entity_id":    "entity:class:child",
+				"child_entity_type":  "Class",
+				"parent_entity_id":   "entity:interface:runnable",
+				"parent_entity_type": "Interface",
+				"repo_id":            "repo-a",
+				"relationship_type":  "IMPLEMENTS",
+			},
+		},
+	}
+
+	if err := writer.WriteEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance"); err != nil {
+		t.Fatalf("WriteEdges() error = %v", err)
+	}
+	if got, want := len(executor.calls), 1; got != want {
+		t.Fatalf("executor calls = %d, want %d", got, want)
+	}
+	cypher := executor.calls[0].Cypher
+	if !strings.Contains(cypher, "MATCH (child:Class {uid: row.child_entity_id})") {
+		t.Fatalf("cypher = %q, want Class child uid anchor", cypher)
+	}
+	if !strings.Contains(cypher, "MATCH (parent:Interface {uid: row.parent_entity_id})") {
+		t.Fatalf("cypher = %q, want Interface parent uid anchor", cypher)
+	}
+	if !strings.Contains(cypher, "MERGE (child)-[rel:IMPLEMENTS]->(parent)") {
+		t.Fatalf("cypher = %q, want IMPLEMENTS relationship", cypher)
+	}
+	summary, _ := executor.calls[0].Parameters[StatementMetadataSummaryKey].(string)
+	if !strings.Contains(summary, "relationship=IMPLEMENTS") {
+		t.Fatalf("statement summary = %q, want IMPLEMENTS relationship", summary)
+	}
+}
+
 func TestEdgeWriterWriteEdgesInheritanceDispatchesAliases(t *testing.T) {
 	t.Parallel()
 
@@ -179,7 +222,7 @@ func TestEdgeWriterRetractEdgesInheritanceIncludesOverrides(t *testing.T) {
 	if got, want := len(executor.calls), 1; got != want {
 		t.Fatalf("executor calls = %d, want %d", got, want)
 	}
-	if !strings.Contains(executor.calls[0].Cypher, "INHERITS|OVERRIDES|ALIASES") {
-		t.Fatalf("cypher missing INHERITS|OVERRIDES|ALIASES: %s", executor.calls[0].Cypher)
+	if !strings.Contains(executor.calls[0].Cypher, "INHERITS|IMPLEMENTS|OVERRIDES|ALIASES") {
+		t.Fatalf("cypher missing INHERITS|IMPLEMENTS|OVERRIDES|ALIASES: %s", executor.calls[0].Cypher)
 	}
 }

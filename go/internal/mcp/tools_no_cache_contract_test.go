@@ -60,6 +60,37 @@ func TestAnalyzeCodeRelationshipsSchemaDocumentsTargetExceptRepoScopedOverrides(
 	if !strings.Contains(description, "Optional for repo-scoped overrides") {
 		t.Fatalf("target description = %q, want repo-scoped overrides guidance", description)
 	}
+	queryType := properties["query_type"].(map[string]any)
+	enum := queryType["enum"].([]string)
+	for _, want := range []string{"find_implementers", "find_implementations", "find_instantiators", "find_instantiations"} {
+		if !containsString(enum, want) {
+			t.Fatalf("query_type enum = %#v, want %s", enum, want)
+		}
+	}
+}
+
+func TestCodeRelationshipStorySchemaIncludesImplementationAndInstantiationTypes(t *testing.T) {
+	t.Parallel()
+
+	tool := requireMCPTool(t, "get_code_relationship_story")
+	schema := tool.InputSchema.(map[string]any)
+	properties := schema["properties"].(map[string]any)
+	relationshipType := properties["relationship_type"].(map[string]any)
+	enum := relationshipType["enum"].([]string)
+	for _, want := range []string{"IMPLEMENTS", "INSTANTIATES"} {
+		if !containsString(enum, want) {
+			t.Fatalf("relationship_type enum = %#v, want %s", enum, want)
+		}
+	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func TestNoCachePromptRoutesPassBounds(t *testing.T) {

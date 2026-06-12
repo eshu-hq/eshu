@@ -82,7 +82,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 				}
 				index.spansByPath[pathKey] = append(index.spansByPath[pathKey], span)
 				index.containersByPath[pathKey] = append(index.containersByPath[pathKey], span)
-				if name := anyToString(item["name"]); name == "constructor" || name == "__init__" {
+				if codeCallFunctionIsConstructor(item) {
 					classContext := strings.TrimSpace(anyToString(item["class_context"]))
 					if classContext != "" {
 						if _, ok := index.constructorByPath[pathKey]; !ok {
@@ -376,7 +376,7 @@ func extractGenericCodeCallRows(
 
 		rows = appendCodeCallRow(rows, seenRows, repositoryID, entityIndex, callerID, calleeID, callerFilePath, calleeFilePath, callLine, resolutionMethod, edge)
 		if constructorID := resolveConstructorMethodCalleeID(entityIndex, calleeFilePath, edge); constructorID != "" {
-			rows = appendCodeCallRow(rows, seenRows, repositoryID, entityIndex, callerID, constructorID, callerFilePath, calleeFilePath, callLine, codeprovenance.MethodTypeInferred, edge)
+			rows = appendCodeCallRowWithRelationshipType(rows, seenRows, repositoryID, entityIndex, callerID, constructorID, callerFilePath, calleeFilePath, callLine, codeprovenance.MethodTypeInferred, "CALLS", edge)
 		}
 	}
 	return rows
@@ -443,6 +443,23 @@ func appendCodeCallRow(
 	edge map[string]any,
 ) []map[string]any {
 	relationshipType := codeCallRelationshipType(edge)
+	return appendCodeCallRowWithRelationshipType(rows, seenRows, repositoryID, entityIndex, callerID, calleeID, callerFilePath, calleeFilePath, callLine, resolutionMethod, relationshipType, edge)
+}
+
+func appendCodeCallRowWithRelationshipType(
+	rows []map[string]any,
+	seenRows map[string]struct{},
+	repositoryID string,
+	entityIndex codeEntityIndex,
+	callerID string,
+	calleeID string,
+	callerFilePath string,
+	calleeFilePath string,
+	callLine int,
+	resolutionMethod codeprovenance.Method,
+	relationshipType string,
+	edge map[string]any,
+) []map[string]any {
 	key := codeCallRowKey(repositoryID, callerID, calleeID, relationshipType, callLine)
 	if _, exists := seenRows[key]; exists {
 		return rows

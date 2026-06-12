@@ -120,6 +120,14 @@ func appendJavaNamedType(
 	if rootKinds := javaTypeDeadCodeRootKinds(node, source); len(rootKinds) > 0 {
 		item["dead_code_root_kinds"] = rootKinds
 	}
+	if bases, implemented := javaNamedTypeRelationships(node, source); len(bases) > 0 || len(implemented) > 0 {
+		if len(bases) > 0 {
+			item["bases"] = bases
+		}
+		if len(implemented) > 0 {
+			item["implemented_interfaces"] = implemented
+		}
+	}
 	appendBucket(payload, bucket, item)
 }
 
@@ -314,6 +322,9 @@ func appendJavaCall(
 		"line_number":    nodeLine(node),
 		"lang":           "java",
 		"argument_count": javaArgumentCount(node),
+	}
+	if node.Kind() == "object_creation_expression" {
+		item["call_kind"] = "constructor_call"
 	}
 	if methodReferenceFullName != "" {
 		item["full_name"] = methodReferenceFullName

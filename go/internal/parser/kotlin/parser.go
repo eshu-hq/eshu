@@ -105,6 +105,9 @@ func Parse(repoRoot string, path string, isDependency bool, options shared.Optio
 				classTypeParameters[name] = typeParameters
 			}
 			item := kotlinTypeItem(name, lineNumber, annotations, "class", trimmed)
+			if implementedInterfaces := kotlinImplementedInterfaceMetadataTypes(rawLine); len(implementedInterfaces) > 0 {
+				item["implemented_interfaces"] = implementedInterfaces
+			}
 			if implementedTypes := kotlinImplementedTypes(rawLine); len(implementedTypes) > 0 {
 				classInterfaces[name] = make(map[string]struct{}, len(implementedTypes))
 				for _, implementedType := range implementedTypes {

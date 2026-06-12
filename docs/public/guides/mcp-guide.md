@@ -54,6 +54,8 @@ Use focused tools for exact code questions:
 | Where is this symbol? | `find_symbol` |
 | Search indexed code. | `find_code` or `search_file_content` |
 | Who calls this function? | `get_code_relationship_story` |
+| Who implements this interface? | `analyze_code_relationships` with `query_type=find_implementers` |
+| Who instantiates this class? | `analyze_code_relationships` with `query_type=find_instantiators` |
 | Which modules import this module? | `investigate_import_dependencies` |
 | What code looks dead? | `investigate_dead_code` |
 | Find hardcoded secrets. | `investigate_hardcoded_secrets` |

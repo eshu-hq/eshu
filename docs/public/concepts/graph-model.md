@@ -27,6 +27,8 @@ Some edges describe direct technical structure:
 
 - `(:Function)-[:CALLS]->(:Function)`
 - `(:Class)-[:INHERITS]->(:Class)`
+- `(:Class)-[:IMPLEMENTS]->(:Interface)`
+- `(:Function)-[:INSTANTIATES]->(:Class)`
 - `(:File)-[:CONTAINS]->(:Function)`
 - `(:Repository)-[:DEFINES]->(:Workload)`
 - `(:Repository)-[:EXPOSES_ENDPOINT]->(:Endpoint)`
@@ -44,9 +46,9 @@ Some edges describe deployable-system context:
 
 ## Code edge resolution provenance
 
-`CALLS`, `REFERENCES`, and `USES_METACLASS` edges record **how** their target
-entity was resolved, so an agent can tell a semantically proven edge from a
-name-match guess. Each edge carries:
+`CALLS`, `REFERENCES`, `INSTANTIATES`, and `USES_METACLASS` edges record
+**how** their target entity was resolved, so an agent can tell a semantically
+proven edge from a name-match guess. Each edge carries:
 
 - `resolution_method` — a closed value from the vocabulary below.
 - `confidence` — a float derived from `resolution_method` (never an independent

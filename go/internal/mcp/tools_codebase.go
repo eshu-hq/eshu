@@ -119,7 +119,7 @@ func codebaseTools() []ToolDefinition {
 					"relationship_type": map[string]any{
 						"type":        "string",
 						"description": "Relationship type to follow.",
-						"enum":        []string{"CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES"},
+						"enum":        []string{"CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES", "IMPLEMENTS", "INSTANTIATES"},
 						"default":     "CALLS",
 					},
 					"direction": map[string]any{
@@ -156,7 +156,7 @@ func codebaseTools() []ToolDefinition {
 		},
 		{
 			Name:        "analyze_code_relationships",
-			Description: "Analyze code relationships like 'who calls this function' or 'class hierarchy'. Supported query types include: find_callers, find_callees, find_all_callers, find_all_callees, find_importers, who_modifies, class_hierarchy, overrides, dead_code, call_chain, module_deps, variable_scope, find_complexity, find_functions_by_argument, find_functions_by_decorator.",
+			Description: "Analyze code relationships like 'who calls this function' or 'class hierarchy'. Supported query types include: find_callers, find_callees, find_all_callers, find_all_callees, find_importers, find_implementers, find_implementations, find_instantiators, find_instantiations, who_modifies, class_hierarchy, overrides, dead_code, call_chain, module_deps, variable_scope, find_complexity, find_functions_by_argument, find_functions_by_decorator.",
 			InputSchema: analyzeCodeRelationshipsSchema(),
 		},
 		{

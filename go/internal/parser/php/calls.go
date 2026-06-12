@@ -19,6 +19,34 @@ func appendUniquePHPCall(
 	contextLine int,
 	inferredObjType string,
 ) {
+	appendUniquePHPCallWithKind(
+		payload,
+		seen,
+		name,
+		fullName,
+		lineNumber,
+		args,
+		contextName,
+		contextKind,
+		contextLine,
+		inferredObjType,
+		"",
+	)
+}
+
+func appendUniquePHPCallWithKind(
+	payload map[string]any,
+	seen map[string]struct{},
+	name string,
+	fullName string,
+	lineNumber int,
+	args []string,
+	contextName string,
+	contextKind string,
+	contextLine int,
+	inferredObjType string,
+	callKind string,
+) {
 	if strings.TrimSpace(fullName) == "" {
 		return
 	}
@@ -41,12 +69,41 @@ func appendUniquePHPCall(
 	} else {
 		item["inferred_obj_type"] = nil
 	}
+	if strings.TrimSpace(callKind) != "" {
+		item["call_kind"] = callKind
+	}
 	if contextKind == "class_declaration" || contextKind == "interface_declaration" || contextKind == "trait_declaration" {
 		item["class_context"] = []any{contextName, contextLine}
 	} else {
 		item["class_context"] = []any{nil, nil}
 	}
 	shared.AppendBucket(payload, "function_calls", item)
+}
+
+func appendUniquePHPConstructorCall(
+	payload map[string]any,
+	seen map[string]struct{},
+	className string,
+	lineNumber int,
+	args []string,
+	contextName string,
+	contextKind string,
+	contextLine int,
+	importAliases map[string]string,
+) {
+	appendUniquePHPCallWithKind(
+		payload,
+		seen,
+		className,
+		className,
+		lineNumber,
+		args,
+		contextName,
+		contextKind,
+		contextLine,
+		normalizePHPImportedTypeName(className, importAliases),
+		"constructor_call",
+	)
 }
 
 func normalizePHPMethodCall(raw string) string {

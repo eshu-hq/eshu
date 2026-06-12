@@ -16,6 +16,8 @@ func TestContentReaderDeadCodeIncomingEntityIDsReadsCompletedCodeCallIntents(t *
 			rows: [][]driver.Value{
 				{"content-entity:live"},
 				{"content-entity:metaclass-live"},
+				{"content-entity:implements-live"},
+				{"content-entity:instantiates-live"},
 			},
 		},
 	})
@@ -24,7 +26,13 @@ func TestContentReaderDeadCodeIncomingEntityIDsReadsCompletedCodeCallIntents(t *
 	incoming, err := reader.DeadCodeIncomingEntityIDs(
 		context.Background(),
 		"repository:r_payments",
-		[]string{"content-entity:live", "content-entity:dead", "content-entity:metaclass-live"},
+		[]string{
+			"content-entity:live",
+			"content-entity:dead",
+			"content-entity:metaclass-live",
+			"content-entity:implements-live",
+			"content-entity:instantiates-live",
+		},
 	)
 	if err != nil {
 		t.Fatalf("DeadCodeIncomingEntityIDs() error = %v, want nil", err)
@@ -35,6 +43,12 @@ func TestContentReaderDeadCodeIncomingEntityIDsReadsCompletedCodeCallIntents(t *
 	}
 	if !incoming["content-entity:metaclass-live"] {
 		t.Fatalf("incoming[content-entity:metaclass-live] = false, want true")
+	}
+	if !incoming["content-entity:implements-live"] {
+		t.Fatalf("incoming[content-entity:implements-live] = false, want true")
+	}
+	if !incoming["content-entity:instantiates-live"] {
+		t.Fatalf("incoming[content-entity:instantiates-live] = false, want true")
 	}
 	if incoming["content-entity:dead"] {
 		t.Fatalf("incoming[content-entity:dead] = true, want false")
@@ -51,6 +65,7 @@ func TestContentReaderDeadCodeIncomingEntityIDsReadsCompletedCodeCallIntents(t *
 		"payload->>'callee_entity_id'",
 		"payload->>'target_entity_id'",
 		"payload->>'parent_entity_id'",
+		"payload->>'relationship_type' = 'USES_METACLASS'",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("query missing %q:\n%s", want, query)
@@ -61,6 +76,8 @@ func TestContentReaderDeadCodeIncomingEntityIDsReadsCompletedCodeCallIntents(t *
 		"content-entity:live",
 		"content-entity:dead",
 		"content-entity:metaclass-live",
+		"content-entity:implements-live",
+		"content-entity:instantiates-live",
 	} {
 		if !driverValuesContain(recorder.args[0], want) {
 			t.Fatalf("args = %#v, want value %#v", recorder.args[0], want)

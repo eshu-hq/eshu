@@ -73,6 +73,12 @@ func csharpMethodKeyForNode(name string, node *tree_sitter.Node, source []byte) 
 }
 
 func csharpBaseNames(node *tree_sitter.Node, source []byte) []string {
+	bases := csharpBaseNamesInOrder(node, source)
+	slices.Sort(bases)
+	return bases
+}
+
+func csharpBaseNamesInOrder(node *tree_sitter.Node, source []byte) []string {
 	baseListNode := csharpBaseListNode(node)
 	if baseListNode == nil {
 		return nil
@@ -94,7 +100,6 @@ func csharpBaseNames(node *tree_sitter.Node, source []byte) []string {
 		seen[name] = struct{}{}
 		bases = append(bases, name)
 	}
-	slices.Sort(bases)
 	return bases
 }
 

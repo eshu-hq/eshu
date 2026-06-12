@@ -37,6 +37,8 @@ func buildInheritanceRowMap(
 	}
 
 	switch relationshipType {
+	case "IMPLEMENTS":
+		return batchCanonicalImplementsEdgeUpsertCypher, rowMap, true
 	case "OVERRIDES":
 		return batchCanonicalInheritanceOverrideUpsertCypher, rowMap, true
 	case "ALIASES":
@@ -65,6 +67,13 @@ func labelScopedInheritanceCypher(
 			parentLabel,
 			"INHERITS",
 			"Parser entity bases metadata resolved an inheritance edge",
+		), true
+	case "IMPLEMENTS":
+		return buildLabelScopedInheritanceCypher(
+			childLabel,
+			parentLabel,
+			"IMPLEMENTS",
+			"Parser implemented-interface metadata resolved an implementation edge",
 		), true
 	case "OVERRIDES":
 		return buildLabelScopedInheritanceCypher(
