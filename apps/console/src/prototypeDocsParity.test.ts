@@ -42,6 +42,22 @@ describe("prototype documentation parity", () => {
     expect(guide).toContain("GET /api/v0/cloud/inventory");
   });
 
+  it("keeps the prototype repositories route on the live repository contract", () => {
+    const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
+    const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
+    const page = repoFile("apps/console/prototype/eshu-console/console/pages-repositories-parity.jsx");
+    const guide = repoFile("apps/console/prototype/eshu-console/port/PORT-TO-CONSOLE.md");
+
+    expect(html).toContain("console/pages-repositories-parity.jsx");
+    expect(app).toContain("<Repos data={data} client={liveClient}");
+    expect(page).toContain("/api/v0/repositories?limit=500&offset=0");
+    expect(page).toContain("/stats");
+    expect(page).toContain("/story");
+    expect(page).toContain("Repository detail unavailable");
+    expect(guide).toContain("GET /api/v0/repositories");
+    expect(guide).toContain("GET /api/v0/repositories/{id}/stats");
+  });
+
   it("keeps the prototype vulnerability surface split like the live console", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-vulnerability-parity.jsx");

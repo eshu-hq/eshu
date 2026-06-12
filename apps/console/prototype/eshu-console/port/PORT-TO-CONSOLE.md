@@ -47,6 +47,7 @@ The client + mappers already live in `console/data.js` (`ESHU.EshuApiClient`,
 | Console panel        | Endpoint |
 | -------------------- | -------- |
 | Dashboard / Ops stats| `GET /api/v0/ecosystem/overview`, `GET /api/v0/index-status`, `GET /api/v0/metrics/timeseries` |
+| Repositories         | `GET /api/v0/repositories`, `GET /api/v0/repositories/{id}/stats`, `GET /api/v0/repositories/{id}/story` |
 | Catalog              | `GET /api/v0/catalog?limit=2000` |
 | Language chart       | `GET /api/v0/repositories/language-inventory` |
 | Collectors           | `GET /api/v0/status/ingesters` |

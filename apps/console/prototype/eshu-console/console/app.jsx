@@ -210,7 +210,7 @@ function App() {
 
         {route === "dashboard" ? <Dashboard data={data} onOpenService={openService} onOpenNode={openNode} heroMode={t.heroMode} graphStyle={graphStyle} chartStyle={t.chartStyle} /> : null}
         {route === "explorer" ? <Explorer data={data} client={liveClient} onOpenService={openService} onOpenNode={openNode} graphStyle={graphStyle} setGraphStyle={(v) => { setGraphStyle(v); setTweak("graphStyle", v); }} verifiedOnly={verifiedOnly} /> : null}
-        {route === "repos" ? <Repos data={data} onOpenService={openService} onOpenNode={openNode} /> : null}
+        {route === "repos" ? <Repos data={data} client={liveClient} onOpenService={openService} onOpenNode={openNode} /> : null}
         {route === "reposource" ? <RepoSource data={data} client={liveClient} /> : null}
         {route === "catalog" ? <Catalog data={data} onOpenService={openService} /> : null}
         {route === "findings" ? <Findings data={data} onOpenService={openService} onOpenVuln={openVuln} verifiedOnly={verifiedOnly} /> : null}
