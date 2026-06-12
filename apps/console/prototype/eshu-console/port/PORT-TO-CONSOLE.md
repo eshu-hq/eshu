@@ -112,7 +112,9 @@ is added, update both:
   write-throughput, cache-hit, and vulnerability-feed intake decoration, stay
   demo-only until issue #2216 defines named live contracts.
 - **Vuln CVSS/EPSS/KEV detail** depends on the vulnerability-intelligence collector
-  being enabled; otherwise `supply-chain/impact/findings` returns an empty/limited set.
+  being enabled and scheduled with bounded source targets. Keep the UI empty/limited
+  instead of fabricating rows until issue #2217 proves the live runtime collector path
+  through `supply-chain/advisories` and `supply-chain/vulnerabilities/{id}`.
 
 ---
 
