@@ -12,7 +12,10 @@
 // node and edge invariants are enforced before bytes reach Neo4j or NornicDB.
 // Code-call rows may materialize as CALLS or REFERENCES depending on parser
 // semantics; Go and TypeScript type-reference metadata must remain REFERENCES
-// so graph truth does not claim that type literals are invocations. SQL
+// so graph truth does not claim that type literals are invocations. Code-call
+// relationships persist resolution_method plus its derived confidence and
+// reason from the closed codeprovenance vocabulary, with unspecified legacy
+// rows retaining the old confidence tier. SQL
 // relationship rows may materialize as TRIGGERS, EXECUTES, table references,
 // or column containment, with EXECUTES preserving trigger-bound SqlFunction
 // reachability for dead-code analysis. When reducer evidence includes endpoint

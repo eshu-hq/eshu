@@ -132,6 +132,28 @@ collectors.
 
 ## Evidence Notes
 
+### Code Relationship Edge Provenance
+
+No-Regression Evidence: issue #2224 keeps code relationship graph writes on
+the same `UNWIND $rows AS row` + endpoint `MATCH` + relationship `MERGE` shape
+for `CALLS`, `REFERENCES`, and `USES_METACLASS`. Baseline behavior on the
+stacked #2223 branch wrote a fixed `confidence=0.95` and fixed reason for all
+code edges; after the change, the writer sets `resolution_method`,
+`confidence`, and `reason` from existing row parameters derived by
+`go/internal/codeprovenance`. The focused proof is
+`go test ./internal/storage/cypher -run 'TestEdgeWriterWriteEdgesCodeCallsPersistsResolutionProvenance|TestBuildCanonicalCodeCallUpsertPersistsResolutionProvenance|TestEdgeWriterWriteEdgesCodeCallsPersistsEveryConfidenceTier|TestEdgeWriterWriteEdgesCodeCallsInvalidMethodFallsBackToUnspecified' -count=1`;
+the package proof is `go test ./internal/storage/cypher -count=1`. These cover
+one-row batches, all confidence tiers, invalid-method fallback, and unchanged
+relationship routing without adding a new graph traversal, queue, worker,
+retry path, or batch shape.
+
+No-Observability-Change: code-call shared projection continues to emit the
+existing shared-edge statement summaries, grouped-write metrics,
+`eshu_dp_code_call_edge_batches_total`, and
+`eshu_dp_code_call_edge_duration_seconds`. The new provenance values are graph
+relationship properties only, so metric labels, span names, status fields,
+queue state, and log payloads do not change.
+
 ### Catalog Deployment-Environment Resolution Cold Plan
 
 Performance Evidence: issue #1731. The `GET /api/v0/catalog` handler resolves

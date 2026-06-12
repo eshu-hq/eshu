@@ -28,6 +28,7 @@ func BuildCanonicalCodeCallUpsert(p CanonicalCodeCallParams, evidenceSource stri
 		"callee_entity_id": p.CalleeEntityID,
 		"evidence_source":  evidenceSource,
 	}
+	addCodeEdgeResolutionProperties(params, p.ResolutionMethod)
 	if p.CallKind != "" {
 		params["call_kind"] = p.CallKind
 	}

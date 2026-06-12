@@ -3,6 +3,8 @@ package cypher
 import (
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
 
 var codeCallEndpointLabels = map[string]struct{}{
@@ -33,12 +35,14 @@ func buildCodeCallRowMap(
 		if sourceEntityID == "" || targetEntityID == "" {
 			return "", nil, false
 		}
-		return batchCanonicalMetaclassUpsertCypher, map[string]any{
+		rowMap := map[string]any{
 			"source_entity_id":  sourceEntityID,
 			"target_entity_id":  targetEntityID,
 			"relationship_type": relationshipType,
 			"evidence_source":   evidenceSource,
-		}, true
+		}
+		addCodeEdgeResolutionProperties(rowMap, payloadString(payload, "resolution_method"))
+		return batchCanonicalMetaclassUpsertCypher, rowMap, true
 	}
 
 	callerEntityID := payloadString(payload, "caller_entity_id")
@@ -51,6 +55,7 @@ func buildCodeCallRowMap(
 		"callee_entity_id": calleeEntityID,
 		"evidence_source":  evidenceSource,
 	}
+	addCodeEdgeResolutionProperties(rowMap, payloadString(payload, "resolution_method"))
 	if callKind := payloadString(payload, "call_kind"); callKind != "" {
 		rowMap["call_kind"] = callKind
 	}
@@ -75,6 +80,21 @@ func buildCodeCallRowMap(
 	return batchCanonicalCodeCallUpsertCypher, rowMap, true
 }
 
+func addCodeEdgeResolutionProperties(rowMap map[string]any, rawMethod string) {
+	method := normalizedCodeEdgeResolutionMethod(rawMethod)
+	rowMap["resolution_method"] = method
+	rowMap["confidence"] = codeprovenance.Confidence(method)
+	rowMap["reason"] = codeprovenance.Reason(method)
+}
+
+func normalizedCodeEdgeResolutionMethod(rawMethod string) codeprovenance.Method {
+	method := codeprovenance.Method(rawMethod)
+	if rawMethod == "" || !codeprovenance.Valid(method) {
+		return codeprovenance.MethodUnspecified
+	}
+	return method
+}
+
 func isCodeCallEndpointLabel(label string) bool {
 	_, ok := codeCallEndpointLabels[label]
 	return ok
@@ -90,8 +110,9 @@ func buildLabelScopedCodeCallCypher(sourceLabel string, targetLabel string) stri
 MATCH (source:%s {uid: row.caller_entity_id})
 MATCH (target:%s {uid: row.callee_entity_id})
 MERGE (source)-[rel:CALLS]->(target)
-SET rel.confidence = 0.95,
-    rel.reason = 'Parser and symbol analysis resolved a code call edge',
+SET rel.confidence = row.confidence,
+    rel.reason = row.reason,
+    rel.resolution_method = row.resolution_method,
     rel.evidence_source = row.evidence_source,
     rel.call_kind = row.call_kind`, sourceLabel, targetLabel)
 }
@@ -101,8 +122,9 @@ func buildLabelScopedCodeReferenceCypher(sourceLabel string, targetLabel string)
 MATCH (source:%s {uid: row.caller_entity_id})
 MATCH (target:%s {uid: row.callee_entity_id})
 MERGE (source)-[rel:REFERENCES]->(target)
-SET rel.confidence = 0.95,
-    rel.reason = 'Parser and symbol analysis resolved a code reference edge',
+SET rel.confidence = row.confidence,
+    rel.reason = row.reason,
+    rel.resolution_method = row.resolution_method,
     rel.evidence_source = row.evidence_source,
     rel.call_kind = row.call_kind`, sourceLabel, targetLabel)
 }
