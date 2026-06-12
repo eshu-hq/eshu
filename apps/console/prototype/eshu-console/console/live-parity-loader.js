@@ -4,6 +4,7 @@
   if (!window.ESHU || typeof window.ESHU.loadLive !== "function") return;
 
   const baseLoadLive = window.ESHU.loadLive;
+  const OBSERVABILITY_PROVIDERS = ["grafana", "prometheus", "loki", "tempo"];
 
   function str(value) {
     return typeof value === "string" ? value : "";
@@ -26,6 +27,20 @@
     } catch (e) {
       out.prov[key] = "error:" + ((e && e.message) || "failed");
     }
+  }
+
+  function baseClient(client) {
+    const wrapped = Object.create(client);
+    wrapped.get = async function get(path) {
+      if (path.indexOf("/api/v0/repositories/by-language?limit=100&offset=0") === 0) {
+        return client.get("/api/v0/repositories/language-inventory?limit=100&offset=0");
+      }
+      if (path.indexOf("/api/v0/observability/coverage/correlations?limit=200") === 0) {
+        return { data: { correlations: [] } };
+      }
+      return client.get(path);
+    };
+    return wrapped;
   }
 
   function mapImage(row, env) {
@@ -92,9 +107,73 @@
     };
   }
 
+  function mapLanguage(row) {
+    return {
+      label: str(row.language) || str(row.name),
+      value: num(row.repository_count) || num(row.count) || num(row.file_count)
+    };
+  }
+
+  function coverageState(row) {
+    const status = str(row.coverage_status).toLowerCase();
+    if (status === "gap") return "gap";
+    if (status === "covered") return "covered";
+    const outcome = str(row.outcome).toLowerCase();
+    if (outcome === "exact" || outcome === "derived") return "covered";
+    if (outcome === "stale") return "partial";
+    return "gap";
+  }
+
+  function coverageSignal(row) {
+    const sig = str(row.coverage_signal);
+    const map = {
+      alarm: "alerts",
+      dashboard: "dashboards",
+      scrape_target: "metrics",
+      rule: "alerts",
+      log_signal: "logs",
+      trace_signal: "traces"
+    };
+    return map[sig] || sig;
+  }
+
+  async function loadObservabilityCoverage(client) {
+    const coverage = {};
+    const errors = [];
+    for (const provider of OBSERVABILITY_PROVIDERS) {
+      try {
+        const env = await client.get("/api/v0/observability/coverage/correlations?provider=" + provider + "&limit=200");
+        const rows = (env.data && (env.data.correlations || env.data.results)) || [];
+        rows.forEach((row) => {
+          const ref = str(row.target_service_ref) || str(row.target_uid);
+          const sig = coverageSignal(row);
+          if (!ref || !sig) return;
+          coverage[ref] = coverage[ref] || {};
+          if (coverage[ref][sig]) return;
+          coverage[ref][sig] = {
+            state: coverageState(row),
+            ref: str(row.observability_object_ref) || str(row.observability_resource_uid),
+            freshness: str(row.freshness_state)
+          };
+        });
+      } catch (e) {
+        errors.push((e && e.message) || "failed");
+      }
+    }
+    if (Object.keys(coverage).length) return coverage;
+    if (errors.length) throw new Error(errors[0]);
+    return null;
+  }
+
   window.ESHU.loadLive = async function loadLiveWithParity(client) {
-    const out = await baseLoadLive(client);
+    const out = await baseLoadLive(baseClient(client));
     out.prov = out.prov || {};
+
+    await section(out, "langInventory", async () => {
+      const env = await client.get("/api/v0/repositories/language-inventory?limit=100&offset=0");
+      const rows = ((env.data && env.data.languages) || []).map(mapLanguage).filter((row) => row.label);
+      return rows.length ? { langInventory: rows } : null;
+    });
 
     await section(out, "imageInventory", async () => {
       const env = await client.get("/api/v0/images?limit=50&offset=0");
@@ -131,6 +210,11 @@
       const env = await client.get("/api/v0/dependencies?direction=forward&limit=50");
       const rows = ((env.data && env.data.dependencies) || []).map(mapDependency).filter((row) => row.id);
       return rows.length ? { dependencyInventory: rows } : null;
+    });
+
+    await section(out, "obsCoverage", async () => {
+      const coverage = await loadObservabilityCoverage(client);
+      return coverage ? { obsCoverage: coverage } : null;
     });
 
     return out;
