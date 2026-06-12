@@ -178,10 +178,22 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("DEPLOYS_HELM");
     expect(page).toContain("PACKAGES");
     expect(page).toContain("loadRepositoryDeploymentStoryGraph");
+    expect(page).toContain("relationshipNodeKind");
+    expect(page).toContain("relationshipNodeSub");
     expect(page).toContain("repoId");
     expect(page).toContain("sourceLocation");
     expect(page).toContain('hashFor("reposource"');
     expect(page).toContain("Open source");
+  });
+
+  it("documents Graph Explorer as a live-hydrated prototype route", () => {
+    const guide = repoFile("apps/console/prototype/eshu-console/port/PORT-TO-CONSOLE.md");
+
+    expect(guide).toContain("Graph Explorer");
+    expect(guide).toContain("POST /api/v0/entities/resolve");
+    expect(guide).toContain("POST /api/v0/code/relationships");
+    expect(guide).toContain("POST /api/v0/impact/entity-map");
+    expect(guide).not.toContain("Demo-mode graph edges");
   });
 
   it("keeps the prototype workspace dossier route on the live query contracts", () => {

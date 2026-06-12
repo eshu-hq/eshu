@@ -102,17 +102,29 @@
       const id = edge.source_id || edge.source_name;
       if (!id) return;
       const verb = String(edge.type || "RELATED").toUpperCase();
-      if (id !== centerId && !nodes.has(id)) nodes.set(id, node(id, edge.source_name || id, "client", "", 0, false, "exact"));
+      if (id !== centerId && !nodes.has(id)) nodes.set(id, node(id, edge.source_name || id, relationshipNodeKind(verb), relationshipNodeSub(verb, "incoming"), 0, false, "exact"));
       edges.push({ s: id, t: centerId, verb, layer: layerFor(verb) });
     });
     (data.outgoing || []).forEach((edge) => {
       const id = edge.target_id || edge.target_name;
       if (!id) return;
       const verb = String(edge.type || "RELATED").toUpperCase();
-      if (id !== centerId && !nodes.has(id)) nodes.set(id, node(id, edge.target_name || id, "client", "", 2, false, "exact"));
+      if (id !== centerId && !nodes.has(id)) nodes.set(id, node(id, edge.target_name || id, relationshipNodeKind(verb), relationshipNodeSub(verb, "outgoing"), 2, false, "exact"));
       edges.push({ s: centerId, t: id, verb, layer: layerFor(verb) });
     });
     return { nodes: Array.from(nodes.values()), edges };
+  }
+
+  function relationshipNodeKind(verb) {
+    const normalized = String(verb || "").toUpperCase();
+    if (normalized === "IMPORTS" || normalized === "REFERENCES") return "library";
+    if (normalized === "CALLS") return "client";
+    if (normalized === "INHERITS" || normalized === "OVERRIDES") return "client";
+    return "client";
+  }
+
+  function relationshipNodeSub(verb, direction) {
+    return direction + " " + String(verb || "RELATED").toUpperCase();
   }
 
   function sourceLocation(data) {

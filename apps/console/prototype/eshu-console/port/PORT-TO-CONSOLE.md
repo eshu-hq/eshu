@@ -53,6 +53,7 @@ The client + mappers already live in `console/data.js` (`ESHU.EshuApiClient`,
 | Collectors           | `GET /api/v0/status/ingesters` |
 | Findings             | `POST /api/v0/code/dead-code` |
 | Code Graph           | `POST /api/v0/code/dead-code`, `POST /api/v0/code/relationships` |
+| Graph Explorer       | `POST /api/v0/entities/resolve`, `POST /api/v0/code/relationships`, `GET /api/v0/services/{name}/context`, `GET /api/v0/repositories/{id}/context`, `POST /api/v0/impact/entity-map` |
 | Vulnerabilities      | `GET /api/v0/supply-chain/impact/findings`, `GET /api/v0/supply-chain/advisories` |
 | Images               | `GET /api/v0/images` |
 | IaC                  | `GET /api/v0/iac/resources` |
@@ -98,12 +99,6 @@ is added, update both:
 
 ## What stays representative until wired
 
-- **Demo-mode graph edges** — the bundled focus/estate graph remains a static
-  sample for design-tool work without a backend. In Live mode, the prototype
-  Graph Explorer resolves handles with `POST /api/v0/entities/resolve`, loads
-  Direct code edges with `POST /api/v0/code/relationships`, and loads
-  Neighborhood story/entity context through `GET /api/v0/services/{name}/context`
-  with `POST /api/v0/impact/entity-map` fallback.
 - **Repository branch selection** — source browsing uses
   `GET /api/v0/repositories/{id}/tree` and `/content?path=` for the indexed ref.
   Multi-branch selection remains gated on the production branches API.
