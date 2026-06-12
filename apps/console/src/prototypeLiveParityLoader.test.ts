@@ -324,4 +324,43 @@ describe("prototype live parity loader", () => {
     expect(model.cloudInventory).toBeUndefined();
     expect(model.prov.cloudInventory).toBe("error:cloud inventory query failed");
   });
+
+  it("marks prototype dead-code unavailable when the dead-code API returns an error envelope", async () => {
+    const win = loadPrototypeWindow();
+    const client: PrototypeClient = {
+      paths: [],
+      async get(path: string): Promise<unknown> {
+        this.paths.push(path);
+        if (path.includes("/repositories?limit=500&offset=0")) return { data: { repositories: [] } };
+        if (path.includes("/observability/coverage/correlations")) return { data: { correlations: [] } };
+        if (path.includes("/metrics/timeseries")) return { data: { points: [] } };
+        if (path.includes("/supply-chain/sbom-attestations/attachments/count")) return { data: { total_attachments: 0 } };
+        return { data: { advisories: [], buckets: [], dependencies: [], images: [], languages: [], resources: [] } };
+      },
+      async post(path: string): Promise<unknown> {
+        this.paths.push(path);
+        if (path.includes("/code/dead-code")) {
+          return {
+            data: {
+              results: [{
+                classification: "unused",
+                entity_id: "content-entity:e1",
+                file_path: "server/routes.ts",
+                labels: ["Function"],
+                name: "unusedRoute",
+                repo_id: "repository:r1"
+              }]
+            },
+            error: { message: "dead-code query failed" }
+          };
+        }
+        return { data: {} };
+      }
+    };
+
+    const model = await win.ESHU.loadLive(client);
+
+    expect(model.deadCode).toBeUndefined();
+    expect(model.prov.deadCode).toBe("error:dead-code query failed");
+  });
 });

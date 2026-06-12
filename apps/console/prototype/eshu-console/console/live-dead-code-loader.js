@@ -14,9 +14,22 @@
     return env && env.truth && env.truth.level ? env.truth.level : "exact";
   }
 
+  function envelopeErrorMessage(error) {
+    if (!error) return "";
+    if (typeof error === "string") return error;
+    if (typeof error !== "object") return "api error";
+    return str(error.message) || str(error.code) || "api error";
+  }
+
+  function apiData(env) {
+    const message = envelopeErrorMessage(env && env.error);
+    if (message) throw new Error(message);
+    return env && env.data ? env.data : {};
+  }
+
   async function loadRepositoryNameLookup(client) {
     const env = await client.get("/api/v0/repositories?limit=500&offset=0");
-    const rows = (env.data && env.data.repositories) || [];
+    const rows = apiData(env).repositories || [];
     const names = {};
     rows.forEach((row) => {
       const id = str(row.id);
@@ -64,7 +77,7 @@
     let repoNames = {};
     try { repoNames = await loadRepositoryNameLookup(client); } catch (e) {}
     const env = await client.post("/api/v0/code/dead-code", { limit: 100 });
-    const rows = ((env.data && env.data.results) || [])
+    const rows = (apiData(env).results || [])
       .map((row, index) => mapDeadCode(row, index, env, repoNames));
     return rows.length ? { deadCode: rows } : null;
   };
