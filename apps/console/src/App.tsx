@@ -3,7 +3,7 @@
 // or sample data path. Before a connection exists (or after one fails) the shell
 // shows an explicit loading / needs-connection / error state instead of any
 // fabricated numbers. main.tsx already wraps this in <BrowserRouter>.
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { EshuApiClient } from "./api/client";
 import { loadConsoleSnapshot } from "./api/eshuConsoleLive";
+import { loadRepositories, type RepoListItem } from "./api/repoCatalog";
 import { loadConsoleEnvironment, saveConsoleEnvironment } from "./config/environment";
 import { emptyConsoleModel, modelFromSnapshot } from "./console/liveModel";
 import type { ConsoleModel } from "./console/types";
@@ -126,10 +127,12 @@ export function App(): React.JSX.Element {
   });
   const [open, setOpen] = useState(false);
   const [client, setClient] = useState<EshuApiClient | undefined>();
+  const [repositories, setRepositories] = useState<readonly RepoListItem[]>([]);
   const [drawer, setDrawer] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const visibleModel = verifiedOnly ? verifiedConsoleModel(model) : model;
+  const searchInputRef = useRef<HTMLInputElement>(null);
   // Boot guard: React StrictMode runs effects twice in development, which would
   // otherwise fire two concurrent boot connects whose in-flight fetches abort
   // each other (issue #1727: ERR_ABORTED -> Catalog blank). The ref dedupes the
@@ -141,21 +144,50 @@ export function App(): React.JSX.Element {
     setSource((s) => ({ ...s, base, key, status: "connecting", msg: "" }));
     try {
       const next = new EshuApiClient({ baseUrl: base, apiKey: key });
-      const snap = await loadConsoleSnapshot(next);
+      const [snap, repoRows] = await Promise.all([
+        loadConsoleSnapshot(next),
+        loadRepositories(next).catch((): readonly RepoListItem[] => [])
+      ]);
       saveConsoleEnvironment({ mode: "private", apiBaseUrl: base, apiKey: key, recentApiBaseUrls: [base] });
       setClient(next);
       setModel(modelFromSnapshot(snap));
+      setRepositories(repoRows);
       setSource({ base, key, status: "connected", msg: "" });
       setOpen(false);
     } catch (e) {
       // No demo fallback: keep an explicit empty/unavailable model so panels show
       // "—" / "API not available" rather than invented data.
       setClient(undefined);
+      setRepositories([]);
       setModel(emptyConsoleModel("unavailable"));
       setSource({ base, key, status: "error", msg: e instanceof Error ? e.message : "unreachable" });
     }
   }
   const openService = (name: string): void => setDrawer(name);
+
+  function runSearch(rawQuery: string): void {
+    const query = rawQuery.trim();
+    if (query.length === 0) return;
+    const needle = query.toLowerCase();
+    const repositoryId = repositorySearchTarget(repositories, needle);
+    if (repositoryId) {
+      navigate(`/repositories/${encodeURIComponent(repositoryId)}/source`);
+      return;
+    }
+    const service = visibleModel.services.find((row) =>
+      [row.name, row.id, row.repo].some((value) => value.toLowerCase().includes(needle))
+    );
+    if (service) {
+      openService(service.name);
+      return;
+    }
+    const vulnerabilityId = vulnerabilitySearchTarget(visibleModel, needle);
+    if (vulnerabilityId) {
+      navigate(`/vulnerabilities/${encodeURIComponent(vulnerabilityId)}`);
+      return;
+    }
+    navigate(`/explorer?q=${encodeURIComponent(query)}`);
+  }
 
   // Boot straight into live data when a saved environment exists. With no saved
   // environment, stay in "needs-connection" until the operator connects. The
@@ -171,7 +203,7 @@ export function App(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
-    function onKey(e: KeyboardEvent): void { if (e.key === "Escape") { setOpen(false); setDrawer(null); } }
+    function onKey(e: globalThis.KeyboardEvent): void { if (e.key === "Escape") { setOpen(false); setDrawer(null); } }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
@@ -186,22 +218,18 @@ export function App(): React.JSX.Element {
 
   function submitSearch(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    const query = searchQuery.trim();
-    if (query.length === 0) return;
-    const needle = query.toLowerCase();
-    const service = visibleModel.services.find((row) =>
-      [row.name, row.id, row.repo].some((value) => value.toLowerCase().includes(needle))
-    );
-    if (service) {
-      openService(service.name);
-      return;
-    }
-    const vulnerabilityId = vulnerabilitySearchTarget(visibleModel, needle);
-    if (vulnerabilityId) {
-      navigate(`/vulnerabilities/${encodeURIComponent(vulnerabilityId)}`);
-      return;
-    }
-    navigate(`/explorer?q=${encodeURIComponent(query)}`);
+    runSearch(searchQuery);
+  }
+
+  function submitSearchKey(event: KeyboardEvent<HTMLInputElement>): void {
+    if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    runSearch(event.currentTarget.value);
+  }
+
+  function submitSearchButton(event: MouseEvent<HTMLButtonElement>): void {
+    event.preventDefault();
+    runSearch(searchInputRef.current?.value ?? searchQuery);
   }
 
   return (
@@ -238,12 +266,16 @@ export function App(): React.JSX.Element {
         <header className="topbar">
           <div className="topbar-title"><h1>{pageTitle}</h1><span>Read-only code-to-cloud graph status & evidence</span></div>
           <form className="searchbox" onSubmit={submitSearch}>
-            <Search aria-hidden />
+            <button className="search-submit" type="submit" aria-label="Search" onClick={submitSearchButton}>
+              <Search aria-hidden />
+            </button>
             <input
+              ref={searchInputRef}
               aria-label="Search Eshu"
               placeholder="Search repos, services, CVEs, evidence…"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
+              onKeyDown={submitSearchKey}
             />
             <kbd>⌘K</kbd>
           </form>
@@ -329,6 +361,13 @@ function vulnerabilitySearchTarget(model: ConsoleModel, needle: string): string 
   );
   if (exactAdvisory) return exactAdvisory.cveId || exactAdvisory.ghsaId || exactAdvisory.id;
   return null;
+}
+
+function repositorySearchTarget(repositories: readonly RepoListItem[], needle: string): string | null {
+  const exactRepository = repositories.find((row) =>
+    [row.id, row.name, row.repoSlug].some((value) => value.toLowerCase() === needle)
+  );
+  return exactRepository?.id ?? null;
 }
 
 function nonZero(value: number): number | null {

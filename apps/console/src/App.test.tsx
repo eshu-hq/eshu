@@ -277,4 +277,48 @@ describe("App shell", () => {
     expect(await screen.findByRole("heading", { name: "CVE-2024-0001" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Graph Explorer" })).not.toBeInTheDocument();
   });
+
+  it("routes repository searches to the source browser instead of graph explorer", async () => {
+    window.localStorage.setItem(
+      "eshu.console.environment",
+      JSON.stringify({ mode: "private", apiBaseUrl: "/eshu-api/", recentApiBaseUrls: ["/eshu-api/"] })
+    );
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const path = new URL(new Request(input).url).pathname;
+      if (path === "/eshu-api/api/v0/index-status") {
+        return Response.json({ status: "ready", repository_count: 1, queue: {} });
+      }
+      if (path === "/eshu-api/api/v0/ecosystem/overview") {
+        return Response.json({ data: { repo_count: 1 } });
+      }
+      if (path === "/eshu-api/api/v0/catalog") {
+        return Response.json({ data: { services: [] } });
+      }
+      if (path === "/eshu-api/api/v0/repositories") {
+        return Response.json({
+          data: { repositories: [{ id: "repository:helm-charts", name: "helm-charts", repo_slug: "platform/helm-charts" }] }
+        });
+      }
+      if (path === "/eshu-api/api/v0/repositories/repository%3Ahelm-charts/tree") {
+        return Response.json({
+          data: { ref: "main", path: "", entries: [] }
+        });
+      }
+      return Response.json({ data: {} });
+    }));
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    const input = await screen.findByLabelText("Search Eshu");
+    fireEvent.change(input, { target: { value: "helm-charts" } });
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+
+    expect(await screen.findByRole("heading", { name: /helm-charts/ })).toBeInTheDocument();
+    expect(screen.getByText(/File tree \+ viewer/)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Graph Explorer" })).not.toBeInTheDocument();
+  });
 });

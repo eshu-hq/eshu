@@ -125,6 +125,8 @@ h1, h2, h3, h4 { margin: 0; letter-spacing: -0.02em; font-weight: 700; }
   background: var(--bg-field); border: 1px solid var(--line); border-radius: 9px; padding: 0 12px; height: 38px; color: var(--muted);
 }
 .searchbox:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.search-submit { width: 20px; height: 20px; border: 0; padding: 0; display: grid; place-items: center; flex: none; background: transparent; color: inherit; cursor: pointer; }
+.search-submit:hover { color: var(--bone); }
 .searchbox input { background: none; border: 0; outline: none; color: var(--bone); flex: 1; font-size: 0.88rem; }
 .searchbox kbd { font-family: var(--mono); font-size: 0.68rem; color: var(--subtle); border: 1px solid var(--line-2); border-radius: 5px; padding: 1px 6px; }
 .topbar-btn { width: 38px; height: 38px; border-radius: 9px; border: 1px solid var(--line); display: grid; place-items: center; color: var(--muted); background: var(--bg-field); }

@@ -108,6 +108,23 @@ describe("prototype documentation parity", () => {
     expect(prototypeApp).toContain('setRouteHash("vulnerabilities", "?cve=" + encodeURIComponent(cve))');
   });
 
+  it("keeps prototype topbar search wired to live-style repository routing", () => {
+    const liveApp = repoFile("apps/console/src/App.tsx");
+    const prototypeApp = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
+
+    expect(liveApp).toContain("repositorySearchTarget");
+    expect(liveApp).toContain("loadRepositories(next)");
+    expect(liveApp).toContain("navigate(`/repositories/${encodeURIComponent(repositoryId)}/source`)");
+    expect(liveApp).toContain("onKeyDown={submitSearchKey}");
+    expect(liveApp).toContain("onClick={submitSearchButton}");
+    expect(liveApp).toContain('className="search-submit"');
+    expect(prototypeApp).toContain("prototypeRepositorySearchTarget");
+    expect(prototypeApp).toContain('setRouteHash("reposource"');
+    expect(prototypeApp).toContain("onKeyDown={submitSearchKey}");
+    expect(prototypeApp).toContain("onClick={submitSearchButton}");
+    expect(prototypeApp).toContain('className="search-submit"');
+  });
+
   it("keeps the prototype repositories route on the live repository contract", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");

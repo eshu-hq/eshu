@@ -1,5 +1,5 @@
 /* Eshu Console — app shell, nav, routing, tweaks. */
-const { useState: useStateA, useEffect: useEffectA } = React;
+const { useState: useStateA, useEffect: useEffectA, useRef: useRefA } = React;
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "accent": "teal",
@@ -82,6 +82,7 @@ function App() {
   const [srcOpen, setSrcOpen] = useStateA(false);
   const [liveClient, setLiveClient] = useStateA(null);
   const [searchQuery, setSearchQuery] = useStateA("");
+  const searchInputRef = useRefA(null);
   const STORE = "eshu.console.environment";
   const [source, setSource] = useStateA(() => {
     try { const e = JSON.parse(localStorage.getItem(STORE) || "{}"); return { mode: "demo", base: e.apiBaseUrl || "/eshu-api/", key: "", status: "idle", msg: "", live: null }; }
@@ -142,11 +143,18 @@ function App() {
   const openCollector = (collector) => setDrawer({ type: "collector", collector });
   function openVuln(cve) { setDrawer(null); setRouteHash("vulnerabilities", "?cve=" + encodeURIComponent(cve)); setRoute("vulnerabilities"); }
   const goAndClose = (route) => { setDrawer(null); go(route); };
-  function submitSearch(event) {
-    event.preventDefault();
-    const query = searchQuery.trim();
+
+  function runSearch(rawQuery) {
+    const query = rawQuery.trim();
     if (!query) return;
     const needle = query.toLowerCase();
+    const repositoryId = prototypeRepositorySearchTarget(data, needle);
+    if (repositoryId) {
+      setDrawer(null);
+      setRouteHash("reposource", "/" + encodeURIComponent(repositoryId) + "/source");
+      setRoute("reposource");
+      return;
+    }
     const service = (data.services || []).find((s) => [s.name, s.id, s.repo].filter(Boolean).some((value) => String(value).toLowerCase().includes(needle)));
     if (service) {
       openService(service.id || service.name);
@@ -160,6 +168,22 @@ function App() {
     setDrawer(null);
     setRouteHash("explorer", "?q=" + encodeURIComponent(query));
     setRoute("explorer");
+  }
+
+  function submitSearch(event) {
+    event.preventDefault();
+    runSearch(searchQuery);
+  }
+
+  function submitSearchKey(event) {
+    if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    runSearch(event.currentTarget.value);
+  }
+
+  function submitSearchButton(event) {
+    event.preventDefault();
+    runSearch((searchInputRef.current && searchInputRef.current.value) || searchQuery);
   }
 
   const [title, sub] = TITLES[route] || TITLES.dashboard;
@@ -202,8 +226,10 @@ function App() {
         <header className="topbar">
           <div className="topbar-title"><h1>{title}</h1><span>{sub}</span></div>
           <form className="searchbox" onSubmit={submitSearch}>
-            <Icon.search size={16} />
-            <input placeholder="Search repos, services, CVEs, evidence…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+            <button className="search-submit" type="submit" aria-label="Search" onClick={submitSearchButton}>
+              <Icon.search size={16} />
+            </button>
+            <input ref={searchInputRef} placeholder="Search repos, services, CVEs, evidence…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={submitSearchKey} />
             <kbd>⌘K</kbd>
           </form>
           <button className={cx("topbar-btn verify-btn", verifiedOnly && "on")} title="Show verified evidence only (hide inferred / representative facts)" onClick={() => setVerifiedOnly((v) => !v)}>
@@ -277,6 +303,15 @@ function prototypeVulnerabilitySearchTarget(D, needle) {
   );
   if (!advisory) return null;
   return advisory.cve || advisory.ghsa || advisory.id;
+}
+
+function prototypeRepositorySearchTarget(D, needle) {
+  const repository = (D.services || []).find((service) => {
+    const isRepositoryOnly = service.system === "Repository" || service.kind === "repo" || String(service.id || "").startsWith("repository:");
+    if (!isRepositoryOnly) return false;
+    return [service.id, service.name, service.repo].filter(Boolean).some((value) => String(value).toLowerCase() === needle);
+  });
+  return (repository && (repository.id || repository.name)) || null;
 }
 
 function SourcePopover({ source, onDemo, onConnect, onClose }) {
