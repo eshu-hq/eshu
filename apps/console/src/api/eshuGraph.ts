@@ -10,8 +10,10 @@ import { EshuApiHttpError } from "./client";
 import { EshuEnvelopeError } from "./envelope";
 import type { GraphModel, GraphNode, GraphEdge, GraphLayer } from "../console/types";
 import { resolveEntity } from "./entityResolution";
+import { codeRelationshipsToGraph, type CodeRelationshipsResponse } from "./eshuGraphCode";
 
 export { loadBlastGraph, blastFromModel } from "./eshuGraphImpact";
+export { codeRelationshipsToGraph, type CodeRelationshipsResponse } from "./eshuGraphCode";
 
 const VERB_LAYER: Record<string, GraphLayer> = {
   CALLS: "code", IMPORTS: "code", INHERITS: "code", OVERRIDES: "code", REFERENCES: "code",
@@ -73,49 +75,6 @@ export function relationshipsToGraph(data: RelationshipsResponse, name: string):
       : { s: center.id, t: other.id, verb, layer: layerFor(verb) });
   });
 
-  return { nodes: [...nodes.values()], edges };
-}
-
-// --- code/relationships (Direct mode) ---------------------------------------
-// POST /api/v0/code/relationships resolves edges by `entity_id` only — a `name`
-// body returns nothing — and answers with split incoming/outgoing edge lists,
-// not the generic relationships[] shape. See codeRelationshipsToGraph below.
-interface CodeRelEdge {
-  readonly type?: string;
-  readonly source_id?: string; readonly source_name?: string;
-  readonly target_id?: string; readonly target_name?: string;
-}
-/**
- * Live code/relationships envelope payload used by Direct mode after resolving
- * a searched symbol to a graph entity id.
- */
-export interface CodeRelationshipsResponse {
-  readonly entity_id?: string; readonly name?: string; readonly labels?: readonly string[];
-  readonly incoming?: readonly CodeRelEdge[]; readonly outgoing?: readonly CodeRelEdge[];
-}
-
-// codeRelationshipsToGraph maps the code/relationships incoming/outgoing edge
-// lists into a center-and-neighbours graph.
-export function codeRelationshipsToGraph(data: CodeRelationshipsResponse, fallback: { id: string; name: string }): GraphModel {
-  const centerId = data.entity_id ?? fallback.id;
-  const centerType = data.labels?.[0];
-  const nodes = new Map<string, GraphNode>();
-  nodes.set(centerId, { id: centerId, kind: kindFor(centerType), label: data.name ?? fallback.name, sub: centerType, col: 1, hero: true, truth: "exact" });
-  const edges: GraphEdge[] = [];
-  (data.incoming ?? []).forEach((e) => {
-    const id = e.source_id ?? e.source_name;
-    if (!id) return;
-    const verb = (e.type ?? "RELATED").toUpperCase();
-    if (id !== centerId && !nodes.has(id)) nodes.set(id, { id, kind: kindFor(undefined), label: e.source_name ?? id, col: 0, truth: "exact" });
-    edges.push({ s: id, t: centerId, verb, layer: layerFor(verb) });
-  });
-  (data.outgoing ?? []).forEach((e) => {
-    const id = e.target_id ?? e.target_name;
-    if (!id) return;
-    const verb = (e.type ?? "RELATED").toUpperCase();
-    if (id !== centerId && !nodes.has(id)) nodes.set(id, { id, kind: kindFor(undefined), label: e.target_name ?? id, col: 2, truth: "exact" });
-    edges.push({ s: centerId, t: id, verb, layer: layerFor(verb) });
-  });
   return { nodes: [...nodes.values()], edges };
 }
 

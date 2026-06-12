@@ -135,6 +135,41 @@ describe("ExplorerPage mode-by-kind (issue #1725)", () => {
     expect(screen.getByRole("button", { name: "Direct" }).className).toContain("active");
   });
 
+  it("links a direct code entity to its repository source location", async () => {
+    const client = {
+      postJson: async () => ({
+        entities: [{ id: "content-entity:e1", name: "searchByPortalId", labels: ["Function"], type: "Function" }]
+      }),
+      post: async () => ({
+        data: {
+          entity_id: "content-entity:e1",
+          name: "searchByPortalId",
+          labels: ["Function"],
+          repo_id: "repository:r_platform",
+          repo_name: "api-node-platform",
+          file_path: "server/resources/listing/index.js",
+          start_line: 1653,
+          end_line: 1662,
+          incoming: [],
+          outgoing: []
+        },
+        error: null,
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+
+    renderExplorer(client, "searchByPortalId");
+
+    expect(await screen.findByRole("link", { name: "server/resources/listing/index.js:1653-1662" })).toHaveAttribute(
+      "href",
+      "/repositories/repository%3Ar_platform/source?path=server%2Fresources%2Flisting%2Findex.js&lineStart=1653&lineEnd=1662"
+    );
+    expect(screen.getByRole("link", { name: "Open source" })).toHaveAttribute(
+      "href",
+      "/repositories/repository%3Ar_platform/source?path=server%2Fresources%2Flisting%2Findex.js&lineStart=1653&lineEnd=1662"
+    );
+  });
+
   it("uses a live default query when the page has no search parameter", async () => {
     const calls: string[] = [];
     const client = {

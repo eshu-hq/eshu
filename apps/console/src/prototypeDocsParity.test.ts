@@ -137,6 +137,9 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("DEPLOYS_FROM");
     expect(page).toContain("loadRepositoryDeploymentStoryGraph");
     expect(page).toContain("repoId");
+    expect(page).toContain("sourceLocation");
+    expect(page).toContain('hashFor("reposource"');
+    expect(page).toContain("Open source");
   });
 
   it("keeps the prototype workspace dossier route on the live query contracts", () => {

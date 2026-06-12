@@ -84,6 +84,29 @@ describe("eshuGraph", () => {
     expect(graph.edges.find((e) => e.t === "content-entity:e_dep")).toMatchObject({ s: "content-entity:e_center", verb: "CALLS", layer: "code" });
   });
 
+  it("codeRelationshipsToGraph keeps source metadata for the centered code entity", () => {
+    const graph = codeRelationshipsToGraph({
+      entity_id: "content-entity:e_center",
+      name: "searchByPortalId",
+      labels: ["Function"],
+      repo_id: "repository:r_platform",
+      repo_name: "api-node-platform",
+      file_path: "server/resources/listing/index.js",
+      start_line: 1653,
+      end_line: 1662,
+      incoming: [],
+      outgoing: []
+    }, { id: "content-entity:e_center", name: "searchByPortalId" });
+
+    expect(graph.nodes.find((node) => node.hero)?.source).toEqual({
+      repoId: "repository:r_platform",
+      repoName: "api-node-platform",
+      filePath: "server/resources/listing/index.js",
+      startLine: 1653,
+      endLine: 1662
+    });
+  });
+
   it("loadEntityGraph resolves the query to an entity_id, then posts code/relationships by entity_id", async () => {
     let calledPath = "";
     let body: unknown = null;

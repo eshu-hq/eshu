@@ -1,6 +1,6 @@
 // pages/ExplorerPage.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
 import type { ConsoleModel, GraphLayer, GraphModel, GraphNode } from "../console/types";
 import { LAYER_COLOR, KIND_COLOR, fmt } from "../console/types";
@@ -164,6 +164,14 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
               <div className="insp-head"><span className="cglyph" style={{ width: 30, height: 30, color: KIND_COLOR[sel.kind] ?? "#9aa4af", borderColor: KIND_COLOR[sel.kind] ?? "#9aa4af" }}>{sel.kind.slice(0, 1).toUpperCase()}</span><div><div className="insp-kind">{sel.kind}</div><div className="insp-title">{sel.label}</div></div></div>
               {sel.sub ? <div className="t-mut mono" style={{ fontSize: ".82rem" }}>{sel.sub}</div> : null}
               {sel.truth ? <TruthChip level={sel.truth} /> : null}
+              {sourceHref(sel) ? (
+                <div className="kv-list">
+                  <div className="kv">
+                    <span>Source</span>
+                    <Link className="mono" to={sourceHref(sel) ?? ""}>{sourceLabel(sel)}</Link>
+                  </div>
+                </div>
+              ) : null}
               {live ? (
                 <button
                   className="btn-ghost"
@@ -174,6 +182,7 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
                   {sel.id === currentCenterId(base) ? "Current center" : busy ? "Loading…" : "Center graph here →"}
                 </button>
               ) : null}
+              {sourceHref(sel) ? <Link className="btn-ghost active" to={sourceHref(sel) ?? ""}>Open source</Link> : null}
               <div className="section-label">Edges</div>
               <div className="insp-evi">
                 {base.edges.filter((e) => e.s === sel.id || e.t === sel.id).map((e, i) => {
@@ -216,4 +225,21 @@ function modeForNode(node: GraphNode): "direct" | "neighborhood" {
 function repoIDForNode(node: GraphNode): string | undefined {
   if (node.kind !== "repo") return undefined;
   return node.id.trim() === "" ? undefined : node.id;
+}
+
+function sourceHref(node: GraphNode): string | null {
+  const source = node.source;
+  if (!source) return null;
+  const params = new URLSearchParams({ path: source.filePath });
+  if (source.startLine !== undefined) params.set("lineStart", String(source.startLine));
+  if (source.endLine !== undefined) params.set("lineEnd", String(source.endLine));
+  return `/repositories/${encodeURIComponent(source.repoId)}/source?${params.toString()}`;
+}
+
+function sourceLabel(node: GraphNode): string {
+  const source = node.source;
+  if (!source) return "source path unavailable";
+  if (source.startLine !== undefined && source.endLine !== undefined) return `${source.filePath}:${source.startLine}-${source.endLine}`;
+  if (source.startLine !== undefined) return `${source.filePath}:${source.startLine}`;
+  return source.filePath;
 }

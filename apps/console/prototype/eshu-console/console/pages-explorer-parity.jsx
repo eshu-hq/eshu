@@ -40,8 +40,8 @@
     return "direct";
   }
 
-  function node(id, label, kind, sub, col, hero, truth) {
-    return { id, label: label || id, kind: kind || "service", sub, col, hero: Boolean(hero), truth: truth || "exact" };
+  function node(id, label, kind, sub, col, hero, truth, source) {
+    return { id, label: label || id, kind: kind || "service", sub, col, hero: Boolean(hero), truth: truth || "exact", source };
   }
 
   function centerOnly(id, label, type) {
@@ -82,7 +82,7 @@
     const centerType = (Array.isArray(data.labels) && data.labels[0]) || fallback.kind;
     const nodes = new Map();
     const edges = [];
-    nodes.set(centerId, node(centerId, data.name || fallback.name, kindFor(centerType), centerType, 1, true, "exact"));
+    nodes.set(centerId, node(centerId, data.name || fallback.name, kindFor(centerType), centerType, 1, true, "exact", sourceLocation(data)));
     (data.incoming || []).forEach((edge) => {
       const id = edge.source_id || edge.source_name;
       if (!id) return;
@@ -98,6 +98,19 @@
       edges.push({ s: centerId, t: id, verb, layer: layerFor(verb) });
     });
     return { nodes: Array.from(nodes.values()), edges };
+  }
+
+  function sourceLocation(data) {
+    const repoId = String(data.repo_id || "").trim();
+    const filePath = String(data.file_path || "").trim();
+    if (!repoId || !filePath) return null;
+    return {
+      repoId,
+      repoName: String(data.repo_name || "").trim(),
+      filePath,
+      startLine: data.start_line,
+      endLine: data.end_line
+    };
   }
 
   async function loadDirectGraph(client, resolved) {
@@ -268,6 +281,23 @@
     return value.kind === "client" || value.kind === "library" ? "direct" : "neighborhood";
   }
 
+  function sourceHref(value) {
+    const source = value && value.source;
+    if (!source) return "";
+    const params = new URLSearchParams({ path: source.filePath });
+    if (source.startLine !== undefined) params.set("lineStart", String(source.startLine));
+    if (source.endLine !== undefined) params.set("lineEnd", String(source.endLine));
+    return window.ESHU_ROUTES.hashFor("reposource", "/" + encodeURIComponent(source.repoId) + "/source?" + params.toString());
+  }
+
+  function sourceLabel(value) {
+    const source = value && value.source;
+    if (!source) return "source path unavailable";
+    if (source.startLine !== undefined && source.endLine !== undefined) return source.filePath + ":" + source.startLine + "-" + source.endLine;
+    if (source.startLine !== undefined) return source.filePath + ":" + source.startLine;
+    return source.filePath;
+  }
+
   function LiveExplorer({ data, client, onOpenService }) {
     const D = data || ESHU;
     const [layout, setLayout] = useStateXP("layered");
@@ -388,9 +418,15 @@
                 </div>
                 {selected.sub ? <div className="t-mut mono" style={{ fontSize: ".82rem" }}>{selected.sub}</div> : null}
                 {selected.truth ? <TruthChip level={selected.truth} /> : null}
+                {sourceHref(selected) ? (
+                  <div className="kv-list">
+                    <div className="kv"><span>Source</span><a className="mono" href={sourceHref(selected)}>{sourceLabel(selected)}</a></div>
+                  </div>
+                ) : null}
                 <button className="btn-ghost" disabled={busy || selected.id === centerId(graph)} style={{ width: "100%", justifyContent: "center" }} onClick={() => void centerOn(selected)}>
                   {selected.id === centerId(graph) ? "Current center" : busy ? "Loading..." : "Center graph here"}
                 </button>
+                {sourceHref(selected) ? <a className="btn-ghost active" href={sourceHref(selected)}>Open source</a> : null}
                 {(selected.kind === "service" || selected.kind === "workload") && onOpenService ? (
                   <button className="btn-ghost" style={{ width: "100%", justifyContent: "center" }} onClick={() => onOpenService(selected.label)}>Open service context</button>
                 ) : null}
