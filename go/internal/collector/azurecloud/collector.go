@@ -66,6 +66,14 @@ type ScanResult struct {
 	// zero unless the collector was given a redaction key (tag values are never
 	// fingerprinted or carried without one).
 	TagObservationCount int
+	// RelationshipCount counts azure_cloud_relationship facts emitted from the
+	// ARM managedBy owning-resource reference. It is provenance-only and needs no
+	// redaction key.
+	RelationshipCount int
+	// IdentityObservationCount counts azure_identity_observation facts emitted
+	// from system-assigned managed identities. It is zero unless the collector
+	// was given a redaction key (principal GUIDs are never carried without one).
+	IdentityObservationCount int
 }
 
 // Collector turns fixture or live Resource Graph pages into ordered Azure
@@ -167,6 +175,12 @@ func (c *Collector) Collect(ctx context.Context, boundary Boundary) (ScanResult,
 	if result.TagObservationCount > 0 {
 		c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureTagObservationFactKind, result.TagObservationCount)
 	}
+	if result.RelationshipCount > 0 {
+		c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureCloudRelationshipFactKind, result.RelationshipCount)
+	}
+	if result.IdentityObservationCount > 0 {
+		c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureIdentityObservationFactKind, result.IdentityObservationCount)
+	}
 	return result, nil
 }
 
@@ -206,6 +220,30 @@ func (c *Collector) emitPageResources(boundary Boundary, page ResourceGraphPage,
 			}
 			result.Facts = append(result.Facts, tagEnv)
 			result.TagObservationCount++
+		}
+
+		// Emit a provenance-only managed_by relationship from the ARM owning
+		// resource reference. It needs no redaction key.
+		if rel, ok := relationshipFromManagedBy(observation.Boundary, row); ok {
+			relEnv, err := NewRelationshipEnvelope(rel)
+			if err != nil {
+				return fmt.Errorf("build azure_cloud_relationship fact: %w", err)
+			}
+			result.Facts = append(result.Facts, relEnv)
+			result.RelationshipCount++
+		}
+
+		// Emit a system-assigned managed-identity observation when a redaction
+		// key is set; principal GUIDs are fingerprinted, never carried raw.
+		if !c.redactionKey.IsZero() {
+			if idObs, ok := systemAssignedIdentityFromRow(observation.Boundary, row); ok {
+				idEnv, err := NewIdentityObservationEnvelope(idObs, c.redactionKey)
+				if err != nil {
+					return fmt.Errorf("build azure_identity_observation fact: %w", err)
+				}
+				result.Facts = append(result.Facts, idEnv)
+				result.IdentityObservationCount++
+			}
 		}
 	}
 	return nil
