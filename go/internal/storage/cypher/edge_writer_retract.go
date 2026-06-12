@@ -93,6 +93,8 @@ func buildRetractStatement(
 		return BuildRetractInheritanceEdges(repoIDs, evidenceSource), nil
 	case reducer.DomainDocumentationEdges:
 		return BuildRetractDocumentationEdges(repoIDs, evidenceSource), nil
+	case reducer.DomainRationaleEdges:
+		return BuildRetractRationaleEdges(repoIDs, evidenceSource), nil
 	case reducer.DomainSQLRelationships:
 		return BuildRetractSQLRelationshipEdges(repoIDs, evidenceSource), nil
 	default:

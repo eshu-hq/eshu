@@ -60,6 +60,10 @@ type DefaultHandlers struct {
 	// exact documentation entity mentions.
 	DocumentationEdgeWriter SharedProjectionEdgeWriter
 
+	// RationaleEdgeWriter writes canonical EXPLAINS edges from reducer-owned
+	// intent-comment rationale metadata.
+	RationaleEdgeWriter SharedProjectionEdgeWriter
+
 	// Cross-repo relationship resolution adapters. All optional; nil disables
 	// cross-repo resolution during deployment_mapping reduction.
 	EvidenceFactLoader         EvidenceFactLoader
