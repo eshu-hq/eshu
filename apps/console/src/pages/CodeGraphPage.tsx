@@ -168,7 +168,10 @@ export function CodeGraphPage({ model, client }: {
           {deadInRepo.length ? (
             <div className="conn-list">
               {deadInRepo.map((finding) => (
-                <div className="dead-row" key={finding.id}><span className="mono">{symbolFromFinding(finding)}</span><span className="t-mut">{finding.classification ?? "candidate"}</span></div>
+                <button type="button" className="dead-row" key={finding.id} onClick={() => selectCandidate(finding.id)}>
+                  <span className="mono">{symbolFromFinding(finding)}</span>
+                  <span className="t-mut">{finding.classification ?? "candidate"}</span>
+                </button>
               ))}
             </div>
           ) : <p className="empty" style={{ padding: "6px 0", textAlign: "left" }}>No dead code in this repository.</p>}

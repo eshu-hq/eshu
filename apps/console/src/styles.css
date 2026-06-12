@@ -349,6 +349,14 @@ h1, h2, h3, h4 { margin: 0; letter-spacing: -0.02em; font-weight: 700; }
 
 .section-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--subtle); margin: 0 0 10px; }
 .empty { color: var(--subtle); font-size: 0.85rem; padding: 20px; text-align: center; }
+.conn-list { display: grid; gap: 8px; }
+.dead-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
+  padding: 7px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg-field);
+  font-size: 0.76rem; text-align: left;
+}
+.dead-row:hover, .dead-row:focus-visible { border-color: color-mix(in oklab, var(--crit) 40%, var(--line)); background: var(--bg-raised); }
+.dead-row .mono { color: var(--bone-dim); }
 
 .dep-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 0.76rem; font-family: var(--mono); background: var(--bg-field); border: 1px solid var(--line); border-radius: 7px; padding: 5px 9px; color: var(--bone-dim); }
 .dep-chip:hover { border-color: var(--accent); color: var(--bone); }
