@@ -22,14 +22,31 @@
     const slugGroup = repo.repoSlug.split("/").find((part) => part.trim().length > 0);
     if (name.startsWith("lib-") || name === "dmm-clients") return "Shared Libraries";
     if (name.includes("forex")) return "FX";
-    if (name.includes("boat") || name.includes("search") || name.includes("sitemap")) return "Boat-Search";
+    if (
+      name === "api-node-boats" ||
+      name === "api-node-boats-temp" ||
+      name === "api-node-external-search" ||
+      name === "api-node-saved-search" ||
+      name === "api-node-make-model" ||
+      name === "job-node-sitemaps-generator"
+    ) return "Boat-Search";
     if (name.includes("fsbo")) return "FSBO";
     if (name.includes("conversation")) return "Messaging";
     if (name.includes("datax")) return "Data";
     if (name.includes("platform") || name.includes("provisioning") || name.includes("salesforce")) return "Platform";
+    if (name.includes("boattrader") || name.includes("myboats") || name.includes("bw-home") || name === "boatsdotcom") return "Marketplace";
+    if (name === "configd") return "Configuration";
     if (name.startsWith("iac-") || name.startsWith("terraform-") || name === "helm-charts") return "Cloud Platform";
-    if (slugGroup) return slugGroup.split(/[-_\s]+/).filter(Boolean).map((p) => p.slice(0, 1).toUpperCase() + p.slice(1)).join(" ");
+    if (slugGroup) return titleGroup(slugGroup);
     return repo.isDependency ? "Dependencies" : "Unclassified";
+  }
+
+  function titleGroup(value) {
+    return value
+      .split(/[-_\s]+/)
+      .filter(Boolean)
+      .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
+      .join(" ");
   }
 
   async function loadLiveRepos(client) {
@@ -123,7 +140,7 @@
           <div className="dep-toggle" style={{ margin: 0 }}><button className={view === "groups" ? "active" : ""} onClick={() => setView("groups")}>Groups</button><button className={view === "grid" ? "active" : ""} onClick={() => setView("grid")}>Grid</button></div>
         </div>
         <div className="grid g-4">
-          <StatTile label="Repository groups" value={groups.length} color="var(--teal)" sub="clustered by API slug groups" />
+          <StatTile label="Repository groups" value={groups.length} color="var(--teal)" sub="clustered by domain evidence" />
           <StatTile label="Repositories" value={rows.length} color="var(--blue)" sub="GET /api/v0/repositories" />
           <StatTile label="Dependency repos" value={depCount} color="var(--ember)" sub="marked by the API" />
           <StatTile label="Most populated" value={(groups[0] && groups[0].key) || "-"} color="var(--violet)" sub="largest live group" />
