@@ -936,6 +936,33 @@ Observability Evidence: each statement carries phase
 Cypher instrumentation records graph query duration, batch size, retries, and
 statement summary; no new metric labels or backend-specific branches are added.
 
+## Code-edge resolution provenance (#2224)
+
+The batched `CALLS`, `REFERENCES`, and `USES_METACLASS` templates
+(`canonical_code_call_edges.go`) and the label-scoped builders now read
+`rel.confidence`, `rel.reason`, and `rel.resolution_method` from the row instead
+of stamping a literal `confidence = 0.95`. `applyCodeCallProvenance` derives the
+tiered confidence and reason from the reducer-emitted `resolution_method` (ADR
+[#2222](../../../docs/internal/design/2222-resolution-provenance-code-edges.md))
+via `go/internal/codeprovenance`. Rows without a method read as `unspecified`
+and keep the legacy `0.95`, so freshly reprojected edges carry an explicit
+method while un-reprojected legacy edges keep prior behavior.
+
+No-Regression Evidence: `go test ./internal/storage/cypher -run 'CodeCall|Provenance|Parameterized|Confidence' -count=1`
+plus the full `go test ./internal/storage/cypher -count=1` pass; the new tests
+fail against the previous literal `0.95`. The `MATCH`/`MERGE`/`UNWIND` batch
+shape, endpoint label families, and batch sizes are unchanged — only the `SET`
+clause changes from two literals to three row-sourced scalar properties, adding
+no new `MATCH`, traversal, index lookup, or statement. Marginal cost is three
+bounded scalars per row in the already-batched `$rows` parameter, so per-batch
+write cost is invariant in plan shape.
+
+Observability Evidence: the existing `CodeCallEdgeDuration` histogram and
+`CodeCallEdgeBatches` counter (`telemetry.go`) plus the per-statement
+`domain=code_calls relationship=… rows=…` summary expose any edge-write
+regression without new metric labels or backend branches; provenance is carried
+as edge properties, not as new instrumentation.
+
 ## Related docs
 
 - `docs/public/architecture.md` — pipeline and ownership table

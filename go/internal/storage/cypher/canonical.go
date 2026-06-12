@@ -102,6 +102,11 @@ SET rel.confidence = 0.9,
     rel.reason = 'Runtime services list declares workload dependency',
     rel.evidence_source = $evidence_source`
 
+// The single-row canonical code-edge templates below are the legacy non-batched
+// builders (BuildCanonicalCodeCallUpsert); they have no production caller. The
+// live graph-write path uses the batched UNWIND templates in
+// canonical_code_call_edges.go, which carry the per-edge resolution provenance
+// and tiered confidence from ADR #2222.
 const canonicalCodeCallUpsertCypher = `MATCH (source {id: $caller_entity_id})
 MATCH (target {id: $callee_entity_id})
 MERGE (source)-[rel:CALLS]->(target)
@@ -167,33 +172,6 @@ MERGE (source)-[rel:DEPENDS_ON]->(target)
 SET rel.confidence = 0.9,
     rel.reason = 'Runtime services list declares workload dependency',
     rel.evidence_source = row.evidence_source`
-
-const batchCanonicalCodeCallUpsertCypher = `UNWIND $rows AS row
-MATCH (source:Function|Class|File {uid: coalesce(row.caller_entity_id, row.source_entity_id)})
-MATCH (target:Function|Class|File {uid: coalesce(row.callee_entity_id, row.target_entity_id)})
-MERGE (source)-[rel:CALLS]->(target)
-SET rel.confidence = 0.95,
-    rel.reason = 'Parser and symbol analysis resolved a code call edge',
-    rel.evidence_source = row.evidence_source,
-    rel.call_kind = row.call_kind`
-
-const batchCanonicalCodeReferenceUpsertCypher = `UNWIND $rows AS row
-MATCH (source:Function|Class|Struct|Interface|TypeAlias|File {uid: row.caller_entity_id})
-MATCH (target:Function|Class|Struct|Interface|TypeAlias|File {uid: row.callee_entity_id})
-MERGE (source)-[rel:REFERENCES]->(target)
-SET rel.confidence = 0.95,
-    rel.reason = 'Parser and symbol analysis resolved a code reference edge',
-    rel.evidence_source = row.evidence_source,
-    rel.call_kind = row.call_kind`
-
-const batchCanonicalMetaclassUpsertCypher = `UNWIND $rows AS row
-MATCH (source:Function|Class|File {uid: row.source_entity_id})
-MATCH (target:Function|Class|File {uid: row.target_entity_id})
-MERGE (source)-[rel:USES_METACLASS]->(target)
-SET rel.confidence = 0.95,
-    rel.reason = 'Parser and symbol analysis resolved a Python metaclass edge',
-    rel.evidence_source = row.evidence_source,
-    rel.relationship_type = row.relationship_type`
 
 // --- Batched UNWIND Cypher (inheritance edges) ---
 
