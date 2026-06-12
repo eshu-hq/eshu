@@ -87,6 +87,8 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("/api/v0/impact/entity-map");
     expect(page).toContain("MEANINGFUL_DASHBOARD_EDGES");
     expect(page).toContain("No live relationship atlas");
+    expect(page).toContain("nodeLabels");
+    expect(page).toContain("endpointLabel");
   });
 
   it("keeps the verified-evidence shield behavior aligned across live and prototype shells", () => {

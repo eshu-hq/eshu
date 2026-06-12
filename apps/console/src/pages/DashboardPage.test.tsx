@@ -89,6 +89,8 @@ describe("DashboardPage", () => {
       expect(screen.getByText("2 nodes · 1 edges")).toBeInTheDocument();
     });
     expect(await screen.findAllByText("checkout-service")).not.toHaveLength(0);
+    expect(screen.getByText("DEPENDS_ON → payments-api")).toBeInTheDocument();
+    expect(screen.queryByText("DEPENDS_ON → workload:payments-api")).not.toBeInTheDocument();
     expect(calls).toEqual([
       {
         path: "/api/v0/impact/entity-map",

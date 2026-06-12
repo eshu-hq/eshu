@@ -109,6 +109,7 @@
     const graph = { nodes: Array.isArray(rawGraph.nodes) ? rawGraph.nodes : [], edges: Array.isArray(rawGraph.edges) ? rawGraph.edges : [] };
     const relRows = relationshipRows(graph).map((row) => ({ label: row.verb, value: row.count, color: ESHU.layerColor[row.layer] || "var(--teal)", detail: row.detail }));
     const sel = selected && graph.nodes.find((node) => node.id === selected.id) ? selected : (graph.nodes.find((node) => node.hero) || graph.nodes[0] || null);
+    const nodeLabels = new Map(graph.nodes.map((node) => [node.id, node.label]));
     return (
       <div className="page">
         <div className="grid g-4">
@@ -130,9 +131,15 @@
                     {sel.sub ? <div className="t-mut mono" style={{ fontSize: ".82rem" }}>{sel.sub}</div> : null}
                     {state.status === "loading" ? <p className="empty">Loading live relationships...</p> : null}
                     <div className="insp-evi">
-                      {graph.edges.filter((edge) => edge.s === sel.id || edge.t === sel.id).map((edge, index) => (
-                        <div className="insp-evi-row" key={index}>{edge.verb} {edge.s === sel.id ? "-> " + edge.t : "<- " + edge.s}</div>
-                      ))}
+                      {graph.edges.filter((edge) => edge.s === sel.id || edge.t === sel.id).map((edge, index) => {
+                        const endpointID = edge.s === sel.id ? edge.t : edge.s;
+                        const endpointLabel = nodeLabels.get(endpointID) || endpointID;
+                        return (
+                          <div className="insp-evi-row" key={index} title={endpointLabel === endpointID ? undefined : endpointID}>
+                            {edge.verb} {edge.s === sel.id ? "->" : "<-"} {endpointLabel}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 ) : <p className="empty">No live relationship atlas nodes returned yet.</p>}

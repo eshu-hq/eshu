@@ -34,6 +34,7 @@ export function DashboardPage({ model, client, onOpenService }: {
   const graphNodeCount = lastNumber(model.series.graphNodes);
   const relationshipCount = relationshipMetric(model, graph);
   const selectedSpotlightName = sel && (sel.kind === "service" || sel.kind === "workload") ? sel.label : null;
+  const nodeLabels = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node.label])), [graph.nodes]);
   const sevTotals = model.vulnerabilities.reduce(
     (a, v) => { const k = v.severity as keyof typeof a; if (k in a) a[k] += 1; return a; },
     { critical: 0, high: 0, medium: 0, low: 0 }
@@ -147,9 +148,15 @@ export function DashboardPage({ model, client, onOpenService }: {
                   {atlasState.kind === "loading" ? <p className="empty">Loading relationships for {atlasState.seed}…</p> : null}
                   {atlasState.kind === "error" ? <p className="src-err">Relationship atlas unavailable for {atlasState.seed}: {atlasState.message}</p> : null}
                   <div className="insp-evi">
-                    {graph.edges.filter((e) => e.s === sel.id || e.t === sel.id).map((e, i) => (
-                      <div className="insp-evi-row" key={i}>{e.verb} {e.s === sel.id ? `→ ${e.t}` : `← ${e.s}`}</div>
-                    ))}
+                    {graph.edges.filter((e) => e.s === sel.id || e.t === sel.id).map((e, i) => {
+                      const endpointID = e.s === sel.id ? e.t : e.s;
+                      const endpointLabel = nodeLabels.get(endpointID) ?? endpointID;
+                      return (
+                        <div className="insp-evi-row" key={i} title={endpointLabel === endpointID ? undefined : endpointID}>
+                          {e.verb} {e.s === sel.id ? "→" : "←"} {endpointLabel}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ) : <p className="empty">Select a node.</p>}
