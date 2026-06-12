@@ -1,16 +1,72 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { EshuApiClient } from "../api/client";
+import { loadDeadCodePage } from "../api/deadCode";
+import type { DeadCodePage as LiveDeadCodePage } from "../api/deadCode";
+import { loadRepositories } from "../api/repoCatalog";
 import type { ConsoleModel, FindingRow } from "../console/types";
 import { fmt, uiTruth } from "../console/types";
 import { Panel, StatTile, Badge, TruthChip } from "../components/atoms";
 import "./liveInventory.css";
 
 const ANY = "all";
+const LIVE_LIMIT = 100;
 
-export function DeadCodePage({ model }: { readonly model: ConsoleModel }): React.JSX.Element {
-  const all = model.findings.filter((finding) => finding.type === "Dead code");
+interface DeadCodeFilters {
+  readonly language: string;
+  readonly repoId: string;
+}
+
+const EMPTY_FILTERS: DeadCodeFilters = { language: "", repoId: "" };
+
+export function DeadCodePage({
+  client,
+  model
+}: {
+  readonly client?: EshuApiClient;
+  readonly model: ConsoleModel;
+}): React.JSX.Element {
+  const [livePage, setLivePage] = useState<LiveDeadCodePage | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [draft, setDraft] = useState<DeadCodeFilters>(EMPTY_FILTERS);
+  const [applied, setApplied] = useState<DeadCodeFilters>(EMPTY_FILTERS);
   const [classification, setClassification] = useState(ANY);
   const [kind, setKind] = useState(ANY);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => new URLSearchParams(window.location.search).get("q") ?? "");
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!client) {
+      setLivePage(null);
+      setBusy(false);
+      setErr("");
+      return;
+    }
+    setBusy(true);
+    setErr("");
+    void loadRepositoryNames(client)
+      .then((repoNames) => loadDeadCodePage(client, {
+        language: applied.language || undefined,
+        limit: LIVE_LIMIT,
+        repoId: applied.repoId || undefined
+      }, repoNames))
+      .then((page) => {
+        if (!cancelled) {
+          setLivePage(page);
+          setBusy(false);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setLivePage(null);
+          setBusy(false);
+          setErr(error instanceof Error ? error.message : "failed to load dead-code candidates");
+        }
+      });
+    return () => { cancelled = true; };
+  }, [applied, client]);
+
+  const all = (livePage?.rows ?? model.findings).filter((finding) => finding.type === "Dead code");
   const classifications = unique(all.map(classificationFromFinding).filter(Boolean));
   const kinds = unique(all.map(kindFromFinding).filter(Boolean));
   const filtered = all.filter((finding) =>
@@ -22,6 +78,21 @@ export function DeadCodePage({ model }: { readonly model: ConsoleModel }): React
   const repositories = unique(all.map((finding) => finding.entity).filter(Boolean));
   const totalLoc = all.reduce((sum, finding) => sum + locFromFinding(finding), 0);
   const highConfidence = all.filter((finding) => finding.classification === "unused" || finding.truth === "exact").length;
+  const source = client ? (busy ? "loading" : err ? "unavailable" : "live") : model.source;
+  const scanLabel = livePage
+    ? `${livePage.limit} candidate scan${livePage.truncated ? " · truncated" : ""}`
+    : client
+      ? "direct live scan"
+      : "snapshot";
+
+  function applyFilters(): void {
+    setApplied({ language: draft.language.trim(), repoId: draft.repoId.trim() });
+  }
+
+  function resetLiveFilters(): void {
+    setDraft(EMPTY_FILTERS);
+    setApplied(EMPTY_FILTERS);
+  }
 
   return (
     <div className="page">
@@ -34,7 +105,7 @@ export function DeadCodePage({ model }: { readonly model: ConsoleModel }): React
         <StatTile label="Dead symbols" value={all.length} color="var(--ember)" sub="0 inbound references" />
         <StatTile label="Repos affected" value={repositories.length} color="var(--blue)" sub="with candidates" />
         <StatTile label="Est. dead LOC" value={fmt(totalLoc)} color="var(--violet)" sub="line span estimate" />
-        <StatTile label="High confidence" value={highConfidence} color="var(--teal)" sub="unused or exact" />
+        <StatTile label="High confidence" value={highConfidence} color="var(--teal)" sub={scanLabel} />
       </div>
 
       <div className="repo-toolbar mt">
@@ -46,6 +117,26 @@ export function DeadCodePage({ model }: { readonly model: ConsoleModel }): React
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
+        {client ? (
+          <>
+            <input
+              aria-label="Repository selector"
+              className="popover-input mono"
+              placeholder="repo_id or name"
+              value={draft.repoId}
+              onChange={(event) => setDraft((current) => ({ ...current, repoId: event.target.value }))}
+            />
+            <input
+              aria-label="Language selector"
+              className="popover-input mono"
+              placeholder="language"
+              value={draft.language}
+              onChange={(event) => setDraft((current) => ({ ...current, language: event.target.value }))}
+            />
+            <button className="btn-ghost active" disabled={busy} onClick={applyFilters}>Apply</button>
+            <button className="btn-ghost" disabled={busy} onClick={resetLiveFilters}>Reset</button>
+          </>
+        ) : null}
         <div className="seg" aria-label="Dead-code kind filter">
           {[ANY, ...kinds].map((value) => (
             <button key={value} className={kind === value ? "active" : ""} onClick={() => setKind(value)}>
@@ -63,7 +154,7 @@ export function DeadCodePage({ model }: { readonly model: ConsoleModel }): React
       </div>
 
       <div className="evidence-workbench mt" aria-label="Dead-code workbench">
-        <Panel className="flush" title={`${filtered.length} candidates`} sub="Grouped by repository">
+        <Panel className="flush" title={`${filtered.length} candidates`} sub={`Grouped by repository · ${source}`}>
           <div className="table-scroll">
             <table className="tbl wide">
               <thead><tr><th>Symbol</th><th>Kind</th><th>Location</th><th>Refs</th><th>LOC</th><th>Confidence</th><th>Why dead</th></tr></thead>
@@ -72,7 +163,7 @@ export function DeadCodePage({ model }: { readonly model: ConsoleModel }): React
                   <DeadCodeGroup key={group.repository} group={group} />
                 ))}
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={7} className="empty">No dead-code candidates from this source.</td></tr>
+                  <tr><td colSpan={7} className="empty">{err ? `Failed to load: ${err}` : busy ? "Loading dead-code candidates..." : "No dead-code candidates from this source."}</td></tr>
                 ) : null}
               </tbody>
             </table>
@@ -165,4 +256,13 @@ function locFromFinding(finding: FindingRow): number {
     return finding.endLine - finding.startLine + 1;
   }
   return 0;
+}
+
+async function loadRepositoryNames(client: EshuApiClient): Promise<ReadonlyMap<string, string>> {
+  try {
+    const repos = await loadRepositories(client);
+    return new Map(repos.map((repo) => [repo.id, repo.name]));
+  } catch {
+    return new Map();
+  }
 }

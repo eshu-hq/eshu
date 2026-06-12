@@ -7,6 +7,7 @@
 // degradation semantics. Live-API data only — nothing here fabricates rows.
 
 import type { EshuApiClient } from "./client";
+import { deadCodeRowsFromResponse, type DeadCodeResponse } from "./deadCode";
 import type { EshuTruth, FreshnessState } from "./envelope";
 import { loadDependencies } from "./eshuDependencies";
 import { fetchAdvisoryCatalogPage } from "./eshuConsoleAdvisories";
@@ -77,20 +78,6 @@ interface CatalogRecord {
 }
 interface LanguageInventory { readonly languages?: readonly { language: string; count?: number; repository_count?: number; file_count?: number }[]; }
 interface IngesterStatus { readonly ingesters?: readonly Record<string, unknown>[]; }
-interface DeadCodeResponse {
-  readonly results?: readonly {
-    readonly name?: string;
-    readonly file_path?: string;
-    readonly repo_name?: string;
-    readonly repo_id?: string;
-    readonly classification?: string;
-    readonly entity_id?: string;
-    readonly start_line?: number;
-    readonly end_line?: number;
-    readonly language?: string;
-    readonly labels?: readonly string[];
-  }[];
-}
 interface ImpactFindings { readonly findings?: readonly Record<string, unknown>[]; readonly results?: readonly Record<string, unknown>[]; }
 interface MetricsTimeSeriesResponse { readonly points?: readonly { readonly t?: string; readonly v?: number }[]; }
 interface SBOMAttachmentCount {
@@ -241,34 +228,8 @@ export async function loadIngesters(client: EshuApiClient): Promise<readonly Ing
 // code-analysis surfaces do not expose internal graph ids.
 export async function loadFindings(client: EshuApiClient, ctx?: SectionContext): Promise<readonly FindingRow[] | null> {
   const env = await client.post<DeadCodeResponse>("/api/v0/code/dead-code", { limit: 25 });
-  const lvl = env.truth?.level ?? "derived";
-  const rows = (env.data?.results ?? []).map((r, i) => ({
-    id: r.entity_id ?? `dead-code-${i}`, type: "Dead code",
-    entity: deadCodeRepositoryLabel(r, ctx?.repoNames),
-    title: `Unreferenced symbol ${nonEmpty(r.name, "candidate")}`,
-    detail: `${nonEmpty(r.file_path, "unknown")}${r.classification ? ` · ${r.classification}` : ""}`,
-    truth: lvl,
-    entityId: r.entity_id,
-    repoId: r.repo_id,
-    filePath: r.file_path,
-    startLine: r.start_line,
-    endLine: r.end_line,
-    language: r.language,
-    labels: r.labels,
-    classification: r.classification
-  }));
+  const rows = deadCodeRowsFromResponse(env.data, env.truth?.level ?? "derived", ctx?.repoNames);
   return rows.length > 0 ? rows : null;
-}
-
-function deadCodeRepositoryLabel(
-  row: NonNullable<DeadCodeResponse["results"]>[number],
-  repoNames?: ReadonlyMap<string, string>
-): string {
-  const explicitName = row.repo_name?.trim();
-  if (explicitName) return explicitName;
-  const repoId = row.repo_id?.trim();
-  if (repoId && repoNames?.has(repoId)) return repoNames.get(repoId) ?? repoId;
-  return nonEmpty(repoId, "repository");
 }
 
 function nonEmpty(...values: readonly (string | undefined)[]): string {

@@ -266,7 +266,7 @@ export function App(): React.JSX.Element {
             <Route path="/images" element={<ImagesPage client={client} />} />
             <Route path="/iac" element={<IacPage model={model} client={client} />} />
             <Route path="/findings" element={<FindingsPage model={model} />} />
-            <Route path="/dead-code" element={<DeadCodePage model={model} />} />
+            <Route path="/dead-code" element={<DeadCodePage client={client} model={model} />} />
             <Route path="/vulnerabilities" element={<VulnerabilitiesPage model={model} client={client} />} />
             <Route path="/vulnerabilities/:id" element={<VulnDetailPage model={model} client={client} />} />
             <Route path="/sbom" element={<SbomPage client={client} />} />
