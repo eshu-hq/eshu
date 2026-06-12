@@ -133,7 +133,7 @@ func TestExtractCodeCallRowsResolvesPythonModuleAndFromImports(t *testing.T) {
 	); got == "" {
 		t.Fatal("codeCallMatchImportedPath() = \"\", want non-empty")
 	}
-	calleeID, calleeFile := resolveGenericCallee(
+	calleeID, calleeFile, _ := resolveGenericCallee(
 		entityIndex,
 		"repo-python",
 		repositoryImports["repo-python"],

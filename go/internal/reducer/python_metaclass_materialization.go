@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -92,6 +93,7 @@ func extractPythonMetaclassRowsWithIndex(
 				"target_file":       targetFilePath,
 				"relationship_type": "USES_METACLASS",
 				"reason":            "python_metaclass",
+				"resolution_method": codeprovenance.MethodDeclared,
 				"action":            IntentActionUpsert,
 			}
 			rows = append(rows, row)
