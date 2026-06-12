@@ -1,0 +1,82 @@
+import { describe, expect, it, vi } from "vitest";
+import type { EshuApiClient } from "./client";
+import { iacResourcesPath, loadIacResourcesPage } from "./iacResources";
+
+function envelope(resources: readonly Record<string, unknown>[], opts: { readonly truncated?: boolean } = {}) {
+  return {
+    data: {
+      count: resources.length,
+      kind: "resource",
+      limit: 50,
+      resources,
+      truncated: opts.truncated === true,
+      next_cursor: opts.truncated === true ? { after_name: "aws_s3_bucket.logs", after_id: "r2" } : undefined
+    },
+    error: null,
+    truth: {
+      capability: "iac_inventory.resources.list",
+      freshness: { state: "fresh" },
+      level: "exact",
+      profile: "production"
+    }
+  };
+}
+
+describe("iacResources", () => {
+  it("builds the bounded keyset path without offset pagination", () => {
+    const path = iacResourcesPath({
+      cursor: { afterId: "content-entity:e1", afterName: "aws_iam_role.app" },
+      kind: "resource",
+      limit: 25,
+      module: "api-node",
+      provider: "aws",
+      type: "aws_iam_role"
+    });
+
+    expect(path).toBe(
+      "/api/v0/iac/resources?limit=25&kind=resource&type=aws_iam_role&provider=aws&module=api-node&after_name=aws_iam_role.app&after_id=content-entity%3Ae1"
+    );
+    expect(path).not.toContain("offset");
+  });
+
+  it("maps IaC resource rows, paging metadata, and truth from the envelope", async () => {
+    const get = vi.fn(async () => envelope([{
+      id: "content-entity:e1",
+      kind: "resource",
+      name: "aws_s3_bucket.logs",
+      resource_name: "logs",
+      type: "aws_s3_bucket",
+      provider: "aws",
+      resource_service: "s3",
+      resource_category: "storage",
+      module: "audit",
+      repo_id: "repository:r1",
+      relative_path: "logging.tf",
+      line_number: 12
+    }], { truncated: true }));
+    const client = { get } as unknown as EshuApiClient;
+
+    const page = await loadIacResourcesPage(client, { limit: 50 });
+
+    expect(get).toHaveBeenCalledWith("/api/v0/iac/resources?limit=50");
+    expect(page).toMatchObject({
+      count: 1,
+      kind: "resource",
+      limit: 50,
+      nextCursor: { afterName: "aws_s3_bucket.logs", afterId: "r2" },
+      truncated: true,
+      truth: {
+        freshness: "fresh",
+        level: "exact",
+        profile: "production"
+      }
+    });
+    expect(page.rows[0]).toMatchObject({
+      category: "storage",
+      lineNumber: 12,
+      name: "aws_s3_bucket.logs",
+      resourceName: "logs",
+      service: "s3"
+    });
+  });
+});

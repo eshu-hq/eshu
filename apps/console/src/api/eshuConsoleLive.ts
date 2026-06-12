@@ -161,11 +161,15 @@ export interface DependencyPage {
 }
 
 // IacResourceRow is one Terraform/IaC node from GET /api/v0/iac/resources. The
-// list defaults to Terraform resources; provider/service/module are present only
-// on canonically attributed nodes, so they may be empty for tfstate-only rows.
+// list defaults to Terraform resources; provider/service/category/module and
+// source locations are present only on canonically attributed nodes, so they may
+// be empty/null for tfstate-only rows.
 export interface IacResourceRow {
+  readonly category: string;
   readonly id: string;
   readonly kind: string;
+  readonly lineNumber: number | null;
+  readonly resourceName: string;
   readonly name: string;
   readonly type: string;
   readonly provider: string;

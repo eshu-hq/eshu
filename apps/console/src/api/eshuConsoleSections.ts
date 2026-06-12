@@ -10,6 +10,7 @@ import type { EshuApiClient } from "./client";
 import type { EshuTruth, FreshnessState } from "./envelope";
 import { loadDependencies } from "./eshuDependencies";
 import { fetchAdvisoryCatalogPage } from "./eshuConsoleAdvisories";
+import { iacResourceRowsFromResponse } from "./iacResources";
 import { imageRowsFromResponse } from "./imageInventory";
 import type {
   AdvisoryRow,
@@ -97,13 +98,7 @@ interface SBOMAttachmentCount {
   readonly by_attachment_status?: Readonly<Record<string, number>>;
   readonly by_artifact_kind?: Readonly<Record<string, number>>;
 }
-interface IacResourcesResponse {
-  readonly resources?: readonly {
-    readonly id?: string; readonly kind?: string; readonly name?: string;
-    readonly type?: string; readonly provider?: string; readonly resource_service?: string;
-    readonly module?: string; readonly repo_id?: string; readonly relative_path?: string;
-  }[];
-}
+interface IacResourcesResponse { readonly resources?: Parameters<typeof iacResourceRowsFromResponse>[0]["resources"]; }
 
 // Impact findings carry a CVSS score but no severity label; derive the standard
 // CVSS v3 qualitative band so the vulnerability list can colour-rank rows.
@@ -357,17 +352,7 @@ export async function loadImagesSection(client: EshuApiClient, ctx: SectionConte
 export async function loadIacResources(client: EshuApiClient, ctx: SectionContext): Promise<readonly IacResourceRow[] | null> {
   const env = await client.get<IacResourcesResponse>("/api/v0/iac/resources?limit=200");
   if (env.truth) ctx.truth.iacResources = env.truth;
-  const rows: IacResourceRow[] = (env.data?.resources ?? []).map((r) => ({
-    id: String(r.id ?? ""),
-    kind: String(r.kind ?? "resource"),
-    name: String(r.name ?? ""),
-    type: String(r.type ?? ""),
-    provider: String(r.provider ?? ""),
-    service: String(r.resource_service ?? ""),
-    module: String(r.module ?? ""),
-    repoId: String(r.repo_id ?? ""),
-    relativePath: String(r.relative_path ?? "")
-  }));
+  const rows: IacResourceRow[] = iacResourceRowsFromResponse(env.data);
   return rows.length > 0 ? rows : null;
 }
 
