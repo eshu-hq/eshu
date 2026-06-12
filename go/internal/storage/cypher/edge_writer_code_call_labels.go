@@ -89,6 +89,9 @@ func buildCodeCallRowMap(
 	}
 	applyCodeCallProvenance(rowMap, payload)
 
+	if payloadString(payload, "relationship_type") == "INSTANTIATES" {
+		return batchCanonicalInstantiatesUpsertCypher, rowMap, true
+	}
 	if rowMap["call_kind"] == "jsx_component" || payloadString(payload, "relationship_type") == "REFERENCES" {
 		if isCodeReferenceEndpointLabel(sourceLabel) && isCodeReferenceEndpointLabel(targetLabel) {
 			return buildLabelScopedCodeReferenceCypher(sourceLabel, targetLabel), rowMap, true
@@ -184,6 +187,8 @@ func codeCallRelationshipSummary(cypher string) string {
 		return "REFERENCES"
 	case strings.Contains(cypher, "rel:USES_METACLASS"):
 		return "USES_METACLASS"
+	case strings.Contains(cypher, "rel:INSTANTIATES"):
+		return "INSTANTIATES"
 	default:
 		return "CALLS"
 	}
@@ -195,6 +200,8 @@ func inheritanceRelationshipSummary(cypher string) string {
 		return "OVERRIDES"
 	case strings.Contains(cypher, "rel:ALIASES"):
 		return "ALIASES"
+	case strings.Contains(cypher, "rel:IMPLEMENTS"):
+		return "IMPLEMENTS"
 	default:
 		return "INHERITS"
 	}

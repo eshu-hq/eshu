@@ -375,6 +375,7 @@ func extractGenericCodeCallRows(
 		}
 
 		rows = appendCodeCallRow(rows, seenRows, repositoryID, entityIndex, callerID, calleeID, callerFilePath, calleeFilePath, callLine, resolutionMethod, edge)
+		rows = appendInstantiatesRow(rows, seenRows, repositoryID, entityIndex, callerID, calleeID, callerFilePath, calleeFilePath, callLine, edge)
 		if constructorID := resolveConstructorMethodCalleeID(entityIndex, calleeFilePath, edge); constructorID != "" {
 			rows = appendCodeCallRow(rows, seenRows, repositoryID, entityIndex, callerID, constructorID, callerFilePath, calleeFilePath, callLine, codeprovenance.MethodTypeInferred, edge)
 		}

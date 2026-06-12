@@ -120,6 +120,11 @@ func appendJavaNamedType(
 	if rootKinds := javaTypeDeadCodeRootKinds(node, source); len(rootKinds) > 0 {
 		item["dead_code_root_kinds"] = rootKinds
 	}
+	if bucket == "classes" {
+		if interfaces := javaImplementedInterfaces(node, source); len(interfaces) > 0 {
+			item["implemented_interfaces"] = interfaces
+		}
+	}
 	appendBucket(payload, bucket, item)
 }
 

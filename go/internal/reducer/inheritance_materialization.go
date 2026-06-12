@@ -191,7 +191,8 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 
 		bases := inheritancePayloadBases(env.Payload)
 		traitAdaptations := inheritancePayloadTraitAdaptations(env.Payload)
-		if len(bases) == 0 && len(traitAdaptations) == 0 {
+		implementedInterfaces := inheritancePayloadImplementedInterfaces(env.Payload)
+		if len(bases) == 0 && len(traitAdaptations) == 0 && len(implementedInterfaces) == 0 {
 			continue
 		}
 
@@ -215,6 +216,33 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 				"repo_id":            repoID,
 				"relationship_type":  "INHERITS",
 			})
+		}
+
+		if _, implementer := implementerEntityTypes[entityType]; implementer {
+			for _, interfaceName := range implementedInterfaces {
+				parent, ok := entityIndex[inheritanceIndexKey{repoID: repoID, name: interfaceName}]
+				if !ok {
+					continue
+				}
+				if _, isInterface := interfaceLikeEntityTypes[parent.entityType]; !isInterface {
+					continue
+				}
+
+				edgeKey := childEntityID + "->" + parent.id + ":IMPLEMENTS"
+				if _, dup := seenEdges[edgeKey]; dup {
+					continue
+				}
+				seenEdges[edgeKey] = struct{}{}
+
+				rows = append(rows, map[string]any{
+					"child_entity_id":    childEntityID,
+					"child_entity_type":  entityType,
+					"parent_entity_id":   parent.id,
+					"parent_entity_type": parent.entityType,
+					"repo_id":            repoID,
+					"relationship_type":  "IMPLEMENTS",
+				})
+			}
 		}
 
 		if entityType != "Class" {

@@ -41,6 +41,8 @@ func buildInheritanceRowMap(
 		return batchCanonicalInheritanceOverrideUpsertCypher, rowMap, true
 	case "ALIASES":
 		return batchCanonicalInheritanceAliasUpsertCypher, rowMap, true
+	case "IMPLEMENTS":
+		return batchCanonicalImplementsEdgeUpsertCypher, rowMap, true
 	case "", "INHERITS":
 		return batchCanonicalInheritanceEdgeUpsertCypher, rowMap, true
 	default:
@@ -79,6 +81,13 @@ func labelScopedInheritanceCypher(
 			parentLabel,
 			"ALIASES",
 			"Parser trait adaptation metadata resolved an alias edge",
+		), true
+	case "IMPLEMENTS":
+		return buildLabelScopedInheritanceCypher(
+			childLabel,
+			parentLabel,
+			"IMPLEMENTS",
+			"Parser implemented_interfaces metadata resolved an implements edge",
 		), true
 	default:
 		return "", false
