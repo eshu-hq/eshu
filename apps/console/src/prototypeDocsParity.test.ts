@@ -390,12 +390,19 @@ describe("prototype documentation parity", () => {
   });
 
   it("keeps prototype live inventory pages honest when live rows are empty", () => {
+    const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-live-parity.jsx");
 
+    expect(app).not.toContain("Package evidence and advisory reachability");
+    expect(app).not.toContain("Source, service and datastore dependency edges");
     expect(page).toContain("GET /api/v0/images");
     expect(page).toContain("GET /api/v0/iac/resources");
     expect(page).toContain("GET /api/v0/dependencies");
     expect(page).toContain("GET /api/v0/supply-chain/sbom-attestations/attachments");
+    expect(page).toContain("SBOM &amp; Attestations");
+    expect(page).toContain("Subject digest");
+    expect(page).toContain("Attestation provenance");
+    expect(page).not.toContain("Advisories joined to affected services");
     expect(page).toContain("No container images from this source.");
     expect(page).toContain("No Terraform/IaC resources have been indexed yet.");
     expect(page).toContain("No SBOM/attestation subjects from this source.");

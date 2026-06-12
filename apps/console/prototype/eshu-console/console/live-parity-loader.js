@@ -123,15 +123,8 @@
   function mapSbomBucket(bucket) {
     return {
       id: str(bucket.value),
-      advisory: str(bucket.value),
-      pkg: str(bucket.dimension) || "subject_digest",
-      version: "",
-      ecosystem: "sbom",
-      severity: "",
-      source: "sbom-attestations",
-      fix: "",
-      services: [],
-      kind: "bucket",
+      value: str(bucket.value),
+      dimension: str(bucket.dimension) || "subject_digest",
       count: num(bucket.count)
     };
   }

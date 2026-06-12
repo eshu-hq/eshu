@@ -67,8 +67,8 @@ const TITLES = {
   topology: ["Topology", "Full code-to-cloud path for a service"],
   cloud: ["Cloud", "Multi-cloud resource inventory — code-to-cloud"],
   observability: ["Observability", "Signal coverage correlated per service"],
-  sbom: ["SBOM", "Package evidence and advisory reachability"],
-  dependencies: ["Dependencies", "Source, service and datastore dependency edges"],
+  sbom: ["SBOM", "Supply-chain attestation evidence"],
+  dependencies: ["Dependencies", "Package dependency graph inventory"],
   workspace: ["Workspace", "Entity dossier — story, evidence, deployment path"],
   admin: ["Operations", "Eshu runtime & NornicDB backend health"]
 };

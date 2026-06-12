@@ -58,17 +58,11 @@ function sbomRows(D) {
     return D.sbomInventory.buckets;
   }
   return (D.vulns || []).map((v) => {
-    const services = (v.services || []).map((id) => D.servicesById[id]).filter(Boolean);
     return {
       id: v.cve,
-      advisory: v.cve,
-      pkg: v.pkg,
-      version: v.version,
-      ecosystem: v.ecosystem,
-      severity: v.severity,
-      source: v.source,
-      fix: v.fixAvailable ? (v.fixed || "available") : "none",
-      services
+      value: v.cve,
+      dimension: "demo_advisory_subject",
+      count: (v.services || []).length || 1
     };
   });
 }
@@ -331,38 +325,42 @@ function IaC({ data, onOpenService }) {
   );
 }
 
-function SBOM({ data, onOpenService }) {
+function SBOM({ data }) {
   const D = data || ESHU;
   const rows = useMemoP(() => sbomRows(D), [D]);
-  const packages = new Set(rows.map((r) => r.pkg)).size;
-  const critical = rows.filter((r) => r.severity === "critical").length;
-  const total = D.sbomSummary ? D.sbomSummary.total : rows.length;
-  const liveBuckets = Boolean(D.sbomInventory);
-  const fixCount = rows.filter((r) => r.fix && r.fix !== "none").length;
+  const total = D.sbomSummary ? D.sbomSummary.total : rows.reduce((sum, r) => sum + (r.count || 0), 0);
+  const verified = D.sbomSummary && D.sbomSummary.byStatus ? (D.sbomSummary.byStatus.attached_verified || 0) : 0;
+  const sbomCount = D.sbomSummary && D.sbomSummary.byArtifactKind ? (D.sbomSummary.byArtifactKind.sbom || 0) : 0;
+  const attestCount = D.sbomSummary && D.sbomSummary.byArtifactKind ? (D.sbomSummary.byArtifactKind.attestation || 0) : 0;
+  const groupBy = (D.sbomInventory && D.sbomInventory.groupBy) || "subject_digest";
 
   return (
     <div className="page">
-      <div className="page-intro"><h2>SBOM</h2><p>Package and advisory evidence from <span className="mono">GET /api/v0/supply-chain/sbom-attestations/attachments</span>.</p></div>
+      <div className="page-intro"><h2>SBOM &amp; Attestations</h2><p>Supply-chain attestation evidence from <span className="mono">GET /api/v0/supply-chain/sbom-attestations/attachments</span>: subject digest inventory and provenance drilldown.</p></div>
       <div className="grid g-4">
-        <StatTile label={liveBuckets ? "Subjects" : "Packages"} value={packages} color="var(--teal)" sub={liveBuckets ? "grouped SBOM buckets" : "affected package names"} />
-        <StatTile label="SBOM attachments" value={total} color="var(--crit)" sub="attestation evidence" />
-        <StatTile label="Critical" value={critical} color="var(--crit)" sub="highest severity" />
-        <StatTile label="Fix available" value={fixCount} color="var(--blue)" sub="upgrade candidates" />
+        <StatTile label="Attachments" value={total} color="var(--teal)" sub="subject attachments" />
+        <StatTile label="Verified" value={D.sbomSummary ? verified + "/" + (total || 0) : "—"} color="var(--blue)" sub="attached_verified" />
+        <StatTile label="SBOM docs" value={D.sbomSummary ? sbomCount : "—"} color="var(--violet)" sub="artifact_kind=sbom" />
+        <StatTile label="Attestations" value={D.sbomSummary ? attestCount : "—"} color="var(--ember)" sub="artifact_kind=attestation" />
       </div>
-      <Panel className="flush mt" title="SBOM evidence" sub="Advisories joined to affected services" glyph={<Icon.shield />}>
+      <Panel className="flush mt" title={rows.length + " subjects"} sub={groupBy + " inventory"} glyph={<Icon.shield />}>
         <table className="tbl">
-          <thead><tr><th>Advisory</th><th>Package</th><th>Severity</th><th>Affected services</th><th>Fix</th><th>Source</th></tr></thead>
-          <tbody>{rows.map((r) => (
-            <tr key={r.id}>
-              <td className="mono" style={{ fontSize: ".78rem" }}>{r.advisory}</td>
-              <td><span className="cell-stack"><span className="t-name">{r.pkg}</span><small>{r.ecosystem} · {r.version}</small></span></td>
-              <td>{r.severity ? <span className={"sev sev-" + r.severity}>{r.severity}</span> : <Badge tone="neutral">{r.kind || "bucket"}</Badge>}</td>
-              <td><div className="row wrap" style={{ gap: 5 }}>{r.services.map((s) => <button key={s.id} className="dep-chip" onClick={() => onOpenService(s.id)}>{s.name}</button>)}</div></td>
-              <td className="mono" style={{ fontSize: ".76rem" }}>{r.fix || (r.count ? fmt(r.count) + " attachment(s)" : "—")}</td>
-              <td>{r.source}</td>
+          <thead><tr><th>Subject digest</th><th>Attachments</th><th>Group</th><th>Source</th></tr></thead>
+          <tbody>{rows.map((r) => {
+            const value = r.value || r.id || "subject";
+            const short = value.length > 28 ? value.slice(0, 21) + "…" + value.slice(-6) : value;
+            return (
+            <tr key={r.id || value}>
+              <td className="mono" style={{ fontSize: ".78rem" }} title={value}>{short}</td>
+              <td><Badge tone="teal">{r.count || 0}</Badge></td>
+              <td className="mono" style={{ fontSize: ".76rem" }}>{r.dimension || groupBy}</td>
+              <td>sbom-attestations</td>
             </tr>
-          ))}{rows.length === 0 ? <tr><td colSpan={6} className="empty">No SBOM/attestation subjects from this source.</td></tr> : null}</tbody>
+          );})}{rows.length === 0 ? <tr><td colSpan={4} className="empty">No SBOM/attestation subjects from this source.</td></tr> : null}</tbody>
         </table>
+      </Panel>
+      <Panel className="mt" title="Attestation provenance" sub="per-subject attachment drilldown" glyph={<Icon.shield />}>
+        <p className="t-mut">Select a subject in the live console to read <span className="mono">?subject_digest=...</span> attachments, repositories, workloads, services, components, and missing evidence from the same API family.</p>
       </Panel>
     </div>
   );

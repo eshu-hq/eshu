@@ -47,6 +47,13 @@ interface PrototypeModel {
     readonly range: string;
     readonly dependencyType: string;
   }[];
+  readonly sbomInventory?: {
+    readonly buckets: readonly {
+      readonly value: string;
+      readonly dimension: string;
+      readonly count: number;
+    }[];
+  };
   readonly langInventory?: readonly { readonly label: string; readonly value: number }[];
   readonly metrics?: {
     readonly ingestRate?: readonly number[];
@@ -170,8 +177,23 @@ function liveClient(): PrototypeClient {
           truth: { level: "exact", freshness: { state: "fresh" } }
         };
       }
+      if (path.includes("/supply-chain/sbom-attestations/attachments/inventory")) {
+        return {
+          data: {
+            group_by: "subject_digest",
+            truncated: false,
+            buckets: [{ dimension: "subject_digest", value: "sha256:aaa", count: 3 }]
+          }
+        };
+      }
       if (path.includes("/supply-chain/sbom-attestations/attachments/count")) {
-        return { data: { total_attachments: 0 } };
+        return {
+          data: {
+            total_attachments: 3,
+            by_attachment_status: { attached_verified: 2 },
+            by_artifact_kind: { sbom: 2, attestation: 1 }
+          }
+        };
       }
       if (path.includes("/supply-chain/advisories")) {
         return {
@@ -311,6 +333,13 @@ describe("prototype live parity loader", () => {
       range: "^1.3.0",
       dependencyType: "runtime"
     });
+    expect(model.sbomInventory?.buckets[0]).toMatchObject({
+      value: "sha256:aaa",
+      dimension: "subject_digest",
+      count: 3
+    });
+    expect(model.sbomInventory?.buckets[0]).not.toHaveProperty("advisory");
+    expect(model.sbomInventory?.buckets[0]).not.toHaveProperty("services");
   });
 
   it("keeps live dead-code candidates even when source metadata is partial", async () => {
