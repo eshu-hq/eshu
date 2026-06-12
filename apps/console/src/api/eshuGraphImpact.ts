@@ -1,4 +1,5 @@
 import type { EshuApiClient } from "./client";
+import { EshuEnvelopeError } from "./envelope";
 import type { GraphEdge, GraphModel, GraphNode } from "../console/types";
 
 interface RelEntity {
@@ -39,6 +40,7 @@ export async function loadBlastGraph(client: EshuApiClient, name: string): Promi
     target_type: "repository",
     limit: 50
   });
+  if (env.error) throw new EshuEnvelopeError(env.error);
   const data = env.data ?? {};
   const center = ident(typeof data.target === "object" ? data.target : data.entity, name);
   const affected = data.affected ?? data.impacted ?? data.dependents ?? data.results ?? [];

@@ -52,6 +52,21 @@ describe("eshuGraph", () => {
     expect(graph.edges).toHaveLength(0);
   });
 
+  it("loadBlastGraph rejects error envelopes instead of rendering a fake origin graph", async () => {
+    const client = {
+      post: async () => ({
+        data: null,
+        error: {
+          code: "unsupported_capability",
+          message: "blast radius unavailable"
+        },
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+
+    await expect(loadBlastGraph(client, "catalog-api")).rejects.toThrow("unsupported_capability");
+  });
+
   it("relationshipsToGraph builds a hero center and maps verbs to layers + direction", () => {
     const graph = relationshipsToGraph({
       target: { id: "svc:checkout", name: "checkout", type: "service" },
