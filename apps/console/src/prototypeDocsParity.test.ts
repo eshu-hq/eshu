@@ -52,18 +52,26 @@ describe("prototype documentation parity", () => {
     expect(page).not.toContain("Prometheus, CloudWatch, OpenTelemetry, Loki, Datadog");
   });
 
-  it("keeps the prototype cloud route on the canonical inventory contract", () => {
+  it("keeps the prototype cloud route on the live cloud resources contract", () => {
+    const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-cloud.jsx");
+    const overlay = repoFile("apps/console/prototype/eshu-console/console/pages-cloud-parity.jsx");
     const guide = repoFile("apps/console/prototype/eshu-console/port/PORT-TO-CONSOLE.md");
 
+    expect(html).toContain("console/pages-cloud-parity.jsx");
     expect(app).toContain("<Cloud data={data} client={liveClient}");
     expect(page).toContain("/api/v0/cloud/inventory");
     expect(page).toContain("Canonical inventory");
     expect(page).toContain("buildCanonicalCloudNetwork");
     expect(page).toContain("HAS_RESOURCE");
     expect(page).toContain("No canonical inventory rows");
+    expect(overlay).toContain("/api/v0/cloud/resources");
+    expect(overlay).toContain("after_resource_type");
+    expect(overlay).toContain("after_id");
+    expect(overlay).toContain("No cloud resources match this scope");
     expect(guide).toContain("GET /api/v0/cloud/inventory");
+    expect(guide).toContain("GET /api/v0/cloud/resources");
   });
 
   it("keeps the prototype dashboard atlas on live entity-map contracts", () => {
