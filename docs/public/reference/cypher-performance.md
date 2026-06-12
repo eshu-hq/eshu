@@ -197,6 +197,31 @@ unpromoted; only explicit config-read deployment evidence can produce
 `relationship_basis=deployment_config_read_evidence`, preserving the
 missing-relationship contract for name or ARN coincidences.
 
+### Code-Edge Resolution Provenance Write Shape
+
+The `CALLS`, `REFERENCES`, and `USES_METACLASS` edge-write templates
+(`go/internal/storage/cypher/canonical_code_call_edges.go` and the label-scoped
+builders) carry per-edge `resolution_method`, `confidence`, and `reason` from
+[design 2222](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/2222-resolution-provenance-code-edges.md).
+These were previously a hard-coded `confidence = 0.95` literal in the `SET`
+clause.
+
+No-Regression Evidence: the change is `SET`-clause only. The `UNWIND $rows`
+batching, the `MATCH … MERGE (source)-[rel:…]->(target)` shape, the endpoint
+label families, and the batch sizes are unchanged; the `SET` writes three
+row-sourced scalar properties instead of two literals plus carried parameters.
+No new `MATCH`, traversal, index lookup, or statement is added, so the query
+plan shape is invariant on both NornicDB and Neo4j. The marginal cost is three
+bounded scalars per row inside the already-batched `$rows` parameter.
+`go test ./internal/storage/cypher -count=1` covers the parameterized templates
+and the per-tier confidence derivation.
+
+No-Observability-Change: the existing `CodeCallEdgeDuration` histogram and
+`CodeCallEdgeBatches` counter, plus the `domain=code_calls relationship=… rows=…`
+statement summary, expose any edge-write regression with no new metric labels or
+backend branches. Provenance is carried as edge properties, not as new
+instrumentation.
+
 ## Related Docs
 
 - [NornicDB Pitfalls](nornicdb-pitfalls.md)
