@@ -1,5 +1,6 @@
 import type { EshuApiClient } from "./client";
 import type { FreshnessState, TruthLevel } from "./envelope";
+import { EshuEnvelopeError } from "./envelope";
 
 export interface CloudInventoryEvidence {
   readonly declared: boolean;
@@ -120,6 +121,7 @@ export async function loadCloudInventory(
   query: CloudInventoryQuery
 ): Promise<CloudInventoryPage> {
   const env = await client.get<CloudInventoryResponse>(buildPath(query));
+  if (env.error) throw new EshuEnvelopeError(env.error);
   const data = env.data ?? {};
   const rows = (data.resources ?? [])
     .map(rowFromRecord)

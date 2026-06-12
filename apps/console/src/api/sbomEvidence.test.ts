@@ -99,6 +99,24 @@ describe("sbomEvidence", () => {
     expect(summary.truth).toBeNull();
   });
 
+  it("reports unavailable when the count endpoint returns an Eshu error envelope", async () => {
+    const client = {
+      get: async () => ({
+        data: null,
+        error: {
+          code: "unsupported_runtime_profile",
+          message: "SBOM summary is unavailable in this profile",
+          capability: "supply_chain.sbom_attestation_attachments.aggregate"
+        },
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+    const summary = await loadSbomSummary(client);
+    expect(summary.provenance).toBe("unavailable");
+    expect(summary.total).toBe(0);
+    expect(summary.truth).toBeNull();
+  });
+
   it("maps inventory buckets, drops empty values, and carries truncated", async () => {
     const inv = await loadSbomInventory(fakeClient());
     expect(inv.groupBy).toBe("subject_digest");
@@ -109,6 +127,24 @@ describe("sbomEvidence", () => {
       { dimension: "subject_digest", value: "sha256:bbb", count: 1 }
     ]);
     expect(inv.provenance).toBe("live");
+  });
+
+  it("reports unavailable when inventory returns an Eshu error envelope", async () => {
+    const client = {
+      get: async () => ({
+        data: null,
+        error: {
+          code: "unsupported_runtime_profile",
+          message: "SBOM inventory is unavailable in this profile",
+          capability: "supply_chain.sbom_attestation_attachments.inventory"
+        },
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+    const inv = await loadSbomInventory(client);
+    expect(inv.provenance).toBe("unavailable");
+    expect(inv.buckets).toEqual([]);
+    expect(inv.truth).toBeNull();
   });
 
   it("drills into a subject and maps provenance, components, and missing evidence", async () => {
@@ -123,6 +159,24 @@ describe("sbomEvidence", () => {
     expect(att.missingEvidence).toEqual(["image_referrer_evidence"]);
     expect(att.sourceFreshness).toBe("active");
     expect(detail.provenance).toBe("live");
+  });
+
+  it("reports unavailable when subject detail returns an Eshu error envelope", async () => {
+    const client = {
+      get: async () => ({
+        data: null,
+        error: {
+          code: "unsupported_runtime_profile",
+          message: "SBOM detail is unavailable in this profile",
+          capability: "supply_chain.sbom_attestation_attachments.list"
+        },
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+    const detail = await loadSbomSubjectDetail(client, "sha256:aaa");
+    expect(detail.provenance).toBe("unavailable");
+    expect(detail.attachments).toEqual([]);
+    expect(detail.truth).toBeNull();
   });
 
   it("encodes the subject digest into the drilldown query", async () => {

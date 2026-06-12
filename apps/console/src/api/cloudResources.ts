@@ -8,6 +8,7 @@
 
 import type { EshuApiClient } from "./client";
 import type { TruthLevel, FreshnessState } from "./envelope";
+import { EshuEnvelopeError } from "./envelope";
 
 // CloudResourceRow is one cloud-provider resource projected from a CloudResource
 // graph node. Optional fields are empty strings when the node does not populate
@@ -126,6 +127,7 @@ export async function loadCloudResources(
   query: CloudResourceQuery
 ): Promise<CloudResourcePage> {
   const env = await client.get<CloudResourceListResponse>(buildPath(query));
+  if (env.error) throw new EshuEnvelopeError(env.error);
   const data = env.data ?? {};
   const rows = (data.resources ?? [])
     .map(rowFromRecord)

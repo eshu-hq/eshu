@@ -5,6 +5,7 @@
 
 import type { EshuApiClient } from "./client";
 import type { EshuTruth, FreshnessState, TruthLevel } from "./envelope";
+import { EshuEnvelopeError } from "./envelope";
 import type { IacResourceRow } from "./eshuConsoleLive";
 
 /** IaC graph node family accepted by GET /api/v0/iac/resources. */
@@ -102,6 +103,7 @@ export async function loadIacResourcesPage(
   query: IacResourceQuery
 ): Promise<IacResourcePage> {
   const env = await client.get<IacResourcesResponse>(iacResourcesPath(query));
+  if (env.error) throw new EshuEnvelopeError(env.error);
   const data = env.data ?? {};
   const next = data.next_cursor;
   return {

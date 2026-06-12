@@ -87,4 +87,20 @@ describe("loadCloudInventory", () => {
 
     await expect(loadCloudInventory(client, { limit: 50 })).rejects.toThrow("unsupported capability");
   });
+
+  it("propagates Eshu error envelopes instead of fabricating canonical rows", async () => {
+    const client = {
+      get: vi.fn(async () => ({
+        data: null,
+        error: {
+          code: "unsupported_runtime_profile",
+          message: "cloud inventory is unavailable in this profile",
+          capability: "cloud_inventory.readback.list"
+        },
+        truth: null
+      }))
+    } as unknown as EshuApiClient;
+
+    await expect(loadCloudInventory(client, { limit: 50 })).rejects.toThrow("unsupported_runtime_profile");
+  });
 });

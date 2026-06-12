@@ -79,4 +79,20 @@ describe("iacResources", () => {
       service: "s3"
     });
   });
+
+  it("propagates Eshu error envelopes instead of fabricating an empty inventory", async () => {
+    const client = {
+      get: vi.fn(async () => ({
+        data: null,
+        error: {
+          code: "unsupported_runtime_profile",
+          message: "IaC resource inventory is unavailable in this profile",
+          capability: "iac_inventory.resources.list"
+        },
+        truth: null
+      }))
+    } as unknown as EshuApiClient;
+
+    await expect(loadIacResourcesPage(client, { limit: 50 })).rejects.toThrow("unsupported_runtime_profile");
+  });
 });

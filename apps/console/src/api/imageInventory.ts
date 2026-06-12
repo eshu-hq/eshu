@@ -8,6 +8,7 @@
 
 import type { EshuApiClient } from "./client";
 import type { EshuTruth } from "./envelope";
+import { EshuEnvelopeError } from "./envelope";
 import type { SectionProvenance } from "./eshuConsoleLive";
 
 // ImageRow mirrors one row of GET /api/v0/images. Only fields the endpoint
@@ -94,6 +95,7 @@ export async function loadImages(
   if (opts.tag) params.set("tag", opts.tag);
   try {
     const env = await client.get<ImageListResponse>(`/api/v0/images?${params.toString()}`);
+    if (env.error) throw new EshuEnvelopeError(env.error);
     const rows = imageRowsFromResponse(env.data);
     const nextOffset = env.data?.truncated ? env.data?.next_cursor?.offset ?? null : null;
     return {
