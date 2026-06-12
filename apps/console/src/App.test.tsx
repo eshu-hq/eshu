@@ -221,6 +221,62 @@ describe("App shell", () => {
     expect(screen.getByText("No findings from this source.")).toBeInTheDocument();
   });
 
+  it("counts vulnerabilities in the Findings navigation worklist badge", async () => {
+    window.localStorage.setItem(
+      "eshu.console.environment",
+      JSON.stringify({ mode: "private", apiBaseUrl: "/eshu-api/", recentApiBaseUrls: ["/eshu-api/"] })
+    );
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const request = new Request(input);
+      const path = new URL(request.url).pathname;
+      if (path === "/eshu-api/api/v0/index-status") {
+        return Response.json({ status: "ready", repository_count: 1, queue: {} });
+      }
+      if (path === "/eshu-api/api/v0/ecosystem/overview") {
+        return Response.json({ data: { repo_count: 1 } });
+      }
+      if (path === "/eshu-api/api/v0/catalog") {
+        return Response.json({ data: { services: [] } });
+      }
+      if (path === "/eshu-api/api/v0/code/dead-code") {
+        return Response.json({
+          data: {
+            results: [{
+              classification: "unused",
+              entity_id: "content-entity:e1",
+              file_path: "server/routes.ts",
+              name: "legacyRoute",
+              repo_id: "repository:r1"
+            }]
+          },
+          truth: { level: "derived", freshness: { state: "fresh" }, profile: "production" }
+        });
+      }
+      if (path === "/eshu-api/api/v0/supply-chain/impact/findings") {
+        return Response.json({
+          data: {
+            findings: [{
+              advisory_id: "CVE-2026-1234",
+              cvss_score: 8.1,
+              package_name: "lodash",
+              repository_id: "repository:r1"
+            }]
+          }
+        });
+      }
+      return Response.json({ data: {} });
+    }));
+
+    render(
+      <MemoryRouter initialEntries={["/findings"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("CVE-2026-1234 · lodash")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Findings" }).querySelector(".nav-count")).toHaveTextContent("2");
+  });
+
   it("routes CVE searches to vulnerability detail instead of graph explorer", async () => {
     window.localStorage.setItem(
       "eshu.console.environment",

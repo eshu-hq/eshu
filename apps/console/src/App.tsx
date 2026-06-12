@@ -74,7 +74,7 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
     items: [
       { to: "/repositories", label: "Repositories", icon: FolderGit2, count: (m) => nonZero(m.runtime.repositories) },
       { to: "/catalog", label: "Catalog", icon: Boxes, count: (m) => nonZero(m.services?.length ?? 0) },
-      { to: "/findings", label: "Findings", icon: TriangleAlert, count: (m) => nonZero(m.findings?.length ?? 0), alert: true },
+      { to: "/findings", label: "Findings", icon: TriangleAlert, count: (m) => nonZero((m.findings?.length ?? 0) + (m.vulnerabilities?.length ?? 0)), alert: true },
       { to: "/images", label: "Images", icon: Images, count: (m) => nonZero(m.images?.length ?? 0) },
       { to: "/iac", label: "IaC", icon: Network, count: (m) => nonZero(m.iacResources?.length ?? 0) },
       { to: "/vulnerabilities", label: "Vulnerabilities", icon: ShieldCheck, count: (m) => nonZero(m.vulnerabilities?.length ?? 0), alert: true }
