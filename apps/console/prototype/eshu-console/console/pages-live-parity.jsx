@@ -4,14 +4,29 @@
 const { useMemo: useMemoP, useState: useStateP } = React;
 
 function serviceImages(D) {
+  if (Array.isArray(D.imageInventory) && D.imageInventory.length) {
+    return D.imageInventory.map((image) => {
+      const service = matchImageService(D, image);
+      const vulnCount = service ? (D.vulns || []).filter((v) => (v.services || []).includes(service.id)).length : 0;
+      return {
+        service,
+        image: image.image || image.name || image.digest,
+        tag: image.tag || "—",
+        vulnCount,
+        truth: image.truth || "exact",
+        sourceSystem: image.sourceSystem || image.registry || "registry"
+      };
+    });
+  }
   return D.services.filter((s) => s.image).map((s) => {
     const vulnCount = (D.vulns || []).filter((v) => (v.services || []).includes(s.id)).length;
     const tag = String(s.image).split(":").pop() || "latest";
-    return { service: s, image: s.image, tag, vulnCount };
+    return { service: s, image: s.image, tag, vulnCount, truth: s.truth, sourceSystem: "service catalog" };
   });
 }
 
 function iacRows(D) {
+  if (Array.isArray(D.iacParityRows) && D.iacParityRows.length) return D.iacParityRows;
   const resources = (D.cloudResources || []).filter((r) => r.tf).map((r) => {
     const svc = r.service && D.servicesById[r.service];
     return {
@@ -41,6 +56,9 @@ function iacRows(D) {
 }
 
 function sbomRows(D) {
+  if (D.sbomInventory && Array.isArray(D.sbomInventory.buckets) && D.sbomInventory.buckets.length) {
+    return D.sbomInventory.buckets;
+  }
   return (D.vulns || []).map((v) => {
     const services = (v.services || []).map((id) => D.servicesById[id]).filter(Boolean);
     return {
@@ -58,6 +76,7 @@ function sbomRows(D) {
 }
 
 function dependencyRows(D) {
+  if (Array.isArray(D.dependencyInventory) && D.dependencyInventory.length) return D.dependencyInventory;
   return D.services.flatMap((s) => {
     const deps = (s.deps || []).map((id) => ({
       id: s.id + "->" + id,
@@ -75,6 +94,12 @@ function dependencyRows(D) {
     }));
     return deps.concat(stores);
   });
+}
+
+function matchImageService(D, image) {
+  const imageText = String(image.image || image.name || image.repository || "");
+  const tag = image.tag ? ":" + image.tag : "";
+  return D.services.find((s) => s.image && (s.image.includes(imageText) || (tag && s.image.endsWith(tag)))) || null;
 }
 
 function platformTopologyGraph(D) {
@@ -115,12 +140,12 @@ function Images({ data, onOpenService }) {
         <table className="tbl">
           <thead><tr><th>Image</th><th>Service</th><th>Tag</th><th>Advisories</th><th>Truth</th><th></th></tr></thead>
           <tbody>{images.map((row) => (
-            <tr key={row.image} onClick={() => onOpenService(row.service.id)} style={{ cursor: "pointer" }}>
+            <tr key={row.image} onClick={() => row.service && onOpenService(row.service.id)} style={{ cursor: row.service ? "pointer" : "default" }}>
               <td className="mono" style={{ fontSize: ".78rem" }}>{row.image}</td>
-              <td className="t-name">{row.service.name}</td>
+              <td className="t-name">{row.service ? row.service.name : "—"}</td>
               <td><Badge tone="teal">{row.tag}</Badge></td>
               <td><span className={row.vulnCount ? "nav-count alert" : "nav-count"}>{row.vulnCount}</span></td>
-              <td><TruthChip level={row.service.truth} /></td>
+              <td><TruthChip level={row.truth} /></td>
               <td style={{ color: "var(--subtle)" }}><Icon.arrow size={15} /></td>
             </tr>
           ))}</tbody>
@@ -177,15 +202,18 @@ function SBOM({ data, onOpenService }) {
   const rows = useMemoP(() => sbomRows(D), [D]);
   const packages = new Set(rows.map((r) => r.pkg)).size;
   const critical = rows.filter((r) => r.severity === "critical").length;
+  const total = D.sbomSummary ? D.sbomSummary.total : rows.length;
+  const liveBuckets = Boolean(D.sbomInventory);
+  const fixCount = rows.filter((r) => r.fix && r.fix !== "none").length;
 
   return (
     <div className="page">
       <div className="page-intro"><h2>SBOM</h2><p>Package and advisory evidence correlated to deployed service images and source manifests.</p></div>
       <div className="grid g-4">
-        <StatTile label="Packages" value={packages} color="var(--teal)" sub="affected package names" />
-        <StatTile label="Advisories" value={rows.length} color="var(--crit)" sub="CVE, GHSA, OSV and registry signals" />
+        <StatTile label={liveBuckets ? "Subjects" : "Packages"} value={packages} color="var(--teal)" sub={liveBuckets ? "grouped SBOM buckets" : "affected package names"} />
+        <StatTile label="SBOM attachments" value={total} color="var(--crit)" sub="attestation evidence" />
         <StatTile label="Critical" value={critical} color="var(--crit)" sub="highest severity" />
-        <StatTile label="Fix available" value={rows.filter((r) => r.fix !== "none").length} color="var(--blue)" sub="upgrade candidates" />
+        <StatTile label="Fix available" value={fixCount} color="var(--blue)" sub="upgrade candidates" />
       </div>
       <Panel className="flush mt" title="SBOM evidence" sub="Advisories joined to affected services" glyph={<Icon.shield />}>
         <table className="tbl">
@@ -194,9 +222,9 @@ function SBOM({ data, onOpenService }) {
             <tr key={r.id}>
               <td className="mono" style={{ fontSize: ".78rem" }}>{r.advisory}</td>
               <td><span className="cell-stack"><span className="t-name">{r.pkg}</span><small>{r.ecosystem} · {r.version}</small></span></td>
-              <td><span className={"sev sev-" + r.severity}>{r.severity}</span></td>
+              <td>{r.severity ? <span className={"sev sev-" + r.severity}>{r.severity}</span> : <Badge tone="neutral">{r.kind || "bucket"}</Badge>}</td>
               <td><div className="row wrap" style={{ gap: 5 }}>{r.services.map((s) => <button key={s.id} className="dep-chip" onClick={() => onOpenService(s.id)}>{s.name}</button>)}</div></td>
-              <td className="mono" style={{ fontSize: ".76rem" }}>{r.fix}</td>
+              <td className="mono" style={{ fontSize: ".76rem" }}>{r.fix || (r.count ? fmt(r.count) + " attachment(s)" : "—")}</td>
               <td>{r.source}</td>
             </tr>
           ))}</tbody>
@@ -228,11 +256,11 @@ function Dependencies({ data, onOpenService }) {
           <thead><tr><th>Source</th><th>Verb</th><th>Target</th><th>Layer</th><th>System</th></tr></thead>
           <tbody>{filtered.map((r) => (
             <tr key={r.id}>
-              <td><button className="dep-chip" onClick={() => onOpenService(r.source.id)}>{r.source.name}</button></td>
+              <td>{r.source ? <button className="dep-chip" onClick={() => onOpenService(r.source.id)}>{r.source.name}</button> : <span className="t-name">{r.sourceLabel}</span>}</td>
               <td><Badge tone={r.layer === "code" ? "teal" : "neutral"}>{r.verb}</Badge></td>
-              <td>{D.servicesById[r.target.id] ? <button className="dep-chip" onClick={() => onOpenService(r.target.id)}>{r.target.name}</button> : <span className="t-name">{r.target.name}</span>}</td>
+              <td>{r.target && D.servicesById[r.target.id] ? <button className="dep-chip" onClick={() => onOpenService(r.target.id)}>{r.target.name}</button> : <span className="t-name">{r.targetLabel || (r.target && r.target.name)}</span>}</td>
               <td className="mono" style={{ fontSize: ".76rem" }}>{r.layer}</td>
-              <td>{r.target.system}</td>
+              <td>{r.system || (r.target && r.target.system)}</td>
             </tr>
           ))}</tbody>
         </table>

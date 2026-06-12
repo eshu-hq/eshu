@@ -16,23 +16,23 @@ const NAV = [
     { id: "explorer", label: "Graph Explorer", icon: "graph" }
   ] },
   { group: "Inventory", items: [
-    { id: "repos", label: "Repositories", icon: "catalog", count: () => ESHU.services.filter((s) => s.repo).length },
-    { id: "catalog", label: "Catalog", icon: "box", count: () => ESHU.services.length },
-    { id: "findings", label: "Findings", icon: "findings", alert: true, count: () => ESHU.findings.length + ESHU.vulns.length },
-    { id: "images", label: "Images", icon: "box", count: () => ESHU.services.filter((s) => s.image).length },
-    { id: "iac", label: "IaC", icon: "layers", count: () => ESHU.cloudResources.filter((r) => r.tf).length },
-    { id: "vulnerabilities", label: "Vulnerabilities", icon: "vuln", alert: true, count: () => ESHU.vulns.length }
+    { id: "repos", label: "Repositories", icon: "catalog", count: (m) => m.services.filter((s) => s.repo).length },
+    { id: "catalog", label: "Catalog", icon: "box", count: (m) => m.services.length },
+    { id: "findings", label: "Findings", icon: "findings", alert: true, count: (m) => m.findings.length + m.vulns.length },
+    { id: "images", label: "Images", icon: "box", count: (m) => (m.imageInventory || []).length || m.services.filter((s) => s.image).length },
+    { id: "iac", label: "IaC", icon: "layers", count: (m) => (m.iacParityRows || []).length || m.cloudResources.filter((r) => r.tf).length },
+    { id: "vulnerabilities", label: "Vulnerabilities", icon: "vuln", alert: true, count: (m) => m.vulns.length }
   ] },
   { group: "Code", items: [
-    { id: "deadcode", label: "Dead code", icon: "findings", count: () => ESHU.deadCode.length },
+    { id: "deadcode", label: "Dead code", icon: "findings", count: (m) => m.deadCode.length },
     { id: "codegraph", label: "Code graph", icon: "branch" }
   ] },
   { group: "Cloud & Telemetry", items: [
     { id: "topology", label: "Topology", icon: "graph" },
-    { id: "cloud", label: "Cloud", icon: "cloud", count: () => ESHU.cloudResources.length },
+    { id: "cloud", label: "Cloud", icon: "cloud", count: (m) => m.cloudResources.length },
     { id: "observability", label: "Observability", icon: "pulse" },
-    { id: "sbom", label: "SBOM", icon: "shield", count: () => ESHU.vulns.length },
-    { id: "dependencies", label: "Dependencies", icon: "branch" }
+    { id: "sbom", label: "SBOM", icon: "shield", count: (m) => (m.sbomInventory && m.sbomInventory.buckets.length) || m.vulns.length },
+    { id: "dependencies", label: "Dependencies", icon: "branch", count: (m) => (m.dependencyInventory || []).length }
   ] },
   { group: "System", items: [
     { id: "admin", label: "Operations", icon: "admin" }
@@ -67,7 +67,7 @@ function App() {
   const [srcOpen, setSrcOpen] = useStateA(false);
   const STORE = "eshu.console.environment";
   const [source, setSource] = useStateA(() => {
-    try { const e = JSON.parse(localStorage.getItem(STORE) || "{}"); return { mode: "demo", base: e.apiBaseUrl || "/eshu-api/", key: e.apiKey || "", status: "idle", msg: "", live: null }; }
+    try { const e = JSON.parse(localStorage.getItem(STORE) || "{}"); return { mode: "demo", base: e.apiBaseUrl || "/eshu-api/", key: "", status: "idle", msg: "", live: null }; }
     catch (_) { return { mode: "demo", base: "/eshu-api/", key: "", status: "idle", msg: "", live: null }; }
   });
 
@@ -77,7 +77,7 @@ function App() {
       const client = new ESHU.EshuApiClient({ baseUrl: base, apiKey: key });
       await client.get("/api/v0/index-status"); // health probe
       const live = await ESHU.loadLive(client);
-      try { localStorage.setItem(STORE, JSON.stringify({ apiBaseUrl: base, apiKey: key, mode: "private", recentApiBaseUrls: [base] })); } catch (_) {}
+      try { localStorage.setItem(STORE, JSON.stringify({ apiBaseUrl: base, mode: "private", recentApiBaseUrls: [base] })); } catch (_) {}
       setSource({ mode: "live", base, key, status: "connected", msg: "", live });
       setSrcOpen(false);
     } catch (e) {
@@ -133,7 +133,7 @@ function App() {
             <div className="nav-group-label">{grp.group}</div>
             {grp.items.map((it) => {
               const I = Icon[it.icon];
-              const c = it.count ? it.count() : null;
+              const c = it.count ? it.count(data) : null;
               return (
                 <a key={it.id} className={cx("nav-item", route === it.id && "active")} href={"#" + it.id} onClick={() => go(it.id)}>
                   <I /> {it.label}
