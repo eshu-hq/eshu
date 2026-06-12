@@ -5,11 +5,9 @@ import { describe, expect, it } from "vitest";
 function repoRoot(): string {
   return process.cwd().endsWith("apps/console") ? resolve(process.cwd(), "../..") : process.cwd();
 }
-
 function repoFile(path: string): string {
   return readFileSync(resolve(repoRoot(), path), "utf8");
 }
-
 describe("prototype documentation parity", () => {
   it("documents the live parity endpoints exposed by the prototype loader", () => {
     const guide = repoFile("apps/console/prototype/eshu-console/port/PORT-TO-CONSOLE.md");
@@ -432,9 +430,10 @@ describe("prototype documentation parity", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-code.jsx");
     const deadCodeLoader = repoFile("apps/console/prototype/eshu-console/console/live-dead-code-loader.js");
-    const loader = repoFile("apps/console/prototype/eshu-console/console/data.js");
+    const loader = repoFile("apps/console/prototype/eshu-console/console/live-base-loader.js");
 
     expect(html).toContain("console/live-dead-code-loader.js");
+    expect(html).toContain("console/live-base-loader.js");
     expect(page).toContain('hashFor("reposource"');
     expect(page).toContain('hashFor("codegraph", "?candidate="');
     expect(page).toContain("lineStart");
