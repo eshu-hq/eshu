@@ -67,11 +67,12 @@ and the [Multi-Cloud Runtime Collector Contract](../../../../docs/public/referen
   scan loop also emits, from existing parsed ARM fields, a provenance-only
   `azure_cloud_relationship` (`managed_by`) from each resource's `managedBy`
   owning-resource reference (no redaction key needed), and a keyed
-  `azure_identity_observation` from each system-assigned `identity` block
-  (principal/tenant GUIDs fingerprinted, emitted only when a redaction key is
-  set). What remains per kind is emission for the families whose source data
-  needs the live transport (DNS records, image references, user-assigned
-  identities, resource changes) and reducer admission. Reducer admission of tag
+  `azure_identity_observation` from each `identity` block — both the
+  system-assigned identity and one per user-assigned identity under
+  `userAssignedIdentities` (principal/client/tenant GUIDs fingerprinted, emitted
+  only when a redaction key is set). What remains per kind is emission for the
+  families whose source data needs the live transport (DNS records, image
+  references, resource changes) and reducer admission. Reducer admission of tag
   evidence is already wired (#2192).
 
 ## Invariants
