@@ -120,8 +120,8 @@ export function codeRelationshipsToGraph(data: CodeRelationshipsResponse, fallba
 }
 
 // Resolve + expand one entity into a center-and-neighbours graph via direct code
-// relationships (depth 1). code/relationships only matches on `entity_id`, so we
-// resolve the query to a graph entity id first (falling back to the raw query).
+// relationships (max_depth 1). code/relationships only matches on `entity_id`,
+// so we resolve the query to a graph entity id first (falling back to the raw query).
 export async function loadEntityGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
   let entityID = "";
   let displayName = name;
@@ -138,7 +138,7 @@ export async function loadEntityGraph(client: EshuApiClient, name: string): Prom
   }
   let env;
   try {
-    env = await client.post<CodeRelationshipsResponse>("/api/v0/code/relationships", { entity_id: entityID, depth: 1 });
+    env = await client.post<CodeRelationshipsResponse>("/api/v0/code/relationships", { entity_id: entityID, max_depth: 1 });
   } catch (e) {
     // code/relationships is keyed to code entities (Function/File/Class…). A
     // service/workload/infra entity has none, so the endpoint answers 404 — a

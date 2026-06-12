@@ -97,7 +97,8 @@ describe("eshuGraph", () => {
     } as unknown as EshuApiClient;
     const graph = await loadEntityGraph(client, "createNewVersion");
     expect(calledPath).toBe("/api/v0/code/relationships");
-    expect(body).toMatchObject({ entity_id: "content-entity:e_center" });
+    expect(body).toMatchObject({ entity_id: "content-entity:e_center", max_depth: 1 });
+    expect(body).not.toMatchObject({ depth: 1 });
     expect(graph.nodes.find((n) => n.hero)?.label).toBe("createNewVersion");
     expect(graph.edges).toHaveLength(1);
   });

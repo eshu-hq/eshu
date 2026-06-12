@@ -103,7 +103,7 @@
   async function loadDirectGraph(client, resolved) {
     if (!resolved.id) return { graph: centerOnly(resolved.name, resolved.name, resolved.kind), resolved };
     try {
-      const env = await client.post("/api/v0/code/relationships", { entity_id: resolved.id, depth: 1 });
+      const env = await client.post("/api/v0/code/relationships", { entity_id: resolved.id, max_depth: 1 });
       return { graph: codeRelationshipsToGraph(env.data || {}, resolved), resolved };
     } catch (e) {
       if (String((e && e.message) || e).indexOf("HTTP 404") >= 0) {

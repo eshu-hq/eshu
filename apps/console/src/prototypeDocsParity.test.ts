@@ -128,6 +128,7 @@ describe("prototype documentation parity", () => {
     expect(app).toContain("client={liveClient}");
     expect(page).toContain("/api/v0/entities/resolve");
     expect(page).toContain("/api/v0/code/relationships");
+    expect(page).toContain("max_depth: 1");
     expect(page).toContain("/api/v0/services/");
     expect(page).toContain("/api/v0/repositories/");
     expect(page).toContain("/api/v0/impact/entity-map");
