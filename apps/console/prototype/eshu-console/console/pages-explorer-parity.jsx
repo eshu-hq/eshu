@@ -7,7 +7,8 @@
   const LAYERS = ["code", "deploy", "infra", "runtime", "security", "ops"];
   const VERB_LAYER = {
     CALLS: "code", IMPORTS: "code", INHERITS: "code", OVERRIDES: "code", REFERENCES: "code",
-    DEPLOYS_FROM: "deploy", BUILDS: "deploy", DISCOVERS_CONFIG_IN: "deploy",
+    DEPLOYS_FROM: "deploy", DEPLOYS_HELM: "deploy", PACKAGES: "deploy",
+    BUILDS: "deploy", DISCOVERS_CONFIG_IN: "deploy",
     DECLARED_BY: "infra", STORES_IN: "infra", ASSUMES_ROLE: "infra",
     RUNS_IN: "runtime", RUNS_AS: "runtime", DEPENDS_ON: "runtime", EXPOSES: "runtime",
     AFFECTED_BY: "security", OBSERVED_INCIDENT: "ops", TRACKED_BY: "ops"
@@ -179,7 +180,7 @@
     charts.forEach((repo) => {
       chartIds.add(repo.id);
       addStoryNode(nodes, node(repo.id, repo.name, "repo", "Helm chart", 1, false, "derived"));
-      addStoryEdge(edges, edgeKeys, repo.id, sourceRepo.id, "DEPLOYS_FROM");
+      addStoryEdge(edges, edgeKeys, repo.id, sourceRepo.id, "PACKAGES");
     });
 
     const controllers = uniqueRepos(artifacts
@@ -189,7 +190,7 @@
     controllers.forEach((repo) => {
       addStoryNode(nodes, node(repo.id, repo.name, "repo", "Deployment controller", 0, false, "derived"));
       if (!charts.length) addStoryEdge(edges, edgeKeys, repo.id, sourceRepo.id, "DEPLOYS_FROM");
-      charts.forEach((chart) => addStoryEdge(edges, edgeKeys, repo.id, chart.id, "DEPLOYS_FROM"));
+      charts.forEach((chart) => addStoryEdge(edges, edgeKeys, repo.id, chart.id, "DEPLOYS_HELM"));
     });
 
     if (artifacts.length) addStoryEdge(edges, edgeKeys, sourceRepo.id, serviceId, "DEPLOYS_FROM");

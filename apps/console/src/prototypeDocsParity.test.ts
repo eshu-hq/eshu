@@ -175,6 +175,8 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("Direct");
     expect(page).toContain("Neighborhood");
     expect(page).toContain("DEPLOYS_FROM");
+    expect(page).toContain("DEPLOYS_HELM");
+    expect(page).toContain("PACKAGES");
     expect(page).toContain("loadRepositoryDeploymentStoryGraph");
     expect(page).toContain("repoId");
     expect(page).toContain("sourceLocation");

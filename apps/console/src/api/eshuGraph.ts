@@ -17,7 +17,8 @@ export { codeRelationshipsToGraph, type CodeRelationshipsResponse } from "./eshu
 
 const VERB_LAYER: Record<string, GraphLayer> = {
   CALLS: "code", IMPORTS: "code", INHERITS: "code", OVERRIDES: "code", REFERENCES: "code",
-  DEPLOYS_FROM: "deploy", BUILDS: "deploy", DISCOVERS_CONFIG_IN: "deploy",
+  DEPLOYS_FROM: "deploy", DEPLOYS_HELM: "deploy", PACKAGES: "deploy",
+  BUILDS: "deploy", DISCOVERS_CONFIG_IN: "deploy",
   DECLARED_BY: "infra", STORES_IN: "infra", ASSUMES_ROLE: "infra",
   RUNS_IN: "runtime", RUNS_AS: "runtime", DEPENDS_ON: "runtime", EXPOSES: "runtime",
   AFFECTED_BY: "security", OBSERVED_INCIDENT: "ops", TRACKED_BY: "ops"
@@ -236,7 +237,7 @@ export function deploymentStoryToGraph(data: ServiceDeploymentContextResponse, f
   chartRepos.forEach((repo) => {
     chartRepoIDs.add(repo.id);
     addStoryNode(nodes, { id: repo.id, label: repo.name, kind: "repo", sub: "Helm chart", col: 1, truth: "derived" });
-    addStoryEdge(edges, edgeKeys, repo.id, sourceRepo.id, "DEPLOYS_FROM");
+    addStoryEdge(edges, edgeKeys, repo.id, sourceRepo.id, "PACKAGES");
   });
 
   const controllerRepos = uniqueRepos(deployArtifacts
@@ -249,7 +250,7 @@ export function deploymentStoryToGraph(data: ServiceDeploymentContextResponse, f
       addStoryEdge(edges, edgeKeys, repo.id, sourceRepo.id, "DEPLOYS_FROM");
       return;
     }
-    chartRepos.forEach((chartRepo) => addStoryEdge(edges, edgeKeys, repo.id, chartRepo.id, "DEPLOYS_FROM"));
+    chartRepos.forEach((chartRepo) => addStoryEdge(edges, edgeKeys, repo.id, chartRepo.id, "DEPLOYS_HELM"));
   });
 
   if (deployArtifacts.length > 0) {

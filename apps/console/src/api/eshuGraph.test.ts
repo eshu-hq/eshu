@@ -238,8 +238,8 @@ describe("eshuGraph", () => {
       "iac-eks-argocd"
     ]);
     expect(graph.edges).toEqual(expect.arrayContaining([
-      expect.objectContaining({ s: "repository:r_dd626fe7", t: "repository:r_66cd2d76", verb: "DEPLOYS_FROM", layer: "deploy" }),
-      expect.objectContaining({ s: "repository:r_66cd2d76", t: "repository:r_078043f1", verb: "DEPLOYS_FROM", layer: "deploy" }),
+      expect.objectContaining({ s: "repository:r_dd626fe7", t: "repository:r_66cd2d76", verb: "DEPLOYS_HELM", layer: "deploy" }),
+      expect.objectContaining({ s: "repository:r_66cd2d76", t: "repository:r_078043f1", verb: "PACKAGES", layer: "deploy" }),
       expect.objectContaining({ s: "repository:r_078043f1", t: "workload:api-node-platform", verb: "DEPLOYS_FROM", layer: "deploy" })
     ]));
     expect(graph.edges.some((edge) => edge.verb === "RELATED")).toBe(false);
@@ -279,7 +279,10 @@ describe("eshuGraph", () => {
     const graph = await loadEntityStoryGraph(client, "api-node-platform");
 
     expect(calls).toEqual(["/api/v0/services/api-node-platform/context"]);
-    expect(graph.edges).toContainEqual(expect.objectContaining({ verb: "DEPLOYS_FROM" }));
+    expect(graph.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ s: "repository:r_66cd2d76", t: "repository:r_078043f1", verb: "PACKAGES" }),
+      expect.objectContaining({ s: "repository:r_078043f1", t: "workload:api-node-platform", verb: "DEPLOYS_FROM" })
+    ]));
   });
 
   it("loadEntityStoryGraph uses repository context deployment evidence before entity-map", async () => {
@@ -335,8 +338,8 @@ describe("eshuGraph", () => {
       "/api/v0/repositories/repository%3Ar_078043f1/context"
     ]);
     expect(graph.edges).toEqual(expect.arrayContaining([
-      expect.objectContaining({ s: "repository:r_dd626fe7", t: "repository:r_66cd2d76", verb: "DEPLOYS_FROM" }),
-      expect.objectContaining({ s: "repository:r_66cd2d76", t: "repository:r_078043f1", verb: "DEPLOYS_FROM" }),
+      expect.objectContaining({ s: "repository:r_dd626fe7", t: "repository:r_66cd2d76", verb: "DEPLOYS_HELM" }),
+      expect.objectContaining({ s: "repository:r_66cd2d76", t: "repository:r_078043f1", verb: "PACKAGES" }),
       expect.objectContaining({ s: "repository:r_078043f1", t: "workload:api-node-platform", verb: "DEPLOYS_FROM" })
     ]));
     expect(graph.edges.some((edge) => edge.verb === "RELATED")).toBe(false);
