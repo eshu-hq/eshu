@@ -2251,3 +2251,30 @@ admitted-vs-ambiguous/unsupported/unresolved split per provider, alongside the
 existing reducer execution spans/counters and `fact_work_items` status/failure
 fields. The durable canonical rows (`reducer_cloud_resource_identity`) carry the
 admission summary counts and per-layer evidence flags for read-side audit.
+
+## Code-call resolution provenance (#2223)
+
+Each materialized code-call, reference, and Python metaclass row carries a
+`resolution_method` from the closed
+[ADR #2222](../../../docs/internal/design/2222-resolution-provenance-code-edges.md)
+vocabulary (`go/internal/codeprovenance`). `resolveGenericCallee` returns the
+resolver branch that produced the match; SCIP rows carry `scip`, metaclass rows
+carry `declared`, and the secondary constructor edge carries `type_inferred`.
+The method is descriptive, never admissive. Graph persistence of the tiered
+confidence derived from this method is owned by #2224.
+
+No-Regression Evidence: `go test ./internal/reducer -run 'ResolutionMethod|MetaclassRowsCarry' -count=1`
+and `go test ./internal/codeprovenance -count=1` fail before the resolution
+method is threaded out of the resolver and pass after. The change adds one
+string key (`resolution_method`) to each already-emitted row and one return
+value to `resolveGenericCallee`; it introduces no new fact scan, graph query,
+queue domain, lease, worker, or per-call loop. Dedupe keys, row counts, and
+intent volume are unchanged because the new field rides on existing rows, so
+reducer extraction cost and Postgres intent-write cost are unchanged. No graph
+backend write changes land in this PR, so no backend/version timing applies.
+
+No-Observability-Change: this change adds no route, graph query, queue domain,
+worker, lease, runtime knob, metric instrument, or metric label. The existing
+`code call materialization completed` completion log (fact, repository, and row
+counts plus per-phase timings) stays the operator signal; the new field appears
+inside existing durable intent payloads.

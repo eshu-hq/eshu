@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -308,7 +309,8 @@ func extractSCIPCodeCallRows(
 				repositoryID,
 				calleeID,
 			),
-			"action": IntentActionUpsert,
+			"resolution_method": codeprovenance.MethodSCIP,
+			"action":            IntentActionUpsert,
 		}
 		copyOptionalCodeCallField(row, edge, "caller_symbol")
 		copyOptionalCodeCallField(row, edge, "callee_symbol")
@@ -341,7 +343,7 @@ func extractGenericCodeCallRows(
 		if callerID == "" {
 			callerID = resolveFileRootCodeCallCallerID(repositoryID, relativePath, fileData)
 		}
-		calleeID, calleeFilePath := resolveGenericCallee(
+		calleeID, calleeFilePath, resolutionMethod := resolveGenericCallee(
 			entityIndex,
 			repositoryID,
 			repositoryImports,
@@ -372,9 +374,9 @@ func extractGenericCodeCallRows(
 			continue
 		}
 
-		rows = appendCodeCallRow(rows, seenRows, repositoryID, entityIndex, callerID, calleeID, callerFilePath, calleeFilePath, callLine, edge)
+		rows = appendCodeCallRow(rows, seenRows, repositoryID, entityIndex, callerID, calleeID, callerFilePath, calleeFilePath, callLine, resolutionMethod, edge)
 		if constructorID := resolveConstructorMethodCalleeID(entityIndex, calleeFilePath, edge); constructorID != "" {
-			rows = appendCodeCallRow(rows, seenRows, repositoryID, entityIndex, callerID, constructorID, callerFilePath, calleeFilePath, callLine, edge)
+			rows = appendCodeCallRow(rows, seenRows, repositoryID, entityIndex, callerID, constructorID, callerFilePath, calleeFilePath, callLine, codeprovenance.MethodTypeInferred, edge)
 		}
 	}
 	return rows
@@ -427,21 +429,6 @@ func resolveSameFileScopedCalleeEntityID(
 	return ""
 }
 
-func spanWidth(span codeFunctionSpan) int {
-	return span.endLine - span.startLine
-}
-
-func codeCallSpanMatchesAnyName(span codeFunctionSpan, names []string) bool {
-	for _, spanName := range span.names {
-		for _, name := range names {
-			if spanName == name {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func appendCodeCallRow(
 	rows []map[string]any,
 	seenRows map[string]struct{},
@@ -452,6 +439,7 @@ func appendCodeCallRow(
 	callerFilePath string,
 	calleeFilePath string,
 	callLine int,
+	resolutionMethod codeprovenance.Method,
 	edge map[string]any,
 ) []map[string]any {
 	relationshipType := codeCallRelationshipType(edge)
@@ -472,29 +460,13 @@ func appendCodeCallRow(
 		"ref_line":           callLine,
 		"action":             IntentActionUpsert,
 	}
+	if resolutionMethod != "" {
+		row["resolution_method"] = resolutionMethod
+	}
 	copyOptionalCodeCallField(row, edge, "full_name")
 	copyOptionalCodeCallField(row, edge, "call_kind")
 	if relationshipType != "" {
 		row["relationship_type"] = relationshipType
 	}
 	return append(rows, row)
-}
-
-func resolveConstructorMethodCalleeID(index codeEntityIndex, calleeFilePath string, edge map[string]any) string {
-	if anyToString(edge["call_kind"]) != "constructor_call" {
-		return ""
-	}
-	className := strings.TrimSpace(anyToString(edge["name"]))
-	if className == "" {
-		className = strings.TrimSpace(anyToString(edge["full_name"]))
-	}
-	if className == "" {
-		return ""
-	}
-	for _, pathKey := range codeCallPathKeys(calleeFilePath, "") {
-		if entityID := index.constructorByPath[pathKey][className]; entityID != "" {
-			return entityID
-		}
-	}
-	return ""
 }
