@@ -86,6 +86,17 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("No live relationship atlas");
   });
 
+  it("keeps the verified-evidence shield behavior aligned across live and prototype shells", () => {
+    const liveApp = repoFile("apps/console/src/App.tsx");
+    const prototypeApp = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
+
+    expect(liveApp).toContain('aria-label="Show verified evidence only"');
+    expect(liveApp).toContain("verifiedConsoleModel");
+    expect(liveApp).toContain('finding.truth !== "fallback"');
+    expect(prototypeApp).toContain("verifiedOnly");
+    expect(prototypeApp).toContain("Show verified evidence only");
+  });
+
   it("keeps the prototype repositories route on the live repository contract", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");

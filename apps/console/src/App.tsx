@@ -128,6 +128,8 @@ export function App(): React.JSX.Element {
   const [client, setClient] = useState<EshuApiClient | undefined>();
   const [drawer, setDrawer] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const visibleModel = verifiedOnly ? verifiedConsoleModel(model) : model;
   // Boot guard: React StrictMode runs effects twice in development, which would
   // otherwise fire two concurrent boot connects whose in-flight fetches abort
   // each other (issue #1727: ERR_ABORTED -> Catalog blank). The ref dedupes the
@@ -187,7 +189,7 @@ export function App(): React.JSX.Element {
     const query = searchQuery.trim();
     if (query.length === 0) return;
     const needle = query.toLowerCase();
-    const service = model.services.find((row) =>
+    const service = visibleModel.services.find((row) =>
       [row.name, row.id, row.repo].some((value) => value.toLowerCase().includes(needle))
     );
     if (service) {
@@ -209,7 +211,7 @@ export function App(): React.JSX.Element {
             <div className="nav-group-label">{group.label}</div>
             {group.items.map((n) => {
               const Icon = n.icon;
-              const count = n.count?.(model) ?? null;
+              const count = n.count?.(visibleModel) ?? null;
               return (
                 <NavLink key={n.to} to={n.to} aria-label={n.label} className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
                   <Icon aria-hidden />
@@ -240,7 +242,16 @@ export function App(): React.JSX.Element {
             />
             <kbd>⌘K</kbd>
           </form>
-          <span className="topbar-signal" title="Read-only live query surface"><ShieldCheck aria-hidden /></span>
+          <button
+            aria-label="Show verified evidence only"
+            aria-pressed={verifiedOnly}
+            className={`topbar-btn verify-btn${verifiedOnly ? " on" : ""}`}
+            title="Show verified evidence only"
+            type="button"
+            onClick={() => setVerifiedOnly((value) => !value)}
+          >
+            <ShieldCheck aria-hidden />
+          </button>
           <span className="topbar-signal" title="No local notifications"><Bell aria-hidden /></span>
           <div className="source-wrap">
             <button className={`source-pill src-${source.status}`} onClick={() => setOpen((o) => !o)}>
@@ -249,43 +260,60 @@ export function App(): React.JSX.Element {
             {open ? <SourcePopover source={source} onConnect={connect} onClose={() => setOpen(false)} /> : null}
           </div>
         </header>
+        {verifiedOnly ? (
+          <div className="prov-banner"><ShieldCheck aria-hidden size={14} /> Verified evidence only — hiding inferred findings and graph nodes.</div>
+        ) : null}
         {source.status === "error" ? (
           <div className="prov-banner warn">Eshu API unavailable at <span className="mono">{source.base}</span>{source.msg ? ` · ${source.msg}` : ""}. <button className="link-btn" onClick={() => setOpen(true)}>Edit data source</button></div>
         ) : null}
         {source.status === "connected" ? (
           <Routes>
-            <Route path="/" element={<DashboardPage model={model} client={client} onOpenService={openService} />} />
-            <Route path="/dashboard" element={<DashboardPage model={model} client={client} onOpenService={openService} />} />
-            <Route path="/explorer" element={<ExplorerPage model={model} client={client} onOpenService={openService} />} />
-            <Route path="/code-graph" element={<CodeGraphPage model={model} client={client} />} />
-            <Route path="/repositories" element={<RepositoriesPage client={client} model={model} />} />
+            <Route path="/" element={<DashboardPage model={visibleModel} client={client} onOpenService={openService} />} />
+            <Route path="/dashboard" element={<DashboardPage model={visibleModel} client={client} onOpenService={openService} />} />
+            <Route path="/explorer" element={<ExplorerPage model={visibleModel} client={client} onOpenService={openService} />} />
+            <Route path="/code-graph" element={<CodeGraphPage model={visibleModel} client={client} />} />
+            <Route path="/repositories" element={<RepositoriesPage client={client} model={visibleModel} />} />
             <Route path="/repositories/:id/source" element={<RepoSourcePage client={client} />} />
             <Route path="/cloud" element={<CloudPage client={client} />} />
-            <Route path="/topology" element={<TopologyPage client={client} model={model} onOpenService={openService} />} />
-            <Route path="/catalog" element={<CatalogPage model={model} onOpenService={openService} />} />
+            <Route path="/topology" element={<TopologyPage client={client} model={visibleModel} onOpenService={openService} />} />
+            <Route path="/catalog" element={<CatalogPage model={visibleModel} onOpenService={openService} />} />
             <Route path="/images" element={<ImagesPage client={client} />} />
-            <Route path="/iac" element={<IacPage model={model} client={client} />} />
-            <Route path="/findings" element={<FindingsPage model={model} />} />
-            <Route path="/dead-code" element={<DeadCodePage client={client} model={model} />} />
-            <Route path="/vulnerabilities" element={<VulnerabilitiesPage model={model} client={client} />} />
-            <Route path="/vulnerabilities/:id" element={<VulnDetailPage model={model} client={client} />} />
+            <Route path="/iac" element={<IacPage model={visibleModel} client={client} />} />
+            <Route path="/findings" element={<FindingsPage model={visibleModel} />} />
+            <Route path="/dead-code" element={<DeadCodePage client={client} model={visibleModel} />} />
+            <Route path="/vulnerabilities" element={<VulnerabilitiesPage model={visibleModel} client={client} />} />
+            <Route path="/vulnerabilities/:id" element={<VulnDetailPage model={visibleModel} client={client} />} />
             <Route path="/sbom" element={<SbomPage client={client} />} />
             <Route path="/dependencies" element={<DependenciesPage client={client} />} />
             <Route path="/observability" element={<ObservabilityPage client={client} />} />
-            <Route path="/operations" element={<OperationsPage model={model} />} />
+            <Route path="/operations" element={<OperationsPage model={visibleModel} />} />
             <Route path="/workspace/:entityKind/:entityId" element={<WorkspacePage />} />
           </Routes>
         ) : (
           <ConnectionState status={source.status} onConnect={() => setOpen(true)} />
         )}
       </div>
-      {drawer && client ? <ServiceDrawer name={drawer} model={model} client={client} onClose={() => setDrawer(null)} /> : null}
+      {drawer && client ? <ServiceDrawer name={drawer} model={visibleModel} client={client} onClose={() => setDrawer(null)} /> : null}
     </div>
   );
 }
 
 function activeNavItem(pathname: string): NavItem | undefined {
   return NAV_ITEMS.find((item) => pathname === item.to || pathname.startsWith(`${item.to}/`));
+}
+
+function verifiedConsoleModel(model: ConsoleModel): ConsoleModel {
+  const nodes = model.graph.nodes.filter((node) => node.truth !== "inferred");
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  return {
+    ...model,
+    services: model.services.filter((service) => service.truth !== "fallback"),
+    findings: model.findings.filter((finding) => finding.truth !== "fallback"),
+    graph: {
+      nodes,
+      edges: model.graph.edges.filter((edge) => nodeIds.has(edge.s) && nodeIds.has(edge.t))
+    }
+  };
 }
 
 function nonZero(value: number): number | null {

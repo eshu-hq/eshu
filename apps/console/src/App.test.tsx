@@ -172,4 +172,52 @@ describe("App shell", () => {
     // fetch to a single call so the requests cannot abort each other.
     expect(catalogCalls).toBe(1);
   });
+
+  it("toggles the demo-style verified evidence filter over live findings", async () => {
+    window.localStorage.setItem(
+      "eshu.console.environment",
+      JSON.stringify({ mode: "private", apiBaseUrl: "/eshu-api/", recentApiBaseUrls: ["/eshu-api/"] })
+    );
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const request = new Request(input);
+      const path = new URL(request.url).pathname;
+      if (path === "/eshu-api/api/v0/index-status") {
+        return Response.json({ status: "ready", repository_count: 1, queue: {} });
+      }
+      if (path === "/eshu-api/api/v0/ecosystem/overview") {
+        return Response.json({ data: { repo_count: 1 } });
+      }
+      if (path === "/eshu-api/api/v0/catalog") {
+        return Response.json({ data: { services: [] } });
+      }
+      if (path === "/eshu-api/api/v0/code/dead-code") {
+        return Response.json({
+          data: {
+            results: [{
+              classification: "unused",
+              entity_id: "content-entity:e1",
+              file_path: "server/routes.ts",
+              name: "legacyRoute",
+              repo_id: "repository:r1",
+              start_line: 12
+            }]
+          },
+          truth: { level: "fallback", freshness: { state: "fresh" }, profile: "production" }
+        });
+      }
+      return Response.json({ data: {} });
+    }));
+
+    render(
+      <MemoryRouter initialEntries={["/findings"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("Unreferenced symbol legacyRoute")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show verified evidence only" }));
+
+    expect(screen.queryByText("Unreferenced symbol legacyRoute")).not.toBeInTheDocument();
+    expect(screen.getByText("No findings from this source.")).toBeInTheDocument();
+  });
 });
