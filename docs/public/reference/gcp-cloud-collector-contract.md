@@ -48,14 +48,17 @@ The rest of this contract remains gated. Do not add Helm values, environment
 variables, chart claims, or a live Cloud Asset Inventory transport until later
 implementation PRs prove the live runtime adapter (`gcpruntime.LiveClient`) and
 chart path. The relationship, tag, IAM, DNS, and image-reference fact kinds and
-schema versions are now registered in `go/internal/facts/gcp.go`. The
-`gcp_cloud_relationship` envelope builder (`NewCloudRelationshipEnvelope`) is
-implemented and unit-proven as provenance-only (both endpoint full resource
-names, asset types, relationship type, and a bounded support state; it resolves
-no endpoints and writes no graph edge). The `gcp_tag_observation`,
-`gcp_iam_policy_observation`, `gcp_dns_record`, and `gcp_image_reference`
-envelope builders, and their fact-kind-specific reducer handling and any GCP
-graph projection, follow (#2198).
+schema versions are registered in `go/internal/facts/gcp.go`, and **all five
+envelope builders are now implemented and unit-proven**:
+`NewCloudRelationshipEnvelope` (provenance-only: both endpoint full resource
+names, asset types, relationship type, bounded support state; resolves no
+endpoints, writes no graph edge); `NewTagObservationEnvelope` (tag keys kept,
+every tag value fingerprinted); `NewIAMPolicyObservationEnvelope` (members
+fingerprinted by class via `FingerprintMember`, role + condition presence kept,
+no raw policy JSON); `NewDNSRecordEnvelope` (record name and targets
+fingerprinted); and `NewImageReferenceEnvelope` (digest-first confidence,
+fingerprinted container name). Their fact-kind-specific reducer handling, any
+GCP graph projection, and scan-loop emission follow (#2198).
 
 The implemented slices stay fixture-testable without live Google Cloud access.
 Live smoke tests are promotion proof, not the minimum proof for the source
