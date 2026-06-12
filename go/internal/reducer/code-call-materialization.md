@@ -132,3 +132,16 @@ intent row before graph writes.
   do not move that work back into a per-call loop.
 - The handler completion log is the first operator signal for separating parser
   extraction cost from Postgres intent-write cost.
+
+## Resolution provenance (issue #2223)
+
+Each materialized code-call, reference, and Python metaclass row carries a
+`resolution_method` from the closed [ADR #2222](../../../docs/internal/design/2222-resolution-provenance-code-edges.md)
+vocabulary (`go/internal/codeprovenance`). `resolveGenericCallee` returns the
+branch that produced the match (`scip`, `same_file`, `import_binding`,
+`type_inferred`, `scope_unique_name`, `repo_unique_name`); SCIP rows carry
+`scip`, metaclass rows carry `declared`, and the secondary constructor edge
+carries `type_inferred`. The method is descriptive, never admissive: it does not
+change which edges resolve or which rows are emitted. Graph persistence of the
+tiered confidence derived from this method is owned by #2224. The no-regression
+and observability evidence for this change is recorded in `README.md`.
