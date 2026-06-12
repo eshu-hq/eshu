@@ -1,0 +1,69 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import vm from "node:vm";
+import { describe, expect, it } from "vitest";
+
+interface PrototypeClient {
+  get(path: string): Promise<unknown>;
+  post(path: string, body?: unknown): Promise<unknown>;
+}
+
+interface PrototypeEshu {
+  readonly EshuApiClient: new (options?: { readonly baseUrl?: string; readonly apiKey?: string }) => PrototypeClient;
+}
+
+interface PrototypeWindow {
+  ESHU?: PrototypeEshu;
+}
+
+function repoRoot(): string {
+  return process.cwd().endsWith("apps/console") ? resolve(process.cwd(), "../..") : process.cwd();
+}
+
+function prototypeScriptPaths(): readonly string[] {
+  const htmlPath = resolve(repoRoot(), "apps/console/prototype/eshu-console/Eshu Console.html");
+  const html = readFileSync(htmlPath, "utf8");
+  const scripts = Array.from(html.matchAll(/<script src="([^"]+)"><\/script>/g))
+    .map((match) => match[1])
+    .filter((src) => src === "console/data.js" || src === "console/live-client-envelope.js");
+  return scripts.map((src) => resolve(repoRoot(), "apps/console/prototype/eshu-console", src));
+}
+
+function loadPrototypeEshu(fetchImpl: (url: string, init?: unknown) => Promise<unknown>): PrototypeEshu {
+  const win: PrototypeWindow = {};
+  const context = {
+    window: win,
+    Math,
+    Number,
+    Boolean,
+    Object,
+    String,
+    URL,
+    location: { origin: "http://localhost:5174" },
+    fetch: fetchImpl
+  };
+  for (const scriptPath of prototypeScriptPaths()) {
+    vm.runInNewContext(readFileSync(scriptPath, "utf8"), context);
+  }
+  if (win.ESHU === undefined) throw new Error("prototype ESHU model did not load");
+  return win.ESHU;
+}
+
+describe("prototype API client", () => {
+  it("rejects Eshu error envelopes even when the envelope has only a message", async () => {
+    const eshu = loadPrototypeEshu(async () => ({
+      ok: true,
+      async json() {
+        return {
+          data: { status: "ready" },
+          error: { message: "index status query failed" },
+          truth: { level: "exact" }
+        };
+      }
+    }));
+
+    const client = new eshu.EshuApiClient({ baseUrl: "/eshu-api/" });
+
+    await expect(client.get("/api/v0/index-status")).rejects.toThrow("index status query failed");
+  });
+});
