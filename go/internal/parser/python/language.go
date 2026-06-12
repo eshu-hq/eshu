@@ -103,6 +103,9 @@ func Parse(
 			if publicKinds := publicAPIRootKinds[name]; len(publicKinds) > 0 {
 				item["dead_code_root_kinds"] = pythonMergeRootKinds(item["dead_code_root_kinds"], publicKinds)
 			}
+			if rationale := pythonRationaleComments(node, source); len(rationale) > 0 {
+				item["rationale_comments"] = rationale
+			}
 			appendBucket(payload, "classes", item)
 		case "function_definition":
 			nameNode := node.ChildByFieldName("name")
@@ -158,6 +161,9 @@ func Parse(
 			}
 			if docstring := pythonDocstring(node, source); docstring != "" {
 				item["docstring"] = docstring
+			}
+			if rationale := pythonRationaleComments(node, source); len(rationale) > 0 {
+				item["rationale_comments"] = rationale
 			}
 			if options.IndexSource {
 				item["source"] = functionSource

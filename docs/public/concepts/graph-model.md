@@ -21,6 +21,7 @@ Common node types include:
 - **`Endpoint`**
 - **`Environment`**
 - **`DocumentationSection`** (identity-only; section body stays in Postgres)
+- **`Rationale`** (identity-only; intent-comment text stays in Postgres)
 
 ## Relationship patterns
 
@@ -30,6 +31,7 @@ Some edges describe direct technical structure:
 - `(:Class)-[:INHERITS]->(:Class)`
 - `(:Class)-[:IMPLEMENTS]->(:Interface)`
 - `(:Function)-[:INSTANTIATES]->(:Class)`
+- `(:Rationale)-[:EXPLAINS]->(:Function)`
 - `(:File)-[:CONTAINS]->(:Function)`
 - `(:DocumentationSection)-[:DOCUMENTS]->(:Function)`
 - `(:Repository)-[:DEFINES]->(:Workload)`

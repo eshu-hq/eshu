@@ -234,6 +234,8 @@ func batchCypherForDomain(domain string) (string, error) {
 		return batchCanonicalInheritanceEdgeUpsertCypher, nil
 	case reducer.DomainDocumentationEdges:
 		return batchCanonicalDocumentationEntityEdgeCypher, nil
+	case reducer.DomainRationaleEdges:
+		return batchCanonicalRationaleExplainsEdgeCypher, nil
 	case reducer.DomainSQLRelationships:
 		return batchCanonicalSQLRelationshipUpsertCypher, nil
 	default:
@@ -341,6 +343,9 @@ func buildRowMap(
 
 	case reducer.DomainDocumentationEdges:
 		return buildDocumentationRowMap(row.Payload, evidenceSource)
+
+	case reducer.DomainRationaleEdges:
+		return buildRationaleRowMap(row.Payload, evidenceSource)
 
 	case reducer.DomainSQLRelationships:
 		return buildSQLRelationshipRowMap(row.Payload, evidenceSource)

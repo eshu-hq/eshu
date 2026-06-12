@@ -41,6 +41,9 @@ const (
 	// from exact documentation entity mentions to the code entities or workloads
 	// they resolve to.
 	DomainDocumentationMaterialization Domain = "documentation_materialization"
+	// DomainRationaleMaterialization materializes canonical EXPLAINS edges from
+	// intent-comment rationale to the code entities they precede.
+	DomainRationaleMaterialization Domain = "rationale_materialization"
 	// DomainConfigStateDrift correlates Terraform config (parsed HCL) against
 	// Terraform state to detect five drift kinds. Cross-source, cross-scope,
 	// non-canonical-write — counters and structured logs are the v1 surface.

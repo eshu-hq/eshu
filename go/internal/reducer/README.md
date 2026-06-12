@@ -2358,3 +2358,32 @@ No-Observability-Change: IMPLEMENTS rides the existing inheritance edge-write
 path. The per-statement edge summary now reports `relationship=IMPLEMENTS`, and
 the existing inheritance materialization spans, edge batch counters, and graph
 query-duration metrics expose the writes with no new metric instrument or label.
+
+## EXPLAINS edges (#2230)
+
+`RationaleEdgeMaterializationHandler` (domain `rationale_materialization`)
+projects `EXPLAINS` edges from intent-comment rationale to the code entities the
+comments precede, into the new `rationale_edges` shared-projection domain. The
+parser attaches `rationale_comments` (WHY/HACK/NOTE/TODO/FIXME, line-adjacent
+only) to functions/classes; the field flows through the content-entity metadata
+passthrough. Each distinct (entity, comment kind, comment text) yields one
+identity-stable `Rationale` node (`rationale:<entity>:<kind>:<excerpt_hash>`,
+identity-only) and one EXPLAINS edge. The comment text stays in the Postgres
+content/fact store (design 430); the graph node carries identity and a bounded
+`excerpt_hash` only. Rationale is repo-scoped, so the retract anchors on
+`rationale.repo_id` like the inheritance edges.
+
+No-Regression Evidence: `go test ./internal/reducer -run 'RationaleEdge' -count=1`,
+`go test ./internal/storage/cypher -run 'Rationale' -count=1`,
+`go test ./internal/parser -run 'PythonEmitsRationale' -count=1`, and
+`go test ./internal/reducer ./internal/storage/cypher ./cmd/reducer -count=1`
+fail before the domain exists and pass after. The handler runs one bounded
+content-entity scan per scope generation, builds edge rows with no new graph
+read, and writes through the existing batched `UNWIND … MERGE` shared-projection
+edge path; cardinality is bounded by intent-comment count. The domain-list guard
+tests were updated to include the new domain.
+
+No-Observability-Change: the new domain reuses the shared-projection edge writer
+and its existing batch counters, statement summaries, and graph query-duration
+metrics, plus a `rationale materialization started`/`completed` log pair in the
+existing reducer log style. No new metric instrument or label is added.

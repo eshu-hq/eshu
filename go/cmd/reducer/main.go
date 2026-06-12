@@ -274,6 +274,7 @@ func buildReducerService(
 		SQLRelationshipEdgeWriter:          edgeWriterForHandlers,
 		InheritanceEdgeWriter:              edgeWriterForHandlers,
 		DocumentationEdgeWriter:            edgeWriterForHandlers,
+		RationaleEdgeWriter:                edgeWriterForHandlers,
 		EvidenceFactLoader:                 relationshipStore,
 		AssertionLoader:                    relationshipStore,
 		ResolutionPersister:                relationshipStore,
