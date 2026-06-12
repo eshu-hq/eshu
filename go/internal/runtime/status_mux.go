@@ -1,8 +1,6 @@
 package runtime
 
 import (
-	"context"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -34,9 +32,13 @@ func NewStatusAdminMux(
 	}
 	metricsHandler = NewCompositeMetricsHandler(metricsHandler, options.prometheusHandler)
 
+	probes := make([]ReadinessProbe, 0, len(options.readinessProbes)+1)
+	probes = append(probes, statusSnapshotReadinessProbe(reader, defaultStatusReadinessTimeout))
+	probes = append(probes, options.readinessProbes...)
+
 	adminMux, err := NewAdminMux(AdminMuxConfig{
 		ServiceName:     serviceName,
-		Ready:           statusReadinessCheck(reader),
+		Ready:           combineReadinessProbes(probes),
 		StatusHandler:   statusHandler,
 		MetricsHandler:  metricsHandler,
 		RecoveryHandler: options.recoveryHandler,
@@ -49,17 +51,4 @@ func NewStatusAdminMux(
 	}
 
 	return adminMux, nil
-}
-
-func statusReadinessCheck(reader statuspkg.Reader) AdminCheck {
-	return func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), defaultStatusReadinessTimeout)
-		defer cancel()
-
-		_, err := reader.ReadStatusSnapshot(ctx, time.Now().UTC())
-		if err != nil {
-			return fmt.Errorf("read status snapshot: %w", err)
-		}
-		return nil
-	}
 }

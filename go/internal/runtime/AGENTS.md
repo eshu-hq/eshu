@@ -116,9 +116,15 @@
   or ESHU_POSTGRES_DSN" → none of the three Postgres DSN env vars are set;
   check secrets injection in the deployment manifest or `.env` file.
 
-- Symptom: `/readyz` returns 503 → statusReadinessCheck cannot read the
-  status snapshot; check Postgres connectivity and `eshu_runtime_queue_*`
-  gauges for evidence of store pressure.
+- Symptom: `/readyz` returns 503 → one of the readiness probes failed; the
+  response body names the failing dependency. `status_snapshot: ...` means the
+  status reader cannot read the snapshot (check schema applied and Postgres
+  connectivity, plus `eshu_runtime_queue_*` gauges for store pressure);
+  `postgres: ...` means `PingContext` failed (database unreachable or pool
+  exhausted); `graph: ...` means Bolt `VerifyConnectivity` failed (graph backend
+  unreachable). Probes are registered via `WithReadinessProbes` /
+  `ReadinessProbesForDependencies` in each binary's wiring. Liveness
+  (`/healthz`) stays dependency-free by design.
 
 - Symptom: `/metrics` endpoint returning only hand-rolled gauges, OTEL data
   missing → `WithPrometheusHandler` was not passed to `NewStatusAdminServer`;

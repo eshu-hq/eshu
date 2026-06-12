@@ -129,7 +129,7 @@ func wireAPI(
 	// protects all /api/v0/* routes when mounted by MCP server)
 	authedHandler := query.AuthMiddlewareWithScopedTokensAndGovernanceAudit(apiKey, scopedTokenResolver, mux, governanceAudit)
 
-	adminMux, err := mountRuntimeSurface("mcp-server", statusReader, prometheusHandler)
+	adminMux, err := mountRuntimeSurface("mcp-server", statusReader, prometheusHandler, db, driver)
 	if err != nil {
 		_ = db.Close()
 		if driver != nil {
@@ -384,11 +384,16 @@ func mountRuntimeSurface(
 	serviceName string,
 	reader status.Reader,
 	prometheusHandler http.Handler,
+	db *sql.DB,
+	driver neo4jdriver.DriverWithContext,
 ) (*http.ServeMux, error) {
 	return internalruntime.NewStatusAdminMux(
 		serviceName,
 		reader,
 		nil,
 		internalruntime.WithPrometheusHandler(prometheusHandler),
+		internalruntime.WithReadinessProbes(
+			internalruntime.ReadinessProbesForDependencies(db, driver)...,
+		),
 	)
 }
