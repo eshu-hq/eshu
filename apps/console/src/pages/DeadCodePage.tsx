@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { EshuApiClient } from "../api/client";
 import { loadDeadCodePage } from "../api/deadCode";
 import type { DeadCodePage as LiveDeadCodePage } from "../api/deadCode";
-import { loadRepositories } from "../api/repoCatalog";
+import { loadRepositoryNameMap } from "../api/repoCatalog";
 import type { ConsoleModel, FindingRow } from "../console/types";
 import { fmt, uiTruth } from "../console/types";
 import { Panel, StatTile, Badge, TruthChip } from "../components/atoms";
@@ -260,8 +260,7 @@ function locFromFinding(finding: FindingRow): number {
 
 async function loadRepositoryNames(client: EshuApiClient): Promise<ReadonlyMap<string, string>> {
   try {
-    const repos = await loadRepositories(client);
-    return new Map(repos.map((repo) => [repo.id, repo.name]));
+    return await loadRepositoryNameMap(client);
   } catch {
     return new Map();
   }

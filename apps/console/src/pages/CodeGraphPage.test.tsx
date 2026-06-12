@@ -147,4 +147,79 @@ describe("CodeGraphPage", () => {
       "/explorer?q=api-node-boats"
     );
   });
+
+  it("loads live dead-code candidates and uses the documented relationships depth field", async () => {
+    const calls: { readonly path: string; readonly body: unknown }[] = [];
+    const client = {
+      get: async () => ({
+        data: { repositories: [{ id: "repository:r1", name: "api-node-platform" }] },
+        error: null,
+        truth: null
+      }),
+      post: async (path: string, body: unknown) => {
+        calls.push({ path, body });
+        if (path === "/api/v0/code/dead-code") {
+          return {
+            data: {
+              limit: 100,
+              results: [{
+                classification: "unused",
+                entity_id: "content-entity:e1",
+                file_path: "server/routes.ts",
+                labels: ["Function"],
+                language: "typescript",
+                name: "unusedRoute",
+                repo_id: "repository:r1",
+                start_line: 10
+              }],
+              truncated: false
+            },
+            error: null,
+            truth: { level: "derived", freshness: { state: "fresh" }, profile: "production" }
+          };
+        }
+        return {
+          data: {
+            entity_id: "content-entity:e1",
+            name: "unusedRoute",
+            labels: ["Function"],
+            incoming: [],
+            outgoing: []
+          },
+          error: null,
+          truth: null
+        };
+      }
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/code-graph"]}>
+        <CodeGraphPage model={{ ...demoModel, source: "live", findings: [] }} client={client} />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveTextContent("unusedRoute · api-node-platform"));
+    expect(screen.queryByText("repository:r1")).not.toBeInTheDocument();
+    expect(calls).toContainEqual({ path: "/api/v0/code/dead-code", body: { limit: 100 } });
+    await waitFor(() => expect(calls).toContainEqual({
+      path: "/api/v0/code/relationships",
+      body: { entity_id: "content-entity:e1", max_depth: 1 }
+    }));
+  });
+
+  it("reports live candidate load failures instead of hiding the degraded source", async () => {
+    const client = {
+      get: async () => {
+        throw new Error("repository catalog unavailable");
+      }
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/code-graph"]}>
+        <CodeGraphPage model={{ ...demoModel, source: "live" }} client={client} />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByText(/Failed to load live dead-code candidates/)).toBeInTheDocument());
+  });
 });

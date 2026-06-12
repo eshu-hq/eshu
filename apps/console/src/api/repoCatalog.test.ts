@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadRepositories, loadRepositoryDetail } from "./repoCatalog";
+import { loadRepositories, loadRepositoryDetail, loadRepositoryNameMap } from "./repoCatalog";
 import type { EshuApiClient } from "./client";
 
 describe("repoCatalog", () => {
@@ -15,6 +15,22 @@ describe("repoCatalog", () => {
     const repos = await loadRepositories(client);
     expect(repos).toHaveLength(1);
     expect(repos[0]).toMatchObject({ id: "repo-1", name: "checkout", repoSlug: "org/checkout", isDependency: false });
+  });
+
+  it("builds a repository id to name map from the live repository list", async () => {
+    const client = {
+      get: async () => ({
+        data: { repositories: [
+          { id: "repository:r1", name: "api-node-platform" },
+          { id: "repository:r2", name: "helm-charts" }
+        ] }, error: null, truth: null
+      })
+    } as unknown as EshuApiClient;
+
+    const names = await loadRepositoryNameMap(client);
+
+    expect(names.get("repository:r1")).toBe("api-node-platform");
+    expect(names.get("repository:r2")).toBe("helm-charts");
   });
 
   it("maps repo detail from stats + story, preserving null counts (no fabrication)", async () => {

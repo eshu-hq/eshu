@@ -48,6 +48,11 @@ export async function loadRepositories(client: EshuApiClient): Promise<readonly 
   })).filter((r) => r.id !== "");
 }
 
+export async function loadRepositoryNameMap(client: EshuApiClient): Promise<ReadonlyMap<string, string>> {
+  const repos = await loadRepositories(client);
+  return new Map(repos.map((repo) => [repo.id, repo.name]));
+}
+
 interface StatsResponse {
   readonly repository?: { id?: string; name?: string };
   readonly file_count?: number | null;

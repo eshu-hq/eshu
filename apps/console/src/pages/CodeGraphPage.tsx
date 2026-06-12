@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
+import { loadDeadCodePage } from "../api/deadCode";
 import { codeRelationshipsToGraph } from "../api/eshuGraph";
 import type { CodeRelationshipsResponse } from "../api/eshuGraph";
+import { loadRepositoryNameMap } from "../api/repoCatalog";
 import type { ConsoleModel, FindingRow, GraphModel, GraphNode } from "../console/types";
 import { fmt } from "../console/types";
 import { GraphCanvas } from "../components/GraphCanvas";
@@ -12,13 +14,37 @@ export function CodeGraphPage({ model, client }: {
   readonly model: ConsoleModel;
   readonly client?: EshuApiClient;
 }): React.JSX.Element {
-  const candidates = useMemo(() => model.findings.filter((finding) => finding.type === "Dead code"), [model.findings]);
+  const snapshotCandidates = useMemo(() => model.findings.filter((finding) => finding.type === "Dead code"), [model.findings]);
+  const [liveCandidates, setLiveCandidates] = useState<readonly FindingRow[] | null>(null);
+  const candidates = liveCandidates ?? snapshotCandidates;
   const [selectedId, setSelectedId] = useState(candidates[0]?.id ?? "");
   const selected = candidates.find((finding) => finding.id === selectedId) ?? candidates[0];
   const [graph, setGraph] = useState<GraphModel>({ nodes: [], edges: [] });
   const [focusedNodeId, setFocusedNodeId] = useState<string | undefined>(selected?.entityId);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [candidateErr, setCandidateErr] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!client || model.source !== "live") {
+      setLiveCandidates(null);
+      setCandidateErr("");
+      return () => { cancelled = true; };
+    }
+    setCandidateErr("");
+    void loadCodeGraphCandidates(client)
+      .then((rows) => {
+        if (!cancelled) setLiveCandidates(rows);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setLiveCandidates(null);
+          setCandidateErr(error instanceof Error ? error.message : "failed to load dead-code candidates");
+        }
+      });
+    return () => { cancelled = true; };
+  }, [client, model.source]);
 
   useEffect(() => {
     let cancelled = false;
@@ -29,7 +55,7 @@ export function CodeGraphPage({ model, client }: {
     }
     setBusy(true);
     setErr("");
-    void client.post<CodeRelationshipsResponse>("/api/v0/code/relationships", { entity_id: selected.entityId, depth: 1 })
+    void client.post<CodeRelationshipsResponse>("/api/v0/code/relationships", { entity_id: selected.entityId, max_depth: 1 })
       .then((env) => {
         if (cancelled) return;
         const loaded = codeRelationshipsToGraph(env.data ?? {}, {
@@ -97,6 +123,7 @@ export function CodeGraphPage({ model, client }: {
             <GraphCanvas graph={graph} layout="layered" height={560} selectedId={focusedNode?.id ?? selected?.entityId} onSelect={selectGraphNode} />
           )}
           {err ? <p className="src-err">{err}</p> : null}
+          {candidateErr ? <p className="src-err">Failed to load live dead-code candidates: {candidateErr}</p> : null}
           <div className="t-mut" style={{ fontSize: ".74rem", marginTop: 8 }}>
             {selected ? `${symbolFromFinding(selected)} · ${selected.language ?? "code"} · ${selected.filePath ?? "source path unavailable"}` : "No dead-code entity selected."}
           </div>
@@ -212,4 +239,15 @@ function sourceHref(finding: FindingRow): string | null {
   if (finding.startLine !== undefined) params.set("lineStart", String(finding.startLine));
   if (finding.endLine !== undefined) params.set("lineEnd", String(finding.endLine));
   return `/repositories/${encodeURIComponent(repository)}/source?${params.toString()}`;
+}
+
+async function loadCodeGraphCandidates(client: EshuApiClient): Promise<readonly FindingRow[]> {
+  let repoNames: ReadonlyMap<string, string> = new Map();
+  try {
+    repoNames = await loadRepositoryNameMap(client);
+  } catch {
+    repoNames = new Map();
+  }
+  const page = await loadDeadCodePage(client, { limit: 100 }, repoNames);
+  return page.rows;
 }
