@@ -124,11 +124,17 @@ describe("prototype documentation parity", () => {
   it("keeps the prototype code graph on current live code contracts", () => {
     const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-code.jsx");
+    const loader = repoFile("apps/console/prototype/eshu-console/console/live-parity-loader.js");
 
     expect(app).toContain("<CodeGraph data={data} client={liveClient}");
     expect(page).toContain("/api/v0/code/relationships");
     expect(page).toContain("max_depth");
     expect(page).toContain("sourceHref");
+    expect(page).toContain("deadCodeSourceRepo");
+    expect(page).toContain("focusedNode");
+    expect(page).toContain("locationLabel");
+    expect(loader).toContain("loadRepositoryNameLookup");
+    expect(loader).toContain("repoDisplayName");
   });
 
   it("keeps the prototype topology route on current live service topology contracts", () => {

@@ -14,23 +14,46 @@ const DEADKIND = {
 };
 
 function deadCodeSourceHash(d) {
-  if (!d || !d.repo || !d.file) return window.ESHU_ROUTES.hashFor("deadcode");
+  const repo = deadCodeSourceRepo(d);
+  if (!d || !repo || !d.file) return window.ESHU_ROUTES.hashFor("deadcode");
   const params = new URLSearchParams({ path: d.file });
   if (d.line) params.set("lineStart", String(d.line));
   if (d.endLine && d.endLine !== d.line) params.set("lineEnd", String(d.endLine));
-  return window.ESHU_ROUTES.hashFor("reposource", "/" + encodeURIComponent(d.repo) + "/source?" + params.toString());
+  return window.ESHU_ROUTES.hashFor("reposource", "/" + encodeURIComponent(repo) + "/source?" + params.toString());
 }
 
 function sourceHref(d) {
   return deadCodeSourceHash(d);
 }
 
+function deadCodeSourceRepo(d) {
+  return (d && (d.repoId || d.repo || d.repoName)) || "";
+}
+
 function deadCodeRepoLabel(d) {
   return (d && (d.repoName || d.repo || d.repoId)) || "repository";
 }
 
+function deadCodeRepoKey(d) {
+  return (d && (d.repoId || d.repo || d.repoName)) || "";
+}
+
 function sameDeadCodeRepo(a, b) {
-  return a && b && (a.repoId || a.repo) === (b.repoId || b.repo);
+  return a && b && deadCodeRepoKey(a) === deadCodeRepoKey(b);
+}
+
+function findingForCodeNode(node, candidates) {
+  if (!node) return null;
+  const deadId = String(node.id || "").startsWith("dead:") ? node.id.slice("dead:".length) : "";
+  return candidates.find((d) => d.id === deadId || d.entityId === node.id) || null;
+}
+
+function locationLabel(d) {
+  if (!d) return "source path unavailable";
+  const file = d.file || "source path unavailable";
+  if (d.line && d.endLine && d.endLine !== d.line) return file + ":" + d.line + "-" + d.endLine;
+  if (d.line) return file + ":" + d.line;
+  return file;
 }
 
 function codeRelationshipsGraph(payload, selected, candidates) {
@@ -193,6 +216,7 @@ function CodeGraph({ data, client, onOpenService }) {
   const [candidateId, setCandidateId] = useStateCd((liveCandidates[0] || {}).id || "");
   const selectedCandidate = liveCandidates.find((d) => d.id === candidateId) || liveCandidates[0];
   const [liveState, setLiveState] = useStateCd({ status: "idle", graph: null, error: "" });
+  const [focusedNodeId, setFocusedNodeId] = useStateCd((selectedCandidate || {}).entityId || "");
   const repos = D.services.filter((s) => s.repo);
   const [repoId, setRepoId] = useStateCd((repos.find((s) => s.id === "api-node-boats") || repos[0] || {}).id);
   const svc = D.servicesById[repoId];
@@ -206,6 +230,7 @@ function CodeGraph({ data, client, onOpenService }) {
       setLiveState({ status: "idle", graph: null, error: "" });
       return () => { cancelled = true; };
     }
+    setFocusedNodeId(selectedCandidate.entityId || selectedCandidate.id);
     setLiveState({ status: "loading", graph: deadOnlyLiveGraph(selectedCandidate, liveCandidates), error: "" });
     client.post("/api/v0/code/relationships", { entity_id: selectedCandidate.entityId, max_depth: 1 })
       .then((env) => {
@@ -223,7 +248,17 @@ function CodeGraph({ data, client, onOpenService }) {
   const importEdges = g.edges.filter((e) => e.verb === "IMPORTS").length;
   const callEdges = g.edges.filter((e) => e.verb === "CALLS").length;
   const deadRows = liveMode ? liveCandidates.filter((d) => sameDeadCodeRepo(d, selectedCandidate)) : g.dead;
+  const focusedNode = g.nodes.find((n) => n.id === focusedNodeId) || g.nodes.find((n) => n.hero) || g.nodes[0];
+  const focusedCandidate = findingForCodeNode(focusedNode, liveCandidates) || selectedCandidate;
+  const explorerQuery = focusedCandidate ? deadCodeRepoLabel(focusedCandidate) : ((focusedNode && focusedNode.label) || "");
+  const focusedDegree = focusedNode ? g.edges.filter((e) => e.s === focusedNode.id || e.t === focusedNode.id).length : 0;
+  function selectCandidate(id) {
+    const next = liveCandidates.find((d) => d.id === id);
+    setCandidateId(id);
+    setFocusedNodeId((next && (next.entityId || next.id)) || id);
+  }
   function selectGraphNode(n) {
+    setFocusedNodeId(n.id);
     if (liveMode && n.id && n.id.indexOf("dead:") === 0) {
       setCandidateId(n.id.slice("dead:".length));
       return;
@@ -235,7 +270,7 @@ function CodeGraph({ data, client, onOpenService }) {
     <div className="page" style={{ maxWidth: "none" }}>
       <div className="page-intro row" style={{ justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
         <div><h2>Code graph</h2><p>Symbol and module relationships at code grain from <span className="mono">POST /api/v0/code/relationships</span>. Dead-code candidates from the same repository are shown as orphan analyzer nodes.</p></div>
-        <select className="code-repo-select mono" value={liveMode ? ((selectedCandidate || {}).id || "") : repoId} onChange={(e) => liveMode ? setCandidateId(e.target.value) : setRepoId(e.target.value)}>
+        <select className="code-repo-select mono" value={liveMode ? ((selectedCandidate || {}).id || "") : repoId} onChange={(e) => liveMode ? selectCandidate(e.target.value) : setRepoId(e.target.value)}>
           {liveMode ? liveCandidates.map((d) => <option key={d.id} value={d.id}>{d.symbol} · {deadCodeRepoLabel(d)}</option>) : repos.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
       </div>
@@ -249,31 +284,32 @@ function CodeGraph({ data, client, onOpenService }) {
 
       <div className="explorer-layout mt">
         <div className="gcanvas-shell">
-          <GraphCanvas graph={g} layout="layered" height={560} onSelect={selectGraphNode} />
+          <GraphCanvas graph={g} layout="layered" height={560} onSelect={selectGraphNode} selectedId={focusedNode && focusedNode.id} />
           {liveState.status === "error" ? <p className="src-err">{liveState.error}</p> : null}
           <div className="t-mut" style={{ fontSize: ".74rem", marginTop: 8 }}>{liveMode ? ((selectedCandidate && (selectedCandidate.symbol + " · " + selectedCandidate.file)) || "No live dead-code candidate selected.") : (svc ? svc.name + " · " + (D.lang[svc.lang] || {}).label + " · routes → service → model/lib, with cross-repo client imports" : "")}</div>
         </div>
         <Panel title="Analyzer" glyph={<Icon.spark />}>
-          {liveMode && selectedCandidate ? (
+          {liveMode && focusedNode ? (
             <>
               <div className="section-label">Selected symbol</div>
               <div className="selected-code-node">
                 <div className="row" style={{ justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-                  <strong className="mono">{selectedCandidate.symbol}</strong>
-                  <span className="dead-kind" style={{ "--dk": (DEADKIND[selectedCandidate.kind] || {}).color || "var(--muted)" }}>{selectedCandidate.classification || selectedCandidate.kind}</span>
+                  <strong className="mono">{focusedNode.label}</strong>
+                  <span className="dead-kind" style={{ "--dk": (DEADKIND[(focusedCandidate || {}).kind] || {}).color || "var(--muted)" }}>{(focusedCandidate && (focusedCandidate.classification || focusedCandidate.kind)) || focusedNode.kind}</span>
                 </div>
                 <div className="kv-list" style={{ marginTop: 10 }}>
-                  <div className="kv"><span>Repository</span><strong>{deadCodeRepoLabel(selectedCandidate)}</strong></div>
-                  <div className="kv"><span>Location</span><a className="mono" href={sourceHref(selectedCandidate)}>{selectedCandidate.file}:{selectedCandidate.line}{selectedCandidate.endLine && selectedCandidate.endLine !== selectedCandidate.line ? "-" + selectedCandidate.endLine : ""}</a></div>
-                  <div className="kv"><span>Evidence</span><strong>{selectedCandidate.confidence || "derived"}</strong></div>
+                  <div className="kv"><span>Repository</span><strong>{deadCodeRepoLabel(focusedCandidate)}</strong></div>
+                  <div className="kv"><span>Location</span>{focusedCandidate ? <a className="mono" href={sourceHref(focusedCandidate)}>{locationLabel(focusedCandidate)}</a> : <strong className="mono">{focusedNode.sub || "source path unavailable"}</strong>}</div>
+                  <div className="kv"><span>Graph degree</span><strong>{focusedDegree}</strong></div>
+                  <div className="kv"><span>Evidence</span><strong>{(focusedCandidate && focusedCandidate.confidence) || focusedNode.truth || "derived"}</strong></div>
                 </div>
                 <div className="row" style={{ gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-                  <a className="btn-ghost active" href={sourceHref(selectedCandidate)}>Open source</a>
-                  <a className="btn-ghost" href={window.ESHU_ROUTES.hashFor("explorer", "?q=" + encodeURIComponent(deadCodeRepoLabel(selectedCandidate)))}>Explore repo graph</a>
+                  {focusedCandidate ? <a className="btn-ghost active" href={sourceHref(focusedCandidate)}>Open source</a> : null}
+                  <a className="btn-ghost" href={window.ESHU_ROUTES.hashFor("explorer", "?q=" + encodeURIComponent(explorerQuery))}>Explore repo graph</a>
                 </div>
               </div>
             </>
-          ) : null}
+          ) : <p className="empty" style={{ textAlign: "left" }}>Click a graph node to inspect evidence and next actions.</p>}
           <div className="section-label">Hotspots · most-referenced</div>
           <div className="kv-list">
             {hotspots.map((h) => <div className="kv" key={h.n.id}><span className="mono" style={{ fontSize: ".76rem" }}>{h.n.label}</span><strong>{h.c}</strong></div>)}
@@ -285,7 +321,7 @@ function CodeGraph({ data, client, onOpenService }) {
           <div className="section-label" style={{ marginTop: 16 }}>Dead in this repo · {deadRows.length}</div>
           {deadRows.length ? (
             <div className="conn-list">
-              {deadRows.map((d) => <button type="button" className="dead-row" key={d.id} onClick={() => liveMode ? setCandidateId(d.id) : window.ESHU_ROUTES.setHash("deadcode")}><span className="mono">{d.symbol}</span><span className="t-mut">{(DEADKIND[d.kind] || {}).label || d.classification}</span></button>)}
+              {deadRows.map((d) => <button type="button" className="dead-row" key={d.id} onClick={() => liveMode ? selectCandidate(d.id) : window.ESHU_ROUTES.setHash("deadcode")}><span className="mono">{d.symbol}</span><span className="t-mut">{(DEADKIND[d.kind] || {}).label || d.classification}</span></button>)}
             </div>
           ) : <p className="empty" style={{ padding: "6px 0", textAlign: "left" }}>No dead code in {svc ? svc.name : "this repo"}.</p>}
         </Panel>

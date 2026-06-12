@@ -152,16 +152,38 @@
     };
   }
 
-  function mapDeadCode(row, index, env) {
+  async function loadRepositoryNameLookup(client) {
+    const env = await client.get("/api/v0/repositories?limit=500&offset=0");
+    const rows = (env.data && env.data.repositories) || [];
+    const names = {};
+    rows.forEach((row) => {
+      const id = str(row.id);
+      const name = str(row.name);
+      if (id && name) names[id] = name;
+    });
+    return names;
+  }
+
+  function repoDisplayName(row, repoNames) {
+    const explicit = str(row.repo_name);
+    const repoId = str(row.repo_id);
+    if (explicit) return explicit;
+    if (repoId && repoNames && repoNames[repoId]) return repoNames[repoId];
+    return repoId || "repository";
+  }
+
+  function mapDeadCode(row, index, env, repoNames) {
     const labels = Array.isArray(row.labels) ? row.labels : [];
     const line = num(row.line) || num(row.start_line);
     const endLine = num(row.end_line) || line;
+    const repoId = str(row.repo_id);
+    const displayName = repoDisplayName(row, repoNames);
     return {
       id: str(row.entity_id) || "dc-" + index,
       entityId: str(row.entity_id),
-      repo: str(row.repo_name) || str(row.repo_id) || "repository",
-      repoId: str(row.repo_id),
-      repoName: str(row.repo_name),
+      repo: displayName,
+      repoId,
+      repoName: displayName,
       symbol: str(row.name) || "symbol",
       file: str(row.file_path) || str(row.relative_path),
       line,
@@ -256,8 +278,10 @@
     out.prov = out.prov || {};
 
     await section(out, "deadCode", async () => {
+      let repoNames = {};
+      try { repoNames = await loadRepositoryNameLookup(client); } catch (e) {}
       const env = await client.post("/api/v0/code/dead-code", { limit: 100 });
-      const rows = ((env.data && env.data.results) || []).map((row, index) => mapDeadCode(row, index, env)).filter((row) => row.entityId && row.file);
+      const rows = ((env.data && env.data.results) || []).map((row, index) => mapDeadCode(row, index, env, repoNames)).filter((row) => row.entityId && row.file);
       return rows.length ? { deadCode: rows } : null;
     });
 
