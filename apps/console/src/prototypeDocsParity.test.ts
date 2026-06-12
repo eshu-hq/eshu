@@ -212,6 +212,18 @@ describe("prototype documentation parity", () => {
     expect(page).not.toContain("<h2 style={{ marginTop: 8 }}>{repoId}");
   });
 
+  it("keeps prototype live page overlays rejecting API error envelopes", () => {
+    const explorer = repoFile("apps/console/prototype/eshu-console/console/pages-explorer-parity.jsx");
+    const workspace = repoFile("apps/console/prototype/eshu-console/console/pages-workspace-parity.jsx");
+    const source = repoFile("apps/console/prototype/eshu-console/console/pages-source-parity.jsx");
+
+    for (const page of [explorer, workspace, source]) {
+      expect(page).toContain("function apiData(env)");
+      expect(page).toContain("env && env.error");
+      expect(page).toContain("throw new Error(message)");
+    }
+  });
+
   it("keeps prototype dead-code locations wired to repository source deep links", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-code.jsx");

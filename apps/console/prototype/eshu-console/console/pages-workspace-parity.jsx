@@ -24,6 +24,19 @@
     return typeof value === "string" && value.trim() ? value.trim() : fallback;
   }
 
+  function envelopeErrorMessage(error) {
+    if (!error) return "";
+    if (typeof error === "string") return error;
+    if (typeof error !== "object") return "api error";
+    return String(error.message || error.code || "api error");
+  }
+
+  function apiData(env) {
+    const message = envelopeErrorMessage(env && env.error);
+    if (message) throw new Error(message);
+    return env && env.data ? env.data : {};
+  }
+
   function subjectTitle(story, fallback) {
     if (typeof story.subject === "string") return text(story.subject, fallback);
     if (story.subject && typeof story.subject === "object") return text(story.subject.name, text(story.subject.id, fallback));
@@ -38,7 +51,7 @@
     if (!path) return null;
     try {
       const env = await client.get(path);
-      return env.data || {};
+      return apiData(env);
     } catch (_) {
       return null;
     }
@@ -47,7 +60,7 @@
   async function loadLiveWorkspace(client, kind, id) {
     if (!validKind(kind)) return null;
     const env = await client.get(storyPath(kind, id));
-    const story = env.data || {};
+    const story = apiData(env);
     let context = null;
     if (kind === "repositories") {
       context = await optionalGet(client, ((story.drilldowns || {}).context_path));

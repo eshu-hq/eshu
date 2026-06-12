@@ -20,6 +20,19 @@
     return Number.isInteger(line) && line > 0 ? line : null;
   }
 
+  function envelopeErrorMessage(error) {
+    if (!error) return "";
+    if (typeof error === "string") return error;
+    if (typeof error !== "object") return "api error";
+    return String(error.message || error.code || "api error");
+  }
+
+  function apiData(env) {
+    const message = envelopeErrorMessage(env && env.error);
+    if (message) throw new Error(message);
+    return env && env.data ? env.data : {};
+  }
+
   function parentPath(path) {
     const idx = path.lastIndexOf("/");
     return idx > 0 ? path.slice(0, idx) : "";
@@ -105,7 +118,7 @@
   async function liveTree(client, repoId, path) {
     const qs = path ? "?path=" + encodeURIComponent(path) : "";
     const env = await client.get("/api/v0/repositories/" + encodeURIComponent(repoId) + "/tree" + qs);
-    const data = env.data || {};
+    const data = apiData(env);
     const entries = (data.entries || []).map((entry) => ({
       name: entry.name || "",
       type: entry.type === "dir" ? "dir" : "file",
@@ -118,7 +131,7 @@
 
   async function liveFile(client, repoId, path) {
     const env = await client.get("/api/v0/repositories/" + encodeURIComponent(repoId) + "/content?path=" + encodeURIComponent(path));
-    const data = env.data || {};
+    const data = apiData(env);
     return {
       path: data.path || path,
       ref: data.ref || "",
@@ -127,13 +140,13 @@
       size: typeof data.size === "number" ? data.size : 0,
       language: data.language || null,
       truncated: data.truncated === true,
-      provenance: env.data ? "live" : "unavailable"
+      provenance: "live"
     };
   }
 
   async function liveRepoDisplayName(client, repoId) {
     const env = await client.get("/api/v0/repositories?limit=500&offset=0");
-    const repos = (env.data && env.data.repositories) || [];
+    const repos = apiData(env).repositories || [];
     const match = repos.find((repo) => repo && (repo.id === repoId || repo.name === repoId));
     return (match && (match.name || match.id)) || repoId;
   }

@@ -48,10 +48,23 @@
     return { nodes: [node(id || label, label || id, kindFor(type), type, 1, true, "exact")], edges: [] };
   }
 
+  function envelopeErrorMessage(error) {
+    if (!error) return "";
+    if (typeof error === "string") return error;
+    if (typeof error !== "object") return "api error";
+    return String(error.message || error.code || "api error");
+  }
+
+  function apiData(env) {
+    const message = envelopeErrorMessage(env && env.error);
+    if (message) throw new Error(message);
+    return env && env.data ? env.data : {};
+  }
+
   async function resolveHandle(client, query) {
     try {
       const env = await client.post("/api/v0/entities/resolve", { name: query, limit: 1 });
-      const data = env.data || {};
+      const data = apiData(env);
       const rows = Array.isArray(data.entities) ? data.entities : (Array.isArray(data.matches) ? data.matches : []);
       const top = rows[0] || {};
       const labels = Array.isArray(top.labels) ? top.labels : [];
@@ -64,7 +77,8 @@
         repoName: top.repo_name || "",
         mode: recommendedMode(kind)
       };
-    } catch (_) {
+    } catch (e) {
+      if (!shouldFallbackFromContext(e)) throw e;
       return { id: "", name: query, kind: "", repoId: "", repoName: "", mode: "direct" };
     }
   }
@@ -117,7 +131,7 @@
     if (!resolved.id) return { graph: centerOnly(resolved.name, resolved.name, resolved.kind), resolved };
     try {
       const env = await client.post("/api/v0/code/relationships", { entity_id: resolved.id, max_depth: 1 });
-      return { graph: codeRelationshipsToGraph(env.data || {}, resolved), resolved };
+      return { graph: codeRelationshipsToGraph(apiData(env), resolved), resolved };
     } catch (e) {
       if (String((e && e.message) || e).indexOf("HTTP 404") >= 0) {
         return { graph: centerOnly(resolved.id, resolved.name, resolved.kind), resolved };
@@ -228,7 +242,7 @@
   async function loadNeighborhoodGraph(client, resolved) {
     try {
       const env = await client.get("/api/v0/services/" + encodeURIComponent(resolved.name) + "/context");
-      const story = deploymentStoryToGraph(env.data || {}, resolved.name);
+      const story = deploymentStoryToGraph(apiData(env), resolved.name);
       if (story.edges.length) return { graph: story, resolved };
     } catch (e) {
       if (!shouldFallbackFromContext(e)) throw e;
@@ -236,7 +250,7 @@
     const repoStory = await loadRepositoryDeploymentStoryGraph(client, resolved);
     if (repoStory) return { graph: repoStory, resolved };
     const env = await client.post("/api/v0/impact/entity-map", { from: resolved.name, depth: 2 });
-    return { graph: entityMapToGraph(env.data || {}, resolved.name), resolved };
+    return { graph: entityMapToGraph(apiData(env), resolved.name), resolved };
   }
 
   async function loadRepositoryDeploymentStoryGraph(client, resolved) {
@@ -244,7 +258,7 @@
     if (!repoId) return null;
     try {
       const env = await client.get("/api/v0/repositories/" + encodeURIComponent(repoId) + "/context");
-      const data = env.data || {};
+      const data = apiData(env);
       const repository = data.repository || {};
       const story = deploymentStoryToGraph({
         name: resolved.name,
