@@ -42,6 +42,41 @@ Some edges describe deployable-system context:
 - `(:WorkloadInstance)-[:USES]->(:CloudResource)`
 - `(:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal)`
 
+## Code edge resolution provenance
+
+`CALLS`, `REFERENCES`, and `USES_METACLASS` edges record **how** their target
+entity was resolved, so an agent can tell a semantically proven edge from a
+name-match guess. Each edge carries:
+
+- `resolution_method` — a closed value from the vocabulary below.
+- `confidence` — a float derived from `resolution_method` (never an independent
+  signal).
+- `reason` — a short mechanism-level explanation of the resolution.
+
+| `resolution_method` | Meaning | `confidence` |
+| --- | --- | --- |
+| `scip` | SCIP semantic symbol resolution; both endpoints bound by symbol. | 0.99 |
+| `declared` | Explicitly declared in source (e.g. Python metaclass); no heuristic resolution. | 0.95 |
+| `same_file` | Resolved inside the caller's file by lexical scope or unique name. | 0.95 |
+| `import_binding` | Resolved by following an explicit import, package-qualified import, or re-export. | 0.90 |
+| `type_inferred` | Resolved by receiver/return-type inference, dynamic alias, or constructor binding. | 0.80 |
+| `scope_unique_name` | Resolved by a unique name within a directory/package scope, no import. | 0.70 |
+| `repo_unique_name` | Resolved by a repository-wide unique-name match; the global fallback. | 0.50 |
+
+Provenance is **descriptive, not admissive**: it records the resolver branch
+that produced an already-admitted edge and never changes which edges exist or
+promotes a heuristic to canonical truth. It is also orthogonal to the
+answer-level truth envelope — an `exact` answer can still contain a
+`repo_unique_name` edge; the per-edge method flags that one edge as uncertain
+without lowering the answer's truth level.
+
+The fields are additive. Edges projected before this contract (or where the
+method cannot be determined) read as `unspecified` and keep the historical
+`0.95`; readers must treat a missing `resolution_method` as `unspecified`. The
+vocabulary is fixed by
+[design 2222](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/2222-resolution-provenance-code-edges.md);
+the authoritative table lives in `go/internal/codeprovenance`.
+
 ## Repository identity
 
 Repository nodes are remote-first when a git remote exists.
