@@ -98,9 +98,11 @@ export function CodeGraphPage({ model, client }: {
   const callEdges = graph.edges.filter((edge) => edge.verb === "CALLS").length;
   const hotspots = hotspotRows(graph);
   const focusedNode = graph.nodes.find((node) => node.id === focusedNodeId) ?? graph.nodes.find((node) => node.id === selected?.entityId) ?? graph.nodes[0];
-  const focusedFinding = findingForNode(focusedNode, candidates) ?? selected;
+  const focusedFinding = findingForNode(focusedNode, candidates);
   const focusedDegree = focusedNode ? graph.edges.filter((edge) => edge.s === focusedNode.id || edge.t === focusedNode.id).length : 0;
-  const focusedSourceHref = focusedFinding ? sourceHref(focusedFinding) : null;
+  const focusedSourceHref = focusedFinding ? sourceHref(focusedFinding) : sourceHrefFromNode(focusedNode);
+  const focusedRepository = focusedFinding?.entity ?? focusedNode?.source?.repoName ?? focusedNode?.source?.repoId ?? selected?.entity ?? "unknown";
+  const focusedLocation = focusedFinding ? locationFromFinding(focusedFinding) : locationFromNode(focusedNode);
 
   function selectGraphNode(node: GraphNode): void {
     setFocusedNodeId(node.id);
@@ -155,13 +157,13 @@ export function CodeGraphPage({ model, client }: {
                 <Badge tone={focusedFinding ? "crit" : "neutral"}>{focusedFinding?.classification ?? focusedNode.kind}</Badge>
               </div>
               <div className="kv-list" style={{ marginTop: 10 }}>
-                <div className="kv"><span>Repository</span><strong>{focusedFinding?.entity ?? selected?.entity ?? "unknown"}</strong></div>
+                <div className="kv"><span>Repository</span><strong>{focusedRepository}</strong></div>
                 <div className="kv">
                   <span>Location</span>
                   {focusedSourceHref ? (
-                    <Link className="mono" to={focusedSourceHref}>{locationFromFinding(focusedFinding)}</Link>
+                    <Link className="mono" to={focusedSourceHref}>{focusedLocation}</Link>
                   ) : (
-                    <strong className="mono">{locationFromFinding(focusedFinding)}</strong>
+                    <strong className="mono">{focusedLocation}</strong>
                   )}
                 </div>
                 <div className="kv"><span>Graph degree</span><strong>{focusedDegree}</strong></div>
@@ -169,7 +171,7 @@ export function CodeGraphPage({ model, client }: {
               </div>
               <div className="row" style={{ gap: 8, flexWrap: "wrap", marginTop: 12 }}>
                 {focusedSourceHref ? <Link className="btn-ghost active" to={focusedSourceHref}>Open source</Link> : null}
-                <Link className="btn-ghost" to={`/explorer?q=${encodeURIComponent(focusedFinding?.entity ?? selected?.entity ?? focusedNode.label)}`}>Explore repo graph</Link>
+                <Link className="btn-ghost" to={`/explorer?q=${encodeURIComponent(focusedRepository === "unknown" ? focusedNode.label : focusedRepository)}`}>Explore repo graph</Link>
                 {focusedFinding?.filePath ? <Link className="btn-ghost" to={`/dead-code?q=${encodeURIComponent(focusedFinding.filePath)}`}>Filter dead code</Link> : null}
               </div>
             </div>
@@ -263,6 +265,14 @@ function locationFromFinding(finding: FindingRow | undefined): string {
   return path;
 }
 
+function locationFromNode(node: GraphNode | undefined): string {
+  const source = node?.source;
+  if (!source) return "source path unavailable";
+  if (source.startLine !== undefined && source.endLine !== undefined) return `${source.filePath}:${source.startLine}-${source.endLine}`;
+  if (source.startLine !== undefined) return `${source.filePath}:${source.startLine}`;
+  return source.filePath;
+}
+
 function sourceHref(finding: FindingRow): string | null {
   if (!finding.filePath) return null;
   const repository = finding.repoId ?? finding.entity;
@@ -271,6 +281,15 @@ function sourceHref(finding: FindingRow): string | null {
   if (finding.startLine !== undefined) params.set("lineStart", String(finding.startLine));
   if (finding.endLine !== undefined) params.set("lineEnd", String(finding.endLine));
   return `/repositories/${encodeURIComponent(repository)}/source?${params.toString()}`;
+}
+
+function sourceHrefFromNode(node: GraphNode | undefined): string | null {
+  const source = node?.source;
+  if (!source) return null;
+  const params = new URLSearchParams({ path: source.filePath });
+  if (source.startLine !== undefined) params.set("lineStart", String(source.startLine));
+  if (source.endLine !== undefined) params.set("lineEnd", String(source.endLine));
+  return `/repositories/${encodeURIComponent(source.repoId)}/source?${params.toString()}`;
 }
 
 async function loadCodeGraphCandidates(client: EshuApiClient): Promise<readonly FindingRow[]> {

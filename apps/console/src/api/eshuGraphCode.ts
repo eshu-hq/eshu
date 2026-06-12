@@ -12,6 +12,12 @@ interface CodeRelEdge {
   readonly type?: string;
   readonly source_id?: string; readonly source_name?: string;
   readonly target_id?: string; readonly target_name?: string;
+  readonly repo_id?: string; readonly repo_name?: string; readonly file_path?: string;
+  readonly start_line?: number; readonly end_line?: number;
+  readonly source_repo_id?: string; readonly source_repo_name?: string; readonly source_file_path?: string;
+  readonly source_start_line?: number; readonly source_end_line?: number; readonly source_type?: string;
+  readonly target_repo_id?: string; readonly target_repo_name?: string; readonly target_file_path?: string;
+  readonly target_start_line?: number; readonly target_end_line?: number; readonly target_type?: string;
 }
 
 /**
@@ -52,11 +58,12 @@ export function codeRelationshipsToGraph(data: CodeRelationshipsResponse, fallba
     if (id !== centerId && !nodes.has(id)) {
       nodes.set(id, {
         id,
-        kind: relationshipNodeKind(verb),
+        kind: e.source_type ? kindFor(e.source_type) : relationshipNodeKind(verb),
         label: e.source_name ?? id,
-        sub: relationshipNodeSub(verb, "incoming"),
+        sub: e.source_type ?? relationshipNodeSub(verb, "incoming"),
         col: 0,
-        truth: "exact"
+        truth: "exact",
+        source: sourceLocationFromEdge(e, "source")
       });
     }
     edges.push({ s: id, t: centerId, verb, layer: layerFor(verb) });
@@ -68,11 +75,12 @@ export function codeRelationshipsToGraph(data: CodeRelationshipsResponse, fallba
     if (id !== centerId && !nodes.has(id)) {
       nodes.set(id, {
         id,
-        kind: relationshipNodeKind(verb),
+        kind: e.target_type ? kindFor(e.target_type) : relationshipNodeKind(verb),
         label: e.target_name ?? id,
-        sub: relationshipNodeSub(verb, "outgoing"),
+        sub: e.target_type ?? relationshipNodeSub(verb, "outgoing"),
         col: 2,
-        truth: "exact"
+        truth: "exact",
+        source: sourceLocationFromEdge(e, "target")
       });
     }
     edges.push({ s: centerId, t: id, verb, layer: layerFor(verb) });
@@ -118,4 +126,21 @@ function sourceLocationFromCodeRelationships(data: CodeRelationshipsResponse): G
     startLine: data.start_line,
     endLine: data.end_line
   };
+}
+
+function sourceLocationFromEdge(edge: CodeRelEdge, side: "source" | "target"): GraphSourceLocation | undefined {
+  const repoId = cleanText(side === "source" ? edge.source_repo_id : edge.target_repo_id) || cleanText(edge.repo_id);
+  const filePath = cleanText(side === "source" ? edge.source_file_path : edge.target_file_path) || cleanText(edge.file_path);
+  if (!repoId || !filePath) return undefined;
+  return {
+    repoId,
+    repoName: cleanText(side === "source" ? edge.source_repo_name : edge.target_repo_name) || cleanText(edge.repo_name) || undefined,
+    filePath,
+    startLine: side === "source" ? edge.source_start_line ?? edge.start_line : edge.target_start_line ?? edge.start_line,
+    endLine: side === "source" ? edge.source_end_line ?? edge.end_line : edge.target_end_line ?? edge.end_line
+  };
+}
+
+function cleanText(value: string | undefined): string {
+  return value?.trim() ?? "";
 }
