@@ -7,6 +7,7 @@ import { fmt, LAYER_COLOR, SEVERITY_COLOR, uiTruth } from "../console/types";
 import { StatTile, Panel, TruthChip } from "../components/atoms";
 import { AreaChart, Donut, BarRows } from "../components/charts";
 import { GraphCanvas } from "../components/GraphCanvas";
+import "./dashboardLive.css";
 
 type AtlasState =
   | { readonly kind: "idle" }
@@ -29,6 +30,10 @@ export function DashboardPage({ model, client, onOpenService }: {
   const [atlasState, setAtlasState] = useState<AtlasState>({ kind: "idle" });
   const graph = liveGraph ?? seededGraph;
   const [sel, setSel] = useState<GraphNode | undefined>(() => initialSelection(graph));
+  const atlasLabel = sel?.label ?? atlasSeed?.label ?? "live graph";
+  const graphNodeCount = lastNumber(model.series.graphNodes);
+  const relationshipCount = relationshipMetric(model, graph);
+  const selectedSpotlightName = sel && (sel.kind === "service" || sel.kind === "workload") ? sel.label : null;
   const sevTotals = model.vulnerabilities.reduce(
     (a, v) => { const k = v.severity as keyof typeof a; if (k in a) a[k] += 1; return a; },
     { critical: 0, high: 0, medium: 0, low: 0 }
@@ -88,24 +93,51 @@ export function DashboardPage({ model, client, onOpenService }: {
 
   return (
     <div className="page">
-      <div className="grid g-4">
-        <StatTile label="Repositories" value={fmt(r.repositories)} spark={model.series.graphNodes.length ? model.series.graphNodes : undefined} color="var(--teal)" sub={`${r.workloads} workloads · ${r.instances} instances`} />
-        <StatTile label="Index status" value={r.indexStatus} color="var(--ember)" sub={`profile ${r.profile}`} />
-        <StatTile label="Queue outstanding" value={r.queueOutstanding} spark={model.series.queueDepth.length ? model.series.queueDepth : undefined} color="var(--violet)" sub={`${r.inFlight} in-flight · ${r.deadLetters} dead-letter`} />
-        <StatTile label="Succeeded" value={fmt(r.succeeded)} color="var(--blue)" sub="work items (run)" />
+      <div className="dashboard-stat-grid grid g-4">
+        <StatTile
+          label="Graph nodes"
+          value={graphNodeCount === null ? "—" : fmt(graphNodeCount)}
+          spark={model.series.graphNodes.length ? model.series.graphNodes : undefined}
+          color="var(--teal)"
+          sub={graphNodeCount === null ? "node count metric unavailable" : "NornicDB graph node metric"}
+        />
+        <StatTile
+          label="Relationships"
+          value={relationshipCount === null ? "—" : fmt(relationshipCount)}
+          spark={model.series.graphEdges.length ? model.series.graphEdges : undefined}
+          color="var(--ember)"
+          sub={relationshipCount === null ? "relationship count metric unavailable" : `${relRows.length} typed verbs observed`}
+        />
+        <StatTile
+          label="Indexed repos"
+          value={fmt(r.repositories)}
+          color="var(--blue)"
+          sub={`${r.workloads} services · ${r.instances} workloads`}
+        />
+        <StatTile
+          label="Queue outstanding"
+          value={r.queueOutstanding}
+          spark={model.series.queueDepth.length ? model.series.queueDepth : undefined}
+          color="var(--violet)"
+          sub={`${r.inFlight} in-flight · ${r.deadLetters} dead-letter`}
+        />
       </div>
 
-      <Panel className="mt" title="Code-to-cloud relationship atlas" sub="Select a node to inspect its typed evidence">
-        <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr) 300px", gap: "var(--gap)", alignItems: "start" }}>
+      <Panel
+        className="dashboard-atlas-panel mt flush"
+        title="Code-to-cloud relationship atlas"
+        sub={`${atlasLabel} neighbourhood — click any node or relationship edge to read its evidence`}
+        action={selectedSpotlightName && onOpenService ? <button className="btn-ghost" onClick={() => onOpenService(selectedSpotlightName)}>Open spotlight →</button> : null}
+      >
+        <div className="dashboard-atlas-layout">
           {graph.nodes.length ? (
-            <GraphCanvas graph={graph} height={460} onSelect={(node) => { void expandAtlasNode(node); }} selectedId={sel?.id} />
+            <GraphCanvas graph={graph} height={520} onSelect={(node) => { void expandAtlasNode(node); }} selectedId={sel?.id} />
           ) : (
-            <div className="gcanvas" style={{ height: 460, display: "grid", placeItems: "center" }}>
+            <div className="gcanvas" style={{ height: 520, display: "grid", placeItems: "center" }}>
               <p className="empty">No graph entities are available from the live model yet.</p>
             </div>
           )}
-          <div className="panel" style={{ background: "var(--bg-field)", boxShadow: "none" }}>
-            <div className="panel-body">
+          <aside className="dashboard-atlas-inspector" aria-label="Relationship atlas inspector">
               {sel ? (
                 <div className="inspector">
                   <div className="insp-head"><div><div className="insp-kind">{sel.kind}</div><div className="insp-title">{sel.label}</div></div></div>
@@ -121,8 +153,7 @@ export function DashboardPage({ model, client, onOpenService }: {
                   </div>
                 </div>
               ) : <p className="empty">Select a node.</p>}
-            </div>
-          </div>
+          </aside>
         </div>
       </Panel>
 
@@ -168,6 +199,19 @@ export function DashboardPage({ model, client, onOpenService }: {
 
 function initialSelection(graph: GraphModel): GraphNode | undefined {
   return graph.nodes.find((node) => node.hero) ?? graph.nodes[0];
+}
+
+function lastNumber(values: readonly number[]): number | null {
+  const value = values.at(-1);
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function relationshipMetric(model: ConsoleModel, graph: GraphModel): number | null {
+  const graphEdgeCount = lastNumber(model.series.graphEdges);
+  if (graphEdgeCount !== null) return graphEdgeCount;
+  const relationshipTotal = model.relationships.reduce((total, row) => total + row.count, 0);
+  if (relationshipTotal > 0) return relationshipTotal;
+  return graph.edges.length > 0 ? graph.edges.length : null;
 }
 
 // A seed graph is "meaningful" once it has at least this many edges. A single

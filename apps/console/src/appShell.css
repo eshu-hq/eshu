@@ -1,0 +1,179 @@
+.sidebar {
+  width: 100%;
+  padding: 24px 16px;
+}
+
+.brand {
+  padding: 4px 10px 22px;
+}
+
+.brand-glyph {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+}
+
+.brand-glyph::before {
+  content: "";
+  position: absolute;
+  inset: 3px 8px;
+  border-left: 2px solid var(--teal);
+  border-right: 2px solid var(--ember);
+}
+
+.brand-glyph i {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--teal-bright);
+  box-shadow: 19px 0 0 var(--ember);
+}
+
+.brand-glyph i:nth-child(1) { top: 5px; }
+.brand-glyph i:nth-child(2) { top: 14px; }
+.brand-glyph i:nth-child(3) { top: 23px; }
+
+.nav-section {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 10px;
+}
+
+.nav-group-label {
+  padding: 16px 12px 7px;
+  letter-spacing: 0.18em;
+}
+
+.nav-item {
+  min-height: 42px;
+  padding: 10px 13px;
+}
+
+.nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-foot {
+  margin-top: 18px;
+}
+
+.topbar {
+  min-height: 74px;
+  padding: 16px 28px;
+}
+
+.topbar-title h1 {
+  color: var(--bone);
+  font-size: 1.36rem;
+}
+
+.topbar-title span {
+  color: var(--subtle);
+  font-size: 0.86rem;
+}
+
+.searchbox {
+  max-width: 460px;
+  height: 44px;
+  border-radius: 11px;
+}
+
+.searchbox svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.searchbox input::placeholder {
+  color: color-mix(in oklab, var(--muted) 72%, transparent);
+}
+
+.topbar-signal {
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background: var(--bg-field);
+  flex: none;
+}
+
+.topbar-signal svg {
+  width: 18px;
+  height: 18px;
+}
+
+.topbar-signal:first-of-type {
+  color: var(--bone-dim);
+}
+
+.source-pill {
+  height: 44px;
+  border-radius: 11px;
+  padding: 0 16px;
+}
+
+@media (max-width: 1180px) {
+  .topbar {
+    gap: 10px;
+    padding-inline: 18px;
+  }
+
+  .searchbox {
+    max-width: none;
+  }
+
+  .topbar-signal {
+    display: none;
+  }
+}
+
+@media (max-width: 880px) {
+  .sidebar {
+    padding: 14px;
+    gap: 8px;
+    max-height: 38vh;
+    overflow-y: auto;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .brand {
+    width: 100%;
+    padding-bottom: 8px;
+  }
+
+  .nav-section {
+    min-width: min(220px, 100%);
+    flex: 1 1 220px;
+    margin-bottom: 0;
+  }
+
+  .nav-item.active::before {
+    left: 0;
+  }
+
+  .sidebar-foot {
+    display: none;
+  }
+
+  .topbar {
+    position: static;
+    flex-wrap: wrap;
+  }
+
+  .topbar-title {
+    flex: 1 1 220px;
+  }
+
+  .searchbox {
+    order: 3;
+    flex-basis: 100%;
+  }
+}

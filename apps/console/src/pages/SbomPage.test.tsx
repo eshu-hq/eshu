@@ -61,6 +61,7 @@ describe("SbomPage", () => {
     render(<SbomPage client={liveClient()} />);
 
     expect(screen.getByRole("heading", { name: "SBOM & Attestations" })).toBeInTheDocument();
+    expect(screen.getByLabelText("SBOM evidence workbench")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("148")).toBeInTheDocument());
     expect(screen.getByText("100/148")).toBeInTheDocument();
 

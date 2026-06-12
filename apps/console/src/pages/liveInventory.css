@@ -1,0 +1,130 @@
+.evidence-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0;
+}
+
+.evidence-toolbar .popover-input {
+  flex: 0 1 220px;
+}
+
+.evidence-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gap);
+  align-items: start;
+}
+
+.evidence-workbench-wide {
+  grid-template-columns: minmax(320px, 0.85fr) minmax(0, 1.45fr);
+}
+
+.evidence-workbench-rail {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+}
+
+.panel-action-stack {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.searchbox.compact {
+  height: 34px;
+  min-width: 200px;
+  margin-left: 0;
+}
+
+.conn-state.compact {
+  padding: 40px;
+}
+
+.evidence-card-list {
+  display: grid;
+  gap: 14px;
+}
+
+.evidence-card {
+  display: grid;
+  gap: 10px;
+  align-items: stretch;
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 15px;
+}
+
+.surface-dl {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.surface-dl div {
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.surface-dl dt {
+  color: var(--subtle);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.surface-dl dd {
+  margin: 0;
+  color: var(--bone);
+  font-size: 0.9rem;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.pager-row {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 12px;
+}
+
+.table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.tbl.wide {
+  min-width: 820px;
+}
+
+@media (max-width: 1180px) {
+  .evidence-workbench-wide,
+  .evidence-workbench-rail {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .panel-action-stack,
+  .evidence-toolbar {
+    align-items: stretch;
+  }
+
+  .evidence-toolbar .popover-input,
+  .searchbox.compact {
+    min-width: 0;
+    width: 100%;
+    flex: 1 1 100%;
+  }
+}

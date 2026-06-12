@@ -12,7 +12,7 @@ describe("App shell", () => {
 
   it("renders the redesigned console navigation", async () => {
     // The shell auto-connects to the API on boot; make it unreachable so it
-    // falls back to the demo model without persisting anything.
+    // renders the explicit unavailable model without persisting anything.
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => {
@@ -29,6 +29,10 @@ describe("App shell", () => {
     expect(
       screen.getByRole("heading", { name: "Eshu Console" })
     ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Search repos, services, CVEs, evidence…")).toBeInTheDocument();
+    expect(screen.getByText("Overview")).toBeInTheDocument();
+    expect(screen.getByText("Inventory")).toBeInTheDocument();
+    expect(screen.getByText("Cloud & Telemetry")).toBeInTheDocument();
 
     // findBy lets the boot connect attempt settle before assertions.
     expect(
@@ -37,9 +41,21 @@ describe("App shell", () => {
     expect(
       screen.getByRole("link", { name: "Graph Explorer" })
     ).toHaveAttribute("href", "/explorer");
+    expect(screen.getByRole("link", { name: "Dead code" })).toHaveAttribute(
+      "href",
+      "/dead-code"
+    );
+    expect(screen.getByRole("link", { name: "Code graph" })).toHaveAttribute(
+      "href",
+      "/code-graph"
+    );
     expect(screen.getByRole("link", { name: "Catalog" })).toHaveAttribute(
       "href",
       "/catalog"
+    );
+    expect(screen.getByRole("link", { name: "Topology" })).toHaveAttribute(
+      "href",
+      "/topology"
     );
     expect(screen.getByRole("link", { name: "Findings" })).toHaveAttribute(
       "href",

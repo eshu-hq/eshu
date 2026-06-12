@@ -83,7 +83,11 @@ interface CodeRelEdge {
   readonly source_id?: string; readonly source_name?: string;
   readonly target_id?: string; readonly target_name?: string;
 }
-interface CodeRelationshipsResponse {
+/**
+ * Live code/relationships envelope payload used by Direct mode after resolving
+ * a searched symbol to a graph entity id.
+ */
+export interface CodeRelationshipsResponse {
   readonly entity_id?: string; readonly name?: string; readonly labels?: readonly string[];
   readonly incoming?: readonly CodeRelEdge[]; readonly outgoing?: readonly CodeRelEdge[];
 }
@@ -211,6 +215,100 @@ export function entityMapToGraph(data: EntityMapResponse, fallbackName: string):
   return { nodes: [...nodes.values()], edges };
 }
 
+interface DeploymentArtifactRecord {
+  readonly source_repo_id?: string;
+  readonly source_repo_name?: string;
+  readonly target_repo_id?: string;
+  readonly target_repo_name?: string;
+  readonly relationship_type?: string;
+  readonly artifact_family?: string;
+  readonly path?: string;
+}
+/**
+ * Minimal service-context payload needed to render a typed deployment story
+ * without fetching raw source bodies.
+ */
+export interface ServiceDeploymentContextResponse {
+  readonly name?: string;
+  readonly repo_name?: string;
+  readonly deployment_evidence?: {
+    readonly artifacts?: readonly DeploymentArtifactRecord[];
+  };
+}
+interface RepoRef { readonly id: string; readonly name: string; }
+
+/**
+ * Builds the user-facing controller repo -> chart repo -> source repo ->
+ * workload story from service-context deployment artifacts. The graph is
+ * derived from artifact evidence instead of the lossy impact/entity-map fanout.
+ */
+export function deploymentStoryToGraph(data: ServiceDeploymentContextResponse, fallbackName: string): GraphModel {
+  const serviceName = cleanText(data.name) || fallbackName;
+  const sourceRepoName = cleanText(data.repo_name) || serviceName;
+  const deployArtifacts = (data.deployment_evidence?.artifacts ?? []).filter((artifact) =>
+    cleanText(artifact.relationship_type).toUpperCase() === "DEPLOYS_FROM"
+  );
+  const artifactTargetRepo = deployArtifacts
+    .map((artifact) => repoFromArtifact(artifact, "target"))
+    .find((repo) => repo?.name === sourceRepoName);
+  const sourceRepo = artifactTargetRepo ?? { id: `repository:${sourceRepoName}`, name: sourceRepoName };
+  const serviceID = `workload:${serviceName}`;
+  const nodes = new Map<string, GraphNode>();
+  const edges: GraphEdge[] = [];
+  const edgeKeys = new Set<string>();
+  const chartRepoIDs = new Set<string>();
+
+  addStoryNode(nodes, { id: serviceID, label: serviceName, kind: "workload", sub: "Workload", col: 3, hero: true, truth: "derived" });
+  addStoryNode(nodes, { id: sourceRepo.id, label: sourceRepo.name, kind: "repo", sub: "Source repository", col: 2, truth: "derived" });
+
+  const chartRepos = uniqueRepos(deployArtifacts
+    .filter(isHelmChartArtifact)
+    .map((artifact) => repoFromArtifact(artifact, "source"))
+    .filter((repo): repo is RepoRef => !!repo && repo.id !== sourceRepo.id));
+  chartRepos.forEach((repo) => {
+    chartRepoIDs.add(repo.id);
+    addStoryNode(nodes, { id: repo.id, label: repo.name, kind: "repo", sub: "Helm chart", col: 1, truth: "derived" });
+    addStoryEdge(edges, edgeKeys, repo.id, sourceRepo.id, "DEPLOYS_FROM");
+  });
+
+  const controllerRepos = uniqueRepos(deployArtifacts
+    .filter(isDeploymentControllerArtifact)
+    .map((artifact) => repoFromArtifact(artifact, "source"))
+    .filter((repo): repo is RepoRef => !!repo && repo.id !== sourceRepo.id && !chartRepoIDs.has(repo.id)));
+  controllerRepos.forEach((repo) => {
+    addStoryNode(nodes, { id: repo.id, label: repo.name, kind: "repo", sub: "Deployment controller", col: 0, truth: "derived" });
+    if (chartRepos.length === 0) {
+      addStoryEdge(edges, edgeKeys, repo.id, sourceRepo.id, "DEPLOYS_FROM");
+      return;
+    }
+    chartRepos.forEach((chartRepo) => addStoryEdge(edges, edgeKeys, repo.id, chartRepo.id, "DEPLOYS_FROM"));
+  });
+
+  if (deployArtifacts.length > 0) {
+    addStoryEdge(edges, edgeKeys, sourceRepo.id, serviceID, "DEPLOYS_FROM");
+  }
+  return { nodes: [...nodes.values()], edges };
+}
+
+/**
+ * Loads the best neighborhood graph for a handle, preferring service deployment
+ * context and falling back to impact/entity-map when no story evidence exists.
+ */
+export async function loadEntityStoryGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
+  const storyClient = client as EshuApiClient & { readonly get?: EshuApiClient["get"] };
+  if (typeof storyClient.get === "function") {
+    try {
+      const env = await storyClient.get<ServiceDeploymentContextResponse>(`/api/v0/services/${encodeURIComponent(name)}/context`);
+      if (env.error) throw new EshuEnvelopeError(env.error);
+      const graph = deploymentStoryToGraph(env.data ?? {}, name);
+      if (graph.edges.length > 0) return graph;
+    } catch (error) {
+      if (!shouldFallbackFromServiceContext(error)) throw error;
+    }
+  }
+  return loadEntityMapGraph(client, name);
+}
+
 // Expand one entity into a broader neighbourhood via POST impact/entity-map.
 // Returns the same center-and-neighbours graph shape as loadEntityGraph.
 export async function loadEntityMapGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
@@ -219,6 +317,59 @@ export async function loadEntityMapGraph(client: EshuApiClient, name: string): P
   const env = await client.post<EntityMapResponse>("/api/v0/impact/entity-map", { from: name, depth: 2 });
   if (env.error) throw new EshuEnvelopeError(env.error);
   return entityMapToGraph(env.data ?? {}, name);
+}
+
+function cleanText(value: string | undefined): string {
+  return value?.trim() ?? "";
+}
+
+function repoFromArtifact(artifact: DeploymentArtifactRecord, side: "source" | "target"): RepoRef | undefined {
+  const id = cleanText(side === "source" ? artifact.source_repo_id : artifact.target_repo_id);
+  const name = cleanText(side === "source" ? artifact.source_repo_name : artifact.target_repo_name);
+  if (id === "" && name === "") return undefined;
+  return { id: id || `repository:${name}`, name: name || id };
+}
+
+function uniqueRepos(repos: readonly RepoRef[]): RepoRef[] {
+  const seen = new Set<string>();
+  const unique: RepoRef[] = [];
+  repos.forEach((repo) => {
+    if (seen.has(repo.id)) return;
+    seen.add(repo.id);
+    unique.push(repo);
+  });
+  return unique;
+}
+
+function isHelmChartArtifact(artifact: DeploymentArtifactRecord): boolean {
+  const family = cleanText(artifact.artifact_family).toLowerCase();
+  const path = cleanText(artifact.path).toLowerCase();
+  const sourceRepo = cleanText(artifact.source_repo_name).toLowerCase();
+  if (family !== "helm") return false;
+  return path.endsWith("/chart.yaml") || sourceRepo.includes("helm") || sourceRepo.includes("chart");
+}
+
+function isDeploymentControllerArtifact(artifact: DeploymentArtifactRecord): boolean {
+  const family = cleanText(artifact.artifact_family).toLowerCase();
+  return family === "argocd" || family === "kustomize";
+}
+
+function addStoryNode(nodes: Map<string, GraphNode>, node: GraphNode): void {
+  if (!nodes.has(node.id)) nodes.set(node.id, node);
+}
+
+function addStoryEdge(edges: GraphEdge[], seen: Set<string>, s: string, t: string, verb: string): void {
+  const key = `${s}\u0000${t}\u0000${verb}`;
+  if (seen.has(key)) return;
+  seen.add(key);
+  edges.push({ s, t, verb, layer: layerFor(verb) });
+}
+
+function shouldFallbackFromServiceContext(error: unknown): boolean {
+  if (error instanceof EshuApiHttpError) return error.status === 404;
+  if (!(error instanceof EshuEnvelopeError)) return false;
+  const code = error.error.code.toLowerCase();
+  return code === "not_found" || code === "service_not_found" || code === "unknown_service";
 }
 
 // resolveEntityName resolves a typed query to a canonical entity name via

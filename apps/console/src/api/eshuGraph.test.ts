@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { relationshipsToGraph, loadEntityGraph, loadEntityMapGraph, loadBlastGraph, resolveEntityName, codeRelationshipsToGraph, entityMapToGraph, recommendedModeForKind } from "./eshuGraph";
+import { relationshipsToGraph, loadEntityGraph, loadEntityMapGraph, loadEntityStoryGraph, loadBlastGraph, resolveEntityName, codeRelationshipsToGraph, entityMapToGraph, deploymentStoryToGraph, recommendedModeForKind } from "./eshuGraph";
 import { EshuApiHttpError } from "./client";
 import type { EshuApiClient } from "./client";
 
@@ -153,6 +153,124 @@ describe("eshuGraph", () => {
     await expect(loadEntityMapGraph(client, "checkout")).rejects.toThrow(
       "unsupported_capability: entity map is unavailable"
     );
+  });
+
+  it("deploymentStoryToGraph turns service context artifacts into a typed deployment chain", () => {
+    const graph = deploymentStoryToGraph({
+      name: "api-node-platform",
+      repo_name: "api-node-platform",
+      deployment_evidence: {
+        artifacts: [
+          {
+            source_repo_id: "repository:r_dd626fe7",
+            source_repo_name: "iac-eks-argocd",
+            target_repo_id: "repository:r_078043f1",
+            target_repo_name: "api-node-platform",
+            relationship_type: "DEPLOYS_FROM",
+            artifact_family: "kustomize",
+            path: "applicationsets/core-engineering/api-node/kustomization.yaml"
+          },
+          {
+            source_repo_id: "repository:r_66cd2d76",
+            source_repo_name: "helm-charts",
+            target_repo_id: "repository:r_078043f1",
+            target_repo_name: "api-node-platform",
+            relationship_type: "DEPLOYS_FROM",
+            artifact_family: "helm",
+            path: "api-node-platform/Chart.yaml"
+          },
+          {
+            source_repo_id: "repository:r_8634f55e",
+            source_repo_name: "iac-eks-observability",
+            target_repo_id: "repository:r_078043f1",
+            target_repo_name: "api-node-platform",
+            relationship_type: "DEPLOYS_FROM",
+            artifact_family: "helm",
+            path: "bbexporter/overlays/bg-prod/values.yaml"
+          }
+        ]
+      }
+    }, "api-node-platform");
+
+    expect(graph.nodes.map((n) => n.label).sort()).toEqual([
+      "api-node-platform",
+      "api-node-platform",
+      "helm-charts",
+      "iac-eks-argocd"
+    ]);
+    expect(graph.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ s: "repository:r_dd626fe7", t: "repository:r_66cd2d76", verb: "DEPLOYS_FROM", layer: "deploy" }),
+      expect.objectContaining({ s: "repository:r_66cd2d76", t: "repository:r_078043f1", verb: "DEPLOYS_FROM", layer: "deploy" }),
+      expect.objectContaining({ s: "repository:r_078043f1", t: "workload:api-node-platform", verb: "DEPLOYS_FROM", layer: "deploy" })
+    ]));
+    expect(graph.edges.some((edge) => edge.verb === "RELATED")).toBe(false);
+    expect(graph.nodes.some((node) => node.label === "iac-eks-observability")).toBe(false);
+  });
+
+  it("loadEntityStoryGraph prefers service deployment context when deployment evidence exists", async () => {
+    const calls: string[] = [];
+    const client = {
+      get: async (path: string) => {
+        calls.push(path);
+        return {
+          data: {
+            name: "api-node-platform",
+            repo_name: "api-node-platform",
+            deployment_evidence: {
+              artifacts: [{
+                source_repo_id: "repository:r_66cd2d76",
+                source_repo_name: "helm-charts",
+                target_repo_id: "repository:r_078043f1",
+                target_repo_name: "api-node-platform",
+                relationship_type: "DEPLOYS_FROM",
+                artifact_family: "helm",
+                path: "api-node-platform/Chart.yaml"
+              }]
+            }
+          },
+          error: null,
+          truth: null
+        };
+      },
+      post: async () => {
+        throw new Error("entity-map should not be called when deployment evidence exists");
+      }
+    } as unknown as EshuApiClient;
+
+    const graph = await loadEntityStoryGraph(client, "api-node-platform");
+
+    expect(calls).toEqual(["/api/v0/services/api-node-platform/context"]);
+    expect(graph.edges).toContainEqual(expect.objectContaining({ verb: "DEPLOYS_FROM" }));
+  });
+
+  it("loadEntityStoryGraph falls back to entity-map when service context is not found", async () => {
+    const calls: string[] = [];
+    const client = {
+      get: async (path: string) => {
+        calls.push(path);
+        throw new EshuApiHttpError(404);
+      },
+      post: async (path: string) => {
+        calls.push(path);
+        return {
+          data: {
+            from: "repository:r1",
+            resolution: { candidates: [{ id: "repository:r1", name: "repo-a", labels: ["Repository"] }] },
+            evidence: { relationships: [{ entity_id: "workload:svc", entity_name: "svc", entity_labels: ["Workload"], direction: "outgoing", relationship_type: "DEPLOYS_FROM" }] }
+          },
+          error: null,
+          truth: null
+        };
+      }
+    } as unknown as EshuApiClient;
+
+    const graph = await loadEntityStoryGraph(client, "repository:r1");
+
+    expect(calls).toEqual([
+      "/api/v0/services/repository%3Ar1/context",
+      "/api/v0/impact/entity-map"
+    ]);
+    expect(graph.nodes.find((node) => node.hero)?.label).toBe("repo-a");
   });
 
   it("loadEntityGraph renders the searched node alone when nothing resolves (no bogus entity_id 404)", async () => {

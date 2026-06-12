@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import type { ConsoleModel, IacResourceRow } from "../console/types";
 import { uiTruth, uiFresh } from "../console/types";
 import { Panel, StatTile, TruthChip, FreshDot, Badge } from "../components/atoms";
+import "./liveInventory.css";
 
 const PAGE_SIZE = 25;
 
@@ -71,73 +72,77 @@ export function IacPage({ model }: { readonly model: ConsoleModel }): React.JSX.
         <StatTile label="Modules" value={modules.length} color="var(--ember)" sub="distinct in this page" />
       </div>
 
-      <Panel
-        className="flush mt"
-        title="Terraform / IaC resources"
-        action={
-          <span className="row" style={{ gap: 8, alignItems: "center" }}>
-            {sectionTruth ? <TruthChip level={uiTruth(sectionTruth.level)} /> : null}
-            {sectionTruth ? <FreshDot state={uiFresh(sectionTruth.freshness.state)} /> : null}
-          </span>
-        }
-      >
-        <div className="row" style={{ gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-          <input
-            className="popover-input mono"
-            placeholder="Search name, type, module, path…"
-            value={q}
-            onChange={(e) => reset(setQ)(e.target.value)}
-            aria-label="Search IaC resources"
-          />
-          <select className="popover-input" value={type} onChange={(e) => reset(setType)(e.target.value)} aria-label="Filter by type">
-            <option value="">All types</option>
-            {types.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <select className="popover-input" value={provider} onChange={(e) => reset(setProvider)(e.target.value)} aria-label="Filter by provider">
-            <option value="">All providers</option>
-            {providers.map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
-          <select className="popover-input" value={module} onChange={(e) => reset(setModule)(e.target.value)} aria-label="Filter by module">
-            <option value="">All modules</option>
-            {modules.map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
-        </div>
-
-        <table className="tbl">
-          <thead><tr><th>Name</th><th>Type</th><th>Provider</th><th>Module</th><th>Path</th></tr></thead>
-          <tbody>
-            {visible.map((r) => (
-              <tr key={r.id}>
-                <td className="cell-stack" style={{ maxWidth: 460 }}>
-                  <span style={{ color: "var(--bone)", fontWeight: 600 }}>{r.name || "—"}</span>
-                  <small>{r.kind}</small>
-                </td>
-                <td className="t-name" style={{ fontSize: ".8rem" }}>{r.type || "—"}</td>
-                <td>{r.provider ? <Badge tone="violet">{r.provider}</Badge> : <span className="t-mut">—</span>}</td>
-                <td className="t-name" style={{ fontSize: ".8rem" }}>{r.module || "—"}</td>
-                <td className="t-name" style={{ fontSize: ".78rem" }}>{r.relativePath || "—"}</td>
-              </tr>
-            ))}
-            {unavailable ? (
-              <tr><td colSpan={5} className="empty">IaC inventory is not available from this API (it requires the authoritative graph profile).</td></tr>
-            ) : empty ? (
-              <tr><td colSpan={5} className="empty">No Terraform/IaC resources have been indexed yet.</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan={5} className="empty">No resources match the current filter.</td></tr>
-            ) : null}
-          </tbody>
-        </table>
-
-        {filtered.length > PAGE_SIZE ? (
-          <div className="row" style={{ gap: 10, alignItems: "center", marginTop: 10 }}>
-            <button className="btn-ghost" disabled={safePage <= 0} onClick={() => setPage(safePage - 1)}>Previous</button>
-            <span className="t-mut" style={{ fontSize: ".78rem" }}>
-              Page {safePage + 1} of {pageCount} · {filtered.length} resources
+      <div className="evidence-workbench mt" aria-label="IaC evidence workbench">
+        <Panel
+          className="flush"
+          title="Terraform / IaC resources"
+          action={
+            <span className="panel-action-stack">
+              {sectionTruth ? <TruthChip level={uiTruth(sectionTruth.level)} /> : null}
+              {sectionTruth ? <FreshDot state={uiFresh(sectionTruth.freshness.state)} /> : null}
             </span>
-            <button className="btn-ghost" disabled={safePage >= pageCount - 1} onClick={() => setPage(safePage + 1)}>Next</button>
+          }
+        >
+          <div className="evidence-toolbar">
+            <input
+              className="popover-input mono"
+              placeholder="Search name, type, module, path…"
+              value={q}
+              onChange={(e) => reset(setQ)(e.target.value)}
+              aria-label="Search IaC resources"
+            />
+            <select className="popover-input" value={type} onChange={(e) => reset(setType)(e.target.value)} aria-label="Filter by type">
+              <option value="">All types</option>
+              {types.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <select className="popover-input" value={provider} onChange={(e) => reset(setProvider)(e.target.value)} aria-label="Filter by provider">
+              <option value="">All providers</option>
+              {providers.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <select className="popover-input" value={module} onChange={(e) => reset(setModule)(e.target.value)} aria-label="Filter by module">
+              <option value="">All modules</option>
+              {modules.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
           </div>
-        ) : null}
-      </Panel>
+
+          <div className="table-scroll">
+            <table className="tbl wide">
+              <thead><tr><th>Name</th><th>Type</th><th>Provider</th><th>Module</th><th>Path</th></tr></thead>
+              <tbody>
+                {visible.map((r) => (
+                  <tr key={r.id}>
+                    <td className="cell-stack" style={{ maxWidth: 460 }}>
+                      <span style={{ color: "var(--bone)", fontWeight: 600 }}>{r.name || "—"}</span>
+                      <small>{r.kind}</small>
+                    </td>
+                    <td className="t-name" style={{ fontSize: ".8rem" }}>{r.type || "—"}</td>
+                    <td>{r.provider ? <Badge tone="violet">{r.provider}</Badge> : <span className="t-mut">—</span>}</td>
+                    <td className="t-name" style={{ fontSize: ".8rem" }}>{r.module || "—"}</td>
+                    <td className="t-name" style={{ fontSize: ".78rem" }}>{r.relativePath || "—"}</td>
+                  </tr>
+                ))}
+                {unavailable ? (
+                  <tr><td colSpan={5} className="empty">IaC inventory is not available from this API (it requires the authoritative graph profile).</td></tr>
+                ) : empty ? (
+                  <tr><td colSpan={5} className="empty">No Terraform/IaC resources have been indexed yet.</td></tr>
+                ) : filtered.length === 0 ? (
+                  <tr><td colSpan={5} className="empty">No resources match the current filter.</td></tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+
+          {filtered.length > PAGE_SIZE ? (
+            <div className="pager-row">
+              <button className="btn-ghost" disabled={safePage <= 0} onClick={() => setPage(safePage - 1)}>Previous</button>
+              <span className="t-mut" style={{ fontSize: ".78rem" }}>
+                Page {safePage + 1} of {pageCount} · {filtered.length} resources
+              </span>
+              <button className="btn-ghost" disabled={safePage >= pageCount - 1} onClick={() => setPage(safePage + 1)}>Next</button>
+            </div>
+          ) : null}
+        </Panel>
+      </div>
     </div>
   );
 }

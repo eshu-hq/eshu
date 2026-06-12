@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import type { EshuApiClient } from "../api/client";
 import { loadObservabilityCoverage } from "../api/eshuObservability";
-import type { ObservabilitySnapshot } from "../api/eshuObservability";
+import type { CoverageRow, ObservabilitySnapshot } from "../api/eshuObservability";
 import { Panel, StatTile, Badge } from "../components/atoms";
 
 export function ObservabilityPage({ client }: { readonly client?: EshuApiClient }): React.JSX.Element {
@@ -40,9 +40,10 @@ export function ObservabilityPage({ client }: { readonly client?: EshuApiClient 
   const someProvidersUnavailable = providers.some((p) => p.source === "unavailable");
   const providerEmptyMessage = allProvidersUnavailable
     ? "Observability coverage is unavailable for every provider."
-    : someProvidersUnavailable
+      : someProvidersUnavailable
       ? "Some observability providers are unavailable; no coverage rows were returned yet."
       : "No observability coverage from this source - requires the grafana/loki/tempo/mimir collectors.";
+  const matrix = buildCoverageMatrix(rows);
 
   return (
     <div className="page">
@@ -57,6 +58,25 @@ export function ObservabilityPage({ client }: { readonly client?: EshuApiClient 
         <StatTile label="Gaps" value={gaps} color="var(--ember)" sub="missing or stale" />
         <StatTile label="Source" value={coverageSource} color="var(--ember)" sub="observability coverage" />
       </div>
+
+      {snap !== null ? (
+        <Panel className="mt" title="Signal sources" sub={`${providers.length} observability collectors feeding the graph`}>
+          <div className="signal-source-grid">
+            {providers.map((p) => (
+              <div className="signal-source" key={p.provider}>
+                <span className="cglyph" style={{ width: 28, height: 28 }}>{p.provider.slice(0, 1).toUpperCase()}</span>
+                <span className="cell-stack" style={{ minWidth: 0 }}>
+                  <span style={{ fontWeight: 600, fontSize: ".84rem" }}>{p.provider}</span>
+                  <small className="mono">{p.total} correlations</small>
+                </span>
+                <span className={`status-pill ${p.source === "unavailable" ? "bad" : ""}`}>
+                  <i />{p.source}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
 
       <div className="grid mt" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,2.2fr)", gap: "var(--gap)" }}>
         <Panel title="By provider" sub="covered / gaps">
@@ -87,6 +107,47 @@ export function ObservabilityPage({ client }: { readonly client?: EshuApiClient 
           ) : null}
         </Panel>
 
+        <Panel className="flush" title="Coverage matrix" sub="Object × signal — covered · partial/stale · gap">
+          {snap === null ? (
+            <div className="conn-state" style={{ padding: 40 }}><div className="conn-spinner" aria-hidden /><p>Loading observability coverage...</p></div>
+          ) : (
+            <div className="table-scroll">
+              <table className="tbl wide">
+                <thead>
+                  <tr>
+                    <th>Object</th>
+                    {matrix.signals.map((signal) => <th key={signal}>{signal}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {matrix.rows.map((row) => (
+                    <tr key={row.object}>
+                      <td className="t-name">{row.object}</td>
+                      {matrix.signals.map((signal) => {
+                        const cell = row.signals.get(signal);
+                        return (
+                          <td key={signal}>
+                            {cell ? <CoverageBadge row={cell} /> : <Badge tone="neutral">gap</Badge>}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                  {matrix.rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={Math.max(1, matrix.signals.length + 1)} className="empty">
+                        No coverage matrix rows from this source.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Panel>
+      </div>
+
+      <div className="grid mt" style={{ gridTemplateColumns: "1fr", gap: "var(--gap)" }}>
         <Panel className="flush" title="Coverage correlations" sub={coverageSource}
           action={<div className="searchbox" style={{ minWidth: 200, height: 34 }}><input placeholder="Filter coverage…" value={q} onChange={(e) => setQ(e.target.value)} /></div>}>
           {snap === null ? (
@@ -114,4 +175,32 @@ export function ObservabilityPage({ client }: { readonly client?: EshuApiClient 
       </div>
     </div>
   );
+}
+
+function CoverageBadge({ row }: { readonly row: CoverageRow }): React.JSX.Element {
+  if (row.covered) return <Badge tone="teal">{row.status}</Badge>;
+  if (row.status.toLowerCase() === "stale" || row.freshness.toLowerCase() === "stale") return <Badge tone="neutral">{row.status}</Badge>;
+  return <Badge tone="crit">{row.status}</Badge>;
+}
+
+interface MatrixRow {
+  readonly object: string;
+  readonly signals: ReadonlyMap<string, CoverageRow>;
+}
+
+function buildCoverageMatrix(rows: readonly CoverageRow[]): { readonly signals: readonly string[]; readonly rows: readonly MatrixRow[] } {
+  const signals = [...new Set(rows.map((row) => row.signal).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const byObject = new Map<string, Map<string, CoverageRow>>();
+  for (const row of rows) {
+    const object = row.object || row.resourceClass || row.provider;
+    const current = byObject.get(object) ?? new Map<string, CoverageRow>();
+    current.set(row.signal, row);
+    byObject.set(object, current);
+  }
+  return {
+    signals,
+    rows: [...byObject.entries()]
+      .map(([object, objectSignals]) => ({ object, signals: objectSignals }))
+      .sort((a, b) => a.object.localeCompare(b.object))
+  };
 }

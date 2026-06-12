@@ -1,0 +1,63 @@
+import { describe, expect, it } from "vitest";
+import type { EshuApiClient } from "./client";
+import { loadFindings, type SectionContext } from "./eshuConsoleSections";
+
+describe("eshuConsoleSections findings", () => {
+  it("falls back from an empty dead-code repo name to the repo id", async () => {
+    const client = {
+      post: async () => ({
+        data: {
+          results: [{
+            classification: "unused",
+            file_path: "server/src/api/itemsClient.ts",
+            name: "parseRange",
+            repo_id: "repository:r_1",
+            repo_name: ""
+          }]
+        },
+        error: null,
+        truth: {
+          capability: "code_quality.dead_code",
+          freshness: { state: "fresh" },
+          level: "derived",
+          profile: "local_authoritative"
+        }
+      })
+    } as unknown as EshuApiClient;
+
+    const rows = await loadFindings(client);
+
+    expect(rows?.[0]?.entity).toBe("repository:r_1");
+  });
+
+  it("resolves dead-code repo ids through the catalog repo name map", async () => {
+    const client = {
+      post: async () => ({
+        data: {
+          results: [{
+            classification: "unused",
+            file_path: "server/src/api/itemsClient.ts",
+            name: "parseRange",
+            repo_id: "repository:r_1",
+            repo_name: ""
+          }]
+        },
+        error: null,
+        truth: {
+          capability: "code_quality.dead_code",
+          freshness: { state: "fresh" },
+          level: "derived",
+          profile: "local_authoritative"
+        }
+      })
+    } as unknown as EshuApiClient;
+    const ctx: SectionContext = {
+      truth: {},
+      repoNames: new Map([["repository:r_1", "api-node-boats"]])
+    };
+
+    const rows = await loadFindings(client, ctx);
+
+    expect(rows?.[0]?.entity).toBe("api-node-boats");
+  });
+});

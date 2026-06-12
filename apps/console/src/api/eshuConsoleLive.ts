@@ -102,6 +102,14 @@ export interface FindingRow {
   readonly title: string;
   readonly detail: string;
   readonly truth: TruthLevel;
+  readonly entityId?: string;
+  readonly repoId?: string;
+  readonly filePath?: string;
+  readonly startLine?: number;
+  readonly endLine?: number;
+  readonly language?: string;
+  readonly labels?: readonly string[];
+  readonly classification?: string;
 }
 export interface VulnRow {
   readonly id: string;
@@ -248,10 +256,11 @@ async function section<T>(
 // so the cold first paint costs roughly the slowest single API call rather than
 // the sum of ~15 serial calls (issue #1727). The only ordering dependency is
 // repoNames: loadServices populates the catalog repo_id -> name map that
-// loadVulnerabilities reads for human service labels, so services is awaited
-// before vulnerabilities is launched. Every other section runs in parallel via
-// the section() wrapper, which also retries a transient AbortError once so a
-// StrictMode re-run / browser abort does not leave a populated endpoint blank.
+// vulnerabilities and dead-code findings read for human repository labels, so
+// those sections start after services resolves. Every other section runs in
+// parallel via the section() wrapper, which also retries a transient AbortError
+// once so a StrictMode re-run / browser abort does not leave a populated
+// endpoint blank.
 export async function loadConsoleSnapshot(client: EshuApiClient): Promise<ConsoleSnapshot> {
   const prov: Record<string, SectionProvenance> = {};
   const truth: Partial<Record<keyof ConsoleSnapshot, EshuTruth>> = {};
@@ -260,14 +269,13 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     section(prov, key, load);
 
   // Launch every independent section immediately so the requests overlap.
-  // services must resolve before vulnerabilities can resolve service labels, so
-  // its promise is captured and awaited before the vulnerabilities fan-out.
+  // services must resolve before downstream sections can resolve repository
+  // labels, so its promise is captured and awaited before those fan-outs.
   const servicesPromise = runSection("services", () => loadServices(client, ctx));
 
   const runtimePromise = runSection("runtime", () => loadRuntime(client, ctx));
   const languagesPromise = runSection("languages", () => loadLanguages(client));
   const ingestersPromise = runSection("ingesters", () => loadIngesters(client));
-  const findingsPromise = runSection("findings", () => loadFindings(client));
   const sbomPromise = runSection("sbom", () => loadSbom(client, ctx));
   const dependenciesPromise = runSection("dependencies", () => loadDependenciesSection(client, ctx));
   const imagesPromise = runSection("images", () => loadImagesSection(client, ctx));
@@ -275,9 +283,11 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
   const advisoriesPromise = runSection("advisories", () => loadAdvisories(client, ctx));
   const seriesPromise = loadSeriesBundle(client, runSection);
 
-  // vulnerabilities depends on the catalog-derived repoNames map, so it only
-  // starts after services resolves; it then runs concurrently with the rest.
+  // vulnerabilities and dead-code findings depend on catalog-derived repoNames,
+  // so they only start after services resolves; they then run concurrently with
+  // the rest.
   await servicesPromise;
+  const findingsPromise = runSection("findings", () => loadFindings(client, ctx));
   const vulnerabilitiesPromise = runSection("vulnerabilities", () => loadVulnerabilities(client, ctx));
 
   const [

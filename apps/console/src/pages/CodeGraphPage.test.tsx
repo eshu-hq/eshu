@@ -1,0 +1,150 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import type { EshuApiClient } from "../api/client";
+import { demoModel } from "../console/demoModel";
+import type { ConsoleModel } from "../console/types";
+import { CodeGraphPage } from "./CodeGraphPage";
+
+describe("CodeGraphPage", () => {
+  it("renders the demo-style code analyzer from live code relationships", async () => {
+    const model: ConsoleModel = {
+      ...demoModel,
+      findings: [
+        {
+          id: "dead-1",
+          type: "Dead code",
+          entity: "api-node-boats",
+          title: "Unreferenced symbol post",
+          detail: "server/handlers/install.ts · unused",
+          truth: "derived",
+          entityId: "content-entity:e1",
+          filePath: "server/handlers/install.ts",
+          startLine: 17,
+          endLine: 54,
+          language: "typescript",
+          labels: ["Function"],
+          classification: "unused"
+        }
+      ]
+    };
+    const client = {
+      post: async () => ({
+        data: {
+          entity_id: "content-entity:e1",
+          name: "post",
+          labels: ["Function"],
+          incoming: [{ type: "CALLS", source_id: "content-entity:e2", source_name: "handler" }],
+          outgoing: [{ type: "IMPORTS", target_id: "content-entity:e3", target_name: "installService" }]
+        },
+        error: null,
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/code-graph"]}>
+        <CodeGraphPage model={model} client={client} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("heading", { name: "Code graph" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Analyzer")).toBeInTheDocument());
+    expect(screen.getByText("Import edges")).toBeInTheDocument();
+    expect(screen.getByText("Call edges")).toBeInTheDocument();
+    expect(screen.getByText("Dead in this repo · 1")).toBeInTheDocument();
+    expect(screen.getAllByText("post").length).toBeGreaterThan(0);
+  });
+
+  it("uses the resolved repository name in the candidate selector", async () => {
+    const model: ConsoleModel = {
+      ...demoModel,
+      findings: [
+        {
+          id: "dead-1",
+          type: "Dead code",
+          entity: "api-node-boats",
+          title: "Unreferenced symbol post",
+          detail: "server/handlers/install.ts · unused",
+          truth: "derived",
+          entityId: "content-entity:e1",
+          filePath: "server/handlers/install.ts",
+          classification: "unused"
+        }
+      ]
+    };
+
+    render(
+      <MemoryRouter initialEntries={["/code-graph"]}>
+        <CodeGraphPage model={model} />
+      </MemoryRouter>
+    );
+
+    const selector = screen.getByRole("combobox");
+    expect(selector).toHaveTextContent("post · api-node-boats");
+    expect(selector).not.toHaveTextContent("repository:r_");
+  });
+
+  it("turns clicked graph dead-code nodes into actionable evidence", async () => {
+    const model: ConsoleModel = {
+      ...demoModel,
+      findings: [
+        {
+          id: "dead-1",
+          type: "Dead code",
+          entity: "api-node-boats",
+          title: "Unreferenced symbol post",
+          detail: "server/handlers/install.ts · unused",
+          truth: "derived",
+          entityId: "content-entity:e1",
+          filePath: "server/handlers/install.ts",
+          startLine: 17,
+          endLine: 54,
+          language: "typescript",
+          labels: ["Function"],
+          classification: "unused",
+          repoId: "repository:r_1"
+        },
+        {
+          id: "dead-2",
+          type: "Dead code",
+          entity: "api-node-boats",
+          title: "Unreferenced symbol put",
+          detail: "server/handlers/profile.ts · unused",
+          truth: "derived",
+          entityId: "content-entity:e2",
+          filePath: "server/handlers/profile.ts",
+          startLine: 41,
+          endLine: 75,
+          language: "typescript",
+          labels: ["Function"],
+          classification: "unused",
+          repoId: "repository:r_1"
+        }
+      ]
+    };
+
+    render(
+      <MemoryRouter initialEntries={["/code-graph"]}>
+        <CodeGraphPage model={model} />
+      </MemoryRouter>
+    );
+
+    const putNode = screen.getAllByText("put").find((node) => node.tagName.toLowerCase() === "text");
+    expect(putNode).toBeDefined();
+    fireEvent.click(putNode!);
+
+    expect(screen.getByText("Selected symbol")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "server/handlers/profile.ts:41-75" })).toHaveAttribute(
+      "href",
+      "/repositories/repository%3Ar_1/source?path=server%2Fhandlers%2Fprofile.ts&lineStart=41&lineEnd=75"
+    );
+    expect(screen.getByRole("link", { name: "Open source" })).toHaveAttribute(
+      "href",
+      "/repositories/repository%3Ar_1/source?path=server%2Fhandlers%2Fprofile.ts&lineStart=41&lineEnd=75"
+    );
+    expect(screen.getByRole("link", { name: "Explore repo graph" })).toHaveAttribute(
+      "href",
+      "/explorer?q=api-node-boats"
+    );
+  });
+});

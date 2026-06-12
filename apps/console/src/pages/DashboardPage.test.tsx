@@ -10,18 +10,24 @@ describe("DashboardPage", () => {
   it("renders runtime stat tiles and panels from the model", () => {
     render(<DashboardPage model={demoModel} />);
 
-    expect(screen.getByText("Repositories")).toBeInTheDocument();
-    expect(screen.getByText("Index status")).toBeInTheDocument();
+    expect(screen.getByText("Graph nodes")).toBeInTheDocument();
+    expect(screen.getByText("Relationships")).toBeInTheDocument();
+    expect(screen.getByText("Indexed repos")).toBeInTheDocument();
     expect(screen.getByText("Queue outstanding")).toBeInTheDocument();
-    expect(screen.getByText("Succeeded")).toBeInTheDocument();
-    // Index status value from runtime.indexStatus.
-    expect(screen.getByText("complete")).toBeInTheDocument();
 
     expect(
       screen.getByText("Code-to-cloud relationship atlas")
     ).toBeInTheDocument();
+    expect(screen.getByText(/click any node or relationship edge to read its evidence/i)).toBeInTheDocument();
     expect(screen.getByText("Relationship coverage")).toBeInTheDocument();
     expect(screen.getByText("Needs attention")).toBeInTheDocument();
+  });
+
+  it("marks graph count metrics unavailable instead of fabricating demo numbers", () => {
+    render(<DashboardPage model={modelFromSnapshot(emptySnapshot("live"))} />);
+
+    expect(screen.getByText("node count metric unavailable")).toBeInTheDocument();
+    expect(screen.getByText("relationship count metric unavailable")).toBeInTheDocument();
   });
 
   it("opens the entity behind a finding row", () => {
