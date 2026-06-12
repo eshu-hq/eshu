@@ -102,6 +102,11 @@ SET rel.confidence = 0.9,
     rel.reason = 'Runtime services list declares workload dependency',
     rel.evidence_source = $evidence_source`
 
+// The single-row canonical code-edge templates below are the legacy non-batched
+// builders (BuildCanonicalCodeCallUpsert); they have no production caller. The
+// live graph-write path uses the batched UNWIND templates in
+// canonical_code_call_edges.go, which carry the per-edge resolution provenance
+// and tiered confidence from ADR #2222.
 const canonicalCodeCallUpsertCypher = `MATCH (source {id: $caller_entity_id})
 MATCH (target {id: $callee_entity_id})
 MERGE (source)-[rel:CALLS]->(target)
