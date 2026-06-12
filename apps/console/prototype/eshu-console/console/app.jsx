@@ -248,7 +248,7 @@ function App() {
           <div className="prov-banner"><Icon.shield size={14} /> Verified evidence only — hiding facts with <span className="truth-chip" style={{ "--tc": "var(--ember)" }}><i />inferred</span> truth (representative runtime / scan data Eshu would collect live). Findings & vulnerabilities are filtered.</div>
         ) : null}
         {source.mode === "live" && source.status === "connected" ? (
-          <div className="prov-banner"><Icon.db size={14} /> Live Eshu API · <span className="mono">{source.base}</span> — {liveSections.length ? liveSections.join(", ") + " from the graph" : "connected"}; sections without a live endpoint show demo facts.</div>
+          <div className="prov-banner"><Icon.db size={14} /> Live Eshu API · <span className="mono">{source.base}</span> — {liveSections.length ? liveSections.join(", ") + " from live graph/API loaders" : "connected"}; unsupported sections show explicit empty/unavailable states.</div>
         ) : null}
         {source.mode === "live" && source.status === "unavailable" ? (
           <div className="prov-banner warn"><Icon.bolt size={14} /> Eshu API unavailable at <span className="mono">{source.base}</span>{source.msg ? " · " + source.msg : ""}. Showing demo facts. Serve this page behind the /eshu-api/ proxy (browser can't reach localhost cross-origin).</div>

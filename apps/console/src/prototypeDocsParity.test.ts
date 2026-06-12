@@ -102,6 +102,13 @@ describe("prototype documentation parity", () => {
     expect(prototypeApp).toContain("Show verified evidence only");
   });
 
+  it("does not describe connected live prototype mode as falling back to demo facts", () => {
+    const prototypeApp = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
+
+    expect(prototypeApp).toContain("unsupported sections show explicit empty/unavailable states");
+    expect(prototypeApp).not.toContain("sections without a live endpoint show demo facts");
+  });
+
   it("keeps prototype topbar search wired to live-style vulnerability routing", () => {
     const liveApp = repoFile("apps/console/src/App.tsx");
     const prototypeApp = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
