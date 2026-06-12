@@ -172,7 +172,7 @@ function NodeDrawer({ node, graph, data, onClose, onOpenNode, onOpenService, onO
   const G = graph || D.graph;
   const res = node._res;
   const ks = res ? { color: (D.cloudFamilies[res.family] || {}).color || "#999", label: cloudResLabel(res.type) } : (ESHU.kindStyle[node.kind] || { color: "#999", label: node.kind });
-  const det = ESHU.nodeDetail[node.id];
+  const det = (D.nodeDetail || {})[node.id];
   const facts = useMemoDr(() => kindFacts(node, G, D), [node, G, D]);
   const conns = useMemoDr(() => nodeConnections(node, G), [node, G]);
   const hood = useMemoDr(() => nodeNeighborhood(node, G), [node, G]);

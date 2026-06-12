@@ -77,10 +77,11 @@ function Breadcrumb({ trail, onCrumb }) {
 }
 
 /* Edge detail — verb, endpoints, typed facts, actions */
-function EdgeInspector({ edge, graph, onOpenService, onSelectNode, onIsolate, isolated, onPin, pinned }) {
+function EdgeInspector({ edge, graph, data, onOpenService, onSelectNode, onIsolate, isolated, onPin, pinned }) {
+  const D = data || ESHU;
   const info = edgeEvidence(edge, graph);
   const col = ESHU.layerColor[edge.layer] || "var(--teal)";
-  const svc = (id) => ESHU.servicesById && ESHU.servicesById[id];
+  const svc = (id) => D.servicesById && D.servicesById[id];
   return (
     <div className="inspector edge-insp" style={{ "--ec": col }}>
       <div className="insp-head">
@@ -115,12 +116,12 @@ function EdgeInspector({ edge, graph, onOpenService, onSelectNode, onIsolate, is
 }
 
 /* Node detail — reuses NodeInspector evidence, adds clickable connections + drill actions */
-function NodeDrillInspector({ node, graph, onOpenService, onOpenNode, onSelectNode, onSelectEdge, onExpand, onFocus, expandedIds }) {
+function NodeDrillInspector({ node, graph, data, onOpenService, onOpenNode, onSelectNode, onSelectEdge, onExpand, onFocus, expandedIds }) {
   const conns = useMemoX(() => nodeConnections(node, graph), [node, graph]);
   const canExpand = onExpand && (!expandedIds || !expandedIds.has(node.id));
   return (
     <div className="inspector">
-      <NodeInspector node={node} onOpenService={onOpenService} />
+      <NodeInspector node={node} data={data} onOpenService={onOpenService} />
       {(onExpand || onFocus || onOpenNode) ? (
         <div className="insp-actions">
           {onOpenNode ? <button className="btn-ghost active" onClick={() => onOpenNode(node, graph)}><Icon.external size={13} /> Open node detail</button> : null}
@@ -154,16 +155,16 @@ function NodeDrillInspector({ node, graph, onOpenService, onOpenNode, onSelectNo
 }
 
 /* Unified inspector: renders node OR edge selection, with optional breadcrumb */
-function GraphInspector({ sel, graph, onOpenService, onOpenNode, onSelectNode, onSelectEdge, onExpand, onFocus, onIsolate, onPin, pinnedEdge, isolatedVerb, breadcrumb, onCrumb, expandedIds, emptyHint }) {
+function GraphInspector({ sel, graph, data, onOpenService, onOpenNode, onSelectNode, onSelectEdge, onExpand, onFocus, onIsolate, onPin, pinnedEdge, isolatedVerb, breadcrumb, onCrumb, expandedIds, emptyHint }) {
   if (!sel) return <p className="empty">{emptyHint || "Select a node or relationship to inspect its evidence."}</p>;
   const resolveNode = (idOrNode) => typeof idOrNode === "string" ? graph.nodes.find((n) => n.id === idOrNode) : idOrNode;
   return (
     <>
       {breadcrumb && breadcrumb.length > 1 ? <Breadcrumb trail={breadcrumb} onCrumb={onCrumb} /> : null}
       {sel.type === "edge" ? (
-        <EdgeInspector edge={sel.edge} graph={graph} onOpenService={onOpenService} onSelectNode={(n) => onSelectNode(resolveNode(n))} onIsolate={onIsolate} isolated={isolatedVerb === sel.edge.verb} onPin={onPin} pinned={pinnedEdge && edgeKey(pinnedEdge) === edgeKey(sel.edge)} />
+        <EdgeInspector edge={sel.edge} graph={graph} data={data} onOpenService={onOpenService} onSelectNode={(n) => onSelectNode(resolveNode(n))} onIsolate={onIsolate} isolated={isolatedVerb === sel.edge.verb} onPin={onPin} pinned={pinnedEdge && edgeKey(pinnedEdge) === edgeKey(sel.edge)} />
       ) : (
-        <NodeDrillInspector node={sel.node} graph={graph} onOpenService={onOpenService} onOpenNode={onOpenNode} onSelectNode={(n) => onSelectNode(resolveNode(n))} onSelectEdge={onSelectEdge} onExpand={onExpand} onFocus={onFocus} expandedIds={expandedIds} />
+        <NodeDrillInspector node={sel.node} graph={graph} data={data} onOpenService={onOpenService} onOpenNode={onOpenNode} onSelectNode={(n) => onSelectNode(resolveNode(n))} onSelectEdge={onSelectEdge} onExpand={onExpand} onFocus={onFocus} expandedIds={expandedIds} />
       )}
     </>
   );

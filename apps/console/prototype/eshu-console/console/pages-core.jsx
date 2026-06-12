@@ -2,10 +2,11 @@
 const { useState: useStateP, useMemo: useMemoP } = React;
 
 /* shared: node inspector content */
-function NodeInspector({ node, onOpenService }) {
+function NodeInspector({ node, data, onOpenService }) {
+  const D = data || ESHU;
   const ks = ESHU.kindStyle[node.kind] || {};
-  const det = ESHU.nodeDetail[node.id];
-  const svc = node.kind === "service" ? ESHU.services.find((s) => s.id === node.id.replace("svc:", "")) : null;
+  const det = (D.nodeDetail || {})[node.id];
+  const svc = node.kind === "service" ? (D.services || []).find((s) => s.id === node.id.replace("svc:", "")) : null;
   return (
     <div className="inspector">
       <div className="insp-head">
@@ -338,7 +339,7 @@ function Dashboard({ onOpenService, onOpenNode, heroMode, graphStyle, chartStyle
               selectedId={sel && sel.type === "node" ? sel.node.id : null}
               selectedEdge={sel && sel.type === "edge" ? sel.edge : null} />
             <div className="panel" style={{ background: "var(--bg-field)", boxShadow: "none" }}>
-              <div className="panel-body"><GraphInspector sel={sel} graph={D.graph} onOpenService={onOpenService} onOpenNode={onOpenNode} onSelectNode={selectNode} onSelectEdge={selectEdge} emptyHint="Select any node or relationship edge to read its evidence." /></div>
+              <div className="panel-body"><GraphInspector data={D} sel={sel} graph={D.graph} onOpenService={onOpenService} onOpenNode={onOpenNode} onSelectNode={selectNode} onSelectEdge={selectEdge} emptyHint="Select any node or relationship edge to read its evidence." /></div>
             </div>
           </div>
         </Panel>

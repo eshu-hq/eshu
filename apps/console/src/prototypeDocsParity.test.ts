@@ -132,6 +132,26 @@ describe("prototype documentation parity", () => {
     expect(prototypeApp).not.toContain("ESHU.runtime.profile");
   });
 
+  it("keeps prototype graph drawers on selected node detail data", () => {
+    const corePages = repoFile("apps/console/prototype/eshu-console/console/pages-core.jsx");
+    const graphExtras = repoFile("apps/console/prototype/eshu-console/console/graph-extras.jsx");
+    const drill = repoFile("apps/console/prototype/eshu-console/console/drill.jsx");
+
+    expect(corePages).toContain("const D = data || ESHU");
+    expect(corePages).toContain("const det = (D.nodeDetail || {})[node.id]");
+    expect(corePages).toContain("(D.services || []).find");
+    expect(corePages).toContain("<GraphInspector data={D}");
+    expect(graphExtras).toContain("function GraphInspector({ sel, graph, data");
+    expect(graphExtras).toContain("<NodeInspector node={node} data={data}");
+    expect(graphExtras).toContain("const D = data || ESHU");
+    expect(graphExtras).toContain("D.servicesById && D.servicesById[id]");
+    expect(drill).toContain("const det = (D.nodeDetail || {})[node.id]");
+    expect(corePages).not.toContain("ESHU.nodeDetail[node.id]");
+    expect(corePages).not.toContain("ESHU.services.find");
+    expect(graphExtras).not.toContain("ESHU.servicesById && ESHU.servicesById[id]");
+    expect(drill).not.toContain("ESHU.nodeDetail[node.id]");
+  });
+
   it("keeps prototype Operations connected-live mode on supported metric contracts", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
