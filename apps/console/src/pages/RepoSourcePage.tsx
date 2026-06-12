@@ -4,7 +4,7 @@
 // the multi-branch selector is gated on the branches API (#1433) and shown as a
 // disabled note until then. No fabricated tree or contents.
 import { useEffect, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
 import { decodeRepoFile, loadRepoFile, loadRepoTree } from "../api/repoSource";
 import type { RepoFile, RepoTree } from "../api/repoSource";
@@ -12,6 +12,7 @@ import { Panel, Badge } from "../components/atoms";
 
 export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }): React.JSX.Element {
   const { id = "" } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const requestedFile = searchParams.get("path") ?? "";
   const highlightStart = parseLineParam(searchParams.get("lineStart"));
@@ -48,9 +49,8 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
   }, [client, id, requestedFile]);
 
   function openFile(filePath: string): void {
-    if (!client) return;
-    setFileBusy(true); setFile(null);
-    void loadRepoFile(client, id, filePath).then((f) => { setFile(f); setFileBusy(false); });
+    const params = new URLSearchParams({ path: filePath });
+    navigate(`/repositories/${encodeURIComponent(id)}/source?${params.toString()}`);
   }
 
   const crumbs = path ? path.split("/") : [];
