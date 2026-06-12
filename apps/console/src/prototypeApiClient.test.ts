@@ -16,20 +16,27 @@ interface PrototypeWindow {
   ESHU?: PrototypeEshu;
 }
 
+const PROTOTYPE_CLIENT_SCRIPTS = new Set([
+  "console/data.js",
+  "console/live-api-client.js",
+  "console/live-client-envelope.js"
+]);
+
 function repoRoot(): string {
   return process.cwd().endsWith("apps/console") ? resolve(process.cwd(), "../..") : process.cwd();
+}
+
+function prototypeScriptSources(html: string): readonly string[] {
+  const document = new DOMParser().parseFromString(html, "text/html");
+  return Array.from(document.querySelectorAll("script[src]"))
+    .map((script) => script.getAttribute("src"))
+    .filter((src): src is string => src !== null && PROTOTYPE_CLIENT_SCRIPTS.has(src));
 }
 
 function prototypeScriptPaths(): readonly string[] {
   const htmlPath = resolve(repoRoot(), "apps/console/prototype/eshu-console/Eshu Console.html");
   const html = readFileSync(htmlPath, "utf8");
-  const scripts = Array.from(html.matchAll(/<script src="([^"]+)"><\/script>/g))
-    .map((match) => match[1])
-    .filter((src) => (
-      src === "console/data.js" ||
-      src === "console/live-api-client.js" ||
-      src === "console/live-client-envelope.js"
-    ));
+  const scripts = prototypeScriptSources(html);
   return scripts.map((src) => resolve(repoRoot(), "apps/console/prototype/eshu-console", src));
 }
 
@@ -54,6 +61,21 @@ function loadPrototypeEshu(fetchImpl: (url: string, init?: unknown) => Promise<u
 }
 
 describe("prototype API client", () => {
+  it("discovers prototype client scripts through an HTML parser", () => {
+    const html = `
+      <script src="console/data.js"></script >
+      <script type="text/babel" src="console/app.jsx"></script>
+      <script src="console/live-api-client.js"></script>
+      <script src="console/live-client-envelope.js"></script>
+    `;
+
+    expect(prototypeScriptSources(html)).toEqual([
+      "console/data.js",
+      "console/live-api-client.js",
+      "console/live-client-envelope.js"
+    ]);
+  });
+
   it("rejects Eshu error envelopes even when the envelope has only a message", async () => {
     const eshu = loadPrototypeEshu(async () => ({
       ok: true,
