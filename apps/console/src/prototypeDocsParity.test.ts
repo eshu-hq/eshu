@@ -141,6 +141,7 @@ describe("prototype documentation parity", () => {
     expect(page).toContain('name === "job-node-sitemaps-generator"');
     expect(page).toContain("Marketplace");
     expect(page).toContain("Configuration");
+    expect(page).toContain("repoSourceHref");
     expect(page).not.toContain('name.includes("boat") || name.includes("search") || name.includes("sitemap")');
     expect(page).toContain("Repository detail unavailable");
     expect(guide).toContain("GET /api/v0/repositories");

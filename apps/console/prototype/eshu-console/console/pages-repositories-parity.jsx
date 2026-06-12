@@ -156,9 +156,13 @@
     return <div className="repo-groups mt">{groups.map((group) => (
       <section className="repo-group" key={group.key}>
         <header className="repo-group-head"><div className="row" style={{ gap: 9 }}><span className="repo-group-dot" /><h3>{group.key}</h3><span className="repo-group-count">{group.repositories.length}</span></div><span className="findings-toggle">{group.repositories.filter((repo) => repo.isDependency).length} dependency repos</span></header>
-        <div className="repo-group-repos">{group.repositories.map((repo) => <button type="button" className="repo-chip" key={repo.id} onClick={() => onSelect(repo.id)} title={repo.repoSlug || repo.remoteUrl}><i />{repo.name}<span className={"tag-tier tier-" + (repo.isDependency ? "3" : "1")} style={{ marginLeft: 6 }}>{repo.isDependency ? "dep" : "src"}</span></button>)}</div>
+        <div className="repo-group-repos">{group.repositories.map((repo) => <a className="repo-chip" key={repo.id} href={repoSourceHref(repo.id)} title={repo.repoSlug || repo.remoteUrl}><i />{repo.name}<span className={"tag-tier tier-" + (repo.isDependency ? "3" : "1")} style={{ marginLeft: 6 }}>{repo.isDependency ? "dep" : "src"}</span></a>)}</div>
       </section>
     ))}{groups.length === 0 ? <p className="empty">{err ? "Failed to load: " + err : "No repositories from this source."}</p> : null}</div>;
+  }
+
+  function repoSourceHref(id) {
+    return window.ESHU_ROUTES.hashFor("reposource", "/" + encodeURIComponent(id) + "/source");
   }
 
   function LiveRepoGrid({ rows, selected, onSelect, detail, err }) {

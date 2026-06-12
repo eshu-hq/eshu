@@ -87,7 +87,7 @@ export function RepositoriesPage({ client, model }: {
       ) : view === "groups" ? (
         <div className="repo-group-grid mt" aria-label="Repository group workbench">
           {groups.map((group, index) => (
-            <RepositoryGroupCard key={group.key} group={group} accent={groupAccent(index)} onSelect={setSelected} />
+            <RepositoryGroupCard key={group.key} group={group} accent={groupAccent(index)} />
           ))}
           {groups.length === 0 ? <Panel><p className="empty">{err ? `Failed to load: ${err}` : "No repositories from this source."}</p></Panel> : null}
         </div>
@@ -147,10 +147,9 @@ export function RepositoriesPage({ client, model }: {
   );
 }
 
-function RepositoryGroupCard({ group, accent, onSelect }: {
+function RepositoryGroupCard({ group, accent }: {
   readonly group: RepoGroup;
   readonly accent: string;
-  readonly onSelect: (id: string) => void;
 }): React.JSX.Element {
   const dependencies = group.repositories.filter((repo) => repo.isDependency).length;
   return (
@@ -165,10 +164,10 @@ function RepositoryGroupCard({ group, accent, onSelect }: {
       </div>
       <div className="repo-chip-grid">
         {group.repositories.slice(0, 8).map((repo) => (
-          <button key={repo.id} className="repo-chip" onClick={() => onSelect(repo.id)}>
+          <Link key={repo.id} className="repo-chip" to={repositorySourcePath(repo.id)}>
             <span>{repo.name}</span>
             <Badge tone={repo.isDependency ? "neutral" : "teal"}>{repo.isDependency ? "dep" : "src"}</Badge>
-          </button>
+          </Link>
         ))}
       </div>
       <div className="repo-group-foot">
@@ -176,6 +175,10 @@ function RepositoryGroupCard({ group, accent, onSelect }: {
       </div>
     </article>
   );
+}
+
+function repositorySourcePath(id: string): string {
+  return `/repositories/${encodeURIComponent(id)}/source`;
 }
 
 function repositoryGroups(repositories: readonly RepoListItem[]): readonly RepoGroup[] {

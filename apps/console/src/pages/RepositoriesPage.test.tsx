@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
 import { demoModel } from "../console/demoModel";
 import { RepositoriesPage } from "./RepositoriesPage";
@@ -27,7 +28,7 @@ describe("RepositoriesPage", () => {
       }
     } as unknown as EshuApiClient;
 
-    render(<RepositoriesPage client={client} model={demoModel} />);
+    render(<RepositoriesPage client={client} model={demoModel} />, { wrapper: MemoryRouter });
 
     expect(await screen.findByText("Repository groups")).toBeInTheDocument();
     const groupWorkbench = screen.getByLabelText("Repository group workbench");
@@ -46,5 +47,31 @@ describe("RepositoriesPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Grid" }));
     await waitFor(() => expect(screen.getByText("api-node-boats")).toBeInTheDocument());
     expect(screen.getAllByText("Boat-Search").length).toBeGreaterThan(0);
+  });
+
+  it("links repository group chips directly to the source browser", async () => {
+    const client = {
+      get: async (path: string) => {
+        if (path.includes("/repositories?")) {
+          return {
+            data: {
+              repositories: [
+                { id: "repository:api-node-boats", name: "api-node-boats", repo_slug: "platform/api-node-boats", is_dependency: false }
+              ]
+            },
+            error: null,
+            truth: null
+          };
+        }
+        return { data: {}, error: null, truth: null };
+      }
+    } as unknown as EshuApiClient;
+
+    render(<RepositoriesPage client={client} model={demoModel} />, { wrapper: MemoryRouter });
+
+    const groupWorkbench = await screen.findByLabelText("Repository group workbench");
+    expect(
+      within(groupWorkbench).getByRole("link", { name: /api-node-boats/ })
+    ).toHaveAttribute("href", "/repositories/repository%3Aapi-node-boats/source");
   });
 });
