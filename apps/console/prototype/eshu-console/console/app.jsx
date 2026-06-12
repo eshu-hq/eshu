@@ -27,6 +27,12 @@ function isLiveModel(model) {
   return model && model.org === "live";
 }
 
+function repositoryNavCount(model) {
+  const runtime = (model && model.runtime) || {};
+  const count = Number.isFinite(runtime.repositories) ? runtime.repositories : (Number.isFinite(runtime.repos) ? runtime.repos : 0);
+  return isLiveModel(model) ? count : count || (model.services || []).filter((s) => s.repo).length;
+}
+
 function imageNavCount(model) {
   const count = (model.imageInventory || []).length;
   return isLiveModel(model) ? count : count || model.services.filter((s) => s.image).length;
@@ -48,7 +54,7 @@ const NAV = [
     { id: "explorer", label: "Graph Explorer", icon: "graph" }
   ] },
   { group: "Inventory", items: [
-    { id: "repos", label: "Repositories", icon: "catalog", count: (m) => m.services.filter((s) => s.repo).length },
+    { id: "repos", label: "Repositories", icon: "catalog", count: repositoryNavCount },
     { id: "catalog", label: "Catalog", icon: "box", count: (m) => m.services.length },
     { id: "findings", label: "Findings", icon: "findings", alert: true, count: (m) => m.findings.length + m.vulns.length },
     { id: "images", label: "Images", icon: "box", count: imageNavCount },
@@ -122,10 +128,12 @@ function liveRuntime(live, metrics) {
   const source = (live && live.runtime) || {};
   const services = liveArray(live, "services");
   const cloudResources = liveArray(live, "cloudResources");
+  const repositoryCount = source.repos || source.repositories || 0;
   return Object.assign({}, source, {
     nodes: lastMetric(metrics, "graphNodes"),
     edges: lastMetric(metrics, "graphEdges"),
-    repos: source.repos || source.repositories || 0,
+    repos: repositoryCount,
+    repositories: repositoryCount,
     workloads: source.workloads || 0,
     services: services.length,
     cloudResources: cloudResources.length,
