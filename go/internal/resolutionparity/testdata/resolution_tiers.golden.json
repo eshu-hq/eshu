@@ -9,11 +9,11 @@
   "python": {
     "repo_unique_name": 4,
     "same_file": 11,
-    "type_inferred": 1
+    "type_inferred": 6
   },
   "typescript": {
     "repo_unique_name": 85,
     "same_file": 357,
-    "type_inferred": 38
+    "type_inferred": 85
   }
 }
