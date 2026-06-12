@@ -3,8 +3,9 @@
 // module owns (a) the snapshot -> UI model lift and (b) an empty model used for
 // the loading / needs-connection / error states. There is no sample or demo data
 // here: an empty model carries real "unavailable" provenance, never fabricated
-// numbers. Graph relationships stay empty until their endpoints are wired;
-// metrics series come from the live time-series API when available.
+// numbers. Route pages hydrate their graph views directly from graph-specific
+// APIs; this snapshot shell stays graph-empty so it never invents topology.
+// Metrics series come from the live time-series API when available.
 
 import type {
   ConsoleModel, ConsoleSnapshot, RuntimeSummary, SeriesBundle, SectionProvenance
@@ -47,8 +48,10 @@ export function emptySnapshot(provenance: SectionProvenance | null = null): Cons
   };
 }
 
-// modelFromSnapshot lifts a live snapshot into the UI model. Graph and
-// relationships are not yet provided by the API, so they stay empty until wired.
+// modelFromSnapshot lifts a live snapshot into the UI model. Route-level pages
+// own graph/API fan-out (Dashboard, Explorer, Code Graph, Topology, Workspace),
+// so the shared snapshot model stays graph-empty instead of caching partial
+// topology globally.
 export function modelFromSnapshot(snap: ConsoleSnapshot): ConsoleModel {
   return { ...snap, source: "live", graph: { nodes: [], edges: [] }, relationships: [] };
 }

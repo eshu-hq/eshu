@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { emptyConsoleModel, emptySnapshot, modelFromSnapshot } from "./liveModel";
 
@@ -31,5 +33,12 @@ describe("liveModel", () => {
   it("modelFromSnapshot marks the model as live", () => {
     const model = modelFromSnapshot(emptySnapshot());
     expect(model.source).toBe("live");
+  });
+
+  it("documents that route pages own live graph hydration", () => {
+    const source = readFileSync(resolve(import.meta.dirname, "liveModel.ts"), "utf8");
+
+    expect(source).toContain("Route pages hydrate their graph views directly");
+    expect(source).not.toContain("relationships are not yet provided by the API");
   });
 });
