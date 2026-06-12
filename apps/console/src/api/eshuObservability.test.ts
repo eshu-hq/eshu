@@ -15,7 +15,7 @@ describe("eshuObservability", () => {
         if (path.includes("provider=grafana")) {
           if (!path.includes("after_correlation_id=")) {
             return { correlations: [
-              { correlation_id: "g1", provider: "grafana", coverage_signal: "dashboard", observability_object_ref: "checkout-api", coverage_status: "covered", resource_class: "dashboard", source_kind: "kubernetes", freshness_state: "current" }
+              { correlation_id: "g1", provider: "grafana", coverage_signal: "dashboard", observability_object_ref: "grafana:checkout-dashboard", target_service_ref: "checkout-api", coverage_status: "covered", resource_class: "dashboard", source_kind: "kubernetes", freshness_state: "current" }
             ], truncated: true, next_cursor: { after_correlation_id: "g1" } };
           }
           return { correlations: [
@@ -47,6 +47,10 @@ describe("eshuObservability", () => {
     expect(calls.some((c) => c.includes("after_correlation_id=g1"))).toBe(true);
     expect(snap.source).toBe("live");
     expect(snap.rows).toHaveLength(4); // g1, g2, l1, t1
+    expect(snap.rows.find((row) => row.id === "g1")).toMatchObject({
+      object: "grafana:checkout-dashboard",
+      target: "checkout-api"
+    });
   });
 
   it("rolls up covered vs gap per provider", async () => {
@@ -58,6 +62,25 @@ describe("eshuObservability", () => {
     expect(loki).toMatchObject({ total: 1, covered: 1, gaps: 0 });
     const prometheus = snap.providers.find((p) => p.provider === "prometheus");
     expect(prometheus).toMatchObject({ total: 0, covered: 0, gaps: 0 });
+  });
+
+  it("keeps fallback row identity distinct by target when correlation IDs are absent", async () => {
+    const client = {
+      getJson: async (path: string) => {
+        if (!path.includes("provider=grafana")) return { correlations: [], truncated: false };
+        return {
+          correlations: [
+            { provider: "grafana", coverage_signal: "dashboard", observability_object_ref: "shared-dashboard", target_service_ref: "checkout-api", coverage_status: "covered" },
+            { provider: "grafana", coverage_signal: "dashboard", observability_object_ref: "shared-dashboard", target_service_ref: "payments-api", coverage_status: "covered" }
+          ],
+          truncated: false
+        };
+      }
+    } as unknown as EshuApiClient;
+
+    const snap = await loadObservabilityCoverage(client);
+
+    expect(snap.rows.map((row) => row.target).sort()).toEqual(["checkout-api", "payments-api"]);
   });
 
   it("marks a failed provider unavailable while staying live when others succeed", async () => {

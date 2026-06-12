@@ -27,7 +27,7 @@ export function ObservabilityPage({ client }: { readonly client?: EshuApiClient 
   }, [client]);
 
   const rows = (snap?.rows ?? []).filter((r) =>
-    q === "" || `${r.provider} ${r.signal} ${r.object} ${r.resourceClass}`.toLowerCase().includes(q.toLowerCase())
+    q === "" || `${r.provider} ${r.signal} ${r.object} ${r.target} ${r.resourceClass}`.toLowerCase().includes(q.toLowerCase())
   );
   const total = snap?.rows.length ?? 0;
   const covered = (snap?.rows ?? []).filter((r) => r.covered).length;
@@ -107,7 +107,7 @@ export function ObservabilityPage({ client }: { readonly client?: EshuApiClient 
           ) : null}
         </Panel>
 
-        <Panel className="flush" title="Coverage matrix" sub="Object × signal — covered · partial/stale · gap">
+        <Panel className="flush" title="Coverage matrix" sub="Target × signal — covered · partial/stale · gap">
           {snap === null ? (
             <div className="conn-state" style={{ padding: 40 }}><div className="conn-spinner" aria-hidden /><p>Loading observability coverage...</p></div>
           ) : (
@@ -115,14 +115,14 @@ export function ObservabilityPage({ client }: { readonly client?: EshuApiClient 
               <table className="tbl wide">
                 <thead>
                   <tr>
-                    <th>Object</th>
+                    <th>Target</th>
                     {matrix.signals.map((signal) => <th key={signal}>{signal}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {matrix.rows.map((row) => (
-                    <tr key={row.object}>
-                      <td className="t-name">{row.object}</td>
+                    <tr key={row.target}>
+                      <td className="t-name">{row.target}</td>
                       {matrix.signals.map((signal) => {
                         const cell = row.signals.get(signal);
                         return (
@@ -154,12 +154,13 @@ export function ObservabilityPage({ client }: { readonly client?: EshuApiClient 
             <div className="conn-state" style={{ padding: 40 }}><div className="conn-spinner" aria-hidden /><p>Loading observability coverage...</p></div>
           ) : (
             <table className="tbl">
-              <thead><tr><th>Provider</th><th>Signal</th><th>Object</th><th>Resource</th><th>Source</th><th>Freshness</th><th>Status</th></tr></thead>
+              <thead><tr><th>Provider</th><th>Signal</th><th>Target</th><th>Object</th><th>Resource</th><th>Source</th><th>Freshness</th><th>Status</th></tr></thead>
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.id}>
                     <td className="t-name">{r.provider}</td>
                     <td className="t-mut mono" style={{ fontSize: ".78rem" }}>{r.signal}</td>
+                    <td className="t-mut" style={{ fontSize: ".78rem" }}>{r.target || "—"}</td>
                     <td className="t-mut" style={{ fontSize: ".78rem" }}>{r.object || "—"}</td>
                     <td className="t-mut" style={{ fontSize: ".76rem" }}>{r.resourceClass || "—"}</td>
                     <td className="t-mut" style={{ fontSize: ".76rem" }}>{r.sourceKind || "—"}</td>
@@ -167,7 +168,7 @@ export function ObservabilityPage({ client }: { readonly client?: EshuApiClient 
                     <td>{r.covered ? <Badge tone="teal">{r.status}</Badge> : <Badge tone="crit">{r.status}</Badge>}</td>
                   </tr>
                 ))}
-                {rows.length === 0 ? <tr><td colSpan={7} className="empty">{err ? `Failed to load: ${err}` : "No coverage correlations from this source."}</td></tr> : null}
+                {rows.length === 0 ? <tr><td colSpan={8} className="empty">{err ? `Failed to load: ${err}` : "No coverage correlations from this source."}</td></tr> : null}
               </tbody>
             </table>
           )}
@@ -184,23 +185,23 @@ function CoverageBadge({ row }: { readonly row: CoverageRow }): React.JSX.Elemen
 }
 
 interface MatrixRow {
-  readonly object: string;
+  readonly target: string;
   readonly signals: ReadonlyMap<string, CoverageRow>;
 }
 
 function buildCoverageMatrix(rows: readonly CoverageRow[]): { readonly signals: readonly string[]; readonly rows: readonly MatrixRow[] } {
   const signals = [...new Set(rows.map((row) => row.signal).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  const byObject = new Map<string, Map<string, CoverageRow>>();
+  const byTarget = new Map<string, Map<string, CoverageRow>>();
   for (const row of rows) {
-    const object = row.object || row.resourceClass || row.provider;
-    const current = byObject.get(object) ?? new Map<string, CoverageRow>();
+    const target = row.target || row.object || row.resourceClass || row.provider;
+    const current = byTarget.get(target) ?? new Map<string, CoverageRow>();
     current.set(row.signal, row);
-    byObject.set(object, current);
+    byTarget.set(target, current);
   }
   return {
     signals,
-    rows: [...byObject.entries()]
-      .map(([object, objectSignals]) => ({ object, signals: objectSignals }))
-      .sort((a, b) => a.object.localeCompare(b.object))
+    rows: [...byTarget.entries()]
+      .map(([target, targetSignals]) => ({ target, signals: targetSignals }))
+      .sort((a, b) => a.target.localeCompare(b.target))
   };
 }
