@@ -901,7 +901,7 @@ function Vulnerabilities({ onOpenService, onOpenNode, chartStyle, verifiedOnly, 
 
   return (
     <div className="page">
-      <div className="page-intro"><h2>Findings</h2><p>CVE register — vulnerability intelligence correlated to deployed images and reachable services, sourced from CISA KEV, FIRST EPSS, NVD, OSV and GHSA, and joined to the graph by <span className="mono">AFFECTED_BY</span> edges. This is the deep security view of the Findings worklist.</p></div>
+      <div className="page-intro"><h2>Vulnerabilities</h2><p>CVE register — vulnerability intelligence correlated to deployed images and reachable services, sourced from CISA KEV, FIRST EPSS, NVD, OSV and GHSA, and joined to the graph by <span className="mono">AFFECTED_BY</span> edges. This is the deep security view of the Findings worklist.</p></div>
       <FindingsTabs active="cves" />
 
       <div className="grid g-4">

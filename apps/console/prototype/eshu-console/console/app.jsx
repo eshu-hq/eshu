@@ -10,6 +10,17 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "chartStyle": "bars"
 }/*EDITMODE-END*/;
 
+const ROUTE_ALIASES = {
+  repositories: "repos",
+  "dead-code": "deadcode",
+  "code-graph": "codegraph",
+  operations: "admin"
+};
+
+function canonicalRoute(route) {
+  return ROUTE_ALIASES[route] || route;
+}
+
 const NAV = [
   { group: "Overview", items: [
     { id: "dashboard", label: "Dashboard", icon: "dashboard" },
@@ -49,7 +60,7 @@ const TITLES = {
   iac: ["IaC", "Terraform and ArgoCD evidence"],
   deadcode: ["Dead code", "Unreferenced symbols — analyzer findings"],
   codegraph: ["Code graph", "Symbol & module relationships (CALLS / IMPORTS)"],
-  vulnerabilities: ["Findings", "CVE register — vulnerability intelligence"],
+  vulnerabilities: ["Vulnerabilities", "CVE register — vulnerability intelligence"],
   topology: ["Topology", "Full code-to-cloud path for a service"],
   cloud: ["Cloud", "Multi-cloud resource inventory — code-to-cloud"],
   observability: ["Observability", "Signal coverage correlated per service"],
@@ -60,7 +71,7 @@ const TITLES = {
 
 function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
-  const [route, setRoute] = useStateA(() => (location.hash || "#dashboard").slice(1).split("?")[0] || "dashboard");
+  const [route, setRoute] = useStateA(() => canonicalRoute((location.hash || "#dashboard").slice(1).split("?")[0] || "dashboard"));
   const [drawer, setDrawer] = useStateA(null);
   const [graphStyle, setGraphStyle] = useStateA(t.graphStyle);
   const [verifiedOnly, setVerifiedOnly] = useStateA(false);
@@ -90,7 +101,7 @@ function App() {
   const liveSections = source.live ? Object.keys(source.live.prov || {}).filter((k) => source.live.prov[k] === "live") : [];
 
   useEffectA(() => {
-    const onHash = () => setRoute(((location.hash || "#dashboard").slice(1).split("?")[0]) || "dashboard");
+    const onHash = () => setRoute(canonicalRoute(((location.hash || "#dashboard").slice(1).split("?")[0]) || "dashboard"));
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
