@@ -244,6 +244,7 @@ export async function loadVulnerabilities(client: EshuApiClient, ctx: SectionCon
     try {
       env = await client.get<ImpactFindings>(`/api/v0/supply-chain/impact/findings?limit=100&impact_status=${status}`);
     } catch { continue; }
+    if (env.error) throw new EshuEnvelopeError(env.error);
     for (const v of (env.data?.findings ?? env.data?.results ?? [])) {
       const id = String(v.advisory_id ?? v.cve_id ?? v.id ?? `adv-${rows.length}`);
       if (seen.has(id)) continue;

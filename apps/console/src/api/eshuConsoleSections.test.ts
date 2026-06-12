@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EshuApiClient } from "./client";
-import { loadFindings, type SectionContext } from "./eshuConsoleSections";
+import { loadFindings, loadVulnerabilities, type SectionContext } from "./eshuConsoleSections";
 
 describe("eshuConsoleSections findings", () => {
   it("falls back from an empty dead-code repo name to the repo id", async () => {
@@ -75,6 +75,29 @@ describe("eshuConsoleSections findings", () => {
 
     await expect(loadFindings(client)).rejects.toThrow(
       "unsupported_capability: dead-code analysis unavailable"
+    );
+  });
+});
+
+describe("eshuConsoleSections vulnerabilities", () => {
+  it("rejects impact-finding error envelopes so snapshot provenance marks vulnerabilities unavailable", async () => {
+    const client = {
+      get: async () => ({
+        data: null,
+        error: {
+          code: "unsupported_capability",
+          message: "impact findings unavailable"
+        },
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+    const ctx: SectionContext = {
+      truth: {},
+      repoNames: new Map()
+    };
+
+    await expect(loadVulnerabilities(client, ctx)).rejects.toThrow(
+      "unsupported_capability: impact findings unavailable"
     );
   });
 });
