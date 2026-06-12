@@ -15,8 +15,10 @@ describe("prototype documentation parity", () => {
     expect(guide).toContain("GET /api/v0/supply-chain/sbom-attestations/attachments");
     expect(guide).toContain("GET /api/v0/supply-chain/advisories");
     expect(guide).toContain("GET /api/v0/dependencies");
+    expect(guide).toContain("GET /api/v0/metrics/timeseries");
     expect(guide).toContain("GET /api/v0/observability/coverage/correlations?provider=");
     expect(guide).not.toContain("Graph drill (next)");
+    expect(guide).not.toContain("no historical series endpoint");
     expect(guide).not.toContain("Copy `eshuConsoleLive.ts`");
     expect(guide).toContain("Use the production loaders in `apps/console/src/api/` as the current contract");
   });

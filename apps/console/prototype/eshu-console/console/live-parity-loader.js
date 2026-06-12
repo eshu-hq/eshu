@@ -5,6 +5,13 @@
 
   const baseLoadLive = window.ESHU.loadLive;
   const OBSERVABILITY_PROVIDERS = ["grafana", "prometheus", "loki", "tempo"];
+  const METRIC_SERIES = [
+    ["ingestRate", "ingest_rate"],
+    ["queueDepth", "queue_depth"],
+    ["graphNodes", "graph_nodes"],
+    ["graphEdges", "graph_edges"],
+    ["queryP99", "query_p99"]
+  ];
 
   function str(value) {
     return typeof value === "string" ? value : "";
@@ -138,6 +145,30 @@
     };
   }
 
+  function mapMetricPoints(env) {
+    const points = (env.data && env.data.points) || [];
+    return points.map((point) => num(point.v)).filter((value) => Number.isFinite(value));
+  }
+
+  async function loadMetricSeries(client) {
+    const metrics = {};
+    const errors = [];
+    for (const pair of METRIC_SERIES) {
+      const key = pair[0];
+      const metric = pair[1];
+      try {
+        const env = await client.get("/api/v0/metrics/timeseries?metric=" + metric + "&window=24h&step=30m");
+        const values = mapMetricPoints(env);
+        if (values.length) metrics[key] = values;
+      } catch (e) {
+        errors.push((e && e.message) || "failed");
+      }
+    }
+    if (Object.keys(metrics).length) return metrics;
+    if (errors.length) throw new Error(errors[0]);
+    return null;
+  }
+
   function coverageState(row) {
     const status = str(row.coverage_status).toLowerCase();
     if (status === "gap") return "gap";
@@ -245,6 +276,11 @@
     await section(out, "obsCoverage", async () => {
       const coverage = await loadObservabilityCoverage(client);
       return coverage ? { obsCoverage: coverage } : null;
+    });
+
+    await section(out, "metrics", async () => {
+      const series = await loadMetricSeries(client);
+      return series ? { metrics: Object.assign({}, out.metrics || {}, series) } : null;
     });
 
     return out;

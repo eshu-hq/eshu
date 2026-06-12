@@ -12,6 +12,13 @@ interface PrototypeModel {
   readonly prov: Record<string, string>;
   readonly advisoryCatalog?: readonly { readonly id: string; readonly severity: string; readonly cvss: number; readonly kev: boolean }[];
   readonly langInventory?: readonly { readonly label: string; readonly value: number }[];
+  readonly metrics?: {
+    readonly ingestRate?: readonly number[];
+    readonly queueDepth?: readonly number[];
+    readonly graphNodes?: readonly number[];
+    readonly graphEdges?: readonly number[];
+    readonly queryP99?: readonly number[];
+  };
   readonly obsCoverage?: Record<string, Record<string, { readonly state: string; readonly ref: string; readonly freshness: string }>>;
 }
 
@@ -65,6 +72,14 @@ function liveClient(): PrototypeClient {
           }
         };
       }
+      if (path.includes("/metrics/timeseries")) {
+        const metric = new URL("http://local" + path).searchParams.get("metric");
+        return {
+          data: {
+            points: [{ t: "2026-06-01T00:00:00Z", v: metric === "ingest_rate" ? 12 : 4 }]
+          }
+        };
+      }
       if (path.includes("/supply-chain/sbom-attestations/attachments/count")) {
         return { data: { total_attachments: 0 } };
       }
@@ -112,6 +127,15 @@ describe("prototype live parity loader", () => {
     expect(model.prov.langInventory).toBe("live");
     expect(model.prov.obsCoverage).toBe("live");
     expect(client.paths).toContain("/api/v0/supply-chain/advisories?limit=50");
+    expect(client.paths).toContain("/api/v0/metrics/timeseries?metric=ingest_rate&window=24h&step=30m");
+    expect(client.paths).toContain("/api/v0/metrics/timeseries?metric=queue_depth&window=24h&step=30m");
+    expect(client.paths).toContain("/api/v0/metrics/timeseries?metric=graph_nodes&window=24h&step=30m");
+    expect(client.paths).toContain("/api/v0/metrics/timeseries?metric=graph_edges&window=24h&step=30m");
+    expect(client.paths).toContain("/api/v0/metrics/timeseries?metric=query_p99&window=24h&step=30m");
+    expect(model.metrics?.ingestRate).toEqual([12]);
+    expect(model.metrics?.queueDepth).toEqual([4]);
+    expect(model.metrics?.queryP99).toEqual([4]);
+    expect(model.prov.metrics).toBe("live");
     expect(model.advisoryCatalog?.[0]).toMatchObject({
       id: "CVE-2026-0001",
       severity: "critical",

@@ -46,7 +46,7 @@ The client + mappers already live in `console/data.js` (`ESHU.EshuApiClient`,
 
 | Console panel        | Endpoint |
 | -------------------- | -------- |
-| Dashboard / Ops stats| `GET /api/v0/ecosystem/overview`, `GET /api/v0/index-status` |
+| Dashboard / Ops stats| `GET /api/v0/ecosystem/overview`, `GET /api/v0/index-status`, `GET /api/v0/metrics/timeseries` |
 | Catalog              | `GET /api/v0/catalog?limit=2000` |
 | Language chart       | `GET /api/v0/repositories/language-inventory` |
 | Collectors           | `GET /api/v0/status/ingesters` |
@@ -96,8 +96,10 @@ is added, update both:
 - **Graph Explorer edges** — the focus/estate graph is still the static
   sample dependency graph. Live-wire it with `POST /api/v0/code/relationships`
   (per-node `IMPORTS`/`CALLS`) and `POST /api/v0/impact/blast-radius`.
-- **Time-series** (ingestion rate, query latency) — no historical series endpoint;
-  these stay demo sparklines unless you scrape Prometheus.
+- **Time-series gaps** — dashboard and Operations trend lines hydrate from
+  `GET /api/v0/metrics/timeseries` when a metrics source is configured. Prototype
+  sparklines without a live metric name, such as write-throughput and cache-hit
+  decoration, stay demo-only.
 - **Vuln CVSS/EPSS/KEV detail** depends on the vulnerability-intelligence collector
   being enabled; otherwise `supply-chain/impact/findings` returns an empty/limited set.
 
