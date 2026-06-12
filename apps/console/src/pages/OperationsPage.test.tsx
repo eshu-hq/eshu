@@ -39,4 +39,12 @@ describe("OperationsPage", () => {
     expect(screen.getByText("Graph growth")).toBeInTheDocument();
     expect(screen.getByText("41.1k nodes · 129.2k edges")).toBeInTheDocument();
   });
+
+  it("keeps demo-only metric decorations out of live Operations", () => {
+    render(<OperationsPage model={{ ...demoModel, source: "live" }} />);
+
+    expect(screen.getByText("Metric contract pending")).toBeInTheDocument();
+    expect(screen.getByText("Tracked in issue #2216")).toBeInTheDocument();
+    expect(screen.getByText(/write-throughput, cache-hit, and vulnerability-feed intake/)).toBeInTheDocument();
+  });
 });

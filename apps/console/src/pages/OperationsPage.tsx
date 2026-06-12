@@ -36,6 +36,13 @@ export function OperationsPage({ model }: { readonly model: ConsoleModel }): Rea
           </div>
         ) : <p className="empty" style={{ padding: "32px 12px" }}>Graph growth history appears when the metrics source has recent samples.</p>}
       </Panel>
+      {model.source === "live" ? (
+        <Panel className="mt" title="Metric contract pending" sub="Tracked in issue #2216">
+          <p className="empty" style={{ padding: "12px 0", textAlign: "left" }}>
+            write-throughput, cache-hit, and vulnerability-feed intake decorations do not have named live metric series yet. Connected-live mode keeps those demo-only sparklines out of Operations until issue #2216 defines source-backed contracts.
+          </p>
+        </Panel>
+      ) : null}
       <Panel className="mt" title="Repositories by language" sub="GET /api/v0/repositories/language-inventory">{langRows.length ? <BarRows rows={langRows} /> : <p className="empty">No language inventory from this source.</p>}</Panel>
       <Panel className="flush mt" title="Collectors / ingesters" sub={`${model.ingesters.length} fact sources`}>
         <table className="tbl">
