@@ -78,6 +78,7 @@ function App() {
   const [graphStyle, setGraphStyle] = useStateA(t.graphStyle);
   const [verifiedOnly, setVerifiedOnly] = useStateA(false);
   const [srcOpen, setSrcOpen] = useStateA(false);
+  const [liveClient, setLiveClient] = useStateA(null);
   const STORE = "eshu.console.environment";
   const [source, setSource] = useStateA(() => {
     try { const e = JSON.parse(localStorage.getItem(STORE) || "{}"); return { mode: "demo", base: e.apiBaseUrl || "/eshu-api/", key: "", status: "idle", msg: "", live: null }; }
@@ -85,19 +86,22 @@ function App() {
   });
 
   async function connectLive(base, key) {
+    setLiveClient(null);
     setSource((s) => ({ ...s, mode: "live", base, key, status: "connecting", msg: "", live: null }));
     try {
       const client = new ESHU.EshuApiClient({ baseUrl: base, apiKey: key });
       await client.get("/api/v0/index-status"); // health probe
       const live = await ESHU.loadLive(client);
       try { localStorage.setItem(STORE, JSON.stringify({ apiBaseUrl: base, mode: "private", recentApiBaseUrls: [base] })); } catch (_) {}
+      setLiveClient(client);
       setSource({ mode: "live", base, key, status: "connected", msg: "", live });
       setSrcOpen(false);
     } catch (e) {
+      setLiveClient(null);
       setSource({ mode: "live", base, key, status: "unavailable", msg: (e && e.message) || "unreachable", live: null });
     }
   }
-  function useDemo() { setSource((s) => ({ ...s, mode: "demo", status: "idle", msg: "", live: null })); setSrcOpen(false); }
+  function useDemo() { setLiveClient(null); setSource((s) => ({ ...s, mode: "demo", status: "idle", msg: "", live: null })); setSrcOpen(false); }
 
   const data = (source.mode === "live" && source.live) ? Object.assign({}, ESHU, source.live) : ESHU;
   const liveSections = source.live ? Object.keys(source.live.prov || {}).filter((k) => source.live.prov[k] === "live") : [];
@@ -199,7 +203,7 @@ function App() {
         ) : null}
 
         {route === "dashboard" ? <Dashboard data={data} onOpenService={openService} onOpenNode={openNode} heroMode={t.heroMode} graphStyle={graphStyle} chartStyle={t.chartStyle} /> : null}
-        {route === "explorer" ? <Explorer data={data} onOpenService={openService} onOpenNode={openNode} graphStyle={graphStyle} setGraphStyle={(v) => { setGraphStyle(v); setTweak("graphStyle", v); }} verifiedOnly={verifiedOnly} /> : null}
+        {route === "explorer" ? <Explorer data={data} client={liveClient} onOpenService={openService} onOpenNode={openNode} graphStyle={graphStyle} setGraphStyle={(v) => { setGraphStyle(v); setTweak("graphStyle", v); }} verifiedOnly={verifiedOnly} /> : null}
         {route === "repos" ? <Repos data={data} onOpenService={openService} onOpenNode={openNode} /> : null}
         {route === "catalog" ? <Catalog data={data} onOpenService={openService} /> : null}
         {route === "findings" ? <Findings data={data} onOpenService={openService} onOpenVuln={openVuln} verifiedOnly={verifiedOnly} /> : null}

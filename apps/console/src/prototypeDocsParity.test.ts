@@ -40,4 +40,20 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("advisoryCatalog");
     expect(page).toContain("GET /api/v0/supply-chain/advisories");
   });
+
+  it("keeps the prototype graph explorer on the live query contracts", () => {
+    const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
+    const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
+    const page = repoFile("apps/console/prototype/eshu-console/console/pages-explorer-parity.jsx");
+
+    expect(html).toContain("console/pages-explorer-parity.jsx");
+    expect(app).toContain("client={liveClient}");
+    expect(page).toContain("/api/v0/entities/resolve");
+    expect(page).toContain("/api/v0/code/relationships");
+    expect(page).toContain("/api/v0/services/");
+    expect(page).toContain("/api/v0/impact/entity-map");
+    expect(page).toContain("Direct");
+    expect(page).toContain("Neighborhood");
+    expect(page).toContain("DEPLOYS_FROM");
+  });
 });
