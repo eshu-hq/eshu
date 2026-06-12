@@ -27,6 +27,8 @@ Some edges describe direct technical structure:
 
 - `(:Function)-[:CALLS]->(:Function)`
 - `(:Class)-[:INHERITS]->(:Class)`
+- `(:Class)-[:IMPLEMENTS]->(:Interface)`
+- `(:Function)-[:INSTANTIATES]->(:Class)`
 - `(:File)-[:CONTAINS]->(:Function)`
 - `(:Repository)-[:DEFINES]->(:Workload)`
 - `(:Repository)-[:EXPOSES_ENDPOINT]->(:Endpoint)`

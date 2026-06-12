@@ -238,7 +238,7 @@ SET rel.confidence = 0.95,
 
 // --- Retraction Cypher ---
 
-const retractInheritanceEdgesCypher = `MATCH (child)-[rel:INHERITS|OVERRIDES|ALIASES]->()
+const retractInheritanceEdgesCypher = `MATCH (child)-[rel:INHERITS|OVERRIDES|ALIASES|IMPLEMENTS]->()
 WHERE child.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
@@ -263,7 +263,7 @@ WHERE source.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractCodeCallParserEdgesCypher = `MATCH (source:Function|Class|Struct|Interface|TypeAlias|File)-[rel:CALLS|REFERENCES]->()
+const retractCodeCallParserEdgesCypher = `MATCH (source:Function|Class|Struct|Interface|TypeAlias|File)-[rel:CALLS|REFERENCES|INSTANTIATES]->()
 WHERE source.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
@@ -273,7 +273,7 @@ WHERE source.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractCodeCallFallbackEdgesCypher = `MATCH (source:Function|Class|Struct|Interface|TypeAlias|File)-[rel:CALLS|REFERENCES|USES_METACLASS]->()
+const retractCodeCallFallbackEdgesCypher = `MATCH (source:Function|Class|Struct|Interface|TypeAlias|File)-[rel:CALLS|REFERENCES|USES_METACLASS|INSTANTIATES]->()
 WHERE source.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`

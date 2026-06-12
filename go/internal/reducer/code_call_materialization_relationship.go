@@ -36,7 +36,7 @@ func codeCallRelationshipType(edge map[string]any) string {
 // codeCallRowKey deduplicates type references by entity pair because repeated
 // literal sites do not carry distinct reachability truth.
 func codeCallRowKey(repositoryID string, callerID string, calleeID string, relationshipType string, line int) string {
-	if relationshipType == "REFERENCES" {
+	if relationshipType == "REFERENCES" || relationshipType == "INSTANTIATES" {
 		return repositoryID + "|" + callerID + "|" + calleeID + "|" + relationshipType
 	}
 	return repositoryID + "|" + callerID + "|" + calleeID + "|" + fmt.Sprintf("%d", line)

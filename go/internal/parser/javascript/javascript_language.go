@@ -88,6 +88,9 @@ func Parse(
 			if outputLanguage != "javascript" {
 				classItem["decorators"] = javaScriptDecorators(node, source)
 				classItem["type_parameters"] = javaScriptTypeParameters(node, source)
+				if interfaces := javaScriptImplementedInterfaces(node, source); len(interfaces) > 0 {
+					classItem["implemented_interfaces"] = interfaces
+				}
 			}
 			if rootKinds := javaScriptDeadCodeRootKinds(path, node, name, source, deadCodeRoots); len(rootKinds) > 0 {
 				classItem["dead_code_root_kinds"] = rootKinds
