@@ -28,19 +28,62 @@ const VERB_META = {
   ATTACHED_TO: { desc: "Network object attached to a VPC / subnet.", facts: (s, t) => [`${s} ATTACHED_TO ${t}`, "edge kind: networking", "discovered from VPC topology"] }
 };
 
+function edgeFactText(value) {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object") return String(value);
+  const parts = [
+    value.source,
+    value.kind || value.type || value.relationship_type || value.verb,
+    value.location || value.path || value.file,
+    value.detail || value.summary
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : JSON.stringify(value);
+}
+
+function edgeProvidedFacts(edge) {
+  const facts = [];
+  [edge.facts, edge.evidence].forEach((items) => {
+    if (Array.isArray(items)) items.forEach((item) => facts.push(edgeFactText(item)));
+  });
+  return facts.filter(Boolean);
+}
+
+function entityMapEdgeEvidence(rel, verb, incoming) {
+  const labels = Array.isArray(rel.entity_labels) ? rel.entity_labels.filter(Boolean).join(", ") : "";
+  return [
+    "relationship source: " + String(rel.relationship_source || "graph"),
+    "direction: " + (incoming ? "incoming" : "outgoing"),
+    labels ? "entity labels: " + labels : "",
+    rel.repo_id ? "repo: " + rel.repo_id : "",
+    rel.environment ? "environment: " + rel.environment : "",
+    rel.depth != null ? "depth: " + rel.depth : ""
+  ].filter(Boolean);
+}
+
 /* resolve human-readable evidence for an edge within a graph */
-function edgeEvidence(edge, graph) {
+function edgeEvidence(edge, graph, data) {
+  const D = data || ESHU;
   const sNode = graph.nodes.find((n) => n.id === edge.s);
   const tNode = graph.nodes.find((n) => n.id === edge.t);
   const sLabel = (sNode && sNode.label) || edge.s;
   const tLabel = (tNode && tNode.label) || edge.t;
   const meta = VERB_META[edge.verb] || { desc: "Typed relationship in the NornicDB graph.", facts: (s, t) => [`${s} ${edge.verb} ${t}`] };
-  const rel = (ESHU.relationships || []).find((r) => r.verb === edge.verb);
+  const rel = (D.relationships || []).find((r) => r.verb === edge.verb);
+  const provided = edgeProvidedFacts(edge);
+  if (D.org === "live") {
+    return {
+      sLabel, tLabel, sNode, tNode,
+      desc: edge.detail || edge.summary || "Live graph relationship returned by the active query.",
+      facts: provided.length ? provided : [`${sLabel} ${edge.verb} ${tLabel}`, "relationship source metadata unavailable"],
+      count: edge.count != null ? edge.count : null,
+      layer: edge.layer
+    };
+  }
   return {
     sLabel, tLabel, sNode, tNode,
     desc: (rel && rel.detail) || meta.desc,
-    facts: meta.facts(sLabel, tLabel),
-    count: rel ? rel.count : null,
+    facts: provided.length ? provided : meta.facts(sLabel, tLabel),
+    count: edge.count != null ? edge.count : rel ? rel.count : null,
     layer: edge.layer
   };
 }
@@ -77,10 +120,11 @@ function Breadcrumb({ trail, onCrumb }) {
 }
 
 /* Edge detail — verb, endpoints, typed facts, actions */
-function EdgeInspector({ edge, graph, onOpenService, onSelectNode, onIsolate, isolated, onPin, pinned }) {
-  const info = edgeEvidence(edge, graph);
+function EdgeInspector({ edge, graph, data, onOpenService, onSelectNode, onIsolate, isolated, onPin, pinned }) {
+  const D = data || ESHU;
+  const info = edgeEvidence(edge, graph, D);
   const col = ESHU.layerColor[edge.layer] || "var(--teal)";
-  const svc = (id) => ESHU.servicesById && ESHU.servicesById[id];
+  const svc = (id) => D.servicesById && D.servicesById[id];
   return (
     <div className="inspector edge-insp" style={{ "--ec": col }}>
       <div className="insp-head">
@@ -115,12 +159,12 @@ function EdgeInspector({ edge, graph, onOpenService, onSelectNode, onIsolate, is
 }
 
 /* Node detail — reuses NodeInspector evidence, adds clickable connections + drill actions */
-function NodeDrillInspector({ node, graph, onOpenService, onOpenNode, onSelectNode, onSelectEdge, onExpand, onFocus, expandedIds }) {
+function NodeDrillInspector({ node, graph, data, onOpenService, onOpenNode, onSelectNode, onSelectEdge, onExpand, onFocus, expandedIds }) {
   const conns = useMemoX(() => nodeConnections(node, graph), [node, graph]);
   const canExpand = onExpand && (!expandedIds || !expandedIds.has(node.id));
   return (
     <div className="inspector">
-      <NodeInspector node={node} onOpenService={onOpenService} />
+      <NodeInspector node={node} data={data} onOpenService={onOpenService} />
       {(onExpand || onFocus || onOpenNode) ? (
         <div className="insp-actions">
           {onOpenNode ? <button className="btn-ghost active" onClick={() => onOpenNode(node, graph)}><Icon.external size={13} /> Open node detail</button> : null}
@@ -154,19 +198,19 @@ function NodeDrillInspector({ node, graph, onOpenService, onOpenNode, onSelectNo
 }
 
 /* Unified inspector: renders node OR edge selection, with optional breadcrumb */
-function GraphInspector({ sel, graph, onOpenService, onOpenNode, onSelectNode, onSelectEdge, onExpand, onFocus, onIsolate, onPin, pinnedEdge, isolatedVerb, breadcrumb, onCrumb, expandedIds, emptyHint }) {
+function GraphInspector({ sel, graph, data, onOpenService, onOpenNode, onSelectNode, onSelectEdge, onExpand, onFocus, onIsolate, onPin, pinnedEdge, isolatedVerb, breadcrumb, onCrumb, expandedIds, emptyHint }) {
   if (!sel) return <p className="empty">{emptyHint || "Select a node or relationship to inspect its evidence."}</p>;
   const resolveNode = (idOrNode) => typeof idOrNode === "string" ? graph.nodes.find((n) => n.id === idOrNode) : idOrNode;
   return (
     <>
       {breadcrumb && breadcrumb.length > 1 ? <Breadcrumb trail={breadcrumb} onCrumb={onCrumb} /> : null}
       {sel.type === "edge" ? (
-        <EdgeInspector edge={sel.edge} graph={graph} onOpenService={onOpenService} onSelectNode={(n) => onSelectNode(resolveNode(n))} onIsolate={onIsolate} isolated={isolatedVerb === sel.edge.verb} onPin={onPin} pinned={pinnedEdge && edgeKey(pinnedEdge) === edgeKey(sel.edge)} />
+        <EdgeInspector edge={sel.edge} graph={graph} data={data} onOpenService={onOpenService} onSelectNode={(n) => onSelectNode(resolveNode(n))} onIsolate={onIsolate} isolated={isolatedVerb === sel.edge.verb} onPin={onPin} pinned={pinnedEdge && edgeKey(pinnedEdge) === edgeKey(sel.edge)} />
       ) : (
-        <NodeDrillInspector node={sel.node} graph={graph} onOpenService={onOpenService} onOpenNode={onOpenNode} onSelectNode={(n) => onSelectNode(resolveNode(n))} onSelectEdge={onSelectEdge} onExpand={onExpand} onFocus={onFocus} expandedIds={expandedIds} />
+        <NodeDrillInspector node={sel.node} graph={graph} data={data} onOpenService={onOpenService} onOpenNode={onOpenNode} onSelectNode={(n) => onSelectNode(resolveNode(n))} onSelectEdge={onSelectEdge} onExpand={onExpand} onFocus={onFocus} expandedIds={expandedIds} />
       )}
     </>
   );
 }
 
-Object.assign(window, { VERB_META, edgeEvidence, nodeConnections, Breadcrumb, EdgeInspector, NodeDrillInspector, GraphInspector });
+Object.assign(window, { VERB_META, edgeEvidence, entityMapEdgeEvidence, nodeConnections, Breadcrumb, EdgeInspector, NodeDrillInspector, GraphInspector });

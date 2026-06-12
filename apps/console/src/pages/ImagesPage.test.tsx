@@ -35,6 +35,8 @@ describe("ImagesPage", () => {
 
     render(<ImagesPage client={client} />);
 
+    expect(await screen.findByText("Images loaded")).toBeInTheDocument();
+    expect(screen.getByText("Tagged")).toBeInTheDocument();
     expect(await screen.findByText("team/api")).toBeInTheDocument();
     expect(screen.getByText("1.2.3")).toBeInTheDocument();
     expect(screen.getByText("28.48 MB")).toBeInTheDocument();

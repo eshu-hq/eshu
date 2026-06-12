@@ -1,22 +1,44 @@
 // pages/RepoSourcePage.tsx
 // File-tree + code-viewer for a repository, wired to the merged tree (#1431) and
-// content (#1432) endpoints. The tree/content reflect the single indexed ref;
-// the multi-branch selector is gated on the branches API (#1433) and shown as a
-// disabled note until then. No fabricated tree or contents.
+// content (#1432) endpoints plus the derived branch ref list (#1433). No
+// fabricated tree, branch names, or contents.
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
-import { decodeRepoFile, loadRepoFile, loadRepoTree } from "../api/repoSource";
-import type { RepoFile, RepoTree } from "../api/repoSource";
+import { loadRepositoryNameMap } from "../api/repoCatalog";
+import { decodeRepoFile, loadRepoBranches, loadRepoFile, loadRepoTree } from "../api/repoSource";
+import type { RepoBranches, RepoFile, RepoTree } from "../api/repoSource";
 import { Panel, Badge } from "../components/atoms";
 
 export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }): React.JSX.Element {
   const { id = "" } = useParams<{ id: string }>();
-  const [path, setPath] = useState("");
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedFile = searchParams.get("path") ?? "";
+  const highlightStart = parseLineParam(searchParams.get("lineStart"));
+  const highlightEnd = parseLineParam(searchParams.get("lineEnd")) ?? highlightStart;
+  const [path, setPath] = useState(parentPath(requestedFile));
   const [tree, setTree] = useState<RepoTree | null>(null);
   const [treeErr, setTreeErr] = useState("");
   const [file, setFile] = useState<RepoFile | null>(null);
   const [fileBusy, setFileBusy] = useState(false);
+  const [repositoryLabel, setRepositoryLabel] = useState(id);
+  const [branches, setBranches] = useState<RepoBranches | null>(null);
+  const [branchesErr, setBranchesErr] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setRepositoryLabel(id);
+    if (!client || id === "") return () => { cancelled = true; };
+    void loadRepositoryNameMap(client)
+      .then((repoNames) => {
+        if (!cancelled) setRepositoryLabel(repoNames.get(id) ?? id);
+      })
+      .catch(() => {
+        if (!cancelled) setRepositoryLabel(id);
+      });
+    return () => { cancelled = true; };
+  }, [client, id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,20 +50,55 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
     return () => { cancelled = true; };
   }, [client, id, path]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!client) { setBranches(null); setBranchesErr("requires a live connection"); return; }
+    setBranches(null);
+    setBranchesErr("");
+    void loadRepoBranches(client, id)
+      .then((refs) => { if (!cancelled) setBranches(refs); })
+      .catch((e) => { if (!cancelled) setBranchesErr(e instanceof Error ? e.message : "failed"); });
+    return () => { cancelled = true; };
+  }, [client, id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!client || requestedFile === "") return () => { cancelled = true; };
+    setPath(parentPath(requestedFile));
+    setFileBusy(true);
+    setFile(null);
+    void loadRepoFile(client, id, requestedFile).then((f) => {
+      if (!cancelled) {
+        setFile(f);
+        setFileBusy(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [client, id, requestedFile]);
+
   function openFile(filePath: string): void {
-    if (!client) return;
-    setFileBusy(true); setFile(null);
-    void loadRepoFile(client, id, filePath).then((f) => { setFile(f); setFileBusy(false); });
+    const params = new URLSearchParams({ path: filePath });
+    navigate(`/repositories/${encodeURIComponent(id)}/source?${params.toString()}`);
   }
 
   const crumbs = path ? path.split("/") : [];
+  const indexedRef = branches?.branches[0]?.headSha || tree?.ref || "";
+  const indexedBranchName = branches?.branches[0]?.name || branches?.defaultBranch || "";
+  const lastIndexedAt = branches?.branches[0]?.lastIndexedAt ?? null;
 
   return (
     <div className="page" style={{ maxWidth: "none" }}>
       <div className="page-intro">
         <Link to="/repositories" className="link-btn">← Repositories</Link>
-        <h2 style={{ marginTop: 8 }}>{id} <span className="t-mut" style={{ fontSize: "0.8rem", fontWeight: 400 }}>· source</span></h2>
-        <p>File tree + viewer from <span className="mono">/repositories/{"{id}"}/tree</span> and <span className="mono">/content</span>. Branch selection is pending the branches API (#1433); showing the indexed ref{tree?.ref ? <> <Badge tone="neutral">{tree.ref.slice(0, 10)}</Badge></> : null}.</p>
+        <h2 style={{ marginTop: 8 }}>{repositoryLabel} <span className="t-mut" style={{ fontSize: "0.8rem", fontWeight: 400 }}>· source</span></h2>
+        <p>File tree + viewer from <span className="mono">/repositories/{"{id}"}/tree</span>, <span className="mono">/content</span>, and <span className="mono">/branches</span>.</p>
+        <div className="explorer-filters" style={{ gap: 8, marginTop: 10 }}>
+          <span className="t-mut">Indexed ref</span>
+          {indexedRef ? <Badge tone="neutral">{indexedRef.slice(0, 10)}</Badge> : <Badge tone="neutral">unavailable</Badge>}
+          {indexedBranchName ? <span className="t-mut mono">{indexedBranchName}</span> : null}
+          {lastIndexedAt ? <span className="t-mut mono">{new Date(lastIndexedAt).toLocaleString()}</span> : null}
+          {branchesErr ? <span className="t-mut">ref list unavailable: {branchesErr}</span> : null}
+        </div>
       </div>
 
       <div className="explorer-filters" style={{ gap: 4 }}>
@@ -74,14 +131,37 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
           {fileBusy ? <div className="conn-state" style={{ padding: 40 }}><div className="conn-spinner" aria-hidden /><p>Loading file…</p></div>
             : !file ? <p className="empty" style={{ padding: 28 }}>Select a file to view its source.</p>
               : file.provenance === "unavailable" ? <p className="empty" style={{ padding: 28 }}>File content unavailable from this source.</p>
-                : renderFile(file)}
+                : renderFile(file, file.path === requestedFile ? { start: highlightStart, end: highlightEnd } : emptyHighlight)}
         </Panel>
       </div>
     </div>
   );
 }
 
-function renderFile(file: RepoFile): React.JSX.Element {
+interface HighlightRange {
+  readonly start: number | null;
+  readonly end: number | null;
+}
+
+const emptyHighlight: HighlightRange = { start: null, end: null };
+
+function parentPath(filePath: string): string {
+  const idx = filePath.lastIndexOf("/");
+  return idx > 0 ? filePath.slice(0, idx) : "";
+}
+
+function parseLineParam(value: string | null): number | null {
+  if (value === null) return null;
+  const line = Number(value);
+  return Number.isInteger(line) && line > 0 ? line : null;
+}
+
+function isHighlighted(line: number, range: HighlightRange): boolean {
+  if (range.start === null) return false;
+  return line >= range.start && line <= (range.end ?? range.start);
+}
+
+function renderFile(file: RepoFile, highlight: HighlightRange): React.JSX.Element {
   const { text, binary } = decodeRepoFile(file);
   if (binary) return <p className="empty" style={{ padding: 28 }}>Binary file ({file.size} bytes) — not shown.</p>;
   const lines = text.split("\n");
@@ -89,7 +169,14 @@ function renderFile(file: RepoFile): React.JSX.Element {
     <div className="code-view">
       {file.truncated ? <div className="prov-banner warn" style={{ padding: "6px 12px" }}>Truncated to the size cap.</div> : null}
       <pre className="code-pre"><code>{lines.map((ln, i) => (
-        <span key={i} className="code-line"><span className="code-ln">{i + 1}</span>{ln}{"\n"}</span>
+        <span
+          key={i}
+          id={`L${i + 1}`}
+          data-testid={`source-line-${i + 1}`}
+          className={`code-line${isHighlighted(i + 1, highlight) ? " is-highlighted" : ""}`}
+        >
+          <span className="code-ln">{i + 1}</span>{ln}{"\n"}
+        </span>
       ))}</code></pre>
     </div>
   );

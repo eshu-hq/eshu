@@ -28,6 +28,24 @@ function envelope(resources: unknown[], opts: { truncated: boolean; after?: stri
   };
 }
 
+function inventoryEnvelope(resources: unknown[] = []) {
+  return {
+    data: {
+      resources,
+      count: resources.length,
+      limit: 50,
+      truncated: false
+    },
+    error: null,
+    truth: {
+      profile: "production",
+      level: "exact",
+      capability: "cloud_inventory.readback.list",
+      freshness: { state: "fresh" }
+    }
+  };
+}
+
 function row(id: string, name: string) {
   return {
     id,
@@ -59,13 +77,19 @@ describe("CloudPage", () => {
     expect(screen.getByText("role-b")).toBeInTheDocument();
     // truth chip text comes from the envelope level (exact).
     expect(screen.getAllByTitle("Truth: exact").length).toBeGreaterThan(0);
+    expect(screen.getByText("Resources by family")).toBeInTheDocument();
+    expect(screen.getAllByText("Accounts").length).toBeGreaterThan(0);
+    expect(screen.getByText("Endpoint")).toBeInTheDocument();
+    expect(screen.getAllByText("/api/v0/cloud/resources").length).toBeGreaterThan(0);
+    expect(screen.getByText("Network topology")).toBeInTheDocument();
   });
 
   it("forwards the keyset cursor (not an offset) when paging next", async () => {
-    const get = vi
-      .fn()
-      .mockResolvedValueOnce(envelope([row("r1", "role-a")], { truncated: true, after: "r1" }))
-      .mockResolvedValueOnce(envelope([row("r2", "role-b")], { truncated: false }));
+    const get = vi.fn(async (path: string) => {
+      if (path.includes("/api/v0/cloud/inventory")) return inventoryEnvelope();
+      if (path.includes("after_id=r1")) return envelope([row("r2", "role-b")], { truncated: false });
+      return envelope([row("r1", "role-a")], { truncated: true, after: "r1" });
+    });
     const client = { get } as unknown as EshuApiClient;
 
     render(
@@ -103,10 +127,31 @@ describe("CloudPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
 
-    await waitFor(() => {
-      const last = paths.at(-1) ?? "";
-      expect(last).toContain("resource_type=aws_s3_bucket");
-    });
+    await waitFor(() => expect(paths.some((path) =>
+      path.includes("/api/v0/cloud/resources") && path.includes("resource_type=aws_s3_bucket")
+    )).toBe(true));
+  });
+
+  it("switches to the demo-style table grouped by resource family", async () => {
+    const client = {
+      get: vi.fn(async () => envelope([
+        { ...row("r1", "role-a"), resource_type: "aws_iam_role" },
+        { ...row("r2", "bucket-a"), resource_type: "aws_s3_bucket" }
+      ], { truncated: false }))
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/cloud"]}>
+        <CloudPage client={client} />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByText("role-a")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Table" }));
+
+    expect(screen.getAllByText("Identity & access").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Storage").length).toBeGreaterThan(0);
+    expect(screen.getByText(/Grouped by family/)).toBeInTheDocument();
   });
 
   it("renders an error state when the endpoint fails", async () => {

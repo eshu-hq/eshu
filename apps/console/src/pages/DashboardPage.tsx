@@ -2,16 +2,24 @@
 import { useEffect, useMemo, useState } from "react";
 import type { EshuApiClient } from "../api/client";
 import { loadEntityMapGraph, resolveEntityName } from "../api/eshuGraph";
-import type { ConsoleModel, GraphModel, GraphNode, ServiceRow } from "../console/types";
+import type { ConsoleModel, GraphModel, GraphNode, RelationshipRow, ServiceRow } from "../console/types";
 import { fmt, LAYER_COLOR, SEVERITY_COLOR, uiTruth } from "../console/types";
 import { StatTile, Panel, TruthChip } from "../components/atoms";
 import { AreaChart, Donut, BarRows } from "../components/charts";
 import { GraphCanvas } from "../components/GraphCanvas";
+import "./dashboardLive.css";
 
 type AtlasState =
   | { readonly kind: "idle" }
   | { readonly kind: "loading"; readonly seed: string }
   | { readonly kind: "error"; readonly message: string; readonly seed: string };
+
+type RelationshipCoverageRow = {
+  readonly label: string;
+  readonly value: number;
+  readonly color: string;
+  readonly detail: string;
+};
 
 export function DashboardPage({ model, client, onOpenService }: {
   readonly model: ConsoleModel;
@@ -29,12 +37,16 @@ export function DashboardPage({ model, client, onOpenService }: {
   const [atlasState, setAtlasState] = useState<AtlasState>({ kind: "idle" });
   const graph = liveGraph ?? seededGraph;
   const [sel, setSel] = useState<GraphNode | undefined>(() => initialSelection(graph));
+  const atlasLabel = sel?.label ?? atlasSeed?.label ?? "live graph";
+  const graphNodeCount = lastNumber(model.series.graphNodes);
+  const relationshipCount = relationshipMetric(model, graph);
+  const selectedSpotlightName = sel && (sel.kind === "service" || sel.kind === "workload") ? sel.label : null;
+  const nodeLabels = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node.label])), [graph.nodes]);
   const sevTotals = model.vulnerabilities.reduce(
     (a, v) => { const k = v.severity as keyof typeof a; if (k in a) a[k] += 1; return a; },
     { critical: 0, high: 0, medium: 0, low: 0 }
   );
-  const relRows = model.relationships.slice().sort((a, b) => b.count - a.count).slice(0, 7)
-    .map((x) => ({ label: x.verb, value: x.count, color: LAYER_COLOR[x.layer], detail: x.detail }));
+  const relRows = useMemo(() => relationshipRowsFor(model.relationships, graph), [model.relationships, graph]);
   const serviceNames = new Set(model.services.map((s) => s.name));
 
   useEffect(() => {
@@ -88,24 +100,51 @@ export function DashboardPage({ model, client, onOpenService }: {
 
   return (
     <div className="page">
-      <div className="grid g-4">
-        <StatTile label="Repositories" value={fmt(r.repositories)} spark={model.series.graphNodes.length ? model.series.graphNodes : undefined} color="var(--teal)" sub={`${r.workloads} workloads · ${r.instances} instances`} />
-        <StatTile label="Index status" value={r.indexStatus} color="var(--ember)" sub={`profile ${r.profile}`} />
-        <StatTile label="Queue outstanding" value={r.queueOutstanding} spark={model.series.queueDepth.length ? model.series.queueDepth : undefined} color="var(--violet)" sub={`${r.inFlight} in-flight · ${r.deadLetters} dead-letter`} />
-        <StatTile label="Succeeded" value={fmt(r.succeeded)} color="var(--blue)" sub="work items (run)" />
+      <div className="dashboard-stat-grid grid g-4">
+        <StatTile
+          label="Graph nodes"
+          value={graphNodeCount === null ? "—" : fmt(graphNodeCount)}
+          spark={model.series.graphNodes.length ? model.series.graphNodes : undefined}
+          color="var(--teal)"
+          sub={graphNodeCount === null ? "node count metric unavailable" : "NornicDB graph node metric"}
+        />
+        <StatTile
+          label="Relationships"
+          value={relationshipCount === null ? "—" : fmt(relationshipCount)}
+          spark={model.series.graphEdges.length ? model.series.graphEdges : undefined}
+          color="var(--ember)"
+          sub={relationshipCount === null ? "relationship count metric unavailable" : `${relRows.length} typed verbs observed`}
+        />
+        <StatTile
+          label="Indexed repos"
+          value={fmt(r.repositories)}
+          color="var(--blue)"
+          sub={`${r.workloads} services · ${r.instances} workloads`}
+        />
+        <StatTile
+          label="Queue outstanding"
+          value={r.queueOutstanding}
+          spark={model.series.queueDepth.length ? model.series.queueDepth : undefined}
+          color="var(--violet)"
+          sub={`${r.inFlight} in-flight · ${r.deadLetters} dead-letter`}
+        />
       </div>
 
-      <Panel className="mt" title="Code-to-cloud relationship atlas" sub="Select a node to inspect its typed evidence">
-        <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr) 300px", gap: "var(--gap)", alignItems: "start" }}>
+      <Panel
+        className="dashboard-atlas-panel mt flush"
+        title="Code-to-cloud relationship atlas"
+        sub={`${atlasLabel} neighbourhood — click any node or relationship edge to read its evidence`}
+        action={selectedSpotlightName && onOpenService ? <button className="btn-ghost" onClick={() => onOpenService(selectedSpotlightName)}>Open spotlight →</button> : null}
+      >
+        <div className="dashboard-atlas-layout">
           {graph.nodes.length ? (
-            <GraphCanvas graph={graph} height={460} onSelect={(node) => { void expandAtlasNode(node); }} selectedId={sel?.id} />
+            <GraphCanvas graph={graph} height={520} onSelect={(node) => { void expandAtlasNode(node); }} selectedId={sel?.id} />
           ) : (
-            <div className="gcanvas" style={{ height: 460, display: "grid", placeItems: "center" }}>
+            <div className="gcanvas" style={{ height: 520, display: "grid", placeItems: "center" }}>
               <p className="empty">No graph entities are available from the live model yet.</p>
             </div>
           )}
-          <div className="panel" style={{ background: "var(--bg-field)", boxShadow: "none" }}>
-            <div className="panel-body">
+          <aside className="dashboard-atlas-inspector" aria-label="Relationship atlas inspector">
               {sel ? (
                 <div className="inspector">
                   <div className="insp-head"><div><div className="insp-kind">{sel.kind}</div><div className="insp-title">{sel.label}</div></div></div>
@@ -115,14 +154,19 @@ export function DashboardPage({ model, client, onOpenService }: {
                   {atlasState.kind === "loading" ? <p className="empty">Loading relationships for {atlasState.seed}…</p> : null}
                   {atlasState.kind === "error" ? <p className="src-err">Relationship atlas unavailable for {atlasState.seed}: {atlasState.message}</p> : null}
                   <div className="insp-evi">
-                    {graph.edges.filter((e) => e.s === sel.id || e.t === sel.id).map((e, i) => (
-                      <div className="insp-evi-row" key={i}>{e.verb} {e.s === sel.id ? `→ ${e.t}` : `← ${e.s}`}</div>
-                    ))}
+                    {graph.edges.filter((e) => e.s === sel.id || e.t === sel.id).map((e, i) => {
+                      const endpointID = e.s === sel.id ? e.t : e.s;
+                      const endpointLabel = nodeLabels.get(endpointID) ?? endpointID;
+                      return (
+                        <div className="insp-evi-row" key={i} title={endpointLabel === endpointID ? undefined : endpointID}>
+                          {e.verb} {e.s === sel.id ? "→" : "←"} {endpointLabel}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ) : <p className="empty">Select a node.</p>}
-            </div>
-          </div>
+          </aside>
         </div>
       </Panel>
 
@@ -168,6 +212,42 @@ export function DashboardPage({ model, client, onOpenService }: {
 
 function initialSelection(graph: GraphModel): GraphNode | undefined {
   return graph.nodes.find((node) => node.hero) ?? graph.nodes[0];
+}
+
+function lastNumber(values: readonly number[]): number | null {
+  const value = values.at(-1);
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function relationshipMetric(model: ConsoleModel, graph: GraphModel): number | null {
+  const graphEdgeCount = lastNumber(model.series.graphEdges);
+  if (graphEdgeCount !== null) return graphEdgeCount;
+  const relationshipTotal = model.relationships.reduce((total, row) => total + row.count, 0);
+  if (relationshipTotal > 0) return relationshipTotal;
+  return graph.edges.length > 0 ? graph.edges.length : null;
+}
+
+function relationshipRowsFor(
+  rows: readonly RelationshipRow[],
+  graph: GraphModel
+): readonly RelationshipCoverageRow[] {
+  if (rows.length > 0) {
+    return rows.slice().sort((a, b) => b.count - a.count).slice(0, 7)
+      .map((row) => ({ label: row.verb, value: row.count, color: LAYER_COLOR[row.layer], detail: row.detail }));
+  }
+  const counts = new Map<string, RelationshipRow>();
+  for (const edge of graph.edges) {
+    const key = `${edge.verb}\u0000${edge.layer}`;
+    const current = counts.get(key);
+    counts.set(key, {
+      verb: edge.verb,
+      layer: edge.layer,
+      count: (current?.count ?? 0) + 1,
+      detail: "Live entity-map relationships"
+    });
+  }
+  return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 7)
+    .map((row) => ({ label: row.verb, value: row.count, color: LAYER_COLOR[row.layer], detail: row.detail }));
 }
 
 // A seed graph is "meaningful" once it has at least this many edges. A single

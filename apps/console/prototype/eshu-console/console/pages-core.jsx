@@ -2,10 +2,11 @@
 const { useState: useStateP, useMemo: useMemoP } = React;
 
 /* shared: node inspector content */
-function NodeInspector({ node, onOpenService }) {
+function NodeInspector({ node, data, onOpenService }) {
+  const D = data || ESHU;
   const ks = ESHU.kindStyle[node.kind] || {};
-  const det = ESHU.nodeDetail[node.id];
-  const svc = node.kind === "service" ? ESHU.services.find((s) => s.id === node.id.replace("svc:", "")) : null;
+  const det = (D.nodeDetail || {})[node.id];
+  const svc = node.kind === "service" ? (D.services || []).find((s) => s.id === node.id.replace("svc:", "")) : null;
   return (
     <div className="inspector">
       <div className="insp-head">
@@ -76,8 +77,9 @@ function buildCallersGraph(D, s) {
   });
   return { nodes, edges };
 }
-function ServiceDrawer({ id, onClose, onOpenService, onOpenVuln, onOpenNode, data }) {
+function ServiceDrawer({ id, onClose, onOpenService, onOpenVuln, onOpenNode, data, source }) {
   const D = data || ESHU;
+  const liveMode = source && source.mode === "live" && source.status === "connected";
   const [blastOpen, setBlastOpen] = useStateP(false);
   const [callersOpen, setCallersOpen] = useStateP(false);
   const [netOpen, setNetOpen] = useStateP(false);
@@ -154,7 +156,7 @@ function ServiceDrawer({ id, onClose, onOpenService, onOpenVuln, onOpenNode, dat
           <div className="blast-expand" ref={callersRef}>
             <div className="section-label" style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}><span style={{ whiteSpace: "nowrap" }}>{isLib ? "Importers" : "Callers"}</span> <span className="t-mut" style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>{isLib ? "repos that import" : "services that depend directly on"} {s.name} — click a node to open it</span></div>
             {callersGraph.nodes.length > 1 ?
-            <GraphCanvas graph={callersGraph} layout="radial" height={300} onSelect={(n) => {if (D.servicesById && D.servicesById[n.id]) onOpenService(n.id);}} selectedId={s.id} /> :
+            <GraphCanvas graph={callersGraph} data={D} layout="radial" height={300} onSelect={(n) => {if (D.servicesById && D.servicesById[n.id]) onOpenService(n.id);}} selectedId={s.id} /> :
             <p className="empty">No direct {isLib ? "importers" : "callers"} indexed for {s.name}.</p>}
           </div> :
           null}
@@ -163,7 +165,7 @@ function ServiceDrawer({ id, onClose, onOpenService, onOpenVuln, onOpenNode, dat
           <div className="blast-expand">
             <div className="section-label" style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}><span style={{ whiteSpace: "nowrap" }}>Impact graph</span> <span className="t-mut" style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>transitive dependents that break if {s.name} fails — click a node to open it</span></div>
             {blastGraph.nodes.length > 1 ?
-            <GraphCanvas graph={blastGraph} layout="radial" height={300} onSelect={(n) => {if (D.servicesById && D.servicesById[n.id]) onOpenService(n.id);}} selectedId={s.id} /> :
+            <GraphCanvas graph={blastGraph} data={D} layout="radial" height={300} onSelect={(n) => {if (D.servicesById && D.servicesById[n.id]) onOpenService(n.id);}} selectedId={s.id} /> :
             <p className="empty">No downstream dependents indexed — {s.name} is a leaf in the current graph.</p>}
           </div> :
           null}
@@ -176,7 +178,7 @@ function ServiceDrawer({ id, onClose, onOpenService, onOpenVuln, onOpenNode, dat
             </div>
             {netOpen ? (
               <div className="node-hood">
-                <GraphCanvas graph={netGraph} layout="radial" height={300} onSelect={(n) => onOpenNode && onOpenNode(n, netGraph)} selectedId={"svc:" + s.id} />
+                <GraphCanvas graph={netGraph} data={D} layout="radial" height={300} onSelect={(n) => onOpenNode && onOpenNode(n, netGraph)} selectedId={"svc:" + s.id} />
               </div>
             ) : <p className="t-mut" style={{ fontSize: ".82rem", margin: 0, lineHeight: 1.5 }}>VPC, security group, IRSA role &amp; datastores for {s.name} — every node declared by Terraform and clickable. Expand to see the topology.</p>}
           </div>
@@ -273,7 +275,7 @@ function ServiceDrawer({ id, onClose, onOpenService, onOpenVuln, onOpenNode, dat
             null}
           </div>
           <p className="t-mut" style={{ fontSize: ".72rem", borderTop: "1px solid var(--line)", paddingTop: 14, margin: 0, lineHeight: 1.5 }}>
-            <span className="mono" style={{ color: "var(--subtle)" }}>provenance</span> · source, build & deploy facts read directly from <span className="mono">{s.repo}</span>. Vulnerability, incident & runtime-freshness signals are representative of what Eshu's collectors would attach live.
+            <span className="mono" style={{ color: "var(--subtle)" }}>provenance</span> · {liveMode ? "Live service spotlight: source, build, deploy, vulnerability, incident and runtime freshness facts come from the connected Eshu API where each route has live coverage." : "Demo service spotlight: source, build and deploy facts read from the bundled workspace; vulnerability, incident and runtime-freshness signals are representative of what Eshu's collectors would attach live."}
           </p>
         </div>
       </aside>
@@ -295,7 +297,7 @@ function Dashboard({ onOpenService, onOpenNode, heroMode, graphStyle, chartStyle
   const stat = [
   { label: "Graph nodes", value: fmt(D.runtime.nodes), spark: D.metrics.graphNodes, color: "var(--teal)", trend: { dir: "up", text: "+2.1%" }, sub: "NornicDB · " + D.runtime.backendVersion },
   { label: "Relationships", value: fmt(D.runtime.edges), spark: D.metrics.graphEdges, color: "var(--ember)", trend: { dir: "up", text: "+3.4%" }, sub: D.relationships.length + " typed verbs observed" },
-  { label: "Indexed repos", value: D.runtime.repos, spark: D.metrics.ingestRate, color: "var(--blue)", trend: { dir: "flat", text: "0" }, sub: D.runtime.services + " services · " + D.runtime.workloads + " workloads", onClick: () => {location.hash = "repos";}, cta: "Browse" },
+  { label: "Indexed repos", value: D.runtime.repos, spark: D.metrics.ingestRate, color: "var(--blue)", trend: { dir: "flat", text: "0" }, sub: D.runtime.services + " services · " + D.runtime.workloads + " workloads", onClick: () => { window.ESHU_ROUTES.setHash("repos"); }, cta: "Browse" },
   { label: "Queue outstanding", value: D.runtime.queueOutstanding, spark: D.metrics.queueDepth, color: "var(--violet)", trend: { dir: "down", text: "−18%" }, sub: D.runtime.inFlight + " in-flight · " + D.runtime.deadLetters + " dead-letter" }];
 
 
@@ -332,12 +334,12 @@ function Dashboard({ onOpenService, onOpenNode, heroMode, graphStyle, chartStyle
       <Panel className="mt" title="Code-to-cloud relationship atlas" sub="api-node-boats neighbourhood — click any node or relationship edge to read its evidence" glyph={<Icon.graph />}
       action={<button className="btn-ghost" onClick={() => onOpenService("api-node-boats")}>Open spotlight →</button>}>
           <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr) 300px", gap: "var(--gap)", alignItems: "start" }}>
-            <GraphCanvas graph={D.graph} layout={graphStyle} height={500}
+            <GraphCanvas graph={D.graph} data={D} layout={graphStyle} height={500}
               onSelect={selectNode} onSelectEdge={selectEdge} onClear={() => setSel(null)}
               selectedId={sel && sel.type === "node" ? sel.node.id : null}
               selectedEdge={sel && sel.type === "edge" ? sel.edge : null} />
             <div className="panel" style={{ background: "var(--bg-field)", boxShadow: "none" }}>
-              <div className="panel-body"><GraphInspector sel={sel} graph={D.graph} onOpenService={onOpenService} onOpenNode={onOpenNode} onSelectNode={selectNode} onSelectEdge={selectEdge} emptyHint="Select any node or relationship edge to read its evidence." /></div>
+              <div className="panel-body"><GraphInspector data={D} sel={sel} graph={D.graph} onOpenService={onOpenService} onOpenNode={onOpenNode} onSelectNode={selectNode} onSelectEdge={selectEdge} emptyHint="Select any node or relationship edge to read its evidence." /></div>
             </div>
           </div>
         </Panel>
@@ -350,7 +352,7 @@ function Dashboard({ onOpenService, onOpenNode, heroMode, graphStyle, chartStyle
           <AreaChart data={ESHU.metrics.ingestRate} color="var(--teal)" h={190} unit=" f/m" labels={ESHU.metrics.ingestRate.map((_, i) => `t-${ESHU.metrics.ingestRate.length - 1 - i}`)} />
         </Panel>
         <Panel title="Collector health" sub={D.collectors.length + " collectors feeding the graph"} glyph={<Icon.layers />}
-        action={<a className="btn-ghost" href="#admin">All</a>}>
+        action={<a className="btn-ghost" href={window.ESHU_ROUTES.hashFor("admin")}>All</a>}>
           <div className="health-row">
             <Donut size={120} thickness={15} segments={[
             { label: "healthy", value: collectorCounts.healthy || 0, color: "var(--teal)" },

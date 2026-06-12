@@ -3,6 +3,7 @@
 // API and maps it into a drawer view-model. Defensive over response shape.
 
 import type { EshuApiClient } from "./client";
+import { EshuEnvelopeError } from "./envelope";
 import type { ServiceRow, UiTruth, UiFresh } from "../console/types";
 import { uiTruth, uiFresh } from "../console/types";
 
@@ -42,6 +43,7 @@ function names(list: readonly (string | { name?: string })[] | undefined): strin
 export async function loadServiceSpotlight(client: EshuApiClient, name: string): Promise<ServiceSpotlight> {
   const enc = encodeURIComponent(name);
   const storyEnv = await client.get<StoryResponse>(`/api/v0/services/${enc}/story`);
+  if (storyEnv.error) throw new EshuEnvelopeError(storyEnv.error);
   const story = storyEnv.data ?? {};
   let ctx: ContextResponse = {};
   try { ctx = (await client.get<ContextResponse>(`/api/v0/services/${enc}/context`)).data ?? {}; } catch { /* optional */ }

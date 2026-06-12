@@ -1,0 +1,142 @@
+.repo-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 14px 0 22px;
+}
+
+.repo-search {
+  min-width: min(420px, 100%);
+  max-width: 520px;
+  height: 44px;
+  margin-left: 0;
+}
+
+.repo-group-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap);
+}
+
+.repo-group-card {
+  min-width: 0;
+  min-height: 260px;
+  border: 1px solid var(--line-2);
+  border-top: 3px solid var(--repo-accent);
+  border-radius: 8px;
+  background: linear-gradient(180deg, var(--bg-panel), color-mix(in oklab, var(--bg-panel) 78%, var(--bg)));
+  box-shadow: var(--shadow);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.repo-group-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.repo-group-head h3 {
+  color: var(--bone);
+  font-size: 1.14rem;
+}
+
+.repo-group-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--repo-accent);
+  flex: none;
+}
+
+.repo-count {
+  color: var(--bone-dim);
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.repo-link-count {
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.repo-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.repo-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: min(250px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: var(--bg-field);
+  color: var(--bone);
+  font-family: var(--mono);
+  font-size: 0.86rem;
+  text-align: left;
+}
+
+.repo-chip::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--blue);
+  flex: none;
+}
+
+.repo-chip span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repo-group-foot {
+  margin-top: auto;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  color: var(--teal-bright);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 1180px) {
+  .repo-group-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .repo-toolbar {
+    align-items: stretch;
+  }
+
+  .repo-toolbar .seg,
+  .repo-search {
+    width: 100%;
+  }
+
+  .repo-group-card {
+    padding: 16px;
+  }
+}

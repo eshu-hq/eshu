@@ -21,6 +21,7 @@ export interface CoverageRow {
   readonly provider: string;
   readonly signal: string;
   readonly object: string;
+  readonly target: string;
   readonly status: string;
   readonly covered: boolean;
   readonly resourceClass: string;
@@ -53,6 +54,9 @@ interface CorrelationRecord {
   readonly provider?: string;
   readonly coverage_signal?: string;
   readonly observability_object_ref?: string;
+  readonly observability_resource_uid?: string;
+  readonly target_service_ref?: string;
+  readonly target_uid?: string;
   readonly coverage_status?: string;
   readonly resource_class?: string;
   readonly source_kind?: string;
@@ -75,11 +79,16 @@ function str(v: unknown): string {
 
 function mapRow(rec: CorrelationRecord, fallbackProvider: string): CoverageRow {
   const status = str(rec.coverage_status);
+  const provider = str(rec.provider) || fallbackProvider;
+  const signal = str(rec.coverage_signal) || "unknown";
+  const object = str(rec.observability_object_ref) || str(rec.observability_resource_uid);
+  const target = str(rec.target_service_ref) || str(rec.target_uid);
   return {
-    id: str(rec.correlation_id) || `${str(rec.provider) || fallbackProvider}:${str(rec.coverage_signal)}:${str(rec.observability_object_ref)}`,
-    provider: str(rec.provider) || fallbackProvider,
-    signal: str(rec.coverage_signal) || "unknown",
-    object: str(rec.observability_object_ref),
+    id: str(rec.correlation_id) || `${provider}:${signal}:${object}:${target}`,
+    provider,
+    signal,
+    object,
+    target,
     status: status || "unknown",
     // Coverage is "covered" when a current signal exists; anything else (gap,
     // uncovered, stale) is treated as a gap for the rollup.

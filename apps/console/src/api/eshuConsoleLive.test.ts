@@ -467,7 +467,15 @@ describe("eshuConsoleLive", () => {
     const snap = await loadConsoleSnapshot(client);
     expect(snap.series.ingestRate).toEqual([12]);
     expect(snap.series.queueDepth).toEqual([4]);
+    expect(snap.series.deadLetters).toEqual([4]);
+    expect(snap.series.queryP50).toEqual([4]);
+    expect(snap.series.queryP95).toEqual([4]);
+    expect(snap.series.queryP99).toEqual([4]);
     expect(requested).toContain("/api/v0/metrics/timeseries?metric=ingest_rate&window=24h&step=30m");
     expect(requested).toContain("/api/v0/metrics/timeseries?metric=queue_depth&window=24h&step=30m");
+    expect(requested).toContain("/api/v0/metrics/timeseries?metric=dead_letters&window=24h&step=30m");
+    expect(requested).toContain("/api/v0/metrics/timeseries?metric=query_p50&window=24h&step=30m");
+    expect(requested).toContain("/api/v0/metrics/timeseries?metric=query_p95&window=24h&step=30m");
+    expect(requested).toContain("/api/v0/metrics/timeseries?metric=query_p99&window=24h&step=30m");
   });
 });

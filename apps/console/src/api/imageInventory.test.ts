@@ -75,4 +75,23 @@ describe("loadImages", () => {
     expect(page.nextOffset).toBeNull();
     expect(page.provenance).toBe("unavailable");
   });
+
+  it("degrades to an unavailable page when the endpoint returns an Eshu error envelope", async () => {
+    const client = {
+      get: async () => ({
+        data: null,
+        error: {
+          code: "unsupported_runtime_profile",
+          message: "image inventory is unavailable in this profile",
+          capability: "platform_impact.container_image_list"
+        },
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+
+    const page = await loadImages(client);
+    expect(page.images).toEqual([]);
+    expect(page.nextOffset).toBeNull();
+    expect(page.provenance).toBe("unavailable");
+  });
 });

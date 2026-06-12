@@ -10,10 +10,15 @@ import { EshuApiHttpError } from "./client";
 import { EshuEnvelopeError } from "./envelope";
 import type { GraphModel, GraphNode, GraphEdge, GraphLayer } from "../console/types";
 import { resolveEntity } from "./entityResolution";
+import { codeRelationshipsToGraph, type CodeRelationshipsResponse } from "./eshuGraphCode";
+
+export { loadBlastGraph, blastFromModel } from "./eshuGraphImpact";
+export { codeRelationshipsToGraph, type CodeRelationshipsResponse } from "./eshuGraphCode";
 
 const VERB_LAYER: Record<string, GraphLayer> = {
   CALLS: "code", IMPORTS: "code", INHERITS: "code", OVERRIDES: "code", REFERENCES: "code",
-  DEPLOYS_FROM: "deploy", BUILDS: "deploy", DISCOVERS_CONFIG_IN: "deploy",
+  DEPLOYS_FROM: "deploy", DEPLOYS_HELM: "deploy", PACKAGES: "deploy",
+  BUILDS: "deploy", DISCOVERS_CONFIG_IN: "deploy",
   DECLARED_BY: "infra", STORES_IN: "infra", ASSUMES_ROLE: "infra",
   RUNS_IN: "runtime", RUNS_AS: "runtime", DEPENDS_ON: "runtime", EXPOSES: "runtime",
   AFFECTED_BY: "security", OBSERVED_INCIDENT: "ops", TRACKED_BY: "ops"
@@ -74,48 +79,9 @@ export function relationshipsToGraph(data: RelationshipsResponse, name: string):
   return { nodes: [...nodes.values()], edges };
 }
 
-// --- code/relationships (Direct mode) ---------------------------------------
-// POST /api/v0/code/relationships resolves edges by `entity_id` only — a `name`
-// body returns nothing — and answers with split incoming/outgoing edge lists,
-// not the generic relationships[] shape. See codeRelationshipsToGraph below.
-interface CodeRelEdge {
-  readonly type?: string;
-  readonly source_id?: string; readonly source_name?: string;
-  readonly target_id?: string; readonly target_name?: string;
-}
-interface CodeRelationshipsResponse {
-  readonly entity_id?: string; readonly name?: string; readonly labels?: readonly string[];
-  readonly incoming?: readonly CodeRelEdge[]; readonly outgoing?: readonly CodeRelEdge[];
-}
-
-// codeRelationshipsToGraph maps the code/relationships incoming/outgoing edge
-// lists into a center-and-neighbours graph.
-export function codeRelationshipsToGraph(data: CodeRelationshipsResponse, fallback: { id: string; name: string }): GraphModel {
-  const centerId = data.entity_id ?? fallback.id;
-  const centerType = data.labels?.[0];
-  const nodes = new Map<string, GraphNode>();
-  nodes.set(centerId, { id: centerId, kind: kindFor(centerType), label: data.name ?? fallback.name, sub: centerType, col: 1, hero: true, truth: "exact" });
-  const edges: GraphEdge[] = [];
-  (data.incoming ?? []).forEach((e) => {
-    const id = e.source_id ?? e.source_name;
-    if (!id) return;
-    const verb = (e.type ?? "RELATED").toUpperCase();
-    if (id !== centerId && !nodes.has(id)) nodes.set(id, { id, kind: kindFor(undefined), label: e.source_name ?? id, col: 0, truth: "exact" });
-    edges.push({ s: id, t: centerId, verb, layer: layerFor(verb) });
-  });
-  (data.outgoing ?? []).forEach((e) => {
-    const id = e.target_id ?? e.target_name;
-    if (!id) return;
-    const verb = (e.type ?? "RELATED").toUpperCase();
-    if (id !== centerId && !nodes.has(id)) nodes.set(id, { id, kind: kindFor(undefined), label: e.target_name ?? id, col: 2, truth: "exact" });
-    edges.push({ s: centerId, t: id, verb, layer: layerFor(verb) });
-  });
-  return { nodes: [...nodes.values()], edges };
-}
-
 // Resolve + expand one entity into a center-and-neighbours graph via direct code
-// relationships (depth 1). code/relationships only matches on `entity_id`, so we
-// resolve the query to a graph entity id first (falling back to the raw query).
+// relationships (max_depth 1). code/relationships only matches on `entity_id`,
+// so we resolve the query to a graph entity id first (falling back to the raw query).
 export async function loadEntityGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
   let entityID = "";
   let displayName = name;
@@ -132,7 +98,7 @@ export async function loadEntityGraph(client: EshuApiClient, name: string): Prom
   }
   let env;
   try {
-    env = await client.post<CodeRelationshipsResponse>("/api/v0/code/relationships", { entity_id: entityID, depth: 1 });
+    env = await client.post<CodeRelationshipsResponse>("/api/v0/code/relationships", { entity_id: entityID, max_depth: 1 });
   } catch (e) {
     // code/relationships is keyed to code entities (Function/File/Class…). A
     // service/workload/infra entity has none, so the endpoint answers 404 — a
@@ -177,6 +143,7 @@ interface EntityMapRel {
   readonly entity_id?: string; readonly entity_name?: string; readonly entity_labels?: readonly string[];
   readonly direction?: string;
   readonly relationship_type?: string; readonly relationship_types?: readonly string[];
+  readonly relationship_source?: string; readonly repo_id?: string; readonly environment?: string; readonly depth?: number;
 }
 interface EntityMapResponse {
   readonly from?: string;
@@ -205,10 +172,157 @@ export function entityMapToGraph(data: EntityMapResponse, fallbackName: string):
     const incoming = (r.direction ?? "outgoing").toLowerCase() === "incoming";
     if (!nodes.has(id)) nodes.set(id, { id, kind: kindFor(type), label: label || id, sub: type, col: incoming ? 0 : 2, truth: "exact" });
     edges.push(incoming
-      ? { s: id, t: centerId, verb, layer: layerFor(verb) }
-      : { s: centerId, t: id, verb, layer: layerFor(verb) });
+      ? { s: id, t: centerId, verb, layer: layerFor(verb), evidence: entityMapEdgeEvidence(r, incoming) }
+      : { s: centerId, t: id, verb, layer: layerFor(verb), evidence: entityMapEdgeEvidence(r, incoming) });
   });
   return { nodes: [...nodes.values()], edges };
+}
+
+function entityMapEdgeEvidence(r: EntityMapRel, incoming: boolean): readonly string[] {
+  const labels = (r.entity_labels ?? []).filter(Boolean).join(", ");
+  return [
+    `relationship source: ${r.relationship_source ?? "graph"}`,
+    `direction: ${incoming ? "incoming" : "outgoing"}`,
+    labels ? `entity labels: ${labels}` : "",
+    r.repo_id ? `repo: ${r.repo_id}` : "",
+    r.environment ? `environment: ${r.environment}` : "",
+    r.depth !== undefined ? `depth: ${r.depth}` : ""
+  ].filter((value): value is string => value !== "");
+}
+
+interface DeploymentArtifactRecord {
+  readonly source_repo_id?: string;
+  readonly source_repo_name?: string;
+  readonly target_repo_id?: string;
+  readonly target_repo_name?: string;
+  readonly relationship_type?: string;
+  readonly artifact_family?: string;
+  readonly evidence_kind?: string;
+  readonly environment?: string;
+  readonly path?: string;
+}
+/**
+ * Minimal service-context payload needed to render a typed deployment story
+ * without fetching raw source bodies.
+ */
+export interface ServiceDeploymentContextResponse {
+  readonly name?: string;
+  readonly repo_name?: string;
+  readonly deployment_evidence?: {
+    readonly artifacts?: readonly DeploymentArtifactRecord[];
+  };
+}
+interface RepositoryDeploymentContextResponse {
+  readonly repository?: {
+    readonly id?: string;
+    readonly name?: string;
+  };
+  readonly deployment_evidence?: ServiceDeploymentContextResponse["deployment_evidence"];
+}
+interface RepoRef { readonly id: string; readonly name: string; }
+
+/**
+ * Builds the user-facing controller repo -> chart repo -> source repo ->
+ * workload story from service-context deployment artifacts. The graph is
+ * derived from artifact evidence instead of the lossy impact/entity-map fanout.
+ */
+export function deploymentStoryToGraph(data: ServiceDeploymentContextResponse, fallbackName: string): GraphModel {
+  const serviceName = cleanText(data.name) || fallbackName;
+  const sourceRepoName = cleanText(data.repo_name) || serviceName;
+  const deployArtifacts = (data.deployment_evidence?.artifacts ?? []).filter((artifact) =>
+    cleanText(artifact.relationship_type).toUpperCase() === "DEPLOYS_FROM"
+  );
+  const artifactTargetRepo = deployArtifacts
+    .map((artifact) => repoFromArtifact(artifact, "target"))
+    .find((repo) => repo?.name === sourceRepoName);
+  const sourceRepo = artifactTargetRepo ?? { id: `repository:${sourceRepoName}`, name: sourceRepoName };
+  const serviceID = `workload:${serviceName}`;
+  const nodes = new Map<string, GraphNode>();
+  const edges: GraphEdge[] = [];
+  const edgeKeys = new Set<string>();
+  const chartRepoIDs = new Set<string>();
+
+  addStoryNode(nodes, { id: serviceID, label: serviceName, kind: "workload", sub: "Workload", col: 3, hero: true, truth: "derived" });
+  addStoryNode(nodes, { id: sourceRepo.id, label: sourceRepo.name, kind: "repo", sub: "Source repository", col: 2, truth: "derived" });
+
+  const chartRepos = uniqueRepos(deployArtifacts
+    .filter(isHelmChartArtifact)
+    .map((artifact) => repoFromArtifact(artifact, "source"))
+    .filter((repo): repo is RepoRef => !!repo && repo.id !== sourceRepo.id));
+  chartRepos.forEach((repo) => {
+    chartRepoIDs.add(repo.id);
+    addStoryNode(nodes, { id: repo.id, label: repo.name, kind: "repo", sub: "Helm chart", col: 1, truth: "derived" });
+  });
+  deployArtifacts.filter(isHelmChartArtifact).forEach((artifact) => {
+    const repo = repoFromArtifact(artifact, "source");
+    if (repo && repo.id !== sourceRepo.id) addStoryEdge(edges, edgeKeys, repo.id, sourceRepo.id, "PACKAGES", artifactEdgeEvidence(artifact));
+  });
+
+  const controllerArtifacts = deployArtifacts.filter(isDeploymentControllerArtifact);
+  const controllerRepos = uniqueRepos(controllerArtifacts.map((artifact) => repoFromArtifact(artifact, "source"))
+    .filter((repo): repo is RepoRef => !!repo && repo.id !== sourceRepo.id && !chartRepoIDs.has(repo.id)));
+  controllerRepos.forEach((repo) => {
+    addStoryNode(nodes, { id: repo.id, label: repo.name, kind: "repo", sub: "Deployment controller", col: 0, truth: "derived" });
+  });
+  controllerArtifacts.forEach((artifact) => {
+    const repo = repoFromArtifact(artifact, "source");
+    if (!repo || repo.id === sourceRepo.id || chartRepoIDs.has(repo.id)) return;
+    if (chartRepos.length === 0) {
+      addStoryEdge(edges, edgeKeys, repo.id, sourceRepo.id, "DEPLOYS_FROM", artifactEdgeEvidence(artifact));
+      return;
+    }
+    chartRepos.forEach((chartRepo) => addStoryEdge(edges, edgeKeys, repo.id, chartRepo.id, "DEPLOYS_HELM", artifactEdgeEvidence(artifact)));
+  });
+
+  if (deployArtifacts.length > 0) {
+    addStoryEdge(edges, edgeKeys, sourceRepo.id, serviceID, "DEPLOYS_FROM", artifactEdgeEvidence(deployArtifacts[0]));
+  }
+  return { nodes: [...nodes.values()], edges };
+}
+
+/**
+ * Loads the best neighborhood graph for a handle, preferring service deployment
+ * context and falling back to impact/entity-map when no story evidence exists.
+ */
+export async function loadEntityStoryGraph(client: EshuApiClient, name: string, repoID?: string): Promise<GraphModel> {
+  const storyClient = client as EshuApiClient & { readonly get?: EshuApiClient["get"] };
+  if (typeof storyClient.get === "function") {
+    try {
+      const env = await storyClient.get<ServiceDeploymentContextResponse>(`/api/v0/services/${encodeURIComponent(name)}/context`);
+      if (env.error) throw new EshuEnvelopeError(env.error);
+      const graph = deploymentStoryToGraph(env.data ?? {}, name);
+      if (graph.edges.length > 0) return graph;
+    } catch (error) {
+      if (!shouldFallbackFromServiceContext(error)) throw error;
+    }
+    const repositoryGraph = await loadRepositoryDeploymentStoryGraph(storyClient, name, repoID);
+    if (repositoryGraph !== null) return repositoryGraph;
+  }
+  return loadEntityMapGraph(client, name);
+}
+
+async function loadRepositoryDeploymentStoryGraph(
+  client: EshuApiClient & { readonly get: EshuApiClient["get"] },
+  name: string,
+  repoID: string | undefined
+): Promise<GraphModel | null> {
+  const id = cleanText(repoID);
+  if (id === "") return null;
+  try {
+    const env = await client.get<RepositoryDeploymentContextResponse>(`/api/v0/repositories/${encodeURIComponent(id)}/context`);
+    if (env.error) throw new EshuEnvelopeError(env.error);
+    const data = env.data ?? {};
+    const repoName = cleanText(data.repository?.name) || name;
+    const graph = deploymentStoryToGraph({
+      name,
+      repo_name: repoName,
+      deployment_evidence: data.deployment_evidence
+    }, name);
+    return graph.edges.length > 0 ? graph : null;
+  } catch (error) {
+    if (shouldFallbackFromServiceContext(error)) return null;
+    throw error;
+  }
 }
 
 // Expand one entity into a broader neighbourhood via POST impact/entity-map.
@@ -219,6 +333,68 @@ export async function loadEntityMapGraph(client: EshuApiClient, name: string): P
   const env = await client.post<EntityMapResponse>("/api/v0/impact/entity-map", { from: name, depth: 2 });
   if (env.error) throw new EshuEnvelopeError(env.error);
   return entityMapToGraph(env.data ?? {}, name);
+}
+
+function cleanText(value: string | undefined): string {
+  return value?.trim() ?? "";
+}
+
+function repoFromArtifact(artifact: DeploymentArtifactRecord, side: "source" | "target"): RepoRef | undefined {
+  const id = cleanText(side === "source" ? artifact.source_repo_id : artifact.target_repo_id);
+  const name = cleanText(side === "source" ? artifact.source_repo_name : artifact.target_repo_name);
+  if (id === "" && name === "") return undefined;
+  return { id: id || `repository:${name}`, name: name || id };
+}
+
+function uniqueRepos(repos: readonly RepoRef[]): RepoRef[] {
+  const seen = new Set<string>();
+  const unique: RepoRef[] = [];
+  repos.forEach((repo) => {
+    if (seen.has(repo.id)) return;
+    seen.add(repo.id);
+    unique.push(repo);
+  });
+  return unique;
+}
+
+function isHelmChartArtifact(artifact: DeploymentArtifactRecord): boolean {
+  const family = cleanText(artifact.artifact_family).toLowerCase();
+  const path = cleanText(artifact.path).toLowerCase();
+  const sourceRepo = cleanText(artifact.source_repo_name).toLowerCase();
+  if (family !== "helm") return false;
+  return path.endsWith("/chart.yaml") || sourceRepo.includes("helm") || sourceRepo.includes("chart");
+}
+
+function isDeploymentControllerArtifact(artifact: DeploymentArtifactRecord): boolean {
+  const family = cleanText(artifact.artifact_family).toLowerCase();
+  return family === "argocd" || family === "kustomize";
+}
+
+function addStoryNode(nodes: Map<string, GraphNode>, node: GraphNode): void {
+  if (!nodes.has(node.id)) nodes.set(node.id, node);
+}
+
+function addStoryEdge(edges: GraphEdge[], seen: Set<string>, s: string, t: string, verb: string, evidence?: readonly string[]): void {
+  const key = `${s}\u0000${t}\u0000${verb}`;
+  if (seen.has(key)) return;
+  seen.add(key);
+  edges.push({ s, t, verb, layer: layerFor(verb), evidence });
+}
+
+function artifactEdgeEvidence(artifact: DeploymentArtifactRecord): readonly string[] {
+  return [
+    cleanText(artifact.artifact_family) ? `artifact family: ${cleanText(artifact.artifact_family)}` : "",
+    cleanText(artifact.evidence_kind) ? `evidence kind: ${cleanText(artifact.evidence_kind)}` : "",
+    cleanText(artifact.path) ? `path: ${cleanText(artifact.path)}` : "",
+    cleanText(artifact.environment) ? `environment: ${cleanText(artifact.environment)}` : ""
+  ].filter((value): value is string => value !== "");
+}
+
+function shouldFallbackFromServiceContext(error: unknown): boolean {
+  if (error instanceof EshuApiHttpError) return error.status === 404;
+  if (!(error instanceof EshuEnvelopeError)) return false;
+  const code = error.error.code.toLowerCase();
+  return code === "not_found" || code === "service_not_found" || code === "unknown_service";
 }
 
 // resolveEntityName resolves a typed query to a canonical entity name via
@@ -233,9 +409,12 @@ export async function resolveEntityName(client: EshuApiClient, query: string): P
 // the right view (Direct for code, Neighborhood for service/infra) before the
 // user toggles. See issue #1725.
 export interface ResolvedHandle {
+  readonly id: string;
   readonly name: string;
   readonly kind: string;
   readonly mode: "direct" | "neighborhood";
+  readonly repoId: string;
+  readonly repoName: string;
 }
 
 // resolveEntityHandle resolves a typed query to its canonical name and kind via
@@ -247,79 +426,23 @@ export async function resolveEntityHandle(client: EshuApiClient, query: string):
     const result = await resolveEntity({ client, name: query, limit: 1 });
     const top = result.candidates[0];
     const kind = top?.type ?? top?.labels[0] ?? "";
-    return { name: top?.name ?? query, kind, mode: recommendedModeForKind(kind) };
+    return {
+      id: top?.id ?? "",
+      name: top?.name ?? query,
+      kind,
+      mode: recommendedModeForKind(kind),
+      repoId: repositoryIDForResolved(top?.id, top?.repoId, kind),
+      repoName: top?.repoName ?? ""
+    };
   } catch {
-    return { name: query, kind: "", mode: "direct" };
+    return { id: "", name: query, kind: "", mode: "direct", repoId: "", repoName: "" };
   }
 }
 
-// Blast radius: dependents that break if `name` fails. `loadBlastGraph` queries
-// the live API and throws if it is unavailable; callers that need an offline
-// path fall back to `blastFromModel`, which reverse-walks the in-memory graph.
-// One affected entity from the blast-radius response. The live endpoint returns
-// `affected: [{repo, repo_id?, hops?, ...}]`; the other keys are kept for forward
-// compatibility with alternate response shapes.
-interface ImpactEntity {
-  readonly id?: string; readonly name?: string; readonly type?: string;
-  readonly distance?: number; readonly hops?: number;
-  readonly repo?: string; readonly repo_id?: string;
-}
-interface BlastResponse {
-  readonly target?: RelEntity | string; readonly entity?: RelEntity;
-  readonly affected?: readonly ImpactEntity[];
-  readonly impacted?: readonly ImpactEntity[]; readonly dependents?: readonly ImpactEntity[]; readonly results?: readonly ImpactEntity[];
-}
-
-export async function loadBlastGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
-  // POST /api/v0/impact/blast-radius requires `target` + `target_type`; a
-  // service/workload is anchored on its repository. The response is
-  // `{ target, target_type, affected: [{repo, repo_id?, hops?}], ... }`.
-  const env = await client.post<BlastResponse>("/api/v0/impact/blast-radius", {
-    target: name, target_type: "repository", limit: 50
-  });
-  const data = env.data ?? {};
-  const center = ident(typeof data.target === "object" ? data.target : data.entity, name);
-  const affected = data.affected ?? data.impacted ?? data.dependents ?? data.results ?? [];
-  const nodes = new Map<string, GraphNode>();
-  nodes.set(center.id, { id: center.id, kind: "service", label: center.name, sub: "impact origin", hero: true, col: 0, truth: "exact" });
-  const edges: GraphEdge[] = [];
-  affected.forEach((e) => {
-    const label = (e.repo ?? e.name ?? e.id ?? "").trim();
-    // Skip empty or non-entity rows (a real repo name has no whitespace), so a
-    // target with no indexed dependents renders cleanly as the origin alone.
-    if (label === "" || /\s/.test(label)) return;
-    const id = e.repo_id ?? e.id ?? label;
-    if (id === center.id) return;
-    const hop = e.distance ?? e.hops ?? 1;
-    if (!nodes.has(id)) nodes.set(id, { id, kind: kindFor(e.type), label, sub: `hop ${hop}`, col: hop, truth: "exact" });
-    edges.push({ s: id, t: center.id, verb: "DEPENDS_ON", layer: "runtime" });
-  });
-  return { nodes: [...nodes.values()], edges };
-}
-
-// Fallback: reverse-walk the loaded model graph to find dependents of `name`.
-export function blastFromModel(graph: GraphModel, name: string): GraphModel {
-  const center = graph.nodes.find((n) => n.label === name || n.id === name);
-  if (!center) return { nodes: [], edges: [] };
-  const dependents = new Set<string>([center.id]);
-  const edges: GraphEdge[] = [];
-  const seen = new Set<string>();
-  let frontier = [center.id];
-  for (let depth = 0; depth < 3 && frontier.length; depth++) {
-    const next: string[] = [];
-    graph.edges.forEach((e) => {
-      if (!frontier.includes(e.t)) return;
-      if (!["DEPENDS_ON", "IMPORTS", "CALLS", "RUNS_AS"].includes(e.verb.toUpperCase())) return;
-      const ek = `${e.s}>${e.t}`;
-      if (!seen.has(ek)) { edges.push({ s: e.s, t: e.t, verb: e.verb, layer: e.layer }); seen.add(ek); }
-      if (!dependents.has(e.s)) { dependents.add(e.s); next.push(e.s); }
-    });
-    frontier = next;
-  }
-  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
-  const nodes: GraphNode[] = [...dependents].map((id) => {
-    const n = byId.get(id);
-    return { id, kind: n?.kind ?? "service", label: n?.label ?? id, sub: id === center.id ? "impact origin" : n?.sub, hero: id === center.id, col: 0, truth: n?.truth };
-  });
-  return { nodes, edges };
+function repositoryIDForResolved(id: string | undefined, repoID: string | undefined, kind: string): string {
+  const resolvedRepoID = cleanText(repoID);
+  if (resolvedRepoID !== "") return resolvedRepoID;
+  const resolvedID = cleanText(id);
+  if (resolvedID !== "" && kind.toLowerCase().includes("repo")) return resolvedID;
+  return "";
 }

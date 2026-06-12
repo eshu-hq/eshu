@@ -3,13 +3,46 @@
    uid = hash(account, region, resource_type, resource_id)) and the observability
    coverage-correlation read model (which service has metrics/logs/traces/alerts; gaps).
    Exports to window. Loaded after drill.jsx. */
-const { useState: useStateC, useMemo: useMemoC } = React;
+const { useEffect: useEffectC, useState: useStateC, useMemo: useMemoC } = React;
 
 const PROVIDER_META = {
   aws: { label: "AWS", color: "#ff9d2e" },
   azure: { label: "Azure", color: "#4f8cff" },
   gcp: { label: "GCP", color: "#22d3ee" }
 };
+
+function cloudEnvelopeData(response) {
+  if (response && response.error) throw new Error(response.error.message || response.error.code || "api error");
+  return response && response.data && response.error !== undefined ? response.data : response;
+}
+
+function cloudText(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function cloudEvidenceFlags(evidence) {
+  const flags = [];
+  if (evidence && evidence.declared) flags.push("declared");
+  if (evidence && evidence.applied) flags.push("applied");
+  if (evidence && evidence.observed) flags.push("observed");
+  return flags;
+}
+
+async function loadCanonicalCloudInventory(client) {
+  const data = cloudEnvelopeData(await client.get("/api/v0/cloud/inventory?limit=50")) || {};
+  return {
+    count: typeof data.count === "number" ? data.count : (data.resources || []).length,
+    rows: (data.resources || []).map((row) => ({
+      uid: cloudText(row.cloud_resource_uid),
+      provider: cloudText(row.provider),
+      resourceType: cloudText(row.resource_type),
+      origin: cloudText(row.management_origin),
+      scope: cloudText(row.scope_id),
+      sourceState: cloudText(row.source_state),
+      evidence: cloudEvidenceFlags(row.evidence || {})
+    })).filter((row) => row.uid)
+  };
+}
 
 /* ---- network topology graph for an account: Terraform → VPC → cluster/NAT → services → datastores */
 function buildCloudNetwork(D, accountId) {
@@ -33,6 +66,29 @@ function buildCloudNetwork(D, accountId) {
     const sg = res.find((r) => r.service === sid && r.type === "aws_security_group");
     if (sg) { push(mk(sg, 2)); edges.push({ s: snid, t: sg.uid, verb: "SECURED_BY", layer: "infra" }); if (vpc) edges.push({ s: sg.uid, t: vpc.uid, verb: "ATTACHED_TO", layer: "infra" }); }
     res.filter((r) => r.service === sid && r.family === "storage").forEach((ds) => { push(mk(ds, 4)); edges.push({ s: snid, t: ds.uid, verb: "STORES_IN", layer: "infra" }); });
+  });
+  if (!edges.length && res.length) return buildCanonicalCloudNetwork(D, accountId, res);
+  return { nodes, edges };
+}
+
+function buildCanonicalCloudNetwork(D, accountId, res) {
+  const acc = D.cloudAccounts.find((a) => a.id === accountId) || {};
+  const nodes = [], edges = [], seen = new Set();
+  const push = (n) => { if (!seen.has(n.id)) { seen.add(n.id); nodes.push(n); } };
+  const rootId = "scope:" + accountId;
+  push({ id: rootId, kind: acc.provider || "aws", label: acc.label || accountId, sub: "canonical inventory scope", col: 0, hero: true });
+  res.forEach((r) => {
+    const origin = r.managementOrigin || (r.tf ? "declared" : "observed");
+    const originId = "origin:" + accountId + ":" + origin;
+    const family = r.family || "other";
+    const familyId = "family:" + accountId + ":" + family;
+    const fm = D.cloudFamilies[family] || { label: family, color: "var(--muted)" };
+    push({ id: originId, kind: origin === "declared" ? "tf" : "aws", label: origin || "inventory", sub: "management origin", col: 1 });
+    push({ id: familyId, kind: CLOUD_FAM_KIND[family] || "aws", label: fm.label, sub: "resource family", col: 2 });
+    push({ id: r.uid, kind: CLOUD_FAM_KIND[family] || "aws", label: r.name || r.type || r.uid, sub: cloudResLabel(r.type), col: 3, _res: r });
+    edges.push({ s: rootId, t: originId, verb: "CONTAINS", layer: "infra" });
+    edges.push({ s: originId, t: familyId, verb: "GROUPS", layer: "infra" });
+    edges.push({ s: familyId, t: r.uid, verb: "HAS_RESOURCE", layer: "infra" });
   });
   return { nodes, edges };
 }
@@ -62,15 +118,17 @@ function buildServiceNetwork(D, s) {
 }
 
 /* ===================================================================== CLOUD */
-function Cloud({ data, onOpenService, onOpenNode }) {
+function Cloud({ data, client, onOpenService, onOpenNode }) {
   const D = data || ESHU;
   const all = D.cloudResources;
   const [provider, setProvider] = useStateC("all");
   const [fam, setFam] = useStateC("all");
   const [q, setQ] = useStateC("");
   const [view, setView] = useStateC("network");
-  const awsAccounts = D.cloudAccounts.filter((a) => a.provider === "aws");
-  const [netAcct, setNetAcct] = useStateC(awsAccounts[0] ? awsAccounts[0].id : "aws-prod");
+  const [inventory, setInventory] = useStateC(null);
+  const [inventoryState, setInventoryState] = useStateC("demo");
+  const networkAccounts = D.cloudAccounts;
+  const [netAcct, setNetAcct] = useStateC(networkAccounts[0] ? networkAccounts[0].id : "aws-prod");
   const net = useMemoC(() => buildCloudNetwork(D, netAcct), [D, netAcct]);
   const famKeys = Object.keys(D.cloudFamilies);
   const providers = Array.from(new Set(all.map((r) => r.provider)));
@@ -80,9 +138,23 @@ function Cloud({ data, onOpenService, onOpenNode }) {
     (fam === "all" || r.family === fam) &&
     (q === "" || (r.name + r.type + r.account + (r.service || "")).toLowerCase().includes(q.toLowerCase()))
   );
-  const tfPct = Math.round((all.filter((r) => r.tf).length / all.length) * 100);
+  const tfPct = all.length ? Math.round((all.filter((r) => r.tf).length / all.length) * 100) : 0;
   const obsCount = all.filter((r) => r.family === "observability").length;
   const famCounts = famKeys.map((k) => ({ label: D.cloudFamilies[k].label, value: all.filter((r) => r.family === k).length, color: D.cloudFamilies[k].color }));
+
+  useEffectC(() => {
+    let cancelled = false;
+    if (!client) { setInventory(null); setInventoryState("demo"); return; }
+    setInventoryState("loading");
+    loadCanonicalCloudInventory(client)
+      .then((result) => {
+        if (!cancelled) { setInventory(result); setInventoryState("live"); }
+      })
+      .catch((e) => {
+        if (!cancelled) { setInventory({ count: 0, rows: [], error: (e && e.message) || "failed" }); setInventoryState("unavailable"); }
+      });
+    return () => { cancelled = true; };
+  }, [client]);
 
   function openRes(res) {
     const { node, graph } = cloudResourceGraph(res, D);
@@ -97,7 +169,7 @@ function Cloud({ data, onOpenService, onOpenNode }) {
         <StatTile label="Cloud resources" value={fmt(all.length)} color="var(--blue)" sub={"indexed of " + fmt(D.runtime.cloudResources) + " discovered"} />
         <StatTile label="Accounts" value={D.cloudAccounts.length} color="var(--ember)" sub={providers.map((p) => PROVIDER_META[p].label).join(" · ")} />
         <StatTile label="Terraform-managed" value={tfPct + "%"} color="var(--teal)" sub="declared by IaC state" />
-        <StatTile label="Observability objects" value={obsCount} color="var(--ok, #22c55e)" sub="alarms · logs · traces · dashboards" onClick={() => { location.hash = "observability"; }} cta="Coverage" />
+        <StatTile label="Observability objects" value={obsCount} color="var(--ok, #22c55e)" sub="alarms · logs · traces · dashboards" onClick={() => { window.ESHU_ROUTES.setHash("observability"); }} cta="Coverage" />
       </div>
 
       <div className="grid mt" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: "var(--gap)" }}>
@@ -108,7 +180,7 @@ function Cloud({ data, onOpenService, onOpenNode }) {
           <div className="acct-list">
             {D.cloudAccounts.map((a) => {
               const n = all.filter((r) => r.account === a.id).length;
-              const pm = PROVIDER_META[a.provider];
+              const pm = PROVIDER_META[a.provider] || { label: a.provider || "Provider", color: "var(--muted)" };
               return (
                 <div className="acct-row" key={a.id}>
                   <span className="acct-prov" style={{ "--pc": pm.color }}><i />{pm.label}</span>
@@ -122,19 +194,41 @@ function Cloud({ data, onOpenService, onOpenNode }) {
         </Panel>
       </div>
 
+      <Panel className="flush mt" title="Canonical inventory" sub={client ? "GET /api/v0/cloud/inventory" : "Connect live to inspect canonical reducer inventory"} glyph={<Icon.cloud />}>
+        {inventoryState === "loading" ? (
+          <div className="conn-state" style={{ padding: 28 }}><div className="conn-spinner" aria-hidden /><p>Loading canonical cloud inventory...</p></div>
+        ) : inventory && inventory.rows.length ? (
+          <table className="tbl">
+            <thead><tr><th>Resource UID</th><th>Provider</th><th>Type</th><th>Scope</th><th>State</th><th>Evidence</th></tr></thead>
+            <tbody>{inventory.rows.map((row) => (
+              <tr key={row.uid}>
+                <td className="mono" style={{ fontSize: ".76rem" }}>{row.uid}</td>
+                <td><Badge tone="neutral">{row.provider || "provider"}</Badge></td>
+                <td className="mono" style={{ fontSize: ".76rem" }}>{row.resourceType || "resource"}</td>
+                <td className="mono" style={{ fontSize: ".76rem" }}>{row.scope || row.origin || "scope pending"}</td>
+                <td>{row.sourceState || "unknown"}</td>
+                <td><div className="row wrap" style={{ gap: 5 }}>{row.evidence.length ? row.evidence.map((flag) => <Badge key={flag} tone="teal">{flag}</Badge>) : <Badge tone="neutral">none</Badge>}</div></td>
+              </tr>
+            ))}</tbody>
+          </table>
+        ) : (
+          <p className="empty">{inventory && inventory.error ? "Canonical inventory unavailable: " + inventory.error : "No canonical inventory rows returned yet."}</p>
+        )}
+      </Panel>
+
       <div className="row mt" style={{ justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <div className="dep-toggle" style={{ margin: 0 }}>
           <button className={view === "network" ? "active" : ""} onClick={() => setView("network")}>Network</button>
           <button className={view === "table" ? "active" : ""} onClick={() => setView("table")}>Table</button>
         </div>
         {view === "network" ? (
-          <div className="seg branch-seg"><Icon.cloud size={14} />{awsAccounts.map((a) => <button key={a.id} className={netAcct === a.id ? "active" : ""} onClick={() => setNetAcct(a.id)}>{a.label} · {a.env}</button>)}</div>
+          <div className="seg branch-seg"><Icon.cloud size={14} />{networkAccounts.map((a) => <button key={a.id} className={netAcct === a.id ? "active" : ""} onClick={() => setNetAcct(a.id)}>{a.label} · {a.env}</button>)}</div>
         ) : null}
       </div>
 
       {view === "network" ? (
         <Panel className="flush mt" title="Network topology" sub={"Terraform → VPC → cluster → services → datastores · " + (D.cloudAccounts.find((a) => a.id === netAcct) || {}).account + " · click any node to drill"} glyph={<Icon.branch />}>
-          <GraphCanvas graph={net} layout="layered" height={580} onSelect={(n) => onOpenNode(n, net)} />
+          <GraphCanvas graph={net} data={D} layout="layered" height={580} onSelect={(n) => onOpenNode(n, net)} />
         </Panel>
       ) : (
       <>
@@ -228,6 +322,9 @@ const STATE_GLYPH = { covered: "●", partial: "◐", gap: "○" };
 
 function Observability({ data, onOpenService, onOpenNode, onOpenCollector }) {
   const D = data || ESHU;
+  const liveSnap = D.obsCoverageSnapshot || null;
+  const liveRows = liveSnap && liveSnap.rows ? liveSnap.rows : [];
+  const liveProviders = liveSnap && liveSnap.providers ? liveSnap.providers : [];
   const { rows, SIGNALS } = useMemoC(() => deriveObservability(D), [D]);
   const obsCollectors = D.collectors.filter((c) => COLLECTOR_DOMAIN.Observability.includes(c.kind));
 
@@ -252,13 +349,13 @@ function Observability({ data, onOpenService, onOpenNode, onOpenCollector }) {
 
   return (
     <div className="page" style={{ maxWidth: "none" }}>
-      <div className="page-intro"><h2>Observability</h2><p>Signal coverage correlated per service — which workloads emit <strong>metrics, logs, traces, dashboards, alerts</strong> and <strong>synthetics</strong>, and where the gaps are. Sources: Prometheus, CloudWatch, OpenTelemetry, Loki, Datadog &amp; X-Ray. Click any cell to drill to the signal or the service.</p></div>
+      <div className="page-intro"><h2>Observability</h2><p>Coverage correlations for grafana, prometheus/mimir, loki, and tempo — which workloads emit <strong>metrics, logs, traces, dashboards, alerts</strong> and <strong>synthetics</strong>, and where the gaps are. Click any cell to drill to the signal or the service.</p></div>
 
       <div className="grid g-4">
         <StatTile label="Services monitored" value={rows.length} color="var(--teal)" sub="running workloads" />
         <StatTile label="Full coverage" value={fullCovered + "/" + rows.length} color="var(--teal)" sub="all six signals present" />
         <StatTile label="Coverage gaps" value={totalGaps} color="var(--crit)" sub={withGaps + " services with \u2265 1 gap"} />
-        <StatTile label="Source health" value={(obsCollectors.length - staleSources) + "/" + obsCollectors.length} color={staleSources ? "var(--med)" : "var(--teal)"} sub={staleSources ? staleSources + " degraded / stale" : "all healthy"} onClick={() => { location.hash = "admin"; }} cta="Operations" />
+        <StatTile label="Source health" value={(obsCollectors.length - staleSources) + "/" + obsCollectors.length} color={staleSources ? "var(--med)" : "var(--teal)"} sub={staleSources ? staleSources + " degraded / stale" : "all healthy"} onClick={() => { window.ESHU_ROUTES.setHash("admin"); }} cta="Operations" />
       </div>
 
       <Panel className="mt" title="Signal sources" sub={obsCollectors.length + " observability collectors feeding the graph"} glyph={<Icon.cloud />}>
@@ -275,6 +372,23 @@ function Observability({ data, onOpenService, onOpenNode, onOpenCollector }) {
           })}
         </div>
       </Panel>
+
+      {liveSnap ? (
+        <Panel className="mt" title="Provider coverage" sub={"GET /api/v0/observability/coverage/correlations · " + liveSnap.source} glyph={<Icon.pulse />}>
+          <div className="signal-source-grid">
+            {liveProviders.map((p) => (
+              <div className="signal-source" key={p.provider}>
+                <span className="cglyph" style={{ width: 28, height: 28 }}>{p.provider.slice(0, 1).toUpperCase()}</span>
+                <span className="cell-stack" style={{ minWidth: 0 }}>
+                  <span style={{ fontWeight: 600, fontSize: ".84rem" }}>{p.provider}</span>
+                  <small className="mono">{p.covered}/{p.total} covered · {p.gaps} gaps</small>
+                </span>
+                <span className={"status-pill " + (p.source === "unavailable" ? "bad" : "")}><i />{p.source}</span>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
 
       <Panel className="flush mt" title="Coverage matrix" sub="Per service × signal — ● covered · ◐ partial · ○ gap" glyph={<Icon.spark />}>
         <div className="cov-scroll">
@@ -340,6 +454,27 @@ function Observability({ data, onOpenService, onOpenNode, onOpenCollector }) {
           </table>
         </Panel>
       </div>
+
+      {liveSnap ? (
+        <Panel className="flush mt" title="Coverage correlations" sub={liveRows.length + " reducer-owned rows"} glyph={<Icon.db />}>
+          <table className="tbl">
+            <thead><tr><th>Provider</th><th>Signal</th><th>Object</th><th>Target</th><th>Freshness</th><th>Status</th></tr></thead>
+            <tbody>
+              {liveRows.slice(0, 80).map((row) => (
+                <tr key={row.id}>
+                  <td className="t-name">{row.provider}</td>
+                  <td className="mono t-mut" style={{ fontSize: ".78rem" }}>{row.signal}</td>
+                  <td className="t-mut" style={{ fontSize: ".78rem" }}>{row.object || "—"}</td>
+                  <td className="t-mut" style={{ fontSize: ".78rem" }}>{row.target || "—"}</td>
+                  <td className="mono t-mut" style={{ fontSize: ".74rem" }}>{row.freshness || "—"}</td>
+                  <td>{row.covered ? <Badge tone="teal">{row.status}</Badge> : <Badge tone="crit">{row.status}</Badge>}</td>
+                </tr>
+              ))}
+              {liveRows.length === 0 ? <tr><td colSpan={6}><p className="empty">No live coverage correlations from this source.</p></td></tr> : null}
+            </tbody>
+          </table>
+        </Panel>
+      ) : null}
     </div>
   );
 }

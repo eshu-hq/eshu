@@ -13,6 +13,13 @@
   <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
   <script src="console/data.js"></script>
+  <script src="console/live-api-client.js"></script>
+  <script src="console/live-client-envelope.js"></script>
+  <script src="console/routes.js"></script>
+  <script src="console/live-dead-code-loader.js"></script>
+  <script src="console/live-base-loader.js"></script>
+  <script src="console/live-parity-loader.js"></script>
+  <script src="console/deployment-chain-parity.js"></script>
 </head>
 <body>
   <div id="root"></div>
@@ -22,10 +29,24 @@
   <script type="text/babel" src="console/graph-extras.jsx"></script>
   <script type="text/babel" src="console/tweaks-panel.jsx"></script>
   <script type="text/babel" src="console/pages-core.jsx"></script>
+  <script type="text/babel" src="console/pages-dashboard-parity.jsx"></script>
+  <script type="text/babel" src="console/pages-repository-model.jsx"></script>
+  <script type="text/babel" src="console/pages-repositories.jsx"></script>
   <script type="text/babel" src="console/pages-data.jsx"></script>
+  <script type="text/babel" src="console/pages-admin.jsx"></script>
+  <script type="text/babel" src="console/pages-catalog-findings-parity.jsx"></script>
+  <script type="text/babel" src="console/pages-operations-parity.jsx"></script>
   <script type="text/babel" src="console/drill.jsx"></script>
   <script type="text/babel" src="console/pages-cloud.jsx"></script>
+  <script type="text/babel" src="console/pages-cloud-parity.jsx"></script>
   <script type="text/babel" src="console/pages-code.jsx"></script>
+  <script type="text/babel" src="console/pages-live-parity.jsx"></script>
+  <script type="text/babel" src="console/pages-vulnerability-parity.jsx"></script>
+  <script type="text/babel" src="console/pages-observability-parity.jsx"></script>
+  <script type="text/babel" src="console/pages-explorer-parity.jsx"></script>
+  <script type="text/babel" src="console/pages-repositories-parity.jsx"></script>
+  <script type="text/babel" src="console/pages-workspace-parity.jsx"></script>
+  <script type="text/babel" src="console/pages-source-parity.jsx"></script>
   <script type="text/babel">
     /* Resilience shim for transient serve hiccups. */
     /* 1) If the core dataset (data.js) didn't load, auto-recover once. */

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import type { EshuApiClient } from "../api/client";
 import { ObservabilityPage } from "./ObservabilityPage";
 
@@ -10,7 +10,8 @@ describe("ObservabilityPage", () => {
 
     render(<ObservabilityPage client={client} />);
 
-    expect(screen.getByText("Loading observability coverage...")).toBeInTheDocument();
+    expect(screen.getByText(/provider anchors: grafana, prometheus, loki, tempo/i)).toBeInTheDocument();
+    expect(screen.getAllByText("Loading observability coverage...").length).toBeGreaterThan(0);
     expect(screen.queryByText(/No observability coverage/)).not.toBeInTheDocument();
   });
 
@@ -23,6 +24,57 @@ describe("ObservabilityPage", () => {
 
     await waitFor(() => expect(screen.getAllByText("empty").length).toBeGreaterThan(0));
     expect(screen.queryByText("live")).not.toBeInTheDocument();
+  });
+
+  it("renders demo-style signal sources and coverage matrix from live correlations", async () => {
+    const client = {
+      getJson: async (path: string) => {
+        if (path.includes("provider=grafana")) {
+          return {
+            correlations: [{
+              correlation_id: "c1",
+              provider: "grafana",
+              coverage_signal: "dashboard",
+              observability_object_ref: "grafana:api-node-boats-dashboard",
+              target_service_ref: "api-node-boats",
+              coverage_status: "covered",
+              resource_class: "service",
+              source_kind: "grafana",
+              freshness_state: "fresh"
+            }],
+            truncated: false
+          };
+        }
+        if (path.includes("provider=loki")) {
+          return {
+            correlations: [{
+              correlation_id: "c2",
+              provider: "loki",
+              coverage_signal: "logs",
+              observability_object_ref: "loki:api-node-boats-logs",
+              target_service_ref: "api-node-boats",
+              coverage_status: "stale",
+              resource_class: "service",
+              source_kind: "loki",
+              freshness_state: "stale"
+            }],
+            truncated: false
+          };
+        }
+        return { correlations: [], truncated: false };
+      }
+    } as unknown as EshuApiClient;
+
+    render(<ObservabilityPage client={client} />);
+
+    expect(await screen.findByText("Signal sources")).toBeInTheDocument();
+    const matrixPanel = screen.getByRole("heading", { name: "Coverage matrix" }).closest("section");
+    expect(matrixPanel).not.toBeNull();
+    expect(within(matrixPanel as HTMLElement).getByText("api-node-boats")).toBeInTheDocument();
+    expect(within(matrixPanel as HTMLElement).queryByText("grafana:api-node-boats-dashboard")).not.toBeInTheDocument();
+    expect(screen.getByText("loki:api-node-boats-logs")).toBeInTheDocument();
+    expect(screen.getAllByText("dashboard").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("logs").length).toBeGreaterThan(0);
   });
 
   it("keeps partial provider failures distinct from every provider being unavailable", async () => {

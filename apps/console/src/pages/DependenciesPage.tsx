@@ -10,6 +10,7 @@ import type { DependencyRow, DependencyPage } from "../api/eshuConsoleLive";
 import type { EshuTruth, TruthLevel } from "../api/envelope";
 import { Panel, StatTile, Badge, TruthChip, FreshDot } from "../components/atoms";
 import type { UiTruth, UiFresh } from "../console/types";
+import "./liveInventory.css";
 
 type Direction = "forward" | "reverse";
 type Source = "loading" | "live" | "empty" | "unavailable";
@@ -101,8 +102,8 @@ export function DependenciesPage({ client }: { readonly client?: EshuApiClient }
         <p>Package dependency inventory - <span className="mono">GET /api/v0/dependencies</span>. Forward lists what a package depends on; reverse lists who depends on it.</p>
       </div>
 
-      <form className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center", margin: "12px 0" }} onSubmit={submit}>
-        <div className="row" role="group" aria-label="Direction" style={{ gap: 0 }}>
+      <form className="evidence-toolbar" onSubmit={submit}>
+        <div className="seg" role="group" aria-label="Direction">
           <button type="button" className={`btn-ghost${direction === "forward" ? " active" : ""}`} onClick={() => setDirection("forward")} aria-pressed={direction === "forward"}>Depends on</button>
           <button type="button" className={`btn-ghost${direction === "reverse" ? " active" : ""}`} onClick={() => setDirection("reverse")} aria-pressed={direction === "reverse"}>Dependents of</button>
         </div>
@@ -118,44 +119,56 @@ export function DependenciesPage({ client }: { readonly client?: EshuApiClient }
         <StatTile label="Source" value={source} color="var(--ember)" sub="dependency inventory" />
       </div>
 
-      <Panel className="flush mt" title={direction === "forward" ? "Forward dependencies" : "Reverse dependents"}
-        sub={source}
-        action={
-          <div className="row" style={{ gap: 8, alignItems: "center" }}>
-            {page?.truth ? <TruthChip level={uiTruth(page.truth.level)} /> : null}
-            {page?.truth ? <FreshDot state={uiFresh(page.truth)} /> : null}
-            <div className="searchbox" style={{ minWidth: 200, height: 34 }}><input placeholder="Filter rows…" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Filter rows" /></div>
-          </div>
-        }>
-        {source === "loading" ? (
-          <div className="conn-state" style={{ padding: 40 }}><div className="conn-spinner" aria-hidden /><p>Loading dependencies...</p></div>
-        ) : (
-          <table className="tbl">
-            <thead><tr><th>Anchor</th><th>Version</th><th>{relatedHeader}</th><th>Ecosystem</th><th>Range</th><th>Type</th><th>Optional</th></tr></thead>
-            <tbody>
-              {visible.map((r) => (
-                <tr key={r.edgeId}>
-                  <td className="t-name">{r.anchorPackage || "—"}</td>
-                  <td className="t-mut mono" style={{ fontSize: ".76rem" }}>{r.declaringVersion || "—"}</td>
-                  <td className="t-name mono" style={{ fontSize: ".82rem" }} title={r.relatedPackageId}>{r.relatedPackage}</td>
-                  <td className="t-mut" style={{ fontSize: ".78rem" }}>{r.ecosystem || "—"}</td>
-                  <td className="t-mut mono" style={{ fontSize: ".76rem" }}>{r.range || "—"}</td>
-                  <td className="t-mut" style={{ fontSize: ".78rem" }}>{r.dependencyType || "—"}</td>
-                  <td>{r.optional ? <Badge tone="warn">optional</Badge> : <span className="t-mut">no</span>}</td>
-                </tr>
-              ))}
-              {visible.length === 0 ? (
-                <tr><td colSpan={7} className="empty">{err ? `Failed to load: ${err}` : dependencyEmptyMessage(direction, anchor?.pkg ?? "")}</td></tr>
-              ) : null}
-            </tbody>
-          </table>
-        )}
-        {page?.truncated && page.nextCursor ? (
-          <div className="row" style={{ justifyContent: "center", padding: 12 }}>
-            <button className="btn-ghost" onClick={() => void run(direction, anchor?.pkg ?? "", anchor?.ecosystem ?? "", page.nextCursor)}>Load more</button>
-          </div>
-        ) : null}
-      </Panel>
+      <div className="evidence-workbench evidence-workbench-rail mt" aria-label="Package graph workbench">
+        <Panel className="flush" title={direction === "forward" ? "Forward dependencies" : "Reverse dependents"}
+          sub={source}
+          action={
+            <div className="panel-action-stack">
+              {page?.truth ? <TruthChip level={uiTruth(page.truth.level)} /> : null}
+              {page?.truth ? <FreshDot state={uiFresh(page.truth)} /> : null}
+              <div className="searchbox compact"><input placeholder="Filter rows…" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Filter rows" /></div>
+            </div>
+          }>
+          {source === "loading" ? (
+            <div className="conn-state compact"><div className="conn-spinner" aria-hidden /><p>Loading dependencies...</p></div>
+          ) : (
+            <div className="table-scroll">
+              <table className="tbl wide">
+                <thead><tr><th>Anchor</th><th>Version</th><th>{relatedHeader}</th><th>Ecosystem</th><th>Range</th><th>Type</th><th>Optional</th></tr></thead>
+                <tbody>
+                  {visible.map((r) => (
+                    <tr key={r.edgeId}>
+                      <td className="t-name">{r.anchorPackage || "—"}</td>
+                      <td className="t-mut mono" style={{ fontSize: ".76rem" }}>{r.declaringVersion || "—"}</td>
+                      <td className="t-name mono" style={{ fontSize: ".82rem" }} title={r.relatedPackageId}>{r.relatedPackage}</td>
+                      <td className="t-mut" style={{ fontSize: ".78rem" }}>{r.ecosystem || "—"}</td>
+                      <td className="t-mut mono" style={{ fontSize: ".76rem" }}>{r.range || "—"}</td>
+                      <td className="t-mut" style={{ fontSize: ".78rem" }}>{r.dependencyType || "—"}</td>
+                      <td>{r.optional ? <Badge tone="warn">optional</Badge> : <span className="t-mut">no</span>}</td>
+                    </tr>
+                  ))}
+                  {visible.length === 0 ? (
+                    <tr><td colSpan={7} className="empty">{err ? `Failed to load: ${err}` : dependencyEmptyMessage(direction, anchor?.pkg ?? "")}</td></tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {page?.truncated && page.nextCursor ? (
+            <div className="pager-row">
+              <button className="btn-ghost" onClick={() => void run(direction, anchor?.pkg ?? "", anchor?.ecosystem ?? "", page.nextCursor)}>Load more</button>
+            </div>
+          ) : null}
+        </Panel>
+        <Panel title="Query context" sub="bounded package graph read">
+          <dl className="surface-dl">
+            <div><dt>Anchor</dt><dd className="mono">{anchorLabel}</dd></div>
+            <div><dt>Rows loaded</dt><dd>{rows.length}</dd></div>
+            <div><dt>Filtered rows</dt><dd>{visible.length}</dd></div>
+            <div><dt>Page state</dt><dd>{page?.truncated ? "truncated" : source}</dd></div>
+          </dl>
+        </Panel>
+      </div>
     </div>
   );
 }

@@ -20,6 +20,7 @@ describe("DependenciesPage", () => {
 
     render(<DependenciesPage client={client} />);
 
+    expect(screen.getByLabelText("Package graph workbench")).toBeInTheDocument();
     expect(await screen.findByText("left-pad")).toBeInTheDocument();
     expect(screen.getByText("@eshu/core")).toBeInTheDocument();
     expect(screen.getByText("^1.3.0")).toBeInTheDocument();

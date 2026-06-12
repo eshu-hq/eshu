@@ -1,19 +1,22 @@
 // pages/ExplorerPage.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
 import type { ConsoleModel, GraphLayer, GraphModel, GraphNode } from "../console/types";
 import { LAYER_COLOR, KIND_COLOR, fmt } from "../console/types";
-import { loadEntityGraph, loadEntityMapGraph, resolveEntityHandle } from "../api/eshuGraph";
+import { loadEntityGraph, loadEntityStoryGraph, resolveEntityHandle } from "../api/eshuGraph";
 import { Panel, TruthChip } from "../components/atoms";
 import { GraphCanvas } from "../components/GraphCanvas";
 
 const LAYERS: readonly GraphLayer[] = ["code", "deploy", "infra", "runtime", "security", "ops"];
 
-export function ExplorerPage({ model, client, onOpenService }: {
+export function ExplorerPage({ model, client, onOpenService, title, intro, defaultQuery }: {
   readonly model: ConsoleModel;
   readonly client?: EshuApiClient;
   readonly onOpenService?: (name: string) => void;
+  readonly title?: string;
+  readonly intro?: string;
+  readonly defaultQuery?: string;
 }): React.JSX.Element {
   const live = model.source === "live" && !!client;
   const [layout, setLayout] = useState<"layered" | "radial">("layered");
@@ -24,7 +27,7 @@ export function ExplorerPage({ model, client, onOpenService }: {
   const [sel, setSel] = useState<GraphNode | undefined>(model.graph.nodes.find((n) => n.hero));
   const [liveGraph, setLiveGraph] = useState<GraphModel | null>(null);
   const [searchParams] = useSearchParams();
-  const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
+  const [query, setQuery] = useState(() => searchParams.get("q") ?? defaultQuery ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   // hint surfaces a non-error explanation (e.g. a code-empty service that should
@@ -54,6 +57,7 @@ export function ExplorerPage({ model, client, onOpenService }: {
     base.nodes.forEach((n) => { if (n.hero) keep.add(n.id); });
     return { nodes: base.nodes.filter((n) => keep.has(n.id) || base.edges.length === 0), edges };
   }, [base, on]);
+  const nodeLabels = useMemo(() => new Map(base.nodes.map((node) => [node.id, node.label])), [base.nodes]);
 
   async function expand(name: string, forcedMode?: "direct" | "neighborhood"): Promise<void> {
     if (!client) return;
@@ -68,7 +72,7 @@ export function ExplorerPage({ model, client, onOpenService }: {
       const effectiveMode = forcedMode ?? (modePinnedRef.current ? mode : resolved.mode);
       if (effectiveMode !== mode) setMode(effectiveMode);
       const g = effectiveMode === "neighborhood"
-        ? await loadEntityMapGraph(client, resolved.name)
+        ? await loadEntityStoryGraph(client, resolved.name, resolved.repoId)
         : await loadEntityGraph(client, resolved.name);
       setLiveGraph(g);
       setSel(g.nodes.find((n) => n.hero));
@@ -86,11 +90,32 @@ export function ExplorerPage({ model, client, onOpenService }: {
   function onSelect(n: GraphNode): void {
     setSel(n);
     if ((n.kind === "service" || n.kind === "workload") && onOpenService) onOpenService(n.label);
-    else if (live) void expand(n.label);
+  }
+
+  async function centerOnNode(node: GraphNode): Promise<void> {
+    if (!client || node.id === currentCenterId(base)) return;
+    const nextMode = modeForNode(node);
+    setBusy(true); setErr(""); setHint(""); setQuery(node.label);
+    if (nextMode !== mode) setMode(nextMode);
+    try {
+      const handle = node.id.trim() !== "" ? node.id : node.label;
+      const g = nextMode === "neighborhood"
+        ? await loadEntityStoryGraph(client, handle, repoIDForNode(node))
+        : await loadEntityGraph(client, handle);
+      setLiveGraph(g);
+      setSel(g.nodes.find((n) => n.hero) ?? node);
+      if (nextMode === "direct" && g.edges.length === 0) {
+        setHint("No direct code relationships for this entity — try Neighborhood.");
+      }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "failed");
+    } finally {
+      setBusy(false);
+    }
   }
 
   useEffect(() => {
-    const seed = searchParams.get("q");
+    const seed = searchParams.get("q") ?? defaultQuery;
     if (!seed || !live || seededRef.current) return;
     seededRef.current = true;
     setQuery(seed);
@@ -98,12 +123,15 @@ export function ExplorerPage({ model, client, onOpenService }: {
     // expand is stable for a given client/mode; intentionally only re-run when the
     // deep-link param or live state changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, live]);
+  }, [defaultQuery, searchParams, live]);
 
   return (
     <div className="page" style={{ maxWidth: "none" }}>
       <div className="page-intro row" style={{ justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
-        <div><h2>Graph Explorer</h2><p>{live ? "Search an entity, then click any node to expand its real relationships." : "Pan, zoom and drill into the relationship graph. Toggle layers, then select a node."}</p></div>
+        <div>
+          <h2>{title ?? "Graph Explorer"}</h2>
+          <p>{intro ?? (live ? "Search an entity, select any node, then center its real relationships from the inspector." : "Pan, zoom and drill into the relationship graph. Toggle layers, then select a node.")}</p>
+        </div>
         <div className="seg"><button className={layout === "layered" ? "active" : ""} onClick={() => setLayout("layered")}>Layered</button><button className={layout === "radial" ? "active" : ""} onClick={() => setLayout("radial")}>Radial</button></div>
       </div>
 
@@ -136,12 +164,36 @@ export function ExplorerPage({ model, client, onOpenService }: {
               <div className="insp-head"><span className="cglyph" style={{ width: 30, height: 30, color: KIND_COLOR[sel.kind] ?? "#9aa4af", borderColor: KIND_COLOR[sel.kind] ?? "#9aa4af" }}>{sel.kind.slice(0, 1).toUpperCase()}</span><div><div className="insp-kind">{sel.kind}</div><div className="insp-title">{sel.label}</div></div></div>
               {sel.sub ? <div className="t-mut mono" style={{ fontSize: ".82rem" }}>{sel.sub}</div> : null}
               {sel.truth ? <TruthChip level={sel.truth} /> : null}
-              {live ? <button className="btn-ghost" style={{ width: "100%", justifyContent: "center" }} onClick={() => expand(sel.label)}>Expand relationships →</button> : null}
+              {sourceHref(sel) ? (
+                <div className="kv-list">
+                  <div className="kv">
+                    <span>Source</span>
+                    <Link className="mono" to={sourceHref(sel) ?? ""}>{sourceLabel(sel)}</Link>
+                  </div>
+                </div>
+              ) : null}
+              {live ? (
+                <button
+                  className="btn-ghost"
+                  disabled={busy || sel.id === currentCenterId(base)}
+                  style={{ width: "100%", justifyContent: "center" }}
+                  onClick={() => { void centerOnNode(sel); }}
+                >
+                  {sel.id === currentCenterId(base) ? "Current center" : busy ? "Loading…" : "Center graph here →"}
+                </button>
+              ) : null}
+              {sourceHref(sel) ? <Link className="btn-ghost active" to={sourceHref(sel) ?? ""}>Open source</Link> : null}
               <div className="section-label">Edges</div>
               <div className="insp-evi">
-                {base.edges.filter((e) => e.s === sel.id || e.t === sel.id).map((e, i) => (
-                  <div className="insp-evi-row" key={i}>{e.verb} {e.s === sel.id ? `→ ${e.t}` : `← ${e.s}`}</div>
-                ))}
+                {base.edges.filter((e) => e.s === sel.id || e.t === sel.id).map((e, i) => {
+                  const endpointID = e.s === sel.id ? e.t : e.s;
+                  const endpointLabel = nodeLabels.get(endpointID) ?? endpointID;
+                  return (
+                    <div className="insp-evi-row" key={i} title={endpointLabel === endpointID ? undefined : endpointID}>
+                      {e.verb} {e.s === sel.id ? "→" : "←"} {endpointLabel}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : <p className="empty">{live ? "Search for an entity to begin." : "Select a node."}</p>}
@@ -159,4 +211,35 @@ export function ExplorerPage({ model, client, onOpenService }: {
       </div>
     </div>
   );
+}
+
+function currentCenterId(graph: GraphModel): string | undefined {
+  return graph.nodes.find((node) => node.hero)?.id;
+}
+
+function modeForNode(node: GraphNode): "direct" | "neighborhood" {
+  if (node.kind === "client" || node.kind === "library") return "direct";
+  return "neighborhood";
+}
+
+function repoIDForNode(node: GraphNode): string | undefined {
+  if (node.kind !== "repo") return undefined;
+  return node.id.trim() === "" ? undefined : node.id;
+}
+
+function sourceHref(node: GraphNode): string | null {
+  const source = node.source;
+  if (!source) return null;
+  const params = new URLSearchParams({ path: source.filePath });
+  if (source.startLine !== undefined) params.set("lineStart", String(source.startLine));
+  if (source.endLine !== undefined) params.set("lineEnd", String(source.endLine));
+  return `/repositories/${encodeURIComponent(source.repoId)}/source?${params.toString()}`;
+}
+
+function sourceLabel(node: GraphNode): string {
+  const source = node.source;
+  if (!source) return "source path unavailable";
+  if (source.startLine !== undefined && source.endLine !== undefined) return `${source.filePath}:${source.startLine}-${source.endLine}`;
+  if (source.startLine !== undefined) return `${source.filePath}:${source.startLine}`;
+  return source.filePath;
 }

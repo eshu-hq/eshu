@@ -7,7 +7,7 @@
 // not imply service reachability or impact.
 
 import type { EshuApiClient } from "./client";
-import type { EshuTruth } from "./envelope";
+import { EshuEnvelopeError, type EshuTruth } from "./envelope";
 import { severityFromCvss } from "./eshuConsoleLive";
 import type { AdvisoryRow } from "./eshuConsoleLive";
 
@@ -84,6 +84,7 @@ export async function fetchAdvisoryCatalogPage(
     params.set("after_advisory_key", query.cursor.after_advisory_key);
   }
   const env = await client.get<AdvisoryCatalogResponse>(`/api/v0/supply-chain/advisories?${params.toString()}`);
+  if (env.error) throw new EshuEnvelopeError(env.error);
   const data = env.data ?? {};
   const rows = (data.advisories ?? []).map(mapAdvisoryRow);
   const next = data.truncated && data.next_cursor && data.next_cursor.after_advisory_key

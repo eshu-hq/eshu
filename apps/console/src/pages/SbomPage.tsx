@@ -15,6 +15,7 @@ import type {
 } from "../api/sbomEvidence";
 import { Panel, StatTile, Badge, TruthChip, FreshDot } from "../components/atoms";
 import { uiTruth, uiFresh } from "../console/types";
+import "./liveInventory.css";
 
 const ENDPOINT = "GET /api/v0/supply-chain/sbom-attestations/attachments";
 
@@ -71,17 +72,17 @@ export function SbomPage({ client }: { readonly client?: EshuApiClient }): React
         <StatTile label="Attestations" value={summaryProv === "unavailable" ? "—" : attestCount} color="var(--ember)" sub="artifact_kind=attestation" />
       </div>
 
-      <div className="grid mt" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1.5fr)", gap: "var(--gap)" }}>
+      <div className="evidence-workbench evidence-workbench-wide mt" aria-label="SBOM evidence workbench">
         <Panel className="flush" title={`${rows.length} subjects`} sub={inventory === null ? "loading…" : inventoryProvLabel(inventory)}
           action={inventory?.truth ? <TruthChip level={uiTruth(inventory.truth.level)} /> : null}>
           {inventory === null ? (
-            <div className="conn-state" style={{ padding: 40 }}><div className="conn-spinner" aria-hidden /><p>Loading SBOM subjects…</p></div>
+            <div className="conn-state compact"><div className="conn-spinner" aria-hidden /><p>Loading SBOM subjects…</p></div>
           ) : (
             <table className="tbl">
               <thead><tr><th>Subject digest</th><th>Attachments</th></tr></thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={r.value} onClick={() => setSelected(r.value)} style={{ cursor: "pointer", background: selected === r.value ? "var(--bg-raised)" : undefined }}>
+                  <tr key={r.value} className={selected === r.value ? "is-sel" : undefined} onClick={() => setSelected(r.value)}>
                     <td className="t-name mono" style={{ fontSize: ".76rem" }}>{shortDigest(r.value)}</td>
                     <td><Badge tone="teal">{r.count}</Badge></td>
                   </tr>
@@ -97,15 +98,15 @@ export function SbomPage({ client }: { readonly client?: EshuApiClient }): React
 
         <Panel title="Attestation provenance" sub={detail ? shortDigest(detail.subjectDigest) : "select a subject"}>
           {!selected ? (
-            <p className="empty" style={{ padding: 28 }}>Select a subject digest to see its attachments and provenance.</p>
+            <p className="empty">Select a subject digest to see its attachments and provenance.</p>
           ) : detailBusy || detail === null ? (
-            <div className="conn-state" style={{ padding: 40 }}><div className="conn-spinner" aria-hidden /><p>Loading provenance…</p></div>
+            <div className="conn-state compact"><div className="conn-spinner" aria-hidden /><p>Loading provenance…</p></div>
           ) : detail.provenance === "unavailable" ? (
-            <p className="empty" style={{ padding: 28 }}>Attachment detail unavailable from this source.</p>
+            <p className="empty">Attachment detail unavailable from this source.</p>
           ) : detail.attachments.length === 0 ? (
-            <p className="empty" style={{ padding: 28 }}>No attachments for this subject.</p>
+            <p className="empty">No attachments for this subject.</p>
           ) : (
-            <div className="grid" style={{ gap: 14 }}>
+            <div className="evidence-card-list">
               {detail.attachments.map((att) => <AttachmentCard key={att.attachmentId} att={att} />)}
             </div>
           )}
@@ -117,7 +118,7 @@ export function SbomPage({ client }: { readonly client?: EshuApiClient }): React
 
 function AttachmentCard({ att }: { readonly att: SbomAttachment }): React.JSX.Element {
   return (
-    <div className="stat-tile" style={{ alignItems: "stretch" }}>
+    <div className="evidence-card">
       <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         <Badge tone={statusTone(att.attachmentStatus)}>{att.attachmentStatus || "unknown"}</Badge>
         {att.artifactKind ? <Badge tone="neutral">{att.artifactKind}</Badge> : null}

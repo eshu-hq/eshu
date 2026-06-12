@@ -25,8 +25,11 @@ function ramp(seed: number, n: number, base: number, amp: number, drift: number)
 const demoSeries: SeriesBundle = {
   ingestRate: ramp(11, 48, 620, 200, 1),
   queueDepth: ramp(22, 48, 180, 110, -2),
+  deadLetters: ramp(33, 48, 3, 4, -0.05),
   graphNodes: ramp(44, 48, 41000, 400, 240),
   graphEdges: ramp(55, 48, 128000, 1200, 900),
+  queryP50: ramp(77, 48, 4, 2, 0),
+  queryP95: ramp(88, 48, 12, 5, 0),
   queryP99: ramp(99, 48, 28, 12, 0),
   newVulns: ramp(123, 14, 3, 5, -0.1)
 };
@@ -106,8 +109,34 @@ export const demoModel: ConsoleModel = {
     }
   ],
   iacResources: [
-    { id: "tf-demo-1", kind: "resource", name: "module.\"checkout\".aws_iam_role.this", type: "aws_iam_role", provider: "aws", service: "aws.iam", module: "checkout", repoId: "checkout-service", relativePath: "iam.tf" },
-    { id: "tf-demo-2", kind: "resource", name: "aws_s3_bucket.assets", type: "aws_s3_bucket", provider: "aws", service: "aws.s3", module: "", repoId: "checkout-service", relativePath: "storage.tf" }
+    {
+      category: "iam",
+      id: "tf-demo-1",
+      kind: "resource",
+      lineNumber: 12,
+      module: "checkout",
+      name: "module.\"checkout\".aws_iam_role.this",
+      provider: "aws",
+      relativePath: "iam.tf",
+      repoId: "checkout-service",
+      resourceName: "this",
+      service: "aws.iam",
+      type: "aws_iam_role"
+    },
+    {
+      category: "storage",
+      id: "tf-demo-2",
+      kind: "resource",
+      lineNumber: 8,
+      module: "",
+      name: "aws_s3_bucket.assets",
+      provider: "aws",
+      relativePath: "storage.tf",
+      repoId: "checkout-service",
+      resourceName: "assets",
+      service: "aws.s3",
+      type: "aws_s3_bucket"
+    }
   ],
   advisories: [
     { id: "CVE-2021-44228", cveId: "CVE-2021-44228", ghsaId: "GHSA-jfh8-c2jp-5v3q", severity: "critical", cvss: 10, kev: true, ecosystems: ["maven"], packageIds: ["pkg:maven/org.apache.logging.log4j/log4j-core"], publishedAt: "2021-12-10" }

@@ -68,7 +68,7 @@ export function GraphCanvas({ graph, layout = "layered", height = 560, onSelect,
   }
 
   if (graph.nodes.length === 0) {
-    return <div className="gcanvas" style={{ height, display: "grid", placeItems: "center" }}><p className="empty">No graph from this source yet — wire <code>POST /api/v0/code/relationships</code> to populate it.</p></div>;
+    return <div className="gcanvas" style={{ height, display: "grid", placeItems: "center" }}><p className="empty">No graph rows returned from this source yet.</p></div>;
   }
 
   return (

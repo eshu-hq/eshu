@@ -14,6 +14,7 @@
 
 import type { EshuApiClient } from "./client";
 import type { EshuTruth } from "./envelope";
+import { EshuEnvelopeError } from "./envelope";
 
 // SbomEvidenceProvenance mirrors the section-level provenance the console uses
 // elsewhere: "live" when the endpoint answered, "empty" when it answered with
@@ -153,6 +154,7 @@ function num(value: unknown): number {
 export async function loadSbomSummary(client: EshuApiClient): Promise<SbomSummary> {
   try {
     const env = await client.get<CountResponse>("/api/v0/supply-chain/sbom-attestations/attachments/count");
+    if (env.error) throw new EshuEnvelopeError(env.error);
     const data = env.data ?? {};
     const total = num(data.total_attachments);
     return {
@@ -181,6 +183,7 @@ export async function loadSbomInventory(
       `/api/v0/supply-chain/sbom-attestations/attachments/inventory` +
       `?group_by=${encodeURIComponent(groupBy)}&limit=${limit}&offset=${offset}`;
     const env = await client.get<InventoryResponse>(path);
+    if (env.error) throw new EshuEnvelopeError(env.error);
     const data = env.data ?? {};
     const buckets = (data.buckets ?? [])
       .map((b) => ({ dimension: str(b.dimension), value: str(b.value), count: num(b.count) }))
@@ -240,6 +243,7 @@ export async function loadSbomSubjectDetail(
       `/api/v0/supply-chain/sbom-attestations/attachments` +
       `?subject_digest=${encodeURIComponent(subjectDigest)}&limit=${limit}`;
     const env = await client.get<AttachmentListResponse>(path);
+    if (env.error) throw new EshuEnvelopeError(env.error);
     const data = env.data ?? {};
     const attachments = (data.attachments ?? []).map(mapAttachment);
     return {

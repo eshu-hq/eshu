@@ -11,8 +11,9 @@ import { useEffect, useState } from "react";
 import type { EshuApiClient } from "../api/client";
 import { loadImages } from "../api/imageInventory";
 import type { ImageRow } from "../api/imageInventory";
-import { Panel, Badge, TruthChip, FreshDot } from "../components/atoms";
+import { Panel, StatTile, Badge, TruthChip, FreshDot } from "../components/atoms";
 import { uiTruth, uiFresh } from "../console/types";
+import "./liveInventory.css";
 
 const PAGE_SIZE = 50;
 
@@ -62,6 +63,10 @@ export function ImagesPage({ client }: { readonly client?: EshuApiClient }): Rea
     const hay = `${r.name} ${r.repository} ${r.registry} ${r.tag} ${r.digest}`.toLowerCase();
     return hay.includes(q.toLowerCase());
   });
+  const imageRows = images ?? [];
+  const registryCount = distinctCount(imageRows.map((image) => image.registry));
+  const repositoryCount = distinctCount(imageRows.map((image) => image.repository));
+  const taggedCount = imageRows.filter((image) => image.tag !== "").length;
 
   const sub = images === null
     ? "loading…"
@@ -79,66 +84,75 @@ export function ImagesPage({ client }: { readonly client?: EshuApiClient }): Rea
         </p>
       </div>
 
+      <div className="grid g-4">
+        <StatTile label="Images loaded" value={images === null || provenance === "unavailable" ? "—" : imageRows.length} color="var(--teal)" sub="bounded page from OCI inventory" />
+        <StatTile label="Registries" value={images === null || provenance === "unavailable" ? "—" : registryCount} color="var(--blue)" sub="distinct in this page" />
+        <StatTile label="Repositories" value={images === null || provenance === "unavailable" ? "—" : repositoryCount} color="var(--violet)" sub="image repositories" />
+        <StatTile label="Tagged" value={images === null || provenance === "unavailable" ? "—" : taggedCount} color="var(--ember)" sub="rows with tags" />
+      </div>
+
       <Panel
-        className="flush"
+        className="flush mt"
         title="Image inventory"
         sub={sub}
         action={
-          <div className="row" style={{ gap: 8, alignItems: "center" }}>
+          <div className="panel-action-stack">
             {truthLevel ? <TruthChip level={uiTruth(truthLevel)} /> : null}
             {freshState ? <FreshDot state={uiFresh(freshState)} /> : null}
-            <div className="searchbox" style={{ minWidth: 220, height: 34 }}>
+            <div className="searchbox compact">
               <input placeholder="Filter this page…" value={q} onChange={(e) => setQ(e.target.value)} />
             </div>
           </div>
         }
       >
         {images === null ? (
-          <div className="conn-state" style={{ padding: 40 }}>
+          <div className="conn-state compact">
             <div className="conn-spinner" aria-hidden />
             <p>Loading container images…</p>
           </div>
         ) : provenance === "unavailable" ? (
-          <p className="empty" style={{ padding: 28 }}>
+          <p className="empty">
             Container image inventory unavailable from this source. The OCI registry
             collector may not be enabled.
           </p>
         ) : (
           <>
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th>Repository</th>
-                  <th>Tag</th>
-                  <th>Digest</th>
-                  <th>Media type</th>
-                  <th>Size</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id}>
-                    <td className="t-name">
-                      {r.repository || r.name || "—"}
-                      {r.registry ? <div className="t-mut mono" style={{ fontSize: ".72rem" }}>{r.registry}</div> : null}
-                    </td>
-                    <td>{r.tag ? <Badge tone="teal">{r.tag}</Badge> : <span className="t-mut">—</span>}</td>
-                    <td className="t-mut mono" style={{ fontSize: ".74rem" }} title={r.digest || undefined}>{shortDigest(r.digest)}</td>
-                    <td className="t-mut mono" style={{ fontSize: ".72rem" }}>{r.mediaType || r.artifactType || "—"}</td>
-                    <td>{fmtBytes(r.sizeBytes)}</td>
-                  </tr>
-                ))}
-                {rows.length === 0 ? (
+            <div className="table-scroll">
+              <table className="tbl wide">
+                <thead>
                   <tr>
-                    <td colSpan={5} className="empty">
-                      {q !== "" ? "No images match this filter." : "No container images from this source."}
-                    </td>
+                    <th>Repository</th>
+                    <th>Tag</th>
+                    <th>Digest</th>
+                    <th>Media type</th>
+                    <th>Size</th>
                   </tr>
-                ) : null}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.id}>
+                      <td className="t-name">
+                        {r.repository || r.name || "—"}
+                        {r.registry ? <div className="t-mut mono" style={{ fontSize: ".72rem" }}>{r.registry}</div> : null}
+                      </td>
+                      <td>{r.tag ? <Badge tone="teal">{r.tag}</Badge> : <span className="t-mut">—</span>}</td>
+                      <td className="t-mut mono" style={{ fontSize: ".74rem" }} title={r.digest || undefined}>{shortDigest(r.digest)}</td>
+                      <td className="t-mut mono" style={{ fontSize: ".72rem" }}>{r.mediaType || r.artifactType || "—"}</td>
+                      <td>{fmtBytes(r.sizeBytes)}</td>
+                    </tr>
+                  ))}
+                  {rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="empty">
+                        {q !== "" ? "No images match this filter." : "No container images from this source."}
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
 
-            <div className="row" style={{ gap: 8, justifyContent: "flex-end", marginTop: 12, alignItems: "center" }}>
+            <div className="pager-row">
               <span className="t-mut" style={{ fontSize: ".76rem" }}>
                 rows {offset + 1}–{offset + (images?.length ?? 0)}
               </span>
@@ -162,4 +176,8 @@ export function ImagesPage({ client }: { readonly client?: EshuApiClient }): Rea
       </Panel>
     </div>
   );
+}
+
+function distinctCount(values: readonly string[]): number {
+  return new Set(values.filter((value) => value !== "")).size;
 }

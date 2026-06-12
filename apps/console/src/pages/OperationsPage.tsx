@@ -8,19 +8,42 @@ export function OperationsPage({ model }: { readonly model: ConsoleModel }): Rea
   const r = model.runtime;
   const langRows = model.languages.slice().sort((a, b) => b.count - a.count)
     .map((l) => ({ label: l.language, value: l.count }));
+  const queryLatencySummary = latencySummary(model.series.queryP50, model.series.queryP95, model.series.queryP99);
+  const graphGrowthSummary = graphSummary(model.series.graphNodes, model.series.graphEdges);
+  const graphGrowthRows = graphRows(model.series.graphNodes, model.series.graphEdges);
+  const graphGrowthTrend = model.series.graphEdges.length ? model.series.graphEdges : model.series.graphNodes;
+  const graphGrowthTrendColor = model.series.graphEdges.length ? "var(--ember)" : "var(--teal)";
   return (
     <div className="page">
       <div className="page-intro"><h2>Operations</h2><p>Eshu runtime &amp; NornicDB backend health. Source: <strong style={{ color: model.source === "live" ? "var(--teal)" : "var(--bone)" }}>{model.source === "live" ? "live API" : "demo"}</strong>.</p></div>
       <div className="grid g-4">
         <StatTile label="Index status" value={r.indexStatus} color="var(--teal)" sub={`profile ${r.profile}`} />
         <StatTile label="Queue outstanding" value={r.queueOutstanding} spark={model.series.queueDepth.length ? model.series.queueDepth : undefined} color="var(--violet)" sub={`${r.inFlight} in-flight`} />
-        <StatTile label="Dead letters" value={r.deadLetters} color="var(--crit)" sub="needs replay" />
+        <StatTile label="Dead letters" value={r.deadLetters} spark={model.series.deadLetters.length ? model.series.deadLetters : undefined} color="var(--crit)" sub="needs replay" />
         <StatTile label="Succeeded" value={fmt(r.succeeded)} color="var(--blue)" sub="work items (run)" />
       </div>
       <div className="grid g-2 mt">
         <Panel title="Reducer queue depth" sub="Outstanding work items">{model.series.queueDepth.length ? <AreaChart data={model.series.queueDepth} color="var(--violet)" h={180} unit=" items" /> : <p className="empty" style={{ padding: "32px 12px" }}>Current depth above. Trend history appears when the metrics source has recent samples.</p>}</Panel>
-        <Panel title="Repositories by language" sub="GET /api/v0/repositories/by-language">{langRows.length ? <BarRows rows={langRows} /> : <p className="empty">No language inventory from this source.</p>}</Panel>
+        <Panel title="Query latency" sub={queryLatencySummary ?? "GET /api/v0/metrics/timeseries"}>
+          {model.series.queryP99.length ? <AreaChart data={model.series.queryP99} color="var(--crit)" h={180} unit="ms" /> : <p className="empty" style={{ padding: "32px 12px" }}>Query latency history appears when the metrics source has recent samples.</p>}
+        </Panel>
       </div>
+      <Panel className="mt" title="Graph growth" sub={graphGrowthSummary ?? "GET /api/v0/metrics/timeseries"}>
+        {graphGrowthTrend.length ? (
+          <div className="grid g-2" style={{ alignItems: "center" }}>
+            <AreaChart data={graphGrowthTrend} color={graphGrowthTrendColor} h={180} />
+            <BarRows rows={graphGrowthRows} />
+          </div>
+        ) : <p className="empty" style={{ padding: "32px 12px" }}>Graph growth history appears when the metrics source has recent samples.</p>}
+      </Panel>
+      {model.source === "live" ? (
+        <Panel className="mt" title="Metric contract pending" sub="Tracked in issue #2216">
+          <p className="empty" style={{ padding: "12px 0", textAlign: "left" }}>
+            write-throughput, cache-hit, and vulnerability-feed intake decorations do not have named live metric series yet. Connected-live mode keeps those demo-only sparklines out of Operations until issue #2216 defines source-backed contracts.
+          </p>
+        </Panel>
+      ) : null}
+      <Panel className="mt" title="Repositories by language" sub="GET /api/v0/repositories/language-inventory">{langRows.length ? <BarRows rows={langRows} /> : <p className="empty">No language inventory from this source.</p>}</Panel>
       <Panel className="flush mt" title="Collectors / ingesters" sub={`${model.ingesters.length} fact sources`}>
         <table className="tbl">
           <thead><tr><th>Collector</th><th>Instance</th><th>State</th><th>Facts</th><th>Freshness</th></tr></thead>
@@ -40,4 +63,40 @@ export function OperationsPage({ model }: { readonly model: ConsoleModel }): Rea
       </Panel>
     </div>
   );
+}
+
+function lastSeriesValue(values: readonly number[]): number | null {
+  const value = values.at(-1);
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function latencySummary(
+  queryP50: readonly number[],
+  queryP95: readonly number[],
+  queryP99: readonly number[]
+): string | null {
+  const p50 = lastSeriesValue(queryP50);
+  const p95 = lastSeriesValue(queryP95);
+  const p99 = lastSeriesValue(queryP99);
+  if (p50 === null && p95 === null && p99 === null) return null;
+  return `p50 ${p50 ?? "—"}ms · p95 ${p95 ?? "—"}ms · p99 ${p99 ?? "—"}ms`;
+}
+
+function graphSummary(graphNodes: readonly number[], graphEdges: readonly number[]): string | null {
+  const nodes = lastSeriesValue(graphNodes);
+  const edges = lastSeriesValue(graphEdges);
+  if (nodes === null && edges === null) return null;
+  return `${nodes === null ? "—" : fmt(nodes)} nodes · ${edges === null ? "—" : fmt(edges)} edges`;
+}
+
+function graphRows(
+  graphNodes: readonly number[],
+  graphEdges: readonly number[]
+): readonly { readonly label: string; readonly value: number; readonly color: string }[] {
+  const nodes = lastSeriesValue(graphNodes);
+  const edges = lastSeriesValue(graphEdges);
+  const rows: { label: string; value: number; color: string }[] = [];
+  if (nodes !== null) rows.push({ label: "nodes", value: nodes, color: "var(--teal)" });
+  if (edges !== null) rows.push({ label: "edges", value: edges, color: "var(--ember)" });
+  return rows;
 }

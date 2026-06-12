@@ -7,9 +7,11 @@
 // degradation semantics. Live-API data only — nothing here fabricates rows.
 
 import type { EshuApiClient } from "./client";
-import type { EshuTruth, FreshnessState } from "./envelope";
+import { deadCodeRowsFromResponse, type DeadCodeResponse } from "./deadCode";
+import { EshuEnvelopeError, type EshuTruth, type FreshnessState } from "./envelope";
 import { loadDependencies } from "./eshuDependencies";
 import { fetchAdvisoryCatalogPage } from "./eshuConsoleAdvisories";
+import { iacResourceRowsFromResponse } from "./iacResources";
 import { imageRowsFromResponse } from "./imageInventory";
 import type {
   AdvisoryRow,
@@ -76,7 +78,6 @@ interface CatalogRecord {
 }
 interface LanguageInventory { readonly languages?: readonly { language: string; count?: number; repository_count?: number; file_count?: number }[]; }
 interface IngesterStatus { readonly ingesters?: readonly Record<string, unknown>[]; }
-interface DeadCodeResponse { readonly results?: readonly { name?: string; file_path?: string; repo_name?: string; repo_id?: string; classification?: string }[]; }
 interface ImpactFindings { readonly findings?: readonly Record<string, unknown>[]; readonly results?: readonly Record<string, unknown>[]; }
 interface MetricsTimeSeriesResponse { readonly points?: readonly { readonly t?: string; readonly v?: number }[]; }
 interface SBOMAttachmentCount {
@@ -84,13 +85,7 @@ interface SBOMAttachmentCount {
   readonly by_attachment_status?: Readonly<Record<string, number>>;
   readonly by_artifact_kind?: Readonly<Record<string, number>>;
 }
-interface IacResourcesResponse {
-  readonly resources?: readonly {
-    readonly id?: string; readonly kind?: string; readonly name?: string;
-    readonly type?: string; readonly provider?: string; readonly resource_service?: string;
-    readonly module?: string; readonly repo_id?: string; readonly relative_path?: string;
-  }[];
-}
+interface IacResourcesResponse { readonly resources?: NonNullable<Parameters<typeof iacResourceRowsFromResponse>[0]>["resources"]; }
 
 // Impact findings carry a CVSS score but no severity label; derive the standard
 // CVSS v3 qualitative band so the vulnerability list can colour-rank rows.
@@ -159,6 +154,7 @@ export async function loadRuntime(client: EshuApiClient, ctx: SectionContext): P
 // the vulnerabilities section.
 export async function loadServices(client: EshuApiClient, ctx: SectionContext): Promise<readonly ServiceRow[] | null> {
   const env = await client.get<CatalogResponse>("/api/v0/catalog?limit=2000&offset=0");
+  if (env.error) throw new EshuEnvelopeError(env.error);
   const c = env.data ?? {};
   if (env.truth) ctx.truth.services = env.truth;
   const lvl = env.truth?.level ?? "exact";
@@ -187,6 +183,7 @@ export async function loadServices(client: EshuApiClient, ctx: SectionContext): 
 // specific ?language= and 400s without it, so it is intentionally not used.
 export async function loadLanguages(client: EshuApiClient): Promise<readonly LanguageRow[] | null> {
   const env = await client.get<LanguageInventory>("/api/v0/repositories/language-inventory?limit=100&offset=0");
+  if (env.error) throw new EshuEnvelopeError(env.error);
   const rows = (env.data?.languages ?? []).map((l) => ({ language: l.language, count: l.repository_count ?? l.count ?? l.file_count ?? 0 }));
   return rows.length > 0 ? rows : null;
 }
@@ -228,17 +225,13 @@ export async function loadIngesters(client: EshuApiClient): Promise<readonly Ing
   return rows.length > 0 ? rows : null;
 }
 
-// loadFindings reads the dead-code analysis into finding rows.
-export async function loadFindings(client: EshuApiClient): Promise<readonly FindingRow[] | null> {
+// loadFindings reads the dead-code analysis into finding rows. When a catalog
+// context is available, repo_id is resolved to the human repository name so
+// code-analysis surfaces do not expose internal graph ids.
+export async function loadFindings(client: EshuApiClient, ctx?: SectionContext): Promise<readonly FindingRow[] | null> {
   const env = await client.post<DeadCodeResponse>("/api/v0/code/dead-code", { limit: 25 });
-  const lvl = env.truth?.level ?? "derived";
-  const rows = (env.data?.results ?? []).map((r, i) => ({
-    id: `dead-code-${i}`, type: "Dead code",
-    entity: r.repo_name ?? r.repo_id ?? "repository",
-    title: `Unreferenced symbol ${r.name ?? "candidate"}`,
-    detail: `${r.file_path ?? "unknown"}${r.classification ? ` · ${r.classification}` : ""}`,
-    truth: lvl
-  }));
+  if (env.error) throw new EshuEnvelopeError(env.error);
+  const rows = deadCodeRowsFromResponse(env.data, env.truth?.level ?? "derived", ctx?.repoNames);
   return rows.length > 0 ? rows : null;
 }
 
@@ -253,6 +246,7 @@ export async function loadVulnerabilities(client: EshuApiClient, ctx: SectionCon
     try {
       env = await client.get<ImpactFindings>(`/api/v0/supply-chain/impact/findings?limit=100&impact_status=${status}`);
     } catch { continue; }
+    if (env.error) throw new EshuEnvelopeError(env.error);
     for (const v of (env.data?.findings ?? env.data?.results ?? [])) {
       const id = String(v.advisory_id ?? v.cve_id ?? v.id ?? `adv-${rows.length}`);
       if (seen.has(id)) continue;
@@ -282,6 +276,7 @@ export async function loadVulnerabilities(client: EshuApiClient, ctx: SectionCon
 // no scope and stays bounded; the full subject browse lives on the SBOM page.
 export async function loadSbom(client: EshuApiClient, ctx: SectionContext): Promise<SbomEvidenceRow | null> {
   const env = await client.get<SBOMAttachmentCount>("/api/v0/supply-chain/sbom-attestations/attachments/count");
+  if (env.error) throw new EshuEnvelopeError(env.error);
   const data = env.data ?? {};
   if (env.truth) ctx.truth.sbom = env.truth;
   const total = Number(data.total_attachments ?? 0);
@@ -308,6 +303,7 @@ export async function loadDependenciesSection(client: EshuApiClient, ctx: Sectio
 // only needs the head page to know the section is live vs empty/unavailable.
 export async function loadImagesSection(client: EshuApiClient, ctx: SectionContext): Promise<ReturnType<typeof imageRowsFromResponse> | null> {
   const env = await client.get<{ images?: readonly Record<string, unknown>[] }>("/api/v0/images?limit=50&offset=0");
+  if (env.error) throw new EshuEnvelopeError(env.error);
   if (env.truth) ctx.truth.images = env.truth;
   const rows = imageRowsFromResponse(env.data);
   return rows.length > 0 ? rows : null;
@@ -318,18 +314,9 @@ export async function loadImagesSection(client: EshuApiClient, ctx: SectionConte
 // unavailable rather than failing the whole snapshot.
 export async function loadIacResources(client: EshuApiClient, ctx: SectionContext): Promise<readonly IacResourceRow[] | null> {
   const env = await client.get<IacResourcesResponse>("/api/v0/iac/resources?limit=200");
+  if (env.error) throw new EshuEnvelopeError(env.error);
   if (env.truth) ctx.truth.iacResources = env.truth;
-  const rows: IacResourceRow[] = (env.data?.resources ?? []).map((r) => ({
-    id: String(r.id ?? ""),
-    kind: String(r.kind ?? "resource"),
-    name: String(r.name ?? ""),
-    type: String(r.type ?? ""),
-    provider: String(r.provider ?? ""),
-    service: String(r.resource_service ?? ""),
-    module: String(r.module ?? ""),
-    repoId: String(r.repo_id ?? ""),
-    relativePath: String(r.relative_path ?? "")
-  }));
+  const rows: IacResourceRow[] = iacResourceRowsFromResponse(env.data);
   return rows.length > 0 ? rows : null;
 }
 
@@ -345,7 +332,9 @@ export async function loadAdvisories(client: EshuApiClient, ctx: SectionContext)
 // emptySeries is the all-empty trend baseline the series bundle starts from so
 // any unavailable metric reports an empty series rather than fabricated points.
 export const emptySeries: SeriesBundle = {
-  ingestRate: [], queueDepth: [], graphNodes: [], graphEdges: [], queryP99: [], newVulns: []
+  ingestRate: [], queueDepth: [], deadLetters: [],
+  graphNodes: [], graphEdges: [], queryP50: [], queryP95: [], queryP99: [],
+  newVulns: []
 };
 
 // loadSeriesBundle fetches every dashboard trend metric concurrently and folds
@@ -355,14 +344,17 @@ export async function loadSeriesBundle(
   client: EshuApiClient,
   section: <T>(key: string, load: () => Promise<T | null>) => Promise<T | null>
 ): Promise<SeriesBundle> {
-  const [ingestRate, queueDepth, graphNodes, graphEdges, queryP99] = await Promise.all([
+  const [ingestRate, queueDepth, deadLetters, graphNodes, graphEdges, queryP50, queryP95, queryP99] = await Promise.all([
     loadMetricSeries(client, section, "ingestRate", "ingest_rate"),
     loadMetricSeries(client, section, "queueDepth", "queue_depth"),
+    loadMetricSeries(client, section, "deadLetters", "dead_letters"),
     loadMetricSeries(client, section, "graphNodes", "graph_nodes"),
     loadMetricSeries(client, section, "graphEdges", "graph_edges"),
+    loadMetricSeries(client, section, "queryP50", "query_p50"),
+    loadMetricSeries(client, section, "queryP95", "query_p95"),
     loadMetricSeries(client, section, "queryP99", "query_p99")
   ]);
-  return { ...emptySeries, ingestRate, queueDepth, graphNodes, graphEdges, queryP99 };
+  return { ...emptySeries, ingestRate, queueDepth, deadLetters, graphNodes, graphEdges, queryP50, queryP95, queryP99 };
 }
 
 async function loadMetricSeries(
@@ -375,6 +367,7 @@ async function loadMetricSeries(
     const env = await client.get<MetricsTimeSeriesResponse>(
       `/api/v0/metrics/timeseries?metric=${metric}&window=24h&step=30m`
     );
+    if (env.error) throw new EshuEnvelopeError(env.error);
     const points = (env.data?.points ?? []).map((point) => point.v).filter(isFiniteNumber);
     return points.length > 0 ? points : null;
   });

@@ -20,6 +20,18 @@ export type UiFresh = "fresh" | "lagging" | "stale";
 
 export type GraphLayer = "code" | "deploy" | "infra" | "runtime" | "security" | "ops";
 
+/**
+ * Indexed source location for a graph node when a query response can tie the
+ * entity back to a repository file without another source lookup.
+ */
+export interface GraphSourceLocation {
+  readonly repoId: string;
+  readonly repoName?: string;
+  readonly filePath: string;
+  readonly startLine?: number;
+  readonly endLine?: number;
+}
+
 export interface GraphNode {
   readonly id: string;
   readonly kind: string;
@@ -28,6 +40,7 @@ export interface GraphNode {
   readonly col: number;
   readonly hero?: boolean;
   readonly truth?: UiTruth;
+  readonly source?: GraphSourceLocation;
 }
 
 export interface GraphEdge {
@@ -35,6 +48,7 @@ export interface GraphEdge {
   readonly t: string;
   readonly verb: string;
   readonly layer: GraphLayer;
+  readonly evidence?: readonly string[];
 }
 
 export interface GraphModel {

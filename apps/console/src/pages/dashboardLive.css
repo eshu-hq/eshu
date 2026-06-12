@@ -1,0 +1,115 @@
+.dashboard-stat-grid .stat-tile {
+  min-height: 142px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.dashboard-stat-grid .stat-tile-body {
+  min-height: 46px;
+}
+
+.dashboard-stat-grid .stat-tile-body strong {
+  font-size: clamp(2rem, 3vw, 2.7rem);
+}
+
+.dashboard-stat-grid .spark {
+  max-width: 154px;
+}
+
+.dashboard-atlas-panel {
+  overflow: hidden;
+}
+
+.dashboard-atlas-panel .panel-head {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  padding: 22px var(--pad);
+}
+
+.dashboard-atlas-panel .panel-title h3 {
+  font-size: 1.12rem;
+}
+
+.dashboard-atlas-panel .panel-title p {
+  font-size: 0.88rem;
+}
+
+.dashboard-atlas-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: var(--gap);
+  padding: var(--pad);
+  align-items: stretch;
+}
+
+.dashboard-atlas-layout .gcanvas {
+  min-height: 520px;
+  border-radius: 12px;
+}
+
+.dashboard-atlas-inspector {
+  min-width: 0;
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 26px 24px;
+  overflow: auto;
+}
+
+.dashboard-atlas-inspector .inspector {
+  gap: 18px;
+}
+
+.dashboard-atlas-inspector .insp-kind {
+  letter-spacing: 0.16em;
+}
+
+.dashboard-atlas-inspector .insp-title {
+  font-size: 1.28rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-atlas-inspector .insp-evi-row {
+  min-height: 58px;
+  align-items: center;
+  line-height: 1.45;
+}
+
+.dashboard-atlas-inspector .empty {
+  padding-inline: 0;
+}
+
+@media (max-width: 1180px) {
+  .dashboard-atlas-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-atlas-inspector {
+    max-height: none;
+  }
+}
+
+@media (max-width: 680px) {
+  .dashboard-stat-grid .stat-tile {
+    min-height: 122px;
+  }
+
+  .dashboard-atlas-panel .panel-head {
+    display: grid;
+    gap: 14px;
+  }
+
+  .dashboard-atlas-layout {
+    padding: 12px;
+  }
+
+  .dashboard-atlas-layout .gcanvas {
+    min-width: 680px;
+  }
+
+  .dashboard-atlas-layout {
+    overflow-x: auto;
+  }
+}

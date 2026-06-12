@@ -2,10 +2,12 @@
 // Repository source browsing loaders, wired to the merged content endpoints:
 //   GET /api/v0/repositories/{id}/tree?path=     (#1431)
 //   GET /api/v0/repositories/{id}/content?path=  (#1432)
-// Branch selection (#1433) is not available yet — the tree/content reflect the
-// single indexed ref. Defensive over response shape; never fabricates files.
+//   GET /api/v0/repositories/{id}/branches       (#1433)
+// The branches endpoint currently exposes the derived indexed ref. Defensive
+// over response shape; never fabricates files or branch names.
 
 import type { EshuApiClient } from "./client";
+import { EshuEnvelopeError } from "./envelope";
 
 export interface TreeEntry {
   readonly name: string;
@@ -34,17 +36,46 @@ export interface RepoFile {
   readonly provenance: "live" | "unavailable";
 }
 
+export interface RepoBranch {
+  readonly name: string;
+  readonly headSha: string;
+  readonly lastIndexedAt: string | null;
+}
+
+export interface RepoBranches {
+  readonly defaultBranch: string;
+  readonly branches: readonly RepoBranch[];
+}
+
 interface TreeResponse {
   readonly ref?: string; readonly path?: string; readonly truncated?: boolean;
   readonly entries?: ReadonlyArray<{ name?: string; type?: string; path?: string; size?: number; language?: string; child_count?: number }>;
 }
 
+interface BranchesResponse {
+  readonly default_branch?: string;
+  readonly branches?: ReadonlyArray<{ readonly name?: string; readonly head_sha?: string; readonly last_indexed_at?: string }>;
+}
+
 function num(v: unknown): number | null { return typeof v === "number" && Number.isFinite(v) ? v : null; }
 function str(v: unknown): string { return typeof v === "string" ? v : ""; }
+
+export async function loadRepoBranches(client: EshuApiClient, id: string): Promise<RepoBranches> {
+  const env = await client.get<BranchesResponse>(`/api/v0/repositories/${encodeURIComponent(id)}/branches`);
+  if (env.error) throw new EshuEnvelopeError(env.error);
+  const data = env.data ?? {};
+  const branches: RepoBranch[] = (data.branches ?? []).map((branch): RepoBranch => ({
+    name: str(branch.name),
+    headSha: str(branch.head_sha),
+    lastIndexedAt: branch.last_indexed_at ? str(branch.last_indexed_at) : null
+  })).filter((branch) => branch.name !== "" || branch.headSha !== "");
+  return { defaultBranch: str(data.default_branch), branches };
+}
 
 export async function loadRepoTree(client: EshuApiClient, id: string, path = ""): Promise<RepoTree> {
   const qs = path ? `?path=${encodeURIComponent(path)}` : "";
   const env = await client.get<TreeResponse>(`/api/v0/repositories/${encodeURIComponent(id)}/tree${qs}`);
+  if (env.error) throw new EshuEnvelopeError(env.error);
   const data = env.data ?? {};
   const entries: TreeEntry[] = (data.entries ?? []).map((e): TreeEntry => ({
     name: str(e.name),

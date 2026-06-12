@@ -37,9 +37,11 @@ export function VulnDetailPage({ model, client }: {
   const services = affectedFromModel(id, model.vulnerabilities);
   const graph = affectedServicesGraph(id, services);
 
-  // Fall back to the list row only when the detail endpoint is unavailable.
-  // A successful empty response is an explicit "no advisory evidence" state.
-  const fallback = detail?.provenance === "unavailable" ? detailFromModelRow(id, model.vulnerabilities) : null;
+  // Fall back to the list row when extended advisory evidence is unavailable.
+  // The list row is source-backed by impact findings, not a fabricated advisory.
+  const fallback = detail?.provenance === "unavailable" || detail?.provenance === "empty"
+    ? detailFromModelRow(id, model.vulnerabilities)
+    : null;
   const effective = detail?.provenance === "live" ? detail : (fallback ?? detail);
 
   return (
@@ -58,7 +60,10 @@ export function VulnDetailPage({ model, client }: {
         <>
           {effective.provenance === "derived" ? (
             <p className="t-mut" style={{ marginBottom: 12, fontSize: ".82rem" }}>
-              Showing advisory facts from impact findings. Extended advisory evidence (EPSS, CVSS vector, CWEs, references) requires the vulnerability-intelligence collector and is not available for this advisory.
+              Extended advisory evidence (EPSS, CVSS vector, CWEs, references) is unavailable from{" "}
+              <span className="mono">GET /api/v0/supply-chain/vulnerabilities/{"{id}"}</span>. Showing
+              reachable impact facts from <span className="mono">GET /api/v0/supply-chain/impact/findings</span>{" "}
+              until issue #2217 proves the vulnerability-intelligence collector runtime path.
             </p>
           ) : null}
           <div className="grid g-4">

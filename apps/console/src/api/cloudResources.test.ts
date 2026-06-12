@@ -119,4 +119,20 @@ describe("loadCloudResources", () => {
     } as unknown as EshuApiClient;
     await expect(loadCloudResources(client, { limit: 50 })).rejects.toThrow("HTTP 503");
   });
+
+  it("propagates an Eshu error envelope rather than rendering an empty page", async () => {
+    const client = {
+      get: vi.fn(async () => ({
+        data: null,
+        error: {
+          code: "unsupported_runtime_profile",
+          message: "cloud resource list is unavailable in this profile",
+          capability: "platform_impact.cloud_resource_list"
+        },
+        truth: null
+      }))
+    } as unknown as EshuApiClient;
+
+    await expect(loadCloudResources(client, { limit: 50 })).rejects.toThrow("unsupported_runtime_profile");
+  });
 });

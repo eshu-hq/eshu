@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ExplorerPage } from "./ExplorerPage";
 import { demoModel } from "../console/demoModel";
@@ -12,6 +12,14 @@ function renderExplorer(client: EshuApiClient, q: string): void {
   render(
     <MemoryRouter initialEntries={[`/explorer?q=${encodeURIComponent(q)}`]}>
       <ExplorerPage model={liveModel} client={client} />
+    </MemoryRouter>
+  );
+}
+
+function renderSeededExplorer(client: EshuApiClient, defaultQuery: string): void {
+  render(
+    <MemoryRouter initialEntries={["/code-graph"]}>
+      <ExplorerPage model={liveModel} client={client} defaultQuery={defaultQuery} />
     </MemoryRouter>
   );
 }
@@ -46,6 +54,61 @@ describe("ExplorerPage mode-by-kind (issue #1725)", () => {
     expect(screen.getByRole("button", { name: "Neighborhood" }).className).toContain("active");
   });
 
+  it("renders the deployment story from service context before falling back to entity-map", async () => {
+    const calls: string[] = [];
+    const client = {
+      postJson: async () => ({
+        entities: [{ id: "workload:api-node-platform", name: "api-node-platform", labels: ["Workload"], type: "Workload" }]
+      }),
+      get: async (path: string) => {
+        calls.push(path);
+        return {
+          data: {
+            name: "api-node-platform",
+            repo_name: "api-node-platform",
+            deployment_evidence: {
+              artifacts: [
+                {
+                  source_repo_id: "repository:r_dd626fe7",
+                  source_repo_name: "iac-eks-argocd",
+                  target_repo_id: "repository:r_078043f1",
+                  target_repo_name: "api-node-platform",
+                  relationship_type: "DEPLOYS_FROM",
+                  artifact_family: "kustomize",
+                  path: "applicationsets/core-engineering/api-node/kustomization.yaml"
+                },
+                {
+                  source_repo_id: "repository:r_66cd2d76",
+                  source_repo_name: "helm-charts",
+                  target_repo_id: "repository:r_078043f1",
+                  target_repo_name: "api-node-platform",
+                  relationship_type: "DEPLOYS_FROM",
+                  artifact_family: "helm",
+                  path: "api-node-platform/Chart.yaml"
+                }
+              ]
+            }
+          },
+          error: null,
+          truth: null
+        };
+      },
+      post: async (path: string) => {
+        calls.push(path);
+        throw new Error("entity-map should not be called when service context has deployment evidence");
+      }
+    } as unknown as EshuApiClient;
+
+    renderExplorer(client, "api-node-platform");
+
+    expect(await screen.findByText("iac-eks-argocd")).toBeInTheDocument();
+    expect(screen.getByText("helm-charts")).toBeInTheDocument();
+    expect(screen.getByText("DEPLOYS_FROM ← api-node-platform")).toBeInTheDocument();
+    expect(calls).toContain("/api/v0/services/api-node-platform/context");
+    expect(calls).not.toContain("/api/v0/impact/entity-map");
+    expect(screen.queryByText(/RELATED/)).not.toBeInTheDocument();
+  });
+
   it("keeps Direct for a code (Function) kind and loads code/relationships", async () => {
     const calls: string[] = [];
     const client = {
@@ -70,6 +133,141 @@ describe("ExplorerPage mode-by-kind (issue #1725)", () => {
     await waitFor(() => expect(calls).toContain("/api/v0/code/relationships"));
     expect(calls).not.toContain("/api/v0/impact/entity-map");
     expect(screen.getByRole("button", { name: "Direct" }).className).toContain("active");
+  });
+
+  it("links a direct code entity to its repository source location", async () => {
+    const client = {
+      postJson: async () => ({
+        entities: [{ id: "content-entity:e1", name: "searchByPortalId", labels: ["Function"], type: "Function" }]
+      }),
+      post: async () => ({
+        data: {
+          entity_id: "content-entity:e1",
+          name: "searchByPortalId",
+          labels: ["Function"],
+          repo_id: "repository:r_platform",
+          repo_name: "api-node-platform",
+          file_path: "server/resources/listing/index.js",
+          start_line: 1653,
+          end_line: 1662,
+          incoming: [],
+          outgoing: []
+        },
+        error: null,
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+
+    renderExplorer(client, "searchByPortalId");
+
+    expect(await screen.findByRole("link", { name: "server/resources/listing/index.js:1653-1662" })).toHaveAttribute(
+      "href",
+      "/repositories/repository%3Ar_platform/source?path=server%2Fresources%2Flisting%2Findex.js&lineStart=1653&lineEnd=1662"
+    );
+    expect(screen.getByRole("link", { name: "Open source" })).toHaveAttribute(
+      "href",
+      "/repositories/repository%3Ar_platform/source?path=server%2Fresources%2Flisting%2Findex.js&lineStart=1653&lineEnd=1662"
+    );
+  });
+
+  it("uses a live default query when the page has no search parameter", async () => {
+    const calls: string[] = [];
+    const client = {
+      postJson: async () => ({
+        entities: [{ id: "content-entity:e1", name: "createNewVersion", labels: ["Function"], type: "Function" }]
+      }),
+      post: async (path: string) => {
+        calls.push(path);
+        return {
+          data: {
+            entity_id: "content-entity:e1", name: "createNewVersion", labels: ["Function"],
+            incoming: [{ type: "CALLS", source_id: "content-entity:e2", source_name: "main" }], outgoing: []
+          },
+          error: null,
+          truth: null
+        };
+      }
+    } as unknown as EshuApiClient;
+
+    renderSeededExplorer(client, "createNewVersion");
+
+    await waitFor(() => expect(calls).toContain("/api/v0/code/relationships"));
+    expect(screen.getByDisplayValue("createNewVersion")).toBeInTheDocument();
+  });
+
+  it("does not render an enabled expand action for the graph center", async () => {
+    const client = {
+      postJson: async () => ({
+        entities: [{ id: "workload:catalog-api", name: "catalog-api", labels: ["Workload"], type: "Workload" }]
+      }),
+      post: async () => ({
+        data: {
+          from: "catalog-api",
+          resolution: { candidates: [{ id: "workload:catalog-api", name: "catalog-api", labels: ["Workload"] }] },
+          evidence: { relationships: [{ entity_id: "repository:r1", entity_name: "repo-a", entity_labels: ["Repository"], direction: "incoming", relationship_type: "DEFINES" }] }
+        },
+        error: null,
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+
+    renderExplorer(client, "catalog-api");
+
+    const centerButton = await screen.findByRole("button", { name: "Current center" });
+    expect(centerButton).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Expand relationships →" })).not.toBeInTheDocument();
+  });
+
+  it("renders edge endpoints by display name instead of raw graph id", async () => {
+    const client = {
+      postJson: async () => ({
+        entities: [{ id: "workload:catalog-api", name: "catalog-api", labels: ["Workload"], type: "Workload" }]
+      }),
+      post: async () => ({
+        data: {
+          from: "catalog-api",
+          resolution: { candidates: [{ id: "workload:catalog-api", name: "catalog-api", labels: ["Workload"] }] },
+          evidence: { relationships: [{ entity_id: "repository:r1", entity_name: "repo-a", entity_labels: ["Repository"], direction: "incoming", relationship_type: "DEFINES" }] }
+        },
+        error: null,
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+
+    renderExplorer(client, "catalog-api");
+
+    expect(await screen.findByText("DEFINES ← repo-a")).toBeInTheDocument();
+    expect(screen.queryByText("DEFINES ← repository:r1")).not.toBeInTheDocument();
+  });
+
+  it("centers a selected neighbor using its canonical graph id", async () => {
+    const bodies: unknown[] = [];
+    const client = {
+      postJson: async () => ({
+        entities: [{ id: "workload:catalog-api", name: "catalog-api", labels: ["Workload"], type: "Workload" }]
+      }),
+      post: async (_path: string, body: unknown) => {
+        bodies.push(body);
+        return {
+          data: {
+            from: "catalog-api",
+            resolution: { candidates: [{ id: "workload:catalog-api", name: "catalog-api", labels: ["Workload"] }] },
+            evidence: { relationships: [{ entity_id: "repository:r1", entity_name: "repo-a", entity_labels: ["Repository"], direction: "incoming", relationship_type: "DEFINES" }] }
+          },
+          error: null,
+          truth: null
+        };
+      }
+    } as unknown as EshuApiClient;
+
+    renderExplorer(client, "catalog-api");
+
+    await screen.findByText("repo-a");
+    fireEvent.click(screen.getByText("repo-a"));
+    fireEvent.click(screen.getByRole("button", { name: "Center graph here →" }));
+
+    await waitFor(() => expect(bodies).toContainEqual({ from: "repository:r1", depth: 2 }));
+    expect(screen.getByDisplayValue("repo-a")).toBeInTheDocument();
   });
 
   it("degrades a 404 from code/relationships to a clean empty-state hint, no error banner", async () => {

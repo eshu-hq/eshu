@@ -12,7 +12,7 @@ describe("App shell", () => {
 
   it("renders the redesigned console navigation", async () => {
     // The shell auto-connects to the API on boot; make it unreachable so it
-    // falls back to the demo model without persisting anything.
+    // renders the explicit unavailable model without persisting anything.
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => {
@@ -29,6 +29,10 @@ describe("App shell", () => {
     expect(
       screen.getByRole("heading", { name: "Eshu Console" })
     ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Search repos, services, CVEs, evidence…")).toBeInTheDocument();
+    expect(screen.getByText("Overview")).toBeInTheDocument();
+    expect(screen.getByText("Inventory")).toBeInTheDocument();
+    expect(screen.getByText("Cloud & Telemetry")).toBeInTheDocument();
 
     // findBy lets the boot connect attempt settle before assertions.
     expect(
@@ -37,9 +41,21 @@ describe("App shell", () => {
     expect(
       screen.getByRole("link", { name: "Graph Explorer" })
     ).toHaveAttribute("href", "/explorer");
+    expect(screen.getByRole("link", { name: "Dead code" })).toHaveAttribute(
+      "href",
+      "/dead-code"
+    );
+    expect(screen.getByRole("link", { name: "Code graph" })).toHaveAttribute(
+      "href",
+      "/code-graph"
+    );
     expect(screen.getByRole("link", { name: "Catalog" })).toHaveAttribute(
       "href",
       "/catalog"
+    );
+    expect(screen.getByRole("link", { name: "Topology" })).toHaveAttribute(
+      "href",
+      "/topology"
     );
     expect(screen.getByRole("link", { name: "Findings" })).toHaveAttribute(
       "href",
@@ -155,5 +171,210 @@ describe("App shell", () => {
     // StrictMode double-invokes effects in dev; the boot guard keeps the catalog
     // fetch to a single call so the requests cannot abort each other.
     expect(catalogCalls).toBe(1);
+  });
+
+  it("toggles the demo-style verified evidence filter over live findings", async () => {
+    window.localStorage.setItem(
+      "eshu.console.environment",
+      JSON.stringify({ mode: "private", apiBaseUrl: "/eshu-api/", recentApiBaseUrls: ["/eshu-api/"] })
+    );
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const request = new Request(input);
+      const path = new URL(request.url).pathname;
+      if (path === "/eshu-api/api/v0/index-status") {
+        return Response.json({ status: "ready", repository_count: 1, queue: {} });
+      }
+      if (path === "/eshu-api/api/v0/ecosystem/overview") {
+        return Response.json({ data: { repo_count: 1 } });
+      }
+      if (path === "/eshu-api/api/v0/catalog") {
+        return Response.json({ data: { services: [] } });
+      }
+      if (path === "/eshu-api/api/v0/code/dead-code") {
+        return Response.json({
+          data: {
+            results: [{
+              classification: "unused",
+              entity_id: "content-entity:e1",
+              file_path: "server/routes.ts",
+              name: "legacyRoute",
+              repo_id: "repository:r1",
+              start_line: 12
+            }]
+          },
+          truth: { level: "fallback", freshness: { state: "fresh" }, profile: "production" }
+        });
+      }
+      return Response.json({ data: {} });
+    }));
+
+    render(
+      <MemoryRouter initialEntries={["/findings"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("Unreferenced symbol legacyRoute")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show verified evidence only" }));
+
+    expect(screen.queryByText("Unreferenced symbol legacyRoute")).not.toBeInTheDocument();
+    expect(screen.getByText("No findings from this source.")).toBeInTheDocument();
+  });
+
+  it("counts vulnerabilities in the Findings navigation worklist badge", async () => {
+    window.localStorage.setItem(
+      "eshu.console.environment",
+      JSON.stringify({ mode: "private", apiBaseUrl: "/eshu-api/", recentApiBaseUrls: ["/eshu-api/"] })
+    );
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const request = new Request(input);
+      const path = new URL(request.url).pathname;
+      if (path === "/eshu-api/api/v0/index-status") {
+        return Response.json({ status: "ready", repository_count: 1, queue: {} });
+      }
+      if (path === "/eshu-api/api/v0/ecosystem/overview") {
+        return Response.json({ data: { repo_count: 1 } });
+      }
+      if (path === "/eshu-api/api/v0/catalog") {
+        return Response.json({ data: { services: [] } });
+      }
+      if (path === "/eshu-api/api/v0/code/dead-code") {
+        return Response.json({
+          data: {
+            results: [{
+              classification: "unused",
+              entity_id: "content-entity:e1",
+              file_path: "server/routes.ts",
+              name: "legacyRoute",
+              repo_id: "repository:r1"
+            }]
+          },
+          truth: { level: "derived", freshness: { state: "fresh" }, profile: "production" }
+        });
+      }
+      if (path === "/eshu-api/api/v0/supply-chain/impact/findings") {
+        return Response.json({
+          data: {
+            findings: [{
+              advisory_id: "CVE-2026-1234",
+              cvss_score: 8.1,
+              package_name: "lodash",
+              repository_id: "repository:r1"
+            }]
+          }
+        });
+      }
+      return Response.json({ data: {} });
+    }));
+
+    render(
+      <MemoryRouter initialEntries={["/findings"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("CVE-2026-1234 · lodash")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Findings" }).querySelector(".nav-count")).toHaveTextContent("2");
+  });
+
+  it("routes CVE searches to vulnerability detail instead of graph explorer", async () => {
+    window.localStorage.setItem(
+      "eshu.console.environment",
+      JSON.stringify({ mode: "private", apiBaseUrl: "/eshu-api/", recentApiBaseUrls: ["/eshu-api/"] })
+    );
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const path = new URL(new Request(input).url).pathname;
+      if (path === "/eshu-api/api/v0/index-status") {
+        return Response.json({ status: "ready", repository_count: 1, queue: {} });
+      }
+      if (path === "/eshu-api/api/v0/ecosystem/overview") {
+        return Response.json({ data: { repo_count: 1 } });
+      }
+      if (path === "/eshu-api/api/v0/catalog") {
+        return Response.json({ data: { services: [] } });
+      }
+      if (path === "/eshu-api/api/v0/supply-chain/impact/findings") {
+        return Response.json({
+          data: {
+            findings: [{
+              advisory_id: "CVE-2024-0001",
+              cvss_score: 8.1,
+              package_name: "sample-lib",
+              repository_id: "repository:r1"
+            }]
+          }
+        });
+      }
+      if (path === "/eshu-api/api/v0/supply-chain/vulnerabilities/CVE-2024-0001") {
+        return Response.json({
+          data: {
+            canonical_id: "CVE-2024-0001",
+            cve_ids: ["CVE-2024-0001"],
+            sources: [{ cvss_score: 8.1, severity_label: "high" }],
+            affected_packages: [{ package_name: "sample-lib", fixed_version: "2.0.1" }]
+          }
+        });
+      }
+      return Response.json({ data: {} });
+    }));
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    const input = await screen.findByLabelText("Search Eshu");
+    fireEvent.change(input, { target: { value: "CVE-2024-0001" } });
+    const form = input.closest("form");
+    expect(form).not.toBeNull();
+    fireEvent.submit(form!);
+
+    expect(await screen.findByRole("heading", { name: "CVE-2024-0001" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Graph Explorer" })).not.toBeInTheDocument();
+  });
+
+  it("routes repository searches to the source browser instead of graph explorer", async () => {
+    window.localStorage.setItem(
+      "eshu.console.environment",
+      JSON.stringify({ mode: "private", apiBaseUrl: "/eshu-api/", recentApiBaseUrls: ["/eshu-api/"] })
+    );
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const path = new URL(new Request(input).url).pathname;
+      if (path === "/eshu-api/api/v0/index-status") {
+        return Response.json({ status: "ready", repository_count: 1, queue: {} });
+      }
+      if (path === "/eshu-api/api/v0/ecosystem/overview") {
+        return Response.json({ data: { repo_count: 1 } });
+      }
+      if (path === "/eshu-api/api/v0/catalog") {
+        return Response.json({ data: { services: [] } });
+      }
+      if (path === "/eshu-api/api/v0/repositories") {
+        return Response.json({
+          data: { repositories: [{ id: "repository:helm-charts", name: "helm-charts", repo_slug: "platform/helm-charts" }] }
+        });
+      }
+      if (path === "/eshu-api/api/v0/repositories/repository%3Ahelm-charts/tree") {
+        return Response.json({
+          data: { ref: "main", path: "", entries: [] }
+        });
+      }
+      return Response.json({ data: {} });
+    }));
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    const input = await screen.findByLabelText("Search Eshu");
+    fireEvent.change(input, { target: { value: "helm-charts" } });
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+
+    expect(await screen.findByRole("heading", { name: /helm-charts/ })).toBeInTheDocument();
+    expect(screen.getByText(/File tree \+ viewer/)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Graph Explorer" })).not.toBeInTheDocument();
   });
 });
