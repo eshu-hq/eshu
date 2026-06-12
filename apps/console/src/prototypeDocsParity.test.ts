@@ -393,8 +393,8 @@ describe("prototype documentation parity", () => {
     const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-live-parity.jsx");
 
-    expect(app).not.toContain("Package evidence and advisory reachability");
-    expect(app).not.toContain("Source, service and datastore dependency edges");
+    const staleAppContracts = ["Container image inventory and package risk", "Package evidence and advisory reachability", "Source, service and datastore dependency edges", "|| m.vulns.length", "|| m.services.filter((s) => s.image).length", "|| m.cloudResources.filter((r) => r.tf).length"];
+    for (const stale of staleAppContracts) expect(app).not.toContain(stale);
     expect(page).toContain("GET /api/v0/images");
     expect(page).toContain("GET /api/v0/iac/resources");
     expect(page).toContain("GET /api/v0/dependencies");

@@ -23,6 +23,25 @@ function setRouteHash(route, suffix) {
   else location.hash = route + (suffix || "");
 }
 
+function isLiveModel(model) {
+  return model && model.org === "live";
+}
+
+function imageNavCount(model) {
+  const count = (model.imageInventory || []).length;
+  return isLiveModel(model) ? count : count || model.services.filter((s) => s.image).length;
+}
+
+function iacNavCount(model) {
+  const count = (model.iacParityRows || []).length;
+  return isLiveModel(model) ? count : count || model.cloudResources.filter((r) => r.tf).length;
+}
+
+function sbomNavCount(model) {
+  const count = model.sbomInventory && model.sbomInventory.buckets ? model.sbomInventory.buckets.length : 0;
+  return isLiveModel(model) ? count : count || model.vulns.length;
+}
+
 const NAV = [
   { group: "Overview", items: [
     { id: "dashboard", label: "Dashboard", icon: "dashboard" },
@@ -32,8 +51,8 @@ const NAV = [
     { id: "repos", label: "Repositories", icon: "catalog", count: (m) => m.services.filter((s) => s.repo).length },
     { id: "catalog", label: "Catalog", icon: "box", count: (m) => m.services.length },
     { id: "findings", label: "Findings", icon: "findings", alert: true, count: (m) => m.findings.length + m.vulns.length },
-    { id: "images", label: "Images", icon: "box", count: (m) => (m.imageInventory || []).length || m.services.filter((s) => s.image).length },
-    { id: "iac", label: "IaC", icon: "layers", count: (m) => (m.iacParityRows || []).length || m.cloudResources.filter((r) => r.tf).length },
+    { id: "images", label: "Images", icon: "box", count: imageNavCount },
+    { id: "iac", label: "IaC", icon: "layers", count: iacNavCount },
     { id: "vulnerabilities", label: "Vulnerabilities", icon: "vuln", alert: true, count: (m) => m.vulns.length }
   ] },
   { group: "Code", items: [
@@ -44,7 +63,7 @@ const NAV = [
     { id: "topology", label: "Topology", icon: "graph" },
     { id: "cloud", label: "Cloud", icon: "cloud", count: (m) => m.cloudResources.length },
     { id: "observability", label: "Observability", icon: "pulse" },
-    { id: "sbom", label: "SBOM", icon: "shield", count: (m) => (m.sbomInventory && m.sbomInventory.buckets.length) || m.vulns.length },
+    { id: "sbom", label: "SBOM", icon: "shield", count: sbomNavCount },
     { id: "dependencies", label: "Dependencies", icon: "branch", count: (m) => (m.dependencyInventory || []).length }
   ] },
   { group: "System", items: [
@@ -59,7 +78,7 @@ const TITLES = {
   reposource: ["Repository source", "Indexed repository tree and source viewer"],
   catalog: ["Catalog", "Services, repositories & workloads"],
   findings: ["Findings", "What needs human attention — one worklist"],
-  images: ["Images", "Container image inventory and package risk"],
+  images: ["Images", "Container image inventory"],
   iac: ["IaC", "Terraform and ArgoCD evidence"],
   deadcode: ["Dead code", "Unreferenced symbols — analyzer findings"],
   codegraph: ["Code graph", "Symbol & module relationships (CALLS / IMPORTS)"],
