@@ -30,6 +30,8 @@ describe("DeadCodePage", () => {
     renderDeadCode(<DeadCodePage model={demoModel} />);
 
     expect(screen.getByRole("heading", { name: "Dead code" })).toBeInTheDocument();
+    expect(screen.getByText(/POST \/api\/v0\/code\/dead-code/)).toBeInTheDocument();
+    expect(screen.getByText(/Select a location to open the source file/)).toBeInTheDocument();
     expect(screen.getByLabelText("Dead-code workbench")).toBeInTheDocument();
     expect(screen.getByText(/Grouped by repository/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /All kinds/ })).toBeInTheDocument();

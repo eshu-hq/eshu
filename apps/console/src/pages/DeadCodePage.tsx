@@ -99,7 +99,12 @@ export function DeadCodePage({
     <div className="page">
       <div className="page-intro">
         <h2>Dead code</h2>
-        <p>Graph-backed dead-code candidates from <span className="mono">/api/v0/code/dead-code</span>. Candidates are grouped by repository and stay empty when the API has no analyzer output.</p>
+        <p>
+          Graph-backed dead-code candidates from{" "}
+          <span className="mono">POST /api/v0/code/dead-code</span>. Candidates
+          are grouped by repository and stay empty when the API has no analyzer
+          output. Select a location to open the source file.
+        </p>
       </div>
 
       <div className="grid g-4">
