@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { EshuApiClient } from "../api/client";
 import { loadEntityMapGraph, resolveEntityName } from "../api/eshuGraph";
-import type { ConsoleModel, GraphModel, GraphNode, ServiceRow } from "../console/types";
+import type { ConsoleModel, GraphModel, GraphNode, RelationshipRow, ServiceRow } from "../console/types";
 import { fmt, LAYER_COLOR, SEVERITY_COLOR, uiTruth } from "../console/types";
 import { StatTile, Panel, TruthChip } from "../components/atoms";
 import { AreaChart, Donut, BarRows } from "../components/charts";
@@ -13,6 +13,13 @@ type AtlasState =
   | { readonly kind: "idle" }
   | { readonly kind: "loading"; readonly seed: string }
   | { readonly kind: "error"; readonly message: string; readonly seed: string };
+
+type RelationshipCoverageRow = {
+  readonly label: string;
+  readonly value: number;
+  readonly color: string;
+  readonly detail: string;
+};
 
 export function DashboardPage({ model, client, onOpenService }: {
   readonly model: ConsoleModel;
@@ -39,8 +46,7 @@ export function DashboardPage({ model, client, onOpenService }: {
     (a, v) => { const k = v.severity as keyof typeof a; if (k in a) a[k] += 1; return a; },
     { critical: 0, high: 0, medium: 0, low: 0 }
   );
-  const relRows = model.relationships.slice().sort((a, b) => b.count - a.count).slice(0, 7)
-    .map((x) => ({ label: x.verb, value: x.count, color: LAYER_COLOR[x.layer], detail: x.detail }));
+  const relRows = useMemo(() => relationshipRowsFor(model.relationships, graph), [model.relationships, graph]);
   const serviceNames = new Set(model.services.map((s) => s.name));
 
   useEffect(() => {
@@ -219,6 +225,29 @@ function relationshipMetric(model: ConsoleModel, graph: GraphModel): number | nu
   const relationshipTotal = model.relationships.reduce((total, row) => total + row.count, 0);
   if (relationshipTotal > 0) return relationshipTotal;
   return graph.edges.length > 0 ? graph.edges.length : null;
+}
+
+function relationshipRowsFor(
+  rows: readonly RelationshipRow[],
+  graph: GraphModel
+): readonly RelationshipCoverageRow[] {
+  if (rows.length > 0) {
+    return rows.slice().sort((a, b) => b.count - a.count).slice(0, 7)
+      .map((row) => ({ label: row.verb, value: row.count, color: LAYER_COLOR[row.layer], detail: row.detail }));
+  }
+  const counts = new Map<string, RelationshipRow>();
+  for (const edge of graph.edges) {
+    const key = `${edge.verb}\u0000${edge.layer}`;
+    const current = counts.get(key);
+    counts.set(key, {
+      verb: edge.verb,
+      layer: edge.layer,
+      count: (current?.count ?? 0) + 1,
+      detail: "Live entity-map relationships"
+    });
+  }
+  return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 7)
+    .map((row) => ({ label: row.verb, value: row.count, color: LAYER_COLOR[row.layer], detail: row.detail }));
 }
 
 // A seed graph is "meaningful" once it has at least this many edges. A single
