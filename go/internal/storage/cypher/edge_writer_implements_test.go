@@ -48,3 +48,37 @@ func TestRetractInheritanceEdgesCoversImplements(t *testing.T) {
 		t.Error("inheritance retract does not clean stale IMPLEMENTS edges")
 	}
 }
+
+func TestBuildCodeCallRowMapRoutesInstantiates(t *testing.T) {
+	payload := map[string]any{
+		"caller_entity_id":   "uid:caller",
+		"callee_entity_id":   "uid:class",
+		"caller_entity_type": "Function",
+		"callee_entity_type": "Class",
+		"call_kind":          "constructor_call",
+		"relationship_type":  "INSTANTIATES",
+		"resolution_method":  "type_inferred",
+	}
+	cypher, rowMap, ok := buildCodeCallRowMap(payload, "parser/code-calls")
+	if !ok {
+		t.Fatal("buildCodeCallRowMap ok = false, want true")
+	}
+	if cypher != batchCanonicalInstantiatesUpsertCypher {
+		t.Errorf("expected INSTANTIATES template, got %q", cypher)
+	}
+	if !strings.Contains(cypher, "rel:INSTANTIATES") {
+		t.Errorf("template does not write INSTANTIATES: %q", cypher)
+	}
+	if rowMap["confidence"] != 0.80 {
+		t.Errorf("confidence = %#v, want 0.80 (type_inferred)", rowMap["confidence"])
+	}
+}
+
+func TestRetractCodeCallEdgesCoversInstantiates(t *testing.T) {
+	if !strings.Contains(retractCodeCallParserEdgesCypher, "INSTANTIATES") {
+		t.Error("parser code-call retract does not clean stale INSTANTIATES edges")
+	}
+	if !strings.Contains(retractCodeCallFallbackEdgesCypher, "INSTANTIATES") {
+		t.Error("fallback code-call retract does not clean stale INSTANTIATES edges")
+	}
+}

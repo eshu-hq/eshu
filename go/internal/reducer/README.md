@@ -2279,6 +2279,31 @@ worker, lease, runtime knob, metric instrument, or metric label. The existing
 counts plus per-phase timings) stays the operator signal; the new field appears
 inside existing durable intent payloads.
 
+## INSTANTIATES edges (#2229)
+
+`extractGenericCodeCallRows` now additionally emits an `INSTANTIATES` edge
+`(Function|File)-[:INSTANTIATES]->(Class|Struct|Enum)` when a `constructor_call`
+resolves to a concrete type. The edge is additive: the existing `CALLS` edges to
+the type and its constructor are unchanged, so call-graph reachability is
+preserved while construction becomes separately queryable. It carries
+`type_inferred` provenance (ADR #2222) because it rides the constructor
+resolution, and is deduplicated per caller→type pair regardless of how many
+construction sites exist.
+
+No-Regression Evidence: `go test ./internal/reducer -run 'Instantiates|CodeCall' -count=1`
+and `go test ./internal/storage/cypher -run 'Instantiates|CodeCall|RetractCodeCall' -count=1`
+fail before the edge exists and pass after. The change adds one bounded helper
+call per constructor-call row inside the existing code-call pass (one endpoint
+type lookup, no new resolution, scan, or graph query); the INSTANTIATES template
+is the same batched `UNWIND … MERGE` keyed on `uid` as the code-call templates,
+and the code-call retract was extended so re-projection stays idempotent.
+Cardinality is bounded by constructor-call sites (gap analysis #2228).
+
+No-Observability-Change: INSTANTIATES rides the existing code-call edge-write
+path; the per-statement edge summary now reports `relationship=INSTANTIATES`, and
+the existing code-call materialization completion log, edge batch counters, and
+graph query-duration metrics expose the writes with no new metric or label.
+
 ## IMPLEMENTS edges (#2229)
 
 `ExtractInheritanceRows` now also emits `IMPLEMENTS` edges
