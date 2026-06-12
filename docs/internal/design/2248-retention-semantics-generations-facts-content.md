@@ -127,10 +127,12 @@ record safe audit/status facts before removing rows. The order is:
    `ingestion_scopes` rows plus candidate `scope_generations` rows.
 2. Re-read `active_generation_id`, candidate status, `superseded_at`, and
    work-item state under the lock. Abort the candidate if any value changed.
-3. Record a retention event with only safe fields: scope id or safe hash,
-   generation id, policy scope, policy revision/hash, row counts, reason, and
-   timestamp. Do not include source names, paths, payload excerpts, private
-   URLs, credentials, or raw provider identifiers.
+3. Record a retention event with only safe fields: scope class,
+   `scope_id_hash`, `generation_id_hash`, policy scope, policy revision/hash,
+   row counts, reason, and timestamp. Audit and status rows must not store raw
+   scope ids or raw generation ids because those identifiers can include
+   source-shaped details in some collectors. Do not include source names, paths,
+   payload excerpts, private URLs, credentials, or raw provider identifiers.
 4. Delete or let foreign keys cascade generation-owned rows, including
    `fact_records`, `fact_work_items`, fact replay events, graph projection
    phase state, shared projection acceptance rows, and other rows whose schema
@@ -183,7 +185,8 @@ make this interleaving impossible.
 
 Implementation PRs must add or identify operator signals that answer:
 
-- how many generations are eligible for cleanup by source scope;
+- how many generations are eligible for cleanup by scope class, source system,
+  collector kind, and authorized safe scope hash drilldown;
 - oldest eligible age;
 - rows pruned by table or data class;
 - cleanup duration and batch size;
@@ -193,9 +196,11 @@ Implementation PRs must add or identify operator signals that answer:
 - graph repair or retraction backlog, when cleanup discovers derived-state
   disagreement.
 
-Metric labels must remain bounded. Scope ids, generation ids, repository paths,
-source names, file paths, private URLs, provider resource identifiers, and
-payload details belong in redacted logs or spans, not metric labels.
+Metric labels must remain bounded. Raw scope ids, raw generation ids,
+repository paths, source names, file paths, private URLs, provider resource
+identifiers, and payload details must not appear in audit rows, status rows, or
+metric labels. Raw ids may appear only in redacted operator logs or spans under
+the existing access controls; shared readbacks use safe hashes.
 
 ## Proof Matrix For #2249
 
