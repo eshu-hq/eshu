@@ -335,6 +335,7 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("locationLabelFromNode");
     expect(page).toContain("focusedNodeSourceHref");
     expect(page).toContain("focusedRepositoryLabel");
+    expect(page).toContain("Related symbol source metadata unavailable");
     expect(page).toContain("function apiData(env)");
     expect(page).toContain("env && env.error");
     expect(page).toContain("sourceAvailable");

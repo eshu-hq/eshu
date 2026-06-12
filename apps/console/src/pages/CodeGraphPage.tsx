@@ -103,6 +103,7 @@ export function CodeGraphPage({ model, client }: {
   const focusedSourceHref = focusedFinding ? sourceHref(focusedFinding) : sourceHrefFromNode(focusedNode);
   const focusedRepository = focusedFinding?.entity ?? focusedNode?.source?.repoName ?? focusedNode?.source?.repoId ?? selected?.entity ?? "unknown";
   const focusedLocation = focusedFinding ? locationFromFinding(focusedFinding) : locationFromNode(focusedNode);
+  const focusedSourceStatus = sourceMetadataStatus(focusedNode, focusedFinding, focusedSourceHref);
 
   function selectGraphNode(node: GraphNode): void {
     setFocusedNodeId(node.id);
@@ -174,6 +175,7 @@ export function CodeGraphPage({ model, client }: {
                 <Link className="btn-ghost" to={`/explorer?q=${encodeURIComponent(focusedRepository === "unknown" ? focusedNode.label : focusedRepository)}`}>Explore repo graph</Link>
                 {focusedFinding?.filePath ? <Link className="btn-ghost" to={`/dead-code?q=${encodeURIComponent(focusedFinding.filePath)}`}>Filter dead code</Link> : null}
               </div>
+              {focusedSourceStatus ? <p className="t-mut" style={{ fontSize: ".78rem", margin: "8px 0 0" }}>{focusedSourceStatus}</p> : null}
             </div>
           ) : <p className="empty" style={{ textAlign: "left" }}>Click a graph node to inspect evidence and next actions.</p>}
 
@@ -290,6 +292,16 @@ function sourceHrefFromNode(node: GraphNode | undefined): string | null {
   if (source.startLine !== undefined) params.set("lineStart", String(source.startLine));
   if (source.endLine !== undefined) params.set("lineEnd", String(source.endLine));
   return `/repositories/${encodeURIComponent(source.repoId)}/source?${params.toString()}`;
+}
+
+function sourceMetadataStatus(
+  node: GraphNode | undefined,
+  finding: FindingRow | undefined,
+  href: string | null
+): string {
+  if (!node || href) return "";
+  if (finding) return "Dead-code scan did not return repository/file metadata.";
+  return "Related symbol source metadata unavailable from POST /api/v0/code/relationships.";
 }
 
 async function loadCodeGraphCandidates(client: EshuApiClient): Promise<readonly FindingRow[]> {

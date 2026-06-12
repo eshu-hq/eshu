@@ -74,6 +74,12 @@ function sourceHrefFromNode(node) {
   return window.ESHU_ROUTES.hashFor("reposource", "/" + encodeURIComponent(source.repoId) + "/source?" + params.toString());
 }
 
+function sourceMetadataStatus(node, candidate, href) {
+  if (!node || href) return "";
+  if (candidate) return "Dead-code scan did not return repository/file metadata.";
+  return "Related symbol source metadata unavailable from POST /api/v0/code/relationships.";
+}
+
 function locationLabelFromNode(node) {
   const source = node && node.source;
   if (!source || !source.filePath) return "source path unavailable";
@@ -358,6 +364,7 @@ function CodeGraph({ data, client, onOpenService }) {
   const focusedRepositoryLabel = focusedCandidate ? deadCodeRepoLabel(focusedCandidate) : (focusedNode && focusedNode.source && (focusedNode.source.repoName || focusedNode.source.repoId)) || deadCodeRepoLabel(selectedCandidate);
   const focusedLocationLabel = focusedCandidate ? locationLabel(focusedCandidate) : locationLabelFromNode(focusedNode);
   const focusedSourceHref = focusedCandidate ? sourceHref(focusedCandidate) : focusedNodeSourceHref;
+  const focusedSourceStatus = sourceMetadataStatus(focusedNode, focusedCandidate, focusedSourceHref);
   const explorerQuery = focusedRepositoryLabel !== "repository" ? focusedRepositoryLabel : ((focusedNode && focusedNode.label) || "");
   const focusedDegree = focusedNode ? g.edges.filter((e) => e.s === focusedNode.id || e.t === focusedNode.id).length : 0;
   function selectCandidate(id) {
@@ -415,6 +422,7 @@ function CodeGraph({ data, client, onOpenService }) {
                   {focusedSourceHref ? <a className="btn-ghost active" href={focusedSourceHref}>Open source</a> : null}
                   <a className="btn-ghost" href={window.ESHU_ROUTES.hashFor("explorer", "?q=" + encodeURIComponent(explorerQuery))}>Explore repo graph</a>
                 </div>
+                {focusedSourceStatus ? <p className="t-mut" style={{ fontSize: ".78rem", margin: "8px 0 0" }}>{focusedSourceStatus}</p> : null}
               </div>
             </>
           ) : <p className="empty" style={{ textAlign: "left" }}>Click a graph node to inspect evidence and next actions.</p>}

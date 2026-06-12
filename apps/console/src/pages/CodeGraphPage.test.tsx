@@ -213,6 +213,53 @@ describe("CodeGraphPage", () => {
     );
   });
 
+  it("explains when related symbols are not source-linkable", async () => {
+    const model: ConsoleModel = {
+      ...demoModel,
+      findings: [
+        {
+          id: "dead-1",
+          type: "Dead code",
+          entity: "api-node-platform",
+          title: "Unreferenced symbol post",
+          detail: "server/handlers/install.ts · unused",
+          truth: "derived",
+          entityId: "content-entity:e1",
+          filePath: "server/handlers/install.ts",
+          startLine: 17,
+          language: "typescript",
+          classification: "unused",
+          repoId: "repository:r_platform"
+        }
+      ]
+    };
+    const client = {
+      post: async () => ({
+        data: {
+          entity_id: "content-entity:e1",
+          name: "post",
+          labels: ["Function"],
+          incoming: [{ type: "CALLS", source_id: "content-entity:e2", source_name: "caller" }],
+          outgoing: []
+        },
+        error: null,
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/code-graph"]}>
+        <CodeGraphPage model={model} client={client} />
+      </MemoryRouter>
+    );
+
+    const callerNode = await screen.findByText("caller");
+    fireEvent.click(callerNode);
+
+    expect(screen.getByText("Related symbol source metadata unavailable from POST /api/v0/code/relationships.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Open source" })).not.toBeInTheDocument();
+  });
+
   it("turns dead-code rows in the analyzer into selectable source evidence", async () => {
     const model: ConsoleModel = {
       ...demoModel,
