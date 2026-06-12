@@ -202,7 +202,8 @@ const openAPIComponents = `  "components": {
           "source_name": {"type": "string"},
           "source_id": {"type": "string"},
           "confidence": {"type": "number"},
-          "reason": {"type": "string"}
+          "reason": {"type": "string"},
+          "resolution_method": {"type": "string"}
         }
       },
       "FileContent": {

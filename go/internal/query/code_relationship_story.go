@@ -352,9 +352,31 @@ func relationshipStoryRowsWithHandles(rows []map[string]any) []map[string]any {
 		if targetID := StringVal(item, "target_id"); targetID != "" {
 			item["target_handle"] = "entity:" + targetID
 		}
+		// Per ADR #2222 a legacy edge without recorded provenance omits the
+		// fields rather than surfacing a null tier; readers treat absence as
+		// unspecified.
+		dropNilOrEmptyRowKey(item, "confidence")
+		dropNilOrEmptyRowKey(item, "resolution_method")
 		out = append(out, item)
 	}
 	return out
+}
+
+// dropNilOrEmptyRowKey removes a row key whose value is nil or an empty or
+// whitespace-only string, so optional per-edge provenance fields are omitted
+// rather than surfaced as a null tier.
+func dropNilOrEmptyRowKey(row map[string]any, key string) {
+	value, ok := row[key]
+	if !ok {
+		return
+	}
+	if value == nil {
+		delete(row, key)
+		return
+	}
+	if text, isString := value.(string); isString && strings.TrimSpace(text) == "" {
+		delete(row, key)
+	}
 }
 
 func relationshipStoryDirections(direction string) []string {

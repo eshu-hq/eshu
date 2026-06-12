@@ -81,6 +81,17 @@ is ambiguous, it returns bounded candidates instead of guessing. It supports
 direct relationships, bounded transitive `CALLS`, class hierarchy prompts, and
 override prompts.
 
+Each `CALLS`/`REFERENCES` relationship in the response carries per-edge
+provenance: `confidence` (a number) and `resolution_method` (how the callee was
+resolved). `resolution_method` is a closed value — `scip`, `declared`,
+`same_file`, `import_binding`, `type_inferred`, `scope_unique_name`, or
+`repo_unique_name` — and the confidence is derived from it (see the
+[graph model](../../concepts/graph-model.md)).
+The fields are additive: an edge projected before this contract omits both, and
+readers must treat a missing `resolution_method` as unspecified. Per-edge
+provenance is independent of the answer-level truth envelope; a low-confidence
+edge does not lower the answer's truth level.
+
 `POST /api/v0/code/call-chain` finds a bounded path between `start` and `end`,
 or between `start_entity_id` and `end_entity_id`. `repo_id` scopes both
 endpoints when provided. Lightweight profiles that cannot answer authoritative
