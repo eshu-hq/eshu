@@ -263,6 +263,10 @@ function App() {
   }
 
   const [title, sub] = TITLES[route] || TITLES.dashboard;
+  const runtime = data.runtime || {};
+  const backendState = source.mode === "live" ? (runtime.indexStatus || source.status || "live") : "healthy";
+  const backendVersion = runtime.backendVersion || "live";
+  const runtimeProfile = runtime.profile || source.mode;
 
   return (
     <div className="shell">
@@ -288,12 +292,12 @@ function App() {
         ))}
         <div className="sidebar-foot">
           <div className="backend-card">
-            <div className="bc-top"><i />NornicDB · healthy</div>
-            <div className="bc-meta"><span>{ESHU.runtime.backendVersion}</span><span>{fmt(ESHU.runtime.nodes)} nodes</span></div>
+            <div className="bc-top"><i />NornicDB · {backendState}</div>
+            <div className="bc-meta"><span>{backendVersion}</span><span>{fmt(runtime.nodes || 0)} nodes</span></div>
           </div>
           <div className="row" style={{ justifyContent: "space-between", padding: "0 4px" }}>
             <span className="t-mut" style={{ fontSize: ".7rem" }}>Profile</span>
-            <span className="mono" style={{ fontSize: ".7rem", color: "var(--muted)" }}>{ESHU.runtime.profile}</span>
+            <span className="mono" style={{ fontSize: ".7rem", color: "var(--muted)" }}>{runtimeProfile}</span>
           </div>
         </div>
       </nav>

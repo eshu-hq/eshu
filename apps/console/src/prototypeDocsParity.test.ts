@@ -117,6 +117,17 @@ describe("prototype documentation parity", () => {
     expect(prototypeApp).not.toContain("sections without a live endpoint show demo facts");
   });
 
+  it("keeps the prototype shell footer on the selected data source", () => {
+    const prototypeApp = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
+
+    expect(prototypeApp).toContain("const runtime = data.runtime || {}");
+    expect(prototypeApp).toContain("runtime.backendVersion");
+    expect(prototypeApp).toContain("runtime.nodes");
+    expect(prototypeApp).not.toContain("ESHU.runtime.backendVersion");
+    expect(prototypeApp).not.toContain("ESHU.runtime.nodes");
+    expect(prototypeApp).not.toContain("ESHU.runtime.profile");
+  });
+
   it("keeps prototype Operations connected-live mode on supported metric contracts", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
