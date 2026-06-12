@@ -10,6 +10,13 @@ interface PrototypeClient {
 }
 
 interface PrototypeModel {
+  readonly deadCode?: readonly {
+    readonly entityId: string;
+    readonly file: string;
+    readonly repo: string;
+    readonly repoId: string;
+    readonly symbol: string;
+  }[];
   readonly prov: Record<string, string>;
   readonly advisoryCatalog?: readonly { readonly id: string; readonly severity: string; readonly cvss: number; readonly kev: boolean }[];
   readonly cloudAccounts?: readonly { readonly id: string; readonly provider: string; readonly account: string }[];
@@ -48,6 +55,7 @@ function repoRoot(): string {
 }
 
 const loaderPath = resolve(repoRoot(), "apps/console/prototype/eshu-console/console/live-parity-loader.js");
+const deadCodeLoaderPath = resolve(repoRoot(), "apps/console/prototype/eshu-console/console/live-dead-code-loader.js");
 
 function loadPrototypeWindow(): PrototypeWindow {
   const win: PrototypeWindow = {
@@ -61,6 +69,7 @@ function loadPrototypeWindow(): PrototypeWindow {
       }
     }
   };
+  vm.runInNewContext(readFileSync(deadCodeLoaderPath, "utf8"), { window: win, Number, Boolean });
   vm.runInNewContext(readFileSync(loaderPath, "utf8"), { window: win, Number, Boolean });
   return win;
 }
@@ -220,5 +229,62 @@ describe("prototype live parity loader", () => {
       kev: true
     });
     expect(model.prov.advisoryCatalog).toBe("live");
+  });
+
+  it("keeps live dead-code candidates even when source metadata is partial", async () => {
+    const win = loadPrototypeWindow();
+    const client: PrototypeClient = {
+      paths: [],
+      async get(path: string): Promise<unknown> {
+        this.paths.push(path);
+        if (path.includes("/repositories?limit=500&offset=0")) {
+          return { data: { repositories: [{ id: "repository:r1", name: "api-node-platform" }] } };
+        }
+        if (path.includes("/observability/coverage/correlations")) return { data: { correlations: [] } };
+        if (path.includes("/metrics/timeseries")) return { data: { points: [] } };
+        if (path.includes("/cloud/inventory")) return { data: { resources: [] } };
+        if (path.includes("/supply-chain/sbom-attestations/attachments/count")) return { data: { total_attachments: 0 } };
+        return { data: { advisories: [], buckets: [], dependencies: [], images: [], languages: [], resources: [] } };
+      },
+      async post(path: string): Promise<unknown> {
+        this.paths.push(path);
+        if (path.includes("/code/dead-code")) {
+          return {
+            data: {
+              results: [
+                {
+                  classification: "unused",
+                  entity_id: "content-entity:e1",
+                  file_path: "server/routes.ts",
+                  labels: ["Function"],
+                  name: "unusedRoute",
+                  repo_id: "repository:r1",
+                  start_line: 10
+                },
+                {
+                  classification: "ambiguous",
+                  labels: ["Function"],
+                  name: "missingSourceCandidate",
+                  repo_id: "repository:r1"
+                }
+              ]
+            },
+            truth: { level: "derived" }
+          };
+        }
+        return { data: {} };
+      }
+    };
+
+    const model = await win.ESHU.loadLive(client);
+
+    expect(model.deadCode?.map((row) => row.symbol)).toEqual(["unusedRoute", "missingSourceCandidate"]);
+    expect(model.deadCode?.[1]).toMatchObject({
+      entityId: "",
+      file: "",
+      repo: "api-node-platform",
+      repoId: "repository:r1"
+    });
+    expect(model.prov.deadCode).toBe("live");
   });
 });

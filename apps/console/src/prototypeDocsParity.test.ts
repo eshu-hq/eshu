@@ -171,23 +171,25 @@ describe("prototype documentation parity", () => {
   });
 
   it("keeps prototype dead-code locations wired to repository source deep links", () => {
+    const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-code.jsx");
+    const deadCodeLoader = repoFile("apps/console/prototype/eshu-console/console/live-dead-code-loader.js");
     const loader = repoFile("apps/console/prototype/eshu-console/console/data.js");
 
+    expect(html).toContain("console/live-dead-code-loader.js");
     expect(page).toContain('hashFor("reposource"');
     expect(page).toContain("lineStart");
     expect(page).toContain("Open source");
+    expect(deadCodeLoader).toContain("/api/v0/code/dead-code");
+    expect(deadCodeLoader).toContain("loadRepositoryNameLookup");
+    expect(deadCodeLoader).toContain("repoDisplayName");
+    expect(deadCodeLoader).not.toContain("row.entityId && row.file");
     expect(loader).toContain("repoNameById");
-    expect(loader).toContain("repoId:");
-    expect(loader).toContain("repoName:");
-    expect(loader).toContain("entityId:");
-    expect(loader).toContain("endLine:");
   });
 
   it("keeps the prototype code graph on current live code contracts", () => {
     const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-code.jsx");
-    const loader = repoFile("apps/console/prototype/eshu-console/console/live-parity-loader.js");
 
     expect(app).toContain("<CodeGraph data={data} client={liveClient}");
     expect(page).toContain("/api/v0/code/relationships");
@@ -196,8 +198,6 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("deadCodeSourceRepo");
     expect(page).toContain("focusedNode");
     expect(page).toContain("locationLabel");
-    expect(loader).toContain("loadRepositoryNameLookup");
-    expect(loader).toContain("repoDisplayName");
   });
 
   it("keeps the prototype topology route on current live service topology contracts", () => {
