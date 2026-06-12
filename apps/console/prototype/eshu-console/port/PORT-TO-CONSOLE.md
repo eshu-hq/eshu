@@ -39,7 +39,7 @@ not the surface a dashboard should consume — use the HTTP API on `:8080`.
      the recent API base URL in `localStorage` (`eshu.console.environment`), but
      never persists the API key or writes it to source.
 5. Live sections hydrate from the graph when the API endpoint is available;
-   panels without live rows keep demo facts and say so in the banner.
+   panels without live rows render explicit empty/unavailable states.
 
 The client + mappers already live in `console/data.js` (`ESHU.EshuApiClient`,
 `ESHU.loadLive`). Endpoints used:
