@@ -210,12 +210,16 @@ Recommended child slices:
    `go/internal/searchdocs` and
    `docs/public/reference/search-document-projection.md`.
 3. Partially done: add a benchmark harness comparing current Postgres content
-   search with curated NornicDB BM25/vector retrieval. The first harness
-   contract lives in `go/internal/searchbench` and
+   search with curated NornicDB BM25/vector retrieval. The pure evidence, suite,
+   and scoring contract lives in `go/internal/searchbench` and
    `docs/public/reference/search-benchmark-evidence.md`. The Postgres keyword
-   baseline adapter now lives in `go/internal/searchpostgres`; measured
-   Postgres-vs-NornicDB proof still needs a live suite run before any runtime
-   search change.
+   baseline adapter lives in `go/internal/searchpostgres`. The live execution
+   layer now lives in `go/internal/searchbenchrun`: `RunSuite` drives a backend
+   adapter across the query suite through the bounded retrieval runner, measures
+   p50/p95 latency and accuracy, and `AssembleEvidence` produces a validated
+   `search-benchmark-evidence/v1` record. Measured Postgres-vs-NornicDB proof
+   over a representative corpus still needs a live suite run with both backends
+   wired to real stores before any runtime search change.
 4. Add bounded internal retrieval path for semantic-evaluation queries. The
    first request/response contract lives in `go/internal/searchretrieval` and
    `docs/public/reference/search-retrieval-contract.md`.

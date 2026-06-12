@@ -383,6 +383,44 @@ Observability Evidence: `link-prediction-evaluation/v1` requires
 shared neighbors, source handles, and target handles stay in evidence records,
 logs, or spans rather than metric labels.
 
+## Live Benchmark Executor
+
+`go/internal/searchbench` is pure: it owns the evidence, suite, and scoring
+contracts and performs no I/O. The live execution layer is
+`go/internal/searchbenchrun`, which turns a backend adapter and a query suite
+into a measured, validated evidence record.
+
+`searchbenchrun.RunSuite` drives a `searchretrieval.Backend` across every query
+in a `searchbench.QuerySuite` through the bounded retrieval runner. From that
+execution it derives the query count, p50/p95 latency (nearest-rank percentile
+over every retrieval attempt, including timeouts and failures), and the recall,
+precision, nDCG, and false-canonical-claim metrics computed by
+`searchbench.ScoreQuerySuite`. Each backend serves exactly one mode, so the
+executor derives the request mode from the backend identity and holds the query
+set and expected handles constant across backends.
+
+The executor does not invent the numbers it cannot observe from the query loop.
+Backend image or commit, NornicDB search flags, clean- and preserved-volume
+startup times, memory high-water mark, index artifact size, and rebuild
+behavior are supplied by the operator harness through
+`searchbenchrun.BackendDescriptor`. The Postgres-vs-NornicDB recommendation is a
+recorded human decision passed to `searchbenchrun.AssembleEvidence`, which
+stamps the schema version, derived truth scope, and the full required
+failure-class contract before returning a record that has passed
+`searchbench.ValidateEvidence`.
+
+A per-query backend or timeout error is recorded as a missed query rather than
+aborting the run; only parent context cancellation stops a run. The returned
+`SuiteRun.Observations` carry the per-query mode, scope anchor, duration,
+candidate and result counts, truncation, timeout, candidate truth-level counts,
+and failure classes for operator diagnosis.
+
+Recording a benchmark decision in this document still requires a live run over a
+representative corpus with both the Postgres baseline and at least one NornicDB
+backend wired to real stores. The executor is the harness that produces that
+record; it does not lower the requirement for measured runs before any runtime
+search change.
+
 ## Recommendation
 
 Each completed evidence record must recommend exactly one decision:
@@ -401,7 +439,7 @@ slower, less diagnosable, or dependent on successful search index rebuild.
 Focused package gate:
 
 ```bash
-cd go && go test ./internal/searchbench ./internal/searchdocs ./internal/searchnornicdb -count=1
+cd go && go test ./internal/searchbench ./internal/searchbenchrun ./internal/searchdocs ./internal/searchnornicdb -count=1
 ```
 
 Docs changes must also pass:
