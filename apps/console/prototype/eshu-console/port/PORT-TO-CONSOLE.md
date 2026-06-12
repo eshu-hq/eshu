@@ -37,9 +37,8 @@ not the surface a dashboard should consume — use the HTTP API on `:8080`.
    - The key lives only in memory for the current session. The prototype stores
      the recent API base URL in `localStorage` (`eshu.console.environment`), but
      never persists the API key or writes it to source.
-5. Live sections (runtime, catalog, languages, ingesters, dead-code findings,
-   supply-chain vulnerabilities) hydrate from the graph; panels without a live
-   endpoint keep demo facts and say so in the banner.
+5. Live sections hydrate from the graph when the API endpoint is available;
+   panels without live rows keep demo facts and say so in the banner.
 
 The client + mappers already live in `console/data.js` (`ESHU.EshuApiClient`,
 `ESHU.loadLive`). Endpoints used:
@@ -52,7 +51,11 @@ The client + mappers already live in `console/data.js` (`ESHU.EshuApiClient`,
 | Collectors           | `GET /api/v0/status/ingesters` |
 | Findings             | `POST /api/v0/code/dead-code` |
 | Vulnerabilities      | `GET /api/v0/supply-chain/impact/findings` |
-| Graph drill (next)   | `POST /api/v0/code/relationships`, `POST /api/v0/impact/blast-radius` |
+| Images               | `GET /api/v0/images` |
+| IaC                  | `GET /api/v0/iac/resources` |
+| SBOM                 | `GET /api/v0/supply-chain/sbom-attestations/attachments/count`, `GET /api/v0/supply-chain/sbom-attestations/attachments/inventory` |
+| Dependencies         | `GET /api/v0/dependencies` |
+| Observability        | `GET /api/v0/observability/coverage/correlations?provider=` |
 
 ---
 

@@ -97,7 +97,7 @@ function Cloud({ data, onOpenService, onOpenNode }) {
         <StatTile label="Cloud resources" value={fmt(all.length)} color="var(--blue)" sub={"indexed of " + fmt(D.runtime.cloudResources) + " discovered"} />
         <StatTile label="Accounts" value={D.cloudAccounts.length} color="var(--ember)" sub={providers.map((p) => PROVIDER_META[p].label).join(" · ")} />
         <StatTile label="Terraform-managed" value={tfPct + "%"} color="var(--teal)" sub="declared by IaC state" />
-        <StatTile label="Observability objects" value={obsCount} color="var(--ok, #22c55e)" sub="alarms · logs · traces · dashboards" onClick={() => { location.hash = "observability"; }} cta="Coverage" />
+        <StatTile label="Observability objects" value={obsCount} color="var(--ok, #22c55e)" sub="alarms · logs · traces · dashboards" onClick={() => { window.ESHU_ROUTES.setHash("observability"); }} cta="Coverage" />
       </div>
 
       <div className="grid mt" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: "var(--gap)" }}>
@@ -252,7 +252,7 @@ function Observability({ data, onOpenService, onOpenNode, onOpenCollector }) {
 
   return (
     <div className="page" style={{ maxWidth: "none" }}>
-      <div className="page-intro"><h2>Observability</h2><p>Signal coverage correlated per service — which workloads emit <strong>metrics, logs, traces, dashboards, alerts</strong> and <strong>synthetics</strong>, and where the gaps are. Sources: Prometheus, CloudWatch, OpenTelemetry, Loki, Datadog &amp; X-Ray. Click any cell to drill to the signal or the service.</p></div>
+      <div className="page-intro"><h2>Observability</h2><p>Coverage correlations for grafana, prometheus/mimir, loki, and tempo — which workloads emit <strong>metrics, logs, traces, dashboards, alerts</strong> and <strong>synthetics</strong>, and where the gaps are. Click any cell to drill to the signal or the service.</p></div>
 
       <div className="grid g-4">
         <StatTile label="Services monitored" value={rows.length} color="var(--teal)" sub="running workloads" />
