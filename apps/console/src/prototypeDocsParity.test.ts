@@ -150,13 +150,19 @@ describe("prototype documentation parity", () => {
 
   it("keeps the prototype vulnerability surface split like the live console", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
+    const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-vulnerability-parity.jsx");
+    const guide = repoFile("apps/console/prototype/eshu-console/port/PORT-TO-CONSOLE.md");
 
     expect(html).toContain("console/pages-vulnerability-parity.jsx");
+    expect(app).toContain("<Vulnerabilities data={data} client={liveClient}");
     expect(page).toContain("Reachable in services");
     expect(page).toContain("Known intelligence");
     expect(page).toContain("advisoryCatalog");
     expect(page).toContain("GET /api/v0/supply-chain/advisories");
+    expect(page).toContain("/api/v0/supply-chain/vulnerabilities/");
+    expect(page).toContain("Extended advisory evidence");
+    expect(guide).toContain("GET /api/v0/supply-chain/vulnerabilities/{id}");
   });
 
   it("keeps the prototype graph explorer on the live query contracts", () => {

@@ -55,7 +55,7 @@ The client + mappers already live in `console/data.js` (`ESHU.EshuApiClient`,
 | Findings             | `POST /api/v0/code/dead-code` |
 | Code Graph           | `POST /api/v0/code/dead-code`, `POST /api/v0/code/relationships` |
 | Graph Explorer       | `POST /api/v0/entities/resolve`, `POST /api/v0/code/relationships`, `GET /api/v0/services/{name}/context`, `GET /api/v0/repositories/{id}/context`, `POST /api/v0/impact/entity-map` |
-| Vulnerabilities      | `GET /api/v0/supply-chain/impact/findings`, `GET /api/v0/supply-chain/advisories` |
+| Vulnerabilities      | `GET /api/v0/supply-chain/impact/findings`, `GET /api/v0/supply-chain/advisories`, `GET /api/v0/supply-chain/vulnerabilities/{id}` |
 | Images               | `GET /api/v0/images` |
 | IaC                  | `GET /api/v0/iac/resources` |
 | SBOM                 | `GET /api/v0/supply-chain/sbom-attestations/attachments/count`, `GET /api/v0/supply-chain/sbom-attestations/attachments/inventory` |

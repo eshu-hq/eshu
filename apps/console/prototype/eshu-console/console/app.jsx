@@ -264,7 +264,7 @@ function App() {
         {route === "iac" ? <IaC data={data} onOpenService={openService} /> : null}
         {route === "deadcode" ? <DeadCode data={data} onOpenService={openService} /> : null}
         {route === "codegraph" ? <CodeGraph data={data} client={liveClient} onOpenService={openService} /> : null}
-        {route === "vulnerabilities" ? <Vulnerabilities data={data} onOpenService={openService} onOpenNode={openNode} chartStyle={t.chartStyle} verifiedOnly={verifiedOnly} /> : null}
+        {route === "vulnerabilities" ? <Vulnerabilities data={data} client={liveClient} onOpenService={openService} onOpenNode={openNode} chartStyle={t.chartStyle} verifiedOnly={verifiedOnly} /> : null}
         {route === "topology" ? <Topology data={data} client={liveClient} onOpenNode={openNode} onOpenService={openService} /> : null}
         {route === "cloud" ? <Cloud data={data} client={liveClient} onOpenService={openService} onOpenNode={openNode} /> : null}
         {route === "observability" ? <Observability data={data} client={liveClient} onOpenService={openService} onOpenNode={openNode} onOpenCollector={openCollector} /> : null}
