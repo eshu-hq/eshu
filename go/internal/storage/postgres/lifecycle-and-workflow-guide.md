@@ -162,6 +162,32 @@ can observe files without recommitting identical snapshots or superseding
 in-flight projector work. Failed generations do not satisfy this check, so a
 failed first projection can still be retried by the next snapshot.
 
+`CollectorGenerationDeadLetterStore` covers the narrower failure point where a
+collector generation reaches `CommitScopeGeneration` but the durable commit
+returns before projector work rows exist. The store writes one idempotent row to
+`collector_generation_dead_letters` keyed by `generation_id`, with safe
+scope/generation replay metadata and a bounded failure message. It does not
+persist the consumed fact stream; replay marking is a source-level handoff for
+the collector or operator after the commit failure is fixed. A later successful
+commit for the same scope marks unresolved rows `replayed`.
+
+No-Regression Evidence: collector generation dead-letter storage is covered by
+`go test ./internal/storage/postgres -run 'TestCollectorGenerationDeadLetter|TestStatusStoreReadRawSnapshot|TestBootstrapDefinitionsAreOrderedAndComplete' -count=1`.
+The table is idempotent, keyed by generation id, indexed by status/scope/kind,
+and replay marking updates matching `dead_letter` rows to `replay_requested`
+while successful source commits update unresolved rows to `replayed`, without
+touching `fact_work_items` or changing projector/reducer worker counts.
+
+Observability Evidence: `StatusStore.ReadStatusSnapshot` reads
+`collector_generation_dead_letters` into the runtime status report. Operators
+see `collector_generation_dead_letters.dead_letter`,
+`collector_generation_dead_letters.replay_requested`,
+`collector_generation_dead_letters.replay_attempts`, and
+`collector_generation_dead_letters.oldest_dead_letter_age_seconds` for
+unresolved `dead_letter` or `replay_requested` rows, plus matching
+`eshu_runtime_collector_generation_*` gauges without raw fact payloads,
+repository names, local paths, credential handles, or provider response bodies.
+
 `IngestionStore.CurrentScopeGeneration` exposes the same newest pending or
 active `(generation_id, freshness_hint)` lookup for callers that need a
 bounded preflight before doing expensive deterministic work. `eshu docs verify

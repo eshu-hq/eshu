@@ -48,6 +48,17 @@ func TestRefinalizeFilterValidateRequiresScopeIDs(t *testing.T) {
 	}
 }
 
+func TestCollectorGenerationReplayFilterValidateRequiresNonBlankCollectorKind(t *testing.T) {
+	t.Parallel()
+
+	for _, collectorKind := range []string{"", "   "} {
+		err := (CollectorGenerationReplayFilter{CollectorKind: collectorKind}).Validate()
+		if err == nil {
+			t.Fatalf("CollectorGenerationReplayFilter{CollectorKind: %q}.Validate() = nil, want error", collectorKind)
+		}
+	}
+}
+
 func TestHandlerReplayFailedDelegatesToStore(t *testing.T) {
 	t.Parallel()
 
@@ -159,6 +170,47 @@ func TestHandlerRefinalizePropagatesStoreError(t *testing.T) {
 	}
 }
 
+func TestHandlerReplayCollectorGenerationsDelegatesToStore(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.June, 12, 18, 30, 0, 0, time.UTC)
+	store := &fakeReplayStore{
+		collectorGenerationReplayResult: CollectorGenerationReplayResult{
+			Replayed:      1,
+			GenerationIDs: []string{"generation-456"},
+		},
+	}
+	handler := mustNewHandler(t, store)
+	handler.now = func() time.Time { return now.In(time.FixedZone("offset", -4*60*60)) }
+
+	result, err := handler.ReplayCollectorGenerations(context.Background(), CollectorGenerationReplayFilter{
+		ScopeIDs:      []string{"scope-123"},
+		FailureClass:  "commit_failure",
+		CollectorKind: "git",
+		Limit:         10,
+	})
+	if err != nil {
+		t.Fatalf("ReplayCollectorGenerations() error = %v, want nil", err)
+	}
+	if result.Replayed != 1 || len(result.GenerationIDs) != 1 || result.GenerationIDs[0] != "generation-456" {
+		t.Fatalf("ReplayCollectorGenerations() result = %#v, want generation replay", result)
+	}
+	if got := store.collectorGenerationReplayFilter.CollectorKind; got != "git" {
+		t.Fatalf("store collector kind = %q, want git", got)
+	}
+	if !store.collectorGenerationReplayAt.Equal(now) {
+		t.Fatalf("store replay time = %s, want %s", store.collectorGenerationReplayAt, now)
+	}
+}
+
+func TestCollectorGenerationReplayFilterRejectsBlankCollectorKind(t *testing.T) {
+	t.Parallel()
+
+	if err := (CollectorGenerationReplayFilter{ScopeIDs: []string{"scope-123"}}).Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want non-nil")
+	}
+}
+
 // --- helpers ---
 
 func mustNewHandler(t *testing.T, store ReplayStore) *Handler {
@@ -175,12 +227,16 @@ func mustNewHandler(t *testing.T, store ReplayStore) *Handler {
 // --- fakes ---
 
 type fakeReplayStore struct {
-	replayFilter     ReplayFilter
-	replayResult     ReplayResult
-	replayErr        error
-	refinalizeFilter RefinalizeFilter
-	refinalizeResult RefinalizeResult
-	refinalizeErr    error
+	replayFilter                    ReplayFilter
+	replayResult                    ReplayResult
+	replayErr                       error
+	refinalizeFilter                RefinalizeFilter
+	refinalizeResult                RefinalizeResult
+	refinalizeErr                   error
+	collectorGenerationReplayFilter CollectorGenerationReplayFilter
+	collectorGenerationReplayAt     time.Time
+	collectorGenerationReplayResult CollectorGenerationReplayResult
+	collectorGenerationReplayErr    error
 }
 
 func (f *fakeReplayStore) ReplayFailedWorkItems(
@@ -199,4 +255,14 @@ func (f *fakeReplayStore) RefinalizeScopeProjections(
 ) (RefinalizeResult, error) {
 	f.refinalizeFilter = filter
 	return f.refinalizeResult, f.refinalizeErr
+}
+
+func (f *fakeReplayStore) ReplayCollectorGenerations(
+	_ context.Context,
+	filter CollectorGenerationReplayFilter,
+	now time.Time,
+) (CollectorGenerationReplayResult, error) {
+	f.collectorGenerationReplayFilter = filter
+	f.collectorGenerationReplayAt = now
+	return f.collectorGenerationReplayResult, f.collectorGenerationReplayErr
 }

@@ -38,7 +38,9 @@ func TestClaimedServiceClaimsHeartbeatsCommitsAndCompletes(t *testing.T) {
 		ok:        true,
 	}
 	committer := &stubClaimedCommitter{}
+	sink := &stubGenerationDeadLetterSink{}
 	service := testClaimedService(now, claim, scope.CollectorGit, store, source, committer)
+	service.DeadLetters = sink
 
 	if err := service.Run(ctx); err != nil {
 		t.Fatalf("Run() error = %v, want nil", err)
@@ -63,6 +65,12 @@ func TestClaimedServiceClaimsHeartbeatsCommitsAndCompletes(t *testing.T) {
 		got.SubjectClass != item.SubjectClass ||
 		got.PolicyRevisionHash != item.PolicyRevisionHash {
 		t.Fatalf("claimed commit tenant boundary = %#v, want boundary from work item", got)
+	}
+	if got, want := len(sink.completions), 1; got != want {
+		t.Fatalf("dead-letter replay completions = %d, want %d", got, want)
+	}
+	if got := sink.completionContextErrs[0]; got != nil {
+		t.Fatalf("dead-letter replay completion context error = %v, want nil", got)
 	}
 }
 
@@ -164,7 +172,9 @@ func TestClaimedServiceFailsClaimWhenCommitFails(t *testing.T) {
 			return wantErr
 		},
 	}
+	sink := &stubGenerationDeadLetterSink{}
 	service := testClaimedService(now, claim, scope.CollectorGit, store, source, committer)
+	service.DeadLetters = sink
 
 	if err := service.Run(ctx); err != nil {
 		t.Fatalf("Run() error = %v, want nil after retryable commit failure", err)
@@ -174,6 +184,12 @@ func TestClaimedServiceFailsClaimWhenCommitFails(t *testing.T) {
 	}
 	if got := store.lastRetryableFail; got.FailureClass != "commit_failure" {
 		t.Fatalf("FailureClass = %q, want commit_failure", got.FailureClass)
+	}
+	if got, want := len(sink.records), 1; got != want {
+		t.Fatalf("dead-letter records = %d, want %d", got, want)
+	}
+	if got := sink.records[0].Generation.GenerationID; got != "generation-claim-1" {
+		t.Fatalf("dead-letter generation_id = %q, want generation-claim-1", got)
 	}
 }
 

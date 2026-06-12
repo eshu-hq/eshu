@@ -94,6 +94,31 @@ func TestStatusHandlerHostedReadinessReportsDeadLettersAndGraphUnavailable(t *te
 	requireFailureClass(t, payload, "graph_unavailable")
 }
 
+func TestStatusHandlerHostedReadinessReportsCollectorGenerationDeadLetters(t *testing.T) {
+	t.Parallel()
+
+	payload := hostedReadinessPayload(t, statuspkg.RawSnapshot{
+		AsOf: time.Date(2026, 6, 12, 19, 5, 0, 0, time.UTC),
+		CollectorGenerationDeadLetters: statuspkg.CollectorGenerationDeadLetterSnapshot{
+			DeadLetter:          0,
+			ReplayRequested:     1,
+			ReplayAttempts:      1,
+			OldestDeadLetterAge: 5 * time.Minute,
+		},
+		ScopeActivity: statuspkg.ScopeActivitySnapshot{Active: 1},
+		Coordinator: &statuspkg.CoordinatorSnapshot{
+			CollectorInstances: []statuspkg.CollectorInstanceSummary{
+				{InstanceID: "collector:git", CollectorKind: "git", Enabled: true},
+			},
+		},
+	}, hostedReadinessGraph{repositoryCount: 1})
+
+	if got, want := payload["state"], "not_ready"; got != want {
+		t.Fatalf("state = %#v, want %#v; payload=%#v", got, want, payload)
+	}
+	requireFailureClass(t, payload, "collector_generation_dead_lettered")
+}
+
 func TestStatusHandlerHostedReadinessReportsHealthyConvergence(t *testing.T) {
 	t.Parallel()
 

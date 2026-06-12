@@ -6,7 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 const replayFailedWorkItemsQuery = `
@@ -219,6 +221,33 @@ func (s RecoveryStore) ReplayFailedWorkItems(
 		Stage:       filter.Stage,
 		Replayed:    len(workItemIDs),
 		WorkItemIDs: workItemIDs,
+	}, nil
+}
+
+// ReplayCollectorGenerations marks collector generation commit failures for
+// source-level replay.
+func (s RecoveryStore) ReplayCollectorGenerations(
+	ctx context.Context,
+	filter recovery.CollectorGenerationReplayFilter,
+	now time.Time,
+) (recovery.CollectorGenerationReplayResult, error) {
+	if s.db == nil {
+		return recovery.CollectorGenerationReplayResult{}, fmt.Errorf("recovery store database is required")
+	}
+
+	result, err := NewCollectorGenerationDeadLetterStore(s.db).ReplayGenerationDeadLetters(ctx, collector.GenerationDeadLetterReplayFilter{
+		ScopeIDs:      filter.ScopeIDs,
+		FailureClass:  filter.FailureClass,
+		CollectorKind: scope.CollectorKind(filter.CollectorKind),
+		Limit:         filter.Limit,
+	}, now)
+	if err != nil {
+		return recovery.CollectorGenerationReplayResult{}, err
+	}
+
+	return recovery.CollectorGenerationReplayResult{
+		Replayed:      result.Replayed,
+		GenerationIDs: result.GenerationIDs,
 	}, nil
 }
 

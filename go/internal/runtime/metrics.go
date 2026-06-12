@@ -136,6 +136,27 @@ func renderStatusMetrics(serviceName string, report statuspkg.Report) string {
 		map[string]string{"service_name": serviceName},
 		fmt.Sprintf("%.0f", queue.OldestOutstandingAge.Seconds()),
 	)
+	collectorGenerationDeadLetters := report.CollectorGenerationDeadLetters
+	writeGauge(
+		"eshu_runtime_collector_generation_dead_letter",
+		map[string]string{"service_name": serviceName},
+		strconv.Itoa(collectorGenerationDeadLetters.DeadLetter),
+	)
+	writeGauge(
+		"eshu_runtime_collector_generation_replay_requested",
+		map[string]string{"service_name": serviceName},
+		strconv.Itoa(collectorGenerationDeadLetters.ReplayRequested),
+	)
+	writeGauge(
+		"eshu_runtime_collector_generation_replay_attempts",
+		map[string]string{"service_name": serviceName},
+		strconv.Itoa(collectorGenerationDeadLetters.ReplayAttempts),
+	)
+	writeGauge(
+		"eshu_runtime_collector_generation_dead_letter_oldest_age_seconds",
+		map[string]string{"service_name": serviceName},
+		fmt.Sprintf("%.0f", collectorGenerationDeadLetters.OldestDeadLetterAge.Seconds()),
+	)
 
 	for _, key := range sortedCountKeys(report.GenerationTotals) {
 		writeGauge(

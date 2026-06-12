@@ -88,6 +88,11 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 					},
 				},
 			},
+			{
+				rows: [][]any{
+					{int64(2), int64(1), int64(3), 180.0},
+				},
+			},
 		},
 	}
 
@@ -126,6 +131,18 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 	}
 	if got.LatestQueueFailure.FailureDetails != "phase=semantic label=Variable rows=500" {
 		t.Fatalf("ReadRawSnapshot().LatestQueueFailure.FailureDetails = %q, want graph write details", got.LatestQueueFailure.FailureDetails)
+	}
+	if got.CollectorGenerationDeadLetters.DeadLetter != 2 {
+		t.Fatalf("ReadRawSnapshot().CollectorGenerationDeadLetters.DeadLetter = %d, want 2", got.CollectorGenerationDeadLetters.DeadLetter)
+	}
+	if got.CollectorGenerationDeadLetters.ReplayRequested != 1 {
+		t.Fatalf("ReadRawSnapshot().CollectorGenerationDeadLetters.ReplayRequested = %d, want 1", got.CollectorGenerationDeadLetters.ReplayRequested)
+	}
+	if got.CollectorGenerationDeadLetters.ReplayAttempts != 3 {
+		t.Fatalf("ReadRawSnapshot().CollectorGenerationDeadLetters.ReplayAttempts = %d, want 3", got.CollectorGenerationDeadLetters.ReplayAttempts)
+	}
+	if got.CollectorGenerationDeadLetters.OldestDeadLetterAge != 3*time.Minute {
+		t.Fatalf("ReadRawSnapshot().CollectorGenerationDeadLetters.OldestDeadLetterAge = %v, want 3m", got.CollectorGenerationDeadLetters.OldestDeadLetterAge)
 	}
 	if len(got.ScopeCounts) != 6 {
 		t.Fatalf("ReadRawSnapshot().ScopeCounts len = %d, want 6", len(got.ScopeCounts))
@@ -188,8 +205,8 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		t.Fatalf("ReadRawSnapshot().Coordinator = %#v, want nil", got.Coordinator)
 	}
 
-	if len(queryer.queries) != 26 {
-		t.Fatalf("QueryContext() call count = %d, want 26", len(queryer.queries))
+	if len(queryer.queries) != 27 {
+		t.Fatalf("QueryContext() call count = %d, want 27", len(queryer.queries))
 	}
 	for _, want := range []string{
 		"FROM ingestion_scopes",
@@ -208,6 +225,7 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		"WITH active_scopes AS (",
 		"fact_summary AS (",
 		"workflow_instances AS (",
+		"FROM collector_generation_dead_letters",
 		"FROM semantic_extraction_jobs",
 	} {
 		joined := strings.Join(queryer.queries, "\n")
@@ -315,6 +333,9 @@ func (q *fakeQueryer) QueryContext(_ context.Context, query string, _ ...any) (R
 		}
 		if query == collectorFactEvidenceQuery {
 			return &fakeRows{}, nil
+		}
+		if query == collectorGenerationDeadLetterStatusQuery {
+			return &fakeRows{rows: [][]any{{int64(0), int64(0), int64(0), 0.0}}}, nil
 		}
 		if query == producerActivityQuery {
 			return &fakeRows{rows: [][]any{{false, nil}}}, nil

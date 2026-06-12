@@ -94,6 +94,10 @@ func (s StatusStore) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (st
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
+	collectorGenerationDeadLetters, err := readCollectorGenerationDeadLetterSnapshot(ctx, s.queryer, asOf.UTC())
+	if err != nil {
+		return statuspkg.RawSnapshot{}, err
+	}
 	coordinatorSnapshot, err := readCoordinatorSnapshot(ctx, s.queryer, asOf.UTC())
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
@@ -133,29 +137,30 @@ func (s StatusStore) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (st
 	}
 
 	return statuspkg.RawSnapshot{
-		AsOf:                         asOf.UTC(),
-		ScopeCounts:                  scopeCounts,
-		ScopeActivity:                scopeActivity,
-		GenerationCounts:             generationCounts,
-		GenerationHistory:            generationHistory,
-		GenerationTransitions:        generationTransitions,
-		StageCounts:                  stageCounts,
-		DomainBacklogs:               domainBacklogs,
-		ProducerActivity:             producerActivity,
-		QueueBlockages:               queueBlockages,
-		Queue:                        queueSnapshot,
-		LatestQueueFailure:           latestQueueFailure,
-		Coordinator:                  coordinatorSnapshot,
-		RegistryCollectors:           registryCollectors,
-		AWSCloudScans:                awsCloudScans,
-		AWSFreshness:                 awsFreshness,
-		VulnerabilitySources:         vulnerabilitySources,
-		CollectorFactEvidence:        collectorFactEvidence,
-		AWSCloudScansTruncated:       awsCloudScansTruncated,
-		AWSCloudScanLimit:            awsCloudScanStatusLimit,
-		TerraformStateLastSerials:    terraformStateEvidence.LastSerials,
-		TerraformStateRecentWarnings: terraformStateEvidence.RecentWarnings,
-		SemanticExtraction:           semanticExtraction,
+		AsOf:                           asOf.UTC(),
+		ScopeCounts:                    scopeCounts,
+		ScopeActivity:                  scopeActivity,
+		GenerationCounts:               generationCounts,
+		GenerationHistory:              generationHistory,
+		GenerationTransitions:          generationTransitions,
+		StageCounts:                    stageCounts,
+		DomainBacklogs:                 domainBacklogs,
+		ProducerActivity:               producerActivity,
+		QueueBlockages:                 queueBlockages,
+		Queue:                          queueSnapshot,
+		LatestQueueFailure:             latestQueueFailure,
+		CollectorGenerationDeadLetters: collectorGenerationDeadLetters,
+		Coordinator:                    coordinatorSnapshot,
+		RegistryCollectors:             registryCollectors,
+		AWSCloudScans:                  awsCloudScans,
+		AWSFreshness:                   awsFreshness,
+		VulnerabilitySources:           vulnerabilitySources,
+		CollectorFactEvidence:          collectorFactEvidence,
+		AWSCloudScansTruncated:         awsCloudScansTruncated,
+		AWSCloudScanLimit:              awsCloudScanStatusLimit,
+		TerraformStateLastSerials:      terraformStateEvidence.LastSerials,
+		TerraformStateRecentWarnings:   terraformStateEvidence.RecentWarnings,
+		SemanticExtraction:             semanticExtraction,
 	}, nil
 }
 

@@ -55,6 +55,7 @@ type ClaimedService struct {
 	ControlStore        ClaimControlStore
 	Source              ClaimedSource
 	Committer           Committer
+	DeadLetters         GenerationDeadLetterSink
 	CollectorKind       scope.CollectorKind
 	CollectorInstanceID string
 	OwnerID             string
@@ -197,7 +198,7 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		if err := s.ControlStore.CompleteClaim(ctx, completeMutation); err != nil {
 			return fmt.Errorf("complete unchanged claimed %s work item: %w", s.claimedKindLabel(), err)
 		}
-		return nil
+		return s.completeGenerationDeadLetterReplay(ctx, collected)
 	}
 	if err := validateClaimedGeneration(item, collected); err != nil {
 		stopHeartbeat()
@@ -212,6 +213,7 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	commitMutation := mutation
 	commitMutation.ObservedAt = s.now()
 	if err := s.commitCollected(ctx, commitMutation, collected); err != nil {
+		err = s.recordGenerationDeadLetter(ctx, collected, "commit_failure", err)
 		// Mirror the NextClaimed path: a commit-side terminal classification
 		// (for example awsruntime stale-fence on CommitAWSScan) must route to
 		// FailClaimTerminal so the same orphaned-row loop issue #612 was
@@ -238,7 +240,7 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	if err := s.ControlStore.CompleteClaim(ctx, completeMutation); err != nil {
 		return fmt.Errorf("complete claimed %s work item: %w", s.claimedKindLabel(), err)
 	}
-	return nil
+	return s.completeGenerationDeadLetterReplay(ctx, collected)
 }
 
 func (s ClaimedService) commitCollected(

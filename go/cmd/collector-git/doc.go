@@ -10,6 +10,7 @@
 // app.NewHostedWithStatusServer so it exposes the shared `/healthz`, `/readyz`,
 // `/metrics`, and `/admin/status` admin surface. The native selector receives
 // the runtime logger so clone/fetch start, progress, completion, and failure
-// records are visible before snapshot workers start. It honors SIGINT and
-// SIGTERM for clean shutdown.
+// records are visible before snapshot workers start. Commit failures before
+// projector work exists are recorded through the shared collector generation
+// dead-letter sink. It honors SIGINT and SIGTERM for clean shutdown.
 package main

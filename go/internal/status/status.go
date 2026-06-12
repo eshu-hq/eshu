@@ -126,29 +126,30 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 	flowSummaries := buildFlowSummaries(scopeTotals, generationTotals, stageSummaries, queue, domainBacklogs)
 
 	return Report{
-		AsOf:                   raw.AsOf,
-		Health:                 evaluateHealth(queue, generationTotals, domainBacklogs, producerActivity, coordinator, opts),
-		FlowSummaries:          flowSummaries,
-		Queue:                  queue,
-		RetryPolicies:          cloneRetryPolicies(raw.RetryPolicies),
-		ScopeActivity:          scopeActivity,
-		GenerationHistory:      generationHistory,
-		GenerationTransitions:  cloneGenerationTransitions(raw.GenerationTransitions),
-		ScopeTotals:            scopeTotals,
-		GenerationTotals:       generationTotals,
-		StageSummaries:         stageSummaries,
-		DomainBacklogs:         domainBacklogs,
-		QueueBlockages:         cloneQueueBlockages(raw.QueueBlockages),
-		LatestQueueFailure:     cloneQueueFailure(raw.LatestQueueFailure),
-		Coordinator:            coordinator,
-		RegistryCollectors:     cloneRegistryCollectorSnapshots(raw.RegistryCollectors),
-		AWSCloudScans:          cloneAWSCloudScanStatuses(raw.AWSCloudScans),
-		AWSFreshness:           cloneAWSFreshnessSnapshot(raw.AWSFreshness),
-		VulnerabilitySources:   cloneVulnerabilitySourceStates(raw.VulnerabilitySources),
-		SemanticExtraction:     normalizeSemanticExtractionStatus(raw.SemanticExtraction),
-		CollectorFactEvidence:  cloneCollectorFactEvidence(raw.CollectorFactEvidence),
-		AWSCloudScansTruncated: raw.AWSCloudScansTruncated,
-		AWSCloudScanLimit:      raw.AWSCloudScanLimit,
+		AsOf:                           raw.AsOf,
+		Health:                         evaluateHealth(queue, generationTotals, domainBacklogs, producerActivity, coordinator, raw.CollectorGenerationDeadLetters, opts),
+		FlowSummaries:                  flowSummaries,
+		Queue:                          queue,
+		RetryPolicies:                  cloneRetryPolicies(raw.RetryPolicies),
+		ScopeActivity:                  scopeActivity,
+		GenerationHistory:              generationHistory,
+		GenerationTransitions:          cloneGenerationTransitions(raw.GenerationTransitions),
+		ScopeTotals:                    scopeTotals,
+		GenerationTotals:               generationTotals,
+		StageSummaries:                 stageSummaries,
+		DomainBacklogs:                 domainBacklogs,
+		QueueBlockages:                 cloneQueueBlockages(raw.QueueBlockages),
+		LatestQueueFailure:             cloneQueueFailure(raw.LatestQueueFailure),
+		Coordinator:                    coordinator,
+		RegistryCollectors:             cloneRegistryCollectorSnapshots(raw.RegistryCollectors),
+		AWSCloudScans:                  cloneAWSCloudScanStatuses(raw.AWSCloudScans),
+		AWSFreshness:                   cloneAWSFreshnessSnapshot(raw.AWSFreshness),
+		VulnerabilitySources:           cloneVulnerabilitySourceStates(raw.VulnerabilitySources),
+		SemanticExtraction:             normalizeSemanticExtractionStatus(raw.SemanticExtraction),
+		CollectorGenerationDeadLetters: cloneCollectorGenerationDeadLetterSnapshot(raw.CollectorGenerationDeadLetters),
+		CollectorFactEvidence:          cloneCollectorFactEvidence(raw.CollectorFactEvidence),
+		AWSCloudScansTruncated:         raw.AWSCloudScansTruncated,
+		AWSCloudScanLimit:              raw.AWSCloudScanLimit,
 		TerraformState: TerraformStateReport{
 			LastSerials:    SortTerraformStateSerials(raw.TerraformStateLastSerials),
 			RecentWarnings: SortTerraformStateWarnings(raw.TerraformStateRecentWarnings),
@@ -211,6 +212,7 @@ func RenderText(report Report) string {
 	lines = append(lines, renderAWSFreshnessLines(report.AWSFreshness)...)
 	lines = append(lines, renderVulnerabilitySourceLines(report.VulnerabilitySources)...)
 	lines = append(lines, renderSemanticExtractionLine(report.SemanticExtraction))
+	lines = append(lines, renderCollectorGenerationDeadLetterLine(report.CollectorGenerationDeadLetters))
 	if report.AWSCloudScansTruncated {
 		lines = append(lines, fmt.Sprintf("AWS cloud scans truncated: limit=%d", report.AWSCloudScanLimit))
 	}

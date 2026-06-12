@@ -178,8 +178,116 @@ paths:
               example: GET, HEAD
         "500":
           description: Report load or render failure.
+  /admin/replay-collector-generations:
+    post:
+      summary: Request source-level replay for collector generation failures
+      operationId: replayCollectorGenerations
+      description: >
+        Marks dead-lettered collector generation commit failures for
+        source-level replay. The route does not reconstruct consumed fact
+        streams; callers should use it after fixing the underlying commit
+        failure.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CollectorGenerationReplayRequest"
+      responses:
+        "200":
+          description: Collector generation replay request accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CollectorGenerationReplayResponse"
+        "400":
+          description: Invalid request body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "invalid request body: unexpected EOF"
+        "422":
+          description: Validation or replay request failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "replay collector generations: collector generation replay requires collector_kind"
+        "405":
+          description: Unsupported method.
+          headers:
+            Allow:
+              schema:
+                type: string
+              example: POST
 components:
   schemas:
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - error
+      properties:
+        error:
+          type: string
+    CollectorGenerationReplayRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - collector_kind
+      properties:
+        collector_kind:
+          type: string
+          description: Collector family to replay.
+        scope_ids:
+          type: array
+          items:
+            type: string
+        failure_class:
+          type: string
+        limit:
+          type: integer
+    CollectorGenerationReplayResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - replayed
+        - generation_ids
+      properties:
+        status:
+          type: string
+          enum:
+            - replay_requested
+        replayed:
+          type: integer
+        generation_ids:
+          type: array
+          items:
+            type: string
+    CollectorGenerationDeadLetters:
+      type: object
+      additionalProperties: false
+      required:
+        - dead_letter
+        - replay_requested
+        - replay_attempts
+        - oldest_dead_letter_age
+        - oldest_dead_letter_age_seconds
+      properties:
+        dead_letter:
+          type: integer
+        replay_requested:
+          type: integer
+        replay_attempts:
+          type: integer
+        oldest_dead_letter_age:
+          type: string
+        oldest_dead_letter_age_seconds:
+          type: number
     HealthSummary:
       type: object
       additionalProperties: false
@@ -677,6 +785,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/QueueBlockage"
+        collector_generation_dead_letters:
+          $ref: "#/components/schemas/CollectorGenerationDeadLetters"
         registry_collectors:
           type: array
           description: >

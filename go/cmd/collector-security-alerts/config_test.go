@@ -11,6 +11,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts/alertruntime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -59,6 +60,21 @@ func TestLoadClaimedRuntimeConfigSelectsSecurityAlertInstanceAndLoadsTokenEnv(t 
 	}
 	if got, want := config.Source.Targets[0].Token, "token-value"; got != want {
 		t.Fatalf("Target token = %q, want %q", got, want)
+	}
+}
+
+func TestBuildClaimedServiceWiresGenerationDeadLetters(t *testing.T) {
+	t.Parallel()
+
+	service, err := buildClaimedService(nil, testSecurityAlertGetenv, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("buildClaimedService() error = %v, want nil", err)
+	}
+	if service.DeadLetters == nil {
+		t.Fatal("DeadLetters = nil, want shared collector generation dead-letter sink")
+	}
+	if _, ok := service.DeadLetters.(collector.GenerationDeadLetterReplayCompleter); !ok {
+		t.Fatalf("DeadLetters type %T does not complete replay state", service.DeadLetters)
 	}
 }
 

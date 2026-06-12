@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -72,6 +73,40 @@ type RefinalizeResult struct {
 	ScopeIDs []string
 }
 
+// CollectorGenerationReplayFilter constrains collector generation commit
+// failures that should be marked for source-level replay.
+type CollectorGenerationReplayFilter struct {
+	// ScopeIDs limits replay requests to specific ingestion scopes. Empty means
+	// all scopes for the selected collector kind and failure class.
+	ScopeIDs []string
+
+	// FailureClass limits replay requests to a specific commit failure class.
+	FailureClass string
+
+	// CollectorKind limits replay requests to one collector family. Required.
+	CollectorKind string
+
+	// Limit caps the number of generation replay requests. Zero means the store
+	// chooses its bounded default.
+	Limit int
+}
+
+// Validate returns an error if the collector generation replay filter is not
+// usable.
+func (f CollectorGenerationReplayFilter) Validate() error {
+	if strings.TrimSpace(f.CollectorKind) == "" {
+		return errors.New("collector generation replay requires collector_kind")
+	}
+	return nil
+}
+
+// CollectorGenerationReplayResult captures collector generation replay request
+// outcomes.
+type CollectorGenerationReplayResult struct {
+	Replayed      int
+	GenerationIDs []string
+}
+
 // ReplayStore provides the database operations needed for recovery.
 type ReplayStore interface {
 	// ReplayFailedWorkItems resets failed work items to pending for the
@@ -82,6 +117,14 @@ type ReplayStore interface {
 	// scope IDs by inserting new pending work items for their active
 	// generations.
 	RefinalizeScopeProjections(ctx context.Context, filter RefinalizeFilter, now time.Time) (RefinalizeResult, error)
+
+	// ReplayCollectorGenerations marks collector generation commit failures for
+	// source-level replay.
+	ReplayCollectorGenerations(
+		ctx context.Context,
+		filter CollectorGenerationReplayFilter,
+		now time.Time,
+	) (CollectorGenerationReplayResult, error)
 }
 
 // Handler orchestrates recovery operations through the store.
@@ -116,6 +159,19 @@ func (h *Handler) Refinalize(ctx context.Context, filter RefinalizeFilter) (Refi
 	}
 
 	return h.store.RefinalizeScopeProjections(ctx, filter, h.time())
+}
+
+// ReplayCollectorGenerations marks collector generation commit failures for
+// source-level replay.
+func (h *Handler) ReplayCollectorGenerations(
+	ctx context.Context,
+	filter CollectorGenerationReplayFilter,
+) (CollectorGenerationReplayResult, error) {
+	if err := filter.Validate(); err != nil {
+		return CollectorGenerationReplayResult{}, fmt.Errorf("replay collector generations: %w", err)
+	}
+
+	return h.store.ReplayCollectorGenerations(ctx, filter, h.time())
 }
 
 func (h *Handler) time() time.Time {

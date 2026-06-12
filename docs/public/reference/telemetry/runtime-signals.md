@@ -64,6 +64,10 @@ Start with:
 - `eshu_runtime_queue_oldest_outstanding_age_seconds`
 - `eshu_runtime_stage_items`
 - `eshu_runtime_domain_oldest_age_seconds`
+- `eshu_runtime_collector_generation_dead_letter`
+- `eshu_runtime_collector_generation_replay_requested`
+- `eshu_runtime_collector_generation_replay_attempts`
+- `eshu_runtime_collector_generation_dead_letter_oldest_age_seconds`
 - `eshu_dp_queue_depth`
 - `eshu_dp_queue_oldest_age_seconds`
 
@@ -92,3 +96,9 @@ Do not tune worker counts from one metric. Compare:
 High queue age with low handler time points to claim, routing, conflict-domain,
 or scheduling pressure. High handler time points to source reads, fact loading,
 storage, graph writes, or query shape.
+
+Collector generation dead-letter gauges describe commit failures before normal
+projector work items existed. Fix the commit failure first, then use
+`/admin/replay-collector-generations` with a collector kind, optional scope
+filter, optional failure class, and bounded limit to request source-level
+replay.

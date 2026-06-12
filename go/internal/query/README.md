@@ -491,8 +491,9 @@ provider payloads, local paths, and credentials out of the payload. The legacy
 
 Hosted readiness follows the same aggregate rule for scoped tokens. `GET
 /api/v0/status/hosted-readiness` keeps hosted readiness checks, queue counters,
-repository counts, diagnostic route names, and coordinator aggregate counters
-visible, but it replaces coordinator instance rows with aggregate counts so
+collector-generation replay blockers, repository counts, diagnostic route
+names, and coordinator aggregate counters visible, but it replaces coordinator
+instance rows with aggregate counts so
 collector instance identifiers, display names, queue conflict keys,
 tenant/workspace values, provider payloads, local paths, and credentials stay
 out of the payload.

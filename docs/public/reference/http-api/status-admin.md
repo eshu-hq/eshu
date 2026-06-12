@@ -49,6 +49,12 @@ mounted:
   and exhaustion counts; audit rows expose actor and ACL classes. Source IDs,
   chunk IDs, fingerprints, raw failures, prompts, provider responses, principals,
   and credentials stay out of these status payloads.
+- `collector_generation_dead_letters` reports collector generation commit
+  failures that happened before projector work items existed. It includes only
+  aggregate counts, replay-requested count, replay attempts, and oldest
+  unresolved dead-letter or replay-request age; fact payloads, repository
+  names, local paths, credentials, and provider response bodies stay out of the
+  admin contract.
 
 Use `/admin/status` for runtime-local probes. Use `/api/v0/status/*` routes for
 public query API status.

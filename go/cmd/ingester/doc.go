@@ -8,8 +8,11 @@
 // observable gauges, runs collector and projector through compositeRunner, and
 // hosts the service through app.NewHostedWithStatusServer so it exposes the
 // shared `/healthz`, `/readyz`, `/metrics`, and `/admin/status` admin
-// surface together with the `/admin/recovery` route. For local-authoritative
-// NornicDB runs, projector workers default to NumCPU unless explicitly
+// surface together with the `/admin/replay`, `/admin/refinalize`, and
+// `/admin/replay-collector-generations` routes. Collector commit failures
+// before projector work exists are recorded through the shared collector
+// generation dead-letter sink. For local-authoritative NornicDB runs,
+// projector workers default to NumCPU unless explicitly
 // configured; NornicDB phase grouping keeps canonical retractions outside
 // matching upsert groups, directory/file writes stay in separate bounded
 // phases, and entity containment is batched into row-scoped entity upserts

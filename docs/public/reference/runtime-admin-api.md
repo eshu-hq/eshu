@@ -27,6 +27,7 @@ When configured with the recovery handler, it exposes:
 
 - `POST /admin/replay`
 - `POST /admin/refinalize`
+- `POST /admin/replay-collector-generations`
 
 Unsupported verbs return `405 Method Not Allowed` with `Allow: GET, HEAD` for
 probe and status endpoints, or `Allow: POST` for recovery endpoints.
@@ -88,6 +89,7 @@ The JSON report is rendered by `go/internal/status.RenderJSON` and may include:
 - `stages`
 - `domains`
 - `queue_blockages`
+- `collector_generation_dead_letters`
 - `terraform_state`
 
 `collector_runtimes` is a derived, additive view over coordinator registration,
@@ -104,6 +106,13 @@ available. Source-specific documentation collectors preserve the neutral
 Queue and domain age fields include both human-readable duration strings and
 seconds values, such as `oldest_outstanding_age_seconds` and
 `oldest_age_seconds`.
+
+`collector_generation_dead_letters` reports collector commit failures that
+happened before normal projector work items existed. It includes
+`dead_letter`, `replay_requested`, `replay_attempts`,
+`oldest_dead_letter_age`, and `oldest_dead_letter_age_seconds` for unresolved
+rows. It does not include fact payloads, repository names, local paths,
+credential handles, or provider response bodies.
 
 `vulnerability_sources` lists durable OSV, NVD, KEV, EPSS, or derived source
 target state when the vulnerability intelligence collector has attempted a
@@ -145,6 +154,14 @@ and `limit`. The response includes `status`, `stage`, `replayed`, and
 
 `POST /admin/refinalize` re-enqueues projector work for `scope_ids`. The
 response includes `status`, `enqueued`, and `scope_ids`.
+
+`POST /admin/replay-collector-generations` marks collector generation commit
+failures for source-level replay. The request accepts required
+`collector_kind`, optional `scope_ids`, optional `failure_class`, and `limit`.
+The response includes `status`, `replayed`, and `generation_ids`. This route
+does not reconstruct a consumed fact stream; it records a bounded replay request
+after the underlying commit failure has been fixed. A later successful commit
+for the same source scope marks unresolved rows `replayed`.
 
 Recovery routes are mounted only when the runtime is explicitly configured
 with `WithRecoveryHandler`.

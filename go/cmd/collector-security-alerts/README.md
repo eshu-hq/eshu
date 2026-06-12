@@ -26,6 +26,11 @@ claiming workflow work. It uses the `collector-security-alerts-preflight`
 telemetry service name and flushes OTLP signals before exiting when an exporter
 is configured.
 
+Hosted mode wires the shared collector generation dead-letter store. Commit
+failures record bounded scope and generation evidence in runtime status while
+workflow claims remain the retry and requeue owner. A later successful claimed
+commit clears unresolved replay state for the same source scope.
+
 Observability Evidence: hosted mode exposes the shared status/admin server plus
 Prometheus metrics for provider requests, emitted facts, rate-limit events, and
 fetch duration through `telemetry.Instruments`. Preflight mode does not start a

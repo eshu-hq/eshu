@@ -50,6 +50,9 @@ at least one generation was committed since the last drain, then waits
 calls `Committer.CommitScopeGeneration` with the `facts.Envelope` channel and
 records `CollectorObserveDuration`, `FactsEmitted`, `GenerationFactCount`, and
 `FactsCommitted`.
+If the durable commit returns an error and `DeadLetters` is wired, `Service`
+records bounded scope/generation replay metadata without storing fact payloads
+or local repository paths.
 
 `GitSource.Next` manages a per-batch streaming lifecycle. On the first call per
 batch it launches `startStream`, which:
@@ -131,13 +134,18 @@ No-Observability-Change: documentation extraction stays inside existing `collect
 ## Exported surface
 
 - `Service` — poll-and-dispatch loop; wire `Source`, `Committer`,
-  `PollInterval`, and optionally `AfterBatchDrained`, `Tracer`,
-  `Instruments`, `Logger`
+  `PollInterval`, and optionally `DeadLetters`, `AfterBatchDrained`, `Tracer`,
+  `Instruments`, `Logger`. `DeadLetters` records commit failures and clears
+  replay state after later successful commits
 - `Source` — interface: `Next(context.Context) (CollectedGeneration, bool, error)`
 - `ObservedSource` — optional source interface that receives a
   `StartObserveFunc` and returns a `CollectorObservation` so real collection
   attempts, not idle polls, can share one `collector.observe` span with commit
 - `Committer` — interface: `CommitScopeGeneration(ctx, scope, generation, <-chan facts.Envelope) error`
+- `GenerationDeadLetterSink` / `GenerationDeadLetter` — optional
+  commit-failure sink and bounded replay metadata for generations that fail
+  before normal projector work items exist
+- `GenerationDeadLetterReplayCompleter`, `GenerationDeadLetterReplayFilter`, and `GenerationDeadLetterReplayResult` — store-facing replay completion/request contracts
 - `ClaimedCommitter` — optional fence-aware commit interface used by
   `ClaimedService` so claim ownership can be verified in the same transaction
   that persists facts; hosted claim mutations also carry the work item's tenant
@@ -431,6 +439,17 @@ No-Observability-Change: documentation extraction stays inside existing `collect
 - `AfterBatchDrained` is a batch boundary hook, not a timer callback. Use it for
   work that should follow committed collection, and keep idle-poll behavior in
   `Source.Next` or the coordinator layer.
+- Unclaimed collector services should wire `DeadLetters` when their commit path
+  can fail before projector work items exist. Replay is source-level after the
+  operator fixes the commit failure; dead-letter metadata cannot reconstruct a
+  consumed fact stream. Successful later commits mark unresolved rows
+  `replayed`; claim-driven services still use workflow claims for requeue.
+- No-Regression Evidence: collector generation dead-letter recording is covered by
+  `go test ./internal/collector -run 'TestServiceRunRecordsGenerationDeadLetterWhenCommitFails|TestServiceRunPropagatesDurableCommitErrors' -count=1`.
+- Observability Evidence: commit failures still surface through the existing
+  collector commit error path and `collector.observe` span. The Postgres sink
+  exposes `/admin/status`, hosted readiness, and
+  `eshu_runtime_collector_generation_*` count/age gauges.
 
 ## Extension points
 

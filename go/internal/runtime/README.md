@@ -60,7 +60,8 @@ flowchart TB
 `NewStatusAdminServer` delegates to `NewStatusAdminMux`, which calls
 `NewAdminMux` to mount `/healthz`, `/readyz`, `/admin/status`, and `/metrics`.
 When `WithRecoveryHandler` is passed, `RecoveryHandler.Mount` adds
-`/admin/replay` and `/admin/refinalize` to the same mux.
+`/admin/replay`, `/admin/refinalize`, and
+`/admin/replay-collector-generations` to the same mux.
 
 ## Lifecycle / workflow
 
@@ -134,7 +135,8 @@ ComposeLifecycles in `internal/app` chains multiple Lifecycle values
 ### Recovery admin
 
 - `RecoveryHandler` / `NewRecoveryHandler(handler)` — mounts `/admin/replay`
-  (POST) and `/admin/refinalize` (POST) on the admin mux; delegates to
+  (POST), `/admin/refinalize` (POST), and
+  `/admin/replay-collector-generations` (POST) on the admin mux; delegates to
   `recovery.Handler`; replaces the Python write-plane admin surface
 
 ### Lifecycle and observability
@@ -200,6 +202,10 @@ at `/metrics` exposes hand-rolled Prometheus-style gauges derived from the
 - `eshu_runtime_queue_total`, `eshu_runtime_queue_outstanding`, and queue depth gauges
 - `eshu_runtime_stage_items` — labeled by `stage` and `status`
 - `eshu_runtime_domain_outstanding` and per-domain backlog gauges
+- `eshu_runtime_collector_generation_dead_letter`,
+  `eshu_runtime_collector_generation_replay_requested`,
+  `eshu_runtime_collector_generation_replay_attempts`, and
+  `eshu_runtime_collector_generation_dead_letter_oldest_age_seconds`
 - `eshu_runtime_coordinator_*` — coordinator claim and completeness counters
 
 When `WithPrometheusHandler` is set, `NewCompositeMetricsHandler` appends OTEL
@@ -215,6 +221,10 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
   latency before changing pool sizes.
 - `eshu_runtime_health_state{state="stalled"}` = 1 means the pipeline is not
   making progress; check structured logs and failure_class before restarting.
+- `eshu_runtime_collector_generation_dead_letter` > 0 means a collector commit
+  failed before normal projector work items existed. Fix the commit failure,
+  then use `/admin/replay-collector-generations` with a collector kind and
+  bounded limit to request source-level replay.
 - Admin endpoints have no authentication. They must be bound to the admin port
   (default `0.0.0.0:9464`) and not exposed on the public API port.
 - `compose_defaults_test.go` enforces that `docker-compose.yaml` sets

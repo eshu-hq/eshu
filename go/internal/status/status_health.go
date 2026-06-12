@@ -11,6 +11,7 @@ func evaluateHealth(
 	domainBacklogs []DomainBacklog,
 	producerActivity ProducerActivitySnapshot,
 	coordinator *CoordinatorSnapshot,
+	collectorGenerationDeadLetters CollectorGenerationDeadLetterSnapshot,
 	opts Options,
 ) HealthSummary {
 	if queue.OverdueClaims > 0 {
@@ -67,7 +68,11 @@ func evaluateHealth(
 			Reasons: []string{coordinatorStalled},
 		}
 	}
-	if queue.DeadLetter > 0 || queue.Failed > 0 || generationTotals["failed"] > 0 || coordinatorDegraded(coordinator) {
+	collectorGenerationDeadLetters = cloneCollectorGenerationDeadLetterSnapshot(collectorGenerationDeadLetters)
+	unresolvedCollectorGenerations := collectorGenerationDeadLetters.DeadLetter +
+		collectorGenerationDeadLetters.ReplayRequested
+	if queue.DeadLetter > 0 || queue.Failed > 0 || generationTotals["failed"] > 0 || coordinatorDegraded(coordinator) ||
+		unresolvedCollectorGenerations > 0 {
 		reasons := make([]string, 0, 6)
 		if queue.DeadLetter > 0 {
 			reasons = append(reasons, fmt.Sprintf("%d work items are dead-lettered", queue.DeadLetter))
@@ -77,6 +82,25 @@ func evaluateHealth(
 		}
 		if generationTotals["failed"] > 0 {
 			reasons = append(reasons, fmt.Sprintf("%d generations are failed", generationTotals["failed"]))
+		}
+		if collectorGenerationDeadLetters.DeadLetter > 0 {
+			reasons = append(
+				reasons,
+				fmt.Sprintf("%d collector generations are dead-lettered", collectorGenerationDeadLetters.DeadLetter),
+			)
+		}
+		if collectorGenerationDeadLetters.ReplayRequested > 0 {
+			if collectorGenerationDeadLetters.ReplayRequested == 1 {
+				reasons = append(reasons, "1 collector generation replay request is unresolved")
+			} else {
+				reasons = append(
+					reasons,
+					fmt.Sprintf(
+						"%d collector generation replay requests are unresolved",
+						collectorGenerationDeadLetters.ReplayRequested,
+					),
+				)
+			}
 		}
 		reasons = append(reasons, coordinatorDegradedReasons(coordinator)...)
 		return HealthSummary{

@@ -5,5 +5,9 @@
 // through the queue, not direct graph mutation. ReplayFailed resets failed
 // work items back to pending for the requested stage; Refinalize re-enqueues
 // projector work for an explicit list of scopes so their active generations
-// are projected again.
+// are projected again. ReplayCollectorGenerations marks collector generation
+// commit failures for source-level replay when the failure happened before
+// durable projector work items existed; the source collector resolves those
+// rows after a later successful commit for the same scope. Collector generation
+// replay requires a non-blank collector kind before the store is called.
 package recovery

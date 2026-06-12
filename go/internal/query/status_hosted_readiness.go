@@ -162,6 +162,20 @@ func (b *hostedReadinessBuilder) addFail(name, class, detail, next string) {
 
 func (b *hostedReadinessBuilder) addQueueChecks(report status.Report) {
 	queue := report.Queue
+	collectorDeadLetters := report.CollectorGenerationDeadLetters
+	if collectorDeadLetters.DeadLetter+collectorDeadLetters.ReplayRequested > 0 {
+		b.addFail(
+			"collector_generation_replay",
+			"collector_generation_dead_lettered",
+			fmt.Sprintf(
+				"collector generation dead letters=%d replay_requested=%d oldest=%s",
+				collectorDeadLetters.DeadLetter,
+				collectorDeadLetters.ReplayRequested,
+				collectorDeadLetters.OldestDeadLetterAge,
+			),
+			"request source-level replay through /admin/replay-collector-generations",
+		)
+	}
 	if queue.DeadLetter > 0 || queue.Failed > 0 {
 		b.addFail(
 			"queue_drain",

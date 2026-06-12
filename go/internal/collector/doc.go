@@ -9,9 +9,10 @@
 //
 // Collection is best-effort over remote and local filesystems. Callers must
 // handle partial snapshots, discovery skips, webhook-triggered refreshes, claim
-// fencing, and batch-drain hooks explicitly. Raw Terraform-state bytes do not
-// enter normal repository snapshots; only metadata-only state candidates are
-// emitted for the Terraform-state collector path to approve and read.
+// fencing, collector generation dead-letter records/replay completion, and
+// batch-drain hooks explicitly. Raw Terraform-state bytes do not enter normal
+// repository snapshots; only metadata-only state candidates are emitted for
+// the Terraform-state collector path to approve and read.
 // Claim-aware collection copies hosted tenant boundaries from workflow work
 // items into commit mutations so storage can fence fact persistence.
 // Repository-hosted Markdown, lightweight text, HTML, API contracts, notebook

@@ -24,6 +24,10 @@
 // are ready for query truth, and ReducerGraphDrain gives local NornicDB
 // code-call projection a read-only view of reducer graph-domain backlog before
 // it starts its edge write lane.
+// CollectorGenerationDeadLetterStore persists bounded commit-failure metadata
+// for generations that failed before projector work rows existed and exposes a
+// source-level replay request/completion path plus unresolved status aggregates
+// without storing consumed fact payloads.
 // FactStore kind-filtered reads use bounded, stable keyset pages and scan the
 // same facts.Envelope metadata shape as full fact loads. Payload value filters
 // are available only for top-level payload fields that are part of a reducer

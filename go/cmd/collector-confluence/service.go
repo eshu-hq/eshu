@@ -44,6 +44,7 @@ func buildCollectorService(
 			Instruments: instruments,
 		},
 		Committer:    committer,
+		DeadLetters:  postgres.NewCollectorGenerationDeadLetterStore(database),
 		PollInterval: config.PollInterval,
 		Tracer:       tracer,
 		Instruments:  instruments,
