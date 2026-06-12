@@ -473,6 +473,10 @@ describe("prototype documentation parity", () => {
     expect(chain).toContain("DEPLOYS_HELM");
     expect(chain).toContain("PACKAGES");
     expect(chain).toContain("deployment_evidence.artifacts");
+    expect(chain).toContain("function artifactEdgeEvidence(artifact)");
+    expect(chain).toContain("evidence: artifactEdgeEvidence(artifact)");
+    expect(chain).toContain("evidence: artifactEdgeEvidence(deployArtifacts[0])");
+    expect(chain).toContain("Object.assign(window, { liveDeploymentChainGraph, artifactEdgeEvidence })");
     expect(guide).toContain("GET /api/v0/services/{name}/story");
     expect(guide).toContain("GET /api/v0/services/{name}/context");
   });

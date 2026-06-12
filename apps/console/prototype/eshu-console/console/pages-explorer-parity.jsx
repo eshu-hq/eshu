@@ -205,7 +205,7 @@
     charts.forEach((repo) => {
       chartIds.add(repo.id);
       addStoryNode(nodes, node(repo.id, repo.name, "repo", "Helm chart", 1, false, "derived"));
-      addStoryEdge(edges, edgeKeys, repo.id, sourceRepo.id, "PACKAGES");
+      addStoryEdge(edges, edgeKeys, repo.id, sourceRepo.id, "PACKAGES", artifactEdgeEvidence(artifacts.find((artifact) => { const source = repoFromArtifact(artifact, "source"); return source && source.id === repo.id && isHelmChartArtifact(artifact); }) || {}));
     });
 
     const controllers = uniqueRepos(artifacts
@@ -214,11 +214,11 @@
       .filter((repo) => repo && repo.id !== sourceRepo.id && !chartIds.has(repo.id)));
     controllers.forEach((repo) => {
       addStoryNode(nodes, node(repo.id, repo.name, "repo", "Deployment controller", 0, false, "derived"));
-      if (!charts.length) addStoryEdge(edges, edgeKeys, repo.id, sourceRepo.id, "DEPLOYS_FROM");
-      charts.forEach((chart) => addStoryEdge(edges, edgeKeys, repo.id, chart.id, "DEPLOYS_HELM"));
+      if (!charts.length) addStoryEdge(edges, edgeKeys, repo.id, sourceRepo.id, "DEPLOYS_FROM", artifactEdgeEvidence(artifacts.find((artifact) => { const source = repoFromArtifact(artifact, "source"); return source && source.id === repo.id && isDeploymentControllerArtifact(artifact); }) || {}));
+      charts.forEach((chart) => addStoryEdge(edges, edgeKeys, repo.id, chart.id, "DEPLOYS_HELM", artifactEdgeEvidence(artifacts.find((artifact) => { const source = repoFromArtifact(artifact, "source"); return source && source.id === repo.id && isDeploymentControllerArtifact(artifact); }) || {})));
     });
 
-    if (artifacts.length) addStoryEdge(edges, edgeKeys, sourceRepo.id, serviceId, "DEPLOYS_FROM");
+    if (artifacts.length) addStoryEdge(edges, edgeKeys, sourceRepo.id, serviceId, "DEPLOYS_FROM", artifactEdgeEvidence(artifacts[0]));
     return { nodes: Array.from(nodes.values()), edges };
   }
 
@@ -226,11 +226,11 @@
     if (!nodes.has(value.id)) nodes.set(value.id, value);
   }
 
-  function addStoryEdge(edges, seen, s, t, verb) {
+  function addStoryEdge(edges, seen, s, t, verb, evidence) {
     const key = s + "\u0000" + t + "\u0000" + verb;
     if (seen.has(key)) return;
     seen.add(key);
-    edges.push({ s, t, verb, layer: layerFor(verb) });
+    edges.push({ s, t, verb, layer: layerFor(verb), evidence });
   }
 
   function isHelmChartArtifact(artifact) {

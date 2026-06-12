@@ -31,6 +31,15 @@
     return family === "argocd" || family === "kustomize";
   }
 
+  function artifactEdgeEvidence(artifact) {
+    return [
+      text(artifact.artifact_family) ? "artifact family: " + text(artifact.artifact_family) : "",
+      text(artifact.evidence_kind) ? "evidence kind: " + text(artifact.evidence_kind) : "",
+      text(artifact.path) ? "path: " + text(artifact.path) : "",
+      text(artifact.environment) ? "environment: " + text(artifact.environment) : ""
+    ].filter(Boolean);
+  }
+
   function liveDeploymentChainGraph(artifacts, repoName, serviceName) {
     // Mirrors the live console Topology deployment_evidence.artifacts mapper.
     const deployArtifacts = (Array.isArray(artifacts) ? artifacts : []).filter((artifact) =>
@@ -53,18 +62,23 @@
       .filter((repo) => repo && repo.id !== sourceRepo.id && !chartIds.has(repo.id)));
 
     const nodes = [{ id: sourceRepo.id, kind: "repo", label: sourceRepo.name, sub: "source repository", col: 2 }];
-    const edges = [{ s: sourceRepo.id, t: "workload", verb: "DEPLOYS_FROM", layer: "deploy" }];
-    charts.forEach((repo) => {
+    const edges = [{ s: sourceRepo.id, t: "workload", verb: "DEPLOYS_FROM", layer: "deploy", evidence: artifactEdgeEvidence(deployArtifacts[0]) }];
+    const chartArtifacts = deployArtifacts.filter(isHelmArtifact);
+    chartArtifacts.forEach((artifact) => {
+      const repo = repoFromArtifact(artifact, "source");
+      if (!repo || repo.id === sourceRepo.id) return;
       nodes.push({ id: repo.id, kind: "repo", label: repo.name, sub: "Helm chart", col: 1 });
-      edges.push({ s: repo.id, t: sourceRepo.id, verb: "PACKAGES", layer: "deploy" });
+      edges.push({ s: repo.id, t: sourceRepo.id, verb: "PACKAGES", layer: "deploy", evidence: artifactEdgeEvidence(artifact) });
     });
-    controllers.forEach((repo) => {
+    deployArtifacts.filter(isControllerArtifact).forEach((artifact) => {
+      const repo = repoFromArtifact(artifact, "source");
+      if (!repo || repo.id === sourceRepo.id || chartIds.has(repo.id)) return;
       nodes.push({ id: repo.id, kind: "repo", label: repo.name, sub: "Deployment controller", col: 0 });
-      if (!charts.length) edges.push({ s: repo.id, t: sourceRepo.id, verb: "DEPLOYS_FROM", layer: "deploy" });
-      charts.forEach((chart) => edges.push({ s: repo.id, t: chart.id, verb: "DEPLOYS_HELM", layer: "deploy" }));
+      if (!charts.length) edges.push({ s: repo.id, t: sourceRepo.id, verb: "DEPLOYS_FROM", layer: "deploy", evidence: artifactEdgeEvidence(artifact) });
+      charts.forEach((chart) => edges.push({ s: repo.id, t: chart.id, verb: "DEPLOYS_HELM", layer: "deploy", evidence: artifactEdgeEvidence(artifact) }));
     });
     return { nodes, edges };
   }
 
-  Object.assign(window, { liveDeploymentChainGraph });
+  Object.assign(window, { liveDeploymentChainGraph, artifactEdgeEvidence });
 })();

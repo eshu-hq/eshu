@@ -197,6 +197,8 @@ interface DeploymentArtifactRecord {
   readonly target_repo_name?: string;
   readonly relationship_type?: string;
   readonly artifact_family?: string;
+  readonly evidence_kind?: string;
+  readonly environment?: string;
   readonly path?: string;
 }
 /**
@@ -250,24 +252,30 @@ export function deploymentStoryToGraph(data: ServiceDeploymentContextResponse, f
   chartRepos.forEach((repo) => {
     chartRepoIDs.add(repo.id);
     addStoryNode(nodes, { id: repo.id, label: repo.name, kind: "repo", sub: "Helm chart", col: 1, truth: "derived" });
-    addStoryEdge(edges, edgeKeys, repo.id, sourceRepo.id, "PACKAGES");
+  });
+  deployArtifacts.filter(isHelmChartArtifact).forEach((artifact) => {
+    const repo = repoFromArtifact(artifact, "source");
+    if (repo && repo.id !== sourceRepo.id) addStoryEdge(edges, edgeKeys, repo.id, sourceRepo.id, "PACKAGES", artifactEdgeEvidence(artifact));
   });
 
-  const controllerRepos = uniqueRepos(deployArtifacts
-    .filter(isDeploymentControllerArtifact)
-    .map((artifact) => repoFromArtifact(artifact, "source"))
+  const controllerArtifacts = deployArtifacts.filter(isDeploymentControllerArtifact);
+  const controllerRepos = uniqueRepos(controllerArtifacts.map((artifact) => repoFromArtifact(artifact, "source"))
     .filter((repo): repo is RepoRef => !!repo && repo.id !== sourceRepo.id && !chartRepoIDs.has(repo.id)));
   controllerRepos.forEach((repo) => {
     addStoryNode(nodes, { id: repo.id, label: repo.name, kind: "repo", sub: "Deployment controller", col: 0, truth: "derived" });
+  });
+  controllerArtifacts.forEach((artifact) => {
+    const repo = repoFromArtifact(artifact, "source");
+    if (!repo || repo.id === sourceRepo.id || chartRepoIDs.has(repo.id)) return;
     if (chartRepos.length === 0) {
-      addStoryEdge(edges, edgeKeys, repo.id, sourceRepo.id, "DEPLOYS_FROM");
+      addStoryEdge(edges, edgeKeys, repo.id, sourceRepo.id, "DEPLOYS_FROM", artifactEdgeEvidence(artifact));
       return;
     }
-    chartRepos.forEach((chartRepo) => addStoryEdge(edges, edgeKeys, repo.id, chartRepo.id, "DEPLOYS_HELM"));
+    chartRepos.forEach((chartRepo) => addStoryEdge(edges, edgeKeys, repo.id, chartRepo.id, "DEPLOYS_HELM", artifactEdgeEvidence(artifact)));
   });
 
   if (deployArtifacts.length > 0) {
-    addStoryEdge(edges, edgeKeys, sourceRepo.id, serviceID, "DEPLOYS_FROM");
+    addStoryEdge(edges, edgeKeys, sourceRepo.id, serviceID, "DEPLOYS_FROM", artifactEdgeEvidence(deployArtifacts[0]));
   }
   return { nodes: [...nodes.values()], edges };
 }
@@ -366,11 +374,20 @@ function addStoryNode(nodes: Map<string, GraphNode>, node: GraphNode): void {
   if (!nodes.has(node.id)) nodes.set(node.id, node);
 }
 
-function addStoryEdge(edges: GraphEdge[], seen: Set<string>, s: string, t: string, verb: string): void {
+function addStoryEdge(edges: GraphEdge[], seen: Set<string>, s: string, t: string, verb: string, evidence?: readonly string[]): void {
   const key = `${s}\u0000${t}\u0000${verb}`;
   if (seen.has(key)) return;
   seen.add(key);
-  edges.push({ s, t, verb, layer: layerFor(verb) });
+  edges.push({ s, t, verb, layer: layerFor(verb), evidence });
+}
+
+function artifactEdgeEvidence(artifact: DeploymentArtifactRecord): readonly string[] {
+  return [
+    cleanText(artifact.artifact_family) ? `artifact family: ${cleanText(artifact.artifact_family)}` : "",
+    cleanText(artifact.evidence_kind) ? `evidence kind: ${cleanText(artifact.evidence_kind)}` : "",
+    cleanText(artifact.path) ? `path: ${cleanText(artifact.path)}` : "",
+    cleanText(artifact.environment) ? `environment: ${cleanText(artifact.environment)}` : ""
+  ].filter((value): value is string => value !== "");
 }
 
 function shouldFallbackFromServiceContext(error: unknown): boolean {

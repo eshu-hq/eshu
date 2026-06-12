@@ -222,6 +222,8 @@ describe("eshuGraph", () => {
             target_repo_name: "api-node-platform",
             relationship_type: "DEPLOYS_FROM",
             artifact_family: "kustomize",
+            evidence_kind: "KUSTOMIZE_RESOURCE_REFERENCE",
+            environment: "bg-prod",
             path: "applicationsets/core-engineering/api-node/kustomization.yaml"
           },
           {
@@ -231,6 +233,7 @@ describe("eshuGraph", () => {
             target_repo_name: "api-node-platform",
             relationship_type: "DEPLOYS_FROM",
             artifact_family: "helm",
+            evidence_kind: "HELM_CHART_REFERENCE",
             path: "api-node-platform/Chart.yaml"
           },
           {
@@ -253,8 +256,8 @@ describe("eshuGraph", () => {
       "iac-eks-argocd"
     ]);
     expect(graph.edges).toEqual(expect.arrayContaining([
-      expect.objectContaining({ s: "repository:r_dd626fe7", t: "repository:r_66cd2d76", verb: "DEPLOYS_HELM", layer: "deploy" }),
-      expect.objectContaining({ s: "repository:r_66cd2d76", t: "repository:r_078043f1", verb: "PACKAGES", layer: "deploy" }),
+      expect.objectContaining({ s: "repository:r_dd626fe7", t: "repository:r_66cd2d76", verb: "DEPLOYS_HELM", layer: "deploy", evidence: ["artifact family: kustomize", "evidence kind: KUSTOMIZE_RESOURCE_REFERENCE", "path: applicationsets/core-engineering/api-node/kustomization.yaml", "environment: bg-prod"] }),
+      expect.objectContaining({ s: "repository:r_66cd2d76", t: "repository:r_078043f1", verb: "PACKAGES", layer: "deploy", evidence: ["artifact family: helm", "evidence kind: HELM_CHART_REFERENCE", "path: api-node-platform/Chart.yaml"] }),
       expect.objectContaining({ s: "repository:r_078043f1", t: "workload:api-node-platform", verb: "DEPLOYS_FROM", layer: "deploy" })
     ]));
     expect(graph.edges.some((edge) => edge.verb === "RELATED")).toBe(false);
