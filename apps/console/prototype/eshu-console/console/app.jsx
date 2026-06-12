@@ -122,6 +122,7 @@ function liveRuntime(live, metrics) {
 function liveConsoleData(base, live) {
   const metrics = liveMetrics(live && live.metrics);
   return Object.assign({}, base, live || {}, {
+    org: "live",
     services: liveArray(live, "services"),
     vulns: liveArray(live, "vulns"),
     findings: liveArray(live, "findings"),
@@ -136,13 +137,13 @@ function liveConsoleData(base, live) {
     deadCode: liveArray(live, "deadCode"),
     argocdApps: liveArray(live, "argocdApps"),
     langInventory: liveArray(live, "langInventory"),
-    graph: live.graph || { nodes: [], edges: [] },
-    nodeDetail: live.nodeDetail || {},
-    codeImports: live.codeImports || {},
-    obsCoverage: live.obsCoverage || {},
-    obsCoverageSnapshot: live.obsCoverageSnapshot || { rows: [], providers: [], signals: [], source: "empty" },
-    sbomSummary: live.sbomSummary || { total: 0, byStatus: {}, byArtifactKind: {}, truth: null },
-    sbomInventory: live.sbomInventory || { groupBy: "subject_digest", buckets: [], truncated: false },
+    graph: (live && live.graph) || { nodes: [], edges: [] },
+    nodeDetail: (live && live.nodeDetail) || {},
+    codeImports: (live && live.codeImports) || {},
+    obsCoverage: (live && live.obsCoverage) || {},
+    obsCoverageSnapshot: (live && live.obsCoverageSnapshot) || { rows: [], providers: [], signals: [], source: "empty" },
+    sbomSummary: (live && live.sbomSummary) || { total: 0, byStatus: {}, byArtifactKind: {}, truth: null },
+    sbomInventory: (live && live.sbomInventory) || { groupBy: "subject_digest", buckets: [], truncated: false },
     metrics,
     runtime: liveRuntime(live, metrics)
   });
