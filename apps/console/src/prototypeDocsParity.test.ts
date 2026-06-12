@@ -300,6 +300,11 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("codeGraphCandidateParam");
     expect(page).toContain("relationshipNodeKind");
     expect(page).toContain("relationshipNodeSub");
+    expect(page).toContain("sourceLocationFromCodeEdge");
+    expect(page).toContain("sourceHrefFromNode");
+    expect(page).toContain("locationLabelFromNode");
+    expect(page).toContain("focusedNodeSourceHref");
+    expect(page).toContain("focusedRepositoryLabel");
     expect(page).toContain("function apiData(env)");
     expect(page).toContain("env && env.error");
     expect(page).toContain("sourceAvailable");

@@ -65,6 +65,41 @@ function locationLabel(d) {
   return file;
 }
 
+function sourceHrefFromNode(node) {
+  const source = node && node.source;
+  if (!source || !source.repoId || !source.filePath) return "";
+  const params = new URLSearchParams({ path: source.filePath });
+  if (source.startLine) params.set("lineStart", String(source.startLine));
+  if (source.endLine) params.set("lineEnd", String(source.endLine));
+  return window.ESHU_ROUTES.hashFor("reposource", "/" + encodeURIComponent(source.repoId) + "/source?" + params.toString());
+}
+
+function locationLabelFromNode(node) {
+  const source = node && node.source;
+  if (!source || !source.filePath) return "source path unavailable";
+  if (source.startLine && source.endLine && source.endLine !== source.startLine) return source.filePath + ":" + source.startLine + "-" + source.endLine;
+  if (source.startLine) return source.filePath + ":" + source.startLine;
+  return source.filePath;
+}
+
+function sourceLocationFromCodeEdge(edge, side) {
+  const prefix = side === "source" ? "source_" : "target_";
+  const repoId = textField(edge[prefix + "repo_id"]) || textField(edge.repo_id);
+  const filePath = textField(edge[prefix + "file_path"]) || textField(edge.file_path);
+  if (!repoId || !filePath) return null;
+  return {
+    repoId,
+    repoName: textField(edge[prefix + "repo_name"]) || textField(edge.repo_name),
+    filePath,
+    startLine: edge[prefix + "start_line"] || edge.start_line,
+    endLine: edge[prefix + "end_line"] || edge.end_line
+  };
+}
+
+function textField(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function codeGraphCandidateParam() {
   const parts = String(location.hash || "").split("?");
   if (parts.length < 2) return "";
@@ -93,14 +128,14 @@ function codeRelationshipsGraph(payload, selected, candidates) {
     const id = e.source_id || e.source_name;
     if (!id) return;
     const verb = (e.type || "RELATED").toUpperCase();
-    if (!seen.has(id)) { seen.add(id); nodes.push({ id, label: e.source_name || id, sub: relationshipNodeSub(verb, "incoming"), col: 0, kind: relationshipNodeKind(verb) }); }
+    if (!seen.has(id)) { seen.add(id); nodes.push({ id, label: e.source_name || id, sub: e.source_type || relationshipNodeSub(verb, "incoming"), col: 0, kind: e.source_type ? relationshipTypeKind(e.source_type) : relationshipNodeKind(verb), source: sourceLocationFromCodeEdge(e, "source") }); }
     edges.push({ s: id, t: centerId, verb, layer: "code" });
   });
   (data.outgoing || []).forEach((e) => {
     const id = e.target_id || e.target_name;
     if (!id) return;
     const verb = (e.type || "RELATED").toUpperCase();
-    if (!seen.has(id)) { seen.add(id); nodes.push({ id, label: e.target_name || id, sub: relationshipNodeSub(verb, "outgoing"), col: 2, kind: relationshipNodeKind(verb) }); }
+    if (!seen.has(id)) { seen.add(id); nodes.push({ id, label: e.target_name || id, sub: e.target_type || relationshipNodeSub(verb, "outgoing"), col: 2, kind: e.target_type ? relationshipTypeKind(e.target_type) : relationshipNodeKind(verb), source: sourceLocationFromCodeEdge(e, "target") }); }
     edges.push({ s: centerId, t: id, verb, layer: "code" });
   });
   candidates.filter((d) => sameDeadCodeRepo(d, selected)).forEach((d) => {
@@ -119,6 +154,13 @@ function relationshipNodeKind(verb) {
   if (normalized === "CALLS") return "client";
   if (normalized === "INHERITS" || normalized === "OVERRIDES") return "client";
   return "client";
+}
+
+function relationshipTypeKind(type) {
+  const normalized = String(type || "").toLowerCase();
+  if (normalized.indexOf("module") >= 0 || normalized.indexOf("package") >= 0 || normalized.indexOf("library") >= 0) return "library";
+  if (normalized.indexOf("function") >= 0 || normalized.indexOf("class") >= 0 || normalized.indexOf("symbol") >= 0) return "client";
+  return relationshipNodeKind(type);
 }
 
 function relationshipNodeSub(verb, direction) {
@@ -311,8 +353,12 @@ function CodeGraph({ data, client, onOpenService }) {
   const callEdges = g.edges.filter((e) => e.verb === "CALLS").length;
   const deadRows = liveMode ? liveCandidates.filter((d) => sameDeadCodeRepo(d, selectedCandidate)) : g.dead;
   const focusedNode = g.nodes.find((n) => n.id === focusedNodeId) || g.nodes.find((n) => n.hero) || g.nodes[0];
-  const focusedCandidate = findingForCodeNode(focusedNode, liveCandidates) || selectedCandidate;
-  const explorerQuery = focusedCandidate ? deadCodeRepoLabel(focusedCandidate) : ((focusedNode && focusedNode.label) || "");
+  const focusedCandidate = findingForCodeNode(focusedNode, liveCandidates);
+  const focusedNodeSourceHref = sourceHrefFromNode(focusedNode);
+  const focusedRepositoryLabel = focusedCandidate ? deadCodeRepoLabel(focusedCandidate) : (focusedNode && focusedNode.source && (focusedNode.source.repoName || focusedNode.source.repoId)) || deadCodeRepoLabel(selectedCandidate);
+  const focusedLocationLabel = focusedCandidate ? locationLabel(focusedCandidate) : locationLabelFromNode(focusedNode);
+  const focusedSourceHref = focusedCandidate ? sourceHref(focusedCandidate) : focusedNodeSourceHref;
+  const explorerQuery = focusedRepositoryLabel !== "repository" ? focusedRepositoryLabel : ((focusedNode && focusedNode.label) || "");
   const focusedDegree = focusedNode ? g.edges.filter((e) => e.s === focusedNode.id || e.t === focusedNode.id).length : 0;
   function selectCandidate(id) {
     const next = liveCandidates.find((d) => d.id === id);
@@ -360,13 +406,13 @@ function CodeGraph({ data, client, onOpenService }) {
                   <span className="dead-kind" style={{ "--dk": (DEADKIND[(focusedCandidate || {}).kind] || {}).color || "var(--muted)" }}>{(focusedCandidate && (focusedCandidate.classification || focusedCandidate.kind)) || focusedNode.kind}</span>
                 </div>
                 <div className="kv-list" style={{ marginTop: 10 }}>
-                  <div className="kv"><span>Repository</span><strong>{deadCodeRepoLabel(focusedCandidate)}</strong></div>
-                  <div className="kv"><span>Location</span>{sourceAvailable(focusedCandidate) ? <a className="mono" href={sourceHref(focusedCandidate)}>{locationLabel(focusedCandidate)}</a> : <strong className="mono">{locationLabel(focusedCandidate) || focusedNode.sub || "source path unavailable"}</strong>}</div>
+                  <div className="kv"><span>Repository</span><strong>{focusedRepositoryLabel}</strong></div>
+                  <div className="kv"><span>Location</span>{focusedSourceHref ? <a className="mono" href={focusedSourceHref}>{focusedLocationLabel}</a> : <strong className="mono">{focusedLocationLabel || focusedNode.sub || "source path unavailable"}</strong>}</div>
                   <div className="kv"><span>Graph degree</span><strong>{focusedDegree}</strong></div>
                   <div className="kv"><span>Evidence</span><strong>{(focusedCandidate && focusedCandidate.confidence) || focusedNode.truth || "derived"}</strong></div>
                 </div>
                 <div className="row" style={{ gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-                  {sourceAvailable(focusedCandidate) ? <a className="btn-ghost active" href={sourceHref(focusedCandidate)}>Open source</a> : null}
+                  {focusedSourceHref ? <a className="btn-ghost active" href={focusedSourceHref}>Open source</a> : null}
                   <a className="btn-ghost" href={window.ESHU_ROUTES.hashFor("explorer", "?q=" + encodeURIComponent(explorerQuery))}>Explore repo graph</a>
                 </div>
               </div>
