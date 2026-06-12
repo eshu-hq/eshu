@@ -79,6 +79,8 @@ describe("CloudPage", () => {
     expect(screen.getAllByTitle("Truth: exact").length).toBeGreaterThan(0);
     expect(screen.getByText("Resources by family")).toBeInTheDocument();
     expect(screen.getAllByText("Accounts").length).toBeGreaterThan(0);
+    expect(screen.getByText("Endpoint")).toBeInTheDocument();
+    expect(screen.getAllByText("/api/v0/cloud/resources").length).toBeGreaterThan(0);
     expect(screen.getByText("Network topology")).toBeInTheDocument();
   });
 

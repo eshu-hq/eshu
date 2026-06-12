@@ -121,7 +121,6 @@ export function CloudPage({ client }: { readonly client?: EshuApiClient }): Reac
   const accounts = useMemo(() => accountRollups(rows), [rows]);
   const selectedAccount = networkAccount || accounts[0]?.id || "";
   const network = useMemo(() => cloudNetworkGraph(rows, selectedAccount), [rows, selectedAccount]);
-  const terraformManaged = rows.filter((row) => row.resourceType.includes("terraform")).length;
 
   return (
     <div className="page">
@@ -136,7 +135,7 @@ export function CloudPage({ client }: { readonly client?: EshuApiClient }): Reac
         <StatTile label="Cloud resources" value={page?.count ?? rows.length} color="var(--blue)" sub={`page ${pageNumber}${page?.truncated ? " · more available" : ""}`} />
         <StatTile label="Accounts" value={accounts.length} color="var(--ember)" sub="on current page" />
         <StatTile label="Resource families" value={families.length} color="var(--teal)" sub="typed from resource_type" />
-        <StatTile label="Terraform-managed" value={terraformManaged} color="var(--violet)" sub="explicit resource type signal" />
+        <StatTile label="Endpoint" value="live" color="var(--violet)" sub="/api/v0/cloud/resources" />
       </div>
 
       <div className="grid mt" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: "var(--gap)" }}>
