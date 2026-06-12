@@ -76,8 +76,9 @@ function buildCallersGraph(D, s) {
   });
   return { nodes, edges };
 }
-function ServiceDrawer({ id, onClose, onOpenService, onOpenVuln, onOpenNode, data }) {
+function ServiceDrawer({ id, onClose, onOpenService, onOpenVuln, onOpenNode, data, source }) {
   const D = data || ESHU;
+  const liveMode = source && source.mode === "live" && source.status === "connected";
   const [blastOpen, setBlastOpen] = useStateP(false);
   const [callersOpen, setCallersOpen] = useStateP(false);
   const [netOpen, setNetOpen] = useStateP(false);
@@ -273,7 +274,7 @@ function ServiceDrawer({ id, onClose, onOpenService, onOpenVuln, onOpenNode, dat
             null}
           </div>
           <p className="t-mut" style={{ fontSize: ".72rem", borderTop: "1px solid var(--line)", paddingTop: 14, margin: 0, lineHeight: 1.5 }}>
-            <span className="mono" style={{ color: "var(--subtle)" }}>provenance</span> · source, build & deploy facts read directly from <span className="mono">{s.repo}</span>. Vulnerability, incident & runtime-freshness signals are representative of what Eshu's collectors would attach live.
+            <span className="mono" style={{ color: "var(--subtle)" }}>provenance</span> · {liveMode ? "Live service spotlight: source, build, deploy, vulnerability, incident and runtime freshness facts come from the connected Eshu API where each route has live coverage." : "Demo service spotlight: source, build and deploy facts read from the bundled workspace; vulnerability, incident and runtime-freshness signals are representative of what Eshu's collectors would attach live."}
           </p>
         </div>
       </aside>

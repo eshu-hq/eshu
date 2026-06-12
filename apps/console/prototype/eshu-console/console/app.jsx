@@ -274,7 +274,7 @@ function App() {
         {route === "admin" ? <Admin data={data} source={source} onOpenCollector={openCollector} onOpenNode={openNode} /> : null}
       </div>
 
-      {drawer && drawer.type === "service" ? <ServiceDrawer id={drawer.id} data={data} onClose={() => setDrawer(null)} onOpenService={openService} onOpenVuln={openVuln} onOpenNode={openNode} /> : null}
+      {drawer && drawer.type === "service" ? <ServiceDrawer id={drawer.id} data={data} source={source} onClose={() => setDrawer(null)} onOpenService={openService} onOpenVuln={openVuln} onOpenNode={openNode} /> : null}
       {drawer && drawer.type === "node" ? <NodeDrawer node={drawer.node} graph={drawer.graph} data={data} onClose={() => setDrawer(null)} onOpenNode={openNode} onOpenService={openService} onOpenVuln={openVuln} onGo={goAndClose} /> : null}
       {drawer && drawer.type === "collector" ? <CollectorDrawer collector={drawer.collector} data={data} onClose={() => setDrawer(null)} onGo={goAndClose} onOpenNode={openNode} /> : null}
 

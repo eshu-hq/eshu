@@ -109,6 +109,16 @@ describe("prototype documentation parity", () => {
     expect(prototypeApp).not.toContain("sections without a live endpoint show demo facts");
   });
 
+  it("keeps the prototype service drawer provenance copy conditional on source mode", () => {
+    const prototypeApp = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
+    const corePages = repoFile("apps/console/prototype/eshu-console/console/pages-core.jsx");
+
+    expect(prototypeApp).toContain("source={source}");
+    expect(corePages).toContain("source && source.mode === \"live\"");
+    expect(corePages).toContain("Live service spotlight");
+    expect(corePages).toContain("Demo service spotlight");
+  });
+
   it("keeps prototype topbar search wired to live-style vulnerability routing", () => {
     const liveApp = repoFile("apps/console/src/App.tsx");
     const prototypeApp = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
