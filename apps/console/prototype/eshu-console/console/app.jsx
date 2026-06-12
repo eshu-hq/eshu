@@ -208,7 +208,7 @@ function App() {
           <div className="prov-banner warn"><Icon.bolt size={14} /> Eshu API unavailable at <span className="mono">{source.base}</span>{source.msg ? " · " + source.msg : ""}. Showing demo facts. Serve this page behind the /eshu-api/ proxy (browser can't reach localhost cross-origin).</div>
         ) : null}
 
-        {route === "dashboard" ? <Dashboard data={data} onOpenService={openService} onOpenNode={openNode} heroMode={t.heroMode} graphStyle={graphStyle} chartStyle={t.chartStyle} /> : null}
+        {route === "dashboard" ? <Dashboard data={data} client={liveClient} source={source} onOpenService={openService} onOpenNode={openNode} heroMode={t.heroMode} graphStyle={graphStyle} chartStyle={t.chartStyle} /> : null}
         {route === "explorer" ? <Explorer data={data} client={liveClient} onOpenService={openService} onOpenNode={openNode} graphStyle={graphStyle} setGraphStyle={(v) => { setGraphStyle(v); setTweak("graphStyle", v); }} verifiedOnly={verifiedOnly} /> : null}
         {route === "repos" ? <Repos data={data} client={liveClient} onOpenService={openService} onOpenNode={openNode} /> : null}
         {route === "reposource" ? <RepoSource data={data} client={liveClient} /> : null}

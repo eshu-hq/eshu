@@ -54,6 +54,18 @@ describe("prototype documentation parity", () => {
     expect(guide).toContain("GET /api/v0/cloud/inventory");
   });
 
+  it("keeps the prototype dashboard atlas on live entity-map contracts", () => {
+    const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
+    const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
+    const page = repoFile("apps/console/prototype/eshu-console/console/pages-dashboard-parity.jsx");
+
+    expect(html).toContain("console/pages-dashboard-parity.jsx");
+    expect(app).toContain("<Dashboard data={data} client={liveClient}");
+    expect(page).toContain("/api/v0/impact/entity-map");
+    expect(page).toContain("MEANINGFUL_DASHBOARD_EDGES");
+    expect(page).toContain("No live relationship atlas");
+  });
+
   it("keeps the prototype repositories route on the live repository contract", () => {
     const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
     const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
