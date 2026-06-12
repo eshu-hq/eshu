@@ -18,15 +18,21 @@ const NAV = [
   { group: "Inventory", items: [
     { id: "repos", label: "Repositories", icon: "catalog", count: () => ESHU.services.filter((s) => s.repo).length },
     { id: "catalog", label: "Catalog", icon: "box", count: () => ESHU.services.length },
-    { id: "findings", label: "Findings", icon: "findings", alert: true, count: () => ESHU.findings.length + ESHU.vulns.length }
+    { id: "findings", label: "Findings", icon: "findings", alert: true, count: () => ESHU.findings.length + ESHU.vulns.length },
+    { id: "images", label: "Images", icon: "box", count: () => ESHU.services.filter((s) => s.image).length },
+    { id: "iac", label: "IaC", icon: "layers", count: () => ESHU.cloudResources.filter((r) => r.tf).length },
+    { id: "vulnerabilities", label: "Vulnerabilities", icon: "vuln", alert: true, count: () => ESHU.vulns.length }
   ] },
   { group: "Code", items: [
     { id: "deadcode", label: "Dead code", icon: "findings", count: () => ESHU.deadCode.length },
     { id: "codegraph", label: "Code graph", icon: "branch" }
   ] },
   { group: "Cloud & Telemetry", items: [
+    { id: "topology", label: "Topology", icon: "graph" },
     { id: "cloud", label: "Cloud", icon: "cloud", count: () => ESHU.cloudResources.length },
-    { id: "observability", label: "Observability", icon: "pulse" }
+    { id: "observability", label: "Observability", icon: "pulse" },
+    { id: "sbom", label: "SBOM", icon: "shield", count: () => ESHU.vulns.length },
+    { id: "dependencies", label: "Dependencies", icon: "branch" }
   ] },
   { group: "System", items: [
     { id: "admin", label: "Operations", icon: "admin" }
@@ -39,11 +45,16 @@ const TITLES = {
   repos: ["Repositories", "Browse every indexed source repository"],
   catalog: ["Catalog", "Services, repositories & workloads"],
   findings: ["Findings", "What needs human attention — one worklist"],
+  images: ["Images", "Container image inventory and package risk"],
+  iac: ["IaC", "Terraform and ArgoCD evidence"],
   deadcode: ["Dead code", "Unreferenced symbols — analyzer findings"],
   codegraph: ["Code graph", "Symbol & module relationships (CALLS / IMPORTS)"],
   vulnerabilities: ["Findings", "CVE register — vulnerability intelligence"],
+  topology: ["Topology", "Full code-to-cloud path for a service"],
   cloud: ["Cloud", "Multi-cloud resource inventory — code-to-cloud"],
   observability: ["Observability", "Signal coverage correlated per service"],
+  sbom: ["SBOM", "Package evidence and advisory reachability"],
+  dependencies: ["Dependencies", "Source, service and datastore dependency edges"],
   admin: ["Operations", "Eshu runtime & NornicDB backend health"]
 };
 
@@ -179,11 +190,16 @@ function App() {
         {route === "repos" ? <Repos data={data} onOpenService={openService} onOpenNode={openNode} /> : null}
         {route === "catalog" ? <Catalog data={data} onOpenService={openService} /> : null}
         {route === "findings" ? <Findings data={data} onOpenService={openService} onOpenVuln={openVuln} verifiedOnly={verifiedOnly} /> : null}
+        {route === "images" ? <Images data={data} onOpenService={openService} /> : null}
+        {route === "iac" ? <IaC data={data} onOpenService={openService} /> : null}
         {route === "deadcode" ? <DeadCode data={data} onOpenService={openService} /> : null}
         {route === "codegraph" ? <CodeGraph data={data} onOpenService={openService} /> : null}
         {route === "vulnerabilities" ? <Vulnerabilities data={data} onOpenService={openService} onOpenNode={openNode} chartStyle={t.chartStyle} verifiedOnly={verifiedOnly} /> : null}
+        {route === "topology" ? <Topology data={data} onOpenNode={openNode} /> : null}
         {route === "cloud" ? <Cloud data={data} onOpenService={openService} onOpenNode={openNode} /> : null}
         {route === "observability" ? <Observability data={data} onOpenService={openService} onOpenNode={openNode} onOpenCollector={openCollector} /> : null}
+        {route === "sbom" ? <SBOM data={data} onOpenService={openService} /> : null}
+        {route === "dependencies" ? <Dependencies data={data} onOpenService={openService} /> : null}
         {route === "admin" ? <Admin data={data} source={source} onOpenCollector={openCollector} onOpenNode={openNode} /> : null}
       </div>
 
