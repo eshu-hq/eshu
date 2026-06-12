@@ -16,6 +16,7 @@
   };
 
   function canonicalRoute(route) {
+    if (route.indexOf("workspace/") === 0) return "workspace";
     return ROUTE_ALIASES[route] || route;
   }
 
@@ -25,10 +26,17 @@
   }
 
   function hashFor(route, suffix) {
+    if (canonicalRoute(route) === "workspace" && suffix && suffix.indexOf("/") === 0) {
+      return "#workspace" + suffix;
+    }
     return "#" + publicRoute(route) + (suffix || "");
   }
 
   function setHash(route, suffix) {
+    if (canonicalRoute(route) === "workspace" && suffix && suffix.indexOf("/") === 0) {
+      window.location.hash = "workspace" + suffix;
+      return;
+    }
     window.location.hash = publicRoute(route) + (suffix || "");
   }
 

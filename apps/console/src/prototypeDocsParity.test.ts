@@ -56,4 +56,18 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("Neighborhood");
     expect(page).toContain("DEPLOYS_FROM");
   });
+
+  it("keeps the prototype workspace dossier route on the live query contracts", () => {
+    const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
+    const app = repoFile("apps/console/prototype/eshu-console/console/app.jsx");
+    const page = repoFile("apps/console/prototype/eshu-console/console/pages-workspace-parity.jsx");
+
+    expect(html).toContain("console/pages-workspace-parity.jsx");
+    expect(app).toContain('route === "workspace"');
+    expect(page).toContain("/api/v0/repositories/");
+    expect(page).toContain("/api/v0/services/");
+    expect(page).toContain("Deployment evidence map");
+    expect(page).toContain("Evidence story");
+    expect(page).toContain("Workspace unavailable");
+  });
 });

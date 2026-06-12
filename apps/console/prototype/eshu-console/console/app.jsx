@@ -68,6 +68,7 @@ const TITLES = {
   observability: ["Observability", "Signal coverage correlated per service"],
   sbom: ["SBOM", "Package evidence and advisory reachability"],
   dependencies: ["Dependencies", "Source, service and datastore dependency edges"],
+  workspace: ["Workspace", "Entity dossier — story, evidence, deployment path"],
   admin: ["Operations", "Eshu runtime & NornicDB backend health"]
 };
 
@@ -217,6 +218,7 @@ function App() {
         {route === "observability" ? <Observability data={data} onOpenService={openService} onOpenNode={openNode} onOpenCollector={openCollector} /> : null}
         {route === "sbom" ? <SBOM data={data} onOpenService={openService} /> : null}
         {route === "dependencies" ? <Dependencies data={data} onOpenService={openService} /> : null}
+        {route === "workspace" ? <Workspace data={data} client={liveClient} onOpenService={openService} onOpenNode={openNode} /> : null}
         {route === "admin" ? <Admin data={data} source={source} onOpenCollector={openCollector} onOpenNode={openNode} /> : null}
       </div>
 
