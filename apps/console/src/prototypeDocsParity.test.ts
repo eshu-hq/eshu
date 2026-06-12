@@ -206,8 +206,11 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("/api/v0/repositories/");
     expect(page).toContain("/api/v0/services/");
     expect(page).toContain("Deployment evidence map");
+    expect(page).toContain("Typed deployment chain");
     expect(page).toContain("Evidence story");
     expect(page).toContain("Workspace unavailable");
+    expect(page).toContain("DEPLOYS_HELM");
+    expect(page).toContain("PACKAGES");
   });
 
   it("keeps the prototype repository source route on the live query contracts", () => {

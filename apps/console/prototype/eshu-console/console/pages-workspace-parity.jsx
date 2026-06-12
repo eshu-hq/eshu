@@ -193,14 +193,14 @@
     addNode(nodes, { id: "workload:" + workload, kind: "workload", label: workload, sub: "Workload", col: 3, hero: true });
     uniqueRepos(artifacts.filter(isHelm).map((artifact) => repoFromArtifact(artifact, "source"))).forEach((repo) => {
       addNode(nodes, { id: repo.id, kind: "repo", label: repo.name, sub: "Helm chart", col: 1 });
-      edges.push({ s: repo.id, t: sourceRepo.id, verb: "DEPLOYS_FROM", layer: "deploy" });
+      edges.push({ s: repo.id, t: sourceRepo.id, verb: "PACKAGES", layer: "deploy" });
     });
     const chartIds = new Set(Array.from(nodes.values()).filter((node) => node.sub === "Helm chart").map((node) => node.id));
     uniqueRepos(artifacts.filter(isController).map((artifact) => repoFromArtifact(artifact, "source"))).forEach((repo) => {
       if (repo.id === sourceRepo.id || chartIds.has(repo.id)) return;
       addNode(nodes, { id: repo.id, kind: "repo", label: repo.name, sub: "Deployment controller", col: 0 });
       const charts = Array.from(nodes.values()).filter((node) => node.sub === "Helm chart");
-      if (charts.length) charts.forEach((chart) => edges.push({ s: repo.id, t: chart.id, verb: "DEPLOYS_FROM", layer: "deploy" }));
+      if (charts.length) charts.forEach((chart) => edges.push({ s: repo.id, t: chart.id, verb: "DEPLOYS_HELM", layer: "deploy" }));
       else edges.push({ s: repo.id, t: sourceRepo.id, verb: "DEPLOYS_FROM", layer: "deploy" });
     });
     edges.push({ s: sourceRepo.id, t: "workload:" + workload, verb: "DEPLOYS_FROM", layer: "deploy" });
@@ -232,6 +232,15 @@
     return family === "argocd" || family === "kustomize";
   }
 
+  function nodeLabel(graph, id) {
+    const node = (graph.nodes || []).find((candidate) => candidate.id === id);
+    return node ? node.label : id;
+  }
+
+  function typedDeploymentEdges(graph) {
+    return (graph.edges || []).filter((edge) => edge.layer === "deploy" && edge.verb);
+  }
+
   function Workspace({ data, client, onOpenNode }) {
     const D = data || ESHU;
     const [{ entityKind, entityId }, setRoute] = useStateWP(workspaceParts);
@@ -257,6 +266,7 @@
 
     const story = state.story;
     const graph = useMemoWP(() => story ? story.graph : { nodes: [], edges: [] }, [story]);
+    const deployEdges = useMemoWP(() => typedDeploymentEdges(graph), [graph]);
     if (state.status === "loading") {
       return <div className="page"><div className="page-intro"><h2>Loading workspace</h2><p>Loading workspace dossier.</p></div></div>;
     }
@@ -275,6 +285,18 @@
         </div>
         <Panel className="flush mt" title="Deployment evidence map" sub="Repository, chart, controller, and workload evidence" glyph={<Icon.graph />}>
           <GraphCanvas graph={graph} layout="layered" height={420} onSelect={(node) => onOpenNode && onOpenNode(node, graph)} />
+          {deployEdges.length ? (
+            <div className="insp-evi mt">
+              <div className="insp-kind">Typed deployment chain</div>
+              {deployEdges.map((edge) => (
+                <div className="insp-evi-row" key={edge.s + edge.verb + edge.t}>
+                  <span>{nodeLabel(graph, edge.s)}</span>
+                  <Badge tone="teal">{edge.verb}</Badge>
+                  <span>{nodeLabel(graph, edge.t)}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </Panel>
         <Panel className="flush mt" title="Evidence story" sub="Readable claims with source and basis">
           <table className="tbl">
