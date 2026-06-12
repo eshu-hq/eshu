@@ -34,8 +34,9 @@ func TestBuildProjectionQueuesSingleAWSCloudRuntimeDriftIntent(t *testing.T) {
 		t.Fatalf("buildProjection() error = %v, want nil", err)
 	}
 	// AWS resource facts enqueue runtime-drift, CloudResource node
-	// materialization (issue #805), and the workload-cloud relationship slice.
-	if got, want := len(projection.reducerIntents), 3; got != want {
+	// materialization (issue #805), the workload-cloud relationship slice, and
+	// shared cloud-inventory admission (issue #2209).
+	if got, want := len(projection.reducerIntents), 4; got != want {
 		t.Fatalf("len(reducerIntents) = %d, want %d", got, want)
 	}
 	intent := intentForDomain(t, projection.reducerIntents, reducer.DomainAWSCloudRuntimeDrift)
@@ -47,6 +48,12 @@ func TestBuildProjectionQueuesSingleAWSCloudRuntimeDriftIntent(t *testing.T) {
 	}
 	if got, want := intent.SourceSystem, "aws"; got != want {
 		t.Fatalf("intent.SourceSystem = %q, want %q", got, want)
+	}
+	// The shared cloud-inventory admission intent is now enqueued so the
+	// canonical GET /api/v0/cloud/inventory readback is populated (#2209).
+	admission := intentForDomain(t, projection.reducerIntents, reducer.DomainCloudInventoryAdmission)
+	if got, want := admission.EntityKey, "cloud_inventory_admission:aws:123456789012:us-east-1:lambda"; got != want {
+		t.Fatalf("admission.EntityKey = %q, want %q", got, want)
 	}
 }
 

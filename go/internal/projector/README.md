@@ -442,6 +442,27 @@ counts, `content_write` stage logs, projector `failure_class` logs,
 non-repository scope skipped content rows while canonical and reducer work
 continued.
 
+No-Regression Evidence: cloud-inventory admission intent scheduling (#2209) is
+covered by `go test ./internal/projector -run 'CloudInventoryAdmission|TestBuildProjectionQueuesSingleAWSCloudRuntimeDriftIntent' -count=1`.
+Baseline: the `cloud_inventory_admission` reducer domain was registered and wired
+but received no intent, so `reducer_cloud_resource_identity` rows were never
+written and `GET /api/v0/cloud/inventory` returned zero rows. After: the
+projector enqueues at most one reducer intent per scope generation that carries a
+provider cloud-inventory source fact (`aws_resource`, `gcp_cloud_resource`, or
+`azure_cloud_resource`) — one per scope, not per fact — scope-keyed and anchored
+to the first such fact so reprojection of the same generation converges. Backend:
+none changed (Postgres fact store; no Cypher, no graph write in this domain). It
+does not change graph write cardinality, worker counts, claim ordering, batch
+size, retry timing, or backend settings; the shared `cloud_inventory_admission`
+handler is already proven idempotent and bounded under concurrent workers and is
+unchanged here.
+
+No-Observability-Change: existing projector `intent_enqueue` stage logs,
+`eshu_dp_reducer_intents_enqueued_total`, the reducer domain counters, and
+`fact_work_items` terminal state expose whether the `cloud_inventory_admission`
+work was queued, drained, retried, or dead-lettered; no new telemetry series or
+spans are added.
+
 ## Related docs
 
 - `docs/public/architecture.md` — pipeline and ownership table
