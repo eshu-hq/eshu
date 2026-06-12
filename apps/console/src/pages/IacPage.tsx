@@ -142,7 +142,11 @@ export function IacPage({ model, client }: { readonly model: ConsoleModel; reado
     <div className="page">
       <div className="page-intro">
         <h2>IaC Inventory</h2>
-        <p>Terraform resources, modules, and data sources from the authoritative graph. Filter by type, name, provider, or module.</p>
+        <p>
+          Terraform resources, modules, data sources, and deployment evidence from{" "}
+          <span className="mono">GET /api/v0/iac/resources</span>. Filter by
+          type, name, provider, or module.
+        </p>
       </div>
 
       <div className="grid g-4">

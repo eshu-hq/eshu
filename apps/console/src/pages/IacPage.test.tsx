@@ -47,6 +47,7 @@ describe("IacPage", () => {
     render(<IacPage model={demoModel} />);
 
     expect(screen.getByRole("heading", { name: "IaC Inventory" })).toBeInTheDocument();
+    expect(screen.getByText("GET /api/v0/iac/resources")).toBeInTheDocument();
     expect(screen.getByLabelText("IaC evidence workbench")).toBeInTheDocument();
     expect(screen.getByText("Resources (loaded)")).toBeInTheDocument();
     // Resource rows render with their Terraform type.
