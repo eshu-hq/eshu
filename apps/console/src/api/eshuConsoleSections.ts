@@ -154,6 +154,7 @@ export async function loadRuntime(client: EshuApiClient, ctx: SectionContext): P
 // the vulnerabilities section.
 export async function loadServices(client: EshuApiClient, ctx: SectionContext): Promise<readonly ServiceRow[] | null> {
   const env = await client.get<CatalogResponse>("/api/v0/catalog?limit=2000&offset=0");
+  if (env.error) throw new EshuEnvelopeError(env.error);
   const c = env.data ?? {};
   if (env.truth) ctx.truth.services = env.truth;
   const lvl = env.truth?.level ?? "exact";
@@ -182,6 +183,7 @@ export async function loadServices(client: EshuApiClient, ctx: SectionContext): 
 // specific ?language= and 400s without it, so it is intentionally not used.
 export async function loadLanguages(client: EshuApiClient): Promise<readonly LanguageRow[] | null> {
   const env = await client.get<LanguageInventory>("/api/v0/repositories/language-inventory?limit=100&offset=0");
+  if (env.error) throw new EshuEnvelopeError(env.error);
   const rows = (env.data?.languages ?? []).map((l) => ({ language: l.language, count: l.repository_count ?? l.count ?? l.file_count ?? 0 }));
   return rows.length > 0 ? rows : null;
 }
@@ -274,6 +276,7 @@ export async function loadVulnerabilities(client: EshuApiClient, ctx: SectionCon
 // no scope and stays bounded; the full subject browse lives on the SBOM page.
 export async function loadSbom(client: EshuApiClient, ctx: SectionContext): Promise<SbomEvidenceRow | null> {
   const env = await client.get<SBOMAttachmentCount>("/api/v0/supply-chain/sbom-attestations/attachments/count");
+  if (env.error) throw new EshuEnvelopeError(env.error);
   const data = env.data ?? {};
   if (env.truth) ctx.truth.sbom = env.truth;
   const total = Number(data.total_attachments ?? 0);
@@ -300,6 +303,7 @@ export async function loadDependenciesSection(client: EshuApiClient, ctx: Sectio
 // only needs the head page to know the section is live vs empty/unavailable.
 export async function loadImagesSection(client: EshuApiClient, ctx: SectionContext): Promise<ReturnType<typeof imageRowsFromResponse> | null> {
   const env = await client.get<{ images?: readonly Record<string, unknown>[] }>("/api/v0/images?limit=50&offset=0");
+  if (env.error) throw new EshuEnvelopeError(env.error);
   if (env.truth) ctx.truth.images = env.truth;
   const rows = imageRowsFromResponse(env.data);
   return rows.length > 0 ? rows : null;
@@ -310,6 +314,7 @@ export async function loadImagesSection(client: EshuApiClient, ctx: SectionConte
 // unavailable rather than failing the whole snapshot.
 export async function loadIacResources(client: EshuApiClient, ctx: SectionContext): Promise<readonly IacResourceRow[] | null> {
   const env = await client.get<IacResourcesResponse>("/api/v0/iac/resources?limit=200");
+  if (env.error) throw new EshuEnvelopeError(env.error);
   if (env.truth) ctx.truth.iacResources = env.truth;
   const rows: IacResourceRow[] = iacResourceRowsFromResponse(env.data);
   return rows.length > 0 ? rows : null;
@@ -357,6 +362,7 @@ async function loadMetricSeries(
     const env = await client.get<MetricsTimeSeriesResponse>(
       `/api/v0/metrics/timeseries?metric=${metric}&window=24h&step=30m`
     );
+    if (env.error) throw new EshuEnvelopeError(env.error);
     const points = (env.data?.points ?? []).map((point) => point.v).filter(isFiniteNumber);
     return points.length > 0 ? points : null;
   });

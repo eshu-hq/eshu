@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { EshuApiClient } from "./client";
-import { loadFindings, loadVulnerabilities, type SectionContext } from "./eshuConsoleSections";
+import {
+  loadFindings,
+  loadIacResources,
+  loadImagesSection,
+  loadLanguages,
+  loadSbom,
+  loadSeriesBundle,
+  loadServices,
+  loadVulnerabilities,
+  type SectionContext
+} from "./eshuConsoleSections";
 
 describe("eshuConsoleSections findings", () => {
   it("falls back from an empty dead-code repo name to the repo id", async () => {
@@ -98,6 +108,51 @@ describe("eshuConsoleSections vulnerabilities", () => {
 
     await expect(loadVulnerabilities(client, ctx)).rejects.toThrow(
       "unsupported_capability: impact findings unavailable"
+    );
+  });
+});
+
+describe("eshuConsoleSections snapshot envelopes", () => {
+  function errorClient(): EshuApiClient {
+    return {
+      get: async () => ({
+        data: null,
+        error: {
+          code: "unsupported_capability",
+          message: "snapshot section unavailable"
+        },
+        truth: null
+      })
+    } as unknown as EshuApiClient;
+  }
+
+  function context(): SectionContext {
+    return { truth: {}, repoNames: new Map() };
+  }
+
+  it("rejects catalog error envelopes so services are marked unavailable", async () => {
+    await expect(loadServices(errorClient(), context())).rejects.toThrow("unsupported_capability");
+  });
+
+  it("rejects language inventory error envelopes so languages are marked unavailable", async () => {
+    await expect(loadLanguages(errorClient())).rejects.toThrow("unsupported_capability");
+  });
+
+  it("rejects SBOM count error envelopes so SBOM evidence is marked unavailable", async () => {
+    await expect(loadSbom(errorClient(), context())).rejects.toThrow("unsupported_capability");
+  });
+
+  it("rejects image inventory error envelopes so images are marked unavailable", async () => {
+    await expect(loadImagesSection(errorClient(), context())).rejects.toThrow("unsupported_capability");
+  });
+
+  it("rejects IaC resource error envelopes so IaC is marked unavailable", async () => {
+    await expect(loadIacResources(errorClient(), context())).rejects.toThrow("unsupported_capability");
+  });
+
+  it("rejects metric series error envelopes so series provenance is marked unavailable", async () => {
+    await expect(loadSeriesBundle(errorClient(), async (_key, load) => load())).rejects.toThrow(
+      "unsupported_capability"
     );
   });
 });
