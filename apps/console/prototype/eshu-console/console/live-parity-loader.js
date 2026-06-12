@@ -107,6 +107,30 @@
     };
   }
 
+  function severityFromCvss(score) {
+    if (score >= 9) return "critical";
+    if (score >= 7) return "high";
+    if (score >= 4) return "medium";
+    return "low";
+  }
+
+  function mapAdvisory(row) {
+    const cvss = num(row.cvss_score);
+    const cve = str(row.cve_id);
+    const ghsa = str(row.ghsa_id);
+    return {
+      id: str(row.advisory_key) || str(row.canonical_id) || cve || ghsa,
+      cve,
+      ghsa,
+      severity: str(row.severity_label).toLowerCase() || severityFromCvss(cvss),
+      cvss,
+      kev: Boolean(row.kev),
+      ecosystems: Array.isArray(row.ecosystems) ? row.ecosystems : [],
+      packageIds: Array.isArray(row.package_ids) ? row.package_ids : [],
+      publishedAt: str(row.published_at)
+    };
+  }
+
   function mapLanguage(row) {
     return {
       label: str(row.language) || str(row.name),
@@ -204,6 +228,12 @@
           truncated: Boolean(invEnv.data && invEnv.data.truncated)
         }
       };
+    });
+
+    await section(out, "advisoryCatalog", async () => {
+      const env = await client.get("/api/v0/supply-chain/advisories?limit=50");
+      const rows = ((env.data && env.data.advisories) || []).map(mapAdvisory).filter((row) => row.id);
+      return rows.length ? { advisoryCatalog: rows } : null;
     });
 
     await section(out, "dependencyInventory", async () => {

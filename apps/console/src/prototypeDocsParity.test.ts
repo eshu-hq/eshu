@@ -13,6 +13,7 @@ describe("prototype documentation parity", () => {
     expect(guide).toContain("GET /api/v0/images");
     expect(guide).toContain("GET /api/v0/iac/resources");
     expect(guide).toContain("GET /api/v0/supply-chain/sbom-attestations/attachments");
+    expect(guide).toContain("GET /api/v0/supply-chain/advisories");
     expect(guide).toContain("GET /api/v0/dependencies");
     expect(guide).toContain("GET /api/v0/observability/coverage/correlations?provider=");
     expect(guide).not.toContain("Graph drill (next)");
@@ -25,5 +26,16 @@ describe("prototype documentation parity", () => {
 
     expect(page).toContain("grafana, prometheus/mimir, loki, and tempo");
     expect(page).not.toContain("Prometheus, CloudWatch, OpenTelemetry, Loki, Datadog");
+  });
+
+  it("keeps the prototype vulnerability surface split like the live console", () => {
+    const html = repoFile("apps/console/prototype/eshu-console/Eshu Console.html");
+    const page = repoFile("apps/console/prototype/eshu-console/console/pages-vulnerability-parity.jsx");
+
+    expect(html).toContain("console/pages-vulnerability-parity.jsx");
+    expect(page).toContain("Reachable in services");
+    expect(page).toContain("Known intelligence");
+    expect(page).toContain("advisoryCatalog");
+    expect(page).toContain("GET /api/v0/supply-chain/advisories");
   });
 });

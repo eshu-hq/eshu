@@ -10,6 +10,7 @@ interface PrototypeClient {
 
 interface PrototypeModel {
   readonly prov: Record<string, string>;
+  readonly advisoryCatalog?: readonly { readonly id: string; readonly severity: string; readonly cvss: number; readonly kev: boolean }[];
   readonly langInventory?: readonly { readonly label: string; readonly value: number }[];
   readonly obsCoverage?: Record<string, Record<string, { readonly state: string; readonly ref: string; readonly freshness: string }>>;
 }
@@ -67,6 +68,21 @@ function liveClient(): PrototypeClient {
       if (path.includes("/supply-chain/sbom-attestations/attachments/count")) {
         return { data: { total_attachments: 0 } };
       }
+      if (path.includes("/supply-chain/advisories")) {
+        return {
+          data: {
+            advisories: [{
+              advisory_key: "CVE-2026-0001",
+              cve_id: "CVE-2026-0001",
+              severity_label: "critical",
+              cvss_score: 9.8,
+              kev: true,
+              ecosystems: ["npm"],
+              package_ids: ["pkg:npm/express"]
+            }]
+          }
+        };
+      }
       return { data: { images: [], resources: [], buckets: [], dependencies: [] } };
     }
   };
@@ -95,5 +111,13 @@ describe("prototype live parity loader", () => {
     });
     expect(model.prov.langInventory).toBe("live");
     expect(model.prov.obsCoverage).toBe("live");
+    expect(client.paths).toContain("/api/v0/supply-chain/advisories?limit=50");
+    expect(model.advisoryCatalog?.[0]).toMatchObject({
+      id: "CVE-2026-0001",
+      severity: "critical",
+      cvss: 9.8,
+      kev: true
+    });
+    expect(model.prov.advisoryCatalog).toBe("live");
   });
 });
