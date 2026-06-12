@@ -85,10 +85,13 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("/api/v0/entities/resolve");
     expect(page).toContain("/api/v0/code/relationships");
     expect(page).toContain("/api/v0/services/");
+    expect(page).toContain("/api/v0/repositories/");
     expect(page).toContain("/api/v0/impact/entity-map");
     expect(page).toContain("Direct");
     expect(page).toContain("Neighborhood");
     expect(page).toContain("DEPLOYS_FROM");
+    expect(page).toContain("loadRepositoryDeploymentStoryGraph");
+    expect(page).toContain("repoId");
   });
 
   it("keeps the prototype workspace dossier route on the live query contracts", () => {

@@ -72,7 +72,7 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
       const effectiveMode = forcedMode ?? (modePinnedRef.current ? mode : resolved.mode);
       if (effectiveMode !== mode) setMode(effectiveMode);
       const g = effectiveMode === "neighborhood"
-        ? await loadEntityStoryGraph(client, resolved.name)
+        ? await loadEntityStoryGraph(client, resolved.name, resolved.repoId)
         : await loadEntityGraph(client, resolved.name);
       setLiveGraph(g);
       setSel(g.nodes.find((n) => n.hero));
@@ -100,7 +100,7 @@ export function ExplorerPage({ model, client, onOpenService, title, intro, defau
     try {
       const handle = node.id.trim() !== "" ? node.id : node.label;
       const g = nextMode === "neighborhood"
-        ? await loadEntityStoryGraph(client, handle)
+        ? await loadEntityStoryGraph(client, handle, repoIDForNode(node))
         : await loadEntityGraph(client, handle);
       setLiveGraph(g);
       setSel(g.nodes.find((n) => n.hero) ?? node);
@@ -211,4 +211,9 @@ function currentCenterId(graph: GraphModel): string | undefined {
 function modeForNode(node: GraphNode): "direct" | "neighborhood" {
   if (node.kind === "client" || node.kind === "library") return "direct";
   return "neighborhood";
+}
+
+function repoIDForNode(node: GraphNode): string | undefined {
+  if (node.kind !== "repo") return undefined;
+  return node.id.trim() === "" ? undefined : node.id;
 }

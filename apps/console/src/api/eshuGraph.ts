@@ -11,6 +11,8 @@ import { EshuEnvelopeError } from "./envelope";
 import type { GraphModel, GraphNode, GraphEdge, GraphLayer } from "../console/types";
 import { resolveEntity } from "./entityResolution";
 
+export { loadBlastGraph, blastFromModel } from "./eshuGraphImpact";
+
 const VERB_LAYER: Record<string, GraphLayer> = {
   CALLS: "code", IMPORTS: "code", INHERITS: "code", OVERRIDES: "code", REFERENCES: "code",
   DEPLOYS_FROM: "deploy", BUILDS: "deploy", DISCOVERS_CONFIG_IN: "deploy",
@@ -235,6 +237,13 @@ export interface ServiceDeploymentContextResponse {
     readonly artifacts?: readonly DeploymentArtifactRecord[];
   };
 }
+interface RepositoryDeploymentContextResponse {
+  readonly repository?: {
+    readonly id?: string;
+    readonly name?: string;
+  };
+  readonly deployment_evidence?: ServiceDeploymentContextResponse["deployment_evidence"];
+}
 interface RepoRef { readonly id: string; readonly name: string; }
 
 /**
@@ -294,7 +303,7 @@ export function deploymentStoryToGraph(data: ServiceDeploymentContextResponse, f
  * Loads the best neighborhood graph for a handle, preferring service deployment
  * context and falling back to impact/entity-map when no story evidence exists.
  */
-export async function loadEntityStoryGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
+export async function loadEntityStoryGraph(client: EshuApiClient, name: string, repoID?: string): Promise<GraphModel> {
   const storyClient = client as EshuApiClient & { readonly get?: EshuApiClient["get"] };
   if (typeof storyClient.get === "function") {
     try {
@@ -305,8 +314,34 @@ export async function loadEntityStoryGraph(client: EshuApiClient, name: string):
     } catch (error) {
       if (!shouldFallbackFromServiceContext(error)) throw error;
     }
+    const repositoryGraph = await loadRepositoryDeploymentStoryGraph(storyClient, name, repoID);
+    if (repositoryGraph !== null) return repositoryGraph;
   }
   return loadEntityMapGraph(client, name);
+}
+
+async function loadRepositoryDeploymentStoryGraph(
+  client: EshuApiClient & { readonly get: EshuApiClient["get"] },
+  name: string,
+  repoID: string | undefined
+): Promise<GraphModel | null> {
+  const id = cleanText(repoID);
+  if (id === "") return null;
+  try {
+    const env = await client.get<RepositoryDeploymentContextResponse>(`/api/v0/repositories/${encodeURIComponent(id)}/context`);
+    if (env.error) throw new EshuEnvelopeError(env.error);
+    const data = env.data ?? {};
+    const repoName = cleanText(data.repository?.name) || name;
+    const graph = deploymentStoryToGraph({
+      name,
+      repo_name: repoName,
+      deployment_evidence: data.deployment_evidence
+    }, name);
+    return graph.edges.length > 0 ? graph : null;
+  } catch (error) {
+    if (shouldFallbackFromServiceContext(error)) return null;
+    throw error;
+  }
 }
 
 // Expand one entity into a broader neighbourhood via POST impact/entity-map.
@@ -384,9 +419,12 @@ export async function resolveEntityName(client: EshuApiClient, query: string): P
 // the right view (Direct for code, Neighborhood for service/infra) before the
 // user toggles. See issue #1725.
 export interface ResolvedHandle {
+  readonly id: string;
   readonly name: string;
   readonly kind: string;
   readonly mode: "direct" | "neighborhood";
+  readonly repoId: string;
+  readonly repoName: string;
 }
 
 // resolveEntityHandle resolves a typed query to its canonical name and kind via
@@ -398,79 +436,23 @@ export async function resolveEntityHandle(client: EshuApiClient, query: string):
     const result = await resolveEntity({ client, name: query, limit: 1 });
     const top = result.candidates[0];
     const kind = top?.type ?? top?.labels[0] ?? "";
-    return { name: top?.name ?? query, kind, mode: recommendedModeForKind(kind) };
+    return {
+      id: top?.id ?? "",
+      name: top?.name ?? query,
+      kind,
+      mode: recommendedModeForKind(kind),
+      repoId: repositoryIDForResolved(top?.id, top?.repoId, kind),
+      repoName: top?.repoName ?? ""
+    };
   } catch {
-    return { name: query, kind: "", mode: "direct" };
+    return { id: "", name: query, kind: "", mode: "direct", repoId: "", repoName: "" };
   }
 }
 
-// Blast radius: dependents that break if `name` fails. `loadBlastGraph` queries
-// the live API and throws if it is unavailable; callers that need an offline
-// path fall back to `blastFromModel`, which reverse-walks the in-memory graph.
-// One affected entity from the blast-radius response. The live endpoint returns
-// `affected: [{repo, repo_id?, hops?, ...}]`; the other keys are kept for forward
-// compatibility with alternate response shapes.
-interface ImpactEntity {
-  readonly id?: string; readonly name?: string; readonly type?: string;
-  readonly distance?: number; readonly hops?: number;
-  readonly repo?: string; readonly repo_id?: string;
-}
-interface BlastResponse {
-  readonly target?: RelEntity | string; readonly entity?: RelEntity;
-  readonly affected?: readonly ImpactEntity[];
-  readonly impacted?: readonly ImpactEntity[]; readonly dependents?: readonly ImpactEntity[]; readonly results?: readonly ImpactEntity[];
-}
-
-export async function loadBlastGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
-  // POST /api/v0/impact/blast-radius requires `target` + `target_type`; a
-  // service/workload is anchored on its repository. The response is
-  // `{ target, target_type, affected: [{repo, repo_id?, hops?}], ... }`.
-  const env = await client.post<BlastResponse>("/api/v0/impact/blast-radius", {
-    target: name, target_type: "repository", limit: 50
-  });
-  const data = env.data ?? {};
-  const center = ident(typeof data.target === "object" ? data.target : data.entity, name);
-  const affected = data.affected ?? data.impacted ?? data.dependents ?? data.results ?? [];
-  const nodes = new Map<string, GraphNode>();
-  nodes.set(center.id, { id: center.id, kind: "service", label: center.name, sub: "impact origin", hero: true, col: 0, truth: "exact" });
-  const edges: GraphEdge[] = [];
-  affected.forEach((e) => {
-    const label = (e.repo ?? e.name ?? e.id ?? "").trim();
-    // Skip empty or non-entity rows (a real repo name has no whitespace), so a
-    // target with no indexed dependents renders cleanly as the origin alone.
-    if (label === "" || /\s/.test(label)) return;
-    const id = e.repo_id ?? e.id ?? label;
-    if (id === center.id) return;
-    const hop = e.distance ?? e.hops ?? 1;
-    if (!nodes.has(id)) nodes.set(id, { id, kind: kindFor(e.type), label, sub: `hop ${hop}`, col: hop, truth: "exact" });
-    edges.push({ s: id, t: center.id, verb: "DEPENDS_ON", layer: "runtime" });
-  });
-  return { nodes: [...nodes.values()], edges };
-}
-
-// Fallback: reverse-walk the loaded model graph to find dependents of `name`.
-export function blastFromModel(graph: GraphModel, name: string): GraphModel {
-  const center = graph.nodes.find((n) => n.label === name || n.id === name);
-  if (!center) return { nodes: [], edges: [] };
-  const dependents = new Set<string>([center.id]);
-  const edges: GraphEdge[] = [];
-  const seen = new Set<string>();
-  let frontier = [center.id];
-  for (let depth = 0; depth < 3 && frontier.length; depth++) {
-    const next: string[] = [];
-    graph.edges.forEach((e) => {
-      if (!frontier.includes(e.t)) return;
-      if (!["DEPENDS_ON", "IMPORTS", "CALLS", "RUNS_AS"].includes(e.verb.toUpperCase())) return;
-      const ek = `${e.s}>${e.t}`;
-      if (!seen.has(ek)) { edges.push({ s: e.s, t: e.t, verb: e.verb, layer: e.layer }); seen.add(ek); }
-      if (!dependents.has(e.s)) { dependents.add(e.s); next.push(e.s); }
-    });
-    frontier = next;
-  }
-  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
-  const nodes: GraphNode[] = [...dependents].map((id) => {
-    const n = byId.get(id);
-    return { id, kind: n?.kind ?? "service", label: n?.label ?? id, sub: id === center.id ? "impact origin" : n?.sub, hero: id === center.id, col: 0, truth: n?.truth };
-  });
-  return { nodes, edges };
+function repositoryIDForResolved(id: string | undefined, repoID: string | undefined, kind: string): string {
+  const resolvedRepoID = cleanText(repoID);
+  if (resolvedRepoID !== "") return resolvedRepoID;
+  const resolvedID = cleanText(id);
+  if (resolvedID !== "" && kind.toLowerCase().includes("repo")) return resolvedID;
+  return "";
 }

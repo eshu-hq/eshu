@@ -60,11 +60,21 @@
         id: top.id || top.entity_id || "",
         name: top.name || query,
         kind,
+        repoId: repositoryIDForResolved(top.id || top.entity_id || "", top.repo_id || "", kind),
+        repoName: top.repo_name || "",
         mode: recommendedMode(kind)
       };
     } catch (_) {
-      return { id: "", name: query, kind: "", mode: "direct" };
+      return { id: "", name: query, kind: "", repoId: "", repoName: "", mode: "direct" };
     }
+  }
+
+  function repositoryIDForResolved(id, repoId, kind) {
+    const resolvedRepoId = String(repoId || "").trim();
+    if (resolvedRepoId) return resolvedRepoId;
+    const resolvedId = String(id || "").trim();
+    if (resolvedId && String(kind || "").toLowerCase().indexOf("repo") >= 0) return resolvedId;
+    return "";
   }
 
   function codeRelationshipsToGraph(data, fallback) {
@@ -208,10 +218,39 @@
       const story = deploymentStoryToGraph(env.data || {}, resolved.name);
       if (story.edges.length) return { graph: story, resolved };
     } catch (e) {
-      if (String((e && e.message) || e).indexOf("HTTP 404") < 0 && String((e && e.message) || e).indexOf("not_found") < 0) throw e;
+      if (!shouldFallbackFromContext(e)) throw e;
     }
+    const repoStory = await loadRepositoryDeploymentStoryGraph(client, resolved);
+    if (repoStory) return { graph: repoStory, resolved };
     const env = await client.post("/api/v0/impact/entity-map", { from: resolved.name, depth: 2 });
     return { graph: entityMapToGraph(env.data || {}, resolved.name), resolved };
+  }
+
+  async function loadRepositoryDeploymentStoryGraph(client, resolved) {
+    const repoId = String(resolved.repoId || "").trim();
+    if (!repoId) return null;
+    try {
+      const env = await client.get("/api/v0/repositories/" + encodeURIComponent(repoId) + "/context");
+      const data = env.data || {};
+      const repository = data.repository || {};
+      const story = deploymentStoryToGraph({
+        name: resolved.name,
+        repo_name: repository.name || resolved.repoName || resolved.name,
+        deployment_evidence: data.deployment_evidence
+      }, resolved.name);
+      return story.edges.length ? story : null;
+    } catch (e) {
+      if (shouldFallbackFromContext(e)) return null;
+      throw e;
+    }
+  }
+
+  function shouldFallbackFromContext(error) {
+    const msg = String((error && error.message) || error || "");
+    return msg.indexOf("HTTP 404") >= 0 ||
+      msg.indexOf("not_found") >= 0 ||
+      msg.indexOf("service_not_found") >= 0 ||
+      msg.indexOf("unknown_service") >= 0;
   }
 
   function hashQuery() {
