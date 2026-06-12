@@ -156,7 +156,7 @@ function CodeGraph({ data, onOpenService }) {
         <StatTile label="Modules" value={g.nodes.filter((n) => !n.dead).length} color="var(--teal)" sub={svc ? svc.repo : ""} />
         <StatTile label="Import edges" value={importEdges} color="var(--blue)" sub="module graph" />
         <StatTile label="Call edges" value={callEdges} color="var(--ember)" sub="function call-graph" />
-        <StatTile label="Dead symbols" value={g.dead.length} color="var(--crit)" sub={g.dead.length ? "orphaned" : "none in repo"} onClick={() => { location.hash = "deadcode"; }} cta="Dead code" />
+        <StatTile label="Dead symbols" value={g.dead.length} color="var(--crit)" sub={g.dead.length ? "orphaned" : "none in repo"} onClick={() => { window.ESHU_ROUTES.setHash("deadcode"); }} cta="Dead code" />
       </div>
 
       <div className="explorer-layout mt">
@@ -176,7 +176,7 @@ function CodeGraph({ data, onOpenService }) {
           <div className="section-label" style={{ marginTop: 16 }}>Dead in this repo · {g.dead.length}</div>
           {g.dead.length ? (
             <div className="conn-list">
-              {g.dead.map((d) => <button type="button" className="dead-row" key={d.id} onClick={() => { location.hash = "deadcode"; }}><span className="mono">{d.symbol}</span><span className="t-mut">{(DEADKIND[d.kind] || {}).label}</span></button>)}
+              {g.dead.map((d) => <button type="button" className="dead-row" key={d.id} onClick={() => { window.ESHU_ROUTES.setHash("deadcode"); }}><span className="mono">{d.symbol}</span><span className="t-mut">{(DEADKIND[d.kind] || {}).label}</span></button>)}
             </div>
           ) : <p className="empty" style={{ padding: "6px 0", textAlign: "left" }}>No dead code in {svc ? svc.name : "this repo"}.</p>}
         </Panel>

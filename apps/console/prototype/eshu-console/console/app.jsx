@@ -10,15 +10,17 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "chartStyle": "bars"
 }/*EDITMODE-END*/;
 
-const ROUTE_ALIASES = {
-  repositories: "repos",
-  "dead-code": "deadcode",
-  "code-graph": "codegraph",
-  operations: "admin"
-};
-
 function canonicalRoute(route) {
-  return ROUTE_ALIASES[route] || route;
+  return window.ESHU_ROUTES ? window.ESHU_ROUTES.canonicalRoute(route) : route;
+}
+
+function routeHash(route, suffix) {
+  return window.ESHU_ROUTES ? window.ESHU_ROUTES.hashFor(route, suffix) : "#" + route + (suffix || "");
+}
+
+function setRouteHash(route, suffix) {
+  if (window.ESHU_ROUTES) window.ESHU_ROUTES.setHash(route, suffix);
+  else location.hash = route + (suffix || "");
 }
 
 const NAV = [
@@ -119,7 +121,7 @@ function App() {
   }, []);
   useEffectA(() => { document.documentElement.setAttribute("data-verified", verifiedOnly ? "on" : "off"); }, [verifiedOnly]);
 
-  function go(id) { location.hash = id; setRoute(id); }
+  function go(id) { setRouteHash(id); setRoute(canonicalRoute(id)); }
   const openService = (id) => setDrawer({ type: "service", id });
   const openNode = (node, graph) => {
     const sid = resolveServiceId(node, data);
@@ -127,7 +129,7 @@ function App() {
     else setDrawer({ type: "node", node, graph: graph || data.graph });
   };
   const openCollector = (collector) => setDrawer({ type: "collector", collector });
-  function openVuln(cve) { setDrawer(null); location.hash = "vulnerabilities?cve=" + encodeURIComponent(cve); setRoute("vulnerabilities"); }
+  function openVuln(cve) { setDrawer(null); setRouteHash("vulnerabilities", "?cve=" + encodeURIComponent(cve)); setRoute("vulnerabilities"); }
   const goAndClose = (route) => { setDrawer(null); go(route); };
 
   const [title, sub] = TITLES[route] || TITLES.dashboard;
@@ -135,7 +137,7 @@ function App() {
   return (
     <div className="shell">
       <nav className="sidebar">
-        <a className="brand" href="#dashboard" onClick={() => go("dashboard")}>
+        <a className="brand" href={routeHash("dashboard")} onClick={() => go("dashboard")}>
           <img className="brand-mark" src="assets/eshu-icon.svg" alt="" />
           <span><span className="brand-name">e<b>shu</b></span><span className="brand-sub">Context Graph</span></span>
         </a>
@@ -146,7 +148,7 @@ function App() {
               const I = Icon[it.icon];
               const c = it.count ? it.count(data) : null;
               return (
-                <a key={it.id} className={cx("nav-item", route === it.id && "active")} href={"#" + it.id} onClick={() => go(it.id)}>
+                <a key={it.id} className={cx("nav-item", route === it.id && "active")} href={routeHash(it.id)} onClick={() => go(it.id)}>
                   <I /> {it.label}
                   {c != null && c > 0 ? <span className={cx("nav-count", it.alert && "alert")}>{c}</span> : null}
                 </a>

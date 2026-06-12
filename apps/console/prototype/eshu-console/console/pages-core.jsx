@@ -295,7 +295,7 @@ function Dashboard({ onOpenService, onOpenNode, heroMode, graphStyle, chartStyle
   const stat = [
   { label: "Graph nodes", value: fmt(D.runtime.nodes), spark: D.metrics.graphNodes, color: "var(--teal)", trend: { dir: "up", text: "+2.1%" }, sub: "NornicDB · " + D.runtime.backendVersion },
   { label: "Relationships", value: fmt(D.runtime.edges), spark: D.metrics.graphEdges, color: "var(--ember)", trend: { dir: "up", text: "+3.4%" }, sub: D.relationships.length + " typed verbs observed" },
-  { label: "Indexed repos", value: D.runtime.repos, spark: D.metrics.ingestRate, color: "var(--blue)", trend: { dir: "flat", text: "0" }, sub: D.runtime.services + " services · " + D.runtime.workloads + " workloads", onClick: () => {location.hash = "repos";}, cta: "Browse" },
+  { label: "Indexed repos", value: D.runtime.repos, spark: D.metrics.ingestRate, color: "var(--blue)", trend: { dir: "flat", text: "0" }, sub: D.runtime.services + " services · " + D.runtime.workloads + " workloads", onClick: () => { window.ESHU_ROUTES.setHash("repos"); }, cta: "Browse" },
   { label: "Queue outstanding", value: D.runtime.queueOutstanding, spark: D.metrics.queueDepth, color: "var(--violet)", trend: { dir: "down", text: "−18%" }, sub: D.runtime.inFlight + " in-flight · " + D.runtime.deadLetters + " dead-letter" }];
 
 
@@ -350,7 +350,7 @@ function Dashboard({ onOpenService, onOpenNode, heroMode, graphStyle, chartStyle
           <AreaChart data={ESHU.metrics.ingestRate} color="var(--teal)" h={190} unit=" f/m" labels={ESHU.metrics.ingestRate.map((_, i) => `t-${ESHU.metrics.ingestRate.length - 1 - i}`)} />
         </Panel>
         <Panel title="Collector health" sub={D.collectors.length + " collectors feeding the graph"} glyph={<Icon.layers />}
-        action={<a className="btn-ghost" href="#admin">All</a>}>
+        action={<a className="btn-ghost" href={window.ESHU_ROUTES.hashFor("admin")}>All</a>}>
           <div className="health-row">
             <Donut size={120} thickness={15} segments={[
             { label: "healthy", value: collectorCounts.healthy || 0, color: "var(--teal)" },

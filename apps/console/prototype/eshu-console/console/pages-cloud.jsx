@@ -258,7 +258,7 @@ function Observability({ data, onOpenService, onOpenNode, onOpenCollector }) {
         <StatTile label="Services monitored" value={rows.length} color="var(--teal)" sub="running workloads" />
         <StatTile label="Full coverage" value={fullCovered + "/" + rows.length} color="var(--teal)" sub="all six signals present" />
         <StatTile label="Coverage gaps" value={totalGaps} color="var(--crit)" sub={withGaps + " services with \u2265 1 gap"} />
-        <StatTile label="Source health" value={(obsCollectors.length - staleSources) + "/" + obsCollectors.length} color={staleSources ? "var(--med)" : "var(--teal)"} sub={staleSources ? staleSources + " degraded / stale" : "all healthy"} onClick={() => { location.hash = "admin"; }} cta="Operations" />
+        <StatTile label="Source health" value={(obsCollectors.length - staleSources) + "/" + obsCollectors.length} color={staleSources ? "var(--med)" : "var(--teal)"} sub={staleSources ? staleSources + " degraded / stale" : "all healthy"} onClick={() => { window.ESHU_ROUTES.setHash("admin"); }} cta="Operations" />
       </div>
 
       <Panel className="mt" title="Signal sources" sub={obsCollectors.length + " observability collectors feeding the graph"} glyph={<Icon.cloud />}>
