@@ -49,14 +49,32 @@ export function codeRelationshipsToGraph(data: CodeRelationshipsResponse, fallba
     const id = e.source_id ?? e.source_name;
     if (!id) return;
     const verb = (e.type ?? "RELATED").toUpperCase();
-    if (id !== centerId && !nodes.has(id)) nodes.set(id, { id, kind: kindFor(undefined), label: e.source_name ?? id, col: 0, truth: "exact" });
+    if (id !== centerId && !nodes.has(id)) {
+      nodes.set(id, {
+        id,
+        kind: relationshipNodeKind(verb),
+        label: e.source_name ?? id,
+        sub: relationshipNodeSub(verb, "incoming"),
+        col: 0,
+        truth: "exact"
+      });
+    }
     edges.push({ s: id, t: centerId, verb, layer: layerFor(verb) });
   });
   (data.outgoing ?? []).forEach((e) => {
     const id = e.target_id ?? e.target_name;
     if (!id) return;
     const verb = (e.type ?? "RELATED").toUpperCase();
-    if (id !== centerId && !nodes.has(id)) nodes.set(id, { id, kind: kindFor(undefined), label: e.target_name ?? id, col: 2, truth: "exact" });
+    if (id !== centerId && !nodes.has(id)) {
+      nodes.set(id, {
+        id,
+        kind: relationshipNodeKind(verb),
+        label: e.target_name ?? id,
+        sub: relationshipNodeSub(verb, "outgoing"),
+        col: 2,
+        truth: "exact"
+      });
+    }
     edges.push({ s: centerId, t: id, verb, layer: layerFor(verb) });
   });
   return { nodes: [...nodes.values()], edges };
@@ -64,6 +82,18 @@ export function codeRelationshipsToGraph(data: CodeRelationshipsResponse, fallba
 
 function layerFor(verb: string): GraphLayer {
   return VERB_LAYER[verb.toUpperCase()] ?? "runtime";
+}
+
+function relationshipNodeKind(verb: string): string {
+  const normalized = verb.toUpperCase();
+  if (normalized === "IMPORTS" || normalized === "REFERENCES") return "library";
+  if (normalized === "CALLS") return "client";
+  if (normalized === "INHERITS" || normalized === "OVERRIDES") return "client";
+  return "client";
+}
+
+function relationshipNodeSub(verb: string, direction: "incoming" | "outgoing"): string {
+  return `${direction} ${verb.toUpperCase()}`;
 }
 
 function kindFor(type: string | undefined): string {

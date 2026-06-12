@@ -88,14 +88,16 @@ function codeRelationshipsGraph(payload, selected, candidates) {
   (data.incoming || []).forEach((e) => {
     const id = e.source_id || e.source_name;
     if (!id) return;
-    if (!seen.has(id)) { seen.add(id); nodes.push({ id, label: e.source_name || id, sub: "incoming", col: 0, kind: "library" }); }
-    edges.push({ s: id, t: centerId, verb: (e.type || "RELATED").toUpperCase(), layer: "code" });
+    const verb = (e.type || "RELATED").toUpperCase();
+    if (!seen.has(id)) { seen.add(id); nodes.push({ id, label: e.source_name || id, sub: relationshipNodeSub(verb, "incoming"), col: 0, kind: relationshipNodeKind(verb) }); }
+    edges.push({ s: id, t: centerId, verb, layer: "code" });
   });
   (data.outgoing || []).forEach((e) => {
     const id = e.target_id || e.target_name;
     if (!id) return;
-    if (!seen.has(id)) { seen.add(id); nodes.push({ id, label: e.target_name || id, sub: "outgoing", col: 2, kind: "library" }); }
-    edges.push({ s: centerId, t: id, verb: (e.type || "RELATED").toUpperCase(), layer: "code" });
+    const verb = (e.type || "RELATED").toUpperCase();
+    if (!seen.has(id)) { seen.add(id); nodes.push({ id, label: e.target_name || id, sub: relationshipNodeSub(verb, "outgoing"), col: 2, kind: relationshipNodeKind(verb) }); }
+    edges.push({ s: centerId, t: id, verb, layer: "code" });
   });
   candidates.filter((d) => sameDeadCodeRepo(d, selected)).forEach((d) => {
     const id = "dead:" + d.id;
@@ -105,6 +107,18 @@ function codeRelationshipsGraph(payload, selected, candidates) {
     }
   });
   return { nodes, edges, dead: candidates.filter((d) => sameDeadCodeRepo(d, selected)) };
+}
+
+function relationshipNodeKind(verb) {
+  const normalized = String(verb || "").toUpperCase();
+  if (normalized === "IMPORTS" || normalized === "REFERENCES") return "library";
+  if (normalized === "CALLS") return "client";
+  if (normalized === "INHERITS" || normalized === "OVERRIDES") return "client";
+  return "client";
+}
+
+function relationshipNodeSub(verb, direction) {
+  return direction + " " + String(verb || "RELATED").toUpperCase();
 }
 
 function deadOnlyLiveGraph(selected, candidates) {

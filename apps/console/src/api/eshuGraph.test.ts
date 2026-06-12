@@ -99,6 +99,21 @@ describe("eshuGraph", () => {
     expect(graph.edges.find((e) => e.t === "content-entity:e_dep")).toMatchObject({ s: "content-entity:e_center", verb: "CALLS", layer: "code" });
   });
 
+  it("codeRelationshipsToGraph classifies related code symbols from relationship direction", () => {
+    const graph = codeRelationshipsToGraph({
+      entity_id: "content-entity:e_center", name: "handler", labels: ["Function"],
+      incoming: [{ type: "CALLS", source_id: "content-entity:e_route", source_name: "route" }],
+      outgoing: [
+        { type: "CALLS", target_id: "content-entity:e_callee", target_name: "loadProfile" },
+        { type: "IMPORTS", target_id: "content-entity:e_pkg", target_name: "apiClient" }
+      ]
+    }, { id: "content-entity:e_center", name: "handler" });
+
+    expect(graph.nodes.find((node) => node.id === "content-entity:e_route")).toMatchObject({ kind: "client", sub: "incoming CALLS" });
+    expect(graph.nodes.find((node) => node.id === "content-entity:e_callee")).toMatchObject({ kind: "client", sub: "outgoing CALLS" });
+    expect(graph.nodes.find((node) => node.id === "content-entity:e_pkg")).toMatchObject({ kind: "library", sub: "outgoing IMPORTS" });
+  });
+
   it("codeRelationshipsToGraph keeps source metadata for the centered code entity", () => {
     const graph = codeRelationshipsToGraph({
       entity_id: "content-entity:e_center",

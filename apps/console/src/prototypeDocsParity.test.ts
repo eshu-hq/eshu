@@ -272,6 +272,8 @@ describe("prototype documentation parity", () => {
     expect(page).toContain("focusedNode");
     expect(page).toContain("locationLabel");
     expect(page).toContain("codeGraphCandidateParam");
+    expect(page).toContain("relationshipNodeKind");
+    expect(page).toContain("relationshipNodeSub");
   });
 
   it("keeps the prototype topology route on current live service topology contracts", () => {
