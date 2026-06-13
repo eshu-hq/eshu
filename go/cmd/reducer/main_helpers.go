@@ -22,14 +22,15 @@ import (
 // (eshu_dp_worker_pool_active, backed by activeWorkers), and the
 // shared-acceptance read-model gauge (eshu_dp_shared_acceptance_rows). The queue
 // and acceptance observers read cheap, bounded queries; the worker observer
-// reads an in-memory atomic counter. None add scan cost per metrics scrape. It
-// lives here rather than in main.go to keep that file within the file-size
-// budget.
+// reads an in-memory atomic counter. The graph orphan observer runs static-label
+// capped counts. None add unbounded scan cost per metrics scrape. It lives here
+// rather than in main.go to keep that file within the file-size budget.
 func registerReducerObservableGauges(
 	instruments *telemetry.Instruments,
 	meter metric.Meter,
 	db *sql.DB,
 	activeWorkers *atomic.Int64,
+	graphOrphanObserver telemetry.GraphOrphanObserver,
 ) error {
 	queueObserver := postgres.NewQueueObserverStore(postgres.SQLQueryer{DB: db})
 	workerObserver := reducerWorkerObserver{active: activeWorkers}
@@ -41,7 +42,18 @@ func registerReducerObservableGauges(
 	if err := telemetry.RegisterAcceptanceObservableGauges(instruments, meter, acceptanceObserver); err != nil {
 		return fmt.Errorf("register acceptance observable gauge: %w", err)
 	}
+	if err := telemetry.RegisterGraphOrphanObservableGauge(instruments, meter, graphOrphanObserver); err != nil {
+		return fmt.Errorf("register graph orphan observable gauge: %w", err)
+	}
 	return nil
+}
+
+func graphOrphanObserver(service reducer.Service) telemetry.GraphOrphanObserver {
+	if service.GraphOrphanSweepRunner == nil || service.GraphOrphanSweepRunner.Sweeper == nil {
+		return nil
+	}
+	observer, _ := service.GraphOrphanSweepRunner.Sweeper.(telemetry.GraphOrphanObserver)
+	return observer
 }
 
 // main is the reducer entrypoint. It prints the version when requested, then

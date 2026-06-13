@@ -267,6 +267,7 @@ func buildRowMap(
 			"platform_environment": payloadString(row.Payload, "platform_environment"),
 			"platform_region":      payloadString(row.Payload, "platform_region"),
 			"platform_locator":     payloadString(row.Payload, "platform_locator"),
+			"generation_id":        row.GenerationID,
 			"evidence_source":      evidenceSource,
 		}, true
 

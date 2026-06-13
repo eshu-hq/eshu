@@ -130,6 +130,18 @@ func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 	if service.GenerationRetentionRunner == nil {
 		t.Fatal("buildReducerService() generation retention runner = nil, want non-nil")
 	}
+	if service.GraphOrphanSweepRunner == nil {
+		t.Fatal("buildReducerService() graph orphan sweep runner = nil, want non-nil")
+	}
+	if service.GraphOrphanSweepRunner.LeaseManager == nil {
+		t.Fatal("buildReducerService() graph orphan sweep lease manager = nil, want non-nil")
+	}
+	if got := service.GraphOrphanSweepRunner.Config.LeaseOwner; !strings.HasPrefix(got, "graph-orphan-sweep-runner:") {
+		t.Fatalf("buildReducerService() graph orphan sweep lease owner = %q, want per-process owner", got)
+	}
+	if got := service.GraphOrphanSweepRunner.Config.LeaseTTL; got <= 0 {
+		t.Fatalf("buildReducerService() graph orphan sweep lease TTL = %v, want positive", got)
+	}
 	if service.GraphProjectionPhaseRepairer.Queue == nil {
 		t.Fatal("buildReducerService() graph projection repair queue = nil, want non-nil")
 	}

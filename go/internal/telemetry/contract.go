@@ -37,9 +37,13 @@ const (
 	MetricDimensionRepoSizeTier  = "repo_size_tier"
 	MetricDimensionSkipReason    = "skip_reason"
 	MetricDimensionNodeType      = "node_type"
-	MetricDimensionEdgeType      = "edge_type"
-	MetricDimensionWritePhase    = "write_phase"
-	MetricDimensionOutcome       = "outcome"
+	// MetricDimensionNodeLabel labels graph maintenance metrics with a closed
+	// Cypher label such as Repository, Platform, or EvidenceArtifact. Producers
+	// must never use raw node ids, names, paths, or provider locators here.
+	MetricDimensionNodeLabel  = "node_label"
+	MetricDimensionEdgeType   = "edge_type"
+	MetricDimensionWritePhase = "write_phase"
+	MetricDimensionOutcome    = "outcome"
 	// MetricDimensionPolicyID labels bounded policy counters, such as search
 	// decay scoring decisions, with a configured low-cardinality policy token.
 	MetricDimensionPolicyID = "policy_id"
@@ -79,7 +83,7 @@ const (
 	// request paths with identifiers are never used.
 	MetricDimensionRoute        = "route"
 	MetricDimensionFailureClass = "failure_class"
-	MetricDimensionFactKind       = "fact_kind"
+	MetricDimensionFactKind     = "fact_kind"
 	// MetricDimensionResourceScope labels Kubernetes live collection metrics
 	// with a bounded resource scope such as namespaces, pods, deployments, or
 	// services. It is a closed enum of resource families, never namespace or
@@ -419,7 +423,7 @@ const (
 	// and eshu.capability attributes; cloud_resource_uid, raw identities,
 	// account/project/subscription scopes, and provider locators stay out of span
 	// and metric labels.
-	SpanQueryCloudInventoryReadback  = "query.cloud_inventory_readback"
+	SpanQueryCloudInventoryReadback = "query.cloud_inventory_readback"
 	// SpanQueryCloudRuntimeDriftFindings wraps the bounded, paginated readback of
 	// provider-neutral runtime drift findings (reducer_multi_cloud_runtime_drift_finding
 	// rows) served by POST /api/v0/cloud/runtime-drift/findings. It is distinct
@@ -429,8 +433,8 @@ const (
 	// span carries only the stable http.route and eshu.capability attributes;
 	// cloud_resource_uid, raw identities, scope ids, and provider locators stay
 	// out of span and metric labels.
-	SpanQueryCloudRuntimeDriftFindings = "query.cloud_runtime_drift_findings"
-	SpanQueryCodeStructuralInventory   = "query.code_structural_inventory"
+	SpanQueryCloudRuntimeDriftFindings   = "query.cloud_runtime_drift_findings"
+	SpanQueryCodeStructuralInventory     = "query.code_structural_inventory"
 	SpanQueryCodeTopicInvestigation      = "query.code_topic_investigation"
 	SpanQueryDeadCodeInvestigation       = "query.dead_code_investigation"
 	SpanQueryChangeSurfaceInvestigation  = "query.change_surface_investigation"

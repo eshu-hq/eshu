@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 func TestNewInstrumentsNoError(t *testing.T) {
@@ -532,6 +533,36 @@ func TestRegisterAcceptanceObservableGauges_WithObserver(t *testing.T) {
 	}
 }
 
+func TestRegisterGraphOrphanObservableGauge_WithObserver(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	inst := &Instruments{}
+	observer := &fakeGraphOrphanObserver{
+		counts: map[string]int64{
+			"Repository": 3,
+			"Platform":   1,
+		},
+	}
+
+	if err := RegisterGraphOrphanObservableGauge(inst, provider.Meter("test"), observer); err != nil {
+		t.Fatalf("RegisterGraphOrphanObservableGauge() error = %v", err)
+	}
+	if inst.GraphOrphanNodes == nil {
+		t.Fatal("GraphOrphanNodes gauge was not registered")
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if got := observableInt64GaugeValue(t, rm, "eshu_dp_graph_orphan_nodes", map[string]string{"node_label": "Repository"}); got != 3 {
+		t.Fatalf("Repository orphan gauge = %d, want 3", got)
+	}
+	if got := observableInt64GaugeValue(t, rm, "eshu_dp_graph_orphan_nodes", map[string]string{"node_label": "Platform"}); got != 1 {
+		t.Fatalf("Platform orphan gauge = %d, want 1", got)
+	}
+}
+
 type fakeQueueObserver struct {
 	depths map[string]map[string]int64
 	ages   map[string]float64
@@ -561,10 +592,60 @@ func (f *fakeAWSClaimConcurrencyObserver) AWSClaimConcurrency(context.Context) (
 	return f.counts, nil
 }
 
+type fakeGraphOrphanObserver struct {
+	counts map[string]int64
+}
+
+func (f *fakeGraphOrphanObserver) GraphOrphanNodeCounts(context.Context) (map[string]int64, error) {
+	return f.counts, nil
+}
+
 type fakeAcceptanceObserver struct {
 	rows int64
 }
 
 func (f *fakeAcceptanceObserver) AcceptanceRowCount(_ context.Context) (int64, error) {
 	return f.rows, nil
+}
+
+func observableInt64GaugeValue(
+	t *testing.T,
+	rm metricdata.ResourceMetrics,
+	name string,
+	wantAttrs map[string]string,
+) int64 {
+	t.Helper()
+	for _, scope := range rm.ScopeMetrics {
+		for _, metric := range scope.Metrics {
+			if metric.Name != name {
+				continue
+			}
+			gauge, ok := metric.Data.(metricdata.Gauge[int64])
+			if !ok {
+				t.Fatalf("%s data type = %T, want Int64 gauge", name, metric.Data)
+			}
+			for _, point := range gauge.DataPoints {
+				attrs := point.Attributes.ToSlice()
+				matched := true
+				for wantKey, wantValue := range wantAttrs {
+					found := false
+					for _, attr := range attrs {
+						if string(attr.Key) == wantKey && attr.Value.AsString() == wantValue {
+							found = true
+							break
+						}
+					}
+					if !found {
+						matched = false
+						break
+					}
+				}
+				if matched {
+					return point.Value
+				}
+			}
+		}
+	}
+	t.Fatalf("metric %s with attrs %#v not found", name, wantAttrs)
+	return 0
 }

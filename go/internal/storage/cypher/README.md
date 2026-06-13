@@ -12,9 +12,11 @@ flowchart LR
   A["internal/projector\nCanonicalWriter"] --> B["cypher.CanonicalNodeWriter"]
   C["internal/reducer\nSharedProjectionEdgeWriter"] --> D["cypher.EdgeWriter"]
   E["internal/reducer\nSemanticEntityMaterialization"] --> F["cypher.SemanticEntityWriter"]
+  O["internal/reducer\nGraphOrphanSweepRunner"] --> OS["cypher.OrphanSweepStore"]
   B --> G["cypher.Executor\n(backend seam)"]
   D --> G
   F --> G
+  OS --> G
   G --> H["Neo4j / NornicDB\ndriver (cmd/ wiring)"]
 ```
 
@@ -39,6 +41,37 @@ Callers build `Statement` values via statement builder functions
 related, `BuildPlan`) and pass them to a writer
 (`CanonicalNodeWriter`, `EdgeWriter`, `SemanticEntityWriter`) or directly to
 an `Executor`.
+
+`OrphanSweepStore` is the cleanup seam for disconnected graph nodes that remain
+after owned retractions. It only handles the closed labels
+`Repository`, `Platform`, and `EvidenceArtifact`; each statement uses a static
+label, checks `evidence_source IS NOT NULL`, requires `NOT (n)--()`, and applies
+the configured limit before setting or deleting. The store marks first-seen
+orphans with `eshu_orphan_observed_at_unix`, clears that marker when a
+relationship returns, and deletes only nodes whose marker is older than the
+configured TTL. Repository queries also exclude
+`evidence_source='projector/canonical'` so active source-local repository nodes
+remain owned by the canonical writer even when a repository has no graph
+relationships yet.
+
+No-Regression Evidence: `go test ./internal/storage/cypher -run
+'TestBuildMarkOrphan|TestBuildSweepOrphan|TestBuildCountOrphan|TestBuildClearOrphan|TestOrphanSweepStoreUsesInjectedClock'
+-count=1` proves the static-label query builders reject unknown labels, the
+count and mutation paths stay bounded, and the TTL clock is injectable for
+deterministic cleanup. `go test ./internal/storage/cypher -run
+'TestRepositoryOrphanSweepExcludesSourceLocalCanonicalRepositories' -count=1`
+proves the sweep never targets source-local canonical Repository nodes.
+`go test ./internal/storage/cypher -run
+'TestRepoRelationshipUpsertStamps|TestInfrastructurePlatformUpsert|TestBatchedWriteEdgesParameterFidelity'
+-count=1` proves relationship-created repository and platform targets carry
+`evidence_source` / `generation_id` metadata so the sweep can distinguish Eshu
+nodes from backend-local graph objects.
+
+Observability Evidence: `OrphanSweepStore` statement summaries and operation
+metadata flow through the existing `InstrumentedExecutor` metrics and spans.
+The reducer-level `eshu_dp_graph_orphan_nodes` observable gauge reports bounded
+per-label counts; the runner logs per-label count, mark, delete, duration, and
+failure class for each cycle.
 
 `CanonicalNodeWriter.Write` executes all canonical writes in named phases:
 `retract`, `repository_cleanup`, `repository`, `directories`, `files`,
@@ -305,6 +338,9 @@ tracks this package's broader transient graph-write retry class.
   `WithEntityContainmentInEntityUpsert`
 - `EdgeWriter` — writes shared-domain edge rows for
   `reducer.SharedProjectionEdgeWriter`; constructed with `NewEdgeWriter`
+- `OrphanSweepStore` — counts, marks, clears, and deletes aged
+  zero-relationship graph nodes from the closed cleanup label set; constructed
+  with `NewOrphanSweepStore`
 - `CloudResourceEdgeWriter` — writes canonical AWS relationship edges between
   `CloudResource` nodes for the AWS relationship materialization reducer domain
   (issue #805 PR 2); constructed with `NewCloudResourceEdgeWriter`. Uses batched
@@ -603,6 +639,8 @@ adapter seam.
   / `eshu_dp_shared_edge_write_group_statement_count` — edge writer group metrics
 - `eshu_dp_code_call_edge_batches_total` / `eshu_dp_code_call_edge_batch_duration_seconds`
   — code-call-specific edge metrics
+- `eshu_dp_graph_orphan_nodes` — reducer-registered observable gauge labeled
+  by closed `node_label` values for bounded zero-relationship node counts
 - Spans: `neo4j.execute` and `neo4j.execute_group` from `InstrumentedExecutor`
 
 ## Operational notes
@@ -820,6 +858,11 @@ committed zero nodes.
   `PackageVersion`, and `PackageDependency` labels. Do not add `Repository`
   matches or ownership edges to `package_registry_canonical_writer.go`; source
   hints need reducer admission first.
+- Orphan sweep statements must stay on the closed label set and must keep
+  `NOT (n)--()` plus the TTL marker before deletion. Do not replace the sweep
+  with `DETACH DELETE`, dynamic labels, or an unlabelled graph scan; dangling
+  relationships are owned by the relationship retractors, not this cleanup
+  runner.
 
   No-Regression Evidence: `go test ./internal/projector ./internal/storage/cypher -count=1`
   on 2026-05-22 covered package-registry phase ordering with 1 package, 1

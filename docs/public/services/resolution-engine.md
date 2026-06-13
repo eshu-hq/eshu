@@ -25,6 +25,7 @@ start telemetry
   -> start main reducer loop
   -> start shared projection, code-call, and repo-dependency runners
   -> start bounded generation-retention cleanup runner
+  -> start bounded graph orphan cleanup runner
 ```
 
 The main loop claims reducer intents, dispatches workers, heartbeats
@@ -38,6 +39,16 @@ retraction and graph orphan cleanup remain separate reducer work. Retention
 events store safe hashes for scope and generation identifiers so changed-since
 requests can return `retention_expired` instead of a false zero delta after
 history ages out.
+
+The graph orphan cleanup runner counts, marks, and deletes only aged
+zero-relationship graph nodes in the closed cleanup label set. It is not a
+substitute for relationship retraction or canonical node replacement: first it
+marks disconnected nodes, then it deletes only nodes that remain disconnected
+after the configured TTL, and it clears the marker when a relationship returns.
+Repository cleanup excludes source-local canonical repository nodes, so an empty
+but active repository is not treated as an orphan. Each cleanup cycle first
+claims a single Postgres partition lease, so scaled reducer deployments do not
+run duplicate label-wide graph mutations at the same time.
 
 ## Domains And Projection
 
@@ -70,6 +81,10 @@ The partitioned runner handles `platform_infra`, `workload_dependency`,
 - The generation-retention runner runs beside those loops and relies on
   Postgres row locks plus bounded batch and row limits. Do not reduce reducer
   worker counts to make retention safe.
+- The graph orphan cleanup runner runs beside those loops with bounded per-label
+  graph writes and no reducer worker-count change. Do not use lower worker
+  counts or batch-size `1` as a substitute for idempotent relationship
+  retraction.
 - Queue rows carry `conflict_domain` and `conflict_key`; claim SQL fences only
   rows sharing an active durable conflict key so unrelated work can overlap.
 
@@ -97,6 +112,13 @@ Important env vars:
 - `ESHU_GENERATION_RETENTION_MAX_SUPERSEDED_AGE`
 - `ESHU_GENERATION_RETENTION_BATCH_GENERATION_LIMIT`
 - `ESHU_GENERATION_RETENTION_BATCH_ROW_LIMIT`
+- `ESHU_GRAPH_ORPHAN_SWEEP_ENABLED`
+- `ESHU_GRAPH_ORPHAN_SWEEP_POLL_INTERVAL`
+- `ESHU_GRAPH_ORPHAN_SWEEP_LEASE_OWNER`
+- `ESHU_GRAPH_ORPHAN_SWEEP_LEASE_TTL`
+- `ESHU_GRAPH_ORPHAN_SWEEP_TTL`
+- `ESHU_GRAPH_ORPHAN_SWEEP_BATCH_LIMIT`
+- `ESHU_GRAPH_ORPHAN_SWEEP_COUNT_LIMIT`
 
 Raise `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` only after the reducer
 reports the explicit acceptance-cap failure and discovery evidence shows the
@@ -120,6 +142,7 @@ Start with:
 - retention histograms: `eshu_dp_generation_retention_duration_seconds`,
   `eshu_dp_generation_retention_batch_size`,
   `eshu_dp_generation_retention_oldest_eligible_age_seconds`
+- graph cleanup gauge: `eshu_dp_graph_orphan_nodes`
 - logs: reducer execution result logs and shared projection cycle logs with
   domain, worker, route, row count, and failure class
 

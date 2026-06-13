@@ -91,6 +91,7 @@ Use these to locate the phase that changed before opening logs or traces:
 | `eshu_dp_generation_retention_skipped_total` | Generation-retention candidate skips by bounded reason. |
 | `eshu_dp_generation_retention_duration_seconds` | Generation-retention cleanup transaction cost. |
 | `eshu_dp_generation_retention_batch_size` | Generation-retention batch size selected for one cleanup transaction. |
+| `eshu_dp_graph_orphan_nodes` | Bounded zero-relationship graph node count by closed `node_label`. |
 | `eshu_dp_canonical_write_duration_seconds` | Canonical graph/content write latency. |
 | `eshu_dp_search_decay_policy_applications_total` | Search decay scoring decisions by policy id, evidence class, and outcome. |
 | `eshu_dp_semantic_extraction_queue_events_total` | Semantic extraction queue lifecycle events by bounded source, provider, profile class, status, failure class, and budget class. |
@@ -120,6 +121,7 @@ Use these to locate the phase that changed before opening logs or traces:
 | Semantic extraction | `eshu_dp_queue_depth{queue="semantic_extraction"}`, `eshu_dp_queue_oldest_age_seconds{queue="semantic_extraction"}`, `eshu_dp_semantic_extraction_queue_events_total`, `eshu_dp_semantic_extraction_budget_tokens_total`, `eshu_dp_semantic_extraction_budget_cost_micros_total` |
 | Shared follow-up | `eshu_dp_shared_projection_cycles_total`, `eshu_dp_shared_projection_intent_wait_seconds`, `eshu_dp_shared_projection_processing_seconds`, `eshu_dp_shared_projection_stale_intents_total`, `eshu_dp_shared_acceptance_lookup_duration_seconds` |
 | Generation retention | `eshu_dp_generation_retention_generations_pruned_total`, `eshu_dp_generation_retention_rows_pruned_total`, `eshu_dp_generation_retention_failures_total`, `eshu_dp_generation_retention_skipped_total`, `eshu_dp_generation_retention_duration_seconds`, `eshu_dp_generation_retention_batch_size`, `eshu_dp_generation_retention_oldest_eligible_age_seconds` |
+| Graph cleanup | `eshu_dp_graph_orphan_nodes`, `eshu_dp_neo4j_query_duration_seconds`, reducer logs with `failure_class=graph_orphan_sweep_error` |
 | Storage pressure | `eshu_dp_postgres_query_duration_seconds`, `eshu_dp_neo4j_query_duration_seconds`, `eshu_dp_neo4j_deadlock_retries_total`, `eshu_dp_canonical_write_duration_seconds`, `eshu_dp_canonical_atomic_fallbacks_total` |
 
 When a metric points to one repo, scope, generation, or work item, move to

@@ -29,6 +29,9 @@ func (s Service) startSideRunners(
 	if s.GenerationRetentionRunner != nil {
 		startServiceSideRunner(ctx, wg, recordErr, s.GenerationRetentionRunner)
 	}
+	if s.GraphOrphanSweepRunner != nil {
+		startServiceSideRunner(ctx, wg, recordErr, s.GraphOrphanSweepRunner)
+	}
 }
 
 func startServiceSideRunner(

@@ -168,6 +168,7 @@ func TestBatchedWriteEdgesParameterFidelity(t *testing.T) {
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-1",
+			GenerationID: "gen-platform-1",
 			Payload: map[string]any{
 				"repo_id":              "repo-1",
 				"platform_id":          "platform:eks:aws:cluster-1:prod:us-east-1",
@@ -192,7 +193,7 @@ func TestBatchedWriteEdgesParameterFidelity(t *testing.T) {
 	expectedKeys := []string{
 		"repo_id", "platform_id", "platform_name", "platform_kind",
 		"platform_provider", "platform_environment", "platform_region",
-		"platform_locator", "evidence_source",
+		"platform_locator", "generation_id", "evidence_source",
 	}
 	for _, key := range expectedKeys {
 		if _, ok := row[key]; !ok {
@@ -201,6 +202,9 @@ func TestBatchedWriteEdgesParameterFidelity(t *testing.T) {
 	}
 	if got, want := row["evidence_source"], "test-evidence"; got != want {
 		t.Errorf("evidence_source = %v, want %v", got, want)
+	}
+	if got, want := row["generation_id"], "gen-platform-1"; got != want {
+		t.Errorf("generation_id = %v, want %v", got, want)
 	}
 	if got, want := row["platform_name"], "cluster-1"; got != want {
 		t.Errorf("platform_name = %v, want %v", got, want)

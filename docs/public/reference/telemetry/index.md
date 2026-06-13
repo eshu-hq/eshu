@@ -154,6 +154,25 @@ deferred decrement) and an atomic load per scrape — no lock, no contention, an
 no new worker, queue, lease, or graph write. Backend: PostgreSQL via the existing
 reducer pool. Verified by `go test ./internal/storage/postgres ./cmd/reducer
 ./internal/telemetry -count=1` (and `-race` on the worker-gauge test).
+
+## Graph orphan-node gauge
+
+The reducer publishes `eshu_dp_graph_orphan_nodes`, an observable gauge of
+zero-relationship graph nodes in the closed orphan-sweep label set. The only
+metric label is `node_label`; repository ids, resource names, generation ids,
+and graph node ids stay out of metrics.
+
+The callback runs bounded count queries through the graph read port and caps
+each label by `ESHU_GRAPH_ORPHAN_SWEEP_COUNT_LIMIT`. Treat the gauge as a cleanup
+pressure signal. Use reducer sweep logs for cycle duration, mark/delete counts,
+and `failure_class=graph_orphan_sweep_error` when the count is not draining.
+
+Observability Evidence: `TestRegisterGraphOrphanObservableGauge_WithObserver`
+proves the gauge emits one datapoint per observed closed label. No-Regression
+Evidence: the count path uses static-label, zero-relationship queries with a
+configured per-label limit and no graph mutation; cleanup mutations run in the
+separate `GraphOrphanSweepRunner`.
+
 ## Per-Endpoint Request Metrics
 
 Every query API and MCP read route emits two metrics, recorded once by a shared

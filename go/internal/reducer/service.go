@@ -85,6 +85,10 @@ type Service struct {
 	// bounded transactions. Nil disables automated cleanup.
 	GenerationRetentionRunner *GenerationRetentionRunner
 
+	// GraphOrphanSweepRunner marks and deletes aged zero-relationship graph
+	// nodes in bounded batches. Nil disables automated cleanup.
+	GraphOrphanSweepRunner *GraphOrphanSweepRunner
+
 	// Telemetry fields (optional)
 	Tracer         trace.Tracer
 	Instruments    *telemetry.Instruments
