@@ -1,9 +1,11 @@
-import { readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const MAX_REVIEWABLE_LINES = 500;
-const PROTOTYPE_CONSOLE_DIR = join(process.cwd(), "prototype", "eshu-console", "console");
+const cwdPrototypeDir = join(process.cwd(), "prototype", "eshu-console", "console");
+const rootPrototypeDir = join(process.cwd(), "apps", "console", "prototype", "eshu-console", "console");
+const PROTOTYPE_CONSOLE_DIR = existsSync(cwdPrototypeDir) ? cwdPrototypeDir : rootPrototypeDir;
 const REVIEWED_PROTOTYPE_FILES = [
   "data.js",
   "live-base-loader.js",

@@ -41,6 +41,10 @@ describe("App shell", () => {
     expect(
       screen.getByRole("link", { name: "Graph Explorer" })
     ).toHaveAttribute("href", "/explorer");
+    expect(screen.getByRole("link", { name: "Impact" })).toHaveAttribute(
+      "href",
+      "/impact"
+    );
     expect(screen.getByRole("link", { name: "Dead code" })).toHaveAttribute(
       "href",
       "/dead-code"

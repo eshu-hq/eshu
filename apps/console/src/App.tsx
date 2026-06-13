@@ -48,6 +48,7 @@ import { CloudPage } from "./pages/CloudPage";
 import { TopologyPage } from "./pages/TopologyPage";
 import { DeadCodePage } from "./pages/DeadCodePage";
 import { CodeGraphPage } from "./pages/CodeGraphPage";
+import { ImpactPage } from "./pages/ImpactPage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { ServiceDrawer } from "./components/ServiceDrawer";
 import "./styles.css";
@@ -66,6 +67,7 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
     label: "Overview",
     items: [
       { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { to: "/impact", label: "Impact", icon: Network },
       { to: "/explorer", label: "Graph Explorer", icon: GitBranch }
     ]
   },
@@ -307,6 +309,7 @@ export function App(): React.JSX.Element {
           <Routes>
             <Route path="/" element={<DashboardPage model={visibleModel} client={client} onOpenService={openService} />} />
             <Route path="/dashboard" element={<DashboardPage model={visibleModel} client={client} onOpenService={openService} />} />
+            <Route path="/impact" element={<ImpactPage model={visibleModel} client={client} />} />
             <Route path="/explorer" element={<ExplorerPage model={visibleModel} client={client} onOpenService={openService} />} />
             <Route path="/code-graph" element={<CodeGraphPage model={visibleModel} client={client} />} />
             <Route path="/repositories" element={<RepositoriesPage client={client} model={visibleModel} />} />
