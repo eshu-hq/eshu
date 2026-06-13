@@ -22,6 +22,16 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, drift)
 	}
+	if handlers.EshuSearchDocumentSourceLoader != nil && handlers.EshuSearchDocumentWriter != nil {
+		searchDocument := eshuSearchDocumentDomainDefinition()
+		searchDocument.Handler = EshuSearchDocumentHandler{
+			Loader:      handlers.EshuSearchDocumentSourceLoader,
+			Writer:      handlers.EshuSearchDocumentWriter,
+			Instruments: handlers.Instruments,
+			Logger:      handlers.EshuSearchDocumentLogger,
+		}
+		definitions = append(definitions, searchDocument)
+	}
 	if handlers.FactLoader != nil && handlers.PackageCorrelationWriter != nil {
 		packageSource := packageSourceCorrelationDomainDefinition()
 		packageSource.Handler = PackageSourceCorrelationHandler{

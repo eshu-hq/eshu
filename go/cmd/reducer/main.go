@@ -109,6 +109,8 @@ func run(parent context.Context) error {
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	startSearchDocumentSweeper(ctx, db, logger)
+
 	return service.Run(ctx)
 }
 
@@ -316,6 +318,12 @@ func buildReducerService(
 		},
 		AWSCloudRuntimeDriftWriter: reducer.PostgresAWSCloudRuntimeDriftWriter{DB: database},
 		AWSCloudRuntimeDriftLogger: logger,
+		// Curated search-document projection (design 430): load the scope's
+		// current indexed content and write derived EshuSearchDocument facts for
+		// the search lane. No graph write.
+		EshuSearchDocumentSourceLoader: postgres.NewEshuSearchDocumentSourceLoader(database),
+		EshuSearchDocumentWriter:       reducer.PostgresEshuSearchDocumentWriter{DB: database},
+		EshuSearchDocumentLogger:       logger,
 		// Multi-cloud runtime drift wiring (issues #1997, #1998); see
 		// multiCloudRuntimeDriftWiring for the uid-keyed join contract.
 		MultiCloudRuntimeDriftEvidenceLoader: multiCloudRuntimeDriftEvidenceLoader,
