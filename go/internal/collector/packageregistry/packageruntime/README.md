@@ -132,6 +132,10 @@ No-Regression Evidence: `go test ./internal/collector/packageregistry/packagerun
 
 Observability Evidence: derived missing-evidence claims emit stable `package_registry.warning` facts with `warning_code` values `unsupported_metadata_source`, `registry_not_found`, `metadata_too_large`, `malformed_metadata`, and `credentials_missing`. The new per-ecosystem `/admin/status` metadata-target counts are read from workflow rows and warning facts; no new metric labels, raw package names, registry URLs, or credential values were added.
 
+No-Regression Evidence (#2374): `go test ./internal/collector/sdk ./internal/collector/packageregistry ./internal/collector/packageregistry/packageruntime ./cmd/collector-package-registry -count=1` proves package-registry metadata fetches still preserve explicit `metadata_url` path/query requests, ecosystem-specific `Accept` headers, bearer/basic auth, 20 MiB body bounds, `safeSourceURI` redaction, metadata-too-large terminal coverage-gap behavior, and existing `registry_*` workflow failure classes while status and transport failures now unwrap bounded SDK `HTTPError` causes.
+
+No-Observability-Change (#2374): package-registry metadata fetches keep the existing observe-duration, request status-class, facts-emitted, rate-limit, generation-lag, parse-failure, warning-fact, health, readiness, metrics, and admin-status signals. The SDK remains telemetry-free, and no package names, metadata URLs, versions, feed paths, or credential values were added to metric labels or status details.
+
 ## Related Docs
 
 - [Package registry ADR](../../../../../docs/public/reference/component-package-manager.md)

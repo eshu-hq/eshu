@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/packageregistry"
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 const (
@@ -87,7 +88,11 @@ func (p HTTPMetadataProvider) FetchMetadata(ctx context.Context, target TargetCo
 			target.Base.Provider,
 			string(target.Base.Ecosystem),
 			"fetch_metadata",
-			err,
+			sdk.HTTPError{
+				Provider: target.Base.Provider,
+				Message:  "request failed",
+				Cause:    err,
+			},
 		)
 	}
 	defer func() {
@@ -98,12 +103,19 @@ func (p HTTPMetadataProvider) FetchMetadata(ctx context.Context, target TargetCo
 		if response.StatusCode == http.StatusTooManyRequests {
 			cause = ErrRateLimited
 		}
+		httpErr := sdk.HTTPError{
+			Provider:   target.Base.Provider,
+			StatusCode: response.StatusCode,
+			Message:    http.StatusText(response.StatusCode),
+			RetryAfter: sdk.ParseRetryAfterHeader(response.Header.Get("Retry-After")),
+			Cause:      cause,
+		}
 		return MetadataDocument{}, collector.RegistryHTTPFailure(
 			target.Base.Provider,
 			string(target.Base.Ecosystem),
 			"fetch_metadata",
 			response.StatusCode,
-			cause,
+			httpErr,
 		)
 	}
 	body, err := readBoundedMetadata(response.Body)
@@ -122,7 +134,7 @@ func (p HTTPMetadataProvider) httpClient() *http.Client {
 	if p.Client != nil {
 		return p.Client
 	}
-	return &http.Client{Timeout: defaultMetadataFetchTimeout}
+	return sdk.DefaultHTTPClient(defaultMetadataFetchTimeout)
 }
 
 func metadataAcceptHeader(ecosystem packageregistry.Ecosystem) string {
