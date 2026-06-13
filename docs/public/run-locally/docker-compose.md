@@ -96,7 +96,7 @@ span, or log payload. Existing semantic status readbacks and queue/budget
 signals remain the operator-facing diagnostics.
 
 The NornicDB service defaults to a pinned multi-arch Docker manifest:
-`timothyswt/nornicdb-cpu-bge:v1.1.3@sha256:42af69852ae0f34a905a0877668025d53b3783bb864549810d868e1bf94f3752`.
+`timothyswt/nornicdb-cpu-bge:v1.1.6@sha256:e448ccf5cd1c1ff994c6316a1a2c5b06b19b4a3c6545660fa04f43c457625692`.
 Leave `NORNICDB_PLATFORM` unset for normal local runs. Docker selects the
 `linux/arm64` image on Apple Silicon and the `linux/amd64` image on x86 hosts.
 
