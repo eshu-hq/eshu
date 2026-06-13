@@ -47,11 +47,17 @@ func TestContentReaderRepositoryRelationshipReadModelHydratesEvidence(t *testing
 	if got, want := StringVal(got.Relationships[0], "evidence_type"), "terraform_app_repo"; got != want {
 		t.Fatalf("Relationships[0].evidence_type = %q, want %q", got, want)
 	}
+	if got, want := StringVal(got.Relationships[0], "confidence_basis"), "evidence_aggregate"; got != want {
+		t.Fatalf("Relationships[0].confidence_basis = %q, want %q", got, want)
+	}
 	if got, want := StringSliceVal(got.Relationships[0], "evidence_kinds"), []string{"TERRAFORM_APP_REPO"}; !stringSlicesEqual(got, want) {
 		t.Fatalf("Relationships[0].evidence_kinds = %#v, want %#v", got, want)
 	}
 	if got, want := StringVal(got.Relationships[1], "evidence_type"), "argocd_application_source"; got != want {
 		t.Fatalf("Relationships[1].evidence_type = %q, want %q", got, want)
+	}
+	if got, want := StringVal(got.Relationships[1], "confidence_basis"), "evidence_constant"; got != want {
+		t.Fatalf("Relationships[1].confidence_basis = %q, want %q", got, want)
 	}
 	if len(got.Consumers) != 1 {
 		t.Fatalf("len(Consumers) = %d, want 1", len(got.Consumers))
@@ -167,6 +173,9 @@ func TestGetRepositoryContextUsesReadModelForRelationshipsAndConsumers(t *testin
 	}
 	if got, want := relationship["evidence_type"], "terraform_app_repo"; got != want {
 		t.Fatalf("relationships[0].evidence_type = %#v, want %#v", got, want)
+	}
+	if got, want := relationship["confidence_basis"], "evidence_aggregate"; got != want {
+		t.Fatalf("relationships[0].confidence_basis = %#v, want %#v", got, want)
 	}
 	overview, ok := resp["relationship_overview"].(map[string]any)
 	if !ok {

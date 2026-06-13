@@ -71,6 +71,9 @@ func TestEvidenceHandlerReturnsRelationshipEvidenceByResolvedID(t *testing.T) {
 	if got, want := resp["relationship_type"], "DEPLOYS_FROM"; got != want {
 		t.Fatalf("relationship_type = %#v, want %#v", got, want)
 	}
+	if got, want := resp["confidence_basis"], "evidence_aggregate"; got != want {
+		t.Fatalf("confidence_basis = %#v, want %#v", got, want)
+	}
 	source := resp["source"].(map[string]any)
 	if got, want := source["repo_name"], "platform-deployments"; got != want {
 		t.Fatalf("source.repo_name = %#v, want %#v", got, want)
@@ -164,6 +167,9 @@ func TestContentReaderRelationshipEvidenceByResolvedIDHydratesDetails(t *testing
 	}
 	if got, want := row["relationship_type"], "DEPENDS_ON"; got != want {
 		t.Fatalf("relationship_type = %#v, want %#v", got, want)
+	}
+	if got, want := row["confidence_basis"], "evidence_aggregate"; got != want {
+		t.Fatalf("confidence_basis = %#v, want %#v", got, want)
 	}
 	source := row["source"].(map[string]any)
 	if got, want := source["repo_name"], "checkout-service"; got != want {

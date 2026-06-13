@@ -37,6 +37,26 @@ preview of evidence details, applies rejection/assertion overrides, filters
 below `DefaultConfidenceThreshold` (`0.75`), then deduplicates and sorts the
 resolved output.
 
+## Confidence Semantics
+
+Correlation relationships expose `confidence`, `resolution_source`,
+`evidence_type`, `evidence_kinds`, and `confidence_basis` on repository
+context, relationship overview, and relationship evidence drilldown reads.
+`confidence_basis` is the comparison field for correlation edges:
+
+| `confidence_basis` | Meaning |
+| --- | --- |
+| `evidence_constant` | A single evidence fact drove the score. The number is the extractor family's confidence weight, named by `evidence_type` or `evidence_kinds`. |
+| `evidence_aggregate` | Multiple evidence facts were combined by the resolver's bounded corroboration formula. The score is derived from extractor weights and support count. |
+| `assertion_override` | A control-plane assertion supplied the relationship. The score is a deliberate `1.0` override, not parser certainty. |
+
+Code `CALLS` and `REFERENCES` edges use `resolution_method` instead. That
+method names how the callee was resolved and determines the code-edge
+confidence tier. Consumers may compare numeric confidence across code and
+correlation edges only after checking the basis/method field; a `0.99` asserted
+correlation edge and a `0.99` exact code edge do not mean the same provenance.
+The answer-level truth envelope remains separate from per-edge confidence.
+
 Accuracy rule: the resolver does not globally suppress generic
 `DEPENDS_ON` just because a typed edge also exists for the same pair. If both
 types are emitted and both pass assertion/confidence rules, both can become

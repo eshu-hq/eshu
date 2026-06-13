@@ -188,7 +188,7 @@ func ecosystemTools() []ToolDefinition {
 		},
 		{
 			Name:        "get_relationship_evidence",
-			Description: "Dereference a relationship evidence pointer by resolved_id and return the durable source/target metadata, evidence kinds, rationale, and preview details.",
+			Description: "Dereference a relationship evidence pointer by resolved_id and return durable source/target metadata, confidence_basis, evidence kinds, rationale, and preview details.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

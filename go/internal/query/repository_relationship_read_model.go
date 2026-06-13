@@ -233,6 +233,7 @@ func scanRepositoryRelationshipReadModelRow(rows *sql.Rows) (map[string]any, err
 	if evidenceType := repositoryRelationshipEvidenceType(details, evidenceKinds); evidenceType != "" {
 		row["evidence_type"] = evidenceType
 	}
+	addRelationshipConfidenceBasis(row)
 	return row, nil
 }
 

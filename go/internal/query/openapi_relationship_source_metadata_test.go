@@ -28,9 +28,31 @@ func TestOpenAPIRelationshipDocumentsSourceMetadata(t *testing.T) {
 		"target_type",
 		"target_start_line",
 		"target_end_line",
+		"confidence_basis",
+		"resolution_source",
+		"evidence_type",
+		"evidence_kinds",
 	} {
 		if _, ok := properties[field]; !ok {
 			t.Fatalf("Relationship schema missing %s", field)
 		}
+	}
+}
+
+func TestOpenAPIRelationshipEvidenceDocumentsConfidenceBasis(t *testing.T) {
+	var spec map[string]interface{}
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
+	}
+
+	paths := mustMapField(t, spec, "paths")
+	route := mustMapField(t, paths, "/api/v0/evidence/relationships/{resolved_id}")
+	get := mustMapField(t, route, "get")
+	responses := mustMapField(t, get, "responses")
+	okResponse := mustMapField(t, responses, "200")
+	content := mustMapField(t, mustMapField(t, okResponse, "content"), "application/json")
+	properties := mustMapField(t, mustMapField(t, content, "schema"), "properties")
+	if _, ok := properties["confidence_basis"]; !ok {
+		t.Fatal("relationship evidence schema missing confidence_basis")
 	}
 }
