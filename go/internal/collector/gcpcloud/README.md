@@ -6,9 +6,9 @@
 parses Cloud Asset Inventory (CAI) `assets.list` and `searchAllResources`
 response pages into safe observations, normalizes Google Cloud identity, redacts
 sensitive label values, IAM member identities, and DNS record values, and emits
-the `gcp_cloud_resource`, `gcp_tag_observation`,
-`gcp_iam_policy_observation`, `gcp_dns_record`, and
-`gcp_collection_warning` source fact envelopes.
+the `gcp_cloud_resource`, `gcp_cloud_relationship`,
+`gcp_tag_observation`, `gcp_iam_policy_observation`, `gcp_dns_record`,
+and `gcp_collection_warning` source fact envelopes.
 
 This package does not call Google Cloud APIs, schedule collector runs, write
 graph rows, persist raw provider payloads, or admit reducer truth. The
@@ -24,9 +24,9 @@ flowchart LR
     Parse["ParseAssetsListPage / ParseSearchAllResourcesPage"]
     Obs["safe ResourceObservation (no data-plane content)"]
     Gen["Generation accumulator (dedupe, pagination resume)"]
-    Env["NewCloudResourceEnvelope / NewTagObservationEnvelope / NewIAMPolicyObservationEnvelope / NewDNSRecordEnvelope / NewCollectionWarningEnvelope"]
+    Env["NewCloudResourceEnvelope / NewCloudRelationshipEnvelope / NewTagObservationEnvelope / NewIAMPolicyObservationEnvelope / NewDNSRecordEnvelope / NewCollectionWarningEnvelope"]
     Tracker["GenerationTracker (fencing, stale rejection)"]
-    Facts["gcp_cloud_resource / gcp_tag_observation / gcp_iam_policy_observation / gcp_dns_record / gcp_collection_warning facts"]
+    Facts["gcp_cloud_resource / gcp_cloud_relationship / gcp_tag_observation / gcp_iam_policy_observation / gcp_dns_record / gcp_collection_warning facts"]
 
     Pages --> Parse
     Parse -->|"raw resource data blob dropped"| Obs
@@ -52,6 +52,7 @@ a redacted fact, a bounded warning, or a normalized identity.
 - `FingerprintLabelValues`, `MemberClass`, `FingerprintMember`,
   `RedactionPolicyVersion` — redaction.
 - `NewCloudResourceEnvelope`, `NewCollectionWarningEnvelope`,
+  `NewCloudRelationshipEnvelope`, `RelationshipObservation`,
   `NewTagObservationEnvelope`, `TagObservation`,
   `NewIAMPolicyObservationEnvelope`, `IAMPolicyObservation`,
   `NewDNSRecordEnvelope`, `DNSRecordObservation`,
@@ -103,12 +104,13 @@ runtime binary. Backend/version: none touched (NornicDB/Neo4j, Postgres, and the
 reducer are unchanged; fact kinds are additive). Input shape: bounded CAI
 `assets.list`/`searchAllResources` fixture pages; work is O(resources x pages)
 single-pass with page-token dedupe plus bounded fact-family passes for parsed
-labels, IAM bindings, and DNS records, so terminal output is one bounded
-generation of
-`gcp_cloud_resource`, `gcp_tag_observation`,
+relationships, labels, IAM bindings, and DNS records, so terminal output is one
+bounded generation of
+`gcp_cloud_resource`, `gcp_cloud_relationship`, `gcp_tag_observation`,
 `gcp_iam_policy_observation`, `gcp_dns_record`, and
 `gcp_collection_warning` facts (row count
 equals deduped fixture resources plus labeled resources with usable label keys,
+relationships with usable source/target/type evidence,
 IAM bindings with usable members, DNS record sets with usable type/name/zone
 identity, and one warning per unsupported kind/scope). Why safe: no live calls
 in tests, stale generations are rejected by fencing token, and re-emission of
@@ -121,7 +123,9 @@ Observability Evidence: the package exports bounded-label data-plane metrics
 status, CAI operation, parent scope kind, asset family, content family, status
 class, fact kind, warning kind, outcome); tag, IAM, and DNS emission use the
 existing fact-kind dimension for `gcp_tag_observation`,
-`gcp_iam_policy_observation`, and `gcp_dns_record` and add no new label shape.
+`gcp_iam_policy_observation`, and `gcp_dns_record`; relationship emission uses
+the same fact-kind dimension for `gcp_cloud_relationship` and adds no new label
+shape.
 A test asserts no full resource name, project id, label, IAM member, DNS name,
 or URL appears in any label. An operator reads partial-scope coverage,
 page-token resumes, freshness lag, fact-kind counts, and warning counts to

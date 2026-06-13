@@ -24,6 +24,9 @@
 - Parsed resource labels emit label-backed `gcp_tag_observation` facts through
   `gcpcloud.Generation`; direct/effective GCP tag API collection belongs in a
   later source slice.
+- Parsed Cloud Asset Inventory `relatedAsset` fields emit
+  `gcp_cloud_relationship` facts through `gcpcloud.Generation`; reducer
+  admission and graph projection belong in later slices.
 - Parsed Cloud Asset Inventory IAM policy bindings emit
   `gcp_iam_policy_observation` facts through `gcpcloud.Generation`; reducer
   admission and security graph projection belong in later slices.

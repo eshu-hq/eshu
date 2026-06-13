@@ -49,21 +49,28 @@ type caiResourceDataWire struct {
 	RRDatas     []string          `json:"rrdatas"`
 }
 
+type caiRelatedAssetWire struct {
+	Asset            string `json:"asset"`
+	AssetType        string `json:"assetType"`
+	RelationshipType string `json:"relationshipType"`
+}
+
 // ParseAssetsListPage parses one assets.list response page into safe resource
 // observations. Only the full resource name, asset type, location, labels,
-// IAM binding shape, DNS record shape, ancestors, state, and update time are
-// kept. The raw resource data blob and raw IAM policy JSON are never carried
-// into the observation.
+// IAM binding shape, relationship shape, DNS record shape, ancestors, state,
+// and update time are kept. The raw resource data blob and raw IAM policy JSON
+// are never carried into the observation.
 func ParseAssetsListPage(raw []byte) (AssetsListPage, error) {
 	var wire struct {
 		ReadTime      string `json:"readTime"`
 		NextPageToken string `json:"nextPageToken"`
 		Assets        []struct {
-			Name       string           `json:"name"`
-			AssetType  string           `json:"assetType"`
-			UpdateTime string           `json:"updateTime"`
-			Ancestors  []string         `json:"ancestors"`
-			IAMPolicy  caiIAMPolicyWire `json:"iamPolicy"`
+			Name       string              `json:"name"`
+			AssetType  string              `json:"assetType"`
+			UpdateTime string              `json:"updateTime"`
+			Ancestors  []string            `json:"ancestors"`
+			IAMPolicy  caiIAMPolicyWire    `json:"iamPolicy"`
+			Related    caiRelatedAssetWire `json:"relatedAsset"`
 			Resource   struct {
 				Location string              `json:"location"`
 				Data     caiResourceDataWire `json:"data"`
@@ -91,6 +98,7 @@ func ParseAssetsListPage(raw []byte) (AssetsListPage, error) {
 			Ancestors:         cloneStrings(asset.Ancestors),
 			Labels:            cloneStringMap(asset.Resource.Data.Labels),
 			IAMPolicyBindings: parseIAMPolicyBindings(asset.IAMPolicy),
+			Relationships:     parseRelatedAsset(asset.Name, asset.AssetType, asset.Related),
 			DNSRecords:        parseDNSRecords(asset.Name, asset.AssetType, asset.Resource.Data),
 			UpdateTime:        parseTime(asset.UpdateTime),
 		})
@@ -216,6 +224,23 @@ func parseIAMPolicyBindings(policy caiIAMPolicyWire) []IAMPolicyBindingObservati
 		})
 	}
 	return out
+}
+
+func parseRelatedAsset(assetName, assetType string, related caiRelatedAssetWire) []RelationshipObservation {
+	sourceName := strings.TrimSpace(assetName)
+	relationshipType := strings.TrimSpace(related.RelationshipType)
+	targetName := strings.TrimSpace(related.Asset)
+	if sourceName == "" || relationshipType == "" || targetName == "" {
+		return nil
+	}
+	return []RelationshipObservation{{
+		SourceFullResourceName: sourceName,
+		SourceAssetType:        strings.TrimSpace(assetType),
+		RelationshipType:       relationshipType,
+		TargetFullResourceName: targetName,
+		TargetAssetType:        strings.TrimSpace(related.AssetType),
+		SupportState:           RelationshipSupportSupported,
+	}}
 }
 
 func rawJSONPresent(raw json.RawMessage) bool {
