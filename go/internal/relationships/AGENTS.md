@@ -30,9 +30,12 @@
 - **Seen-map deduplication** — every extractor receives the per-discovery-pass
   `seen map[evidenceKey]struct{}` and must check it before appending. Do not
   bypass this check; duplicate facts distort `EvidenceCount` in `Candidate`.
-- **Confidence is max, not average** — `aggregateCandidate` in `resolver.go`
-  takes the maximum confidence across the evidence bucket. Picking the right
-  per-fact confidence for a new extractor is the main tuning dial.
+- **Confidence is bounded and evidence-weighted** — `aggregateCandidate` in
+  `resolver.go` starts at the strongest fact, adds capped corroboration from
+  distinct facts in the same bucket, and never turns inferred evidence into
+  assertion-level certainty. Picking the right per-fact confidence for a new
+  extractor remains the main tuning dial; do not emit duplicate facts to lift a
+  score.
 
 ## Common changes and how to scope them
 
