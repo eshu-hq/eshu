@@ -2,9 +2,12 @@ package gcpcloud
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
 func testGenerationBoundary() Boundary {
@@ -52,6 +55,83 @@ func TestGenerationPaginationResume(t *testing.T) {
 	}
 }
 
+func TestGenerationBuildEmitsTagObservationForLabeledResources(t *testing.T) {
+	key := testRedactionKey(t)
+	gen := NewGeneration(testGenerationBoundary(), key)
+
+	labeled := testResourceObservation()
+	labeled.Labels = map[string]string{"env": "prod", "owner": "platform-owner"}
+	labeled.LabelFingerprint = map[string]string{"env": "", "owner": ""}
+	labeled.SourceRecordID = "assets/vm-1"
+	labeled.SourceURI = "cai://assets/list/projects/my-project"
+
+	unlabeled := testResourceObservation()
+	unlabeled.Name = "//storage.googleapis.com/projects/_/buckets/my-bucket"
+	unlabeled.AssetType = "storage.googleapis.com/Bucket"
+	unlabeled.DisplayName = "my-bucket"
+	unlabeled.Labels = nil
+	unlabeled.LabelFingerprint = nil
+	unlabeled.SourceRecordID = "assets/my-bucket"
+
+	if err := gen.AddPage([]ResourceObservation{labeled, unlabeled}); err != nil {
+		t.Fatalf("AddPage: %v", err)
+	}
+
+	envelopes, err := gen.Build()
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if got := countKind(envelopes, facts.GCPCloudResourceFactKind); got != 2 {
+		t.Fatalf("resource fact count = %d, want 2", got)
+	}
+	if got := countKind(envelopes, facts.GCPTagObservationFactKind); got != 1 {
+		t.Fatalf("tag fact count = %d, want 1", got)
+	}
+
+	var tag facts.Envelope
+	for _, env := range envelopes {
+		if payload := fmt.Sprintf("%#v", env.Payload); strings.Contains(payload, "prod") || strings.Contains(payload, "platform-owner") {
+			t.Fatalf("raw label value leaked in %s payload: %s", env.FactKind, payload)
+		}
+		if env.FactKind == facts.GCPTagObservationFactKind {
+			tag = env
+		}
+	}
+	if tag.FactKind == "" {
+		t.Fatal("tag observation envelope missing")
+	}
+	if tag.Payload["full_resource_name"] != labeled.Name {
+		t.Fatalf("tag full_resource_name = %v, want %s", tag.Payload["full_resource_name"], labeled.Name)
+	}
+	if tag.Payload["source_kind"] != "label" {
+		t.Fatalf("tag source_kind = %v, want label", tag.Payload["source_kind"])
+	}
+	fingerprints, ok := tag.Payload["tag_value_fingerprints"].(map[string]string)
+	if !ok || len(fingerprints) != 2 {
+		t.Fatalf("tag_value_fingerprints = %#v, want two fingerprints", tag.Payload["tag_value_fingerprints"])
+	}
+}
+
+func TestGenerationBuildSkipsTagObservationWithoutRedactionKey(t *testing.T) {
+	gen := NewGeneration(testGenerationBoundary(), redact.Key{})
+	resource := testResourceObservation()
+	resource.Labels = map[string]string{"env": "prod"}
+
+	if err := gen.AddPage([]ResourceObservation{resource}); err != nil {
+		t.Fatalf("AddPage: %v", err)
+	}
+	envelopes, err := gen.Build()
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if got := countKind(envelopes, facts.GCPCloudResourceFactKind); got != 1 {
+		t.Fatalf("resource fact count = %d, want 1", got)
+	}
+	if got := countKind(envelopes, facts.GCPTagObservationFactKind); got != 0 {
+		t.Fatalf("tag fact count = %d, want 0", got)
+	}
+}
+
 func TestGenerationIdempotentReEmission(t *testing.T) {
 	key := testRedactionKey(t)
 	page, err := ParseAssetsListPage(readFixture(t, "assets_list_page1.json"))
@@ -81,9 +161,10 @@ func TestGenerationIdempotentReEmission(t *testing.T) {
 
 	first := build()
 	second := build()
-	// Duplicate delivery within a generation must dedupe to the same stable keys.
-	if len(first) != 2 {
-		t.Fatalf("expected 2 deduped resource facts, got %d", len(first))
+	// Duplicate delivery within a generation must dedupe to the same resource
+	// and tag-observation stable keys.
+	if len(first) != 4 {
+		t.Fatalf("expected 4 deduped resource and tag facts, got %d", len(first))
 	}
 	if !equalStringSets(first, second) {
 		t.Fatalf("re-emission not idempotent: %v vs %v", first, second)

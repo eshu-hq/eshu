@@ -98,6 +98,17 @@ func countKind(envs []facts.Envelope, kind string) int {
 	return count
 }
 
+func firstEnvelopeKind(t *testing.T, envs []facts.Envelope, kind string) facts.Envelope {
+	t.Helper()
+	for _, env := range envs {
+		if env.FactKind == kind {
+			return env
+		}
+	}
+	t.Fatalf("missing fact kind %s", kind)
+	return facts.Envelope{}
+}
+
 func newSource(t *testing.T, cfg Config, provider PageProvider, tracker *gcpcloud.GenerationTracker) *Source {
 	t.Helper()
 	return &Source{
@@ -143,8 +154,19 @@ func TestSourceYieldsGenerationFromFixturePages(t *testing.T) {
 	if got := countKind(envs, facts.GCPCloudResourceFactKind); got != 3 {
 		t.Fatalf("resource fact count = %d, want 3", got)
 	}
+	if got := countKind(envs, facts.GCPTagObservationFactKind); got != 2 {
+		t.Fatalf("tag fact count = %d, want 2", got)
+	}
 	if got := countKind(envs, facts.GCPCollectionWarningFactKind); got != 0 {
 		t.Fatalf("warning fact count = %d, want 0", got)
+	}
+	tag := firstEnvelopeKind(t, envs, facts.GCPTagObservationFactKind)
+	readTime, ok := tag.Payload["read_time"].(time.Time)
+	if !ok {
+		t.Fatalf("tag read_time = %#v, want time.Time", tag.Payload["read_time"])
+	}
+	if want := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC); !readTime.Equal(want) {
+		t.Fatalf("tag read_time = %s, want %s", readTime, want)
 	}
 }
 
@@ -213,8 +235,8 @@ func TestSourceIdempotentReEmission(t *testing.T) {
 
 	first := build()
 	second := build()
-	if len(first) != 3 {
-		t.Fatalf("expected 3 facts, got %d", len(first))
+	if len(first) != 5 {
+		t.Fatalf("expected 5 facts, got %d", len(first))
 	}
 	if !equalStrings(first, second) {
 		t.Fatalf("re-emission not idempotent:\n%v\n%v", first, second)

@@ -12,12 +12,12 @@ relationship graph writes, and API or MCP truth.
 
 ## Status
 
-The first fixture-testable slice is implemented: the `gcp_cloud_resource` and
-`gcp_collection_warning` source fact kinds (`go/internal/facts/gcp.go`), the
-Cloud Asset Inventory parser, identity normalizer, redaction policy, envelope
-builder, generation accumulator with fencing, and scoped telemetry instruments
-(`go/internal/collector/gcpcloud`). This slice is fixture-driven and makes no
-live Google Cloud calls.
+The first fixture-testable slice is implemented: the `gcp_cloud_resource`,
+label-backed `gcp_tag_observation`, and `gcp_collection_warning` source fact
+kinds (`go/internal/facts/gcp.go`), the Cloud Asset Inventory parser, identity
+normalizer, redaction policy, envelope builders, generation accumulator with
+fencing, and scoped telemetry instruments (`go/internal/collector/gcpcloud`).
+This slice is fixture-driven and makes no live Google Cloud calls.
 
 The second slice adds fixture-driven runtime scaffolding: a `collector.Source`
 implementation (`go/internal/collector/gcpcloud/gcpruntime`) that drains Cloud
@@ -49,7 +49,7 @@ variables, chart claims, or a live Cloud Asset Inventory transport until later
 implementation PRs prove the live runtime adapter (`gcpruntime.LiveClient`) and
 chart path. The relationship, tag, IAM, DNS, and image-reference fact kinds and
 schema versions are registered in `go/internal/facts/gcp.go`, and **all five
-envelope builders are now implemented and unit-proven**:
+envelope builders are implemented and unit-proven**:
 `NewCloudRelationshipEnvelope` (provenance-only: both endpoint full resource
 names, asset types, relationship type, bounded support state; resolves no
 endpoints, writes no graph edge); `NewTagObservationEnvelope` (tag keys kept,
@@ -57,8 +57,12 @@ every tag value fingerprinted); `NewIAMPolicyObservationEnvelope` (members
 fingerprinted by class via `FingerprintMember`, role + condition presence kept,
 no raw policy JSON); `NewDNSRecordEnvelope` (record name and targets
 fingerprinted); and `NewImageReferenceEnvelope` (digest-first confidence,
-fingerprinted container name). Their fact-kind-specific reducer handling, any
-GCP graph projection, and scan-loop emission follow (#2198).
+fingerprinted container name). The generation accumulator now emits
+`gcp_tag_observation` from parsed CAI resource labels when a redaction key is
+configured, with `source_kind=label`; direct/effective GCP tag API collection,
+the other fact-kind scan
+emission paths, fact-kind-specific reducer handling, and any GCP graph
+projection remain follow-up work under #1997.
 
 The implemented slices stay fixture-testable without live Google Cloud access.
 Live smoke tests are promotion proof, not the minimum proof for the source
@@ -70,7 +74,10 @@ No-Regression Evidence: `go test ./internal/reducer ./internal/query
 admission into the shared `cloud_resource_uid` keyspace, management-origin
 precedence, ambiguous/unsupported/unresolved accounting, stale-generation
 supersession, and bounded truth-labeled readback that never leaks raw provider
-locators.
+locators. `go test ./internal/collector/gcpcloud -run
+'TestGeneration|TestNewTagObservationEnvelope' -count=1` proves label-backed tag
+observation emission is deduplicated with generation output, skips unlabeled
+resources, and fingerprints raw label values.
 
 ## Source Truth
 
@@ -240,9 +247,9 @@ The first code PRs must prove these cases before any live smoke:
 6. Add Helm and live-smoke support only after the runtime and reducer contract
    pass fixture gates.
 
-Observability change: the first slice adds the `gcp_cloud_resource` and
-`gcp_collection_warning` fact schemas and the scoped GCP collector telemetry
-series listed under [Telemetry](#telemetry)
+Observability change: the first slice adds the `gcp_cloud_resource`,
+`gcp_tag_observation`, and `gcp_collection_warning` fact schemas and the scoped
+GCP collector telemetry series listed under [Telemetry](#telemetry)
 (`eshu_dp_gcp_cloud_*`). It does not add chart values, environment variables, or
 a runtime binary; those remain deferred.
 
@@ -263,15 +270,14 @@ file paths only. Deployment, chart, and ServiceMonitor wiring are explicitly
 deferred to a later slice once the reducer path exists, per the Status section
 above. No deployment surface changes in this PR.
 
-No-Observability-Change: this slice wires the existing scoped GCP collector
+No-Observability-Change: this slice uses the existing scoped GCP collector
 instruments registered in the first slice
 (`eshu_dp_gcp_cloud_claims_total`, `eshu_dp_gcp_cloud_pages_total`,
 `eshu_dp_gcp_cloud_page_token_resumes_total`,
 `eshu_dp_gcp_cloud_facts_emitted_total`, `eshu_dp_gcp_cloud_warnings_total`,
-`eshu_dp_gcp_cloud_freshness_lag_seconds`). It registers no new metric series,
-adds no new label keys, and changes no telemetry contract; it only records the
-already-defined series from the new runtime path with the existing bounded
-enum labels.
+`eshu_dp_gcp_cloud_freshness_lag_seconds`). Tag emission records through the
+existing `fact_kind` dimension with `gcp_tag_observation`. It registers no new
+metric series, adds no new label keys, and changes no telemetry contract.
 
 No-Regression Evidence:
 
@@ -287,9 +293,10 @@ No-Regression Evidence:
 - Input shape: two-page `assets.list` fixtures (three resources) per scope, plus
   stale-generation, dangling-page-token, multi-scope, and empty-scope cases.
 - Terminal counts: one `CollectedGeneration` per configured scope; three
-  `gcp_cloud_resource` facts for the two-page fixture; one
-  `gcp_collection_warning` for the stale and page-token-expired cases; zero
-  facts emitted for a fenced-out stale generation beyond its single warning.
+  `gcp_cloud_resource` facts and two label-backed `gcp_tag_observation` facts
+  for the two-page fixture; one `gcp_collection_warning` for the stale and
+  page-token-expired cases; zero facts emitted for a fenced-out stale generation
+  beyond its single warning.
 - Telemetry/log/status evidence: see the observability evidence below.
 - Why safe: the source is single-goroutine per `collector.Service`, reuses the
   existing fixture-tested `Generation`/`GenerationTracker` dedupe and fencing,
@@ -301,8 +308,8 @@ Observability Evidence:
 
 - The source records the existing scoped `eshu_dp_gcp_cloud_*` instruments
   (claims, pages, page-token resumes, facts emitted, warnings, freshness lag)
-  through `gcpcloud.Metrics`. Every label is a bounded enum: collector kind,
-  claim status, parent scope kind, fact kind, warning kind, and outcome.
+  through `gcpcloud.Metrics`. Every metric label is a bounded enum: collector
+  kind, claim status, parent scope kind, fact kind, warning kind, and outcome.
 - The status committer records `eshu_dp_gcp_cloud_claims_total` with
   `status=succeeded` or `status=failed` on commit outcome.
 - One structured log line per committed scope reports bounded counts only

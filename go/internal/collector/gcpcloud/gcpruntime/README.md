@@ -10,11 +10,13 @@ poll and commit.
 - `Source` implements `collector.Source`. Each `Next` yields one
   `collector.CollectedGeneration` for the next configured scope.
 - Drains Cloud Asset Inventory pages through the `PageProvider` seam, accumulates
-  `gcp_cloud_resource` and `gcp_collection_warning` facts in a
+  `gcp_cloud_resource`, `gcp_tag_observation`, and
+  `gcp_collection_warning` facts in a
   `gcpcloud.Generation`, and fences the generation with
   `gcpcloud.GenerationTracker` so a stale scan cannot replace current facts.
 - Emits bounded-label telemetry through `gcpcloud.Metrics`: claim lifecycle,
-  pages, page-token resumes, facts emitted, warnings, and freshness lag.
+  pages, page-token resumes, facts emitted by fact kind, warnings, and freshness
+  lag from provider page read time.
 
 ## The PageProvider seam
 
@@ -53,7 +55,8 @@ defaults to the contract form
 
 ## Deferred (not in this slice)
 
-Reducer admission, API/MCP readback, Helm values, environment-variable
+Direct/effective GCP tag APIs, IAM, relationship, DNS, and image-reference scan
+emission, reducer admission, API/MCP readback, Helm values, environment-variable
 contracts, and live Cloud Asset Inventory transport are deferred per
 `docs/public/reference/gcp-cloud-collector-contract.md`. This package is runtime
 scaffolding that is fixture-tested only.

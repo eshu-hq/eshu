@@ -16,13 +16,16 @@ import (
 func (s *Source) recordEmission(
 	ctx context.Context,
 	scopeCfg ScopeConfig,
-	generation *gcpcloud.Generation,
+	envelopes []facts.Envelope,
 	boundary gcpcloud.Boundary,
 	observedAt time.Time,
 ) {
-	s.recordFactsEmitted(ctx, facts.GCPCloudResourceFactKind, scopeCfg.ParentScopeKind, generation.ResourceCount())
-	if generation.WarningCount() > 0 {
-		s.recordFactsEmitted(ctx, facts.GCPCollectionWarningFactKind, scopeCfg.ParentScopeKind, generation.WarningCount())
+	counts := make(map[string]int, 3)
+	for _, envelope := range envelopes {
+		counts[envelope.FactKind]++
+	}
+	for factKind, count := range counts {
+		s.recordFactsEmitted(ctx, factKind, scopeCfg.ParentScopeKind, count)
 	}
 	s.recordFreshnessLag(ctx, scopeCfg.ParentScopeKind, boundary.ReadTime, observedAt)
 }

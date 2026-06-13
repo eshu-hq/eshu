@@ -17,8 +17,9 @@ import (
 // Source implements collector.Source for the GCP Cloud Asset Inventory
 // collector. Each Next call yields one CollectedGeneration for the next
 // configured scope by draining pages through the PageProvider seam, accumulating
-// the parsed gcp_cloud_resource and gcp_collection_warning facts, and fencing the
-// generation so a stale scan cannot replace current facts.
+// the parsed gcp_cloud_resource, gcp_tag_observation, and
+// gcp_collection_warning facts, and fencing the generation so a stale scan
+// cannot replace current facts.
 //
 // Source performs no Google Cloud calls itself; the PageProvider owns transport.
 // Source is single-goroutine per collector.Service; it is not safe for concurrent
@@ -108,7 +109,7 @@ func (s *Source) collectScope(ctx context.Context, scopeCfg ScopeConfig) (collec
 		return collector.CollectedGeneration{}, fmt.Errorf("build gcp generation for scope %q: %w", scopeCfg.ScopeID, err)
 	}
 
-	s.recordEmission(ctx, scopeCfg, generation, boundary, observedAt)
+	s.recordEmission(ctx, scopeCfg, envelopes, generation.Boundary(), observedAt)
 	if generation.WarningCount() > 0 {
 		s.recordClaim(ctx, gcpcloud.ClaimStatusPartial)
 	} else {
@@ -143,6 +144,7 @@ func (s *Source) drainPages(ctx context.Context, scopeCfg ScopeConfig, generatio
 			return fmt.Errorf("fetch gcp page for scope %q: %w", scopeCfg.ScopeID, err)
 		}
 		s.recordPage(ctx, scopeCfg.ParentScopeKind)
+		generation.ObserveReadTime(page.ReadTime)
 		if addErr := generation.AddPage(page.Resources); addErr != nil {
 			return fmt.Errorf("accumulate gcp page for scope %q: %w", scopeCfg.ScopeID, addErr)
 		}
