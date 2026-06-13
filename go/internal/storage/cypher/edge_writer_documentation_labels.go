@@ -52,3 +52,39 @@ func BuildRetractDocumentationEdges(scopeIDs []string, evidenceSource string) St
 		},
 	}
 }
+
+// BuildRetractDocumentationEdgesByDocumentID builds a DOCUMENTS edge retraction
+// statement for documentation sections owned by the given scope and document ids.
+func BuildRetractDocumentationEdgesByDocumentID(
+	scopeIDs []string,
+	documentIDs []string,
+	evidenceSource string,
+) Statement {
+	return Statement{
+		Operation: OperationCanonicalRetract,
+		Cypher:    retractDocumentationEdgesByDocumentCypher,
+		Parameters: map[string]any{
+			"scope_ids":       scopeIDs,
+			"document_ids":    documentIDs,
+			"evidence_source": evidenceSource,
+		},
+	}
+}
+
+// BuildRetractDocumentationEdgesBySectionUID builds a DOCUMENTS edge retraction
+// statement for the given documentation section identities within a scope.
+func BuildRetractDocumentationEdgesBySectionUID(
+	scopeIDs []string,
+	sectionUIDs []string,
+	evidenceSource string,
+) Statement {
+	return Statement{
+		Operation: OperationCanonicalRetract,
+		Cypher:    retractDocumentationEdgesBySectionCypher,
+		Parameters: map[string]any{
+			"scope_ids":       scopeIDs,
+			"section_uids":    sectionUIDs,
+			"evidence_source": evidenceSource,
+		},
+	}
+}

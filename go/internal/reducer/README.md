@@ -2353,7 +2353,14 @@ Service graph node exists — provenance never fabricates a node. The source
 `DocumentationSection` node is identity-only (uid derived from the logical
 document/section pair, plus a bounded excerpt handle); section bodies stay in
 the Postgres content/fact store (design 430). Documentation is scope-scoped, so
-the retract anchors on `section.scope_id`, not a repository id.
+full-refresh retracts anchor on `section.scope_id`, not a repository id. Delta
+generation retracts are narrower: changed and deleted git documentation paths
+are mapped to stable document ids, while storage also supports section-uid scoped
+cleanup for future sources that emit explicit section deltas. The repository
+delta input is file-granular, so changed documentation files use document-id
+cleanup to remove stale edges from sections deleted inside the same file.
+External documentation sources such as Confluence are not matched by repository
+path metadata.
 
 No-Regression Evidence: `go test ./internal/reducer -run 'DocumentationEdge' -count=1`,
 `go test ./internal/storage/cypher -run 'Documentation' -count=1`, and
@@ -2363,12 +2370,20 @@ fact-kind scan (`documentation_entity_mention`) per scope generation, builds
 edge rows with no new graph read, and writes through the existing batched
 `UNWIND … MERGE` shared-projection edge path; cardinality is bounded by exact
 mention count. The domain-list guard tests were updated to include the new
-domain.
+domain. For #2321 delta retraction, `go test ./internal/reducer -run
+'TestDocumentationMaterializationHandler(ScopesDeltaRetractToDocuments|DeletedOnlyDeltaRetractsWithoutWrites)|TestBuildDocumentation(RetractRowsKeepsMalformedDeltaScoped|DeltaScopeIgnoresExternalDocumentPathMetadata)'
+-count=1` and `go test ./internal/storage/cypher -run
+'Test(BuildRetractDocumentationEdgesBy(DocumentID|SectionUID)|EdgeWriterRetractEdgesDocumentation(DeltaUses(Document|Section)Scope|RejectsDeltaWithoutIdentity))'
+-count=1` prove identity-scoped cleanup, deleted-document cleanup without
+writes, external-doc path isolation, and fail-closed malformed delta rows.
 
 No-Observability-Change: the new domain reuses the shared-projection edge writer
 and its existing batch counters, statement summaries, and graph query-duration
 metrics, plus a `documentation materialization started`/`completed` log pair in
-the existing reducer log style. No new metric instrument or label is added.
+the existing reducer log style. Delta documentation retraction uses the same
+executor path, retry classification, timeout handling, and query-duration
+metrics. No new metric instrument or label is added.
+
 ## INSTANTIATES edges (#2229)
 
 `extractGenericCodeCallRows` now additionally emits an `INSTANTIATES` edge

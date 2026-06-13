@@ -416,6 +416,40 @@ logs, graph query duration metrics, retry classification, and timeout handling.
 It adds no worker, queue domain, runtime knob, metric instrument, metric label,
 or backend-specific telemetry.
 
+### Documentation DOCUMENTS Delta Scoped Retraction
+
+Issue #2321 scopes documentation `DOCUMENTS` cleanup for delta generations by
+documentation identity instead of raw repository path. The reducer maps changed
+and deleted git documentation paths to stable `doc:git:<repo_id>:<path>`
+document ids. Storage also supports section-uid scoped retraction for future
+sources that emit explicit section deltas, but repository path deltas are
+file-granular and therefore use document-id cleanup so stale edges from deleted
+sections do not survive a changed file. External documentation sources such as
+Confluence are not matched by repository path metadata, so a repo delta cannot
+retract unrelated external documentation edges.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'TestDocumentationMaterializationHandler(ScopesDeltaRetractToDocuments|DeletedOnlyDeltaRetractsWithoutWrites)|TestBuildDocumentation(RetractRowsKeepsMalformedDeltaScoped|DeltaScopeIgnoresExternalDocumentPathMetadata)'
+-count=1` proves the reducer extracts repo-qualified git documentation paths,
+uses document identity for changed and deleted docs, ignores external docs with
+path-like metadata, handles deleted-only delta generations without writes, and
+keeps malformed delta scope scoped instead of silently downgrading to scope-wide
+cleanup. `go test ./internal/storage/cypher -run
+'Test(BuildRetractDocumentationEdgesBy(DocumentID|SectionUID)|EdgeWriterRetractEdgesDocumentation(DeltaUses(Document|Section)Scope|RejectsDeltaWithoutIdentity))'
+-count=1` proves valid delta rows dispatch document-id or section-uid scoped
+`DOCUMENTS` retract statements, malformed delta rows execute no Cypher, and
+non-delta documentation retracts keep the existing scope-wide dispatch. The
+input cardinality is bounded by the delta document path count; the changed
+Cypher keeps static `DocumentationSection` and `DOCUMENTS` tokens, binds only
+positive identity lists, and does not add a traversal or backend-specific
+branch.
+
+No-Observability-Change: documentation delta retraction uses the existing
+`EdgeWriter.RetractEdges` executor path, documentation materialization
+completion logs, graph query duration metrics, retry classification, and timeout
+handling. It adds no worker, queue domain, runtime knob, metric instrument,
+metric label, or backend-specific telemetry.
+
 ## Related Docs
 
 - [NornicDB Pitfalls](nornicdb-pitfalls.md)
