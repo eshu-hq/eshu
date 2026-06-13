@@ -111,3 +111,37 @@ Semantic evidence list routes use `query.semantic_evidence` with stable
 uses `postgres.query` with `db.operation=list_semantic_evidence`, letting
 operators separate opt-in semantic observation or code-hint inspection from
 deterministic documentation, code, and graph-truth reads.
+
+## Per-Endpoint Request Metrics
+
+Every query API and MCP read route emits two metrics, recorded once by a shared
+middleware so coverage is uniform across all endpoints rather than only the few
+with bespoke instruments:
+
+- `eshu_dp_api_request_duration_seconds` — handler latency histogram. Its
+  `_count` series doubles as the per-endpoint request rate.
+- `eshu_dp_api_request_errors_total` — server-error (5xx) counter.
+
+Both are labeled by `route` (the matched route pattern, e.g.
+`GET /api/v0/iac/resources`, which already encodes the method) and
+`status_class` (`2xx`, `4xx`, `5xx`, …). The `route` value space is the fixed
+set of registered routes, so cardinality stays bounded; concrete request paths
+with identifiers are never used as labels. Requests that match no route are
+labeled `route="unmatched"`. The admin surface (probes, `/metrics`) is served by
+a separate mux and is intentionally not counted.
+
+Observability Evidence: before this change, sampled query/API handlers recorded
+few read-path metrics and there was no per-endpoint latency or error signal, so
+an operator could not tell which route was slow or failing from metrics alone.
+The middleware gives uniform per-route p50/p95/p99 latency (via the histogram)
+and per-route 5xx rate, verified by a Prometheus scrape assertion in
+`go/internal/query/request_metrics_test.go` that exercises a success, a server
+error, and an unmatched route and confirms the metric families and `route` /
+`status_class` labels appear in the `/metrics` exposition.
+
+No-Regression Evidence: recording adds one in-memory route match
+(`mux.Handler`) and two metric records per request on the read path; no graph
+write, query, worker, or queue behavior changes. Backend: NornicDB (Bolt) /
+Postgres read path unchanged. Verified by
+`go test ./internal/telemetry ./internal/query ./cmd/api ./cmd/mcp-server
+-count=1`.

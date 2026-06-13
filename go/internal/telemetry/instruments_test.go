@@ -165,6 +165,8 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.TerraformStateParseDuration, "TerraformStateParseDuration histogram should be registered")
 	assert.NotNil(t, inst.DependencyListDuration, "DependencyListDuration histogram should be registered")
 	assert.NotNil(t, inst.DependencyListErrors, "DependencyListErrors counter should be registered")
+	assert.NotNil(t, inst.APIRequestDuration, "APIRequestDuration histogram should be registered")
+	assert.NotNil(t, inst.APIRequestErrors, "APIRequestErrors counter should be registered")
 	assert.NotNil(t, inst.PackageRegistryObserveDuration, "PackageRegistryObserveDuration histogram should be registered")
 	assert.NotNil(t, inst.PackageRegistryGenerationLag, "PackageRegistryGenerationLag histogram should be registered")
 	assert.NotNil(t, inst.VulnerabilityIntelligenceFetchDuration, "VulnerabilityIntelligenceFetchDuration histogram should be registered")
