@@ -13,8 +13,8 @@ graph-promoted paths.
     facts that do not depend on any graph projection. The separate **graph**
     projection of the `SecretsIAM*` node/edge families
     (`ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`, default off) is gated
-    behind an explicit principal/security activation decision and is **not**
-    required for these routes. It is also independent of GCP cloud
+    behind the target-bound activation record and flag-on proof in #2430; it is
+    **not** required for these routes. It is also independent of GCP cloud
     relationship edges and GCP cloud inventory, which are live regardless. See
     the internal activation runbook (ADR #1314) for the gate status and the
     steps required to enable the trust-chain graph projection.

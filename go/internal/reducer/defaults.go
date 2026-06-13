@@ -413,9 +413,9 @@ type DefaultHandlers struct {
 	// families (ADR #1314 §4). It must be non-nil alongside FactLoader for the
 	// registry to register DomainSecretsIAMGraphProjection; missing either one
 	// keeps the domain unregistered so no projection intent is silently dropped.
-	// It defaults to nil: live graph writes stay OFF until the §11/§12 backend
-	// proofs land and the §14 principal+security sign-off explicitly enables the
-	// writer through cmd/reducer's opt-in flag.
+	// It defaults to nil: live graph writes stay OFF until the target-bound
+	// activation record binds approval to one deployment and captures flag-on
+	// proof before cmd/reducer's opt-in flag is set.
 	SecretsIAMGraphWriter SecretsIAMGraphWriter
 
 	// EndpointPresenceWriter records uid-exact presence for committed

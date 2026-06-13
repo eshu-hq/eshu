@@ -12,10 +12,10 @@ import (
 
 // secretsIAMGraphProjectionEnabledEnv opts the reducer into live secrets/IAM
 // graph projection (ADR #1314 §4). It defaults OFF: the writer stays nil and
-// DomainSecretsIAMGraphProjection stays unregistered until the §11/§12 backend
-// proofs land and the §14 principal+security sign-off explicitly enables it.
-// Turning it on before those gates close is a rule violation, not a config
-// choice.
+// DomainSecretsIAMGraphProjection stays unregistered until a target-bound
+// activation decision and flag-on proof are recorded. The repo-local §11/§12
+// proofs and §14 principal+security sign-off exist; turning this on without the
+// target deployment record is a rule violation, not a config choice.
 const secretsIAMGraphProjectionEnabledEnv = "ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED"
 
 // secretsIAMGraphProjectionEnabled reports whether the operator explicitly

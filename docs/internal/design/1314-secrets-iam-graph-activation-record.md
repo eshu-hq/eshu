@@ -1,10 +1,14 @@
 # Secrets/IAM Graph Projection — Activation Record
 
-Issue [#1381](https://github.com/eshu-hq/eshu/issues/1381) / [#1347](https://github.com/eshu-hq/eshu/issues/1347). Gate: ADR #1314 §11 / §12 / §14.
+Issue [#2430](https://github.com/eshu-hq/eshu/issues/2430). Current gate
+closeout: [#2406](https://github.com/eshu-hq/eshu/issues/2406). Historical
+gates: [#1381](https://github.com/eshu-hq/eshu/issues/1381) /
+[#1347](https://github.com/eshu-hq/eshu/issues/1347). Gate: ADR #1314 §11 /
+§12 / §14.
 
 **Status: NOT ACTIVATED — `risk:schema` approval in principle recorded
 2026-06-11 (§1); awaiting §2 target-deployment decision and §4 flag-on live
-proof.** This is the durable governance + evidence record that closes #1381.
+proof.** This is the durable governance + evidence record that closes #2430.
 The flag is enabled in exactly one target deployment **only after** §2 names it
 and §4 proof is captured. An empty section means that gate is not yet closed; do
 not enable the flag.
@@ -47,7 +51,7 @@ The repo owner gave `risk:schema` activation approval in principle on 2026-06-11
 This approval **binds to a specific deployment once §2 names one**; the two
 deployment-specific attestations below stay unchecked until the target backend
 is named and verified. Approval in principle does **not** enable the flag and
-does **not** close #1381/#1347 — §2 (target decision), §3 (enable in that
+does **not** close #2430 — §2 (target decision), §3 (enable in that
 deployment only), and §4 (flag-on live proof) still gate enablement.
 
 Attestations:
@@ -113,14 +117,14 @@ runbook §5.
 | Live readback: `SecretsIAM*` rows under the reducer `scope_id` + `evidence_source`, allowlisted properties only | [ ] | _TBD_ |
 | Spot-check: no raw ARN, secret value, or Vault path on any node/edge property | [ ] | _TBD_ |
 
-## 5. Sign-off to close #1381
+## 5. Sign-off to close #2430
 
 Closeable only when §1, §2, §3, and §4 are complete and the evidence is attached
 here.
 
 - [ ] All four sections complete and signed.
 - [ ] No redaction regressions (property allowlist §7 enforced end to end).
-- [ ] #1381 closed with this record linked.
+- [ ] #2430 closed with this record linked.
 
 ## What NOT to do
 

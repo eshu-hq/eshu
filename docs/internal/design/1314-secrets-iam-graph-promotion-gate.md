@@ -1,10 +1,10 @@
 # Secrets/IAM Graph Promotion ADR And Schema Gate
 
-Status: **ADR APPROVED - SCHEMA AND TARGET ACTIVATION PENDING.** The DDL,
-writer, fixture proof, benchmark proof, repo-local NornicDB/Neo4j conformance
-evidence, and section 14 principal/security approval are present. The
-projection remains default off until `risk:schema` approval, a target deployment
-decision, and flag-on activation proof are recorded.
+Status: **ADR APPROVED - TARGET ACTIVATION PENDING.** The DDL, writer, fixture
+proof, benchmark proof, repo-local NornicDB/Neo4j conformance evidence, section
+14 principal/security approval, and `risk:schema` approval in principle are
+present. The projection remains default off until #2430 binds approval to one
+target deployment and records flag-on activation proof.
 
 Issue: #1314. Parent: #25. Depends on the #1313 reducer read-model slice.
 
@@ -441,10 +441,11 @@ decision, and flag-on proof are recorded.
 
 The non-graph prerequisites are merged (see section 2.1). Principal and
 security sign-off on the six points above is recorded as approved on
-2026-06-07. `risk:schema` approval and target deployment activation proof are
-the remaining blockers. Issue #1347 tracks the schema/governance gate; issue
-#1381 tracks activation proof. Neither issue should claim the projection is
-active until both approvals and the target deployment proof are recorded.
+2026-06-07. `risk:schema` approval is recorded in principle, but target
+deployment activation proof remains blocked until it is bound to one named
+deployment. Issue #2406 records the current gate-status decision; issue #2430
+tracks the remaining target-bound activation record. No issue should claim the
+projection is active until the target deployment proof is recorded.
 
 No-Regression Evidence: design-only gate. This PR changes only an internal
 design document and adds no Go, Cypher, DDL, queue, runtime, API, MCP, or graph
