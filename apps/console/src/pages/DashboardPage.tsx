@@ -2,11 +2,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { EshuApiClient } from "../api/client";
 import { loadEntityMapGraph, resolveEntityName } from "../api/eshuGraph";
+import {
+  loadSourceBackedSuggestedQuestions,
+  type SuggestedQuestion
+} from "../api/suggestedQuestions";
 import type { ConsoleModel, GraphLayer, GraphModel, GraphNode, RelationshipRow, ServiceRow } from "../console/types";
 import { fmt, LAYER_COLOR, SEVERITY_COLOR, uiTruth } from "../console/types";
 import { StatTile, Panel, TruthChip } from "../components/atoms";
 import { AreaChart, Donut, BarRows } from "../components/charts";
 import { GraphCanvas } from "../components/GraphCanvas";
+import { SuggestedQuestions } from "../components/SuggestedQuestions";
 import "./dashboardLive.css";
 
 const LANDING_LAYERS: readonly GraphLayer[] = ["code", "deploy", "infra", "runtime", "security", "ops"];
@@ -49,6 +54,7 @@ export function DashboardPage({ model, client, onOpenService }: {
   const atlasLabel = sel?.label ?? atlasSeed?.label ?? "live graph";
   const graphNodeCount = lastNumber(model.series.graphNodes);
   const relationshipCount = relationshipMetric(model, baseGraph);
+  const [suggestedQuestions, setSuggestedQuestions] = useState<readonly SuggestedQuestion[]>([]);
   const selectedSpotlightName = sel && (sel.kind === "service" || sel.kind === "workload") ? sel.label : null;
   const nodeLabels = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node.label])), [graph.nodes]);
   const sevTotals = model.vulnerabilities.reduce(
@@ -61,6 +67,22 @@ export function DashboardPage({ model, client, onOpenService }: {
   useEffect(() => {
     setSel((current) => graph.nodes.some((n) => n.id === current?.id) ? current : initialSelection(graph));
   }, [graph]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!client || model.source !== "live") {
+      setSuggestedQuestions([]);
+      return () => { cancelled = true; };
+    }
+    void loadSourceBackedSuggestedQuestions(client)
+      .then((questions) => {
+        if (!cancelled) setSuggestedQuestions(questions);
+      })
+      .catch(() => {
+        if (!cancelled) setSuggestedQuestions([]);
+      });
+    return () => { cancelled = true; };
+  }, [client, model.source]);
 
   useEffect(() => {
     setLiveGraph(null);
@@ -223,6 +245,10 @@ export function DashboardPage({ model, client, onOpenService }: {
 
       <Panel className="mt" title="Relationship coverage" sub="Most-observed typed verbs">
         <BarRows rows={relRows} />
+      </Panel>
+
+      <Panel className="mt" title="Suggested questions" sub="Source-backed next reads">
+        <SuggestedQuestions questions={suggestedQuestions} />
       </Panel>
 
       <Panel className="dashboard-findings-panel mt flush" title="Needs attention" sub="Highest-severity findings with evidence">
