@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/searchbench"
@@ -20,15 +21,28 @@ func main() {
 	maxDocs := flag.Int("max-docs", 50000, "maximum documents to index")
 	queryCount := flag.Int("queries", 30, "number of derived queries")
 	rounds := flag.Int("rounds", 3, "measurement rounds per query")
+	suitePath := flag.String("suite", "", "validated searchbench QuerySuite JSON for recall/latency cap sweep")
+	caps := flag.String("caps", "500,5000,20000,all", "comma-separated corpus caps for --suite mode; use all for the loaded corpus")
+	queryTimeout := flag.Duration("query-timeout", 30*time.Second, "per-query timeout for --suite cap sweep")
 	flag.Parse()
 
-	if err := run(*dsn, *repoFlag, *limit, *maxDocs, *queryCount, *rounds); err != nil {
+	if err := run(*dsn, *repoFlag, *limit, *maxDocs, *queryCount, *rounds, *suitePath, *caps, *queryTimeout); err != nil {
 		fmt.Fprintln(os.Stderr, "search-bench:", err)
 		os.Exit(1)
 	}
 }
 
-func run(dsn string, repoID string, limit int, maxDocs int, queryCount int, rounds int) error {
+func run(
+	dsn string,
+	repoID string,
+	limit int,
+	maxDocs int,
+	queryCount int,
+	rounds int,
+	suitePath string,
+	capsFlag string,
+	queryTimeout time.Duration,
+) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
@@ -51,6 +65,22 @@ func run(dsn string, repoID string, limit int, maxDocs int, queryCount int, roun
 	}
 	if len(docs) == 0 {
 		return fmt.Errorf("no curated documents for repo %q", repoID)
+	}
+	if strings.TrimSpace(suitePath) != "" {
+		suite, err := loadQuerySuite(suitePath)
+		if err != nil {
+			return err
+		}
+		caps, err := parseCorpusCaps(capsFlag, len(docs))
+		if err != nil {
+			return err
+		}
+		results, err := runCapSweep(ctx, docs, suite, caps, queryTimeout)
+		if err != nil {
+			return err
+		}
+		printCapSweepReport(stats, suitePath, results)
+		return nil
 	}
 
 	buildStart := time.Now()

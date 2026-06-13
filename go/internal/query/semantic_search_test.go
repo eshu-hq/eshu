@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,38 +11,44 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
+	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
 )
 
 func TestSemanticSearchHandlerReturnsBoundedTruthLabeledResults(t *testing.T) {
 	t.Parallel()
 
-	store := &fakeSemanticSearchDocumentStore{
-		rows: []semanticSearchDocumentRow{
-			{
-				FactID:       "fact:searchdoc:payments",
-				ScopeID:      "repo-payments",
-				GenerationID: "gen-active",
-				Document: semanticSearchDocumentFixture(
-					"searchdoc:payments",
-					"repo-payments",
-					"Payments runbook",
-					"payment runbook ownership escalation",
-				),
-			},
-			{
-				FactID:       "fact:searchdoc:billing",
-				ScopeID:      "repo-payments",
-				GenerationID: "gen-active",
-				Document: semanticSearchDocumentFixture(
-					"searchdoc:billing",
-					"repo-payments",
-					"Billing checklist",
-					"billing invoice reconciliation",
-				),
+	index := &fakeSemanticSearchIndexStore{
+		result: semanticSearchIndexResult{
+			IndexedDocumentCount: 2,
+			Candidates: []searchretrieval.Candidate{
+				{
+					Document: semanticSearchDocumentFixture(
+						"searchdoc:payments",
+						"repo-payments",
+						"Payments runbook",
+						"payment runbook ownership escalation",
+					),
+					Score: 2.5,
+					Metadata: map[string]string{
+						"search_method": "bm25",
+					},
+				},
+				{
+					Document: semanticSearchDocumentFixture(
+						"searchdoc:billing",
+						"repo-payments",
+						"Billing checklist",
+						"billing invoice reconciliation",
+					),
+					Score: 1.0,
+					Metadata: map[string]string{
+						"search_method": "bm25",
+					},
+				},
 			},
 		},
 	}
-	handler := &SemanticSearchHandler{Documents: store, Profile: ProfileProduction}
+	handler := &SemanticSearchHandler{Index: index, Profile: ProfileProduction}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -58,17 +65,17 @@ func TestSemanticSearchHandlerReturnsBoundedTruthLabeledResults(t *testing.T) {
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
-	if got, want := store.calls, 1; got != want {
-		t.Fatalf("store calls = %d, want %d", got, want)
+	if got, want := index.calls, 1; got != want {
+		t.Fatalf("index calls = %d, want %d", got, want)
 	}
-	if got, want := store.filter.ScopeID, "repo-payments"; got != want {
-		t.Fatalf("filter.ScopeID = %q, want %q", got, want)
+	if got, want := index.query.ScopeID, "repo-payments"; got != want {
+		t.Fatalf("query.ScopeID = %q, want %q", got, want)
 	}
-	if got, want := store.filter.RepoID, "repo-payments"; got != want {
-		t.Fatalf("filter.RepoID = %q, want %q", got, want)
+	if got, want := index.query.RepoID, "repo-payments"; got != want {
+		t.Fatalf("query.RepoID = %q, want %q", got, want)
 	}
-	if got, want := store.filter.Limit, 500; got != want {
-		t.Fatalf("filter.Limit = %d, want %d", got, want)
+	if got, want := index.query.Request.Limit, 1; got != want {
+		t.Fatalf("query.Request.Limit = %d, want %d", got, want)
 	}
 
 	var envelope ResponseEnvelope
@@ -125,17 +132,18 @@ func TestSemanticSearchHandlerReturnsBoundedTruthLabeledResults(t *testing.T) {
 func TestSemanticSearchHandlerScopedEmptyGrantReturnsEmptyWithoutRead(t *testing.T) {
 	t.Parallel()
 
-	store := &fakeSemanticSearchDocumentStore{
-		rows: []semanticSearchDocumentRow{{
+	index := &fakeSemanticSearchIndexStore{
+		result: semanticSearchIndexResult{Candidates: []searchretrieval.Candidate{{
 			Document: semanticSearchDocumentFixture(
 				"searchdoc:out-of-scope",
 				"repo-payments",
 				"Payments",
 				"payment runbook",
 			),
-		}},
+			Score: 1,
+		}}},
 	}
-	handler := &SemanticSearchHandler{Documents: store, Profile: ProfileProduction}
+	handler := &SemanticSearchHandler{Index: index, Profile: ProfileProduction}
 	req := semanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "payment runbook",
@@ -155,8 +163,8 @@ func TestSemanticSearchHandlerScopedEmptyGrantReturnsEmptyWithoutRead(t *testing
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
-	if store.calls != 0 {
-		t.Fatalf("store calls = %d, want 0 for empty scoped grant", store.calls)
+	if index.calls != 0 {
+		t.Fatalf("index calls = %d, want 0 for empty scoped grant", index.calls)
 	}
 	data := semanticSearchEnvelopeData(t, rec)
 	results := data["results"].([]any)
@@ -171,8 +179,8 @@ func TestSemanticSearchHandlerScopedEmptyGrantReturnsEmptyWithoutRead(t *testing
 func TestSemanticSearchHandlerScopedGrantRejectsOutOfGrantRepositoryBeforeRead(t *testing.T) {
 	t.Parallel()
 
-	store := &fakeSemanticSearchDocumentStore{}
-	handler := &SemanticSearchHandler{Documents: store, Profile: ProfileProduction}
+	index := &fakeSemanticSearchIndexStore{}
+	handler := &SemanticSearchHandler{Index: index, Profile: ProfileProduction}
 	req := semanticSearchHTTPRequest(t, map[string]any{
 		"repo_id":    "repo-payments",
 		"query":      "payment runbook",
@@ -193,8 +201,8 @@ func TestSemanticSearchHandlerScopedGrantRejectsOutOfGrantRepositoryBeforeRead(t
 	if got, want := rec.Code, http.StatusNotFound; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
-	if store.calls != 0 {
-		t.Fatalf("store calls = %d, want 0 for out-of-grant repository", store.calls)
+	if index.calls != 0 {
+		t.Fatalf("index calls = %d, want 0 for out-of-grant repository", index.calls)
 	}
 	var envelope ResponseEnvelope
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
@@ -205,34 +213,19 @@ func TestSemanticSearchHandlerScopedGrantRejectsOutOfGrantRepositoryBeforeRead(t
 	}
 }
 
-func TestSemanticSearchHandlerFiltersStoreRowsToRequestedRepository(t *testing.T) {
+func TestSemanticSearchHandlerPassesSmallestAnchorAndSourceKindsToIndex(t *testing.T) {
 	t.Parallel()
 
-	outOfRepo := semanticSearchDocumentFixture(
-		"searchdoc:secret",
-		"repo-secret",
-		"Secret runbook",
-		"secret service incident playbook",
-	)
-	outOfRepo.AccessScope = searchdocs.AccessScope{RepoID: "repo-secret"}
-	outOfRepo.GraphHandles = []searchdocs.GraphHandle{
-		{Kind: "repository", ID: "repo-secret"},
-		{Kind: "service", ID: "svc-payments"},
-	}
-	store := &fakeSemanticSearchDocumentStore{
-		rows: []semanticSearchDocumentRow{
-			{Document: semanticSearchDocumentFixture("searchdoc:payments", "repo-payments", "Payments", "payment runbook")},
-			{Document: outOfRepo},
-		},
-	}
-	handler := &SemanticSearchHandler{Documents: store, Profile: ProfileProduction}
+	index := &fakeSemanticSearchIndexStore{}
+	handler := &SemanticSearchHandler{Index: index, Profile: ProfileProduction}
 	req := semanticSearchHTTPRequest(t, map[string]any{
-		"repo_id":    "repo-payments",
-		"service_id": "svc-payments",
-		"query":      "secret",
-		"mode":       "keyword",
-		"limit":      5,
-		"timeout_ms": 250,
+		"repo_id":      "repo-payments",
+		"service_id":   "svc-payments",
+		"query":        "payment",
+		"mode":         "keyword",
+		"limit":        5,
+		"timeout_ms":   250,
+		"source_kinds": []string{"runtime_summary"},
 	})
 	rec := httptest.NewRecorder()
 
@@ -241,10 +234,69 @@ func TestSemanticSearchHandlerFiltersStoreRowsToRequestedRepository(t *testing.T
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
-	data := semanticSearchEnvelopeData(t, rec)
-	results := data["results"].([]any)
-	if got := len(results); got != 0 {
-		t.Fatalf("len(results) = %d, want 0; results = %#v", got, results)
+	if got, want := index.query.Request.Scope.Anchor().Kind, searchretrieval.ScopeKindService; got != want {
+		t.Fatalf("anchor kind = %q, want %q", got, want)
+	}
+	if got, want := index.query.Request.Scope.Anchor().ID, "svc-payments"; got != want {
+		t.Fatalf("anchor id = %q, want %q", got, want)
+	}
+	if got, want := len(index.query.SourceKinds), 1; got != want {
+		t.Fatalf("source kinds = %d, want %d", got, want)
+	}
+	if got, want := index.query.SourceKinds[0], searchdocs.SourceKindRuntimeSummary; got != want {
+		t.Fatalf("source kind = %q, want %q", got, want)
+	}
+}
+
+func TestSemanticSearchHandlerIndexErrorReturnsInternalError(t *testing.T) {
+	t.Parallel()
+
+	index := &fakeSemanticSearchIndexStore{err: errors.New("database down")}
+	handler := &SemanticSearchHandler{Index: index, Profile: ProfileProduction}
+	req := semanticSearchHTTPRequest(t, map[string]any{
+		"repo_id":    "repo-payments",
+		"query":      "payment",
+		"mode":       "keyword",
+		"limit":      5,
+		"timeout_ms": 250,
+	})
+	rec := httptest.NewRecorder()
+
+	handler.search(rec, req)
+
+	if got, want := rec.Code, http.StatusInternalServerError; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if envelope.Error == nil || envelope.Error.Code != ErrorCodeInternalError {
+		t.Fatalf("error = %#v, want internal error", envelope.Error)
+	}
+}
+
+func TestSemanticSearchHandlerSemanticModeRequiresEmbedder(t *testing.T) {
+	t.Parallel()
+
+	index := &fakeSemanticSearchIndexStore{}
+	handler := &SemanticSearchHandler{Index: index, Profile: ProfileProduction}
+	req := semanticSearchHTTPRequest(t, map[string]any{
+		"repo_id":    "repo-payments",
+		"query":      "payment",
+		"mode":       "semantic",
+		"limit":      5,
+		"timeout_ms": 250,
+	})
+	rec := httptest.NewRecorder()
+
+	handler.search(rec, req)
+
+	if got, want := rec.Code, http.StatusServiceUnavailable; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	if index.calls != 0 {
+		t.Fatalf("index calls = %d, want 0 when semantic mode has no embedder", index.calls)
 	}
 }
 
@@ -300,8 +352,8 @@ func TestSemanticSearchHandlerRejectsUnboundedRequestsBeforeRead(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			store := &fakeSemanticSearchDocumentStore{}
-			handler := &SemanticSearchHandler{Documents: store, Profile: ProfileProduction}
+			index := &fakeSemanticSearchIndexStore{}
+			handler := &SemanticSearchHandler{Index: index, Profile: ProfileProduction}
 			rec := httptest.NewRecorder()
 
 			handler.search(rec, semanticSearchHTTPRequest(t, tc.body))
@@ -309,8 +361,8 @@ func TestSemanticSearchHandlerRejectsUnboundedRequestsBeforeRead(t *testing.T) {
 			if got, want := rec.Code, http.StatusBadRequest; got != want {
 				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 			}
-			if store.calls != 0 {
-				t.Fatalf("store calls = %d, want 0 for invalid request", store.calls)
+			if index.calls != 0 {
+				t.Fatalf("index calls = %d, want 0 for invalid request", index.calls)
 			}
 			if !strings.Contains(rec.Body.String(), tc.want) {
 				t.Fatalf("body = %s, want substring %q", rec.Body.String(), tc.want)
@@ -348,19 +400,25 @@ func TestAuthMiddlewareWithScopedTokensAllowsSemanticSearchRoute(t *testing.T) {
 	}
 }
 
-type fakeSemanticSearchDocumentStore struct {
-	rows   []semanticSearchDocumentRow
-	filter semanticSearchDocumentFilter
+type fakeSemanticSearchIndexStore struct {
+	result semanticSearchIndexResult
+	query  semanticSearchIndexQuery
+	err    error
 	calls  int
 }
 
-func (s *fakeSemanticSearchDocumentStore) ListActiveDocuments(
+func (s *fakeSemanticSearchIndexStore) Search(
 	_ context.Context,
-	filter semanticSearchDocumentFilter,
-) ([]semanticSearchDocumentRow, error) {
+	query semanticSearchIndexQuery,
+) (semanticSearchIndexResult, error) {
 	s.calls++
-	s.filter = filter
-	return append([]semanticSearchDocumentRow(nil), s.rows...), nil
+	s.query = query
+	if s.err != nil {
+		return semanticSearchIndexResult{}, s.err
+	}
+	result := s.result
+	result.Candidates = append([]searchretrieval.Candidate(nil), result.Candidates...)
+	return result, nil
 }
 
 func semanticSearchHTTPRequest(t *testing.T, body map[string]any) *http.Request {

@@ -297,6 +297,11 @@ Recommended child slices:
    `Embedder` port (hosted-free) and is the remaining follow-up.
 5. Add public API/MCP search surfaces only after retrieval evidence proves value
    and preserves truth labels, scope, limits, and truncation.
+6. Issue #2343 moves the public API/MCP surface off request-local index rebuilds
+   and onto reducer-maintained Postgres BM25 postings for active curated search
+   documents. Issue #2355 still requires a representative labeled query suite
+   and live cap-sweep evidence before any larger runtime cap or vector lane is
+   justified.
 
 Issues #417, #418, #420, #421, and #431 should stay behind this architecture
 gate. #417 can start once the bounded search document projection and backend

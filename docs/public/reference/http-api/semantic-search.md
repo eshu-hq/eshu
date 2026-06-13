@@ -25,10 +25,12 @@ Optional request fields:
 | `environment` | Environment anchor inside the repository corpus. |
 | `source_kinds` | Optional filter over `code_entity`, `repository_file`, `runtime_summary`, and `semantic_context`. |
 
-The route reads at most 500 active search documents before building the
-in-process retrieval index. The response reports `indexed_document_count`,
-`corpus_limit`, and `corpus_may_be_truncated` so clients can tell when the
-bounded corpus may need a narrower anchor.
+The route reads the active generation from the persisted curated search index.
+The reducer maintains that index when it writes search documents, so request
+handling does not rebuild a full corpus index. The response reports
+`indexed_document_count`, `corpus_limit`, and `corpus_may_be_truncated`;
+`corpus_limit=0` means there is no request-time corpus cap, while `limit` still
+bounds returned results.
 
 Results carry:
 
@@ -43,10 +45,11 @@ result to canonical graph truth.
 
 ## Modes
 
-`keyword` uses BM25 over curated search-document text. `semantic` requires a
-configured deterministic local embedder; without one the route returns
-`backend_unavailable`. `hybrid` combines BM25 and vector ranks when an embedder
-exists and may report `search_method=bm25` when no embedder is configured.
+`keyword` uses BM25 over persisted curated search-document postings. `semantic`
+requires a configured deterministic local embedder; without one the route
+returns `backend_unavailable`. `hybrid` currently serves the same persisted BM25
+ranking until a hosted-free vector lane is configured and may report
+`search_method=bm25`.
 
 ## Authorization
 

@@ -76,9 +76,9 @@ func TestWriteEshuSearchDocumentsUpsertsAndRetires(t *testing.T) {
 	if result.Retired != 2 {
 		t.Errorf("retired = %d, want 2", result.Retired)
 	}
-	// Two upserts plus one retirement delete.
-	if got := len(db.execs); got != 3 {
-		t.Fatalf("exec calls = %d, want 3", got)
+	// Two fact upserts plus fact retirement and persisted-index maintenance.
+	if got := len(db.execs); got < 6 {
+		t.Fatalf("exec calls = %d, want fact writes plus search-index maintenance", got)
 	}
 	insert := db.execs[0]
 	if !strings.Contains(insert.query, "INSERT INTO fact_records") {
@@ -99,13 +99,54 @@ func TestWriteEshuSearchDocumentsUpsertsAndRetires(t *testing.T) {
 	if got, want := insert.args[13], false; got != want {
 		t.Errorf("is_tombstone = %v, want false", got)
 	}
-	retire := db.execs[2]
+	var retire fakeSearchDocExecCall
+	for _, exec := range db.execs {
+		if strings.Contains(exec.query, "DELETE FROM fact_records") {
+			retire = exec
+			break
+		}
+	}
 	if !strings.Contains(retire.query, "DELETE FROM fact_records") {
-		t.Fatalf("third exec is not the retirement delete: %q", retire.query)
+		t.Fatalf("missing fact retirement delete: %#v", db.execs)
 	}
 	ids, ok := retire.args[3].([]string)
 	if !ok || len(ids) != 2 {
 		t.Fatalf("retire written-id arg = %v, want 2 ids", retire.args[3])
+	}
+}
+
+func TestWriteEshuSearchDocumentsMaintainsPersistedSearchIndex(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeSearchDocExecer{}
+	writer := PostgresEshuSearchDocumentWriter{DB: db}
+
+	_, err := writer.WriteEshuSearchDocuments(context.Background(), EshuSearchDocumentWrite{
+		ScopeID:      "scope-1",
+		GenerationID: "gen-1",
+		SourceSystem: "content_entities",
+		Documents: []searchdocs.Document{
+			sampleSearchDoc("searchdoc:content_entity:e-1"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("WriteEshuSearchDocuments error = %v", err)
+	}
+
+	var sawDocumentUpsert, sawTermRefresh, sawStatsUpsert bool
+	for _, exec := range db.execs {
+		sawDocumentUpsert = sawDocumentUpsert || strings.Contains(exec.query, "INSERT INTO eshu_search_index_documents")
+		sawTermRefresh = sawTermRefresh || strings.Contains(exec.query, "INSERT INTO eshu_search_index_terms")
+		sawStatsUpsert = sawStatsUpsert || strings.Contains(exec.query, "INSERT INTO eshu_search_index_stats")
+	}
+	if !sawDocumentUpsert {
+		t.Fatal("missing persisted search-index document upsert")
+	}
+	if !sawTermRefresh {
+		t.Fatal("missing persisted search-index term refresh")
+	}
+	if !sawStatsUpsert {
+		t.Fatal("missing persisted search-index stats upsert")
 	}
 }
 
@@ -127,13 +168,22 @@ func TestWriteEshuSearchDocumentsEmptySetRetiresAll(t *testing.T) {
 	if result.Retired != 5 {
 		t.Errorf("retired = %d, want 5", result.Retired)
 	}
-	// Only the retirement delete runs.
-	if got := len(db.execs); got != 1 {
-		t.Fatalf("exec calls = %d, want 1", got)
+	if got := len(db.execs); got < 4 {
+		t.Fatalf("exec calls = %d, want fact retirement plus empty-index maintenance", got)
 	}
-	ids, ok := db.execs[0].args[3].([]string)
+	var retire fakeSearchDocExecCall
+	for _, exec := range db.execs {
+		if strings.Contains(exec.query, "DELETE FROM fact_records") {
+			retire = exec
+			break
+		}
+	}
+	if !strings.Contains(retire.query, "DELETE FROM fact_records") {
+		t.Fatalf("missing fact retirement delete: %#v", db.execs)
+	}
+	ids, ok := retire.args[3].([]string)
 	if !ok || len(ids) != 0 {
-		t.Fatalf("retire id arg = %v, want empty slice", db.execs[0].args[3])
+		t.Fatalf("retire id arg = %v, want empty slice", retire.args[3])
 	}
 }
 

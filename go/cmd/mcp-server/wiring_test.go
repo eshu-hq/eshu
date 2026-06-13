@@ -151,8 +151,8 @@ func TestNewMCPQueryRouterMountsMCPBackedHandlers(t *testing.T) {
 	if router.SemanticSearch == nil {
 		t.Fatal("newMCPQueryRouter().SemanticSearch = nil, want semantic search route mounted")
 	}
-	if router.SemanticSearch.Documents == nil {
-		t.Fatal("newMCPQueryRouter().SemanticSearch.Documents = nil, want Postgres search-document store")
+	if router.SemanticSearch.Index == nil {
+		t.Fatal("newMCPQueryRouter().SemanticSearch.Index = nil, want Postgres search-index store")
 	}
 	if router.ServiceCatalog.Correlations == nil {
 		t.Fatal("newMCPQueryRouter().ServiceCatalog.Correlations = nil, want Postgres read model store")

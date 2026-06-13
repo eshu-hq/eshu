@@ -81,11 +81,12 @@ Semantic search reads (`POST /api/v0/search/semantic`, MCP
 `search_semantic_context`) are repository-bounded over active curated search
 documents. They use the repository id as the current durable search-document
 scope, allow smaller service/workload/environment anchors only inside that
-repository corpus, cap the indexed corpus at 500 documents, require explicit
-`limit` and `timeout_ms`, and return derived retrieval evidence rather than
-canonical graph truth. Scoped-token requests with no repository grant return an
-empty bounded response without reading the store; out-of-grant repository ids
-return not found before store access.
+repository corpus, serve the active generation from the persisted search index
+instead of rebuilding a request-local corpus, require explicit `limit` and
+`timeout_ms`, and return derived retrieval evidence rather than canonical graph
+truth. Scoped-token requests with no repository grant return an empty bounded
+response without reading the store; out-of-grant repository ids return not found
+before store access.
 Documentation reads follow the same split: target-scoped findings responses can
 include `related_facts`, `coverage`, and `missing_evidence` when raw
 documentation facts reference a repo or service but no admissible finding exists

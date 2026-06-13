@@ -8,50 +8,43 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-// PostgresSemanticSearchDocumentStore adapts the durable Postgres search
-// document reader to the query-layer semantic-search port.
-type PostgresSemanticSearchDocumentStore struct {
+// PostgresSemanticSearchIndexStore adapts the durable Postgres search index to
+// the query-layer semantic-search port.
+type PostgresSemanticSearchIndexStore struct {
 	db *sql.DB
 }
 
-// NewPostgresSemanticSearchDocumentStore creates a Postgres-backed curated
-// search-document reader for semantic search.
-func NewPostgresSemanticSearchDocumentStore(db *sql.DB) PostgresSemanticSearchDocumentStore {
-	return PostgresSemanticSearchDocumentStore{db: db}
+// NewPostgresSemanticSearchIndexStore creates a Postgres-backed persisted
+// search-index reader for semantic search.
+func NewPostgresSemanticSearchIndexStore(db *sql.DB) PostgresSemanticSearchIndexStore {
+	return PostgresSemanticSearchIndexStore{db: db}
 }
 
-// ListActiveDocuments returns active curated search documents for one bounded
-// repository corpus.
-func (s PostgresSemanticSearchDocumentStore) ListActiveDocuments(
+// Search returns persisted-index candidates for one bounded repository corpus.
+func (s PostgresSemanticSearchIndexStore) Search(
 	ctx context.Context,
-	filter semanticSearchDocumentFilter,
-) ([]semanticSearchDocumentRow, error) {
+	query semanticSearchIndexQuery,
+) (semanticSearchIndexResult, error) {
 	if s.db == nil {
-		return nil, fmt.Errorf("semantic search document database is required")
+		return semanticSearchIndexResult{}, fmt.Errorf("semantic search index database is required")
 	}
-	rows, err := postgres.NewEshuSearchDocumentStore(postgres.SQLDB{DB: s.db}).ListActiveDocuments(
+	result, err := postgres.NewEshuSearchIndexStore(postgres.SQLDB{DB: s.db}).Search(
 		ctx,
-		postgres.EshuSearchDocumentFilter{
-			ScopeID:     filter.ScopeID,
-			RepoID:      filter.RepoID,
-			SourceKinds: filter.SourceKinds,
-			Limit:       filter.Limit,
-			Offset:      filter.Offset,
+		postgres.EshuSearchIndexSearch{
+			ScopeID:     query.ScopeID,
+			RepoID:      query.RepoID,
+			Query:       query.Request.Query,
+			Anchor:      query.Request.Scope.Anchor(),
+			SourceKinds: query.SourceKinds,
+			Limit:       query.Request.Limit + 1,
 		},
 	)
 	if err != nil {
-		return nil, err
+		return semanticSearchIndexResult{}, err
 	}
-	out := make([]semanticSearchDocumentRow, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, semanticSearchDocumentRow{
-			FactID:       row.FactID,
-			ScopeID:      row.ScopeID,
-			GenerationID: row.GenerationID,
-			SourceSystem: row.SourceSystem,
-			ObservedAt:   row.ObservedAt,
-			Document:     row.Document,
-		})
-	}
-	return out, nil
+	return semanticSearchIndexResult{
+		Candidates:           result.Candidates,
+		IndexedDocumentCount: result.IndexedDocumentCount,
+		CorpusMayBeTruncated: result.CorpusMayBeTruncated,
+	}, nil
 }

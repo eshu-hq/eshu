@@ -202,8 +202,8 @@ func TestNewRouterMountsPostgresBackedHandlers(t *testing.T) {
 	if router.SemanticSearch == nil {
 		t.Fatal("newRouter().SemanticSearch = nil, want semantic search route mounted")
 	}
-	if router.SemanticSearch.Documents == nil {
-		t.Fatal("newRouter().SemanticSearch.Documents = nil, want Postgres search-document store")
+	if router.SemanticSearch.Index == nil {
+		t.Fatal("newRouter().SemanticSearch.Index = nil, want Postgres search-index store")
 	}
 }
 

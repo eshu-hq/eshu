@@ -154,9 +154,29 @@ The backend:
   so the runner detects truncation;
 - emits derived retrieval evidence, never canonical graph truth.
 
-This backend is now used by the repository-bounded semantic-search API/MCP
-surface and by design-430 benchmark evaluation. It still adds no runtime flag or
-graph write, and it does not enable whole-graph search.
+This backend is used by design-430 benchmark evaluation and offline cap-sweep
+runs. It still adds no runtime flag or graph write, and it does not enable
+whole-graph search.
+
+## Persisted Postgres Search Index
+
+`go/internal/storage/postgres.EshuSearchIndexStore` serves the public
+repository-bounded search surface from persisted BM25 postings for active
+curated search documents. The reducer writes the index alongside
+`eshu_search_document` facts for each scope and generation:
+
+- `eshu_search_index_documents` stores one normalized document payload, source
+  kind, repo id, length, and fact id per `(scope_id, generation_id,
+  document_id)`;
+- `eshu_search_index_terms` stores term frequencies for BM25 lookup by
+  `(scope_id, generation_id, term, document_id)`;
+- `eshu_search_index_stats` stores active corpus size and average document
+  length for scoring and response metadata.
+
+Reads join through `ingestion_scopes.active_generation_id`, so superseded
+generation rows are ignored without rebuilding an index in the request path. A
+projection sweep re-enqueues active scopes whose search documents exist but
+index stats are missing, allowing retry to converge after partial failures.
 
 ## Public Route And MCP Tool
 
@@ -170,7 +190,8 @@ The public surface:
 - treats `repo_id` as the durable search-document scope id for this slice;
 - optionally narrows within that repository by service, workload, environment,
   and curated `source_kinds`;
-- caps the active corpus at 500 documents before indexing;
+- serves from the active persisted search index without a request-time full
+  rebuild or corpus cap;
 - caps returned results at 100;
 - returns the canonical Eshu envelope when requested;
 - reports derived truth basis, freshness, graph handles, `search_method`,
@@ -214,11 +235,11 @@ This contract does not:
 - decide HTTP authorization, envelope negotiation, or OpenAPI/MCP schemas;
 - enable default runtime or whole-graph search.
 
-The internal Postgres and NornicDB adapters can call their backends when
-explicitly constructed by a benchmark or proof harness. The semantic-search
-route currently uses active curated search documents and the in-process hybrid
-backend; broader default runtime search still requires separate telemetry,
-capability, backend-proof, and semantic-evaluation evidence.
+The internal Postgres, NornicDB, and in-process hybrid adapters can call their
+backends when explicitly constructed by a benchmark or proof harness. The
+semantic-search route uses the persisted active curated search-document index;
+broader default runtime search still requires separate telemetry, capability,
+backend-proof, and semantic-evaluation evidence.
 
 ## Verification Gate
 
