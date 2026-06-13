@@ -48,6 +48,7 @@ import { RepositoriesPage } from "./pages/RepositoriesPage";
 import { RepoSourcePage } from "./pages/RepoSourcePage";
 import { ImagesPage } from "./pages/ImagesPage";
 import { CloudPage } from "./pages/CloudPage";
+import { CloudDriftPage } from "./pages/CloudDriftPage";
 import { TopologyPage } from "./pages/TopologyPage";
 import { DeadCodePage } from "./pages/DeadCodePage";
 import { CodeGraphPage } from "./pages/CodeGraphPage";
@@ -101,6 +102,7 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
       { to: "/cloud", label: "Cloud", icon: Cloud },
       { to: "/incidents", label: "Incidents", icon: TriangleAlert },
       { to: "/ci-cd/run-correlations", label: "CI/CD", icon: Workflow },
+      { to: "/cloud-drift", label: "Cloud Drift", icon: TriangleAlert, alert: true },
       { to: "/observability", label: "Observability", icon: Waves },
       { to: "/sbom", label: "SBOM", icon: PackageSearch, count: (m) => nonZero(m.sbom?.total ?? 0) },
       { to: "/dependencies", label: "Dependencies", icon: Boxes, count: (m) => nonZero(m.dependencies?.length ?? 0) }
@@ -323,6 +325,7 @@ export function App(): React.JSX.Element {
             <Route path="/repositories/:id/source" element={<RepoSourcePage client={client} />} />
             <Route path="/cloud" element={<CloudPage client={client} />} />
             <Route path="/ci-cd/run-correlations" element={<CICDRunCorrelationsPage client={client} model={visibleModel} />} />
+            <Route path="/cloud-drift" element={<CloudDriftPage client={client} />} />
             <Route path="/topology" element={<TopologyPage client={client} model={visibleModel} onOpenService={openService} />} />
             <Route path="/incidents" element={<IncidentContextPage model={visibleModel} client={client} onOpenService={openService} />} />
             <Route path="/incidents/:incidentId/context" element={<IncidentContextPage model={visibleModel} client={client} onOpenService={openService} />} />
