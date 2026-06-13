@@ -55,6 +55,51 @@ func TestReducerAdmissionDefersAtHighWaterAndResumesBelow(t *testing.T) {
 	}
 }
 
+func TestReducerAdmissionDefaultConfigDefersAtDefaultHighWaterAndResumesBelow(t *testing.T) {
+	t.Parallel()
+
+	config, err := loadReducerAdmissionConfig(mapGetenv(nil))
+	if err != nil {
+		t.Fatalf("loadReducerAdmissionConfig() error = %v, want nil", err)
+	}
+	reader := &fakeReducerAdmissionDepthReader{
+		depths: []map[string]map[string]int64{
+			{"reducer": {"pending": defaultReducerAdmissionHighWaterMark}},
+			{"reducer": {"pending": defaultReducerAdmissionHighWaterMark - 1}},
+		},
+	}
+	writer := &recordingReducerIntentWriter{}
+	sleeps := 0
+	admission := reducerAdmissionWriter{
+		inner:       writer,
+		depthReader: reader,
+		config:      config,
+		sleep: func(context.Context, time.Duration) error {
+			sleeps++
+			return nil
+		},
+	}
+
+	result, err := admission.Enqueue(context.Background(), []projector.ReducerIntent{
+		{Domain: reducer.DomainWorkloadIdentity},
+	})
+	if err != nil {
+		t.Fatalf("Enqueue() error = %v, want nil", err)
+	}
+	if result.Count != 1 {
+		t.Fatalf("Enqueue() count = %d, want 1", result.Count)
+	}
+	if got, want := sleeps, 1; got != want {
+		t.Fatalf("sleep count = %d, want %d", got, want)
+	}
+	if got, want := reader.calls, 2; got != want {
+		t.Fatalf("depth read count = %d, want %d", got, want)
+	}
+	if got, want := writer.calls, 1; got != want {
+		t.Fatalf("inner enqueue count = %d, want %d", got, want)
+	}
+}
+
 func TestReducerAdmissionContextCancellationStopsBeforeEnqueue(t *testing.T) {
 	t.Parallel()
 
@@ -134,6 +179,43 @@ func TestLoadReducerAdmissionConfig(t *testing.T) {
 	}
 }
 
+func TestLoadReducerAdmissionConfigDefaultsToEnabledHighWaterMark(t *testing.T) {
+	t.Parallel()
+
+	const wantDefaultHighWaterMark int64 = 10000
+
+	config, err := loadReducerAdmissionConfig(mapGetenv(nil))
+	if err != nil {
+		t.Fatalf("loadReducerAdmissionConfig() error = %v, want nil", err)
+	}
+	if got := config.HighWaterMark; got != wantDefaultHighWaterMark {
+		t.Fatalf("HighWaterMark = %d, want default %d", got, wantDefaultHighWaterMark)
+	}
+	if got, want := config.PollInterval, defaultReducerAdmissionPoll; got != want {
+		t.Fatalf("PollInterval = %s, want %s", got, want)
+	}
+	if !config.enabled() {
+		t.Fatal("default reducer admission config is disabled, want enabled")
+	}
+}
+
+func TestLoadReducerAdmissionConfigExplicitZeroDisablesDefault(t *testing.T) {
+	t.Parallel()
+
+	config, err := loadReducerAdmissionConfig(mapGetenv(map[string]string{
+		"ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK": "0",
+	}))
+	if err != nil {
+		t.Fatalf("loadReducerAdmissionConfig() error = %v, want nil", err)
+	}
+	if got := config.HighWaterMark; got != 0 {
+		t.Fatalf("HighWaterMark = %d, want explicit disabled value 0", got)
+	}
+	if config.enabled() {
+		t.Fatal("explicit zero reducer admission config is enabled, want disabled")
+	}
+}
+
 func TestLoadReducerAdmissionConfigRejectsInvalid(t *testing.T) {
 	t.Parallel()
 
@@ -142,6 +224,30 @@ func TestLoadReducerAdmissionConfigRejectsInvalid(t *testing.T) {
 	}))
 	if err == nil {
 		t.Fatal("loadReducerAdmissionConfig() error = nil, want invalid config error")
+	}
+}
+
+func TestReducerIntentWriterWithAdmissionUsesDefaultHighWaterMark(t *testing.T) {
+	t.Parallel()
+
+	const wantDefaultHighWaterMark int64 = 10000
+
+	writer, err := reducerIntentWriterWithAdmission(
+		postgres.SQLDB{},
+		&recordingReducerIntentWriter{},
+		mapGetenv(nil),
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("reducerIntentWriterWithAdmission() error = %v, want nil", err)
+	}
+	admission, ok := writer.(reducerAdmissionWriter)
+	if !ok {
+		t.Fatalf("writer type = %T, want reducerAdmissionWriter", writer)
+	}
+	if got := admission.config.HighWaterMark; got != wantDefaultHighWaterMark {
+		t.Fatalf("HighWaterMark = %d, want default %d", got, wantDefaultHighWaterMark)
 	}
 }
 
@@ -215,6 +321,30 @@ func BenchmarkReducerAdmissionBelowHighWater(b *testing.B) {
 			HighWaterMark: 10,
 			PollInterval:  time.Second,
 		},
+	}
+	intents := []projector.ReducerIntent{{Domain: reducer.DomainWorkloadIdentity}}
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		if _, err := admission.Enqueue(ctx, intents); err != nil {
+			b.Fatalf("Enqueue() error = %v, want nil", err)
+		}
+	}
+}
+
+func BenchmarkReducerAdmissionDefaultBelowHighWater(b *testing.B) {
+	ctx := context.Background()
+	config, err := loadReducerAdmissionConfig(mapGetenv(nil))
+	if err != nil {
+		b.Fatalf("loadReducerAdmissionConfig() error = %v, want nil", err)
+	}
+	writer := &countingReducerIntentWriter{}
+	admission := reducerAdmissionWriter{
+		inner: writer,
+		depthReader: fixedReducerAdmissionDepthReader{
+			depth: map[string]map[string]int64{"reducer": {"pending": defaultReducerAdmissionHighWaterMark - 1}},
+		},
+		config: config,
 	}
 	intents := []projector.ReducerIntent{{Domain: reducer.DomainWorkloadIdentity}}
 

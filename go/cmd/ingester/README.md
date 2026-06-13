@@ -151,7 +151,7 @@ telemetry, Postgres, or graph setup begins.
 | ESHU_LARGE_REPO_FILE_THRESHOLD | 1000 | File-count threshold for large-repo semaphore |
 | ESHU_LARGE_REPO_MAX_CONCURRENT | 2 | Max concurrent large-repo snapshots |
 | ESHU_PROJECTOR_WORKERS | min(NumCPU,8); local_authoritative NornicDB: NumCPU | Projector worker count |
-| ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK | unset (disabled) | Reducer queue depth threshold where ingester source-local projection defers new reducer intent enqueues |
+| ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK | 10000; set 0 to disable | Reducer queue depth threshold where ingester source-local projection defers new reducer intent enqueues |
 | ESHU_REDUCER_ADMISSION_POLL_INTERVAL | 1s | Reducer queue depth recheck interval while admission is deferring |
 | ESHU_LARGE_GEN_THRESHOLD | 10000 | Fact-count threshold for large-generation semaphore |
 | ESHU_LARGE_GEN_MAX_CONCURRENT | 2 | Max concurrent large-generation projections |
@@ -226,12 +226,37 @@ The ingester inherits collector and projector telemetry. Key signals:
   rises while `eshu_dp_repos_snapshotted_total` grows, the projector cannot drain
   as fast as the collector fills. Check projector worker count and graph write
   latency before raising snapshot workers.
-- Reducer admission is disabled unless
-  ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK is greater than zero. When enabled, it
-  wraps only the ingester's source-local reducer intent writer, reads reducer
-  queue depth before enqueue, and waits outside SQL transactions before
-  rechecking. Bootstrap projection, recovery replay, admin reopen, and reducer
-  follow-up lanes bypass this gate so freshness-critical repair paths continue.
+- Reducer admission is enabled by default at a 10000-row high-water mark. Set
+  ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK=0 to disable it, or set a positive
+  value to tune the threshold. The gate wraps only the ingester's source-local
+  reducer intent writer, reads reducer queue depth before enqueue, and waits
+  outside SQL transactions before rechecking. Bootstrap projection, recovery
+  replay, admin reopen, and reducer follow-up lanes bypass this gate so
+  freshness-critical repair paths continue.
+
+No-Regression Evidence: the default changes admission from disabled to an
+enabled 10000-row backlog threshold without changing reducer worker counts,
+claim batch size, queue schema, graph writes, or transaction scope. Below the
+threshold, each source-local reducer enqueue performs one bounded queue-depth
+read through `QueueObserverStore` and then calls the same `ReducerQueue.Enqueue`
+path. At or above the threshold, it waits outside SQL transactions and rechecks
+before enqueueing. Verified by
+`go test ./cmd/ingester -run 'TestLoadReducerAdmissionConfigDefaultsToEnabledHighWaterMark|TestReducerIntentWriterWithAdmissionUsesDefaultHighWaterMark|TestReducerAdmissionDefaultConfigDefersAtDefaultHighWaterAndResumesBelow' -count=1`
+and `go test ./cmd/ingester -run 'TestReducerAdmission|TestLoadReducerAdmissionConfig|TestReducerIntentWriterWithAdmission' -count=1`.
+Focused benchmark on Apple M4 Pro with one source-local reducer intent and
+synthetic queue depth below the threshold:
+`go test ./cmd/ingester -run '^$' -bench 'BenchmarkReducerAdmission(Disabled|BelowHighWater|DefaultBelowHighWater|OneDeferral)$' -benchtime=1000x -count=1`
+reported disabled 3.417 ns/op, manually enabled below high-water 49.25 ns/op,
+default-active below high-water 39.29 ns/op, and one no-op deferral 87.96
+ns/op; all four paths reported 0 allocs/op.
+
+No-Observability-Change: the path reuses existing
+`eshu_dp_reducer_admission_deferrals_total`,
+`eshu_dp_queue_depth{queue="reducer",status=...}`,
+`eshu_dp_queue_oldest_age_seconds{queue="reducer"}`, and the bounded
+`reducer admission deferring enqueue` debug log. No metric name, metric label,
+span, log field, status field, worker, queue domain, or runtime surface is
+added or removed.
 - The `local_lightweight` profile (ESHU_QUERY_PROFILE=local_lightweight or
   ESHU_DISABLE_NEO4J=true) skips canonical graph writes entirely; useful for
   laptop code-search workflows where the graph backend is not running.
