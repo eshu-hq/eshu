@@ -3,6 +3,7 @@ package alertruntime
 import (
 	"errors"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 )
 
@@ -56,7 +57,17 @@ func classifiedProviderFailure(err error) ProviderFailure {
 			cause:        err,
 		}
 	}
-	return ProviderFailure{failureClass: FailureRetryable, cause: err}
+	failure := sdk.ClassifyProviderFailure(
+		ProviderGitHubDependabot,
+		err,
+		sdk.StatusPolicy{},
+		sdk.FailureRetryable,
+	)
+	return ProviderFailure{
+		failureClass: failure.FailureClass(),
+		terminal:     failure.TerminalFailure(),
+		cause:        failure,
+	}
 }
 
 func mapGitHubFailureClass(class string) string {

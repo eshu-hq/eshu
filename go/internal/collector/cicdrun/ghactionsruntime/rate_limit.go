@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 const defaultGitHubRateLimitDelay = time.Minute
@@ -73,25 +75,7 @@ func githubRetryAfter(header http.Header, now time.Time) (time.Duration, time.Ti
 }
 
 func parseGitHubRetryAfter(value string, now time.Time) time.Duration {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return 0
-	}
-	if seconds, err := strconv.Atoi(value); err == nil {
-		if seconds <= 0 {
-			return 0
-		}
-		return time.Duration(seconds) * time.Second
-	}
-	resetAt, err := http.ParseTime(value)
-	if err != nil {
-		return 0
-	}
-	delay := resetAt.Sub(now)
-	if delay <= 0 {
-		return 0
-	}
-	return delay
+	return sdk.ParseRetryAfter(value, now)
 }
 
 func parseGitHubRateLimitReset(value string) (time.Time, bool) {

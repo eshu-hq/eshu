@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 func TestGitHubDependabotClientPaginatesWithCursorLinksWithinConfiguredBound(t *testing.T) {
@@ -172,6 +174,61 @@ func TestGitHubDependabotClientReturnsRateLimitFailureMetadata(t *testing.T) {
 	}
 	if failure.Error() == "" || failure.Message == "" {
 		t.Fatalf("GitHubDependabotError = %#v, want bounded message", failure)
+	}
+}
+
+func TestGitHubDependabotClientWrapsStatusFailureWithSDKHTTPError(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "token secret-value and repository details must not escape", http.StatusForbidden)
+	}))
+	defer server.Close()
+
+	client := NewGitHubDependabotClient(GitHubDependabotClientConfig{
+		BaseURL:             server.URL,
+		Token:               "token-value",
+		AllowedRepositories: []string{"example-org/example-repo"},
+	})
+	_, err := client.ListRepositoryAlertsPages(t.Context(), "example-org/example-repo", 1)
+	if err == nil {
+		t.Fatal("ListRepositoryAlertsPages() error = nil, want provider error")
+	}
+	var httpErr sdk.HTTPError
+	if !errors.As(err, &httpErr) {
+		t.Fatalf("ListRepositoryAlertsPages() error = %T, want sdk.HTTPError", err)
+	}
+	if got, want := httpErr.StatusCode, http.StatusForbidden; got != want {
+		t.Fatalf("StatusCode = %d, want %d", got, want)
+	}
+}
+
+func TestGitHubDependabotClientParsesHTTPDateRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	retryAt := time.Now().UTC().Add(2 * time.Hour).Truncate(time.Second)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Retry-After", retryAt.Format(http.TimeFormat))
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		http.Error(w, "provider rate limit", http.StatusTooManyRequests)
+	}))
+	defer server.Close()
+
+	client := NewGitHubDependabotClient(GitHubDependabotClientConfig{
+		BaseURL:             server.URL,
+		Token:               "token-value",
+		AllowedRepositories: []string{"example-org/example-repo"},
+	})
+	_, err := client.ListRepositoryAlertsPages(t.Context(), "example-org/example-repo", 1)
+	if err == nil {
+		t.Fatal("ListRepositoryAlertsPages() error = nil, want rate-limit error")
+	}
+	var failure GitHubDependabotError
+	if !errors.As(err, &failure) {
+		t.Fatalf("ListRepositoryAlertsPages() error = %T, want GitHubDependabotError", err)
+	}
+	if failure.RateLimit.RetryAfter < 90*time.Minute {
+		t.Fatalf("RetryAfter = %v, want HTTP-date retry guidance", failure.RateLimit.RetryAfter)
 	}
 }
 

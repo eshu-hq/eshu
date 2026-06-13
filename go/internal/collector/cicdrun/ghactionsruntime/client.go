@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 // GitHubClient fetches bounded GitHub Actions metadata through GitHub's REST
@@ -136,8 +137,12 @@ func (c GitHubClient) getJSON(ctx context.Context, target TargetConfig, endpoint
 		return rateLimit
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		body, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
-		return fmt.Errorf("github actions request failed with status %d: %s", response.StatusCode, strings.TrimSpace(string(body)))
+		return sdk.HTTPError{
+			Provider:   "github_actions",
+			StatusCode: response.StatusCode,
+			Message:    http.StatusText(response.StatusCode),
+			RetryAfter: sdk.ParseRetryAfterHeader(response.Header.Get("Retry-After")),
+		}
 	}
 	decoder := json.NewDecoder(response.Body)
 	decoder.UseNumber()
@@ -148,14 +153,15 @@ func (c GitHubClient) httpClient() *http.Client {
 	if c.HTTPClient != nil {
 		return c.HTTPClient
 	}
-	return &http.Client{Timeout: 30 * time.Second}
+	return sdk.DefaultHTTPClient(30 * time.Second)
 }
 
 func targetURL(target TargetConfig, path string, query map[string]string) (string, error) {
-	base, err := url.Parse(strings.TrimRight(target.APIBaseURL, "/") + "/")
+	base, err := sdk.ParseBaseURL("github actions", target.APIBaseURL)
 	if err != nil {
 		return "", err
 	}
+	base.Path = strings.TrimRight(base.Path, "/") + "/"
 	relative, err := url.Parse(strings.TrimLeft(path, "/"))
 	if err != nil {
 		return "", err

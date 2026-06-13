@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -25,15 +26,15 @@ const (
 	ProviderGitHubDependabot = "github_dependabot"
 
 	// FailureAuthDenied marks credential failures as terminal.
-	FailureAuthDenied = "auth_denied"
+	FailureAuthDenied = string(sdk.FailureAuthDenied)
 	// FailureNotFound marks missing repositories or disabled alert surfaces.
-	FailureNotFound = "not_found"
+	FailureNotFound = string(sdk.FailureNotFound)
 	// FailureRateLimited marks provider rate limiting as retryable.
-	FailureRateLimited = "rate_limited"
+	FailureRateLimited = string(sdk.FailureRateLimited)
 	// FailureRetryable marks transient transport/provider failures.
-	FailureRetryable = "retryable"
+	FailureRetryable = string(sdk.FailureRetryable)
 	// FailureTerminal marks malformed or otherwise non-retryable failures.
-	FailureTerminal = "terminal"
+	FailureTerminal = string(sdk.FailureTerminal)
 )
 
 const (
