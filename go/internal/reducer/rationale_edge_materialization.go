@@ -45,18 +45,14 @@ func (h RationaleEdgeMaterializationHandler) Handle(ctx context.Context, intent 
 		slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
 	)
 
-	envelopes, err := loadFactsForKinds(
-		ctx,
-		h.FactLoader,
-		intent.ScopeID,
-		intent.GenerationID,
-		[]string{factKindContentEntity},
-	)
+	envelopes, err := loadRationaleMaterializationFacts(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
 	if err != nil {
 		return Result{}, fmt.Errorf("load facts for rationale materialization: %w", err)
 	}
 
+	deltaScope := buildRationaleDeltaScope(envelopes)
 	repoIDs, rows := ExtractRationaleEdgeRows(envelopes)
+	repoIDs = mergeRationaleRepositoryIDs(repoIDs, deltaScope.repositoryIDs)
 	if len(repoIDs) == 0 {
 		return Result{
 			IntentID:        intent.IntentID,
@@ -74,7 +70,7 @@ func (h RationaleEdgeMaterializationHandler) Handle(ctx context.Context, intent 
 		if err := h.EdgeWriter.RetractEdges(
 			ctx,
 			DomainRationaleEdges,
-			buildRationaleRetractRows(repoIDs),
+			buildRationaleRetractRows(repoIDs, deltaScope),
 			rationaleEvidenceSource,
 		); err != nil {
 			return Result{}, fmt.Errorf("retract canonical rationale edges: %w", err)
@@ -194,12 +190,4 @@ func buildRationaleIntentRows(rows []map[string]any) []SharedProjectionIntentRow
 		})
 	}
 	return intents
-}
-
-func buildRationaleRetractRows(repoIDs []string) []SharedProjectionIntentRow {
-	rows := make([]SharedProjectionIntentRow, 0, len(repoIDs))
-	for _, repoID := range repoIDs {
-		rows = append(rows, SharedProjectionIntentRow{RepositoryID: repoID})
-	}
-	return rows
 }

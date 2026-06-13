@@ -1,8 +1,12 @@
 package cypher
 
 import (
+	"context"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 func TestBuildRationaleRowMapRoutesExplainsEdge(t *testing.T) {
@@ -44,5 +48,101 @@ func TestRetractRationaleEdgesIsRepoScoped(t *testing.T) {
 	}
 	if !strings.Contains(stmt.Cypher, "rationale.repo_id IN $repo_ids") {
 		t.Errorf("retract is not repo-scoped: %q", stmt.Cypher)
+	}
+}
+
+func TestBuildRetractRationaleEdgesByFilePath(t *testing.T) {
+	t.Parallel()
+
+	stmt := BuildRetractRationaleEdgesByFilePath([]string{"/repo/src/handler.go"}, "reducer/rationale")
+	if !strings.Contains(stmt.Cypher, "rel:EXPLAINS") {
+		t.Fatalf("cypher = %q, want EXPLAINS cleanup", stmt.Cypher)
+	}
+	if !strings.Contains(stmt.Cypher, "target.path IN $file_paths") {
+		t.Fatalf("cypher = %q, want target.path file-scope filter", stmt.Cypher)
+	}
+	if strings.Contains(stmt.Cypher, "rationale.repo_id IN $repo_ids") {
+		t.Fatalf("cypher = %q, want no repo-wide rationale filter", stmt.Cypher)
+	}
+	if got, want := stmt.Parameters["evidence_source"], "reducer/rationale"; got != want {
+		t.Fatalf("evidence_source = %#v, want %#v", got, want)
+	}
+	gotPaths, ok := stmt.Parameters["file_paths"].([]string)
+	if !ok {
+		t.Fatalf("file_paths parameter type = %T, want []string", stmt.Parameters["file_paths"])
+	}
+	wantPaths := []string{"/repo/src/handler.go"}
+	if !reflect.DeepEqual(gotPaths, wantPaths) {
+		t.Fatalf("file_paths = %#v, want %#v", gotPaths, wantPaths)
+	}
+}
+
+func TestEdgeWriterRetractEdgesRationaleDeltaUsesFileScope(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			IntentID:     "i1",
+			RepositoryID: "repo-a",
+			Payload: map[string]any{
+				"repo_id":          "repo-a",
+				"delta_projection": true,
+				"delta_file_paths": []string{"/repo/src/handler.go"},
+			},
+		},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale")
+	if err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	if got, want := len(executor.calls), 1; got != want {
+		t.Fatalf("executor calls = %d, want %d", got, want)
+	}
+	stmt := executor.calls[0]
+	if strings.Contains(stmt.Cypher, "rationale.repo_id IN $repo_ids") {
+		t.Fatalf("delta retract cypher = %q, want no repo-wide rationale filter", stmt.Cypher)
+	}
+	if !strings.Contains(stmt.Cypher, "target.path IN $file_paths") {
+		t.Fatalf("delta retract cypher = %q, want target.path file-scope filter", stmt.Cypher)
+	}
+	if _, ok := stmt.Parameters["repo_ids"]; ok {
+		t.Fatalf("repo_ids unexpectedly present in delta retract parameters: %#v", stmt.Parameters)
+	}
+	filePaths, ok := stmt.Parameters["file_paths"].([]string)
+	if !ok {
+		t.Fatalf("file_paths parameter type = %T, want []string", stmt.Parameters["file_paths"])
+	}
+	if got, want := strings.Join(filePaths, ","), "/repo/src/handler.go"; got != want {
+		t.Fatalf("file_paths = %q, want %q", got, want)
+	}
+}
+
+func TestEdgeWriterRetractEdgesRationaleRejectsDeltaWithoutFilePaths(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			IntentID:     "i1",
+			RepositoryID: "repo-a",
+			Payload: map[string]any{
+				"repo_id":          "repo-a",
+				"delta_projection": true,
+			},
+		},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale")
+	if err == nil {
+		t.Fatal("RetractEdges() error = nil, want malformed delta scope error")
+	}
+	if got := len(executor.calls); got != 0 {
+		t.Fatalf("executor calls = %d, want 0 for malformed delta scope", got)
 	}
 }

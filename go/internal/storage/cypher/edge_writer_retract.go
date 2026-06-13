@@ -35,6 +35,28 @@ func (w *EdgeWriter) RetractEdges(
 		}
 	}
 
+	if domain == reducer.DomainInheritanceEdges {
+		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
+		if err != nil {
+			return err
+		}
+		if hasDeltaScope {
+			stmt := BuildRetractInheritanceEdgesByFilePath(filePaths, evidenceSource)
+			return WrapRetryableNeo4jError(w.executor.Execute(ctx, stmt))
+		}
+	}
+
+	if domain == reducer.DomainRationaleEdges {
+		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
+		if err != nil {
+			return err
+		}
+		if hasDeltaScope {
+			stmt := BuildRetractRationaleEdgesByFilePath(filePaths, evidenceSource)
+			return WrapRetryableNeo4jError(w.executor.Execute(ctx, stmt))
+		}
+	}
+
 	repoIDs := collectRepoIDs(rows)
 	if domain == reducer.DomainSQLRelationships {
 		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)

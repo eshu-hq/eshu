@@ -66,20 +66,14 @@ func (h InheritanceMaterializationHandler) Handle(
 		slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
 	)
 
-	envelopes, err := loadFactsForKindAndPayloadValue(
-		ctx,
-		h.FactLoader,
-		intent.ScopeID,
-		intent.GenerationID,
-		factKindContentEntity,
-		"entity_type",
-		inheritanceContentEntityTypes,
-	)
+	envelopes, err := loadInheritanceMaterializationFacts(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
 	if err != nil {
 		return Result{}, fmt.Errorf("load facts for inheritance materialization: %w", err)
 	}
 
+	deltaScope := buildInheritanceDeltaScope(envelopes)
 	repoIDs, rows := ExtractInheritanceRows(envelopes)
+	repoIDs = mergeInheritanceRepositoryIDs(repoIDs, deltaScope.repositoryIDs)
 	if len(repoIDs) == 0 {
 		return Result{
 			IntentID:        intent.IntentID,
@@ -103,7 +97,7 @@ func (h InheritanceMaterializationHandler) Handle(
 		if err := h.EdgeWriter.RetractEdges(
 			ctx,
 			DomainInheritanceEdges,
-			buildInheritanceRetractRows(repoIDs),
+			buildInheritanceRetractRows(repoIDs, deltaScope),
 			inheritanceEvidenceSource,
 		); err != nil {
 			return Result{}, fmt.Errorf("retract canonical inheritance edges: %w", err)
@@ -441,15 +435,6 @@ func collectInheritanceRepoIDs(envelopes []facts.Envelope) []string {
 // metadata in a content_entity fact payload.
 func inheritancePayloadBases(payload map[string]any) []string {
 	return semanticPayloadMetadataStringSlice(payload, "bases")
-}
-
-// buildInheritanceRetractRows builds retract rows for each repository.
-func buildInheritanceRetractRows(repoIDs []string) []SharedProjectionIntentRow {
-	rows := make([]SharedProjectionIntentRow, 0, len(repoIDs))
-	for _, repoID := range repoIDs {
-		rows = append(rows, SharedProjectionIntentRow{RepositoryID: repoID})
-	}
-	return rows
 }
 
 // buildInheritanceIntentRows converts extracted edge rows into shared
