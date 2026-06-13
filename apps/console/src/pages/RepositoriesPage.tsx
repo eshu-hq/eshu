@@ -16,6 +16,10 @@ type RepoView = "groups" | "grid";
 
 interface RepoGroup {
   readonly key: string;
+  readonly source: string;
+  readonly truth: string;
+  readonly kind: string;
+  readonly reason: string;
   readonly repositories: readonly RepoListItem[];
 }
 
@@ -62,7 +66,7 @@ export function RepositoriesPage({ client, model }: {
     <div className="page">
       <div className="page-intro">
         <h2>Repositories</h2>
-        <p>Groups currently use repository names and slug metadata; first-class source-backed grouping evidence is tracked in issue #2239. Grid browses repositories like a Git host.</p>
+        <p>Groups use source-backed repository grouping evidence from the live repository inventory. Rows without grouping evidence stay explicit. Grid browses repositories like a Git host.</p>
       </div>
 
       <div className="repo-toolbar">
@@ -76,7 +80,7 @@ export function RepositoriesPage({ client, model }: {
       </div>
 
       <div className="grid g-4">
-        <StatTile label="Repository groups" value={groups.length} color="var(--teal)" sub="name/slug grouping" />
+        <StatTile label="Repository groups" value={groups.length} color="var(--teal)" sub="source-backed grouping" />
         <StatTile label="Repositories" value={rows.length} color="var(--blue)" sub={sourceLabel} />
         <StatTile label="Dependency repos" value={dependencyCount} color="var(--ember)" sub="marked by the API" />
         <StatTile label="Most populated" value={mostPopulated} color="var(--violet)" sub="largest live group" />
@@ -101,7 +105,7 @@ export function RepositoriesPage({ client, model }: {
                   {rows.map((r) => (
                     <tr key={r.id} className={selected === r.id ? "is-sel" : undefined} onClick={() => setSelected(r.id)}>
                       <td className="t-name">{r.name}</td>
-                      <td className="t-mut mono" style={{ fontSize: ".76rem" }}>{domainGroupKey(r)}</td>
+                      <td className="t-mut mono" style={{ fontSize: ".76rem" }}>{repositoryGroupKey(r)}</td>
                       <td className="t-mut mono" style={{ fontSize: ".76rem" }}>{r.repoSlug || "—"}</td>
                       <td>{r.isDependency ? <Badge tone="neutral">dependency</Badge> : <Badge tone="teal">source</Badge>}</td>
                     </tr>
@@ -171,7 +175,7 @@ function RepositoryGroupCard({ group, accent }: {
         ))}
       </div>
       <div className="repo-group-foot">
-        <span>{dependencies === group.repositories.length ? "Dependency group" : modelessGroupNote(group)}</span>
+        <span title={group.reason}>{groupEvidenceNote(group)}</span>
       </div>
     </article>
   );
@@ -184,11 +188,18 @@ function repositorySourcePath(id: string): string {
 function repositoryGroups(repositories: readonly RepoListItem[]): readonly RepoGroup[] {
   const grouped = new Map<string, RepoListItem[]>();
   for (const repository of repositories) {
-    const key = domainGroupKey(repository);
+    const key = repositoryGroupKey(repository);
     grouped.set(key, [...(grouped.get(key) ?? []), repository]);
   }
   return [...grouped.entries()]
-    .map(([key, groupRepos]) => ({ key, repositories: groupRepos }))
+    .map(([key, groupRepos]) => ({
+      key,
+      source: repositoryGroupSource(groupRepos),
+      truth: repositoryGroupTruth(groupRepos),
+      kind: repositoryGroupKind(groupRepos),
+      reason: repositoryGroupReason(groupRepos),
+      repositories: groupRepos
+    }))
     .sort((a, b) => b.repositories.length - a.repositories.length || a.key.localeCompare(b.key));
 }
 
@@ -210,37 +221,32 @@ function repositoryMatchesQuery(repository: RepoListItem, query: string): boolea
   return `${repository.name} ${repository.repoSlug}`.toLowerCase().includes(query);
 }
 
-function domainGroupKey(repository: RepoListItem): string {
-  const name = repository.name.toLowerCase();
-  const slugGroup = repository.repoSlug.split("/").find((part) => part.trim().length > 0);
-  if (name.startsWith("lib-") || name === "dmm-clients") return "Shared Libraries";
-  if (name.includes("forex")) return "FX";
-  if (
-    name === "api-node-boats" ||
-    name === "api-node-boats-temp" ||
-    name === "api-node-external-search" ||
-    name === "api-node-saved-search" ||
-    name === "api-node-make-model" ||
-    name === "job-node-sitemaps-generator"
-  ) return "Boat-Search";
-  if (name.includes("fsbo")) return "FSBO";
-  if (name.includes("conversation")) return "Messaging";
-  if (name.includes("datax")) return "Data";
-  if (name.includes("platform") || name.includes("provisioning") || name.includes("salesforce")) return "Platform";
-  if (name.includes("boattrader") || name.includes("myboats") || name.includes("bw-home") || name === "boatsdotcom") return "Marketplace";
-  if (name === "configd") return "Configuration";
-  if (name.startsWith("iac-") || name.startsWith("terraform-") || name === "helm-charts") return "Cloud Platform";
-  if (slugGroup) return titleGroup(slugGroup);
-  if (repository.isDependency) return "Dependencies";
-  return "Unclassified";
+function repositoryGroupKey(repository: RepoListItem): string {
+  return repository.groupKey.trim() || "Grouping evidence missing";
 }
 
-function titleGroup(value: string): string {
-  return value
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
-    .join(" ");
+function repositoryGroupSource(repositories: readonly RepoListItem[]): string {
+  return firstGroupField(repositories, (repository) => repository.groupSource) || "missing_evidence";
+}
+
+function repositoryGroupTruth(repositories: readonly RepoListItem[]): string {
+  return firstGroupField(repositories, (repository) => repository.groupTruth) || "missing_evidence";
+}
+
+function repositoryGroupKind(repositories: readonly RepoListItem[]): string {
+  return firstGroupField(repositories, (repository) => repository.groupKind) || "unknown";
+}
+
+function repositoryGroupReason(repositories: readonly RepoListItem[]): string {
+  return firstGroupField(repositories, (repository) => repository.groupReason) || "No source-backed grouping evidence is available.";
+}
+
+function firstGroupField(repositories: readonly RepoListItem[], select: (repository: RepoListItem) => string): string {
+  for (const repository of repositories) {
+    const value = select(repository).trim();
+    if (value !== "") return value;
+  }
+  return "";
 }
 
 function groupAccent(index: number): string {
@@ -248,7 +254,6 @@ function groupAccent(index: number): string {
   return colors[index % colors.length];
 }
 
-function modelessGroupNote(group: RepoGroup): string {
-  const sources = group.repositories.length - group.repositories.filter((repo) => repo.isDependency).length;
-  return `${sources} source repos`;
+function groupEvidenceNote(group: RepoGroup): string {
+  return `${group.truth} · ${group.source}`;
 }

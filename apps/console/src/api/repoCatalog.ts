@@ -12,6 +12,11 @@ export interface RepoListItem {
   readonly repoSlug: string;
   readonly remoteUrl: string;
   readonly isDependency: boolean;
+  readonly groupKey: string;
+  readonly groupSource: string;
+  readonly groupTruth: string;
+  readonly groupKind: string;
+  readonly groupReason: string;
 }
 
 export interface RepoStats {
@@ -33,6 +38,8 @@ export interface RepoDetail {
 interface RepoRecord {
   readonly id?: string; readonly name?: string; readonly repo_slug?: string;
   readonly remote_url?: string; readonly is_dependency?: boolean;
+  readonly group_key?: string; readonly group_source?: string; readonly group_truth?: string;
+  readonly group_kind?: string; readonly group_reason?: string;
 }
 interface RepoListResponse { readonly repositories?: readonly RepoRecord[]; }
 
@@ -61,7 +68,12 @@ export async function loadRepositories(client: EshuApiClient): Promise<readonly 
     name: repoDisplayName(r),
     repoSlug: str(r.repo_slug),
     remoteUrl: str(r.remote_url),
-    isDependency: r.is_dependency === true
+    isDependency: r.is_dependency === true,
+    groupKey: str(r.group_key),
+    groupSource: str(r.group_source),
+    groupTruth: str(r.group_truth),
+    groupKind: str(r.group_kind),
+    groupReason: str(r.group_reason)
   })).filter((r) => r.id !== "");
 }
 

@@ -24,6 +24,39 @@ path. The server resolves it to the canonical repository ID before querying.
 `GET /api/v0/repositories` accepts `limit` and `offset` and returns
 `truncated=true` when more indexed repositories are available.
 
+Each repository row also carries additive grouping evidence so the Console can
+render repository groups without repository-name rules:
+
+- `group_key`: display label for the source-backed group, empty when no group
+  evidence exists
+- `group_source`: source used for the grouping decision, currently
+  `repository_dependency_flag`, `repo_slug_namespace`, or `missing_evidence`
+- `group_truth`: per-row grouping truth such as `derived` or
+  `missing_evidence`
+- `group_kind`: `source`, `dependency`, or `unknown`
+- `group_reason`: bounded explanation for the assignment or missing evidence
+
+Dependency rows group from the repository dependency flag. Source repositories
+with a remote slug group from the first slug namespace. Rows without either
+carry `group_source=missing_evidence` and the inventory `partial_reasons` array
+includes `repository_group_evidence_missing` instead of forcing a heuristic
+group.
+
+No-Regression Evidence: `go test ./internal/query -run 'TestRepositoryListExposesSourceBackedGroupEvidence|TestOpenAPIRepositoryDocumentsGroupEvidenceFields' -count=1`
+proves graph-backed repository rows expose grouping evidence, dependency rows
+stay distinguishable, missing evidence is explicit, and the OpenAPI schema
+documents the new fields. `npm run console:test -- --run
+apps/console/src/api/repoCatalog.test.ts
+apps/console/src/pages/RepositoriesPage.test.tsx` proves the console loader and
+Repositories page consume the source-backed fields.
+
+No-Observability-Change: grouping is derived from repository fields already read
+by the bounded inventory route. It adds no graph traversal, Postgres read,
+collector call, queue work, runtime setting, metric label, or span. Operators
+continue to diagnose the route through the existing query truth envelope,
+request metrics, `result_limits`, `partial_reasons`, and repository query
+errors.
+
 `GET /api/v0/repositories/by-language?language=typescript&limit=100&offset=0`
 returns `repository_count`, `file_count`, normalized language aliases, and a
 bounded repository page from the Postgres content index. Use `limit=0` when a
@@ -125,7 +158,9 @@ The empty-selector inventory form of `get_repository_stats` is served by
 ordering, `repository_count`, `truncated`, the `get_repository_stats`
 drilldown, and the `/api/v0/repositories` context path) and a `partial_reasons`
 slot that names `repository_inventory_truncated` when more repositories exist
-beyond the returned page. The existing list `truncated` field is preserved.
+beyond the returned page, plus `repository_group_evidence_missing` when one or
+more returned repositories lack source-backed group evidence. The existing list
+`truncated` field is preserved.
 
 No-Regression Evidence: the focused query test covers repository-name and
 canonical-id selectors, proves the stats route does not issue the old optional

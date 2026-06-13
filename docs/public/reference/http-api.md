@@ -64,6 +64,8 @@ active profile cannot answer correctly.
   `WorkloadInstance` when that evidence exists.
 - Repository identity is remote-first when a git remote exists.
 - Repository objects expose `repo_slug`, `remote_url`, and `local_path`.
+- Repository list rows expose additive `group_*` evidence fields for
+  source-backed grouping; missing evidence remains explicit.
 - `local_path` is server-local metadata. It is not a portable client path.
 - File-bearing results should be interpreted with `repo_id + relative_path`,
   not an absolute server path.

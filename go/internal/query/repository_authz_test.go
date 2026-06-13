@@ -53,6 +53,84 @@ func TestRepositoryListGraphAppliesScopedAuthBeforePagination(t *testing.T) {
 	}
 }
 
+func TestRepositoryListExposesSourceBackedGroupEvidence(t *testing.T) {
+	t.Parallel()
+
+	reader := fakeRepoGraphReader{
+		run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+			return []map[string]any{
+				{
+					"id":            "repo-service",
+					"name":          "payments-api",
+					"repo_slug":     "platform/payments-api",
+					"is_dependency": false,
+				},
+				{
+					"id":            "repo-library",
+					"name":          "shared-lib",
+					"repo_slug":     "platform/shared-lib",
+					"is_dependency": true,
+				},
+				{
+					"id":            "repo-unattributed",
+					"name":          "unattributed",
+					"is_dependency": false,
+				},
+			}, nil
+		},
+	}
+	handler := &RepositoryHandler{Neo4j: reader}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=10", nil)
+	rec := httptest.NewRecorder()
+
+	handler.listRepositories(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	body := decodeRepositoryAuthzBody(t, rec)
+	repositories := body["repositories"].([]any)
+	if got, want := len(repositories), 3; got != want {
+		t.Fatalf("len(repositories) = %d, want %d", got, want)
+	}
+	service := repositories[0].(map[string]any)
+	if got, want := service["group_key"], "Platform"; got != want {
+		t.Fatalf("service group_key = %#v, want %#v", got, want)
+	}
+	if got, want := service["group_source"], "repo_slug_namespace"; got != want {
+		t.Fatalf("service group_source = %#v, want %#v", got, want)
+	}
+	if got, want := service["group_truth"], "derived"; got != want {
+		t.Fatalf("service group_truth = %#v, want %#v", got, want)
+	}
+	if got, want := service["group_kind"], "source"; got != want {
+		t.Fatalf("service group_kind = %#v, want %#v", got, want)
+	}
+
+	library := repositories[1].(map[string]any)
+	if got, want := library["group_key"], "Dependencies"; got != want {
+		t.Fatalf("library group_key = %#v, want %#v", got, want)
+	}
+	if got, want := library["group_source"], "repository_dependency_flag"; got != want {
+		t.Fatalf("library group_source = %#v, want %#v", got, want)
+	}
+	if got, want := library["group_kind"], "dependency"; got != want {
+		t.Fatalf("library group_kind = %#v, want %#v", got, want)
+	}
+
+	unattributed := repositories[2].(map[string]any)
+	if got, want := unattributed["group_source"], "missing_evidence"; got != want {
+		t.Fatalf("unattributed group_source = %#v, want %#v", got, want)
+	}
+	if got, want := unattributed["group_truth"], "missing_evidence"; got != want {
+		t.Fatalf("unattributed group_truth = %#v, want %#v", got, want)
+	}
+	reasons := requireStringAnySlice(t, body, "partial_reasons")
+	if !anySliceContains(reasons, "repository_group_evidence_missing") {
+		t.Fatalf("partial_reasons = %#v, want repository_group_evidence_missing", reasons)
+	}
+}
+
 func TestRepositoryListContentAppliesScopedAuthBeforeMetadata(t *testing.T) {
 	t.Parallel()
 

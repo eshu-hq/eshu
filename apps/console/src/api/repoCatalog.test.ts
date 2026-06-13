@@ -7,14 +7,34 @@ describe("repoCatalog", () => {
     const client = {
       get: async () => ({
         data: { repositories: [
-          { id: "repo-1", name: "checkout", repo_slug: "org/checkout", is_dependency: false },
+          {
+            id: "repo-1",
+            name: "checkout",
+            repo_slug: "org/checkout",
+            is_dependency: false,
+            group_key: "Checkout",
+            group_source: "repo_slug_namespace",
+            group_truth: "derived",
+            group_kind: "source",
+            group_reason: "derived from repository slug namespace"
+          },
           { name: "", id: "" }
         ] }, error: null, truth: null
       })
     } as unknown as EshuApiClient;
     const repos = await loadRepositories(client);
     expect(repos).toHaveLength(1);
-    expect(repos[0]).toMatchObject({ id: "repo-1", name: "checkout", repoSlug: "org/checkout", isDependency: false });
+    expect(repos[0]).toMatchObject({
+      id: "repo-1",
+      name: "checkout",
+      repoSlug: "org/checkout",
+      isDependency: false,
+      groupKey: "Checkout",
+      groupSource: "repo_slug_namespace",
+      groupTruth: "derived",
+      groupKind: "source",
+      groupReason: "derived from repository slug namespace"
+    });
   });
 
   it("builds a repository id to name map from the live repository list", async () => {
@@ -37,7 +57,7 @@ describe("repoCatalog", () => {
     const client = {
       get: async () => ({
         data: { repositories: [
-          { id: "repository:r_078043f1", repo_slug: "boatsgroup/api-node-platform" },
+          { id: "repository:r_078043f1", repo_slug: "platform/api-node-platform" },
           { id: "repository:r_dd626fe7", name: "repository:r_dd626fe7", repo_slug: "platform/iac-eks-argocd" }
         ] }, error: null, truth: null
       })

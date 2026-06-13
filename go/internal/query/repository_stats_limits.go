@@ -88,14 +88,17 @@ func repositoryInventoryResultLimits(page repositoryListPage, count int, truncat
 	}
 }
 
-// repositoryInventoryPartialReasons promotes inventory paging truncation into an
-// explicit partial_reasons array so a prompt-ready caller sees that more
-// repositories exist beyond the returned page. The result is always non-nil so
-// the envelope shape is stable across full and truncated inventory reads.
-func repositoryInventoryPartialReasons(truncated bool) []string {
-	reasons := make([]string, 0, 1)
+// repositoryInventoryPartialReasons promotes inventory paging truncation and
+// missing repository group evidence into an explicit partial_reasons array. The
+// result is always non-nil so the envelope shape is stable across full,
+// truncated, and partially attributed inventory reads.
+func repositoryInventoryPartialReasons(truncated bool, repos []map[string]any) []string {
+	reasons := make([]string, 0, 2)
 	if truncated {
 		reasons = append(reasons, "repository_inventory_truncated")
+	}
+	if repositoryGroupEvidenceMissing(repos) {
+		reasons = append(reasons, repositoryGroupMissingReason)
 	}
 	return reasons
 }
@@ -108,7 +111,7 @@ func repositoryInventoryPartialReasons(truncated bool) []string {
 func repositoryInventoryResponse(repos []map[string]any, page repositoryListPage, truncated bool) map[string]any {
 	response := repositoryListResponse(repos, page, truncated)
 	response["result_limits"] = repositoryInventoryResultLimits(page, len(repos), truncated)
-	response["partial_reasons"] = repositoryInventoryPartialReasons(truncated)
+	response["partial_reasons"] = repositoryInventoryPartialReasons(truncated, repos)
 	return response
 }
 

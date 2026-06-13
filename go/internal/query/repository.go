@@ -101,7 +101,7 @@ func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Requ
 			"has_remote":    BoolVal(row, "has_remote"),
 			"is_dependency": BoolVal(row, "is_dependency"),
 		}
-		repos = append(repos, repo)
+		repos = append(repos, decorateRepositoryGroupEvidence(repo))
 	}
 
 	WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated), BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
