@@ -15,6 +15,41 @@ captures the steps and evidence that activation requires. Setting
 `risk:schema` approval and the target-deployment decision below are recorded is
 a rule violation, not a config choice.
 
+## Gate status (resolved, 2026-06-13) — issue #2349
+
+The gate is **explicitly OFF by default and tracked**, not silently dark. The
+remaining blocker to enable is **human, not code**: the §2 `risk:schema`
+activation approval and the §3 single-target-deployment decision. Until a
+principal/security reviewer records those, the writer stays `nil` and
+`DomainSecretsIAMGraphProjection` stays unregistered. No agent or config change
+may flip it; doing so before §2/§3 are recorded is a rule violation (§7).
+
+**What this flag gates — and what it does not.** This flag gates **only**
+`DomainSecretsIAMGraphProjection`: the projection of reducer-owned
+identity-trust-chain and secret-access-path facts into the `SecretsIAM*` graph
+node/edge families. It does **not** gate:
+
+- **GCP cloud relationship edges** (`DomainGCPRelationshipMaterialization`, issue
+  #2348) — these project `GCP_<TYPE>` edges between `CloudResource` nodes and are
+  live independently of this flag.
+- **GCP IAM privilege-posture observations** (issue #2347) — these are
+  reducer-owned read-model facts (`gcp_service_account_secret_access`,
+  `gcp_service_account_broad_role`) surfaced through the secrets-IAM query
+  surface and the posture-observations counter, not graph writes behind this
+  flag.
+
+So a GCP shop already gets GCP inventory, GCP relationship edges, and GCP IAM
+posture with this flag off. What stays dark until the flag is enabled is the
+graph-projected **trust chain** (the `SecretsIAM*` node/edge families) — for AWS
+(IRSA/Pod-Identity → Vault) today, and for GCP once the GCP
+impersonation/Workload-Identity trust layer (issue #2369) lands. GCP
+graph-projected identity hops therefore require **both** #2369 and this flag;
+GCP IAM posture and GCP relationship edges require neither.
+
+**Blocking item tracked:** the §2 `risk:schema` approval + §3 target-deployment
+decision remain open (see the proof snapshot "Still blocked"). They are the
+explicit, owner-gated steps that move this flag from documented-off to enabled.
+
 ## Why this gate exists
 
 The projection writes a live Secrets/IAM graph (four `SecretsIAM*` node
