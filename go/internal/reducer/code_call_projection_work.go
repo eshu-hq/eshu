@@ -34,7 +34,7 @@ func (r *CodeCallProjectionRunner) loadAllAcceptanceUnitIntents(ctx context.Cont
 }
 
 func (r *CodeCallProjectionRunner) retractRepo(ctx context.Context, rows []SharedProjectionIntentRow) error {
-	retractRows := buildCodeCallRetractRows(uniqueRepositoryIDs(rows))
+	retractRows := buildCodeCallRetractRows(rows)
 	for _, evidenceSource := range codeCallEvidenceSources() {
 		if err := r.EdgeWriter.RetractEdges(ctx, DomainCodeCalls, retractRows, evidenceSource); err != nil {
 			return fmt.Errorf("retract code call edges for %s: %w", evidenceSource, err)
@@ -130,7 +130,19 @@ func codeCallEvidenceSources() []string {
 	return []string{codeCallEvidenceSource, pythonMetaclassEvidenceSource}
 }
 
-func buildCodeCallRetractRows(repositoryIDs []string) []SharedProjectionIntentRow {
+func buildCodeCallRetractRows(rows []SharedProjectionIntentRow) []SharedProjectionIntentRow {
+	repositoryIDs := uniqueRepositoryIDs(rows)
+	if len(repositoryIDs) == 0 {
+		return nil
+	}
+	deltaFilePathsByRepoID, hasDeltaScope := codeCallDeltaFilePathsByRepoIDFromRows(rows)
+	if hasDeltaScope {
+		return buildCodeCallDeltaRetractRows(repositoryIDs, deltaFilePathsByRepoID)
+	}
+	return buildCodeCallRepoRetractRows(repositoryIDs)
+}
+
+func buildCodeCallRepoRetractRows(repositoryIDs []string) []SharedProjectionIntentRow {
 	rows := make([]SharedProjectionIntentRow, 0, len(repositoryIDs))
 	for _, repositoryID := range repositoryIDs {
 		repositoryID = strings.TrimSpace(repositoryID)
@@ -143,6 +155,60 @@ func buildCodeCallRetractRows(repositoryIDs []string) []SharedProjectionIntentRo
 		})
 	}
 	return rows
+}
+
+func buildCodeCallDeltaRetractRows(
+	repositoryIDs []string,
+	deltaFilePathsByRepoID map[string][]string,
+) []SharedProjectionIntentRow {
+	rows := make([]SharedProjectionIntentRow, 0, len(repositoryIDs))
+	for _, repositoryID := range repositoryIDs {
+		filePaths := deltaFilePathsByRepoID[repositoryID]
+		rows = append(rows, SharedProjectionIntentRow{
+			RepositoryID: repositoryID,
+			Payload: map[string]any{
+				"repo_id":          repositoryID,
+				"delta_projection": true,
+				"delta_file_paths": append([]string(nil), filePaths...),
+				"intent_type":      "repo_refresh",
+			},
+		})
+	}
+	return rows
+}
+
+func codeCallDeltaFilePathsByRepoIDFromRows(rows []SharedProjectionIntentRow) (map[string][]string, bool) {
+	seenByRepoID := make(map[string]map[string]struct{})
+	hasDeltaScope := false
+	for _, row := range rows {
+		repositoryID := strings.TrimSpace(row.RepositoryID)
+		if repositoryID == "" || !codeCallPayloadBool(row.Payload, "delta_projection") {
+			continue
+		}
+		hasDeltaScope = true
+		for _, filePath := range semanticPayloadStringSlice(row.Payload, "delta_file_paths") {
+			seen := seenByRepoID[repositoryID]
+			if seen == nil {
+				seen = make(map[string]struct{})
+				seenByRepoID[repositoryID] = seen
+			}
+			seen[filePath] = struct{}{}
+		}
+	}
+	if len(seenByRepoID) == 0 {
+		return nil, hasDeltaScope
+	}
+
+	pathsByRepoID := make(map[string][]string, len(seenByRepoID))
+	for repositoryID, seen := range seenByRepoID {
+		filePaths := make([]string, 0, len(seen))
+		for filePath := range seen {
+			filePaths = append(filePaths, filePath)
+		}
+		sort.Strings(filePaths)
+		pathsByRepoID[repositoryID] = filePaths
+	}
+	return pathsByRepoID, hasDeltaScope
 }
 
 func groupCodeCallUpsertRows(rows []SharedProjectionIntentRow) map[string][]SharedProjectionIntentRow {
