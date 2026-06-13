@@ -1,6 +1,10 @@
 package cypher
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
+)
 
 var inheritanceEndpointLabels = map[string]struct{}{
 	"Class":     {},
@@ -28,6 +32,7 @@ func buildInheritanceRowMap(
 		"relationship_type": relationshipType,
 		"evidence_source":   evidenceSource,
 	}
+	applyInheritanceProvenance(rowMap, payload)
 	childLabel := payloadString(payload, "child_entity_type")
 	parentLabel := payloadString(payload, "parent_entity_type")
 	if isInheritanceEndpointLabel(childLabel) && isInheritanceEndpointLabel(parentLabel) {
@@ -62,50 +67,44 @@ func labelScopedInheritanceCypher(
 ) (string, bool) {
 	switch relationshipType {
 	case "", "INHERITS":
-		return buildLabelScopedInheritanceCypher(
-			childLabel,
-			parentLabel,
-			"INHERITS",
-			"Parser entity bases metadata resolved an inheritance edge",
-		), true
+		return buildLabelScopedInheritanceCypher(childLabel, parentLabel, "INHERITS"), true
 	case "OVERRIDES":
-		return buildLabelScopedInheritanceCypher(
-			childLabel,
-			parentLabel,
-			"OVERRIDES",
-			"Parser trait adaptation metadata resolved an override edge",
-		), true
+		return buildLabelScopedInheritanceCypher(childLabel, parentLabel, "OVERRIDES"), true
 	case "ALIASES":
-		return buildLabelScopedInheritanceCypher(
-			childLabel,
-			parentLabel,
-			"ALIASES",
-			"Parser trait adaptation metadata resolved an alias edge",
-		), true
+		return buildLabelScopedInheritanceCypher(childLabel, parentLabel, "ALIASES"), true
 	case "IMPLEMENTS":
-		return buildLabelScopedInheritanceCypher(
-			childLabel,
-			parentLabel,
-			"IMPLEMENTS",
-			"Parser implemented_interfaces metadata resolved an implements edge",
-		), true
+		return buildLabelScopedInheritanceCypher(childLabel, parentLabel, "IMPLEMENTS"), true
 	default:
 		return "", false
 	}
+}
+
+func inheritanceResolutionMethod(payload map[string]any) codeprovenance.Method {
+	if method := payloadString(payload, "resolution_method"); method != "" {
+		return method
+	}
+	return codeprovenance.MethodUnspecified
+}
+
+func applyInheritanceProvenance(rowMap map[string]any, payload map[string]any) {
+	method := inheritanceResolutionMethod(payload)
+	rowMap["resolution_method"] = method
+	rowMap["confidence"] = codeprovenance.Confidence(method)
+	rowMap["reason"] = codeprovenance.Reason(method)
 }
 
 func buildLabelScopedInheritanceCypher(
 	childLabel string,
 	parentLabel string,
 	relationshipType string,
-	reason string,
 ) string {
 	return fmt.Sprintf(`UNWIND $rows AS row
 MATCH (child:%s {uid: row.child_entity_id})
 MATCH (parent:%s {uid: row.parent_entity_id})
 MERGE (child)-[rel:%s]->(parent)
-SET rel.confidence = 0.95,
-    rel.reason = '%s',
+SET rel.confidence = row.confidence,
+    rel.reason = row.reason,
+    rel.resolution_method = row.resolution_method,
     rel.evidence_source = row.evidence_source,
-    rel.relationship_type = row.relationship_type`, childLabel, parentLabel, relationshipType, reason)
+    rel.relationship_type = row.relationship_type`, childLabel, parentLabel, relationshipType)
 }

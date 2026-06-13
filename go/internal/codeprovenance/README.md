@@ -1,6 +1,6 @@
 # codeprovenance
 
-Closed resolution-provenance vocabulary for code call and reference edges
+Closed resolution-provenance vocabulary for code relationship edges
 (ADR [`2222`](../../../docs/internal/design/2222-resolution-provenance-code-edges.md)).
 
 ## Why this package exists
@@ -9,12 +9,14 @@ A code call edge resolved by a repository-wide name guess used to be
 indistinguishable from a SCIP-proven edge: both shipped with a hard-coded
 `confidence = 0.95`. This package records *how* an edge was resolved as a closed
 `Method` enum and derives the numeric `confidence` and human `reason` from that
-method, so agents and operators can weight an individual relationship.
+method, so agents and operators can weight an individual relationship. The same
+vocabulary now covers parser-declared inheritance and IMPLEMENTS rows that need
+the same confidence derivation instead of relationship-local literals.
 
 It is a leaf package imported by:
 
 - `go/internal/reducer` — emits a `Method` on each code-call/reference/metaclass
-  materialization row (issue #2223).
+  and inheritance/IMPLEMENTS materialization row (issues #2223 and #2350).
 - `go/internal/storage/cypher` — derives `confidence` and `reason` from the
   method when writing the edge (issue #2224).
 - `go/internal/query` — surfaces `confidence` and `resolution_method` on

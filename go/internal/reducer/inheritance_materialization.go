@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"sort"
 
+	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -202,14 +203,7 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 			}
 			seenEdges[edgeKey] = struct{}{}
 
-			rows = append(rows, map[string]any{
-				"child_entity_id":    childEntityID,
-				"child_entity_type":  entityType,
-				"parent_entity_id":   parent.id,
-				"parent_entity_type": parent.entityType,
-				"repo_id":            repoID,
-				"relationship_type":  "INHERITS",
-			})
+			rows = append(rows, declaredInheritanceRow(childEntityID, entityType, parent, repoID, "INHERITS"))
 		}
 
 		if _, implementer := implementerEntityTypes[entityType]; implementer {
@@ -228,14 +222,7 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 				}
 				seenEdges[edgeKey] = struct{}{}
 
-				rows = append(rows, map[string]any{
-					"child_entity_id":    childEntityID,
-					"child_entity_type":  entityType,
-					"parent_entity_id":   parent.id,
-					"parent_entity_type": parent.entityType,
-					"repo_id":            repoID,
-					"relationship_type":  "IMPLEMENTS",
-				})
+				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, parent, repoID, "IMPLEMENTS"))
 			}
 		}
 
@@ -256,14 +243,7 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 				}
 				seenEdges[edgeKey] = struct{}{}
 
-				rows = append(rows, map[string]any{
-					"child_entity_id":    childEntityID,
-					"child_entity_type":  entityType,
-					"parent_entity_id":   parent.id,
-					"parent_entity_type": parent.entityType,
-					"repo_id":            repoID,
-					"relationship_type":  "OVERRIDES",
-				})
+				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, parent, repoID, "OVERRIDES"))
 			}
 
 			for _, aliasedTrait := range inheritanceTraitAliasTargets(adaptation) {
@@ -278,14 +258,7 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 				}
 				seenEdges[edgeKey] = struct{}{}
 
-				rows = append(rows, map[string]any{
-					"child_entity_id":    childEntityID,
-					"child_entity_type":  entityType,
-					"parent_entity_id":   parent.id,
-					"parent_entity_type": parent.entityType,
-					"repo_id":            repoID,
-					"relationship_type":  "ALIASES",
-				})
+				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, parent, repoID, "ALIASES"))
 			}
 
 			aliasMapping, ok := inheritanceTraitAliasMapping(adaptation)
@@ -313,14 +286,7 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 			}
 			seenEdges[edgeKey] = struct{}{}
 
-			rows = append(rows, map[string]any{
-				"child_entity_id":    childMethod.id,
-				"child_entity_type":  childMethod.entityType,
-				"parent_entity_id":   parentMethod.id,
-				"parent_entity_type": parentMethod.entityType,
-				"repo_id":            repoID,
-				"relationship_type":  "ALIASES",
-			})
+			rows = append(rows, declaredInheritanceRow(childMethod.id, childMethod.entityType, parentMethod, repoID, "ALIASES"))
 		}
 	}
 
@@ -351,6 +317,24 @@ type inheritanceMethodIndexKey struct {
 type inheritanceEntityRef struct {
 	id         string
 	entityType string
+}
+
+func declaredInheritanceRow(
+	childEntityID string,
+	childEntityType string,
+	parent inheritanceEntityRef,
+	repoID string,
+	relationshipType string,
+) map[string]any {
+	return map[string]any{
+		"child_entity_id":    childEntityID,
+		"child_entity_type":  childEntityType,
+		"parent_entity_id":   parent.id,
+		"parent_entity_type": parent.entityType,
+		"repo_id":            repoID,
+		"relationship_type":  relationshipType,
+		"resolution_method":  codeprovenance.MethodDeclared,
+	}
 }
 
 // buildInheritanceEntityIndex builds a map from (repo_id, entity_name) to

@@ -11,9 +11,12 @@
 // canonical writers (CanonicalNodeWriter, EdgeWriter) and OrphanSweepStore are
 // the boundary where node, edge, and cleanup invariants are enforced before
 // bytes reach Neo4j or NornicDB.
-// Code-call rows may materialize as CALLS or REFERENCES depending on parser
-// semantics; Go and TypeScript type-reference metadata must remain REFERENCES
-// so graph truth does not claim that type literals are invocations. SQL
+// Code-call and inheritance rows carry reducer-stamped resolution provenance;
+// the edge writer derives confidence and reason from that method before the
+// Cypher SET clause persists CALLS, REFERENCES, INHERITS, IMPLEMENTS,
+// OVERRIDES, ALIASES, INSTANTIATES, or USES_METACLASS. Go and TypeScript
+// type-reference metadata must remain REFERENCES so graph truth does not claim
+// that type literals are invocations. SQL
 // relationship rows may materialize as TRIGGERS, EXECUTES, table references,
 // or column containment, with EXECUTES preserving trigger-bound SqlFunction
 // reachability for dead-code analysis. When reducer evidence includes endpoint
