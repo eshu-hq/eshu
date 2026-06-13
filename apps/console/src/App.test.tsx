@@ -127,6 +127,25 @@ describe("App shell", () => {
     ).toHaveAttribute("href", "/cloud-drift");
   });
 
+  it("registers the secrets IAM posture route", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("offline in test");
+      })
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("link", { name: "Secrets/IAM" })
+    ).toHaveAttribute("href", "/secrets-iam");
+  });
+
   it("routes service workspaces through the Service Atlas support surface", async () => {
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const path = new URL(new Request(input).url).pathname;

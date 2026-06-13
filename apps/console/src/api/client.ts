@@ -1,4 +1,4 @@
-import type { EshuEnvelope } from "./envelope";
+import type { EshuEnvelope, EshuError } from "./envelope";
 import { EshuEnvelopeError, unwrapEnvelope } from "./envelope";
 
 export const eshuEnvelopeAccept = "application/eshu.envelope+json";
@@ -9,10 +9,12 @@ export const eshuEnvelopeAccept = "application/eshu.envelope+json";
 // failure) as an empty graph while still surfacing 5xx/timeout errors. See issue
 // #1725.
 export class EshuApiHttpError extends Error {
+  readonly error: EshuError | null;
   readonly status: number;
 
-  constructor(status: number) {
-    super(`Eshu API request failed with HTTP ${status}`);
+  constructor(status: number, error: EshuError | null = null) {
+    super(error ? `${error.code}: ${error.message}` : `Eshu API request failed with HTTP ${status}`);
+    this.error = error;
     this.name = "EshuApiHttpError";
     this.status = status;
   }
@@ -143,7 +145,7 @@ export class EshuApiClient {
 
   private async parse<TData>(response: Response): Promise<EshuEnvelope<TData>> {
     if (!response.ok) {
-      throw new EshuApiHttpError(response.status);
+      throw await this.httpError(response);
     }
     const parsed = (await response.json()) as EshuEnvelope<TData>;
     return parsed;
@@ -151,13 +153,28 @@ export class EshuApiClient {
 
   private async parseJson<TData>(response: Response): Promise<TData> {
     if (!response.ok) {
-      throw new EshuApiHttpError(response.status);
+      throw await this.httpError(response);
     }
     const parsed = (await response.json()) as unknown;
     if (isEnvelope(parsed)) {
       return unwrapEnvelope(parsed as EshuEnvelope<TData>).data;
     }
     return parsed as TData;
+  }
+
+  private async httpError(response: Response): Promise<EshuApiHttpError> {
+    try {
+      const parsed = (await response.clone().json()) as unknown;
+      if (isEnvelope(parsed)) {
+        const envelope = parsed as EshuEnvelope<unknown>;
+        if (envelope.error !== null) {
+          return new EshuApiHttpError(response.status, envelope.error);
+        }
+      }
+    } catch {
+      // Non-JSON or malformed error responses still carry the HTTP status.
+    }
+    return new EshuApiHttpError(response.status);
   }
 }
 

@@ -14,6 +14,7 @@ import {
   FolderGit2,
   GitBranch,
   Images,
+  KeyRound,
   LayoutDashboard,
   Network,
   PackageSearch,
@@ -49,6 +50,7 @@ import { RepoSourcePage } from "./pages/RepoSourcePage";
 import { ImagesPage } from "./pages/ImagesPage";
 import { CloudPage } from "./pages/CloudPage";
 import { CloudDriftPage } from "./pages/CloudDriftPage";
+import { SecretsIamPage } from "./pages/SecretsIamPage";
 import { TopologyPage } from "./pages/TopologyPage";
 import { DeadCodePage } from "./pages/DeadCodePage";
 import { CodeGraphPage } from "./pages/CodeGraphPage";
@@ -100,6 +102,7 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
     items: [
       { to: "/topology", label: "Topology", icon: GitBranch },
       { to: "/cloud", label: "Cloud", icon: Cloud },
+      { to: "/secrets-iam", label: "Secrets/IAM", icon: KeyRound },
       { to: "/incidents", label: "Incidents", icon: TriangleAlert },
       { to: "/ci-cd/run-correlations", label: "CI/CD", icon: Workflow },
       { to: "/cloud-drift", label: "Cloud Drift", icon: TriangleAlert, alert: true },
@@ -326,6 +329,7 @@ export function App(): React.JSX.Element {
             <Route path="/cloud" element={<CloudPage client={client} />} />
             <Route path="/ci-cd/run-correlations" element={<CICDRunCorrelationsPage client={client} model={visibleModel} />} />
             <Route path="/cloud-drift" element={<CloudDriftPage client={client} />} />
+            <Route path="/secrets-iam" element={<SecretsIamPage model={visibleModel} client={client} />} />
             <Route path="/topology" element={<TopologyPage client={client} model={visibleModel} onOpenService={openService} />} />
             <Route path="/incidents" element={<IncidentContextPage model={visibleModel} client={client} onOpenService={openService} />} />
             <Route path="/incidents/:incidentId/context" element={<IncidentContextPage model={visibleModel} client={client} onOpenService={openService} />} />

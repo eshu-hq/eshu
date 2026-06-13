@@ -145,6 +145,29 @@ describe("EshuApiClient", () => {
     expect((error as EshuApiHttpError).message).toContain("404");
   });
 
+  it("preserves structured Eshu error envelopes on non-2xx responses", async () => {
+    const fetcher = async (): Promise<Response> =>
+      Response.json({
+        data: null,
+        error: {
+          code: "unsupported_capability",
+          message: "identity trust chains require local-authoritative profile"
+        },
+        truth: null
+      }, { status: 501 });
+    const client = new EshuApiClient({ baseUrl: "/eshu-api/", fetcher });
+
+    const error = await client
+      .get("/api/v0/secrets-iam/identity-trust-chains?scope_id=s&limit=25")
+      .then(() => null)
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(EshuApiHttpError);
+    expect((error as EshuApiHttpError).status).toBe(501);
+    expect((error as EshuApiHttpError).error?.code).toBe("unsupported_capability");
+    expect((error as EshuApiHttpError).message).toContain("unsupported_capability");
+  });
+
   it("throws a typed EshuApiHttpError from the JSON helpers too", async () => {
     const fetcher = async (): Promise<Response> =>
       new Response("boom", { status: 500 });
