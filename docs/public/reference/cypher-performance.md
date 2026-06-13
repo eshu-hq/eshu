@@ -289,6 +289,38 @@ fields, graph query duration metrics, retry classification, and timeout
 handling. It adds no worker, queue domain, runtime knob, metric instrument,
 metric label, or backend-specific telemetry.
 
+### Inheritance Delta Scoped Retraction
+
+Issue #2257 also scopes inheritance cleanup for delta generations to changed or
+deleted source files. The inheritance reducer now loads repository delta
+metadata beside its existing payload-filtered `content_entity` query for
+inheritance-capable entity types. Deleted-only delta generations can therefore
+retract stale `INHERITS`, `OVERRIDES`, `ALIASES`, and `IMPLEMENTS` edges without
+requiring current child entities, while full refreshes keep the existing
+repository-wide retract path.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'TestInheritance(MaterializationHandler(ScopesDeltaRetractToFiles|DeletedOnlyDeltaRetractsWithoutWrites)|MaterializationHandlerUsesKindFilteredFactLoader|MaterializationHandlerUsesPayloadFilteredContentEntities)|TestBuildInheritanceRetractRowsKeepsMalformedDeltaScoped'
+-count=1` proves the reducer extracts repo-qualified delta file paths from the
+repository fact, carries them into inheritance retract rows, handles
+deleted-only delta generations without writes, preserves bounded content-entity
+loading, and keeps malformed delta scope scoped instead of silently downgrading
+to repo-wide cleanup. `go test ./internal/storage/cypher -run
+'TestEdgeWriterRetractEdgesInheritance(DeltaUsesFileScope|RejectsDeltaWithoutFilePaths|Dispatch)|TestEdgeWriterRetractEdgesInheritanceIncludesOverrides|TestBuildRetractInheritanceEdgesByFilePath'
+-count=1` proves valid delta rows dispatch the file-scoped inheritance retract
+statement with `child.path IN $file_paths`, malformed delta rows execute no
+Cypher, and non-delta inheritance retracts keep the existing repo-wide dispatch.
+The input cardinality is the delta file-path count for one repository
+generation; the changed Cypher keeps a static relationship-token set, binds only
+a positive `$file_paths` list, and does not add a traversal or backend-specific
+branch.
+
+No-Observability-Change: inheritance delta retraction uses the existing
+`EdgeWriter.RetractEdges` executor path, inheritance materialization completion
+logs, graph query duration metrics, retry classification, and timeout handling.
+It adds no worker, queue domain, runtime knob, metric instrument, metric label,
+or backend-specific telemetry.
+
 ## Related Docs
 
 - [NornicDB Pitfalls](nornicdb-pitfalls.md)
