@@ -70,6 +70,9 @@ type GCPResourceMaterializationHandler struct {
 	// CloudResource nodes so a cross-scope projection gate can prove a specific
 	// node committed. It is nil on the default hot path, making presence a no-op.
 	PresenceWriter EndpointPresenceWriter
+	// Instruments records bounded Prometheus counters and histograms for GCP
+	// resource materialization. Nil preserves existing no-metric behavior.
+	Instruments *telemetry.Instruments
 }
 
 // Handle executes one GCP resource materialization intent.
@@ -145,7 +148,7 @@ func (h GCPResourceMaterializationHandler) Handle(
 	}
 	phasePublishDuration := time.Since(phasePublishStart)
 
-	logGCPResourceMaterializationCompleted(ctx, gcpResourceMaterializationTiming{
+	timing := gcpResourceMaterializationTiming{
 		intent:               intent,
 		factCount:            len(envelopes),
 		nodeCount:            len(rows),
@@ -154,7 +157,9 @@ func (h GCPResourceMaterializationHandler) Handle(
 		writeDuration:        writeDuration,
 		phasePublishDuration: phasePublishDuration,
 		totalDuration:        time.Since(totalStart),
-	})
+	}
+	logGCPResourceMaterializationCompleted(ctx, timing)
+	h.recordMetrics(ctx, timing)
 
 	return Result{
 		IntentID: intent.IntentID,
@@ -167,6 +172,24 @@ func (h GCPResourceMaterializationHandler) Handle(
 		),
 		CanonicalWrites: len(rows),
 	}, nil
+}
+
+func (h GCPResourceMaterializationHandler) recordMetrics(
+	ctx context.Context,
+	timing gcpResourceMaterializationTiming,
+) {
+	if h.Instruments == nil {
+		return
+	}
+	recordGCPMaterializationFact(ctx, h.Instruments, DomainGCPResourceMaterialization, facts.GCPCloudResourceFactKind, timing.factCount)
+	recordGCPMaterializationGraphWrites(ctx, h.Instruments, DomainGCPResourceMaterialization, "node", timing.nodeCount)
+	recordGCPMaterializationDuration(ctx, h.Instruments, DomainGCPResourceMaterialization, "load_facts", timing.loadDuration)
+	recordGCPMaterializationDuration(ctx, h.Instruments, DomainGCPResourceMaterialization, "extract", timing.extractDuration)
+	if timing.nodeCount > 0 {
+		recordGCPMaterializationDuration(ctx, h.Instruments, DomainGCPResourceMaterialization, "graph_write", timing.writeDuration)
+	}
+	recordGCPMaterializationDuration(ctx, h.Instruments, DomainGCPResourceMaterialization, "phase_publish", timing.phasePublishDuration)
+	recordGCPMaterializationDuration(ctx, h.Instruments, DomainGCPResourceMaterialization, "total", timing.totalDuration)
 }
 
 // ExtractGCPCloudResourceNodeRows projects gcp_cloud_resource fact envelopes into

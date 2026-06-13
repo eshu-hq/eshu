@@ -160,7 +160,7 @@ func (h GCPRelationshipMaterializationHandler) Handle(
 	}
 
 	h.recordTally(ctx, tally)
-	logGCPRelationshipMaterializationCompleted(ctx, gcpRelationshipMaterializationTiming{
+	timing := gcpRelationshipMaterializationTiming{
 		intent:            intent,
 		resourceFactCount: len(resourceEnvelopes),
 		relationshipCount: len(relationshipEnvelopes),
@@ -172,7 +172,9 @@ func (h GCPRelationshipMaterializationHandler) Handle(
 		retractDuration:   retractDuration,
 		writeDuration:     writeDuration,
 		totalDuration:     time.Since(totalStart),
-	})
+	}
+	logGCPRelationshipMaterializationCompleted(ctx, timing)
+	h.recordMetrics(ctx, timing)
 
 	return Result{
 		IntentID: intent.IntentID,
@@ -186,6 +188,27 @@ func (h GCPRelationshipMaterializationHandler) Handle(
 		),
 		CanonicalWrites: len(rows),
 	}, nil
+}
+
+func (h GCPRelationshipMaterializationHandler) recordMetrics(
+	ctx context.Context,
+	timing gcpRelationshipMaterializationTiming,
+) {
+	if h.Instruments == nil {
+		return
+	}
+	recordGCPMaterializationFact(ctx, h.Instruments, DomainGCPRelationshipMaterialization, facts.GCPCloudResourceFactKind, timing.resourceFactCount)
+	recordGCPMaterializationFact(ctx, h.Instruments, DomainGCPRelationshipMaterialization, facts.GCPCloudRelationshipFactKind, timing.relationshipCount)
+	recordGCPMaterializationGraphWrites(ctx, h.Instruments, DomainGCPRelationshipMaterialization, "edge", timing.edgeCount)
+	recordGCPMaterializationDuration(ctx, h.Instruments, DomainGCPRelationshipMaterialization, "load_facts", timing.loadDuration)
+	recordGCPMaterializationDuration(ctx, h.Instruments, DomainGCPRelationshipMaterialization, "extract", timing.extractDuration)
+	if !timing.skipRetract {
+		recordGCPMaterializationDuration(ctx, h.Instruments, DomainGCPRelationshipMaterialization, "retract", timing.retractDuration)
+	}
+	if timing.edgeCount > 0 {
+		recordGCPMaterializationDuration(ctx, h.Instruments, DomainGCPRelationshipMaterialization, "graph_write", timing.writeDuration)
+	}
+	recordGCPMaterializationDuration(ctx, h.Instruments, DomainGCPRelationshipMaterialization, "total", timing.totalDuration)
 }
 
 // canonicalNodesReady reports whether the GCP node materialization
@@ -226,20 +249,22 @@ func (h GCPRelationshipMaterializationHandler) shouldSkipRetract(ctx context.Con
 	return !hasPrior, nil
 }
 
-// recordTally emits the GCP edge-projection counter dimensioned by join_mode,
-// the contract registered for eshu_dp_gcp_relationship_edges_total. Every
-// relationship fact lands in exactly one bounded mode bucket
+// recordTally emits the GCP edge-projection counter dimensioned by
+// (relationship_type, join_mode), matching the AWS materialization telemetry
+// shape. Every relationship fact lands in exactly one bounded mode bucket
 // (full_resource_name for materialized edges; unresolved / partial / unsupported
 // / invalid_type / empty_type / unknown_state for the reasons an edge was not
-// written), so the metric cardinality stays bounded and an operator can alert on
-// the resolution-failure rate.
+// written). Invalid or missing relationship types are represented by bounded
+// sentinels, so the metric cardinality stays bounded and an operator can alert
+// on the resolution-failure rate.
 func (h GCPRelationshipMaterializationHandler) recordTally(ctx context.Context, tally gcpRelationshipEdgeTally) {
 	if h.Instruments == nil || h.Instruments.GCPRelationshipEdges == nil {
 		return
 	}
-	for mode, count := range tally.byMode {
+	for key, count := range tally.byRelTypeMode {
 		h.Instruments.GCPRelationshipEdges.Add(ctx, int64(count), metric.WithAttributes(
-			telemetry.AttrJoinMode(mode),
+			telemetry.AttrRelationshipType(key.relationshipType),
+			telemetry.AttrJoinMode(key.mode),
 		))
 	}
 }

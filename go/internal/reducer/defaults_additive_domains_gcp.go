@@ -20,6 +20,7 @@ func appendGCPResourceMaterializationDomain(
 		NodeWriter:     handlers.CloudResourceNodeWriter,
 		PhasePublisher: handlers.GraphProjectionPhasePublisher,
 		PresenceWriter: handlers.EndpointPresenceWriter,
+		Instruments:    handlers.Instruments,
 	}
 	return append(definitions, gcpResources)
 }

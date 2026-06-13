@@ -140,6 +140,8 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.AWSTagObservationsEmitted, "AWSTagObservationsEmitted counter should be registered")
 	assert.NotNil(t, inst.AWSFreshnessEvents, "AWSFreshnessEvents counter should be registered")
 	assert.NotNil(t, inst.AWSOrgAccessSkipped, "AWSOrgAccessSkipped counter should be registered")
+	assert.NotNil(t, inst.GCPMaterializationFacts, "GCPMaterializationFacts counter should be registered")
+	assert.NotNil(t, inst.GCPMaterializationGraphWrites, "GCPMaterializationGraphWrites counter should be registered")
 	assert.NotNil(t, inst.AWSScanStatusStaleFence, "AWSScanStatusStaleFence counter should be registered")
 	assert.NotNil(t, inst.WorkflowClaimAttemptBudgetExhausted, "WorkflowClaimAttemptBudgetExhausted counter should be registered")
 
@@ -151,6 +153,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.ProjectorRunDuration, "ProjectorRunDuration histogram should be registered")
 	assert.NotNil(t, inst.ProjectorStageDuration, "ProjectorStageDuration histogram should be registered")
 	assert.NotNil(t, inst.ReducerRunDuration, "ReducerRunDuration histogram should be registered")
+	assert.NotNil(t, inst.GCPMaterializationDuration, "GCPMaterializationDuration histogram should be registered")
 	assert.NotNil(t, inst.GenerationRetentionDuration, "GenerationRetentionDuration histogram should be registered")
 	assert.NotNil(t, inst.GenerationRetentionBatchSize, "GenerationRetentionBatchSize histogram should be registered")
 	assert.NotNil(t, inst.GenerationRetentionOldestEligibleAge, "GenerationRetentionOldestEligibleAge histogram should be registered")

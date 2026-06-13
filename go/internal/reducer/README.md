@@ -202,10 +202,11 @@ writer mirrors the proven AWS `MATCH (source)…MATCH (target)…MERGE` template
 the only new hot-path Cypher is the `GCP_`-prefixed sibling.
 
 Observability Evidence: the handler emits the `eshu_dp_gcp_relationship_edges_total`
-counter dimensioned by a bounded `join_mode` (`full_resource_name` / `unresolved`
-/ `partial` / `unsupported` / `invalid_type` / `empty_type` / `unknown_state`) so
-an operator can alert on the GCP edge resolution-failure rate, and wraps the run
-in the `reducer.gcp_relationship_materialization` span. The `gcp relationship
+counter dimensioned by bounded `relationship_type` and `join_mode`
+(`full_resource_name` / `unresolved` / `partial` / `unsupported` /
+`invalid_type` / `empty_type` / `unknown_state`) so an operator can alert on the
+GCP edge resolution-failure rate, and wraps the run in the
+`reducer.gcp_relationship_materialization` span. The `gcp relationship
 materialization completed` structured log carries `scope_id`, `generation_id`,
 `domain`, `gcp_resource_fact_count`, `relationship_fact_count`, `edge_count`,
 `resolved_count`, `skipped_count`, the same `by_mode` tally,
