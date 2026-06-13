@@ -9,7 +9,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 )
 
-const evidenceVersion = "search-benchmark-evidence/v1"
+// EvidenceVersion is the versioned search-benchmark evidence schema identifier.
+// Live executors that assemble Evidence records must stamp this exact value so
+// ValidateEvidence and the recorded design-doc evidence cannot drift apart.
+const EvidenceVersion = "search-benchmark-evidence/v1"
+
+const evidenceVersion = EvidenceVersion
 
 // ValidateEvidence checks the issue #1264 evidence contract.
 func ValidateEvidence(evidence Evidence) error {
