@@ -3,6 +3,7 @@ package graphschemacompat
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -35,6 +36,10 @@ SET statement_count = EXCLUDED.statement_count,
     compatible_fingerprints = EXCLUDED.compatible_fingerprints,
     applied_at = EXCLUDED.applied_at
 `
+
+// ErrMissingMarker reports that no graph schema application marker exists for
+// the selected backend.
+var ErrMissingMarker = errors.New("graph schema marker missing")
 
 // Result describes the schema compatibility decision made during startup.
 type Result struct {
@@ -117,7 +122,8 @@ func RequireCompatible(ctx context.Context, db postgres.Queryer, backend graph.S
 			return Result{}, fmt.Errorf("query graph schema compatibility marker: %w", err)
 		}
 		return Result{}, fmt.Errorf(
-			"graph schema marker missing for backend %s; run eshu-bootstrap-data-plane before starting graph writers",
+			"%w for backend %s; run eshu-bootstrap-data-plane before starting graph writers",
+			ErrMissingMarker,
 			backend,
 		)
 	}

@@ -7,6 +7,8 @@ touching any file in `go/cmd/bootstrap-index/`.
 
 - `go/cmd/bootstrap-index/main.go` — the four-phase orchestrator; the phase
   ordering is a correctness invariant, not a style choice.
+- `go/cmd/bootstrap-index/graph_schema.go` — graph schema marker check and the
+  direct bootstrap-index marker-missing initializer.
 - `go/cmd/bootstrap-index/wiring.go` — collector and projector wiring.
 - `go/cmd/bootstrap-index/nornicdb_wiring.go` — NornicDB-specific executor
   chain (phase-group chunking, timeout, instrumentation, retry).
@@ -85,6 +87,7 @@ concurrency reference table in `docs/public/reference/local-testing.md` and
 | Phase 2 backfill stalls | Binary hangs after collection completes | OTEL traces for `BackfillAllRelationshipEvidence`; check `go/internal/storage/postgres/ingestion.go` for the SQL path |
 | Projector drain never exits | Binary hangs after Phase 2 | `drainingWorkSource.Claim` at `main.go:391` wraps `ProjectorWorkSource`; confirm `collectorDone` is closed; check `maxEmptyPolls` logic |
 | Phase 4 reopen skips stragglers | Reducer finds no `deployment_mapping` to process after bootstrap | Expected for items that succeeded in the Phase 2→4 window; use `/admin/replay` |
+| Missing graph schema marker | Direct bootstrap-index run starts before schema marker exists | `graph_schema.go` applies strict graph schema and writes the marker; incompatible markers still fail closed |
 | NornicDB timeout on graph write | `ESHU_CANONICAL_WRITE_TIMEOUT` exceeded | Lower `ESHU_NORNICDB_ENTITY_BATCH_SIZE` or `ESHU_NORNICDB_PHASE_GROUP_STATEMENTS`; check `go/cmd/bootstrap-index/nornicdb_wiring.go` defaults |
 | Heartbeat failure | `lease_heartbeat_failure` log + worker exits | Check `bootstrapIndexConnectionTimeout` and Postgres connectivity; heartbeat interval is `leaseDuration/3` capped at 1 minute |
 | Superseded projector work | `status=superseded` log and worker continues | Expected when `ProjectorWorkHeartbeater` returns `projector.ErrWorkSuperseded`; do not ack or fail the stale generation |
@@ -114,6 +117,9 @@ concurrency reference table in `docs/public/reference/local-testing.md` and
 - **Do not treat `projector.ErrWorkSuperseded` as a bootstrap failure.** The
   queue has already moved the stale generation out of the live backlog. The
   worker must return to the claim loop so the newer generation can run.
+- **Do not skip the graph schema marker check.** Direct bootstrap-index runs may
+  initialize a missing marker, but incompatible latest markers must stop before
+  canonical graph writers open.
 
 ## What NOT to change without an ADR
 

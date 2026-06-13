@@ -108,6 +108,9 @@ func TestRequireCompatibleRejectsMissingGraphSchemaMarker(t *testing.T) {
 	if err == nil {
 		t.Fatal("RequireCompatible() error = nil, want missing marker error")
 	}
+	if !errors.Is(err, ErrMissingMarker) {
+		t.Fatalf("RequireCompatible() error = %v, want ErrMissingMarker", err)
+	}
 	if !strings.Contains(err.Error(), "graph schema marker missing") {
 		t.Fatalf("RequireCompatible() error = %q, want missing marker", err)
 	}

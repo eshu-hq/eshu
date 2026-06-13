@@ -9,8 +9,10 @@ schema bootstrap marker that is safe for the writer compiled into the process.
 
 This package owns the marker read, marker write helper, and compatibility
 decision. It does not apply graph DDL, inspect graph constraints, or open graph
-drivers. Schema DDL stays in `internal/graph` and `cmd/bootstrap-data-plane`;
-the durable marker is stored in Postgres only after bootstrap succeeds.
+drivers. Schema DDL stays in `internal/graph` and is normally applied by
+`cmd/bootstrap-data-plane`; direct `bootstrap-index` startup may also apply the
+same strict schema when the Postgres marker is missing. The durable marker is
+stored in Postgres only after schema bootstrap succeeds.
 
 ## Exported surface
 
@@ -21,6 +23,8 @@ See `doc.go` for the godoc package contract.
 - `RequireCompatible` checks a specific `graph.SchemaBackend`.
 - `MarkApplied` records the successful bootstrap marker for a
   `graph.SchemaApplication`.
+- `ErrMissingMarker` lets callers distinguish an absent marker from an
+  incompatible latest marker without string matching.
 - `Result` reports the expected fingerprint, latest applied fingerprint, and
   compatibility list used in the decision.
 
@@ -51,6 +55,9 @@ instrumented adapters.
   or after bootstrap adoption proves the existing graph schema is complete.
 - The check reads Postgres only. It deliberately avoids `SHOW CONSTRAINTS` and
   `SHOW INDEXES` during steady-state pod startup.
+- Direct bootstrap-index startup may recover from `ErrMissingMarker` by applying
+  the strict graph schema. Long-lived graph writers should return the error and
+  let deployment ordering run `eshu-bootstrap-data-plane`.
 
 ## Related docs
 

@@ -24,7 +24,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/graphschemacompat"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -92,6 +91,7 @@ func main() {
 		os.Getenv,
 		openBootstrapDB,
 		applySchema,
+		ensureBootstrapGraphSchema,
 		openBootstrapGraph,
 		buildBootstrapCollector,
 		buildBootstrapProjector,
@@ -110,6 +110,7 @@ func run(
 	getenv func(string) string,
 	openDBFn openBootstrapDBFn,
 	schemaFn applyBootstrapFn,
+	graphSchemaFn ensureBootstrapGraphSchemaFn,
 	graphFn openGraphFn,
 	collectorFn buildCollectorFn,
 	projectorFn buildProjectorFn,
@@ -168,7 +169,7 @@ func run(
 	if err = schemaFn(ctx, db); err != nil {
 		return err
 	}
-	if _, err = graphschemacompat.RequireCompatibleForRuntime(ctx, db, getenv); err != nil {
+	if err = graphSchemaFn(ctx, db, getenv, logger); err != nil {
 		return err
 	}
 

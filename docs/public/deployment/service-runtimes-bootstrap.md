@@ -84,6 +84,14 @@ It is packaged for Docker Compose and direct process use. It is not a
 steady-state workload in the public Helm chart, and it does not expose
 `/healthz`, `/readyz`, `/metrics`, or `/admin/status`.
 
+Deployment flows should run `eshu-bootstrap-data-plane` before
+`eshu-bootstrap-index`. Direct local or CI bootstrap-index runs still verify the
+latest graph schema marker before opening the projection writer. If no marker
+exists, bootstrap-index applies the same strict checked-in graph schema, writes
+the marker only after all graph statements succeed, then opens the normal
+projection writer. If a latest marker exists but is incompatible, bootstrap-index
+fails closed instead of applying schema or writing graph data.
+
 Repeated restarts or long-running bootstrap activity are incidents. Use the
 ingester, workflow coordinator, hosted collectors, and resolution engine for
 normal freshness.

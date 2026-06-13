@@ -135,6 +135,8 @@ main -> run
   runtimecfg.ConfigureMemoryLimit -> telemetry.RecordGOMEMLIMIT
   openBootstrapDB (runtimecfg.OpenPostgres)
   applySchema (postgres.ApplyBootstrap — idempotent DDL)
+  ensureBootstrapGraphSchema (verify marker; apply strict graph schema only
+    when a direct bootstrap-index run finds the marker missing)
   openBootstrapGraph (openBootstrapCanonicalWriter)
   buildBootstrapCollector (GitSource + IngestionStore)
   buildBootstrapProjector (projector.Runtime + queue deps)
@@ -171,9 +173,10 @@ dependency injection:
 - `bootstrapNornicDBPhaseGroupExecutor` (`nornicdb_wiring.go:109`) — NornicDB
   phase-group chunking `Executor` wrapper
 
-Function-type aliases (`openBootstrapDBFn`, `applyBootstrapFn`, `openGraphFn`,
-`buildCollectorFn`, `buildProjectorFn`) are injected into `run` so tests can
-replace any wiring layer without starting Postgres or a graph backend.
+Function-type aliases (`openBootstrapDBFn`, `applyBootstrapFn`,
+`ensureBootstrapGraphSchemaFn`, `openGraphFn`, `buildCollectorFn`,
+`buildProjectorFn`) are injected into `run` so tests can replace any wiring
+layer without starting Postgres or a graph backend.
 
 See `doc.go` for the package-level contract.
 
@@ -184,6 +187,8 @@ Internal packages:
 | Package | Role |
 | --- | --- |
 | `internal/collector` | `collector.GitSource`, `collector.Committer`, `collector.DiscoveryAdvisoryReport` |
+| `internal/graph` | Strict graph schema DDL and schema fingerprint metadata |
+| `internal/graphschemacompat` | Postgres marker compatibility check and marker write helper |
 | `internal/projector` | `projector.Runtime`, `projector.CanonicalWriter`, work source/sink/heartbeater interfaces |
 | `internal/runtime` (alias `runtimecfg`) | `OpenPostgres`, `LoadGraphBackend`, `OpenNeo4jDriver`, `ConfigureMemoryLimit` |
 | `internal/storage/postgres` | `postgres.IngestionStore`, `postgres.NewProjectorQueue`, `postgres.NewReducerQueue`, `postgres.NewFactStore`, `postgres.NewContentWriter`, `postgres.ApplyBootstrap`, `postgres.InstrumentedDB`, `postgres.NewGraphProjectionPhaseStateStore`, `postgres.NewGraphProjectionPhaseRepairQueueStore` |
@@ -234,6 +239,7 @@ Failure-class log keys emitted via `telemetry.FailureClassAttr`:
 | --- | --- | --- |
 | ESHU_POSTGRES_DSN | required | Postgres connection string |
 | ESHU_GRAPH_BACKEND | `nornicdb` | Graph backend; `neo4j` or `nornicdb`; invalid value fails at startup |
+| ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT | `2m` | Per graph DDL statement deadline when a direct bootstrap-index run must initialize a marker-missing graph schema |
 | NEO4J_URI | required | Bolt URI |
 | NEO4J_USERNAME | required | Bolt auth username |
 | NEO4J_PASSWORD | required | Bolt auth password |
@@ -262,6 +268,11 @@ Full NornicDB tuning reference: `docs/public/reference/nornicdb-tuning.md`.
   running graph or Postgres instance.
 - **No admin surface.** `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
   are not mounted. Monitor via OTEL traces and structured logs.
+- **Graph schema marker.** Deployment flows should run
+  `eshu-bootstrap-data-plane` first. Bootstrap-index still checks the latest
+  marker before opening its projection writer. A missing marker triggers one
+  strict graph schema apply and marker write; an incompatible marker stops
+  startup before graph writes.
 - **Projector lease heartbeat.** Long canonical graph writes can outlast the
   default projector lease. `startBootstrapProjectorHeartbeat` renews the lease
   at `leaseDuration/3`, capped at 1 minute. A heartbeat can also return

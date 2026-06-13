@@ -61,6 +61,9 @@ func TestRunAppliesSchemaAndDrainsCollectorAndProjector(t *testing.T) {
 			schemaApplied = true
 			return nil
 		},
+		func(context.Context, bootstrapDB, func(string) string, *slog.Logger) error {
+			return nil
+		},
 		func(context.Context, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error) {
 			return graphDeps{writer: &noopCanonicalWriter{}, close: func() error { return nil }}, nil
 		},
@@ -116,6 +119,10 @@ func TestRunReturnsSchemaError(t *testing.T) {
 		func(ctx context.Context, database bootstrapDB) error {
 			return schemaErr
 		},
+		func(context.Context, bootstrapDB, func(string) string, *slog.Logger) error {
+			t.Fatal("graph schema check should not run after postgres schema error")
+			return nil
+		},
 		func(context.Context, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error) {
 			t.Fatal("graph opener should not be called after schema error")
 			return graphDeps{}, nil
@@ -150,6 +157,9 @@ func TestRunReturnsCollectorError(t *testing.T) {
 			return db, nil
 		},
 		func(ctx context.Context, database bootstrapDB) error {
+			return nil
+		},
+		func(context.Context, bootstrapDB, func(string) string, *slog.Logger) error {
 			return nil
 		},
 		func(context.Context, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error) {
