@@ -260,6 +260,12 @@ func (r *queueFakeRows) Scan(dest ...any) error {
 				return fmt.Errorf("row[%d] type = %T, want int64", i, row[i])
 			}
 			*target = value
+		case *float64:
+			value, ok := row[i].(float64)
+			if !ok {
+				return fmt.Errorf("row[%d] type = %T, want float64", i, row[i])
+			}
+			*target = value
 		case *sql.NullString:
 			value, ok := row[i].(sql.NullString)
 			if !ok {

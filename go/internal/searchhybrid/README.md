@@ -29,6 +29,9 @@ See `doc.go` for the godoc-rendered package contract.
   `HasEmbedder` accessors.
 - `Backend` — implements `searchretrieval.Backend` for keyword, semantic, and
   hybrid retrieval.
+- `DocumentTerms` / `QueryTerms` — shared lexical tokenizers used by the
+  persisted Postgres index writer and reader so benchmark and runtime BM25 lanes
+  score the same text.
 
 ## Retrieval modes
 
@@ -76,7 +79,9 @@ design-430 operator metrics without high-cardinality labels.
   the canonical graph or promotes a score to canonical truth.
 - The `Embedder` must be deterministic and must not call a hosted service.
 - Semantic mode requires an embedder; hybrid without one is BM25-only.
-- The index is read-only after construction; rebuild to reflect new documents.
+- The in-process index is read-only after construction; rebuild to reflect new
+  documents. The public semantic-search route uses the persisted Postgres index
+  instead of this request-local structure.
 
 ## Related docs
 

@@ -26,8 +26,30 @@ Flags:
 - `--max-docs` — maximum documents to index (hard cap; overflow is reported).
 - `--queries` — number of derived single-term queries.
 - `--rounds` — measurement rounds per query.
+- `--suite` — optional labeled query-suite JSON for recall/latency cap sweeps.
+- `--caps` — comma-separated corpus caps for suite mode; use `all` for the full
+  live corpus.
+- `--query-timeout` — per-query timeout in suite mode.
 
 It prints corpus shape, index build time, and p50/p95/max latency per backend.
+
+Recall and large-corpus cap sweeps require a labeled query suite:
+
+```bash
+cd go
+ESHU_BENCH_DSN="postgres://eshu:<pw>@localhost:15432/eshu" \
+  go run ./cmd/search-bench \
+    --suite ../docs/public/reference/searchbench-evidence/issue-1298-semantic-retrieval-proof-v1.json \
+    --caps 500,5000,20000,all \
+    --query-timeout 30s
+```
+
+The suite file must satisfy `searchbench.QuerySuite`: at least 15 scoped
+queries, top-K limits at or below 100, and expected graph handles for scoring.
+When `--suite` is present, the command sweeps each corpus cap over the same live
+curated document corpus and prints measured build time, indexed document count,
+overflow, p50/p95 latency, recall, precision, nDCG, and false-canonical-claim
+count.
 
 ## Scope and honesty boundary
 
@@ -38,9 +60,10 @@ This command measures what is **actually runnable** against a real corpus:
 
 It does **not** measure the NornicDB search-lane arm: the canonical NornicDB runs
 search-disabled per design 430, and no search-enabled curated NornicDB deployment
-exists yet. It does **not** report recall/precision, which require a labeled query
-suite. The command never fabricates an unmeasured backend; absent arms are stated,
-not invented.
+exists yet. It reports recall/precision only when the operator supplies a
+validated labeled query suite. The command never fabricates an unmeasured
+backend or expected handle set; absent arms and absent suites are stated, not
+invented.
 
 ## Dependencies
 

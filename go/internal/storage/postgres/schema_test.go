@@ -10,8 +10,8 @@ func TestBootstrapDefinitionsAreOrderedAndComplete(t *testing.T) {
 	t.Parallel()
 
 	defs := BootstrapDefinitions()
-	if len(defs) != 34 {
-		t.Fatalf("BootstrapDefinitions() len = %d, want 34", len(defs))
+	if len(defs) != 35 {
+		t.Fatalf("BootstrapDefinitions() len = %d, want 35", len(defs))
 	}
 
 	wantNames := []string{
@@ -20,6 +20,7 @@ func TestBootstrapDefinitionsAreOrderedAndComplete(t *testing.T) {
 		"fact_records",
 		"service_catalog_fact_record_indexes",
 		"fact_record_sbom_attestation_indexes",
+		"eshu_search_index",
 		"content_store",
 		"fact_work_items",
 		"fact_work_item_audit",
@@ -114,6 +115,34 @@ func TestBootstrapDefinitionsIncludeScopeGenerationActivityIndex(t *testing.T) {
 	} {
 		if !strings.Contains(generations.SQL, want) {
 			t.Fatalf("scope_generations SQL missing %q", want)
+		}
+	}
+}
+
+func TestBootstrapDefinitionsIncludeEshuSearchIndex(t *testing.T) {
+	t.Parallel()
+
+	var marker Definition
+	for _, def := range BootstrapDefinitions() {
+		if def.Name == "eshu_search_index" {
+			marker = def
+			break
+		}
+	}
+	if marker.Name == "" {
+		t.Fatal("eshu_search_index definition missing")
+	}
+	for _, want := range []string{
+		"CREATE TABLE IF NOT EXISTS eshu_search_index_documents",
+		"CREATE TABLE IF NOT EXISTS eshu_search_index_terms",
+		"CREATE TABLE IF NOT EXISTS eshu_search_index_stats",
+		"REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE",
+		"REFERENCES scope_generations(generation_id) ON DELETE CASCADE",
+		"CREATE INDEX IF NOT EXISTS eshu_search_index_documents_repo_idx",
+		"CREATE INDEX IF NOT EXISTS eshu_search_index_terms_lookup_idx",
+	} {
+		if !strings.Contains(marker.SQL, want) {
+			t.Fatalf("eshu_search_index SQL missing %q", want)
 		}
 	}
 }

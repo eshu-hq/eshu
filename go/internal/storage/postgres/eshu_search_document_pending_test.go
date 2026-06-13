@@ -42,6 +42,7 @@ func TestEshuSearchDocumentPendingStoreListsScopes(t *testing.T) {
 		"FROM content_entities",
 		"NOT EXISTS",
 		"f.fact_kind = $1",
+		"eshu_search_index_stats",
 		"LIMIT $2",
 	} {
 		if !strings.Contains(q, fragment) {

@@ -335,8 +335,8 @@ func newRouter(
 			Profile: queryProfile,
 		},
 		SemanticSearch: &query.SemanticSearchHandler{
-			Documents: query.NewPostgresSemanticSearchDocumentStore(db),
-			Profile:   queryProfile,
+			Index:   query.NewPostgresSemanticSearchIndexStore(db),
+			Profile: queryProfile,
 		},
 		PackageRegistry: newPackageRegistryHandler(db, neo4jReader, contentReader, queryProfile),
 		Dependencies: &query.DependenciesHandler{

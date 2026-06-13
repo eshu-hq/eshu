@@ -217,6 +217,18 @@ func contentHash(text string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// DocumentTerms returns the BM25 token frequencies for doc using the same
+// searchable text projection as the in-memory hybrid index.
+func DocumentTerms(doc searchdocs.Document) map[string]int {
+	return tokenCounts(documentText(doc))
+}
+
+// QueryTerms returns BM25 token frequencies for query using the same tokenizer
+// as the in-memory hybrid index.
+func QueryTerms(query string) map[string]int {
+	return tokenCounts(query)
+}
+
 func cosineSimilarity(a []float64, b []float64) float64 {
 	if len(a) == 0 || len(a) != len(b) {
 		return 0

@@ -99,6 +99,13 @@ High-signal invariants for this package:
 - Documentation fact readbacks stay bounded by visible finding/source/packet
   indexes plus `fact_records_documentation_target_refs_idx`, a partial JSONB GIN
   index over documentation target-reference payloads.
+- Eshu search-document projection writes derived document facts and a persisted
+  BM25 read index in the same reducer retry path. `eshu_search_index_documents`
+  stores active-generation document payloads and lengths,
+  `eshu_search_index_terms` stores term frequencies, and
+  `eshu_search_index_stats` stores corpus size and average length so API/MCP
+  search reads do not rebuild a full corpus per request. The pending sweeper
+  re-enqueues scopes whose active search documents exist but stats are missing.
 
 No-Regression Evidence: scoped hot-path notes live in
 [`evidence-notes.md`](evidence-notes.md), including #2059 claimed fact commit

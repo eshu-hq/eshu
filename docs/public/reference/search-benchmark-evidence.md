@@ -422,7 +422,12 @@ record; it does not lower the requirement for measured runs before any runtime
 search change.
 
 The operator entrypoint `go/cmd/search-bench` runs the comparison over a live
-Eshu content corpus and emits real latency and corpus-shape numbers.
+Eshu content corpus and emits real latency and corpus-shape numbers. When a
+validated `searchbench.QuerySuite` JSON is supplied with `--suite`, it also runs
+cap sweeps over the same live corpus and reports measured indexed-document
+count, overflow, build time, p50/p95 latency, recall, precision, nDCG, and
+false-canonical-claim count for each cap. The command refuses to infer recall
+from unlabeled queries.
 
 ## Recorded Runs
 

@@ -5,11 +5,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
+	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
 )
 
 // eshuSearchDocumentRetireQuery removes search-document facts in one generation
@@ -22,6 +24,76 @@ WHERE fact_kind = $1
   AND scope_id = $2
   AND generation_id = $3
   AND fact_id <> ALL($4::text[])
+`
+
+const eshuSearchIndexRetireTermsQuery = `
+DELETE FROM eshu_search_index_terms
+WHERE scope_id = $1
+  AND generation_id = $2
+  AND document_id <> ALL($3::text[])
+`
+
+const eshuSearchIndexRetireDocumentsQuery = `
+DELETE FROM eshu_search_index_documents
+WHERE scope_id = $1
+  AND generation_id = $2
+  AND document_id <> ALL($3::text[])
+`
+
+const eshuSearchIndexDocumentUpsertQuery = `
+INSERT INTO eshu_search_index_documents (
+    scope_id,
+    generation_id,
+    document_id,
+    fact_id,
+    repo_id,
+    source_kind,
+    document,
+    document_length,
+    updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+ON CONFLICT (scope_id, generation_id, document_id) DO UPDATE SET
+    fact_id = EXCLUDED.fact_id,
+    repo_id = EXCLUDED.repo_id,
+    source_kind = EXCLUDED.source_kind,
+    document = EXCLUDED.document,
+    document_length = EXCLUDED.document_length,
+    updated_at = EXCLUDED.updated_at
+`
+
+const eshuSearchIndexDeleteDocumentTermsQuery = `
+DELETE FROM eshu_search_index_terms
+WHERE scope_id = $1
+  AND generation_id = $2
+  AND document_id = $3
+`
+
+const eshuSearchIndexTermUpsertQuery = `
+INSERT INTO eshu_search_index_terms (
+    scope_id,
+    generation_id,
+    document_id,
+    term,
+    term_frequency
+)
+SELECT $1, $2, $3, term, term_frequency
+FROM unnest($4::text[], $5::int[]) AS terms(term, term_frequency)
+ON CONFLICT (scope_id, generation_id, term, document_id) DO UPDATE SET
+    term_frequency = EXCLUDED.term_frequency
+`
+
+const eshuSearchIndexStatsUpsertQuery = `
+INSERT INTO eshu_search_index_stats (
+    scope_id,
+    generation_id,
+    document_count,
+    average_document_length,
+    updated_at
+) VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (scope_id, generation_id) DO UPDATE SET
+    document_count = EXCLUDED.document_count,
+    average_document_length = EXCLUDED.average_document_length,
+    updated_at = EXCLUDED.updated_at
 `
 
 type eshuSearchDocumentExecer interface {
@@ -71,6 +143,7 @@ func (w PostgresEshuSearchDocumentWriter) WriteEshuSearchDocuments(
 
 	now := reducerWriterNow(w.Now)
 	writtenIDs := make([]string, 0, len(write.Documents))
+	indexRows := make([]eshuSearchIndexDocumentWrite, 0, len(write.Documents))
 	for _, doc := range write.Documents {
 		documentID := strings.TrimSpace(doc.ID)
 		if documentID == "" {
@@ -103,6 +176,7 @@ func (w PostgresEshuSearchDocumentWriter) WriteEshuSearchDocuments(
 			return EshuSearchDocumentWriteResult{}, fmt.Errorf("write eshu search document fact: %w", err)
 		}
 		writtenIDs = append(writtenIDs, factID)
+		indexRows = append(indexRows, newEshuSearchIndexDocumentWrite(scopeID, generationID, factID, doc))
 	}
 
 	retireResult, err := w.DB.ExecContext(
@@ -122,8 +196,139 @@ func (w PostgresEshuSearchDocumentWriter) WriteEshuSearchDocuments(
 			retired = int(affected)
 		}
 	}
+	if err := writeEshuSearchIndexDocuments(ctx, w.DB, scopeID, generationID, indexRows, now); err != nil {
+		return EshuSearchDocumentWriteResult{}, err
+	}
 
 	return EshuSearchDocumentWriteResult{CanonicalWrites: len(writtenIDs), Retired: retired}, nil
+}
+
+type eshuSearchIndexDocumentWrite struct {
+	DocumentID string
+	FactID     string
+	RepoID     string
+	SourceKind string
+	Document   searchdocs.Document
+	Terms      map[string]int
+	Length     int
+}
+
+func newEshuSearchIndexDocumentWrite(
+	scopeID string,
+	generationID string,
+	factID string,
+	doc searchdocs.Document,
+) eshuSearchIndexDocumentWrite {
+	terms := searchhybrid.DocumentTerms(doc)
+	length := 0
+	for _, count := range terms {
+		length += count
+	}
+	return eshuSearchIndexDocumentWrite{
+		DocumentID: strings.TrimSpace(doc.ID),
+		FactID:     factID,
+		RepoID:     strings.TrimSpace(doc.RepoID),
+		SourceKind: string(doc.SourceKind),
+		Document:   doc,
+		Terms:      terms,
+		Length:     length,
+	}
+}
+
+func writeEshuSearchIndexDocuments(
+	ctx context.Context,
+	db eshuSearchDocumentExecer,
+	scopeID string,
+	generationID string,
+	documents []eshuSearchIndexDocumentWrite,
+	now time.Time,
+) error {
+	documentIDs := make([]string, 0, len(documents))
+	totalLength := 0
+	for _, doc := range documents {
+		documentIDs = append(documentIDs, doc.DocumentID)
+		totalLength += doc.Length
+	}
+	if _, err := db.ExecContext(ctx, eshuSearchIndexRetireTermsQuery, scopeID, generationID, documentIDs); err != nil {
+		return fmt.Errorf("retire stale eshu search index terms: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, eshuSearchIndexRetireDocumentsQuery, scopeID, generationID, documentIDs); err != nil {
+		return fmt.Errorf("retire stale eshu search index documents: %w", err)
+	}
+	for _, doc := range documents {
+		payload, err := json.Marshal(doc.Document)
+		if err != nil {
+			return fmt.Errorf("marshal eshu search index document: %w", err)
+		}
+		if _, err := db.ExecContext(
+			ctx,
+			eshuSearchIndexDocumentUpsertQuery,
+			scopeID,
+			generationID,
+			doc.DocumentID,
+			doc.FactID,
+			doc.RepoID,
+			doc.SourceKind,
+			payload,
+			doc.Length,
+			now,
+		); err != nil {
+			return fmt.Errorf("write eshu search index document: %w", err)
+		}
+		if _, err := db.ExecContext(
+			ctx,
+			eshuSearchIndexDeleteDocumentTermsQuery,
+			scopeID,
+			generationID,
+			doc.DocumentID,
+		); err != nil {
+			return fmt.Errorf("refresh eshu search index terms: %w", err)
+		}
+		terms, frequencies := sortedSearchIndexTerms(doc.Terms)
+		if len(terms) == 0 {
+			continue
+		}
+		if _, err := db.ExecContext(
+			ctx,
+			eshuSearchIndexTermUpsertQuery,
+			scopeID,
+			generationID,
+			doc.DocumentID,
+			terms,
+			frequencies,
+		); err != nil {
+			return fmt.Errorf("write eshu search index terms: %w", err)
+		}
+	}
+	averageLength := 0.0
+	if len(documents) > 0 {
+		averageLength = float64(totalLength) / float64(len(documents))
+	}
+	if _, err := db.ExecContext(
+		ctx,
+		eshuSearchIndexStatsUpsertQuery,
+		scopeID,
+		generationID,
+		len(documents),
+		averageLength,
+		now,
+	); err != nil {
+		return fmt.Errorf("write eshu search index stats: %w", err)
+	}
+	return nil
+}
+
+func sortedSearchIndexTerms(terms map[string]int) ([]string, []int) {
+	keys := make([]string, 0, len(terms))
+	for term := range terms {
+		keys = append(keys, term)
+	}
+	sort.Strings(keys)
+	frequencies := make([]int, 0, len(keys))
+	for _, term := range keys {
+		frequencies = append(frequencies, terms[term])
+	}
+	return keys, frequencies
 }
 
 // eshuSearchDocumentFactID derives the deterministic fact id for one document.
