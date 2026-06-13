@@ -58,6 +58,8 @@ See `doc.go` for the godoc contract. Key groups:
 `RegisterObservableGauges` call once the queue and worker observers are wired.
 `RegisterAcceptanceObservableGauges` adds the `eshu_dp_shared_acceptance_rows`
 gauge when a shared-acceptance observer is available.
+`RegisterGraphOrphanObservableGauge` adds the `eshu_dp_graph_orphan_nodes` gauge
+when the reducer has a graph orphan observer.
 
 #### Counters (Int64)
 
@@ -308,6 +310,7 @@ module prefixes across generations.
 | `QueueOldestAge` | `eshu_dp_queue_oldest_age_seconds` | `queue` |
 | `WorkerPoolActive` | `eshu_dp_worker_pool_active` | `pool` |
 | `SharedAcceptanceRows` | `eshu_dp_shared_acceptance_rows` | none |
+| `GraphOrphanNodes` | `eshu_dp_graph_orphan_nodes` | `node_label` |
 | (via `RecordGOMEMLIMIT`) | `eshu_dp_gomemlimit_bytes` | none |
 
 ### Span name constants

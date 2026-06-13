@@ -72,9 +72,6 @@ func run(parent context.Context) error {
 	// eshu_dp_worker_pool_active gauge. It is shared between the gauge observer
 	// (registered now) and the executor decorator (wired into the service).
 	activeWorkers := new(atomic.Int64)
-	if err := registerReducerObservableGauges(instruments, meter, db, activeWorkers); err != nil {
-		return err
-	}
 
 	neo4jExecutor, cypherExecutor, neo4jReader, graphReader, neo4jCloser, err := openReducerNeo4jAdapters(parent, os.Getenv)
 	if err != nil {
@@ -96,6 +93,15 @@ func run(parent context.Context) error {
 	intentStore := postgres.NewSharedIntentStore(instrumentedDB)
 	serviceRunner, err := buildReducerService(instrumentedDB, instrumentedNeo4j, cypherExecutor, intentStore, neo4jReader, graphReader, os.Getenv, tracer, instruments, logger)
 	if err != nil {
+		return err
+	}
+	if err := registerReducerObservableGauges(
+		instruments,
+		meter,
+		db,
+		activeWorkers,
+		graphOrphanObserver(serviceRunner),
+	); err != nil {
 		return err
 	}
 	// Count in-flight executions for the eshu_dp_worker_pool_active gauge. Every
@@ -150,6 +156,7 @@ func buildReducerService(
 	repoDependencyCfg := loadRepoDependencyProjectionConfig(getenv)
 	repairCfg := loadGraphProjectionPhaseRepairConfig(getenv)
 	generationRetentionCfg := loadGenerationRetentionConfig(getenv)
+	graphOrphanSweepCfg := loadGraphOrphanSweepConfig(getenv)
 	codeCallEdgeBatchSize, codeCallEdgeGroupBatchSize := loadCodeCallEdgeWriterTuning(getenv)
 	inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize := loadSharedEdgeWriterGroupTuning(getenv)
 	serviceMaterializationWriter := serviceMaterializationWriterFor(database)
@@ -203,6 +210,10 @@ func buildReducerService(
 	if generationRetentionRunner != nil {
 		generationRetentionRunner.Instruments = instruments
 		generationRetentionRunner.Logger = logger
+	}
+	graphOrphanSweepRunner := graphOrphanSweepRunnerFor(neo4jExec, graphReader, intentStore, graphOrphanSweepCfg)
+	if graphOrphanSweepRunner != nil {
+		graphOrphanSweepRunner.Logger = logger
 	}
 	cloudInventoryEvidenceLoader, cloudInventoryAdmissionWriter, cloudInventoryGenerationCheck, cloudInventoryTagEvidenceLoader := cloudInventoryAdmissionWiring(database, logger)
 	multiCloudRuntimeDriftEvidenceLoader, multiCloudRuntimeDriftWriter, multiCloudRuntimeDriftLogger := multiCloudRuntimeDriftWiring(database, tracer, instruments, logger)
@@ -492,6 +503,7 @@ func buildReducerService(
 			Logger:      logger,
 		},
 		GenerationRetentionRunner: generationRetentionRunner,
+		GraphOrphanSweepRunner:    graphOrphanSweepRunner,
 		Workers:                   workers,
 		BatchClaimSize:            loadReducerBatchClaimSize(getenv, workers, graphBackend),
 		Tracer:                    tracer,

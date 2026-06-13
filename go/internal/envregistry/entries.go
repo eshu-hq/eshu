@@ -58,12 +58,19 @@ var coreEntries = []Entry{
 	{Name: "ESHU_MCP_ADDR", Type: VarString, Default: ":8080", Subsystem: "mcp", Description: "MCP HTTP transport listen address."},
 
 	// reducer
-	{Name: "ESHU_REDUCER_WORKERS", Type: VarInt, Subsystem: "reducer", Description: "Concurrent reducer workers (default derived from CPU count and backend)."},
+	{Name: "ESHU_GRAPH_ORPHAN_SWEEP_BATCH_LIMIT", Type: VarInt, Default: "100", Subsystem: "reducer", Description: "Maximum graph orphan nodes deleted per label in one sweep pass."},
+	{Name: "ESHU_GRAPH_ORPHAN_SWEEP_COUNT_LIMIT", Type: VarInt, Default: "10000", Subsystem: "reducer", Description: "Maximum graph orphan nodes counted per label for telemetry in one sweep pass."},
+	{Name: "ESHU_GRAPH_ORPHAN_SWEEP_ENABLED", Type: VarBool, Default: "true", Subsystem: "reducer", Description: "Enable the reducer side runner that marks and sweeps stale generation-owned graph orphans."},
+	{Name: "ESHU_GRAPH_ORPHAN_SWEEP_LEASE_OWNER", Type: VarString, Subsystem: "reducer", Description: "Lease owner for the single graph orphan sweep worker; defaults to a unique process token."},
+	{Name: "ESHU_GRAPH_ORPHAN_SWEEP_LEASE_TTL", Type: VarDuration, Default: "5m", Subsystem: "reducer", Description: "TTL for the graph orphan sweep partition lease."},
+	{Name: "ESHU_GRAPH_ORPHAN_SWEEP_POLL_INTERVAL", Type: VarDuration, Default: "1h", Subsystem: "reducer", Description: "Delay between graph orphan sweep passes."},
+	{Name: "ESHU_GRAPH_ORPHAN_SWEEP_TTL", Type: VarDuration, Default: "168h", Subsystem: "reducer", Description: "Minimum age before a marked graph orphan can be deleted."},
+	{Name: "ESHU_REDUCER_BATCH_CLAIM_SIZE", Type: VarInt, Subsystem: "reducer", Description: "Work items claimed per cycle (default adaptive to workers and backend)."},
+	{Name: "ESHU_REDUCER_CLAIM_DOMAIN", Type: VarString, Subsystem: "reducer", Deprecated: true, ReplacedBy: "ESHU_REDUCER_CLAIM_DOMAINS", Description: "Single reducer claim domain."},
+	{Name: "ESHU_REDUCER_CLAIM_DOMAINS", Type: VarString, Subsystem: "reducer", Description: "Comma-separated reducer domains for multi-domain claims."},
 	{Name: "ESHU_REDUCER_MAX_ATTEMPTS", Type: VarInt, Default: "3", Subsystem: "reducer", Description: "Maximum retry attempts for reducer work items."},
 	{Name: "ESHU_REDUCER_RETRY_DELAY", Type: VarDuration, Default: "30s", Subsystem: "reducer", Description: "Delay between reducer work-item retries."},
-	{Name: "ESHU_REDUCER_BATCH_CLAIM_SIZE", Type: VarInt, Subsystem: "reducer", Description: "Work items claimed per cycle (default adaptive to workers and backend)."},
-	{Name: "ESHU_REDUCER_CLAIM_DOMAINS", Type: VarString, Subsystem: "reducer", Description: "Comma-separated reducer domains for multi-domain claims."},
-	{Name: "ESHU_REDUCER_CLAIM_DOMAIN", Type: VarString, Subsystem: "reducer", Deprecated: true, ReplacedBy: "ESHU_REDUCER_CLAIM_DOMAINS", Description: "Single reducer claim domain."},
+	{Name: "ESHU_REDUCER_WORKERS", Type: VarInt, Subsystem: "reducer", Description: "Concurrent reducer workers (default derived from CPU count and backend)."},
 
 	// projector
 	{Name: "ESHU_PROJECTOR_WORKERS", Type: VarInt, Subsystem: "projector", Description: "Concurrent projector workers (default NumCPU capped at 8, min 1)."},

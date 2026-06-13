@@ -8,8 +8,9 @@
 // narrow and explicit: schema adapters, writer options, and the BuildCanonical*
 // statement builders own backend differences so callers do not need to branch
 // on ESHU_GRAPH_BACKEND. Writes must be idempotent and retry-safe; the
-// canonical writers (CanonicalNodeWriter, EdgeWriter) are the boundary where
-// node and edge invariants are enforced before bytes reach Neo4j or NornicDB.
+// canonical writers (CanonicalNodeWriter, EdgeWriter) and OrphanSweepStore are
+// the boundary where node, edge, and cleanup invariants are enforced before
+// bytes reach Neo4j or NornicDB.
 // Code-call rows may materialize as CALLS or REFERENCES depending on parser
 // semantics; Go and TypeScript type-reference metadata must remain REFERENCES
 // so graph truth does not claim that type literals are invocations. SQL
@@ -49,5 +50,8 @@
 // relationships without creating service, runtime, image, code-review, work
 // item, or root-cause graph truth. EC2InternetExposureNodeWriter stamps
 // reducer-owned exposure properties onto existing EC2 CloudResource nodes with
-// MATCH-only Cypher and never fabricates instances.
+// MATCH-only Cypher and never fabricates instances. OrphanSweepStore uses
+// static-label, zero-relationship MATCH/SET/DELETE statements over a closed
+// node-label set and deletes only nodes whose orphan marker aged past the
+// configured TTL.
 package cypher

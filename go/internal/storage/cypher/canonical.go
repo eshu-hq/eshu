@@ -45,7 +45,8 @@ SET rel.confidence = 1.0,
 
 const canonicalRuntimePlatformUpsertCypher = `MATCH (i:WorkloadInstance {id: $instance_id})
 MERGE (p:Platform {id: $platform_id})
-ON CREATE SET p.evidence_source = $evidence_source
+ON CREATE SET p.evidence_source = $evidence_source,
+              p.generation_id = $generation_id
 SET p.type = 'platform',
     p.name = $platform_name,
     p.kind = $platform_kind,
@@ -60,7 +61,8 @@ SET rel.confidence = 1.0,
 
 const canonicalInfrastructurePlatformUpsertCypher = `MATCH (repo:Repository {id: $repo_id})
 MERGE (p:Platform {id: $platform_id})
-ON CREATE SET p.evidence_source = $evidence_source
+ON CREATE SET p.evidence_source = $evidence_source,
+              p.generation_id = $generation_id
 SET p.type = 'platform',
     p.name = $platform_name,
     p.kind = $platform_kind,
@@ -81,7 +83,11 @@ SET rel.confidence = 0.98,
     rel.evidence_source = $evidence_source`
 
 const canonicalRepoDependencyUpsertCypher = `MERGE (source_repo:Repository {id: $repo_id})
+ON CREATE SET source_repo.evidence_source = $evidence_source,
+              source_repo.generation_id = $generation_id
 MERGE (target_repo:Repository {id: $target_repo_id})
+ON CREATE SET target_repo.evidence_source = $evidence_source,
+              target_repo.generation_id = $generation_id
 MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)
 SET rel.confidence = $confidence,
     rel.reason = 'Runtime services list declares repository dependency',
@@ -136,7 +142,8 @@ SET rel.confidence = 0.95,
 const batchCanonicalInfrastructurePlatformUpsertCypher = `UNWIND $rows AS row
 MATCH (repo:Repository {id: row.repo_id})
 MERGE (p:Platform {id: row.platform_id})
-ON CREATE SET p.evidence_source = row.evidence_source
+ON CREATE SET p.evidence_source = row.evidence_source,
+              p.generation_id = row.generation_id
 SET p.type = 'platform',
     p.name = row.platform_name,
     p.kind = row.platform_kind,
@@ -151,7 +158,11 @@ SET rel.confidence = 0.98,
 
 const batchCanonicalRepoDependencyUpsertCypher = `UNWIND $rows AS row
 MERGE (source_repo:Repository {id: row.repo_id})
+ON CREATE SET source_repo.evidence_source = row.evidence_source,
+              source_repo.generation_id = row.generation_id
 MERGE (target_repo:Repository {id: row.target_repo_id})
+ON CREATE SET target_repo.evidence_source = row.evidence_source,
+              target_repo.generation_id = row.generation_id
 MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)
 SET rel.confidence = row.confidence,
     rel.reason = 'Runtime services list declares repository dependency',
@@ -315,6 +326,7 @@ type CanonicalRuntimePlatformParams struct {
 	Environment      string
 	PlatformRegion   string
 	PlatformLocator  string
+	GenerationID     string
 }
 
 // CanonicalInfrastructurePlatformParams holds the parameters for a Platform +
@@ -328,6 +340,7 @@ type CanonicalInfrastructurePlatformParams struct {
 	PlatformEnvironment string
 	PlatformRegion      string
 	PlatformLocator     string
+	GenerationID        string
 }
 
 // CanonicalDeploymentSourceParams holds the parameters for a
@@ -419,6 +432,7 @@ func BuildCanonicalRuntimePlatformUpsert(p CanonicalRuntimePlatformParams, evide
 			"platform_region":   p.PlatformRegion,
 			"platform_locator":  p.PlatformLocator,
 			"evidence_source":   evidenceSource,
+			"generation_id":     p.GenerationID,
 		},
 	}
 }
@@ -439,6 +453,7 @@ func BuildCanonicalInfrastructurePlatformUpsert(p CanonicalInfrastructurePlatfor
 			"platform_region":      p.PlatformRegion,
 			"platform_locator":     p.PlatformLocator,
 			"evidence_source":      evidenceSource,
+			"generation_id":        p.GenerationID,
 		},
 	}
 }

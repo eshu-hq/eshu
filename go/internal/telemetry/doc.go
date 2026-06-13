@@ -120,6 +120,10 @@
 // non-canonical ranking metadata policy affected results without turning
 // evidence ids, graph handles, repository ids, or service ids into metric
 // labels.
+// Graph orphan cleanup registers GraphOrphanNodes
+// (eshu_dp_graph_orphan_nodes), labeled only by closed node_label values, so
+// operators can see residual zero-relationship graph nodes without exposing
+// repository or resource identities.
 // SpanAttrWorkItemEvidence* constants name the bounded work-item evidence
 // query span counts for query volume, returned rows, evidence states, and
 // truncation without adding tenant, user, issue, URL, or summary values to

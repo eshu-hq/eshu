@@ -74,6 +74,7 @@ func TestBuildCanonicalRuntimePlatformUpsertStatement(t *testing.T) {
 		Environment:      "production",
 		PlatformRegion:   "us-east-1",
 		PlatformLocator:  "arn:aws:eks:us-east-1:123:cluster/my-cluster",
+		GenerationID:     "gen-runtime-platform",
 	}, "finalization/workloads")
 
 	if stmt.Operation != OperationCanonicalUpsert {
@@ -85,11 +86,17 @@ func TestBuildCanonicalRuntimePlatformUpsertStatement(t *testing.T) {
 	if !strings.Contains(stmt.Cypher, "MERGE (i)-[rel:RUNS_ON]->(p)") {
 		t.Fatalf("Cypher missing RUNS_ON edge: %s", stmt.Cypher)
 	}
+	if !strings.Contains(stmt.Cypher, "p.generation_id = $generation_id") {
+		t.Fatalf("Cypher missing Platform generation metadata: %s", stmt.Cypher)
+	}
 	if stmt.Parameters["platform_id"] != "platform:eks:aws:my-cluster:production:us-east-1" {
 		t.Fatalf("platform_id = %v", stmt.Parameters["platform_id"])
 	}
 	if stmt.Parameters["platform_kind"] != "eks" {
 		t.Fatalf("platform_kind = %v", stmt.Parameters["platform_kind"])
+	}
+	if stmt.Parameters["generation_id"] != "gen-runtime-platform" {
+		t.Fatalf("generation_id = %v", stmt.Parameters["generation_id"])
 	}
 }
 
@@ -198,6 +205,7 @@ func TestBuildCanonicalInfrastructurePlatformUpsertStatement(t *testing.T) {
 		PlatformEnvironment: "staging",
 		PlatformRegion:      "us-west-2",
 		PlatformLocator:     "arn:aws:eks:us-west-2:123:cluster/infra-cluster",
+		GenerationID:        "gen-infra-platform",
 	}, "finalization/workloads")
 
 	if stmt.Operation != OperationCanonicalUpsert {
@@ -209,8 +217,14 @@ func TestBuildCanonicalInfrastructurePlatformUpsertStatement(t *testing.T) {
 	if !strings.Contains(stmt.Cypher, "MERGE (repo)-[rel:PROVISIONS_PLATFORM]->(p)") {
 		t.Fatalf("Cypher missing PROVISIONS_PLATFORM edge: %s", stmt.Cypher)
 	}
+	if !strings.Contains(stmt.Cypher, "p.generation_id = $generation_id") {
+		t.Fatalf("Cypher missing Platform generation metadata: %s", stmt.Cypher)
+	}
 	if stmt.Parameters["platform_environment"] != "staging" {
 		t.Fatalf("platform_environment = %v", stmt.Parameters["platform_environment"])
+	}
+	if stmt.Parameters["generation_id"] != "gen-infra-platform" {
+		t.Fatalf("generation_id = %v", stmt.Parameters["generation_id"])
 	}
 }
 
@@ -240,6 +254,7 @@ func TestBuildCanonicalRepoDependencyUpsertStatement(t *testing.T) {
 		RepoID:       "repo-a",
 		TargetRepoID: "repo-b",
 		EvidenceType: "docker_compose_depends_on",
+		GenerationID: "gen-repo-dependency",
 	}, "finalization/workloads")
 
 	if stmt.Operation != OperationCanonicalUpsert {
@@ -250,6 +265,12 @@ func TestBuildCanonicalRepoDependencyUpsertStatement(t *testing.T) {
 	}
 	if !strings.Contains(stmt.Cypher, "MERGE (target_repo:Repository {id: $target_repo_id})") {
 		t.Fatalf("Cypher missing target Repository MERGE: %s", stmt.Cypher)
+	}
+	if !strings.Contains(stmt.Cypher, "source_repo.generation_id = $generation_id") {
+		t.Fatalf("Cypher missing source Repository generation metadata: %s", stmt.Cypher)
+	}
+	if !strings.Contains(stmt.Cypher, "target_repo.generation_id = $generation_id") {
+		t.Fatalf("Cypher missing target Repository generation metadata: %s", stmt.Cypher)
 	}
 	if !strings.Contains(stmt.Cypher, "MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)") {
 		t.Fatalf("Cypher missing DEPENDS_ON edge: %s", stmt.Cypher)
@@ -268,6 +289,9 @@ func TestBuildCanonicalRepoDependencyUpsertStatement(t *testing.T) {
 	}
 	if stmt.Parameters["evidence_type"] != "docker_compose_depends_on" {
 		t.Fatalf("evidence_type = %v", stmt.Parameters["evidence_type"])
+	}
+	if stmt.Parameters["generation_id"] != "gen-repo-dependency" {
+		t.Fatalf("generation_id = %v", stmt.Parameters["generation_id"])
 	}
 }
 

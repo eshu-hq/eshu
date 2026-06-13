@@ -39,10 +39,48 @@ flowchart TB
   Service --> CCPR["CodeCallProjectionRunner.Run()\ngoroutine"]
   Service --> RDPR["RepoDependencyProjectionRunner.Run()\ngoroutine"]
   Service --> Repair["GraphProjectionPhaseRepairer.Run()\ngoroutine"]
+  Service --> Orphans["GraphOrphanSweepRunner.Run()\ngoroutine"]
   SPR --> ProcessPartition["ProcessPartitionOnce()\nper domain × partition"]
   ProcessPartition --> ReadinessGate["GraphProjectionReadinessLookup\n(semantic_nodes_committed gate)"]
   ReadinessGate --> EdgeWriter["EdgeWriter.ExecuteGroup()\nvia storage/cypher"]
 ```
+
+## Graph Orphan Sweep
+
+`GraphOrphanSweepRunner` runs beside reducer intent workers and shared
+projection. It delegates to `storage/cypher.OrphanSweepStore`, which counts,
+marks, clears, and deletes only zero-relationship nodes in a closed label set:
+`Repository`, `Platform`, and `EvidenceArtifact`. The sweep uses static-label
+Cypher, a single-owner Postgres partition lease, a per-label batch limit, a
+per-label count cap, and a TTL marker (`eshu_orphan_observed_at_unix`) so one
+transiently disconnected cycle cannot delete a node immediately. Repository sweeps exclude
+`evidence_source='projector/canonical'`; empty but active source-local
+repositories remain canonical-writer truth, not sweep candidates.
+
+This runner is cleanup, not truth ownership. Relationship retraction,
+canonical-node replacement, and reducer-owned materialization still own their
+normal invariants. The sweep removes only nodes that remain disconnected after
+the TTL and clears the marker when a relationship returns.
+
+No-Regression Evidence: `go test ./internal/storage/cypher -run
+'TestBuildMarkOrphan|TestBuildSweepOrphan|TestBuildCountOrphan|TestBuildClearOrphan|TestRepoRelationshipUpsertStamps|TestInfrastructurePlatformUpsert|TestBatchedWriteEdgesParameterFidelity|TestOrphanSweepStoreUsesInjectedClock'
+-count=1` proves the bounded static-label Cypher shape, metadata stamping for
+relationship-created repositories and platforms, and injected-clock TTL
+behavior. `go test ./internal/storage/cypher -run
+TestRepositoryOrphanSweepExcludesSourceLocalCanonicalRepositories -count=1`
+proves source-local canonical Repository nodes are outside the sweep predicate.
+`go test ./internal/reducer -run
+'TestGraphOrphanSweepRunner|TestServiceStartsGraphOrphanSweepRunner' -count=1`
+proves the runner drains available delete batches without lowering worker
+concurrency, skips graph mutation when another replica owns the sweep lease, and
+starts as a side runner in `Service.Run()`.
+
+Observability Evidence: `GraphOrphanSweepRunner` completion logs include total
+and per-label counts, marks, deletes, duration, `phase=reduction`, and
+`failure_class=graph_orphan_sweep_error` on failure. The reducer registers
+`eshu_dp_graph_orphan_nodes` through `telemetry.RegisterGraphOrphanObservableGauge`;
+the metric is labeled only by closed `node_label` values and uses the configured
+per-label count cap.
 
 ## Domain catalog
 

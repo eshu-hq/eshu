@@ -24,7 +24,11 @@ type CanonicalRunsOnParams struct {
 }
 
 const canonicalDeploysFromRepoRelationshipUpsertCypher = `MERGE (source_repo:Repository {id: $repo_id})
+ON CREATE SET source_repo.evidence_source = $evidence_source,
+              source_repo.generation_id = $generation_id
 MERGE (target_repo:Repository {id: $target_repo_id})
+ON CREATE SET target_repo.evidence_source = $evidence_source,
+              target_repo.generation_id = $generation_id
 MERGE (source_repo)-[rel:DEPLOYS_FROM]->(target_repo)
 SET rel.confidence = $confidence,
     rel.reason = 'Runtime services list declares repository dependency',
@@ -39,7 +43,11 @@ SET rel.confidence = $confidence,
     rel.rationale = $rationale`
 
 const canonicalDiscoversConfigInRepoRelationshipUpsertCypher = `MERGE (source_repo:Repository {id: $repo_id})
+ON CREATE SET source_repo.evidence_source = $evidence_source,
+              source_repo.generation_id = $generation_id
 MERGE (target_repo:Repository {id: $target_repo_id})
+ON CREATE SET target_repo.evidence_source = $evidence_source,
+              target_repo.generation_id = $generation_id
 MERGE (source_repo)-[rel:DISCOVERS_CONFIG_IN]->(target_repo)
 SET rel.confidence = $confidence,
     rel.reason = 'Runtime services list declares repository dependency',
@@ -54,7 +62,11 @@ SET rel.confidence = $confidence,
     rel.rationale = $rationale`
 
 const canonicalProvisionsDependencyForRepoRelationshipUpsertCypher = `MERGE (source_repo:Repository {id: $repo_id})
+ON CREATE SET source_repo.evidence_source = $evidence_source,
+              source_repo.generation_id = $generation_id
 MERGE (target_repo:Repository {id: $target_repo_id})
+ON CREATE SET target_repo.evidence_source = $evidence_source,
+              target_repo.generation_id = $generation_id
 MERGE (source_repo)-[rel:PROVISIONS_DEPENDENCY_FOR]->(target_repo)
 SET rel.confidence = $confidence,
     rel.reason = 'Runtime services list declares repository dependency',
@@ -69,7 +81,11 @@ SET rel.confidence = $confidence,
     rel.rationale = $rationale`
 
 const canonicalUsesModuleRepoRelationshipUpsertCypher = `MERGE (source_repo:Repository {id: $repo_id})
+ON CREATE SET source_repo.evidence_source = $evidence_source,
+              source_repo.generation_id = $generation_id
 MERGE (target_repo:Repository {id: $target_repo_id})
+ON CREATE SET target_repo.evidence_source = $evidence_source,
+              target_repo.generation_id = $generation_id
 MERGE (source_repo)-[rel:USES_MODULE]->(target_repo)
 SET rel.confidence = $confidence,
     rel.reason = 'Runtime services list declares repository dependency',
@@ -84,7 +100,11 @@ SET rel.confidence = $confidence,
     rel.rationale = $rationale`
 
 const canonicalReadsConfigFromRepoRelationshipUpsertCypher = `MERGE (source_repo:Repository {id: $repo_id})
+ON CREATE SET source_repo.evidence_source = $evidence_source,
+              source_repo.generation_id = $generation_id
 MERGE (target_repo:Repository {id: $target_repo_id})
+ON CREATE SET target_repo.evidence_source = $evidence_source,
+              target_repo.generation_id = $generation_id
 MERGE (source_repo)-[rel:READS_CONFIG_FROM]->(target_repo)
 SET rel.confidence = $confidence,
     rel.reason = 'Runtime services list declares repository dependency',
@@ -100,7 +120,11 @@ SET rel.confidence = $confidence,
 
 const batchCanonicalDeploysFromRepoRelationshipUpsertCypher = `UNWIND $rows AS row
 MERGE (source_repo:Repository {id: row.repo_id})
+ON CREATE SET source_repo.evidence_source = row.evidence_source,
+              source_repo.generation_id = row.generation_id
 MERGE (target_repo:Repository {id: row.target_repo_id})
+ON CREATE SET target_repo.evidence_source = row.evidence_source,
+              target_repo.generation_id = row.generation_id
 MERGE (source_repo)-[rel:DEPLOYS_FROM]->(target_repo)
 SET rel.confidence = row.confidence,
     rel.reason = 'Runtime services list declares repository dependency',
@@ -116,7 +140,11 @@ SET rel.confidence = row.confidence,
 
 const batchCanonicalDiscoversConfigInRepoRelationshipUpsertCypher = `UNWIND $rows AS row
 MERGE (source_repo:Repository {id: row.repo_id})
+ON CREATE SET source_repo.evidence_source = row.evidence_source,
+              source_repo.generation_id = row.generation_id
 MERGE (target_repo:Repository {id: row.target_repo_id})
+ON CREATE SET target_repo.evidence_source = row.evidence_source,
+              target_repo.generation_id = row.generation_id
 MERGE (source_repo)-[rel:DISCOVERS_CONFIG_IN]->(target_repo)
 SET rel.confidence = row.confidence,
     rel.reason = 'Runtime services list declares repository dependency',
@@ -132,7 +160,11 @@ SET rel.confidence = row.confidence,
 
 const batchCanonicalProvisionsDependencyForRepoRelationshipUpsertCypher = `UNWIND $rows AS row
 MERGE (source_repo:Repository {id: row.repo_id})
+ON CREATE SET source_repo.evidence_source = row.evidence_source,
+              source_repo.generation_id = row.generation_id
 MERGE (target_repo:Repository {id: row.target_repo_id})
+ON CREATE SET target_repo.evidence_source = row.evidence_source,
+              target_repo.generation_id = row.generation_id
 MERGE (source_repo)-[rel:PROVISIONS_DEPENDENCY_FOR]->(target_repo)
 SET rel.confidence = row.confidence,
     rel.reason = 'Runtime services list declares repository dependency',
@@ -148,7 +180,11 @@ SET rel.confidence = row.confidence,
 
 const batchCanonicalUsesModuleRepoRelationshipUpsertCypher = `UNWIND $rows AS row
 MERGE (source_repo:Repository {id: row.repo_id})
+ON CREATE SET source_repo.evidence_source = row.evidence_source,
+              source_repo.generation_id = row.generation_id
 MERGE (target_repo:Repository {id: row.target_repo_id})
+ON CREATE SET target_repo.evidence_source = row.evidence_source,
+              target_repo.generation_id = row.generation_id
 MERGE (source_repo)-[rel:USES_MODULE]->(target_repo)
 SET rel.confidence = row.confidence,
     rel.reason = 'Runtime services list declares repository dependency',
@@ -164,7 +200,11 @@ SET rel.confidence = row.confidence,
 
 const batchCanonicalReadsConfigFromRepoRelationshipUpsertCypher = `UNWIND $rows AS row
 MERGE (source_repo:Repository {id: row.repo_id})
+ON CREATE SET source_repo.evidence_source = row.evidence_source,
+              source_repo.generation_id = row.generation_id
 MERGE (target_repo:Repository {id: row.target_repo_id})
+ON CREATE SET target_repo.evidence_source = row.evidence_source,
+              target_repo.generation_id = row.generation_id
 MERGE (source_repo)-[rel:READS_CONFIG_FROM]->(target_repo)
 SET rel.confidence = row.confidence,
     rel.reason = 'Runtime services list declares repository dependency',

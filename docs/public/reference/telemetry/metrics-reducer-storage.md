@@ -33,6 +33,19 @@ Retention metrics intentionally do not label raw scope IDs, generation IDs,
 repository paths, source names, or provider identifiers. Use the retention event
 table's safe hashes and structured logs for authorized drilldown.
 
+## Graph Orphan Sweep
+
+| Metric | Type | Use |
+| --- | --- | --- |
+| `eshu_dp_graph_orphan_nodes` | observable gauge | Current zero-relationship node count by closed `node_label`. |
+
+The graph orphan sweep counts only the closed label set used by the reducer
+cleanup path: `Repository`, `Platform`, and `EvidenceArtifact`. Counts are
+capped by `ESHU_GRAPH_ORPHAN_SWEEP_COUNT_LIMIT` per label, so the gauge is a
+dashboard signal, not an exact audit record. Sweep cycle logs carry per-label
+counts, marks, deletes, duration, and `failure_class=graph_orphan_sweep_error`
+without repository paths, resource identifiers, or generation ids.
+
 ## Shared Follow-Up And Acceptance
 
 | Metric | Type | Use |

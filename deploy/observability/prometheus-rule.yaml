@@ -102,6 +102,23 @@ spec:
               5. Monitor `eshu_dp_canonical_write_duration_seconds` for Neo4j write bottlenecks
               6. Consider horizontal scaling: add more reducer replicas if CPU-bound
 
+        - alert: EshuGraphOrphanNodesHigh
+          expr: max by (node_label) (eshu_dp_graph_orphan_nodes) > 1000
+          for: 30m
+          labels:
+            severity: warning
+            service: eshu-reducer
+            component: pipeline
+          annotations:
+            summary: "Graph orphan node count is high"
+            description: "There are {{ $value }} zero-relationship graph nodes for label {{ $labels.node_label }} after multiple scrape windows."
+            runbook: |
+              1. Check reducer logs for `graph orphan sweep cycle failed` and `failure_class=graph_orphan_sweep_error`
+              2. Verify `ESHU_GRAPH_ORPHAN_SWEEP_ENABLED`, `ESHU_GRAPH_ORPHAN_SWEEP_TTL`, and `ESHU_GRAPH_ORPHAN_SWEEP_BATCH_LIMIT`
+              3. Compare `eshu_dp_neo4j_query_duration_seconds` for graph write pressure during sweep cycles
+              4. Check whether relationship retraction is still producing progress before changing sweep limits
+              5. If counts keep rising for one label, inspect the corresponding writer for disconnected node creation
+
         - alert: EshuCollectorStalled
           expr: rate(eshu_dp_facts_emitted_total[15m]) == 0
           for: 15m

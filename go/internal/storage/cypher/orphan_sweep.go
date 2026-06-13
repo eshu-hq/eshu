@@ -1,0 +1,380 @@
+package cypher
+
+import (
+	"context"
+	"fmt"
+	"math"
+	"time"
+)
+
+const (
+	defaultOrphanSweepBatchLimit = 100
+	defaultOrphanSweepCountLimit = 10000
+	defaultOrphanSweepTTL        = 7 * 24 * time.Hour
+)
+
+// OrphanSweepLabel names one closed graph node label eligible for bounded
+// orphan detection and cleanup.
+type OrphanSweepLabel string
+
+const (
+	// OrphanSweepLabelRepository covers relationship-created repository targets.
+	OrphanSweepLabelRepository OrphanSweepLabel = "Repository"
+	// OrphanSweepLabelPlatform covers inferred runtime and infrastructure targets.
+	OrphanSweepLabelPlatform OrphanSweepLabel = "Platform"
+	// OrphanSweepLabelEvidenceArtifact covers repository relationship evidence nodes.
+	OrphanSweepLabelEvidenceArtifact OrphanSweepLabel = "EvidenceArtifact"
+)
+
+// DefaultOrphanSweepLabels returns the closed orphan sweep label set.
+func DefaultOrphanSweepLabels() []OrphanSweepLabel {
+	return []OrphanSweepLabel{
+		OrphanSweepLabelRepository,
+		OrphanSweepLabelPlatform,
+		OrphanSweepLabelEvidenceArtifact,
+	}
+}
+
+// OrphanSweepReader runs bounded graph read queries used by the orphan observer.
+type OrphanSweepReader interface {
+	Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error)
+}
+
+// OrphanSweepPolicy bounds one orphan sweep cycle.
+type OrphanSweepPolicy struct {
+	OrphanTTL  time.Duration
+	BatchLimit int
+	CountLimit int
+	Labels     []string
+	Now        time.Time
+}
+
+// OrphanSweepResult summarizes one graph orphan sweep cycle.
+type OrphanSweepResult struct {
+	Counts   map[string]int64
+	Marked   map[string]int64
+	Deleted  map[string]int64
+	Duration time.Duration
+}
+
+// OrphanSweepStore counts, marks, and deletes zero-relationship graph nodes
+// through backend-neutral Cypher seams.
+type OrphanSweepStore struct {
+	Executor   Executor
+	Reader     OrphanSweepReader
+	CountLimit int
+	Labels     []OrphanSweepLabel
+	Now        func() time.Time
+}
+
+// NewOrphanSweepStore returns a graph orphan sweep store.
+func NewOrphanSweepStore(executor Executor, reader OrphanSweepReader) *OrphanSweepStore {
+	return &OrphanSweepStore{
+		Executor: executor,
+		Reader:   reader,
+		Labels:   DefaultOrphanSweepLabels(),
+	}
+}
+
+// SweepOrphanNodes marks newly observed orphan nodes and deletes nodes whose
+// orphan marker is older than the configured TTL.
+func (s *OrphanSweepStore) SweepOrphanNodes(ctx context.Context, policy OrphanSweepPolicy) (OrphanSweepResult, error) {
+	if s == nil || s.Executor == nil {
+		return OrphanSweepResult{}, fmt.Errorf("orphan sweep executor is required")
+	}
+	if s.Reader == nil {
+		return OrphanSweepResult{}, fmt.Errorf("orphan sweep reader is required")
+	}
+
+	if policy.Now.IsZero() && s.Now != nil {
+		policy.Now = s.Now().UTC()
+	}
+	policy = normalizeOrphanSweepPolicy(policy)
+	labels, err := orphanSweepLabels(policy.Labels)
+	if err != nil {
+		return OrphanSweepResult{}, err
+	}
+	start := time.Now()
+	nowUnix := policy.Now.Unix()
+	cutoffUnix := policy.Now.Add(-policy.OrphanTTL).Unix()
+	result := OrphanSweepResult{
+		Counts:  make(map[string]int64, len(labels)),
+		Marked:  make(map[string]int64, len(labels)),
+		Deleted: make(map[string]int64, len(labels)),
+	}
+
+	for _, label := range labels {
+		clearStmt, _ := BuildClearOrphanMarkerStatement(label, policy.BatchLimit)
+		if err := s.Executor.Execute(ctx, clearStmt); err != nil {
+			return OrphanSweepResult{}, fmt.Errorf("clear orphan marker for %s: %w", label, err)
+		}
+
+		count, err := s.countOrphans(ctx, label, policy.CountLimit)
+		if err != nil {
+			return OrphanSweepResult{}, err
+		}
+		result.Counts[string(label)] = count
+
+		markStmt, _ := BuildMarkOrphanNodesStatement(label, nowUnix, policy.BatchLimit)
+		if err := s.Executor.Execute(ctx, markStmt); err != nil {
+			return OrphanSweepResult{}, fmt.Errorf("mark orphan nodes for %s: %w", label, err)
+		}
+		result.Marked[string(label)] = boundedMutationEstimate(count, policy.BatchLimit)
+
+		agedCount, err := s.countAgedOrphans(ctx, label, cutoffUnix, policy.CountLimit)
+		if err != nil {
+			return OrphanSweepResult{}, err
+		}
+		sweepStmt, _ := BuildSweepOrphanNodesStatement(label, cutoffUnix, policy.BatchLimit)
+		if err := s.Executor.Execute(ctx, sweepStmt); err != nil {
+			return OrphanSweepResult{}, fmt.Errorf("sweep orphan nodes for %s: %w", label, err)
+		}
+		result.Deleted[string(label)] = boundedMutationEstimate(agedCount, policy.BatchLimit)
+	}
+	result.Duration = time.Since(start)
+	return result, nil
+}
+
+// GraphOrphanNodeCounts returns bounded zero-relationship node counts by label.
+func (s *OrphanSweepStore) GraphOrphanNodeCounts(ctx context.Context) (map[string]int64, error) {
+	if s == nil || s.Reader == nil {
+		return nil, fmt.Errorf("orphan sweep reader is required")
+	}
+	labels := s.Labels
+	if len(labels) == 0 {
+		labels = DefaultOrphanSweepLabels()
+	}
+	limit := s.CountLimit
+	if limit <= 0 {
+		limit = defaultOrphanSweepCountLimit
+	}
+	counts := make(map[string]int64, len(labels))
+	for _, label := range labels {
+		count, err := s.countOrphans(ctx, label, limit)
+		if err != nil {
+			return nil, err
+		}
+		counts[string(label)] = count
+	}
+	return counts, nil
+}
+
+func (s *OrphanSweepStore) countOrphans(ctx context.Context, label OrphanSweepLabel, limit int) (int64, error) {
+	stmt, ok := BuildCountOrphanNodesQuery(label, limit)
+	if !ok {
+		return 0, fmt.Errorf("unsupported orphan sweep label %q", label)
+	}
+	return s.countWithStatement(ctx, stmt, label)
+}
+
+func (s *OrphanSweepStore) countAgedOrphans(
+	ctx context.Context,
+	label OrphanSweepLabel,
+	cutoffUnix int64,
+	limit int,
+) (int64, error) {
+	stmt, ok := buildCountAgedOrphanNodesQuery(label, cutoffUnix, limit)
+	if !ok {
+		return 0, fmt.Errorf("unsupported orphan sweep label %q", label)
+	}
+	return s.countWithStatement(ctx, stmt, label)
+}
+
+func (s *OrphanSweepStore) countWithStatement(ctx context.Context, stmt Statement, label OrphanSweepLabel) (int64, error) {
+	rows, err := s.Reader.Run(ctx, stmt.Cypher, stmt.Parameters)
+	if err != nil {
+		return 0, fmt.Errorf("count orphan nodes for %s: %w", label, err)
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
+	count, ok := int64Count(rows[0]["orphan_count"])
+	if !ok {
+		return 0, fmt.Errorf("count orphan nodes for %s: unexpected count type %T", label, rows[0]["orphan_count"])
+	}
+	return count, nil
+}
+
+// BuildMarkOrphanNodesStatement builds a static-label statement that marks
+// newly observed zero-relationship nodes.
+func BuildMarkOrphanNodesStatement(label OrphanSweepLabel, observedAtUnix int64, limit int) (Statement, bool) {
+	match, ok := orphanLabelMatch(label)
+	if !ok {
+		return Statement{}, false
+	}
+	return Statement{
+		Operation: OperationCanonicalRetract,
+		Cypher: fmt.Sprintf(`MATCH (n:%s)
+WHERE %s
+  AND n.eshu_orphan_observed_at_unix IS NULL
+  AND NOT (n)--()
+WITH n LIMIT $limit
+SET n.eshu_orphan_observed_at_unix = $observed_at_unix`, match, orphanSweepEvidencePredicate(label)),
+		Parameters: map[string]any{
+			"observed_at_unix": observedAtUnix,
+			"limit":            normalizePositiveInt(limit, defaultOrphanSweepBatchLimit),
+		},
+	}, true
+}
+
+// BuildSweepOrphanNodesStatement builds a static-label statement that deletes
+// aged zero-relationship nodes without DETACH DELETE.
+func BuildSweepOrphanNodesStatement(label OrphanSweepLabel, cutoffUnix int64, limit int) (Statement, bool) {
+	match, ok := orphanLabelMatch(label)
+	if !ok {
+		return Statement{}, false
+	}
+	return Statement{
+		Operation: OperationCanonicalRetract,
+		Cypher: fmt.Sprintf(`MATCH (n:%s)
+WHERE %s
+  AND n.eshu_orphan_observed_at_unix <= $cutoff_unix
+  AND NOT (n)--()
+WITH n LIMIT $limit
+DELETE n`, match, orphanSweepEvidencePredicate(label)),
+		Parameters: map[string]any{
+			"cutoff_unix": cutoffUnix,
+			"limit":       normalizePositiveInt(limit, defaultOrphanSweepBatchLimit),
+		},
+	}, true
+}
+
+// BuildCountOrphanNodesQuery builds a bounded static-label count query.
+func BuildCountOrphanNodesQuery(label OrphanSweepLabel, limit int) (Statement, bool) {
+	match, ok := orphanLabelMatch(label)
+	if !ok {
+		return Statement{}, false
+	}
+	return Statement{
+		Operation: OperationCanonicalRetract,
+		Cypher: fmt.Sprintf(`MATCH (n:%s)
+WHERE %s
+  AND NOT (n)--()
+WITH n LIMIT $limit
+RETURN count(n) AS orphan_count`, match, orphanSweepEvidencePredicate(label)),
+		Parameters: map[string]any{
+			"limit": normalizePositiveInt(limit, defaultOrphanSweepCountLimit),
+		},
+	}, true
+}
+
+// BuildClearOrphanMarkerStatement clears orphan markers from relinked nodes.
+func BuildClearOrphanMarkerStatement(label OrphanSweepLabel, limit int) (Statement, bool) {
+	match, ok := orphanLabelMatch(label)
+	if !ok {
+		return Statement{}, false
+	}
+	return Statement{
+		Operation: OperationCanonicalRetract,
+		Cypher: fmt.Sprintf(`MATCH (n:%s)
+WHERE n.eshu_orphan_observed_at_unix IS NOT NULL
+  AND (n)--()
+WITH n LIMIT $limit
+REMOVE n.eshu_orphan_observed_at_unix`, match),
+		Parameters: map[string]any{
+			"limit": normalizePositiveInt(limit, defaultOrphanSweepBatchLimit),
+		},
+	}, true
+}
+
+func buildCountAgedOrphanNodesQuery(label OrphanSweepLabel, cutoffUnix int64, limit int) (Statement, bool) {
+	match, ok := orphanLabelMatch(label)
+	if !ok {
+		return Statement{}, false
+	}
+	return Statement{
+		Operation: OperationCanonicalRetract,
+		Cypher: fmt.Sprintf(`MATCH (n:%s)
+WHERE %s
+  AND n.eshu_orphan_observed_at_unix <= $cutoff_unix
+  AND NOT (n)--()
+WITH n LIMIT $limit
+RETURN count(n) AS orphan_count`, match, orphanSweepEvidencePredicate(label)),
+		Parameters: map[string]any{
+			"cutoff_unix": cutoffUnix,
+			"limit":       normalizePositiveInt(limit, defaultOrphanSweepCountLimit),
+		},
+	}, true
+}
+
+func orphanLabelMatch(label OrphanSweepLabel) (string, bool) {
+	switch label {
+	case OrphanSweepLabelRepository:
+		return "Repository", true
+	case OrphanSweepLabelPlatform:
+		return "Platform", true
+	case OrphanSweepLabelEvidenceArtifact:
+		return "EvidenceArtifact", true
+	default:
+		return "", false
+	}
+}
+
+func orphanSweepEvidencePredicate(label OrphanSweepLabel) string {
+	if label == OrphanSweepLabelRepository {
+		return "n.evidence_source IS NOT NULL\n  AND n.evidence_source <> 'projector/canonical'"
+	}
+	return "n.evidence_source IS NOT NULL"
+}
+
+func orphanSweepLabels(raw []string) ([]OrphanSweepLabel, error) {
+	if len(raw) == 0 {
+		return DefaultOrphanSweepLabels(), nil
+	}
+	labels := make([]OrphanSweepLabel, 0, len(raw))
+	for _, value := range raw {
+		label := OrphanSweepLabel(value)
+		if _, ok := orphanLabelMatch(label); !ok {
+			return nil, fmt.Errorf("unsupported orphan sweep label %q", value)
+		}
+		labels = append(labels, label)
+	}
+	return labels, nil
+}
+
+func normalizeOrphanSweepPolicy(policy OrphanSweepPolicy) OrphanSweepPolicy {
+	if policy.OrphanTTL <= 0 {
+		policy.OrphanTTL = defaultOrphanSweepTTL
+	}
+	policy.BatchLimit = normalizePositiveInt(policy.BatchLimit, defaultOrphanSweepBatchLimit)
+	policy.CountLimit = normalizePositiveInt(policy.CountLimit, defaultOrphanSweepCountLimit)
+	if policy.Now.IsZero() {
+		policy.Now = time.Now().UTC()
+	}
+	return policy
+}
+
+func normalizePositiveInt(value int, defaultValue int) int {
+	if value <= 0 {
+		return defaultValue
+	}
+	return value
+}
+
+func boundedMutationEstimate(count int64, limit int) int64 {
+	if count <= 0 {
+		return 0
+	}
+	if limit <= 0 {
+		limit = defaultOrphanSweepBatchLimit
+	}
+	return min(count, int64(limit))
+}
+
+func int64Count(value any) (int64, bool) {
+	switch typed := value.(type) {
+	case int:
+		return int64(typed), true
+	case int32:
+		return int64(typed), true
+	case int64:
+		return typed, true
+	case float64:
+		if typed < 0 || typed > math.MaxInt64 || math.Trunc(typed) != typed {
+			return 0, false
+		}
+		return int64(typed), true
+	default:
+		return 0, false
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -54,6 +55,14 @@ const (
 	generationRetentionPolicyScopeEnv              = "ESHU_GENERATION_RETENTION_POLICY_SCOPE"
 	generationRetentionPolicyRevisionEnv           = "ESHU_GENERATION_RETENTION_POLICY_REVISION"
 
+	graphOrphanSweepEnabledEnv      = "ESHU_GRAPH_ORPHAN_SWEEP_ENABLED"
+	graphOrphanSweepPollIntervalEnv = "ESHU_GRAPH_ORPHAN_SWEEP_POLL_INTERVAL"
+	graphOrphanSweepTTLEnv          = "ESHU_GRAPH_ORPHAN_SWEEP_TTL"
+	graphOrphanSweepBatchLimitEnv   = "ESHU_GRAPH_ORPHAN_SWEEP_BATCH_LIMIT"
+	graphOrphanSweepCountLimitEnv   = "ESHU_GRAPH_ORPHAN_SWEEP_COUNT_LIMIT"
+	graphOrphanSweepLeaseOwnerEnv   = "ESHU_GRAPH_ORPHAN_SWEEP_LEASE_OWNER"
+	graphOrphanSweepLeaseTTLEnv     = "ESHU_GRAPH_ORPHAN_SWEEP_LEASE_TTL"
+
 	driftPriorConfigDepthEnv = "ESHU_DRIFT_PRIOR_CONFIG_DEPTH"
 
 	defaultCodeCallProjectionPollInterval        = 500 * time.Millisecond
@@ -75,11 +84,21 @@ const (
 	defaultGraphProjectionRepairRetryDelay   = time.Minute
 
 	defaultGenerationRetentionPollInterval = time.Hour
+	defaultGraphOrphanSweepPollInterval    = time.Hour
+	defaultGraphOrphanSweepTTL             = 7 * 24 * time.Hour
+	defaultGraphOrphanSweepBatchLimit      = 100
+	defaultGraphOrphanSweepCountLimit      = 10_000
+	defaultGraphOrphanSweepLeaseTTL        = 5 * time.Minute
 )
 
 type generationRetentionConfig struct {
 	Enabled bool
 	Runner  reducer.GenerationRetentionRunnerConfig
+}
+
+type graphOrphanSweepConfig struct {
+	Enabled bool
+	Runner  reducer.GraphOrphanSweepRunnerConfig
 }
 
 func loadReducerQueueConfig(getenv func(string) string) (runtimecfg.RetryPolicyConfig, error) {
@@ -306,6 +325,34 @@ func loadGenerationRetentionConfig(getenv func(string) string) generationRetenti
 			},
 		},
 	}
+}
+
+func loadGraphOrphanSweepConfig(getenv func(string) string) graphOrphanSweepConfig {
+	if getenv == nil {
+		getenv = func(string) string { return "" }
+	}
+	return graphOrphanSweepConfig{
+		Enabled: loadBoolOrDefault(getenv, graphOrphanSweepEnabledEnv, true),
+		Runner: reducer.GraphOrphanSweepRunnerConfig{
+			PollInterval: loadDurationOrDefault(getenv, graphOrphanSweepPollIntervalEnv, defaultGraphOrphanSweepPollInterval),
+			LeaseOwner:   loadStringOrDefault(getenv, graphOrphanSweepLeaseOwnerEnv, defaultGraphOrphanSweepLeaseOwner()),
+			LeaseTTL:     loadDurationOrDefault(getenv, graphOrphanSweepLeaseTTLEnv, defaultGraphOrphanSweepLeaseTTL),
+			Policy: reducer.GraphOrphanSweepPolicy{
+				OrphanTTL:  loadDurationOrDefault(getenv, graphOrphanSweepTTLEnv, defaultGraphOrphanSweepTTL),
+				BatchLimit: loadPositiveIntOrDefault(getenv, graphOrphanSweepBatchLimitEnv, defaultGraphOrphanSweepBatchLimit),
+				CountLimit: loadPositiveIntOrDefault(getenv, graphOrphanSweepCountLimitEnv, defaultGraphOrphanSweepCountLimit),
+				Labels:     []string{"Repository", "Platform", "EvidenceArtifact"},
+			},
+		},
+	}
+}
+
+func defaultGraphOrphanSweepLeaseOwner() string {
+	hostname, err := os.Hostname()
+	if err != nil || strings.TrimSpace(hostname) == "" {
+		hostname = "unknown-host"
+	}
+	return fmt.Sprintf("graph-orphan-sweep-runner:%s:%d", hostname, os.Getpid())
 }
 
 func loadStringOrDefault(getenv func(string) string, key string, defaultValue string) string {

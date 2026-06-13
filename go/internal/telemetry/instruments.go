@@ -34,6 +34,13 @@ type AcceptanceObserver interface {
 	AcceptanceRowCount(ctx context.Context) (int64, error)
 }
 
+// GraphOrphanObserver provides bounded graph orphan counts by node label.
+type GraphOrphanObserver interface {
+	// GraphOrphanNodeCounts returns current zero-relationship node counts keyed
+	// by a closed graph label such as Repository, Platform, or EvidenceArtifact.
+	GraphOrphanNodeCounts(ctx context.Context) (map[string]int64, error)
+}
+
 // AWSClaimConcurrencyObserver provides active AWS claim counts by account.
 type AWSClaimConcurrencyObserver interface {
 	// AWSClaimConcurrency returns active claim counts keyed by AWS account ID.
@@ -648,10 +655,10 @@ type Instruments struct {
 	// traces. The query package records both through the global meter using the
 	// same instrument names registered here so the frozen contract stays
 	// authoritative.
-	IaCResourceListDuration              metric.Float64Histogram
-	IaCResourceListErrors                metric.Int64Counter
-	CloudResourceListDuration            metric.Float64Histogram
-	CloudResourceListErrors              metric.Int64Counter
+	IaCResourceListDuration   metric.Float64Histogram
+	IaCResourceListErrors     metric.Int64Counter
+	CloudResourceListDuration metric.Float64Histogram
+	CloudResourceListErrors   metric.Int64Counter
 	// APIRequestDuration measures per-endpoint HTTP handler latency for every
 	// query API and MCP read route, labeled by the matched low-cardinality route
 	// pattern (which already encodes the method) and response status_class. Its
@@ -741,6 +748,7 @@ type Instruments struct {
 	QueueOldestAge       metric.Float64ObservableGauge
 	WorkerPoolActive     metric.Int64ObservableGauge
 	SharedAcceptanceRows metric.Int64ObservableGauge
+	GraphOrphanNodes     metric.Int64ObservableGauge
 	AWSClaimConcurrency  metric.Int64ObservableGauge
 }
 
@@ -3178,6 +3186,41 @@ func RegisterAcceptanceObservableGauges(inst *Instruments, meter metric.Meter, a
 		return fmt.Errorf("register SharedAcceptanceRows gauge: %w", err)
 	}
 
+	return nil
+}
+
+// RegisterGraphOrphanObservableGauge registers the graph orphan count gauge.
+func RegisterGraphOrphanObservableGauge(inst *Instruments, meter metric.Meter, observer GraphOrphanObserver) error {
+	if inst == nil {
+		return errors.New("instruments are required")
+	}
+	if meter == nil {
+		return errors.New("meter is required")
+	}
+	if observer == nil {
+		return nil
+	}
+
+	var err error
+	inst.GraphOrphanNodes, err = meter.Int64ObservableGauge(
+		"eshu_dp_graph_orphan_nodes",
+		metric.WithDescription("Current bounded zero-relationship graph node count by closed node label"),
+		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+			counts, err := observer.GraphOrphanNodeCounts(ctx)
+			if err != nil {
+				return err
+			}
+			for label, count := range counts {
+				o.Observe(count, metric.WithAttributes(
+					attribute.String(MetricDimensionNodeLabel, label),
+				))
+			}
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register GraphOrphanNodes gauge: %w", err)
+	}
 	return nil
 }
 
