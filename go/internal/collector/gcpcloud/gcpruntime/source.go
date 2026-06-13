@@ -17,7 +17,8 @@ import (
 // Source implements collector.Source for the GCP Cloud Asset Inventory
 // collector. Each Next call yields one CollectedGeneration for the next
 // configured scope by draining pages through the PageProvider seam, accumulating
-// the parsed gcp_cloud_resource, gcp_tag_observation, and
+// the parsed gcp_cloud_resource, gcp_cloud_relationship, gcp_tag_observation,
+// gcp_iam_policy_observation, gcp_dns_record, gcp_image_reference, and
 // gcp_collection_warning facts, and fencing the generation so a stale scan
 // cannot replace current facts.
 //

@@ -33,6 +33,8 @@
 - Parsed Cloud Asset Inventory DNS record set assets emit `gcp_dns_record`
   facts through `gcpcloud.Generation`; record names and targets must stay
   fingerprinted.
+- Parsed Cloud Run service/job runtime image fields emit `gcp_image_reference`
+  facts through `gcpcloud.Generation`; container names must stay fingerprinted.
 - Reference credentials by NAME only (`ScopeConfig.CredentialRef`). Never store,
   log, or label credential material or names.
 - Fence every generation through `gcpcloud.GenerationTracker` before draining
@@ -46,7 +48,7 @@
 - Metric labels and log fields are bounded enums and counts only: collector
   kind, claim status, parent scope kind, asset family, content family, fact
   kind, warning kind, and outcome. Never emit resource names, project ids,
-  labels, IAM members, DNS names, URLs, or credential names.
+  labels, IAM members, DNS names, image references, URLs, or credential names.
 - Keep every source file under 500 lines; split before the cap.
 
 ## What Not To Change Without An ADR

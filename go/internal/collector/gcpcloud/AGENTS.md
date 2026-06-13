@@ -17,16 +17,18 @@
 8. `envelope.go` - durable fact-envelope construction and validation.
 9. `relationship.go` - GCP relationship source fact construction and support
    states.
-10. `generation.go` - generation accumulation, dedupe, and fencing.
-11. `metrics.go` - scoped OTEL instruments with bounded labels.
+10. `image_reference.go` - image-reference fact construction and container-name
+   fingerprinting.
+11. `generation.go` - generation accumulation, dedupe, and fencing.
+12. `metrics.go` - scoped OTEL instruments with bounded labels.
 
 ## Invariants
 
 - GCP cloud data is reported source evidence. This package may emit typed source
   facts for parsed resources, provider relationships, label-backed tag
-  observations, IAM policy observations, DNS record observations, and collection
-  warnings. Do not materialize graph truth, reducer admission, or query behavior
-  here.
+  observations, IAM policy observations, DNS record observations,
+  image-reference observations, and collection warnings. Do not materialize
+  graph truth, reducer admission, or query behavior here.
 - Keep the claim boundary explicit: collector instance, parent scope kind and id,
   asset family, content family, location bucket, scope id, generation id, and a
   positive fencing token.
@@ -42,13 +44,14 @@
   data blob in facts. The parser is the single redaction choke point for the data
   blob.
 - Fingerprint IAM members, DNS record values, and sensitive label values through
-  the keyed `redact` package. Member class is a bounded enum; raw identities and
-  DNS record values are never persisted.
+  the keyed `redact` package. Fingerprint container names before image-reference
+  emission. Member class is a bounded enum; raw identities, DNS record values,
+  and container names are never persisted.
 - Keep payload redaction versioned with `RedactionPolicyVersion`.
 - Metric labels are bounded enums only (collector kind, claim status, operation,
   parent scope kind, asset family, content family, status class, fact kind,
   warning kind, outcome). Never label-leak resource ids, project ids, names,
-  labels, IAM members, DNS names, URLs, or credential names.
+  labels, IAM members, DNS names, image references, URLs, or credential names.
 - This package does not call Google Cloud APIs. A future runtime adapter owns SDK
   pagination, retries, throttling, and credential loading.
 

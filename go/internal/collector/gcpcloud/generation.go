@@ -117,6 +117,11 @@ func (g *Generation) Build() ([]facts.Envelope, error) {
 			return nil, err
 		}
 		envelopes = append(envelopes, dnsEnvelopes...)
+		imageEnvelopes, err := g.imageReferenceEnvelopes(resource)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, imageEnvelopes...)
 	}
 	for _, warning := range g.warnings {
 		env, err := NewCollectionWarningEnvelope(warning)
@@ -156,6 +161,7 @@ func (g *Generation) envelopeCapacity() int {
 		}
 		capacity += iamPolicyObservationCount(resource.IAMPolicyBindings)
 		capacity += dnsRecordObservationCount(resource.DNSRecords)
+		capacity += imageReferenceObservationCount(resource.ImageReferences)
 	}
 	return capacity
 }
