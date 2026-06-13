@@ -52,3 +52,20 @@ flowchart LR
   and document digest are observed again.
 - The runtime does not emit `oci_registry.*` facts; those remain owned by the
   OCI registry collector.
+
+## Evidence Notes
+
+- No-Regression Evidence (#2384): configured document fetches still issue one
+  HTTP GET with the same auth headers, content-type capture, `max_bytes` body
+  cap, source URI redaction, and document identity behavior. The change shares
+  the collector SDK default HTTP client and wraps configured-source status and
+  transport failures in bounded SDK `HTTPError` causes under the existing
+  `RegistryFailure` class/details contract. Verified by
+  `go test ./internal/collector/sbomruntime -run
+  'TestHTTPProviderConfiguredSource(StatusFailure|TransportFailure)' -count=1`.
+- No-Observability-Change (#2384): the runtime still emits no metrics, spans,
+  logs, status fields, graph writes, queue writes, or deployment knobs from the
+  HTTP provider itself. Operators continue to diagnose failed claims through
+  the existing workflow failure class/details and the emitted SBOM/attestation
+  fact or warning surfaces; SDK `HTTPError` adds only an inspectable error cause
+  for status, retry-after, and transport classification.
