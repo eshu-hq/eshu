@@ -41,6 +41,7 @@ import { ObservabilityPage } from "./pages/ObservabilityPage";
 import { DependenciesPage } from "./pages/DependenciesPage";
 import { ExplorerPage } from "./pages/ExplorerPage";
 import { IacPage } from "./pages/IacPage";
+import { ReplatformingPage } from "./pages/ReplatformingPage";
 import { RepositoriesPage } from "./pages/RepositoriesPage";
 import { RepoSourcePage } from "./pages/RepoSourcePage";
 import { ImagesPage } from "./pages/ImagesPage";
@@ -79,6 +80,7 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
       { to: "/findings", label: "Findings", icon: TriangleAlert, count: (m) => nonZero((m.findings?.length ?? 0) + (m.vulnerabilities?.length ?? 0)), alert: true },
       { to: "/images", label: "Images", icon: Images, count: (m) => nonZero(m.images?.length ?? 0) },
       { to: "/iac", label: "IaC", icon: Network, count: (m) => nonZero(m.iacResources?.length ?? 0) },
+      { to: "/replatforming", label: "Replatforming", icon: Network },
       { to: "/vulnerabilities", label: "Vulnerabilities", icon: ShieldCheck, count: (m) => nonZero(m.vulnerabilities?.length ?? 0), alert: true }
     ]
   },
@@ -319,6 +321,7 @@ export function App(): React.JSX.Element {
             <Route path="/catalog" element={<CatalogPage model={visibleModel} onOpenService={openService} />} />
             <Route path="/images" element={<ImagesPage client={client} />} />
             <Route path="/iac" element={<IacPage model={visibleModel} client={client} />} />
+            <Route path="/replatforming" element={<ReplatformingPage model={visibleModel} client={client} />} />
             <Route path="/findings" element={<FindingsPage model={visibleModel} />} />
             <Route path="/dead-code" element={<DeadCodePage client={client} model={visibleModel} />} />
             <Route path="/vulnerabilities" element={<VulnerabilitiesPage model={visibleModel} client={client} />} />

@@ -1,0 +1,190 @@
+.replatforming-intro {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.replatforming-query {
+  align-items: end;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  padding: 14px;
+}
+
+.replatforming-query label {
+  color: var(--subtle);
+  display: grid;
+  font-size: 0.72rem;
+  font-weight: 700;
+  gap: 6px;
+  min-width: 0;
+  text-transform: uppercase;
+}
+
+.replatforming-query .popover-input,
+.replatforming-query .btn-ghost {
+  min-width: 0;
+  width: 100%;
+}
+
+.replatforming-query .btn-ghost {
+  min-height: 37px;
+  white-space: normal;
+}
+
+.replatforming-boundary {
+  background: var(--bg-panel);
+  border: 1px solid color-mix(in oklab, var(--warn) 38%, var(--line));
+  border-radius: var(--radius);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+}
+
+.replatforming-boundary strong,
+.replatforming-boundary span {
+  font-size: 0.78rem;
+}
+
+.replatforming-boundary strong {
+  color: var(--warn);
+}
+
+.replatforming-boundary span {
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  padding: 4px 8px;
+}
+
+.replatforming-grid {
+  display: grid;
+  gap: var(--gap);
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+}
+
+.replatforming-truth {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.replatforming-section,
+.replatforming-buckets,
+.replatforming-packets {
+  display: grid;
+  gap: 10px;
+}
+
+.replatforming-readiness {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+}
+
+.replatforming-readiness div,
+.replatforming-buckets,
+.replatforming-packets > div {
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+}
+
+.replatforming-readiness strong,
+.replatforming-buckets strong {
+  font-family: var(--mono);
+}
+
+.replatforming-readiness span,
+.replatforming-buckets span,
+.replatforming-page-note,
+.replatforming-reason,
+.replatforming-gaps span,
+.replatforming-candidates small {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.replatforming-buckets b {
+  color: var(--text);
+  float: right;
+  font-family: var(--mono);
+}
+
+.replatforming-table-wrap {
+  overflow-x: auto;
+}
+
+.replatforming-table {
+  min-width: 760px;
+}
+
+.replatforming-import,
+.replatforming-state {
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 0.7rem;
+  margin-right: 8px;
+  padding: 3px 8px;
+  text-transform: capitalize;
+}
+
+.replatforming-import-ready,
+.replatforming-state-derived,
+.replatforming-state-exact {
+  border-color: color-mix(in oklab, var(--teal) 42%, transparent);
+  color: var(--teal-bright);
+}
+
+.replatforming-import-refused,
+.replatforming-state-rejected {
+  border-color: color-mix(in oklab, var(--crit) 38%, transparent);
+  color: var(--crit);
+}
+
+.replatforming-candidates,
+.replatforming-gaps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.replatforming-candidates span,
+.replatforming-gaps span {
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px 8px;
+}
+
+@media (max-width: 1180px) {
+  .replatforming-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .replatforming-intro {
+    align-items: flex-start;
+    display: grid;
+  }
+
+  .replatforming-query {
+    grid-template-columns: 1fr;
+  }
+}

@@ -21,6 +21,8 @@ The console should help users answer:
 - what evidence supports each relationship
 - whether indexing is healthy, stale, partial, or blocked
 - which findings need action
+- which replatforming/import-plan candidates are ready, refused, or missing
+  ownership evidence
 - what is known, missing, inferred, or stale
 
 Important claims need a plain-language summary first and a clear path to the
