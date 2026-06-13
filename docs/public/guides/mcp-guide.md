@@ -58,6 +58,12 @@ Use focused tools for exact code questions:
 | What code looks dead? | `investigate_dead_code` |
 | Find hardcoded secrets. | `investigate_hardcoded_secrets` |
 
+Code relationship rows explain confidence with `resolution_method`. Repository
+and correlation relationship rows use `confidence_basis` instead, with values
+such as `evidence_constant`, `evidence_aggregate`, or `assertion_override`.
+Use `get_relationship_evidence` when a repository context row has `resolved_id`
+and you need the full evidence preview.
+
 Use semantic evidence tools only when you explicitly want optional LLM-assisted
 provenance:
 

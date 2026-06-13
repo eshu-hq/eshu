@@ -173,6 +173,13 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `trace_deployment_chain` | POST | `/api/v0/impact/trace-deployment-chain` |
 | `investigate_deployment_config` | POST | `/api/v0/impact/deployment-config-influence` |
 
+`get_repo_context` and `get_relationship_evidence` forward HTTP relationship
+confidence metadata unchanged. Correlation relationship rows carry
+`confidence_basis` (`evidence_constant`, `evidence_aggregate`, or
+`assertion_override`) alongside `confidence`, `resolution_source`,
+`evidence_type`, and `evidence_kinds`; code relationship tools keep using
+`resolution_method`.
+
 `investigate_import_dependencies` passes paging and scope arguments directly to
 the HTTP handler. The handler rejects negative bounds and returns exactly one
 canonical row key for each `query_type`: `dependencies`, `modules`, `cycles`, or

@@ -171,6 +171,7 @@ func scanRelationshipEvidenceByResolvedID(rows *sql.Rows) (map[string]any, error
 	if evidenceType := repositoryRelationshipEvidenceType(details, repositoryRelationshipEvidenceKinds(details)); evidenceType != "" {
 		row["evidence_type"] = evidenceType
 	}
+	addRelationshipConfidenceBasis(row)
 	return row, nil
 }
 

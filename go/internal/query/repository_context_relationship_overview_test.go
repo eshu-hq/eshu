@@ -191,6 +191,7 @@ func TestGetRepositoryContextIncludesTypedRelationshipOverview(t *testing.T) {
 		"confidence":        float64(0.9),
 		"evidence_count":    float64(3),
 		"resolution_source": "inferred",
+		"confidence_basis":  "evidence_aggregate",
 		"rationale":         "deployment config references service repository",
 	} {
 		if got := firstRelationship[key]; got != want {
@@ -233,6 +234,7 @@ func TestGetRepositoryContextIncludesTypedRelationshipOverview(t *testing.T) {
 		"confidence":        float64(0.96),
 		"evidence_count":    float64(8),
 		"resolution_source": "inferred",
+		"confidence_basis":  "evidence_aggregate",
 		"rationale":         "terraform runtime service references this repository",
 	} {
 		if got := incoming[key]; got != want {

@@ -33,6 +33,7 @@ const openAPIPathsEvidence = `
                     "target": {"type": "object"},
                     "relationship_type": {"type": "string"},
                     "confidence": {"type": "number"},
+                    "confidence_basis": {"type": "string", "description": "Correlation confidence basis: evidence_constant, evidence_aggregate, or assertion_override."},
                     "evidence_count": {"type": "integer"},
                     "evidence_kinds": {"type": "array", "items": {"type": "string"}},
                     "evidence_type": {"type": "string"},
