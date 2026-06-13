@@ -13,11 +13,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// PostgresCloudTagEvidenceLoader reads tag-evidence source facts (currently
-// azure_tag_observation) for one scope generation and maps each payload into the
-// shared reducer.CloudTagEvidenceRecord shape the admission path attaches by
-// cloud_resource_uid. It is the concrete reducer.CloudTagEvidenceLoader for the
-// multi-cloud admission domain (#2192).
+// PostgresCloudTagEvidenceLoader reads tag-evidence source facts
+// (azure_tag_observation and gcp_tag_observation) for one scope generation and
+// maps each payload into the shared reducer.CloudTagEvidenceRecord shape the
+// admission path attaches by cloud_resource_uid. It is the concrete
+// reducer.CloudTagEvidenceLoader for the multi-cloud admission domain (#2192,
+// #2334).
 //
 // The loader is read-only and side-effect free: it resolves no identity and
 // folds nothing. Identity resolution and attachment belong to the admission
@@ -36,6 +37,7 @@ type PostgresCloudTagEvidenceLoader struct {
 // in lockstep.
 var cloudTagEvidenceFactMappings = map[string]string{
 	facts.AzureTagObservationFactKind: cloudinventory.ProviderAzure,
+	facts.GCPTagObservationFactKind:   cloudinventory.ProviderGCP,
 }
 
 // LoadCloudTagEvidence implements reducer.CloudTagEvidenceLoader. It returns the
