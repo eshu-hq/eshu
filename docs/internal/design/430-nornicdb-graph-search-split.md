@@ -182,6 +182,30 @@ Stop threshold: do not enable NornicDB search by default if the canonical graph
 readiness path gets slower, less diagnosable, or dependent on successful search
 index rebuild.
 
+### 5.1 Recorded benchmark (2026-06-13)
+
+First measured run via `go/cmd/search-bench` over a live content corpus
+(`repository:r_9a84f5f1`, 27,822 curated documents), Eshu commit `3d8dbb0e1`.
+Full record:
+[searchbench-evidence/issue-2235-search-lane-latency-2026-06-13.md](../../public/reference/searchbench-evidence/issue-2235-search-lane-latency-2026-06-13.md).
+
+Measured keyword latency:
+
+| Backend | p50 | p95 | max |
+| --- | --- | --- | --- |
+| `postgres_content_search` | ~1.1 ms | ~3.9 ms | ~132 ms |
+| `in_process_hybrid_bm25` (`searchhybrid`) | ~19.5 ms | ~22.3 ms | ~38.9 ms |
+
+Decision: **defer_search_change**. The Postgres baseline keeps a faster median
+with a variable tail; the in-process hybrid lane is latency-consistent but scores
+documents linearly (no inverted index yet, ~20 ms at 28k docs). The NornicDB
+search arm was not measured — the canonical NornicDB runs search-disabled and no
+search-enabled curated deployment exists — so the stop threshold is not cleared
+and Postgres content search remains the search lane. Two gaps must close before
+a quality-based adoption decision: an inverted index for the in-process lane, and
+a labeled query suite to measure recall/ranking quality (not just latency). The
+`searchhybrid` backend (#2237) and `cmd/search-bench` make both achievable.
+
 ## 6. Observability Contract
 
 Search-lane implementation must expose operator signals for:
@@ -223,9 +247,12 @@ Recommended child slices:
    layer now lives in `go/internal/searchbenchrun`: `RunSuite` drives a backend
    adapter across the query suite through the bounded retrieval runner, measures
    p50/p95 latency and accuracy, and `AssembleEvidence` produces a validated
-   `search-benchmark-evidence/v1` record. Measured Postgres-vs-NornicDB proof
-   over a representative corpus still needs a live suite run with both backends
-   wired to real stores before any runtime search change.
+   `search-benchmark-evidence/v1` record. The operator entrypoint
+   `go/cmd/search-bench` runs the comparison over a live content corpus; a first
+   measured run is recorded in §5.1 (decision: `defer_search_change`). A measured
+   NornicDB-search arm still needs a search-enabled curated deployment, and a
+   labeled query suite is still needed to record recall/ranking quality rather
+   than latency alone.
 4. Add bounded internal retrieval path for semantic-evaluation queries. The
    request/response contract lives in `go/internal/searchretrieval` and
    `docs/public/reference/search-retrieval-contract.md`. Backends: the Postgres
