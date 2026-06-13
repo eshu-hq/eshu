@@ -228,16 +228,12 @@ No-Observability-Change: documentation extraction stays inside existing `collect
   that fetches configured documents or OCI referrer artifact blobs, delegates
   SBOM parsing to `sbomdocument`, and emits in-toto attestation facts without
   making reducer attachment truth decisions
-- `pagerduty` subpackage — PagerDuty incident, incident lifecycle, and related
-  change-event evidence collection for the `pagerduty` collector family. It
-  emits reported-confidence incident-context source facts and leaves runtime,
-  image, commit, pull-request, Jira, graph, and read-model truth to downstream
-  collectors and reducers.
-- `tempo` subpackage — live Tempo trace-signal metadata collection for the
-  `tempo` collector family. It emits reported-confidence observability source
-  facts for source instances, tag names, bounded tag-value metadata, and
-  coverage warnings without storing spans, traces, raw trace IDs, request
-  attributes, TraceQL bodies, tenant IDs, or raw tag values.
+- `sdk` subpackage — first-party shared helpers for bounded HTTP execution,
+  safe provider failures, retry-after parsing, and common status classification
+- `pagerduty` subpackage — PagerDuty incident, lifecycle, related change-event,
+  and optional live configuration source facts for downstream correlation.
+- `tempo` subpackage — live Tempo trace-signal metadata collection for source
+  instances, tag names, bounded tag values, and coverage warnings.
 - `cicdrun` subpackage — fixture-backed CI/CD provider normalization and
   reported-confidence run, job, step, artifact, trigger, environment, and
   warning fact-envelope construction for the `ci_cd_run` collector family

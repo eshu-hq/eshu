@@ -2,13 +2,13 @@ package tempo
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"net/url"
-	"path"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 const (
@@ -32,19 +32,13 @@ type HTTPClient struct {
 
 // NewHTTPClient builds a bounded Tempo REST client.
 func NewHTTPClient(config HTTPClientConfig) (HTTPClient, error) {
-	base, err := url.Parse(strings.TrimRight(strings.TrimSpace(config.BaseURL), "/"))
+	base, err := sdk.ParseBaseURL("tempo", config.BaseURL)
 	if err != nil {
-		return HTTPClient{}, fmt.Errorf("parse tempo base_url: %w", err)
-	}
-	if base.Scheme == "" || base.Host == "" {
-		return HTTPClient{}, fmt.Errorf("tempo base_url must include scheme and host")
-	}
-	if base.User != nil {
-		return HTTPClient{}, fmt.Errorf("tempo base_url must not include credentials")
+		return HTTPClient{}, err
 	}
 	client := config.Client
 	if client == nil {
-		client = &http.Client{Timeout: defaultHTTPTimeout}
+		client = sdk.DefaultHTTPClient(defaultHTTPTimeout)
 	}
 	return HTTPClient{baseURL: base, httpClient: client}, nil
 }
@@ -87,12 +81,7 @@ func (c HTTPClient) CollectObservedMetadata(ctx context.Context, target TargetCo
 }
 
 func (c HTTPClient) collectEcho(ctx context.Context, target TargetConfig, result *CollectionResult) error {
-	ok, err := c.do(ctx, target, echoEndpoint, nil, result, ResourceClassTraceSignal, func(resp *http.Response) error {
-		if resp.StatusCode != http.StatusOK {
-			return ProviderHTTPError{StatusCode: resp.StatusCode, Message: http.StatusText(resp.StatusCode)}
-		}
-		return nil
-	})
+	ok, err := c.do(ctx, target, echoEndpoint, nil, nil, result, ResourceClassTraceSignal)
 	if err != nil || !ok {
 		return err
 	}
@@ -166,12 +155,7 @@ func (c HTTPClient) doJSON(
 	result *CollectionResult,
 	resourceClass string,
 ) (bool, error) {
-	return c.do(ctx, target, endpoint, query, result, resourceClass, func(resp *http.Response) error {
-		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-			return fmt.Errorf("decode tempo response: %w", err)
-		}
-		return nil
-	})
+	return c.do(ctx, target, endpoint, query, out, result, resourceClass)
 }
 
 func (c HTTPClient) do(
@@ -179,55 +163,52 @@ func (c HTTPClient) do(
 	target TargetConfig,
 	endpoint string,
 	query url.Values,
+	out any,
 	result *CollectionResult,
 	resourceClass string,
-	decode func(*http.Response) error,
 ) (bool, error) {
-	for attempt := 0; ; attempt++ {
-		req, err := c.buildRequest(ctx, target, endpoint, query)
-		if err != nil {
-			return false, err
-		}
-		resp, err := c.httpClient.Do(req)
-		if err != nil {
-			return false, err
-		}
-		if resp.StatusCode >= 300 {
-			if shouldRetryStatus(resp.StatusCode) {
-				result.Stats.RateLimits += boolToInt(resp.StatusCode == http.StatusTooManyRequests)
-				if attempt < maxHTTPRetries {
-					result.Stats.Retries++
-					_ = resp.Body.Close()
-					continue
-				}
+	err := sdk.DoJSON(ctx, sdk.JSONRequest{
+		Provider:   "tempo",
+		Method:     http.MethodGet,
+		BaseURL:    c.baseURL,
+		PathPrefix: target.PathPrefix,
+		Endpoint:   endpoint,
+		Query:      query,
+		Out:        out,
+		Client:     c.httpClient,
+		MaxRetries: maxHTTPRetries,
+		Headers: func(req *http.Request) {
+			if token := strings.TrimSpace(target.Token); token != "" {
+				req.Header.Set("Authorization", "Bearer "+token)
 			}
-			defer func() { _ = resp.Body.Close() }()
-			return handleStatus(resp, result, resourceClass)
-		}
-		defer func() { _ = resp.Body.Close() }()
-		if err := decode(resp); err != nil {
-			return false, err
-		}
-		return true, nil
+			if tenant := strings.TrimSpace(target.TenantID); tenant != "" {
+				req.Header.Set("X-Scope-OrgID", tenant)
+			}
+		},
+		OnRetry: func(resp *http.Response, _ int) {
+			if resp.StatusCode == http.StatusTooManyRequests {
+				result.Stats.RateLimits++
+			}
+			result.Stats.Retries++
+		},
+		StatusError: func(resp *http.Response) error {
+			ok, err := handleStatus(resp, result, resourceClass)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return sdk.ErrStatusHandled
+			}
+			return nil
+		},
+	})
+	if errors.Is(err, sdk.ErrStatusHandled) {
+		return false, nil
 	}
-}
-
-func (c HTTPClient) buildRequest(ctx context.Context, target TargetConfig, endpoint string, query url.Values) (*http.Request, error) {
-	reqURL := *c.baseURL
-	reqURL.Path = path.Join(c.baseURL.Path, strings.Trim(target.PathPrefix, "/"), endpoint)
-	reqURL.RawQuery = query.Encode()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
 	if err != nil {
-		return nil, fmt.Errorf("build tempo request: %w", err)
+		return false, err
 	}
-	req.Header.Set("Accept", "application/json")
-	if token := strings.TrimSpace(target.Token); token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-	if tenant := strings.TrimSpace(target.TenantID); tenant != "" {
-		req.Header.Set("X-Scope-OrgID", tenant)
-	}
-	return req, nil
+	return true, nil
 }
 
 func handleStatus(resp *http.Response, result *CollectionResult, resourceClass string) (bool, error) {
@@ -239,20 +220,14 @@ func handleStatus(resp *http.Response, result *CollectionResult, resourceClass s
 		warning.Reason = WarningUnsupported
 	case http.StatusTooManyRequests:
 		warning.Reason = WarningRateLimited
+		result.Stats.RateLimits++
 		result.Warnings = append(result.Warnings, warning)
 		result.Stats.Partial = true
-		return false, ProviderHTTPError{StatusCode: resp.StatusCode, Message: http.StatusText(resp.StatusCode)}
+		return false, ProviderHTTPError{Provider: "tempo", StatusCode: resp.StatusCode, Message: http.StatusText(resp.StatusCode)}
 	default:
-		return false, ProviderHTTPError{StatusCode: resp.StatusCode, Message: http.StatusText(resp.StatusCode)}
+		return false, ProviderHTTPError{Provider: "tempo", StatusCode: resp.StatusCode, Message: http.StatusText(resp.StatusCode)}
 	}
 	result.Warnings = append(result.Warnings, warning)
 	result.Stats.Partial = true
 	return false, nil
-}
-
-func boolToInt(value bool) int {
-	if value {
-		return 1
-	}
-	return 0
 }

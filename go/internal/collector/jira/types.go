@@ -7,6 +7,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -16,6 +17,32 @@ const (
 	// ProviderJiraCloud selects Jira Cloud REST API collection.
 	ProviderJiraCloud = "jira_cloud"
 )
+
+// FailureClass is a bounded workflow retry class for Jira provider failures.
+type FailureClass = string
+
+const (
+	// FailurePermissionHidden marks Jira permission or issue-security denials.
+	FailurePermissionHidden FailureClass = string(sdk.FailurePermissionHidden)
+	// FailureDeleted marks missing or deleted Jira issues and sites.
+	FailureDeleted FailureClass = string(sdk.FailureDeleted)
+	// FailureArchived marks archived Jira projects or issues.
+	FailureArchived FailureClass = string(sdk.FailureArchived)
+	// FailureRateLimited marks Jira rate limiting as retryable.
+	FailureRateLimited FailureClass = string(sdk.FailureRateLimited)
+	// FailureRetryable marks transient transport or provider failures.
+	FailureRetryable FailureClass = string(sdk.FailureRetryable)
+	// FailureTerminal marks malformed or otherwise non-retryable failures.
+	FailureTerminal FailureClass = string(sdk.FailureTerminal)
+)
+
+// JiraError is a bounded provider error. It deliberately omits tokens, URLs,
+// and raw response bodies from Error.
+type JiraError = sdk.HTTPError
+
+// ProviderFailure is a bounded Jira provider failure returned to claim
+// handling.
+type ProviderFailure = sdk.ProviderFailure
 
 // EnvelopeContext carries Eshu fact boundary fields for one Jira observation.
 type EnvelopeContext struct {

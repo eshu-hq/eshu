@@ -6,6 +6,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -38,6 +39,25 @@ const (
 	// ConfigWarningPartial marks an incomplete live configuration read.
 	ConfigWarningPartial = "partial"
 )
+
+const (
+	// FailureAuthDenied marks PagerDuty credential or permission failures as terminal.
+	FailureAuthDenied = string(sdk.FailureAuthDenied)
+	// FailureNotFound marks missing PagerDuty resources as terminal.
+	FailureNotFound = string(sdk.FailureNotFound)
+	// FailureRateLimited marks PagerDuty rate limiting as retryable.
+	FailureRateLimited = string(sdk.FailureRateLimited)
+	// FailureRetryable marks transient PagerDuty transport/provider failures.
+	FailureRetryable = string(sdk.FailureRetryable)
+	// FailureTerminal marks malformed or otherwise non-retryable failures.
+	FailureTerminal = string(sdk.FailureTerminal)
+)
+
+// PagerDutyError carries bounded PagerDuty HTTP failure details.
+type PagerDutyError = sdk.HTTPError
+
+// ProviderFailure is a bounded PagerDuty failure returned to claim handling.
+type ProviderFailure = sdk.ProviderFailure
 
 // EnvelopeContext carries durable fact-envelope identity for PagerDuty facts.
 type EnvelopeContext struct {

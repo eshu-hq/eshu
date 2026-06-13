@@ -2,14 +2,15 @@ package grafana
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
-	"path"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 const (
@@ -73,22 +74,16 @@ type alertRuleQuery struct {
 // NewHTTPClient builds a bounded Grafana REST client. Credentials are checked
 // only for local shape; the provider validates them on request.
 func NewHTTPClient(config HTTPClientConfig) (HTTPClient, error) {
-	base, err := url.Parse(strings.TrimRight(strings.TrimSpace(config.BaseURL), "/"))
+	base, err := sdk.ParseBaseURL("grafana", config.BaseURL)
 	if err != nil {
-		return HTTPClient{}, fmt.Errorf("parse grafana base_url: %w", err)
-	}
-	if base.Scheme == "" || base.Host == "" {
-		return HTTPClient{}, fmt.Errorf("grafana base_url must include scheme and host")
-	}
-	if base.User != nil {
-		return HTTPClient{}, fmt.Errorf("grafana base_url must not include credentials")
+		return HTTPClient{}, err
 	}
 	if strings.TrimSpace(config.Token) == "" {
 		return HTTPClient{}, fmt.Errorf("grafana token is required")
 	}
 	client := config.Client
 	if client == nil {
-		client = &http.Client{Timeout: defaultHTTPTimeout}
+		client = sdk.DefaultHTTPClient(defaultHTTPTimeout)
 	}
 	return HTTPClient{
 		baseURL:    base,
@@ -240,41 +235,45 @@ func (c HTTPClient) doJSON(
 	result *CollectionResult,
 	resourceClass string,
 ) (bool, error) {
-	for attempt := 0; ; attempt++ {
-		reqURL := *c.baseURL
-		reqURL.Path = path.Join(c.baseURL.Path, endpoint)
-		reqURL.RawQuery = query.Encode()
-		req, err := http.NewRequestWithContext(ctx, method, reqURL.String(), nil)
-		if err != nil {
-			return false, fmt.Errorf("build grafana request: %w", err)
-		}
-		req.Header.Set("Authorization", "Bearer "+c.token)
-		req.Header.Set("Accept", "application/json")
-		resp, err := c.httpClient.Do(req)
-		if err != nil {
-			return false, err
-		}
-		if resp.StatusCode >= 300 {
-			if shouldRetryStatus(resp.StatusCode) && attempt < maxHTTPRetries {
-				result.Stats.Retries++
-				if resp.StatusCode == http.StatusTooManyRequests {
-					result.Stats.RateLimits++
-				}
-				_ = resp.Body.Close()
-				continue
-			}
-			defer func() { _ = resp.Body.Close() }()
-			return c.handleStatus(resp, result, resourceClass)
-		}
-		defer func() { _ = resp.Body.Close() }()
-		if body != nil {
-			return false, fmt.Errorf("grafana request body is not supported")
-		}
-		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-			return false, fmt.Errorf("decode grafana response: %w", err)
-		}
-		return true, nil
+	if body != nil {
+		return false, fmt.Errorf("grafana request body is not supported")
 	}
+	err := sdk.DoJSON(ctx, sdk.JSONRequest{
+		Provider:   "grafana",
+		Method:     method,
+		BaseURL:    c.baseURL,
+		Endpoint:   endpoint,
+		Query:      query,
+		Out:        out,
+		Client:     c.httpClient,
+		MaxRetries: maxHTTPRetries,
+		Headers: func(req *http.Request) {
+			req.Header.Set("Authorization", "Bearer "+c.token)
+		},
+		OnRetry: func(resp *http.Response, _ int) {
+			result.Stats.Retries++
+			if resp.StatusCode == http.StatusTooManyRequests {
+				result.Stats.RateLimits++
+			}
+		},
+		StatusError: func(resp *http.Response) error {
+			ok, err := c.handleStatus(resp, result, resourceClass)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return sdk.ErrStatusHandled
+			}
+			return nil
+		},
+	})
+	if errors.Is(err, sdk.ErrStatusHandled) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (c HTTPClient) handleStatus(resp *http.Response, result *CollectionResult, resourceClass string) (bool, error) {
@@ -289,9 +288,9 @@ func (c HTTPClient) handleStatus(resp *http.Response, result *CollectionResult, 
 		result.Stats.RateLimits++
 	default:
 		if resp.StatusCode >= 500 {
-			return false, GrafanaError{StatusCode: resp.StatusCode, Message: http.StatusText(resp.StatusCode)}
+			return false, GrafanaError{Provider: "grafana", StatusCode: resp.StatusCode, Message: http.StatusText(resp.StatusCode)}
 		}
-		return false, GrafanaError{StatusCode: resp.StatusCode, Message: http.StatusText(resp.StatusCode)}
+		return false, GrafanaError{Provider: "grafana", StatusCode: resp.StatusCode, Message: http.StatusText(resp.StatusCode)}
 	}
 	result.Warnings = append(result.Warnings, warning)
 	result.Stats.Partial = true
@@ -373,10 +372,6 @@ func datasourceUID(values []alertRuleQuery) string {
 		}
 	}
 	return ""
-}
-
-func shouldRetryStatus(statusCode int) bool {
-	return statusCode == http.StatusTooManyRequests || statusCode >= 500
 }
 
 func isStale(updatedAt time.Time, observedAt time.Time, staleAfter time.Duration) bool {

@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -20,6 +21,11 @@ import (
 )
 
 const defaultIncidentLookback = 6 * time.Hour
+
+var pagerDutyStatusPolicy = sdk.StatusPolicy{
+	AuthDeniedClass: sdk.FailureAuthDenied,
+	NotFoundClass:   sdk.FailureNotFound,
+}
 
 type targetRuntime struct {
 	config TargetConfig
@@ -97,10 +103,8 @@ func (s *ClaimedSource) NextClaimed(
 	}
 	target, ok := s.targets[strings.TrimSpace(item.ScopeID)]
 	if !ok {
-		return collector.CollectedGeneration{}, false, ProviderFailure{
-			failureClass: FailureRetryable,
-			cause:        fmt.Errorf("pagerduty target scope_id is not configured"),
-		}
+		err := fmt.Errorf("pagerduty target scope_id is not configured")
+		return collector.CollectedGeneration{}, false, sdk.NewProviderFailure("pagerduty", sdk.FailureRetryable, false, err)
 	}
 
 	window := collectionWindow(target.config, s.now())
@@ -155,6 +159,10 @@ func (s *ClaimedSource) NextClaimed(
 		},
 		envs,
 	), true, nil
+}
+
+func classifiedProviderFailure(err error) ProviderFailure {
+	return sdk.ClassifyProviderFailure("pagerduty", err, pagerDutyStatusPolicy, sdk.FailureRetryable)
 }
 
 func validateTarget(target TargetConfig) (TargetConfig, error) {

@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -96,10 +97,8 @@ func (s *ClaimedSource) NextClaimed(
 	}
 	target, ok := s.targets[strings.TrimSpace(item.ScopeID)]
 	if !ok {
-		return collector.CollectedGeneration{}, false, ProviderFailure{
-			failureClass: FailureRetryable,
-			cause:        fmt.Errorf("tempo target scope_id is not configured"),
-		}
+		err := fmt.Errorf("tempo target scope_id is not configured")
+		return collector.CollectedGeneration{}, false, sdk.NewProviderFailure("tempo", sdk.FailureRetryable, false, err)
 	}
 
 	startedAt := time.Now()
@@ -152,6 +151,13 @@ func (s *ClaimedSource) NextClaimed(
 
 func defaultClientFactory(target TargetConfig) (EvidenceClient, error) {
 	return NewHTTPClient(HTTPClientConfig{BaseURL: target.BaseURL})
+}
+
+func classifiedProviderFailure(err error) ProviderFailure {
+	return sdk.ClassifyProviderFailure("tempo", err, sdk.StatusPolicy{
+		AuthDeniedClass: sdk.FailureAuthDenied,
+		NotFoundClass:   sdk.FailureTerminal,
+	}, sdk.FailureTerminal)
 }
 
 func validateTarget(target TargetConfig, now func() time.Time) (TargetConfig, error) {

@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -97,10 +98,8 @@ func (s *ClaimedSource) NextClaimed(
 	}
 	target, ok := s.targets[strings.TrimSpace(item.ScopeID)]
 	if !ok {
-		return collector.CollectedGeneration{}, false, ProviderFailure{
-			failureClass: FailureRetryable,
-			cause:        fmt.Errorf("grafana target scope_id is not configured"),
-		}
+		err := fmt.Errorf("grafana target scope_id is not configured")
+		return collector.CollectedGeneration{}, false, sdk.NewProviderFailure("grafana", sdk.FailureRetryable, false, err)
 	}
 
 	startedAt := time.Now()
@@ -154,6 +153,13 @@ func defaultClientFactory(target TargetConfig) (EvidenceClient, error) {
 		BaseURL: target.BaseURL,
 		Token:   target.Token,
 	})
+}
+
+func classifiedProviderFailure(err error) ProviderFailure {
+	return sdk.ClassifyProviderFailure("grafana", err, sdk.StatusPolicy{
+		AuthDeniedClass: sdk.FailureAuthDenied,
+		NotFoundClass:   sdk.FailureTerminal,
+	}, sdk.FailureRetryable)
 }
 
 func validateTarget(target TargetConfig) (TargetConfig, error) {
