@@ -134,20 +134,13 @@ func (r TerraformStateBackendFactReader) TerraformStateCandidates(
 	if err != nil {
 		return nil, fmt.Errorf("list terraform state backend facts: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
-
-	var candidates []terraformstate.DiscoveryCandidate
-	seen := map[string]struct{}{}
-	for rows.Next() {
-		rowCandidates, scanErr := scanTerraformBackendFactCandidates(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("list terraform state backend facts: %w", scanErr)
-		}
-		candidates = appendTerraformStateCandidatesWithFilterEnrichment(candidates, seen, rowCandidates, filters)
-	}
-	if err := rows.Err(); err != nil {
+	rowCandidates, err := scanTerraformBackendCandidateRows(rows)
+	if err != nil {
 		return nil, fmt.Errorf("list terraform state backend facts: %w", err)
 	}
+	candidates := make([]terraformstate.DiscoveryCandidate, 0, len(rowCandidates))
+	seen := map[string]struct{}{}
+	candidates = appendTerraformStateCandidatesWithFilterEnrichment(candidates, seen, rowCandidates, filters)
 	terragruntCandidates, err := r.terragruntRemoteStateCandidates(ctx, repoIDs, seen, filters)
 	if err != nil {
 		return nil, err
@@ -334,31 +327,23 @@ func scanTerraformStateLocalCandidate(
 	}, true, nil
 }
 
-func scanTerraformBackendFactCandidates(rows Rows) ([]terraformstate.DiscoveryCandidate, error) {
+func scanTerraformBackendFactContext(rows Rows) (string, terraformBackendFactContext, error) {
 	var repoID string
-	var rawBackends []byte
-	if err := rows.Scan(&repoID, &rawBackends); err != nil {
-		return nil, err
+	var rawContext []byte
+	if err := rows.Scan(&repoID, &rawContext); err != nil {
+		return "", terraformBackendFactContext{}, err
 	}
-
-	var backends []map[string]any
-	if err := json.Unmarshal(rawBackends, &backends); err != nil {
-		return nil, fmt.Errorf("decode terraform_backends for repo %q: %w", repoID, err)
+	contextValue, err := decodeTerraformBackendFactContext(rawContext)
+	if err != nil {
+		return "", terraformBackendFactContext{}, fmt.Errorf("decode terraform_backends for repo %q: %w", repoID, err)
 	}
-
-	candidates := make([]terraformstate.DiscoveryCandidate, 0, len(backends))
-	for _, backend := range backends {
-		candidate, ok := terraformBackendCandidate(repoID, backend)
-		if ok {
-			candidates = append(candidates, candidate)
-		}
-	}
-	return candidates, nil
+	return strings.TrimSpace(repoID), contextValue, nil
 }
 
 func terraformBackendCandidate(
 	repoID string,
 	backend map[string]any,
+	resolution terraformBackendResolutionContext,
 ) (terraformstate.DiscoveryCandidate, bool) {
 	if strings.TrimSpace(stringValue(backend, "backend_kind", "name")) != string(terraformstate.BackendS3) {
 		return terraformstate.DiscoveryCandidate{}, false
@@ -370,34 +355,27 @@ func terraformBackendCandidate(
 	bucket := strings.TrimSpace(stringValue(backend, "bucket"))
 	key := strings.TrimSpace(stringValue(backend, "key"))
 	region := strings.TrimSpace(stringValue(backend, "region"))
-	dynamoDBTable := exactOptionalBackendAttribute(backend, "dynamodb_table")
-	if !isExactBackendAttribute(backend, "bucket", bucket) ||
-		!isExactBackendAttribute(backend, "key", key) ||
-		!isExactBackendAttribute(backend, "region", region) {
+	dynamoDBTable := resolveOptionalBackendAttribute(backend, "dynamodb_table", resolution)
+	resolvedBucket, bucketOK := resolveBackendAttribute(backend, "bucket", bucket, resolution)
+	resolvedKey, keyOK := resolveBackendAttribute(backend, "key", key, resolution)
+	resolvedRegion, regionOK := resolveBackendAttribute(backend, "region", region, resolution)
+	if !bucketOK || !keyOK || !regionOK {
 		return terraformstate.DiscoveryCandidate{}, false
 	}
-	if strings.HasSuffix(key, "/") {
+	if strings.HasSuffix(resolvedKey, "/") {
 		return terraformstate.DiscoveryCandidate{}, false
 	}
 
 	return terraformstate.DiscoveryCandidate{
 		State: terraformstate.StateKey{
 			BackendKind: terraformstate.BackendS3,
-			Locator:     "s3://" + bucket + "/" + key,
+			Locator:     "s3://" + resolvedBucket + "/" + resolvedKey,
 		},
 		Source:        terraformstate.DiscoveryCandidateSourceGraph,
 		RepoID:        strings.TrimSpace(repoID),
-		Region:        region,
+		Region:        resolvedRegion,
 		DynamoDBTable: dynamoDBTable,
 	}, true
-}
-
-func exactOptionalBackendAttribute(values map[string]any, name string) string {
-	value := strings.TrimSpace(stringValue(values, name))
-	if value == "" || !isExactBackendAttribute(values, name, value) {
-		return ""
-	}
-	return value
 }
 
 func isExactBackendAttribute(values map[string]any, name string, value string) bool {
@@ -420,7 +398,7 @@ func isExactBackendValue(value string) bool {
 	if strings.Contains(value, "${") || strings.Contains(value, "(") {
 		return false
 	}
-	for _, dynamicPrefix := range []string{"var.", "local.", "path.", "terraform."} {
+	for _, dynamicPrefix := range []string{"var.", "local.", "module.", "path.", "terraform.", "cty."} {
 		if strings.HasPrefix(value, dynamicPrefix) {
 			return false
 		}

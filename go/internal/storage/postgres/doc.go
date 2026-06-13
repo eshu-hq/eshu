@@ -83,7 +83,11 @@
 // each row's locator hash with terraformstate.ScopeLocatorHash so the join
 // stays aligned with the version-agnostic state-snapshot scope ID — see
 // issue #203) so the resolver can deterministically pick the latest sealed
-// config commit owning a state snapshot, and the second performs the
+// config commit owning a state snapshot. It shares the Terraform backend
+// candidate helper with graph discovery, including same-module literal
+// variable/local recovery and the fail-closed treatment of unresolved backend
+// expressions, so discovery and config-owner lookup cannot disagree on a
+// locator. The second performs the
 // four-input join across
 // terraform_resources (config), the active terraform_state_resource rows,
 // the prior generation (skipping the prior lookup when current serial is

@@ -57,8 +57,12 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
   candidates are not filtered by S3 backend fields.
 - Git HCL parsing emits `terraform_backends` metadata for Terraform `backend`
   blocks. The Postgres adapter reads those facts from active Git generations
-  and only returns exact S3 candidates with literal bucket, key, and region
-  values.
+  and only returns exact S3 candidates with deterministic bucket, key, and
+  region values. Deterministic values may be literal backend attributes or
+  same-module `var.*` / `local.*` references whose parser facts contain one
+  unambiguous literal value. Duplicate names, `module.*` references,
+  `terraform.workspace`, functions, and unresolved interpolations stay
+  non-candidates because `DiscoveryCandidate` is an exact state object.
 - Git HCL parsing also emits `terragrunt_remote_states` metadata for
   Terragrunt `remote_state` blocks, including blocks resolved through nested
   `include` chains. `TerragruntRemoteStateCandidate` translates each row
@@ -157,8 +161,11 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
 - Repo-scoped graph discovery waits for Git generation readiness before reading
   Terraform backend facts. Backend-filter discovery reads only active
   generations and must include at least one explicit filter.
-- Dynamic backend expressions, workspace-prefixed S3 backends, non-S3 backends,
-  and unapproved local paths from Git facts are not discovery candidates.
+- Dynamic backend expressions that cannot be reduced to same-module literal
+  variable/local values, workspace-prefixed S3 backends, non-S3 backends, and
+  unapproved local paths from Git facts are not discovery candidates. Issue
+  #2438 owns a separate discovery-stage evidence path for unresolved backend
+  expressions so they stay visible without becoming exact reads.
 - S3 write capability is rejected at source construction.
 - Redaction key material is mandatory before parsing.
 - Unknown provider-schema scalar attributes are redacted. Unknown composite

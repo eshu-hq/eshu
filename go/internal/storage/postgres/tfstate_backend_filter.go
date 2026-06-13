@@ -74,16 +74,27 @@ func terraformStateBackendFiltersJSON(filters []terraformstate.DiscoveryBackendF
 
 func scanTerraformBackendCandidateRows(rows Rows) ([]terraformstate.DiscoveryCandidate, error) {
 	defer func() { _ = rows.Close() }()
-	var candidates []terraformstate.DiscoveryCandidate
+	contexts := map[string]terraformBackendFactContext{}
+	order := make([]string, 0)
 	for rows.Next() {
-		rowCandidates, scanErr := scanTerraformBackendFactCandidates(rows)
+		repoID, contextValue, scanErr := scanTerraformBackendFactContext(rows)
 		if scanErr != nil {
 			return nil, scanErr
 		}
-		candidates = append(candidates, rowCandidates...)
+		if repoID == "" {
+			continue
+		}
+		if _, seen := contexts[repoID]; !seen {
+			order = append(order, repoID)
+		}
+		contexts[repoID] = mergeTerraformBackendFactContext(contexts[repoID], contextValue)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+	var candidates []terraformstate.DiscoveryCandidate
+	for _, repoID := range order {
+		candidates = append(candidates, terraformBackendCandidatesFromContext(repoID, contexts[repoID])...)
 	}
 	return candidates, nil
 }

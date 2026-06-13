@@ -68,3 +68,26 @@ bounded cloud-inventory admission counters and the canonical
 `reducer_cloud_resource_identity` read-model payload; the Postgres
 instrumentation wrapper still emits `eshu_dp_postgres_query_duration_seconds`
 for the load.
+
+## Terraform Backend Interpolation (#2400)
+
+Terraform-state backend discovery reads active Git parser facts through the
+same bounded generation joins as other graph discovery. Repo-scoped discovery
+merges `terraform_backends`, `terraform_variables`, and `terraform_locals` from
+the requested repo's active generation; filter and canonical resolver reads
+first identify active generations that contain backend blocks, then bring in
+variable/local rows from those same generations. S3 backend attributes can
+recover exact same-module variable/local literal values without evaluating
+Terraform or widening to repository-global names. Unresolved expressions,
+duplicate names, `module.*`, and `terraform.workspace` remain non-candidates;
+issue #2438 owns a separate warning/evidence channel for those lower-confidence
+observations.
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run 'TestTerraformStateBackendFactReader|TestPostgresTerraformBackendQuery|TestTerraformStatePriorSnapshotReader|TestTerraformStateGitReadinessChecker' -count=1`
+proves literal backend candidates, same-module interpolation recovery across
+separate backend/variable/local file facts, filters, canonical locator-hash
+ownership, prior snapshot metadata, and readiness still agree.
+
+No-Observability-Change: #2400 adds no table, queue, graph write, metric, span,
+or log shape. Exact candidate counts continue through the existing
+Terraform-state discovery metrics.

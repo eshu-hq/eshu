@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -41,28 +40,62 @@ import (
 // and would re-evaluate the type check per row. Regression test:
 // TestPostgresTerraformBackendQuerySurvivesNullTerraformBackendsPath.
 const listTerraformBackendCanonicalRowsQuery = `
+WITH backend_generations AS (
+    SELECT DISTINCT
+        fact.payload->>'repo_id' AS repo_id,
+        fact.scope_id,
+        fact.generation_id
+    FROM fact_records AS fact
+    JOIN ingestion_scopes AS scope
+      ON scope.scope_id = fact.scope_id
+     AND scope.active_generation_id = fact.generation_id
+    JOIN scope_generations AS generation
+      ON generation.scope_id = fact.scope_id
+     AND generation.generation_id = fact.generation_id
+    WHERE fact.fact_kind = 'file'
+      AND fact.source_system = 'git'
+      AND generation.status = 'active'
+      AND CASE
+            WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_backends') = 'array'
+            THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_backends')
+            ELSE 0
+          END > 0
+)
 SELECT
-    fact.payload->>'repo_id'                                  AS repo_id,
+    backend.repo_id                                           AS repo_id,
     fact.scope_id                                             AS scope_id,
     fact.generation_id                                        AS generation_id,
     fact.observed_at                                          AS observed_at,
-    fact.payload->'parsed_file_data'->'terraform_backends'    AS terraform_backends
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
+    jsonb_build_object(
+        'terraform_backends', COALESCE(fact.payload->'parsed_file_data'->'terraform_backends', '[]'::jsonb),
+        'terraform_variables', COALESCE(fact.payload->'parsed_file_data'->'terraform_variables', '[]'::jsonb),
+        'terraform_locals', COALESCE(fact.payload->'parsed_file_data'->'terraform_locals', '[]'::jsonb)
+    )                                                         AS terraform_backend_context
+FROM backend_generations AS backend
+JOIN fact_records AS fact
+  ON fact.scope_id = backend.scope_id
+ AND fact.generation_id = backend.generation_id
+ AND fact.payload->>'repo_id' = backend.repo_id
 WHERE fact.fact_kind = 'file'
   AND fact.source_system = 'git'
-  AND generation.status = 'active'
-  AND CASE
+  AND (
+      CASE
         WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_backends') = 'array'
         THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_backends')
         ELSE 0
-      END > 0
-ORDER BY fact.payload->>'repo_id' ASC, fact.observed_at ASC, fact.fact_id ASC
+      END
+    + CASE
+        WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_variables') = 'array'
+        THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_variables')
+        ELSE 0
+      END
+    + CASE
+        WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_locals') = 'array'
+        THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_locals')
+        ELSE 0
+      END
+  ) > 0
+ORDER BY backend.repo_id ASC, fact.scope_id ASC, fact.generation_id ASC, fact.observed_at ASC, fact.fact_id ASC
 `
 
 // PostgresTerraformBackendQuery answers
@@ -124,62 +157,103 @@ func (q PostgresTerraformBackendQuery) ListTerraformBackendsByLocator(
 	}
 	defer func() { _ = rows.Close() }()
 
-	var out []tfstatebackend.TerraformBackendRow
+	contexts := map[terraformBackendCanonicalContextKey]*terraformBackendCanonicalContext{}
+	order := make([]terraformBackendCanonicalContextKey, 0)
 	for rows.Next() {
 		var repoID string
 		var scopeID string
 		var generationID string
 		var observedAt time.Time
-		var rawBackends []byte
-		if err := rows.Scan(&repoID, &scopeID, &generationID, &observedAt, &rawBackends); err != nil {
+		var rawContext []byte
+		if err := rows.Scan(&repoID, &scopeID, &generationID, &observedAt, &rawContext); err != nil {
 			return nil, fmt.Errorf("scan terraform backend canonical row: %w", err)
 		}
 
-		matches, err := matchingBackendRows(
-			repoID, scopeID, generationID, observedAt, rawBackends, backendKind, locatorHash,
-		)
+		contextValue, err := decodeTerraformBackendFactContext(rawContext)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, matches...)
+		key := terraformBackendCanonicalContextKey{
+			repoID:       strings.TrimSpace(repoID),
+			scopeID:      strings.TrimSpace(scopeID),
+			generationID: strings.TrimSpace(generationID),
+		}
+		if key.repoID == "" || key.scopeID == "" || key.generationID == "" {
+			continue
+		}
+		group, seen := contexts[key]
+		if !seen {
+			group = &terraformBackendCanonicalContext{
+				repoID:       key.repoID,
+				scopeID:      key.scopeID,
+				generationID: key.generationID,
+				observedAt:   observedAt.UTC(),
+			}
+			contexts[key] = group
+			order = append(order, key)
+		}
+		group.context = mergeTerraformBackendFactContext(group.context, contextValue)
+		if observedAt.Before(group.observedAt) {
+			group.observedAt = observedAt.UTC()
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate terraform backend canonical rows: %w", err)
 	}
+
+	var out []tfstatebackend.TerraformBackendRow
+	for _, key := range order {
+		group := contexts[key]
+		matches := matchingBackendRowsFromContext(
+			group.repoID, group.scopeID, group.generationID, group.observedAt, group.context, backendKind, locatorHash,
+		)
+		out = append(out, matches...)
+	}
 	return out, nil
 }
 
-// matchingBackendRows decodes one fact's terraform_backends array, converts
-// each entry into a tfstatebackend.TerraformBackendRow via the shared
-// parser-fact helper, and keeps only the entries that match the requested
-// composite key. Entries that fail the literal-attribute filter (Terragrunt
-// or interpolated backend configs) are silently skipped — drift detection
-// requires deterministic locator hashes and cannot operate on ambiguous
-// inputs. The collector enforces the same filter on the state side, so this
-// keeps both sides of the join symmetric.
-func matchingBackendRows(
+type terraformBackendCanonicalContextKey struct {
+	repoID       string
+	scopeID      string
+	generationID string
+}
+
+type terraformBackendCanonicalContext struct {
+	repoID       string
+	scopeID      string
+	generationID string
+	observedAt   time.Time
+	context      terraformBackendFactContext
+}
+
+// matchingBackendRowsFromContext converts one active repo-generation context
+// into canonical backend rows. Entries that fail the exact-attribute filter are
+// silently skipped because drift detection requires deterministic locator
+// hashes and cannot operate on ambiguous inputs.
+func matchingBackendRowsFromContext(
 	repoID string,
 	scopeID string,
 	generationID string,
 	observedAt time.Time,
-	rawBackends []byte,
+	contextValue terraformBackendFactContext,
 	backendKind string,
 	locatorHash string,
-) ([]tfstatebackend.TerraformBackendRow, error) {
-	if len(rawBackends) == 0 {
-		return nil, nil
-	}
-	var backends []map[string]any
-	if err := json.Unmarshal(rawBackends, &backends); err != nil {
-		return nil, fmt.Errorf("decode terraform_backends for repo %q: %w", repoID, err)
-	}
+) []tfstatebackend.TerraformBackendRow {
+	candidates := terraformBackendCandidatesFromContext(repoID, contextValue)
+	return matchingBackendRowsFromCandidates(repoID, scopeID, generationID, observedAt, candidates, backendKind, locatorHash)
+}
 
+func matchingBackendRowsFromCandidates(
+	repoID string,
+	scopeID string,
+	generationID string,
+	observedAt time.Time,
+	candidates []terraformstate.DiscoveryCandidate,
+	backendKind string,
+	locatorHash string,
+) []tfstatebackend.TerraformBackendRow {
 	var out []tfstatebackend.TerraformBackendRow
-	for _, backend := range backends {
-		candidate, ok := terraformBackendCandidate(repoID, backend)
-		if !ok {
-			continue
-		}
+	for _, candidate := range candidates {
 		gotKind := strings.TrimSpace(string(candidate.State.BackendKind))
 		if gotKind != backendKind {
 			continue
@@ -204,5 +278,5 @@ func matchingBackendRows(
 			LocatorHash:      gotHash,
 		})
 	}
-	return out, nil
+	return out
 }

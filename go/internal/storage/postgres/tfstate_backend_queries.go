@@ -31,7 +31,11 @@ active_repositories AS (
 )
 SELECT
     active_repositories.requested_repo_id AS repo_id,
-    fact.payload->'parsed_file_data'->'terraform_backends' AS terraform_backends
+    jsonb_build_object(
+        'terraform_backends', COALESCE(fact.payload->'parsed_file_data'->'terraform_backends', '[]'::jsonb),
+        'terraform_variables', COALESCE(fact.payload->'parsed_file_data'->'terraform_variables', '[]'::jsonb),
+        'terraform_locals', COALESCE(fact.payload->'parsed_file_data'->'terraform_locals', '[]'::jsonb)
+    ) AS terraform_backend_context
 FROM active_repositories
 JOIN fact_records AS fact
   ON fact.payload->>'repo_id' = active_repositories.canonical_repo_id
@@ -44,7 +48,23 @@ JOIN scope_generations AS generation
 WHERE fact.fact_kind = 'file'
   AND fact.source_system = 'git'
   AND generation.status = 'active'
-  AND jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_backends') = 'array'
+  AND (
+      CASE
+        WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_backends') = 'array'
+        THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_backends')
+        ELSE 0
+      END
+    + CASE
+        WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_variables') = 'array'
+        THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_variables')
+        ELSE 0
+      END
+    + CASE
+        WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_locals') = 'array'
+        THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_locals')
+        ELSE 0
+      END
+  ) > 0
 ORDER BY repo_id ASC, fact.observed_at ASC, fact.fact_id ASC
 `
 
@@ -56,31 +76,93 @@ WITH backend_filters AS (
         COALESCE(filter_item->>'key', '') AS key,
         COALESCE(filter_item->>'region', '') AS region
     FROM jsonb_array_elements($1::jsonb) AS filter_item
+),
+matching_backend_generations AS (
+    SELECT DISTINCT
+        fact.scope_id,
+        fact.generation_id,
+        fact.payload->>'repo_id' AS repo_id
+    FROM fact_records AS fact
+    JOIN ingestion_scopes AS scope
+      ON scope.scope_id = fact.scope_id
+     AND scope.active_generation_id = fact.generation_id
+    JOIN scope_generations AS generation
+      ON generation.scope_id = fact.scope_id
+     AND generation.generation_id = fact.generation_id
+    WHERE fact.fact_kind = 'file'
+      AND fact.source_system = 'git'
+      AND generation.status = 'active'
+      AND CASE
+            WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_backends') = 'array'
+            THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_backends')
+            ELSE 0
+          END > 0
+      AND EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements(
+              CASE
+                WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_backends') = 'array'
+                THEN fact.payload->'parsed_file_data'->'terraform_backends'
+                ELSE '[]'::jsonb
+              END
+          ) AS backend
+          JOIN backend_filters AS filter ON true
+          WHERE (filter.backend_kind = '' OR backend->>'backend_kind' = filter.backend_kind OR backend->>'name' = filter.backend_kind)
+            AND (
+                filter.bucket = ''
+             OR backend->>'bucket' = filter.bucket
+             OR backend->>'bucket' LIKE 'var.%'
+             OR backend->>'bucket' LIKE 'local.%'
+             OR backend->>'bucket' LIKE '%${%'
+            )
+            AND (
+                filter.key = ''
+             OR backend->>'key' = filter.key
+             OR backend->>'key' LIKE 'var.%'
+             OR backend->>'key' LIKE 'local.%'
+             OR backend->>'key' LIKE '%${%'
+            )
+            AND (
+                filter.region = ''
+             OR backend->>'region' = filter.region
+             OR backend->>'region' LIKE 'var.%'
+             OR backend->>'region' LIKE 'local.%'
+             OR backend->>'region' LIKE '%${%'
+            )
+      )
 )
 SELECT
-    fact.payload->>'repo_id' AS repo_id,
-    fact.payload->'parsed_file_data'->'terraform_backends' AS terraform_backends
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
+    matching.repo_id AS repo_id,
+    jsonb_build_object(
+        'terraform_backends', COALESCE(fact.payload->'parsed_file_data'->'terraform_backends', '[]'::jsonb),
+        'terraform_variables', COALESCE(fact.payload->'parsed_file_data'->'terraform_variables', '[]'::jsonb),
+        'terraform_locals', COALESCE(fact.payload->'parsed_file_data'->'terraform_locals', '[]'::jsonb)
+    ) AS terraform_backend_context
+FROM matching_backend_generations AS matching
+JOIN fact_records AS fact
+  ON fact.scope_id = matching.scope_id
+ AND fact.generation_id = matching.generation_id
+ AND fact.payload->>'repo_id' = matching.repo_id
 WHERE fact.fact_kind = 'file'
   AND fact.source_system = 'git'
-  AND generation.status = 'active'
-  AND jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_backends') = 'array'
-  AND EXISTS (
-      SELECT 1
-      FROM jsonb_array_elements(fact.payload->'parsed_file_data'->'terraform_backends') AS backend
-      JOIN backend_filters AS filter ON true
-      WHERE (filter.backend_kind = '' OR backend->>'backend_kind' = filter.backend_kind OR backend->>'name' = filter.backend_kind)
-        AND (filter.bucket = '' OR backend->>'bucket' = filter.bucket)
-        AND (filter.key = '' OR backend->>'key' = filter.key)
-        AND (filter.region = '' OR backend->>'region' = filter.region)
-  )
-ORDER BY repo_id ASC, fact.observed_at ASC, fact.fact_id ASC
+  AND (
+      CASE
+        WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_backends') = 'array'
+        THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_backends')
+        ELSE 0
+      END
+    + CASE
+        WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_variables') = 'array'
+        THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_variables')
+        ELSE 0
+      END
+    + CASE
+        WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_locals') = 'array'
+        THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_locals')
+        ELSE 0
+      END
+  ) > 0
+ORDER BY matching.repo_id ASC, fact.observed_at ASC, fact.fact_id ASC
 `
 
 const listTerragruntRemoteStateFactsQuery = `
