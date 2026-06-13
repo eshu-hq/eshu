@@ -5,10 +5,10 @@
 `internal/collector/gcpcloud` owns the first GCP cloud collection slice. It
 parses Cloud Asset Inventory (CAI) `assets.list` and `searchAllResources`
 response pages into safe observations, normalizes Google Cloud identity, redacts
-sensitive label values and IAM member identities, and emits the
-`gcp_cloud_resource`, `gcp_tag_observation`,
-`gcp_iam_policy_observation`, and `gcp_collection_warning` source fact
-envelopes.
+sensitive label values, IAM member identities, and DNS record values, and emits
+the `gcp_cloud_resource`, `gcp_tag_observation`,
+`gcp_iam_policy_observation`, `gcp_dns_record`, and
+`gcp_collection_warning` source fact envelopes.
 
 This package does not call Google Cloud APIs, schedule collector runs, write
 graph rows, persist raw provider payloads, or admit reducer truth. The
@@ -24,9 +24,9 @@ flowchart LR
     Parse["ParseAssetsListPage / ParseSearchAllResourcesPage"]
     Obs["safe ResourceObservation (no data-plane content)"]
     Gen["Generation accumulator (dedupe, pagination resume)"]
-    Env["NewCloudResourceEnvelope / NewTagObservationEnvelope / NewIAMPolicyObservationEnvelope / NewCollectionWarningEnvelope"]
+    Env["NewCloudResourceEnvelope / NewTagObservationEnvelope / NewIAMPolicyObservationEnvelope / NewDNSRecordEnvelope / NewCollectionWarningEnvelope"]
     Tracker["GenerationTracker (fencing, stale rejection)"]
-    Facts["gcp_cloud_resource / gcp_tag_observation / gcp_iam_policy_observation / gcp_collection_warning facts"]
+    Facts["gcp_cloud_resource / gcp_tag_observation / gcp_iam_policy_observation / gcp_dns_record / gcp_collection_warning facts"]
 
     Pages --> Parse
     Parse -->|"raw resource data blob dropped"| Obs
@@ -54,6 +54,7 @@ a redacted fact, a bounded warning, or a normalized identity.
 - `NewCloudResourceEnvelope`, `NewCollectionWarningEnvelope`,
   `NewTagObservationEnvelope`, `TagObservation`,
   `NewIAMPolicyObservationEnvelope`, `IAMPolicyObservation`,
+  `NewDNSRecordEnvelope`, `DNSRecordObservation`,
   `ExtensionSchemaVersionDefault` — durable envelope construction.
 - `Generation`, `NewGeneration`, `GenerationTracker`, `NewGenerationTracker`,
   `ErrStaleGeneration` — generation accumulation and fencing.
@@ -74,13 +75,15 @@ a redacted fact, a bounded warning, or a normalized identity.
 - Never persist raw IAM policy JSON, secret values, object contents, startup
   scripts, public or private IP addresses, or provider response bodies. The
   parser drops the raw resource data blob.
-- Fingerprint IAM member identities and sensitive label values with the keyed
-  `redact` package; never persist raw user, group, or service-account emails.
+- Fingerprint IAM member identities, DNS record names and targets, and
+  sensitive label values with the keyed `redact` package; never persist raw
+  user, group, service-account, or DNS record values.
 - Keep the payload redaction versioned with `RedactionPolicyVersion`.
 - Metric labels and status keys are bounded enums only: collector kind, claim
   status, CAI operation, parent scope kind, asset family, content family, status
   class, fact kind, warning kind, and outcome. Never put full resource names,
-  project ids, labels, IAM members, URLs, or credential names in labels.
+  project ids, labels, IAM members, DNS names, URLs, or credential names in
+  labels.
 
 ## Verification
 
@@ -99,25 +102,27 @@ Cypher, no graph or Postgres writes, no worker/lease/queue, and no claim-driven
 runtime binary. Backend/version: none touched (NornicDB/Neo4j, Postgres, and the
 reducer are unchanged; fact kinds are additive). Input shape: bounded CAI
 `assets.list`/`searchAllResources` fixture pages; work is O(resources x pages)
-single-pass with page-token dedupe plus one tag-envelope pass for labeled
-resources, so terminal output is one bounded generation of
+single-pass with page-token dedupe plus bounded fact-family passes for parsed
+labels, IAM bindings, and DNS records, so terminal output is one bounded
+generation of
 `gcp_cloud_resource`, `gcp_tag_observation`,
-`gcp_iam_policy_observation`, and `gcp_collection_warning` facts (row count
+`gcp_iam_policy_observation`, `gcp_dns_record`, and
+`gcp_collection_warning` facts (row count
 equals deduped fixture resources plus labeled resources with usable label keys,
-IAM bindings with usable members, and one warning per unsupported kind/scope).
-Why safe: no live calls in tests, stale generations are rejected by fencing
-token, and re-emission of the same generation is idempotent, all proven by
-fixture tests.
+IAM bindings with usable members, DNS record sets with usable type/name/zone
+identity, and one warning per unsupported kind/scope). Why safe: no live calls
+in tests, stale generations are rejected by fencing token, and re-emission of
+the same generation is idempotent, all proven by fixture tests.
 
 Observability Evidence: the package exports bounded-label data-plane metrics
 `eshu_dp_gcp_cloud_claims_total`, `_api_calls_total`, `_pages_total`,
 `_page_token_resumes_total`, `_facts_emitted_total`, `_warnings_total`, and
 `_freshness_lag_seconds`. Labels are bounded enums only (collector kind, claim
 status, CAI operation, parent scope kind, asset family, content family, status
-class, fact kind, warning kind, outcome); tag and IAM emission use the existing
-fact-kind dimension for `gcp_tag_observation` and
-`gcp_iam_policy_observation` and add no new label shape. A test asserts no full
-resource name, project id, label, IAM member, or URL appears in any label. An
-operator reads partial-scope coverage, page-token resumes, freshness lag,
-fact-kind counts, and warning counts to answer whether a scan is complete,
-fresh, throttled, or partial.
+class, fact kind, warning kind, outcome); tag, IAM, and DNS emission use the
+existing fact-kind dimension for `gcp_tag_observation`,
+`gcp_iam_policy_observation`, and `gcp_dns_record` and add no new label shape.
+A test asserts no full resource name, project id, label, IAM member, DNS name,
+or URL appears in any label. An operator reads partial-scope coverage,
+page-token resumes, freshness lag, fact-kind counts, and warning counts to
+answer whether a scan is complete, fresh, throttled, or partial.

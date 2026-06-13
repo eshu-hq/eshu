@@ -14,6 +14,11 @@ import (
 // gcp_dns_record fact so a record set cannot emit an unbounded payload.
 const maxDNSRecordTargets = 100
 
+const (
+	redactionReasonDNSRecordName = "gcp_dns_record_name"
+	redactionReasonDNSTarget     = "gcp_dns_target"
+)
+
 // DNSRecordObservation is one observed Cloud DNS record. DNS names are sensitive,
 // so the collector fingerprints the record name and every target with the
 // redaction key; it keeps the bounded record type and TTL as evidence.
@@ -66,6 +71,7 @@ func NewDNSRecordEnvelope(obs DNSRecordObservation, key redact.Key) (facts.Envel
 		return facts.Envelope{}, fmt.Errorf("gcp dns record observation requires record_name")
 	}
 	targets, targetsTruncated := fingerprintDNSTargets(obs.Targets, recordType, key)
+	recordNameFingerprint := dnsRecordNameFingerprint(recordName, recordType, key)
 
 	stableKey := facts.StableID(facts.GCPDNSRecordFactKind, map[string]any{
 		"managed_zone_full_resource_name": zoneName,
@@ -84,7 +90,7 @@ func NewDNSRecordEnvelope(obs DNSRecordObservation, key redact.Key) (facts.Envel
 		"managed_zone_full_resource_name": zoneName,
 		"managed_zone_project_id":         strings.TrimSpace(ProjectIDFromFullName(zoneName)),
 		"record_type":                     recordType,
-		"record_name_fingerprint":         redact.String(recordName, "gcp_dns_record_name", "gcp_dns_record_name:"+recordType, key).Marker,
+		"record_name_fingerprint":         recordNameFingerprint,
 		"target_fingerprints":             targets,
 		"target_count":                    len(targets),
 		"target_truncated":                targetsTruncated,
@@ -99,10 +105,14 @@ func NewDNSRecordEnvelope(obs DNSRecordObservation, key redact.Key) (facts.Envel
 		facts.GCPDNSRecordFactKind,
 		facts.GCPDNSRecordSchemaVersion,
 		stableKey,
-		sourceRecordID(obs.SourceRecordID, zoneName+"|"+recordType+"|"+recordName),
+		sourceRecordID(obs.SourceRecordID, zoneName+"|"+recordType+"|"+recordNameFingerprint),
 		obs.SourceURI,
 		payload,
 	), nil
+}
+
+func dnsRecordNameFingerprint(recordName, recordType string, key redact.Key) string {
+	return redact.String(recordName, redactionReasonDNSRecordName, redactionReasonDNSRecordName+":"+recordType, key).Marker
 }
 
 // fingerprintDNSTargets fingerprints each non-blank DNS target, de-duplicating
@@ -129,7 +139,7 @@ func fingerprintDNSTargets(targets []string, recordType string, key redact.Key) 
 	}
 	out := make([]string, 0, len(raw))
 	for _, t := range raw {
-		out = append(out, redact.String(t, "gcp_dns_target", "gcp_dns_target:"+recordType, key).Marker)
+		out = append(out, redact.String(t, redactionReasonDNSTarget, redactionReasonDNSTarget+":"+recordType, key).Marker)
 	}
 	return out, truncated
 }

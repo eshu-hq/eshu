@@ -107,6 +107,11 @@ func (g *Generation) Build() ([]facts.Envelope, error) {
 			return nil, err
 		}
 		envelopes = append(envelopes, iamEnvelopes...)
+		dnsEnvelopes, err := g.dnsRecordEnvelopes(resource)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, dnsEnvelopes...)
 	}
 	for _, warning := range g.warnings {
 		env, err := NewCollectionWarningEnvelope(warning)
@@ -142,6 +147,7 @@ func (g *Generation) envelopeCapacity() int {
 			capacity++
 		}
 		capacity += iamPolicyObservationCount(resource.IAMPolicyBindings)
+		capacity += dnsRecordObservationCount(resource.DNSRecords)
 	}
 	return capacity
 }
@@ -199,6 +205,31 @@ func (g *Generation) iamPolicyObservationEnvelopes(obs ResourceObservation) ([]f
 	return envelopes, nil
 }
 
+func (g *Generation) dnsRecordEnvelopes(obs ResourceObservation) ([]facts.Envelope, error) {
+	if g.key.IsZero() || dnsRecordObservationCount(obs.DNSRecords) == 0 {
+		return nil, nil
+	}
+	envelopes := make([]facts.Envelope, 0, dnsRecordObservationCount(obs.DNSRecords))
+	for _, record := range obs.DNSRecords {
+		if !hasUsableDNSRecordObservation(record) {
+			continue
+		}
+		record.Boundary = g.boundary
+		record.UpdateTime = obs.UpdateTime
+		record.SourceRecordID = dnsSourceRecordID(obs.SourceRecordID, record.RecordType, record.RecordName, g.key)
+		record.SourceURI = obs.SourceURI
+		env, err := NewDNSRecordEnvelope(record, g.key)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, env)
+	}
+	sort.Slice(envelopes, func(i, j int) bool {
+		return envelopes[i].StableFactKey < envelopes[j].StableFactKey
+	})
+	return envelopes, nil
+}
+
 func hasUsableTags(labels map[string]string) bool {
 	for key := range labels {
 		if strings.TrimSpace(key) != "" {
@@ -230,6 +261,22 @@ func hasUsableIAMPolicyBinding(binding IAMPolicyBindingObservation) bool {
 	return false
 }
 
+func dnsRecordObservationCount(records []DNSRecordObservation) int {
+	count := 0
+	for _, record := range records {
+		if hasUsableDNSRecordObservation(record) {
+			count++
+		}
+	}
+	return count
+}
+
+func hasUsableDNSRecordObservation(record DNSRecordObservation) bool {
+	return strings.TrimSpace(record.ManagedZoneFullResourceName) != "" &&
+		strings.TrimSpace(record.RecordType) != "" &&
+		strings.TrimSpace(record.RecordName) != ""
+}
+
 func iamSourceRecordID(sourceRecordID, role string) string {
 	sourceRecordID = strings.TrimSpace(sourceRecordID)
 	role = strings.TrimSpace(role)
@@ -237,6 +284,22 @@ func iamSourceRecordID(sourceRecordID, role string) string {
 		return sourceRecordID
 	}
 	return sourceRecordID + "|" + role
+}
+
+func dnsSourceRecordID(sourceRecordID, recordType, recordName string, key redact.Key) string {
+	sourceRecordID = strings.TrimSpace(sourceRecordID)
+	recordType = strings.ToUpper(strings.TrimSpace(recordType))
+	recordName = strings.TrimSpace(recordName)
+	if sourceRecordID == "" {
+		if recordType == "" || recordName == "" || key.IsZero() {
+			return sourceRecordID
+		}
+		return recordType + "|" + dnsRecordNameFingerprint(recordName, recordType, key)
+	}
+	if recordType == "" || recordName == "" || key.IsZero() {
+		return sourceRecordID
+	}
+	return sourceRecordID + "|" + recordType + "|" + dnsRecordNameFingerprint(recordName, recordType, key)
 }
 
 func resourceDedupeKey(obs ResourceObservation) string {
