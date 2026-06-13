@@ -1,13 +1,12 @@
-# Eshu Console — work handoff for Claude Code
+# Eshu Console — work handoff for agents
 
 Goal: finish porting the redesigned console into `apps/console/src` (native TSX,
 **live by default**), and create the missing backend API endpoints the UI needs.
 The console currently hydrates from the live API and falls back to a
 clearly-labeled demo fixture only when the API is unreachable; removing that demo
 path in favor of explicit loading/empty/error states is tracked below ("console:
-remove all demo/mock data; live-only with states"). This doc is split so you can
-paste each section into Claude Code (or have it create GitHub issues first, then
-work them).
+remove all demo/mock data; live-only with states"). This doc is split so agents
+can create GitHub issues first, then work them.
 
 The reference implementation is the working prototype at
 `apps/console/prototype/eshu-console/Eshu Console.html` (+ `console/*.jsx`). It shows
@@ -18,7 +17,7 @@ an endpoint does not exist yet, see "Backend API" below.
 
 ---
 
-## 0) Paste this first — have Claude Code create the GitHub issues
+## 0) Paste this first — have an agent create the GitHub issues
 
 > You have repo write access and the `gh` CLI. Create GitHub issues in
 > `eshu-hq/eshu` from the specs in `docs/console-handoff.md` (this file). Create
@@ -60,12 +59,13 @@ API" state (see frontend issue).
 flag for large files; 404 envelope for missing path; never returns secrets that
 the collectors redact.
 
-### ISSUE: api: add repository branches/refs endpoint
+### SHIPPED: api: repository branches/refs endpoint
 Labels: area:api, backend
-**Why:** The code viewer's branch selector needs the real ref list (today it's
-invented).
-**Proposed contract:** `GET /api/v0/repositories/{id}/branches`
-→ `data: { default_branch, branches: [{ name, last_indexed_at, head_sha }] }`
+**Why:** The code viewer's branch selector uses source-backed refs when
+ingestion captured them, and keeps the indexed-ref-only state when branch
+metadata is unavailable.
+**Contract:** `GET /api/v0/repositories/{id}/branches`
+→ `data: { default_branch, branches: [{ name, kind, is_default, last_indexed_at, head_sha }] }`
 
 ### SHIPPED: api: historical time-series metrics endpoint
 Labels: area:api, backend
@@ -151,13 +151,14 @@ Labels: area:console, frontend
   `code/relationships` (symbol/relationship graph) + `code/search`.
 - **No fabricated file tree or file contents.**
 
-### ISSUE: console: repo code viewer (blocked on content API)
-Labels: area:console, frontend, blocked-on-api
-- Build the file-tree + code-viewer UI from the prototype, but wired to the new
-  `repositories/{id}/tree`, `/content`, `/branches` endpoints.
-- Until those ship, render a clearly-labeled empty state: "Source browsing
-  requires the repository content API (see #<tree/content/branches issues>)."
-- Depends on the three repository-content backend issues above.
+### SHIPPED: console: repo code viewer
+Labels: area:console, frontend
+- File-tree + code-viewer UI is wired to `repositories/{id}/tree`,
+  `/content`, and `/branches`.
+- Source-backed branch refs render a selector when multiple named refs are
+  available, and selected refs are passed through tree/content reads.
+- Indexed-ref-only repositories keep an explicit single-ref state instead of
+  fabricated branch names.
 
 ### ISSUE: console: graph explorer on entity-map / relationships
 Labels: area:console, frontend

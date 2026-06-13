@@ -121,6 +121,76 @@ describe("RepoSourcePage", () => {
     expect(screen.queryByText(/Branch selection is pending/)).not.toBeInTheDocument();
   });
 
+  it("renders source-backed branch choices and keeps selected refs in source reads", async () => {
+    const calls: string[] = [];
+    const client = {
+      get: async (path: string) => {
+        calls.push(path);
+        if (path === "/api/v0/repositories/repository%3Ar_1/branches") {
+          return {
+            data: {
+              default_branch: "main",
+              branches: [
+                { name: "main", kind: "branch", head_sha: "abc123def456", is_default: true, last_indexed_at: "2026-06-01T09:00:00Z" },
+                { name: "release", kind: "branch", head_sha: "def456abc123", is_default: false, last_indexed_at: "2026-06-01T10:00:00Z" }
+              ]
+            },
+            error: null,
+            truth: null
+          };
+        }
+        if (path.includes("/content?")) {
+          return {
+            data: {
+              path: "README.md",
+              ref: path.includes("ref=release") ? "def456abc123" : "abc123def456",
+              encoding: "utf-8",
+              content: "selected branch content",
+              size: 1,
+              language: "markdown",
+              truncated: false
+            },
+            error: null,
+            truth: null
+          };
+        }
+        return {
+          data: {
+            ref: path.includes("ref=release") ? "def456abc123" : "abc123def456",
+            path: "",
+            entries: [{ name: "README.md", type: "file", path: "README.md", size: 1, language: "markdown" }]
+          },
+          error: null,
+          truth: null
+        };
+      }
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/repositories/repository%3Ar_1/source?path=README.md&ref=main"]}>
+        <Routes>
+          <Route path="/repositories/:id/source" element={<><RepoSourcePage client={client} /><LocationProbe /></>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole("combobox", { name: "Repository ref" })).toHaveValue("main");
+    await waitFor(() => {
+      expect(calls).toContain("/api/v0/repositories/repository%3Ar_1/tree?ref=main");
+      expect(calls).toContain("/api/v0/repositories/repository%3Ar_1/content?path=README.md&ref=main");
+    });
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Repository ref" }), { target: { value: "release" } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("source-location")).toHaveTextContent(
+        "/repositories/repository%3Ar_1/source?path=README.md&ref=release"
+      );
+      expect(calls).toContain("/api/v0/repositories/repository%3Ar_1/tree?ref=release");
+      expect(calls).toContain("/api/v0/repositories/repository%3Ar_1/content?path=README.md&ref=release");
+    });
+  });
+
   it("keeps file selections shareable by updating the source URL", async () => {
     const client = {
       get: async (path: string) => {

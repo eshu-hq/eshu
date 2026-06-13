@@ -1,13 +1,13 @@
 // pages/RepoSourcePage.tsx
 // File-tree + code-viewer for a repository, wired to the merged tree (#1431) and
-// content (#1432) endpoints plus the derived branch ref list (#1433). No
-// fabricated tree, branch names, or contents.
+// content (#1432) endpoints plus source-backed branch refs (#1433). No
+// fabricated tree, refs, or contents.
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
 import { loadRepositoryNameMap } from "../api/repoCatalog";
 import { decodeRepoFile, loadRepoBranches, loadRepoFile, loadRepoTree } from "../api/repoSource";
-import type { RepoBranches, RepoFile, RepoTree } from "../api/repoSource";
+import type { RepoBranch, RepoBranches, RepoFile, RepoTree } from "../api/repoSource";
 import { Panel, Badge } from "../components/atoms";
 
 export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }): React.JSX.Element {
@@ -15,6 +15,7 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const requestedFile = searchParams.get("path") ?? "";
+  const selectedRef = searchParams.get("ref") ?? "";
   const highlightStart = parseLineParam(searchParams.get("lineStart"));
   const highlightEnd = parseLineParam(searchParams.get("lineEnd")) ?? highlightStart;
   const [path, setPath] = useState(parentPath(requestedFile));
@@ -44,11 +45,11 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
     let cancelled = false;
     if (!client) { setTree(null); setTreeErr("requires a live connection"); return; }
     setTree(null); setTreeErr("");
-    void loadRepoTree(client, id, path)
+    void loadRepoTree(client, id, path, selectedRef)
       .then((t) => { if (!cancelled) setTree(t); })
       .catch((e) => { if (!cancelled) setTreeErr(e instanceof Error ? e.message : "failed"); });
     return () => { cancelled = true; };
-  }, [client, id, path]);
+  }, [client, id, path, selectedRef]);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,24 +68,37 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
     setPath(parentPath(requestedFile));
     setFileBusy(true);
     setFile(null);
-    void loadRepoFile(client, id, requestedFile).then((f) => {
+    void loadRepoFile(client, id, requestedFile, selectedRef).then((f) => {
       if (!cancelled) {
         setFile(f);
         setFileBusy(false);
       }
     });
     return () => { cancelled = true; };
-  }, [client, id, requestedFile]);
+  }, [client, id, requestedFile, selectedRef]);
 
   function openFile(filePath: string): void {
     const params = new URLSearchParams({ path: filePath });
+    if (selectedRef) params.set("ref", selectedRef);
     navigate(`/repositories/${encodeURIComponent(id)}/source?${params.toString()}`);
   }
 
+  function selectRef(ref: string): void {
+    const params = new URLSearchParams(searchParams);
+    if (ref) params.set("ref", ref);
+    else params.delete("ref");
+    const query = params.toString();
+    navigate(`/repositories/${encodeURIComponent(id)}/source${query ? `?${query}` : ""}`);
+  }
+
   const crumbs = path ? path.split("/") : [];
-  const indexedRef = branches?.branches[0]?.headSha || tree?.ref || "";
-  const indexedBranchName = branches?.branches[0]?.name || branches?.defaultBranch || "";
-  const lastIndexedAt = branches?.branches[0]?.lastIndexedAt ?? null;
+  const branchOptions = branches?.branches.filter((branch) => branch.name !== "" || branch.headSha !== "") ?? [];
+  const namedBranches = branchOptions.filter((branch) => branch.name !== "");
+  const selectedBranchValue = selectedRef || branchValueForTree(branchOptions, tree?.ref ?? "", branches?.defaultBranch ?? "");
+  const selectedBranch = branchByValue(branchOptions, selectedBranchValue);
+  const indexedRef = tree?.ref || selectedBranch?.headSha || branchOptions[0]?.headSha || "";
+  const indexedBranchName = selectedBranch?.name || branchOptions[0]?.name || branches?.defaultBranch || "";
+  const lastIndexedAt = selectedBranch?.lastIndexedAt ?? branchOptions[0]?.lastIndexedAt ?? null;
 
   return (
     <div className="page" style={{ maxWidth: "none" }}>
@@ -95,6 +109,24 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
         <div className="explorer-filters" style={{ gap: 8, marginTop: 10 }}>
           <span className="t-mut">Indexed ref</span>
           {indexedRef ? <Badge tone="neutral">{indexedRef.slice(0, 10)}</Badge> : <Badge tone="neutral">unavailable</Badge>}
+          {namedBranches.length > 1 ? (
+            <label className="t-mut">
+              Branch
+              <select
+                aria-label="Repository ref"
+                className="code-repo-select mono"
+                value={selectedBranchValue}
+                onChange={(event) => selectRef(event.target.value)}
+                style={{ marginLeft: 6 }}
+              >
+                {branchOptions.map((branch) => (
+                  <option key={`${branch.name}:${branch.headSha}`} value={branchSelectorValue(branch)}>
+                    {branchOptionLabel(branch)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           {indexedBranchName ? <span className="t-mut mono">{indexedBranchName}</span> : null}
           {lastIndexedAt ? <span className="t-mut mono">{new Date(lastIndexedAt).toLocaleString()}</span> : null}
           {branchesErr ? <span className="t-mut">ref list unavailable: {branchesErr}</span> : null}
@@ -154,6 +186,27 @@ function parseLineParam(value: string | null): number | null {
   if (value === null) return null;
   const line = Number(value);
   return Number.isInteger(line) && line > 0 ? line : null;
+}
+
+function branchSelectorValue(branch: RepoBranch): string {
+  return branch.name || branch.headSha;
+}
+
+function branchByValue(branches: readonly RepoBranch[], value: string): RepoBranch | null {
+  return branches.find((branch) => branch.name === value || branch.headSha === value) ?? null;
+}
+
+function branchValueForTree(branches: readonly RepoBranch[], treeRef: string, defaultBranch: string): string {
+  const indexedBranch = branches.find((branch) => treeRef !== "" && branch.headSha === treeRef);
+  if (indexedBranch) return branchSelectorValue(indexedBranch);
+  const defaultBranchRow = branches.find((branch) => defaultBranch !== "" && branch.name === defaultBranch);
+  if (defaultBranchRow) return branchSelectorValue(defaultBranchRow);
+  return branches[0] ? branchSelectorValue(branches[0]) : "";
+}
+
+function branchOptionLabel(branch: RepoBranch): string {
+  const label = branch.name || branch.headSha;
+  return branch.headSha ? `${label} · ${branch.headSha.slice(0, 10)}` : label;
 }
 
 function isHighlighted(line: number, range: HighlightRange): boolean {

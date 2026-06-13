@@ -11,12 +11,12 @@ against your live stack.
 
 A browser can only call the Eshu API without CORS when the page is **served from
 an origin that proxies to it**. Your `apps/console` already does this — `vite.config.ts`
-proxies `"/eshu-api" → http://127.0.0.1:8080`. So the page must be served by that
+proxies `"/eshu-api"` to the local API service. So the page must be served by that
 dev server (or any host that proxies `/eshu-api/`). Opening the HTML from `file://`
-or a sandbox preview cannot reach `localhost:8080` (mixed-content + CORS + opaque origin).
+or a sandbox preview cannot reach the local API service (mixed-content + CORS + opaque origin).
 
-The MCP endpoint (`:8081/sse`) is the **assistant** protocol (JSON-RPC/SSE) and is
-not the surface a dashboard should consume — use the HTTP API on `:8080`.
+The MCP endpoint is the **assistant** protocol (JSON-RPC/SSE) and is not the
+surface a dashboard should consume; use the HTTP API.
 
 ---
 
@@ -100,10 +100,6 @@ is added, update both:
 
 ## What stays representative until wired
 
-- **Repository branch selection** — source browsing uses
-  `GET /api/v0/repositories/{id}/tree`, `/content?path=`, and `/branches`.
-  The current `/branches` route exposes the derived indexed commit ref; true
-  multi-branch selection remains gated on ingested Git ref names.
 - **Time-series gaps** — dashboard and Operations trend lines hydrate from
   `GET /api/v0/metrics/timeseries` when a metrics source is configured. The
   live/prototype loaders use the supported `ingest_rate`, `queue_depth`,
