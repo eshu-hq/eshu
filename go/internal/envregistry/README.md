@@ -16,15 +16,28 @@ supported core-platform variables once and powers:
 
 ## What it covers
 
-The registry covers the **core platform** subsystems: `postgres`, `graph`,
-`runtime`, `api`, `mcp`, `reducer`, `projector`, `coordinator`, `semantic`, and
-`component`. Collector and container-registry-credential variables are a
-separate, larger surface tracked outside this package.
+The registry covers the **core platform** subsystems (`postgres`, `graph`,
+`runtime`, `api`, `mcp`, `reducer`, `projector`, `coordinator`, `semantic`,
+`component`) declared in `entries.go`, and the **hosted-collector** production
+configuration declared in `entries_collectors.go` (one `collector-*` subsystem
+per collector). Container-registry credential variables (`ESHU_*_OCI_*`,
+`ESHU_*_PACKAGE_*`) are integration-test gating read only from `_test.go` and are
+out of scope.
 
 `TestRegistryCoversCoreEnvCallSites` is the CI gate: it scans the canonical core
-config files (`coreScanFiles`) and fails if any `ESHU_*` they read is missing
-from the registry. This keeps the registry from drifting away from the code it
-documents, scoped honestly to what it claims to cover.
+and collector config files (`coreScanFiles`) and fails if any `ESHU_*` they read
+is missing from the registry. This keeps the registry from drifting away from the
+code it documents, scoped honestly to what it claims to cover.
+
+No-Regression Evidence: this package is pure declarations plus validation
+helpers, read only by `eshu config validate` and the doc-generator test — never
+on any service request, graph, reducer, or queue hot path. The collector entries
+add no runtime behavior; trigger words in their descriptions (e.g. "heartbeat")
+describe collector settings and are not executed here. Verified by
+`go test ./internal/envregistry ./cmd/eshu -count=1`.
+
+No-Observability-Change: extends a CLI validation command and a generated
+reference doc; emits no metrics, spans, or logs from any running service.
 
 ## Exported surface
 

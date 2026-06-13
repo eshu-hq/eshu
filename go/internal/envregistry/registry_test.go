@@ -103,15 +103,17 @@ func TestValidateUnknownOutOfScopeSilentByDefault(t *testing.T) {
 	r := Default()
 
 	// A legitimate out-of-scope collector variable must not be flagged unless
-	// strict mode is requested, to avoid noise.
-	collector := "ESHU_TEMPO_COLLECTOR_POLL_INTERVAL"
-	if got := r.Validate(map[string]string{collector: "1s"}, false); len(got) != 0 {
+	// strict mode is requested, to avoid noise. Container-registry credential
+	// variables are an out-of-scope example: real ESHU_* names that are not
+	// registered here.
+	outOfScope := "ESHU_ACR_OCI_PASSWORD"
+	if got := r.Validate(map[string]string{outOfScope: "secret"}, false); len(got) != 0 {
 		t.Fatalf("non-strict validate flagged out-of-scope var: %+v", got)
 	}
-	strict := r.Validate(map[string]string{collector: "1s"}, true)
+	strict := r.Validate(map[string]string{outOfScope: "secret"}, true)
 	var found bool
 	for _, f := range strict {
-		if f.Name == collector && f.Kind == FindingUnknown {
+		if f.Name == outOfScope && f.Kind == FindingUnknown {
 			found = true
 		}
 	}

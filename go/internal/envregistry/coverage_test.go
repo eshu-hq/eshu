@@ -8,16 +8,34 @@ import (
 	"testing"
 )
 
-// coreScanFiles are the canonical core-platform config files whose ESHU_*
-// reads must all be declared in the registry. This is the CI coverage gate for
-// issue #2264: it keeps the registry from drifting away from the code it
-// documents. Collector and registry-credential variables are out of scope and
-// live in their own config files, which are intentionally not scanned here.
+// coreScanFiles are the config files whose ESHU_* reads must all be declared in
+// the registry. This is the CI coverage gate: it keeps the registry from
+// drifting away from the code it documents. Container-registry credential
+// variables (ESHU_*_OCI_*, ESHU_*_PACKAGE_*) are integration-test gating read
+// only from _test.go and are intentionally out of scope.
 var coreScanFiles = []string{
 	"internal/runtime/data_stores.go",
 	"internal/runtime/config.go",
 	"internal/runtime/pprof.go",
 	"internal/coordinator/config.go",
+	"cmd/collector-tempo/config.go",
+	"cmd/collector-loki/config.go",
+	"cmd/collector-prometheus-mimir/config.go",
+	"cmd/collector-grafana/config.go",
+	"cmd/collector-aws-cloud/config.go",
+	"cmd/collector-jira/config.go",
+	"cmd/collector-cicd-run/config.go",
+	"cmd/collector-pagerduty/config.go",
+	"cmd/collector-security-alerts/config.go",
+	"cmd/collector-sbom-attestation/config.go",
+	"cmd/collector-vulnerability-intelligence/config.go",
+	"cmd/collector-vault-live/config.go",
+	"cmd/collector-package-registry/config.go",
+	"cmd/collector-oci-registry/config.go",
+	"cmd/collector-terraform-state/config.go",
+	"cmd/collector-azure-cloud/config.go",
+	"cmd/collector-kubernetes-live/config.go",
+	"cmd/collector-component-extension/config.go",
 }
 
 var esuVarPattern = regexp.MustCompile(`ESHU_[A-Z0-9_]+`)

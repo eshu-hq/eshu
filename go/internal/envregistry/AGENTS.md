@@ -9,14 +9,14 @@
 
 ## Invariants this package enforces
 
-- **The registry is the source of truth, scoped to core subsystems.** Do not
+- **The registry is the source of truth for core + collector config.** Do not
   claim broader coverage than the registry actually holds. If you add a variable
-  to a file in `coreScanFiles`, you MUST add it to `entries.go` or the coverage
-  test fails.
+  to a file in `coreScanFiles`, you MUST add it to `entries.go` (core) or
+  `entries_collectors.go` (collectors) or the coverage test fails.
 - **Validation must not produce false errors.** Unknown out-of-scope variables
-  (e.g. collector variables) are silent in non-strict mode; only invalid values
-  for known variables are errors. Keep it this way so `eshu config validate`
-  stays trustworthy and noise-free.
+  (e.g. container-registry credential `ESHU_*_OCI_*` test vars) are silent in
+  non-strict mode; only invalid values for known variables are errors. Keep it
+  this way so `eshu config validate` stays trustworthy and noise-free.
 - **The reference doc is generated, never hand-edited.** Regenerate with
   `ESHU_UPDATE_ENV_DOC=1 go test ./internal/envregistry -run TestEnvRegistryReferenceDocUpToDate`.
   `docs/public/reference/env-registry.md` carries a "do not edit by hand" banner.
