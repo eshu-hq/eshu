@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 // TokenConfig configures an OCI Distribution bearer-token request.
@@ -31,6 +32,15 @@ func FetchBearerToken(ctx context.Context, config TokenConfig) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("parse oci token realm: %w", err)
 	}
+	if requestURL.Scheme == "" || requestURL.Host == "" {
+		return "", fmt.Errorf("oci token realm must include scheme and host")
+	}
+	if requestURL.User != nil {
+		return "", fmt.Errorf("oci token realm must not include credentials")
+	}
+	if requestURL.Scheme != "http" && requestURL.Scheme != "https" {
+		return "", fmt.Errorf("oci token realm scheme must be http or https")
+	}
 	query := requestURL.Query()
 	if service := strings.TrimSpace(config.Service); service != "" {
 		query.Set("service", service)
@@ -50,15 +60,19 @@ func FetchBearerToken(ctx context.Context, config TokenConfig) (string, error) {
 
 	client := config.Client
 	if client == nil {
-		client = &http.Client{Timeout: defaultHTTPTimeout}
+		client = sdk.DefaultHTTPClient(defaultHTTPTimeout)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", collector.RegistryTransportFailure("oci", "", "fetch_token", err)
+		return "", collector.RegistryTransportFailure("oci", "", "fetch_token", sdk.HTTPError{
+			Provider: "oci",
+			Message:  "request failed",
+			Cause:    err,
+		})
 	}
 	defer closeBody(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", statusError("fetch_token", resp.StatusCode)
+		return "", statusError("fetch_token", resp)
 	}
 
 	var decoded struct {

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry"
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 const (
@@ -206,12 +207,76 @@ func TestClientClassifiesStatusFailureWithoutLeakingRepositoryPath(t *testing.T)
 			if got := failureDetails(err); got != tt.wantDetails {
 				t.Fatalf("FailureDetails() = %q, want %q", got, tt.wantDetails)
 			}
+			var httpErr sdk.HTTPError
+			if !errors.As(err, &httpErr) {
+				t.Fatalf("ListTags() error = %T %[1]v, want SDK HTTPError cause", err)
+			}
+			if got := httpErr.StatusCode; got != tt.status {
+				t.Fatalf("SDK HTTPError StatusCode = %d, want %d", got, tt.status)
+			}
 			for _, leaked := range []string{"private/team-api", "/v2/private", "team/api"} {
 				if strings.Contains(err.Error(), leaked) || strings.Contains(failureDetails(err), leaked) {
 					t.Fatalf("OCI failure leaked %q: error=%q details=%q", leaked, err.Error(), failureDetails(err))
 				}
 			}
 		})
+	}
+}
+
+func TestClientTransportFailureWrapsSDKHTTPErrorWithoutLeakingRequestDetails(t *testing.T) {
+	t.Parallel()
+
+	transportErr := errors.New("dial denied for registry.example.test/team/api")
+	client, err := NewClient(ClientConfig{
+		BaseURL: "https://registry.example.test",
+		Client: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return nil, transportErr
+		})},
+	})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	_, err = client.GetManifest(context.Background(), "private/team-api", testDigest)
+	if err == nil {
+		t.Fatal("GetManifest() error = nil, want transport failure")
+	}
+	if got := failureClass(err); got != "registry_retryable_failure" {
+		t.Fatalf("FailureClass() = %q, want registry_retryable_failure", got)
+	}
+	var httpErr sdk.HTTPError
+	if !errors.As(err, &httpErr) {
+		t.Fatalf("GetManifest() error = %T %[1]v, want SDK HTTPError cause", err)
+	}
+	if httpErr.StatusCode != 0 {
+		t.Fatalf("SDK HTTPError StatusCode = %d, want 0 for transport failure", httpErr.StatusCode)
+	}
+	if !errors.Is(err, transportErr) {
+		t.Fatalf("GetManifest() error = %v, want transport cause", err)
+	}
+	for _, leaked := range []string{"private/team-api", "registry.example.test", testDigest} {
+		if strings.Contains(err.Error(), leaked) || strings.Contains(failureDetails(err), leaked) {
+			t.Fatalf("transport failure leaked %q: error=%q details=%q", leaked, err.Error(), failureDetails(err))
+		}
+	}
+}
+
+func TestNewClientRejectsCredentialBearingAndNonHTTPBaseURL(t *testing.T) {
+	t.Parallel()
+
+	for _, rawURL := range []string{
+		"https://user:secret@registry.example.test",
+		"ftp://registry.example.test",
+	} {
+		_, err := NewClient(ClientConfig{BaseURL: rawURL})
+		if err == nil {
+			t.Fatalf("NewClient(%q) error = nil, want validation failure", rawURL)
+		}
+		for _, leaked := range []string{"user", "secret"} {
+			if strings.Contains(err.Error(), leaked) {
+				t.Fatalf("NewClient(%q) leaked %q in error: %v", rawURL, leaked, err)
+			}
+		}
 	}
 }
 
@@ -233,4 +298,10 @@ func failureDetails(err error) string {
 		return detailed.FailureDetails()
 	}
 	return ""
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
 }

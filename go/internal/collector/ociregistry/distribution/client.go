@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry"
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 const defaultHTTPTimeout = 30 * time.Second
@@ -60,19 +61,16 @@ type ReferrersResponse struct {
 
 // NewClient creates a provider-neutral OCI Distribution client.
 func NewClient(config ClientConfig) (*Client, error) {
-	if strings.TrimSpace(config.BaseURL) == "" {
-		return nil, fmt.Errorf("oci distribution base URL is required")
-	}
-	baseURL, err := url.Parse(strings.TrimRight(strings.TrimSpace(config.BaseURL), "/"))
+	baseURL, err := sdk.ParseBaseURL("oci distribution", config.BaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("parse oci distribution base URL: %w", err)
+		return nil, err
 	}
-	if baseURL.Scheme == "" || baseURL.Host == "" {
-		return nil, fmt.Errorf("oci distribution base URL must include scheme and host")
+	if baseURL.Scheme != "http" && baseURL.Scheme != "https" {
+		return nil, fmt.Errorf("oci distribution base_url scheme must be http or https")
 	}
 	client := config.Client
 	if client == nil {
-		client = &http.Client{Timeout: defaultHTTPTimeout}
+		client = sdk.DefaultHTTPClient(defaultHTTPTimeout)
 	}
 	return &Client{
 		baseURL:     baseURL,
@@ -98,7 +96,7 @@ func (c *Client) Ping(ctx context.Context) error {
 		(resp.Header.Get("Docker-Distribution-Api-Version") != "" || resp.Header.Get("WWW-Authenticate") != "") {
 		return nil
 	}
-	return statusError("ping", resp.StatusCode)
+	return statusError("ping", resp)
 }
 
 // ListTags returns the registry-reported tags for one repository.
@@ -110,7 +108,7 @@ func (c *Client) ListTags(ctx context.Context, repository string) ([]string, err
 	}
 	defer closeBody(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, statusError("list_tags", resp.StatusCode)
+		return nil, statusError("list_tags", resp)
 	}
 	var decoded struct {
 		Tags []string `json:"tags"`
@@ -141,7 +139,7 @@ func (c *Client) GetManifest(ctx context.Context, repository, reference string) 
 	}
 	defer closeBody(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return ManifestResponse{}, statusError("get_manifest", resp.StatusCode)
+		return ManifestResponse{}, statusError("get_manifest", resp)
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -164,7 +162,7 @@ func (c *Client) GetBlob(ctx context.Context, repository, digest string) (BlobRe
 	}
 	defer closeBody(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return BlobResponse{}, statusError("get_blob", resp.StatusCode)
+		return BlobResponse{}, statusError("get_blob", resp)
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBlobReadBytes+1))
 	if err != nil {
@@ -187,10 +185,10 @@ func (c *Client) ListReferrers(ctx context.Context, repository, digest string) (
 	}
 	defer closeBody(resp.Body)
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed {
-		return ReferrersResponse{}, statusError("list_referrers", resp.StatusCode)
+		return ReferrersResponse{}, statusError("list_referrers", resp)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return ReferrersResponse{}, statusError("list_referrers", resp.StatusCode)
+		return ReferrersResponse{}, statusError("list_referrers", resp)
 	}
 	var decoded struct {
 		Manifests []struct {
@@ -239,7 +237,11 @@ func (c *Client) do(
 	}
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, collector.RegistryTransportFailure("oci", "", operation, err)
+		return nil, collector.RegistryTransportFailure("oci", "", operation, sdk.HTTPError{
+			Provider: "oci",
+			Message:  "request failed",
+			Cause:    err,
+		})
 	}
 	return resp, nil
 }
@@ -266,6 +268,11 @@ func closeBody(body io.Closer) {
 	_ = body.Close()
 }
 
-func statusError(operation string, statusCode int) error {
-	return collector.RegistryHTTPFailure("oci", "", operation, statusCode, nil)
+func statusError(operation string, response *http.Response) error {
+	return collector.RegistryHTTPFailure("oci", "", operation, response.StatusCode, sdk.HTTPError{
+		Provider:   "oci",
+		StatusCode: response.StatusCode,
+		Message:    http.StatusText(response.StatusCode),
+		RetryAfter: sdk.ParseRetryAfterHeader(response.Header.Get("Retry-After")),
+	})
 }
