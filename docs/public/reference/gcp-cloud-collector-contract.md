@@ -46,6 +46,14 @@ The `GET /api/v0/cloud/inventory` handler
 identity rows (exact, semantic-facts basis) without leaking raw provider
 locators.
 
+Label-backed `gcp_tag_observation` evidence is now admitted through the same
+shared cloud inventory tag-evidence loader as Azure tags. The loader reads only
+one sealed `(scope_id, generation_id)`, maps the GCP full resource name into
+the `cloud_resource_uid` keyspace, and attaches keyed tag-value fingerprints to
+an already-admitted canonical resource. Tag evidence never admits a resource on
+its own, and cloud inventory readback surfaces only `tag_value_fingerprints`,
+not raw tag value text.
+
 The rest of this contract remains gated. Do not add Helm values, environment
 variables, chart claims, or a live Cloud Asset Inventory transport until later
 implementation PRs prove the live runtime adapter (`gcpruntime.LiveClient`) and
@@ -68,8 +76,8 @@ configured, with `source_kind=label`, and emits
 usable. It also emits `gcp_dns_record` from parsed CAI
 `dns.googleapis.com/ResourceRecordSet` assets when record type, record name, and
 managed-zone identity are usable. Direct/effective GCP tag API collection,
-fact-kind-specific reducer handling, and any GCP graph projection remain
-follow-up work under #1997.
+fact-kind-specific reducer handling for IAM, DNS, relationships, and image
+references, and any GCP graph projection remain follow-up work under #1997.
 
 The implemented slices stay fixture-testable without live Google Cloud access.
 Live smoke tests are promotion proof, not the minimum proof for the source
@@ -102,7 +110,19 @@ relationship type, support state, read time, and fact-kind telemetry.
 -count=1` proves Cloud Run service/job image metadata emits
 `gcp_image_reference` facts with digest-vs-tag confidence, read time, and
 fact-kind telemetry while skipping zero-key generation emission and dropping raw
-runtime template/env blobs.
+runtime template/env blobs. `go test
+./internal/storage/postgres -run 'Test(PostgresCloudTagEvidenceLoaderMaps.*|CloudTagEvidenceQueryIncludesGCPTagFacts)' -count=1`
+proves the shared tag-evidence loader accepts GCP tag facts, reads
+`full_resource_name` as the bounded source identity, and keeps the SQL allowlist
+in lockstep with the Go mapping.
+
+No-Observability-Change: GCP tag admission reuses the existing
+`cloud_inventory_admission` reducer execution, the existing
+`PostgresCloudTagEvidenceLoader` read path, existing `postgres.query` spans and
+query-duration metrics, and the existing cloud inventory readback field
+`tag_value_fingerprints`. It adds no route, table, queue domain, worker,
+runtime knob, metric name, metric label, span name, graph write, or chart
+surface.
 
 ## Source Truth
 
