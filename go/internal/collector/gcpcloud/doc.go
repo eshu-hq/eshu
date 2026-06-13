@@ -5,7 +5,10 @@
 // callers parse CAI assets.list or searchAllResources JSON into observations and
 // the package normalizes, redacts, and emits gcp_cloud_resource,
 // gcp_cloud_relationship, gcp_tag_observation, gcp_iam_policy_observation,
-// gcp_dns_record, gcp_image_reference, and gcp_collection_warning facts. It
+// gcp_dns_record, gcp_image_reference, and gcp_collection_warning facts. From the
+// same IAM bindings it also emits the secrets/IAM principal mirror
+// (gcp_iam_principal, gcp_iam_permission_policy) for service-account grantees so
+// the reducer can correlate GCP IAM into the secrets/IAM read models (#2347). It
 // never calls Google Cloud APIs, never writes graph truth, and never persists raw
 // IAM policy bodies, DNS record values, environment variable values, secret
 // values, object contents, public or private IP addresses, startup scripts, or

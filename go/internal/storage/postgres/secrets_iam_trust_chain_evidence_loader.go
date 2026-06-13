@@ -50,13 +50,14 @@ WHERE fact.fact_kind = ANY($1::text[])
       OR fact.payload->>'policy_join_key' = ANY($5::text[])
       OR fact.payload->'token_policy_join_keys' ?| $5::text[]
       OR fact.payload->>'kv_path_fingerprint' = ANY($6::text[])
+      OR fact.payload->>'principal_fingerprint' = ANY($7::text[])
   )
   AND (
-    $7::timestamptz IS NULL
-    OR (fact.observed_at, fact.fact_id) > ($7::timestamptz, $8::text)
+    $8::timestamptz IS NULL
+    OR (fact.observed_at, fact.fact_id) > ($8::timestamptz, $9::text)
   )
 ORDER BY fact.observed_at ASC, fact.fact_id ASC
-LIMIT $9
+LIMIT $10
 `
 
 // LoadSecretsIAMTrustChainEvidence loads a redaction-safe source packet for the
@@ -150,6 +151,7 @@ func (s FactStore) listActiveSecretsIAMTrustChainFactsPage(
 		anchors.webIdentitySubjectFingerprints.values(),
 		anchors.vaultPolicyJoinKeys.values(),
 		anchors.vaultKVPathFingerprints.values(),
+		anchors.gcpPrincipalFingerprints.values(),
 		cursor,
 		cursorFactID,
 		listFactsByKindPageSize,
@@ -178,6 +180,7 @@ type secretsIAMTrustChainAnchors struct {
 	webIdentitySubjectFingerprints stringSet
 	vaultPolicyJoinKeys            stringSet
 	vaultKVPathFingerprints        stringSet
+	gcpPrincipalFingerprints       stringSet
 }
 
 func secretsIAMTrustChainAnchorsFromEnvelopes(envelopes []facts.Envelope) secretsIAMTrustChainAnchors {
@@ -187,6 +190,7 @@ func secretsIAMTrustChainAnchorsFromEnvelopes(envelopes []facts.Envelope) secret
 		webIdentitySubjectFingerprints: stringSet{},
 		vaultPolicyJoinKeys:            stringSet{},
 		vaultKVPathFingerprints:        stringSet{},
+		gcpPrincipalFingerprints:       stringSet{},
 	}
 	for _, envelope := range envelopes {
 		payload := envelope.Payload
@@ -202,6 +206,10 @@ func secretsIAMTrustChainAnchorsFromEnvelopes(envelopes []facts.Envelope) secret
 		for _, rule := range payloadMapSlice(payload, "rules") {
 			anchors.vaultKVPathFingerprints.add(payloadString(rule, "path_fingerprint"))
 		}
+		// GCP principal/permission facts share the service-account member
+		// fingerprint, so it joins a principal fact to its grants across active
+		// generations (#2347).
+		anchors.gcpPrincipalFingerprints.add(payloadString(payload, "principal_fingerprint"))
 	}
 	return anchors
 }
@@ -211,7 +219,8 @@ func (a secretsIAMTrustChainAnchors) hasAny() bool {
 		len(a.roleARNs) > 0 ||
 		len(a.webIdentitySubjectFingerprints) > 0 ||
 		len(a.vaultPolicyJoinKeys) > 0 ||
-		len(a.vaultKVPathFingerprints) > 0
+		len(a.vaultKVPathFingerprints) > 0 ||
+		len(a.gcpPrincipalFingerprints) > 0
 }
 
 func appendUniqueSecretsIAMEnvelope(

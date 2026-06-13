@@ -123,6 +123,11 @@ func (g *Generation) Build() ([]facts.Envelope, error) {
 		}
 		envelopes = append(envelopes, imageEnvelopes...)
 	}
+	secretsIAMEnvelopes, err := g.secretsIAMEnvelopes()
+	if err != nil {
+		return nil, err
+	}
+	envelopes = append(envelopes, secretsIAMEnvelopes...)
 	for _, warning := range g.warnings {
 		env, err := NewCollectionWarningEnvelope(warning)
 		if err != nil {

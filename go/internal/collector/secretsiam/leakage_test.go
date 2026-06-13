@@ -49,6 +49,14 @@ func leakVaultContext() VaultContext {
 	}
 }
 
+func leakGCPContext() GCPEnvelopeContext {
+	return GCPEnvelopeContext{
+		ProjectID: "demo-proj", LocationBucket: "global",
+		ScopeID: "scope-gcp", GenerationID: "gen-1", CollectorInstanceID: "ci-1",
+		FencingToken: 1, ObservedAt: time.Unix(1700000000, 0).UTC(),
+	}
+}
+
 func leakK8sContext() KubernetesContext {
 	return KubernetesContext{
 		ClusterID: "cluster-prod",
@@ -65,6 +73,7 @@ func secretsIAMBuilderCases(t *testing.T) map[string]facts.Envelope {
 	aws := leakAWSContext()
 	vault := leakVaultContext()
 	k8s := leakK8sContext()
+	gcp := leakGCPContext()
 
 	builders := map[string]func() (facts.Envelope, error){
 		"aws_principal": func() (facts.Envelope, error) {
@@ -97,6 +106,18 @@ func secretsIAMBuilderCases(t *testing.T) map[string]facts.Envelope {
 			return NewPermissionBoundaryEnvelope(PermissionBoundaryObservation{
 				Context: aws, PrincipalARN: "arn:aws:iam::111111111111:role/app",
 				BoundaryPolicyARN: "arn:aws:iam::111111111111:policy/Boundary", BoundaryType: "policy",
+			})
+		},
+		"gcp_principal": func() (facts.Envelope, error) {
+			return NewGCPPrincipalEnvelope(GCPPrincipalObservation{
+				Context: gcp, PrincipalFingerprint: "sha256:svc", MemberClass: GCPMemberClassServiceAccount,
+			})
+		},
+		"gcp_permission_policy": func() (facts.Envelope, error) {
+			return NewGCPPermissionPolicyEnvelope(GCPPermissionPolicyObservation{
+				Context: gcp, PrincipalFingerprint: "sha256:svc", Role: "roles/secretmanager.secretAccessor",
+				ResourceFullName:  "//secretmanager.googleapis.com/projects/demo-proj/secrets/db",
+				ResourceAssetType: "secretmanager.googleapis.com/Secret", ResourceIsSecret: true,
 			})
 		},
 		"aws_instance_profile": func() (facts.Envelope, error) {
