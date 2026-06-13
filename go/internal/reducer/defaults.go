@@ -163,6 +163,14 @@ type DefaultHandlers struct {
 	// on ReadinessLookup so edges never resolve against uncommitted nodes.
 	CloudResourceEdgeWriter CloudResourceEdgeWriter
 
+	// GCPCloudResourceEdgeWriter projects gcp_cloud_relationship facts into
+	// canonical GCP relationship edges between CloudResource nodes (issue #2348).
+	// It must be non-nil alongside FactLoader for the registry to register
+	// DomainGCPRelationshipMaterialization; missing either one would drop every
+	// gcp_cloud_relationship fact before it reaches the graph. The handler gates
+	// on ReadinessLookup so edges never resolve against uncommitted GCP nodes.
+	GCPCloudResourceEdgeWriter CloudResourceEdgeWriter
+
 	// WorkloadCloudRelationshipEdgeWriter projects exact workload anchors on
 	// CloudResource facts into canonical WorkloadInstance USES CloudResource
 	// edges. It must be non-nil alongside FactLoader for the registry to register
@@ -457,38 +465,4 @@ type DefaultHandlers struct {
 	// alongside AppliedPagerDutyServiceRoutingLoader to register
 	// DomainIncidentRepositoryCorrelation.
 	IncidentRepositoryCorrelationWriter IncidentRepositoryCorrelationWriter
-}
-
-// NewDefaultRegistry constructs the canonical reducer catalog for the default
-// domain definitions, wiring handlers for the domains implemented today and
-// allowing additive registration of source-neutral domains when handlers are
-// provided explicitly.
-func NewDefaultRegistry(handlers DefaultHandlers) (Registry, error) {
-	registry := NewRegistry()
-	for _, def := range implementedDefaultDomainDefinitions(handlers) {
-		if err := registry.Register(def); err != nil {
-			return Registry{}, err
-		}
-	}
-
-	return registry, nil
-}
-
-// NewDefaultRuntime builds a reducer runtime from the default domain catalog.
-//
-// This is the additive seam for reducer main wiring: callers can replace the
-// manual DefaultDomainDefinitions registration loop with one constructor call
-// while keeping the surrounding service, queue, and polling setup unchanged.
-func NewDefaultRuntime(handlers DefaultHandlers) (*Runtime, error) {
-	registry, err := NewDefaultRegistry(handlers)
-	if err != nil {
-		return nil, err
-	}
-
-	rt, err := NewRuntime(registry)
-	if err != nil {
-		return nil, err
-	}
-	rt.GenerationCheck = handlers.GenerationCheck
-	return rt, nil
 }

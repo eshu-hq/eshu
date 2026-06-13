@@ -149,6 +149,7 @@ func buildReducerService(
 	cloudResourceNodeWriter := sourcecypher.NewCloudResourceNodeWriter(neo4jExec, neo4jBatchSize(getenv))
 	ec2InstanceNodeWriter := sourcecypher.NewEC2InstanceNodeWriter(neo4jExec, neo4jBatchSize(getenv))
 	cloudResourceEdgeWriter := sourcecypher.NewCloudResourceEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
+	gcpCloudResourceEdgeWriter := sourcecypher.NewGCPCloudResourceEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
 	workloadCloudRelationshipEdgeWriter := sourcecypher.NewWorkloadCloudRelationshipWriter(neo4jExec, neo4jBatchSize(getenv))
 	kubernetesWorkloadNodeWriter := sourcecypher.NewKubernetesWorkloadNodeWriter(neo4jExec, neo4jBatchSize(getenv))
 	securityGroupEndpointNodeWriter := sourcecypher.NewSecurityGroupEndpointNodeWriter(neo4jExec, neo4jBatchSize(getenv))
@@ -336,6 +337,7 @@ func buildReducerService(
 		CloudResourceNodeWriter:              cloudResourceNodeWriter,
 		EC2InstanceNodeWriter:                ec2InstanceNodeWriter,
 		CloudResourceEdgeWriter:              cloudResourceEdgeWriter,
+		GCPCloudResourceEdgeWriter:           gcpCloudResourceEdgeWriter,
 		WorkloadCloudRelationshipEdgeWriter:  workloadCloudRelationshipEdgeWriter,
 		KubernetesWorkloadNodeWriter:         kubernetesWorkloadNodeWriter,
 		SecurityGroupEndpointNodeWriter:      securityGroupEndpointNodeWriter,

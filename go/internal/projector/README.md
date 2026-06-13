@@ -191,9 +191,13 @@ one or more `gcp_cloud_resource` facts,
 `gcp_resource_materialization` reducer intent for the scope/generation, keyed to
 `gcp_resource_materialization:<scope>` so the reducer materializes GCP
 `CloudResource` graph nodes and publishes the canonical-nodes phase the GCP
-relationship edge projection (#2348) gates on. The projector does not create GCP
-nodes or edges itself. The scope-generation-level intent builders are assembled
-in `appendScopeGenerationReducerIntents`.
+relationship edge projection (#2348) gates on. The same `gcp_cloud_relationship`
+generation also emits one `gcp_relationship_materialization` intent via
+`buildGCPRelationshipMaterializationReducerIntent`, keyed to the same
+`gcp_resource_materialization:<scope>` entity key so the reducer waits for the
+GCP CloudResource substrate before projecting `GCP_<TYPE>` edges. The projector
+does not create GCP nodes or edges itself. The scope-generation-level intent
+builders are assembled in `appendScopeGenerationReducerIntents`.
 RDS posture facts follow that same reducer-owned handoff. When a generation
 contains an `rds_instance_posture` fact,
 `buildRDSPostureMaterializationReducerIntent` emits one
