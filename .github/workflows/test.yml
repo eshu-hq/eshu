@@ -46,6 +46,11 @@ jobs:
           scripts/test-verify-package-docs.sh
           scripts/verify-package-docs.sh
 
+      - name: Verify generated collector entrypoints
+        run: |
+          scripts/test-verify-collector-entrypoints-generated.sh
+          scripts/verify-collector-entrypoints-generated.sh
+
       - name: Verify vulnerability parity fixtures
         run: scripts/verify_vulnerability_parity_fixtures.sh
 

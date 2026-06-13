@@ -1,3 +1,5 @@
+// Managed collector entrypoint. Update go/internal/collector/entrypoints/collector_entrypoints.yaml, then rerun scripts/generate-collector-entrypoints.sh.
+
 package main
 
 import (
@@ -30,8 +32,7 @@ func buildClaimedService(
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}
-	config.Source.Tracer = tracer
-	config.Source.Instruments = instruments
+	attachJiraRuntimeSignals(&config.Source, tracer, instruments)
 	source, err := jira.NewClaimedSource(config.Source)
 	if err != nil {
 		return collector.ClaimedService{}, err
@@ -62,4 +63,9 @@ func newClaimID() string {
 	}
 	next := atomic.AddUint64(&fallbackClaimSequence, 1)
 	return fmt.Sprintf("jira-claim-fallback-%d-%d", time.Now().UTC().UnixNano(), next)
+}
+
+func attachJiraRuntimeSignals(config *jira.SourceConfig, tracer trace.Tracer, instruments *telemetry.Instruments) {
+	config.Tracer = tracer
+	config.Instruments = instruments
 }

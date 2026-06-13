@@ -51,6 +51,37 @@ Do not add a Helm value for a design-only collector. A chart option is an
 operator promise that the binary, fact contract, configuration, status path, and
 runtime proof exist.
 
+## Generated Claimed Entrypoints
+
+Claim-driven hosted collectors with the standard runtime shape should keep
+shared command boilerplate in
+`go/internal/collector/entrypoints/collector_entrypoints.yaml` and regenerate
+with:
+
+```bash
+scripts/generate-collector-entrypoints.sh
+scripts/verify-collector-entrypoints-generated.sh
+```
+
+The manifest owns the collector name, binary name, scope kind, auth mode, target
+identity fields, target auth fields, environment variables, source constructor,
+and claim-service options. Generated `main.go`, `service.go`, and generic
+`config.go` files wire telemetry bootstrap, pprof, Postgres instrumentation,
+hosted status routes, claim selection, lease timing, owner fallback, source
+construction, runtime-signal attachment, and bounded startup failures.
+
+Keep provider target decoding in handwritten `source_config.go` files. That is
+where token env references, JQL env references, target limits, source-specific
+duration fields, redaction-sensitive validation, and provider config error
+messages belong.
+
+The first generated parity slice covers `collector-pagerduty` and
+`collector-jira`. PagerDuty now generates 326 shared entrypoint lines from about
+37 manifest lines; Jira generates 324 shared entrypoint lines from about 37
+manifest lines. New standard claimed collectors therefore avoid roughly 287
+lines of handwritten shared boilerplate before provider-specific target config
+is added.
+
 ## Implementation Order
 
 1. Update architecture or runtime docs when ownership or deployment rules

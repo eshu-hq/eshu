@@ -1,3 +1,5 @@
+// Managed collector entrypoint. Update go/internal/collector/entrypoints/collector_entrypoints.yaml, then rerun scripts/generate-collector-entrypoints.sh.
+
 package main
 
 import (
@@ -17,6 +19,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+const runtimeName = "collector-jira"
+
 func main() {
 	if handled, err := buildinfo.PrintVersionFlag(os.Args[1:], os.Stdout, "eshu-collector-jira"); handled {
 		if err != nil {
@@ -26,13 +30,13 @@ func main() {
 		return
 	}
 
-	bootstrap, err := telemetry.NewBootstrap("collector-jira")
+	bootstrap, err := telemetry.NewBootstrap(runtimeName)
 	if err != nil {
 		fallback := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 		fallback.Error("collector bootstrap failed", "event_name", "runtime.startup.failed", "error", err)
 		os.Exit(1)
 	}
-	logger := telemetry.NewLogger(bootstrap, "collector-jira", "collector-jira")
+	logger := telemetry.NewLogger(bootstrap, runtimeName, runtimeName)
 
 	if err := run(context.Background()); err != nil {
 		logger.Error("collector-jira failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
@@ -41,7 +45,7 @@ func main() {
 }
 
 func run(parent context.Context) error {
-	bootstrap, err := telemetry.NewBootstrap("collector-jira")
+	bootstrap, err := telemetry.NewBootstrap(runtimeName)
 	if err != nil {
 		return fmt.Errorf("telemetry bootstrap: %w", err)
 	}
@@ -53,7 +57,7 @@ func run(parent context.Context) error {
 		_ = providers.Shutdown(context.Background())
 	}()
 
-	logger := telemetry.NewLogger(bootstrap, "collector-jira", "collector-jira")
+	logger := telemetry.NewLogger(bootstrap, runtimeName, runtimeName)
 	tracer := providers.TracerProvider.Tracer(telemetry.DefaultSignalName)
 	meter := providers.MeterProvider.Meter(telemetry.DefaultSignalName)
 	instruments, err := telemetry.NewInstruments(meter)
@@ -93,7 +97,7 @@ func run(parent context.Context) error {
 		return err
 	}
 	service, err := app.NewHostedWithStatusServer(
-		"collector-jira",
+		runtimeName,
 		runner,
 		postgres.NewStatusStore(postgres.SQLQueryer{DB: db}),
 		runtimecfg.WithPrometheusHandler(providers.PrometheusHandler),
