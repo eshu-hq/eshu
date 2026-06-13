@@ -169,6 +169,15 @@ The sweep is bounded and scheduled, not a full re-index:
 Cost is one full re-observation and projection per scope per interval — the same
 cost as a first sync, paid on a documented cadence. Each forced reconciliation
 increments `eshu_dp_collector_reconciliation_full_snapshots_total`.
+When the canonical graph writer applies that forced snapshot, successful stale
+cleanup statements also increment
+`eshu_dp_reconciliation_drift_retractions_total` with bounded labels:
+`domain="canonical_graph"`, `write_phase`, and `kind="node"` or `kind="edge"`.
+The full-snapshot counter answers "did reconciliation run?"; the drift
+retraction counter answers "did it actually delete stale graph state?" Alert on
+sustained nonzero retractions after the first reconciliation window, and use
+projector logs/spans keyed by `scope_id`, `repo_id`, and `generation_id` for the
+specific source. Those identifiers are intentionally not metric labels.
 
 ## How webhook triggers differ from source truth
 

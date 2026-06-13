@@ -98,6 +98,55 @@ func TestCanonicalNodeWriterMarksRetractSpanAndLogOnPhaseFailure(t *testing.T) {
 	}
 }
 
+func TestCanonicalNodeWriterMarksReconciliationRetractsForDriftMetrics(t *testing.T) {
+	t.Parallel()
+
+	exec := &mockPhaseGroupExecutor{}
+	writer := NewCanonicalNodeWriter(exec, 500, nil)
+
+	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+		ScopeID:                  "scope-1",
+		GenerationID:             "gen-2",
+		RepoID:                   "repo-1",
+		RepoPath:                 "/repo",
+		ReconciliationProjection: true,
+		Repository: &projector.RepositoryRow{
+			RepoID: "repo-1",
+			Name:   "repo",
+			Path:   "/repo",
+		},
+		Files: []projector.FileRow{
+			{Path: "/repo/main.go", RelativePath: "main.go", Name: "main.go", Language: "go", RepoID: "repo-1"},
+		},
+		Entities: []projector.EntityRow{
+			{EntityID: "repo-1:function:main", Label: "Function", EntityName: "main", FilePath: "/repo/main.go", RepoID: "repo-1"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
+	if len(exec.phaseGroups) == 0 {
+		t.Fatal("phase groups missing")
+	}
+	for _, group := range exec.phaseGroups {
+		for _, stmt := range group {
+			phase, _ := stmt.Parameters[StatementMetadataPhaseKey].(string)
+			marked, _ := stmt.Parameters[StatementMetadataReconciliationDriftKey].(bool)
+			switch phase {
+			case "retract", "entity_retract":
+				if stmt.Operation == OperationCanonicalRetract && !marked {
+					t.Fatalf("reconciliation retract statement phase %q missing drift marker: %#v", phase, stmt.Parameters)
+				}
+			case "repository_cleanup":
+				if marked {
+					t.Fatalf("repository cleanup must not be counted as reconciliation drift: %#v", stmt.Parameters)
+				}
+			}
+		}
+	}
+}
+
 func decodeSingleJSONLog(t *testing.T, data []byte) map[string]any {
 	t.Helper()
 

@@ -24,6 +24,15 @@ func extractDeltaProjectionScope(envelopes []facts.Envelope, repoPath string) (b
 	return true, paths, deletedPaths
 }
 
+func extractReconciliationProjection(envelopes []facts.Envelope) bool {
+	repoFacts := FilterRepositoryFacts(envelopes)
+	if len(repoFacts) == 0 {
+		return false
+	}
+	reconcile := payloadBoolPtr(repoFacts[0].Payload, "reconciliation_generation")
+	return reconcile != nil && *reconcile
+}
+
 func qualifyDeltaRelativePaths(repoPath string, relativePaths []string) []string {
 	if len(relativePaths) == 0 {
 		return nil

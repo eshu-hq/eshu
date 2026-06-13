@@ -69,6 +69,7 @@ type Instruments struct {
 	GenerationRetentionSkipped                metric.Int64Counter
 	DeltaBaselineFallbacks                    metric.Int64Counter
 	ReconciliationFullSnapshots               metric.Int64Counter
+	ReconciliationDriftRetractions            metric.Int64Counter
 	DocumentationEntityMentions               metric.Int64Counter
 	DocumentationClaimCandidates              metric.Int64Counter
 	DocumentationClaimsSuppressed             metric.Int64Counter
@@ -919,6 +920,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReconciliationFullSnapshots counter: %w", err)
+	}
+
+	inst.ReconciliationDriftRetractions, err = meter.Int64Counter(
+		"eshu_dp_reconciliation_drift_retractions_total",
+		metric.WithDescription("Total graph nodes and edges retracted by forced reconciliation snapshots, by bounded domain, write phase, and kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReconciliationDriftRetractions counter: %w", err)
 	}
 
 	inst.DocumentationEntityMentions, err = meter.Int64Counter(

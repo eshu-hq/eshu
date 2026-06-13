@@ -131,6 +131,7 @@ func streamFacts(
 		snapshot.FileCount, snapshot.ImportsMap, isDependency,
 		snapshot.GitRefs,
 		snapshot.Delta, snapshot.DeltaRelativePaths, snapshot.DeletedRelativePaths,
+		snapshot.Reconcile,
 	)
 
 	// Terraform state candidate facts. These are metadata-only advisory facts;
@@ -311,6 +312,7 @@ func repositoryFactEnvelope(
 	delta bool,
 	deltaRelativePaths []string,
 	deltaDeletedRelativePaths []string,
+	reconcile bool,
 ) facts.Envelope {
 	payload := map[string]any{
 		"graph_id":          repo.ID,
@@ -342,6 +344,9 @@ func repositoryFactEnvelope(
 		payload["delta_generation"] = true
 		payload["delta_relative_paths"] = append([]string(nil), deltaRelativePaths...)
 		payload["delta_deleted_relative_paths"] = append([]string(nil), deltaDeletedRelativePaths...)
+	}
+	if reconcile {
+		payload["reconciliation_generation"] = true
 	}
 	if strings.TrimSpace(sourceRunID) != "" {
 		payload["source_run_id"] = sourceRunID

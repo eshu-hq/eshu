@@ -179,6 +179,7 @@ func openBootstrapCanonicalWriter(
 		DatabaseName:           cfg.DatabaseName,
 		TxTimeout:              bootstrapCanonicalTransactionTimeout(graphBackend, getenv),
 		ProfileGroupStatements: profileGroupStatements,
+		Instruments:            instruments,
 	}
 
 	executor, err := bootstrapCanonicalExecutorForGraphBackend(
@@ -236,6 +237,7 @@ type bootstrapNeo4jExecutor struct {
 	DatabaseName           string
 	TxTimeout              time.Duration
 	ProfileGroupStatements bool
+	Instruments            *telemetry.Instruments
 }
 
 func (e bootstrapNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []sourcecypher.Statement) error {
@@ -254,23 +256,32 @@ func (e bootstrapNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []source
 		_ = session.Close(ctx)
 	}()
 
-	_, err := session.ExecuteWrite(ctx, func(tx neo4jdriver.ManagedTransaction) (any, error) {
+	rawCounts, err := session.ExecuteWrite(ctx, func(tx neo4jdriver.ManagedTransaction) (any, error) {
+		counts := make([]sourcecypher.StatementRetractionCounts, 0, len(stmts))
 		err := sourcecypher.ExecuteProfiledStatementGroup(ctx, stmts, func(ctx context.Context, stmt sourcecypher.Statement) error {
 			result, runErr := tx.Run(ctx, stmt.Cypher, stmt.Parameters)
 			if runErr != nil {
 				return runErr
 			}
-			if _, consumeErr := result.Consume(ctx); consumeErr != nil {
+			summary, consumeErr := result.Consume(ctx)
+			if consumeErr != nil {
 				return consumeErr
 			}
+			counts = append(counts, bootstrapStatementRetractionCounts(stmt, summary))
 			return nil
 		}, e.ProfileGroupStatements, nil)
 		if err != nil {
 			return nil, err
 		}
-		return nil, nil
+		return counts, nil
 	}, e.transactionConfigurers()...)
-	return err
+	if err != nil {
+		return err
+	}
+	if counts, ok := rawCounts.([]sourcecypher.StatementRetractionCounts); ok {
+		sourcecypher.RecordReconciliationDriftRetractionCounts(ctx, e.Instruments, counts)
+	}
+	return nil
 }
 
 func (e bootstrapNeo4jExecutor) Execute(ctx context.Context, statement sourcecypher.Statement) error {
@@ -290,8 +301,29 @@ func (e bootstrapNeo4jExecutor) Execute(ctx context.Context, statement sourcecyp
 	if err != nil {
 		return err
 	}
-	_, err = result.Consume(ctx)
+	summary, err := result.Consume(ctx)
+	if err == nil {
+		sourcecypher.RecordReconciliationDriftRetractions(
+			ctx,
+			e.Instruments,
+			statement,
+			int64(summary.Counters().NodesDeleted()),
+			int64(summary.Counters().RelationshipsDeleted()),
+		)
+	}
 	return err
+}
+
+func bootstrapStatementRetractionCounts(
+	statement sourcecypher.Statement,
+	summary neo4jdriver.ResultSummary,
+) sourcecypher.StatementRetractionCounts {
+	counters := summary.Counters()
+	return sourcecypher.StatementRetractionCounts{
+		Statement:            statement,
+		NodesDeleted:         int64(counters.NodesDeleted()),
+		RelationshipsDeleted: int64(counters.RelationshipsDeleted()),
+	}
 }
 
 func (e bootstrapNeo4jExecutor) transactionConfigurers() []func(*neo4jdriver.TransactionConfig) {

@@ -149,6 +149,9 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.Canonical
 	}
 
 	phases := annotateCanonicalWritePhases(w.buildPhases(mat))
+	if mat.ReconciliationProjection {
+		phases = annotateReconciliationDriftWritePhases(phases)
+	}
 	if mat.FirstGeneration {
 		slog.Info(
 			"canonical retract skipped for first generation",

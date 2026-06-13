@@ -3,6 +3,8 @@ package collector
 import (
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 func TestBuildStreamingGenerationRecordsSourceCommitSHA(t *testing.T) {
@@ -57,7 +59,11 @@ func TestBuildStreamingGenerationReconcileClearsFreshnessHint(t *testing.T) {
 	if collected.Generation.IsDelta {
 		t.Fatal("reconcile generation IsDelta = true, want false (full observation)")
 	}
-	drainFactChannel(collected.Facts)
+	envelopes := drainFactChannel(collected.Facts)
+	repositoryFact := requireRepositoryFact(t, envelopes)
+	if got, _ := repositoryFact.Payload["reconciliation_generation"].(bool); !got {
+		t.Fatalf("repository reconciliation_generation = %#v, want true", repositoryFact.Payload["reconciliation_generation"])
+	}
 }
 
 func TestBuildStreamingGenerationRecordsDeltaFlag(t *testing.T) {
@@ -82,4 +88,16 @@ func TestBuildStreamingGenerationRecordsDeltaFlag(t *testing.T) {
 		t.Fatal("delta snapshot generation IsDelta = false, want true")
 	}
 	drainFactChannel(got.Facts)
+}
+
+func requireRepositoryFact(t *testing.T, envelopes []facts.Envelope) facts.Envelope {
+	t.Helper()
+
+	for _, envelope := range envelopes {
+		if envelope.FactKind == "repository" {
+			return envelope
+		}
+	}
+	t.Fatalf("repository fact missing from %#v", envelopes)
+	return facts.Envelope{}
 }

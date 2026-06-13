@@ -145,6 +145,7 @@ func openProjectorCanonicalWriter(
 	rawExecutor := projectorNeo4jExecutor{
 		Driver:       driver,
 		DatabaseName: cfg.DatabaseName,
+		Instruments:  instruments,
 	}
 
 	return sourcecypher.NewCanonicalNodeWriter(
@@ -197,6 +198,7 @@ func projectorNornicDBCanonicalWriteTimeout(getenv func(string) string) time.Dur
 type projectorNeo4jExecutor struct {
 	Driver       neo4jdriver.DriverWithContext
 	DatabaseName string
+	Instruments  *telemetry.Instruments
 }
 
 func (e projectorNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []sourcecypher.Statement) error {
@@ -215,19 +217,28 @@ func (e projectorNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []source
 		_ = session.Close(ctx)
 	}()
 
-	_, err := session.ExecuteWrite(ctx, func(tx neo4jdriver.ManagedTransaction) (any, error) {
+	rawCounts, err := session.ExecuteWrite(ctx, func(tx neo4jdriver.ManagedTransaction) (any, error) {
+		counts := make([]sourcecypher.StatementRetractionCounts, 0, len(stmts))
 		for _, stmt := range stmts {
 			result, runErr := tx.Run(ctx, stmt.Cypher, stmt.Parameters)
 			if runErr != nil {
 				return nil, runErr
 			}
-			if _, consumeErr := result.Consume(ctx); consumeErr != nil {
+			summary, consumeErr := result.Consume(ctx)
+			if consumeErr != nil {
 				return nil, consumeErr
 			}
+			counts = append(counts, statementRetractionCounts(stmt, summary))
 		}
-		return nil, nil
+		return counts, nil
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	if counts, ok := rawCounts.([]sourcecypher.StatementRetractionCounts); ok {
+		sourcecypher.RecordReconciliationDriftRetractionCounts(ctx, e.Instruments, counts)
+	}
+	return nil
 }
 
 func (e projectorNeo4jExecutor) Execute(ctx context.Context, statement sourcecypher.Statement) error {
@@ -247,8 +258,29 @@ func (e projectorNeo4jExecutor) Execute(ctx context.Context, statement sourcecyp
 	if err != nil {
 		return err
 	}
-	_, err = result.Consume(ctx)
+	summary, err := result.Consume(ctx)
+	if err == nil {
+		sourcecypher.RecordReconciliationDriftRetractions(
+			ctx,
+			e.Instruments,
+			statement,
+			int64(summary.Counters().NodesDeleted()),
+			int64(summary.Counters().RelationshipsDeleted()),
+		)
+	}
 	return err
+}
+
+func statementRetractionCounts(
+	statement sourcecypher.Statement,
+	summary neo4jdriver.ResultSummary,
+) sourcecypher.StatementRetractionCounts {
+	counters := summary.Counters()
+	return sourcecypher.StatementRetractionCounts{
+		Statement:            statement,
+		NodesDeleted:         int64(counters.NodesDeleted()),
+		RelationshipsDeleted: int64(counters.RelationshipsDeleted()),
+	}
 }
 
 type projectorNeo4jDriverCloser struct {

@@ -95,6 +95,7 @@ func TestRepositoryFactEnvelopeCarriesGitRefs(t *testing.T) {
 		false,
 		nil,
 		nil,
+		false,
 	)
 
 	if got, want := envelope.Payload["default_branch"], "main"; got != want {
