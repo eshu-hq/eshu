@@ -118,6 +118,7 @@ canonical-write or bounded counter-emission requirements.
 | `DomainSecretsIAMTrustChain` | Build durable secrets/IAM read-model facts from redaction-safe AWS IAM, Kubernetes ServiceAccount/workload, and Vault metadata anchors; supports IRSA and EKS Pod Identity identity-provider hops, writes no graph labels/edges/DDL, and preserves unresolved/stale/partial/permission-hidden/unsupported gaps |
 | `DomainAWSResourceMaterialization` | Materialize `aws_resource` facts into canonical `CloudResource` nodes; publishes the `cloud_resource_uid` canonical-nodes phase the AWS relationship edge gates on (issue #805) |
 | `DomainGCPResourceMaterialization` | Materialize `gcp_cloud_resource` facts into canonical `CloudResource` nodes keyed by `cloudResourceUID(project_id, location, asset_type, full_resource_name)` on the existing `cloud_resource_uid` keyspace; reuses the provider-neutral `CloudResourceNodeWriter`, stores the globally-unique CAI `full_resource_name` as `resource_id` so the GCP relationship edge join resolves endpoints exactly, and publishes the canonical-nodes phase under the distinct `gcp_resource_materialization:<scope>` entity key the GCP relationship edge gates on (issue #2358); see `docs/internal/gcp-cloud-resource-materialization-design.md` |
+| `DomainGCPRelationshipMaterialization` | Project `gcp_cloud_relationship` facts into canonical `(:CloudResource)-[:GCP_<TYPE>]->(:CloudResource)` edges, mirroring `DomainAWSRelationshipMaterialization` for GCP; resolves both endpoints by the globally-unique CAI `full_resource_name` against an in-memory join index, gates on the `cloud_resource_uid` canonical-nodes phase published by `gcp_resource_materialization:<scope>`, materializes only `supported` relationships (`partial` treats the target as unresolved, `unsupported` is provenance only), skips+counts unsafe relationship-type tokens, and never fabricates or dangles an edge (issue #2348); see `docs/internal/gcp-cloud-relationship-edge-materialization-design.md` |
 | `DomainEC2InstanceNodeMaterialization` | Materialize `ec2_instance_posture` facts into canonical EC2 instance `CloudResource` nodes keyed by `cloudResourceUID(account, region, "aws_ec2_instance", instance_id)` on the existing `cloud_resource_uid` keyspace (the EC2 scanner emits no `aws_resource` inventory fact for instances); carries metadata-only safe identifiers plus derived posture booleans (IMDS, user-data presence, monitoring, public-IP, `instance_profile_arn`) — never user-data content, the raw public IP, or block devices; publishes the `cloud_resource_uid` canonical-nodes phase under the distinct `ec2_instance_node_materialization:<scope>` entity key the future `USES_PROFILE` edge gates on (issue #1146 PR-A); see `docs/internal/design/1146-ec2-instance-node.md` |
 | `DomainKubernetesWorkloadMaterialization` | Materialize `kubernetes_live.pod_template` facts into canonical `KubernetesWorkload` nodes keyed by the collector-emitted `object_id`; publishes the `kubernetes_workload_uid` canonical-nodes phase the #388 live-workload edge gates on |
 | `DomainKubernetesCorrelationMaterialization` | Project exact live-workload correlation decisions into canonical `RUNS_IMAGE` edges from a `KubernetesWorkload` node to the digest-addressed OCI source node it runs; gates on the `kubernetes_workload_uid` canonical-nodes phase, exact-only, never fabricates or dangles an edge (issue #388 PR3) |
@@ -167,6 +168,50 @@ completed` structured completion log carrying `scope_id`, `generation_id`,
 `graph_write_duration_seconds` / `phase_publish_duration_seconds` /
 `total_duration_seconds`, so an operator can see whether GCP node materialization
 is fact-load, extraction, or graph-write bound at 3 AM.
+
+## GCP Relationship Edge Materialization
+
+`DomainGCPRelationshipMaterialization` mirrors `DomainAWSRelationshipMaterialization`
+for GCP. It gates on the `cloud_resource_uid` canonical-nodes phase published by
+`DomainGCPResourceMaterialization` (the shared `gcp_resource_materialization:<scope>`
+acceptance unit), so edges never resolve against uncommitted GCP nodes; the gate
+miss is a retryable error so the intent re-enters the durable queue. It loads the
+scope generation's `gcp_cloud_resource` and `gcp_cloud_relationship` facts,
+builds an in-memory join index keyed by the globally-unique CAI
+`full_resource_name`, and resolves both relationship endpoints by exact name —
+no per-edge graph round trip, no fuzzy matching.
+
+It honors the provider `support_state` contract: only `supported` relationships
+materialize an edge; `partial` relationships treat the target as unresolved (the
+collector marks the target opaque/cross-project); `unsupported` relationships are
+provenance only. A relationship whose provider type is not a safe Cypher token is
+skipped and counted, never failing the batch. Edges are written through the
+`GCP_<TYPE>`-prefixed `GCPCloudResourceEdgeWriter` with evidence source
+`reducer/gcp-relationships`, distinct from the AWS edge family, and the
+prior-generation retract is scoped to that evidence source.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'GCPRelationship|ExtractGCPRelationship' -count=1` and
+`go test ./internal/storage/cypher -run 'GCPCloudResourceEdgeWriter' -count=1`
+(handler gate/retract/write/error paths, support-state filtering, dedupe,
+self-loop, invalid-type skip, and the Cypher writer's MATCH-MATCH-MERGE/retract
+shape). Bench `BenchmarkExtractGCPRelationshipEdgeRows` = 30.7 ms/op for 5,000
+edges over 10,000 resources vs the AWS `BenchmarkExtractAWSRelationshipEdgeRows`
+at 25.9 ms/op on the same host — the same bounded O(R+E) join shape; the GCP edge
+writer mirrors the proven AWS `MATCH (source)…MATCH (target)…MERGE` template, so
+the only new hot-path Cypher is the `GCP_`-prefixed sibling.
+
+Observability Evidence: the handler emits the `eshu_dp_gcp_relationship_edges_total`
+counter dimensioned by a bounded `join_mode` (`full_resource_name` / `unresolved`
+/ `partial` / `unsupported` / `invalid_type` / `empty_type` / `unknown_state`) so
+an operator can alert on the GCP edge resolution-failure rate, and wraps the run
+in the `reducer.gcp_relationship_materialization` span. The `gcp relationship
+materialization completed` structured log carries `scope_id`, `generation_id`,
+`domain`, `gcp_resource_fact_count`, `relationship_fact_count`, `edge_count`,
+`resolved_count`, `skipped_count`, the same `by_mode` tally,
+`unresolved_target_by_type`, `unresolved_source_by_type`, and per-stage
+durations, so an operator can answer at 3 AM which GCP relationship target types
+are losing edges and why.
 
 ## Secrets/IAM Trust-Chain Read Model
 

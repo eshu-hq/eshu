@@ -352,6 +352,12 @@ type Instruments struct {
 	// materialize an edge because their endpoint node was not scanned in this
 	// scope; resolved modes count materialized edges.
 	AWSRelationshipEdges metric.Int64Counter
+	// GCPRelationshipEdges counts GCP relationship edge projection outcomes
+	// (issue #2348). Label: join_mode (full_resource_name / unresolved / partial /
+	// unsupported / invalid_type / empty_type / unknown_state). full_resource_name
+	// counts materialized edges; every other mode is the bounded, honest
+	// diagnostic surface for a relationship that did not materialize an edge.
+	GCPRelationshipEdges metric.Int64Counter
 	// ObservabilityCoverageEdges counts observability COVERS edge projection
 	// outcomes (issue #391 PR3). Labels: coverage_signal (alarm / composite_alarm
 	// / dashboard / log_group / trace_sampling) and resolution_mode (arn /
@@ -1932,6 +1938,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register AWSRelationshipEdges counter: %w", err)
+	}
+
+	inst.GCPRelationshipEdges, err = meter.Int64Counter(
+		"eshu_dp_gcp_relationship_edges_total",
+		metric.WithDescription("Total GCP relationship edge projection outcomes by join_mode (full_resource_name/unresolved/partial/unsupported/invalid_type/empty_type/unknown_state)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GCPRelationshipEdges counter: %w", err)
 	}
 
 	inst.ObservabilityCoverageEdges, err = meter.Int64Counter(

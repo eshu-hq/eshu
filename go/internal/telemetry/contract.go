@@ -229,6 +229,13 @@ const (
 	// edge write. The span carries materialized vs unresolved edge counts so a
 	// trace shows whether forward-looking targets degraded gracefully.
 	SpanReducerAWSRelationshipMaterialization = "reducer.aws_relationship_materialization"
+	// SpanReducerGCPRelationshipMaterialization wraps the GCP relationship edge
+	// projection (issue #2348): fact load, in-memory join-index build keyed by
+	// full resource name, support_state-aware target resolution, and the batched
+	// MATCH-MATCH-MERGE GCP_<TYPE> edge write. The span carries materialized vs
+	// skipped edge counts so a trace shows whether GCP relationship targets
+	// degraded gracefully.
+	SpanReducerGCPRelationshipMaterialization = "reducer.gcp_relationship_materialization"
 	// SpanReducerObservabilityCoverageMaterialization wraps the observability
 	// coverage COVERS edge projection (issue #391 PR3): fact load, classifier
 	// re-run, exact-coverage edge-row extraction, and the batched

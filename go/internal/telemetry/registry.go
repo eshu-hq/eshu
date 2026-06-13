@@ -73,6 +73,7 @@ var spanNames = []string{
 	SpanReducerAWSRuntimeDriftEvidenceLoad,
 	SpanReducerMultiCloudRuntimeDriftEvidenceLoad,
 	SpanReducerAWSRelationshipMaterialization,
+	SpanReducerGCPRelationshipMaterialization,
 	SpanReducerObservabilityCoverageMaterialization,
 	SpanReducerSecurityGroupReachabilityMaterialization,
 	SpanReducerIAMCanAssumeMaterialization,

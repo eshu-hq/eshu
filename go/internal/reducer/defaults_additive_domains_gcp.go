@@ -23,3 +23,29 @@ func appendGCPResourceMaterializationDomain(
 	}
 	return append(definitions, gcpResources)
 }
+
+// appendGCPRelationshipMaterializationDomain registers the GCP relationship edge
+// projection domain when its handler dependencies are wired. The handler gates
+// on the GCP node canonical-nodes phase via ReadinessLookup so edges never
+// resolve against uncommitted GCP nodes. The registration is gated (additive) so
+// a deployment without the GCP edge writer never enqueues intents that would
+// silently drop. See
+// docs/internal/gcp-cloud-relationship-edge-materialization-design.md.
+func appendGCPRelationshipMaterializationDomain(
+	definitions []DomainDefinition,
+	handlers DefaultHandlers,
+) []DomainDefinition {
+	if handlers.FactLoader == nil || handlers.GCPCloudResourceEdgeWriter == nil {
+		return definitions
+	}
+	gcpRelationships := gcpRelationshipMaterializationDomainDefinition()
+	gcpRelationships.Handler = GCPRelationshipMaterializationHandler{
+		FactLoader:           handlers.FactLoader,
+		EdgeWriter:           handlers.GCPCloudResourceEdgeWriter,
+		ReadinessLookup:      handlers.ReadinessLookup,
+		PriorGenerationCheck: handlers.PriorGenerationCheck,
+		Tracer:               handlers.Tracer,
+		Instruments:          handlers.Instruments,
+	}
+	return append(definitions, gcpRelationships)
+}

@@ -104,6 +104,17 @@ const (
 	// stage gates on GCP node readiness independently of the AWS node phase. See
 	// docs/internal/gcp-cloud-resource-materialization-design.md.
 	DomainGCPResourceMaterialization Domain = "gcp_resource_materialization"
+	// DomainGCPRelationshipMaterialization projects gcp_cloud_relationship facts
+	// into canonical GCP relationship edges between the CloudResource nodes that
+	// DomainGCPResourceMaterialization committed. It gates on the
+	// GraphProjectionPhaseCanonicalNodesCommitted readiness phase (the shared
+	// gcp_resource_materialization:<scope> acceptance unit) so edges never resolve
+	// against nodes that have not committed, mirroring
+	// DomainAWSRelationshipMaterialization for GCP (issue #2348). Endpoints resolve
+	// by the globally-unique CAI full_resource_name; only supported relationships
+	// materialize (partial/unsupported are provenance only). See
+	// docs/internal/gcp-cloud-relationship-edge-materialization-design.md.
+	DomainGCPRelationshipMaterialization Domain = "gcp_relationship_materialization"
 	// DomainWorkloadCloudRelationshipMaterialization projects exact
 	// reducer-owned service/workload anchors on CloudResource facts into
 	// canonical WorkloadInstance USES CloudResource graph edges. Queue claiming
