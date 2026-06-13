@@ -58,6 +58,10 @@ the provider alert.
   are emitted.
 - The GitHub client requires a token and explicit repository allowlist before
   it sends an HTTP request.
+- The GitHub client reuses the shared collector SDK for bounded default HTTP
+  clients, base URL validation, safe `HTTPError` wrapping, shared failure class
+  constants, and `Retry-After` parsing. GitHub-specific cursor traversal and
+  rate-limit metadata stay local.
 - The GitHub Dependabot repository-alert client follows provider `rel=next`
   cursor links and never sends a legacy `page` query parameter; cross-host next
   links are ignored so bearer tokens are not forwarded outside the configured
@@ -82,7 +86,13 @@ runtime `max_pages`. The focused
 `go test ./internal/collector/securityalerts -run TestGitHubDependabot -count=1`
 proof covers open-alert filtering when fixed alerts precede older open alerts,
 cursor pagination, request guards, cross-host next-link rejection, rate-limit
-metadata, and redaction.
+metadata, safe SDK HTTP error wrapping, HTTP-date `Retry-After` parsing, and
+redaction.
+
+No-Observability-Change: SDK adoption changes only request construction,
+provider failure wrapping, and retry-header parsing. Runtime metrics and spans
+remain owned by `alertruntime`, with labels bounded to provider, status class,
+and fact kind.
 
 Collector Observability Evidence: the hosted runtime exposes the shared
 `/healthz`, `/readyz`, `/metrics`, and `/admin/status` surface through

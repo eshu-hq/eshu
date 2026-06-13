@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -64,6 +65,28 @@ func TestClaimedSourceEmitsRepositoryAlertFactsOnly(t *testing.T) {
 	}
 	if got := envs[0].SourceRef.SourceURI; strings.Contains(got, "token=secret") {
 		t.Fatalf("SourceURI = %q, want token-bearing query stripped", got)
+	}
+}
+
+func TestNewClaimedSourceRejectsCredentialBearingAPIBaseURL(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewClaimedSource(SourceConfig{
+		CollectorInstanceID: "security-alert-primary",
+		Targets: []TargetConfig{{
+			Provider:            ProviderGitHubDependabot,
+			ScopeID:             "security-alert:github:example-org/example-repo",
+			Repository:          "example-org/example-repo",
+			Token:               "github-token",
+			AllowedRepositories: []string{"example-org/example-repo"},
+			APIBaseURL:          "https://user:secret@api.github.com",
+		}},
+	})
+	if err == nil {
+		t.Fatal("NewClaimedSource() error = nil, want credential-bearing api_base_url rejection")
+	}
+	if strings.Contains(err.Error(), "secret") {
+		t.Fatalf("NewClaimedSource() error leaked credential: %q", err)
 	}
 }
 
@@ -215,6 +238,51 @@ func TestClaimedSourceReturnsBoundedFailureWithoutRepositoryOrToken(t *testing.T
 	}
 	if got, want := classified.FailureClass(), FailureRateLimited; got != want {
 		t.Fatalf("FailureClass = %q, want %q", got, want)
+	}
+}
+
+func TestClaimedSourceClassifiesSDKHTTPError(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 25, 16, 45, 0, 0, time.UTC)
+	source, err := NewClaimedSource(SourceConfig{
+		CollectorInstanceID: "security-alert-primary",
+		Targets: []TargetConfig{{
+			Provider:            ProviderGitHubDependabot,
+			ScopeID:             "security-alert:github:example-org/example-repo",
+			Repository:          "example-org/example-repo",
+			Token:               "github-token",
+			AllowedRepositories: []string{"example-org/example-repo"},
+		}},
+		ClientFactory: func(TargetConfig) (RepositoryAlertClient, error) {
+			return staticAlertClient{err: sdk.HTTPError{
+				Provider:   ProviderGitHubDependabot,
+				StatusCode: 404,
+				Message:    "not found",
+			}}, nil
+		},
+		Now: func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("NewClaimedSource() error = %v, want nil", err)
+	}
+
+	_, _, err = source.NextClaimed(context.Background(), testSecurityAlertWorkItem(now))
+	if err == nil {
+		t.Fatal("NextClaimed() error = nil, want not-found failure")
+	}
+	var classified interface {
+		FailureClass() string
+		TerminalFailure() bool
+	}
+	if !errors.As(err, &classified) {
+		t.Fatalf("NextClaimed() error = %T, want classified provider failure", err)
+	}
+	if got, want := classified.FailureClass(), FailureNotFound; got != want {
+		t.Fatalf("FailureClass = %q, want %q", got, want)
+	}
+	if !classified.TerminalFailure() {
+		t.Fatal("TerminalFailure = false, want true for SDK 404 provider failure")
 	}
 }
 

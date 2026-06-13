@@ -118,3 +118,27 @@ provider-local spans, request counters, retry counters, rate-limit counters,
 fact counters, stale counters, and redaction or high-cardinality counters. The
 SDK remains telemetry-free, and metric labels stay bounded to provider, status
 class, fact kind, and existing low-cardinality reason values.
+
+Line-count marker (#2366): the GitHub REST collectors (`securityalerts` and
+`cicdrun/ghactionsruntime`) now reuse SDK failure constants, bounded default
+HTTP clients, base URL validation, `HTTPError` wrappers, and `Retry-After`
+parsing. GitHub `rel=next` cursor validation, `X-RateLimit-Reset` handling, and
+GitHub Actions `UseNumber` decoding remain provider-owned. This intentionally
+keeps the local GitHub traversal files and leaves the production Go diff at 20
+net added lines while deleting the local GitHub Actions `Retry-After` parser.
+
+No-Regression Evidence (#2366): `go test ./internal/collector/sdk
+./internal/collector/securityalerts
+./internal/collector/securityalerts/alertruntime
+./internal/collector/cicdrun/ghactionsruntime
+./cmd/collector-security-alerts ./cmd/collector-cicd-run -count=1` covers SDK
+HTTP error wrapping, HTTP-date `Retry-After` parsing, credential-bearing base
+URL rejection, Dependabot cursor pagination and same-host guards, GitHub
+Actions rate-limit retry guidance, artifact URL redaction, and command config
+construction.
+
+No-Observability-Change (#2366): security-alert and CI/CD run collectors keep
+their existing provider request counters, fetch-duration histograms, rate-limit
+counters, fact counters, partial-generation counters, and observe/fetch spans.
+The SDK remains telemetry-free, and metric labels remain bounded to provider,
+status class, fact kind, and existing low-cardinality reason values.

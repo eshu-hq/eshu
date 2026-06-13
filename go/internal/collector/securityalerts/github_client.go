@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 const (
@@ -24,19 +26,19 @@ const (
 const (
 	// GitHubDependabotFailureAuthDenied classifies missing or forbidden
 	// credentials as terminal until operators rotate or grant credentials.
-	GitHubDependabotFailureAuthDenied = "auth_denied"
+	GitHubDependabotFailureAuthDenied = string(sdk.FailureAuthDenied)
 	// GitHubDependabotFailureNotFound classifies missing repositories or
 	// disabled Dependabot surfaces as terminal for the current target.
-	GitHubDependabotFailureNotFound = "not_found"
+	GitHubDependabotFailureNotFound = string(sdk.FailureNotFound)
 	// GitHubDependabotFailureRateLimited classifies GitHub primary or
 	// secondary rate-limit responses as retryable.
-	GitHubDependabotFailureRateLimited = "rate_limited"
+	GitHubDependabotFailureRateLimited = string(sdk.FailureRateLimited)
 	// GitHubDependabotFailureRetryable classifies transient transport or 5xx
 	// provider failures as retryable.
-	GitHubDependabotFailureRetryable = "retryable"
+	GitHubDependabotFailureRetryable = string(sdk.FailureRetryable)
 	// GitHubDependabotFailureTerminal classifies malformed requests and other
 	// bounded non-retryable provider failures.
-	GitHubDependabotFailureTerminal = "terminal"
+	GitHubDependabotFailureTerminal = string(sdk.FailureTerminal)
 )
 
 // GitHubDependabotClientConfig configures the bounded GitHub Dependabot alert
@@ -149,7 +151,7 @@ func NewGitHubDependabotClient(config GitHubDependabotClientConfig) GitHubDepend
 	}
 	httpClient := config.HTTPClient
 	if httpClient == nil {
-		httpClient = &http.Client{Timeout: 30 * time.Second}
+		httpClient = sdk.DefaultHTTPClient(30 * time.Second)
 	}
 	allowed := make(map[string]struct{}, len(config.AllowedRepositories))
 	for _, repository := range config.AllowedRepositories {
@@ -256,17 +258,28 @@ func (c GitHubDependabotClient) listRepositoryAlertsPage(
 	if err != nil {
 		return nil, GitHubRateLimitInfo{}, "", GitHubDependabotError{
 			Message: "fetch github dependabot alerts",
-			Cause:   err,
+			Cause: sdk.HTTPError{
+				Provider: "github_dependabot",
+				Message:  "request failed",
+				Cause:    err,
+			},
 		}
 	}
 	defer func() { _ = resp.Body.Close() }()
 	rateLimit := parseGitHubRateLimit(resp.Header)
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxGitHubErrorBodyBytes))
+		httpErr := sdk.HTTPError{
+			Provider:   "github_dependabot",
+			StatusCode: resp.StatusCode,
+			Message:    http.StatusText(resp.StatusCode),
+			RetryAfter: rateLimit.RetryAfter,
+		}
 		return nil, rateLimit, "", GitHubDependabotError{
 			StatusCode: resp.StatusCode,
 			Message:    "fetch github dependabot alerts",
 			RateLimit:  rateLimit,
+			Cause:      httpErr,
 		}
 	}
 	var alerts []GitHubDependabotAlert
@@ -284,8 +297,8 @@ func (c GitHubDependabotClient) repositoryAlertsURL(repository string) (string, 
 	if !ok || owner == "" || repo == "" {
 		return "", fmt.Errorf("github dependabot repository must be owner/name")
 	}
-	parsed, err := url.Parse(c.baseURL)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+	parsed, err := sdk.ParseBaseURL("github dependabot", c.baseURL)
+	if err != nil {
 		return "", fmt.Errorf("github dependabot base_url is invalid")
 	}
 	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/repos/" +
@@ -319,9 +332,7 @@ func parseGitHubRateLimit(header http.Header) GitHubRateLimitInfo {
 	if reset, err := strconv.ParseInt(strings.TrimSpace(header.Get("X-RateLimit-Reset")), 10, 64); err == nil && reset > 0 {
 		info.Reset = time.Unix(reset, 0).UTC()
 	}
-	if retryAfter, err := strconv.Atoi(strings.TrimSpace(header.Get("Retry-After"))); err == nil && retryAfter > 0 {
-		info.RetryAfter = time.Duration(retryAfter) * time.Second
-	}
+	info.RetryAfter = sdk.ParseRetryAfterHeader(header.Get("Retry-After"))
 	return info
 }
 

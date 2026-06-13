@@ -25,6 +25,9 @@ Operationally useful signals are emitted on the caller-provided telemetry
 handle: provider request totals, emitted fact totals, rate-limit totals, fetch
 duration histograms, and security-alert observe/fetch spans. Labels are bounded
 to provider, status class, and fact kind.
+The runtime uses shared collector SDK failure classes for status labels but
+keeps Dependabot-specific rate-limit metadata on its local `ProviderFailure`
+wrapper.
 
 Security Review Evidence: target configuration must name a credential
 environment variable and an explicit repository allowlist before the runtime can
@@ -45,6 +48,11 @@ looking complete.
 `TestClaimedSourcePreflightProviderAccessIsBoundedAndRedacted` proves the
 preflight path requests exactly one provider page and returns the bounded
 `auth_denied` class without leaking token or repository values.
+`TestNewClaimedSourceRejectsCredentialBearingAPIBaseURL` proves SDK base URL
+validation rejects credential-bearing provider endpoints at construction time
+without echoing the credential. `TestClaimedSourceClassifiesSDKHTTPError`
+proves shared SDK HTTP failures still map to the runtime's bounded status
+classes and terminal decision.
 
 No-Regression Evidence: security-alert refreshes include a stable freshness
 digest over the bounded Dependabot alert snapshot, provider pagination status,
@@ -66,3 +74,4 @@ package, and URL values remain out of metrics.
 Preflight provider requests reuse the existing `security_alert.observe` and
 `security_alert.fetch` spans plus provider request and fetch-duration metrics
 with provider and status-class labels only.
+SDK adoption does not add metric labels or status payload fields.

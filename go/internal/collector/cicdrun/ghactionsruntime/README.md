@@ -36,9 +36,10 @@ See `doc.go` for the godoc contract. Callers use:
 ## Dependencies
 
 The package imports `internal/collector` for `CollectedGeneration`,
-`internal/collector/cicdrun` for fact normalization, `internal/scope` for scope
-identity, and `internal/workflow` for claim rows. The only external boundary is
-Go's `net/http` client.
+`internal/collector/cicdrun` for fact normalization, `internal/collector/sdk`
+for shared bounded HTTP primitives, `internal/scope` for scope identity, and
+`internal/workflow` for claim rows. The only external boundary is Go's
+`net/http` client.
 
 ## Telemetry
 
@@ -58,7 +59,11 @@ labels.
   and `allowed_repositories`.
 - `max_runs`, `max_jobs`, and `max_artifacts` bound provider request shape.
 - Provider HTTP response bodies are closed after each bounded JSON decode or
-  error-body read so long-running claim loops do not leak connections.
+  status classification so long-running claim loops do not leak connections.
+- Non-rate-limit provider status failures are returned as bounded SDK
+  `HTTPError` values without provider response bodies. The runtime still uses a
+  local JSON decoder with `UseNumber` so GitHub run, job, and artifact IDs do
+  not lose precision.
 - GitHub 429 responses, 403 responses with `X-RateLimit-Remaining: 0`, and
   403 responses carrying `Retry-After` return `RateLimitError`. The shared
   claim runner records the existing rate-limit metrics and delays the next
@@ -121,9 +126,10 @@ matching claim-driven `ci_cd_run` collector instance is enabled.
 No-Regression Evidence: `go test ./internal/collector/cicdrun/ghactionsruntime
 -count=1` and `golangci-lint run ./internal/collector/cicdrun/ghactionsruntime`
 prove claim validation, bounded GitHub Actions snapshot collection, fixture
-normalization, artifact URL redaction, checked HTTP response cleanup, provider
-request metrics, rate-limit metrics, fact-emission metrics, partial-generation
-metrics, and source spans without live provider access.
+normalization, artifact URL redaction, checked HTTP response cleanup, safe SDK
+HTTP error wrapping for non-rate-limit provider statuses, provider request
+metrics, rate-limit metrics, fact-emission metrics, partial-generation metrics,
+and source spans without live provider access.
 
 No-Regression Evidence: `go test ./internal/collector ./internal/collector/cicdrun/ghactionsruntime -run 'TestClaimedServiceHonorsRetryAfterOnRetryableCollectFailure|TestGitHubClientReturnsRateLimitRetryGuidance|TestClaimedSourceRecordsRateLimitTelemetry' -count=1` proves GitHub rate-limit retry guidance sets durable claim `visible_at`, keeps `errors.Is(err, ErrRateLimited)` working, records rate-limit metrics, and leaves CI/CD fact output shape unchanged on successful reads.
 

@@ -6,9 +6,45 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
+
+func TestGitHubClientReturnsBoundedSDKHTTPErrorForPermissionFailure(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "provider body mentions token-value and example/repo", http.StatusForbidden)
+	}))
+	t.Cleanup(server.Close)
+
+	_, err := (GitHubClient{HTTPClient: server.Client()}).FetchLatestRun(t.Context(), TargetConfig{
+		ScopeID:             "ci-cd:github-actions:example/repo",
+		Repository:          "example/repo",
+		Token:               "token-value",
+		AllowedRepositories: []string{"example/repo"},
+		APIBaseURL:          server.URL,
+		MaxRuns:             1,
+		MaxJobs:             1,
+		MaxArtifacts:        1,
+	})
+	if err == nil {
+		t.Fatal("FetchLatestRun() error = nil, want permission failure")
+	}
+	var httpErr sdk.HTTPError
+	if !errors.As(err, &httpErr) {
+		t.Fatalf("FetchLatestRun() error = %T, want sdk.HTTPError", err)
+	}
+	if got, want := httpErr.StatusCode, http.StatusForbidden; got != want {
+		t.Fatalf("StatusCode = %d, want %d", got, want)
+	}
+	if strings.Contains(err.Error(), "token-value") || strings.Contains(err.Error(), "example/repo") {
+		t.Fatalf("FetchLatestRun() error leaked provider body: %q", err)
+	}
+}
 
 func TestGitHubClientFetchLatestRunUsesBoundedActionsEndpoints(t *testing.T) {
 	t.Parallel()

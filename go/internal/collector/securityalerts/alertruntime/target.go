@@ -3,6 +3,8 @@ package alertruntime
 import (
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 func validateTarget(target TargetConfig) (TargetConfig, error) {
@@ -42,6 +44,11 @@ func validateTarget(target TargetConfig) (TargetConfig, error) {
 	}
 	if target.MaxPages > 100 {
 		return TargetConfig{}, fmt.Errorf("max_pages must be between 1 and 100")
+	}
+	if target.APIBaseURL != "" {
+		if _, err := sdk.ParseBaseURL("github dependabot", target.APIBaseURL); err != nil {
+			return TargetConfig{}, fmt.Errorf("api_base_url is invalid")
+		}
 	}
 	return target, nil
 }
