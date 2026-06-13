@@ -65,4 +65,4 @@ Not claimed today:
 ## Known Limitations
 - `count` and `for_each` meta-arguments are captured on resource rows, but are not expanded to model multiple resource instances
 - `dynamic` blocks within resources are not traversed for nested attribute extraction
-- Cross-file variable references (`var.name`, `module.name.output`) are not resolved at parse time
+- Cross-file variable references (`var.name`, `module.name.output`) are not resolved at parse time. Terraform-state backend discovery later recovers only the exact same-module `var.*` / `local.*` literal subset needed to build safe state candidates.
