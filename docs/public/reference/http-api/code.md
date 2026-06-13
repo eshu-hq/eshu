@@ -102,6 +102,17 @@ on the bounded query's name-then-id order. `coverage.ranked_by` is
 over the whole graph, so the most-connected neighbors survive a small `limit` or
 `token_budget` first.
 
+Direct relationship rows include source-backed symbol metadata for both ends of
+the edge when the graph contains the owning file and repository:
+`source_repo_id`, `source_repo_name`, `source_file_path`, `source_language`,
+`source_type`, `source_start_line`, `source_end_line`, `target_repo_id`,
+`target_repo_name`, `target_file_path`, `target_language`, `target_type`,
+`target_start_line`, and `target_end_line`. Missing containment or language data
+is surfaced as absent or null metadata; readers must not infer a file, repository,
+or language from the symbol name alone. The source/target prefix always follows
+the returned edge direction, so an `incoming` row has the caller under `source_*`
+and the requested symbol under `target_*`.
+
 Each `CALLS`/`REFERENCES` relationship in the response carries per-edge
 provenance: `confidence` (a number) and `resolution_method` (how the callee was
 resolved). `resolution_method` is a closed value — `scip`, `declared`,
@@ -112,6 +123,17 @@ The fields are additive: an edge projected before this contract omits both, and
 readers must treat a missing `resolution_method` as unspecified. Per-edge
 provenance is independent of the answer-level truth envelope; a low-confidence
 edge does not lower the answer's truth level.
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestHandleRelationshipsSurfacesRelatedSymbolSourceMetadata|TestNornicDBOneHopRelationshipsCypherProjectsRelatedSymbolSourceMetadata|TestOpenAPIRelationshipDocumentsSourceMetadata'
+-count=1` covers response preservation, NornicDB query projection, and OpenAPI
+schema drift for related symbol source metadata.
+
+No-Observability-Change: this is a bounded one-hop read projection on the
+existing `/api/v0/code/relationships` route. It adds no graph write, queue,
+worker, metric instrument, metric label, runtime knob, or new route; operators
+continue diagnosing this path through the existing query route spans and HTTP
+request metrics.
 
 `POST /api/v0/code/call-chain` finds a bounded path between `start` and `end`,
 or between `start_entity_id` and `end_entity_id`. `repo_id` scopes both
