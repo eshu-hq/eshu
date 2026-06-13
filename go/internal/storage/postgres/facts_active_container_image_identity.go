@@ -43,6 +43,10 @@ WHERE (
       AND fact.source_system = 'aws'
     )
     OR (
+      fact.fact_kind = 'gcp_image_reference'
+      AND fact.source_system = 'gcp'
+    )
+    OR (
       fact.fact_kind = 'aws_relationship'
       AND fact.source_system = 'aws'
       AND fact.payload->>'target_type' = 'container_image'
@@ -67,7 +71,7 @@ LIMIT $3
 `
 
 // ListActiveContainerImageIdentityFacts loads active OCI registry facts and
-// active Git/AWS image-reference facts for cross-scope identity joins.
+// active Git/AWS/GCP image-reference facts for cross-scope identity joins.
 func (s FactStore) ListActiveContainerImageIdentityFacts(ctx context.Context) ([]facts.Envelope, error) {
 	if s.db == nil {
 		return nil, fmt.Errorf("fact store database is required")

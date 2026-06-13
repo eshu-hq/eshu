@@ -92,6 +92,44 @@ func TestBuildProjectionQueuesContainerImageIdentityForOCIReferrer(t *testing.T)
 	}
 }
 
+func TestBuildProjectionQueuesContainerImageIdentityForGCPImageReference(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:      "gcp:project:demo:run:resource:global",
+		ScopeKind:    "gcp_cloud",
+		SourceSystem: "gcp",
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: "gcp-generation-1",
+		ObservedAt:   time.Date(2026, time.June, 13, 11, 0, 0, 0, time.UTC),
+		IngestedAt:   time.Date(2026, time.June, 13, 11, 0, 1, 0, time.UTC),
+		Status:       scope.GenerationStatusPending,
+	}
+
+	projection, err := buildProjection(scopeValue, generation, []facts.Envelope{
+		gcpImageReferenceEnvelope("fact-gcp-image-1", scopeValue.ScopeID, generation.GenerationID),
+	})
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+
+	intent := requireContainerImageIdentityIntent(t, projection.reducerIntents)
+	if got, want := intent.Domain, reducer.DomainContainerImageIdentity; got != want {
+		t.Fatalf("intent.Domain = %q, want %q", got, want)
+	}
+	if got, want := intent.EntityKey, "container_image_identity:gcp:project:demo:run:resource:global"; got != want {
+		t.Fatalf("intent.EntityKey = %q, want %q", got, want)
+	}
+	if got, want := intent.FactID, "fact-gcp-image-1"; got != want {
+		t.Fatalf("intent.FactID = %q, want GCP image reference fact", got)
+	}
+	if got, want := intent.SourceSystem, "gcp"; got != want {
+		t.Fatalf("intent.SourceSystem = %q, want %q", got, want)
+	}
+}
+
 func requireContainerImageIdentityIntent(t *testing.T, intents []ReducerIntent) ReducerIntent {
 	t.Helper()
 	for _, intent := range intents {
@@ -101,6 +139,29 @@ func requireContainerImageIdentityIntent(t *testing.T, intents []ReducerIntent) 
 	}
 	t.Fatalf("container_image_identity intent missing from %#v", intents)
 	return ReducerIntent{}
+}
+
+func gcpImageReferenceEnvelope(factID, scopeID, generationID string) facts.Envelope {
+	return facts.Envelope{
+		FactID:           factID,
+		ScopeID:          scopeID,
+		GenerationID:     generationID,
+		FactKind:         facts.GCPImageReferenceFactKind,
+		SchemaVersion:    facts.GCPImageReferenceSchemaVersion,
+		CollectorKind:    "gcp",
+		SourceConfidence: facts.SourceConfidenceReported,
+		ObservedAt:       time.Date(2026, time.June, 13, 11, 0, 0, 0, time.UTC),
+		SourceRef: facts.Ref{
+			SourceSystem: "gcp",
+		},
+		Payload: map[string]any{
+			"owning_full_resource_name": "//run.googleapis.com/projects/demo/locations/us-central1/services/api",
+			"owning_asset_type":         "run.googleapis.com/Service",
+			"image_reference":           "us-docker.pkg.dev/team-artifacts/apps/api:prod",
+			"image_digest":              "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"tag_digest_confidence":     "digest",
+		},
+	}
 }
 
 func ociRegistryManifestEnvelope(factID, scopeID, generationID string) facts.Envelope {

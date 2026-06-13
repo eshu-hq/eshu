@@ -54,6 +54,14 @@ an already-admitted canonical resource. Tag evidence never admits a resource on
 its own, and cloud inventory readback surfaces only `tag_value_fingerprints`,
 not raw tag value text.
 
+`gcp_image_reference` evidence now feeds the existing
+`container_image_identity` reducer. The evidence pass keeps GCP image references
+digest-first: image facts with an explicit digest are converted to immutable
+digest references, tag-only facts require existing OCI registry tag evidence,
+and ambiguous or unresolved tag outcomes stay diagnostic reducer decisions. The
+GCP owning resource full name remains source evidence only; it does not mint
+repository, workload, service, or graph truth.
+
 The rest of this contract remains gated. Do not add Helm values, environment
 variables, chart claims, or a live Cloud Asset Inventory transport until later
 implementation PRs prove the live runtime adapter (`gcpruntime.LiveClient`) and
@@ -76,8 +84,8 @@ configured, with `source_kind=label`, and emits
 usable. It also emits `gcp_dns_record` from parsed CAI
 `dns.googleapis.com/ResourceRecordSet` assets when record type, record name, and
 managed-zone identity are usable. Direct/effective GCP tag API collection,
-fact-kind-specific reducer handling for IAM, DNS, relationships, and image
-references, and any GCP graph projection remain follow-up work under #1997.
+fact-kind-specific reducer handling for IAM, DNS, and relationships, and any
+GCP graph projection remain follow-up work under #1997.
 
 The implemented slices stay fixture-testable without live Google Cloud access.
 Live smoke tests are promotion proof, not the minimum proof for the source
@@ -114,7 +122,20 @@ runtime template/env blobs. `go test
 ./internal/storage/postgres -run 'Test(PostgresCloudTagEvidenceLoaderMaps.*|CloudTagEvidenceQueryIncludesGCPTagFacts)' -count=1`
 proves the shared tag-evidence loader accepts GCP tag facts, reads
 `full_resource_name` as the bounded source identity, and keeps the SQL allowlist
-in lockstep with the Go mapping.
+in lockstep with the Go mapping. `go test ./internal/reducer -run
+'Test(ContainerImageIdentityFactKindsIncludesGCPImageReferences|BuildContainerImageIdentityDecisions(ConsumesGCPDigestReference|ResolvesGCPTagOnlyWithRegistryEvidence))'
+-count=1` proves `gcp_image_reference` facts are loaded by the
+`container_image_identity` domain, explicit GCP digests become exact
+digest-keyed identity decisions, tag-only GCP facts require OCI registry tag
+evidence, and the GCP owning resource identity does not invent repository
+anchors. `go test ./internal/storage/postgres -run
+TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerations
+-count=1` proves the active cross-scope image-identity fact loader includes GCP
+image-reference facts while preserving active-generation and tombstone
+predicates. `go test ./internal/projector -run
+TestBuildProjectionQueuesContainerImageIdentityForGCPImageReference -count=1`
+proves GCP image-reference generations enqueue the existing
+`container_image_identity` reducer domain.
 
 No-Observability-Change: GCP tag admission reuses the existing
 `cloud_inventory_admission` reducer execution, the existing
@@ -122,7 +143,13 @@ No-Observability-Change: GCP tag admission reuses the existing
 query-duration metrics, and the existing cloud inventory readback field
 `tag_value_fingerprints`. It adds no route, table, queue domain, worker,
 runtime knob, metric name, metric label, span name, graph write, or chart
-surface.
+surface. GCP image identity admission reuses the existing
+projector reducer-intent handoff, `container_image_identity` reducer execution,
+durable `reducer_container_image_identity` fact writer, active OCI registry
+evidence loader, active-generation fact predicates, and
+`eshu_dp_container_image_identity_decisions_total` outcome counter; it adds no
+live provider call, route, queue domain, worker, runtime knob, metric label,
+graph write, or chart surface.
 
 ## Source Truth
 

@@ -202,7 +202,7 @@ node and `aws_resource_materialization:<scope>` for the EBS/KMS facts. The
 projector does not join block devices to volumes or KMS keys and does not set
 EC2 graph properties.
 Container-image identity follows the same handoff rule: when a generation
-contains OCI digest/tag/referrer facts, AWS image-reference facts, AWS
+contains OCI digest/tag/referrer facts, AWS or GCP image-reference facts, AWS
 container-image relationships, or Git content-entity image references,
 `buildContainerImageIdentityReducerIntent` emits one
 `container_image_identity` reducer intent for that scope/generation. The
@@ -385,7 +385,7 @@ backend-specific adapters.
   the label map includes the ContainerImage and OciImage labels required by the
   graph schema. OCI registry generations now enqueue
   `DomainContainerImageIdentity` and `DomainSupplyChainImpact` follow-up
-  intents so active Git/AWS image references, SBOM attachment evidence, and
+  intents so active Git/AWS/GCP image references, SBOM attachment evidence, and
   package/advisory facts can be joined against the active OCI digest catalog.
 - SBOM component-only generations do not enqueue
   `DomainSBOMAttestationAttachment`. A document or attestation statement is the
