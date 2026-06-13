@@ -228,3 +228,20 @@ The OCI and SBOM runtimes keep their existing provider-local spans, request
 counters, warning facts, status surfaces, and shared collector metrics. Metric
 labels remain bounded and do not include registry hosts, repository paths, tags,
 digests, URLs, token values, or credential material.
+
+Line-count marker (#2384): SBOM configured-document fetches now reuse the SDK
+default HTTP client constructor, bounded `HTTPError` values, and `Retry-After`
+parsing. SBOM-owned arbitrary document body reads, auth header construction,
+OCI referrer delegation, document identity, and source URI redaction stay local
+to `internal/collector/sbomruntime`.
+
+No-Regression Evidence (#2384): `go test ./internal/collector/sbomruntime -run
+'TestHTTPProviderConfiguredSource(StatusFailure|TransportFailure)' -count=1`
+covers bounded SDK HTTP status and transport causes, retry-after preservation,
+registry failure class/details compatibility, configured document response-body
+redaction, and transport cause unwrapping.
+
+No-Observability-Change (#2384): SBOM configured-document fetches keep the same
+claim workflow, fact emission, warning fact, and workflow failure class/details
+surface. The SDK remains telemetry-free and adds no metric, span, log, status,
+queue, graph write, deployment, or runtime profile change.

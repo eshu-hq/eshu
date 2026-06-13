@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/distribution"
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 const defaultHTTPTimeout = 30 * time.Second
@@ -45,11 +46,31 @@ func (p HTTPProvider) fetchURL(ctx context.Context, target TargetConfig, rawURL 
 	applyAuth(req, target)
 	resp, err := p.httpClient().Do(req)
 	if err != nil {
-		return Document{}, collector.RegistryTransportFailure("sbom_attestation", "", "fetch_document", err)
+		return Document{}, collector.RegistryTransportFailure(
+			"sbom_attestation",
+			"",
+			"fetch_document",
+			sdk.HTTPError{
+				Provider: "sbom_attestation",
+				Message:  "request failed",
+				Cause:    err,
+			},
+		)
 	}
 	defer closeBody(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return Document{}, collector.RegistryHTTPFailure("sbom_attestation", "", "fetch_document", resp.StatusCode, nil)
+		return Document{}, collector.RegistryHTTPFailure(
+			"sbom_attestation",
+			"",
+			"fetch_document",
+			resp.StatusCode,
+			sdk.HTTPError{
+				Provider:   "sbom_attestation",
+				StatusCode: resp.StatusCode,
+				Message:    http.StatusText(resp.StatusCode),
+				RetryAfter: sdk.ParseRetryAfterHeader(resp.Header.Get("Retry-After")),
+			},
+		)
 	}
 	body, err := readBounded(resp.Body, target.MaxBytes)
 	if err != nil {
@@ -185,7 +206,7 @@ func (p HTTPProvider) httpClient() *http.Client {
 	if p.HTTPClient != nil {
 		return p.HTTPClient
 	}
-	return &http.Client{Timeout: defaultHTTPTimeout}
+	return sdk.DefaultHTTPClient(defaultHTTPTimeout)
 }
 
 func (p HTTPProvider) now() time.Time {
