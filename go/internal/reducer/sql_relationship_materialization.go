@@ -66,22 +66,16 @@ func (h SQLRelationshipMaterializationHandler) Handle(
 	)
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKindAndPayloadValue(
-		ctx,
-		h.FactLoader,
-		intent.ScopeID,
-		intent.GenerationID,
-		factKindContentEntity,
-		"entity_type",
-		sqlRelationshipContentEntityTypes,
-	)
+	envelopes, err := loadSQLRelationshipMaterializationFacts(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
 	if err != nil {
 		return Result{}, fmt.Errorf("load facts for sql relationship materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
 	extractStart := time.Now()
+	deltaScope := buildSQLRelationshipDeltaScope(envelopes)
 	repositoryIDs, edgeRows := ExtractSQLRelationshipRows(envelopes)
+	repositoryIDs = mergeSQLRelationshipRepositoryIDs(repositoryIDs, deltaScope.repositoryIDs)
 	extractDuration := time.Since(extractStart)
 	if len(repositoryIDs) == 0 {
 		logSQLRelationshipMaterializationCompleted(ctx, sqlRelationshipMaterializationTiming{
@@ -102,7 +96,7 @@ func (h SQLRelationshipMaterializationHandler) Handle(
 		}, nil
 	}
 
-	retractRows := buildSQLRelRetractRows(repositoryIDs)
+	retractRows := buildSQLRelationshipRetractRows(repositoryIDs, deltaScope)
 	skipRetract, err := h.shouldSkipSQLRelationshipRetract(ctx, intent)
 	if err != nil {
 		return Result{}, err
@@ -449,15 +443,6 @@ func sqlMetadataStringSlice(metadata map[string]any, key string) []string {
 	default:
 		return nil
 	}
-}
-
-// buildSQLRelRetractRows builds retract intent rows for the given repository IDs.
-func buildSQLRelRetractRows(repositoryIDs []string) []SharedProjectionIntentRow {
-	rows := make([]SharedProjectionIntentRow, 0, len(repositoryIDs))
-	for _, repositoryID := range repositoryIDs {
-		rows = append(rows, SharedProjectionIntentRow{RepositoryID: repositoryID})
-	}
-	return rows
 }
 
 // buildSQLRelIntentRows converts extracted edge maps into shared projection
