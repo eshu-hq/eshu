@@ -129,7 +129,7 @@ evidence_files=()
 
 if [ "${#changed_files[@]}" -gt 0 ]; then
   for file in "${changed_files[@]}"; do
-    if is_evidence_file "$file"; then
+    if is_evidence_file "$file" && [ -f "$repo_root/$file" ]; then
       evidence_files+=("$repo_root/$file")
     fi
 

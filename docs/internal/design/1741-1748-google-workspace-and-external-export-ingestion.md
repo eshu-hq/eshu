@@ -30,10 +30,12 @@ create code, deployment, incident, work-item, service, ownership, or runtime
 truth by themselves. Reducers, query surfaces, and documentation truth checkers
 own later comparison, admission, drift findings, and truth labels.
 
-The next Google Workspace implementation slice is #1875. It is limited to
-mocked clients, synthetic IDs, default-off behavior, and fact readback proof.
-It must not add live provider calls, chart options, Compose wiring, or public
-operator docs.
+Current repository state: no Google Workspace collector package, hosted
+runtime, chart option, Compose wiring, or public operator path exists. A prior
+mock-only internal package was removed because it exposed a collector facade
+without a real provider implementation. Future work must restart from this
+design, security review, failing tests, and an explicit implementation boundary
+before adding any package or exported collector surface.
 
 ## 2. Non-Goals
 
@@ -382,9 +384,10 @@ content, tenant identifiers, private URLs, emails, or tokens.
 
 1. Land this design note and get security review agreement on source scope,
    credential model, ACL shape, redaction, and fixture policy.
-2. Implement #1875 with mocked Google Drive clients, synthetic IDs, explicit
-   allowlist validation, export mapping, ACL summaries, and documentation fact
-   readback while remaining default-off and runtime-free.
+2. Do not reintroduce `internal/collector/googleworkspace` until security
+   review approves either a real live client or an explicitly named fixture
+   boundary that cannot be mistaken for a deployable collector. Mock-only code
+   must stay in tests or fixtures and cannot export a collector surface.
 3. Add shared documentation export/import manifest types and parser tests with
    synthetic GitHub, Jira, Slack, and Teams export fixtures.
 4. Implement offline/export ingestion first, emitting documentation facts only

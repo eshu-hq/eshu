@@ -2,13 +2,23 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/googleworkspace"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/scope"
+)
+
+const (
+	googleWorkspaceSourceSystem   = "google_workspace"
+	googleWorkspaceScopeID        = "doc-source:google_workspace:synthetic"
+	googleWorkspaceGenerationID   = "gws-gen-readback"
+	googleWorkspaceDocumentID     = "doc:google_workspace:sha256:synthetic"
+	googleWorkspaceRevisionID     = "rev-readback"
+	googleWorkspaceExportMIMEDOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 )
 
 func TestFactStoreRoundTripsGoogleWorkspaceDocumentationFacts(t *testing.T) {
@@ -36,8 +46,8 @@ func TestFactStoreRoundTripsGoogleWorkspaceDocumentationFacts(t *testing.T) {
 
 	loaded, err := store.ListFactsByKind(
 		context.Background(),
-		"doc-source:google_workspace:synthetic",
-		"gws-gen-readback",
+		googleWorkspaceScopeID,
+		googleWorkspaceGenerationID,
 		[]string{
 			facts.DocumentationSourceFactKind,
 			facts.DocumentationDocumentFactKind,
@@ -60,7 +70,7 @@ func TestFactStoreRoundTripsGoogleWorkspaceDocumentationFacts(t *testing.T) {
 	}
 	document := googleWorkspaceLoadedPayload(t, loaded, facts.DocumentationDocumentFactKind)
 	metadata := document["source_metadata"].(map[string]any)
-	if got, want := metadata["export_mime"], googleworkspace.ExportMIMEDOCX; got != want {
+	if got, want := metadata["export_mime"], googleWorkspaceExportMIMEDOCX; got != want {
 		t.Fatalf("document export_mime = %#v, want %#v", got, want)
 	}
 }
@@ -68,55 +78,172 @@ func TestFactStoreRoundTripsGoogleWorkspaceDocumentationFacts(t *testing.T) {
 func collectGoogleWorkspaceReadbackFacts(t *testing.T) []facts.Envelope {
 	t.Helper()
 
-	result, err := googleworkspace.Collect(context.Background(), googleworkspace.Request{
-		ScopeID:      "doc-source:google_workspace:synthetic",
-		GenerationID: "gws-gen-readback",
-		ObservedAt:   time.Date(2026, time.June, 9, 14, 0, 0, 0, time.UTC),
-		Allowlist: googleworkspace.Allowlist{
-			FileIDs: []string{"gws-doc-readback"},
+	observedAt := time.Date(2026, time.June, 9, 14, 0, 0, 0, time.UTC)
+	sourcePayload := facts.DocumentationSourcePayload{
+		SourceID:     googleWorkspaceScopeID,
+		SourceSystem: googleWorkspaceSourceSystem,
+		ExternalID:   "gws-allowlist:sha256:synthetic",
+		DisplayName:  "Google Workspace source",
+		SourceType:   "file",
+		ACLSummary: &facts.DocumentationACLSummary{
+			Visibility:    "unknown",
+			IsPartial:     true,
+			PartialReason: "runtime_not_enabled",
 		},
-		Client:         googleWorkspaceReadbackClient{},
-		MaxExportBytes: 1024,
-	})
-	if err != nil {
-		t.Fatalf("googleworkspace.Collect() error = %v, want nil", err)
+		SourceMetadata: map[string]string{
+			"allowlist_kind": "file",
+			"file_count":     "1",
+			"failure_count":  "0",
+			"sync_status":    "completed",
+			"runtime_status": "removed_facade",
+		},
 	}
-	return result.Envelopes
+	documentPayload := facts.DocumentationDocumentPayload{
+		SourceID:     googleWorkspaceScopeID,
+		DocumentID:   googleWorkspaceDocumentID,
+		ExternalID:   "gws-file:sha256:synthetic",
+		RevisionID:   googleWorkspaceRevisionID,
+		CanonicalURI: "gws://file/sha256:synthetic",
+		Title:        "Google Workspace document",
+		DocumentType: "workspace_document",
+		Format:       "google_workspace_export",
+		ACLSummary: &facts.DocumentationACLSummary{
+			Visibility:   "restricted",
+			ReaderGroups: []string{"group:sha256:synthetic-readers"},
+		},
+		SourceMetadata: map[string]string{
+			"file_kind":    "document",
+			"file_id_hash": "sha256:synthetic",
+			"export_mime":  googleWorkspaceExportMIMEDOCX,
+		},
+		ContentHash: "sha256:synthetic-content",
+	}
+	sectionPayload := facts.DocumentationSectionPayload{
+		DocumentID:     googleWorkspaceDocumentID,
+		RevisionID:     googleWorkspaceRevisionID,
+		SectionID:      "export:body",
+		SectionAnchor:  "export-body",
+		HeadingText:    "Runbook",
+		OrdinalPath:    []int{1},
+		Content:        "Synthetic workspace runbook",
+		ContentFormat:  "text/plain",
+		TextHash:       "sha256:synthetic-section",
+		ExcerptHash:    "sha256:synthetic-section",
+		SourceStartRef: "export:body",
+		SourceEndRef:   "export:body",
+		SourceMetadata: map[string]string{
+			"file_id_hash": "sha256:synthetic",
+			"export_mime":  googleWorkspaceExportMIMEDOCX,
+		},
+	}
+	linkPayload := facts.DocumentationLinkPayload{
+		DocumentID:     googleWorkspaceDocumentID,
+		RevisionID:     googleWorkspaceRevisionID,
+		SectionID:      "export:body",
+		LinkID:         "link:service-link",
+		TargetURI:      "service://synthetic-workload",
+		TargetKind:     "external",
+		AnchorTextHash: "sha256:synthetic-anchor",
+		SourceMetadata: map[string]string{"redacted": "true"},
+	}
+
+	return []facts.Envelope{
+		googleWorkspaceEnvelope(
+			t,
+			facts.DocumentationSourceFactKind,
+			facts.DocumentationSourceStableID(sourcePayload),
+			sourcePayload,
+			"",
+			sourcePayload.ExternalID,
+			observedAt,
+		),
+		googleWorkspaceEnvelope(
+			t,
+			facts.DocumentationDocumentFactKind,
+			facts.DocumentationDocumentStableID(documentPayload),
+			documentPayload,
+			documentPayload.CanonicalURI,
+			documentPayload.ExternalID,
+			observedAt,
+		),
+		googleWorkspaceEnvelope(
+			t,
+			facts.DocumentationSectionFactKind,
+			facts.DocumentationSectionStableID(sectionPayload),
+			sectionPayload,
+			documentPayload.CanonicalURI,
+			documentPayload.ExternalID,
+			observedAt,
+		),
+		googleWorkspaceEnvelope(
+			t,
+			facts.DocumentationLinkFactKind,
+			facts.DocumentationLinkStableID(linkPayload),
+			linkPayload,
+			documentPayload.CanonicalURI,
+			documentPayload.ExternalID,
+			observedAt,
+		),
+	}
 }
 
-type googleWorkspaceReadbackClient struct{}
+func googleWorkspaceEnvelope(
+	t *testing.T,
+	kind string,
+	key string,
+	payload any,
+	sourceURI string,
+	sourceRecordID string,
+	observedAt time.Time,
+) facts.Envelope {
+	t.Helper()
 
-func (googleWorkspaceReadbackClient) ListFiles(context.Context, googleworkspace.Allowlist) ([]googleworkspace.File, error) {
-	return []googleworkspace.File{{
-		ID:         "gws-doc-readback",
-		Kind:       googleworkspace.FileKindDocument,
-		RevisionID: "rev-readback",
-		WebURL:     "gws://file/gws-doc-readback?token=synthetic-secret",
-	}}, nil
+	return facts.Envelope{
+		FactID: facts.StableID("DocumentationReadbackFact", map[string]any{
+			"fact_kind":     kind,
+			"stable_key":    key,
+			"scope_id":      googleWorkspaceScopeID,
+			"generation_id": googleWorkspaceGenerationID,
+		}),
+		ScopeID:          googleWorkspaceScopeID,
+		GenerationID:     googleWorkspaceGenerationID,
+		FactKind:         kind,
+		StableFactKey:    key,
+		SchemaVersion:    googleWorkspaceSchemaVersion(kind),
+		CollectorKind:    string(scope.CollectorDocumentation),
+		SourceConfidence: facts.SourceConfidenceObserved,
+		ObservedAt:       observedAt,
+		Payload:          googleWorkspacePayloadMap(t, payload),
+		SourceRef: facts.Ref{
+			SourceSystem:   googleWorkspaceSourceSystem,
+			ScopeID:        googleWorkspaceScopeID,
+			GenerationID:   googleWorkspaceGenerationID,
+			FactKey:        key,
+			SourceURI:      sourceURI,
+			SourceRecordID: sourceRecordID,
+		},
+	}
 }
 
-func (googleWorkspaceReadbackClient) PermissionSummary(context.Context, string) (googleworkspace.PermissionSummary, error) {
-	return googleworkspace.PermissionSummary{
-		Visibility:   "restricted",
-		ReaderGroups: []string{"group:synthetic-readers"},
-	}, nil
+func googleWorkspacePayloadMap(t *testing.T, payload any) map[string]any {
+	t.Helper()
+
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal Google Workspace fixture payload: %v", err)
+	}
+	var out map[string]any
+	if err := json.Unmarshal(encoded, &out); err != nil {
+		t.Fatalf("unmarshal Google Workspace fixture payload: %v", err)
+	}
+	return out
 }
 
-func (googleWorkspaceReadbackClient) Export(context.Context, string, string) (googleworkspace.Export, error) {
-	return googleworkspace.Export{
-		Bytes: []byte("docx-bytes"),
-		Sections: []googleworkspace.Section{{
-			ID:      "body",
-			Heading: "Runbook",
-			Content: "Synthetic workspace runbook",
-		}},
-		Links: []googleworkspace.Link{{
-			ID:        "service-link",
-			SectionID: "body",
-			TargetURI: "service://synthetic-workload",
-			Anchor:    "synthetic workload",
-		}},
-	}, nil
+func googleWorkspaceSchemaVersion(kind string) string {
+	if kind == facts.DocumentationSectionFactKind {
+		return facts.DocumentationSectionFactSchemaVersion
+	}
+	return facts.DocumentationFactSchemaVersion
 }
 
 func googleWorkspaceFactRows(t *testing.T, envelopes []facts.Envelope) [][]any {
