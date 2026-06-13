@@ -256,6 +256,39 @@ is labeled by bounded `risk_type` and `severity`. The handler summary records
 seed fact count, loaded fact count, model counts, written fact count, and
 whether the loader truncated.
 
+### GCP IAM grant correlation (#2347)
+
+`DomainSecretsIAMTrustChain` consumes the GCP IAM source-fact mirror —
+`gcp_iam_principal` (a service-account grantee, join key = the redaction-safe
+member fingerprint) and `gcp_iam_permission_policy` (a `(principal, role,
+resource)` grant) — emitted by the GCP collector from Cloud Asset Inventory IAM
+bindings. The builder indexes both by the shared principal fingerprint and
+projects `gcp_service_account_secret_access` (a direct grant on a Secret Manager
+secret) and `gcp_service_account_broad_role` (a broad primitive owner/editor
+role) privilege-posture observations. A grant with no matching principal fact
+never fabricates an identity; a narrow non-secret grant is consumed (indexed and
+joined) but yields no observation. The Postgres evidence loader expands across
+active generations on the `principal_fingerprint` anchor so a principal fact and
+its grants join even when they land in different generations.
+
+The full GCP workload→service-account→secret chain (graph-projected identity
+hops) depends on the GCP impersonation / Workload-Identity trust layer tracked in
+#2369; this slice delivers the principal and permission layers as posture truth.
+
+No-Regression Evidence: `go test ./internal/reducer -run 'GCP.*Grant|GCPSecret|GCPBroad|GCPNarrow'
+-count=1`, `go test ./internal/collector/secretsiam -run GCP -count=1`,
+`go test ./internal/collector/gcpcloud -run GCPSecretsIAM -count=1`, and
+`go test ./internal/facts -run SecretsIAM -count=1`. Bench
+`BenchmarkSecretsIAMGCPGrantObservations` = 12.7 ms/op for 4,000 grants over
+2,000 principals — bounded O(P+G), no new Cypher (the GCP grants surface as
+reducer-owned posture facts, not graph writes).
+
+Observability Evidence: GCP grant observations flow through the existing
+`eshu_dp_secrets_iam_posture_observations_total` counter, labeled by the bounded
+`risk_type` (`gcp_service_account_secret_access` / `gcp_service_account_broad_role`)
+and `severity`, so an operator sees GCP standing-access posture alongside the AWS
+wildcard-trust posture without a new metric.
+
 ## Multi-Cloud Runtime Drift (issues #1997, #1998)
 
 `DomainMultiCloudRuntimeDrift` reuses the AWS structural drift join

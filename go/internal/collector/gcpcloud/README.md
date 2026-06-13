@@ -8,7 +8,12 @@ response pages into safe observations, normalizes Google Cloud identity, redacts
 container names, sensitive label values, IAM member identities, and DNS record
 values, and emits the `gcp_cloud_resource`, `gcp_cloud_relationship`,
 `gcp_tag_observation`, `gcp_iam_policy_observation`, `gcp_dns_record`,
-`gcp_image_reference`, and `gcp_collection_warning` source fact envelopes.
+`gcp_image_reference`, and `gcp_collection_warning` source fact envelopes. From
+the same IAM bindings it also emits the secrets/IAM principal mirror
+(`gcp_iam_principal`, `gcp_iam_permission_policy`) for service-account grantees,
+so the reducer can correlate GCP IAM into the secrets/IAM read models (#2347);
+those facts carry only the redaction-safe member fingerprint, role, and resource
+identity, never a raw member email.
 
 This package does not call Google Cloud APIs, schedule collector runs, write
 graph rows, persist raw provider payloads, or admit reducer truth. The

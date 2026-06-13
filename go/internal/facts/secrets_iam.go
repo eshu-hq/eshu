@@ -23,6 +23,15 @@ const (
 	// AWSIAMAccessAnalyzerFindingFactKind identifies one optional AWS IAM Access
 	// Analyzer finding source fact.
 	AWSIAMAccessAnalyzerFindingFactKind = "aws_iam_access_analyzer_finding"
+	// GCPIAMPrincipalFactKind identifies one GCP IAM principal source fact for the
+	// secrets/IAM posture family, mirroring AWSIAMPrincipalFactKind for GCP. The
+	// principal is a service-account grantee observed in a Cloud Asset Inventory
+	// IAM binding; its join identity is the redaction-safe member fingerprint.
+	GCPIAMPrincipalFactKind = "gcp_iam_principal"
+	// GCPIAMPermissionPolicyFactKind identifies one GCP IAM permission grant
+	// source fact, mirroring AWSIAMPermissionPolicyFactKind: a (principal, role,
+	// resource) binding granting a service-account principal a role on a resource.
+	GCPIAMPermissionPolicyFactKind = "gcp_iam_permission_policy"
 	// KubernetesServiceAccountFactKind identifies one Kubernetes ServiceAccount
 	// source fact with redacted join identity.
 	KubernetesServiceAccountFactKind = "k8s_service_account"
@@ -80,6 +89,8 @@ var secretsIAMFactKinds = []string{
 	AWSIAMPermissionBoundaryFactKind,
 	AWSIAMInstanceProfileFactKind,
 	AWSIAMAccessAnalyzerFindingFactKind,
+	GCPIAMPrincipalFactKind,
+	GCPIAMPermissionPolicyFactKind,
 	KubernetesServiceAccountFactKind,
 	KubernetesRBACRoleFactKind,
 	KubernetesRBACBindingFactKind,
@@ -105,6 +116,8 @@ var secretsIAMSchemaVersions = map[string]string{
 	AWSIAMPermissionBoundaryFactKind:             SecretsIAMSchemaVersionV1,
 	AWSIAMInstanceProfileFactKind:                SecretsIAMSchemaVersionV1,
 	AWSIAMAccessAnalyzerFindingFactKind:          SecretsIAMSchemaVersionV1,
+	GCPIAMPrincipalFactKind:                      SecretsIAMSchemaVersionV1,
+	GCPIAMPermissionPolicyFactKind:               SecretsIAMSchemaVersionV1,
 	KubernetesServiceAccountFactKind:             SecretsIAMSchemaVersionV1,
 	KubernetesRBACRoleFactKind:                   SecretsIAMSchemaVersionV1,
 	KubernetesRBACBindingFactKind:                SecretsIAMSchemaVersionV1,

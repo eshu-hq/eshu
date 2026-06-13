@@ -16,6 +16,8 @@ type secretsIAMIndex struct {
 	iamTrusts       map[string][]facts.Envelope
 	vaultPolicies   map[string][]facts.Envelope
 	vaultKV         map[string][]facts.Envelope
+	gcpPrincipals   map[string][]facts.Envelope
+	gcpPermissions  map[string][]facts.Envelope
 	coverage        []facts.Envelope
 }
 
@@ -39,6 +41,10 @@ func BuildSecretsIAMTrustChainReadModels(envelopes []facts.Envelope) SecretsIAMT
 		models.PrivilegePostureObservations,
 		secretsIAMExternalTrustObservations(index.iamTrusts)...,
 	)
+	models.PrivilegePostureObservations = append(
+		models.PrivilegePostureObservations,
+		secretsIAMGCPGrantObservations(index)...,
+	)
 	chains, paths, gaps := secretsIAMExactChains(index)
 	models.IdentityTrustChains = append(models.IdentityTrustChains, chains...)
 	models.SecretAccessPaths = append(models.SecretAccessPaths, paths...)
@@ -57,6 +63,8 @@ func buildSecretsIAMIndex(envelopes []facts.Envelope) secretsIAMIndex {
 		iamTrusts:       map[string][]facts.Envelope{},
 		vaultPolicies:   map[string][]facts.Envelope{},
 		vaultKV:         map[string][]facts.Envelope{},
+		gcpPrincipals:   map[string][]facts.Envelope{},
+		gcpPermissions:  map[string][]facts.Envelope{},
 	}
 	for _, envelope := range envelopes {
 		if envelope.IsTombstone {
@@ -85,6 +93,10 @@ func buildSecretsIAMIndex(envelopes []facts.Envelope) secretsIAMIndex {
 			addByKey(index.vaultPolicies, payloadString(envelope.Payload, "policy_join_key"), envelope)
 		case facts.VaultKVMetadataFactKind:
 			addByKey(index.vaultKV, payloadString(envelope.Payload, "kv_path_fingerprint"), envelope)
+		case facts.GCPIAMPrincipalFactKind:
+			addByKey(index.gcpPrincipals, payloadString(envelope.Payload, "principal_fingerprint"), envelope)
+		case facts.GCPIAMPermissionPolicyFactKind:
+			addByKey(index.gcpPermissions, payloadString(envelope.Payload, "principal_fingerprint"), envelope)
 		case facts.SecretsIAMCoverageWarningFactKind:
 			index.coverage = append(index.coverage, envelope)
 		}
