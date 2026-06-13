@@ -284,6 +284,9 @@ func relationshipStoryData(
 	limit := req.normalizedLimit()
 	availableByDirection := relationshipStoryDirectionCounts(rows)
 	truncatedByDirection := relationshipStoryDirectionTruncation(availableByDirection, req, limit)
+	// Rank by bounded centrality before the count limit so the most-connected
+	// neighbors survive a small limit or token_budget.
+	rows = relationshipStoryRankByCentrality(rows)
 	truncated := len(rows) > limit
 	if truncated {
 		rows = rows[:limit]
@@ -312,6 +315,7 @@ func relationshipStoryData(
 		"returned_by_direction":  returnedByDirection,
 		"truncated_by_direction": truncatedByDirection,
 		"truncated":              truncated,
+		"ranked_by":              relationshipStoryRankBasis,
 	}
 	if budget != nil {
 		budget["available_before_budget"] = availableBeforeBudget

@@ -93,6 +93,15 @@ Two optional, additive parameters help agents stay within a prompt budget:
   `guidance` on how to narrow. Omitting it (or `0`) means no budget and the
   response is unchanged.
 
+Relationship rows are ordered by bounded centrality: each row carries a
+`centrality` integer — the neighbor's degree within the resolved result set (how
+many returned edges reference that neighbor across all requested directions and
+types) — and rows are sorted by it, descending, with deterministic tie-breaking
+on the bounded query's name-then-id order. `coverage.ranked_by` is
+`bounded_centrality`. Centrality is measured within the bounded result set, not
+over the whole graph, so the most-connected neighbors survive a small `limit` or
+`token_budget` first.
+
 Each `CALLS`/`REFERENCES` relationship in the response carries per-edge
 provenance: `confidence` (a number) and `resolution_method` (how the callee was
 resolved). `resolution_method` is a closed value — `scip`, `declared`,
