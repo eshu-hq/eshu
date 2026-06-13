@@ -33,6 +33,12 @@ poll cycle starts from the first configured space again.
 For page trees, `ErrPermissionDenied` from a child page is counted as a
 partial-sync failure and collection continues. Other client errors fail the
 generation because the collector cannot prove the source state.
+HTTP 429 and 503 responses are retryable provider failures. The source records
+a bounded sync-failure class, honors `Retry-After` when Confluence supplies it,
+otherwise schedules exponential backoff with deterministic jitter, and returns
+an idle poll until the retry window expires. Backoff polls do not start a
+`collector.observe` span and do not advance the active space in a multi-space
+allowlist.
 
 ## Exported Surface
 
@@ -41,6 +47,8 @@ generation because the collector cannot prove the source state.
 - `Client` - source evidence interface used by `Source`
 - `HTTPClient` and `NewHTTPClient` - Confluence Cloud REST API v2 reader
 - `ErrPermissionDenied` - permission-gap sentinel for page tree collection
+- `ErrRetryable` and `RetryableHTTPError` - retryable provider-status metadata
+  with bounded retry guidance
 - `Space`, `Page`, `PageVersion`, `PageBody`, `Label`, and `Links` - the
   source response shape normalized into documentation facts
 
@@ -105,6 +113,9 @@ already gathered them from Eshu.
 
 - HTTP access is `GET` only and maps 403/404 responses to
   `ErrPermissionDenied`.
+- Confluence 429 responses record `result=rate_limited`; 503 responses record
+  `result=retryable_status`. Both path through source-level backoff instead of
+  terminating the shared collector loop.
 - Sync logs and metrics report counts, status, failure class, and bounded
   source operations only. Page IDs, titles, URLs, paths, body content, and
   excerpts are not emitted as metric labels. The Confluence-specific
@@ -129,6 +140,10 @@ already gathered them from Eshu.
   page ID, not title.
 - Stale or deleted pages are skipped unless their status is current.
 - Source metadata reports `page_count`, `failure_count`, and `sync_status`.
+
+No-Regression Evidence: `go test ./internal/collector/confluence -run 'TestSourceBacksOffRetryableFailureWithoutTerminalError|TestHTTPClientReturnsRetryableErrorWithRetryAfter' -count=1` proves Confluence 429 backoff honors provider retry guidance, stays non-terminal to `collector.Service`, keeps the same active scope, and retries after the window without changing documentation fact shape.
+
+Observability Evidence: retryable Confluence HTTP statuses reuse `eshu_dp_confluence_http_requests_total`, `eshu_dp_confluence_fetch_duration_seconds`, and `eshu_dp_confluence_sync_failures_total` with bounded `operation`, `result`, `status_class`, and `failure_class` labels. Backoff-only idle polls intentionally emit no `collector.observe` span.
 
 ## Related Docs
 

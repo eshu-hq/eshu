@@ -5,7 +5,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
+	"time"
 )
 
 func TestGitHubClientFetchLatestRunUsesBoundedActionsEndpoints(t *testing.T) {
@@ -117,6 +119,70 @@ func TestGitHubClientDistinguishesRateLimitsFromPermissionFailures(t *testing.T)
 				t.Fatalf("FetchLatestRun() error = %v, want ErrRateLimited", err)
 			case tc.wantPermissionError && (err == nil || errors.Is(err, ErrRateLimited)):
 				t.Fatalf("FetchLatestRun() error = %v, want non-rate-limit permission error", err)
+			}
+		})
+	}
+}
+
+func TestGitHubClientReturnsRateLimitRetryGuidance(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		status    int
+		headers   map[string]string
+		wantDelay time.Duration
+		wantReset bool
+	}{
+		"retry after": {
+			status: http.StatusTooManyRequests,
+			headers: map[string]string{
+				"Retry-After": "45",
+			},
+			wantDelay: 45 * time.Second,
+		},
+		"primary reset": {
+			status: http.StatusForbidden,
+			headers: map[string]string{
+				"X-RateLimit-Remaining": "0",
+				"X-RateLimit-Reset":     strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10),
+			},
+			wantReset: true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				for key, value := range tc.headers {
+					w.Header().Set(key, value)
+				}
+				http.Error(w, "provider rate limit", tc.status)
+			}))
+			t.Cleanup(server.Close)
+
+			_, err := (GitHubClient{HTTPClient: server.Client()}).FetchLatestRun(t.Context(), TargetConfig{
+				ScopeID:             "ci-cd:github-actions:example/repo",
+				Repository:          "example/repo",
+				Token:               "token",
+				AllowedRepositories: []string{"example/repo"},
+				APIBaseURL:          server.URL,
+				MaxRuns:             1,
+				MaxJobs:             1,
+				MaxArtifacts:        1,
+			})
+			if !errors.Is(err, ErrRateLimited) {
+				t.Fatalf("FetchLatestRun() error = %v, want ErrRateLimited", err)
+			}
+			var rateLimited RateLimitError
+			if !errors.As(err, &rateLimited) {
+				t.Fatalf("FetchLatestRun() error = %T, want RateLimitError", err)
+			}
+			if tc.wantDelay > 0 && rateLimited.RetryAfter != tc.wantDelay {
+				t.Fatalf("RetryAfter = %v, want %v", rateLimited.RetryAfter, tc.wantDelay)
+			}
+			if tc.wantReset && (rateLimited.RetryAfter < 50*time.Minute || rateLimited.Reset.IsZero()) {
+				t.Fatalf("rate limit guidance = %#v, want reset-derived delay", rateLimited)
 			}
 		})
 	}

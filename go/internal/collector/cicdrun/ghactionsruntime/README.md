@@ -30,6 +30,8 @@ See `doc.go` for the godoc contract. Callers use:
 - `Client`, `GitHubClient`, and `RunSnapshot` to fetch or provide bounded
   GitHub Actions runtime data.
 - `ErrRateLimited` to preserve provider throttling classification.
+- `RateLimitError` to carry bounded GitHub retry guidance from `Retry-After` or
+  `X-RateLimit-Reset` into shared claim retry pacing.
 
 ## Dependencies
 
@@ -57,6 +59,11 @@ labels.
 - `max_runs`, `max_jobs`, and `max_artifacts` bound provider request shape.
 - Provider HTTP response bodies are closed after each bounded JSON decode or
   error-body read so long-running claim loops do not leak connections.
+- GitHub 429 responses, 403 responses with `X-RateLimit-Remaining: 0`, and
+  403 responses carrying `Retry-After` return `RateLimitError`. The shared
+  claim runner records the existing rate-limit metrics and delays the next
+  visible retry by the provider guidance when it is longer than the poll
+  interval.
 - Token values and token-bearing URLs never enter facts, logs, metrics, or
   status payloads.
 - Artifact `archive_download_url` values are persisted only after query strings
@@ -117,6 +124,8 @@ prove claim validation, bounded GitHub Actions snapshot collection, fixture
 normalization, artifact URL redaction, checked HTTP response cleanup, provider
 request metrics, rate-limit metrics, fact-emission metrics, partial-generation
 metrics, and source spans without live provider access.
+
+No-Regression Evidence: `go test ./internal/collector ./internal/collector/cicdrun/ghactionsruntime -run 'TestClaimedServiceHonorsRetryAfterOnRetryableCollectFailure|TestGitHubClientReturnsRateLimitRetryGuidance|TestClaimedSourceRecordsRateLimitTelemetry' -count=1` proves GitHub rate-limit retry guidance sets durable claim `visible_at`, keeps `errors.Is(err, ErrRateLimited)` working, records rate-limit metrics, and leaves CI/CD fact output shape unchanged on successful reads.
 
 Observability Evidence: the hosted command wires the source with
 `telemetry.NewInstruments` and the shared status server. Central collector

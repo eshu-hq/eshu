@@ -20,6 +20,9 @@ func (s *Source) NextObserved(
 	ctx context.Context,
 	startObserve collector.StartObserveFunc,
 ) (collector.CollectedGeneration, bool, collector.CollectorObservation, error) {
+	if s.retryBackoffActive(s.Config.now()) {
+		return collector.CollectedGeneration{}, false, collector.CollectorObservation{}, nil
+	}
 	if s.drained {
 		s.drained = false
 		s.activeSpaceIndex = 0

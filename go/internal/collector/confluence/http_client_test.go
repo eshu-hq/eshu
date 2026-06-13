@@ -3,6 +3,7 @@ package confluence
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -184,6 +185,40 @@ func TestHTTPClientFollowsContextRootedNextLinkWithoutDuplicatingBasePath(t *tes
 	}
 	if got, want := len(pages), 2; got != want {
 		t.Fatalf("len(pages) = %d, want %d", got, want)
+	}
+}
+
+func TestHTTPClientReturnsRetryableErrorWithRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Retry-After", "45")
+		http.Error(w, "rate limited", http.StatusTooManyRequests)
+	}))
+	defer server.Close()
+
+	client, err := NewHTTPClient(HTTPClientConfig{
+		BaseURL:     server.URL,
+		BearerToken: "token",
+		Client:      server.Client(),
+	})
+	if err != nil {
+		t.Fatalf("NewHTTPClient() error = %v, want nil", err)
+	}
+
+	_, err = client.ListSpacePages(context.Background(), "100", 25)
+	if !errors.Is(err, ErrRetryable) {
+		t.Fatalf("ListSpacePages() error = %v, want ErrRetryable", err)
+	}
+	var retryable RetryableHTTPError
+	if !errors.As(err, &retryable) {
+		t.Fatalf("ListSpacePages() error = %T, want RetryableHTTPError", err)
+	}
+	if got, want := retryable.StatusCode, http.StatusTooManyRequests; got != want {
+		t.Fatalf("StatusCode = %d, want %d", got, want)
+	}
+	if got, want := retryable.RetryAfter, 45*time.Second; got != want {
+		t.Fatalf("RetryAfter = %v, want %v", got, want)
 	}
 }
 

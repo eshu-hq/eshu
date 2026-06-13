@@ -358,7 +358,7 @@ func (s ClaimedService) failRetryable(
 	failureClass = classifiedFailureClass(err, failureClass)
 	failed := withFailure(mutation, failureClass, err)
 	if failed.VisibleAt.IsZero() {
-		failed.VisibleAt = s.now().Add(s.PollInterval)
+		failed.VisibleAt = s.retryableVisibleAt(err)
 	}
 	if failErr := s.ControlStore.FailClaimRetryable(ctx, failed); failErr != nil {
 		return fmt.Errorf("retryable-fail claimed %s work item: %w", s.claimedKindLabel(), failErr)

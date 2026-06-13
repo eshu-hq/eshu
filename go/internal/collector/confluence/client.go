@@ -188,6 +188,16 @@ func (c *HTTPClient) getJSON(ctx context.Context, endpoint string, query url.Val
 		result = "permission_denied"
 		return ErrPermissionDenied
 	}
+	if isConfluenceRetryableStatus(resp.StatusCode) {
+		result = confluenceRetryResult(resp.StatusCode)
+		return RetryableHTTPError{
+			StatusCode: resp.StatusCode,
+			RetryAfter: parseRetryAfter(
+				resp.Header.Get("Retry-After"),
+				time.Now(),
+			),
+		}
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		result = "status_error"
 		return fmt.Errorf("confluence GET %s returned status %d", requestURL.Path, resp.StatusCode)

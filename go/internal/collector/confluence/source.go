@@ -31,6 +31,7 @@ type Source struct {
 
 	drained          bool
 	activeSpaceIndex int
+	retry            confluenceRetryState
 }
 
 func (s *Source) next(ctx context.Context) (collector.CollectedGeneration, bool, error) {
@@ -43,6 +44,9 @@ func (s *Source) next(ctx context.Context) (collector.CollectedGeneration, bool,
 	activeSpaceID := s.activeSpaceID()
 	pages, spaceValue, failureCount, err := s.collectPages(ctx)
 	if err != nil {
+		if s.recordRetryableFailure(ctx, observedAt, err) {
+			return collector.CollectedGeneration{}, false, nil
+		}
 		s.recordSyncFailure(ctx, "source_read")
 		return collector.CollectedGeneration{}, false, err
 	}
@@ -75,6 +79,7 @@ func (s *Source) next(ctx context.Context) (collector.CollectedGeneration, bool,
 		)
 	}
 
+	s.resetRetryBackoff()
 	s.advanceAfterSuccessfulSync()
 	return collector.FactsFromSlice(scopeValue, generationValue, envelopes), true, nil
 }
