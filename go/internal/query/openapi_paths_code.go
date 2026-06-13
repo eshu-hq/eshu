@@ -289,10 +289,12 @@ const openAPIPathsCode = `
                   "language": {"type": "string", "description": "Optional language filter for name resolution."},
                   "direction": {"type": "string", "enum": ["incoming", "outgoing", "both"], "default": "both"},
                   "relationship_type": {"type": "string", "enum": ["CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES"], "default": "CALLS"},
+                  "relationship_types": {"type": "array", "items": {"type": "string", "enum": ["CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES"]}, "description": "Optional additive multi-type filter; supersedes relationship_type and merges each type's bounded results. Not supported with include_transitive, class_hierarchy, or overrides."},
                   "include_transitive": {"type": "boolean", "description": "When true, follows CALLS edges with bounded breadth-first traversal.", "default": false},
                   "max_depth": {"type": "integer", "description": "Maximum transitive CALLS or class hierarchy depth (default 5, max 10).", "default": 5, "maximum": 10},
                   "limit": {"type": "integer", "description": "Maximum relationship rows or ambiguity candidates (default 25, max 200).", "default": 25, "maximum": 200},
-                  "offset": {"type": "integer", "description": "Zero-based direct relationship offset.", "default": 0, "maximum": 10000}
+                  "offset": {"type": "integer", "description": "Zero-based direct relationship offset.", "default": 0, "maximum": 10000},
+                  "token_budget": {"type": "integer", "description": "Optional cap on the estimated response token cost. Applied after limit; trims rows to fit and reports what was cut with guidance to narrow.", "minimum": 0}
                 }
               }
             }

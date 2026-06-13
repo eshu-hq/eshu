@@ -391,7 +391,7 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 	relationshipStoryBody := mustMapField(t, mustMapField(t, relationshipStoryPost, "requestBody"), "content")
 	relationshipStoryJSON := mustMapField(t, relationshipStoryBody, "application/json")
 	relationshipStorySchema := mustMapField(t, mustMapField(t, relationshipStoryJSON, "schema"), "properties")
-	for _, field := range []string{"query_type", "target", "entity_id", "direction", "relationship_type", "include_transitive", "max_depth", "limit", "offset"} {
+	for _, field := range []string{"query_type", "target", "entity_id", "direction", "relationship_type", "relationship_types", "include_transitive", "max_depth", "limit", "offset", "token_budget"} {
 		if _, ok := relationshipStorySchema[field]; !ok {
 			t.Fatalf("code/relationships/story request schema missing %s", field)
 		}

@@ -119,6 +119,25 @@ For bounded transitive callers:
 }
 ```
 
+To cap prompt cost or follow several relationship types in one call, pass a
+`token_budget` and/or `relationship_types`. The budget trims rows to fit after
+the count limit and reports `summary.token_budget` (`dropped`,
+`available_before_budget`, and `guidance` on how to narrow):
+
+```json
+{
+  "target": "process_payment",
+  "relationship_types": ["CALLS", "IMPORTS"],
+  "direction": "incoming",
+  "repo_id": "payments",
+  "limit": 50,
+  "token_budget": 1500
+}
+```
+
+`relationship_types` supersedes `relationship_type` and is not supported with
+`include_transitive`, `class_hierarchy`, or `overrides`.
+
 For a specific chain or import neighborhood:
 
 **Tool:** `find_function_call_chain`

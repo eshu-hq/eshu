@@ -62,6 +62,16 @@ func analyzeCodeRelationshipsSchema() map[string]any {
 				"default":     0,
 				"minimum":     0,
 			},
+			"relationship_types": map[string]any{
+				"type":        "array",
+				"items":       map[string]any{"type": "string", "enum": relationshipTypeEnum},
+				"description": "Optional additive multi-type filter for direct caller/callee/importer queries; merges each type's bounded results.",
+			},
+			"token_budget": map[string]any{
+				"type":        "integer",
+				"description": "Optional cap on the estimated response token cost; trims rows to fit and reports what was cut with guidance to narrow.",
+				"minimum":     0,
+			},
 		},
 		"required": []string{"query_type"},
 	}

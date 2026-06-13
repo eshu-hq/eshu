@@ -81,6 +81,18 @@ is ambiguous, it returns bounded candidates instead of guessing. It supports
 direct relationships, bounded transitive `CALLS`, class hierarchy prompts, and
 override prompts.
 
+Two optional, additive parameters help agents stay within a prompt budget:
+
+- `relationship_types` (array): a multi-type filter that supersedes the singular
+  `relationship_type`; each requested type is followed with the same bounded
+  query and the results are merged. It is rejected with `include_transitive`,
+  `class_hierarchy`, or `overrides`.
+- `token_budget` (integer ≥ 0): caps the response by an estimated serialized
+  token cost, applied after `limit`. When it forces a cut, the response reports
+  `summary.token_budget` with `dropped`, `available_before_budget`, and
+  `guidance` on how to narrow. Omitting it (or `0`) means no budget and the
+  response is unchanged.
+
 Each `CALLS`/`REFERENCES` relationship in the response carries per-edge
 provenance: `confidence` (a number) and `resolution_method` (how the callee was
 resolved). `resolution_method` is a closed value — `scip`, `declared`,

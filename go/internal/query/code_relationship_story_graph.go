@@ -5,7 +5,44 @@ import (
 	"strings"
 )
 
+// relationshipStoryRelationships resolves the relationship rows for a request,
+// fanning out over relationship_types when more than one type is requested. Each
+// type reuses the same bounded single-type query path and the rows are merged in
+// requested-type order, so the additive multi-type filter introduces no new
+// graph query shape.
 func (h *CodeHandler) relationshipStoryRelationships(
+	ctx context.Context,
+	req relationshipStoryRequest,
+	entity *EntityContent,
+) ([]map[string]any, string, TruthBasis, error) {
+	types, err := req.normalizedRelationshipTypes()
+	if err != nil {
+		return nil, "", "", err
+	}
+	if len(types) <= 1 {
+		return h.relationshipStoryRelationshipsForType(ctx, req, entity)
+	}
+	var (
+		backend string
+		basis   TruthBasis
+		merged  []map[string]any
+	)
+	for _, relationshipType := range types {
+		sub := req
+		sub.RelationshipType = relationshipType
+		sub.RelationshipTypes = nil
+		rows, rowsBackend, rowsBasis, rowsErr := h.relationshipStoryRelationshipsForType(ctx, sub, entity)
+		if rowsErr != nil {
+			return nil, "", "", rowsErr
+		}
+		backend = rowsBackend
+		basis = rowsBasis
+		merged = append(merged, rows...)
+	}
+	return merged, backend, basis, nil
+}
+
+func (h *CodeHandler) relationshipStoryRelationshipsForType(
 	ctx context.Context,
 	req relationshipStoryRequest,
 	entity *EntityContent,

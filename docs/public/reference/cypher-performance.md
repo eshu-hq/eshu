@@ -222,6 +222,42 @@ statement summary, expose any edge-write regression with no new metric labels or
 backend branches. Provenance is carried as edge properties, not as new
 instrumentation.
 
+### Relationship Story Token Budget And Multi-Type Filter
+
+The relationship story (`POST /api/v0/code/relationships/story`,
+`go/internal/query/code_relationship_story.go`) gained two additive,
+backward-compatible parameters from [issue #2232](https://github.com/eshu-hq/eshu/issues/2232):
+`token_budget` (cap the response by an estimated serialized token cost) and
+`relationship_types` (a multi-type filter that supersedes the singular
+`relationship_type`).
+
+No-Regression Evidence: no Cypher shape changed. `token_budget` is a pure
+in-process trim applied **after** the existing count limit, iterating the
+already-bounded result rows (`n ≤ limit+1 ≤ 201` per direction/type) and
+estimating cost from each row's compact JSON length — `O(n)` over a bounded set,
+no graph access. `relationship_types` reuses the **identical** per-type bounded
+query (`MATCH (source)-[rel:TYPE]->(target) … ORDER BY … SKIP $offset LIMIT
+$limit`, `code_relationship_story_graph.go`) once per requested type and merges
+the rows in requested-type order; each per-type call is byte-identical to the
+existing single-type query, so the query plan is invariant on both NornicDB and
+Neo4j. Worst-case graph work for a request is `len(relationship_types) ×` the
+existing single-type bound (the type set is capped at five and rejected for the
+transitive, class-hierarchy, and override paths). When neither parameter is
+supplied the response is byte-identical to the prior behavior, asserted by
+`TestRelationshipStoryWithoutTokenBudgetOmitsBudgetAccounting`. No live backend
+benchmark was run because this environment has no provisioned NornicDB/Neo4j
+corpus; correctness rests on exact reuse of the already-shipped bounded
+single-type shape plus the unchanged-default byte-equivalence test. Covered by
+`go test ./internal/query ./internal/mcp -count=1`.
+
+No-Observability-Change: the route still emits the existing
+`call_graph.relationship_story` truth envelope and `neo4j.query` spans/duration
+metrics from `GraphQuery.Run`. Budget and multi-type cuts are reported in-band in
+the response (`summary.token_budget`, `coverage.truncated`,
+`coverage.relationship_types`) with explicit `dropped`/`available_before_budget`
+counts and narrowing `guidance`; no new runtime stage, queue, worker, metric, or
+span is introduced.
+
 ## Related Docs
 
 - [NornicDB Pitfalls](nornicdb-pitfalls.md)

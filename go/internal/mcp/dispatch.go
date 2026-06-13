@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strings"
 )
 
 // dispatchTool routes an MCP tool call to the appropriate internal HTTP endpoint.
@@ -195,50 +194,16 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"repo_id":            str(args, "repo_id"),
 			"language":           str(args, "language"),
 			"relationship_type":  str(args, "relationship_type"),
+			"relationship_types": stringSlice(args, "relationship_types"),
 			"direction":          str(args, "direction"),
 			"include_transitive": boolOr(args, "include_transitive", false),
 			"max_depth":          intOr(args, "max_depth", 5),
 			"limit":              intOr(args, "limit", 25),
 			"offset":             intOr(args, "offset", 0),
+			"token_budget":       intOr(args, "token_budget", 0),
 		}}, nil
 	case "analyze_code_relationships":
-		body := map[string]any{
-			"entity_id":  str(args, "target"),
-			"query_type": str(args, "query_type"),
-		}
-		switch str(args, "query_type") {
-		case "find_callers":
-			return analyzeCodeRelationshipsStoryRoute(args, "incoming", "CALLS", false), nil
-		case "find_callees":
-			return analyzeCodeRelationshipsStoryRoute(args, "outgoing", "CALLS", false), nil
-		case "find_all_callers":
-			return analyzeCodeRelationshipsStoryRoute(args, "incoming", "CALLS", true), nil
-		case "find_all_callees":
-			return analyzeCodeRelationshipsStoryRoute(args, "outgoing", "CALLS", true), nil
-		case "find_importers":
-			return analyzeCodeRelationshipsStoryRoute(args, "incoming", "IMPORTS", false), nil
-		case "class_hierarchy":
-			return analyzeCodeRelationshipsTypedStoryRoute(args, "class_hierarchy", "both", "INHERITS"), nil
-		case "overrides":
-			return analyzeCodeRelationshipsTypedStoryRoute(args, "overrides", "both", "OVERRIDES"), nil
-		case "call_chain":
-			start, end, ok := strings.Cut(str(args, "target"), "->")
-			if !ok {
-				return nil, fmt.Errorf("call_chain target must use start->end format")
-			}
-			return &route{method: "POST", path: "/api/v0/code/call-chain", body: map[string]any{
-				"start":     strings.TrimSpace(start),
-				"end":       strings.TrimSpace(end),
-				"max_depth": parseMaxDepth(args, 5),
-			}}, nil
-		case "dead_code":
-			return &route{method: "POST", path: "/api/v0/code/dead-code", body: map[string]any{
-				"repo_id":                str(args, "repo_id"),
-				"limit":                  intOr(args, "limit", 100),
-				"exclude_decorated_with": stringSlice(args, "exclude_decorated_with"),
-			}}, nil
-		}
-		return &route{method: "POST", path: "/api/v0/code/relationships", body: body}, nil
+		return resolveAnalyzeCodeRelationshipsRoute(args)
 	case "find_dead_code":
 		return &route{method: "POST", path: "/api/v0/code/dead-code", body: map[string]any{
 			"repo_id":                str(args, "repo_id"),
