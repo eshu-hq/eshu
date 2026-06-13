@@ -185,3 +185,24 @@ request, observe, rate-limit, fact, parse-failure, warning-fact, readiness,
 metrics, and admin-status signals. The SDK still emits no telemetry directly,
 and no metric label now contains package names, metadata URLs, versions, feed
 paths, source locators, or credential material.
+
+Line-count marker (#2377): Vault live's `vaultapi` adapter now reuses SDK base
+URL validation, bounded default HTTP client construction, and bounded
+`HTTPError` values. Vault-owned metadata endpoint traversal, KV `/data/` guards,
+namespace/token headers, 404-as-empty handling, body-size limits, and API-call
+observation hooks stay local, and the package still has no HashiCorp Vault SDK
+dependency.
+
+No-Regression Evidence (#2377): `go test ./internal/collector/sdk
+./internal/collector/vaultlive ./internal/collector/vaultlive/vaultapi
+./cmd/collector-vault-live -count=1` covers SDK base URL credential rejection,
+bounded default client construction, SDK HTTP error wrapping for status and
+transport failures, Vault metadata-only path guards, 404 empty-state behavior,
+all seven metadata families, API-call observations, redaction canaries, claim
+config, and command service wiring.
+
+No-Observability-Change (#2377): Vault live keeps its existing secrets/IAM
+source fact counters, API-call counters, partial-scope counters, redaction
+counters, freshness gauge, shared collector metrics, and `vault_live.snapshot`
+span. The SDK emits no telemetry directly, and metric labels remain bounded to
+source, fact kind, operation, result, reason, field class, and scope kind.

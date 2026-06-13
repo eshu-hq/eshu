@@ -2,11 +2,14 @@ package vaultapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 // mockVault is an httptest handler that serves canned metadata responses and
@@ -246,6 +249,92 @@ func TestNewValidatesConfig(t *testing.T) {
 	if _, err := New(Config{Address: "https://vault"}); err == nil {
 		t.Fatal("New with empty token: want error")
 	}
+	errURL := "https://user:secret@vault.example.test"
+	if _, err := New(Config{Address: errURL, Token: "t"}); err == nil {
+		t.Fatal("New with credential-bearing address: want error")
+	} else if strings.Contains(err.Error(), "user") || strings.Contains(err.Error(), "secret") {
+		t.Fatalf("New leaked credential-bearing address in error: %v", err)
+	}
+	if _, err := New(Config{Address: "ftp://vault.example.test", Token: "t"}); err == nil {
+		t.Fatal("New with non-http address: want error")
+	}
+}
+
+func TestDoRequestStatusFailuresWrapSDKHTTPErrorWithoutLeakingPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		statusCode int
+	}{
+		{name: "forbidden", statusCode: http.StatusForbidden},
+		{name: "server", statusCode: http.StatusInternalServerError},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				http.Error(w, "secret policy path sys/auth", tt.statusCode)
+			}))
+			defer server.Close()
+			adapter := newTestAdapter(t, server)
+
+			_, err := adapter.doRequest(context.Background(), "sys/auth", false, nil)
+			if err == nil {
+				t.Fatal("doRequest() error = nil, want status failure")
+			}
+			var httpErr sdk.HTTPError
+			if !errors.As(err, &httpErr) {
+				t.Fatalf("doRequest() error = %T %[1]v, want SDK HTTPError cause", err)
+			}
+			if got := httpErr.StatusCode; got != tt.statusCode {
+				t.Fatalf("SDK HTTPError StatusCode = %d, want %d", got, tt.statusCode)
+			}
+			for _, leaked := range []string{"sys/auth", "secret policy", server.URL} {
+				if strings.Contains(err.Error(), leaked) {
+					t.Fatalf("status failure leaked %q: %v", leaked, err)
+				}
+			}
+		})
+	}
+}
+
+func TestDoRequestTransportFailureWrapsSDKHTTPErrorWithoutLeakingPath(t *testing.T) {
+	t.Parallel()
+
+	transportErr := errors.New("dial denied for vault.example.test")
+	adapter, err := New(Config{
+		Address: "https://vault.example.test",
+		Token:   "test-token",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return nil, transportErr
+		})},
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	_, err = adapter.doRequest(context.Background(), "sys/auth", false, nil)
+	if err == nil {
+		t.Fatal("doRequest() error = nil, want transport failure")
+	}
+	var httpErr sdk.HTTPError
+	if !errors.As(err, &httpErr) {
+		t.Fatalf("doRequest() error = %T %[1]v, want SDK HTTPError cause", err)
+	}
+	if httpErr.StatusCode != 0 {
+		t.Fatalf("SDK HTTPError StatusCode = %d, want 0 for transport failure", httpErr.StatusCode)
+	}
+	if !errors.Is(err, transportErr) {
+		t.Fatalf("doRequest() error = %v, want transport cause", err)
+	}
+	for _, leaked := range []string{"sys/auth", "vault.example.test", "test-token"} {
+		if strings.Contains(err.Error(), leaked) {
+			t.Fatalf("transport failure leaked %q: %v", leaked, err)
+		}
+	}
 }
 
 func TestAdapterReportsAPICallObservations(t *testing.T) {
@@ -287,4 +376,10 @@ func TestAdapterReportsAPICallObservations(t *testing.T) {
 			t.Fatalf("operation %q result = %q, want success (all: %v)", op, got[op], got)
 		}
 	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
 }

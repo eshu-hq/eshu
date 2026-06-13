@@ -56,8 +56,9 @@ kind `vault_live`) with a deterministic per-target scope/generation id.
 `ClaimedSource` (`claimed_source.go`) is the production path: it resolves a
 workflow work item into one configured target, uses the workflow generation id
 and fencing token, and commits through `collector.ClaimedService` in
-`cmd/collector-vault-live`. The live `vaultapi` client is a `net/http`, no-SDK
-adapter implementing the `Client` seam.
+`cmd/collector-vault-live`. The live `vaultapi` client is a standard-library
+Vault REST adapter implementing the `Client` seam; it uses Eshu collector SDK
+HTTP primitives but no HashiCorp Vault SDK dependency.
 
 `vaultlive.Config` requires deployment-scoped redaction-key material. Vault
 names, paths, accessors, aliases, policy hashes, and warning metadata are
@@ -128,3 +129,7 @@ namespace. The freshness gauge lives in `SnapshotSource`, where generations are
 finalized, because the lane's freshness signal is produced there; the status
 surface consumes generation freshness through the shared status report rather
 than this collector-owned gauge.
+
+No-Regression Evidence (#2377): `go test ./internal/collector/sdk ./internal/collector/vaultlive ./internal/collector/vaultlive/vaultapi ./cmd/collector-vault-live -count=1` proves the claim-driven Vault runtime still emits all seven metadata families, preserves redaction and metadata-only guards, validates target config, and uses the shared claim/fencing boundary while the `vaultapi` adapter adopts SDK base-address validation, bounded default client construction, and bounded HTTP status/transport errors.
+
+No-Observability-Change (#2377): Vault keeps the existing secrets/IAM source fact, API-call, partial-scope, redaction, freshness, shared collector metrics, and `vault_live.snapshot` span signals. The SDK remains telemetry-free, and metric labels stay bounded to source, fact kind, operation, result, reason, field class, and scope kind.

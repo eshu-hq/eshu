@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/collector/vaultlive"
 )
 
@@ -57,20 +58,23 @@ type Config struct {
 // New creates a metadata-only Vault adapter. It does not validate the token; the
 // first call surfaces an auth error.
 func New(cfg Config) (*Adapter, error) {
-	address := strings.TrimRight(strings.TrimSpace(cfg.Address), "/")
-	if address == "" {
-		return nil, fmt.Errorf("vault address is required")
+	baseURL, err := sdk.ParseBaseURL("vault", cfg.Address)
+	if err != nil {
+		return nil, err
+	}
+	if baseURL.Scheme != "http" && baseURL.Scheme != "https" {
+		return nil, fmt.Errorf("vault base_url scheme must be http or https")
 	}
 	if strings.TrimSpace(cfg.Token) == "" {
 		return nil, fmt.Errorf("vault token is required")
 	}
 	client := cfg.HTTPClient
 	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
+		client = sdk.DefaultHTTPClient(30 * time.Second)
 	}
 	return &Adapter{
 		httpClient: client,
-		address:    address,
+		address:    strings.TrimRight(baseURL.String(), "/"),
 		token:      strings.TrimSpace(cfg.Token),
 		namespace:  strings.TrimSpace(cfg.Namespace),
 		onAPICall:  cfg.OnAPICall,
@@ -113,7 +117,11 @@ func (a *Adapter) doRequest(ctx context.Context, path string, list bool, out any
 
 	resp, err := a.httpClient.Do(req)
 	if err != nil {
-		return false, fmt.Errorf("vaultapi: request %q: %w", clean, err)
+		return false, fmt.Errorf("vaultapi: request failed: %w", sdk.HTTPError{
+			Provider: "vault",
+			Message:  "request failed",
+			Cause:    err,
+		})
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -124,9 +132,9 @@ func (a *Adapter) doRequest(ctx context.Context, path string, list bool, out any
 		// empty result, not an error, so partial coverage is tolerated.
 		return false, nil
 	case http.StatusForbidden:
-		return false, fmt.Errorf("vaultapi: forbidden reading %q (check read-only policy)", clean)
+		return false, fmt.Errorf("vaultapi: forbidden metadata read (check read-only policy): %w", vaultHTTPError(resp))
 	default:
-		return false, fmt.Errorf("vaultapi: unexpected status %d reading %q", resp.StatusCode, clean)
+		return false, fmt.Errorf("vaultapi: unexpected metadata status: %w", vaultHTTPError(resp))
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
@@ -139,6 +147,15 @@ func (a *Adapter) doRequest(ctx context.Context, path string, list bool, out any
 		}
 	}
 	return true, nil
+}
+
+func vaultHTTPError(response *http.Response) sdk.HTTPError {
+	return sdk.HTTPError{
+		Provider:   "vault",
+		StatusCode: response.StatusCode,
+		Message:    http.StatusText(response.StatusCode),
+		RetryAfter: sdk.ParseRetryAfterHeader(response.Header.Get("Retry-After")),
+	}
 }
 
 // isKVDataPath reports whether a Vault path addresses a KV secret-data
