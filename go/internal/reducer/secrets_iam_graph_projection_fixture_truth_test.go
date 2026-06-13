@@ -18,8 +18,8 @@ import (
 // conformance is the BACKEND-GATED test in
 // internal/storage/cypher/secrets_iam_graph_live_test.go, which SKIPs unless a
 // Bolt backend env is configured. The live writer remains gated OFF by default
-// (ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED) pending §14 sign-off; this
-// proof does not register or enable it.
+// (ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED) pending target-bound
+// activation proof; this test does not register or enable it.
 
 // rowByUID indexes node rows by their uid for exact-row assertions.
 func rowByUID(rows []map[string]any) map[string]map[string]any {

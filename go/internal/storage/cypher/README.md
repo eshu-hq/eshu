@@ -268,8 +268,9 @@ endpoint is a no-op never a fabricated node), plus scope+evidence-scoped retract
 It interpolates no data-driven Cypher token: identity is always the uid (nodes)
 or the two endpoint uids plus the static relationship token (edges). The live
 reducer projection that drives it stays OFF by default behind
-`ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`, pending the ADR #1314 §14
-sign-off.
+`ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`; ADR #1314 §14 sign-off and
+repo-local proofs exist, but #2430 must bind activation to one target deployment
+and record flag-on proof before production enablement.
 
 Benchmark Evidence: `BenchmarkSecretsIAMGraphWriter`
 (`secrets_iam_graph_writer_bench_test.go`) measures statement construction and
@@ -297,7 +298,8 @@ unless `ESHU_SECRETS_IAM_GRAPH_LIVE=1` and Bolt env are set, so the default run
 never fabricates a live proof. The June 7 proof snapshot in
 `docs/internal/design/1314-secrets-iam-graph-promotion-proof-2026-06-07.md`
 records successful NornicDB and Neo4j live writer conformance plus shared
-backend conformance; production activation remains blocked on ADR #1314 §14.
+backend conformance; production activation remains blocked on #2430's
+target-bound activation record.
 
 Observability Evidence: no new metric name is introduced by the writer; the
 reducer projection domain owns the bounded-enum node/edge/skip counters and the

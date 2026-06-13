@@ -1564,8 +1564,9 @@ Covered by `go test ./internal/reducer -run 'Extract|GraphProjection|AppendAddit
 `go test ./cmd/reducer -run SecretsIAMGraphProjectionWriter` (flag default-off,
 enabled, and malformed-value cases). Cross-scope readiness gating, retry
 liveness handling, the §11/§12 repo-local proofs, and ADR #1314 §14
-principal/security sign-off are present. Activating the flag for a target
-deployment remains gated by `risk:schema` approval and target deployment proof.
+principal/security sign-off are present. Activating the flag remains gated by
+the target-bound activation record in #2430, including deployment binding and
+flag-on proof.
 
 Observability Evidence: the domain emits the `reducer.secrets_iam_graph_projection`
 span and three bounded-enum counters — `eshu_dp_secrets_iam_graph_nodes_written_total`
@@ -1622,8 +1623,9 @@ generation. The frozen `edge_type`/`skip_reason` dimension keys are unchanged
 
 The ADR #1314 §11 fixture-truth, §12 performance, repo-local backend
 conformance proofs, and §14 principal/security sign-off now exist. Activation
-still requires `risk:schema` approval and a target deployment decision/proof.
-The flag stays OFF by default and is unchanged; these are proof artifacts only.
+still requires #2430's target deployment decision and flag-on proof before the
+in-principle approval binds to one deployment. The flag stays OFF by default and
+is unchanged; these are proof artifacts only.
 
 Benchmark Evidence (§12): `BenchmarkSecretsIAMGraphWriter`
 (`go/internal/storage/cypher/secrets_iam_graph_writer_bench_test.go`) writes all
@@ -1674,8 +1676,8 @@ schema readback, focused package gates, and the §12 benchmark rerun.
 
 Activation remains blocked: enabling
 `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED` for live execution still
-requires `risk:schema` approval and target deployment decision/proof, which
-these repo-local proofs do not grant.
+requires #2430's target deployment decision and flag-on proof, which these
+repo-local proofs do not grant.
 
 ## Cross-scope endpoint-readiness gate (#1380)
 
@@ -1732,8 +1734,8 @@ go test ./internal/storage/postgres -run 'TestReducerQueueFailDefersSecretsIAMEn
 This gate failed before the queue dead-lettered an over-budget readiness miss
 and claim SQL always consumed `attempt_count`, then passed once deferred retries
 became non-counting on both single and batch claim paths. The projection lane
-still stays OFF by default until #1347 records `risk:schema` approval and #1381
-records the target deployment activation proof.
+still stays OFF by default until #2430 records the target deployment activation
+proof and binds approval to that deployment.
 
 ## Workload Cloud Relationship Materialization (#1685)
 

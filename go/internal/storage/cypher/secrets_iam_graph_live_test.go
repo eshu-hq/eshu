@@ -26,9 +26,9 @@ import (
 // without a backend it skips, and with a backend it fails on any mismatch.
 //
 // The live reducer projection remains gated OFF by default
-// (ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED) pending §14 sign-off; this
-// test exercises only the standalone writer against a developer-supplied backend
-// and cleans up every node it creates.
+// (ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED) pending target-bound
+// activation proof; this test exercises only the standalone writer against a
+// developer-supplied backend and cleans up every node it creates.
 
 const secretsIAMLiveEnv = "ESHU_SECRETS_IAM_GRAPH_LIVE"
 

@@ -1,6 +1,10 @@
 # Secrets/IAM Graph Projection — Flag-On Activation Runbook
 
-Issue [#1381](https://github.com/eshu-hq/eshu/issues/1381) / [#1347](https://github.com/eshu-hq/eshu/issues/1347). Gate: ADR #1314 §11 / §12 / §14.
+Issues [#2406](https://github.com/eshu-hq/eshu/issues/2406) /
+[#2430](https://github.com/eshu-hq/eshu/issues/2430). Historical gates:
+[#1381](https://github.com/eshu-hq/eshu/issues/1381) /
+[#1347](https://github.com/eshu-hq/eshu/issues/1347). Gate: ADR #1314 §11 /
+§12 / §14.
 
 This runbook is the activation procedure a principal/security reviewer and an
 operator follow to enable the default-off Secrets/IAM graph projection in one
@@ -12,17 +16,18 @@ remaining activation steps**.
 This runbook does not grant any approval and does not enable anything. It
 captures the steps and evidence that activation requires. Setting
 `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED` truthy before the
-`risk:schema` approval and the target-deployment decision below are recorded is
-a rule violation, not a config choice.
+target-bound approval, target-deployment decision, and flag-on proof are
+recorded in #2430 is a rule violation, not a config choice.
 
-## Gate status (resolved, 2026-06-13) — issue #2349
+## Gate status (resolved, 2026-06-13) — issues #2349 and #2406
 
 The gate is **explicitly OFF by default and tracked**, not silently dark. The
-remaining blocker to enable is **human, not code**: the §2 `risk:schema`
-activation approval and the §3 single-target-deployment decision. Until a
-principal/security reviewer records those, the writer stays `nil` and
-`DomainSecretsIAMGraphProjection` stays unregistered. No agent or config change
-may flip it; doing so before §2/§3 are recorded is a rule violation (§7).
+remaining blocker to enable is **human/operator proof, not code**: #2430 tracks
+the target-bound activation record, including §2 deployment binding, the §3
+single-target-deployment decision, and the §5 flag-on live proof. Until that
+record is complete, the writer stays `nil` and `DomainSecretsIAMGraphProjection`
+stays unregistered. No agent or config change may flip it; doing so before #2430
+is complete is a rule violation (§7).
 
 **What this flag gates — and what it does not.** This flag gates **only**
 `DomainSecretsIAMGraphProjection`: the projection of reducer-owned
@@ -46,9 +51,10 @@ impersonation/Workload-Identity trust layer (issue #2369) lands. GCP
 graph-projected identity hops therefore require **both** #2369 and this flag;
 GCP IAM posture and GCP relationship edges require neither.
 
-**Blocking item tracked:** the §2 `risk:schema` approval + §3 target-deployment
-decision remain open (see the proof snapshot "Still blocked"). They are the
-explicit, owner-gated steps that move this flag from documented-off to enabled.
+**Blocking item tracked:** #2430 tracks the remaining target-bound activation
+record. `risk:schema` approval is recorded in principle, but it does not bind or
+permit enablement until the target deployment, backend, reducer scope, rollback
+owner, observation window, and flag-on proof are recorded for one deployment.
 
 ## Why this gate exists
 
@@ -87,10 +93,10 @@ recorded. Cite each against its source.
 
 If any precondition is not recorded, stop. Do not proceed.
 
-## 2. `risk:schema` activation approval
+## 2. Target-bound `risk:schema` activation approval
 
-Still blocked per the proof snapshot ("Still blocked") and the gate doc. This is
-a separate approval from §14.
+Approval is recorded in principle, but it binds only after the target deployment
+is named and verified in #2430. This is separate from §14.
 
 - **Who records it:** the principal/security reviewer responsible for the
   schema/risk surface.
@@ -228,9 +234,9 @@ re-bootstrap.
 
 ## 7. What NOT to do
 
-- **Do not enable before approvals are recorded.** No flag flip until both the
-  §14 sign-off and the §3 `risk:schema` approval + target-deployment decision
-  are recorded.
+- **Do not enable before approvals are recorded.** No flag flip until the §14
+  sign-off, target-bound `risk:schema` approval, target-deployment decision, and
+  flag-on proof are recorded in #2430.
 - **Do not widen or bypass the §7 property allowlist.** Never add a property key
   to the extract output to "carry more context." The allowlist (enforced by
   `TestExtractRowsCarryNoForbiddenProperties`) is the redaction contract; any

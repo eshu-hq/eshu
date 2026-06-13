@@ -71,7 +71,7 @@ queue, or graph-write evidence.
 | `ESHU_DRIFT_PRIOR_CONFIG_DEPTH` | `10` | reducer drift loader | Prior repo-snapshot generations walked for Terraform resources removed from config. |
 | `ESHU_REDUCER_MAX_ATTEMPTS` | `3` | reducer retry policy | Max reducer attempts before terminal failure. |
 | `ESHU_REDUCER_RETRY_DELAY` | `30s` | reducer retry policy | Delay between reducer retries. |
-| `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED` | `false` | reducer | Opt-in for live secrets/IAM trust-chain graph projection (ADR #1314 §4). Unset/`false` keeps `DomainSecretsIAMGraphProjection` unregistered and writes nothing; a malformed value is a startup error. Leave unset until ADR §14 principal+security sign-off, `risk:schema` approval, and target deployment activation proof are recorded. |
+| `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED` | `false` | reducer | Opt-in for live secrets/IAM trust-chain graph projection (ADR #1314 §4). Unset/`false` keeps `DomainSecretsIAMGraphProjection` unregistered and writes nothing; a malformed value is a startup error. Leave unset until the target-bound activation record in #2430 names the deployment, binds security/schema approval, and records flag-on proof. |
 
 ## Shared Projection And Repair
 
