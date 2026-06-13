@@ -23,6 +23,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.FactsCommitted, "FactsCommitted counter should be registered")
 	assert.NotNil(t, inst.ProjectionsCompleted, "ProjectionsCompleted counter should be registered")
 	assert.NotNil(t, inst.ReducerIntentsEnqueued, "ReducerIntentsEnqueued counter should be registered")
+	assert.NotNil(t, inst.ReducerAdmissionDeferrals, "ReducerAdmissionDeferrals counter should be registered")
 	assert.NotNil(t, inst.ReducerExecutions, "ReducerExecutions counter should be registered")
 	assert.NotNil(t, inst.CanonicalWrites, "CanonicalWrites counter should be registered")
 	assert.NotNil(t, inst.SharedProjectionCycles, "SharedProjectionCycles counter should be registered")

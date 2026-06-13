@@ -241,7 +241,10 @@ func buildIngesterProjectorService(
 	logger *slog.Logger,
 ) (projector.Service, error) {
 	projectorQueue := postgres.NewProjectorQueue(database, "ingester", 5*time.Minute)
-	reducerQueue := reducerIntentWriterForProfile(getenv, postgres.NewReducerQueue(database, "ingester", time.Minute))
+	reducerWriter, err := ingesterReducerIntentWriter(database, getenv, instruments, logger)
+	if err != nil {
+		return projector.Service{}, err
+	}
 	retryInjector, err := loadIngesterRetryInjector(getenv)
 	if err != nil {
 		return projector.Service{}, err
@@ -250,9 +253,8 @@ func buildIngesterProjectorService(
 	if err != nil {
 		return projector.Service{}, err
 	}
-	projectorQueue.RetryDelay = retryPolicy.RetryDelay
-	projectorQueue.MaxAttempts = retryPolicy.MaxAttempts
-	runner, err := buildIngesterProjectorRuntime(database, canonicalWriter, reducerQueue, retryInjector, getenv, tracer, instruments, logger)
+	projectorQueue.RetryDelay, projectorQueue.MaxAttempts = retryPolicy.RetryDelay, retryPolicy.MaxAttempts
+	runner, err := buildIngesterProjectorRuntime(database, canonicalWriter, reducerWriter, retryInjector, getenv, tracer, instruments, logger)
 	if err != nil {
 		return projector.Service{}, err
 	}

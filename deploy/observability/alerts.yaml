@@ -373,6 +373,26 @@ groups:
                - Increase shared projection partition count for better parallelism
                - Optimize domain handlers for batch operations instead of single-item processing
 
+      - alert: EshuReducerAdmissionBackpressureActive
+        expr: |
+          sum(rate(eshu_dp_reducer_admission_deferrals_total[10m])) > 0
+          and on()
+          sum(eshu_dp_queue_depth{queue="reducer",status=~"pending|retrying|in_flight"}) > 0
+        for: 15m
+        labels:
+          severity: warning
+          service: eshu-ingester
+          component: throughput
+        annotations:
+          summary: "Ingester reducer admission is deferring intent enqueues"
+          description: "Source-local projection is pausing reducer intent enqueues because the reducer queue remains above the configured admission high-water mark."
+          runbook: |
+            1. Confirm ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK and ESHU_REDUCER_ADMISSION_POLL_INTERVAL for the ingester deployment.
+            2. Check reducer queue depth by status: `eshu_dp_queue_depth{queue="reducer"}`.
+            3. Compare enqueue and drain rates: `eshu_dp_reducer_intents_enqueued_total` versus `eshu_dp_reducer_executions_total`.
+            4. Review reducer execution duration by domain before changing worker counts.
+            5. If repair or replay lanes are blocked, check their specific admin/recovery surfaces; they bypass ingester admission by design.
+
   - name: eshu.tfstate
     interval: 30s
     rules:

@@ -56,6 +56,7 @@ type Instruments struct {
 	FactsCommitted                            metric.Int64Counter
 	ProjectionsCompleted                      metric.Int64Counter
 	ReducerIntentsEnqueued                    metric.Int64Counter
+	ReducerAdmissionDeferrals                 metric.Int64Counter
 	ReducerExecutions                         metric.Int64Counter
 	CanonicalWrites                           metric.Int64Counter
 	SharedProjectionCycles                    metric.Int64Counter
@@ -794,6 +795,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReducerIntentsEnqueued counter: %w", err)
+	}
+
+	inst.ReducerAdmissionDeferrals, err = meter.Int64Counter(
+		"eshu_dp_reducer_admission_deferrals_total",
+		metric.WithDescription("Total reducer intent enqueue admission deferrals"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReducerAdmissionDeferrals counter: %w", err)
 	}
 
 	inst.ReducerExecutions, err = meter.Int64Counter(
