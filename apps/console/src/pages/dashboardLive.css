@@ -18,6 +18,7 @@
 }
 
 .dashboard-atlas-panel {
+  max-width: 100%;
   overflow: hidden;
 }
 
@@ -35,12 +36,70 @@
   font-size: 0.88rem;
 }
 
+.dashboard-atlas-controls {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 14px var(--pad);
+}
+
+.dashboard-layer-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dashboard-hot-entities {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dashboard-hot-entities > span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.dashboard-hot-entities button {
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--bone);
+  cursor: pointer;
+  font-size: 0.78rem;
+  max-width: 180px;
+  overflow: hidden;
+  padding: 6px 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-hot-entities button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.dashboard-hot-entities small {
+  color: var(--subtle);
+  font-size: 0.72rem;
+}
+
 .dashboard-atlas-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
   gap: var(--gap);
   padding: var(--pad);
   align-items: stretch;
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
 }
 
 .dashboard-atlas-layout .gcanvas {
@@ -81,6 +140,15 @@
   padding-inline: 0;
 }
 
+.dashboard-insight-grid {
+  gap: var(--gap);
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+}
+
+.dashboard-findings-panel .panel-body {
+  overflow-x: auto;
+}
+
 @media (max-width: 1180px) {
   .dashboard-atlas-layout {
     grid-template-columns: 1fr;
@@ -101,15 +169,29 @@
     gap: 14px;
   }
 
+  .dashboard-atlas-controls {
+    align-items: stretch;
+    padding: 12px;
+  }
+
+  .dashboard-layer-toggles,
+  .dashboard-hot-entities {
+    width: 100%;
+  }
+
+  .dashboard-insight-grid {
+    grid-template-columns: 1fr;
+  }
+
   .dashboard-atlas-layout {
+    display: block;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
     padding: 12px;
   }
 
   .dashboard-atlas-layout .gcanvas {
-    min-width: 680px;
-  }
-
-  .dashboard-atlas-layout {
-    overflow-x: auto;
+    width: 100%;
   }
 }
