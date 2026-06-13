@@ -2,13 +2,14 @@ package pagerduty
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 const defaultPagerDutyAPIBaseURL = "https://api.pagerduty.com"
@@ -23,20 +24,16 @@ type HTTPClientConfig struct {
 // HTTPClient reads PagerDuty incidents, log entries, and related change
 // events through the PagerDuty REST API.
 type HTTPClient struct {
-	baseURL string
+	baseURL *url.URL
 	token   string
-	client  *http.Client
+	client  sdk.HTTPDoer
 }
 
 // NewHTTPClient validates configuration and returns a PagerDuty REST client.
 func NewHTTPClient(config HTTPClientConfig) (*HTTPClient, error) {
-	baseURL := strings.TrimRight(strings.TrimSpace(firstNonBlank(config.BaseURL, defaultPagerDutyAPIBaseURL)), "/")
-	if baseURL == "" {
-		return nil, fmt.Errorf("pagerduty api base url is required")
-	}
-	parsed, err := url.Parse(baseURL)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return nil, fmt.Errorf("pagerduty api base url must include scheme and host")
+	baseURL, err := sdk.ParseBaseURL("pagerduty api", firstNonBlank(config.BaseURL, defaultPagerDutyAPIBaseURL))
+	if err != nil {
+		return nil, err
 	}
 	token := strings.TrimSpace(config.Token)
 	if token == "" {
@@ -139,30 +136,18 @@ func (c *HTTPClient) listRelatedChangeEvents(ctx context.Context, incidentID str
 }
 
 func (c *HTTPClient) getJSON(ctx context.Context, path string, values url.Values, out any) error {
-	rawURL := c.baseURL + path
-	if encoded := values.Encode(); encoded != "" {
-		rawURL += "?" + encoded
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Authorization", "Token token="+c.token)
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return PagerDutyError{StatusCode: resp.StatusCode}
-	}
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-		return fmt.Errorf("decode pagerduty response: %w", err)
-	}
-	return nil
+	return sdk.DoJSON(ctx, sdk.JSONRequest{
+		Provider: "pagerduty",
+		Method:   http.MethodGet,
+		BaseURL:  c.baseURL,
+		Endpoint: path,
+		Query:    values,
+		Out:      out,
+		Client:   c.client,
+		Headers: func(req *http.Request) {
+			req.Header.Set("Authorization", "Token token="+c.token)
+		},
+	})
 }
 
 func defaultClientFactory(target TargetConfig) (EvidenceClient, error) {

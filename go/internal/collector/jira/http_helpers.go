@@ -1,11 +1,6 @@
 package jira
 
-import (
-	"net/http"
-	"strconv"
-	"strings"
-	"time"
-)
+import "strings"
 
 func jiraSearchFields() []string {
 	return []string{
@@ -52,21 +47,4 @@ func remoteLinkProviderSupportState(application LinkApplication, rawURL string) 
 	default:
 		return "unsupported_provider"
 	}
-}
-
-func parseRetryAfter(raw string) time.Duration {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return 0
-	}
-	if seconds, err := strconv.Atoi(trimmed); err == nil && seconds > 0 {
-		return time.Duration(seconds) * time.Second
-	}
-	if value, err := http.ParseTime(trimmed); err == nil {
-		delay := time.Until(value)
-		if delay > 0 {
-			return delay
-		}
-	}
-	return 0
 }

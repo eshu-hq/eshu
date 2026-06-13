@@ -2,11 +2,11 @@ package grafana
 
 import (
 	"context"
-	"net/http"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -27,6 +27,23 @@ const (
 	// RedactionVersion is the metadata-only live Grafana redaction policy.
 	RedactionVersion = "observability-live-grafana-v1"
 )
+
+const (
+	// FailureRetryable marks transient provider or transport failures.
+	FailureRetryable = string(sdk.FailureRetryable)
+	// FailureRateLimited marks provider throttling as retryable.
+	FailureRateLimited = string(sdk.FailureRateLimited)
+	// FailureAuthDenied marks authentication or authorization failures.
+	FailureAuthDenied = string(sdk.FailureAuthDenied)
+	// FailureTerminal marks malformed or unsupported terminal failures.
+	FailureTerminal = string(sdk.FailureTerminal)
+)
+
+// GrafanaError carries a bounded HTTP provider failure.
+type GrafanaError = sdk.HTTPError
+
+// ProviderFailure wraps a Grafana failure with a bounded failure class.
+type ProviderFailure = sdk.ProviderFailure
 
 const (
 	// ResourceClassFolder marks a Grafana folder resource.
@@ -210,6 +227,4 @@ type HTTPClientConfig struct {
 }
 
 // HTTPDoer is the subset of *http.Client used by HTTPClient.
-type HTTPDoer interface {
-	Do(*http.Request) (*http.Response, error)
-}
+type HTTPDoer = sdk.HTTPDoer

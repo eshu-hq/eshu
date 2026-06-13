@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -19,6 +20,16 @@ import (
 )
 
 const defaultUpdatedLookback = 24 * time.Hour
+
+// ErrArchivedIssue marks Jira archived issue or project responses when the
+// provider exposes the state without a distinct status code.
+var ErrArchivedIssue = errors.New("jira issue is archived")
+
+var jiraStatusPolicy = sdk.StatusPolicy{
+	AuthDeniedClass: sdk.FailurePermissionHidden,
+	NotFoundClass:   sdk.FailureDeleted,
+	GoneClass:       sdk.FailureArchived,
+}
 
 type targetRuntime struct {
 	config TargetConfig
@@ -96,10 +107,8 @@ func (s *ClaimedSource) NextClaimed(
 	}
 	target, ok := s.targets[strings.TrimSpace(item.ScopeID)]
 	if !ok {
-		return collector.CollectedGeneration{}, false, ProviderFailure{
-			failureClass: FailureRetryable,
-			cause:        fmt.Errorf("jira target scope_id is not configured"),
-		}
+		err := fmt.Errorf("jira target scope_id is not configured")
+		return collector.CollectedGeneration{}, false, sdk.NewProviderFailure("jira", sdk.FailureRetryable, false, err)
 	}
 
 	startedAt := time.Now().UTC()
@@ -155,6 +164,13 @@ func defaultClientFactory(target TargetConfig) (EvidenceClient, error) {
 		Email:   target.Email,
 		Token:   target.Token,
 	})
+}
+
+func classifiedProviderFailure(err error) ProviderFailure {
+	if errors.Is(err, ErrArchivedIssue) {
+		return sdk.NewProviderFailure("jira", sdk.FailureArchived, true, err)
+	}
+	return sdk.ClassifyProviderFailure("jira", err, jiraStatusPolicy, sdk.FailureRetryable)
 }
 
 func validateTarget(target TargetConfig) (TargetConfig, error) {

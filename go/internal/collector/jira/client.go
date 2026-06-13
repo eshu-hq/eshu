@@ -1,7 +1,6 @@
 package jira
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -12,6 +11,8 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 const (
@@ -120,22 +121,16 @@ type jiraErrorResponse struct {
 // NewHTTPClient builds a Jira Cloud REST client. It validates only local
 // configuration; credentials are not checked until requests are made.
 func NewHTTPClient(config HTTPClientConfig) (HTTPClient, error) {
-	base, err := url.Parse(strings.TrimRight(strings.TrimSpace(config.BaseURL), "/"))
+	base, err := sdk.ParseBaseURL("jira", config.BaseURL)
 	if err != nil {
-		return HTTPClient{}, fmt.Errorf("parse jira base_url: %w", err)
-	}
-	if base.Scheme == "" || base.Host == "" {
-		return HTTPClient{}, fmt.Errorf("jira base_url must include scheme and host")
-	}
-	if base.User != nil {
-		return HTTPClient{}, fmt.Errorf("jira base_url must not include credentials")
+		return HTTPClient{}, err
 	}
 	if strings.TrimSpace(config.Token) == "" {
 		return HTTPClient{}, fmt.Errorf("jira token is required")
 	}
 	client := config.Client
 	if client == nil {
-		client = &http.Client{Timeout: defaultHTTPTimeout}
+		client = sdk.DefaultHTTPClient(defaultHTTPTimeout)
 	}
 	return HTTPClient{
 		baseURL:    base,
@@ -371,43 +366,18 @@ func (c HTTPClient) doJSON(
 	body any,
 	out any,
 ) error {
-	requestURL := *c.baseURL
-	requestURL.Path = path.Join(c.baseURL.Path, endpoint)
-	requestURL.RawQuery = query.Encode()
-	var bodyReader io.Reader
-	if body != nil {
-		encoded, err := json.Marshal(body)
-		if err != nil {
-			return JiraError{Message: "encode jira request", Cause: err}
-		}
-		bodyReader = bytes.NewReader(encoded)
-	}
-	request, err := http.NewRequestWithContext(ctx, method, requestURL.String(), bodyReader)
-	if err != nil {
-		return JiraError{Message: "build jira request", Cause: err}
-	}
-	request.Header.Set("Accept", "application/json")
-	if body != nil {
-		request.Header.Set("Content-Type", "application/json")
-	}
-	c.setAuth(request)
-	response, err := c.httpClient.Do(request)
-	if err != nil {
-		return JiraError{Message: "jira request failed", Cause: err}
-	}
-	defer func() {
-		_ = response.Body.Close()
-	}()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return jiraStatusError(response)
-	}
-	if out == nil {
-		return nil
-	}
-	if err := json.NewDecoder(response.Body).Decode(out); err != nil {
-		return JiraError{Message: "decode jira response", Cause: err}
-	}
-	return nil
+	return sdk.DoJSON(ctx, sdk.JSONRequest{
+		Provider:    "jira",
+		Method:      method,
+		BaseURL:     c.baseURL,
+		Endpoint:    endpoint,
+		Query:       query,
+		Body:        body,
+		Out:         out,
+		Client:      c.httpClient,
+		Headers:     c.setAuth,
+		StatusError: jiraStatusError,
+	})
 }
 
 func (c HTTPClient) setAuth(request *http.Request) {
@@ -441,9 +411,10 @@ func jiraStatusError(response *http.Response) error {
 		return fmt.Errorf("%w: %s", ErrArchivedIssue, message)
 	}
 	return JiraError{
+		Provider:        "jira",
 		StatusCode:      response.StatusCode,
 		Message:         message,
-		RetryAfter:      parseRetryAfter(response.Header.Get("Retry-After")),
+		RetryAfter:      sdk.ParseRetryAfterHeader(response.Header.Get("Retry-After")),
 		RateLimitReason: strings.TrimSpace(response.Header.Get("RateLimit-Reason")),
 	}
 }
