@@ -1,0 +1,74 @@
+schema_version: 1
+collectors:
+  - command_dir: go/cmd/collector-pagerduty
+    runtime_name: collector-pagerduty
+    binary_name: eshu-collector-pagerduty
+    collector_label: pagerduty collector
+    go_name: PagerDuty
+    env:
+      collector_instances: ESHU_COLLECTOR_INSTANCES_JSON
+      instance_id: ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID
+      poll_interval: ESHU_PAGERDUTY_POLL_INTERVAL
+      claim_lease_ttl: ESHU_PAGERDUTY_CLAIM_LEASE_TTL
+      heartbeat_interval: ESHU_PAGERDUTY_HEARTBEAT_INTERVAL
+      owner_id: ESHU_PAGERDUTY_COLLECTOR_OWNER_ID
+      owner_id_const_name: envOwnerID
+    store_name: collector_pagerduty
+    claim_id_prefix: pagerduty-claim
+    collector_kind_expr: scope.CollectorPagerDuty
+    max_attempts_expr: workflow.DefaultClaimMaxAttempts()
+    scope_kind: incident
+    auth_mode: token_env
+    target_list_field: targets
+    target_identity_fields:
+      - provider
+      - scope_id
+      - account_id
+      - allowed_service_ids
+    target_auth_fields:
+      - token_env
+    source:
+      import_path: github.com/eshu-hq/eshu/go/internal/collector/pagerduty
+      package_name: pagerduty
+      config_type: pagerduty.SourceConfig
+      constructor: pagerduty.NewClaimedSource
+      config_loader: loadPagerDutySourceConfig
+      config_attacher: attachPagerDutyRuntimeSignals
+      runtime_config_type: pagerDutyRuntimeConfiguration
+
+  - command_dir: go/cmd/collector-jira
+    runtime_name: collector-jira
+    binary_name: eshu-collector-jira
+    collector_label: jira collector
+    go_name: Jira
+    env:
+      collector_instances: ESHU_COLLECTOR_INSTANCES_JSON
+      instance_id: ESHU_JIRA_COLLECTOR_INSTANCE_ID
+      poll_interval: ESHU_JIRA_POLL_INTERVAL
+      claim_lease_ttl: ESHU_JIRA_CLAIM_LEASE_TTL
+      heartbeat_interval: ESHU_JIRA_HEARTBEAT_INTERVAL
+      owner_id: ESHU_JIRA_COLLECTOR_OWNER_ID
+      owner_id_const_name: envCollectorOwnerID
+    store_name: collector_jira
+    claim_id_prefix: jira-claim
+    collector_kind_expr: scope.CollectorJira
+    scope_kind: work_item
+    auth_mode: token_env
+    target_list_field: targets
+    target_identity_fields:
+      - provider
+      - scope_id
+      - site_id
+      - jql
+      - jql_env
+    target_auth_fields:
+      - email_env
+      - token_env
+    source:
+      import_path: github.com/eshu-hq/eshu/go/internal/collector/jira
+      package_name: jira
+      config_type: jira.SourceConfig
+      constructor: jira.NewClaimedSource
+      config_loader: loadJiraSourceConfig
+      config_attacher: attachJiraRuntimeSignals
+      runtime_config_type: jiraRuntimeConfiguration
