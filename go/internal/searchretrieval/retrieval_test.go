@@ -190,7 +190,11 @@ func TestBuildResponseRejectsCandidatesWithoutDocumentIdentity(t *testing.T) {
 func TestBuildResponseCopiesDocumentGraphHandles(t *testing.T) {
 	t.Parallel()
 
-	candidate := Candidate{Document: documentFixture("searchdoc:checkout", "service:checkout"), Score: 0.9}
+	candidate := Candidate{
+		Document: documentFixture("searchdoc:checkout", "service:checkout"),
+		Score:    0.9,
+		Metadata: map[string]string{"search_method": "bm25"},
+	}
 	candidate.Document.EntityRefs = []searchdocs.EntityRef{{ID: "entity:checkout", Name: "Checkout"}}
 	candidate.Document.Labels = []string{"service", "owner"}
 
@@ -202,6 +206,7 @@ func TestBuildResponseCopiesDocumentGraphHandles(t *testing.T) {
 	candidate.Document.GraphHandles[0].ID = "mutated"
 	candidate.Document.EntityRefs[0].ID = "mutated"
 	candidate.Document.Labels[0] = "mutated"
+	candidate.Metadata["search_method"] = "mutated"
 
 	if got, want := response.Results[0].Document.GraphHandles[0].ID, "checkout"; got != want {
 		t.Fatalf("response document graph handle ID = %q, want %q", got, want)
@@ -214,6 +219,9 @@ func TestBuildResponseCopiesDocumentGraphHandles(t *testing.T) {
 	}
 	if got, want := response.Results[0].Document.Labels[0], "service"; got != want {
 		t.Fatalf("response document label = %q, want %q", got, want)
+	}
+	if got, want := response.Results[0].Metadata["search_method"], "bm25"; got != want {
+		t.Fatalf("response metadata search_method = %q, want %q", got, want)
 	}
 }
 

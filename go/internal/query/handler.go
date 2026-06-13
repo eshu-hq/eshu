@@ -120,6 +120,7 @@ type APIRouter struct {
 	Evidence              *EvidenceHandler
 	Documentation         *DocumentationHandler
 	SemanticEvidence      *SemanticEvidenceHandler
+	SemanticSearch        *SemanticSearchHandler
 	PackageRegistry       *PackageRegistryHandler
 	Dependencies          *DependenciesHandler
 	CICD                  *CICDHandler
@@ -209,6 +210,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Semantic evidence
 	if a.SemanticEvidence != nil {
 		a.SemanticEvidence.Mount(mux)
+	}
+
+	// Semantic search
+	if a.SemanticSearch != nil {
+		a.SemanticSearch.Mount(mux)
 	}
 
 	// Package registry

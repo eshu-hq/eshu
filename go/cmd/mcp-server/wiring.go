@@ -232,6 +232,10 @@ func newMCPQueryRouter(
 			Content: contentReader,
 			Profile: queryProfile,
 		},
+		SemanticSearch: &query.SemanticSearchHandler{
+			Documents: query.NewPostgresSemanticSearchDocumentStore(db),
+			Profile:   queryProfile,
+		},
 		PackageRegistry: &query.PackageRegistryHandler{
 			Neo4j:        neo4jReader,
 			Content:      contentReader,

@@ -2,10 +2,11 @@
 
 ## Purpose
 
-`searchretrieval` defines the bounded internal retrieval contract for semantic
-evaluation over curated Eshu search documents. It gives future NornicDB BM25,
-vector, or hybrid adapters a narrow request and response shape before live
-backend I/O or public API/MCP routes are added.
+`searchretrieval` defines the bounded retrieval contract for semantic evaluation
+over curated Eshu search documents. It gives Postgres, NornicDB BM25, vector,
+hybrid, and in-process adapters a narrow request and response shape. Public
+HTTP/MCP search surfaces adapt this package but keep routing, authorization,
+telemetry spans, and wire envelopes outside this package.
 
 ## Ownership boundary
 
@@ -13,7 +14,7 @@ This package owns request validation, scope anchoring, timeout-bound execution
 through a backend port, deterministic result normalization, truncation reporting,
 false canonical claim counting, observation summaries, and conversion into
 `searchbench` scoring input. It does not query Postgres, call NornicDB, write
-graph state, expose API/MCP routes, emit OTEL telemetry, or decide canonical
+graph state, mount API/MCP routes, emit OTEL telemetry, or decide canonical
 truth.
 
 ## Exported surface
@@ -66,9 +67,9 @@ labels.
   top-K behavior.
 - `false_canonical_claim_count` reports any returned result that claims a truth
   level other than `derived`; it does not suppress or promote the result.
-- This package is internal evaluation plumbing. Public API/MCP search surfaces
-  need a later PR with envelope, capability, OpenAPI, MCP, telemetry, and
-  benchmark proof.
+- Public API/MCP search surfaces must wrap this package with repository
+  authorization, canonical envelopes, OpenAPI/MCP schemas, route-level
+  telemetry, and explicit capability checks. Do not add those concerns here.
 
 ## Related docs
 

@@ -56,6 +56,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedSemanticEvidenceRoute(r) {
 		return true
 	}
+	if scopedSemanticSearchRoute(r) {
+		return true
+	}
 	if scopedDocumentationListRoute(r) {
 		return true
 	}
@@ -181,6 +184,14 @@ func scopedQueryPlaybookRoute(r *http.Request) bool {
 	default:
 		return false
 	}
+}
+
+// scopedSemanticSearchRoute reports whether the request targets the curated
+// semantic-search route. The handler requires repo_id, checks scoped-token
+// grants before the search-document store read, and computes result limits and
+// truncation from only the authorized repository corpus.
+func scopedSemanticSearchRoute(r *http.Request) bool {
+	return r.Method == http.MethodPost && r.URL.Path == "/api/v0/search/semantic"
 }
 
 // scopedSBOMAttestationAttachmentRoute reports whether the request targets one
