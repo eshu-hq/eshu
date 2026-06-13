@@ -222,6 +222,41 @@ statement summary, expose any edge-write regression with no new metric labels or
 backend branches. Provenance is carried as edge properties, not as new
 instrumentation.
 
+### Code-Call Delta Scoped Retraction
+
+Issue #2257 scopes code-call shared-edge cleanup for delta generations to the
+changed or deleted file paths emitted by the git delta fact. Full repository
+refreshes still use the existing repository-wide retract path. Delta refreshes
+carry a bounded, de-duplicated `delta_file_paths` list through the reducer
+repo-refresh intent and into `EdgeWriter.RetractEdges`, which dispatches a
+static `CALLS` / `REFERENCES` / `USES_METACLASS` delete statement anchored on
+`source.path IN $file_paths` rather than deleting every code-call relationship
+for the repository.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'TestBuildCodeCall(RefreshIntentsCarriesDeltaFileScope|DeltaFilePathsByRepoIDUsesRepositoryDeltaFact)|TestCodeCallProjectionRunnerRetractRepoPreservesDeltaFileScope|TestBuildCodeCallRetractRowsKeepsMalformedDeltaScoped'
+-count=1` proves the reducer extracts changed/deleted file paths from the
+repository delta fact, carries them into the code-call repo-refresh intent,
+preserves that scope through the dedicated code-call projection runner, and does
+not silently downgrade malformed delta scope to a repo-wide retract. `go test
+./internal/storage/cypher -run
+'TestEdgeWriterRetractEdgesCodeCall(DeltaScopesToFilePaths|RejectsDeltaWithoutFilePaths)'
+-count=1` proves the storage writer switches valid delta rows to the file-path
+retract statement instead of the repo-wide `source.repo_id IN $repo_ids`
+statement and rejects malformed delta rows before executing Cypher. The input
+cardinality is the delta file-path count for one accepted
+repository/source-run unit; the normal full-refresh path is unchanged when no
+delta scope is present. The changed Cypher keeps static relationship families
+and source labels, binds only a positive `$file_paths` list, and relies on
+existing code-entity `path` properties rather than adding a traversal or
+backend-specific branch.
+
+No-Observability-Change: the delta retract path uses the existing
+`EdgeWriter.RetractEdges` executor call, statement summary, graph query duration
+metrics, retry classification, timeout handling, and reducer code-call cycle
+timings. It adds no worker, queue domain, runtime knob, metric instrument,
+metric label, or backend-specific telemetry.
+
 ## Related Docs
 
 - [NornicDB Pitfalls](nornicdb-pitfalls.md)

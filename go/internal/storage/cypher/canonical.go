@@ -279,13 +279,28 @@ WHERE source.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
+const retractCodeCallParserEdgesByFileCypher = `MATCH (source:Function|Class|Struct|Interface|TypeAlias|File)-[rel:CALLS|REFERENCES|INSTANTIATES]->()
+WHERE source.path IN $file_paths
+  AND rel.evidence_source = $evidence_source
+DELETE rel`
+
 const retractCodeCallMetaclassEdgesCypher = `MATCH (source:Function|Class|File)-[rel:USES_METACLASS]->()
 WHERE source.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
+const retractCodeCallMetaclassEdgesByFileCypher = `MATCH (source:Function|Class|File)-[rel:USES_METACLASS]->()
+WHERE source.path IN $file_paths
+  AND rel.evidence_source = $evidence_source
+DELETE rel`
+
 const retractCodeCallFallbackEdgesCypher = `MATCH (source:Function|Class|Struct|Interface|TypeAlias|File)-[rel:CALLS|REFERENCES|USES_METACLASS|INSTANTIATES]->()
 WHERE source.repo_id IN $repo_ids
+  AND rel.evidence_source = $evidence_source
+DELETE rel`
+
+const retractCodeCallFallbackEdgesByFileCypher = `MATCH (source:Function|Class|Struct|Interface|TypeAlias|File)-[rel:CALLS|REFERENCES|USES_METACLASS|INSTANTIATES]->()
+WHERE source.path IN $file_paths
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 

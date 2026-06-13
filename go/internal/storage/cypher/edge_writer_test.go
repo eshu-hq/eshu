@@ -497,6 +497,81 @@ func TestEdgeWriterRetractEdgesCodeCallDispatch(t *testing.T) {
 	}
 }
 
+func TestEdgeWriterRetractEdgesCodeCallDeltaScopesToFilePaths(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			IntentID:     "i1",
+			RepositoryID: "repo-a",
+			Payload: map[string]any{
+				"repo_id":           "repo-a",
+				"delta_projection":  true,
+				"delta_file_paths":  []string{"/repo/src/changed.go", "/repo/src/deleted.go"},
+				"caller_entity_id":  "entity:function:caller",
+				"callee_entity_id":  "entity:function:callee",
+				"evidence_source":   "parser/code-calls",
+				"relationship_type": "CALLS",
+			},
+		},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/code-calls")
+	if err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	if got, want := len(executor.calls), 1; got != want {
+		t.Fatalf("executor calls = %d, want %d", got, want)
+	}
+	call := executor.calls[0]
+	if strings.Contains(call.Cypher, "source.repo_id IN $repo_ids") {
+		t.Fatalf("delta retract cypher = %q, want no repo-wide source filter", call.Cypher)
+	}
+	if !strings.Contains(call.Cypher, "source.path IN $file_paths") {
+		t.Fatalf("delta retract cypher = %q, want source.path file-scope filter", call.Cypher)
+	}
+	gotPaths, ok := call.Parameters["file_paths"].([]string)
+	if !ok {
+		t.Fatalf("file_paths type = %T, want []string", call.Parameters["file_paths"])
+	}
+	wantPaths := []string{"/repo/src/changed.go", "/repo/src/deleted.go"}
+	if !reflect.DeepEqual(gotPaths, wantPaths) {
+		t.Fatalf("file_paths = %#v, want %#v", gotPaths, wantPaths)
+	}
+	if _, ok := call.Parameters["repo_ids"]; ok {
+		t.Fatalf("repo_ids unexpectedly present in delta retract parameters: %#v", call.Parameters)
+	}
+}
+
+func TestEdgeWriterRetractEdgesCodeCallRejectsDeltaWithoutFilePaths(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			IntentID:     "i1",
+			RepositoryID: "repo-a",
+			Payload: map[string]any{
+				"repo_id":          "repo-a",
+				"delta_projection": true,
+			},
+		},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/code-calls")
+	if err == nil {
+		t.Fatal("RetractEdges() error = nil, want malformed delta scope error")
+	}
+	if got := len(executor.calls); got != 0 {
+		t.Fatalf("executor calls = %d, want 0 for malformed delta scope", got)
+	}
+}
+
 func TestEdgeWriterRetractEdgesEmptyRowsIsNoop(t *testing.T) {
 	t.Parallel()
 

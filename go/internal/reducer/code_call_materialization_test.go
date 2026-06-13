@@ -2,6 +2,7 @@ package reducer
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
@@ -344,6 +345,72 @@ func TestBuildCodeCallSharedIntentRowsDeduplicatesIntentIdentity(t *testing.T) {
 		CreatedAt: createdAt,
 	}).IntentID; got != want {
 		t.Fatalf("IntentID = %q, want %q", got, want)
+	}
+}
+
+func TestBuildCodeCallRefreshIntentsCarriesDeltaFileScope(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, time.June, 13, 8, 0, 0, 0, time.UTC)
+	contextByRepoID := map[string]ProjectionContext{
+		"repo-a": {
+			ScopeID:      "scope-a",
+			SourceRunID:  "run-1",
+			GenerationID: "gen-2",
+		},
+	}
+	deltaFilePathsByRepoID := map[string][]string{
+		"repo-a": {"/repo/src/changed.go", "/repo/src/deleted.go"},
+	}
+
+	intents := buildCodeCallRefreshIntentsWithDeltaScope(contextByRepoID, deltaFilePathsByRepoID, createdAt)
+	if got, want := len(intents), 1; got != want {
+		t.Fatalf("len(intents) = %d, want %d", got, want)
+	}
+
+	payload := intents[0].Payload
+	if got, want := payload["delta_projection"], true; got != want {
+		t.Fatalf("delta_projection = %#v, want %#v", got, want)
+	}
+	gotPaths, ok := payload["delta_file_paths"].([]string)
+	if !ok {
+		t.Fatalf("delta_file_paths type = %T, want []string", payload["delta_file_paths"])
+	}
+	wantPaths := []string{"/repo/src/changed.go", "/repo/src/deleted.go"}
+	if !reflect.DeepEqual(gotPaths, wantPaths) {
+		t.Fatalf("delta_file_paths = %#v, want %#v", gotPaths, wantPaths)
+	}
+}
+
+func TestBuildCodeCallDeltaFilePathsByRepoIDUsesRepositoryDeltaFact(t *testing.T) {
+	t.Parallel()
+
+	got := buildCodeCallDeltaFilePathsByRepoID([]facts.Envelope{
+		{
+			FactKind: factKindRepository,
+			Payload: map[string]any{
+				"repo_id":                        "repo-a",
+				"path":                           "/repo",
+				"delta_generation":               true,
+				"delta_relative_paths":           []string{"src/changed.go", "../outside.go"},
+				"delta_deleted_relative_paths":   []string{"src/deleted.go", "src/changed.go"},
+				"unrelated_delta_relative_paths": []string{"src/ignored.go"},
+			},
+		},
+		{
+			FactKind: factKindRepository,
+			Payload: map[string]any{
+				"repo_id":              "repo-b",
+				"path":                 "/repo-b",
+				"delta_relative_paths": []string{"src/full-refresh.go"},
+			},
+		},
+	})
+	want := map[string][]string{
+		"repo-a": {"/repo/src/changed.go", "/repo/src/deleted.go"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("delta file paths = %#v, want %#v", got, want)
 	}
 }
 
