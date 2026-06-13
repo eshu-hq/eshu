@@ -11,6 +11,7 @@ import {
   type AskSourceHandle
 } from "../api/askEshu";
 import { uiFresh, uiTruth } from "../console/types";
+import { AnswerRenderer } from "../components/AnswerRenderer";
 import { Badge, FreshDot, Panel, TruthChip } from "../components/atoms";
 import "./askPage.css";
 
@@ -95,29 +96,23 @@ export function AskPage({
 function AskAnswerView({ answer }: { readonly answer: AskEshuAnswer }): React.JSX.Element {
   return (
     <div className="ask-answer-stack mt">
-      <Panel
-        title={answer.answerPacket?.promptFamily || "Answer"}
-        sub={answer.status}
-        action={<TruthSummary truth={answer.codeTopic.truth ?? answer.semantic.truth} />}
-      >
-        <div className="ask-answer-summary">
-          {answer.answerPacket?.summary ? answer.answerPacket.summary : "No bounded answer from this repository."}
-        </div>
-        {answer.answerPacket ? (
-          <div className="ask-answer-meta">
-            <Badge tone={answer.answerPacket.supported ? "teal" : "warn"}>{answer.answerPacket.truthClass || "unsupported"}</Badge>
-            {answer.answerPacket.partial ? <Badge tone="warn">partial</Badge> : null}
-            <span className="mono">{answer.answerPacket.primaryRoute}</span>
-          </div>
-        ) : null}
-        {answer.errors.length > 0 ? (
+      <AnswerRenderer
+        answer={answer.answerPacket}
+        citationPacket={answer.citationPacket}
+        graph={answer.answerGraph}
+        title={answer.answerPacket.promptFamily || "Answer"}
+        visualizationPacket={answer.visualizationPacket}
+      />
+
+      {answer.errors.length > 0 ? (
+        <Panel title="Route status" sub={answer.status}>
           <ul className="ask-errors">
             {answer.errors.map((error) => (
               <li key={`${error.source}:${error.message}`}><span className="mono">{error.source}</span> {error.message}</li>
             ))}
           </ul>
-        ) : null}
-      </Panel>
+        </Panel>
+      ) : null}
 
       <Panel
         title="Code evidence"

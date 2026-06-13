@@ -72,6 +72,81 @@ describe("askEshuQuestion", () => {
     expect(answer.errors).toEqual([]);
   });
 
+  it("hydrates answer citations and derives an evidence subgraph from returned handles", async () => {
+    const calls: Array<{ readonly body: unknown; readonly path: string }> = [];
+    const client = clientFor((_method, path, body) => {
+      calls.push({ body, path });
+      if (path === "/api/v0/search/semantic") {
+        return {
+          data: semanticPayload(),
+          error: null,
+          truth: truthEnvelope("semantic_search.curated_retrieval", "hybrid")
+        };
+      }
+      if (path === "/api/v0/code/topics/investigate") {
+        return {
+          data: topicPayloadWithAnswerHandles(),
+          error: null,
+          truth: truthEnvelope("code_search.topic_investigation", "content_index")
+        };
+      }
+      if (path === "/api/v0/evidence/citations") {
+        return {
+          data: citationPayload(),
+          error: null,
+          truth: truthEnvelope("evidence_citation.packet", "content_index")
+        };
+      }
+      if (path === "/api/v0/visualizations/derive") {
+        return {
+          data: visualizationPayload(),
+          error: null,
+          truth: truthEnvelope("evidence_citation.packet", "content_index")
+        };
+      }
+      throw new Error(`unexpected ${path}`);
+    });
+
+    const answer = await askEshuQuestion(client, {
+      question: "How does checkout auth work?",
+      repoId: "repository:r1"
+    });
+
+    expect(calls.map((call) => call.path)).toEqual([
+      "/api/v0/search/semantic",
+      "/api/v0/code/topics/investigate",
+      "/api/v0/evidence/citations",
+      "/api/v0/visualizations/derive"
+    ]);
+    expect(calls[2]?.body).toMatchObject({
+      limit: 10,
+      question: "How does checkout auth work?"
+    });
+    expect((calls[2]?.body as { readonly handles: readonly unknown[] }).handles).toEqual([
+      expect.objectContaining({
+        kind: "file",
+        relative_path: "src/auth.ts",
+        repo_id: "repository:r1",
+        start_line: 42
+      }),
+      expect.objectContaining({
+        entity_id: "entity:auth",
+        kind: "entity",
+        repo_id: "repository:r1"
+      })
+    ]);
+    expect(calls[3]?.body).toMatchObject({
+      source_response: {
+        citations: [{ citation_id: "citation:auth" }]
+      },
+      view: "evidence_citation"
+    });
+    expect(answer.answerPacket.summary).toBe("Checkout auth is backed by authorizeCheckout.");
+    expect(answer.citationPacket?.citations[0]?.relativePath).toBe("src/auth.ts");
+    expect(answer.visualizationPacket?.supported).toBe(true);
+    expect(answer.answerGraph.nodes.map((node) => node.label)).toEqual(["authorizeCheckout"]);
+  });
+
   it("surfaces partial endpoint failures instead of hiding them", async () => {
     const client = clientFor((_method, path) => {
       if (path === "/api/v0/search/semantic") {
@@ -186,5 +261,117 @@ function topicPayload(): Record<string, unknown> {
     }],
     searched_terms: ["checkout", "auth"],
     truncated: false
+  };
+}
+
+function topicPayloadWithAnswerHandles(): Record<string, unknown> {
+  return {
+    ...topicPayload(),
+    answer_metadata: {
+      evidence_handles: [
+        {
+          entity_id: "entity:auth",
+          evidence_family: "source",
+          kind: "entity",
+          repo_id: "repository:r1",
+          reason: "route handler entity"
+        }
+      ]
+    },
+    answer_packet: {
+      citation_ref: "eshu://evidence/citations/checkout-auth",
+      evidence_handles: [
+        {
+          evidence_family: "source",
+          kind: "file",
+          reason: "route handler source",
+          relative_path: "src/auth.ts",
+          repo_id: "repository:r1",
+          start_line: 42
+        }
+      ],
+      limitations: ["bounded to top five topic matches"],
+      partial: false,
+      primary_route: "/api/v0/code/topics/investigate",
+      primary_tool: "investigate_code_topic",
+      prompt_family: "code.topic",
+      question: "How does checkout auth work?",
+      recommended_next_calls: [{
+        reason: "hydrate source citations",
+        tool: "build_evidence_citation_packet"
+      }],
+      summary: "Checkout auth is backed by authorizeCheckout.",
+      supported: true,
+      truth_class: "code_hint"
+    }
+  };
+}
+
+function citationPayload(): Record<string, unknown> {
+  return {
+    citations: [{
+      citation_id: "citation:auth",
+      end_line: 50,
+      entity_id: "entity:auth",
+      entity_name: "authorizeCheckout",
+      entity_type: "function",
+      evidence_family: "source",
+      excerpt: "export function authorizeCheckout() { return session.valid; }",
+      kind: "file",
+      language: "typescript",
+      rank: 1,
+      reason: "route handler source",
+      relative_path: "src/auth.ts",
+      repo_id: "repository:r1",
+      start_line: 42
+    }],
+    coverage: {
+      input_handle_count: 1,
+      limit: 10,
+      missing_count: 0,
+      query_shape: "bounded_evidence_citation_packet",
+      resolved_count: 1,
+      source_backend: "postgres_content_store",
+      truncated: false
+    },
+    missing_handles: [],
+    recommended_next_calls: []
+  };
+}
+
+function visualizationPayload(): Record<string, unknown> {
+  return {
+    visualization_packet: {
+      edges: [],
+      limits: {
+        edge_count: 0,
+        max_edges: 120,
+        max_nodes: 60,
+        node_count: 1,
+        ordering: "stable_id"
+      },
+      limitations: [],
+      nodes: [{
+        category: "source",
+        evidence_handle: {
+          kind: "file",
+          relative_path: "src/auth.ts",
+          repo_id: "repository:r1",
+          start_line: 42
+        },
+        id: "viznode:auth",
+        label: "authorizeCheckout",
+        type: "citation"
+      }],
+      recommended_next_calls: [],
+      supported: true,
+      title: "Checkout auth evidence",
+      truncation: {
+        dropped_edge_count: 0,
+        dropped_node_count: 0,
+        truncated: false
+      },
+      view: "evidence_citation"
+    }
   };
 }

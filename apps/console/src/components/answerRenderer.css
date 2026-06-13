@@ -1,0 +1,116 @@
+.answer-renderer {
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--panel) 92%, black 8%);
+}
+
+.answer-renderer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.answer-renderer-header h3 {
+  margin: 3px 0 0;
+}
+
+.answer-renderer-truth,
+.answer-renderer-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.answer-renderer-main {
+  display: grid;
+  gap: 16px;
+}
+
+.answer-renderer-copy {
+  display: grid;
+  gap: 12px;
+}
+
+.answer-renderer-summary {
+  margin: 0;
+  max-width: 78ch;
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.answer-renderer-state {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid color-mix(in oklab, var(--warn) 45%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--warn) 8%, transparent);
+}
+
+.answer-renderer-state p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.answer-renderer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.answer-renderer-list {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.answer-renderer-list h4 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.answer-renderer-list article {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--surface) 86%, black 14%);
+}
+
+.answer-renderer-list a,
+.answer-renderer-list strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.answer-renderer-list small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.answer-renderer .gcanvas {
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .answer-renderer-header,
+  .answer-renderer-truth {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .answer-renderer-grid {
+    grid-template-columns: 1fr;
+  }
+}

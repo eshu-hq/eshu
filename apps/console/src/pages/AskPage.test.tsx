@@ -69,6 +69,34 @@ describe("AskPage", () => {
       expect(screen.queryByText("Choose a repository before asking.")).not.toBeInTheDocument();
     });
   });
+
+  it("renders answer citations and a derived evidence subgraph", async () => {
+    render(
+      <MemoryRouter>
+        <AskPage
+          client={askClientWithAnswerEvidence()}
+          repositories={[{ id: "repository:r1", name: "checkout-api" }]}
+        />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(screen.getByLabelText("Question"), {
+      target: { value: "How does checkout auth work?" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    expect(
+      await screen.findByText("Checkout auth is backed by authorizeCheckout.")
+    ).toBeInTheDocument();
+    expect(screen.getAllByTitle("Truth: derived").length).toBeGreaterThan(0);
+    expect(screen.getAllByTitle("Freshness: fresh").length).toBeGreaterThan(0);
+    expect(screen.getByRole("link", { name: "src/auth.ts:42" })).toHaveAttribute(
+      "href",
+      "/repositories/repository%3Ar1/source?path=src%2Fauth.ts&lineStart=42"
+    );
+    expect(screen.getByText("1 nodes · 0 edges")).toBeInTheDocument();
+    expect(screen.getAllByText("authorizeCheckout").length).toBeGreaterThan(0);
+  });
 });
 
 function askClient(
@@ -149,6 +177,146 @@ function askClient(
           truth: {
             basis: "content_index",
             capability: "code_search.topic_investigation",
+            freshness: { state: "fresh" },
+            level: "derived",
+            profile: "production"
+          }
+        };
+      }
+      throw new Error(`unexpected ${path}`);
+    }
+  } as unknown as EshuApiClient;
+}
+
+function askClientWithAnswerEvidence(): EshuApiClient {
+  return {
+    post: async (path: string) => {
+      if (path === "/api/v0/search/semantic") {
+        return {
+          data: {
+            indexed_document_count: 0,
+            results: [],
+            truncated: false
+          },
+          error: null,
+          truth: {
+            basis: "hybrid",
+            capability: "semantic_search.curated_retrieval",
+            freshness: { state: "fresh" },
+            level: "derived",
+            profile: "production"
+          }
+        };
+      }
+      if (path === "/api/v0/code/topics/investigate") {
+        return {
+          data: {
+            answer_packet: {
+              evidence_handles: [{
+                evidence_family: "source",
+                kind: "file",
+                reason: "route handler source",
+                relative_path: "src/auth.ts",
+                repo_id: "repository:r1",
+                start_line: 42
+              }],
+              partial: false,
+              primary_route: "/api/v0/code/topics/investigate",
+              primary_tool: "investigate_code_topic",
+              prompt_family: "code.topic",
+              question: "How does checkout auth work?",
+              summary: "Checkout auth is backed by authorizeCheckout.",
+              supported: true,
+              truth_class: "code_hint"
+            },
+            evidence_groups: [],
+            recommended_next_calls: [],
+            searched_terms: ["checkout", "auth"],
+            truncated: false
+          },
+          error: null,
+          truth: {
+            basis: "content_index",
+            capability: "code_search.topic_investigation",
+            freshness: { state: "fresh" },
+            level: "derived",
+            profile: "production"
+          }
+        };
+      }
+      if (path === "/api/v0/evidence/citations") {
+        return {
+          data: {
+            citations: [{
+              citation_id: "citation:auth",
+              end_line: 50,
+              entity_id: "entity:auth",
+              entity_name: "authorizeCheckout",
+              entity_type: "function",
+              evidence_family: "source",
+              excerpt: "export function authorizeCheckout() { return session.valid; }",
+              kind: "file",
+              language: "typescript",
+              rank: 1,
+              reason: "route handler source",
+              relative_path: "src/auth.ts",
+              repo_id: "repository:r1",
+              start_line: 42
+            }],
+            coverage: {
+              input_handle_count: 1,
+              limit: 10,
+              missing_count: 0,
+              query_shape: "bounded_evidence_citation_packet",
+              resolved_count: 1,
+              source_backend: "postgres_content_store",
+              truncated: false
+            },
+            missing_handles: [],
+            recommended_next_calls: []
+          },
+          error: null,
+          truth: {
+            basis: "content_index",
+            capability: "evidence_citation.packet",
+            freshness: { state: "fresh" },
+            level: "derived",
+            profile: "production"
+          }
+        };
+      }
+      if (path === "/api/v0/visualizations/derive") {
+        return {
+          data: {
+            visualization_packet: {
+              edges: [],
+              limits: {
+                edge_count: 0,
+                max_edges: 120,
+                max_nodes: 60,
+                node_count: 1,
+                ordering: "stable_id"
+              },
+              nodes: [{
+                category: "source",
+                id: "viznode:auth",
+                label: "authorizeCheckout",
+                type: "citation"
+              }],
+              supported: true,
+              title: "Checkout auth evidence",
+              truncation: {
+                dropped_edge_count: 0,
+                dropped_node_count: 0,
+                truncated: false
+              },
+              view: "evidence_citation"
+            }
+          },
+          error: null,
+          truth: {
+            basis: "content_index",
+            capability: "evidence_citation.packet",
             freshness: { state: "fresh" },
             level: "derived",
             profile: "production"
