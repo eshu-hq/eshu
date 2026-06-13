@@ -184,35 +184,6 @@ SET rel.confidence = 0.9,
     rel.reason = 'Runtime services list declares workload dependency',
     rel.evidence_source = row.evidence_source`
 
-// --- Batched UNWIND Cypher (inheritance edges) ---
-
-const batchCanonicalInheritanceEdgeUpsertCypher = `UNWIND $rows AS row
-MATCH (child:Function|Class|Interface|Trait|Struct|Enum|Protocol {uid: row.child_entity_id})
-MATCH (parent:Function|Class|Interface|Trait|Struct|Enum|Protocol {uid: row.parent_entity_id})
-MERGE (child)-[rel:INHERITS]->(parent)
-SET rel.confidence = 0.95,
-    rel.reason = 'Parser entity bases metadata resolved an inheritance edge',
-    rel.evidence_source = row.evidence_source,
-    rel.relationship_type = row.relationship_type`
-
-const batchCanonicalInheritanceOverrideUpsertCypher = `UNWIND $rows AS row
-MATCH (child:Function|Class|Interface|Trait|Struct|Enum|Protocol {uid: row.child_entity_id})
-MATCH (parent:Function|Class|Interface|Trait|Struct|Enum|Protocol {uid: row.parent_entity_id})
-MERGE (child)-[rel:OVERRIDES]->(parent)
-SET rel.confidence = 0.95,
-    rel.reason = 'Parser trait adaptation metadata resolved an override edge',
-    rel.evidence_source = row.evidence_source,
-    rel.relationship_type = row.relationship_type`
-
-const batchCanonicalInheritanceAliasUpsertCypher = `UNWIND $rows AS row
-MATCH (child:Function|Class|Interface|Trait|Struct|Enum|Protocol {uid: row.child_entity_id})
-MATCH (parent:Function|Class|Interface|Trait|Struct|Enum|Protocol {uid: row.parent_entity_id})
-MERGE (child)-[rel:ALIASES]->(parent)
-SET rel.confidence = 0.95,
-    rel.reason = 'Parser trait adaptation metadata resolved an alias edge',
-    rel.evidence_source = row.evidence_source,
-    rel.relationship_type = row.relationship_type`
-
 // --- Batched UNWIND Cypher (SQL relationship edges) ---
 
 const batchCanonicalSQLRelationshipUpsertCypher = `UNWIND $rows AS row

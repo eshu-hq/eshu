@@ -8,7 +8,8 @@ const batchCanonicalImplementsEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (child:Class|Struct|Enum|Interface|Protocol {uid: row.child_entity_id})
 MATCH (parent:Interface|Protocol {uid: row.parent_entity_id})
 MERGE (child)-[rel:IMPLEMENTS]->(parent)
-SET rel.confidence = 0.95,
-    rel.reason = 'Parser implemented_interfaces metadata resolved an implements edge',
+SET rel.confidence = row.confidence,
+    rel.reason = row.reason,
+    rel.resolution_method = row.resolution_method,
     rel.evidence_source = row.evidence_source,
     rel.relationship_type = row.relationship_type`

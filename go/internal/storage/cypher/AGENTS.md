@@ -76,6 +76,15 @@
   bounded summaries with relationship type, source label, target label, and row
   count. Do not add file paths, entity IDs, or symbols to metric labels or
   shared-edge summaries.
+- **Inheritance provenance is row-derived** — INHERITS, IMPLEMENTS, OVERRIDES,
+  and ALIASES edge statements keep the same `UNWIND` / label+`uid` `MATCH` /
+  relationship `MERGE` shape while reading `confidence`, `reason`, and
+  `resolution_method` from the row. Do not reintroduce relationship-local
+  `confidence = 0.95` literals in inheritance edge writers.
+
+No-Regression Evidence: `go test ./internal/reducer -run 'TestExtractInheritanceRowsStampsDeclaredResolutionMethod' -count=1` and `go test ./internal/storage/cypher -run 'TestBuildInheritanceRowMap(DerivesTieredConfidence|DefaultsToLegacyConfidence)|TestInheritanceCypherTemplatesAreParameterized|TestBuildInheritanceRowMapRoutesImplements|TestEdgeWriterWriteEdgesInheritanceDispatch' -count=1` prove inheritance and IMPLEMENTS rows carry `codeprovenance` methods, derive confidence/reason from the row, and preserve the existing backend-neutral `UNWIND` plus label/uid `MATCH` plus relationship `MERGE` shape for one-row inheritance and IMPLEMENTS inputs.
+
+No-Observability-Change: inheritance edge writes still flow through `EdgeWriter.WriteEdges`, existing route summaries, `GroupExecutor`/sequential execution, shared-edge group metrics, statement summaries, retry wrapping, and failure logs. This change adds no metric name, metric label, worker, queue domain, runtime knob, backend branch, or new graph-write route.
 
 ## Common changes and how to scope them
 
