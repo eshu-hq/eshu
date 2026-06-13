@@ -150,11 +150,12 @@ const openAPIPathsInfrastructure = `
         "description": "Returns a bounded, summary-first graph packet: hot entities (most-connected functions by call degree), key relationship type counts, and a per-scope ecosystem map. With repo_id the packet is repo-scoped; without repo_id only bounded ecosystem-wide label counts plus a needs-repo note are returned. Never runs a whole-graph hot-entity scan.",
         "operationId": "getGraphSummaryPacket",
         "requestBody": {
-          "required": false,
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
+                "description": "Send an empty object {} for the ecosystem-wide packet, or set repo_id for the repo-scoped packet.",
                 "properties": {
                   "repo_id": {"type": "string"},
                   "limit": {"type": "integer", "default": 10, "minimum": 1, "maximum": 100}
@@ -184,6 +185,8 @@ const openAPIPathsInfrastructure = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }

@@ -72,7 +72,8 @@ class; the `query.iac_resources` span carries the stable `http.route` and
 
 `POST /api/v0/ecosystem/graph-summary` returns a bounded, summary-first graph
 packet (MCP tool `get_graph_summary_packet`) for an agent-budget-aware overview
-of a scope. The body is optional.
+of a scope. Send an empty object `{}` for the ecosystem-wide packet, or set
+`repo_id` for the repo-scoped packet.
 
 - With `repo_id` the packet is repo-scoped and contains three sections:
   - `hot_entities`: the most-connected functions in the repo ranked by call

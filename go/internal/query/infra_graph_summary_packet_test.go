@@ -340,3 +340,34 @@ func TestGraphSummaryPacketTruthEnvelopePresent(t *testing.T) {
 		t.Fatalf("truth.capability = %#v, want platform_impact.graph_summary_packet", got)
 	}
 }
+
+func TestGraphSummaryPacketUnsupportedOnLocalLightweightProfile(t *testing.T) {
+	t.Parallel()
+
+	reader := &graphSummaryRecordingReader{
+		single: func(_ string, _ map[string]any) (map[string]any, error) {
+			t.Fatal("graph summary packet must not query the graph when the capability is unsupported")
+			return nil, nil
+		},
+		multi: func(_ string, _ map[string]any) ([]map[string]any, error) {
+			t.Fatal("graph summary packet must not query the graph when the capability is unsupported")
+			return nil, nil
+		},
+	}
+	handler := &InfraHandler{Profile: ProfileLocalLightweight, Neo4j: reader}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/ecosystem/graph-summary", strings.NewReader(`{"repo_id":"repo-1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/eshu.envelope+json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusNotImplemented; got != want {
+		t.Fatalf("status = %d, want %d; body=%s", got, want, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "unsupported_capability") {
+		t.Fatalf("body = %s, want unsupported_capability", w.Body.String())
+	}
+}
