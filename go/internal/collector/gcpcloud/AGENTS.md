@@ -15,15 +15,18 @@
    fingerprinting.
 7. `parse.go` - safe CAI page parsing (drops the raw resource data blob).
 8. `envelope.go` - durable fact-envelope construction and validation.
-9. `generation.go` - generation accumulation, dedupe, and fencing.
-10. `metrics.go` - scoped OTEL instruments with bounded labels.
+9. `relationship.go` - GCP relationship source fact construction and support
+   states.
+10. `generation.go` - generation accumulation, dedupe, and fencing.
+11. `metrics.go` - scoped OTEL instruments with bounded labels.
 
 ## Invariants
 
 - GCP cloud data is reported source evidence. This package may emit typed source
-  facts for parsed resources, label-backed tag observations, IAM policy
-  observations, DNS record observations, and collection warnings. Do not
-  materialize graph truth, reducer admission, or query behavior here.
+  facts for parsed resources, provider relationships, label-backed tag
+  observations, IAM policy observations, DNS record observations, and collection
+  warnings. Do not materialize graph truth, reducer admission, or query behavior
+  here.
 - Keep the claim boundary explicit: collector instance, parent scope kind and id,
   asset family, content family, location bucket, scope id, generation id, and a
   positive fencing token.

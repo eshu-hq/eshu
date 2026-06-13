@@ -102,6 +102,11 @@ func (g *Generation) Build() ([]facts.Envelope, error) {
 		if ok {
 			envelopes = append(envelopes, tagEnv)
 		}
+		relationshipEnvelopes, err := g.relationshipEnvelopes(resource)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, relationshipEnvelopes...)
 		iamEnvelopes, err := g.iamPolicyObservationEnvelopes(resource)
 		if err != nil {
 			return nil, err
@@ -139,6 +144,9 @@ func (g *Generation) WarningCount() int { return len(g.warnings) }
 
 func (g *Generation) envelopeCapacity() int {
 	capacity := len(g.resources) + len(g.warnings)
+	for _, resource := range g.resources {
+		capacity += len(resource.Relationships)
+	}
 	if g.key.IsZero() {
 		return capacity
 	}
@@ -170,6 +178,36 @@ func (g *Generation) tagObservationEnvelope(obs ResourceObservation) (facts.Enve
 		return facts.Envelope{}, false, err
 	}
 	return env, true, nil
+}
+
+func (g *Generation) relationshipEnvelopes(obs ResourceObservation) ([]facts.Envelope, error) {
+	if len(obs.Relationships) == 0 {
+		return nil, nil
+	}
+	envelopes := make([]facts.Envelope, 0, len(obs.Relationships))
+	for _, rel := range obs.Relationships {
+		rel = relationshipWithResourceDefaults(rel, obs)
+		if !hasUsableRelationshipObservation(rel) {
+			continue
+		}
+		rel.Boundary = g.boundary
+		rel.UpdateTime = obs.UpdateTime
+		rel.SourceRecordID = relationshipSourceRecordID(
+			obs.SourceRecordID,
+			rel.RelationshipType,
+			rel.TargetFullResourceName,
+		)
+		rel.SourceURI = obs.SourceURI
+		env, err := NewCloudRelationshipEnvelope(rel)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, env)
+	}
+	sort.Slice(envelopes, func(i, j int) bool {
+		return envelopes[i].StableFactKey < envelopes[j].StableFactKey
+	})
+	return envelopes, nil
 }
 
 func (g *Generation) iamPolicyObservationEnvelopes(obs ResourceObservation) ([]facts.Envelope, error) {
@@ -239,6 +277,12 @@ func hasUsableTags(labels map[string]string) bool {
 	return false
 }
 
+func hasUsableRelationshipObservation(rel RelationshipObservation) bool {
+	return strings.TrimSpace(rel.SourceFullResourceName) != "" &&
+		strings.TrimSpace(rel.TargetFullResourceName) != "" &&
+		strings.TrimSpace(rel.RelationshipType) != ""
+}
+
 func iamPolicyObservationCount(bindings []IAMPolicyBindingObservation) int {
 	count := 0
 	for _, binding := range bindings {
@@ -284,6 +328,26 @@ func iamSourceRecordID(sourceRecordID, role string) string {
 		return sourceRecordID
 	}
 	return sourceRecordID + "|" + role
+}
+
+func relationshipWithResourceDefaults(rel RelationshipObservation, obs ResourceObservation) RelationshipObservation {
+	if strings.TrimSpace(rel.SourceFullResourceName) == "" {
+		rel.SourceFullResourceName = obs.Name
+	}
+	if strings.TrimSpace(rel.SourceAssetType) == "" {
+		rel.SourceAssetType = obs.AssetType
+	}
+	return rel
+}
+
+func relationshipSourceRecordID(sourceRecordID, relationshipType, targetFullResourceName string) string {
+	sourceRecordID = strings.TrimSpace(sourceRecordID)
+	relationshipType = strings.TrimSpace(relationshipType)
+	targetFullResourceName = strings.TrimSpace(targetFullResourceName)
+	if sourceRecordID == "" || relationshipType == "" || targetFullResourceName == "" {
+		return sourceRecordID
+	}
+	return sourceRecordID + "|" + relationshipType + "|" + targetFullResourceName
 }
 
 func dnsSourceRecordID(sourceRecordID, recordType, recordName string, key redact.Key) string {

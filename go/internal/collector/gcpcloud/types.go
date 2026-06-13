@@ -78,10 +78,11 @@ type Boundary struct {
 // ordered CAI ancestor chain (most specific first). Labels carry author-set
 // resource labels; LabelFingerprintKeys names label keys whose values must be
 // fingerprinted rather than preserved. IAMPolicyBindings carries parsed IAM
-// role bindings without raw policy JSON. DNSRecords carries parsed Cloud DNS
-// record sets without raw provider resource data. ExtensionVersion and
-// Extension carry a versioned, redacted provider-specific extension object; the
-// builder never accepts raw IAM policy JSON, secret values, or data-plane
+// role bindings without raw policy JSON. Relationships carries parsed provider
+// relationship evidence from CAI relatedAsset fields. DNSRecords carries parsed
+// Cloud DNS record sets without raw provider resource data. ExtensionVersion
+// and Extension carry a versioned, redacted provider-specific extension object;
+// the builder never accepts raw IAM policy JSON, secret values, or data-plane
 // records here.
 type ResourceObservation struct {
 	Name              string
@@ -93,6 +94,7 @@ type ResourceObservation struct {
 	Labels            map[string]string
 	LabelFingerprint  map[string]string
 	IAMPolicyBindings []IAMPolicyBindingObservation
+	Relationships     []RelationshipObservation
 	DNSRecords        []DNSRecordObservation
 	UpdateTime        time.Time
 	ExtensionVersion  string

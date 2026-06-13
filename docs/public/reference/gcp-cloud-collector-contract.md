@@ -13,8 +13,9 @@ relationship graph writes, and API or MCP truth.
 ## Status
 
 The first fixture-testable slice is implemented: the `gcp_cloud_resource`,
-label-backed `gcp_tag_observation`, `gcp_iam_policy_observation`, and
-`gcp_dns_record`, and `gcp_collection_warning` source fact kinds
+`gcp_cloud_relationship`, label-backed `gcp_tag_observation`,
+`gcp_iam_policy_observation`, `gcp_dns_record`, and
+`gcp_collection_warning` source fact kinds
 (`go/internal/facts/gcp.go`), the Cloud Asset Inventory parser, identity
 normalizer, redaction policy, envelope builders, generation accumulator with
 fencing, and scoped telemetry instruments (`go/internal/collector/gcpcloud`).
@@ -59,15 +60,16 @@ fingerprinted by class via `FingerprintMember`, role + condition presence kept,
 no raw policy JSON); `NewDNSRecordEnvelope` (record name and targets
 fingerprinted); and `NewImageReferenceEnvelope` (digest-first confidence,
 fingerprinted container name). The generation accumulator now emits
+`gcp_cloud_relationship` from parsed CAI `relatedAsset` evidence with source and
+target full resource names preserved as provenance-only evidence, emits
 `gcp_tag_observation` from parsed CAI resource labels when a redaction key is
 configured, with `source_kind=label`, and emits
 `gcp_iam_policy_observation` from parsed CAI IAM bindings when members are
 usable. It also emits `gcp_dns_record` from parsed CAI
 `dns.googleapis.com/ResourceRecordSet` assets when record type, record name, and
-managed-zone identity are usable. Direct/effective GCP tag API collection, the
-remaining relationship and image-reference scan emission paths,
-fact-kind-specific reducer handling, and any GCP graph projection remain
-follow-up work under #1997.
+managed-zone identity are usable. Direct/effective GCP tag API collection,
+image-reference scan emission, fact-kind-specific reducer handling, and any GCP
+graph projection remain follow-up work under #1997.
 
 The implemented slices stay fixture-testable without live Google Cloud access.
 Live smoke tests are promotion proof, not the minimum proof for the source
@@ -89,7 +91,12 @@ identities, raw etags, raw condition text, or same-role conditional key
 collisions. `go test ./internal/collector/gcpcloud -run
 'TestGenerationBuildEmitsDNSRecordObservations|TestNewDNSRecordEnvelope' -count=1`
 proves DNS record assets emit redacted record observations without raw DNS names
-or targets in fact payloads or source refs.
+or targets in fact payloads or source refs. `go test
+./internal/collector/gcpcloud ./internal/collector/gcpcloud/gcpruntime -run
+'TestParseAssetsListPageRelationships|TestGenerationBuildEmitsRelationshipObservationsForRelatedAssets|TestSourceEmitsRelationshipFactsFromFixturePage'
+-count=1` proves CAI `relatedAsset` evidence emits one
+`gcp_cloud_relationship` fact with source and target full resource names, bounded
+relationship type, support state, read time, and fact-kind telemetry.
 
 ## Source Truth
 
@@ -261,9 +268,10 @@ The first code PRs must prove these cases before any live smoke:
    pass fixture gates.
 
 Observability change: the first slice adds the `gcp_cloud_resource`,
-`gcp_tag_observation`, `gcp_iam_policy_observation`, `gcp_dns_record`, and
-`gcp_collection_warning` fact schemas and the scoped GCP collector telemetry
-series listed under [Telemetry](#telemetry)
+`gcp_cloud_relationship`, `gcp_tag_observation`,
+`gcp_iam_policy_observation`, `gcp_dns_record`, and `gcp_collection_warning`
+fact schemas and the scoped GCP collector telemetry series listed under
+[Telemetry](#telemetry)
 (`eshu_dp_gcp_cloud_*`). It does not add chart values, environment variables, or
 a runtime binary; those remain deferred.
 
@@ -291,8 +299,9 @@ instruments registered in the first slice
 `eshu_dp_gcp_cloud_facts_emitted_total`, `eshu_dp_gcp_cloud_warnings_total`,
 `eshu_dp_gcp_cloud_freshness_lag_seconds`). Tag, IAM, and DNS emission record
 through the existing `fact_kind` dimension with `gcp_tag_observation`,
-`gcp_iam_policy_observation`, and `gcp_dns_record`. It registers no new metric
-series, adds no new label keys, and changes no telemetry contract.
+`gcp_iam_policy_observation`, and `gcp_dns_record`; relationship emission uses
+the same existing dimension with `gcp_cloud_relationship`. It registers no new
+metric series, adds no new label keys, and changes no telemetry contract.
 
 No-Regression Evidence:
 
@@ -311,7 +320,9 @@ No-Regression Evidence:
   `gcp_cloud_resource` facts and two label-backed `gcp_tag_observation` facts
   for the two-page resource fixture; the IAM-policy fixture emits one
   `gcp_cloud_resource` fact and two `gcp_iam_policy_observation` facts; the DNS
-  fixture emits one `gcp_cloud_resource` fact and one `gcp_dns_record` fact; one
+  fixture emits one `gcp_cloud_resource` fact and one `gcp_dns_record` fact; the
+  relationship fixture emits one `gcp_cloud_resource` fact and one
+  `gcp_cloud_relationship` fact; one
   `gcp_collection_warning` for the stale and page-token-expired cases; zero
   facts emitted for a fenced-out stale generation beyond its single warning.
 - Telemetry/log/status evidence: see the observability evidence below.

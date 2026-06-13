@@ -1,0 +1,24 @@
+{
+  "readTime": "2026-06-09T12:15:00Z",
+  "assets": [
+    {
+      "name": "//compute.googleapis.com/projects/my-project/zones/us-central1-a/instances/vm-rel",
+      "assetType": "compute.googleapis.com/Instance",
+      "updateTime": "2026-06-09T12:03:00Z",
+      "ancestors": ["projects/123456789", "organizations/9988776655"],
+      "relatedAsset": {
+        "asset": "//compute.googleapis.com/projects/my-project/zones/us-central1-a/disks/disk-rel",
+        "assetType": "compute.googleapis.com/Disk",
+        "ancestors": ["projects/123456789", "organizations/9988776655"],
+        "relationshipType": "INSTANCE_TO_DISK"
+      },
+      "resource": {
+        "location": "us-central1-a",
+        "data": {
+          "name": "vm-rel",
+          "status": "RUNNING"
+        }
+      }
+    }
+  ]
+}
