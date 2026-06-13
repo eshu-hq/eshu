@@ -54,7 +54,7 @@
 // item, or root-cause graph truth. EC2InternetExposureNodeWriter stamps
 // reducer-owned exposure properties onto existing EC2 CloudResource nodes with
 // MATCH-only Cypher and never fabricates instances. OrphanSweepStore uses
-// static-label, zero-relationship MATCH/SET/DELETE statements over a closed
-// node-label set and deletes only nodes whose orphan marker aged past the
-// configured TTL.
+// static-label, zero-relationship MATCH/SET/DELETE statements over the closed
+// Repository, Platform, EvidenceArtifact, File, Directory, and Module label
+// set and deletes only nodes whose orphan marker aged past the configured TTL.
 package cypher

@@ -84,7 +84,8 @@ const canonicalNodeDirectoryDepth0Cypher = `UNWIND $rows AS row
 MATCH (r:Repository {id: row.repo_id})
 MERGE (d:Directory {path: row.path})
 SET d.name = row.name, d.repo_id = row.repo_id,
-    d.scope_id = row.scope_id, d.generation_id = row.generation_id
+    d.scope_id = row.scope_id, d.generation_id = row.generation_id,
+    d.evidence_source = 'projector/canonical'
 MERGE (r)-[rel:CONTAINS]->(d)
 SET rel.evidence_source = 'projector/canonical',
     rel.generation_id = row.generation_id`
@@ -93,7 +94,8 @@ const canonicalNodeDirectoryDepthNCypher = `UNWIND $rows AS row
 MATCH (p:Directory {path: row.parent_path})
 MERGE (d:Directory {path: row.path})
 SET d.name = row.name, d.repo_id = row.repo_id,
-    d.scope_id = row.scope_id, d.generation_id = row.generation_id
+    d.scope_id = row.scope_id, d.generation_id = row.generation_id,
+    d.evidence_source = 'projector/canonical'
 MERGE (p)-[rel:CONTAINS]->(d)
 SET rel.evidence_source = 'projector/canonical',
     rel.generation_id = row.generation_id`
@@ -241,8 +243,8 @@ SET rel.evidence_source = 'projector/canonical',
 
 const canonicalNodeModuleUpsertCypher = `UNWIND $rows AS row
 MERGE (m:Module {name: row.name})
-ON CREATE SET m.lang = row.language
-ON MATCH SET m.lang = coalesce(m.lang, row.language)`
+SET m.lang = coalesce(m.lang, row.language),
+    m.evidence_source = 'projector/canonical'`
 
 // --- Phase G: Structural edge Cypher ---
 
