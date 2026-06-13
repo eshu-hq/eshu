@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -144,18 +145,26 @@ func TestRelationshipStoryNegativeTokenBudgetRejected(t *testing.T) {
 func TestRelationshipStoryMultipleRelationshipTypesQueryEachType(t *testing.T) {
 	t.Parallel()
 
-	var seen []string
+	var (
+		mu   sync.Mutex
+		seen []string
+	)
+	record := func(relationshipType string) {
+		mu.Lock()
+		defer mu.Unlock()
+		seen = append(seen, relationshipType)
+	}
 	handler := &CodeHandler{
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
 				case strings.Contains(cypher, ":CALLS"):
-					seen = append(seen, "CALLS")
+					record("CALLS")
 					return []map[string]any{
 						{"direction": "incoming", "type": "CALLS", "source_id": "fn-a", "source_name": "alpha", "target_id": "fn-t", "target_name": "target"},
 					}, nil
 				case strings.Contains(cypher, ":IMPORTS"):
-					seen = append(seen, "IMPORTS")
+					record("IMPORTS")
 					return []map[string]any{
 						{"direction": "incoming", "type": "IMPORTS", "source_id": "mod-x", "source_name": "modx", "target_id": "fn-t", "target_name": "target"},
 					}, nil
