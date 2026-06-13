@@ -92,6 +92,9 @@ git push origin vX.Y.Z
 The tag triggers:
 
 - Docker publish through `.github/workflows/docker-publish.yml`.
+- Sigstore cosign signing for the pushed Docker image digest.
+- Build provenance and SPDX SBOM attestations for the pushed image digest.
+- GitHub Release SBOM asset publishing for tag releases.
 - Helm package push from `deploy/helm/eshu`.
 - CLI binary release from `.github/workflows/build.yml` with
   `eshu-linux-x86_64` and `eshu-macos-arm64`.
@@ -120,9 +123,32 @@ Report concrete evidence:
 - release tag
 - `deploy/helm/eshu/Chart.yaml` `version` and `appVersion`
 - Docker image tag and digest
+- cosign verification result for the Docker image tag or digest
+- provenance attestation verification result
+- SPDX SBOM attestation verification result
+- GitHub Release SBOM asset name for tag releases
 - Helm chart OCI location and version
 - CLI release artifact names
 - public rollout health checks, dashboards, logs, or sync state when applicable
+
+For release image verification:
+
+```bash
+TAG=vX.Y.Z
+IMAGE="ghcr.io/eshu-hq/eshu:${TAG}"
+REPO=eshu-hq/eshu
+WORKFLOW_IDENTITY="https://github.com/eshu-hq/eshu/.github/workflows/docker-publish.yml@refs/tags/${TAG}"
+
+cosign verify "${IMAGE}" \
+  --certificate-identity "${WORKFLOW_IDENTITY}" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
+
+gh attestation verify "oci://${IMAGE}" -R "${REPO}"
+
+gh attestation verify "oci://${IMAGE}" \
+  -R "${REPO}" \
+  --predicate-type https://spdx.dev/Document/v2.3
+```
 
 ## Gotchas
 
