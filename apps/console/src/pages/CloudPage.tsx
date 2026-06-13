@@ -3,7 +3,8 @@
 // bounded, keyset-paged GET /api/v0/cloud/resources endpoint. The graph holds
 // ~17k CloudResource nodes, so this page never loads them all at once: it pages
 // forward with the server's next_cursor and lets the operator narrow the set with
-// provider/type/region/account filters. Every value is live; nothing is invented.
+// provider/type/region/account filters. Private mode values are live API data;
+// demo values come only from the explicit prospect fixture source.
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
@@ -44,7 +45,13 @@ function queryFor(filters: Filters, cursor: CloudResourceCursor | null): CloudRe
   };
 }
 
-export function CloudPage({ client }: { readonly client?: EshuApiClient }): React.JSX.Element {
+export function CloudPage({
+  client,
+  sourceLabel = "live"
+}: {
+  readonly client?: EshuApiClient;
+  readonly sourceLabel?: string;
+}): React.JSX.Element {
   const [page, setPage] = useState<CloudResourcePage | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -116,7 +123,7 @@ export function CloudPage({ client }: { readonly client?: EshuApiClient }): Reac
 
   const rows = page?.rows ?? [];
   const pageNumber = stack.length;
-  const sub = page ? (busy ? "loading…" : "live") : busy ? "loading…" : "—";
+  const sub = page ? (busy ? "loading…" : sourceLabel) : busy ? "loading…" : "—";
   const families = useMemo(() => familyRollups(rows), [rows]);
   const accounts = useMemo(() => accountRollups(rows), [rows]);
   const selectedAccount = networkAccount || accounts[0]?.id || "";
@@ -135,7 +142,7 @@ export function CloudPage({ client }: { readonly client?: EshuApiClient }): Reac
         <StatTile label="Cloud resources" value={page?.count ?? rows.length} color="var(--blue)" sub={`page ${pageNumber}${page?.truncated ? " · more available" : ""}`} />
         <StatTile label="Accounts" value={accounts.length} color="var(--ember)" sub="on current page" />
         <StatTile label="Resource families" value={families.length} color="var(--teal)" sub="typed from resource_type" />
-        <StatTile label="Endpoint" value="live" color="var(--violet)" sub="/api/v0/cloud/resources" />
+        <StatTile label="Endpoint" value={sourceLabel} color="var(--violet)" sub="/api/v0/cloud/resources" />
       </div>
 
       <div className="grid mt" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: "var(--gap)" }}>

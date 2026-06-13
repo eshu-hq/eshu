@@ -26,7 +26,13 @@ function statusTone(status: string): "teal" | "warn" | "crit" | "neutral" {
   return "neutral";
 }
 
-export function SbomPage({ client }: { readonly client?: EshuApiClient }): React.JSX.Element {
+export function SbomPage({
+  client,
+  sourceLabel = "live"
+}: {
+  readonly client?: EshuApiClient;
+  readonly sourceLabel?: string;
+}): React.JSX.Element {
   const [summary, setSummary] = useState<SbomSummary | null>(null);
   const [inventory, setInventory] = useState<SbomInventory | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -73,7 +79,7 @@ export function SbomPage({ client }: { readonly client?: EshuApiClient }): React
       </div>
 
       <div className="evidence-workbench evidence-workbench-wide mt" aria-label="SBOM evidence workbench">
-        <Panel className="flush" title={`${rows.length} subjects`} sub={inventory === null ? "loading…" : inventoryProvLabel(inventory)}
+        <Panel className="flush" title={`${rows.length} subjects`} sub={inventory === null ? "loading…" : inventoryProvLabel(inventory, sourceLabel)}
           action={inventory?.truth ? <TruthChip level={uiTruth(inventory.truth.level)} /> : null}>
           {inventory === null ? (
             <div className="conn-state compact"><div className="conn-spinner" aria-hidden /><p>Loading SBOM subjects…</p></div>
@@ -170,10 +176,10 @@ function shortDigest(value: string): string {
   return `${value.slice(0, 19)}…${value.slice(-6)}`;
 }
 
-function inventoryProvLabel(inv: SbomInventory): string {
+function inventoryProvLabel(inv: SbomInventory, sourceLabel: string): string {
   if (inv.provenance === "unavailable") return "API not available";
   if (inv.provenance === "empty") return "no subjects";
-  return "live";
+  return sourceLabel;
 }
 
 function emptyInventoryMessage(inv: SbomInventory): string {

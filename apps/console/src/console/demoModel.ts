@@ -1,7 +1,7 @@
 // console/demoModel.ts
-// Neutral demo fixture (generic sample workspace — no company data) used ONLY as
-// a test fixture for page components. It is NOT a runtime data source: the app
-// renders live API data exclusively (see App.tsx and console/liveModel.ts).
+// Neutral prospect demo fixture (generic sample workspace — no company data).
+// App demo mode renders this explicit fixture source; private mode still renders
+// only the Eshu API and never falls back to these rows.
 
 import type {
   ConsoleModel, GraphModel, RelationshipRow, SeriesBundle
@@ -72,7 +72,7 @@ export const demoModel: ConsoleModel = {
   source: "demo",
   runtime: {
     indexStatus: "complete", repositories: 6, workloads: 9, platforms: 2, instances: 14,
-    queueOutstanding: 12, inFlight: 2, deadLetters: 0, succeeded: 41280, profile: "local_full_stack"
+    queueOutstanding: 12, inFlight: 2, deadLetters: 0, succeeded: 41280, profile: "demo_fixture"
   },
   services: [
     { id: "checkout-service", name: "checkout-service", kind: "service", repo: "sample/checkout-service", environments: ["prod-us-east-1"], truth: "exact", freshness: "fresh" },
@@ -143,15 +143,15 @@ export const demoModel: ConsoleModel = {
   ],
   truth: {},
   provenance: {
-    runtime: "live",
-    services: "live",
-    findings: "live",
-    vulnerabilities: "live",
-    sbom: "live",
-    dependencies: "live",
-    images: "live",
-    iacResources: "live",
-    advisories: "live"
+    runtime: "demo",
+    services: "demo",
+    findings: "demo",
+    vulnerabilities: "demo",
+    sbom: "demo",
+    dependencies: "demo",
+    images: "demo",
+    iacResources: "demo",
+    advisories: "demo"
   },
   graph: demoGraph,
   relationships: demoRelationships,

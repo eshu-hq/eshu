@@ -90,6 +90,7 @@
   color: var(--subtle);
   font-size: 0.72rem;
   margin: -2px 0 12px;
+  overflow-wrap: anywhere;
 }
 
 .impact-mini-stats {
@@ -116,6 +117,7 @@
 .impact-summary-block p {
   color: var(--muted);
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .impact-entity-list {
@@ -135,11 +137,13 @@
 .impact-entity-list strong {
   font-family: var(--mono);
   font-size: 0.8rem;
+  overflow-wrap: anywhere;
 }
 
 .impact-entity-list span {
   color: var(--subtle);
   font-size: 0.72rem;
+  overflow-wrap: anywhere;
 }
 
 .impact-inspector {
