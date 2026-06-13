@@ -61,6 +61,7 @@ func TestBuildSelectedRepositoriesCarriesGitRefs(t *testing.T) {
 		RepoSyncConfig{ReposDir: reposDir, SourceMode: "githubOrg", GithubOrg: "example"},
 		[]string{repoPath},
 		nil,
+		nil,
 		map[string][]GitRef{repoPath: refs},
 	)
 	if gotLen, wantLen := len(got), 1; gotLen != wantLen {

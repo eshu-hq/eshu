@@ -522,6 +522,26 @@ progress messages.
   token and GitHub App auth remain GitHub-specific, while SSH is the
   provider-neutral private-repo path.
 
+## Delta-correctness evidence (epic #2340)
+
+The git delta baseline and reconciliation sweep harden incremental sync against
+silently stale graph state. Their runtime cost and observability:
+
+- No-Regression Evidence: the baseline and reconciliation decisions add at most
+  one indexed single-row read (`LastProjectedCommitSHA` / `LastFullProjectionAt`)
+  and one `git cat-file -e` per managed repo per sync cycle, all inside the
+  existing per-repo serial selection loop — no new locks, batching, or concurrent
+  writers. Reconciliation forces at most `ESHU_REPO_RECONCILE_MAX_PER_CYCLE` full
+  snapshots per cycle, so a fleet cannot stampede. In the projection-succeeds
+  path the local branch ref pins the last projected commit, so delta sync keeps
+  applying and full snapshots are paid only on first sync, divergence, or the
+  scheduled reconciliation interval. Verified by `cd go && go test
+  ./internal/collector ./internal/storage/postgres -count=1`.
+- Observability Evidence: `eshu_dp_collector_delta_baseline_fallback_total`
+  (labeled `skip_reason`) and `eshu_dp_collector_reconciliation_full_snapshots_total`
+  expose the delta-skip and forced-reconciliation rates; a baseline lookup
+  failure also logs `git_delta_baseline_lookup_failed`.
+
 ## Related docs
 
 - `docs/public/architecture.md` — collector ownership

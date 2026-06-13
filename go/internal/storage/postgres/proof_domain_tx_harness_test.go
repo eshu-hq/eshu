@@ -102,9 +102,10 @@ func (tx *proofDomainTx) ExecContext(ctx context.Context, query string, args ...
 			TriggerKind:     scope.TriggerKind(args[2].(string)),
 			FreshnessHint:   stringFromAny(args[3]),
 			SourceCommitSHA: stringFromAny(args[4]),
-			ObservedAt:      args[5].(time.Time).UTC(),
-			IngestedAt:      args[6].(time.Time).UTC(),
-			Status:          scope.GenerationStatus(args[7].(string)),
+			IsDelta:         args[5].(bool),
+			ObservedAt:      args[6].(time.Time).UTC(),
+			IngestedAt:      args[7].(time.Time).UTC(),
+			Status:          scope.GenerationStatus(args[8].(string)),
 		}
 		if existing, ok := tx.state.generations[generation.GenerationID]; ok && existing.Status == scope.GenerationStatusActive && generation.Status == scope.GenerationStatusPending && existing.FreshnessHint == generation.FreshnessHint {
 			generation.Status = existing.Status

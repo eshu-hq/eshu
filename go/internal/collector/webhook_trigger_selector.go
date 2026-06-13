@@ -96,6 +96,8 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 			return syncGitRepositoriesWithLogger(ctx, config, repositoryIDs, s.Logger, gitDeltaBaseline{
 				Resolver:    s.BaselineResolver,
 				Instruments: s.Instruments,
+				Reconcile:   reconcilePolicyFromConfig(config),
+				Now:         s.Now,
 			})
 		}
 	}
@@ -125,6 +127,7 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 			s.Config,
 			synced.SelectedRepoPaths,
 			synced.DeltaByRepoPath,
+			synced.ReconcileByRepoPath,
 			synced.RefsByRepoPath,
 		),
 	}, nil

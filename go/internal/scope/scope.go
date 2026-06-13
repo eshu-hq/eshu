@@ -238,6 +238,12 @@ type ScopeGeneration struct {
 	// fails after a checkout advanced HEAD cannot silently skip its changes.
 	// Empty for scopes with no commit identity (filesystem, cloud collectors).
 	SourceCommitSHA string
+	// IsDelta marks a generation that carries only file-scoped changes (a delta
+	// resync) rather than a full repository observation. The reconciliation sweep
+	// uses the most recent full (IsDelta=false) projected generation per scope to
+	// decide when a scope is overdue for a full re-observation that retracts any
+	// drift the delta path missed (epic #2340).
+	IsDelta bool
 }
 
 // Validate checks the generation fields and lifecycle status.

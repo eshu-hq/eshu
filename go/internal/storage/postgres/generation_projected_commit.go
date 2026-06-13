@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"strings"
+	"time"
 )
 
 // lastProjectedCommitSHAQuery returns the source commit of the most recently
@@ -59,4 +60,50 @@ func (s IngestionStore) LastProjectedCommitSHA(ctx context.Context, scopeID stri
 		return "", err
 	}
 	return strings.TrimSpace(sha), nil
+}
+
+// lastFullProjectionAtQuery returns the ingest time of the most recent
+// generation for a scope that was a FULL (non-delta) observation and reached a
+// projected state. The reconciliation sweep uses this to find scopes overdue for
+// a full re-observation: delta generations accumulate and a missed deletion or
+// failed retraction can leave stale graph nodes, so a periodic full snapshot is
+// re-projected to retract any drift the delta path could not.
+const lastFullProjectionAtQuery = `
+SELECT ingested_at
+FROM scope_generations
+WHERE scope_id = $1
+  AND status IN ('active', 'completed', 'superseded')
+  AND is_delta = false
+ORDER BY ingested_at DESC, generation_id DESC
+LIMIT 1
+`
+
+// LastFullProjectionAt returns the ingest time of the most recent full
+// (non-delta) generation for scopeID that reached a projected state, and whether
+// one exists. A scope with no full projection yet (false) is treated by the
+// reconciliation policy as immediately due, so its first observation establishes
+// the baseline. A blank scopeID returns (zero, false) without querying.
+func (s IngestionStore) LastFullProjectionAt(ctx context.Context, scopeID string) (time.Time, bool, error) {
+	if s.db == nil || strings.TrimSpace(scopeID) == "" {
+		return time.Time{}, false, nil
+	}
+
+	rows, err := s.db.QueryContext(ctx, lastFullProjectionAtQuery, scopeID)
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	if !rows.Next() {
+		return time.Time{}, false, rows.Err()
+	}
+
+	var ingestedAt time.Time
+	if err := rows.Scan(&ingestedAt); err != nil {
+		return time.Time{}, false, err
+	}
+	if err := rows.Err(); err != nil {
+		return time.Time{}, false, err
+	}
+	return ingestedAt, true, nil
 }

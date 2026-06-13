@@ -50,6 +50,10 @@ type SelectedRepository struct {
 	GitRefs              []GitRef `json:"git_refs,omitempty"`
 	Delta                bool     `json:"delta,omitempty"`
 	DeletedRelativePaths []string `json:"deleted_relative_paths,omitempty"`
+	// Reconcile marks a forced full reconciliation observation whose generation
+	// must bypass the freshness-hint skip so it always re-projects and retracts
+	// any drift the delta path missed (epic #2340).
+	Reconcile bool `json:"reconcile,omitempty"`
 }
 
 // RepositorySnapshot captures one repository parse snapshot and content transport.
@@ -89,6 +93,11 @@ type RepositorySnapshot struct {
 	// DeletedRelativePaths holds repo-relative paths that disappeared between
 	// Git revisions and must be retracted from content and graph projections.
 	DeletedRelativePaths []string `json:"deleted_relative_paths,omitempty"`
+	// Reconcile marks a forced full reconciliation snapshot. Its generation
+	// carries an empty freshness hint so the commit-time skip never elides it,
+	// guaranteeing a periodic full re-projection that retracts drift the delta
+	// path missed (epic #2340).
+	Reconcile bool `json:"reconcile,omitempty"`
 }
 
 // ContentFileSnapshot captures one portable file-content record.
@@ -868,6 +877,7 @@ func buildGeneration(
 	observedAt time.Time,
 	freshnessHint string,
 	sourceCommitSHA string,
+	isDelta bool,
 ) scope.ScopeGeneration {
 	return scope.ScopeGeneration{
 		GenerationID: facts.StableID(
@@ -884,5 +894,6 @@ func buildGeneration(
 		TriggerKind:     scope.TriggerKindSnapshot,
 		FreshnessHint:   freshnessHint,
 		SourceCommitSHA: sourceCommitSHA,
+		IsDelta:         isDelta,
 	}
 }

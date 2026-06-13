@@ -133,6 +133,43 @@ succeeds, the local branch ref still pins the last projected commit, so the
 baseline stays reachable and delta sync keeps applying; full snapshots are paid
 only on first sync or genuine divergence.
 
+## How the reconciliation sweep retracts drift
+
+Even with a correct baseline, a delta sync can leave stale graph nodes: a missed
+deletion or a retraction that failed after its delta was applied has no later
+delta that mentions the path, so the delta path alone can never clean it. A
+periodic reconciliation catches this drift.
+
+Reconciliation re-uses the proven full-snapshot path rather than a bespoke
+graph-diff. When a git scope has gone longer than `ESHU_REPO_RECONCILE_INTERVAL_HOURS`
+(default 24) without a projected **full** observation, the next sync forces a
+full snapshot for that scope regardless of any usable delta baseline. A full
+generation re-emits every current file under a new `generation_id`, and the
+canonical projector retracts every File/Directory/Entity node carrying a
+different `generation_id` for the repository — so any path that disappeared
+between the last full observation and now is deleted from the graph.
+
+Each generation records whether it was a delta on `scope_generations.is_delta`;
+the sweep finds the last full observation per scope with `LastFullProjectionAt`.
+A reconciliation generation carries an **empty** freshness hint so the
+commit-time skip never elides it: it must re-project even when the content hash
+is unchanged, otherwise drift in the graph would survive and the reconciliation
+timer would never advance.
+
+The sweep is bounded and scheduled, not a full re-index:
+
+- **Scheduled**: it rides the normal sync cadence; a scope is re-observed fully
+  once per interval, then resumes delta sync.
+- **Bounded per cycle**: `ESHU_REPO_RECONCILE_MAX_PER_CYCLE` (default 10) caps how
+  many overdue scopes one selection cycle may force to full, so a fleet that all
+  comes due together does not stampede into simultaneous full snapshots. The
+  remainder are picked up on later cycles.
+- **Disable**: set `ESHU_REPO_RECONCILE_INTERVAL_HOURS=0`.
+
+Cost is one full re-observation and projection per scope per interval — the same
+cost as a first sync, paid on a documented cadence. Each forced reconciliation
+increments `eshu_dp_collector_reconciliation_full_snapshots_total`.
+
 ## How webhook triggers differ from source truth
 
 Webhooks make refresh timely; they never substitute for source observation.

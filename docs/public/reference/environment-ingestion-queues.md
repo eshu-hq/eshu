@@ -29,6 +29,8 @@ queue, or graph-write evidence.
 | `ESHU_STREAM_BUFFER` | `0` | collector | Generation stream buffer; `0` derives from worker count. |
 | `ESHU_LARGE_REPO_FILE_THRESHOLD` | `1000` | collector | File-count threshold for large-repo semaphore. |
 | `ESHU_LARGE_REPO_MAX_CONCURRENT` | `2` | collector | Concurrent large repo snapshots. |
+| `ESHU_REPO_RECONCILE_INTERVAL_HOURS` | `24` | collector | Hours a git scope may go without a full observation before the sweep forces one to retract delta drift; `0` disables reconciliation. |
+| `ESHU_REPO_RECONCILE_MAX_PER_CYCLE` | `10` | collector | Max scopes forced to a full reconciliation snapshot per selection cycle; `0` removes the per-cycle cap. |
 | `ESHU_DISCOVERY_REPORT` | unset | `eshu index`, bootstrap-index | Writes per-repo discovery advisory JSON. |
 | `ESHU_DISCOVERY_IGNORED_PATH_GLOBS` | unset | bootstrap-index, collector-git, ingester | Operator ignore overlay. Entries may use `pattern=reason`. |
 | `ESHU_DISCOVERY_PRESERVED_PATH_GLOBS` | unset | bootstrap-index, collector-git, ingester | Preserved globs that override broader ignored ancestors. |

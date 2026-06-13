@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS scope_generations (
     trigger_kind TEXT NOT NULL,
     freshness_hint TEXT NULL,
     source_commit_sha TEXT NULL,
+    is_delta BOOLEAN NOT NULL DEFAULT false,
     observed_at TIMESTAMPTZ NOT NULL,
     ingested_at TIMESTAMPTZ NOT NULL,
     status TEXT NOT NULL,
@@ -13,11 +14,16 @@ CREATE TABLE IF NOT EXISTS scope_generations (
 );
 
 -- Additive migration for installs created before the delta-correctness
--- baseline (epic #2340): the column carries the commit a generation was
+-- baseline (epic #2340): source_commit_sha carries the commit a generation was
 -- observed from so the next git sync can baseline its delta on the last
--- successfully projected commit instead of the local working-copy HEAD.
+-- successfully projected commit instead of the local working-copy HEAD; is_delta
+-- marks delta resyncs so the reconciliation sweep can find the last full
+-- observation per scope.
 ALTER TABLE scope_generations
     ADD COLUMN IF NOT EXISTS source_commit_sha TEXT NULL;
+
+ALTER TABLE scope_generations
+    ADD COLUMN IF NOT EXISTS is_delta BOOLEAN NOT NULL DEFAULT false;
 
 CREATE INDEX IF NOT EXISTS scope_generations_scope_idx
     ON scope_generations (scope_id, status, ingested_at DESC);
