@@ -5,6 +5,20 @@ The routes read active reducer facts for one bounded scope or row anchor. They
 never expose secret values, raw Vault paths, token claims, policy documents, or
 graph-promoted paths.
 
+!!! note "Secrets/IAM trust-chain graph projection is off by default"
+
+    These read-model routes are always live: identity trust chains, privilege
+    posture observations (including GCP service-account secret-access and
+    broad-role grants), secret-access paths, and posture gaps are reducer-owned
+    facts that do not depend on any graph projection. The separate **graph**
+    projection of the `SecretsIAM*` node/edge families
+    (`ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`, default off) is gated
+    behind an explicit principal/security activation decision and is **not**
+    required for these routes. It is also independent of GCP cloud
+    relationship edges and GCP cloud inventory, which are live regardless. See
+    the internal activation runbook (ADR #1314) for the gate status and the
+    steps required to enable the trust-chain graph projection.
+
 ## Route Map
 
 | Route | Purpose |
