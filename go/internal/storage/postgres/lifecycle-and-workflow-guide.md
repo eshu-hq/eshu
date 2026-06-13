@@ -248,6 +248,39 @@ indexes. The gate is disabled for Neo4j.
 `reducer_queue.go` keeps lifecycle/validation; `reducer_queue_helpers.go`
 keeps scan/default/retry/ID helpers shared by single-claim, batch, and replay paths.
 
+Benchmark Evidence: `BenchmarkReducerQueueClaimDeepQueue` measures the current
+single-claim reducer path against live Postgres with the existing
+`fact_work_items_reducer_conflict_claim_idx` and
+`graph_projection_phase_state_lookup_idx` DDL. On local Compose Postgres 18.4
+from the remote-e2e stack, Apple M4 Pro, one reducer claim worker, 1,024 active
+repository scopes/generations, no graph-readiness rows, no projector work, and
+workload-identity rows using production `platform_graph` conflict keys derived
+from scope id, `go test ./internal/storage/postgres -run '^$' -bench
+BenchmarkReducerQueueClaimDeepQueue -benchtime=1x -count=1 -timeout=20m`
+recorded 0.225766500 s/op at 100,000 queued reducer rows and 7.215437167 s/op
+at 1,000,000 rows. The benchmark creates an isolated temporary schema on a
+pinned Postgres connection, seeds active scopes/generations and
+`fact_work_items` through `generate_series`, runs untimed `ANALYZE` on the
+fixture tables, runs the real `ReducerQueue.Claim` SQL, resets the claimed row
+outside the timed region, and is DSN-gated by
+`ESHU_REDUCER_CLAIM_BENCH_DSN` or `ESHU_POSTGRES_DSN` so normal unit gates do
+not require Postgres.
+
+No-Regression Evidence: the #2253 slice adds the benchmark harness,
+depth-parser coverage for its default 100k/1M depths, and fixture-shape
+coverage that checks the benchmark workload-identity conflict keys against
+`ReducerQueue.Enqueue`'s production derivation. It does not change reducer
+claim SQL, queue DDL, worker counts, retry behavior, lease ownership, batch
+size, or domain conflict semantics. Existing schema tests still verify the
+reducer conflict claim index and graph readiness lookup index are present in
+the bootstrap DDL and checked-in SQL mirror.
+
+No-Observability-Change: reducer claim latency and failures remain visible
+through the existing instrumented Postgres query spans, the
+`eshu_dp_postgres_query_duration_seconds{store="queue"}` metric, reducer queue
+status rows, and `/admin/status` backlog fields. The benchmark introduces no
+runtime metric, span, log field, status field, queue stage, or worker knob.
+
 `NewReducerGraphDrain` exposes a small read-side gate for code-call projection.
 It checks whether reducer-owned graph domains are still pending, claimed,
 running, or retrying so the local-authoritative NornicDB profile can avoid
