@@ -111,3 +111,29 @@ Semantic evidence list routes use `query.semantic_evidence` with stable
 uses `postgres.query` with `db.operation=list_semantic_evidence`, letting
 operators separate opt-in semantic observation or code-hint inspection from
 deterministic documentation, code, and graph-truth reads.
+
+## Shared-acceptance read-model gauge
+
+The reducer publishes `eshu_dp_shared_acceptance_rows`, an observable gauge of
+the durable shared-projection acceptance row count. It lets an operator see the
+size of the shared-acceptance read model — growth indicates accepted bounded
+units accumulating; a flatline alongside a draining queue indicates projection
+has caught up.
+
+The gauge is sourced from the PostgreSQL planner row estimate
+(`pg_class.reltuples`), not an exact `COUNT(*)`, so it is an approximation that
+tracks the true count within autovacuum/`ANALYZE` freshness. This is deliberate:
+the observable callback runs on every metrics scrape, and a per-scrape full table
+scan would be a real cost on a large acceptance table.
+
+Observability Evidence: `eshu_dp_shared_acceptance_rows` was a defined-but-never-
+registered instrument; the reducer now registers its callback, so the read-model
+size is visible to operators for the first time. Verified by
+`TestRegisterAcceptanceObservableGauges_WithObserver` (emission) and
+`TestAcceptanceRowCount*` (the estimate source).
+
+No-Regression Evidence: the observer issues a single O(1) catalog lookup
+(`SELECT reltuples FROM pg_class …`) per scrape — no table scan, no new worker,
+queue, lease, or graph write. Backend: PostgreSQL via the existing reducer pool.
+Verified by `go test ./internal/storage/postgres ./cmd/reducer ./internal/telemetry
+-count=1`.

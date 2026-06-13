@@ -67,9 +67,8 @@ func run(parent context.Context) error {
 	}
 	defer func() { _ = db.Close() }()
 
-	queueObserver := postgres.NewQueueObserverStore(postgres.SQLQueryer{DB: db})
-	if err := telemetry.RegisterObservableGauges(instruments, meter, queueObserver, nil); err != nil {
-		return fmt.Errorf("register observable gauges: %w", err)
+	if err := registerReducerObservableGauges(instruments, meter, db); err != nil {
+		return err
 	}
 
 	neo4jExecutor, cypherExecutor, neo4jReader, graphReader, neo4jCloser, err := openReducerNeo4jAdapters(parent, os.Getenv)

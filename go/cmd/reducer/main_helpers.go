@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"os"
@@ -10,7 +11,30 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"go.opentelemetry.io/otel/metric"
 )
+
+// registerReducerObservableGauges wires the reducer's OpenTelemetry observable
+// gauges: queue depth/oldest-age (eshu_dp_queue_depth,
+// eshu_dp_queue_oldest_age_seconds) and the shared-acceptance read-model gauge
+// (eshu_dp_shared_acceptance_rows). The worker-pool gauge is left unregistered
+// here; it requires per-pool active-worker instrumentation tracked separately.
+// Both observers read cheap, bounded queries, so they add no scan cost per
+// metrics scrape. It lives here rather than in main.go to keep that file within
+// the repo file-size budget.
+func registerReducerObservableGauges(instruments *telemetry.Instruments, meter metric.Meter, db *sql.DB) error {
+	queueObserver := postgres.NewQueueObserverStore(postgres.SQLQueryer{DB: db})
+	if err := telemetry.RegisterObservableGauges(instruments, meter, queueObserver, nil); err != nil {
+		return fmt.Errorf("register observable gauges: %w", err)
+	}
+
+	acceptanceObserver := postgres.NewSharedProjectionAcceptanceStore(postgres.SQLDB{DB: db})
+	if err := telemetry.RegisterAcceptanceObservableGauges(instruments, meter, acceptanceObserver); err != nil {
+		return fmt.Errorf("register acceptance observable gauge: %w", err)
+	}
+	return nil
+}
 
 // main is the reducer entrypoint. It prints the version when requested, then
 // runs the service loop. It lives in this helper file rather than main.go to
