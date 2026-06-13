@@ -266,3 +266,67 @@ vulnerability-intelligence runtime keeps ownership of observe/fetch spans,
 observation counters, fetch-duration histograms, fact counters, rate-limit
 counters, durable source-state rows, health, readiness, metrics, and
 admin-status surfaces.
+
+Fleet closeout marker (#2392): after the collector migration slices through
+#2387, `rg --files go/internal/collector go/cmd | rg
+'(^|/)(failure|http_client|retry)\.go$'` returns only the SDK files plus seven
+intentional owner-boundary files:
+
+- `go/internal/collector/failure.go` remains the root registry workflow failure
+  contract for package, SBOM, and OCI registry collectors. It classifies durable
+  registry workflow outcomes, not provider HTTP traversal.
+- `go/internal/collector/extensionhost/failure.go` remains the
+  extension-host process and OCI-runner protocol failure vocabulary. It validates
+  extension SDK output and records bounded workflow classes after a process
+  result, so the collector HTTP SDK is not the right abstraction.
+- `go/internal/collector/scannerworker/failure.go` remains the isolated
+  scanner-worker retry and dead-letter payload contract. Scanner workers own
+  analyzer process limits, source-fact allowlists, and claim fencing rather than
+  provider HTTP calls.
+- `go/internal/collector/securityalerts/alertruntime/failure.go` remains a
+  Dependabot/GitHub runtime wrapper for rate-limit metadata. Generic HTTP status
+  class decisions delegate to `sdk.ClassifyProviderFailure`.
+- `go/internal/collector/confluence/retry.go` remains Confluence source-level
+  backoff state for retryable provider statuses. SDK helpers still own base URL
+  validation, bounded HTTP errors, default clients, and `Retry-After` parsing.
+- `go/internal/collector/loki/http_client.go` remains the Loki endpoint
+  traversal wrapper. Request execution and bounded status failures use
+  `sdk.DefaultHTTPClient` and `sdk.DoJSON`.
+- `go/internal/collector/prometheusmimir/http_client.go` remains the
+  Prometheus/Mimir endpoint traversal wrapper. Request execution and bounded
+  status failures use `sdk.DefaultHTTPClient` and `sdk.DoJSON`.
+
+The broader HTTP/client audit also reviewed
+`go/internal/collector/git_selection_github.go`. That file stays outside this
+SDK adoption target because it owns repository source selection and GitHub App
+token minting before claimed provider collectors run; it is not a hosted source
+collector client or workflow failure kernel.
+
+Generated and vendor-owned cloud/platform clients are also intentional
+exceptions to the first-party HTTP SDK adoption target. The follow-up scan `rg
+--files go/internal/collector/awscloud go/internal/collector/azurecloud
+go/internal/collector/gcpcloud go/internal/collector/kuberneteslive | rg
+'(^|/)(client|liveclient)\.go$|clientgo/client\.go$|awssdk/client\.go$'`
+separates AWS SDK adapters, GCP's documented unimplemented live seam, and
+Kubernetes `client-go` from duplicated first-party REST boilerplate. Azure is
+included in the scan target and intentionally returns no live client file
+because its runtime is fixture-only with a gated `LiveProviderFactory`. These
+packages keep official SDK/client-go, fixture, or gated live-client boundaries
+while Eshu package runtimes normalize source evidence and bounded telemetry
+after the provider boundary. AWS `isThrottleError` and `mapFailurePolicy`
+helpers classify official SDK errors for telemetry/status and do not implement
+first-party HTTP retry loops inside the adapters.
+
+Command and API clients under `go/cmd` were reviewed by the same audit and stay
+outside #2353 because they are CLI, API, NornicDB, or runner clients rather than
+claimed collector provider clients.
+
+No-Regression Evidence (#2392): this closeout is docs and audit only. The
+helper-file and cloud/platform scans above were reviewed with the package docs
+for the owner boundaries they list. The required verification is the package
+docs gate, docs build, whitespace check, and a final live
+`capability:collector-sdk` issue-label query before closing #2353.
+
+No-Observability-Change (#2392): no Go runtime, metric, span, log, status,
+queue, graph, database, deployment, or command path changes. The closeout
+records ownership of existing boundaries and adds no telemetry surface.
