@@ -3,8 +3,7 @@
 //   GET /api/v0/repositories/{id}/tree?path=     (#1431)
 //   GET /api/v0/repositories/{id}/content?path=  (#1432)
 //   GET /api/v0/repositories/{id}/branches       (#1433)
-// The branches endpoint currently exposes the derived indexed ref. Defensive
-// over response shape; never fabricates files or branch names.
+// Defensive over response shape; never fabricates files or branch names.
 
 import type { EshuApiClient } from "./client";
 import { EshuEnvelopeError } from "./envelope";
@@ -72,8 +71,8 @@ export async function loadRepoBranches(client: EshuApiClient, id: string): Promi
   return { defaultBranch: str(data.default_branch), branches };
 }
 
-export async function loadRepoTree(client: EshuApiClient, id: string, path = ""): Promise<RepoTree> {
-  const qs = path ? `?path=${encodeURIComponent(path)}` : "";
+export async function loadRepoTree(client: EshuApiClient, id: string, path = "", ref = ""): Promise<RepoTree> {
+  const qs = repoSourceQuery({ path, ref });
   const env = await client.get<TreeResponse>(`/api/v0/repositories/${encodeURIComponent(id)}/tree${qs}`);
   if (env.error) throw new EshuEnvelopeError(env.error);
   const data = env.data ?? {};
@@ -93,9 +92,11 @@ interface ContentResponse {
   readonly content?: string; readonly size?: number; readonly language?: string; readonly truncated?: boolean;
 }
 
-export async function loadRepoFile(client: EshuApiClient, id: string, path: string): Promise<RepoFile> {
+export async function loadRepoFile(client: EshuApiClient, id: string, path: string, ref = ""): Promise<RepoFile> {
   try {
-    const env = await client.get<ContentResponse>(`/api/v0/repositories/${encodeURIComponent(id)}/content?path=${encodeURIComponent(path)}`);
+    const env = await client.get<ContentResponse>(
+      `/api/v0/repositories/${encodeURIComponent(id)}/content${repoSourceQuery({ path, ref })}`
+    );
     const d = env.data ?? {};
     return {
       path: str(d.path) || path,
@@ -110,6 +111,16 @@ export async function loadRepoFile(client: EshuApiClient, id: string, path: stri
   } catch {
     return { path, ref: "", encoding: "utf-8", content: "", size: 0, language: null, truncated: false, provenance: "unavailable" };
   }
+}
+
+function repoSourceQuery(values: { readonly path?: string; readonly ref?: string }): string {
+  const params = new URLSearchParams();
+  const path = values.path?.trim() ?? "";
+  const ref = values.ref?.trim() ?? "";
+  if (path !== "") params.set("path", path);
+  if (ref !== "") params.set("ref", ref);
+  const query = params.toString();
+  return query === "" ? "" : `?${query}`;
 }
 
 // decodeRepoFile returns displayable text. base64 (non-UTF-8) content is decoded

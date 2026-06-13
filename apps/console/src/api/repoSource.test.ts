@@ -47,6 +47,31 @@ describe("repoSource", () => {
     expect(f).toMatchObject({ name: "main.go", size: 50, language: "go" });
   });
 
+  it("passes selected refs through tree and content requests", async () => {
+    const calledPaths: string[] = [];
+    const client = {
+      get: async (path: string) => {
+        calledPaths.push(path);
+        if (path.includes("/tree")) {
+          return { data: { ref: "abc123", path: "cmd", entries: [] }, error: null, truth: null };
+        }
+        return {
+          data: { path: "README.md", ref: "abc123", encoding: "utf-8", content: "# Hi\n", size: 5, truncated: false },
+          error: null,
+          truth: null
+        };
+      }
+    } as unknown as EshuApiClient;
+
+    await loadRepoTree(client, "repo-1", "cmd", "main");
+    await loadRepoFile(client, "repo-1", "README.md", "main");
+
+    expect(calledPaths).toEqual([
+      "/api/v0/repositories/repo-1/tree?path=cmd&ref=main",
+      "/api/v0/repositories/repo-1/content?path=README.md&ref=main"
+    ]);
+  });
+
   it("propagates tree error envelopes instead of rendering an empty tree", async () => {
     const client = {
       get: async () => ({
