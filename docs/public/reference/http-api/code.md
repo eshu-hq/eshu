@@ -64,6 +64,23 @@ Supported `query_type` values are `imports_by_file`, `importers`,
 `module_dependencies`, `package_imports`, `file_import_cycles`, and
 `cross_module_calls`. The response uses one canonical row key for the selected
 query: `dependencies`, `modules`, `cycles`, or `cross_module_calls`.
+`file_import_cycles` rows include `repo_id`, `repo_name`, `cycle_path`, and
+`cycle_edges`, where each proof edge names the `IMPORTS` relationship plus
+source/target files, source/target modules, and line numbers when available.
+Empty cycle pages return `cycles=[]`; unavailable graph backends return a
+service-unavailable error instead of pretending the repository is acyclic.
+
+No-Regression Evidence: import-cycle display metadata is projection-only on the
+existing bounded `file_import_cycles` query. The query still anchors by
+repository/file/module scope before expanding `IMPORTS`, keeps deterministic
+ordering, probes `limit+1`, and now returns `repo.name` with the same row. The
+Console calls the route with the selected repository selector and `limit=6`,
+so it does not load the whole code graph.
+
+No-Observability-Change: the route still emits
+`query.import_dependency_investigation` spans, HTTP request metrics, the Eshu
+truth envelope, bounded `coverage`, `truncated`, and `next_offset`; no graph
+write, queue, worker, runtime setting, metric label, or new span is added.
 
 `POST /api/v0/code/call-graph/metrics` requires `repo_id`. It supports
 `hub_functions` and `recursive_functions`, deterministic ordering, paging,

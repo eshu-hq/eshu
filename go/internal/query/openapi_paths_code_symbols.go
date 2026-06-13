@@ -154,7 +154,41 @@ const openAPIPathsCodeSymbols = `
                     "scope": {"type": "object", "additionalProperties": true},
                     "dependencies": {"type": "array", "description": "Canonical rows for imports_by_file, importers, and module_dependencies query_type values.", "items": {"type": "object", "additionalProperties": true}},
                     "modules": {"type": "array", "description": "Canonical rows for package_imports query_type.", "items": {"type": "object", "additionalProperties": true}},
-                    "cycles": {"type": "array", "description": "Canonical rows for file_import_cycles query_type.", "items": {"type": "object", "additionalProperties": true}},
+                    "cycles": {
+                      "type": "array",
+                      "description": "Canonical rows for file_import_cycles query_type.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "repo_id": {"type": "string"},
+                          "repo_name": {"type": "string"},
+                          "source_file": {"type": "string"},
+                          "target_file": {"type": "string"},
+                          "source_module": {"type": "string"},
+                          "target_module": {"type": "string"},
+                          "source_line_number": {"type": "integer"},
+                          "back_edge_line_number": {"type": "integer"},
+                          "relationship_type": {"type": "string", "enum": ["IMPORTS"]},
+                          "cycle_path": {"type": "array", "items": {"type": "string"}},
+                          "cycle_edges": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "relationship_type": {"type": "string", "enum": ["IMPORTS"]},
+                                "source_file": {"type": "string"},
+                                "target_file": {"type": "string"},
+                                "source_module": {"type": "string"},
+                                "target_module": {"type": "string"},
+                                "line_number": {"type": "integer"}
+                              }
+                            }
+                          },
+                          "source_handle": {"type": "object", "additionalProperties": true}
+                        },
+                        "additionalProperties": true
+                      }
+                    },
                     "cross_module_calls": {"type": "array", "description": "Canonical rows for cross_module_calls query_type.", "items": {"type": "object", "additionalProperties": true}},
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
