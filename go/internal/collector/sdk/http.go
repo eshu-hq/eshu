@@ -73,6 +73,7 @@ type JSONRequest struct {
 	RetryStatus func(int) bool
 	OnRetry     func(*http.Response, int)
 	StatusError func(*http.Response) error
+	Decode      func(io.Reader) error
 }
 
 // ParseBaseURL validates a provider base URL without checking credentials.
@@ -228,6 +229,12 @@ func statusError(request JSONRequest, response *http.Response) error {
 }
 
 func decodeBody(request JSONRequest, body io.Reader) error {
+	if request.Decode != nil {
+		if err := request.Decode(body); err != nil {
+			return HTTPError{Provider: request.Provider, Message: "decode response", Cause: err}
+		}
+		return nil
+	}
 	if request.Out == nil {
 		return nil
 	}

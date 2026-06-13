@@ -3,6 +3,8 @@ package prometheusmimir
 import (
 	"context"
 	"errors"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -182,6 +184,80 @@ func TestClaimedSourceClassifiesRateLimitFailures(t *testing.T) {
 	}
 	if got, want := failure.FailureClass(), FailureRateLimited; got != want {
 		t.Fatalf("FailureClass() = %q, want %q", got, want)
+	}
+}
+
+func TestClaimedSourceClassifiesTerminalFailures(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		err          error
+		wantClass    string
+		wantTerminal bool
+	}{
+		{
+			name:         "auth denied http",
+			err:          ProviderHTTPError{StatusCode: http.StatusForbidden, Message: "forbidden token-secret"},
+			wantClass:    FailureAuthDenied,
+			wantTerminal: true,
+		},
+		{
+			name:         "bad data api",
+			err:          ProviderAPIError{Status: "error", ErrorType: "bad_data"},
+			wantClass:    FailureTerminal,
+			wantTerminal: true,
+		},
+		{
+			name:      "provider api retryable",
+			err:       ProviderAPIError{Status: "error", ErrorType: "timeout"},
+			wantClass: FailureRetryable,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			source, err := NewClaimedSource(SourceConfig{
+				CollectorInstanceID: "collector-prometheus-prod",
+				Targets: []TargetConfig{{
+					Provider:   ProviderPrometheus,
+					ScopeID:    "prometheus:instance:prod",
+					InstanceID: "prometheus-prod",
+					BaseURL:    "https://prometheus.example.internal",
+					Enabled:    true,
+				}},
+				ClientFactory: func(TargetConfig) (EvidenceClient, error) {
+					return &stubEvidenceClient{err: tt.err}, nil
+				},
+			})
+			if err != nil {
+				t.Fatalf("NewClaimedSource() error = %v, want nil", err)
+			}
+
+			_, _, err = source.NextClaimed(context.Background(), workflow.WorkItem{
+				ScopeID:             "prometheus:instance:prod",
+				GenerationID:        "generation-1",
+				CollectorKind:       scope.CollectorKind(CollectorKind),
+				CollectorInstanceID: "collector-prometheus-prod",
+			})
+			if err == nil {
+				t.Fatal("NextClaimed() error = nil, want provider failure")
+			}
+			var failure ProviderFailure
+			if !errors.As(err, &failure) {
+				t.Fatalf("NextClaimed() error = %T, want ProviderFailure", err)
+			}
+			if got := failure.FailureClass(); got != tt.wantClass {
+				t.Fatalf("FailureClass() = %q, want %q", got, tt.wantClass)
+			}
+			if got := failure.TerminalFailure(); got != tt.wantTerminal {
+				t.Fatalf("TerminalFailure() = %v, want %v", got, tt.wantTerminal)
+			}
+			if strings.Contains(err.Error(), "token-secret") {
+				t.Fatalf("provider failure leaked sensitive message: %v", err)
+			}
+		})
 	}
 }
 

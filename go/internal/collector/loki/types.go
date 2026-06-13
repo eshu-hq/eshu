@@ -2,11 +2,11 @@ package loki
 
 import (
 	"context"
-	"net/http"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -27,6 +27,28 @@ const (
 	// RedactionVersion is the metadata-only Loki redaction policy.
 	RedactionVersion = "observability-live-loki-v1"
 )
+
+// FailureClass is the bounded provider failure label stored in workflow status
+// and telemetry.
+type FailureClass = string
+
+const (
+	// FailureAuthDenied marks missing or unauthorized Loki credentials.
+	FailureAuthDenied FailureClass = string(sdk.FailureAuthDenied)
+	// FailureRateLimited marks Loki rate limiting as retryable.
+	FailureRateLimited FailureClass = string(sdk.FailureRateLimited)
+	// FailureRetryable marks transport or server-side failures as retryable.
+	FailureRetryable FailureClass = string(sdk.FailureRetryable)
+	// FailureTerminal marks malformed provider responses or unsupported setup.
+	FailureTerminal FailureClass = string(sdk.FailureTerminal)
+)
+
+// ProviderFailure carries a bounded failure class without provider response
+// bodies or credential-bearing request details.
+type ProviderFailure = sdk.ProviderFailure
+
+// ProviderHTTPError describes a bounded non-success HTTP response.
+type ProviderHTTPError = sdk.HTTPError
 
 const (
 	// ResourceClassLogSignal marks a Loki log-signal observation.
@@ -219,6 +241,4 @@ type HTTPClientConfig struct {
 }
 
 // HTTPDoer is the subset of *http.Client used by HTTPClient.
-type HTTPDoer interface {
-	Do(*http.Request) (*http.Response, error)
-}
+type HTTPDoer = sdk.HTTPDoer

@@ -22,9 +22,9 @@ See `doc.go` for the godoc package contract. The public surface includes:
 - `Version` for the first internal SDK contract line.
 - `FailureClass`, shared failure constants, `StatusPolicy`, and
   `ProviderFailure`.
-- `HTTPError`, `HTTPDoer`, `JSONRequest`, `ParseBaseURL`,
-  `DefaultHTTPClient`, `ParseRetryAfter`, `ParseRetryAfterHeader`,
-  `ShouldRetryStatus`, and `DoJSON`.
+- `HTTPError`, `HTTPDoer`, `JSONRequest`, including custom body decoders,
+  `ParseBaseURL`, `DefaultHTTPClient`, `ParseRetryAfter`,
+  `ParseRetryAfterHeader`, `ShouldRetryStatus`, and `DoJSON`.
 
 ## Dependencies
 
@@ -41,6 +41,9 @@ metrics, and low-cardinality labels in their owning collector packages.
 - `HTTPError.Error` never includes provider response bodies.
 - `DoJSON` retries only statuses selected by `ShouldRetryStatus` or the caller's
   override, and it closes every response body before retrying or returning.
+- `JSONRequest.Decode` lets a provider keep YAML or non-standard payload
+  parsing local while still using the shared request, retry, status, and
+  body-close path.
 - `ParseBaseURL` rejects credential-bearing URLs before any request can be
   built.
 - Provider collectors may wrap these helpers, but source-specific redaction and
@@ -74,3 +77,44 @@ Grafana, and Tempo keep their existing provider request counters, fetch
 duration histograms, rate-limit counters, fact counters, and provider spans;
 metric labels remain bounded to provider, status class, fact kind, and existing
 low-cardinality dimensions.
+
+Line-count marker (#2361): Prometheus/Mimir and Loki now reuse the SDK request
+and failure kernel. This slice deletes 210 lines of duplicated local
+`failure.go` wrappers, removes the last local retry-status helper in these two
+packages, and leaves the affected production Go diff at 254 insertions and 356
+deletions, a net reduction of 102 lines while preserving provider-owned API
+status handling and Loki YAML decoding.
+
+No-Regression Evidence (#2361): `go test ./internal/collector/sdk
+./internal/collector/prometheusmimir ./internal/collector/loki -count=1` covers
+the SDK custom decoder hook, bounded SDK `HTTPError` return path, retry counts
+on hard provider failures, Prometheus/Mimir API-status failures, Loki YAML rule
+decoding, partial warnings, and terminal versus retryable workflow failure
+classes.
+
+Collector Performance Evidence: Prometheus/Mimir and Loki keep the same
+provider endpoint sequence, the same `maxHTTPRetries = 2`, the same per-target
+resource limits, and the same no-backoff retry behavior as before this
+migration. The production diff removes 102 net lines across the affected
+collector and SDK packages while adding no provider calls, goroutines,
+channels, queues, graph writes, database writes, runtime knobs, or deployment
+processes.
+
+Collector Observability Evidence: Prometheus/Mimir and Loki still report
+provider fetch duration, provider request counts, rate-limit counts, retry
+counts, emitted fact counts, stale counts, and redaction or high-cardinality
+counts through their existing package telemetry. Hard provider failures now
+return the partially populated `CollectionResult`, so retry counts from failed
+HTTP attempts can reach the claimed-source telemetry path.
+
+Collector Deployment Evidence: this migration changes only Go package code and
+package docs. It does not add or remove collector binaries, Helm values,
+ServiceMonitors, command flags, environment variables, health routes, status
+routes, scrape labels, or runtime profiles for `collector-prometheus-mimir` or
+`collector-loki`.
+
+No-Observability-Change (#2361): Prometheus/Mimir and Loki still emit
+provider-local spans, request counters, retry counters, rate-limit counters,
+fact counters, stale counters, and redaction or high-cardinality counters. The
+SDK remains telemetry-free, and metric labels stay bounded to provider, status
+class, fact kind, and existing low-cardinality reason values.

@@ -20,6 +20,8 @@ and query surfaces own those decisions.
 - `ClaimedSource` and `NewClaimedSource` implement the workflow-claim source.
 - `HTTPClient` and `NewHTTPClient` read bounded Prometheus-compatible REST
   endpoints.
+- `ProviderFailure`, `ProviderHTTPError`, and the `Failure*` constants expose
+  the shared collector SDK failure contract for workflow status.
 - `NewSourceInstanceEnvelope`, `NewObservedTargetEnvelope`,
   `NewObservedRuleEnvelope`, and `NewCoverageWarningEnvelope` build
   observability fact envelopes.
@@ -30,9 +32,10 @@ and query surfaces own those decisions.
 ## Dependencies
 
 The package depends on `internal/collector` for `CollectedGeneration`,
-`internal/facts` for fact envelopes and stable IDs, `internal/scope` for scope
-generation identity, `internal/workflow` for claim input, and
-`internal/telemetry` for bounded collector metrics and spans.
+`internal/collector/sdk` for bounded HTTP execution and provider failure
+classification, `internal/facts` for fact envelopes and stable IDs,
+`internal/scope` for scope generation identity, `internal/workflow` for claim
+input, and `internal/telemetry` for bounded collector metrics and spans.
 
 ## Telemetry
 
@@ -56,6 +59,9 @@ headers, and token values must not appear in metric labels.
 - `HTTPClient` redacts or drops scrape URLs, target label values, discovered
   label values, raw PromQL, annotations, tenant IDs, and tenant headers before
   returning normalized results.
+- `HTTPClient` uses `collector/sdk` for base URL validation, bounded retries,
+  body closure, and HTTP failure classification. Prometheus-compatible
+  `status:error` payload semantics stay local as `ProviderAPIError`.
 - Prometheus targets are read from `/api/v1/targets?state=active`; Mimir skips
   target collection because Mimir does not expose Prometheus scrape-target
   state.
@@ -82,3 +88,15 @@ Observability Evidence: operators can diagnose live Prometheus/Mimir reads
 through `prometheus_mimir.observe` / `prometheus_mimir.fetch`, provider request
 counts, fetch duration, facts emitted by fact kind, stale counts, rate-limit
 counts, retry counts, and metadata redaction counts.
+
+No-Regression Evidence (#2361): `go test ./internal/collector/prometheusmimir
+-count=1` covers SDK-backed base URL validation, bounded HTTP retries, SDK
+`HTTPError` wrapping for hard provider failures, partial coverage warnings,
+Prometheus-compatible API-status errors, tenant redaction, source failure class
+mapping, and terminal versus retryable workflow decisions.
+
+No-Observability-Change (#2361): SDK adoption changes no span or metric names.
+Retry, rate-limit, fetch-duration, fact-count, stale, and redaction signals keep
+their existing bounded label sets. Hard provider failures now return the
+partially populated `CollectionResult` so retry counts can reach the claimed
+source telemetry path.
