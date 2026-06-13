@@ -103,14 +103,14 @@
 // suppressions, and provider-dismissal pointers; reducers apply suppressions
 // only when scope matches the finding identity and evidence path, and provider
 // dismissals stay evidence rather than automatic suppressions. GCP cloud fact
-// kind constants and schema-version helpers live here for the first GCP
-// collector slice: a Cloud Asset Inventory resource observation
-// (gcp_cloud_resource) and an explicit collection warning (gcp_collection_warning).
-// The resource fact preserves the Cloud Asset Inventory full resource name and
-// adds normalized asset type, project id/number, folder/organization ancestors,
-// location, source timestamps, a redaction policy version, and a versioned
-// provider-specific extension object; it never carries raw IAM policy JSON,
-// secret values, object contents, startup scripts, public or private IP
-// addresses, or provider response bodies. Reducers own canonical CloudResource
-// identity, drift, relationship edges, and query truth.
+// kind constants and schema-version helpers live here for Cloud Asset Inventory
+// resource, relationship, tag, IAM policy observation, DNS record, image
+// reference, and collection-warning evidence. GCP source facts never carry raw
+// IAM policy JSON, secret values, object contents, startup scripts, public or
+// private network addresses, provider response bodies, raw DNS names, or raw
+// IAM member identities. Reducers own canonical CloudResource identity, tag
+// evidence admission, relationship edges, image identity joins, drift, and
+// query truth; raw IAM policy observations, DNS records, and collection warnings
+// remain provenance-only or audit evidence until a later reducer/read-model
+// contract admits them.
 package facts
