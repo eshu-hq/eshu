@@ -57,6 +57,18 @@ func (w *EdgeWriter) RetractEdges(
 		}
 	}
 
+	if domain == reducer.DomainDocumentationEdges {
+		deltaScope, hasDeltaScope, err := collectDocumentationDeltaScope(rows)
+		if err != nil {
+			return err
+		}
+		if hasDeltaScope {
+			scopeIDs := collectRepoIDs(rows)
+			stmts := buildDocumentationDeltaRetractStatements(scopeIDs, deltaScope, evidenceSource)
+			return w.executeDocumentationRetractStatements(ctx, stmts)
+		}
+	}
+
 	repoIDs := collectRepoIDs(rows)
 	if domain == reducer.DomainSQLRelationships {
 		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
@@ -111,6 +123,18 @@ func (w *EdgeWriter) RetractEdges(
 }
 
 func (w *EdgeWriter) executeSQLRelationshipRetractStatements(ctx context.Context, stmts []Statement) error {
+	if ge, ok := w.executor.(GroupExecutor); ok {
+		return WrapRetryableNeo4jError(ge.ExecuteGroup(ctx, stmts))
+	}
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
+}
+
+func (w *EdgeWriter) executeDocumentationRetractStatements(ctx context.Context, stmts []Statement) error {
 	if ge, ok := w.executor.(GroupExecutor); ok {
 		return WrapRetryableNeo4jError(ge.ExecuteGroup(ctx, stmts))
 	}
@@ -206,6 +230,76 @@ func collectDeltaFilePaths(rows []reducer.SharedProjectionIntentRow) ([]string, 
 	}
 	sort.Strings(filePaths)
 	return filePaths, hasDeltaScope, nil
+}
+
+type documentationRetractScope struct {
+	documentIDs []string
+	sectionUIDs []string
+}
+
+func collectDocumentationDeltaScope(rows []reducer.SharedProjectionIntentRow) (documentationRetractScope, bool, error) {
+	seenDocuments := make(map[string]struct{})
+	seenSections := make(map[string]struct{})
+	hasDeltaScope := false
+	scope := documentationRetractScope{}
+	for _, row := range rows {
+		if !payloadBool(row.Payload, "delta_projection") {
+			continue
+		}
+		hasDeltaScope = true
+		rowDocumentIDs := payloadStringSlice(row.Payload, "document_ids")
+		for _, documentID := range rowDocumentIDs {
+			documentID = strings.TrimSpace(documentID)
+			if documentID == "" {
+				continue
+			}
+			if _, ok := seenDocuments[documentID]; ok {
+				continue
+			}
+			seenDocuments[documentID] = struct{}{}
+			scope.documentIDs = append(scope.documentIDs, documentID)
+		}
+		for _, sectionUID := range payloadStringSlice(row.Payload, "section_uids") {
+			sectionUID = strings.TrimSpace(sectionUID)
+			if sectionUID == "" {
+				continue
+			}
+			if _, ok := seenSections[sectionUID]; ok {
+				continue
+			}
+			seenSections[sectionUID] = struct{}{}
+			scope.sectionUIDs = append(scope.sectionUIDs, sectionUID)
+		}
+	}
+	if hasDeltaScope && len(scope.documentIDs) == 0 && len(scope.sectionUIDs) == 0 {
+		return documentationRetractScope{}, true, fmt.Errorf("documentation delta retract requires document_ids or section_uids")
+	}
+	sort.Strings(scope.documentIDs)
+	sort.Strings(scope.sectionUIDs)
+	return scope, hasDeltaScope, nil
+}
+
+func buildDocumentationDeltaRetractStatements(
+	scopeIDs []string,
+	deltaScope documentationRetractScope,
+	evidenceSource string,
+) []Statement {
+	stmts := make([]Statement, 0, 2)
+	if len(deltaScope.sectionUIDs) > 0 {
+		stmts = append(stmts, BuildRetractDocumentationEdgesBySectionUID(
+			scopeIDs,
+			deltaScope.sectionUIDs,
+			evidenceSource,
+		))
+	}
+	if len(deltaScope.documentIDs) > 0 {
+		stmts = append(stmts, BuildRetractDocumentationEdgesByDocumentID(
+			scopeIDs,
+			deltaScope.documentIDs,
+			evidenceSource,
+		))
+	}
+	return stmts
 }
 
 func payloadString(payload map[string]any, key string) string {

@@ -1,8 +1,12 @@
 package cypher
 
 import (
+	"context"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 func TestBuildDocumentationRowMapRoutesEntityTarget(t *testing.T) {
@@ -80,5 +84,174 @@ func TestRetractDocumentationEdgesIsScopeScoped(t *testing.T) {
 	}
 	if _, ok := stmt.Parameters["scope_ids"]; !ok {
 		t.Error("retract missing scope_ids parameter")
+	}
+}
+
+func TestBuildRetractDocumentationEdgesByDocumentID(t *testing.T) {
+	t.Parallel()
+
+	stmt := BuildRetractDocumentationEdgesByDocumentID(
+		[]string{"scope-1"},
+		[]string{"doc:git:repo-123:README.md"},
+		"reducer/documentation",
+	)
+	if !strings.Contains(stmt.Cypher, "rel:DOCUMENTS") {
+		t.Fatalf("cypher = %q, want DOCUMENTS cleanup", stmt.Cypher)
+	}
+	if !strings.Contains(stmt.Cypher, "section.scope_id IN $scope_ids") {
+		t.Fatalf("cypher = %q, want scope filter", stmt.Cypher)
+	}
+	if !strings.Contains(stmt.Cypher, "section.document_id IN $document_ids") {
+		t.Fatalf("cypher = %q, want document_id filter", stmt.Cypher)
+	}
+	scopeIDs, ok := stmt.Parameters["scope_ids"].([]string)
+	if !ok {
+		t.Fatalf("scope_ids parameter type = %T, want []string", stmt.Parameters["scope_ids"])
+	}
+	if !reflect.DeepEqual(scopeIDs, []string{"scope-1"}) {
+		t.Fatalf("scope_ids = %#v, want [scope-1]", scopeIDs)
+	}
+	documentIDs, ok := stmt.Parameters["document_ids"].([]string)
+	if !ok {
+		t.Fatalf("document_ids parameter type = %T, want []string", stmt.Parameters["document_ids"])
+	}
+	wantDocumentIDs := []string{"doc:git:repo-123:README.md"}
+	if !reflect.DeepEqual(documentIDs, wantDocumentIDs) {
+		t.Fatalf("document_ids = %#v, want %#v", documentIDs, wantDocumentIDs)
+	}
+}
+
+func TestBuildRetractDocumentationEdgesBySectionUID(t *testing.T) {
+	t.Parallel()
+
+	stmt := BuildRetractDocumentationEdgesBySectionUID(
+		[]string{"scope-1"},
+		[]string{"docsection:doc:git:repo-123:README.md|sec-overview"},
+		"reducer/documentation",
+	)
+	if !strings.Contains(stmt.Cypher, "rel:DOCUMENTS") {
+		t.Fatalf("cypher = %q, want DOCUMENTS cleanup", stmt.Cypher)
+	}
+	if !strings.Contains(stmt.Cypher, "section.scope_id IN $scope_ids") {
+		t.Fatalf("cypher = %q, want scope filter", stmt.Cypher)
+	}
+	if !strings.Contains(stmt.Cypher, "section.uid IN $section_uids") {
+		t.Fatalf("cypher = %q, want section uid filter", stmt.Cypher)
+	}
+	sectionUIDs, ok := stmt.Parameters["section_uids"].([]string)
+	if !ok {
+		t.Fatalf("section_uids parameter type = %T, want []string", stmt.Parameters["section_uids"])
+	}
+	wantSectionUIDs := []string{"docsection:doc:git:repo-123:README.md|sec-overview"}
+	if !reflect.DeepEqual(sectionUIDs, wantSectionUIDs) {
+		t.Fatalf("section_uids = %#v, want %#v", sectionUIDs, wantSectionUIDs)
+	}
+}
+
+func TestEdgeWriterRetractEdgesDocumentationDeltaUsesDocumentScope(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			IntentID:     "i1",
+			RepositoryID: "scope-1",
+			Payload: map[string]any{
+				"scope_id":         "scope-1",
+				"delta_projection": true,
+				"document_ids":     []string{"doc:git:repo-123:README.md"},
+			},
+		},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainDocumentationEdges, rows, "reducer/documentation")
+	if err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	if got, want := len(executor.calls), 1; got != want {
+		t.Fatalf("executor calls = %d, want %d", got, want)
+	}
+	stmt := executor.calls[0]
+	if !strings.Contains(stmt.Cypher, "section.document_id IN $document_ids") {
+		t.Fatalf("delta retract cypher = %q, want document_id filter", stmt.Cypher)
+	}
+	if strings.Contains(stmt.Cypher, "section.scope_id IN $scope_ids") {
+		scopeIDs, ok := stmt.Parameters["scope_ids"].([]string)
+		if !ok || strings.Join(scopeIDs, ",") != "scope-1" {
+			t.Fatalf("scope_ids = %#v, want [scope-1]", stmt.Parameters["scope_ids"])
+		}
+	}
+	documentIDs, ok := stmt.Parameters["document_ids"].([]string)
+	if !ok {
+		t.Fatalf("document_ids parameter type = %T, want []string", stmt.Parameters["document_ids"])
+	}
+	if got, want := strings.Join(documentIDs, ","), "doc:git:repo-123:README.md"; got != want {
+		t.Fatalf("document_ids = %q, want %q", got, want)
+	}
+}
+
+func TestEdgeWriterRetractEdgesDocumentationDeltaUsesSectionScope(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			IntentID:     "i1",
+			RepositoryID: "scope-1",
+			Payload: map[string]any{
+				"scope_id":         "scope-1",
+				"delta_projection": true,
+				"section_uids":     []string{"docsection:doc:git:repo-123:README.md|sec-overview"},
+			},
+		},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainDocumentationEdges, rows, "reducer/documentation")
+	if err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	if got, want := len(executor.calls), 1; got != want {
+		t.Fatalf("executor calls = %d, want %d", got, want)
+	}
+	stmt := executor.calls[0]
+	if !strings.Contains(stmt.Cypher, "section.uid IN $section_uids") {
+		t.Fatalf("delta retract cypher = %q, want section uid filter", stmt.Cypher)
+	}
+	sectionUIDs, ok := stmt.Parameters["section_uids"].([]string)
+	if !ok {
+		t.Fatalf("section_uids parameter type = %T, want []string", stmt.Parameters["section_uids"])
+	}
+	if got, want := strings.Join(sectionUIDs, ","), "docsection:doc:git:repo-123:README.md|sec-overview"; got != want {
+		t.Fatalf("section_uids = %q, want %q", got, want)
+	}
+}
+
+func TestEdgeWriterRetractEdgesDocumentationRejectsDeltaWithoutIdentity(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			IntentID:     "i1",
+			RepositoryID: "scope-1",
+			Payload: map[string]any{
+				"scope_id":         "scope-1",
+				"delta_projection": true,
+			},
+		},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainDocumentationEdges, rows, "reducer/documentation")
+	if err == nil {
+		t.Fatal("RetractEdges() error = nil, want malformed delta scope error")
+	}
+	if got := len(executor.calls); got != 0 {
+		t.Fatalf("executor calls = %d, want 0 for malformed delta scope", got)
 	}
 }

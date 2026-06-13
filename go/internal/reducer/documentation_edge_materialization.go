@@ -43,17 +43,12 @@ func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, int
 		slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
 	)
 
-	envelopes, err := loadFactsForKinds(
-		ctx,
-		h.FactLoader,
-		intent.ScopeID,
-		intent.GenerationID,
-		[]string{facts.DocumentationEntityMentionFactKind},
-	)
+	envelopes, err := loadDocumentationMaterializationFacts(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
 	if err != nil {
 		return Result{}, fmt.Errorf("load facts for documentation materialization: %w", err)
 	}
 
+	deltaScope := buildDocumentationDeltaScope(envelopes, intent.ScopeID)
 	rows := ExtractDocumentationEdgeRows(envelopes, intent.ScopeID)
 
 	skipRetract, err := h.shouldSkipDocumentationRetract(ctx, intent)
@@ -64,7 +59,7 @@ func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, int
 		if err := h.EdgeWriter.RetractEdges(
 			ctx,
 			DomainDocumentationEdges,
-			buildDocumentationRetractRows([]string{intent.ScopeID}),
+			buildDocumentationRetractRows([]string{intent.ScopeID}, deltaScope),
 			documentationEvidenceSource,
 		); err != nil {
 			return Result{}, fmt.Errorf("retract canonical documentation edges: %w", err)
@@ -179,15 +174,4 @@ func buildDocumentationIntentRows(rows []map[string]any, scopeID string) []Share
 		})
 	}
 	return intents
-}
-
-// buildDocumentationRetractRows carries documentation scope ids in the
-// RepositoryID field: documentation is scope-scoped, so the retract anchors on
-// section.scope_id rather than a repository id.
-func buildDocumentationRetractRows(scopeIDs []string) []SharedProjectionIntentRow {
-	rows := make([]SharedProjectionIntentRow, 0, len(scopeIDs))
-	for _, scopeID := range scopeIDs {
-		rows = append(rows, SharedProjectionIntentRow{RepositoryID: scopeID})
-	}
-	return rows
 }

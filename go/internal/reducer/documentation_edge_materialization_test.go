@@ -1,10 +1,179 @@
 package reducer
 
 import (
+	"context"
+	"reflect"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
+
+func TestDocumentationMaterializationHandlerScopesDeltaRetractToDocuments(t *testing.T) {
+	t.Parallel()
+
+	writer := &recordingDocumentationEdgeWriter{}
+	handler := DocumentationEdgeMaterializationHandler{
+		FactLoader: &stubFactLoader{envelopes: documentationDeltaFacts()},
+		EdgeWriter: writer,
+		PriorGenerationCheck: func(context.Context, string, string) (bool, error) {
+			return true, nil
+		},
+	}
+
+	_, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-doc-delta",
+		ScopeID:      "scope-docs",
+		GenerationID: "gen-2",
+		SourceSystem: "git",
+		Domain:       DomainDocumentationMaterialization,
+		EnqueuedAt:   time.Date(2026, time.June, 13, 12, 10, 0, 0, time.UTC),
+		AvailableAt:  time.Date(2026, time.June, 13, 12, 10, 0, 0, time.UTC),
+		Status:       IntentStatusPending,
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if writer.retractDomain != DomainDocumentationEdges {
+		t.Fatalf("retractDomain = %q, want %q", writer.retractDomain, DomainDocumentationEdges)
+	}
+	if len(writer.retractRows) != 1 {
+		t.Fatalf("retractRows len = %d, want 1", len(writer.retractRows))
+	}
+	payload := writer.retractRows[0].Payload
+	if got, ok := payload["delta_projection"].(bool); !ok || !got {
+		t.Fatalf("delta_projection = %#v, want true", payload["delta_projection"])
+	}
+	gotDocIDs, ok := payload["document_ids"].([]string)
+	if !ok {
+		t.Fatalf("document_ids type = %T, want []string", payload["document_ids"])
+	}
+	wantDocIDs := []string{"doc:git:repo-123:README.md"}
+	if !reflect.DeepEqual(gotDocIDs, wantDocIDs) {
+		t.Fatalf("document_ids = %#v, want %#v", gotDocIDs, wantDocIDs)
+	}
+	if gotSectionUIDs := semanticPayloadStringSlice(payload, "section_uids"); len(gotSectionUIDs) != 0 {
+		t.Fatalf("section_uids = %#v, want empty for file-granular delta", gotSectionUIDs)
+	}
+	if len(writer.writeRows) != 1 {
+		t.Fatalf("writeRows len = %d, want 1", len(writer.writeRows))
+	}
+}
+
+func TestDocumentationMaterializationHandlerDeletedOnlyDeltaRetractsWithoutWrites(t *testing.T) {
+	t.Parallel()
+
+	writer := &recordingDocumentationEdgeWriter{}
+	handler := DocumentationEdgeMaterializationHandler{
+		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
+			{
+				FactKind: factKindRepository,
+				Payload: map[string]any{
+					"repo_id":                      "repo-123",
+					"local_path":                   "/repo",
+					"delta_generation":             true,
+					"delta_deleted_relative_paths": []string{"docs/deleted.md"},
+				},
+			},
+		}},
+		EdgeWriter: writer,
+		PriorGenerationCheck: func(context.Context, string, string) (bool, error) {
+			return true, nil
+		},
+	}
+
+	result, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-doc-deleted",
+		ScopeID:      "scope-docs",
+		GenerationID: "gen-2",
+		SourceSystem: "git",
+		Domain:       DomainDocumentationMaterialization,
+		EnqueuedAt:   time.Date(2026, time.June, 13, 12, 15, 0, 0, time.UTC),
+		AvailableAt:  time.Date(2026, time.June, 13, 12, 15, 0, 0, time.UTC),
+		Status:       IntentStatusPending,
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if result.CanonicalWrites != 0 {
+		t.Fatalf("CanonicalWrites = %d, want 0", result.CanonicalWrites)
+	}
+	if writer.retractDomain != DomainDocumentationEdges {
+		t.Fatalf("retractDomain = %q, want %q", writer.retractDomain, DomainDocumentationEdges)
+	}
+	if len(writer.retractRows) != 1 {
+		t.Fatalf("retractRows len = %d, want 1", len(writer.retractRows))
+	}
+	gotDocIDs, ok := writer.retractRows[0].Payload["document_ids"].([]string)
+	if !ok {
+		t.Fatalf("document_ids type = %T, want []string", writer.retractRows[0].Payload["document_ids"])
+	}
+	wantDocIDs := []string{"doc:git:repo-123:docs/deleted.md"}
+	if !reflect.DeepEqual(gotDocIDs, wantDocIDs) {
+		t.Fatalf("document_ids = %#v, want %#v", gotDocIDs, wantDocIDs)
+	}
+	if len(writer.writeRows) != 0 {
+		t.Fatalf("writeRows len = %d, want 0", len(writer.writeRows))
+	}
+}
+
+func TestBuildDocumentationRetractRowsKeepsMalformedDeltaScoped(t *testing.T) {
+	t.Parallel()
+
+	rows := buildDocumentationRetractRows([]string{"scope-docs"}, documentationDeltaScope{
+		hasDelta: true,
+	})
+	if len(rows) != 1 {
+		t.Fatalf("retract rows len = %d, want 1", len(rows))
+	}
+	payload := rows[0].Payload
+	if got, ok := payload["delta_projection"].(bool); !ok || !got {
+		t.Fatalf("delta_projection = %#v, want true", payload["delta_projection"])
+	}
+	if gotDocIDs := semanticPayloadStringSlice(payload, "document_ids"); len(gotDocIDs) != 0 {
+		t.Fatalf("document_ids = %#v, want empty malformed delta scope", gotDocIDs)
+	}
+	if gotSectionUIDs := semanticPayloadStringSlice(payload, "section_uids"); len(gotSectionUIDs) != 0 {
+		t.Fatalf("section_uids = %#v, want empty malformed delta scope", gotSectionUIDs)
+	}
+}
+
+func TestBuildDocumentationDeltaScopeIgnoresExternalDocumentPathMetadata(t *testing.T) {
+	t.Parallel()
+
+	scope := buildDocumentationDeltaScope([]facts.Envelope{
+		{
+			FactKind: factKindRepository,
+			Payload: map[string]any{
+				"repo_id":          "repo-123",
+				"local_path":       "/repo",
+				"delta_generation": true,
+				"delta_relative_paths": []string{
+					"README.md",
+				},
+			},
+		},
+		{
+			FactKind: facts.DocumentationDocumentFactKind,
+			Payload: map[string]any{
+				"document_id": "doc:confluence:12345",
+				"source_metadata": map[string]any{
+					"path": "README.md",
+				},
+			},
+		},
+	}, "scope-docs")
+	if !scope.hasDelta {
+		t.Fatal("hasDelta = false, want true for repository delta")
+	}
+	wantDocIDs := []string{"doc:git:repo-123:README.md"}
+	if !reflect.DeepEqual(scope.documentIDs, wantDocIDs) {
+		t.Fatalf("documentIDs = %#v, want %#v", scope.documentIDs, wantDocIDs)
+	}
+	if len(scope.sectionUIDs) != 0 {
+		t.Fatalf("sectionUIDs = %#v, want empty without git section facts", scope.sectionUIDs)
+	}
+}
 
 func documentationMentionEnvelope(resolution string, kind string, refs []any) facts.Envelope {
 	return facts.Envelope{
@@ -93,4 +262,70 @@ func TestExtractDocumentationEdgeRowsEmitsWorkloadEdge(t *testing.T) {
 	if got, want := rows[0]["target_kind"], "workload"; got != want {
 		t.Errorf("target_kind = %#v, want %#v", got, want)
 	}
+}
+
+func documentationDeltaFacts() []facts.Envelope {
+	return []facts.Envelope{
+		{
+			FactKind: factKindRepository,
+			Payload: map[string]any{
+				"repo_id":                      "repo-123",
+				"local_path":                   "/repo",
+				"delta_generation":             true,
+				"delta_relative_paths":         []string{"README.md", "../outside.md"},
+				"delta_deleted_relative_paths": []string{},
+			},
+		},
+		{
+			FactKind: facts.DocumentationDocumentFactKind,
+			Payload: map[string]any{
+				"document_id": "doc:git:repo-123:README.md",
+				"source_metadata": map[string]any{
+					"path":    "README.md",
+					"repo_id": "repo-123",
+				},
+			},
+		},
+		{
+			FactKind: facts.DocumentationEntityMentionFactKind,
+			Payload: map[string]any{
+				"document_id":       "doc:git:repo-123:README.md",
+				"section_id":        "sec-overview",
+				"mention_kind":      "code_symbol",
+				"resolution_status": facts.DocumentationMentionResolutionExact,
+				"candidate_refs": []any{
+					map[string]any{"kind": "entity", "id": "uid:func"},
+				},
+			},
+		},
+	}
+}
+
+type recordingDocumentationEdgeWriter struct {
+	retractDomain string
+	retractRows   []SharedProjectionIntentRow
+	writeDomain   string
+	writeRows     []SharedProjectionIntentRow
+}
+
+func (r *recordingDocumentationEdgeWriter) RetractEdges(
+	_ context.Context,
+	domain string,
+	rows []SharedProjectionIntentRow,
+	_ string,
+) error {
+	r.retractDomain = domain
+	r.retractRows = append(r.retractRows, rows...)
+	return nil
+}
+
+func (r *recordingDocumentationEdgeWriter) WriteEdges(
+	_ context.Context,
+	domain string,
+	rows []SharedProjectionIntentRow,
+	_ string,
+) error {
+	r.writeDomain = domain
+	r.writeRows = append(r.writeRows, rows...)
+	return nil
 }

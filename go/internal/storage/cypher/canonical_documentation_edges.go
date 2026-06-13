@@ -53,3 +53,15 @@ const retractDocumentationEdgesCypher = `MATCH (section:DocumentationSection)-[r
 WHERE section.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
+
+const retractDocumentationEdgesByDocumentCypher = `MATCH (section:DocumentationSection)-[rel:DOCUMENTS]->()
+WHERE section.scope_id IN $scope_ids
+  AND section.document_id IN $document_ids
+  AND rel.evidence_source = $evidence_source
+DELETE rel`
+
+const retractDocumentationEdgesBySectionCypher = `MATCH (section:DocumentationSection)-[rel:DOCUMENTS]->()
+WHERE section.scope_id IN $scope_ids
+  AND section.uid IN $section_uids
+  AND rel.evidence_source = $evidence_source
+DELETE rel`
