@@ -85,6 +85,18 @@ func (r *fakeBootstrapRows) Scan(dest ...any) error {
 				return fmt.Errorf("row[%d] type = %T, want bool", i, row[i])
 			}
 			*target = value
+		case *string:
+			value, ok := row[i].(string)
+			if !ok {
+				return fmt.Errorf("row[%d] type = %T, want string", i, row[i])
+			}
+			*target = value
+		case *[]byte:
+			value, ok := row[i].([]byte)
+			if !ok {
+				return fmt.Errorf("row[%d] type = %T, want []byte", i, row[i])
+			}
+			*target = value
 		default:
 			return fmt.Errorf("scan dest[%d] type = %T", i, dest[i])
 		}

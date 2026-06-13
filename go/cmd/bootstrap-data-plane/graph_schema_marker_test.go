@@ -11,7 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/graph"
 )
 
-func TestRunSkipsGraphSchemaWhenFingerprintAlreadyApplied(t *testing.T) {
+func TestRunSkipsGraphSchemaWhenLatestFingerprintAlreadyApplied(t *testing.T) {
 	t.Parallel()
 
 	backend := graph.SchemaBackendNornicDB
@@ -21,7 +21,7 @@ func TestRunSkipsGraphSchemaWhenFingerprintAlreadyApplied(t *testing.T) {
 	}
 	db := &fakeBootstrapDB{
 		queryRows: []fakeBootstrapRows{
-			{rows: [][]any{{true}}},
+			{rows: [][]any{{fingerprint, []byte(`[]`)}}},
 		},
 	}
 	logger := testLogger(t)
@@ -55,11 +55,60 @@ func TestRunSkipsGraphSchemaWhenFingerprintAlreadyApplied(t *testing.T) {
 	if got, want := db.queries[0].args[0], string(backend); got != want {
 		t.Fatalf("marker backend arg = %q, want %q", got, want)
 	}
-	if got := db.queries[0].args[1]; got != fingerprint {
-		t.Fatalf("marker fingerprint arg = %q, want %q", got, fingerprint)
-	}
 	if statementCount == 0 {
 		t.Fatal("statement count = 0, want non-zero")
+	}
+	if got, want := len(db.execs), 1; got != want {
+		t.Fatalf("marker refresh exec count = %d, want %d", got, want)
+	}
+	if got := db.execs[0].args[1]; got != fingerprint {
+		t.Fatalf("mark fingerprint arg = %q, want %q", got, fingerprint)
+	}
+	if got := db.execs[0].args[2]; got != statementCount {
+		t.Fatalf("mark statement count arg = %v, want %d", got, statementCount)
+	}
+}
+
+func TestRunSkipsGraphSchemaWhenLatestMarkerListsFingerprintCompatible(t *testing.T) {
+	t.Parallel()
+
+	backend := graph.SchemaBackendNornicDB
+	fingerprint, _, err := graphSchemaFingerprint(backend)
+	if err != nil {
+		t.Fatalf("graphSchemaFingerprint() error = %v, want nil", err)
+	}
+	db := &fakeBootstrapDB{
+		queryRows: []fakeBootstrapRows{
+			{rows: [][]any{{"future-additive-fingerprint", []byte(`["` + fingerprint + `"]`)}}},
+		},
+	}
+	logger := testLogger(t)
+	graphApplied := false
+
+	err = run(
+		context.Background(),
+		func(string) string { return "" },
+		logger,
+		func(context.Context, func(string) string) (bootstrapDB, error) {
+			return db, nil
+		},
+		func(context.Context, bootstrapExecutor) error {
+			return nil
+		},
+		noopNeo4j,
+		func(_ context.Context, _ graph.CypherExecutor, _ *slog.Logger, _ graph.SchemaBackend) error {
+			graphApplied = true
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("run() error = %v, want nil", err)
+	}
+	if graphApplied {
+		t.Fatal("run() applied graph schema, want compatible latest-marker skip")
+	}
+	if got := len(db.execs); got != 0 {
+		t.Fatalf("marker refresh exec count = %d, want 0", got)
 	}
 }
 
@@ -110,6 +159,9 @@ func TestRunAppliesAndMarksGraphSchemaWhenFingerprintMissing(t *testing.T) {
 	}
 	if got := db.execs[0].args[2]; got != statementCount {
 		t.Fatalf("mark statement count arg = %v, want %d", got, statementCount)
+	}
+	if got, want := db.execs[0].args[3], "[]"; got != want {
+		t.Fatalf("mark compatible fingerprints arg = %v, want %q", got, want)
 	}
 }
 

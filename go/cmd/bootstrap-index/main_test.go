@@ -20,6 +20,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -58,6 +59,9 @@ func TestRunAppliesSchemaAndDrainsCollectorAndProjector(t *testing.T) {
 		},
 		func(ctx context.Context, database bootstrapDB) error {
 			schemaApplied = true
+			return nil
+		},
+		func(context.Context, bootstrapDB, func(string) string, *slog.Logger) error {
 			return nil
 		},
 		func(context.Context, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error) {
@@ -115,6 +119,10 @@ func TestRunReturnsSchemaError(t *testing.T) {
 		func(ctx context.Context, database bootstrapDB) error {
 			return schemaErr
 		},
+		func(context.Context, bootstrapDB, func(string) string, *slog.Logger) error {
+			t.Fatal("graph schema check should not run after postgres schema error")
+			return nil
+		},
 		func(context.Context, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error) {
 			t.Fatal("graph opener should not be called after schema error")
 			return graphDeps{}, nil
@@ -149,6 +157,9 @@ func TestRunReturnsCollectorError(t *testing.T) {
 			return db, nil
 		},
 		func(ctx context.Context, database bootstrapDB) error {
+			return nil
+		},
+		func(context.Context, bootstrapDB, func(string) string, *slog.Logger) error {
 			return nil
 		},
 		func(context.Context, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error) {
@@ -292,10 +303,60 @@ func (f *fakeBootstrapDB) ExecContext(context.Context, string, ...any) (sql.Resu
 }
 
 func (f *fakeBootstrapDB) QueryContext(context.Context, string, ...any) (postgres.Rows, error) {
-	return nil, nil
+	app := graph.MustSchemaApplicationForBackend(graph.SchemaBackendNornicDB)
+	return &fakeBootstrapRows{
+		rows: [][]any{{app.Fingerprint, []byte(`[]`)}},
+	}, nil
 }
 
 type fakeBootstrapSQLDB = fakeBootstrapDB
+
+type fakeBootstrapRows struct {
+	rows  [][]any
+	index int
+}
+
+func (r *fakeBootstrapRows) Next() bool {
+	return r.index < len(r.rows)
+}
+
+func (r *fakeBootstrapRows) Scan(dest ...any) error {
+	if r.index >= len(r.rows) {
+		return errors.New("scan called without row")
+	}
+	row := r.rows[r.index]
+	if len(dest) != len(row) {
+		return fmt.Errorf("scan destination count = %d, want %d", len(dest), len(row))
+	}
+	for i := range dest {
+		switch target := dest[i].(type) {
+		case *string:
+			value, ok := row[i].(string)
+			if !ok {
+				return fmt.Errorf("row[%d] type = %T, want string", i, row[i])
+			}
+			*target = value
+		case *[]byte:
+			value, ok := row[i].([]byte)
+			if !ok {
+				return fmt.Errorf("row[%d] type = %T, want []byte", i, row[i])
+			}
+			*target = value
+		default:
+			return fmt.Errorf("scan dest[%d] type = %T", i, dest[i])
+		}
+	}
+	r.index++
+	return nil
+}
+
+func (r *fakeBootstrapRows) Err() error {
+	return nil
+}
+
+func (r *fakeBootstrapRows) Close() error {
+	return nil
+}
 
 type fakeSource struct {
 	generations []collector.CollectedGeneration

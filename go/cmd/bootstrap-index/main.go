@@ -91,6 +91,7 @@ func main() {
 		os.Getenv,
 		openBootstrapDB,
 		applySchema,
+		ensureBootstrapGraphSchema,
 		openBootstrapGraph,
 		buildBootstrapCollector,
 		buildBootstrapProjector,
@@ -109,6 +110,7 @@ func run(
 	getenv func(string) string,
 	openDBFn openBootstrapDBFn,
 	schemaFn applyBootstrapFn,
+	graphSchemaFn ensureBootstrapGraphSchemaFn,
 	graphFn openGraphFn,
 	collectorFn buildCollectorFn,
 	projectorFn buildProjectorFn,
@@ -165,6 +167,9 @@ func run(
 	}()
 
 	if err = schemaFn(ctx, db); err != nil {
+		return err
+	}
+	if err = graphSchemaFn(ctx, db, getenv, logger); err != nil {
 		return err
 	}
 

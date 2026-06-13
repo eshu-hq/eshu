@@ -14,8 +14,9 @@ This binary owns DDL orchestration only. Postgres table definitions live in
 `internal/graph/` and is applied through `graph.EnsureSchemaWithBackendStrict`
 so any rejected DDL keeps the graph marker unset for the next retry.
 The only row this binary writes is the Postgres graph schema application marker,
-which records that the exact backend/fingerprint pair completed successfully.
-The binary writes no application data and does not stay resident.
+which records that the backend/fingerprint pair completed successfully and
+which older writer fingerprints, if any, remain explicitly compatible. The
+binary writes no application data and does not stay resident.
 
 ## Entry points
 
@@ -70,9 +71,15 @@ failure class, and a bounded schema statement summary.
 
 - idempotent: every DDL statement is `CREATE ... IF NOT EXISTS`
 - after a successful graph schema apply, the binary marks the backend and schema
-  fingerprint in Postgres. A later run with the same fingerprint skips graph DDL
-  instead of asking NornicDB to re-check every constraint/index against a
-  populated graph.
+  fingerprint in Postgres. A later run with the same fingerprint skips graph
+  DDL instead of asking NornicDB to re-check every constraint/index against a
+  populated graph. Graph-writing runtimes read the latest marker before opening
+  writer adapters and refuse when their compiled fingerprint is neither exact
+  nor listed in `compatible_fingerprints`.
+- rolling upgrades are exact-match by default. An additive schema change may
+  populate `compatible_fingerprints` with older writer fingerprints that remain
+  safe. A destructive schema change leaves that list empty so stale writers
+  stop at startup instead of failing during graph writes.
 - existing-schema adoption is automatic for NornicDB when the Postgres marker is
   missing. It is for deployments that already have the complete graph schema but
   lack the Postgres fingerprint marker, such as upgrades from older chart/image
@@ -93,14 +100,16 @@ failure class, and a bounded schema statement summary.
   database name; do not point it at a read replica
 
 No-Regression Evidence: `go test ./cmd/bootstrap-data-plane -run
-'TestRun(SkipsGraphSchemaWhenFingerprintAlreadyApplied|AppliesAndMarksGraphSchemaWhenFingerprintMissing|DoesNotMarkGraphSchemaAfterApplyFailure|AdoptsExistingNornicDBGraphSchemaByDefaultWhenMarkerMissing|CanDisableDefaultNornicDBGraphSchemaAdoption|DoesNotDefaultAdoptNeo4jGraphSchema|AdoptsExistingGraphSchemaWhenMarkerMissing|AppliesGraphSchemaWhenAdoptionFindsMissingObjects|FailsWhenAdoptionInspectionFails)'`
+'TestRun(SkipsGraphSchemaWhenLatestFingerprintAlreadyApplied|SkipsGraphSchemaWhenLatestMarkerListsFingerprintCompatible|AppliesAndMarksGraphSchemaWhenFingerprintMissing|DoesNotMarkGraphSchemaAfterApplyFailure|AdoptsExistingNornicDBGraphSchemaByDefaultWhenMarkerMissing|CanDisableDefaultNornicDBGraphSchemaAdoption|DoesNotDefaultAdoptNeo4jGraphSchema|AdoptsExistingGraphSchemaWhenMarkerMissing|AppliesGraphSchemaWhenAdoptionFindsMissingObjects|FailsWhenAdoptionInspectionFails)'`
 proves same-fingerprint restarts skip graph DDL, missing markers still apply and
-record graph schema completion, and failed graph DDL never records a successful
-marker. The adoption cases prove complete existing NornicDB graph schema marks
-and skips by default, operators can disable that default, Neo4j keeps its
-existing default DDL path, missing graph schema falls back to DDL, and failed
-schema inspection does not blindly run DDL against a live graph. `go test
-./internal/graph -run
+record graph schema completion with compatibility metadata, and failed graph DDL
+never records a successful marker. The adoption cases prove complete existing
+NornicDB graph schema marks and skips by default, operators can disable that
+default, Neo4j keeps its existing default DDL path, missing graph schema falls
+back to DDL, and failed schema inspection does not blindly run DDL against a
+live graph. `go test ./internal/graphschemacompat -count=1` proves writer
+startup rejects missing or incompatible latest markers and accepts exact or
+explicitly compatible fingerprints. `go test ./internal/graph -run
 TestEnsureSchemaWithBackendStrictReturnsStatementFailures` proves the strict
 data-plane path returns a non-context schema failure instead of warning and
 continuing to the marker write. Existing focused unit coverage proves generic
@@ -124,10 +133,13 @@ Observability Evidence: `bootstrap.graph.skipped` tells operators that a
 preserved-volume restart reused the recorded graph schema fingerprint.
 `bootstrap.graph.adopted` and `bootstrap.graph.adoption_incomplete` expose the
 backend, schema fingerprint, expected object count, actual object count, and a
-bounded missing-object sample before any adoption decision is made. Focused
-schema-progress and statement-timeout tests cover the structured per-statement
-logs and the bootstrap-level timeout wrapper that operators use to see which
-graph schema statement is slow or blocked.
+bounded missing-object sample before any adoption decision is made.
+Graph-writing startup refusals surface through the existing
+`runtime.startup.failed` log with the backend, expected fingerprint, latest
+applied fingerprint, and operator guidance. Focused schema-progress and
+statement-timeout tests cover the structured per-statement logs and the
+bootstrap-level timeout wrapper that operators use to see which graph schema
+statement is slow or blocked.
 
 ## Related docs
 

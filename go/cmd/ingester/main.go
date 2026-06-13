@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/app"
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
+	"github.com/eshu-hq/eshu/go/internal/graphschemacompat"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
@@ -83,6 +84,9 @@ func run(parent context.Context) error {
 	defer func() {
 		_ = db.Close()
 	}()
+	if _, err := graphschemacompat.RequireCompatibleForRuntime(parent, postgres.SQLQueryer{DB: db}, os.Getenv); err != nil {
+		return err
+	}
 
 	queueObserver := postgres.NewQueueObserverStore(postgres.SQLQueryer{DB: db})
 	if err := telemetry.RegisterObservableGauges(instruments, meter, queueObserver, nil); err != nil {

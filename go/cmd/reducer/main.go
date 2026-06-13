@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/app"
+	"github.com/eshu-hq/eshu/go/internal/graphschemacompat"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
@@ -66,6 +67,9 @@ func run(parent context.Context) error {
 		return err
 	}
 	defer func() { _ = db.Close() }()
+	if _, err := graphschemacompat.RequireCompatibleForRuntime(parent, postgres.SQLQueryer{DB: db}, os.Getenv); err != nil {
+		return err
+	}
 
 	neo4jExecutor, cypherExecutor, neo4jReader, graphReader, neo4jCloser, err := openReducerNeo4jAdapters(parent, os.Getenv)
 	if err != nil {

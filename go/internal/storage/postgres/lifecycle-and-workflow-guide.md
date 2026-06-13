@@ -16,21 +16,29 @@ or AWS runtime drift storage behavior.
 (`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`).
 The large `fact_records` DDL lives in `schema_fact_records.go` so
 `schema.go` can stay focused on bootstrap ordering and exported helpers.
-`graph_schema_applications` stores the graph backend/schema fingerprint after
-`eshu-bootstrap-data-plane` successfully applies graph DDL. Preserved-volume
-restarts use that durable marker to skip repeated NornicDB constraint/index
-checks when the graph schema is unchanged.
+`graph_schema_applications` stores the graph backend/schema fingerprint and the
+explicit compatible writer-fingerprint list after `eshu-bootstrap-data-plane`
+successfully applies graph DDL. Preserved-volume restarts use that durable
+marker to skip repeated NornicDB constraint/index checks when the graph schema
+is unchanged. Graph-writing runtimes read the latest backend marker from
+Postgres at startup and refuse when their compiled fingerprint is neither exact
+nor listed as compatible by the latest marker.
 
 No-Regression Evidence: `go test ./internal/storage/postgres -run
 'TestBootstrapDefinitions(AreOrderedAndComplete|IncludeGraphSchemaApplications|IncludeContentStoreTables)|TestBootstrapSQLFilesMirrorDefinitions'`
 proves the marker table is registered in ordered bootstrap definitions and the
-checked-in SQL file mirrors the Go definition.
+checked-in SQL file mirrors the Go definition. `go test
+./internal/graphschemacompat -count=1` proves stale writers reject the latest
+incompatible marker, additive-compatible markers pass, and missing markers fail
+closed before graph writes.
 
 Observability Evidence: graph schema marker reads and writes are routed through
 the bootstrap data-plane Postgres connection; the operator-facing signal is the
-`bootstrap.graph.skipped` or `bootstrap.graph.applied` structured log from the
-bootstrap binary, plus normal Postgres query/exec errors if the marker table is
-unavailable.
+`bootstrap.graph.skipped`, `bootstrap.graph.applied`, or
+`runtime.startup.failed` structured log from the bootstrap or graph-writing
+binary, plus normal Postgres query/exec errors if the marker table is
+unavailable. No runtime performs steady-state `SHOW CONSTRAINTS` or
+`SHOW INDEXES` checks against the graph backend.
 
 ### Fact persistence
 

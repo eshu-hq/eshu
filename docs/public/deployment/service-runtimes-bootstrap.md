@@ -13,8 +13,8 @@ It owns this sequence:
 
 1. Apply Postgres storage schema.
 2. Apply graph constraints and indexes through the configured backend.
-3. Record the graph backend and schema fingerprint only after every graph
-   statement succeeds.
+3. Record the graph backend, schema fingerprint, and explicit compatibility
+   list only after every graph statement succeeds.
 4. Exit with code `0` on success.
 
 Invalid graph backend values fail startup. Invalid or non-positive graph schema
@@ -25,6 +25,19 @@ statement timeouts fail before DDL runs.
 Compose runs `db-migrate` with `/usr/local/bin/eshu-bootstrap-data-plane` after
 Postgres and the graph backend are healthy. Steady-state services depend on
 that one-shot service completing successfully.
+
+Graph-writing runtimes (`eshu-bootstrap-index`, ingester/projector, standalone
+projector, and resolution engine) read the latest Postgres
+`graph_schema_applications` row for their backend at startup. They start only
+when the latest applied fingerprint exactly matches their compiled schema
+fingerprint or explicitly lists it as compatible. Missing markers and
+incompatible latest markers fail startup with guidance to run
+`eshu-bootstrap-data-plane` before graph writes begin.
+
+Rolling upgrades are conservative: exact-match is the default. Additive schema
+changes may declare older writer fingerprints compatible in the marker row.
+Destructive schema changes leave the list empty so stale pods refuse before
+runtime graph writes fail.
 
 Helm renders `deploy/helm/eshu/templates/job-schema-bootstrap.yaml`. With
 `schemaBootstrap.useHelmHooks=true`, the Job runs as a pre-install/pre-upgrade
@@ -57,8 +70,9 @@ or GitOps workflow.
 | `ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT` | no | Per graph DDL statement deadline, default `2m`. |
 | `ESHU_GRAPH_SCHEMA_ADOPT_EXISTING` | no | Adopt a complete existing graph schema by writing the fingerprint marker. |
 
-Existing-schema adoption is explicit opt-in. It inspects `SHOW CONSTRAINTS` and
-`SHOW INDEXES`, then fails closed if inspection errors.
+Existing-schema adoption inspects `SHOW CONSTRAINTS` and `SHOW INDEXES`, then
+fails closed if inspection errors. Unset adoption is opportunistic for NornicDB
+and disabled for Neo4j; truthy values require adoption support.
 
 ## Bootstrap Index
 
@@ -69,6 +83,14 @@ end-to-end indexing, or recover after operator-controlled reset work.
 It is packaged for Docker Compose and direct process use. It is not a
 steady-state workload in the public Helm chart, and it does not expose
 `/healthz`, `/readyz`, `/metrics`, or `/admin/status`.
+
+Deployment flows should run `eshu-bootstrap-data-plane` before
+`eshu-bootstrap-index`. Direct local or CI bootstrap-index runs still verify the
+latest graph schema marker before opening the projection writer. If no marker
+exists, bootstrap-index applies the same strict checked-in graph schema, writes
+the marker only after all graph statements succeed, then opens the normal
+projection writer. If a latest marker exists but is incompatible, bootstrap-index
+fails closed instead of applying schema or writing graph data.
 
 Repeated restarts or long-running bootstrap activity are incidents. Use the
 ingester, workflow coordinator, hosted collectors, and resolution engine for
