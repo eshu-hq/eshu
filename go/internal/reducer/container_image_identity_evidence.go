@@ -60,6 +60,8 @@ func extractContainerImageRefs(envelopes []facts.Envelope) []containerImageRefEv
 			)
 		case facts.AWSImageReferenceFactKind:
 			addAWSImageReference(byRef, envelope)
+		case facts.GCPImageReferenceFactKind:
+			addGCPImageReference(byRef, envelope)
 		case facts.CICDArtifactFactKind:
 			addCICDArtifactImageReference(byRef, envelope, ciRuns)
 		}
@@ -184,6 +186,21 @@ func addAWSImageReference(byRef map[string]containerImageRefEvidence, envelope f
 	registry := registryID + ".dkr.ecr." + payloadStr(envelope.Payload, "region") + ".amazonaws.com"
 	imageRef := registry + "/" + repositoryName + "@" + digest
 	addContainerImageRef(byRef, imageRef, imageRef, containerImageAnchorsFromEnvelope(envelope), envelope.FactID)
+}
+
+func addGCPImageReference(byRef map[string]containerImageRefEvidence, envelope facts.Envelope) {
+	imageRef := payloadStr(envelope.Payload, "image_reference")
+	digest := payloadStr(envelope.Payload, "image_digest")
+	anchors := containerImageAnchorsFromEnvelope(envelope)
+	if digest != "" {
+		if digestImageRef := imageRefWithDigest(imageRef, digest); digestImageRef != "" {
+			addContainerImageRef(byRef, digestImageRef, digestImageRef, anchors, envelope.FactID)
+			return
+		}
+		addContainerImageDigestRef(byRef, digest, anchors, envelope.FactID)
+		return
+	}
+	addContainerImageRef(byRef, imageRef, "", anchors, envelope.FactID)
 }
 
 func addCICDArtifactImageReference(

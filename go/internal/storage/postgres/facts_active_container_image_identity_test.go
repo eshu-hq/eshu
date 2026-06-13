@@ -64,6 +64,23 @@ func TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerat
 					time.Date(2026, time.May, 15, 10, 0, 2, 0, time.UTC),
 					false,
 					[]byte(`{"entity_type":"KubernetesResource","entity_metadata":{"container_images":["registry.example.com/team/api:prod"]}}`),
+				}, {
+					"fact-gcp-image-1",
+					"gcp:project:demo:run:resource:global",
+					"generation-gcp",
+					"gcp_image_reference",
+					"gcp-image:team-api",
+					"1.0.0",
+					"gcp",
+					int64(0),
+					"reported",
+					"gcp",
+					"gcp-image:team-api",
+					"gcp://cloud-run/demo-service",
+					"team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					time.Date(2026, time.May, 15, 10, 0, 3, 0, time.UTC),
+					false,
+					[]byte(`{"owning_full_resource_name":"//run.googleapis.com/projects/demo/locations/us-central1/services/api","image_reference":"registry.example.com/team/api:prod","image_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`),
 				}},
 			},
 		},
@@ -74,7 +91,7 @@ func TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerat
 	if err != nil {
 		t.Fatalf("ListActiveContainerImageIdentityFacts() error = %v, want nil", err)
 	}
-	if got, want := len(loaded), 3; got != want {
+	if got, want := len(loaded), 4; got != want {
 		t.Fatalf("ListActiveContainerImageIdentityFacts() len = %d, want %d", got, want)
 	}
 	if got, want := loaded[0].FactKind, "oci_registry.image_tag_observation"; got != want {
@@ -86,6 +103,9 @@ func TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerat
 	if got, want := loaded[2].FactKind, "content_entity"; got != want {
 		t.Fatalf("FactKind = %q, want %q", got, want)
 	}
+	if got, want := loaded[3].FactKind, "gcp_image_reference"; got != want {
+		t.Fatalf("FactKind = %q, want %q", got, want)
+	}
 	query := db.queries[0].query
 	for _, want := range []string{
 		"scope.active_generation_id = fact.generation_id",
@@ -93,6 +113,7 @@ func TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerat
 		"fact.fact_kind IN ('oci_registry.image_tag_observation', 'oci_registry.image_manifest', 'oci_registry.image_index')",
 		"fact.fact_kind = 'aws_image_reference'",
 		"fact.fact_kind = 'aws_relationship'",
+		"fact.fact_kind = 'gcp_image_reference'",
 		"fact.fact_kind = 'content_entity'",
 		"fact.payload->'entity_metadata' ? 'container_images'",
 		"fact.is_tombstone = FALSE",
