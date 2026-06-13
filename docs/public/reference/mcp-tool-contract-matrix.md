@@ -76,7 +76,7 @@ Cypher.
 | `analyze_infra_relationships` | target plus relationship type | bounded graph read | yes | prompt-ready after target is resolved |
 | `get_repo_summary` | repository selector required | singleton summary | yes | prompt-ready |
 | `get_repo_context` | repository selector required | singleton context | yes | prompt-ready |
-| `get_relationship_evidence` | resolved relationship id required | singleton evidence packet | yes | prompt-ready |
+| `get_relationship_evidence` | resolved relationship id required | singleton evidence packet | yes | prompt-ready; returns `confidence_basis`, `resolution_source`, `evidence_type`, and `evidence_kinds` so clients can compare correlation edge confidence without treating it as code `resolution_method` |
 | `build_evidence_citation_packet` | explicit [citation handles](evidence-citation-handles.md); current runtime hydrates file and entity handles; input array capped at 500 | `limit` up to 50 | yes | prompt-ready for source, docs, manifest, and deployment citations without graph traversal |
 | `derive_visualization_packet` | `view` plus a source response already returned by an authorized answer route or tool | node cap 60, edge cap 120 | yes | prompt-ready for service-story, evidence-citation, and incident-context subgraph rendering without a new query |
 | `list_package_registry_packages` | package id, ecosystem, or name filter | `limit` | yes | prompt-ready; returns malformed identity rows under `identity_issues[]` with explicit missing-evidence reasons |

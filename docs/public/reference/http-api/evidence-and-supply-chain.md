@@ -27,6 +27,10 @@ Dereferences one deployment evidence pointer into the durable relationship
 evidence row. The response includes lookup basis, source and target repository
 metadata, relationship type, confidence, evidence count, evidence kinds,
 rationale, generation metadata, `evidence_preview`, and decoded details.
+Correlation rows also include `confidence_basis`: `evidence_constant` for a
+single extractor confidence weight, `evidence_aggregate` for resolver
+corroboration across multiple facts, or `assertion_override` for an explicit
+control-plane assertion.
 
 Use this route when a client needs to explain why an edge exists without
 embedding full evidence payloads in every graph response.

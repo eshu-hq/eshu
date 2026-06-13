@@ -60,6 +60,12 @@ Content tools use these portable handles:
 - evidence hydration: file or entity handles returned by story, investigation,
   search, or drilldown tools
 
+Repository context and relationship-evidence tools preserve HTTP correlation
+confidence metadata in `structuredContent`. Relationship rows may include
+`confidence_basis` (`evidence_constant`, `evidence_aggregate`, or
+`assertion_override`) with `resolution_source`, `evidence_type`, and
+`evidence_kinds`; code relationship tools still use `resolution_method`.
+
 Deployed MCP/API runtimes use the PostgreSQL content store for content reads and
 search. Local helper flows may report workspace or graph-cache fallbacks when
 those are the answering backend.

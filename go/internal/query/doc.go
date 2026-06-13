@@ -17,6 +17,10 @@
 // Repository source routes expose source-backed branch/ref metadata when
 // ingestion captured it, and reject selected refs that cannot be served from
 // the indexed commit instead of falling back silently.
+// Repository relationship rows and relationship evidence drilldowns expose
+// confidence_basis for correlation edges so clients can distinguish extractor
+// constants, resolver aggregation, and assertion overrides from code-edge
+// resolution_method confidence tiers.
 //
 // Supply-chain reads expose source-only advisory evidence separately from
 // reducer-owned impact findings. Advisory evidence groups active

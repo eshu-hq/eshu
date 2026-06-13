@@ -110,9 +110,13 @@ func copyRelationshipEvidenceMetadata(dst map[string]any, src map[string]any) {
 	if resolutionSource := StringVal(src, "resolution_source"); resolutionSource != "" {
 		dst["resolution_source"] = resolutionSource
 	}
+	if confidenceBasis := StringVal(src, "confidence_basis"); confidenceBasis != "" {
+		dst["confidence_basis"] = confidenceBasis
+	}
 	if rationale := StringVal(src, "rationale"); rationale != "" {
 		dst["rationale"] = rationale
 	}
+	addRelationshipConfidenceBasis(dst)
 }
 
 func buildRepositoryRelationshipStory(overview map[string]any) string {

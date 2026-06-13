@@ -221,7 +221,11 @@ const openAPIComponents = `  "components": {
           "target_start_line": {"type": "integer"},
           "target_end_line": {"type": "integer"},
           "confidence": {"type": "number"},
+          "confidence_basis": {"type": "string", "description": "Correlation edge confidence basis: evidence_constant, evidence_aggregate, or assertion_override. Code CALLS/REFERENCES edges use resolution_method instead."},
           "reason": {"type": "string"},
+          "resolution_source": {"type": "string"},
+          "evidence_type": {"type": "string"},
+          "evidence_kinds": {"type": "array", "items": {"type": "string"}},
           "resolution_method": {"type": "string"},
           "centrality": {"type": "integer", "description": "Bounded centrality: the neighbor's degree within the resolved result set. Relationship story rows are ordered by this value, descending, with deterministic tie-breaking."}
         }

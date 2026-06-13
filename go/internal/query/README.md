@@ -77,6 +77,23 @@ At the package boundary, all query routes stay anchored, bounded, and explicit
 about truth level. Graph reads go through `GraphQuery`, content reads go through
 `ContentStore`, and response models keep provenance-only evidence separate from
 canonical graph or reducer truth.
+Repository relationship rows and relationship evidence drilldown normalize
+correlation confidence provenance with `confidence_basis`. The value is
+`evidence_constant` for a single extractor weight, `evidence_aggregate` for
+resolver corroboration, or `assertion_override` for explicit relationship
+assertions. Code `CALLS`/`REFERENCES` rows keep using `resolution_method`;
+correlation readers compare the numeric `confidence` field only after checking
+the basis/method field.
+
+No-Regression Evidence: focused relationship context, evidence drilldown, and
+OpenAPI tests cover both Postgres read-model and graph-backed rows:
+`go test ./internal/query -run 'RepositoryRelationship|RelationshipEvidence|ConfidenceBasis|OpenAPIRelationship' -count=1`.
+
+No-Observability-Change: confidence basis is derived from row attributes already
+loaded by the repository context and relationship evidence queries. It adds no
+route, graph traversal, Postgres query, metric label, runtime knob, queue work,
+or span; existing repository stage logs, Postgres query spans, graph query
+spans, and truth envelopes still diagnose the read.
 Semantic search reads (`POST /api/v0/search/semantic`, MCP
 `search_semantic_context`) are repository-bounded over active curated search
 documents. They use the repository id as the current durable search-document

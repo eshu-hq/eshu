@@ -71,6 +71,7 @@ func (h *EvidenceHandler) getRelationshipEvidence(w http.ResponseWriter, r *http
 		WriteError(w, http.StatusNotFound, "relationship evidence not found")
 		return
 	}
+	addRelationshipConfidenceBasis(readModel.Row)
 	WriteSuccess(w, r, http.StatusOK, readModel.Row, BuildTruthEnvelope(
 		h.profile(),
 		relationshipEvidenceCapability,

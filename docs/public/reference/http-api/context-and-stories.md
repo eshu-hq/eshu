@@ -69,6 +69,13 @@ sees bounds and missing evidence without falling back to raw Cypher.
   payload's `limitations` into an explicit, sorted, de-duplicated array so the
   envelope shape is stable across complete and partial reads.
 
+Repository context relationship rows expose the same correlation confidence
+metadata as relationship evidence drilldown: `confidence`, `confidence_basis`,
+`resolution_source`, `evidence_type`, and `evidence_kinds` when the reducer or
+graph edge has that data. `relationships` includes outgoing rows; the
+`relationship_overview.relationships` section includes both incoming and
+outgoing rows plus the same compact evidence pointers.
+
 No-Regression Evidence:
 
 ```bash
