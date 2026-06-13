@@ -455,13 +455,12 @@ Facts are source evidence, not automatic graph truth.
   reducers or query consumers explicitly admit them. Model output must not
   directly promote service, deployment, runtime, vulnerability, or
   infrastructure truth.
-- GCP and Azure cloud collector facts remain design-only until implemented.
-  Their shared source-field and provider-extension baseline is defined in
-  [Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md).
-  The provider-specific GCP payload and redaction baseline is defined in
-  [GCP Cloud Collector Contract](gcp-cloud-collector-contract.md).
-  The provider-specific Azure payload and redaction baseline is defined in
-  [Azure Cloud Collector Contract](azure-cloud-collector-contract.md).
+- GCP cloud collector facts are fixture-driven source evidence; only admitted
+  facts become platform truth. GCP resource, relationship, tag, and
+  image-reference evidence have reducer consumers; raw IAM policy snapshots,
+  DNS records, and collection warnings remain provenance/audit evidence. Shared
+  and provider-specific baselines live in the multi-cloud, GCP, and Azure cloud
+  collector contracts.
 
 ACL summaries and source-native documentation bodies are sensitive source
 evidence. Do not emit them through logs or metrics. Evidence packet APIs must

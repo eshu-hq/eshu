@@ -1,9 +1,10 @@
 # GCP Cloud Collector Contract
 
-This page defines the provider-specific design baseline for a future GCP cloud
+This page defines the provider-specific design baseline for the GCP cloud
 collector. It is a child of the
 [Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md) and
-is not a deployed runtime promise.
+does not promise live Google Cloud runtime deployment until the live transport,
+credential, and chart gates are proven.
 
 The collector kind is `gcp`. It observes Google Cloud control-plane metadata
 through Cloud Asset Inventory and emits source facts only. Reducers own
@@ -96,8 +97,11 @@ configured, with `source_kind=label`, and emits
 usable. It also emits `gcp_dns_record` from parsed CAI
 `dns.googleapis.com/ResourceRecordSet` assets when record type, record name, and
 managed-zone identity are usable. Direct/effective GCP tag API collection,
-fact-kind-specific reducer handling for IAM, DNS, and relationships, and any
-GCP graph projection remain follow-up work under #1997.
+live transport, credential resolution, runtime scheduling, and chart promotion
+remain follow-up work under #1997. Raw `gcp_iam_policy_observation`,
+`gcp_dns_record`, and `gcp_collection_warning` facts are intentionally
+provenance-only or audit evidence until separate reducer/read-model contracts
+admit them.
 
 The implemented slices stay fixture-testable without live Google Cloud access.
 Live smoke tests are promotion proof, not the minimum proof for the source
@@ -225,7 +229,9 @@ unless the schema PR deliberately migrates AWS, GCP, and Azure together.
 | `gcp_cloud_resource` | One Cloud Asset Inventory resource observation. | full resource name, asset type, parent scope, ancestors, location, read time, update time, state when present, labels, tag references, redaction policy version. |
 | `gcp_tag_observation` | Direct and effective tag or label evidence. | full resource name, asset type, tag key/value fingerprints or bounded labels, source kind, inheritance state, read time. |
 | `gcp_iam_policy_observation` | IAM policy evidence returned by Cloud Asset Inventory content types or IAM search. | full resource name, asset type, role, member class, member fingerprint, condition presence/fingerprint, etag fingerprint, read time. |
+| `gcp_iam_principal` | Secrets/IAM mirror principal evidence for GCP service-account grantees. | principal fingerprint, principal class, provider, read time, source role/resource anchors. |
 | `gcp_iam_trust_policy` | ServiceAccount impersonation trust evidence derived from IAM bindings on `iam.googleapis.com/ServiceAccount` resources. | target service-account principal fingerprint, target email digest, target cloud-resource uid, trusted member fingerprint/class, impersonation role/mode, optional Workload Identity subject fingerprint, condition presence/fingerprint, read time. |
+| `gcp_iam_permission_policy` | Secrets/IAM mirror permission evidence for GCP service-account grants. | principal fingerprint, role, resource uid/anchor, provider, read time, bounded capability classification. |
 | `gcp_cloud_relationship` | Provider relationship evidence, including relationship type and related asset. | source full resource name, source asset type, relationship type, target full resource name, target asset type, read/update time, support state. |
 | `gcp_dns_record` | DNS record metadata where Cloud Asset Inventory or safe service APIs expose it. | managed zone identity, record type, record name fingerprint, target fingerprints or bounded values, TTL, read time. |
 | `gcp_image_reference` | Runtime image reference evidence from GKE, Cloud Run, Compute, or other safe resource metadata. | owning resource identity, image reference or digest when present, tag/digest confidence, container name fingerprint, read time. |
@@ -234,6 +240,26 @@ unless the schema PR deliberately migrates AWS, GCP, and Azure together.
 Facts must use `source_confidence=reported` for provider API data. Fixture facts
 used in tests can use the same provider confidence because they model provider
 responses, not local repository observations.
+
+## Consumption Decisions
+
+Every emitted GCP cloud fact family and every GCP Secrets/IAM mirror fact emitted
+by this collector has an explicit consume-or-provenance decision. Changing a
+provenance-only family into platform truth requires a reducer or read-model
+design and a matching test update.
+
+| Fact kind | Decision | Consumer or owner |
+| --- | --- | --- |
+| `gcp_cloud_resource` | consumed | Cloud inventory, runtime drift, and `gcp_resource_materialization` reducers. |
+| `gcp_collection_warning` | provenance/audit only | Fact-store audit evidence plus collector telemetry counters. |
+| `gcp_cloud_relationship` | consumed | `gcp_relationship_materialization` reducer after both endpoints resolve exactly. |
+| `gcp_tag_observation` | consumed | Cloud tag evidence loader and cloud inventory readback; tags never admit resources by themselves. |
+| `gcp_iam_policy_observation` | provenance/audit only | Raw IAM snapshot evidence; secrets/IAM reducers consume derived GCP IAM source facts. |
+| `gcp_iam_principal` | consumed | `secrets_iam_trust_chain` reducer. |
+| `gcp_iam_trust_policy` | consumed | `secrets_iam_trust_chain` reducer. |
+| `gcp_iam_permission_policy` | consumed | `secrets_iam_trust_chain` reducer. |
+| `gcp_dns_record` | provenance/audit only | Redaction-safe DNS evidence until a DNS read model or resolver admits it. |
+| `gcp_image_reference` | consumed | `container_image_identity` reducer with digest-first or explicit tag-confidence behavior. |
 
 ## Payload Boundaries
 
@@ -277,9 +303,11 @@ GCP facts stay provenance until reducers admit them:
    decide ownership.
 3. Tag reducers compare direct labels, direct tags, and effective inherited tags
    without making tag value text a graph hot-path key.
-4. IAM reducers treat `gcp_iam_policy_observation` as policy evidence only.
-   Principal fingerprints do not become user nodes unless a later identity
-   design admits them.
+4. IAM reducers treat `gcp_iam_policy_observation` as provenance-only policy
+   evidence. Principal fingerprints do not become user nodes unless a later
+   identity design admits them. Secrets/IAM correlation consumes the derived
+   `gcp_iam_principal`, `gcp_iam_permission_policy`, and
+   `gcp_iam_trust_policy` source facts instead of the raw IAM snapshot.
 5. Relationship reducers materialize graph edges only when both endpoints
    resolve exactly in the current allowed scope. Cross-project, cross-folder,
    missing, unsupported, ambiguous, and stale endpoints are counted and
@@ -287,6 +315,12 @@ GCP facts stay provenance until reducers admit them:
 6. Image-reference reducers require digest-first or otherwise explicit
    tag-confidence behavior before using GCP image evidence in deployment or
    vulnerability paths.
+7. `gcp_dns_record` remains redaction-safe DNS provenance until a DNS read model
+   or resolver contract is implemented. It must not mint graph, service, or
+   routing truth by itself.
+8. `gcp_collection_warning` remains coverage/audit evidence. Warning facts can
+   explain partial collection and telemetry counts, but they do not admit
+   inventory, DNS, IAM, or relationship truth.
 
 Query output must preserve the source state: `exact`, `derived`, `partial`,
 `stale`, `unavailable`, and `unsupported` have the same meaning as the shared
