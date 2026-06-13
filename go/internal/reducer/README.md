@@ -64,14 +64,18 @@ normal invariants. The sweep removes only nodes that remain disconnected after
 the TTL and clears the marker when a relationship returns.
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestDefaultOrphanSweepLabelsIncludesCodeStructureLabels|TestCodeStructureOrphanSweepStatementsUseStaticZeroRelationshipGuards|TestOrphanSweepStoreDefaultLabelsConvergeAcrossBoundedBatches|TestGraphOrphanNodeCountsUsesDefaultCodeStructureLabels|TestCanonicalCodeStructureNodesStampOrphanSweepMetadata|TestBuildMarkOrphan|TestBuildSweepOrphan|TestBuildCountOrphan|TestBuildClearOrphan|TestRepoRelationshipUpsertStamps|TestInfrastructurePlatformUpsert|TestBatchedWriteEdgesParameterFidelity|TestOrphanSweepStoreUsesInjectedClock'
+'TestDefaultOrphanSweepLabelsIncludesCodeStructureLabels|TestCodeStructureOrphanSweepStatementsUseStaticZeroRelationshipGuards|TestOrphanSweepStoreDefaultLabelsConvergeAcrossBoundedBatches|TestOrphanSweepStoreDelaysCodeStructureDeletionDuringProjectionRace|TestGraphOrphanNodeCountsUsesDefaultCodeStructureLabels|TestCanonicalCodeStructureNodesStampOrphanSweepMetadata|TestBuildMarkOrphan|TestBuildSweepOrphan|TestBuildCountOrphan|TestBuildClearOrphan|TestRepoRelationshipUpsertStamps|TestInfrastructurePlatformUpsert|TestBatchedWriteEdgesParameterFidelity|TestOrphanSweepStoreUsesInjectedClock'
 -count=1` proves the bounded static-label Cypher shape, metadata stamping for
 relationship-created repositories and platforms, default coverage for code
 structure labels, Directory and imported Module metadata stamping, bounded
-convergence, telemetry observer counts, and injected-clock TTL behavior. `go
-test ./internal/storage/cypher -run
+convergence, newly observed code-structure orphan retention before TTL expiry,
+telemetry observer counts, and injected-clock TTL behavior. `go test
+./internal/storage/cypher -run
 TestRepositoryOrphanSweepExcludesSourceLocalCanonicalRepositories -count=1`
 proves source-local canonical Repository nodes are outside the sweep predicate.
+`go test ./cmd/reducer -run TestProductionWiringConsumesCapabilityDefaults
+-count=1` proves the reducer runtime consumes the same closed label default
+instead of a stale subset.
 `go test ./internal/reducer -run
 'TestGraphOrphanSweepRunner|TestServiceStartsGraphOrphanSweepRunner' -count=1`
 proves the runner drains available delete batches without lowering worker

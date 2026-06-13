@@ -56,12 +56,13 @@ remain owned by the canonical writer even when a repository has no graph
 relationships yet.
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestDefaultOrphanSweepLabelsIncludesCodeStructureLabels|TestCodeStructureOrphanSweepStatementsUseStaticZeroRelationshipGuards|TestOrphanSweepStoreDefaultLabelsConvergeAcrossBoundedBatches|TestGraphOrphanNodeCountsUsesDefaultCodeStructureLabels|TestCanonicalCodeStructureNodesStampOrphanSweepMetadata|TestBuildMarkOrphan|TestBuildSweepOrphan|TestBuildCountOrphan|TestBuildClearOrphan|TestOrphanSweepStoreUsesInjectedClock'
+'TestDefaultOrphanSweepLabelsIncludesCodeStructureLabels|TestCodeStructureOrphanSweepStatementsUseStaticZeroRelationshipGuards|TestOrphanSweepStoreDefaultLabelsConvergeAcrossBoundedBatches|TestOrphanSweepStoreDelaysCodeStructureDeletionDuringProjectionRace|TestGraphOrphanNodeCountsUsesDefaultCodeStructureLabels|TestCanonicalCodeStructureNodesStampOrphanSweepMetadata|TestBuildMarkOrphan|TestBuildSweepOrphan|TestBuildCountOrphan|TestBuildClearOrphan|TestOrphanSweepStoreUsesInjectedClock'
 -count=1` proves the default closed label set includes code structure nodes,
 Directory and imported Module writes stamp the metadata required by the sweep
 predicate, the static-label query builders reject unknown labels, every swept
-label keeps the zero-relationship guard, the count and mutation paths stay
-bounded, and the TTL clock is injectable for deterministic cleanup. `go test
+label keeps the zero-relationship guard, newly observed code-structure orphans
+are marked but not deleted until the TTL has aged, the count and mutation paths
+stay bounded, and the TTL clock is injectable for deterministic cleanup. `go test
 ./internal/storage/cypher -run
 'TestRepositoryOrphanSweepExcludesSourceLocalCanonicalRepositories' -count=1`
 proves the sweep never targets source-local canonical Repository nodes.

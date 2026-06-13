@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -338,10 +339,19 @@ func loadGraphOrphanSweepConfig(getenv func(string) string) graphOrphanSweepConf
 				OrphanTTL:  loadDurationOrDefault(getenv, graphOrphanSweepTTLEnv, defaultGraphOrphanSweepTTL),
 				BatchLimit: loadPositiveIntOrDefault(getenv, graphOrphanSweepBatchLimitEnv, defaultGraphOrphanSweepBatchLimit),
 				CountLimit: loadPositiveIntOrDefault(getenv, graphOrphanSweepCountLimitEnv, defaultGraphOrphanSweepCountLimit),
-				Labels:     []string{"Repository", "Platform", "EvidenceArtifact"},
+				Labels:     defaultGraphOrphanSweepLabels(),
 			},
 		},
 	}
+}
+
+func defaultGraphOrphanSweepLabels() []string {
+	labels := sourcecypher.DefaultOrphanSweepLabels()
+	values := make([]string, 0, len(labels))
+	for _, label := range labels {
+		values = append(values, string(label))
+	}
+	return values
 }
 
 func defaultGraphOrphanSweepLeaseOwner() string {
