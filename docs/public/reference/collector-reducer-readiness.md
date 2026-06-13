@@ -137,8 +137,21 @@ implemented:
 | Concrete scanner analyzers | The `eshu-scanner-worker` runtime, warning analyzer, bounded `image_unpacking` rootfs/layer analyzer, bounded `sbom_generation` fallback, `os_package_extraction` rootfs parser, Compose service, and opt-in Helm Deployment exist. Concrete analyzers are not enabled by default until target count, fact count, runtime, CPU, memory, queue state, retry count, dead-letter count, pprof, and reducer/API truth are proven in the target environment. |
 | CI/CD runs | Fixture normalizer, reducer correlation, bounded GitHub Actions runtime source, workflow planner, hosted binary, chart values, provider telemetry, and fact-backed central collector status evidence exist. The hosted runtime strips token-bearing artifact URLs before fact emission and requires explicit repository allowlists plus run/job/artifact limits. It is not fully promoted until live target proof captures health, readiness, metrics, status, claim leases, fact counts, queue state, and reducer/API truth for the deployed chart shape. |
 | Service catalog | Repo-hosted Backstage, OpsLevel, and Cortex descriptors emit `service_catalog.*` facts through Git collection, and the provenance-only projector, reducer, API, and MCP read paths exist. Hosted Backstage/OpsLevel/Cortex API polling, credentials, provider rate-limit budgets, and charted catalog collector runtimes are not deployed lanes yet. |
+| Google Workspace documentation | No hosted runtime, chart path, Compose profile, or Go collector package exists. The mock-only internal package was removed because a facade without a real provider implementation is not a collector readiness signal. Offline `google_workspace_export` manifest values remain import-source identifiers only, not a live provider collector. |
 | Incident/change correlation, secrets/IAM posture | Design or research only for deployed collector readiness. PagerDuty source facts, reducer-owned image-to-build/commit evidence, provider PR provenance, Jira work-item enrichment, and live observability source facts exist. The [Secrets And IAM Posture Collector Contract](secrets-iam-posture-collector-contract.md) locks the source boundaries, scopes, redaction policy, fact families, reducer ownership, fixture gates, and graph-promotion non-goals for issue #25. Broader root-cause, cross-provider incident correlation, and secrets/IAM graph promotion remain gated. |
 | GCP, Azure, and multi-cloud runtime collection | Design only. The [Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md) defines the IaC-first evidence model, explicit `gcp` and `azure` collector kinds, shared fact fields, reducer-owned `cloud_resource_uid` promotion, and query source states for the provider implementation issues. The [GCP Cloud Collector Contract](gcp-cloud-collector-contract.md) locks the Cloud Asset Inventory baseline for issue #21, and the [Azure Cloud Collector Contract](azure-cloud-collector-contract.md) locks the Resource Graph and ARM baseline for issue #22. |
+
+Collector Performance Evidence: `go test ./internal/collector -run TestNoMockOnlyGoogleWorkspaceCollectorPackage -count=1`
+guards the removed facade without adding runtime work.
+
+Collector Observability Evidence: no runtime collector, worker, HTTP client, or
+queue path exists for Google Workspace documentation.
+
+Collector Deployment Evidence: no deployment artifact exists for Google
+Workspace documentation.
+
+No-Observability-Change: this removal adds no metric, span, log, status row,
+database query, graph write, queue consumer, or hosted runtime path.
 
 ## Promotion Proof
 

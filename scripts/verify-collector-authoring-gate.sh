@@ -73,9 +73,27 @@ collector_package_dirs=()
 evidence_files=()
 telemetry_contract_changed=1
 
+has_current_collector_source() {
+  local dir="$1"
+  local source
+
+  [ -d "$repo_root/$dir" ] || return 1
+  for source in "$repo_root/$dir"/*.go; do
+    [ -e "$source" ] || continue
+    case "$source" in
+      *_test.go|*_bench_test.go|*/doc.go) continue ;;
+    esac
+    return 0
+  done
+  return 1
+}
+
 add_collector_package_dir() {
   local candidate="$1"
   local existing
+  if ! has_current_collector_source "$candidate"; then
+    return 0
+  fi
   if [ "${#collector_package_dirs[@]}" -gt 0 ]; then
     for existing in "${collector_package_dirs[@]}"; do
       if [ "$existing" = "$candidate" ]; then

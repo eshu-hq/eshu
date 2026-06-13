@@ -36,6 +36,11 @@ expect_pass() {
     sed -n '1,120p' /tmp/eshu-perf-gate.err >&2
     exit 1
   fi
+  if rg -q 'No such file or directory' /tmp/eshu-perf-gate.err; then
+    printf 'expected verifier stderr to stay clean in %s\n' "${dir}" >&2
+    sed -n '1,120p' /tmp/eshu-perf-gate.err >&2
+    exit 1
+  fi
 }
 
 expect_fail() {
@@ -93,6 +98,26 @@ printf '\n## Current Evidence\n\nPerformance Evidence: focused writer benchmark 
 git -C "${evidence_repo}" add .
 git -C "${evidence_repo}" commit -q -m 'hot change with evidence'
 expect_pass "${evidence_repo}"
+
+deleted_evidence_repo="$(init_repo deleted-evidence)"
+mkdir -p "${deleted_evidence_repo}/go/internal/collector/oldsource"
+printf 'package oldsource\nconst query = "MATCH (n) RETURN n"\n' \
+  >"${deleted_evidence_repo}/go/internal/collector/oldsource/source.go"
+cat >"${deleted_evidence_repo}/go/internal/collector/oldsource/README.md" <<'MD'
+# Old Source
+
+Performance Evidence: baseline fixture only.
+
+No-Observability-Change: baseline fixture only.
+MD
+git -C "${deleted_evidence_repo}" add .
+git -C "${deleted_evidence_repo}" commit -q -m 'old collector baseline'
+rm -rf "${deleted_evidence_repo}/go/internal/collector/oldsource"
+printf '\n## Current Evidence\n\nPerformance Evidence: removed facade source; no runtime work remains.\n\nNo-Observability-Change: no runtime path remains.\n' \
+  >>"${deleted_evidence_repo}/docs/public/reference/local-performance-envelope.md"
+git -C "${deleted_evidence_repo}" add -A
+git -C "${deleted_evidence_repo}" commit -q -m 'delete collector with evidence'
+expect_pass "${deleted_evidence_repo}"
 
 missing_observability_repo="$(init_repo missing-observability)"
 printf 'package cypher\nconst query = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
