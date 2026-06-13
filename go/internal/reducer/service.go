@@ -81,6 +81,10 @@ type Service struct {
 	// failed after the underlying graph write already committed.
 	GraphProjectionPhaseRepairer *GraphProjectionPhaseRepairer
 
+	// GenerationRetentionRunner prunes superseded source-generation history in
+	// bounded transactions. Nil disables automated cleanup.
+	GenerationRetentionRunner *GenerationRetentionRunner
+
 	// Telemetry fields (optional)
 	Tracer         trace.Tracer
 	Instruments    *telemetry.Instruments
@@ -120,45 +124,7 @@ func (s Service) Run(ctx context.Context) error {
 		}
 	)
 
-	if s.SharedProjectionRunner != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := s.SharedProjectionRunner.Run(ctx); err != nil {
-				recordErr(err)
-			}
-		}()
-	}
-
-	if s.CodeCallProjectionRunner != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := s.CodeCallProjectionRunner.Run(ctx); err != nil {
-				recordErr(err)
-			}
-		}()
-	}
-
-	if s.RepoDependencyProjectionRunner != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := s.RepoDependencyProjectionRunner.Run(ctx); err != nil {
-				recordErr(err)
-			}
-		}()
-	}
-
-	if s.GraphProjectionPhaseRepairer != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := s.GraphProjectionPhaseRepairer.Run(ctx); err != nil {
-				recordErr(err)
-			}
-		}()
-	}
+	s.startSideRunners(ctx, &wg, recordErr)
 
 	err := s.runMainLoop(ctx)
 	if err != nil {

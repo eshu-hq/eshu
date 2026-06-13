@@ -127,6 +127,9 @@ func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 	if service.GraphProjectionPhaseRepairer == nil {
 		t.Fatal("buildReducerService() graph projection repairer = nil, want non-nil")
 	}
+	if service.GenerationRetentionRunner == nil {
+		t.Fatal("buildReducerService() generation retention runner = nil, want non-nil")
+	}
 	if service.GraphProjectionPhaseRepairer.Queue == nil {
 		t.Fatal("buildReducerService() graph projection repair queue = nil, want non-nil")
 	}

@@ -110,6 +110,9 @@ func (h *FreshnessHandler) listChangedSince(w http.ResponseWriter, r *http.Reque
 		"categories":                   summary.Categories,
 		"unavailable":                  summary.Unavailable,
 	}
+	if summary.UnavailableReason != "" {
+		body["unavailable_reason"] = summary.UnavailableReason
+	}
 	if summary.Repository != "" {
 		body["repository"] = summary.Repository
 	}
@@ -181,8 +184,13 @@ func (h *FreshnessHandler) changedSinceTruthEnvelope(summary status.ChangedSince
 	switch {
 	case summary.Unavailable:
 		envelope.Freshness.State = FreshnessUnavailable
-		envelope.Freshness.Detail = "the scope has no current active generation, so a changed-since diff cannot be computed yet"
-		WithFreshnessCause(envelope, FreshnessCausePendingRepoGeneration)
+		if summary.UnavailableReason == status.ChangedSinceUnavailableRetentionExpired {
+			envelope.Freshness.Detail = "the prior generation was pruned by the retention policy, so the changed-since diff is no longer available"
+			WithFreshnessCause(envelope, FreshnessCauseRetentionExpired)
+		} else {
+			envelope.Freshness.Detail = "the scope has no current active generation, so a changed-since diff cannot be computed yet"
+			WithFreshnessCause(envelope, FreshnessCausePendingRepoGeneration)
+		}
 	case summary.Building:
 		envelope.Freshness.State = FreshnessBuilding
 		envelope.Freshness.Detail = "the scope has a pending generation in flight; the current active generation may change"

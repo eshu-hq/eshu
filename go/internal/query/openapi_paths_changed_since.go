@@ -5,7 +5,7 @@ const openAPIPathsFreshnessChangedSince = `
       "get": {
         "tags": ["freshness"],
         "summary": "Summarize what changed since a prior generation or instant",
-        "description": "Returns a bounded changed-since delta for one repository-kind scope. It diffs the prior generation's fact set against the current active generation's fact set, keyed by stable_fact_key, into per-evidence-category counts (files, content entities, facts) for added, updated, unchanged, retired, and superseded keys plus bounded, deterministic sample handles per classification. Supply since_generation_id to diff from an exact prior generation, or since_observed_at (RFC3339) to diff from the generation observed at or before that instant. An unknown scope/repository returns scope_not_found; a since reference that matches no generation returns not_found. A scope with no current active generation returns an explicit unavailable diff instead of zero deltas. Counts are exact; only the per-classification samples are capped by sample_limit with a per-classification truncated flag.",
+        "description": "Returns a bounded changed-since delta for one repository-kind scope. It diffs the prior generation's fact set against the current active generation's fact set, keyed by stable_fact_key, into per-evidence-category counts (files, content entities, facts) for added, updated, unchanged, retired, and superseded keys plus bounded, deterministic sample handles per classification. Supply since_generation_id to diff from an exact prior generation, or since_observed_at (RFC3339) to diff from the generation observed at or before that instant. An unknown scope/repository returns scope_not_found; a since reference that matches no generation returns not_found. A scope with no current active generation returns an explicit unavailable diff instead of zero deltas. When retention cleanup proves the prior generation was pruned, the response remains unavailable and sets unavailable_reason to retention_expired. Counts are exact; only the per-classification samples are capped by sample_limit with a per-classification truncated flag.",
         "operationId": "summarizeChangedSince",
         "parameters": [
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Exact ingestion scope id (required unless repository is set)."},
@@ -31,6 +31,7 @@ const openAPIPathsFreshnessChangedSince = `
                     "current_observed_at": {"type": "string"},
                     "sample_limit": {"type": "integer"},
                     "unavailable": {"type": "boolean"},
+                    "unavailable_reason": {"type": "string", "enum": ["retention_expired"], "description": "Closed unavailable reason. Present when the requested prior generation was known for the scope but pruned by generation retention."},
                     "categories": {
                       "type": "array",
                       "items": {

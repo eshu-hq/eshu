@@ -59,7 +59,8 @@
 // ChangedSinceFilter clamps the per-classification sample handles to
 // MaxChangedSinceSampleLimit. The Unavailable flag distinguishes a scope with no
 // current active generation from a genuinely empty delta so the surface never
-// reports all-unchanged when it cannot diff.
+// reports all-unchanged when it cannot diff. UnavailableReason is populated for
+// fail-closed cases such as generation history pruned by retention.
 //
 // ServiceChangedSinceFilter and ServiceChangedSinceSummary define the
 // service-scope variant (#1943): the same verdict set, counts, sample, and

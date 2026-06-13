@@ -55,6 +55,10 @@ type Instruments struct {
 	SharedAcceptanceUpserts                   metric.Int64Counter
 	SharedAcceptanceLookupErrors              metric.Int64Counter
 	SharedProjectionStaleIntents              metric.Int64Counter
+	GenerationRetentionPruned                 metric.Int64Counter
+	GenerationRetentionRowsPruned             metric.Int64Counter
+	GenerationRetentionFailures               metric.Int64Counter
+	GenerationRetentionSkipped                metric.Int64Counter
 	DocumentationEntityMentions               metric.Int64Counter
 	DocumentationClaimCandidates              metric.Int64Counter
 	DocumentationClaimsSuppressed             metric.Int64Counter
@@ -631,6 +635,9 @@ type Instruments struct {
 	ProjectorStageDuration                 metric.Float64Histogram
 	ReducerRunDuration                     metric.Float64Histogram
 	ReducerQueueWaitDuration               metric.Float64Histogram
+	GenerationRetentionDuration            metric.Float64Histogram
+	GenerationRetentionBatchSize           metric.Int64Histogram
+	GenerationRetentionOldestEligibleAge   metric.Float64Histogram
 	CanonicalWriteDuration                 metric.Float64Histogram
 	QueueClaimDuration                     metric.Float64Histogram
 	PostgresQueryDuration                  metric.Float64Histogram
@@ -827,6 +834,38 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SharedProjectionStaleIntents counter: %w", err)
+	}
+
+	inst.GenerationRetentionPruned, err = meter.Int64Counter(
+		"eshu_dp_generation_retention_generations_pruned_total",
+		metric.WithDescription("Total superseded scope generations pruned by retention policy"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GenerationRetentionPruned counter: %w", err)
+	}
+
+	inst.GenerationRetentionRowsPruned, err = meter.Int64Counter(
+		"eshu_dp_generation_retention_rows_pruned_total",
+		metric.WithDescription("Total rows pruned by generation retention policy, labeled by bounded table name"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GenerationRetentionRowsPruned counter: %w", err)
+	}
+
+	inst.GenerationRetentionFailures, err = meter.Int64Counter(
+		"eshu_dp_generation_retention_failures_total",
+		metric.WithDescription("Total generation retention pruning failures by bounded reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GenerationRetentionFailures counter: %w", err)
+	}
+
+	inst.GenerationRetentionSkipped, err = meter.Int64Counter(
+		"eshu_dp_generation_retention_skipped_total",
+		metric.WithDescription("Total generation retention candidates skipped by bounded reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GenerationRetentionSkipped counter: %w", err)
 	}
 
 	inst.DocumentationEntityMentions, err = meter.Int64Counter(
@@ -2448,6 +2487,38 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReducerQueueWaitDuration histogram: %w", err)
+	}
+
+	retentionDurationBuckets := []float64{0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900}
+	inst.GenerationRetentionDuration, err = meter.Float64Histogram(
+		"eshu_dp_generation_retention_duration_seconds",
+		metric.WithDescription("Generation retention pruning transaction duration"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(retentionDurationBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GenerationRetentionDuration histogram: %w", err)
+	}
+
+	retentionBatchBuckets := []float64{1, 2, 4, 8, 16, 32, 64, 100}
+	inst.GenerationRetentionBatchSize, err = meter.Int64Histogram(
+		"eshu_dp_generation_retention_batch_size",
+		metric.WithDescription("Superseded generation count selected by one retention pruning batch"),
+		metric.WithExplicitBucketBoundaries(retentionBatchBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GenerationRetentionBatchSize histogram: %w", err)
+	}
+
+	retentionAgeBuckets := []float64{3600, 21600, 43200, 86400, 259200, 604800, 1209600, 2592000, 7776000}
+	inst.GenerationRetentionOldestEligibleAge, err = meter.Float64Histogram(
+		"eshu_dp_generation_retention_oldest_eligible_age_seconds",
+		metric.WithDescription("Age of the oldest superseded generation selected by one retention pruning batch"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(retentionAgeBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GenerationRetentionOldestEligibleAge histogram: %w", err)
 	}
 
 	canonicalWriteBuckets := []float64{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}

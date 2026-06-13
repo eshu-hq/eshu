@@ -69,6 +69,18 @@ func (s StatusStore) ComputeChangedSinceDelta(
 		return statuspkg.ChangedSinceSummary{}, err
 	}
 	if !priorOK {
+		expired, expiredObservedAt, expiredErr := s.changedSinceRetentionExpired(ctx, scope.scopeID, filter)
+		if expiredErr != nil {
+			return statuspkg.ChangedSinceSummary{}, expiredErr
+		}
+		if expired {
+			summary.Unavailable = true
+			summary.UnavailableReason = statuspkg.ChangedSinceUnavailableRetentionExpired
+			summary.SinceGenerationID = filter.SinceGenerationID
+			summary.SinceObservedAt = statuspkg.ChangedSinceTimestamp(expiredObservedAt)
+			summary.Categories = unavailableChangedSinceCategories()
+			return summary, nil
+		}
 		// The since reference matched no generation for this scope.
 		return summary, nil
 	}
@@ -203,6 +215,48 @@ func (s StatusStore) resolveChangedSincePriorGeneration(
 		prior.observedAt = observed.Time
 	}
 	return prior, true, nil
+}
+
+func (s StatusStore) changedSinceRetentionExpired(
+	ctx context.Context,
+	scopeID string,
+	filter statuspkg.ChangedSinceFilter,
+) (bool, time.Time, error) {
+	generationHash := ""
+	if filter.SinceGenerationID != "" {
+		generationHash = retentionHashID("generation", filter.SinceGenerationID)
+	}
+	rows, err := s.queryer.QueryContext(
+		ctx,
+		resolveChangedSinceRetentionExpiredQuery,
+		retentionHashID("scope", scopeID),
+		generationHash,
+		filter.SinceObservedAt.UTC(),
+	)
+	if err != nil {
+		return false, time.Time{}, fmt.Errorf("resolve changed-since retention expiry: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return false, time.Time{}, fmt.Errorf("resolve changed-since retention expiry: %w", err)
+		}
+		return false, time.Time{}, nil
+	}
+
+	var expired bool
+	var observedAt sql.NullTime
+	if err := rows.Scan(&expired, &observedAt); err != nil {
+		return false, time.Time{}, fmt.Errorf("resolve changed-since retention expiry: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return false, time.Time{}, fmt.Errorf("resolve changed-since retention expiry: %w", err)
+	}
+	if observedAt.Valid {
+		return expired, observedAt.Time, nil
+	}
+	return expired, filter.SinceObservedAt, nil
 }
 
 func (s StatusStore) changedSinceCounts(

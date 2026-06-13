@@ -31,6 +31,7 @@ flowchart TB
   Build --> Handlers["DefaultHandlers wired\n(all domain handlers)"]
   Build --> Queue["postgres.NewReducerQueue"]
   Build --> Runners["SharedProjectionRunner\nCodeCallProjectionRunner\nRepoDependencyProjectionRunner\nGraphProjectionPhaseRepairer"]
+  Build --> Retention["GenerationRetentionRunner\nbounded superseded-generation cleanup"]
   Build --> SvcObj["reducer.Service"]
   SvcObj --> AdminSurface["app.NewHostedWithStatusServer\n/healthz /readyz /metrics /admin/status"]
   AdminSurface --> RunLoop["service.Run(ctx)\nblocks until SIGINT/SIGTERM"]
@@ -74,8 +75,8 @@ flowchart TB
    bounded exposed / not_exposed / unknown properties from `s3_bucket_posture`
    onto existing S3 `CloudResource` nodes only),
    `SharedProjectionRunner`, `CodeCallProjectionRunner`,
-   `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`, and
-   the `postgres.NewReducerQueue`.
+   `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`, the
+   generation retention cleanup runner, and the `postgres.NewReducerQueue`.
 6. `app.NewHostedWithStatusServer` — mounts the shared admin surface.
 7. `signal.NotifyContext` for `os.Interrupt` / `syscall.SIGTERM`.
 8. `service.Run(ctx)` — blocks until the context is canceled; hosted
@@ -154,6 +155,19 @@ Parsed by `LoadSharedProjectionConfig` in `internal/reducer`.
 | `ESHU_GRAPH_PROJECTION_REPAIR_BATCH_LIMIT` | `100` |
 | `ESHU_GRAPH_PROJECTION_REPAIR_RETRY_DELAY` | `1m` |
 
+### Generation retention
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ESHU_GENERATION_RETENTION_ENABLED` | `true` | Run the bounded superseded-generation cleanup loop beside reducer work |
+| `ESHU_GENERATION_RETENTION_POLL_INTERVAL` | `1h` | Delay between empty or failed cleanup cycles |
+| `ESHU_GENERATION_RETENTION_MIN_SUPERSEDED_GENERATIONS` | `24` | Minimum superseded generations retained per scope after the active one |
+| `ESHU_GENERATION_RETENTION_MAX_SUPERSEDED_AGE` | `168h` | Superseded generations newer than this remain retained |
+| `ESHU_GENERATION_RETENTION_BATCH_GENERATION_LIMIT` | `100` | Maximum candidate generations selected per cleanup transaction |
+| `ESHU_GENERATION_RETENTION_BATCH_ROW_LIMIT` | `100000` | Maximum estimated dependent rows, including content cleanup rows, pruned per cleanup transaction |
+| `ESHU_GENERATION_RETENTION_POLICY_SCOPE` | `global` | Safe policy source recorded in retention events |
+| `ESHU_GENERATION_RETENTION_POLICY_REVISION` | `global-default-v1` | Policy revision recorded with hashed scope/generation retention events |
+
 ### Terraform drift
 
 | Variable | Default | Purpose |
@@ -193,8 +207,8 @@ The direct process contract includes `eshu-reducer --version` and
   `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`
 - `internal/storage/postgres` — `NewReducerQueue`, `InstrumentedDB`,
   `NewSharedIntentStore`, `NewGraphProjectionPhaseStateStore`,
-  `NewGraphProjectionPhaseRepairQueueStore`, `NewReducerGraphDrain`, all
-  fact/relationship stores
+  `NewGraphProjectionPhaseRepairQueueStore`, `NewGenerationRetentionStore`,
+  `NewReducerGraphDrain`, all fact/relationship stores
 - `internal/storage/cypher` — `InstrumentedExecutor`, `NewEdgeWriter`
 - `internal/runtime` — `OpenPostgres`, `LoadGraphBackend`, retry policy
 - `internal/query` — `GraphQuery` port, `ParseQueryProfile`
@@ -215,6 +229,9 @@ ESHU_POSTGRES_DSN.
 - Postgres instrumentation: `postgres.InstrumentedDB{StoreName: "reducer"}`.
 - Graph instrumentation: `sourcecypher.InstrumentedExecutor`.
 - Queue depth: `postgres.NewQueueObserverStore` → `telemetry.RegisterObservableGauges`.
+- Generation retention: bounded cleanup cycles emit generation, row, skip-reason,
+  duration, batch-size, oldest-eligible-age, and failure metrics without raw
+  scope or generation identifiers.
 - Admin surface: `/healthz`, `/readyz`, `/metrics`, `/admin/status` via
   `app.NewHostedWithStatusServer`.
 

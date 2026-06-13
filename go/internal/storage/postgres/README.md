@@ -153,6 +153,9 @@ Primary groups:
 - Governance audit store for validation-safe private event persistence,
   authorized bounded detailed reads, retention pruning, and aggregate-only
   status readback.
+- Generation retention store for bounded superseded-generation cleanup,
+  hashed retention events, changed-since expiry proof, and identity-safe
+  content pruning.
 - Installed advisory target readers for active OS package and active attached
   SBOM component evidence used by vulnerability-intelligence planning.
 - Content stores and content writers, including bounded entity-batch

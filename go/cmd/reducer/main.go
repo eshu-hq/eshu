@@ -149,6 +149,7 @@ func buildReducerService(
 	codeCallCfg := loadCodeCallProjectionConfig(getenv)
 	repoDependencyCfg := loadRepoDependencyProjectionConfig(getenv)
 	repairCfg := loadGraphProjectionPhaseRepairConfig(getenv)
+	generationRetentionCfg := loadGenerationRetentionConfig(getenv)
 	codeCallEdgeBatchSize, codeCallEdgeGroupBatchSize := loadCodeCallEdgeWriterTuning(getenv)
 	inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize := loadSharedEdgeWriterGroupTuning(getenv)
 	serviceMaterializationWriter := serviceMaterializationWriterFor(database)
@@ -198,6 +199,11 @@ func buildReducerService(
 	graphProjectionRepairQueue := postgres.NewGraphProjectionPhaseRepairQueueStore(database)
 	graphProjectionReadinessLookup := postgres.NewGraphProjectionReadinessLookup(database)
 	graphProjectionReadinessPrefetch := postgres.NewGraphProjectionReadinessPrefetch(database)
+	generationRetentionRunner := generationRetentionRunnerFor(database, generationRetentionCfg)
+	if generationRetentionRunner != nil {
+		generationRetentionRunner.Instruments = instruments
+		generationRetentionRunner.Logger = logger
+	}
 	cloudInventoryEvidenceLoader, cloudInventoryAdmissionWriter, cloudInventoryGenerationCheck, cloudInventoryTagEvidenceLoader := cloudInventoryAdmissionWiring(database, logger)
 	multiCloudRuntimeDriftEvidenceLoader, multiCloudRuntimeDriftWriter, multiCloudRuntimeDriftLogger := multiCloudRuntimeDriftWiring(database, tracer, instruments, logger)
 	incidentRepoCorrelationLoader, incidentRepoCorrelationResolver, incidentRepoCorrelationWriter := incidentRepositoryCorrelationWiring(database)
@@ -485,11 +491,12 @@ func buildReducerService(
 			Instruments: instruments,
 			Logger:      logger,
 		},
-		Workers:        workers,
-		BatchClaimSize: loadReducerBatchClaimSize(getenv, workers, graphBackend),
-		Tracer:         tracer,
-		Instruments:    instruments,
-		Logger:         logger,
+		GenerationRetentionRunner: generationRetentionRunner,
+		Workers:                   workers,
+		BatchClaimSize:            loadReducerBatchClaimSize(getenv, workers, graphBackend),
+		Tracer:                    tracer,
+		Instruments:               instruments,
+		Logger:                    logger,
 	}, nil
 }
 

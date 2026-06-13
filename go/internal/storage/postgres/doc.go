@@ -28,6 +28,10 @@
 // for generations that failed before projector work rows existed and exposes a
 // source-level replay request/completion path plus unresolved status aggregates
 // without storing consumed fact payloads.
+// GenerationRetentionStore prunes superseded source-generation history in
+// bounded transactions after recording safe hashed retention events; changed
+// since queries use those events to report retention_expired instead of a false
+// empty delta when a prior generation has aged out.
 // FactStore kind-filtered reads use bounded, stable keyset pages and scan the
 // same facts.Envelope metadata shape as full fact loads. Payload value filters
 // are available only for top-level payload fields that are part of a reducer

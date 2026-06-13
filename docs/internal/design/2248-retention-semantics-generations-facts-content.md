@@ -228,9 +228,49 @@ No-Regression Evidence required for #2249: active repository reads, changed-sinc
 inside the retained window, generation lifecycle status, and reducer queue
 readiness must remain correct after pruning.
 
+## Evidence For #2249 Implementation
+
+No-Regression Evidence: `go test ./cmd/reducer ./internal/reducer
+./internal/storage/postgres ./internal/status ./internal/query ./internal/telemetry
+-count=1` proves reducer wiring, the retention runner, retention schema/store
+behavior, changed-since `retention_expired` surfacing, status types, query
+responses, and telemetry instrument registration remain consistent.
+
+Performance Evidence: `ESHU_GENERATION_RETENTION_PROOF_DSN=postgresql://eshu:change-me@localhost:15432/eshu?sslmode=disable
+go test ./internal/storage/postgres -run
+TestGenerationRetentionStoreLargeFixtureIntegration -count=1 -v` ran cleanup
+inside a temporary Postgres schema seeded with 125 superseded generations and
+63,000 fact rows including 500 active-generation facts. One bounded batch pruned
+100 generations, 50,000 fact rows, and 100 work rows in `259.324083ms` store
+duration (`259.360084ms` wall time), leaving the active generation, the retained
+25 superseded generations, and 13,000 fact rows. The same proof logged
+`active_fact_read_before=4.1875ms`, `active_fact_read_after=1.989709ms`, and
+`retained_window_fact_read=2.250625ms` for active and retained-window reads on
+the same fixture shape. The focused in-process benchmark `go test
+./internal/storage/postgres -run '^$' -bench
+BenchmarkGenerationRetentionStoreLargeFixture -benchmem -benchtime=100x`
+reported `309992 ns/op`, `455328 B/op`, and `8314 allocs/op` for the same
+100-generation cleanup path with fake database calls.
+
+Observability Evidence: generation retention registers
+`eshu_dp_generation_retention_generations_pruned_total`,
+`eshu_dp_generation_retention_rows_pruned_total`,
+`eshu_dp_generation_retention_failures_total`,
+`eshu_dp_generation_retention_skipped_total`,
+`eshu_dp_generation_retention_duration_seconds`,
+`eshu_dp_generation_retention_batch_size`, and
+`eshu_dp_generation_retention_oldest_eligible_age_seconds`. Event rows store
+only safe scope and generation hashes plus bounded policy and row-count fields;
+runtime logs carry counts, duration, oldest eligible age, skipped totals, and
+bounded skipped reasons without raw scope IDs or generation IDs. Row-limit skips
+exclude oversized candidate generations inside a bounded search budget and
+continue with later candidates that fit the configured row cap; the cap includes
+content cleanup tables before any delete executes.
+
 ## Non-Goals
 
-- This ADR does not implement cleanup code.
+- This ADR decision did not implement cleanup code; the #2249 implementation
+  evidence above records the cleanup slice that followed this decision.
 - This ADR does not define privacy deletion, tenant offboarding, or backup
   retention. Those remain governed by the hosted retention and deletion policy.
 - This ADR does not retract relationship edges. That is #2250.

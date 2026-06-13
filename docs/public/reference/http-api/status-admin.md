@@ -328,9 +328,13 @@ superseded are never collapsed into `unchanged`.
 An unknown `scope_id`/`repository` returns `scope_not_found`; a since reference
 that resolves to no generation returns `not_found`; a scope with no current
 active generation returns `unavailable=true` (and a `building`/`unavailable`
-freshness state) rather than zero deltas. Counts are exact; only the samples are
-bounded. The capability key is `freshness.changed_since`. The MCP equivalent is
-`get_changed_since` and the CLI helper is `eshu freshness changed-since`.
+freshness state) rather than zero deltas. If generation retention proves the
+prior generation was pruned, the response keeps `unavailable=true`, sets
+`unavailable_reason=retention_expired`, and the truth freshness `next_check`
+points to `get_generation_lifecycle` / `GET /api/v0/freshness/generations`.
+Counts are exact; only the samples are bounded. The capability key is
+`freshness.changed_since`. The MCP equivalent is `get_changed_since` and the CLI
+helper is `eshu freshness changed-since`.
 
 ### Service-scope changed-since
 

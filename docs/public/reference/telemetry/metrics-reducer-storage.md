@@ -17,6 +17,22 @@ Compare queue wait with run duration before changing worker counts. High queue
 age with low run duration points to claim, routing, or conflict-domain pressure.
 High run duration points to the handler, store, or graph-write path.
 
+## Generation Retention
+
+| Metric | Type | Use |
+| --- | --- | --- |
+| `eshu_dp_generation_retention_generations_pruned_total` | counter | Superseded generations pruned by bounded retention cleanup. |
+| `eshu_dp_generation_retention_rows_pruned_total` | counter | Rows pruned by bounded table/data-class label. |
+| `eshu_dp_generation_retention_failures_total` | counter | Cleanup failures by bounded reason. |
+| `eshu_dp_generation_retention_skipped_total` | counter | Candidate generations skipped by bounded reason such as `row_limit`. |
+| `eshu_dp_generation_retention_duration_seconds` | histogram | Cleanup transaction duration. |
+| `eshu_dp_generation_retention_batch_size` | histogram | Superseded generation count selected by one cleanup batch. |
+| `eshu_dp_generation_retention_oldest_eligible_age_seconds` | histogram | Oldest selected superseded generation age in one batch. |
+
+Retention metrics intentionally do not label raw scope IDs, generation IDs,
+repository paths, source names, or provider identifiers. Use the retention event
+table's safe hashes and structured logs for authorized drilldown.
+
 ## Shared Follow-Up And Acceptance
 
 | Metric | Type | Use |
