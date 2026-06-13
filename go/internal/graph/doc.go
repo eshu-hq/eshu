@@ -15,8 +15,9 @@
 // translation inside the schema dialect and label-naming helpers. NornicDB
 // drops direct composite uniqueness syntax, so canonical writers rely on
 // projector-derived uid identity for those labels while Neo4j keeps the direct
-// composite constraint. Schema setup emits bounded progress logs for every DDL
-// statement and treats context
+// composite constraint. SchemaApplicationForBackend exposes the fingerprint and
+// explicit compatibility list that graph-writing runtimes check before startup.
+// Schema setup emits bounded progress logs for every DDL statement and treats context
 // deadline or cancellation as a fail-fast signal. Generic DDL warnings remain
 // non-fatal for permissive callers, while the strict schema helper returns an
 // error after any non-context statement failure so deployment bootstrap does not

@@ -274,6 +274,7 @@ func TestRunOwnedLocalHostWithLayoutWatchStartsAndStopsProgressReporter(t *testi
 	originalWaitOwnerChildren := localHostWaitOwnerChildren
 	originalApplyBootstrap := localHostApplyBootstrap
 	originalApplyGraphBootstrap := localHostApplyGraphBootstrap
+	originalMarkGraphSchemaApplied := localHostMarkGraphSchemaApplied
 	originalStartProgressReporter := localHostStartProgressReporter
 	originalExpectedProjectors := localHostContentSearchIndexExpectedProjectors
 	originalStartIaCReachabilityFinalizer := localHostStartIaCReachabilityFinalizer
@@ -288,6 +289,7 @@ func TestRunOwnedLocalHostWithLayoutWatchStartsAndStopsProgressReporter(t *testi
 		localHostWaitOwnerChildren = originalWaitOwnerChildren
 		localHostApplyBootstrap = originalApplyBootstrap
 		localHostApplyGraphBootstrap = originalApplyGraphBootstrap
+		localHostMarkGraphSchemaApplied = originalMarkGraphSchemaApplied
 		localHostStartProgressReporter = originalStartProgressReporter
 		localHostContentSearchIndexExpectedProjectors = originalExpectedProjectors
 		localHostStartIaCReachabilityFinalizer = originalStartIaCReachabilityFinalizer
@@ -328,6 +330,9 @@ func TestRunOwnedLocalHostWithLayoutWatchStartsAndStopsProgressReporter(t *testi
 		return nil
 	}
 	localHostApplyGraphBootstrap = func(ctx context.Context, runtimeConfig localHostRuntimeConfig, graph *managedLocalGraph) error {
+		return nil
+	}
+	localHostMarkGraphSchemaApplied = func(ctx context.Context, dsn string, runtimeConfig localHostRuntimeConfig, graph *managedLocalGraph) error {
 		return nil
 	}
 	localHostStartChildProcess = func(name string, args []string, env []string) (*exec.Cmd, error) {

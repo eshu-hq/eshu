@@ -83,6 +83,8 @@ func TestBootstrapDefinitionsIncludeGraphSchemaApplications(t *testing.T) {
 		"CREATE TABLE IF NOT EXISTS graph_schema_applications",
 		"backend TEXT NOT NULL",
 		"schema_fingerprint TEXT NOT NULL",
+		"compatible_fingerprints JSONB NOT NULL DEFAULT '[]'::jsonb",
+		"ADD COLUMN IF NOT EXISTS compatible_fingerprints",
 		"PRIMARY KEY (backend, schema_fingerprint)",
 		"graph_schema_applications_backend_idx",
 	} {

@@ -53,14 +53,12 @@ func adoptExistingGraphSchema(
 	db bootstrapExecutor,
 	inspector graphSchemaInspector,
 	logger *slog.Logger,
-	backend graph.SchemaBackend,
-	fingerprint string,
-	statementCount int,
+	app graph.SchemaApplication,
 ) (bool, error) {
 	if inspector == nil {
 		return false, fmt.Errorf("%s requires graph schema inspection support", graphSchemaAdoptExistingEnv)
 	}
-	expectedNames, err := expectedGraphSchemaObjectNames(backend)
+	expectedNames, err := expectedGraphSchemaObjectNames(app.Backend)
 	if err != nil {
 		return false, err
 	}
@@ -73,8 +71,8 @@ func adoptExistingGraphSchema(
 		if logger != nil {
 			logger.Info("graph schema adoption incomplete",
 				telemetry.EventAttr("bootstrap.graph.adoption_incomplete"),
-				"graph_backend", backend,
-				"schema_fingerprint", fingerprint,
+				"graph_backend", app.Backend,
+				"schema_fingerprint", app.Fingerprint,
 				"expected_schema_objects", len(expectedNames),
 				"actual_schema_objects", len(actualNames),
 				"missing_schema_objects", len(missing),
@@ -83,15 +81,15 @@ func adoptExistingGraphSchema(
 		}
 		return false, nil
 	}
-	if err := markGraphSchemaApplied(ctx, db, backend, fingerprint, statementCount); err != nil {
+	if err := markGraphSchemaApplied(ctx, db, app); err != nil {
 		return false, err
 	}
 	if logger != nil {
 		logger.Info("graph schema adopted",
 			telemetry.EventAttr("bootstrap.graph.adopted"),
-			"graph_backend", backend,
-			"schema_fingerprint", fingerprint,
-			"statement_count", statementCount,
+			"graph_backend", app.Backend,
+			"schema_fingerprint", app.Fingerprint,
+			"statement_count", app.StatementCount,
 			"schema_object_count", len(actualNames),
 		)
 	}

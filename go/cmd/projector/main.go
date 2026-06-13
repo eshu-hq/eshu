@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/app"
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
+	"github.com/eshu-hq/eshu/go/internal/graphschemacompat"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -90,6 +91,9 @@ func run(parent context.Context) error {
 	defer func() {
 		_ = db.Close()
 	}()
+	if _, err := graphschemacompat.RequireCompatibleForRuntime(parent, postgres.SQLQueryer{DB: db}, os.Getenv); err != nil {
+		return err
+	}
 
 	canonicalWriter, canonicalCloser, err := openProjectorCanonicalWriter(parent, os.Getenv, tracer, instruments)
 	if err != nil {

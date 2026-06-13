@@ -10,8 +10,10 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
+	"github.com/eshu-hq/eshu/go/internal/graphschemacompat"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 var localGraphApplySchema = applyLocalGraphSchema
@@ -87,6 +89,43 @@ func applyLocalGraphSchema(
 	}
 	if err = graph.EnsureSchemaWithBackend(ctx, executor, slog.Default(), backend); err != nil {
 		return fmt.Errorf("apply local graph schema: %w", err)
+	}
+	return nil
+}
+
+func markLocalGraphSchemaApplied(
+	ctx context.Context,
+	postgresDSN string,
+	runtimeConfig localHostRuntimeConfig,
+	managedGraph *managedLocalGraph,
+) (err error) {
+	if runtimeConfig.Profile != query.ProfileLocalAuthoritative || managedGraph == nil {
+		return nil
+	}
+	backend, err := localGraphSchemaBackend(runtimeConfig, managedGraph)
+	if err != nil {
+		return err
+	}
+	app, err := graph.SchemaApplicationForBackend(backend)
+	if err != nil {
+		return err
+	}
+	db, err := runtimecfg.OpenPostgres(ctx, func(key string) string {
+		if key == "ESHU_POSTGRES_DSN" {
+			return postgresDSN
+		}
+		return os.Getenv(key)
+	})
+	if err != nil {
+		return fmt.Errorf("open local postgres graph schema marker connection: %w", err)
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+	}()
+	if err := graphschemacompat.MarkApplied(ctx, postgres.SQLDB{DB: db}, app); err != nil {
+		return fmt.Errorf("mark local graph schema applied: %w", err)
 	}
 	return nil
 }

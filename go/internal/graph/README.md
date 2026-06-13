@@ -34,6 +34,7 @@ graph/
   mutations.go   — DeleteFileFromGraph, DeleteRepositoryFromGraph, ResetRepositorySubtreeInGraph
   schema.go      — SchemaBackend, EnsureSchema, EnsureSchemaWithBackend
                    and EnsureSchemaWithBackendStrict
+  schema_application.go — schema fingerprint and compatibility policy helpers
   schema_execution.go — schema DDL progress logging and context-budget handling
   schema_statements.go — ordered schema statement inspection helpers
   schema_labels.go — schema label naming helpers
@@ -112,6 +113,11 @@ helpers (`schemaDialectForBackend`, `nornicDBSchemaConstraint`).
   without executing them; useful for inspection.
 - `SchemaStatementsForBackend(backend SchemaBackend) ([]string, error)` —
   returns the dialect-specific ordered DDL statements.
+- `SchemaApplicationForBackend(backend SchemaBackend) (SchemaApplication, error)` —
+  returns the backend fingerprint, statement count, and explicit compatible
+  fingerprints that graph-writing runtimes check before startup.
+- `SchemaApplication` — durable schema marker payload written after successful
+  bootstrap.
 - `EnsureSchema(ctx, executor, logger)` — creates constraints and indexes for
   the Neo4j backend. Individual failures are logged as warnings and do not
   abort the remaining statements.
@@ -153,9 +159,10 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-Standard library (`context`, `fmt`, `log/slog`, `regexp`, `strings`). No
-internal-package imports. `CypherStatement` and `CypherExecutor` duplicate
-their `storage/cypher` counterparts by design to avoid a cycle.
+Standard library (`context`, `crypto/sha256`, `encoding/hex`, `fmt`,
+`log/slog`, `regexp`, `strings`). No internal-package imports.
+`CypherStatement` and `CypherExecutor` duplicate their `storage/cypher`
+counterparts by design to avoid a cycle.
 
 ## Telemetry
 
@@ -211,6 +218,10 @@ Kubernetes bootstrap job no longer appears hung after Postgres schema completes.
 - The schema contract is the checked-in Go-owned truth for node labels,
   constraints, performance indexes, and full-text indexes. Changes here must
   update the active ADR chunk status row.
+- Additive rolling-upgrade compatibility is explicit: a newer
+  `SchemaApplication` may list older writer fingerprints as compatible. A
+  destructive schema change must leave the compatibility list empty so stale
+  graph writers refuse before they write.
 - Terraform schema labels include resource/config entities plus backend,
   import, moved, removed, check, and lockfile-provider evidence. Keep that list
   aligned with `internal/content/shape` and `internal/storage/cypher`.

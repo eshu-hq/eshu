@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
+	"slices"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/graph"
+	"github.com/eshu-hq/eshu/go/internal/graphschemacompat"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -119,20 +120,26 @@ func run(
 	}
 	logger.Info("postgres schema applied", telemetry.EventAttr("bootstrap.postgres.applied"))
 
-	fingerprint, statementCount, err := graphSchemaFingerprint(backend)
+	schemaApplication, err := graph.SchemaApplicationForBackend(backend)
 	if err != nil {
 		return err
 	}
-	applied, err := graphSchemaAlreadyApplied(ctx, db, backend, fingerprint)
+	applied, refreshMarker, latestFingerprint, err := graphSchemaAlreadyApplied(ctx, db, schemaApplication)
 	if err != nil {
 		return err
 	}
 	if applied {
+		if refreshMarker {
+			if err = markGraphSchemaApplied(ctx, db, schemaApplication); err != nil {
+				return err
+			}
+		}
 		logger.Info("graph schema already applied",
 			telemetry.EventAttr("bootstrap.graph.skipped"),
 			"graph_backend", backend,
-			"schema_fingerprint", fingerprint,
-			"statement_count", statementCount,
+			"schema_fingerprint", schemaApplication.Fingerprint,
+			"latest_schema_fingerprint", latestFingerprint,
+			"statement_count", schemaApplication.StatementCount,
 		)
 		return nil
 	}
@@ -160,7 +167,7 @@ func run(
 		} else {
 			adoptionCtx, cancel := context.WithTimeout(ctx, statementTimeout)
 			defer cancel()
-			adopted, err := adoptExistingGraphSchema(adoptionCtx, db, nd.inspector, logger, backend, fingerprint, statementCount)
+			adopted, err := adoptExistingGraphSchema(adoptionCtx, db, nd.inspector, logger, schemaApplication)
 			if err != nil {
 				return err
 			}
@@ -172,7 +179,7 @@ func run(
 	if err = applyNeo4jFn(ctx, graphExecutor, logger, backend); err != nil {
 		return err
 	}
-	if err = markGraphSchemaApplied(ctx, db, backend, fingerprint, statementCount); err != nil {
+	if err = markGraphSchemaApplied(ctx, db, schemaApplication); err != nil {
 		return err
 	}
 	logger.Info("graph schema applied", telemetry.EventAttr("bootstrap.graph.applied"), "graph_backend", backend)
@@ -180,83 +187,68 @@ func run(
 	return nil
 }
 
-const graphSchemaAppliedQuery = `
-SELECT EXISTS (
-    SELECT 1
-    FROM graph_schema_applications
-    WHERE backend = $1
-      AND schema_fingerprint = $2
-)
-`
-
-const markGraphSchemaAppliedQuery = `
-INSERT INTO graph_schema_applications (
-    backend,
-    schema_fingerprint,
-    statement_count,
-    applied_at
-) VALUES (
-    $1, $2, $3, NOW()
-)
-ON CONFLICT (backend, schema_fingerprint) DO UPDATE
-SET statement_count = EXCLUDED.statement_count,
-    applied_at = EXCLUDED.applied_at
+const latestGraphSchemaAppliedQuery = `
+SELECT schema_fingerprint, compatible_fingerprints
+FROM graph_schema_applications
+WHERE backend = $1
+ORDER BY applied_at DESC
+LIMIT 1
 `
 
 func graphSchemaFingerprint(backend graph.SchemaBackend) (string, int, error) {
-	statements, err := graph.SchemaStatementsForBackend(backend)
+	app, err := graph.SchemaApplicationForBackend(backend)
 	if err != nil {
 		return "", 0, err
 	}
-	hasher := sha256.New()
-	_, _ = hasher.Write([]byte(string(backend)))
-	_, _ = hasher.Write([]byte{0})
-	for _, statement := range statements {
-		_, _ = hasher.Write([]byte(statement))
-		_, _ = hasher.Write([]byte{0})
-	}
-	return hex.EncodeToString(hasher.Sum(nil)), len(statements), nil
+	return app.Fingerprint, app.StatementCount, nil
 }
 
 func graphSchemaAlreadyApplied(
 	ctx context.Context,
 	db bootstrapExecutor,
-	backend graph.SchemaBackend,
-	fingerprint string,
-) (bool, error) {
-	rows, err := db.QueryContext(ctx, graphSchemaAppliedQuery, string(backend), fingerprint)
+	app graph.SchemaApplication,
+) (applied bool, refreshMarker bool, latestFingerprint string, err error) {
+	rows, err := db.QueryContext(ctx, latestGraphSchemaAppliedQuery, string(app.Backend))
 	if err != nil {
-		return false, fmt.Errorf("query graph schema marker: %w", err)
+		return false, false, "", fmt.Errorf("query graph schema marker: %w", err)
+	}
+	if rows == nil {
+		return false, false, "", fmt.Errorf("query graph schema marker: rows are required")
 	}
 	defer func() { _ = rows.Close() }()
 
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
-			return false, fmt.Errorf("query graph schema marker: %w", err)
+			return false, false, "", fmt.Errorf("query graph schema marker: %w", err)
 		}
-		return false, nil
+		return false, false, "", nil
 	}
-	var applied bool
-	if err := rows.Scan(&applied); err != nil {
-		return false, fmt.Errorf("scan graph schema marker: %w", err)
+	var compatibleRaw []byte
+	if err := rows.Scan(&latestFingerprint, &compatibleRaw); err != nil {
+		return false, false, "", fmt.Errorf("scan graph schema marker: %w", err)
 	}
 	if err := rows.Err(); err != nil {
-		return false, fmt.Errorf("query graph schema marker: %w", err)
+		return false, false, "", fmt.Errorf("query graph schema marker: %w", err)
 	}
-	return applied, nil
+	if latestFingerprint == app.Fingerprint {
+		return true, true, latestFingerprint, nil
+	}
+	var compatible []string
+	if err := json.Unmarshal(compatibleRaw, &compatible); err != nil {
+		return false, false, "", fmt.Errorf("decode graph schema compatible fingerprints: %w", err)
+	}
+	if slices.Contains(compatible, app.Fingerprint) {
+		return true, false, latestFingerprint, nil
+	}
+	return false, false, latestFingerprint, nil
 }
 
 func markGraphSchemaApplied(
 	ctx context.Context,
 	db bootstrapExecutor,
-	backend graph.SchemaBackend,
-	fingerprint string,
-	statementCount int,
+	app graph.SchemaApplication,
 ) error {
-	if _, err := db.ExecContext(ctx, markGraphSchemaAppliedQuery, string(backend), fingerprint, statementCount); err != nil {
-		return fmt.Errorf("mark graph schema applied: %w", err)
-	}
-	return nil
+	return graphschemacompat.MarkApplied(ctx, db, app)
 }
 
 func graphSchemaStatementTimeout(getenv func(string) string) (time.Duration, error) {

@@ -26,6 +26,7 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeStartsManagedGraph(t *testing.T
 	originalWaitOwnerChildren := localHostWaitOwnerChildren
 	originalApplyBootstrap := localHostApplyBootstrap
 	originalApplyGraphBootstrap := localHostApplyGraphBootstrap
+	originalMarkGraphSchemaApplied := localHostMarkGraphSchemaApplied
 	originalExpectedProjectors := localHostContentSearchIndexExpectedProjectors
 	originalStartIaCReachabilityFinalizer := localHostStartIaCReachabilityFinalizer
 	t.Cleanup(func() {
@@ -40,6 +41,7 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeStartsManagedGraph(t *testing.T
 		localHostWaitOwnerChildren = originalWaitOwnerChildren
 		localHostApplyBootstrap = originalApplyBootstrap
 		localHostApplyGraphBootstrap = originalApplyGraphBootstrap
+		localHostMarkGraphSchemaApplied = originalMarkGraphSchemaApplied
 		localHostContentSearchIndexExpectedProjectors = originalExpectedProjectors
 		localHostStartIaCReachabilityFinalizer = originalStartIaCReachabilityFinalizer
 	})
@@ -94,6 +96,12 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeStartsManagedGraph(t *testing.T
 			t.Fatalf("graph bootstrap managed graph = %#v, want bolt port 17687", graph)
 		}
 		graphBootstrapped = true
+		return nil
+	}
+	localHostMarkGraphSchemaApplied = func(ctx context.Context, dsn string, runtimeConfig localHostRuntimeConfig, graph *managedLocalGraph) error {
+		if !graphBootstrapped {
+			t.Fatal("graph schema marker written before local graph schema bootstrap")
+		}
 		return nil
 	}
 	localHostContentSearchIndexExpectedProjectors = func(workspaceRoot string) (int, error) {
@@ -192,6 +200,7 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeResetsStateBeforePostgres(t *te
 	originalWaitOwnerChildren := localHostWaitOwnerChildren
 	originalApplyBootstrap := localHostApplyBootstrap
 	originalApplyGraphBootstrap := localHostApplyGraphBootstrap
+	originalMarkGraphSchemaApplied := localHostMarkGraphSchemaApplied
 	originalExpectedProjectors := localHostContentSearchIndexExpectedProjectors
 	originalStartIaCReachabilityFinalizer := localHostStartIaCReachabilityFinalizer
 	t.Cleanup(func() {
@@ -205,6 +214,7 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeResetsStateBeforePostgres(t *te
 		localHostWaitOwnerChildren = originalWaitOwnerChildren
 		localHostApplyBootstrap = originalApplyBootstrap
 		localHostApplyGraphBootstrap = originalApplyGraphBootstrap
+		localHostMarkGraphSchemaApplied = originalMarkGraphSchemaApplied
 		localHostContentSearchIndexExpectedProjectors = originalExpectedProjectors
 		localHostStartIaCReachabilityFinalizer = originalStartIaCReachabilityFinalizer
 	})
@@ -249,6 +259,10 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeResetsStateBeforePostgres(t *te
 	localHostApplyGraphBootstrap = func(ctx context.Context, runtimeConfig localHostRuntimeConfig, graph *managedLocalGraph) error {
 		return nil
 	}
+	localHostMarkGraphSchemaApplied = func(ctx context.Context, dsn string, runtimeConfig localHostRuntimeConfig, graph *managedLocalGraph) error {
+		order = append(order, "marker")
+		return nil
+	}
 	localHostHostname = func() (string, error) { return "local-test", nil }
 	localHostWriteOwnerRecord = func(path string, record eshulocal.OwnerRecord) error { return nil }
 	localHostContentSearchIndexExpectedProjectors = func(workspaceRoot string) (int, error) { return 1, nil }
@@ -274,7 +288,7 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeResetsStateBeforePostgres(t *te
 	if err != nil {
 		t.Fatalf("runOwnedLocalHostWithLayout() error = %v, want nil", err)
 	}
-	if got, want := order, []string{"prepare", "reset", "postgres", "graph"}; !slices.Equal(got, want) {
+	if got, want := order, []string{"prepare", "reset", "postgres", "graph", "marker"}; !slices.Equal(got, want) {
 		t.Fatalf("order = %#v, want %#v", got, want)
 	}
 }

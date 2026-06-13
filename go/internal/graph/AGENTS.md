@@ -11,9 +11,10 @@
 4. `go/internal/graph/batch.go` — `BatchMergeEntities`, `BatchMergeFiles`,
    `BatchMergeRelationships` and the UNWIND row types
 5. `go/internal/graph/schema.go`, `schema_statements.go`,
-   `schema_execution.go`, and `schema_labels.go` — `EnsureSchemaWithBackend`,
-   `SchemaBackend`, the constraint/index lists, ordered statement inspection,
-   and schema DDL observability helpers
+   `schema_execution.go`, `schema_application.go`, and `schema_labels.go` —
+   `EnsureSchemaWithBackend`, `SchemaBackend`, the constraint/index lists,
+   ordered statement inspection, graph schema fingerprints, compatibility
+   policy, and schema DDL observability helpers
 6. `go/internal/storage/cypher/README.md` — which adapters implement `Writer`
    and use these helpers
 
@@ -52,6 +53,10 @@
 - **No import cycles** — `CypherStatement` and `CypherExecutor` are defined
   here, not imported from `storage/cypher`. Do not add an import of
   `internal/storage/cypher` or any package that imports it.
+- **Compatibility is explicit and latest-marker based** —
+  `schema_application.go` owns graph schema fingerprints and compatible writer
+  fingerprints. Destructive schema changes must leave compatibility empty so
+  stale graph writers fail before writing.
 
 ## Common changes and how to scope them
 

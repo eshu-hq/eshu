@@ -30,6 +30,7 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeWatchStartsReducerAndIngester(t
 	originalWaitOwnerChildren := localHostWaitOwnerChildren
 	originalApplyBootstrap := localHostApplyBootstrap
 	originalApplyGraphBootstrap := localHostApplyGraphBootstrap
+	originalMarkGraphSchemaApplied := localHostMarkGraphSchemaApplied
 	originalExpectedProjectors := localHostContentSearchIndexExpectedProjectors
 	originalStartIaCReachabilityFinalizer := localHostStartIaCReachabilityFinalizer
 	t.Cleanup(func() {
@@ -43,6 +44,7 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeWatchStartsReducerAndIngester(t
 		localHostWaitOwnerChildren = originalWaitOwnerChildren
 		localHostApplyBootstrap = originalApplyBootstrap
 		localHostApplyGraphBootstrap = originalApplyGraphBootstrap
+		localHostMarkGraphSchemaApplied = originalMarkGraphSchemaApplied
 		localHostContentSearchIndexExpectedProjectors = originalExpectedProjectors
 		localHostStartIaCReachabilityFinalizer = originalStartIaCReachabilityFinalizer
 	})
@@ -82,6 +84,9 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeWatchStartsReducerAndIngester(t
 		return nil
 	}
 	localHostApplyGraphBootstrap = func(ctx context.Context, runtimeConfig localHostRuntimeConfig, graph *managedLocalGraph) error {
+		return nil
+	}
+	localHostMarkGraphSchemaApplied = func(ctx context.Context, dsn string, runtimeConfig localHostRuntimeConfig, graph *managedLocalGraph) error {
 		return nil
 	}
 	localHostContentSearchIndexExpectedProjectors = func(workspaceRoot string) (int, error) {

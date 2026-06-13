@@ -67,6 +67,7 @@ var (
 	localHostNumCPU                               = runtime.NumCPU
 	localHostApplyBootstrap                       = applyLocalBootstrap
 	localHostApplyGraphBootstrap                  = applyLocalGraphBootstrap
+	localHostMarkGraphSchemaApplied               = markLocalGraphSchemaApplied
 	localHostStartProgressReporter                = startLocalHostProgressReporter
 	localHostStartDeferredContentSearchIndexes    = startDeferredContentSearchIndexes
 	localHostContentSearchIndexExpectedProjectors = localContentSearchIndexExpectedProjectors
@@ -191,6 +192,9 @@ func runOwnedLocalHostWithLayout(ctx context.Context, layout eshulocal.Layout, m
 		}()
 		fmt.Fprintln(os.Stderr, "bootstrapping local graph schema...")
 		if err := localHostApplyGraphBootstrap(ctx, runtimeConfig, managedGraph); err != nil {
+			return err
+		}
+		if err := localHostMarkGraphSchemaApplied(ctx, managedPostgres.DSN, runtimeConfig, managedGraph); err != nil {
 			return err
 		}
 		fmt.Fprintln(os.Stderr, "local graph schema ready")
