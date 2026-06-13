@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -52,23 +53,21 @@ type HTTPClient struct {
 
 // NewHTTPClient creates a read-only Confluence HTTP client.
 func NewHTTPClient(config HTTPClientConfig) (*HTTPClient, error) {
-	if strings.TrimSpace(config.BaseURL) == "" {
+	baseURLRaw := strings.TrimRight(strings.TrimSpace(config.BaseURL), "/")
+	if baseURLRaw == "" {
 		return nil, errors.New("confluence base URL is required")
-	}
-	if err := validateBaseURL(strings.TrimRight(strings.TrimSpace(config.BaseURL), "/")); err != nil {
-		return nil, err
 	}
 	if strings.TrimSpace(config.BearerToken) == "" &&
 		(strings.TrimSpace(config.Email) == "" || strings.TrimSpace(config.APIToken) == "") {
 		return nil, errors.New("read-only Confluence API credentials are required")
 	}
-	baseURL, err := url.Parse(strings.TrimRight(config.BaseURL, "/"))
+	baseURL, err := parseConfluenceBaseURL(baseURLRaw)
 	if err != nil {
-		return nil, fmt.Errorf("parse confluence base URL: %w", err)
+		return nil, err
 	}
 	client := config.Client
 	if client == nil {
-		client = &http.Client{Timeout: defaultHTTPTimeout}
+		client = sdk.DefaultHTTPClient(defaultHTTPTimeout)
 	}
 	return &HTTPClient{
 		baseURL:     baseURL,
@@ -190,17 +189,19 @@ func (c *HTTPClient) getJSON(ctx context.Context, endpoint string, query url.Val
 	}
 	if isConfluenceRetryableStatus(resp.StatusCode) {
 		result = confluenceRetryResult(resp.StatusCode)
+		retryAfter := parseRetryAfter(
+			resp.Header.Get("Retry-After"),
+			time.Now(),
+		)
 		return RetryableHTTPError{
 			StatusCode: resp.StatusCode,
-			RetryAfter: parseRetryAfter(
-				resp.Header.Get("Retry-After"),
-				time.Now(),
-			),
+			RetryAfter: retryAfter,
+			Cause:      confluenceStatusHTTPError(resp.StatusCode, retryAfter),
 		}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		result = "status_error"
-		return fmt.Errorf("confluence GET %s returned status %d", requestURL.Path, resp.StatusCode)
+		return confluenceStatusHTTPError(resp.StatusCode, sdk.ParseRetryAfterHeader(resp.Header.Get("Retry-After")))
 	}
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
 		result = "decode_error"
@@ -208,6 +209,15 @@ func (c *HTTPClient) getJSON(ctx context.Context, endpoint string, query url.Val
 	}
 	result = "success"
 	return nil
+}
+
+func confluenceStatusHTTPError(statusCode int, retryAfter time.Duration) sdk.HTTPError {
+	return sdk.HTTPError{
+		Provider:   "confluence",
+		StatusCode: statusCode,
+		Message:    http.StatusText(statusCode),
+		RetryAfter: retryAfter,
+	}
 }
 
 func (c *HTTPClient) recordRequest(

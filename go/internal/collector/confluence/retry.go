@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 const (
@@ -25,6 +27,7 @@ var ErrRetryable = errors.New("confluence retryable provider failure")
 type RetryableHTTPError struct {
 	StatusCode int
 	RetryAfter time.Duration
+	Cause      error
 }
 
 func (e RetryableHTTPError) Error() string {
@@ -37,6 +40,11 @@ func (e RetryableHTTPError) Error() string {
 // Is lets callers use errors.Is(err, ErrRetryable).
 func (e RetryableHTTPError) Is(target error) bool {
 	return target == ErrRetryable
+}
+
+// Unwrap returns the bounded provider status failure.
+func (e RetryableHTTPError) Unwrap() error {
+	return e.Cause
 }
 
 // RetryAfterDelay returns provider retry guidance for shared retry handling.
@@ -144,23 +152,5 @@ func isConfluenceRetryableStatus(statusCode int) bool {
 }
 
 func parseRetryAfter(value string, now time.Time) time.Duration {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return 0
-	}
-	if seconds, err := strconv.Atoi(value); err == nil {
-		if seconds <= 0 {
-			return 0
-		}
-		return time.Duration(seconds) * time.Second
-	}
-	resetAt, err := http.ParseTime(value)
-	if err != nil {
-		return 0
-	}
-	delay := resetAt.Sub(now)
-	if delay <= 0 {
-		return 0
-	}
-	return delay
+	return sdk.ParseRetryAfter(value, now)
 }

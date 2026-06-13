@@ -142,3 +142,24 @@ their existing provider request counters, fetch-duration histograms, rate-limit
 counters, fact counters, partial-generation counters, and observe/fetch spans.
 The SDK remains telemetry-free, and metric labels remain bounded to provider,
 status class, fact kind, and existing low-cardinality reason values.
+
+Line-count marker (#2371): Confluence now reuses SDK base URL validation,
+bounded default HTTP client construction, bounded `HTTPError` values, and
+`Retry-After` parsing. Confluence-owned read-only GET traversal, `_links.next`
+pagination, 403/404 permission-gap handling, retry backoff and jitter, and
+source-stage telemetry stay local. The production Go diff is four net added
+lines while deleting the local Confluence `Retry-After` parser.
+
+No-Regression Evidence (#2371): `go test ./internal/collector/sdk
+./internal/collector/confluence ./cmd/collector-confluence -count=1` covers SDK
+base URL credential rejection, default client construction, bounded SDK HTTP
+errors for retryable and non-retryable provider statuses, HTTP-date
+`Retry-After` parsing, read-only Confluence GET requests, context-rooted
+pagination, source retry backoff, and command service wiring.
+
+No-Observability-Change (#2371): Confluence keeps its existing HTTP request
+counters, fetch-duration histograms, sync failure counters,
+permission-denied counters, fact counters, shared `collector.observe` span, and
+hosted status surface. The SDK remains telemetry-free, and metric labels remain
+bounded to operation, result, status class, failure class, and the existing
+collector dimensions.

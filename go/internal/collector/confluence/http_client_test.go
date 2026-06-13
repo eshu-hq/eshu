@@ -6,8 +6,11 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 func TestHTTPClientUsesReadOnlyRequests(t *testing.T) {
@@ -219,6 +222,81 @@ func TestHTTPClientReturnsRetryableErrorWithRetryAfter(t *testing.T) {
 	}
 	if got, want := retryable.RetryAfter, 45*time.Second; got != want {
 		t.Fatalf("RetryAfter = %v, want %v", got, want)
+	}
+}
+
+func TestHTTPClientRetryableErrorWrapsSDKHTTPError(t *testing.T) {
+	t.Parallel()
+
+	retryAt := time.Now().UTC().Add(2 * time.Hour).Truncate(time.Second)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Retry-After", retryAt.Format(http.TimeFormat))
+		http.Error(w, "provider body mentions token-secret", http.StatusTooManyRequests)
+	}))
+	defer server.Close()
+
+	client, err := NewHTTPClient(HTTPClientConfig{
+		BaseURL:     server.URL,
+		BearerToken: "token",
+		Client:      server.Client(),
+	})
+	if err != nil {
+		t.Fatalf("NewHTTPClient() error = %v, want nil", err)
+	}
+
+	_, err = client.ListSpacePages(context.Background(), "100", 25)
+	if !errors.Is(err, ErrRetryable) {
+		t.Fatalf("ListSpacePages() error = %v, want ErrRetryable", err)
+	}
+	var retryable RetryableHTTPError
+	if !errors.As(err, &retryable) {
+		t.Fatalf("ListSpacePages() error = %T, want RetryableHTTPError", err)
+	}
+	if retryable.RetryAfter < 90*time.Minute {
+		t.Fatalf("RetryAfter = %v, want HTTP-date retry guidance", retryable.RetryAfter)
+	}
+	var httpErr sdk.HTTPError
+	if !errors.As(err, &httpErr) {
+		t.Fatalf("ListSpacePages() error = %T, want sdk.HTTPError", err)
+	}
+	if got, want := httpErr.StatusCode, http.StatusTooManyRequests; got != want {
+		t.Fatalf("StatusCode = %d, want %d", got, want)
+	}
+	if strings.Contains(err.Error(), "token-secret") {
+		t.Fatalf("ListSpacePages() error leaked provider body: %q", err)
+	}
+}
+
+func TestHTTPClientReturnsBoundedSDKHTTPErrorForStatusFailure(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "provider body mentions token-secret", http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	client, err := NewHTTPClient(HTTPClientConfig{
+		BaseURL:     server.URL,
+		BearerToken: "token",
+		Client:      server.Client(),
+	})
+	if err != nil {
+		t.Fatalf("NewHTTPClient() error = %v, want nil", err)
+	}
+
+	_, err = client.GetPage(context.Background(), "123")
+	if err == nil {
+		t.Fatal("GetPage() error = nil, want status failure")
+	}
+	var httpErr sdk.HTTPError
+	if !errors.As(err, &httpErr) {
+		t.Fatalf("GetPage() error = %T, want sdk.HTTPError", err)
+	}
+	if got, want := httpErr.StatusCode, http.StatusBadRequest; got != want {
+		t.Fatalf("StatusCode = %d, want %d", got, want)
+	}
+	if strings.Contains(err.Error(), "token-secret") {
+		t.Fatalf("GetPage() error leaked provider body: %q", err)
 	}
 }
 

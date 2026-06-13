@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 const defaultPageLimit = 100
@@ -93,17 +95,19 @@ func LoadConfig(getenv func(string) string) (SourceConfig, error) {
 }
 
 func validateBaseURL(raw string) error {
-	parsed, err := url.Parse(raw)
+	_, err := parseConfluenceBaseURL(raw)
+	return err
+}
+
+func parseConfluenceBaseURL(raw string) (*url.URL, error) {
+	parsed, err := sdk.ParseBaseURL("confluence", raw)
 	if err != nil {
-		return fmt.Errorf("parse ESHU_CONFLUENCE_BASE_URL: %w", err)
+		return nil, err
 	}
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return errors.New("ESHU_CONFLUENCE_BASE_URL must use http or https")
+		return nil, errors.New("ESHU_CONFLUENCE_BASE_URL must use http or https")
 	}
-	if strings.TrimSpace(parsed.Host) == "" {
-		return errors.New("ESHU_CONFLUENCE_BASE_URL must include a host")
-	}
-	return nil
+	return parsed, nil
 }
 
 func parseSpaceIDs(raw string) ([]string, error) {

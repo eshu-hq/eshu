@@ -1,6 +1,7 @@
 package confluence
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -161,6 +162,25 @@ func TestLoadConfigRejectsInvalidBaseURL(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("LoadConfig() error = nil, want invalid base URL error")
+	}
+}
+
+func TestLoadConfigRejectsCredentialBearingBaseURL(t *testing.T) {
+	t.Parallel()
+
+	_, err := LoadConfig(func(key string) string {
+		values := map[string]string{
+			"ESHU_CONFLUENCE_BASE_URL":     "https://user:secret@example.atlassian.net/wiki",
+			"ESHU_CONFLUENCE_SPACE_ID":     "100",
+			"ESHU_CONFLUENCE_BEARER_TOKEN": "token",
+		}
+		return values[key]
+	})
+	if err == nil {
+		t.Fatal("LoadConfig() error = nil, want credential-bearing base URL error")
+	}
+	if strings.Contains(err.Error(), "secret") {
+		t.Fatalf("LoadConfig() error leaked credential: %q", err)
 	}
 }
 
