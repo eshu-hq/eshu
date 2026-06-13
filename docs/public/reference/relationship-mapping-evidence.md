@@ -71,6 +71,7 @@ Current extraction families:
 | Ansible | playbook role references and automation entrypoints | `DEPENDS_ON` and read-side controller context |
 | Dockerfile | source labels | `DEPLOYS_FROM` |
 | Docker Compose | build contexts, image refs, explicit `depends_on` services | `DEPLOYS_FROM`, `DEPENDS_ON` |
+| GCP cloud relationships | supported `gcp_cloud_relationship` facts whose source and target full resource names each match one distinct catalog repository | `DEPENDS_ON` |
 
 `EvidenceKind` constants live in `models.go` and are persisted. Renaming them
 requires a storage compatibility plan.
@@ -88,6 +89,28 @@ Operational consequences:
 - overly broad aliases can create unrelated candidates
 - source files in nested Git checkouts must be indexed as independent
   repositories before cross-repo evidence can resolve truthfully
+- GCP provider relationships require unique catalog matches for both endpoint
+  full resource names; one-sided, ambiguous, self, partial, or unsupported
+  matches produce no relationship evidence
+
+## GCP Cloud Relationships
+
+`gcp_cloud_relationship` facts are provider-resource evidence. They are not
+repository files, so `DiscoverEvidence` routes them before the normal
+file/content guard. The extractor emits `GCP_CLOUD_RELATIONSHIP` only when the
+provider reports `support_state=supported`, the source full resource name
+matches exactly one catalog repository, and the target full resource name
+matches exactly one different catalog repository. The resulting relationship is
+`DEPENDS_ON` with confidence above the default resolver threshold, preserving
+the provider relationship type in evidence details for review.
+Account- or region-scoped cloud collector commits do not persist this evidence
+directly; deferred relationship backfill re-anchors admitted GCP relationship
+evidence to the inferred source repository generation.
+
+The cross-repo resolver does not consume raw `gcp_iam_policy_observation`,
+`gcp_dns_record`, `gcp_collection_warning`, or `gcp_image_reference` facts.
+Those families remain owned by secrets/IAM, DNS/audit, warning, and
+container-image identity contracts unless a future design admits them here.
 
 ## Terraform And Terragrunt
 

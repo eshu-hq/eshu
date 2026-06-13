@@ -73,6 +73,10 @@ const (
 	EvidenceKindKustomizeImage EvidenceKind = "KUSTOMIZE_IMAGE_REFERENCE"
 	// EvidenceKindAnsibleRoleReference is an Ansible playbook role reference.
 	EvidenceKindAnsibleRoleReference EvidenceKind = "ANSIBLE_ROLE_REFERENCE"
+	// EvidenceKindGCPCloudRelationship is a supported GCP provider relationship
+	// whose source and target resource identities each resolve to one catalog
+	// repository.
+	EvidenceKindGCPCloudRelationship EvidenceKind = "GCP_CLOUD_RELATIONSHIP"
 )
 
 // RelationshipType classifies the kind of link between two entities.
