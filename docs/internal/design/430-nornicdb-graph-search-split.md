@@ -221,8 +221,14 @@ Recommended child slices:
    over a representative corpus still needs a live suite run with both backends
    wired to real stores before any runtime search change.
 4. Add bounded internal retrieval path for semantic-evaluation queries. The
-   first request/response contract lives in `go/internal/searchretrieval` and
-   `docs/public/reference/search-retrieval-contract.md`.
+   request/response contract lives in `go/internal/searchretrieval` and
+   `docs/public/reference/search-retrieval-contract.md`. Backends: the Postgres
+   keyword baseline (`go/internal/searchpostgres`), the NornicDB hybrid prototype
+   (`go/internal/searchnornicdb`), and a pure-Go in-process hybrid backend
+   (`go/internal/searchhybrid`) implementing BM25 plus optional local-embedding
+   vectors fused with Reciprocal Rank Fusion, bounded with overflow signaling and
+   deterministic top-K. The local embedding model is supplied through an
+   `Embedder` port (hosted-free) and is the remaining follow-up.
 5. Add public API/MCP search surfaces only after retrieval evidence proves value
    and preserves truth labels, scope, limits, and truncation.
 

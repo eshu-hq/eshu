@@ -1,0 +1,16 @@
+// Package searchhybrid is a pure-Go hybrid retrieval backend over the curated
+// design-430 search-document lane.
+//
+// It indexes searchdocs.Document records and serves bounded keyword (BM25),
+// semantic (vector), and hybrid (Reciprocal Rank Fusion of BM25 and vector)
+// retrieval through the searchretrieval.Backend port, with no hosted API
+// dependency. Local embeddings are optional and supplied through the Embedder
+// port; when no embedder is configured the index serves BM25 only and hybrid
+// fusion degenerates to the BM25 ranking. Embeddings are cached by content hash
+// so an unchanged document is not re-embedded.
+//
+// The index enforces a hard cap on indexed document count and signals overflow
+// explicitly, and retrieval returns deterministic top-K results for fixed
+// inputs. Search rank and score stay derived retrieval evidence; nothing here
+// writes the canonical graph or promotes a score to canonical truth.
+package searchhybrid

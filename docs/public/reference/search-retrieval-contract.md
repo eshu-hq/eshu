@@ -127,6 +127,33 @@ The adapter:
 This adapter is benchmark plumbing. It does not add a public route, MCP tool,
 runtime flag, graph write, or NornicDB search enablement.
 
+## In-Process Hybrid Backend
+
+`go/internal/searchhybrid` implements the issue #2237 pure-Go hybrid retrieval
+backend over the curated search-document lane, with no hosted dependency. It
+indexes `searchdocs.Document` records and serves:
+
+- `keyword` — BM25 over the combined title, context text, path, and labels;
+  documents with no lexical overlap are excluded;
+- `semantic` — cosine similarity over local embedding vectors (requires an
+  `Embedder`; the model is supplied by the caller and must be deterministic and
+  hosted-free);
+- `hybrid` — Reciprocal Rank Fusion of the BM25 and vector rankings, degenerating
+  to BM25 (`search_method=bm25`) when no embedder is configured.
+
+The backend:
+
+- resolves the smallest request scope first and ranks only in-scope documents;
+- caps indexed document count and signals an overflowed corpus with
+  `index_overflow` metadata and a `truncation` failure class;
+- caches embeddings by content hash so unchanged documents are not re-embedded;
+- returns up to `limit+1` deterministic candidates (ties break by document id)
+  so the runner detects truncation;
+- emits derived retrieval evidence, never canonical graph truth.
+
+Like the other adapters this is retrieval plumbing evaluated by the design-430
+benchmark; it adds no public route, MCP tool, runtime flag, or graph write.
+
 ## Response Contract
 
 `BuildResponse` sorts candidates by score descending and document id ascending,
@@ -173,7 +200,7 @@ proof, and semantic-evaluation evidence.
 Focused package gate:
 
 ```bash
-cd go && go test ./internal/searchretrieval ./internal/searchdocs ./internal/searchbench ./internal/searchnornicdb ./internal/searchpostgres -count=1
+cd go && go test ./internal/searchretrieval ./internal/searchdocs ./internal/searchbench ./internal/searchnornicdb ./internal/searchpostgres ./internal/searchhybrid -count=1
 ```
 
 Docs changes must also pass:
