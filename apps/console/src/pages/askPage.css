@@ -1,0 +1,145 @@
+.ask-page {
+  display: grid;
+  gap: var(--gap);
+}
+
+.ask-form {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 0.7fr) minmax(260px, 1.3fr) auto;
+}
+
+.ask-form label {
+  display: grid;
+  gap: 7px;
+}
+
+.ask-form label span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.ask-form select,
+.ask-form textarea {
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--bone);
+  font: inherit;
+  min-width: 0;
+  padding: 11px 12px;
+}
+
+.ask-form textarea {
+  min-height: 46px;
+  resize: vertical;
+}
+
+.ask-answer-stack {
+  display: grid;
+  gap: var(--gap);
+}
+
+.ask-answer-summary {
+  color: var(--bone);
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.ask-page .panel-action,
+.ask-page .panel-title {
+  min-width: 0;
+}
+
+.ask-page .panel-action {
+  justify-content: flex-end;
+  max-width: 100%;
+}
+
+.ask-answer-meta,
+.ask-truth {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ask-truth {
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.ask-truth .mono {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.ask-errors {
+  color: var(--crit);
+  display: grid;
+  gap: 6px;
+  margin: 14px 0 0;
+  padding-left: 18px;
+}
+
+.ask-evidence-list,
+.ask-semantic-list {
+  display: grid;
+  gap: 10px;
+}
+
+.ask-evidence-card,
+.ask-semantic-card {
+  background: var(--bg-field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.ask-evidence-card div {
+  display: grid;
+  gap: 2px;
+}
+
+.ask-evidence-card span,
+.ask-semantic-card p {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.ask-semantic-head {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.ask-semantic-head strong,
+.ask-evidence-card strong {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 860px) {
+  .ask-form {
+    grid-template-columns: 1fr;
+  }
+
+  .ask-page .panel-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ask-page .panel-action,
+  .ask-truth {
+    justify-content: flex-start;
+  }
+}

@@ -38,6 +38,10 @@ describe("App shell", () => {
     expect(
       await screen.findByRole("link", { name: "Dashboard" })
     ).toHaveAttribute("href", "/dashboard");
+    expect(screen.getByRole("link", { name: "Ask Eshu" })).toHaveAttribute(
+      "href",
+      "/ask"
+    );
     expect(
       screen.getByRole("link", { name: "Graph Explorer" })
     ).toHaveAttribute("href", "/explorer");
