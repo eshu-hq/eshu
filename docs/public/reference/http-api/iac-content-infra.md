@@ -15,7 +15,7 @@ comparison. The route list is verified against `go/internal/query`.
 | Replatforming rollups | `POST /api/v0/replatforming/rollups` |
 | Replatforming ownership packets | `POST /api/v0/replatforming/ownership-packets` |
 | Content | `POST /api/v0/content/files/read`, `POST /api/v0/content/files/lines`, `POST /api/v0/content/entities/read`, `POST /api/v0/content/files/search`, `POST /api/v0/content/entities/search` |
-| Infrastructure | `POST /api/v0/infra/resources/search`, `POST /api/v0/infra/relationships`, `GET /api/v0/ecosystem/overview`, `GET /api/v0/cloud/resources`, `GET /api/v0/cloud/inventory` |
+| Infrastructure | `POST /api/v0/infra/resources/search`, `POST /api/v0/infra/relationships`, `GET /api/v0/ecosystem/overview`, `POST /api/v0/ecosystem/graph-summary`, `GET /api/v0/cloud/resources`, `GET /api/v0/cloud/inventory` |
 | Impact | `POST /api/v0/impact/trace-resource-to-code`, `POST /api/v0/impact/explain-dependency-path`, `POST /api/v0/impact/blast-radius`, `POST /api/v0/impact/change-surface`, `POST /api/v0/impact/change-surface/investigate`, `POST /api/v0/impact/entity-map`, `POST /api/v0/impact/resource-investigation`, `POST /api/v0/compare/environments` |
 
 OpenAPI remains canonical for full request and response schemas.
@@ -67,6 +67,75 @@ Observability Evidence: `eshu_dp_iac_resource_list_duration_seconds`
 (counter, `iac.kind` + `reason` labels) expose handler latency and failure
 class; the `query.iac_resources` span carries the stable `http.route` and
 `eshu.capability` attributes.
+
+## Graph Summary Packet
+
+`POST /api/v0/ecosystem/graph-summary` returns a bounded, summary-first graph
+packet (MCP tool `get_graph_summary_packet`) for an agent-budget-aware overview
+of a scope. The body is optional.
+
+- With `repo_id` the packet is repo-scoped and contains three sections:
+  - `hot_entities`: the most-connected functions in the repo ranked by call
+    degree (`incoming_calls + outgoing_calls`), using the same repo-anchored
+    hub-function degree shape as `POST /api/v0/code/call-graph/metrics`. The list
+    is always bounded by `limit` (default 10, range 1-100); `hot_entities` is the
+    top-N slice and `hot_entities_truncated` is `true` when more matched.
+  - `key_relationships`: a per-type count of `CALLS`, `IMPORTS`, `INHERITS`,
+    `OVERRIDES`, and `REFERENCES` over the repo's contained entities. Each type
+    is counted with its own bounded, repo-anchored count query (one
+    `MATCH ... -[r:TYPE]->() RETURN count(r)` per type) rather than chained
+    aggregation, mirroring the per-label portability rule used by the ecosystem
+    overview.
+  - `ecosystem_map`: repo-anchored structural counts (`file_count`,
+    `workload_count`, `platform_count`, `dependency_count`) plus the bounded
+    `languages` list, reusing the narrow repo-anchored count shapes from the
+    repository context/story summaries.
+- Without `repo_id` the response carries `scope: "ecosystem"`, only the bounded
+  per-label ecosystem counts (`repo_count`, `workload_count`, `platform_count`,
+  `instance_count` — the same single-label count shapes as
+  `GET /api/v0/ecosystem/overview`), and a `note` explaining that hot-entity
+  ranking and relationship counts require a `repo_id` scope. The handler never
+  runs a whole-graph hot-entity degree scan.
+
+Ordering is deterministic: hot entities sort by `total_degree DESC`, then
+incoming, outgoing, file path, and function name. Counts are stable for a fixed
+graph state. An empty or unmaterialized scope returns zeros (and an empty
+`hot_entities` array), not an error. The endpoint requires the
+local-authoritative profile or higher; lower profiles receive
+`501 unsupported_capability`. When the graph backend is not wired the route
+returns `503`. The truth envelope uses capability
+`platform_impact.graph_summary_packet` with the hybrid truth basis.
+
+### Graph summary packet performance and observability
+
+No-Regression Evidence: the tool introduces no new Cypher shapes. It reuses only
+already-shipped, proven bounded shapes: the repo-anchored hub-function
+degree-centrality query from `hubFunctionsCypher`
+(`go/internal/query/code_call_graph_metrics.go`), bounded with `LIMIT $limit`
+(default 10, max 100, probed at `limit+1` for the truncation flag); per-type
+relationship counts that are each a single bounded, repo-anchored
+`MATCH (repo:Repository {id:$repo_id})-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(src)-[r:TYPE]->() RETURN count(r)`
+(IMPORTS anchors at the File source side), one per fixed type
+(`CALLS`/`IMPORTS`/`INHERITS`/`OVERRIDES`/`REFERENCES`); the per-label single
+ecosystem counts from `getEcosystemOverview`; and the narrow repo-anchored
+structural counts from `repository_context_counts.go` /
+`repository_story_counts.go`. Every query is bounded by a label or repository-id
+anchor and the hot-entity list is `LIMIT`-bounded, so the worst-case result
+cardinality is `limit` hot-entity rows plus five integer relationship counts plus
+a small fixed ecosystem map. No live NornicDB/Neo4j benchmark was run because
+this environment has no graph backend; correctness rests on byte-for-byte reuse
+of the proven query shapes (the per-label/per-type single-count portability rule
+and the proven repo-anchored degree shape) and on the focused
+`go test ./internal/query` handler coverage that asserts bounded, deterministic,
+zeros-on-empty behavior and that no statement chains two types/labels. No graph
+schema or write path changed.
+
+Observability Evidence: the handler is wrapped in the new
+`query.graph_summary_packet` span (registered in
+`go/internal/telemetry/registry.go`) carrying the stable `http.route` and
+`eshu.capability` attributes, and each bounded count/degree query emits the
+existing `neo4j.query` / `neo4j.query.single` spans with `db.statement` for
+per-statement triage. No new metric dimensions were added.
 
 ## IaC Cleanup
 

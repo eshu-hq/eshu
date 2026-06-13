@@ -63,6 +63,7 @@ Cypher.
 | `execute_language_query` | language and entity type filters, optional repository selector | `limit` | yes | prompt-ready for bounded language scans |
 | `find_function_call_chain` | start and end names required | `max_depth` | yes | prompt-ready when both endpoints are known |
 | `get_ecosystem_overview` | explicit whole-index ecosystem overview | singleton summary | yes | prompt-ready |
+| `get_graph_summary_packet` | optional `repo_id` scope; without it returns bounded ecosystem-wide label counts plus a needs-repo note | `limit` (default 10, max 100) bounds hot entities; counts are per-label/per-type bounded scans | yes | prompt-ready summary-first packet (hot entities by call degree, key relationship type counts, ecosystem map); never runs a whole-graph hot-entity scan |
 | `trace_deployment_chain` | service name required | singleton trace | yes | prompt-ready after service is resolved |
 | `investigate_deployment_config` | service name or workload id plus optional environment | per-section `limit` | yes | prompt-ready for image tags, runtime settings, resource limits, values layers, rendered targets, and read-first file handles |
 | `find_blast_radius` | target id required | `limit` | yes | prompt-ready after target is resolved; returns `truncated` |

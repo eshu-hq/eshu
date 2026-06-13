@@ -94,6 +94,7 @@ func (h *InfraHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/infra/resources/search", h.searchResources)
 	mux.HandleFunc("POST /api/v0/infra/relationships", h.getRelationships)
 	mux.HandleFunc("GET /api/v0/ecosystem/overview", h.getEcosystemOverview)
+	mux.HandleFunc("POST /api/v0/ecosystem/graph-summary", h.getGraphSummaryPacket)
 	h.infraResourceAggregateRoutes(mux)
 	h.mountCloudResourceRoutes(mux)
 }
