@@ -65,7 +65,7 @@ flowchart TB
 |---|---|---|
 | `codebaseTools` | 30 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_call_graph_metrics.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
 | `repositoryLanguageTools` | 3 | `tools_repository_language.go` |
-| `ecosystemTools` | 19 | `tools_ecosystem.go` |
+| `ecosystemTools` | 20 | `tools_ecosystem.go`, `tools_graph_summary_packet.go` |
 | `infraResourceAggregateTools` | 2 | `tools_infra_resource_aggregates.go` |
 | `cloudInventoryTools` | 1 | `tools_cloud_inventory.go` |
 | `cloudRuntimeDriftTools` | 1 | `tools_cloud_runtime_drift.go` |

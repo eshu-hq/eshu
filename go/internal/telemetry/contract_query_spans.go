@@ -10,3 +10,7 @@ const SpanQueryImportDependencyInvestigation = "query.import_dependency_investig
 
 // SpanQueryCallGraphMetrics wraps the prompt-facing call-graph metrics route.
 const SpanQueryCallGraphMetrics = "query.call_graph_metrics"
+
+// SpanQueryGraphSummaryPacket wraps the bounded graph summary packet route
+// (hot entities, key relationships, ecosystem map).
+const SpanQueryGraphSummaryPacket = "query.graph_summary_packet"

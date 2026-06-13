@@ -49,6 +49,7 @@ func TestReadOnlyTools(t *testing.T) {
 		"get_replatforming_rollups",
 		"find_unmanaged_resource_owners",
 		"get_ecosystem_overview",
+		"get_graph_summary_packet",
 		"get_relationship_evidence",
 		"build_evidence_citation_packet",
 		"investigate_change_surface",
@@ -203,8 +204,8 @@ func TestCodebaseTools(t *testing.T) {
 
 func TestEcosystemTools(t *testing.T) {
 	tools := ecosystemTools()
-	if len(tools) != 19 {
-		t.Errorf("Expected 19 ecosystem tools, got %d", len(tools))
+	if len(tools) != 20 {
+		t.Errorf("Expected 20 ecosystem tools, got %d", len(tools))
 	}
 }
 

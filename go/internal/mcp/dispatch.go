@@ -100,6 +100,12 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok := repositoryRoute(toolName, args); ok {
 		return route, nil
 	}
+	if route, ok := ecosystemRoute(toolName, args); ok {
+		return route, nil
+	}
+	if route, ok := compareRoute(toolName, args); ok {
+		return route, nil
+	}
 	if route, ok := freshnessRoute(toolName, args); ok {
 		return route, nil
 	}
@@ -434,8 +440,6 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		return &route{method: "POST", path: "/api/v0/infra/relationships", body: map[string]any{
 			"entity_id": str(args, "target"), "relationship_type": str(args, "query_type"),
 		}}, nil
-	case "get_ecosystem_overview":
-		return &route{method: "GET", path: "/api/v0/ecosystem/overview"}, nil
 
 	// ── Impact ──
 	case "trace_deployment_chain":
@@ -489,15 +493,6 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		}}, nil
 	case "explain_dependency_path":
 		return &route{method: "POST", path: "/api/v0/impact/explain-dependency-path", body: args}, nil
-
-	// ── Compare ──
-	case "compare_environments":
-		return &route{method: "POST", path: "/api/v0/compare/environments", body: map[string]any{
-			"workload_id": str(args, "workload_id"),
-			"left":        str(args, "left"),
-			"right":       str(args, "right"),
-			"limit":       intOr(args, "limit", 50),
-		}}, nil
 
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", toolName)
