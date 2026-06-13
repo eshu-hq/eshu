@@ -196,11 +196,12 @@ Kubernetes bootstrap job no longer appears hung after Postgres schema completes.
   property while semantic entity writes MERGE on the per-repo `uid`. A global
   name uniqueness constraint causes `ConstraintValidationFailed` when multiple
   repositories share module names like `consts` or `index`.
-- `NornicDB` composite `IS UNIQUE` constraints are silently dropped by
+- `NornicDB` composite `IS UNIQUE` constraints are dropped by
   `nornicDBSchemaConstraint` because NornicDB's parser rejects the
-  multi-property form.
-  Canonical writes use separate `uid` uniqueness constraints for those labels
-  instead.
+  multi-property form. For code-entity identities such as `Function` and
+  `Class`, the projector derives `uid` from the same `(repo, path, type, name,
+  line)` tuple before graph write, and NornicDB enforces the generated `uid`
+  constraint plus lookup index. Neo4j keeps the direct composite constraint.
 - `DeleteFileFromGraph` runs two sequential `ExecuteCypher` calls
   (`mutations.go:29`, `:41`). If the second call fails, orphaned directories
   may remain until the next deletion or schema repair.

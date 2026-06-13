@@ -67,6 +67,22 @@ func TestSchemaStatementsForBackendSkipsNornicDBCompositeUniqueness(t *testing.T
 	assertContainsStatement(t, stmts, "CREATE CONSTRAINT function_uid_unique IF NOT EXISTS FOR (n:Function) REQUIRE n.uid IS UNIQUE")
 }
 
+func TestSchemaStatementsForBackendCoversNornicDBCompositeIdentityWithUID(t *testing.T) {
+	t.Parallel()
+
+	stmts, err := SchemaStatementsForBackend(SchemaBackendNornicDB)
+	if err != nil {
+		t.Fatalf("SchemaStatementsForBackend(%q) error = %v, want nil", SchemaBackendNornicDB, err)
+	}
+
+	assertNoStatementContains(t, stmts, "Function) REQUIRE (f.name, f.path, f.line_number) IS UNIQUE")
+	assertNoStatementContains(t, stmts, "Class) REQUIRE (c.name, c.path, c.line_number) IS UNIQUE")
+	assertContainsStatement(t, stmts, "CREATE CONSTRAINT function_uid_unique IF NOT EXISTS FOR (n:Function) REQUIRE n.uid IS UNIQUE")
+	assertContainsStatement(t, stmts, "CREATE CONSTRAINT class_uid_unique IF NOT EXISTS FOR (n:Class) REQUIRE n.uid IS UNIQUE")
+	assertContainsStatement(t, stmts, "CREATE INDEX nornicdb_function_uid_lookup IF NOT EXISTS FOR (n:Function) ON (n.uid)")
+	assertContainsStatement(t, stmts, "CREATE INDEX nornicdb_class_uid_lookup IF NOT EXISTS FOR (n:Class) ON (n.uid)")
+}
+
 func TestSchemaStatementsForBackendAddsNornicDBMergeLookupIndexes(t *testing.T) {
 	t.Parallel()
 

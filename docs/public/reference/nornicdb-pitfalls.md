@@ -101,6 +101,55 @@ That lock narrows cross-process overlap for `Package.uid` without reducing
 global worker counts; the retrying executor still remains the backend safety
 net for other MERGE-shaped races and changed NornicDB error wrapping.
 
+## Pitfall: Composite `IS UNIQUE` Constraints Are Not The NornicDB Contract
+
+### Observed shape
+
+NornicDB rejects Neo4j's composite uniqueness syntax such as:
+
+```cypher
+CREATE CONSTRAINT function_unique IF NOT EXISTS
+FOR (f:Function) REQUIRE (f.name, f.path, f.line_number) IS UNIQUE
+```
+
+Eshu's NornicDB schema dialect deliberately omits those statements and creates
+`uid` uniqueness constraints plus lookup indexes for the same labels.
+
+### Eshu implications
+
+Do not assume NornicDB will reject duplicate `(name, path, line_number)` tuples
+directly. The parity contract is app-layer identity derivation before graph
+write: canonical source-local projection derives `uid` from repo, relative
+path, entity type, entity name, and start line for labels such as `Function`
+and `Class`, then the NornicDB `uid` constraint makes duplicates impossible.
+
+Do not fix duplicate code identities with worker serialization or preflight
+graph reads. If duplicates appear, first verify projector canonical UID
+derivation and schema bootstrap `uid` constraints/indexes.
+
+### Validation
+
+Run the projector identity regression and graph schema dialect tests:
+
+```bash
+cd go
+go test ./internal/projector -run TestBuildCanonicalMaterializationCanonicalizesDuplicateCodeEntityIdentity -count=1
+go test ./internal/graph -run 'TestSchemaStatementsForBackend(CoversNornicDBCompositeIdentityWithUID|PreservesNeo4jCompositeUniqueness)' -count=1
+```
+
+No-Regression Evidence: the #2265 fix keeps Neo4j's direct composite
+constraints, keeps NornicDB's composite constraint suppression, and makes the
+source-local projector derive canonical `uid` values for name/path/line entity
+labels before canonical graph writes. `go test ./internal/projector
+./internal/graph ./internal/storage/cypher ./internal/backendconformance
+-count=1` covers duplicate Function/Class identity convergence, graph schema
+dialect output, canonical entity write shape, and the backend-conformance spec.
+
+No-Observability-Change: no runtime metric, span, log field, queue stage,
+worker knob, schema bootstrap phase, or status field changes. Existing
+canonical write spans, phase logs, graph query spans, and query-duration
+metrics continue to expose graph write failures and retries.
+
 ## Pitfall: Persisted Graph Store Fails To Reopen After Dictionary Corruption
 
 ### Observed shape

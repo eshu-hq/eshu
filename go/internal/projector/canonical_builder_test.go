@@ -360,8 +360,8 @@ func TestBuildCanonicalMaterializationExtractsEntities(t *testing.T) {
 	}
 
 	e0 := result.Entities[0]
-	if e0.EntityID != "eid-1" {
-		t.Errorf("[0].EntityID = %q, want %q", e0.EntityID, "eid-1")
+	if e0.EntityID == "eid-1" || !strings.HasPrefix(e0.EntityID, "content-entity:e_") {
+		t.Errorf("[0].EntityID = %q, want computed canonical content entity ID", e0.EntityID)
 	}
 	if e0.Label != "Function" {
 		t.Errorf("[0].Label = %q, want %q", e0.Label, "Function")
@@ -395,9 +395,8 @@ func TestBuildCanonicalMaterializationExtractsEntities(t *testing.T) {
 	if e1.Label != "Class" {
 		t.Errorf("[1].Label = %q, want %q", e1.Label, "Class")
 	}
-	// entity_id was empty, so should be computed via CanonicalEntityID
-	if e1.EntityID == "" {
-		t.Error("[1].EntityID is empty, expected computed value")
+	if !strings.HasPrefix(e1.EntityID, "content-entity:e_") {
+		t.Errorf("[1].EntityID = %q, want computed canonical content entity ID", e1.EntityID)
 	}
 }
 

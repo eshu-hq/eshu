@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -208,6 +207,7 @@ func buildDirectoryChain(files []FileRow, repoPath string, repoID string) []Dire
 func extractEntities(envelopes []facts.Envelope, repoID, repoPath string) []EntityRow {
 	entityFacts := FilterEntityFacts(envelopes)
 	var rows []EntityRow
+	seen := make(map[string]int, len(entityFacts))
 
 	for i := range entityFacts {
 		if entityFacts[i].IsTombstone {
@@ -245,15 +245,21 @@ func extractEntities(envelopes []facts.Envelope, repoID, repoPath string) []Enti
 			entityRepoID = repoID
 		}
 
-		entityID, _ := payloadString(p, "entity_id")
-		if entityID == "" {
-			entityID = content.CanonicalEntityID(entityRepoID, relativePath, entityType, entityName, startLine)
-		}
+		incomingEntityID, _ := payloadString(p, "entity_id")
+		entityID := canonicalGraphEntityID(
+			label,
+			entityRepoID,
+			relativePath,
+			entityType,
+			entityName,
+			startLine,
+			incomingEntityID,
+		)
 
 		fullPath := qualifyPath(repoPath, relativePath)
 		metadata := extractEntityMetadata(p)
 
-		rows = append(rows, EntityRow{
+		row := EntityRow{
 			EntityID:     entityID,
 			Label:        label,
 			EntityName:   entityName,
@@ -264,7 +270,14 @@ func extractEntities(envelopes []facts.Envelope, repoID, repoPath string) []Enti
 			Language:     language,
 			RepoID:       entityRepoID,
 			Metadata:     metadata,
-		})
+		}
+		dedupKey := canonicalEntityDedupKey(row)
+		if rowIndex, exists := seen[dedupKey]; exists {
+			rows[rowIndex] = row
+			continue
+		}
+		seen[dedupKey] = len(rows)
+		rows = append(rows, row)
 	}
 
 	return rows
