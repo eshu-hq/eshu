@@ -197,14 +197,21 @@ Measured keyword latency:
 | `in_process_hybrid_bm25` (`searchhybrid`) | ~19.5 ms | ~22.3 ms | ~38.9 ms |
 
 Decision: **defer_search_change**. The Postgres baseline keeps a faster median
-with a variable tail; the in-process hybrid lane is latency-consistent but scores
-documents linearly (no inverted index yet, ~20 ms at 28k docs). The NornicDB
+with a variable tail; the in-process hybrid lane was latency-consistent but, in
+that first run, scored documents linearly (~20 ms at 28k docs). The NornicDB
 search arm was not measured — the canonical NornicDB runs search-disabled and no
 search-enabled curated deployment exists — so the stop threshold is not cleared
-and Postgres content search remains the search lane. Two gaps must close before
-a quality-based adoption decision: an inverted index for the in-process lane, and
-a labeled query suite to measure recall/ranking quality (not just latency). The
-`searchhybrid` backend (#2237) and `cmd/search-bench` make both achievable.
+and Postgres content search remains the search lane.
+
+Update (inverted index): the in-process lane now serves BM25 from an inverted
+index, cutting p50 from ~19.5 ms to ~0.53 ms (~37×) over the same corpus — now
+faster than the Postgres baseline at the median with a tighter tail (record:
+[searchbench-evidence/issue-2237-inverted-index-2026-06-13.md](../../public/reference/searchbench-evidence/issue-2237-inverted-index-2026-06-13.md)).
+The decision stays `defer_search_change` pending a quality-based comparison; the
+remaining gaps are a labeled query suite to measure recall/ranking quality, a
+search-enabled NornicDB to measure that arm, and an ANN index for the vector
+path. The `searchhybrid` backend (#2237) and `cmd/search-bench` make them
+achievable.
 
 ## 6. Observability Contract
 

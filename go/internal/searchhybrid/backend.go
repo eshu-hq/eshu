@@ -35,18 +35,12 @@ func (backend Backend) Search(
 	index := backend.Index
 
 	anchor := req.Scope.Anchor()
-	inScope := make([]int, 0, index.count)
-	for i := range index.documents {
-		if matchesAnchor(index.documents[i].doc, anchor) {
-			inScope = append(inScope, i)
-		}
-	}
+	inScope := func(i int) bool { return matchesAnchor(index.documents[i].doc, anchor) }
 
-	bm25Scores := make(map[int]float64, len(inScope))
+	// BM25 ranking is served from the inverted index: only postings of the query
+	// terms are visited, so cost scales with matches, not corpus size.
 	queryTerms := tokenCounts(req.Query)
-	for _, idx := range inScope {
-		bm25Scores[idx] = index.bm25Score(queryTerms, index.documents[idx])
-	}
+	bm25Scores := index.bm25ScoredInScope(queryTerms, inScope)
 	bm25Ranked := positiveScored(index.rankByScore(bm25Scores), bm25Scores)
 
 	var vectorScores map[int]float64
@@ -58,9 +52,14 @@ func (backend Backend) Search(
 			if err != nil {
 				return nil, fmt.Errorf("embed query: %w", err)
 			}
-			vectorScores = make(map[int]float64, len(inScope))
-			for _, idx := range inScope {
-				vectorScores[idx] = cosineSimilarity(queryVector, index.documents[idx].vector)
+			// Brute-force vector scoring still scans in-scope documents; an ANN
+			// index is a separate follow-up. Keyword/BM25 no longer scans.
+			vectorScores = make(map[int]float64)
+			for i := range index.documents {
+				if !inScope(i) {
+					continue
+				}
+				vectorScores[i] = cosineSimilarity(queryVector, index.documents[i].vector)
 			}
 			vectorRanked = index.rankByScore(vectorScores)
 			useVector = true

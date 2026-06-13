@@ -32,8 +32,10 @@ See `doc.go` for the godoc-rendered package contract.
 
 ## Retrieval modes
 
-- **keyword** — BM25 over the combined title, context text, path, and labels.
-  Documents with no lexical overlap (BM25 score `0`) are excluded.
+- **keyword** — BM25 over the combined title, context text, path, and labels,
+  served from an inverted index (term → postings) so a query visits only the
+  documents that contain its terms, not the whole corpus. Documents with no
+  lexical overlap (BM25 score `0`) are excluded.
 - **semantic** — cosine similarity over local embedding vectors. Requires an
   embedder; without one the mode returns an error.
 - **hybrid** — Reciprocal Rank Fusion of the BM25 and vector rankings. Without an

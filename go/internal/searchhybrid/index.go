@@ -41,10 +41,19 @@ type indexedDocument struct {
 	vector        []float64
 }
 
+// posting is one document's occurrence count of a term in the inverted index.
+type posting struct {
+	docIndex int
+	termFreq int
+}
+
 // Index is a bounded in-memory retrieval index over curated search documents.
+// BM25 retrieval is served from an inverted index (term -> postings) so a query
+// visits only the documents that contain its terms, not the whole corpus.
 type Index struct {
 	documents  []indexedDocument
 	docFreq    map[string]int
+	postings   map[string][]posting
 	averageLen float64
 	count      int
 	overflow   int
@@ -66,6 +75,7 @@ func NewIndex(docs []searchdocs.Document, opts Options) (*Index, error) {
 	}
 	index := &Index{
 		docFreq:    make(map[string]int),
+		postings:   make(map[string][]posting),
 		embedder:   opts.Embedder,
 		embedCache: make(map[string][]float64),
 		k1:         orDefaultFloat(opts.K1, defaultK1),
@@ -87,8 +97,10 @@ func NewIndex(docs []searchdocs.Document, opts Options) (*Index, error) {
 		for _, token := range tokens {
 			tf[token]++
 		}
-		for term := range tf {
+		docIndex := len(index.documents)
+		for term, count := range tf {
 			index.docFreq[term]++
+			index.postings[term] = append(index.postings[term], posting{docIndex: docIndex, termFreq: count})
 		}
 		entry := indexedDocument{doc: doc, termFrequency: tf, length: len(tokens)}
 		if index.embedder != nil {
@@ -132,7 +144,8 @@ func (index *Index) embedDocument(doc searchdocs.Document) ([]float64, error) {
 }
 
 // bm25Score scores one document against the query terms using the precomputed
-// corpus statistics.
+// corpus statistics. It is kept for direct single-document scoring and tests;
+// retrieval uses bm25ScoredInScope, which is driven by the inverted index.
 func (index *Index) bm25Score(queryTerms map[string]int, entry indexedDocument) float64 {
 	if index.count == 0 || index.averageLen == 0 {
 		return 0
@@ -143,13 +156,39 @@ func (index *Index) bm25Score(queryTerms map[string]int, entry indexedDocument) 
 		if !ok {
 			continue
 		}
-		df := index.docFreq[term]
-		idf := math.Log(1 + (float64(index.count)-float64(df)+0.5)/(float64(df)+0.5))
-		norm := float64(tf) * (index.k1 + 1)
-		denom := float64(tf) + index.k1*(1-index.b+index.b*float64(entry.length)/index.averageLen)
-		score += idf * norm / denom
+		score += index.termContribution(term, tf, entry.length)
 	}
 	return score
+}
+
+// bm25ScoredInScope ranks documents for the query using the inverted index,
+// visiting only postings of the query terms and accumulating a score per
+// in-scope document. inScope reports whether a document index is inside the
+// resolved request scope. The result contains only documents with at least one
+// matching term, so zero-overlap documents never appear.
+func (index *Index) bm25ScoredInScope(queryTerms map[string]int, inScope func(int) bool) map[int]float64 {
+	scores := make(map[int]float64)
+	if index.count == 0 || index.averageLen == 0 {
+		return scores
+	}
+	for term := range queryTerms {
+		for _, p := range index.postings[term] {
+			if !inScope(p.docIndex) {
+				continue
+			}
+			scores[p.docIndex] += index.termContribution(term, p.termFreq, index.documents[p.docIndex].length)
+		}
+	}
+	return scores
+}
+
+// termContribution is one term's BM25 contribution to a document's score.
+func (index *Index) termContribution(term string, termFreq int, docLength int) float64 {
+	df := index.docFreq[term]
+	idf := math.Log(1 + (float64(index.count)-float64(df)+0.5)/(float64(df)+0.5))
+	norm := float64(termFreq) * (index.k1 + 1)
+	denom := float64(termFreq) + index.k1*(1-index.b+index.b*float64(docLength)/index.averageLen)
+	return idf * norm / denom
 }
 
 func tokenize(text string) []string {

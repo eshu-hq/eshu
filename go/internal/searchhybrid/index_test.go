@@ -2,10 +2,12 @@ package searchhybrid
 
 import (
 	"context"
+	"math"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/searchbench"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
+	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
 )
 
 func TestNewIndexCapsAndSignalsOverflow(t *testing.T) {
@@ -93,6 +95,46 @@ func TestBM25ScoreZeroWithoutOverlap(t *testing.T) {
 	score := index.bm25Score(tokenCounts("nonexistentterm"), index.documents[0])
 	if score != 0 {
 		t.Errorf("bm25 score for non-matching term = %v, want 0", score)
+	}
+}
+
+func TestInvertedIndexMatchesDirectScoring(t *testing.T) {
+	t.Parallel()
+
+	index := mustIndex(t, corpus(), Options{})
+	anchor := searchretrieval.Scope{RepoID: "repo-1"}.Anchor()
+	inScope := func(i int) bool { return matchesAnchor(index.documents[i].doc, anchor) }
+
+	for _, query := range []string{"payment refund", "auth token", "invoice"} {
+		terms := tokenCounts(query)
+		viaPostings := index.bm25ScoredInScope(terms, inScope)
+		for i := range index.documents {
+			if !inScope(i) {
+				continue
+			}
+			want := index.bm25Score(terms, index.documents[i])
+			got, present := viaPostings[i]
+			if want == 0 {
+				if present {
+					t.Errorf("query %q doc %d: zero-overlap doc present in postings result", query, i)
+				}
+				continue
+			}
+			if math.Abs(got-want) > 1e-9 {
+				t.Errorf("query %q doc %d: postings %v != direct %v", query, i, got, want)
+			}
+		}
+	}
+}
+
+func TestNewIndexBuildsPostings(t *testing.T) {
+	t.Parallel()
+
+	index := mustIndex(t, corpus(), Options{})
+	for term, df := range index.docFreq {
+		if got := len(index.postings[term]); got != df {
+			t.Errorf("term %q: postings %d != docFreq %d", term, got, df)
+		}
 	}
 }
 
