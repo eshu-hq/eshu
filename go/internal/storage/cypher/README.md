@@ -44,21 +44,25 @@ an `Executor`.
 
 `OrphanSweepStore` is the cleanup seam for disconnected graph nodes that remain
 after owned retractions. It only handles the closed labels
-`Repository`, `Platform`, and `EvidenceArtifact`; each statement uses a static
-label, checks `evidence_source IS NOT NULL`, requires `NOT (n)--()`, and applies
-the configured limit before setting or deleting. The store marks first-seen
-orphans with `eshu_orphan_observed_at_unix`, clears that marker when a
-relationship returns, and deletes only nodes whose marker is older than the
-configured TTL. Repository queries also exclude
+`Repository`, `Platform`, `EvidenceArtifact`, `File`, `Directory`, and
+`Module`; each statement uses a static label, checks
+`evidence_source IS NOT NULL`, requires `NOT (n)--()`, and applies the
+configured limit before setting or deleting. The store marks first-seen orphans
+with `eshu_orphan_observed_at_unix`, clears that marker when a relationship
+returns, and deletes only nodes whose marker is older than the configured TTL.
+Repository queries also exclude
 `evidence_source='projector/canonical'` so active source-local repository nodes
 remain owned by the canonical writer even when a repository has no graph
 relationships yet.
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestBuildMarkOrphan|TestBuildSweepOrphan|TestBuildCountOrphan|TestBuildClearOrphan|TestOrphanSweepStoreUsesInjectedClock'
--count=1` proves the static-label query builders reject unknown labels, the
-count and mutation paths stay bounded, and the TTL clock is injectable for
-deterministic cleanup. `go test ./internal/storage/cypher -run
+'TestDefaultOrphanSweepLabelsIncludesCodeStructureLabels|TestCodeStructureOrphanSweepStatementsUseStaticZeroRelationshipGuards|TestOrphanSweepStoreDefaultLabelsConvergeAcrossBoundedBatches|TestGraphOrphanNodeCountsUsesDefaultCodeStructureLabels|TestCanonicalCodeStructureNodesStampOrphanSweepMetadata|TestBuildMarkOrphan|TestBuildSweepOrphan|TestBuildCountOrphan|TestBuildClearOrphan|TestOrphanSweepStoreUsesInjectedClock'
+-count=1` proves the default closed label set includes code structure nodes,
+Directory and imported Module writes stamp the metadata required by the sweep
+predicate, the static-label query builders reject unknown labels, every swept
+label keeps the zero-relationship guard, the count and mutation paths stay
+bounded, and the TTL clock is injectable for deterministic cleanup. `go test
+./internal/storage/cypher -run
 'TestRepositoryOrphanSweepExcludesSourceLocalCanonicalRepositories' -count=1`
 proves the sweep never targets source-local canonical Repository nodes.
 `go test ./internal/storage/cypher -run

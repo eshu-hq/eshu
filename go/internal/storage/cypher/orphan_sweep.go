@@ -24,6 +24,12 @@ const (
 	OrphanSweepLabelPlatform OrphanSweepLabel = "Platform"
 	// OrphanSweepLabelEvidenceArtifact covers repository relationship evidence nodes.
 	OrphanSweepLabelEvidenceArtifact OrphanSweepLabel = "EvidenceArtifact"
+	// OrphanSweepLabelFile covers disconnected canonical source file nodes.
+	OrphanSweepLabelFile OrphanSweepLabel = "File"
+	// OrphanSweepLabelDirectory covers disconnected canonical source directory nodes.
+	OrphanSweepLabelDirectory OrphanSweepLabel = "Directory"
+	// OrphanSweepLabelModule covers disconnected canonical imported module nodes.
+	OrphanSweepLabelModule OrphanSweepLabel = "Module"
 )
 
 // DefaultOrphanSweepLabels returns the closed orphan sweep label set.
@@ -32,6 +38,9 @@ func DefaultOrphanSweepLabels() []OrphanSweepLabel {
 		OrphanSweepLabelRepository,
 		OrphanSweepLabelPlatform,
 		OrphanSweepLabelEvidenceArtifact,
+		OrphanSweepLabelFile,
+		OrphanSweepLabelDirectory,
+		OrphanSweepLabelModule,
 	}
 }
 
@@ -305,6 +314,12 @@ func orphanLabelMatch(label OrphanSweepLabel) (string, bool) {
 		return "Platform", true
 	case OrphanSweepLabelEvidenceArtifact:
 		return "EvidenceArtifact", true
+	case OrphanSweepLabelFile:
+		return "File", true
+	case OrphanSweepLabelDirectory:
+		return "Directory", true
+	case OrphanSweepLabelModule:
+		return "Module", true
 	default:
 		return "", false
 	}

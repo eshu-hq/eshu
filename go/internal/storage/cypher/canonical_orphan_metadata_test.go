@@ -87,3 +87,44 @@ func TestBuildCanonicalRelationshipTargetsStampOrphanSweepMetadata(t *testing.T)
 		})
 	}
 }
+
+func TestCanonicalCodeStructureNodesStampOrphanSweepMetadata(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		cypher    string
+		fragments []string
+	}{
+		{
+			name:   "root directory",
+			cypher: canonicalNodeDirectoryDepth0Cypher,
+			fragments: []string{
+				"d.evidence_source = 'projector/canonical'",
+			},
+		},
+		{
+			name:   "nested directory",
+			cypher: canonicalNodeDirectoryDepthNCypher,
+			fragments: []string{
+				"d.evidence_source = 'projector/canonical'",
+			},
+		},
+		{
+			name:   "imported module",
+			cypher: canonicalNodeModuleUpsertCypher,
+			fragments: []string{
+				"m.evidence_source = 'projector/canonical'",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, fragment := range tc.fragments {
+				if !strings.Contains(tc.cypher, fragment) {
+					t.Fatalf("Cypher missing metadata fragment %q: %s", fragment, tc.cypher)
+				}
+			}
+		})
+	}
+}

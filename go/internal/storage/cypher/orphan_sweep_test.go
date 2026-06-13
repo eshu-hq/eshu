@@ -2,10 +2,33 @@ package cypher
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestDefaultOrphanSweepLabelsIncludesCodeStructureLabels(t *testing.T) {
+	t.Parallel()
+
+	got := make(map[string]bool)
+	for _, label := range DefaultOrphanSweepLabels() {
+		got[string(label)] = true
+	}
+
+	for _, want := range []string{
+		"Repository",
+		"Platform",
+		"EvidenceArtifact",
+		"File",
+		"Directory",
+		"Module",
+	} {
+		if !got[want] {
+			t.Fatalf("DefaultOrphanSweepLabels() missing %s in %#v", want, got)
+		}
+	}
+}
 
 func TestBuildMarkOrphanNodesStatementUsesStaticLabelAndBoundedLimit(t *testing.T) {
 	t.Parallel()
@@ -114,6 +137,109 @@ func TestBuildClearOrphanMarkerStatementClearsRelinkedNodes(t *testing.T) {
 	}
 }
 
+func TestCodeStructureOrphanSweepStatementsUseStaticZeroRelationshipGuards(t *testing.T) {
+	t.Parallel()
+
+	for _, label := range []OrphanSweepLabel{"File", "Directory", "Module"} {
+		t.Run(string(label), func(t *testing.T) {
+			t.Parallel()
+			statements := []struct {
+				name      string
+				build     func() (Statement, bool)
+				wantParts []string
+			}{
+				{
+					name: "mark",
+					build: func() (Statement, bool) {
+						return BuildMarkOrphanNodesStatement(label, 1_786_000_000, 25)
+					},
+					wantParts: []string{
+						fmt.Sprintf("MATCH (n:%s)", label),
+						"n.evidence_source IS NOT NULL",
+						"n.eshu_orphan_observed_at_unix IS NULL",
+						"NOT (n)--()",
+						"LIMIT $limit",
+					},
+				},
+				{
+					name: "sweep",
+					build: func() (Statement, bool) {
+						return BuildSweepOrphanNodesStatement(label, 1_785_900_000, 25)
+					},
+					wantParts: []string{
+						fmt.Sprintf("MATCH (n:%s)", label),
+						"n.evidence_source IS NOT NULL",
+						"n.eshu_orphan_observed_at_unix <= $cutoff_unix",
+						"NOT (n)--()",
+						"LIMIT $limit",
+						"DELETE n",
+					},
+				},
+				{
+					name: "count",
+					build: func() (Statement, bool) {
+						return BuildCountOrphanNodesQuery(label, 25)
+					},
+					wantParts: []string{
+						fmt.Sprintf("MATCH (n:%s)", label),
+						"n.evidence_source IS NOT NULL",
+						"NOT (n)--()",
+						"LIMIT $limit",
+						"RETURN count(n) AS orphan_count",
+					},
+				},
+				{
+					name: "count_aged",
+					build: func() (Statement, bool) {
+						return buildCountAgedOrphanNodesQuery(label, 1_785_900_000, 25)
+					},
+					wantParts: []string{
+						fmt.Sprintf("MATCH (n:%s)", label),
+						"n.evidence_source IS NOT NULL",
+						"n.eshu_orphan_observed_at_unix <= $cutoff_unix",
+						"NOT (n)--()",
+						"LIMIT $limit",
+					},
+				},
+				{
+					name: "clear",
+					build: func() (Statement, bool) {
+						return BuildClearOrphanMarkerStatement(label, 25)
+					},
+					wantParts: []string{
+						fmt.Sprintf("MATCH (n:%s)", label),
+						"n.eshu_orphan_observed_at_unix IS NOT NULL",
+						"(n)--()",
+						"LIMIT $limit",
+						"REMOVE n.eshu_orphan_observed_at_unix",
+					},
+				},
+			}
+
+			for _, tc := range statements {
+				stmt, ok := tc.build()
+				if !ok {
+					t.Fatalf("%s builder returned ok=false", tc.name)
+				}
+				for _, want := range tc.wantParts {
+					if !strings.Contains(stmt.Cypher, want) {
+						t.Fatalf("%s Cypher missing %q:\n%s", tc.name, want, stmt.Cypher)
+					}
+				}
+				for _, forbidden := range []string{
+					"$label",
+					"DETACH DELETE",
+					"n.evidence_source <> 'projector/canonical'",
+				} {
+					if strings.Contains(stmt.Cypher, forbidden) {
+						t.Fatalf("%s Cypher must not contain %q:\n%s", tc.name, forbidden, stmt.Cypher)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestBuildOrphanSweepStatementsRejectUnknownLabels(t *testing.T) {
 	t.Parallel()
 
@@ -186,6 +312,52 @@ func TestInfrastructurePlatformUpsertStampsGenerationForFutureSweeps(t *testing.
 	}
 }
 
+func TestOrphanSweepStoreDefaultLabelsConvergeAcrossBoundedBatches(t *testing.T) {
+	t.Parallel()
+
+	graph := &convergingOrphanSweepGraph{
+		orphanCounts: map[string]int64{
+			"Repository":       1,
+			"Platform":         0,
+			"EvidenceArtifact": 0,
+			"File":             3,
+			"Directory":        2,
+			"Module":           2,
+		},
+		agedCounts: map[string]int64{
+			"Repository":       1,
+			"Platform":         0,
+			"EvidenceArtifact": 0,
+			"File":             3,
+			"Directory":        2,
+			"Module":           2,
+		},
+	}
+	store := NewOrphanSweepStore(graph, graph)
+	store.Now = func() time.Time { return time.Unix(1_000, 0).UTC() }
+	policy := OrphanSweepPolicy{
+		OrphanTTL:  100 * time.Second,
+		BatchLimit: 2,
+		CountLimit: 10,
+	}
+
+	for cycle := 0; cycle < 4; cycle++ {
+		result, err := store.SweepOrphanNodes(context.Background(), policy)
+		if err != nil {
+			t.Fatalf("SweepOrphanNodes() cycle %d error = %v", cycle, err)
+		}
+		if orphanSweepTestTotal(result.Deleted) == 0 {
+			break
+		}
+	}
+
+	for _, label := range []string{"Repository", "Platform", "EvidenceArtifact", "File", "Directory", "Module"} {
+		if got := graph.remaining(label); got != 0 {
+			t.Fatalf("%s remaining orphan count = %d, want converged to 0", label, got)
+		}
+	}
+}
+
 func TestOrphanSweepStoreUsesInjectedClockAndBoundsMutations(t *testing.T) {
 	t.Parallel()
 
@@ -236,6 +408,47 @@ func (e *recordingOrphanSweepExecutor) Execute(_ context.Context, stmt Statement
 	return nil
 }
 
+type convergingOrphanSweepGraph struct {
+	orphanCounts map[string]int64
+	agedCounts   map[string]int64
+}
+
+func (g *convergingOrphanSweepGraph) Execute(_ context.Context, stmt Statement) error {
+	if !strings.Contains(stmt.Cypher, "DELETE n") {
+		return nil
+	}
+	label, err := orphanSweepTestLabelFromCypher(stmt.Cypher)
+	if err != nil {
+		return err
+	}
+	limit := int64(orphanSweepTestLimit(stmt.Parameters))
+	deleted := min(g.agedCounts[label], limit)
+	g.agedCounts[label] -= deleted
+	g.orphanCounts[label] -= deleted
+	return nil
+}
+
+func (g *convergingOrphanSweepGraph) Run(
+	_ context.Context,
+	cypher string,
+	params map[string]any,
+) ([]map[string]any, error) {
+	label, err := orphanSweepTestLabelFromCypher(cypher)
+	if err != nil {
+		return nil, err
+	}
+	counts := g.orphanCounts
+	if strings.Contains(cypher, "n.eshu_orphan_observed_at_unix <= $cutoff_unix") {
+		counts = g.agedCounts
+	}
+	count := min(counts[label], int64(orphanSweepTestLimit(params)))
+	return []map[string]any{{"orphan_count": count}}, nil
+}
+
+func (g *convergingOrphanSweepGraph) remaining(label string) int64 {
+	return g.orphanCounts[label]
+}
+
 type countingOrphanSweepReader struct {
 	orphanCount int64
 	agedCount   int64
@@ -247,4 +460,29 @@ func (r *countingOrphanSweepReader) Run(_ context.Context, cypher string, _ map[
 		count = r.agedCount
 	}
 	return []map[string]any{{"orphan_count": count}}, nil
+}
+
+func orphanSweepTestLabelFromCypher(cypher string) (string, error) {
+	for _, label := range []string{"Repository", "Platform", "EvidenceArtifact", "File", "Directory", "Module"} {
+		if strings.Contains(cypher, "MATCH (n:"+label+")") {
+			return label, nil
+		}
+	}
+	return "", fmt.Errorf("missing orphan sweep label in Cypher: %s", cypher)
+}
+
+func orphanSweepTestLimit(params map[string]any) int {
+	limit, ok := params["limit"].(int)
+	if !ok || limit <= 0 {
+		return defaultOrphanSweepBatchLimit
+	}
+	return limit
+}
+
+func orphanSweepTestTotal(values map[string]int64) int64 {
+	var total int64
+	for _, value := range values {
+		total += value
+	}
+	return total
 }

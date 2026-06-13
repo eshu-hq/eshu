@@ -50,10 +50,11 @@ flowchart TB
 `GraphOrphanSweepRunner` runs beside reducer intent workers and shared
 projection. It delegates to `storage/cypher.OrphanSweepStore`, which counts,
 marks, clears, and deletes only zero-relationship nodes in a closed label set:
-`Repository`, `Platform`, and `EvidenceArtifact`. The sweep uses static-label
-Cypher, a single-owner Postgres partition lease, a per-label batch limit, a
-per-label count cap, and a TTL marker (`eshu_orphan_observed_at_unix`) so one
-transiently disconnected cycle cannot delete a node immediately. Repository sweeps exclude
+`Repository`, `Platform`, `EvidenceArtifact`, `File`, `Directory`, and
+`Module`. The sweep uses static-label Cypher, a single-owner Postgres partition
+lease, a per-label batch limit, a per-label count cap, and a TTL marker
+(`eshu_orphan_observed_at_unix`) so one transiently disconnected cycle cannot
+delete a node immediately. Repository sweeps exclude
 `evidence_source='projector/canonical'`; empty but active source-local
 repositories remain canonical-writer truth, not sweep candidates.
 
@@ -63,10 +64,12 @@ normal invariants. The sweep removes only nodes that remain disconnected after
 the TTL and clears the marker when a relationship returns.
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestBuildMarkOrphan|TestBuildSweepOrphan|TestBuildCountOrphan|TestBuildClearOrphan|TestRepoRelationshipUpsertStamps|TestInfrastructurePlatformUpsert|TestBatchedWriteEdgesParameterFidelity|TestOrphanSweepStoreUsesInjectedClock'
+'TestDefaultOrphanSweepLabelsIncludesCodeStructureLabels|TestCodeStructureOrphanSweepStatementsUseStaticZeroRelationshipGuards|TestOrphanSweepStoreDefaultLabelsConvergeAcrossBoundedBatches|TestGraphOrphanNodeCountsUsesDefaultCodeStructureLabels|TestCanonicalCodeStructureNodesStampOrphanSweepMetadata|TestBuildMarkOrphan|TestBuildSweepOrphan|TestBuildCountOrphan|TestBuildClearOrphan|TestRepoRelationshipUpsertStamps|TestInfrastructurePlatformUpsert|TestBatchedWriteEdgesParameterFidelity|TestOrphanSweepStoreUsesInjectedClock'
 -count=1` proves the bounded static-label Cypher shape, metadata stamping for
-relationship-created repositories and platforms, and injected-clock TTL
-behavior. `go test ./internal/storage/cypher -run
+relationship-created repositories and platforms, default coverage for code
+structure labels, Directory and imported Module metadata stamping, bounded
+convergence, telemetry observer counts, and injected-clock TTL behavior. `go
+test ./internal/storage/cypher -run
 TestRepositoryOrphanSweepExcludesSourceLocalCanonicalRepositories -count=1`
 proves source-local canonical Repository nodes are outside the sweep predicate.
 `go test ./internal/reducer -run
