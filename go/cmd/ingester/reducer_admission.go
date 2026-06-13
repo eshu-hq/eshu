@@ -17,9 +17,10 @@ import (
 )
 
 const (
-	reducerAdmissionHighWaterMarkEnv = "ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK"
-	reducerAdmissionPollIntervalEnv  = "ESHU_REDUCER_ADMISSION_POLL_INTERVAL"
-	defaultReducerAdmissionPoll      = time.Second
+	reducerAdmissionHighWaterMarkEnv           = "ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK"
+	reducerAdmissionPollIntervalEnv            = "ESHU_REDUCER_ADMISSION_POLL_INTERVAL"
+	defaultReducerAdmissionHighWaterMark int64 = 10_000
+	defaultReducerAdmissionPoll                = time.Second
 )
 
 type reducerAdmissionConfig struct {
@@ -90,20 +91,21 @@ func reducerIntentWriterWithAdmission(
 }
 
 func loadReducerAdmissionConfig(getenv func(string) string) (reducerAdmissionConfig, error) {
-	config := reducerAdmissionConfig{PollInterval: defaultReducerAdmissionPoll}
+	config := reducerAdmissionConfig{
+		HighWaterMark: defaultReducerAdmissionHighWaterMark,
+		PollInterval:  defaultReducerAdmissionPoll,
+	}
 	rawHighWater := strings.TrimSpace(getenv(reducerAdmissionHighWaterMarkEnv))
-	if rawHighWater == "" {
-		return config, nil
+	if rawHighWater != "" {
+		highWaterMark, err := strconv.ParseInt(rawHighWater, 10, 64)
+		if err != nil {
+			return reducerAdmissionConfig{}, fmt.Errorf("parse %s: %w", reducerAdmissionHighWaterMarkEnv, err)
+		}
+		if highWaterMark < 0 {
+			return reducerAdmissionConfig{}, fmt.Errorf("%s must be zero or greater", reducerAdmissionHighWaterMarkEnv)
+		}
+		config.HighWaterMark = highWaterMark
 	}
-
-	highWaterMark, err := strconv.ParseInt(rawHighWater, 10, 64)
-	if err != nil {
-		return reducerAdmissionConfig{}, fmt.Errorf("parse %s: %w", reducerAdmissionHighWaterMarkEnv, err)
-	}
-	if highWaterMark < 0 {
-		return reducerAdmissionConfig{}, fmt.Errorf("%s must be zero or greater", reducerAdmissionHighWaterMarkEnv)
-	}
-	config.HighWaterMark = highWaterMark
 
 	rawPollInterval := strings.TrimSpace(getenv(reducerAdmissionPollIntervalEnv))
 	if rawPollInterval == "" {

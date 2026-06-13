@@ -65,7 +65,7 @@ var coreEntries = []Entry{
 	{Name: "ESHU_GRAPH_ORPHAN_SWEEP_LEASE_TTL", Type: VarDuration, Default: "5m", Subsystem: "reducer", Description: "TTL for the graph orphan sweep partition lease."},
 	{Name: "ESHU_GRAPH_ORPHAN_SWEEP_POLL_INTERVAL", Type: VarDuration, Default: "1h", Subsystem: "reducer", Description: "Delay between graph orphan sweep passes."},
 	{Name: "ESHU_GRAPH_ORPHAN_SWEEP_TTL", Type: VarDuration, Default: "168h", Subsystem: "reducer", Description: "Minimum age before a marked graph orphan can be deleted."},
-	{Name: "ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK", Type: VarInt, Subsystem: "reducer", Description: "Enables ingester source-local reducer-intent admission when greater than zero; defers while outstanding reducer queue depth is at or above this value."},
+	{Name: "ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK", Type: VarInt, Default: "10000", Subsystem: "reducer", Description: "Ingester source-local reducer-intent admission threshold; defers while outstanding reducer queue depth is at or above this value. Set to 0 to disable."},
 	{Name: "ESHU_REDUCER_ADMISSION_POLL_INTERVAL", Type: VarDuration, Default: "1s", Subsystem: "reducer", Description: "Queue-depth recheck interval while reducer admission is deferring."},
 	{Name: "ESHU_REDUCER_BATCH_CLAIM_SIZE", Type: VarInt, Subsystem: "reducer", Description: "Work items claimed per cycle (default adaptive to workers and backend)."},
 	{Name: "ESHU_REDUCER_CLAIM_DOMAIN", Type: VarString, Subsystem: "reducer", Deprecated: true, ReplacedBy: "ESHU_REDUCER_CLAIM_DOMAINS", Description: "Single reducer claim domain."},
