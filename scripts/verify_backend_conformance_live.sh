@@ -34,3 +34,9 @@ export DEFAULT_DATABASE="$ESHU_NEO4J_DATABASE"
 echo "Running live backend conformance for $ESHU_GRAPH_BACKEND on $ESHU_NEO4J_URI database $ESHU_NEO4J_DATABASE"
 cd "$REPO_ROOT/go"
 go test ./internal/backendconformance -run '^TestLiveBackendConformance$' -count=1
+
+if [ "$ESHU_GRAPH_BACKEND" = "nornicdb" ]; then
+    echo "Running live NornicDB retry classification contract"
+    ESHU_NORNICDB_RETRY_CONTRACT_LIVE=1 \
+        go test ./internal/storage/cypher -run '^TestLiveNornicDBRetryConflictClassificationContract$' -count=1
+fi

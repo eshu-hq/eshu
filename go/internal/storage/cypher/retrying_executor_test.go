@@ -6,6 +6,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
 type failingExecutor struct {
@@ -276,6 +278,33 @@ func TestRetryingExecutorRetriesNornicDBMergeUniqueConflictV1045Format(t *testin
 	}
 	if got, want := int(inner.calls.Load()), 2; got != want {
 		t.Fatalf("calls = %d, want %d", got, want)
+	}
+}
+
+func TestRetryingExecutorClassifiesTypedNornicDBTransactionCommitFailedByCode(t *testing.T) {
+	t.Parallel()
+
+	for _, code := range []string{
+		"Neo.ClientError.Transaction.TransactionCommitFailed",
+		"Neo.TransientError.Transaction.Outdated",
+	} {
+		err := &neo4jdriver.Neo4jError{
+			Code: code,
+			Msg: "constraint violation: Constraint violation (UNIQUE on TerraformResource.[uid]): " +
+				"Node with uid=abc already exists",
+		}
+		if !isNornicDBCommitTimeUniqueConflictError(err) {
+			t.Fatalf("typed %s UNIQUE conflict = false, want true", code)
+		}
+	}
+
+	nonCommitErr := &neo4jdriver.Neo4jError{
+		Code: "Neo.ClientError.Schema.ConstraintValidationFailed",
+		Msg: "constraint violation: Constraint violation (UNIQUE on TerraformResource.[uid]): " +
+			"Node with uid=abc already exists",
+	}
+	if isNornicDBCommitTimeUniqueConflictError(nonCommitErr) {
+		t.Fatal("typed non-commit UNIQUE conflict = true, want false")
 	}
 }
 

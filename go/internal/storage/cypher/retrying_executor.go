@@ -15,6 +15,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+const nornicDBTransactionCommitFailedCode = "Neo.ClientError.Transaction.TransactionCommitFailed"
+const nornicDBTransactionOutdatedCode = "Neo.TransientError.Transaction.Outdated"
+
 // RetryingExecutor wraps an Executor with retry logic for transient Neo4j
 // errors such as deadlocks. Concurrent MERGE operations on shared nodes
 // (Repository, Directory, Module) can trigger Neo4j deadlocks that resolve
@@ -49,8 +52,8 @@ func (r *RetryingExecutor) Execute(ctx context.Context, stmt Statement) error {
 //
 // Driver-level session.ExecuteWrite retries handle Neo.TransientError.*
 // codes; this loop additionally covers Neo.ClientError.Transaction.
-// TransactionCommitFailed when the message classifies as a NornicDB
-// commit-time UNIQUE conflict on a MERGE-shaped group.
+// TransactionCommitFailed when the typed code or fallback message classifies
+// as a NornicDB commit-time UNIQUE conflict on a MERGE-shaped group.
 func (r *RetryingExecutor) ExecuteGroup(ctx context.Context, stmts []Statement) error {
 	ge, ok := r.Inner.(GroupExecutor)
 	if !ok {
@@ -168,7 +171,7 @@ func isRetryableGraphWriteError(err error, stmt Statement) bool {
 	if err == nil {
 		return false
 	}
-	return isNornicDBMergeUniqueConflict(err.Error(), stmt.Cypher)
+	return isNornicDBMergeUniqueConflict(err, stmt.Cypher)
 }
 
 // isRetryableGraphWriteGroupError classifies a phase-group write failure as
@@ -191,7 +194,7 @@ func isRetryableGraphWriteGroupError(err error, stmts []Statement) bool {
 	if !allStatementsAreMerge(stmts) {
 		return false
 	}
-	return isNornicDBCommitTimeUniqueConflict(err.Error())
+	return isNornicDBCommitTimeUniqueConflictError(err)
 }
 
 // allStatementsAreMerge returns true when every statement in stmts contains
@@ -219,11 +222,31 @@ func isNornicDBWriteConflict(msg string) bool {
 // created the intended node between match and commit. The cypher guard
 // ensures we only retry when the originating statement is itself
 // idempotent on re-execution.
-func isNornicDBMergeUniqueConflict(msg string, cypher string) bool {
+func isNornicDBMergeUniqueConflict(err error, cypher string) bool {
 	if !strings.Contains(strings.ToUpper(cypher), "MERGE") {
 		return false
 	}
-	return isNornicDBCommitTimeUniqueConflict(msg)
+	return isNornicDBCommitTimeUniqueConflictError(err)
+}
+
+// isNornicDBCommitTimeUniqueConflictError classifies typed Neo4j errors by
+// their stable transaction-commit failure code when the driver exposes one,
+// then falls back to historical string wrapping for older NornicDB surfaces.
+func isNornicDBCommitTimeUniqueConflictError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var neo4jErr *neo4jdriver.Neo4jError
+	if errors.As(err, &neo4jErr) && strings.TrimSpace(neo4jErr.Code) != "" {
+		if neo4jErr.Code != nornicDBTransactionCommitFailedCode &&
+			neo4jErr.Code != nornicDBTransactionOutdatedCode {
+			return false
+		}
+		return isNornicDBUniqueConflictBody(neo4jErr.Msg)
+	}
+
+	return isNornicDBCommitTimeUniqueConflict(err.Error())
 }
 
 // isNornicDBCommitTimeUniqueConflict matches NornicDB's commit-time UNIQUE
@@ -235,6 +258,15 @@ func isNornicDBMergeUniqueConflict(msg string, cypher string) bool {
 // the same race-on-commit class and are safe to retry on a MERGE-shaped
 // write where MERGE re-execution will match the now-committed node.
 func isNornicDBCommitTimeUniqueConflict(msg string) bool {
+	if !isNornicDBUniqueConflictBody(msg) {
+		return false
+	}
+	return strings.Contains(msg, "failed to commit implicit transaction") ||
+		strings.Contains(msg, "commit failed") ||
+		strings.Contains(msg, "TransactionCommitFailed")
+}
+
+func isNornicDBUniqueConflictBody(msg string) bool {
 	if !strings.Contains(msg, "constraint violation") {
 		return false
 	}
@@ -244,7 +276,5 @@ func isNornicDBCommitTimeUniqueConflict(msg string) bool {
 	if !strings.Contains(msg, "already exists") {
 		return false
 	}
-	return strings.Contains(msg, "failed to commit implicit transaction") ||
-		strings.Contains(msg, "commit failed") ||
-		strings.Contains(msg, "TransactionCommitFailed")
+	return true
 }
