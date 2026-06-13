@@ -19,7 +19,7 @@ func TestLoadGraphOrphanSweepConfigDefaults(t *testing.T) {
 	require.Equal(t, 7*24*time.Hour, cfg.Runner.Policy.OrphanTTL)
 	require.Equal(t, 100, cfg.Runner.Policy.BatchLimit)
 	require.Equal(t, 10_000, cfg.Runner.Policy.CountLimit)
-	require.Equal(t, []string{"Repository", "Platform", "EvidenceArtifact"}, cfg.Runner.Policy.Labels)
+	require.Equal(t, defaultGraphOrphanSweepLabels(), cfg.Runner.Policy.Labels)
 }
 
 func TestLoadGraphOrphanSweepConfigOverrides(t *testing.T) {

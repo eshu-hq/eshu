@@ -182,6 +182,27 @@ Parsed by `LoadSharedProjectionConfig` in `internal/reducer`.
 | `ESHU_GRAPH_ORPHAN_SWEEP_BATCH_LIMIT` | `100` | Maximum nodes marked or deleted per label in one sweep cycle |
 | `ESHU_GRAPH_ORPHAN_SWEEP_COUNT_LIMIT` | `10000` | Maximum nodes counted per label for the observable orphan gauge |
 
+Default wiring guard: `go test ./cmd/reducer -run
+TestProductionWiringConsumesCapabilityDefaults -count=1` asserts that
+production config consumes capability-owned defaults instead of duplicating
+them silently. It currently covers graph orphan sweep labels from
+`storage/cypher.DefaultOrphanSweepLabels()` and generation retention policy from
+`postgres.DefaultGenerationRetentionPolicy()`. Intentional divergence must use
+an explicit tested override case with a reason.
+
+No-Regression Evidence: `go test ./cmd/reducer -run
+'TestProductionWiringConsumesCapabilityDefaults|TestLoadGraphOrphanSweepConfigDefaults|TestGraphOrphanSweepRunnerForConfig'
+-count=1` failed before the graph orphan sweep config hardcoded only
+`Repository`, `Platform`, and `EvidenceArtifact`, then passed after the reducer
+default consumed the storage/cypher closed label set, including `File`,
+`Directory`, and `Module`.
+
+Observability Evidence: the wiring change adds no metric, span, log key,
+worker, lease, or graph query shape. It routes the already documented `File`,
+`Directory`, and `Module` label values through the existing
+`eshu_dp_graph_orphan_nodes{node_label=...}` observer and runner completion
+logs, whose `node_label` value space is the bounded closed sweep label set.
+
 ### Terraform drift
 
 | Variable | Default | Purpose |
