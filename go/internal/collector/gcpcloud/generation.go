@@ -102,6 +102,11 @@ func (g *Generation) Build() ([]facts.Envelope, error) {
 		if ok {
 			envelopes = append(envelopes, tagEnv)
 		}
+		iamEnvelopes, err := g.iamPolicyObservationEnvelopes(resource)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, iamEnvelopes...)
 	}
 	for _, warning := range g.warnings {
 		env, err := NewCollectionWarningEnvelope(warning)
@@ -136,6 +141,7 @@ func (g *Generation) envelopeCapacity() int {
 		if hasUsableTags(resource.Labels) {
 			capacity++
 		}
+		capacity += iamPolicyObservationCount(resource.IAMPolicyBindings)
 	}
 	return capacity
 }
@@ -160,6 +166,39 @@ func (g *Generation) tagObservationEnvelope(obs ResourceObservation) (facts.Enve
 	return env, true, nil
 }
 
+func (g *Generation) iamPolicyObservationEnvelopes(obs ResourceObservation) ([]facts.Envelope, error) {
+	if g.key.IsZero() || iamPolicyObservationCount(obs.IAMPolicyBindings) == 0 {
+		return nil, nil
+	}
+	envelopes := make([]facts.Envelope, 0, iamPolicyObservationCount(obs.IAMPolicyBindings))
+	for _, binding := range obs.IAMPolicyBindings {
+		if !hasUsableIAMPolicyBinding(binding) {
+			continue
+		}
+		env, err := NewIAMPolicyObservationEnvelope(IAMPolicyObservation{
+			Boundary:                  g.boundary,
+			FullResourceName:          obs.Name,
+			AssetType:                 obs.AssetType,
+			Role:                      binding.Role,
+			Members:                   binding.Members,
+			ConditionPresent:          binding.ConditionPresent,
+			ConditionFingerprintInput: binding.ConditionFingerprintInput,
+			Etag:                      binding.Etag,
+			UpdateTime:                obs.UpdateTime,
+			SourceRecordID:            iamSourceRecordID(obs.SourceRecordID, binding.Role),
+			SourceURI:                 obs.SourceURI,
+		}, g.key)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, env)
+	}
+	sort.Slice(envelopes, func(i, j int) bool {
+		return envelopes[i].StableFactKey < envelopes[j].StableFactKey
+	})
+	return envelopes, nil
+}
+
 func hasUsableTags(labels map[string]string) bool {
 	for key := range labels {
 		if strings.TrimSpace(key) != "" {
@@ -167,6 +206,37 @@ func hasUsableTags(labels map[string]string) bool {
 		}
 	}
 	return false
+}
+
+func iamPolicyObservationCount(bindings []IAMPolicyBindingObservation) int {
+	count := 0
+	for _, binding := range bindings {
+		if hasUsableIAMPolicyBinding(binding) {
+			count++
+		}
+	}
+	return count
+}
+
+func hasUsableIAMPolicyBinding(binding IAMPolicyBindingObservation) bool {
+	if strings.TrimSpace(binding.Role) == "" {
+		return false
+	}
+	for _, member := range binding.Members {
+		if strings.TrimSpace(member) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func iamSourceRecordID(sourceRecordID, role string) string {
+	sourceRecordID = strings.TrimSpace(sourceRecordID)
+	role = strings.TrimSpace(role)
+	if sourceRecordID == "" || role == "" {
+		return sourceRecordID
+	}
+	return sourceRecordID + "|" + role
 }
 
 func resourceDedupeKey(obs ResourceObservation) string {

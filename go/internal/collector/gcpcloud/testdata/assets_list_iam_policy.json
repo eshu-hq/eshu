@@ -1,0 +1,38 @@
+{
+  "readTime": "2026-06-09T12:05:00Z",
+  "assets": [
+    {
+      "name": "//storage.googleapis.com/projects/_/buckets/iam-bucket",
+      "assetType": "storage.googleapis.com/Bucket",
+      "updateTime": "2026-06-09T12:01:00Z",
+      "ancestors": ["projects/123456789", "organizations/9988776655"],
+      "iamPolicy": {
+        "etag": "etag-iam-1",
+        "bindings": [
+          {
+            "role": "roles/storage.objectViewer",
+            "members": ["allUsers", "serviceAccount:workload-reader"],
+            "condition": {
+              "title": "expires",
+              "expression": "request.time < timestamp('2026-12-31T00:00:00Z')"
+            }
+          },
+          {
+            "role": "roles/storage.admin",
+            "members": ["group:platform-operators"]
+          },
+          {
+            "role": "roles/empty",
+            "members": []
+          }
+        ]
+      },
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "iam-bucket"
+        }
+      }
+    }
+  ]
+}

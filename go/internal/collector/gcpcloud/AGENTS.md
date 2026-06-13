@@ -20,9 +20,9 @@
 ## Invariants
 
 - GCP cloud data is reported source evidence. This package may emit typed source
-  facts for parsed resources, label-backed tag observations, and collection
-  warnings. Do not materialize graph truth, reducer admission, or query behavior
-  here.
+  facts for parsed resources, label-backed tag observations, IAM policy
+  observations, and collection warnings. Do not materialize graph truth, reducer
+  admission, or query behavior here.
 - Keep the claim boundary explicit: collector instance, parent scope kind and id,
   asset family, content family, location bucket, scope id, generation id, and a
   positive fencing token.

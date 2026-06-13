@@ -13,11 +13,12 @@ relationship graph writes, and API or MCP truth.
 ## Status
 
 The first fixture-testable slice is implemented: the `gcp_cloud_resource`,
-label-backed `gcp_tag_observation`, and `gcp_collection_warning` source fact
-kinds (`go/internal/facts/gcp.go`), the Cloud Asset Inventory parser, identity
-normalizer, redaction policy, envelope builders, generation accumulator with
-fencing, and scoped telemetry instruments (`go/internal/collector/gcpcloud`).
-This slice is fixture-driven and makes no live Google Cloud calls.
+label-backed `gcp_tag_observation`, `gcp_iam_policy_observation`, and
+`gcp_collection_warning` source fact kinds (`go/internal/facts/gcp.go`), the
+Cloud Asset Inventory parser, identity normalizer, redaction policy, envelope
+builders, generation accumulator with fencing, and scoped telemetry instruments
+(`go/internal/collector/gcpcloud`). This slice is fixture-driven and makes no
+live Google Cloud calls.
 
 The second slice adds fixture-driven runtime scaffolding: a `collector.Source`
 implementation (`go/internal/collector/gcpcloud/gcpruntime`) that drains Cloud
@@ -59,10 +60,11 @@ no raw policy JSON); `NewDNSRecordEnvelope` (record name and targets
 fingerprinted); and `NewImageReferenceEnvelope` (digest-first confidence,
 fingerprinted container name). The generation accumulator now emits
 `gcp_tag_observation` from parsed CAI resource labels when a redaction key is
-configured, with `source_kind=label`; direct/effective GCP tag API collection,
-the other fact-kind scan
-emission paths, fact-kind-specific reducer handling, and any GCP graph
-projection remain follow-up work under #1997.
+configured, with `source_kind=label`, and emits
+`gcp_iam_policy_observation` from parsed CAI IAM bindings when members are
+usable. Direct/effective GCP tag API collection, the remaining relationship,
+DNS, and image-reference scan emission paths, fact-kind-specific reducer
+handling, and any GCP graph projection remain follow-up work under #1997.
 
 The implemented slices stay fixture-testable without live Google Cloud access.
 Live smoke tests are promotion proof, not the minimum proof for the source
@@ -77,7 +79,11 @@ supersession, and bounded truth-labeled readback that never leaks raw provider
 locators. `go test ./internal/collector/gcpcloud -run
 'TestGeneration|TestNewTagObservationEnvelope' -count=1` proves label-backed tag
 observation emission is deduplicated with generation output, skips unlabeled
-resources, and fingerprints raw label values.
+resources, and fingerprints raw label values. `go test
+./internal/collector/gcpcloud -run 'TestGenerationBuildEmitsIAMPolicyObservations|TestNewIAMPolicyObservationEnvelope' -count=1`
+proves IAM bindings emit redacted policy observations without raw member
+identities, raw etags, raw condition text, or same-role conditional key
+collisions.
 
 ## Source Truth
 
@@ -248,8 +254,9 @@ The first code PRs must prove these cases before any live smoke:
    pass fixture gates.
 
 Observability change: the first slice adds the `gcp_cloud_resource`,
-`gcp_tag_observation`, and `gcp_collection_warning` fact schemas and the scoped
-GCP collector telemetry series listed under [Telemetry](#telemetry)
+`gcp_tag_observation`, `gcp_iam_policy_observation`, and
+`gcp_collection_warning` fact schemas and the scoped GCP collector telemetry
+series listed under [Telemetry](#telemetry)
 (`eshu_dp_gcp_cloud_*`). It does not add chart values, environment variables, or
 a runtime binary; those remain deferred.
 
@@ -275,9 +282,10 @@ instruments registered in the first slice
 (`eshu_dp_gcp_cloud_claims_total`, `eshu_dp_gcp_cloud_pages_total`,
 `eshu_dp_gcp_cloud_page_token_resumes_total`,
 `eshu_dp_gcp_cloud_facts_emitted_total`, `eshu_dp_gcp_cloud_warnings_total`,
-`eshu_dp_gcp_cloud_freshness_lag_seconds`). Tag emission records through the
-existing `fact_kind` dimension with `gcp_tag_observation`. It registers no new
-metric series, adds no new label keys, and changes no telemetry contract.
+`eshu_dp_gcp_cloud_freshness_lag_seconds`). Tag and IAM emission record through
+the existing `fact_kind` dimension with `gcp_tag_observation` and
+`gcp_iam_policy_observation`. It registers no new metric series, adds no new
+label keys, and changes no telemetry contract.
 
 No-Regression Evidence:
 
@@ -294,9 +302,10 @@ No-Regression Evidence:
   stale-generation, dangling-page-token, multi-scope, and empty-scope cases.
 - Terminal counts: one `CollectedGeneration` per configured scope; three
   `gcp_cloud_resource` facts and two label-backed `gcp_tag_observation` facts
-  for the two-page fixture; one `gcp_collection_warning` for the stale and
-  page-token-expired cases; zero facts emitted for a fenced-out stale generation
-  beyond its single warning.
+  for the two-page resource fixture; the IAM-policy fixture emits one
+  `gcp_cloud_resource` fact and two `gcp_iam_policy_observation` facts; one
+  `gcp_collection_warning` for the stale and page-token-expired cases; zero
+  facts emitted for a fenced-out stale generation beyond its single warning.
 - Telemetry/log/status evidence: see the observability evidence below.
 - Why safe: the source is single-goroutine per `collector.Service`, reuses the
   existing fixture-tested `Generation`/`GenerationTracker` dedupe and fencing,

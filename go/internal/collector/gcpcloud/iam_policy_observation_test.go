@@ -1,6 +1,8 @@
 package gcpcloud
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -9,13 +11,14 @@ import (
 
 func testIAMPolicyObservation() IAMPolicyObservation {
 	return IAMPolicyObservation{
-		Boundary:         testBoundary(),
-		FullResourceName: "//storage.googleapis.com/projects/_/buckets/my-bucket",
-		AssetType:        "storage.googleapis.com/Bucket",
-		Role:             "roles/storage.admin",
-		Members:          []string{"user:alice@example.com", "serviceAccount:svc@my-project.iam.gserviceaccount.com"},
-		ConditionPresent: true,
-		Etag:             "etag-abc",
+		Boundary:                  testBoundary(),
+		FullResourceName:          "//storage.googleapis.com/projects/_/buckets/my-bucket",
+		AssetType:                 "storage.googleapis.com/Bucket",
+		Role:                      "roles/storage.admin",
+		Members:                   []string{"user:platform-owner", "serviceAccount:workload-reader"},
+		ConditionPresent:          true,
+		ConditionFingerprintInput: `{"expression":"request.time < timestamp('2026-12-31T00:00:00Z')","title":"expires"}`,
+		Etag:                      "etag-abc",
 	}
 }
 
@@ -44,16 +47,44 @@ func TestNewIAMPolicyObservationEnvelopeFingerprintsMembers(t *testing.T) {
 		if m["member_class"] == "" || m["member_fingerprint"] == "" {
 			t.Fatalf("member missing class/fingerprint: %#v", m)
 		}
-		if m["member_fingerprint"] == "alice@example.com" || m["member_fingerprint"] == "user:alice@example.com" {
+		if m["member_fingerprint"] == "platform-owner" || m["member_fingerprint"] == "user:platform-owner" {
 			t.Fatalf("raw member leaked: %#v", m)
 		}
 	}
 	if env.Payload["condition_present"] != true {
 		t.Fatalf("condition_present = %#v", env.Payload["condition_present"])
 	}
+	if env.Payload["condition_fingerprint"] == "" {
+		t.Fatal("condition_fingerprint is empty")
+	}
+	if got := fmt.Sprintf("%#v", env.Payload); strings.Contains(got, "request.time") || strings.Contains(got, "etag-abc") {
+		t.Fatalf("raw condition or etag leaked: %s", got)
+	}
 	// No raw policy JSON field.
 	if _, present := env.Payload["policy"]; present {
 		t.Fatalf("raw policy carried: %#v", env.Payload["policy"])
+	}
+}
+
+// TestNewIAMPolicyObservationEnvelopeKeysCondition proves same-role conditional
+// bindings do not collapse into one stable fact key.
+func TestNewIAMPolicyObservationEnvelopeKeysCondition(t *testing.T) {
+	key := testRedactionKey(t)
+	first := testIAMPolicyObservation()
+	first.ConditionFingerprintInput = `{"expression":"resource.name.startsWith('alpha')"}`
+	second := testIAMPolicyObservation()
+	second.ConditionFingerprintInput = `{"expression":"resource.name.startsWith('beta')"}`
+
+	firstEnv, err := NewIAMPolicyObservationEnvelope(first, key)
+	if err != nil {
+		t.Fatalf("first: %v", err)
+	}
+	secondEnv, err := NewIAMPolicyObservationEnvelope(second, key)
+	if err != nil {
+		t.Fatalf("second: %v", err)
+	}
+	if firstEnv.StableFactKey == secondEnv.StableFactKey {
+		t.Fatalf("stable fact key collided for distinct conditions: %q", firstEnv.StableFactKey)
 	}
 }
 

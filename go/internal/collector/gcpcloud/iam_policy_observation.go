@@ -15,6 +15,11 @@ import (
 // payload.
 const maxIAMPolicyMembers = 500
 
+const (
+	redactionReasonIAMEtag      = "gcp_iam_etag"
+	redactionReasonIAMCondition = "gcp_iam_condition"
+)
+
 // IAMPolicyObservation is one GCP IAM role binding observed on a resource. The
 // collector keeps the role and condition presence as evidence and fingerprints
 // every member by class; it never carries raw policy JSON or raw member
@@ -32,6 +37,9 @@ type IAMPolicyObservation struct {
 	Members []string
 	// ConditionPresent reports whether the binding carries an IAM condition.
 	ConditionPresent bool
+	// ConditionFingerprintInput is a raw condition body or stable condition
+	// signature used only to produce a keyed fingerprint. It is never persisted.
+	ConditionFingerprintInput string
 	// Etag is the raw policy etag; it is fingerprinted when present.
 	Etag string
 	// UpdateTime is the read/update time.
@@ -45,9 +53,9 @@ type IAMPolicyObservation struct {
 // NewIAMPolicyObservationEnvelope builds the durable gcp_iam_policy_observation
 // fact for one role binding. Every member is recorded as its class plus a keyed
 // fingerprint (never the raw member email/identity); the role and condition
-// presence are bounded evidence; no raw policy JSON is carried. The stable fact
-// key is derived from the resource identity, asset type, and role, so one binding
-// per role per resource upserts in place.
+// presence/fingerprint are bounded evidence; no raw policy JSON is carried. The
+// stable fact key is derived from the resource identity, asset type, role, and
+// condition fingerprint so same-role conditional bindings do not collide.
 //
 // It fails closed on a missing resource name, a missing role, no members, or a
 // zero redaction key.
@@ -74,12 +82,14 @@ func NewIAMPolicyObservationEnvelope(obs IAMPolicyObservation, key redact.Key) (
 	if len(members) == 0 {
 		return facts.Envelope{}, fmt.Errorf("gcp iam policy observation requires at least one member")
 	}
+	conditionFingerprint := fingerprintIAMCondition(obs.ConditionFingerprintInput, key)
 
 	stableKey := facts.StableID(facts.GCPIAMPolicyObservationFactKind, map[string]any{
-		"full_resource_name": fullName,
-		"asset_type":         assetType,
-		"role":               role,
-		"content_family":     obs.Boundary.ContentFamily,
+		"full_resource_name":    fullName,
+		"asset_type":            assetType,
+		"role":                  role,
+		"condition_fingerprint": conditionFingerprint,
+		"content_family":        obs.Boundary.ContentFamily,
 	})
 
 	payload := map[string]any{
@@ -97,12 +107,13 @@ func NewIAMPolicyObservationEnvelope(obs IAMPolicyObservation, key redact.Key) (
 		"member_count":             len(members),
 		"member_truncated":         memberTruncated,
 		"condition_present":        obs.ConditionPresent,
+		"condition_fingerprint":    conditionFingerprint,
 		"read_time":                timeOrNil(obs.Boundary.ReadTime),
 		"update_time":              timeOrNil(obs.UpdateTime.UTC()),
 		"redaction_policy_version": RedactionPolicyVersion,
 	}
 	if etag := strings.TrimSpace(obs.Etag); etag != "" {
-		payload["etag_fingerprint"] = redact.String(etag, "gcp_iam_etag", "gcp_iam_etag", key).Marker
+		payload["etag_fingerprint"] = redact.String(etag, redactionReasonIAMEtag, "gcp_iam_etag", key).Marker
 	}
 
 	return newEnvelope(
@@ -114,6 +125,14 @@ func NewIAMPolicyObservationEnvelope(obs IAMPolicyObservation, key redact.Key) (
 		obs.SourceURI,
 		payload,
 	), nil
+}
+
+func fingerprintIAMCondition(condition string, key redact.Key) string {
+	condition = strings.TrimSpace(condition)
+	if condition == "" {
+		return ""
+	}
+	return redact.String(condition, redactionReasonIAMCondition, "gcp_iam_condition", key).Marker
 }
 
 // fingerprintIAMMembers records each non-blank member as its class plus a keyed
