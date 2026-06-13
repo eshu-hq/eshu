@@ -199,13 +199,12 @@ No-Observability-Change: documentation extraction stays inside existing `collect
 - `RegistryHTTPFailure` and `RegistryTransportFailure` — helpers used by
   registry runtimes to classify auth denied, not found, rate limited,
   retryable, canceled, and terminal registry failures
-- `ClaimedService` — wraps `Service` with a `ClaimControlStore` for
-  workflow-coordinator-gated collection; `MaxAttempts` bounds per-work-item
-  retries so a recurring retryable failure escalates to terminal with class
-  `attempt_budget_exhausted` (issue #612 safety net). Leave `MaxAttempts` at
-  zero to preserve legacy unbounded behavior. Hosted work items copy their
-  tenant, workspace, subject-class, and policy-revision identity into the
-  commit mutation before `ClaimedCommitter` persists facts.
+- `ClaimedService` — wraps `Service` with a `ClaimControlStore` for workflow
+  collection; `MaxAttempts` bounds per-work-item retries and escalates recurring
+  retryable failures to `attempt_budget_exhausted` (issue #612; `0` is legacy).
+  Hosted work items copy tenant identity into commit mutations. Retryable
+  source errors exposing `RetryAfterDelay()` set retry `visible_at` to the
+  larger of poll interval and provider guidance without changing fact output.
 - `FailureClassAttemptBudgetExhausted` — exported failure-class label that
   `ClaimedService` writes to `workflow_claims.failure_class` and
   `workflow_work_items.last_failure_class` when the retry budget escalates a

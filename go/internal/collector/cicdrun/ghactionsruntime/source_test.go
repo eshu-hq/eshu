@@ -218,7 +218,7 @@ func TestClaimedSourceRecordsRateLimitTelemetry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewInstruments() error = %v, want nil", err)
 	}
-	source := newTelemetryTestSource(t, fakeClient{err: ErrRateLimited}, instruments, nil)
+	source := newTelemetryTestSource(t, fakeClient{err: RateLimitError{RetryAfter: 45 * time.Second}}, instruments, nil)
 
 	_, _, err = source.NextClaimed(context.Background(), telemetryTestWorkItem())
 	if !errors.Is(err, ErrRateLimited) {

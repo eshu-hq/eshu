@@ -228,6 +228,38 @@ func TestClaimedServiceContinuesAfterRetryableCollectFailure(t *testing.T) {
 	}
 }
 
+func TestClaimedServiceHonorsRetryAfterOnRetryableCollectFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	now := time.Date(2026, time.May, 18, 16, 50, 0, 0, time.UTC)
+	item := testClaimedWorkItem(now)
+	claim := testWorkflowClaim(item.WorkItemID, now)
+	wantDelay := 45 * time.Second
+	store := &stubClaimStore{
+		item:  item,
+		claim: claim,
+		found: true,
+		retryableFail: func(context.Context, workflow.ClaimMutation) error {
+			cancel()
+			return nil
+		},
+	}
+	source := &stubClaimedSource{err: retryAfterCollectFailure{delay: wantDelay}}
+	service := testClaimedService(now, claim, scope.CollectorGit, store, source, &stubClaimedCommitter{})
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil after retryable claim failure", err)
+	}
+	if got, want := store.retryableFailCalls, 1; got != want {
+		t.Fatalf("retryable fail calls = %d, want %d", got, want)
+	}
+	if got, want := store.lastRetryableFail.VisibleAt, now.Add(wantDelay); !got.Equal(want) {
+		t.Fatalf("VisibleAt = %s, want %s", got, want)
+	}
+}
+
 func TestClaimedServiceTerminalFailsClassifiedCollectFailure(t *testing.T) {
 	t.Parallel()
 
@@ -322,4 +354,16 @@ func TestClaimedServiceErrorUsesConfiguredCollectorKind(t *testing.T) {
 	if got := err.Error(); !strings.Contains(got, "terraform_state") || strings.Contains(got, "git work item") {
 		t.Fatalf("Run() error = %q, want configured collector kind without git wording", got)
 	}
+}
+
+type retryAfterCollectFailure struct {
+	delay time.Duration
+}
+
+func (e retryAfterCollectFailure) Error() string {
+	return "provider retry-after"
+}
+
+func (e retryAfterCollectFailure) RetryAfterDelay() time.Duration {
+	return e.delay
 }

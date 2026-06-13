@@ -132,8 +132,8 @@ func (c GitHubClient) getJSON(ctx context.Context, target TargetConfig, endpoint
 	defer func() {
 		_ = response.Body.Close()
 	}()
-	if isRateLimitResponse(response) {
-		return ErrRateLimited
+	if rateLimit, ok := rateLimitErrorFromResponse(response, time.Now()); ok {
+		return rateLimit
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
@@ -142,13 +142,6 @@ func (c GitHubClient) getJSON(ctx context.Context, target TargetConfig, endpoint
 	decoder := json.NewDecoder(response.Body)
 	decoder.UseNumber()
 	return decoder.Decode(out)
-}
-
-func isRateLimitResponse(response *http.Response) bool {
-	if response.StatusCode == http.StatusTooManyRequests {
-		return true
-	}
-	return response.StatusCode == http.StatusForbidden && response.Header.Get("X-RateLimit-Remaining") == "0"
 }
 
 func (c GitHubClient) httpClient() *http.Client {
