@@ -43,8 +43,9 @@ before touching any file in this directory.
 - **NornicDB grouped writes are not promoted** — `main.go:158–168` logs a
   warning when `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=true`; this is
   conformance-testing only, not a production default.
-- **Semantic-entity claim limit defaults to 1 on NornicDB** —
-  `config.go:128–133`; override only with telemetry in view.
+- **Semantic-entity claim cap is opt-in on NornicDB** —
+  `config.go:177–194`; leave it disabled unless focused evidence shows
+  cross-scope semantic writes are saturating the backend.
 
 ## Common changes
 

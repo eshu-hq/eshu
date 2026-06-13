@@ -63,7 +63,7 @@ queue, or graph-write evidence.
 | `ESHU_REDUCER_WORKERS` | Neo4j: `min(NumCPU, 4)`; NornicDB: `NumCPU` | reducer | Reducer intent worker count. |
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | Neo4j: `workers*4` capped `4..64`; NornicDB: `workers` | reducer | Number of reducer intents claimed per poll. |
 | `ESHU_REDUCER_EXPECTED_SOURCE_LOCAL_PROJECTORS` | unset; local owner sets discovered repo count | reducer | Gates NornicDB/local-authoritative semantic entity claims until source-local projectors drain. |
-| `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` | NornicDB: `1`; otherwise disabled | reducer | Concurrent semantic entity materialization claims after source-local drain. |
+| `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` | unset / disabled | reducer | Optional cap on cross-scope semantic entity materialization claims after source-local drain. |
 | `ESHU_REDUCER_CLAIM_DOMAIN` | unset | reducer | Restricts main reducer claim loop to one domain. Cannot combine with `ESHU_REDUCER_CLAIM_DOMAINS`. |
 | `ESHU_REDUCER_CLAIM_DOMAINS` | unset | reducer | Comma-separated reducer domain allowlist for domain-specific lanes. |
 | `ESHU_DRIFT_PRIOR_CONFIG_DEPTH` | `10` | reducer drift loader | Prior repo-snapshot generations walked for Terraform resources removed from config. |

@@ -39,7 +39,7 @@ func (q ReducerQueue) semanticEntityClaimLimit() int {
 	if q.SemanticEntityClaimLimit > 0 {
 		return q.SemanticEntityClaimLimit
 	}
-	return 1
+	return 0
 }
 
 func (q ReducerQueue) now() time.Time {

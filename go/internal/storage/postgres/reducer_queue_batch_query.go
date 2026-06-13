@@ -1,6 +1,6 @@
 package postgres
 
-const claimReducerWorkQuery = `
+const claimReducerWorkBatchQuery = `
 WITH ` + supersedeInactiveReducerGenerationsCTE + `,
 candidate AS (
     SELECT work_item_id
@@ -61,6 +61,29 @@ candidate AS (
             AND semantic_inflight.status IN ('claimed', 'running')
             AND semantic_inflight.claim_until > $1
       ) < $7)
+      AND ($5 = false OR domain <> 'semantic_entity_materialization' OR $7 <= 0 OR (
+          SELECT count(*)
+          FROM fact_work_items AS semantic_next
+          WHERE semantic_next.stage = 'reducer'
+            AND semantic_next.domain = 'semantic_entity_materialization'
+            AND semantic_next.status IN ('pending', 'retrying', 'claimed', 'running')
+            AND (semantic_next.visible_at IS NULL OR semantic_next.visible_at <= $1)
+            AND (semantic_next.claim_until IS NULL OR semantic_next.claim_until <= $1)
+            AND (
+                semantic_next.updated_at < fact_work_items.updated_at
+                OR (
+                    semantic_next.updated_at = fact_work_items.updated_at
+                    AND semantic_next.work_item_id <= fact_work_items.work_item_id
+                )
+            )
+      ) <= $7 - (
+          SELECT count(*)
+          FROM fact_work_items AS semantic_inflight
+          WHERE semantic_inflight.stage = 'reducer'
+            AND semantic_inflight.domain = 'semantic_entity_materialization'
+            AND semantic_inflight.status IN ('claimed', 'running')
+            AND semantic_inflight.claim_until > $1
+      ))
       -- AWS relationship edges, workload-cloud USES edges, observability COVERS
       -- edges, IAM CAN_ASSUME trust edges, S3 LOGS_TO log-delivery edges, S3
       -- external-principal grant edges, RDS posture node-property updates, IAM
@@ -79,8 +102,7 @@ candidate AS (
             AND aws_nodes.keyspace = 'cloud_resource_uid'
             AND aws_nodes.phase = 'canonical_nodes_committed'
       ))
-      -- IAM permission edge domains use the same CloudResource readiness slice
-      -- as the broad AWS graph-write gate above.
+      -- IAM permission edge domains use the same CloudResource readiness slice as the broad AWS graph-write gate above.
       AND (domain NOT IN ('iam_escalation_materialization', 'iam_can_perform_materialization') OR EXISTS (
           SELECT 1
           FROM graph_projection_phase_state AS iam_permission_nodes
@@ -91,16 +113,13 @@ candidate AS (
             AND iam_permission_nodes.keyspace = 'cloud_resource_uid'
             AND iam_permission_nodes.phase = 'canonical_nodes_committed'
       ))
-      -- The EC2 USES_PROFILE edge (#1146 PR-B) consumes TWO CloudResource node
-      -- families that publish their canonical_nodes_committed phase under DIFFERENT
-      -- entity keys for the same scope/generation: the EC2 instance source node
-      -- (ec2_instance_node_materialization:<scope>, #1146 PR-A) and the IAM
-      -- instance-profile target node (aws_resource_materialization:<scope>, #805).
-      -- A single payload->>'entity_key' match cannot express a two-key requirement,
-      -- so the gate requires both literal-prefix entity keys derived from scope_id.
-      -- Keep the edge domain pending or retrying until BOTH node phases are visibly
-      -- committed instead of claiming it and resolving an edge against a
-      -- not-yet-materialized endpoint (a silent missed edge).
+      -- The EC2 USES_PROFILE edge (#1146 PR-B) gates on TWO node families published
+      -- under DIFFERENT entity keys for the same scope/generation: the EC2 instance
+      -- source node (ec2_instance_node_materialization:<scope>, #1146 PR-A) and the
+      -- IAM instance-profile target node (aws_resource_materialization:<scope>,
+      -- #805). A single payload->>'entity_key' match cannot express a two-key
+      -- requirement, so the gate requires both literal-prefix entity keys derived
+      -- from scope_id. Keep the edge domain pending until BOTH node phases commit.
       AND (domain <> 'ec2_uses_profile_materialization' OR (
           EXISTS (
               SELECT 1 FROM graph_projection_phase_state AS ec2_uses_profile_instance_node
@@ -121,15 +140,9 @@ candidate AS (
                 AND ec2_uses_profile_profile_node.phase = 'canonical_nodes_committed'
           )
       ))
-      -- EC2 block-device KMS posture (#1304) writes properties onto EC2 instance
-      -- CloudResource nodes, but derives the decision from EBS volume and KMS
-      -- CloudResource source facts. Those node families publish readiness under
-      -- different entity keys for the same scope/generation: the EC2 instance
-      -- nodes under ec2_instance_node_materialization:<scope> and the EBS/KMS
-      -- aws_resource nodes under aws_resource_materialization:<scope>. Keep the
-      -- property domain pending until BOTH phases are committed so the reducer
-      -- does not stamp stale or missing block-device posture on an uncommitted EC2
-      -- node substrate.
+      -- EC2 block-device KMS posture (#1304) consumes EC2 instance nodes and
+      -- EBS/KMS CloudResource nodes that publish readiness under different entity
+      -- keys. Keep the property domain pending until BOTH node phases commit.
       AND (domain <> 'ec2_block_device_kms_posture_materialization' OR (
           EXISTS (
               SELECT 1 FROM graph_projection_phase_state AS ec2_block_device_kms_instance_node
@@ -167,14 +180,10 @@ candidate AS (
             AND kube_nodes.keyspace = 'kubernetes_workload_uid'
             AND kube_nodes.phase = 'canonical_nodes_committed'
       ))
-      -- The security-group reachability edge (ALLOWS_INGRESS/EGRESS + TO, #1135
-      -- PR2b Option D) consumes THREE node families for the exact same
-      -- scope/generation/entity-key readiness slice: the :SecurityGroupRule nodes
-      -- (security_group_rule_uid), the CidrBlock/PrefixList endpoint nodes
-      -- (security_group_endpoint_uid, #1135 PR2a), and the SecurityGroup
-      -- CloudResource nodes (cloud_resource_uid, #805). Keep the edge domain
-      -- pending or retrying until ALL THREE phases are visibly committed instead
-      -- of claiming it and recording a retryable reducer failure.
+      -- The security-group reachability edge (#1135 PR2b Option D) gates on three
+      -- node families for the same readiness slice: the :SecurityGroupRule nodes,
+      -- the CidrBlock/PrefixList endpoint nodes, and the SecurityGroup
+      -- CloudResource nodes. Keep the edge domain pending until all three commit.
       AND (domain <> 'security_group_reachability_materialization' OR (
           EXISTS (
               SELECT 1 FROM graph_projection_phase_state AS sg_rule_nodes
@@ -216,8 +225,132 @@ candidate AS (
             AND inflight.status IN ('claimed', 'running')
             AND inflight.claim_until > $1
       )
+      -- A batch claim must not claim two ready rows for the same conflict key
+      -- in one transaction, or the worker pool can race them immediately.
+      AND work_item_id = (
+          SELECT same.work_item_id
+          FROM fact_work_items AS same
+          WHERE same.stage = 'reducer'
+            AND same.conflict_domain = fact_work_items.conflict_domain
+            AND COALESCE(same.conflict_key, same.scope_id) = COALESCE(fact_work_items.conflict_key, fact_work_items.scope_id)
+            AND same.status IN ('pending', 'retrying', 'claimed', 'running')
+            AND NOT EXISTS (
+                SELECT 1
+                FROM superseded_stale_reducer_generations AS superseded_same
+                WHERE superseded_same.work_item_id = same.work_item_id
+            )
+            AND (same.visible_at IS NULL OR same.visible_at <= $1)
+            AND (same.claim_until IS NULL OR same.claim_until <= $1)
+            AND ($2::text[] IS NULL OR same.domain = ANY($2::text[]))
+            AND (same.domain NOT IN ('aws_relationship_materialization', 'workload_cloud_relationship_materialization', 'observability_coverage_materialization', 'iam_can_assume_materialization', 's3_logs_to_materialization', 's3_external_principal_grant_materialization', 'rds_posture_materialization', 'iam_instance_profile_role_materialization', 'ec2_internet_exposure_materialization', 's3_internet_exposure_materialization') OR EXISTS (
+                SELECT 1
+                FROM graph_projection_phase_state AS same_nodes
+                WHERE same_nodes.scope_id = same.scope_id
+                  AND same_nodes.acceptance_unit_id = COALESCE(NULLIF(same.payload->>'entity_key', ''), same.scope_id)
+                  AND same_nodes.source_run_id = same.generation_id
+                  AND same_nodes.generation_id = same.generation_id
+                  AND same_nodes.keyspace = 'cloud_resource_uid'
+                  AND same_nodes.phase = 'canonical_nodes_committed'
+            ))
+            AND (same.domain NOT IN ('iam_escalation_materialization', 'iam_can_perform_materialization') OR EXISTS (
+                SELECT 1
+                FROM graph_projection_phase_state AS same_iam_permission_nodes
+                WHERE same_iam_permission_nodes.scope_id = same.scope_id
+                  AND same_iam_permission_nodes.acceptance_unit_id = COALESCE(NULLIF(same.payload->>'entity_key', ''), same.scope_id)
+                  AND same_iam_permission_nodes.source_run_id = same.generation_id
+                  AND same_iam_permission_nodes.generation_id = same.generation_id
+                  AND same_iam_permission_nodes.keyspace = 'cloud_resource_uid'
+                  AND same_iam_permission_nodes.phase = 'canonical_nodes_committed'
+            ))
+            AND (same.domain <> 'kubernetes_correlation_materialization' OR EXISTS (
+                SELECT 1
+                FROM graph_projection_phase_state AS same_kube_nodes
+                WHERE same_kube_nodes.scope_id = same.scope_id
+                  AND same_kube_nodes.acceptance_unit_id = COALESCE(NULLIF(same.payload->>'entity_key', ''), same.scope_id)
+                  AND same_kube_nodes.source_run_id = same.generation_id
+                  AND same_kube_nodes.generation_id = same.generation_id
+                  AND same_kube_nodes.keyspace = 'kubernetes_workload_uid'
+                  AND same_kube_nodes.phase = 'canonical_nodes_committed'
+            ))
+            -- The EC2 USES_PROFILE edge must also pass its dual-key node-phase gate
+            -- before it can be the per-conflict-key representative of a batch claim,
+            -- or the batch could pick a row whose endpoints have not committed.
+            AND (same.domain <> 'ec2_uses_profile_materialization' OR (
+                EXISTS (
+                    SELECT 1 FROM graph_projection_phase_state AS same_ec2_uses_profile_instance_node
+                    WHERE same_ec2_uses_profile_instance_node.scope_id = same.scope_id
+                      AND same_ec2_uses_profile_instance_node.acceptance_unit_id = 'ec2_instance_node_materialization:' || same.scope_id
+                      AND same_ec2_uses_profile_instance_node.source_run_id = same.generation_id
+                      AND same_ec2_uses_profile_instance_node.generation_id = same.generation_id
+                      AND same_ec2_uses_profile_instance_node.keyspace = 'cloud_resource_uid'
+                      AND same_ec2_uses_profile_instance_node.phase = 'canonical_nodes_committed'
+                )
+                AND EXISTS (
+                    SELECT 1 FROM graph_projection_phase_state AS same_ec2_uses_profile_profile_node
+                    WHERE same_ec2_uses_profile_profile_node.scope_id = same.scope_id
+                      AND same_ec2_uses_profile_profile_node.acceptance_unit_id = 'aws_resource_materialization:' || same.scope_id
+                      AND same_ec2_uses_profile_profile_node.source_run_id = same.generation_id
+                      AND same_ec2_uses_profile_profile_node.generation_id = same.generation_id
+                      AND same_ec2_uses_profile_profile_node.keyspace = 'cloud_resource_uid'
+                      AND same_ec2_uses_profile_profile_node.phase = 'canonical_nodes_committed'
+                )
+            ))
+            -- EC2 block-device KMS posture must also pass its dual-key node-phase
+            -- gate before it can represent a conflict-key batch.
+            AND (same.domain <> 'ec2_block_device_kms_posture_materialization' OR (
+                EXISTS (
+                    SELECT 1 FROM graph_projection_phase_state AS same_ec2_block_device_kms_instance_node
+                    WHERE same_ec2_block_device_kms_instance_node.scope_id = same.scope_id
+                      AND same_ec2_block_device_kms_instance_node.acceptance_unit_id = 'ec2_instance_node_materialization:' || same.scope_id
+                      AND same_ec2_block_device_kms_instance_node.source_run_id = same.generation_id
+                      AND same_ec2_block_device_kms_instance_node.generation_id = same.generation_id
+                      AND same_ec2_block_device_kms_instance_node.keyspace = 'cloud_resource_uid'
+                      AND same_ec2_block_device_kms_instance_node.phase = 'canonical_nodes_committed'
+                )
+                AND EXISTS (
+                    SELECT 1 FROM graph_projection_phase_state AS same_ec2_block_device_kms_resource_node
+                    WHERE same_ec2_block_device_kms_resource_node.scope_id = same.scope_id
+                      AND same_ec2_block_device_kms_resource_node.acceptance_unit_id = 'aws_resource_materialization:' || same.scope_id
+                      AND same_ec2_block_device_kms_resource_node.source_run_id = same.generation_id
+                      AND same_ec2_block_device_kms_resource_node.generation_id = same.generation_id
+                      AND same_ec2_block_device_kms_resource_node.keyspace = 'cloud_resource_uid'
+                      AND same_ec2_block_device_kms_resource_node.phase = 'canonical_nodes_committed'
+                )
+            ))
+            AND (same.domain <> 'security_group_reachability_materialization' OR (
+                EXISTS (
+                    SELECT 1 FROM graph_projection_phase_state AS same_sg_rule_nodes
+                    WHERE same_sg_rule_nodes.scope_id = same.scope_id
+                      AND same_sg_rule_nodes.acceptance_unit_id = COALESCE(NULLIF(same.payload->>'entity_key', ''), same.scope_id)
+                      AND same_sg_rule_nodes.source_run_id = same.generation_id
+                      AND same_sg_rule_nodes.generation_id = same.generation_id
+                      AND same_sg_rule_nodes.keyspace = 'security_group_rule_uid'
+                      AND same_sg_rule_nodes.phase = 'canonical_nodes_committed'
+                )
+                AND EXISTS (
+                    SELECT 1 FROM graph_projection_phase_state AS same_sg_endpoint_nodes
+                    WHERE same_sg_endpoint_nodes.scope_id = same.scope_id
+                      AND same_sg_endpoint_nodes.acceptance_unit_id = COALESCE(NULLIF(same.payload->>'entity_key', ''), same.scope_id)
+                      AND same_sg_endpoint_nodes.source_run_id = same.generation_id
+                      AND same_sg_endpoint_nodes.generation_id = same.generation_id
+                      AND same_sg_endpoint_nodes.keyspace = 'security_group_endpoint_uid'
+                      AND same_sg_endpoint_nodes.phase = 'canonical_nodes_committed'
+                )
+                AND EXISTS (
+                    SELECT 1 FROM graph_projection_phase_state AS same_sg_cloud_nodes
+                    WHERE same_sg_cloud_nodes.scope_id = same.scope_id
+                      AND same_sg_cloud_nodes.acceptance_unit_id = COALESCE(NULLIF(same.payload->>'entity_key', ''), same.scope_id)
+                      AND same_sg_cloud_nodes.source_run_id = same.generation_id
+                      AND same_sg_cloud_nodes.generation_id = same.generation_id
+                      AND same_sg_cloud_nodes.keyspace = 'cloud_resource_uid'
+                      AND same_sg_cloud_nodes.phase = 'canonical_nodes_committed'
+                )
+            ))
+          ORDER BY same.updated_at ASC, same.work_item_id ASC
+          LIMIT 1
+      )
     ORDER BY updated_at ASC, work_item_id ASC
-    LIMIT 1
+    LIMIT $8
     FOR UPDATE SKIP LOCKED
 ),
 claimed AS (

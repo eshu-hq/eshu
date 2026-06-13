@@ -195,7 +195,7 @@ func loadReducerExpectedSourceLocalProjectors(getenv func(string) string) int {
 
 func loadReducerSemanticEntityClaimLimit(
 	getenv func(string) string,
-	graphBackend runtimecfg.GraphBackend,
+	_ runtimecfg.GraphBackend,
 ) int {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
@@ -206,9 +206,6 @@ func loadReducerSemanticEntityClaimLimit(
 		if err == nil && n > 0 {
 			return n
 		}
-	}
-	if graphBackend == runtimecfg.GraphBackendNornicDB {
-		return 1
 	}
 	return 0
 }
