@@ -34,6 +34,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { FindingsPage } from "./pages/FindingsPage";
 import { OperationsPage } from "./pages/OperationsPage";
+import { IncidentContextPage } from "./pages/IncidentContextPage";
 import { VulnerabilitiesPage } from "./pages/VulnerabilitiesPage";
 import { VulnDetailPage } from "./pages/VulnDetailPage";
 import { SbomPage } from "./pages/SbomPage";
@@ -94,6 +95,7 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
     items: [
       { to: "/topology", label: "Topology", icon: GitBranch },
       { to: "/cloud", label: "Cloud", icon: Cloud },
+      { to: "/incidents", label: "Incidents", icon: TriangleAlert },
       { to: "/observability", label: "Observability", icon: Waves },
       { to: "/sbom", label: "SBOM", icon: PackageSearch, count: (m) => nonZero(m.sbom?.total ?? 0) },
       { to: "/dependencies", label: "Dependencies", icon: Boxes, count: (m) => nonZero(m.dependencies?.length ?? 0) }
@@ -316,6 +318,8 @@ export function App(): React.JSX.Element {
             <Route path="/repositories/:id/source" element={<RepoSourcePage client={client} />} />
             <Route path="/cloud" element={<CloudPage client={client} />} />
             <Route path="/topology" element={<TopologyPage client={client} model={visibleModel} onOpenService={openService} />} />
+            <Route path="/incidents" element={<IncidentContextPage model={visibleModel} client={client} onOpenService={openService} />} />
+            <Route path="/incidents/:incidentId/context" element={<IncidentContextPage model={visibleModel} client={client} onOpenService={openService} />} />
             <Route path="/catalog" element={<CatalogPage model={visibleModel} onOpenService={openService} />} />
             <Route path="/images" element={<ImagesPage client={client} />} />
             <Route path="/iac" element={<IacPage model={visibleModel} client={client} />} />
