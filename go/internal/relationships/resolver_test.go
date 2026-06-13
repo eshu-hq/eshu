@@ -85,8 +85,8 @@ func TestResolveInferredOnly(t *testing.T) {
 	if candidates[0].EvidenceCount != 2 {
 		t.Errorf("evidence_count = %d, want 2", candidates[0].EvidenceCount)
 	}
-	if candidates[0].Confidence != 0.99 {
-		t.Errorf("confidence = %f, want 0.99", candidates[0].Confidence)
+	if candidates[0].Confidence <= 0.99 || candidates[0].Confidence >= 1.0 {
+		t.Errorf("confidence = %f, want corroboration uplift above 0.99 and below 1.0", candidates[0].Confidence)
 	}
 
 	if len(resolved) != 1 {
@@ -95,8 +95,8 @@ func TestResolveInferredOnly(t *testing.T) {
 	if resolved[0].ResolutionSource != ResolutionSourceInferred {
 		t.Errorf("resolution_source = %q", resolved[0].ResolutionSource)
 	}
-	if resolved[0].Confidence != 0.99 {
-		t.Errorf("confidence = %f, want 0.99", resolved[0].Confidence)
+	if resolved[0].Confidence != candidates[0].Confidence {
+		t.Errorf("confidence = %f, want candidate confidence %f", resolved[0].Confidence, candidates[0].Confidence)
 	}
 }
 

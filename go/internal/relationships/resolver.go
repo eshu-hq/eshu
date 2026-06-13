@@ -3,6 +3,7 @@ package relationships
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 )
@@ -10,6 +11,8 @@ import (
 // DefaultConfidenceThreshold is the minimum confidence for an inferred
 // candidate to be promoted to a resolved relationship.
 const DefaultConfidenceThreshold = 0.75
+
+const corroborationUpliftShare = 0.25
 
 // DedupeEvidenceFacts collapses exact duplicate evidence facts while
 // preserving discovery order.
@@ -147,6 +150,7 @@ func buildCandidates(facts []EvidenceFact) []Candidate {
 // aggregateCandidate builds a single candidate from a group of evidence facts.
 func aggregateCandidate(key entityTriple, facts []EvidenceFact) Candidate {
 	maxConf := 0.0
+	confidenceMissProbability := 1.0
 	evidenceKinds := make(map[string]struct{})
 	rationales := make([]string, 0)
 	seenRationale := make(map[string]struct{})
@@ -155,9 +159,11 @@ func aggregateCandidate(key entityTriple, facts []EvidenceFact) Candidate {
 	preview := make([]map[string]any, 0, min(len(facts), 5))
 
 	for i := range facts {
-		if facts[i].Confidence > maxConf {
-			maxConf = facts[i].Confidence
+		confidence := clampConfidence(facts[i].Confidence)
+		if confidence > maxConf {
+			maxConf = confidence
 		}
+		confidenceMissProbability *= 1 - confidence
 		evidenceKinds[string(facts[i].EvidenceKind)] = struct{}{}
 		if _, seen := seenRationale[facts[i].Rationale]; !seen && facts[i].Rationale != "" {
 			seenRationale[facts[i].Rationale] = struct{}{}
@@ -179,6 +185,7 @@ func aggregateCandidate(key entityTriple, facts []EvidenceFact) Candidate {
 	}
 
 	sortedKinds := sortedKeys(evidenceKinds)
+	confidence := aggregateEvidenceConfidence(maxConf, len(facts), confidenceMissProbability)
 
 	return Candidate{
 		SourceRepoID:     srcRepoID,
@@ -186,7 +193,7 @@ func aggregateCandidate(key entityTriple, facts []EvidenceFact) Candidate {
 		SourceEntityID:   key.SourceEntityID,
 		TargetEntityID:   key.TargetEntityID,
 		RelationshipType: key.RelationshipType,
-		Confidence:       maxConf,
+		Confidence:       confidence,
 		EvidenceCount:    len(facts),
 		Rationale:        strings.Join(rationales, "; "),
 		Details: map[string]any{
@@ -194,6 +201,32 @@ func aggregateCandidate(key entityTriple, facts []EvidenceFact) Candidate {
 			"evidence_preview": preview,
 		},
 	}
+}
+
+func aggregateEvidenceConfidence(maxConfidence float64, evidenceCount int, missProbability float64) float64 {
+	maxConfidence = clampConfidence(maxConfidence)
+	if evidenceCount <= 1 {
+		return maxConfidence
+	}
+
+	bayesianConfidence := clampConfidence(1 - missProbability)
+	countSupport := 1 - math.Pow(0.5, float64(evidenceCount-1))
+	upliftLimit := maxConfidence + ((1 - maxConfidence) * corroborationUpliftShare * countSupport)
+	confidence := min(bayesianConfidence, upliftLimit)
+	if confidence < maxConfidence {
+		return maxConfidence
+	}
+	return clampConfidence(confidence)
+}
+
+func clampConfidence(confidence float64) float64 {
+	if math.IsNaN(confidence) || confidence < 0 {
+		return 0
+	}
+	if confidence > 1 {
+		return 1
+	}
+	return confidence
 }
 
 // groupAssertions splits assertions into rejections and explicit assertion maps.

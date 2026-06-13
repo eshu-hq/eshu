@@ -87,6 +87,13 @@ identity key was found (`0.78`) or only the resource block name was available
 explicit assertion overrides from `Assertion` values, filters by
 `confidenceThreshold` (default `DefaultConfidenceThreshold` = 0.75), and
 returns both the candidate list and the promoted `ResolvedRelationship` slice.
+Inferred candidate confidence starts with the strongest evidence fact, then
+adds bounded corroboration from distinct facts in the same bucket. A single
+fact stays at its per-fact confidence; corroborating facts are combined with a
+missing-probability model and capped to a diminishing share of the remaining
+distance to certainty so repeated hints do not fabricate `1.0` confidence.
+Explicit `assert` decisions still override inferred confidence to `1.0`, while
+`reject` decisions still suppress inferred output.
 
 ## Exported surface
 
@@ -155,10 +162,16 @@ non-match candidates improved from `17628716 ns/op`, `5123080 B/op`, and
 after replacing per-candidate catalog scans with the boundary-aware matcher
 index.
 
-No-Observability-Change: relationship extraction still has no package-local
-metrics, spans, logs, graph writes, queue claims, or storage mutations. Operators
-continue to diagnose admitted evidence through reducer status and persisted
-relationship-evidence rows.
+No-Regression Evidence: resolver confidence aggregation is an in-memory
+candidate-bucket calculation. It adds no graph write, queue claim, storage
+schema, worker, lease, batch, or reducer scheduling behavior. `Resolve` still
+returns the same candidate and resolved relationship shapes, with the existing
+`confidence` and `evidence_count` fields carrying the score and support count.
+
+No-Observability-Change: operators already inspect admitted relationship
+confidence and evidence count through the reducer/Postgres relationship
+evidence path. This package still emits no telemetry directly; diagnosis uses
+the existing reducer admission and relationship persistence signals.
 
 ## Operational notes
 
@@ -177,9 +190,11 @@ relationship-evidence rows.
   to `DiscoverEvidence`. Template parameters not present in the content index
   will leave the template unresolved and no evidence will be emitted for those
   dynamic sources.
-- Confidence thresholds in `Resolve` are applied to the maximum confidence
-  across the evidence bucket, not the average. A single high-confidence signal
-  is sufficient to promote a candidate.
+- Confidence thresholds in `Resolve` are applied to bounded aggregate
+  confidence. A single high-confidence signal is still sufficient to promote a
+  candidate, and corroborating lower-tier facts can lift a candidate only within
+  the cap described above. Exact duplicates should be removed before resolving
+  so they do not inflate `EvidenceCount` or confidence.
 
 ## Extension points
 
@@ -199,13 +214,12 @@ relationship-evidence rows.
 
 - Extractors must be deterministic over the same input bytes. Repeated runs
   over the same snapshot must produce the same `EvidenceFact` set (`doc.go`).
-- `Resolve` deduplicates both the candidate and the resolved output. Do not
-  pre-deduplicate evidence before calling `Resolve`; the deduplication inside
-  `buildCandidates` relies on seeing the full evidence set to compute
-  `EvidenceCount` correctly.
+- `Resolve` groups every evidence fact it receives and deduplicates only the
+  resolved output. Call `DedupeEvidenceFacts` or rely on extractor `seen` maps
+  before resolving when identical facts can repeat; keep distinct corroborating
+  facts so `EvidenceCount` remains truthful.
 - `Assertion.Decision` must be exactly `"assert"` or `"reject"`. Values that
-  do not match either string are silently ignored by `groupAssertions`
-  (`resolver.go:220`).
+  do not match either string are silently ignored by `groupAssertions`.
 - Terraform registry sources (three-part `namespace/provider/type` form) are
   explicitly excluded from module-source evidence because they reference a
   public registry module, not a repository alias.
