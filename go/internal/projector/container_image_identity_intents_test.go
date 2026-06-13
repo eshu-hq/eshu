@@ -130,6 +130,44 @@ func TestBuildProjectionQueuesContainerImageIdentityForGCPImageReference(t *test
 	}
 }
 
+func TestBuildProjectionQueuesContainerImageIdentityForAzureImageReference(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:      "azure:tenant:subscription:demo:containerapps:global:resources",
+		ScopeKind:    "azure_cloud",
+		SourceSystem: "azure",
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: "azure-generation-1",
+		ObservedAt:   time.Date(2026, time.June, 13, 12, 0, 0, 0, time.UTC),
+		IngestedAt:   time.Date(2026, time.June, 13, 12, 0, 1, 0, time.UTC),
+		Status:       scope.GenerationStatusPending,
+	}
+
+	projection, err := buildProjection(scopeValue, generation, []facts.Envelope{
+		azureImageReferenceEnvelope("fact-azure-image-1", scopeValue.ScopeID, generation.GenerationID),
+	})
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+
+	intent := requireContainerImageIdentityIntent(t, projection.reducerIntents)
+	if got, want := intent.Domain, reducer.DomainContainerImageIdentity; got != want {
+		t.Fatalf("intent.Domain = %q, want %q", got, want)
+	}
+	if got, want := intent.EntityKey, "container_image_identity:azure:tenant:subscription:demo:containerapps:global:resources"; got != want {
+		t.Fatalf("intent.EntityKey = %q, want %q", got, want)
+	}
+	if got, want := intent.FactID, "fact-azure-image-1"; got != want {
+		t.Fatalf("intent.FactID = %q, want Azure image reference fact", got)
+	}
+	if got, want := intent.SourceSystem, "azure"; got != want {
+		t.Fatalf("intent.SourceSystem = %q, want %q", got, want)
+	}
+}
+
 func requireContainerImageIdentityIntent(t *testing.T, intents []ReducerIntent) ReducerIntent {
 	t.Helper()
 	for _, intent := range intents {
@@ -139,6 +177,30 @@ func requireContainerImageIdentityIntent(t *testing.T, intents []ReducerIntent) 
 	}
 	t.Fatalf("container_image_identity intent missing from %#v", intents)
 	return ReducerIntent{}
+}
+
+func azureImageReferenceEnvelope(factID, scopeID, generationID string) facts.Envelope {
+	return facts.Envelope{
+		FactID:           factID,
+		ScopeID:          scopeID,
+		GenerationID:     generationID,
+		FactKind:         facts.AzureImageReferenceFactKind,
+		SchemaVersion:    facts.AzureImageReferenceSchemaVersion,
+		CollectorKind:    "azure",
+		SourceConfidence: facts.SourceConfidenceReported,
+		ObservedAt:       time.Date(2026, time.June, 13, 12, 0, 0, 0, time.UTC),
+		SourceRef: facts.Ref{
+			SourceSystem: "azure",
+		},
+		Payload: map[string]any{
+			"owning_arm_resource_id": "/subscriptions/demo/resourceGroups/rg/providers/Microsoft.App/containerApps/api",
+			"owning_normalized_id":   "/subscriptions/demo/resourcegroups/rg/providers/microsoft.app/containerapps/api",
+			"owning_resource_type":   "microsoft.app/containerapps",
+			"image_reference":        "contoso.azurecr.io/team/api:prod",
+			"image_digest":           "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"tag_digest_confidence":  "digest",
+		},
+	}
 }
 
 func gcpImageReferenceEnvelope(factID, scopeID, generationID string) facts.Envelope {

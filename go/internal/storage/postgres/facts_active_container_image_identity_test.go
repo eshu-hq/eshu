@@ -81,6 +81,23 @@ func TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerat
 					time.Date(2026, time.May, 15, 10, 0, 3, 0, time.UTC),
 					false,
 					[]byte(`{"owning_full_resource_name":"//run.googleapis.com/projects/demo/locations/us-central1/services/api","image_reference":"registry.example.com/team/api:prod","image_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`),
+				}, {
+					"fact-azure-image-1",
+					"azure:tenant:subscription:demo:containerapps:global:resources",
+					"generation-azure",
+					"azure_image_reference",
+					"azure-image:team-api",
+					"1.0.0",
+					"azure",
+					int64(0),
+					"reported",
+					"azure",
+					"azure-image:team-api",
+					"azure://container-apps/demo-api",
+					"team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					time.Date(2026, time.May, 15, 10, 0, 4, 0, time.UTC),
+					false,
+					[]byte(`{"owning_arm_resource_id":"/subscriptions/demo/resourceGroups/rg/providers/Microsoft.App/containerApps/api","image_reference":"contoso.azurecr.io/team/api:prod","image_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`),
 				}},
 			},
 		},
@@ -91,7 +108,7 @@ func TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerat
 	if err != nil {
 		t.Fatalf("ListActiveContainerImageIdentityFacts() error = %v, want nil", err)
 	}
-	if got, want := len(loaded), 4; got != want {
+	if got, want := len(loaded), 5; got != want {
 		t.Fatalf("ListActiveContainerImageIdentityFacts() len = %d, want %d", got, want)
 	}
 	if got, want := loaded[0].FactKind, "oci_registry.image_tag_observation"; got != want {
@@ -106,6 +123,9 @@ func TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerat
 	if got, want := loaded[3].FactKind, "gcp_image_reference"; got != want {
 		t.Fatalf("FactKind = %q, want %q", got, want)
 	}
+	if got, want := loaded[4].FactKind, "azure_image_reference"; got != want {
+		t.Fatalf("FactKind = %q, want %q", got, want)
+	}
 	query := db.queries[0].query
 	for _, want := range []string{
 		"scope.active_generation_id = fact.generation_id",
@@ -114,6 +134,7 @@ func TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerat
 		"fact.fact_kind = 'aws_image_reference'",
 		"fact.fact_kind = 'aws_relationship'",
 		"fact.fact_kind = 'gcp_image_reference'",
+		"fact.fact_kind = 'azure_image_reference'",
 		"fact.fact_kind = 'content_entity'",
 		"fact.payload->'entity_metadata' ? 'container_images'",
 		"fact.is_tombstone = FALSE",
