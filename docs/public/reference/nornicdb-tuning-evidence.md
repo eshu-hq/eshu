@@ -36,6 +36,45 @@ Durable decisions:
 The edge index fixes relationship-existence slope. High-cardinality entity
 volume still needs measured label summaries before changing caps.
 
+## Semantic Entity Claim Cap
+
+The reducer keeps source-local drain gating and same-scope `code_graph`
+conflict fencing for semantic entity materialization, but the global
+cross-scope semantic claim cap is disabled by default. Set
+`ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` only when focused evidence shows
+distinct-scope semantic writers still saturate NornicDB.
+
+No-Regression Evidence: the claim-limit regression is covered by
+`go test ./cmd/reducer -run 'TestLoadReducerSemanticEntityClaimLimit|TestLoadReducerExpectedSourceLocalProjectors|TestBuildReducerServiceWiresSemanticEntityClaimLimit' -count=1`
+and
+`go test ./internal/storage/postgres -run 'TestReducerQueue(SemanticClaimLimitDefaultDisablesCrossScopeCap|ClaimBypassesSemanticGlobalCapWhenDisabled|ClaimBatchBypassesSemanticGlobalCapWhenDisabled|ClaimGatesSemanticEntitiesOnGlobalProjectorDrain|ClaimPassesSemanticEntityClaimLimit)|TestClaimBatch(GatesSemanticEntitiesOnGlobalProjectorDrain|PassesSemanticEntityClaimLimit)' -count=1`.
+Those tests prove NornicDB defaults pass `0` through the reducer config and
+both queue claim shapes, positive overrides still gate semantic work, and the
+source-local drain predicate remains active. The opt-in live proof
+`TestSemanticEntityWriterLiveNornicDBConcurrentDistinctRepos` requires
+`ESHU_SEMANTIC_ENTITY_NORNICDB_LIVE=1` and
+`ESHU_GRAPH_BACKEND=nornicdb`; it seeds eight distinct repositories, runs
+parallel semantic writes through the NornicDB canonical-row writer shape, and
+asserts canonical-owned function properties plus semantic-owned module
+containment.
+
+Benchmark Evidence: the local writer-shape benchmark is
+`go test ./internal/storage/cypher -run '^$' -bench BenchmarkSemanticEntityWriterNornicDBConcurrentDistinctRepos -benchmem -count=1`.
+The no-op executor run recorded `77238` iterations, `14184 ns/op`, `13.00`
+statements/op, `32108 B/op`, and `229 allocs/op`; the post-rebase run recorded
+`48918` iterations, `40676 ns/op`, `13.00` statements/op, `32076 B/op`, and
+`229 allocs/op`; the post-merge run recorded `32193` iterations, `36528 ns/op`,
+`13.00` statements/op, `32078 B/op`, and `229 allocs/op`. This is row-shaping evidence,
+not a replacement for the opt-in live NornicDB proof above.
+
+No-Observability-Change: the default change adds no route, worker, queue
+domain, status field, metric name, or metric label. Operators continue to
+diagnose reducer claim latency and in-flight work through
+`eshu_dp_postgres_query_duration_seconds{store="queue"}`, queue status
+blockages, and existing reducer/NornicDB graph-write logs and spans. Positive
+`ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` remains the operator knob when live
+evidence shows distinct-scope semantic writers saturating NornicDB.
+
 ## Inheritance Edge Routing
 
 Before typed inheritance routing, one 700-edge `inheritance_edges` write used

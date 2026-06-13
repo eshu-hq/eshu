@@ -115,8 +115,9 @@ type ReducerQueue struct {
 	ExpectedSourceLocalProjectors int
 
 	// SemanticEntityClaimLimit caps concurrent semantic entity reducer claims
-	// under the NornicDB local-authoritative drain gate. Values <= 0 keep the
-	// conservative one-claim default when the gate is enabled.
+	// under the NornicDB local-authoritative drain gate. Values <= 0 disable
+	// the cross-scope semantic cap; conflict-domain fencing still serializes
+	// same-scope code graph work.
 	SemanticEntityClaimLimit int
 }
 

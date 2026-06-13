@@ -108,7 +108,7 @@ present so a global legacy value cannot silently override a Helm lane allowlist.
 | --- | --- |
 | `ESHU_QUERY_PROFILE` | With ESHU_GRAPH_BACKEND=nornicdb, `local-authoritative` enables the projector drain gate |
 | `ESHU_REDUCER_EXPECTED_SOURCE_LOCAL_PROJECTORS` | Semantic-entity claims wait until this many source-local projectors have published |
-| `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` | Cap on concurrent semantic-entity claims (default `1` on NornicDB) |
+| `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` | Optional cap on cross-scope semantic-entity claims; unset keeps the cap disabled |
 
 ### Shared projection
 

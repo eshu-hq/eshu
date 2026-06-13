@@ -191,6 +191,7 @@ func TestClaimBatchCanWaitForProjectorDrain(t *testing.T) {
 		LeaseDuration:                    time.Minute,
 		Now:                              func() time.Time { return now },
 		RequireProjectorDrainBeforeClaim: true,
+		SemanticEntityClaimLimit:         1,
 	}
 
 	if _, err := q.ClaimBatch(context.Background(), 5); err != nil {
@@ -231,6 +232,7 @@ func TestClaimBatchGatesSemanticEntitiesOnGlobalProjectorDrain(t *testing.T) {
 		LeaseDuration:                    time.Minute,
 		Now:                              func() time.Time { return now },
 		RequireProjectorDrainBeforeClaim: true,
+		SemanticEntityClaimLimit:         1,
 	}
 
 	if _, err := q.ClaimBatch(context.Background(), 5); err != nil {
