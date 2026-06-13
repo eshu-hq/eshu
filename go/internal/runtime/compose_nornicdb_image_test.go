@@ -14,7 +14,7 @@ func TestNornicDBComposeDefaultUsesPinnedMultiArchImage(t *testing.T) {
 		t.Fatalf("docker-compose.yaml still defaults to stale amd64-only image %q", oldDefault)
 	}
 
-	want := "image: ${NORNICDB_IMAGE:-timothyswt/nornicdb-cpu-bge:v1.1.3@sha256:42af69852ae0f34a905a0877668025d53b3783bb864549810d868e1bf94f3752}"
+	want := "image: ${NORNICDB_IMAGE:-timothyswt/nornicdb-cpu-bge:v1.1.6@sha256:e448ccf5cd1c1ff994c6316a1a2c5b06b19b4a3c6545660fa04f43c457625692}"
 	if !strings.Contains(content, want) {
 		t.Fatalf("docker-compose.yaml must default to a pinned multi-arch NornicDB image matching %q", want)
 	}
@@ -135,7 +135,7 @@ func TestNornicDBGraphSearchSplitDesignTracksImplementedStabilization(t *testing
 	normalizedDocs := strings.Join(strings.Fields(docs), " ")
 	for _, want := range []string{
 		"Phase-1 stabilization status:",
-		"Compose and Helm now pin NornicDB `v1.1.3`",
+		"Compose and Helm now pin NornicDB `v1.1.6`",
 		"Runtime contract tests enforce the graph-only NornicDB controls",
 	} {
 		if !strings.Contains(normalizedDocs, want) {
