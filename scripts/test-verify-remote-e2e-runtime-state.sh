@@ -358,11 +358,11 @@ cat >"${state_dir}/index-status.json" <<'JSON'
   }
 }
 JSON
-export ESHU_REMOTE_E2E_CORPUS_MODE=representative
+export ESHU_REMOTE_E2E_CORPUS_MODE=representative ESHU_REMOTE_E2E_MIN_ADVISORY_EVIDENCE_COUNT=0
 expect_pass
 rg -q 'remote E2E representative proof safety state:' /tmp/eshu-remote-e2e-runtime.out || { printf 'expected representative proof safety state in verifier output\n' >&2; sed -n '1,260p' /tmp/eshu-remote-e2e-runtime.out >&2; exit 1; }
 rg -q 'remote E2E representative background workflow activity:' /tmp/eshu-remote-e2e-runtime.out || { printf 'expected representative background workflow activity in verifier output\n' >&2; sed -n '1,260p' /tmp/eshu-remote-e2e-runtime.out >&2; exit 1; }
-unset ESHU_REMOTE_E2E_CORPUS_MODE
+unset ESHU_REMOTE_E2E_CORPUS_MODE ESHU_REMOTE_E2E_MIN_ADVISORY_EVIDENCE_COUNT
 reset_state
 set_all_services_healthy
 cat >"${state_dir}/index-status.json" <<'JSON'
@@ -490,7 +490,7 @@ set_all_services_healthy
 cat >"${state_dir}/package-count.json" <<'JSON'
 {"total_packages": 0}
 JSON
-export ESHU_REMOTE_E2E_CORPUS_MODE=representative
+export ESHU_REMOTE_E2E_CORPUS_MODE=representative ESHU_REMOTE_E2E_MIN_ADVISORY_EVIDENCE_COUNT=0
 expect_fail_with 'package_registry_packages=0 below required minimum 1'
-unset ESHU_REMOTE_E2E_CORPUS_MODE
+unset ESHU_REMOTE_E2E_CORPUS_MODE ESHU_REMOTE_E2E_MIN_ADVISORY_EVIDENCE_COUNT
 printf 'verify-remote-e2e-runtime-state tests passed\n'

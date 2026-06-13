@@ -20,6 +20,7 @@ EXTRA_SERVICES="${ESHU_REMOTE_E2E_EXTRA_SERVICES:-}"
 PROFILE_COLLECTOR_SERVICES="${ESHU_REMOTE_E2E_PROFILE_COLLECTOR_SERVICES:-collector-confluence collector-pagerduty collector-jira collector-grafana collector-prometheus-mimir collector-loki collector-tempo}"
 CORPUS_MODE="${ESHU_REMOTE_E2E_CORPUS_MODE:-smoke}"
 ADVISORY_EVIDENCE_CVE_ID="${ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID:-${ESHU_VULNERABILITY_E2E_CVE_ID:-CVE-2021-44228}}"
+VULNERABILITY_DETAIL_ID="${ESHU_REMOTE_E2E_VULNERABILITY_DETAIL_ID:-${ADVISORY_EVIDENCE_CVE_ID}}"
 PACKAGE_REGISTRY_GAP_PACKAGE_ID="${ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID:-}"
 DERIVED_TARGET_LIMIT="${ESHU_REMOTE_E2E_DERIVED_TARGET_LIMIT:-100}"
 REPRESENTATIVE_MAX_QUEUE_OUTSTANDING="${ESHU_REMOTE_E2E_REPRESENTATIVE_MAX_QUEUE_OUTSTANDING:-}"
@@ -302,6 +303,8 @@ verify_aggregate_counts() {
 
 	local package_file="${TMP_DIR}/package-count.json"
 	local advisory_file="${TMP_DIR}/advisory-evidence.json"
+	local advisory_catalog_file="${TMP_DIR}/advisory-catalog.json"
+	local vulnerability_detail_file="${TMP_DIR}/vulnerability-detail.json"
 	local impact_file="${TMP_DIR}/impact-count.json"
 	local security_alert_file="${TMP_DIR}/security-alert-count.json"
 	local sbom_file="${TMP_DIR}/sbom-count.json"
@@ -325,6 +328,25 @@ verify_aggregate_counts() {
 	if should_probe_aggregate_count "${advisory_min}"; then
 		api_get "/supply-chain/advisories/evidence?cve_id=${ADVISORY_EVIDENCE_CVE_ID}&limit=1" "${advisory_file}"
 		advisory_count="$(json_int "${advisory_file}" '.count')"
+		if (( advisory_min > 0 )); then
+			api_get "/supply-chain/advisories?limit=1" "${advisory_catalog_file}"
+			local advisory_catalog_count
+			advisory_catalog_count="$(jq -r '(.count // ([.advisories[]?] | length)) // 0' "${advisory_catalog_file}")"
+			require_min_count vulnerability_console_catalog "${advisory_catalog_count}" "${advisory_min}"
+			api_get "/supply-chain/vulnerabilities/${VULNERABILITY_DETAIL_ID}" "${vulnerability_detail_file}"
+			if ! jq -e '
+				([.sources[]? | select(((.cvss_score // 0) > 0) or ((.cvss_v2 // "") != "") or ((.cvss_v3 // "") != "") or ((.cvss_v4 // "") != ""))] | length) > 0 and
+				([.epss[]? | select((.probability // "") != "")] | length) > 0 and
+				([.kev[]?] | length) > 0 and
+				([.references[]? | select((.url // "") != "")] | length) > 0
+			' "${vulnerability_detail_file}" >/dev/null; then
+				echo "remote E2E vulnerability detail ${VULNERABILITY_DETAIL_ID} missing CVSS, EPSS, KEV, or reference evidence" >&2
+				cat "${vulnerability_detail_file}" >&2
+				return 1
+			fi
+			printf 'remote E2E vulnerability console readbacks: vulnerability_console_catalog=%s vulnerability_detail=1 detail_id=%s\n' \
+				"${advisory_catalog_count}" "${VULNERABILITY_DETAIL_ID}"
+		fi
 	else
 		report_skipped_aggregate_count advisory_evidence "${advisory_min}"
 	fi
