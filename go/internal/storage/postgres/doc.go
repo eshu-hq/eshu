@@ -39,6 +39,10 @@
 // domain's truth contract. Shared projection intent writes use bounded
 // multi-row upserts so high-cardinality package, code-call, and correlation
 // facts reduce Postgres round trips without changing idempotency semantics.
+// Relationship evidence backfill reads latest file/content facts plus
+// gcp_cloud_relationship facts so cloud provider relationships without file
+// content can still flow through the resolver's catalog-admission contract.
+// Streaming commit-time relationship discovery remains repository-scope only.
 // LoadSecretsIAMTrustChainEvidence expands active facts through explicit
 // redaction-safe anchors only: Kubernetes service-account joins, AWS role and
 // web-identity subject fingerprints, Vault policy/path joins, GCP principal

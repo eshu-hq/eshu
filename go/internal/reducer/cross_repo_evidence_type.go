@@ -37,6 +37,7 @@ var evidenceKindToType = map[relationships.EvidenceKind]string{
 	relationships.EvidenceKindKustomizeHelmChart:                   "kustomize_helm_chart_reference",
 	relationships.EvidenceKindKustomizeImage:                       "kustomize_image_reference",
 	relationships.EvidenceKindAnsibleRoleReference:                 "ansible_role_reference",
+	relationships.EvidenceKindGCPCloudRelationship:                 "gcp_cloud_relationship",
 }
 
 func resolvedRelationshipEvidenceType(r relationships.ResolvedRelationship) string {

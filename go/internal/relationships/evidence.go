@@ -62,6 +62,10 @@ func discoverFromEnvelopeWithIndex(
 	seen map[evidenceKey]struct{},
 	contentIndex evidenceContentIndex,
 ) []EvidenceFact {
+	if envelope.FactKind == facts.GCPCloudRelationshipFactKind {
+		return discoverGCPCloudRelationshipEvidence(envelope, matcher, seen)
+	}
+
 	artifactType, _ := envelope.Payload["artifact_type"].(string)
 	parsedFileData, _ := envelope.Payload["parsed_file_data"].(map[string]any)
 	sourceRepoID, filePath, content := envelopeContentIdentity(envelope)
