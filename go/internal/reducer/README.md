@@ -377,6 +377,29 @@ InstrumentedExecutor's `eshu_dp_neo4j_query_duration_seconds` /
 `label=RUNS_IMAGE` statement let an operator see live-workload edge throughput
 and spot a generation that materialized zero edges, at 3 AM.
 
+## EshuSearchDocument curated search read model (issue #2236)
+
+`DomainEshuSearchDocument` (`eshu_search_document_domain.go`) is the design-430
+curated search projection, kept separate from canonical graph writes:
+
+- `ProjectSearchDocuments` (`eshu_search_document_projection.go`) curates a
+  bounded per-generation source set (content entities, files, runtime summaries)
+  through `searchdocs`, dropping sensitive or excluded candidates and returning
+  documents ordered by id with a low-cardinality curation summary.
+- `EshuSearchDocumentHandler` (`eshu_search_document.go`) drives one intent:
+  load sources, curate, write, and emit the canonical-write counter/duration plus
+  a structured cycle log (`considered`/`included`/`skipped`/`written`/`retired`).
+- `PostgresEshuSearchDocumentWriter` (`eshu_search_document_writer.go`) upserts
+  each document as a derived fact (`reducer_eshu_search_document`,
+  `truth_scope.level = derived`) keyed deterministically by scope, generation,
+  and document id, then retires documents in the generation that are absent from
+  the written set. `postgres.EshuSearchDocumentStore` reads back only the active
+  generation, so superseded generations retire automatically.
+
+Search documents are derived retrieval evidence; this domain performs no graph
+write. Intent emission and runner registration are wired after the design-430
+benchmark gate (#2235) selects the search-lane backing.
+
 ## Intent lifecycle
 
 `Intent` (declared in `intent.go:138`) carries the durable queue contract.

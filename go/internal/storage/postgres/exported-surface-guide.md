@@ -34,6 +34,12 @@ reducer/query adapter.
   service/environment labels, dependency paths, warning flags, missing
   evidence, and recommended action. Older facts without those fields still
   decode and let the query layer derive the current AWS drift statuses.
+- `EshuSearchDocumentStore` / `NewEshuSearchDocumentStore` — active-generation
+  reads over `reducer_eshu_search_document` facts for the design-430 curated
+  search lane; filters must include `scope_id`, accept optional `repo_id` and
+  `source_kind` predicates, and direct list reads cap at 500 rows. The decoded
+  row carries the curated `searchdocs.Document`; documents stay derived
+  retrieval evidence and never canonical graph truth.
 
 **Queue stores**
 
