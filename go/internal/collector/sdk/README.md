@@ -245,3 +245,24 @@ No-Observability-Change (#2384): SBOM configured-document fetches keep the same
 claim workflow, fact emission, warning fact, and workflow failure class/details
 surface. The SDK remains telemetry-free and adds no metric, span, log, status,
 queue, graph write, deployment, or runtime profile change.
+
+Line-count marker (#2387): the vulnerability-intelligence source clients now
+reuse SDK default HTTP client construction, bounded `HTTPError` values,
+`Retry-After` parsing, and transport-error wrapping for OSV, CISA KEV, FIRST
+EPSS, and NVD. Source-owned request shaping, OSV ecosystem mapping, CISA KEV
+catalog decoding, FIRST EPSS query limits, NVD window validation, and NVD
+header-only API key handling stay local.
+
+No-Regression Evidence (#2387): `go test ./internal/collector/sdk
+./internal/collector/vulnerabilityintelligence
+./internal/collector/vulnerabilityintelligence/vulnruntime
+./cmd/collector-vulnerability-intelligence -count=1` covers SDK-backed HTTP
+status, transport, decode, and retry-after behavior for vulnerability source
+clients plus runtime request-result and source-state classification from
+structured SDK errors.
+
+No-Observability-Change (#2387): the SDK remains telemetry-free. The
+vulnerability-intelligence runtime keeps ownership of observe/fetch spans,
+observation counters, fetch-duration histograms, fact counters, rate-limit
+counters, durable source-state rows, health, readiness, metrics, and
+admin-status surfaces.
