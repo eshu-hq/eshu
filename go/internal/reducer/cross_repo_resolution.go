@@ -132,11 +132,37 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 		return 0, fmt.Errorf("load evidence facts for resolution: %w", err)
 	}
 	if len(evidenceFacts) == 0 {
-		slog.InfoContext(ctx, "cross-repo resolution skipped: no evidence",
+		if h.Persister != nil {
+			if err := h.Persister.ActivateResolutionGeneration(ctx, generationID, scopeID); err != nil {
+				return 0, fmt.Errorf("activate empty resolution generation: %w", err)
+			}
+		}
+		retractRows := buildResolvedEdgeRetractionIntentRows(
+			scopeID,
+			nil,
+			nil,
+			crossRepoContributionSourceRunID(scopeID),
+			generationID,
+			time.Now().UTC(),
+		)
+		if len(retractRows) == 0 {
+			slog.InfoContext(ctx, "cross-repo resolution skipped: no evidence",
+				slog.String(telemetry.LogKeyScopeID, scopeID),
+				slog.String(telemetry.LogKeyGenerationID, generationID),
+			)
+			h.recordDuration(ctx, start, scopeID)
+			return 0, nil
+		}
+		if err := h.IntentWriter.UpsertIntents(ctx, retractRows); err != nil {
+			return 0, fmt.Errorf("upsert cross-repo dependency retract intents: %w", err)
+		}
+		slog.InfoContext(ctx, "cross-repo resolution emitted retract intents: no evidence",
 			slog.String(telemetry.LogKeyScopeID, scopeID),
 			slog.String(telemetry.LogKeyGenerationID, generationID),
+			slog.Int("intent_count", len(retractRows)),
 		)
-		return 0, nil
+		h.recordDuration(ctx, start, scopeID)
+		return len(retractRows), nil
 	}
 
 	evidenceFacts = relationships.DedupeEvidenceFacts(evidenceFacts)
@@ -189,22 +215,29 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 	// Step 5: Convert resolved relationships to durable repo-dependency intents.
 	// The repo-owned projection runner reconstructs the full active snapshot for
 	// each source repository before touching canonical graph edges.
-	if len(resolved) == 0 {
-		h.recordDuration(ctx, start, scopeID)
-		return 0, nil
-	}
-
+	sourceRunID := crossRepoContributionSourceRunID(scopeID)
+	now := time.Now().UTC()
+	retractRows := buildResolvedEdgeRetractionIntentRows(
+		scopeID,
+		evidenceFacts,
+		resolved,
+		sourceRunID,
+		generationID,
+		now,
+	)
 	writeRows, routeCounts := buildResolvedEdgeIntentRows(
 		resolved,
 		scopeID,
-		crossRepoContributionSourceRunID(scopeID),
+		sourceRunID,
 		generationID,
+		now,
 	)
-	if len(writeRows) == 0 {
+	intentRows := append(retractRows, writeRows...)
+	if len(intentRows) == 0 {
 		h.recordDuration(ctx, start, scopeID)
 		return 0, nil
 	}
-	if err := h.IntentWriter.UpsertIntents(ctx, writeRows); err != nil {
+	if err := h.IntentWriter.UpsertIntents(ctx, intentRows); err != nil {
 		return 0, fmt.Errorf("upsert cross-repo dependency intents: %w", err)
 	}
 
@@ -223,12 +256,13 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 		slog.String(telemetry.LogKeyScopeID, scopeID),
 		slog.String(telemetry.LogKeyGenerationID, generationID),
 		slog.Any("relationship_route_counts", routeCounts),
-		slog.Int("intent_count", len(writeRows)),
+		slog.Int("intent_count", len(intentRows)),
+		slog.Int("retract_intent_count", len(retractRows)),
 	)
 
 	h.recordDuration(ctx, start, scopeID)
 
-	return len(writeRows), nil
+	return len(intentRows), nil
 }
 
 func normalizeRelationshipCandidates(candidates []relationships.Candidate) []relationships.Candidate {
@@ -314,8 +348,8 @@ func buildResolvedEdgeIntentRows(
 	scopeID string,
 	sourceRunID string,
 	generationID string,
+	createdAt time.Time,
 ) ([]SharedProjectionIntentRow, map[string]int) {
-	now := time.Now().UTC()
 	rows := make([]SharedProjectionIntentRow, 0, len(resolved))
 	routeCounts := make(map[string]int)
 
@@ -326,7 +360,7 @@ func buildResolvedEdgeIntentRows(
 			sourceRunID,
 			generationID,
 			i,
-			now,
+			createdAt,
 		)
 		if !ok {
 			continue

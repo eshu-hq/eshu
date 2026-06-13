@@ -136,6 +136,37 @@ proves multiple families are present. The resolver can emit multiple typed
 relationships for the same repository, and the read side can summarize multiple
 families without changing canonical truth.
 
+## Retraction And Empty Generations
+
+An active relationship generation is authoritative even when it has no resolved
+relationships. If a later generation for a repository scope has no evidence, or
+if all current evidence is rejected or below the resolver confidence threshold,
+the reducer must publish a repo-dependency retraction intent for the affected
+source repository and activate the empty generation. Query surfaces should then
+read no resolved rows for that scope, and the repo-dependency projection runner
+must retract graph edges for the source repository before writing any surviving
+current edges.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'TestCrossRepoResolution|TestBuildResolvedEdgeIntentRows|TestRepoDependencyProjectionRunner'
+-count=1` covers empty-generation retractions, evidence that no longer
+resolves, reject/low-confidence inputs, retract-only projection work, and the
+retract-then-rewrite survivor path. `go test ./internal/storage/postgres -run
+'TestRelationshipStore' -count=1` covers the active-generation read model,
+including an empty active generation hiding prior resolved rows. Baseline
+behavior left stale graph edges when source evidence disappeared; after this
+change the reducer emits one bounded `DomainRepoDependency` retraction intent
+per affected source repository and evidence source, reusing the existing
+batched Cypher retraction and write paths without a new graph query shape.
+
+Observability Evidence: cross-repo resolution logs include
+`retract_intent_count`, and the existing repo-dependency projection runner logs
+`active_intents`, `stale_intents`, `retract_duration_seconds`, and
+`write_duration_seconds` for the same cycle. Graph writes still flow through the
+existing canonical projection and retraction telemetry, so operators can
+diagnose a stuck or slow retraction from reducer logs, shared projection stale
+intent counts, and canonical graph write/retract duration metrics.
+
 ## Evidence Quality Rules
 
 Every evidence fact should carry:
