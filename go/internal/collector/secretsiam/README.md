@@ -6,7 +6,9 @@
 `secrets_iam_posture` collector family. It records provider-native IAM identity,
 policy, attachment, boundary, instance-profile, optional Access Analyzer, and
 Kubernetes ServiceAccount/RBAC/workload-identity plus Vault metadata and
-coverage-warning evidence without writing graph truth.
+coverage-warning evidence without writing graph truth. The GCP path includes
+service-account impersonation trust facts and GKE Workload Identity join
+anchors, all represented by fingerprints or digests.
 
 ## Ownership boundary
 
@@ -29,10 +31,18 @@ See `doc.go` for the godoc contract.
   Permission-policy facts accept inline, attached managed, and
   permissions-boundary policy sources; trust policies use the dedicated trust
   envelope.
+- `NewGCPPrincipalEnvelope`, `NewGCPTrustPolicyEnvelope`, and
+  `NewGCPPermissionPolicyEnvelope` build GCP IAM source facts. Trust facts carry
+  target service-account fingerprints/email digests, trusted-member
+  fingerprints, bounded impersonation modes, and optional Workload Identity
+  subject fingerprints; raw service-account email and member strings stay out of
+  payloads.
 - `NewKubernetesServiceAccountEnvelope`,
   `NewKubernetesServiceAccountTokenPostureEnvelope`,
   `NewKubernetesRBACRoleEnvelope`, `NewKubernetesRBACBindingEnvelope`,
-  `NewKubernetesWorkloadIdentityUseEnvelope`, `NewEKSIRSAAnnotationEnvelope`,
+  `NewKubernetesWorkloadIdentityUseEnvelope`,
+  `NewKubernetesGCPWorkloadIdentityBindingEnvelope`,
+  `NewEKSIRSAAnnotationEnvelope`,
   `NewEKSPodIdentityAssociationEnvelope`, and
   `NewKubernetesCoverageWarningEnvelope` build Kubernetes source facts in the
   same schema.
@@ -46,6 +56,10 @@ See `doc.go` for the godoc contract.
 - `WebIdentitySubjectFingerprint` builds the redaction-safe join fingerprint
   used by EKS IRSA source facts and AWS IAM trust-policy source facts. Raw
   `system:serviceaccount:<namespace>:<name>` subjects stay out of payloads.
+- `GCPServiceAccountEmailDigest` and
+  `GCPWorkloadIdentitySubjectFingerprint` build the redaction-safe join anchors
+  shared by GCP IAM trust facts and Kubernetes GKE Workload Identity binding
+  facts.
 
 ## Dependencies
 
@@ -93,7 +107,9 @@ introduced by this package. The Vault slice is source-fact construction only.
 - Kubernetes payloads carry fingerprints and bounded metadata only. Raw
   ServiceAccount names, namespaces, RBAC subject names, Secret names,
   resourceVersions, projected tokens, and RBAC resource-name or non-resource-URL
-  values stay outside the fact contract.
+  values stay outside the fact contract. GKE Workload Identity bindings also
+  keep raw target GCP service-account email and workload-pool subjects out of
+  payloads.
 - Vault payloads carry fingerprints, counts, and bounded capability summaries
   only. Raw KV paths, key names, custom metadata keys or values, Vault policy
   bodies, Vault policy names, auth role names, mount accessors, entity IDs,

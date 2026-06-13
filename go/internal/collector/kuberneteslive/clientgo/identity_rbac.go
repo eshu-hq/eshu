@@ -11,7 +11,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/kuberneteslive"
 )
 
-const irsaRoleAnnotationKey = "eks.amazonaws.com/role-arn"
+const (
+	irsaRoleAnnotationKey          = "eks.amazonaws.com/role-arn"
+	gcpServiceAccountAnnotationKey = "iam.gke.io/gcp-service-account"
+)
 
 // ListServiceAccounts lists ServiceAccounts across all namespaces.
 func (a *Adapter) ListServiceAccounts(ctx context.Context) (kuberneteslive.ListResult[kuberneteslive.ServiceAccountObject], error) {
@@ -139,12 +142,13 @@ func serviceAccountObject(account *corev1.ServiceAccount) kuberneteslive.Service
 	}
 	sort.Strings(annotationKeys)
 	return kuberneteslive.ServiceAccountObject{
-		Meta:                    objectMeta("", "v1", "serviceaccounts", account.ObjectMeta),
-		AnnotationKeys:          annotationKeys,
-		IRSAAnnotation:          account.Annotations[irsaRoleAnnotationKey],
-		AutomountToken:          account.AutomountServiceAccountToken,
-		SecretRefCount:          len(account.Secrets),
-		ImagePullSecretRefCount: len(account.ImagePullSecrets),
+		Meta:                        objectMeta("", "v1", "serviceaccounts", account.ObjectMeta),
+		AnnotationKeys:              annotationKeys,
+		IRSAAnnotation:              account.Annotations[irsaRoleAnnotationKey],
+		GCPServiceAccountAnnotation: account.Annotations[gcpServiceAccountAnnotationKey],
+		AutomountToken:              account.AutomountServiceAccountToken,
+		SecretRefCount:              len(account.Secrets),
+		ImagePullSecretRefCount:     len(account.ImagePullSecrets),
 	}
 }
 

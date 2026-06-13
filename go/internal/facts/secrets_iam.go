@@ -28,6 +28,11 @@ const (
 	// principal is a service-account grantee observed in a Cloud Asset Inventory
 	// IAM binding; its join identity is the redaction-safe member fingerprint.
 	GCPIAMPrincipalFactKind = "gcp_iam_principal"
+	// GCPIAMTrustPolicyFactKind identifies one GCP service-account
+	// impersonation trust source fact. It records who may act as a target GCP
+	// service account through IAM ServiceAccount bindings without storing raw
+	// member or service-account email identity.
+	GCPIAMTrustPolicyFactKind = "gcp_iam_trust_policy"
 	// GCPIAMPermissionPolicyFactKind identifies one GCP IAM permission grant
 	// source fact, mirroring AWSIAMPermissionPolicyFactKind: a (principal, role,
 	// resource) binding granting a service-account principal a role on a resource.
@@ -44,6 +49,10 @@ const (
 	// KubernetesWorkloadIdentityUseFactKind identifies one workload to
 	// ServiceAccount usage source fact.
 	KubernetesWorkloadIdentityUseFactKind = "k8s_workload_identity_use"
+	// KubernetesGCPWorkloadIdentityBindingFactKind identifies one GKE Workload
+	// Identity ServiceAccount annotation joined to an operator-declared workload
+	// pool. It carries only redaction-safe GCP target and subject anchors.
+	KubernetesGCPWorkloadIdentityBindingFactKind = "k8s_gcp_workload_identity_binding"
 	// KubernetesServiceAccountTokenPostureFactKind identifies projected and
 	// automount token posture for one ServiceAccount source identity.
 	KubernetesServiceAccountTokenPostureFactKind = "k8s_service_account_token_posture"
@@ -90,11 +99,13 @@ var secretsIAMFactKinds = []string{
 	AWSIAMInstanceProfileFactKind,
 	AWSIAMAccessAnalyzerFindingFactKind,
 	GCPIAMPrincipalFactKind,
+	GCPIAMTrustPolicyFactKind,
 	GCPIAMPermissionPolicyFactKind,
 	KubernetesServiceAccountFactKind,
 	KubernetesRBACRoleFactKind,
 	KubernetesRBACBindingFactKind,
 	KubernetesWorkloadIdentityUseFactKind,
+	KubernetesGCPWorkloadIdentityBindingFactKind,
 	KubernetesServiceAccountTokenPostureFactKind,
 	EKSIRSAAnnotationFactKind,
 	EKSPodIdentityAssociationFactKind,
@@ -117,11 +128,13 @@ var secretsIAMSchemaVersions = map[string]string{
 	AWSIAMInstanceProfileFactKind:                SecretsIAMSchemaVersionV1,
 	AWSIAMAccessAnalyzerFindingFactKind:          SecretsIAMSchemaVersionV1,
 	GCPIAMPrincipalFactKind:                      SecretsIAMSchemaVersionV1,
+	GCPIAMTrustPolicyFactKind:                    SecretsIAMSchemaVersionV1,
 	GCPIAMPermissionPolicyFactKind:               SecretsIAMSchemaVersionV1,
 	KubernetesServiceAccountFactKind:             SecretsIAMSchemaVersionV1,
 	KubernetesRBACRoleFactKind:                   SecretsIAMSchemaVersionV1,
 	KubernetesRBACBindingFactKind:                SecretsIAMSchemaVersionV1,
 	KubernetesWorkloadIdentityUseFactKind:        SecretsIAMSchemaVersionV1,
+	KubernetesGCPWorkloadIdentityBindingFactKind: SecretsIAMSchemaVersionV1,
 	KubernetesServiceAccountTokenPostureFactKind: SecretsIAMSchemaVersionV1,
 	EKSIRSAAnnotationFactKind:                    SecretsIAMSchemaVersionV1,
 	EKSPodIdentityAssociationFactKind:            SecretsIAMSchemaVersionV1,

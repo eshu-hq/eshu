@@ -8,9 +8,11 @@
 // core resource set with bounded pagination.
 //
 // The adapter is read-only and metadata-only by construction: it maps typed
-// objects into the collector's neutral metadata views. It never reads Secret
-// values, ConfigMap data payloads, environment variable values, or container
-// logs, and it never issues a write, patch, delete, exec, attach, portforward,
-// or log request. A forbidden list degrades to a partial result with a warning
-// reason rather than aborting the snapshot.
+// objects into the collector's neutral metadata views, including IRSA and GKE
+// Workload Identity annotation targets that the source later fingerprints or
+// digests before fact emission. It never reads Secret values, ConfigMap data
+// payloads, environment variable values, or container logs, and it never issues
+// a write, patch, delete, exec, attach, portforward, or log request. A forbidden
+// list degrades to a partial result with a warning reason rather than aborting
+// the snapshot.
 package clientgo

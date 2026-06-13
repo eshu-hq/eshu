@@ -92,6 +92,11 @@ type ClusterTarget struct {
 	DisplayName string
 	// Provider is optional metadata such as eks, gke, aks, or kind.
 	Provider string
+	// GCPWorkloadPool is the GKE Workload Identity pool such as
+	// PROJECT_ID.svc.id.goog. When set, ServiceAccount
+	// iam.gke.io/gcp-service-account annotations can emit redaction-safe GCP
+	// Workload Identity binding facts.
+	GCPWorkloadPool string
 	// Environment is optional operator-declared environment metadata.
 	Environment string
 	// FencingToken orders generations for idempotent commit and replay.

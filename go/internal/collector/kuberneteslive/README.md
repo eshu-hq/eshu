@@ -26,6 +26,7 @@ correlation and drift remain reducer-owned and are not in this package.
   - `k8s_rbac_role`
   - `k8s_rbac_binding`
   - `k8s_workload_identity_use`
+  - `k8s_gcp_workload_identity_binding`
   - `eks_irsa_annotation`
   - `secrets_iam_coverage_warning`
 - Yield one snapshot generation per cluster through `collector.Service`.
@@ -52,6 +53,11 @@ correlation and drift remain reducer-owned and are not in this package.
 - ServiceAccount, RBAC subject, role, binding, resource-version, and namespace
   names are fingerprinted before entering `secrets_iam_posture` facts. The
   source keeps raw names only long enough to form deterministic local join keys.
+- A GKE `iam.gke.io/gcp-service-account` annotation emits a
+  `k8s_gcp_workload_identity_binding` fact only when the cluster target declares
+  `GCPWorkloadPool`. The fact carries a GCP service-account email digest and
+  Workload Identity subject fingerprint, not the raw email, workload pool,
+  namespace, or ServiceAccount name.
 - Cluster scope identity is keyed on the operator-declared durable `cluster_id`,
   never the API server URL.
 - The generation id depends only on `cluster_id` plus the observation time, so

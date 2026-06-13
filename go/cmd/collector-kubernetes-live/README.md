@@ -12,6 +12,9 @@ out of scope here.
 - Maps objects into `kubernetes_live.pod_template`,
   `kubernetes_live.relationship`, and `kubernetes_live.warning` facts and commits
   them through `collector.Service` and `postgres.NewIngestionStore`.
+- Emits Kubernetes secrets/IAM posture facts for ServiceAccount, RBAC, workload
+  identity use, IRSA annotations, and GKE Workload Identity annotations when a
+  cluster entry declares its workload pool.
 - Hosts the shared admin surface (`/healthz`, `/readyz`, `/admin/status`,
   `/metrics`) and optional pprof.
 
@@ -34,7 +37,8 @@ Each cluster entry:
     {
       "cluster_id": "prod-us-east-1",
       "display_name": "prod us-east-1",
-      "provider": "eks",
+      "provider": "gke",
+      "gcp_workload_pool": "my-project.svc.id.goog",
       "environment": "production",
       "fencing_token": 1,
       "auth_mode": "kubeconfig",
@@ -54,7 +58,10 @@ Each cluster entry:
 `cluster_id` is the operator-declared durable cluster identity and the scope
 anchor; the collector never infers identity from the API server URL. `auth_mode`
 is `kubeconfig` (requires `kubeconfig_path`, optional `kube_context`) or
-`in_cluster` (mounted service-account token).
+`in_cluster` (mounted service-account token). `gcp_workload_pool` is optional
+and should be set for GKE clusters whose ServiceAccounts use the
+`iam.gke.io/gcp-service-account` annotation; without it the annotation is not
+emitted as GCP Workload Identity evidence.
 
 ## RBAC
 

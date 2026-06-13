@@ -113,6 +113,20 @@ func secretsIAMBuilderCases(t *testing.T) map[string]facts.Envelope {
 				Context: gcp, PrincipalFingerprint: "sha256:svc", MemberClass: GCPMemberClassServiceAccount,
 			})
 		},
+		"gcp_trust_policy": func() (facts.Envelope, error) {
+			return NewGCPTrustPolicyEnvelope(GCPTrustPolicyObservation{
+				Context:                               gcp,
+				TargetPrincipalFingerprint:            "sha256:gcp-sa",
+				TargetServiceAccountEmailDigest:       GCPServiceAccountEmailDigest("app@demo-proj.iam.gserviceaccount.com"),
+				TargetServiceAccountCloudResourceUID:  "cloud-resource:gcp-sa",
+				TrustedMemberFingerprint:              "sha256:gke-member",
+				TrustedMemberClass:                    GCPMemberClassServiceAccount,
+				Role:                                  "roles/iam.workloadIdentityUser",
+				ImpersonationMode:                     GCPImpersonationModeWorkloadIdentity,
+				GCPWorkloadIdentitySubjectFingerprint: GCPWorkloadIdentitySubjectFingerprint("demo-proj.svc.id.goog", "ns-canary", "ksa-canary"),
+				GCPWorkloadIdentityMemberClass:        GCPWorkloadIdentityMemberClassServiceAccount,
+			})
+		},
 		"gcp_permission_policy": func() (facts.Envelope, error) {
 			return NewGCPPermissionPolicyEnvelope(GCPPermissionPolicyObservation{
 				Context: gcp, PrincipalFingerprint: "sha256:svc", Role: "roles/secretmanager.secretAccessor",
@@ -215,6 +229,17 @@ func secretsIAMBuilderCases(t *testing.T) map[string]facts.Envelope {
 			return NewKubernetesWorkloadIdentityUseEnvelope(KubernetesWorkloadIdentityUseObservation{
 				Context: k8s, WorkloadObjectID: "obj-1", WorkloadKind: "Deployment", Namespace: "prod",
 				ServiceAccountName: "payments", ServiceAccountUID: "uid-1", ProjectedServiceAccountToken: true,
+			})
+		},
+		"k8s_gcp_workload_identity_binding": func() (facts.Envelope, error) {
+			return NewKubernetesGCPWorkloadIdentityBindingEnvelope(KubernetesGCPWorkloadIdentityBindingObservation{
+				Context:                k8s,
+				Namespace:              "ns-canary",
+				ServiceAccountName:     "ksa-canary",
+				ServiceAccountUID:      "uid-1",
+				GCPServiceAccountEmail: "app@demo-proj.iam.gserviceaccount.com",
+				GCPWorkloadPool:        "demo-proj.svc.id.goog",
+				AnnotationPresent:      true,
 			})
 		},
 		"eks_irsa_annotation": func() (facts.Envelope, error) {

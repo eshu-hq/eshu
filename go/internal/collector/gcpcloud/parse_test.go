@@ -95,6 +95,27 @@ func TestParseAssetsListPageIAMPolicyBindings(t *testing.T) {
 	}
 }
 
+func TestParseAssetsListPageServiceAccountEmail(t *testing.T) {
+	page, err := ParseAssetsListPage(readFixture(t, "assets_list_page2.json"))
+	if err != nil {
+		t.Fatalf("ParseAssetsListPage: %v", err)
+	}
+
+	var serviceAccount ResourceObservation
+	for _, resource := range page.Resources {
+		if resource.AssetType == serviceAccountAssetType {
+			serviceAccount = resource
+			break
+		}
+	}
+	if serviceAccount.Name == "" {
+		t.Fatal("service account resource not found in fixture")
+	}
+	if got, want := serviceAccount.ServiceAccountEmail, "svc@my-project.iam.gserviceaccount.com"; got != want {
+		t.Fatalf("ServiceAccountEmail = %q, want %q", got, want)
+	}
+}
+
 func TestParseAssetsListPageDNSRecordSets(t *testing.T) {
 	page, err := ParseAssetsListPage(readFixture(t, "assets_list_dns_record.json"))
 	if err != nil {

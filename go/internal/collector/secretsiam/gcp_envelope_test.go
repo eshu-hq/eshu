@@ -116,6 +116,78 @@ func TestNewGCPPermissionPolicyEnvelopeRequiresRoleAndResource(t *testing.T) {
 	}
 }
 
+func TestNewGCPTrustPolicyEnvelopeJoinsTargetAndWorkloadIdentitySubject(t *testing.T) {
+	t.Parallel()
+
+	targetEmail := "app@demo-proj.iam.gserviceaccount.com"
+	targetEmailDigest := GCPServiceAccountEmailDigest(targetEmail)
+	subjectFingerprint := GCPWorkloadIdentitySubjectFingerprint("demo-proj.svc.id.goog", "payments", "checkout-sa")
+	env, err := NewGCPTrustPolicyEnvelope(GCPTrustPolicyObservation{
+		Context:                               gcpTestContext(),
+		TargetPrincipalFingerprint:            "sha256:gcp-service-account",
+		TargetServiceAccountEmailDigest:       targetEmailDigest,
+		TargetServiceAccountCloudResourceUID:  "gcp://cloud-resource/service-account",
+		TrustedMemberFingerprint:              "sha256:gke-member",
+		TrustedMemberClass:                    GCPMemberClassServiceAccount,
+		Role:                                  "roles/iam.workloadIdentityUser",
+		ImpersonationMode:                     GCPImpersonationModeWorkloadIdentity,
+		GCPWorkloadIdentitySubjectFingerprint: subjectFingerprint,
+		GCPWorkloadIdentityMemberClass:        GCPWorkloadIdentityMemberClassServiceAccount,
+	})
+	if err != nil {
+		t.Fatalf("NewGCPTrustPolicyEnvelope error = %v", err)
+	}
+	if env.FactKind != facts.GCPIAMTrustPolicyFactKind {
+		t.Fatalf("FactKind = %q, want %q", env.FactKind, facts.GCPIAMTrustPolicyFactKind)
+	}
+	if got := env.Payload["target_principal_fingerprint"]; got != "sha256:gcp-service-account" {
+		t.Fatalf("target_principal_fingerprint = %v", got)
+	}
+	if got := env.Payload["target_service_account_email_digest"]; got != targetEmailDigest {
+		t.Fatalf("target_service_account_email_digest = %v, want %q", got, targetEmailDigest)
+	}
+	if got := env.Payload["gcp_workload_identity_subject_fingerprint"]; got != subjectFingerprint {
+		t.Fatalf("gcp_workload_identity_subject_fingerprint = %v, want %q", got, subjectFingerprint)
+	}
+	if got := env.Payload["impersonation_mode"]; got != GCPImpersonationModeWorkloadIdentity {
+		t.Fatalf("impersonation_mode = %v, want %q", got, GCPImpersonationModeWorkloadIdentity)
+	}
+	forbidden := []string{
+		targetEmail,
+		"demo-proj.svc.id.goog",
+		"payments",
+		"checkout-sa",
+	}
+	for _, value := range forbidden {
+		if payloadValueContains(env.Payload, value) {
+			t.Fatalf("gcp trust payload leaked raw identity %q: %#v", value, env.Payload)
+		}
+	}
+}
+
+func TestNewGCPTrustPolicyEnvelopeRequiresTargetAndTrustedIdentity(t *testing.T) {
+	t.Parallel()
+
+	base := GCPTrustPolicyObservation{
+		Context:                         gcpTestContext(),
+		TargetPrincipalFingerprint:      "sha256:gcp-service-account",
+		TargetServiceAccountEmailDigest: "sha256:email",
+		TrustedMemberFingerprint:        "sha256:member",
+		Role:                            "roles/iam.serviceAccountTokenCreator",
+		ImpersonationMode:               GCPImpersonationModeTokenCreator,
+	}
+	missingTarget := base
+	missingTarget.TargetPrincipalFingerprint = ""
+	if _, err := NewGCPTrustPolicyEnvelope(missingTarget); err == nil {
+		t.Fatal("expected error when target_principal_fingerprint is empty")
+	}
+	missingTrusted := base
+	missingTrusted.TrustedMemberFingerprint = ""
+	if _, err := NewGCPTrustPolicyEnvelope(missingTrusted); err == nil {
+		t.Fatal("expected error when trusted_member_fingerprint is empty")
+	}
+}
+
 func TestGCPContextAllowsEmptyProjectID(t *testing.T) {
 	t.Parallel()
 

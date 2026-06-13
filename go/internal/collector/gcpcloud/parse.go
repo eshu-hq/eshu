@@ -45,6 +45,7 @@ type caiIAMBindingWire struct {
 type caiResourceDataWire struct {
 	Name        string            `json:"name"`
 	DisplayName string            `json:"displayName"`
+	Email       string            `json:"email"`
 	Status      string            `json:"status"`
 	State       string            `json:"state"`
 	Labels      map[string]string `json:"labels"`
@@ -108,18 +109,19 @@ func ParseAssetsListPage(raw []byte) (AssetsListPage, error) {
 		state := firstNonEmpty(asset.Resource.Data.State, asset.Resource.Data.Status)
 		updateTime := parseTime(asset.UpdateTime)
 		page.Resources = append(page.Resources, ResourceObservation{
-			Name:              strings.TrimSpace(asset.Name),
-			AssetType:         strings.TrimSpace(asset.AssetType),
-			DisplayName:       display,
-			State:             state,
-			Location:          strings.TrimSpace(asset.Resource.Location),
-			Ancestors:         cloneStrings(asset.Ancestors),
-			Labels:            cloneStringMap(asset.Resource.Data.Labels),
-			IAMPolicyBindings: parseIAMPolicyBindings(asset.IAMPolicy),
-			Relationships:     parseRelatedAsset(asset.Name, asset.AssetType, asset.Related),
-			DNSRecords:        parseDNSRecords(asset.Name, asset.AssetType, asset.Resource.Data),
-			ImageReferences:   parseImageReferences(asset.Name, asset.AssetType, asset.Resource.Data),
-			UpdateTime:        updateTime,
+			Name:                strings.TrimSpace(asset.Name),
+			AssetType:           strings.TrimSpace(asset.AssetType),
+			DisplayName:         display,
+			State:               state,
+			Location:            strings.TrimSpace(asset.Resource.Location),
+			Ancestors:           cloneStrings(asset.Ancestors),
+			Labels:              cloneStringMap(asset.Resource.Data.Labels),
+			IAMPolicyBindings:   parseIAMPolicyBindings(asset.IAMPolicy),
+			Relationships:       parseRelatedAsset(asset.Name, asset.AssetType, asset.Related),
+			DNSRecords:          parseDNSRecords(asset.Name, asset.AssetType, asset.Resource.Data),
+			ImageReferences:     parseImageReferences(asset.Name, asset.AssetType, asset.Resource.Data),
+			ServiceAccountEmail: serviceAccountEmail(asset.AssetType, asset.Resource.Data),
+			UpdateTime:          updateTime,
 		})
 	}
 	return page, nil
@@ -243,6 +245,13 @@ func parseIAMPolicyBindings(policy caiIAMPolicyWire) []IAMPolicyBindingObservati
 		})
 	}
 	return out
+}
+
+func serviceAccountEmail(assetType string, data caiResourceDataWire) string {
+	if strings.TrimSpace(assetType) != serviceAccountAssetType {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(data.Email))
 }
 
 func parseRelatedAsset(assetName, assetType string, related caiRelatedAssetWire) []RelationshipObservation {

@@ -96,6 +96,7 @@ func TestAdapterMapsServiceAccountsMetadataOnly(t *testing.T) {
 			ResourceVersion: "rv-123",
 			Annotations: map[string]string{
 				"eks.amazonaws.com/role-arn":     "arn:aws:iam::123456789012:role/checkout",
+				"iam.gke.io/gcp-service-account": "app@demo-proj.iam.gserviceaccount.com",
 				"vault.hashicorp.com/token-leak": "vault-token-value-should-not-leak",
 			},
 		},
@@ -124,6 +125,9 @@ func TestAdapterMapsServiceAccountsMetadataOnly(t *testing.T) {
 	}
 	if got.IRSAAnnotation != "arn:aws:iam::123456789012:role/checkout" {
 		t.Fatalf("IRSAAnnotation = %q", got.IRSAAnnotation)
+	}
+	if got.GCPServiceAccountAnnotation != "app@demo-proj.iam.gserviceaccount.com" {
+		t.Fatalf("GCPServiceAccountAnnotation = %q", got.GCPServiceAccountAnnotation)
 	}
 	for _, value := range got.AnnotationKeys {
 		if value == "vault-token-value-should-not-leak" ||

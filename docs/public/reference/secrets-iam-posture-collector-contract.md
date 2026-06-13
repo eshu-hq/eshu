@@ -37,13 +37,14 @@ no new metrics, spans, logs, or status fields.
 
 ## Source Boundaries
 
-Treat this as one collector family with three source lanes. The lanes share the
+Treat this as one collector family with four source lanes. The lanes share the
 envelope, scope, generation, redaction, and reducer-truth contracts, but each
 source keeps its own authorization semantics.
 
 | Source lane | Source truth | Collector-owned evidence | Reducer-owned truth |
 | --- | --- | --- | --- |
 | AWS IAM | IAM and STS control-plane metadata. Baseline reads include role, trust-policy, managed-policy, inline-policy, permission-boundary, instance-profile, OIDC/SAML provider, and optional Access Analyzer evidence. | Redacted provider facts for principals, trust statements, permission policies, attachments, boundaries, instance profiles, federated providers, and Access Analyzer findings. | Cross-account trust posture, confused-deputy risk, role-to-workload joins, permission-boundary interpretation, and posture observations. |
+| GCP IAM | Cloud Asset Inventory IAM bindings on GCP resources and ServiceAccount resources. | Redacted provider facts for service-account principals, service-account impersonation trust bindings, and permission grants. | GKE Workload Identity joins, service-account impersonation truth, Secret Manager grant posture, and workload-to-GCP-secret access paths. |
 | Kubernetes RBAC | Kubernetes API objects for ServiceAccount, Role, ClusterRole, RoleBinding, ClusterRoleBinding, workload service-account usage, projected token posture, IRSA annotations, and EKS Pod Identity associations where present. | Redacted provider facts for service accounts, RBAC roles and bindings, workload identity usage, token posture, IRSA annotations, and EKS Pod Identity associations. | Namespace or cluster-wide effective binding interpretation, workload-to-service-account joins, and stale or missing workload evidence. |
 | Vault | Vault auth method, auth role, identity entity/group/alias, ACL policy, secret engine mount, and KV v2 metadata APIs. | Redacted metadata facts for mounts, auth roles, ACL policies, identity entities and aliases, secret engine mounts, and KV metadata. | Kubernetes auth role joins, Vault policy capability interpretation, secret metadata path access, unsupported Enterprise policy layers, and posture observations. |
 
@@ -55,6 +56,9 @@ The following source APIs and behaviors shape the first contract:
 - AWS EKS IRSA trust policies identify Kubernetes service accounts through the
   `system:serviceaccount:<namespace>:<service-account>` subject and the
   `sts:AssumeRoleWithWebIdentity` action.
+- GKE Workload Identity requires both the Kubernetes ServiceAccount annotation
+  (`iam.gke.io/gcp-service-account`) and a GCP ServiceAccount IAM binding that
+  grants `roles/iam.workloadIdentityUser` to the matching workload-pool subject.
 - Kubernetes RBAC separates namespace-scoped `RoleBinding` evidence from
   cluster-wide `ClusterRoleBinding` evidence. A cluster binding can grant broad
   permissions and cannot be collapsed into a namespace-only fact.
@@ -70,6 +74,7 @@ Official references:
 - [AWS confused deputy guidance](https://docs.aws.amazon.com/IAM/latest/UserGuide/confused-deputy.html)
 - [EKS IAM roles for service accounts](https://docs.aws.amazon.com/eks/latest/userguide/associate-service-account-role.html)
 - [EKS Pod Identity](https://docs.aws.amazon.com/eks/latest/userguide/pod-identities.html)
+- [GKE Workload Identity Federation](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity)
 - [Kubernetes RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/)
 - [Kubernetes ServiceAccounts](https://kubernetes.io/docs/concepts/security/service-accounts/)
 - [Vault KV v2 API](https://developer.hashicorp.com/vault/api-docs/secret/kv/kv-v2)
@@ -132,10 +137,14 @@ API evidence, `scope_id`, `generation_id`, `observed_at`, `source_ref`,
 | `aws_iam_permission_boundary` | AWS IAM | Principal-to-boundary relationship evidence. |
 | `aws_iam_instance_profile` | AWS IAM | Instance profile to IAM role relationship evidence. |
 | `aws_iam_access_analyzer_finding` | AWS IAM | Access Analyzer finding evidence. Findings are signal, not final truth. |
+| `gcp_iam_principal` | GCP IAM | Service-account principal metadata keyed by the same member fingerprint used by GCP permission grants. |
+| `gcp_iam_trust_policy` | GCP IAM | ServiceAccount impersonation binding metadata for `serviceAccountTokenCreator`, `serviceAccountUser`, and `workloadIdentityUser` roles without raw member or target email identity. |
+| `gcp_iam_permission_policy` | GCP IAM | Service-account role grants on GCP resources, including Secret Manager secret grants and broad primitive-role posture evidence. |
 | `k8s_service_account` | Kubernetes | ServiceAccount identity, namespace, annotations, automount posture, and token posture summary. |
 | `k8s_rbac_role` | Kubernetes | Role or ClusterRole rules summarized by bounded verbs, resources, and resource-name presence. |
 | `k8s_rbac_binding` | Kubernetes | RoleBinding or ClusterRoleBinding subjects and target role reference. |
 | `k8s_workload_identity_use` | Kubernetes | Workload-to-ServiceAccount usage evidence. |
+| `k8s_gcp_workload_identity_binding` | Kubernetes/GKE | ServiceAccount annotation evidence joined to an operator-declared GKE workload pool through redaction-safe GCP email digests and subject fingerprints. |
 | `k8s_service_account_token_posture` | Kubernetes | Automount and projected-token posture evidence without token values. |
 | `eks_irsa_annotation` | Kubernetes/EKS | ServiceAccount annotation that names an IAM role ARN. |
 | `eks_pod_identity_association` | AWS/EKS | EKS Pod Identity association metadata for service-account to role joins. |
@@ -207,6 +216,11 @@ Required reducer behavior:
   redacted OIDC `sub` fingerprint derived from
   `system:serviceaccount:<namespace>:<service-account>` and the role's
   web-identity trust evidence.
+- Join GKE Workload Identity annotations to GCP ServiceAccount IAM trust facts
+  through a redaction-safe service-account email digest and workload-pool subject
+  fingerprint, then require a matching GCP service-account principal and
+  Secret Manager `secretmanager.versions.access` grant before emitting an exact
+  GCP secret access path.
 - Join EKS Pod Identity associations to Kubernetes service accounts through
   cluster, namespace, service-account, role evidence, and the IAM
   `pods.eks.amazonaws.com` service-principal trust.

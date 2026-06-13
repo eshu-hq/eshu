@@ -127,6 +127,71 @@ func TestSourceEmitsSecretsIAMKubernetesRBACFacts(t *testing.T) {
 	}
 }
 
+func TestSourceEmitsGCPWorkloadIdentityBindingOnlyWithConfiguredPool(t *testing.T) {
+	t.Parallel()
+
+	serviceAccount := ServiceAccountObject{
+		Meta: ObjectMeta{
+			Version: "v1", Resource: "serviceaccounts",
+			Namespace: "payments", Name: "checkout-sa", UID: "uid-sa",
+		},
+		AnnotationKeys:              []string{"iam.gke.io/gcp-service-account"},
+		GCPServiceAccountAnnotation: "app@demo-proj.iam.gserviceaccount.com",
+	}
+	client := &fakeClient{
+		serviceAccounts: ListResult[ServiceAccountObject]{Items: []ServiceAccountObject{serviceAccount}},
+	}
+
+	withPool := &Source{
+		Config: Config{
+			CollectorInstanceID: "k8s-prod",
+			Clusters: []ClusterTarget{{
+				ClusterID:       "prod-gke",
+				FencingToken:    3,
+				GCPWorkloadPool: "demo-proj.svc.id.goog",
+			}},
+		},
+		ClientFactory: factoryFor(client),
+		Clock:         fixedClock(),
+	}
+	collected, ok, err := withPool.Next(context.Background())
+	if err != nil {
+		t.Fatalf("Next(withPool) error = %v", err)
+	}
+	if !ok {
+		t.Fatalf("Next(withPool) ok = false, want true")
+	}
+	envs := drain(t, collected.Facts)
+	bindings := envelopesOfKind(envs, facts.KubernetesGCPWorkloadIdentityBindingFactKind)
+	if len(bindings) != 1 {
+		t.Fatalf("GCP Workload Identity binding facts = %d, want 1: %#v", len(bindings), envs)
+	}
+	binding := bindings[0]
+	for _, forbidden := range []string{
+		"app@demo-proj.iam.gserviceaccount.com",
+		"demo-proj.svc.id.goog",
+		"payments",
+		"checkout-sa",
+	} {
+		if payloadContains(binding.Payload, forbidden) {
+			t.Fatalf("binding payload leaked raw identity %q: %#v", forbidden, binding.Payload)
+		}
+	}
+
+	withoutPool := newSource(client)
+	collected, ok, err = withoutPool.Next(context.Background())
+	if err != nil {
+		t.Fatalf("Next(withoutPool) error = %v", err)
+	}
+	if !ok {
+		t.Fatalf("Next(withoutPool) ok = false, want true")
+	}
+	envs = drain(t, collected.Facts)
+	if got := countKind(envs, facts.KubernetesGCPWorkloadIdentityBindingFactKind); got != 0 {
+		t.Fatalf("GCP Workload Identity binding facts without pool = %d, want 0", got)
+	}
+}
+
 func TestSourceRBACForbiddenListEmitsCoverageWarning(t *testing.T) {
 	t.Parallel()
 

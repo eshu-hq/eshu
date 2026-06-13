@@ -7,7 +7,8 @@
 // RoleBindings, and ClusterRoleBindings), and maps those objects into typed
 // source facts. Kubernetes live facts carry workload and topology evidence;
 // secrets_iam_posture facts carry redacted ServiceAccount, RBAC, workload
-// identity, IRSA annotation, token-posture, and coverage-warning evidence.
+// identity, GKE Workload Identity binding, IRSA annotation, token-posture, and
+// coverage-warning evidence.
 // Facts are emitted through the shared collector envelope and committed by
 // collector.Service; this package never writes graph state and never resolves
 // canonical ownership, drift, effective RBAC, or trust-chain posture, which
@@ -22,7 +23,8 @@
 // Redaction is a construction invariant. The collector is metadata-only: it
 // emits image references, environment variable NAMES, declared ports, service
 // account, selector, label metadata, ServiceAccount annotation keys, bounded
-// secret-reference counts, RBAC rule summaries, and fingerprinted subject
-// metadata. It never emits Secret values, ConfigMap data payloads, environment
+// secret-reference counts, RBAC rule summaries, GCP workload-pool fingerprints,
+// and fingerprinted subject metadata. It never emits Secret values, ConfigMap
+// data payloads, environment
 // variable values, projected tokens, or container logs.
 package kuberneteslive

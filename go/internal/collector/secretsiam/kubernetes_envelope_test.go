@@ -317,6 +317,64 @@ func TestNewKubernetesWorkloadIdentityAndIRSAEnvelopes(t *testing.T) {
 	}
 }
 
+func TestNewKubernetesGCPWorkloadIdentityBindingEnvelopeRedactsAnnotationTarget(t *testing.T) {
+	ctx := testKubernetesContext()
+	targetEmail := "app@demo-proj.iam.gserviceaccount.com"
+	workloadPool := "demo-proj.svc.id.goog"
+	env, err := NewKubernetesGCPWorkloadIdentityBindingEnvelope(
+		KubernetesGCPWorkloadIdentityBindingObservation{
+			Context:                ctx,
+			Namespace:              "payments",
+			ServiceAccountName:     "checkout-sa",
+			ServiceAccountUID:      "uid-sa-1",
+			GCPServiceAccountEmail: targetEmail,
+			GCPWorkloadPool:        workloadPool,
+			AnnotationPresent:      true,
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewKubernetesGCPWorkloadIdentityBindingEnvelope() error = %v", err)
+	}
+	assertFact(t, env, facts.KubernetesGCPWorkloadIdentityBindingFactKind)
+	if got := env.Payload["gcp_service_account_email_digest"]; got != GCPServiceAccountEmailDigest(targetEmail) {
+		t.Fatalf("gcp_service_account_email_digest = %v", got)
+	}
+	if got := env.Payload["gcp_workload_identity_subject_fingerprint"]; got != GCPWorkloadIdentitySubjectFingerprint(workloadPool, "payments", "checkout-sa") {
+		t.Fatalf("gcp_workload_identity_subject_fingerprint = %v", got)
+	}
+	if env.Payload["service_account_join_key"] == "" {
+		t.Fatal("service_account_join_key is empty")
+	}
+	forbidden := []string{targetEmail, workloadPool, "payments", "checkout-sa"}
+	for _, value := range forbidden {
+		if payloadValueContains(env.Payload, value) {
+			t.Fatalf("GCP Workload Identity payload leaked raw identity %q: %#v", value, env.Payload)
+		}
+	}
+}
+
+func TestNewKubernetesGCPWorkloadIdentityBindingEnvelopeRequiresPoolAndAnnotation(t *testing.T) {
+	ctx := testKubernetesContext()
+	base := KubernetesGCPWorkloadIdentityBindingObservation{
+		Context:                ctx,
+		Namespace:              "payments",
+		ServiceAccountName:     "checkout-sa",
+		GCPServiceAccountEmail: "app@demo-proj.iam.gserviceaccount.com",
+		GCPWorkloadPool:        "demo-proj.svc.id.goog",
+		AnnotationPresent:      true,
+	}
+	missingPool := base
+	missingPool.GCPWorkloadPool = ""
+	if _, err := NewKubernetesGCPWorkloadIdentityBindingEnvelope(missingPool); err == nil {
+		t.Fatal("expected error when GCP workload pool is empty")
+	}
+	missingAnnotation := base
+	missingAnnotation.GCPServiceAccountEmail = ""
+	if _, err := NewKubernetesGCPWorkloadIdentityBindingEnvelope(missingAnnotation); err == nil {
+		t.Fatal("expected error when GCP service-account annotation is empty")
+	}
+}
+
 func TestNewEKSPodIdentityAssociationEnvelopeRedactsServiceAccount(t *testing.T) {
 	ctx := testKubernetesContext()
 	env, err := NewEKSPodIdentityAssociationEnvelope(EKSPodIdentityAssociationObservation{

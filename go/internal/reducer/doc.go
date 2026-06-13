@@ -56,6 +56,12 @@
 // CloudResource nodes using EC2 posture, ENI topology, and security-group rule
 // evidence without storing raw public IP addresses or treating missing topology
 // as safe.
+// Secrets/IAM trust-chain materialization consumes redaction-safe AWS IAM, GCP
+// IAM, Kubernetes ServiceAccount/workload, and Vault anchors. The GCP path
+// admits GKE Workload Identity chains only when Kubernetes annotation evidence,
+// GCP ServiceAccount trust, GCP principal evidence, and a Secret Manager
+// version-access grant all agree; metadata-only Secret Manager roles remain
+// posture evidence and never become exact secret access paths.
 // IncidentRoutingMaterializationHandler writes exact PagerDuty
 // IncidentRoutingEvidence graph rows only for safe declared/applied/live
 // convergence or live-only no-IaC routing evidence; unsafe routing outcomes

@@ -72,3 +72,18 @@ func secretsIAMContainsLower(values []string, target string) bool {
 	}
 	return false
 }
+
+func secretsIAMStateFromSourceState(sourceState string) SecretsIAMTrustChainState {
+	switch strings.TrimSpace(sourceState) {
+	case string(SecretsIAMTrustChainStateUnsupported):
+		return SecretsIAMTrustChainStateUnsupported
+	case string(SecretsIAMTrustChainStatePermissionHidden):
+		return SecretsIAMTrustChainStatePermissionHidden
+	case string(SecretsIAMTrustChainStateStale):
+		return SecretsIAMTrustChainStateStale
+	case string(SecretsIAMTrustChainStatePartial):
+		return SecretsIAMTrustChainStatePartial
+	default:
+		return SecretsIAMTrustChainStatePartial
+	}
+}

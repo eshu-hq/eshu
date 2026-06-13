@@ -83,26 +83,30 @@ type Boundary struct {
 // Cloud DNS record sets without raw provider resource data. ImageReferences
 // carries parsed runtime container image references from bounded Cloud Run
 // service/job metadata. ExtensionVersion and Extension carry a versioned,
-// redacted provider-specific extension object; the builder never accepts raw IAM
-// policy JSON, secret values, or data-plane records here.
+// redacted provider-specific extension object. ServiceAccountEmail is retained
+// only for iam.googleapis.com/ServiceAccount assets so the GCP trust layer can
+// build redaction-safe target digests; builders must not persist it raw. The
+// builder never accepts raw IAM policy JSON, secret values, or data-plane
+// records here.
 type ResourceObservation struct {
-	Name              string
-	AssetType         string
-	DisplayName       string
-	State             string
-	Location          string
-	Ancestors         []string
-	Labels            map[string]string
-	LabelFingerprint  map[string]string
-	IAMPolicyBindings []IAMPolicyBindingObservation
-	Relationships     []RelationshipObservation
-	DNSRecords        []DNSRecordObservation
-	ImageReferences   []ImageReferenceObservation
-	UpdateTime        time.Time
-	ExtensionVersion  string
-	Extension         map[string]any
-	SourceURI         string
-	SourceRecordID    string
+	Name                string
+	AssetType           string
+	DisplayName         string
+	State               string
+	Location            string
+	Ancestors           []string
+	Labels              map[string]string
+	LabelFingerprint    map[string]string
+	IAMPolicyBindings   []IAMPolicyBindingObservation
+	Relationships       []RelationshipObservation
+	DNSRecords          []DNSRecordObservation
+	ImageReferences     []ImageReferenceObservation
+	ServiceAccountEmail string
+	UpdateTime          time.Time
+	ExtensionVersion    string
+	Extension           map[string]any
+	SourceURI           string
+	SourceRecordID      string
 }
 
 // IAMPolicyBindingObservation is one parsed Cloud Asset Inventory IAM binding

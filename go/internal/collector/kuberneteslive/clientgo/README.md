@@ -26,9 +26,11 @@ with fakes.
   NAMES only. It records that a container references a secret-backed env var
   (`EnvFromSecret`) without ever copying the value. `env.Value`, secret/configmap
   data, and logs are never read.
-- ServiceAccount mapping copies annotation keys, automount posture, and bounded
-  secret-reference counts only. It never copies referenced Secret names or token
-  values.
+- ServiceAccount mapping copies annotation keys, automount posture, bounded
+  secret-reference counts, the IRSA role annotation target, and the GKE
+  Workload Identity service-account annotation target. The source hashes or
+  digests provider targets before fact emission; referenced Secret names and
+  token values are never copied.
 - RBAC mapping copies bounded verb, API group, resource, and subject-kind
   metadata. Resource names and non-resource URLs are reduced to presence flags;
   role names, binding names, and subject names cross the neutral boundary only

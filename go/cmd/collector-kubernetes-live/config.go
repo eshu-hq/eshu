@@ -20,17 +20,18 @@ const defaultPollInterval = 5 * time.Minute
 
 // clusterJSON is one configured cluster target with its read-only auth shape.
 type clusterJSON struct {
-	ClusterID      string  `json:"cluster_id"`
-	DisplayName    string  `json:"display_name"`
-	Provider       string  `json:"provider"`
-	Environment    string  `json:"environment"`
-	SourceURI      string  `json:"source_uri"`
-	FencingToken   int64   `json:"fencing_token"`
-	AuthMode       string  `json:"auth_mode"`
-	KubeconfigPath string  `json:"kubeconfig_path"`
-	KubeContext    string  `json:"kube_context"`
-	QPS            float32 `json:"qps"`
-	Burst          int     `json:"burst"`
+	ClusterID       string  `json:"cluster_id"`
+	DisplayName     string  `json:"display_name"`
+	Provider        string  `json:"provider"`
+	GCPWorkloadPool string  `json:"gcp_workload_pool"`
+	Environment     string  `json:"environment"`
+	SourceURI       string  `json:"source_uri"`
+	FencingToken    int64   `json:"fencing_token"`
+	AuthMode        string  `json:"auth_mode"`
+	KubeconfigPath  string  `json:"kubeconfig_path"`
+	KubeContext     string  `json:"kube_context"`
+	QPS             float32 `json:"qps"`
+	Burst           int     `json:"burst"`
 }
 
 type clustersConfiguration struct {
@@ -75,12 +76,13 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 		}
 		auth[clusterID] = authConfig
 		targets = append(targets, kuberneteslive.ClusterTarget{
-			ClusterID:    clusterID,
-			DisplayName:  strings.TrimSpace(cluster.DisplayName),
-			Provider:     strings.TrimSpace(cluster.Provider),
-			Environment:  strings.TrimSpace(cluster.Environment),
-			FencingToken: cluster.FencingToken,
-			SourceURI:    strings.TrimSpace(cluster.SourceURI),
+			ClusterID:       clusterID,
+			DisplayName:     strings.TrimSpace(cluster.DisplayName),
+			Provider:        strings.TrimSpace(cluster.Provider),
+			GCPWorkloadPool: strings.TrimSpace(cluster.GCPWorkloadPool),
+			Environment:     strings.TrimSpace(cluster.Environment),
+			FencingToken:    cluster.FencingToken,
+			SourceURI:       strings.TrimSpace(cluster.SourceURI),
 		})
 	}
 

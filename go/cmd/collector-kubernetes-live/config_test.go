@@ -17,7 +17,7 @@ func TestLoadRuntimeConfigKubeconfig(t *testing.T) {
 	getenv := envFunc(map[string]string{
 		envCollectorInstanceID: "k8s-prod",
 		envClustersJSON: `{"clusters":[
-			{"cluster_id":"prod","auth_mode":"kubeconfig","kubeconfig_path":"/tmp/kubeconfig","kube_context":"prod-ctx","fencing_token":4,"provider":"eks"}
+			{"cluster_id":"prod","auth_mode":"kubeconfig","kubeconfig_path":"/tmp/kubeconfig","kube_context":"prod-ctx","fencing_token":4,"provider":"gke","gcp_workload_pool":"demo-proj.svc.id.goog"}
 		]}`,
 		envPollInterval: "2m",
 	})
@@ -33,6 +33,9 @@ func TestLoadRuntimeConfigKubeconfig(t *testing.T) {
 	}
 	if config.Collector.Clusters[0].FencingToken != 4 {
 		t.Fatalf("fencing token = %d, want 4", config.Collector.Clusters[0].FencingToken)
+	}
+	if config.Collector.Clusters[0].GCPWorkloadPool != "demo-proj.svc.id.goog" {
+		t.Fatalf("gcp workload pool = %q", config.Collector.Clusters[0].GCPWorkloadPool)
 	}
 	if config.PollInterval != 2*time.Minute {
 		t.Fatalf("poll interval = %v, want 2m", config.PollInterval)

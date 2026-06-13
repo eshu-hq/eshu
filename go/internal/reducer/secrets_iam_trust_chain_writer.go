@@ -156,6 +156,9 @@ func secretsIAMIdentityTrustChainPayload(
 	payload["iam_role_fingerprint"] = chain.IAMRoleFingerprint
 	payload["iam_role_cloud_resource_uid"] = chain.IAMRoleCloudResourceUID
 	payload["iam_role_assume_mode"] = chain.IAMRoleAssumeMode
+	payload["gcp_service_account_fingerprint"] = chain.GCPServiceAccountFingerprint
+	payload["gcp_service_account_cloud_resource_uid"] = chain.GCPServiceAccountCloudResourceUID
+	payload["gcp_service_account_assume_mode"] = chain.GCPServiceAccountAssumeMode
 	payload["vault_role_join_key"] = chain.VaultRoleJoinKey
 	payload["vault_mount_join_key"] = chain.VaultMountJoinKey
 	payload["vault_policy_join_keys"] = uniqueSortedStrings(chain.VaultPolicyJoinKeys)
@@ -194,6 +197,8 @@ func secretsIAMSecretAccessPathPayload(
 	payload["kv_path_fingerprint"] = path.KVPathFingerprint
 	payload["vault_mount_join_key"] = path.VaultMountJoinKey
 	payload["vault_policy_join_key"] = path.VaultPolicyJoinKey
+	payload["cloud_provider"] = path.CloudProvider
+	payload["cloud_secret_resource_fingerprint"] = path.CloudSecretResourceFingerprint
 	payload["capabilities"] = uniqueSortedStrings(path.Capabilities)
 	payload["evidence_fact_ids"] = uniqueSortedStrings(path.EvidenceFactIDs)
 	return payload

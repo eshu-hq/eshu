@@ -66,14 +66,17 @@ type SecretsIAMIdentityTrustChain struct {
 	// IAMRoleAssumeMode is the bounded assume-mode classification
 	// (web_identity / pod_identity) for the IAM-role edge, or empty when
 	// unclassified. It never encodes a role name, ARN, or account value.
-	IAMRoleAssumeMode   string
-	VaultRoleJoinKey    string
-	VaultMountJoinKey   string
-	VaultPolicyJoinKeys []string
-	EvidenceFactIDs     []string
-	MissingEvidence     []string
-	SourceScopes        []string
-	SourceGenerations   []string
+	IAMRoleAssumeMode                 string
+	GCPServiceAccountFingerprint      string
+	GCPServiceAccountCloudResourceUID string
+	GCPServiceAccountAssumeMode       string
+	VaultRoleJoinKey                  string
+	VaultMountJoinKey                 string
+	VaultPolicyJoinKeys               []string
+	EvidenceFactIDs                   []string
+	MissingEvidence                   []string
+	SourceScopes                      []string
+	SourceGenerations                 []string
 }
 
 // SecretsIAMPrivilegePostureObservation records risky broad or partial posture
@@ -92,15 +95,17 @@ type SecretsIAMPrivilegePostureObservation struct {
 // SecretsIAMSecretAccessPath is a Vault policy-to-KV metadata path reachable
 // from an exact identity chain.
 type SecretsIAMSecretAccessPath struct {
-	PathID             string
-	ChainID            string
-	State              SecretsIAMTrustChainState
-	Confidence         string
-	KVPathFingerprint  string
-	VaultMountJoinKey  string
-	VaultPolicyJoinKey string
-	Capabilities       []string
-	EvidenceFactIDs    []string
+	PathID                         string
+	ChainID                        string
+	State                          SecretsIAMTrustChainState
+	Confidence                     string
+	KVPathFingerprint              string
+	VaultMountJoinKey              string
+	VaultPolicyJoinKey             string
+	CloudProvider                  string
+	CloudSecretResourceFingerprint string
+	Capabilities                   []string
+	EvidenceFactIDs                []string
 }
 
 // SecretsIAMPostureGap records missing, stale, hidden, or unsupported evidence
