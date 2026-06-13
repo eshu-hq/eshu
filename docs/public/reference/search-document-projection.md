@@ -145,15 +145,16 @@ The tests prove:
 The reducer projection cycle emits the canonical-write counter and duration
 histogram tagged by domain, plus a structured log with `considered`, `included`,
 `skipped`, `written`, `retired`, per-reason skip counts, and per-source-kind
-included counts. Future persistence or benchmark callers must additionally
-expose:
+included counts. The persisted search-index write path also emits:
 
-- document count by `source_kind`;
-- skipped-document count by exclusion reason;
-- projection duration;
-- bounded context truncation count;
-- redaction/drop reason count;
-- failure class.
+- `eshu_dp_search_index_mutations_total` for document and term upserts/retires;
+- `eshu_dp_search_index_errors_total` for write failures;
+- `eshu_dp_search_index_write_duration_seconds` for write duration;
+- `reducer.eshu_search_index_write` around the projection-to-index write path.
+
+Search-index metric labels are bounded to `domain`, `kind`, `operation`, and
+`result`. Scope ids, generation ids, document ids, paths, terms, and
+provider-native identifiers stay in spans, structured logs, or durable facts.
 
 Use spans or structured logs for high-cardinality ids. Do not put repository
 paths, entity ids, image digests, request ids, or provider-native ids in metric

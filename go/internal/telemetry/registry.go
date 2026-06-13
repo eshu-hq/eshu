@@ -69,6 +69,7 @@ var spanNames = []string{
 	SpanReducerIntentEnqueue,
 	SpanReducerRun,
 	SpanReducerBatchClaim,
+	SpanReducerEshuSearchIndexWrite,
 	SpanReducerDriftEvidenceLoad,
 	SpanReducerAWSRuntimeDriftEvidenceLoad,
 	SpanReducerMultiCloudRuntimeDriftEvidenceLoad,

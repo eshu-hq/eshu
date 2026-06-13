@@ -12,6 +12,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // eshuSearchDocumentRetireQuery removes search-document facts in one generation
@@ -121,8 +124,10 @@ type EshuSearchDocumentWriteResult struct {
 // PostgresEshuSearchDocumentWriter persists curated search documents into the
 // shared fact store as derived, generation-scoped records.
 type PostgresEshuSearchDocumentWriter struct {
-	DB  eshuSearchDocumentExecer
-	Now func() time.Time
+	DB          eshuSearchDocumentExecer
+	Now         func() time.Time
+	Instruments *telemetry.Instruments
+	Tracer      trace.Tracer
 }
 
 // WriteEshuSearchDocuments upserts each curated document as a derived fact and
@@ -196,7 +201,7 @@ func (w PostgresEshuSearchDocumentWriter) WriteEshuSearchDocuments(
 			retired = int(affected)
 		}
 	}
-	if err := writeEshuSearchIndexDocuments(ctx, w.DB, scopeID, generationID, indexRows, now); err != nil {
+	if _, err := w.writeEshuSearchIndexDocuments(ctx, scopeID, generationID, indexRows, now); err != nil {
 		return EshuSearchDocumentWriteResult{}, err
 	}
 
@@ -235,32 +240,68 @@ func newEshuSearchIndexDocumentWrite(
 	}
 }
 
-func writeEshuSearchIndexDocuments(
+type eshuSearchIndexWriteStats struct {
+	DocumentUpserts int64
+	DocumentRetires int64
+	TermUpserts     int64
+	TermRetires     int64
+}
+
+func (w PostgresEshuSearchDocumentWriter) writeEshuSearchIndexDocuments(
 	ctx context.Context,
-	db eshuSearchDocumentExecer,
 	scopeID string,
 	generationID string,
 	documents []eshuSearchIndexDocumentWrite,
 	now time.Time,
-) error {
+) (eshuSearchIndexWriteStats, error) {
+	ctx, span := w.startSearchIndexWriteSpan(ctx, scopeID, generationID, len(documents))
+	if span != nil {
+		defer span.End()
+	}
+	start := time.Now()
+	stats := eshuSearchIndexWriteStats{}
+	finish := func(err error, operation string) (eshuSearchIndexWriteStats, error) {
+		result := "success"
+		if err != nil {
+			result = "error"
+			w.recordSearchIndexError(ctx, operation)
+			if span != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+			}
+		}
+		w.recordSearchIndexWriteDuration(ctx, time.Since(start), result)
+		return stats, err
+	}
+
 	documentIDs := make([]string, 0, len(documents))
 	totalLength := 0
 	for _, doc := range documents {
 		documentIDs = append(documentIDs, doc.DocumentID)
 		totalLength += doc.Length
 	}
-	if _, err := db.ExecContext(ctx, eshuSearchIndexRetireTermsQuery, scopeID, generationID, documentIDs); err != nil {
-		return fmt.Errorf("retire stale eshu search index terms: %w", err)
+	retireTermsResult, err := w.DB.ExecContext(ctx, eshuSearchIndexRetireTermsQuery, scopeID, generationID, documentIDs)
+	if err != nil {
+		return finish(fmt.Errorf("retire stale eshu search index terms: %w", err), "term_retire")
 	}
-	if _, err := db.ExecContext(ctx, eshuSearchIndexRetireDocumentsQuery, scopeID, generationID, documentIDs); err != nil {
-		return fmt.Errorf("retire stale eshu search index documents: %w", err)
+	if affected := rowsAffected(retireTermsResult); affected > 0 {
+		stats.TermRetires += affected
+		w.recordSearchIndexMutation(ctx, "term", "retire", affected)
+	}
+	retireDocumentsResult, err := w.DB.ExecContext(ctx, eshuSearchIndexRetireDocumentsQuery, scopeID, generationID, documentIDs)
+	if err != nil {
+		return finish(fmt.Errorf("retire stale eshu search index documents: %w", err), "document_retire")
+	}
+	if affected := rowsAffected(retireDocumentsResult); affected > 0 {
+		stats.DocumentRetires += affected
+		w.recordSearchIndexMutation(ctx, "document", "retire", affected)
 	}
 	for _, doc := range documents {
 		payload, err := json.Marshal(doc.Document)
 		if err != nil {
-			return fmt.Errorf("marshal eshu search index document: %w", err)
+			return finish(fmt.Errorf("marshal eshu search index document: %w", err), "document_marshal")
 		}
-		if _, err := db.ExecContext(
+		if _, err := w.DB.ExecContext(
 			ctx,
 			eshuSearchIndexDocumentUpsertQuery,
 			scopeID,
@@ -273,22 +314,29 @@ func writeEshuSearchIndexDocuments(
 			doc.Length,
 			now,
 		); err != nil {
-			return fmt.Errorf("write eshu search index document: %w", err)
+			return finish(fmt.Errorf("write eshu search index document: %w", err), "document_upsert")
 		}
-		if _, err := db.ExecContext(
+		stats.DocumentUpserts++
+		w.recordSearchIndexMutation(ctx, "document", "upsert", 1)
+		deleteTermResult, err := w.DB.ExecContext(
 			ctx,
 			eshuSearchIndexDeleteDocumentTermsQuery,
 			scopeID,
 			generationID,
 			doc.DocumentID,
-		); err != nil {
-			return fmt.Errorf("refresh eshu search index terms: %w", err)
+		)
+		if err != nil {
+			return finish(fmt.Errorf("refresh eshu search index terms: %w", err), "term_refresh")
+		}
+		if affected := rowsAffected(deleteTermResult); affected > 0 {
+			stats.TermRetires += affected
+			w.recordSearchIndexMutation(ctx, "term", "retire", affected)
 		}
 		terms, frequencies := sortedSearchIndexTerms(doc.Terms)
 		if len(terms) == 0 {
 			continue
 		}
-		if _, err := db.ExecContext(
+		if _, err := w.DB.ExecContext(
 			ctx,
 			eshuSearchIndexTermUpsertQuery,
 			scopeID,
@@ -297,14 +345,16 @@ func writeEshuSearchIndexDocuments(
 			terms,
 			frequencies,
 		); err != nil {
-			return fmt.Errorf("write eshu search index terms: %w", err)
+			return finish(fmt.Errorf("write eshu search index terms: %w", err), "term_upsert")
 		}
+		stats.TermUpserts += int64(len(terms))
+		w.recordSearchIndexMutation(ctx, "term", "upsert", int64(len(terms)))
 	}
 	averageLength := 0.0
 	if len(documents) > 0 {
 		averageLength = float64(totalLength) / float64(len(documents))
 	}
-	if _, err := db.ExecContext(
+	if _, err := w.DB.ExecContext(
 		ctx,
 		eshuSearchIndexStatsUpsertQuery,
 		scopeID,
@@ -313,9 +363,9 @@ func writeEshuSearchIndexDocuments(
 		averageLength,
 		now,
 	); err != nil {
-		return fmt.Errorf("write eshu search index stats: %w", err)
+		return finish(fmt.Errorf("write eshu search index stats: %w", err), "stats_upsert")
 	}
-	return nil
+	return finish(nil, "")
 }
 
 func sortedSearchIndexTerms(terms map[string]int) ([]string, []int) {

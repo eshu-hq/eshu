@@ -205,6 +205,11 @@ const (
 	SpanReducerIntentEnqueue = "reducer_intent.enqueue"
 	SpanReducerRun           = "reducer.run"
 	SpanReducerBatchClaim    = "reducer.batch_claim"
+	// SpanReducerEshuSearchIndexWrite wraps the reducer-owned persisted search
+	// index write path for curated EshuSearchDocument projection. It covers
+	// document/term retire, document/term upsert, and stats refresh work so a
+	// trace can distinguish index refresh latency from the broader reducer run.
+	SpanReducerEshuSearchIndexWrite = "reducer.eshu_search_index_write"
 	// SpanReducerDriftEvidenceLoad wraps the PostgresDriftEvidenceLoader call
 	// for one config_state_drift intent. Children spans on the InstrumentedDB
 	// surface each component query (config-side terraform_resources, active

@@ -71,6 +71,8 @@ when the reducer has a graph orphan observer.
 | `ReducerIntentsEnqueued` | `eshu_dp_reducer_intents_enqueued_total` |
 | `ReducerAdmissionDeferrals` | `eshu_dp_reducer_admission_deferrals_total` |
 | `ReducerExecutions` | `eshu_dp_reducer_executions_total` |
+| `SearchIndexMutations` | `eshu_dp_search_index_mutations_total` |
+| `SearchIndexErrors` | `eshu_dp_search_index_errors_total` |
 | `CanonicalWrites` | `eshu_dp_canonical_writes_total` |
 | `CanonicalNodesWritten` | `eshu_dp_canonical_nodes_written_total` |
 | `CanonicalEdgesWritten` | `eshu_dp_canonical_edges_written_total` |
@@ -269,6 +271,7 @@ module prefixes across generations.
 | `ProjectorRunDuration` | `eshu_dp_projector_run_duration_seconds` | 0.1–120 s |
 | `ProjectorStageDuration` | `eshu_dp_projector_stage_duration_seconds` | default |
 | `ReducerRunDuration` | `eshu_dp_reducer_run_duration_seconds` | default |
+| `SearchIndexWriteDuration` | `eshu_dp_search_index_write_duration_seconds` | 0.001–21600 s |
 | `ReducerQueueWaitDuration` | `eshu_dp_reducer_queue_wait_seconds` | 0.001–21600 s |
 | `GCPMaterializationDuration` | `eshu_dp_gcp_materialization_duration_seconds` | 0.001–21600 s |
 | `GenerationRetentionDuration` | `eshu_dp_generation_retention_duration_seconds` | 0.001–900 s |
@@ -327,7 +330,8 @@ here before handlers use it.
 
 Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`,
 `SpanFactEmit`, `SpanProjectorRun`, `SpanReducerIntentEnqueue`, `SpanReducerRun`,
-`SpanReducerBatchClaim`, `SpanReducerDriftEvidenceLoad`,
+`SpanReducerBatchClaim`, `SpanReducerEshuSearchIndexWrite`,
+`SpanReducerDriftEvidenceLoad`,
 `SpanReducerRDSPostureMaterialization`,
 `SpanReducerS3ExternalPrincipalGrantMaterialization`, `SpanCanonicalWrite`,
 `SpanCanonicalProjection`,
@@ -367,15 +371,8 @@ and boolean attributes for query count, result count, stale evidence,
 permission-hidden evidence, rejected unsafe payloads, unsupported link types,
 missing evidence, and page truncation.
 
-Jira fetch spans use bounded integer attributes for page and output counts:
-`jira.search_pages`, `jira.changelog_pages`, `jira.remote_link_pages`,
-`jira.metadata_pages`, `jira.issues_emitted`, `jira.changelog_events_emitted`,
-`jira.remote_links_emitted`, `jira.remote_links_rejected`,
-`jira.unsupported_provider_links`, `jira.metadata_objects_scanned`,
-`jira.metadata_objects_emitted`, `jira.unsupported_metadata`,
-`jira.permission_hidden_metadata`, `jira.stale_metadata`,
-`jira.metadata_redactions`, `jira.partial_failures`, `jira.rate_limits`,
-`jira.retry_after_seconds`, and `jira.stale_windows`.
+Jira fetch spans use bounded integer attributes for page counts, emitted object
+counts, redactions, partial failures, rate limits, and stale windows.
 
 Dependency spans: `SpanPostgresExec`, `SpanPostgresQuery`, `SpanNeo4jExecute`.
 
