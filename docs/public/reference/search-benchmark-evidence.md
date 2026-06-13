@@ -431,6 +431,10 @@ Eshu content corpus and emits real latency and corpus-shape numbers.
   in-process `searchhybrid` lane; decision `defer_search_change`. The NornicDB
   search arm was not measured (no search-enabled curated deployment), and recall
   needs a labeled query suite.
+- [Issue #2237 inverted index (2026-06-13)](searchbench-evidence/issue-2237-inverted-index-2026-06-13.md)
+  — before/after for the `searchhybrid` inverted index: in-process hybrid p50
+  ~19.5 ms → ~0.53 ms (~37×) over the same corpus, now faster than the Postgres
+  baseline at the median with a tighter tail.
 
 ## Recommendation
 
