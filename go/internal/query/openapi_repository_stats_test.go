@@ -37,3 +37,22 @@ func TestOpenAPIRepositoryStatsDocumentsTimeoutMetadata(t *testing.T) {
 		}
 	}
 }
+
+func TestOpenAPIRepositoryDocumentsGroupEvidenceFields(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
+	}
+
+	components := mustMapField(t, spec, "components")
+	schemas := mustMapField(t, components, "schemas")
+	repository := mustMapField(t, schemas, "Repository")
+	properties := mustMapField(t, repository, "properties")
+	for _, field := range []string{"group_key", "group_source", "group_truth", "group_kind", "group_reason"} {
+		if _, ok := properties[field]; !ok {
+			t.Fatalf("Repository schema missing %s", field)
+		}
+	}
+}

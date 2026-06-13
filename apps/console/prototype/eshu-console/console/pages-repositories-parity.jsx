@@ -30,35 +30,16 @@
   }
 
   function repoGroupKey(repo) {
-    const name = repo.name.toLowerCase();
-    const slugGroup = repo.repoSlug.split("/").find((part) => part.trim().length > 0);
-    if (name.startsWith("lib-") || name === "dmm-clients") return "Shared Libraries";
-    if (name.includes("forex")) return "FX";
-    if (
-      name === "api-node-boats" ||
-      name === "api-node-boats-temp" ||
-      name === "api-node-external-search" ||
-      name === "api-node-saved-search" ||
-      name === "api-node-make-model" ||
-      name === "job-node-sitemaps-generator"
-    ) return "Boat-Search";
-    if (name.includes("fsbo")) return "FSBO";
-    if (name.includes("conversation")) return "Messaging";
-    if (name.includes("datax")) return "Data";
-    if (name.includes("platform") || name.includes("provisioning") || name.includes("salesforce")) return "Platform";
-    if (name.includes("boattrader") || name.includes("myboats") || name.includes("bw-home") || name === "boatsdotcom") return "Marketplace";
-    if (name === "configd") return "Configuration";
-    if (name.startsWith("iac-") || name.startsWith("terraform-") || name === "helm-charts") return "Cloud Platform";
-    if (slugGroup) return titleGroup(slugGroup);
-    return repo.isDependency ? "Dependencies" : "Unclassified";
+    return repoText(repo.groupKey) || "Grouping evidence missing";
   }
 
-  function titleGroup(value) {
-    return value
-      .split(/[-_\s]+/)
-      .filter(Boolean)
-      .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
-      .join(" ");
+  function repoGroupEvidence(repo) {
+    return {
+      kind: repoText(repo.groupKind) || "unknown",
+      reason: repoText(repo.groupReason) || "No source-backed grouping evidence is available.",
+      source: repoText(repo.groupSource) || "missing_evidence",
+      truth: repoText(repo.groupTruth) || "missing_evidence"
+    };
   }
 
   async function loadLiveRepos(client) {
@@ -68,7 +49,12 @@
       isDependency: repo.is_dependency === true,
       name: repoDisplayName(repo),
       remoteUrl: repoText(repo.remote_url),
-      repoSlug: repoText(repo.repo_slug)
+      repoSlug: repoText(repo.repo_slug),
+      groupKey: repoText(repo.group_key),
+      groupSource: repoText(repo.group_source),
+      groupTruth: repoText(repo.group_truth),
+      groupKind: repoText(repo.group_kind),
+      groupReason: repoText(repo.group_reason)
     })).filter((repo) => repo.id);
   }
 
@@ -105,7 +91,11 @@
       groups.get(key).push(repo);
     });
     return Array.from(groups.entries())
-      .map(([key, repositories]) => ({ key, repositories: repositories.filter((repo) => query === "" || (key + repo.name + repo.repoSlug).toLowerCase().includes(query)) }))
+      .map(([key, repositories]) => {
+        const visible = repositories.filter((repo) => query === "" || (key + repo.name + repo.repoSlug).toLowerCase().includes(query));
+        const evidence = repoGroupEvidence(visible[0] || {});
+        return { key, repositories: visible, ...evidence };
+      })
       .filter((group) => group.repositories.length)
       .sort((a, b) => b.repositories.length - a.repositories.length || a.key.localeCompare(b.key));
   }
@@ -146,13 +136,13 @@
 
     return (
       <div className="page">
-        <div className="page-intro"><h2>Repositories</h2><p>Live repository list from <span className="mono">GET /api/v0/repositories</span>. Groups currently use repository names and slug metadata; first-class source-backed grouping evidence is tracked in issue #2239.</p></div>
+        <div className="page-intro"><h2>Repositories</h2><p>Live repository list from <span className="mono">GET /api/v0/repositories</span>. Groups use source-backed repository grouping evidence and keep missing evidence visible.</p></div>
         <div className="repo-toolbar">
           <div className="searchbox" style={{ minWidth: 260, height: 38, margin: 0, flex: 1 }}><Icon.search size={16} /><input placeholder="Find a group or repository..." value={q} onChange={(e) => setQ(e.target.value)} /></div>
           <div className="dep-toggle" style={{ margin: 0 }}><button className={view === "groups" ? "active" : ""} onClick={() => setView("groups")}>Groups</button><button className={view === "grid" ? "active" : ""} onClick={() => setView("grid")}>Grid</button></div>
         </div>
         <div className="grid g-4">
-          <StatTile label="Repository groups" value={groups.length} color="var(--teal)" sub="name/slug grouping" />
+          <StatTile label="Repository groups" value={groups.length} color="var(--teal)" sub="source-backed grouping" />
           <StatTile label="Repositories" value={rows.length} color="var(--blue)" sub="GET /api/v0/repositories" />
           <StatTile label="Dependency repos" value={depCount} color="var(--ember)" sub="marked by the API" />
           <StatTile label="Most populated" value={(groups[0] && groups[0].key) || "-"} color="var(--violet)" sub="largest live group" />
@@ -167,7 +157,7 @@
   function LiveRepoGroups({ groups, onSelect, err }) {
     return <div className="repo-groups mt">{groups.map((group) => (
       <section className="repo-group" key={group.key}>
-        <header className="repo-group-head"><div className="row" style={{ gap: 9 }}><span className="repo-group-dot" /><h3>{group.key}</h3><span className="repo-group-count">{group.repositories.length}</span></div><span className="findings-toggle">{group.repositories.filter((repo) => repo.isDependency).length} dependency repos</span></header>
+        <header className="repo-group-head"><div className="row" style={{ gap: 9 }}><span className="repo-group-dot" /><h3>{group.key}</h3><span className="repo-group-count">{group.repositories.length}</span></div><span className="findings-toggle" title={group.reason}>{group.truth} · {group.source}</span></header>
         <div className="repo-group-repos">{group.repositories.map((repo) => <a className="repo-chip" key={repo.id} href={repoSourceHref(repo.id)} title={repo.repoSlug || repo.remoteUrl}><i />{repo.name}<span className={"tag-tier tier-" + (repo.isDependency ? "3" : "1")} style={{ marginLeft: 6 }}>{repo.isDependency ? "dep" : "src"}</span></a>)}</div>
       </section>
     ))}{groups.length === 0 ? <p className="empty">{err ? "Failed to load: " + err : "No repositories from this source."}</p> : null}</div>;

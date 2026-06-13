@@ -65,7 +65,7 @@ func (h *RepositoryHandler) resolveRepositoryPathSelector(w http.ResponseWriter,
 // repositoryCatalogMap projects a content-store catalog entry into the wire map
 // shape used by repository list and stats responses.
 func repositoryCatalogMap(entry RepositoryCatalogEntry) map[string]any {
-	return map[string]any{
+	return decorateRepositoryGroupEvidence(map[string]any{
 		"id":            entry.ID,
 		"name":          entry.Name,
 		"path":          entry.Path,
@@ -74,5 +74,5 @@ func repositoryCatalogMap(entry RepositoryCatalogEntry) map[string]any {
 		"repo_slug":     entry.RepoSlug,
 		"has_remote":    entry.HasRemote,
 		"is_dependency": false,
-	}
+	})
 }

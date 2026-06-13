@@ -31,11 +31,15 @@ describe("prototype shell parity", () => {
     expect(page).not.toContain("name: repoText(repo.name) || repoText(repo.id)");
   });
 
-  it("keeps standalone repository grouping copy honest about current evidence", () => {
+  it("keeps standalone repository grouping source-backed", () => {
     const page = repoFile("apps/console/prototype/eshu-console/console/pages-repositories-parity.jsx");
 
-    expect(page).toContain("Groups currently use repository names and slug metadata");
-    expect(page).toContain("issue #2239");
+    expect(page).toContain("Groups use source-backed repository grouping evidence");
+    expect(page).toContain("repo.group_key");
+    expect(page).toContain("groupSource");
+    expect(page).toContain("Grouping evidence missing");
+    expect(page).not.toContain("Groups currently use repository names and slug metadata");
+    expect(page).not.toContain("issue #2239");
     expect(page).not.toContain("clustered by domain evidence");
   });
 
