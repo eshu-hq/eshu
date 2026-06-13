@@ -7,8 +7,18 @@ WHERE source.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
+const retractSQLViewReferencesTableEdgesByFileCypher = `MATCH (source:SqlView)-[rel:REFERENCES_TABLE]->()
+WHERE source.path IN $file_paths
+  AND rel.evidence_source = $evidence_source
+DELETE rel`
+
 const retractSQLFunctionReferencesTableEdgesCypher = `MATCH (source:SqlFunction)-[rel:REFERENCES_TABLE]->()
 WHERE source.repo_id IN $repo_ids
+  AND rel.evidence_source = $evidence_source
+DELETE rel`
+
+const retractSQLFunctionReferencesTableEdgesByFileCypher = `MATCH (source:SqlFunction)-[rel:REFERENCES_TABLE]->()
+WHERE source.path IN $file_paths
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
@@ -17,13 +27,28 @@ WHERE source.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
+const retractSQLTableHasColumnEdgesByFileCypher = `MATCH (source:SqlTable)-[rel:HAS_COLUMN]->()
+WHERE source.path IN $file_paths
+  AND rel.evidence_source = $evidence_source
+DELETE rel`
+
 const retractSQLTriggerEdgesCypher = `MATCH (source:SqlTrigger)-[rel:TRIGGERS]->()
 WHERE source.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
+const retractSQLTriggerEdgesByFileCypher = `MATCH (source:SqlTrigger)-[rel:TRIGGERS]->()
+WHERE source.path IN $file_paths
+  AND rel.evidence_source = $evidence_source
+DELETE rel`
+
 const retractSQLTriggerExecutesEdgesCypher = `MATCH (source:SqlTrigger)-[rel:EXECUTES]->()
 WHERE source.repo_id IN $repo_ids
+  AND rel.evidence_source = $evidence_source
+DELETE rel`
+
+const retractSQLTriggerExecutesEdgesByFileCypher = `MATCH (source:SqlTrigger)-[rel:EXECUTES]->()
+WHERE source.path IN $file_paths
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
@@ -151,6 +176,30 @@ func BuildRetractSQLRelationshipEdgeStatements(repoIDs []string, evidenceSource 
 			Cypher:    cypher,
 			Parameters: map[string]any{
 				"repo_ids":        repoIDs,
+				"evidence_source": evidenceSource,
+			},
+		})
+	}
+	return stmts
+}
+
+// BuildRetractSQLRelationshipEdgeStatementsByFilePath builds label-scoped SQL
+// relationship retraction statements for repo-qualified source file paths.
+func BuildRetractSQLRelationshipEdgeStatementsByFilePath(filePaths []string, evidenceSource string) []Statement {
+	cyphers := []string{
+		retractSQLViewReferencesTableEdgesByFileCypher,
+		retractSQLFunctionReferencesTableEdgesByFileCypher,
+		retractSQLTableHasColumnEdgesByFileCypher,
+		retractSQLTriggerEdgesByFileCypher,
+		retractSQLTriggerExecutesEdgesByFileCypher,
+	}
+	stmts := make([]Statement, 0, len(cyphers))
+	for _, cypher := range cyphers {
+		stmts = append(stmts, Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    cypher,
+			Parameters: map[string]any{
+				"file_paths":      filePaths,
 				"evidence_source": evidenceSource,
 			},
 		})
