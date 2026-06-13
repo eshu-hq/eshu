@@ -145,11 +145,19 @@ func (w *SemanticEntityWriter) WriteSemanticEntities(
 	}
 
 	repoIDs := uniqueSemanticRepoIDs(write.RepoIDs)
+	deltaFilePaths := uniqueSemanticFilePaths(write.DeltaFilePaths)
+	if write.DeltaProjection && !write.SkipRetract && len(deltaFilePaths) == 0 {
+		return reducer.SemanticEntityWriteResult{}, fmt.Errorf("semantic entity delta projection requires file paths")
+	}
 
 	// Build the full statement list: retract first, then all upserts.
 	var stmts []Statement
 	if !write.SkipRetract {
-		stmts = append(stmts, w.semanticRetractStatements(repoIDs)...)
+		if write.DeltaProjection {
+			stmts = append(stmts, w.semanticDeltaRetractStatements(deltaFilePaths)...)
+		} else {
+			stmts = append(stmts, w.semanticRetractStatements(repoIDs)...)
+		}
 	}
 
 	writes := 0
