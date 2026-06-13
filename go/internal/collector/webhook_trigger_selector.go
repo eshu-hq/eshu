@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 )
 
@@ -38,6 +39,12 @@ type WebhookTriggerRepositorySelector struct {
 	Now        func() time.Time
 	SyncGit    func(context.Context, RepoSyncConfig, []string) (GitSyncSelection, error)
 	Logger     *slog.Logger
+	// BaselineResolver baselines git delta syncs on the last projected commit
+	// per scope instead of the local HEAD (epic #2340). Nil takes a full
+	// snapshot on every update.
+	BaselineResolver DeltaBaselineResolver
+	// Instruments records the delta-baseline fallback rate. Optional.
+	Instruments *telemetry.Instruments
 }
 
 // SelectRepositories claims queued webhook triggers, syncs only the referenced
@@ -86,7 +93,10 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 	syncGitFn := s.SyncGit
 	if syncGitFn == nil {
 		syncGitFn = func(ctx context.Context, config RepoSyncConfig, repositoryIDs []string) (GitSyncSelection, error) {
-			return syncGitRepositoriesWithLogger(ctx, config, repositoryIDs, s.Logger)
+			return syncGitRepositoriesWithLogger(ctx, config, repositoryIDs, s.Logger, gitDeltaBaseline{
+				Resolver:    s.BaselineResolver,
+				Instruments: s.Instruments,
+			})
 		}
 	}
 	synced, err := syncGitFn(ctx, s.Config, repositoryIDs)

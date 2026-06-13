@@ -27,6 +27,9 @@ case "$*" in
 	*"rev-parse refs/remotes/origin/main"*)
 		printf "newsha\n"
 		;;
+	*"cat-file -e oldsha"*)
+		exit 0
+		;;
 	*"diff --name-status -z --find-renames oldsha refs/remotes/origin/main"*)
 		printf "M\0cmd/api/main.go\0"
 		printf "D\0internal/old/deleted.go\0"
@@ -51,6 +54,8 @@ esac
 		"",
 		slog.New(slog.NewJSONHandler(io.Discard, nil)),
 		gitSyncLogEventFor("example/private-service", 1, 1),
+		"oldsha",
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("updateRepository() error = %v, want nil", err)

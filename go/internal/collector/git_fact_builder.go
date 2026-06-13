@@ -52,6 +52,7 @@ func buildStreamingGenerationWithContext(
 		repoPath,
 		observedAt,
 		snapshotFreshnessHint(snapshot),
+		snapshot.HeadCommitSHA,
 	)
 	contentFileCount := len(snapshot.ContentFiles)
 	if len(snapshot.ContentFileMetas) > 0 {

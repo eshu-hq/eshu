@@ -67,6 +67,7 @@ type Instruments struct {
 	GenerationRetentionRowsPruned             metric.Int64Counter
 	GenerationRetentionFailures               metric.Int64Counter
 	GenerationRetentionSkipped                metric.Int64Counter
+	DeltaBaselineFallbacks                    metric.Int64Counter
 	DocumentationEntityMentions               metric.Int64Counter
 	DocumentationClaimCandidates              metric.Int64Counter
 	DocumentationClaimsSuppressed             metric.Int64Counter
@@ -883,6 +884,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register GenerationRetentionSkipped counter: %w", err)
+	}
+
+	inst.DeltaBaselineFallbacks, err = meter.Int64Counter(
+		"eshu_dp_collector_delta_baseline_fallback_total",
+		metric.WithDescription("Total git delta syncs that fell back to a full snapshot, by bounded skip_reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DeltaBaselineFallbacks counter: %w", err)
 	}
 
 	inst.DocumentationEntityMentions, err = meter.Int64Counter(

@@ -169,6 +169,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		DeletedRelativePaths:     deltaDeletedRelativePaths,
 	}
 	commitSHA := gitCommitSHA(ctx, repoPath)
+	snapshot.HeadCommitSHA = commitSHA
 	if len(fileSet.Files) == 0 {
 		snapshot.DiscoveryAdvisory = buildDiscoveryAdvisoryReport(
 			repoPath,

@@ -230,6 +230,14 @@ type ScopeGeneration struct {
 	Status        GenerationStatus
 	TriggerKind   TriggerKind
 	FreshnessHint string
+	// SourceCommitSHA records the source-control commit this generation was
+	// observed from, when the collector can determine one (git scopes). It is
+	// the durable baseline for incremental delta sync: the next sync diffs
+	// against the SHA of the most recent generation that reached a projected
+	// state, never against the local working-copy HEAD, so a projection that
+	// fails after a checkout advanced HEAD cannot silently skip its changes.
+	// Empty for scopes with no commit identity (filesystem, cloud collectors).
+	SourceCommitSHA string
 }
 
 // Validate checks the generation fields and lifecycle status.

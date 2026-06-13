@@ -31,16 +31,26 @@ func buildCollectorService(
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
 
-	selector := collector.RepositorySelector(collector.NativeRepositorySelector{Config: config, Logger: logger})
+	// committer doubles as the delta-baseline resolver so git delta syncs
+	// baseline on the last projected commit per scope rather than local HEAD
+	// (epic #2340).
+	selector := collector.RepositorySelector(collector.NativeRepositorySelector{
+		Config:           config,
+		Logger:           logger,
+		BaselineResolver: committer,
+		Instruments:      instruments,
+	})
 	handoffConfig := collector.LoadWebhookTriggerHandoffConfig("collector-git", getenv)
 	if handoffConfig.Enabled {
 		selector = collector.PriorityRepositorySelector{Selectors: []collector.RepositorySelector{
 			collector.WebhookTriggerRepositorySelector{
-				Config:     config,
-				Store:      postgres.NewWebhookTriggerStore(database),
-				Owner:      handoffConfig.Owner,
-				ClaimLimit: handoffConfig.ClaimLimit,
-				Logger:     logger,
+				Config:           config,
+				Store:            postgres.NewWebhookTriggerStore(database),
+				Owner:            handoffConfig.Owner,
+				ClaimLimit:       handoffConfig.ClaimLimit,
+				Logger:           logger,
+				BaselineResolver: committer,
+				Instruments:      instruments,
 			},
 			selector,
 		}}

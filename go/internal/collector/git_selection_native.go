@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // NativeRepositorySelector owns Go-native repository selection and sync behavior.
@@ -18,6 +20,12 @@ type NativeRepositorySelector struct {
 	SyncFilesystem    func(context.Context, RepoSyncConfig, []string) ([]string, error)
 	SyncGit           func(context.Context, RepoSyncConfig, []string) (GitSyncSelection, error)
 	Logger            *slog.Logger
+	// BaselineResolver supplies the last-projected commit per scope so git delta
+	// syncs baseline on a durable commit instead of the local HEAD (epic #2340).
+	// Nil disables the lookup and every git update takes a safe full snapshot.
+	BaselineResolver DeltaBaselineResolver
+	// Instruments records the delta-baseline fallback rate. Optional.
+	Instruments *telemetry.Instruments
 }
 
 // SelectRepositories discovers changed repositories for one collector cycle.
@@ -60,7 +68,10 @@ func (s NativeRepositorySelector) SelectRepositories(
 		syncGitFn := s.SyncGit
 		if syncGitFn == nil {
 			syncGitFn = func(ctx context.Context, config RepoSyncConfig, repositoryIDs []string) (GitSyncSelection, error) {
-				return syncGitRepositoriesWithLogger(ctx, config, repositoryIDs, s.Logger)
+				return syncGitRepositoriesWithLogger(ctx, config, repositoryIDs, s.Logger, gitDeltaBaseline{
+					Resolver:    s.BaselineResolver,
+					Instruments: s.Instruments,
+				})
 			}
 		}
 		synced, err := syncGitFn(ctx, s.Config, selection.RepositoryIDs)

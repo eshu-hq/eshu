@@ -20,6 +20,7 @@ func syncGitRepositoriesWithLogger(
 	config RepoSyncConfig,
 	repositoryIDs []string,
 	logger *slog.Logger,
+	baseline gitDeltaBaseline,
 ) (GitSyncSelection, error) {
 	if err := os.MkdirAll(config.ReposDir, 0o755); err != nil {
 		return GitSyncSelection{}, fmt.Errorf("create repos dir %q: %w", config.ReposDir, err)
@@ -48,7 +49,7 @@ func syncGitRepositoriesWithLogger(
 			}
 			continue
 		}
-		updated, delta, updateErr := updateRepository(ctx, config, repoPath, token, logger, event)
+		updated, delta, updateErr := syncExistingRepository(ctx, config, repoPath, token, logger, event, baseline)
 		if updateErr == nil && updated {
 			selected = append(selected, repoPath)
 			if !delta.IsEmpty() {
@@ -109,6 +110,16 @@ func cloneRepository(
 	return true, nil
 }
 
+// updateRepository fetches the remote branch and decides how to project the
+// new state. The delta baseline is baselineSHA, the commit of the most recent
+// generation that reached a projected state (epic #2340) — NOT the local
+// working-copy HEAD. Diffing from local HEAD is unsafe: if a prior projection
+// failed after its checkout advanced HEAD, the next sync would skip the
+// unprojected changes. When baselineSHA is empty (no projected generation yet)
+// or unreachable in the local checkout (shallow-clone prune or divergence) the
+// sync falls back to a full snapshot — an empty delta — and reports the reason
+// through onFallback so operators can watch the delta-skip rate. onFallback may
+// be nil.
 func updateRepository(
 	ctx context.Context,
 	config RepoSyncConfig,
@@ -116,6 +127,8 @@ func updateRepository(
 	token string,
 	logger *slog.Logger,
 	event gitSyncLogEvent,
+	baselineSHA string,
+	onFallback func(reason string),
 ) (bool, GitSyncDelta, error) {
 	event = event.withOperation("fetch")
 	branch, err := resolveDefaultBranch(ctx, config, repoPath, token)
@@ -134,28 +147,58 @@ func updateRepository(
 		logGitSyncFailed(ctx, logger, event, err)
 		return false, GitSyncDelta{}, err
 	}
-	headSHA, err := gitRevParse(ctx, repoPath, "HEAD", config, token)
-	if err != nil {
-		logGitSyncFailed(ctx, logger, event, err)
-		return false, GitSyncDelta{}, err
-	}
 	remoteRef := "refs/remotes/origin/" + branch
 	remoteSHA, err := gitRevParse(ctx, repoPath, remoteRef, config, token)
 	if err != nil {
 		logGitSyncFailed(ctx, logger, event, err)
 		return false, GitSyncDelta{}, err
 	}
-	if headSHA == remoteSHA {
+
+	baseline := strings.TrimSpace(baselineSHA)
+	switch {
+	case baseline == "":
+		// No projected generation yet: there is no trustworthy baseline, so the
+		// whole repository must be re-observed.
+		notifyDeltaFallback(onFallback, "no_projected_baseline")
+	case baseline == remoteSHA:
+		// The last projected commit already equals the remote head; nothing new
+		// has been observed since the last successful projection.
 		logGitSyncCompleted(ctx, logger, event, false)
 		return false, GitSyncDelta{}, nil
+	case !isGitCommitReachable(ctx, config, repoPath, token, baseline):
+		// The baseline is known but absent from local history (shallow-clone
+		// prune or divergence); a delta diff would be wrong, so re-observe fully.
+		notifyDeltaFallback(onFallback, "baseline_unreachable")
+	default:
+		delta, err := gitDiffDelta(ctx, config, repoPath, token, baseline, remoteRef)
+		if err != nil {
+			logGitSyncFailed(ctx, logger, event, err)
+			return false, GitSyncDelta{}, err
+		}
+		if err := checkoutRemoteBranch(ctx, config, repoPath, token, branch); err != nil {
+			logGitSyncFailed(ctx, logger, event, err)
+			return false, GitSyncDelta{}, err
+		}
+		logGitSyncCompleted(ctx, logger, event, true)
+		return true, delta, nil
 	}
-	delta, err := gitDiffDelta(ctx, config, repoPath, token, headSHA, remoteRef)
-	if err != nil {
+
+	if err := checkoutRemoteBranch(ctx, config, repoPath, token, branch); err != nil {
 		logGitSyncFailed(ctx, logger, event, err)
 		return false, GitSyncDelta{}, err
 	}
+	logGitSyncCompleted(ctx, logger, event, true)
+	return true, GitSyncDelta{}, nil
+}
 
-	if _, err := gitRun(
+func checkoutRemoteBranch(
+	ctx context.Context,
+	config RepoSyncConfig,
+	repoPath string,
+	token string,
+	branch string,
+) error {
+	_, err := gitRun(
 		ctx,
 		repoPath,
 		config,
@@ -164,12 +207,8 @@ func updateRepository(
 		"-B",
 		branch,
 		"refs/remotes/origin/"+branch,
-	); err != nil {
-		logGitSyncFailed(ctx, logger, event, err)
-		return false, GitSyncDelta{}, err
-	}
-	logGitSyncCompleted(ctx, logger, event, true)
-	return true, delta, nil
+	)
+	return err
 }
 
 func resolveDefaultBranch(

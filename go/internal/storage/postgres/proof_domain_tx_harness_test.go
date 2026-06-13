@@ -97,13 +97,14 @@ func (tx *proofDomainTx) ExecContext(ctx context.Context, query string, args ...
 		return proofResult{}, nil
 	case strings.Contains(query, "INSERT INTO scope_generations"):
 		generation := scope.ScopeGeneration{
-			GenerationID:  args[0].(string),
-			ScopeID:       args[1].(string),
-			TriggerKind:   scope.TriggerKind(args[2].(string)),
-			FreshnessHint: stringFromAny(args[3]),
-			ObservedAt:    args[4].(time.Time).UTC(),
-			IngestedAt:    args[5].(time.Time).UTC(),
-			Status:        scope.GenerationStatus(args[6].(string)),
+			GenerationID:    args[0].(string),
+			ScopeID:         args[1].(string),
+			TriggerKind:     scope.TriggerKind(args[2].(string)),
+			FreshnessHint:   stringFromAny(args[3]),
+			SourceCommitSHA: stringFromAny(args[4]),
+			ObservedAt:      args[5].(time.Time).UTC(),
+			IngestedAt:      args[6].(time.Time).UTC(),
+			Status:          scope.GenerationStatus(args[7].(string)),
 		}
 		if existing, ok := tx.state.generations[generation.GenerationID]; ok && existing.Status == scope.GenerationStatusActive && generation.Status == scope.GenerationStatusPending && existing.FreshnessHint == generation.FreshnessHint {
 			generation.Status = existing.Status
