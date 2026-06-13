@@ -34,6 +34,7 @@ import { emptyConsoleModel, modelFromSnapshot } from "./console/liveModel";
 import type { ConsoleModel } from "./console/types";
 import { fmt } from "./console/types";
 import { DashboardPage } from "./pages/DashboardPage";
+import { AskPage } from "./pages/AskPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { FindingsPage } from "./pages/FindingsPage";
 import { OperationsPage } from "./pages/OperationsPage";
@@ -76,6 +77,7 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
     label: "Overview",
     items: [
       { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { to: "/ask", label: "Ask Eshu", icon: Search },
       { to: "/impact", label: "Impact", icon: Network },
       { to: "/changed-since", label: "Changed Since", icon: History },
       { to: "/explorer", label: "Graph Explorer", icon: GitBranch }
@@ -332,6 +334,7 @@ export function App(): React.JSX.Element {
           <Routes>
             <Route path="/" element={<DashboardPage model={visibleModel} client={client} onOpenService={openService} />} />
             <Route path="/dashboard" element={<DashboardPage model={visibleModel} client={client} onOpenService={openService} />} />
+            <Route path="/ask" element={<AskPage client={client} repositories={repositories} />} />
             <Route path="/impact" element={<ImpactPage model={visibleModel} client={client} />} />
             <Route path="/changed-since" element={<ChangedSincePage client={client} />} />
             <Route path="/explorer" element={<ExplorerPage model={visibleModel} client={client} onOpenService={openService} />} />
