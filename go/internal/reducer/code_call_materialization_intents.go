@@ -1,7 +1,9 @@
 package reducer
 
 import (
+	"path"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -89,8 +91,9 @@ func buildCodeCallSharedIntentRows(
 	return deduplicateCodeCallIntentRows(intents)
 }
 
-func buildCodeCallRefreshIntents(
+func buildCodeCallRefreshIntentsWithDeltaScope(
 	contextByRepoID map[string]ProjectionContext,
+	deltaFilePathsByRepoID map[string][]string,
 	createdAt time.Time,
 ) []SharedProjectionIntentRow {
 	if len(contextByRepoID) == 0 {
@@ -112,6 +115,10 @@ func buildCodeCallRefreshIntents(
 			"intent_type":     "repo_refresh",
 			"evidence_source": codeCallRepoRefreshEvidenceSource,
 		}
+		if filePaths := deltaFilePathsByRepoID[repositoryID]; len(filePaths) > 0 {
+			payload["delta_projection"] = true
+			payload["delta_file_paths"] = append([]string(nil), filePaths...)
+		}
 
 		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
 			ProjectionDomain: DomainCodeCalls,
@@ -127,6 +134,91 @@ func buildCodeCallRefreshIntents(
 	}
 
 	return intents
+}
+
+func buildCodeCallDeltaFilePathsByRepoID(envelopes []facts.Envelope) map[string][]string {
+	seenByRepoID := make(map[string]map[string]struct{})
+	for _, env := range envelopes {
+		if env.FactKind != factKindRepository || !codeCallPayloadBool(env.Payload, "delta_generation") {
+			continue
+		}
+		repositoryID := semanticPayloadString(env.Payload, "repo_id")
+		if repositoryID == "" {
+			repositoryID = semanticPayloadString(env.Payload, "graph_id")
+		}
+		if repositoryID == "" {
+			continue
+		}
+		repoPath := semanticPayloadString(env.Payload, "path")
+		if repoPath == "" {
+			repoPath = semanticPayloadString(env.Payload, "local_path")
+		}
+		for _, relativePath := range codeCallDeltaRelativePaths(env.Payload) {
+			filePath := qualifyCodeCallDeltaFilePath(repoPath, relativePath)
+			if filePath == "" {
+				continue
+			}
+			seen := seenByRepoID[repositoryID]
+			if seen == nil {
+				seen = make(map[string]struct{})
+				seenByRepoID[repositoryID] = seen
+			}
+			seen[filePath] = struct{}{}
+		}
+	}
+	if len(seenByRepoID) == 0 {
+		return nil
+	}
+
+	pathsByRepoID := make(map[string][]string, len(seenByRepoID))
+	for repositoryID, seen := range seenByRepoID {
+		filePaths := make([]string, 0, len(seen))
+		for filePath := range seen {
+			filePaths = append(filePaths, filePath)
+		}
+		sort.Strings(filePaths)
+		pathsByRepoID[repositoryID] = filePaths
+	}
+	return pathsByRepoID
+}
+
+func codeCallDeltaRelativePaths(payload map[string]any) []string {
+	seen := make(map[string]struct{})
+	var paths []string
+	for _, key := range []string{"delta_relative_paths", "delta_deleted_relative_paths"} {
+		for _, relativePath := range semanticPayloadStringSlice(payload, key) {
+			if _, ok := seen[relativePath]; ok {
+				continue
+			}
+			seen[relativePath] = struct{}{}
+			paths = append(paths, relativePath)
+		}
+	}
+	return paths
+}
+
+func qualifyCodeCallDeltaFilePath(repoPath string, relativePath string) string {
+	if repoPath == "" || relativePath == "" {
+		return ""
+	}
+	cleaned := path.Clean(relativePath)
+	if cleaned == "" || cleaned == "." || cleaned == ".." ||
+		path.IsAbs(cleaned) || strings.HasPrefix(cleaned, "../") {
+		return ""
+	}
+	return path.Join(repoPath, cleaned)
+}
+
+func codeCallPayloadBool(payload map[string]any, key string) bool {
+	if payload == nil {
+		return false
+	}
+	value, ok := payload[key]
+	if !ok {
+		return false
+	}
+	typed, ok := value.(bool)
+	return ok && typed
 }
 
 func codeCallRefreshPartitionKey(repositoryID string) string {
