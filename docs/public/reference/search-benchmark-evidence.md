@@ -421,6 +421,17 @@ backend wired to real stores. The executor is the harness that produces that
 record; it does not lower the requirement for measured runs before any runtime
 search change.
 
+The operator entrypoint `go/cmd/search-bench` runs the comparison over a live
+Eshu content corpus and emits real latency and corpus-shape numbers.
+
+## Recorded Runs
+
+- [Issue #2235 search-lane latency (2026-06-13)](searchbench-evidence/issue-2235-search-lane-latency-2026-06-13.md)
+  — first measured run over a 27,822-document corpus: Postgres baseline vs the
+  in-process `searchhybrid` lane; decision `defer_search_change`. The NornicDB
+  search arm was not measured (no search-enabled curated deployment), and recall
+  needs a labeled query suite.
+
 ## Recommendation
 
 Each completed evidence record must recommend exactly one decision:
