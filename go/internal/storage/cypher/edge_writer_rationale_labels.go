@@ -36,3 +36,16 @@ func BuildRetractRationaleEdges(repoIDs []string, evidenceSource string) Stateme
 		},
 	}
 }
+
+// BuildRetractRationaleEdgesByFilePath builds an EXPLAINS edge retraction
+// statement for target code entities owned by the given repo-qualified paths.
+func BuildRetractRationaleEdgesByFilePath(filePaths []string, evidenceSource string) Statement {
+	return Statement{
+		Operation: OperationCanonicalRetract,
+		Cypher:    retractRationaleEdgesByFileCypher,
+		Parameters: map[string]any{
+			"file_paths":      filePaths,
+			"evidence_source": evidenceSource,
+		},
+	}
+}

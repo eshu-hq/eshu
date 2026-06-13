@@ -357,6 +357,37 @@ logs, graph query duration metrics, retry classification, and timeout handling.
 It adds no worker, queue domain, runtime knob, metric instrument, metric label,
 or backend-specific telemetry.
 
+### Rationale EXPLAINS Delta Scoped Retraction
+
+Issue #2257 also scopes rationale `EXPLAINS` cleanup for delta generations to
+changed or deleted source files. The rationale reducer now loads repository
+delta metadata beside `content_entity` facts that can carry
+`rationale_comments`. Deleted-only delta generations can therefore retract stale
+`EXPLAINS` edges without current rationale rows, while full refreshes keep the
+existing repository-wide `rationale.repo_id` retract path.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'TestRationaleMaterializationHandler(ScopesDeltaRetractToFiles|DeletedOnlyDeltaRetractsWithoutWrites)|TestBuildRationaleRetractRowsKeepsMalformedDeltaScoped|TestLoadRationaleMaterializationFactsUsesSingleLegacyFallback'
+-count=1` proves the reducer extracts repo-qualified delta file paths from the
+repository fact, carries them into rationale retract rows, handles deleted-only
+delta generations without writes, preserves one legacy fallback fact load, and
+keeps malformed delta scope scoped instead of silently downgrading to repo-wide
+cleanup. `go test ./internal/storage/cypher -run
+'Test(BuildRetractRationaleEdgesByFilePath|EdgeWriterRetractEdgesRationale(DeltaUsesFileScope|RejectsDeltaWithoutFilePaths))'
+-count=1` proves valid delta rows dispatch the file-scoped rationale retract
+statement with `target.path IN $file_paths`, malformed delta rows execute no
+Cypher, and non-delta rationale retracts keep the existing repo-wide dispatch.
+The input cardinality is the delta file-path count for one repository
+generation; the changed Cypher keeps static target labels and the `EXPLAINS`
+relationship token, binds only a positive `$file_paths` list, and does not add
+a traversal or backend-specific branch.
+
+No-Observability-Change: rationale delta retraction uses the existing
+`EdgeWriter.RetractEdges` executor path, rationale materialization completion
+logs, graph query duration metrics, retry classification, and timeout handling.
+It adds no worker, queue domain, runtime knob, metric instrument, metric label,
+or backend-specific telemetry.
+
 ## Related Docs
 
 - [NornicDB Pitfalls](nornicdb-pitfalls.md)

@@ -7,8 +7,9 @@ package cypher
 // it explains. The Rationale node carries identity and a bounded excerpt handle
 // only; the comment text stays in the Postgres content/fact store (design 430).
 // The template MERGEs the Rationale node inline (no separate node-writer phase).
-// Rationale comes from repo-scoped code entities, so the retract anchors on
-// rationale.repo_id like the inheritance edges.
+// Rationale comes from repo-scoped code entities. Full-refresh retracts anchor
+// on rationale.repo_id; delta-generation retracts anchor on target.path so a
+// changed file cannot delete other files' EXPLAINS truth.
 
 const batchCanonicalRationaleExplainsEdgeCypher = `UNWIND $rows AS row
 MATCH (target:Function|Class|Struct|Interface|TypeAlias|Enum|File {uid: row.target_entity_id})
@@ -30,5 +31,10 @@ SET rel.confidence = 0.95,
 // cleanup is intentionally out of scope.
 const retractRationaleEdgesCypher = `MATCH (rationale:Rationale)-[rel:EXPLAINS]->()
 WHERE rationale.repo_id IN $repo_ids
+  AND rel.evidence_source = $evidence_source
+DELETE rel`
+
+const retractRationaleEdgesByFileCypher = `MATCH (rationale:Rationale)-[rel:EXPLAINS]->(target:Function|Class|Struct|Interface|TypeAlias|Enum|File)
+WHERE target.path IN $file_paths
   AND rel.evidence_source = $evidence_source
 DELETE rel`
