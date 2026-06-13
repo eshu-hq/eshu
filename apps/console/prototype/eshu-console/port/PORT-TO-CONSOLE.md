@@ -112,10 +112,13 @@ is added, update both:
   write-throughput, cache-hit, and vulnerability-feed intake decoration, stay
   demo-mode only; connected live Operations renders explicit contract-pending states
   until issue #2216 defines named live contracts.
-- **Vuln CVSS/EPSS/KEV detail** depends on the vulnerability-intelligence collector
-  being enabled and scheduled with bounded source targets. Keep the UI empty/limited
-  instead of fabricating rows until issue #2217 proves the live runtime collector path
-  through `supply-chain/advisories` and `supply-chain/vulnerabilities/{id}`.
+- **Vuln CVSS/EPSS/KEV detail** hydrates from live vulnerability-intelligence
+  facts when the collector is enabled and scheduled with bounded source targets.
+  Remote E2E representative proof now requires non-empty
+  `supply-chain/advisories` rows and a
+  `supply-chain/vulnerabilities/{id}` detail payload with CVSS, EPSS, KEV, and
+  reference evidence. If the collector is disabled, blocked by source access, or
+  still building history, keep the UI empty/limited instead of fabricating rows.
 
 ---
 

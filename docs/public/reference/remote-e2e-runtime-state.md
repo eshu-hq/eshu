@@ -113,6 +113,30 @@ Set `ESHU_REMOTE_E2E_API_BASE_URL` and `ESHU_REMOTE_E2E_API_KEY` when the API
 is not discoverable through the `eshu` Compose service port and generated
 token.
 
+When the advisory evidence minimum is positive, the verifier also proves the
+console-facing vulnerability intelligence path. It reads
+`GET /api/v0/supply-chain/advisories?limit=1` and
+`GET /api/v0/supply-chain/vulnerabilities/{id}` after the existing advisory
+evidence probe, then fails unless the detail payload includes CVSS, EPSS, KEV,
+and reference evidence. `ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID` selects the
+advisory evidence target; `ESHU_REMOTE_E2E_VULNERABILITY_DETAIL_ID` selects the
+detail target and defaults to the same CVE. Representative mode defaults
+`ESHU_REMOTE_E2E_MIN_ADVISORY_EVIDENCE_COUNT` to `1`; smoke and full-corpus
+runs can opt in by setting that minimum to a positive value.
+
+No-Regression Evidence: `scripts/test-verify-remote-e2e-vulnerability-readbacks.sh`
+proves the verifier calls the advisory catalog and vulnerability detail routes
+and rejects detail payloads without CVSS, EPSS, KEV, or reference evidence.
+`scripts/test-verify-remote-e2e-runtime-state.sh` proves the existing finite,
+representative, skip-minimum, and aggregate-count contracts still hold.
+
+No-Observability-Change: this verifier change adds bounded API readbacks only.
+It adds no runtime, worker, queue, graph write, collector source request,
+metric label, span, or status field. Operators still diagnose the run from the
+existing service health checks, `/api/v0/index-status`, `/api/v0/status/index`,
+collector health, workflow counters, queue counters, and vulnerability
+intelligence API truth envelopes.
+
 Set `ESHU_REMOTE_E2E_TFSTATE_STATE_MISSING_MAX` to the maximum allowed
 Terraform-state `state_missing` warning count for the proof. The default is
 `0`, so a release-gate run fails when any configured Terraform-state source was

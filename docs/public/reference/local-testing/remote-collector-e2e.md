@@ -134,6 +134,11 @@ Capture:
   `security_alert.repository_alert` fact count, reducer drain, API/MCP
   security-alert reconciliation reads, and redaction proof for repository
   names, alert URLs, package names, and tokens
+- vulnerability-intelligence claim handoff, bounded target count, advisory
+  evidence count, non-empty `GET /api/v0/supply-chain/advisories` readback,
+  `GET /api/v0/supply-chain/vulnerabilities/{id}` detail readback with CVSS,
+  EPSS, KEV, and reference evidence, and explicit unavailable or building
+  states when source access, network access, or target budget is missing
 - NornicDB logs filtered for `UNWIND MERGE`, SQLSTATE, constraint, panic,
   fatal, and OOM failures
 - queue-zero after reducer projection
@@ -200,10 +205,17 @@ export ESHU_REMOTE_E2E_DERIVED_TARGET_LIMIT=100
 export ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT=20
 export ESHU_REMOTE_E2E_MAX_REPOSITORY_COUNT=50
 export ESHU_REMOTE_E2E_PROJECT_NAME=eshu-remote-e2e-representative
+export ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID="${ESHU_VULNERABILITY_E2E_CVE_ID:-CVE-2021-44228}"
+export ESHU_REMOTE_E2E_VULNERABILITY_DETAIL_ID="${ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID}"
 
 docker compose --env-file "${ESHU_REMOTE_E2E_ENV_FILE}" \
   -f docker-compose.remote-e2e.yaml up --build
 ```
+
+Representative mode defaults the advisory evidence minimum to one, so the
+runtime-state verifier also proves the console-facing advisory catalog and
+vulnerability detail paths. Use a different public CVE or advisory id only when
+the run's bounded source targets are configured to fetch that source evidence.
 
 After the stack reaches the representative acceptance state, build the
 operator-local proof matrix from the aggregate readback and run the release
