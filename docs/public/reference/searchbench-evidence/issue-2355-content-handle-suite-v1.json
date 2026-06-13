@@ -1,0 +1,165 @@
+{
+  "version": "semantic-retrieval-query-suite/v1",
+  "queries": [
+    {
+      "id": "issue-2355-001",
+      "text": "isDockerComposeFilename",
+      "repo_id": "repository:r_413958de",
+      "mode": "keyword",
+      "limit": 100,
+      "expected_handles": ["content_entity:content-entity:e_9be23a2e22df"]
+    },
+    {
+      "id": "issue-2355-002",
+      "text": "parseRubyGemsVersion",
+      "repo_id": "repository:r_413958de",
+      "mode": "keyword",
+      "limit": 100,
+      "expected_handles": ["content_entity:content-entity:e_0975580c38ce"]
+    },
+    {
+      "id": "issue-2355-003",
+      "text": "attachJiraRuntimeSignals",
+      "repo_id": "repository:r_413958de",
+      "mode": "keyword",
+      "limit": 100,
+      "expected_handles": ["content_entity:content-entity:e_86efd83f207a"]
+    },
+    {
+      "id": "issue-2355-004",
+      "text": "rustModuleRowBlockers",
+      "repo_id": "repository:r_413958de",
+      "mode": "keyword",
+      "limit": 100,
+      "expected_handles": ["content_entity:content-entity:e_e7363b68a97b"]
+    },
+    {
+      "id": "issue-2355-005",
+      "text": "trimSupplyChainImpactExplanationFilter",
+      "repo_id": "repository:r_413958de",
+      "mode": "keyword",
+      "limit": 100,
+      "expected_handles": ["content_entity:content-entity:e_464aea74bd70"]
+    },
+    {
+      "id": "issue-2355-006",
+      "text": "loadProvisioningSourceChains",
+      "repo_id": "repository:r_413958de",
+      "mode": "keyword",
+      "limit": 100,
+      "expected_handles": ["content_entity:content-entity:e_f1e145b4e46b"]
+    },
+    {
+      "id": "issue-2355-007",
+      "text": "collectKustomizeResourceFiles",
+      "repo_id": "repository:r_413958de",
+      "mode": "keyword",
+      "limit": 100,
+      "expected_handles": ["content_entity:content-entity:e_6b4be5b59042"]
+    },
+    {
+      "id": "issue-2355-008",
+      "text": "statusJSONFromSemanticExtraction",
+      "repo_id": "repository:r_413958de",
+      "mode": "keyword",
+      "limit": 100,
+      "expected_handles": ["content_entity:content-entity:e_ff45657c92e8"]
+    },
+    {
+      "id": "issue-2355-009",
+      "text": "TestRegisterPanicsOnEmptyServiceKind",
+      "repo_id": "repository:r_413958de",
+      "mode": "keyword",
+      "limit": 100,
+      "expected_handles": ["content_entity:content-entity:e_4947a751cb06"]
+    },
+    {
+      "id": "issue-2355-010",
+      "text": "TestScannerCanonicalizesPaddedServiceKind",
+      "repo_id": "repository:r_413958de",
+      "mode": "keyword",
+      "limit": 100,
+      "expected_handles": ["content_entity:content-entity:e_f2c3e027b349"]
+    },
+    {
+      "id": "issue-2355-011",
+      "text": "loadRepositoryWorkflowArtifacts",
+      "repo_id": "repository:r_413958de",
+      "mode": "keyword",
+      "limit": 100,
+      "expected_handles": ["content_entity:content-entity:e_8ca239de8103"]
+    },
+    {
+      "id": "issue-2355-012",
+      "text": "waitForNextPoll",
+      "repo_id": "repository:r_413958de",
+      "mode": "keyword",
+      "limit": 100,
+      "expected_handles": ["content_entity:content-entity:e_9072b7a7968a"]
+    },
+    {
+      "id": "issue-2355-013",
+      "text": "documentationEvidencePacketFreshnessWithFilter",
+      "repo_id": "repository:r_413958de",
+      "mode": "keyword",
+      "limit": 100,
+      "expected_handles": ["content_entity:content-entity:e_d010e03af306"]
+    },
+    {
+      "id": "issue-2355-014",
+      "text": "appendManagementEvidence",
+      "repo_id": "repository:r_413958de",
+      "mode": "keyword",
+      "limit": 100,
+      "expected_handles": ["content_entity:content-entity:e_d10972c50107"]
+    },
+    {
+      "id": "issue-2355-015",
+      "text": "parseCargoLockComponents",
+      "repo_id": "repository:r_413958de",
+      "mode": "keyword",
+      "limit": 100,
+      "expected_handles": ["content_entity:content-entity:e_a43c4f94db5f"]
+    },
+    {
+      "id": "issue-2355-016",
+      "text": "CICDRunCorrelationResult",
+      "repo_id": "repository:r_413958de",
+      "mode": "keyword",
+      "limit": 100,
+      "expected_handles": ["content_entity:content-entity:e_b2ba5c6b10aa"]
+    },
+    {
+      "id": "issue-2355-017",
+      "text": "awsCloudRuntimeDriftDomainDefinition",
+      "repo_id": "repository:r_413958de",
+      "mode": "keyword",
+      "limit": 100,
+      "expected_handles": ["content_entity:content-entity:e_fb9a5c39cb08"]
+    },
+    {
+      "id": "issue-2355-018",
+      "text": "TestServiceRunHeartbeatsLongRunningReducerWork",
+      "repo_id": "repository:r_413958de",
+      "mode": "keyword",
+      "limit": 100,
+      "expected_handles": ["content_entity:content-entity:e_4ccd9495fa8b"]
+    },
+    {
+      "id": "issue-2355-019",
+      "text": "javaReflectionReceiverClassLiteral",
+      "repo_id": "repository:r_413958de",
+      "mode": "keyword",
+      "limit": 100,
+      "expected_handles": ["content_entity:content-entity:e_65223c5bdf6e"]
+    },
+    {
+      "id": "issue-2355-020",
+      "text": "goStructFieldConcreteTypes",
+      "repo_id": "repository:r_413958de",
+      "mode": "keyword",
+      "limit": 100,
+      "expected_handles": ["content_entity:content-entity:e_99ca7cbd4e74"]
+    }
+  ]
+}

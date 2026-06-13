@@ -299,9 +299,10 @@ Recommended child slices:
    and preserves truth labels, scope, limits, and truncation.
 6. Issue #2343 moves the public API/MCP surface off request-local index rebuilds
    and onto reducer-maintained Postgres BM25 postings for active curated search
-   documents. Issue #2355 still requires a representative labeled query suite
-   and live cap-sweep evidence before any larger runtime cap or vector lane is
-   justified.
+   documents. Issue #2355 records a 227,196-document live cap sweep with a
+   content-handle suite; the run rejects the old 500-document placeholder and
+   supports leaving the persisted BM25 corpus uncapped for this corpus. A vector
+   or NornicDB-search lane still needs separate backend evidence.
 
 Issues #417, #418, #420, #421, and #431 should stay behind this architecture
 gate. #417 can start once the bounded search document projection and backend
