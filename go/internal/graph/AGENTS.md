@@ -44,9 +44,11 @@
   labels get `uid` constraints. Keep package ownership and repository
   publication out of schema assumptions unless reducer admission owns that
   truth.
-- **NornicDB composite constraint suppression** — `nornicDBSchemaConstraint`
-  drops composite `IS UNIQUE` constraints. The NornicDB dialect uses `uid`
-  uniqueness constraints for the same labels instead.
+- **NornicDB composite constraint parity** — `nornicDBSchemaConstraint` drops
+  composite `IS UNIQUE` constraints because NornicDB rejects that syntax. The
+  NornicDB dialect uses `uid` uniqueness constraints and lookup indexes for the
+  same labels; projector code must derive canonical `uid` values from the same
+  identity tuple before graph write instead of trusting caller-supplied IDs.
 - **No import cycles** — `CypherStatement` and `CypherExecutor` are defined
   here, not imported from `storage/cypher`. Do not add an import of
   `internal/storage/cypher` or any package that imports it.

@@ -31,6 +31,11 @@ The live harness runs those corpora against a real Bolt endpoint.
 | Write | `Executor`, `GroupExecutor`, `PhaseGroupExecutor` | Same Cypher executor contract for canonical and reducer writes. |
 | Canonical containment smoke | repository, directory, file, function, and `File-[:CONTAINS]->Function` | Run writes twice, then read the edge back with a single-edge assertion. |
 
+Function/Class source-local identity parity is covered by projector and schema
+unit evidence, not by the live backend-conformance corpus yet. Neo4j enforces
+`(name, path, line_number)` directly; NornicDB enforces the projector-derived
+`uid` created from the same identity tuple before graph write.
+
 Eshu does not currently expose one concrete Go interface named `GraphWrite`.
 When older docs say `GraphWrite`, read that as this Cypher write executor
 family unless a current reference page formalizes a narrower interface.

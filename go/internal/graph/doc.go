@@ -12,8 +12,11 @@
 // canonical writers upsert them, adds digest/tag-ref lookup support for OCI
 // registry projection labels, adds uid lookup support for reducer-owned
 // IncidentRoutingEvidence nodes, and keeps backend-specific constraint
-// translation inside the schema dialect and label-naming helpers. Schema setup
-// emits bounded progress logs for every DDL statement and treats context
+// translation inside the schema dialect and label-naming helpers. NornicDB
+// drops direct composite uniqueness syntax, so canonical writers rely on
+// projector-derived uid identity for those labels while Neo4j keeps the direct
+// composite constraint. Schema setup emits bounded progress logs for every DDL
+// statement and treats context
 // deadline or cancellation as a fail-fast signal. Generic DDL warnings remain
 // non-fatal for permissive callers, while the strict schema helper returns an
 // error after any non-context statement failure so deployment bootstrap does not
