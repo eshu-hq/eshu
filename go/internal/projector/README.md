@@ -481,6 +481,36 @@ No-Observability-Change: existing projector `intent_enqueue` stage logs,
 work was queued, drained, retried, or dead-lettered; no new telemetry series or
 spans are added.
 
+## Curated search-document sweeper (design 430)
+
+`SearchDocumentProjectionSweeper` is a decoupled background loop (wired in
+`cmd/reducer`) that enqueues `DomainEshuSearchDocument` reducer intents for
+repository generations that have indexed content but no curated search-document
+projection yet. Pending scopes come from
+`postgres.EshuSearchDocumentPendingStore` (active repository scopes with content
+and no `reducer_eshu_search_document` fact for the active generation). It is
+deliberately separate from `buildProjection` so per-generation projection
+behaviour is unchanged.
+
+Concurrency Evidence: the only contested resource is the reducer queue work
+item, keyed by `scope_id+generation_id+domain+entity` and inserted
+`ON CONFLICT (work_item_id) DO NOTHING`. Re-enqueuing a still-pending scope each
+tick is a no-op and an advanced active generation yields a fresh work item, so
+the sweeper holds no lease and concurrent reducers converge on the same
+idempotent inserts; the handler's per-generation retire-not-in-set write is
+idempotent under retry. No-Regression Evidence: the projector per-generation
+projection path and its tests are unchanged; the sweeper is additive. The live
+round-trip proof (env-gated `TestEshuSearchDocumentProjectionRoundTripLive`)
+loaded 2148 entities + 82 files, curated 2183 documents, wrote them, and read
+them back through the active-generation store; the pending query returned 32
+repository scopes against the live corpus.
+
+Observability Evidence: each sweep emits a structured
+`eshu search document projection sweep completed` log with `pending_scopes`,
+`enqueued_intents`, and `duration_seconds`; the handler emits the canonical-write
+counter and duration plus its per-cycle log with considered/included/skipped/
+written/retired counts. No new metric series or spans are added.
+
 ## Related docs
 
 - `docs/public/architecture.md` — pipeline and ownership table

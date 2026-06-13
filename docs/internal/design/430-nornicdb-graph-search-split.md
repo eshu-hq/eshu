@@ -247,8 +247,31 @@ Recommended child slices:
    bounded source set, `reducer.EshuSearchDocumentHandler` drives one intent,
    `reducer.PostgresEshuSearchDocumentWriter` upserts idempotently and retires
    stale documents, and `postgres.EshuSearchDocumentStore` reads back only the
-   active generation. Runtime intent emission and runner registration for the
-   `eshu_search_document` domain land after the benchmark gate.
+   active generation. The `eshu_search_document` reducer domain is registered and
+   its handler is wired; a decoupled periodic sweeper
+   (`projector.SearchDocumentProjectionSweeper`, wired in `cmd/reducer`) enqueues
+   one projection intent per repository generation that has indexed content but
+   no projection yet (`postgres.EshuSearchDocumentPendingStore`). The content
+   source loader (`postgres.EshuSearchDocumentSourceLoader`) reads the
+   repository's current indexed content; the writer tags facts with the
+   generation and the active-generation reader plus generation-scoped retirement
+   keep the read model converged.
+
+   Concurrency Evidence: the only contested resource is the reducer queue work
+   item, keyed by `scope_id+generation_id+domain+entity` and inserted
+   `ON CONFLICT (work_item_id) DO NOTHING`; re-enqueuing a still-pending scope
+   each tick is a no-op and an advanced active generation yields a fresh work
+   item, so the sweeper holds no lease and concurrent reducers converge on the
+   same idempotent inserts. The handler's per-generation retire-not-in-set write
+   is idempotent under retry. No-Regression Evidence: the projector
+   per-generation projection path and its tests are unchanged; the sweeper is an
+   additive background loop. Observability Evidence: the sweeper emits a
+   structured `eshu search document projection sweep completed` log with
+   pending-scope and enqueued-intent counts and duration, and the handler emits
+   the canonical-write counter/duration plus its cycle log. Round-trip proof
+   against the live corpus (env-gated `TestEshuSearchDocumentProjectionRoundTripLive`):
+   2148 entities + 82 files loaded, 2183 documents curated, written, and read
+   back through the active-generation store.
 3. Partially done: add a benchmark harness comparing current Postgres content
    search with curated NornicDB BM25/vector retrieval. The pure evidence, suite,
    and scoring contract lives in `go/internal/searchbench` and

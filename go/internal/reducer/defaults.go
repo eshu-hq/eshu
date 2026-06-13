@@ -105,6 +105,13 @@ type DefaultHandlers struct {
 	AWSCloudRuntimeDriftWriter         AWSCloudRuntimeDriftFindingWriter
 	AWSCloudRuntimeDriftLogger         *slog.Logger
 
+	// Curated search-document projection (design 430). Both must be non-nil for
+	// the registry to register DomainEshuSearchDocument; it loads the scope's
+	// indexed content and writes derived EshuSearchDocument facts.
+	EshuSearchDocumentSourceLoader SearchDocumentSourceLoader
+	EshuSearchDocumentWriter       SearchDocumentWriter
+	EshuSearchDocumentLogger       *slog.Logger
+
 	// Multi-cloud runtime drift adapters (issues #1997, #1998). Both must be
 	// non-nil for the registry to register DomainMultiCloudRuntimeDrift; missing
 	// either one would either drop provider-neutral drift evidence before

@@ -33,6 +33,29 @@ func configStateDriftDomainDefinition() DomainDefinition {
 	}
 }
 
+// eshuSearchDocumentDomainDefinition returns the additive definition for the
+// curated search-document projection (design 430). It is a Postgres read-model
+// projection: it emits derived fact records, performs no canonical graph write,
+// and exposes bounded operator counters and logs.
+func eshuSearchDocumentDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainEshuSearchDocument,
+		Summary: "project curated EshuSearchDocument records from indexed content for the search lane",
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: false,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "eshu_search_document",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+			},
+		},
+	}
+}
+
 // packageSourceCorrelationDomainDefinition returns the additive definition for
 // the package source-correlation classifier. Source hints remain provenance-only
 // ownership and publication candidates, while Git manifest dependencies matched
