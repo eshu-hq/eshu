@@ -2,9 +2,13 @@ package distribution
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 func TestFetchBearerTokenUsesScopeAndCredentials(t *testing.T) {
@@ -70,5 +74,73 @@ func TestFetchBearerTokenRequiresTokenField(t *testing.T) {
 
 	if _, err := FetchBearerToken(context.Background(), TokenConfig{Realm: server.URL}); err == nil {
 		t.Fatal("FetchBearerToken() error = nil")
+	}
+}
+
+func TestFetchBearerTokenStatusFailureWrapsSDKHTTPErrorWithoutLeakingRealm(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "private registry token response", http.StatusForbidden)
+	}))
+	defer server.Close()
+
+	_, err := FetchBearerToken(context.Background(), TokenConfig{
+		Realm:   server.URL + "/token?existing=secret",
+		Service: "private-registry",
+		Scope:   "repository:team/api:pull",
+	})
+	if err == nil {
+		t.Fatal("FetchBearerToken() error = nil, want status failure")
+	}
+	if got := failureClass(err); got != "registry_auth_denied" {
+		t.Fatalf("FailureClass() = %q, want registry_auth_denied", got)
+	}
+	var httpErr sdk.HTTPError
+	if !errors.As(err, &httpErr) {
+		t.Fatalf("FetchBearerToken() error = %T %[1]v, want SDK HTTPError cause", err)
+	}
+	if got := httpErr.StatusCode; got != http.StatusForbidden {
+		t.Fatalf("SDK HTTPError StatusCode = %d, want %d", got, http.StatusForbidden)
+	}
+	for _, leaked := range []string{"team/api", "private-registry", "existing=secret", "private registry token"} {
+		if strings.Contains(err.Error(), leaked) || strings.Contains(failureDetails(err), leaked) {
+			t.Fatalf("token status failure leaked %q: error=%q details=%q", leaked, err.Error(), failureDetails(err))
+		}
+	}
+}
+
+func TestFetchBearerTokenTransportFailureWrapsSDKHTTPErrorWithoutLeakingRealm(t *testing.T) {
+	t.Parallel()
+
+	transportErr := errors.New("dial denied for registry.example.test/token")
+	_, err := FetchBearerToken(context.Background(), TokenConfig{
+		Realm:   "https://registry.example.test/token",
+		Service: "private-registry",
+		Scope:   "repository:team/api:pull",
+		Client: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return nil, transportErr
+		})},
+	})
+	if err == nil {
+		t.Fatal("FetchBearerToken() error = nil, want transport failure")
+	}
+	if got := failureClass(err); got != "registry_retryable_failure" {
+		t.Fatalf("FailureClass() = %q, want registry_retryable_failure", got)
+	}
+	var httpErr sdk.HTTPError
+	if !errors.As(err, &httpErr) {
+		t.Fatalf("FetchBearerToken() error = %T %[1]v, want SDK HTTPError cause", err)
+	}
+	if httpErr.StatusCode != 0 {
+		t.Fatalf("SDK HTTPError StatusCode = %d, want 0 for transport failure", httpErr.StatusCode)
+	}
+	if !errors.Is(err, transportErr) {
+		t.Fatalf("FetchBearerToken() error = %v, want transport cause", err)
+	}
+	for _, leaked := range []string{"registry.example.test", "team/api", "private-registry"} {
+		if strings.Contains(err.Error(), leaked) || strings.Contains(failureDetails(err), leaked) {
+			t.Fatalf("token transport failure leaked %q: error=%q details=%q", leaked, err.Error(), failureDetails(err))
+		}
 	}
 }

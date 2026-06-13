@@ -206,3 +206,25 @@ source fact counters, API-call counters, partial-scope counters, redaction
 counters, freshness gauge, shared collector metrics, and `vault_live.snapshot`
 span. The SDK emits no telemetry directly, and metric labels remain bounded to
 source, fact kind, operation, result, reason, field class, and scope kind.
+
+Line-count marker (#2381): OCI Distribution now reuses SDK base URL validation,
+bounded default HTTP client construction, and bounded `HTTPError` values for
+registry and token service status or transport failures. OCI-owned endpoint
+resolution, `/v2/` auth-challenge handling, token query shaping, repository path
+escaping, referrers capability errors, blob body caps, and registry workflow
+failure classes stay local.
+
+No-Regression Evidence (#2381): `go test ./internal/collector/sdk
+./internal/collector/ociregistry/distribution
+./internal/collector/ociregistry/ociruntime ./internal/collector/sbomruntime
+./cmd/collector-oci-registry ./cmd/collector-sbom-attestation -count=1` covers
+SDK base URL credential rejection, default client construction, SDK HTTP error
+causes for status and transport failures, Distribution ping, tag, manifest,
+blob, referrer, and token behavior, OCI runtime warning handling, and the SBOM
+OCI-referrer fetch path that depends on this client.
+
+No-Observability-Change (#2381): Distribution and the SDK remain telemetry-free.
+The OCI and SBOM runtimes keep their existing provider-local spans, request
+counters, warning facts, status surfaces, and shared collector metrics. Metric
+labels remain bounded and do not include registry hosts, repository paths, tags,
+digests, URLs, token values, or credential material.
