@@ -45,6 +45,10 @@ describe("App shell", () => {
       "href",
       "/impact"
     );
+    expect(screen.getByRole("link", { name: "Changed Since" })).toHaveAttribute(
+      "href",
+      "/changed-since"
+    );
     expect(screen.getByRole("link", { name: "Dead code" })).toHaveAttribute(
       "href",
       "/dead-code"
@@ -125,6 +129,25 @@ describe("App shell", () => {
     expect(
       await screen.findByRole("link", { name: "Cloud Drift" })
     ).toHaveAttribute("href", "/cloud-drift");
+  });
+
+  it("registers the changed-since console route", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("offline in test");
+      })
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/changed-since"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("link", { name: "Changed Since" })
+    ).toHaveAttribute("href", "/changed-since");
   });
 
   it("routes service workspaces through the Service Atlas support surface", async () => {

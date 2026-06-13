@@ -1,0 +1,120 @@
+.changed-since-page {
+  min-width: 0;
+}
+
+.changed-since-intro {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.changed-since-query {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-top: 18px;
+}
+
+.changed-since-query label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.changed-since-query label span {
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.changed-since-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, .8fr);
+}
+
+.changed-since-summary {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.changed-since-unavailable {
+  align-items: center;
+  background: color-mix(in srgb, var(--ember) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ember) 35%, var(--line));
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 12px;
+}
+
+.changed-since-counts {
+  display: grid;
+  gap: 5px;
+  min-width: 180px;
+}
+
+.changed-since-counts span {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: .76rem;
+  justify-content: space-between;
+}
+
+.changed-since-counts b {
+  color: var(--bone);
+}
+
+.changed-since-samples {
+  display: grid;
+  gap: 7px;
+  min-width: 280px;
+}
+
+.changed-since-samples > span {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto minmax(120px, 1fr) minmax(80px, auto) auto;
+}
+
+.changed-since-samples small,
+.changed-since-samples em {
+  color: var(--muted);
+  font-size: .72rem;
+}
+
+.changed-since-samples em {
+  color: var(--ember);
+  font-style: normal;
+}
+
+@media (max-width: 980px) {
+  .changed-since-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .changed-since-intro,
+  .changed-since-summary,
+  .changed-since-unavailable {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .changed-since-samples > span {
+    grid-template-columns: 1fr;
+  }
+}
