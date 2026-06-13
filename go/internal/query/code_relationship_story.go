@@ -27,6 +27,16 @@ type relationshipStoryRequest struct {
 	MaxDepth          int    `json:"max_depth"`
 	Limit             int    `json:"limit"`
 	Offset            int    `json:"offset"`
+	// RelationshipTypes is an optional additive multi-type filter. When set it
+	// supersedes RelationshipType: each requested type is followed with the same
+	// bounded single-type query and the results are merged. It applies only to
+	// direct (non-transitive) relationship lookups.
+	RelationshipTypes []string `json:"relationship_types"`
+	// TokenBudget optionally caps the response by an estimated serialized token
+	// cost. Zero or absent means no budget. It is a second, tighter bound applied
+	// after the count limit so an agent can cap prompt cost; cuts are reported
+	// with guidance to narrow.
+	TokenBudget int `json:"token_budget"`
 }
 
 type relationshipStoryResolution struct {
@@ -136,6 +146,21 @@ func (r relationshipStoryRequest) validate() error {
 	if _, err := r.normalizedRelationshipType(); err != nil {
 		return err
 	}
+	if r.TokenBudget < 0 {
+		return errors.New("token_budget must be >= 0")
+	}
+	if _, err := r.normalizedRelationshipTypes(); err != nil {
+		return err
+	}
+	if len(r.RelationshipTypes) > 0 {
+		if r.IncludeTransitive {
+			return errors.New("relationship_types cannot be combined with include_transitive")
+		}
+		switch r.normalizedQueryType() {
+		case "class_hierarchy", "overrides":
+			return errors.New("relationship_types cannot be combined with class_hierarchy or overrides query types")
+		}
+	}
 	if r.IncludeTransitive {
 		if r.Offset != 0 {
 			return errors.New("include_transitive requires offset 0")
@@ -200,12 +225,10 @@ func (r relationshipStoryRequest) normalizedRelationshipType() (string, error) {
 		}
 		return "CALLS", nil
 	}
-	switch relationshipType {
-	case "CALLS", "IMPORTS", "REFERENCES", "INHERITS", "OVERRIDES":
-		return relationshipType, nil
-	default:
+	if !relationshipStorySupportedType(relationshipType) {
 		return "", fmt.Errorf("relationship_type %q is not supported", strings.TrimSpace(r.RelationshipType))
 	}
+	return relationshipType, nil
 }
 
 func normalizedRelationshipStoryMaxDepth(maxDepth int) int {
@@ -266,12 +289,34 @@ func relationshipStoryData(
 		rows = rows[:limit]
 	}
 	rows = relationshipStoryRowsWithHandles(rows)
+	availableBeforeBudget := len(rows)
+	budget := relationshipStoryApplyTokenBudget(req, &rows)
 	returnedByDirection := relationshipStoryDirectionCounts(rows)
 	direction, _ := req.normalizedDirection()
-	relationshipType, _ := req.normalizedRelationshipType()
+	relationshipTypes, _ := req.normalizedRelationshipTypes()
 	queryShape := "entity_anchor_one_hop"
 	if req.IncludeTransitive {
 		queryShape = "entity_anchor_bounded_bfs"
+	}
+	summary := map[string]any{
+		"relationship_count":    len(rows),
+		"returned_by_direction": returnedByDirection,
+		"truncated":             truncated,
+	}
+	coverage := map[string]any{
+		"query_shape":            queryShape,
+		"directions":             relationshipStoryDirections(direction),
+		"relationship_types":     relationshipTypes,
+		"max_depth":              relationshipStoryEffectiveMaxDepth(req),
+		"available_by_direction": availableByDirection,
+		"returned_by_direction":  returnedByDirection,
+		"truncated_by_direction": truncatedByDirection,
+		"truncated":              truncated,
+	}
+	if budget != nil {
+		budget["available_before_budget"] = availableBeforeBudget
+		summary["token_budget"] = budget
+		coverage["token_budget"] = budget
 	}
 	return map[string]any{
 		"target_resolution": resolution,
@@ -279,28 +324,16 @@ func relationshipStoryData(
 			"repo_id":            strings.TrimSpace(req.RepoID),
 			"language":           strings.TrimSpace(req.Language),
 			"direction":          direction,
-			"relationship_type":  relationshipType,
+			"relationship_type":  relationshipTypes[0],
+			"relationship_types": relationshipTypes,
 			"limit":              limit,
 			"offset":             req.Offset,
 			"max_depth":          relationshipStoryEffectiveMaxDepth(req),
 			"include_transitive": req.IncludeTransitive,
 		},
 		"relationships": rows,
-		"summary": map[string]any{
-			"relationship_count":    len(rows),
-			"returned_by_direction": returnedByDirection,
-			"truncated":             truncated,
-		},
-		"coverage": map[string]any{
-			"query_shape":            queryShape,
-			"directions":             relationshipStoryDirections(direction),
-			"relationship_types":     []string{relationshipType},
-			"max_depth":              relationshipStoryEffectiveMaxDepth(req),
-			"available_by_direction": availableByDirection,
-			"returned_by_direction":  returnedByDirection,
-			"truncated_by_direction": truncatedByDirection,
-			"truncated":              truncated,
-		},
+		"summary":       summary,
+		"coverage":      coverage,
 	}
 }
 
