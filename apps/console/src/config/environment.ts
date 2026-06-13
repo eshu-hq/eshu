@@ -65,7 +65,7 @@ function normalizeEnvironment(
   const apiKey = typeof environment.apiKey === "string"
     ? environment.apiKey.trim()
     : "";
-  const mode: ConsoleMode = environment.mode === "private" ? "private" : "demo";
+  const mode: ConsoleMode = environment.mode === "demo" ? "demo" : "private";
   const savedRecent = Array.isArray(environment.recentApiBaseUrls)
     ? environment.recentApiBaseUrls.filter(isNonEmptyString)
     : [];

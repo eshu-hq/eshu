@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
+import { demoDefaults } from "../api/demoClient";
 import {
   loadCICDRunCorrelationReview,
   type CICDReviewSection,
@@ -37,11 +38,12 @@ export function CICDRunCorrelationsPage({
   readonly model: ConsoleModel;
 }): React.JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [form, setForm] = useState<FormState>(() => formFromSearch(searchParams));
+  const demoMode = model.source === "demo";
+  const [form, setForm] = useState<FormState>(() => formFromSearch(searchParams, demoMode));
   const [review, setReview] = useState<CICDRunCorrelationReview | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const canLoad = model.source === "live" && client !== undefined;
+  const canLoad = (model.source === "live" || demoMode) && client !== undefined;
 
   const runReview = useCallback(
     async (next: FormState) => {
@@ -73,12 +75,12 @@ export function CICDRunCorrelationsPage({
   );
 
   useEffect(() => {
-    const next = formFromSearch(searchParams);
+    const next = formFromSearch(searchParams, demoMode);
     setForm(next);
     if (canLoad) {
       void runReview(next);
     }
-  }, [canLoad, runReview, searchParams]);
+  }, [canLoad, demoMode, runReview, searchParams]);
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -107,7 +109,7 @@ export function CICDRunCorrelationsPage({
     <div className="page cicd-page" style={{ maxWidth: "none" }}>
       <div className="page-intro cicd-intro">
         <h2>CI/CD run correlations</h2>
-        <Badge tone={canLoad ? "teal" : "warn"}>{canLoad ? "live API" : "connect live API"}</Badge>
+        <Badge tone={canLoad ? "teal" : "warn"}>{canLoad ? demoMode ? "demo fixtures" : "live API" : "connect live API"}</Badge>
       </div>
 
       <form className="cicd-query" onSubmit={submit}>
@@ -126,7 +128,7 @@ export function CICDRunCorrelationsPage({
         </button>
       </form>
 
-      {!canLoad ? <p className="inline-state">Live Eshu API connection unavailable.</p> : null}
+      {!canLoad ? <p className="inline-state">{demoMode ? "Demo fixture client unavailable." : "Live Eshu API connection unavailable."}</p> : null}
       {error ? <p className="src-err">{error}</p> : null}
 
       <div className="grid g-4 mt">
@@ -364,17 +366,17 @@ function statRows(review: CICDRunCorrelationReview | null): readonly {
   ];
 }
 
-function formFromSearch(searchParams: URLSearchParams): FormState {
+function formFromSearch(searchParams: URLSearchParams, demoMode = false): FormState {
   return {
     artifactDigest: searchParams.get("artifact_digest") ?? "",
     commitSha: searchParams.get("commit_sha") ?? "",
-    environment: searchParams.get("environment") ?? "",
+    environment: searchParams.get("environment") ?? (demoMode ? demoDefaults.cicd.environment : ""),
     imageRef: searchParams.get("image_ref") ?? "",
     limit: searchParams.get("limit") ?? "25",
     outcome: searchParams.get("outcome") ?? "",
     provider: searchParams.get("provider") ?? "",
     providerRunId: searchParams.get("provider_run_id") ?? searchParams.get("run_id") ?? "",
-    repositoryId: searchParams.get("repository_id") ?? "",
+    repositoryId: searchParams.get("repository_id") ?? (demoMode ? demoDefaults.cicd.repositoryId : ""),
     scopeId: searchParams.get("scope_id") ?? ""
   };
 }

@@ -65,4 +65,19 @@ describe("console environment config", () => {
 
     expect(loadConsoleEnvironment().apiKey).toBe("");
   });
+
+  it("treats a legacy saved API base URL without mode as private", () => {
+    window.localStorage.setItem(
+      consoleStorageKeys.environment,
+      JSON.stringify({
+        apiBaseUrl: "http://localhost:8080",
+        recentApiBaseUrls: []
+      })
+    );
+
+    expect(loadConsoleEnvironment()).toMatchObject({
+      apiBaseUrl: "http://localhost:8080",
+      mode: "private"
+    });
+  });
 });

@@ -1,8 +1,7 @@
 // App.tsx — redesigned dark console shell.
-// Live data only: the console renders the Eshu API exclusively. There is no demo
-// or sample data path. Before a connection exists (or after one fails) the shell
-// shows an explicit loading / needs-connection / error state instead of any
-// fabricated numbers. main.tsx already wraps this in <BrowserRouter>.
+// Private mode renders only the Eshu API. Demo mode is an explicit prospect
+// fixture source, not a failed-live fallback. main.tsx wraps this in
+// <BrowserRouter>.
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
@@ -26,9 +25,11 @@ import {
   Waves
 } from "lucide-react";
 import { EshuApiClient } from "./api/client";
+import { createDemoApiClient, demoApiBaseUrl, demoDefaults, demoRepositories } from "./api/demoClient";
 import { loadConsoleSnapshot } from "./api/eshuConsoleLive";
 import { loadRepositories, type RepoListItem } from "./api/repoCatalog";
 import { loadConsoleEnvironment, saveConsoleEnvironment } from "./config/environment";
+import { demoModel } from "./console/demoModel";
 import { emptyConsoleModel, modelFromSnapshot } from "./console/liveModel";
 import type { ConsoleModel } from "./console/types";
 import { fmt } from "./console/types";
@@ -58,6 +59,7 @@ import { CICDRunCorrelationsPage } from "./pages/CICDRunCorrelationsPage";
 import { ChangedSincePage } from "./pages/ChangedSincePage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { ServiceDrawer } from "./components/ServiceDrawer";
+import { ConnectionState, SourcePopover, type SourceState } from "./components/SourceControls";
 import "./styles.css";
 import "./appShell.css";
 
@@ -121,27 +123,23 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
 
 const NAV_ITEMS = NAV_GROUPS.flatMap((group) => group.items);
 
-// Connection lifecycle. The console requires a live API; "needs-connection" is the
-// initial state when no saved environment exists, and "error" is a failed connect.
-type ConnStatus = "needs-connection" | "connecting" | "connected" | "error";
-
-type SourceState = { base: string; key: string; status: ConnStatus; msg: string };
-
 export function App(): React.JSX.Element {
   const location = useLocation();
   const navigate = useNavigate();
   const env = loadConsoleEnvironment();
+  const hasDemoEnv = env.mode === "demo";
   const hasSavedEnv = env.mode === "private" && (env.apiBaseUrl || "").length > 0;
-  const [model, setModel] = useState<ConsoleModel>(emptyConsoleModel());
+  const [model, setModel] = useState<ConsoleModel>(() => hasDemoEnv ? demoModel : emptyConsoleModel());
   const [source, setSource] = useState<SourceState>({
-    base: env.apiBaseUrl || "/eshu-api/",
+    base: hasDemoEnv ? demoApiBaseUrl : env.apiBaseUrl || "/eshu-api/",
     key: env.apiKey || "",
-    status: hasSavedEnv ? "connecting" : "needs-connection",
+    mode: hasDemoEnv ? "demo" : "private",
+    status: hasDemoEnv ? "connected" : hasSavedEnv ? "connecting" : "needs-connection",
     msg: ""
   });
   const [open, setOpen] = useState(false);
-  const [client, setClient] = useState<EshuApiClient | undefined>();
-  const [repositories, setRepositories] = useState<readonly RepoListItem[]>([]);
+  const [client, setClient] = useState<EshuApiClient | undefined>(() => hasDemoEnv ? createDemoApiClient() : undefined);
+  const [repositories, setRepositories] = useState<readonly RepoListItem[]>(() => hasDemoEnv ? demoRepositories : []);
   const [drawer, setDrawer] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [verifiedOnly, setVerifiedOnly] = useState(false);
@@ -154,8 +152,17 @@ export function App(): React.JSX.Element {
   // popover stay unguarded.
   const bootedRef = useRef(false);
 
+  function activateDemo(): void {
+    saveConsoleEnvironment({ mode: "demo", apiBaseUrl: "", apiKey: "", recentApiBaseUrls: [] });
+    setClient(createDemoApiClient());
+    setModel(demoModel);
+    setRepositories(demoRepositories);
+    setSource({ base: demoApiBaseUrl, key: "", mode: "demo", status: "connected", msg: "" });
+    setOpen(false);
+  }
+
   async function connect(base: string, key: string): Promise<void> {
-    setSource((s) => ({ ...s, base, key, status: "connecting", msg: "" }));
+    setSource((s) => ({ ...s, base, key, mode: "private", status: "connecting", msg: "" }));
     try {
       const next = new EshuApiClient({ baseUrl: base, apiKey: key });
       const [snap, repoRows] = await Promise.all([
@@ -166,7 +173,7 @@ export function App(): React.JSX.Element {
       setClient(next);
       setModel(modelFromSnapshot(snap));
       setRepositories(repoRows);
-      setSource({ base, key, status: "connected", msg: "" });
+      setSource({ base, key, mode: "private", status: "connected", msg: "" });
       setOpen(false);
     } catch (e) {
       // No demo fallback: keep an explicit empty/unavailable model so panels show
@@ -174,7 +181,7 @@ export function App(): React.JSX.Element {
       setClient(undefined);
       setRepositories([]);
       setModel(emptyConsoleModel("unavailable"));
-      setSource({ base, key, status: "error", msg: e instanceof Error ? e.message : "unreachable" });
+      setSource({ base, key, mode: "private", status: "error", msg: e instanceof Error ? e.message : "unreachable" });
     }
   }
   const openService = (name: string): void => setDrawer(name);
@@ -203,11 +210,12 @@ export function App(): React.JSX.Element {
     navigate(`/explorer?q=${encodeURIComponent(query)}`);
   }
 
-  // Boot straight into live data when a saved environment exists. With no saved
-  // environment, stay in "needs-connection" until the operator connects. The
-  // bootedRef guard makes this StrictMode-safe: the discarded first dev run does
-  // not launch a second boot connect that would abort the surviving run's
-  // in-flight fetches and blank out sections like Catalog (issue #1727).
+  // Boot straight into private data when a saved private environment exists.
+  // With no saved environment, stay in "needs-connection" until the operator
+  // connects. The bootedRef guard makes this StrictMode-safe: the discarded
+  // first dev run does not launch a second boot connect that would abort the
+  // surviving run's in-flight fetches and blank out sections like Catalog
+  // (issue #1727).
   useEffect(() => {
     if (hasSavedEnv && !bootedRef.current) {
       bootedRef.current = true;
@@ -223,7 +231,7 @@ export function App(): React.JSX.Element {
   }, []);
 
   const pill =
-    source.status === "connected" ? "Live"
+    source.status === "connected" ? source.mode === "demo" ? "Demo fixtures" : "Live"
       : source.status === "connecting" ? "Connecting…"
         : source.status === "error" ? "Live (offline)"
           : "Not connected";
@@ -272,7 +280,7 @@ export function App(): React.JSX.Element {
         <div className="sidebar-foot">
           <div className="backend-card">
             <div className="bc-top"><i />{model.runtime.indexStatus}</div>
-            <div className="bc-meta"><span>{source.status === "connected" ? "live" : pill.toLowerCase()}</span><span>{source.status === "connected" ? `${fmt(model.runtime.repositories)} repos` : "—"}</span></div>
+            <div className="bc-meta"><span>{source.status === "connected" ? source.mode === "demo" ? "demo" : "live" : pill.toLowerCase()}</span><span>{source.status === "connected" ? `${fmt(model.runtime.repositories)} repos` : "—"}</span></div>
           </div>
         </div>
       </nav>
@@ -308,9 +316,12 @@ export function App(): React.JSX.Element {
             <button className={`source-pill src-${source.status}`} onClick={() => setOpen((o) => !o)}>
               <i />{pill}
             </button>
-            {open ? <SourcePopover source={source} onConnect={connect} onClose={() => setOpen(false)} /> : null}
+            {open ? <SourcePopover source={source} onConnect={connect} onDemo={activateDemo} onClose={() => setOpen(false)} /> : null}
           </div>
         </header>
+        {source.status === "connected" && source.mode === "demo" ? (
+          <div className="prov-banner"><strong>Prospect demo</strong><span>Demo fixtures only; no real workspace or customer data is being queried.</span></div>
+        ) : null}
         {verifiedOnly ? (
           <div className="prov-banner"><ShieldCheck aria-hidden size={14} /> Verified evidence only — hiding inferred findings and graph nodes.</div>
         ) : null}
@@ -327,22 +338,22 @@ export function App(): React.JSX.Element {
             <Route path="/code-graph" element={<CodeGraphPage model={visibleModel} client={client} />} />
             <Route path="/repositories" element={<RepositoriesPage client={client} model={visibleModel} />} />
             <Route path="/repositories/:id/source" element={<RepoSourcePage client={client} />} />
-            <Route path="/cloud" element={<CloudPage client={client} />} />
+            <Route path="/cloud" element={<CloudPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
             <Route path="/ci-cd/run-correlations" element={<CICDRunCorrelationsPage client={client} model={visibleModel} />} />
-            <Route path="/cloud-drift" element={<CloudDriftPage client={client} />} />
+            <Route path="/cloud-drift" element={<CloudDriftPage client={client} demoDefaults={source.mode === "demo" ? demoDefaults.cloudDrift : undefined} />} />
             <Route path="/topology" element={<TopologyPage client={client} model={visibleModel} onOpenService={openService} />} />
             <Route path="/incidents" element={<IncidentContextPage model={visibleModel} client={client} onOpenService={openService} />} />
             <Route path="/incidents/:incidentId/context" element={<IncidentContextPage model={visibleModel} client={client} onOpenService={openService} />} />
             <Route path="/catalog" element={<CatalogPage model={visibleModel} onOpenService={openService} />} />
-            <Route path="/images" element={<ImagesPage client={client} />} />
-            <Route path="/iac" element={<IacPage model={visibleModel} client={client} />} />
+            <Route path="/images" element={<ImagesPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
+            <Route path="/iac" element={<IacPage model={visibleModel} client={source.mode === "demo" ? undefined : client} />} />
             <Route path="/replatforming" element={<ReplatformingPage model={visibleModel} client={client} />} />
             <Route path="/findings" element={<FindingsPage model={visibleModel} />} />
             <Route path="/dead-code" element={<DeadCodePage client={client} model={visibleModel} />} />
             <Route path="/vulnerabilities" element={<VulnerabilitiesPage model={visibleModel} client={client} />} />
             <Route path="/vulnerabilities/:id" element={<VulnDetailPage model={visibleModel} client={client} />} />
-            <Route path="/sbom" element={<SbomPage client={client} />} />
-            <Route path="/dependencies" element={<DependenciesPage client={client} />} />
+            <Route path="/sbom" element={<SbomPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
+            <Route path="/dependencies" element={<DependenciesPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
             <Route path="/observability" element={<ObservabilityPage client={client} />} />
             <Route path="/operations" element={<OperationsPage model={visibleModel} />} />
             <Route path="/workspace/:entityKind/:entityId" element={<WorkspacePage />} />
@@ -393,61 +404,4 @@ function repositorySearchTarget(repositories: readonly RepoListItem[], needle: s
 
 function nonZero(value: number): number | null {
   return value > 0 ? value : null;
-}
-
-// ConnectionState renders the non-connected lifecycle: a loading spinner while
-// connecting, or a prompt to connect when there is no live API yet. No data is
-// shown here — the console never fabricates numbers without a live connection.
-function ConnectionState({ status, onConnect }: {
-  readonly status: ConnStatus;
-  readonly onConnect: () => void;
-}): React.JSX.Element {
-  if (status === "connecting") {
-    return (
-      <div className="conn-state" role="status" aria-live="polite">
-        <div className="conn-spinner" aria-hidden />
-        <p>Connecting to the Eshu API…</p>
-      </div>
-    );
-  }
-  const title = status === "error" ? "No live data" : "Connect to a live Eshu API";
-  const detail = status === "error"
-    ? "The last connection attempt failed. Check the base URL and API key, then reconnect."
-    : "The console renders live API data only. Enter your Eshu API base URL (and key, if required) to begin.";
-  return (
-    <div className="conn-state">
-      <h2>{title}</h2>
-      <p>{detail}</p>
-      <button className="btn-ghost active" onClick={onConnect}>Open data source</button>
-    </div>
-  );
-}
-
-function SourcePopover({ source, onConnect, onClose }: {
-  readonly source: SourceState;
-  readonly onConnect: (base: string, key: string) => void;
-  readonly onClose: () => void;
-}): React.JSX.Element {
-  const [base, setBase] = useState(source.base || "/eshu-api/");
-  const [key, setKey] = useState(source.key || "");
-  return (
-    <>
-      <div className="popover-scrim" onClick={onClose} />
-      <div className="popover" role="dialog" aria-label="Data source">
-        <div className="popover-head"><strong>Data source</strong><span className="t-mut" style={{ fontSize: ".72rem" }}>read-only · live</span></div>
-        <div className="source-opt col active">
-          <div><strong>Live Eshu API</strong><span>application/eshu.envelope+json</span></div>
-          <div className="row" style={{ gap: 6, marginTop: 8 }}>
-            <input className="popover-input mono" value={base} onChange={(e) => setBase(e.target.value)} placeholder="/eshu-api/" />
-            <button className="btn-ghost active" onClick={() => onConnect(base, key)}>Connect</button>
-          </div>
-          <input className="popover-input mono" type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="API key (Bearer)" style={{ width: "100%", marginTop: 6 }} autoComplete="off" />
-          {source.status === "error" ? <span className="src-err">⚠ {source.msg || "unreachable"}</span> : null}
-          {source.status === "connected" ? <span className="src-ok">✓ connected</span> : null}
-          {source.status === "connecting" ? <span className="t-mut" style={{ fontSize: ".72rem" }}>connecting…</span> : null}
-        </div>
-        <p className="t-mut" style={{ fontSize: ".7rem", margin: "4px 2px 0", lineHeight: 1.5 }}>The console dev server proxies <span className="mono">/eshu-api/</span> → <span className="mono">127.0.0.1:8080</span>. Key is kept in memory for this session only.</p>
-      </div>
-    </>
-  );
 }
