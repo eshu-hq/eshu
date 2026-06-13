@@ -84,6 +84,7 @@ Use these to locate the phase that changed before opening logs or traces:
 | `eshu_dp_projector_run_duration_seconds` | Projector claim-and-project cycle cost. |
 | `eshu_dp_projector_stage_duration_seconds` | Projector substage duration. |
 | `eshu_dp_projections_completed_total` | Projection completion volume. |
+| `eshu_dp_reducer_admission_deferrals_total` | Ingester source-local reducer intent admission deferrals by bounded reason. |
 | `eshu_dp_reducer_run_duration_seconds` | Reducer handler execution window. |
 | `eshu_dp_generation_retention_generations_pruned_total` | Superseded generation cleanup volume. |
 | `eshu_dp_generation_retention_rows_pruned_total` | Generation-retention row cleanup volume by bounded table/data-class label. |

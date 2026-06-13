@@ -69,6 +69,7 @@ when the reducer has a graph orphan observer.
 | `FactsCommitted` | `eshu_dp_facts_committed_total` |
 | `ProjectionsCompleted` | `eshu_dp_projections_completed_total` |
 | `ReducerIntentsEnqueued` | `eshu_dp_reducer_intents_enqueued_total` |
+| `ReducerAdmissionDeferrals` | `eshu_dp_reducer_admission_deferrals_total` |
 | `ReducerExecutions` | `eshu_dp_reducer_executions_total` |
 | `CanonicalWrites` | `eshu_dp_canonical_writes_total` |
 | `CanonicalNodesWritten` | `eshu_dp_canonical_nodes_written_total` |

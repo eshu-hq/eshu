@@ -151,6 +151,8 @@ telemetry, Postgres, or graph setup begins.
 | ESHU_LARGE_REPO_FILE_THRESHOLD | 1000 | File-count threshold for large-repo semaphore |
 | ESHU_LARGE_REPO_MAX_CONCURRENT | 2 | Max concurrent large-repo snapshots |
 | ESHU_PROJECTOR_WORKERS | min(NumCPU,8); local_authoritative NornicDB: NumCPU | Projector worker count |
+| ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK | unset (disabled) | Reducer queue depth threshold where ingester source-local projection defers new reducer intent enqueues |
+| ESHU_REDUCER_ADMISSION_POLL_INTERVAL | 1s | Reducer queue depth recheck interval while admission is deferring |
 | ESHU_LARGE_GEN_THRESHOLD | 10000 | Fact-count threshold for large-generation semaphore |
 | ESHU_LARGE_GEN_MAX_CONCURRENT | 2 | Max concurrent large-generation projections |
 | ESHU_CANONICAL_WRITE_TIMEOUT | 30s | Graph write timeout |
@@ -224,6 +226,12 @@ The ingester inherits collector and projector telemetry. Key signals:
   rises while `eshu_dp_repos_snapshotted_total` grows, the projector cannot drain
   as fast as the collector fills. Check projector worker count and graph write
   latency before raising snapshot workers.
+- Reducer admission is disabled unless
+  ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK is greater than zero. When enabled, it
+  wraps only the ingester's source-local reducer intent writer, reads reducer
+  queue depth before enqueue, and waits outside SQL transactions before
+  rechecking. Bootstrap projection, recovery replay, admin reopen, and reducer
+  follow-up lanes bypass this gate so freshness-critical repair paths continue.
 - The `local_lightweight` profile (ESHU_QUERY_PROFILE=local_lightweight or
   ESHU_DISABLE_NEO4J=true) skips canonical graph writes entirely; useful for
   laptop code-search workflows where the graph backend is not running.
