@@ -69,6 +69,10 @@ describe("App shell", () => {
       "href",
       "/ci-cd/run-correlations"
     );
+    expect(screen.getByRole("link", { name: "Cloud Drift" })).toHaveAttribute(
+      "href",
+      "/cloud-drift"
+    );
     expect(screen.getByRole("link", { name: "Findings" })).toHaveAttribute(
       "href",
       "/findings"
@@ -102,6 +106,25 @@ describe("App shell", () => {
     expect(
       await screen.findByRole("link", { name: "Replatforming" })
     ).toHaveAttribute("href", "/replatforming");
+  });
+
+  it("routes cloud drift to the live drift readback page", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("offline in test");
+      })
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/cloud-drift"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole("link", { name: "Cloud Drift" })
+    ).toHaveAttribute("href", "/cloud-drift");
   });
 
   it("routes service workspaces through the Service Atlas support surface", async () => {

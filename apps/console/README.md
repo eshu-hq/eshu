@@ -24,6 +24,7 @@ The console should help users answer:
 - which replatforming/import-plan candidates are ready, refused, or missing
   ownership evidence
 - what is known, missing, inferred, or stale
+- which cloud resources are unmanaged, drifting, or blocked from safe import
 
 Important claims need a plain-language summary first and a clear path to the
 underlying evidence.
@@ -103,6 +104,18 @@ contract. Screen code must preserve:
   them
 
 Do not flatten truth and freshness into generic loading or error states.
+
+Cloud drift surfaces use bounded POST readbacks:
+
+- `POST /api/v0/cloud/runtime-drift/findings`
+- `POST /api/v0/aws/runtime-drift/findings`
+- `POST /api/v0/iac/unmanaged-resources`
+- `POST /api/v0/iac/management-status/explain`
+- `POST /api/v0/iac/terraform-import-plan/candidates`
+
+The console must render safety gates, missing evidence, pagination, and refused
+candidate state as read-only context. It must not emit Terraform HCL, run
+Terraform, import resources, or mutate cloud state.
 
 ## Related Docs
 
