@@ -3,7 +3,7 @@ package relationships
 func discoverKustomizeDocumentEvidence(
 	sourceRepoID, filePath string,
 	document map[string]any,
-	catalog []CatalogEntry,
+	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 ) []EvidenceFact {
 	var evidence []EvidenceFact
@@ -13,7 +13,7 @@ func discoverKustomizeDocumentEvidence(
 			evidence = append(evidence, matchCatalog(
 				sourceRepoID, value, filePath,
 				kind, RelDeploysFrom, confidence, rationale,
-				"kustomize", catalog, seen, nil,
+				"kustomize", matcher, seen, nil,
 			)...)
 		}
 	}

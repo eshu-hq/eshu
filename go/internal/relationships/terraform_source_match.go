@@ -2,15 +2,6 @@ package relationships
 
 import "strings"
 
-func matchesPrivateTerraformRegistryAlias(candidate, alias string) bool {
-	provider, ok := privateTerraformRegistryProvider(candidate)
-	if !ok {
-		return false
-	}
-
-	return alias == "terraform-modules-"+provider || alias == "terraform-module-"+provider
-}
-
 func isPrivateTerraformRegistryModuleSource(source string) bool {
 	_, ok := privateTerraformRegistryProvider(source)
 	return ok

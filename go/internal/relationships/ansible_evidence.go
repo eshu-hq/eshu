@@ -10,7 +10,7 @@ import (
 
 func discoverAnsibleEvidence(
 	sourceRepoID, filePath, content string,
-	catalog []CatalogEntry,
+	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 ) []EvidenceFact {
 	if !isAnsibleRelationshipEvidenceSource(filePath, content) {
@@ -19,7 +19,7 @@ func discoverAnsibleEvidence(
 	var evidence []EvidenceFact
 	for _, document := range parseAnsibleDocuments(content) {
 		evidence = append(evidence, discoverAnsibleDocumentEvidence(
-			sourceRepoID, filePath, document, catalog, seen,
+			sourceRepoID, filePath, document, matcher, seen,
 		)...)
 	}
 	return evidence
@@ -28,7 +28,7 @@ func discoverAnsibleEvidence(
 func discoverAnsibleDocumentEvidence(
 	sourceRepoID, filePath string,
 	document any,
-	catalog []CatalogEntry,
+	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 ) []EvidenceFact {
 	var evidence []EvidenceFact
@@ -43,7 +43,7 @@ func discoverAnsibleDocumentEvidence(
 			0.92,
 			"Ansible playbook role reference points at the target repository",
 			"ansible",
-			catalog,
+			matcher,
 			seen,
 			withFirstPartyRefDetails(
 				map[string]any{

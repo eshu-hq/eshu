@@ -11,19 +11,19 @@ import (
 func discoverArgoCDDocumentEvidence(
 	controlRepoID, filePath string,
 	document map[string]any,
-	catalog []CatalogEntry,
+	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 	contentIndex evidenceContentIndex,
 ) []EvidenceFact {
 	var evidence []EvidenceFact
 
 	for _, repoURL := range argocdApplicationRepoURLs(document) {
-		for _, deployedRepo := range matchingCatalogEntries(repoURL, catalog) {
+		for _, deployedRepo := range matchingCatalogEntries(repoURL, matcher) {
 			evidence = append(evidence, matchCatalog(
 				controlRepoID, repoURL, filePath,
 				EvidenceKindArgoCDAppSource, RelDeploysFrom, 0.95,
 				"ArgoCD Application source references the target repository",
-				"argocd", catalog, seen, nil,
+				"argocd", matcher, seen, nil,
 			)...)
 			for _, destination := range argocdDocumentDestinations(document) {
 				evidence = append(evidence, appendDestinationPlatformEvidence(
@@ -41,7 +41,7 @@ func discoverArgoCDDocumentEvidence(
 	}
 
 	for _, discovery := range discoveryTargets {
-		for _, configRepo := range matchingCatalogEntries(discovery.repoURL, catalog) {
+		for _, configRepo := range matchingCatalogEntries(discovery.repoURL, matcher) {
 			if configRepo.RepoID == controlRepoID {
 				continue
 			}
@@ -55,7 +55,7 @@ func discoverArgoCDDocumentEvidence(
 					argocdConfigIdentityDeploySources(discovery, configRepo.RepoID, contentIndex)...,
 				)...,
 			) {
-				for _, deployedRepo := range matchingCatalogEntries(templateSource, catalog) {
+				for _, deployedRepo := range matchingCatalogEntries(templateSource, matcher) {
 					if deployedRepo.RepoID == configRepo.RepoID || deployedRepo.RepoID == controlRepoID {
 						continue
 					}
@@ -406,12 +406,11 @@ func argocdDestinationHost(raw string) string {
 	return strings.TrimPrefix(strings.TrimPrefix(raw, "https://"), "http://")
 }
 
-func matchingCatalogEntries(candidate string, catalog []CatalogEntry) []CatalogEntry {
-	var result []CatalogEntry
-	for _, entry := range catalog {
-		if matchesEntry(candidate, entry) != "" {
-			result = append(result, entry)
-		}
+func matchingCatalogEntries(candidate string, matcher *catalogMatcher) []CatalogEntry {
+	matches := matcher.match(candidate, "")
+	result := make([]CatalogEntry, 0, len(matches))
+	for _, match := range matches {
+		result = append(result, match.entry)
 	}
 	return result
 }

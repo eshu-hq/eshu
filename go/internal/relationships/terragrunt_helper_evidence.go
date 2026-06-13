@@ -34,7 +34,7 @@ var terragruntConfigAssetSpecs = []terragruntConfigAssetSpec{
 func discoverStructuredTerragruntConfigEvidence(
 	sourceRepoID, filePath string,
 	parsedFileData map[string]any,
-	catalog []CatalogEntry,
+	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 ) []EvidenceFact {
 	configs, ok := parsedFileData["terragrunt_configs"].([]any)
@@ -59,7 +59,7 @@ func discoverStructuredTerragruntConfigEvidence(
 					0.88,
 					spec.reason,
 					"terragrunt-helper-config",
-					catalog,
+					matcher,
 					seen,
 					map[string]any{
 						"config_path": candidate,
