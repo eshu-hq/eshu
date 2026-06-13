@@ -15,6 +15,193 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_HOME` | string | — | Root directory for persisted API key and configuration (defaults to ~/.eshu). |
 | `ESHU_QUERY_PROFILE` | enum | `production` | Query execution profile. Allowed: `production`, `local_authoritative`, `local_lightweight`. |
 
+## collector-aws-cloud
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_AWS_COLLECTOR_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
+| `ESHU_AWS_COLLECTOR_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
+| `ESHU_AWS_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
+| `ESHU_AWS_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
+| `ESHU_AWS_COLLECTOR_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
+| `ESHU_AWS_REDACTION_KEY` | string | — | Encryption key for redacting AWS secrets when sensitive service scans are enabled. |
+
+## collector-azure-cloud
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_AZURE_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this Azure collector instance. |
+| `ESHU_AZURE_FIXTURE_PAGES_JSON` | string | — | JSON fixture pages for offline smoke testing; not used in production. |
+| `ESHU_AZURE_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering Azure targets. |
+| `ESHU_AZURE_TARGETS_JSON` | string | — | JSON array of Azure target scopes. |
+
+## collector-cicd-run
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_CICD_RUN_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
+| `ESHU_CICD_RUN_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
+| `ESHU_CICD_RUN_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
+| `ESHU_CICD_RUN_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
+| `ESHU_CICD_RUN_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
+
+## collector-component-extension
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
+| `ESHU_COMPONENT_COLLECTOR_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
+| `ESHU_COMPONENT_COLLECTOR_INSTANCE_ID` | string | — | Instance ID for the component-extension collector. |
+| `ESHU_COMPONENT_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
+| `ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering component activations. |
+| `ESHU_COMPONENT_COLLECTOR_SCOPE_KIND` | string | — | Scope kind for component activations (e.g. organization, team). |
+
+## collector-grafana
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_GRAFANA_COLLECTOR_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
+| `ESHU_GRAFANA_COLLECTOR_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
+| `ESHU_GRAFANA_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
+| `ESHU_GRAFANA_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
+| `ESHU_GRAFANA_COLLECTOR_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
+
+## collector-jira
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_JIRA_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
+| `ESHU_JIRA_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
+| `ESHU_JIRA_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
+| `ESHU_JIRA_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
+| `ESHU_JIRA_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
+
+## collector-kubernetes-live
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_KUBERNETES_LIVE_CLUSTERS_JSON` | string | — | JSON array of Kubernetes cluster targets with auth configuration. |
+| `ESHU_KUBERNETES_LIVE_COLLECTOR_INSTANCE_ID` | string | — | Instance ID for the kubernetes-live collector. |
+| `ESHU_KUBERNETES_LIVE_POLL_INTERVAL` | duration | `5m` | Poll interval for discovering Kubernetes resources. |
+
+## collector-loki
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_LOKI_COLLECTOR_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
+| `ESHU_LOKI_COLLECTOR_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
+| `ESHU_LOKI_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
+| `ESHU_LOKI_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
+| `ESHU_LOKI_COLLECTOR_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
+
+## collector-oci-registry
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_OCI_REGISTRY_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
+| `ESHU_OCI_REGISTRY_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
+| `ESHU_OCI_REGISTRY_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
+| `ESHU_OCI_REGISTRY_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
+| `ESHU_OCI_REGISTRY_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
+| `ESHU_OCI_REGISTRY_TARGETS_JSON` | string | — | JSON array of OCI registry target configurations. |
+
+## collector-package-registry
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_PACKAGE_REGISTRY_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
+| `ESHU_PACKAGE_REGISTRY_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
+| `ESHU_PACKAGE_REGISTRY_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
+| `ESHU_PACKAGE_REGISTRY_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
+| `ESHU_PACKAGE_REGISTRY_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
+
+## collector-pagerduty
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_PAGERDUTY_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
+| `ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
+| `ESHU_PAGERDUTY_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
+| `ESHU_PAGERDUTY_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
+| `ESHU_PAGERDUTY_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
+
+## collector-prometheus-mimir
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_PROMETHEUS_MIMIR_COLLECTOR_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
+| `ESHU_PROMETHEUS_MIMIR_COLLECTOR_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
+| `ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
+| `ESHU_PROMETHEUS_MIMIR_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
+| `ESHU_PROMETHEUS_MIMIR_COLLECTOR_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
+
+## collector-sbom-attestation
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_SBOM_ATTESTATION_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
+| `ESHU_SBOM_ATTESTATION_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
+| `ESHU_SBOM_ATTESTATION_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
+| `ESHU_SBOM_ATTESTATION_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
+| `ESHU_SBOM_ATTESTATION_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
+
+## collector-security-alerts
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_SECURITY_ALERT_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
+| `ESHU_SECURITY_ALERT_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
+| `ESHU_SECURITY_ALERT_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
+| `ESHU_SECURITY_ALERT_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
+| `ESHU_SECURITY_ALERT_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
+
+## collector-tempo
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_TEMPO_COLLECTOR_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
+| `ESHU_TEMPO_COLLECTOR_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
+| `ESHU_TEMPO_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
+| `ESHU_TEMPO_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
+| `ESHU_TEMPO_COLLECTOR_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
+
+## collector-terraform-state
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_TERRAFORM_SCHEMA_DIR` | string | — | Directory of Terraform provider schemas; defaults to the built-in schema directory. |
+| `ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
+| `ESHU_TFSTATE_COLLECTOR_HEARTBEAT` | duration | `20s` | Legacy heartbeat interval alias. Deprecated; use `ESHU_TFSTATE_COLLECTOR_HEARTBEAT_INTERVAL`. |
+| `ESHU_TFSTATE_COLLECTOR_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
+| `ESHU_TFSTATE_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
+| `ESHU_TFSTATE_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
+| `ESHU_TFSTATE_COLLECTOR_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
+| `ESHU_TFSTATE_REDACTION_KEY` | string | — | Encryption key for redacting Terraform state secrets. |
+| `ESHU_TFSTATE_REDACTION_RULESET_VERSION` | string | — | Versioned policy identifier for redacting sensitive keys. |
+| `ESHU_TFSTATE_REDACTION_SENSITIVE_KEYS` | string | — | Comma-separated leaf keys to redact; defaults to password,secret,token,access_key,private_key,certificate,key_pair. |
+| `ESHU_TFSTATE_SOURCE_MAX_BYTES` | int | `0` | Maximum bytes accepted per Terraform state source; 0 means unlimited. |
+
+## collector-vault-live
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_VAULT_LIVE_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
+| `ESHU_VAULT_LIVE_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
+| `ESHU_VAULT_LIVE_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
+| `ESHU_VAULT_LIVE_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
+| `ESHU_VAULT_LIVE_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
+| `ESHU_VAULT_LIVE_REDACTION_KEY` | string | — | Encryption key for redacting sensitive Vault data. |
+
+## collector-vulnerability-intelligence
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_VULNERABILITY_INTELLIGENCE_CLAIM_LEASE_TTL` | duration | `60s` | Workflow claim lease TTL. |
+| `ESHU_VULNERABILITY_INTELLIGENCE_COLLECTOR_INSTANCE_ID` | string | — | Instance ID selecting this collector instance from ESHU_COLLECTOR_INSTANCES_JSON. |
+| `ESHU_VULNERABILITY_INTELLIGENCE_COLLECTOR_OWNER_ID` | string | — | Lease owner identifier; defaults to the hostname. |
+| `ESHU_VULNERABILITY_INTELLIGENCE_HEARTBEAT_INTERVAL` | duration | `20s` | Claim heartbeat interval; must be less than the lease TTL. |
+| `ESHU_VULNERABILITY_INTELLIGENCE_POLL_INTERVAL` | duration | `1s` | Poll interval for discovering targets. |
+
 ## component
 
 | Variable | Type | Default | Notes |

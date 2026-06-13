@@ -1,11 +1,15 @@
 package envregistry
 
-// Default returns the process-wide registry of supported core-platform ESHU_*
-// environment variables. It panics if the declarations are inconsistent
-// (duplicate names or colliding aliases), because that is a programming error in
-// this file rather than a runtime condition.
+// Default returns the process-wide registry of supported ESHU_* environment
+// variables: the core platform set plus the hosted-collector configuration set.
+// It panics if the declarations are inconsistent (duplicate names or colliding
+// aliases), because that is a programming error in these files rather than a
+// runtime condition.
 func Default() *Registry {
-	r, err := New(coreEntries)
+	all := make([]Entry, 0, len(coreEntries)+len(collectorEntries))
+	all = append(all, coreEntries...)
+	all = append(all, collectorEntries...)
+	r, err := New(all)
 	if err != nil {
 		panic("envregistry: invalid Default registry: " + err.Error())
 	}
