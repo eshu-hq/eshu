@@ -119,6 +119,7 @@ INSERT INTO scope_generations (
     trigger_kind,
     freshness_hint,
     source_commit_sha,
+    is_delta,
     observed_at,
     ingested_at,
     status,
@@ -126,13 +127,14 @@ INSERT INTO scope_generations (
     superseded_at,
     payload
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, '{}'::jsonb
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL, '{}'::jsonb
 )
 ON CONFLICT (generation_id) DO UPDATE SET
     scope_id = EXCLUDED.scope_id,
     trigger_kind = EXCLUDED.trigger_kind,
     freshness_hint = EXCLUDED.freshness_hint,
     source_commit_sha = EXCLUDED.source_commit_sha,
+    is_delta = EXCLUDED.is_delta,
     observed_at = EXCLUDED.observed_at,
     ingested_at = EXCLUDED.ingested_at,
     status = EXCLUDED.status,
@@ -990,6 +992,7 @@ func upsertScopeGeneration(
 		string(generation.TriggerKind),
 		emptyToNil(generation.FreshnessHint),
 		emptyToNil(generation.SourceCommitSHA),
+		generation.IsDelta,
 		generation.ObservedAt.UTC(),
 		generation.IngestedAt.UTC(),
 		string(generation.Status),

@@ -46,13 +46,21 @@ func buildStreamingGenerationWithContext(
 		ctx = context.Background()
 	}
 	scopeValue := buildScope(repo)
+	// A reconciliation snapshot carries an empty freshness hint so the
+	// commit-time skip never elides it: the sweep must re-project the full
+	// observation to retract drift even when the content hash is unchanged.
+	freshnessHint := snapshotFreshnessHint(snapshot)
+	if snapshot.Reconcile {
+		freshnessHint = ""
+	}
 	generation := buildGeneration(
 		scopeValue.ScopeID,
 		sourceRunID,
 		repoPath,
 		observedAt,
-		snapshotFreshnessHint(snapshot),
+		freshnessHint,
 		snapshot.HeadCommitSHA,
+		snapshot.Delta,
 	)
 	contentFileCount := len(snapshot.ContentFiles)
 	if len(snapshot.ContentFileMetas) > 0 {

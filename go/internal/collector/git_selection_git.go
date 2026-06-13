@@ -33,6 +33,8 @@ func syncGitRepositoriesWithLogger(
 	selected := make([]string, 0, len(repositoryIDs))
 	deltaByRepoPath := make(map[string]GitSyncDelta)
 	refsByRepoPath := make(map[string][]GitRef)
+	reconcileByRepoPath := make(map[string]bool)
+	reconciledThisCycle := 0
 	for i, repoID := range repositoryIDs {
 		if err := ctx.Err(); err != nil {
 			return GitSyncSelection{}, err
@@ -56,7 +58,11 @@ func syncGitRepositoriesWithLogger(
 			}
 			continue
 		}
-		updated, delta, updateErr := syncExistingRepository(ctx, config, repoPath, token, logger, event, baseline)
+		// Reconciliation is bounded per cycle so a fleet of overdue scopes does
+		// not stampede into simultaneous full snapshots.
+		forceReconcile := reconcileBudgetRemaining(baseline.Reconcile, reconciledThisCycle) &&
+			baseline.reconcileDue(ctx, config, repoPath)
+		updated, delta, updateErr := syncExistingRepository(ctx, config, repoPath, token, logger, event, baseline, forceReconcile)
 		if updateErr == nil && updated {
 			selected = append(selected, repoPath)
 			refs, refsErr := remoteGitRefs(ctx, config, repoPath, token)
@@ -68,12 +74,18 @@ func syncGitRepositoriesWithLogger(
 			if !delta.IsEmpty() {
 				deltaByRepoPath[repoPath] = delta
 			}
+			if forceReconcile {
+				reconcileByRepoPath[repoPath] = true
+				reconciledThisCycle++
+				baseline.recordReconciliation(ctx)
+			}
 		}
 	}
 	return GitSyncSelection{
-		SelectedRepoPaths: sortUniqueStrings(selected),
-		DeltaByRepoPath:   deltaByRepoPath,
-		RefsByRepoPath:    refsByRepoPath,
+		SelectedRepoPaths:   sortUniqueStrings(selected),
+		DeltaByRepoPath:     deltaByRepoPath,
+		RefsByRepoPath:      refsByRepoPath,
+		ReconcileByRepoPath: reconcileByRepoPath,
 	}, nil
 }
 

@@ -25,6 +25,10 @@ type GitSyncSelection struct {
 	SelectedRepoPaths []string
 	DeltaByRepoPath   map[string]GitSyncDelta
 	RefsByRepoPath    map[string][]GitRef
+	// ReconcileByRepoPath marks repo paths the sweep forced to a full
+	// reconciliation snapshot this cycle so their generation bypasses the
+	// freshness-hint skip and always re-projects to retract drift.
+	ReconcileByRepoPath map[string]bool
 }
 
 // GitSyncDelta carries the file-scoped change set for an updated Git checkout.

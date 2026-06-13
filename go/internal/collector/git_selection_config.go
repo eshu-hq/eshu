@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // RepoSyncRepositoryRule constrains repository selection for one sync cycle.
@@ -65,6 +66,14 @@ type RepoSyncConfig struct {
 	LargeRepoThreshold     int
 	LargeRepoMaxConcurrent int
 	StreamBuffer           int
+	// ReconcileInterval is how long a git scope may go without a projected full
+	// observation before the sweep forces one to retract delta-path drift. Zero
+	// disables reconciliation (epic #2340).
+	ReconcileInterval time.Duration
+	// ReconcileMaxPerCycle caps how many scopes one selection cycle may force to
+	// a full reconciliation snapshot so a fleet does not stampede. Non-positive
+	// means no per-cycle cap.
+	ReconcileMaxPerCycle int
 }
 
 // LoadRepoSyncConfig parses the repo-sync environment contract for Go runtimes.
@@ -123,6 +132,8 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 		LargeRepoThreshold:     largeRepoThreshold(getenv),
 		LargeRepoMaxConcurrent: largeRepoMaxConcurrent(getenv),
 		StreamBuffer:           streamBufferSize(getenv),
+		ReconcileInterval:      reconcileIntervalFromEnv(getenv),
+		ReconcileMaxPerCycle:   reconcileMaxPerCycleFromEnv(getenv),
 	}
 	normalizeFilesystemConfig(&config)
 	return config, nil

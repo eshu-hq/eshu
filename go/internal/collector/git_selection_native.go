@@ -62,7 +62,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 		}
 		return SelectionBatch{
 			ObservedAt:   observedAt,
-			Repositories: buildSelectedRepositories(s.Config, repoPaths, nil),
+			Repositories: buildSelectedRepositories(s.Config, repoPaths, nil, nil),
 		}, nil
 	case "explicit", "githubOrg":
 		syncGitFn := s.SyncGit
@@ -71,6 +71,8 @@ func (s NativeRepositorySelector) SelectRepositories(
 				return syncGitRepositoriesWithLogger(ctx, config, repositoryIDs, s.Logger, gitDeltaBaseline{
 					Resolver:    s.BaselineResolver,
 					Instruments: s.Instruments,
+					Reconcile:   reconcilePolicyFromConfig(config),
+					Now:         s.Now,
 				})
 			}
 		}
@@ -84,6 +86,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 				s.Config,
 				synced.SelectedRepoPaths,
 				synced.DeltaByRepoPath,
+				synced.ReconcileByRepoPath,
 				synced.RefsByRepoPath,
 			),
 		}, nil
@@ -96,6 +99,7 @@ func buildSelectedRepositories(
 	config RepoSyncConfig,
 	repoPaths []string,
 	deltaByRepoPath map[string]GitSyncDelta,
+	reconcileByRepoPath map[string]bool,
 	refsByRepoPath ...map[string][]GitRef,
 ) []SelectedRepository {
 	var refsByPath map[string][]GitRef
@@ -117,6 +121,7 @@ func buildSelectedRepositories(
 			DisplayName:  strings.TrimSpace(config.DependencyName),
 			Language:     strings.TrimSpace(config.DependencyLanguage),
 			FileTargets:  fileTargetsForRepository(config, absolutePath),
+			Reconcile:    reconcileByRepoPath[repoPath] || reconcileByRepoPath[absolutePath],
 		}
 		if delta, ok := deltaByRepoPath[repoPath]; ok && !delta.IsEmpty() {
 			repository.Delta = true

@@ -35,6 +35,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.GenerationRetentionFailures, "GenerationRetentionFailures counter should be registered")
 	assert.NotNil(t, inst.GenerationRetentionSkipped, "GenerationRetentionSkipped counter should be registered")
 	assert.NotNil(t, inst.DeltaBaselineFallbacks, "DeltaBaselineFallbacks counter should be registered")
+	assert.NotNil(t, inst.ReconciliationFullSnapshots, "ReconciliationFullSnapshots counter should be registered")
 	assert.NotNil(t, inst.DocumentationEntityMentions, "DocumentationEntityMentions counter should be registered")
 	assert.NotNil(t, inst.DocumentationClaimCandidates, "DocumentationClaimCandidates counter should be registered")
 	assert.NotNil(t, inst.DocumentationClaimsSuppressed, "DocumentationClaimsSuppressed counter should be registered")

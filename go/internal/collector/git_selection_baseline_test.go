@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
@@ -53,14 +54,23 @@ func discardLogger() *slog.Logger {
 var errStubResolver = errors.New("stub resolver failure")
 
 type stubBaselineResolver struct {
-	sha      string
-	err      error
-	scopeIDs []string
+	sha          string
+	err          error
+	scopeIDs     []string
+	lastFull     time.Time
+	lastFullOK   bool
+	lastFullErr  error
+	fullScopeIDs []string
 }
 
 func (s *stubBaselineResolver) LastProjectedCommitSHA(_ context.Context, scopeID string) (string, error) {
 	s.scopeIDs = append(s.scopeIDs, scopeID)
 	return s.sha, s.err
+}
+
+func (s *stubBaselineResolver) LastFullProjectionAt(_ context.Context, scopeID string) (time.Time, bool, error) {
+	s.fullScopeIDs = append(s.fullScopeIDs, scopeID)
+	return s.lastFull, s.lastFullOK, s.lastFullErr
 }
 
 // TestGitScopeIDForManagedRepoMatchesSnapshotScope pins the correctness link of

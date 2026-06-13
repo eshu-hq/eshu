@@ -167,6 +167,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		Delta:                    repository.Delta,
 		DeltaRelativePaths:       deltaRelativePaths,
 		DeletedRelativePaths:     deltaDeletedRelativePaths,
+		Reconcile:                repository.Reconcile,
 	}
 	commitSHA := gitCommitSHA(ctx, repoPath)
 	snapshot.HeadCommitSHA = commitSHA

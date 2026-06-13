@@ -68,6 +68,7 @@ type Instruments struct {
 	GenerationRetentionFailures               metric.Int64Counter
 	GenerationRetentionSkipped                metric.Int64Counter
 	DeltaBaselineFallbacks                    metric.Int64Counter
+	ReconciliationFullSnapshots               metric.Int64Counter
 	DocumentationEntityMentions               metric.Int64Counter
 	DocumentationClaimCandidates              metric.Int64Counter
 	DocumentationClaimsSuppressed             metric.Int64Counter
@@ -898,6 +899,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register DeltaBaselineFallbacks counter: %w", err)
+	}
+
+	inst.ReconciliationFullSnapshots, err = meter.Int64Counter(
+		"eshu_dp_collector_reconciliation_full_snapshots_total",
+		metric.WithDescription("Total git scopes forced to a full reconciliation snapshot to retract delta-path drift"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReconciliationFullSnapshots counter: %w", err)
 	}
 
 	inst.DocumentationEntityMentions, err = meter.Int64Counter(
