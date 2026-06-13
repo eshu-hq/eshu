@@ -172,6 +172,7 @@ nav:
     - CLI K.I.S.S.: reference/cli-kiss.md
     - Configuration: reference/configuration.md
     - Environment Variables: reference/environment-variables.md
+    - Environment Variable Registry (generated): reference/env-registry.md
     - Runtime And Storage Environment: reference/environment-runtime-storage.md
     - Ingestion And Queue Environment: reference/environment-ingestion-queues.md
     - Collector Environment: reference/environment-collectors.md

@@ -88,12 +88,18 @@ testing that compatibility path.
 | `eshu config set` | Set one key/value pair. |
 | `eshu config reset` | Reset config to defaults. |
 | `eshu config db` | Switch the default graph backend. |
+| `eshu config validate` | Validate `ESHU_*` variables against the [registry](env-registry.md). |
 
 Examples:
 
 ```bash
 eshu config set ESHU_GRAPH_BACKEND nornicdb
 eshu config db neo4j
+
+# Check the current environment for invalid values, deprecated variables,
+# and likely typos. Exits non-zero on errors. Add --strict to flag every
+# unrecognized ESHU_* variable; --reference prints the generated reference.
+eshu config validate
 ```
 
 For the operator environment-variable catalog, use
