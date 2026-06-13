@@ -549,13 +549,20 @@ curated search projection, kept separate from canonical graph writes:
 - `PostgresEshuSearchDocumentWriter` (`eshu_search_document_writer.go`) upserts
   each document as a derived fact (`reducer_eshu_search_document`,
   `truth_scope.level = derived`) keyed deterministically by scope, generation,
-  and document id, then retires documents in the generation that are absent from
-  the written set. `postgres.EshuSearchDocumentStore` reads back only the active
-  generation, so superseded generations retire automatically.
+  and document id, maintains persisted BM25 documents/terms/stats, and retires
+  generation-local records absent from the written set. It records bounded
+  mutation/error/duration metrics plus `reducer.eshu_search_index_write`.
+  `postgres.EshuSearchDocumentStore` reads back only the active generation, so
+  superseded generations retire automatically.
 
 Search documents are derived retrieval evidence; this domain performs no graph
-write. Intent emission and runner registration are wired after the design-430
-benchmark gate (#2235) selects the search-lane backing.
+write. No-Regression Evidence: the persisted index path adds no SQL statement,
+queue, graph write, worker knob, or high-cardinality metric label; it records
+OpenTelemetry signals from existing `ExecContext` results and the same SQL
+shape. Observability Evidence: `go test ./internal/reducer -run
+'TestWriteEshuSearchDocumentsRecordsSearchIndexTelemetry|TestWriteEshuSearchDocumentsRecordsSearchIndexErrors'
+-count=1` and `go test ./internal/telemetry -run
+'TestSearchIndexInstrumentsRecordBoundedLabels|TestSpanNames' -count=1`.
 
 ## Intent lifecycle
 

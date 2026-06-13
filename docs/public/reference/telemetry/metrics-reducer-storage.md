@@ -18,6 +18,18 @@ Compare queue wait with run duration before changing worker counts. High queue
 age with low run duration points to claim, routing, or conflict-domain pressure.
 High run duration points to the handler, store, or graph-write path.
 
+## Persisted Search Index
+
+| Metric | Type | Use |
+| --- | --- | --- |
+| `eshu_dp_search_index_mutations_total` | counter | Document and term upsert/retire volume for the persisted semantic search index. |
+| `eshu_dp_search_index_errors_total` | counter | Search index write failures by bounded operation. |
+| `eshu_dp_search_index_write_duration_seconds` | histogram | End-to-end persisted search index write duration for one reducer intent. |
+
+Search index metrics use bounded labels such as `domain`, `kind`, `operation`,
+and `result`. Scope IDs, generation IDs, document IDs, paths, terms, and
+provider-native identifiers stay in spans, structured logs, or durable facts.
+
 ## Generation Retention
 
 | Metric | Type | Use |

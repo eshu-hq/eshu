@@ -323,8 +323,12 @@ func buildReducerService(
 		// current indexed content and write derived EshuSearchDocument facts for
 		// the search lane. No graph write.
 		EshuSearchDocumentSourceLoader: postgres.NewEshuSearchDocumentSourceLoader(database),
-		EshuSearchDocumentWriter:       reducer.PostgresEshuSearchDocumentWriter{DB: database},
-		EshuSearchDocumentLogger:       logger,
+		EshuSearchDocumentWriter: reducer.PostgresEshuSearchDocumentWriter{
+			DB:          database,
+			Instruments: instruments,
+			Tracer:      tracer,
+		},
+		EshuSearchDocumentLogger: logger,
 		// Multi-cloud runtime drift wiring (issues #1997, #1998); see
 		// multiCloudRuntimeDriftWiring for the uid-keyed join contract.
 		MultiCloudRuntimeDriftEvidenceLoader: multiCloudRuntimeDriftEvidenceLoader,

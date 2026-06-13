@@ -101,6 +101,7 @@ func TestSpanNames(t *testing.T) {
 		"semantic_extraction.queue.apply",
 		"semantic_extraction.queue.claim",
 		"semantic_extraction.queue.complete",
+		"reducer.eshu_search_index_write",
 		"reducer.drift_evidence_load",
 		"reducer.aws_runtime_drift_evidence_load",
 		"reducer.multi_cloud_runtime_drift_evidence_load",

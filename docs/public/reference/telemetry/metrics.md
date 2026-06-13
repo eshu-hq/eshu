@@ -89,6 +89,9 @@ Use these to locate the phase that changed before opening logs or traces:
 | `eshu_dp_projections_completed_total` | Projection completion volume. |
 | `eshu_dp_reducer_admission_deferrals_total` | Ingester source-local reducer intent admission deferrals by bounded reason. |
 | `eshu_dp_reducer_run_duration_seconds` | Reducer handler execution window. |
+| `eshu_dp_search_index_mutations_total` | Persisted search index document and term mutations by bounded reducer domain, kind, operation, and result. |
+| `eshu_dp_search_index_errors_total` | Persisted search index write failures by bounded reducer domain and operation. |
+| `eshu_dp_search_index_write_duration_seconds` | Persisted search index write duration by bounded reducer domain and result. |
 | `eshu_dp_generation_retention_generations_pruned_total` | Superseded generation cleanup volume. |
 | `eshu_dp_generation_retention_rows_pruned_total` | Generation-retention row cleanup volume by bounded table/data-class label. |
 | `eshu_dp_generation_retention_failures_total` | Generation-retention cleanup failures by bounded reason. |

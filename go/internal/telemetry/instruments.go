@@ -58,6 +58,8 @@ type Instruments struct {
 	ReducerIntentsEnqueued                    metric.Int64Counter
 	ReducerAdmissionDeferrals                 metric.Int64Counter
 	ReducerExecutions                         metric.Int64Counter
+	SearchIndexMutations                      metric.Int64Counter
+	SearchIndexErrors                         metric.Int64Counter
 	CanonicalWrites                           metric.Int64Counter
 	SharedProjectionCycles                    metric.Int64Counter
 	SharedAcceptanceUpserts                   metric.Int64Counter
@@ -661,6 +663,7 @@ type Instruments struct {
 	ProjectorStageDuration                 metric.Float64Histogram
 	ReducerRunDuration                     metric.Float64Histogram
 	ReducerQueueWaitDuration               metric.Float64Histogram
+	SearchIndexWriteDuration               metric.Float64Histogram
 	// GCPMaterializationDuration measures GCP resource and relationship
 	// materialization stages by reducer domain and write_phase.
 	GCPMaterializationDuration           metric.Float64Histogram
@@ -832,6 +835,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReducerExecutions counter: %w", err)
+	}
+
+	inst.SearchIndexMutations, err = meter.Int64Counter(
+		"eshu_dp_search_index_mutations_total",
+		metric.WithDescription("Total persisted search index document and term mutations by reducer domain, kind, operation, and result"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SearchIndexMutations counter: %w", err)
+	}
+
+	inst.SearchIndexErrors, err = meter.Int64Counter(
+		"eshu_dp_search_index_errors_total",
+		metric.WithDescription("Total persisted search index write failures by reducer domain and operation"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SearchIndexErrors counter: %w", err)
 	}
 
 	inst.CanonicalWrites, err = meter.Int64Counter(
@@ -2573,6 +2592,16 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReducerQueueWaitDuration histogram: %w", err)
+	}
+
+	inst.SearchIndexWriteDuration, err = meter.Float64Histogram(
+		"eshu_dp_search_index_write_duration_seconds",
+		metric.WithDescription("Persisted search index write duration by reducer domain and result"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(reducerWaitBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SearchIndexWriteDuration histogram: %w", err)
 	}
 
 	inst.GCPMaterializationDuration, err = meter.Float64Histogram(
