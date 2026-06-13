@@ -70,18 +70,30 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+          # Liveness uses the cheap, dependency-free /healthz probe so a
+          # transient Postgres or graph outage never restarts an otherwise
+          # healthy process.
           livenessProbe:
-            httpGet:
-              path: /health
-              port: http
-            initialDelaySeconds: 30
-            periodSeconds: 30
-          readinessProbe:
             httpGet:
               path: /healthz
               port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 3
+          # Readiness uses /readyz, which verifies Postgres and graph backend
+          # connectivity. failureThreshold debounces transient blips: the pod is
+          # only pulled from Service endpoints after 3 consecutive failures
+          # (~45s), preventing flapping on a brief dependency hiccup.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
             initialDelaySeconds: 10
             periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
           resources:
             {{- toYaml .Values.mcpServer.resources | nindent 12 }}
           volumeMounts:

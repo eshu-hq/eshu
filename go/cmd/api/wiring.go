@@ -160,7 +160,7 @@ func wireAPI(
 	apiMux := http.NewServeMux()
 	router.Mount(apiMux)
 
-	mux, err := mountRuntimeSurface(apiMux, "eshu-api", statusReader, prometheusHandler)
+	mux, err := mountRuntimeSurface(apiMux, "eshu-api", statusReader, prometheusHandler, db, driver)
 	if err != nil {
 		_ = db.Close()
 		if driver != nil {
@@ -420,12 +420,17 @@ func mountRuntimeSurface(
 	serviceName string,
 	reader status.Reader,
 	prometheusHandler http.Handler,
+	db *sql.DB,
+	driver neo4jdriver.DriverWithContext,
 ) (http.Handler, error) {
 	adminMux, err := internalruntime.NewStatusAdminMux(
 		serviceName,
 		reader,
 		apiHandler,
 		internalruntime.WithPrometheusHandler(prometheusHandler),
+		internalruntime.WithReadinessProbes(
+			internalruntime.ReadinessProbesForDependencies(db, driver)...,
+		),
 	)
 	if err != nil {
 		return nil, err

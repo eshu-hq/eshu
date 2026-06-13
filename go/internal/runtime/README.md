@@ -130,7 +130,14 @@ ComposeLifecycles in `internal/app` chains multiple Lifecycle values
 - `NewCompositeMetricsHandler(statusHandler, prometheusHandler)` — merges
   hand-rolled runtime gauges and OTEL Prometheus output at `/metrics`
 - `StatusAdminOption` — option type; constructors: `WithRecoveryHandler`,
-  `WithPrometheusHandler`
+  `WithPrometheusHandler`, `WithReadinessProbes`
+- `ReadinessProbe` / `ReadinessProbesForDependencies(db, driver)` /
+  `PostgresReadinessProbe(db, timeout)` / `GraphReadinessProbe(driver, timeout)`
+  — dependency-aware `/readyz` checks. `ReadinessProbesForDependencies` returns
+  only the probes for wired (non-nil) dependencies; each probe runs concurrently
+  under a bounded timeout and contributes its cause to the `/readyz` failure
+  body. The status-snapshot probe (Postgres + schema) always runs as the
+  baseline, so default callers keep their existing readiness contract
 
 ### Recovery admin
 
@@ -213,9 +220,38 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
 
 ## Operational notes
 
-- `/healthz` returns `200 OK` unconditionally when no `AdminCheck` is wired.
-  `/readyz` is backed by statusReadinessCheck, which calls
-  `statuspkg.Reader.ReadStatusSnapshot`; a failed read returns `503`.
+- `/healthz` (liveness) returns `200 OK` unconditionally when no `AdminCheck`
+  is wired; it is intentionally dependency-free so a transient Postgres or graph
+  outage never restarts an otherwise healthy process.
+- `/readyz` (readiness) runs the status-snapshot probe (Postgres + schema)
+  plus any probes registered via `WithReadinessProbes`. The API and MCP server
+  register `PostgresReadinessProbe` (bounded `PingContext`) and
+  `GraphReadinessProbe` (bounded Bolt `VerifyConnectivity`, covering both Neo4j
+  and NornicDB). Each probe runs concurrently under its own bounded timeout; a
+  failure returns `503` with a cause body naming every failing dependency
+  (e.g. `graph: ...; postgres: ...`). A nil graph driver (local lightweight
+  profile) reports ready so readiness is not gated on an unused dependency.
+- Readiness anti-flap is handled at the Kubernetes probe layer
+  (`readinessProbe.failureThreshold`), not by in-process state, so the endpoint
+  always reports true current dependency state. See
+  [Health And Readiness Probes](../../../docs/public/reference/health-readiness.md).
+
+  No-Regression Evidence: dependency probes run only on `/readyz` hits at the
+  Kubernetes probe cadence (default `periodSeconds: 15`), never on the query or
+  graph-write hot paths. Each probe is a single bounded connection check
+  (`PingContext` / `VerifyConnectivity`, default 2s timeout) executed
+  concurrently; `TestRunReadinessProbeBoundsSlowDependency` confirms a blocked
+  dependency returns in well under one second. Backend: NornicDB (Bolt) and
+  Postgres via the existing shared pools; no new pool, worker, or queue is
+  introduced. Verified by `go test ./internal/runtime ./cmd/api ./cmd/mcp-server
+  -count=1`.
+
+  Observability Evidence: `/readyz` now distinguishes alive-but-broken from
+  ready — the `503` body names the failing dependency and its error, so an
+  operator can tell graph-down from Postgres pool-exhaustion from
+  schema-not-applied (status_snapshot) without shelling into the pod. Liveness
+  (`/healthz`) stays dependency-free. The Helm `readinessProbe.failureThreshold`
+  (3) debounces transient blips before pulling the pod from Service endpoints.
 - `eshu_runtime_queue_oldest_outstanding_age_seconds` aging means workers
   cannot keep up with ingest rate; investigate worker count and graph backend
   latency before changing pool sizes.

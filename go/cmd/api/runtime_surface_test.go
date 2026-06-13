@@ -43,6 +43,8 @@ func TestMountRuntimeSurfaceServesSharedAdminRoutes(t *testing.T) {
 		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte("# otel metric\n"))
 		}),
+		nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("mountRuntimeSurface() error = %v, want nil", err)

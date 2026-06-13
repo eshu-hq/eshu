@@ -124,6 +124,7 @@ nav:
     - Azure Cloud Collector Contract: reference/azure-cloud-collector-contract.md
     - Secrets And IAM Posture Collector Contract: reference/secrets-iam-posture-collector-contract.md
     - Vault Secrets/IAM Collector Read-Only Permissions: reference/vault-secrets-iam-permissions.md
+    - Health And Readiness Probes: reference/health-readiness.md
     - Collector And Reducer Readiness: reference/collector-reducer-readiness.md
     - PagerDuty Evidence Contract: reference/pagerduty-evidence.md
     - Jira Evidence Contract: reference/jira-evidence.md
