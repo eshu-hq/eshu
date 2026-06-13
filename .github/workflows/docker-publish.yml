@@ -99,7 +99,7 @@ jobs:
       contents: read
       packages: write
       id-token: write
-      attestations: write 
+      attestations: write
 
     steps:
       - name: Checkout repository
@@ -152,6 +152,99 @@ jobs:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
+
+      - name: Install cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@v4.1.0
+
+      - name: Sign Docker image
+        if: github.event_name != 'pull_request'
+        env:
+          IMAGE_REF: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "${IMAGE_REF}"
+
+      - name: Verify Docker image signature
+        if: github.event_name != 'pull_request'
+        env:
+          CERTIFICATE_IDENTITY: https://github.com/${{ github.workflow_ref }}
+          IMAGE_REF: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+        run: |
+          cosign verify "${IMAGE_REF}" \
+            --certificate-identity "${CERTIFICATE_IDENTITY}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
+
+      - name: Prepare release metadata output
+        if: github.event_name != 'pull_request'
+        run: mkdir -p dist
+
+      - name: Generate image SBOM
+        if: github.event_name != 'pull_request'
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: dist/eshu-image.spdx.json
+          artifact-name: eshu-image-sbom.spdx.json
+          upload-artifact: true
+          upload-release-assets: false
+
+      - name: Generate SBOM attestation
+        if: github.event_name != 'pull_request'
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          sbom-path: dist/eshu-image.spdx.json
+          push-to-registry: true
+          create-storage-record: false
+
+      - name: Verify image attestations
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OCI_IMAGE_REF: oci://${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+        run: |
+          gh attestation verify "${OCI_IMAGE_REF}" \
+            -R "${GITHUB_REPOSITORY}"
+          gh attestation verify "${OCI_IMAGE_REF}" \
+            -R "${GITHUB_REPOSITORY}" \
+            --predicate-type https://spdx.dev/Document/v2.3
+
+  attach-release-sbom:
+    needs:
+      - changes
+      - build-and-push-image
+    if: needs.changes.outputs.image == 'true' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Download image SBOM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: eshu-image-sbom.spdx.json
+          path: dist
+
+      - name: Wait for GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in {1..30}; do
+            if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 10
+          done
+          gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}"
+
+      - name: Attach image SBOM to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" "dist/eshu-image-sbom.spdx.json" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --clobber
 
   package-and-push-chart:
     needs: changes
