@@ -23,6 +23,8 @@ The console should help users answer:
 - which findings need action
 - which replatforming/import-plan candidates are ready, refused, or missing
   ownership evidence
+- who can reach secret metadata through reducer-owned Secrets/IAM posture facts,
+  and which trust-chain gaps keep access provenance-only
 - what is known, missing, inferred, or stale
 - which cloud resources are unmanaged, drifting, or blocked from safe import
 
@@ -102,6 +104,8 @@ contract. Screen code must preserve:
 - structured `error.code`
 - limits, truncation, and unsupported-capability states when an API returns
   them
+- Secrets/IAM posture routes as reducer read models even while graph projection
+  remains gated/default-off
 
 Do not flatten truth and freshness into generic loading or error states.
 
