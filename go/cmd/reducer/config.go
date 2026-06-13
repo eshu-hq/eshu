@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -44,6 +45,15 @@ const (
 	graphProjectionRepairBatchLimitEnv   = "ESHU_GRAPH_PROJECTION_REPAIR_BATCH_LIMIT"
 	graphProjectionRepairRetryDelayEnv   = "ESHU_GRAPH_PROJECTION_REPAIR_RETRY_DELAY"
 
+	generationRetentionEnabledEnv                  = "ESHU_GENERATION_RETENTION_ENABLED"
+	generationRetentionPollIntervalEnv             = "ESHU_GENERATION_RETENTION_POLL_INTERVAL"
+	generationRetentionMinSupersededGenerationsEnv = "ESHU_GENERATION_RETENTION_MIN_SUPERSEDED_GENERATIONS"
+	generationRetentionMaxSupersededAgeEnv         = "ESHU_GENERATION_RETENTION_MAX_SUPERSEDED_AGE"
+	generationRetentionBatchGenerationLimitEnv     = "ESHU_GENERATION_RETENTION_BATCH_GENERATION_LIMIT"
+	generationRetentionBatchRowLimitEnv            = "ESHU_GENERATION_RETENTION_BATCH_ROW_LIMIT"
+	generationRetentionPolicyScopeEnv              = "ESHU_GENERATION_RETENTION_POLICY_SCOPE"
+	generationRetentionPolicyRevisionEnv           = "ESHU_GENERATION_RETENTION_POLICY_REVISION"
+
 	driftPriorConfigDepthEnv = "ESHU_DRIFT_PRIOR_CONFIG_DEPTH"
 
 	defaultCodeCallProjectionPollInterval        = 500 * time.Millisecond
@@ -63,7 +73,14 @@ const (
 	defaultGraphProjectionRepairPollInterval = time.Second
 	defaultGraphProjectionRepairBatchLimit   = 100
 	defaultGraphProjectionRepairRetryDelay   = time.Minute
+
+	defaultGenerationRetentionPollInterval = time.Hour
 )
+
+type generationRetentionConfig struct {
+	Enabled bool
+	Runner  reducer.GenerationRetentionRunnerConfig
+}
 
 func loadReducerQueueConfig(getenv func(string) string) (runtimecfg.RetryPolicyConfig, error) {
 	if getenv == nil {
@@ -270,6 +287,27 @@ func loadGraphProjectionPhaseRepairConfig(getenv func(string) string) reducer.Gr
 	}
 }
 
+func loadGenerationRetentionConfig(getenv func(string) string) generationRetentionConfig {
+	if getenv == nil {
+		getenv = func(string) string { return "" }
+	}
+	defaults := postgres.DefaultGenerationRetentionPolicy()
+	return generationRetentionConfig{
+		Enabled: loadBoolOrDefault(getenv, generationRetentionEnabledEnv, true),
+		Runner: reducer.GenerationRetentionRunnerConfig{
+			PollInterval: loadDurationOrDefault(getenv, generationRetentionPollIntervalEnv, defaultGenerationRetentionPollInterval),
+			Policy: reducer.GenerationRetentionPolicy{
+				MinSupersededGenerations: loadPositiveIntOrDefault(getenv, generationRetentionMinSupersededGenerationsEnv, defaults.MinSupersededGenerations),
+				MaxSupersededAge:         loadDurationOrDefault(getenv, generationRetentionMaxSupersededAgeEnv, defaults.MaxSupersededAge),
+				BatchGenerationLimit:     loadPositiveIntOrDefault(getenv, generationRetentionBatchGenerationLimitEnv, defaults.BatchGenerationLimit),
+				BatchRowLimit:            loadPositiveIntOrDefault(getenv, generationRetentionBatchRowLimitEnv, defaults.BatchRowLimit),
+				PolicyScope:              loadStringOrDefault(getenv, generationRetentionPolicyScopeEnv, defaults.PolicyScope),
+				PolicyRevision:           loadStringOrDefault(getenv, generationRetentionPolicyRevisionEnv, defaults.PolicyRevision),
+			},
+		},
+	}
+}
+
 func loadStringOrDefault(getenv func(string) string, key string, defaultValue string) string {
 	raw := strings.TrimSpace(getenv(key))
 	if raw == "" {
@@ -300,6 +338,20 @@ func loadPositiveIntOrDefault(getenv func(string) string, key string, defaultVal
 		return defaultValue
 	}
 	return value
+}
+
+func loadBoolOrDefault(getenv func(string) string, key string, defaultValue bool) bool {
+	raw := strings.TrimSpace(strings.ToLower(getenv(key)))
+	switch raw {
+	case "":
+		return defaultValue
+	case "1", "true", "t", "yes", "y", "on":
+		return true
+	case "0", "false", "f", "no", "n", "off":
+		return false
+	default:
+		return defaultValue
+	}
 }
 
 // parsePriorConfigDepth converts the ESHU_DRIFT_PRIOR_CONFIG_DEPTH env value

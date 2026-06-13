@@ -32,6 +32,9 @@ const (
 	// FreshnessCauseUnsupportedProfile marks a freshness gap caused by an active
 	// query profile that cannot serve authoritative truth for the capability.
 	FreshnessCauseUnsupportedProfile FreshnessCause = "unsupported_profile"
+	// FreshnessCauseRetentionExpired marks a freshness gap caused by history
+	// that was deliberately pruned by a retention policy.
+	FreshnessCauseRetentionExpired FreshnessCause = "retention_expired"
 )
 
 // freshnessCauses is the closed enumeration of valid causes. Validation and the
@@ -44,6 +47,7 @@ var freshnessCauses = map[FreshnessCause]struct{}{
 	FreshnessCauseMissingCollectorCompletion: {},
 	FreshnessCauseContentCoverageUnavailable: {},
 	FreshnessCauseUnsupportedProfile:         {},
+	FreshnessCauseRetentionExpired:           {},
 }
 
 // ValidFreshnessCause reports whether cause is a member of the closed cause
@@ -131,6 +135,11 @@ var freshnessCauseNextChecks = map[FreshnessCause]FreshnessNextCheck{
 		Tool:   "get_index_status",
 		Route:  "GET /api/v0/status",
 		Reason: "the active profile cannot serve authoritative truth for this capability; switch to an authoritative profile",
+	},
+	FreshnessCauseRetentionExpired: {
+		Tool:   "get_generation_lifecycle",
+		Route:  "GET /api/v0/freshness/generations",
+		Reason: "the requested history was pruned by retention; inspect the retained generation window",
 	},
 }
 

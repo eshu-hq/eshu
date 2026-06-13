@@ -181,6 +181,7 @@ func TestComputeChangedSinceDeltaUnknownSinceGenerationReturnsNoPrior(t *testing
 	queryer := &fakeQueryer{responses: []fakeRows{
 		{rows: scopeRow("git-repository-scope:acme/app", "repository", "gen-current", observed, false)},
 		{}, // prior generation resolves to nothing
+		{}, // retention event lookup also resolves to nothing
 	}}
 	store := NewStatusStore(queryer)
 
@@ -197,6 +198,44 @@ func TestComputeChangedSinceDeltaUnknownSinceGenerationReturnsNoPrior(t *testing
 	}
 	if summary.SinceGenerationID != "" {
 		t.Fatalf("SinceGenerationID = %q, want empty when since reference unresolved", summary.SinceGenerationID)
+	}
+}
+
+func TestComputeChangedSinceDeltaRetentionExpiredPriorIsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	observed := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
+	queryer := &fakeQueryer{responses: []fakeRows{
+		{rows: scopeRow("git-repository-scope:acme/app", "repository", "gen-current", observed, false)},
+		{}, // prior generation was pruned from scope_generations
+		{rows: [][]any{{true, observed.Add(-8 * 24 * time.Hour)}}},
+	}}
+	store := NewStatusStore(queryer)
+
+	summary, err := store.ComputeChangedSinceDelta(context.Background(), statuspkg.ChangedSinceFilter{
+		ScopeID:           "git-repository-scope:acme/app",
+		SinceGenerationID: "gen-pruned",
+		SampleLimit:       25,
+	})
+	if err != nil {
+		t.Fatalf("ComputeChangedSinceDelta() error = %v", err)
+	}
+	if !summary.Unavailable {
+		t.Fatalf("Unavailable = false, want true for retention-expired prior")
+	}
+	if summary.UnavailableReason != statuspkg.ChangedSinceUnavailableRetentionExpired {
+		t.Fatalf("UnavailableReason = %q, want %q", summary.UnavailableReason, statuspkg.ChangedSinceUnavailableRetentionExpired)
+	}
+	if summary.SinceGenerationID != "gen-pruned" {
+		t.Fatalf("SinceGenerationID = %q, want requested pruned generation", summary.SinceGenerationID)
+	}
+	for _, category := range summary.Categories {
+		if !category.Unavailable {
+			t.Fatalf("category %s unavailable = false, want true", category.Category)
+		}
+	}
+	if !strings.Contains(queryer.queries[2], "generation_retention_events") {
+		t.Fatalf("retention-expired lookup query missing retention event table:\n%s", queryer.queries[2])
 	}
 }
 

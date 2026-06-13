@@ -63,6 +63,28 @@ ORDER BY
 LIMIT 1
 `
 
+// resolveChangedSinceRetentionExpiredQuery distinguishes a pruned prior
+// generation from a generation id or timestamp that never belonged to the
+// scope. It looks up safe hashes recorded by generation retention cleanup and
+// returns the pruned generation's observed_at for the unavailable response.
+//
+// Parameter order:
+//
+//	$1 scope_id_hash
+//	$2 generation_id_hash  (empty falls through to observed-at resolution)
+//	$3 since_observed_at   (used only when $2 is empty)
+const resolveChangedSinceRetentionExpiredQuery = `
+SELECT TRUE AS retention_expired, generation_observed_at
+FROM generation_retention_events
+WHERE scope_id_hash = $1
+  AND (
+        ($2 <> '' AND generation_id_hash = $2)
+        OR ($2 = '' AND generation_observed_at <= $3)
+      )
+ORDER BY generation_observed_at DESC
+LIMIT 1
+`
+
 // changedSinceCountsQuery computes the exact per-category, per-classification
 // stable-fact-key counts for a changed-since diff between a prior generation and
 // the current active generation of one scope. It FULL OUTER JOINs the prior

@@ -77,6 +77,10 @@ gauge when a shared-acceptance observer is available.
 | `SharedProjectionStaleIntents` | `eshu_dp_shared_projection_stale_intents_total` |
 | `SharedAcceptanceUpserts` | `eshu_dp_shared_acceptance_upserts_total` |
 | `SharedAcceptanceLookupErrors` | `eshu_dp_shared_acceptance_lookup_errors_total` |
+| `GenerationRetentionPruned` | `eshu_dp_generation_retention_generations_pruned_total` |
+| `GenerationRetentionRowsPruned` | `eshu_dp_generation_retention_rows_pruned_total` |
+| `GenerationRetentionFailures` | `eshu_dp_generation_retention_failures_total` |
+| `GenerationRetentionSkipped` | `eshu_dp_generation_retention_skipped_total` |
 | `DocumentationEntityMentions` | `eshu_dp_documentation_entity_mentions_extracted_total` |
 | `DocumentationClaimCandidates` | `eshu_dp_documentation_claim_candidates_extracted_total` |
 | `DocumentationClaimsSuppressed` | `eshu_dp_documentation_claim_candidates_suppressed_total` |
@@ -260,6 +264,9 @@ module prefixes across generations.
 | `ProjectorStageDuration` | `eshu_dp_projector_stage_duration_seconds` | default |
 | `ReducerRunDuration` | `eshu_dp_reducer_run_duration_seconds` | default |
 | `ReducerQueueWaitDuration` | `eshu_dp_reducer_queue_wait_seconds` | 0.001–21600 s |
+| `GenerationRetentionDuration` | `eshu_dp_generation_retention_duration_seconds` | 0.001–900 s |
+| `GenerationRetentionBatchSize` | `eshu_dp_generation_retention_batch_size` (Int64) | 1–100 generations |
+| `GenerationRetentionOldestEligibleAge` | `eshu_dp_generation_retention_oldest_eligible_age_seconds` | 1h–90d |
 | `CanonicalWriteDuration` | `eshu_dp_canonical_write_duration_seconds` | 0.01–60 s |
 | `CanonicalProjectionDuration` | `eshu_dp_canonical_projection_duration_seconds` | 0.01–60 s |
 | `CanonicalRetractDuration` | `eshu_dp_canonical_retract_duration_seconds` | 0.001–2.5 s |

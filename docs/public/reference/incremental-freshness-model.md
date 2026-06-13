@@ -232,7 +232,10 @@ into evidence categories (files, content entities, and the remaining facts):
 Retired and superseded are never collapsed into `unchanged`. Counts are exact
 per category; the per-classification sample handles are bounded by `sample_limit`
 (default 25, max 200) and carry a per-classification `truncated` flag. Ordering
-is deterministic by `stable_fact_key`.
+is deterministic by `stable_fact_key`. When generation retention proves the
+prior baseline was pruned, changed-since returns `unavailable=true` with
+`unavailable_reason=retention_expired`; the truth freshness cause is
+`retention_expired` and its next check points to `get_generation_lifecycle`.
 
 Resolution failures are explicit, never confident emptiness. An unknown
 scope/repository returns `scope_not_found`; a since reference that resolves to no
@@ -344,7 +347,7 @@ rendered from Postgres, not from the graph backend.
 | Why is this specific answer not fresh? | Truth label `freshness.cause` and `freshness.next_check` on the answer envelope | The `next_check` points at the status, generation, coverage, or queue surface to follow. See [Truth Label Protocol](truth-label-protocol.md). |
 | Which MCP tool reports index progress? | `get_index_status` (the `next_check` target for most causes) | Bounded follow-up call carried on freshness causes. |
 | Is a scope current from the CLI? | `eshu` scan-status readiness | Treats `failed` generations as terminal and reports `pending` generations as still catching up. |
-| What changed in a repository scope since a prior generation or instant? | `GET /api/v0/freshness/changed-since` (`get_changed_since` MCP tool, `eshu freshness changed-since`) | Diffs the prior generation's fact set against the current active generation's fact set by `stable_fact_key`. Returns per-category (files, content entities, facts) added/updated/unchanged/retired/superseded counts with bounded sample handles. A scope with no current active generation returns an explicit unavailable diff, never zero deltas. |
+| What changed in a repository scope since a prior generation or instant? | `GET /api/v0/freshness/changed-since` (`get_changed_since` MCP tool, `eshu freshness changed-since`) | Diffs the prior generation's fact set against the current active generation's fact set by `stable_fact_key`. Returns per-category (files, content entities, facts) added/updated/unchanged/retired/superseded counts with bounded sample handles. A scope with no current active generation returns an explicit unavailable diff, never zero deltas; a pruned prior generation returns `unavailable_reason=retention_expired` with `get_generation_lifecycle` as the bounded next check. |
 | What changed for a service since a prior service generation? | `GET /api/v0/freshness/services/changed-since` (`get_service_changed_since` MCP tool, `eshu freshness service-changed-since`) | Diffs a prior service materialization generation against the current active generation over `service_evidence_snapshots`, keyed by generation-independent `service_evidence_key`. Reports the ownership (#1943), deployment (#1985), runtime (#1986), dependencies (#1987), docs (#1988), incidents (#1989), and vulnerabilities (#1990) families; per-family added/updated/unchanged/retired/superseded counts with bounded sample handles. Unknown `service_id` returns `service_not_found`; no current active generation returns an explicit unavailable diff, never zero deltas. |
 
 `scope_activity` summarizes per-scope observation activity. `generation_history`

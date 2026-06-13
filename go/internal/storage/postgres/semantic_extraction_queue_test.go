@@ -17,8 +17,8 @@ func TestBootstrapDefinitionsIncludeSemanticExtractionQueue(t *testing.T) {
 	t.Parallel()
 
 	defs := BootstrapDefinitions()
-	if len(defs) != 33 {
-		t.Fatalf("BootstrapDefinitions() len = %d, want 33", len(defs))
+	if len(defs) != 34 {
+		t.Fatalf("BootstrapDefinitions() len = %d, want 34", len(defs))
 	}
 	var semanticQueue Definition
 	for _, def := range defs {

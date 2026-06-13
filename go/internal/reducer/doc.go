@@ -10,8 +10,11 @@
 // Changes in this package must preserve the evidence path from raw facts to
 // admitted candidate, projected row, graph or fact write, and API/MCP query
 // truth. Queue ordering, generation supersession, phase publication, repair
-// flows, shared projection readiness, and truth-emitting domain registration
-// are package-level contracts. SupplyChainImpactHandler also evaluates
+// flows, shared projection readiness, bounded generation-retention cleanup, and
+// truth-emitting domain registration are package-level contracts.
+// GenerationRetentionRunner prunes only superseded source-generation history in
+// bounded Postgres transactions; it never substitutes for relationship
+// retraction or graph orphan cleanup. SupplyChainImpactHandler also evaluates
 // vulnerability.suppression facts and writes the resulting VEX or operator
 // policy decision onto every impact finding; provider dismissals stay
 // evidence and never auto-hide findings. The handler also computes an

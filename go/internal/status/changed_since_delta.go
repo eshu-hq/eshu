@@ -206,6 +206,18 @@ type ChangedSinceCategoryDelta struct {
 	Unavailable bool                                                `json:"unavailable"`
 }
 
+// ChangedSinceUnavailableReason explains why a changed-since summary could not
+// be computed. The set is intentionally small and JSON-facing so callers can
+// distinguish retention-expired history from a still-building active snapshot.
+type ChangedSinceUnavailableReason string
+
+const (
+	// ChangedSinceUnavailableRetentionExpired means the requested prior
+	// generation was once known for the scope but was pruned by the configured
+	// generation retention policy.
+	ChangedSinceUnavailableRetentionExpired ChangedSinceUnavailableReason = "retention_expired"
+)
+
 // ChangedSinceSummary is the bounded changed-since answer for one repository
 // scope: the resolved scope identity, the prior and current generation the diff
 // compared, the per-category deltas, and the sample limit applied. Building and
@@ -230,6 +242,9 @@ type ChangedSinceSummary struct {
 	// handler treats an unavailable summary as an explicit not-found or
 	// unavailable freshness, never as zero deltas.
 	Unavailable bool `json:"unavailable"`
+	// UnavailableReason carries the fail-closed reason when Unavailable is true
+	// and the storage layer can classify the failure.
+	UnavailableReason ChangedSinceUnavailableReason `json:"unavailable_reason,omitempty"`
 }
 
 // ChangedSinceTimestamp formats a database timestamp as RFC3339 UTC, or the

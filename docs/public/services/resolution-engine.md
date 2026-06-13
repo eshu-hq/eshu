@@ -24,12 +24,20 @@ start telemetry
   -> build reducer queue
   -> start main reducer loop
   -> start shared projection, code-call, and repo-dependency runners
+  -> start bounded generation-retention cleanup runner
 ```
 
 The main loop claims reducer intents, dispatches workers, heartbeats
 long-running work, and acks, retries, or fails work. Shared and dedicated
 projection runners acquire leases, wait for accepted generation/readiness
 state, write or retract edges, and mark intents processed.
+
+The generation-retention runner prunes superseded source-generation history in
+bounded Postgres transactions. It never retracts graph truth; relationship
+retraction and graph orphan cleanup remain separate reducer work. Retention
+events store safe hashes for scope and generation identifiers so changed-since
+requests can return `retention_expired` instead of a false zero delta after
+history ages out.
 
 ## Domains And Projection
 
@@ -59,6 +67,9 @@ The partitioned runner handles `platform_infra`, `workload_dependency`,
   shared projection is the bottleneck.
 - The main loop, shared projection runner, code-call runner, and
   repo-dependency runner run as concurrent goroutines inside `Service.Run()`.
+- The generation-retention runner runs beside those loops and relies on
+  Postgres row locks plus bounded batch and row limits. Do not reduce reducer
+  worker counts to make retention safe.
 - Queue rows carry `conflict_domain` and `conflict_key`; claim SQL fences only
   rows sharing an active durable conflict key so unrelated work can overlap.
 
@@ -80,6 +91,12 @@ Important env vars:
 - `ESHU_SHARED_PROJECTION_LEASE_TTL`
 - `ESHU_SHARED_PROJECTION_BATCH_LIMIT`
 - `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT`
+- `ESHU_GENERATION_RETENTION_ENABLED`
+- `ESHU_GENERATION_RETENTION_POLL_INTERVAL`
+- `ESHU_GENERATION_RETENTION_MIN_SUPERSEDED_GENERATIONS`
+- `ESHU_GENERATION_RETENTION_MAX_SUPERSEDED_AGE`
+- `ESHU_GENERATION_RETENTION_BATCH_GENERATION_LIMIT`
+- `ESHU_GENERATION_RETENTION_BATCH_ROW_LIMIT`
 
 Raise `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` only after the reducer
 reports the explicit acceptance-cap failure and discovery evidence shows the
@@ -95,7 +112,14 @@ Start with:
   `eshu_dp_canonical_write_duration_seconds`,
   `eshu_dp_queue_claim_duration_seconds{queue=reducer}`
 - counters: `eshu_dp_reducer_executions_total`,
-  `eshu_dp_shared_projection_cycles_total`
+  `eshu_dp_shared_projection_cycles_total`,
+  `eshu_dp_generation_retention_generations_pruned_total`,
+  `eshu_dp_generation_retention_rows_pruned_total`,
+  `eshu_dp_generation_retention_failures_total`,
+  `eshu_dp_generation_retention_skipped_total`
+- retention histograms: `eshu_dp_generation_retention_duration_seconds`,
+  `eshu_dp_generation_retention_batch_size`,
+  `eshu_dp_generation_retention_oldest_eligible_age_seconds`
 - logs: reducer execution result logs and shared projection cycle logs with
   domain, worker, route, row count, and failure class
 

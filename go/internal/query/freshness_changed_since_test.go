@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
@@ -137,6 +138,49 @@ func TestChangedSinceUnavailableMapsToUnavailableFreshness(t *testing.T) {
 	data := envelope.Data.(map[string]any)
 	if !data["unavailable"].(bool) {
 		t.Fatalf("unavailable = false, want true")
+	}
+}
+
+func TestChangedSinceRetentionExpiredReasonSurfaces(t *testing.T) {
+	t.Parallel()
+
+	reader := &recordingChangedSinceReader{summary: status.ChangedSinceSummary{
+		ScopeID:                   "git-repository-scope:acme/app",
+		ScopeKind:                 "repository",
+		SinceGenerationID:         "gen-pruned",
+		CurrentActiveGenerationID: "gen-current",
+		Unavailable:               true,
+		UnavailableReason:         status.ChangedSinceUnavailableRetentionExpired,
+		SampleLimit:               25,
+		Categories: []status.ChangedSinceCategoryDelta{
+			{Category: status.ChangedSinceCategoryFiles, Unavailable: true},
+		},
+	}}
+	mux := newChangedSinceMux(reader)
+
+	w := doFreshnessRequest(t, mux, "/api/v0/freshness/changed-since?scope_id=git-repository-scope:acme/app&since_generation_id=gen-pruned")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
+	}
+	envelope := decodeFreshnessEnvelope(t, w)
+	if envelope.Truth.Freshness.State != FreshnessUnavailable {
+		t.Fatalf("freshness = %q, want unavailable", envelope.Truth.Freshness.State)
+	}
+	if !strings.Contains(envelope.Truth.Freshness.Detail, "retention") {
+		t.Fatalf("freshness detail = %q, want retention context", envelope.Truth.Freshness.Detail)
+	}
+	if envelope.Truth.Freshness.Cause != FreshnessCauseRetentionExpired {
+		t.Fatalf("freshness cause = %q, want %q", envelope.Truth.Freshness.Cause, FreshnessCauseRetentionExpired)
+	}
+	if envelope.Truth.Freshness.NextCheck == nil {
+		t.Fatalf("freshness next_check = nil, want generation lifecycle drilldown")
+	}
+	if got, want := envelope.Truth.Freshness.NextCheck.Tool, "get_generation_lifecycle"; got != want {
+		t.Fatalf("freshness next_check.tool = %q, want %q", got, want)
+	}
+	data := envelope.Data.(map[string]any)
+	if got, want := data["unavailable_reason"], string(status.ChangedSinceUnavailableRetentionExpired); got != want {
+		t.Fatalf("unavailable_reason = %v, want %v", got, want)
 	}
 }
 

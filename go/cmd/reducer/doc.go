@@ -7,7 +7,8 @@
 // version and exits before runtime setup. Otherwise the binary boots OTEL
 // telemetry, opens Postgres and the graph backend,
 // wires the reducer service with shared-projection, code-call,
-// repo-dependency, and graph-projection-phase repair runners (plus the
+// repo-dependency, graph-projection-phase repair, and generation-retention
+// cleanup runners (plus the
 // Terraform config-vs-state drift handler wired with the
 // PostgresTerraformBackendQuery and PostgresDriftEvidenceLoader adapters;
 // the loader's PriorConfigDepth field is set from ESHU_DRIFT_PRIOR_CONFIG_DEPTH
