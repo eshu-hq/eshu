@@ -43,6 +43,7 @@ func buildCanonicalMaterialization(
 
 	repoID := mat.RepoID
 	repoPath := mat.RepoPath
+	mat.DeltaProjection, mat.DeltaFilePaths, mat.DeltaDeletedFilePaths = extractDeltaProjectionScope(inputFacts, repoPath)
 
 	// Extract files.
 	mat.Files = extractFiles(inputFacts, repoID, repoPath)

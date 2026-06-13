@@ -42,6 +42,9 @@ func (w *CanonicalNodeWriter) buildRepositoryCleanupStatements(mat projector.Can
 	if mat.FirstGeneration {
 		return nil
 	}
+	if mat.DeltaProjection {
+		return nil
+	}
 	r := mat.Repository
 	return []Statement{
 		{

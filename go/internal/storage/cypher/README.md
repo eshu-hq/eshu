@@ -113,6 +113,12 @@ Stale-file retracts anchor on `Repository {id}` and traverse `REPO_CONTAINS`
 before applying the generation and keep-list predicates. This avoids starting
 from the full `File` label population when a webhook-triggered re-index needs
 to remove files that disappeared from one repository.
+Delta canonical materializations skip `repository_cleanup` and negative
+full-generation stale cleanup. Deleted files are removed by positive
+`UNWIND $file_paths AS file_path` path-seeded chunks, changed files update in
+place, now-empty deleted-file ancestor directories are removed leaf-first, and
+post-upsert entity cleanup is label-scoped plus `n.path IN $file_paths` so
+unchanged files and entities survive a file-scoped resync.
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
 'TestChunkPositiveStringSliceRetractStatement|TestCanonicalNodeRefreshStructuralEdgesSeedsFromFilePath|TestCanonicalNodeRefreshStructuralEdgesKeepFilePathChunks|TestCanonicalNodeWriterDeduplicatesRetractFilePaths|TestCanonicalNodeWriterKeepsEmptyDirectoryPathList'
@@ -134,6 +140,18 @@ also emit a structured `canonical phase failed` log with scope, generation,
 repo, phase, mode, statement count, duration, and error, while existing
 `canonical phase-group write` logs and graph failure details still identify the
 phase and sanitized first statement.
+
+No-Regression Evidence: `go test ./internal/storage/cypher -run
+'TestCanonicalNodeWriterScopesDeltaProjectionToTouchedFiles|TestDeltaEmptyDirectoryRetractStatementsRunLeafFirst' -count=1`
+proves delta projection skips repository replacement and negative
+full-generation cleanup, deletes only deleted file paths, removes now-empty
+deleted-file ancestor directories leaf-first, and scopes stale entity cleanup to
+touched file paths.
+
+No-Observability-Change: delta cleanup uses existing canonical write phases,
+statement metadata, `canonical.write` spans, phase duration metrics, and phase
+failure logs. It adds no metric name, metric label, worker, retry policy, or
+backend-specific branch.
 
 Code-call shared projection routes `CALLS`, `REFERENCES`, and `USES_METACLASS`
 through label-scoped batched edge statements when endpoint labels are known.

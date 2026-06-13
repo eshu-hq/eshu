@@ -125,20 +125,28 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	}
 	registry := s.registry()
 	discoveryStartedAt := time.Now()
-	fileSet, discoveryStats, err := resolveNativeSnapshotFileSet(repoPath, registry, s.discoveryOptions())
+	fullFileSet, discoveryStats, err := resolveNativeSnapshotFileSet(repoPath, registry, s.discoveryOptions())
+	fileSet := fullFileSet
 	if len(repository.FileTargets) > 0 {
 		fileSet, err = resolveNativeSnapshotFileSetForTargets(repoPath, repository.FileTargets, registry)
 	}
 	if err != nil {
 		return RepositorySnapshot{}, err
 	}
+	deltaChangedRelativePaths := relativePathsForSnapshotTargets(repoPath, repository.FileTargets)
+	deltaDeletedRelativePaths := normalizeSnapshotRelativePaths(repository.DeletedRelativePaths)
+	deltaRelativePaths := sortUniquePathStrings(append(deltaChangedRelativePaths, deltaDeletedRelativePaths...))
 	var tfstateCandidates []TerraformStateCandidate
 	fileSet.Files, tfstateCandidates = extractTerraformStateCandidates(repoPath, fileSet.Files)
 	parserFiles, documentationFiles := partitionNativeSnapshotFiles(fileSet.Files, registry)
+	fullParserFiles, _ := partitionNativeSnapshotFiles(fullFileSet.Files, registry)
 	parserFileSet := fileSet
 	parserFileSet.Files = parserFiles
 	preScanFileSet := parserFileSet
-	preScanFileSet.Files = parserPreScanFiles(parserFileSet.Files)
+	preScanFileSet.Files = sortUniquePathStrings(append(
+		parserPreScanFiles(fullParserFiles),
+		parserPreScanFiles(parserFileSet.Files)...,
+	))
 	logTerraformStateCandidateDiscovery(ctx, s, repoPath, len(tfstateCandidates))
 	s.logDiscoveryStats(ctx, repoPath, discoveryStats)
 	s.logSnapshotStageTiming(ctx, repoPath, "discovery", discoveryStartedAt,
@@ -156,6 +164,9 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		ContentFiles:             []ContentFileSnapshot{},
 		ContentEntities:          []ContentEntitySnapshot{},
 		TerraformStateCandidates: tfstateCandidates,
+		Delta:                    repository.Delta,
+		DeltaRelativePaths:       deltaRelativePaths,
+		DeletedRelativePaths:     deltaDeletedRelativePaths,
 	}
 	commitSHA := gitCommitSHA(ctx, repoPath)
 	if len(fileSet.Files) == 0 {

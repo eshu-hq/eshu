@@ -41,12 +41,14 @@ type SelectionBatch struct {
 
 // SelectedRepository is one repository chosen for the current collector cycle.
 type SelectedRepository struct {
-	RepoPath     string   `json:"repo_path"`
-	RemoteURL    string   `json:"remote_url"`
-	IsDependency bool     `json:"is_dependency"`
-	DisplayName  string   `json:"display_name"`
-	Language     string   `json:"language"`
-	FileTargets  []string `json:"file_targets"`
+	RepoPath             string   `json:"repo_path"`
+	RemoteURL            string   `json:"remote_url"`
+	IsDependency         bool     `json:"is_dependency"`
+	DisplayName          string   `json:"display_name"`
+	Language             string   `json:"language"`
+	FileTargets          []string `json:"file_targets"`
+	Delta                bool     `json:"delta,omitempty"`
+	DeletedRelativePaths []string `json:"deleted_relative_paths,omitempty"`
 }
 
 // RepositorySnapshot captures one repository parse snapshot and content transport.
@@ -71,6 +73,15 @@ type RepositorySnapshot struct {
 	// DocumentationFileMetas holds body-free repository documentation metadata
 	// for files that should emit documentation facts without parser content rows.
 	DocumentationFileMetas []ContentFileMeta `json:"documentation_file_metas,omitempty"`
+	// Delta marks snapshots that contain only file-scoped changes from a Git
+	// resync rather than a full repository view.
+	Delta bool `json:"delta,omitempty"`
+	// DeltaRelativePaths holds every repo-relative path touched by a delta
+	// generation, including deleted paths that have no parsed file payload.
+	DeltaRelativePaths []string `json:"delta_relative_paths,omitempty"`
+	// DeletedRelativePaths holds repo-relative paths that disappeared between
+	// Git revisions and must be retracted from content and graph projections.
+	DeletedRelativePaths []string `json:"deleted_relative_paths,omitempty"`
 }
 
 // ContentFileSnapshot captures one portable file-content record.

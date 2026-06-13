@@ -54,7 +54,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 		}
 		return SelectionBatch{
 			ObservedAt:   observedAt,
-			Repositories: buildSelectedRepositories(s.Config, repoPaths),
+			Repositories: buildSelectedRepositories(s.Config, repoPaths, nil),
 		}, nil
 	case "explicit", "githubOrg":
 		syncGitFn := s.SyncGit
@@ -69,7 +69,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 		}
 		return SelectionBatch{
 			ObservedAt:   observedAt,
-			Repositories: buildSelectedRepositories(s.Config, synced.SelectedRepoPaths),
+			Repositories: buildSelectedRepositories(s.Config, synced.SelectedRepoPaths, synced.DeltaByRepoPath),
 		}, nil
 	default:
 		return SelectionBatch{}, fmt.Errorf("unsupported ESHU_REPO_SOURCE_MODE=%q", s.Config.SourceMode)
@@ -79,6 +79,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 func buildSelectedRepositories(
 	config RepoSyncConfig,
 	repoPaths []string,
+	deltaByRepoPath map[string]GitSyncDelta,
 ) []SelectedRepository {
 	repositories := make([]SelectedRepository, 0, len(repoPaths))
 	for _, repoPath := range repoPaths {
@@ -95,6 +96,15 @@ func buildSelectedRepositories(
 			DisplayName:  strings.TrimSpace(config.DependencyName),
 			Language:     strings.TrimSpace(config.DependencyLanguage),
 			FileTargets:  fileTargetsForRepository(config, absolutePath),
+		}
+		if delta, ok := deltaByRepoPath[repoPath]; ok && !delta.IsEmpty() {
+			repository.Delta = true
+			repository.FileTargets = sortUniquePathStrings(append(repository.FileTargets, delta.ChangedFileTargets...))
+			repository.DeletedRelativePaths = sortUniquePathStrings(delta.DeletedRelativePaths)
+		} else if delta, ok := deltaByRepoPath[absolutePath]; ok && !delta.IsEmpty() {
+			repository.Delta = true
+			repository.FileTargets = sortUniquePathStrings(append(repository.FileTargets, delta.ChangedFileTargets...))
+			repository.DeletedRelativePaths = sortUniquePathStrings(delta.DeletedRelativePaths)
 		}
 		if config.SourceMode != "filesystem" {
 			repoID := repoIDFromManagedPath(config.ReposDir, absolutePath)

@@ -30,6 +30,7 @@ func syncGitRepositoriesWithLogger(
 	}
 
 	selected := make([]string, 0, len(repositoryIDs))
+	deltaByRepoPath := make(map[string]GitSyncDelta)
 	for i, repoID := range repositoryIDs {
 		if err := ctx.Err(); err != nil {
 			return GitSyncSelection{}, err
@@ -47,13 +48,17 @@ func syncGitRepositoriesWithLogger(
 			}
 			continue
 		}
-		updated, updateErr := updateRepository(ctx, config, repoPath, token, logger, event)
+		updated, delta, updateErr := updateRepository(ctx, config, repoPath, token, logger, event)
 		if updateErr == nil && updated {
 			selected = append(selected, repoPath)
+			if !delta.IsEmpty() {
+				deltaByRepoPath[repoPath] = delta
+			}
 		}
 	}
 	return GitSyncSelection{
 		SelectedRepoPaths: sortUniqueStrings(selected),
+		DeltaByRepoPath:   deltaByRepoPath,
 	}, nil
 }
 
@@ -111,37 +116,43 @@ func updateRepository(
 	token string,
 	logger *slog.Logger,
 	event gitSyncLogEvent,
-) (bool, error) {
+) (bool, GitSyncDelta, error) {
 	event = event.withOperation("fetch")
 	branch, err := resolveDefaultBranch(ctx, config, repoPath, token)
 	if err != nil {
 		logGitSyncFailed(ctx, logger, event, err)
-		return false, err
+		return false, GitSyncDelta{}, err
 	}
 	if branch == "" {
 		logGitSyncCompleted(ctx, logger, event, false)
-		return false, nil
+		return false, GitSyncDelta{}, nil
 	}
 
 	event.Branch = branch
 	logGitSyncStarted(ctx, logger, event)
 	if err := gitFetchBranch(ctx, config, repoPath, branch, token, logger, event); err != nil {
 		logGitSyncFailed(ctx, logger, event, err)
-		return false, err
+		return false, GitSyncDelta{}, err
 	}
 	headSHA, err := gitRevParse(ctx, repoPath, "HEAD", config, token)
 	if err != nil {
 		logGitSyncFailed(ctx, logger, event, err)
-		return false, err
+		return false, GitSyncDelta{}, err
 	}
-	remoteSHA, err := gitRevParse(ctx, repoPath, "refs/remotes/origin/"+branch, config, token)
+	remoteRef := "refs/remotes/origin/" + branch
+	remoteSHA, err := gitRevParse(ctx, repoPath, remoteRef, config, token)
 	if err != nil {
 		logGitSyncFailed(ctx, logger, event, err)
-		return false, err
+		return false, GitSyncDelta{}, err
 	}
 	if headSHA == remoteSHA {
 		logGitSyncCompleted(ctx, logger, event, false)
-		return false, nil
+		return false, GitSyncDelta{}, nil
+	}
+	delta, err := gitDiffDelta(ctx, config, repoPath, token, headSHA, remoteRef)
+	if err != nil {
+		logGitSyncFailed(ctx, logger, event, err)
+		return false, GitSyncDelta{}, err
 	}
 
 	if _, err := gitRun(
@@ -155,10 +166,10 @@ func updateRepository(
 		"refs/remotes/origin/"+branch,
 	); err != nil {
 		logGitSyncFailed(ctx, logger, event, err)
-		return false, err
+		return false, GitSyncDelta{}, err
 	}
 	logGitSyncCompleted(ctx, logger, event, true)
-	return true, nil
+	return true, delta, nil
 }
 
 func resolveDefaultBranch(

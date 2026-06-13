@@ -14,8 +14,25 @@ WHERE f.repo_id = $repo_id AND f.evidence_source = 'projector/canonical' AND f.g
   AND (f.path IS NULL OR NOT (f.path IN $file_paths))
 DETACH DELETE f`
 
+const canonicalNodeRetractDeltaDeletedFilesCypher = `UNWIND $file_paths AS file_path
+MATCH (f:File {path: file_path})
+WHERE f.repo_id = $repo_id AND f.evidence_source = 'projector/canonical'
+DETACH DELETE f`
+
+const canonicalNodeRetractDeltaEmptyDirectoriesCypher = `UNWIND $directory_paths AS directory_path
+MATCH (d:Directory {path: directory_path})
+WHERE d.repo_id = $repo_id
+  AND NOT EXISTS { MATCH (d)-[:CONTAINS]->(:File) }
+  AND NOT EXISTS { MATCH (d)-[:CONTAINS]->(:Directory) }
+DETACH DELETE d`
+
 const canonicalNodeRetractEntityTemplate = `MATCH (n:%s)
 WHERE n.repo_id = $repo_id AND n.evidence_source = 'projector/canonical' AND n.generation_id <> $generation_id
+DETACH DELETE n`
+
+const canonicalNodeRetractDeltaEntityTemplate = `MATCH (n:%s)
+WHERE n.repo_id = $repo_id AND n.evidence_source = 'projector/canonical'
+  AND n.path IN $file_paths AND n.generation_id <> $generation_id
 DETACH DELETE n`
 
 const canonicalNodeRetractDirectoriesCypher = `MATCH (d:Directory)

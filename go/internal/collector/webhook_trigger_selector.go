@@ -111,7 +111,7 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 
 	return SelectionBatch{
 		ObservedAt:   observedAt,
-		Repositories: buildSelectedRepositories(s.Config, synced.SelectedRepoPaths),
+		Repositories: buildSelectedRepositories(s.Config, synced.SelectedRepoPaths, synced.DeltaByRepoPath),
 	}, nil
 }
 

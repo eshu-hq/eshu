@@ -12,6 +12,9 @@ type CanonicalMaterialization struct {
 	RepoID                      string
 	RepoPath                    string // repository path used as Directory chain root
 	FirstGeneration             bool   // true when the scope has no prior active generation
+	DeltaProjection             bool   // true when the materialization carries a file-scoped delta
+	DeltaFilePaths              []string
+	DeltaDeletedFilePaths       []string
 	Repository                  *RepositoryRow
 	Directories                 []DirectoryRow
 	Files                       []FileRow
