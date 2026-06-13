@@ -23,6 +23,7 @@ The console should help users answer:
 - which findings need action
 - which replatforming/import-plan candidates are ready, refused, or missing
   ownership evidence
+- what changed between retained repository or service generations
 - what is known, missing, inferred, or stale
 - which cloud resources are unmanaged, drifting, or blocked from safe import
 
@@ -116,6 +117,16 @@ Cloud drift surfaces use bounded POST readbacks:
 The console must render safety gates, missing evidence, pagination, and refused
 candidate state as read-only context. It must not emit Terraform HCL, run
 Terraform, import resources, or mutate cloud state.
+
+The Changed Since console surface is backed by:
+
+- `GET /api/v0/freshness/changed-since`
+- `GET /api/v0/freshness/services/changed-since`
+- `GET /api/v0/freshness/generations`
+
+It must keep retained-window limits visible. When the API returns
+`unavailable=true` or `unavailable_reason=retention_expired`, the page must show
+that unavailable state instead of treating the result as an empty diff.
 
 ## Related Docs
 
