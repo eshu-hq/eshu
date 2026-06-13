@@ -46,6 +46,7 @@ func parseTerraformBackends(body *hclsyntax.Body, source []byte, path string) []
 				}
 				row[item.name] = value
 				row[item.name+"_is_literal"] = isLiteralStringAttribute(item.attribute, source)
+				row[item.name+"_line_number"] = item.attribute.NameRange.Start.Line
 			}
 			rows = append(rows, row)
 		}

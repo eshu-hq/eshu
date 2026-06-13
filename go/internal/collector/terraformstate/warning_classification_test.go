@@ -39,6 +39,13 @@ func TestClassifyWarningStablePairs(t *testing.T) {
 			actionability: "blocking_evidence",
 		},
 		{
+			name:          "unresolved backend expression blocks exact state discovery",
+			warningKind:   "unresolved_backend_expression",
+			reason:        "missing_variable_default",
+			severity:      "blocking",
+			actionability: "blocking_evidence",
+		},
+		{
 			name:          "null tag maps are accepted normalization",
 			warningKind:   "tag_map_dropped",
 			reason:        "null_tag_map",

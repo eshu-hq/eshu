@@ -194,33 +194,74 @@ ORDER BY locator_hash ASC
 `
 
 	// terraformStateRecentWarningsQuery returns the N most recent warning_fact
-	// rows per safe_locator_hash. The N bound is enforced via window-function
-	// ranking so the result size is hard-capped regardless of how many warning
-	// facts a single state has accumulated. Source-system filtering ensures we
-	// look only at terraform_state collector facts.
+	// rows per safe locator or Git source handle. The N bound is enforced via
+	// window-function ranking so the result size is hard-capped regardless of how
+	// many warning facts a single state or backend source has accumulated.
 	terraformStateRecentWarningsQuery = `
-WITH warning_rows AS (
+WITH raw_warning_rows AS (
     SELECT
-        COALESCE(scope.payload->>'locator_hash', '') AS locator_hash,
-        COALESCE(scope.payload->>'backend_kind', '') AS backend_kind,
+        CASE
+            WHEN scope.collector_kind = 'git'
+             AND scope.scope_kind = 'repository'
+             AND fact.payload->>'warning_kind' = 'unresolved_backend_expression'
+             AND COALESCE(fact.payload->>'repo_id', '') <> ''
+             AND COALESCE(fact.payload->>'source_path', '') <> ''
+            THEN CONCAT(fact.payload->>'repo_id', ':', fact.payload->>'source_path')
+            ELSE COALESCE(scope.payload->>'locator_hash', '')
+        END AS locator_hash,
+        CASE
+            WHEN scope.collector_kind = 'git'
+             AND scope.scope_kind = 'repository'
+             AND fact.payload->>'warning_kind' = 'unresolved_backend_expression'
+            THEN 'git'
+            ELSE COALESCE(scope.payload->>'backend_kind', '')
+        END AS backend_kind,
         COALESCE(fact.payload->>'warning_kind', '') AS warning_kind,
         COALESCE(fact.payload->>'reason', '') AS reason,
         COALESCE(fact.payload->>'severity', '') AS severity,
         COALESCE(fact.payload->>'actionability', '') AS actionability,
         COALESCE(fact.payload->>'source', '') AS source,
-        COALESCE(fact.payload->>'source_handle', '') AS source_handle,
+        CASE
+            WHEN scope.collector_kind = 'git'
+             AND scope.scope_kind = 'repository'
+             AND fact.payload->>'warning_kind' = 'unresolved_backend_expression'
+            THEN COALESCE(fact.payload->>'source_path', '')
+            ELSE COALESCE(fact.payload->>'source_handle', '')
+        END AS source_handle,
         fact.generation_id AS generation_id,
         fact.observed_at AS observed_at,
-        ROW_NUMBER() OVER (
-            PARTITION BY COALESCE(scope.payload->>'locator_hash', '')
-            ORDER BY fact.observed_at DESC, fact.fact_id DESC
-        ) AS rank
+        fact.fact_id AS fact_id
     FROM fact_records AS fact
     JOIN ingestion_scopes AS scope
         ON scope.scope_id = fact.scope_id
     WHERE fact.fact_kind = 'terraform_state_warning'
-      AND scope.scope_kind = 'state_snapshot'
-      AND scope.collector_kind = 'terraform_state'
+      AND scope.scope_kind IN ('state_snapshot', 'repository')
+      AND scope.collector_kind IN ('terraform_state', 'git')
+      AND (
+        (scope.scope_kind = 'state_snapshot' AND scope.collector_kind = 'terraform_state')
+        OR (
+            scope.scope_kind = 'repository'
+            AND scope.collector_kind = 'git'
+            AND fact.payload->>'warning_kind' = 'unresolved_backend_expression'
+        )
+      )
+), warning_rows AS (
+    SELECT
+        locator_hash,
+        backend_kind,
+        warning_kind,
+        reason,
+        severity,
+        actionability,
+        source,
+        source_handle,
+        generation_id,
+        observed_at,
+        ROW_NUMBER() OVER (
+            PARTITION BY locator_hash
+            ORDER BY observed_at DESC, fact_id DESC
+        ) AS rank
+    FROM raw_warning_rows
 )
 SELECT locator_hash, backend_kind, warning_kind, reason, severity, actionability, source, source_handle, generation_id, observed_at
 FROM warning_rows

@@ -114,6 +114,61 @@ func TestListTerraformStateRecentWarningsBoundsLimit(t *testing.T) {
 	}
 }
 
+func TestListTerraformStateRecentWarningsIncludesGitBackendExpressionWarnings(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 6, 13, 15, 30, 0, 0, time.UTC)
+	queryer := &fakeQueryer{
+		responses: []fakeRows{
+			{
+				rows: [][]any{
+					{
+						"repository:r_12345678:env/backend.tf",
+						"git",
+						"unresolved_backend_expression",
+						"missing_variable_default",
+						"blocking",
+						"blocking_evidence",
+						"terraform_backend",
+						"env/backend.tf",
+						"git:repository:r_12345678:run-backend-warning",
+						observedAt,
+					},
+				},
+			},
+		},
+	}
+
+	rows, err := listTerraformStateRecentWarnings(context.Background(), queryer, 50)
+	if err != nil {
+		t.Fatalf("listTerraformStateRecentWarnings() error = %v, want nil", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1", len(rows))
+	}
+	row := rows[0]
+	if row.SafeLocatorHash != "repository:r_12345678:env/backend.tf" ||
+		row.BackendKind != "git" ||
+		row.WarningKind != "unresolved_backend_expression" ||
+		row.Reason != "missing_variable_default" ||
+		row.SourceHandle != "env/backend.tf" {
+		t.Fatalf("row = %+v, want Git backend-expression warning", row)
+	}
+	if len(queryer.queries) != 1 {
+		t.Fatalf("queries = %d, want 1", len(queryer.queries))
+	}
+	query := queryer.queries[0]
+	for _, want := range []string{
+		"collector_kind IN ('terraform_state', 'git')",
+		"scope_kind IN ('state_snapshot', 'repository')",
+		"unresolved_backend_expression",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("terraformStateRecentWarningsQuery missing %q:\n%s", want, query)
+		}
+	}
+}
+
 func TestListTerraformStateRecentWarningsAppliesContractDefaultLimit(t *testing.T) {
 	t.Parallel()
 
