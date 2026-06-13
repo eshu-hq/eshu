@@ -114,6 +114,7 @@ canonical-write or bounded counter-emission requirements.
 | `DomainSecurityAlertReconciliation` | Compare provider repository security alerts with Eshu-owned dependency and impact evidence, including alert-seeded impact rows only when owned dependency evidence matches |
 | `DomainSecretsIAMTrustChain` | Build durable secrets/IAM read-model facts from redaction-safe AWS IAM, Kubernetes ServiceAccount/workload, and Vault metadata anchors; supports IRSA and EKS Pod Identity identity-provider hops, writes no graph labels/edges/DDL, and preserves unresolved/stale/partial/permission-hidden/unsupported gaps |
 | `DomainAWSResourceMaterialization` | Materialize `aws_resource` facts into canonical `CloudResource` nodes; publishes the `cloud_resource_uid` canonical-nodes phase the AWS relationship edge gates on (issue #805) |
+| `DomainGCPResourceMaterialization` | Materialize `gcp_cloud_resource` facts into canonical `CloudResource` nodes keyed by `cloudResourceUID(project_id, location, asset_type, full_resource_name)` on the existing `cloud_resource_uid` keyspace; reuses the provider-neutral `CloudResourceNodeWriter`, stores the globally-unique CAI `full_resource_name` as `resource_id` so the GCP relationship edge join resolves endpoints exactly, and publishes the canonical-nodes phase under the distinct `gcp_resource_materialization:<scope>` entity key the GCP relationship edge gates on (issue #2358); see `docs/internal/gcp-cloud-resource-materialization-design.md` |
 | `DomainEC2InstanceNodeMaterialization` | Materialize `ec2_instance_posture` facts into canonical EC2 instance `CloudResource` nodes keyed by `cloudResourceUID(account, region, "aws_ec2_instance", instance_id)` on the existing `cloud_resource_uid` keyspace (the EC2 scanner emits no `aws_resource` inventory fact for instances); carries metadata-only safe identifiers plus derived posture booleans (IMDS, user-data presence, monitoring, public-IP, `instance_profile_arn`) — never user-data content, the raw public IP, or block devices; publishes the `cloud_resource_uid` canonical-nodes phase under the distinct `ec2_instance_node_materialization:<scope>` entity key the future `USES_PROFILE` edge gates on (issue #1146 PR-A); see `docs/internal/design/1146-ec2-instance-node.md` |
 | `DomainKubernetesWorkloadMaterialization` | Materialize `kubernetes_live.pod_template` facts into canonical `KubernetesWorkload` nodes keyed by the collector-emitted `object_id`; publishes the `kubernetes_workload_uid` canonical-nodes phase the #388 live-workload edge gates on |
 | `DomainKubernetesCorrelationMaterialization` | Project exact live-workload correlation decisions into canonical `RUNS_IMAGE` edges from a `KubernetesWorkload` node to the digest-addressed OCI source node it runs; gates on the `kubernetes_workload_uid` canonical-nodes phase, exact-only, never fabricates or dangles an edge (issue #388 PR3) |
@@ -127,6 +128,42 @@ canonical-write or bounded counter-emission requirements.
 | `DomainEC2BlockDeviceKMSPostureMaterialization` | Derive EC2 block-device KMS posture from `ec2_instance_posture.block_devices[]` joined to scanned `aws_ec2_volume`, `aws_kms_key`, and `ec2_volume_uses_kms_key` facts; writes bounded reducer-owned properties onto existing EC2 `CloudResource` nodes only, gates on DUAL `cloud_resource_uid` readiness for the EC2 instance-node phase (`ec2_instance_node_materialization:<scope>`) and the EBS/KMS resource-node phase (`aws_resource_materialization:<scope>`), never writes raw block-device maps, never calls AWS from the reducer, and keeps missing volume facts, missing KMS key facts, AWS-managed/default keys, detached volumes, and tombstones conservative as `state=unknown` (issue #1304) |
 | `DomainS3InternetExposureMaterialization` | Derive conservative `exposed` / `not_exposed` / `unknown` S3 internet-exposure state from `s3_bucket_posture` facts and write reducer-owned properties onto existing S3 `CloudResource` nodes only; gates on the `cloud_resource_uid` canonical-nodes phase, resolves the source bucket through the S3 in-memory join index, never reads or persists raw bucket policy, ACL grants, object keys, or object data, and keeps unknown posture as `state=unknown` with no boolean exposure property (issue #1232); see `docs/internal/design/1232-s3-internet-exposure.md` |
 | `DomainIncidentRoutingMaterialization` | Project exact PagerDuty incident-routing evidence into reducer-owned `IncidentRoutingEvidence` graph nodes and intended/applied/live evidence relationships without promoting runtime, image, commit, pull-request, Jira, service-health, or root-cause truth |
+
+## GCP Cloud Resource Materialization
+
+`DomainGCPResourceMaterialization` mirrors `DomainAWSResourceMaterialization`
+for GCP. It loads the scope generation's `gcp_cloud_resource` facts, projects
+them into deterministic `CloudResource` node rows keyed by
+`cloudResourceUID(project_id, location, asset_type, full_resource_name)`, and
+writes them through the provider-neutral `CloudResourceNodeWriter` (no new
+Cypher). Incomplete identities (missing `full_resource_name` or `asset_type`)
+are dropped, never fabricated; duplicate facts converge on one node by uid. The
+globally-unique Cloud Asset Inventory `full_resource_name` is stored as
+`resource_id` so the GCP relationship edge projection (#2348) can resolve
+endpoints exactly by name. After the node write succeeds (or is a legitimate
+no-op for an empty generation) the handler publishes the
+`cloud_resource_uid` `canonical_nodes_committed` readiness phase under the
+distinct `gcp_resource_materialization:<scope>` acceptance unit, so the GCP edge
+stage gates on GCP node readiness without colliding with the AWS node phase.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'GCPResourceMaterialization|ExtractGCPCloudResourceNodeRows' -count=1` (handler,
+node extraction, dedupe, identity-drop, and phase-publish behavior) plus
+`go test ./internal/reducer -run '^$' -bench
+'BenchmarkExtractGCPCloudResourceNodeRows' -benchmem`: GCP node extraction of
+5,000 `gcp_cloud_resource` facts measured 13.0 ms/op vs the proven AWS
+`BenchmarkExtractCloudResourceNodeRows` at 17.7 ms/op on the same host — the
+bounded O(R) extraction carries the same shape as the AWS substrate, and the
+graph write reuses the unchanged `canonicalCloudResourceUpsertCypher` writer, so
+no new hot-path Cypher is introduced.
+
+Observability Evidence: the handler emits a `gcp resource materialization
+completed` structured completion log carrying `scope_id`, `generation_id`,
+`domain`, `fact_count`, `node_count`, and per-stage
+`load_facts_duration_seconds` / `extract_duration_seconds` /
+`graph_write_duration_seconds` / `phase_publish_duration_seconds` /
+`total_duration_seconds`, so an operator can see whether GCP node materialization
+is fact-load, extraction, or graph-write bound at 3 AM.
 
 ## Secrets/IAM Trust-Chain Read Model
 

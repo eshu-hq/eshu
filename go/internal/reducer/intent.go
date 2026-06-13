@@ -95,6 +95,15 @@ const (
 	// relationship edge projection (issue #805) joins against; see
 	// docs/internal/aws-relationship-edge-materialization-design.md.
 	DomainAWSResourceMaterialization Domain = "aws_resource_materialization"
+	// DomainGCPResourceMaterialization materializes gcp_cloud_resource facts into
+	// canonical CloudResource graph nodes, mirroring DomainAWSResourceMaterialization
+	// for GCP. It is the node substrate the GCP relationship edge projection
+	// (issue #2348) joins against and publishes the
+	// GraphProjectionPhaseCanonicalNodesCommitted readiness phase under its own
+	// distinct entity key (gcp_resource_materialization:<scope>) so the GCP edge
+	// stage gates on GCP node readiness independently of the AWS node phase. See
+	// docs/internal/gcp-cloud-resource-materialization-design.md.
+	DomainGCPResourceMaterialization Domain = "gcp_resource_materialization"
 	// DomainWorkloadCloudRelationshipMaterialization projects exact
 	// reducer-owned service/workload anchors on CloudResource facts into
 	// canonical WorkloadInstance USES CloudResource graph edges. Queue claiming

@@ -32,6 +32,7 @@ var knownDomains = map[Domain]struct{}{
 	DomainAWSCloudRuntimeDrift:                     {},
 	DomainMultiCloudRuntimeDrift:                   {},
 	DomainAWSResourceMaterialization:               {},
+	DomainGCPResourceMaterialization:               {},
 	DomainWorkloadCloudRelationshipMaterialization: {},
 	DomainEC2InstanceNodeMaterialization:           {},
 	DomainAWSRelationshipMaterialization:           {},
