@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync/atomic"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -17,15 +18,22 @@ import (
 
 // registerReducerObservableGauges wires the reducer's OpenTelemetry observable
 // gauges: queue depth/oldest-age (eshu_dp_queue_depth,
-// eshu_dp_queue_oldest_age_seconds) and the shared-acceptance read-model gauge
-// (eshu_dp_shared_acceptance_rows). The worker-pool gauge is left unregistered
-// here; it requires per-pool active-worker instrumentation tracked separately.
-// Both observers read cheap, bounded queries, so they add no scan cost per
-// metrics scrape. It lives here rather than in main.go to keep that file within
-// the repo file-size budget.
-func registerReducerObservableGauges(instruments *telemetry.Instruments, meter metric.Meter, db *sql.DB) error {
+// eshu_dp_queue_oldest_age_seconds), the active worker-pool gauge
+// (eshu_dp_worker_pool_active, backed by activeWorkers), and the
+// shared-acceptance read-model gauge (eshu_dp_shared_acceptance_rows). The queue
+// and acceptance observers read cheap, bounded queries; the worker observer
+// reads an in-memory atomic counter. None add scan cost per metrics scrape. It
+// lives here rather than in main.go to keep that file within the file-size
+// budget.
+func registerReducerObservableGauges(
+	instruments *telemetry.Instruments,
+	meter metric.Meter,
+	db *sql.DB,
+	activeWorkers *atomic.Int64,
+) error {
 	queueObserver := postgres.NewQueueObserverStore(postgres.SQLQueryer{DB: db})
-	if err := telemetry.RegisterObservableGauges(instruments, meter, queueObserver, nil); err != nil {
+	workerObserver := reducerWorkerObserver{active: activeWorkers}
+	if err := telemetry.RegisterObservableGauges(instruments, meter, queueObserver, workerObserver); err != nil {
 		return fmt.Errorf("register observable gauges: %w", err)
 	}
 

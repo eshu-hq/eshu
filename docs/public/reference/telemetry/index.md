@@ -112,6 +112,18 @@ uses `postgres.query` with `db.operation=list_semantic_evidence`, letting
 operators separate opt-in semantic observation or code-hint inspection from
 deterministic documentation, code, and graph-truth reads.
 
+## Reducer worker-pool gauge
+
+The reducer publishes `eshu_dp_worker_pool_active` (labeled `pool="reducer"`),
+an observable gauge of the number of intents executing concurrently — i.e. the
+active reducer workers. It is sourced by decorating the reducer's executor with
+an atomic in-flight counter, so every execution path (sequential, per-item
+concurrent, and batch concurrent) is counted in one place without touching the
+worker loops. Reading it costs an atomic load per scrape. Compare it against the
+configured `ESHU_REDUCER_WORKERS` to see saturation, and against
+`eshu_dp_queue_depth` to see whether a backlog is caused by too few active
+workers or by upstream starvation.
+
 ## Shared-acceptance read-model gauge
 
 The reducer publishes `eshu_dp_shared_acceptance_rows`, an observable gauge of
@@ -126,14 +138,19 @@ tracks the true count within autovacuum/`ANALYZE` freshness. This is deliberate:
 the observable callback runs on every metrics scrape, and a per-scrape full table
 scan would be a real cost on a large acceptance table.
 
-Observability Evidence: `eshu_dp_shared_acceptance_rows` was a defined-but-never-
-registered instrument; the reducer now registers its callback, so the read-model
-size is visible to operators for the first time. Verified by
-`TestRegisterAcceptanceObservableGauges_WithObserver` (emission) and
-`TestAcceptanceRowCount*` (the estimate source).
+Observability Evidence: `eshu_dp_shared_acceptance_rows` and
+`eshu_dp_worker_pool_active` were defined-but-never-registered instruments; the
+reducer now registers both callbacks, so the read-model size and active worker
+count are visible to operators for the first time. Verified by
+`TestRegisterAcceptanceObservableGauges_WithObserver` /
+`TestRegisterObservableGauges_WithObservers` (emission), `TestAcceptanceRowCount*`
+(the estimate source), and `TestActiveWorkerExecutorTracksConcurrency` (the
+in-flight counter under `-race`).
 
-No-Regression Evidence: the observer issues a single O(1) catalog lookup
-(`SELECT reltuples FROM pg_class …`) per scrape — no table scan, no new worker,
-queue, lease, or graph write. Backend: PostgreSQL via the existing reducer pool.
-Verified by `go test ./internal/storage/postgres ./cmd/reducer ./internal/telemetry
--count=1`.
+No-Regression Evidence: the acceptance observer issues a single O(1) catalog
+lookup (`SELECT reltuples FROM pg_class …`) per scrape — no table scan. The
+worker gauge adds two atomic operations per executed intent (one increment, one
+deferred decrement) and an atomic load per scrape — no lock, no contention, and
+no new worker, queue, lease, or graph write. Backend: PostgreSQL via the existing
+reducer pool. Verified by `go test ./internal/storage/postgres ./cmd/reducer
+./internal/telemetry -count=1` (and `-race` on the worker-gauge test).
