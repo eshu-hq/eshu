@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 124
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 125
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,7 +59,7 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 124 tools from the tool definition files.
+`ReadOnlyTools` assembles 125 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
@@ -91,6 +91,7 @@ flowchart TB
 | `documentationTools` | 4 | `tools_documentation.go` |
 | `queryPlaybookTools` | 2 | `tools_query_playbooks.go` |
 | `semanticEvidenceTools` | 2 | `tools_semantic_evidence.go` |
+| `semanticSearchTools` | 1 | `tools_semantic_search.go` |
 | `documentationFindingAggregateTools` | 2 | `tools_documentation_aggregates.go` |
 | `componentExtensionTools` | 2 | `tools_component_extensions.go` |
 | `runtimeTools` | 7 | `tools_runtime.go` |
@@ -157,6 +158,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_documentation_facts` | GET | `/api/v0/documentation/facts` with scope, repo, target, service, source, document, section, and search filters |
 | `list_semantic_documentation_observations` | GET | `/api/v0/semantic/documentation-observations` with scope, source, provider, prompt, freshness, policy, and admission filters |
 | `list_semantic_code_hints` | GET | `/api/v0/semantic/code-hints` with repo, path, entity, provider, prompt, freshness, policy, and corroboration filters |
+| `search_semantic_context` | POST | `/api/v0/search/semantic` with repository id, query, mode, limit, timeout, optional service/workload/environment anchors, and source-kind filters |
 | `get_documentation_evidence_packet` | GET | `/api/v0/documentation/findings/{finding_id}/evidence-packet` |
 | `check_documentation_evidence_packet_freshness` | GET | `/api/v0/documentation/evidence-packets/{packet_id}/freshness` |
 | `list_query_playbooks` | GET | `/api/v0/query-playbooks` |

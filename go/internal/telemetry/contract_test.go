@@ -136,6 +136,7 @@ func TestSpanNames(t *testing.T) {
 		"query.documentation_evidence_packet",
 		"query.documentation_packet_freshness",
 		"query.semantic_evidence",
+		"query.semantic_search",
 		"query.documentation_aggregate",
 		"query.dead_iac",
 		"query.iac_unmanaged_resources",

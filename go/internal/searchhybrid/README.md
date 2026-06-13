@@ -65,8 +65,10 @@ re-embedded.
 
 None directly. This is a retrieval backend behind `searchretrieval.Runner`, whose
 `Observation` captures mode, scope anchor, duration, candidate and result counts,
-truncation, timeout, candidate truth-level counts, and failure classes. A live
-search surface must bridge those to the design-430 §6 operator signals.
+truncation, timeout, candidate truth-level counts, and failure classes. The
+public semantic-search route adds a route-level `query.semantic_search` span; a
+future hosted semantic backend must still bridge retrieval observations to the
+design-430 operator metrics without high-cardinality labels.
 
 ## Gotchas / invariants
 

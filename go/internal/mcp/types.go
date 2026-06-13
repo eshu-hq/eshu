@@ -38,6 +38,7 @@ func ReadOnlyTools() []ToolDefinition {
 	tools = append(tools, documentationTools()...)
 	tools = append(tools, queryPlaybookTools()...)
 	tools = append(tools, semanticEvidenceTools()...)
+	tools = append(tools, semanticSearchTools()...)
 	tools = append(tools, documentationFindingAggregateTools()...)
 	tools = append(tools, componentExtensionTools()...)
 	tools = append(tools, runtimeTools()...)

@@ -362,6 +362,9 @@ const (
 	// code, and graph-truth routes so API/MCP callers can distinguish semantic
 	// provenance from canonical truth in traces.
 	SpanQuerySemanticEvidence = "query.semantic_evidence"
+	// SpanQuerySemanticSearch wraps bounded curated search-document retrieval
+	// exposed through the HTTP API and MCP transport.
+	SpanQuerySemanticSearch = "query.semantic_search"
 	// SpanQueryDocumentationAggregate wraps cheap-summary count and inventory
 	// aggregates over reducer-owned documentation findings. Replaces the
 	// page-and-iterate caller pattern for ecosystem-level questions like

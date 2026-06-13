@@ -1,11 +1,14 @@
 # Search Retrieval Contract
 
-Search retrieval is an internal evaluation path for issue #417. It is not a
-public HTTP API route, MCP tool, or default runtime search feature.
+Search retrieval is the bounded contract behind curated Eshu search-document
+ranking. It powers internal evaluation paths and the repository-bounded
+`POST /api/v0/search/semantic` route plus MCP `search_semantic_context` tool. It
+is not a default whole-graph search feature.
 
-The contract lives in `go/internal/searchretrieval`. It validates bounded
-semantic-evaluation requests and normalizes ranked `EshuSearchDocument`
-candidates before later adapters call Postgres, NornicDB, or any other backend.
+The core contract lives in `go/internal/searchretrieval`. It validates bounded
+retrieval requests and normalizes ranked `EshuSearchDocument` candidates before
+adapters call Postgres, NornicDB, the in-process hybrid index, or any other
+backend.
 
 ## Request Contract
 
@@ -104,7 +107,7 @@ The pinned NornicDB gRPC request shape exposes labels but not property filters.
 This branch therefore post-checks the returned candidate scope and does not
 claim full #417 measured acceptance until live evidence proves pre-search
 scoping, or a documented design exception is accepted. There is still no
-whole-graph fallback and no public API/MCP exposure.
+whole-graph fallback, and the NornicDB adapter remains internal-only.
 
 ## Postgres Keyword Baseline Adapter
 
@@ -151,8 +154,32 @@ The backend:
   so the runner detects truncation;
 - emits derived retrieval evidence, never canonical graph truth.
 
-Like the other adapters this is retrieval plumbing evaluated by the design-430
-benchmark; it adds no public route, MCP tool, runtime flag, or graph write.
+This backend is now used by the repository-bounded semantic-search API/MCP
+surface and by design-430 benchmark evaluation. It still adds no runtime flag or
+graph write, and it does not enable whole-graph search.
+
+## Public Route And MCP Tool
+
+`POST /api/v0/search/semantic` and MCP `search_semantic_context` expose the
+first public repository-bounded retrieval slice over active curated search
+documents.
+
+The public surface:
+
+- requires `repo_id`, `query`, `mode`, `limit`, and `timeout_ms`;
+- treats `repo_id` as the durable search-document scope id for this slice;
+- optionally narrows within that repository by service, workload, environment,
+  and curated `source_kinds`;
+- caps the active corpus at 500 documents before indexing;
+- caps returned results at 100;
+- returns the canonical Eshu envelope when requested;
+- reports derived truth basis, freshness, graph handles, `search_method`,
+  `indexed_document_count`, `corpus_limit`, `corpus_may_be_truncated`, and
+  false canonical claim count.
+
+Scoped-token behavior is fail-closed before storage access. Empty repository
+grants return an empty result set, and out-of-grant repository ids return
+not-found.
 
 ## Response Contract
 
@@ -184,16 +211,14 @@ recall, precision, nDCG, and false-canonical-claim metrics defined for issue
 This contract does not:
 
 - read or write graph state;
-- expose HTTP or MCP routes;
-- add OpenAPI or MCP tool contracts;
-- enable default runtime search.
+- decide HTTP authorization, envelope negotiation, or OpenAPI/MCP schemas;
+- enable default runtime or whole-graph search.
 
 The internal Postgres and NornicDB adapters can call their backends when
-explicitly constructed by a benchmark or proof harness. The contract still does
-not enable default runtime search or public retrieval.
-
-Those steps require later PRs with telemetry, capability envelopes, backend
-proof, and semantic-evaluation evidence.
+explicitly constructed by a benchmark or proof harness. The semantic-search
+route currently uses active curated search documents and the in-process hybrid
+backend; broader default runtime search still requires separate telemetry,
+capability, backend-proof, and semantic-evaluation evidence.
 
 ## Verification Gate
 

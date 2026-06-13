@@ -13,6 +13,8 @@ const EnvelopeMIMEType = "application/eshu.envelope+json"
 // query truth.
 const CapabilityQueryPlaybooks = "query.playbooks"
 
+const semanticSearchCapability = "semantic_search.curated_retrieval"
+
 type QueryProfile string
 
 const (
@@ -159,6 +161,13 @@ var capabilityMatrix = map[string]capabilitySupport{
 		LocalFullStackMax:     &truthExact,
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalLightweight,
+	},
+	semanticSearchCapability: {
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthDerived,
+		LocalFullStackMax:     &truthDerived,
+		ProductionMax:         &truthDerived,
+		RequiredProfile:       ProfileLocalAuthoritative,
 	},
 	"code_search.exact_symbol": {
 		LocalLightweightMax:   &truthExact,

@@ -84,6 +84,7 @@ type Result struct {
 	Freshness  searchdocs.Freshness       `json:"freshness"`
 	Handles    []searchdocs.GraphHandle   `json:"graph_handles"`
 	Failures   []searchbench.FailureClass `json:"failures,omitempty"`
+	Metadata   map[string]string          `json:"metadata,omitempty"`
 }
 
 // Response is the normalized bounded retrieval output.
@@ -167,6 +168,7 @@ func BuildResponse(req Request, candidates []Candidate) (Response, error) {
 			Freshness:  doc.Freshness,
 			Handles:    append([]searchdocs.GraphHandle(nil), doc.GraphHandles...),
 			Failures:   append([]searchbench.FailureClass(nil), candidate.Failures...),
+			Metadata:   cloneStringMap(candidate.Metadata),
 		})
 	}
 
@@ -208,7 +210,19 @@ func cloneDocument(doc searchdocs.Document) searchdocs.Document {
 	doc.EntityRefs = append([]searchdocs.EntityRef(nil), doc.EntityRefs...)
 	doc.GraphHandles = append([]searchdocs.GraphHandle(nil), doc.GraphHandles...)
 	doc.Labels = append([]string(nil), doc.Labels...)
+	doc.Provenance.SourceIDs = append([]string(nil), doc.Provenance.SourceIDs...)
 	return doc
+}
+
+func cloneStringMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make(map[string]string, len(values))
+	for key, value := range values {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 func validMode(mode searchbench.Mode) bool {
