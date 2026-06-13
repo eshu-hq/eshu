@@ -17,7 +17,7 @@
 // OCI registry projection keeps digest-addressed manifests, indexes, and
 // descriptors as canonical identity while treating tags as mutable weak
 // observations that can enrich queries but do not mint image identity.
-// OCI, Git, AWS, and GCP image-reference evidence emits one
+// OCI, Git, AWS, Azure, and GCP image-reference evidence emits one
 // container_image_identity reducer intent per scope generation; the reducer
 // owns the cross-source join.
 // AWS resource observations stay source-local until buildAWSCloudRuntimeDriftReducerIntent

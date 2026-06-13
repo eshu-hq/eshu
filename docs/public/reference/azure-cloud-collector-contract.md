@@ -62,6 +62,14 @@ resource on their own), surfaced as `tag_value_fingerprints` on the
 `GET /api/v0/cloud/inventory` readback. Tag value text never crosses the wire;
 only the keyed markers do.
 
+`azure_image_reference` facts now feed the existing `container_image_identity`
+handoff and reducer path when such facts are present. The projector enqueues the
+existing image-identity reducer domain for Azure image-reference generations,
+the reducer keeps digest-first behavior, and the active Postgres image-identity
+loader includes Azure image-reference facts. Azure owning ARM identities remain
+source evidence only; they do not mint repository, workload, service, or graph
+truth.
+
 Everything else stays gated. Do not add Helm values, chart paths, claim-driven
 workflow scheduling, or a live Resource Graph/ARM transport until implementation
 PRs prove the live runtime adapter (`azureruntime.LiveProviderFactory`) and
@@ -80,7 +88,8 @@ unit-proven: change records carry changed property paths plus a fingerprinted
 actor (a delete is a tombstone candidate only); DNS records fingerprint the
 record name and every target; image references are digest-first with a
 fingerprinted container name. All Azure source fact-family envelope builders are
-now implemented; scan-loop emission and reducer admission for each follow.
+now implemented; scan-loop emission for the later source families and reducer
+admission for identities, changes, DNS, and relationships follow.
 
 The implemented slices remain fixture-testable without live Azure access.
 Live smoke tests are promotion proof, not the minimum proof for the source
@@ -97,13 +106,33 @@ leaks raw provider locators. `go test ./internal/reducer ./internal/storage/post
 proves tag-evidence fingerprints attach only to the resource sharing their uid,
 never admit a resource on their own, leave the AWS/GCP path unchanged when no
 tag loader is configured, and surface as `tag_value_fingerprints` on the
-readback without exposing tag value text.
+readback without exposing tag value text. `go test ./internal/projector -run
+TestBuildProjectionQueuesContainerImageIdentityForAzureImageReference -count=1`
+proves Azure image-reference generations enqueue the existing
+`container_image_identity` reducer domain. `go test ./internal/reducer -run
+'Test(ContainerImageIdentityFactKindsIncludesAzureImageReferences|BuildContainerImageIdentityDecisions(ConsumesAzureDigestReference|ResolvesAzureTagOnlyWithRegistryEvidence))'
+-count=1` proves `azure_image_reference` facts are loaded by the
+image-identity reducer, explicit Azure digests become exact digest-keyed
+identity decisions, tag-only Azure facts require OCI registry tag evidence, and
+the owning ARM resource identity does not invent repository anchors. `go test
+./internal/storage/postgres -run
+TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerations
+-count=1` proves the active cross-scope image-identity fact loader includes
+Azure image-reference facts while preserving active-generation and tombstone
+predicates.
 
 No-Observability-Change: the live Azure runtime adapter stays gated. The
 runtime scaffolding slice adds a non-claimed source and binary that emit a
 bounded per-target span (`collector.azure.scope_scan`) and reuse the
 package-local bounded-label Azure instruments only. It adds no live Azure call,
-no chart values, no shared-registry telemetry series, and no query claims.
+no chart values, no shared-registry telemetry series, and no query claims. Azure
+image identity admission reuses the existing projector reducer-intent handoff,
+`container_image_identity` reducer execution, durable
+`reducer_container_image_identity` fact writer, active OCI registry evidence
+loader, active-generation fact predicates, and
+`eshu_dp_container_image_identity_decisions_total` outcome counter; it adds no
+live provider call, route, queue domain, worker, runtime knob, metric label,
+graph write, or chart surface.
 
 ## Source Truth
 

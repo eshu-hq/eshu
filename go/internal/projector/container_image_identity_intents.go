@@ -40,6 +40,8 @@ func containerImageIdentityTriggerFact(envelope facts.Envelope) bool {
 		return true
 	case facts.AWSImageReferenceFactKind:
 		return true
+	case facts.AzureImageReferenceFactKind:
+		return true
 	case facts.GCPImageReferenceFactKind:
 		return true
 	case facts.AWSRelationshipFactKind:
