@@ -10,17 +10,30 @@ describe("DashboardPage", () => {
   it("renders runtime stat tiles and panels from the model", () => {
     render(<DashboardPage model={demoModel} />);
 
+    const atlasTitle = screen.getByText("Code-to-cloud topology");
+    const statTitle = screen.getByText("Graph nodes");
+    expect(Boolean(atlasTitle.compareDocumentPosition(statTitle) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+
     expect(screen.getByText("Graph nodes")).toBeInTheDocument();
     expect(screen.getByText("Relationships")).toBeInTheDocument();
     expect(screen.getByText("Indexed repos")).toBeInTheDocument();
     expect(screen.getByText("Queue outstanding")).toBeInTheDocument();
 
-    expect(
-      screen.getByText("Code-to-cloud relationship atlas")
-    ).toBeInTheDocument();
+    expect(screen.getByText("Hot entities")).toBeInTheDocument();
+    expect(screen.getByText("Seed probes capped at 8 catalog services.")).toBeInTheDocument();
     expect(screen.getByText(/click any node or relationship edge to read its evidence/i)).toBeInTheDocument();
     expect(screen.getByText("Relationship coverage")).toBeInTheDocument();
     expect(screen.getByText("Needs attention")).toBeInTheDocument();
+  });
+
+  it("filters the landing topology by layer without fetching new data", () => {
+    render(<DashboardPage model={demoModel} />);
+
+    expect(screen.getByText("9 nodes · 8 edges")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "runtime 4" }));
+
+    expect(screen.getByText("5 nodes · 4 edges")).toBeInTheDocument();
+    expect(screen.queryByText("9 nodes · 8 edges")).not.toBeInTheDocument();
   });
 
   it("marks graph count metrics unavailable instead of fabricating demo numbers", () => {
@@ -254,6 +267,52 @@ describe("DashboardPage", () => {
     ]);
   });
 
+  it("keeps the latest clicked atlas node when live expansion responses finish out of order", async () => {
+    const resolvers = new Map<string, (value: unknown) => void>();
+    const client = {
+      postJson: async (_path: string, body: unknown) => ({
+        entities: [
+          {
+            entity_id: `workload:${requestName(body)}`,
+            labels: ["Workload"],
+            name: requestName(body)
+          }
+        ]
+      }),
+      post: (path: string, body: unknown) => new Promise((resolve) => {
+        resolvers.set(requestFrom(body), resolve);
+        if (path !== "/api/v0/impact/entity-map") {
+          throw new Error(`unexpected path ${path}`);
+        }
+      })
+    } as unknown as EshuApiClient;
+
+    render(<DashboardPage model={liveModelWithServices()} client={client} />);
+
+    await waitFor(() => {
+      expect(resolvers.has("checkout-service")).toBe(true);
+    });
+    resolveEntityMap(resolvers, "checkout-service", "payments-api");
+    await screen.findByText("payments-api");
+
+    fireEvent.click(graphLabel("checkout-service"));
+    await waitFor(() => {
+      expect(resolvers.has("checkout-service")).toBe(true);
+    });
+    fireEvent.click(graphLabel("payments-api"));
+    await waitFor(() => {
+      expect(resolvers.has("payments-api")).toBe(true);
+    });
+    resolveEntityMap(resolvers, "payments-api", "ledger-service");
+    await screen.findByText("ledger-service");
+    resolveEntityMap(resolvers, "checkout-service", "stale-service");
+
+    await waitFor(() => {
+      expect(screen.getByText("ledger-service")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("stale-service")).not.toBeInTheDocument();
+  });
+
   it("does not invent an atlas seed when live data has no entities", () => {
     const client = {
       postJson: vi.fn(),
@@ -312,6 +371,45 @@ function liveModelWithTrivialThenHub(): ConsoleModel {
       profile: "local_full_stack", queueOutstanding: 0, repositories: 2, succeeded: 2, workloads: 2
     }
   });
+}
+
+function resolveEntityMap(resolvers: Map<string, (value: unknown) => void>, from: string, related: string): void {
+  const resolve = resolvers.get(from);
+  if (!resolve) throw new Error(`missing resolver for ${from}`);
+  resolvers.delete(from);
+  resolve({
+    data: {
+      from,
+      resolution: {
+        candidates: [
+          {
+            id: `workload:${from}`,
+            labels: ["Workload"],
+            name: from
+          }
+        ]
+      },
+      evidence: {
+        relationships: [
+          {
+            direction: "outgoing",
+            entity_id: `workload:${related}`,
+            entity_labels: ["Workload"],
+            entity_name: related,
+            relationship_type: "DEPENDS_ON"
+          }
+        ]
+      }
+    },
+    error: null,
+    truth: null
+  });
+}
+
+function graphLabel(label: string): HTMLElement {
+  const text = screen.getAllByText(label).find((element) => element.tagName.toLowerCase() === "text");
+  if (!text) throw new Error(`missing graph label ${label}`);
+  return text as HTMLElement;
 }
 
 function requestFrom(body: unknown): string {
