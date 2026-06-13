@@ -81,6 +81,58 @@ missing scope ID, never triggers a skip. The comparison only looks at the latest
 pending or active generation with a hint, so a hint never resurrects a terminal
 generation.
 
+## How git delta sync baselines on the last projected commit
+
+For git repository scopes the collector avoids re-parsing the whole repository
+on every sync: it diffs the remote branch against a baseline commit and snapshots
+only the changed files (a **delta generation**). The baseline must be chosen
+carefully. Using the local working-copy HEAD is unsafe — if a prior generation's
+projection failed *after* its checkout advanced HEAD, the next sync would diff
+from the already-advanced HEAD and silently skip the unprojected changes, leaving
+stale graph state that retraction never cleans (epic #2340).
+
+The baseline is therefore the source commit of the most recent generation that
+reached a projected state, not the local HEAD. Each generation records the commit
+it was observed from on `scope_generations.source_commit_sha`
+(`scope.ScopeGeneration.SourceCommitSHA`), set by the snapshotter from the
+checked-out HEAD. At sync time the collector resolves the baseline through
+`LastProjectedCommitSHA` (`go/internal/storage/postgres/generation_projected_commit.go`):
+
+```sql
+SELECT source_commit_sha
+FROM scope_generations
+WHERE scope_id = $1
+  AND status IN ('active', 'completed', 'superseded')
+  AND source_commit_sha IS NOT NULL
+  AND source_commit_sha <> ''
+ORDER BY ingested_at DESC, generation_id DESC
+LIMIT 1
+```
+
+Only `active`, `completed`, and `superseded` generations count as projected;
+`pending` and `failed` generations never materialized into the graph, so their
+commits must not advance the baseline.
+
+The sync falls back to a full snapshot — re-observing the whole repository — when
+no trustworthy baseline exists or a delta would be wrong:
+
+- **First sync** for a scope (no projected generation yet): there is no baseline,
+  so the full repository is observed.
+- **Divergence / shallow-clone prune**: the recorded baseline is not reachable in
+  the local checkout (`git cat-file -e <sha>^{commit}` fails), so a delta diff
+  would be incorrect and a full snapshot is taken instead.
+- **Baseline lookup error**: the resolver read against Postgres failed; rather
+  than trust the local HEAD as a delta base, the sync logs
+  `git_delta_baseline_lookup_failed` and takes a full snapshot.
+
+Each fallback increments `eshu_dp_collector_delta_baseline_fallback_total`,
+labeled by `skip_reason` (`no_projected_baseline`, `baseline_unreachable`,
+`baseline_lookup_error`), so operators can watch the delta-skip rate and tell a
+fleet of cold first syncs apart from a Postgres outage. In the common case where projection
+succeeds, the local branch ref still pins the last projected commit, so the
+baseline stays reachable and delta sync keeps applying; full snapshots are paid
+only on first sync or genuine divergence.
+
 ## How webhook triggers differ from source truth
 
 Webhooks make refresh timely; they never substitute for source observation.

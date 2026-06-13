@@ -150,7 +150,16 @@ func buildIngesterCollectorService(
 		return collector.Service{}, err
 	}
 
-	nativeSelector := collector.NativeRepositorySelector{Config: config, Logger: logger}
+	// committer doubles as the delta-baseline resolver: it reads the last
+	// projected commit per scope from scope_generations so git delta syncs
+	// baseline on a durable commit instead of the local working-copy HEAD
+	// (epic #2340).
+	nativeSelector := collector.NativeRepositorySelector{
+		Config:           config,
+		Logger:           logger,
+		BaselineResolver: committer,
+		Instruments:      instruments,
+	}
 	selector := collector.RepositorySelector(nativeSelector)
 	handoffConfig := collector.LoadWebhookTriggerHandoffConfig("ingester", getenv)
 	if !scheduledSyncConfig.Enabled && !handoffConfig.Enabled {
@@ -158,11 +167,13 @@ func buildIngesterCollectorService(
 	}
 	if handoffConfig.Enabled {
 		webhookSelector := collector.WebhookTriggerRepositorySelector{
-			Config:     config,
-			Store:      postgres.NewWebhookTriggerStore(database),
-			Owner:      handoffConfig.Owner,
-			ClaimLimit: handoffConfig.ClaimLimit,
-			Logger:     logger,
+			Config:           config,
+			Store:            postgres.NewWebhookTriggerStore(database),
+			Owner:            handoffConfig.Owner,
+			ClaimLimit:       handoffConfig.ClaimLimit,
+			Logger:           logger,
+			BaselineResolver: committer,
+			Instruments:      instruments,
 		}
 		if scheduledSyncConfig.Enabled {
 			selector = collector.PriorityRepositorySelector{Selectors: []collector.RepositorySelector{

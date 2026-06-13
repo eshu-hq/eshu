@@ -53,9 +53,13 @@ type SelectedRepository struct {
 
 // RepositorySnapshot captures one repository parse snapshot and content transport.
 type RepositorySnapshot struct {
-	RepoPath        string                  `json:"repo_path"`
-	RemoteURL       string                  `json:"remote_url"`
-	FileCount       int                     `json:"file_count"`
+	RepoPath  string `json:"repo_path"`
+	RemoteURL string `json:"remote_url"`
+	FileCount int    `json:"file_count"`
+	// HeadCommitSHA is the Git commit the snapshot content reflects (the
+	// checked-out HEAD). It becomes ScopeGeneration.SourceCommitSHA, the durable
+	// baseline a later delta sync diffs against. Empty for non-git snapshots.
+	HeadCommitSHA   string                  `json:"head_commit_sha,omitempty"`
 	ImportsMap      map[string][]string     `json:"imports_map"`
 	FileData        []map[string]any        `json:"file_data"`
 	ContentFiles    []ContentFileSnapshot   `json:"content_files"`
@@ -857,6 +861,7 @@ func buildGeneration(
 	repoPath string,
 	observedAt time.Time,
 	freshnessHint string,
+	sourceCommitSHA string,
 ) scope.ScopeGeneration {
 	return scope.ScopeGeneration{
 		GenerationID: facts.StableID(
@@ -866,11 +871,12 @@ func buildGeneration(
 				"source_run_id": sourceRunID,
 			},
 		),
-		ScopeID:       scopeID,
-		ObservedAt:    observedAt,
-		IngestedAt:    observedAt,
-		Status:        scope.GenerationStatusPending,
-		TriggerKind:   scope.TriggerKindSnapshot,
-		FreshnessHint: freshnessHint,
+		ScopeID:         scopeID,
+		ObservedAt:      observedAt,
+		IngestedAt:      observedAt,
+		Status:          scope.GenerationStatusPending,
+		TriggerKind:     scope.TriggerKindSnapshot,
+		FreshnessHint:   freshnessHint,
+		SourceCommitSHA: sourceCommitSHA,
 	}
 }
