@@ -110,6 +110,13 @@ High-signal invariants for this package:
   `eshu_search_index_stats` stores corpus size and average length so API/MCP
   search reads do not rebuild a full corpus per request. The pending sweeper
   re-enqueues scopes whose active search documents exist but stats are missing.
+- Relationship evidence backfill stays bounded to latest active repository
+  facts, file/content facts, and `gcp_cloud_relationship` facts. GCP
+  relationship facts are included explicitly because they are provider-resource
+  facts without repository file content, while the resolver still requires
+  distinct catalog matches before evidence is persisted. Streaming commit-time
+  evidence discovery remains repository-scope only; cloud-scope relationship
+  facts enter repository generations through deferred backfill.
 
 No-Regression Evidence: scoped hot-path notes live in
 [`evidence-notes.md`](evidence-notes.md), including #2059 claimed fact commit

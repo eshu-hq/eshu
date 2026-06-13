@@ -2,11 +2,11 @@
 
 ## Purpose
 
-`relationships` extracts IaC deployment evidence from fact envelopes and
-resolves that evidence into typed cross-repository relationships before reducer
-admission. It covers Terraform, Terraform provider schemas, Terragrunt, Helm,
-Kustomize, Argo CD, GitHub Actions, Jenkins, Ansible, Dockerfile, and Docker
-Compose source signals.
+`relationships` extracts IaC and provider relationship evidence from fact
+envelopes and resolves that evidence into typed cross-repository relationships
+before reducer admission. It covers Terraform, Terraform provider schemas,
+Terragrunt, Helm, Kustomize, Argo CD, GitHub Actions, Jenkins, Ansible,
+Dockerfile, Docker Compose, and supported GCP cloud relationship signals.
 
 The package describes evidence rather than inventing deployment truth.
 Extractors emit `EvidenceFact` values; the `Resolve` function promotes them to
@@ -34,6 +34,7 @@ relationship evidence domain pass, not from the projector.
 flowchart TB
   A["DiscoverEvidence\nenvelopes + catalog"] --> B["buildEvidenceContentIndex\nrepo→files map"]
   B --> C["discoverFromEnvelopeWithIndex\nper envelope"]
+  C --> GCP["discoverGCPCloudRelationshipEvidence\nsupported cloud relationships"]
   C --> D{"artifact_type\nor path"}
   D -- terraform/hcl --> E["discoverTerraformEvidence\n+ discoverTerraformSchemaEvidence"]
   D -- helm --> F["discoverHelmEvidence"]
@@ -44,7 +45,7 @@ flowchart TB
   D -- ansible --> K["discoverAnsibleEvidence"]
   D -- dockerfile --> L["discoverDockerfileEvidence"]
   D -- docker_compose --> M["discoverDockerComposeEvidence"]
-  E & F & G & H & I & J & K & L & M --> N["matchCatalog\nCatalogEntry.Aliases"]
+  GCP & E & F & G & H & I & J & K & L & M --> N["matchCatalog\nCatalogEntry.Aliases"]
   N --> O["EvidenceFact slice"]
   O --> P["Resolve\nbuildCandidates → groupAssertions → filter"]
   P --> Q["[]Candidate\n[]ResolvedRelationship"]
@@ -64,6 +65,15 @@ tag delimiters, and known config-file suffixes match; short aliases do not match
 inside larger hyphenated repository slugs. The private Terraform registry
 provider alias rule is preserved. A per-call `seen` map deduplicates facts
 within a single pass.
+
+GCP cloud relationship evidence is routed before the file/content guard because
+`gcp_cloud_relationship` facts are cloud facts, not repository files. The
+extractor emits `EvidenceKindGCPCloudRelationship` only for supported provider
+relationships whose source and target full resource names each match exactly
+one distinct repository in the catalog. Partial, unsupported, ambiguous,
+one-sided, or self matches emit no evidence. `gcp_image_reference`,
+`gcp_iam_policy_observation`, `gcp_dns_record`, and collection-warning facts
+remain owned by their image-identity, secrets/IAM, DNS, or audit paths.
 
 Argo CD Application evidence accepts the legacy singular `source_repo` field and
 the positional `source_repos`, `source_paths`, `source_roots`, and
@@ -122,7 +132,7 @@ Explicit `assert` decisions still override inferred confidence to `1.0`, while
   `EvidenceKindTerraformModuleSource`, `EvidenceKindHelmChart`,
   `EvidenceKindArgoCDAppSource`, `EvidenceKindGitHubActionsReusableWorkflow`,
   `EvidenceKindJenkinsSharedLibrary`, `EvidenceKindAnsibleRoleReference`,
-  and 20+ others (`models.go:13`)
+  `EvidenceKindGCPCloudRelationship`, and 20+ others (`models.go:13`)
 - `RelationshipType` — string enum of edge semantics: `RelDeploysFrom`,
   `RelUsesModule`, `RelProvisionsDependencyFor`, `RelDiscoversConfigIn`,
   `RelReadsConfigFrom`, `RelRunsOn`, `RelDependsOn` (`models.go:79`)
@@ -140,7 +150,8 @@ Explicit `assert` decisions still override inferred confidence to `1.0`, while
 
 - `internal/facts` — `facts.Envelope`; the durable fact model this package
   reads. The envelope's `Payload` map carries `artifact_type`, `relative_path`,
-  `content`, `repo_id`, and `parsed_file_data`.
+  `content`, `repo_id`, `parsed_file_data`, and provider-specific GCP
+  relationship fields.
 - `internal/terraformschema` — `terraformschema.LoadProviderSchema`,
   `terraformschema.InferIdentityKeys`, `terraformschema.ClassifyResourceCategory`;
   consumed by `RegisterSchemaDrivenTerraformExtractors` and the Terraform
@@ -190,6 +201,9 @@ the existing reducer admission and relationship persistence signals.
   to `DiscoverEvidence`. Template parameters not present in the content index
   will leave the template unresolved and no evidence will be emitted for those
   dynamic sources.
+- GCP cloud relationship evidence depends on catalog aliases for both endpoint
+  full resource names. If only the target name matches, or if either endpoint
+  matches more than one repository, discovery intentionally emits no evidence.
 - Confidence thresholds in `Resolve` are applied to bounded aggregate
   confidence. A single high-confidence signal is still sufficient to promote a
   candidate, and corroborating lower-tier facts can lift a candidate only within

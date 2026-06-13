@@ -129,6 +129,16 @@ or targets in fact payloads or source refs. `go test
 -count=1` proves CAI `relatedAsset` evidence emits one
 `gcp_cloud_relationship` fact with source and target full resource names, bounded
 relationship type, support state, read time, and fact-kind telemetry.
+`go test ./internal/relationships -run GCP -count=1` proves the cross-repo
+resolver consumes only supported GCP relationship facts whose source and target
+resource names uniquely match distinct catalog repositories, and skips one-sided,
+ambiguous, self, unsupported, IAM, DNS, and image-reference inputs.
+`go test ./internal/storage/postgres -run
+'ListLatestRelationshipFactRecordsQuery.*GCP|QualifiesFactColumns' -count=1`
+and `go test ./internal/reducer -run
+'GCPCloudRelationship|EvidenceTypeMapsGCP' -count=1` prove deferred
+relationship backfill includes `gcp_cloud_relationship` facts and resolved
+relationship artifacts keep the stable `gcp_cloud_relationship` evidence type.
 `go test ./internal/collector/gcpcloud ./internal/collector/gcpcloud/gcpruntime
 -run 'TestParseAssetsListPageImageReferences|TestGenerationBuildEmitsImageReferenceObservationsForRuntimeContainers|TestGenerationBuildSkipsImageReferenceObservationsWithoutRedactionKey|TestSourceEmitsImageReferenceFactsFromFixturePage'
 -count=1` proves Cloud Run service/job image metadata emits
@@ -165,7 +175,10 @@ durable `reducer_container_image_identity` fact writer, active OCI registry
 evidence loader, active-generation fact predicates, and
 `eshu_dp_container_image_identity_decisions_total` outcome counter; it adds no
 live provider call, route, queue domain, worker, runtime knob, metric label,
-graph write, or chart surface.
+graph write, or chart surface. GCP relationship resolver evidence reuses the
+existing relationship evidence backfill, resolver admission, and cross-repo
+resolution telemetry. It adds no graph write, route, queue domain, worker,
+runtime knob, metric name, metric label, span name, or chart surface.
 
 ## Source Truth
 
@@ -252,7 +265,7 @@ design and a matching test update.
 | --- | --- | --- |
 | `gcp_cloud_resource` | consumed | Cloud inventory, runtime drift, and `gcp_resource_materialization` reducers. |
 | `gcp_collection_warning` | provenance/audit only | Fact-store audit evidence plus collector telemetry counters. |
-| `gcp_cloud_relationship` | consumed | `gcp_relationship_materialization` reducer after both endpoints resolve exactly. |
+| `gcp_cloud_relationship` | consumed | `gcp_relationship_materialization` reducer after both endpoints resolve exactly; cross-repo relationship resolver only when supported source and target full resource names each match one distinct repository catalog entry. |
 | `gcp_tag_observation` | consumed | Cloud tag evidence loader and cloud inventory readback; tags never admit resources by themselves. |
 | `gcp_iam_policy_observation` | provenance/audit only | Raw IAM snapshot evidence; secrets/IAM reducers consume derived GCP IAM source facts. |
 | `gcp_iam_principal` | consumed | `secrets_iam_trust_chain` reducer. |
