@@ -57,9 +57,13 @@ flowchart TB
 `buildEvidenceContentIndex` to build a `map[repoID][]file` index used by
 template-driven ArgoCD extractors. It then routes each envelope to one or more
 extractors based on `artifact_type` and file path heuristics. Every extractor
-calls `matchCatalog`, which compares candidate strings against each
-`CatalogEntry.Aliases` entry using case-insensitive substring matching. A
-per-call `seen` map deduplicates facts within a single pass.
+calls `matchCatalog`, which uses a per-`DiscoverEvidence` alias index to match
+candidate strings against `CatalogEntry.Aliases`. Matching is case-insensitive
+and boundary-aware: exact aliases, URL path segments, image path segments before
+tag delimiters, and known config-file suffixes match; short aliases do not match
+inside larger hyphenated repository slugs. The private Terraform registry
+provider alias rule is preserved. A per-call `seen` map deduplicates facts
+within a single pass.
 
 Argo CD Application evidence accepts the legacy singular `source_repo` field and
 the positional `source_repos`, `source_paths`, `source_roots`, and
@@ -144,13 +148,25 @@ This package does not emit its own metrics, spans, or structured logs.
 Extraction outcomes are surfaced by the reducer when admitted and by
 `internal/storage/postgres` when persisted as evidence rows.
 
+Benchmark Evidence: `BenchmarkMatchCatalogLargeCatalog` on Apple M4 Pro with
+about 10k catalog aliases and mixed URL, image, exact, false-positive, and
+non-match candidates improved from `17628716 ns/op`, `5123080 B/op`, and
+`160030 allocs/op` to `120441-125631 ns/op`, `4400 B/op`, and `101 allocs/op`
+after replacing per-candidate catalog scans with the boundary-aware matcher
+index.
+
+No-Observability-Change: relationship extraction still has no package-local
+metrics, spans, logs, graph writes, queue claims, or storage mutations. Operators
+continue to diagnose admitted evidence through reducer status and persisted
+relationship-evidence rows.
+
 ## Operational notes
 
 - If relationship evidence is sparse for a repository, check that its
   `CatalogEntry.Aliases` includes the names actually referenced in IaC files
-  (repo short name, org/repo form, and any known aliases). `matchCatalog` uses
-  case-insensitive substring matching; overly short aliases can match
-  unrelated candidates.
+  (repo short name, org/repo form, and any known aliases). `matchCatalog`
+  intentionally rejects alias matches embedded inside larger hyphenated slugs;
+  add the full target slug as an alias when that longer value is legitimate.
 - `RegisterSchemaDrivenTerraformExtractors` is called lazily on first
   `discoverTerraformSchemaEvidence` call. If the schema directory is missing
   or empty, schema-driven extraction silently produces no evidence. Call the

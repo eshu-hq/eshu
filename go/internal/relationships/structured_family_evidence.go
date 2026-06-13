@@ -5,7 +5,7 @@ import "strings"
 func discoverStructuredHelmEvidence(
 	sourceRepoID, filePath string,
 	parsedFileData map[string]any,
-	catalog []CatalogEntry,
+	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 ) []EvidenceFact {
 	var evidence []EvidenceFact
@@ -26,7 +26,7 @@ func discoverStructuredHelmEvidence(
 					sourceRepoID, candidate, filePath,
 					EvidenceKindHelmChart, RelDeploysFrom, 0.90,
 					"Helm chart metadata references the target repository",
-					"helm", catalog, seen, details,
+					"helm", matcher, seen, details,
 				)...)
 			}
 			for _, candidate := range csvValues(chart["dependency_repositories"]) {
@@ -42,7 +42,7 @@ func discoverStructuredHelmEvidence(
 					sourceRepoID, normalized, filePath,
 					EvidenceKindHelmChart, RelDeploysFrom, 0.90,
 					"Helm chart metadata references the target repository",
-					"helm", catalog, seen, details,
+					"helm", matcher, seen, details,
 				)...)
 			}
 		}
@@ -68,7 +68,7 @@ func discoverStructuredHelmEvidence(
 					sourceRepoID, normalized, filePath,
 					EvidenceKindHelmValues, RelDeploysFrom, 0.84,
 					"Helm values reference the target repository",
-					"helm", catalog, seen, details,
+					"helm", matcher, seen, details,
 				)...)
 			}
 		}
@@ -80,7 +80,7 @@ func discoverStructuredHelmEvidence(
 func discoverStructuredArgoCDEvidence(
 	sourceRepoID, filePath string,
 	parsedFileData map[string]any,
-	catalog []CatalogEntry,
+	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 ) []EvidenceFact {
 	var evidence []EvidenceFact
@@ -109,10 +109,10 @@ func discoverStructuredArgoCDEvidence(
 					sourceRepoID, source.repoURL, filePath,
 					EvidenceKindArgoCDAppSource, RelDeploysFrom, 0.95,
 					"ArgoCD Application source references the target repository",
-					"argocd", catalog, seen, details,
+					"argocd", matcher, seen, details,
 				)...)
 
-				for _, deployedRepo := range matchingCatalogEntries(source.repoURL, catalog) {
+				for _, deployedRepo := range matchingCatalogEntries(source.repoURL, matcher) {
 					evidence = append(evidence, appendDestinationPlatformEvidence(
 						deployedRepo.RepoID,
 						filePath,
@@ -151,7 +151,7 @@ func discoverStructuredArgoCDEvidence(
 			for _, repoURL := range discoveryRepos {
 				root := firstCSV(discoveryRoots)
 				path := firstCSV(discoveryPaths)
-				for _, configRepo := range matchingCatalogEntries(repoURL, catalog) {
+				for _, configRepo := range matchingCatalogEntries(repoURL, matcher) {
 					if configRepo.RepoID == sourceRepoID {
 						continue
 					}
@@ -168,7 +168,7 @@ func discoverStructuredArgoCDEvidence(
 					for _, templateRepoURL := range templateRepos {
 						templatePath := firstCSV(templatePaths)
 						templateRoot := firstCSV(templateRoots)
-						for _, deployedRepo := range matchingCatalogEntries(templateRepoURL, catalog) {
+						for _, deployedRepo := range matchingCatalogEntries(templateRepoURL, matcher) {
 							if deployedRepo.RepoID == configRepo.RepoID || deployedRepo.RepoID == sourceRepoID {
 								continue
 							}

@@ -22,7 +22,7 @@ var (
 
 func discoverTerraformRuntimeServiceModuleEvidence(
 	sourceRepoID, filePath, content string,
-	catalog []CatalogEntry,
+	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 ) []EvidenceFact {
 	var evidence []EvidenceFact
@@ -56,7 +56,7 @@ func discoverTerraformRuntimeServiceModuleEvidence(
 				0.96,
 				"Terraform runtime service module references the target repository",
 				"terraform-runtime-service-module",
-				catalog,
+				matcher,
 				seen,
 				map[string]any{
 					"module_name":           moduleName,

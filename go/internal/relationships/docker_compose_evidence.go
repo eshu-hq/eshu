@@ -2,7 +2,7 @@ package relationships
 
 func discoverDockerComposeEvidence(
 	sourceRepoID, filePath, content string,
-	catalog []CatalogEntry,
+	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 ) []EvidenceFact {
 	var evidence []EvidenceFact
@@ -12,7 +12,7 @@ func discoverDockerComposeEvidence(
 				sourceRepoID, candidate, filePath,
 				EvidenceKindDockerComposeBuildContext, RelDeploysFrom, 0.91,
 				"Docker Compose build context deploys from the target repository",
-				"docker_compose", catalog, seen, map[string]any{
+				"docker_compose", matcher, seen, map[string]any{
 					"build_context": candidate,
 				},
 			)...)
@@ -22,7 +22,7 @@ func discoverDockerComposeEvidence(
 				sourceRepoID, candidate, filePath,
 				EvidenceKindDockerComposeImage, RelDeploysFrom, 0.88,
 				"Docker Compose image reference deploys from artifacts owned by the target repository",
-				"docker_compose", catalog, seen, map[string]any{
+				"docker_compose", matcher, seen, map[string]any{
 					"image_ref": candidate,
 				},
 			)...)
@@ -32,7 +32,7 @@ func discoverDockerComposeEvidence(
 				sourceRepoID, candidate, filePath,
 				EvidenceKindDockerComposeDependsOn, RelDependsOn, 0.84,
 				"Docker Compose service dependency refers to the target repository",
-				"docker_compose", catalog, seen, map[string]any{
+				"docker_compose", matcher, seen, map[string]any{
 					"depends_on_service": candidate,
 				},
 			)...)

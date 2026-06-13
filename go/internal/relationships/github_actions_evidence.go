@@ -4,7 +4,7 @@ import "strings"
 
 func discoverGitHubActionsEvidence(
 	sourceRepoID, filePath, content string,
-	catalog []CatalogEntry,
+	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 ) []EvidenceFact {
 	var evidence []EvidenceFact
@@ -48,7 +48,7 @@ func discoverGitHubActionsEvidence(
 				sourceRepoID, candidate, filePath,
 				EvidenceKindGitHubActionsReusableWorkflow, RelDeploysFrom, 0.93,
 				"GitHub Actions reusable workflow references deployment logic in the target repository",
-				"github_actions", catalog, seen, map[string]any{
+				"github_actions", matcher, seen, map[string]any{
 					"workflow_ref":               candidate,
 					"workflow_repo":              repo,
 					"workflow_path":              workflowPath,
@@ -65,7 +65,7 @@ func discoverGitHubActionsEvidence(
 				sourceRepoID, candidate, filePath,
 				EvidenceKindGitHubActionsCheckoutRepository, RelDiscoversConfigIn, 0.91,
 				"GitHub Actions explicitly checks out config or automation from the target repository",
-				"github_actions", catalog, seen, map[string]any{
+				"github_actions", matcher, seen, map[string]any{
 					"checkout_repository": candidate,
 				},
 			)...)
@@ -75,7 +75,7 @@ func discoverGitHubActionsEvidence(
 				sourceRepoID, candidate, filePath,
 				EvidenceKindGitHubActionsWorkflowInputRepository, RelDiscoversConfigIn, 0.90,
 				"GitHub Actions passes an explicit automation or config repository through workflow inputs",
-				"github_actions", catalog, seen, map[string]any{
+				"github_actions", matcher, seen, map[string]any{
 					"workflow_input_repository": candidate,
 				},
 			)...)
@@ -86,7 +86,7 @@ func discoverGitHubActionsEvidence(
 				sourceRepoID, candidate, filePath,
 				EvidenceKindGitHubActionsActionRepository, RelDependsOn, 0.88,
 				"GitHub Actions step uses the target repository as an action dependency",
-				"github_actions", catalog, seen, map[string]any{
+				"github_actions", matcher, seen, map[string]any{
 					"action_repository":          candidate,
 					"action_repo":                repo,
 					"action_path":                actionPath,

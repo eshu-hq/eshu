@@ -5,7 +5,7 @@ import "strings"
 func discoverDockerfileEvidence(
 	sourceRepoID, filePath string,
 	parsedFileData map[string]any,
-	catalog []CatalogEntry,
+	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 ) []EvidenceFact {
 	var evidence []EvidenceFact
@@ -14,7 +14,7 @@ func discoverDockerfileEvidence(
 			sourceRepoID, reference.value, filePath,
 			EvidenceKindDockerfileSourceLabel, RelDeploysFrom, 0.93,
 			"Dockerfile source label points at the target repository",
-			"dockerfile", catalog, seen, map[string]any{
+			"dockerfile", matcher, seen, map[string]any{
 				"source_label": reference.label,
 				"source_ref":   reference.value,
 			},

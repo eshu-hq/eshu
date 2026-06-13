@@ -144,7 +144,7 @@ func ensureDefaultTerraformSchemaExtractors() {
 
 func discoverTerraformSchemaEvidence(
 	sourceRepoID, filePath, content string,
-	catalog []CatalogEntry,
+	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 ) []EvidenceFact {
 	ensureDefaultTerraformSchemaExtractors()
@@ -169,7 +169,7 @@ func discoverTerraformSchemaEvidence(
 					rel.Confidence,
 					rel.Rationale,
 					"terraform-schema",
-					catalog,
+					matcher,
 					seen,
 					rel.Details,
 				)...)

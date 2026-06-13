@@ -10,7 +10,7 @@ var jenkinsGitHubRepoPattern = regexp.MustCompile(`(?i)github\.com[:/][^/"'\s]+/
 func discoverJenkinsEvidence(
 	sourceRepoID, filePath, content string,
 	parsedFileData map[string]any,
-	catalog []CatalogEntry,
+	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 ) []EvidenceFact {
 	var evidence []EvidenceFact
@@ -31,7 +31,7 @@ func discoverJenkinsEvidence(
 			sourceRepoID, library, filePath,
 			EvidenceKindJenkinsSharedLibrary, RelDiscoversConfigIn, 0.89,
 			"Jenkins shared library references configuration or automation in the target repository",
-			"jenkins", catalog, seen, details,
+			"jenkins", matcher, seen, details,
 		)...)
 	}
 
@@ -52,7 +52,7 @@ func discoverJenkinsEvidence(
 			sourceRepoID, repoRef, filePath,
 			EvidenceKindJenkinsGitHubRepository, RelDiscoversConfigIn, 0.92,
 			"Jenkins pipeline references the target repository through an explicit GitHub URL",
-			"jenkins", catalog, seen, details,
+			"jenkins", matcher, seen, details,
 		)...)
 	}
 

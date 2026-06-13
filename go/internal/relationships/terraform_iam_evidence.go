@@ -87,7 +87,7 @@ func isTerraformIAMConfigReadCandidate(candidate string, reads []terraformIAMSSM
 func discoverTerraformIAMSSMConfigReadEvidence(
 	sourceRepoID, filePath string,
 	reads []terraformIAMSSMConfigRead,
-	catalog []CatalogEntry,
+	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 ) []EvidenceFact {
 	if len(reads) == 0 {
@@ -104,7 +104,7 @@ func discoverTerraformIAMSSMConfigReadEvidence(
 			0.92,
 			"Terraform IAM policy grants SSM read access to the target repository config path",
 			"terraform-iam-permission",
-			catalog,
+			matcher,
 			seen,
 			map[string]any{
 				"permission_family": "ssm_config_read",
