@@ -34,8 +34,8 @@ client, err := vaultapi.New(vaultapi.Config{
 Adapter implementation + unit tests run against an `httptest` mock Vault.
 `cmd/collector-vault-live` now wires this adapter into the claim-driven
 `vault_live` runtime. Response shapes follow the documented Vault KV v2, auth,
-policy, and identity APIs, while the package remains dependency-free per the
-scoped no-SDK rule.
+policy, and identity APIs, while the package remains free of HashiCorp Vault
+SDK dependencies per the scoped no-Vault-SDK rule.
 
 ## Evidence
 
@@ -56,3 +56,7 @@ through the `OnAPICall` hook, and the claimed Vault runtime records them as
 `eshu_dp_secrets_iam_source_api_calls_total{source="vault",operation,result}`.
 The adapter does not place paths, addresses, tokens, or response bodies in
 metric labels.
+
+No-Regression Evidence (#2377): `go test ./internal/collector/sdk ./internal/collector/vaultlive ./internal/collector/vaultlive/vaultapi ./cmd/collector-vault-live -count=1` proves Vault API base-address validation rejects credential-bearing and non-HTTP(S) addresses, metadata-only `/data/` guards still reject before requests, 404 metadata endpoints still return empty results, forbidden and server statuses unwrap bounded SDK `HTTPError` causes without path/body leakage, transport failures preserve their cause, and all seven metadata families still map through the claim-driven runtime tests.
+
+No-Observability-Change (#2377): the adapter still reports bounded API-call observations through `OnAPICall`, and the claimed Vault runtime still records them as `eshu_dp_secrets_iam_source_api_calls_total{source="vault",operation,result}`. The SDK emits no telemetry directly, and no Vault address, namespace, path, token, or response body value was added to metric labels or status details.
