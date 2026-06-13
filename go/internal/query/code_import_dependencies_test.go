@@ -110,6 +110,9 @@ func TestHandleImportDependencyInvestigationReturnsFileImportCycles(t *testing.T
 	handler := &CodeHandler{
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				if !strings.Contains(cypher, "repo.name as repo_name") {
+					t.Fatalf("cypher = %q, want repository display name projection", cypher)
+				}
 				if !strings.Contains(cypher, "source_file.name = source_module.name + '.py'") {
 					t.Fatalf("cypher = %q, want Python module-to-file cycle guard", cypher)
 				}
@@ -122,6 +125,7 @@ func TestHandleImportDependencyInvestigationReturnsFileImportCycles(t *testing.T
 				return []map[string]any{
 					{
 						"repo_id":               "repo-1",
+						"repo_name":             "platform-api",
 						"source_file":           "src/module_a.py",
 						"target_file":           "src/module_b.py",
 						"source_module":         "module_a",
@@ -158,6 +162,132 @@ func TestHandleImportDependencyInvestigationReturnsFileImportCycles(t *testing.T
 	cycle := cycles[0].(map[string]any)
 	if got, want := cycle["cycle_length"], float64(2); got != want {
 		t.Fatalf("cycle_length = %#v, want %#v", got, want)
+	}
+	if got, want := cycle["repo_name"], "platform-api"; got != want {
+		t.Fatalf("repo_name = %#v, want %#v", got, want)
+	}
+	edges, ok := cycle["cycle_edges"].([]any)
+	if !ok || len(edges) != 2 {
+		t.Fatalf("cycle_edges = %#v, want two import proof edges", cycle["cycle_edges"])
+	}
+	first := edges[0].(map[string]any)
+	if got, want := first["relationship_type"], "IMPORTS"; got != want {
+		t.Fatalf("cycle_edges[0].relationship_type = %#v, want %#v", got, want)
+	}
+	if got, want := first["source_file"], "src/module_a.py"; got != want {
+		t.Fatalf("cycle_edges[0].source_file = %#v, want %#v", got, want)
+	}
+	if got, want := first["line_number"], float64(4); got != want {
+		t.Fatalf("cycle_edges[0].line_number = %#v, want %#v", got, want)
+	}
+}
+
+func TestHandleImportDependencyInvestigationReturnsEmptyFileImportCycles(t *testing.T) {
+	t.Parallel()
+
+	handler := &CodeHandler{
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+				return nil, nil
+			},
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/imports/investigate",
+		bytes.NewBufferString(`{"query_type":"file_import_cycles","repo_id":"repo-1","limit":25}`),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	cycles, ok := resp["cycles"].([]any)
+	if !ok {
+		t.Fatalf("cycles type = %T, want []any", resp["cycles"])
+	}
+	if len(cycles) != 0 {
+		t.Fatalf("len(cycles) = %d, want 0", len(cycles))
+	}
+	if got, want := resp["count"], float64(0); got != want {
+		t.Fatalf("count = %#v, want %#v", got, want)
+	}
+	if got, want := resp["truncated"], false; got != want {
+		t.Fatalf("truncated = %#v, want %#v", got, want)
+	}
+}
+
+func TestHandleImportDependencyInvestigationTruncatesFileImportCycles(t *testing.T) {
+	t.Parallel()
+
+	handler := &CodeHandler{
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
+				if got, want := params["limit"], 2; got != want {
+					t.Fatalf("params[limit] = %#v, want %#v", got, want)
+				}
+				return []map[string]any{
+					{"repo_id": "repo-1", "source_file": "src/a.py", "target_file": "src/b.py"},
+					{"repo_id": "repo-1", "source_file": "src/c.py", "target_file": "src/d.py"},
+				}, nil
+			},
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/imports/investigate",
+		bytes.NewBufferString(`{"query_type":"file_import_cycles","repo_id":"repo-1","limit":1}`),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	cycles, ok := resp["cycles"].([]any)
+	if !ok || len(cycles) != 1 {
+		t.Fatalf("cycles = %#v, want one truncated cycle", resp["cycles"])
+	}
+	if got, want := resp["truncated"], true; got != want {
+		t.Fatalf("truncated = %#v, want %#v", got, want)
+	}
+	if got, want := resp["next_offset"], float64(1); got != want {
+		t.Fatalf("next_offset = %#v, want %#v", got, want)
+	}
+}
+
+func TestHandleImportDependencyInvestigationReportsUnavailableCycleBackend(t *testing.T) {
+	t.Parallel()
+
+	handler := &CodeHandler{}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/imports/investigate",
+		bytes.NewBufferString(`{"query_type":"file_import_cycles","repo_id":"repo-1","limit":25}`),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusServiceUnavailable; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
 }
 

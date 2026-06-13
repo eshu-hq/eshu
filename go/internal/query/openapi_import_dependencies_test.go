@@ -32,6 +32,14 @@ func TestOpenAPIImportDependencyInvestigation(t *testing.T) {
 			t.Fatalf("code/imports/investigate response schema missing %s", field)
 		}
 	}
+	cycles := mustMapField(t, importDependencyResponse, "cycles")
+	cycleItems := mustMapField(t, cycles, "items")
+	cycleProperties := mustMapField(t, cycleItems, "properties")
+	for _, field := range []string{"repo_id", "repo_name", "source_file", "target_file", "relationship_type", "cycle_path", "cycle_edges"} {
+		if _, ok := cycleProperties[field]; !ok {
+			t.Fatalf("code/imports/investigate cycle row schema missing %s", field)
+		}
+	}
 	for _, field := range []string{"results", "matches"} {
 		if _, ok := importDependencyResponse[field]; ok {
 			t.Fatalf("code/imports/investigate response schema includes ambiguous %s alias", field)

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
+import { loadCodeImportCycles } from "../api/codeImports";
+import type { CodeImportCycleRow } from "../api/codeImports";
 import { loadDeadCodePage } from "../api/deadCode";
 import { EshuEnvelopeError } from "../api/envelope";
 import { codeRelationshipsToGraph } from "../api/eshuGraph";
@@ -10,6 +12,22 @@ import type { ConsoleModel, FindingRow, GraphModel, GraphNode } from "../console
 import { fmt } from "../console/types";
 import { GraphCanvas } from "../components/GraphCanvas";
 import { Badge, Panel, StatTile } from "../components/atoms";
+
+interface ImportCycleState {
+  readonly status: "idle" | "loading" | "ready" | "error";
+  readonly cycles: readonly CodeImportCycleRow[];
+  readonly error: string;
+  readonly truncated: boolean;
+  readonly nextOffset: number | null;
+}
+
+const emptyImportCycleState: ImportCycleState = {
+  status: "idle",
+  cycles: [],
+  error: "",
+  truncated: false,
+  nextOffset: null
+};
 
 export function CodeGraphPage({ model, client }: {
   readonly model: ConsoleModel;
@@ -27,6 +45,7 @@ export function CodeGraphPage({ model, client }: {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [candidateErr, setCandidateErr] = useState("");
+  const [cycleState, setCycleState] = useState<ImportCycleState>(emptyImportCycleState);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,6 +111,40 @@ export function CodeGraphPage({ model, client }: {
       .finally(() => { if (!cancelled) setBusy(false); });
     return () => { cancelled = true; };
   }, [client, selected, candidates]);
+
+  const selectedRepoScope = selected ? importCycleRepoScope(selected) : "";
+  useEffect(() => {
+    let cancelled = false;
+    if (!client || selectedRepoScope === "") {
+      setCycleState(emptyImportCycleState);
+      return () => { cancelled = true; };
+    }
+    setCycleState({ ...emptyImportCycleState, status: "loading" });
+    void loadCodeImportCycles(client, selectedRepoScope, 6)
+      .then((page) => {
+        if (!cancelled) {
+          setCycleState({
+            status: "ready",
+            cycles: page.cycles,
+            error: "",
+            truncated: page.truncated,
+            nextOffset: page.nextOffset
+          });
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setCycleState({
+            status: "error",
+            cycles: [],
+            error: error instanceof Error ? error.message : "failed to load import cycles",
+            truncated: false,
+            nextOffset: null
+          });
+        }
+      });
+    return () => { cancelled = true; };
+  }, [client, selectedRepoScope]);
 
   const deadInRepo = candidates.filter((finding) => selected && sameRepositoryScope(finding, selected));
   const importEdges = graph.edges.filter((edge) => edge.verb === "IMPORTS").length;
@@ -185,8 +238,7 @@ export function CodeGraphPage({ model, client }: {
             {hotspots.map((row) => <div className="kv" key={row.id}><span className="mono" style={{ fontSize: ".76rem" }}>{row.label}</span><strong>{row.count}</strong></div>)}
             {hotspots.length === 0 ? <p className="empty" style={{ textAlign: "left" }}>No relationship hotspots returned.</p> : null}
           </div>
-          <div className="section-label" style={{ marginTop: 16 }}>Import cycles</div>
-          <p className="t-mut" style={{ fontSize: ".8rem", margin: 0 }}><span style={{ color: "var(--teal)" }}>◆ not reported</span> by the current endpoint.</p>
+          <ImportCyclesPanel state={cycleState} />
           <div className="section-label" style={{ marginTop: 16 }}>Dead in this repo · {deadInRepo.length}</div>
           {deadInRepo.length ? (
             <div className="conn-list">
@@ -207,6 +259,66 @@ export function CodeGraphPage({ model, client }: {
       </div>
     </div>
   );
+}
+
+function ImportCyclesPanel({ state }: { readonly state: ImportCycleState }): React.JSX.Element {
+  const label = state.cycles.length ? `Import cycles · ${state.cycles.length}` : "Import cycles";
+  return (
+    <>
+      <div className="section-label" style={{ marginTop: 16 }}>{label}</div>
+      {state.status === "loading" ? <p className="t-mut" style={{ fontSize: ".8rem", margin: 0 }}>Loading source-backed import cycles...</p> : null}
+      {state.status === "error" ? <p className="src-err" style={{ margin: 0 }}>Import cycle analysis unavailable: {state.error}</p> : null}
+      {state.status === "ready" && state.cycles.length === 0 ? (
+        <p className="t-mut" style={{ fontSize: ".8rem", margin: 0 }}>No source-backed import cycles returned for this repository.</p>
+      ) : null}
+      {state.cycles.length ? (
+        <div className="conn-list">
+          {state.cycles.map((cycle, index) => (
+            <div className="dead-row" key={`${cycle.sourceFile}:${cycle.targetFile}:${index}`}>
+              <span className="mono">{cyclePathLabel(cycle)}</span>
+              <span className="t-mut">{cycle.relationshipType} · {cycleRepositoryLabel(cycle)}</span>
+              {cycleSourceHref(cycle) ? (
+                <Link className="mono" to={cycleSourceHref(cycle)!}>{cycleSourceLabel(cycle)}</Link>
+              ) : (
+                <span className="mono">{cycleSourceLabel(cycle)}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {state.truncated ? (
+        <p className="t-mut" style={{ fontSize: ".78rem", margin: "6px 0 0" }}>
+          More import cycles are available{state.nextOffset !== null ? ` at offset ${state.nextOffset}` : ""}.
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+function importCycleRepoScope(finding: FindingRow): string {
+  return finding.repoId?.trim() || finding.entity.trim();
+}
+
+function cyclePathLabel(cycle: CodeImportCycleRow): string {
+  if (cycle.cyclePath.length > 0) return cycle.cyclePath.join(" → ");
+  return [cycle.sourceFile, cycle.targetFile, cycle.sourceFile].filter((part) => part !== "").join(" → ");
+}
+
+function cycleRepositoryLabel(cycle: CodeImportCycleRow): string {
+  return cycle.repoName || cycle.repoId || "repository";
+}
+
+function cycleSourceLabel(cycle: CodeImportCycleRow): string {
+  if (!cycle.sourceFile) return "source path unavailable";
+  if (cycle.sourceLineNumber !== undefined) return `${cycle.sourceFile}:${cycle.sourceLineNumber}`;
+  return cycle.sourceFile;
+}
+
+function cycleSourceHref(cycle: CodeImportCycleRow): string | null {
+  if (!cycle.repoId || !cycle.sourceFile) return null;
+  const params = new URLSearchParams({ path: cycle.sourceFile });
+  if (cycle.sourceLineNumber !== undefined) params.set("lineStart", String(cycle.sourceLineNumber));
+  return `/repositories/${encodeURIComponent(cycle.repoId)}/source?${params.toString()}`;
 }
 
 function withDeadSiblings(graph: GraphModel, selected: FindingRow, candidates: readonly FindingRow[]): GraphModel {

@@ -243,6 +243,7 @@ func importRowsCypher(req importDependencyRequest) string {
 		cypher.WriteString("\n")
 	}
 	cypher.WriteString(`RETURN repo.id as repo_id,
+       repo.name as repo_name,
        source_file.relative_path as source_file,
        source_file.name as source_name,
        coalesce(source_file.language, target_module.lang) as language,
@@ -301,6 +302,7 @@ WHERE source_file.name = source_module.name + '.py'
 	}
 	cypher.WriteString(`
 RETURN repo.id as repo_id,
+       repo.name as repo_name,
        source_file.relative_path as source_file,
        target_file.relative_path as target_file,
        source_module.name as source_module,
@@ -334,6 +336,7 @@ MATCH (repo)-[:REPO_CONTAINS]->(target_file)
 		cypher.WriteString("\n")
 	}
 	cypher.WriteString(`RETURN repo.id as repo_id,
+       repo.name as repo_name,
        source_file.relative_path as source_file,
        target_file.relative_path as target_file,
        caller.name as source_name,

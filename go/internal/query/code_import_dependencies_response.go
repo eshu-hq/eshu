@@ -69,6 +69,7 @@ func importDependencyResults(req importDependencyRequest, rows []map[string]any)
 		if req.queryType() == "file_import_cycles" {
 			item["cycle_length"] = 2
 			item["cycle_path"] = []string{StringVal(row, "source_file"), StringVal(row, "target_file"), StringVal(row, "source_file")}
+			item["cycle_edges"] = importDependencyCycleEdges(row)
 		}
 		if req.queryType() == "cross_module_calls" {
 			item["relationship_type"] = "CALLS"
@@ -85,6 +86,27 @@ func importDependencyResults(req importDependencyRequest, rows []map[string]any)
 		results = append(results, item)
 	}
 	return results
+}
+
+func importDependencyCycleEdges(row map[string]any) []map[string]any {
+	return []map[string]any{
+		importDependencyCycleEdge(row, "source_file", "target_file", "source_module", "target_module", "source_line_number"),
+		importDependencyCycleEdge(row, "target_file", "source_file", "target_module", "source_module", "back_edge_line_number"),
+	}
+}
+
+func importDependencyCycleEdge(row map[string]any, sourceFileKey, targetFileKey, sourceModuleKey, targetModuleKey, lineKey string) map[string]any {
+	edge := map[string]any{
+		"relationship_type": "IMPORTS",
+		"source_file":       StringVal(row, sourceFileKey),
+		"target_file":       StringVal(row, targetFileKey),
+		"source_module":     StringVal(row, sourceModuleKey),
+		"target_module":     StringVal(row, targetModuleKey),
+	}
+	if lineNumber := IntVal(row, lineKey); lineNumber > 0 {
+		edge["line_number"] = lineNumber
+	}
+	return edge
 }
 
 func importDependencySourceHandle(row map[string]any) map[string]any {
