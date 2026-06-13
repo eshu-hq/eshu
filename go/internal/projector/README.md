@@ -185,6 +185,15 @@ Workload endpoints are still exact `MATCH` anchors in the graph writer; missing
 or unmaterialized workload instances leave the row unwritten rather than
 fabricating a relationship. The projector never writes those service/cloud
 relationships itself.
+GCP cloud facts follow the same source-local rule. When a generation contains
+one or more `gcp_cloud_resource` facts,
+`buildGCPResourceMaterializationReducerIntent` emits one
+`gcp_resource_materialization` reducer intent for the scope/generation, keyed to
+`gcp_resource_materialization:<scope>` so the reducer materializes GCP
+`CloudResource` graph nodes and publishes the canonical-nodes phase the GCP
+relationship edge projection (#2348) gates on. The projector does not create GCP
+nodes or edges itself. The scope-generation-level intent builders are assembled
+in `appendScopeGenerationReducerIntents`.
 RDS posture facts follow that same reducer-owned handoff. When a generation
 contains an `rds_instance_posture` fact,
 `buildRDSPostureMaterializationReducerIntent` emits one
