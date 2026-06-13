@@ -77,23 +77,37 @@ type Boundary struct {
 // for exact reducer joins). AssetType is the CAI asset type. Ancestors is the
 // ordered CAI ancestor chain (most specific first). Labels carry author-set
 // resource labels; LabelFingerprintKeys names label keys whose values must be
-// fingerprinted rather than preserved. ExtensionVersion and Extension carry a
+// fingerprinted rather than preserved. IAMPolicyBindings carries parsed IAM
+// role bindings without raw policy JSON. ExtensionVersion and Extension carry a
 // versioned, redacted provider-specific extension object; the builder never
 // accepts raw IAM policy JSON, secret values, or data-plane records here.
 type ResourceObservation struct {
-	Name             string
-	AssetType        string
-	DisplayName      string
-	State            string
-	Location         string
-	Ancestors        []string
-	Labels           map[string]string
-	LabelFingerprint map[string]string
-	UpdateTime       time.Time
-	ExtensionVersion string
-	Extension        map[string]any
-	SourceURI        string
-	SourceRecordID   string
+	Name              string
+	AssetType         string
+	DisplayName       string
+	State             string
+	Location          string
+	Ancestors         []string
+	Labels            map[string]string
+	LabelFingerprint  map[string]string
+	IAMPolicyBindings []IAMPolicyBindingObservation
+	UpdateTime        time.Time
+	ExtensionVersion  string
+	Extension         map[string]any
+	SourceURI         string
+	SourceRecordID    string
+}
+
+// IAMPolicyBindingObservation is one parsed Cloud Asset Inventory IAM binding
+// attached to a resource observation. Members and the compact condition
+// fingerprint input remain in memory until envelope construction fingerprints
+// them; raw policy JSON is never kept or emitted.
+type IAMPolicyBindingObservation struct {
+	Role                      string
+	Members                   []string
+	ConditionPresent          bool
+	ConditionFingerprintInput string
+	Etag                      string
 }
 
 // WarningObservation describes one explicit GCP collection coverage outcome:
