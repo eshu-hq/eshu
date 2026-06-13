@@ -1,11 +1,11 @@
 // console/liveModel.ts
-// Live-only model construction. The console renders API data exclusively, so this
-// module owns (a) the snapshot -> UI model lift and (b) an empty model used for
-// the loading / needs-connection / error states. There is no sample or demo data
-// here: an empty model carries real "unavailable" provenance, never fabricated
-// numbers. Route pages hydrate their graph views directly from graph-specific
-// APIs; this snapshot shell stays graph-empty so it never invents topology.
-// Metrics series come from the live time-series API when available.
+// Private/API model construction. This module owns (a) the snapshot -> UI model
+// lift and (b) an empty model used for loading / needs-connection / error
+// states. There is no demo fallback here: an empty model carries real
+// "unavailable" provenance, never fabricated numbers. Route pages hydrate their graph views directly
+// from graph-specific APIs, so this snapshot shell stays graph-empty and never
+// invents topology. Metrics series come from the live time-series API when
+// available.
 
 import type {
   ConsoleModel, ConsoleSnapshot, RuntimeSummary, SeriesBundle, SectionProvenance
@@ -57,7 +57,8 @@ export function modelFromSnapshot(snap: ConsoleSnapshot): ConsoleModel {
 }
 
 // emptyConsoleModel is the model used before/while connecting and after a failed
-// connection. It is always source: "live" — the console has no demo data path.
+// connection. It is always source: "live"; explicit demo mode uses demoModel
+// instead of this unavailable private/API model.
 export function emptyConsoleModel(provenance: SectionProvenance | null = null): ConsoleModel {
   return modelFromSnapshot(emptySnapshot(provenance));
 }

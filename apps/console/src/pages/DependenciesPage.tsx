@@ -2,7 +2,7 @@
 // Package dependency inventory browser backed by GET /api/v0/dependencies.
 // Forward view: "what does this package depend on". Reverse view: "who depends
 // on this package" (requires a package anchor). Bounded, keyset-paged, with
-// honest empty/error states and truth/freshness chips. Live-API data only.
+// honest empty/error states and truth/freshness chips.
 import { useCallback, useEffect, useState } from "react";
 import type { EshuApiClient } from "../api/client";
 import { loadDependencies } from "../api/eshuDependencies";
@@ -32,7 +32,13 @@ function uiFresh(truth: EshuTruth | null): UiFresh {
   return "stale";
 }
 
-export function DependenciesPage({ client }: { readonly client?: EshuApiClient }): React.JSX.Element {
+export function DependenciesPage({
+  client,
+  sourceLabel = "live"
+}: {
+  readonly client?: EshuApiClient;
+  readonly sourceLabel?: string;
+}): React.JSX.Element {
   const [direction, setDirection] = useState<Direction>("forward");
   const [pkgInput, setPkgInput] = useState("");
   const [ecosystem, setEcosystem] = useState("");
@@ -94,6 +100,7 @@ export function DependenciesPage({ client }: { readonly client?: EshuApiClient }
   const optionalCount = rows.filter((r) => r.optional).length;
   const relatedHeader = direction === "forward" ? "Depends on" : "Dependent";
   const anchorLabel = anchor?.pkg ? anchor.pkg : direction === "forward" ? "all packages" : "—";
+  const sourceDisplay = source === "live" ? sourceLabel : source;
 
   return (
     <div className="page">
@@ -116,12 +123,12 @@ export function DependenciesPage({ client }: { readonly client?: EshuApiClient }
         <StatTile label="Edges" value={rows.length} color="var(--blue)" sub={page?.truncated ? "page truncated" : "complete page"} />
         <StatTile label="Direction" value={direction === "forward" ? "depends on" : "dependents of"} color="var(--teal)" sub={anchorLabel} />
         <StatTile label="Optional" value={optionalCount} color="var(--ember)" sub="optional edges" />
-        <StatTile label="Source" value={source} color="var(--ember)" sub="dependency inventory" />
+        <StatTile label="Source" value={sourceDisplay} color="var(--ember)" sub="dependency inventory" />
       </div>
 
       <div className="evidence-workbench evidence-workbench-rail mt" aria-label="Package graph workbench">
         <Panel className="flush" title={direction === "forward" ? "Forward dependencies" : "Reverse dependents"}
-          sub={source}
+          sub={sourceDisplay}
           action={
             <div className="panel-action-stack">
               {page?.truth ? <TruthChip level={uiTruth(page.truth.level)} /> : null}

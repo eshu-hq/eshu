@@ -56,9 +56,15 @@ const EMPTY_STATE: DriftState = {
   unmanaged: null
 };
 
-export function CloudDriftPage({ client }: { readonly client?: EshuApiClient }): React.JSX.Element {
+export function CloudDriftPage({
+  client,
+  demoDefaults
+}: {
+  readonly client?: EshuApiClient;
+  readonly demoDefaults?: DriftFilters;
+}): React.JSX.Element {
   const location = useLocation();
-  const initial = useMemo(() => filtersFromSearch(location.search), [location.search]);
+  const initial = useMemo(() => filtersFromSearch(location.search, demoDefaults), [location.search, demoDefaults]);
   const [draft, setDraft] = useState<DriftFilters>(initial);
   const [applied, setApplied] = useState<DriftFilters>(initial);
   const [state, setState] = useState<DriftState>(EMPTY_STATE);
@@ -402,14 +408,14 @@ function EmptyRow({ cols, text }: { readonly cols: number; readonly text: string
   return <tr><td className="empty" colSpan={cols}>{text}</td></tr>;
 }
 
-function filtersFromSearch(search: string): DriftFilters {
+function filtersFromSearch(search: string, defaults: DriftFilters | undefined): DriftFilters {
   const params = new URLSearchParams(search);
   const provider = params.get("provider") ?? "";
   return {
-    accountId: params.get("account_id") ?? "",
-    provider: provider === "aws" || provider === "gcp" || provider === "azure" ? provider : "",
-    region: params.get("region") ?? "",
-    scopeId: params.get("scope_id") ?? ""
+    accountId: params.get("account_id") ?? defaults?.accountId ?? "",
+    provider: provider === "aws" || provider === "gcp" || provider === "azure" ? provider : defaults?.provider ?? "",
+    region: params.get("region") ?? defaults?.region ?? "",
+    scopeId: params.get("scope_id") ?? defaults?.scopeId ?? ""
   };
 }
 

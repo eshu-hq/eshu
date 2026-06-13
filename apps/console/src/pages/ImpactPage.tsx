@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { EshuApiClient } from "../api/client";
+import { demoDefaults } from "../api/demoClient";
 import { loadImpactReview } from "../api/impactReview";
 import type {
   DeploymentTraceEntity,
@@ -42,12 +43,13 @@ export function ImpactPage({
   readonly model: ConsoleModel;
 }): React.JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [form, setForm] = useState<ImpactFormState>(() => formFromSearch(searchParams));
+  const demoMode = model.source === "demo";
+  const [form, setForm] = useState<ImpactFormState>(() => formFromSearch(searchParams, demoMode));
   const [review, setReview] = useState<ImpactReview | null>(null);
   const [selectedNode, setSelectedNode] = useState<GraphNode | undefined>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const canLoad = model.source === "live" && client !== undefined;
+  const canLoad = (model.source === "live" || demoMode) && client !== undefined;
 
   const runReview = useCallback(
     async (next: ImpactFormState) => {
@@ -78,12 +80,12 @@ export function ImpactPage({
   );
 
   useEffect(() => {
-    const next = formFromSearch(searchParams);
+    const next = formFromSearch(searchParams, demoMode);
     setForm(next);
     if (canLoad && next.target.trim().length > 0) {
       void runReview(next);
     }
-  }, [canLoad, runReview, searchParams]);
+  }, [canLoad, demoMode, runReview, searchParams]);
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -120,7 +122,7 @@ export function ImpactPage({
         <div>
           <h2>Impact</h2>
         </div>
-        <Badge tone={canLoad ? "teal" : "warn"}>{canLoad ? "live API" : "connect live API"}</Badge>
+        <Badge tone={canLoad ? "teal" : "warn"}>{canLoad ? demoMode ? "demo fixtures" : "live API" : "connect live API"}</Badge>
       </div>
 
       <form className="impact-query" onSubmit={submit}>
@@ -176,7 +178,7 @@ export function ImpactPage({
       </form>
 
       {!canLoad ? (
-        <p className="inline-state">Live Eshu API connection unavailable.</p>
+        <p className="inline-state">{demoMode ? "Demo fixture client unavailable." : "Live Eshu API connection unavailable."}</p>
       ) : null}
       {error ? <p className="src-err">{error}</p> : null}
 
@@ -278,12 +280,13 @@ export function ImpactPage({
   );
 }
 
-function formFromSearch(searchParams: URLSearchParams): ImpactFormState {
+function formFromSearch(searchParams: URLSearchParams, demoMode = false): ImpactFormState {
+  const kind = searchParams.get("kind");
   return {
-    environment: searchParams.get("environment") ?? "",
-    kind: parseTargetKind(searchParams.get("kind")),
+    environment: searchParams.get("environment") ?? (demoMode ? demoDefaults.impact.environment : ""),
+    kind: kind === null && demoMode ? demoDefaults.impact.kind : parseTargetKind(kind),
     repoId: searchParams.get("repoId") ?? "",
-    target: searchParams.get("target") ?? ""
+    target: searchParams.get("target") ?? (demoMode ? demoDefaults.impact.target : "")
   };
 }
 

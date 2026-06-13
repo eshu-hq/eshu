@@ -31,7 +31,13 @@ function shortDigest(digest: string): string {
   return body.length > 12 ? `${digest.slice(0, digest.indexOf(":") + 1)}${body.slice(0, 12)}…` : digest;
 }
 
-export function ImagesPage({ client }: { readonly client?: EshuApiClient }): React.JSX.Element {
+export function ImagesPage({
+  client,
+  sourceLabel = "live"
+}: {
+  readonly client?: EshuApiClient;
+  readonly sourceLabel?: string;
+}): React.JSX.Element {
   const [images, setImages] = useState<readonly ImageRow[] | null>(null);
   const [offset, setOffset] = useState(0);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
@@ -72,7 +78,7 @@ export function ImagesPage({ client }: { readonly client?: EshuApiClient }): Rea
     ? "loading…"
     : provenance === "unavailable"
       ? "unavailable"
-      : `live · ${rows.length} shown`;
+      : `${sourceLabel} · ${rows.length} shown`;
 
   return (
     <div className="page">
