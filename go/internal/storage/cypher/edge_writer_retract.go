@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -23,8 +24,49 @@ func (w *EdgeWriter) RetractEdges(
 		return fmt.Errorf("edge writer executor is required")
 	}
 
+	if domain == reducer.DomainCodeCalls {
+		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
+		if err != nil {
+			return err
+		}
+		if hasDeltaScope {
+			stmt := BuildRetractCodeCallEdgesByFilePath(filePaths, evidenceSource)
+			return WrapRetryableNeo4jError(w.executor.Execute(ctx, stmt))
+		}
+	}
+
+	if domain == reducer.DomainInheritanceEdges {
+		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
+		if err != nil {
+			return err
+		}
+		if hasDeltaScope {
+			stmt := BuildRetractInheritanceEdgesByFilePath(filePaths, evidenceSource)
+			return WrapRetryableNeo4jError(w.executor.Execute(ctx, stmt))
+		}
+	}
+
+	if domain == reducer.DomainRationaleEdges {
+		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
+		if err != nil {
+			return err
+		}
+		if hasDeltaScope {
+			stmt := BuildRetractRationaleEdgesByFilePath(filePaths, evidenceSource)
+			return WrapRetryableNeo4jError(w.executor.Execute(ctx, stmt))
+		}
+	}
+
 	repoIDs := collectRepoIDs(rows)
 	if domain == reducer.DomainSQLRelationships {
+		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
+		if err != nil {
+			return err
+		}
+		if hasDeltaScope {
+			stmts := BuildRetractSQLRelationshipEdgeStatementsByFilePath(filePaths, evidenceSource)
+			return w.executeSQLRelationshipRetractStatements(ctx, stmts)
+		}
 		if ge, ok := w.executor.(GroupExecutor); ok {
 			stmts := BuildRetractSQLRelationshipEdgeStatements(repoIDs, evidenceSource)
 			return WrapRetryableNeo4jError(ge.ExecuteGroup(ctx, stmts))
@@ -66,6 +108,18 @@ func (w *EdgeWriter) RetractEdges(
 	}
 
 	return WrapRetryableNeo4jError(w.executor.Execute(ctx, stmt))
+}
+
+func (w *EdgeWriter) executeSQLRelationshipRetractStatements(ctx context.Context, stmts []Statement) error {
+	if ge, ok := w.executor.(GroupExecutor); ok {
+		return WrapRetryableNeo4jError(ge.ExecuteGroup(ctx, stmts))
+	}
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
 }
 
 func buildRetractStatement(
@@ -122,6 +176,38 @@ func collectRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
 	return result
 }
 
+func collectDeltaFilePaths(rows []reducer.SharedProjectionIntentRow) ([]string, bool, error) {
+	seen := make(map[string]struct{})
+	hasDeltaScope := false
+	var filePaths []string
+	for _, row := range rows {
+		if !payloadBool(row.Payload, "delta_projection") {
+			continue
+		}
+		hasDeltaScope = true
+		rowFilePaths := payloadStringSlice(row.Payload, "delta_file_paths")
+		if len(rowFilePaths) == 0 {
+			return nil, true, fmt.Errorf("delta retract requires delta_file_paths")
+		}
+		for _, filePath := range rowFilePaths {
+			filePath = strings.TrimSpace(filePath)
+			if filePath == "" {
+				continue
+			}
+			if _, ok := seen[filePath]; ok {
+				continue
+			}
+			seen[filePath] = struct{}{}
+			filePaths = append(filePaths, filePath)
+		}
+	}
+	if hasDeltaScope && len(filePaths) == 0 {
+		return nil, true, fmt.Errorf("delta retract requires delta_file_paths")
+	}
+	sort.Strings(filePaths)
+	return filePaths, hasDeltaScope, nil
+}
+
 func payloadString(payload map[string]any, key string) string {
 	if payload == nil {
 		return ""
@@ -135,6 +221,18 @@ func payloadString(payload map[string]any, key string) string {
 		return ""
 	}
 	return s
+}
+
+func payloadBool(payload map[string]any, key string) bool {
+	if payload == nil {
+		return false
+	}
+	value, ok := payload[key]
+	if !ok {
+		return false
+	}
+	typed, ok := value.(bool)
+	return ok && typed
 }
 
 // copyRepoRelationshipMetadata preserves durable evidence pointers on graph

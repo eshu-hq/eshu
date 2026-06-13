@@ -286,6 +286,136 @@ No-Observability-Change: ranking is in-band; each row carries a `centrality`
 integer and `coverage.ranked_by=bounded_centrality`. No new metric, span, stage,
 or backend branch is introduced.
 
+### Code-Call Delta Scoped Retraction
+
+Issue #2257 scopes code-call shared-edge cleanup for delta generations to the
+changed or deleted file paths emitted by the git delta fact. Full repository
+refreshes still use the existing repository-wide retract path. Delta refreshes
+carry a bounded, de-duplicated `delta_file_paths` list through the reducer
+repo-refresh intent and into `EdgeWriter.RetractEdges`, which dispatches a
+static `CALLS` / `REFERENCES` / `USES_METACLASS` delete statement anchored on
+`source.path IN $file_paths` rather than deleting every code-call relationship
+for the repository.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'TestBuildCodeCall(RefreshIntentsCarriesDeltaFileScope|DeltaFilePathsByRepoIDUsesRepositoryDeltaFact)|TestCodeCallProjectionRunnerRetractRepoPreservesDeltaFileScope|TestBuildCodeCallRetractRowsKeepsMalformedDeltaScoped'
+-count=1` proves the reducer extracts changed/deleted file paths from the
+repository delta fact, carries them into the code-call repo-refresh intent,
+preserves that scope through the dedicated code-call projection runner, and does
+not silently downgrade malformed delta scope to a repo-wide retract. `go test
+./internal/storage/cypher -run
+'TestEdgeWriterRetractEdgesCodeCall(DeltaScopesToFilePaths|RejectsDeltaWithoutFilePaths)'
+-count=1` proves the storage writer switches valid delta rows to the file-path
+retract statement instead of the repo-wide `source.repo_id IN $repo_ids`
+statement and rejects malformed delta rows before executing Cypher. The input
+cardinality is the delta file-path count for one accepted
+repository/source-run unit; the normal full-refresh path is unchanged when no
+delta scope is present. The changed Cypher keeps static relationship families
+and source labels, binds only a positive `$file_paths` list, and relies on
+existing code-entity `path` properties rather than adding a traversal or
+backend-specific branch.
+
+No-Observability-Change: the delta retract path uses the existing
+`EdgeWriter.RetractEdges` executor call, statement summary, graph query duration
+metrics, retry classification, timeout handling, and reducer code-call cycle
+timings. It adds no worker, queue domain, runtime knob, metric instrument,
+metric label, or backend-specific telemetry.
+
+### SQL Relationship Delta Scoped Retraction
+
+Issue #2257 also scopes SQL relationship cleanup for delta generations to the
+changed or deleted SQL source files. The SQL reducer now loads repository delta
+metadata with a bounded repository fact query while preserving the existing
+payload-filtered `content_entity` query for SQL entity types. Deleted-only
+delta generations can therefore retract stale `REFERENCES_TABLE`, `HAS_COLUMN`,
+`TRIGGERS`, and `EXECUTES` edges without requiring current SQL entity rows, and
+ordinary full refreshes keep the existing repository-wide retract path.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'TestSQLRelationship(MaterializationHandler(ScopesDeltaRetractToFiles|DeletedOnlyDeltaRetractsWithoutWrites)|HandlerUses(KindFilteredFactLoader|PayloadFilteredContentEntities))|TestBuildSQLRelationshipRetractRowsKeepsMalformedDeltaScoped'
+-count=1` proves the reducer extracts repo-qualified delta file paths from the
+repository fact, carries them into SQL retract rows, handles deleted-only delta
+generations without writes, preserves bounded SQL content-entity loading, and
+does not silently downgrade malformed delta scope to repo-wide cleanup. `go test
+./internal/storage/cypher -run
+'TestEdgeWriterRetractEdgesSQLRelationship(DeltaUsesFileScopedGroup|RejectsDeltaWithoutFilePaths|Dispatch|UsesLabelScopedGroup)|TestBuildRetractSQLRelationshipEdgeStatementsUsesSharedParameters'
+-count=1` proves valid delta rows dispatch the five label-scoped SQL retract
+statements with `source.path IN $file_paths`, malformed delta rows execute no
+Cypher, and non-delta SQL retracts keep their existing repo-wide dispatch
+behavior for non-group executors. The input cardinality is the delta file-path
+count for one repository generation; the changed Cypher keeps static source
+labels and relationship tokens, binds only a positive `$file_paths` list, and
+does not add a traversal or backend-specific branch.
+
+No-Observability-Change: SQL delta retraction uses the existing
+`EdgeWriter.RetractEdges` executor path, SQL materialization completion log
+fields, graph query duration metrics, retry classification, and timeout
+handling. It adds no worker, queue domain, runtime knob, metric instrument,
+metric label, or backend-specific telemetry.
+
+### Inheritance Delta Scoped Retraction
+
+Issue #2257 also scopes inheritance cleanup for delta generations to changed or
+deleted source files. The inheritance reducer now loads repository delta
+metadata beside its existing payload-filtered `content_entity` query for
+inheritance-capable entity types. Deleted-only delta generations can therefore
+retract stale `INHERITS`, `OVERRIDES`, `ALIASES`, and `IMPLEMENTS` edges without
+requiring current child entities, while full refreshes keep the existing
+repository-wide retract path.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'TestInheritance(MaterializationHandler(ScopesDeltaRetractToFiles|DeletedOnlyDeltaRetractsWithoutWrites)|MaterializationHandlerUsesKindFilteredFactLoader|MaterializationHandlerUsesPayloadFilteredContentEntities)|TestBuildInheritanceRetractRowsKeepsMalformedDeltaScoped'
+-count=1` proves the reducer extracts repo-qualified delta file paths from the
+repository fact, carries them into inheritance retract rows, handles
+deleted-only delta generations without writes, preserves bounded content-entity
+loading, and keeps malformed delta scope scoped instead of silently downgrading
+to repo-wide cleanup. `go test ./internal/storage/cypher -run
+'TestEdgeWriterRetractEdgesInheritance(DeltaUsesFileScope|RejectsDeltaWithoutFilePaths|Dispatch)|TestEdgeWriterRetractEdgesInheritanceIncludesOverrides|TestBuildRetractInheritanceEdgesByFilePath'
+-count=1` proves valid delta rows dispatch the file-scoped inheritance retract
+statement with `child.path IN $file_paths`, malformed delta rows execute no
+Cypher, and non-delta inheritance retracts keep the existing repo-wide dispatch.
+The input cardinality is the delta file-path count for one repository
+generation; the changed Cypher keeps a static relationship-token set, binds only
+a positive `$file_paths` list, and does not add a traversal or backend-specific
+branch.
+
+No-Observability-Change: inheritance delta retraction uses the existing
+`EdgeWriter.RetractEdges` executor path, inheritance materialization completion
+logs, graph query duration metrics, retry classification, and timeout handling.
+It adds no worker, queue domain, runtime knob, metric instrument, metric label,
+or backend-specific telemetry.
+
+### Rationale EXPLAINS Delta Scoped Retraction
+
+Issue #2257 also scopes rationale `EXPLAINS` cleanup for delta generations to
+changed or deleted source files. The rationale reducer now loads repository
+delta metadata beside `content_entity` facts that can carry
+`rationale_comments`. Deleted-only delta generations can therefore retract stale
+`EXPLAINS` edges without current rationale rows, while full refreshes keep the
+existing repository-wide `rationale.repo_id` retract path.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'TestRationaleMaterializationHandler(ScopesDeltaRetractToFiles|DeletedOnlyDeltaRetractsWithoutWrites)|TestBuildRationaleRetractRowsKeepsMalformedDeltaScoped|TestLoadRationaleMaterializationFactsUsesSingleLegacyFallback'
+-count=1` proves the reducer extracts repo-qualified delta file paths from the
+repository fact, carries them into rationale retract rows, handles deleted-only
+delta generations without writes, preserves one legacy fallback fact load, and
+keeps malformed delta scope scoped instead of silently downgrading to repo-wide
+cleanup. `go test ./internal/storage/cypher -run
+'Test(BuildRetractRationaleEdgesByFilePath|EdgeWriterRetractEdgesRationale(DeltaUsesFileScope|RejectsDeltaWithoutFilePaths))'
+-count=1` proves valid delta rows dispatch the file-scoped rationale retract
+statement with `target.path IN $file_paths`, malformed delta rows execute no
+Cypher, and non-delta rationale retracts keep the existing repo-wide dispatch.
+The input cardinality is the delta file-path count for one repository
+generation; the changed Cypher keeps static target labels and the `EXPLAINS`
+relationship token, binds only a positive `$file_paths` list, and does not add
+a traversal or backend-specific branch.
+
+No-Observability-Change: rationale delta retraction uses the existing
+`EdgeWriter.RetractEdges` executor path, rationale materialization completion
+logs, graph query duration metrics, retry classification, and timeout handling.
+It adds no worker, queue domain, runtime knob, metric instrument, metric label,
+or backend-specific telemetry.
+
 ## Related Docs
 
 - [NornicDB Pitfalls](nornicdb-pitfalls.md)

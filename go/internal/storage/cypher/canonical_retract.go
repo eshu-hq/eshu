@@ -95,6 +95,19 @@ func BuildRetractCodeCallEdges(repoIDs []string, evidenceSource string) Statemen
 	}
 }
 
+// BuildRetractCodeCallEdgesByFilePath builds a code-intel edge retraction
+// statement for source entities owned by the given repo-qualified file paths.
+func BuildRetractCodeCallEdgesByFilePath(filePaths []string, evidenceSource string) Statement {
+	return Statement{
+		Operation: OperationCanonicalRetract,
+		Cypher:    retractCodeCallEdgesByFileCypher(evidenceSource),
+		Parameters: map[string]any{
+			"file_paths":      filePaths,
+			"evidence_source": evidenceSource,
+		},
+	}
+}
+
 func retractCodeCallEdgesCypher(evidenceSource string) string {
 	switch evidenceSource {
 	case "parser/code-calls":
@@ -103,6 +116,17 @@ func retractCodeCallEdgesCypher(evidenceSource string) string {
 		return retractCodeCallMetaclassEdgesCypher
 	default:
 		return retractCodeCallFallbackEdgesCypher
+	}
+}
+
+func retractCodeCallEdgesByFileCypher(evidenceSource string) string {
+	switch evidenceSource {
+	case "parser/code-calls":
+		return retractCodeCallParserEdgesByFileCypher
+	case "parser/python-metaclass":
+		return retractCodeCallMetaclassEdgesByFileCypher
+	default:
+		return retractCodeCallFallbackEdgesByFileCypher
 	}
 }
 

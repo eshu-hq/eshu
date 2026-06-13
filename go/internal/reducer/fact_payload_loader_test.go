@@ -15,7 +15,10 @@ func TestInheritanceMaterializationHandlerUsesPayloadFilteredContentEntities(t *
 	loader := &recordingPayloadFactLoader{
 		byPayload: inheritanceEntityFacts(),
 		all:       []facts.Envelope{{FactKind: "file"}},
-		byKind:    []facts.Envelope{{FactKind: factKindContentEntity}},
+		byKind: []facts.Envelope{{
+			FactKind: factKindRepository,
+			Payload:  map[string]any{"repo_id": "repo-1"},
+		}},
 	}
 	writer := &recordingInheritanceEdgeWriter{}
 	handler := InheritanceMaterializationHandler{
@@ -38,8 +41,11 @@ func TestInheritanceMaterializationHandlerUsesPayloadFilteredContentEntities(t *
 	if loader.listFactsCalls != 0 {
 		t.Fatalf("ListFacts() calls = %d, want 0", loader.listFactsCalls)
 	}
-	if got, want := len(loader.kindCalls), 0; got != want {
+	if got, want := len(loader.kindCalls), 1; got != want {
 		t.Fatalf("ListFactsByKind() calls = %d, want %d", got, want)
+	}
+	if got, want := strings.Join(loader.kindCalls[0], ","), "repository"; got != want {
+		t.Fatalf("ListFactsByKind() kinds = %q, want %q", got, want)
 	}
 	call := loader.payloadCalls[0]
 	if got, want := call.factKind, factKindContentEntity; got != want {
@@ -71,8 +77,11 @@ func TestSQLRelationshipHandlerUsesPayloadFilteredContentEntities(t *testing.T) 
 				},
 			},
 		},
-		all:    []facts.Envelope{{FactKind: "file"}},
-		byKind: []facts.Envelope{{FactKind: factKindContentEntity}},
+		all: []facts.Envelope{{FactKind: "file"}},
+		byKind: []facts.Envelope{{
+			FactKind: factKindRepository,
+			Payload:  map[string]any{"repo_id": "repo-1"},
+		}},
 	}
 	writer := &recordingSQLRelEdgeWriter{}
 	handler := SQLRelationshipMaterializationHandler{
@@ -95,8 +104,11 @@ func TestSQLRelationshipHandlerUsesPayloadFilteredContentEntities(t *testing.T) 
 	if loader.listFactsCalls != 0 {
 		t.Fatalf("ListFacts() calls = %d, want 0", loader.listFactsCalls)
 	}
-	if got, want := len(loader.kindCalls), 0; got != want {
+	if got, want := len(loader.kindCalls), 1; got != want {
 		t.Fatalf("ListFactsByKind() calls = %d, want %d", got, want)
+	}
+	if got, want := strings.Join(loader.kindCalls[0], ","), "repository"; got != want {
+		t.Fatalf("ListFactsByKind() kinds = %q, want %q", got, want)
 	}
 	call := loader.payloadCalls[0]
 	if got, want := call.factKind, factKindContentEntity; got != want {
