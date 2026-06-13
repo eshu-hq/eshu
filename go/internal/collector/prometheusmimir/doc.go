@@ -6,6 +6,8 @@
 // observability.observed_rule, and observability.coverage_warning facts. It
 // never persists metric samples, exemplars, raw PromQL, scrape target URLs,
 // target label values, tenant IDs, tenant secrets, or alert payload bodies.
-// Reducers and query surfaces own declared/applied/observed comparison and
-// user-facing observability truth.
+// Provider failures expose bounded workflow failure classes while omitting
+// provider response bodies and credential-bearing request details. Reducers and
+// query surfaces own declared/applied/observed comparison and user-facing
+// observability truth.
 package prometheusmimir

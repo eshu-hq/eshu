@@ -2,13 +2,14 @@ package prometheusmimir
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
-	"path"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 const (
@@ -41,6 +42,24 @@ func (r *apiResponse[T]) apiStatus() (string, string) {
 		return "", ""
 	}
 	return strings.TrimSpace(r.Status), strings.TrimSpace(r.ErrorType)
+}
+
+// ProviderAPIError carries a bounded Prometheus-compatible API status failure.
+type ProviderAPIError struct {
+	Status    string
+	ErrorType string
+}
+
+func (e ProviderAPIError) Error() string {
+	status := strings.TrimSpace(e.Status)
+	if status == "" {
+		status = "error"
+	}
+	errorType := strings.TrimSpace(e.ErrorType)
+	if errorType == "" {
+		return fmt.Sprintf("metric provider returned API status %q", status)
+	}
+	return fmt.Sprintf("metric provider returned API status %q: %s", status, errorType)
 }
 
 type apiStatusReader interface {
@@ -83,19 +102,13 @@ type ruleResource struct {
 
 // NewHTTPClient builds a bounded Prometheus-compatible REST client.
 func NewHTTPClient(config HTTPClientConfig) (HTTPClient, error) {
-	base, err := url.Parse(strings.TrimRight(strings.TrimSpace(config.BaseURL), "/"))
+	base, err := sdk.ParseBaseURL("metric", config.BaseURL)
 	if err != nil {
-		return HTTPClient{}, fmt.Errorf("parse metric base_url: %w", err)
-	}
-	if base.Scheme == "" || base.Host == "" {
-		return HTTPClient{}, fmt.Errorf("metric base_url must include scheme and host")
-	}
-	if base.User != nil {
-		return HTTPClient{}, fmt.Errorf("metric base_url must not include credentials")
+		return HTTPClient{}, err
 	}
 	client := config.Client
 	if client == nil {
-		client = &http.Client{Timeout: defaultHTTPTimeout}
+		client = sdk.DefaultHTTPClient(defaultHTTPTimeout)
 	}
 	return HTTPClient{baseURL: base, httpClient: client}, nil
 }
@@ -121,11 +134,11 @@ func (c HTTPClient) CollectObservedMetadata(ctx context.Context, target TargetCo
 	}
 	if provider == ProviderPrometheus {
 		if err := c.collectTargets(ctx, target, &result); err != nil {
-			return CollectionResult{}, err
+			return result, err
 		}
 	}
 	if err := c.collectRules(ctx, target, &result); err != nil {
-		return CollectionResult{}, err
+		return result, err
 	}
 	result.Stats.Targets = len(result.Targets)
 	result.Stats.Rules = len(result.Rules)
@@ -204,49 +217,54 @@ func (c HTTPClient) doJSON(
 	result *CollectionResult,
 	resourceClass string,
 ) (bool, error) {
-	for attempt := 0; ; attempt++ {
-		reqURL := *c.baseURL
-		reqURL.Path = path.Join(c.baseURL.Path, strings.Trim(target.PathPrefix, "/"), endpoint)
-		reqURL.RawQuery = query.Encode()
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
-		if err != nil {
-			return false, fmt.Errorf("build metric request: %w", err)
-		}
-		req.Header.Set("Accept", "application/json")
-		if token := strings.TrimSpace(target.Token); token != "" {
-			req.Header.Set("Authorization", "Bearer "+token)
-		}
-		if tenant := strings.TrimSpace(target.TenantID); tenant != "" {
-			req.Header.Set("X-Scope-OrgID", tenant)
-		}
-		resp, err := c.httpClient.Do(req)
-		if err != nil {
-			return false, err
-		}
-		if resp.StatusCode >= 300 {
-			if shouldRetryStatus(resp.StatusCode) && attempt < maxHTTPRetries {
-				result.Stats.Retries++
-				if resp.StatusCode == http.StatusTooManyRequests {
-					result.Stats.RateLimits++
-				}
-				_ = resp.Body.Close()
-				continue
+	err := sdk.DoJSON(ctx, sdk.JSONRequest{
+		Provider:   "metric",
+		Method:     http.MethodGet,
+		BaseURL:    c.baseURL,
+		PathPrefix: target.PathPrefix,
+		Endpoint:   endpoint,
+		Query:      query,
+		Out:        out,
+		Client:     c.httpClient,
+		MaxRetries: maxHTTPRetries,
+		Headers: func(req *http.Request) {
+			if token := strings.TrimSpace(target.Token); token != "" {
+				req.Header.Set("Authorization", "Bearer "+token)
 			}
-			defer func() { _ = resp.Body.Close() }()
-			return c.handleStatus(resp, result, resourceClass)
-		}
-		defer func() { _ = resp.Body.Close() }()
-		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-			return false, fmt.Errorf("decode metric response: %w", err)
-		}
-		if statusReader, ok := out.(apiStatusReader); ok {
-			status, errorType := statusReader.apiStatus()
-			if status != "" && status != "success" {
-				return false, ProviderAPIError{Status: status, ErrorType: errorType}
+			if tenant := strings.TrimSpace(target.TenantID); tenant != "" {
+				req.Header.Set("X-Scope-OrgID", tenant)
 			}
-		}
-		return true, nil
+		},
+		OnRetry: func(resp *http.Response, _ int) {
+			result.Stats.Retries++
+			if resp.StatusCode == http.StatusTooManyRequests {
+				result.Stats.RateLimits++
+			}
+		},
+		StatusError: func(resp *http.Response) error {
+			ok, err := c.handleStatus(resp, result, resourceClass)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return sdk.ErrStatusHandled
+			}
+			return nil
+		},
+	})
+	if errors.Is(err, sdk.ErrStatusHandled) {
+		return false, nil
 	}
+	if err != nil {
+		return false, err
+	}
+	if statusReader, ok := out.(apiStatusReader); ok {
+		status, errorType := statusReader.apiStatus()
+		if status != "" && status != "success" {
+			return false, ProviderAPIError{Status: status, ErrorType: errorType}
+		}
+	}
+	return true, nil
 }
 
 func (c HTTPClient) handleStatus(resp *http.Response, result *CollectionResult, resourceClass string) (bool, error) {
@@ -260,7 +278,7 @@ func (c HTTPClient) handleStatus(resp *http.Response, result *CollectionResult, 
 		warning.Reason = WarningRateLimited
 		result.Stats.RateLimits++
 	default:
-		return false, ProviderHTTPError{StatusCode: resp.StatusCode, Message: http.StatusText(resp.StatusCode)}
+		return false, ProviderHTTPError{Provider: "metric", StatusCode: resp.StatusCode, Message: http.StatusText(resp.StatusCode)}
 	}
 	result.Warnings = append(result.Warnings, warning)
 	result.Stats.Partial = true
@@ -390,10 +408,6 @@ func normalizedProvider(provider string) string {
 	default:
 		return strings.TrimSpace(provider)
 	}
-}
-
-func shouldRetryStatus(statusCode int) bool {
-	return statusCode == http.StatusTooManyRequests || statusCode >= 500
 }
 
 func isStale(updatedAt time.Time, observedAt time.Time, staleAfter time.Duration) bool {

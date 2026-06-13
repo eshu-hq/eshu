@@ -3,6 +3,7 @@ package sdk
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -172,6 +173,43 @@ func TestDoJSONReturnsBoundedHTTPErrorWithoutResponseBody(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "secret") {
 		t.Fatalf("error leaked response body: %q", err.Error())
+	}
+}
+
+func TestDoJSONUsesCustomDecoder(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/yaml")
+		_, _ = w.Write([]byte("status: success\n"))
+	}))
+	defer server.Close()
+
+	base, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatalf("parse server URL: %v", err)
+	}
+	var decoded string
+	err = DoJSON(context.Background(), JSONRequest{
+		Provider: "test",
+		Method:   http.MethodGet,
+		BaseURL:  base,
+		Endpoint: "/metadata",
+		Client:   server.Client(),
+		Decode: func(body io.Reader) error {
+			data, err := io.ReadAll(body)
+			if err != nil {
+				return err
+			}
+			decoded = string(data)
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("DoJSON() error = %v, want nil", err)
+	}
+	if decoded != "status: success\n" {
+		t.Fatalf("decoded body = %q, want custom decoder body", decoded)
 	}
 }
 

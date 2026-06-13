@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 func TestHTTPClientCollectsBoundedLokiMetadata(t *testing.T) {
@@ -272,6 +274,52 @@ func TestHTTPClientRejectsProviderErrorStatus(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "checkout-prod") || strings.Contains(err.Error(), "payment failed") {
 		t.Fatalf("provider error leaked response body: %v", err)
+	}
+}
+
+func TestHTTPClientReturnsSDKHTTPErrorForServerFailure(t *testing.T) {
+	t.Parallel()
+
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if r.URL.Path != "/loki/api/v1/labels" {
+			t.Fatalf("unexpected request path %q", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("loki response body token-secret"))
+	}))
+	defer server.Close()
+
+	client, err := NewHTTPClient(HTTPClientConfig{BaseURL: server.URL, Client: server.Client()})
+	if err != nil {
+		t.Fatalf("NewHTTPClient() error = %v, want nil", err)
+	}
+
+	result, err := client.CollectObservedMetadata(context.Background(), TargetConfig{
+		ScopeID:       "loki:tenant:prod",
+		InstanceID:    "loki-prod",
+		BaseURL:       server.URL,
+		ResourceLimit: 50,
+	})
+	if err == nil {
+		t.Fatal("CollectObservedMetadata() error = nil, want server failure")
+	}
+	var httpErr sdk.HTTPError
+	if !errors.As(err, &httpErr) {
+		t.Fatalf("CollectObservedMetadata() error = %T, want sdk.HTTPError", err)
+	}
+	if got, want := httpErr.StatusCode, http.StatusInternalServerError; got != want {
+		t.Fatalf("StatusCode = %d, want %d", got, want)
+	}
+	if got, want := attempts, maxHTTPRetries+1; got != want {
+		t.Fatalf("attempts = %d, want %d", got, want)
+	}
+	if got, want := result.Stats.Retries, maxHTTPRetries; got != want {
+		t.Fatalf("Retries = %d, want %d", got, want)
+	}
+	if strings.Contains(err.Error(), "token-secret") {
+		t.Fatalf("server failure leaked response body: %v", err)
 	}
 }
 

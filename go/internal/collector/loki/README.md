@@ -17,6 +17,8 @@ coverage truth; reducers and query surfaces own those decisions.
 
 - `ClaimedSource` and `NewClaimedSource` implement the workflow-claim source.
 - `HTTPClient` and `NewHTTPClient` read bounded Loki REST endpoints.
+- `ProviderFailure`, `ProviderHTTPError`, and the `Failure*` constants expose
+  the shared collector SDK failure contract for workflow status.
 - `NewSourceInstanceEnvelope`, `NewObservedLogSignalEnvelope`,
   `NewObservedRuleEnvelope`, and `NewCoverageWarningEnvelope` build
   observability fact envelopes.
@@ -27,9 +29,10 @@ coverage truth; reducers and query surfaces own those decisions.
 ## Dependencies
 
 The package depends on `internal/collector` for `CollectedGeneration`,
-`internal/facts` for fact envelopes and stable IDs, `internal/scope` for scope
-generation identity, `internal/workflow` for claim input, and
-`internal/telemetry` for bounded collector metrics and spans.
+`internal/collector/sdk` for bounded HTTP execution and provider failure
+classification, `internal/facts` for fact envelopes and stable IDs,
+`internal/scope` for scope generation identity, `internal/workflow` for claim
+input, and `internal/telemetry` for bounded collector metrics and spans.
 
 ## Telemetry
 
@@ -53,6 +56,9 @@ in metric labels.
 - `HTTPClient` uses Loki metadata endpoints only: labels, allowlisted label
   values, series metadata, and ruler rule metadata. It does not call log query
   endpoints that return stream entries.
+- `HTTPClient` uses `collector/sdk` for base URL validation, bounded retries,
+  body closure, and HTTP failure classification. Loki API `status:error`
+  payload semantics and YAML rule decoding stay local to this package.
 - Label values are counted and fingerprinted only when explicitly allowlisted
   and within the configured cardinality bound. High-cardinality values become
   `observability.coverage_warning` facts instead of raw payload fields.
@@ -76,3 +82,15 @@ Observability Evidence: operators can diagnose live Loki reads through
 `loki.observe` / `loki.fetch`, provider request counts, fetch duration, facts
 emitted by fact kind, high-cardinality rejection counts, stale counts,
 rate-limit counts, retry counts, and metadata redaction counts.
+
+No-Regression Evidence (#2361): `go test ./internal/collector/loki -count=1`
+covers SDK-backed base URL validation, bounded HTTP retries, SDK `HTTPError`
+wrapping for hard provider failures, partial coverage warnings,
+`status:error` API failures, YAML ruler decoding, tenant redaction, source
+failure class mapping, and terminal versus retryable workflow decisions.
+
+No-Observability-Change (#2361): SDK adoption changes no span or metric names.
+Retry, rate-limit, fetch-duration, fact-count, stale, high-cardinality, and
+redaction signals keep their existing bounded label sets. Hard provider
+failures now return the partially populated `CollectionResult` so retry counts
+can reach the claimed source telemetry path.

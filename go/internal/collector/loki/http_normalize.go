@@ -2,7 +2,6 @@ package loki
 
 import (
 	"fmt"
-	"net/http"
 	"net/url"
 	"sort"
 	"strings"
@@ -162,10 +161,6 @@ func normalizedLabelValueLimit(value int) int {
 	default:
 		return value
 	}
-}
-
-func shouldRetryStatus(statusCode int) bool {
-	return statusCode == http.StatusTooManyRequests || statusCode >= 500
 }
 
 func isStale(updatedAt time.Time, observedAt time.Time, staleAfter time.Duration) bool {
