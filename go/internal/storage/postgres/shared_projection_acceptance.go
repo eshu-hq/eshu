@@ -135,6 +135,44 @@ func (s *SharedProjectionAcceptanceStore) Lookup(ctx context.Context, scopeID, a
 	return generationID, true, rows.Err()
 }
 
+// sharedProjectionAcceptanceRowEstimateSQL reads the PostgreSQL planner row
+// estimate for the acceptance table. It is an O(1) catalog lookup rather than a
+// COUNT(*), so the observable gauge backed by it stays cheap to evaluate on
+// every metrics scrape regardless of table size.
+const sharedProjectionAcceptanceRowEstimateSQL = `
+SELECT GREATEST(reltuples, 0)::bigint
+FROM pg_class
+WHERE relname = 'shared_projection_acceptance' AND relkind = 'r'
+LIMIT 1
+`
+
+// AcceptanceRowCount returns an approximate count of durable shared acceptance
+// rows using the PostgreSQL planner estimate (pg_class.reltuples). It is
+// deliberately an estimate, not an exact COUNT(*), so the observable gauge it
+// backs (eshu_dp_shared_acceptance_rows) costs O(1) per metrics scrape rather
+// than a full table scan; the value tracks the true row count within
+// autovacuum/ANALYZE freshness. A table that has never been analyzed reports 0.
+// It satisfies telemetry.AcceptanceObserver.
+func (s *SharedProjectionAcceptanceStore) AcceptanceRowCount(ctx context.Context) (int64, error) {
+	rows, err := s.db.QueryContext(ctx, sharedProjectionAcceptanceRowEstimateSQL)
+	if err != nil {
+		return 0, fmt.Errorf("query shared projection acceptance row estimate: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	if !rows.Next() {
+		return 0, rows.Err()
+	}
+	var count int64
+	if err := rows.Scan(&count); err != nil {
+		return 0, fmt.Errorf("scan shared projection acceptance row estimate: %w", err)
+	}
+	if count < 0 {
+		count = 0
+	}
+	return count, rows.Err()
+}
+
 // LookupByAcceptanceUnit preserves the current repository/run reducer seam
 // while the scope-aware bounded-unit contract is wired through the caller
 // stack.

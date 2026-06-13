@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -67,9 +68,12 @@ func run(parent context.Context) error {
 	}
 	defer func() { _ = db.Close() }()
 
-	queueObserver := postgres.NewQueueObserverStore(postgres.SQLQueryer{DB: db})
-	if err := telemetry.RegisterObservableGauges(instruments, meter, queueObserver, nil); err != nil {
-		return fmt.Errorf("register observable gauges: %w", err)
+	// activeWorkers tracks in-flight reducer executions for the
+	// eshu_dp_worker_pool_active gauge. It is shared between the gauge observer
+	// (registered now) and the executor decorator (wired into the service).
+	activeWorkers := new(atomic.Int64)
+	if err := registerReducerObservableGauges(instruments, meter, db, activeWorkers); err != nil {
+		return err
 	}
 
 	neo4jExecutor, cypherExecutor, neo4jReader, graphReader, neo4jCloser, err := openReducerNeo4jAdapters(parent, os.Getenv)
@@ -94,6 +98,10 @@ func run(parent context.Context) error {
 	if err != nil {
 		return err
 	}
+	// Count in-flight executions for the eshu_dp_worker_pool_active gauge. Every
+	// reducer execution path runs an intent through Executor.Execute exactly
+	// once, so decorating the executor yields the active worker count.
+	serviceRunner.Executor = newActiveWorkerExecutor(serviceRunner.Executor, activeWorkers)
 	retryPolicy, err := loadReducerQueueConfig(os.Getenv)
 	if err != nil {
 		return err
