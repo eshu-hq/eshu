@@ -28,9 +28,11 @@ type SemanticEntityRow struct {
 
 // SemanticEntityWrite captures one canonical semantic-entity write request.
 type SemanticEntityWrite struct {
-	RepoIDs     []string
-	Rows        []SemanticEntityRow
-	SkipRetract bool
+	RepoIDs         []string
+	Rows            []SemanticEntityRow
+	SkipRetract     bool
+	DeltaProjection bool
+	DeltaFilePaths  []string
 }
 
 // SemanticEntityWriteResult captures the canonical semantic-entity write outcome.
@@ -92,6 +94,7 @@ func (h SemanticEntityMaterializationHandler) Handle(
 	extractStart := time.Now()
 	targetRepoID := semanticTargetRepoID(intent, envelopes)
 	repoIDs, rows := ExtractSemanticEntityRowsForRepo(envelopes, targetRepoID)
+	deltaScope := extractSemanticDeltaProjectionScope(envelopes, rows, targetRepoID)
 	extractDuration := time.Since(extractStart)
 	if len(repoIDs) == 0 && len(rows) == 0 {
 		logSemanticEntityMaterializationCompleted(ctx, semanticEntityMaterializationTiming{
@@ -101,6 +104,8 @@ func (h SemanticEntityMaterializationHandler) Handle(
 			rowCount:        0,
 			loadDuration:    loadDuration,
 			extractDuration: extractDuration,
+			deltaProjection: deltaScope.Delta,
+			deltaFileCount:  len(deltaScope.FilePaths),
 			totalDuration:   time.Since(totalStart),
 		})
 		return Result{
@@ -120,9 +125,11 @@ func (h SemanticEntityMaterializationHandler) Handle(
 
 	graphWriteStart := time.Now()
 	writeResult, err := h.Writer.WriteSemanticEntities(ctx, SemanticEntityWrite{
-		RepoIDs:     repoIDs,
-		Rows:        rows,
-		SkipRetract: skipRetract,
+		RepoIDs:         repoIDs,
+		Rows:            rows,
+		SkipRetract:     skipRetract,
+		DeltaProjection: deltaScope.Delta,
+		DeltaFilePaths:  deltaScope.FilePaths,
 	})
 	if err != nil {
 		return Result{}, fmt.Errorf("write semantic entities: %w", err)
@@ -145,6 +152,8 @@ func (h SemanticEntityMaterializationHandler) Handle(
 		repoCount:               len(repoIDs),
 		rowCount:                len(rows),
 		skipRetract:             skipRetract,
+		deltaProjection:         deltaScope.Delta,
+		deltaFileCount:          len(deltaScope.FilePaths),
 		loadDuration:            loadDuration,
 		extractDuration:         extractDuration,
 		retractDecisionDuration: retractDecisionDuration,
@@ -170,6 +179,8 @@ type semanticEntityMaterializationTiming struct {
 	repoCount               int
 	rowCount                int
 	skipRetract             bool
+	deltaProjection         bool
+	deltaFileCount          int
 	loadDuration            time.Duration
 	extractDuration         time.Duration
 	retractDecisionDuration time.Duration
@@ -192,6 +203,8 @@ func logSemanticEntityMaterializationCompleted(
 		slog.Int("repo_count", timing.repoCount),
 		slog.Int("row_count", timing.rowCount),
 		slog.Bool("skip_retract", timing.skipRetract),
+		slog.Bool("delta_projection", timing.deltaProjection),
+		slog.Int("delta_file_count", timing.deltaFileCount),
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("extract_duration_seconds", timing.extractDuration.Seconds()),
 		slog.Float64("retract_decision_duration_seconds", timing.retractDecisionDuration.Seconds()),

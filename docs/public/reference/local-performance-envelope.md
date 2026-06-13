@@ -100,6 +100,25 @@ handler emits `eshu_dp_ec2_block_device_kms_posture_decisions_total` by
 `skip_reason`, and a completion log with resource/relationship/posture counts,
 row count, decision and skip tallies, and stage durations.
 
+### Semantic Entity Delta Projection (#2257)
+
+No-Regression Evidence: `go test ./internal/reducer ./internal/storage/cypher
+-run 'TestSemanticEntity.*Delta|TestSemanticEntityMaterializationHandlerScopesDeltaRetractToFiles|TestSemanticEntityWriterRejectsDeltaRetractWithoutFilePaths'
+-count=1` failed before `SemanticEntityWrite` carried file-delta scope, then
+passed after delta semantic materialization supplied qualified changed/deleted
+file paths and the Cypher writer required those paths before retracting. The
+focused shape uses no live graph backend: reducer fakes cover one changed file
+plus one deleted file, a deleted-only delta with zero semantic rows, and a
+malformed delta with no file paths; storage fakes cover one semantic row and two
+scoped retract paths through the no-op recording executor. `go test
+./internal/reducer ./internal/storage/cypher -count=1` also passed.
+
+Observability Evidence: semantic entity materialization continues to emit the
+existing completion log with fact, repo, row, and stage-duration fields, and now
+adds `delta_projection` plus `delta_file_count` so operators can distinguish a
+repo-wide semantic refresh from a file-scoped delta cleanup without adding a new
+metric label or runtime knob.
+
 ## Manual Gates
 
 ```bash

@@ -66,6 +66,8 @@ func TestSemanticEntityMaterializationHandlerLogsStageTiming(t *testing.T) {
 		`"row_count":1`,
 		`"repo_count":1`,
 		`"skip_retract":false`,
+		`"delta_projection":false`,
+		`"delta_file_count":0`,
 		`"load_facts_duration_seconds":`,
 		`"extract_duration_seconds":`,
 		`"retract_decision_duration_seconds":`,

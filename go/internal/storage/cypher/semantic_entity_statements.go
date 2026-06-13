@@ -242,11 +242,23 @@ MERGE (impl)-[:CONTAINS]->(fn)`
 WHERE n.repo_id IN $repo_ids
   AND n.evidence_source = $evidence_source
 DETACH DELETE n`
+
+	semanticEntityDeltaRetractCypher = `MATCH (n:Annotation|Typedef|TypeAlias|TypeAnnotation|Component|Module|ImplBlock|Protocol|ProtocolImplementation|Variable|Function)
+WHERE n.path IN $file_paths
+  AND n.evidence_source = $evidence_source
+DETACH DELETE n`
 )
 
 func semanticEntityLabelRetractCypher(label string) string {
 	return "MATCH (n:" + label + ")\n" +
 		"WHERE n.repo_id IN $repo_ids\n" +
+		"  AND n.evidence_source = $evidence_source\n" +
+		"DETACH DELETE n"
+}
+
+func semanticEntityDeltaLabelRetractCypher(label string) string {
+	return "MATCH (n:" + label + ")\n" +
+		"WHERE n.path IN $file_paths\n" +
 		"  AND n.evidence_source = $evidence_source\n" +
 		"DETACH DELETE n"
 }
@@ -344,6 +356,22 @@ func semanticEntityCanonicalNodeClearCypher(label string, properties []string) s
 	}
 	return "MATCH (n:" + label + ")\n" +
 		"WHERE n.repo_id IN $repo_ids\n" +
+		"REMOVE " + strings.Join(assignments, ", ")
+}
+
+func semanticEntityDeltaCanonicalNodeClearCypher(label string, properties []string) string {
+	if len(properties) == 0 {
+		return ""
+	}
+	assignments := make([]string, 0, len(properties))
+	for _, property := range properties {
+		property = strings.TrimSpace(property)
+		if property != "" {
+			assignments = append(assignments, "n."+property)
+		}
+	}
+	return "MATCH (n:" + label + ")\n" +
+		"WHERE n.path IN $file_paths\n" +
 		"REMOVE " + strings.Join(assignments, ", ")
 }
 
