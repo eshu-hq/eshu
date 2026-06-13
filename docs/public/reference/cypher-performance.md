@@ -258,6 +258,34 @@ the response (`summary.token_budget`, `coverage.truncated`,
 counts and narrowing `guidance`; no new runtime stage, queue, worker, metric, or
 span is introduced.
 
+### Relationship Story Bounded Centrality Ranking
+
+[Issue #2233](https://github.com/eshu-hq/eshu/issues/2233) ranks relationship
+story rows by bounded centrality
+(`go/internal/query/code_relationship_story_centrality.go`,
+`relationshipStoryRankByCentrality`) before the count limit and token budget, so
+the most-connected neighbors survive a small budget.
+
+No-Regression Evidence: no Cypher changed. Centrality is the neighbor's degree
+**within the already-fetched bounded result set** — a single in-process pass that
+counts neighbor-id occurrences and a `sort.SliceStable`, both `O(n)` /
+`O(n log n)` over `n ≤ limit+1` per direction/type (≤ ~201 rows for the common
+single-type case, capped by `limit × relationship_types × directions`). No graph
+access, no per-node graph degree lookup, and no whole-graph traversal is added,
+so this deliberately avoids an unverified graph-degree Cypher shape on a backend
+this environment cannot benchmark. The default single-type single-direction
+response keeps its prior name-then-id order because every neighbor then has
+degree 1 and the stable sort preserves input order (asserted by
+`TestRelationshipStoryCentralityStableTieBreak`). Centrality differentiates rows
+only for multi-type or both-direction results, where it is exactly the
+budget-relevant signal. Covered by `go test ./internal/query -run
+RelationshipStory -count=1`. A follow-up could add graph-computed global degree
+once a live NornicDB/Neo4j benchmark is available.
+
+No-Observability-Change: ranking is in-band; each row carries a `centrality`
+integer and `coverage.ranked_by=bounded_centrality`. No new metric, span, stage,
+or backend branch is introduced.
+
 ## Related Docs
 
 - [NornicDB Pitfalls](nornicdb-pitfalls.md)

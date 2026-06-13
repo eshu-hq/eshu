@@ -203,7 +203,8 @@ const openAPIComponents = `  "components": {
           "source_id": {"type": "string"},
           "confidence": {"type": "number"},
           "reason": {"type": "string"},
-          "resolution_method": {"type": "string"}
+          "resolution_method": {"type": "string"},
+          "centrality": {"type": "integer", "description": "Bounded centrality: the neighbor's degree within the resolved result set. Relationship story rows are ordered by this value, descending, with deterministic tie-breaking."}
         }
       },
       "FileContent": {
