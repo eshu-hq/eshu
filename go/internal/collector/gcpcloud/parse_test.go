@@ -167,6 +167,52 @@ func TestParseAssetsListPageRelationships(t *testing.T) {
 	}
 }
 
+func TestParseAssetsListPageImageReferences(t *testing.T) {
+	page, err := ParseAssetsListPage(readFixture(t, "assets_list_image_reference.json"))
+	if err != nil {
+		t.Fatalf("ParseAssetsListPage: %v", err)
+	}
+	if len(page.Resources) != 2 {
+		t.Fatalf("len(Resources) = %d, want 2", len(page.Resources))
+	}
+
+	service := page.Resources[0]
+	if service.Name != "//run.googleapis.com/projects/my-project/locations/us-central1/services/api-service" {
+		t.Fatalf("service.Name = %q", service.Name)
+	}
+	if got := len(service.ImageReferences); got != 2 {
+		t.Fatalf("len(service.ImageReferences) = %d, want 2", got)
+	}
+	api := service.ImageReferences[0]
+	if api.OwningFullResourceName != service.Name {
+		t.Fatalf("OwningFullResourceName = %q, want %q", api.OwningFullResourceName, service.Name)
+	}
+	if api.ContainerName != "api" {
+		t.Fatalf("ContainerName = %q, want api", api.ContainerName)
+	}
+	if api.ImageReference != "us-docker.pkg.dev/my-project/team/api@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" {
+		t.Fatalf("ImageReference = %q", api.ImageReference)
+	}
+	if api.ImageDigest != "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" {
+		t.Fatalf("ImageDigest = %q", api.ImageDigest)
+	}
+	worker := service.ImageReferences[1]
+	if worker.ImageDigest != "" {
+		t.Fatalf("worker.ImageDigest = %q, want empty tag-only reference", worker.ImageDigest)
+	}
+
+	job := page.Resources[1]
+	if got := len(job.ImageReferences); got != 1 {
+		t.Fatalf("len(job.ImageReferences) = %d, want 1", got)
+	}
+	if job.ImageReferences[0].ContainerName != "batch" {
+		t.Fatalf("job container = %q, want batch", job.ImageReferences[0].ContainerName)
+	}
+	if containsAny(stringify(service.Extension), "SAFE_RUNTIME_ENV", "runtime-value", "containers") {
+		t.Fatalf("resource extension leaked runtime template data: %#v", service.Extension)
+	}
+}
+
 func TestParseAssetsListRedactsDataPlane(t *testing.T) {
 	page, err := ParseAssetsListPage(readFixture(t, "assets_list_page1.json"))
 	if err != nil {

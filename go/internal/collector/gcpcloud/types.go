@@ -80,10 +80,11 @@ type Boundary struct {
 // fingerprinted rather than preserved. IAMPolicyBindings carries parsed IAM
 // role bindings without raw policy JSON. Relationships carries parsed provider
 // relationship evidence from CAI relatedAsset fields. DNSRecords carries parsed
-// Cloud DNS record sets without raw provider resource data. ExtensionVersion
-// and Extension carry a versioned, redacted provider-specific extension object;
-// the builder never accepts raw IAM policy JSON, secret values, or data-plane
-// records here.
+// Cloud DNS record sets without raw provider resource data. ImageReferences
+// carries parsed runtime container image references from bounded Cloud Run
+// service/job metadata. ExtensionVersion and Extension carry a versioned,
+// redacted provider-specific extension object; the builder never accepts raw IAM
+// policy JSON, secret values, or data-plane records here.
 type ResourceObservation struct {
 	Name              string
 	AssetType         string
@@ -96,6 +97,7 @@ type ResourceObservation struct {
 	IAMPolicyBindings []IAMPolicyBindingObservation
 	Relationships     []RelationshipObservation
 	DNSRecords        []DNSRecordObservation
+	ImageReferences   []ImageReferenceObservation
 	UpdateTime        time.Time
 	ExtensionVersion  string
 	Extension         map[string]any

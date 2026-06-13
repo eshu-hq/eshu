@@ -14,7 +14,7 @@ relationship graph writes, and API or MCP truth.
 
 The first fixture-testable slice is implemented: the `gcp_cloud_resource`,
 `gcp_cloud_relationship`, label-backed `gcp_tag_observation`,
-`gcp_iam_policy_observation`, `gcp_dns_record`, and
+`gcp_iam_policy_observation`, `gcp_dns_record`, `gcp_image_reference`, and
 `gcp_collection_warning` source fact kinds
 (`go/internal/facts/gcp.go`), the Cloud Asset Inventory parser, identity
 normalizer, redaction policy, envelope builders, generation accumulator with
@@ -68,8 +68,8 @@ configured, with `source_kind=label`, and emits
 usable. It also emits `gcp_dns_record` from parsed CAI
 `dns.googleapis.com/ResourceRecordSet` assets when record type, record name, and
 managed-zone identity are usable. Direct/effective GCP tag API collection,
-image-reference scan emission, fact-kind-specific reducer handling, and any GCP
-graph projection remain follow-up work under #1997.
+fact-kind-specific reducer handling, and any GCP graph projection remain
+follow-up work under #1997.
 
 The implemented slices stay fixture-testable without live Google Cloud access.
 Live smoke tests are promotion proof, not the minimum proof for the source
@@ -97,6 +97,12 @@ or targets in fact payloads or source refs. `go test
 -count=1` proves CAI `relatedAsset` evidence emits one
 `gcp_cloud_relationship` fact with source and target full resource names, bounded
 relationship type, support state, read time, and fact-kind telemetry.
+`go test ./internal/collector/gcpcloud ./internal/collector/gcpcloud/gcpruntime
+-run 'TestParseAssetsListPageImageReferences|TestGenerationBuildEmitsImageReferenceObservationsForRuntimeContainers|TestGenerationBuildSkipsImageReferenceObservationsWithoutRedactionKey|TestSourceEmitsImageReferenceFactsFromFixturePage'
+-count=1` proves Cloud Run service/job image metadata emits
+`gcp_image_reference` facts with digest-vs-tag confidence, read time, and
+fact-kind telemetry while skipping zero-key generation emission and dropping raw
+runtime template/env blobs.
 
 ## Source Truth
 
@@ -181,6 +187,9 @@ data-plane content:
   boundary; otherwise store label keys and value fingerprints.
 - Represent user, group, domain, and service-account members by class and
   deterministic fingerprint. Do not persist raw user emails or group emails.
+- Keep runtime image references and digests only from bounded resource metadata.
+  Fingerprint container names; do not persist raw runtime template blobs or
+  environment variable names/values.
 - Do not persist raw IAM policy JSON, object contents, Secret payloads,
   startup scripts, environment variable values, database contents, logs,
   request bodies, public IP addresses, private IP addresses, or provider
@@ -251,6 +260,7 @@ The first code PRs must prove these cases before any live smoke:
 | Unsupported relationship tier | Relationship content unavailable due to tier or type emits `unsupported`, not an empty success. |
 | IAM redaction | User and group identities are fingerprinted, raw policy JSON is absent, and conditions are presence/fingerprint only. |
 | DNS redaction | Record names and targets are fingerprinted, and no raw DNS names reach facts, source refs, metrics, or status. |
+| Image-reference redaction | Cloud Run service/job image metadata emits image-reference facts, container names are fingerprinted, and raw runtime template/env blobs are dropped. |
 | Tag and label safety | Sensitive label values can be fingerprinted while exact configured labels remain bounded. |
 | Direct API fallback | Fallback only runs for allowlisted families and emits separate warning evidence when skipped. |
 | Reducer truth | Exact, derived, partial, stale, unavailable, and unsupported GCP paths agree across reducer facts and API/MCP reads. |
@@ -269,8 +279,9 @@ The first code PRs must prove these cases before any live smoke:
 
 Observability change: the first slice adds the `gcp_cloud_resource`,
 `gcp_cloud_relationship`, `gcp_tag_observation`,
-`gcp_iam_policy_observation`, `gcp_dns_record`, and `gcp_collection_warning`
-fact schemas and the scoped GCP collector telemetry series listed under
+`gcp_iam_policy_observation`, `gcp_dns_record`, `gcp_image_reference`, and
+`gcp_collection_warning` fact schemas and the scoped GCP collector telemetry
+series listed under
 [Telemetry](#telemetry)
 (`eshu_dp_gcp_cloud_*`). It does not add chart values, environment variables, or
 a runtime binary; those remain deferred.
@@ -300,8 +311,10 @@ instruments registered in the first slice
 `eshu_dp_gcp_cloud_freshness_lag_seconds`). Tag, IAM, and DNS emission record
 through the existing `fact_kind` dimension with `gcp_tag_observation`,
 `gcp_iam_policy_observation`, and `gcp_dns_record`; relationship emission uses
-the same existing dimension with `gcp_cloud_relationship`. It registers no new
-metric series, adds no new label keys, and changes no telemetry contract.
+the same existing dimension with `gcp_cloud_relationship`; image-reference
+emission uses the same existing dimension with `gcp_image_reference`. It
+registers no new metric series, adds no new label keys, and changes no telemetry
+contract.
 
 No-Regression Evidence:
 
@@ -322,7 +335,8 @@ No-Regression Evidence:
   `gcp_cloud_resource` fact and two `gcp_iam_policy_observation` facts; the DNS
   fixture emits one `gcp_cloud_resource` fact and one `gcp_dns_record` fact; the
   relationship fixture emits one `gcp_cloud_resource` fact and one
-  `gcp_cloud_relationship` fact; one
+  `gcp_cloud_relationship` fact; the image-reference fixture emits two
+  `gcp_cloud_resource` facts and three `gcp_image_reference` facts; one
   `gcp_collection_warning` for the stale and page-token-expired cases; zero
   facts emitted for a fenced-out stale generation beyond its single warning.
 - Telemetry/log/status evidence: see the observability evidence below.
@@ -343,5 +357,5 @@ Observability Evidence:
 - One structured log line per committed scope reports bounded counts only
   (page, resource, and warning counts plus the scope id and bounded families).
   No instrument or log field carries a resource name, project id, label value,
-  IAM member, DNS name, URL, or credential name. Credentials are referenced by
-  name only and the redaction key is never logged.
+  IAM member, DNS name, image reference, URL, or credential name. Credentials
+  are referenced by name only and the redaction key is never logged.

@@ -1,0 +1,59 @@
+{
+  "readTime": "2026-06-09T12:15:00Z",
+  "assets": [
+    {
+      "name": "//run.googleapis.com/projects/my-project/locations/us-central1/services/api-service",
+      "assetType": "run.googleapis.com/Service",
+      "updateTime": "2026-06-09T12:04:00Z",
+      "ancestors": ["projects/123456789", "organizations/9988776655"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "api-service",
+          "displayName": "api-service",
+          "template": {
+            "containers": [
+              {
+                "name": "api",
+                "image": "us-docker.pkg.dev/my-project/team/api@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+              },
+              {
+                "name": "worker",
+                "image": "us-docker.pkg.dev/my-project/team/worker:2026-06-09",
+                "env": [
+                  {
+                    "name": "SAFE_RUNTIME_ENV",
+                    "value": "runtime-value"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "//run.googleapis.com/projects/my-project/locations/us-central1/jobs/batch-job",
+      "assetType": "run.googleapis.com/Job",
+      "updateTime": "2026-06-09T12:05:00Z",
+      "ancestors": ["projects/123456789", "organizations/9988776655"],
+      "resource": {
+        "location": "us-central1",
+        "data": {
+          "name": "batch-job",
+          "displayName": "batch-job",
+          "template": {
+            "template": {
+              "containers": [
+                {
+                  "name": "batch",
+                  "image": "us-docker.pkg.dev/my-project/jobs/batch@sha256:abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

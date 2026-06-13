@@ -7,7 +7,11 @@ import (
 	"time"
 )
 
-const assetTypeDNSResourceRecordSet = "dns.googleapis.com/ResourceRecordSet"
+const (
+	assetTypeDNSResourceRecordSet = "dns.googleapis.com/ResourceRecordSet"
+	assetTypeRunJob               = "run.googleapis.com/Job"
+	assetTypeRunService           = "run.googleapis.com/Service"
+)
 
 // AssetsListPage is the parsed, redacted result of one Cloud Asset Inventory
 // assets.list response page. Resources carry only safe control-plane metadata;
@@ -47,6 +51,19 @@ type caiResourceDataWire struct {
 	RecordType  string            `json:"type"`
 	TTLSeconds  int64             `json:"ttl"`
 	RRDatas     []string          `json:"rrdatas"`
+	Template    caiTemplateWire   `json:"template"`
+}
+
+type caiTemplateWire struct {
+	Containers []caiContainerWire `json:"containers"`
+	Template   struct {
+		Containers []caiContainerWire `json:"containers"`
+	} `json:"template"`
+}
+
+type caiContainerWire struct {
+	Name  string `json:"name"`
+	Image string `json:"image"`
 }
 
 type caiRelatedAssetWire struct {
@@ -57,9 +74,9 @@ type caiRelatedAssetWire struct {
 
 // ParseAssetsListPage parses one assets.list response page into safe resource
 // observations. Only the full resource name, asset type, location, labels,
-// IAM binding shape, relationship shape, DNS record shape, ancestors, state,
-// and update time are kept. The raw resource data blob and raw IAM policy JSON
-// are never carried into the observation.
+// IAM binding shape, relationship shape, DNS record shape, image-reference
+// shape, ancestors, state, and update time are kept. The raw resource data blob
+// and raw IAM policy JSON are never carried into the observation.
 func ParseAssetsListPage(raw []byte) (AssetsListPage, error) {
 	var wire struct {
 		ReadTime      string `json:"readTime"`
@@ -89,6 +106,7 @@ func ParseAssetsListPage(raw []byte) (AssetsListPage, error) {
 	for _, asset := range wire.Assets {
 		display := displayNameForAsset(asset.AssetType, asset.Resource.Data.DisplayName, asset.Resource.Data.Name)
 		state := firstNonEmpty(asset.Resource.Data.State, asset.Resource.Data.Status)
+		updateTime := parseTime(asset.UpdateTime)
 		page.Resources = append(page.Resources, ResourceObservation{
 			Name:              strings.TrimSpace(asset.Name),
 			AssetType:         strings.TrimSpace(asset.AssetType),
@@ -100,7 +118,8 @@ func ParseAssetsListPage(raw []byte) (AssetsListPage, error) {
 			IAMPolicyBindings: parseIAMPolicyBindings(asset.IAMPolicy),
 			Relationships:     parseRelatedAsset(asset.Name, asset.AssetType, asset.Related),
 			DNSRecords:        parseDNSRecords(asset.Name, asset.AssetType, asset.Resource.Data),
-			UpdateTime:        parseTime(asset.UpdateTime),
+			ImageReferences:   parseImageReferences(asset.Name, asset.AssetType, asset.Resource.Data),
+			UpdateTime:        updateTime,
 		})
 	}
 	return page, nil
@@ -278,6 +297,57 @@ func parseDNSRecords(assetName, assetType string, data caiResourceDataWire) []DN
 		return nil
 	}
 	return []DNSRecordObservation{record}
+}
+
+func parseImageReferences(assetName, assetType string, data caiResourceDataWire) []ImageReferenceObservation {
+	if !isCloudRunRuntimeAsset(assetType) {
+		return nil
+	}
+	containers := make([]caiContainerWire, 0, len(data.Template.Containers)+len(data.Template.Template.Containers))
+	containers = append(containers, data.Template.Containers...)
+	containers = append(containers, data.Template.Template.Containers...)
+	if len(containers) == 0 {
+		return nil
+	}
+	owner := strings.TrimSpace(assetName)
+	out := make([]ImageReferenceObservation, 0, len(containers))
+	for _, container := range containers {
+		image := strings.TrimSpace(container.Image)
+		if image == "" {
+			continue
+		}
+		out = append(out, ImageReferenceObservation{
+			OwningFullResourceName: owner,
+			ImageReference:         image,
+			ImageDigest:            imageDigestFromReference(image),
+			ContainerName:          strings.TrimSpace(container.Name),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func isCloudRunRuntimeAsset(assetType string) bool {
+	switch strings.TrimSpace(assetType) {
+	case assetTypeRunService, assetTypeRunJob:
+		return true
+	default:
+		return false
+	}
+}
+
+func imageDigestFromReference(imageReference string) string {
+	_, digest, ok := strings.Cut(strings.TrimSpace(imageReference), "@")
+	if !ok {
+		return ""
+	}
+	digest = strings.TrimSpace(digest)
+	if strings.HasPrefix(digest, "sha256:") {
+		return digest
+	}
+	return ""
 }
 
 func dnsManagedZoneName(assetName string) string {
