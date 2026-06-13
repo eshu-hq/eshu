@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -494,8 +495,21 @@ func TestCrossRepoResolutionRespectsAssertionRejections(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
-	if count != 0 {
-		t.Fatalf("Resolve() = %d, want 0 (rejected by assertion)", count)
+	if count != 1 {
+		t.Fatalf("Resolve() = %d, want one retract intent (rejected by assertion)", count)
+	}
+	if len(intentWriter.rows) != 1 || len(intentWriter.rows[0]) != 1 {
+		t.Fatalf("intent writes = %#v, want one retract row", intentWriter.rows)
+	}
+	row := intentWriter.rows[0][0]
+	if got, want := stringValue(row.Payload["repo_id"]), "infra-repo"; got != want {
+		t.Fatalf("payload repo_id = %q, want %q", got, want)
+	}
+	if got, want := stringValue(row.Payload["action"]), "retract"; got != want {
+		t.Fatalf("payload action = %q, want %q", got, want)
+	}
+	if got := stringValue(row.Payload["target_repo_id"]); got != "" {
+		t.Fatalf("payload target_repo_id = %q, want blank for retract-only row", got)
 	}
 }
 
@@ -524,8 +538,21 @@ func TestCrossRepoResolutionFiltersLowConfidence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
-	if count != 0 {
-		t.Fatalf("Resolve() = %d, want 0 (below confidence threshold)", count)
+	if count != 1 {
+		t.Fatalf("Resolve() = %d, want one retract intent (below confidence threshold)", count)
+	}
+	if len(intentWriter.rows) != 1 || len(intentWriter.rows[0]) != 1 {
+		t.Fatalf("intent writes = %#v, want one retract row", intentWriter.rows)
+	}
+	row := intentWriter.rows[0][0]
+	if got, want := stringValue(row.Payload["repo_id"]), "infra-repo"; got != want {
+		t.Fatalf("payload repo_id = %q, want %q", got, want)
+	}
+	if got, want := stringValue(row.Payload["action"]), "retract"; got != want {
+		t.Fatalf("payload action = %q, want %q", got, want)
+	}
+	if got := stringValue(row.Payload["target_repo_id"]); got != "" {
+		t.Fatalf("payload target_repo_id = %q, want blank for retract-only row", got)
 	}
 }
 
@@ -721,7 +748,7 @@ func TestBuildResolvedEdgeIntentRowsCarriesEvidenceArtifactsForGraphStory(t *tes
 		},
 	}
 
-	rows, _ := buildResolvedEdgeIntentRows(resolved, "scope-1", "source-run-1", "gen-1")
+	rows, _ := buildResolvedEdgeIntentRows(resolved, "scope-1", "source-run-1", "gen-1", time.Now().UTC())
 	if got, want := len(rows), 1; got != want {
 		t.Fatalf("len(rows) = %d, want %d", got, want)
 	}
