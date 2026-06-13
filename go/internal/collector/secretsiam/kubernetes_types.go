@@ -140,6 +140,22 @@ type KubernetesWorkloadIdentityUseObservation struct {
 	SourceRecordID               string
 }
 
+// KubernetesGCPWorkloadIdentityBindingObservation describes a GKE Workload
+// Identity ServiceAccount annotation joined to the configured workload pool.
+// The builder turns the raw annotation target and Kubernetes identity into
+// redaction-safe digests and fingerprints.
+type KubernetesGCPWorkloadIdentityBindingObservation struct {
+	Context                KubernetesContext
+	Namespace              string
+	ServiceAccountName     string
+	ServiceAccountUID      string
+	GCPServiceAccountEmail string
+	GCPWorkloadPool        string
+	AnnotationPresent      bool
+	SourceURI              string
+	SourceRecordID         string
+}
+
 // EKSIRSAAnnotationObservation describes the IRSA role annotation on a
 // ServiceAccount. RoleARN is preserved as the IAM join anchor; Kubernetes names
 // are fingerprinted.

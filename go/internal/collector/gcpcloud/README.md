@@ -9,11 +9,14 @@ container names, sensitive label values, IAM member identities, and DNS record
 values, and emits the `gcp_cloud_resource`, `gcp_cloud_relationship`,
 `gcp_tag_observation`, `gcp_iam_policy_observation`, `gcp_dns_record`,
 `gcp_image_reference`, and `gcp_collection_warning` source fact envelopes. From
-the same IAM bindings it also emits the secrets/IAM principal mirror
-(`gcp_iam_principal`, `gcp_iam_permission_policy`) for service-account grantees,
-so the reducer can correlate GCP IAM into the secrets/IAM read models (#2347);
-those facts carry only the redaction-safe member fingerprint, role, and resource
-identity, never a raw member email.
+the same IAM bindings it also emits the secrets/IAM mirror
+(`gcp_iam_principal`, `gcp_iam_trust_policy`, `gcp_iam_permission_policy`) for
+service-account grantees and ServiceAccount impersonation bindings, so the
+reducer can correlate GCP IAM into the secrets/IAM read models (#2347/#2369).
+Those facts carry only redaction-safe member fingerprints, target email digests,
+bounded impersonation modes, role names, and resource identity; raw member
+email, target service-account email, workload-pool subject, namespace, and
+Kubernetes ServiceAccount names stay out of fact payloads.
 
 This package does not call Google Cloud APIs, schedule collector runs, write
 graph rows, persist raw provider payloads, or admit reducer truth. The
@@ -29,7 +32,7 @@ flowchart LR
     Parse["ParseAssetsListPage / ParseSearchAllResourcesPage"]
     Obs["safe ResourceObservation (no data-plane content)"]
     Gen["Generation accumulator (dedupe, pagination resume)"]
-    Env["NewCloudResourceEnvelope / NewCloudRelationshipEnvelope / NewTagObservationEnvelope / NewIAMPolicyObservationEnvelope / NewDNSRecordEnvelope / NewImageReferenceEnvelope / NewCollectionWarningEnvelope"]
+    Env["NewCloudResourceEnvelope / NewCloudRelationshipEnvelope / NewTagObservationEnvelope / NewIAMPolicyObservationEnvelope / NewGCPTrustPolicyEnvelope / NewDNSRecordEnvelope / NewImageReferenceEnvelope / NewCollectionWarningEnvelope"]
     Tracker["GenerationTracker (fencing, stale rejection)"]
     Facts["gcp_cloud_resource / gcp_cloud_relationship / gcp_tag_observation / gcp_iam_policy_observation / gcp_dns_record / gcp_image_reference / gcp_collection_warning facts"]
 
@@ -86,6 +89,10 @@ a redacted fact, a bounded warning, or a normalized identity.
   sensitive label values with the keyed `redact` package; fingerprint container
   names before they leave image-reference observations; never persist raw user,
   group, service-account, DNS record value, or container-name text.
+- ServiceAccount impersonation bindings on `iam.googleapis.com/ServiceAccount`
+  resources emit `gcp_iam_trust_policy` instead of ordinary permission grants.
+  The parser retains `resource.data.email` only for ServiceAccount resources and
+  only long enough to compute the target member fingerprint and email digest.
 - Keep the payload redaction versioned with `RedactionPolicyVersion`.
 - Metric labels and status keys are bounded enums only: collector kind, claim
   status, CAI operation, parent scope kind, asset family, content family, status

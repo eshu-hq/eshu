@@ -62,6 +62,18 @@ and ambiguous or unresolved tag outcomes stay diagnostic reducer decisions. The
 GCP owning resource full name remains source evidence only; it does not mint
 repository, workload, service, or graph truth.
 
+The GCP IAM secrets/IAM mirror now includes service-account impersonation trust
+evidence. Cloud Asset Inventory ServiceAccount resources retain
+`resource.data.email` only long enough to compute the target service-account
+member fingerprint and email digest. IAM bindings on those ServiceAccount
+resources that grant `roles/iam.serviceAccountTokenCreator`,
+`roles/iam.serviceAccountUser`, or `roles/iam.workloadIdentityUser` emit
+`gcp_iam_trust_policy` facts; the Workload Identity role also records the
+redaction-safe workload-pool subject fingerprint used by Kubernetes
+`k8s_gcp_workload_identity_binding` facts. Raw service-account email, workload
+pool, namespace, Kubernetes ServiceAccount name, and IAM member strings are not
+persisted in those trust facts.
+
 The rest of this contract remains gated. Do not add Helm values, environment
 variables, chart claims, or a live Cloud Asset Inventory transport until later
 implementation PRs prove the live runtime adapter (`gcpruntime.LiveClient`) and
@@ -213,6 +225,7 @@ unless the schema PR deliberately migrates AWS, GCP, and Azure together.
 | `gcp_cloud_resource` | One Cloud Asset Inventory resource observation. | full resource name, asset type, parent scope, ancestors, location, read time, update time, state when present, labels, tag references, redaction policy version. |
 | `gcp_tag_observation` | Direct and effective tag or label evidence. | full resource name, asset type, tag key/value fingerprints or bounded labels, source kind, inheritance state, read time. |
 | `gcp_iam_policy_observation` | IAM policy evidence returned by Cloud Asset Inventory content types or IAM search. | full resource name, asset type, role, member class, member fingerprint, condition presence/fingerprint, etag fingerprint, read time. |
+| `gcp_iam_trust_policy` | ServiceAccount impersonation trust evidence derived from IAM bindings on `iam.googleapis.com/ServiceAccount` resources. | target service-account principal fingerprint, target email digest, target cloud-resource uid, trusted member fingerprint/class, impersonation role/mode, optional Workload Identity subject fingerprint, condition presence/fingerprint, read time. |
 | `gcp_cloud_relationship` | Provider relationship evidence, including relationship type and related asset. | source full resource name, source asset type, relationship type, target full resource name, target asset type, read/update time, support state. |
 | `gcp_dns_record` | DNS record metadata where Cloud Asset Inventory or safe service APIs expose it. | managed zone identity, record type, record name fingerprint, target fingerprints or bounded values, TTL, read time. |
 | `gcp_image_reference` | Runtime image reference evidence from GKE, Cloud Run, Compute, or other safe resource metadata. | owning resource identity, image reference or digest when present, tag/digest confidence, container name fingerprint, read time. |
@@ -234,6 +247,10 @@ data-plane content:
   boundary; otherwise store label keys and value fingerprints.
 - Represent user, group, domain, and service-account members by class and
   deterministic fingerprint. Do not persist raw user emails or group emails.
+- For ServiceAccount impersonation trust facts, do not persist the raw target
+  service-account email, workload pool, namespace, Kubernetes ServiceAccount
+  name, or IAM member string. Use the shared email digest, member fingerprint,
+  and Workload Identity subject fingerprint.
 - Keep runtime image references and digests only from bounded resource metadata.
   Fingerprint container names; do not persist raw runtime template blobs or
   environment variable names/values.

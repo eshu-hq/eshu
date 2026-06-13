@@ -93,6 +93,90 @@ func TestFactStoreLoadSecretsIAMTrustChainEvidenceExpandsActiveAnchors(t *testin
 	}
 }
 
+func TestFactStoreLoadSecretsIAMTrustChainEvidenceExpandsGCPWorkloadIdentityAnchors(t *testing.T) {
+	t.Parallel()
+
+	serviceAccountKey := "sha256:service-account"
+	emailDigest := "sha256:gcp-service-account-email"
+	subjectFingerprint := "sha256:gke-subject"
+	targetPrincipalFingerprint := "sha256:gcp-service-account"
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{
+				secretsIAMTrustChainFactRow(
+					"k8s-gcp-binding",
+					"k8s-scope",
+					"k8s-gen",
+					facts.KubernetesGCPWorkloadIdentityBindingFactKind,
+					`{"service_account_join_key":"sha256:service-account","gcp_service_account_email_digest":"sha256:gcp-service-account-email","gcp_workload_identity_subject_fingerprint":"sha256:gke-subject"}`,
+				),
+			}},
+			{rows: [][]any{
+				secretsIAMTrustChainFactRow(
+					"gcp-trust",
+					"gcp-scope",
+					"gcp-gen",
+					facts.GCPIAMTrustPolicyFactKind,
+					`{"target_principal_fingerprint":"sha256:gcp-service-account","target_service_account_email_digest":"sha256:gcp-service-account-email","gcp_workload_identity_subject_fingerprint":"sha256:gke-subject"}`,
+				),
+			}},
+			{rows: [][]any{
+				secretsIAMTrustChainFactRow(
+					"gcp-principal",
+					"gcp-scope",
+					"gcp-gen",
+					facts.GCPIAMPrincipalFactKind,
+					`{"principal_fingerprint":"sha256:gcp-service-account"}`,
+				),
+				secretsIAMTrustChainFactRow(
+					"gcp-permission",
+					"gcp-scope",
+					"gcp-gen",
+					facts.GCPIAMPermissionPolicyFactKind,
+					`{"principal_fingerprint":"sha256:gcp-service-account","resource_is_secret":true}`,
+				),
+			}},
+			{rows: nil},
+		},
+	}
+	store := NewFactStore(db)
+
+	envelopes, stats, err := store.LoadSecretsIAMTrustChainEvidence(context.Background(), reducer.Intent{
+		ScopeID:      "k8s-scope",
+		GenerationID: "k8s-gen",
+		Domain:       reducer.DomainSecretsIAMTrustChain,
+	})
+	if err != nil {
+		t.Fatalf("LoadSecretsIAMTrustChainEvidence() error = %v, want nil", err)
+	}
+	if got, want := stats.LoadedFactCount, 4; got != want {
+		t.Fatalf("LoadedFactCount = %d, want %d; envelopes=%#v", got, want, envelopes)
+	}
+	activeQuery := db.queries[1].query
+	for _, want := range []string{
+		"fact.payload->>'gcp_workload_identity_subject_fingerprint' = ANY($4::text[])",
+		"fact.payload->>'target_principal_fingerprint' = ANY($7::text[])",
+		"fact.payload->>'gcp_service_account_email_digest' = ANY($8::text[])",
+		"fact.payload->>'target_service_account_email_digest' = ANY($8::text[])",
+	} {
+		if !strings.Contains(activeQuery, want) {
+			t.Fatalf("active query missing %q:\n%s", want, activeQuery)
+		}
+	}
+	if !slices.Contains(stringsArg(t, db.queries[1].args[1]), serviceAccountKey) {
+		t.Fatalf("first active expansion missing service account anchor: %#v", db.queries[1].args[1])
+	}
+	if !slices.Contains(stringsArg(t, db.queries[1].args[3]), subjectFingerprint) {
+		t.Fatalf("first active expansion missing GCP subject anchor: %#v", db.queries[1].args[3])
+	}
+	if !slices.Contains(stringsArg(t, db.queries[1].args[7]), emailDigest) {
+		t.Fatalf("first active expansion missing GCP service-account email digest: %#v", db.queries[1].args[7])
+	}
+	if !slices.Contains(stringsArg(t, db.queries[2].args[6]), targetPrincipalFingerprint) {
+		t.Fatalf("second active expansion missing target principal fingerprint: %#v", db.queries[2].args[6])
+	}
+}
+
 func TestFactStoreLoadSecretsIAMTrustChainEvidenceMarksTruncatedAtExpansionLimit(t *testing.T) {
 	t.Parallel()
 

@@ -55,12 +55,15 @@ type IngressObject struct {
 // ServiceAccount. It carries annotation keys and bounded reference counts, not
 // token, Secret, or image-pull-secret names or values.
 type ServiceAccountObject struct {
-	Meta                    ObjectMeta
-	AnnotationKeys          []string
-	IRSAAnnotation          string
-	AutomountToken          *bool
-	SecretRefCount          int
-	ImagePullSecretRefCount int
+	Meta           ObjectMeta
+	AnnotationKeys []string
+	IRSAAnnotation string
+	// GCPServiceAccountAnnotation is the iam.gke.io/gcp-service-account
+	// annotation value when present. The source hashes it before fact emission.
+	GCPServiceAccountAnnotation string
+	AutomountToken              *bool
+	SecretRefCount              int
+	ImagePullSecretRefCount     int
 }
 
 // RBACRuleSummary is the metadata-only view of a Kubernetes RBAC policy rule.

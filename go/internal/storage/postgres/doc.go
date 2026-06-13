@@ -39,6 +39,12 @@
 // domain's truth contract. Shared projection intent writes use bounded
 // multi-row upserts so high-cardinality package, code-call, and correlation
 // facts reduce Postgres round trips without changing idempotency semantics.
+// LoadSecretsIAMTrustChainEvidence expands active facts through explicit
+// redaction-safe anchors only: Kubernetes service-account joins, AWS role and
+// web-identity subject fingerprints, Vault policy/path joins, GCP principal
+// fingerprints, GCP service-account email digests, and GKE Workload Identity
+// subject fingerprints. New secrets/IAM hops must update both the SQL predicate
+// and in-memory anchor extractor rather than broad-scanning active facts.
 // PackageRegistryIdentityLocker uses transaction-scoped advisory locks to
 // coordinate package UID graph writes across projector processes; callers must
 // acquire sorted, de-duplicated keys and keep the protected callback bounded to

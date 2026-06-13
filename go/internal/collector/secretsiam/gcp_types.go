@@ -16,6 +16,15 @@ const (
 	// GCPMemberClassServiceAccount is the CAI member class for a service account,
 	// matching gcpcloud.MemberClass output.
 	GCPMemberClassServiceAccount = "serviceAccount"
+	// GCPWorkloadIdentityMemberClassServiceAccount identifies a GKE Workload
+	// Identity member in a ServiceAccount IAM binding.
+	GCPWorkloadIdentityMemberClassServiceAccount = "gke_serviceAccount"
+	// GCPImpersonationModeWorkloadIdentity marks roles/iam.workloadIdentityUser.
+	GCPImpersonationModeWorkloadIdentity = "workload_identity"
+	// GCPImpersonationModeTokenCreator marks roles/iam.serviceAccountTokenCreator.
+	GCPImpersonationModeTokenCreator = "token_creator"
+	// GCPImpersonationModeServiceAccountUser marks roles/iam.serviceAccountUser.
+	GCPImpersonationModeServiceAccountUser = "service_account_user"
 )
 
 // GCPEnvelopeContext carries the scope/generation contract fields for GCP
@@ -43,6 +52,27 @@ type GCPPrincipalObservation struct {
 	MemberClass          string
 	SourceRecordID       string
 	SourceURI            string
+}
+
+// GCPTrustPolicyObservation is one IAM binding on a GCP ServiceAccount that
+// grants another principal an act-as or token-minting role. Target identity is
+// the same service-account member fingerprint used by GCP principal/permission
+// facts; the raw target email and trusted member string are never stored.
+type GCPTrustPolicyObservation struct {
+	Context                               GCPEnvelopeContext
+	TargetPrincipalFingerprint            string
+	TargetServiceAccountEmailDigest       string
+	TargetServiceAccountCloudResourceUID  string
+	TrustedMemberFingerprint              string
+	TrustedMemberClass                    string
+	Role                                  string
+	ImpersonationMode                     string
+	GCPWorkloadIdentitySubjectFingerprint string
+	GCPWorkloadIdentityMemberClass        string
+	ConditionPresent                      bool
+	ConditionFingerprint                  string
+	SourceRecordID                        string
+	SourceURI                             string
 }
 
 // GCPPermissionPolicyObservation is one GCP IAM permission grant: a

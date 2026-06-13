@@ -105,7 +105,7 @@ func (b *generationBuilder) addServiceAccountFacts(ctx context.Context, account 
 	}
 	b.append(ctx, token)
 	if strings.TrimSpace(account.IRSAAnnotation) == "" {
-		return nil
+		return b.addGCPWorkloadIdentityBinding(ctx, account)
 	}
 	irsa, err := secretsiam.NewEKSIRSAAnnotationEnvelope(secretsiam.EKSIRSAAnnotationObservation{
 		Context:            b.secretsIAMContext(),
@@ -120,6 +120,29 @@ func (b *generationBuilder) addServiceAccountFacts(ctx context.Context, account 
 		return err
 	}
 	b.append(ctx, irsa)
+	return b.addGCPWorkloadIdentityBinding(ctx, account)
+}
+
+func (b *generationBuilder) addGCPWorkloadIdentityBinding(ctx context.Context, account ServiceAccountObject) error {
+	if strings.TrimSpace(account.GCPServiceAccountAnnotation) == "" || strings.TrimSpace(b.target.GCPWorkloadPool) == "" {
+		return nil
+	}
+	binding, err := secretsiam.NewKubernetesGCPWorkloadIdentityBindingEnvelope(
+		secretsiam.KubernetesGCPWorkloadIdentityBindingObservation{
+			Context:                b.secretsIAMContext(),
+			Namespace:              account.Meta.Namespace,
+			ServiceAccountName:     account.Meta.Name,
+			ServiceAccountUID:      account.Meta.UID,
+			GCPServiceAccountEmail: account.GCPServiceAccountAnnotation,
+			GCPWorkloadPool:        b.target.GCPWorkloadPool,
+			AnnotationPresent:      true,
+			SourceURI:              b.target.SourceURI,
+		},
+	)
+	if err != nil {
+		return err
+	}
+	b.append(ctx, binding)
 	return nil
 }
 

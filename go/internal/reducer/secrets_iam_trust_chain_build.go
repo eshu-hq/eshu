@@ -17,6 +17,8 @@ type secretsIAMIndex struct {
 	vaultPolicies   map[string][]facts.Envelope
 	vaultKV         map[string][]facts.Envelope
 	gcpPrincipals   map[string][]facts.Envelope
+	gcpTrusts       map[string][]facts.Envelope
+	gcpK8sBindings  map[string][]facts.Envelope
 	gcpPermissions  map[string][]facts.Envelope
 	coverage        []facts.Envelope
 }
@@ -64,6 +66,8 @@ func buildSecretsIAMIndex(envelopes []facts.Envelope) secretsIAMIndex {
 		vaultPolicies:   map[string][]facts.Envelope{},
 		vaultKV:         map[string][]facts.Envelope{},
 		gcpPrincipals:   map[string][]facts.Envelope{},
+		gcpTrusts:       map[string][]facts.Envelope{},
+		gcpK8sBindings:  map[string][]facts.Envelope{},
 		gcpPermissions:  map[string][]facts.Envelope{},
 	}
 	for _, envelope := range envelopes {
@@ -95,6 +99,10 @@ func buildSecretsIAMIndex(envelopes []facts.Envelope) secretsIAMIndex {
 			addByKey(index.vaultKV, payloadString(envelope.Payload, "kv_path_fingerprint"), envelope)
 		case facts.GCPIAMPrincipalFactKind:
 			addByKey(index.gcpPrincipals, payloadString(envelope.Payload, "principal_fingerprint"), envelope)
+		case facts.GCPIAMTrustPolicyFactKind:
+			addByKey(index.gcpTrusts, payloadString(envelope.Payload, "target_service_account_email_digest"), envelope)
+		case facts.KubernetesGCPWorkloadIdentityBindingFactKind:
+			addByKey(index.gcpK8sBindings, payloadString(envelope.Payload, "service_account_join_key"), envelope)
 		case facts.GCPIAMPermissionPolicyFactKind:
 			addByKey(index.gcpPermissions, payloadString(envelope.Payload, "principal_fingerprint"), envelope)
 		case facts.SecretsIAMCoverageWarningFactKind:
@@ -126,9 +134,17 @@ func secretsIAMExactChains(index secretsIAMIndex) (
 			))
 			continue
 		}
+		gcpChains, gcpPaths, gcpGaps := secretsIAMGCPExactChainsForServiceAccount(serviceAccountKey, workloads, index)
+		chains = append(chains, gcpChains...)
+		paths = append(paths, gcpPaths...)
+		gaps = append(gaps, gcpGaps...)
+		hasGCPBinding := len(index.gcpK8sBindings[serviceAccountKey]) > 0
 		roles := index.irsa[serviceAccountKey]
 		vaultRoles := index.vaultRoles[serviceAccountKey]
 		if len(roles) == 0 || len(vaultRoles) == 0 {
+			if len(gcpChains) > 0 || hasGCPBinding {
+				continue
+			}
 			gaps = append(gaps, secretsIAMGap(
 				"missing_identity_provider_hop",
 				SecretsIAMTrustChainStateUnresolved,
@@ -475,19 +491,4 @@ func vaultPolicyRules(policy facts.Envelope) []vaultPolicyRule {
 		}
 	}
 	return out
-}
-
-func secretsIAMStateFromSourceState(sourceState string) SecretsIAMTrustChainState {
-	switch strings.TrimSpace(sourceState) {
-	case string(SecretsIAMTrustChainStateUnsupported):
-		return SecretsIAMTrustChainStateUnsupported
-	case string(SecretsIAMTrustChainStatePermissionHidden):
-		return SecretsIAMTrustChainStatePermissionHidden
-	case string(SecretsIAMTrustChainStateStale):
-		return SecretsIAMTrustChainStateStale
-	case string(SecretsIAMTrustChainStatePartial):
-		return SecretsIAMTrustChainStatePartial
-	default:
-		return SecretsIAMTrustChainStatePartial
-	}
 }
