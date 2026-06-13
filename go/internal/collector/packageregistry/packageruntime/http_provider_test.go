@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/packageregistry"
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 )
 
 func TestHTTPMetadataProviderFetchesMetadataWithBearerAuth(t *testing.T) {
@@ -183,6 +184,13 @@ func TestHTTPMetadataProviderReturnsRateLimited(t *testing.T) {
 	if !errors.Is(err, ErrRateLimited) {
 		t.Fatalf("FetchMetadata() error = %v, want ErrRateLimited", err)
 	}
+	var httpErr sdk.HTTPError
+	if !errors.As(err, &httpErr) {
+		t.Fatalf("FetchMetadata() error = %T %[1]v, want SDK HTTPError cause", err)
+	}
+	if got, want := httpErr.StatusCode, http.StatusTooManyRequests; got != want {
+		t.Fatalf("SDK HTTPError StatusCode = %d, want %d", got, want)
+	}
 }
 
 func TestHTTPMetadataProviderClassifiesFailureWithoutLeakingMetadataURL(t *testing.T) {
@@ -254,12 +262,59 @@ func TestHTTPMetadataProviderClassifiesFailureWithoutLeakingMetadataURL(t *testi
 			if got := failureDetails(err); got != tt.wantDetails {
 				t.Fatalf("FailureDetails() = %q, want %q", got, tt.wantDetails)
 			}
+			var httpErr sdk.HTTPError
+			if !errors.As(err, &httpErr) {
+				t.Fatalf("FetchMetadata() error = %T %[1]v, want SDK HTTPError cause", err)
+			}
+			if got := httpErr.StatusCode; got != tt.status {
+				t.Fatalf("SDK HTTPError StatusCode = %d, want %d", got, tt.status)
+			}
 			for _, leaked := range []string{"private/team-api", "token=secret", "artifactory.example.com"} {
 				if strings.Contains(err.Error(), leaked) || strings.Contains(failureDetails(err), leaked) {
 					t.Fatalf("registry failure leaked %q: error=%q details=%q", leaked, err.Error(), failureDetails(err))
 				}
 			}
 		})
+	}
+}
+
+func TestHTTPMetadataProviderTransportFailureWrapsSDKHTTPError(t *testing.T) {
+	t.Parallel()
+
+	transportErr := errors.New("connection refused for private-feed")
+	_, err := HTTPMetadataProvider{
+		Client: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return nil, transportErr
+		})},
+	}.FetchMetadata(context.Background(), TargetConfig{
+		Base: packageregistry.TargetConfig{
+			Provider:  "jfrog",
+			Ecosystem: packageregistry.EcosystemGeneric,
+			Registry:  "https://artifactory.example.com",
+			ScopeID:   "package-registry://jfrog/generic/private/team-api",
+		},
+		MetadataURL: "https://metadata.example.test/private/team-api?token=secret",
+	})
+	if err == nil {
+		t.Fatal("FetchMetadata() error = nil, want transport failure")
+	}
+	if got := failureClass(err); got != "registry_retryable_failure" {
+		t.Fatalf("FailureClass() = %q, want registry_retryable_failure", got)
+	}
+	var httpErr sdk.HTTPError
+	if !errors.As(err, &httpErr) {
+		t.Fatalf("FetchMetadata() error = %T %[1]v, want SDK HTTPError cause", err)
+	}
+	if httpErr.StatusCode != 0 {
+		t.Fatalf("SDK HTTPError StatusCode = %d, want 0 for transport failure", httpErr.StatusCode)
+	}
+	if !errors.Is(err, transportErr) {
+		t.Fatalf("FetchMetadata() error = %v, want transport cause", err)
+	}
+	for _, leaked := range []string{"private/team-api", "token=secret", "metadata.example.test"} {
+		if strings.Contains(err.Error(), leaked) || strings.Contains(failureDetails(err), leaked) {
+			t.Fatalf("transport failure leaked %q: error=%q details=%q", leaked, err.Error(), failureDetails(err))
+		}
 	}
 }
 
@@ -323,4 +378,10 @@ func (r repeatedByteReader) Read(p []byte) (int, error) {
 
 func oversizedMetadataFixture() io.Reader {
 	return io.LimitReader(repeatedByteReader('x'), int64(maxMetadataDocumentBytes+1))
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
 }

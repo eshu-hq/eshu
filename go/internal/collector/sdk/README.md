@@ -163,3 +163,25 @@ permission-denied counters, fact counters, shared `collector.observe` span, and
 hosted status surface. The SDK remains telemetry-free, and metric labels remain
 bounded to operation, result, status class, failure class, and the existing
 collector dimensions.
+
+Line-count marker (#2374): package-registry metadata fetches now reuse the SDK
+bounded HTTP error and default-client primitives while keeping provider-specific
+request shape and registry workflow failure classification in
+`packageruntime`. The production diff changes one provider file and adds the
+SDK dependency without adding retries, sleeps, goroutines, queues, graph writes,
+database writes, collector binaries, Helm values, or runtime knobs.
+
+No-Regression Evidence (#2374): `go test ./internal/collector/sdk
+./internal/collector/packageregistry
+./internal/collector/packageregistry/packageruntime
+./cmd/collector-package-registry -count=1` covers SDK default-client reuse,
+bounded SDK `HTTPError` causes for status and transport failures, the existing
+`registry_*` failure-class mapping, rate-limit sentinel matching, metadata URL
+redaction, request auth, ecosystem-specific accept headers, and metadata body
+bounds.
+
+No-Observability-Change (#2374): package-registry retains its provider-local
+request, observe, rate-limit, fact, parse-failure, warning-fact, readiness,
+metrics, and admin-status signals. The SDK still emits no telemetry directly,
+and no metric label now contains package names, metadata URLs, versions, feed
+paths, source locators, or credential material.
