@@ -113,6 +113,10 @@ already gathered them from Eshu.
 
 - HTTP access is `GET` only and maps 403/404 responses to
   `ErrPermissionDenied`.
+- Base URL validation, default HTTP client construction, bounded provider
+  status errors, and `Retry-After` parsing reuse `internal/collector/sdk`.
+  Confluence pagination, permission-gap handling, retry backoff, and telemetry
+  labels stay provider-owned.
 - Confluence 429 responses record `result=rate_limited`; 503 responses record
   `result=retryable_status`. Both path through source-level backoff instead of
   terminating the shared collector loop.
@@ -141,9 +145,16 @@ already gathered them from Eshu.
 - Stale or deleted pages are skipped unless their status is current.
 - Source metadata reports `page_count`, `failure_count`, and `sync_status`.
 
-No-Regression Evidence: `go test ./internal/collector/confluence -run 'TestSourceBacksOffRetryableFailureWithoutTerminalError|TestHTTPClientReturnsRetryableErrorWithRetryAfter' -count=1` proves Confluence 429 backoff honors provider retry guidance, stays non-terminal to `collector.Service`, keeps the same active scope, and retries after the window without changing documentation fact shape.
+No-Regression Evidence: `go test ./internal/collector/confluence -run 'TestSourceBacksOffRetryableFailureWithoutTerminalError|TestHTTPClientReturnsRetryableErrorWithRetryAfter|TestHTTPClientRetryableErrorWrapsSDKHTTPError|TestHTTPClientReturnsBoundedSDKHTTPErrorForStatusFailure|TestLoadConfigRejectsCredentialBearingBaseURL' -count=1` proves Confluence 429 backoff honors provider retry guidance, stays non-terminal to `collector.Service`, keeps the same active scope, rejects credential-bearing base URLs, wraps retryable and non-retryable provider statuses in bounded SDK HTTP errors, and retries after the window without changing documentation fact shape.
 
 Observability Evidence: retryable Confluence HTTP statuses reuse `eshu_dp_confluence_http_requests_total`, `eshu_dp_confluence_fetch_duration_seconds`, and `eshu_dp_confluence_sync_failures_total` with bounded `operation`, `result`, `status_class`, and `failure_class` labels. Backoff-only idle polls intentionally emit no `collector.observe` span.
+
+No-Observability-Change (#2371): SDK adoption changes only base URL parsing,
+default HTTP client construction, provider status error wrapping, and
+`Retry-After` parsing. The existing Confluence HTTP request counters, fetch
+duration histograms, sync failure counters, permission-denied counters, fact
+counters, shared `collector.observe` span, and hosted status surface remain the
+operator-facing signals for this path.
 
 ## Related Docs
 
