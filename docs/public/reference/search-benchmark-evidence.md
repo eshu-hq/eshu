@@ -440,6 +440,10 @@ from unlabeled queries.
   — before/after for the `searchhybrid` inverted index: in-process hybrid p50
   ~19.5 ms → ~0.53 ms (~37×) over the same corpus, now faster than the Postgres
   baseline at the median with a tighter tail.
+- [Issue #2355 search cap sweep (2026-06-13)](searchbench-evidence/issue-2355-search-cap-sweep-2026-06-13.md)
+  — live 227,196-document cap sweep with a 20-query content-handle suite; the
+  500-document placeholder recorded 0.000 recall, while the full corpus recorded
+  1.000 recall with 24 us p95 in-process BM25 latency.
 
 ## Recommendation
 
