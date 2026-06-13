@@ -84,12 +84,20 @@ the same host (same bounded O(R+E) join). The GCP edge writer mirrors the proven
 AWS MATCH-MATCH-MERGE template; the only new hot-path Cypher is the
 `GCP_`-prefixed sibling.
 
-Observability Evidence: the `eshu_dp_gcp_relationship_edges_total` counter
-(dimensioned by the bounded `join_mode`) and the
-`reducer.gcp_relationship_materialization` span, plus the `gcp relationship
-materialization completed` log carrying scope/generation/domain,
-resource/relationship/edge counts, a bounded `by_mode` tally, per-target-type
-unresolved breakdowns, and per-stage durations.
+Observability Evidence: `go test ./internal/reducer -run
+'TestGCPRelationshipMaterializationRecordsPrometheusSignals|TestGCPRelationshipMaterializationMetricCarriesRelationshipTypeAndJoinMode|TestGCPMaterialization(SkipsNoOpGraphWriteDurations|SignalsReachPrometheusExposition)'
+-count=1` proves the Prometheus metrics
+`eshu_dp_gcp_materialization_facts_total`,
+`eshu_dp_gcp_materialization_graph_writes_total`, and
+`eshu_dp_gcp_materialization_duration_seconds` are emitted with bounded
+`domain`, `fact_kind`, `kind`, and `write_phase` labels through the same
+`/metrics` handler mounted by Compose runtimes. No-op graph writes and skipped
+first-generation retracts do not emit duration samples. The
+`eshu_dp_gcp_relationship_edges_total` counter (dimensioned by bounded
+`relationship_type` plus `join_mode`, with sentinels for missing or invalid
+types), `reducer.gcp_relationship_materialization` span, and completion log
+still carry scope/generation context, counts, by-mode tallies, unresolved
+breakdowns, and per-stage durations.
 
 ## Follow-up
 

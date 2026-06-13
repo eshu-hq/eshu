@@ -203,6 +203,9 @@ when the reducer has a graph orphan observer.
 | `CorrelationOrphanDetected` | `eshu_dp_correlation_orphan_detected_total` |
 | `CorrelationUnmanagedDetected` | `eshu_dp_correlation_unmanaged_detected_total` |
 | `AWSRelationshipEdges` | `eshu_dp_aws_relationship_edges_total` |
+| `GCPRelationshipEdges` | `eshu_dp_gcp_relationship_edges_total` |
+| `GCPMaterializationFacts` | `eshu_dp_gcp_materialization_facts_total` |
+| `GCPMaterializationGraphWrites` | `eshu_dp_gcp_materialization_graph_writes_total` |
 | `IAMCanAssumeEdges` | `eshu_dp_iam_can_assume_edges_total` |
 | `IAMCanPerformEdges` | `eshu_dp_iam_can_perform_edges_total` |
 | `IAMCanPerformSkipped` | `eshu_dp_iam_can_perform_skipped_total` |
@@ -267,6 +270,7 @@ module prefixes across generations.
 | `ProjectorStageDuration` | `eshu_dp_projector_stage_duration_seconds` | default |
 | `ReducerRunDuration` | `eshu_dp_reducer_run_duration_seconds` | default |
 | `ReducerQueueWaitDuration` | `eshu_dp_reducer_queue_wait_seconds` | 0.001–21600 s |
+| `GCPMaterializationDuration` | `eshu_dp_gcp_materialization_duration_seconds` | 0.001–21600 s |
 | `GenerationRetentionDuration` | `eshu_dp_generation_retention_duration_seconds` | 0.001–900 s |
 | `GenerationRetentionBatchSize` | `eshu_dp_generation_retention_batch_size` (Int64) | 1–100 generations |
 | `GenerationRetentionOldestEligibleAge` | `eshu_dp_generation_retention_oldest_eligible_age_seconds` | 1h–90d |
@@ -448,13 +452,7 @@ reporting.
 
 ## Dependencies
 
-No internal Eshu package imports. External dependencies:
-
-- `go.opentelemetry.io/otel/{metric,trace}` — OTEL API
-- `go.opentelemetry.io/otel/sdk/{metric,trace}` — OTEL SDK providers
-- `go.opentelemetry.io/otel/exporters/otlp/...grpc` — OTLP gRPC exporters
-- `go.opentelemetry.io/otel/exporters/prometheus` — Prometheus bridge
-- `github.com/prometheus/client_golang/prometheus` — Prometheus registry
+No internal Eshu package imports; external dependencies are OTEL and Prometheus.
 
 This is a leaf package. Introducing any `go/internal/*` import here creates a
 circular dependency and must not happen.
@@ -487,21 +485,15 @@ runtime; all emission happens in the packages that consume `Instruments`.
   template variable scoped to a data-plane selector like
   `label_values(eshu_dp_facts_emitted_total, service_name)` returns
   empty even though `label_values(target_info, service_name)` works.
-- `TraceHandler` only injects `trace_id` and `span_id` when a valid span is
-  active in the context. Log lines emitted outside any span do not carry trace
-  fields; this is expected.
-- `RecordGOMEMLIMIT` silently no-ops when `meter` is nil, so callers that have
-  not yet initialized OTEL do not crash.
+- `TraceHandler` injects trace IDs only when a valid span is active; log lines
+  outside any span deliberately omit trace fields.
+- `RecordGOMEMLIMIT` no-ops when `meter` is nil.
 - High-cardinality values — repository paths, fact IDs, work-item IDs — belong
-  in spans or log fields, never in metric label values. Metric labels must stay
-  bounded.
-- All metric names are frozen once registered. Renaming a metric name requires
-  coordinating with all dashboards and alert rules; prefer adding a new name
-  over renaming.
+  in spans or log fields, never labels.
+- Metric names are frozen once registered; prefer adding a new name over
+  renaming.
 
 ## Related docs
 
-- `docs/public/reference/telemetry/index.md` — operator-facing metric, span, and
-  log reference with tuning guidance
-- `docs/public/architecture.md` — pipeline ownership table
-- `docs/public/deployment/service-runtimes.md` — how each binary bootstraps OTEL
+See `docs/public/reference/telemetry/index.md`, `docs/public/architecture.md`,
+and `docs/public/deployment/service-runtimes.md`.

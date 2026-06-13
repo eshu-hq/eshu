@@ -82,10 +82,17 @@ resources vs the AWS `BenchmarkExtractCloudResourceNodeRows` at 17.7 ms/op on th
 same host. The graph write reuses the unchanged `canonicalCloudResourceUpsertCypher`
 node writer, so no new hot-path Cypher is introduced.
 
-Observability Evidence: the `gcp resource materialization completed` completion
-log carries `scope_id`, `generation_id`, `domain`, `fact_count`,
-`node_count`, and per-stage durations, so an operator can localize whether GCP
-node materialization is fact-load, extraction, or graph-write bound.
+Observability Evidence: `go test ./internal/reducer -run
+'TestGCPResourceMaterializationRecordsPrometheusSignals|TestGCPMaterialization(SkipsNoOpGraphWriteDurations|SignalsReachPrometheusExposition)'
+-count=1` proves the Prometheus metrics
+`eshu_dp_gcp_materialization_facts_total`,
+`eshu_dp_gcp_materialization_graph_writes_total`, and
+`eshu_dp_gcp_materialization_duration_seconds` are emitted with bounded
+`domain`, `fact_kind`, `kind`, and `write_phase` labels through the same
+`/metrics` handler mounted by Compose runtimes. No-op graph writes do not emit a
+`graph_write` duration sample. The `gcp resource materialization completed` log
+still carries scope/generation context, counts, and per-stage durations for
+exact-run diagnosis.
 
 ## Follow-up
 

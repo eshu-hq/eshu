@@ -355,11 +355,20 @@ type Instruments struct {
 	// scope; resolved modes count materialized edges.
 	AWSRelationshipEdges metric.Int64Counter
 	// GCPRelationshipEdges counts GCP relationship edge projection outcomes
-	// (issue #2348). Label: join_mode (full_resource_name / unresolved / partial /
-	// unsupported / invalid_type / empty_type / unknown_state). full_resource_name
-	// counts materialized edges; every other mode is the bounded, honest
-	// diagnostic surface for a relationship that did not materialize an edge.
+	// (issue #2348). Labels: relationship_type, join_mode (full_resource_name /
+	// unresolved / partial / unsupported / invalid_type / empty_type /
+	// unknown_state). full_resource_name counts materialized edges; every other
+	// mode is the bounded, honest diagnostic surface for a relationship that did
+	// not materialize an edge.
 	GCPRelationshipEdges metric.Int64Counter
+	// GCPMaterializationFacts counts GCP materialization input facts by reducer
+	// domain and fact kind. Labels are bounded enums: domain and fact_kind. Raw
+	// scope ids, generation ids, and provider resource names stay in logs/traces.
+	GCPMaterializationFacts metric.Int64Counter
+	// GCPMaterializationGraphWrites counts GCP materialization graph writes by
+	// reducer domain and write kind (node or edge). Labels are bounded enums:
+	// domain and kind.
+	GCPMaterializationGraphWrites metric.Int64Counter
 	// ObservabilityCoverageEdges counts observability COVERS edge projection
 	// outcomes (issue #391 PR3). Labels: coverage_signal (alarm / composite_alarm
 	// / dashboard / log_group / trace_sampling) and resolution_mode (arn /
@@ -651,13 +660,16 @@ type Instruments struct {
 	ProjectorStageDuration                 metric.Float64Histogram
 	ReducerRunDuration                     metric.Float64Histogram
 	ReducerQueueWaitDuration               metric.Float64Histogram
-	GenerationRetentionDuration            metric.Float64Histogram
-	GenerationRetentionBatchSize           metric.Int64Histogram
-	GenerationRetentionOldestEligibleAge   metric.Float64Histogram
-	CanonicalWriteDuration                 metric.Float64Histogram
-	QueueClaimDuration                     metric.Float64Histogram
-	PostgresQueryDuration                  metric.Float64Histogram
-	Neo4jQueryDuration                     metric.Float64Histogram
+	// GCPMaterializationDuration measures GCP resource and relationship
+	// materialization stages by reducer domain and write_phase.
+	GCPMaterializationDuration           metric.Float64Histogram
+	GenerationRetentionDuration          metric.Float64Histogram
+	GenerationRetentionBatchSize         metric.Int64Histogram
+	GenerationRetentionOldestEligibleAge metric.Float64Histogram
+	CanonicalWriteDuration               metric.Float64Histogram
+	QueueClaimDuration                   metric.Float64Histogram
+	PostgresQueryDuration                metric.Float64Histogram
+	Neo4jQueryDuration                   metric.Float64Histogram
 	// IaCResourceListDuration measures the GET /api/v0/iac/resources handler
 	// duration, and IaCResourceListErrors counts handler failures. They let an
 	// operator see IaC inventory read latency and error rate without parsing
@@ -1960,10 +1972,26 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.GCPRelationshipEdges, err = meter.Int64Counter(
 		"eshu_dp_gcp_relationship_edges_total",
-		metric.WithDescription("Total GCP relationship edge projection outcomes by join_mode (full_resource_name/unresolved/partial/unsupported/invalid_type/empty_type/unknown_state)"),
+		metric.WithDescription("Total GCP relationship edge projection outcomes by relationship_type and join_mode (full_resource_name/unresolved/partial/unsupported/invalid_type/empty_type/unknown_state)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register GCPRelationshipEdges counter: %w", err)
+	}
+
+	inst.GCPMaterializationFacts, err = meter.Int64Counter(
+		"eshu_dp_gcp_materialization_facts_total",
+		metric.WithDescription("Total GCP materialization input facts by reducer domain and fact_kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GCPMaterializationFacts counter: %w", err)
+	}
+
+	inst.GCPMaterializationGraphWrites, err = meter.Int64Counter(
+		"eshu_dp_gcp_materialization_graph_writes_total",
+		metric.WithDescription("Total GCP materialization graph writes by reducer domain and kind (node/edge)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GCPMaterializationGraphWrites counter: %w", err)
 	}
 
 	inst.ObservabilityCoverageEdges, err = meter.Int64Counter(
@@ -2536,6 +2564,16 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReducerQueueWaitDuration histogram: %w", err)
+	}
+
+	inst.GCPMaterializationDuration, err = meter.Float64Histogram(
+		"eshu_dp_gcp_materialization_duration_seconds",
+		metric.WithDescription("GCP materialization stage duration by reducer domain and write_phase"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(reducerWaitBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GCPMaterializationDuration histogram: %w", err)
 	}
 
 	retentionDurationBuckets := []float64{0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900}

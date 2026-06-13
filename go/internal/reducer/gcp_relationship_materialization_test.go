@@ -370,11 +370,11 @@ func TestExtractGCPRelationshipEdgeRowsDeduplicatesAndSkipsSelfLoop(t *testing.T
 	}
 }
 
-// TestGCPRelationshipMaterializationMetricCarriesJoinMode pins the
-// eshu_dp_gcp_relationship_edges_total contract: every relationship fact lands
-// in exactly one bounded join_mode bucket — full_resource_name for materialized
-// edges, and unresolved / partial for the reasons an edge was not written.
-func TestGCPRelationshipMaterializationMetricCarriesJoinMode(t *testing.T) {
+// TestGCPRelationshipMaterializationMetricCarriesRelationshipTypeAndJoinMode
+// pins the eshu_dp_gcp_relationship_edges_total contract: every data point is
+// labeled by BOTH the real relationship_type and the join_mode. The
+// relationship_type label must never carry target_asset_type values.
+func TestGCPRelationshipMaterializationMetricCarriesRelationshipTypeAndJoinMode(t *testing.T) {
 	t.Parallel()
 
 	reader := sdkmetric.NewManualReader()
@@ -415,9 +415,27 @@ func TestGCPRelationshipMaterializationMetricCarriesJoinMode(t *testing.T) {
 	}
 
 	const counter = "eshu_dp_gcp_relationship_edges_total"
-	for _, mode := range []string{"full_resource_name", "unresolved", "partial"} {
-		if !metricHasAttrs(rm, counter, map[string]string{telemetry.MetricDimensionJoinMode: mode}) {
-			t.Fatalf("counter must emit a data point for join_mode=%s", mode)
+	if !metricHasAttrs(rm, counter, map[string]string{
+		telemetry.MetricDimensionRelationshipType: "INSTANCE_TO_DISK",
+		telemetry.MetricDimensionJoinMode:         "full_resource_name",
+	}) {
+		t.Fatal("resolved edge must emit (relationship_type=INSTANCE_TO_DISK, join_mode=full_resource_name)")
+	}
+	if !metricHasAttrs(rm, counter, map[string]string{
+		telemetry.MetricDimensionRelationshipType: "USES_NETWORK",
+		telemetry.MetricDimensionJoinMode:         "unresolved",
+	}) {
+		t.Fatal("unresolved relationship must emit (relationship_type=USES_NETWORK, join_mode=unresolved)")
+	}
+	if !metricHasAttrs(rm, counter, map[string]string{
+		telemetry.MetricDimensionRelationshipType: "INSTANCE_TO_DISK",
+		telemetry.MetricDimensionJoinMode:         "partial",
+	}) {
+		t.Fatal("partial relationship must emit (relationship_type=INSTANCE_TO_DISK, join_mode=partial)")
+	}
+	for _, leaked := range []string{"compute.googleapis.com/Disk", "compute.googleapis.com/Network"} {
+		if metricHasAttrs(rm, counter, map[string]string{telemetry.MetricDimensionRelationshipType: leaked}) {
+			t.Fatalf("target_asset_type %q leaked into the relationship_type label", leaked)
 		}
 	}
 }

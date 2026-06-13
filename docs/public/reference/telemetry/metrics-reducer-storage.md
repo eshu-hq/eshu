@@ -107,6 +107,10 @@ worker counts.
 | `eshu_dp_correlation_unmanaged_detected_total` | counter | AWS/Terraform-state resources missing current Terraform config backing. |
 | `eshu_dp_drift_unresolved_module_calls_total` | counter | Terraform module calls the drift loader could not resolve locally. |
 | `eshu_dp_drift_schema_unknown_composite_total` | counter | State composite attributes dropped because provider schema coverage was missing or unsafe. |
+| `eshu_dp_gcp_materialization_facts_total` | counter | GCP resource and relationship materialization input cardinality by reducer domain and fact kind. |
+| `eshu_dp_gcp_materialization_graph_writes_total` | counter | GCP materialization graph-write cardinality by reducer domain and write kind (`node` or `edge`). |
+| `eshu_dp_gcp_materialization_duration_seconds` | histogram | GCP materialization stage duration by reducer domain and write phase. |
+| `eshu_dp_gcp_relationship_edges_total` | counter | GCP relationship edge outcomes by relationship type and join mode. |
 | `eshu_dp_iac_reachability_rows_total` | counter | IaC usage rows materialized after projection drains. |
 | `eshu_dp_iac_reachability_materialization_duration_seconds` | histogram | Corpus-wide IaC reachability materialization cost. |
 | `eshu_dp_cross_repo_resolution_duration_seconds` | histogram | Cross-repo relationship resolution latency. |
@@ -117,6 +121,25 @@ worker counts.
 | `eshu_dp_iam_can_perform_skipped_total` | counter | IAM CAN_PERFORM catalog-action evaluations withheld by bounded skip reason. |
 | `eshu_dp_iam_can_perform_conditioned_total` | counter | Condition-gated IAM CAN_PERFORM evidence classified by bounded confidence. |
 | `eshu_dp_incident_routing_evidence_total` | counter | PagerDuty incident-routing graph evidence outcomes by reducer domain, outcome, source class, and slot kind. |
+
+No-Regression Evidence: #2409 adds nil-safe OTEL counter/histogram recording to
+the existing GCP materialization handlers without changing queue claims, graph
+writers, Cypher, worker counts, or terminal row counts. Baseline graph-write
+shape stays `gcp_cloud_resource` 2 facts -> 1 node row and
+`gcp_cloud_resource` 2 facts + `gcp_cloud_relationship` 2 facts -> 1 edge row;
+after measurement is `go test ./internal/reducer -run
+'TestImplementedDefaultDomainDefinitionsWiresGCP(Resource|Relationship)MaterializationInstruments|TestGCP(Resource|Relationship)MaterializationRecordsPrometheusSignals|TestGCPMaterialization(SkipsNoOpGraphWriteDurations|SignalsReachPrometheusExposition)|TestGCPRelationshipMaterializationMetricCarriesRelationshipTypeAndJoinMode'
+-count=1` on the in-memory OTEL SDK manual reader and the same Prometheus
+handler mounted by Compose runtimes, with NornicDB/Neo4j backend behavior
+unchanged. Observability Evidence: the same test proves
+`eshu_dp_gcp_materialization_facts_total`,
+`eshu_dp_gcp_materialization_graph_writes_total`, and
+`eshu_dp_gcp_materialization_duration_seconds` reach `/metrics` with bounded
+`domain`, `fact_kind`, `kind`, and `write_phase` labels; no-op graph-write and
+first-generation retract phases do not dilute duration histograms.
+`eshu_dp_gcp_relationship_edges_total` now matches AWS edge telemetry by
+emitting bounded `relationship_type` and `join_mode` labels. Completion logs
+remain available for exact scope/generation diagnosis.
 
 `eshu_dp_drift_unresolved_module_calls_total` uses the closed reasons
 `external_registry`, `external_git`, `external_archive`, `cross_repo_local`,

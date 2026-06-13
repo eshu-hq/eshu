@@ -55,6 +55,16 @@ const (
 	gcpJoinModeUnknownState = "unknown_state"
 )
 
+const (
+	gcpMetricRelationshipTypeEmpty   = "missing_relationship_type"
+	gcpMetricRelationshipTypeInvalid = "invalid_relationship_type"
+)
+
+type gcpRelTypeMode struct {
+	relationshipType string
+	mode             string
+}
+
 // gcpCloudResourceJoinIndex resolves a GCP relationship endpoint identity (the
 // CAI full resource name) to the uid of a materialized CloudResource node. It is
 // built once per scope generation from the gcp_cloud_resource facts so target
@@ -110,6 +120,11 @@ func (i gcpCloudResourceJoinIndex) resolve(fullResourceName string) (string, boo
 // answer "which GCP relationship target types are losing edges, and is it
 // because the target resource was not scanned yet?"
 type gcpRelationshipEdgeTally struct {
+	// byRelTypeMode counts every relationship fact by (relationship_type,
+	// join_mode) for the edge-projection counter. Valid provider relationship
+	// types are safe Cypher tokens; malformed or missing types use bounded
+	// sentinels rather than leaking raw provider strings into metric labels.
+	byRelTypeMode map[gcpRelTypeMode]int
 	// byMode counts every relationship fact by resolution mode (full_resource_name
 	// for materialized edges, or unresolved/partial/unsupported/invalid_type for
 	// the reasons an edge was not written).
@@ -124,10 +139,16 @@ type gcpRelationshipEdgeTally struct {
 
 func newGCPRelationshipEdgeTally() gcpRelationshipEdgeTally {
 	return gcpRelationshipEdgeTally{
+		byRelTypeMode:    make(map[gcpRelTypeMode]int),
 		byMode:           make(map[string]int),
 		unresolved:       make(map[string]int),
 		unresolvedSource: make(map[string]int),
 	}
+}
+
+func (t gcpRelationshipEdgeTally) record(relationshipType, mode string) {
+	t.byMode[mode]++
+	t.byRelTypeMode[gcpRelTypeMode{relationshipType: relationshipType, mode: mode}]++
 }
 
 func (t gcpRelationshipEdgeTally) resolvedCount() int { return t.byMode[gcpJoinModeFullResourceName] }
@@ -197,7 +218,7 @@ func ExtractGCPRelationshipEdgeRows(
 		}
 		relationshipType := payloadString(env.Payload, "relationship_type")
 		if relationshipType == "" {
-			tally.byMode[gcpJoinModeEmptyType]++
+			tally.record(gcpMetricRelationshipTypeEmpty, gcpJoinModeEmptyType)
 			continue
 		}
 		targetType := payloadString(env.Payload, "target_asset_type")
@@ -206,36 +227,36 @@ func ExtractGCPRelationshipEdgeRows(
 		}
 
 		if !gcpRelationshipTypeValid(relationshipType) {
-			tally.byMode[gcpJoinModeInvalidType]++
+			tally.record(gcpMetricRelationshipTypeInvalid, gcpJoinModeInvalidType)
 			continue
 		}
 
 		switch payloadString(env.Payload, "support_state") {
 		case gcpRelationshipSupportUnsupported:
-			tally.byMode[gcpJoinModeUnsupported]++
+			tally.record(relationshipType, gcpJoinModeUnsupported)
 			continue
 		case gcpRelationshipSupportPartial:
-			tally.byMode[gcpJoinModePartial]++
+			tally.record(relationshipType, gcpJoinModePartial)
 			continue
 		case "", gcpRelationshipSupportSupported:
 			// Blank normalizes to supported (the collector's own default), so
 			// proceed to endpoint resolution below.
 		default:
 			// Fail closed: an unknown state never materializes an edge.
-			tally.byMode[gcpJoinModeUnknownState]++
+			tally.record(relationshipType, gcpJoinModeUnknownState)
 			continue
 		}
 
 		sourceUID, sourceOK := index.resolve(payloadString(env.Payload, "source_full_resource_name"))
 		if !sourceOK {
 			tally.unresolvedSource[targetType]++
-			tally.byMode[gcpJoinModeUnresolved]++
+			tally.record(relationshipType, gcpJoinModeUnresolved)
 			continue
 		}
 		targetUID, targetOK := index.resolve(payloadString(env.Payload, "target_full_resource_name"))
 		if !targetOK {
 			tally.unresolved[targetType]++
-			tally.byMode[gcpJoinModeUnresolved]++
+			tally.record(relationshipType, gcpJoinModeUnresolved)
 			continue
 		}
 		if sourceUID == targetUID {
@@ -250,7 +271,7 @@ func ExtractGCPRelationshipEdgeRows(
 		}
 		seen[key] = struct{}{}
 
-		tally.byMode[gcpJoinModeFullResourceName]++
+		tally.record(relationshipType, gcpJoinModeFullResourceName)
 		rows = append(rows, map[string]any{
 			"source_uid":        sourceUID,
 			"target_uid":        targetUID,
