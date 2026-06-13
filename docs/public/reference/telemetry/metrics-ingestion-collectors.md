@@ -29,6 +29,7 @@ loop metrics live in `go/internal/coordinator/metrics.go`.
 | `eshu_dp_content_reread_skips_total` | Content reloads avoided by reuse. |
 | `eshu_dp_collector_delta_baseline_fallback_total` | Git delta syncs that fell back to a full snapshot, labeled by `skip_reason` (`no_projected_baseline`, `baseline_unreachable`, `baseline_lookup_error`). A sustained rate means delta sync is rarely applying; investigate clone depth, repeated projection failures, or (for `baseline_lookup_error`) Postgres availability. |
 | `eshu_dp_collector_reconciliation_full_snapshots_total` | Git scopes the periodic sweep forced to a full reconciliation snapshot to retract drift the delta path missed. A steady low rate is expected (one per scope per `ESHU_REPO_RECONCILE_INTERVAL_HOURS`); a spike means many scopes came due at once. |
+| `eshu_dp_reconciliation_drift_retractions_total` | Graph nodes and edges actually retracted by those forced reconciliation snapshots, labeled by bounded `domain`, `write_phase`, and `kind` (`node` or `edge`). A sustained nonzero rate after the first reconciliation window means delta-path cleanup is repeatedly finding stale graph state; investigate failed delta projections, graph write errors, or missed deletion events. Scope and repo identifiers stay in logs/spans, not metric labels. |
 
 Content-aware skip reasons use the `content:` prefix. Repo-local
 `.eshu/discovery.json` rules use the `user:` prefix. `.eshuignore` matches use

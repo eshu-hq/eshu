@@ -409,6 +409,7 @@ func openIngesterCanonicalWriter(
 		DatabaseName:           cfg.DatabaseName,
 		TxTimeout:              canonicalTransactionTimeout(graphBackend, getenv),
 		ProfileGroupStatements: profileGroupStatements,
+		Instruments:            instruments,
 	}
 
 	nornicDBGroupedWrites := false

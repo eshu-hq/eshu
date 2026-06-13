@@ -85,6 +85,7 @@ when the reducer has a graph orphan observer.
 | `GenerationRetentionFailures` | `eshu_dp_generation_retention_failures_total` |
 | `GenerationRetentionSkipped` | `eshu_dp_generation_retention_skipped_total` |
 | `DocumentationEntityMentions` | `eshu_dp_documentation_entity_mentions_extracted_total` |
+| `ReconciliationDriftRetractions` | `eshu_dp_reconciliation_drift_retractions_total` |
 | `DocumentationClaimCandidates` | `eshu_dp_documentation_claim_candidates_extracted_total` |
 | `DocumentationClaimsSuppressed` | `eshu_dp_documentation_claim_candidates_suppressed_total` |
 | `DocumentationDriftFindings` | `eshu_dp_documentation_drift_findings_total` |

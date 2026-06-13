@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -36,6 +37,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.GenerationRetentionSkipped, "GenerationRetentionSkipped counter should be registered")
 	assert.NotNil(t, inst.DeltaBaselineFallbacks, "DeltaBaselineFallbacks counter should be registered")
 	assert.NotNil(t, inst.ReconciliationFullSnapshots, "ReconciliationFullSnapshots counter should be registered")
+	assert.NotNil(t, inst.ReconciliationDriftRetractions, "ReconciliationDriftRetractions counter should be registered")
 	assert.NotNil(t, inst.DocumentationEntityMentions, "DocumentationEntityMentions counter should be registered")
 	assert.NotNil(t, inst.DocumentationClaimCandidates, "DocumentationClaimCandidates counter should be registered")
 	assert.NotNil(t, inst.DocumentationClaimsSuppressed, "DocumentationClaimsSuppressed counter should be registered")
@@ -569,6 +571,33 @@ func TestRegisterGraphOrphanObservableGauge_WithObserver(t *testing.T) {
 	}
 }
 
+func TestReconciliationDriftRetractionsCounterRecordsBoundedLabels(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	inst, err := NewInstruments(provider.Meter("test"))
+	require.NoError(t, err)
+
+	inst.ReconciliationDriftRetractions.Add(context.Background(), 3,
+		metric.WithAttributes(
+			AttrDomain("canonical_graph"),
+			AttrWritePhase("retract"),
+			AttrKind("node"),
+		),
+	)
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if got := int64CounterValue(t, rm, "eshu_dp_reconciliation_drift_retractions_total", map[string]string{
+		"domain":      "canonical_graph",
+		"write_phase": "retract",
+		"kind":        "node",
+	}); got != 3 {
+		t.Fatalf("reconciliation drift counter = %d, want 3", got)
+	}
+}
+
 type fakeQueueObserver struct {
 	depths map[string]map[string]int64
 	ages   map[string]float64
@@ -631,6 +660,48 @@ func observableInt64GaugeValue(
 				t.Fatalf("%s data type = %T, want Int64 gauge", name, metric.Data)
 			}
 			for _, point := range gauge.DataPoints {
+				attrs := point.Attributes.ToSlice()
+				matched := true
+				for wantKey, wantValue := range wantAttrs {
+					found := false
+					for _, attr := range attrs {
+						if string(attr.Key) == wantKey && attr.Value.AsString() == wantValue {
+							found = true
+							break
+						}
+					}
+					if !found {
+						matched = false
+						break
+					}
+				}
+				if matched {
+					return point.Value
+				}
+			}
+		}
+	}
+	t.Fatalf("metric %s with attrs %#v not found", name, wantAttrs)
+	return 0
+}
+
+func int64CounterValue(
+	t *testing.T,
+	rm metricdata.ResourceMetrics,
+	name string,
+	wantAttrs map[string]string,
+) int64 {
+	t.Helper()
+	for _, scope := range rm.ScopeMetrics {
+		for _, metric := range scope.Metrics {
+			if metric.Name != name {
+				continue
+			}
+			sum, ok := metric.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("%s data type = %T, want Int64 sum", name, metric.Data)
+			}
+			for _, point := range sum.DataPoints {
 				attrs := point.Attributes.ToSlice()
 				matched := true
 				for wantKey, wantValue := range wantAttrs {

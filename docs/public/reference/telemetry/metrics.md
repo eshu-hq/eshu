@@ -83,6 +83,7 @@ Use these to locate the phase that changed before opening logs or traces:
 | `eshu_dp_generation_fact_count` | Fact volume per scope generation. |
 | `eshu_dp_collector_delta_baseline_fallback_total` | Git delta syncs that fell back to a full snapshot, by `skip_reason`. |
 | `eshu_dp_collector_reconciliation_full_snapshots_total` | Git scopes forced to a full reconciliation snapshot to retract delta-path drift. |
+| `eshu_dp_reconciliation_drift_retractions_total` | Graph nodes and edges actually retracted while applying a forced reconciliation snapshot, by bounded `domain`, `write_phase`, and `kind`. |
 | `eshu_dp_projector_run_duration_seconds` | Projector claim-and-project cycle cost. |
 | `eshu_dp_projector_stage_duration_seconds` | Projector substage duration. |
 | `eshu_dp_projections_completed_total` | Projection completion volume. |

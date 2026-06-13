@@ -538,15 +538,13 @@ silently stale graph state. Their runtime cost and observability:
   scheduled reconciliation interval. Verified by `cd go && go test
   ./internal/collector ./internal/storage/postgres -count=1`.
 - Observability Evidence: `eshu_dp_collector_delta_baseline_fallback_total`
-  (labeled `skip_reason`) and `eshu_dp_collector_reconciliation_full_snapshots_total`
-  expose the delta-skip and forced-reconciliation rates; a baseline lookup
-  failure also logs `git_delta_baseline_lookup_failed`.
+  (`skip_reason`) and `eshu_dp_collector_reconciliation_full_snapshots_total`
+  expose skip/reconciliation rates; `eshu_dp_reconciliation_drift_retractions_total`
+  counts graph nodes/edges actually deleted. Baseline lookup failure logs
+  `git_delta_baseline_lookup_failed`.
 
 ## Related docs
 
-- `docs/public/architecture.md` — collector ownership
-- `docs/public/deployment/service-runtimes.md` — concurrency tuning env vars
-- `docs/public/reference/local-testing.md` — local verification gates
-- `docs/public/reference/telemetry/index.md` — metric and span reference
-- `go/internal/collector/discovery/README.md` — file enumeration detail
-- `go/internal/parser/README.md` — language adapter and registry detail
+See `docs/public/architecture.md`, `docs/public/deployment/service-runtimes.md`,
+`docs/public/reference/local-testing.md`, `docs/public/reference/telemetry/index.md`,
+`go/internal/collector/discovery/README.md`, and `go/internal/parser/README.md`.

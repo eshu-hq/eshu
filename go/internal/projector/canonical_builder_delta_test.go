@@ -53,6 +53,37 @@ func TestBuildCanonicalMaterializationExtractsDeltaProjectionScope(t *testing.T)
 	}
 }
 
+func TestBuildCanonicalMaterializationExtractsReconciliationProjection(t *testing.T) {
+	t.Parallel()
+
+	sc := testScope()
+	sc.ActiveGenerationID = "gen-previous"
+	sc.PreviousGenerationExists = true
+	gen := testGeneration()
+	envelopes := []facts.Envelope{
+		{
+			FactID:   "r-1",
+			ScopeID:  "scope-1",
+			FactKind: "repository",
+			Payload: map[string]any{
+				"repo_id":                   "repo-abc",
+				"name":                      "my-project",
+				"path":                      "/repos/my-project",
+				"reconciliation_generation": true,
+			},
+		},
+	}
+
+	result := buildCanonicalMaterialization(sc, gen, envelopes)
+
+	if !result.ReconciliationProjection {
+		t.Fatal("ReconciliationProjection = false, want true")
+	}
+	if result.DeltaProjection {
+		t.Fatal("DeltaProjection = true, want false for reconciliation full snapshot")
+	}
+}
+
 func TestBuildCanonicalMaterializationPreservesDeltaPathWhitespace(t *testing.T) {
 	t.Parallel()
 

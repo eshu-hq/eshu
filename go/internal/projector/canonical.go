@@ -13,6 +13,7 @@ type CanonicalMaterialization struct {
 	RepoPath                    string // repository path used as Directory chain root
 	FirstGeneration             bool   // true when the scope has no prior active generation
 	DeltaProjection             bool   // true when the materialization carries a file-scoped delta
+	ReconciliationProjection    bool   // true when a forced full reconciliation snapshot is being projected
 	DeltaFilePaths              []string
 	DeltaDeletedFilePaths       []string
 	Repository                  *RepositoryRow
