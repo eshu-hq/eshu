@@ -192,22 +192,62 @@ func nornicDBOneHopRelationshipsCypher(entityID string, direction string, relati
 	if direction == "incoming" {
 		return `
 		MATCH (source)-[rel` + relPattern + `]->` + entityPattern + `
+		OPTIONAL MATCH (source)<-[:CONTAINS]-(sourceFile:File)
+		OPTIONAL MATCH (sourceRepo:Repository)-[:REPO_CONTAINS]->(sourceFile)
+		OPTIONAL MATCH (e)<-[:CONTAINS]-(targetFile:File)
+		OPTIONAL MATCH (targetRepo:Repository)-[:REPO_CONTAINS]->(targetFile)
 		RETURN 'incoming' as direction,
 		       type(rel) as type,
 		       rel.call_kind as call_kind,
 		       rel.reason as reason,
 		       source.name as source_name,
-		       coalesce(source.id, source.uid) as source_id
+		       coalesce(source.id, source.uid) as source_id,
+		       sourceRepo.id as source_repo_id,
+		       sourceRepo.name as source_repo_name,
+		       sourceFile.relative_path as source_file_path,
+		       coalesce(source.language, sourceFile.language) as source_language,
+		       head(labels(source)) as source_type,
+		       source.start_line as source_start_line,
+		       source.end_line as source_end_line,
+		       e.name as target_name,
+		       coalesce(e.id, e.uid) as target_id,
+		       targetRepo.id as target_repo_id,
+		       targetRepo.name as target_repo_name,
+		       targetFile.relative_path as target_file_path,
+		       coalesce(e.language, targetFile.language) as target_language,
+		       head(labels(e)) as target_type,
+		       e.start_line as target_start_line,
+		       e.end_line as target_end_line
 	`, params
 	}
 	return `
 		MATCH ` + entityPattern + `-[rel` + relPattern + `]->(target)
+		OPTIONAL MATCH (e)<-[:CONTAINS]-(sourceFile:File)
+		OPTIONAL MATCH (sourceRepo:Repository)-[:REPO_CONTAINS]->(sourceFile)
+		OPTIONAL MATCH (target)<-[:CONTAINS]-(targetFile:File)
+		OPTIONAL MATCH (targetRepo:Repository)-[:REPO_CONTAINS]->(targetFile)
 		RETURN 'outgoing' as direction,
 		       type(rel) as type,
 		       rel.call_kind as call_kind,
 		       rel.reason as reason,
+		       e.name as source_name,
+		       coalesce(e.id, e.uid) as source_id,
+		       sourceRepo.id as source_repo_id,
+		       sourceRepo.name as source_repo_name,
+		       sourceFile.relative_path as source_file_path,
+		       coalesce(e.language, sourceFile.language) as source_language,
+		       head(labels(e)) as source_type,
+		       e.start_line as source_start_line,
+		       e.end_line as source_end_line,
 		       target.name as target_name,
-		       coalesce(target.id, target.uid) as target_id
+		       coalesce(target.id, target.uid) as target_id,
+		       targetRepo.id as target_repo_id,
+		       targetRepo.name as target_repo_name,
+		       targetFile.relative_path as target_file_path,
+		       coalesce(target.language, targetFile.language) as target_language,
+		       head(labels(target)) as target_type,
+		       target.start_line as target_start_line,
+		       target.end_line as target_end_line
 	`, params
 }
 
@@ -250,12 +290,66 @@ func normalizeNornicDBRelationshipRows(rows []map[string]any) []map[string]any {
 	normalized := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		item := cloneQueryAnyMap(row)
-		removeNornicDBPlaceholderProperty(item, "call_kind")
-		removeNornicDBPlaceholderProperty(item, "reason")
-		removeNornicDBPlaceholderProperty(item, "resolution_method")
+		removeNornicDBRelationshipPlaceholderProperties(item)
 		normalized = append(normalized, item)
 	}
 	return normalized
+}
+
+func removeNornicDBRelationshipPlaceholderProperties(row map[string]any) {
+	for _, key := range []string{
+		"call_kind",
+		"reason",
+		"resolution_method",
+		"source_id",
+		"source_name",
+		"source_repo_id",
+		"source_repo_name",
+		"source_file_path",
+		"source_language",
+		"source_type",
+		"source_start_line",
+		"source_end_line",
+		"target_id",
+		"target_name",
+		"target_repo_id",
+		"target_repo_name",
+		"target_file_path",
+		"target_language",
+		"target_type",
+		"target_start_line",
+		"target_end_line",
+	} {
+		removeNornicDBPlaceholderProperty(row, key)
+	}
+	removeNornicDBPlaceholderValue(row, "source_repo_id", "sourceRepo.id")
+	removeNornicDBPlaceholderValue(row, "source_repo_name", "sourceRepo.name")
+	removeNornicDBPlaceholderValue(row, "source_file_path", "sourceFile.relative_path")
+	removeNornicDBPlaceholderValue(row, "source_language", "source.language", "sourceFile.language")
+	removeNornicDBPlaceholderValue(row, "source_type", "head(labels(source))")
+	removeNornicDBPlaceholderValue(row, "source_start_line", "source.start_line")
+	removeNornicDBPlaceholderValue(row, "source_end_line", "source.end_line")
+	removeNornicDBPlaceholderValue(row, "target_repo_id", "targetRepo.id")
+	removeNornicDBPlaceholderValue(row, "target_repo_name", "targetRepo.name")
+	removeNornicDBPlaceholderValue(row, "target_file_path", "targetFile.relative_path")
+	removeNornicDBPlaceholderValue(row, "target_language", "target.language", "targetFile.language")
+	removeNornicDBPlaceholderValue(row, "target_type", "head(labels(target))")
+	removeNornicDBPlaceholderValue(row, "target_start_line", "target.start_line")
+	removeNornicDBPlaceholderValue(row, "target_end_line", "target.end_line")
+}
+
+func removeNornicDBPlaceholderValue(row map[string]any, key string, placeholders ...string) {
+	value := strings.TrimSpace(StringVal(row, key))
+	if value == "" {
+		delete(row, key)
+		return
+	}
+	for _, placeholder := range placeholders {
+		if value == placeholder {
+			delete(row, key)
+			return
+		}
+	}
 }
 
 func removeNornicDBPlaceholderProperty(row map[string]any, key string) {
