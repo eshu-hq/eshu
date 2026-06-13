@@ -21,6 +21,7 @@ import {
   ServerCog,
   ShieldCheck,
   TriangleAlert,
+  Workflow,
   Waves
 } from "lucide-react";
 import { EshuApiClient } from "./api/client";
@@ -51,6 +52,7 @@ import { TopologyPage } from "./pages/TopologyPage";
 import { DeadCodePage } from "./pages/DeadCodePage";
 import { CodeGraphPage } from "./pages/CodeGraphPage";
 import { ImpactPage } from "./pages/ImpactPage";
+import { CICDRunCorrelationsPage } from "./pages/CICDRunCorrelationsPage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { ServiceDrawer } from "./components/ServiceDrawer";
 import "./styles.css";
@@ -98,6 +100,7 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
       { to: "/topology", label: "Topology", icon: GitBranch },
       { to: "/cloud", label: "Cloud", icon: Cloud },
       { to: "/incidents", label: "Incidents", icon: TriangleAlert },
+      { to: "/ci-cd/run-correlations", label: "CI/CD", icon: Workflow },
       { to: "/observability", label: "Observability", icon: Waves },
       { to: "/sbom", label: "SBOM", icon: PackageSearch, count: (m) => nonZero(m.sbom?.total ?? 0) },
       { to: "/dependencies", label: "Dependencies", icon: Boxes, count: (m) => nonZero(m.dependencies?.length ?? 0) }
@@ -319,6 +322,7 @@ export function App(): React.JSX.Element {
             <Route path="/repositories" element={<RepositoriesPage client={client} model={visibleModel} />} />
             <Route path="/repositories/:id/source" element={<RepoSourcePage client={client} />} />
             <Route path="/cloud" element={<CloudPage client={client} />} />
+            <Route path="/ci-cd/run-correlations" element={<CICDRunCorrelationsPage client={client} model={visibleModel} />} />
             <Route path="/topology" element={<TopologyPage client={client} model={visibleModel} onOpenService={openService} />} />
             <Route path="/incidents" element={<IncidentContextPage model={visibleModel} client={client} onOpenService={openService} />} />
             <Route path="/incidents/:incidentId/context" element={<IncidentContextPage model={visibleModel} client={client} onOpenService={openService} />} />
