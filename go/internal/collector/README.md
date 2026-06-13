@@ -80,6 +80,12 @@ workspaces. The manifest hashes the files the collector can actually use:
 `.gitignore` and `.eshuignore` rule files are included, while files excluded by
 those rules are skipped. This keeps local watch mode from creating new
 generations for ignored logs, build outputs, or editor scratch files.
+For hosted Git sources, update sync computes a `git diff --name-status -z
+--find-renames` delta between the previous checkout HEAD and the fetched remote
+ref before checkout. Changed and renamed destination files become
+`SelectedRepository.FileTargets`; deleted and renamed source files become
+repo-relative tombstone paths. Clones still produce a full snapshot because no
+prior checkout exists.
 
 `NativeRepositorySnapshotter.SnapshotRepository` runs five sequential stages
 per repository:
@@ -113,6 +119,15 @@ per repository:
 
 `buildStreamingGeneration` launches a background goroutine that streams
 `facts.Envelope` values through a buffered channel (`factStreamBuffer = 500`).
+Delta snapshots add repository fact metadata (`delta_generation`,
+`delta_relative_paths`, and `delta_deleted_relative_paths`), emit file and
+content tombstones for deleted paths, and skip repo-wide reducer follow-up facts
+until reducer-owned shared projection domains have their own file-scoped delta
+contract. Source-local projection and content writes still run for the changed
+files in the generation. Delta parsing limits parse/materialization/fact
+emission to changed file targets, but keeps pre-scan over the full discovered
+parser file set plus explicit targets so imports and Go package semantic context
+match a full snapshot.
 When the stream re-reads repo-hosted service-catalog descriptors
 (`catalog-info.yaml`, `opslevel.yml`, or `cortex.yaml`), it delegates to the
 `servicecatalog` normalizer and emits observed `service_catalog.*` facts under
@@ -130,6 +145,25 @@ it.
 No-Regression Evidence: `go test ./internal/collector ./internal/doctruth ./internal/query ./internal/mcp ./internal/storage/postgres -count=1` covers DOCX, CSV/TSV, XLSX, PPTX, ZIP packet summaries, deterministic diagrams, claim hints, repository fact readback, and MCP routing.
 
 No-Observability-Change: documentation extraction stays inside existing `collector.observe`, body-free snapshot metadata, and stream-time re-reads. It adds no worker, queue, graph write, metric label, runtime knob, or deployment profile.
+
+No-Regression Evidence: `go test ./internal/collector -run
+'Test(NativeRepositorySnapshotterCarriesDeletedOnlyDeltaMetadata|NativeRepositorySnapshotterDeltaTargetsKeepFullPreScanContext|NativeRepositorySnapshotterPreservesDeltaMetadataPathWhitespace|UpdateRepositoryReturnsChangedAndDeletedFileTargets|BuildSelectedRepositoriesCarriesGitDeltaFileTargets|BuildStreamingGenerationEmitsDeltaMetadataAndDeletedTombstones|BuildStreamingGenerationPreservesDeltaPathWhitespace|BuildStreamingGenerationDeltaChangedFileFactsMatchFullSnapshot|BuildStreamingGenerationSkipsRepoWideReducerFollowupsForDelta)'
+-count=1` proves Git delta parsing, selector propagation, deleted-only
+snapshot metadata, full-context pre-scan for targeted deltas, symlink-normalized
+path metadata with legal whitespace preserved, tombstone emission, changed-file
+fact payload parity against full snapshots, fact count agreement, and
+suppression of unsafe repo-wide reducer follow-ups for delta generations.
+
+Performance Evidence: `go test ./internal/collector -run '^$' -bench
+'BenchmarkNativeRepositorySnapshotter(FullFixture|DeltaSingleFileFixture)$'
+-benchtime=1x -count=1` on an Apple M4 Pro measured a generated 400-file
+fixture full snapshot at `107796250 ns/op` and a one-file delta snapshot at
+`34240667 ns/op`.
+
+No-Observability-Change: delta parsing reuses hosted git sync logs, snapshot
+stage logs, `collector.observe`, fact emission counts, and projector/reducer
+queues. It adds no metric name or label and does not log file paths in sync
+progress messages.
 
 ## Exported surface
 
@@ -166,10 +200,10 @@ No-Observability-Change: documentation extraction stays inside existing `collect
 - `RepositorySnapshotter` — interface: `SnapshotRepository(context.Context, SelectedRepository) (RepositorySnapshot, error)`
 - `SelectionBatch` — `ObservedAt` + `[]SelectedRepository`
 - `SelectedRepository` — `RepoPath`, `RemoteURL`, `IsDependency`, `DisplayName`,
-  `Language`, `FileTargets`
+  `Language`, `FileTargets`, `Delta`, and `DeletedRelativePaths`
 - `RepositorySnapshot` — `RepoPath`, `RemoteURL`, `FileCount`, `ImportsMap`,
   `FileData`, `ContentFileMetas`, `DocumentationFileMetas`, `ContentEntities`,
-  `DiscoveryAdvisory`
+  `DiscoveryAdvisory`, and optional delta metadata for file-scoped Git resyncs
 - `ContentFileSnapshot`, `ContentFileMeta`, `ContentEntitySnapshot` — portable
   file and entity records; `ContentFileMeta` carries no body string. Declared
   PagerDuty module/tfvars rows materialize as `PagerDutyDeclaration` content

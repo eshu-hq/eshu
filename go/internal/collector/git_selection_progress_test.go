@@ -225,7 +225,7 @@ esac
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&logs, nil))
 	event := gitSyncLogEventFor("example/private-service", 1, 1)
-	updated, err := updateRepository(
+	updated, _, err := updateRepository(
 		context.Background(),
 		RepoSyncConfig{CloneDepth: 1, GitAuthMethod: "none"},
 		t.TempDir(),
@@ -275,7 +275,7 @@ esac
 	}
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	updated, err := updateRepository(
+	updated, _, err := updateRepository(
 		context.Background(),
 		RepoSyncConfig{CloneDepth: 1, GitAuthMethod: "none"},
 		t.TempDir(),
@@ -339,7 +339,7 @@ esac
 	}
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	updated, err := updateRepository(
+	updated, _, err := updateRepository(
 		context.Background(),
 		RepoSyncConfig{CloneDepth: 1, GitAuthMethod: "none"},
 		repoPath,

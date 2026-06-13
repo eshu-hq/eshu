@@ -2,11 +2,9 @@ package collector
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -59,13 +57,18 @@ func buildStreamingGenerationWithContext(
 	if len(snapshot.ContentFileMetas) > 0 {
 		contentFileCount = len(snapshot.ContentFileMetas)
 	}
+	followupFactCount := 7
+	if snapshot.Delta {
+		followupFactCount = 0
+	}
 	factCount := 1 + len(snapshot.FileData) + contentFileCount +
 		len(snapshot.ContentEntities) + len(snapshot.TerraformStateCandidates) +
+		(2 * len(snapshot.DeletedRelativePaths)) +
 		observabilityFactCount(snapshot.FileData) +
 		serviceCatalogFactCount(repoPath, scopeValue.ScopeID, generation.GenerationID, observedAt, snapshot) +
 		gitDocumentationFactCount(ctx, repoPath, repo, scopeValue.ScopeID, generation.GenerationID, observedAt, snapshot) +
 		workflowImageEvidenceFactCount(repoPath, snapshot) +
-		7
+		followupFactCount
 
 	factCh := make(chan facts.Envelope, factStreamBuffer)
 	go streamFacts(
@@ -117,6 +120,7 @@ func streamFacts(
 	ch <- repositoryFactEnvelope(
 		repoPath, repo, sourceRunID, scopeID, generationID, observedAt,
 		snapshot.FileCount, snapshot.ImportsMap, isDependency,
+		snapshot.Delta, snapshot.DeltaRelativePaths, snapshot.DeletedRelativePaths,
 	)
 
 	// Terraform state candidate facts. These are metadata-only advisory facts;
@@ -138,6 +142,9 @@ func streamFacts(
 		snapshot.FileData[i] = nil
 	}
 	snapshot.FileData = nil
+	for _, relativePath := range snapshot.DeletedRelativePaths {
+		ch <- fileTombstoneEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, relativePath, isDependency)
+	}
 
 	// Content file facts — two-phase re-read path or legacy path.
 	gitDocumentationSourceEmitted := false
@@ -256,6 +263,9 @@ func streamFacts(
 		snapshot.DocumentationFileMetas[i] = ContentFileMeta{}
 	}
 	snapshot.DocumentationFileMetas = nil
+	for _, relativePath := range snapshot.DeletedRelativePaths {
+		ch <- contentTombstoneEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, relativePath)
+	}
 
 	// Content entity facts
 	for i, entitySnapshot := range snapshot.ContentEntities {
@@ -265,6 +275,9 @@ func streamFacts(
 	snapshot.ContentEntities = nil
 
 	// Reducer follow-up facts — trigger downstream materialization domains.
+	if snapshot.Delta {
+		return
+	}
 	ch <- workloadIdentityFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 	ch <- deployableUnitCorrelationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 	ch <- workloadMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
@@ -272,67 +285,6 @@ func streamFacts(
 	ch <- deploymentMappingFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 	ch <- sqlRelationshipMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
 	ch <- inheritanceMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt)
-}
-
-// snapshotFreshnessHint computes a deterministic hash from file digests and
-// entity metadata. This replaces the old approach that JSON-marshaled the
-// entire snapshot (including all file bodies) which created a massive
-// temporary allocation for large repos.
-func snapshotFreshnessHint(snapshot RepositorySnapshot) string {
-	h := sha256.New()
-	writeFreshnessHashf(h, "v2:file_count=%d\n", snapshot.FileCount)
-
-	// Hash file digests — already computed during materialization.
-	// ContentFileMetas is the two-phase path; ContentFiles is the legacy path.
-	if len(snapshot.ContentFileMetas) > 0 {
-		for _, meta := range snapshot.ContentFileMetas {
-			writeFreshnessHashf(h, "file:%s:%s\n", meta.RelativePath, meta.Digest)
-		}
-	} else {
-		for _, cf := range snapshot.ContentFiles {
-			writeFreshnessHashf(h, "file:%s:%s\n", cf.RelativePath, cf.Digest)
-		}
-	}
-	for _, meta := range snapshot.DocumentationFileMetas {
-		writeFreshnessHashf(h, "doc:%s:%s\n", meta.RelativePath, meta.Digest)
-	}
-
-	// Hash entity count and identity (lightweight).
-	writeFreshnessHashf(h, "entities=%d\n", len(snapshot.ContentEntities))
-	for _, e := range snapshot.ContentEntities {
-		writeFreshnessHashf(h, "entity:%s:%s:%d\n", e.RelativePath, e.EntityType, e.StartLine)
-	}
-	for _, candidate := range snapshot.TerraformStateCandidates {
-		writeFreshnessHashf(h, "tfstate_candidate:%s:%s:%d\n",
-			candidate.RelativePath,
-			candidate.PathHash,
-			candidate.FileSize,
-		)
-	}
-
-	// Hash imports map keys (sorted for determinism).
-	importKeys := make([]string, 0, len(snapshot.ImportsMap))
-	for k := range snapshot.ImportsMap {
-		importKeys = append(importKeys, k)
-	}
-	sort.Strings(importKeys)
-	for _, k := range importKeys {
-		writeFreshnessHashf(h, "import:%s:", k)
-		targets := snapshot.ImportsMap[k]
-		sorted := make([]string, len(targets))
-		copy(sorted, targets)
-		sort.Strings(sorted)
-		for _, v := range sorted {
-			writeFreshnessHashf(h, "%s,", v)
-		}
-		_, _ = h.Write([]byte("\n"))
-	}
-
-	return fmt.Sprintf("snapshot:%x", h.Sum(nil))
-}
-
-func writeFreshnessHashf(h interface{ Write([]byte) (int, error) }, format string, args ...any) {
-	_, _ = fmt.Fprintf(h, format, args...)
 }
 
 func repositoryFactEnvelope(
@@ -345,6 +297,9 @@ func repositoryFactEnvelope(
 	parsedFileCount int,
 	importsMap map[string][]string,
 	isDependency bool,
+	delta bool,
+	deltaRelativePaths []string,
+	deltaDeletedRelativePaths []string,
 ) facts.Envelope {
 	payload := map[string]any{
 		"graph_id":          repo.ID,
@@ -365,6 +320,11 @@ func repositoryFactEnvelope(
 	}
 	if len(importsMap) > 0 {
 		payload["imports_map"] = importsMap
+	}
+	if delta {
+		payload["delta_generation"] = true
+		payload["delta_relative_paths"] = append([]string(nil), deltaRelativePaths...)
+		payload["delta_deleted_relative_paths"] = append([]string(nil), deltaDeletedRelativePaths...)
 	}
 	if strings.TrimSpace(sourceRunID) != "" {
 		payload["source_run_id"] = sourceRunID

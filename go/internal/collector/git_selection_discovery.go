@@ -23,6 +23,13 @@ type RepositorySelection struct {
 // GitSyncSelection captures the repo paths selected after one Git-backed sync pass.
 type GitSyncSelection struct {
 	SelectedRepoPaths []string
+	DeltaByRepoPath   map[string]GitSyncDelta
+}
+
+// GitSyncDelta carries the file-scoped change set for an updated Git checkout.
+type GitSyncDelta struct {
+	ChangedFileTargets   []string
+	DeletedRelativePaths []string
 }
 
 func selectGitHubRepositoryIDs(

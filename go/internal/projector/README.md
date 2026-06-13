@@ -56,6 +56,13 @@ canonical nodes through `CanonicalWriter.Write`, publishes a
 edge domains can gate on `canonical_nodes_committed`, writes content store rows,
 and enqueues `ReducerIntent` values for shared domains such as
 `DomainSemanticEntityMaterialization`.
+When a repository fact carries `delta_generation=true`, the canonical
+materialization keeps qualified `DeltaFilePaths` and `DeltaDeletedFilePaths` so
+the graph writer can scope cleanup to touched files. Delta generations emitted
+by the Git collector do not carry repo-wide reducer follow-up facts; shared
+projection domains keep their previous truth until they gain a separate
+file-scoped delta contract. The source-local delta contract preserves legal Git
+path whitespace while rejecting absolute paths and parent traversal.
 
 On success the worker calls `ProjectorWorkSink.Ack`. On any error it calls
 `ProjectorWorkSink.Fail` with a `FailureClassification` derived from
@@ -85,7 +92,8 @@ high-cardinality repositories running at once.
   scope generation: `RepositoryRow`, `DirectoryRow`, `FileRow`, `EntityRow`,
   `ModuleRow`, `ImportRow`, `ParameterRow`, `ClassMemberRow`,
   `NestedFunctionRow`, Terraform-state resource/module/output rows, and OCI
-  registry repository/image/tag/referrer rows
+  registry repository/image/tag/referrer rows. Delta generations also carry
+  `DeltaProjection`, `DeltaFilePaths`, and `DeltaDeletedFilePaths`
 - `ScopeGenerationWork` — one claimed queue item; carries `scope.IngestionScope`
   and `scope.ScopeGeneration`
 - `Result` — output of one projection pass; includes `content.Result` and
@@ -441,6 +449,16 @@ counts, `content_write` stage logs, projector `failure_class` logs,
 `/api/v0/index-status`, and queue terminal counters expose whether a
 non-repository scope skipped content rows while canonical and reducer work
 continued.
+
+No-Regression Evidence: `go test ./internal/projector -run
+'TestBuildCanonicalMaterialization(ExtractsDeltaProjectionScope|PreservesDeltaPathWhitespace)' -count=1`
+proves repository delta metadata is qualified to repo-local file paths, preserves
+legal Git path whitespace, and rejects absolute or parent-traversal paths.
+
+No-Observability-Change: delta extraction only changes
+`CanonicalMaterialization` inputs to the existing canonical writer. Existing
+projector stage logs, `canonical.write` spans, phase-publish logs, and content
+write result logs still diagnose the projection.
 
 No-Regression Evidence: cloud-inventory admission intent scheduling (#2209) is
 covered by `go test ./internal/projector -run 'CloudInventoryAdmission|TestBuildProjectionQueuesSingleAWSCloudRuntimeDriftIntent' -count=1`.
