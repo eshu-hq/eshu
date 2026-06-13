@@ -67,6 +67,81 @@ func TestBuildRetractSQLRelationshipEdgeStatementsUsesSharedParameters(t *testin
 	}
 }
 
+func TestEdgeWriterRetractEdgesSQLRelationshipDeltaUsesFileScopedGroup(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingGroupExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			IntentID:     "i1",
+			RepositoryID: "repo-a",
+			Payload: map[string]any{
+				"repo_id":          "repo-a",
+				"delta_projection": true,
+				"delta_file_paths": []string{"/repo/db/schema.sql"},
+			},
+		},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships")
+	if err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	if got, want := len(executor.groupCalls), 1; got != want {
+		t.Fatalf("ExecuteGroup calls = %d, want %d", got, want)
+	}
+	stmts := executor.groupCalls[0]
+	if got, want := len(stmts), 5; got != want {
+		t.Fatalf("group statement count = %d, want %d", got, want)
+	}
+	for _, stmt := range stmts {
+		if strings.Contains(stmt.Cypher, "source.repo_id IN $repo_ids") {
+			t.Fatalf("delta retract cypher = %q, want no repo-wide source filter", stmt.Cypher)
+		}
+		if !strings.Contains(stmt.Cypher, "source.path IN $file_paths") {
+			t.Fatalf("delta retract cypher = %q, want source.path file-scope filter", stmt.Cypher)
+		}
+		if _, ok := stmt.Parameters["repo_ids"]; ok {
+			t.Fatalf("repo_ids unexpectedly present in delta retract parameters: %#v", stmt.Parameters)
+		}
+		filePaths, ok := stmt.Parameters["file_paths"].([]string)
+		if !ok {
+			t.Fatalf("file_paths parameter type = %T, want []string", stmt.Parameters["file_paths"])
+		}
+		if got, want := strings.Join(filePaths, ","), "/repo/db/schema.sql"; got != want {
+			t.Fatalf("file_paths = %q, want %q", got, want)
+		}
+	}
+}
+
+func TestEdgeWriterRetractEdgesSQLRelationshipRejectsDeltaWithoutFilePaths(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingGroupExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			IntentID:     "i1",
+			RepositoryID: "repo-a",
+			Payload: map[string]any{
+				"repo_id":          "repo-a",
+				"delta_projection": true,
+			},
+		},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships")
+	if err == nil {
+		t.Fatal("RetractEdges() error = nil, want malformed delta scope error")
+	}
+	if got := len(executor.groupCalls); got != 0 {
+		t.Fatalf("ExecuteGroup calls = %d, want 0 for malformed delta scope", got)
+	}
+}
+
 func assertSQLRetractStatement(
 	t *testing.T,
 	stmt Statement,

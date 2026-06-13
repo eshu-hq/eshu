@@ -37,6 +37,14 @@ func (w *EdgeWriter) RetractEdges(
 
 	repoIDs := collectRepoIDs(rows)
 	if domain == reducer.DomainSQLRelationships {
+		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
+		if err != nil {
+			return err
+		}
+		if hasDeltaScope {
+			stmts := BuildRetractSQLRelationshipEdgeStatementsByFilePath(filePaths, evidenceSource)
+			return w.executeSQLRelationshipRetractStatements(ctx, stmts)
+		}
 		if ge, ok := w.executor.(GroupExecutor); ok {
 			stmts := BuildRetractSQLRelationshipEdgeStatements(repoIDs, evidenceSource)
 			return WrapRetryableNeo4jError(ge.ExecuteGroup(ctx, stmts))
@@ -78,6 +86,18 @@ func (w *EdgeWriter) RetractEdges(
 	}
 
 	return WrapRetryableNeo4jError(w.executor.Execute(ctx, stmt))
+}
+
+func (w *EdgeWriter) executeSQLRelationshipRetractStatements(ctx context.Context, stmts []Statement) error {
+	if ge, ok := w.executor.(GroupExecutor); ok {
+		return WrapRetryableNeo4jError(ge.ExecuteGroup(ctx, stmts))
+	}
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
 }
 
 func buildRetractStatement(
@@ -145,7 +165,7 @@ func collectDeltaFilePaths(rows []reducer.SharedProjectionIntentRow) ([]string, 
 		hasDeltaScope = true
 		rowFilePaths := payloadStringSlice(row.Payload, "delta_file_paths")
 		if len(rowFilePaths) == 0 {
-			return nil, true, fmt.Errorf("code call delta retract requires delta_file_paths")
+			return nil, true, fmt.Errorf("delta retract requires delta_file_paths")
 		}
 		for _, filePath := range rowFilePaths {
 			filePath = strings.TrimSpace(filePath)
@@ -160,7 +180,7 @@ func collectDeltaFilePaths(rows []reducer.SharedProjectionIntentRow) ([]string, 
 		}
 	}
 	if hasDeltaScope && len(filePaths) == 0 {
-		return nil, true, fmt.Errorf("code call delta retract requires delta_file_paths")
+		return nil, true, fmt.Errorf("delta retract requires delta_file_paths")
 	}
 	sort.Strings(filePaths)
 	return filePaths, hasDeltaScope, nil

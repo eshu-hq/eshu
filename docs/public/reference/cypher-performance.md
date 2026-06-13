@@ -257,6 +257,38 @@ metrics, retry classification, timeout handling, and reducer code-call cycle
 timings. It adds no worker, queue domain, runtime knob, metric instrument,
 metric label, or backend-specific telemetry.
 
+### SQL Relationship Delta Scoped Retraction
+
+Issue #2257 also scopes SQL relationship cleanup for delta generations to the
+changed or deleted SQL source files. The SQL reducer now loads repository delta
+metadata with a bounded repository fact query while preserving the existing
+payload-filtered `content_entity` query for SQL entity types. Deleted-only
+delta generations can therefore retract stale `REFERENCES_TABLE`, `HAS_COLUMN`,
+`TRIGGERS`, and `EXECUTES` edges without requiring current SQL entity rows, and
+ordinary full refreshes keep the existing repository-wide retract path.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'TestSQLRelationship(MaterializationHandler(ScopesDeltaRetractToFiles|DeletedOnlyDeltaRetractsWithoutWrites)|HandlerUses(KindFilteredFactLoader|PayloadFilteredContentEntities))|TestBuildSQLRelationshipRetractRowsKeepsMalformedDeltaScoped'
+-count=1` proves the reducer extracts repo-qualified delta file paths from the
+repository fact, carries them into SQL retract rows, handles deleted-only delta
+generations without writes, preserves bounded SQL content-entity loading, and
+does not silently downgrade malformed delta scope to repo-wide cleanup. `go test
+./internal/storage/cypher -run
+'TestEdgeWriterRetractEdgesSQLRelationship(DeltaUsesFileScopedGroup|RejectsDeltaWithoutFilePaths|Dispatch|UsesLabelScopedGroup)|TestBuildRetractSQLRelationshipEdgeStatementsUsesSharedParameters'
+-count=1` proves valid delta rows dispatch the five label-scoped SQL retract
+statements with `source.path IN $file_paths`, malformed delta rows execute no
+Cypher, and non-delta SQL retracts keep their existing repo-wide dispatch
+behavior for non-group executors. The input cardinality is the delta file-path
+count for one repository generation; the changed Cypher keeps static source
+labels and relationship tokens, binds only a positive `$file_paths` list, and
+does not add a traversal or backend-specific branch.
+
+No-Observability-Change: SQL delta retraction uses the existing
+`EdgeWriter.RetractEdges` executor path, SQL materialization completion log
+fields, graph query duration metrics, retry classification, and timeout
+handling. It adds no worker, queue domain, runtime knob, metric instrument,
+metric label, or backend-specific telemetry.
+
 ## Related Docs
 
 - [NornicDB Pitfalls](nornicdb-pitfalls.md)
