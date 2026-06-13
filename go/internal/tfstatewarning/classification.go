@@ -70,6 +70,21 @@ func Classify(warningKind string, reason string) (Classification, bool) {
 		case reasonSizeLimit, "terraform state exceeded configured size ceiling before snapshot identity could be read":
 			return blockingEvidenceClassification(), true
 		}
+	case "unresolved_backend_expression":
+		switch reason {
+		case "missing_variable_default",
+			"ambiguous_variable_default",
+			"missing_local_value",
+			"ambiguous_local_value",
+			"cyclic_local_value",
+			"unsupported_reference",
+			"unresolved_interpolation",
+			"workspace_interpolation",
+			"function_call",
+			"workspace_key_prefix",
+			"non_exact_value":
+			return blockingEvidenceClassification(), true
+		}
 	case "state_in_vcs":
 		switch reason {
 		case reasonApprovedLocalState, "terraform state file was discovered in git and explicitly approved for ingestion":

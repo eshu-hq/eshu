@@ -84,6 +84,8 @@ Most current core families use schema version `1.0.0`.
 source-native content for updater diff generation. Check the fact-family helper
 before emitting rows.
 
+Terraform backend discovery remains exact-only: unresolved Git backend expressions emit `terraform_state_warning` with `collector_kind=git`, safe source metadata, line number, expression class, and opaque expression hash, without raw backend values, full locators, absolute paths, credentials, or state bytes.
+
 Semantic evidence facts are optional provenance emitted by semantic extraction
 jobs. `semantic.documentation_observation` preserves an LLM-assisted
 documentation observation with source, chunk, provider profile, model, prompt

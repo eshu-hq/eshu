@@ -163,9 +163,13 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
   generations and must include at least one explicit filter.
 - Dynamic backend expressions that cannot be reduced to same-module literal
   variable/local values, workspace-prefixed S3 backends, non-S3 backends, and
-  unapproved local paths from Git facts are not discovery candidates. Issue
-  #2438 owns a separate discovery-stage evidence path for unresolved backend
-  expressions so they stay visible without becoming exact reads.
+  unapproved local paths from Git facts are not discovery candidates. The Git
+  collector emits `terraform_state_warning` facts with
+  `warning_kind=unresolved_backend_expression` for unresolved Terraform backend
+  attributes before Terraform-state source opening. Warning payloads carry the
+  repo id, repo-relative source path, attribute name, line number, expression
+  class, and an opaque expression hash; they do not carry raw backend values,
+  full object locators, or absolute local paths.
 - S3 write capability is rejected at source construction.
 - Redaction key material is mandatory before parsing.
 - Unknown provider-schema scalar attributes are redacted. Unknown composite
@@ -212,6 +216,7 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
 - Every emitted `terraform_state_warning` with a recognized stable
   `warning_kind`/`reason` pair carries `severity` and `actionability`.
   Missing or too-large state sources are `blocking/blocking_evidence`,
+  unresolved backend expressions are `blocking/blocking_evidence`,
   unsupported composites are `warning/provider_schema_support`, sensitive
   composite skips are `info/accepted_guardrail`, null tag maps are
   `info/accepted_normalization`, and malformed tag maps are
@@ -219,6 +224,15 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
 - DynamoDB lock metadata is read-only and observational. The reader records the
   digest and a lock ID hash, but consistency decisions still come from the
   opened state body and durable generation metadata.
+
+No-Regression Evidence: `go test ./internal/collector ./internal/collector/terraformstate ./internal/parser ./internal/status -run 'Test(BuildStreamingGeneration(EmitsUnresolvedTerraformBackendExpressionWarnings|KeysBackendExpressionWarningsByLine)|ClassifyWarningStablePairs|DefaultEngineParsePathHCLTerraformBackend(AttributeLineNumbers|Metadata|MarksDynamicMetadata)|BuildReportSummarizesUnresolvedBackendExpressionWarnings)' -count=1` plus `go test ./internal/storage/postgres -run 'TestTerraformStateBackendFactReader.*(VariableDefault|LocalTemplate|RejectsUnresolvedExpressions|FiltersResolvedVariableCandidate)|TestPostgresTerraformBackendQuery.*VariableDefault|TestListTerraformStateRecentWarningsIncludesGitBackendExpressionWarnings' -count=1` prove unresolved backend expressions emit warning evidence, exact candidate resolution still accepts only resolved literal/variable/local values, and status readback groups Git-scope warnings by safe source handle.
+
+No-Observability-Change: this slice emits additional source facts through the
+existing Git collector fact stream and surfaces them through the existing
+Terraform-state admin status section. It adds no worker, queue domain, graph
+write, metric name, metric label, runtime knob, or source-open path; operators
+diagnose the path through persisted `terraform_state_warning` facts, generation
+status, existing Postgres query spans, and `/admin/status` warning summary rows.
 
 ## Applied PagerDuty Incident Routing
 

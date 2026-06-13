@@ -12,7 +12,9 @@
 // parse summaries, and classified warning counts, not raw state bytes or
 // unredacted attribute values. Warning facts carry stable reason codes plus
 // severity/actionability for recognized guardrail, provider-schema, source
-// missing, and tag-normalization cases.
+// missing, backend-expression, and tag-normalization cases. Git-observed
+// backend config that cannot become an exact candidate is represented as
+// warning evidence, not as a StateKey.
 // The parser also emits applied incident-routing source facts for allowlisted
 // PagerDuty and alert-route resources observed in state. Those facts preserve
 // Terraform address, module, provider, state generation, and fingerprinted or

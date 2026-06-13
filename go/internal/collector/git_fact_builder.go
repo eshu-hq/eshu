@@ -74,6 +74,7 @@ func buildStreamingGenerationWithContext(
 		len(snapshot.ContentEntities) + len(snapshot.TerraformStateCandidates) +
 		(2 * len(snapshot.DeletedRelativePaths)) +
 		observabilityFactCount(snapshot.FileData) +
+		terraformStateBackendExpressionWarningFactCount(repo.ID, snapshot.FileData) +
 		serviceCatalogFactCount(repoPath, scopeValue.ScopeID, generation.GenerationID, observedAt, snapshot) +
 		gitDocumentationFactCount(ctx, repoPath, repo, scopeValue.ScopeID, generation.GenerationID, observedAt, snapshot) +
 		workflowImageEvidenceFactCount(repoPath, snapshot) +
@@ -141,6 +142,8 @@ func streamFacts(
 		snapshot.TerraformStateCandidates[i] = TerraformStateCandidate{}
 	}
 	snapshot.TerraformStateCandidates = nil
+
+	emitTerraformStateBackendExpressionWarnings(ch, repo.ID, scopeID, generationID, observedAt, snapshot.FileData)
 
 	// File metadata facts
 	sourceRevisions := commitSHAByRelativePath(repoPath, snapshot)

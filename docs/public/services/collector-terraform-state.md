@@ -63,6 +63,11 @@ The collector emits reported `terraform_state_snapshot`,
 `terraform_state_resource`, `terraform_state_output`,
 `terraform_state_module`, `terraform_state_provider_binding`,
 `terraform_state_tag_observation`, and `terraform_state_warning` facts.
+Repository ingestion may also emit Git-scoped `terraform_state_warning` facts
+for unresolved Terraform backend expressions before any state source is opened.
+Those warnings are discovery evidence only: they keep the unresolved source
+visible in status while preserving the exact-candidate requirement for
+Terraform-state reads.
 
 ## Related Docs
 

@@ -143,6 +143,52 @@ func TestDefaultEngineParsePathHCLTerraformBackendMarksDynamicMetadata(t *testin
 	}
 }
 
+func TestDefaultEngineParsePathHCLTerraformBackendAttributeLineNumbers(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "backend.tf")
+	writeTestFile(
+		t,
+		filePath,
+		`terraform {
+  backend "s3" {
+    bucket = var.state_bucket
+    key    = "services/api/terraform.tfstate"
+    region = "us-east-1"
+    workspace_key_prefix = terraform.workspace
+  }
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	backend := findNamedBucketItem(t, got, "terraform_backends", "s3")
+	cases := []struct {
+		field string
+		want  int
+	}{
+		{field: "bucket_line_number", want: 3},
+		{field: "key_line_number", want: 4},
+		{field: "region_line_number", want: 5},
+		{field: "workspace_key_prefix_line_number", want: 6},
+	}
+	for _, tc := range cases {
+		if got := backend[tc.field]; got != tc.want {
+			t.Fatalf("terraform_backends[0].%s = %#v, want %#v", tc.field, got, tc.want)
+		}
+	}
+}
+
 func TestDefaultEngineParsePathHCLTerraformResourceMultiplicityMetadata(t *testing.T) {
 	t.Parallel()
 

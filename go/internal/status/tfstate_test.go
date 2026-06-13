@@ -144,6 +144,45 @@ func TestBuildReportSummarizesTerraformStateWarnings(t *testing.T) {
 	}
 }
 
+func TestBuildReportSummarizesUnresolvedBackendExpressionWarnings(t *testing.T) {
+	t.Parallel()
+
+	base := time.Date(2026, 6, 13, 15, 30, 0, 0, time.UTC)
+	raw := status.RawSnapshot{
+		AsOf: base,
+		TerraformStateRecentWarnings: []status.TerraformStateLocatorWarning{
+			{
+				SafeLocatorHash: "repository:r_12345678:env/backend.tf",
+				BackendKind:     "git",
+				WarningKind:     "unresolved_backend_expression",
+				Reason:          "missing_variable_default",
+				Source:          "terraform_backend",
+				SourceHandle:    "env/backend.tf",
+				ObservedAt:      base,
+			},
+		},
+	}
+
+	report := status.BuildReport(raw, status.DefaultOptions())
+
+	if got := len(report.TerraformState.WarningSummary); got != 1 {
+		t.Fatalf("WarningSummary = %d rows, want 1: %+v", got, report.TerraformState.WarningSummary)
+	}
+	summary := report.TerraformState.WarningSummary[0]
+	if summary.WarningKind != "unresolved_backend_expression" ||
+		summary.Reason != "missing_variable_default" ||
+		summary.ScopeClass != "git" ||
+		summary.Severity != "blocking" ||
+		summary.Actionability != "blocking_evidence" ||
+		summary.Count != 1 {
+		t.Fatalf("WarningSummary[0] = %+v, want Git unresolved backend expression count=1", summary)
+	}
+	recent := report.TerraformState.RecentWarnings[0]
+	if recent.Severity != "blocking" || recent.Actionability != "blocking_evidence" {
+		t.Fatalf("RecentWarnings[0] classification = %q/%q, want blocking/blocking_evidence", recent.Severity, recent.Actionability)
+	}
+}
+
 func TestRenderJSONIncludesTerraformStateSection(t *testing.T) {
 	t.Parallel()
 
