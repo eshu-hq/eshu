@@ -102,6 +102,16 @@ func (g *Generation) Build() ([]facts.Envelope, error) {
 		if ok {
 			envelopes = append(envelopes, tagEnv)
 		}
+		iamEnvelopes, err := g.iamPolicyObservationEnvelopes(resource)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, iamEnvelopes...)
+		dnsEnvelopes, err := g.dnsRecordEnvelopes(resource)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, dnsEnvelopes...)
 	}
 	for _, warning := range g.warnings {
 		env, err := NewCollectionWarningEnvelope(warning)
@@ -136,6 +146,8 @@ func (g *Generation) envelopeCapacity() int {
 		if hasUsableTags(resource.Labels) {
 			capacity++
 		}
+		capacity += iamPolicyObservationCount(resource.IAMPolicyBindings)
+		capacity += dnsRecordObservationCount(resource.DNSRecords)
 	}
 	return capacity
 }
@@ -160,6 +172,64 @@ func (g *Generation) tagObservationEnvelope(obs ResourceObservation) (facts.Enve
 	return env, true, nil
 }
 
+func (g *Generation) iamPolicyObservationEnvelopes(obs ResourceObservation) ([]facts.Envelope, error) {
+	if g.key.IsZero() || iamPolicyObservationCount(obs.IAMPolicyBindings) == 0 {
+		return nil, nil
+	}
+	envelopes := make([]facts.Envelope, 0, iamPolicyObservationCount(obs.IAMPolicyBindings))
+	for _, binding := range obs.IAMPolicyBindings {
+		if !hasUsableIAMPolicyBinding(binding) {
+			continue
+		}
+		env, err := NewIAMPolicyObservationEnvelope(IAMPolicyObservation{
+			Boundary:                  g.boundary,
+			FullResourceName:          obs.Name,
+			AssetType:                 obs.AssetType,
+			Role:                      binding.Role,
+			Members:                   binding.Members,
+			ConditionPresent:          binding.ConditionPresent,
+			ConditionFingerprintInput: binding.ConditionFingerprintInput,
+			Etag:                      binding.Etag,
+			UpdateTime:                obs.UpdateTime,
+			SourceRecordID:            iamSourceRecordID(obs.SourceRecordID, binding.Role),
+			SourceURI:                 obs.SourceURI,
+		}, g.key)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, env)
+	}
+	sort.Slice(envelopes, func(i, j int) bool {
+		return envelopes[i].StableFactKey < envelopes[j].StableFactKey
+	})
+	return envelopes, nil
+}
+
+func (g *Generation) dnsRecordEnvelopes(obs ResourceObservation) ([]facts.Envelope, error) {
+	if g.key.IsZero() || dnsRecordObservationCount(obs.DNSRecords) == 0 {
+		return nil, nil
+	}
+	envelopes := make([]facts.Envelope, 0, dnsRecordObservationCount(obs.DNSRecords))
+	for _, record := range obs.DNSRecords {
+		if !hasUsableDNSRecordObservation(record) {
+			continue
+		}
+		record.Boundary = g.boundary
+		record.UpdateTime = obs.UpdateTime
+		record.SourceRecordID = dnsSourceRecordID(obs.SourceRecordID, record.RecordType, record.RecordName, g.key)
+		record.SourceURI = obs.SourceURI
+		env, err := NewDNSRecordEnvelope(record, g.key)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, env)
+	}
+	sort.Slice(envelopes, func(i, j int) bool {
+		return envelopes[i].StableFactKey < envelopes[j].StableFactKey
+	})
+	return envelopes, nil
+}
+
 func hasUsableTags(labels map[string]string) bool {
 	for key := range labels {
 		if strings.TrimSpace(key) != "" {
@@ -167,6 +237,69 @@ func hasUsableTags(labels map[string]string) bool {
 		}
 	}
 	return false
+}
+
+func iamPolicyObservationCount(bindings []IAMPolicyBindingObservation) int {
+	count := 0
+	for _, binding := range bindings {
+		if hasUsableIAMPolicyBinding(binding) {
+			count++
+		}
+	}
+	return count
+}
+
+func hasUsableIAMPolicyBinding(binding IAMPolicyBindingObservation) bool {
+	if strings.TrimSpace(binding.Role) == "" {
+		return false
+	}
+	for _, member := range binding.Members {
+		if strings.TrimSpace(member) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func dnsRecordObservationCount(records []DNSRecordObservation) int {
+	count := 0
+	for _, record := range records {
+		if hasUsableDNSRecordObservation(record) {
+			count++
+		}
+	}
+	return count
+}
+
+func hasUsableDNSRecordObservation(record DNSRecordObservation) bool {
+	return strings.TrimSpace(record.ManagedZoneFullResourceName) != "" &&
+		strings.TrimSpace(record.RecordType) != "" &&
+		strings.TrimSpace(record.RecordName) != ""
+}
+
+func iamSourceRecordID(sourceRecordID, role string) string {
+	sourceRecordID = strings.TrimSpace(sourceRecordID)
+	role = strings.TrimSpace(role)
+	if sourceRecordID == "" || role == "" {
+		return sourceRecordID
+	}
+	return sourceRecordID + "|" + role
+}
+
+func dnsSourceRecordID(sourceRecordID, recordType, recordName string, key redact.Key) string {
+	sourceRecordID = strings.TrimSpace(sourceRecordID)
+	recordType = strings.ToUpper(strings.TrimSpace(recordType))
+	recordName = strings.TrimSpace(recordName)
+	if sourceRecordID == "" {
+		if recordType == "" || recordName == "" || key.IsZero() {
+			return sourceRecordID
+		}
+		return recordType + "|" + dnsRecordNameFingerprint(recordName, recordType, key)
+	}
+	if recordType == "" || recordName == "" || key.IsZero() {
+		return sourceRecordID
+	}
+	return sourceRecordID + "|" + recordType + "|" + dnsRecordNameFingerprint(recordName, recordType, key)
 }
 
 func resourceDedupeKey(obs ResourceObservation) string {

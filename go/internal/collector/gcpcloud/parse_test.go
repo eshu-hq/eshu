@@ -48,6 +48,91 @@ func TestParseAssetsListPage(t *testing.T) {
 	}
 }
 
+func TestParseAssetsListPageIAMPolicyBindings(t *testing.T) {
+	page, err := ParseAssetsListPage(readFixture(t, "assets_list_iam_policy.json"))
+	if err != nil {
+		t.Fatalf("ParseAssetsListPage: %v", err)
+	}
+	if len(page.Resources) != 1 {
+		t.Fatalf("len(Resources) = %d, want 1", len(page.Resources))
+	}
+
+	resource := page.Resources[0]
+	if resource.Name != "//storage.googleapis.com/projects/_/buckets/iam-bucket" {
+		t.Fatalf("resource.Name = %q", resource.Name)
+	}
+	if got := len(resource.IAMPolicyBindings); got != 3 {
+		t.Fatalf("len(IAMPolicyBindings) = %d, want 3", got)
+	}
+	viewer := resource.IAMPolicyBindings[0]
+	if viewer.Role != "roles/storage.objectViewer" {
+		t.Fatalf("viewer.Role = %q", viewer.Role)
+	}
+	if len(viewer.Members) != 2 {
+		t.Fatalf("viewer.Members = %v, want two members", viewer.Members)
+	}
+	if !viewer.ConditionPresent {
+		t.Fatal("viewer.ConditionPresent = false, want true")
+	}
+	if viewer.ConditionFingerprintInput == "" {
+		t.Fatal("viewer.ConditionFingerprintInput is empty")
+	}
+	if containsAny(viewer.ConditionFingerprintInput, "\n") {
+		t.Fatalf("viewer.ConditionFingerprintInput not compact: %q", viewer.ConditionFingerprintInput)
+	}
+	if viewer.Etag != "etag-iam-1" {
+		t.Fatalf("viewer.Etag = %q", viewer.Etag)
+	}
+	admin := resource.IAMPolicyBindings[1]
+	if admin.ConditionPresent {
+		t.Fatal("admin.ConditionPresent = true, want false")
+	}
+	if admin.Etag != "etag-iam-1" {
+		t.Fatalf("admin.Etag = %q", admin.Etag)
+	}
+	if resource.Extension["iamPolicy"] != nil || resource.Extension["policy"] != nil {
+		t.Fatalf("raw IAM policy leaked into extension: %#v", resource.Extension)
+	}
+}
+
+func TestParseAssetsListPageDNSRecordSets(t *testing.T) {
+	page, err := ParseAssetsListPage(readFixture(t, "assets_list_dns_record.json"))
+	if err != nil {
+		t.Fatalf("ParseAssetsListPage: %v", err)
+	}
+	if len(page.Resources) != 1 {
+		t.Fatalf("len(Resources) = %d, want 1", len(page.Resources))
+	}
+
+	resource := page.Resources[0]
+	if resource.DisplayName == "svc.internal.example." {
+		t.Fatal("resource DisplayName leaked raw DNS record name")
+	}
+	if got := len(resource.DNSRecords); got != 1 {
+		t.Fatalf("len(DNSRecords) = %d, want 1", got)
+	}
+	record := resource.DNSRecords[0]
+	wantZone := "//dns.googleapis.com/projects/123456789/locations/global/managedZones/987654321"
+	if record.ManagedZoneFullResourceName != wantZone {
+		t.Fatalf("ManagedZoneFullResourceName = %q, want %q", record.ManagedZoneFullResourceName, wantZone)
+	}
+	if record.RecordType != "CNAME" {
+		t.Fatalf("RecordType = %q, want CNAME", record.RecordType)
+	}
+	if record.RecordName != "svc.internal.example." {
+		t.Fatalf("RecordName = %q", record.RecordName)
+	}
+	if len(record.Targets) != 3 {
+		t.Fatalf("Targets = %#v, want three raw targets for envelope dedupe", record.Targets)
+	}
+	if record.TTLSeconds != 300 {
+		t.Fatalf("TTLSeconds = %d, want 300", record.TTLSeconds)
+	}
+	if resource.Extension["raw_data"] != nil || resource.Extension["rrdatas"] != nil {
+		t.Fatalf("raw DNS data leaked into extension: %#v", resource.Extension)
+	}
+}
+
 func TestParseAssetsListRedactsDataPlane(t *testing.T) {
 	page, err := ParseAssetsListPage(readFixture(t, "assets_list_page1.json"))
 	if err != nil {

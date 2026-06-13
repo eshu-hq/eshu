@@ -4,11 +4,12 @@
 // The package is fixture-driven and provider-agnostic at the transport layer:
 // callers parse CAI assets.list or searchAllResources JSON into observations and
 // the package normalizes, redacts, and emits gcp_cloud_resource,
-// gcp_tag_observation, and gcp_collection_warning facts. It never calls Google
-// Cloud APIs, never writes graph truth, and never persists raw IAM policy
-// bodies, secret values, object contents, public or private IP addresses,
-// startup scripts, or other data-plane records. Reducers own canonical
-// CloudResource identity, drift, relationship edges, and API/MCP truth.
+// gcp_tag_observation, gcp_iam_policy_observation, gcp_dns_record, and
+// gcp_collection_warning facts. It never calls Google Cloud APIs, never writes
+// graph truth, and never persists raw IAM policy bodies, DNS record values,
+// secret values, object contents, public or private IP addresses, startup
+// scripts, or other data-plane records. Reducers own canonical CloudResource
+// identity, drift, relationship edges, and API/MCP truth.
 //
 // The durable claim boundary is explicit: collector instance, parent scope kind
 // and id, asset and content family, location bucket, scope id, generation id,
@@ -20,9 +21,9 @@
 // stale generation is rejected rather than replacing current facts.
 //
 // This GCP collector slice covers resource inventory, label-backed tag
-// observations, collection-warning evidence, and the scoped telemetry contract.
-// The live Cloud Asset Inventory transport, Helm values, and remaining IAM,
-// relationship, DNS, and image-reference scan emission are documented follow-ups.
-// See docs/public/reference/gcp-cloud-collector-contract.md for the full
-// contract.
+// observations, IAM policy observations, DNS record observations,
+// collection-warning evidence, and the scoped telemetry contract. The live
+// Cloud Asset Inventory transport, Helm values, and remaining relationship and
+// image-reference scan emission are documented follow-ups. See
+// docs/public/reference/gcp-cloud-collector-contract.md for the full contract.
 package gcpcloud

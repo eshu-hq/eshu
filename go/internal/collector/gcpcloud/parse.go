@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const assetTypeDNSResourceRecordSet = "dns.googleapis.com/ResourceRecordSet"
+
 // AssetsListPage is the parsed, redacted result of one Cloud Asset Inventory
 // assets.list response page. Resources carry only safe control-plane metadata;
 // the raw provider resource data blob (which can embed network IPs, startup
@@ -25,28 +27,46 @@ type AssetsListPage struct {
 // Inventory searchAllResources response page.
 type SearchAllResourcesPage = AssetsListPage
 
+type caiIAMPolicyWire struct {
+	Etag     string              `json:"etag"`
+	Bindings []caiIAMBindingWire `json:"bindings"`
+}
+
+type caiIAMBindingWire struct {
+	Role      string          `json:"role"`
+	Members   []string        `json:"members"`
+	Condition json.RawMessage `json:"condition"`
+}
+
+type caiResourceDataWire struct {
+	Name        string            `json:"name"`
+	DisplayName string            `json:"displayName"`
+	Status      string            `json:"status"`
+	State       string            `json:"state"`
+	Labels      map[string]string `json:"labels"`
+	RecordType  string            `json:"type"`
+	TTLSeconds  int64             `json:"ttl"`
+	RRDatas     []string          `json:"rrdatas"`
+}
+
 // ParseAssetsListPage parses one assets.list response page into safe resource
 // observations. Only the full resource name, asset type, location, labels,
-// ancestors, state, and update time are kept. The raw resource data blob is
-// never carried into the observation.
+// IAM binding shape, DNS record shape, ancestors, state, and update time are
+// kept. The raw resource data blob and raw IAM policy JSON are never carried
+// into the observation.
 func ParseAssetsListPage(raw []byte) (AssetsListPage, error) {
 	var wire struct {
 		ReadTime      string `json:"readTime"`
 		NextPageToken string `json:"nextPageToken"`
 		Assets        []struct {
-			Name       string   `json:"name"`
-			AssetType  string   `json:"assetType"`
-			UpdateTime string   `json:"updateTime"`
-			Ancestors  []string `json:"ancestors"`
+			Name       string           `json:"name"`
+			AssetType  string           `json:"assetType"`
+			UpdateTime string           `json:"updateTime"`
+			Ancestors  []string         `json:"ancestors"`
+			IAMPolicy  caiIAMPolicyWire `json:"iamPolicy"`
 			Resource   struct {
-				Location string `json:"location"`
-				Data     struct {
-					Name        string            `json:"name"`
-					DisplayName string            `json:"displayName"`
-					Status      string            `json:"status"`
-					State       string            `json:"state"`
-					Labels      map[string]string `json:"labels"`
-				} `json:"data"`
+				Location string              `json:"location"`
+				Data     caiResourceDataWire `json:"data"`
 			} `json:"resource"`
 		} `json:"assets"`
 	}
@@ -60,17 +80,19 @@ func ParseAssetsListPage(raw []byte) (AssetsListPage, error) {
 		Resources:     make([]ResourceObservation, 0, len(wire.Assets)),
 	}
 	for _, asset := range wire.Assets {
-		display := firstNonEmpty(asset.Resource.Data.DisplayName, asset.Resource.Data.Name)
+		display := displayNameForAsset(asset.AssetType, asset.Resource.Data.DisplayName, asset.Resource.Data.Name)
 		state := firstNonEmpty(asset.Resource.Data.State, asset.Resource.Data.Status)
 		page.Resources = append(page.Resources, ResourceObservation{
-			Name:        strings.TrimSpace(asset.Name),
-			AssetType:   strings.TrimSpace(asset.AssetType),
-			DisplayName: display,
-			State:       state,
-			Location:    strings.TrimSpace(asset.Resource.Location),
-			Ancestors:   cloneStrings(asset.Ancestors),
-			Labels:      cloneStringMap(asset.Resource.Data.Labels),
-			UpdateTime:  parseTime(asset.UpdateTime),
+			Name:              strings.TrimSpace(asset.Name),
+			AssetType:         strings.TrimSpace(asset.AssetType),
+			DisplayName:       display,
+			State:             state,
+			Location:          strings.TrimSpace(asset.Resource.Location),
+			Ancestors:         cloneStrings(asset.Ancestors),
+			Labels:            cloneStringMap(asset.Resource.Data.Labels),
+			IAMPolicyBindings: parseIAMPolicyBindings(asset.IAMPolicy),
+			DNSRecords:        parseDNSRecords(asset.Name, asset.AssetType, asset.Resource.Data),
+			UpdateTime:        parseTime(asset.UpdateTime),
 		})
 	}
 	return page, nil
@@ -161,6 +183,13 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+func displayNameForAsset(assetType, displayName, dataName string) string {
+	if strings.TrimSpace(assetType) == assetTypeDNSResourceRecordSet {
+		return ""
+	}
+	return firstNonEmpty(displayName, dataName)
+}
+
 func cloneStringMap(input map[string]string) map[string]string {
 	if len(input) == 0 {
 		return nil
@@ -170,4 +199,68 @@ func cloneStringMap(input map[string]string) map[string]string {
 		out[k] = v
 	}
 	return out
+}
+
+func parseIAMPolicyBindings(policy caiIAMPolicyWire) []IAMPolicyBindingObservation {
+	if len(policy.Bindings) == 0 {
+		return nil
+	}
+	out := make([]IAMPolicyBindingObservation, 0, len(policy.Bindings))
+	for _, binding := range policy.Bindings {
+		out = append(out, IAMPolicyBindingObservation{
+			Role:                      strings.TrimSpace(binding.Role),
+			Members:                   cloneStrings(binding.Members),
+			ConditionPresent:          rawJSONPresent(binding.Condition),
+			ConditionFingerprintInput: compactRawJSON(binding.Condition),
+			Etag:                      strings.TrimSpace(policy.Etag),
+		})
+	}
+	return out
+}
+
+func rawJSONPresent(raw json.RawMessage) bool {
+	trimmed := strings.TrimSpace(string(raw))
+	return trimmed != "" && trimmed != "null"
+}
+
+func compactRawJSON(raw json.RawMessage) string {
+	if !rawJSONPresent(raw) {
+		return ""
+	}
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return strings.TrimSpace(string(raw))
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return strings.TrimSpace(string(raw))
+	}
+	return string(encoded)
+}
+
+func parseDNSRecords(assetName, assetType string, data caiResourceDataWire) []DNSRecordObservation {
+	if strings.TrimSpace(assetType) != assetTypeDNSResourceRecordSet {
+		return nil
+	}
+	record := DNSRecordObservation{
+		ManagedZoneFullResourceName: dnsManagedZoneName(assetName),
+		RecordType:                  strings.TrimSpace(data.RecordType),
+		RecordName:                  strings.TrimSpace(data.Name),
+		Targets:                     cloneStrings(data.RRDatas),
+		TTLSeconds:                  data.TTLSeconds,
+	}
+	if !hasUsableDNSRecordObservation(record) {
+		return nil
+	}
+	return []DNSRecordObservation{record}
+}
+
+func dnsManagedZoneName(assetName string) string {
+	assetName = strings.TrimSpace(assetName)
+	const rrsetsSegment = "/rrsets/"
+	idx := strings.Index(assetName, rrsetsSegment)
+	if idx <= 0 {
+		return ""
+	}
+	return assetName[:idx]
 }
