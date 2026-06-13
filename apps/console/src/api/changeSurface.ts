@@ -96,7 +96,7 @@ export interface ChangeSurfaceScope {
   readonly topic: string;
 }
 
-interface ChangeSurfaceResponse {
+export interface ChangeSurfaceResponse {
   readonly code_surface?: ChangeSurfaceCodeSurfaceRecord;
   readonly coverage?: ChangeSurfaceCoverageRecord;
   readonly direct_impact?: readonly ChangeSurfaceImpactRecord[];
