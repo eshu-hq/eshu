@@ -38,6 +38,7 @@ func (h *RepositoryHandler) getRepositoryTree(w http.ResponseWriter, r *http.Req
 	}
 
 	requestPath := normalizeTreePath(r.URL.Query().Get("path"))
+	requestedRef := strings.TrimSpace(r.URL.Query().Get("ref"))
 	recursive, _ := strconv.ParseBool(r.URL.Query().Get("recursive"))
 
 	var files []FileContent
@@ -47,6 +48,14 @@ func (h *RepositoryHandler) getRepositoryTree(w http.ResponseWriter, r *http.Req
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list repository files failed: %v", err))
 			return
 		}
+	}
+	indexedRef := repositoryTreeRef(files)
+	if status, message, err := validateSelectedRepositoryRef(ctx, h.Content, repoID, requestedRef, indexedRef); err != nil {
+		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repository refs failed: %v", err))
+		return
+	} else if status != 0 {
+		WriteError(w, status, message)
+		return
 	}
 	truncated := len(files) > repositoryTreeFileLimit
 	if truncated {
@@ -60,7 +69,7 @@ func (h *RepositoryHandler) getRepositoryTree(w http.ResponseWriter, r *http.Req
 	}
 
 	response := map[string]any{
-		"ref":       repositoryTreeRef(files),
+		"ref":       indexedRef,
 		"path":      requestPath,
 		"entries":   entries,
 		"truncated": truncated,

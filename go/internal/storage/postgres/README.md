@@ -16,7 +16,7 @@ flowchart LR
   D -->|Ack| C
   D -->|Enqueue intents| E["postgres.ReducerQueue\n(fact_work_items stage=reducer)"]
   E -->|Claim| F["internal/reducer\nService.Run"]
-  D -->|WriteContent| G["postgres.ContentWriter\n(content_files, content_entities)"]
+  D -->|WriteContent| G["postgres.ContentWriter\ncontent_files, content_entities,\nrepository_refs"]
   D -->|Publish phases| H["postgres.GraphProjectionPhaseStateStore\n(graph_projection_phase_state)"]
   H -->|ReadinessLookup| F
   F -->|WriteDecisions| I["postgres.DecisionStore\n(projection_decisions)"]
@@ -96,6 +96,10 @@ High-signal invariants for this package:
   workspace IDs, token hashes, subject hashes, active bounds, expiry,
   revocation, and policy revision hashes without storing raw bearer tokens or
   changing current API, MCP, graph, collector, or workflow enforcement.
+- Repository ref readbacks stay bounded by the `repository_refs` primary key
+  `(repo_id, ref_kind, name)` and default-ref index; writers replace only a
+  fresh ref set carried by the current materialization so content-only
+  generations do not erase branch metadata.
 - Documentation fact readbacks stay bounded by visible finding/source/packet
   indexes plus `fact_records_documentation_target_refs_idx`, a partial JSONB GIN
   index over documentation target-reference payloads.

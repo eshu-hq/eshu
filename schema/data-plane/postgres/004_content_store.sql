@@ -43,6 +43,17 @@ CREATE TABLE IF NOT EXISTS content_file_references (
     PRIMARY KEY (repo_id, relative_path, reference_kind, reference_value)
 );
 
+CREATE TABLE IF NOT EXISTS repository_refs (
+    repo_id TEXT NOT NULL,
+    ref_kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    head_sha TEXT NOT NULL,
+    is_default BOOLEAN NOT NULL DEFAULT FALSE,
+    observed_at TIMESTAMPTZ NOT NULL,
+    indexed_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (repo_id, ref_kind, name)
+);
+
 CREATE INDEX IF NOT EXISTS content_files_repo_path_idx
     ON content_files (repo_id, relative_path);
 CREATE INDEX IF NOT EXISTS content_entities_repo_idx
@@ -55,6 +66,10 @@ CREATE INDEX IF NOT EXISTS content_file_references_lookup_idx
     ON content_file_references (reference_kind, reference_value, repo_id);
 CREATE INDEX IF NOT EXISTS content_file_references_repo_path_idx
     ON content_file_references (repo_id, relative_path);
+CREATE INDEX IF NOT EXISTS repository_refs_repo_idx
+    ON repository_refs (repo_id, ref_kind, name);
+CREATE INDEX IF NOT EXISTS repository_refs_repo_default_idx
+    ON repository_refs (repo_id, is_default, name);
 CREATE INDEX IF NOT EXISTS content_files_content_trgm_idx
     ON content_files USING gin (content gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS content_entities_source_trgm_idx

@@ -74,6 +74,75 @@ func TestGetRepositoryContentReturnsUtf8File(t *testing.T) {
 	}
 }
 
+func TestGetRepositoryContentServesSelectedIndexedBranch(t *testing.T) {
+	t.Parallel()
+
+	content := "# Title\nhello\n"
+	handler := &RepositoryHandler{
+		Content: fakePortContentStore{
+			repositories: []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+			repoFiles: []FileContent{
+				{RepoID: "repo-1", RelativePath: "README.md", CommitSHA: "abc123", Content: content},
+			},
+			repositoryRefs: []RepositoryRef{
+				{Name: "main", Kind: "branch", HeadSHA: "abc123", Default: true},
+			},
+		},
+	}
+
+	w := requestRepositoryContent(t, handler, "/api/v0/repositories/repo-1/content?path=README.md&ref=main")
+	resp := decodeRepositoryContent(t, w)
+	if got, want := resp["ref"], "abc123"; got != want {
+		t.Fatalf("ref = %#v, want indexed head %#v", got, want)
+	}
+	if got, want := resp["content"], content; got != want {
+		t.Fatalf("content = %#v, want %#v", got, want)
+	}
+}
+
+func TestGetRepositoryContentRejectsUnindexedSelectedBranch(t *testing.T) {
+	t.Parallel()
+
+	handler := &RepositoryHandler{
+		Content: fakePortContentStore{
+			repositories: []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+			repoFiles: []FileContent{
+				{RepoID: "repo-1", RelativePath: "README.md", CommitSHA: "abc123", Content: "# Title\n"},
+			},
+			repositoryRefs: []RepositoryRef{
+				{Name: "main", Kind: "branch", HeadSHA: "abc123", Default: true},
+				{Name: "release", Kind: "branch", HeadSHA: "def456"},
+			},
+		},
+	}
+
+	w := requestRepositoryContent(t, handler, "/api/v0/repositories/repo-1/content?path=README.md&ref=release")
+	if got, want := w.Code, http.StatusConflict; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+}
+
+func TestGetRepositoryContentRejectsUnknownSourceBackedRef(t *testing.T) {
+	t.Parallel()
+
+	handler := &RepositoryHandler{
+		Content: fakePortContentStore{
+			repositories: []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+			repoFiles: []FileContent{
+				{RepoID: "repo-1", RelativePath: "README.md", CommitSHA: "abc123", Content: "# Title\n"},
+			},
+			repositoryRefs: []RepositoryRef{
+				{Name: "main", Kind: "branch", HeadSHA: "abc123", Default: true},
+			},
+		},
+	}
+
+	w := requestRepositoryContent(t, handler, "/api/v0/repositories/repo-1/content?path=README.md&ref=release")
+	if got, want := w.Code, http.StatusNotFound; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+}
+
 func TestGetRepositoryContentRequiresPathParam(t *testing.T) {
 	t.Parallel()
 

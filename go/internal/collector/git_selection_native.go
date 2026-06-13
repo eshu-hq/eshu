@@ -79,8 +79,13 @@ func (s NativeRepositorySelector) SelectRepositories(
 			return SelectionBatch{}, err
 		}
 		return SelectionBatch{
-			ObservedAt:   observedAt,
-			Repositories: buildSelectedRepositories(s.Config, synced.SelectedRepoPaths, synced.DeltaByRepoPath),
+			ObservedAt: observedAt,
+			Repositories: buildSelectedRepositories(
+				s.Config,
+				synced.SelectedRepoPaths,
+				synced.DeltaByRepoPath,
+				synced.RefsByRepoPath,
+			),
 		}, nil
 	default:
 		return SelectionBatch{}, fmt.Errorf("unsupported ESHU_REPO_SOURCE_MODE=%q", s.Config.SourceMode)
@@ -91,7 +96,12 @@ func buildSelectedRepositories(
 	config RepoSyncConfig,
 	repoPaths []string,
 	deltaByRepoPath map[string]GitSyncDelta,
+	refsByRepoPath ...map[string][]GitRef,
 ) []SelectedRepository {
+	var refsByPath map[string][]GitRef
+	if len(refsByRepoPath) > 0 {
+		refsByPath = refsByRepoPath[0]
+	}
 	repositories := make([]SelectedRepository, 0, len(repoPaths))
 	for _, repoPath := range repoPaths {
 		if strings.TrimSpace(repoPath) == "" {
@@ -116,6 +126,11 @@ func buildSelectedRepositories(
 			repository.Delta = true
 			repository.FileTargets = sortUniquePathStrings(append(repository.FileTargets, delta.ChangedFileTargets...))
 			repository.DeletedRelativePaths = sortUniquePathStrings(delta.DeletedRelativePaths)
+		}
+		if refs, ok := refsByPath[repoPath]; ok {
+			repository.GitRefs = cloneGitRefs(refs)
+		} else if refs, ok := refsByPath[absolutePath]; ok {
+			repository.GitRefs = cloneGitRefs(refs)
 		}
 		if config.SourceMode != "filesystem" {
 			repoID := repoIDFromManagedPath(config.ReposDir, absolutePath)

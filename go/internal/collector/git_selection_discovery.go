@@ -24,6 +24,7 @@ type RepositorySelection struct {
 type GitSyncSelection struct {
 	SelectedRepoPaths []string
 	DeltaByRepoPath   map[string]GitSyncDelta
+	RefsByRepoPath    map[string][]GitRef
 }
 
 // GitSyncDelta carries the file-scoped change set for an updated Git checkout.
