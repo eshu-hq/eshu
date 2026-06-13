@@ -4,7 +4,7 @@
 //
 // Source.Next yields one collector.CollectedGeneration per configured bounded
 // scope. It drains Cloud Asset Inventory pages through the PageProvider seam,
-// accumulates gcp_cloud_resource, gcp_tag_observation, and
+// accumulates gcp_cloud_resource, gcp_cloud_relationship, gcp_tag_observation,
 // gcp_iam_policy_observation, gcp_dns_record, and gcp_collection_warning facts
 // in a gcpcloud.Generation, fences the generation with
 // gcpcloud.GenerationTracker so a stale scan cannot replace current facts, and

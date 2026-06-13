@@ -133,6 +133,40 @@ func TestParseAssetsListPageDNSRecordSets(t *testing.T) {
 	}
 }
 
+func TestParseAssetsListPageRelationships(t *testing.T) {
+	page, err := ParseAssetsListPage(readFixture(t, "assets_list_relationship.json"))
+	if err != nil {
+		t.Fatalf("ParseAssetsListPage: %v", err)
+	}
+	if len(page.Resources) != 1 {
+		t.Fatalf("len(Resources) = %d, want 1", len(page.Resources))
+	}
+
+	resource := page.Resources[0]
+	if got := len(resource.Relationships); got != 1 {
+		t.Fatalf("len(Relationships) = %d, want 1", got)
+	}
+	rel := resource.Relationships[0]
+	if rel.SourceFullResourceName != resource.Name {
+		t.Fatalf("SourceFullResourceName = %q, want %q", rel.SourceFullResourceName, resource.Name)
+	}
+	if rel.SourceAssetType != "compute.googleapis.com/Instance" {
+		t.Fatalf("SourceAssetType = %q", rel.SourceAssetType)
+	}
+	if rel.TargetFullResourceName != "//compute.googleapis.com/projects/my-project/zones/us-central1-a/disks/disk-rel" {
+		t.Fatalf("TargetFullResourceName = %q", rel.TargetFullResourceName)
+	}
+	if rel.TargetAssetType != "compute.googleapis.com/Disk" {
+		t.Fatalf("TargetAssetType = %q", rel.TargetAssetType)
+	}
+	if rel.RelationshipType != "INSTANCE_TO_DISK" {
+		t.Fatalf("RelationshipType = %q", rel.RelationshipType)
+	}
+	if rel.SupportState != RelationshipSupportSupported {
+		t.Fatalf("SupportState = %q, want supported", rel.SupportState)
+	}
+}
+
 func TestParseAssetsListRedactsDataPlane(t *testing.T) {
 	page, err := ParseAssetsListPage(readFixture(t, "assets_list_page1.json"))
 	if err != nil {
