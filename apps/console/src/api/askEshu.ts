@@ -1,5 +1,24 @@
 import type { EshuApiClient } from "./client";
 import type { EshuEnvelope, EshuError, EshuTruth } from "./envelope";
+import type { GraphModel } from "../console/types";
+import {
+  citationRequest,
+  normalizeAnswerCompanion,
+  normalizeCitationPacket,
+  type AnswerCompanion,
+  type AnswerMetadataWire,
+  type AnswerPacketWire,
+  type EvidenceCitationPacket,
+  type EvidenceCitationResponseWire
+} from "./answerPacket";
+import {
+  emptyAnswerGraph,
+  graphFromVisualizationPacket,
+  normalizeVisualizationPacket,
+  visualizationRequest,
+  type VisualizationDeriveResponseWire,
+  type VisualizationPacket
+} from "./answerVisualization";
 
 const semanticLimit = 5;
 const semanticTimeoutMs = 5000;
@@ -7,7 +26,7 @@ const topicLimit = 5;
 
 export type AskEshuStatus = "answered" | "needs_scope" | "partial" | "unanswered";
 
-export type AskEshuSource = "code_topic" | "question" | "scope" | "semantic";
+export type AskEshuSource = "citation" | "code_topic" | "question" | "scope" | "semantic" | "visualization";
 
 /** Free-text console question scoped to one repository corpus. */
 export interface AskEshuRequest {
@@ -19,19 +38,6 @@ export interface AskEshuRequest {
 export interface AskEshuSourceError {
   readonly message: string;
   readonly source: AskEshuSource;
-}
-
-/** Normalized answer packet metadata returned by a read endpoint. */
-export interface AskAnswerPacket {
-  readonly partial: boolean;
-  readonly primaryRoute: string;
-  readonly primaryTool: string;
-  readonly promptFamily: string;
-  readonly question: string;
-  readonly summary: string;
-  readonly supported: boolean;
-  readonly truthClass: string;
-  readonly unsupportedReasons: readonly string[];
 }
 
 /** Source-file handle that can route to the repository source viewer. */
@@ -78,7 +84,7 @@ export interface AskCodeTopicEvidenceGroup {
 
 /** Code-topic investigation response with answer-packet metadata preserved. */
 export interface AskCodeTopicSection {
-  readonly answerPacket: AskAnswerPacket | null;
+  readonly answerPacket: AnswerCompanion;
   readonly evidenceGroups: readonly AskCodeTopicEvidenceGroup[];
   readonly recommendedNextCalls: readonly unknown[];
   readonly route: "/api/v0/code/topics/investigate";
@@ -89,13 +95,16 @@ export interface AskCodeTopicSection {
 
 /** Complete Ask Eshu answer assembled from bounded read routes. */
 export interface AskEshuAnswer {
-  readonly answerPacket: AskAnswerPacket | null;
+  readonly answerGraph: GraphModel;
+  readonly answerPacket: AnswerCompanion;
+  readonly citationPacket: EvidenceCitationPacket | null;
   readonly codeTopic: AskCodeTopicSection;
   readonly errors: readonly AskEshuSourceError[];
   readonly question: string;
   readonly repoId: string;
   readonly semantic: AskSemanticSection;
   readonly status: AskEshuStatus;
+  readonly visualizationPacket: VisualizationPacket | null;
 }
 
 interface SemanticSearchResponse {
@@ -121,6 +130,7 @@ interface SemanticSearchDocument {
 }
 
 interface CodeTopicResponse {
+  readonly answer_metadata?: AnswerMetadataWire;
   readonly answer_packet?: WireAnswerPacket;
   readonly evidence_groups?: readonly WireEvidenceGroup[];
   readonly recommended_next_calls?: readonly unknown[];
@@ -128,17 +138,7 @@ interface CodeTopicResponse {
   readonly truncated?: boolean;
 }
 
-interface WireAnswerPacket {
-  readonly partial?: boolean;
-  readonly primary_route?: string;
-  readonly primary_tool?: string;
-  readonly prompt_family?: string;
-  readonly question?: string;
-  readonly summary?: string;
-  readonly supported?: boolean;
-  readonly truth_class?: string;
-  readonly unsupported_reasons?: readonly string[];
-}
+type WireAnswerPacket = AnswerPacketWire;
 
 interface WireEvidenceGroup {
   readonly entity_name?: string;
@@ -200,20 +200,46 @@ export async function askEshuQuestion(
 
   const semantic = semanticSection(semanticResult);
   const codeTopic = codeTopicSection(codeTopicResult);
-  const errors = [semanticResult.error, codeTopicResult.error].filter(
+  const citationResult = codeTopic.answerPacket.evidenceHandles.length === 0
+    ? emptySource<EvidenceCitationResponseWire>()
+    : await runSource("citation", () => client.post<EvidenceCitationResponseWire>(
+      "/api/v0/evidence/citations",
+      citationRequest(question, codeTopic.answerPacket)
+    ));
+  const citationPacket = citationResult.data === null
+    ? null
+    : normalizeCitationPacket(citationResult.data, citationResult.truth);
+  const visualizationResult = citationPacket === null
+    ? emptySource<VisualizationDeriveResponseWire>()
+    : await runSource("visualization", () => client.post<VisualizationDeriveResponseWire>(
+      "/api/v0/visualizations/derive",
+      visualizationRequest(citationPacket, citationResult.truth)
+    ));
+  const visualizationPacket = visualizationResult.data === null
+    ? null
+    : normalizeVisualizationPacket(visualizationResult.data, visualizationResult.truth);
+  const errors = [
+    semanticResult.error,
+    codeTopicResult.error,
+    citationResult.error,
+    visualizationResult.error
+  ].filter(
     (error): error is AskEshuSourceError => error !== null
   );
   const answerPacket = codeTopic.answerPacket;
   const hasEvidence = semantic.results.length > 0 || codeTopic.evidenceGroups.length > 0 ||
-    (answerPacket?.supported ?? false);
+    answerPacket.supported || (citationPacket?.citations.length ?? 0) > 0;
   return {
+    answerGraph: graphFromVisualizationPacket(visualizationPacket),
     answerPacket,
+    citationPacket,
     codeTopic,
     errors,
     question,
     repoId,
     semantic,
-    status: answerStatus(hasEvidence, errors)
+    status: answerStatus(hasEvidence, errors),
+    visualizationPacket
   };
 }
 
@@ -227,7 +253,7 @@ function answerStatus(
 }
 
 async function runSource<TData>(
-  source: "code_topic" | "semantic",
+  source: "citation" | "code_topic" | "semantic" | "visualization",
   load: () => Promise<EshuEnvelope<TData>>
 ): Promise<SourceResult<TData>> {
   try {
@@ -254,13 +280,16 @@ function emptyAnswer(
   const semantic = semanticSection({ data: null, error: null, truth: null });
   const codeTopic = codeTopicSection({ data: null, error: null, truth: null });
   return {
-    answerPacket: null,
+    answerGraph: emptyAnswerGraph(),
+    answerPacket: codeTopic.answerPacket,
+    citationPacket: null,
     codeTopic,
     errors: [error],
     question,
     repoId,
     semantic,
-    status
+    status,
+    visualizationPacket: null
   };
 }
 
@@ -294,28 +323,17 @@ function semanticResult(result: SemanticSearchResult): AskSemanticResult {
 function codeTopicSection(result: SourceResult<CodeTopicResponse>): AskCodeTopicSection {
   const data = result.data;
   return {
-    answerPacket: mapAnswerPacket(data?.answer_packet),
+    answerPacket: normalizeAnswerCompanion({
+      answerMetadata: data?.answer_metadata,
+      answerPacket: data?.answer_packet,
+      routeTruth: result.truth
+    }),
     evidenceGroups: (data?.evidence_groups ?? []).map(evidenceGroup),
     recommendedNextCalls: data?.recommended_next_calls ?? [],
     route: "/api/v0/code/topics/investigate",
     searchedTerms: data?.searched_terms ?? [],
     truncated: data?.truncated ?? false,
     truth: result.truth
-  };
-}
-
-function mapAnswerPacket(packet: WireAnswerPacket | undefined): AskAnswerPacket | null {
-  if (packet === undefined) return null;
-  return {
-    partial: packet.partial ?? false,
-    primaryRoute: clean(packet.primary_route),
-    primaryTool: clean(packet.primary_tool),
-    promptFamily: clean(packet.prompt_family),
-    question: clean(packet.question),
-    summary: clean(packet.summary),
-    supported: packet.supported ?? false,
-    truthClass: clean(packet.truth_class),
-    unsupportedReasons: packet.unsupported_reasons ?? []
   };
 }
 
@@ -343,11 +361,15 @@ function sourceHandle(handle: WireSourceHandle | undefined): AskSourceHandle | n
   };
 }
 
-function errorFromEnvelope(source: "code_topic" | "semantic", error: EshuError): AskEshuSourceError {
+function errorFromEnvelope(source: AskEshuSource, error: EshuError): AskEshuSourceError {
   return {
     message: `${error.code}: ${error.message}`,
     source
   };
+}
+
+function emptySource<TData>(): SourceResult<TData> {
+  return { data: null, error: null, truth: null };
 }
 
 function clean(value: string | undefined): string {
