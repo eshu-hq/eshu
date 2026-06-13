@@ -1,0 +1,25 @@
+{
+  "readTime": "2026-06-09T12:10:00Z",
+  "assets": [
+    {
+      "name": "//dns.googleapis.com/projects/123456789/locations/global/managedZones/987654321/rrsets/recordset-001",
+      "assetType": "dns.googleapis.com/ResourceRecordSet",
+      "updateTime": "2026-06-09T12:02:00Z",
+      "ancestors": ["projects/123456789", "organizations/9988776655"],
+      "resource": {
+        "location": "global",
+        "data": {
+          "name": "svc.internal.example.",
+          "displayName": "svc.internal.example.",
+          "type": "CNAME",
+          "ttl": 300,
+          "rrdatas": [
+            "backend.internal.example.",
+            "fallback.internal.example.",
+            "backend.internal.example."
+          ]
+        }
+      }
+    }
+  ]
+}

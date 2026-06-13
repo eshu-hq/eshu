@@ -11,7 +11,8 @@
 4. `types.go` - `CollectorKind`, `Boundary`, `ParentScopeKind`,
    `ResourceObservation`, `WarningObservation`.
 5. `normalize.go` - CAI full-resource-name and ancestor normalization.
-6. `redaction.go` - `RedactionPolicyVersion`, label and IAM-member fingerprinting.
+6. `redaction.go` - `RedactionPolicyVersion`, label, IAM-member, and DNS value
+   fingerprinting.
 7. `parse.go` - safe CAI page parsing (drops the raw resource data blob).
 8. `envelope.go` - durable fact-envelope construction and validation.
 9. `generation.go` - generation accumulation, dedupe, and fencing.
@@ -21,8 +22,8 @@
 
 - GCP cloud data is reported source evidence. This package may emit typed source
   facts for parsed resources, label-backed tag observations, IAM policy
-  observations, and collection warnings. Do not materialize graph truth, reducer
-  admission, or query behavior here.
+  observations, DNS record observations, and collection warnings. Do not
+  materialize graph truth, reducer admission, or query behavior here.
 - Keep the claim boundary explicit: collector instance, parent scope kind and id,
   asset family, content family, location bucket, scope id, generation id, and a
   positive fencing token.
@@ -37,13 +38,14 @@
   private IP addresses, raw provider response bodies, or the raw CAI resource
   data blob in facts. The parser is the single redaction choke point for the data
   blob.
-- Fingerprint IAM members and sensitive label values through the keyed `redact`
-  package. Member class is a bounded enum; the raw email is never persisted.
+- Fingerprint IAM members, DNS record values, and sensitive label values through
+  the keyed `redact` package. Member class is a bounded enum; raw identities and
+  DNS record values are never persisted.
 - Keep payload redaction versioned with `RedactionPolicyVersion`.
 - Metric labels are bounded enums only (collector kind, claim status, operation,
   parent scope kind, asset family, content family, status class, fact kind,
   warning kind, outcome). Never label-leak resource ids, project ids, names,
-  labels, IAM members, URLs, or credential names.
+  labels, IAM members, DNS names, URLs, or credential names.
 - This package does not call Google Cloud APIs. A future runtime adapter owns SDK
   pagination, retries, throttling, and credential loading.
 

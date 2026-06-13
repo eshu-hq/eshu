@@ -1,6 +1,7 @@
 package gcpcloud
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -38,6 +39,9 @@ func TestNewDNSRecordEnvelopeFingerprintsNameAndTargets(t *testing.T) {
 	nameFp, _ := env.Payload["record_name_fingerprint"].(string)
 	if nameFp == "" || nameFp == obs.RecordName {
 		t.Fatalf("record_name_fingerprint = %q, want non-raw marker", nameFp)
+	}
+	if strings.Contains(env.SourceRef.SourceRecordID, obs.RecordName) {
+		t.Fatalf("source record id leaked raw record name: %q", env.SourceRef.SourceRecordID)
 	}
 	targets, ok := env.Payload["target_fingerprints"].([]string)
 	if !ok || len(targets) != 2 {
