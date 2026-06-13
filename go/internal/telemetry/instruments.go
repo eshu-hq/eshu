@@ -645,6 +645,15 @@ type Instruments struct {
 	IaCResourceListErrors                metric.Int64Counter
 	CloudResourceListDuration            metric.Float64Histogram
 	CloudResourceListErrors              metric.Int64Counter
+	// APIRequestDuration measures per-endpoint HTTP handler latency for every
+	// query API and MCP read route, labeled by the matched low-cardinality route
+	// pattern (which already encodes the method) and response status_class. Its
+	// _count series also gives per-endpoint request totals. APIRequestErrors
+	// counts server-side (5xx) failures per route. Together they give operators
+	// uniform latency and error-rate signal across all read endpoints, not only
+	// the handful with bespoke instruments.
+	APIRequestDuration                   metric.Float64Histogram
+	APIRequestErrors                     metric.Int64Counter
 	SharedAcceptanceUpsertDuration       metric.Float64Histogram
 	SharedAcceptanceLookupDuration       metric.Float64Histogram
 	SharedAcceptancePrefetchSize         metric.Int64Histogram
@@ -2520,6 +2529,24 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register CloudResourceListErrors counter: %w", err)
 	}
 
+	inst.APIRequestDuration, err = meter.Float64Histogram(
+		"eshu_dp_api_request_duration_seconds",
+		metric.WithDescription("Per-endpoint query API/MCP read handler duration, labeled by route and status_class"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(neo4jQueryBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register APIRequestDuration histogram: %w", err)
+	}
+
+	inst.APIRequestErrors, err = meter.Int64Counter(
+		"eshu_dp_api_request_errors_total",
+		metric.WithDescription("Per-endpoint query API/MCP read handler server errors (5xx), labeled by route and status_class"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register APIRequestErrors counter: %w", err)
+	}
+
 	inst.SharedAcceptanceUpsertDuration, err = meter.Float64Histogram(
 		"eshu_dp_shared_acceptance_upsert_duration_seconds",
 		metric.WithDescription("Shared acceptance upsert duration"),
@@ -3383,6 +3410,13 @@ func AttrFactKind(v string) attribute.KeyValue {
 // AttrStatusClass returns a status_class attribute for metric recording.
 func AttrStatusClass(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionStatusClass, v)
+}
+
+// AttrRoute returns a route attribute for metric recording. The value is the
+// matched low-cardinality route pattern (e.g. "GET /api/v0/iac/resources"),
+// never a concrete request path with identifiers.
+func AttrRoute(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionRoute, v)
 }
 
 // AttrService returns a service attribute for cloud-provider metrics.

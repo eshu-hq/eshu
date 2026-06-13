@@ -1,7 +1,6 @@
 package tempo
 
 import (
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -172,8 +171,4 @@ func normalizedTagValueLimit(value int) int {
 	default:
 		return value
 	}
-}
-
-func shouldRetryStatus(statusCode int) bool {
-	return statusCode == http.StatusTooManyRequests || statusCode >= 500
 }

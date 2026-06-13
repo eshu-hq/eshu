@@ -206,9 +206,15 @@ Recommended child slices:
    lazy warming fallback, then wire graph-lane Compose/Helm defaults with
    tests.
 2. Define and fixture-test `EshuSearchDocument` projection without changing API
-   or MCP contracts. The first contract lives in
-   `go/internal/searchdocs` and
-   `docs/public/reference/search-document-projection.md`.
+   or MCP contracts. The projection contract lives in `go/internal/searchdocs`
+   and `docs/public/reference/search-document-projection.md`. The reducer
+   read-model now persists curated documents as generation-scoped derived facts
+   (`reducer_eshu_search_document`): `reducer.ProjectSearchDocuments` curates the
+   bounded source set, `reducer.EshuSearchDocumentHandler` drives one intent,
+   `reducer.PostgresEshuSearchDocumentWriter` upserts idempotently and retires
+   stale documents, and `postgres.EshuSearchDocumentStore` reads back only the
+   active generation. Runtime intent emission and runner registration for the
+   `eshu_search_document` domain land after the benchmark gate.
 3. Partially done: add a benchmark harness comparing current Postgres content
    search with curated NornicDB BM25/vector retrieval. The pure evidence, suite,
    and scoring contract lives in `go/internal/searchbench` and
@@ -221,8 +227,14 @@ Recommended child slices:
    over a representative corpus still needs a live suite run with both backends
    wired to real stores before any runtime search change.
 4. Add bounded internal retrieval path for semantic-evaluation queries. The
-   first request/response contract lives in `go/internal/searchretrieval` and
-   `docs/public/reference/search-retrieval-contract.md`.
+   request/response contract lives in `go/internal/searchretrieval` and
+   `docs/public/reference/search-retrieval-contract.md`. Backends: the Postgres
+   keyword baseline (`go/internal/searchpostgres`), the NornicDB hybrid prototype
+   (`go/internal/searchnornicdb`), and a pure-Go in-process hybrid backend
+   (`go/internal/searchhybrid`) implementing BM25 plus optional local-embedding
+   vectors fused with Reciprocal Rank Fusion, bounded with overflow signaling and
+   deterministic top-K. The local embedding model is supplied through an
+   `Embedder` port (hosted-free) and is the remaining follow-up.
 5. Add public API/MCP search surfaces only after retrieval evidence proves value
    and preserves truth labels, scope, limits, and truncation.
 

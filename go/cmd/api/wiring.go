@@ -160,7 +160,12 @@ func wireAPI(
 	apiMux := http.NewServeMux()
 	router.Mount(apiMux)
 
-	mux, err := mountRuntimeSurface(apiMux, "eshu-api", statusReader, prometheusHandler, db, driver)
+	// Record per-endpoint duration/error metrics for every API route. The
+	// middleware wraps the application mux only; the admin surface (probes,
+	// /metrics) is mounted separately and is intentionally not counted.
+	instrumentedAPI := query.RequestMetricsMiddleware(apiMux)
+
+	mux, err := mountRuntimeSurface(instrumentedAPI, "eshu-api", statusReader, prometheusHandler, db, driver)
 	if err != nil {
 		_ = db.Close()
 		if driver != nil {

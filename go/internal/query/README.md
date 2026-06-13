@@ -639,6 +639,13 @@ live in [evidence-notes.md](evidence-notes.md).
 - `AuthMiddleware` (`auth.go`) skips auth only when the resolved token is empty
   (dev mode) or the path is in `publicHTTPPaths`. Adding new public routes
   requires updating the `publicHTTPPaths` map.
+- `RequestMetricsMiddleware` (`request_metrics.go`) wraps the application mux and
+  records `eshu_dp_api_request_duration_seconds` and
+  `eshu_dp_api_request_errors_total` per endpoint, labeled by the matched route
+  pattern and `status_class`. It resolves the route via `mux.Handler` without
+  mutating the request, so cardinality stays bounded by registered routes. The
+  API and MCP server wire it around their router mux; the admin surface is
+  intentionally not counted.
 
 ## Extension points
 

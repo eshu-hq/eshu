@@ -270,6 +270,8 @@ module prefixes across generations.
 | `Neo4jQueryDuration` | `eshu_dp_neo4j_query_duration_seconds` | 0.001–10 s |
 | `IaCResourceListDuration` | `eshu_dp_iac_resource_list_duration_seconds` | 0.001–5 s |
 | `IaCResourceListErrors` | `eshu_dp_iac_resource_list_errors_total` (Int64) | counter |
+| `APIRequestDuration` | `eshu_dp_api_request_duration_seconds` (labels: `route`, `status_class`) | 0.001–10 s |
+| `APIRequestErrors` | `eshu_dp_api_request_errors_total` (Int64; labels: `route`, `status_class`) | counter |
 | `Neo4jBatchSize` | `eshu_dp_neo4j_batch_size` | 1–1000 rows |
 | `SharedAcceptanceUpsertDuration` | `eshu_dp_shared_acceptance_upsert_duration_seconds` | default |
 | `SharedAcceptanceLookupDuration` | `eshu_dp_shared_acceptance_lookup_duration_seconds` | default |

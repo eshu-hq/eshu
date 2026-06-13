@@ -73,7 +73,12 @@ const (
 	MetricDimensionArtifactFamily = "artifact_family"
 	MetricDimensionEcosystem      = "ecosystem"
 	MetricDimensionStatusClass    = "status_class"
-	MetricDimensionFailureClass   = "failure_class"
+	// MetricDimensionRoute labels per-endpoint API/MCP request metrics with the
+	// matched route pattern (e.g. "GET /api/v0/iac/resources"). The value space
+	// is the fixed set of registered routes, so it stays low-cardinality; raw
+	// request paths with identifiers are never used.
+	MetricDimensionRoute        = "route"
+	MetricDimensionFailureClass = "failure_class"
 	MetricDimensionFactKind       = "fact_kind"
 	// MetricDimensionResourceScope labels Kubernetes live collection metrics
 	// with a bounded resource scope such as namespaces, pods, deployments, or

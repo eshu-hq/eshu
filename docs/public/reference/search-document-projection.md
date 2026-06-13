@@ -85,12 +85,45 @@ Every excluded candidate should record a reason such as
 `missing_stable_handle`, `sensitive_context`, or `excluded_source_kind` so
 operators can size projection gaps without reading raw payloads.
 
+## Reducer Read-Model
+
+The reducer projects curated documents into the shared Postgres fact store as a
+generation-scoped read model, separate from canonical graph writes:
+
+- `reducer.ProjectSearchDocuments` curates a bounded per-generation source set
+  (content entities, content files, runtime summaries) into the included
+  documents plus a low-cardinality curation summary.
+- `reducer.EshuSearchDocumentHandler` runs that curation for one intent and
+  writes the authoritative document set for the scope and generation.
+- `reducer.PostgresEshuSearchDocumentWriter` upserts each document as a derived
+  fact (`fact_kind = reducer_eshu_search_document`, `truth_scope.level = derived`)
+  keyed by a deterministic `fact_id` over scope, generation, and document id, so
+  retries of the same generation converge.
+- `postgres.EshuSearchDocumentStore.ListActiveDocuments` reads documents back,
+  joining `ingestion_scopes.active_generation_id` so only the active generation
+  is returned.
+
+Retirement has two layers. Across generations, documents are retired
+automatically because readers join on the active generation. Within a
+generation, the writer deletes any prior document for that generation that is
+not in the freshly written set, so a source row that becomes excluded or
+disappears retires its document on the next projection.
+
+Search documents are derived retrieval evidence only. The write path performs no
+graph write, and retrieval score never becomes canonical graph truth.
+
+Runtime wiring of this domain (intent emission during finalization and runner
+registration) lands after the design-430 benchmark gate selects the search-lane
+backing.
+
 ## Fixture Gate
 
 The focused gate is:
 
 ```bash
 cd go && go test ./internal/searchdocs -count=1
+cd go && go test ./internal/reducer -run EshuSearchDocument -count=1
+cd go && go test ./internal/storage/postgres -run EshuSearchDocument -count=1
 ```
 
 The tests prove:
@@ -100,11 +133,20 @@ The tests prove:
 - stable document ids and graph handles for bounded expansion;
 - sensitive context, dashboard payloads, log-like metadata, and missing handles
   are rejected;
-- labels are deterministic and low-cardinality.
+- labels are deterministic and low-cardinality;
+- the reducer curation core drops sensitive and excluded candidates and orders
+  documents deterministically;
+- the fact writer upserts idempotently and retires stale documents in the
+  generation;
+- the reader returns only the active generation.
 
 ## Telemetry Requirements
 
-Future persistence or benchmark callers must expose:
+The reducer projection cycle emits the canonical-write counter and duration
+histogram tagged by domain, plus a structured log with `considered`, `included`,
+`skipped`, `written`, `retired`, per-reason skip counts, and per-source-kind
+included counts. Future persistence or benchmark callers must additionally
+expose:
 
 - document count by `source_kind`;
 - skipped-document count by exclusion reason;

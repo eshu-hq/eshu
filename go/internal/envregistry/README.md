@@ -1,0 +1,73 @@
+# envregistry
+
+Code-owned source of truth for Eshu's `ESHU_*` environment variables.
+
+## Purpose
+
+Eshu reads ~hundreds of `ESHU_*` variables from scattered `os.Getenv` call
+sites. Before this package there was no central registry, no startup validation,
+and inconsistent naming (`ESHU_POSTGRES_DSN` vs `ESHU_CONTENT_STORE_DSN`), so
+misconfiguration failed late with unhelpful errors. This package declares the
+supported core-platform variables once and powers:
+
+- `eshu config validate` — checks the live environment for invalid values,
+  deprecated variables, and likely typos.
+- `docs/public/reference/env-registry.md` — generated reference doc.
+
+## What it covers
+
+The registry covers the **core platform** subsystems: `postgres`, `graph`,
+`runtime`, `api`, `mcp`, `reducer`, `projector`, `coordinator`, `semantic`, and
+`component`. Collector and container-registry-credential variables are a
+separate, larger surface tracked outside this package.
+
+`TestRegistryCoversCoreEnvCallSites` is the CI gate: it scans the canonical core
+config files (`coreScanFiles`) and fails if any `ESHU_*` they read is missing
+from the registry. This keeps the registry from drifting away from the code it
+documents, scoped honestly to what it claims to cover.
+
+## Exported surface
+
+- `Entry` — one variable declaration (name, type, default, subsystem,
+  description, allowed enum values, aliases, deprecation).
+- `Registry` / `New` / `Default` — immutable lookup over a set of entries,
+  indexed by canonical name and alias.
+- `Registry.Validate(env, strict)` — returns `Finding`s (invalid value,
+  deprecated, unknown).
+- `Registry.RenderMarkdown` — deterministic reference-doc rendering.
+- `VarType` constants — `VarString`, `VarInt`, `VarBool`, `VarDuration`,
+  `VarEnum`, `VarDSN`.
+
+## Aliases and deprecations
+
+- DSN precedence: `ESHU_FACT_STORE_DSN` → `ESHU_CONTENT_STORE_DSN` →
+  `ESHU_POSTGRES_DSN` (declared as aliases of the canonical `ESHU_POSTGRES_DSN`).
+- Graph: `ESHU_NEO4J_*` fall back to legacy non-prefixed `NEO4J_*` (declared as
+  aliases).
+- Deprecated: `ESHU_REDUCER_CLAIM_DOMAIN` → `ESHU_REDUCER_CLAIM_DOMAINS`;
+  legacy alias `ESHU_WORKFLOW_COORDINATOR_ENABLE_CLAIMS` →
+  `ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED`.
+
+## Maintaining the registry
+
+1. Add or change an `Entry` in `entries.go`.
+2. Regenerate the reference doc:
+   `ESHU_UPDATE_ENV_DOC=1 go test ./internal/envregistry -run TestEnvRegistryReferenceDocUpToDate`.
+3. Run `go test ./internal/envregistry -count=1`. If you added a variable read
+   in a `coreScanFiles` file, the coverage test enforces it is declared.
+
+## Runtime impact
+
+No-Regression Evidence: this package is pure declarations plus validation
+helpers. It is read only by the `eshu config validate` CLI command (run on
+demand by an operator) and by the reference-doc generator test — never on any
+service request, graph-write, reducer, or queue hot path. No goroutines,
+channels, workers, leases, or graph queries are introduced; the trigger words in
+the variable descriptions (e.g. "heartbeat", "workers") describe other
+subsystems' settings and are not executed here. Verified by
+`go test ./internal/envregistry ./cmd/eshu -count=1` and
+`golangci-lint run ./internal/envregistry/... ./cmd/eshu/...`.
+
+No-Observability-Change: this change adds a CLI validation command and a
+generated reference doc; it emits no metrics, spans, or logs from any running
+service and does not alter any existing telemetry signal.

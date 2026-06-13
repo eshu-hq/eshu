@@ -4,7 +4,7 @@
 
 1. `README.md`
 2. `doc.go`
-3. `http_client.go`
+3. `client.go`
 4. `envelope.go`
 5. `source.go`
 6. `docs/public/reference/observability-evidence.md`

@@ -125,9 +125,11 @@ func wireAPI(
 	mux := http.NewServeMux()
 	router.Mount(mux)
 
-	// Wrap with auth middleware (shared token + optional scoped-token registry;
+	// Record per-endpoint duration/error metrics for every read route, then wrap
+	// with auth middleware (shared token + optional scoped-token registry;
 	// protects all /api/v0/* routes when mounted by MCP server)
-	authedHandler := query.AuthMiddlewareWithScopedTokensAndGovernanceAudit(apiKey, scopedTokenResolver, mux, governanceAudit)
+	instrumentedMux := query.RequestMetricsMiddleware(mux)
+	authedHandler := query.AuthMiddlewareWithScopedTokensAndGovernanceAudit(apiKey, scopedTokenResolver, instrumentedMux, governanceAudit)
 
 	adminMux, err := mountRuntimeSurface("mcp-server", statusReader, prometheusHandler, db, driver)
 	if err != nil {

@@ -164,6 +164,9 @@ Primary groups:
   repository-scoped API/MCP readbacks.
 - Terraform and AWS drift adapters that keep reducer joins bounded by scope,
   generation, ARN allowlists, backend ownership, and active read-model indexes.
+- `EshuSearchDocumentStore` reads curated design-430 search documents
+  (`reducer_eshu_search_document`) for a scope's active generation, bounded by
+  repository, source kind, and a capped page.
 
 ## Dependencies
 

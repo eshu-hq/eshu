@@ -75,6 +75,30 @@ git -C "${missing_markers_repo}" add .
 git -C "${missing_markers_repo}" commit -q -m 'collector without evidence markers'
 expect_fail "${missing_markers_repo}"
 
+deleted_repo="$(init_repo deleted-package)"
+mkdir -p "${deleted_repo}/go/internal/collector/oldsource"
+printf 'package oldsource\n' >"${deleted_repo}/go/internal/collector/oldsource/source.go"
+printf 'package oldsource\n' >"${deleted_repo}/go/internal/collector/oldsource/doc.go"
+printf '# Old Source Agent Rules\n' >"${deleted_repo}/go/internal/collector/oldsource/AGENTS.md"
+cat >"${deleted_repo}/go/internal/collector/oldsource/README.md" <<'MD'
+# Old Source
+
+Collector Performance Evidence: baseline fixture only.
+
+Collector Observability Evidence: no runtime path.
+
+Collector Deployment Evidence: no hosted runtime.
+
+No-Observability-Change: baseline fixture only.
+MD
+printf 'package oldsource\nfunc TestSource(t interface{}) {}\n' >"${deleted_repo}/go/internal/collector/oldsource/source_test.go"
+git -C "${deleted_repo}" add .
+git -C "${deleted_repo}" commit -q -m 'collector before deletion'
+rm -rf "${deleted_repo}/go/internal/collector/oldsource"
+git -C "${deleted_repo}" add -A
+git -C "${deleted_repo}" commit -q -m 'delete collector package'
+expect_pass "${deleted_repo}"
+
 complete_repo="$(init_repo complete)"
 mkdir -p "${complete_repo}/go/internal/collector/confluence2" "${complete_repo}/go/internal/telemetry"
 printf 'package confluence2\n' >"${complete_repo}/go/internal/collector/confluence2/source.go"
