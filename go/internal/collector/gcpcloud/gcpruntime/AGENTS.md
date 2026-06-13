@@ -21,6 +21,9 @@
   always use `FixturePageProvider`.
 - All transport goes through `PageProvider.FetchPage`. Do not import a Google
   Cloud SDK into `source.go`; new transport is a new `PageProvider`.
+- Parsed resource labels emit label-backed `gcp_tag_observation` facts through
+  `gcpcloud.Generation`; direct/effective GCP tag API collection belongs in a
+  later source slice.
 - Reference credentials by NAME only (`ScopeConfig.CredentialRef`). Never store,
   log, or label credential material or names.
 - Fence every generation through `gcpcloud.GenerationTracker` before draining

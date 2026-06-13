@@ -3,11 +3,15 @@ package gcpcloud
 import (
 	"errors"
 	"sort"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
+
+const tagSourceKindLabel = "label"
 
 // ErrStaleGeneration reports that a generation was rejected because a newer
 // generation (higher fencing token) already owns the scope. Callers classify it
@@ -60,6 +64,19 @@ func (g *Generation) AddWarning(obs WarningObservation) {
 	g.warnings = append(g.warnings, obs)
 }
 
+// ObserveReadTime records a provider read time for the generation. When multiple
+// pages carry read times, the latest non-zero read time is kept for generation
+// payloads and freshness-lag telemetry.
+func (g *Generation) ObserveReadTime(readTime time.Time) {
+	readTime = readTime.UTC()
+	if readTime.IsZero() {
+		return
+	}
+	if g.boundary.ReadTime.IsZero() || readTime.After(g.boundary.ReadTime) {
+		g.boundary.ReadTime = readTime
+	}
+}
+
 // Build produces the deterministic, sorted envelope set for the generation.
 // Resource facts are sorted by stable fact key so re-emitting the same
 // generation yields the same order; warning facts follow in insertion order.
@@ -70,13 +87,21 @@ func (g *Generation) Build() ([]facts.Envelope, error) {
 	}
 	sort.Strings(keys)
 
-	envelopes := make([]facts.Envelope, 0, len(g.resources)+len(g.warnings))
+	envelopes := make([]facts.Envelope, 0, g.envelopeCapacity())
 	for _, key := range keys {
-		env, err := NewCloudResourceEnvelope(g.boundary, g.resources[key], g.key)
+		resource := g.resources[key]
+		env, err := NewCloudResourceEnvelope(g.boundary, resource, g.key)
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, env)
+		tagEnv, ok, err := g.tagObservationEnvelope(resource)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			envelopes = append(envelopes, tagEnv)
+		}
 	}
 	for _, warning := range g.warnings {
 		env, err := NewCollectionWarningEnvelope(warning)
@@ -101,6 +126,48 @@ func (g *Generation) ResourceCount() int { return len(g.resources) }
 
 // WarningCount returns the number of collection warnings in the generation.
 func (g *Generation) WarningCount() int { return len(g.warnings) }
+
+func (g *Generation) envelopeCapacity() int {
+	capacity := len(g.resources) + len(g.warnings)
+	if g.key.IsZero() {
+		return capacity
+	}
+	for _, resource := range g.resources {
+		if hasUsableTags(resource.Labels) {
+			capacity++
+		}
+	}
+	return capacity
+}
+
+func (g *Generation) tagObservationEnvelope(obs ResourceObservation) (facts.Envelope, bool, error) {
+	if g.key.IsZero() || !hasUsableTags(obs.Labels) {
+		return facts.Envelope{}, false, nil
+	}
+	env, err := NewTagObservationEnvelope(TagObservation{
+		Boundary:         g.boundary,
+		FullResourceName: obs.Name,
+		AssetType:        obs.AssetType,
+		Tags:             obs.Labels,
+		SourceKind:       tagSourceKindLabel,
+		UpdateTime:       obs.UpdateTime,
+		SourceRecordID:   obs.SourceRecordID,
+		SourceURI:        obs.SourceURI,
+	}, g.key)
+	if err != nil {
+		return facts.Envelope{}, false, err
+	}
+	return env, true, nil
+}
+
+func hasUsableTags(labels map[string]string) bool {
+	for key := range labels {
+		if strings.TrimSpace(key) != "" {
+			return true
+		}
+	}
+	return false
+}
 
 func resourceDedupeKey(obs ResourceObservation) string {
 	name := obs.Name
