@@ -41,6 +41,7 @@ type fakePortContentStore struct {
 	targetSupportErr             error
 	entities                     []EntityContent
 	repoFiles                    []FileContent
+	repositoryRefs               []RepositoryRef
 	repositories                 []RepositoryCatalogEntry
 	languageRepos                []RepositoryLanguageRepository
 	languageCounts               map[string]RepositoryLanguageAggregate
@@ -113,6 +114,10 @@ func (f fakePortContentStore) ListRepoFiles(_ context.Context, repoID string, li
 		}
 	}
 	return files, nil
+}
+
+func (f fakePortContentStore) ListRepositoryRefs(context.Context, string) ([]RepositoryRef, error) {
+	return append([]RepositoryRef(nil), f.repositoryRefs...), nil
 }
 
 func (f fakePortContentStore) ListRepoEntities(_ context.Context, _ string, limit int) ([]EntityContent, error) {

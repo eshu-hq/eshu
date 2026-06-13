@@ -6,12 +6,9 @@ import (
 	"net/http"
 )
 
-// getRepositoryBranches returns the repository refs the console branch selector
-// needs. Git refs are not captured by ingestion yet (see #1433), so the only
-// ref-like datum is the single commit SHA recorded per indexed file. This
-// endpoint therefore reports that single indexed ref, truth-labeled as derived,
-// rather than fabricating a multi-branch list. When ref ingestion lands, this
-// handler can return the full default_branch + per-branch head list.
+// getRepositoryBranches returns the source-backed refs the console branch
+// selector needs. Older indexed repositories may only have the derived indexed
+// commit SHA; those continue to report a single truth-labeled fallback row.
 //
 // GET /api/v0/repositories/{repo_id}/branches
 func (h *RepositoryHandler) getRepositoryBranches(w http.ResponseWriter, r *http.Request) {
@@ -31,12 +28,36 @@ func (h *RepositoryHandler) getRepositoryBranches(w http.ResponseWriter, r *http
 		return
 	}
 
+	refs, err := repositoryRefs(ctx, h.Content, repoID)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repository refs failed: %v", err))
+		return
+	}
+	if len(refs) > 0 {
+		WriteSuccess(
+			w,
+			r,
+			http.StatusOK,
+			map[string]any{
+				"default_branch": repositoryRefsDefaultBranch(refs),
+				"branches":       repositoryRefBranchEntries(refs),
+			},
+			BuildTruthEnvelope(
+				h.profile(),
+				"platform_impact.context_overview",
+				TruthBasisContentIndex,
+				"reports source-backed git refs captured during repository ingestion",
+			),
+		)
+		return
+	}
+
 	branches := make([]map[string]any, 0, 1)
 	if h.Content != nil {
 		commitSHA := h.indexedCommitSHA(ctx, repoID)
 		if commitSHA != "" {
 			entry := map[string]any{
-				"name":     "", // branch names are not captured by ingestion yet (#1433)
+				"name":     "",
 				"head_sha": commitSHA,
 			}
 			if coverage, err := h.Content.RepositoryCoverage(ctx, repoID); err == nil {
@@ -60,7 +81,7 @@ func (h *RepositoryHandler) getRepositoryBranches(w http.ResponseWriter, r *http
 			h.profile(),
 			"platform_impact.context_overview",
 			TruthBasisContentIndex,
-			"reports the single indexed commit ref per repository; git branch names are not captured by ingestion yet, so no multi-branch list is invented",
+			"reports the single indexed commit ref because source-backed git refs are unavailable; no branch names are invented",
 		),
 	)
 }

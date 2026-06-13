@@ -17,7 +17,7 @@ import (
 )
 
 func (r Runtime) writeContentProjection(ctx context.Context, scopeValue scope.IngestionScope, mat content.Materialization) (content.Result, error) {
-	if len(mat.Records) == 0 && len(mat.Entities) == 0 {
+	if len(mat.Records) == 0 && len(mat.Entities) == 0 && len(mat.RepositoryRefs) == 0 {
 		return content.Result{}, nil
 	}
 	if r.ContentWriter == nil {
@@ -38,6 +38,7 @@ func (r Runtime) writeContentProjection(ctx context.Context, scopeValue scope.In
 	r.logRuntimeStage(ctx, scopeValue, mat.GenerationID, "content_write", contentStart,
 		"content_record_count", len(mat.Records),
 		"content_entity_count", len(mat.Entities),
+		"content_repository_ref_count", len(mat.RepositoryRefs),
 		"deleted_count", contentResult.DeletedCount,
 	)
 

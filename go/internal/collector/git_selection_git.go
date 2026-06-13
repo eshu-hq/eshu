@@ -32,6 +32,7 @@ func syncGitRepositoriesWithLogger(
 
 	selected := make([]string, 0, len(repositoryIDs))
 	deltaByRepoPath := make(map[string]GitSyncDelta)
+	refsByRepoPath := make(map[string][]GitRef)
 	for i, repoID := range repositoryIDs {
 		if err := ctx.Err(); err != nil {
 			return GitSyncSelection{}, err
@@ -46,12 +47,24 @@ func syncGitRepositoriesWithLogger(
 			cloned, cloneErr := cloneRepository(ctx, config, repoID, repoPath, token, logger, event)
 			if cloneErr == nil && cloned {
 				selected = append(selected, repoPath)
+				refs, refsErr := remoteGitRefs(ctx, config, repoPath, token)
+				if refsErr != nil {
+					logGitSyncFailed(ctx, logger, event.withOperation("list_refs"), refsErr)
+					return GitSyncSelection{}, refsErr
+				}
+				refsByRepoPath[repoPath] = refs
 			}
 			continue
 		}
 		updated, delta, updateErr := syncExistingRepository(ctx, config, repoPath, token, logger, event, baseline)
 		if updateErr == nil && updated {
 			selected = append(selected, repoPath)
+			refs, refsErr := remoteGitRefs(ctx, config, repoPath, token)
+			if refsErr != nil {
+				logGitSyncFailed(ctx, logger, event.withOperation("list_refs"), refsErr)
+				return GitSyncSelection{}, refsErr
+			}
+			refsByRepoPath[repoPath] = refs
 			if !delta.IsEmpty() {
 				deltaByRepoPath[repoPath] = delta
 			}
@@ -60,6 +73,7 @@ func syncGitRepositoriesWithLogger(
 	return GitSyncSelection{
 		SelectedRepoPaths: sortUniqueStrings(selected),
 		DeltaByRepoPath:   deltaByRepoPath,
+		RefsByRepoPath:    refsByRepoPath,
 	}, nil
 }
 

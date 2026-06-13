@@ -3,11 +3,12 @@
 ## Purpose
 
 `content` defines the source-local content write contract used by the projector
-and any future write path that persists file bodies and entity rows to Postgres.
-It owns the `Writer` port, the value types that flow through that port, the
-canonical content-entity identifier, and the runtime tunable for batch width.
-The Postgres storage adapter lives in `internal/storage/postgres` and implements
-`Writer`; this package has no Postgres dependency.
+and any future write path that persists file bodies, entity rows, and repository
+ref metadata to Postgres. It owns the `Writer` port, the value types that flow
+through that port, the canonical content-entity identifier, and the runtime
+tunable for batch width. The Postgres storage adapter lives in
+`internal/storage/postgres` and implements `Writer`; this package has no
+Postgres dependency.
 
 ## Where this fits in the pipeline
 
@@ -19,15 +20,16 @@ flowchart LR
 ```
 
 The projector calls `content.Writer.Write` with a `Materialization` built by
-`internal/content/shape`. The concrete writer (`storage/postgres`) upserts
-`content_files` and `content_entities` rows.
+`internal/content/shape` plus source metadata extracted from repository facts.
+The concrete writer (`storage/postgres`) upserts `content_files`,
+`content_entities`, and `repository_refs` rows.
 
 ## Ownership boundary
 
 This package owns:
 
 - `Writer` — the narrow per-scope-generation write interface
-- `Materialization`, `Record`, `EntityRecord`, `Result` — value types
+- `Materialization`, `Record`, `EntityRecord`, `RepositoryRef`, `Result` — value types
 - `CanonicalEntityID` — stable entity hash
 - `WriterConfig`, `LoadWriterConfig` — batch-width tunable
 - `MemoryWriter` — in-process test double
@@ -45,15 +47,18 @@ Write contract:
   single interface other packages depend on; implemented by the Postgres content
   adapter.
 - `Materialization` — payload for one scope generation: `RepoID`, `ScopeID`,
-  `GenerationID`, `SourceSystem`, `Records []Record`, `Entities []EntityRecord`.
+  `GenerationID`, `SourceSystem`, `Records []Record`,
+  `Entities []EntityRecord`, and `RepositoryRefs []RepositoryRef`.
   `ScopeGenerationKey()` returns the durable `"scopeID:generationID"` boundary.
 - `Record` — one file write candidate: `Path`, `Body`, `Digest`, `Deleted`,
   `Metadata map[string]string`.
 - `EntityRecord` — one entity write candidate; carries `EntityID`, `Path`,
   `EntityType`, `EntityName`, line/byte range, `Language`, `ArtifactType`,
   `TemplateDialect`, `IACRelevant`, `SourceCache`, `Metadata`, `Deleted`.
+- `RepositoryRef` — one observed source-control ref: `Name`, `Kind`, `HeadSHA`,
+  `Default`, and `ObservedAt`.
 - `Result` — write summary: `ScopeID`, `GenerationID`, `RecordCount`,
-  `EntityCount`, `DeletedCount`.
+  `EntityCount`, `RepositoryRefCount`, `DeletedCount`.
 - `MemoryWriter` — accumulates cloned `Materialization` values in `Writes` for
   unit tests and adapters.
 

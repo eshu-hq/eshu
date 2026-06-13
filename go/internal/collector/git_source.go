@@ -47,6 +47,7 @@ type SelectedRepository struct {
 	DisplayName          string   `json:"display_name"`
 	Language             string   `json:"language"`
 	FileTargets          []string `json:"file_targets"`
+	GitRefs              []GitRef `json:"git_refs,omitempty"`
 	Delta                bool     `json:"delta,omitempty"`
 	DeletedRelativePaths []string `json:"deleted_relative_paths,omitempty"`
 }
@@ -64,6 +65,8 @@ type RepositorySnapshot struct {
 	FileData        []map[string]any        `json:"file_data"`
 	ContentFiles    []ContentFileSnapshot   `json:"content_files"`
 	ContentEntities []ContentEntitySnapshot `json:"content_entities"`
+	// GitRefs carries source-observed branch/ref heads for this repository.
+	GitRefs []GitRef `json:"git_refs,omitempty"`
 	// TerraformStateCandidates carries metadata-only repo-local state-file
 	// candidates. Raw .tfstate bytes never enter repository snapshots.
 	TerraformStateCandidates []TerraformStateCandidate `json:"terraform_state_candidates,omitempty"`
@@ -716,6 +719,9 @@ func (s *GitSource) snapshotOneRepository(
 	}
 	if snapshot.RemoteURL == "" {
 		snapshot.RemoteURL = repository.RemoteURL
+	}
+	if len(snapshot.GitRefs) == 0 {
+		snapshot.GitRefs = cloneGitRefs(repository.GitRefs)
 	}
 
 	repositoryName := repository.DisplayName

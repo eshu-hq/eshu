@@ -695,6 +695,10 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
   `RepositoryLanguageInventory`. The API and MCP contract is count-first and
   paged so "how many TypeScript repos?" does not require per-repository
   coverage fan-out.
+- Repository source browsing reads optional `ListRepositoryRefs` support from
+  the content store. `/branches` prefers those source-backed refs, while
+  `/tree` and `/content` reject a selected ref that is unknown, unavailable, or
+  not equal to the indexed commit instead of falling back silently.
 - `queryContentStoreCoverage` uses `ContentReader.RepositoryCoverage` as the
   bounded count source when content rows are available. The graph count in
   `queryRepositoryGraphCoverageStats` is a no-content fallback, so

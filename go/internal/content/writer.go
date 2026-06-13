@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/blake2s"
 )
@@ -47,6 +48,15 @@ type EntityRecord struct {
 	Deleted         bool
 }
 
+// RepositoryRef captures one observed source-control reference for a repository.
+type RepositoryRef struct {
+	Name       string
+	Kind       string
+	HeadSHA    string
+	Default    bool
+	ObservedAt time.Time
+}
+
 // Clone returns a copy-safe entity record value.
 func (r EntityRecord) Clone() EntityRecord {
 	cloned := r
@@ -68,12 +78,13 @@ func (r EntityRecord) Clone() EntityRecord {
 
 // Materialization is the source-local content payload for one scope generation.
 type Materialization struct {
-	RepoID       string
-	ScopeID      string
-	GenerationID string
-	SourceSystem string
-	Records      []Record
-	Entities     []EntityRecord
+	RepoID         string
+	ScopeID        string
+	GenerationID   string
+	SourceSystem   string
+	Records        []Record
+	Entities       []EntityRecord
+	RepositoryRefs []RepositoryRef
 }
 
 // ScopeGenerationKey returns the durable scope-generation boundary.
@@ -96,17 +107,21 @@ func (m Materialization) Clone() Materialization {
 			cloned.Entities[i] = m.Entities[i].Clone()
 		}
 	}
+	if len(m.RepositoryRefs) > 0 {
+		cloned.RepositoryRefs = append([]RepositoryRef(nil), m.RepositoryRefs...)
+	}
 
 	return cloned
 }
 
 // Result summarizes one source-local content write.
 type Result struct {
-	ScopeID      string
-	GenerationID string
-	RecordCount  int
-	EntityCount  int
-	DeletedCount int
+	ScopeID            string
+	GenerationID       string
+	RecordCount        int
+	EntityCount        int
+	RepositoryRefCount int
+	DeletedCount       int
 }
 
 // Writer is the narrow source-local content write contract.
@@ -129,10 +144,11 @@ func (w *MemoryWriter) Write(_ context.Context, materialization Materialization)
 	w.Writes = append(w.Writes, cloned)
 
 	result := Result{
-		ScopeID:      cloned.ScopeID,
-		GenerationID: cloned.GenerationID,
-		RecordCount:  len(cloned.Records),
-		EntityCount:  len(cloned.Entities),
+		ScopeID:            cloned.ScopeID,
+		GenerationID:       cloned.GenerationID,
+		RecordCount:        len(cloned.Records),
+		EntityCount:        len(cloned.Entities),
+		RepositoryRefCount: len(cloned.RepositoryRefs),
 	}
 	for _, record := range cloned.Records {
 		if record.Deleted {

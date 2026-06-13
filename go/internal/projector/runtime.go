@@ -109,6 +109,7 @@ func (r Runtime) Project(ctx context.Context, scopeValue scope.IngestionScope, g
 		"fact_count", len(inputFacts),
 		"content_record_count", len(projection.contentMaterialization.Records),
 		"content_entity_count", len(projection.contentMaterialization.Entities),
+		"content_repository_ref_count", len(projection.contentMaterialization.RepositoryRefs),
 		"reducer_intent_count", len(projection.reducerIntents),
 	)
 
@@ -231,6 +232,9 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 			}
 			if entity, ok := buildContentEntityRecord(repoID, fact); ok {
 				contentMaterialization.Entities = append(contentMaterialization.Entities, entity)
+			}
+			if refs := buildRepositoryRefs(fact); len(refs) > 0 {
+				contentMaterialization.RepositoryRefs = append(contentMaterialization.RepositoryRefs, refs...)
 			}
 		}
 		if intent, ok := buildSemanticEntityReducerIntent(fact); ok {
@@ -382,32 +386,5 @@ func buildContentEntityRecord(repoID string, fact facts.Envelope) (content.Entit
 		SourceCache:     sourceCache,
 		Metadata:        entityMetadataFromPayload(fact.Payload),
 		Deleted:         fact.IsTombstone,
-	}, true
-}
-
-func buildReducerIntent(fact facts.Envelope) (ReducerIntent, bool) {
-	domainValue, ok := payloadString(fact.Payload, "reducer_domain")
-	if !ok {
-		domainValue, ok = payloadString(fact.Payload, "shared_domain")
-		if !ok {
-			return ReducerIntent{}, false
-		}
-	}
-	domain, err := reducer.ParseDomain(domainValue)
-	if err != nil {
-		return ReducerIntent{}, false
-	}
-
-	entityKey, _ := payloadString(fact.Payload, "entity_key")
-	reason, _ := payloadString(fact.Payload, "reason")
-
-	return ReducerIntent{
-		ScopeID:      fact.ScopeID,
-		GenerationID: fact.GenerationID,
-		Domain:       domain,
-		EntityKey:    entityKey,
-		Reason:       reason,
-		FactID:       fact.FactID,
-		SourceSystem: fact.SourceRef.SourceSystem,
 	}, true
 }

@@ -157,32 +157,52 @@ Use `path` to list a subdirectory, and `recursive=true` to return the full
 subtree. Each entry is `{name, type, path}`; file entries add `size` (line
 count) and `language` when indexed, and directory entries add `child_count` (the
 number of descendant files in that subtree). The response `ref` reports the
-single indexed commit SHA the tree was built from, and `truncated=true` signals
-that the file cap was reached for a very large repository. An indexed repository
-with no files returns an empty `entries` array; an unknown repository or
-subpath returns a `404` envelope. The endpoint never returns source bytes; use
-the repository content route for file contents.
+indexed commit SHA the tree was built from, and `truncated=true` signals that
+the file cap was reached for a very large repository. When `ref` is supplied, it
+must match a captured source ref name/head SHA that equals the indexed commit,
+or the exact indexed commit SHA. A known but unindexed ref or unavailable branch
+metadata returns `409` instead of silently falling back. An indexed repository
+with no files returns an empty `entries` array; an unknown repository, unknown
+source-backed ref, or subpath returns a `404` envelope. The endpoint never
+returns source bytes; use the repository content route for file contents.
 
 `GET /api/v0/repositories/{repo_id}/content?path={file}` returns the indexed
 bytes of a single repository file from the content store. `path` is required.
 Text files are returned as `encoding=utf-8` with the file in `content`; bytes
 that are not valid UTF-8 are returned as `encoding=base64`. `size` is the
 original byte length and `truncated=true` signals the response was capped at the
-byte limit (cut on a UTF-8 rune boundary for text). `ref` reports the single
-indexed commit SHA, and `language` is included when the content store recorded
-it. A missing path or unknown repository returns a `404` envelope. This endpoint
-returns the same redacted content the content store holds; it never reveals
-secrets the collectors strip during indexing.
+byte limit (cut on a UTF-8 rune boundary for text). `ref` reports the indexed
+commit SHA, and `language` is included when the content store recorded it. When
+`ref` is supplied, it must match a captured source ref name/head SHA that equals
+the indexed commit, or the exact indexed commit SHA. A known but unindexed ref
+or unavailable branch metadata returns `409` instead of silently falling back. A
+missing path, unknown source-backed ref, or unknown repository returns a `404`
+envelope. This endpoint returns the same redacted content the content store
+holds; it never reveals secrets the collectors strip during indexing.
 
 `GET /api/v0/repositories/{repo_id}/branches` returns the refs the console
-branch selector uses. Git branch names are not captured by ingestion yet, so
-this reports the single indexed commit ref per repository — one `branches[]`
-entry carrying `head_sha` (the indexed `commit_sha`) and `last_indexed_at`,
-with an empty `name` and `default_branch` — truth-labeled `derived` rather than
-fabricating a multi-branch list. A repository with no indexed commit returns an
-empty `branches` array; an unknown repository returns a `404` envelope. When git
-ref ingestion lands, this endpoint will return the full `default_branch` and
-per-branch head list.
+branch selector uses. For Git-backed repositories, ingestion captures branch
+names, ref kind, default-branch marker, head SHA, observed timestamp, and the
+content-store indexed timestamp. The response returns `default_branch` plus one
+`branches[]` row per source-backed ref. Older repositories without captured ref
+metadata keep the legacy single indexed commit fallback: one `branches[]` entry
+carrying `head_sha` and `last_indexed_at`, with an empty `name` and
+`default_branch`, rather than fabricating branch names. A repository with no
+indexed commit returns an empty `branches` array; an unknown repository returns
+a `404` envelope.
+
+No-Regression Evidence: repository ref persistence writes at most one stale-row
+delete plus one bounded upsert per repository generation, keyed by
+`(repo_id, ref_kind, name)` and sized by Git branch count rather than file or
+entity count. Focused tests cover source-backed branch responses, selected-ref
+acceptance/rejection, repository ref schema bootstrap, writer upsert counts,
+projector materialization, and collector ref parsing/fact payloads.
+
+No-Observability-Change: the existing projector `content_write` stage remains
+the operator-facing timing span/metric path, and the writer now logs
+`prepare_repository_refs` and `upsert_repository_refs` stage rows plus
+`content_repository_ref_count` so ref writes are visible without adding a new
+runtime surface.
 
 Repository responses should be treated as:
 

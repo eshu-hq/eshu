@@ -8,7 +8,7 @@ const openAPIPathsRepositoriesBranches = `
       "get": {
         "tags": ["repositories"],
         "summary": "Get repository refs",
-        "description": "Returns the repository refs the console branch selector uses. Git branch names are not captured by ingestion yet, so this reports the single indexed commit ref per repository (head_sha + last_indexed_at), truth-labeled as derived, rather than a fabricated multi-branch list. When ref ingestion lands this returns the full default_branch and per-branch head list.",
+        "description": "Returns source-backed Git refs captured during repository ingestion for the console branch selector. Repositories without source ref metadata keep the legacy single indexed commit fallback with an empty branch name and default_branch so no branch names are invented.",
         "operationId": "getRepositoryBranches",
         "parameters": [
           {"$ref": "#/components/parameters/RepoId"}
@@ -28,8 +28,11 @@ const openAPIPathsRepositoriesBranches = `
                         "type": "object",
                         "properties": {
                           "name": {"type": "string"},
+                          "kind": {"type": "string"},
                           "head_sha": {"type": "string"},
-                          "last_indexed_at": {"type": "string"}
+                          "is_default": {"type": "boolean"},
+                          "observed_at": {"type": "string", "format": "date-time"},
+                          "last_indexed_at": {"type": "string", "format": "date-time"}
                         }
                       }
                     }

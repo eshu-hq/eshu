@@ -4,8 +4,9 @@
 
 `projector` owns source-local projection stages. It turns committed fact
 envelopes for one scope generation into canonical graph nodes, content store
-rows, and reducer intents for shared-domain follow-up. It does not make
-cross-source admission decisions — those belong to `internal/reducer`.
+rows, source-backed repository ref metadata, and reducer intents for
+shared-domain follow-up. It does not make cross-source admission decisions —
+those belong to `internal/reducer`.
 
 ## Where this fits in the pipeline
 
@@ -49,8 +50,9 @@ Once a claim is held, the worker loads all fact envelopes for that scope
 generation via `FactStore.LoadFacts`, then hands them to `Runtime.Project`. The
 `Runtime` builds a `CanonicalMaterialization` (repository, directory, file,
 entity, module, import, parameter, class member, nested-function,
-Terraform-state rows, and OCI registry rows) and a content materialization in a
-single pass via `buildProjection`. It writes
+Terraform-state rows, and OCI registry rows) and a content materialization
+covering file rows, entity rows, and source-backed repository refs in a single
+pass via `buildProjection`. It writes
 canonical nodes through `CanonicalWriter.Write`, publishes a
 `graph_projection_phase_state` row via the `PhasePublisher` so reducer-owned
 edge domains can gate on `canonical_nodes_committed`, writes content store rows,

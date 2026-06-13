@@ -135,6 +135,82 @@ func TestGetRepositoryTreeFiltersBySubpath(t *testing.T) {
 	}
 }
 
+func TestGetRepositoryTreeServesSelectedIndexedBranch(t *testing.T) {
+	t.Parallel()
+
+	handler := &RepositoryHandler{
+		Content: fakePortContentStore{
+			repositories: []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+			repoFiles:    repositoryTreeFixtureFiles(),
+			repositoryRefs: []RepositoryRef{
+				{Name: "main", Kind: "branch", HeadSHA: "abc123", Default: true},
+			},
+		},
+	}
+
+	w := requestRepositoryTree(t, handler, "/api/v0/repositories/repo-1/tree?ref=main")
+	resp := decodeRepositoryTree(t, w)
+	if got, want := resp["ref"], "abc123"; got != want {
+		t.Fatalf("ref = %#v, want indexed head %#v", got, want)
+	}
+}
+
+func TestGetRepositoryTreeServesSelectedIndexedCommitSHA(t *testing.T) {
+	t.Parallel()
+
+	handler := &RepositoryHandler{
+		Content: fakePortContentStore{
+			repositories: []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+			repoFiles:    repositoryTreeFixtureFiles(),
+			repositoryRefs: []RepositoryRef{
+				{Name: "release", Kind: "branch", HeadSHA: "def456"},
+			},
+		},
+	}
+
+	w := requestRepositoryTree(t, handler, "/api/v0/repositories/repo-1/tree?ref=abc123")
+	resp := decodeRepositoryTree(t, w)
+	if got, want := resp["ref"], "abc123"; got != want {
+		t.Fatalf("ref = %#v, want indexed head %#v", got, want)
+	}
+}
+
+func TestGetRepositoryTreeRejectsUnindexedSelectedBranch(t *testing.T) {
+	t.Parallel()
+
+	handler := &RepositoryHandler{
+		Content: fakePortContentStore{
+			repositories: []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+			repoFiles:    repositoryTreeFixtureFiles(),
+			repositoryRefs: []RepositoryRef{
+				{Name: "main", Kind: "branch", HeadSHA: "abc123", Default: true},
+				{Name: "release", Kind: "branch", HeadSHA: "def456"},
+			},
+		},
+	}
+
+	w := requestRepositoryTree(t, handler, "/api/v0/repositories/repo-1/tree?ref=release")
+	if got, want := w.Code, http.StatusConflict; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+}
+
+func TestGetRepositoryTreeRejectsSelectedBranchWhenRefsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	handler := &RepositoryHandler{
+		Content: fakePortContentStore{
+			repositories: []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+			repoFiles:    repositoryTreeFixtureFiles(),
+		},
+	}
+
+	w := requestRepositoryTree(t, handler, "/api/v0/repositories/repo-1/tree?ref=main")
+	if got, want := w.Code, http.StatusConflict; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+}
+
 func TestGetRepositoryTreeRecursiveReturnsFullSubtree(t *testing.T) {
 	t.Parallel()
 

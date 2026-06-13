@@ -14,6 +14,9 @@
 // also preserve language maturity, exactness blockers, modeled roots, and
 // source handles so callers can distinguish cleanup-ready findings from
 // ambiguous or suppressed evidence.
+// Repository source routes expose source-backed branch/ref metadata when
+// ingestion captured it, and reject selected refs that cannot be served from
+// the indexed commit instead of falling back silently.
 //
 // Supply-chain reads expose source-only advisory evidence separately from
 // reducer-owned impact findings. Advisory evidence groups active

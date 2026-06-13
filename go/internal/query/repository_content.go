@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -30,6 +31,7 @@ func (h *RepositoryHandler) getRepositoryContent(w http.ResponseWriter, r *http.
 		WriteError(w, http.StatusBadRequest, "path is required")
 		return
 	}
+	requestedRef := strings.TrimSpace(r.URL.Query().Get("ref"))
 
 	ctx := r.Context()
 	repoRef, _, err := h.repositoryStatsRepositoryRef(ctx, repoID)
@@ -53,6 +55,13 @@ func (h *RepositoryHandler) getRepositoryContent(w http.ResponseWriter, r *http.
 	}
 	if fc == nil {
 		WriteError(w, http.StatusNotFound, "file not found")
+		return
+	}
+	if status, message, err := validateSelectedRepositoryRef(ctx, h.Content, repoID, requestedRef, fc.CommitSHA); err != nil {
+		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repository refs failed: %v", err))
+		return
+	} else if status != 0 {
+		WriteError(w, status, message)
 		return
 	}
 

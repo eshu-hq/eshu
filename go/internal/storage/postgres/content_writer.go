@@ -123,10 +123,31 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 	indexedAt := w.now()
 	filePrepareStart := time.Now()
 	result := content.Result{
-		ScopeID:      cloned.ScopeID,
-		GenerationID: cloned.GenerationID,
-		RecordCount:  len(cloned.Records),
-		EntityCount:  len(cloned.Entities),
+		ScopeID:            cloned.ScopeID,
+		GenerationID:       cloned.GenerationID,
+		RecordCount:        len(cloned.Records),
+		EntityCount:        len(cloned.Entities),
+		RepositoryRefCount: len(cloned.RepositoryRefs),
+	}
+
+	if len(cloned.RepositoryRefs) > 0 {
+		refPrepareStart := time.Now()
+		repositoryRefRows, err := prepareRepositoryRefRows(cloned.RepoID, cloned.RepositoryRefs, indexedAt)
+		if err != nil {
+			return content.Result{}, err
+		}
+		result.RepositoryRefCount = len(repositoryRefRows)
+		w.logStage(ctx, cloned, "prepare_repository_refs", refPrepareStart,
+			"row_count", len(repositoryRefRows),
+		)
+
+		refUpsertStart := time.Now()
+		if err := w.upsertRepositoryRefs(ctx, cloned.RepoID, repositoryRefRows, indexedAt); err != nil {
+			return content.Result{}, err
+		}
+		w.logStage(ctx, cloned, "upsert_repository_refs", refUpsertStart,
+			"row_count", len(repositoryRefRows),
+		)
 	}
 
 	// Process file records: handle deletes first, then batch upserts

@@ -314,12 +314,12 @@ const openAPIPathsRepositories = `
       "get": {
         "tags": ["repositories"],
         "summary": "Get repository file tree",
-        "description": "Lists one directory level (or the full subtree with recursive=true) reconstructed from the content-store file index. Returns directory and file entries; child_count on a directory is the number of descendant files. The ref reflects the single indexed commit SHA the tree was built from.",
+        "description": "Lists one directory level (or the full subtree with recursive=true) reconstructed from the content-store file index. Returns directory and file entries; child_count on a directory is the number of descendant files. The ref reflects the indexed commit SHA the tree was built from. When ref is supplied, it must resolve to the indexed commit; known but unindexed refs return 409 instead of silently falling back.",
         "operationId": "getRepositoryTree",
         "parameters": [
           {"$ref": "#/components/parameters/RepoId"},
           {"name": "path", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Directory subpath to list, relative to the repository root."},
-          {"name": "ref", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Informational ref selector. The tree is built from the indexed commit; the response ref reports the indexed SHA."},
+          {"name": "ref", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Branch name or commit SHA selector. The request succeeds only when the selector resolves to the indexed commit; unavailable or unindexed refs return an error."},
           {"name": "recursive", "in": "query", "required": false, "schema": {"type": "boolean"}, "description": "When true, return the full subtree instead of a single directory level."}
         ],
         "responses": {
@@ -353,6 +353,7 @@ const openAPIPathsRepositories = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "409": {"$ref": "#/components/responses/Conflict"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
@@ -362,12 +363,12 @@ const openAPIPathsRepositories = `
       "get": {
         "tags": ["repositories"],
         "summary": "Get repository file content",
-        "description": "Returns the indexed bytes of a single repository file from the content store. Text is returned as utf-8; non-UTF-8 bytes are base64-encoded. size is the original byte length and truncated=true signals the byte cap was reached. The endpoint never returns content the collectors redact.",
+        "description": "Returns the indexed bytes of a single repository file from the content store. Text is returned as utf-8; non-UTF-8 bytes are base64-encoded. size is the original byte length and truncated=true signals the byte cap was reached. When ref is supplied, it must resolve to the indexed commit; known but unindexed refs return 409 instead of silently falling back. The endpoint never returns content the collectors redact.",
         "operationId": "getRepositoryContent",
         "parameters": [
           {"$ref": "#/components/parameters/RepoId"},
           {"name": "path", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Repository-relative file path to read."},
-          {"name": "ref", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Informational ref selector; the response ref reports the indexed commit SHA."}
+          {"name": "ref", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Branch name or commit SHA selector. The request succeeds only when the selector resolves to the indexed commit; unavailable or unindexed refs return an error."}
         ],
         "responses": {
           "200": {
@@ -390,6 +391,7 @@ const openAPIPathsRepositories = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "409": {"$ref": "#/components/responses/Conflict"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }

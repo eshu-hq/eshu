@@ -121,6 +121,7 @@ func streamFacts(
 	ch <- repositoryFactEnvelope(
 		repoPath, repo, sourceRunID, scopeID, generationID, observedAt,
 		snapshot.FileCount, snapshot.ImportsMap, isDependency,
+		snapshot.GitRefs,
 		snapshot.Delta, snapshot.DeltaRelativePaths, snapshot.DeletedRelativePaths,
 	)
 
@@ -298,6 +299,7 @@ func repositoryFactEnvelope(
 	parsedFileCount int,
 	importsMap map[string][]string,
 	isDependency bool,
+	gitRefs []GitRef,
 	delta bool,
 	deltaRelativePaths []string,
 	deltaDeletedRelativePaths []string,
@@ -321,6 +323,12 @@ func repositoryFactEnvelope(
 	}
 	if len(importsMap) > 0 {
 		payload["imports_map"] = importsMap
+	}
+	if defaultBranch := repositoryDefaultBranch(gitRefs); defaultBranch != "" {
+		payload["default_branch"] = defaultBranch
+	}
+	if refsPayload := repositoryFactGitRefsPayload(gitRefs); len(refsPayload) > 0 {
+		payload["git_refs"] = refsPayload
 	}
 	if delta {
 		payload["delta_generation"] = true

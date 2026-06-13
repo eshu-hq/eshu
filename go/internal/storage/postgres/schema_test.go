@@ -169,6 +169,12 @@ func TestBootstrapDefinitionsIncludeContentStoreTables(t *testing.T) {
 	if !strings.Contains(contentStore.SQL, "CREATE TABLE IF NOT EXISTS content_file_references") {
 		t.Fatal("content_store SQL missing content_file_references table")
 	}
+	if !strings.Contains(contentStore.SQL, "CREATE TABLE IF NOT EXISTS repository_refs") {
+		t.Fatal("content_store SQL missing repository_refs table")
+	}
+	if !strings.Contains(contentStore.SQL, "repository_refs_repo_default_idx") {
+		t.Fatal("content_store SQL missing repository ref default lookup index")
+	}
 	if !strings.Contains(contentStore.SQL, "content_file_references_lookup_idx") {
 		t.Fatal("content_store SQL missing content file reference lookup index")
 	}
@@ -460,6 +466,9 @@ func TestBootstrapDefinitionsWithoutContentSearchIndexesKeepsLookupIndexes(t *te
 	}
 	if !strings.Contains(contentStore.SQL, "CREATE TABLE IF NOT EXISTS content_entities") {
 		t.Fatal("content_store SQL missing content_entities table")
+	}
+	if !strings.Contains(contentStore.SQL, "CREATE TABLE IF NOT EXISTS repository_refs") {
+		t.Fatal("content_store SQL missing repository_refs table")
 	}
 	if !strings.Contains(contentStore.SQL, "content_entities_repo_idx") {
 		t.Fatal("content_store SQL missing content entity lookup index")

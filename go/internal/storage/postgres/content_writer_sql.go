@@ -9,6 +9,7 @@ const (
 	columnsPerContentFile   = 11
 	contentEntityBatchSize  = 300 // 16 columns × 300 = 4800 params, under 65535
 	columnsPerContentEntity = 16
+	columnsPerRepositoryRef = 7
 )
 
 // upsertContentFileQuery is the single-row upsert used by callers that
@@ -140,4 +141,21 @@ const deleteContentEntityByIDQuery = `
 DELETE FROM content_entities
 WHERE repo_id = $1
   AND entity_id = $2
+`
+
+const deleteRepositoryRefsQuery = `
+DELETE FROM repository_refs
+WHERE repo_id = $1
+`
+
+const upsertRepositoryRefBatchPrefix = `INSERT INTO repository_refs (
+    repo_id, ref_kind, name, head_sha, is_default, observed_at, indexed_at
+) VALUES `
+
+const upsertRepositoryRefBatchSuffix = `
+ON CONFLICT (repo_id, ref_kind, name) DO UPDATE
+SET head_sha = EXCLUDED.head_sha,
+    is_default = EXCLUDED.is_default,
+    observed_at = EXCLUDED.observed_at,
+    indexed_at = EXCLUDED.indexed_at
 `
