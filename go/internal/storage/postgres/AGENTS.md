@@ -144,6 +144,19 @@ through Postgres query spans, `eshu_dp_postgres_query_duration_seconds`, queue
 status, bounded `/admin/status` blockage rows, failure class, retry/dead-letter
 state, and reducer logs.
 
+No-Regression Evidence: #2589 adds the `eshu_search_vector_metadata` schema and
+store only. Focused storage tests prove idempotent upsert, active-generation
+filtering through `ingestion_scopes.active_generation_id`, bounded status
+aggregation by scope/model/index version, and bootstrap SQL/file parity. The
+slice does not change API/MCP behavior, reducer workers, graph writes,
+embedding providers, ranking, query routing, or runtime defaults.
+
+No-Observability-Change: #2589 adds no route, worker, queue domain, metric,
+label, span name, log shape, runtime knob, or external network dependency.
+When a caller later wires the store through the instrumented Postgres adapter,
+existing query/exec spans and `eshu_dp_postgres_query_duration_seconds` cover
+the SQL path.
+
 ## Common changes and how to scope them
 
 - **Add a new Postgres store** → implement against `ExecQueryer`; add a

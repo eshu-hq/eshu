@@ -10,8 +10,8 @@ func TestBootstrapDefinitionsAreOrderedAndComplete(t *testing.T) {
 	t.Parallel()
 
 	defs := BootstrapDefinitions()
-	if len(defs) != 35 {
-		t.Fatalf("BootstrapDefinitions() len = %d, want 35", len(defs))
+	if len(defs) != 36 {
+		t.Fatalf("BootstrapDefinitions() len = %d, want 36", len(defs))
 	}
 
 	wantNames := []string{
@@ -21,6 +21,7 @@ func TestBootstrapDefinitionsAreOrderedAndComplete(t *testing.T) {
 		"service_catalog_fact_record_indexes",
 		"fact_record_sbom_attestation_indexes",
 		"eshu_search_index",
+		"eshu_search_vector_metadata",
 		"content_store",
 		"fact_work_items",
 		"fact_work_item_audit",
