@@ -194,6 +194,7 @@ nav:
     - Story Missing Evidence Alignment: reference/story-missing-evidence.md
     - Dependency And Lockfile Coverage: reference/dependency-coverage.md
     - Runtime Admin API: reference/runtime-admin-api.md
+    - Reducer Claim-Latency Gate: reference/reducer-claim-latency-gate.md
     - Incremental Freshness Model: reference/incremental-freshness-model.md
     - Semantic Enrichment Posture: reference/semantic-enrichment-posture.md
     - Incident Media Evidence Contract: reference/incident-media-evidence.md

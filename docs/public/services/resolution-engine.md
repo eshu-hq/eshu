@@ -32,6 +32,8 @@ The main loop claims reducer intents, dispatches workers, heartbeats
 long-running work, and acks, retries, or fails work. Shared and dedicated
 projection runners acquire leases, wait for accepted generation/readiness
 state, write or retract edges, and mark intents processed.
+Claim-path performance and correctness changes are gated by the
+[Reducer Claim-Latency Gate](../reference/reducer-claim-latency-gate.md).
 
 The generation-retention runner prunes superseded source-generation history in
 bounded Postgres transactions. It never retracts graph truth; relationship
@@ -150,5 +152,6 @@ Start with:
 
 - [Service Runtimes](../deployment/service-runtimes.md)
 - [Collector And Reducer Readiness](../reference/collector-reducer-readiness.md)
+- [Reducer Claim-Latency Gate](../reference/reducer-claim-latency-gate.md)
 - [Telemetry Overview](../reference/telemetry/index.md)
 - [Local Testing](../reference/local-testing.md)
