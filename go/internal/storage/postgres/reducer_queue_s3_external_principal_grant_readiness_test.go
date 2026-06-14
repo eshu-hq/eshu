@@ -3,24 +3,28 @@ package postgres
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 func TestReducerQueueClaimQueryGatesS3ExternalPrincipalGrantOnCloudResourceReadiness(t *testing.T) {
 	t.Parallel()
 
-	required := []string{
-		"s3_external_principal_grant_materialization",
-		"graph_projection_phase_state AS aws_nodes",
-		"aws_nodes.keyspace = 'cloud_resource_uid'",
-		"aws_nodes.phase = 'canonical_nodes_committed'",
+	if !queryHasBoundedReadinessRequirement(
+		claimReducerWorkQuery,
+		string(reducer.DomainS3ExternalPrincipalGrantMaterialization),
+		"cloud_resource_uid",
+		"canonical_nodes_committed",
+	) {
+		t.Fatalf("claimReducerWorkQuery missing s3 external-principal readiness requirement")
 	}
-	for _, want := range required {
-		if !strings.Contains(claimReducerWorkQuery, want) {
-			t.Fatalf("claimReducerWorkQuery missing %q", want)
-		}
-		if !strings.Contains(claimReducerWorkBatchQuery, want) {
-			t.Fatalf("claimReducerWorkBatchQuery missing %q", want)
-		}
+	if !queryHasBoundedReadinessRequirement(
+		claimReducerWorkBatchQuery,
+		string(reducer.DomainS3ExternalPrincipalGrantMaterialization),
+		"cloud_resource_uid",
+		"canonical_nodes_committed",
+	) {
+		t.Fatalf("claimReducerWorkBatchQuery missing s3 external-principal readiness requirement")
 	}
 	if !strings.Contains(reducerConflictBlockageQuery, "s3_external_principal_grant_materialization") {
 		t.Fatalf("reducerConflictBlockageQuery missing s3 external-principal readiness blockage domain")

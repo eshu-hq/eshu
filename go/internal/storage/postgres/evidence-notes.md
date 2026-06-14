@@ -33,6 +33,36 @@ claim latency and contention through existing Postgres query spans and
 `eshu_dp_postgres_query_duration_seconds{store="queue",operation="read"}`,
 queue status, failure class, retry/dead-letter state, and reducer logs.
 
+## Reducer Claim Bounded Readiness Lookup (#2587)
+
+Benchmark Evidence: `BenchmarkReducerQueueClaimReadinessGateGrowth` now runs
+the single reducer claim path through one data-shaped readiness requirements
+lookup shared with batch claim and status blockage reporting, replacing the
+prior per-domain predicate branches. Local Compose measurement on Postgres
+18-alpine, Darwin arm64, Apple M4 Pro, run with
+`ESHU_POSTGRES_DSN=postgresql://eshu:change-me@localhost:15432/eshu?sslmode=disable
+ESHU_REDUCER_CLAIM_READINESS_BENCH_CASES=1000:1000:1,1000:5000:4 go test
+./internal/storage/postgres -run '^$' -bench
+BenchmarkReducerQueueClaimReadinessGateGrowth -benchtime=3x -count=1`:
+`queue_1000_phase_1000_domains_1` measured `15141958 ns/op`, `13872 B/op`,
+`102 allocs/op`; `queue_1000_phase_5000_domains_4` measured `14127125 ns/op`,
+`13861 B/op`, `102 allocs/op`.
+
+No-Regression Evidence: focused reducer readiness tests prove missing
+readiness still holds pending and retrying work, multi-phase EC2 and
+security-group domains still require every phase, batch claims still re-check
+the per-conflict-key representative, and `/admin/status` still emits bounded
+readiness blockage keys. The claim update, lease owner, attempt count,
+retry/dead-letter filtering, expired-claim replay, and conflict-domain fencing
+SQL are unchanged.
+
+No-Observability-Change: no new metric, span, log, route, worker, lease, batch
+size, or runtime default is added. Operators continue to diagnose claim latency
+and readiness waits through existing Postgres query spans,
+`eshu_dp_postgres_query_duration_seconds{store="queue",operation="read"}`,
+queue status, bounded `/admin/status` blockage rows, failure class,
+retry/dead-letter state, and reducer logs.
+
 ## Tenant Workspace Grants (#2047)
 
 No-Regression Evidence: `go test ./internal/storage/postgres -run 'Test(BootstrapDefinitionsIncludeTenantWorkspaceGrants|TenantWorkspaceGrantStore)' -count=1` failed before `TenantWorkspaceGrantStore` and `tenant_workspace_grants` bootstrap DDL existed, then passed after adding idempotent tenant/workspace/scope/repository grant upserts, active bounded grant reads, tombstone/expiry/effective-time predicates, and the privacy guard that prevents raw display names or credential-shaped columns in the schema. The tables are additive and do not change existing fact, queue, graph, API, MCP, collector, or workflow behavior.

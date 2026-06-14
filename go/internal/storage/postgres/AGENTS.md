@@ -123,6 +123,27 @@ worker knob. Operators diagnose the path through bounded coordinator logs for
 metrics, and existing Postgres query spans and duration metrics for the
 `tenant_workspace_grants` and workflow stores.
 
+Benchmark Evidence: #2587 changes reducer readiness claim admission from
+per-domain correlated predicates to one bounded requirements lookup against
+`graph_projection_phase_state`. Local Compose Postgres 18-alpine on Darwin arm64
+with `ESHU_REDUCER_CLAIM_READINESS_BENCH_CASES=1000:1000:1,1000:5000:4` measured
+`BenchmarkReducerQueueClaimReadinessGateGrowth` at `15141958 ns/op` for 1,000
+queue rows and 1,000 phase rows across one domain, and `14127125 ns/op` for
+1,000 queue rows and 5,000 phase rows across four domains, both with unchanged
+`102 allocs/op`.
+
+No-Regression Evidence: #2587 keeps the claim update, lease, retry,
+dead-letter, expired-claim replay, and conflict-domain fencing SQL unchanged
+while focused readiness tests prove single claim, batch representative claim,
+and `/admin/status` blockage reporting still wait on every required
+scope/generation readiness phase.
+
+No-Observability-Change: #2587 adds no metric, span, log, route, worker, lease,
+batch size, or runtime default. Operators continue to diagnose readiness waits
+through Postgres query spans, `eshu_dp_postgres_query_duration_seconds`, queue
+status, bounded `/admin/status` blockage rows, failure class, retry/dead-letter
+state, and reducer logs.
+
 ## Common changes and how to scope them
 
 - **Add a new Postgres store** → implement against `ExecQueryer`; add a

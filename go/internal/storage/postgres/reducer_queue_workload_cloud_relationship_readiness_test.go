@@ -3,19 +3,20 @@ package postgres
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 func TestReducerQueueClaimQueryGatesWorkloadCloudRelationshipOnCloudReadiness(t *testing.T) {
 	t.Parallel()
 
-	for _, want := range []string{
-		"workload_cloud_relationship_materialization",
-		"aws_nodes.keyspace = 'cloud_resource_uid'",
-		"aws_nodes.phase = 'canonical_nodes_committed'",
-	} {
-		if !strings.Contains(claimReducerWorkQuery, want) {
-			t.Fatalf("claim query missing workload-cloud readiness token %q:\n%s", want, claimReducerWorkQuery)
-		}
+	if !queryHasBoundedReadinessRequirement(
+		claimReducerWorkQuery,
+		string(reducer.DomainWorkloadCloudRelationshipMaterialization),
+		"cloud_resource_uid",
+		"canonical_nodes_committed",
+	) {
+		t.Fatalf("claim query missing workload-cloud readiness requirement:\n%s", claimReducerWorkQuery)
 	}
 	for _, blocked := range []string{
 		"graph_projection_phase_state AS workload_nodes",
@@ -31,14 +32,13 @@ func TestReducerQueueClaimQueryGatesWorkloadCloudRelationshipOnCloudReadiness(t 
 func TestReducerQueueBatchClaimQueryGatesWorkloadCloudRelationshipOnCloudReadiness(t *testing.T) {
 	t.Parallel()
 
-	for _, want := range []string{
-		"workload_cloud_relationship_materialization",
-		"same_nodes.keyspace = 'cloud_resource_uid'",
-		"same_nodes.phase = 'canonical_nodes_committed'",
-	} {
-		if !strings.Contains(claimReducerWorkBatchQuery, want) {
-			t.Fatalf("batch claim query missing workload-cloud readiness token %q:\n%s", want, claimReducerWorkBatchQuery)
-		}
+	if !queryHasBoundedReadinessRequirement(
+		claimReducerWorkBatchQuery,
+		string(reducer.DomainWorkloadCloudRelationshipMaterialization),
+		"cloud_resource_uid",
+		"canonical_nodes_committed",
+	) {
+		t.Fatalf("batch claim query missing workload-cloud readiness requirement:\n%s", claimReducerWorkBatchQuery)
 	}
 	for _, blocked := range []string{
 		"graph_projection_phase_state AS same_workload_nodes",

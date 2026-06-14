@@ -39,8 +39,12 @@ func (db *observabilityCoverageReadinessQueueDB) QueryContext(_ context.Context,
 		return nil, fmt.Errorf("claim query missing observability coverage readiness gate:\n%s", query)
 	}
 
-	hasReadinessGate := strings.Contains(query, "graph_projection_phase_state AS aws_nodes") &&
-		strings.Contains(query, "aws_nodes.phase = 'canonical_nodes_committed'")
+	hasReadinessGate := queryHasBoundedReadinessRequirement(
+		query,
+		string(reducer.DomainObservabilityCoverageMaterialization),
+		"cloud_resource_uid",
+		"canonical_nodes_committed",
+	) && queryHasPayloadReadinessLookup(query, "fact_work_items", "readiness_req", "readiness_phase")
 	if hasReadinessGate && !db.phaseReady {
 		return &queueFakeRows{}, nil
 	}

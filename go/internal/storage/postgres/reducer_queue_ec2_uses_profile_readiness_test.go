@@ -50,14 +50,20 @@ func (db *ec2UsesProfileReadinessQueueDB) QueryContext(_ context.Context, query 
 	// ec2_instance_node_materialization entity key) AND the instance-profile node
 	// phase (under the aws_resource_materialization entity key), both on the
 	// cloud_resource_uid keyspace's canonical_nodes_committed phase.
-	gatesInstanceNode := strings.Contains(query, "graph_projection_phase_state AS ec2_uses_profile_instance_node") &&
-		strings.Contains(query, "'ec2_instance_node_materialization:'") &&
-		strings.Contains(query, "ec2_uses_profile_instance_node.keyspace = 'cloud_resource_uid'") &&
-		strings.Contains(query, "ec2_uses_profile_instance_node.phase = 'canonical_nodes_committed'")
-	gatesProfileNode := strings.Contains(query, "graph_projection_phase_state AS ec2_uses_profile_profile_node") &&
-		strings.Contains(query, "'aws_resource_materialization:'") &&
-		strings.Contains(query, "ec2_uses_profile_profile_node.keyspace = 'cloud_resource_uid'") &&
-		strings.Contains(query, "ec2_uses_profile_profile_node.phase = 'canonical_nodes_committed'")
+	gatesInstanceNode := queryHasScopePrefixReadinessRequirement(
+		query,
+		string(reducer.DomainEC2UsesProfileMaterialization),
+		"cloud_resource_uid",
+		"canonical_nodes_committed",
+		"ec2_instance_node_materialization:",
+	)
+	gatesProfileNode := queryHasScopePrefixReadinessRequirement(
+		query,
+		string(reducer.DomainEC2UsesProfileMaterialization),
+		"cloud_resource_uid",
+		"canonical_nodes_committed",
+		"aws_resource_materialization:",
+	)
 	if !gatesInstanceNode {
 		return nil, fmt.Errorf("claim query missing the EC2 instance node phase requirement:\n%s", query)
 	}
