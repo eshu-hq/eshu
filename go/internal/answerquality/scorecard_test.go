@@ -3,6 +3,9 @@ package answerquality
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/answernarration"
+	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
 func TestDefaultSuiteCoversMajorAnswerFamilies(t *testing.T) {
@@ -113,6 +116,124 @@ func TestScoreFailsUnsafeRunMetadata(t *testing.T) {
 	}
 }
 
+func TestScorePassesValidNarrationComparison(t *testing.T) {
+	evidence := completeEvidence()
+	evidence.Prompts[0].Results[0].Narration = validNarrationComparison()
+
+	verdict := Score(evidence)
+
+	if !verdict.Pass {
+		t.Fatalf("verdict.Pass = false with valid narration comparison, want true: %#v", verdict.FollowUpIssues)
+	}
+	if got := verdict.Criterion(CriterionNarrationFallback).Status; got != CriterionPass {
+		t.Fatalf("narration fallback = %q, want pass", got)
+	}
+}
+
+func TestScoreFailsNarrationThatDropsFallbackCitation(t *testing.T) {
+	evidence := completeEvidence()
+	result := &evidence.Prompts[0].Results[0]
+	result.Narration = validNarrationComparison()
+	result.Narration.Fallback.CitationHandles = []string{"repo:demo", "file:src/service.go"}
+	result.CitationHandles = []string{"repo:demo"}
+
+	verdict := Score(evidence)
+
+	if verdict.Pass {
+		t.Fatal("verdict.Pass = true with weaker narrated citations, want false")
+	}
+	if got := verdict.Criterion(CriterionNarrationFallback).Status; got != CriterionFail {
+		t.Fatalf("narration fallback = %q, want fail", got)
+	}
+	assertFollowUpLabel(t, verdict, "answer:narration")
+}
+
+func TestScoreFailsNarrationThatChangesFallbackTruthClass(t *testing.T) {
+	evidence := completeEvidence()
+	result := &evidence.Prompts[0].Results[0]
+	result.Narration = validNarrationComparison()
+	result.TruthClass = "derived"
+
+	verdict := Score(evidence)
+
+	if verdict.Pass {
+		t.Fatal("verdict.Pass = true with changed fallback truth class, want false")
+	}
+	if got := verdict.Criterion(CriterionNarrationFallback).Status; got != CriterionFail {
+		t.Fatalf("narration fallback = %q, want fail", got)
+	}
+}
+
+func TestScoreFailsNarrationThatDropsFallbackNextCall(t *testing.T) {
+	evidence := completeEvidence()
+	result := &evidence.Prompts[0].Results[0]
+	result.Narration = validNarrationComparison()
+	result.NextCalls = nil
+
+	verdict := Score(evidence)
+
+	if verdict.Pass {
+		t.Fatal("verdict.Pass = true with dropped fallback next call, want false")
+	}
+	if got := verdict.Criterion(CriterionNarrationFallback).Status; got != CriterionFail {
+		t.Fatalf("narration fallback = %q, want fail", got)
+	}
+}
+
+func TestScoreFailsNarrationThatHidesFallbackLimitation(t *testing.T) {
+	evidence := completeEvidence()
+	result := &evidence.Prompts[0].Results[0]
+	result.Narration = validNarrationComparison()
+	result.Narration.Fallback.Partial = true
+	result.Narration.Fallback.Limitations = []string{"bounded result set is incomplete"}
+	result.Partial = false
+	result.Limitations = nil
+
+	verdict := Score(evidence)
+
+	if verdict.Pass {
+		t.Fatal("verdict.Pass = true with hidden fallback limitation, want false")
+	}
+	if got := verdict.Criterion(CriterionNarrationFallback).Status; got != CriterionFail {
+		t.Fatalf("narration fallback = %q, want fail", got)
+	}
+}
+
+func TestScoreFailsAcceptedNarrationWhenValidatorFails(t *testing.T) {
+	evidence := completeEvidence()
+	result := &evidence.Prompts[0].Results[0]
+	result.Narration = validNarrationComparison()
+	result.Narration.ValidatorInput.Response.Sentences[0].Provenance = nil
+
+	verdict := Score(evidence)
+
+	if verdict.Pass {
+		t.Fatal("verdict.Pass = true with invalid accepted narration, want false")
+	}
+	if got := verdict.Criterion(CriterionNarrationFallback).Status; got != CriterionFail {
+		t.Fatalf("narration fallback = %q, want fail", got)
+	}
+}
+
+func TestScoreFailsUnsafeNarrationValidatorMetadata(t *testing.T) {
+	evidence := completeEvidence()
+	rawAddress := strings.Join([]string{"10", "55", "12", "8"}, ".")
+	result := &evidence.Prompts[0].Results[0]
+	result.Narration = validNarrationComparison()
+	result.Narration.ValidatorInput.Packet.RecommendedNextCalls = []map[string]any{
+		{"target": rawAddress},
+	}
+
+	verdict := Score(evidence)
+
+	if verdict.Pass {
+		t.Fatal("verdict.Pass = true with unsafe narration validator metadata, want false")
+	}
+	if got := verdict.Criterion(CriterionPublishSafety).Status; got != CriterionFail {
+		t.Fatalf("publish safety = %q, want fail", got)
+	}
+}
+
 func TestParseEvidenceRejectsUnknownVersion(t *testing.T) {
 	raw := []byte(`{"version":"answer-quality-scorecard/v2","prompts":[]}`)
 
@@ -170,4 +291,41 @@ func completePrompt(prompt PromptSpec) PromptResult {
 		})
 	}
 	return result
+}
+
+func validNarrationComparison() *NarrationComparison {
+	return &NarrationComparison{
+		Status:      NarrationStatusAccepted,
+		FallbackRef: "service-story:api:deterministic",
+		Fallback: NarrationBaseline{
+			Supported:       true,
+			TruthClass:      "deterministic",
+			Freshness:       "current",
+			CitationHandles: []string{"repo:demo"},
+			NextCalls:       []string{"build_evidence_citation_packet"},
+		},
+		ValidatorInput: &answernarration.Input{
+			Packet: query.AnswerPacket{
+				TruthClass:           query.AnswerTruthDeterministic,
+				Summary:              "useful redacted answer for service_story",
+				Supported:            true,
+				CitationRef:          "repo:demo",
+				RecommendedNextCalls: []map[string]any{{"tool": "build_evidence_citation_packet"}},
+			},
+			Response: answernarration.Narration{
+				TruthClass: query.AnswerTruthDeterministic,
+				Supported:  true,
+				Sentences: []answernarration.Sentence{
+					{
+						Text: "useful redacted answer for service_story",
+						Kind: answernarration.SentenceFactual,
+						Provenance: []answernarration.ProvenanceRef{
+							{Kind: answernarration.ProvenanceCitation, ID: "repo:demo"},
+						},
+					},
+				},
+			},
+			CitationIDs: []string{"repo:demo"},
+		},
+	}
 }

@@ -1,6 +1,8 @@
 // Package answerquality defines the publish-safe answer dogfood scorecard.
 package answerquality
 
+import "github.com/eshu-hq/eshu/go/internal/answernarration"
+
 // EvidenceVersion is the current answer-quality scorecard evidence schema.
 const EvidenceVersion = "answer-quality-scorecard/v1"
 
@@ -38,6 +40,20 @@ const (
 	SurfaceHosted Surface = "hosted"
 )
 
+// NarrationStatus records whether optional governed narration was used.
+type NarrationStatus string
+
+const (
+	// NarrationStatusNotRequested means no optional narration was attempted.
+	NarrationStatusNotRequested NarrationStatus = "not_requested"
+	// NarrationStatusAccepted means governed narration was accepted for review.
+	NarrationStatusAccepted NarrationStatus = "accepted"
+	// NarrationStatusRejected means narration was rejected and fallback won.
+	NarrationStatusRejected NarrationStatus = "rejected"
+	// NarrationStatusUnavailable means narration was unavailable and fallback won.
+	NarrationStatusUnavailable NarrationStatus = "unavailable"
+)
+
 // CriterionName identifies one scored answer-quality criterion.
 type CriterionName string
 
@@ -52,6 +68,9 @@ const (
 	CriterionCitationCoverage CriterionName = "citation_coverage"
 	// CriterionBoundedness requires partial/truncated answers to say so.
 	CriterionBoundedness CriterionName = "boundedness"
+	// CriterionNarrationFallback rejects narrated presentation that weakens the
+	// deterministic fallback answer row.
+	CriterionNarrationFallback CriterionName = "narration_fallback"
 	// CriterionParity requires the expected surfaces to agree.
 	CriterionParity CriterionName = "parity"
 	// CriterionFollowUpUsefulness requires actionable next calls.
@@ -119,10 +138,36 @@ type PromptResult struct {
 
 // SurfaceResult is one captured answer from API, MCP, CLI, or hosted mode.
 type SurfaceResult struct {
-	Surface         Surface  `json:"surface"`
-	Useful          bool     `json:"useful"`
+	Surface         Surface              `json:"surface"`
+	Useful          bool                 `json:"useful"`
+	Supported       bool                 `json:"supported"`
+	AnswerSummary   string               `json:"answer_summary"`
+	TruthClass      string               `json:"truth_class"`
+	Freshness       string               `json:"freshness"`
+	Partial         bool                 `json:"partial,omitempty"`
+	Truncated       bool                 `json:"truncated,omitempty"`
+	CitationHandles []string             `json:"citation_handles,omitempty"`
+	Limitations     []string             `json:"limitations,omitempty"`
+	NextCalls       []string             `json:"next_calls,omitempty"`
+	TooGeneric      bool                 `json:"too_generic,omitempty"`
+	StaleNoCause    bool                 `json:"stale_without_cause,omitempty"`
+	OverConfident   bool                 `json:"over_confident,omitempty"`
+	TooVerbose      bool                 `json:"too_verbose,omitempty"`
+	MissingFollowUp bool                 `json:"missing_follow_up,omitempty"`
+	Narration       *NarrationComparison `json:"narration,omitempty"`
+}
+
+// NarrationComparison compares optional narration with deterministic fallback.
+type NarrationComparison struct {
+	Status         NarrationStatus        `json:"status"`
+	FallbackRef    string                 `json:"fallback_ref,omitempty"`
+	Fallback       NarrationBaseline      `json:"fallback"`
+	ValidatorInput *answernarration.Input `json:"validator_input,omitempty"`
+}
+
+// NarrationBaseline is the deterministic row optional narration must preserve.
+type NarrationBaseline struct {
 	Supported       bool     `json:"supported"`
-	AnswerSummary   string   `json:"answer_summary"`
 	TruthClass      string   `json:"truth_class"`
 	Freshness       string   `json:"freshness"`
 	Partial         bool     `json:"partial,omitempty"`
@@ -130,11 +175,6 @@ type SurfaceResult struct {
 	CitationHandles []string `json:"citation_handles,omitempty"`
 	Limitations     []string `json:"limitations,omitempty"`
 	NextCalls       []string `json:"next_calls,omitempty"`
-	TooGeneric      bool     `json:"too_generic,omitempty"`
-	StaleNoCause    bool     `json:"stale_without_cause,omitempty"`
-	OverConfident   bool     `json:"over_confident,omitempty"`
-	TooVerbose      bool     `json:"too_verbose,omitempty"`
-	MissingFollowUp bool     `json:"missing_follow_up,omitempty"`
 }
 
 // CriterionScore is one scored criterion in a prompt or whole-card verdict.

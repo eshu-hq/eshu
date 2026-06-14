@@ -242,9 +242,9 @@ No-Regression Evidence: hosted-onboard starter playbook guidance is covered by
   code-topic, incident-context, supply-chain, documentation-truth,
   freshness/readiness, and hosted-governance prompts. It exits non-zero when
   family coverage, usefulness, truth honesty, citation coverage, boundedness,
-  parity, follow-up usefulness, or publish safety fails. The command never
-  captures live answers itself; callers must capture real API/MCP/CLI/hosted
-  outputs, redact them, then score the artifact.
+  narration fallback preservation, parity, follow-up usefulness, or publish
+  safety fails. The command never captures live answers itself; callers must
+  capture real API/MCP/CLI/hosted outputs, redact them, then score the artifact.
 - `eshu vuln-scan repo [path]` reuses `eshu scan` root resolution, bootstrap,
   and readiness proof before reading
   `/api/v0/supply-chain/impact/findings?repository_id=<id>&limit=<n>`.

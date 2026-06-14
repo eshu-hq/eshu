@@ -4,8 +4,8 @@
 
 `answerquality` defines the offline dogfood scorecard for representative Eshu
 answers. It scores captured, redacted API, MCP, CLI, and hosted results for
-usefulness, truth honesty, citation coverage, boundedness, parity, follow-up
-usefulness, and publish safety.
+usefulness, truth honesty, citation coverage, boundedness, optional narration
+fallback preservation, parity, follow-up usefulness, and publish safety.
 
 ## Boundary
 
@@ -30,6 +30,11 @@ one prompt from each default family:
 No-Observability-Change: scorecard evaluation is an offline pure function over
 captured evidence. It starts no Eshu runtime, opens no API/MCP transport, reads
 no graph/Postgres driver, and emits no OTEL signal.
+
+Optional narration evidence is scored as a comparison against the deterministic
+fallback row. Accepted narration must pass `answernarration.Validate`, and every
+captured narrated row must preserve fallback truth class, freshness, support,
+partial/truncated state, citations, limitations, and next calls.
 
 No-Regression Evidence: scorecard evaluation is covered by
 `go test ./internal/answerquality -count=1`.

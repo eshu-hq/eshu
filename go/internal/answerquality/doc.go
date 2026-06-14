@@ -5,5 +5,8 @@
 // The package is intentionally offline: callers capture redacted answers from
 // real surfaces, then pass the evidence to Score. This keeps private endpoints,
 // repository paths, credentials, and source excerpts out of committed scorecard
-// artifacts while preserving a rerunnable pass/fail contract.
+// artifacts while preserving a rerunnable pass/fail contract. Optional
+// narration rows are judged against deterministic fallback metadata and the
+// governed narration validator; the fallback remains canonical when narration
+// is unavailable, rejected, or unsafe.
 package answerquality
