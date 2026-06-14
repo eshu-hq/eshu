@@ -40,7 +40,7 @@ func TestFactStoreUpsertFactsPersistsMediaTranscriptDocumentationFacts(t *testin
 		t.Fatalf("section payload arg type = %T, want []byte", db.execs[0].args[columnsPerFactRow+16])
 	}
 	payload := string(payloadJSON)
-	for _, want := range []string{"media_transcript", "start_millis", "speaker_label_hash", "Restore the service"} {
+	for _, want := range []string{"media_transcript", "transcript_chunk", "start_millis", "speaker_label_hash", "Restore the service"} {
 		if !strings.Contains(payload, want) {
 			t.Fatalf("section payload missing %q: %s", want, payload)
 		}
@@ -69,6 +69,7 @@ func TestFactStoreUpsertFactsPersistsMediaTranscriptDocumentationFacts(t *testin
 	}
 	if sourceMetadata, ok := section.Payload["source_metadata"].(map[string]any); !ok ||
 		sourceMetadata["format_family"] != "media_transcript" ||
+		sourceMetadata["incident_media_source_class"] != "transcript_chunk" ||
 		sourceMetadata["confidence_bucket"] != "high" {
 		t.Fatalf("loaded section source_metadata = %#v, want media transcript metadata", section.Payload["source_metadata"])
 	}

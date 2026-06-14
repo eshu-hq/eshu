@@ -63,6 +63,9 @@ func TestDispatchToolListDocumentationFactsPreservesMediaTranscriptReadback(t *t
 	if got, want := query.StringVal(metadata, "format_family"), "media_transcript"; got != want {
 		t.Fatalf("format_family = %q, want %q", got, want)
 	}
+	if got, want := query.StringVal(metadata, "incident_media_source_class"), "transcript_chunk"; got != want {
+		t.Fatalf("incident_media_source_class = %q, want %q", got, want)
+	}
 	if got, want := query.StringVal(metadata, "speaker_label_present"), "true"; got != want {
 		t.Fatalf("speaker_label_present = %q, want %q", got, want)
 	}
