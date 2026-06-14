@@ -68,7 +68,9 @@ loop cleanly.
 
 `Config.Validate` runs at `LoadConfig` time and again at `Service.Run` entry.
 Defaults are applied by `withDefaults` before validation, so missing env vars
-fall back to defaults rather than failing; malformed values fail fast.
+fall back to defaults rather than failing; malformed values fail fast. Enabled
+GCP collector instances with `claims_enabled=true` also fail validation because
+the coordinator has no GCP workflow scheduler yet.
 
 `Service.Clock` is a testable time source. Production wiring leaves it nil;
 `now()` falls back to `time.Now()`.
@@ -254,28 +256,19 @@ already prove the allowed scheduling path.
   `eshu_dp_workflow_coordinator_run_reconcile_total` are zero in dark mode.
   Confirm `ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE=active` before
   investigating metric absence.
-- `ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL` controls desired state and
-  scheduled-work planning. `ESHU_WORKFLOW_COORDINATOR_RUN_RECONCILE_INTERVAL`
-  controls workflow-run status freshness. Keep them separate when scheduled
-  collectors should run infrequently but `/api/v0/index-status` should reflect
-  completed workflow work promptly.
-- CI/CD run collector instances schedule through the normal active-mode
-  reconcile loop. The coordinator creates durable workflow rows for configured
-  GitHub Actions repository targets only; provider API calls, rate-limit
-  handling, artifact reads, and fact emission belong to the CI/CD run collector
-  runtime.
-- `ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON` filters enabled claim-capable
-  instances before planning; restricted mode requires per-kind allow rules,
-  deny wins, and broad mode must not carry collector-specific rules.
-- `ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON` filters component-extension
-  scheduling after component trust creates an activation and before workflow
-  rows are planned. Missing policy denies extension claims, restricted mode
-  requires a matching component allow rule, deny wins, and broad mode must be
-  an explicit no-rule opt-in.
-- If the private governance audit sink is unavailable while a denied or
-  missing-policy egress decision is being recorded, the coordinator returns a
-  reconcile error after creating no claimable row. The next reconcile retries
-  the same bucket with deterministic hashed scope and correlation fields.
+- Keep `ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL` separate from
+  `ESHU_WORKFLOW_COORDINATOR_RUN_RECONCILE_INTERVAL`: one controls desired
+  state and scheduled-work planning, the other controls status freshness.
+- CI/CD run collector instances schedule through active-mode reconciliation;
+  provider calls, rate-limit handling, artifact reads, and fact emission stay in
+  the CI/CD run collector runtime.
+- Hosted collector and extension egress policies filter work before claimable
+  rows are planned. Missing or denied policy decisions create no claimable row;
+  restricted mode requires allow rules, deny wins, and broad mode must be an
+  explicit no-rule opt-in.
+- If the private governance audit sink is unavailable during a denied or
+  missing-policy decision, reconciliation returns an error after creating no
+  claimable row. The next reconcile retries the same bucket.
 - `last_reaped_claims` spiking above `ExpiredClaimLimit` is not possible; that
   limit caps each reap pass. Repeated spikes at the limit indicate collectors
   are not completing claims within the lease TTL.
@@ -289,17 +282,14 @@ already prove the allowed scheduling path.
   fields and the claim-capable flag may remain set while disabled; enabled
   instances are still fully target-validated before reconciliation and
   planning.
+- GCP collector instances are accepted only as non-operational registrations.
+  Leave `claims_enabled=false`; enabling claims fails startup until a GCP
+  workflow planner exists.
 - Derived package and vulnerability target planning is visible in
-  `workflow_runs.requested_scope_set`. Planned entries carry bounded
-  `target_class` and, for installed evidence, `source_family` values so
-  operators can separate direct, owned, installed, SBOM, and broad target
-  sources. Budget exhaustion and partial-evidence skips are aggregated by stable
-  reason codes without repository paths, image digests, PURLs, advisory
-  payloads, or credential material.
-- Derived target planning defaults to `rotating`, which advances the bounded
-  owned-package slice by reconcile bucket. `planning_mode=single_pass` pins the
-  plan key and rotation offset for representative proofs so a completed bucket
-  cannot admit another target-limit slice during the same proof.
+  `workflow_runs.requested_scope_set` using bounded `target_class`,
+  `source_family`, and reason-code aggregates. `planning_mode=single_pass`
+  pins representative proofs; the default rotating mode advances bounded owned
+  targets by reconcile bucket.
 - Incident freshness handoff authorizes each PagerDuty or Jira webhook trigger
   against durable collector instance configuration before creating work. A
   stale `scope_id`, disabled collector instance, or wrong provider kind is
@@ -319,31 +309,33 @@ handles, source payloads, or token values. When wired to
 aggregate governance audit counts by event type, decision, scope class, actor
 class, and reason code.
 
+No-Regression Evidence: `go test ./internal/coordinator -run 'TestLoadConfig(RejectsGCPClaimEnabledUntilSchedulerSupportLands|AcceptsClaimDisabledGCPRegistration)' -count=1`
+proves coordinator startup rejects enabled claimable GCP instances with an
+explicit scheduler-support error while accepting claim-disabled GCP registration
+beside an operational collector. The guard runs before any workflow row,
+provider call, graph write, read-model write, queue claim, worker-count change,
+or ServiceMonitor change.
+
+No-Observability-Change: this is startup config validation only. Operators see
+the validation error before the coordinator starts; existing collector-instance
+config review, reconcile metrics, workflow rows, and `/api/v0/index-status`
+remain unchanged because a claim-enabled GCP runtime creates no durable work.
+
 ## Semantic-provider execution worker
 
 `SemanticProviderWorker` is the egress-gated semantic-provider execution worker
-(`semantic_provider_worker.go`). It claims semantic extraction jobs from the
-`semantic_extraction_jobs` queue (`SemanticExtractionQueueStore.ClaimNext`),
-re-checks semantic egress fail-closed via `semanticpolicy.EvaluateEgress`
-**before any provider dispatch is even considered**, and only then consults the
-provider client. The worker runs from `runActiveMaintenance` on the reap ticker
-when active-mode claims are enabled and a worker is configured.
+(`semantic_provider_worker.go`). It claims semantic extraction jobs, re-checks
+semantic egress with `semanticpolicy.EvaluateEgress` before consulting a
+provider client, and runs from `runActiveMaintenance` only when active-mode
+claims and the worker are enabled.
 
-The worker ships **no real provider traffic by default**. Two independent
-default-OFF gates protect outbound traffic: `ESHU_SEMANTIC_PROVIDER_WORKER_ENABLED`
-turns the claim loop on, and `ESHU_SEMANTIC_PROVIDER_EXECUTION_ENABLED` plus a
-concrete `Enabled()` provider client are both required before any dispatch. The
-default client is `DisabledSemanticProviderClient`, which performs no network I/O
-and returns `ErrSemanticProviderExecutionNotEnabled`. With the default client, an
-egress-allowed claim is terminated as `provider_execution_not_enabled` and no
-provider is contacted. A concrete network client is intentionally out of scope
-and must arrive in a future security-reviewed PR.
-
-Decisions are fail-closed: a denied provider profile/source class or a missing
-egress policy skips the claim to `skipped_policy` behind the lease fence
-(`SkipClaimByPolicy`) and emits a redacted `EventTypeSemanticPolicyDecision`
-governance audit event (hashed provider-profile scope id, low-cardinality reason
-code, no provider host, endpoint, URL, or credential).
+The worker ships no provider traffic by default. `ESHU_SEMANTIC_PROVIDER_WORKER_ENABLED`
+turns the claim loop on; `ESHU_SEMANTIC_PROVIDER_EXECUTION_ENABLED` and a
+concrete enabled provider client are also required before dispatch. The default
+`DisabledSemanticProviderClient` performs no network I/O and terminates allowed
+claims as `provider_execution_not_enabled`. Denied or missing egress policy
+skips the claim behind the lease fence and records a redacted governance audit
+event with low-cardinality reason data only.
 
 Performance Evidence: `BenchmarkSemanticWorkerEgressGatedClaimLoop` measures the
 full gated claim cycle with the default no-network client. Baseline on Apple
@@ -380,55 +372,20 @@ response appears in any metric label, log field, or audit field.
 
 ## Extension points
 
-No-Regression Evidence: incident freshness handoff coverage includes:
-
-```bash
-go test ./internal/coordinator \
-  -run 'Test(PagerDuty|Jira)WorkPlannerPlansWebhookScopeSubset|TestServiceRunActiveMode(HandoffsIncidentFreshnessTriggers|MarksStaleIncidentFreshnessTriggerFailed|CoalescesRepeatedJiraWebhookClaims)|TestJiraWorkPlannerScheduledPollingCoversAllTargetsAfterMissedWebhook' \
-  -count=1
-```
-
-The coordinator narrows webhook-triggered work to authorized PagerDuty or Jira
-scope IDs, leaves scheduled polling as the backfill path, and does not alter
-claim lease timing, worker counts, queue ordering, reducer graph writes, or
-fact emission.
-
-Observability Evidence: no new coordinator metric was required. Existing
-workflow runs, work items, claim status/failure rows, `/api/v0/index-status`,
-Postgres `store="incident_freshness_triggers"` telemetry, and webhook listener
-request/store signals show accepted, duplicate, handed-off, failed, stale, and
-unauthorized trigger states without adding incident IDs, issue keys, URLs, or
-payload fields to metric labels.
-
-No-Regression Evidence: owned package target derivation is covered by
-`go test ./internal/coordinator -run 'Test(PackageRegistryWorkPlannerDerivesNPMTargetsFromOwnedPackageEvidence|VulnerabilityIntelligenceWorkPlannerDerivesOSVTargetsForExactOwnedVersions|VulnerabilityIntelligenceWorkPlannerDerivesOSVTargetsAcrossSupportedEcosystems|VulnerabilityIntelligenceWorkPlannerReportsSkippedDerivedTargetReasonsByEcosystem|ServiceRunActiveModePassesOwnedPackageEvidenceTo(PackageRegistry|Vulnerability)Planner)' -count=1`.
-The package-wide proof ran as part of
-`go test ./internal/coordinator ./internal/workflow ./internal/storage/postgres ./internal/collector/packageregistry/packageruntime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`.
-This is a planning-only change: it adds bounded target rows from active owned
-dependency evidence, keeps range and ambiguous dependencies out of exact OSV
-collection, and does not change claim leases, worker counts, queue concurrency,
-reducer graph writes, or NornicDB settings.
-
-No-Regression Evidence: `go test ./internal/coordinator -run 'Test(ServiceRunActiveModeSurfaces(PackageRegistry|Vulnerability)DerivedBudgetExhaustion|PackageRegistryWorkPlannerReportsDerivedTargetBudgetExhaustion|VulnerabilityIntelligenceWorkPlannerReportsDerivedQueryBudgetExhaustion)' -count=1`
-proves representative proof budgets cap package-registry targets and OSV
-package-version query selection while the active service path reads one bounded
-lookahead and surfaces aggregate skipped-target counts in
-`workflow_runs.requested_scope_set`. Non-exact, malformed, or ambiguous
-derived vulnerability candidates also appear in `requested_scope_set` as
-reason-coded skipped-target counts by ecosystem, without package names or
-versions.
+No-Regression Evidence: incident freshness, owned package target derivation, and
+budget-exhaustion coverage live in focused coordinator tests for PagerDuty/Jira
+handoff, package-registry planning, and vulnerability-intelligence planning.
+Those paths remain planning-only: they authorize configured scopes, create
+bounded workflow rows, and do not alter claim leases, worker counts, queue
+ordering, reducer graph writes, fact emission, or provider API calls.
 
 Observability Evidence: existing coordinator reconcile counters and duration
-histograms, `workflow_runs.requested_scope_set`, `workflow_work_items` status
-and failure columns, collector claim status, and `/api/v0/index-status` show
-whether targets were planned, claimed, completed, retried, or failed. Package
-registry and vulnerability work items also carry `target_class` in
-`fairness_key`, so operators can separate direct, owned, and broad target
-progress without adding package names, versions, feed URLs, or credential
-material to metric labels. Rotated target selection, budget-exhausted counts,
-and reason-coded partial-evidence skips remain visible through the bounded
-`requested_scope_set` rows, and package-registry metadata target counts are
-summarized by ecosystem in `/admin/status`.
+histograms, workflow runs, work items, claim status/failure rows,
+`requested_scope_set`, `/api/v0/index-status`, Postgres trigger-store
+telemetry, and webhook listener request/store signals show planned, claimed,
+completed, retried, failed, stale, unauthorized, budget-exhausted, and
+partial-evidence states without adding incident IDs, issue keys, package
+coordinates, URLs, payload fields, or credential handles to metric labels.
 
 No-Regression Evidence: `go test ./internal/coordinator ./cmd/workflow-coordinator -run 'TestServiceRunActiveModeSchedulesCICDRunWork|TestCICDRunWorkPlanner' -count=1` proves active-mode reconciliation schedules CI/CD run work through `CICDRunPlanner`, derives the reconcile-bucket plan key from the collector mode and interval, and persists work through the existing open-target admission guard. This is planning only: it creates workflow rows for configured GitHub Actions targets and does not change claim lease timing, worker counts, queue ordering, reducer graph writes, fact emission, or provider API calls.
 No-Observability-Change: CI/CD run scheduling reuses the existing coordinator reconcile counters and duration histogram, `workflow_runs`, `workflow_work_items`, claim status rows, `requested_scope_set`, and `/api/v0/index-status`. The planner keeps credential environment names out of `requested_scope_set`; provider request, rate-limit, and fact-emission telemetry remains gated to the deployable CI/CD collector runtime slice.

@@ -83,6 +83,14 @@ var collectorContracts = map[scope.CollectorKind]CollectorContract{
 		CanonicalKeyspaces: nil,
 		RequiredPhases:     nil,
 	},
+	scope.CollectorGCP: {
+		// GCP is a known collector contract for fixture-backed cloud facts, but
+		// workflow scheduler support is not wired yet. Coordinator validation
+		// keeps claim-enabled instances from becoming operational.
+		CollectorKind:      scope.CollectorGCP,
+		CanonicalKeyspaces: nil,
+		RequiredPhases:     nil,
+	},
 	scope.CollectorWebhook: {
 		CollectorKind: scope.CollectorWebhook,
 		CanonicalKeyspaces: []reducer.GraphProjectionKeyspace{
