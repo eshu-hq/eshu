@@ -31,10 +31,18 @@ handling does not rebuild a full corpus index. The response reports
 `indexed_document_count`, `corpus_limit`, and `corpus_may_be_truncated`;
 `corpus_limit=0` means there is no request-time corpus cap, while `limit` still
 bounds returned results.
+When `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` or `local_hash` is set on API
+or MCP, `semantic` and `hybrid` requests load active curated documents for the
+repository scope and build a request-local `searchhybrid` index with the
+deterministic no-network hash embedder. That local path is bounded by
+`corpus_limit=500` and is not an ANN/vector-index production-readiness claim.
+Unset runtime configuration keeps the persisted BM25 behavior.
 
 Results carry:
 
 - `rank`, `score`, and `search_method`;
+- top-level `retrieval_state` (`keyword_only`, `semantic_unavailable`,
+  `hybrid_degraded`, `semantic_active`, or `hybrid_active`);
 - the shaped search document with snake-case graph handles and entity refs;
 - result graph handles for bounded follow-up calls;
 - `truth_scope`, `freshness`, `failures`, and optional low-cardinality
@@ -45,11 +53,14 @@ result to canonical graph truth.
 
 ## Modes
 
-`keyword` uses BM25 over persisted curated search-document postings. `semantic`
-requires a configured deterministic local embedder; without one the route
-returns `backend_unavailable`. `hybrid` currently serves the same persisted BM25
-ranking until a hosted-free vector lane is configured and may report
-`search_method=bm25`.
+`keyword` uses BM25 over persisted curated search-document postings and reports
+`retrieval_state=keyword_only`. `semantic` requires the explicit local hash
+embedder setting; without it the route returns `backend_unavailable` and no
+document store read runs. With it, results report `search_method=vector` and
+`retrieval_state=semantic_active`. `hybrid` without the setting serves the same
+persisted BM25 ranking with `retrieval_state=hybrid_degraded`; with the setting,
+BM25 and vector candidates are fused with Reciprocal Rank Fusion and results can
+report `search_method=rrf_hybrid` plus `retrieval_state=hybrid_active`.
 
 ## Authorization
 
@@ -79,8 +90,8 @@ Observability Evidence: `telemetry.SpanQuerySemanticSearch`
 (`query.semantic_search`) wraps the route with stable `http.route` and
 `eshu.capability` attributes. Response fields `indexed_document_count`,
 `corpus_limit`, `corpus_may_be_truncated`, `truncated`, and per-result
-`search_method` show whether the request was scoped tightly enough and which
-retrieval path answered.
+`search_method` plus top-level `retrieval_state` show whether the request was
+scoped tightly enough and which retrieval path answered.
 
 ## Related Docs
 

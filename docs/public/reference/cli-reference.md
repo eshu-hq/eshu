@@ -84,7 +84,8 @@ default.
 
 Runtime-only environment variables such as
 `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` and
-`ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` are documented in
+`ESHU_SEMANTIC_EXTRACTION_POLICY_JSON`, plus the explicit local
+`ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` retrieval switch, are documented in
 [Environment Variables](environment-variables.md). They are read by API/MCP
 runtimes, not by CLI target resolution, and must not carry provider keys,
 credential values, prompts, or provider responses.

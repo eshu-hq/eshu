@@ -48,7 +48,8 @@ connections and exits; the `cleanup` closure returned by `wireAPI` closes Postgr
 and the graph driver on normal shutdown.
 
 `wireAPI` resolves `ESHU_QUERY_PROFILE`, `ESHU_GRAPH_BACKEND`, optional semantic
-provider profile metadata, and optional semantic extraction policy, opens the
+provider profile metadata, optional semantic extraction policy, and the
+explicit local semantic-search embedder setting, opens the
 graph driver via `openQueryGraph` (skipped when
 `ESHU_QUERY_PROFILE=local_lightweight`), opens and pings Postgres, then calls
 `newRouter` to build the `query.APIRouter` with all handler structs wired to the
@@ -123,6 +124,9 @@ See `doc.go` for the full godoc contract.
   allowlist. It names provider profile ids, source classes, scopes, source
   selectors, limits, redaction mode, and retention posture. Without it, provider
   profiles remain visible in status but source policy stays disabled.
+- `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` — optional deterministic no-network
+  local semantic-search embedder. Accepted values are `hash` and `local_hash`;
+  unset keeps semantic unavailable and hybrid keyword-degraded.
 - `ESHU_GOVERNANCE_MODE`, `ESHU_GOVERNANCE_STATE`,
   `ESHU_GOVERNANCE_SOURCE_KIND`, `ESHU_GOVERNANCE_POLICY_REVISION_HASH`,
   `ESHU_GOVERNANCE_AUTH_MODE`, `ESHU_GOVERNANCE_TENANT_MODE`,
@@ -217,8 +221,9 @@ See `doc.go` for the full godoc contract.
   `ESHU_CONTENT_STORE_DSN` are empty (`wiring.go:42`).
 
 - Invalid `ESHU_QUERY_PROFILE`, `ESHU_GRAPH_BACKEND`,
-  `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`, or
-  `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON` values fail at startup before datastore
+  `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON`,
+  `ESHU_SEMANTIC_EXTRACTION_POLICY_JSON`, or
+  `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` values fail at startup before datastore
   connections; there is no silent default for unrecognized provider kinds,
   credential source kinds, source classes, source selectors, scopes, retention
   postures, or pasted environment-variable keys.

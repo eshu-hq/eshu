@@ -48,3 +48,31 @@ func (s PostgresSemanticSearchIndexStore) Search(
 		CorpusMayBeTruncated: result.CorpusMayBeTruncated,
 	}, nil
 }
+
+// ListActiveDocuments returns active curated documents for request-time local
+// hybrid retrieval.
+func (s PostgresSemanticSearchIndexStore) ListActiveDocuments(
+	ctx context.Context,
+	query semanticSearchDocumentQuery,
+) ([]semanticSearchDocumentRow, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("semantic search document database is required")
+	}
+	rows, err := postgres.NewEshuSearchDocumentStore(postgres.SQLDB{DB: s.db}).ListActiveDocuments(
+		ctx,
+		postgres.EshuSearchDocumentFilter{
+			ScopeID:     query.ScopeID,
+			RepoID:      query.RepoID,
+			SourceKinds: query.SourceKinds,
+			Limit:       query.Limit,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	documents := make([]semanticSearchDocumentRow, 0, len(rows))
+	for _, row := range rows {
+		documents = append(documents, semanticSearchDocumentRow{Document: row.Document})
+	}
+	return documents, nil
+}
