@@ -205,6 +205,7 @@ nav:
       - Evidence Citation Handle Contract: reference/evidence-citation-handles.md
       - Reading Answers: reference/reading-answers.md
       - Query Playbooks: reference/query-playbooks.md
+      - Operator Digest Contract: reference/operator-digest.md
       - Visualization Packet Contract: reference/visualization-packets.md
       - Local Data Root Spec: reference/local-data-root-spec.md
       - Local Host Lifecycle: reference/local-host-lifecycle.md

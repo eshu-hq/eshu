@@ -78,3 +78,4 @@ indexing truth.
 
 - [CLI Reference](cli-reference.md)
 - [Local Testing](local-testing.md)
+- [Operator Digest Contract](operator-digest.md)

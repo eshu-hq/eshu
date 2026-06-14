@@ -22,6 +22,8 @@ Read the source contracts first. This page does not redefine them:
 - [Query Playbooks](query-playbooks.md) and
   [Starter Prompts](../guides/starter-prompts.md) — how workflows map to
   ordered tool calls.
+- [Operator Digest Contract](operator-digest.md) — how deterministic digest
+  artifacts reuse answer truth, limitations, evidence, and recommended calls.
 - [Visualization Packet Contract](visualization-packets.md) — rendering a
   story or evidence answer as an explainable subgraph.
 - [Answer Quality Scorecard](local-testing/answer-quality-scorecard.md) —
@@ -352,6 +354,7 @@ product behavior, not transport failures.
 - [Truth Label Protocol](truth-label-protocol.md)
 - [Answer Packet Contract](answer-packets.md)
 - [Query Playbooks](query-playbooks.md)
+- [Operator Digest Contract](operator-digest.md)
 - [Visualization Packet Contract](visualization-packets.md)
 - [Capability Conformance Spec](capability-conformance-spec.md)
 - [MCP Guide](../guides/mcp-guide.md)
