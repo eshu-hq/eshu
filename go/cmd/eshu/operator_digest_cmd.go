@@ -169,6 +169,7 @@ type operatorDigestQuestion struct {
 	ID               string            `json:"id"`
 	Question         string            `json:"question"`
 	SourceSignal     string            `json:"source_signal"`
+	Why              string            `json:"why"`
 	Reason           string            `json:"reason"`
 	Target           string            `json:"target"`
 	Arguments        map[string]string `json:"arguments"`
@@ -373,6 +374,7 @@ func buildOperatorDigestQuestions(options operatorDigestOptions, sections []oper
 			ID:               "operator_digest.v1:question:" + template.SectionID + ":" + options.Scope.ID,
 			Question:         template.Question,
 			SourceSignal:     sourceSignal,
+			Why:              operatorDigestQuestionWhy(template.SectionID, sourceSignal),
 			Reason:           template.Reason,
 			Target:           template.Target,
 			Arguments:        map[string]string{"scope": options.Scope.Label, "profile": options.Profile},
@@ -381,6 +383,13 @@ func buildOperatorDigestQuestions(options operatorDigestOptions, sections []oper
 		})
 	}
 	return questions
+}
+
+func operatorDigestQuestionWhy(sectionID, sourceSignal string) string {
+	if sourceSignal == "" {
+		return "unsupported section " + sectionID + " needs a bounded read surface before this question can be answered"
+	}
+	return "unsupported section " + sectionID + " produced source signal " + sourceSignal
 }
 
 func renderOperatorDigestText(w io.Writer, digest operatorDigest) {
@@ -395,7 +404,10 @@ func renderOperatorDigestText(w io.Writer, digest operatorDigest) {
 	if len(digest.SuggestedQuestions) > 0 {
 		_, _ = fmt.Fprintln(w, "suggested questions:")
 		for _, question := range digest.SuggestedQuestions {
-			_, _ = fmt.Fprintf(w, "  - %s -> %s\n", question.ID, question.Target)
+			_, _ = fmt.Fprintf(w, "  - %s\n", question.Question)
+			_, _ = fmt.Fprintf(w, "    id: %s\n", question.ID)
+			_, _ = fmt.Fprintf(w, "    target: %s\n", question.Target)
+			_, _ = fmt.Fprintf(w, "    why: %s\n", question.Why)
 		}
 	}
 }

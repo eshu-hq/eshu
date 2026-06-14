@@ -48,8 +48,10 @@ eshu report --scope repo:owner/name --profile local_authoritative --json
 The current CLI path is intentionally offline. It validates an explicit
 share-safe scope, emits the `operator_digest.v1` shape, renders unsupported
 sections as first-class limitations, and assembles suggested questions from
-fixed templates. It does not read raw Cypher, write graph state, enqueue reducer
-work, call providers, or promote incomplete evidence into graph truth.
+fixed templates. Each suggested question includes a source signal and a
+human-readable `why` explaining which deterministic section signal caused the
+question. It does not read raw Cypher, write graph state, enqueue reducer work,
+call providers, or promote incomplete evidence into graph truth.
 
 `--question-limit` defaults to `8` and must be between `0` and `25`. Scopes must
 use share-safe labels such as `repo:owner/name`, `service:name`,
@@ -292,6 +294,7 @@ Each question has:
 | `id` | Stable ID derived from schema, scope, source signal, and template ID. |
 | `question` | Fixed-template human prompt. |
 | `source_signal` | Section entry or limitation that caused the question. |
+| `why` | Human-readable justification tied to the source signal. |
 | `reason` | Short reason code and display text. |
 | `target` | Query playbook ID, MCP tool family, or HTTP route family. |
 | `arguments` | Bounded arguments the operator can pass next. |
@@ -340,6 +343,7 @@ The implementation issue that adds a renderer must prove:
 - unsupported, partial, stale, and ambiguous cases
 - no provider calls or graph writes
 - source truth and freshness propagation into sections and questions
+- source-backed `why` text for every suggested question
 
 Docs-only changes to this contract require the strict docs build and
 `git diff --check`.
