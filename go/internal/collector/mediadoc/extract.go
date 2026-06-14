@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/mediapreflight"
+	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -66,7 +67,8 @@ func Extract(ctx context.Context, req Request) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("transcribe media segments: %w", err)
 	}
-	sections := buildSections(req, document, transcript, sourceHash)
+	transcriptSections := buildSections(req, document, transcript, sourceHash)
+	sections := sectionPayloads(transcriptSections)
 	if len(sections) == 0 {
 		document.SourceMetadata["transcript_status"] = "no_text"
 	} else {
@@ -79,7 +81,18 @@ func Extract(ctx context.Context, req Request) (Result, error) {
 	for _, section := range sections {
 		result.Envelopes = append(result.Envelopes, envelope(req, facts.DocumentationSectionFactKind, facts.DocumentationSectionStableID(section), section))
 	}
+	mentions, err := mentionEnvelopes(ctx, req, document, transcriptSections)
+	if err != nil {
+		return Result{}, err
+	}
+	result.Envelopes = append(result.Envelopes, mentions...)
 	return result, nil
+}
+
+type transcriptSection struct {
+	payload      facts.DocumentationSectionPayload
+	mentionHints []doctruth.MentionHint
+	redacted     bool
 }
 
 func buildDocument(req Request, preflight mediapreflight.Result, sourceHash string) facts.DocumentationDocumentPayload {
@@ -146,8 +159,8 @@ func buildSections(
 	document facts.DocumentationDocumentPayload,
 	transcript EngineResult,
 	sourceHash string,
-) []facts.DocumentationSectionPayload {
-	sections := make([]facts.DocumentationSectionPayload, 0, len(transcript.Segments))
+) []transcriptSection {
+	sections := make([]transcriptSection, 0, len(transcript.Segments))
 	for i, segment := range transcript.Segments {
 		text := strings.TrimSpace(segment.Text)
 		if text == "" || segment.EndMillis < segment.StartMillis || segment.StartMillis < 0 {
@@ -181,24 +194,99 @@ func buildSections(
 			warnings = append(warnings, "transcript_low_confidence")
 		}
 		addWarnings(metadata, warnings...)
-		sections = append(sections, facts.DocumentationSectionPayload{
-			DocumentID:       document.DocumentID,
-			RevisionID:       document.RevisionID,
-			SectionID:        "transcript:" + segmentID,
-			SectionAnchor:    "transcript-" + segmentID,
-			HeadingText:      "Transcript segment",
-			OrdinalPath:      []int{len(sections) + 1},
-			Content:          content,
-			ContentFormat:    "text/plain",
-			TextHash:         hashText(text),
-			ExcerptHash:      hashText(content),
-			SourceStartRef:   "time:" + formatMillis(segment.StartMillis),
-			SourceEndRef:     "time:" + formatMillis(segment.EndMillis),
-			SourceMetadata:   metadata,
-			ContainsWarnings: len(metadata["warning"]) > 0,
+		sections = append(sections, transcriptSection{
+			payload: facts.DocumentationSectionPayload{
+				DocumentID:       document.DocumentID,
+				RevisionID:       document.RevisionID,
+				SectionID:        "transcript:" + segmentID,
+				SectionAnchor:    "transcript-" + segmentID,
+				HeadingText:      "Transcript segment",
+				OrdinalPath:      []int{len(sections) + 1},
+				Content:          content,
+				ContentFormat:    "text/plain",
+				TextHash:         hashText(text),
+				ExcerptHash:      hashText(content),
+				SourceStartRef:   "time:" + formatMillis(segment.StartMillis),
+				SourceEndRef:     "time:" + formatMillis(segment.EndMillis),
+				SourceMetadata:   metadata,
+				ContainsWarnings: len(metadata["warning"]) > 0,
+			},
+			mentionHints: safeMentionHints(segment.MentionHints),
+			redacted:     redacted,
 		})
 	}
 	return sections
+}
+
+func safeMentionHints(hints []doctruth.MentionHint) []doctruth.MentionHint {
+	out := make([]doctruth.MentionHint, 0, len(hints))
+	for _, hint := range hints {
+		if containsSensitiveMarker(hint.Text) || isUnsafeSourcePath(hint.Text) {
+			continue
+		}
+		out = append(out, hint)
+	}
+	return out
+}
+
+func sectionPayloads(sections []transcriptSection) []facts.DocumentationSectionPayload {
+	out := make([]facts.DocumentationSectionPayload, 0, len(sections))
+	for _, section := range sections {
+		out = append(out, section.payload)
+	}
+	return out
+}
+
+func mentionEnvelopes(
+	ctx context.Context,
+	req Request,
+	document facts.DocumentationDocumentPayload,
+	sections []transcriptSection,
+) ([]facts.Envelope, error) {
+	if len(req.Entities) == 0 && !hasMentionHints(sections) {
+		return nil, nil
+	}
+	extractor := doctruth.NewExtractor(req.Entities, doctruth.Options{})
+	var out []facts.Envelope
+	for _, section := range sections {
+		if section.redacted {
+			continue
+		}
+		result, err := extractor.Extract(ctx, doctruth.SectionInput{
+			ScopeID:        req.ScopeID,
+			GenerationID:   req.GenerationID,
+			SourceSystem:   firstNonEmpty(req.SourceSystem, "documentation_media"),
+			DocumentID:     document.DocumentID,
+			RevisionID:     document.RevisionID,
+			SectionID:      section.payload.SectionID,
+			CanonicalURI:   document.CanonicalURI,
+			ExcerptHash:    section.payload.ExcerptHash,
+			SourceStartRef: section.payload.SourceStartRef,
+			SourceEndRef:   section.payload.SourceEndRef,
+			Text:           section.payload.Content,
+			MentionHints:   section.mentionHints,
+			ObservedAt:     req.ObservedAt,
+			SourceMetadata: section.payload.SourceMetadata,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("extract transcript mentions for %s: %w", section.payload.SectionID, err)
+		}
+		for _, envelope := range result.Envelopes {
+			if envelope.FactKind == facts.DocumentationEntityMentionFactKind {
+				out = append(out, envelope)
+			}
+		}
+	}
+	return out, nil
+}
+
+func hasMentionHints(sections []transcriptSection) bool {
+	for _, section := range sections {
+		if len(section.mentionHints) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func skipPreflight(preflight mediapreflight.Result) bool {

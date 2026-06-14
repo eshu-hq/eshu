@@ -13,10 +13,10 @@
 - Keep transcript extraction default-off. Do not wire this package into hosted
   collectors, repository discovery, CLI flags, Helm values, or Compose profiles
   without a separate security-reviewed issue.
-- Emit source facts only: `documentation_document` and
-  `documentation_section`. Do not emit entity mentions, claim candidates, graph
-  edges, service truth, deployment truth, incident truth, or ownership truth
-  from transcript text.
+- Emit source facts only: `documentation_document`, `documentation_section`,
+  and provenance-only `documentation_entity_mention` facts. Do not emit claim
+  candidates, graph edges, service truth, deployment truth, incident truth, or
+  ownership truth from transcript text.
 - Run `mediapreflight` before calling a transcript engine. Non-WAV codecs stay
   unsupported until a codec or container dependency review lands.
 - Do not persist raw media bytes, audio samples, video frames, subtitle text,
@@ -48,8 +48,8 @@
 
 - Adding cloud transcription, model runtimes, network fetches, codec execution,
   subtitle trust, or temp file handling here.
-- Treating transcript text as canonical service, deployment, owner, incident, or
-  graph truth.
+- Treating transcript text or transcript mentions as canonical service,
+  deployment, owner, incident, or graph truth.
 - Hiding malformed or unsupported media as an empty successful document.
 - Adding route, MCP, graph, reducer, or storage logic to this package.
 

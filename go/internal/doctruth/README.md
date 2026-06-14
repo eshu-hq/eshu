@@ -52,6 +52,9 @@ explicit statuses: `valid`, `contradicted`, `missing_evidence`, and
 - Ambiguous or unmatched subject mentions suppress claim candidate emission.
 - Every emitted claim candidate carries document, revision, section, and excerpt
   hash provenance.
+- Derived mention facts may carry caller-supplied bounded section provenance in
+  `source_metadata`; reserved source start/end references always come from the
+  section identity, not caller metadata.
 - When `SectionInput.SourceACLState` is set from the owning source/document
   fact, the bounded source access posture is propagated verbatim onto the
   derived mention and claim evidence facts' `acl_summary`; it is omitted when no
