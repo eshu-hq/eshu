@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/mediapreflight"
+	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -37,6 +38,7 @@ type Request struct {
 	Body           []byte
 	Engine         Engine
 	Options        Options
+	Entities       []doctruth.Entity
 }
 
 // Media is the bounded media context passed to a transcript engine.
@@ -64,6 +66,7 @@ type Segment struct {
 	EndMillis    int64
 	Confidence   float64
 	SpeakerLabel string
+	MentionHints []doctruth.MentionHint
 }
 
 // Result contains document and section payloads plus ready-to-persist envelopes

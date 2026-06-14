@@ -73,6 +73,10 @@ type SectionInput struct {
 	Links          []facts.DocumentationLinkPayload
 	MentionHints   []MentionHint
 	ClaimHints     []ClaimHint
+	// SourceMetadata is caller-supplied bounded provenance for derived mention
+	// facts. The extractor preserves reserved source_start_ref/source_end_ref
+	// values from the section identity instead of trusting caller metadata.
+	SourceMetadata map[string]string
 	ObservedAt     time.Time
 	// SourceACLState is the bounded source access posture observed for the
 	// document this section belongs to, using the
@@ -308,13 +312,24 @@ func (e *Extractor) resolveMention(section SectionInput, candidate mentionCandid
 		CandidateRefs:    refs,
 		ExcerptHash:      section.ExcerptHash,
 		ACLSummary:       evidenceACLSummary(section.SourceACLState),
-		SourceMetadata: map[string]string{
-			"mention_source":   candidate.from,
-			"source_start_ref": section.SourceStartRef,
-			"source_end_ref":   section.SourceEndRef,
-		},
+		SourceMetadata:   mentionSourceMetadata(section, candidate),
 	}
 	return mentionResolution{payload: payload}
+}
+
+func mentionSourceMetadata(section SectionInput, candidate mentionCandidate) map[string]string {
+	metadata := make(map[string]string, len(section.SourceMetadata)+3)
+	for key, value := range section.SourceMetadata {
+		if _, reserved := reservedSourceMetadataKeys[key]; reserved {
+			metadata["section."+key] = value
+			continue
+		}
+		metadata[key] = value
+	}
+	metadata["mention_source"] = candidate.from
+	metadata["source_start_ref"] = section.SourceStartRef
+	metadata["source_end_ref"] = section.SourceEndRef
+	return metadata
 }
 
 func (e *Extractor) claimCandidate(

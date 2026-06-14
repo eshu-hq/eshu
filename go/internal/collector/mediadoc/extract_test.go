@@ -389,16 +389,21 @@ func writeUint32(t *testing.T, buffer *bytes.Buffer, value uint32) {
 func payloadByKind(t *testing.T, envelopes []facts.Envelope, kind string) map[string]any {
 	t.Helper()
 
+	matches := payloadsByKind(envelopes, kind)
+	if len(matches) != 1 {
+		t.Fatalf("fact kind %q count = %d, want 1", kind, len(matches))
+	}
+	return matches[0]
+}
+
+func payloadsByKind(envelopes []facts.Envelope, kind string) []map[string]any {
 	var matches []map[string]any
 	for _, envelope := range envelopes {
 		if envelope.FactKind == kind {
 			matches = append(matches, envelope.Payload)
 		}
 	}
-	if len(matches) != 1 {
-		t.Fatalf("fact kind %q count = %d, want 1", kind, len(matches))
-	}
-	return matches[0]
+	return matches
 }
 
 func stringMapValue(t *testing.T, payload map[string]any, key string) map[string]string {
