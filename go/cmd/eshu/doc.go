@@ -49,7 +49,9 @@
 // discovery (`find`, `analyze`, `ecosystem`), project-scoped assistant guidance
 // (`assistant install|status|uninstall`, which writes a marked Eshu guidance
 // block into CLAUDE.md, AGENTS.md, and Cursor rules while preserving other
-// content, and can run safe local ritual verification after install or status),
+// content, can run safe local ritual verification after install or status, and
+// `assistant hook preflight`, which performs opt-in Claude Code-style local
+// fast-path planning without installing hooks or querying Eshu runtimes),
 // internal local-service
 // orchestration, and the `doctor` diagnostic. Its local-authoritative graph
 // path first acquires owner.lock, reclaims ownerless live Postgres only after
