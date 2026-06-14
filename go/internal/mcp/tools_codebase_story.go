@@ -9,7 +9,7 @@ var relationshipTypeEnum = []string{"CALLS", "IMPORTS", "REFERENCES", "INHERITS"
 func codeRelationshipStoryTool() ToolDefinition {
 	return ToolDefinition{
 		Name:        "get_code_relationship_story",
-		Description: "Get a bounded relationship story for one resolved code symbol, including ambiguity candidates, direct callers/callees/imports, optional transitive CALLS traversal, an optional token_budget that trims to fit and reports what was cut, truncation, and source handles. Provide target or entity_id.",
+		Description: "Get a bounded relationship story for one resolved code symbol, including ambiguity candidates, direct callers/callees/imports, per-row provenance blocks, optional transitive CALLS traversal, an optional token_budget that trims to fit and reports what was cut, truncation, and source handles. Provide target or entity_id.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

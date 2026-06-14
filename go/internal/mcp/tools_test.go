@@ -143,6 +143,20 @@ func TestRelationshipToolsAdvertiseMinConfidence(t *testing.T) {
 	}
 }
 
+func TestRelationshipStoryToolsAdvertiseProvenanceOutput(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{"get_code_relationship_story", "analyze_code_relationships"} {
+		tool := requireToolDefinition(t, name)
+		description := strings.ToLower(tool.Description)
+		for _, want := range []string{"relationship", "provenance"} {
+			if !strings.Contains(description, want) {
+				t.Fatalf("tool %s description missing %q: %s", name, want, tool.Description)
+			}
+		}
+	}
+}
+
 func requireToolDefinition(t *testing.T, name string) ToolDefinition {
 	t.Helper()
 

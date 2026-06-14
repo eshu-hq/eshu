@@ -227,6 +227,17 @@ const openAPIComponents = `  "components": {
           "evidence_type": {"type": "string"},
           "evidence_kinds": {"type": "array", "items": {"type": "string"}},
           "resolution_method": {"type": "string"},
+          "provenance": {"type": "object", "description": "Uniform per-relationship provenance block for API and MCP relationship-story rows.", "properties": {
+            "confidence": {"type": "number"},
+            "confidence_state": {"type": "string", "enum": ["reported", "unsupported"]},
+            "method": {"type": "string", "description": "Code resolution_method, correlation confidence_basis/resolution_source, or unsupported when unavailable."},
+            "source_family": {"type": "string", "enum": ["code_edge", "correlation_edge", "unsupported"]},
+            "reason": {"type": "string"},
+            "truth_state": {"type": "string", "enum": ["derived", "heuristic", "unsupported"]},
+            "derived": {"type": "boolean"},
+            "heuristic": {"type": "boolean"},
+            "unsupported": {"type": "boolean"}
+          }},
           "centrality": {"type": "integer", "description": "Bounded centrality: the neighbor's degree within the resolved result set. Relationship story rows are ordered by this value, descending, with deterministic tie-breaking."}
         }
       },

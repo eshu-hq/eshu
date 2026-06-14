@@ -138,6 +138,11 @@ the count limit and reports `summary.token_budget` (`dropped`,
 `relationship_types` supersedes `relationship_type` and is not supported with
 `include_transitive`, `class_hierarchy`, or `overrides`.
 
+Every returned relationship row includes a `provenance` block with confidence
+state, method/source family, reason, truth state, and derived/heuristic/
+unsupported flags. Use it directly in prompts instead of inferring edge quality
+from `confidence`, `resolution_method`, or `confidence_basis` alone.
+
 For a specific chain or import neighborhood:
 
 **Tool:** `find_function_call_chain`

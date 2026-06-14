@@ -258,6 +258,29 @@ the response (`summary.token_budget`, `coverage.truncated`,
 counts and narrowing `guidance`; no new runtime stage, queue, worker, metric, or
 span is introduced.
 
+### Relationship Story Provenance Block
+
+[Issue #2535](https://github.com/eshu-hq/eshu/issues/2535) adds a uniform
+`provenance` object to every returned relationship-story row. The block is built
+from fields already present on the bounded row (`confidence`,
+`resolution_method`, `confidence_basis`, `resolution_source`, `reason`, and
+evidence metadata when available). It does not add a graph predicate, MATCH,
+traversal, ORDER BY, or backend-specific branch.
+
+No-Regression Evidence: `relationshipStoryRowsWithHandles` shapes the block
+after confidence-floor filtering and before response serialization, over the
+already-bounded result rows. The empty-result path still returns
+`relationships=[]`, and a positive `min_confidence` floor still filters on the
+same numeric `confidence` value before provenance is attached. Covered by
+`go test ./internal/query -run
+'TestHandleRelationshipStory(SurfacesRelationshipProvenanceBlock|ProvenanceSurvivesMinConfidenceAndEmptyResults)|TestOpenAPIRelationshipSchemaDocumentsProvenanceBlock'
+-count=1`.
+
+No-Observability-Change: this is response metadata only. Operators still use the
+existing relationship-story truth envelope, HTTP request metrics, and graph
+query spans/duration metrics; no metric, span, queue, worker, runtime knob, or
+storage schema changes.
+
 ### Relationship Story Bounded Centrality Ranking
 
 [Issue #2233](https://github.com/eshu-hq/eshu/issues/2233) ranks relationship

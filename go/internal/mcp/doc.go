@@ -61,6 +61,9 @@
 // paths or activation config paths.
 // Relationship-story tools forward min_confidence unchanged to the query layer
 // so the HTTP handler owns confidence-floor validation and filtering.
+// Relationship-story responses preserve the HTTP per-row provenance block in
+// structuredContent; MCP does not reinterpret confidence, truth, freshness, or
+// bounded-result metadata.
 // Any change that alters request or response shape must update the MCP guide,
 // the HTTP API reference where the route is shared, and the handler tests in
 // the same change.

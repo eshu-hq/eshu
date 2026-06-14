@@ -432,6 +432,8 @@ func relationshipStoryRowsWithHandles(rows []map[string]any) []map[string]any {
 	out := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		item := cloneQueryAnyMap(row)
+		addRelationshipConfidenceBasis(item)
+		item["provenance"] = relationshipStoryProvenance(item)
 		if sourceID := StringVal(item, "source_id"); sourceID != "" {
 			item["source_handle"] = "entity:" + sourceID
 		}

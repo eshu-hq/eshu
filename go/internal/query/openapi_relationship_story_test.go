@@ -56,3 +56,34 @@ func TestOpenAPIRelationshipStoryDocumentsMinConfidence(t *testing.T) {
 		t.Fatalf("min_confidence maximum = %#v, want %#v", got, want)
 	}
 }
+
+func TestOpenAPIRelationshipSchemaDocumentsProvenanceBlock(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
+	}
+
+	components := mustMapField(t, spec, "components")
+	schemas := mustMapField(t, components, "schemas")
+	relationship := mustMapField(t, schemas, "Relationship")
+	properties := mustMapField(t, relationship, "properties")
+	provenance := mustMapField(t, properties, "provenance")
+	provenanceProperties := mustMapField(t, provenance, "properties")
+	for _, field := range []string{
+		"confidence",
+		"confidence_state",
+		"method",
+		"source_family",
+		"reason",
+		"truth_state",
+		"derived",
+		"heuristic",
+		"unsupported",
+	} {
+		if _, ok := provenanceProperties[field]; !ok {
+			t.Fatalf("Relationship.provenance schema missing %s", field)
+		}
+	}
+}
