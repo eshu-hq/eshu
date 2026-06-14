@@ -215,20 +215,7 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"offset":             intOr(args, "offset", 0),
 		}}, nil
 	case "get_code_relationship_story":
-		return &route{method: "POST", path: "/api/v0/code/relationships/story", body: map[string]any{
-			"target":             str(args, "target"),
-			"entity_id":          str(args, "entity_id"),
-			"repo_id":            str(args, "repo_id"),
-			"language":           str(args, "language"),
-			"relationship_type":  str(args, "relationship_type"),
-			"relationship_types": stringSlice(args, "relationship_types"),
-			"direction":          str(args, "direction"),
-			"include_transitive": boolOr(args, "include_transitive", false),
-			"max_depth":          intOr(args, "max_depth", 5),
-			"limit":              intOr(args, "limit", 25),
-			"offset":             intOr(args, "offset", 0),
-			"token_budget":       intOr(args, "token_budget", 0),
-		}}, nil
+		return codeRelationshipStoryRoute(args), nil
 	case "analyze_code_relationships":
 		return resolveAnalyzeCodeRelationshipsRoute(args)
 	case "find_dead_code":

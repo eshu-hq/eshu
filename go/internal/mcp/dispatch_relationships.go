@@ -5,6 +5,27 @@ import (
 	"strings"
 )
 
+func codeRelationshipStoryRoute(args map[string]any) *route {
+	body := map[string]any{
+		"target":             str(args, "target"),
+		"entity_id":          str(args, "entity_id"),
+		"repo_id":            str(args, "repo_id"),
+		"language":           str(args, "language"),
+		"relationship_type":  str(args, "relationship_type"),
+		"relationship_types": stringSlice(args, "relationship_types"),
+		"direction":          str(args, "direction"),
+		"include_transitive": boolOr(args, "include_transitive", false),
+		"max_depth":          intOr(args, "max_depth", 5),
+		"limit":              intOr(args, "limit", 25),
+		"offset":             intOr(args, "offset", 0),
+		"token_budget":       intOr(args, "token_budget", 0),
+	}
+	if minConfidence, ok := optionalFloat(args, "min_confidence"); ok {
+		body["min_confidence"] = minConfidence
+	}
+	return &route{method: "POST", path: "/api/v0/code/relationships/story", body: body}
+}
+
 // resolveAnalyzeCodeRelationshipsRoute maps an analyze_code_relationships call to
 // the bounded HTTP route for its query_type. Direct caller/callee/importer
 // queries flow through the relationship story route (and carry the additive
@@ -69,21 +90,25 @@ func analyzeCodeRelationshipsStoryRoute(
 	relationshipType string,
 	includeTransitive bool,
 ) *route {
+	body := map[string]any{
+		"target":             str(args, "target"),
+		"repo_id":            str(args, "repo_id"),
+		"direction":          direction,
+		"relationship_type":  relationshipType,
+		"relationship_types": stringSlice(args, "relationship_types"),
+		"include_transitive": includeTransitive,
+		"max_depth":          parseMaxDepth(args, 5),
+		"limit":              intOr(args, "limit", 25),
+		"offset":             intOr(args, "offset", 0),
+		"token_budget":       intOr(args, "token_budget", 0),
+	}
+	if minConfidence, ok := optionalFloat(args, "min_confidence"); ok {
+		body["min_confidence"] = minConfidence
+	}
 	return &route{
 		method: "POST",
 		path:   "/api/v0/code/relationships/story",
-		body: map[string]any{
-			"target":             str(args, "target"),
-			"repo_id":            str(args, "repo_id"),
-			"direction":          direction,
-			"relationship_type":  relationshipType,
-			"relationship_types": stringSlice(args, "relationship_types"),
-			"include_transitive": includeTransitive,
-			"max_depth":          parseMaxDepth(args, 5),
-			"limit":              intOr(args, "limit", 25),
-			"offset":             intOr(args, "offset", 0),
-			"token_budget":       intOr(args, "token_budget", 0),
-		},
+		body:   body,
 	}
 }
 
@@ -93,20 +118,24 @@ func analyzeCodeRelationshipsTypedStoryRoute(
 	direction string,
 	relationshipType string,
 ) *route {
+	body := map[string]any{
+		"query_type":        queryType,
+		"target":            str(args, "target"),
+		"repo_id":           str(args, "repo_id"),
+		"language":          str(args, "language"),
+		"direction":         direction,
+		"relationship_type": relationshipType,
+		"max_depth":         parseMaxDepth(args, 5),
+		"limit":             intOr(args, "limit", 25),
+		"offset":            intOr(args, "offset", 0),
+		"token_budget":      intOr(args, "token_budget", 0),
+	}
+	if minConfidence, ok := optionalFloat(args, "min_confidence"); ok {
+		body["min_confidence"] = minConfidence
+	}
 	return &route{
 		method: "POST",
 		path:   "/api/v0/code/relationships/story",
-		body: map[string]any{
-			"query_type":        queryType,
-			"target":            str(args, "target"),
-			"repo_id":           str(args, "repo_id"),
-			"language":          str(args, "language"),
-			"direction":         direction,
-			"relationship_type": relationshipType,
-			"max_depth":         parseMaxDepth(args, 5),
-			"limit":             intOr(args, "limit", 25),
-			"offset":            intOr(args, "offset", 0),
-			"token_budget":      intOr(args, "token_budget", 0),
-		},
+		body:   body,
 	}
 }

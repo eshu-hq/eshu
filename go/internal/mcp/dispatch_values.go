@@ -23,6 +23,21 @@ func intOr(args map[string]any, key string, def int) int {
 	}
 }
 
+func optionalFloat(args map[string]any, key string) (float64, bool) {
+	switch v := args[key].(type) {
+	case float64:
+		return v, true
+	case float32:
+		return float64(v), true
+	case int:
+		return float64(v), true
+	case int64:
+		return float64(v), true
+	default:
+		return 0, false
+	}
+}
+
 func intString(args map[string]any, key string, def int) string {
 	return strconv.Itoa(intOr(args, key, def))
 }

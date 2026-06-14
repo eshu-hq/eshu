@@ -59,6 +59,8 @@
 // forward inventory and diagnostics requests to HTTP registry readback routes,
 // preserve the canonical envelope, and do not expose server-local manifest
 // paths or activation config paths.
+// Relationship-story tools forward min_confidence unchanged to the query layer
+// so the HTTP handler owns confidence-floor validation and filtering.
 // Any change that alters request or response shape must update the MCP guide,
 // the HTTP API reference where the route is shared, and the handler tests in
 // the same change.

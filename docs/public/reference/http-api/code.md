@@ -148,10 +148,11 @@ confidence field; do not map them onto code resolution tiers.
 
 ### Confidence Floor Contract
 
-`min_confidence` is the reserved confidence-floor request parameter for
-relationship read routes that return code or correlation edges. Runtime support
-must not be assumed until the specific route's OpenAPI schema advertises the
-field. The implementation contract is:
+`min_confidence` is the confidence-floor request parameter for relationship
+read routes that return code or correlation edges. Runtime support is available
+only where the specific route's OpenAPI schema advertises the field. The
+relationship-story route (`POST /api/v0/code/relationships/story`) implements
+this contract:
 
 - omitted means no confidence floor and preserves current edge visibility,
   including ambiguous, stale, conflicting, and missing-confidence rows;
@@ -169,16 +170,17 @@ field. The implementation contract is:
 MCP tools mirror the HTTP spelling as `min_confidence`; camelCase aliases such
 as `minConfidence` are not part of the Eshu wire contract.
 
-No-Regression Evidence: the confidence-floor contract is docs-only until a
-route schema advertises support. `uv run --with mkdocs --with mkdocs-material
---with pymdown-extensions mkdocs build --strict --clean --config-file
-docs/mkdocs.yml` covers Markdown, navigation, and cross-reference drift for the
-published contract.
+No-Regression Evidence: `go test ./internal/query -run
+'TestHandleRelationshipStory(SurfacesEdgeProvenance|AppliesMinConfidenceFloor|MinConfidenceValidation)|TestOpenAPIRelationshipStoryDocumentsMinConfidence'
+-count=1` covers relationship-story filtering, default visibility, validation,
+and OpenAPI schema support. The filter runs after the bounded relationship-story
+read and before centrality ranking, truncation, and token-budget cuts; it adds
+no Cypher predicate, traversal, ordering, or graph write.
 
-No-Observability-Change: this contract note adds no graph read, graph write,
-queue, worker, route, parameter decoder, metric, span, log field, or runtime
-knob. Runtime implementations must add their own route-specific no-regression
-and observability evidence when they begin accepting `min_confidence`.
+No-Observability-Change: relationship-story confidence filtering adds no graph
+query, graph write, queue, worker, route, metric, span, log field, or runtime
+knob. Operators still diagnose the read through the existing graph query spans,
+query-duration metrics, HTTP route attribution, and answer-level truth envelope.
 
 No-Regression Evidence: `go test ./internal/query -run
 'TestHandleRelationshipsSurfaces(RelatedSymbolSourceMetadata|GraphEdgeProvenance)|TestNornicDBOneHopRelationshipsCypherProjects(RelatedSymbolSourceMetadata|EdgeProvenance)|TestRelationshipGraphRowCypherProjectsEdgeProvenance|TestNormalizeNornicDBRelationshipRowsDropsMissingEdgeProvenance|TestOpenAPIRelationshipDocumentsSourceMetadata'

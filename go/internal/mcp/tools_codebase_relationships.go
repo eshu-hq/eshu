@@ -80,6 +80,12 @@ func analyzeCodeRelationshipsSchema() map[string]any {
 				"description": "Optional cap on the estimated response token cost; trims rows to fit and reports what was cut with guidance to narrow.",
 				"minimum":     0,
 			},
+			"min_confidence": map[string]any{
+				"type":        "number",
+				"description": "Optional confidence floor from 0 through 1 for relationship-story query types. Omitted preserves low-confidence and missing-confidence rows; positive values keep only returned rows with numeric confidence at or above the floor.",
+				"minimum":     float64(0),
+				"maximum":     float64(1),
+			},
 		},
 		"required": []string{"query_type"},
 	}

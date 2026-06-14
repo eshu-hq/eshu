@@ -212,6 +212,7 @@ const openAPIPathsCode = `
                   "max_depth": {"type": "integer", "description": "Maximum transitive CALLS or class hierarchy depth (default 5, max 10).", "default": 5, "maximum": 10},
                   "limit": {"type": "integer", "description": "Maximum relationship rows or ambiguity candidates (default 25, max 200).", "default": 25, "maximum": 200},
                   "offset": {"type": "integer", "description": "Zero-based direct relationship offset.", "default": 0, "maximum": 10000},
+                  "min_confidence": {"type": "number", "description": "Optional confidence floor from 0 through 1. Omitted preserves low-confidence and missing-confidence rows; positive values keep only returned rows with numeric confidence at or above the floor.", "minimum": 0, "maximum": 1},
                   "token_budget": {"type": "integer", "description": "Optional cap on the estimated response token cost. Applied after limit; trims rows to fit and reports what was cut with guidance to narrow.", "minimum": 0}
                 }
               }

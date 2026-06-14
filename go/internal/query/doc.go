@@ -21,6 +21,8 @@
 // confidence_basis for correlation edges so clients can distinguish extractor
 // constants, resolver aggregation, and assertion overrides from code-edge
 // resolution_method confidence tiers.
+// Relationship-story reads accept a bounded min_confidence response floor that
+// filters returned rows without changing canonical graph truth.
 //
 // Supply-chain reads expose source-only advisory evidence separately from
 // reducer-owned impact findings. Advisory evidence groups active
