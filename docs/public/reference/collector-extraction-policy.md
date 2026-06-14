@@ -1,0 +1,131 @@
+# Collector Extraction Policy
+
+This page is the decision record for moving a collector out of the core Eshu
+repository. It exists because the SDK and extension host boundary already
+supports out-of-tree collector execution, but that boundary is not the same as a
+production extraction decision.
+
+Collectors observe source truth and emit versioned facts. Reducers,
+projectors, graph writers, query handlers, and answer packet builders own
+canonical Eshu truth.
+
+## Current Boundary
+
+The public collector SDK lives at `sdk/go/collector` and exposes the
+`collector-sdk/v1alpha1` wire contract. It intentionally does not import Eshu
+internal packages. The core extension host lives in
+`go/internal/collector/extensionhost`: it builds a bounded JSON claim/config
+request, launches a manifest-declared runner, validates the returned SDK result,
+maps accepted facts to internal envelopes, and hands claim mutation and commits
+back to `collector.ClaimedService`.
+
+An extension never receives Postgres, graph, reducer, API, MCP, or
+workflow-control handles. Installed, enabled, and claim-capable component states
+remain separate.
+
+## Extraction Criteria
+
+A collector family is eligible for out-of-tree extraction only when all rows are
+true.
+
+| Criterion | Required evidence |
+| --- | --- |
+| Source coupling | The collector depends only on external source APIs or artifacts plus public SDK contracts, not Eshu internal packages. |
+| Fact contract | Every emitted fact kind, schema version, source confidence, stable key, redacted payload, and downstream consumer is documented before runtime work. |
+| Scope and generation | The collector has a durable source scope and generation identity that supports retry, replay, stale-state handling, and idempotent re-emission. |
+| Trust boundary | Component manifest, compatible core range, digest-pinned artifact, publisher, revocation behavior, and allowlist or strict trust mode are documented. |
+| Runtime behavior | The hosted path has bounded claims, read-only credentials, resource limits, retry/dead-letter behavior, health, readiness, metrics, status, and logs. |
+| Release cadence | Vendor API or source-format churn is independent enough that a separate release cadence helps more than it harms correlation correctness. |
+| Proof surface | Fixture conformance, remote Compose proof, reducer admission, graph/query truth, and private-data handling all pass before support is claimed. |
+
+Passing local manifest verification or SDK fixture conformance is necessary but
+not sufficient. It proves package shape and SDK result validity; it does not
+prove hosted activation, graph truth, API/MCP readback, or production safety.
+
+## Keep In Tree
+
+Correlation-critical core collectors stay in-tree by default:
+
+- Git repository collection and parsing inputs
+- Terraform state and source evidence that provides deployment join keys
+- AWS, GCP, and Azure cloud collectors
+- Kubernetes live evidence
+- collectors whose facts co-evolve tightly with reducer admission,
+  materialization, graph identity, or query contracts
+
+These collectors create or preserve the join keys the code-to-cloud graph
+depends on. Moving them out of tree would require a separate architecture gate
+with fixture truth, reducer graph truth, API/MCP truth, performance, and
+concurrency evidence proving the split does not weaken correlation correctness.
+
+## Extraction Candidates
+
+Vendor-API and support-source collectors are the first candidates when they
+meet the criteria above:
+
+- PagerDuty incident and routing evidence
+- Jira work items
+- Confluence documentation evidence
+- observability metadata such as Grafana, Loki, Tempo, Mimir, or Prometheus
+- vulnerability intelligence and advisory sources
+
+These sources can change on provider cadence and can often emit source facts
+without changing Eshu's core graph admission model. They still need reducer and
+query proof before facts are presented as active platform truth.
+
+## PagerDuty Reference Path
+
+PagerDuty is the first extraction proof target for this policy. Completion
+requires all of the following:
+
+1. A reference PagerDuty component package using `collector-sdk/v1alpha1` and a
+   digest-pinned artifact.
+2. Component trust verification in the intended mode (`allowlist` or `strict`)
+   with revocation behavior documented.
+3. Claim-capable execution through `collector-component-extension` with no core
+   handles exposed to the extension.
+4. Fact parity with the in-tree PagerDuty path for synthetic incident and
+   routing fixtures.
+5. Reducer admission and graph/query readback parity for exact, derived,
+   ambiguous, missing, stale, permission-hidden, unsupported, drifted, and
+   rejected outcomes that apply to the PagerDuty evidence contract.
+6. Remote Compose proof, and Kubernetes proof before hosted chart defaults or
+   production deployment claims.
+7. Private-data proof showing tokens, private endpoints, responder identities,
+   provider payloads, private paths, and private names are redacted or rejected.
+8. Operator evidence covering health, readiness, metrics, logs, status,
+   retries, dead letters, fact counts, and freshness.
+
+Until those proofs exist, PagerDuty remains in-tree for production use. The
+extension path can be tested as an explicit proof target, but extraction is not
+complete.
+
+## Verification Gates
+
+Use the smallest gate that proves the touched boundary.
+
+| Change | Required gate |
+| --- | --- |
+| Policy or docs only | Strict MkDocs build, collector-authoring gate when the policy affects collector guidance, package-doc gate, `git diff --check`, and sensitive-string scan. |
+| SDK or manifest contract | SDK tests, component inspect/verify/conform tests, JSON Schema lockstep, and package-doc gate. |
+| Extension host or claim-capable worker | Focused Go tests for `extensionhost`, `collector-component-extension`, workflow claims, retries, identity mismatch, and status mapping. |
+| Collector extraction proof | Collector authoring gate, fixture conformance, remote Compose proof, reducer/materializer tests, API/MCP readback, performance evidence, and observability evidence. |
+| Hosted activation | Trust policy proof, Helm/Compose render checks, runtime status proof, private-data proof, and explicit operator opt-in. |
+
+No-Regression Evidence: this policy changes documentation only. It adds no SDK
+surface, component manifest field, collector runtime, workflow claim behavior,
+graph write, reducer behavior, API route, MCP tool, Helm template, Compose
+service, or release artifact.
+
+No-Observability-Change: the policy names required future signals but adds no
+metrics, spans, logs, status fields, queue domains, pprof output, or dashboard
+labels.
+
+## Related Docs
+
+- [Community Extension Authoring](../extend/community-extension-authoring.md)
+- [Collector Authoring](../guides/collector-authoring.md)
+- [Component Package Manager](component-package-manager.md)
+- [PagerDuty Evidence Contract](pagerduty-evidence.md)
+- [Plugin Trust Model](plugin-trust-model.md)
+- [Local Testing](local-testing.md)
