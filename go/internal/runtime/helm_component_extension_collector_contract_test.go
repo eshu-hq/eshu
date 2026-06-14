@@ -3,6 +3,7 @@ package runtime
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -123,6 +124,16 @@ func TestHelmComponentExtensionCollectorValidation(t *testing.T) {
 			values:     componentExtensionCollectorValuesWithAllowlist("allowlist", true, true, "dev.eshu.examples.pagerduty", ""),
 			wantOutput: "componentExtensionCollector.allowPublishers is required when componentExtensionCollector.enabled=true",
 		},
+		{
+			name:       "separator only allow ids",
+			values:     componentExtensionCollectorValuesWithAllowlist("allowlist", true, true, " , , ", "eshu-hq"),
+			wantOutput: "componentExtensionCollector.allowIds must contain at least one non-empty CSV token when componentExtensionCollector.enabled=true",
+		},
+		{
+			name:       "separator only allow publishers",
+			values:     componentExtensionCollectorValuesWithAllowlist("allowlist", true, true, "dev.eshu.examples.pagerduty", ","),
+			wantOutput: "componentExtensionCollector.allowPublishers must contain at least one non-empty CSV token when componentExtensionCollector.enabled=true",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -225,8 +236,8 @@ workflowCoordinator:
   instanceId: pagerduty-reference
   componentHome: /data/.eshu/components
   trustMode: ` + trustMode + `
-  allowIds: ` + allowIDs + `
-  allowPublishers: ` + allowPublishers + `
+  allowIds: ` + strconv.Quote(allowIDs) + `
+  allowPublishers: ` + strconv.Quote(allowPublishers) + `
   extensionEgressPolicyJSON: '{"mode":"restricted","extensions":[{"component_id":"dev.eshu.examples.pagerduty","decision":"allow"}]}'
   extraVolumes:
     - name: component-registry
