@@ -24,34 +24,6 @@ const (
 	cypherMaxResultRows = 1000
 )
 
-// cypherMutationKeywords are keywords that indicate a write or destructive
-// Cypher operation. We reject any query containing these regardless of
-// position so that even obfuscated or commented-out mutations are blocked.
-var cypherMutationKeywords = []string{
-	"CREATE", "MERGE", "DELETE", "DETACH", "SET ", "REMOVE",
-	"DROP", "CALL ", "FOREACH", "LOAD CSV",
-}
-
-// validateReadOnlyCypher returns an error if the query appears to contain
-// write or administrative operations. The Neo4j driver session is also
-// opened with AccessModeRead as a second line of defense, but we reject
-// obvious mutations before they reach the driver.
-func validateReadOnlyCypher(cypher string) error {
-	if len(cypher) > cypherMaxQueryLength {
-		return fmt.Errorf("query exceeds maximum length of %d characters", cypherMaxQueryLength)
-	}
-
-	upper := strings.ToUpper(cypher)
-
-	for _, kw := range cypherMutationKeywords {
-		if strings.Contains(upper, kw) {
-			return fmt.Errorf("query contains disallowed keyword %q; only read-only queries are permitted", strings.TrimSpace(kw))
-		}
-	}
-
-	return nil
-}
-
 // handleCypherQuery executes a user-submitted read-only Cypher query.
 //
 // Safety measures:
@@ -66,18 +38,32 @@ func (h *CodeHandler) handleCypherQuery(w http.ResponseWriter, r *http.Request) 
 		Limit       int    `json:"limit"`
 	}
 	if err := ReadJSON(r, &req); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+		writeCypherQueryError(w, r, http.StatusBadRequest, ErrorCodeInvalidArgument, err.Error())
 		return
 	}
 
 	if req.CypherQuery == "" {
-		WriteError(w, http.StatusBadRequest, "cypher_query is required")
+		writeCypherQueryError(w, r, http.StatusBadRequest, ErrorCodeInvalidArgument, "cypher_query is required")
+		return
+	}
+
+	if capabilityUnsupported(h.profile(), readOnlyCypherCapability) {
+		WriteContractError(
+			w,
+			r,
+			http.StatusNotImplemented,
+			"read-only Cypher queries require a graph-backed authoritative profile",
+			ErrorCodeUnsupportedCapability,
+			readOnlyCypherCapability,
+			h.profile(),
+			requiredProfile(readOnlyCypherCapability),
+		)
 		return
 	}
 
 	cypher, limit, err := boundedReadOnlyCypher(req.CypherQuery, req.Limit)
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+		writeCypherQueryError(w, r, http.StatusBadRequest, ErrorCodeInvalidArgument, err.Error())
 		return
 	}
 
@@ -86,7 +72,7 @@ func (h *CodeHandler) handleCypherQuery(w http.ResponseWriter, r *http.Request) 
 
 	rows, err := h.Neo4j.Run(ctx, cypher, nil)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		writeCypherQueryError(w, r, http.StatusInternalServerError, ErrorCodeInternalError, err.Error())
 		return
 	}
 
@@ -99,7 +85,22 @@ func (h *CodeHandler) handleCypherQuery(w http.ResponseWriter, r *http.Request) 
 		"results":   rows,
 		"limit":     limit,
 		"truncated": truncated,
-	}, BuildTruthEnvelope(h.profile(), "graph_query.read_only_cypher", TruthBasisAuthoritativeGraph, "resolved from bounded read-only graph query"))
+	}, BuildTruthEnvelope(h.profile(), readOnlyCypherCapability, TruthBasisAuthoritativeGraph, "resolved from bounded read-only graph query"))
+}
+
+func writeCypherQueryError(w http.ResponseWriter, r *http.Request, status int, code ErrorCode, message string) {
+	if acceptsEnvelope(r) {
+		WriteJSON(w, status, ResponseEnvelope{
+			Data: nil,
+			Error: &ErrorEnvelope{
+				Code:       code,
+				Message:    message,
+				Capability: readOnlyCypherCapability,
+			},
+		})
+		return
+	}
+	WriteError(w, status, message)
 }
 
 func boundedReadOnlyCypher(query string, requestedLimit int) (string, int, error) {
