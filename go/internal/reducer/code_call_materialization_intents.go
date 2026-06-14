@@ -1,6 +1,8 @@
 package reducer
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"path"
 	"sort"
 	"strings"
@@ -8,6 +10,13 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
+
+const codeCallPartitionKeyVersion = "code-calls:v1"
+
+type codeCallDeltaFileScope struct {
+	filePaths      []string
+	partitionPaths []string
+}
 
 func buildCodeCallProjectionContexts(envelopes []facts.Envelope, generationID string) map[string]ProjectionContext {
 	contextByRepoID := make(map[string]ProjectionContext)
@@ -91,9 +100,9 @@ func buildCodeCallSharedIntentRows(
 	return deduplicateCodeCallIntentRows(intents)
 }
 
-func buildCodeCallRefreshIntentsWithDeltaScope(
+func buildCodeCallRefreshIntentsWithDeltaFileScopes(
 	contextByRepoID map[string]ProjectionContext,
-	deltaFilePathsByRepoID map[string][]string,
+	deltaScopesByRepoID map[string]codeCallDeltaFileScope,
 	createdAt time.Time,
 ) []SharedProjectionIntentRow {
 	if len(contextByRepoID) == 0 {
@@ -109,20 +118,25 @@ func buildCodeCallRefreshIntentsWithDeltaScope(
 	intents := make([]SharedProjectionIntentRow, 0, len(repositoryIDs))
 	for _, repositoryID := range repositoryIDs {
 		context := contextByRepoID[repositoryID]
+		deltaScope := deltaScopesByRepoID[repositoryID]
+		partitionKey, fileScoped := codeCallRefreshPartitionKeyForDeltaScope(
+			repositoryID,
+			deltaScope.partitionPaths,
+		)
 		payload := map[string]any{
 			"repo_id":         repositoryID,
 			"action":          "refresh",
 			"intent_type":     "repo_refresh",
 			"evidence_source": codeCallRepoRefreshEvidenceSource,
 		}
-		if filePaths := deltaFilePathsByRepoID[repositoryID]; len(filePaths) > 0 {
+		if fileScoped {
 			payload["delta_projection"] = true
-			payload["delta_file_paths"] = append([]string(nil), filePaths...)
+			payload["delta_file_paths"] = append([]string(nil), deltaScope.filePaths...)
 		}
 
 		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
 			ProjectionDomain: DomainCodeCalls,
-			PartitionKey:     codeCallRefreshPartitionKey(repositoryID),
+			PartitionKey:     partitionKey,
 			ScopeID:          context.ScopeID,
 			AcceptanceUnitID: context.acceptanceUnitID(repositoryID),
 			RepositoryID:     repositoryID,
@@ -137,7 +151,22 @@ func buildCodeCallRefreshIntentsWithDeltaScope(
 }
 
 func buildCodeCallDeltaFilePathsByRepoID(envelopes []facts.Envelope) map[string][]string {
+	scopesByRepoID := buildCodeCallDeltaFileScopesByRepoID(envelopes)
+	if len(scopesByRepoID) == 0 {
+		return nil
+	}
+
+	pathsByRepoID := make(map[string][]string, len(scopesByRepoID))
+	for repositoryID, scope := range scopesByRepoID {
+		pathsByRepoID[repositoryID] = append([]string(nil), scope.filePaths...)
+	}
+	return pathsByRepoID
+}
+
+func buildCodeCallDeltaFileScopesByRepoID(envelopes []facts.Envelope) map[string]codeCallDeltaFileScope {
 	seenByRepoID := make(map[string]map[string]struct{})
+	repoPathByRepoID := make(map[string]string)
+	unsafeByRepoID := make(map[string]struct{})
 	for _, env := range envelopes {
 		if env.FactKind != factKindRepository || !codeCallPayloadBool(env.Payload, "delta_generation") {
 			continue
@@ -153,9 +182,14 @@ func buildCodeCallDeltaFilePathsByRepoID(envelopes []facts.Envelope) map[string]
 		if repoPath == "" {
 			repoPath = semanticPayloadString(env.Payload, "local_path")
 		}
+		if strings.TrimSpace(repoPath) == "" {
+			unsafeByRepoID[repositoryID] = struct{}{}
+			continue
+		}
 		for _, relativePath := range codeCallDeltaRelativePaths(env.Payload) {
-			filePath := qualifyCodeCallDeltaFilePath(repoPath, relativePath)
-			if filePath == "" {
+			cleanedRelativePath, ok := normalizeCodeCallDeltaRelativePath(relativePath)
+			if !ok {
+				unsafeByRepoID[repositoryID] = struct{}{}
 				continue
 			}
 			seen := seenByRepoID[repositoryID]
@@ -163,23 +197,40 @@ func buildCodeCallDeltaFilePathsByRepoID(envelopes []facts.Envelope) map[string]
 				seen = make(map[string]struct{})
 				seenByRepoID[repositoryID] = seen
 			}
-			seen[filePath] = struct{}{}
+			seen[cleanedRelativePath] = struct{}{}
+			repoPathByRepoID[repositoryID] = repoPath
 		}
 	}
 	if len(seenByRepoID) == 0 {
 		return nil
 	}
 
-	pathsByRepoID := make(map[string][]string, len(seenByRepoID))
+	scopesByRepoID := make(map[string]codeCallDeltaFileScope, len(seenByRepoID))
 	for repositoryID, seen := range seenByRepoID {
-		filePaths := make([]string, 0, len(seen))
-		for filePath := range seen {
-			filePaths = append(filePaths, filePath)
+		if _, unsafe := unsafeByRepoID[repositoryID]; unsafe {
+			continue
 		}
-		sort.Strings(filePaths)
-		pathsByRepoID[repositoryID] = filePaths
+		repoPath := repoPathByRepoID[repositoryID]
+		if strings.TrimSpace(repoPath) == "" {
+			continue
+		}
+
+		partitionPaths := make([]string, 0, len(seen))
+		for relativePath := range seen {
+			partitionPaths = append(partitionPaths, relativePath)
+		}
+		sort.Strings(partitionPaths)
+
+		filePaths := make([]string, 0, len(partitionPaths))
+		for _, relativePath := range partitionPaths {
+			filePaths = append(filePaths, path.Join(repoPath, relativePath))
+		}
+		scopesByRepoID[repositoryID] = codeCallDeltaFileScope{
+			filePaths:      filePaths,
+			partitionPaths: partitionPaths,
+		}
 	}
-	return pathsByRepoID
+	return scopesByRepoID
 }
 
 func codeCallDeltaRelativePaths(payload map[string]any) []string {
@@ -197,16 +248,14 @@ func codeCallDeltaRelativePaths(payload map[string]any) []string {
 	return paths
 }
 
-func qualifyCodeCallDeltaFilePath(repoPath string, relativePath string) string {
-	if repoPath == "" || relativePath == "" {
-		return ""
+func normalizeCodeCallDeltaRelativePath(relativePath string) (string, bool) {
+	candidate := strings.TrimSpace(relativePath)
+	cleaned := path.Clean(candidate)
+	if candidate == "" || cleaned == "" || cleaned == "." || cleaned == ".." ||
+		path.IsAbs(cleaned) || strings.HasPrefix(cleaned, "../") || cleaned != candidate {
+		return "", false
 	}
-	cleaned := path.Clean(relativePath)
-	if cleaned == "" || cleaned == "." || cleaned == ".." ||
-		path.IsAbs(cleaned) || strings.HasPrefix(cleaned, "../") {
-		return ""
-	}
-	return path.Join(repoPath, cleaned)
+	return cleaned, true
 }
 
 func codeCallPayloadBool(payload map[string]any, key string) bool {
@@ -222,7 +271,59 @@ func codeCallPayloadBool(payload map[string]any, key string) bool {
 }
 
 func codeCallRefreshPartitionKey(repositoryID string) string {
-	return "repo-refresh:" + repositoryID
+	return codeCallWholeScopePartitionKey(repositoryID)
+}
+
+func codeCallRefreshPartitionKeyForDelta(repositoryID string, filePaths []string) string {
+	partitionKey, _ := codeCallRefreshPartitionKeyForDeltaScope(repositoryID, filePaths)
+	return partitionKey
+}
+
+func codeCallRefreshPartitionKeyForDeltaScope(repositoryID string, filePaths []string) (string, bool) {
+	normalizedPaths, ok := normalizeCodeCallPartitionFilePaths(filePaths)
+	if !ok {
+		return codeCallWholeScopePartitionKey(repositoryID), false
+	}
+
+	hash := sha256.New()
+	hash.Write([]byte(strings.TrimSpace(repositoryID)))
+	hash.Write([]byte{0})
+	for _, filePath := range normalizedPaths {
+		hash.Write([]byte(filePath))
+		hash.Write([]byte{0})
+	}
+	digest := hash.Sum(nil)
+	return codeCallPartitionKeyVersion + ":files:" +
+		strings.TrimSpace(repositoryID) + ":" + hex.EncodeToString(digest), true
+}
+
+func normalizeCodeCallPartitionFilePaths(filePaths []string) ([]string, bool) {
+	if len(filePaths) == 0 {
+		return nil, false
+	}
+
+	seen := make(map[string]struct{}, len(filePaths))
+	normalized := make([]string, 0, len(filePaths))
+	for _, filePath := range filePaths {
+		cleaned, ok := normalizeCodeCallDeltaRelativePath(filePath)
+		if !ok {
+			return nil, false
+		}
+		if _, ok := seen[cleaned]; ok {
+			continue
+		}
+		seen[cleaned] = struct{}{}
+		normalized = append(normalized, cleaned)
+	}
+	if len(normalized) == 0 {
+		return nil, false
+	}
+	sort.Strings(normalized)
+	return normalized, true
+}
+
+func codeCallWholeScopePartitionKey(repositoryID string) string {
+	return codeCallPartitionKeyVersion + ":whole:" + strings.TrimSpace(repositoryID)
 }
 
 func deduplicateCodeCallIntentRows(intents []SharedProjectionIntentRow) []SharedProjectionIntentRow {
