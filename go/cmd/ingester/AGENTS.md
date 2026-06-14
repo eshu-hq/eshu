@@ -9,9 +9,11 @@
 3. `go/cmd/ingester/wiring.go` — `buildIngesterService`, `compositeRunner`,
    `buildIngesterCollectorService`, `buildIngesterProjectorService`; the two
    services run concurrently under a shared cancel context
-4. `go/internal/collector/README.md` and `go/internal/projector/README.md` —
+4. `go/cmd/ingester/wiring_deferred_relationship.go` — deferred relationship
+   backfill and deployment-mapping reopen ordering after collector batch drain
+5. `go/internal/collector/README.md` and `go/internal/projector/README.md` —
    understand both services before modifying their wiring
-5. `go/cmd/ingester/wiring_nornicdb_env.go` and `wiring_nornicdb_config.go` —
+6. `go/cmd/ingester/wiring_nornicdb_env.go` and `wiring_nornicdb_config.go` —
    NornicDB knobs; read before adding or changing any ESHU_NORNICDB_* variable
 
 ## Invariants this package enforces
@@ -21,7 +23,7 @@
 - **AfterBatchDrained ordering** — `BackfillAllRelationshipEvidence` must run
   before `ReopenDeploymentMappingWorkItems`. Both must succeed; a failure exits
   the ingester. This implements CLAUDE.md Phase 1 / Phase 3 bootstrap ordering.
-  Enforced in `wiring.go:ingesterDeferredRelationshipMaintenance`.
+  Enforced in `wiring_deferred_relationship.go`.
 - **SkipRelationshipBackfill = true** on `IngestionStore` — per-commit backfill
   is suppressed deliberately. Do not remove this flag without adding equivalent
   per-commit backfill, which would slow the hot commit path.

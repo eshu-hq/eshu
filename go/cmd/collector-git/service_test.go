@@ -42,8 +42,12 @@ func TestBuildCollectorServiceUsesIngestionStoreBoundary(t *testing.T) {
 		t.Fatalf("buildCollectorService() snapshotter type = %T, want collector.NativeRepositorySnapshotter", source.Snapshotter)
 	}
 	snapshotter := source.Snapshotter.(collector.NativeRepositorySnapshotter)
-	if snapshotter.SCIP.Enabled {
-		t.Fatal("buildCollectorService() SCIP enabled by default, want false")
+	if !snapshotter.SCIP.Enabled {
+		t.Fatal("buildCollectorService() SCIP enabled by default = false, want true")
+	}
+	wantLanguages := []string{"python", "typescript", "javascript", "go", "rust", "java", "cpp", "c"}
+	if !reflect.DeepEqual(snapshotter.SCIP.Languages, wantLanguages) {
+		t.Fatalf("buildCollectorService() SCIP languages = %#v, want %#v", snapshotter.SCIP.Languages, wantLanguages)
 	}
 	if service.PollInterval <= 0 {
 		t.Fatalf(

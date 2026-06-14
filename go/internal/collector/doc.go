@@ -46,20 +46,23 @@
 // Argo CD/Kubernetes observability state rows from repository parsers become
 // metadata-only observability source facts; reducers and query surfaces own any
 // later declared/applied/observed coverage truth.
-// Optional SCIP indexing supplements native parser output with SCIP call facts
+// SCIP indexing is enabled by default when the selected language's external
+// scip-* binary is available, and explicit SCIP_INDEXER=false/off/0/no keeps
+// native-only parsing. SCIP supplements native parser output with call facts
 // for matching files only. It must not shrink the discovered parser file set:
 // files selected by discovery but omitted from index.scip still parse through
 // the native parser and emit normal content facts.
 //
 // No-Regression Evidence: `TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex`
-// covers a SCIP-enabled snapshot where one selected Python file is missing from
-// SCIP output and still emits native parser metadata.
+// covers a default SCIP-enabled snapshot where one selected Python file is
+// missing from SCIP output and still emits native parser metadata.
 //
-// No-Observability-Change: the completeness guard reuses the existing
+// Observability Evidence: the completeness guard reuses the existing
 // `collector snapshot stage completed` parse summary,
 // `eshu_dp_file_parse_duration_seconds`, file parsed counters, and fact emission
-// signals; it adds no worker, queue, graph write, metric label, status field,
-// span, or runtime setting.
+// signals. SCIP binary, indexer, and parser fallback reasons are logged with
+// bounded language, reason, and failure_class fields; the path adds no worker,
+// queue, graph write, metric label, status field, span, or runtime setting.
 //
 // The scannerworker subpackage owns the hosted boundary for isolated security
 // analyzers. It defines claim input, target scope, resource limits,

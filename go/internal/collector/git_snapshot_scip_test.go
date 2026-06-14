@@ -3,6 +3,7 @@ package collector
 import (
 	"context"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -64,9 +65,224 @@ func TestMergeSCIPSupplementAttachesCallsAndPreservesNativeRoots(t *testing.T) {
 	}
 }
 
-func TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex(t *testing.T) {
+func TestLoadSnapshotSCIPConfigDefaultsEnabledForTopLanguageList(t *testing.T) {
 	t.Parallel()
 
+	config := LoadSnapshotSCIPConfig(func(string) string {
+		return ""
+	})
+
+	if !config.Enabled {
+		t.Fatalf("Enabled = false, want default SCIP enabled")
+	}
+	wantLanguages := []string{"python", "typescript", "javascript", "go", "rust", "java", "cpp", "c"}
+	if !reflect.DeepEqual(config.Languages, wantLanguages) {
+		t.Fatalf("Languages = %#v, want %#v", config.Languages, wantLanguages)
+	}
+}
+
+func TestLoadSnapshotSCIPConfigExplicitDisablePreservesLanguageNarrowing(t *testing.T) {
+	t.Parallel()
+
+	config := LoadSnapshotSCIPConfig(func(key string) string {
+		switch key {
+		case "SCIP_INDEXER":
+			return "false"
+		case "SCIP_LANGUAGES":
+			return "go, python"
+		default:
+			return ""
+		}
+	})
+
+	if config.Enabled {
+		t.Fatalf("Enabled = true, want explicit SCIP_INDEXER=false to disable SCIP")
+	}
+	wantLanguages := []string{"go", "python"}
+	if !reflect.DeepEqual(config.Languages, wantLanguages) {
+		t.Fatalf("Languages = %#v, want %#v", config.Languages, wantLanguages)
+	}
+}
+
+func TestSCIPSnapshotDefaultsToSCIPWhenBinaryAvailable(t *testing.T) {
+	repoRoot := t.TempDir()
+	appPath := filepath.Join(repoRoot, "app.py")
+	writeCollectorTestFile(t, appPath, "def main():\n    return 1\n")
+
+	indexer := &recordingSCIPIndexer{available: true}
+	config := LoadSnapshotSCIPConfig(func(string) string {
+		return ""
+	})
+	config.Indexer = indexer
+	config.Parser = fakeSCIPParser{
+		result: parser.SCIPParseResult{
+			Files: map[string]map[string]any{
+				appPath: {
+					"path":                appPath,
+					"lang":                "python",
+					"function_calls_scip": []map[string]any{{"callee_symbol": "scip-python python app/main()."}},
+				},
+			},
+		},
+	}
+	snapshotter := NativeRepositorySnapshotter{SCIP: config}
+
+	_, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
+		context.Background(),
+		repoRoot,
+		discovery.RepoFileSet{Files: []string{appPath}},
+		defaultCollectorTestEngine(t),
+		"commit-sha",
+		false,
+		parser.GoPackageSemanticRoots{},
+	)
+	if err != nil {
+		t.Fatalf("buildParsedRepositoryFiles() error = %v, want nil", err)
+	}
+
+	if got := indexer.runLanguages; !reflect.DeepEqual(got, []string{"python"}) {
+		t.Fatalf("SCIP run languages = %#v, want python", got)
+	}
+	if got, _ := parsedFiles[0]["function_calls_scip"].([]map[string]any); len(got) != 1 {
+		t.Fatalf("function_calls_scip = %#v, want default SCIP supplement", parsedFiles[0]["function_calls_scip"])
+	}
+}
+
+func TestSCIPSnapshotExplicitDisableFallsBackToNative(t *testing.T) {
+	repoRoot := t.TempDir()
+	appPath := filepath.Join(repoRoot, "app.py")
+	writeCollectorTestFile(t, appPath, "def main():\n    return 1\n")
+
+	indexer := &recordingSCIPIndexer{available: true}
+	config := LoadSnapshotSCIPConfig(func(key string) string {
+		if key == "SCIP_INDEXER" {
+			return "off"
+		}
+		return ""
+	})
+	config.Indexer = indexer
+	config.Parser = fakeSCIPParser{
+		result: parser.SCIPParseResult{
+			Files: map[string]map[string]any{
+				appPath: {"function_calls_scip": []map[string]any{{"callee_symbol": "unused"}}},
+			},
+		},
+	}
+	snapshotter := NativeRepositorySnapshotter{SCIP: config}
+
+	_, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
+		context.Background(),
+		repoRoot,
+		discovery.RepoFileSet{Files: []string{appPath}},
+		defaultCollectorTestEngine(t),
+		"commit-sha",
+		false,
+		parser.GoPackageSemanticRoots{},
+	)
+	if err != nil {
+		t.Fatalf("buildParsedRepositoryFiles() error = %v, want nil", err)
+	}
+
+	if len(indexer.runLanguages) != 0 {
+		t.Fatalf("SCIP run languages = %#v, want no SCIP run when disabled", indexer.runLanguages)
+	}
+	if _, ok := parsedFiles[0]["function_calls_scip"]; ok {
+		t.Fatalf("function_calls_scip = %#v, want native-only output when SCIP disabled", parsedFiles[0]["function_calls_scip"])
+	}
+}
+
+func TestSCIPSnapshotUnavailableBinaryFallsBackToNative(t *testing.T) {
+	repoRoot := t.TempDir()
+	appPath := filepath.Join(repoRoot, "app.py")
+	writeCollectorTestFile(t, appPath, "def main():\n    return 1\n")
+
+	indexer := &recordingSCIPIndexer{available: false}
+	config := LoadSnapshotSCIPConfig(func(string) string {
+		return ""
+	})
+	config.Indexer = indexer
+	config.Parser = fakeSCIPParser{
+		result: parser.SCIPParseResult{
+			Files: map[string]map[string]any{
+				appPath: {"function_calls_scip": []map[string]any{{"callee_symbol": "unused"}}},
+			},
+		},
+	}
+	snapshotter := NativeRepositorySnapshotter{SCIP: config}
+
+	_, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
+		context.Background(),
+		repoRoot,
+		discovery.RepoFileSet{Files: []string{appPath}},
+		defaultCollectorTestEngine(t),
+		"commit-sha",
+		false,
+		parser.GoPackageSemanticRoots{},
+	)
+	if err != nil {
+		t.Fatalf("buildParsedRepositoryFiles() error = %v, want nil", err)
+	}
+
+	if got := indexer.availabilityChecks; !reflect.DeepEqual(got, []string{"python"}) {
+		t.Fatalf("SCIP availability checks = %#v, want python", got)
+	}
+	if len(indexer.runLanguages) != 0 {
+		t.Fatalf("SCIP run languages = %#v, want no run when binary unavailable", indexer.runLanguages)
+	}
+	if _, ok := parsedFiles[0]["function_calls_scip"]; ok {
+		t.Fatalf("function_calls_scip = %#v, want native-only output without SCIP binary", parsedFiles[0]["function_calls_scip"])
+	}
+}
+
+func TestSCIPSnapshotLanguagesNarrowDominantSelection(t *testing.T) {
+	repoRoot := t.TempDir()
+	pythonPath := filepath.Join(repoRoot, "app.py")
+	goPath := filepath.Join(repoRoot, "main.go")
+	writeCollectorTestFile(t, pythonPath, "def main():\n    return 1\n")
+	writeCollectorTestFile(t, goPath, "package main\n\nfunc main() {}\n")
+
+	indexer := &recordingSCIPIndexer{available: true}
+	config := LoadSnapshotSCIPConfig(func(key string) string {
+		if key == "SCIP_LANGUAGES" {
+			return "go"
+		}
+		return ""
+	})
+	config.Indexer = indexer
+	config.Parser = fakeSCIPParser{
+		result: parser.SCIPParseResult{
+			Files: map[string]map[string]any{
+				goPath: {"function_calls_scip": []map[string]any{{"callee_symbol": "scip-go gomod main/main()."}}},
+			},
+		},
+	}
+	snapshotter := NativeRepositorySnapshotter{SCIP: config}
+
+	_, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
+		context.Background(),
+		repoRoot,
+		discovery.RepoFileSet{Files: []string{pythonPath, goPath}},
+		defaultCollectorTestEngine(t),
+		"commit-sha",
+		false,
+		parser.GoPackageSemanticRoots{},
+	)
+	if err != nil {
+		t.Fatalf("buildParsedRepositoryFiles() error = %v, want nil", err)
+	}
+
+	if got := indexer.runLanguages; !reflect.DeepEqual(got, []string{"go"}) {
+		t.Fatalf("SCIP run languages = %#v, want narrowed go selection", got)
+	}
+	if _, ok := parsedFiles[0]["function_calls_scip"]; ok {
+		t.Fatalf("python function_calls_scip = %#v, want absent when SCIP_LANGUAGES narrows to go", parsedFiles[0]["function_calls_scip"])
+	}
+	if got, _ := parsedFiles[1]["function_calls_scip"].([]map[string]any); len(got) != 1 {
+		t.Fatalf("go function_calls_scip = %#v, want SCIP supplement", parsedFiles[1]["function_calls_scip"])
+	}
+}
+
+func TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex(t *testing.T) {
 	repoRoot := t.TempDir()
 	appPath := filepath.Join(repoRoot, "app.py")
 	helperPath := filepath.Join(repoRoot, "helper.py")
@@ -89,29 +305,29 @@ func TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex(t *testing.T) {
 			"callee_symbol": "scip-python python helper/helper().",
 		},
 	}
-	snapshotter := NativeRepositorySnapshotter{
-		Instruments: instruments,
-		SCIP: SnapshotSCIPConfig{
-			Enabled:   true,
-			Languages: []string{"python"},
-			Indexer:   fakeSCIPIndexer{},
-			Parser: fakeSCIPParser{
-				result: parser.SCIPParseResult{
-					Files: map[string]map[string]any{
-						appPath: {
-							"path":                appPath,
-							"lang":                "python",
-							"is_dependency":       false,
-							"functions":           []map[string]any{},
-							"classes":             []map[string]any{},
-							"variables":           []map[string]any{},
-							"imports":             []map[string]any{},
-							"function_calls_scip": scipCalls,
-						},
-					},
+	config := LoadSnapshotSCIPConfig(func(string) string {
+		return ""
+	})
+	config.Indexer = &recordingSCIPIndexer{available: true}
+	config.Parser = fakeSCIPParser{
+		result: parser.SCIPParseResult{
+			Files: map[string]map[string]any{
+				appPath: {
+					"path":                appPath,
+					"lang":                "python",
+					"is_dependency":       false,
+					"functions":           []map[string]any{},
+					"classes":             []map[string]any{},
+					"variables":           []map[string]any{},
+					"imports":             []map[string]any{},
+					"function_calls_scip": scipCalls,
 				},
 			},
 		},
+	}
+	snapshotter := NativeRepositorySnapshotter{
+		Instruments: instruments,
+		SCIP:        config,
 	}
 
 	shapeFiles, parsedFiles, _, err := snapshotter.buildParsedRepositoryFiles(
@@ -163,21 +379,45 @@ func TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex(t *testing.T) {
 	}
 }
 
-type fakeSCIPIndexer struct{}
+func defaultCollectorTestEngine(t *testing.T) *parser.Engine {
+	t.Helper()
 
-func (fakeSCIPIndexer) IsAvailable(string) bool {
-	return true
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+	return engine
 }
 
-func (fakeSCIPIndexer) Run(context.Context, string, string, string) (string, error) {
+type recordingSCIPIndexer struct {
+	available          bool
+	runErr             error
+	availabilityChecks []string
+	runLanguages       []string
+}
+
+func (i *recordingSCIPIndexer) IsAvailable(language string) bool {
+	i.availabilityChecks = append(i.availabilityChecks, language)
+	return i.available
+}
+
+func (i *recordingSCIPIndexer) Run(_ context.Context, _ string, language string, _ string) (string, error) {
+	i.runLanguages = append(i.runLanguages, language)
+	if i.runErr != nil {
+		return "", i.runErr
+	}
 	return "fake-index.scip", nil
 }
 
 type fakeSCIPParser struct {
 	result parser.SCIPParseResult
+	err    error
 }
 
 func (p fakeSCIPParser) Parse(string, string) (parser.SCIPParseResult, error) {
+	if p.err != nil {
+		return parser.SCIPParseResult{}, p.err
+	}
 	return p.result, nil
 }
 

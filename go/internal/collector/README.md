@@ -423,13 +423,13 @@ progress messages.
   and Java call inference do not need every method-local declaration as a
   canonical `Variable` node. Keep JS/TS/Python local-variable coverage intact
   unless their query contracts change.
-- Optional SCIP indexing is a supplement over native parser output. A SCIP index
-  may omit selected files, but the snapshotter still parses every selected file
-  through the native parser and only attaches SCIP call facts to matching files.
-  No-Regression Evidence: `TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex`.
-  No-Observability-Change: the path uses the existing parse-stage log,
-  `eshu_dp_file_parse_duration_seconds`, `eshu_dp_files_parsed_total`, and
-  fact counters.
+- SCIP indexing defaults on for `python,typescript,javascript,go,rust,java,cpp,c`
+  when the matching `scip-*` binary is available. Set `SCIP_INDEXER=false`, `0`,
+  `no`, or `off` for native-only parsing, or set `SCIP_LANGUAGES` to narrow the
+  SCIP language. Missing binaries, indexer/parser failures, or selected files
+  absent from `index.scip` fall back to native parser output. No-Regression
+  Evidence: `TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex`.
+  Observability Evidence: bounded SCIP fallback logs name language, reason, and failure class; parse logs, metrics, and fact counters diagnose fallback.
 - Terraform-state ingestion currently uses explicit sources and Git-observed
   backend facts. The #140 target design adds repo-local `.tfstate` candidates
   as advisory metadata, but those candidates must not route raw state through

@@ -230,12 +230,13 @@ The Ruby package also owns Bundler `Gemfile` and `Gemfile.lock` dependency
 evidence so RubyGems manifest and lockfile rows use the same parser payload
 path as `.rb` source files.
 
-**SCIP path**: when SCIP_INDEXER=true, the collector snapshotter detects the
-dominant SCIP-capable language via `DetectSCIPProjectLanguage`, runs the
-external `scip-*` binary via `SCIPIndexer.Run`, and parses the resulting
-protobuf index via `SCIPIndexParser.Parse`. The SCIP result supplements the
-native tree-sitter parse for supported languages (Go, Python, TypeScript,
-JavaScript, Rust, Java, C, C++).
+**SCIP path**: the collector snapshotter enables SCIP by default for the
+configured SCIP-capable language list, detects the dominant language via
+`DetectSCIPProjectLanguage`, verifies the matching `scip-*` binary is on
+`PATH`, runs it via `SCIPIndexer.Run`, and parses the resulting protobuf index
+via `SCIPIndexParser.Parse`. The SCIP result supplements the native
+tree-sitter parse for supported languages (Go, Python, TypeScript, JavaScript,
+Rust, Java, C, C++).
 
 ## Exported surface
 
@@ -332,8 +333,11 @@ path in Eshu:
 4. SCIP results supplement — not replace — native tree-sitter output for the
    same repository.
 
-SCIP is opt-in via SCIP_INDEXER=true. The allowed language list defaults to
-`python,typescript,go,rust,java` and is overridden via SCIP_LANGUAGES.
+SCIP defaults on for
+`python,typescript,javascript,go,rust,java,cpp,c` when the required external
+binary is available. Set `SCIP_INDEXER=false`, `0`, `no`, or `off` to force
+native-only parsing. `SCIP_LANGUAGES` narrows the allowlist; it does not remove
+native parser coverage for selected files outside the SCIP index.
 
 ## Dependencies
 
@@ -376,8 +380,10 @@ errors are surfaced in `collector snapshot stage completed` logs with
   The first call per grammar loads the native grammar; subsequent calls return
   the cached handle. Do not call `NewRuntime()` per file — share one runtime
   across all parse calls.
-- The SCIP binaries (`scip-go`, `scip-python`, etc.) must be on PATH. Use
-  `SCIPIndexer.LookPath` to verify availability before enabling SCIP_INDEXER.
+- The SCIP binaries (`scip-go`, `scip-python`, etc.) must be on PATH for SCIP
+  supplementation to run. `SCIPIndexer.IsAvailable` checks the selected
+  language binary first; if the binary is absent or the indexer/parser fails,
+  the collector keeps the native parser output as the complete payload.
 
 ## Extension points
 

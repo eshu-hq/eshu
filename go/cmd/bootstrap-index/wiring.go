@@ -52,6 +52,7 @@ func buildBootstrapCollector(
 		Component: "bootstrap-index",
 		Selector:  collector.NativeRepositorySelector{Config: config},
 		Snapshotter: collector.NativeRepositorySnapshotter{
+			SCIP:             collector.LoadSnapshotSCIPConfig(getenv),
 			ParseWorkers:     config.ParseWorkers,
 			DiscoveryOptions: discoveryOptions,
 			Tracer:           tracer,

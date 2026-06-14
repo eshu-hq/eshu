@@ -164,8 +164,8 @@ telemetry, Postgres, or graph setup begins.
 | ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY | NumCPU clamped to 16 | Parallel chunk dispatch for canonical entity phases. Clamped to 16. Set to 1 to keep serial dispatch. |
 | ESHU_QUERY_PROFILE | — | local_lightweight or local_authoritative |
 | ESHU_DISABLE_NEO4J | — | Force local-lightweight writer when true |
-| SCIP_INDEXER | false | Enable external SCIP indexers |
-| SCIP_LANGUAGES | python,typescript,go,rust,java | Languages eligible for SCIP indexing |
+| SCIP_INDEXER | true | Enable external SCIP indexers when the selected language binary is available; set false/0/no/off for native-only parsing |
+| SCIP_LANGUAGES | python,typescript,javascript,go,rust,java,cpp,c | Languages eligible for SCIP indexing |
 | ESHU_PROJECTOR_RETRY_ONCE_SCOPE_GENERATION | — | Fault-injection: scope generation ID for one-shot retry |
 | ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED | false | Check queued webhook refresh triggers before scheduled repository polling |
 | ESHU_WEBHOOK_TRIGGER_HANDOFF_OWNER | ingester | Lease owner written when claiming queued webhook triggers |
