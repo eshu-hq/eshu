@@ -117,6 +117,14 @@ recordings, production screenshots, private incident exports, private
 organization names, private service names, real account identifiers, provider
 keys, credentials, personal data, or machine-specific paths.
 
+The initial implementation proof lives in
+`go/internal/doctruth/extractor_incident_media_test.go`. It exercises the
+existing documentation mention and claim-candidate boundary: media-derived
+sections can emit documentation evidence with source metadata, ACL posture,
+section anchors, and source refs, but they do not create graph nodes, graph
+edges, deployment truth, incident conclusions, or provider-derived fallback
+mentions.
+
 | Fixture | Required assertion |
 | --- | --- |
 | Postmortem transcript mentions one known service | Mention resolves to `exact` evidence beside the existing service, not new graph truth. |

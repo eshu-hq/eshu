@@ -318,17 +318,8 @@ func (e *Extractor) resolveMention(section SectionInput, candidate mentionCandid
 }
 
 func mentionSourceMetadata(section SectionInput, candidate mentionCandidate) map[string]string {
-	metadata := make(map[string]string, len(section.SourceMetadata)+3)
-	for key, value := range section.SourceMetadata {
-		if _, reserved := reservedSourceMetadataKeys[key]; reserved {
-			metadata["section."+key] = value
-			continue
-		}
-		metadata[key] = value
-	}
+	metadata := sectionEvidenceMetadata(section, len(section.SourceMetadata)+3)
 	metadata["mention_source"] = candidate.from
-	metadata["source_start_ref"] = section.SourceStartRef
-	metadata["source_end_ref"] = section.SourceEndRef
 	return metadata
 }
 
@@ -365,17 +356,6 @@ func (e *Extractor) claimCandidate(
 		return facts.DocumentationClaimCandidatePayload{}, objectStatus, claimSuppressionUnresolvedObject
 	}
 
-	sourceMetadata := map[string]string{
-		"source_start_ref": section.SourceStartRef,
-		"source_end_ref":   section.SourceEndRef,
-	}
-	for key, value := range hint.SourceMetadata {
-		if _, reserved := reservedSourceMetadataKeys[key]; reserved {
-			sourceMetadata["hint."+key] = value
-			continue
-		}
-		sourceMetadata[key] = value
-	}
 	payload := facts.DocumentationClaimCandidatePayload{
 		DocumentID:       section.DocumentID,
 		RevisionID:       section.RevisionID,
@@ -395,7 +375,7 @@ func (e *Extractor) claimCandidate(
 			URI:        section.CanonicalURI,
 			Confidence: facts.SourceConfidenceObserved,
 		}},
-		SourceMetadata: sourceMetadata,
+		SourceMetadata: claimSourceMetadata(section, hint),
 	}
 	return payload, facts.DocumentationMentionResolutionExact, ""
 }
