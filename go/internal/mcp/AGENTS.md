@@ -7,10 +7,12 @@
 2. `go/internal/mcp/server.go` — `Server`, `NewServer`, `handleMessage`,
    `handleSSE`, `handleHTTPMessage`, and `RunHTTP`; understand the message
    dispatch switch before touching protocol handling
-3. `go/internal/mcp/dispatch.go`, `go/internal/mcp/dispatch_args.go`, and
+3. `go/internal/mcp/dispatch.go`, `go/internal/mcp/dispatch_timeout.go`,
+   `go/internal/mcp/dispatch_args.go`, and
    `go/internal/mcp/dispatch_package_registry.go` — `dispatchTool`,
-   `resolveRoute`, package-registry cursor mapping, and argument helpers;
-   understand `parseCanonicalEnvelope` before touching response shaping
+   deadline handling, `resolveRoute`, package-registry cursor mapping, and
+   argument helpers; understand `parseCanonicalEnvelope` before touching
+   response shaping
 4. `go/internal/mcp/types.go` — `ToolDefinition` and `ReadOnlyTools`; this is
    the tool registry entry point
 5. `go/internal/query/` — the `http.Handler` that backs every tool call;
@@ -24,18 +26,23 @@
   calls `resolveRoute` for every tool and fails if any returns an error.
 
 - **Shared truth with HTTP** — `dispatchTool` calls `ServeHTTP` via
-  `NewRecorder` (`dispatch.go:57`), using the same handler the HTTP API
-  exposes. Do not add separate query logic inside this package.
+  `NewRecorder`, using the same handler the HTTP API exposes. Do not add
+  separate query logic inside this package.
+
+- **Bounded dispatch context** — `dispatchTool` wraps handler requests in a
+  bounded child context and returns a context error if the deadline or parent
+  context ends before response parsing. Query handlers must honor
+  `r.Context()` cancellation instead of starting unbounded work.
 
 - **Envelope MIME type constant** — `EnvelopeMIMEType` is written as the
   resource MIME type at `server.go:389`. Do not replace with a string literal;
   the constant is the public contract between this package and `internal/query`.
 
-- **Authorization passthrough** — `dispatchTool` (`dispatch.go:46`) forwards
-  the `Authorization` header from the original MCP request to the internal
-  handler. If the handler requires auth, it must arrive via this path.
+- **Authorization passthrough** — `dispatchTool` forwards the `Authorization`
+  header from the original MCP request to the internal handler. If the handler
+  requires auth, it must arrive via this path.
 
-- **`Accept` header always set** — `dispatch.go:42` sets
+- **`Accept` header always set** — dispatch sets
   `Accept: application/eshu.envelope+json`. Handlers gating on this header
   will return the canonical envelope. Removing this header breaks envelope
   detection for all tools.

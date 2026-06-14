@@ -4,7 +4,12 @@
 MCP server, the JSON-RPC dispatcher, the SSE session model, and the 125
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
-response share the same truth.
+response share the same truth. Dispatch wraps each handler request in a
+bounded context with a deterministic 30s default, so MCP calls cannot run
+without a deadline; handlers remain responsible for honoring `r.Context()`
+cancellation. Deadline and parent cancellation failures return an MCP error
+result with structured content and an `eshu://tool-error/dispatch` JSON
+resource.
 
 ## Where this fits in the pipeline
 
@@ -39,9 +44,11 @@ flowchart TB
     parse["json.Unmarshal params\nmcpToolCallParams"]
     dt["dispatchTool()\ndispatch.go:18"]
     rr["resolveRoute(toolName, args)\ndispatch.go:173"]
+    deadline["context.WithTimeout\nbounded dispatch deadline"]
     req["http.NewRequestWithContext\nmethod + path + body + auth"]
     rec["httptest.NewRecorder"]
     serve["handler.ServeHTTP(rec, req)"]
+    timeout["structured MCP error\neshu://tool-error/dispatch"]
     pce["parseCanonicalEnvelope(body)\ndispatch_envelope.go:15"]
     envelope["mcpToolResult with\ntext summary + structuredContent + resource block"]
     plain["mcpToolResult with\ntext summary + structuredContent + JSON resource block"]
@@ -49,13 +56,36 @@ flowchart TB
     hm --> parse
     parse --> dt
     dt --> rr
-    rr -->|"route{method, path, body, query}"| req
+    rr -->|"route{method, path, body, query}"| deadline
+    deadline --> req
     req --> rec
     rec --> serve
+    serve -->|"context ended"| timeout
     serve --> pce
     pce -->|"envelope detected"| envelope
     pce -->|"plain JSON"| plain
 ```
+
+## Dispatch deadline evidence
+
+No-Regression Evidence: issue #2469 adds a context-only MCP dispatch deadline
+with no new graph, storage, queue, or HTTP query work. Baseline behavior was
+the existing `dispatchTool` path calling `handler.ServeHTTP` with the caller
+context and no dispatch deadline. After measurement on Go 1.26 covered
+`go test ./cmd/mcp-server ./internal/query ./internal/mcp -count=1` and
+`golangci-lint run ./...`; input shape was `list_indexed_repositories` routed
+through the shared HTTP handler with a test override of 20ms and a parent
+deadline case. Terminal row counts and queue counts are unchanged because the
+patch does not query Postgres, NornicDB, Neo4j, or reducer queues. The change is
+safe because success responses keep the same handler envelope, while timeout
+and parent-cancellation paths stop before response parsing and return structured
+MCP error content.
+
+Observability Evidence: dispatch timeout and cancellation failures emit
+`mcp tool dispatch context ended` with `tool`, `timeout`, and `err` fields. The
+success path has No-Observability-Change: it preserves the existing
+`dispatch tool` debug log and does not add spans, metrics, or extra per-row
+logging.
 
 ## Tool groups
 
