@@ -65,6 +65,9 @@ func TestDocumentationHandlerListsMediaTranscriptSectionFactsWithMetadata(t *tes
 	if got, want := metadata["format_family"], "media_transcript"; got != want {
 		t.Fatalf("format_family = %#v, want %#v", got, want)
 	}
+	if got, want := metadata["incident_media_source_class"], "transcript_chunk"; got != want {
+		t.Fatalf("incident_media_source_class = %#v, want %#v", got, want)
+	}
 	if got, want := metadata["speaker_label_present"], "true"; got != want {
 		t.Fatalf("speaker_label_present = %#v, want %#v", got, want)
 	}

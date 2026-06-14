@@ -6,7 +6,9 @@
 documentation artifacts into source-neutral documentation document and section
 facts. It exists so audio/video transcript facts can be tested and read back
 without enabling a hosted collector path or treating spoken text as operational
-truth.
+truth. Emitted metadata identifies transcript sections with the incident-media
+`transcript_chunk` source class so later correlation code can preserve
+provenance without promoting transcript text to graph truth.
 
 ## Ownership boundary
 
@@ -94,5 +96,6 @@ readback surfaces already carry the emitted documentation facts.
 ## Related docs
 
 - `docs/internal/design/1737-visual-media-documentation-ingestion.md`
+- `docs/public/reference/incident-media-evidence.md`
 - `go/internal/collector/mediapreflight/README.md`
 - `docs/public/reference/local-testing.md`

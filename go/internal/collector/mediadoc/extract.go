@@ -15,9 +15,10 @@ import (
 )
 
 const (
-	formatMediaTranscript  = "media_transcript"
-	documentTypeMedia      = "media"
-	defaultMaxSectionChars = 16 * 1024
+	formatMediaTranscript    = "media_transcript"
+	incidentSourceTranscript = "transcript_chunk"
+	documentTypeMedia        = "media"
+	defaultMaxSectionChars   = 16 * 1024
 )
 
 // Extract preflights local media and emits source-neutral transcript facts.
@@ -83,10 +84,11 @@ func Extract(ctx context.Context, req Request) (Result, error) {
 
 func buildDocument(req Request, preflight mediapreflight.Result, sourceHash string) facts.DocumentationDocumentPayload {
 	metadata := map[string]string{
-		"format_family":            formatMediaTranscript,
-		"transcript_status":        "pending",
-		"transcript_segment_count": "0",
-		"source_hash":              sourceHash,
+		"format_family":               formatMediaTranscript,
+		"incident_media_source_class": incidentSourceTranscript,
+		"transcript_status":           "pending",
+		"transcript_segment_count":    "0",
+		"source_hash":                 sourceHash,
 	}
 	if preflight.Format != "" {
 		metadata["media_format"] = preflight.Format
@@ -154,14 +156,15 @@ func buildSections(
 		content, warnings, redacted := persistedContent(text, req.Options.MaxSectionChars)
 		segmentID := firstNonEmpty(cleanID(segment.SegmentID), strconv.Itoa(i+1))
 		metadata := map[string]string{
-			"format_family":             formatMediaTranscript,
-			"transcript_engine":         firstNonEmpty(transcript.EngineName, "unknown"),
-			"transcript_engine_version": firstNonEmpty(transcript.EngineVersion, "unknown"),
-			"confidence_bucket":         confidenceBucket(segment.Confidence),
-			"source_hash":               sourceHash,
-			"start_millis":              strconv.FormatInt(segment.StartMillis, 10),
-			"end_millis":                strconv.FormatInt(segment.EndMillis, 10),
-			"segment_duration_millis":   strconv.FormatInt(segment.EndMillis-segment.StartMillis, 10),
+			"format_family":               formatMediaTranscript,
+			"incident_media_source_class": incidentSourceTranscript,
+			"transcript_engine":           firstNonEmpty(transcript.EngineName, "unknown"),
+			"transcript_engine_version":   firstNonEmpty(transcript.EngineVersion, "unknown"),
+			"confidence_bucket":           confidenceBucket(segment.Confidence),
+			"source_hash":                 sourceHash,
+			"start_millis":                strconv.FormatInt(segment.StartMillis, 10),
+			"end_millis":                  strconv.FormatInt(segment.EndMillis, 10),
+			"segment_duration_millis":     strconv.FormatInt(segment.EndMillis-segment.StartMillis, 10),
 		}
 		if transcript.Language != "" {
 			metadata["language"] = transcript.Language

@@ -54,10 +54,11 @@ func TestExtractEmitsTranscriptDocumentAndTimestampSections(t *testing.T) {
 	}
 	metadata := stringMapValue(t, document, "source_metadata")
 	for key, want := range map[string]string{
-		"format_family":            "media_transcript",
-		"transcript_status":        "completed",
-		"transcript_segment_count": "1",
-		"media_format":             mediapreflight.FormatWAV,
+		"format_family":               "media_transcript",
+		"incident_media_source_class": "transcript_chunk",
+		"transcript_status":           "completed",
+		"transcript_segment_count":    "1",
+		"media_format":                mediapreflight.FormatWAV,
 	} {
 		if got := metadata[key]; got != want {
 			t.Fatalf("document source_metadata[%q] = %q, want %q", key, got, want)
@@ -79,13 +80,14 @@ func TestExtractEmitsTranscriptDocumentAndTimestampSections(t *testing.T) {
 	}
 	sectionMetadata := stringMapValue(t, section, "source_metadata")
 	for key, want := range map[string]string{
-		"transcript_engine":         "synthetic-transcript",
-		"transcript_engine_version": "fixture",
-		"confidence_bucket":         "high",
-		"start_millis":              "1200",
-		"end_millis":                "3450",
-		"speaker_label_present":     "true",
-		"source_hash":               document["content_hash"].(string),
+		"incident_media_source_class": "transcript_chunk",
+		"transcript_engine":           "synthetic-transcript",
+		"transcript_engine_version":   "fixture",
+		"confidence_bucket":           "high",
+		"start_millis":                "1200",
+		"end_millis":                  "3450",
+		"speaker_label_present":       "true",
+		"source_hash":                 document["content_hash"].(string),
 	} {
 		if got := sectionMetadata[key]; got != want {
 			t.Fatalf("section source_metadata[%q] = %q, want %q", key, got, want)
