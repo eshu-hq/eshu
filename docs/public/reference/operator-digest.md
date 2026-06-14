@@ -55,6 +55,93 @@ The top-level artifact is:
 `generated_at` may be emitted by a concrete CLI or API response as transport
 metadata, but it is not part of ordering, IDs, scoring, or golden fixtures.
 
+## Shareable Artifact
+
+`operator_digest_artifact.v1` is the shareable local handoff wrapper around one
+`operator_digest.v1` model. It is for onboarding, first-five-minutes support,
+and incident handoff. It is not a graph export, cache backup, trace archive, or
+prompt transcript.
+
+Artifact writers must produce a single JSON document with this top-level shape:
+
+| Field | Meaning |
+| --- | --- |
+| `schema` | Always `operator_digest_artifact.v1`. |
+| `digest` | The embedded `operator_digest.v1` model. |
+| `artifact` | Save metadata: stable artifact ID, writer kind, format, and validation status. |
+| `redaction` | Redaction profile, version, applied rules, and any fields replaced with share-safe placeholders. |
+| `source_refs` | Deduplicated route, MCP tool, CLI command, playbook, and evidence-handle references used by the digest. |
+| `validation` | Determinism, schema, redaction, and public-safety validation results. |
+| `limitations` | Artifact-level omissions, unsupported sections, truncation, stale data, or export-time warnings. |
+
+Recommended local file names use only share-safe, deterministic components:
+
+```text
+operator-digest.<scope_type>.<scope_slug>.<profile>.json
+```
+
+`scope_slug` is a redacted label produced by the digest scope contract. It must
+not contain raw repository paths, hostnames, account IDs, credentials, local
+usernames, or absolute paths. If a safe slug cannot be produced, writers use an
+opaque digest scope ID such as `scope-redacted`.
+
+Artifact IDs are derived from schema version, digest scope, profile, redaction
+profile, and source reference IDs. They must not include wall-clock time,
+random values, local usernames, hostnames, or machine-specific paths. Writer
+kind names describe the implementation path, such as `cli` or `api`, not the
+operator or workstation that wrote the file.
+
+### Artifact Safety
+
+Artifacts must preserve enough evidence identity for a teammate to re-run
+bounded reads, but must not embed private source material. The following are
+allowed when they come from source contracts that mark them share-safe:
+
+- route names and HTTP method/path templates, not concrete deployment hosts
+- MCP tool names and bounded argument keys
+- opaque evidence handles and result refs
+- relative repository file paths already returned by Eshu read surfaces
+- truth, freshness, limitation, truncation, and unsupported reason codes
+- suggested-question IDs, templates, reasons, and next-call references
+
+The following are never allowed in a shareable artifact:
+
+- credentials, bearer values, session tokens, or secret material
+- private hostnames, machine-specific endpoints, local absolute paths, or
+  workstation usernames
+- raw source excerpts unless the source route explicitly marks the excerpt
+  share-safe
+- prompts, provider responses, model traces, or tool transcripts
+- unredacted cloud account IDs, customer names, or provider resource names that
+  were not already converted to safe handles
+
+If a disallowed value is the only evidence for an entry, the artifact keeps the
+entry with `redacted: true`, a limitation, and a safe reason code. It must not
+drop the entry silently or promote the remaining summary to stronger truth.
+
+### Artifact Validation
+
+Before writing a shareable artifact, implementations must validate:
+
+1. `digest.schema` is `operator_digest.v1`.
+2. `digest.scope`, `profile`, `truth`, `sections`, `suggested_questions`,
+   `limitations`, and `source_refs` are present.
+3. Section ordering, entry ordering, question ordering, and truncation flags
+   match the deterministic ordering rules.
+4. Every digest entry and question points to at least one source reference,
+   limitation, missing-evidence marker, or unsupported reason.
+5. Every emitted source, evidence, route, tool, or playbook reference resolves
+   to an ID in the artifact-level `source_refs` set.
+6. Redaction ran before artifact construction and records its profile/version.
+7. No denied value class remains in `digest`, `source_refs`, `artifact`,
+   `redaction`, `validation`, or `limitations`.
+8. Transport-only fields such as wall-clock generation time do not affect
+   artifact ID, digest ordering, or golden fixture comparison.
+
+Validation failures must abort writing by default. A diagnostic mode may emit a
+local-only failure report, but that report is not a shareable artifact and must
+follow the same denied-value rules.
+
 ## Determinism
 
 Given the same canonical read results and the same inputs, a renderer must emit
@@ -217,12 +304,24 @@ The implementation issue that adds a renderer must prove:
 - stable output for identical inputs
 - deterministic ordering and truncation
 - redaction before model construction
+- shareable artifact validation and denied-value rejection
 - unsupported, partial, stale, and ambiguous cases
 - no provider calls or graph writes
 - source truth and freshness propagation into sections and questions
 
 Docs-only changes to this contract require the strict docs build and
 `git diff --check`.
+
+No-Regression Evidence: `uv run --with mkdocs --with mkdocs-material --with
+pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`
+covers Markdown, navigation, and cross-reference drift for this docs-only
+artifact contract.
+
+No-Observability-Change: the artifact contract adds no renderer, graph read,
+graph write, queue, worker, CLI command, API route, MCP tool, metric, span, log
+field, provider call, model call, or runtime knob. The implementation issue that
+starts writing artifacts must add route- or command-specific no-regression and
+observability evidence.
 
 ## Related
 
