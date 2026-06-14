@@ -34,6 +34,9 @@ projection runners acquire leases, wait for accepted generation/readiness
 state, write or retract edges, and mark intents processed.
 Claim-path performance and correctness changes are gated by the
 [Reducer Claim-Latency Gate](../reference/reducer-claim-latency-gate.md).
+Code graph conflict-key changes must satisfy the
+[Code-Graph Sub-Scope Partitioning](../reference/code-graph-subscope-partitioning.md)
+contract before claiming intra-repo reducer concurrency.
 
 The generation-retention runner prunes superseded source-generation history in
 bounded Postgres transactions. It never retracts graph truth; relationship
@@ -153,5 +156,6 @@ Start with:
 - [Service Runtimes](../deployment/service-runtimes.md)
 - [Collector And Reducer Readiness](../reference/collector-reducer-readiness.md)
 - [Reducer Claim-Latency Gate](../reference/reducer-claim-latency-gate.md)
+- [Code-Graph Sub-Scope Partitioning](../reference/code-graph-subscope-partitioning.md)
 - [Telemetry Overview](../reference/telemetry/index.md)
 - [Local Testing](../reference/local-testing.md)
