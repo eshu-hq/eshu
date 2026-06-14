@@ -46,7 +46,10 @@ requests rather than hiding the absence of embeddings.
 
 A production embedder implementation must be behind a narrow port. It may use a
 local model, hosted provider, internal gateway, or other approved provider only
-after governance admits the source class and scope.
+after governance admits the source class and scope. Hosted provider and gateway
+adapters live outside `go/internal/searchhybrid`; that package keeps the
+deterministic fusion boundary and must not import hosted SDKs or make egress
+calls.
 
 The embedder path must record:
 
@@ -133,6 +136,9 @@ Docs-only changes to this contract run:
 ```bash
 uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
   mkdocs build --strict --clean --config-file docs/mkdocs.yml
+go test ./internal/searchretrieval ./internal/searchdocs ./internal/searchbench \
+  ./internal/searchnornicdb ./internal/searchpostgres ./internal/searchhybrid \
+  -count=1
 git diff --check
 ```
 
