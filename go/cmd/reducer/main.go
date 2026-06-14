@@ -147,33 +147,12 @@ func buildReducerService(
 	}
 
 	edgeWriterForHandlers := newHandlerEdgeWriter(neo4jExec, neo4jBatchSize(getenv), instruments, logger, inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize)
-	cloudResourceNodeWriter := sourcecypher.NewCloudResourceNodeWriter(neo4jExec, neo4jBatchSize(getenv))
-	ec2InstanceNodeWriter := sourcecypher.NewEC2InstanceNodeWriter(neo4jExec, neo4jBatchSize(getenv))
-	cloudResourceEdgeWriter := sourcecypher.NewCloudResourceEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
-	gcpCloudResourceEdgeWriter := sourcecypher.NewGCPCloudResourceEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
-	workloadCloudRelationshipEdgeWriter := sourcecypher.NewWorkloadCloudRelationshipWriter(neo4jExec, neo4jBatchSize(getenv))
-	kubernetesWorkloadNodeWriter := sourcecypher.NewKubernetesWorkloadNodeWriter(neo4jExec, neo4jBatchSize(getenv))
-	securityGroupEndpointNodeWriter := sourcecypher.NewSecurityGroupEndpointNodeWriter(neo4jExec, neo4jBatchSize(getenv))
-	securityGroupReachabilityWriter := sourcecypher.NewSecurityGroupReachabilityWriter(neo4jExec, neo4jBatchSize(getenv))
-	kubernetesCorrelationEdgeWriter := sourcecypher.NewKubernetesCorrelationEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
-	iamEscalationEdgeWriter := sourcecypher.NewIAMEscalationEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
-	iamCanPerformEdgeWriter := sourcecypher.NewIAMCanPerformEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
+	graphWriters := newCanonicalGraphWriters(neo4jExec, neo4jBatchSize(getenv))
 	secretsIAMGraphWriter, err := secretsIAMGraphProjectionWriter(getenv, neo4jExec, neo4jBatchSize(getenv), logger)
 	if err != nil {
 		return reducer.Service{}, err
 	}
 	endpointPresenceWriter, endpointPresenceLookup := endpointPresenceWiring(secretsIAMGraphWriter != nil, database)
-	observabilityCoverageEdgeWriter := sourcecypher.NewObservabilityCoverageEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
-	incidentRoutingEvidenceWriter := sourcecypher.NewIncidentRoutingEvidenceWriter(neo4jExec, neo4jBatchSize(getenv))
-	iamCanAssumeEdgeWriter := sourcecypher.NewIAMCanAssumeEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
-	s3LogsToEdgeWriter := sourcecypher.NewS3LogsToEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
-	s3ExternalPrincipalGrantWriter := sourcecypher.NewS3ExternalPrincipalGrantWriter(neo4jExec, neo4jBatchSize(getenv))
-	rdsPostureNodeWriter := sourcecypher.NewRDSPostureNodeWriter(neo4jExec, neo4jBatchSize(getenv))
-	ec2UsesProfileEdgeWriter := sourcecypher.NewEC2UsesProfileEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
-	iamInstanceProfileRoleEdgeWriter := sourcecypher.NewIAMInstanceProfileRoleEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
-	ec2InternetExposureNodeWriter := sourcecypher.NewEC2InternetExposureNodeWriter(neo4jExec, neo4jBatchSize(getenv))
-	ec2BlockDeviceKMSPostureNodeWriter := sourcecypher.NewEC2BlockDeviceKMSPostureNodeWriter(neo4jExec, neo4jBatchSize(getenv))
-	s3InternetExposureNodeWriter := sourcecypher.NewS3InternetExposureNodeWriter(neo4jExec, neo4jBatchSize(getenv))
 	relationshipStore := postgres.NewRelationshipStore(database)
 	factStore := postgres.NewFactStore(database)
 	codeCallIntentWriter := postgres.NewCodeCallIntentWriterWithInstruments(database, instruments)
@@ -340,31 +319,32 @@ func buildReducerService(
 		CloudInventoryAdmissionWriter:        cloudInventoryAdmissionWriter,
 		CloudInventoryGenerationCheck:        cloudInventoryGenerationCheck,
 		CloudInventoryTagEvidenceLoader:      cloudInventoryTagEvidenceLoader,
-		CloudResourceNodeWriter:              cloudResourceNodeWriter,
-		EC2InstanceNodeWriter:                ec2InstanceNodeWriter,
-		CloudResourceEdgeWriter:              cloudResourceEdgeWriter,
-		GCPCloudResourceEdgeWriter:           gcpCloudResourceEdgeWriter,
-		WorkloadCloudRelationshipEdgeWriter:  workloadCloudRelationshipEdgeWriter,
-		KubernetesWorkloadNodeWriter:         kubernetesWorkloadNodeWriter,
-		SecurityGroupEndpointNodeWriter:      securityGroupEndpointNodeWriter,
-		SecurityGroupRuleNodeWriter:          securityGroupReachabilityWriter,
-		SecurityGroupReachabilityWriter:      securityGroupReachabilityWriter,
-		KubernetesCorrelationEdgeWriter:      kubernetesCorrelationEdgeWriter,
-		IAMEscalationEdgeWriter:              iamEscalationEdgeWriter,
-		IAMCanPerformEdgeWriter:              iamCanPerformEdgeWriter,
+		CloudResourceNodeWriter:              graphWriters.cloudResourceNode,
+		EC2InstanceNodeWriter:                graphWriters.ec2InstanceNode,
+		CloudResourceEdgeWriter:              graphWriters.cloudResourceEdge,
+		GCPCloudResourceEdgeWriter:           graphWriters.gcpCloudResourceEdge,
+		AzureCloudResourceEdgeWriter:         graphWriters.azureCloudResourceEdge,
+		WorkloadCloudRelationshipEdgeWriter:  graphWriters.workloadCloudRelationshipEdge,
+		KubernetesWorkloadNodeWriter:         graphWriters.kubernetesWorkloadNode,
+		SecurityGroupEndpointNodeWriter:      graphWriters.securityGroupEndpointNode,
+		SecurityGroupRuleNodeWriter:          graphWriters.securityGroupReachability,
+		SecurityGroupReachabilityWriter:      graphWriters.securityGroupReachability,
+		KubernetesCorrelationEdgeWriter:      graphWriters.kubernetesCorrelationEdge,
+		IAMEscalationEdgeWriter:              graphWriters.iamEscalationEdge,
+		IAMCanPerformEdgeWriter:              graphWriters.iamCanPerformEdge,
 		SecretsIAMGraphWriter:                secretsIAMGraphWriter,
 		EndpointPresenceWriter:               endpointPresenceWriter,
 		EndpointPresenceLookup:               endpointPresenceLookup,
-		ObservabilityCoverageEdgeWriter:      observabilityCoverageEdgeWriter,
-		IAMCanAssumeEdgeWriter:               iamCanAssumeEdgeWriter,
-		S3LogsToEdgeWriter:                   s3LogsToEdgeWriter,
-		S3ExternalPrincipalGrantWriter:       s3ExternalPrincipalGrantWriter,
-		RDSPostureNodeWriter:                 rdsPostureNodeWriter,
-		EC2UsesProfileEdgeWriter:             ec2UsesProfileEdgeWriter,
-		IAMInstanceProfileRoleEdgeWriter:     iamInstanceProfileRoleEdgeWriter,
-		EC2InternetExposureNodeWriter:        ec2InternetExposureNodeWriter,
-		EC2BlockDeviceKMSPostureNodeWriter:   ec2BlockDeviceKMSPostureNodeWriter,
-		S3InternetExposureNodeWriter:         s3InternetExposureNodeWriter,
+		ObservabilityCoverageEdgeWriter:      graphWriters.observabilityCoverageEdge,
+		IAMCanAssumeEdgeWriter:               graphWriters.iamCanAssumeEdge,
+		S3LogsToEdgeWriter:                   graphWriters.s3LogsToEdge,
+		S3ExternalPrincipalGrantWriter:       graphWriters.s3ExternalPrincipalGrant,
+		RDSPostureNodeWriter:                 graphWriters.rdsPostureNode,
+		EC2UsesProfileEdgeWriter:             graphWriters.ec2UsesProfileEdge,
+		IAMInstanceProfileRoleEdgeWriter:     graphWriters.iamInstanceProfileRoleEdge,
+		EC2InternetExposureNodeWriter:        graphWriters.ec2InternetExposureNode,
+		EC2BlockDeviceKMSPostureNodeWriter:   graphWriters.ec2BlockDeviceKMSPostureNode,
+		S3InternetExposureNodeWriter:         graphWriters.s3InternetExposureNode,
 		ContainerImageIdentityWriter: reducer.PostgresContainerImageIdentityWriter{
 			DB: database,
 		},
@@ -412,7 +392,7 @@ func buildReducerService(
 			DB: database,
 		},
 		IncidentRoutingEvidenceLoader: factStore,
-		IncidentRoutingEvidenceWriter: incidentRoutingEvidenceWriter,
+		IncidentRoutingEvidenceWriter: graphWriters.incidentRoutingEvidence,
 		// Durable incident -> repository correlation (#2161); see helper for rationale.
 		AppliedPagerDutyServiceRoutingLoader: incidentRepoCorrelationLoader,
 		BackendRepositoryResolver:            incidentRepoCorrelationResolver,

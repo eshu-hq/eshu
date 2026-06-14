@@ -104,6 +104,13 @@ const (
 	// stage gates on GCP node readiness independently of the AWS node phase. See
 	// docs/internal/gcp-cloud-resource-materialization-design.md.
 	DomainGCPResourceMaterialization Domain = "gcp_resource_materialization"
+	// DomainAzureResourceMaterialization materializes azure_cloud_resource facts
+	// into canonical CloudResource graph nodes. It is the node substrate the
+	// Azure relationship edge projection joins against and publishes the
+	// GraphProjectionPhaseCanonicalNodesCommitted readiness phase under
+	// azure_resource_materialization:<scope> so Azure edges never race AWS or GCP
+	// node readiness.
+	DomainAzureResourceMaterialization Domain = "azure_resource_materialization"
 	// DomainGCPRelationshipMaterialization projects gcp_cloud_relationship facts
 	// into canonical GCP relationship edges between the CloudResource nodes that
 	// DomainGCPResourceMaterialization committed. It gates on the
@@ -115,6 +122,12 @@ const (
 	// materialize (partial/unsupported are provenance only). See
 	// docs/internal/gcp-cloud-relationship-edge-materialization-design.md.
 	DomainGCPRelationshipMaterialization Domain = "gcp_relationship_materialization"
+	// DomainAzureRelationshipMaterialization projects azure_cloud_relationship
+	// facts into canonical Azure relationship edges between CloudResource nodes
+	// committed by DomainAzureResourceMaterialization. Endpoints resolve by exact
+	// normalized ARM resource id; partial, unsupported, unresolved, invalid-type,
+	// and self-loop evidence stays provenance-only.
+	DomainAzureRelationshipMaterialization Domain = "azure_relationship_materialization"
 	// DomainWorkloadCloudRelationshipMaterialization projects exact
 	// reducer-owned service/workload anchors on CloudResource facts into
 	// canonical WorkloadInstance USES CloudResource graph edges. Queue claiming

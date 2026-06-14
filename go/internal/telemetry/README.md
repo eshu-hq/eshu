@@ -333,6 +333,7 @@ Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`
 `SpanFactEmit`, `SpanProjectorRun`, `SpanReducerIntentEnqueue`, `SpanReducerRun`,
 `SpanReducerBatchClaim`, `SpanReducerEshuSearchIndexWrite`,
 `SpanReducerDriftEvidenceLoad`,
+`SpanReducerAzureRelationshipMaterialization`,
 `SpanReducerRDSPostureMaterialization`,
 `SpanReducerS3ExternalPrincipalGrantMaterialization`, `SpanCanonicalWrite`,
 `SpanCanonicalProjection`,

@@ -171,6 +171,14 @@ type DefaultHandlers struct {
 	// on ReadinessLookup so edges never resolve against uncommitted GCP nodes.
 	GCPCloudResourceEdgeWriter CloudResourceEdgeWriter
 
+	// AzureCloudResourceEdgeWriter projects azure_cloud_relationship facts into
+	// canonical Azure relationship edges between CloudResource nodes. It must be
+	// non-nil alongside FactLoader for the registry to register
+	// DomainAzureRelationshipMaterialization; missing either one would drop every
+	// azure_cloud_relationship fact before it reaches the graph. The handler gates
+	// on ReadinessLookup so edges never resolve against uncommitted Azure nodes.
+	AzureCloudResourceEdgeWriter CloudResourceEdgeWriter
+
 	// WorkloadCloudRelationshipEdgeWriter projects exact workload anchors on
 	// CloudResource facts into canonical WorkloadInstance USES CloudResource
 	// edges. It must be non-nil alongside FactLoader for the registry to register

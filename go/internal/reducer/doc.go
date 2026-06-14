@@ -62,6 +62,10 @@
 // GCP ServiceAccount trust, GCP principal evidence, and a Secret Manager
 // version-access grant all agree; metadata-only Secret Manager roles remain
 // posture evidence and never become exact secret access paths.
+// Azure relationship materialization admits fixture/offline azure_cloud_resource
+// facts into CloudResource nodes only so managed_by azure_cloud_relationship
+// facts can readiness-gate on those endpoints, then writes edges only when both
+// normalized ARM IDs resolve exactly in the same source generation.
 // IncidentRoutingMaterializationHandler writes exact PagerDuty
 // IncidentRoutingEvidence graph rows only for safe declared/applied/live
 // convergence or live-only no-IaC routing evidence; unsafe routing outcomes

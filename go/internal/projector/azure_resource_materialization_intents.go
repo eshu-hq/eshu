@@ -1,0 +1,33 @@
+package projector
+
+import (
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/scope"
+)
+
+// buildAzureResourceMaterializationReducerIntent enqueues one reducer intent
+// that materializes azure_cloud_resource facts into canonical CloudResource
+// nodes. The entity key is the readiness unit consumed by Azure relationship
+// projection.
+func buildAzureResourceMaterializationReducerIntent(
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+	envelopes []facts.Envelope,
+) (ReducerIntent, bool) {
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.AzureCloudResourceFactKind {
+			continue
+		}
+		return ReducerIntent{
+			ScopeID:      scopeValue.ScopeID,
+			GenerationID: generation.GenerationID,
+			Domain:       reducer.DomainAzureResourceMaterialization,
+			EntityKey:    "azure_resource_materialization:" + scopeValue.ScopeID,
+			Reason:       "azure runtime resource facts observed",
+			FactID:       envelope.FactID,
+			SourceSystem: cloudInventoryAdmissionSourceSystem(envelope),
+		}, true
+	}
+	return ReducerIntent{}, false
+}

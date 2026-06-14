@@ -33,6 +33,12 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildGCPRelationshipMaterializationReducerIntent(scopeValue, generation, inputFacts); ok {
 		intents = append(intents, intent)
 	}
+	if intent, ok := buildAzureResourceMaterializationReducerIntent(scopeValue, generation, inputFacts); ok {
+		intents = append(intents, intent)
+	}
+	if intent, ok := buildAzureRelationshipMaterializationReducerIntent(scopeValue, generation, inputFacts); ok {
+		intents = append(intents, intent)
+	}
 	if intent, ok := buildCloudInventoryAdmissionReducerIntent(scopeValue, generation, inputFacts); ok {
 		intents = append(intents, intent)
 	}

@@ -27,6 +27,9 @@
 // RDS posture observations emit one rds_posture_materialization reducer intent;
 // the reducer waits for CloudResource readiness and owns posture property
 // projection on existing RDS nodes.
+// Azure cloud resource and relationship observations emit reducer intents for
+// Azure CloudResource node readiness and relationship edge projection; the
+// reducer owns exact ARM-id endpoint resolution.
 // EC2 posture observations emit one ec2_internet_exposure_materialization
 // reducer intent keyed to the EC2 instance-node readiness phase; the reducer
 // owns exposure derivation from EC2, ENI, and security-group evidence.
