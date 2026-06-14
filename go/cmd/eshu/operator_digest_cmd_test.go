@@ -69,6 +69,12 @@ func TestOperatorDigestCommandEmitsStableJSON(t *testing.T) {
 	if digest.SuggestedQuestions[0].SourceSignal == "" {
 		t.Fatalf("first suggested question missing source_signal: %+v", digest.SuggestedQuestions[0])
 	}
+	if digest.SuggestedQuestions[0].Why == "" {
+		t.Fatalf("first suggested question missing why: %+v", digest.SuggestedQuestions[0])
+	}
+	if !strings.Contains(digest.SuggestedQuestions[0].Why, digest.SuggestedQuestions[0].SourceSignal) {
+		t.Fatalf("question why %q does not reference source signal %q", digest.SuggestedQuestions[0].Why, digest.SuggestedQuestions[0].SourceSignal)
+	}
 	if len(digest.Limitations) == 0 {
 		t.Fatal("digest limitations is empty")
 	}
@@ -91,6 +97,19 @@ func TestOperatorDigestQuestionLimitTruncatesDeterministically(t *testing.T) {
 	}
 	if !operatorDigestHasLimitation(digest.Limitations, "suggested_questions_truncated") {
 		t.Fatalf("digest limitations missing suggested_questions_truncated: %+v", digest.Limitations)
+	}
+}
+
+func TestOperatorDigestTextRendersQuestionWhy(t *testing.T) {
+	raw := runOperatorDigestText(t, "--scope", "repo:demo/service-api")
+	for _, want := range []string{
+		"Which missing or ambiguous evidence should be resolved before acting on this scope?",
+		"why: unsupported section ambiguity_review_queue produced source signal",
+		"operator_digest.v1:limitation:ambiguity_review_queue:repo:demo/service-api",
+	} {
+		if !strings.Contains(raw, want) {
+			t.Fatalf("operator digest text missing %q:\n%s", want, raw)
+		}
 	}
 }
 
@@ -153,6 +172,19 @@ func runOperatorDigestJSON(t *testing.T, args ...string) []byte {
 		t.Fatalf("command returned error: %v\n%s", err, out.String())
 	}
 	return out.Bytes()
+}
+
+func runOperatorDigestText(t *testing.T, args ...string) string {
+	t.Helper()
+	cmd := newOperatorDigestCommand()
+	cmd.SetArgs(args)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("command returned error: %v\n%s", err, out.String())
+	}
+	return out.String()
 }
 
 func operatorDigestHasLimitation(limitations []operatorDigestLimitation, reason string) bool {

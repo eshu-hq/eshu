@@ -167,6 +167,9 @@ func validateOperatorDigestArtifact(artifact operatorDigestArtifact) error {
 		if question.SourceSignal == "" && len(question.EvidenceRefs) == 0 {
 			return fmt.Errorf("operator digest question %q has no source signal or evidence ref", question.ID)
 		}
+		if strings.TrimSpace(question.Why) == "" {
+			return fmt.Errorf("operator digest question %q has no why", question.ID)
+		}
 		if _, ok := sourceIDs[question.Target]; !ok {
 			return fmt.Errorf("operator digest question %q references unknown target %q", question.ID, question.Target)
 		}
