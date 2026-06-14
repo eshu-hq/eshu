@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 // newTestEngine builds a guidanceEngine rooted at a fresh temp dir backed by the
@@ -213,6 +215,99 @@ func TestStatusReportsPerPlatformState(t *testing.T) {
 	}
 	if results[0].status != blockCurrent {
 		t.Fatalf("expected current after install, got %v", results[0].status)
+	}
+}
+
+func TestAssistantStatusDefaultOmitsVerification(t *testing.T) {
+	e := newTestEngine(t)
+	if _, err := e.install(supportedPlatforms()); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	results, err := e.status(supportedPlatforms())
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+
+	out := captureStdout(t, func() {
+		if err := renderAssistantStatus(e.root, results, false); err != nil {
+			t.Fatalf("renderAssistantStatus() error = %v", err)
+		}
+	})
+	if strings.Contains(out, "Assistant ritual verification") {
+		t.Fatalf("default status should not print verification block:\n%s", out)
+	}
+	if !strings.Contains(out, "Claude Code") || !strings.Contains(out, "current") {
+		t.Fatalf("default status missing platform table:\n%s", out)
+	}
+}
+
+func TestAssistantStatusVerifyReportsLocalStdioDiagnostics(t *testing.T) {
+	e := newTestEngine(t)
+	if _, err := e.install(supportedPlatforms()); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	results, err := e.status(supportedPlatforms())
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+
+	out := captureStdout(t, func() {
+		if err := renderAssistantStatus(e.root, results, true); err != nil {
+			t.Fatalf("renderAssistantStatus(--verify) error = %v", err)
+		}
+	})
+	for _, want := range []string{
+		"Assistant ritual verification",
+		"[ok] guidance installed",
+		"3/3 platform guidance blocks current",
+		"config generated",
+		"tools visible",
+		"no endpoint to probe (local stdio)",
+		"no endpoint to query (local stdio)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("verify output missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, fakeBearerToken) {
+		t.Fatalf("verify output leaked token:\n%s", out)
+	}
+}
+
+func TestAssistantStatusVerifyFailsWhenGuidanceMissing(t *testing.T) {
+	e := newTestEngine(t)
+	p := claudePlatform(t)
+	results, err := e.status([]assistantPlatform{p})
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+
+	out := captureStdout(t, func() {
+		if err := renderAssistantStatus(e.root, results, true); err == nil {
+			t.Fatal("renderAssistantStatus(--verify) error = nil, want failure")
+		}
+	})
+	if !strings.Contains(out, "[!!] guidance installed") {
+		t.Fatalf("missing guidance should fail verification:\n%s", out)
+	}
+	if !strings.Contains(out, "0/1 platform guidance blocks current") {
+		t.Fatalf("missing guidance count not reported:\n%s", out)
+	}
+}
+
+func TestAssistantStatusCommandHasVerifyFlag(t *testing.T) {
+	var statusCmd *cobra.Command
+	for _, cmd := range assistantCmd.Commands() {
+		if cmd.Name() == "status" {
+			statusCmd = cmd
+			break
+		}
+	}
+	if statusCmd == nil {
+		t.Fatal("assistant status command not registered")
+	}
+	if flag := statusCmd.Flags().Lookup("verify"); flag == nil {
+		t.Fatal("assistant status command missing --verify flag")
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/mcp"
 	"github.com/spf13/cobra"
 )
 
@@ -17,6 +18,10 @@ var assistantGuidanceRoot string
 // assistantPlatformFilter restricts install/status/uninstall to a single
 // platform id when non-empty.
 var assistantPlatformFilter string
+
+// assistantStatusVerify enables first-run ritual diagnostics in `assistant
+// status` without changing the default status table.
+var assistantStatusVerify bool
 
 // assistantCmd groups the project-scoped assistant guidance subcommands.
 var assistantCmd = &cobra.Command{
@@ -43,11 +48,14 @@ func init() {
 		Short: "Install or update Eshu guidance for supported assistants",
 		RunE:  runAssistantInstall,
 	})
-	assistantCmd.AddCommand(&cobra.Command{
+	statusCmd := &cobra.Command{
 		Use:   "status",
 		Short: "Report whether Eshu guidance is installed and current",
 		RunE:  runAssistantStatus,
-	})
+	}
+	statusCmd.Flags().BoolVar(&assistantStatusVerify, "verify", false,
+		"Include first-run assistant ritual diagnostics")
+	assistantCmd.AddCommand(statusCmd)
 	assistantCmd.AddCommand(&cobra.Command{
 		Use:   "uninstall",
 		Short: "Remove the Eshu managed guidance block from instruction files",
@@ -268,14 +276,7 @@ func runAssistantStatus(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	headers := []string{"Platform", "File", "Guidance"}
-	rows := make([][]string, 0, len(results))
-	for _, r := range results {
-		rel := relOrPath(root, r.path)
-		rows = append(rows, []string{r.platform.label, rel, managedBlockSummary(r.status)})
-	}
-	printTable(headers, rows)
-	return nil
+	return renderAssistantStatus(root, results, assistantStatusVerify)
 }
 
 func runAssistantUninstall(cmd *cobra.Command, _ []string) error {
@@ -331,6 +332,82 @@ func renderInstall(_ *cobra.Command, root string, results []platformResult) {
 	for _, h := range addHints {
 		fmt.Printf("  git add %s\n", h)
 	}
+}
+
+// renderAssistantStatus prints the normal status table and, when verify is set,
+// appends first-run diagnostics that prove the ritual guidance and local MCP
+// tool surface are visible without making a broad graph read.
+func renderAssistantStatus(root string, results []platformResult, verify bool) error {
+	headers := []string{"Platform", "File", "Guidance"}
+	rows := make([][]string, 0, len(results))
+	for _, r := range results {
+		rel := relOrPath(root, r.path)
+		rows = append(rows, []string{r.platform.label, rel, managedBlockSummary(r.status)})
+	}
+	printTable(headers, rows)
+	if !verify {
+		return nil
+	}
+	report, err := assistantRitualVerification(results)
+	if err != nil {
+		return err
+	}
+	fmt.Print(renderAssistantVerifyReport(report))
+	if !report.allOK() {
+		return fmt.Errorf("assistant ritual verification failed")
+	}
+	return nil
+}
+
+// assistantRitualVerification builds the verification report for
+// `assistant status --verify`. It checks committed guidance state first, then
+// reuses the local stdio MCP setup verification seam for safe tool visibility.
+func assistantRitualVerification(results []platformResult) (verifyReport, error) {
+	report := verifyReport{
+		Stages: []stageResult{assistantGuidanceStage(results)},
+	}
+	p, err := resolvePlatform("generic")
+	if err != nil {
+		return verifyReport{}, err
+	}
+	snippet, err := renderSetupSnippet(p, mcpSetupRequest{Mode: modeLocalStdio})
+	if err != nil {
+		return verifyReport{}, err
+	}
+	mcpReport := runVerification(snippet, mcp.ReadOnlyTools, nil, nil)
+	report.Stages = append(report.Stages, mcpReport.Stages...)
+	return report, nil
+}
+
+func assistantGuidanceStage(results []platformResult) stageResult {
+	current := 0
+	for _, r := range results {
+		if r.status == blockCurrent {
+			current++
+		}
+	}
+	ok := len(results) > 0 && current == len(results)
+	return stageResult{
+		Stage:  verifyStage("guidance installed"),
+		OK:     ok,
+		Detail: fmt.Sprintf("%d/%d platform guidance blocks current", current, len(results)),
+	}
+}
+
+func renderAssistantVerifyReport(report verifyReport) string {
+	var b strings.Builder
+	b.WriteString("\nAssistant ritual verification\n")
+	for _, s := range report.Stages {
+		marker := "[ok]"
+		switch {
+		case s.Skipped:
+			marker = "[--]"
+		case !s.OK:
+			marker = "[!!]"
+		}
+		fmt.Fprintf(&b, "  %s %s: %s\n", marker, s.Stage, s.Detail)
+	}
+	return b.String()
 }
 
 // relOrPath returns path relative to root for display, or the absolute path if
