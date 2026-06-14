@@ -52,8 +52,10 @@ keep the selected `instanceId` aligned with that list.
 the trusted component registry mounted at `componentHome`, not a static
 collector instance list. When it is enabled, the chart passes the same
 component home, trust settings, and `extensionEgressPolicyJSON` to the
-workflow coordinator and the worker. Mount the same registry volume into both
-workloads with `workflowCoordinator.extraVolumes` /
+workflow coordinator and the worker. Set `trustMode=allowlist` with non-empty
+`allowIds` and `allowPublishers` so the rendered worker can trust at least one
+component activation. Mount the same registry volume into both workloads with
+`workflowCoordinator.extraVolumes` /
 `workflowCoordinator.extraVolumeMounts` and
 `componentExtensionCollector.extraVolumes` /
 `componentExtensionCollector.extraVolumeMounts`.
@@ -72,7 +74,7 @@ workloads with `workflowCoordinator.extraVolumes` /
 | PagerDuty | `instanceId`, `collectorInstances` with a `pagerduty` instance matching `instanceId`, `workflowCoordinator.collectorInstances` with an enabled claim-driven `pagerduty` instance | Fetches bounded PagerDuty incidents, log entries, related change events, and optional live service/integration config facts. Target `token_env` values must resolve from `extraEnv` Secret refs; any `api_base_url` override must use HTTPS; incident titles, service names, integration names, routing keys, PagerDuty URLs, and tokens should stay out of public values files. |
 | Jira | `instanceId`, `collectorInstances` with a `jira` instance matching `instanceId`, `workflowCoordinator.collectorInstances` with an enabled claim-driven `jira` instance | Polling-only mode enables `jiraCollector` and passes `token_env` plus optional `email_env` through `extraEnv` Secret refs. Webhook-enabled mode also enables `webhookListener.jira` with a matching `scopeId`; webhooks are freshness triggers only and polling remains the recovery path. |
 | Vulnerability intelligence | `instanceId`, `collectorInstances` with a `vulnerability_intelligence` instance matching `instanceId`, `workflowCoordinator.collectorInstances` with an enabled claim-driven `vulnerability_intelligence` instance | Bounded source targets only (explicit CVE IDs, source snapshots, OSV package-version queries, NVD windows, or derived owned-package targets). API keys are referenced from `extraEnv` Secret refs via `api_key_env` and never embedded in values. |
-| Component extension | `componentHome`, `trustMode=allowlist`, `extensionEgressPolicyJSON`, shared registry volume mounts for coordinator and worker | Runs verified claim-capable component activations through `/usr/local/bin/eshu-collector-component-extension`. Keep component config files, provider targets, and credentials in private mounts or Secrets; extension facts still enter through the collector commit boundary and reducers own graph truth. Strict trust mode is not charted until provenance verifier values are first-class chart inputs. |
+| Component extension | `componentHome`, `trustMode=allowlist`, non-empty `allowIds`, non-empty `allowPublishers`, `extensionEgressPolicyJSON`, shared registry volume mounts for coordinator and worker | Runs verified claim-capable component activations through `/usr/local/bin/eshu-collector-component-extension`. Keep component config files, provider targets, and credentials in private mounts or Secrets; extension facts still enter through the collector commit boundary and reducers own graph truth. Strict trust mode is not charted until provenance verifier values are first-class chart inputs. |
 
 All optional collectors support `replicas`, `revisionHistoryLimit`, `resources`,
 Postgres connection tuning, global pod labels/annotations, and global

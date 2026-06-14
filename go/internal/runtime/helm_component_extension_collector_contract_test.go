@@ -113,6 +113,16 @@ func TestHelmComponentExtensionCollectorValidation(t *testing.T) {
 			values:     componentExtensionCollectorValues("allowlist", true, false),
 			wantOutput: "componentExtensionCollector.extraVolumeMounts must mount componentExtensionCollector.componentHome",
 		},
+		{
+			name:       "empty allow ids",
+			values:     componentExtensionCollectorValuesWithAllowlist("allowlist", true, true, "", "eshu-hq"),
+			wantOutput: "componentExtensionCollector.allowIds is required when componentExtensionCollector.enabled=true",
+		},
+		{
+			name:       "empty allow publishers",
+			values:     componentExtensionCollectorValuesWithAllowlist("allowlist", true, true, "dev.eshu.examples.pagerduty", ""),
+			wantOutput: "componentExtensionCollector.allowPublishers is required when componentExtensionCollector.enabled=true",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -173,6 +183,16 @@ func assertComponentExtensionCollector(t *testing.T, manifests []helmManifest, w
 }
 
 func componentExtensionCollectorValues(trustMode string, mountCoordinator bool, mountCollector bool) string {
+	return componentExtensionCollectorValuesWithAllowlist(
+		trustMode,
+		mountCoordinator,
+		mountCollector,
+		"dev.eshu.examples.pagerduty",
+		"eshu-hq",
+	)
+}
+
+func componentExtensionCollectorValuesWithAllowlist(trustMode string, mountCoordinator bool, mountCollector bool, allowIDs string, allowPublishers string) string {
 	coordinatorMounts := "  extraVolumeMounts: []\n"
 	if mountCoordinator {
 		coordinatorMounts = `  extraVolumeMounts:
@@ -205,8 +225,8 @@ workflowCoordinator:
   instanceId: pagerduty-reference
   componentHome: /data/.eshu/components
   trustMode: ` + trustMode + `
-  allowIds: dev.eshu.examples.pagerduty
-  allowPublishers: eshu-hq
+  allowIds: ` + allowIDs + `
+  allowPublishers: ` + allowPublishers + `
   extensionEgressPolicyJSON: '{"mode":"restricted","extensions":[{"component_id":"dev.eshu.examples.pagerduty","decision":"allow"}]}'
   extraVolumes:
     - name: component-registry

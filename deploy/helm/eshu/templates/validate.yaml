@@ -253,6 +253,12 @@
 {{- if ne .Values.componentExtensionCollector.trustMode "allowlist" -}}
 {{- fail "componentExtensionCollector.trustMode must be allowlist when componentExtensionCollector.enabled=true" -}}
 {{- end -}}
+{{- if eq (trim (default "" .Values.componentExtensionCollector.allowIds)) "" -}}
+{{- fail "componentExtensionCollector.allowIds is required when componentExtensionCollector.enabled=true" -}}
+{{- end -}}
+{{- if eq (trim (default "" .Values.componentExtensionCollector.allowPublishers)) "" -}}
+{{- fail "componentExtensionCollector.allowPublishers is required when componentExtensionCollector.enabled=true" -}}
+{{- end -}}
 {{- if not .Values.componentExtensionCollector.extensionEgressPolicyJSON -}}
 {{- fail "componentExtensionCollector.extensionEgressPolicyJSON is required when componentExtensionCollector.enabled=true" -}}
 {{- end -}}
