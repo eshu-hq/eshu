@@ -60,9 +60,11 @@ orchestration. It does not own service runtime internals:
     `answer-quality-scorecard` scores a captured, redacted answer-quality
     evidence artifact across API, MCP, CLI, and hosted surfaces
     (`answer_quality_scorecard_cmd.go`); `report` renders the deterministic
-    offline `operator_digest.v1` model for an explicit share-safe scope, with
+    offline `operator_digest.v1` model for an explicit share-safe scope and can
+    write a shareable `operator_digest_artifact.v1` JSON wrapper, with
     unsupported sections and fixed-template follow-up questions until live
-    bounded read surfaces are connected (`operator_digest_cmd.go`)
+    bounded read surfaces are connected (`operator_digest_cmd.go`,
+    `operator_digest_artifact.go`)
   - assistant guidance: `assistant install|status|uninstall` manages
     project-scoped Claude, Codex, and Cursor instruction files through a
     delimited managed block. `assistant install --verify` and
@@ -162,10 +164,11 @@ OTEL from this dispatcher.
 No-Regression Evidence: answer-quality scorecard CLI behavior is covered by
 `go test ./cmd/eshu -run 'TestAnswerQualityScorecardCommand' -count=1`.
 
-No-Observability-Change: operator digest rendering is offline CLI model
-projection. It validates explicit share-safe inputs, starts no runtimes, calls
-no API/MCP endpoint or provider, opens no graph/Postgres driver, writes no graph
-state, claims no reducer work, and emits no OTEL from this dispatcher.
+No-Observability-Change: operator digest rendering and artifact writing are
+offline CLI model projection. They validate explicit share-safe inputs, start no
+runtimes, call no API/MCP endpoint or provider, open no graph/Postgres driver,
+write no graph state, claim no reducer work, and emit no OTEL from this
+dispatcher.
 
 No-Regression Evidence: operator digest CLI behavior is covered by
 `go test ./cmd/eshu -run 'TestOperatorDigest' -count=1`.
