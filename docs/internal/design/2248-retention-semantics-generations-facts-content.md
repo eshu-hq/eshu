@@ -252,6 +252,13 @@ BenchmarkGenerationRetentionStoreLargeFixture -benchmem -benchtime=100x`
 reported `309992 ns/op`, `455328 B/op`, and `8314 allocs/op` for the same
 100-generation cleanup path with fake database calls.
 
+No-Regression Evidence: `go test ./internal/storage/postgres -run
+TestGenerationRetentionStoreRowLimitSkipStopsAtSearchCap -count=1` proves an
+all-oversized candidate backlog stops after the skip-search cap, reports
+`row_limit` skips, and performs no delete statements. The fake candidate query
+honors the same batch limit as the production SQL, so the test exercises
+repeated bounded scan passes rather than one unbounded in-memory row set.
+
 Observability Evidence: generation retention registers
 `eshu_dp_generation_retention_generations_pruned_total`,
 `eshu_dp_generation_retention_rows_pruned_total`,
