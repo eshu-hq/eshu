@@ -212,6 +212,11 @@ carry `confidence_basis` (`evidence_constant`, `evidence_aggregate`, or
 `assertion_override`) alongside `confidence`, `resolution_source`,
 `evidence_type`, and `evidence_kinds`; code relationship tools keep using
 `resolution_method`.
+Relationship tools reserve `min_confidence` as the transport field for the
+HTTP/MCP confidence-floor contract once the corresponding tool schema advertises
+support. Omitted means no floor; accepted values are numbers from `0` through
+`1`; filtering applies only to returned rows and never changes canonical graph
+truth or relationship evidence drilldowns.
 
 `investigate_import_dependencies` passes paging and scope arguments directly to
 the HTTP handler. The handler rejects negative bounds and returns exactly one
