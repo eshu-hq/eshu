@@ -386,11 +386,23 @@ func codebaseTools() []ToolDefinition {
 				"properties": map[string]any{
 					"start": map[string]any{
 						"type":        "string",
-						"description": "Starting function name or entity ID",
+						"description": "Optional starting function name; use start_entity_id for an exact code graph entity selector",
 					},
 					"end": map[string]any{
 						"type":        "string",
-						"description": "Ending function name or entity ID",
+						"description": "Optional ending function name; use end_entity_id for an exact code graph entity selector",
+					},
+					"repo_id": map[string]any{
+						"type":        "string",
+						"description": "Optional canonical repository identifier used to scope name-based call-chain resolution",
+					},
+					"start_entity_id": map[string]any{
+						"type":        "string",
+						"description": "Optional exact starting code entity ID; avoids ambiguous name resolution when provided",
+					},
+					"end_entity_id": map[string]any{
+						"type":        "string",
+						"description": "Optional exact ending code entity ID; avoids ambiguous name resolution when provided",
 					},
 					"max_depth": map[string]any{
 						"type":        "integer",
@@ -398,7 +410,7 @@ func codebaseTools() []ToolDefinition {
 						"default":     5,
 					},
 				},
-				"required": []string{"start", "end"},
+				"required": []string{},
 			},
 		},
 	}

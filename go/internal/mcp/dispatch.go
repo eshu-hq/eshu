@@ -311,8 +311,12 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		}}, nil
 	case "find_function_call_chain":
 		return &route{method: "POST", path: "/api/v0/code/call-chain", body: map[string]any{
-			"start": str(args, "start"), "end": str(args, "end"),
-			"max_depth": intOr(args, "max_depth", 5),
+			"start":           str(args, "start"),
+			"end":             str(args, "end"),
+			"repo_id":         str(args, "repo_id"),
+			"start_entity_id": str(args, "start_entity_id"),
+			"end_entity_id":   str(args, "end_entity_id"),
+			"max_depth":       intOr(args, "max_depth", 5),
 		}}, nil
 	case "execute_cypher_query":
 		return &route{method: "POST", path: "/api/v0/code/cypher", body: map[string]any{

@@ -27,14 +27,28 @@ func resolveAnalyzeCodeRelationshipsRoute(args map[string]any) (*route, error) {
 	case "overrides":
 		return analyzeCodeRelationshipsTypedStoryRoute(args, "overrides", "both", "OVERRIDES"), nil
 	case "call_chain":
-		start, end, ok := strings.Cut(str(args, "target"), "->")
-		if !ok {
-			return nil, fmt.Errorf("call_chain target must use start->end format")
+		startEntityID := str(args, "start_entity_id")
+		endEntityID := str(args, "end_entity_id")
+		start, end := "", ""
+		if target := str(args, "target"); target != "" {
+			var ok bool
+			start, end, ok = strings.Cut(target, "->")
+			if !ok {
+				return nil, fmt.Errorf("call_chain target must use start->end format")
+			}
+			start = strings.TrimSpace(start)
+			end = strings.TrimSpace(end)
+		}
+		if start == "" && startEntityID == "" || end == "" && endEntityID == "" {
+			return nil, fmt.Errorf("call_chain target must use start->end format or provide start_entity_id and end_entity_id")
 		}
 		return &route{method: "POST", path: "/api/v0/code/call-chain", body: map[string]any{
-			"start":     strings.TrimSpace(start),
-			"end":       strings.TrimSpace(end),
-			"max_depth": parseMaxDepth(args, 5),
+			"start":           start,
+			"end":             end,
+			"repo_id":         str(args, "repo_id"),
+			"start_entity_id": startEntityID,
+			"end_entity_id":   endEntityID,
+			"max_depth":       parseMaxDepth(args, 5),
 		}}, nil
 	case "dead_code":
 		return &route{method: "POST", path: "/api/v0/code/dead-code", body: map[string]any{
