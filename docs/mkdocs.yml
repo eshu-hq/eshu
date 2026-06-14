@@ -119,6 +119,7 @@ nav:
     - Community Extension Authoring: extend/community-extension-authoring.md
     - Reference Scorecard Extension: extend/reference-scorecard-extension.md
     - Collector Authoring: guides/collector-authoring.md
+    - Collector Extraction Policy: reference/collector-extraction-policy.md
     - Multi-Cloud Runtime Collector Contract: reference/multi-cloud-collector-contract.md
     - GCP Cloud Collector Contract: reference/gcp-cloud-collector-contract.md
     - Azure Cloud Collector Contract: reference/azure-cloud-collector-contract.md
@@ -180,6 +181,7 @@ nav:
     - Compose And Test Environment: reference/environment-compose-tests.md
     - Documentation Updater Actuator Contract: reference/documentation-updater-actuator-contract.md
     - Component Package Manager: reference/component-package-manager.md
+    - Collector Extraction Policy: reference/collector-extraction-policy.md
     - Security Intelligence: reference/security-intelligence.md
     - Security Intelligence Provider Alert Parity: reference/security-intelligence-provider-alert-parity.md
     - Security Intelligence API And MCP Contract: reference/security-intelligence-api-mcp-contract.md
