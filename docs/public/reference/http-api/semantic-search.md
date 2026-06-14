@@ -85,5 +85,6 @@ retrieval path answered.
 ## Related Docs
 
 - [Search Retrieval Contract](../search-retrieval-contract.md)
+- [Semantic Hybrid Search Admission](../semantic-hybrid-search-admission.md)
 - [Search Document Projection](../search-document-projection.md)
 - [MCP Tool Contract Matrix](../mcp-tool-contract-matrix.md)
