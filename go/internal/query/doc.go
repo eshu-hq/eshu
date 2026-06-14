@@ -102,7 +102,8 @@
 // hydration, coverage metadata, recommended next calls, and content fallback
 // calls before allowing scoped-token API or MCP reads. Query playbook catalog
 // and resolver routes, the vulnerability scanner read-contract route, and the
-// redacted hosted governance and semantic extraction status routes, bounded
+// redacted hosted governance, semantic extraction, and answer narration status
+// routes, bounded
 // semantic evidence reads, documentation finding/fact list reads,
 // documentation finding aggregate reads, documentation evidence packet and
 // packet-freshness reads, service catalog correlation reads, package registry

@@ -1,0 +1,8 @@
+capabilities:
+  - capability: answer_narration.status
+    tools: [get_answer_narration_status]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 100, max_scope_size: runtime_status, verification: [{go_test: ./internal/query}], notes: redacted answer narration status with disabled-by-default posture, deterministic fallback availability, and no prompt, provider response, credential, source identifier, graph read, content read, or provider call}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 100, max_scope_size: runtime_status, verification: [{go_test: ./internal/query}], notes: redacted answer narration status; graph sidecar not required and deterministic answer packets remain canonical}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 100, max_scope_size: runtime_status, verification: [{go_test: ./internal/query}], notes: redacted answer narration status with policy, budget, safety, retention, and validator reason-code posture only}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 100, max_scope_size: runtime_status, verification: [{remote_validation: prod-answer-narration-status}], notes: deployed answer narration status exposes only safe state, reason codes, fallback posture, retention posture, and policy hash metadata}

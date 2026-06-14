@@ -482,6 +482,16 @@ health/configuration state. It does not expose credential handles or raw keys,
 while deterministic indexing, reducer projection, API reads, MCP tools, and
 documentation fact routes remain unaffected.
 
+Answer narration status is a runtime status projection, not a narration
+generator. `GET /api/v0/status/answer-narration` reports the optional governed
+narration posture as disabled by default, with deterministic answer packets
+available as the canonical fallback. The route exposes low-cardinality state,
+reason, retention posture, policy hash, and validator reason-code metadata only;
+it must not emit prompts, provider responses, credential handles, source
+identifiers, local paths, or canonical truth changes. The route uses capability
+`answer_narration.status` and shares its handler with MCP
+`get_answer_narration_status`.
+
 Hosted governance status is also a runtime status projection. `GET
 /api/v0/status/governance` reports only redacted governance mode, policy state,
 source kind, optional policy revision hash, readiness booleans, aggregate

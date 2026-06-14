@@ -70,6 +70,9 @@ public query API status.
 - `GET /api/v0/status/semantic-extraction` returns the semantic extraction
   capability status with an Eshu truth envelope when requested by MCP or API
   clients.
+- `GET /api/v0/status/answer-narration` returns optional governed answer
+  narration status with deterministic answer packets still reported as the
+  canonical fallback.
 - `GET /api/v0/repositories/{repo_id}/coverage` returns durable repository
   coverage rows for one repository.
 
@@ -150,6 +153,20 @@ work exists, the same payload includes `queue`, `budget`, and `audit` aggregate
 objects so operators can distinguish pending, retrying, dead-lettered,
 policy-denied, unsafe, provider-unavailable, and budget-exhausted work without
 changing deterministic health.
+
+`/api/v0/status/answer-narration` is a separate optional presentation-status
+surface. The default state is unavailable or disabled, with
+`deterministic_fallback_available=true` and `canonical_truth_affected=false`.
+It reports only low-cardinality state, reason, policy hash, retention posture,
+and validator reason-code metadata. It does not generate narration, call
+providers, retain prompt or response bodies, mutate answer packets, or expose
+source IDs, credentials, private paths, private hostnames, prompts, or provider
+responses.
+
+No-Observability-Change: answer narration status is a read-only runtime posture
+projection over `internal/status`. It adds no provider call, graph read, content
+read, queue, worker, metric, span, log field, prompt construction, response
+retention, or answer-packet mutation.
 
 Run-scoped completeness routes such as `/api/v0/index-runs/{run_id}` are not
 part of the shipped public contract.

@@ -146,6 +146,7 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		AWSFreshness:                   cloneAWSFreshnessSnapshot(raw.AWSFreshness),
 		VulnerabilitySources:           cloneVulnerabilitySourceStates(raw.VulnerabilitySources),
 		SemanticExtraction:             normalizeSemanticExtractionStatus(raw.SemanticExtraction),
+		AnswerNarration:                normalizeAnswerNarrationStatus(raw.AnswerNarration),
 		CollectorGenerationDeadLetters: cloneCollectorGenerationDeadLetterSnapshot(raw.CollectorGenerationDeadLetters),
 		CollectorFactEvidence:          cloneCollectorFactEvidence(raw.CollectorFactEvidence),
 		AWSCloudScansTruncated:         raw.AWSCloudScansTruncated,

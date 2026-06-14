@@ -107,6 +107,7 @@ func OpenAPISpec() string {
 			openAPIPathsHostedReadiness+
 			openAPIPathsGovernanceStatus+
 			openAPIPathsSemanticStatus+
+			openAPIPathsAnswerNarrationStatus+
 			openAPIPathsComponentExtensions+
 			openAPIPathsQueryPlaybooks+
 			openAPIPathsSemanticSearch+

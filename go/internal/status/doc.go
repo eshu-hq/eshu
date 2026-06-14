@@ -40,6 +40,11 @@
 // configured, it carries redacted profile state and source-policy gates without
 // credential handles. That informational state never degrades health or blocks
 // deterministic indexing, reducer, API, MCP, or documentation fact paths.
+// AnswerNarrationStatus reports optional governed answer narration posture as
+// disabled by default, with deterministic answer packets still available as the
+// canonical fallback. It carries only low-cardinality state, reason, retention,
+// policy hash, and validator reason-code metadata; it never carries prompts,
+// provider responses, credentials, source identifiers, or canonical truth.
 // GenerationLifecycleRecord, GenerationLifecycleFilter, and
 // GenerationLifecyclePage define the bounded scope-generation drilldown
 // contract: one ordered page of active, pending, superseded, completed, or

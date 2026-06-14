@@ -26,6 +26,8 @@ func statusRoute(toolName string, args map[string]any) (*route, bool, error) {
 		return &route{method: "GET", path: "/api/v0/status/governance"}, true, nil
 	case "get_semantic_capability_status":
 		return &route{method: "GET", path: "/api/v0/status/semantic-extraction"}, true, nil
+	case "get_answer_narration_status":
+		return &route{method: "GET", path: "/api/v0/status/answer-narration"}, true, nil
 	case "list_component_extensions":
 		return &route{method: "GET", path: "/api/v0/component-extensions", query: map[string]string{
 			"limit": intString(args, "limit", 100),
