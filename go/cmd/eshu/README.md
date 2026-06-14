@@ -204,6 +204,16 @@ dispatcher.
 No-Regression Evidence: assistant hook preflight is covered by
 `go test ./cmd/eshu -run 'TestAssistantHookPreflight' -count=1`.
 
+Benchmark Evidence: assistant hook preflight is measured by
+`go test ./cmd/eshu -run 'TestAssistantHookPreflight' -bench 'BenchmarkAssistantHookPreflight' -benchtime=1000x -count=1`.
+On Darwin arm64 / Apple M4 Pro, sampled local latency measured evaluator
+advisory at p50 333 ns, p95 542 ns, max 143.167 us; command advisory JSON at
+p50 9.042 us, p95 16.792 us, max 323.667 us; and malformed-payload fail-open
+at p50 4.333 us, p95 10.542 us, max 117 us. Steady-state benchmarks measured
+evaluator advisory below 279 ns/op, evaluator fail-open below 102 ns/op,
+command advisory JSON at 10.789 us/op, and malformed-payload fail-open at
+6.065 us/op.
+
 ## Gotchas / invariants
 
 - `SilenceUsage` and `SilenceErrors` are set on the root command

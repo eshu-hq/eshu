@@ -160,6 +160,21 @@ support for a target host unless a PR adds implementation proof for that host:
 No-Regression Evidence: the local preflight planner is covered by
 `go test ./cmd/eshu -run 'TestAssistantHookPreflight' -count=1`.
 
+Benchmark Evidence: on Darwin arm64 / Apple M4 Pro, the local evaluator and
+command wrapper were measured with
+`go test ./cmd/eshu -run 'TestAssistantHookPreflight' -bench 'BenchmarkAssistantHookPreflight' -benchtime=1000x -count=1`.
+The sampled local advisory evaluator path measured p50 333 ns, p95 542 ns, and
+max 143.167 us. The command JSON advisory path measured p50 9.042 us, p95
+16.792 us, and max 323.667 us. The malformed-payload fail-open command path
+measured p50 4.333 us, p95 10.542 us, and max 117 us. Steady-state benchmarks
+measured evaluator advisory cases below 279 ns/op with 416 B/op and fail-open
+evaluator cases below 102 ns/op with at most 32 B/op; command JSON advisory
+measured 10.789 us/op with 13,701 B/op, and malformed payload fail-open
+measured 6.065 us/op with 10,676 B/op. The benchmark performs no
+live query, uses no cache, covers read/search/glob-style trigger families plus
+timeout, unsupported-host, permission-denied, broad-scope, and
+malformed-payload fallbacks, and records allocations for each path.
+
 No-Observability-Change: the local preflight planner does not start Eshu
 runtimes, call MCP/API or provider endpoints, open graph/Postgres drivers,
 claim queue work, or emit OTEL from the CLI dispatcher. It only classifies
