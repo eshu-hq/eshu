@@ -115,6 +115,11 @@ scope; typed parameters on declarations, methods, and function literals use the
 function body. Range variables over locally known map values inherit the map
 value type for calls such as `controllerDesc.BuildController`. A shadowed
 variable in an inner block must not change calls that happen after that block.
+Method-return chain metadata requires concrete local receiver proof. A concrete
+typed parameter or a single concrete local assignment such as
+`var ctx EvalContext = &BuiltinEvalContext{}` can emit
+`chain_receiver_obj_type`; an interface-typed parameter, nil assignment, or
+multiple concrete receiver candidates must stay unresolved.
 Direct method root evidence uses the call site's scoped receiver type. If the
 receiver type is unknown, the parser does not fall back to a same-method-name
 match. Bounded field selector calls such as `s.config.serverAnnouncement` can

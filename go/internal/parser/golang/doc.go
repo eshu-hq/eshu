@@ -15,7 +15,9 @@
 // literals, composite-literal registries, direct method calls, generic
 // constraint methods, fmt Stringer methods, and concrete values that escape
 // through same-repo imported package interface parameters, and methods called
-// through imported package receiver types. Direct method roots require scoped
+// through imported package receiver types. Method-return chain metadata
+// requires concrete receiver proof, so interface-only parameters and ambiguous
+// local assignments stay unresolved. Direct method roots require scoped
 // receiver evidence or a bounded struct-field receiver type; unknown receivers
 // are not rooted by same-method-name fallback. Generic receiver class context
 // is normalized to the base receiver type before payload emission. Those roots

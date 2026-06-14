@@ -132,6 +132,7 @@ func goLocalReceiverBindingsFromRangeClause(
 	node *tree_sitter.Node,
 	source []byte,
 	mapValueTypes []goLocalMapValueTypeBinding,
+	localInterfaces map[string]struct{},
 	lookup *goParentLookup,
 ) []goLocalReceiverBinding {
 	rangeNode := node
@@ -152,7 +153,7 @@ func goLocalReceiverBindingsFromRangeClause(
 		if valueType == "" || valueName == "" {
 			return nil
 		}
-		return goRangeValueReceiverBinding(node, rangeNode, valueName, valueType, lookup)
+		return goRangeValueReceiverBinding(node, rangeNode, valueName, valueType, localInterfaces, lookup)
 	}
 	valueType := goMapValueTypeForName(strings.TrimSpace(nodeText(right, source)), nodeLine(rangeNode), mapValueTypes)
 	if valueType == "" {
@@ -167,7 +168,7 @@ func goLocalReceiverBindingsFromRangeClause(
 	if valueName == "" {
 		return nil
 	}
-	return goRangeValueReceiverBinding(node, rangeNode, valueName, valueType, lookup)
+	return goRangeValueReceiverBinding(node, rangeNode, valueName, valueType, localInterfaces, lookup)
 }
 
 func goMapValueTypeForName(
@@ -205,6 +206,7 @@ func goRangeValueReceiverBinding(
 	rangeNode *tree_sitter.Node,
 	valueName string,
 	valueType string,
+	localInterfaces map[string]struct{},
 	lookup *goParentLookup,
 ) []goLocalReceiverBinding {
 	scope := goNearestLexicalScope(scopeNode, lookup)
@@ -214,6 +216,7 @@ func goRangeValueReceiverBinding(
 	return []goLocalReceiverBinding{{
 		variable:   valueName,
 		typeName:   valueType,
+		concrete:   !goTypeNameIsLocalInterface(valueType, localInterfaces),
 		line:       nodeLine(rangeNode),
 		scopeStart: nodeLine(scope),
 		scopeEnd:   nodeEndLine(scope),

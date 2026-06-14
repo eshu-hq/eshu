@@ -17,7 +17,7 @@ func goAnnotateCallChainMetadata(
 	if receiverIdentifier == "" || receiverMethod == "" {
 		return
 	}
-	receiverType := goInferredReceiverType(receiverIdentifier, nodeLine(callNode), localReceiverBindings)
+	receiverType := goConcreteInferredReceiverType(receiverIdentifier, nodeLine(callNode), localReceiverBindings)
 	if receiverType == "" {
 		return
 	}

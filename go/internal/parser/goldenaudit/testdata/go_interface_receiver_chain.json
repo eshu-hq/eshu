@@ -1,0 +1,26 @@
+{
+  "schema_version": "parser_golden_graph.v1",
+  "nodes": [
+    {
+      "id": "content-entity:execute",
+      "kind": "function",
+      "name": "Execute",
+      "path": "internal/terraform/node.go",
+      "line": 7
+    },
+    {
+      "id": "content-entity:get-action-instance",
+      "kind": "function",
+      "name": "GetActionInstance",
+      "path": "internal/actions/actions.go",
+      "line": 5
+    }
+  ],
+  "edges": [
+    {
+      "source_id": "content-entity:execute",
+      "target_id": "content-entity:get-action-instance",
+      "type": "CALLS"
+    }
+  ]
+}
