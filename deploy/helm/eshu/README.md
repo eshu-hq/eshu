@@ -28,6 +28,9 @@ guidance belong in the public Kubernetes docs.
   long-running workloads use direct `/usr/local/bin/eshu-*` binaries.
 - Claim-driven collectors require an active workflow coordinator with claims
   enabled.
+- Production resolution-engine renders reject
+  `ESHU_GENERATION_RETENTION_ENABLED=false` in global, workload, or lane env so
+  superseded generation cleanup always runs beside reducer work.
 - Production Postgres DSNs should use `contentStore.secretName` and
   `contentStore.dsnKey`; inline `contentStore.dsn` is for local-only or private
   operator contexts.
@@ -45,6 +48,7 @@ guidance belong in the public Kubernetes docs.
 
 ```bash
 helm template eshu ./deploy/helm/eshu
+scripts/verify_generation_retention_helm_guard.sh
 scripts/verify-hosted-security-posture.sh
 scripts/verify-hosted-network-policy-egress.sh
 helm lint ./deploy/helm/eshu

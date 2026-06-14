@@ -46,6 +46,11 @@ override a global value.
 | `resolutionEngine.env` | Single reducer Deployment when no lanes are configured. |
 | `resolutionEngine.lanes[].env` | One reducer lane Deployment. |
 
+Do not set `ESHU_GENERATION_RETENTION_ENABLED=false` in global,
+`resolutionEngine.env`, or `resolutionEngine.lanes[].env`. The chart rejects
+that production render because generation retention must run beside reducer
+work. The binary-level disable path is reserved for explicit local or test runs.
+
 Connection tuning renders environment variables only when values are non-empty.
 The chart owns those mappings in `deploy/helm/eshu/templates/_helpers.tpl`; keep
 operator docs at the values-block level unless a page needs one exact variable.
