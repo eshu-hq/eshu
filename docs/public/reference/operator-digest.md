@@ -37,6 +37,25 @@ An implementation must make these inputs explicit:
 The renderer must reject an empty scope. Optional inputs omitted by a caller use
 the documented defaults; they are not inferred from ambient process state.
 
+## CLI Usage
+
+`eshu report` is the first deterministic CLI renderer for this contract:
+
+```bash
+eshu report --scope repo:owner/name --profile local_authoritative --json
+```
+
+The current CLI path is intentionally offline. It validates an explicit
+share-safe scope, emits the `operator_digest.v1` shape, renders unsupported
+sections as first-class limitations, and assembles suggested questions from
+fixed templates. It does not read raw Cypher, write graph state, enqueue reducer
+work, call providers, or promote incomplete evidence into graph truth.
+
+`--question-limit` defaults to `8` and must be between `0` and `25`. Scopes must
+use share-safe labels such as `repo:owner/name`, `service:name`,
+`workload:name`, `environment:name`, or `project:name`; URLs, absolute paths,
+and machine-local values are rejected before the digest model is constructed.
+
 ## Output Shape
 
 The top-level artifact is:

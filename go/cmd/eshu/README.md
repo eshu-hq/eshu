@@ -59,7 +59,10 @@ orchestration. It does not own service runtime internals:
     (`first_run_benchmark.go`, `first_run_benchmark_cmd.go`);
     `answer-quality-scorecard` scores a captured, redacted answer-quality
     evidence artifact across API, MCP, CLI, and hosted surfaces
-    (`answer_quality_scorecard_cmd.go`)
+    (`answer_quality_scorecard_cmd.go`); `report` renders the deterministic
+    offline `operator_digest.v1` model for an explicit share-safe scope, with
+    unsupported sections and fixed-template follow-up questions until live
+    bounded read surfaces are connected (`operator_digest_cmd.go`)
   - assistant guidance: `assistant install|status|uninstall` manages
     project-scoped Claude, Codex, and Cursor instruction files through a
     delimited managed block. `assistant status --verify` adds safe ritual
@@ -157,6 +160,14 @@ OTEL from this dispatcher.
 
 No-Regression Evidence: answer-quality scorecard CLI behavior is covered by
 `go test ./cmd/eshu -run 'TestAnswerQualityScorecardCommand' -count=1`.
+
+No-Observability-Change: operator digest rendering is offline CLI model
+projection. It validates explicit share-safe inputs, starts no runtimes, calls
+no API/MCP endpoint or provider, opens no graph/Postgres driver, writes no graph
+state, claims no reducer work, and emits no OTEL from this dispatcher.
+
+No-Regression Evidence: operator digest CLI behavior is covered by
+`go test ./cmd/eshu -run 'TestOperatorDigest' -count=1`.
 
 No-Observability-Change: hosted-onboard starter playbook guidance is local
 artifact projection from the in-process query playbook catalog. It does not
