@@ -240,6 +240,8 @@ backends when explicitly constructed by a benchmark or proof harness. The
 semantic-search route uses the persisted active curated search-document index;
 broader default runtime search still requires separate telemetry, capability,
 backend-proof, and semantic-evaluation evidence.
+Production embedder-backed `semantic` or `hybrid` retrieval must also satisfy
+[Semantic Hybrid Search Admission](semantic-hybrid-search-admission.md).
 
 ## Verification Gate
 
@@ -257,6 +259,8 @@ uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
 ```
 
 ## Related Docs
+
+- [Semantic Hybrid Search Admission](semantic-hybrid-search-admission.md)
 
 - [Search Document Projection](search-document-projection.md)
 - [Search Benchmark Evidence](search-benchmark-evidence.md)

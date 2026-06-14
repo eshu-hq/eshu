@@ -197,6 +197,7 @@ nav:
     - Incremental Freshness Model: reference/incremental-freshness-model.md
     - Semantic Enrichment Posture: reference/semantic-enrichment-posture.md
     - Incident Media Evidence Contract: reference/incident-media-evidence.md
+    - Semantic Hybrid Search Admission: reference/semantic-hybrid-search-admission.md
     - Hosted Redaction Registry: reference/hosted-redaction-registry.md
     - Hosted Retention And Deletion Policy: reference/hosted-retention-deletion-policy.md
     - Tag Taxonomy: reference/tag-taxonomy.md
