@@ -96,7 +96,8 @@ WITH scoped_relationships AS (
 		'DISCOVERS_CONFIG_IN',
 		'PROVISIONS_DEPENDENCY_FOR',
 		'READS_CONFIG_FROM',
-		'RUNS_ON'
+		'RUNS_ON',
+		'CORRELATES_DEPLOYABLE_UNIT'
 	  )
 	UNION ALL
 	SELECT 'incoming' AS direction, r.*
@@ -112,7 +113,8 @@ WITH scoped_relationships AS (
 		'DISCOVERS_CONFIG_IN',
 		'PROVISIONS_DEPENDENCY_FOR',
 		'READS_CONFIG_FROM',
-		'RUNS_ON'
+		'RUNS_ON',
+		'CORRELATES_DEPLOYABLE_UNIT'
 	  )
 )
 SELECT r.direction,

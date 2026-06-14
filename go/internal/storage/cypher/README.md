@@ -363,6 +363,12 @@ tracks this package's broader transient graph-write retry class.
   `WithEntityContainmentInEntityUpsert`
 - `EdgeWriter` — writes shared-domain edge rows for
   `reducer.SharedProjectionEdgeWriter`; constructed with `NewEdgeWriter`
+- `EdgeWriter` also materializes deployable-unit correlation rows from
+  `reducer.DomainDeployableUnitEdges` into
+  `(:Repository)-[:CORRELATES_DEPLOYABLE_UNIT]->(:Repository)` edges. The query
+  shape is batched `UNWIND` + `MATCH` source repository + `MATCH` deployment
+  repository + static-token `MERGE`; missing endpoints are no-ops and stale
+  rows retract only evidence source `reducer/deployable-unit-correlation`.
 - `OrphanSweepStore` — counts, marks, clears, and deletes aged
   zero-relationship graph nodes from the closed cleanup label set; constructed
   with `NewOrphanSweepStore`
@@ -391,6 +397,22 @@ tracks this package's broader transient graph-write retry class.
   `ec2_internet_exposed` property. Retract removes only
   `ec2_internet_exposure_*` properties scoped by reducer evidence source and
   scope id.
+
+No-Regression Evidence: deployable-unit edge writes use the shared static-token
+`EdgeWriter` path with no per-row graph reads. On Apple M4 Pro (`darwin/arm64`),
+`go test ./internal/storage/cypher -run '^$' -bench 'BenchmarkDeployableUnitCorrelationEdgeWriter|BenchmarkKubernetesCorrelationEdgeWriter' -benchmem -benchtime=20x -count=3`
+writes 5,000 `CORRELATES_DEPLOYABLE_UNIT` rows at `2.94-3.05 ms/op`,
+`7.32 MB/op`, and `80,052-80,053 allocs/op`. The lean dedicated
+`BenchmarkKubernetesCorrelationEdgeWriter` baseline on the same run measured
+`1.16-1.23 ms/op`, `2.16 MB/op`, and `25,098 allocs/op`; the deployable-unit
+path is heavier because it carries the generic shared-intent row map and
+admission metadata, but it remains one batched no-N+1 write surface.
+
+No-Observability-Change: deployable-unit writes flow through
+`EdgeWriter.WriteEdges` / `RetractEdges`, existing retry wrapping, grouped
+execution, shared-edge group metrics, statement summaries, and failure logs. The
+change adds no metric name, metric label, worker, queue domain, runtime knob, or
+backend-specific branch.
 
   Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench
   BenchmarkEC2InternetExposureNodeWriter -benchmem -count=3` writes 5,000 rows

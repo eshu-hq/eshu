@@ -250,6 +250,7 @@ func buildReducerService(
 			FactLoader:     factStore,
 			ResolvedLoader: relationshipStore,
 			PhasePublisher: graphProjectionStateStore,
+			EdgeWriter:     edgeWriterForHandlers,
 		},
 		WorkloadProjectionInputLoader: reducer.CorrelatedWorkloadProjectionInputLoader{
 			FactLoader:     factStore,

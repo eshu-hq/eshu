@@ -72,7 +72,7 @@ func queryRepositoryDependencyCount(
 		return readModelSummary.DependencyCount
 	}
 	return queryRepositoryContextCount(ctx, reader, params, "dependency_count", `
-			MATCH (r:Repository {id: $repo_id})-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON]->(dep:Repository)
+			MATCH (r:Repository {id: $repo_id})-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]->(dep:Repository)
 			RETURN count(DISTINCT dep) AS count
 		`, fallback)
 }

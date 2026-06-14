@@ -89,6 +89,10 @@ Relationship-story rows expose the same distinction through a uniform
 state, and derived/heuristic/unsupported flags. The block is built from already
 returned row metadata and does not change canonical admission, graph writes, or
 the answer-level truth envelope.
+Repository context relationship queries include reducer-owned
+`CORRELATES_DEPLOYABLE_UNIT` graph edges so deployable-unit correlation readback
+uses the same confidence, evidence kind, reason, resolved id, and
+resolution-source fields as other typed repository relationships.
 
 No-Regression Evidence: focused relationship context, evidence drilldown, and
 OpenAPI tests cover both Postgres read-model and graph-backed rows:
