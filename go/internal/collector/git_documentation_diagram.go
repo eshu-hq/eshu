@@ -14,7 +14,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
-const malformedDiagramWarning = "malformed_media"
+const (
+	malformedDiagramWarning        = "malformed_media"
+	incidentMediaClassDiagramLabel = "diagram_label"
+)
 
 var (
 	mermaidBracketLabelPattern = regexp.MustCompile(`[\[\(\{]([^\]\)\}]+)[\]\)\}]`)
@@ -72,10 +75,11 @@ func extractDiagramDocumentation(
 		Language:     format,
 		ContentHash:  firstNonEmptyString(digest, documentationHashText(bodyText)),
 		SourceMetadata: map[string]string{
-			"path":           relativePath,
-			"repo_id":        repo.ID,
-			"format_family":  "diagram",
-			"diagram_format": format,
+			"path":                        relativePath,
+			"repo_id":                     repo.ID,
+			"format_family":               "diagram",
+			"incident_media_source_class": incidentMediaClassDiagramLabel,
+			"diagram_format":              format,
 		},
 	}
 	if commitSHA != "" {
@@ -366,8 +370,9 @@ func diagramDocumentationSections(
 		endRef:   "diagram:text",
 		content:  labels,
 		sourceMetadata: map[string]string{
-			"format_family":  "diagram",
-			"diagram_format": format,
+			"format_family":               "diagram",
+			"incident_media_source_class": incidentMediaClassDiagramLabel,
+			"diagram_format":              format,
 		},
 	}
 	return documentationSectionsFromDrafts(documentID, revisionID, relativePath, format, []markdownSectionDraft{draft})

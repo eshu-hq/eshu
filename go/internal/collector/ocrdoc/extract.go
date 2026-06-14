@@ -18,9 +18,10 @@ import (
 )
 
 const (
-	formatImageOCR         = "image_ocr"
-	documentTypeImage      = "image"
-	defaultMaxSectionChars = 16 * 1024
+	formatImageOCR              = "image_ocr"
+	incidentMediaClassOCRRegion = "ocr_region"
+	documentTypeImage           = "image"
+	defaultMaxSectionChars      = 16 * 1024
 )
 
 // Extract preflights an image and emits source-neutral OCR documentation facts.
@@ -88,10 +89,11 @@ func Extract(ctx context.Context, req Request) (Result, error) {
 
 func buildDocument(req Request, preflight imagepreflight.Result, sourceHash string) facts.DocumentationDocumentPayload {
 	metadata := map[string]string{
-		"format_family":    formatImageOCR,
-		"ocr_status":       "pending",
-		"ocr_region_count": "0",
-		"source_hash":      sourceHash,
+		"format_family":               formatImageOCR,
+		"incident_media_source_class": incidentMediaClassOCRRegion,
+		"ocr_status":                  "pending",
+		"ocr_region_count":            "0",
+		"source_hash":                 sourceHash,
 	}
 	if preflight.Format != "" {
 		metadata["image_format"] = preflight.Format
@@ -161,16 +163,17 @@ func buildSections(
 		content, warnings, redacted := persistedContent(text, req.Options.MaxSectionChars)
 		regionID := firstNonEmpty(cleanID(region.RegionID), strconv.Itoa(i+1))
 		metadata := map[string]string{
-			"format_family":      formatImageOCR,
-			"ocr_engine":         firstNonEmpty(ocrResult.EngineName, "unknown"),
-			"ocr_engine_version": firstNonEmpty(ocrResult.EngineVersion, "unknown"),
-			"confidence_bucket":  confidenceBucket(region.Confidence),
-			"source_hash":        sourceHash,
-			"frame_index":        "0",
-			"bounds_x":           fmt.Sprintf("%.4f", clamp01(region.Bounds.X)),
-			"bounds_y":           fmt.Sprintf("%.4f", clamp01(region.Bounds.Y)),
-			"bounds_width":       fmt.Sprintf("%.4f", clamp01(region.Bounds.Width)),
-			"bounds_height":      fmt.Sprintf("%.4f", clamp01(region.Bounds.Height)),
+			"format_family":               formatImageOCR,
+			"incident_media_source_class": incidentMediaClassOCRRegion,
+			"ocr_engine":                  firstNonEmpty(ocrResult.EngineName, "unknown"),
+			"ocr_engine_version":          firstNonEmpty(ocrResult.EngineVersion, "unknown"),
+			"confidence_bucket":           confidenceBucket(region.Confidence),
+			"source_hash":                 sourceHash,
+			"frame_index":                 "0",
+			"bounds_x":                    fmt.Sprintf("%.4f", clamp01(region.Bounds.X)),
+			"bounds_y":                    fmt.Sprintf("%.4f", clamp01(region.Bounds.Y)),
+			"bounds_width":                fmt.Sprintf("%.4f", clamp01(region.Bounds.Width)),
+			"bounds_height":               fmt.Sprintf("%.4f", clamp01(region.Bounds.Height)),
 		}
 		if ocrResult.Language != "" {
 			metadata["language"] = ocrResult.Language

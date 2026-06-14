@@ -22,6 +22,7 @@ func TestContentReaderDocumentationFactsReadsStructuredDiagramFacts(t *testing.T
 			"source_metadata": {
 				"path": "docs/architecture.svg",
 				"format_family": "diagram",
+				"incident_media_source_class": "diagram_label",
 				"diagram_format": "svg"
 			},
 			"linked_entities": [{
@@ -61,5 +62,8 @@ func TestContentReaderDocumentationFactsReadsStructuredDiagramFacts(t *testing.T
 	metadata := payload["source_metadata"].(map[string]any)
 	if got, want := metadata["diagram_format"], "svg"; got != want {
 		t.Fatalf("diagram_format = %#v, want %#v", got, want)
+	}
+	if got, want := metadata["incident_media_source_class"], "diagram_label"; got != want {
+		t.Fatalf("incident_media_source_class = %#v, want %#v", got, want)
 	}
 }

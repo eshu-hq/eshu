@@ -13,7 +13,9 @@ This package owns the post-preflight OCR fact boundary for `.png`, `.jpg`,
 `.jpeg`, and first-frame `.gif` inputs. It calls `imagepreflight` first, invokes
 only an injected OCR engine for supported inputs, redacts sensitive-looking OCR
 regions, and emits `documentation_document` plus OCR-region
-`documentation_section` envelopes.
+`documentation_section` envelopes. Emitted document and section metadata carries
+`incident_media_source_class=ocr_region` so downstream correlation can keep OCR
+evidence separate from stronger operational truth.
 
 It does not discover repositories, add runtime flags, create temp files, call
 cloud OCR or vision APIs, persist raw pixels, emit graph edges, infer service or

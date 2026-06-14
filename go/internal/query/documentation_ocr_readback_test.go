@@ -23,6 +23,7 @@ func TestDocumentationHandlerListsOCRSectionFactsWithMetadata(t *testing.T) {
 			"content_format": "text/plain",
 			"source_metadata": {
 				"format_family": "image_ocr",
+				"incident_media_source_class": "ocr_region",
 				"bounds_x": "0.1000",
 				"confidence_bucket": "high",
 				"source_hash": "sha256:fixture"
@@ -74,5 +75,8 @@ func TestDocumentationHandlerListsOCRSectionFactsWithMetadata(t *testing.T) {
 	}
 	if got, want := metadata["confidence_bucket"], "high"; got != want {
 		t.Fatalf("confidence_bucket = %#v, want %#v", got, want)
+	}
+	if got, want := metadata["incident_media_source_class"], "ocr_region"; got != want {
+		t.Fatalf("incident_media_source_class = %#v, want %#v", got, want)
 	}
 }
