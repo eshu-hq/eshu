@@ -144,6 +144,41 @@ func TestCodeCallProjectionRunnerRetractRepoPreservesDeltaFileScope(t *testing.T
 	}
 }
 
+func TestCodeCallProjectionRunnerRetractRepoPreservesDeletedOnlyDeltaFileScope(t *testing.T) {
+	t.Parallel()
+
+	writer := &recordingCodeCallProjectionEdgeWriter{}
+	runner := CodeCallProjectionRunner{EdgeWriter: writer}
+	rows := []SharedProjectionIntentRow{
+		{
+			RepositoryID: "repo-a",
+			Payload: map[string]any{
+				"repo_id":          "repo-a",
+				"delta_projection": true,
+				"delta_file_paths": []string{"/repo/src/deleted.go"},
+				"intent_type":      "repo_refresh",
+			},
+		},
+	}
+
+	if err := runner.retractRepo(context.Background(), rows); err != nil {
+		t.Fatalf("retractRepo() error = %v, want nil", err)
+	}
+	if len(writer.retractCalls) != 2 {
+		t.Fatalf("len(retractCalls) = %d, want 2 evidence-source retracts", len(writer.retractCalls))
+	}
+	for i, call := range writer.retractCalls {
+		payload := call.rows[0].Payload
+		gotPaths, ok := payload["delta_file_paths"].([]string)
+		if !ok {
+			t.Fatalf("retractCalls[%d] delta_file_paths type = %T, want []string", i, payload["delta_file_paths"])
+		}
+		if len(gotPaths) != 1 || gotPaths[0] != "/repo/src/deleted.go" {
+			t.Fatalf("retractCalls[%d] delta_file_paths = %#v, want [/repo/src/deleted.go]", i, gotPaths)
+		}
+	}
+}
+
 func TestBuildCodeCallRetractRowsKeepsMalformedDeltaScoped(t *testing.T) {
 	t.Parallel()
 
