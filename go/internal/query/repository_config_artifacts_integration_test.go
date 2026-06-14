@@ -181,7 +181,7 @@ spec:
 				},
 			},
 			runByMatch: map[string][]map[string]any{
-				"MATCH (r:Repository {id: $repo_id})-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON]->(related:Repository)": {
+				"MATCH (r:Repository {id: $repo_id})-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]->(related:Repository)": {
 					{"repo_id": "repo-helm", "repo_name": "helm-charts"},
 					{"repo_id": "repo-terraform", "repo_name": "terraform-stack-payments"},
 				},

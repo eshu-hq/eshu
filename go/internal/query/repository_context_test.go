@@ -454,7 +454,7 @@ func TestGetRepositoryContextReturnsEnrichedResponse(t *testing.T) {
 					},
 				},
 				// Cross-repo relationships (outgoing)
-				"MATCH (r:Repository {id: $repo_id})-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON]->(target:Repository)": {
+				"MATCH (r:Repository {id: $repo_id})-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]->(target:Repository)": {
 					{
 						"type":          "DEPENDS_ON",
 						"target_name":   "auth-service",
@@ -487,7 +487,7 @@ func TestGetRepositoryContextReturnsEnrichedResponse(t *testing.T) {
 					},
 				},
 				// Consumer repositories (incoming)
-				"MATCH (consumer:Repository)-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON]->(r:Repository {id: $repo_id})": {
+				"MATCH (consumer:Repository)-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]->(r:Repository {id: $repo_id})": {
 					{
 						"consumer_name": "checkout-service",
 						"consumer_id":   "repo-4",
@@ -873,7 +873,7 @@ func TestGetRepositoryContextPartitionsControllerWorkflowAndIaCRelationships(t *
 				},
 			},
 			runByMatch: map[string][]map[string]any{
-				"MATCH (r:Repository {id: $repo_id})-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON]->(target:Repository)": {
+				"MATCH (r:Repository {id: $repo_id})-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]->(target:Repository)": {
 					{
 						"type":          "DEPLOYS_FROM",
 						"target_name":   "infra-configs",

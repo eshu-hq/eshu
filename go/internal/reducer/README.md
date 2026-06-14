@@ -99,7 +99,7 @@ canonical-write or bounded counter-emission requirements.
 | Domain constant | Summary |
 | --- | --- |
 | `DomainWorkloadIdentity` | Resolve canonical workload identity across sources |
-| `DomainDeployableUnitCorrelation` | Correlate cross-source deployable-unit evidence before workload admission |
+| `DomainDeployableUnitCorrelation` | Correlate cross-source deployable-unit evidence and write admitted resolved deployment-repo edges |
 | `DomainCloudAssetResolution` | Resolve canonical cloud asset identity across sources |
 | `DomainDeploymentMapping` | Materialize platform bindings across sources |
 | `DomainDataLineage` | Resolve lineage across sources and scopes |
@@ -136,6 +136,14 @@ canonical-write or bounded counter-emission requirements.
 | `DomainEC2BlockDeviceKMSPostureMaterialization` | Derive EC2 block-device KMS posture from `ec2_instance_posture.block_devices[]` joined to scanned `aws_ec2_volume`, `aws_kms_key`, and `ec2_volume_uses_kms_key` facts; writes bounded reducer-owned properties onto existing EC2 `CloudResource` nodes only, gates on DUAL `cloud_resource_uid` readiness for the EC2 instance-node phase (`ec2_instance_node_materialization:<scope>`) and the EBS/KMS resource-node phase (`aws_resource_materialization:<scope>`), never writes raw block-device maps, never calls AWS from the reducer, and keeps missing volume facts, missing KMS key facts, AWS-managed/default keys, detached volumes, and tombstones conservative as `state=unknown` (issue #1304) |
 | `DomainS3InternetExposureMaterialization` | Derive conservative `exposed` / `not_exposed` / `unknown` S3 internet-exposure state from `s3_bucket_posture` facts and write reducer-owned properties onto existing S3 `CloudResource` nodes only; gates on the `cloud_resource_uid` canonical-nodes phase, resolves the source bucket through the S3 in-memory join index, never reads or persists raw bucket policy, ACL grants, object keys, or object data, and keeps unknown posture as `state=unknown` with no boolean exposure property (issue #1232); see `docs/internal/design/1232-s3-internet-exposure.md` |
 | `DomainIncidentRoutingMaterialization` | Project exact PagerDuty incident-routing evidence into reducer-owned `IncidentRoutingEvidence` graph nodes and intended/applied/live evidence relationships without promoting runtime, image, commit, pull-request, Jira, service-health, or root-cause truth |
+
+`DomainDeployableUnitCorrelation` writes graph truth only after rule evaluation
+admits an exact candidate with a resolved deployment repository. The handler
+retracts `reducer/deployable-unit-correlation` edges for the source repository,
+writes admitted rows through `DomainDeployableUnitEdges`, and only then
+publishes `GraphProjectionPhaseDeployableUnitCorrelation`. Rejected,
+ambiguous, endpoint-less, and stale candidates therefore remove prior
+deployable-unit truth without fabricating a replacement edge.
 
 ## GCP Cloud Resource Materialization
 

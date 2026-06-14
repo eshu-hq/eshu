@@ -162,6 +162,12 @@ func (h *RepositoryHandler) getRepositoryContext(w http.ResponseWriter, r *http.
 	contentCoverage := loadRepositoryContentCoverage(ctx, h.Content, repoID)
 	readModelSummary := loadRepositoryReadModelSummary(ctx, h.Content, repoID)
 	relationshipReadModel := loadRepositoryRelationshipReadModel(ctx, h.Content, repoID)
+	if relationshipReadModel != nil {
+		relationshipReadModel = mergeRepositoryDeployableUnitRelationships(
+			relationshipReadModel,
+			queryRepoDeployableUnitRelationshipOverview(ctx, h.Neo4j, params),
+		)
+	}
 
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "summary_counts")
 	counts := queryRepositoryContextCounts(ctx, h.Neo4j, params, baseRow, contentCoverage, readModelSummary)

@@ -12,14 +12,16 @@ deployable-unit relationships.
 ## Current State
 
 `DomainDeployableUnitCorrelation` evaluates candidates and publishes the
-`deployable_unit_correlation` graph projection phase. Today it deliberately
-returns zero canonical writes. That is a safe incomplete state: downstream
-readers may know the evaluation ran, but no query surface may infer a canonical
-edge from the phase alone.
+`deployable_unit_correlation` graph projection phase. Admitted candidates with a
+resolved deployment repository now write
+`(:Repository)-[:CORRELATES_DEPLOYABLE_UNIT]->(:Repository)` edges through the
+shared Cypher edge writer using evidence source
+`reducer/deployable-unit-correlation`.
 
-Future implementation PRs must not change API, MCP, or console reads to pretend
-that evaluated-but-unwritten candidates are graph truth. They must write the
-graph edge first, then prove direct graph truth and read-surface truth agree.
+Rejected, ambiguous, low-confidence, stale, or endpoint-less candidates retract
+that evidence source for the source repository and write no replacement edge.
+Downstream readers may know evaluation ran from the phase, but no query surface
+may infer a canonical edge from the phase alone.
 
 ## Source Flow
 
@@ -62,10 +64,12 @@ may match `Repository`, `Workload`, `WorkloadInstance`, `Platform`, or
 `CloudResource` endpoints that were committed by their owning domains, but it
 must not create endpoint nodes as a side effect.
 
-The first implementation PR must define the concrete relationship token and
-owning evidence source in `go/internal/storage/cypher` before reducer code can
-call it. The relationship identity must be stable across retries and must not
-include mutable evidence fields in the `MERGE` key.
+The first canonical edge implementation uses static relationship token
+`CORRELATES_DEPLOYABLE_UNIT` and evidence source
+`reducer/deployable-unit-correlation` in `go/internal/storage/cypher`. The
+relationship identity is the source repository, deployment repository, and
+static token; mutable evidence fields are properties, not dynamic relationship
+tokens.
 
 Required edge payload fields:
 

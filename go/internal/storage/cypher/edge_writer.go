@@ -238,6 +238,8 @@ func batchCypherForDomain(domain string) (string, error) {
 		return batchCanonicalRationaleExplainsEdgeCypher, nil
 	case reducer.DomainSQLRelationships:
 		return batchCanonicalSQLRelationshipUpsertCypher, nil
+	case reducer.DomainDeployableUnitEdges:
+		return batchCanonicalDeployableUnitCorrelationUpsertCypher, nil
 	default:
 		return "", fmt.Errorf("unsupported domain for write: %q", domain)
 	}
@@ -351,9 +353,47 @@ func buildRowMap(
 	case reducer.DomainSQLRelationships:
 		return buildSQLRelationshipRowMap(row.Payload, evidenceSource)
 
+	case reducer.DomainDeployableUnitEdges:
+		return buildDeployableUnitCorrelationRowMap(row.Payload, evidenceSource)
+
 	default:
 		return "", nil, false
 	}
+}
+
+func buildDeployableUnitCorrelationRowMap(
+	payload map[string]any,
+	evidenceSource string,
+) (string, map[string]any, bool) {
+	repoID := payloadString(payload, "repo_id")
+	deploymentRepoID := payloadString(payload, "deployment_repo_id")
+	unitKey := payloadString(payload, "deployable_unit_key")
+	correlationKey := payloadString(payload, "correlation_key")
+	if repoID == "" || deploymentRepoID == "" || unitKey == "" || correlationKey == "" {
+		return "", nil, false
+	}
+	relationshipType := payloadString(payload, "relationship_type")
+	if relationshipType == "" {
+		relationshipType = "CORRELATES_DEPLOYABLE_UNIT"
+	}
+	return batchCanonicalDeployableUnitCorrelationUpsertCypher, map[string]any{
+		"repo_id":             repoID,
+		"deployment_repo_id":  deploymentRepoID,
+		"deployable_unit_key": unitKey,
+		"correlation_key":     correlationKey,
+		"relationship_type":   relationshipType,
+		"evidence_type":       payloadString(payload, "evidence_type"),
+		"evidence_source":     evidenceSource,
+		"resolution_source":   payloadString(payload, "resolution_source"),
+		"resolved_id":         payloadString(payload, "resolved_id"),
+		"generation_id":       payloadString(payload, "generation_id"),
+		"admission_state":     payloadString(payload, "admission_state"),
+		"confidence":          repoRelationshipConfidence(payloadFloat(payload, "confidence")),
+		"evidence_count":      payloadInt(payload, "evidence_count"),
+		"evidence_kinds":      payloadStringSlice(payload, "evidence_kinds"),
+		"rule_pack":           payloadString(payload, "rule_pack"),
+		"reason":              payloadString(payload, "reason"),
+	}, true
 }
 
 // RetractEdges retracts canonical domain edges for the given rows. Retraction

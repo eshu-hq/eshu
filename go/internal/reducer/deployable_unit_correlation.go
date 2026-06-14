@@ -3,7 +3,6 @@ package reducer
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -17,12 +16,13 @@ import (
 const deployableUnitCorrelationFallbackThreshold = 0.90
 
 // DeployableUnitCorrelationHandler reduces one correlation intent into
-// evidence-backed candidate evaluation. Canonical graph writes remain owned by
-// downstream workload materialization once candidate admission becomes stable.
+// evidence-backed candidate evaluation and materializes admitted exact
+// deployable-unit correlation edges when an edge writer is wired.
 type DeployableUnitCorrelationHandler struct {
 	FactLoader     FactLoader
 	ResolvedLoader ResolvedRelationshipLoader
 	PhasePublisher GraphProjectionPhasePublisher
+	EdgeWriter     SharedProjectionEdgeWriter
 }
 
 // Handle executes the deployable-unit correlation reduction path.
@@ -67,6 +67,9 @@ func (h DeployableUnitCorrelationHandler) Handle(
 
 	candidates = filterDeployableUnitCandidates(candidates, entityKeys)
 	if len(candidates) == 0 {
+		if err := h.retractDeployableUnitEdges(ctx, deployableUnitRetractRowsFromFacts(intent, envelopes)); err != nil {
+			return Result{}, err
+		}
 		if err := publishIntentGraphPhase(
 			ctx,
 			h.PhasePublisher,
@@ -91,6 +94,11 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	}
 	summary := correlation.BuildSummary(evaluation)
 	evaluatedCandidateCount := len(evaluation.Results)
+	edgeRows := deployableUnitCorrelationRows(intent, evaluation)
+	canonicalWrites, err := h.materializeDeployableUnitEdges(ctx, edgeRows)
+	if err != nil {
+		return Result{}, err
+	}
 	if err := publishIntentGraphPhase(
 		ctx,
 		h.PhasePublisher,
@@ -107,7 +115,7 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		Domain:          DomainDeployableUnitCorrelation,
 		Status:          ResultStatusSucceeded,
 		EvidenceSummary: deployableUnitCorrelationSummary(evaluatedCandidateCount, summary),
-		CanonicalWrites: 0,
+		CanonicalWrites: canonicalWrites,
 	}, nil
 }
 
@@ -445,46 +453,6 @@ func deployableUnitKeys(candidate WorkloadCandidate) []string {
 		values = append(values, key)
 	}
 	return uniqueSortedStrings(values)
-}
-
-func deployableUnitKeyFromPath(repoName, relativePath string) string {
-	trimmedPath := strings.TrimSpace(relativePath)
-	if trimmedPath == "" {
-		return repoName
-	}
-	base := filepath.Base(trimmedPath)
-	lowerBase := strings.ToLower(base)
-	switch {
-	case strings.EqualFold(base, "Dockerfile"):
-		return dockerfileExactPathKey(repoName, trimmedPath)
-	case strings.HasSuffix(lowerBase, ".dockerfile"):
-		return strings.TrimSuffix(base, filepath.Ext(base))
-	case strings.HasPrefix(lowerBase, "dockerfile."):
-		return strings.TrimPrefix(base, "Dockerfile.")
-	default:
-		return repoName
-	}
-}
-
-func boundedAmbiguousDeployableUnitConfidence(confidence float64) float64 {
-	if confidence > 0.79 {
-		return 0.79
-	}
-	return confidence
-}
-
-func deployableUnitMatchesPrimaryIdentity(candidate WorkloadCandidate, unitKey string) bool {
-	unitKey = strings.ToLower(strings.TrimSpace(unitKey))
-	if unitKey == "" {
-		return false
-	}
-	if unitKey == strings.ToLower(strings.TrimSpace(candidate.RepoName)) {
-		return true
-	}
-	if unitKey == strings.ToLower(strings.TrimSpace(candidate.WorkloadName)) {
-		return true
-	}
-	return false
 }
 
 func deployableUnitCorrelationSummary(evaluatedCandidates int, summary correlation.Summary) string {

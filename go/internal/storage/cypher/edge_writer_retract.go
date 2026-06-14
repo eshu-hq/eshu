@@ -175,6 +175,8 @@ func buildRetractStatement(
 		return BuildRetractRationaleEdges(repoIDs, evidenceSource), nil
 	case reducer.DomainSQLRelationships:
 		return BuildRetractSQLRelationshipEdges(repoIDs, evidenceSource), nil
+	case reducer.DomainDeployableUnitEdges:
+		return BuildRetractDeployableUnitCorrelationEdges(repoIDs, evidenceSource), nil
 	default:
 		return Statement{}, fmt.Errorf("unsupported domain for retract: %q", domain)
 	}

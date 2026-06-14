@@ -10,14 +10,15 @@ import (
 
 // SharedProjectionDomain constants for the shared projection domains.
 const (
-	DomainPlatformInfra      = "platform_infra"
-	DomainRepoDependency     = "repo_dependency"
-	DomainWorkloadDependency = "workload_dependency"
-	DomainCodeCalls          = "code_calls"
-	DomainSQLRelationships   = "sql_relationships"
-	DomainInheritanceEdges   = "inheritance_edges"
-	DomainDocumentationEdges = "documentation_edges"
-	DomainRationaleEdges     = "rationale_edges"
+	DomainPlatformInfra       = "platform_infra"
+	DomainRepoDependency      = "repo_dependency"
+	DomainWorkloadDependency  = "workload_dependency"
+	DomainCodeCalls           = "code_calls"
+	DomainSQLRelationships    = "sql_relationships"
+	DomainInheritanceEdges    = "inheritance_edges"
+	DomainDocumentationEdges  = "documentation_edges"
+	DomainRationaleEdges      = "rationale_edges"
+	DomainDeployableUnitEdges = "deployable_unit_edges"
 )
 
 // SharedProjectionIntentRow is one durable shared-domain projection intent.
