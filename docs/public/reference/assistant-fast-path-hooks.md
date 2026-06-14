@@ -5,8 +5,12 @@ describes an optional, opt-in assistant integration that may surface bounded
 Eshu context before a user or assistant performs broad source exploration such
 as Read, Grep, Glob, file search, or editor symbol lookup.
 
-This page is a contract gate. It does not ship a hook, host adapter, MCP call,
-API route, cache, graph query, or source mutation.
+This page is the contract gate for fast-path hooks. The first shipped CLI
+surface is `eshu assistant hook preflight`, a local Claude Code-style
+PreToolUse planner that can read hook JSON from stdin and emit advisory
+`additionalContext` only when the input is narrow and safe. It does not install
+hooks, auto-enable hooks, call MCP/API, cache data, query the graph, or mutate
+source.
 
 ## Supported Host Boundary
 
@@ -16,13 +20,34 @@ feature or from another host.
 
 | Host family | Boundary |
 | --- | --- |
-| Claude Code-style PreToolUse | Eligible only after an opt-in hook can observe the candidate tool name and bounded input without mutating the tool request. |
+| Claude Code-style PreToolUse | Supported for opt-in local preflight planning when the host passes the candidate tool name and bounded input without requiring Eshu to mutate the tool request. |
 | Codex | Guidance-only until the active Codex environment exposes an equivalent documented hook with bounded input, timeout, and read-only output. |
 | Cursor | Guidance-only until Cursor exposes an equivalent documented hook or rules integration that can run the same bounded preflight without changing source. |
 | Other MCP clients | Guidance-only unless the client documents a compatible pre-tool or pre-search extension point. |
 
 Unsupported hosts continue to use [Assistant Guidance](assistant-guidance.md)
 and [Connect MCP](../mcp/index.md). They must not install best-guess hooks.
+
+## CLI Preflight
+
+`eshu assistant hook preflight` is opt-in and local. A Claude Code-style
+command hook can call it with `--host claude --enabled --json` and pass the
+host's PreToolUse JSON on stdin:
+
+```bash
+eshu assistant hook preflight --host claude --enabled --json
+```
+
+When a safe advisory is available, stdout contains only Claude hook JSON with
+`hookSpecificOutput.hookEventName = "PreToolUse"` and an `additionalContext`
+string naming the bounded Eshu tool family, narrow scope, limit, timeout, truth
+profile, freshness state, and truncation state. It does not set
+`permissionDecision` and does not set `updatedInput`, so the original tool call
+continues through the host's normal permission flow.
+
+When the hook is disabled, unsupported, disallowed, broad, timed out, denied, or
+cannot parse the host payload, the command fails open with exit code `0` and no
+stdout. Text mode is for local diagnostics only and is not the hook protocol.
 
 ## Trigger Classes
 
@@ -119,8 +144,8 @@ provider responses, or large source excerpts.
 
 ## Implementation Gate
 
-No fast-path hook may ship, default on, or claim support until a follow-up PR
-adds implementation proof for the target host:
+No fast-path hook may default on, install itself, call live Eshu reads, or claim
+support for a target host unless a PR adds implementation proof for that host:
 
 - opt-in configuration and uninstall path
 - failing tests first for unsupported host, missing endpoint, broad scope,
@@ -132,14 +157,13 @@ adds implementation proof for the target host:
 - `No-Regression Evidence:` for any runtime path touched
 - `Observability Evidence:` or `No-Observability-Change:` in tracked docs
 
-No-Regression Evidence: this contract changes documentation only. It adds no
-hook, host adapter, API route, MCP tool, graph query, worker, queue, reducer,
-cache, or installer behavior.
+No-Regression Evidence: the local preflight planner is covered by
+`go test ./cmd/eshu -run 'TestAssistantHookPreflight' -count=1`.
 
-No-Observability-Change: future hook implementations must define their own
-diagnostic signals. This contract uses existing MCP setup, first-run,
-hosted-setup, truth envelope, readiness, and telemetry docs without changing
-metrics, spans, logs, status fields, or pprof output.
+No-Observability-Change: the local preflight planner does not start Eshu
+runtimes, call MCP/API or provider endpoints, open graph/Postgres drivers,
+claim queue work, or emit OTEL from the CLI dispatcher. It only classifies
+already-supplied hook metadata and may return advisory Claude hook JSON.
 
 ## Related Docs
 

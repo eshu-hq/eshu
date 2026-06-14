@@ -70,7 +70,11 @@ orchestration. It does not own service runtime internals:
     block currency, generated local MCP snippet, local read-only MCP tool
     visibility, and explicit local-stdio skips for endpoint and first-query
     probes. They do not start hooks, mutate MCP config, call broad graph reads,
-    or print tokens (`assistant_guidance.go`).
+    or print tokens. `assistant hook preflight` is a separate opt-in local
+    Claude Code-style planner that reads PreToolUse metadata, fails open for
+    unsafe or unsupported cases, and emits advisory hook JSON only when the
+    scope is narrow and share-safe (`assistant_guidance.go`,
+    `assistant_hook_preflight.go`).
   - security intelligence: `vuln-scan repo [path]` runs the local scan
     readiness contract and reads repository-scoped supply-chain impact findings
     through the API envelope; `vuln-scan provider-parity` compares
@@ -187,6 +191,15 @@ from this dispatcher.
 
 No-Regression Evidence: assistant ritual verification is covered by
 `go test ./cmd/eshu -run 'TestAssistantInstall|TestAssistantStatus' -count=1`.
+
+No-Observability-Change: assistant hook preflight runs entirely inside the
+local CLI process over already-supplied host metadata. It starts no runtime,
+calls no MCP/API endpoint or provider, opens no graph/Postgres driver, writes no
+source, installs no hook, claims no queue work, and emits no OTEL from this
+dispatcher.
+
+No-Regression Evidence: assistant hook preflight is covered by
+`go test ./cmd/eshu -run 'TestAssistantHookPreflight' -count=1`.
 
 ## Gotchas / invariants
 

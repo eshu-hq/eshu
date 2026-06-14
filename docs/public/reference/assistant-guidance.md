@@ -44,6 +44,7 @@ token.
 | `eshu assistant status` | Report, per platform, whether the guidance block is installed and current. |
 | `eshu assistant status --verify` | Add first-run ritual diagnostics for guidance state and local MCP tool visibility. |
 | `eshu assistant uninstall` | Remove the Eshu guidance block, preserving other file content. |
+| `eshu assistant hook preflight` | Run the opt-in Claude Code-style fast-path planner. It is local and does not install hooks. |
 
 Flags:
 
@@ -54,6 +55,12 @@ Flags:
 - `--verify` on `install` and `status` runs the safe local ritual diagnostics
   for the selected platform set. It does not write MCP client config, start
   services, install hooks, query the graph/API, or print secrets.
+
+`assistant hook preflight --host claude --enabled --json` is separate from
+guidance install. It reads Claude Code-style PreToolUse JSON from stdin and
+emits advisory hook JSON only when the trigger is exploration-shaped and the
+scope is narrow and share-safe. Disabled, unsupported, disallowed, broad,
+timed-out, denied, or malformed inputs fail open with no stdout.
 
 ## Target Files
 
@@ -177,6 +184,14 @@ tool, graph query, worker, queue, reducer, hook, or installer behavior.
 No-Observability-Change: runtime diagnostics still use the existing MCP setup,
 first-run, hosted-setup, truth envelope, readiness, and telemetry signals; no
 metric, span, log, or status field changes in this contract.
+
+No-Observability-Change: assistant hook preflight is a local planner over
+already-supplied host metadata. It does not start runtimes, call MCP/API or
+provider endpoints, open graph/Postgres drivers, claim queue work, install
+hooks, or emit OTEL from this dispatcher.
+
+No-Regression Evidence: assistant hook preflight behavior is covered by
+`go test ./cmd/eshu -run 'TestAssistantHookPreflight' -count=1`.
 
 ## Committing Guidance
 
