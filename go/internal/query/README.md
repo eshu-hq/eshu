@@ -704,6 +704,19 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
 - `Neo4jReader` opens a new session per query by calling `NewSession` on the
   driver (`neo4j.go:50`); the session is closed in a `defer`. Do not hold
   sessions across multiple queries in the same handler.
+- `/api/v0/code/cypher` and MCP `execute_cypher_query` are an escape hatch, not
+  a general write surface. The handler gates `graph_query.read_only_cypher`
+  before it touches `GraphQuery`, rejects mutation/admin tokens before execution,
+  appends a bounded probe `LIMIT`, keeps the 30 second graph context deadline,
+  and returns structured envelope errors when callers request envelopes.
+  No-Regression Evidence: `go test ./internal/query -run
+  'TestValidateReadOnlyCypher|TestHandleCypherQuery' -count=1` covers
+  whitespace/comment mutation bypasses, unsupported-profile short-circuiting,
+  deadline propagation, limit bounding, truncation, and structured invalid
+  Cypher errors. Observability Evidence: successful reads still use the existing
+  `neo4j.query` span in `Neo4jReader.Run`; rejected mutation/admin queries and
+  unsupported profiles fail before graph execution, so they add no graph,
+  reducer, queue, or worker telemetry cardinality.
 - `ContentReader` traces each Postgres call with an OTEL span labeled
   `db.sql.table`; queries that scan multiple tables need per-call spans to avoid
   misleading attribution (`content_reader.go:45`).
