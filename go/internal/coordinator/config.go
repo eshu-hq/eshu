@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -180,6 +181,9 @@ func (c Config) Validate() error {
 			return fmt.Errorf("collector instance %q enables claims while coordinator claims are disabled", instance.InstanceID)
 		}
 		if instance.Enabled && instance.ClaimsEnabled {
+			if err := validateCollectorClaimSchedulingSupported(instance); err != nil {
+				return err
+			}
 			activeClaimCollectors++
 		}
 	}
@@ -192,6 +196,19 @@ func (c Config) Validate() error {
 		}
 	}
 	return nil
+}
+
+func validateCollectorClaimSchedulingSupported(instance workflow.DesiredCollectorInstance) error {
+	switch instance.CollectorKind {
+	case scope.CollectorGCP:
+		return fmt.Errorf(
+			"collector instance %q uses collector_kind %q with claims_enabled=true, but GCP workflow scheduler support is not wired yet",
+			instance.InstanceID,
+			instance.CollectorKind,
+		)
+	default:
+		return nil
+	}
 }
 
 type workflowTenantBoundaryConfig struct {

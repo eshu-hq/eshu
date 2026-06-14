@@ -120,7 +120,7 @@ Types in this package flow through four phases of the workflow control plane:
 - `CollectorContract`, `CollectorContractFor`, `CanonicalKeyspacesForCollector`,
   `RequiredPhasesForCollector` — lookup table of required reducer phases per
   collector family; registered entries: `CollectorGit`,
-  `CollectorTerraformState`, `CollectorAWS`, `CollectorWebhook`,
+  `CollectorTerraformState`, `CollectorAWS`, `CollectorGCP`, `CollectorWebhook`,
   `CollectorDocumentation`, `CollectorOCIRegistry`, `CollectorPackageRegistry`,
   `CollectorVulnerabilityIntelligence`, `CollectorSBOMAttestation`,
   `CollectorSecurityAlert`, `CollectorCICDRun`, `CollectorPagerDuty`,
@@ -269,6 +269,13 @@ publishes `cloud_resource_uid` phase rows yet. Do not require those phases for
 AWS workflow-run completion until the cloud-resource graph writer and anchor
 publisher are implemented and wired.
 
+`gcp` collector instances are registration-only in the workflow contract. The
+collector kind is known so fixture-backed GCP facts and future scheduler work
+can share one contract name, but it declares no canonical keyspaces, no required
+reducer phases, and no claimable workflow support. Coordinator config
+validation rejects enabled GCP instances with `claims_enabled=true` until a GCP
+workflow planner and runtime gate are implemented.
+
 **Defaults**:
 - `DefaultClaimLeaseTTL()` — 60s
 - `DefaultHeartbeatInterval()` — 20s
@@ -310,6 +317,9 @@ None. The coordinator (`internal/coordinator`) and storage
   `internal/reducer/aws` package is scaffold-only; until a live AWS reducer or
   projector publishes `cloud_resource_uid` phase rows, completed AWS workflow
   work items must not wait on those future checkpoints.
+- GCP readiness currently has no operational workflow completeness phases and
+  no scheduler. GCP may appear as a known collector contract, but it must stay
+  claim-disabled until planner support exists.
 - `CompletenessState` rows from `ReconcileRunProgress` are sorted by
   `CollectorKind`, `Keyspace`, `PhaseName` — callers can compare slices
   element-by-element for drift detection.
@@ -360,6 +370,17 @@ Observability Evidence: no new metrics were required. Existing
 `eshu_dp_aws_tag_observations_emitted_total`, AWS runtime-drift reducer logs,
 and `/api/v0/index-status` separate collector completion, fact emission, scan
 health, drift read-model publication, and future graph-readiness gaps.
+
+No-Regression Evidence: `go test ./internal/workflow -run 'TestCollectorContractForGCPHasNoOperationalGraphReadinessUntilSchedulerLands' -count=1`
+proves GCP is registered as a known collector contract with no canonical
+keyspaces or reducer phase requirements. The change does not add live GCP SDK
+calls, credentials, provider I/O, workflow planning, graph writes, read-model
+writes, queue claiming, worker counts, or NornicDB settings.
+
+No-Observability-Change: GCP remains non-operational and claim-disabled at the
+coordinator boundary, so there is no new runtime path to instrument. Existing
+coordinator startup validation errors and collector-instance config surfaces
+are the only operator-facing signals for this blocked activation state.
 
 No-Regression Evidence: the owned package target derivation contract is covered
 by `go test ./internal/coordinator ./internal/workflow ./internal/storage/postgres ./internal/collector/packageregistry/packageruntime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`.

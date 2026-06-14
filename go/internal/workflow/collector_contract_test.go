@@ -100,6 +100,24 @@ func TestCollectorContractForAWSHasNoOperationalGraphReadinessUntilProjectionLan
 	}
 }
 
+func TestCollectorContractForGCPHasNoOperationalGraphReadinessUntilSchedulerLands(t *testing.T) {
+	t.Parallel()
+
+	contract, ok := CollectorContractFor(scope.CollectorGCP)
+	if !ok {
+		t.Fatalf("CollectorContractFor(%q) found = false, want true", scope.CollectorGCP)
+	}
+	if contract.CollectorKind != scope.CollectorGCP {
+		t.Fatalf("CollectorKind = %q, want %q", contract.CollectorKind, scope.CollectorGCP)
+	}
+	if got := len(contract.CanonicalKeyspaces); got != 0 {
+		t.Fatalf("GCP CanonicalKeyspaces = %#v, want empty until GCP workflow scheduler support is implemented", contract.CanonicalKeyspaces)
+	}
+	if got := len(contract.RequiredPhases); got != 0 {
+		t.Fatalf("GCP RequiredPhases = %#v, want empty until GCP workflow scheduler support is implemented", contract.RequiredPhases)
+	}
+}
+
 func TestCollectorContractForCICDRunHasNoOperationalGraphReadinessUntilProjectionLands(t *testing.T) {
 	t.Parallel()
 

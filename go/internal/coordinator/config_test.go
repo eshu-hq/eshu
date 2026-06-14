@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -148,6 +149,53 @@ func TestLoadConfigRejectsActiveModeWithoutClaimEnabledCollectors(t *testing.T) 
 	})
 	if err == nil {
 		t.Fatal("LoadConfig() error = nil, want non-nil")
+	}
+}
+
+func TestLoadConfigRejectsGCPClaimEnabledUntilSchedulerSupportLands(t *testing.T) {
+	t.Parallel()
+
+	_, err := LoadConfig(func(key string) string {
+		switch key {
+		case "ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE":
+			return "active"
+		case "ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED":
+			return "true"
+		case "ESHU_COLLECTOR_INSTANCES_JSON":
+			return `[{"instance_id":"collector-gcp-primary","collector_kind":"gcp","mode":"continuous","enabled":true,"claims_enabled":true}]`
+		default:
+			return ""
+		}
+	})
+	if err == nil {
+		t.Fatal("LoadConfig() error = nil, want GCP scheduler support rejection")
+	}
+	if got := err.Error(); !strings.Contains(got, `collector_kind "gcp"`) ||
+		!strings.Contains(got, "scheduler support is not wired yet") {
+		t.Fatalf("LoadConfig() error = %q, want explicit GCP scheduler support message", got)
+	}
+}
+
+func TestLoadConfigAcceptsClaimDisabledGCPRegistration(t *testing.T) {
+	t.Parallel()
+
+	_, err := LoadConfig(func(key string) string {
+		switch key {
+		case "ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE":
+			return "active"
+		case "ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED":
+			return "true"
+		case "ESHU_COLLECTOR_INSTANCES_JSON":
+			return `[
+				{"instance_id":"collector-git-primary","collector_kind":"git","mode":"continuous","enabled":true,"claims_enabled":true},
+				{"instance_id":"collector-gcp-registration","collector_kind":"gcp","mode":"continuous","enabled":true,"claims_enabled":false}
+			]`
+		default:
+			return ""
+		}
+	})
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v, want nil", err)
 	}
 }
 
