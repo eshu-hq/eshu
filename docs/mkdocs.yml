@@ -142,6 +142,7 @@ nav:
     - Fact Schema Versioning: reference/fact-schema-versioning.md
     - Plugin Trust Model: reference/plugin-trust-model.md
     - Language Query DSL: reference/language-query-dsl.md
+    - Source-Language Resolver Contract: reference/source-language-resolver-contract.md
     - Language Support: contributing-language-support.md
     - Terraform Providers:
       - Overview: guides/terraform-providers/index.md

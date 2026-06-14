@@ -4,6 +4,10 @@ Parser support lives in the Go parser registry, parser implementation, and
 tests. Public language pages document that runtime contract; they are not a
 separate source of truth.
 
+For source-language relationship resolution, SCIP corroboration, or golden audit
+work, also follow the
+[Source-Language Resolver Contract](reference/source-language-resolver-contract.md).
+
 Primary files:
 
 ```text
@@ -56,7 +60,10 @@ parser-family extension.
    [Parser Support Matrix](languages/support-maturity.md), and
    [Dead Code Language Maturity](reference/dead-code-language-maturity.md) when
    the support summary, framework/root evidence, or dead-code maturity changes.
-8. Run the focused Go tests, `scripts/verify-parser-relationship-kit.sh`, the
+8. For call, import, inheritance, interface, overload, or framework relationship
+   claims, add source-authored golden audit fixtures whose expected nodes and
+   edges are independent from Eshu output.
+9. Run the focused Go tests, `scripts/verify-parser-relationship-kit.sh`, the
    docs build, and `git diff --check`.
 
 ## Test Path
@@ -90,6 +97,10 @@ Treat maturity as a contract, not a confidence word.
 Do not promote support because a parser emits rows. Support starts when the
 normal user-facing read path can answer with documented truth and limitations.
 If the feature is source evidence only, call it source evidence only.
+Relationship-resolution promotions must satisfy the
+[Source-Language Resolver Contract](reference/source-language-resolver-contract.md):
+direct or corroborated evidence can be admitted only with reducer and read-path
+proof, while ambiguous or unsupported evidence stays reviewable but non-canonical.
 
 ## Query DSL And Language Page Updates
 
