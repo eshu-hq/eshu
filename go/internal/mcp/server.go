@@ -369,10 +369,7 @@ func (s *Server) handleMessage(ctx context.Context, req *jsonrpcRequest, authHea
 			return &jsonrpcResponse{
 				JSONRPC: "2.0",
 				ID:      req.ID,
-				Result: mcpToolResult{
-					Content: []mcpContent{{Type: "text", Text: err.Error()}},
-					IsError: true,
-				},
+				Result:  mcpToolErrorResult(err),
 			}
 		}
 		if result.Envelope != nil {
@@ -415,6 +412,7 @@ func (s *Server) handleMessage(ctx context.Context, req *jsonrpcRequest, authHea
 					},
 				},
 				StructuredContent: result.Value,
+				IsError:           result.IsError,
 			},
 		}
 
@@ -424,6 +422,26 @@ func (s *Server) handleMessage(ctx context.Context, req *jsonrpcRequest, authHea
 	default:
 		return s.errorResponse(req.ID, -32601, fmt.Sprintf("method not found: %s", req.Method))
 	}
+}
+
+func mcpToolErrorResult(err error) mcpToolResult {
+	result := mcpToolResult{
+		Content: []mcpContent{{Type: "text", Text: err.Error()}},
+		IsError: true,
+	}
+	if structured, ok := dispatchErrorStructuredContent(err); ok {
+		structuredJSON, _ := json.Marshal(structured)
+		result.StructuredContent = structured
+		result.Content = append(result.Content, mcpContent{
+			Type: "resource",
+			Resource: &mcpResource{
+				URI:      "eshu://tool-error/dispatch",
+				MimeType: "application/json",
+				Text:     string(structuredJSON),
+			},
+		})
+	}
+	return result
 }
 
 func (s *Server) errorResponse(id any, code int, msg string) *jsonrpcResponse {

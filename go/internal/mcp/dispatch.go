@@ -14,10 +14,31 @@ import (
 
 // dispatchTool routes an MCP tool call to the appropriate internal HTTP endpoint.
 func dispatchTool(ctx context.Context, handler http.Handler, toolName string, args map[string]any, authHeader string, logger *slog.Logger) (*dispatchResult, error) {
+	return dispatchToolWithOptions(ctx, handler, toolName, args, authHeader, logger, dispatchOptions{
+		timeout: defaultToolDispatchTimeout,
+	})
+}
+
+func dispatchToolWithOptions(
+	ctx context.Context,
+	handler http.Handler,
+	toolName string,
+	args map[string]any,
+	authHeader string,
+	logger *slog.Logger,
+	options dispatchOptions,
+) (*dispatchResult, error) {
 	route, err := resolveRoute(toolName, args)
 	if err != nil {
 		return nil, err
 	}
+
+	timeout := options.timeout
+	if timeout <= 0 {
+		timeout = defaultToolDispatchTimeout
+	}
+	dispatchCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 
 	logger.Debug("dispatch tool", "tool", toolName, "method", route.method, "path", route.path)
 
@@ -30,7 +51,7 @@ func dispatchTool(ctx context.Context, handler http.Handler, toolName string, ar
 		body = bytes.NewReader(encoded)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, route.method, route.path, body)
+	req, err := http.NewRequestWithContext(dispatchCtx, route.method, route.path, body)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -50,8 +71,14 @@ func dispatchTool(ctx context.Context, handler http.Handler, toolName string, ar
 		req.URL.RawQuery = q.Encode()
 	}
 
+	if err := dispatchCtx.Err(); err != nil {
+		return nil, dispatchContextError(toolName, timeout, err, logger)
+	}
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
+	if err := dispatchCtx.Err(); err != nil {
+		return nil, dispatchContextError(toolName, timeout, err, logger)
+	}
 
 	if envelope, ok := parseCanonicalEnvelope(rec.Body.Bytes()); ok {
 		return &dispatchResult{
