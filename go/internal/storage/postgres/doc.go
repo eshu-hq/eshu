@@ -72,8 +72,9 @@
 // Eshu search-document reads use reducer-maintained BM25 postings and stats for
 // the active generation so API/MCP semantic-search requests do not rebuild a
 // full repository corpus index. Vector metadata rows track additive ANN build
-// state by active generation, model, content hash, and index version without
-// changing API/MCP query behavior.
+// state and vector value rows persist derived numeric embeddings by active
+// generation, model, content hash, and index version without changing API/MCP
+// query behavior.
 // FactStore.LoadIncidentRoutingEvidence serves the PagerDuty incident-routing
 // graph materialization domain by loading incident-scoped anchors and
 // same-generation routing facts, then resolving Terraform-source

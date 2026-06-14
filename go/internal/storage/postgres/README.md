@@ -108,8 +108,11 @@ High-signal invariants for this package:
   stores active-generation document payloads and lengths,
   `eshu_search_index_terms` stores term frequencies, and
   `eshu_search_index_stats` stores corpus size and average length so API/MCP
-  search reads do not rebuild a full corpus per request. The pending sweeper
-  re-enqueues scopes whose active search documents exist but stats are missing.
+  search reads do not rebuild a full corpus per request. Vector metadata and
+  value rows store derived embedding lifecycle state plus bounded numeric
+  payloads by active generation, model, content hash, and index version without
+  promoting vector similarity to graph truth. The pending sweeper re-enqueues
+  scopes whose active search documents exist but stats are missing.
 - Relationship evidence backfill stays bounded to latest active repository
   facts, file/content facts, and `gcp_cloud_relationship` facts. GCP
   relationship facts are included explicitly because they are provider-resource

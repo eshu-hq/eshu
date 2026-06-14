@@ -48,6 +48,11 @@ var bootstrapDefinitions = []Definition{
 		SQL:  eshuSearchVectorMetadataSchemaSQL,
 	},
 	{
+		Name: "eshu_search_vector_values",
+		Path: "schema/data-plane/postgres/003d_eshu_search_vector_values.sql",
+		SQL:  eshuSearchVectorValuesSchemaSQL,
+	},
+	{
 		Name: "service_catalog_fact_record_indexes",
 		Path: "schema/data-plane/postgres/003_service_catalog_fact_record_indexes.sql",
 		SQL:  serviceCatalogFactRecordReadIndexesSQL,
