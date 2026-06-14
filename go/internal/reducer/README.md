@@ -2199,28 +2199,27 @@ StableID(..., {..., generation_id})`, and the collector envelope tests assert
 missing any durable identity component is dropped rather than keyed on a
 generation-bearing or empty identity.
 
-Production loader DEFERRED (correlation truth). The production
-`IncidentEvidenceLoader` is intentionally left nil in `cmd/reducer` today, so the
-incidents family is currently exercised only through the reducer emitter and the
-family-generic delta surface, not from live routing facts. Two durable joins do
-not exist in the materialization path yet:
+Production loader WIRED (correlation truth). The production
+`IncidentEvidenceLoader` is wired in `cmd/reducer` through
+`postgres.ServiceIncidentEvidenceLoader`. It resolves PagerDuty provider service
+ids to Eshu catalog service ids only through durable reducer facts:
+`reducer_service_catalog_correlation` maps catalog service id to repository id,
+and `reducer_incident_repository_correlation` maps provider service id to
+repository id. Both joins admit only active, non-tombstoned `exact` / `derived`
+rows with `provenance_only=false`, and a repository must map to exactly one active
+catalog service before any incident evidence is attached. Repositories with
+multiple active catalog service ids fail closed, and name fingerprints or service
+names are never used for attribution.
 
-1. Incident routing evidence carries the PagerDuty PROVIDER service id
-   (`incident.Service.ID`), while the service-scope changed-since surface diffs by
-   the Eshu CATALOG `service_id` (the catalog entityRef). There is no resolved
-   durable provider-to-catalog join — only a fuzzy service-name fingerprint, which
-   would violate correlation truth — and the `IncidentRoutingEvidence` graph node
-   has no edge to the `Service` node.
-2. The reducer-side `IncidentRoutingEvidenceInput` applied/observed types carry
-   only the generation-bearing `FactID`, not the durable `StableFactKey` a
-   correct incidents key needs. Threading `StableFactKey` through that read model
-   is an additive change to the incident-routing source path.
-
-Both are tracked as the #1989 production-wiring follow-up. The nil-tolerant seam
-(`ServiceScopedIncidentEvidenceLoader` + `attachServiceIncidentEvidence`) lands
-the family additively so it activates the moment the durable join and durable id
-exist, without a correlation-truth violation in the interim. This mirrors the
-docs/dependencies precedent of shipping the loader seam ahead of full wiring.
+The loader returns applied and live routing slots from active
+`incident_routing.applied_pagerduty_resource` and
+`incident_routing.observed_pagerduty_service` facts whose provider object id
+matches the incident's provider service id. It returns the source fact's
+generation-independent `stable_fact_key` as the incidents `evidence_id`, not the
+generation-bearing `fact_id`. The intended/declared routing slot remains absent
+from production service evidence until it has a durable provider-service-id to
+catalog-service-id attribution path; this preserves correlation truth rather than
+promoting name-only declarations.
 
 No-Regression Evidence: `go test ./internal/reducer -run
 'ServiceIncident|BuildServiceIncident|ServiceMaterialization|ServiceCatalogHandler'
@@ -2232,15 +2231,20 @@ re-materialization is a no-op, dropped rows are tombstoned, records without a
 complete durable identity are dropped, and the family is purely additive (no
 loader leaves the generation without incidents rows and the prior families' tests
 stay green). `go test ./internal/storage/postgres -run
-'TestComputeServiceChangedSinceDelta' -count=1` proves the family-generic delta SQL
+'TestServiceIncidentEvidence|TestComputeServiceChangedSinceDelta' -count=1`
+proves the production Postgres loader is bounded by requested service ids, active
+generations, exact/derived non-provenance correlations, unambiguous repository
+ownership, and StableFactKey evidence identity; the family-generic delta SQL
 (grouped by `evidence_family`) classifies incidents
 added/updated/unchanged/retired/superseded with bounded ordered samples, reports
 no false incident deltas for an unchanged generation, and reports zero deltas for
 the other families on an incidents-only change. The incidents rows reuse the
 existing `service_evidence_snapshots_diff_idx` (`generation_id`, `evidence_family`,
-`service_evidence_key`); no new index or schema migration is added. Live-Postgres
-SQL is proven by the same fake `Queryer`/`Rows` harness Stage-1 uses; the live SQL
-gate is the Postgres integration suite in CI.
+`service_evidence_key`) for changed-since diffs, and the production loader adds
+narrow partial read indexes for service-catalog service ids, incident repository
+correlations, incident anchors, and applied/live provider-service routing facts.
+Live-Postgres SQL is proven by the same fake `Queryer`/`Rows` harness Stage-1
+uses; the live SQL gate is the Postgres integration suite in CI.
 
 Observability Evidence: this slice adds no new metric instrument, label, queue
 domain, lease, or runtime knob. The incidents family lands inside the existing

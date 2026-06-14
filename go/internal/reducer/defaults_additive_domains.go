@@ -68,6 +68,7 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 			DeploymentRelationshipLoader: serviceCatalogDeploymentRelationshipLoader(handlers),
 			RuntimeInstanceLoader:        serviceCatalogRuntimeInstanceLoader(handlers),
 			DocumentationEvidenceLoader:  serviceCatalogDocumentationEvidenceLoader(handlers),
+			IncidentEvidenceLoader:       serviceCatalogIncidentEvidenceLoader(handlers),
 			VulnerabilityEvidenceLoader:  serviceCatalogVulnerabilityEvidenceLoader(handlers),
 			Instruments:                  handlers.Instruments,
 		}

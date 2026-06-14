@@ -120,13 +120,11 @@ type ServiceCatalogCorrelationHandler struct {
 	// exact PagerDuty incident-routing evidence that routes to each correlated
 	// service so the incidents evidence family (#1989) is materialized into the same
 	// generation as the prior families. Like the documentation loader it is keyed by
-	// Eshu catalog service id rather than repository id. It is optional and is
-	// intentionally left nil in production today: resolving the PagerDuty provider
-	// service id to the Eshu catalog service id needs a durable join that does not
-	// exist in the materialization path yet (the #1989 follow-up), so wiring it now
-	// would require a fuzzy name match that violates correlation truth. A nil loader
-	// leaves the generation without incidents rows, preserving the prior families'
-	// contract.
+	// Eshu catalog service id rather than repository id. Production wiring resolves
+	// provider service id through durable exact/derived reducer correlations and
+	// fails closed for ambiguous repository ownership, so the loader never falls
+	// back to fuzzy service-name matching. It is optional: a nil loader leaves the
+	// generation without incidents rows, preserving the prior families' contract.
 	IncidentEvidenceLoader ServiceScopedIncidentEvidenceLoader
 	// VulnerabilityEvidenceLoader, when set alongside MaterializationWriter,
 	// supplies the supply-chain advisory evidence affecting each correlated

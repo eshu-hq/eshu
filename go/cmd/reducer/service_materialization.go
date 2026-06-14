@@ -53,3 +53,17 @@ func serviceDocumentationEvidenceLoaderFor(
 	}
 	return postgres.NewServiceDocumentationEvidenceLoader(database)
 }
+
+// serviceIncidentEvidenceLoaderFor builds the service-scoped incident routing
+// evidence loader (#1989) over the shared reducer database. It resolves provider
+// service ids to Eshu catalog service ids through durable reducer correlations
+// and remains purely additive: wiring it never blocks the prior service evidence
+// families.
+func serviceIncidentEvidenceLoaderFor(
+	database postgres.ExecQueryer,
+) reducer.ServiceScopedIncidentEvidenceLoader {
+	if database == nil {
+		return nil
+	}
+	return postgres.NewServiceIncidentEvidenceLoader(database)
+}

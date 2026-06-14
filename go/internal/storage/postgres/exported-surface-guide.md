@@ -23,6 +23,11 @@ reducer/query adapter.
   `ListFactsByKind`, `ListFactsByKindAndPayloadValue`,
   `LoadIncidentRoutingEvidence`, `ListActiveRepositoryFacts`, `CountFacts`,
   `ListOSPackageAdvisoryTargets`, and `ListSBOMComponentAdvisoryTargets`
+- `ServiceIncidentEvidenceLoader` / `NewServiceIncidentEvidenceLoader` —
+  service-scoped incidents evidence loader for reducer service materialization;
+  it resolves PagerDuty provider service ids to catalog service ids through
+  active exact/derived reducer correlation facts and returns StableFactKey-based
+  routing evidence identity.
 - `AWSCloudRuntimeDriftFindingStore` /
   `NewAWSCloudRuntimeDriftFindingStore` — active-generation reads over
   `reducer_aws_cloud_runtime_drift_finding` facts for the IaC management API;

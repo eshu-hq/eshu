@@ -103,8 +103,6 @@
 // feeding both the deployment and dependencies families from one bounded load, an
 // optional RuntimeInstanceLoader for the runtime family, an optional
 // DocumentationEvidenceLoader for the docs family, and an optional
-// IncidentEvidenceLoader for the incidents family — the last left nil in
-// production until a durable PagerDuty-provider-to-Eshu-catalog service id join
-// exists, see #1989) so the existing reducer_service_catalog_correlation fact
-// contract is unchanged.
+// IncidentEvidenceLoader for the incidents family) so the existing
+// reducer_service_catalog_correlation fact contract is unchanged.
 package reducer

@@ -17,12 +17,10 @@ import (
 // CONTRACT (correlation truth). The map key MUST be the durable Eshu catalog
 // service id (the entityRef the service-scope changed-since surface diffs by),
 // NOT the PagerDuty provider service id. Incident routing evidence natively
-// carries only the provider service id (incident.Service.ID); resolving it to the
-// Eshu catalog service id requires a durable provider->catalog join that does not
-// exist in the materialization path today (only a fuzzy name fingerprint, which
-// would violate correlation truth). Until that durable join lands the production
-// loader is intentionally NOT wired (see cmd/reducer/service_materialization.go
-// and the #1989 follow-up). The returned records MUST carry only durable external
+// carries only the provider service id (incident.Service.ID), so a production
+// loader must resolve it through durable exact/derived reducer correlations and
+// fail closed for ambiguous repository ownership. A loader MUST NOT use fuzzy
+// service-name matching. The returned records MUST carry only durable external
 // identity (provider, provider_incident_id, slot, evidence_kind, and the durable
 // StableFactKey/content-entity id), never a fact_id or generation id, so the
 // incidents service_evidence_key stays generation-stable.
@@ -260,12 +258,6 @@ func addServiceIncidentEvidence(
 // provider incident anchor, and not the PagerDuty provider service id, which the
 // loader is responsible for resolving to the catalog service id); a service with
 // no routing evidence simply carries no incidents rows.
-//
-// The production loader is intentionally NOT wired today: resolving the PagerDuty
-// provider service id to the Eshu catalog service id needs a durable join that
-// does not exist in the materialization path (see the #1989 follow-up). This seam
-// is nil-tolerant so the family lands without a correlation-truth violation and is
-// activated once the durable join exists.
 func (h ServiceCatalogCorrelationHandler) attachServiceIncidentEvidence(
 	ctx context.Context,
 	writes []ServiceMaterializationWrite,
