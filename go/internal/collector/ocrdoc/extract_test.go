@@ -47,10 +47,11 @@ func TestExtractEmitsOCRDocumentAndRegionSections(t *testing.T) {
 	}
 	metadata := stringMapValue(t, document, "source_metadata")
 	for key, want := range map[string]string{
-		"format_family":    "image_ocr",
-		"ocr_status":       "completed",
-		"ocr_region_count": "1",
-		"image_format":     imagepreflight.FormatPNG,
+		"format_family":               "image_ocr",
+		"incident_media_source_class": "ocr_region",
+		"ocr_status":                  "completed",
+		"ocr_region_count":            "1",
+		"image_format":                imagepreflight.FormatPNG,
 	} {
 		if got := metadata[key]; got != want {
 			t.Fatalf("document source_metadata[%q] = %q, want %q", key, got, want)
@@ -69,14 +70,15 @@ func TestExtractEmitsOCRDocumentAndRegionSections(t *testing.T) {
 	}
 	sectionMetadata := stringMapValue(t, section, "source_metadata")
 	for key, want := range map[string]string{
-		"ocr_engine":         "synthetic-ocr",
-		"ocr_engine_version": "fixture",
-		"confidence_bucket":  "high",
-		"bounds_x":           "0.1000",
-		"bounds_y":           "0.2000",
-		"bounds_width":       "0.7000",
-		"bounds_height":      "0.1500",
-		"source_hash":        document["content_hash"].(string),
+		"incident_media_source_class": "ocr_region",
+		"ocr_engine":                  "synthetic-ocr",
+		"ocr_engine_version":          "fixture",
+		"confidence_bucket":           "high",
+		"bounds_x":                    "0.1000",
+		"bounds_y":                    "0.2000",
+		"bounds_width":                "0.7000",
+		"bounds_height":               "0.1500",
+		"source_hash":                 document["content_hash"].(string),
 	} {
 		if got := sectionMetadata[key]; got != want {
 			t.Fatalf("section source_metadata[%q] = %q, want %q", key, got, want)

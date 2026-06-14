@@ -132,7 +132,12 @@ match a full snapshot.
 When the stream re-reads repo-hosted service-catalog descriptors
 (`catalog-info.yaml`, `opslevel.yml`, or `cortex.yaml`), it delegates to the
 `servicecatalog` normalizer and emits observed `service_catalog.*` facts under
-the same scope and generation. A documentation-only lane normalizes repo-hosted Markdown, lightweight text, HTML, API contracts, notebooks, spreadsheets, DOCX/XLSX/PPTX summaries, bounded ZIP/TAR packets, and deterministic diagrams into source-neutral facts with repository target refs.
+the same scope and generation. A documentation-only lane normalizes repo-hosted
+Markdown, lightweight text, HTML, API contracts, notebooks, spreadsheets,
+DOCX/XLSX/PPTX summaries, bounded ZIP/TAR packets, and deterministic diagrams
+into source-neutral facts with repository target refs. Deterministic diagram
+document and section facts carry `incident_media_source_class=diagram_label` so
+later correlation work can preserve the media evidence boundary.
 Office annotations and hidden content stay metadata-only while visible content still emits facts. External relationships, embedded objects, macro content, malformed containers, unsafe paths, resource limits, and compression hazards block Office extraction; legacy `.xls` cell bytes stay metadata-only. Archive packets preflight first, preserve member path/hash provenance, skip unsupported/nested/credential-like members, and block unsafe or resource-hazard archives from emitting contained sections.
 Default-off helper packages may build OCR or media transcript documentation facts
 from reviewed local engine output after preflight, but those helpers do not

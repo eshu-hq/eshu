@@ -86,6 +86,9 @@ api.link: docs/service-map.md
 		if got, want := payloadString(document.Payload, "document_type"), "diagram"; got != want {
 			t.Fatalf("document_type = %q, want %q", got, want)
 		}
+		if got, want := payloadSourceMetadataValue(document.Payload, "incident_media_source_class"), "diagram_label"; got != want {
+			t.Fatalf("document incident_media_source_class = %q, want %q", got, want)
+		}
 		assertDocumentationFactLinkedRepository(t, document, "repository:r_12345678")
 	}
 	for _, want := range []string{"mermaid", "d2"} {
@@ -106,6 +109,9 @@ api.link: docs/service-map.md
 		}
 		if got, want := payloadSourceMetadataValue(section.Payload, "format_family"), "diagram"; got != want {
 			t.Fatalf("section format_family = %q, want %q", got, want)
+		}
+		if got, want := payloadSourceMetadataValue(section.Payload, "incident_media_source_class"), "diagram_label"; got != want {
+			t.Fatalf("section incident_media_source_class = %q, want %q", got, want)
 		}
 		assertDocumentationFactLinkedRepository(t, section, "repository:r_12345678")
 	}
