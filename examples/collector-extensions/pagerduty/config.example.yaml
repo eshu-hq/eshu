@@ -1,0 +1,7 @@
+host:
+  sourceSystem: pagerduty
+  scope:
+    id: pagerduty:account:synthetic-reference
+    kind: pagerduty_account
+source:
+  input: ./testdata/complete.json

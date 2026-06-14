@@ -1,0 +1,234 @@
+{
+  "protocol_version": "collector-sdk/v1alpha1",
+  "state": "complete",
+  "claim": {
+    "component_id": "dev.eshu.examples.pagerduty",
+    "instance_id": "pagerduty-reference-local",
+    "collector_kind": "pagerduty",
+    "source_system": "pagerduty",
+    "scope": {
+      "id": "pagerduty:account:synthetic-reference",
+      "kind": "pagerduty_account"
+    },
+    "source_run_id": "pagerduty-reference-run-2026-06-14",
+    "generation_id": "pagerduty-reference-generation-2026-06-14",
+    "work_item_id": "pagerduty-reference-work",
+    "fencing_token": "pagerduty-reference-fence",
+    "attempt": 1,
+    "deadline": "2026-06-14T14:05:00Z",
+    "config_handle": "config://examples/pagerduty/reference"
+  },
+  "generation": {
+    "id": "pagerduty-reference-generation-2026-06-14",
+    "observed_at": "2026-06-14T14:00:00Z",
+    "freshness_hint": "fixture_only"
+  },
+  "facts": [
+    {
+      "kind": "dev.eshu.examples.pagerduty.incident",
+      "schema_version": "1.0.0",
+      "stable_key": "1d8927426c32ee567339321a4eb3e06f642f5ce886ea01ea106720ffa9762546",
+      "source_confidence": "reported",
+      "observed_at": "2026-06-14T14:00:00Z",
+      "source_ref": {
+        "source_system": "pagerduty",
+        "scope_id": "pagerduty:account:synthetic-reference",
+        "generation_id": "pagerduty-reference-generation-2026-06-14",
+        "fact_key": "1d8927426c32ee567339321a4eb3e06f642f5ce886ea01ea106720ffa9762546",
+        "uri": "https://example.com/eshu-fixtures/pagerduty/incidents/pd_incident_synthetic_001",
+        "record_id": "pd_incident_synthetic_001"
+      },
+      "payload": {
+        "assignments": null,
+        "collector_instance_id": "pagerduty-reference-local",
+        "created_at": "2026-06-14T13:40:00Z",
+        "escalation_policy": {
+          "id": "pd_policy_synthetic_primary",
+          "type": "escalation_policy"
+        },
+        "incident_number": 1001,
+        "priority": null,
+        "provider": "pagerduty",
+        "provider_incident_id": "pd_incident_synthetic_001",
+        "resolved_at": "",
+        "service": {
+          "id": "pd_service_synthetic_primary",
+          "type": "service"
+        },
+        "service_id": "pd_service_synthetic_primary",
+        "source_url": "https://example.com/eshu-fixtures/pagerduty/incidents/pd_incident_synthetic_001",
+        "status": "triggered",
+        "teams": null,
+        "title": "",
+        "updated_at": "2026-06-14T13:55:00Z",
+        "urgency": "high"
+      }
+    },
+    {
+      "kind": "dev.eshu.examples.pagerduty.lifecycle_event",
+      "schema_version": "1.0.0",
+      "stable_key": "c440f2816fb52150342cf2c210425b8a5ff3e5df5c31d1ea8b988f875c16d3cc",
+      "source_confidence": "reported",
+      "observed_at": "2026-06-14T14:00:00Z",
+      "source_ref": {
+        "source_system": "pagerduty",
+        "scope_id": "pagerduty:account:synthetic-reference",
+        "generation_id": "pagerduty-reference-generation-2026-06-14",
+        "fact_key": "c440f2816fb52150342cf2c210425b8a5ff3e5df5c31d1ea8b988f875c16d3cc",
+        "uri": "https://example.com/eshu-fixtures/pagerduty/log_entries/pd_log_synthetic_001",
+        "record_id": "pd_log_synthetic_001"
+      },
+      "payload": {
+        "actor": null,
+        "channel": "api",
+        "collector_instance_id": "pagerduty-reference-local",
+        "created_at": "2026-06-14T13:41:00Z",
+        "event_type": "trigger_log_entry",
+        "provider": "pagerduty",
+        "provider_event_id": "pd_log_synthetic_001",
+        "provider_incident_id": "pd_incident_synthetic_001",
+        "source_url": "https://example.com/eshu-fixtures/pagerduty/log_entries/pd_log_synthetic_001",
+        "summary": ""
+      }
+    },
+    {
+      "kind": "dev.eshu.examples.pagerduty.change",
+      "schema_version": "1.0.0",
+      "stable_key": "9376fbd0a46b737e8cc6a2289ce1495132acc997babacdaa405f423b1759c2f2",
+      "source_confidence": "reported",
+      "observed_at": "2026-06-14T14:00:00Z",
+      "source_ref": {
+        "source_system": "pagerduty",
+        "scope_id": "pagerduty:account:synthetic-reference",
+        "generation_id": "pagerduty-reference-generation-2026-06-14",
+        "fact_key": "9376fbd0a46b737e8cc6a2289ce1495132acc997babacdaa405f423b1759c2f2",
+        "uri": "https://example.com/eshu-fixtures/pagerduty/change_events/pd_change_synthetic_001",
+        "record_id": "pd_change_synthetic_001"
+      },
+      "payload": {
+        "collector_instance_id": "pagerduty-reference-local",
+        "links": null,
+        "provider": "pagerduty",
+        "provider_change_id": "pd_change_synthetic_001",
+        "services": [
+          {
+            "id": "pd_service_synthetic_primary",
+            "type": "service"
+          }
+        ],
+        "source": "deployment",
+        "source_url": "https://example.com/eshu-fixtures/pagerduty/change_events/pd_change_synthetic_001",
+        "summary": "",
+        "timestamp": "2026-06-14T13:30:00Z"
+      }
+    },
+    {
+      "kind": "dev.eshu.examples.pagerduty.observed_service",
+      "schema_version": "1.0.0",
+      "stable_key": "b0a3331f208fc178d13522e96042ac97ff36e7e2bab8d76a21328d2654813b52",
+      "source_confidence": "reported",
+      "observed_at": "2026-06-14T14:00:00Z",
+      "source_ref": {
+        "source_system": "pagerduty",
+        "scope_id": "pagerduty:account:synthetic-reference",
+        "generation_id": "pagerduty-reference-generation-2026-06-14",
+        "fact_key": "b0a3331f208fc178d13522e96042ac97ff36e7e2bab8d76a21328d2654813b52",
+        "uri": "https://example.com/eshu-fixtures/pagerduty/services/pd_service_synthetic_primary",
+        "record_id": "pd_service_synthetic_primary"
+      },
+      "payload": {
+        "alert_creation": "create_alerts_and_incidents",
+        "collector_instance_id": "pagerduty-reference-local",
+        "created_at": "2026-06-13T14:00:00Z",
+        "declared_match_state": "not_compared",
+        "escalation_policy_reference": "pd_policy_synthetic_primary",
+        "outcome": "observed",
+        "provider": "pagerduty",
+        "provider_object_id": "pd_service_synthetic_primary",
+        "redaction_state": "none",
+        "resource_class": "service",
+        "scope_id": "pagerduty:account:synthetic-reference",
+        "service_id": "pd_service_synthetic_primary",
+        "source_class": "observed",
+        "source_kind": "pagerduty_api",
+        "source_url": "https://example.com/eshu-fixtures/pagerduty/services/pd_service_synthetic_primary",
+        "status": "active",
+        "updated_at": "2026-06-14T13:00:00Z"
+      }
+    },
+    {
+      "kind": "dev.eshu.examples.pagerduty.observed_integration",
+      "schema_version": "1.0.0",
+      "stable_key": "34ac3d2641786bdbcc879c2ccf2eecbbe5b398b18b6a2e89af0b97d439b4c405",
+      "source_confidence": "reported",
+      "observed_at": "2026-06-14T14:00:00Z",
+      "source_ref": {
+        "source_system": "pagerduty",
+        "scope_id": "pagerduty:account:synthetic-reference",
+        "generation_id": "pagerduty-reference-generation-2026-06-14",
+        "fact_key": "34ac3d2641786bdbcc879c2ccf2eecbbe5b398b18b6a2e89af0b97d439b4c405",
+        "uri": "https://example.com/eshu-fixtures/pagerduty/integrations/pd_integration_synthetic_001",
+        "record_id": "pd_integration_synthetic_001"
+      },
+      "payload": {
+        "collector_instance_id": "pagerduty-reference-local",
+        "created_at": "2026-06-13T15:00:00Z",
+        "declared_match_state": "not_compared",
+        "integration_id": "pd_integration_synthetic_001",
+        "integration_type": "events_api_v2_inbound_integration",
+        "outcome": "observed",
+        "provider": "pagerduty",
+        "provider_object_id": "pd_integration_synthetic_001",
+        "redaction_state": "applied",
+        "resource_class": "service_integration",
+        "scope_id": "pagerduty:account:synthetic-reference",
+        "service_reference": "pd_service_synthetic_primary",
+        "source_class": "observed",
+        "source_kind": "pagerduty_api",
+        "source_url": "https://example.com/eshu-fixtures/pagerduty/integrations/pd_integration_synthetic_001",
+        "updated_at": "2026-06-14T12:00:00Z",
+        "vendor_reference": "pd_vendor_synthetic_cloudwatch"
+      },
+      "redactions": [
+        {
+          "field": "routing_key",
+          "reason": "secret_value"
+        }
+      ]
+    },
+    {
+      "kind": "dev.eshu.examples.pagerduty.coverage_warning",
+      "schema_version": "1.0.0",
+      "stable_key": "1cf7f3fcf8f5bdd3d869662c60777a9463575b8389d008817d9bde73faccc17a",
+      "source_confidence": "reported",
+      "observed_at": "2026-06-14T14:00:00Z",
+      "source_ref": {
+        "source_system": "pagerduty",
+        "scope_id": "pagerduty:account:synthetic-reference",
+        "generation_id": "pagerduty-reference-generation-2026-06-14",
+        "fact_key": "1cf7f3fcf8f5bdd3d869662c60777a9463575b8389d008817d9bde73faccc17a",
+        "uri": "https://example.com/eshu-fixtures/pagerduty/reference",
+        "record_id": "pd_incident_synthetic_001"
+      },
+      "payload": {
+        "collector_instance_id": "pagerduty-reference-local",
+        "declared_match_state": "not_compared",
+        "outcome": "partial",
+        "provider": "pagerduty",
+        "provider_object_id": "pd_incident_synthetic_001",
+        "reason": "permission_hidden",
+        "redaction_state": "none",
+        "resource_class": "related_change_event",
+        "scope_id": "pagerduty:account:synthetic-reference",
+        "source_class": "observed",
+        "source_kind": "pagerduty_api"
+      }
+    }
+  ],
+  "statuses": [
+    {
+      "class": "complete",
+      "fact_count": 6
+    }
+  ]
+}

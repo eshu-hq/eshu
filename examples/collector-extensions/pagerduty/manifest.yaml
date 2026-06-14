@@ -1,0 +1,55 @@
+apiVersion: eshu.dev/v1alpha1
+kind: ComponentPackage
+metadata:
+  id: dev.eshu.examples.pagerduty
+  name: Fixture PagerDuty reference collector
+  publisher: eshu-hq
+  version: 0.1.0
+spec:
+  compatibleCore: ">=0.0.5 <0.2.0"
+  componentType: collector
+  collectorKinds:
+    - pagerduty
+  runtime:
+    sdkProtocol: collector-sdk/v1alpha1
+    adapter: process
+  artifacts:
+    - platform: linux/amd64
+      image: ghcr.io/eshu-hq/examples/pagerduty-reference-collector@sha256:1111111111111111111111111111111111111111111111111111111111111111
+  emittedFacts:
+    - kind: dev.eshu.examples.pagerduty.incident
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: dev.eshu.examples.pagerduty.lifecycle_event
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: dev.eshu.examples.pagerduty.change
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: dev.eshu.examples.pagerduty.observed_service
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: dev.eshu.examples.pagerduty.observed_integration
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: dev.eshu.examples.pagerduty.coverage_warning
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+  consumerContracts:
+    reducer:
+      phases:
+        - source_evidence_only:no_graph_truth
+  telemetry:
+    metricsPrefix: eshu_dp_example_pagerduty_
