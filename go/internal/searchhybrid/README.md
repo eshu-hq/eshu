@@ -25,6 +25,8 @@ See `doc.go` for the godoc-rendered package contract.
 
 - `Embedder` — the optional local-embedding port (deterministic, no hosted call).
 - `Options` — index configuration (document cap, embedder, BM25 `K1`/`B`, RRF `k`).
+- `VectorRetrievalMode` — semantic retrieval selection (`Auto`, `Exact`, or
+  `Approximate`) while keeping exact cosine as the correctness baseline.
 - `Index` / `NewIndex` — a bounded in-memory index with `Size`, `Overflow`, and
   `HasEmbedder` accessors.
 - `Backend` — implements `searchretrieval.Backend` for keyword, semantic, and
@@ -39,8 +41,11 @@ See `doc.go` for the godoc-rendered package contract.
   served from an inverted index (term → postings) so a query visits only the
   documents that contain its terms, not the whole corpus. Documents with no
   lexical overlap (BM25 score `0`) are excluded.
-- **semantic** — cosine similarity over local embedding vectors. Requires an
-  embedder; without one the mode returns an error.
+- **semantic** — cosine similarity over local embedding vectors through the
+  index-owned vector retriever. Requires an embedder; without one the mode
+  returns an error. Exact cosine scans every valid in-scope vector and is the
+  deterministic zero-value correctness baseline. Approximate retrieval must be
+  selected explicitly.
 - **hybrid** — Reciprocal Rank Fusion of the BM25 and vector rankings. Without an
   embedder it degenerates to the BM25 ranking and reports `search_method=bm25`.
 
@@ -64,6 +69,21 @@ When an embedder is configured, each document is embedded once and cached by the
 SHA-256 of its searchable text, so identical or unchanged documents are not
 re-embedded.
 
+## Vector retrieval
+
+`VectorRetrievalAuto` and `VectorRetrievalExact` score every finite, non-zero,
+same-dimension vector in the resolved request scope. Vectors that are empty,
+zero, dimension-mismatched, or non-finite are skipped before ranking, and query
+vectors with the same malformed states produce an empty vector result set.
+
+`VectorRetrievalApproximate` is a pure-Go deterministic candidate-pruning index.
+It buckets valid document vectors by their dominant dimension and sign, filters
+the matching bucket by request scope, then computes exact cosine over only those
+candidates. If the scoped bucket is empty, it falls back to the exact retriever
+so semantic mode degrades to the correctness baseline rather than returning a
+false empty result. Final ordering still uses `rankByScore`, so ties break by
+document id.
+
 ## Telemetry
 
 None directly. This is a retrieval backend behind `searchretrieval.Runner`, whose
@@ -79,6 +99,8 @@ design-430 operator metrics without high-cardinality labels.
   the canonical graph or promotes a score to canonical truth.
 - The `Embedder` must be deterministic and must not call a hosted service.
 - Semantic mode requires an embedder; hybrid without one is BM25-only.
+- Approximate vector retrieval is a local candidate-pruning optimization, not
+  canonical truth and not a persisted vector payload lane.
 - The in-process index is read-only after construction; rebuild to reflect new
   documents. The public semantic-search route uses the persisted Postgres index
   instead of this request-local structure.
