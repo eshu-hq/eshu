@@ -10,8 +10,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// GitHubActionsFixtureEnvelopes normalizes one offline GitHub Actions fixture
-// into reported-confidence CI/CD facts.
+// GitHubActionsFixtureEnvelopes normalizes one fixture-shaped GitHub Actions
+// payload into reported-confidence CI/CD facts.
 func GitHubActionsFixtureEnvelopes(raw []byte, ctx FixtureContext) ([]facts.Envelope, error) {
 	if err := validateContext(ctx); err != nil {
 		return nil, err

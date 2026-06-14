@@ -2,12 +2,16 @@
 
 ## Purpose
 
-`internal/collector/cicdrun` owns fixture-backed CI/CD provider normalization
-for the `ci_cd_run` collector family. It turns offline provider payloads into
-reported-confidence fact envelopes that reducers can consume.
+`internal/collector/cicdrun` owns CI/CD provider normalization for the
+`ci_cd_run` collector family. It turns offline fixtures and bounded hosted
+GitHub Actions snapshots from `ghactionsruntime` into reported-confidence fact
+envelopes that reducers can consume.
 
-This package intentionally does not implement hosted API polling, credentials,
-log ingestion, graph writes, or deployment truth promotion.
+The parent package does not call hosted APIs or manage credentials. The
+claim-driven GitHub Actions runtime lives in `ghactionsruntime`, which owns
+provider polling, request limits, redaction, telemetry, and status. Neither
+package ingests logs, reads artifact contents, writes graph state, or promotes
+deployment truth.
 
 ## Fixture-to-fact flow
 
@@ -28,8 +32,9 @@ flowchart LR
     Warnings --> Reducers
 ```
 
-The package reports provider runtime evidence. It does not promote CI success,
-artifacts, or environments to deployment truth.
+The package reports provider runtime evidence from the shared normalized
+payload shape. It does not promote CI success, artifacts, or environments to
+deployment truth.
 
 ## Exported Surface
 
@@ -37,8 +42,10 @@ artifacts, or environments to deployment truth.
 - `ProviderGitHubActions` — provider value used for GitHub Actions facts.
 - `FixtureContext` — scope, generation, collector instance, fencing token,
   observed time, and source URI copied into emitted envelopes.
-- `GitHubActionsFixtureEnvelopes` — parses one offline GitHub Actions fixture
-  and returns CI/CD fact envelopes.
+- `GitHubActionsFixtureEnvelopes` — parses one fixture-shaped GitHub Actions
+  payload and returns CI/CD fact envelopes. Offline fixtures pass that payload
+  directly; `ghactionsruntime` marshals its bounded `RunSnapshot` into the same
+  shape before calling this normalizer.
 
 ## Invariants
 
@@ -54,9 +61,11 @@ artifacts, or environments to deployment truth.
 
 ## Telemetry
 
-This package emits no metrics, spans, or logs. Hosted runtime telemetry belongs
-in a later collector runtime slice. The fixture-backed proof is bounded by the
-number of runs, jobs, steps, artifacts, triggers, and warnings in one fixture.
+This package emits no metrics, spans, or logs directly. Hosted runtime
+telemetry belongs to `ghactionsruntime`: provider request counts, fetch
+duration, rate limits, fact emission, partial generations, and source spans.
+The normalizer proof is bounded by the number of runs, jobs, steps, artifacts,
+triggers, and warnings in one payload.
 
 No-Regression Evidence: fixture normalization is covered by
 `go test ./internal/collector/cicdrun -run TestGitHubActionsFixture -count=1`,
@@ -64,7 +73,7 @@ which exercises one successful run, retry-attempt identity, missing artifact
 digest warnings, and partial job metadata warnings without graph writes or
 queue work.
 
-No-Observability-Change: this package is a deterministic offline normalizer and
-does not mount a runtime. The later hosted runtime slice must add provider API
-request, rate-limit, fact-emission, partial-generation, redaction, and status
-signals before live collection is enabled.
+No-Observability-Change: this package is a deterministic normalizer and does
+not mount a runtime. `ghactionsruntime` owns the hosted provider API request,
+rate-limit, fact-emission, partial-generation, redaction, and status signals
+for live collection.
