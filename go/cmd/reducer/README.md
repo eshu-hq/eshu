@@ -72,7 +72,10 @@ flowchart TB
    reducer-owned posture fields onto existing RDS CloudResource nodes; the EC2
    internet-exposure writer derives conservative exposed / not_exposed / unknown
    properties from EC2 posture, ENI, and security-group evidence onto existing
-   EC2 `CloudResource` nodes only; and the S3 internet-exposure writer derives
+   EC2 `CloudResource` nodes only; the service-scoped incident evidence loader
+   resolves PagerDuty provider service ids to catalog service ids through active
+   exact/derived reducer correlations for the incidents service-evidence family;
+   and the S3 internet-exposure writer derives
    bounded exposed / not_exposed / unknown properties from `s3_bucket_posture`
    onto existing S3 `CloudResource` nodes only),
    `SharedProjectionRunner`, `CodeCallProjectionRunner`,

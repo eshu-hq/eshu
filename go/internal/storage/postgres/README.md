@@ -174,6 +174,10 @@ Primary groups:
 - Generation retention store for bounded superseded-generation cleanup,
   hashed retention events, changed-since expiry proof, and identity-safe
   content pruning.
+- Service-scoped incident evidence loader for the incidents service-evidence
+  family. It resolves PagerDuty provider service ids to catalog service ids
+  through active exact/derived reducer correlation facts and fails closed for
+  ambiguous repository ownership.
 - Installed advisory target readers for active OS package and active attached
   SBOM component evidence used by vulnerability-intelligence planning.
 - Content stores and content writers, including bounded entity-batch

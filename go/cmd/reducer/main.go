@@ -136,6 +136,7 @@ func buildReducerService(
 	inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize := loadSharedEdgeWriterGroupTuning(getenv)
 	serviceMaterializationWriter := serviceMaterializationWriterFor(database)
 	serviceDocumentationEvidenceLoader := serviceDocumentationEvidenceLoaderFor(database)
+	serviceIncidentEvidenceLoader := serviceIncidentEvidenceLoaderFor(database)
 	graphBackend, err := runtimecfg.LoadGraphBackend(getenv)
 	if err != nil {
 		return reducer.Service{}, err
@@ -375,6 +376,7 @@ func buildReducerService(
 		},
 		ServiceMaterializationWriter:       serviceMaterializationWriter,
 		ServiceDocumentationEvidenceLoader: serviceDocumentationEvidenceLoader,
+		ServiceIncidentEvidenceLoader:      serviceIncidentEvidenceLoader,
 		// ServiceRuntimeInstanceLoader sources the runtime evidence family (#1986)
 		// from the canonical graph's WorkloadInstance/Platform nodes for each
 		// correlated service's repository. It is wired only alongside

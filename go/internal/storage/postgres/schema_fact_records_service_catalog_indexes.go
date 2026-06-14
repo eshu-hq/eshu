@@ -23,6 +23,15 @@ CREATE INDEX IF NOT EXISTS fact_records_service_catalog_correlations_repository_
     )
     WHERE fact_kind = 'reducer_service_catalog_correlation'
       AND is_tombstone = FALSE;
+CREATE INDEX IF NOT EXISTS fact_records_service_catalog_correlations_service_idx
+    ON fact_records (
+        (payload->>'service_id'),
+        (payload->>'repository_id'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'reducer_service_catalog_correlation'
+      AND is_tombstone = FALSE;
 CREATE INDEX IF NOT EXISTS fact_records_service_catalog_correlations_candidate_repository_idx
     ON fact_records USING GIN ((payload->'candidate_repository_ids'))
     WHERE fact_kind = 'reducer_service_catalog_correlation'

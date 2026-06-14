@@ -302,6 +302,15 @@ type DefaultHandlers struct {
 	// It is optional; when nil the generation simply carries no docs rows.
 	ServiceDocumentationEvidenceLoader ServiceScopedDocumentationEvidenceLoader
 
+	// ServiceIncidentEvidenceLoader, when set alongside
+	// ServiceMaterializationWriter, supplies exact incident-routing evidence that
+	// resolves to each correlated service so the incidents evidence family (#1989)
+	// is snapshotted into each service generation. It is keyed by Eshu catalog
+	// service id after the provider service id is resolved through durable reducer
+	// correlations. It is optional; when nil the generation simply carries no
+	// incident rows.
+	ServiceIncidentEvidenceLoader ServiceScopedIncidentEvidenceLoader
+
 	// ServiceVulnerabilityAdvisoryLoader, when set alongside
 	// ServiceMaterializationWriter, supplies the supply-chain advisory findings on
 	// each correlated service's repository so the vulnerabilities evidence family

@@ -21,6 +21,7 @@ func TestBootstrapDefinitionsIncludeServiceCatalogCorrelationFactIndexes(t *test
 	for _, want := range []string{
 		"fact_records_service_catalog_correlations_entity_idx",
 		"fact_records_service_catalog_correlations_repository_idx",
+		"fact_records_service_catalog_correlations_service_idx",
 		"fact_records_service_catalog_correlations_candidate_repository_idx",
 		"fact_records_service_catalog_correlations_owner_idx",
 		"'reducer_service_catalog_correlation'",

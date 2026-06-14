@@ -1,6 +1,9 @@
 package reducer
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestImplementedDefaultDomainDefinitionsOmitsCICDRunCorrelationWithoutAdapters(t *testing.T) {
 	t.Parallel()
@@ -82,4 +85,34 @@ func TestImplementedDefaultDomainDefinitionsIncludesServiceCatalogCorrelationWhe
 	if !found {
 		t.Fatal("service_catalog_correlation not registered after wiring loader+writer")
 	}
+}
+
+func TestImplementedDefaultDomainDefinitionsWiresServiceIncidentEvidenceLoader(t *testing.T) {
+	t.Parallel()
+
+	loader := &stubFactLoader{}
+	writer := &recordingServiceCatalogCorrelationWriter{}
+	incidentLoader := &fakeServiceScopedIncidentLoader{}
+	materialization := PostgresServiceMaterializationWriter{DB: newFakeServiceMaterializationStore(), Now: time.Now}
+	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
+		FactLoader:                      loader,
+		ServiceCatalogCorrelationWriter: writer,
+		ServiceMaterializationWriter:    materialization,
+		ServiceIncidentEvidenceLoader:   incidentLoader,
+	})
+
+	for _, def := range definitions {
+		if def.Domain != DomainServiceCatalogCorrelation {
+			continue
+		}
+		handler, ok := def.Handler.(ServiceCatalogCorrelationHandler)
+		if !ok {
+			t.Fatalf("service_catalog_correlation handler type = %T, want ServiceCatalogCorrelationHandler", def.Handler)
+		}
+		if handler.IncidentEvidenceLoader != incidentLoader {
+			t.Fatal("service_catalog_correlation handler IncidentEvidenceLoader was not wired")
+		}
+		return
+	}
+	t.Fatal("service_catalog_correlation not registered after wiring loader+writer")
 }
