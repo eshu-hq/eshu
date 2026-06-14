@@ -48,6 +48,10 @@
 // coordinated by each CanonicalNodeWriter instance before backend execution so
 // uniqueness retries are not the normal path for one projector process. Backend
 // uniqueness and retry handling still own cross-process convergence.
+// AzureCloudResourceEdgeWriter mirrors the GCP CloudResource relationship writer
+// for Azure managed relationships: it MATCHes both CloudResource endpoints by
+// uid, MERGEs only bounded static AZURE_managed_by edge tokens, preserves
+// relationship_type as a readback property, and never fabricates endpoint nodes.
 // IncidentRoutingEvidenceWriter writes
 // PagerDuty routing evidence nodes and static intended/applied/live evidence
 // relationships without creating service, runtime, image, code-review, work

@@ -70,13 +70,27 @@ loader includes Azure image-reference facts. Azure owning ARM identities remain
 source evidence only; they do not mint repository, workload, service, or graph
 truth.
 
+`azure_cloud_relationship` facts now feed fixture/offline graph
+materialization for managed ARM relationships. The projector enqueues the Azure
+resource-node and relationship-edge reducer domains from committed source facts.
+The reducer materializes only observed `azure_cloud_resource` facts into shared
+`CloudResource` nodes, publishes the canonical-nodes readiness phase, and then
+resolves relationship endpoints by exact normalized ARM resource ID. This slice
+admits only the bounded `managed_by` relationship type, written as
+`AZURE_managed_by` only when both endpoint nodes exist; missing, partial,
+unsupported, invalid, self-loop, stale, and unresolved rows are counted and
+skipped. The Cypher writer uses MATCH-MATCH-MERGE over existing
+`CloudResource.uid` endpoints and keeps the raw relationship type as a property
+for graph readback. It does not call Azure, mint target nodes from relationship
+facts, or activate API/MCP readback lanes.
+
 Everything else stays gated. Do not add Helm values, chart paths, claim-driven
 workflow scheduling, or a live Resource Graph/ARM transport until implementation
 PRs prove the live runtime adapter (`azureruntime.LiveProviderFactory`) and
 chart path. The `azure_cloud_relationship` envelope builder
 (`NewRelationshipEnvelope`) is implemented and unit-proven as provenance-only
 (both endpoint ARM identities, relationship type, and a bounded support state;
-it resolves no endpoints and writes no graph edge). The
+it resolves no endpoints in the collector). The
 `azure_identity_observation` envelope builder (`NewIdentityObservationEnvelope`)
 is implemented and unit-proven: it fingerprints every
 principal/client/object/tenant GUID with the redaction key (raw GUIDs never
@@ -89,7 +103,7 @@ actor (a delete is a tombstone candidate only); DNS records fingerprint the
 record name and every target; image references are digest-first with a
 fingerprinted container name. All Azure source fact-family envelope builders are
 now implemented; scan-loop emission for the later source families and reducer
-admission for identities, changes, DNS, and relationships follow.
+admission for identities, changes, and DNS follow.
 
 The implemented slices remain fixture-testable without live Azure access.
 Live smoke tests are promotion proof, not the minimum proof for the source
@@ -119,7 +133,15 @@ the owning ARM resource identity does not invent repository anchors. `go test
 TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerations
 -count=1` proves the active cross-scope image-identity fact loader includes
 Azure image-reference facts while preserving active-generation and tombstone
-predicates.
+predicates. `go test ./internal/reducer -run
+'Azure(Resource|Relationship)Materialization|ExtractAzure' -count=1`, `go test
+./internal/projector -run Azure -count=1`, `go test ./internal/storage/cypher
+-run AzureCloudResourceEdgeWriter -count=1`, and `go test ./cmd/reducer -run
+Azure -count=1` prove Azure resource-node readiness, exact ARM-id relationship
+resolution, no dangling or fabricated edges, bounded unsafe-type handling,
+skip accounting, scoped stale-edge retraction, MATCH-only Cypher endpoint
+readback properties, and reducer wiring without live Azure activation or
+API/MCP readback changes.
 
 No-Observability-Change: the live Azure runtime adapter stays gated. The
 runtime scaffolding slice adds a non-claimed source and binary that emit a
@@ -133,6 +155,10 @@ loader, active-generation fact predicates, and
 `eshu_dp_container_image_identity_decisions_total` outcome counter; it adds no
 live provider call, route, queue domain, worker, runtime knob, metric label,
 graph write, or chart surface.
+Azure relationship materialization reuses the reducer queue, bounded completion
+logs, `GraphProjectionPhaseCanonicalNodesCommitted` readiness lookup, and the
+existing CloudResource Cypher writer shape; it adds no live Azure call, route,
+credential surface, chart value, or API/MCP tool surface.
 
 ## Source Truth
 
@@ -255,8 +281,9 @@ Azure facts stay provenance until reducers admit them:
    evidence. Delete changes are tombstone candidates only after inventory or
    reducer evidence confirms the final state.
 6. Relationship reducers materialize graph edges only when both endpoints
-   resolve exactly in the current allowed scope. Cross-tenant,
-   cross-subscription, missing, unsupported, ambiguous, stale, and partial-scope
+   resolve exactly in the current allowed scope from observed
+   `azure_cloud_resource` facts. Cross-tenant, cross-subscription, missing,
+   unsupported, ambiguous, stale, invalid-type, self-loop, and partial-scope
    endpoints are counted and surfaced, never fabricated.
 7. Image-reference reducers require digest-first or otherwise explicit
    tag-confidence behavior before using Azure image evidence in deployment or

@@ -25,7 +25,9 @@
 // facts without graph writes, the EC2 internet-exposure writer sets
 // reducer-owned exposed/not_exposed/unknown properties on existing EC2
 // CloudResource nodes, and the S3 internet-exposure writer sets the same
-// bounded property family on existing S3 CloudResource nodes),
+// bounded property family on existing S3 CloudResource nodes, while the Azure
+// relationship edge writer projects managed ARM relationships only after Azure
+// CloudResource endpoint readiness),
 // and hosts it
 // through app.NewHostedWithStatusServer so it exposes the shared `/healthz`,
 // `/readyz`, `/metrics`, and `/admin/status` admin surface. NornicDB reducer

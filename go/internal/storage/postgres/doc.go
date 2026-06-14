@@ -24,7 +24,9 @@
 // backlog aggregates because those rows gate whether reducer-owned graph edges
 // are ready for query truth, and ReducerGraphDrain gives local NornicDB
 // code-call projection a read-only view of reducer graph-domain backlog before
-// it starts its edge write lane.
+// it starts its edge write lane. CloudResource-consuming reducer edge domains
+// stay unclaimed until their matching cloud_resource_uid canonical-nodes phase
+// exists, including provider relationship domains such as AWS and Azure.
 // CollectorGenerationDeadLetterStore persists bounded commit-failure metadata
 // for generations that failed before projector work rows existed and exposes a
 // source-level replay request/completion path plus unresolved status aggregates

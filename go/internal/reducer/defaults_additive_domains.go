@@ -185,6 +185,8 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 	}
 	definitions = appendGCPResourceMaterializationDomain(definitions, handlers)
 	definitions = appendGCPRelationshipMaterializationDomain(definitions, handlers)
+	definitions = appendAzureResourceMaterializationDomain(definitions, handlers)
+	definitions = appendAzureRelationshipMaterializationDomain(definitions, handlers)
 	if handlers.FactLoader != nil && handlers.EC2InstanceNodeWriter != nil {
 		ec2Instances := ec2InstanceNodeMaterializationDomainDefinition()
 		ec2Instances.Handler = EC2InstanceNodeMaterializationHandler{
