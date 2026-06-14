@@ -200,6 +200,8 @@ func nornicDBOneHopRelationshipsCypher(entityID string, direction string, relati
 		       type(rel) as type,
 		       rel.call_kind as call_kind,
 		       rel.reason as reason,
+		       rel.confidence as confidence,
+		       rel.resolution_method as resolution_method,
 		       source.name as source_name,
 		       coalesce(source.id, source.uid) as source_id,
 		       sourceRepo.id as source_repo_id,
@@ -230,6 +232,8 @@ func nornicDBOneHopRelationshipsCypher(entityID string, direction string, relati
 		       type(rel) as type,
 		       rel.call_kind as call_kind,
 		       rel.reason as reason,
+		       rel.confidence as confidence,
+		       rel.resolution_method as resolution_method,
 		       e.name as source_name,
 		       coalesce(e.id, e.uid) as source_id,
 		       sourceRepo.id as source_repo_id,
@@ -299,6 +303,7 @@ func normalizeNornicDBRelationshipRows(rows []map[string]any) []map[string]any {
 func removeNornicDBRelationshipPlaceholderProperties(row map[string]any) {
 	for _, key := range []string{
 		"call_kind",
+		"confidence",
 		"reason",
 		"resolution_method",
 		"source_id",

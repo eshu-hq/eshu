@@ -205,9 +205,10 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `trace_deployment_chain` | POST | `/api/v0/impact/trace-deployment-chain` |
 | `investigate_deployment_config` | POST | `/api/v0/impact/deployment-config-influence` |
 
-`get_repo_context` and `get_relationship_evidence` forward HTTP relationship
-confidence metadata unchanged. Correlation relationship rows carry
-`confidence_basis` (`evidence_constant`, `evidence_aggregate`, or
+`get_repo_context`, `get_relationship_evidence`, `get_code_relationship_story`,
+and the direct relationship fallback for `analyze_code_relationships` forward
+HTTP relationship confidence metadata unchanged. Correlation relationship rows
+carry `confidence_basis` (`evidence_constant`, `evidence_aggregate`, or
 `assertion_override`) alongside `confidence`, `resolution_source`,
 `evidence_type`, and `evidence_kinds`; code relationship tools keep using
 `resolution_method`.
