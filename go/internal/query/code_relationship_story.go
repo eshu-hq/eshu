@@ -27,6 +27,10 @@ type relationshipStoryRequest struct {
 	MaxDepth          int    `json:"max_depth"`
 	Limit             int    `json:"limit"`
 	Offset            int    `json:"offset"`
+	// MinConfidence is an optional response-only floor. A nil floor preserves
+	// legacy and low-confidence rows; a positive floor keeps only rows with a
+	// numeric confidence at or above the threshold.
+	MinConfidence *float64 `json:"min_confidence"`
 	// RelationshipTypes is an optional additive multi-type filter. When set it
 	// supersedes RelationshipType: each requested type is followed with the same
 	// bounded single-type query and the results are merged. It applies only to
@@ -148,6 +152,9 @@ func (r relationshipStoryRequest) validate() error {
 	}
 	if r.TokenBudget < 0 {
 		return errors.New("token_budget must be >= 0")
+	}
+	if r.MinConfidence != nil && (*r.MinConfidence < 0 || *r.MinConfidence > 1) {
+		return errors.New("min_confidence must be between 0 and 1")
 	}
 	if _, err := r.normalizedRelationshipTypes(); err != nil {
 		return err
@@ -282,6 +289,7 @@ func relationshipStoryData(
 	rows []map[string]any,
 ) map[string]any {
 	limit := req.normalizedLimit()
+	rows = relationshipStoryRowsAboveConfidenceFloor(rows, req)
 	availableByDirection := relationshipStoryDirectionCounts(rows)
 	truncatedByDirection := relationshipStoryDirectionTruncation(availableByDirection, req, limit)
 	// Rank by bounded centrality before the count limit so the most-connected
@@ -322,22 +330,63 @@ func relationshipStoryData(
 		summary["token_budget"] = budget
 		coverage["token_budget"] = budget
 	}
+	if req.MinConfidence != nil {
+		coverage["min_confidence"] = *req.MinConfidence
+	}
+	scope := map[string]any{
+		"repo_id":            strings.TrimSpace(req.RepoID),
+		"language":           strings.TrimSpace(req.Language),
+		"direction":          direction,
+		"relationship_type":  relationshipTypes[0],
+		"relationship_types": relationshipTypes,
+		"limit":              limit,
+		"offset":             req.Offset,
+		"max_depth":          relationshipStoryEffectiveMaxDepth(req),
+		"include_transitive": req.IncludeTransitive,
+	}
+	if req.MinConfidence != nil {
+		scope["min_confidence"] = *req.MinConfidence
+	}
 	return map[string]any{
 		"target_resolution": resolution,
-		"scope": map[string]any{
-			"repo_id":            strings.TrimSpace(req.RepoID),
-			"language":           strings.TrimSpace(req.Language),
-			"direction":          direction,
-			"relationship_type":  relationshipTypes[0],
-			"relationship_types": relationshipTypes,
-			"limit":              limit,
-			"offset":             req.Offset,
-			"max_depth":          relationshipStoryEffectiveMaxDepth(req),
-			"include_transitive": req.IncludeTransitive,
-		},
-		"relationships": rows,
-		"summary":       summary,
-		"coverage":      coverage,
+		"scope":             scope,
+		"relationships":     rows,
+		"summary":           summary,
+		"coverage":          coverage,
+	}
+}
+
+func relationshipStoryRowsAboveConfidenceFloor(rows []map[string]any, req relationshipStoryRequest) []map[string]any {
+	if req.MinConfidence == nil || *req.MinConfidence <= 0 {
+		return rows
+	}
+	floor := *req.MinConfidence
+	filtered := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		confidence, ok := relationshipStoryNumericConfidence(row)
+		if ok && confidence >= floor {
+			filtered = append(filtered, row)
+		}
+	}
+	return filtered
+}
+
+func relationshipStoryNumericConfidence(row map[string]any) (float64, bool) {
+	value, ok := row["confidence"]
+	if !ok || value == nil {
+		return 0, false
+	}
+	switch confidence := value.(type) {
+	case float64:
+		return confidence, true
+	case float32:
+		return float64(confidence), true
+	case int:
+		return float64(confidence), true
+	case int64:
+		return float64(confidence), true
+	default:
+		return 0, false
 	}
 }
 

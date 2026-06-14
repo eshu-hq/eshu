@@ -30,3 +30,29 @@ func TestOpenAPIRelationshipStoryRestrictsTargetlessOverrides(t *testing.T) {
 		t.Fatalf("targetless query_type+repo_id branch enum = %#v, want overrides only", overrideQueryType["enum"])
 	}
 }
+
+func TestOpenAPIRelationshipStoryDocumentsMinConfidence(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
+	}
+
+	paths := mustMapField(t, spec, "paths")
+	relationshipStoryPath := mustMapField(t, paths, "/api/v0/code/relationships/story")
+	relationshipStoryPost := mustMapField(t, relationshipStoryPath, "post")
+	relationshipStoryBody := mustMapField(t, mustMapField(t, relationshipStoryPost, "requestBody"), "content")
+	relationshipStoryJSON := mustMapField(t, relationshipStoryBody, "application/json")
+	relationshipStoryProperties := mustMapField(t, mustMapField(t, relationshipStoryJSON, "schema"), "properties")
+	minConfidenceSchema := mustMapField(t, relationshipStoryProperties, "min_confidence")
+	if got, want := minConfidenceSchema["type"], "number"; got != want {
+		t.Fatalf("min_confidence type = %#v, want %#v", got, want)
+	}
+	if got, want := minConfidenceSchema["minimum"], float64(0); got != want {
+		t.Fatalf("min_confidence minimum = %#v, want %#v", got, want)
+	}
+	if got, want := minConfidenceSchema["maximum"], float64(1); got != want {
+		t.Fatalf("min_confidence maximum = %#v, want %#v", got, want)
+	}
+}

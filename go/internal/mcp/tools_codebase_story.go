@@ -51,6 +51,12 @@ func codeRelationshipStoryTool() ToolDefinition {
 					"description": "Optional cap on the estimated response token cost. Applied after limit; trims rows to fit and reports what was cut with guidance to narrow.",
 					"minimum":     0,
 				},
+				"min_confidence": map[string]any{
+					"type":        "number",
+					"description": "Optional confidence floor from 0 through 1. Omitted preserves low-confidence and missing-confidence rows; positive values keep only returned rows with numeric confidence at or above the floor.",
+					"minimum":     float64(0),
+					"maximum":     float64(1),
+				},
 				"include_transitive": map[string]any{
 					"type":        "boolean",
 					"description": "When true, follow CALLS edges with bounded breadth-first traversal.",

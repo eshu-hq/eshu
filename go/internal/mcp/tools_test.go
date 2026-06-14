@@ -110,6 +110,51 @@ func TestReadOnlyTools(t *testing.T) {
 	}
 }
 
+func TestRelationshipToolsAdvertiseMinConfidence(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{"get_code_relationship_story", "analyze_code_relationships"} {
+		tool := requireToolDefinition(t, name)
+		schema, ok := tool.InputSchema.(map[string]any)
+		if !ok {
+			t.Fatalf("tool %s InputSchema type = %T, want map[string]any", name, tool.InputSchema)
+		}
+		properties, ok := schema["properties"].(map[string]any)
+		if !ok {
+			t.Fatalf("tool %s properties type = %T, want map[string]any", name, schema["properties"])
+		}
+		raw, ok := properties["min_confidence"]
+		if !ok {
+			t.Fatalf("tool %s missing min_confidence schema", name)
+		}
+		field, ok := raw.(map[string]any)
+		if !ok {
+			t.Fatalf("tool %s min_confidence schema type = %T, want map[string]any", name, raw)
+		}
+		if got, want := field["type"], "number"; got != want {
+			t.Fatalf("tool %s min_confidence type = %#v, want %#v", name, got, want)
+		}
+		if got, want := field["minimum"], float64(0); got != want {
+			t.Fatalf("tool %s min_confidence minimum = %#v, want %#v", name, got, want)
+		}
+		if got, want := field["maximum"], float64(1); got != want {
+			t.Fatalf("tool %s min_confidence maximum = %#v, want %#v", name, got, want)
+		}
+	}
+}
+
+func requireToolDefinition(t *testing.T, name string) ToolDefinition {
+	t.Helper()
+
+	for _, tool := range ReadOnlyTools() {
+		if tool.Name == name {
+			return tool
+		}
+	}
+	t.Fatalf("tool %s not found", name)
+	return ToolDefinition{}
+}
+
 func TestPackageRegistryDependencyToolLimitDefaultIsOptional(t *testing.T) {
 	t.Parallel()
 
