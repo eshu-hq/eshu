@@ -187,6 +187,12 @@ deterministic no-network local path capped at 500 loaded documents. It reports
 `retrieval_state=semantic_active` or `hybrid_active` when vector retrieval
 participates. It is not an ANN/vector-index production-readiness claim.
 
+Production ANN/vector-index retrieval is gated separately by issue #2578. That
+gate requires an approved storage owner, active-generation freshness contract,
+security and schema review, benchmark corpus, false-canonical-claim guard, and
+operator-visible index-state signals before any persisted vector index or
+runtime behavior change lands.
+
 ## Public Route And MCP Tool
 
 `POST /api/v0/search/semantic` and MCP `search_semantic_context` expose the
@@ -278,3 +284,4 @@ uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
 - [Search Document Projection](search-document-projection.md)
 - [Search Benchmark Evidence](search-benchmark-evidence.md)
 - [Truth Label Protocol](truth-label-protocol.md)
+- [NornicDB Canonical Graph And Search Projection Split](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/430-nornicdb-graph-search-split.md)
