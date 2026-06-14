@@ -10,10 +10,11 @@
 // contract. Parser output feeds content shaping and durable facts, so parser
 // changes must move fixtures, fact contracts, and downstream docs in lockstep.
 //
-// No-Regression Evidence: SCIP protobuf parsing remains opt-in through
-// collector configuration and supplements native parser output; selected files
-// that are absent from an index.scip document set still rely on the native
-// parser path for complete file coverage.
+// No-Regression Evidence: SCIP protobuf parsing is enabled by default through
+// collector configuration only when an allowed language and its external
+// scip-* binary are available. It supplements native parser output; selected
+// files that are absent from an index.scip document set still rely on the
+// native parser path for complete file coverage.
 //
 // No-Observability-Change: SCIP parsing uses the existing collector snapshot
 // parse stage logs and file parse metrics; no parser metric, span, status

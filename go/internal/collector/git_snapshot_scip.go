@@ -2,6 +2,7 @@ package collector
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -15,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
 	"github.com/eshu-hq/eshu/go/internal/content/shape"
 	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // SnapshotSCIPConfig captures the optional SCIP runtime contract for the Go collector.
@@ -36,7 +38,7 @@ type scipResultParser interface {
 
 // LoadSnapshotSCIPConfig parses the SCIP environment contract for the Go collector.
 func LoadSnapshotSCIPConfig(getenv func(string) string) SnapshotSCIPConfig {
-	languages := []string{"python", "typescript", "go", "rust", "java"}
+	languages := defaultSnapshotSCIPLanguages()
 	if raw := strings.TrimSpace(getenv("SCIP_LANGUAGES")); raw != "" {
 		languages = languages[:0]
 		for _, item := range strings.Split(raw, ",") {
@@ -47,8 +49,21 @@ func LoadSnapshotSCIPConfig(getenv func(string) string) SnapshotSCIPConfig {
 		}
 	}
 	return SnapshotSCIPConfig{
-		Enabled:   boolFromEnv(getenv("SCIP_INDEXER")),
+		Enabled:   scipEnabledFromEnv(getenv("SCIP_INDEXER")),
 		Languages: languages,
+	}
+}
+
+func defaultSnapshotSCIPLanguages() []string {
+	return []string{"python", "typescript", "javascript", "go", "rust", "java", "cpp", "c"}
+}
+
+func scipEnabledFromEnv(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return true
 	}
 }
 
@@ -94,9 +109,9 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFiles(
 	}
 
 	if s.ParseWorkers <= 1 {
-		return s.buildParsedRepositoryFilesSequential(ctx, repoPath, fileSet, engine, commitSHA, isDependency, goPackageTargets)
+		return s.buildParsedRepositoryFilesSequential(ctx, repoPath, fileSet, engine, commitSHA, isDependency, goPackageTargets, nil)
 	}
-	return s.buildParsedRepositoryFilesConcurrent(ctx, repoPath, fileSet, engine, commitSHA, isDependency, goPackageTargets)
+	return s.buildParsedRepositoryFilesConcurrent(ctx, repoPath, fileSet, engine, commitSHA, isDependency, goPackageTargets, nil)
 }
 
 func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesSequential(
@@ -107,6 +122,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesSequential(
 	commitSHA string,
 	isDependency bool,
 	goPackageTargets parser.GoPackageSemanticRoots,
+	scipFiles map[string]map[string]any,
 ) ([]shape.File, []map[string]any, []parseLanguageSummary, error) {
 	shapeFiles := make([]shape.File, 0, len(fileSet.Files))
 	parsedFiles := make([]map[string]any, 0, len(fileSet.Files))
@@ -131,6 +147,9 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesSequential(
 				))
 			}
 			continue
+		}
+		if scipPayload, ok := scipFiles[filePath]; ok {
+			mergeSCIPSupplement(parsed, scipPayload)
 		}
 
 		body, err := os.ReadFile(filePath)
@@ -191,6 +210,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesConcurrent(
 	commitSHA string,
 	isDependency bool,
 	goPackageTargets parser.GoPackageSemanticRoots,
+	scipFiles map[string]map[string]any,
 ) ([]shape.File, []map[string]any, []parseLanguageSummary, error) {
 	fileCount := len(fileSet.Files)
 	if fileCount == 0 {
@@ -235,6 +255,9 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesConcurrent(
 					}
 					results <- parseResult{index: job.index, skipped: true}
 					continue
+				}
+				if scipPayload, ok := scipFiles[job.path]; ok {
+					mergeSCIPSupplement(parsed, scipPayload)
 				}
 
 				body, err := os.ReadFile(job.path)
@@ -345,6 +368,7 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 	}
 	indexer := s.scipIndexer(config)
 	if !indexer.IsAvailable(language) {
+		s.logSCIPSnapshotFallback(ctx, language, "binary_unavailable")
 		return nil, nil, nil, false, nil
 	}
 
@@ -358,73 +382,62 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 
 	indexPath, err := indexer.Run(ctx, repoPath, language, outputDir)
 	if err != nil {
+		s.logSCIPSnapshotFallback(ctx, language, "indexer_failed")
 		return nil, nil, nil, false, nil
 	}
 	result, err := s.scipParser(config).Parse(indexPath, repoPath)
 	if err != nil {
+		s.logSCIPSnapshotFallback(ctx, language, "parse_failed")
 		return nil, nil, nil, false, nil
 	}
 
-	shapeFiles := make([]shape.File, 0, len(fileSet.Files))
-	parsedFiles := make([]map[string]any, 0, len(fileSet.Files))
-	languageStats := newParseLanguageStats()
-	for _, filePath := range fileSet.Files {
-		if err := ctx.Err(); err != nil {
-			return nil, nil, nil, false, err
-		}
-
-		startTime := time.Now()
-		parsed, err := engine.ParsePath(repoPath, filePath, isDependency, snapshotParserOptions(filePath, goPackageTargets))
-		duration := fileParseDurationSeconds(startTime)
-		if err != nil {
-			if s.Instruments != nil {
-				s.Instruments.FilesParsed.Add(ctx, 1, metric.WithAttributes(
-					attribute.String("status", "skipped"),
-				))
-			}
-			continue
-		}
-		if scipPayload, ok := result.Files[filePath]; ok {
-			mergeSCIPSupplement(parsed, scipPayload)
-		}
-
-		body, err := os.ReadFile(filePath)
-		if err != nil {
-			if s.Instruments != nil {
-				s.Instruments.FilesParsed.Add(ctx, 1, metric.WithAttributes(
-					attribute.String("status", "skipped"),
-				))
-			}
-			continue
-		}
-		relativePath, err := filepath.Rel(repoPath, filePath)
-		if err != nil {
-			if s.Instruments != nil {
-				s.Instruments.FilesParsed.Add(ctx, 1, metric.WithAttributes(
-					attribute.String("status", "skipped"),
-				))
-			}
-			continue
-		}
-		relativePath = filepath.ToSlash(filepath.Clean(relativePath))
-		shapeFiles = append(shapeFiles, shapeFileFromParsed(parsed, relativePath, string(body), commitSHA))
-		parsedFiles = append(parsedFiles, parsed)
-		language := snapshotPayloadString(parsed, "language", "lang")
-		languageStats.record(language, duration)
-		if s.Instruments != nil {
-			s.Instruments.FileParseDuration.Record(ctx, duration, metric.WithAttributes(
-				attribute.String("language", language),
-			))
-			s.Instruments.FilesParsed.Add(ctx, 1, metric.WithAttributes(
-				attribute.String("status", "succeeded"),
-			))
-		}
+	var (
+		shapeFiles      []shape.File
+		parsedFiles     []map[string]any
+		languageSummary []parseLanguageSummary
+	)
+	if s.ParseWorkers <= 1 {
+		shapeFiles, parsedFiles, languageSummary, err = s.buildParsedRepositoryFilesSequential(
+			ctx,
+			repoPath,
+			fileSet,
+			engine,
+			commitSHA,
+			isDependency,
+			goPackageTargets,
+			result.Files,
+		)
+	} else {
+		shapeFiles, parsedFiles, languageSummary, err = s.buildParsedRepositoryFilesConcurrent(
+			ctx,
+			repoPath,
+			fileSet,
+			engine,
+			commitSHA,
+			isDependency,
+			goPackageTargets,
+			result.Files,
+		)
+	}
+	if err != nil {
+		return nil, nil, nil, false, err
 	}
 
 	if len(parsedFiles) == 0 {
 		return nil, nil, nil, false, nil
 	}
-	return shapeFiles, parsedFiles, languageStats.summaries(), true, nil
+	return shapeFiles, parsedFiles, languageSummary, true, nil
+}
+
+func (s NativeRepositorySnapshotter) logSCIPSnapshotFallback(ctx context.Context, language string, reason string) {
+	if s.Logger == nil {
+		return
+	}
+	s.Logger.WarnContext(ctx, "SCIP snapshot fallback to native parser",
+		slog.String("language", language),
+		slog.String("reason", reason),
+		telemetry.FailureClassAttr("scip_"+reason),
+	)
 }
 
 func mergeSCIPSupplement(parsed map[string]any, supplement map[string]any) {
