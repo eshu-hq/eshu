@@ -38,6 +38,7 @@ token.
 | Command | Effect |
 | --- | --- |
 | `eshu assistant install` | Write or refresh the Eshu guidance block for every supported assistant. |
+| `eshu assistant install --verify` | Write or refresh guidance, then run the safe local ritual diagnostics. |
 | `eshu assistant status` | Report, per platform, whether the guidance block is installed and current. |
 | `eshu assistant status --verify` | Add first-run ritual diagnostics for guidance state and local MCP tool visibility. |
 | `eshu assistant uninstall` | Remove the Eshu guidance block, preserving other file content. |
@@ -48,6 +49,9 @@ Flags:
   directory.
 - `--platform <id>` restricts the action to one assistant: `claude`, `codex`, or
   `cursor`. An unknown id is rejected.
+- `--verify` on `install` and `status` runs the safe local ritual diagnostics
+  for the selected platform set. It does not write MCP client config, start
+  services, install hooks, query the graph/API, or print secrets.
 
 ## Target Files
 
@@ -157,8 +161,10 @@ checklist. It keeps the normal per-platform status table, then reports whether
 the selected guidance blocks are current, whether local MCP setup text can be
 generated, whether the in-process read-only MCP tool surface is visible, and
 whether endpoint and first-query probes are skipped because the local-stdio path
-has no HTTP endpoint to probe. Hosted endpoint and authentication proof remain
-owned by `eshu mcp setup --verify`, `eshu first-run`, and `eshu hosted-setup`.
+has no HTTP endpoint to probe. `eshu assistant install --verify` runs the same
+safe report after a successful install/update/no-op, using the same selected
+platform set. Hosted endpoint and authentication proof remain owned by
+`eshu mcp setup --verify`, `eshu first-run`, and `eshu hosted-setup`.
 
 The verification mode does not start a hook, mutate MCP client configuration,
 run a broad graph query, or print token values.

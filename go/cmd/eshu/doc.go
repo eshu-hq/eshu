@@ -49,7 +49,8 @@
 // discovery (`find`, `analyze`, `ecosystem`), project-scoped assistant guidance
 // (`assistant install|status|uninstall`, which writes a marked Eshu guidance
 // block into CLAUDE.md, AGENTS.md, and Cursor rules while preserving other
-// content), internal local-service
+// content, and can run safe local ritual verification after install or status),
+// internal local-service
 // orchestration, and the `doctor` diagnostic. Its local-authoritative graph
 // path first acquires owner.lock, reclaims ownerless live Postgres only after
 // PID, socket, and protocol probes agree, clears rebuildable local
