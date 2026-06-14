@@ -359,11 +359,14 @@ func TestBuildCodeCallRefreshIntentsCarriesDeltaFileScope(t *testing.T) {
 			GenerationID: "gen-2",
 		},
 	}
-	deltaFilePathsByRepoID := map[string][]string{
-		"repo-a": {"/repo/src/changed.go", "/repo/src/deleted.go"},
+	deltaFileScopesByRepoID := map[string]codeCallDeltaFileScope{
+		"repo-a": {
+			filePaths:      []string{"/repo/src/changed.go", "/repo/src/deleted.go"},
+			partitionPaths: []string{"src/changed.go", "src/deleted.go"},
+		},
 	}
 
-	intents := buildCodeCallRefreshIntentsWithDeltaScope(contextByRepoID, deltaFilePathsByRepoID, createdAt)
+	intents := buildCodeCallRefreshIntentsWithDeltaFileScopes(contextByRepoID, deltaFileScopesByRepoID, createdAt)
 	if got, want := len(intents), 1; got != want {
 		t.Fatalf("len(intents) = %d, want %d", got, want)
 	}
@@ -392,7 +395,7 @@ func TestBuildCodeCallDeltaFilePathsByRepoIDUsesRepositoryDeltaFact(t *testing.T
 				"repo_id":                        "repo-a",
 				"path":                           "/repo",
 				"delta_generation":               true,
-				"delta_relative_paths":           []string{"src/changed.go", "../outside.go"},
+				"delta_relative_paths":           []string{"src/changed.go"},
 				"delta_deleted_relative_paths":   []string{"src/deleted.go", "src/changed.go"},
 				"unrelated_delta_relative_paths": []string{"src/ignored.go"},
 			},

@@ -101,8 +101,8 @@ func (h CodeCallMaterializationHandler) Handle(
 	}
 
 	intentBuildStart := time.Now()
-	deltaFilePathsByRepoID := buildCodeCallDeltaFilePathsByRepoID(envelopes)
-	intentRows := buildCodeCallRefreshIntentsWithDeltaScope(contextByRepoID, deltaFilePathsByRepoID, createdAt)
+	deltaFileScopesByRepoID := buildCodeCallDeltaFileScopesByRepoID(envelopes)
+	intentRows := buildCodeCallRefreshIntentsWithDeltaFileScopes(contextByRepoID, deltaFileScopesByRepoID, createdAt)
 	intentRows = append(
 		intentRows,
 		buildCodeCallSharedIntentRows(codeCallRows, contextByRepoID, createdAt, codeCallEvidenceSource)...,

@@ -49,6 +49,44 @@ code_graph.v1:<scope_id>:<partition_kind>:<partition_id>
 If the partition cannot be derived from durable input, the reducer must use the
 existing whole-scope key.
 
+## CALLS Foundation
+
+Issue #2555 adds the first `code_call_materialization` partition-key
+foundation without enabling concurrent CALLS graph writes. Refresh intents now
+use versioned keys:
+
+```text
+code-calls:v1:whole:<repository_id>
+code-calls:v1:files:<repository_id>:<sha256>
+```
+
+The file-scoped key is used only when the accepted delta unit carries a
+non-empty, normalized repo-relative affected-file set. The raw affected paths
+are sorted, deduplicated, and hashed with the repository id; no raw path, source
+excerpt, commit SHA, IP address, or credential-shaped value appears in the
+partition key. Missing, empty, absolute, parent-traversing, malformed, or
+otherwise unsafe affected-file input falls back to the whole-scope key. The
+acceptance key remains the same
+`scope_id` / `acceptance_unit_id` / `source_run_id`, so whole-scope rows and
+future file-partitioned rows for the same repository remain in one freshness
+contract.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'Test(BuildCodeCallRefreshIntentsUseVersionedDeltaPartitionKey|CodeCallRefreshPartitionKeyFallsBackForUnsafeAffectedFiles|BuildCodeCallDeltaFileScopesRejectsUnsafeAffectedPath|BuildCodeCallRefreshIntentsCarriesDeltaFileScope|BuildCodeCallSharedIntentRowsDeduplicatesIntentIdentity|BuildCodeCallDeltaFilePathsByRepoIDUsesRepositoryDeltaFact)'
+-count=1` proves deterministic hashed CALLS file keys, duplicate replay
+stability, malformed-input fallback, unchanged delta payload carry, and
+acceptance-key compatibility. The change is statement-construction only for
+shared intent rows; it does not change queue SQL, partition leases, worker
+defaults, graph Cypher, graph write batching, or full-refresh repo-wide
+retraction behavior.
+
+No-Observability-Change: operators continue to diagnose this path through the
+existing shared-intent rows, shared acceptance rows, code-call projection cycle
+logs, `eshu_dp_queue_claim_duration_seconds{queue="code_calls"}`,
+shared-acceptance gauges, graph write metrics, and `/admin/status` backlog.
+No metric, metric label, span, log field, status field, worker, lease, or
+runtime knob is added or changed.
+
 ## Partitionable Work
 
 Code graph work is partitionable only when the reducer can name the full write
