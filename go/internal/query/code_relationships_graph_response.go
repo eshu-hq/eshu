@@ -25,6 +25,8 @@ func relationshipGraphRowCypher(predicate string) string {
 		           type: type(outgoingRel),
 		           call_kind: outgoingRel.call_kind,
 		           reason: outgoingRel.reason,
+		           confidence: outgoingRel.confidence,
+		           resolution_method: outgoingRel.resolution_method,
 		           source_name: e.name,
 		           source_id: coalesce(e.id, e.uid),
 		           source_repo_id: repo.id,
@@ -49,6 +51,8 @@ func relationshipGraphRowCypher(predicate string) string {
 		           type: type(incomingRel),
 		           call_kind: incomingRel.call_kind,
 		           reason: incomingRel.reason,
+		           confidence: incomingRel.confidence,
+		           resolution_method: incomingRel.resolution_method,
 		           source_name: source.name,
 		           source_id: coalesce(source.id, source.uid),
 		           source_repo_id: sourceRepo.id,
@@ -205,6 +209,8 @@ func normalizeGraphRelationshipSlice(relationships []map[string]any) []map[strin
 				item["reason"] = "jsx_component_call_kind"
 			}
 		}
+		dropNilOrEmptyRowKey(item, "confidence")
+		dropNilOrEmptyRowKey(item, "resolution_method")
 		normalized = append(normalized, item)
 	}
 	return normalized

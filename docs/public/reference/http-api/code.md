@@ -147,9 +147,9 @@ code `resolution_method`. Treat `evidence_constant`, `evidence_aggregate`, and
 confidence field; do not map them onto code resolution tiers.
 
 No-Regression Evidence: `go test ./internal/query -run
-'TestHandleRelationshipsSurfacesRelatedSymbolSourceMetadata|TestNornicDBOneHopRelationshipsCypherProjectsRelatedSymbolSourceMetadata|TestOpenAPIRelationshipDocumentsSourceMetadata'
--count=1` covers response preservation, NornicDB query projection, and OpenAPI
-schema drift for related symbol source metadata.
+'TestHandleRelationshipsSurfaces(RelatedSymbolSourceMetadata|GraphEdgeProvenance)|TestNornicDBOneHopRelationshipsCypherProjects(RelatedSymbolSourceMetadata|EdgeProvenance)|TestRelationshipGraphRowCypherProjectsEdgeProvenance|TestNormalizeNornicDBRelationshipRowsDropsMissingEdgeProvenance|TestOpenAPIRelationshipDocumentsSourceMetadata'
+-count=1` covers response preservation, Neo4j and NornicDB query projection, and
+OpenAPI schema drift for related symbol source metadata and edge provenance.
 
 No-Observability-Change: this is a bounded one-hop read projection on the
 existing `/api/v0/code/relationships` route. It adds no graph write, queue,
