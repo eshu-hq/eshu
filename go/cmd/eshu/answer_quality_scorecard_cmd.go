@@ -28,7 +28,8 @@ It reads JSON from --from or stdin. The evidence must be captured from real API,
 MCP, CLI, or hosted runs before scoring, then redacted so it contains no private
 paths, hostnames, credentials, raw addresses, or sensitive excerpts. The command
 exits non-zero when usefulness, truth honesty, citation coverage, boundedness,
-parity, follow-up usefulness, family coverage, or publish safety fails.`,
+narration fallback preservation, parity, follow-up usefulness, family coverage,
+or publish safety fails.`,
 		Args:          cobra.NoArgs,
 		SilenceUsage:  true,
 		SilenceErrors: true,

@@ -44,6 +44,7 @@ func Score(evidence Evidence) Verdict {
 		CriterionTruthHonesty,
 		CriterionCitationCoverage,
 		CriterionBoundedness,
+		CriterionNarrationFallback,
 		CriterionParity,
 		CriterionFollowUpUsefulness,
 	} {
@@ -80,6 +81,7 @@ func scorePrompt(prompt PromptResult) PromptScore {
 		scoreTruthHonesty(prompt),
 		scoreCitationCoverage(prompt),
 		scoreBoundedness(prompt),
+		scoreNarrationFallback(prompt),
 		scoreParity(prompt),
 		scoreFollowUpUsefulness(prompt),
 		scorePublishSafety(prompt),
@@ -324,6 +326,7 @@ func promptStrings(prompt PromptResult) []string {
 		values = append(values, result.CitationHandles...)
 		values = append(values, result.Limitations...)
 		values = append(values, result.NextCalls...)
+		values = append(values, narrationStrings(result.Narration)...)
 	}
 	return values
 }
@@ -355,6 +358,8 @@ func followUpFor(prompt PromptResult, criterion CriterionScore) FollowUpIssue {
 	switch criterion.Name {
 	case CriterionCitationCoverage:
 		labels = append(labels, "answer:citations")
+	case CriterionNarrationFallback:
+		labels = append(labels, "answer:narration")
 	case CriterionParity:
 		labels = append(labels, "answer:parity")
 	case CriterionTruthHonesty, CriterionFollowUpUsefulness:

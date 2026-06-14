@@ -33,6 +33,7 @@ The scorer records pass/fail rows for:
 | `truth_honesty` | Truth class and freshness are present and not over-confident. |
 | `citation_coverage` | Every captured result has concrete evidence handles. |
 | `boundedness` | Partial, truncated, stale, or unsupported answers say why and give a bounded continuation. |
+| `narration_fallback` | Optional narrated rows preserve the deterministic fallback row and accepted narration passes the governed narration validator. |
 | `parity` | Required API/MCP/CLI/hosted surfaces are present and agree on truth class. |
 | `follow_up_usefulness` | Required next calls are present, especially for partial or truncated answers. |
 | `publish_safety` | Evidence contains no private paths, hostnames, credentials, raw addresses, or sensitive excerpts. |
@@ -90,7 +91,10 @@ private repository paths, hostnames, credentials, or raw addresses.
           "truth_class": "deterministic",
           "freshness": "current",
           "citation_handles": ["repo:demo"],
-          "next_calls": ["build_evidence_citation_packet"]
+          "next_calls": ["build_evidence_citation_packet"],
+          "narration": {
+            "status": "not_requested"
+          }
         }
       ]
     }
@@ -101,6 +105,15 @@ private repository paths, hostnames, credentials, or raw addresses.
 The example above is intentionally incomplete because a passing scorecard must
 include all seven families. Use `eshu answer-quality-scorecard --json` to keep
 the resulting verdict comparable between runs.
+
+Optional narration evidence stays offline. When `narration.status` is
+`accepted`, include the governed narration validator input so the scorecard can
+run the same sentence-to-provenance checks as the presentation gate. When
+`narration.status` is `rejected` or `unavailable`, the deterministic fallback
+row must remain publishable and canonical. In all cases, narration must preserve
+fallback truth class, freshness, support, partial/truncated state, citations,
+limitations, and next calls. The scorer fails rows that drop or weaken any of
+those fields.
 
 ## Hosted And Full-Stack Proof
 
