@@ -1,6 +1,22 @@
 {{- if and .Values.exposure.ingress.enabled .Values.exposure.gateway.enabled -}}
 {{- fail "exposure.ingress.enabled and exposure.gateway.enabled cannot both be true" -}}
 {{- end -}}
+{{- $generationRetentionDisabled := false -}}
+{{- $generationRetentionEnvMaps := list (default (dict) .Values.env) (default (dict) .Values.resolutionEngine.env) -}}
+{{- range $envMap := $generationRetentionEnvMaps -}}
+{{- if and (hasKey $envMap "ESHU_GENERATION_RETENTION_ENABLED") (eq (lower (trim (toString (get $envMap "ESHU_GENERATION_RETENTION_ENABLED")))) "false") -}}
+{{- $generationRetentionDisabled = true -}}
+{{- end -}}
+{{- end -}}
+{{- range $lane := default (list) .Values.resolutionEngine.lanes -}}
+{{- $laneEnv := default (dict) $lane.env -}}
+{{- if and (hasKey $laneEnv "ESHU_GENERATION_RETENTION_ENABLED") (eq (lower (trim (toString (get $laneEnv "ESHU_GENERATION_RETENTION_ENABLED")))) "false") -}}
+{{- $generationRetentionDisabled = true -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.resolutionEngine.enabled $generationRetentionDisabled -}}
+{{- fail "ESHU_GENERATION_RETENTION_ENABLED=false is not allowed for production resolutionEngine Helm deployments; generation retention must run beside reducer work" -}}
+{{- end -}}
 {{- if and .Values.contentStore.dsn .Values.contentStore.secretName -}}
 {{- fail "contentStore.dsn and contentStore.secretName cannot both be set" -}}
 {{- end -}}

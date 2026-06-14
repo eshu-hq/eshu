@@ -43,7 +43,7 @@ func TestLoadGenerationRetentionConfigOverrides(t *testing.T) {
 	require.Equal(t, "revision-2", cfg.Runner.Policy.PolicyRevision)
 }
 
-func TestLoadGenerationRetentionConfigCanDisableRunner(t *testing.T) {
+func TestLoadGenerationRetentionConfigAllowsLocalDisable(t *testing.T) {
 	cfg := loadGenerationRetentionConfig(func(key string) string {
 		if key == generationRetentionEnabledEnv {
 			return "false"
