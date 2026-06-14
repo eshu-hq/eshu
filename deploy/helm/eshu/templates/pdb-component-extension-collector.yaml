@@ -1,0 +1,14 @@
+{{- if .Values.componentExtensionCollector.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "eshu.componentExtensionCollectorFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: component-extension-collector
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "eshu.componentExtensionCollectorSelectorLabels" . | nindent 6 }}
+{{- end }}

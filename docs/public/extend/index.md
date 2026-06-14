@@ -13,6 +13,7 @@ Reducers and graph writers own canonical graph truth.
 | Author or review a community extension | [Community Extension Authoring](community-extension-authoring.md) |
 | Build an out-of-tree collector with the public SDK | [Community Extension Authoring](community-extension-authoring.md#collector-sdk-compatibility) |
 | Copy a working collector extension package | [Reference Scorecard Extension](reference-scorecard-extension.md) |
+| Compare an out-of-tree PagerDuty extension with the in-tree collector contract | [Reference PagerDuty Extension](reference-pagerduty-extension.md) |
 | Understand package ownership | [Source Layout](../reference/source-layout.md) |
 | Author a collector | [Collector Authoring](../guides/collector-authoring.md) |
 | Design GCP or Azure runtime collection | [Multi-Cloud Runtime Collector Contract](../reference/multi-cloud-collector-contract.md) |

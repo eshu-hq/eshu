@@ -3,11 +3,12 @@
 Use this page when deciding whether an optional community extension may run in
 a hosted Eshu deployment.
 
-Current status: this is operator policy guidance for issue #1826. The workflow
-coordinator consumes the narrow `ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON`
-claim-planning gate described below. The full hosted extension policy file,
-charted extension runtime, extension host, diagnostics, and remote Compose proof
-remain future implementation work.
+Current status: the workflow coordinator consumes the narrow
+`ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON` claim-planning gate described below.
+The Helm chart can run the component-extension collector, the workflow
+coordinator can plan claim-capable component activations, and the PagerDuty
+reference extension has a remote Compose proof. The full hosted extension
+policy file remains future implementation work.
 
 ## Three Separate Decisions
 
@@ -162,8 +163,8 @@ export ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON='{"mode":"broad"}'
 ```
 
 The default Compose stack does not consume the full hosted community extension
-policy file yet. This shape is the intended private operator input once #1820
-and #1922 wire the full runtime path:
+policy file yet. Use the component-specific Compose overlays for runtime proof
+until this shape becomes a private operator input:
 
 ```bash
 export ESHU_HOSTED_EXTENSION_POLICY_FILE=./private/hosted-extension-policy.yaml
@@ -214,8 +215,12 @@ or raw source scopes that identify a customer environment.
 
 ## Kubernetes And Helm Policy Shape
 
-The Helm chart does not consume this block yet. The target shape is a private
-values overlay paired with Secret or workload-identity wiring:
+The Helm chart can run the component extension host through
+`componentExtensionCollector` and passes the same component registry, trust, and
+egress-policy env to the workflow coordinator and worker. It still does not
+consume the full `hostedExtensions` policy document below; keep that document
+as private operator review input and translate the approved runtime subset into
+chart values plus Secret or workload-identity wiring:
 
 ```yaml
 hostedExtensions:

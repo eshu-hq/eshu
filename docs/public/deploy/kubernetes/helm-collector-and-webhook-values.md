@@ -20,15 +20,16 @@ intake. Runtime ownership lives in
 | `pagerDutyCollector` | PagerDuty incident-context collector | workflow claims | disabled |
 | `jiraCollector` | Jira work-item collector | workflow claims | disabled |
 | `vulnerabilityIntelligenceCollector` | Vulnerability-intelligence collector | workflow claims | disabled |
+| `componentExtensionCollector` | Component extension collector host | component-registry claims | disabled |
 
 Direct collectors render from their own enabled block and required target
 values. Claim-driven collectors also require active workflow coordination.
-Future community extension collectors must also pass the
-[Hosted Extension Operator Policy](../../operate/hosted-extension-policy.md)
-before an enabled component becomes claim-capable. The current chart does not
-consume a generic hosted extension policy block yet; until #1820 and #1922
-land, use the built-in collector values on this page and keep extension policy
-snippets as review guidance only.
+Community extension collectors must also pass the
+[Hosted Extension Operator Policy](../../operate/hosted-extension-policy.md):
+the chart can run the component extension host, but the full hosted-extension
+policy document remains operator-owned. Use `componentExtensionCollector`
+values for the mounted registry path, trust allowlist, and extension egress
+policy JSON that both the workflow coordinator and worker must share.
 
 ## Claim-Driven Contract
 
@@ -47,6 +48,16 @@ The coordinator receives its instance list as `ESHU_COLLECTOR_INSTANCES_JSON`.
 Each claim-driven collector also receives its own `ESHU_COLLECTOR_INSTANCES_JSON`;
 keep the selected `instanceId` aligned with that list.
 
+`componentExtensionCollector` is also claim-driven, but its instance source is
+the trusted component registry mounted at `componentHome`, not a static
+collector instance list. When it is enabled, the chart passes the same
+component home, trust settings, and `extensionEgressPolicyJSON` to the
+workflow coordinator and the worker. Mount the same registry volume into both
+workloads with `workflowCoordinator.extraVolumes` /
+`workflowCoordinator.extraVolumeMounts` and
+`componentExtensionCollector.extraVolumes` /
+`componentExtensionCollector.extraVolumeMounts`.
+
 ## Collector Values
 
 | Collector | Required when enabled | Notes |
@@ -61,6 +72,7 @@ keep the selected `instanceId` aligned with that list.
 | PagerDuty | `instanceId`, `collectorInstances` with a `pagerduty` instance matching `instanceId`, `workflowCoordinator.collectorInstances` with an enabled claim-driven `pagerduty` instance | Fetches bounded PagerDuty incidents, log entries, related change events, and optional live service/integration config facts. Target `token_env` values must resolve from `extraEnv` Secret refs; any `api_base_url` override must use HTTPS; incident titles, service names, integration names, routing keys, PagerDuty URLs, and tokens should stay out of public values files. |
 | Jira | `instanceId`, `collectorInstances` with a `jira` instance matching `instanceId`, `workflowCoordinator.collectorInstances` with an enabled claim-driven `jira` instance | Polling-only mode enables `jiraCollector` and passes `token_env` plus optional `email_env` through `extraEnv` Secret refs. Webhook-enabled mode also enables `webhookListener.jira` with a matching `scopeId`; webhooks are freshness triggers only and polling remains the recovery path. |
 | Vulnerability intelligence | `instanceId`, `collectorInstances` with a `vulnerability_intelligence` instance matching `instanceId`, `workflowCoordinator.collectorInstances` with an enabled claim-driven `vulnerability_intelligence` instance | Bounded source targets only (explicit CVE IDs, source snapshots, OSV package-version queries, NVD windows, or derived owned-package targets). API keys are referenced from `extraEnv` Secret refs via `api_key_env` and never embedded in values. |
+| Component extension | `componentHome`, `trustMode=allowlist`, `extensionEgressPolicyJSON`, shared registry volume mounts for coordinator and worker | Runs verified claim-capable component activations through `/usr/local/bin/eshu-collector-component-extension`. Keep component config files, provider targets, and credentials in private mounts or Secrets; extension facts still enter through the collector commit boundary and reducers own graph truth. Strict trust mode is not charted until provenance verifier values are first-class chart inputs. |
 
 All optional collectors support `replicas`, `revisionHistoryLimit`, `resources`,
 Postgres connection tuning, global pod labels/annotations, and global
@@ -95,7 +107,11 @@ additionally fails when the
 collector-local instance list does not contain a matching enabled claim-driven
 instance or when
 `workflowCoordinator.collectorInstances` does not contain an enabled
-claim-driven instance for that collector kind.
+claim-driven instance for that collector kind. Component extension rendering
+fails if the workflow coordinator is not active with claims enabled, if
+`componentHome` is empty, if trust mode is not `allowlist`, if the extension
+egress policy JSON is missing, or if the coordinator and worker do not both
+mount `componentHome`.
 
 ## Related Docs
 

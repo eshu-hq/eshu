@@ -118,6 +118,7 @@ nav:
     - Overview: extend/index.md
     - Community Extension Authoring: extend/community-extension-authoring.md
     - Reference Scorecard Extension: extend/reference-scorecard-extension.md
+    - Reference PagerDuty Extension: extend/reference-pagerduty-extension.md
     - Collector Authoring: guides/collector-authoring.md
     - Collector Extraction Policy: reference/collector-extraction-policy.md
     - Multi-Cloud Runtime Collector Contract: reference/multi-cloud-collector-contract.md

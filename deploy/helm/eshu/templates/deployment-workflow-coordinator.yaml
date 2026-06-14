@@ -63,6 +63,9 @@ spec:
               value: {{ .Values.workflowCoordinator.deploymentMode | quote }}
             - name: ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED
               value: {{ ternary "true" "false" .Values.workflowCoordinator.claimsEnabled | quote }}
+            {{- if .Values.componentExtensionCollector.enabled }}
+            {{- include "eshu.renderComponentExtensionPolicyEnv" . | nindent 12 }}
+            {{- end }}
             {{- include "eshu.renderEnvMaps" (list .Values.env .Values.workflowCoordinator.env) | nindent 12 }}
           ports:
             - name: http
@@ -90,7 +93,13 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            {{- with .Values.workflowCoordinator.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
+        {{- with .Values.workflowCoordinator.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
 {{- end }}

@@ -9,6 +9,26 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
+const componentInstanceConfigSchema = "eshu.component.instance.v1"
+
+const (
+	componentCollectorSDKProtocolV1Alpha1 = "collector-sdk/v1alpha1"
+	componentRuntimeAdapterOCI            = "oci"
+	componentRuntimeAdapterProcess        = "process"
+)
+
+type componentActivationConfiguration struct {
+	SchemaVersion    string `json:"schema_version"`
+	ComponentID      string `json:"component_id"`
+	ComponentVersion string `json:"component_version"`
+	ManifestDigest   string `json:"manifest_digest"`
+	ConfigHandle     string `json:"config_handle"`
+	Runtime          struct {
+		SDKProtocol string `json:"sdk_protocol"`
+		Adapter     string `json:"adapter"`
+	} `json:"runtime"`
+}
+
 // DesiredCollectorInstance is the declarative source-of-truth shape reconciled
 // into durable collector_instances rows.
 type DesiredCollectorInstance struct {
@@ -105,6 +125,9 @@ func validateDesiredCollectorConfiguration(kind scope.CollectorKind, enabled boo
 }
 
 func validateDurableCollectorConfiguration(kind scope.CollectorKind, enabled bool, raw string) error {
+	if ok, err := validateComponentActivationConfiguration(raw); ok || err != nil {
+		return err
+	}
 	if kind == scope.CollectorOCIRegistry {
 		return ValidateOCIRegistryCollectorConfiguration(raw)
 	}
@@ -139,6 +162,52 @@ func validateDurableCollectorConfiguration(kind scope.CollectorKind, enabled boo
 		return ValidateJiraCollectorConfiguration(raw)
 	}
 	return nil
+}
+
+func validateComponentActivationConfiguration(raw string) (bool, error) {
+	var config componentActivationConfiguration
+	if err := json.Unmarshal([]byte(normalizeJSONDocument(raw)), &config); err != nil {
+		return false, nil
+	}
+	if strings.TrimSpace(config.SchemaVersion) == "" {
+		return false, nil
+	}
+	if strings.TrimSpace(config.SchemaVersion) != componentInstanceConfigSchema {
+		return false, nil
+	}
+	if strings.TrimSpace(config.ComponentID) == "" {
+		return true, fmt.Errorf("component activation configuration component_id is required")
+	}
+	if strings.TrimSpace(config.ComponentVersion) == "" {
+		return true, fmt.Errorf("component activation configuration component_version is required")
+	}
+	if strings.TrimSpace(config.ManifestDigest) == "" {
+		return true, fmt.Errorf("component activation configuration manifest_digest is required")
+	}
+	if strings.TrimSpace(config.ConfigHandle) == "" {
+		return true, fmt.Errorf("component activation configuration config_handle is required")
+	}
+	if strings.TrimSpace(config.Runtime.SDKProtocol) == "" {
+		return true, fmt.Errorf("component activation configuration runtime.sdk_protocol is required")
+	}
+	if strings.TrimSpace(config.Runtime.SDKProtocol) != componentCollectorSDKProtocolV1Alpha1 {
+		return true, fmt.Errorf(
+			"component activation configuration runtime.sdk_protocol %q is unsupported",
+			config.Runtime.SDKProtocol,
+		)
+	}
+	if strings.TrimSpace(config.Runtime.Adapter) == "" {
+		return true, fmt.Errorf("component activation configuration runtime.adapter is required")
+	}
+	switch strings.TrimSpace(config.Runtime.Adapter) {
+	case componentRuntimeAdapterOCI, componentRuntimeAdapterProcess:
+	default:
+		return true, fmt.Errorf(
+			"component activation configuration runtime.adapter %q is unsupported",
+			config.Runtime.Adapter,
+		)
+	}
+	return true, nil
 }
 
 // Materialize binds one desired collector instance to the supplied observation

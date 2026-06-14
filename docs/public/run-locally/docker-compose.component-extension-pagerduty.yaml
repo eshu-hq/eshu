@@ -1,0 +1,82 @@
+# Overlay that turns the base docker-compose.yaml into a PagerDuty
+# component-extension proof harness.
+#
+# It builds the proof image (eshu base + the reference pagerduty-reference
+# binary + an install/enable init), enables the component into the shared
+# component home that the workflow coordinator and component-extension
+# collector both mount, and puts the coordinator in active/claims-enabled mode
+# under an allowlist trust policy so it plans a PagerDuty claim the collector
+# runs through the process adapter.
+#
+# Usage (from repo root):
+#   docker build -t eshu:local -f Dockerfile .
+#   docker compose -p pd-ce-proof \
+#     -f docker-compose.yaml \
+#     -f docs/public/run-locally/docker-compose.component-extension-pagerduty.yaml \
+#     --profile component-extension-collector up -d --build
+#   scripts/run-remote-e2e-pagerduty-component-extension.sh --artifacts <run-dir>
+#
+# PagerDuty facts are source evidence only; the proof asserts parity with the
+# in-tree PagerDuty source fact contract, not graph truth promotion.
+
+services:
+  component-extension-pagerduty-install:
+    profiles:
+      - component-extension-collector
+    build:
+      context: .
+      dockerfile: examples/collector-extensions/pagerduty/Dockerfile
+      args:
+        ESHU_IMAGE: eshu:local
+    entrypoint: ["/usr/local/bin/proof-install.sh"]
+    command: []
+    user: "0:0"
+    environment:
+      ESHU_COMPONENT_HOME: /data/.eshu/components
+      ESHU_COMPONENT_COLLECTOR_INSTANCE_ID: pagerduty-reference
+    volumes:
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+
+  workflow-coordinator:
+    profiles:
+      - component-extension-collector
+    environment:
+      ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE: active
+      ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED: "true"
+      ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL: 5s
+      ESHU_COMPONENT_TRUST_MODE: allowlist
+      ESHU_COMPONENT_ALLOW_IDS: dev.eshu.examples.pagerduty
+      ESHU_COMPONENT_ALLOW_PUBLISHERS: eshu-hq
+      ESHU_COMPONENT_CORE_VERSION: dev
+      ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON: >-
+        {"mode":"restricted","extensions":[{"component_id":"dev.eshu.examples.pagerduty","instance_id":"pagerduty-reference","collector_kind":"pagerduty","decision":"allow"}]}
+    depends_on:
+      component-extension-pagerduty-install:
+        condition: service_completed_successfully
+
+  component-extension-collector:
+    build:
+      context: .
+      dockerfile: examples/collector-extensions/pagerduty/Dockerfile
+      args:
+        ESHU_IMAGE: eshu:local
+    entrypoint: ["/usr/local/bin/eshu-collector-component-extension"]
+    command: []
+    environment:
+      ESHU_COMPONENT_TRUST_MODE: allowlist
+      ESHU_COMPONENT_ALLOW_IDS: dev.eshu.examples.pagerduty
+      ESHU_COMPONENT_ALLOW_PUBLISHERS: eshu-hq
+      ESHU_COMPONENT_CORE_VERSION: dev
+      ESHU_COMPONENT_COLLECTOR_INSTANCE_ID: pagerduty-reference
+      ESHU_COMPONENT_COLLECTOR_OWNER_ID: pagerduty-reference-worker
+      ESHU_COMPONENT_COLLECTOR_SCOPE_KIND: pagerduty_account
+    depends_on:
+      component-extension-pagerduty-install:
+        condition: service_completed_successfully
