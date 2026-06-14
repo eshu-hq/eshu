@@ -26,8 +26,10 @@ By default the ritual is read-only:
 - It does not embed private endpoints, bearer tokens, local absolute paths, or
   machine-specific owner ports in committed guidance.
 - It reserves any PreToolUse, editor hook, or fast-path interception for a
-  follow-up implementation with opt-in enablement, a latency budget, and proof
-  that hot paths never run unbounded graph reads.
+  follow-up implementation governed by the
+  [Assistant Fast-Path Hook Contract](assistant-fast-path-hooks.md), with
+  opt-in enablement, a latency budget, and proof that hot paths never run
+  unbounded graph reads.
 
 The installed text is allowed to describe how to discover Eshu and how to use
 bounded MCP/API reads. It must not hard-code a specific user's endpoint or
@@ -186,3 +188,4 @@ Commit the guidance so teammates and CI agents share it:
 - [MCP Guide](../guides/mcp-guide.md)
 - [Starter Prompts](../guides/starter-prompts.md)
 - [Truth Label Protocol](truth-label-protocol.md)
+- [Assistant Fast-Path Hook Contract](assistant-fast-path-hooks.md)
