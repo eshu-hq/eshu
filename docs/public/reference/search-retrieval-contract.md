@@ -187,10 +187,12 @@ deterministic no-network local path capped at 500 loaded documents. It reports
 `retrieval_state=semantic_active` or `hybrid_active` when vector retrieval
 participates. It is not an ANN/vector-index production-readiness claim.
 
-Production ANN/vector-index retrieval is gated separately by issue #2578. That
-gate requires an approved storage owner, active-generation freshness contract,
-security and schema review, benchmark corpus, false-canonical-claim guard, and
-operator-visible index-state signals before any persisted vector index or
+Production ANN/vector-index retrieval is gated separately by issue #2578 with
+storage-owner follow-up issue #2582. The first implementation storage owner is
+Postgres sidecar vector metadata and build state over active curated search
+documents. That gate still requires schema approval, active-generation
+freshness, benchmark corpus, false-canonical-claim guard, rollback semantics,
+and operator-visible index-state signals before any persisted vector index or
 runtime behavior change lands.
 
 ## Public Route And MCP Tool

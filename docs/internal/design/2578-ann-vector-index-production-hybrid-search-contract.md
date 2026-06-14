@@ -1,8 +1,9 @@
 # ANN Vector-Index Contract For Production Hybrid Search
 
-Status: proposed design gate for issue #2578, parent #2451. This document does
-not approve implementation. It records the contract and approval checklist that
-must be satisfied before Eshu lands a production ANN/vector-index search lane.
+Status: proposed design gate for issue #2578 with storage-owner follow-up
+issue #2582, parent #2451. This document does not approve implementation. It
+records the contract and approval checklist that must be satisfied before Eshu
+lands a production ANN/vector-index search lane.
 
 Related architecture:
 
@@ -36,17 +37,35 @@ lane. It must not reuse the canonical graph database's whole-graph search
 indexes, and it must not promote vector similarity, link prediction, or search
 rank to canonical graph truth.
 
-The implementation target is a persisted vector index over active
-`EshuSearchDocument` rows, scoped by repository generation. The default storage
-decision for the first implementation remains open until the benchmark gate
-below compares the viable options, but the accepted options are deliberately
-narrow:
+The first implementation target is a Postgres-owned persisted vector lane over
+active `EshuSearchDocument` rows, scoped by repository generation. Postgres is
+the storage owner for the first production slice because it already owns durable
+facts, content, read models, status, and active-generation visibility. That
+keeps vector rollback as a read-model disablement instead of a canonical graph
+operation, and it lets the initial implementation join through the same active
+search-document scope as the existing BM25 path.
+
+The accepted options stay narrow, but only the Postgres sidecar path is selected
+for the first slice:
 
 | Option | Use when | Required proof |
 | --- | --- | --- |
-| Postgres sidecar tables | The first slice needs freshness and rollback parity with the existing BM25 index and can tolerate exact or staged ANN behavior. | DDL review, active-generation joins, rebuild idempotency, and latency/recall evidence on the benchmark suite. |
-| Separate NornicDB search database or namespace | NornicDB provides measured vector/hybrid value without delaying canonical graph readiness. | Search flags, startup, preserved-volume, lazy-warm, artifact, memory, and query evidence. |
-| Separate search service or store behind an adapter | A dedicated ANN engine is needed for target scale or isolation. | Security, egress, backup/restore, authorization, cost, and operator burden review before code. |
+| Postgres sidecar tables | **Chosen first path.** The first slice needs freshness and rollback parity with the existing BM25 index and can start with exact or staged ANN behavior behind `searchretrieval.Backend`. | DDL review, active-generation joins, rebuild idempotency, and latency/recall evidence on the benchmark suite. |
+| Separate NornicDB search database or namespace | Later, if NornicDB provides measured vector/hybrid value without delaying canonical graph readiness. | Search flags, startup, preserved-volume, lazy-warm, artifact, memory, and query evidence. |
+| Separate search service or store behind an adapter | Later, if a dedicated ANN engine is needed for target scale or isolation. | Security, egress, backup/restore, authorization, cost, and operator burden review before code. |
+
+Rejected for the first slice:
+
+- **Canonical graph NornicDB search indexes:** rejected because graph readiness
+  must not depend on vector-index startup, rebuild, artifact loading, or
+  embedding work. Search rank remains derived retrieval evidence, not canonical
+  graph truth.
+- **Separate NornicDB search database or namespace:** deferred until a measured
+  proof shows vector/hybrid value that justifies separate startup, volume,
+  lazy-warm, artifact, and operational evidence.
+- **External vector store:** deferred because the first production slice should
+  not introduce provider egress, backup/restore, tenant isolation, credential,
+  or cost burden before local storage proves the search contract.
 
 The canonical graph lane remains graph-only by default:
 
@@ -69,15 +88,26 @@ Changing those defaults is out of scope for the first production ANN slice.
 
 ## Storage Contract
 
-A future implementation must define one storage owner before code lands. The
-owner must be one of:
+The first implementation storage owner is `go/internal/storage/postgres`.
+Implementation issues may add a narrow package under `go/internal/search*` for
+ranking or adapter code, but durable vector metadata, build state, active
+generation visibility, retry state, and cleanup state belong in Postgres.
 
-- `go/internal/storage/postgres` for Postgres-backed vector metadata and index
-  state;
-- `go/internal/searchnornicdb` plus a narrow runtime adapter for a curated
-  NornicDB search lane;
-- a new search adapter package for an external ANN store, with API/MCP
-  authorization still enforced by Eshu before retrieval.
+The first Postgres-backed schema must include:
+
+- vector metadata and build-state tables scoped by `scope_id` and
+  `generation_id`;
+- generated or stored vector values behind the existing curated search-document
+  contract;
+- index/build version fields so the implementation can rebuild without
+  changing API semantics;
+- a small status view or query surface that API, MCP, and admin status can use
+  without scanning raw vectors.
+
+NornicDB search or an external ANN store may be added later only behind
+`searchretrieval.Backend` after a separate issue records why Postgres is
+insufficient for the measured corpus and how the new store preserves the same
+authorization, freshness, truth, and rollback semantics.
 
 Required identity and lifecycle fields:
 
@@ -92,8 +122,20 @@ Required identity and lifecycle fields:
 
 All reads must join through the active generation. Superseded generation vector
 rows may exist until cleanup, but they must be invisible to request-time
-retrieval. Rollback must be disabling vector retrieval without disabling
-keyword BM25 search.
+retrieval. Rollback must be disabling Postgres vector retrieval or dropping the
+vector read path from `hybrid` without disabling keyword BM25 search.
+
+Migration and rollback:
+
+- add Postgres vector metadata/build-state DDL behind schema approval;
+- leave existing BM25 search-document reads unchanged during migration;
+- build vectors for active generations through durable queued or replayable
+  work, not request-time rebuilds;
+- expose vector state as disabled until the build reaches `ready`;
+- rollback by setting the vector lane to `disabled` and serving BM25-only
+  `hybrid_degraded` responses from the unchanged search-document index;
+- cleanup superseded generation vector rows asynchronously, with bounded retry
+  and failure class reporting.
 
 ## Freshness And Rebuild Contract
 
