@@ -71,5 +71,14 @@ func runtimeTools() []ToolDefinition {
 				"required":   []string{},
 			},
 		},
+		{
+			Name:        "get_answer_narration_status",
+			Description: "Return optional governed answer narration status, including disabled-by-default posture, deterministic fallback availability, retention posture, and validator reason codes.",
+			InputSchema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+				"required":   []string{},
+			},
+		},
 	}
 }

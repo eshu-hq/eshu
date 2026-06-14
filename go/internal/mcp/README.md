@@ -201,6 +201,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `get_hosted_readiness` | GET | `/api/v0/status/hosted-readiness` with fail-closed queue, collector, projection, and API/MCP query-readback checks |
 | `get_hosted_governance_status` | GET | `/api/v0/status/governance` with redacted governance mode, policy state, readiness booleans, aggregate counts, and low-cardinality reasons |
 | `get_semantic_capability_status` | GET | `/api/v0/status/semantic-extraction` with redacted provider profile, semantic queue, budget, and audit status when configured |
+| `get_answer_narration_status` | GET | `/api/v0/status/answer-narration` with disabled-by-default narration posture, deterministic fallback state, retention posture, and validator reason codes |
 | `trace_deployment_chain` | POST | `/api/v0/impact/trace-deployment-chain` |
 | `investigate_deployment_config` | POST | `/api/v0/impact/deployment-config-influence` |
 

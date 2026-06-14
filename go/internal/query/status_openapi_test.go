@@ -59,6 +59,28 @@ func TestOpenAPISpecStatusPathsMatchCurrentContract(t *testing.T) {
 			t.Fatalf("/api/v0/status/semantic-extraction response schema missing %q", want)
 		}
 	}
+	answerNarrationPath := mustMapField(t, paths, "/api/v0/status/answer-narration")
+	answerNarrationGet := mustMapField(t, answerNarrationPath, "get")
+	answerNarrationResponses := mustMapField(t, answerNarrationGet, "responses")
+	answerNarrationOK := mustMapField(t, answerNarrationResponses, "200")
+	answerNarrationContent := mustMapField(t, answerNarrationOK, "content")
+	answerNarrationJSON := mustMapField(t, answerNarrationContent, "application/json")
+	answerNarrationSchema := mustMapField(t, answerNarrationJSON, "schema")
+	answerNarrationProperties := mustMapField(t, answerNarrationSchema, "properties")
+	for _, want := range []string{
+		"state",
+		"reason",
+		"deterministic_fallback_available",
+		"provider_traffic_enabled",
+		"canonical_truth_affected",
+		"retention_posture",
+		"supported_reasons",
+		"validator_reason_codes",
+	} {
+		if _, ok := answerNarrationProperties[want]; !ok {
+			t.Fatalf("/api/v0/status/answer-narration response schema missing %q", want)
+		}
+	}
 	governancePath := mustMapField(t, paths, "/api/v0/status/governance")
 	governanceGet := mustMapField(t, governancePath, "get")
 	governanceResponses := mustMapField(t, governanceGet, "responses")

@@ -35,6 +35,7 @@ func (h *StatusHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/status/hosted-readiness", h.getHostedReadiness)
 	mux.HandleFunc("GET /api/v0/status/governance", h.getGovernanceStatus)
 	mux.HandleFunc("GET /api/v0/status/semantic-extraction", h.getSemanticExtractionStatus)
+	mux.HandleFunc("GET /api/v0/status/answer-narration", h.getAnswerNarrationStatus)
 }
 
 // getPipelineStatus returns the full pipeline status report from Postgres.

@@ -111,6 +111,10 @@ See `doc.go` for the godoc contract. Key types and functions:
   zero-key default is `unavailable` with code hints and documentation
   observations disabled; deterministic indexing, reducer projection, API reads,
   MCP tools, and docs verification stay unaffected and healthy.
+- `AnswerNarrationStatus` — optional governed answer narration posture. The
+  zero-key default is `unavailable` with deterministic answer packets available
+  as the canonical fallback; status output is limited to state, reason,
+  retention, policy hash, and validator reason-code metadata.
 - `TerraformStateLocatorSerial` — most recent observed serial per
   Terraform-state scope, keyed by safe locator hash so the report never carries
   raw bucket names, S3 keys, or local paths
@@ -175,7 +179,7 @@ states (in priority order):
   domain backlogs, queue blockages, coordinator state, derived collector runtime
   classification, registry collector state, AWS cloud scan state, AWS freshness
   backlog state, semantic extraction status with redacted provider profile rows,
-  and flow lanes
+  answer narration fallback status, and flow lanes
 - `RenderJSON(report)` — stable JSON payload for machine-readable consumption;
   field names are part of the operator contract
 - `NewHTTPHandler(reader, opts)` — returns an `http.Handler` that serves `GET`

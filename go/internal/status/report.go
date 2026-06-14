@@ -26,6 +26,7 @@ type RawSnapshot struct {
 	AWSFreshness          AWSFreshnessSnapshot
 	VulnerabilitySources  []VulnerabilitySourceState
 	SemanticExtraction    SemanticExtractionStatus
+	AnswerNarration       AnswerNarrationStatus
 	// CollectorGenerationDeadLetters captures commit failures that happened
 	// before normal projector/reducer queue rows existed.
 	CollectorGenerationDeadLetters CollectorGenerationDeadLetterSnapshot
@@ -96,6 +97,7 @@ type Report struct {
 	AWSFreshness                   AWSFreshnessSnapshot
 	VulnerabilitySources           []VulnerabilitySourceState
 	SemanticExtraction             SemanticExtractionStatus
+	AnswerNarration                AnswerNarrationStatus
 	CollectorGenerationDeadLetters CollectorGenerationDeadLetterSnapshot
 	CollectorFactEvidence          []CollectorFactEvidence
 	AWSCloudScansTruncated         bool

@@ -101,7 +101,19 @@ No-provider mode should report unavailable or policy-disabled semantic
 extraction without failing deterministic API, MCP, ingestion, reducer, or docs
 verification paths.
 
-5. If component packages are configured on the deployed runtime, inspect only
+5. Check optional answer narration status before exposing narrated answers:
+
+```bash
+curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" \
+  "$ESHU_SERVICE_URL/api/v0/status/answer-narration"
+```
+
+The default posture should report unavailable or disabled narration with
+deterministic answer packets available as the canonical fallback. The status
+must not contain prompts, provider responses, credential handles, source IDs,
+private paths, or private hostnames.
+
+6. If component packages are configured on the deployed runtime, inspect only
    the redacted inventory and diagnostics:
 
 ```bash
@@ -110,10 +122,10 @@ curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" \
 ```
 
 MCP equivalents are `get_hosted_governance_status`,
-`get_semantic_capability_status`, `list_component_extensions`, and
-`get_component_extension_diagnostics`.
+`get_semantic_capability_status`, `get_answer_narration_status`,
+`list_component_extensions`, and `get_component_extension_diagnostics`.
 
-6. Generate the team artifact only after the above checks match the intended
+7. Generate the team artifact only after the above checks match the intended
    posture:
 
 ```bash
