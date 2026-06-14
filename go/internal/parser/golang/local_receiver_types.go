@@ -10,6 +10,7 @@ import (
 type goLocalReceiverBinding struct {
 	variable   string
 	typeName   string
+	concrete   bool
 	line       int
 	scopeStart int
 	scopeEnd   int
@@ -131,22 +132,27 @@ func goLocalReceiverBindings(
 ) []goLocalReceiverBinding {
 	bindings := make([]goLocalReceiverBinding, 0)
 	mapValueTypes := goLocalMapValueTypes(root, source, lookup)
+	localInterfaces := goLocalInterfaceNames(root, source)
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "function_declaration", "method_declaration", "func_literal":
-			bindings = append(bindings, goLocalReceiverBindingsFromParameters(node, source)...)
+			bindings = append(bindings, goLocalReceiverBindingsFromParameters(node, source, localInterfaces)...)
 		case "short_var_declaration", "assignment_statement":
-			bindings = append(bindings, goLocalReceiverBindingsFromAssignment(node, source, constructorReturns, lookup)...)
+			bindings = append(bindings, goLocalReceiverBindingsFromAssignment(node, source, constructorReturns, localInterfaces, lookup)...)
 		case "var_spec":
-			bindings = append(bindings, goLocalReceiverBindingsFromVarSpec(node, source, constructorReturns, lookup)...)
+			bindings = append(bindings, goLocalReceiverBindingsFromVarSpec(node, source, constructorReturns, localInterfaces, lookup)...)
 		case "range_clause", "for_statement":
-			bindings = append(bindings, goLocalReceiverBindingsFromRangeClause(node, source, mapValueTypes, lookup)...)
+			bindings = append(bindings, goLocalReceiverBindingsFromRangeClause(node, source, mapValueTypes, localInterfaces, lookup)...)
 		}
 	})
 	return bindings
 }
 
-func goLocalReceiverBindingsFromParameters(node *tree_sitter.Node, source []byte) []goLocalReceiverBinding {
+func goLocalReceiverBindingsFromParameters(
+	node *tree_sitter.Node,
+	source []byte,
+	localInterfaces map[string]struct{},
+) []goLocalReceiverBinding {
 	body := node.ChildByFieldName("body")
 	if body == nil {
 		return nil
@@ -172,6 +178,7 @@ func goLocalReceiverBindingsFromParameters(node *tree_sitter.Node, source []byte
 			bindings = append(bindings, goLocalReceiverBinding{
 				variable:   variable,
 				typeName:   typeName,
+				concrete:   !goTypeNameIsLocalInterface(typeName, localInterfaces),
 				line:       nodeLine(node),
 				scopeStart: nodeLine(body),
 				scopeEnd:   nodeEndLine(body),
@@ -185,11 +192,12 @@ func goLocalReceiverBindingsFromAssignment(
 	node *tree_sitter.Node,
 	source []byte,
 	constructorReturns map[string]string,
+	localInterfaces map[string]struct{},
 	lookup *goParentLookup,
 ) []goLocalReceiverBinding {
 	left := node.ChildByFieldName("left")
 	right := node.ChildByFieldName("right")
-	names := goIdentifierNodes(left, source)
+	names := goAssignableIdentifierNodes(left, source)
 	values := goExpressionNodes(right)
 	if len(names) == 0 || len(values) == 0 {
 		return nil
@@ -200,11 +208,9 @@ func goLocalReceiverBindingsFromAssignment(
 	}
 	bindings := make([]goLocalReceiverBinding, 0, count)
 	for i := 0; i < count; i++ {
-		typeName := goConstructorTypeFromExpression(values[i], source, constructorReturns)
-		if typeName == "" {
-			continue
-		}
-		if binding := goNewLocalReceiverBinding(node, names[i], typeName, source, lookup); binding.variable != "" {
+		typeName := goConcreteReceiverTypeFromExpression(values[i], source, constructorReturns)
+		concrete := typeName != "" && !goTypeNameIsLocalInterface(typeName, localInterfaces)
+		if binding := goNewLocalReceiverBinding(node, names[i], typeName, concrete, source, lookup); binding.variable != "" {
 			bindings = append(bindings, binding)
 		}
 	}
@@ -215,6 +221,7 @@ func goLocalReceiverBindingsFromVarSpec(
 	node *tree_sitter.Node,
 	source []byte,
 	constructorReturns map[string]string,
+	localInterfaces map[string]struct{},
 	lookup *goParentLookup,
 ) []goLocalReceiverBinding {
 	nameNodes := goIdentifierNodes(node.ChildByFieldName("name"), source)
@@ -228,11 +235,9 @@ func goLocalReceiverBindingsFromVarSpec(
 	}
 	bindings := make([]goLocalReceiverBinding, 0, count)
 	for i := 0; i < count; i++ {
-		typeName := goConstructorTypeFromExpression(valueNodes[i], source, constructorReturns)
-		if typeName == "" {
-			continue
-		}
-		if binding := goNewLocalReceiverBinding(node, nameNodes[i], typeName, source, lookup); binding.variable != "" {
+		typeName := goConcreteReceiverTypeFromExpression(valueNodes[i], source, constructorReturns)
+		concrete := typeName != "" && !goTypeNameIsLocalInterface(typeName, localInterfaces)
+		if binding := goNewLocalReceiverBinding(node, nameNodes[i], typeName, concrete, source, lookup); binding.variable != "" {
 			bindings = append(bindings, binding)
 		}
 	}
@@ -243,6 +248,7 @@ func goNewLocalReceiverBinding(
 	node *tree_sitter.Node,
 	nameNode *tree_sitter.Node,
 	typeName string,
+	concrete bool,
 	source []byte,
 	lookup *goParentLookup,
 ) goLocalReceiverBinding {
@@ -253,6 +259,7 @@ func goNewLocalReceiverBinding(
 	return goLocalReceiverBinding{
 		variable:   strings.TrimSpace(nodeText(nameNode, source)),
 		typeName:   typeName,
+		concrete:   concrete,
 		line:       nodeLine(node),
 		scopeStart: nodeLine(scope),
 		scopeEnd:   nodeEndLine(scope),
@@ -271,6 +278,7 @@ func goInferredReceiverType(
 	var best goLocalReceiverBinding
 	for _, binding := range bindings {
 		if binding.variable != receiver ||
+			binding.typeName == "" ||
 			binding.line > callLine ||
 			callLine < binding.scopeStart ||
 			callLine > binding.scopeEnd {
@@ -281,6 +289,56 @@ func goInferredReceiverType(
 		}
 	}
 	return best.typeName
+}
+
+func goConcreteInferredReceiverType(
+	receiver string,
+	callLine int,
+	bindings []goLocalReceiverBinding,
+) string {
+	receiver = strings.TrimSpace(receiver)
+	if receiver == "" || callLine <= 0 {
+		return ""
+	}
+	applicable := make([]goLocalReceiverBinding, 0)
+	minSpan := 0
+	for _, binding := range bindings {
+		if binding.variable != receiver ||
+			binding.line > callLine ||
+			callLine < binding.scopeStart ||
+			callLine > binding.scopeEnd {
+			continue
+		}
+		span := spanWidthForGoBinding(binding)
+		if minSpan == 0 || span < minSpan {
+			minSpan = span
+			applicable = applicable[:0]
+		}
+		if span == minSpan {
+			applicable = append(applicable, binding)
+		}
+	}
+	var inferred string
+	seenConcrete := make(map[string]struct{})
+	lastConcreteLine := 0
+	lastNonConcreteLine := 0
+	for _, binding := range applicable {
+		if !binding.concrete || binding.typeName == "" {
+			if binding.line > lastNonConcreteLine {
+				lastNonConcreteLine = binding.line
+			}
+			continue
+		}
+		seenConcrete[binding.typeName] = struct{}{}
+		if binding.line > lastConcreteLine {
+			inferred = binding.typeName
+			lastConcreteLine = binding.line
+		}
+	}
+	if len(seenConcrete) != 1 || lastNonConcreteLine > lastConcreteLine {
+		return ""
+	}
+	return inferred
 }
 
 func spanWidthForGoBinding(binding goLocalReceiverBinding) int {
