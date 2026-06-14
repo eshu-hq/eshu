@@ -425,12 +425,18 @@ func (tx *generationRetentionFakeTx) QueryContext(_ context.Context, query strin
 }
 
 func generationRetentionCandidateFakeRows(rows [][]any, args []any) [][]any {
+	limit := len(rows)
+	if len(args) >= 3 {
+		if queryLimit, ok := args[2].(int); ok && queryLimit >= 0 && queryLimit < limit {
+			limit = queryLimit
+		}
+	}
 	if len(args) < 4 {
-		return rows
+		return rows[:limit]
 	}
 	excluded, ok := args[3].([]string)
 	if !ok || len(excluded) == 0 {
-		return rows
+		return rows[:limit]
 	}
 	excludedSet := make(map[string]struct{}, len(excluded))
 	for _, generationID := range excluded {
@@ -443,6 +449,9 @@ func generationRetentionCandidateFakeRows(rows [][]any, args []any) [][]any {
 			continue
 		}
 		filtered = append(filtered, row)
+		if len(filtered) >= limit {
+			break
+		}
 	}
 	return filtered
 }
