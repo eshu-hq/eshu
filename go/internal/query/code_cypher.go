@@ -334,7 +334,7 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 }
 
 func (h *CodeHandler) lookupComplexityRowByName(ctx context.Context, functionName, repoID string) (map[string]any, error) {
-	params := map[string]any{"entity_name": functionName}
+	params := map[string]any{"entity_name": functionName, "limit": complexityNameCandidateLimit + 1}
 	cypher := `
 		MATCH (e)
 		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository)
@@ -358,9 +358,29 @@ func (h *CodeHandler) lookupComplexityRowByName(ctx context.Context, functionNam
 		       count(DISTINCT incomingRel) as incoming_count,
 		       count(DISTINCT outgoingRel) + count(DISTINCT incomingRel) as total_relationships
 ` + graphSemanticMetadataProjection() + `
-		LIMIT 1
+		ORDER BY file_path, start_line, id
+		LIMIT $limit
 	`
-	return h.runComplexityQuery(ctx, cypher, params)
+	rows, err := h.Neo4j.Run(ctx, cypher, params)
+	if err != nil || len(rows) == 0 {
+		if err == nil && rows == nil {
+			return h.runComplexityQuery(ctx, cypher, params)
+		}
+		return nil, err
+	}
+	if len(rows) > 1 {
+		truncated := len(rows) > complexityNameCandidateLimit
+		if truncated {
+			rows = rows[:complexityNameCandidateLimit]
+		}
+		return nil, complexityAmbiguousError{
+			FunctionName: functionName,
+			RepoID:       repoID,
+			Candidates:   complexityCandidateMaps(rows),
+			Truncated:    truncated,
+		}
+	}
+	return rows[0], nil
 }
 
 func (h *CodeHandler) listMostComplexFunctions(ctx context.Context, repoID string, limit int) ([]map[string]any, int, bool, error) {

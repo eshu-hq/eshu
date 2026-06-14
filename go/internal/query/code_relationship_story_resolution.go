@@ -146,6 +146,7 @@ func relationshipStoryCandidateMaps(candidates []EntityContent, limit int) []map
 func relationshipStoryCandidateMap(entity EntityContent) map[string]any {
 	return map[string]any{
 		"entity_id":   entity.EntityID,
+		"handle":      "entity:" + entity.EntityID,
 		"name":        entity.EntityName,
 		"entity_type": entity.EntityType,
 		"file_path":   entity.RelativePath,

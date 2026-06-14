@@ -220,9 +220,13 @@ func codebaseTools() []ToolDefinition {
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
+					"entity_id": map[string]any{
+						"type":        "string",
+						"description": "Exact entity identifier returned by an ambiguity response",
+					},
 					"function_name": map[string]any{
 						"type":        "string",
-						"description": "Name of the function to analyze",
+						"description": "Name of the function to analyze when entity_id is unknown",
 					},
 					"path": map[string]any{
 						"type":        "string",
@@ -238,7 +242,7 @@ func codebaseTools() []ToolDefinition {
 						"default":     "auto",
 					},
 				},
-				"required": []string{"function_name"},
+				"required": []string{},
 			},
 		},
 		{

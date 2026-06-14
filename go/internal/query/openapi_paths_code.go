@@ -452,6 +452,7 @@ const openAPIPathsCode = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "409": {"description": "Ambiguous function name; retry with entity_id from error.details.candidates"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }

@@ -615,6 +615,31 @@ live in [evidence-notes.md](evidence-notes.md).
   uses the same handlers with the Compose runtime shape. Check
   `truth.profiles.required` in the response envelope for the minimum profile,
   then verify the ESHU_QUERY_PROFILE env var in the running API.
+- `/api/v0/code/complexity` treats `entity_id` as the exact selector. A
+  duplicate `function_name` returns `409` with `error.code=ambiguous` and
+  bounded `error.details.candidates`; clients should retry with one returned
+  `entity_id` rather than accepting the first name match.
+  No-Regression Evidence: `go test ./internal/query ./internal/mcp -run
+  'TestHandleComplexityRejectsAmbiguousFunctionNameInEnvelope|TestResolveRouteMapsCalculateCyclomaticComplexityEntityID' -count=1`
+  failed before the name lookup stopped using `LIMIT 1`, then passed after the
+  graph read became a deterministic bounded candidate probe and MCP forwarded
+  exact `entity_id` retries.
+  No-Observability-Change: the route still performs one `GraphQuery.Run` call
+  through the existing graph query abstraction, so it remains covered by the
+  shared `neo4j.query` span and `eshu_dp_neo4j_query_duration_seconds`
+  histogram; the change only bounds the candidate list before refusing
+  ambiguity.
+- `/api/v0/code/relationships` returns `target_resolution.status=ambiguous`
+  with bounded entity candidates when a repo-scoped name matches multiple
+  non-test entities. It does not query the graph or fall back to a first match
+  until the caller supplies an exact `entity_id`.
+  No-Regression Evidence: `go test ./internal/query -run
+  'TestHandleRelationshipsReturnsAmbiguousCandidatesWithoutGuessing|TestHandleRelationshipsResolvesRepoScopedNameToNonTestEntityID' -count=1`
+  failed before direct relationships returned structured ambiguity and passed
+  after the name resolver stopped before graph access on multiple candidates.
+  No-Observability-Change: ambiguous name responses are resolved from the
+  content index and intentionally avoid graph reads; resolved entity-id paths
+  keep the existing graph query instrumentation unchanged.
 - `OpenAPISpec()` panics at startup if a handler calls `BuildTruthEnvelope` with
   a capability string not in `capabilityMatrix` (`contract.go:547`). Add missing
   capability IDs to `capabilityMatrix` before shipping new handlers.
