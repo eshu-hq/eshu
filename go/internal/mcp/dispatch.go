@@ -278,9 +278,14 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	case "find_unmanaged_resource_owners":
 		return &route{method: "POST", path: "/api/v0/replatforming/ownership-packets", body: replatformingOwnershipBody(args)}, nil
 	case "calculate_cyclomatic_complexity":
-		return &route{method: "POST", path: "/api/v0/code/complexity", body: map[string]any{
-			"function_name": str(args, "function_name"), "repo_id": str(args, "repo_id"),
-		}}, nil
+		body := map[string]any{
+			"function_name": str(args, "function_name"),
+			"repo_id":       str(args, "repo_id"),
+		}
+		if entityID := str(args, "entity_id"); entityID != "" {
+			body["entity_id"] = entityID
+		}
+		return &route{method: "POST", path: "/api/v0/code/complexity", body: body}, nil
 	case "find_most_complex_functions":
 		return &route{method: "POST", path: "/api/v0/code/complexity", body: map[string]any{
 			"repo_id": str(args, "repo_id"), "limit": intOr(args, "limit", 10),

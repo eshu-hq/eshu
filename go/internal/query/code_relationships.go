@@ -34,9 +34,19 @@ func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request
 	}
 	ctx := r.Context()
 	if strings.TrimSpace(req.EntityID) == "" && strings.TrimSpace(req.Name) != "" {
-		resolved, err := resolveExactGraphEntityCandidate(ctx, h.Content, req.RepoID, req.Name)
+		resolved, resolution, err := resolveRelationshipsNameTarget(ctx, h.Content, req)
 		if err != nil {
-			WriteError(w, http.StatusBadRequest, err.Error())
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if resolution != nil {
+			WriteSuccess(
+				w,
+				r,
+				http.StatusOK,
+				ambiguousRelationshipsResponse(req, *resolution),
+				BuildTruthEnvelope(h.profile(), relationshipCapability(req.Direction, req.RelationshipType), TruthBasisContentIndex, "resolved from content-backed relationship target candidates"),
+			)
 			return
 		}
 		if resolved != nil {

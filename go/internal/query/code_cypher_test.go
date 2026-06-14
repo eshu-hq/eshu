@@ -303,7 +303,7 @@ func TestHandleComplexityAcceptsFunctionNameSelector(t *testing.T) {
 		},
 	}
 	handler.Neo4j = fakeGraphReader{
-		runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 			calls++
 			switch calls {
 			case 1:
@@ -316,7 +316,7 @@ func TestHandleComplexityAcceptsFunctionNameSelector(t *testing.T) {
 				if !strings.Contains(cypher, "e.name = $entity_name") {
 					t.Fatalf("cypher = %q, want function-name lookup", cypher)
 				}
-				return map[string]any{
+				return []map[string]any{{
 					"id":                  "function-1",
 					"name":                "search",
 					"labels":              []any{"Function"},
@@ -329,9 +329,9 @@ func TestHandleComplexityAcceptsFunctionNameSelector(t *testing.T) {
 					"outgoing_count":      int64(2),
 					"incoming_count":      int64(1),
 					"total_relationships": int64(3),
-				}, nil
+				}}, nil
 			default:
-				t.Fatalf("unexpected RunSingle call %d", calls)
+				t.Fatalf("unexpected Run call %d", calls)
 				return nil, nil
 			}
 		},
@@ -351,7 +351,7 @@ func TestHandleComplexityAcceptsFunctionNameSelector(t *testing.T) {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
 	if got, want := calls, 1; got != want {
-		t.Fatalf("RunSingle call count = %d, want %d", got, want)
+		t.Fatalf("Run call count = %d, want %d", got, want)
 	}
 }
 

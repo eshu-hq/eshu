@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 )
@@ -355,6 +356,11 @@ func (h *CodeHandler) handleComplexity(w http.ResponseWriter, r *http.Request) {
 
 	row, err := h.lookupComplexityRow(ctx, req.EntityID, req.FunctionName, req.RepoID)
 	if err != nil {
+		var ambiguous complexityAmbiguousError
+		if errors.As(err, &ambiguous) {
+			writeComplexityAmbiguousError(w, r, ambiguous, h.profile())
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -397,7 +403,7 @@ func (h *CodeHandler) handleComplexity(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CodeHandler) lookupComplexityRow(ctx context.Context, entityID, functionName, repoID string) (map[string]any, error) {
-	if functionName != "" {
+	if strings.TrimSpace(entityID) == "" {
 		return h.lookupComplexityRowByName(ctx, functionName, repoID)
 	}
 	row, err := h.runComplexityQuery(ctx, `

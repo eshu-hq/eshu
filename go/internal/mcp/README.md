@@ -148,6 +148,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_aws_runtime_drift_findings` | POST | `/api/v0/aws/runtime-drift/findings` |
 | `get_replatforming_rollups` | POST | `/api/v0/replatforming/rollups` |
 | `find_unmanaged_resource_owners` | POST | `/api/v0/replatforming/ownership-packets` |
+| `calculate_cyclomatic_complexity` | POST | `/api/v0/code/complexity` |
 | `get_relationship_evidence` | GET | `/api/v0/evidence/relationships/{resolved_id}` |
 | `build_evidence_citation_packet` | POST | `/api/v0/evidence/citations` |
 | `list_package_registry_packages` | GET | `/api/v0/package-registry/packages` |
