@@ -39,13 +39,19 @@ can preserve provenance without mixing extraction confidence with graph truth.
 | `transcript_chunk` | Local transcript section from postmortem audio or video | Documentation section, mention candidate, warning classes |
 | `ocr_region` | Text region from screenshot or scanned incident artifact | Documentation section, mention candidate, confidence bucket |
 | `diagram_label` | Label, node text, or safe link from architecture/runbook diagram | Documentation section, mention candidate, explicit diagram provenance |
-| `semantic_observation` | Optional governed provider observation over an allowed media-derived section | Provenance-only observation with policy and redaction metadata |
 | `incident_export_text` | Text from exported incident review notes or attached postmortem summary | Documentation section, mention candidate, evidence handle |
 
 These classes may produce `documentation_entity_mention` or
 `documentation_claim_candidate` rows only when the owning extraction contract
 allows them. Ambiguous subjects must remain mentions with
 `resolution_status=ambiguous` or `unmatched`.
+
+Optional governed `semantic.documentation_observation` rows are separate
+provider provenance over already-extracted, policy-allowed media sections. They
+may reference a media source class and carry policy, redaction, prompt, model,
+confidence, freshness, and admission metadata, but they do not emit
+deterministic mentions or claim candidates. A semantic observation without
+deterministic corroboration remains provenance-only.
 
 ## Correlation States
 
@@ -141,6 +147,10 @@ Implementation PRs add:
 - extraction, redaction, ACL, and fixture tests for positive, negative,
   ambiguous, stale, redacted, unsupported, and permission-denied cases
 - reducer, API, and MCP tests for every surfaced correlation state
+- `scripts/test-verify-collector-authoring-gate.sh`
+- `scripts/verify-collector-authoring-gate.sh`
+- `scripts/test-verify-performance-evidence.sh`
+- `scripts/verify-performance-evidence.sh`
 - status, log, trace, and metric evidence for extraction attempts, failures,
   redaction, ACL decisions, provider policy, and correlation outcomes
 - performance evidence for extraction wall time, bytes read, decoded bytes,
