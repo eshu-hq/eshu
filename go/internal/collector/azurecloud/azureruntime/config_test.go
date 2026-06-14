@@ -62,6 +62,34 @@ func TestTargetValidatedAssignsDefaultFencingToken(t *testing.T) {
 	}
 }
 
+func TestTargetValidatedDefaultsAndValidatesSourceLane(t *testing.T) {
+	target := testTarget()
+	target.SourceLane = ""
+	validated, err := target.validated()
+	if err != nil {
+		t.Fatalf("validated default source lane: %v", err)
+	}
+	if validated.SourceLane != azurecloud.SourceLaneResourceGraph {
+		t.Fatalf("source lane = %q, want default resource_graph", validated.SourceLane)
+	}
+
+	target = testTarget()
+	target.SourceLane = azurecloud.SourceLaneResourceChanges
+	validated, err = target.validated()
+	if err != nil {
+		t.Fatalf("validated resource changes lane: %v", err)
+	}
+	if validated.SourceLane != azurecloud.SourceLaneResourceChanges {
+		t.Fatalf("source lane = %q, want resource_changes", validated.SourceLane)
+	}
+
+	target = testTarget()
+	target.SourceLane = "live_unbounded"
+	if _, err := target.validated(); err == nil {
+		t.Fatal("expected error for unsupported source lane")
+	}
+}
+
 func TestTargetValidatedRejectsBadScopeKind(t *testing.T) {
 	target := testTarget()
 	target.ScopeKind = "resource_group"

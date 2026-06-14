@@ -57,6 +57,10 @@ type TargetConfig struct {
 	CredentialRef string
 	// SourceURI is the bounded Resource Graph source URI for evidence.
 	SourceURI string
+	// SourceLane selects the bounded provider read lane. Blank defaults to
+	// azurecloud.SourceLaneResourceGraph; resource_changes is fixture-only in
+	// this slice.
+	SourceLane string
 	// FencingToken fences the durable generation. When zero the runtime assigns
 	// defaultFencingToken so emitted facts stay contract-valid.
 	FencingToken int64
@@ -111,6 +115,13 @@ func (t TargetConfig) validated() (TargetConfig, error) {
 	if providerScopeID == "" {
 		return TargetConfig{}, fmt.Errorf("provider_scope_id is required")
 	}
+	sourceLane := strings.TrimSpace(t.SourceLane)
+	if sourceLane == "" {
+		sourceLane = azurecloud.SourceLaneResourceGraph
+	}
+	if !validSourceLane(sourceLane) {
+		return TargetConfig{}, fmt.Errorf("source_lane %q must be one of resource_graph, resource_changes, arm_fallback", t.SourceLane)
+	}
 	fencingToken := t.FencingToken
 	if fencingToken == 0 {
 		fencingToken = defaultFencingToken
@@ -126,6 +137,7 @@ func (t TargetConfig) validated() (TargetConfig, error) {
 		LocationBucket:     strings.ToLower(strings.TrimSpace(t.LocationBucket)),
 		CredentialRef:      strings.TrimSpace(t.CredentialRef),
 		SourceURI:          strings.TrimSpace(t.SourceURI),
+		SourceLane:         sourceLane,
 		FencingToken:       fencingToken,
 	}, nil
 }
@@ -140,12 +152,22 @@ func (t TargetConfig) dedupeKey() string {
 		t.ProviderScopeID,
 		t.ResourceTypeFamily,
 		t.LocationBucket,
+		t.SourceLane,
 	}, "|")
 }
 
 func validScopeKind(kind string) bool {
 	switch kind {
 	case azurecloud.ScopeKindSubscription, azurecloud.ScopeKindManagementGroup, azurecloud.ScopeKindTenant:
+		return true
+	default:
+		return false
+	}
+}
+
+func validSourceLane(lane string) bool {
+	switch lane {
+	case azurecloud.SourceLaneResourceGraph, azurecloud.SourceLaneResourceChanges, azurecloud.SourceLaneARMFallback:
 		return true
 	default:
 		return false

@@ -12,11 +12,12 @@ import (
 // token, modeling the provider's $skipToken pagination without live calls. The
 // empty string keys the first page.
 type fixturePageProvider struct {
-	pages    map[string]ResourceGraphPage
-	calls    []string
-	failOn   string
-	failErr  error
-	scopeErr *ScopeAccess
+	pages       map[string]ResourceGraphPage
+	changePages map[string]ResourceChangesPage
+	calls       []string
+	failOn      string
+	failErr     error
+	scopeErr    *ScopeAccess
 }
 
 func (p *fixturePageProvider) NextPage(_ context.Context, skipToken string) (ResourceGraphPage, error) {
@@ -27,6 +28,21 @@ func (p *fixturePageProvider) NextPage(_ context.Context, skipToken string) (Res
 	page, ok := p.pages[skipToken]
 	if !ok {
 		return ResourceGraphPage{}, errors.New("no fixture page for skip token")
+	}
+	return page, nil
+}
+
+func (p *fixturePageProvider) NextResourceChangesPage(
+	_ context.Context,
+	skipToken string,
+) (ResourceChangesPage, error) {
+	p.calls = append(p.calls, skipToken)
+	if p.failOn == skipToken && p.failErr != nil {
+		return ResourceChangesPage{}, p.failErr
+	}
+	page, ok := p.changePages[skipToken]
+	if !ok {
+		return ResourceChangesPage{}, errors.New("no fixture resource changes page for skip token")
 	}
 	return page, nil
 }

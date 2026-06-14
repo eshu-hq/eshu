@@ -163,12 +163,12 @@ func boundedChangedPropertyPaths(paths []string) ([]string, bool) {
 
 // normalizeChangeType validates the change type against the bounded set.
 func normalizeChangeType(changeType string) (string, error) {
-	switch strings.TrimSpace(changeType) {
-	case ChangeTypeCreated:
+	switch strings.ToLower(strings.TrimSpace(changeType)) {
+	case ChangeTypeCreated, "create":
 		return ChangeTypeCreated, nil
-	case ChangeTypeUpdated:
+	case ChangeTypeUpdated, "update":
 		return ChangeTypeUpdated, nil
-	case ChangeTypeDeleted:
+	case ChangeTypeDeleted, "delete":
 		return ChangeTypeDeleted, nil
 	default:
 		return "", fmt.Errorf("azure resource change observation has unknown change_type %q", changeType)

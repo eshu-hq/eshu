@@ -7,8 +7,9 @@
    runtime drives. Emission, redaction, identity, and telemetry rules live
    there; do not duplicate them here.
 3. `docs/public/reference/azure-cloud-collector-contract.md` - the provider
-   contract. The runtime is now in-scope, but reducer admission, additional fact
-   families, API/MCP readback, and Helm/chart wiring remain gated.
+   contract. The runtime is now in-scope, and fixture-backed resource-change
+   emission is allowed behind `SourceLaneResourceChanges`, but reducer
+   admission, API/MCP readback, and Helm/chart wiring remain gated.
 4. `docs/public/reference/multi-cloud-collector-contract.md` - shared
    scope/generation, redaction, and telemetry rules.
 5. `config.go` - declarative `Config`/`TargetConfig`; credentials by name only.
@@ -35,8 +36,9 @@
 - MUST treat partial subscription/management-group access as explicit
   `azure_collection_warning` evidence, never silent success.
 - MUST NOT add reducer admission, new fact families, API/MCP readback, Helm
-  values, env wiring, or shared-registry telemetry in this package. Those are
-  gated follow-ups (issue #1998).
+  values, env wiring, or shared-registry telemetry in this package. The existing
+  `azure_resource_change` fact kind may be emitted only through fixture-backed
+  `SourceLaneResourceChanges`; it must not call Azure or admit graph truth.
 - MUST apply TDD and keep every source file under 500 lines.
 
 ## Verify
