@@ -7,6 +7,9 @@ separate source of truth.
 For source-language relationship resolution, SCIP corroboration, or golden audit
 work, also follow the
 [Source-Language Resolver Contract](reference/source-language-resolver-contract.md).
+Use `go/internal/parser/goldenaudit` for source-language golden graph fixtures:
+expected nodes and edges must be authored from the fixture contract, not copied
+from observed Eshu output.
 
 Primary files:
 
@@ -62,7 +65,9 @@ parser-family extension.
    the support summary, framework/root evidence, or dead-code maturity changes.
 8. For call, import, inheritance, interface, overload, or framework relationship
    claims, add source-authored golden audit fixtures whose expected nodes and
-   edges are independent from Eshu output.
+   edges are independent from Eshu output. The `goldenaudit` helper reports
+   missing, unexpected, and duplicate graph facts deterministically so CI does
+   not compare Eshu output to itself.
 9. Run the focused Go tests, `scripts/verify-parser-relationship-kit.sh`, the
    docs build, and `git diff --check`.
 

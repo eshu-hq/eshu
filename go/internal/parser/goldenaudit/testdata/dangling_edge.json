@@ -1,0 +1,19 @@
+{
+  "schema_version": "parser_golden_graph.v1",
+  "nodes": [
+    {
+      "id": "function:app.handle",
+      "kind": "function",
+      "name": "handle",
+      "path": "app.py",
+      "line": 3
+    }
+  ],
+  "edges": [
+    {
+      "source_id": "function:app.handle",
+      "target_id": "function:app.persist",
+      "type": "CALLS"
+    }
+  ]
+}

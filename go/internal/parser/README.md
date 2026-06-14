@@ -388,6 +388,10 @@ errors are surfaced in `collector snapshot stage completed` logs with
 - `Registry.LookupByPath` — the discovery package's file matcher predicate
   is built from this lookup, so a custom registry produces a custom file
   matcher automatically
+- `internal/parser/goldenaudit` — helper package for source-authored golden
+  graph fixtures. Use it when language-depth work needs to compare expected
+  code graph nodes and edges against observed parser/reducer output without
+  copying Eshu output into the expected fixture.
 
 ## Gotchas / invariants
 
