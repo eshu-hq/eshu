@@ -43,6 +43,7 @@ func TestOpenAPISpecIncludesSemanticSearchRoute(t *testing.T) {
 		"truncated",
 		"false_canonical_claim_count",
 		"indexed_document_count",
+		"retrieval_state",
 		"corpus_may_be_truncated",
 		"results",
 	} {

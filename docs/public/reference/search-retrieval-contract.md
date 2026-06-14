@@ -160,7 +160,7 @@ whole-graph search.
 
 ## Persisted Postgres Search Index
 
-`go/internal/storage/postgres.EshuSearchIndexStore` serves the public
+`go/internal/storage/postgres.EshuSearchIndexStore` serves the default public
 repository-bounded search surface from persisted BM25 postings for active
 curated search documents. The reducer writes the index alongside
 `eshu_search_document` facts for each scope and generation:
@@ -178,6 +178,15 @@ generation rows are ignored without rebuilding an index in the request path. A
 projection sweep re-enqueues active scopes whose search documents exist but
 index stats are missing, allowing retry to converge after partial failures.
 
+When API or MCP starts with `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` (or
+`local_hash`), `semantic` and `hybrid` public requests use the same active
+document scope through `EshuSearchDocumentStore.ListActiveDocuments`, then build
+a request-local `searchhybrid.Index` with
+`searchembed.NewHashEmbedder(searchembed.DefaultDimensions)`. This is a
+deterministic no-network local path capped at 500 loaded documents. It reports
+`retrieval_state=semantic_active` or `hybrid_active` when vector retrieval
+participates. It is not an ANN/vector-index production-readiness claim.
+
 ## Public Route And MCP Tool
 
 `POST /api/v0/search/semantic` and MCP `search_semantic_context` expose the
@@ -192,11 +201,13 @@ The public surface:
   and curated `source_kinds`;
 - serves from the active persisted search index without a request-time full
   rebuild or corpus cap;
+- uses the explicit local hash embedder path for `semantic` and `hybrid` only
+  when API/MCP is configured with `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER`;
 - caps returned results at 100;
 - returns the canonical Eshu envelope when requested;
 - reports derived truth basis, freshness, graph handles, `search_method`,
-  `indexed_document_count`, `corpus_limit`, `corpus_may_be_truncated`, and
-  false canonical claim count.
+  `retrieval_state`, `indexed_document_count`, `corpus_limit`,
+  `corpus_may_be_truncated`, and false canonical claim count.
 
 Scoped-token behavior is fail-closed before storage access. Empty repository
 grants return an empty result set, and out-of-grant repository ids return
@@ -237,9 +248,11 @@ This contract does not:
 
 The internal Postgres, NornicDB, and in-process hybrid adapters can call their
 backends when explicitly constructed by a benchmark or proof harness. The
-semantic-search route uses the persisted active curated search-document index;
-broader default runtime search still requires separate telemetry, capability,
-backend-proof, and semantic-evaluation evidence.
+semantic-search route defaults to the persisted active curated search-document
+index and only uses request-local in-process hybrid retrieval when explicitly
+configured with the local hash embedder. Broader default runtime search still
+requires separate telemetry, capability, backend-proof, and semantic-evaluation
+evidence.
 Production embedder-backed `semantic` or `hybrid` retrieval must also satisfy
 [Semantic Hybrid Search Admission](semantic-hybrid-search-admission.md).
 

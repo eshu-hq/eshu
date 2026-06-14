@@ -16,8 +16,9 @@ import (
 
 // SemanticSearchHandler exposes bounded curated search-document retrieval.
 type SemanticSearchHandler struct {
-	Index   SemanticSearchIndexStore
-	Profile QueryProfile
+	Index       SemanticSearchIndexStore
+	LocalHybrid SemanticSearchHybridStore
+	Profile     QueryProfile
 }
 
 // SemanticSearchIndexStore searches a persisted curated search-document index
@@ -36,7 +37,9 @@ type semanticSearchIndexQuery struct {
 type semanticSearchIndexResult struct {
 	Candidates           []searchretrieval.Candidate
 	IndexedDocumentCount int
+	CorpusLimit          int
 	CorpusMayBeTruncated bool
+	RetrievalState       string
 }
 
 type semanticSearchRequest struct {
@@ -65,6 +68,7 @@ type semanticSearchResponse struct {
 	IndexedDocumentCount     int                    `json:"indexed_document_count"`
 	CorpusLimit              int                    `json:"corpus_limit"`
 	CorpusMayBeTruncated     bool                   `json:"corpus_may_be_truncated"`
+	RetrievalState           string                 `json:"retrieval_state"`
 }
 
 type semanticSearchResult struct {
@@ -189,32 +193,21 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 		writeSemanticSearchError(w, r, http.StatusNotFound, ErrorCodeNotFound, "repository not found")
 		return
 	}
-	if h.Index == nil {
+	var indexResult semanticSearchIndexResult
+	backend, err := h.semanticSearchBackend(req, body, sourceKinds, &indexResult)
+	if err != nil {
 		writeSemanticSearchError(
 			w,
 			r,
 			http.StatusServiceUnavailable,
 			ErrorCodeBackendUnavailable,
-			"semantic search requires the persisted search index",
+			err.Error(),
 		)
 		return
 	}
 
-	var indexResult semanticSearchIndexResult
 	retrieval, err := (searchretrieval.Runner{
-		Backend: semanticSearchIndexBackend{
-			Index: h.Index,
-			Query: semanticSearchIndexQuery{
-				Request: req,
-				// The first public slice is repository-bounded; repository id
-				// is the active ingestion scope used by the durable
-				// search-document index.
-				ScopeID:     body.RepoID,
-				RepoID:      body.RepoID,
-				SourceKinds: sourceKinds,
-			},
-			Result: &indexResult,
-		},
+		Backend: backend,
 	}).Retrieve(r.Context(), req)
 	if err != nil {
 		status, code := semanticSearchRetrievalError(err)
@@ -231,17 +224,50 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
+func (h *SemanticSearchHandler) semanticSearchBackend(
+	req searchretrieval.Request,
+	body semanticSearchRequest,
+	sourceKinds []searchdocs.SourceKind,
+	indexResult *semanticSearchIndexResult,
+) (searchretrieval.Backend, error) {
+	query := semanticSearchIndexQuery{
+		Request: req,
+		// The first public slice is repository-bounded; repository id is the
+		// active ingestion scope used by the durable search-document index.
+		ScopeID:     body.RepoID,
+		RepoID:      body.RepoID,
+		SourceKinds: sourceKinds,
+	}
+	if h.LocalHybrid != nil && (req.Mode == searchbench.ModeSemantic || req.Mode == searchbench.ModeHybrid) {
+		return semanticSearchIndexBackend{
+			Index:         h.LocalHybrid,
+			Query:         query,
+			Result:        indexResult,
+			AllowSemantic: true,
+		}, nil
+	}
+	if h.Index == nil {
+		return nil, errors.New("semantic search requires the persisted search index")
+	}
+	return semanticSearchIndexBackend{
+		Index:  h.Index,
+		Query:  query,
+		Result: indexResult,
+	}, nil
+}
+
 type semanticSearchIndexBackend struct {
-	Index  SemanticSearchIndexStore
-	Query  semanticSearchIndexQuery
-	Result *semanticSearchIndexResult
+	Index         SemanticSearchIndexStore
+	Query         semanticSearchIndexQuery
+	Result        *semanticSearchIndexResult
+	AllowSemantic bool
 }
 
 func (backend semanticSearchIndexBackend) Search(
 	ctx context.Context,
 	req searchretrieval.Request,
 ) ([]searchretrieval.Candidate, error) {
-	if req.Mode == searchbench.ModeSemantic {
+	if req.Mode == searchbench.ModeSemantic && !backend.AllowSemantic {
 		return nil, errors.New("semantic mode requires an embedder")
 	}
 	query := backend.Query
@@ -249,6 +275,9 @@ func (backend semanticSearchIndexBackend) Search(
 	result, err := backend.Index.Search(ctx, query)
 	if err != nil {
 		return nil, err
+	}
+	if result.RetrievalState == "" {
+		result.RetrievalState = defaultSemanticSearchRetrievalState(req.Mode)
 	}
 	if backend.Result != nil {
 		*backend.Result = result
@@ -314,16 +343,17 @@ func semanticSearchSourceKinds(raw []string) ([]searchdocs.SourceKind, error) {
 
 func emptySemanticSearchResponse(req searchretrieval.Request) semanticSearchResponse {
 	return semanticSearchResponse{
-		Query:       req.Query,
-		RepoID:      req.Scope.RepoID,
-		Anchor:      req.Scope.Anchor(),
-		Mode:        req.Mode,
-		SearchMode:  string(req.Mode),
-		Limit:       req.Limit,
-		TimeoutMS:   int(req.Timeout / time.Millisecond),
-		Results:     []semanticSearchResult{},
-		CorpusLimit: 0,
-		Truncated:   false,
+		Query:          req.Query,
+		RepoID:         req.Scope.RepoID,
+		Anchor:         req.Scope.Anchor(),
+		Mode:           req.Mode,
+		SearchMode:     string(req.Mode),
+		Limit:          req.Limit,
+		TimeoutMS:      int(req.Timeout / time.Millisecond),
+		Results:        []semanticSearchResult{},
+		CorpusLimit:    0,
+		Truncated:      false,
+		RetrievalState: defaultSemanticSearchRetrievalState(req.Mode),
 	}
 }
 
@@ -358,8 +388,9 @@ func semanticSearchResponseFromRetrieval(
 		Truncated:                retrieval.Truncated,
 		FalseCanonicalClaimCount: retrieval.FalseCanonicalClaimCount,
 		IndexedDocumentCount:     indexResult.IndexedDocumentCount,
-		CorpusLimit:              0,
+		CorpusLimit:              indexResult.CorpusLimit,
 		CorpusMayBeTruncated:     indexResult.CorpusMayBeTruncated,
+		RetrievalState:           indexResult.RetrievalState,
 	}
 }
 

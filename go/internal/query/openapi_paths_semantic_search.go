@@ -52,6 +52,7 @@ const openAPIPathsSemanticSearch = `
                     "indexed_document_count": {"type": "integer"},
                     "corpus_limit": {"type": "integer"},
                     "corpus_may_be_truncated": {"type": "boolean"},
+                    "retrieval_state": {"type": "string", "enum": ["keyword_only", "semantic_unavailable", "hybrid_degraded", "semantic_active", "hybrid_active", "policy_denied", "index_unready"]},
                     "results": {
                       "type": "array",
                       "items": {

@@ -27,6 +27,8 @@ var (
 	_ query.ContentStore = (*query.ContentReader)(nil)
 )
 
+const envSemanticSearchLocalEmbedder = "ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER"
+
 func wireAPI(
 	ctx context.Context,
 	getenv func(string) string,
@@ -48,6 +50,10 @@ func wireAPI(
 	semanticPolicy, err := semanticpolicy.LoadFromEnv(getenv)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("load semantic extraction policy: %w", err)
+	}
+	semanticSearchLocalEmbedder, err := loadSemanticSearchLocalEmbedder(getenv)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("load semantic search local embedder: %w", err)
 	}
 	semanticProviderProfiles = semanticpolicy.ApplyToProviderStatuses(
 		semanticProviderProfiles,
@@ -116,6 +122,7 @@ func wireAPI(
 		queryProfile,
 		graphBackend,
 		logger,
+		semanticSearchLocalEmbedder,
 		componentHome,
 		componentPolicy,
 		governanceStatus,
@@ -158,6 +165,7 @@ func newMCPQueryRouter(
 	queryProfile query.QueryProfile,
 	graphBackend query.GraphBackend,
 	logger *slog.Logger,
+	semanticSearchLocalEmbedder string,
 	componentHome string,
 	componentPolicy component.Policy,
 	governanceStatus query.GovernanceStatusConfig,
@@ -233,8 +241,9 @@ func newMCPQueryRouter(
 			Profile: queryProfile,
 		},
 		SemanticSearch: &query.SemanticSearchHandler{
-			Index:   query.NewPostgresSemanticSearchIndexStore(db),
-			Profile: queryProfile,
+			Index:       query.NewPostgresSemanticSearchIndexStore(db),
+			LocalHybrid: newLocalSemanticSearchHybrid(db, semanticSearchLocalEmbedder),
+			Profile:     queryProfile,
 		},
 		PackageRegistry: &query.PackageRegistryHandler{
 			Neo4j:        neo4jReader,
@@ -368,6 +377,23 @@ func envOrDefault(getenv func(string) string, key, fallback string) string {
 		return fallback
 	}
 	return v
+}
+
+func loadSemanticSearchLocalEmbedder(getenv func(string) string) (string, error) {
+	raw := strings.TrimSpace(getenv(envSemanticSearchLocalEmbedder))
+	switch raw {
+	case "", "hash", "local_hash":
+		return raw, nil
+	default:
+		return "", fmt.Errorf("invalid %s %q", envSemanticSearchLocalEmbedder, raw)
+	}
+}
+
+func newLocalSemanticSearchHybrid(db *sql.DB, embedder string) query.SemanticSearchHybridStore {
+	if strings.TrimSpace(embedder) == "" {
+		return nil
+	}
+	return query.NewLocalSemanticSearchHybrid(query.NewPostgresSemanticSearchIndexStore(db))
 }
 
 func loadQueryProfile(getenv func(string) string) (query.QueryProfile, error) {

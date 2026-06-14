@@ -1,6 +1,8 @@
 // Package main runs the eshu-api binary, which serves the Eshu HTTP query and
 // admin surface backed by the configured graph backend and Postgres content
-// store.
+// store. `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` or `local_hash` explicitly
+// enables deterministic no-network local semantic/hybrid retrieval over active
+// curated search documents; unset preserves keyword/no-provider behavior.
 //
 // When invoked with --version or -v, it prints the embedded application
 // version through the test-covered printAPIVersionFlag helper and exits before

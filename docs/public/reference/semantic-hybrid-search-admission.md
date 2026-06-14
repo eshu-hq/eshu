@@ -92,6 +92,12 @@ Large-corpus semantic or hybrid readiness requires an ANN or equivalent bounded
 vector retrieval index. Brute-force scans are acceptable only for fixture tests,
 small local proofs, or benchmark baselines that state the corpus size.
 
+The API/MCP `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` path is one of those
+bounded local proofs: it builds a request-local in-process index over at most
+500 active curated documents for the requested repository scope, performs no
+network call, reads no credentials, and reports the exact retrieval state. It
+does not satisfy large-corpus ANN readiness by itself.
+
 Implementation proof must record:
 
 - repository or scope count
