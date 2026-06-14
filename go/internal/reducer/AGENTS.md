@@ -37,8 +37,10 @@ before touching any file in this directory.
   captures the retry. Do not skip enqueueing to the repair queue when a
   publish fails.
 - **Shared projection intent IDs are stable SHA256 hashes** —
-  `shared_projection.go:59–66`; changing the identity fields listed breaks
-  in-flight idempotency.
+  `shared_projection.go:62–74`; changing the default identity fields breaks
+  in-flight idempotency. `IdentityKey` is a narrow override for domains that
+  must store several rows under one durable `PartitionKey` without collapsing
+  their `intent_id`s; audit every caller before using it.
 - **Edge domains gate on readiness phases** — `shared_projection.go:91–99`;
   `code_calls` gates on `canonical_nodes_committed`;
   `sql_relationships` and `inheritance_edges` gate on
@@ -148,6 +150,10 @@ No-Regression Evidence: `go test ./internal/reducer -run 'TestBuildSecurityAlert
 
 No-Observability-Change: the observed-version change only extends reducer-owned `reducer_security_alert_reconciliation` payloads and the existing HTTP/MCP read model. It adds no route, graph query, queue domain, worker, lease, runtime knob, metric instrument, or metric label; operators still diagnose the path through existing reducer run spans and execution counters, persisted reconciliation payloads, `query.supply_chain_security_alerts` spans, provider-source coverage, and Postgres query duration metrics.
 
+No-Regression Evidence: `go test ./internal/reducer -run 'TestBuildCodeCallRefreshIntentsUseVersionedDeltaPartitionKey|TestBuildCodeCallSharedIntentRowsCarriesDeltaPartitionForSourceFile|TestBuildCodeCallRefreshIntentsCarriesDeltaFileScope|TestCodeCallMaterializationHandlerAlignsDeltaEdgePartitions' -count=1` failed before CALLS delta edge intents carried source-file-scoped delta payloads and durable file partition keys, then passed. `go test ./internal/reducer -count=1` also passed after the shared-intent identity override preserved same-file edges with distinct relationship types while repo-refresh rows kept the full delta file set for safe retraction.
+
+No-Observability-Change: the CALLS delta partition change only alters reducer intent construction for accepted code-call materialization rows. It adds no graph query, queue table, worker, lease, runtime knob, metric instrument, or metric label; operators still diagnose the path through existing `code_call_materialization` completion logs, code-call projection runner timing, reducer execution counters, and shared-intent backlog/status queries.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain
@@ -159,9 +165,11 @@ No-Observability-Change: the observed-version change only extends reducer-owned 
   gate produce silent partial graph truth.
 - Do not use `ResultStatusFailed` for superseded intents. Use
   `ResultStatusSuperseded`; it avoids incrementing the retry counter.
-- Do not change the fields of `SharedProjectionIntentInput` used by
+- Do not change the default fields of `SharedProjectionIntentInput` used by
   `stableIntentID` without auditing all in-flight intents in the Postgres
-  shared-intent table.
+  shared-intent table. Use `IdentityKey` only when the stored `PartitionKey`
+  must group multiple durable rows and tests prove those rows keep distinct
+  `intent_id`s.
 
 ## What NOT to change without an ADR
 

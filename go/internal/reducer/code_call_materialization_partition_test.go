@@ -46,6 +46,13 @@ func TestBuildCodeCallRefreshIntentsUseVersionedDeltaPartitionKey(t *testing.T) 
 	if row.IntentID != second[0].IntentID {
 		t.Fatalf("duplicate replay IntentID = %q, want %q", second[0].IntentID, row.IntentID)
 	}
+	gotPaths, ok := row.Payload["delta_file_paths"].([]string)
+	if !ok {
+		t.Fatalf("delta_file_paths type = %T, want []string", row.Payload["delta_file_paths"])
+	}
+	if got, want := len(gotPaths), 2; got != want {
+		t.Fatalf("delta_file_paths = %#v, want all changed files in one refresh row", gotPaths)
+	}
 
 	key, ok := row.AcceptanceKey()
 	if !ok {

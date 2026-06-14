@@ -318,7 +318,7 @@ func TestBuildCodeCallSharedIntentRowsDeduplicatesIntentIdentity(t *testing.T) {
 		},
 	}
 
-	intents := buildCodeCallSharedIntentRows(rows, contextByRepoID, createdAt, codeCallEvidenceSource)
+	intents := buildCodeCallSharedIntentRows(rows, contextByRepoID, createdAt, codeCallEvidenceSource, nil)
 	if got, want := len(intents), 1; got != want {
 		t.Fatalf("len(intents) = %d, want %d", got, want)
 	}
