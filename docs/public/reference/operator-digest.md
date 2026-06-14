@@ -56,6 +56,19 @@ use share-safe labels such as `repo:owner/name`, `service:name`,
 `workload:name`, `environment:name`, or `project:name`; URLs, absolute paths,
 and machine-local values are rejected before the digest model is constructed.
 
+Use `--artifact-out <path>` to write a shareable
+`operator_digest_artifact.v1` JSON wrapper around the same digest:
+
+```bash
+eshu report --scope repo:owner/name --artifact-out operator-digest.repository.owner-name.local_authoritative.json
+```
+
+The artifact writer validates the digest before writing, writes the file with
+owner-only permissions, deduplicates source references, records redaction and
+validation metadata, and keeps stdout behavior unchanged. With `--json`, stdout
+still carries the raw `operator_digest.v1` model while the write status goes to
+stderr.
+
 ## Output Shape
 
 The top-level artifact is:

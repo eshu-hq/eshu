@@ -87,6 +87,7 @@ claiming reducer work, or calling providers.`,
 	cmd.Flags().String("profile", operatorDigestDefaultProfile, "Runtime profile used to derive the digest")
 	cmd.Flags().Int("question-limit", operatorDigestDefaultQuestionMax, "Maximum suggested questions to emit (0-25)")
 	cmd.Flags().Bool("json", false, "Emit the digest as JSON")
+	cmd.Flags().String("artifact-out", "", "Write a shareable operator_digest_artifact.v1 JSON file")
 	return cmd
 }
 
@@ -95,12 +96,19 @@ func runOperatorDigest(cmd *cobra.Command, _ []string) error {
 	rawProfile, _ := cmd.Flags().GetString("profile")
 	questionLimit, _ := cmd.Flags().GetInt("question-limit")
 	jsonOut, _ := cmd.Flags().GetBool("json")
+	artifactOut, _ := cmd.Flags().GetString("artifact-out")
 
 	options, err := operatorDigestOptionsFromFlags(rawScope, rawProfile, questionLimit)
 	if err != nil {
 		return err
 	}
 	digest := buildOperatorDigest(options)
+	if strings.TrimSpace(artifactOut) != "" {
+		if err := writeOperatorDigestArtifact(artifactOut, digest); err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "wrote operator digest artifact to %s\n", artifactOut)
+	}
 	if jsonOut {
 		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")

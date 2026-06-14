@@ -26,8 +26,9 @@
 // shared-token authorization limitation; `first-run-benchmark`,
 // which scores a captured `first-run --json` envelope against the
 // first-five-minutes onboarding criteria and rejects a health-only "answer";
-// and `answer-quality-scorecard`, which scores captured redacted answer evidence
-// across API, MCP, CLI, and hosted surfaces),
+// `answer-quality-scorecard`, which scores captured redacted answer evidence
+// across API, MCP, CLI, and hosted surfaces; and `report`, which renders the
+// offline operator digest model and can write a shareable digest artifact),
 // security intelligence (`vuln-scan repo` with terminal and JSON
 // exit classification plus SARIF and VEX-style report exports that preserve
 // manifest/source paths, line anchors, and image/SBOM subjects from the API
