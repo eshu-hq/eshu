@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -366,48 +365,60 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 		return nil, nil, nil, false, nil
 	}
 
-	selectedFiles := make(map[string]struct{}, len(fileSet.Files))
-	for _, path := range fileSet.Files {
-		selectedFiles[path] = struct{}{}
-	}
-	orderedFiles := make([]string, 0, len(result.Files))
-	for path := range result.Files {
-		if _, ok := selectedFiles[path]; ok {
-			orderedFiles = append(orderedFiles, path)
-		}
-	}
-	slices.Sort(orderedFiles)
-
-	shapeFiles := make([]shape.File, 0, len(orderedFiles))
-	parsedFiles := make([]map[string]any, 0, len(orderedFiles))
+	shapeFiles := make([]shape.File, 0, len(fileSet.Files))
+	parsedFiles := make([]map[string]any, 0, len(fileSet.Files))
 	languageStats := newParseLanguageStats()
-	for _, filePath := range orderedFiles {
+	for _, filePath := range fileSet.Files {
 		if err := ctx.Err(); err != nil {
 			return nil, nil, nil, false, err
 		}
 
-		parsed := clonePayload(result.Files[filePath])
 		startTime := time.Now()
-		supplement, err := engine.ParsePath(repoPath, filePath, isDependency, snapshotParserOptions(filePath, goPackageTargets))
+		parsed, err := engine.ParsePath(repoPath, filePath, isDependency, snapshotParserOptions(filePath, goPackageTargets))
 		duration := fileParseDurationSeconds(startTime)
 		if err != nil {
-			return nil, nil, nil, false, nil
+			if s.Instruments != nil {
+				s.Instruments.FilesParsed.Add(ctx, 1, metric.WithAttributes(
+					attribute.String("status", "skipped"),
+				))
+			}
+			continue
 		}
-		mergeSCIPSupplement(parsed, supplement)
-		parsed["repo_path"] = repoPath
+		if scipPayload, ok := result.Files[filePath]; ok {
+			mergeSCIPSupplement(parsed, scipPayload)
+		}
 
 		body, err := os.ReadFile(filePath)
 		if err != nil {
-			return nil, nil, nil, false, nil
+			if s.Instruments != nil {
+				s.Instruments.FilesParsed.Add(ctx, 1, metric.WithAttributes(
+					attribute.String("status", "skipped"),
+				))
+			}
+			continue
 		}
 		relativePath, err := filepath.Rel(repoPath, filePath)
 		if err != nil {
-			return nil, nil, nil, false, err
+			if s.Instruments != nil {
+				s.Instruments.FilesParsed.Add(ctx, 1, metric.WithAttributes(
+					attribute.String("status", "skipped"),
+				))
+			}
+			continue
 		}
 		relativePath = filepath.ToSlash(filepath.Clean(relativePath))
 		shapeFiles = append(shapeFiles, shapeFileFromParsed(parsed, relativePath, string(body), commitSHA))
 		parsedFiles = append(parsedFiles, parsed)
-		languageStats.record(snapshotPayloadString(parsed, "language", "lang"), duration)
+		language := snapshotPayloadString(parsed, "language", "lang")
+		languageStats.record(language, duration)
+		if s.Instruments != nil {
+			s.Instruments.FileParseDuration.Record(ctx, duration, metric.WithAttributes(
+				attribute.String("language", language),
+			))
+			s.Instruments.FilesParsed.Add(ctx, 1, metric.WithAttributes(
+				attribute.String("status", "succeeded"),
+			))
+		}
 	}
 
 	if len(parsedFiles) == 0 {
@@ -417,43 +428,9 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 }
 
 func mergeSCIPSupplement(parsed map[string]any, supplement map[string]any) {
-	parsed["imports"] = supplement["imports"]
-	parsed["variables"] = supplement["variables"]
-	parsed["functions"] = mergeNamedEntities(
-		parsed["functions"],
-		supplement["functions"],
-		[]string{"source", "cyclomatic_complexity", "decorators", "context", "class_context", "dead_code_root_kinds", "start_byte", "end_byte", "end_line"},
-	)
-	parsed["classes"] = mergeNamedEntities(
-		parsed["classes"],
-		supplement["classes"],
-		[]string{"bases", "context", "source", "start_byte", "end_byte", "end_line"},
-	)
-}
-
-func mergeNamedEntities(current any, supplement any, keys []string) []map[string]any {
-	currentItems, _ := current.([]map[string]any)
-	supplementItems, _ := supplement.([]map[string]any)
-	byName := make(map[string]map[string]any, len(supplementItems))
-	for _, item := range supplementItems {
-		name := snapshotPayloadString(item, "name")
-		if name != "" {
-			byName[name] = item
-		}
+	if calls, ok := supplement["function_calls_scip"]; ok {
+		parsed["function_calls_scip"] = calls
 	}
-	for i := range currentItems {
-		name := snapshotPayloadString(currentItems[i], "name")
-		supplementItem, ok := byName[name]
-		if !ok {
-			continue
-		}
-		for _, key := range keys {
-			if value, ok := supplementItem[key]; ok {
-				currentItems[i][key] = value
-			}
-		}
-	}
-	return currentItems
 }
 
 func shapeFileFromParsed(parsed map[string]any, relativePath string, body string, commitSHA string) shape.File {
@@ -468,12 +445,4 @@ func shapeFileFromParsed(parsed map[string]any, relativePath string, body string
 		CommitSHA:       commitSHA,
 		EntityBuckets:   entityBucketsFromParsed(parsed),
 	}
-}
-
-func clonePayload(values map[string]any) map[string]any {
-	cloned := make(map[string]any, len(values))
-	for key, value := range values {
-		cloned[key] = value
-	}
-	return cloned
 }
