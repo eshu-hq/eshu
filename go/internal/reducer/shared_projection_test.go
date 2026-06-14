@@ -52,6 +52,38 @@ func TestBuildSharedProjectionIntentDifferentInputsDifferentIDs(t *testing.T) {
 	}
 }
 
+func TestBuildSharedProjectionIntentIdentityKeyPreservesStoredPartition(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	base := SharedProjectionIntentInput{
+		ProjectionDomain: DomainCodeCalls,
+		PartitionKey:     "code-calls:v1:files:repo-a:partition",
+		RepositoryID:     "repo-a",
+		SourceRunID:      "run-1",
+		GenerationID:     "gen-1",
+		Payload:          map[string]any{"key": "value"},
+		CreatedAt:        now,
+	}
+	first := base
+	first.IdentityKey = base.PartitionKey + ":edge:caller->callee"
+	second := base
+	second.IdentityKey = base.PartitionKey + ":edge:caller->other"
+
+	firstRow := BuildSharedProjectionIntent(first)
+	secondRow := BuildSharedProjectionIntent(second)
+
+	if got, want := firstRow.PartitionKey, base.PartitionKey; got != want {
+		t.Fatalf("first PartitionKey = %q, want %q", got, want)
+	}
+	if got, want := secondRow.PartitionKey, base.PartitionKey; got != want {
+		t.Fatalf("second PartitionKey = %q, want %q", got, want)
+	}
+	if firstRow.IntentID == secondRow.IntentID {
+		t.Fatalf("IdentityKey rows produced duplicate IntentID %q", firstRow.IntentID)
+	}
+}
+
 func TestBuildSharedProjectionIntentSetsAllFields(t *testing.T) {
 	t.Parallel()
 

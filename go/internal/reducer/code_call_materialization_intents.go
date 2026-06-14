@@ -49,8 +49,10 @@ func buildCodeCallSharedIntentRows(
 	contextByRepoID map[string]ProjectionContext,
 	createdAt time.Time,
 	evidenceSource string,
+	deltaScopesByRepoID map[string]codeCallDeltaFileScope,
 ) []SharedProjectionIntentRow {
 	intents := make([]SharedProjectionIntentRow, 0, len(rows))
+	deltaPartitionsByRepoID := buildCodeCallDeltaPartitionIndexByRepoID(deltaScopesByRepoID)
 	for _, row := range rows {
 		repositoryID := anyToString(row["repo_id"])
 		if repositoryID == "" {
@@ -76,10 +78,27 @@ func buildCodeCallSharedIntentRows(
 		if partitionKey == "->" {
 			partitionKey = repositoryID
 		}
+		identityKey := ""
+		if deltaPartition, ok := codeCallDeltaPartitionForPayload(
+			payload,
+			deltaPartitionsByRepoID[repositoryID],
+		); ok {
+			partitionKey = deltaPartition.partitionKey
+			identityKey = codeCallDeltaEdgeIdentityKey(
+				partitionKey,
+				callerID,
+				calleeID,
+				repositoryID,
+				anyToString(payload["relationship_type"]),
+			)
+			payload["delta_projection"] = true
+			payload["delta_file_paths"] = []string{deltaPartition.filePath}
+		}
 
 		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
 			ProjectionDomain: DomainCodeCalls,
 			PartitionKey:     partitionKey,
+			IdentityKey:      identityKey,
 			ScopeID:          context.ScopeID,
 			AcceptanceUnitID: context.acceptanceUnitID(repositoryID),
 			RepositoryID:     repositoryID,
@@ -123,31 +142,61 @@ func buildCodeCallRefreshIntentsWithDeltaFileScopes(
 			repositoryID,
 			deltaScope.partitionPaths,
 		)
-		payload := map[string]any{
-			"repo_id":         repositoryID,
-			"action":          "refresh",
-			"intent_type":     "repo_refresh",
-			"evidence_source": codeCallRepoRefreshEvidenceSource,
-		}
+		var deltaFilePaths []string
 		if fileScoped {
-			payload["delta_projection"] = true
-			payload["delta_file_paths"] = append([]string(nil), deltaScope.filePaths...)
+			partitions, ok := buildCodeCallDeltaFilePartitions(repositoryID, deltaScope)
+			if !ok {
+				partitionKey = codeCallRefreshPartitionKey(repositoryID)
+			} else {
+				deltaFilePaths = make([]string, 0, len(partitions))
+				for _, partition := range partitions {
+					deltaFilePaths = append(deltaFilePaths, partition.filePath)
+				}
+			}
+		} else {
+			partitionKey = codeCallRefreshPartitionKey(repositoryID)
 		}
-
-		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
-			ProjectionDomain: DomainCodeCalls,
-			PartitionKey:     partitionKey,
-			ScopeID:          context.ScopeID,
-			AcceptanceUnitID: context.acceptanceUnitID(repositoryID),
-			RepositoryID:     repositoryID,
-			SourceRunID:      context.SourceRunID,
-			GenerationID:     context.GenerationID,
-			Payload:          payload,
-			CreatedAt:        createdAt,
-		}))
+		intents = append(intents, buildCodeCallRefreshIntent(
+			repositoryID,
+			partitionKey,
+			deltaFilePaths,
+			context,
+			createdAt,
+		))
 	}
 
 	return intents
+}
+
+func buildCodeCallRefreshIntent(
+	repositoryID string,
+	partitionKey string,
+	deltaFilePaths []string,
+	context ProjectionContext,
+	createdAt time.Time,
+) SharedProjectionIntentRow {
+	payload := map[string]any{
+		"repo_id":         repositoryID,
+		"action":          "refresh",
+		"intent_type":     "repo_refresh",
+		"evidence_source": codeCallRepoRefreshEvidenceSource,
+	}
+	if len(deltaFilePaths) > 0 {
+		payload["delta_projection"] = true
+		payload["delta_file_paths"] = append([]string(nil), deltaFilePaths...)
+	}
+
+	return BuildSharedProjectionIntent(SharedProjectionIntentInput{
+		ProjectionDomain: DomainCodeCalls,
+		PartitionKey:     partitionKey,
+		ScopeID:          context.ScopeID,
+		AcceptanceUnitID: context.acceptanceUnitID(repositoryID),
+		RepositoryID:     repositoryID,
+		SourceRunID:      context.SourceRunID,
+		GenerationID:     context.GenerationID,
+		Payload:          payload,
+		CreatedAt:        createdAt,
+	})
 }
 
 func buildCodeCallDeltaFilePathsByRepoID(envelopes []facts.Envelope) map[string][]string {

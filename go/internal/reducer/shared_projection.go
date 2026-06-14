@@ -41,6 +41,9 @@ type SharedProjectionIntentRow struct {
 type SharedProjectionIntentInput struct {
 	ProjectionDomain string
 	PartitionKey     string
+	// IdentityKey overrides the partition key only for deterministic intent ID
+	// construction when several rows must share one stored partition key.
+	IdentityKey      string
 	ScopeID          string
 	AcceptanceUnitID string
 	RepositoryID     string
@@ -58,11 +61,15 @@ func BuildSharedProjectionIntent(input SharedProjectionIntentInput) SharedProjec
 	if acceptanceUnitID == "" {
 		acceptanceUnitID = strings.TrimSpace(input.RepositoryID)
 	}
+	identityPartitionKey := input.PartitionKey
+	if strings.TrimSpace(input.IdentityKey) != "" {
+		identityPartitionKey = strings.TrimSpace(input.IdentityKey)
+	}
 
 	intentID := stableIntentID(map[string]string{
 		"acceptance_unit_id": acceptanceUnitID,
 		"generation_id":      input.GenerationID,
-		"partition_key":      input.PartitionKey,
+		"partition_key":      identityPartitionKey,
 		"projection_domain":  input.ProjectionDomain,
 		"repository_id":      input.RepositoryID,
 		"scope_id":           strings.TrimSpace(input.ScopeID),

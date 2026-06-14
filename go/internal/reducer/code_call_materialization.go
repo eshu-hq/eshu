@@ -105,11 +105,23 @@ func (h CodeCallMaterializationHandler) Handle(
 	intentRows := buildCodeCallRefreshIntentsWithDeltaFileScopes(contextByRepoID, deltaFileScopesByRepoID, createdAt)
 	intentRows = append(
 		intentRows,
-		buildCodeCallSharedIntentRows(codeCallRows, contextByRepoID, createdAt, codeCallEvidenceSource)...,
+		buildCodeCallSharedIntentRows(
+			codeCallRows,
+			contextByRepoID,
+			createdAt,
+			codeCallEvidenceSource,
+			deltaFileScopesByRepoID,
+		)...,
 	)
 	intentRows = append(
 		intentRows,
-		buildCodeCallSharedIntentRows(metaclassRows, contextByRepoID, createdAt, pythonMetaclassEvidenceSource)...,
+		buildCodeCallSharedIntentRows(
+			metaclassRows,
+			contextByRepoID,
+			createdAt,
+			pythonMetaclassEvidenceSource,
+			deltaFileScopesByRepoID,
+		)...,
 	)
 	intentBuildDuration := time.Since(intentBuildStart)
 
