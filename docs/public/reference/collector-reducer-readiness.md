@@ -9,6 +9,10 @@ state.
 A collector is not production-ready just because its binary exists. The
 deployment path must also prove bounded collection, durable facts, reducer
 drain, and operator-visible status.
+Reducer claim-path changes that affect readiness gating or domain-count growth
+must satisfy the
+[Reducer Claim-Latency Gate](reducer-claim-latency-gate.md) before production
+support is claimed.
 
 ## Current Contract
 
