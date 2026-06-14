@@ -356,3 +356,94 @@ func TestInstallCreatesNestedCursorDir(t *testing.T) {
 		t.Fatalf("cursor rule file not created: %v", err)
 	}
 }
+
+func TestAssistantInstallDefaultOmitsVerification(t *testing.T) {
+	e := newTestEngine(t)
+	results, err := e.install(supportedPlatforms())
+	if err != nil {
+		t.Fatalf("install: %v", err)
+	}
+
+	out := captureStdout(t, func() {
+		if err := renderAssistantInstall(e.root, results, false); err != nil {
+			t.Fatalf("renderAssistantInstall() error = %v", err)
+		}
+	})
+	if strings.Contains(out, "Assistant ritual verification") {
+		t.Fatalf("default install should not print verification block:\n%s", out)
+	}
+	if !strings.Contains(out, "created CLAUDE.md with Eshu guidance") {
+		t.Fatalf("default install missing install result:\n%s", out)
+	}
+}
+
+func TestAssistantInstallVerifyReportsLocalStdioDiagnostics(t *testing.T) {
+	e := newTestEngine(t)
+	results, err := e.install(supportedPlatforms())
+	if err != nil {
+		t.Fatalf("install: %v", err)
+	}
+
+	out := captureStdout(t, func() {
+		if err := renderAssistantInstall(e.root, results, true); err != nil {
+			t.Fatalf("renderAssistantInstall(--verify) error = %v", err)
+		}
+	})
+	for _, want := range []string{
+		"created CLAUDE.md with Eshu guidance",
+		"Assistant ritual verification",
+		"[ok] guidance installed",
+		"3/3 platform guidance blocks current",
+		"config generated",
+		"tools visible",
+		"no endpoint to probe (local stdio)",
+		"no endpoint to query (local stdio)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("install --verify output missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, fakeBearerToken) {
+		t.Fatalf("install --verify output leaked token:\n%s", out)
+	}
+}
+
+func TestAssistantInstallVerifyHonorsPlatformFilter(t *testing.T) {
+	e := newTestEngine(t)
+	p, ok := lookupPlatform("codex")
+	if !ok {
+		t.Fatal("codex platform missing")
+	}
+	results, err := e.install([]assistantPlatform{p})
+	if err != nil {
+		t.Fatalf("install: %v", err)
+	}
+
+	out := captureStdout(t, func() {
+		if err := renderAssistantInstall(e.root, results, true); err != nil {
+			t.Fatalf("renderAssistantInstall(--verify) error = %v", err)
+		}
+	})
+	if !strings.Contains(out, "1/1 platform guidance blocks current") {
+		t.Fatalf("filtered install verify did not report 1/1:\n%s", out)
+	}
+	if strings.Contains(out, "3/3 platform guidance blocks current") {
+		t.Fatalf("filtered install verify reported all platforms:\n%s", out)
+	}
+}
+
+func TestAssistantInstallCommandHasVerifyFlag(t *testing.T) {
+	var installCmd *cobra.Command
+	for _, cmd := range assistantCmd.Commands() {
+		if cmd.Name() == "install" {
+			installCmd = cmd
+			break
+		}
+	}
+	if installCmd == nil {
+		t.Fatal("assistant install command not registered")
+	}
+	if flag := installCmd.Flags().Lookup("verify"); flag == nil {
+		t.Fatal("assistant install command missing --verify flag")
+	}
+}

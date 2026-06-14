@@ -65,11 +65,12 @@ orchestration. It does not own service runtime internals:
     bounded read surfaces are connected (`operator_digest_cmd.go`)
   - assistant guidance: `assistant install|status|uninstall` manages
     project-scoped Claude, Codex, and Cursor instruction files through a
-    delimited managed block. `assistant status --verify` adds safe ritual
-    activation diagnostics: guidance block currency, generated local MCP
-    snippet, local read-only MCP tool visibility, and explicit local-stdio skips
-    for endpoint and first-query probes. It does not start hooks, mutate MCP
-    config, call broad graph reads, or print tokens (`assistant_guidance.go`).
+    delimited managed block. `assistant install --verify` and
+    `assistant status --verify` add safe ritual activation diagnostics: guidance
+    block currency, generated local MCP snippet, local read-only MCP tool
+    visibility, and explicit local-stdio skips for endpoint and first-query
+    probes. They do not start hooks, mutate MCP config, call broad graph reads,
+    or print tokens (`assistant_guidance.go`).
   - security intelligence: `vuln-scan repo [path]` runs the local scan
     readiness contract and reads repository-scoped supply-chain impact findings
     through the API envelope; `vuln-scan provider-parity` compares
@@ -178,13 +179,14 @@ No-Regression Evidence: hosted-onboard starter playbook guidance is covered by
 `go test ./cmd/eshu -run 'TestHostedOnboardArtifactOutputFields|TestHostedOnboardIncompleteConnectionStillSafeArtifact|TestHostedOnboardMarkdownNamesPlaybookIDs' -count=1`.
 
 No-Observability-Change: assistant ritual verification runs entirely inside the
-local CLI process and reuses the existing MCP setup verification seam for
-snippet generation and read-only tool-surface enumeration. It starts no runtime,
-calls no provider, opens no graph/Postgres driver, and emits no OTEL from this
-dispatcher.
+local CLI process after `assistant install --verify` or
+`assistant status --verify` and reuses the existing MCP setup verification seam
+for snippet generation and read-only tool-surface enumeration. It starts no
+runtime, calls no provider, opens no graph/Postgres driver, and emits no OTEL
+from this dispatcher.
 
 No-Regression Evidence: assistant ritual verification is covered by
-`go test ./cmd/eshu -run 'TestAssistantStatus' -count=1`.
+`go test ./cmd/eshu -run 'TestAssistantInstall|TestAssistantStatus' -count=1`.
 
 ## Gotchas / invariants
 

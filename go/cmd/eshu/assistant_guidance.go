@@ -23,6 +23,10 @@ var assistantPlatformFilter string
 // status` without changing the default status table.
 var assistantStatusVerify bool
 
+// assistantInstallVerify enables the same safe ritual diagnostics after
+// `assistant install` successfully writes or refreshes guidance.
+var assistantInstallVerify bool
+
 // assistantCmd groups the project-scoped assistant guidance subcommands.
 var assistantCmd = &cobra.Command{
 	Use:   "assistant",
@@ -43,11 +47,14 @@ func init() {
 	assistantCmd.PersistentFlags().StringVar(&assistantPlatformFilter, "platform", "",
 		"Restrict to one assistant: claude, codex, or cursor")
 
-	assistantCmd.AddCommand(&cobra.Command{
+	installCmd := &cobra.Command{
 		Use:   "install",
 		Short: "Install or update Eshu guidance for supported assistants",
 		RunE:  runAssistantInstall,
-	})
+	}
+	installCmd.Flags().BoolVar(&assistantInstallVerify, "verify", false,
+		"Run safe assistant ritual diagnostics after install")
+	assistantCmd.AddCommand(installCmd)
 	statusCmd := &cobra.Command{
 		Use:   "status",
 		Short: "Report whether Eshu guidance is installed and current",
@@ -259,8 +266,7 @@ func runAssistantInstall(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	renderInstall(cmd, root, results)
-	return nil
+	return renderAssistantInstall(root, results, assistantInstallVerify)
 }
 
 func runAssistantStatus(cmd *cobra.Command, _ []string) error {
@@ -332,6 +338,24 @@ func renderInstall(_ *cobra.Command, root string, results []platformResult) {
 	for _, h := range addHints {
 		fmt.Printf("  git add %s\n", h)
 	}
+}
+
+// renderAssistantInstall prints install outcomes and, when verify is set,
+// appends the same local ritual diagnostics used by status --verify.
+func renderAssistantInstall(root string, results []platformResult, verify bool) error {
+	renderInstall(nil, root, results)
+	if !verify {
+		return nil
+	}
+	report, err := assistantRitualVerification(results)
+	if err != nil {
+		return err
+	}
+	fmt.Print(renderAssistantVerifyReport(report))
+	if !report.allOK() {
+		return fmt.Errorf("assistant ritual verification failed")
+	}
+	return nil
 }
 
 // renderAssistantStatus prints the normal status table and, when verify is set,
