@@ -445,6 +445,22 @@ from unlabeled queries.
   500-document placeholder recorded 0.000 recall, while the full corpus recorded
   1.000 recall with 24 us p95 in-process BM25 latency.
 
+## Synthetic Package Benchmarks
+
+- Issue #2596 pure-Go vector retrieval (2026-06-14): Benchmark Evidence:
+  `cd go && go test ./internal/searchhybrid -run '^$' -bench 'BenchmarkBackendVectorRetrieval' -benchtime=100ms -count=1`
+  on a deterministic 10,000-document synthetic corpus with 64 one-hot vector
+  buckets and semantic `limit=20`. Exact cosine scored every valid in-scope
+  vector at 9,539,657 ns/op, 2,036,187 B/op, and 282 allocs/op. Approximate
+  retrieval bucketed by dominant vector dimension/sign, filtered by scope, and
+  scored exact cosine for candidates at 4,684,271 ns/op, 1,082,762 B/op, and
+  185 allocs/op. This is package-level scale evidence only; it is not a live
+  corpus search-lane recommendation. No-Observability-Change: the change stays
+  inside the in-process `searchhybrid` backend, emits no new runtime spans,
+  metrics, or logs, and continues to rely on `searchretrieval.Runner`
+  observations for operator-facing request duration, counts, truncation, and
+  failure classes.
+
 ## Recommendation
 
 Each completed evidence record must recommend exactly one decision:

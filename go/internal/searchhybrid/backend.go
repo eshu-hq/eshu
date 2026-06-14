@@ -52,15 +52,7 @@ func (backend Backend) Search(
 			if err != nil {
 				return nil, fmt.Errorf("embed query: %w", err)
 			}
-			// Brute-force vector scoring still scans in-scope documents; an ANN
-			// index is a separate follow-up. Keyword/BM25 no longer scans.
-			vectorScores = make(map[int]float64)
-			for i := range index.documents {
-				if !inScope(i) {
-					continue
-				}
-				vectorScores[i] = cosineSimilarity(queryVector, index.documents[i].vector)
-			}
+			vectorScores = index.vectorScoresInScope(queryVector, inScope)
 			vectorRanked = index.rankByScore(vectorScores)
 			useVector = true
 		} else if req.Mode == searchbench.ModeSemantic {

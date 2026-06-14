@@ -5,10 +5,12 @@
 1. `go/internal/searchhybrid/README.md` - package purpose, boundaries, modes.
 2. `go/internal/searchhybrid/backend.go` - retrieval entry point and ranking.
 3. `go/internal/searchhybrid/index.go` - BM25 stats, embedding cache, overflow.
-4. `go/internal/searchhybrid/rrf.go` - ranking and Reciprocal Rank Fusion.
-5. `go/internal/searchretrieval/README.md` - bounded retrieval runner contract.
-6. `go/internal/searchdocs/README.md` - curated search-document contract.
-7. `docs/internal/design/430-nornicdb-graph-search-split.md` - parent design.
+4. `go/internal/searchhybrid/vector_retriever.go` - exact and approximate
+   vector retrieval.
+5. `go/internal/searchhybrid/rrf.go` - ranking and Reciprocal Rank Fusion.
+6. `go/internal/searchretrieval/README.md` - bounded retrieval runner contract.
+7. `go/internal/searchdocs/README.md` - curated search-document contract.
+8. `docs/internal/design/430-nornicdb-graph-search-split.md` - parent design.
 
 ## Invariants this package enforces
 

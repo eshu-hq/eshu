@@ -19,6 +19,23 @@ const (
 	defaultRRFK         = 60
 )
 
+// VectorRetrievalMode selects how semantic vectors are retrieved from the
+// in-memory index.
+type VectorRetrievalMode string
+
+const (
+	// VectorRetrievalAuto keeps exact cosine as the zero-value correctness
+	// baseline. Approximate retrieval must be selected explicitly.
+	VectorRetrievalAuto VectorRetrievalMode = ""
+	// VectorRetrievalExact scans every valid in-scope vector and is the
+	// deterministic correctness baseline for semantic retrieval.
+	VectorRetrievalExact VectorRetrievalMode = "exact"
+	// VectorRetrievalApproximate uses a deterministic coarse vector index to
+	// prune candidates before exact cosine scoring, falling back to exact when a
+	// scoped approximate bucket is empty.
+	VectorRetrievalApproximate VectorRetrievalMode = "approximate"
+)
+
 // Options configures a hybrid index. Zero values select safe defaults.
 type Options struct {
 	// MaxDocuments caps the indexed document count. Documents beyond the cap
@@ -27,6 +44,9 @@ type Options struct {
 	// Embedder, when set, enables semantic and hybrid retrieval. Without it the
 	// index serves BM25 only.
 	Embedder Embedder
+	// VectorRetrieval selects the semantic vector retrieval strategy. Auto and
+	// Exact use exact cosine; Approximate must be selected explicitly.
+	VectorRetrieval VectorRetrievalMode
 	// K1 and B are BM25 parameters. Zero selects the standard 1.2 and 0.75.
 	K1 float64
 	B  float64
@@ -59,6 +79,8 @@ type Index struct {
 	overflow   int
 	embedder   Embedder
 	embedCache map[string][]float64
+	vectorDims int
+	vector     vectorRetriever
 	k1         float64
 	b          float64
 	rrfK       int
@@ -116,6 +138,14 @@ func NewIndex(docs []searchdocs.Document, opts Options) (*Index, error) {
 	index.count = len(index.documents)
 	if index.count > 0 {
 		index.averageLen = float64(totalLen) / float64(index.count)
+	}
+	if index.embedder != nil {
+		index.vectorDims = index.embedder.Dimensions()
+		retriever, err := newVectorRetriever(index, opts.VectorRetrieval)
+		if err != nil {
+			return nil, err
+		}
+		index.vector = retriever
 	}
 	return index, nil
 }
@@ -182,6 +212,13 @@ func (index *Index) bm25ScoredInScope(queryTerms map[string]int, inScope func(in
 	return scores
 }
 
+func (index *Index) vectorScoresInScope(queryVector []float64, inScope func(int) bool) map[int]float64 {
+	if index.vector == nil {
+		return make(map[int]float64)
+	}
+	return index.vector.Score(queryVector, inScope)
+}
+
 // termContribution is one term's BM25 contribution to a document's score.
 func (index *Index) termContribution(term string, termFreq int, docLength int) float64 {
 	df := index.docFreq[term]
@@ -235,6 +272,9 @@ func cosineSimilarity(a []float64, b []float64) float64 {
 	}
 	dot, normA, normB := 0.0, 0.0, 0.0
 	for i := range a {
+		if !isFiniteFloat(a[i]) || !isFiniteFloat(b[i]) {
+			return 0
+		}
 		dot += a[i] * b[i]
 		normA += a[i] * a[i]
 		normB += b[i] * b[i]
@@ -242,7 +282,11 @@ func cosineSimilarity(a []float64, b []float64) float64 {
 	if normA == 0 || normB == 0 {
 		return 0
 	}
-	return dot / (math.Sqrt(normA) * math.Sqrt(normB))
+	score := dot / (math.Sqrt(normA) * math.Sqrt(normB))
+	if !isFiniteFloat(score) {
+		return 0
+	}
+	return score
 }
 
 func orDefaultFloat(value float64, fallback float64) float64 {
