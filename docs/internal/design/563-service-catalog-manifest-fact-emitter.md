@@ -114,12 +114,14 @@ Stage-by-stage placement of this slice:
 | graph/content | n/a for this domain | **provenance-only; no graph write** |
 | query surface | shipped (#560, MCP) | already lists correlations |
 
-The template precedent is `internal/collector/cicdrun`: a fixture-backed,
-metadata-only fact emitter exposed as a library entry point
-(`GitHubActionsFixtureEnvelopes`) that is not yet wired into a live runtime
-claim. Its `doc.go` and `AGENTS.md` state the exact invariants we will mirror:
-no HTTP clients, no credential loading, no graph writes, no reducer/query
-imports, emit warnings for partial metadata, strip token-bearing URLs.
+The template precedent is `internal/collector/cicdrun`: a metadata-only
+normalizer exposed as a library entry point
+(`GitHubActionsFixtureEnvelopes`) that the nested `ghactionsruntime` package
+uses for bounded live GitHub Actions polling. Its parent-package `doc.go` and
+`AGENTS.md` state the invariant we mirror here: hosted API clients, workflow
+claims, credentials, and runtime status stay in runtime subpackages; graph
+writes and reducer/query imports do not belong in the normalizer; partial
+metadata emits warnings; token-bearing URLs are stripped.
 
 ## 3. Fact / Schema Shape
 

@@ -1,0 +1,336 @@
+package collector
+
+import (
+	"context"
+	"fmt"
+	"io/fs"
+	"log/slog"
+	"path/filepath"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
+	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
+// discoverRepositories runs repo selection with telemetry instrumentation.
+func (s *GitSource) discoverRepositories(ctx context.Context) (SelectionBatch, error) {
+	if s.Tracer != nil {
+		ctx, span := s.Tracer.Start(ctx, telemetry.SpanScopeAssign)
+		defer span.End()
+
+		start := time.Now()
+		batch, err := s.Selector.SelectRepositories(ctx)
+		duration := time.Since(start).Seconds()
+
+		if s.Instruments != nil {
+			s.Instruments.ScopeAssignDuration.Record(ctx, duration,
+				metric.WithAttributes(
+					telemetry.AttrCollectorKind("git"),
+					telemetry.AttrSourceSystem("git"),
+				),
+			)
+		}
+
+		if s.Logger != nil && err == nil {
+			logFn := s.Logger.InfoContext
+			if len(batch.Repositories) == 0 {
+				logFn = s.Logger.DebugContext
+			}
+			logFn(ctx, "collector discovery completed",
+				slog.String("collector_kind", "git"),
+				slog.Int("repository_count", len(batch.Repositories)),
+			)
+		}
+
+		return batch, err
+	}
+
+	return s.Selector.SelectRepositories(ctx)
+}
+
+// resolveRepositories converts selected repositories to absolute paths and
+// computes the stable source run ID.
+func (s *GitSource) resolveRepositories(batch SelectionBatch) ([]SelectedRepository, string, error) {
+	resolved := make([]SelectedRepository, 0, len(batch.Repositories))
+	paths := make([]string, 0, len(batch.Repositories))
+
+	for _, repo := range batch.Repositories {
+		absPath, err := filepath.Abs(repo.RepoPath)
+		if err != nil {
+			return nil, "", fmt.Errorf("resolve selected repo path %q: %w", repo.RepoPath, err)
+		}
+		resolved = append(resolved, SelectedRepository{
+			RepoPath:     absPath,
+			RemoteURL:    repo.RemoteURL,
+			IsDependency: repo.IsDependency,
+			DisplayName:  repo.DisplayName,
+			Language:     repo.Language,
+			FileTargets:  append([]string(nil), repo.FileTargets...),
+		})
+		paths = append(paths, absPath)
+	}
+
+	sourceRunID := facts.StableID(
+		"GitCollectorSnapshotRun",
+		map[string]any{
+			"component":             s.componentName(),
+			"observed_at":           batch.ObservedAt.UTC().Format(time.RFC3339Nano),
+			"selected_repositories": paths,
+		},
+	)
+
+	return resolved, sourceRunID, nil
+}
+
+// processRepo snapshots a single repository, invokes the afterSnapshot
+// callback (used to release the large-repo semaphore between snapshot and
+// stream send), and sends the result downstream. The semaphore lifecycle
+// is managed by the caller, not by processRepo.
+func (s *GitSource) processRepo(
+	ctx context.Context,
+	repo SelectedRepository,
+	afterSnapshot func(),
+	sourceRunID string,
+	observedAt time.Time,
+	workerID int,
+	errOnce *sync.Once,
+	firstErr *error,
+	cancel context.CancelFunc,
+	completed *atomic.Int64,
+) {
+	gen, err := s.snapshotOneRepository(ctx, repo, sourceRunID, observedAt, workerID)
+
+	// Release semaphore (if held) after snapshot completes but before the
+	// potentially-blocking stream send. This lets another worker start a
+	// large repo while this worker waits for buffer space.
+	if afterSnapshot != nil {
+		afterSnapshot()
+	}
+
+	if err != nil {
+		if s.Instruments != nil {
+			s.Instruments.ReposSnapshotted.Add(ctx, 1,
+				metric.WithAttributes(attribute.String("status", "failed")),
+			)
+		}
+		errOnce.Do(func() {
+			*firstErr = err
+			cancel()
+		})
+		return
+	}
+
+	completed.Add(1)
+
+	select {
+	case s.stream <- gen:
+	case <-ctx.Done():
+	}
+}
+
+// snapshotOneRepository processes a single repository snapshot and returns a
+// CollectedGeneration. This method records telemetry and handles all the
+// snapshot-to-generation conversion logic.
+func (s *GitSource) snapshotOneRepository(
+	ctx context.Context,
+	repository SelectedRepository,
+	sourceRunID string,
+	observedAt time.Time,
+	workerID int,
+) (CollectedGeneration, error) {
+	var span trace.Span
+	if s.Tracer != nil {
+		ctx, span = s.Tracer.Start(ctx, telemetry.SpanFactEmit)
+		defer span.End()
+	}
+
+	start := time.Now()
+	snapshot, err := s.Snapshotter.SnapshotRepository(ctx, repository)
+	if err != nil {
+		return CollectedGeneration{}, fmt.Errorf("snapshot repository %q: %w", repository.RepoPath, err)
+	}
+
+	repoPath := repository.RepoPath
+	if snapshot.RepoPath == "" {
+		snapshot.RepoPath = repoPath
+	}
+	if snapshot.RemoteURL == "" {
+		snapshot.RemoteURL = repository.RemoteURL
+	}
+	if len(snapshot.GitRefs) == 0 {
+		snapshot.GitRefs = cloneGitRefs(repository.GitRefs)
+	}
+
+	repositoryName := repository.DisplayName
+	if strings.TrimSpace(repositoryName) == "" {
+		repositoryName = filepath.Base(repoPath)
+	}
+
+	metadata, err := repositoryidentity.MetadataFor(
+		repositoryName,
+		repoPath,
+		repository.RemoteURL,
+	)
+	if err != nil {
+		return CollectedGeneration{}, fmt.Errorf("build repository metadata for %q: %w", repoPath, err)
+	}
+
+	generation := buildStreamingGenerationWithContext(
+		ctx,
+		repoPath,
+		metadata,
+		sourceRunID,
+		observedAt,
+		snapshot,
+		repository.IsDependency,
+	)
+	enrichDiscoveryAdvisoryRun(
+		generation.DiscoveryAdvisory,
+		s.componentName(),
+		metadata.ID,
+		sourceRunID,
+		generation.Scope.ScopeID,
+		generation.Generation.GenerationID,
+	)
+
+	duration := time.Since(start).Seconds()
+	scopeID := generation.Scope.ScopeID
+	factCount := generation.FactCount
+
+	// Record metrics
+	if s.Instruments != nil {
+		s.Instruments.RepoSnapshotDuration.Record(ctx, duration,
+			metric.WithAttributes(telemetry.AttrScopeID(scopeID)),
+		)
+		s.Instruments.ReposSnapshotted.Add(ctx, 1,
+			metric.WithAttributes(attribute.String("status", "succeeded")),
+		)
+		s.Instruments.FactEmitDuration.Record(ctx, duration,
+			metric.WithAttributes(
+				telemetry.AttrCollectorKind("git"),
+				telemetry.AttrSourceSystem("git"),
+				telemetry.AttrScopeID(scopeID),
+			),
+		)
+		s.Instruments.FactsEmitted.Add(ctx, int64(factCount),
+			metric.WithAttributes(
+				telemetry.AttrCollectorKind("git"),
+				telemetry.AttrSourceSystem("git"),
+				telemetry.AttrScopeID(scopeID),
+			),
+		)
+	}
+
+	// Log completion
+	if s.Logger != nil {
+		logAttrs := []any{
+			slog.String("collector_kind", "git"),
+			slog.String("repo_path", repoPath),
+			slog.Int("file_count", snapshot.FileCount),
+			slog.Int("fact_count", factCount),
+		}
+		if workerID > 0 {
+			logAttrs = append(logAttrs, slog.Int("worker_id", workerID))
+		}
+		s.Logger.InfoContext(ctx, "collector snapshot completed", logAttrs...)
+	}
+
+	return generation, nil
+}
+
+func (s *GitSource) componentName() string {
+	if s.Component == "" {
+		return "collector-git"
+	}
+	return s.Component
+}
+
+func buildScope(repo repositoryidentity.Metadata) scope.IngestionScope {
+	metadata := map[string]string{
+		"repo_id":    repo.ID,
+		"repo_name":  repo.Name,
+		"source_key": repo.ID,
+	}
+	if repo.RepoSlug != "" {
+		metadata["repo_slug"] = repo.RepoSlug
+	}
+	if repo.RemoteURL != "" {
+		metadata["remote_url"] = repo.RemoteURL
+	}
+	if repo.LocalPath != "" {
+		metadata["local_path"] = repo.LocalPath
+	}
+
+	return scope.IngestionScope{
+		ScopeID:       "git-repository-scope:" + repo.ID,
+		SourceSystem:  "git",
+		ScopeKind:     scope.KindRepository,
+		CollectorKind: scope.CollectorGit,
+		PartitionKey:  repo.ID,
+		Metadata:      metadata,
+	}
+}
+
+// isLargeRepository performs a lightweight file count to classify a repository
+// as "large" (above the threshold). It walks the directory tree counting
+// regular files and bails early once the threshold is exceeded. Directories
+// that don't contribute to the real parse (.git, node_modules, vendor, etc.)
+// are skipped for speed.
+func isLargeRepository(repoPath string, threshold int) bool {
+	count := 0
+	_ = filepath.WalkDir(repoPath, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case ".git", "node_modules", "vendor", ".venv", "__pycache__":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		count++
+		if count > threshold {
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return count > threshold
+}
+
+func buildGeneration(
+	scopeID string,
+	sourceRunID string,
+	repoPath string,
+	observedAt time.Time,
+	freshnessHint string,
+	sourceCommitSHA string,
+	isDelta bool,
+) scope.ScopeGeneration {
+	return scope.ScopeGeneration{
+		GenerationID: facts.StableID(
+			"GitRepositorySnapshot",
+			map[string]any{
+				"repo_path":     repoPath,
+				"source_run_id": sourceRunID,
+			},
+		),
+		ScopeID:         scopeID,
+		ObservedAt:      observedAt,
+		IngestedAt:      observedAt,
+		Status:          scope.GenerationStatusPending,
+		TriggerKind:     scope.TriggerKindSnapshot,
+		FreshnessHint:   freshnessHint,
+		SourceCommitSHA: sourceCommitSHA,
+		IsDelta:         isDelta,
+	}
+}

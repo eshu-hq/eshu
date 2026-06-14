@@ -1,0 +1,188 @@
+package collector
+
+import (
+	"context"
+	"log/slog"
+	"time"
+
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
+// RepositorySelector selects the repositories for one collector cycle.
+type RepositorySelector interface {
+	SelectRepositories(context.Context) (SelectionBatch, error)
+}
+
+// RepositorySnapshotter collects one narrowed parser/snapshot payload for one
+// selected repository.
+type RepositorySnapshotter interface {
+	SnapshotRepository(context.Context, SelectedRepository) (RepositorySnapshot, error)
+}
+
+// SelectionBatch is one narrowed repository-selection batch for Go-owned fact
+// shaping.
+type SelectionBatch struct {
+	ObservedAt   time.Time
+	Repositories []SelectedRepository
+}
+
+// SelectedRepository is one repository chosen for the current collector cycle.
+type SelectedRepository struct {
+	RepoPath             string   `json:"repo_path"`
+	RemoteURL            string   `json:"remote_url"`
+	IsDependency         bool     `json:"is_dependency"`
+	DisplayName          string   `json:"display_name"`
+	Language             string   `json:"language"`
+	FileTargets          []string `json:"file_targets"`
+	GitRefs              []GitRef `json:"git_refs,omitempty"`
+	Delta                bool     `json:"delta,omitempty"`
+	DeletedRelativePaths []string `json:"deleted_relative_paths,omitempty"`
+	// Reconcile marks a forced full reconciliation observation whose generation
+	// must bypass the freshness-hint skip so it always re-projects and retracts
+	// any drift the delta path missed (epic #2340).
+	Reconcile bool `json:"reconcile,omitempty"`
+}
+
+// RepositorySnapshot captures one repository parse snapshot and content transport.
+type RepositorySnapshot struct {
+	RepoPath  string `json:"repo_path"`
+	RemoteURL string `json:"remote_url"`
+	FileCount int    `json:"file_count"`
+	// HeadCommitSHA is the Git commit the snapshot content reflects (the
+	// checked-out HEAD). It becomes ScopeGeneration.SourceCommitSHA, the durable
+	// baseline a later delta sync diffs against. Empty for non-git snapshots.
+	HeadCommitSHA   string                  `json:"head_commit_sha,omitempty"`
+	ImportsMap      map[string][]string     `json:"imports_map"`
+	FileData        []map[string]any        `json:"file_data"`
+	ContentFiles    []ContentFileSnapshot   `json:"content_files"`
+	ContentEntities []ContentEntitySnapshot `json:"content_entities"`
+	// GitRefs carries source-observed branch/ref heads for this repository.
+	GitRefs []GitRef `json:"git_refs,omitempty"`
+	// TerraformStateCandidates carries metadata-only repo-local state-file
+	// candidates. Raw .tfstate bytes never enter repository snapshots.
+	TerraformStateCandidates []TerraformStateCandidate `json:"terraform_state_candidates,omitempty"`
+	// DiscoveryAdvisory summarizes noisy repo discovery and materialization
+	// shapes for focused operator tuning.
+	DiscoveryAdvisory *DiscoveryAdvisoryReport `json:"discovery_advisory,omitempty"`
+	// ContentFileMetas holds body-free file metadata for two-phase snapshots.
+	// When populated, streamFacts re-reads bodies from AbsolutePath at emit time
+	// instead of carrying all bodies in memory.
+	ContentFileMetas []ContentFileMeta `json:"content_file_metas,omitempty"`
+	// DocumentationFileMetas holds body-free repository documentation metadata
+	// for files that should emit documentation facts without parser content rows.
+	DocumentationFileMetas []ContentFileMeta `json:"documentation_file_metas,omitempty"`
+	// Delta marks snapshots that contain only file-scoped changes from a Git
+	// resync rather than a full repository view.
+	Delta bool `json:"delta,omitempty"`
+	// DeltaRelativePaths holds every repo-relative path touched by a delta
+	// generation, including deleted paths that have no parsed file payload.
+	DeltaRelativePaths []string `json:"delta_relative_paths,omitempty"`
+	// DeletedRelativePaths holds repo-relative paths that disappeared between
+	// Git revisions and must be retracted from content and graph projections.
+	DeletedRelativePaths []string `json:"deleted_relative_paths,omitempty"`
+	// Reconcile marks a forced full reconciliation snapshot. Its generation
+	// carries an empty freshness hint so the commit-time skip never elides it,
+	// guaranteeing a periodic full re-projection that retracts drift the delta
+	// path missed (epic #2340).
+	Reconcile bool `json:"reconcile,omitempty"`
+}
+
+// ContentFileSnapshot captures one portable file-content record.
+type ContentFileSnapshot struct {
+	RelativePath    string `json:"relative_path"`
+	Body            string `json:"content_body"`
+	Digest          string `json:"content_digest"`
+	Language        string `json:"language"`
+	ArtifactType    string `json:"artifact_type"`
+	TemplateDialect string `json:"template_dialect"`
+	IACRelevant     *bool  `json:"iac_relevant"`
+	CommitSHA       string `json:"commit_sha"`
+}
+
+// ContentFileMeta captures file metadata without the body string.
+// Used in the two-phase snapshot architecture: Phase A collects metadata
+// during parse/materialize (bodies temporary), Phase B re-reads bodies from
+// disk during fact streaming so memory stays O(single_file) not O(repo).
+type ContentFileMeta struct {
+	RelativePath    string `json:"relative_path"`
+	Digest          string `json:"content_digest"`
+	Language        string `json:"language"`
+	ArtifactType    string `json:"artifact_type"`
+	TemplateDialect string `json:"template_dialect"`
+	IACRelevant     *bool  `json:"iac_relevant"`
+	CommitSHA       string `json:"commit_sha"`
+}
+
+// ContentEntitySnapshot captures one portable content-entity record.
+type ContentEntitySnapshot struct {
+	EntityID        string         `json:"entity_id"`
+	RelativePath    string         `json:"relative_path"`
+	EntityType      string         `json:"entity_type"`
+	EntityName      string         `json:"entity_name"`
+	StartLine       int            `json:"start_line"`
+	EndLine         int            `json:"end_line"`
+	StartByte       *int           `json:"start_byte"`
+	EndByte         *int           `json:"end_byte"`
+	Language        string         `json:"language"`
+	ArtifactType    string         `json:"artifact_type"`
+	TemplateDialect string         `json:"template_dialect"`
+	IACRelevant     *bool          `json:"iac_relevant"`
+	SourceCache     string         `json:"source_cache"`
+	Metadata        map[string]any `json:"metadata"`
+	IndexedAt       time.Time      `json:"indexed_at"`
+}
+
+// GitSource converts narrowed snapshot batches into durable collector
+// generations. Generations are streamed through a bounded channel so memory
+// stays proportional to the channel buffer size, not the total number of
+// repositories.
+type GitSource struct {
+	Component       string
+	Selector        RepositorySelector
+	Snapshotter     RepositorySnapshotter
+	Tracer          trace.Tracer
+	Instruments     *telemetry.Instruments
+	Logger          *slog.Logger
+	SnapshotWorkers int
+
+	// LargeRepoThreshold is the file-count threshold above which a repository
+	// is classified as "large" and must acquire the large-repo semaphore before
+	// snapshotting. Default: 500.
+	LargeRepoThreshold int
+	// LargeRepoMaxConcurrent is the maximum number of large repositories that
+	// can be snapshotted concurrently. Small repositories bypass this limit
+	// entirely. Default: 2.
+	//
+	// Tuning guide:
+	//   1 = safest for memory; only one large parse at a time
+	//   2 = good balance; two large repos + remaining workers on small repos
+	//   4 = aggressive; requires more RAM but faster on large-heavy workloads
+	//
+	// Set via ESHU_LARGE_REPO_MAX_CONCURRENT environment variable.
+	LargeRepoMaxConcurrent int
+
+	// StreamBuffer controls the generation stream channel buffer size.
+	// When 0 (default), the buffer equals the worker count so completed
+	// small-repo snapshots don't block behind slow large-repo commits.
+	// Each buffered generation holds metadata and a fact channel reference;
+	// file bodies are re-read from disk via two-phase streaming.
+	//
+	// Set via ESHU_STREAM_BUFFER environment variable.
+	StreamBuffer int
+
+	// Streaming state, lazily initialized on first Next call.
+	// The channel carries one CollectedGeneration at a time; the coordinator
+	// goroutine closes it when all workers finish or on first error.
+	stream    chan CollectedGeneration
+	streamErr error
+	started   bool
+}
+
+// Next returns one Go-shaped collected generation, streaming from background
+// snapshot workers. On the first call it launches background goroutines that
+// discover repos, snapshot them concurrently, and feed results through a
+// bounded channel. Subsequent calls read one generation at a time.
+//
+// When the current batch is fully consumed the stream resets so the next call
