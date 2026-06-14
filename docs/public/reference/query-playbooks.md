@@ -76,6 +76,14 @@ Validation guarantees:
 - Optional inputs that a caller omits are dropped from the resolved arguments
   rather than emitted as empty values.
 
+## Operator digest usage
+
+The [Operator Digest Contract](operator-digest.md) may reference playbook IDs as
+deterministic follow-up targets for suggested questions. A digest does not
+execute a playbook and does not invent playbook parameters from ambient state;
+it can only point at a catalog playbook with bounded arguments derived from the
+digest's source answers.
+
 ## Catalog
 
 The current catalog is returned by `PlaybookCatalog()`:

@@ -1,0 +1,234 @@
+# Operator Digest Contract
+
+`operator_digest.v1` is the deterministic contract for a compact operator
+report over Eshu's code-to-cloud graph. It is a presentation artifact, not a
+canonical graph export. It may summarize existing evidence, route operators to
+bounded follow-up calls, and show missing or ambiguous evidence, but it must not
+promote hints into graph truth.
+
+The digest exists for first-five-minutes onboarding and incident handoff: one
+bounded artifact that tells an operator what Eshu knows, what it does not know
+yet, and which questions are worth asking next.
+
+## Boundary
+
+The digest reads only bounded Eshu read surfaces. A renderer must not execute
+raw Cypher, write graph state, enqueue reducer work, call external providers,
+or generate prose from a model. Human-facing text is assembled from fixed
+templates and structured fields.
+
+The canonical sources remain the API, MCP, CLI, graph, content, status, and
+truth-label contracts. The digest carries references back to those sources
+through evidence handles, result references, playbook IDs, or route names.
+
+## Inputs
+
+An implementation must make these inputs explicit:
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `scope` | yes | Repository, service, workload, environment, or hosted project scope. |
+| `profile` | yes | Runtime profile used for reads, from the capability matrix. |
+| `max_sections` | no | Upper bound on rendered sections. Default: all supported sections. |
+| `per_section_limit` | no | Maximum entries per section. Default: 10, maximum: 50. |
+| `question_limit` | no | Maximum suggested questions. Default: 8, maximum: 25. |
+| `freshness_floor` | no | Minimum acceptable freshness state. Default: include stale or building entries but mark them. |
+
+The renderer must reject an empty scope. Optional inputs omitted by a caller use
+the documented defaults; they are not inferred from ambient process state.
+
+## Output Shape
+
+The top-level artifact is:
+
+| Field | Meaning |
+| --- | --- |
+| `schema` | Always `operator_digest.v1`. |
+| `scope` | Redacted scope label and stable scope type. |
+| `profile` | Runtime profile used to derive the digest. |
+| `truth` | The lowest-authority truth or freshness state present in the included sections. |
+| `sections` | Ordered digest sections, each with entries, limitations, and source references. |
+| `suggested_questions` | Deterministic follow-up questions derived from section signals. |
+| `limitations` | Artifact-level omissions, truncation, or unsupported surfaces. |
+| `source_refs` | Route, tool, playbook, and evidence-handle references used by the renderer. |
+
+`generated_at` may be emitted by a concrete CLI or API response as transport
+metadata, but it is not part of ordering, IDs, scoring, or golden fixtures.
+
+## Determinism
+
+Given the same canonical read results and the same inputs, a renderer must emit
+byte-stable section ordering and stable IDs.
+
+Ordering rules:
+
+1. Sort sections by the order listed in this document.
+2. Within a section, sort higher-severity or higher-impact entries first when a
+   section defines severity.
+3. Break ties by stable entity handle, then route or tool name, then lexical
+   reason code.
+4. Mark `truncated: true` when a limit drops entries.
+
+Entry IDs are derived from schema version, section ID, scope type, entity
+handle, source route or tool, and reason code. They must not include wall-clock
+time, random values, hostnames, or absolute local paths.
+
+## Sections
+
+### Hub Services
+
+Summarizes services or repositories that appear central in the current scope.
+
+| Field | Meaning |
+| --- | --- |
+| `entity` | Service, repository, workload, or package handle. |
+| `signals` | Bounded counts such as callers, deployments, incidents, package edges, or citation handles. |
+| `truth_class` | Derived from the source answer packet or truth envelope. |
+| `freshness` | Freshness state from the source envelope. |
+| `next_calls` | Follow-up route or MCP tool references. |
+
+Current source mapping: service story, incident context, supply-chain impact,
+relationship evidence, and bounded code relationship story surfaces can feed
+this section. Implementations must mark unsupported source families rather than
+inventing centrality from partial evidence.
+
+### Cross-Domain Connections
+
+Shows notable code-to-cloud, code-to-incident, dependency-to-service, or
+repository-to-runtime links.
+
+Each entry must include:
+
+- source entity and target entity
+- relationship family
+- evidence handle or citation reference when available
+- confidence or ambiguity signal when the source provides one
+- truth class and freshness
+
+Current source mapping: service story, incident context, supply-chain impact,
+relationship evidence, and visualization packets. If a relationship lacks
+canonical graph support, the entry stays a candidate or limitation and cannot be
+rendered as a confirmed connection.
+
+### Ambiguity Review Queue
+
+Lists entries where an operator should disambiguate before acting.
+
+Required reasons include:
+
+- selector matched multiple candidates
+- evidence family is present but does not reach admission
+- freshness is stale or building for an otherwise useful answer
+- missing evidence prevents a direct answer
+- a result is partial or truncated
+
+Current source mapping: answer packet `unsupported_reasons`, truth-label error
+codes such as `ambiguous`, `missing_evidence`, and recommended next calls. A
+ranked ambiguity queue is an implementation gap until a first-class bounded
+surface exposes it.
+
+### Freshness And Drift
+
+Summarizes whether the scope is current enough to trust.
+
+Required fields:
+
+- generation or lifecycle reference when available
+- freshness state
+- stale, building, unavailable, or failed reason
+- bounded recovery call or operator command
+
+Current source mapping: generation lifecycle, semantic capability status,
+index status, first-run evidence, and answer-packet freshness. The digest must
+show stale or building state directly; it must not hide incomplete indexing
+behind an otherwise confident summary.
+
+### Unmanaged Or Orphaned Resources
+
+Shows resources with evidence of runtime or provider presence but missing a
+strong source-to-owner relationship.
+
+Required fields:
+
+- observed resource handle
+- observed source family
+- missing owner or missing repository signal
+- evidence handle when available
+- suggested ownership investigation
+
+Current source mapping is partial. Some provider, registry, supply-chain, and
+relationship evidence can identify candidates, but a canonical orphan-resource
+read surface is an implementation gap. Until that surface exists, this section
+must render as unsupported, partial, or candidate-only.
+
+### Suggested Questions
+
+Suggested questions are deterministic routing hints, not generated prose. They
+must be assembled from fixed templates and current section signals.
+
+Each question has:
+
+| Field | Meaning |
+| --- | --- |
+| `id` | Stable ID derived from schema, scope, source signal, and template ID. |
+| `question` | Fixed-template human prompt. |
+| `source_signal` | Section entry or limitation that caused the question. |
+| `reason` | Short reason code and display text. |
+| `target` | Query playbook ID, MCP tool family, or HTTP route family. |
+| `arguments` | Bounded arguments the operator can pass next. |
+| `truth_expectation` | Expected answer truth class. |
+| `evidence_refs` | Evidence handles, citation refs, or result refs when present. |
+
+Question ordering is severity first, then unsupported or stale recovery, then
+hub-service drilldowns, then cross-domain citations, then onboarding or support
+packet follow-ups. Ties use the stable question ID.
+
+## Redaction
+
+Redaction happens before values enter the digest model. Renderers must:
+
+- mask tokens, credentials, and bearer values
+- avoid absolute local paths unless a route already redacted them
+- reduce repository targets to share-safe labels when possible
+- preserve evidence handles and opaque IDs only when the source contract marks
+  them safe to share
+- never include private hostnames or machine-specific endpoints in examples
+
+If redaction would remove the only useful value, keep the entry with
+`redacted: true` and a limitation instead of dropping the signal silently.
+
+## Failure Handling
+
+Unsupported and partial sections are first-class output:
+
+- `unsupported` means the active profile or implementation cannot answer that
+  section.
+- `partial` means the section has useful bounded evidence but is stale,
+  truncated, missing evidence, or candidate-only.
+- `unavailable` means the source route or tool could not be reached.
+
+The digest should still return other supported sections. A complete rendering
+failure is reserved for invalid inputs or no available read surface at all.
+
+## Verification Expectations
+
+The implementation issue that adds a renderer must prove:
+
+- stable output for identical inputs
+- deterministic ordering and truncation
+- redaction before model construction
+- unsupported, partial, stale, and ambiguous cases
+- no provider calls or graph writes
+- source truth and freshness propagation into sections and questions
+
+Docs-only changes to this contract require the strict docs build and
+`git diff --check`.
+
+## Related
+
+- [Reading Eshu Answers](reading-answers.md)
+- [Answer Packet Contract](answer-packets.md)
+- [Query Playbooks](query-playbooks.md)
+- [First-Run Evidence](first-run-evidence.md)
+- [Truth Label Protocol](truth-label-protocol.md)
+- [Visualization Packet Contract](visualization-packets.md)
