@@ -89,6 +89,10 @@ describe("ServiceRelationshipWorkbench", () => {
     fireEvent.click(within(inspector).getByRole("tab", { name: "Facts" }));
     expect(within(inspector).getByText("ARGOCD_APPLICATIONSET_DEPLOY_SOURCE"))
       .toBeInTheDocument();
+    expect(within(inspector).getByText("94%")).toBeInTheDocument();
+    expect(within(inspector).getByText("evidence_aggregate")).toBeInTheDocument();
+    expect(within(inspector).getByText("2")).toBeInTheDocument();
+    expect(within(inspector).getByText("derived")).toBeInTheDocument();
 
     fireEvent.click(within(inspector).getByRole("tab", { name: "Evidence paths" }));
     expect(within(inspector).getByText("applicationsets/api-node/kustomization.yaml"))
@@ -100,6 +104,18 @@ describe("ServiceRelationshipWorkbench", () => {
     expect(within(configGraph).getByText("terraform-stack-marketplace")).toBeInTheDocument();
     expect(within(configGraph).getAllByText("READS_CONFIG_FROM").length).toBeGreaterThan(0);
     expect(within(configGraph).queryByText("iac-eks-argocd")).not.toBeInTheDocument();
+
+    fireEvent.click(
+      within(configGraph).getByRole("button", {
+        name: /Inspect READS_CONFIG_FROM relationship from terraform-stack-marketplace/i
+      })
+    );
+    const staleInspector = screen.getByRole("complementary", { name: "Relationship inspector" });
+    expect(within(staleInspector).getByText(/stale relationship evidence/i)).toBeInTheDocument();
+    fireEvent.click(within(staleInspector).getByRole("tab", { name: "Facts" }));
+    expect(within(staleInspector).getByText("stale")).toBeInTheDocument();
+    expect(within(staleInspector).getByText("54%")).toBeInTheDocument();
+    expect(within(staleInspector).getByText("source evidence is stale")).toBeInTheDocument();
   });
 });
 
@@ -162,10 +178,15 @@ const spotlight: ServiceSpotlight = {
       relationshipTypes: ["DEPLOYS_FROM"],
       repositories: [
         {
+          confidence: 0.94,
+          evidenceCount: 2,
           evidenceKinds: ["ARGOCD_APPLICATIONSET_DEPLOY_SOURCE"],
           paths: ["applicationsets/api-node/kustomization.yaml"],
+          provenanceMethod: "evidence_aggregate",
+          rationale: "derived deployment correlation",
           relationshipTypes: ["DEPLOYS_FROM"],
           repository: "iac-eks-argocd",
+          state: "derived",
           technology: "argocd"
         },
         {
@@ -210,10 +231,14 @@ const spotlight: ServiceSpotlight = {
           technology: "terraform"
         },
         {
+          confidence: 0.54,
           evidenceKinds: ["TERRAFORM_IAM_PERMISSION"],
           paths: ["environments/dev/resources.tf"],
+          provenanceMethod: "evidence_aggregate",
+          rationale: "source evidence is stale",
           relationshipTypes: ["READS_CONFIG_FROM"],
           repository: "terraform-stack-marketplace",
+          state: "stale",
           technology: "terraform"
         }
       ],

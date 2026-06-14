@@ -34,10 +34,15 @@ export interface RelationshipNode {
 }
 
 export interface RelationshipEdge {
+  readonly confidence?: number;
   readonly detail: string;
+  readonly evidenceCount?: number;
   readonly family: string;
   readonly label: string;
+  readonly provenanceMethod?: string;
+  readonly rationale?: string;
   readonly source: string;
+  readonly state?: string;
   readonly target: string;
 }
 
@@ -48,10 +53,15 @@ export interface RelationshipEdge {
 export interface LayoutNode extends Omit<SimulationNodeDatum, "x" | "y">, RelationshipNode {}
 
 export interface LayoutEdge extends SimulationLinkDatum<LayoutNode> {
+  readonly confidence?: number;
   readonly detail: string;
+  readonly evidenceCount?: number;
   readonly family: string;
   readonly label: string;
+  readonly provenanceMethod?: string;
+  readonly rationale?: string;
   source: string | LayoutNode;
+  readonly state?: string;
   target: string | LayoutNode;
 }
 
@@ -73,7 +83,9 @@ export function buildGraphModel(spotlight: ServiceSpotlight, mode: GraphMode): G
       const runtime = runtimeNode(lane.label, lane.environments);
       addNode(nodeMap, runtime);
       addEdge(edgeMap, {
+        confidence: lane.confidence,
         detail: `${spotlight.name} runs through ${lane.label}.`,
+        evidenceCount: lane.evidenceCount,
         family: "runtime",
         label: "RUNS_ON",
         source: `service:${spotlight.name}`,
@@ -161,10 +173,15 @@ export function edgePoint(node: string | LayoutNode): Point {
 
 export function edgeToModel(edge: LayoutEdge): RelationshipEdge {
   return {
+    confidence: edge.confidence,
     detail: edge.detail,
+    evidenceCount: edge.evidenceCount,
     family: edge.family,
     label: edge.label,
+    provenanceMethod: edge.provenanceMethod,
+    rationale: edge.rationale,
     source: nodeId(edge.source),
+    state: edge.state,
     target: nodeId(edge.target)
   };
 }
@@ -206,10 +223,15 @@ function addRepositoryRelationship(
   );
   const label = repository.relationshipTypes[0] ?? cluster.relationshipTypes[0] ?? cluster.label;
   addEdge(edgeMap, {
+    confidence: repository.confidence,
     detail: repository.paths[0] ?? cluster.description,
+    evidenceCount: repository.evidenceCount,
     family: cluster.kind,
     label,
+    provenanceMethod: repository.provenanceMethod,
+    rationale: repository.rationale,
     source: `repo:${repository.repository}`,
+    state: repository.state,
     target: `service:${serviceName}`
   });
 }

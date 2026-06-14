@@ -39,6 +39,8 @@ export function RelationshipSelectionSummary({
     >
       <strong>{edge.label}</strong>
       <span>{`${readableEndpoint(edge.source)} -> ${readableEndpoint(edge.target)}`}</span>
+      {edge.confidence !== undefined ? <span>{confidenceLabel(edge.confidence)}</span> : null}
+      {edge.state !== undefined ? <span>{edge.state}</span> : null}
     </div>
   );
 }
@@ -79,6 +81,11 @@ function EdgeInspector({
     { label: "Source", value: readableEndpoint(edge.source) },
     { label: "Target", value: readableEndpoint(edge.target) },
     { label: "Evidence kind", value: joinList(evidence.evidenceKinds) },
+    { label: "Confidence", value: confidenceLabel(edge.confidence) },
+    { label: "Provenance", value: edge.provenanceMethod ?? "Not observed" },
+    { label: "Evidence count", value: countLabel(edge.evidenceCount) },
+    { label: "State", value: edge.state ?? "Not observed" },
+    { label: "Rationale", value: edge.rationale ?? "Not observed" },
     { label: "Environments", value: joinList(evidence.environments) }
   ]);
   return (
@@ -192,6 +199,10 @@ const inspectorTabs: readonly {
 function edgeSummary(edge: RelationshipEdge): string {
   const source = readableEndpoint(edge.source);
   const target = readableEndpoint(edge.target);
+  const state = relationshipStateSummary(edge.state);
+  if (state !== "") {
+    return `${state} ${source} -> ${target}: ${edge.rationale ?? edge.detail}`;
+  }
   if (edge.label === "DEPLOYS_FROM") {
     return `${source} is deployment evidence for ${target}. Use the evidence paths to inspect the exact source file.`;
   }
@@ -355,6 +366,34 @@ function joinList(values: readonly string[]): string {
     return "Not observed";
   }
   return uniqueValues.join(", ");
+}
+
+function confidenceLabel(confidence: number | undefined): string {
+  if (confidence === undefined) {
+    return "Not observed";
+  }
+  return `${Math.round(confidence * 100)}%`;
+}
+
+function countLabel(count: number | undefined): string {
+  return count === undefined ? "Not observed" : String(count);
+}
+
+function relationshipStateSummary(state: string | undefined): string {
+  switch (state) {
+    case "stale":
+      return "Stale relationship evidence.";
+    case "ambiguous":
+      return "Ambiguous relationship evidence.";
+    case "unresolved":
+      return "Unresolved relationship evidence.";
+    case "rejected":
+      return "Rejected relationship evidence.";
+    case "provenance_only":
+      return "Provenance-only relationship evidence.";
+    default:
+      return "";
+  }
 }
 
 function unique(values: readonly string[]): readonly string[] {

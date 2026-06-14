@@ -17,10 +17,15 @@ interface ClusterDraft {
 }
 
 interface RepositoryDraft {
+  confidence?: number;
   readonly evidenceKinds: Set<string>;
+  evidenceCount?: number;
   readonly paths: Set<string>;
+  provenanceMethod?: string;
+  rationale?: string;
   readonly relationshipTypes: Set<string>;
   readonly repository: string;
+  state?: string;
   technology: ServiceTechnologyKind;
 }
 
@@ -42,8 +47,17 @@ export function relationshipClusters(
       continue;
     }
     addRepositoryEvidence(clusters, relationshipType, repository, {
+      confidence: artifact.confidence,
+      confidenceBasis: artifact.confidence_basis,
+      evidenceCount: artifact.evidence_count,
       evidenceKind: artifact.evidence_kind,
+      outcome: artifact.outcome,
       path: artifact.path,
+      provenanceOnly: artifact.provenance_only,
+      rationale: artifact.rationale,
+      resolutionSource: artifact.resolution_source,
+      sourceFreshness: artifact.source_freshness,
+      state: artifact.state,
       technology: technologyForArtifact(artifact)
     });
   }
@@ -64,8 +78,17 @@ function addConsumerEvidence(clusters: Map<string, ClusterDraft>, consumer: Cons
   const relationshipTypes = consumer.relationship_types ?? consumer.graph_relationship_types ?? [];
   for (const relationshipType of relationshipTypes.length > 0 ? relationshipTypes : ["OBSERVED_REFERENCE"]) {
     addRepositoryEvidence(clusters, relationshipType, repository, {
+      confidence: consumer.confidence,
+      confidenceBasis: consumer.confidence_basis,
+      evidenceCount: consumer.evidence_count,
       evidenceKind: consumer.evidence_kinds?.[0] ?? consumer.consumer_kinds?.[0],
+      outcome: consumer.outcome,
       path: consumer.sample_paths?.[0],
+      provenanceOnly: consumer.provenance_only,
+      rationale: consumer.rationale,
+      resolutionSource: consumer.resolution_source,
+      sourceFreshness: consumer.source_freshness,
+      state: consumer.state,
       technology: technologyForConsumer(consumer)
     });
   }
@@ -76,8 +99,17 @@ function addRepositoryEvidence(
   relationshipType: string,
   repository: string,
   evidence: {
+    readonly confidence?: number;
+    readonly confidenceBasis?: string;
+    readonly evidenceCount?: number;
     readonly evidenceKind?: string;
+    readonly outcome?: string;
     readonly path?: string;
+    readonly provenanceOnly?: boolean;
+    readonly rationale?: string;
+    readonly resolutionSource?: string;
+    readonly sourceFreshness?: string;
+    readonly state?: string;
     readonly technology: ServiceTechnologyKind;
   }
 ): void {
@@ -99,6 +131,16 @@ function addRepositoryEvidence(
     technology: evidence.technology
   };
   draft.relationshipTypes.add(relationshipType);
+  draft.confidence = maxOptionalNumber(draft.confidence, evidence.confidence);
+  draft.evidenceCount = maxOptionalNumber(draft.evidenceCount, evidence.evidenceCount);
+  draft.provenanceMethod = firstNonEmpty(
+    draft.provenanceMethod,
+    evidence.confidenceBasis,
+    evidence.resolutionSource,
+    evidence.evidenceKind
+  );
+  draft.rationale = firstNonEmpty(draft.rationale, evidence.rationale);
+  draft.state = relationshipState(draft.state, evidence);
   if (evidence.evidenceKind !== undefined && evidence.evidenceKind.trim().length > 0) {
     draft.evidenceKinds.add(evidence.evidenceKind);
   }
@@ -213,10 +255,15 @@ function finalizeCluster(cluster: ClusterDraft): ServiceRelationshipCluster {
 
 function finalizeRepository(repository: RepositoryDraft): ServiceRelationshipRepository {
   return {
+    confidence: repository.confidence,
     evidenceKinds: [...repository.evidenceKinds].sort(),
+    evidenceCount: repository.evidenceCount,
     paths: [...repository.paths].sort().slice(0, 4),
+    provenanceMethod: repository.provenanceMethod,
+    rationale: repository.rationale,
     relationshipTypes: [...repository.relationshipTypes].sort(),
     repository: repository.repository,
+    state: repository.state,
     technology: repository.technology
   };
 }
@@ -263,4 +310,81 @@ function nonEmpty(...values: readonly (string | undefined)[]): string {
     }
   }
   return "";
+}
+
+function firstNonEmpty(...values: readonly (string | undefined)[]): string | undefined {
+  const value = nonEmpty(...values);
+  return value.length > 0 ? value : undefined;
+}
+
+function maxOptionalNumber(left: number | undefined, right: number | undefined): number | undefined {
+  if (right === undefined) {
+    return left;
+  }
+  if (left === undefined) {
+    return right;
+  }
+  return Math.max(left, right);
+}
+
+function relationshipState(
+  current: string | undefined,
+  evidence: {
+    readonly outcome?: string;
+    readonly provenanceOnly?: boolean;
+    readonly sourceFreshness?: string;
+    readonly state?: string;
+  }
+): string | undefined {
+  const next = normalizedRelationshipState(evidence);
+  if (next === undefined) {
+    return current;
+  }
+  if (current === undefined || relationshipStateRank(next) > relationshipStateRank(current)) {
+    return next;
+  }
+  return current;
+}
+
+function normalizedRelationshipState(evidence: {
+  readonly outcome?: string;
+  readonly provenanceOnly?: boolean;
+  readonly sourceFreshness?: string;
+  readonly state?: string;
+}): string | undefined {
+  const freshness = nonEmpty(evidence.sourceFreshness).toLowerCase();
+  if (freshness === "stale") {
+    return "stale";
+  }
+  const state = nonEmpty(evidence.state, evidence.outcome).toLowerCase();
+  if (state === "stale" || state === "ambiguous" || state === "unresolved" || state === "rejected") {
+    return state;
+  }
+  if (evidence.provenanceOnly === true) {
+    return "provenance_only";
+  }
+  if (state === "exact" || state === "derived") {
+    return state;
+  }
+  return undefined;
+}
+
+function relationshipStateRank(state: string): number {
+  switch (state) {
+    case "stale":
+      return 6;
+    case "ambiguous":
+      return 5;
+    case "unresolved":
+    case "rejected":
+      return 4;
+    case "provenance_only":
+      return 3;
+    case "derived":
+      return 2;
+    case "exact":
+      return 1;
+    default:
+      return 0;
+  }
 }

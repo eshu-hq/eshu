@@ -92,10 +92,15 @@ export type ServiceTechnologyKind =
   | "terraform";
 
 export interface ServiceRelationshipRepository {
+  readonly confidence?: number;
   readonly evidenceKinds: readonly string[];
+  readonly evidenceCount?: number;
   readonly paths: readonly string[];
+  readonly provenanceMethod?: string;
+  readonly rationale?: string;
   readonly relationshipTypes: readonly string[];
   readonly repository: string;
+  readonly state?: string;
   readonly technology: ServiceTechnologyKind;
 }
 
@@ -177,14 +182,23 @@ interface EndpointRecord {
 }
 
 export interface ConsumerRecord {
+  readonly confidence?: number;
+  readonly confidence_basis?: string;
   readonly consumer_kinds?: readonly string[];
+  readonly evidence_count?: number;
   readonly evidence_kinds?: readonly string[];
   readonly graph_relationship_types?: readonly string[];
   readonly matched_values?: readonly string[];
+  readonly outcome?: string;
+  readonly provenance_only?: boolean;
+  readonly rationale?: string;
   readonly repo_name?: string;
   readonly repository?: string;
   readonly relationship_types?: readonly string[];
+  readonly resolution_source?: string;
   readonly sample_paths?: readonly string[];
+  readonly source_freshness?: string;
+  readonly state?: string;
 }
 
 interface DependencyRecord {
@@ -198,12 +212,21 @@ interface DependencyRecord {
 
 export interface DeploymentArtifactRecord {
   readonly artifact_family?: string;
+  readonly confidence?: number;
+  readonly confidence_basis?: string;
+  readonly evidence_count?: number;
   readonly evidence_kind?: string;
+  readonly outcome?: string;
   readonly path?: string;
+  readonly provenance_only?: boolean;
+  readonly rationale?: string;
   readonly relationship_type?: string;
+  readonly resolution_source?: string;
   readonly resolved_id?: string;
+  readonly source_freshness?: string;
   readonly source_repo_id?: string;
   readonly source_repo_name?: string;
+  readonly state?: string;
   readonly target_repo_id?: string;
   readonly target_repo_name?: string;
 }
