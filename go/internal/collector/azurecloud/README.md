@@ -1,9 +1,11 @@
 # internal/collector/azurecloud
 
-First fixture-testable slice of the Azure cloud collector. It turns Azure
-Resource Graph `Resources` API response pages into provider-specific
-`azure_cloud_resource` source facts and explicit `azure_collection_warning`
-evidence, for one bounded subscription, management-group, or tenant shard.
+Fixture-testable Azure cloud collector fact engine. It turns Azure Resource
+Graph `Resources` API response pages into provider-specific
+`azure_cloud_resource` source facts, parses fixture Resource Graph
+`resourcechanges` pages into provenance-only `azure_resource_change` facts, and
+emits explicit `azure_collection_warning` evidence for one bounded
+subscription, management-group, or tenant shard.
 
 This package is the Azure sibling of `internal/collector/awscloud`. It follows
 the [Azure Cloud Collector Contract](../../../../docs/public/reference/azure-cloud-collector-contract.md)
@@ -13,6 +15,9 @@ and the [Multi-Cloud Runtime Collector Contract](../../../../docs/public/referen
 
 - Parses Resource Graph pages (`ParseResourceGraphPage`): `totalRecords`,
   `count`, `resultTruncated`, `$skipToken`, and resource rows.
+- Parses Resource Graph `resourcechanges` pages
+  (`ParseResourceChangesPage`): change type, change timestamp, target ARM ID,
+  operation, client type, actor class, and changed property paths only.
 - Normalizes raw ARM resource IDs into identity fields (`ParseARMIdentity`):
   subscription, resource group, provider namespace, fully-qualified resource
   type (including nested types), resource name, and a lowercased normalized ID
@@ -27,7 +32,8 @@ and the [Multi-Cloud Runtime Collector Contract](../../../../docs/public/referen
   and provider/observed timestamps.
 - Drives a bounded scan (`Collector.Collect`): walks `$skipToken` pages,
   emits one resource fact per row, emits truncation and partial-scope warnings
-  as explicit evidence, and records bounded telemetry.
+  as explicit evidence, emits resource-change facts only when the boundary is
+  `SourceLaneResourceChanges`, and records bounded telemetry.
 
 ## What this slice does NOT do (documented follow-ups)
 
@@ -70,10 +76,14 @@ and the [Multi-Cloud Runtime Collector Contract](../../../../docs/public/referen
   `azure_identity_observation` from each `identity` block — both the
   system-assigned identity and one per user-assigned identity under
   `userAssignedIdentities` (principal/client/tenant GUIDs fingerprinted, emitted
-  only when a redaction key is set). What remains per kind is emission for the
-  families whose source data needs the live transport (DNS records, image
-  references, resource changes) and reducer admission. Reducer admission of tag
-  evidence is already wired (#2192).
+  only when a redaction key is set). The scan loop now also emits
+  `azure_resource_change` from fixture `resourcechanges` pages when the boundary
+  source lane is `SourceLaneResourceChanges`; changed actors are fingerprinted,
+  changed property values and raw provider bodies are dropped, and delete
+  records remain tombstone candidates only. What remains per kind is emission
+  for the families whose source data still needs the live transport (DNS records
+  and image references) and reducer admission. Reducer admission of tag evidence
+  is already wired (#2192).
 
 ## Invariants
 
@@ -87,16 +97,22 @@ and the [Multi-Cloud Runtime Collector Contract](../../../../docs/public/referen
 - Partial scope, permission-hidden subscriptions, and truncation are explicit
   warning evidence, never silent success.
 - Telemetry labels are bounded enums only.
+- Resource-change facts are source provenance only. They never write graph
+  truth, never promote a tombstone by themselves, and never carry before/after
+  values or raw provider response bodies.
 
 ## Fixture matrix covered
 
 `collector_test.go`, `envelope_test.go`, `redaction_test.go`,
-`resourcegraph_test.go`, `armid_test.go`, and `metrics_test.go` cover:
+`resourcegraph_test.go`, `resourcechanges_test.go`, `armid_test.go`, and
+`metrics_test.go` cover:
 skip-token pagination resume, idempotent re-emission of the same generation,
 stale/invalid generation rejection, truncation warning, partial-scope and
 permission-hidden warning accounting, malformed-row unsupported warning,
 extension redaction (including nested maps), provider-read-error propagation,
-and bounded telemetry-label safety.
+resource-change parsing/emission, resource-change empty state, actor
+fingerprinting, raw before/after value exclusion, and bounded telemetry-label
+safety.
 
 ## Tests
 
@@ -106,24 +122,34 @@ cd go && go test ./internal/collector/azurecloud/... ./internal/facts/ -count=1
 
 ## Performance and Observability Evidence
 
-No-Regression Evidence: this slice adds a new, isolated fixture-driven parsing
-package and changes no existing hot path. Baseline: no Azure collector existed;
-after: bounded in-memory normalization of Azure Resource Graph pages with no
-Cypher, no graph or Postgres writes, no worker/lease/queue, and no claim-driven
-runtime binary. Backend/version: none touched (NornicDB/Neo4j, Postgres, and the
-reducer are unchanged; fact kinds are additive). Input shape: bounded Resource
-Graph fixture pages resumed by skip-token; work is O(resources x pages)
-single-pass, so terminal output is one bounded generation of
-`azure_cloud_resource`/`azure_collection_warning` facts (row count equals deduped
-fixture resources plus one warning per unsupported kind/scope). Why safe: no live
-calls in tests, stale generations are rejected by fencing token, and re-emission
-of the same generation is idempotent, all proven by fixture tests.
+Collector Performance Evidence: this slice adds isolated fixture-driven
+resource-change parsing and changes no existing graph or storage hot path.
+Baseline: Azure resource-change emission did not exist. After: bounded
+in-memory normalization of Resource Graph pages with no Cypher, graph writes,
+Postgres writes, worker/lease/queue changes, or claim-driven scheduler changes.
+Input shape is fixture pages resumed by skip-token; work is O(change rows x
+pages), and terminal output is a bounded generation of `azure_resource_change`
+facts plus explicit warning facts for unsupported rows or partial scope. Focused
+proof: `go test ./internal/collector/azurecloud/... ./cmd/collector-azure-cloud/... ./internal/facts/ -count=1`.
 
-Observability Evidence: the package exports bounded-label data-plane metrics
+Collector Observability Evidence: the package exports bounded-label data-plane metrics
 `eshu_dp_azure_api_calls_total`, `_skip_token_resumes_total`,
 `_partial_scope_total`, `_facts_emitted_total`, and `_freshness_lag_seconds`.
 Labels are bounded enums only (collector kind, scope kind, source lane,
 operation, status class, fact kind, outcome); a test asserts no ARM resource id,
 subscription id, tenant id, resource name, tag, or URL appears in any label. An
-operator reads partial-scope coverage, skip-token resumes, freshness lag, and
-fact counts to answer whether a scan is complete, fresh, throttled, or partial.
+operator reads partial-scope coverage, skip-token resumes, freshness lag,
+source-lane labels, and fact counts to answer whether a scan is complete,
+fresh, throttled, or partial. Resource-change actors are fingerprinted with the
+configured redaction key; raw actors, before/after values, and provider bodies
+are absent from emitted facts.
+
+No-Observability-Change: no telemetry contract file changes are needed. The
+resource-change lane reuses the existing Azure bounded metric family, adds
+`source_lane=resource_changes` and `operation=resource_changes_list`, and keeps
+all identifiers out of metric labels.
+
+Collector Deployment Evidence: no Docker Compose service, Helm Deployment,
+Service, ServiceMonitor, port, chart value, runtime profile, or live Azure
+credential path changes in this slice. Resource-change emission stays behind
+fixture provider injection and `SourceLaneResourceChanges`.

@@ -138,7 +138,7 @@ func (s *Source) boundary(
 		ProviderScopeID:     target.ProviderScopeID,
 		ResourceTypeFamily:  target.ResourceTypeFamily,
 		LocationBucket:      target.LocationBucket,
-		SourceLane:          azurecloud.SourceLaneResourceGraph,
+		SourceLane:          target.SourceLane,
 		ScopeID:             scopeID,
 		GenerationID:        s.generationID(scopeID, observedAt),
 		FencingToken:        target.FencingToken,
@@ -205,8 +205,9 @@ func (s *Source) logScan(
 		slog.String(telemetry.LogKeyScopeID, scopeValue.ScopeID),
 		slog.String(telemetry.LogKeyGenerationID, generationValue.GenerationID),
 		slog.String("scope_kind", target.ScopeKind),
-		slog.String("source_lane", azurecloud.SourceLaneResourceGraph),
+		slog.String("source_lane", target.SourceLane),
 		slog.Int("resource_count", result.ResourceCount),
+		slog.Int("resource_change_count", result.ResourceChangeCount),
 		slog.Int("warning_count", result.WarningCount),
 		slog.Int("page_count", result.PageCount),
 		slog.Int("skip_token_resumes", result.SkipTokenResumes),
@@ -236,7 +237,7 @@ func scopeIDForTarget(target TargetConfig) string {
 		target.ProviderScopeID,
 		orAll(target.ResourceTypeFamily),
 		orAll(target.LocationBucket),
-		azurecloud.SourceLaneResourceGraph,
+		target.SourceLane,
 	}, ":")
 }
 

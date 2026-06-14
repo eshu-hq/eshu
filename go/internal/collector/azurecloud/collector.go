@@ -17,8 +17,8 @@ const maxResourceGraphPages = 1000
 // partial-scope access. Fixtures and a future live ARM client both satisfy this
 // interface, so the collector logic is identical under test and in production.
 //
-// Implementations must not mutate Azure state; they perform read-only
-// inventory queries only.
+// Implementations must not mutate Azure state; they perform read-only Resource
+// Graph inventory or fixture resource-change reads only.
 type PageProvider interface {
 	// NextPage returns the Resource Graph page for the given $skipToken. The
 	// empty token requests the first page. An empty SkipToken on the returned
@@ -27,6 +27,15 @@ type PageProvider interface {
 	// ScopeAccess reports whether the configured scope was only partially
 	// readable for this claim. A zero ScopeAccess means full access.
 	ScopeAccess(ctx context.Context) ScopeAccess
+}
+
+// ResourceChangesProvider yields Resource Graph resourcechanges pages for one
+// bounded scope. Implementations are fixture-only in this slice; live Azure
+// transport remains gated in azureruntime.LiveProviderFactory.
+type ResourceChangesProvider interface {
+	// NextResourceChangesPage returns the resourcechanges page for the given
+	// $skipToken. The empty token requests the first page.
+	NextResourceChangesPage(ctx context.Context, skipToken string) (ResourceChangesPage, error)
 }
 
 // ScopeAccess reports partial-scope coverage for one claim. Partial true means
@@ -74,6 +83,10 @@ type ScanResult struct {
 	// from system-assigned managed identities. It is zero unless the collector
 	// was given a redaction key (principal GUIDs are never carried without one).
 	IdentityObservationCount int
+	// ResourceChangeCount counts azure_resource_change facts emitted from the
+	// Resource Graph resourcechanges source lane. These facts remain
+	// provenance-only; they do not admit graph state.
+	ResourceChangeCount int
 }
 
 // Collector turns fixture or live Resource Graph pages into ordered Azure
@@ -125,6 +138,9 @@ func (c *Collector) Collect(ctx context.Context, boundary Boundary) (ScanResult,
 	}
 	if c.provider == nil {
 		return ScanResult{}, fmt.Errorf("azure collector requires a page provider")
+	}
+	if boundary.SourceLane == SourceLaneResourceChanges {
+		return c.collectResourceChanges(ctx, boundary)
 	}
 
 	var result ScanResult
@@ -182,6 +198,88 @@ func (c *Collector) Collect(ctx context.Context, boundary Boundary) (ScanResult,
 		c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureIdentityObservationFactKind, result.IdentityObservationCount)
 	}
 	return result, nil
+}
+
+func (c *Collector) collectResourceChanges(ctx context.Context, boundary Boundary) (ScanResult, error) {
+	if c.redactionKey.IsZero() {
+		return ScanResult{}, fmt.Errorf("azure resource change collection requires a redaction key")
+	}
+	provider, ok := c.provider.(ResourceChangesProvider)
+	if !ok {
+		return ScanResult{}, fmt.Errorf("azure resource change lane requires a resource changes page provider")
+	}
+
+	var result ScanResult
+	skipToken := ""
+	for {
+		if ctx.Err() != nil {
+			return ScanResult{}, ctx.Err()
+		}
+		if result.PageCount >= maxResourceGraphPages {
+			return ScanResult{}, fmt.Errorf("azure resource change scan exceeded %d page bound", maxResourceGraphPages)
+		}
+		page, err := provider.NextResourceChangesPage(ctx, skipToken)
+		if err != nil {
+			c.metrics.RecordAPICall(ctx, boundary, "resource_changes_list", StatusClassError)
+			return ScanResult{}, fmt.Errorf("read resource changes page: %w", err)
+		}
+		c.metrics.RecordAPICall(ctx, boundary, "resource_changes_list", StatusClassSuccess)
+		result.PageCount++
+		if skipToken != "" {
+			result.SkipTokenResumes++
+			c.metrics.RecordSkipTokenResume(ctx, boundary)
+		}
+		if err := c.emitPageResourceChanges(boundary, page, &result); err != nil {
+			return ScanResult{}, err
+		}
+		if page.ResultTruncated {
+			result.Truncated = true
+			if err := c.emitTruncationWarning(boundary, &result); err != nil {
+				return ScanResult{}, err
+			}
+		}
+		skipToken = page.SkipToken
+		if skipToken == "" {
+			break
+		}
+	}
+	if err := c.emitScopeWarning(ctx, boundary, &result); err != nil {
+		return ScanResult{}, err
+	}
+	c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureResourceChangeFactKind, result.ResourceChangeCount)
+	c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureCollectionWarningFactKind, result.WarningCount)
+	return result, nil
+}
+
+func (c *Collector) emitPageResourceChanges(
+	boundary Boundary,
+	page ResourceChangesPage,
+	result *ScanResult,
+) error {
+	for _, row := range page.Changes {
+		observation, err := row.toObservation(boundary)
+		if err != nil {
+			warning, werr := NewWarningEnvelope(WarningObservation{
+				Boundary:    boundary,
+				WarningKind: WarningUnsupported,
+				Outcome:     OutcomeUnsupported,
+				Message:     fmt.Sprintf("unparseable resource change: %v", err),
+			})
+			if werr != nil {
+				return fmt.Errorf("build unsupported change warning: %w", werr)
+			}
+			result.Facts = append(result.Facts, warning)
+			result.WarningCount++
+			continue
+		}
+		env, err := NewResourceChangeEnvelope(observation, c.redactionKey)
+		if err != nil {
+			return fmt.Errorf("build azure_resource_change fact: %w", err)
+		}
+		result.Facts = append(result.Facts, env)
+		result.ResourceChangeCount++
+	}
+	return nil
 }
 
 func (c *Collector) emitPageResources(boundary Boundary, page ResourceGraphPage, result *ScanResult) error {

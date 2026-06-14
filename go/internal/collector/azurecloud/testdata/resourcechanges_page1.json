@@ -1,0 +1,54 @@
+{
+  "totalRecords": 2,
+  "count": 2,
+  "resultTruncated": "false",
+  "$skipToken": "",
+  "data": [
+    {
+      "id": "change-001",
+      "properties": {
+        "changeType": "Update",
+        "targetResourceId": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg-app/providers/Microsoft.Compute/virtualMachines/vm-web-01",
+        "targetResourceType": "microsoft.compute/virtualmachines",
+        "changeAttributes": {
+          "timestamp": "2026-06-09T12:05:00Z",
+          "operation": "Microsoft.Compute/virtualMachines/write",
+          "clientType": "Azure Portal",
+          "changedBy": "actor-raw-guid-0001",
+          "changedByType": "User"
+        },
+        "changes": {
+          "properties.hardwareProfile.vmSize": {
+            "propertyName": "properties.hardwareProfile.vmSize",
+            "beforeValue": "Standard_D2s_v3",
+            "afterValue": "Standard_D4s_v3"
+          },
+          "tags.env": {
+            "propertyName": "tags.env",
+            "beforeValue": "prod",
+            "afterValue": "staging"
+          }
+        },
+        "responseBody": {
+          "bodyMarker": "raw-body-must-not-persist"
+        }
+      }
+    },
+    {
+      "id": "change-002",
+      "properties": {
+        "changeType": "Delete",
+        "targetResourceId": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg-app/providers/Microsoft.Network/publicIPAddresses/ip-web-01",
+        "targetResourceType": "microsoft.network/publicipaddresses",
+        "changeAttributes": {
+          "timestamp": "2026-06-09T12:10:00Z",
+          "operation": "Microsoft.Network/publicIPAddresses/delete",
+          "clientType": "Azure CLI",
+          "changedBy": "actor-raw-guid-0002",
+          "changedByType": "ServicePrincipal"
+        },
+        "changes": {}
+      }
+    }
+  ]
+}

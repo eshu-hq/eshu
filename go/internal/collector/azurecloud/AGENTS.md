@@ -15,8 +15,9 @@
 6. `redaction.go` - extension drop-policy and `RedactionPolicyVersion`.
 7. `envelope.go` - durable fact-envelope construction and validation.
 8. `resourcegraph.go` - Resource Graph response parsing.
-9. `collector.go` - bounded scan: pagination, emission, warnings.
-10. `metrics.go` - bounded-label telemetry.
+9. `resourcechanges.go` - Resource Graph `resourcechanges` fixture parsing.
+10. `collector.go` - bounded scan: pagination, emission, warnings.
+11. `metrics.go` - bounded-label telemetry.
 
 ## Hard Rules
 
@@ -44,9 +45,9 @@
   (`go/internal/collector/azurecloud/azureruntime`); see its `AGENTS.md`.
 - MUST NOT add Helm values, chart wiring, claim-driven workflow scheduling, a
   live-calling default provider, reducer admission, or new fact-kind envelope
-  builders. Those remain gated follow-ups (issue #1998). The `azure` scope
-  `CollectorKind` (`scope.CollectorAzure`) and the non-claimed runtime have
-  landed.
+  builders. Those remain gated follow-ups (issue #1998). The fixture-backed
+  resource-change source lane may emit existing `azure_resource_change` facts;
+  it must stay provenance-only and must not admit graph truth.
 
 ## Verify
 

@@ -64,10 +64,11 @@ func (LiveProviderFactory) PageProvider(
 // rather than silent success. It is the test and offline provider; it issues no
 // network calls.
 type FixturePageProvider struct {
-	mu     sync.Mutex
-	pages  map[string]azurecloud.ResourceGraphPage
-	access azurecloud.ScopeAccess
-	calls  []string
+	mu          sync.Mutex
+	pages       map[string]azurecloud.ResourceGraphPage
+	changePages map[string]azurecloud.ResourceChangesPage
+	access      azurecloud.ScopeAccess
+	calls       []string
 }
 
 // NewFixturePageProvider builds a FixturePageProvider from skip-token-keyed
@@ -82,6 +83,19 @@ func NewFixturePageProvider(
 		cloned[token] = page
 	}
 	return &FixturePageProvider{pages: cloned, access: access}
+}
+
+// NewFixtureResourceChangesPageProvider builds a FixturePageProvider from
+// resourcechanges pages. It is fixture-only and never calls Azure.
+func NewFixtureResourceChangesPageProvider(
+	pages map[string]azurecloud.ResourceChangesPage,
+	access azurecloud.ScopeAccess,
+) *FixturePageProvider {
+	cloned := make(map[string]azurecloud.ResourceChangesPage, len(pages))
+	for token, page := range pages {
+		cloned[token] = page
+	}
+	return &FixturePageProvider{changePages: cloned, access: access}
 }
 
 // NewFixturePageProviderFromFiles parses one JSON Resource Graph page per file
@@ -124,6 +138,22 @@ func (p *FixturePageProvider) NextPage(
 	page, ok := p.pages[skipToken]
 	if !ok {
 		return azurecloud.ResourceGraphPage{}, fmt.Errorf("no azure fixture page for skip token %q", skipToken)
+	}
+	return page, nil
+}
+
+// NextResourceChangesPage returns the resourcechanges page for the given
+// $skipToken. A missing token is an error rather than an empty success.
+func (p *FixturePageProvider) NextResourceChangesPage(
+	_ context.Context,
+	skipToken string,
+) (azurecloud.ResourceChangesPage, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.calls = append(p.calls, skipToken)
+	page, ok := p.changePages[skipToken]
+	if !ok {
+		return azurecloud.ResourceChangesPage{}, fmt.Errorf("no azure fixture resourcechanges page for skip token %q", skipToken)
 	}
 	return page, nil
 }
