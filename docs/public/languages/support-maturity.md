@@ -11,6 +11,9 @@ Use:
   unsupported capability details
 - the `Dead-code Support` section on each parser page for root modeling,
   query evidence, checked fixtures, and bounded limitations
+- [Source-Language Resolver Contract](../reference/source-language-resolver-contract.md)
+  for call, import, inheritance, interface, overload, SCIP, and golden-audit
+  proof rules
 
 This matrix tracks the higher-level support bar for each parser beyond
 the raw capability checklist. `-` means this page does not currently make a
@@ -27,12 +30,13 @@ behavior is not supported query behavior.
 | Source evidence to `partial` | The documented subset has parser proof and at least one consumer proof. Unsupported adjacent cases remain named on the language page. |
 | `partial` to `supported` | Parser proof, query or graph/content-backed proof, language page update, matrix update, and docs build in the same change. |
 | Framework or root evidence increase | Positive, negative, and ambiguous fixtures for the exact framework root, callback, route, lifecycle hook, package export, or public API shape. |
+| Source-language relationship resolution | Resolver contract entrypoint, source-authored golden audit fixtures, no self-comparison goldens, reducer admission proof, read-surface proof, and explicit ambiguity behavior. |
 | Dead-code maturity increase | Parser root proof, query suppression or candidate proof, [Dead Code Language Maturity](../reference/dead-code-language-maturity.md) update, and exactness blockers reviewed. |
 
 Dynamic imports, plugin loading, reflection, generated code, and
 framework-specific roots remain blockers until the exact pattern has parser and
-query proof. Unsupported framework/root rows must not claim query surfacing or
-end-to-end indexing.
+query proof. Unsupported framework/root rows must not claim query surfacing,
+canonical relationship resolution, or end-to-end indexing.
 
 ## Framework Support Boundary
 
