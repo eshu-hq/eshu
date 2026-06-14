@@ -225,6 +225,7 @@ nav:
     - Relationship Evidence And Resolution: reference/relationship-mapping-evidence.md
     - Relationship Runtime And Stories: reference/relationship-mapping-runtime-stories.md
     - Relationship Mapping Observability: reference/relationship-mapping-observability.md
+    - Deployable-Unit Correlation: reference/deployable-unit-correlation.md
     - ".eshuignore": reference/eshuignore.md
     - Troubleshooting: reference/troubleshooting.md
     - Logging Standard: reference/logging.md
