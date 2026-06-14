@@ -256,8 +256,26 @@
 {{- if eq (trim (default "" .Values.componentExtensionCollector.allowIds)) "" -}}
 {{- fail "componentExtensionCollector.allowIds is required when componentExtensionCollector.enabled=true" -}}
 {{- end -}}
+{{- $componentAllowIDTokenFound := false -}}
+{{- range splitList "," (default "" .Values.componentExtensionCollector.allowIds) -}}
+{{- if ne (trim .) "" -}}
+{{- $componentAllowIDTokenFound = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $componentAllowIDTokenFound -}}
+{{- fail "componentExtensionCollector.allowIds must contain at least one non-empty CSV token when componentExtensionCollector.enabled=true" -}}
+{{- end -}}
 {{- if eq (trim (default "" .Values.componentExtensionCollector.allowPublishers)) "" -}}
 {{- fail "componentExtensionCollector.allowPublishers is required when componentExtensionCollector.enabled=true" -}}
+{{- end -}}
+{{- $componentAllowPublisherTokenFound := false -}}
+{{- range splitList "," (default "" .Values.componentExtensionCollector.allowPublishers) -}}
+{{- if ne (trim .) "" -}}
+{{- $componentAllowPublisherTokenFound = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $componentAllowPublisherTokenFound -}}
+{{- fail "componentExtensionCollector.allowPublishers must contain at least one non-empty CSV token when componentExtensionCollector.enabled=true" -}}
 {{- end -}}
 {{- if not .Values.componentExtensionCollector.extensionEgressPolicyJSON -}}
 {{- fail "componentExtensionCollector.extensionEgressPolicyJSON is required when componentExtensionCollector.enabled=true" -}}
