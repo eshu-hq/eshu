@@ -40,8 +40,9 @@ Resolvers may emit these classes of evidence:
 Only `direct` and `corroborated` evidence may feed canonical relationship
 projection, and only after reducer tests prove the admission rule. Ambiguous and
 unsupported evidence can be surfaced as reviewable limitations; it must not be
-converted into a guessed `CALLS`, `IMPORTS`, `IMPLEMENTS`, `INHERITS`, or
-framework edge.
+converted into a guessed canonical source edge. This includes `CALLS`,
+`IMPORTS`, `REFERENCES`, `IMPLEMENTS`, `INHERITS`, `OVERRIDES`, `ALIASES`,
+`INSTANTIATES`, `USES_METACLASS`, or framework-specific edge families.
 
 ## SCIP Corroboration
 
@@ -88,7 +89,11 @@ The audit should score:
 | Unsupported behavior | Unsupported dynamic or generated-code cases return a documented limitation, not a fallback edge. |
 
 Regression thresholds belong in the verifier and must be strict enough to fail
-on a removed expected edge or a newly fabricated canonical edge.
+on a removed expected edge or a newly fabricated canonical edge. Until a
+dedicated source-language golden verifier exists, resolver implementation PRs
+must add one in the same change or document the existing command that loads
+`fixtures/source_language/**/goldens`, scores `nodes.jsonl` and `edges.jsonl`,
+and fails fabricated or missing canonical edges.
 
 ## Required Cases
 
@@ -168,10 +173,15 @@ uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
 git diff --check
 ```
 
+The verification evidence must also include a targeted sensitive-marker scan
+over every changed public doc and navigation file. Investigate any output before
+merge; do not commit private group identifiers or attribution trailers.
+
 Implementation PRs add focused Go tests for the touched parser, reducer, query,
-or MCP packages. If the implementation changes graph writes, queues, workers,
-leases, batching, or hot-path query behavior, also run the performance evidence
-gate from the local testing reference.
+or MCP packages. They also run or introduce the source-language golden audit
+verifier described above. If the implementation changes graph writes, queues,
+workers, leases, batching, or hot-path query behavior, also run the performance
+evidence gate from the local testing reference.
 
 No-Regression Evidence: this contract is documentation-only. It changes no
 parser output, SCIP detection, reducer admission, graph write, queue, worker, or
