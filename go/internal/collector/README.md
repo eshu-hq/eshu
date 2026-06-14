@@ -373,18 +373,6 @@ progress messages.
   `cortex.yaml`/`.yml`) during the same content streaming pass. Ordinary YAML
   files and Cortex scorecard descriptors stay ordinary content until a dedicated
   runtime slice opens that contract.
-- No-Regression Evidence: service-catalog manifest emission adds only a bounded
-  basename check per content file and parses matching descriptors with the
-  existing pure normalizer. The focused gate is
-  `go test ./internal/collector -run 'TestGitSourceEmitsRepoHostedBackstageCatalogFacts|TestGitSourceEmitsRepoHostedServiceCatalogFactsFromLegacyContentFiles|TestServiceCatalogProviderForPathIsNarrow|TestStreamFactsReReadsBodyFromDisk|TestStreamFactsSkipsMissingFile' -count=1`,
-  which proves catalog facts emit from two-phase and legacy content paths while
-  non-catalog files remain narrow.
-- No-Observability-Change: repo-hosted service-catalog facts use the existing
-  Git collector signals listed in this section: `collector.observe`,
-  `collector.stream`, `fact.emit`, `eshu_dp_generation_fact_count`,
-  `eshu_dp_facts_emitted_total`, and `eshu_dp_facts_committed_total`. No new
-  runtime, worker, queue, graph write, span, metric label, or status field is
-  introduced by this slice.
 - No-Regression Evidence: nested npm workspace package manifests and lockfiles
   under `packages/<workspace>` remain discoverable by default. The focused gate
   is
@@ -408,18 +396,6 @@ progress messages.
   logs, `SpanScopeAssign`, `SpanCollectorStream`, and pprof profiles expose the
   selector/copy window separately from per-repository discovery, pre-scan,
   parse, materialize, commit, and projection stages.
-- No-Regression Evidence: Git clone/fetch progress logging does not change
-  selection semantics, worker counts, repository ordering, clone depth, fact
-  emission, or durable queue writes. The focused gate is
-  `go test ./internal/collector ./cmd/collector-git ./cmd/ingester -count=1`,
-  which covers sanitized git progress logging plus ingester and collector-git
-  logger wiring into `NativeRepositorySelector`.
-- Observability Evidence: Hosted git sync now emits structured start,
-  throttled progress, completion, and failure logs for clone/fetch before
-  snapshot workers start. The logs include bounded fields for operation,
-  provider kind, repository id, repository ordinal/count, branch when known,
-  elapsed seconds, and `failure_class=git_sync_failure` on failures while
-  redacting credential-bearing URLs and avoiding full local paths.
 - Collector Performance Evidence: declared Prometheus/Mimir, Loki, and Tempo source
   facts reuse the existing repository parse and fact-stream pass. The focused
   proof is
@@ -447,32 +423,22 @@ progress messages.
   and Java call inference do not need every method-local declaration as a
   canonical `Variable` node. Keep JS/TS/Python local-variable coverage intact
   unless their query contracts change.
+- Optional SCIP indexing is a supplement over native parser output. A SCIP index
+  may omit selected files, but the snapshotter still parses every selected file
+  through the native parser and only attaches SCIP call facts to matching files.
+  No-Regression Evidence: `TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex`.
+  No-Observability-Change: the path uses the existing parse-stage log,
+  `eshu_dp_file_parse_duration_seconds`, `eshu_dp_files_parsed_total`, and
+  fact counters.
 - Terraform-state ingestion currently uses explicit sources and Git-observed
   backend facts. The #140 target design adds repo-local `.tfstate` candidates
   as advisory metadata, but those candidates must not route raw state through
   Git content persistence or parse state as normal repository content.
 - Terraform-state claim processing records `eshu_dp_tfstate_claim_wait_seconds`
   and uses `tfstate.collector.claim.process` around the claimed work boundary.
-- `ClaimedService.MaxAttempts` is the bounded retry budget per work item. When
-  the work item AttemptCount reaches this value, the next retryable failure
-  escalates to `FailClaimTerminal` with class
-  `FailureClassAttemptBudgetExhausted` (`attempt_budget_exhausted`). The guard
-  prevents permanent retryable failures (orphaned stale fence, IAM gap,
-  unsupported target) from driving `workflow_claims.failed_retryable` into the
-  millions, as ops-qa saw before this guard landed (issue #612). Wire the
-  per-collector cmd to `workflow.DefaultClaimMaxAttempts()` unless a
+- `ClaimedService.MaxAttempts` is the bounded retry budget per work item. Wire
+  per-collector commands to `workflow.DefaultClaimMaxAttempts()` unless a
   deployment-specific override is required.
-- No-Regression Evidence: `ClaimedService.MaxAttempts == 0` keeps the legacy
-  unbounded behavior so callers that have not been wired keep the existing
-  retryable path. Focused test
-  `TestClaimedServiceAttemptBudgetIgnoredWhenUnset` pins this.
-- Observability Evidence: `ClaimedService` emits
-  `eshu_dp_workflow_claim_attempt_budget_exhausted_total` (labels
-  `collector_kind`, `source_system`) when the guard fires and AWS-runtime
-  emits `eshu_dp_aws_scan_status_stale_fence_total` (labels `service`,
-  `account`, `region`, `operation`) on status-store stale-fence rejection.
-  Pair both counters with `workflow_claims` and `workflow_work_items` state
-  counts to confirm the runaway-loop block is in place.
 - `AfterBatchDrained` is a batch boundary hook, not a timer callback. Use it for
   work that should follow committed collection, and keep idle-poll behavior in
   `Source.Next` or the coordinator layer.
@@ -527,29 +493,7 @@ progress messages.
   token and GitHub App auth remain GitHub-specific, while SSH is the
   provider-neutral private-repo path.
 
-## Delta-correctness evidence (epic #2340)
-
-The git delta baseline and reconciliation sweep harden incremental sync against
-silently stale graph state. Their runtime cost and observability:
-
-- No-Regression Evidence: the baseline and reconciliation decisions add at most
-  one indexed single-row read (`LastProjectedCommitSHA` / `LastFullProjectionAt`)
-  and one `git cat-file -e` per managed repo per sync cycle, all inside the
-  existing per-repo serial selection loop — no new locks, batching, or concurrent
-  writers. Reconciliation forces at most `ESHU_REPO_RECONCILE_MAX_PER_CYCLE` full
-  snapshots per cycle, so a fleet cannot stampede. In the projection-succeeds
-  path the local branch ref pins the last projected commit, so delta sync keeps
-  applying and full snapshots are paid only on first sync, divergence, or the
-  scheduled reconciliation interval. Verified by `cd go && go test
-  ./internal/collector ./internal/storage/postgres -count=1`.
-- Observability Evidence: `eshu_dp_collector_delta_baseline_fallback_total`
-  (`skip_reason`) and `eshu_dp_collector_reconciliation_full_snapshots_total`
-  expose skip/reconciliation rates; `eshu_dp_reconciliation_drift_retractions_total`
-  counts graph nodes/edges actually deleted. Baseline lookup failure logs
-  `git_delta_baseline_lookup_failed`.
-
 ## Related docs
 
 See `docs/public/architecture.md`, `docs/public/deployment/service-runtimes.md`,
-`docs/public/reference/local-testing.md`, `docs/public/reference/telemetry/index.md`,
-`go/internal/collector/discovery/README.md`, and `go/internal/parser/README.md`.
+`docs/public/reference/local-testing.md`, `docs/public/reference/telemetry/index.md`, `go/internal/collector/discovery/README.md`, and `go/internal/parser/README.md`.
