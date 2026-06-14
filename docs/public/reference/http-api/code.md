@@ -146,6 +146,40 @@ code `resolution_method`. Treat `evidence_constant`, `evidence_aggregate`, and
 `assertion_override` as the correlation-side explanation for the same numeric
 confidence field; do not map them onto code resolution tiers.
 
+### Confidence Floor Contract
+
+`min_confidence` is the reserved confidence-floor request parameter for
+relationship read routes that return code or correlation edges. Runtime support
+must not be assumed until the specific route's OpenAPI schema advertises the
+field. The implementation contract is:
+
+- omitted means no confidence floor and preserves current edge visibility,
+  including ambiguous, stale, conflicting, and missing-confidence rows;
+- accepted values are JSON numbers from `0` through `1`, inclusive;
+- invalid, non-numeric, negative, or greater-than-`1` values return a request
+  validation error instead of silently broadening or narrowing results;
+- the floor filters only returned relationship rows after canonical scope,
+  type, direction, limit, and pagination validation; it must not change reducer
+  admission, graph writes, evidence drilldowns, or answer truth envelopes;
+- rows without numeric `confidence` do not satisfy a positive floor, but remain
+  visible when the floor is omitted or `0`;
+- empty results caused by the floor keep the normal success envelope and must
+  not imply that no underlying relationship or evidence exists.
+
+MCP tools mirror the HTTP spelling as `min_confidence`; camelCase aliases such
+as `minConfidence` are not part of the Eshu wire contract.
+
+No-Regression Evidence: the confidence-floor contract is docs-only until a
+route schema advertises support. `uv run --with mkdocs --with mkdocs-material
+--with pymdown-extensions mkdocs build --strict --clean --config-file
+docs/mkdocs.yml` covers Markdown, navigation, and cross-reference drift for the
+published contract.
+
+No-Observability-Change: this contract note adds no graph read, graph write,
+queue, worker, route, parameter decoder, metric, span, log field, or runtime
+knob. Runtime implementations must add their own route-specific no-regression
+and observability evidence when they begin accepting `min_confidence`.
+
 No-Regression Evidence: `go test ./internal/query -run
 'TestHandleRelationshipsSurfacesRelatedSymbolSourceMetadata|TestNornicDBOneHopRelationshipsCypherProjectsRelatedSymbolSourceMetadata|TestOpenAPIRelationshipDocumentsSourceMetadata'
 -count=1` covers response preservation, NornicDB query projection, and OpenAPI

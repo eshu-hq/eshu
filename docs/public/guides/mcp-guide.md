@@ -65,6 +65,12 @@ such as `evidence_constant`, `evidence_aggregate`, or `assertion_override`.
 Use `get_relationship_evidence` when a repository context row has `resolved_id`
 and you need the full evidence preview.
 
+Relationship tools reserve `min_confidence` for the HTTP/MCP confidence-floor
+contract. Omit it to preserve ambiguous, stale, conflicting, and
+missing-confidence rows; use it only after the tool schema advertises support.
+The field is numeric from `0` through `1` and filters returned rows without
+changing canonical graph truth.
+
 Use semantic evidence tools only when you explicitly want optional LLM-assisted
 provenance:
 
