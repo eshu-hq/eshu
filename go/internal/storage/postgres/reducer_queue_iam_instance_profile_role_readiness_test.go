@@ -43,9 +43,12 @@ func (db *iamInstanceProfileRoleReadinessQueueDB) QueryContext(_ context.Context
 	if !strings.Contains(query, "iam_instance_profile_role_materialization") {
 		return nil, fmt.Errorf("claim query missing iam instance-profile role readiness gate:\n%s", query)
 	}
-	hasReadinessGate := strings.Contains(query, "graph_projection_phase_state AS aws_nodes") &&
-		strings.Contains(query, "aws_nodes.keyspace = 'cloud_resource_uid'") &&
-		strings.Contains(query, "aws_nodes.phase = 'canonical_nodes_committed'")
+	hasReadinessGate := queryHasBoundedReadinessRequirement(
+		query,
+		string(reducer.DomainIAMInstanceProfileRoleMaterialization),
+		"cloud_resource_uid",
+		"canonical_nodes_committed",
+	) && queryHasPayloadReadinessLookup(query, "fact_work_items", "readiness_req", "readiness_phase")
 	if hasReadinessGate && !db.phaseReady {
 		return &queueFakeRows{}, nil
 	}

@@ -32,9 +32,12 @@ func (db *ec2InternetExposureReadinessQueueDB) QueryContext(_ context.Context, q
 	if !strings.Contains(query, "ec2_internet_exposure_materialization") {
 		return nil, fmt.Errorf("claim query missing ec2 internet-exposure readiness gate:\n%s", query)
 	}
-	hasReadinessGate := strings.Contains(query, "graph_projection_phase_state AS aws_nodes") &&
-		strings.Contains(query, "aws_nodes.keyspace = 'cloud_resource_uid'") &&
-		strings.Contains(query, "aws_nodes.phase = 'canonical_nodes_committed'")
+	hasReadinessGate := queryHasBoundedReadinessRequirement(
+		query,
+		string(reducer.DomainEC2InternetExposureMaterialization),
+		"cloud_resource_uid",
+		"canonical_nodes_committed",
+	) && queryHasPayloadReadinessLookup(query, "fact_work_items", "readiness_req", "readiness_phase")
 	if hasReadinessGate && !db.phaseReady {
 		return &queueFakeRows{}, nil
 	}
@@ -62,30 +65,32 @@ func (db *ec2InternetExposureReadinessQueueDB) QueryContext(_ context.Context, q
 func TestReducerQueueClaimQueryGatesEC2InternetExposureOnInstanceNodeReadiness(t *testing.T) {
 	t.Parallel()
 
-	for _, want := range []string{
-		"ec2_internet_exposure_materialization",
-		"aws_nodes.acceptance_unit_id = COALESCE(NULLIF(fact_work_items.payload->>'entity_key', ''), fact_work_items.scope_id)",
-		"aws_nodes.keyspace = 'cloud_resource_uid'",
-		"aws_nodes.phase = 'canonical_nodes_committed'",
-	} {
-		if !strings.Contains(claimReducerWorkQuery, want) {
-			t.Fatalf("claim query missing EC2 internet-exposure readiness token %q:\n%s", want, claimReducerWorkQuery)
-		}
+	if !queryHasBoundedReadinessRequirement(
+		claimReducerWorkQuery,
+		string(reducer.DomainEC2InternetExposureMaterialization),
+		"cloud_resource_uid",
+		"canonical_nodes_committed",
+	) {
+		t.Fatalf("claim query missing EC2 internet-exposure readiness requirement:\n%s", claimReducerWorkQuery)
+	}
+	if !queryHasPayloadReadinessLookup(claimReducerWorkQuery, "fact_work_items", "readiness_req", "readiness_phase") {
+		t.Fatalf("claim query missing EC2 internet-exposure payload readiness lookup:\n%s", claimReducerWorkQuery)
 	}
 }
 
 func TestReducerQueueBatchClaimQueryGatesEC2InternetExposureOnInstanceNodeReadiness(t *testing.T) {
 	t.Parallel()
 
-	for _, want := range []string{
-		"ec2_internet_exposure_materialization",
-		"same_nodes.acceptance_unit_id = COALESCE(NULLIF(same.payload->>'entity_key', ''), same.scope_id)",
-		"same_nodes.keyspace = 'cloud_resource_uid'",
-		"same_nodes.phase = 'canonical_nodes_committed'",
-	} {
-		if !strings.Contains(claimReducerWorkBatchQuery, want) {
-			t.Fatalf("batch claim query missing EC2 internet-exposure readiness token %q:\n%s", want, claimReducerWorkBatchQuery)
-		}
+	if !queryHasBoundedReadinessRequirement(
+		claimReducerWorkBatchQuery,
+		string(reducer.DomainEC2InternetExposureMaterialization),
+		"cloud_resource_uid",
+		"canonical_nodes_committed",
+	) {
+		t.Fatalf("batch claim query missing EC2 internet-exposure readiness requirement:\n%s", claimReducerWorkBatchQuery)
+	}
+	if !queryHasPayloadReadinessLookup(claimReducerWorkBatchQuery, "same", "same_readiness_req", "same_readiness_phase") {
+		t.Fatalf("batch claim query missing EC2 internet-exposure representative readiness lookup:\n%s", claimReducerWorkBatchQuery)
 	}
 }
 

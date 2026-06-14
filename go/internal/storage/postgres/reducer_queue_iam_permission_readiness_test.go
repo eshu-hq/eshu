@@ -78,15 +78,16 @@ func TestReducerQueueClaimQueriesIncludeIAMPermissionReadinessDomains(t *testing
 		t.Fatalf("queries = %d, want 1", len(db.queries))
 	}
 	query := db.queries[0].query
-	for _, want := range []string{
-		"iam_escalation_materialization",
-		"iam_can_perform_materialization",
-		"graph_projection_phase_state AS iam_permission_nodes",
-		"iam_permission_nodes.phase = 'canonical_nodes_committed'",
+	for _, domain := range []reducer.Domain{
+		reducer.DomainIAMEscalationMaterialization,
+		reducer.DomainIAMCanPerformMaterialization,
 	} {
-		if !strings.Contains(query, want) {
-			t.Fatalf("Claim() query missing %q:\n%s", want, query)
+		if !queryHasBoundedReadinessRequirement(query, string(domain), "cloud_resource_uid", "canonical_nodes_committed") {
+			t.Fatalf("Claim() query missing IAM permission readiness requirement for %q:\n%s", domain, query)
 		}
+	}
+	if !queryHasPayloadReadinessLookup(query, "fact_work_items", "readiness_req", "readiness_phase") {
+		t.Fatalf("Claim() query missing IAM permission payload readiness lookup:\n%s", query)
 	}
 }
 
@@ -109,17 +110,16 @@ func TestReducerQueueClaimBatchQueriesIncludeIAMPermissionReadinessDomains(t *te
 		t.Fatalf("queries = %d, want 1", len(db.queries))
 	}
 	query := db.queries[0].query
-	for _, want := range []string{
-		"iam_escalation_materialization",
-		"iam_can_perform_materialization",
-		"graph_projection_phase_state AS iam_permission_nodes",
-		"iam_permission_nodes.phase = 'canonical_nodes_committed'",
-		"graph_projection_phase_state AS same_iam_permission_nodes",
-		"same_iam_permission_nodes.phase = 'canonical_nodes_committed'",
+	for _, domain := range []reducer.Domain{
+		reducer.DomainIAMEscalationMaterialization,
+		reducer.DomainIAMCanPerformMaterialization,
 	} {
-		if !strings.Contains(query, want) {
-			t.Fatalf("ClaimBatch() query missing %q:\n%s", want, query)
+		if !queryHasBoundedReadinessRequirement(query, string(domain), "cloud_resource_uid", "canonical_nodes_committed") {
+			t.Fatalf("ClaimBatch() query missing IAM permission readiness requirement for %q:\n%s", domain, query)
 		}
+	}
+	if !queryHasPayloadReadinessLookup(query, "same", "same_readiness_req", "same_readiness_phase") {
+		t.Fatalf("ClaimBatch() query missing IAM permission representative readiness lookup:\n%s", query)
 	}
 }
 
@@ -137,9 +137,12 @@ func (db *iamPermissionReadinessQueueDB) QueryContext(_ context.Context, query s
 	if !strings.Contains(query, "FROM fact_work_items") || !strings.Contains(query, "FROM claimed") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
-	hasReadinessGate := strings.Contains(query, "'"+string(db.domain)+"'") &&
-		strings.Contains(query, "graph_projection_phase_state AS iam_permission_nodes") &&
-		strings.Contains(query, "iam_permission_nodes.phase = 'canonical_nodes_committed'")
+	hasReadinessGate := queryHasBoundedReadinessRequirement(
+		query,
+		string(db.domain),
+		"cloud_resource_uid",
+		"canonical_nodes_committed",
+	) && queryHasPayloadReadinessLookup(query, "fact_work_items", "readiness_req", "readiness_phase")
 	if hasReadinessGate && !db.phaseReady {
 		return &queueFakeRows{}, nil
 	}

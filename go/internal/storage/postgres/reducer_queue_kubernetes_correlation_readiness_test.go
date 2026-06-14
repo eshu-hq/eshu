@@ -45,8 +45,12 @@ func (db *kubernetesCorrelationReadinessQueueDB) QueryContext(_ context.Context,
 		return nil, fmt.Errorf("claim query missing kubernetes_workload_uid keyspace gate:\n%s", query)
 	}
 
-	hasReadinessGate := strings.Contains(query, "kubernetes_workload_uid") &&
-		strings.Contains(query, "'canonical_nodes_committed'")
+	hasReadinessGate := queryHasBoundedReadinessRequirement(
+		query,
+		string(reducer.DomainKubernetesCorrelationMaterialization),
+		"kubernetes_workload_uid",
+		"canonical_nodes_committed",
+	) && queryHasPayloadReadinessLookup(query, "fact_work_items", "readiness_req", "readiness_phase")
 	if hasReadinessGate && !db.phaseReady {
 		return &queueFakeRows{}, nil
 	}

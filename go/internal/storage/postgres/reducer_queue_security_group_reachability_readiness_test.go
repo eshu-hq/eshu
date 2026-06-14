@@ -43,15 +43,32 @@ func (db *securityGroupReachabilityReadinessQueueDB) QueryContext(_ context.Cont
 		"security_group_endpoint_uid",
 		"cloud_resource_uid",
 	} {
-		if !strings.Contains(query, "'"+keyspace+"'") {
+		if !queryHasBoundedReadinessRequirement(
+			query,
+			string(reducer.DomainSecurityGroupReachabilityMaterialization),
+			keyspace,
+			"canonical_nodes_committed",
+		) {
 			return nil, fmt.Errorf("claim query missing %s keyspace gate:\n%s", keyspace, query)
 		}
 	}
 
-	hasTripleGate := strings.Contains(query, "'security_group_rule_uid'") &&
-		strings.Contains(query, "'security_group_endpoint_uid'") &&
-		strings.Contains(query, "'cloud_resource_uid'") &&
-		strings.Contains(query, "'canonical_nodes_committed'")
+	hasTripleGate := queryHasBoundedReadinessRequirement(
+		query,
+		string(reducer.DomainSecurityGroupReachabilityMaterialization),
+		"security_group_rule_uid",
+		"canonical_nodes_committed",
+	) && queryHasBoundedReadinessRequirement(
+		query,
+		string(reducer.DomainSecurityGroupReachabilityMaterialization),
+		"security_group_endpoint_uid",
+		"canonical_nodes_committed",
+	) && queryHasBoundedReadinessRequirement(
+		query,
+		string(reducer.DomainSecurityGroupReachabilityMaterialization),
+		"cloud_resource_uid",
+		"canonical_nodes_committed",
+	)
 	if hasTripleGate && !db.phaseReady {
 		return &queueFakeRows{}, nil
 	}

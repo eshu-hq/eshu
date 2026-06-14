@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 func TestReducerQueueBlockagesReportAWSRelationshipReadinessWait(t *testing.T) {
@@ -34,17 +36,24 @@ func TestReducerQueueBlockagesReportAWSRelationshipReadinessWait(t *testing.T) {
 		"stale_generation.generation_id < active_generation.generation_id",
 		"FROM active_fact_work_items",
 		"readiness_blocked AS (",
-		"eligible.domain IN ('aws_relationship_materialization', 'azure_relationship_materialization', 'workload_cloud_relationship_materialization', 'observability_coverage_materialization', 'iam_can_assume_materialization', 'iam_escalation_materialization', 'iam_can_perform_materialization', 's3_logs_to_materialization', 's3_external_principal_grant_materialization', 'rds_posture_materialization', 'iam_instance_profile_role_materialization', 'ec2_internet_exposure_materialization', 's3_internet_exposure_materialization')",
-		"FROM graph_projection_phase_state AS aws_nodes",
-		"aws_nodes.acceptance_unit_id = COALESCE(NULLIF(eligible.payload->>'entity_key', ''), eligible.scope_id)",
-		"aws_nodes.keyspace = 'cloud_resource_uid'",
-		"aws_nodes.phase = 'canonical_nodes_committed'",
+		"JOIN reducer_claim_readiness_requirements AS readiness_req",
+		"readiness_phase.acceptance_unit_id = CASE readiness_req.acceptance_unit_source",
+		"readiness_phase.keyspace = readiness_req.keyspace",
+		"readiness_phase.phase = readiness_req.phase",
 		"'readiness' AS conflict_domain",
-		"'cloud_resource_uid:canonical_nodes_committed:'",
+		"readiness_req.keyspace || ':' || readiness_req.phase || ':'",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("blockage query missing AWS relationship readiness diagnostic %q:\n%s", want, query)
 		}
+	}
+	if !queryHasBoundedReadinessRequirement(
+		query,
+		string(reducer.DomainAWSRelationshipMaterialization),
+		"cloud_resource_uid",
+		"canonical_nodes_committed",
+	) {
+		t.Fatalf("blockage query missing AWS relationship readiness requirement:\n%s", query)
 	}
 }
 
@@ -64,16 +73,16 @@ func TestReducerQueueBlockagesReportIAMPermissionReadinessWait(t *testing.T) {
 	}
 
 	query := queryer.queries[0]
-	for _, want := range []string{
-		"iam_escalation_materialization",
-		"iam_can_perform_materialization",
-		"'cloud_resource_uid:canonical_nodes_committed:'",
-		"aws_nodes.keyspace = 'cloud_resource_uid'",
-		"aws_nodes.phase = 'canonical_nodes_committed'",
+	for _, domain := range []reducer.Domain{
+		reducer.DomainIAMEscalationMaterialization,
+		reducer.DomainIAMCanPerformMaterialization,
 	} {
-		if !strings.Contains(query, want) {
-			t.Fatalf("blockage query missing IAM permission readiness diagnostic %q:\n%s", want, query)
+		if !queryHasBoundedReadinessRequirement(query, string(domain), "cloud_resource_uid", "canonical_nodes_committed") {
+			t.Fatalf("blockage query missing IAM permission readiness requirement for %q:\n%s", domain, query)
 		}
+	}
+	if !strings.Contains(query, "readiness_req.keyspace || ':' || readiness_req.phase || ':'") {
+		t.Fatalf("blockage query missing bounded readiness conflict key expression:\n%s", query)
 	}
 }
 

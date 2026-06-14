@@ -29,14 +29,20 @@ func (db *ec2BlockDeviceKMSPostureReadinessQueueDB) QueryContext(_ context.Conte
 		return nil, fmt.Errorf("claim query missing ec2 block-device KMS posture readiness gate:\n%s", query)
 	}
 
-	gatesInstanceNode := strings.Contains(query, "graph_projection_phase_state AS ec2_block_device_kms_instance_node") &&
-		strings.Contains(query, "'ec2_instance_node_materialization:'") &&
-		strings.Contains(query, "ec2_block_device_kms_instance_node.keyspace = 'cloud_resource_uid'") &&
-		strings.Contains(query, "ec2_block_device_kms_instance_node.phase = 'canonical_nodes_committed'")
-	gatesResourceNode := strings.Contains(query, "graph_projection_phase_state AS ec2_block_device_kms_resource_node") &&
-		strings.Contains(query, "'aws_resource_materialization:'") &&
-		strings.Contains(query, "ec2_block_device_kms_resource_node.keyspace = 'cloud_resource_uid'") &&
-		strings.Contains(query, "ec2_block_device_kms_resource_node.phase = 'canonical_nodes_committed'")
+	gatesInstanceNode := queryHasScopePrefixReadinessRequirement(
+		query,
+		string(reducer.DomainEC2BlockDeviceKMSPostureMaterialization),
+		"cloud_resource_uid",
+		"canonical_nodes_committed",
+		"ec2_instance_node_materialization:",
+	)
+	gatesResourceNode := queryHasScopePrefixReadinessRequirement(
+		query,
+		string(reducer.DomainEC2BlockDeviceKMSPostureMaterialization),
+		"cloud_resource_uid",
+		"canonical_nodes_committed",
+		"aws_resource_materialization:",
+	)
 	if !gatesInstanceNode {
 		return nil, fmt.Errorf("claim query missing the EC2 instance node phase requirement:\n%s", query)
 	}

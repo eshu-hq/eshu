@@ -43,10 +43,12 @@ func (db *ec2InstanceNodeReadinessQueueDB) QueryContext(_ context.Context, query
 	// the work item's own entity_key, so the EC2 node domain's distinct entity key
 	// (ec2_instance_node_materialization:<scope>) is the acceptance unit the future
 	// USES_PROFILE edge will gate on.
-	hasCloudResourceGate := strings.Contains(query, "graph_projection_phase_state AS aws_nodes") &&
-		strings.Contains(query, "aws_nodes.keyspace = 'cloud_resource_uid'") &&
-		strings.Contains(query, "aws_nodes.phase = 'canonical_nodes_committed'") &&
-		strings.Contains(query, "aws_nodes.acceptance_unit_id = COALESCE(NULLIF(fact_work_items.payload->>'entity_key', ''), fact_work_items.scope_id)")
+	hasCloudResourceGate := queryHasBoundedReadinessRequirement(
+		query,
+		string(reducer.DomainAWSRelationshipMaterialization),
+		"cloud_resource_uid",
+		"canonical_nodes_committed",
+	) && queryHasPayloadReadinessLookup(query, "fact_work_items", "readiness_req", "readiness_phase")
 	if !hasCloudResourceGate {
 		return nil, fmt.Errorf("claim query missing entity-key-joined cloud_resource_uid readiness gate:\n%s", query)
 	}

@@ -8,8 +8,9 @@ import (
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
-const reducerConflictBlockageQuery = `
+var reducerConflictBlockageQuery = `
 WITH ` + activeFactWorkItemsCTE + `,
+` + reducerClaimReadinessRequirementsCTE() + `,
 eligible AS (
     SELECT work_item_id,
            scope_id,
@@ -41,143 +42,33 @@ blocked AS (
      AND inflight.claim_until > $1
 ),
 readiness_blocked AS (
+    -- Surface each missing readiness requirement as its own bounded blockage row.
+    -- Multi-key domains such as security-group reachability and EC2 profile
+    -- edges appear once per missing keyspace/entity-key requirement.
     SELECT eligible.work_item_id,
            eligible.domain,
            'readiness' AS conflict_domain,
-           'cloud_resource_uid:canonical_nodes_committed:' ||
-               COALESCE(NULLIF(eligible.payload->>'entity_key', ''), eligible.scope_id) AS conflict_key,
+           readiness_req.keyspace || ':' || readiness_req.phase || ':' ||
+               ` + reducerClaimReadinessAcceptanceUnitSQL("eligible", "readiness_req") + ` AS conflict_key,
            eligible.available_at
     FROM eligible
-    WHERE eligible.domain IN ('aws_relationship_materialization', 'azure_relationship_materialization', 'workload_cloud_relationship_materialization', 'observability_coverage_materialization', 'iam_can_assume_materialization', 'iam_escalation_materialization', 'iam_can_perform_materialization', 's3_logs_to_materialization', 's3_external_principal_grant_materialization', 'rds_posture_materialization', 'iam_instance_profile_role_materialization', 'ec2_internet_exposure_materialization', 's3_internet_exposure_materialization')
+    JOIN reducer_claim_readiness_requirements AS readiness_req
+      ON readiness_req.domain = eligible.domain
       AND NOT EXISTS (
           SELECT 1
-          FROM graph_projection_phase_state AS aws_nodes
-          WHERE aws_nodes.scope_id = eligible.scope_id
-            AND aws_nodes.acceptance_unit_id = COALESCE(NULLIF(eligible.payload->>'entity_key', ''), eligible.scope_id)
-            AND aws_nodes.source_run_id = eligible.generation_id
-            AND aws_nodes.generation_id = eligible.generation_id
-            AND aws_nodes.keyspace = 'cloud_resource_uid'
-            AND aws_nodes.phase = 'canonical_nodes_committed'
-      )
-),
-kubernetes_readiness_blocked AS (
-    SELECT eligible.work_item_id,
-           eligible.domain,
-           'readiness' AS conflict_domain,
-           'kubernetes_workload_uid:canonical_nodes_committed:' ||
-               COALESCE(NULLIF(eligible.payload->>'entity_key', ''), eligible.scope_id) AS conflict_key,
-           eligible.available_at
-    FROM eligible
-    WHERE eligible.domain = 'kubernetes_correlation_materialization'
-      AND NOT EXISTS (
-          SELECT 1
-          FROM graph_projection_phase_state AS kube_nodes
-          WHERE kube_nodes.scope_id = eligible.scope_id
-            AND kube_nodes.acceptance_unit_id = COALESCE(NULLIF(eligible.payload->>'entity_key', ''), eligible.scope_id)
-            AND kube_nodes.source_run_id = eligible.generation_id
-            AND kube_nodes.generation_id = eligible.generation_id
-            AND kube_nodes.keyspace = 'kubernetes_workload_uid'
-            AND kube_nodes.phase = 'canonical_nodes_committed'
-      )
-),
-security_group_reachability_readiness_blocked AS (
-    -- The reachability edge (#1135 PR2b) gates on three keyspaces; surface each
-    -- missing phase as its own blockage row so an operator can see which node
-    -- family (rule / endpoint / cloud_resource) is the one that has not committed.
-    SELECT eligible.work_item_id,
-           eligible.domain,
-           'readiness' AS conflict_domain,
-           missing.keyspace || ':canonical_nodes_committed:' ||
-               COALESCE(NULLIF(eligible.payload->>'entity_key', ''), eligible.scope_id) AS conflict_key,
-           eligible.available_at
-    FROM eligible
-    CROSS JOIN (VALUES
-        ('security_group_rule_uid'),
-        ('security_group_endpoint_uid'),
-        ('cloud_resource_uid')
-    ) AS missing(keyspace)
-    WHERE eligible.domain = 'security_group_reachability_materialization'
-      AND NOT EXISTS (
-          SELECT 1
-          FROM graph_projection_phase_state AS sg_nodes
-          WHERE sg_nodes.scope_id = eligible.scope_id
-            AND sg_nodes.acceptance_unit_id = COALESCE(NULLIF(eligible.payload->>'entity_key', ''), eligible.scope_id)
-            AND sg_nodes.source_run_id = eligible.generation_id
-            AND sg_nodes.generation_id = eligible.generation_id
-            AND sg_nodes.keyspace = missing.keyspace
-            AND sg_nodes.phase = 'canonical_nodes_committed'
-      )
-),
-ec2_uses_profile_readiness_blocked AS (
-    -- The USES_PROFILE edge (#1146 PR-B) gates on two node phases published under
-    -- DIFFERENT entity keys (the EC2 instance node and the IAM instance-profile
-    -- node), both on the cloud_resource_uid keyspace. Surface each missing phase as
-    -- its own blockage row so an operator can see which endpoint node family has
-    -- not committed, keyed by the distinguishing entity-key prefix.
-    SELECT eligible.work_item_id,
-           eligible.domain,
-           'readiness' AS conflict_domain,
-           'cloud_resource_uid:canonical_nodes_committed:' ||
-               missing.entity_key_prefix || eligible.scope_id AS conflict_key,
-           eligible.available_at
-    FROM eligible
-    CROSS JOIN (VALUES
-        ('ec2_instance_node_materialization:'),
-        ('aws_resource_materialization:')
-    ) AS missing(entity_key_prefix)
-    WHERE eligible.domain = 'ec2_uses_profile_materialization'
-      AND NOT EXISTS (
-          SELECT 1
-          FROM graph_projection_phase_state AS ec2up_nodes
-          WHERE ec2up_nodes.scope_id = eligible.scope_id
-            AND ec2up_nodes.acceptance_unit_id = missing.entity_key_prefix || eligible.scope_id
-            AND ec2up_nodes.source_run_id = eligible.generation_id
-            AND ec2up_nodes.generation_id = eligible.generation_id
-            AND ec2up_nodes.keyspace = 'cloud_resource_uid'
-            AND ec2up_nodes.phase = 'canonical_nodes_committed'
-      )
-),
-ec2_block_device_kms_posture_readiness_blocked AS (
-    -- The EC2 block-device KMS posture property projection (#1304) gates on two
-    -- node phases published under DIFFERENT entity keys: the EC2 instance node
-    -- substrate and the EBS/KMS aws_resource node substrate. Surface each missing
-    -- phase independently so operators can see which node family is blocking the
-    -- posture decision.
-    SELECT eligible.work_item_id,
-           eligible.domain,
-           'readiness' AS conflict_domain,
-           'cloud_resource_uid:canonical_nodes_committed:' ||
-               missing.entity_key_prefix || eligible.scope_id AS conflict_key,
-           eligible.available_at
-    FROM eligible
-    CROSS JOIN (VALUES
-        ('ec2_instance_node_materialization:'),
-        ('aws_resource_materialization:')
-    ) AS missing(entity_key_prefix)
-    WHERE eligible.domain = 'ec2_block_device_kms_posture_materialization'
-      AND NOT EXISTS (
-          SELECT 1
-          FROM graph_projection_phase_state AS ec2bd_nodes
-          WHERE ec2bd_nodes.scope_id = eligible.scope_id
-            AND ec2bd_nodes.acceptance_unit_id = missing.entity_key_prefix || eligible.scope_id
-            AND ec2bd_nodes.source_run_id = eligible.generation_id
-            AND ec2bd_nodes.generation_id = eligible.generation_id
-            AND ec2bd_nodes.keyspace = 'cloud_resource_uid'
-            AND ec2bd_nodes.phase = 'canonical_nodes_committed'
+          FROM graph_projection_phase_state AS readiness_phase
+          WHERE readiness_phase.scope_id = eligible.scope_id
+            AND readiness_phase.acceptance_unit_id = ` + reducerClaimReadinessAcceptanceUnitSQL("eligible", "readiness_req") + `
+            AND readiness_phase.source_run_id = eligible.generation_id
+            AND readiness_phase.generation_id = eligible.generation_id
+            AND readiness_phase.keyspace = readiness_req.keyspace
+            AND readiness_phase.phase = readiness_req.phase
       )
 ),
 all_blocked AS (
     SELECT work_item_id, domain, conflict_domain, conflict_key, available_at FROM blocked
     UNION ALL
     SELECT work_item_id, domain, conflict_domain, conflict_key, available_at FROM readiness_blocked
-    UNION ALL
-    SELECT work_item_id, domain, conflict_domain, conflict_key, available_at FROM kubernetes_readiness_blocked
-    UNION ALL
-    SELECT work_item_id, domain, conflict_domain, conflict_key, available_at FROM security_group_reachability_readiness_blocked
-    UNION ALL
-    SELECT work_item_id, domain, conflict_domain, conflict_key, available_at FROM ec2_uses_profile_readiness_blocked
-    UNION ALL
-    SELECT work_item_id, domain, conflict_domain, conflict_key, available_at FROM ec2_block_device_kms_posture_readiness_blocked
 ),
 blockage_rows AS (
     SELECT domain,
