@@ -45,6 +45,14 @@ reducer/query adapter.
   `source_kind` predicates, and direct list reads cap at 500 rows. The decoded
   row carries the curated `searchdocs.Document`; documents stay derived
   retrieval evidence and never canonical graph truth.
+- `EshuSearchVectorMetadataStore` / `NewEshuSearchVectorMetadataStore` —
+  additive vector lifecycle metadata for active curated search documents, keyed
+  by scope, generation, document, embedding model, and vector index version.
+- `EshuSearchVectorValueStore` / `NewEshuSearchVectorValueStore` — bounded
+  derived vector payload persistence for active curated search documents.
+  Reads require scope, embedding model, and vector index version, join through
+  `ingestion_scopes.active_generation_id`, cap pages at 500 rows, and return
+  deterministic document ordering.
 
 **Queue stores**
 
@@ -243,7 +251,8 @@ reducer/query adapter.
   `GraphProjectionPhaseStateSchemaSQL`, `GraphProjectionPhaseRepairQueueSchemaSQL`,
   `WorkflowControlSchemaSQL`, `WorkflowCoordinatorStateSchemaSQL`,
   `IaCReachabilitySchemaSQL`, `VulnerabilitySourceStateSchemaSQL`,
-  `TenantWorkspaceGrantSchemaSQL`, `ScopedAPITokenSchemaSQL`
+  `TenantWorkspaceGrantSchemaSQL`, `ScopedAPITokenSchemaSQL`,
+  `EshuSearchVectorMetadataSchemaSQL`, `EshuSearchVectorValuesSchemaSQL`
 
 **IaC reachability**
 

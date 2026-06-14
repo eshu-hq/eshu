@@ -3,6 +3,18 @@
 Keep this file for scoped evidence that is too detailed for the package
 orientation README.
 
+## Search Vector Payload Storage (#2594)
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run 'TestEshuSearchVectorValue|TestBootstrapDefinitionsIncludeEshuSearchVectorValues|TestBootstrapDefinitionsAreOrderedAndComplete|TestBootstrapDefinitionsIncludeEshuSearchVectorMetadata' -count=1` failed before `EshuSearchVectorValueStore` and `eshu_search_vector_values` bootstrap DDL existed, then passed after adding idempotent vector payload upserts, active-generation readback, finite-value and dimension validation, deterministic document ordering, and bounded list limits. The table is additive and does not change API, MCP, reducer graph writes, BM25 search reads, hosted providers, credentials, egress, or canonical graph truth.
+
+No-Observability-Change: #2594 adds no route, worker, queue domain, graph write,
+metric name, metric label, runtime default, or API/MCP response field. Store
+calls remain covered by the existing Postgres instrumentation wrapper
+(`postgres.exec`, `postgres.query`, and
+`eshu_dp_postgres_query_duration_seconds{store=...,operation=...}`) when callers
+wrap the `ExecQueryer`; ANN serving and semantic/hybrid API use are left to
+follow-up issues.
+
 ## Reducer Claim Readiness-Gate Benchmark (#2529)
 
 Benchmark Evidence: `BenchmarkReducerQueueClaimReadinessGateGrowth` seeds the
