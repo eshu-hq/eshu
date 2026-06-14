@@ -64,7 +64,11 @@ Repository context and relationship-evidence tools preserve HTTP correlation
 confidence metadata in `structuredContent`. Relationship rows may include
 `confidence_basis` (`evidence_constant`, `evidence_aggregate`, or
 `assertion_override`) with `resolution_source`, `evidence_type`, and
-`evidence_kinds`; code relationship tools still use `resolution_method`.
+`evidence_kinds`; code relationship tools still use `resolution_method`. The
+relationship-story tools preserve the HTTP row-level `provenance` block in
+`structuredContent`, including confidence state, method/source family, reason,
+truth state, and derived/heuristic/unsupported flags for every returned
+relationship row.
 Relationship tools reserve snake_case `min_confidence` for the HTTP/MCP
 confidence-floor contract. Tool schemas must advertise support before callers
 depend on it. Omitted means no floor; values are numbers from `0` through `1`

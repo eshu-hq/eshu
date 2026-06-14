@@ -130,21 +130,31 @@ or language from the symbol name alone. The source/target prefix always follows
 the returned edge direction, so an `incoming` row has the caller under `source_*`
 and the requested symbol under `target_*`.
 
-Each `CALLS`/`REFERENCES` relationship in the response carries per-edge
-provenance: `confidence` (a number) and `resolution_method` (how the callee was
-resolved). `resolution_method` is a closed value — `scip`, `declared`,
-`same_file`, `import_binding`, `type_inferred`, `scope_unique_name`, or
-`repo_unique_name` — and the confidence is derived from it (see the
-[graph model](../../concepts/graph-model.md)).
-The fields are additive: an edge projected before this contract omits both, and
-readers must treat a missing `resolution_method` as unspecified. Per-edge
-provenance is independent of the answer-level truth envelope; a low-confidence
-edge does not lower the answer's truth level.
+Each returned relationship carries a `provenance` block so API and MCP clients
+can compare code and correlation edges without reading several optional scalar
+fields. The block includes `confidence` when numeric confidence exists,
+`confidence_state`, `method`, `source_family`, `reason`, `truth_state`, and the
+boolean `derived`, `heuristic`, and `unsupported` flags. Older scalar fields
+such as `confidence`, `resolution_method`, `confidence_basis`, and
+`resolution_source` remain in place for compatibility.
+
+For `CALLS`/`REFERENCES` code edges, `method` is the code `resolution_method`
+when available. `resolution_method` values include `scip`, `declared`,
+`same_file`, `import_binding`, `type_inferred`, `scope_unique_name`, and
+`repo_unique_name`, with confidence derived from that method (see the
+[graph model](../../concepts/graph-model.md)). An edge projected before this
+contract can still miss scalar provenance; its `provenance` block reports
+`confidence_state=unsupported`, `source_family=unsupported`, and
+`truth_state=unsupported` rather than inventing confidence. Per-edge provenance
+is independent of the answer-level truth envelope; a low-confidence edge does
+not lower the answer's truth level.
 
 Repository and cross-system correlation edges use `confidence_basis` instead of
 code `resolution_method`. Treat `evidence_constant`, `evidence_aggregate`, and
 `assertion_override` as the correlation-side explanation for the same numeric
-confidence field; do not map them onto code resolution tiers.
+confidence field; the `provenance` block reports these as `method` with
+`source_family=correlation_edge` and `truth_state=heuristic`. Do not map them
+onto code resolution tiers.
 
 ### Confidence Floor Contract
 
@@ -171,11 +181,12 @@ MCP tools mirror the HTTP spelling as `min_confidence`; camelCase aliases such
 as `minConfidence` are not part of the Eshu wire contract.
 
 No-Regression Evidence: `go test ./internal/query -run
-'TestHandleRelationshipStory(SurfacesEdgeProvenance|AppliesMinConfidenceFloor|MinConfidenceValidation)|TestOpenAPIRelationshipStoryDocumentsMinConfidence'
--count=1` covers relationship-story filtering, default visibility, validation,
-and OpenAPI schema support. The filter runs after the bounded relationship-story
-read and before centrality ranking, truncation, and token-budget cuts; it adds
-no Cypher predicate, traversal, ordering, or graph write.
+'TestHandleRelationshipStory(SurfacesRelationshipProvenanceBlock|ProvenanceSurvivesMinConfidenceAndEmptyResults|SurfacesEdgeProvenance|AppliesMinConfidenceFloor|MinConfidenceValidation)|TestOpenAPIRelationship(StoryDocumentsMinConfidence|SchemaDocumentsProvenanceBlock)'
+-count=1` covers relationship-story filtering, default visibility, provenance
+shape, validation, empty results, and OpenAPI schema support. The filter runs
+after the bounded relationship-story read and before centrality ranking,
+truncation, and token-budget cuts; it adds no Cypher predicate, traversal,
+ordering, or graph write.
 
 No-Observability-Change: relationship-story confidence filtering adds no graph
 query, graph write, queue, worker, route, metric, span, log field, or runtime

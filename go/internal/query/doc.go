@@ -23,6 +23,9 @@
 // resolution_method confidence tiers.
 // Relationship-story reads accept a bounded min_confidence response floor that
 // filters returned rows without changing canonical graph truth.
+// Relationship-story rows also include a uniform provenance object so API and
+// MCP clients can compare code-edge and correlation-edge confidence at the row
+// without changing admission policy or the answer-level TruthEnvelope.
 //
 // Supply-chain reads expose source-only advisory evidence separately from
 // reducer-owned impact findings. Advisory evidence groups active

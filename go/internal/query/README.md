@@ -84,10 +84,15 @@ resolver corroboration, or `assertion_override` for explicit relationship
 assertions. Code `CALLS`/`REFERENCES` rows keep using `resolution_method`;
 correlation readers compare the numeric `confidence` field only after checking
 the basis/method field.
+Relationship-story rows expose the same distinction through a uniform
+`provenance` block with confidence state, method/source family, reason, truth
+state, and derived/heuristic/unsupported flags. The block is built from already
+returned row metadata and does not change canonical admission, graph writes, or
+the answer-level truth envelope.
 
 No-Regression Evidence: focused relationship context, evidence drilldown, and
 OpenAPI tests cover both Postgres read-model and graph-backed rows:
-`go test ./internal/query -run 'RepositoryRelationship|RelationshipEvidence|ConfidenceBasis|OpenAPIRelationship' -count=1`.
+`go test ./internal/query -run 'RepositoryRelationship|RelationshipEvidence|ConfidenceBasis|OpenAPIRelationship|RelationshipStory.*Provenance' -count=1`.
 
 No-Observability-Change: confidence basis is derived from row attributes already
 loaded by the repository context and relationship evidence queries. It adds no
