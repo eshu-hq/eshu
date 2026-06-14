@@ -229,3 +229,38 @@ candidate, partial failure, redaction, fetch duration, rate-limit, and
 generation-lag metrics without putting incident IDs, service names, integration
 names, routing keys, token env names, token values, or private URLs into metric
 labels.
+
+No-Regression Evidence: the PagerDuty component-extension chart and Compose
+proof wiring are default-off. Baseline default renders keep the component
+extension collector disabled; enabled renders add one isolated
+`component-extension-collector` worker plus metrics Service, ServiceMonitor,
+NetworkPolicy, and PodDisruptionBudget. The worker reads the same trusted
+component registry as the workflow coordinator and still commits through the
+existing `collector.ClaimedService` boundary. The verification input shape is
+one synthetic PagerDuty fixture observation emitted as six namespaced source
+fact families; the live proof verifier requires at least one terminal
+`completed`/`succeeded` PagerDuty component workflow row and non-zero committed
+counts for all six `dev.eshu.examples.pagerduty.*` fact families scoped to
+that row's generation before it can pass. It also computes and compares
+expected and persisted fact signatures over fact kind, schema version, stable
+key, source confidence, source ref, and payload, so payload/schema/stable-key
+drift fails the proof instead of relying on recorded counts alone. Focused
+proof: `go test ./internal/runtime -run
+TestHelmComponentExtensionCollector -count=1`,
+`go test ./internal/collector/pagerduty -run ReferenceComponent -count=1`,
+`go test ./...` from `examples/collector-extensions/pagerduty`,
+`docker compose -p pd-ce-proof -f docker-compose.yaml -f
+docs/public/run-locally/docker-compose.component-extension-pagerduty.yaml
+--profile component-extension-collector config`,
+`scripts/test-verify-remote-e2e-pagerduty-component-extension.sh`, and
+`scripts/verify-remote-e2e-pagerduty-component-extension.sh --list`.
+
+No-Observability-Change: the PagerDuty component-extension proof adds no new
+metric names, labels, spans, reducer lanes, graph writes, or API/MCP read
+contracts. Operators diagnose the path through existing workflow coordinator
+status and claim metrics, component-extension collector `/admin/status`,
+`/healthz`, `/readyz`, `/metrics`, failure classes, and workflow work-item
+states. The proof artifacts record only commit, component digest, backend,
+terminal queue state, metrics port, and fact-family counts; the redaction
+canary fails closed on host paths, private-key markers, bearer tokens, or raw
+network addresses.

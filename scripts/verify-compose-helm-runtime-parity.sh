@@ -46,6 +46,20 @@ require_pattern() {
     fi
 }
 
+require_service_monitor_component() {
+    local component="$1"
+    local found=false
+    while IFS= read -r template; do
+        if rg --quiet -- "app.kubernetes.io/component: ${component}" "${template}"; then
+            found=true
+            break
+        fi
+    done < <(rg -l -- 'kind: ServiceMonitor' deploy/helm/eshu/templates)
+    if [[ "${found}" != true ]]; then
+        fail "missing collector ServiceMonitor template coverage: app.kubernetes.io/component: ${component}"
+    fi
+}
+
 default_services="${tmp_dir}/default-services.txt"
 remote_services="${tmp_dir}/remote-services.txt"
 remote_profile_services="${tmp_dir}/remote-profile-services.txt"
@@ -119,8 +133,8 @@ done
 for component in confluence-collector oci-registry-collector terraform-state-collector aws-cloud-collector \
     package-registry-collector sbom-attestation-collector security-alert-collector cicd-run-collector \
     pagerduty-collector jira-collector grafana-collector prometheus-mimir-collector loki-collector \
-    tempo-collector scanner-worker vulnerability-intelligence-collector; do
-    require_pattern "deploy/helm/eshu/templates/servicemonitor.yaml" "app.kubernetes.io/component: ${component}" "missing collector ServiceMonitor template coverage"
+    tempo-collector scanner-worker vulnerability-intelligence-collector component-extension-collector; do
+    require_service_monitor_component "${component}"
     require_pattern "deploy/helm/eshu/templates" "app.kubernetes.io/component: ${component}" "missing collector component template"
 done
 

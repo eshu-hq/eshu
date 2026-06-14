@@ -44,9 +44,13 @@ func (s Service) schedulePagerDutyWork(
 }
 
 func shouldSchedulePagerDuty(instance workflow.CollectorInstance) bool {
-	return instance.CollectorKind == scope.CollectorPagerDuty &&
-		instance.Enabled &&
-		instance.ClaimsEnabled
+	if instance.CollectorKind != scope.CollectorPagerDuty || !instance.Enabled || !instance.ClaimsEnabled {
+		return false
+	}
+	if _, ok, err := parseComponentInstanceConfig(instance.Configuration); ok || err != nil {
+		return false
+	}
+	return true
 }
 
 func (s Service) pagerDutyPlanKey(instance workflow.CollectorInstance, observedAt time.Time) string {

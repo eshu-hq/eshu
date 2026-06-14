@@ -172,6 +172,20 @@ registry path as the coordinator:
 docker compose --profile component-extension-collector up --build component-extension-collector
 ```
 
+For the PagerDuty reference component parity proof, use the dedicated overlay.
+It builds the fixture component image, installs and enables
+`dev.eshu.examples.pagerduty` into the shared component home, starts the
+coordinator in active claims mode, and runs the component-extension collector:
+
+```bash
+docker build -t eshu:local -f Dockerfile .
+docker compose -p pd-ce-proof \
+  -f docker-compose.yaml \
+  -f docs/public/run-locally/docker-compose.component-extension-pagerduty.yaml \
+  --profile component-extension-collector up -d --build
+scripts/run-remote-e2e-pagerduty-component-extension.sh --artifacts <run-dir>
+```
+
 Set `ESHU_COMPONENT_COLLECTOR_INSTANCE_ID` when more than one trusted
 claim-capable activation exists. If the activation config has a `host` block,
 the coordinator plans work for that public `sourceSystem` and `scope.id`, and

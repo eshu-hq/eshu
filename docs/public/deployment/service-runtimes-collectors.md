@@ -77,7 +77,7 @@ freshness, and effective target, rule, log-signal, or trace-signal metadata.
 | Tempo Collector | `tempo` | workflow claims for configured Tempo query-frontend metadata targets | `/usr/local/bin/eshu-collector-tempo` | `deploy/helm/eshu/templates/deployment-tempo-collector.yaml` |
 | Scanner Worker | `scanner_worker` | workflow claims for CPU-heavy or memory-heavy security analyzer targets | `/usr/local/bin/eshu-scanner-worker` | `deploy/helm/eshu/templates/deployment-scanner-worker.yaml` |
 | Vulnerability Intelligence Collector | `vulnerability_intelligence` | workflow claims for bounded vulnerability source targets (CISA KEV, FIRST EPSS, NVD windows, OSV queries, GitLab Gemnasium, GHSA) or derived owned-package targets | `/usr/local/bin/eshu-collector-vulnerability-intelligence` | `deploy/helm/eshu/templates/deployment-vulnerability-intelligence-collector.yaml` |
-| Component Extension Collector | manifest-declared collector kind | workflow claims for verified, claim-capable process-adapter component activations | `/usr/local/bin/eshu-collector-component-extension` | not charted |
+| Component Extension Collector | manifest-declared collector kind | workflow claims for verified, claim-capable process-adapter component activations | `/usr/local/bin/eshu-collector-component-extension` | `deploy/helm/eshu/templates/deployment-component-extension-collector.yaml` |
 
 All hosted collector runtimes expose `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` through the shared runtime admin surface.
@@ -223,6 +223,7 @@ The collector metrics services live under:
 - `deploy/helm/eshu/templates/service-jira-collector-metrics.yaml`
 - `deploy/helm/eshu/templates/service-scanner-worker-metrics.yaml`
 - `deploy/helm/eshu/templates/service-vulnerability-intelligence-collector-metrics.yaml`
+- `deploy/helm/eshu/templates/service-component-extension-collector-metrics.yaml`
 
 No-Regression Evidence: `go test ./internal/runtime -run 'TestHelmJiraCollectorDeployment|TestJiraCollectorBinaryIsBuiltInstalledAndDocumented' -count=1`
 proves the Jira collector stays opt-in by default, renders a claim-driven

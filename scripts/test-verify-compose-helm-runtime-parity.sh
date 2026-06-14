@@ -192,6 +192,17 @@ rg --quiet 'runtime parity verification passed' "${repo}/pass.out" \
 rg --quiet 'core ServiceMonitor coverage: pass' "${repo}/pass.out" \
     || { printf 'expected core ServiceMonitor coverage evidence\n' >&2; exit 1; }
 
+component_service_monitor="${repo}/deploy/helm/eshu/templates/servicemonitor-component-extension-collector.yaml"
+component_service_monitor_backup="${repo}/servicemonitor-component-extension-collector.yaml.bak"
+mv "${component_service_monitor}" "${component_service_monitor_backup}"
+if PATH="${repo}/_bin:${PATH}" "${gate}" --repo-root "${repo}" >"${repo}/missing-sm.out" 2>"${repo}/missing-sm.err"; then
+    printf 'expected verifier to fail when component extension ServiceMonitor coverage is missing\n' >&2
+    exit 1
+fi
+rg --quiet 'missing collector ServiceMonitor template coverage: app.kubernetes.io/component: component-extension-collector' "${repo}/missing-sm.err" \
+    || { printf 'missing component extension ServiceMonitor coverage was not reported\n' >&2; exit 1; }
+mv "${component_service_monitor_backup}" "${component_service_monitor}"
+
 if ESHU_FAKE_PARITY_MISSING_REMOTE=1 PATH="${repo}/_bin:${PATH}" "${gate}" --repo-root "${repo}" >"${repo}/fail.out" 2>"${repo}/fail.err"; then
     printf 'expected verifier to fail when a required remote collector is missing\n' >&2
     exit 1

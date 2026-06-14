@@ -235,6 +235,8 @@ workflowCoordinator:
   replicas: 1
   revisionHistoryLimit: 3
   env: {}
+  extraVolumes: []
+  extraVolumeMounts: []
   connectionTuning:
     postgres:
       maxOpenConns: ""
@@ -545,6 +547,42 @@ pagerDutyCollector:
   heartbeatInterval: ""
   collectorInstances: []
   extraEnv: []
+  connectionTuning:
+    postgres:
+      maxOpenConns: ""
+      maxIdleConns: ""
+      connMaxLifetime: ""
+      connMaxIdleTime: ""
+      pingTimeout: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+componentExtensionCollector:
+  enabled: false
+  replicas: 1
+  revisionHistoryLimit: 3
+  instanceId: ""
+  componentHome: /data/.eshu/components
+  trustMode: disabled
+  allowIds: ""
+  allowPublishers: ""
+  revokeIds: ""
+  revokePublishers: ""
+  coreVersion: ""
+  extensionEgressPolicyJSON: ""
+  scopeKind: component
+  pollInterval: 1s
+  claimLeaseTTL: ""
+  heartbeatInterval: ""
+  env: {}
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []
   connectionTuning:
     postgres:
       maxOpenConns: ""

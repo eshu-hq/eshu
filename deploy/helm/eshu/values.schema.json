@@ -297,6 +297,8 @@
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
+        "extraVolumes": { "type": "array", "items": { "type": "object" } },
+        "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
         "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
         "resources": { "type": "object" }
       }
@@ -751,6 +753,54 @@
             "properties": {
               "collectorInstances": { "minItems": 1 },
               "instanceId": { "minLength": 1 }
+            }
+          }
+        }
+      ]
+    },
+    "componentExtensionCollector": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+        "instanceId": { "type": "string" },
+        "componentHome": { "type": "string" },
+        "trustMode": {
+          "type": "string",
+          "enum": ["disabled", "allowlist"]
+        },
+        "allowIds": { "type": "string" },
+        "allowPublishers": { "type": "string" },
+        "revokeIds": { "type": "string" },
+        "revokePublishers": { "type": "string" },
+        "coreVersion": { "type": "string" },
+        "extensionEgressPolicyJSON": { "type": "string" },
+        "scopeKind": { "type": "string" },
+        "pollInterval": { "type": "string" },
+        "claimLeaseTTL": { "type": "string" },
+        "heartbeatInterval": { "type": "string" },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "extraEnv": { "$ref": "#/definitions/secretEnv" },
+        "extraVolumes": { "type": "array", "items": { "type": "object" } },
+        "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
+        "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
+        "resources": { "type": "object" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "enabled": { "const": true } } },
+          "then": {
+            "properties": {
+              "componentHome": { "minLength": 1 },
+              "scopeKind": { "minLength": 1 },
+              "trustMode": {
+                "type": "string",
+                "enum": ["allowlist"]
+              }
             }
           }
         }

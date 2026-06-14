@@ -44,8 +44,9 @@ component-owned metrics only.
 - Component manifests cannot claim core-owned fact kinds, so the emitted kinds
   are namespaced under `dev.eshu.examples.pagerduty.*`.
 - The manifest artifact image is a digest-pinned placeholder for local manifest
-  validation only. This package does not publish an OCI image or prove hosted
-  execution.
+  validation only. Hosted process execution proof uses the repository-level
+  PagerDuty component-extension verifier and the package `Dockerfile`, not a
+  published OCI image.
 - Stable keys, source references, schema versions, source confidence, and
   payload fields mirror the in-tree PagerDuty envelopes where the public SDK
   allows the same shape.
@@ -61,5 +62,7 @@ component-owned metrics only.
 ## Related docs
 
 - `docs/public/extend/community-extension-authoring.md`
+- `docs/public/extend/reference-pagerduty-extension.md`
+- `docs/public/run-locally/docker-compose.component-extension-pagerduty.yaml`
 - `docs/public/reference/component-package-manager.md`
 - `docs/public/reference/pagerduty-evidence.md`

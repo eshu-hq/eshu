@@ -60,6 +60,7 @@ workloads stop rendering, or enabled Helm collector families lose
 | Tempo | `collector-tempo` observability profile | `tempo-collector` | Observability overlay proof plus charted metrics coverage. |
 | Scanner worker | `scanner-worker` | `scanner-worker` | Isolated claim-driven worker; do not move scanner work into reducer lanes. |
 | Vulnerability intelligence | `collector-vulnerability-intelligence` | `vulnerability-intelligence-collector` | Claim-driven vulnerability source facts, queue state, and metrics coverage. |
+| Component extension | `component-extension-collector` profile | `component-extension-collector` | Trusted registry-backed extension host with health, readiness, metrics, NetworkPolicy, PDB, and `ServiceMonitor` template coverage when enabled. |
 
 ## Intentional Differences
 

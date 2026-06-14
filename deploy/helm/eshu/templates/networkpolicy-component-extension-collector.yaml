@@ -1,0 +1,3 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- include "eshu.networkPolicy.workload" (dict "root" . "enabled" .Values.componentExtensionCollector.enabled "name" (include "eshu.componentExtensionCollectorFullname" .) "component" "component-extension-collector" "selector" (include "eshu.componentExtensionCollectorSelectorLabels" .) "port" 8080 "metrics" true "classes" (list "collectorProviders" "extensions")) }}
+{{- end }}

@@ -43,6 +43,12 @@ guidance belong in the public Kubernetes docs.
   `ESHU_SCOPED_TOKENS_FILE` at the mounted path. Only set
   `ESHU_SCOPED_TOKENS_FILE` once the Secret exists: a missing file makes the API
   fail closed at startup.
+- `componentExtensionCollector` is off by default. When enabled, it renders the
+  process/OCI component extension host and passes the same component registry,
+  trust allowlist, and extension egress policy env to the workflow coordinator
+  and worker. Mount the same component registry volume into both workloads;
+  strict trust mode is not charted until provenance verifier values are
+  first-class chart inputs.
 
 ## Verification
 
@@ -76,6 +82,29 @@ scoped-read suites.
 No-Observability-Change: the proof reads existing spans/metrics/status and the
 documented `/api/v0/repositories` and MCP responses; no telemetry, metric label,
 span, or status field is added or altered by the chart hooks.
+
+No-Regression Evidence: `componentExtensionCollector` is opt-in and defaults to
+disabled, so the default chart render is unchanged. When enabled, it renders a
+separate `eshu-collector-component-extension` Deployment, metrics Service,
+ServiceMonitor, NetworkPolicy, and PodDisruptionBudget, while the workflow
+coordinator receives the same component registry and trust policy env used by
+the worker. The worker reads trusted component activations from the mounted
+registry instead of static `ESHU_COLLECTOR_INSTANCES_JSON`, preserving the
+existing claim planning and `collector.ClaimedService` retry/commit boundary.
+Verified by `go test ./internal/runtime -run
+TestHelmComponentExtensionCollector -count=1`,
+`scripts/test-verify-remote-e2e-pagerduty-component-extension.sh`, and
+`scripts/verify-remote-e2e-pagerduty-component-extension.sh --list`. The live
+capture driver is
+`scripts/run-remote-e2e-pagerduty-component-extension.sh --artifacts <run-dir>`
+once a Compose stack has the trusted PagerDuty reference component installed
+and enabled.
+
+No-Observability-Change: the chart adds no new metric names, labels, spans,
+queue domains, graph writes, or reducer paths. Operators use the existing
+workflow coordinator reconcile metrics, collector `/admin/status`, `/metrics`,
+health/readiness probes, failure classes, and workflow claim rows to diagnose
+component extension progress or denial.
 
 ## Related Docs
 
