@@ -37,6 +37,14 @@ func analyzeCodeRelationshipsSchema() map[string]any {
 				"type":        "string",
 				"description": "Optional canonical repository identifier",
 			},
+			"start_entity_id": map[string]any{
+				"type":        "string",
+				"description": "Optional exact starting code entity ID for call_chain queries; avoids ambiguous name resolution when provided",
+			},
+			"end_entity_id": map[string]any{
+				"type":        "string",
+				"description": "Optional exact ending code entity ID for call_chain queries; avoids ambiguous name resolution when provided",
+			},
 			"scope": map[string]any{
 				"type":        "string",
 				"description": "Analysis scope",

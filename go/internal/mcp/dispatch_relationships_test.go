@@ -216,6 +216,81 @@ func TestResolveRouteMapsAnalyzeCodeRelationshipsCallChain(t *testing.T) {
 	}
 }
 
+func TestResolveRouteMapsAnalyzeCodeRelationshipsCallChainExactSelectors(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("analyze_code_relationships", map[string]any{
+		"query_type":      "call_chain",
+		"target":          "wrapper->helper",
+		"repo_id":         "repo-1",
+		"start_entity_id": "entity:start",
+		"end_entity_id":   "entity:end",
+		"context":         "7",
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if route.path != "/api/v0/code/call-chain" {
+		t.Fatalf("route.path = %q, want /api/v0/code/call-chain", route.path)
+	}
+	body := requireRouteBody(t, route)
+	if got, want := body["start"], "wrapper"; got != want {
+		t.Fatalf("body[start] = %#v, want %#v", got, want)
+	}
+	if got, want := body["end"], "helper"; got != want {
+		t.Fatalf("body[end] = %#v, want %#v", got, want)
+	}
+	if got, want := body["repo_id"], "repo-1"; got != want {
+		t.Fatalf("body[repo_id] = %#v, want %#v", got, want)
+	}
+	if got, want := body["start_entity_id"], "entity:start"; got != want {
+		t.Fatalf("body[start_entity_id] = %#v, want %#v", got, want)
+	}
+	if got, want := body["end_entity_id"], "entity:end"; got != want {
+		t.Fatalf("body[end_entity_id] = %#v, want %#v", got, want)
+	}
+	if got, want := body["max_depth"], 7; got != want {
+		t.Fatalf("body[max_depth] = %#v, want %#v", got, want)
+	}
+}
+
+func TestResolveRouteMapsAnalyzeCodeRelationshipsCallChainExactSelectorsWithoutTarget(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("analyze_code_relationships", map[string]any{
+		"query_type":      "call_chain",
+		"repo_id":         "repo-1",
+		"start_entity_id": "entity:start",
+		"end_entity_id":   "entity:end",
+		"context":         "7",
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if route.path != "/api/v0/code/call-chain" {
+		t.Fatalf("route.path = %q, want /api/v0/code/call-chain", route.path)
+	}
+	body := requireRouteBody(t, route)
+	if got, want := body["start"], ""; got != want {
+		t.Fatalf("body[start] = %#v, want %#v", got, want)
+	}
+	if got, want := body["end"], ""; got != want {
+		t.Fatalf("body[end] = %#v, want %#v", got, want)
+	}
+	if got, want := body["repo_id"], "repo-1"; got != want {
+		t.Fatalf("body[repo_id] = %#v, want %#v", got, want)
+	}
+	if got, want := body["start_entity_id"], "entity:start"; got != want {
+		t.Fatalf("body[start_entity_id] = %#v, want %#v", got, want)
+	}
+	if got, want := body["end_entity_id"], "entity:end"; got != want {
+		t.Fatalf("body[end_entity_id] = %#v, want %#v", got, want)
+	}
+	if got, want := body["max_depth"], 7; got != want {
+		t.Fatalf("body[max_depth] = %#v, want %#v", got, want)
+	}
+}
+
 func requireRouteBody(t *testing.T, route *route) map[string]any {
 	t.Helper()
 

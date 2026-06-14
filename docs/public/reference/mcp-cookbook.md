@@ -146,6 +146,12 @@ For a specific chain or import neighborhood:
 { "start": "checkout", "end": "process_payment", "max_depth": 5 }
 ```
 
+When names are ambiguous, pass the exact code graph endpoints instead:
+
+```json
+{ "repo_id": "repo-1", "start_entity_id": "entity:checkout", "end_entity_id": "entity:process_payment", "max_depth": 5 }
+```
+
 **Tool:** `investigate_import_dependencies`
 
 ```json
