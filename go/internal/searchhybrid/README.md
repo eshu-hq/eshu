@@ -36,6 +36,8 @@ See `doc.go` for the godoc-rendered package contract.
 - `DocumentTerms` / `QueryTerms` — shared lexical tokenizers used by the
   persisted Postgres index writer and reader so benchmark and runtime BM25 lanes
   score the same text.
+- `TermKey` — bounded deterministic term identity for persisted BM25 lookup
+  keys.
 
 ## Retrieval modes
 

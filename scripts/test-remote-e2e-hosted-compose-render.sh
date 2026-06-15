@@ -78,10 +78,15 @@ assert_static_contract() {
 		'^  collector-jira:$' \
 		'^  collector-pagerduty:$' \
 		'^  collector-grafana:$' \
+		'^  collector-grafana-preflight:$' \
 		'^  collector-prometheus-mimir:$' \
+		'^  collector-prometheus-mimir-preflight:$' \
 		'^  collector-loki:$' \
+		'^  collector-loki-preflight:$' \
 		'^  collector-tempo:$' \
+		'^  collector-tempo-preflight:$' \
 		'^  collector-confluence:$' \
+		'remote-e2e-observability-preflight.sh' \
 		'ESHU_JIRA_COLLECTOR_INSTANCE_ID: remote-e2e-jira' \
 		'ESHU_JIRA_JQL:' \
 		'ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID: remote-e2e-pagerduty' \
@@ -151,9 +156,13 @@ assert_service_present "${profiled_services}" collector-confluence-preflight
 observability_profiled_services="${TMP_DIR}/observability-profiled-services.txt"
 compose_observability_services "${observability_profiled_services}" --profile grafana --profile prometheus-mimir --profile loki --profile tempo
 assert_service_present "${observability_profiled_services}" collector-grafana
+assert_service_present "${observability_profiled_services}" collector-grafana-preflight
 assert_service_present "${observability_profiled_services}" collector-prometheus-mimir
+assert_service_present "${observability_profiled_services}" collector-prometheus-mimir-preflight
 assert_service_present "${observability_profiled_services}" collector-loki
+assert_service_present "${observability_profiled_services}" collector-loki-preflight
 assert_service_present "${observability_profiled_services}" collector-tempo
+assert_service_present "${observability_profiled_services}" collector-tempo-preflight
 
 rendered="${TMP_DIR}/profiled-config.yaml"
 docker compose --env-file "${REPO_ROOT}/.env.remote-e2e.example" \
@@ -175,6 +184,7 @@ for want in \
 	'ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID: remote-e2e-prometheus-mimir' \
 	'ESHU_LOKI_COLLECTOR_INSTANCE_ID: remote-e2e-loki' \
 	'ESHU_TEMPO_COLLECTOR_INSTANCE_ID: remote-e2e-tempo' \
+	'remote-e2e-observability-preflight.sh' \
 	'ESHU_JIRA_JQL:' \
 	'ESHU_CONFLUENCE_BASE_URL:' \
 	'ESHU_CONFLUENCE_SPACE_ID:' \
@@ -195,6 +205,12 @@ done
 if ! rg -q -U 'collector-confluence:\n    profiles:\n(?:.*\n)*    depends_on:\n      collector-confluence-preflight:\n        condition: service_completed_successfully' "${rendered}"; then
 	die "profiled Confluence render does not gate collector startup on collector-confluence-preflight"
 fi
+
+for service in grafana prometheus-mimir loki tempo; do
+	if ! rg -q -U "collector-${service}:\\n    profiles:\\n(?:.*\\n)*    depends_on:\\n      collector-${service}-preflight:\\n        condition: service_completed_successfully" "${rendered}"; then
+		die "profiled ${service} render does not gate collector startup on collector-${service}-preflight"
+	fi
+done
 
 pprof_rendered="${TMP_DIR}/profiled-pprof-config.yaml"
 compose_observability_pprof_config "${pprof_rendered}" --profile jira --profile pagerduty --profile grafana --profile prometheus-mimir --profile loki --profile tempo --profile confluence

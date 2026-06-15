@@ -144,6 +144,9 @@ func (r *repositoryManifestReader) collect(ctx context.Context) ([]sbomgenerator
 		if entry.Type()&os.ModeSymlink != 0 || !entry.Type().IsRegular() {
 			return nil
 		}
+		if !isSupportedManifestName(entry.Name()) {
+			return nil
+		}
 		r.filesSeen++
 		if r.filesSeen > r.maxFiles {
 			return scannerworker.NewTerminalAnalyzerFailure(
@@ -151,9 +154,6 @@ func (r *repositoryManifestReader) collect(ctx context.Context) ([]sbomgenerator
 				r.usage(),
 				nil,
 			)
-		}
-		if !isSupportedManifestName(entry.Name()) {
-			return nil
 		}
 		body, err := r.readManifest(path)
 		if err != nil {

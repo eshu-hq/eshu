@@ -29,6 +29,9 @@ This package owns:
   version `1.0.0`).
 - The contract-level enforcement of `MaxFiles`, `MaxInputBytes`, and
   `MaxFacts` from `scannerworker.ResourceLimits`.
+- The analyzer treats `Inventory.FileCount` as analyzer input files. The
+  repository-manifest runtime source counts supported manifest and lockfile
+  files, not unrelated regular files skipped by the repository walk.
 - The privacy-safe failure vocabulary used when the runtime cannot satisfy
   the claim (`unsupported_target`, `source_unavailable`,
   `file_limit_exceeded`, `input_limit_exceeded`, `fact_limit_exceeded`,

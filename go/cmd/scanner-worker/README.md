@@ -112,6 +112,9 @@ NPM `package-lock.json` package entries may encode dependency edges as version
 range strings. Those ranges are accepted so the lockfile remains usable, but
 they are not emitted as installed-version components unless a sibling lockfile
 entry supplies the exact installed version.
+The repository walk counts only supported manifest and lockfile inputs toward
+`FileCount` and `ESHU_SCANNER_WORKER_MAX_FILES`; ignored directories and
+unsupported regular files do not consume the SBOM input-file budget.
 
 `os_package_extraction` targets are configured inside the selected
 `scanner_worker` collector instance:
@@ -146,7 +149,7 @@ dead-letter, metric, log, or public documentation payloads.
 | `ESHU_SCANNER_WORKER_MEMORY_BYTES` | Analyzer memory budget in bytes. |
 | `ESHU_SCANNER_WORKER_TIMEOUT` | Analyzer timeout. |
 | `ESHU_SCANNER_WORKER_MAX_INPUT_BYTES` | Maximum analyzer input bytes. |
-| `ESHU_SCANNER_WORKER_MAX_FILES` | Maximum files per claim. |
+| `ESHU_SCANNER_WORKER_MAX_FILES` | Maximum analyzer input files per claim. |
 | `ESHU_SCANNER_WORKER_MAX_FACTS` | Maximum source facts emitted per claim. |
 
 ## Evidence

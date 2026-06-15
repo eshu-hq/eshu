@@ -106,7 +106,7 @@ High-signal invariants for this package:
 - Eshu search-document projection writes derived document facts and a persisted
   BM25 read index in the same reducer retry path. `eshu_search_index_documents`
   stores active-generation document payloads and lengths,
-  `eshu_search_index_terms` stores term frequencies, and
+  `eshu_search_index_terms` stores term frequencies by bounded term key, and
   `eshu_search_index_stats` stores corpus size and average length so API/MCP
   search reads do not rebuild a full corpus per request. Vector metadata and
   value rows store derived embedding lifecycle state plus bounded numeric
