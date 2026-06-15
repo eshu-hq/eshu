@@ -101,8 +101,9 @@ func (h CodeCallMaterializationHandler) Handle(
 	}
 
 	intentBuildStart := time.Now()
-	deltaFileScopesByRepoID := buildCodeCallDeltaFileScopesByRepoID(envelopes)
-	intentRows := buildCodeCallRefreshIntentsWithDeltaFileScopes(contextByRepoID, deltaFileScopesByRepoID, createdAt)
+	fileScopeResult := buildCodeCallFileScopesByRepoID(envelopes)
+	fileScopesByRepoID := fileScopeResult.scopesByRepoID
+	intentRows := buildCodeCallRefreshIntentsWithDeltaFileScopes(contextByRepoID, fileScopesByRepoID, createdAt)
 	intentRows = append(
 		intentRows,
 		buildCodeCallSharedIntentRows(
@@ -110,7 +111,7 @@ func (h CodeCallMaterializationHandler) Handle(
 			contextByRepoID,
 			createdAt,
 			codeCallEvidenceSource,
-			deltaFileScopesByRepoID,
+			fileScopesByRepoID,
 		)...,
 	)
 	intentRows = append(
@@ -120,7 +121,7 @@ func (h CodeCallMaterializationHandler) Handle(
 			contextByRepoID,
 			createdAt,
 			pythonMetaclassEvidenceSource,
-			deltaFileScopesByRepoID,
+			fileScopesByRepoID,
 		)...,
 	)
 	intentBuildDuration := time.Since(intentBuildStart)
@@ -133,6 +134,9 @@ func (h CodeCallMaterializationHandler) Handle(
 			codeCallRowCount:    len(codeCallRows),
 			metaclassRowCount:   len(metaclassRows),
 			intentRowCount:      0,
+			fileScopedRepoCount: len(fileScopesByRepoID),
+			fullRefreshScoped:   fileScopeResult.fullRefreshScopedRepos,
+			fullRefreshFallback: fileScopeResult.fullRefreshFallbackRepos,
 			loadDuration:        loadDuration,
 			contextDuration:     contextDuration,
 			extractDuration:     extractDuration,
@@ -160,6 +164,9 @@ func (h CodeCallMaterializationHandler) Handle(
 		codeCallRowCount:    len(codeCallRows),
 		metaclassRowCount:   len(metaclassRows),
 		intentRowCount:      len(intentRows),
+		fileScopedRepoCount: len(fileScopesByRepoID),
+		fullRefreshScoped:   fileScopeResult.fullRefreshScopedRepos,
+		fullRefreshFallback: fileScopeResult.fullRefreshFallbackRepos,
 		loadDuration:        loadDuration,
 		contextDuration:     contextDuration,
 		extractDuration:     extractDuration,
@@ -188,6 +195,9 @@ type codeCallMaterializationTiming struct {
 	codeCallRowCount    int
 	metaclassRowCount   int
 	intentRowCount      int
+	fileScopedRepoCount int
+	fullRefreshScoped   int
+	fullRefreshFallback int
 	loadDuration        time.Duration
 	contextDuration     time.Duration
 	extractDuration     time.Duration
@@ -206,6 +216,9 @@ func logCodeCallMaterializationCompleted(ctx context.Context, timing codeCallMat
 		slog.Int("code_call_row_count", timing.codeCallRowCount),
 		slog.Int("metaclass_row_count", timing.metaclassRowCount),
 		slog.Int("intent_row_count", timing.intentRowCount),
+		slog.Int("file_scoped_repo_count", timing.fileScopedRepoCount),
+		slog.Int("full_refresh_file_scoped_repo_count", timing.fullRefreshScoped),
+		slog.Int("full_refresh_file_scope_fallback_repo_count", timing.fullRefreshFallback),
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("context_duration_seconds", timing.contextDuration.Seconds()),
 		slog.Float64("extract_duration_seconds", timing.extractDuration.Seconds()),
