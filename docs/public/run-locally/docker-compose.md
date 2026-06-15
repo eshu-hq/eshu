@@ -319,6 +319,11 @@ focused proof runs.
 Jira, PagerDuty, Grafana, Prometheus/Mimir, Loki, and Tempo are disabled by
 default and render only when their explicit profile is selected with a private
 env file and, for the observability collectors, the observability overlay.
+The observability overlay runs a one-shot preflight before each Grafana,
+Prometheus/Mimir, Loki, or Tempo worker. Selecting one of those profiles without
+the matching `ESHU_REMOTE_E2E_*_ENABLED=true` flag or required private target
+configuration fails the preflight once instead of restart-looping the disabled
+collector binary.
 Their disabled
 registrations can keep blank private target fields and the claim-capable flag,
 so preserved-volume restarts do not need placeholder provider values.
