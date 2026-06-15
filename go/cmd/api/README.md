@@ -126,7 +126,9 @@ See `doc.go` for the full godoc contract.
   profiles remain visible in status but source policy stays disabled.
 - `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` — optional deterministic no-network
   local semantic-search embedder. Accepted values are `hash` and `local_hash`;
-  unset keeps semantic unavailable and hybrid keyword-degraded.
+  when set, semantic/hybrid search serves ready persisted local vector rows and
+  reports explicit degraded state when those rows are missing or incompatible.
+  Unset keeps semantic unavailable and hybrid keyword-degraded.
 - `ESHU_GOVERNANCE_MODE`, `ESHU_GOVERNANCE_STATE`,
   `ESHU_GOVERNANCE_SOURCE_KIND`, `ESHU_GOVERNANCE_POLICY_REVISION_HASH`,
   `ESHU_GOVERNANCE_AUTH_MODE`, `ESHU_GOVERNANCE_TENANT_MODE`,

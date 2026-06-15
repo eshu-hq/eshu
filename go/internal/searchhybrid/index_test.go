@@ -72,6 +72,43 @@ func TestEmbeddingCacheReusesByContentHash(t *testing.T) {
 	}
 }
 
+func TestNewIndexUsesPrecomputedDocumentVectors(t *testing.T) {
+	t.Parallel()
+
+	embedder := &bagOfWordsEmbedder{dims: 2}
+	docs := []searchdocs.Document{
+		doc("d-1", "repo-1", "Payments", "refund checkout"),
+		doc("d-2", "repo-1", "Billing", "invoice ledger"),
+	}
+	index, err := NewIndex(docs, Options{
+		Embedder: embedder,
+		PrecomputedDocumentVectors: map[string][]float64{
+			"d-1": {0, 1},
+			"d-2": {1, 0},
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewIndex error = %v", err)
+	}
+	if embedder.calls != 0 {
+		t.Fatalf("document embedder calls = %d, want 0 for precomputed vectors", embedder.calls)
+	}
+
+	candidates, err := (Backend{Index: index}).Search(
+		context.Background(),
+		request("refund", "repo-1", searchbench.ModeSemantic, 2),
+	)
+	if err != nil {
+		t.Fatalf("Search error = %v", err)
+	}
+	if embedder.calls != 1 {
+		t.Fatalf("query embedder calls = %d, want 1", embedder.calls)
+	}
+	if len(candidates) == 0 || candidates[0].Document.ID != "d-1" {
+		t.Fatalf("semantic top = %v, want d-1 first", candidateIDs(candidates))
+	}
+}
+
 func TestTermKeyBoundsPersistedTermIdentity(t *testing.T) {
 	t.Parallel()
 
