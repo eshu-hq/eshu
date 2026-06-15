@@ -51,6 +51,13 @@ The private env file sets only generic runtime knobs in public evidence and
 keeps provider URLs, tenant names, service names, account IDs, tokens, label
 values, tag values, and raw source details local.
 
+The observability overlay also renders a matching `collector-*-preflight`
+service for Grafana, Prometheus/Mimir, Loki, and Tempo. The preflight must
+complete before the collector starts. It fails with sanitized output when a
+profile is selected but the matching `ESHU_REMOTE_E2E_*_ENABLED` flag is not
+`true`, the base URL is blank, or a configured token or tenant env variable is
+missing.
+
 ## Provider Env
 
 Use `ESHU_REMOTE_E2E_JIRA_ENABLED=true` with `ESHU_JIRA_SITE_ID`,

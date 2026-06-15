@@ -64,10 +64,31 @@ services:
       timeout: 5s
       retries: 10
     depends_on:
+      collector-grafana-preflight:
+        condition: service_completed_successfully
       projector:
         condition: service_healthy
       workflow-coordinator:
         condition: service_healthy
+
+  collector-grafana-preflight:
+    image: alpine:3.21
+    profiles:
+      - grafana
+    restart: "no"
+    environment:
+      ESHU_OBSERVABILITY_COLLECTOR: grafana
+      ESHU_OBSERVABILITY_ENABLE_ENV: ESHU_REMOTE_E2E_GRAFANA_ENABLED
+      ESHU_OBSERVABILITY_ENABLED: ${ESHU_REMOTE_E2E_GRAFANA_ENABLED:-false}
+      ESHU_OBSERVABILITY_BASE_URL_ENV: ESHU_GRAFANA_BASE_URL
+      ESHU_OBSERVABILITY_BASE_URL: ${ESHU_GRAFANA_BASE_URL:-}
+      ESHU_OBSERVABILITY_TOKEN_ENV: GRAFANA_TOKEN
+      GRAFANA_TOKEN: ${ESHU_GRAFANA_TOKEN:-}
+    volumes:
+      - ./scripts/remote-e2e-observability-preflight.sh:/usr/local/bin/remote-e2e-observability-preflight.sh:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - /bin/sh /usr/local/bin/remote-e2e-observability-preflight.sh
 
   collector-prometheus-mimir:
     build:
@@ -96,10 +117,33 @@ services:
       timeout: 5s
       retries: 10
     depends_on:
+      collector-prometheus-mimir-preflight:
+        condition: service_completed_successfully
       projector:
         condition: service_healthy
       workflow-coordinator:
         condition: service_healthy
+
+  collector-prometheus-mimir-preflight:
+    image: alpine:3.21
+    profiles:
+      - prometheus-mimir
+    restart: "no"
+    environment:
+      ESHU_OBSERVABILITY_COLLECTOR: prometheus_mimir
+      ESHU_OBSERVABILITY_ENABLE_ENV: ESHU_REMOTE_E2E_PROMETHEUS_MIMIR_ENABLED
+      ESHU_OBSERVABILITY_ENABLED: ${ESHU_REMOTE_E2E_PROMETHEUS_MIMIR_ENABLED:-false}
+      ESHU_OBSERVABILITY_BASE_URL_ENV: ESHU_PROMETHEUS_MIMIR_BASE_URL
+      ESHU_OBSERVABILITY_BASE_URL: ${ESHU_PROMETHEUS_MIMIR_BASE_URL:-}
+      ESHU_OBSERVABILITY_TOKEN_ENV: ${ESHU_PROMETHEUS_MIMIR_TOKEN_ENV:-}
+      ESHU_OBSERVABILITY_TENANT_ID_ENV: ${ESHU_PROMETHEUS_MIMIR_TENANT_ID_ENV:-}
+      PROMETHEUS_MIMIR_TOKEN: ${ESHU_PROMETHEUS_MIMIR_TOKEN:-}
+      PROMETHEUS_MIMIR_TENANT_ID: ${ESHU_PROMETHEUS_MIMIR_TENANT_ID:-}
+    volumes:
+      - ./scripts/remote-e2e-observability-preflight.sh:/usr/local/bin/remote-e2e-observability-preflight.sh:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - /bin/sh /usr/local/bin/remote-e2e-observability-preflight.sh
 
   collector-loki:
     build:
@@ -128,10 +172,33 @@ services:
       timeout: 5s
       retries: 10
     depends_on:
+      collector-loki-preflight:
+        condition: service_completed_successfully
       projector:
         condition: service_healthy
       workflow-coordinator:
         condition: service_healthy
+
+  collector-loki-preflight:
+    image: alpine:3.21
+    profiles:
+      - loki
+    restart: "no"
+    environment:
+      ESHU_OBSERVABILITY_COLLECTOR: loki
+      ESHU_OBSERVABILITY_ENABLE_ENV: ESHU_REMOTE_E2E_LOKI_ENABLED
+      ESHU_OBSERVABILITY_ENABLED: ${ESHU_REMOTE_E2E_LOKI_ENABLED:-false}
+      ESHU_OBSERVABILITY_BASE_URL_ENV: ESHU_LOKI_BASE_URL
+      ESHU_OBSERVABILITY_BASE_URL: ${ESHU_LOKI_BASE_URL:-}
+      ESHU_OBSERVABILITY_TOKEN_ENV: ${ESHU_LOKI_TOKEN_ENV:-}
+      ESHU_OBSERVABILITY_TENANT_ID_ENV: ${ESHU_LOKI_TENANT_ID_ENV:-}
+      LOKI_TOKEN: ${ESHU_LOKI_TOKEN:-}
+      LOKI_TENANT_ID: ${ESHU_LOKI_TENANT_ID:-}
+    volumes:
+      - ./scripts/remote-e2e-observability-preflight.sh:/usr/local/bin/remote-e2e-observability-preflight.sh:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - /bin/sh /usr/local/bin/remote-e2e-observability-preflight.sh
 
   collector-tempo:
     build:
@@ -160,7 +227,30 @@ services:
       timeout: 5s
       retries: 10
     depends_on:
+      collector-tempo-preflight:
+        condition: service_completed_successfully
       projector:
         condition: service_healthy
       workflow-coordinator:
         condition: service_healthy
+
+  collector-tempo-preflight:
+    image: alpine:3.21
+    profiles:
+      - tempo
+    restart: "no"
+    environment:
+      ESHU_OBSERVABILITY_COLLECTOR: tempo
+      ESHU_OBSERVABILITY_ENABLE_ENV: ESHU_REMOTE_E2E_TEMPO_ENABLED
+      ESHU_OBSERVABILITY_ENABLED: ${ESHU_REMOTE_E2E_TEMPO_ENABLED:-false}
+      ESHU_OBSERVABILITY_BASE_URL_ENV: ESHU_TEMPO_BASE_URL
+      ESHU_OBSERVABILITY_BASE_URL: ${ESHU_TEMPO_BASE_URL:-}
+      ESHU_OBSERVABILITY_TOKEN_ENV: ${ESHU_TEMPO_TOKEN_ENV:-}
+      ESHU_OBSERVABILITY_TENANT_ID_ENV: ${ESHU_TEMPO_TENANT_ID_ENV:-}
+      TEMPO_TOKEN: ${ESHU_TEMPO_TOKEN:-}
+      TEMPO_TENANT_ID: ${ESHU_TEMPO_TENANT_ID:-}
+    volumes:
+      - ./scripts/remote-e2e-observability-preflight.sh:/usr/local/bin/remote-e2e-observability-preflight.sh:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - /bin/sh /usr/local/bin/remote-e2e-observability-preflight.sh
