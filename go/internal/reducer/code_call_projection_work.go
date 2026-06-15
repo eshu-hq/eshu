@@ -9,6 +9,25 @@ import (
 )
 
 func (r *CodeCallProjectionRunner) loadAllAcceptanceUnitIntents(ctx context.Context, key SharedProjectionAcceptanceKey) ([]SharedProjectionIntentRow, error) {
+	return r.loadAcceptanceUnitRows(ctx, key)
+}
+
+func (r *CodeCallProjectionRunner) loadAcceptanceUnitPartitionIntents(
+	ctx context.Context,
+	key SharedProjectionAcceptanceKey,
+	partitionKey string,
+) ([]SharedProjectionIntentRow, error) {
+	rows, err := r.loadAcceptanceUnitRows(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	return codeCallProjectionRowsForPartition(rows, partitionKey), nil
+}
+
+func (r *CodeCallProjectionRunner) loadAcceptanceUnitRows(
+	ctx context.Context,
+	key SharedProjectionAcceptanceKey,
+) ([]SharedProjectionIntentRow, error) {
 	limit := r.Config.batchLimit()
 	acceptanceScanLimit := r.Config.acceptanceScanLimit()
 	if limit > acceptanceScanLimit {
@@ -46,16 +65,22 @@ func (r *CodeCallProjectionRunner) retractRepo(ctx context.Context, rows []Share
 func (r *CodeCallProjectionRunner) shouldSkipCodeCallRetract(
 	ctx context.Context,
 	key SharedProjectionAcceptanceKey,
+	partitionKey string,
 	staleIDs []string,
 ) (bool, error) {
 	if len(staleIDs) > 0 {
 		return false, nil
 	}
-	currentHistory, ok := r.IntentReader.(CodeCallProjectionCurrentRunHistoryLookup)
+	partitionHistory, ok := r.IntentReader.(CodeCallProjectionCurrentRunPartitionHistoryLookup)
 	if ok {
-		hasCurrent, err := currentHistory.HasCompletedAcceptanceUnitSourceRunDomainIntents(ctx, key, DomainCodeCalls)
+		hasCurrent, err := partitionHistory.HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents(
+			ctx,
+			key,
+			partitionKey,
+			DomainCodeCalls,
+		)
 		if err != nil {
-			return false, fmt.Errorf("check completed current code call projection history: %w", err)
+			return false, fmt.Errorf("check completed current code call projection partition history: %w", err)
 		}
 		if hasCurrent {
 			return true, nil

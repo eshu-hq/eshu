@@ -22,9 +22,10 @@ type fakeCodeCallIntentStore struct {
 
 type historyAwareCodeCallIntentStore struct {
 	*fakeCodeCallIntentStore
-	hasCompleted           bool
-	hasCompletedCurrentRun bool
-	historyErr             error
+	hasCompleted                  bool
+	hasCompletedCurrentRun        bool
+	completedCurrentRunPartitions map[string]bool
+	historyErr                    error
 }
 
 type staticReducerGraphDrain struct {
@@ -54,6 +55,21 @@ func (h *historyAwareCodeCallIntentStore) HasCompletedAcceptanceUnitSourceRunDom
 ) (bool, error) {
 	if h.historyErr != nil {
 		return false, h.historyErr
+	}
+	return h.hasCompletedCurrentRun, nil
+}
+
+func (h *historyAwareCodeCallIntentStore) HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents(
+	_ context.Context,
+	_ SharedProjectionAcceptanceKey,
+	partitionKey string,
+	_ string,
+) (bool, error) {
+	if h.historyErr != nil {
+		return false, h.historyErr
+	}
+	if h.completedCurrentRunPartitions != nil {
+		return h.completedCurrentRunPartitions[partitionKey], nil
 	}
 	return h.hasCompletedCurrentRun, nil
 }

@@ -34,6 +34,8 @@ const (
 	codeCallProjectionBatchLimitEnv          = "ESHU_CODE_CALL_PROJECTION_BATCH_LIMIT"
 	codeCallProjectionAcceptanceScanLimitEnv = "ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT"
 	codeCallProjectionLeaseOwnerEnv          = "ESHU_CODE_CALL_PROJECTION_LEASE_OWNER"
+	codeCallProjectionPartitionCountEnv      = "ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT"
+	codeCallProjectionWorkersEnv             = "ESHU_CODE_CALL_PROJECTION_WORKERS"
 	repoDependencyProjectionPollIntervalEnv  = "ESHU_REPO_DEPENDENCY_PROJECTION_POLL_INTERVAL"
 	repoDependencyProjectionLeaseTTLEnv      = "ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_TTL"
 	repoDependencyProjectionBatchLimitEnv    = "ESHU_REPO_DEPENDENCY_PROJECTION_BATCH_LIMIT"
@@ -71,6 +73,8 @@ const (
 	defaultCodeCallProjectionBatchLimit          = 100
 	defaultCodeCallProjectionAcceptanceScanLimit = reducer.DefaultCodeCallAcceptanceScanLimit
 	defaultCodeCallProjectionLeaseOwner          = "code-call-projection-runner"
+	defaultCodeCallProjectionPartitionCount      = 1
+	defaultCodeCallProjectionWorkers             = 1
 	defaultRepoDependencyProjectionPollInterval  = 500 * time.Millisecond
 	defaultRepoDependencyProjectionLeaseTTL      = 60 * time.Second
 	defaultRepoDependencyProjectionBatchLimit    = 100
@@ -260,6 +264,8 @@ func loadCodeCallProjectionConfig(getenv func(string) string) reducer.CodeCallPr
 		LeaseTTL:            loadDurationOrDefault(getenv, codeCallProjectionLeaseTTLEnv, defaultCodeCallProjectionLeaseTTL),
 		BatchLimit:          loadPositiveIntOrDefault(getenv, codeCallProjectionBatchLimitEnv, defaultCodeCallProjectionBatchLimit),
 		AcceptanceScanLimit: loadPositiveIntOrDefault(getenv, codeCallProjectionAcceptanceScanLimitEnv, defaultCodeCallProjectionAcceptanceScanLimit),
+		PartitionCount:      loadPositiveIntOrDefault(getenv, codeCallProjectionPartitionCountEnv, defaultCodeCallProjectionPartitionCount),
+		Workers:             loadPositiveIntOrDefault(getenv, codeCallProjectionWorkersEnv, defaultCodeCallProjectionWorkers),
 	}
 }
 

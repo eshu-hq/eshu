@@ -15,11 +15,30 @@ func TestCodeCallProjectionRunnerConfigDefaults(t *testing.T) {
 	if got := cfg.batchLimit(); got != defaultBatchLimit {
 		t.Fatalf("batchLimit() = %d, want %d", got, defaultBatchLimit)
 	}
+	if got := cfg.partitionCount(); got != 1 {
+		t.Fatalf("partitionCount() = %d, want 1", got)
+	}
+	if got := cfg.workers(); got != 1 {
+		t.Fatalf("workers() = %d, want 1", got)
+	}
 	if got := cfg.acceptanceScanLimit(); got != DefaultCodeCallAcceptanceScanLimit {
 		t.Fatalf("acceptanceScanLimit() = %d, want %d", got, DefaultCodeCallAcceptanceScanLimit)
 	}
 	if got := cfg.leaseOwner(); got != defaultCodeCallLeaseOwner {
 		t.Fatalf("leaseOwner() = %q, want %q", got, defaultCodeCallLeaseOwner)
+	}
+}
+
+func TestCodeCallProjectionRunnerConfigWorkersClampToPartitionCount(t *testing.T) {
+	t.Parallel()
+
+	cfg := CodeCallProjectionRunnerConfig{
+		PartitionCount: 4,
+		Workers:        10,
+	}
+
+	if got, want := cfg.workers(), 4; got != want {
+		t.Fatalf("workers() = %d, want partition count %d", got, want)
 	}
 }
 

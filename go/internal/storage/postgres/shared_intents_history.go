@@ -32,6 +32,20 @@ SELECT EXISTS (
 )
 `
 
+const hasCompletedAcceptanceUnitSourceRunPartitionDomainIntentsSQL = `
+SELECT EXISTS (
+    SELECT 1
+    FROM shared_projection_intents
+    WHERE scope_id = $1
+      AND acceptance_unit_id = $2
+      AND source_run_id = $3
+      AND partition_key = $4
+      AND projection_domain = $5
+      AND completed_at IS NOT NULL
+    LIMIT 1
+)
+`
+
 // HasCompletedAcceptanceUnitDomainIntents reports whether any prior intent for
 // the bounded acceptance unit and domain completed. It intentionally ignores
 // source_run_id so new generations can see older completed graph projection
@@ -91,6 +105,39 @@ func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunDomainIntents(
 	var exists bool
 	if err := sqlRows.Scan(&exists); err != nil {
 		return false, fmt.Errorf("scan completed source-run shared projection history: %w", err)
+	}
+	return exists, sqlRows.Err()
+}
+
+// HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents reports whether
+// the selected source-run partition already completed for the bounded
+// acceptance unit and domain.
+func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents(
+	ctx context.Context,
+	key reducer.SharedProjectionAcceptanceKey,
+	partitionKey string,
+	domain string,
+) (bool, error) {
+	sqlRows, err := s.db.QueryContext(
+		ctx,
+		hasCompletedAcceptanceUnitSourceRunPartitionDomainIntentsSQL,
+		key.ScopeID,
+		key.AcceptanceUnitID,
+		key.SourceRunID,
+		partitionKey,
+		domain,
+	)
+	if err != nil {
+		return false, fmt.Errorf("query completed source-run partition shared projection history: %w", err)
+	}
+	defer func() { _ = sqlRows.Close() }()
+
+	if !sqlRows.Next() {
+		return false, nil
+	}
+	var exists bool
+	if err := sqlRows.Scan(&exists); err != nil {
+		return false, fmt.Errorf("scan completed source-run partition shared projection history: %w", err)
 	}
 	return exists, sqlRows.Err()
 }

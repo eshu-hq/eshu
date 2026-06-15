@@ -134,6 +134,8 @@ Parsed by `LoadSharedProjectionConfig` in `internal/reducer`.
 | `ESHU_CODE_CALL_PROJECTION_BATCH_LIMIT` | `100` |
 | `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` | `250000` |
 | `ESHU_CODE_CALL_PROJECTION_LEASE_OWNER` | `code-call-projection-runner` |
+| `ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT` | `1` |
+| `ESHU_CODE_CALL_PROJECTION_WORKERS` | `1` |
 
 ### Repo-dependency projection
 

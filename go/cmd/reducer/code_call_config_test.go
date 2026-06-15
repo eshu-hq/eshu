@@ -11,6 +11,10 @@ func TestLoadCodeCallProjectionConfigReadsAcceptanceScanLimit(t *testing.T) {
 			return "250"
 		case codeCallProjectionAcceptanceScanLimitEnv:
 			return "20000"
+		case codeCallProjectionPartitionCountEnv:
+			return "16"
+		case codeCallProjectionWorkersEnv:
+			return "4"
 		default:
 			return ""
 		}
@@ -22,6 +26,12 @@ func TestLoadCodeCallProjectionConfigReadsAcceptanceScanLimit(t *testing.T) {
 	if got, want := cfg.AcceptanceScanLimit, 20_000; got != want {
 		t.Fatalf("AcceptanceScanLimit = %d, want %d", got, want)
 	}
+	if got, want := cfg.PartitionCount, 16; got != want {
+		t.Fatalf("PartitionCount = %d, want %d", got, want)
+	}
+	if got, want := cfg.Workers, 4; got != want {
+		t.Fatalf("Workers = %d, want %d", got, want)
+	}
 }
 
 func TestLoadCodeCallProjectionConfigDefaultsAcceptanceScanLimit(t *testing.T) {
@@ -31,6 +41,12 @@ func TestLoadCodeCallProjectionConfigDefaultsAcceptanceScanLimit(t *testing.T) {
 
 	if got, want := cfg.AcceptanceScanLimit, defaultCodeCallProjectionAcceptanceScanLimit; got != want {
 		t.Fatalf("AcceptanceScanLimit = %d, want %d", got, want)
+	}
+	if got, want := cfg.PartitionCount, defaultCodeCallProjectionPartitionCount; got != want {
+		t.Fatalf("PartitionCount = %d, want %d", got, want)
+	}
+	if got, want := cfg.Workers, defaultCodeCallProjectionWorkers; got != want {
+		t.Fatalf("Workers = %d, want %d", got, want)
 	}
 }
 
