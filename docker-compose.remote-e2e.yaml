@@ -315,8 +315,8 @@ x-collector-env: &remote_e2e_collector_env
           "analyzer": "sbom_generation",
           "sbom_targets": [
             {
-              "scope_id": "scanner-worker://repository/remote-e2e-corpus",
-              "root_path": "/fixtures",
+              "scope_id": "scanner-worker://repository/remote-e2e-sbom-fixture",
+              "root_path": "/scanner-fixtures",
               "subject_digest": "${ESHU_SCANNER_WORKER_SBOM_SUBJECT_DIGEST:-sha256:1111111111111111111111111111111111111111111111111111111111111111}"
             }
           ]
@@ -799,7 +799,7 @@ services:
       ESHU_SCANNER_WORKER_MAX_FILES: ${ESHU_SCANNER_WORKER_MAX_FILES:-250000}
       ESHU_SCANNER_WORKER_MAX_FACTS: ${ESHU_SCANNER_WORKER_MAX_FACTS:-50000}
     volumes:
-      - ${ESHU_FILESYSTEM_HOST_ROOT:-./tests/fixtures/ecosystems}:/fixtures:ro
+      - ${ESHU_SCANNER_WORKER_SBOM_HOST_ROOT:-./tests/fixtures/ecosystems}:/scanner-fixtures:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
       interval: 15s

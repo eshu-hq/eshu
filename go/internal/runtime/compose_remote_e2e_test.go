@@ -423,7 +423,11 @@ func TestRemoteE2EComposeIncludesScannerWorker(t *testing.T) {
 	assertComposeEnv(t, service, "ESHU_SCANNER_WORKER_POLL_INTERVAL", "${ESHU_SCANNER_WORKER_POLL_INTERVAL:-2s}")
 	assertComposeEnv(t, service, "ESHU_SCANNER_WORKER_MEMORY_BYTES", "${ESHU_SCANNER_WORKER_MEMORY_BYTES:-4294967296}")
 	assertComposePortContains(t, service, "${ESHU_SCANNER_WORKER_METRICS_PORT:-19477}:9464")
-	assertComposeVolumeContains(t, service, "${ESHU_FILESYSTEM_HOST_ROOT:-./tests/fixtures/ecosystems}:/fixtures:ro")
+	assertComposeVolumeContains(
+		t,
+		service,
+		"${ESHU_SCANNER_WORKER_SBOM_HOST_ROOT:-./tests/fixtures/ecosystems}:/scanner-fixtures:ro",
+	)
 	assertComposeDependency(t, service, "projector")
 	assertComposeDependency(t, service, "workflow-coordinator")
 
@@ -432,8 +436,8 @@ func TestRemoteE2EComposeIncludesScannerWorker(t *testing.T) {
 		`"instance_id": "remote-e2e-scanner-worker-source"`,
 		`"collector_kind": "scanner_worker"`,
 		`"analyzer": "sbom_generation"`,
-		`"scope_id": "scanner-worker://repository/remote-e2e-corpus"`,
-		`"root_path": "/fixtures"`,
+		`"scope_id": "scanner-worker://repository/remote-e2e-sbom-fixture"`,
+		`"root_path": "/scanner-fixtures"`,
 	} {
 		if !strings.Contains(compose, want) {
 			t.Fatalf("docker-compose.remote-e2e.yaml missing scanner-worker term %q", want)
@@ -441,8 +445,13 @@ func TestRemoteE2EComposeIncludesScannerWorker(t *testing.T) {
 	}
 
 	exampleEnv := readRepositoryFile(t, "../../..", ".env.remote-e2e.example")
-	if !strings.Contains(exampleEnv, "ESHU_SCANNER_WORKER_SBOM_SUBJECT_DIGEST=sha256:") {
-		t.Fatal(".env.remote-e2e.example missing scanner-worker SBOM subject digest")
+	for _, want := range []string{
+		"ESHU_SCANNER_WORKER_SBOM_HOST_ROOT=./tests/fixtures/ecosystems",
+		"ESHU_SCANNER_WORKER_SBOM_SUBJECT_DIGEST=sha256:",
+	} {
+		if !strings.Contains(exampleEnv, want) {
+			t.Fatalf(".env.remote-e2e.example missing %q", want)
+		}
 	}
 }
 
