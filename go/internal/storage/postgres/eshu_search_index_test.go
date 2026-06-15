@@ -76,6 +76,8 @@ func TestEshuSearchIndexStoreSearchesActiveGenerationBM25(t *testing.T) {
 		"FROM eshu_search_index_terms",
 		"JOIN eshu_search_index_documents",
 		"JOIN eshu_search_index_stats",
+		"q.term_key = t.term_key AND q.term = t.term",
+		"df.term_key = t.term_key AND df.term = t.term",
 		"active_generation_id",
 		"jsonb_array_elements",
 		"ORDER BY score DESC, document_id ASC",
@@ -86,6 +88,9 @@ func TestEshuSearchIndexStoreSearchesActiveGenerationBM25(t *testing.T) {
 	}
 	if got, ok := db.queries[1].args[1].([]string); !ok || len(got) != 2 {
 		t.Fatalf("query term arg = %#v, want two token strings", db.queries[1].args[1])
+	}
+	if got, ok := db.queries[1].args[2].([]string); !ok || len(got) != 2 {
+		t.Fatalf("query term key arg = %#v, want two token keys", db.queries[1].args[2])
 	}
 }
 

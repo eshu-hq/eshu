@@ -76,12 +76,12 @@ func (s EshuSearchIndexStore) Search(
 	if err != nil {
 		return EshuSearchIndexSearchResult{}, err
 	}
-	terms := sortedSearchIndexTerms(searchhybrid.QueryTerms(search.Query))
+	terms, termKeys := sortedSearchIndexTerms(searchhybrid.QueryTerms(search.Query))
 	if len(terms) == 0 {
 		return result, nil
 	}
 
-	query, args := buildEshuSearchIndexQuery(search, terms)
+	query, args := buildEshuSearchIndexQuery(search, terms, termKeys)
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return EshuSearchIndexSearchResult{}, fmt.Errorf("search persisted eshu search index: %w", err)
@@ -176,23 +176,27 @@ func validateEshuSearchIndexSearch(search EshuSearchIndexSearch) error {
 	return errors.Join(problems...)
 }
 
-func sortedSearchIndexTerms(counts map[string]int) []string {
+func sortedSearchIndexTerms(counts map[string]int) ([]string, []string) {
 	terms := make([]string, 0, len(counts))
 	for term := range counts {
 		terms = append(terms, term)
 	}
 	sort.Strings(terms)
-	return terms
+	termKeys := make([]string, 0, len(terms))
+	for _, term := range terms {
+		termKeys = append(termKeys, searchhybrid.TermKey(term))
+	}
+	return terms, termKeys
 }
 
-func buildEshuSearchIndexQuery(search EshuSearchIndexSearch, terms []string) (string, []any) {
-	args := []any{search.ScopeID, terms, search.RepoID, int64(search.Limit)}
+func buildEshuSearchIndexQuery(search EshuSearchIndexSearch, terms []string, termKeys []string) (string, []any) {
+	args := []any{search.ScopeID, terms, termKeys, search.RepoID, int64(search.Limit)}
 	addArg := func(value any) string {
 		args = append(args, value)
 		return fmt.Sprintf("$%d", len(args))
 	}
 
-	conditions := []string{"d.repo_id = $3"}
+	conditions := []string{"d.repo_id = $4"}
 	switch search.Anchor.Kind {
 	case searchretrieval.ScopeKindRepo:
 		conditions = append(conditions, searchIndexHandlePredicate(addArg, "repository", search.Anchor.ID, true))
@@ -224,15 +228,16 @@ WITH active_generation AS (
       AND active_generation_id IS NOT NULL
 ),
 query_terms AS (
-    SELECT unnest($2::text[]) AS term
+    SELECT term, term_key
+    FROM unnest($2::text[], $3::text[]) AS q(term, term_key)
 ),
 document_frequency AS (
-    SELECT t.term, count(*)::float8 AS doc_frequency
+    SELECT t.term_key, t.term, count(*)::float8 AS doc_frequency
     FROM eshu_search_index_terms t
     JOIN active_generation active ON active.generation_id = t.generation_id
-    JOIN query_terms q ON q.term = t.term
+    JOIN query_terms q ON q.term_key = t.term_key AND q.term = t.term
     WHERE t.scope_id = $1
-    GROUP BY t.term
+    GROUP BY t.term_key, t.term
 ),
 scored AS (
     SELECT
@@ -247,8 +252,8 @@ scored AS (
         ) AS score
     FROM eshu_search_index_terms t
     JOIN active_generation active ON active.generation_id = t.generation_id
-    JOIN query_terms q ON q.term = t.term
-    JOIN document_frequency df ON df.term = t.term
+    JOIN query_terms q ON q.term_key = t.term_key AND q.term = t.term
+    JOIN document_frequency df ON df.term_key = t.term_key AND df.term = t.term
     JOIN eshu_search_index_documents d
       ON d.scope_id = t.scope_id
      AND d.generation_id = t.generation_id
@@ -266,7 +271,7 @@ SELECT document, score, document_count, corpus_may_be_truncated
 FROM scored
 WHERE score > 0
 ORDER BY score DESC, document_id ASC
-LIMIT $4
+LIMIT $5
 `)
 	return builder.String(), args
 }
