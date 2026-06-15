@@ -86,25 +86,9 @@ provider/fact/fetch-duration metrics remain the diagnostic surface. Missing
 operator-local JQL still fails before provider execution with a target-indexed
 startup error instead of silently running an unscoped query.
 
-Remote Compose configures scanner-worker with an explicit `sbom_generation`
-target against the mounted corpus fixture path. The workflow coordinator plans
-that target as normal `scanner_worker` claimable work; the worker still owns
-claim execution and source-fact emission. A healthy scanner-worker container
-with no completed claim is runtime proof only and must not satisfy the
-collector evidence row.
+Remote Compose configures one scanner-worker `sbom_generation` target on bounded `ESHU_SCANNER_WORKER_SBOM_HOST_ROOT:/scanner-fixtures`, separate from `ESHU_FILESYSTEM_HOST_ROOT` full-corpus ingestion. Container health without a completed claim is only runtime proof.
 
-No-Regression Evidence: the scanner-worker planning change only creates one
-work item per explicit analyzer target. It does not read source files in the
-coordinator, does not call providers, does not write graph rows, and uses the
-same duplicate-open-target guard as other scheduled hosted collectors. Focused
-tests cover the scheduler target contract, service active-mode admission, and
-remote Compose render shape.
-
-No-Observability-Change: existing scanner-worker `/healthz`, `/readyz`,
-`/metrics`, pprof overlay, workflow state, fact source counts, queue counters,
-runtime logs, CPU/memory snapshots, retry counters, and dead-letter counters
-remain the diagnostic surface. The evidence manifest still requires positive
-source or warning facts before `collectors.scanner_worker` can pass.
+No-Regression Evidence: runtime and render tests cover the bounded mount, target path, planning guard, active-mode admission, and render shape. No-Observability-Change: existing health, metrics, pprof, workflow, fact, queue, log, resource, retry, and dead-letter signals remain the diagnostic surface; evidence still requires positive source or warning facts.
 
 Remote Compose runs `collector-security-alerts-preflight` before
 `workflow-coordinator`. That one-shot command loads the same collector instance

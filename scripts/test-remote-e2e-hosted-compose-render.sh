@@ -98,6 +98,8 @@ assert_static_contract() {
 		'ESHU_CONFLUENCE_SPACE_ID:' \
 		'ESHU_CONFLUENCE_SPACE_IDS:' \
 		'ESHU_CONFLUENCE_ROOT_PAGE_ID:' \
+		'ESHU_SCANNER_WORKER_SBOM_HOST_ROOT=./tests/fixtures/ecosystems' \
+		'/scanner-fixtures' \
 		'"jql_env": "ESHU_JIRA_JQL"' \
 		'127.0.0.1:19675:6060' \
 		'127.0.0.1:19674:6060' \
@@ -191,6 +193,7 @@ for want in \
 	'ESHU_CONFLUENCE_SPACE_IDS:' \
 	'ESHU_CONFLUENCE_ROOT_PAGE_ID:' \
 	'remote-e2e-confluence-preflight.sh' \
+	'/scanner-fixtures' \
 	'JIRA_API_TOKEN:' \
 	'PAGERDUTY_API_TOKEN:' \
 	'GRAFANA_TOKEN:' \
