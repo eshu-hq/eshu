@@ -49,6 +49,17 @@ type CodeCallProjectionCurrentRunHistoryLookup interface {
 	HasCompletedAcceptanceUnitSourceRunDomainIntents(ctx context.Context, key SharedProjectionAcceptanceKey, domain string) (bool, error)
 }
 
+// CodeCallProjectionCurrentRunPartitionHistoryLookup checks whether the
+// selected partition for a source run has already completed.
+type CodeCallProjectionCurrentRunPartitionHistoryLookup interface {
+	HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents(
+		ctx context.Context,
+		key SharedProjectionAcceptanceKey,
+		partitionKey string,
+		domain string,
+	) (bool, error)
+}
+
 // ReducerGraphDrain reports whether reducer graph-writing domains are still
 // active, letting local single-backend runners avoid graph write contention.
 type ReducerGraphDrain interface {
@@ -375,7 +386,7 @@ func (r *CodeCallProjectionRunner) processPartitionOnce(
 	processingStart := time.Now()
 	writtenGroups := 0
 	if len(active) > 0 {
-		skipRetract, err := r.shouldSkipCodeCallRetract(ctx, selection.Key, staleIDs)
+		skipRetract, err := r.shouldSkipCodeCallRetract(ctx, selection.Key, selection.PartitionKey, staleIDs)
 		if err != nil {
 			return result, err
 		}

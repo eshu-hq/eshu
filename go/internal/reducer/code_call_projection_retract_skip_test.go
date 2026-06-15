@@ -136,6 +136,56 @@ func TestCodeCallProjectionRunnerSkipsRetractForCurrentRunChunkAfterFirstChunk(t
 	}
 }
 
+func TestCodeCallProjectionRunnerRetractsForDifferentCurrentRunPartition(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 28, 17, 38, 0, 0, time.UTC)
+	completedPartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
+	activePartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/models.go"})
+	active := codeCallProjectionDeltaPartitionRow(
+		"models-edge",
+		activePartition,
+		"repo-a",
+		"src/models.go",
+		now,
+	)
+	baseReader := &fakeCodeCallIntentStore{
+		pendingByDomain: []SharedProjectionIntentRow{active},
+		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+			"scope-a|repo-a|run-1": {active},
+		},
+		leaseGranted: true,
+	}
+	reader := &historyAwareCodeCallIntentStore{
+		fakeCodeCallIntentStore:       baseReader,
+		hasCompleted:                  true,
+		hasCompletedCurrentRun:        true,
+		completedCurrentRunPartitions: map[string]bool{completedPartition: true},
+	}
+	writer := &recordingCodeCallProjectionEdgeWriter{}
+	runner := CodeCallProjectionRunner{
+		IntentReader: reader,
+		LeaseManager: reader,
+		EdgeWriter:   writer,
+		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+			return "gen-1", key.ScopeID == "scope-a" && key.AcceptanceUnitID == "repo-a" && key.SourceRunID == "run-1"
+		},
+		Config: CodeCallProjectionRunnerConfig{BatchLimit: 10},
+	}
+
+	result, err := runner.processOnce(context.Background(), now)
+	if err != nil {
+		t.Fatalf("processOnce() error = %v", err)
+	}
+	if got, want := len(writer.retractCalls), 2; got != want {
+		t.Fatalf("len(retractCalls) = %d, want %d for different completed partition", got, want)
+	}
+	assertCodeCallRetractPath(t, writer.retractCalls, "src/models.go")
+	if got, want := result.RetractedRows, 1; got != want {
+		t.Fatalf("RetractedRows = %d, want %d", got, want)
+	}
+}
+
 func TestCodeCallProjectionRunnerRetractsWhenStaleRowsExistWithoutDurableHistory(t *testing.T) {
 	t.Parallel()
 

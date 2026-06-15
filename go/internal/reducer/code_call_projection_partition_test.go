@@ -192,6 +192,45 @@ func TestCodeCallProjectionRunnerFilePartitionsBlockLaterWholeScope(t *testing.T
 	}
 }
 
+func TestCodeCallProjectionRunnerWholeScopeBlocksLaterWholeScope(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.June, 15, 11, 45, 0, 0, time.UTC)
+	partitionCount := 8
+	firstWhole := codeCallProjectionLegacyWholeScopeRow("whole-a", "legacy:a", "repo-a", now)
+	secondWhole := codeCallProjectionLegacyWholeScopeRow("whole-b", "legacy:b", "repo-a", now.Add(time.Millisecond))
+	firstPartition := mustPartitionForKey(t, firstWhole.PartitionKey, partitionCount)
+	secondPartition := mustPartitionForKey(t, secondWhole.PartitionKey, partitionCount)
+	if firstPartition == secondPartition {
+		t.Fatalf("test legacy whole keys mapped to same partition %d; choose different keys", firstPartition)
+	}
+	reader := &fakeCodeCallIntentStore{
+		pendingByDomain: []SharedProjectionIntentRow{firstWhole, secondWhole},
+		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+			"scope-a|repo-a|run-1": {firstWhole, secondWhole},
+		},
+		leaseGranted: true,
+	}
+	runner := CodeCallProjectionRunner{
+		IntentReader: reader,
+		LeaseManager: reader,
+		EdgeWriter:   &recordingCodeCallProjectionEdgeWriter{},
+		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
+		Config:       CodeCallProjectionRunnerConfig{BatchLimit: 10, PartitionCount: partitionCount},
+	}
+
+	result, err := runner.processPartitionOnce(context.Background(), now, secondPartition, partitionCount)
+	if err != nil {
+		t.Fatalf("processPartitionOnce(second whole) error = %v", err)
+	}
+	if result.ProcessedIntents != 0 {
+		t.Fatalf("ProcessedIntents = %d, want later whole scope blocked by earlier whole scope", result.ProcessedIntents)
+	}
+	if len(reader.marked) != 0 {
+		t.Fatalf("marked = %v, want none while earlier whole scope fences later whole scope", reader.marked)
+	}
+}
+
 func mustPartitionForKey(t *testing.T, partitionKey string, partitionCount int) int {
 	t.Helper()
 
@@ -248,6 +287,17 @@ func codeCallProjectionWholeScopeRow(intentID string, repositoryID string, creat
 		},
 		CreatedAt: createdAt,
 	}
+}
+
+func codeCallProjectionLegacyWholeScopeRow(
+	intentID string,
+	partitionKey string,
+	repositoryID string,
+	createdAt time.Time,
+) SharedProjectionIntentRow {
+	row := codeCallProjectionWholeScopeRow(intentID, repositoryID, createdAt)
+	row.PartitionKey = partitionKey
+	return row
 }
 
 func assertCodeCallRetractPath(t *testing.T, calls []recordedProjectionCall, wantPath string) {

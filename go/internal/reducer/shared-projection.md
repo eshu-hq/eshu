@@ -22,14 +22,26 @@ rewrites accepted repo/run units while preserving repo-wide retraction
 semantics. By default it runs one partition and one worker. When configured
 with multiple code-call partitions and workers, it may process distinct
 file-scoped delta partitions concurrently, but whole-scope or legacy rows fence
-same-repository file partitions by pending-row order. Very large accepted units
-are processed in capped chunks: the first chunk retracts when prior durable
-history exists, and later chunks from the same source run skip retraction so
-earlier chunk writes stay graph-visible. In local-authoritative NornicDB runs it
-can receive a `ReducerGraphDrain`; when active reducer graph domains remain,
-the runner records a blocked cycle and waits before claiming a code-call
-partition. The gate only schedules work. It does not change which rows become
-`CALLS`, `REFERENCES`, or `USES_METACLASS`.
+same-repository file and whole-scope partitions by pending-row order. Very
+large accepted units are processed in capped chunks: the first chunk retracts
+when prior durable history exists, and later chunks from the same source run
+skip retraction only when the same partition has already completed, so other
+file partitions still retract their owned delta file paths. In
+local-authoritative NornicDB runs it can receive a `ReducerGraphDrain`; when
+active reducer graph domains remain, the runner records a blocked cycle and
+waits before claiming a code-call partition. The gate only schedules work. It
+does not change which rows become `CALLS`, `REFERENCES`, or `USES_METACLASS`.
+
+No-Regression Evidence: `go test ./internal/reducer ./internal/storage/postgres
+-run 'TestCodeCallProjectionRunnerWholeScopeBlocksLaterWholeScope|TestCodeCallProjectionRunnerRetractsForDifferentCurrentRunPartition|TestCodeCallProjectionRunnerSkipsRetractForCurrentRunChunkAfterFirstChunk|TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunPartitionDomainIntents'
+-count=1` failed before same-repository whole/legacy rows were mutually fenced
+and current-run history was partition-scoped, then passed.
+
+Observability Evidence: no new telemetry surface is needed. The code-call lane
+continues to expose partition lease timing, selection timing, blocked
+readiness, processed/retracted/upserted row counts, code-call runner timing,
+shared-intent backlog/status rows, and edge writer counters for diagnosing
+contention, skipped work, retries, and progress.
 
 Configuration via `LoadSharedProjectionConfig` reads
 `ESHU_SHARED_PROJECTION_*` env vars; see `cmd/reducer/README.md`.

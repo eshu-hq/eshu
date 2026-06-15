@@ -240,6 +240,7 @@ func codeCallProjectionRowBlockedByRepoFence(
 	if codeCallProjectionIsFileScoped(row) {
 		for _, candidate := range pending[:rowIndex] {
 			if codeCallProjectionRowRepository(candidate) == repositoryID &&
+				codeCallProjectionSameAcceptanceUnit(candidate, row) &&
 				codeCallProjectionIsWholeScoped(candidate) {
 				return true
 			}
@@ -249,9 +250,16 @@ func codeCallProjectionRowBlockedByRepoFence(
 
 	for _, candidate := range pending[:rowIndex] {
 		if codeCallProjectionRowRepository(candidate) == repositoryID &&
-			codeCallProjectionIsFileScoped(candidate) {
+			codeCallProjectionSameAcceptanceUnit(candidate, row) &&
+			(codeCallProjectionIsFileScoped(candidate) || codeCallProjectionIsWholeScoped(candidate)) {
 			return true
 		}
 	}
 	return false
+}
+
+func codeCallProjectionSameAcceptanceUnit(a SharedProjectionIntentRow, b SharedProjectionIntentRow) bool {
+	return a.ScopeID == b.ScopeID &&
+		a.AcceptanceUnitID == b.AcceptanceUnitID &&
+		a.SourceRunID == b.SourceRunID
 }
