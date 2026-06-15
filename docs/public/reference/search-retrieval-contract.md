@@ -169,7 +169,8 @@ curated search documents. The reducer writes the index alongside
   kind, repo id, length, and fact id per `(scope_id, generation_id,
   document_id)`;
 - `eshu_search_index_terms` stores term frequencies for BM25 lookup by
-  `(scope_id, generation_id, term, document_id)`;
+  `(scope_id, generation_id, term_key, document_id)`, retaining raw terms for
+  exact equality while keeping the indexed key bounded;
 - `eshu_search_index_stats` stores active corpus size and average document
   length for scoring and response metadata.
 

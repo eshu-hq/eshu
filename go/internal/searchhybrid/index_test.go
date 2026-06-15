@@ -3,6 +3,7 @@ package searchhybrid
 import (
 	"context"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/searchbench"
@@ -68,6 +69,22 @@ func TestEmbeddingCacheReusesByContentHash(t *testing.T) {
 	}
 	if embedder.calls != 1 {
 		t.Errorf("embedder calls = %d, want 1 (cached by content hash)", embedder.calls)
+	}
+}
+
+func TestTermKeyBoundsPersistedTermIdentity(t *testing.T) {
+	t.Parallel()
+
+	longTerm := strings.Repeat("a", 4096)
+	key := TermKey(longTerm)
+	if got, want := len(key), 64; got != want {
+		t.Fatalf("term key length = %d, want %d", got, want)
+	}
+	if key == longTerm {
+		t.Fatal("term key must not store raw long term text")
+	}
+	if second := TermKey(longTerm); second != key {
+		t.Fatalf("term key is not deterministic: %q vs %q", second, key)
 	}
 }
 

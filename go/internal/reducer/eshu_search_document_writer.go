@@ -76,12 +76,14 @@ INSERT INTO eshu_search_index_terms (
     scope_id,
     generation_id,
     document_id,
+    term_key,
     term,
     term_frequency
 )
-SELECT $1, $2, $3, term, term_frequency
-FROM unnest($4::text[], $5::int[]) AS terms(term, term_frequency)
-ON CONFLICT (scope_id, generation_id, term, document_id) DO UPDATE SET
+SELECT $1, $2, $3, term_key, term, term_frequency
+FROM unnest($4::text[], $5::text[], $6::int[]) AS terms(term, term_key, term_frequency)
+ON CONFLICT (scope_id, generation_id, term_key, document_id) DO UPDATE SET
+    term = EXCLUDED.term,
     term_frequency = EXCLUDED.term_frequency
 `
 
@@ -332,7 +334,7 @@ func (w PostgresEshuSearchDocumentWriter) writeEshuSearchIndexDocuments(
 			stats.TermRetires += affected
 			w.recordSearchIndexMutation(ctx, "term", "retire", affected)
 		}
-		terms, frequencies := sortedSearchIndexTerms(doc.Terms)
+		terms, termKeys, frequencies := sortedSearchIndexTerms(doc.Terms)
 		if len(terms) == 0 {
 			continue
 		}
@@ -343,6 +345,7 @@ func (w PostgresEshuSearchDocumentWriter) writeEshuSearchIndexDocuments(
 			generationID,
 			doc.DocumentID,
 			terms,
+			termKeys,
 			frequencies,
 		); err != nil {
 			return finish(fmt.Errorf("write eshu search index terms: %w", err), "term_upsert")
@@ -368,17 +371,19 @@ func (w PostgresEshuSearchDocumentWriter) writeEshuSearchIndexDocuments(
 	return finish(nil, "")
 }
 
-func sortedSearchIndexTerms(terms map[string]int) ([]string, []int) {
+func sortedSearchIndexTerms(terms map[string]int) ([]string, []string, []int) {
 	keys := make([]string, 0, len(terms))
 	for term := range terms {
 		keys = append(keys, term)
 	}
 	sort.Strings(keys)
+	termKeys := make([]string, 0, len(keys))
 	frequencies := make([]int, 0, len(keys))
 	for _, term := range keys {
+		termKeys = append(termKeys, searchhybrid.TermKey(term))
 		frequencies = append(frequencies, terms[term])
 	}
-	return keys, frequencies
+	return keys, termKeys, frequencies
 }
 
 // eshuSearchDocumentFactID derives the deterministic fact id for one document.

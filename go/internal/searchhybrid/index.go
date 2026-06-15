@@ -254,6 +254,11 @@ func contentHash(text string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// TermKey returns a bounded stable key for one BM25 term in persisted indexes.
+func TermKey(term string) string {
+	return contentHash(term)
+}
+
 // DocumentTerms returns the BM25 token frequencies for doc using the same
 // searchable text projection as the in-memory hybrid index.
 func DocumentTerms(doc searchdocs.Document) map[string]int {
