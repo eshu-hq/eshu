@@ -58,6 +58,27 @@ profile is selected but the matching `ESHU_REMOTE_E2E_*_ENABLED` flag is not
 `true`, the base URL is blank, or a configured token or tenant env variable is
 missing.
 
+No-Regression Evidence: baseline remote observability Compose rendered each
+profile-selected collector directly with `restart: on-failure`, so a disabled
+or incomplete selected instance could restart-loop before any source work
+started. After the preflight change, `scripts/test-remote-e2e-observability-preflight.sh`,
+`scripts/test-remote-e2e-hosted-compose-render.sh`, and
+`go test ./internal/runtime -run 'TestRemoteE2EObservabilityComposeGatesCollectorsOnPreflight|TestRemoteE2EComposeDefaultsAllowDisabledHostedCoordinatorStartup|TestRemoteE2EComposeJiraUsesJQLEnvReference' -count=1`
+prove the four observability profiles render one-shot preflights, gate the
+collector dependency with `service_completed_successfully`, and fail disabled
+or incomplete target inputs once with sanitized output. Backend/version and
+input shape are the NornicDB remote E2E Compose runtime, four hosted
+observability profiles, checked-in disabled defaults, and operator-private env
+names. Terminal queue and row counts are unchanged because the preflight exits
+before collector claims or graph writes. This is safe because collector
+binaries remain fail-closed and no worker count, batch size, lease, retry, or
+graph-write behavior changes.
+
+No-Observability-Change: existing collector health checks, metrics ports, and
+worker logs remain unchanged. The new preflight only emits a sanitized
+configuration status or failure before the collector starts; it does not expose
+provider URLs, tenants, labels, tokens, queue rows, or graph facts.
+
 ## Provider Env
 
 Use `ESHU_REMOTE_E2E_JIRA_ENABLED=true` with `ESHU_JIRA_SITE_ID`,
