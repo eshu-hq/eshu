@@ -1,0 +1,76 @@
+# Remote E2E optional AWS freshness seed service.
+# Use docker-compose.remote-e2e.yaml as the operator entrypoint.
+
+services:
+  seed-aws-freshness:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles:
+      - seed
+    environment:
+      ESHU_AWS_E2E_ACCOUNT_ID: ${ESHU_AWS_E2E_ACCOUNT_ID:?set ESHU_AWS_E2E_ACCOUNT_ID}
+      ESHU_AWS_E2E_REGION: ${ESHU_AWS_E2E_REGION:?set ESHU_AWS_E2E_REGION}
+      ESHU_AWS_E2E_SERVICES: ${ESHU_AWS_E2E_SERVICES:-iam,ecr,ecs,ec2,elbv2,lambda,eks,route53,sqs,sns,eventbridge,s3,rds,dynamodb,cloudwatchlogs,cloudfront,apigateway,secretsmanager,ssm}
+      ESHU_AWS_FRESHNESS_TOKEN: ${ESHU_AWS_FRESHNESS_TOKEN:?set ESHU_AWS_FRESHNESS_TOKEN}
+      ESHU_ECR_OCI_REPOSITORY: ${ESHU_ECR_OCI_REPOSITORY:?set ESHU_ECR_OCI_REPOSITORY}
+      ESHU_TFSTATE_S3_BUCKET: ${ESHU_TFSTATE_S3_BUCKET:?set ESHU_TFSTATE_S3_BUCKET}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        observed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        services=$$(printf '%s' "$${ESHU_AWS_E2E_SERVICES}" | tr ',' ' ')
+        for service in $${services}; do
+          region="$${ESHU_AWS_E2E_REGION}"
+          case "$${service}" in
+            iam) resource_type="AWS::IAM::Role"; region="aws-global"; resource_id="remote-e2e-role" ;;
+            ecr) resource_type="AWS::ECR::Repository"; resource_id="$${ESHU_ECR_OCI_REPOSITORY:-remote-e2e-repository}" ;;
+            ecs) resource_type="AWS::ECS::Cluster"; resource_id="remote-e2e-cluster" ;;
+            ec2) resource_type="AWS::EC2::VPC"; resource_id="remote-e2e-vpc" ;;
+            elbv2) resource_type="AWS::ElasticLoadBalancingV2::LoadBalancer"; resource_id="remote-e2e-load-balancer" ;;
+            lambda) resource_type="AWS::Lambda::Function"; resource_id="remote-e2e-function" ;;
+            eks) resource_type="AWS::EKS::Cluster"; resource_id="remote-e2e-eks" ;;
+            route53) resource_type="AWS::Route53::HostedZone"; region="aws-global"; resource_id="remote-e2e-zone" ;;
+            sqs) resource_type="AWS::SQS::Queue"; resource_id="remote-e2e-queue" ;;
+            sns) resource_type="AWS::SNS::Topic"; resource_id="remote-e2e-topic" ;;
+            eventbridge) resource_type="AWS::Events::Rule"; resource_id="remote-e2e-rule" ;;
+            s3) resource_type="AWS::S3::Bucket"; resource_id="$${ESHU_TFSTATE_S3_BUCKET:-remote-e2e-bucket}" ;;
+            rds) resource_type="AWS::RDS::DBInstance"; resource_id="remote-e2e-db" ;;
+            dynamodb) resource_type="AWS::DynamoDB::Table"; resource_id="remote-e2e-table" ;;
+            cloudwatchlogs) resource_type="AWS::Logs::LogGroup"; resource_id="remote-e2e-log-group" ;;
+            cloudfront) resource_type="AWS::CloudFront::Distribution"; region="aws-global"; resource_id="remote-e2e-distribution" ;;
+            apigateway) resource_type="AWS::ApiGateway::RestApi"; resource_id="remote-e2e-api" ;;
+            secretsmanager) resource_type="AWS::SecretsManager::Secret"; resource_id="remote-e2e-secret" ;;
+            ssm) resource_type="AWS::SSM::Parameter"; resource_id="remote-e2e-parameter" ;;
+            *) echo "unsupported service: $${service}" >&2; exit 1 ;;
+          esac
+          event_id="remote-e2e-$${service}-$${observed_at}"
+          payload=$$(cat <<JSON
+        {
+          "id": "$${event_id}",
+          "account": "$${ESHU_AWS_E2E_ACCOUNT_ID}",
+          "region": "$${region}",
+          "time": "$${observed_at}",
+          "detail-type": "Config Configuration Item Change",
+          "detail": {
+            "configurationItem": {
+              "resourceType": "$${resource_type}",
+              "resourceId": "$${resource_id}",
+              "awsAccountId": "$${ESHU_AWS_E2E_ACCOUNT_ID}",
+              "awsRegion": "$${region}",
+              "configurationItemCaptureTime": "$${observed_at}"
+            }
+          }
+        }
+        JSON
+        )
+          curl -fsS -X POST http://webhook-listener:8080/webhooks/aws/eventbridge \
+            -H "X-Eshu-AWS-Freshness-Token: $${ESHU_AWS_FRESHNESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data "$${payload}" >/dev/null
+          echo "seeded AWS freshness trigger for $${service}"
+        done
+    depends_on:
+      webhook-listener:
+        condition: service_healthy

@@ -54,7 +54,7 @@ func TestRemoteE2EExampleEnvDefaultsToSmokeCorpusPreflight(t *testing.T) {
 func TestRemoteE2EComposeExercisesTerraformStateBackendFilterDiscovery(t *testing.T) {
 	t.Parallel()
 
-	content := readRepositoryFile(t, "../../..", "docker-compose.remote-e2e.yaml")
+	content := readRemoteE2EComposeSource(t)
 	for _, want := range []string{
 		`"backend_filters"`,
 		`"target_scope_id": "aws-e2e"`,
@@ -72,7 +72,7 @@ func TestRemoteE2EComposeExercisesTerraformStateBackendFilterDiscovery(t *testin
 func TestRemoteE2EComposeUsesResponsiveWorkflowReconcileWindow(t *testing.T) {
 	t.Parallel()
 
-	compose := readRepositoryFile(t, "../../..", "docker-compose.remote-e2e.yaml")
+	compose := readRemoteE2EComposeSource(t)
 	if !strings.Contains(compose, "ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL:-30s") {
 		t.Fatal("remote E2E Compose should default workflow reconcile to 30s so derived collector targets are planned after Git facts land")
 	}
@@ -272,7 +272,7 @@ func TestRemoteE2EComposeIncludesSecurityAlertCollector(t *testing.T) {
 	assertComposeDependency(t, service, "projector")
 	assertComposeDependency(t, service, "workflow-coordinator")
 
-	compose := readRepositoryFile(t, "../../..", "docker-compose.remote-e2e.yaml")
+	compose := readRemoteE2EComposeSource(t)
 	for _, want := range []string{
 		`"instance_id": "remote-e2e-security-alert"`,
 		`"collector_kind": "security_alert"`,
@@ -311,7 +311,7 @@ func TestRemoteE2EComposeIncludesSBOMAttestationCollector(t *testing.T) {
 	assertComposeDependency(t, service, "projector")
 	assertComposeDependency(t, service, "workflow-coordinator")
 
-	compose := readRepositoryFile(t, "../../..", "docker-compose.remote-e2e.yaml")
+	compose := readRemoteE2EComposeSource(t)
 	for _, want := range []string{
 		`"instance_id": "remote-e2e-sbom-attestation"`,
 		`"collector_kind": "sbom_attestation"`,
@@ -384,7 +384,7 @@ func TestRemoteE2EComposeIncludesVulnerabilityIntelligenceCollector(t *testing.T
 	assertComposeDependency(t, service, "projector")
 	assertComposeDependency(t, service, "workflow-coordinator")
 
-	compose := readRepositoryFile(t, "../../..", "docker-compose.remote-e2e.yaml")
+	compose := readRemoteE2EComposeSource(t)
 	for _, want := range []string{
 		`"instance_id": "remote-e2e-vulnerability-intelligence"`,
 		`"collector_kind": "vulnerability_intelligence"`,
@@ -431,7 +431,7 @@ func TestRemoteE2EComposeIncludesScannerWorker(t *testing.T) {
 	assertComposeDependency(t, service, "projector")
 	assertComposeDependency(t, service, "workflow-coordinator")
 
-	compose := readRepositoryFile(t, "../../..", "docker-compose.remote-e2e.yaml")
+	compose := readRemoteE2EComposeSource(t)
 	for _, want := range []string{
 		`"instance_id": "remote-e2e-scanner-worker-source"`,
 		`"collector_kind": "scanner_worker"`,

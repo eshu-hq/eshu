@@ -32,11 +32,11 @@ func TestRemoteE2EComposeWiresRepresentativeCorpusBounds(t *testing.T) {
 func TestRemoteE2EComposeUsesBoundedDerivedTargetBudget(t *testing.T) {
 	t.Parallel()
 
-	compose := readRepositoryFile(t, "../../..", "docker-compose.remote-e2e.yaml")
-	if got := strings.Count(compose, `"target_limit": ${ESHU_REMOTE_E2E_DERIVED_TARGET_LIMIT:-100}`); got != 2 {
+	compose := readRepositoryFile(t, "../../..", "docker-compose.remote-e2e.runtime.yaml")
+	if got := strings.Count(compose, `\"target_limit\": ${ESHU_REMOTE_E2E_DERIVED_TARGET_LIMIT:-100}`); got != 2 {
 		t.Fatalf("derived target budget interpolation count = %d, want 2", got)
 	}
-	if strings.Contains(compose, `"target_limit": 5000`) {
+	if strings.Contains(compose, `\"target_limit\": 5000`) {
 		t.Fatal("remote E2E Compose must not hard-code full-corpus derived target fanout")
 	}
 }

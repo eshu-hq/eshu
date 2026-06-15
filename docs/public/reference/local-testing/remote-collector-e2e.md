@@ -12,6 +12,9 @@ Eshu data volumes from the default local Compose project.
 
 ## Render The Stack
 
+`docker-compose.remote-e2e.yaml` is an include wrapper. Foundation, runtime,
+hosted collector, and optional seed ownership live in the matching fragments.
+
 Render the default stack and optional AWS freshness seeder before remote reads:
 
 ```bash

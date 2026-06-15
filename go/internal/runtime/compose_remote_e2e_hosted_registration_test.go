@@ -41,7 +41,7 @@ func TestRemoteE2EComposeDefaultsAllowDisabledHostedCoordinatorStartup(t *testin
 func TestRemoteE2EComposeJiraUsesJQLEnvReference(t *testing.T) {
 	t.Parallel()
 
-	compose := readRepositoryFile(t, "../../..", "docker-compose.remote-e2e.yaml")
+	compose := readRemoteE2EComposeSource(t)
 	if !strings.Contains(compose, `"jql_env": "ESHU_JIRA_JQL"`) {
 		t.Fatal(`docker-compose.remote-e2e.yaml must configure Jira with "jql_env": "ESHU_JIRA_JQL"`)
 	}
