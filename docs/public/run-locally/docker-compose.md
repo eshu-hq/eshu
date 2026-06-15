@@ -307,6 +307,24 @@ The scanner-worker service accepts the same
 Compose proofs should report target count, fact count, CPU, memory, queue
 state, retries, dead letters, and pprof availability rather than raw repository
 paths.
+The remote proof profile also overrides the code-call sidecar defaults with
+`ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT=4` and
+`ESHU_CODE_CALL_PROJECTION_WORKERS=2` so full-corpus CALLS materialization
+proves file-scoped partition concurrency; tune those values in a private env
+file for larger hosts.
+Performance Evidence: the #2624 baseline remote proof rendered file-scoped
+`code_calls` work but leased the domain with `partition_count=1`, while the
+queue held 3,454 distinct code-call partition keys and 18,857 pending
+file-scoped intents. After this configuration change,
+`docker compose --env-file .env.remote-e2e.example -f docker-compose.remote-e2e.yaml config`
+renders the code-call sidecar at 4 partitions and 2 workers for the runtime
+services. The terminal #2599 remote proof must confirm `code_calls`
+`partition_count > 1`, zero dead letters, and drained or bounded queue state on
+the pinned NornicDB backend.
+No-Observability-Change: this only wires reducer sidecar environment values.
+The existing shared-projection lease rows, queue status, reducer logs, metrics,
+and pprof surfaces remain the operator evidence for partition count,
+throughput, retries, and dead letters.
 
 For the service list, proof commands, AWS credential requirements, pprof ports,
 and acceptance evidence, see

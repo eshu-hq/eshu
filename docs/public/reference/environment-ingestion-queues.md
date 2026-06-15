@@ -97,6 +97,20 @@ queue, or graph-write evidence.
 | `ESHU_GRAPH_PROJECTION_REPAIR_BATCH_LIMIT` | `100` | reducer repairer | Repair rows per batch. |
 | `ESHU_GRAPH_PROJECTION_REPAIR_RETRY_DELAY` | `1m` | reducer repairer | Delay before retrying repair. |
 
+Performance Evidence: the #2624 baseline remote proof rendered file-scoped
+`code_calls` work but leased the domain with `partition_count=1`, while the
+queue held 3,454 distinct code-call partition keys and 18,857 pending
+file-scoped intents. After this configuration change, the rendered remote E2E
+profile reports `ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT=4` and
+`ESHU_CODE_CALL_PROJECTION_WORKERS=2` for runtime services on the pinned
+NornicDB backend. The terminal #2599 remote proof must confirm `code_calls`
+`partition_count > 1`, zero dead letters, and drained or bounded queue state.
+
+No-Observability-Change: this only wires reducer sidecar environment values.
+The existing shared-projection lease rows, queue status, reducer logs, metrics,
+and pprof surfaces remain the operator evidence for partition count,
+throughput, retries, and dead letters.
+
 ## Graph Write Shape And NornicDB
 
 For decision rules and evidence requirements, read [NornicDB Tuning](nornicdb-tuning.md).
