@@ -52,6 +52,9 @@ func TestBuilderPersistsReadyVectorsForActiveDocuments(t *testing.T) {
 	if got, want := docs.filter.Limit, 50; got != want {
 		t.Fatalf("document filter limit = %d, want %d", got, want)
 	}
+	if got, want := len(docs.filters), 1; got != want {
+		t.Fatalf("document list calls = %d, want %d", got, want)
+	}
 	if len(values.rows) != 1 {
 		t.Fatalf("value rows = %d, want 1", len(values.rows))
 	}
@@ -74,6 +77,126 @@ func TestBuilderPersistsReadyVectorsForActiveDocuments(t *testing.T) {
 	}
 	if embedder.calls[0] != searchhybrid.DocumentText(doc) {
 		t.Fatalf("embedded text = %q, want document text", embedder.calls[0])
+	}
+}
+
+func TestBuilderPagesThroughAllActiveDocuments(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 15, 12, 45, 0, 0, time.UTC)
+	first := searchDocument("doc-1", "repo-1", "API handler", "handlers/api.go")
+	second := searchDocument("doc-2", "repo-1", "Reducer", "reducer.go")
+	docs := &recordingDocumentStore{
+		pages: [][]postgres.EshuSearchDocumentRow{
+			{{
+				ScopeID:      "repo-1",
+				GenerationID: "gen-active",
+				Document:     first,
+			}},
+			{{
+				ScopeID:      "repo-1",
+				GenerationID: "gen-active",
+				Document:     second,
+			}},
+			{},
+		},
+	}
+	values := &recordingVectorValueStore{}
+	metadata := &recordingVectorMetadataStore{}
+	embedder := &recordingEmbedder{dims: 2, vectors: map[string][]float64{
+		searchhybrid.DocumentText(first):  {1, 0},
+		searchhybrid.DocumentText(second): {0, 1},
+	}}
+
+	result, err := Builder{
+		Documents: docs,
+		Metadata:  metadata,
+		Values:    values,
+		Embedder:  embedder,
+		Clock:     func() time.Time { return now },
+	}.Build(context.Background(), BuildRequest{
+		ScopeID:            "repo-1",
+		EmbeddingModelID:   "local-hash-v1",
+		VectorIndexVersion: "vector-v1",
+		Limit:              1,
+	})
+	if err != nil {
+		t.Fatalf("Build error = %v", err)
+	}
+	if result.DocumentCount != 2 || result.VectorCount != 2 || result.FailedCount != 0 {
+		t.Fatalf("result = %#v, want two ready vectors", result)
+	}
+	if got, want := len(docs.filters), 3; got != want {
+		t.Fatalf("document list calls = %d, want %d", got, want)
+	}
+	for i, wantOffset := range []int{0, 1, 2} {
+		if got := docs.filters[i].Offset; got != wantOffset {
+			t.Fatalf("call %d offset = %d, want %d", i, got, wantOffset)
+		}
+	}
+	if got, want := len(values.rows), 2; got != want {
+		t.Fatalf("value rows = %d, want %d", got, want)
+	}
+	if got, want := len(metadata.rows), 2; got != want {
+		t.Fatalf("metadata rows = %d, want %d", got, want)
+	}
+}
+
+func TestBuilderAnchorsPagedBuildToFirstGeneration(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 15, 13, 0, 0, 0, time.UTC)
+	firstOld := searchDocument("doc-old-1", "repo-1", "API handler", "handlers/api.go")
+	secondOld := searchDocument("doc-old-2", "repo-1", "Reducer", "reducer.go")
+	secondNew := searchDocument("doc-new-2", "repo-1", "Fresh reducer", "reducer.go")
+	docs := &generationSwitchingDocumentStore{
+		oldRows: []postgres.EshuSearchDocumentRow{
+			{ScopeID: "repo-1", GenerationID: "gen-old", Document: firstOld},
+			{ScopeID: "repo-1", GenerationID: "gen-old", Document: secondOld},
+		},
+		newRows: []postgres.EshuSearchDocumentRow{
+			{ScopeID: "repo-1", GenerationID: "gen-new", Document: firstOld},
+			{ScopeID: "repo-1", GenerationID: "gen-new", Document: secondNew},
+		},
+	}
+	values := &recordingVectorValueStore{}
+	metadata := &recordingVectorMetadataStore{}
+	embedder := &recordingEmbedder{dims: 2, vectors: map[string][]float64{
+		searchhybrid.DocumentText(firstOld):  {1, 0},
+		searchhybrid.DocumentText(secondOld): {0, 1},
+		searchhybrid.DocumentText(secondNew): {0.5, 0.5},
+	}}
+
+	result, err := Builder{
+		Documents: docs,
+		Metadata:  metadata,
+		Values:    values,
+		Embedder:  embedder,
+		Clock:     func() time.Time { return now },
+	}.Build(context.Background(), BuildRequest{
+		ScopeID:            "repo-1",
+		EmbeddingModelID:   "local-hash-v1",
+		VectorIndexVersion: "vector-v1",
+		Limit:              1,
+	})
+	if err != nil {
+		t.Fatalf("Build error = %v", err)
+	}
+	if result.DocumentCount != 2 || result.VectorCount != 2 || result.FailedCount != 0 {
+		t.Fatalf("result = %#v, want two ready vectors from first generation", result)
+	}
+	if got, want := len(docs.filters), 3; got != want {
+		t.Fatalf("document list calls = %d, want %d", got, want)
+	}
+	for i, filter := range docs.filters[1:] {
+		if got, want := filter.GenerationID, "gen-old"; got != want {
+			t.Fatalf("call %d generation anchor = %q, want %q", i+1, got, want)
+		}
+	}
+	for _, row := range values.rows {
+		if got, want := row.GenerationID, "gen-old"; got != want {
+			t.Fatalf("value generation = %q, want %q", got, want)
+		}
 	}
 }
 
@@ -199,8 +322,10 @@ func TestBuilderValidatesBuildRequest(t *testing.T) {
 }
 
 type recordingDocumentStore struct {
-	filter postgres.EshuSearchDocumentFilter
-	rows   []postgres.EshuSearchDocumentRow
+	filter  postgres.EshuSearchDocumentFilter
+	filters []postgres.EshuSearchDocumentFilter
+	rows    []postgres.EshuSearchDocumentRow
+	pages   [][]postgres.EshuSearchDocumentRow
 }
 
 func (s *recordingDocumentStore) ListActiveDocuments(
@@ -208,7 +333,51 @@ func (s *recordingDocumentStore) ListActiveDocuments(
 	filter postgres.EshuSearchDocumentFilter,
 ) ([]postgres.EshuSearchDocumentRow, error) {
 	s.filter = filter
+	s.filters = append(s.filters, filter)
+	if len(s.pages) > 0 {
+		page := s.pages[0]
+		s.pages = s.pages[1:]
+		return append([]postgres.EshuSearchDocumentRow(nil), page...), nil
+	}
 	return append([]postgres.EshuSearchDocumentRow(nil), s.rows...), nil
+}
+
+type generationSwitchingDocumentStore struct {
+	filters []postgres.EshuSearchDocumentFilter
+	oldRows []postgres.EshuSearchDocumentRow
+	newRows []postgres.EshuSearchDocumentRow
+}
+
+func (s *generationSwitchingDocumentStore) ListActiveDocuments(
+	_ context.Context,
+	filter postgres.EshuSearchDocumentFilter,
+) ([]postgres.EshuSearchDocumentRow, error) {
+	s.filters = append(s.filters, filter)
+	if filter.GenerationID == "gen-old" {
+		return pageSearchDocumentRows(s.oldRows, filter.Offset, filter.Limit), nil
+	}
+	if filter.GenerationID == "gen-new" {
+		return pageSearchDocumentRows(s.newRows, filter.Offset, filter.Limit), nil
+	}
+	if filter.Offset == 0 {
+		return pageSearchDocumentRows(s.oldRows, filter.Offset, filter.Limit), nil
+	}
+	return pageSearchDocumentRows(s.newRows, filter.Offset, filter.Limit), nil
+}
+
+func pageSearchDocumentRows(
+	rows []postgres.EshuSearchDocumentRow,
+	offset int,
+	limit int,
+) []postgres.EshuSearchDocumentRow {
+	if offset >= len(rows) {
+		return nil
+	}
+	end := offset + limit
+	if end > len(rows) {
+		end = len(rows)
+	}
+	return append([]postgres.EshuSearchDocumentRow(nil), rows[offset:end]...)
 }
 
 type recordingVectorMetadataStore struct {

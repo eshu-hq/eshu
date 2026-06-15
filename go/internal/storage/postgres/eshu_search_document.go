@@ -23,15 +23,17 @@ const (
 // EshuSearchDocumentFilter bounds active search-document reads. The store
 // rejects filters without a ScopeID and caps list pages.
 type EshuSearchDocumentFilter struct {
-	ScopeID     string
-	RepoID      string
-	SourceKinds []searchdocs.SourceKind
-	Limit       int
-	Offset      int
+	ScopeID      string
+	GenerationID string
+	RepoID       string
+	SourceKinds  []searchdocs.SourceKind
+	Limit        int
+	Offset       int
 }
 
 // EshuSearchDocumentRow is one active curated search document loaded from
-// fact_records for the scope's active generation.
+// fact_records for the scope's active generation or an explicitly anchored
+// generation.
 type EshuSearchDocumentRow struct {
 	FactID       string
 	ScopeID      string
@@ -54,8 +56,9 @@ func NewEshuSearchDocumentStore(db ExecQueryer) EshuSearchDocumentStore {
 }
 
 // ListActiveDocuments returns the curated documents for the scope's active
-// generation, bounded by the filter. Documents from superseded generations are
-// not returned because the query joins on the active generation.
+// generation, bounded by the filter. When GenerationID is set, the query reads
+// that exact generation so paged readers can stay anchored after their first
+// active-generation lookup.
 func (s EshuSearchDocumentStore) ListActiveDocuments(
 	ctx context.Context,
 	filter EshuSearchDocumentFilter,
@@ -124,6 +127,9 @@ func buildEshuSearchDocumentQuery(filter EshuSearchDocumentFilter) (string, []an
 		return fmt.Sprintf("$%d", len(args))
 	}
 	conditions = append(conditions, "fact.scope_id = "+addArg(filter.ScopeID))
+	if filter.GenerationID != "" {
+		conditions = append(conditions, "fact.generation_id = "+addArg(filter.GenerationID))
+	}
 	if filter.RepoID != "" {
 		conditions = append(conditions, "fact.payload->>'repo_id' = "+addArg(filter.RepoID))
 	}
@@ -140,7 +146,9 @@ func buildEshuSearchDocumentQuery(filter EshuSearchDocumentFilter) (string, []an
 	builder.WriteString("FROM fact_records AS fact\n")
 	builder.WriteString("JOIN ingestion_scopes AS scope\n")
 	builder.WriteString("  ON scope.scope_id = fact.scope_id\n")
-	builder.WriteString(" AND scope.active_generation_id = fact.generation_id\n")
+	if filter.GenerationID == "" {
+		builder.WriteString(" AND scope.active_generation_id = fact.generation_id\n")
+	}
 	builder.WriteString("WHERE ")
 	builder.WriteString(strings.Join(conditions, "\n  AND "))
 	builder.WriteString("\n")
@@ -153,6 +161,7 @@ func buildEshuSearchDocumentQuery(filter EshuSearchDocumentFilter) (string, []an
 
 func normalizeEshuSearchDocumentFilter(filter EshuSearchDocumentFilter) EshuSearchDocumentFilter {
 	filter.ScopeID = strings.TrimSpace(filter.ScopeID)
+	filter.GenerationID = strings.TrimSpace(filter.GenerationID)
 	filter.RepoID = strings.TrimSpace(filter.RepoID)
 	if filter.Limit <= 0 {
 		filter.Limit = eshuSearchDocumentDefaultLimit
