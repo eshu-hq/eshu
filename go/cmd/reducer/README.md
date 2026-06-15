@@ -164,7 +164,7 @@ Parsed by `LoadSharedProjectionConfig` in `internal/reducer`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `ESHU_GENERATION_RETENTION_ENABLED` | `true` | Run the bounded superseded-generation cleanup loop beside reducer work. `false` is for local/test binaries only; the production Helm chart rejects disabled retention. |
+| `ESHU_GENERATION_RETENTION_ENABLED` | `true` | Run the bounded superseded-generation cleanup loop beside reducer work. `false` requires an explicit local `ESHU_QUERY_PROFILE`; production/default binaries and Helm renders reject disabled retention. |
 | `ESHU_GENERATION_RETENTION_POLL_INTERVAL` | `1h` | Delay between empty or failed cleanup cycles |
 | `ESHU_GENERATION_RETENTION_MIN_SUPERSEDED_GENERATIONS` | `24` | Minimum superseded generations retained per scope after the active one |
 | `ESHU_GENERATION_RETENTION_MAX_SUPERSEDED_AGE` | `168h` | Superseded generations newer than this remain retained |

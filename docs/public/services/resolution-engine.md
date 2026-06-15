@@ -43,9 +43,9 @@ bounded Postgres transactions. It never retracts graph truth; relationship
 retraction and graph orphan cleanup remain separate reducer work. Retention
 events store safe hashes for scope and generation identifiers so changed-since
 requests can return `retention_expired` instead of a false zero delta after
-history ages out. Production Helm renders reject
-`ESHU_GENERATION_RETENTION_ENABLED=false`; use that disable flag only for
-explicit local or test binary runs.
+history ages out. Production Helm renders and default/production binaries reject
+`ESHU_GENERATION_RETENTION_ENABLED=false`; use that disable flag only with an
+explicit local `ESHU_QUERY_PROFILE` for local or test binary runs.
 
 The graph orphan cleanup runner counts, marks, and deletes only aged
 zero-relationship graph nodes in the closed cleanup label set. It is not a
