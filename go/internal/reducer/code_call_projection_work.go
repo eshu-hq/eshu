@@ -9,6 +9,25 @@ import (
 )
 
 func (r *CodeCallProjectionRunner) loadAllAcceptanceUnitIntents(ctx context.Context, key SharedProjectionAcceptanceKey) ([]SharedProjectionIntentRow, error) {
+	return r.loadAcceptanceUnitRows(ctx, key)
+}
+
+func (r *CodeCallProjectionRunner) loadAcceptanceUnitPartitionIntents(
+	ctx context.Context,
+	key SharedProjectionAcceptanceKey,
+	partitionKey string,
+) ([]SharedProjectionIntentRow, error) {
+	rows, err := r.loadAcceptanceUnitRows(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	return codeCallProjectionRowsForPartition(rows, partitionKey), nil
+}
+
+func (r *CodeCallProjectionRunner) loadAcceptanceUnitRows(
+	ctx context.Context,
+	key SharedProjectionAcceptanceKey,
+) ([]SharedProjectionIntentRow, error) {
 	limit := r.Config.batchLimit()
 	acceptanceScanLimit := r.Config.acceptanceScanLimit()
 	if limit > acceptanceScanLimit {

@@ -87,6 +87,8 @@ queue, or graph-write evidence.
 | `ESHU_CODE_CALL_PROJECTION_BATCH_LIMIT` | `100` | reducer code-call sidecar | Claim batch size for code-call work. |
 | `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` | `250000` | reducer code-call sidecar | Guard for complete accepted repo/run scan before rewriting `CALLS` edges. |
 | `ESHU_CODE_CALL_PROJECTION_LEASE_OWNER` | `code-call-projection-runner` | reducer code-call sidecar | Lease owner name. |
+| `ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT` | `1` | reducer code-call sidecar | Partition count for file-scoped CALLS projection lanes. |
+| `ESHU_CODE_CALL_PROJECTION_WORKERS` | `1` | reducer code-call sidecar | Concurrent partition workers for file-scoped CALLS projection lanes. |
 | `ESHU_REPO_DEPENDENCY_PROJECTION_POLL_INTERVAL` | `500ms` | reducer repo-dependency sidecar | Idle poll interval. |
 | `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_TTL` | `60s` | reducer repo-dependency sidecar | Lease TTL. |
 | `ESHU_REPO_DEPENDENCY_PROJECTION_BATCH_LIMIT` | `100` | reducer repo-dependency sidecar | Claim batch size. |

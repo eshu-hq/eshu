@@ -18,15 +18,18 @@ intents are blocked on a readiness phase (`BlockedReadiness > 0`), it
 re-polls at the base interval without backing off.
 
 `CodeCallProjectionRunner` owns the `code_calls` domain separately because it
-rewrites one accepted repo/run unit at a time while preserving repo-wide
-retraction semantics. Very large accepted units are processed in capped chunks:
-the first chunk retracts when prior durable history exists, and later chunks
-from the same source run skip retraction so earlier chunk writes stay
-graph-visible. In local-authoritative NornicDB runs it can receive a
-`ReducerGraphDrain`; when active reducer graph domains remain, the runner
-records a blocked cycle and waits before claiming the code-call partition. The
-gate only schedules work. It does not change which rows become `CALLS`,
-`REFERENCES`, or `USES_METACLASS`.
+rewrites accepted repo/run units while preserving repo-wide retraction
+semantics. By default it runs one partition and one worker. When configured
+with multiple code-call partitions and workers, it may process distinct
+file-scoped delta partitions concurrently, but whole-scope or legacy rows fence
+same-repository file partitions by pending-row order. Very large accepted units
+are processed in capped chunks: the first chunk retracts when prior durable
+history exists, and later chunks from the same source run skip retraction so
+earlier chunk writes stay graph-visible. In local-authoritative NornicDB runs it
+can receive a `ReducerGraphDrain`; when active reducer graph domains remain,
+the runner records a blocked cycle and waits before claiming a code-call
+partition. The gate only schedules work. It does not change which rows become
+`CALLS`, `REFERENCES`, or `USES_METACLASS`.
 
 Configuration via `LoadSharedProjectionConfig` reads
 `ESHU_SHARED_PROJECTION_*` env vars; see `cmd/reducer/README.md`.
