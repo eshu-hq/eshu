@@ -233,18 +233,6 @@ func loadSemanticSearchLocalEmbedder(getenv func(string) string) (string, error)
 	}
 }
 
-func newLocalSemanticSearchHybrid(db *sql.DB, embedder string) query.SemanticSearchHybridStore {
-	if strings.TrimSpace(embedder) == "" {
-		return nil
-	}
-	sqlDB := pgstatus.SQLDB{DB: db}
-	return query.NewDefaultPersistedLocalSemanticSearchHybrid(
-		query.NewPostgresSemanticSearchIndexStore(db),
-		pgstatus.NewEshuSearchVectorMetadataStore(sqlDB),
-		pgstatus.NewEshuSearchVectorValueStore(sqlDB),
-	)
-}
-
 func loadQueryProfile(getenv func(string) string) (query.QueryProfile, error) {
 	raw := strings.TrimSpace(getenv("ESHU_QUERY_PROFILE"))
 	if raw == "" {
@@ -366,7 +354,7 @@ func newRouter(
 		},
 		SemanticSearch: &query.SemanticSearchHandler{
 			Index:       query.NewPostgresSemanticSearchIndexStore(db),
-			LocalHybrid: newLocalSemanticSearchHybrid(db, semanticSearchLocalEmbedder),
+			LocalHybrid: newLocalSemanticSearchHybrid(db, semanticSearchLocalEmbedder, instruments),
 			Profile:     queryProfile,
 		},
 		PackageRegistry: newPackageRegistryHandler(db, neo4jReader, contentReader, queryProfile),

@@ -10,6 +10,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
+	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -102,6 +103,14 @@ func wireAPI(
 	if logger != nil {
 		logger.Info("postgres connected", telemetry.EventAttr("runtime.postgres.connected"))
 	}
+	instruments, err := telemetry.NewInstruments(otel.Meter("mcp-server"))
+	if err != nil {
+		_ = db.Close()
+		if driver != nil {
+			_ = driver.Close(ctx)
+		}
+		return nil, nil, nil, fmt.Errorf("register query instruments: %w", err)
+	}
 
 	// Build query layer
 	neo4jReader := query.NewNeo4jReader(driver, neo4jDB)
@@ -122,6 +131,7 @@ func wireAPI(
 		queryProfile,
 		graphBackend,
 		logger,
+		instruments,
 		semanticSearchLocalEmbedder,
 		componentHome,
 		componentPolicy,
@@ -165,6 +175,7 @@ func newMCPQueryRouter(
 	queryProfile query.QueryProfile,
 	graphBackend query.GraphBackend,
 	logger *slog.Logger,
+	instruments *telemetry.Instruments,
 	semanticSearchLocalEmbedder string,
 	componentHome string,
 	componentPolicy component.Policy,
@@ -242,7 +253,7 @@ func newMCPQueryRouter(
 		},
 		SemanticSearch: &query.SemanticSearchHandler{
 			Index:       query.NewPostgresSemanticSearchIndexStore(db),
-			LocalHybrid: newLocalSemanticSearchHybrid(db, semanticSearchLocalEmbedder),
+			LocalHybrid: newLocalSemanticSearchHybrid(db, semanticSearchLocalEmbedder, instruments),
 			Profile:     queryProfile,
 		},
 		PackageRegistry: &query.PackageRegistryHandler{
@@ -387,18 +398,6 @@ func loadSemanticSearchLocalEmbedder(getenv func(string) string) (string, error)
 	default:
 		return "", fmt.Errorf("invalid %s %q", envSemanticSearchLocalEmbedder, raw)
 	}
-}
-
-func newLocalSemanticSearchHybrid(db *sql.DB, embedder string) query.SemanticSearchHybridStore {
-	if strings.TrimSpace(embedder) == "" {
-		return nil
-	}
-	sqlDB := pgstatus.SQLDB{DB: db}
-	return query.NewDefaultPersistedLocalSemanticSearchHybrid(
-		query.NewPostgresSemanticSearchIndexStore(db),
-		pgstatus.NewEshuSearchVectorMetadataStore(sqlDB),
-		pgstatus.NewEshuSearchVectorValueStore(sqlDB),
-	)
 }
 
 func loadQueryProfile(getenv func(string) string) (query.QueryProfile, error) {

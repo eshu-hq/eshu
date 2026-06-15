@@ -99,6 +99,17 @@ Observability Evidence: `telemetry.SpanQuerySemanticSearch`
 `search_method` plus top-level `retrieval_state` show whether the request was
 scoped tightly enough and which retrieval path answered.
 
+Observability Evidence: when deterministic local vector retrieval is enabled,
+API and MCP wire the vector metadata and vector value sidecar reads through
+Postgres `InstrumentedDB` store labels `semantic_search_vector_metadata` and
+`semantic_search_vector_values`. The existing
+`eshu_dp_postgres_query_duration_seconds{operation="read",store=...}` metric
+and `postgres.query` child spans separate slow vector-sidecar reads from the
+outer semantic-search route span. Verified by
+`TestNewRouterWiresLocalSemanticHybridVectorStoresWithPostgresInstrumentation`
+and
+`TestNewMCPQueryRouterWiresLocalSemanticHybridVectorStoresWithPostgresInstrumentation`.
+
 ## Related Docs
 
 - [Search Retrieval Contract](../search-retrieval-contract.md)
