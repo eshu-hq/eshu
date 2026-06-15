@@ -94,6 +94,10 @@ mode is the 20-50 repository inner-loop gate, and full mode is the release
 gate. `test-remote-e2e-corpus-preflight.sh` covers those bounds without
 requiring Docker.
 
+`remote-e2e-scanner-sbom-preflight.sh` validates the scanner-worker SBOM mount
+before `workflow-coordinator` can plan scanner claims. Its harness is
+`test-remote-e2e-scanner-sbom-preflight.sh`.
+
 `e2e_remote_compose_suite.sh` builds the public-safe remote Compose evidence
 manifest from live aggregate collector, reducer, readback, runtime, pprof, log,
 and volume-proof inputs. It fails closed when reducer rows have source and

@@ -374,6 +374,19 @@ services:
     command:
       - /bin/sh /usr/local/bin/remote-e2e-corpus-preflight.sh
 
+  remote-e2e-scanner-sbom-preflight:
+    image: alpine:3.21
+    environment:
+      ESHU_SCANNER_WORKER_SBOM_HOST_ROOT: ${ESHU_SCANNER_WORKER_SBOM_HOST_ROOT:-./tests/fixtures/ecosystems}
+      ESHU_SCANNER_WORKER_SBOM_MOUNTED_ROOT: /scanner-fixtures
+      ESHU_SCANNER_WORKER_SBOM_MIN_CANDIDATES: ${ESHU_SCANNER_WORKER_SBOM_MIN_CANDIDATES:-1}
+    volumes:
+      - ${ESHU_SCANNER_WORKER_SBOM_HOST_ROOT:-./tests/fixtures/ecosystems}:/scanner-fixtures:ro
+      - ./scripts/remote-e2e-scanner-sbom-preflight.sh:/usr/local/bin/remote-e2e-scanner-sbom-preflight.sh:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - /bin/sh /usr/local/bin/remote-e2e-scanner-sbom-preflight.sh
+
   sbom-attestation-fixture:
     image: python:3.13-alpine
     restart: on-failure
@@ -511,6 +524,8 @@ services:
       retries: 10
     depends_on:
       remote-e2e-corpus-preflight:
+        condition: service_completed_successfully
+      remote-e2e-scanner-sbom-preflight:
         condition: service_completed_successfully
       collector-security-alerts-preflight:
         condition: service_completed_successfully

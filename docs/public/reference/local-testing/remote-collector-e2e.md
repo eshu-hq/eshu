@@ -86,7 +86,7 @@ provider/fact/fetch-duration metrics remain the diagnostic surface. Missing
 operator-local JQL still fails before provider execution with a target-indexed
 startup error instead of silently running an unscoped query.
 
-Remote Compose configures one scanner-worker `sbom_generation` target on bounded `ESHU_SCANNER_WORKER_SBOM_HOST_ROOT:/scanner-fixtures`, separate from `ESHU_FILESYSTEM_HOST_ROOT` full-corpus ingestion. Container health without a completed claim is only runtime proof.
+Remote Compose configures one scanner-worker `sbom_generation` target on bounded `ESHU_SCANNER_WORKER_SBOM_HOST_ROOT:/scanner-fixtures`, separate from `ESHU_FILESYSTEM_HOST_ROOT` full-corpus ingestion. `remote-e2e-scanner-sbom-preflight` fails planning before `workflow-coordinator` when that mount is missing, empty, or has no supported manifests. Container health without a completed claim is only runtime proof.
 
 No-Regression Evidence: runtime and render tests cover the bounded mount, target path, planning guard, active-mode admission, and render shape. No-Observability-Change: existing health, metrics, pprof, workflow, fact, queue, log, resource, retry, and dead-letter signals remain the diagnostic surface; evidence still requires positive source or warning facts.
 
