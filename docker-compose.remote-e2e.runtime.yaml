@@ -1,0 +1,456 @@
+# Remote E2E control-plane, freshness seeding, hosted collectors, and scanner.
+# Use docker-compose.remote-e2e.yaml as the operator entrypoint.
+
+x-collector-env: &remote_e2e_collector_env
+  # Keep this as an escaped string so the rendered environment stays byte-for-byte
+  # compatible with the pre-fragment Compose file while this source stays under cap.
+  ESHU_COLLECTOR_INSTANCES_JSON: "[\n  {\n    \"instance_id\": \"remote-e2e-git\",\n    \"collector_kind\": \"git\",\n    \"mode\": \"continuous\",\n    \"enabled\": true,\n    \"bootstrap\": true,\n    \"claims_enabled\": true,\n    \"configuration\": {\n      \"source\": \"remote-e2e-compose\",\n      \"fairness_weight\": 1\n    }\n  },\n  {\n    \"instance_id\": \"remote-e2e-terraform-state\",\n    \"collector_kind\": \"terraform_state\",\n    \"mode\": \"continuous\",\n    \"enabled\": true,\n    \"claims_enabled\": true,\n    \"configuration\": {\n      \"target_scopes\": [\n        {\n          \"target_scope_id\": \"aws-e2e\",\n          \"provider\": \"aws\",\n          \"deployment_mode\": \"account_local\",\n          \"credential_mode\": \"local_workload_identity\",\n          \"allowed_regions\": [\"${ESHU_TFSTATE_S3_REGION:?set ESHU_TFSTATE_S3_REGION}\"],\n          \"allowed_backends\": [\"s3\"],\n          \"redaction_policy_ref\": \"remote-e2e\"\n        }\n      ],\n      \"discovery\": {\n        \"graph\": true,\n        \"seeds\": [\n          {\n            \"kind\": \"s3\",\n            \"target_scope_id\": \"aws-e2e\",\n            \"bucket\": \"${ESHU_TFSTATE_S3_BUCKET:?set ESHU_TFSTATE_S3_BUCKET}\",\n            \"key\": \"${ESHU_TFSTATE_S3_KEY:?set ESHU_TFSTATE_S3_KEY}\",\n            \"region\": \"${ESHU_TFSTATE_S3_REGION:?set ESHU_TFSTATE_S3_REGION}\"\n          }\n        ],\n        \"backend_filters\": [\n          {\n            \"target_scope_id\": \"aws-e2e\",\n            \"backend_kind\": \"s3\",\n            \"bucket\": \"${ESHU_TFSTATE_S3_BUCKET:?set ESHU_TFSTATE_S3_BUCKET}\",\n            \"key\": \"${ESHU_TFSTATE_S3_KEY:?set ESHU_TFSTATE_S3_KEY}\",\n            \"region\": \"${ESHU_TFSTATE_S3_REGION:?set ESHU_TFSTATE_S3_REGION}\"\n          }\n        ]\n      }\n    }\n  },\n  {\n    \"instance_id\": \"remote-e2e-aws-cloud\",\n    \"collector_kind\": \"aws\",\n    \"mode\": \"continuous\",\n    \"enabled\": true,\n    \"claims_enabled\": true,\n    \"configuration\": {\n      \"scheduled_scan_enabled\": true,\n      \"target_scopes\": [\n        {\n          \"account_id\": \"${ESHU_AWS_E2E_ACCOUNT_ID:?set ESHU_AWS_E2E_ACCOUNT_ID}\",\n          \"allowed_regions\": [\"${ESHU_AWS_E2E_REGION:?set ESHU_AWS_E2E_REGION}\", \"aws-global\"],\n          \"allowed_services\": [\n            \"iam\",\n            \"ecr\",\n            \"ecs\",\n            \"ec2\",\n            \"elbv2\",\n            \"lambda\",\n            \"eks\",\n            \"route53\",\n            \"sqs\",\n            \"sns\",\n            \"eventbridge\",\n            \"s3\",\n            \"rds\",\n            \"dynamodb\",\n            \"cloudwatchlogs\",\n            \"cloudfront\",\n            \"apigateway\",\n            \"secretsmanager\",\n            \"ssm\"\n          ],\n          \"max_concurrent_claims\": 1,\n          \"credentials\": {\n            \"mode\": \"local_workload_identity\"\n          }\n        }\n      ]\n    }\n  },\n  {\n    \"instance_id\": \"remote-e2e-oci-registry\",\n    \"collector_kind\": \"oci_registry\",\n    \"mode\": \"continuous\",\n    \"enabled\": true,\n    \"claims_enabled\": true,\n    \"configuration\": {\n      \"targets\": [\n        {\n          \"provider\": \"ecr\",\n          \"registry_id\": \"${ESHU_ECR_OCI_REGISTRY_ID:?set ESHU_ECR_OCI_REGISTRY_ID}\",\n          \"region\": \"${ESHU_ECR_OCI_REGION:?set ESHU_ECR_OCI_REGION}\",\n          \"repository\": \"${ESHU_ECR_OCI_REPOSITORY:?set ESHU_ECR_OCI_REPOSITORY}\",\n          \"tag_limit\": 25,\n          \"visibility\": \"private\",\n          \"auth_mode\": \"credentialed\"\n        }\n      ]\n    }\n  },\n  {\n    \"instance_id\": \"remote-e2e-package-registry\",\n    \"collector_kind\": \"package_registry\",\n    \"mode\": \"continuous\",\n    \"enabled\": true,\n    \"claims_enabled\": true,\n    \"configuration\": {\n      \"derive_from_owned_packages\": {\n        \"enabled\": true,\n        \"ecosystems\": [\"npm\"],\n        \"planning_mode\": \"single_pass\",\n        \"target_limit\": ${ESHU_REMOTE_E2E_DERIVED_TARGET_LIMIT:-100},\n        \"package_limit\": 1,\n        \"version_limit\": 1\n      },\n      \"targets\": [\n        {\n          \"provider\": \"npm\",\n          \"ecosystem\": \"npm\",\n          \"registry\": \"https://registry.npmjs.org\",\n          \"scope_id\": \"package-registry://npm/npm/lodash\",\n          \"packages\": [\"lodash\"],\n          \"package_limit\": 1,\n          \"version_limit\": 200,\n          \"visibility\": \"public\",\n          \"metadata_url\": \"https://registry.npmjs.org/lodash\",\n          \"document_format\": \"native\"\n        },\n        {\n          \"provider\": \"maven-central\",\n          \"ecosystem\": \"maven\",\n          \"registry\": \"https://repo.maven.apache.org/maven2\",\n          \"scope_id\": \"package-registry://maven/maven-central/org.apache.logging.log4j:log4j-core\",\n          \"namespace\": \"org.apache.logging.log4j\",\n          \"packages\": [\"log4j-core\"],\n          \"package_limit\": 1,\n          \"version_limit\": 1,\n          \"visibility\": \"public\",\n          \"metadata_url\": \"https://repo.maven.apache.org/maven2/org/apache/logging/log4j/log4j-core/2.14.1/log4j-core-2.14.1.pom\",\n          \"document_format\": \"native\"\n        }\n      ]\n    }\n  },\n  {\n    \"instance_id\": \"remote-e2e-vulnerability-intelligence\",\n    \"collector_kind\": \"vulnerability_intelligence\",\n    \"mode\": \"continuous\",\n    \"enabled\": true,\n    \"claims_enabled\": true,\n    \"configuration\": {\n      \"derive_from_owned_packages\": {\n        \"enabled\": true,\n        \"sources\": [\"osv\"],\n        \"ecosystems\": [\"npm\"],\n        \"planning_mode\": \"single_pass\",\n        \"target_limit\": ${ESHU_REMOTE_E2E_DERIVED_TARGET_LIMIT:-100}\n      },\n      \"targets\": [\n        {\n          \"source\": \"first_epss\",\n          \"scope_id\": \"vuln-intel://first/epss\",\n          \"cve_ids\": [\"${ESHU_VULNERABILITY_E2E_CVE_ID:-CVE-2021-44228}\"]\n        },\n        {\n          \"source\": \"cisa_kev\",\n          \"scope_id\": \"vuln-intel://cisa/kev\"\n        },\n        {\n          \"source\": \"osv\",\n          \"scope_id\": \"vuln-intel://osv/maven/log4j-core\",\n          \"ecosystem\": \"maven\",\n          \"queries\": [\n            {\n              \"package\": {\n                \"name\": \"org.apache.logging.log4j:log4j-core\",\n                \"ecosystem\": \"Maven\"\n              },\n              \"version\": \"2.14.1\"\n            }\n          ]\n        },\n        {\n          \"source\": \"nvd\",\n          \"scope_id\": \"vuln-intel://nvd/cve\",\n          \"cve_ids\": [\"${ESHU_VULNERABILITY_E2E_CVE_ID:-CVE-2021-44228}\"],\n          \"results_per_page\": 100,\n          \"api_key_env\": \"NVD_API_KEY\"\n        }\n      ]\n    }\n  },\n  {\n    \"instance_id\": \"remote-e2e-sbom-attestation\",\n    \"collector_kind\": \"sbom_attestation\",\n    \"mode\": \"continuous\",\n    \"enabled\": true,\n    \"claims_enabled\": true,\n    \"configuration\": {\n      \"targets\": [\n        {\n          \"scope_id\": \"sbom://remote-e2e/team-api\",\n          \"source_type\": \"configured_source\",\n          \"artifact_kind\": \"sbom\",\n          \"document_format\": \"cyclonedx\",\n          \"document_url\": \"${ESHU_SBOM_ATTESTATION_DOCUMENT_URL:-http://sbom-attestation-fixture:8080/cyclonedx_image_subject.json}\",\n          \"subject_digest\": \"${ESHU_SBOM_ATTESTATION_E2E_SUBJECT_DIGEST:-sha256:1111111111111111111111111111111111111111111111111111111111111111}\"\n        }\n      ]\n    }\n  },\n  {\n    \"instance_id\": \"remote-e2e-security-alert\",\n    \"collector_kind\": \"security_alert\",\n    \"mode\": \"continuous\",\n    \"enabled\": true,\n    \"claims_enabled\": true,\n    \"configuration\": {\n      \"targets\": [\n        {\n          \"provider\": \"github_dependabot\",\n          \"scope_id\": \"security-alert:github:${ESHU_SECURITY_ALERT_REPOSITORY:?set ESHU_SECURITY_ALERT_REPOSITORY}\",\n          \"repository\": \"${ESHU_SECURITY_ALERT_REPOSITORY:?set ESHU_SECURITY_ALERT_REPOSITORY}\",\n          \"token_env\": \"GITHUB_TOKEN\",\n          \"allowed_repositories\": [\"${ESHU_SECURITY_ALERT_REPOSITORY:?set ESHU_SECURITY_ALERT_REPOSITORY}\"],\n          \"repository_alert_limit\": 25,\n          \"max_pages\": 2,\n          \"source_uri\": \"https://github.com/${ESHU_SECURITY_ALERT_REPOSITORY:?set ESHU_SECURITY_ALERT_REPOSITORY}/security/dependabot\"\n        }\n      ]\n    }\n  },\n  {\n    \"instance_id\": \"remote-e2e-pagerduty\",\n    \"collector_kind\": \"pagerduty\",\n    \"mode\": \"continuous\",\n    \"enabled\": ${ESHU_REMOTE_E2E_PAGERDUTY_ENABLED:-false},\n    \"claims_enabled\": true,\n    \"configuration\": {\n      \"targets\": [\n        {\n          \"provider\": \"pagerduty\",\n          \"scope_id\": \"pagerduty://remote-e2e\",\n          \"account_id\": \"${ESHU_PAGERDUTY_ACCOUNT_ID:-}\",\n          \"token_env\": \"PAGERDUTY_API_TOKEN\",\n          \"api_base_url\": \"${ESHU_PAGERDUTY_API_BASE_URL:-}\",\n          \"source_uri\": \"${ESHU_PAGERDUTY_SOURCE_URI:-}\",\n          \"incident_limit\": ${ESHU_PAGERDUTY_INCIDENT_LIMIT:-1},\n          \"incident_lookback\": \"${ESHU_PAGERDUTY_INCIDENT_LOOKBACK:-24h}\",\n          \"log_entry_limit\": ${ESHU_PAGERDUTY_LOG_ENTRY_LIMIT:-1},\n          \"change_event_limit\": ${ESHU_PAGERDUTY_CHANGE_EVENT_LIMIT:-1},\n          \"config_validation_enabled\": ${ESHU_PAGERDUTY_CONFIG_VALIDATION_ENABLED:-true},\n          \"config_resource_limit\": ${ESHU_PAGERDUTY_CONFIG_RESOURCE_LIMIT:-2}\n        }\n      ]\n    }\n  },\n  {\n    \"instance_id\": \"remote-e2e-jira\",\n    \"collector_kind\": \"jira\",\n    \"mode\": \"continuous\",\n    \"enabled\": ${ESHU_REMOTE_E2E_JIRA_ENABLED:-false},\n    \"claims_enabled\": true,\n    \"configuration\": {\n      \"targets\": [\n        {\n          \"provider\": \"jira_cloud\",\n          \"scope_id\": \"jira://remote-e2e\",\n          \"site_id\": \"${ESHU_JIRA_SITE_ID:-}\",\n          \"base_url\": \"${ESHU_JIRA_BASE_URL:-}\",\n          \"email_env\": \"JIRA_EMAIL\",\n          \"token_env\": \"JIRA_API_TOKEN\",\n          \"jql_env\": \"ESHU_JIRA_JQL\",\n          \"issue_limit\": ${ESHU_JIRA_ISSUE_LIMIT:-1},\n          \"updated_lookback\": \"${ESHU_JIRA_UPDATED_LOOKBACK:-168h}\",\n          \"changelog_limit\": ${ESHU_JIRA_CHANGELOG_LIMIT:-25},\n          \"remote_link_limit\": ${ESHU_JIRA_REMOTE_LINK_LIMIT:-25},\n          \"metadata_limit\": ${ESHU_JIRA_METADATA_LIMIT:-25}\n        }\n      ]\n    }\n  },\n  {\n    \"instance_id\": \"remote-e2e-scanner-worker-source\",\n    \"collector_kind\": \"scanner_worker\",\n    \"mode\": \"continuous\",\n    \"enabled\": true,\n    \"claims_enabled\": true,\n    \"configuration\": {\n      \"analyzer\": \"sbom_generation\",\n      \"sbom_targets\": [\n        {\n          \"scope_id\": \"scanner-worker://repository/remote-e2e-sbom-fixture\",\n          \"root_path\": \"/scanner-fixtures\",\n          \"subject_digest\": \"${ESHU_SCANNER_WORKER_SBOM_SUBJECT_DIGEST:-sha256:1111111111111111111111111111111111111111111111111111111111111111}\"\n        }\n      ]\n    }\n  }\n]\n"
+
+x-runtime-env: &remote_e2e_runtime_env
+  ESHU_GRAPH_BACKEND: nornicdb
+  DEFAULT_DATABASE: nornic
+  ESHU_NEO4J_DATABASE: nornic
+  NEO4J_DATABASE: nornic
+  NEO4J_URI: bolt://nornicdb:7687
+  NEO4J_USERNAME: neo4j
+  NEO4J_PASSWORD: ${ESHU_NEO4J_PASSWORD:-change-me}
+  ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+  ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+  ESHU_HOME: /tmp/.eshu
+  HOME: /tmp
+  ESHU_DEPLOYMENT_ENVIRONMENT: remote-e2e-compose
+  ESHU_PROMETHEUS_METRICS_ENABLED: "true"
+  ESHU_PROMETHEUS_METRICS_PORT: "9464"
+  ESHU_CANONICAL_WRITE_TIMEOUT: ${ESHU_CANONICAL_WRITE_TIMEOUT:-120s}
+
+x-aws-env: &remote_e2e_aws_env
+  AWS_REGION: ${ESHU_AWS_E2E_REGION:?set ESHU_AWS_E2E_REGION}
+  AWS_DEFAULT_REGION: ${ESHU_AWS_E2E_REGION:?set ESHU_AWS_E2E_REGION}
+  AWS_EC2_METADATA_DISABLED: ${AWS_EC2_METADATA_DISABLED:-false}
+  NO_PROXY: 169.254.169.254,localhost,127.0.0.1,nornicdb,postgres,webhook-listener
+  no_proxy: 169.254.169.254,localhost,127.0.0.1,nornicdb,postgres,webhook-listener
+
+services:
+  bootstrap-index:
+    extends:
+      file: docker-compose.yaml
+      service: bootstrap-index
+    restart: on-failure
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      workspace-setup:
+        condition: service_completed_successfully
+      remote-e2e-corpus-preflight:
+        condition: service_completed_successfully
+  eshu:
+    extends:
+      file: docker-compose.yaml
+      service: eshu
+    restart: on-failure
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
+      ESHU_HOME: /data/.eshu
+      ESHU_API_KEY: ${ESHU_API_KEY:-}
+      ESHU_AUTO_GENERATE_API_KEY: "true"
+
+  mcp-server:
+    extends:
+      file: docker-compose.yaml
+      service: mcp-server
+    restart: on-failure
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
+      ESHU_HOME: /data/.eshu
+      ESHU_API_KEY: ${ESHU_API_KEY:-}
+      ESHU_AUTO_GENERATE_API_KEY: "true"
+
+  ingester:
+    extends:
+      file: docker-compose.yaml
+      service: ingester
+    restart: on-failure
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
+
+  collector-security-alerts-preflight:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: "no"
+    command:
+      - "/usr/local/bin/eshu-collector-security-alerts"
+      - "--preflight-provider-access"
+    environment:
+      <<: *remote_e2e_collector_env
+      ESHU_SECURITY_ALERT_COLLECTOR_INSTANCE_ID: remote-e2e-security-alert
+      GITHUB_TOKEN: ${ESHU_SECURITY_ALERT_GITHUB_TOKEN:?set ESHU_SECURITY_ALERT_GITHUB_TOKEN}
+
+  workflow-coordinator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-workflow-coordinator"]
+    ports:
+      - "${ESHU_WORKFLOW_COORDINATOR_HTTP_PORT:-18082}:8080"
+      - "${ESHU_WORKFLOW_COORDINATOR_METRICS_PORT:-19469}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
+      ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE: active
+      ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED: "true"
+      ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL: ${ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL:-30s}
+      ESHU_WORKFLOW_COORDINATOR_RUN_RECONCILE_INTERVAL: ${ESHU_WORKFLOW_COORDINATOR_RUN_RECONCILE_INTERVAL:-30s}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      remote-e2e-corpus-preflight:
+        condition: service_completed_successfully
+      remote-e2e-scanner-sbom-preflight:
+        condition: service_completed_successfully
+      collector-security-alerts-preflight:
+        condition: service_completed_successfully
+      db-migrate:
+        condition: service_completed_successfully
+      bootstrap-index:
+        condition: service_completed_successfully
+
+  collector-terraform-state:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-terraform-state"]
+    ports:
+      - "${ESHU_COLLECTOR_TFSTATE_METRICS_PORT:-19470}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env, *remote_e2e_aws_env]
+      ESHU_TFSTATE_COLLECTOR_INSTANCE_ID: remote-e2e-terraform-state
+      ESHU_TFSTATE_COLLECTOR_OWNER_ID: remote-e2e-tfstate-worker
+      ESHU_TFSTATE_COLLECTOR_POLL_INTERVAL: ${ESHU_TFSTATE_COLLECTOR_POLL_INTERVAL:-2s}
+      ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL: ${ESHU_TFSTATE_COLLECTOR_CLAIM_LEASE_TTL:-60s}
+      ESHU_TFSTATE_COLLECTOR_HEARTBEAT_INTERVAL: ${ESHU_TFSTATE_COLLECTOR_HEARTBEAT_INTERVAL:-10s}
+      ESHU_TFSTATE_REDACTION_KEY: ${ESHU_TFSTATE_REDACTION_KEY:?set ESHU_TFSTATE_REDACTION_KEY}
+      ESHU_TFSTATE_REDACTION_RULESET_VERSION: ${ESHU_TFSTATE_REDACTION_RULESET_VERSION:?set ESHU_TFSTATE_REDACTION_RULESET_VERSION}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      projector:
+        condition: service_healthy
+      workflow-coordinator:
+        condition: service_healthy
+
+  collector-oci-registry:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-oci-registry"]
+    ports:
+      - "${ESHU_COLLECTOR_OCI_REGISTRY_METRICS_PORT:-19471}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env, *remote_e2e_aws_env]
+      ESHU_OCI_REGISTRY_COLLECTOR_INSTANCE_ID: remote-e2e-oci-registry
+      ESHU_OCI_REGISTRY_COLLECTOR_OWNER_ID: remote-e2e-oci-worker
+      ESHU_OCI_REGISTRY_POLL_INTERVAL: ${ESHU_OCI_REGISTRY_POLL_INTERVAL:-2s}
+      ESHU_OCI_REGISTRY_CLAIM_LEASE_TTL: ${ESHU_OCI_REGISTRY_CLAIM_LEASE_TTL:-60s}
+      ESHU_OCI_REGISTRY_HEARTBEAT_INTERVAL: ${ESHU_OCI_REGISTRY_HEARTBEAT_INTERVAL:-10s}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      projector:
+        condition: service_healthy
+      workflow-coordinator:
+        condition: service_healthy
+
+  collector-package-registry:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-package-registry"]
+    ports:
+      - "${ESHU_COLLECTOR_PACKAGE_REGISTRY_METRICS_PORT:-19472}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
+      ESHU_PACKAGE_REGISTRY_COLLECTOR_INSTANCE_ID: remote-e2e-package-registry
+      ESHU_PACKAGE_REGISTRY_COLLECTOR_OWNER_ID: remote-e2e-package-worker
+      ESHU_PACKAGE_REGISTRY_POLL_INTERVAL: ${ESHU_PACKAGE_REGISTRY_POLL_INTERVAL:-2s}
+      ESHU_PACKAGE_REGISTRY_CLAIM_LEASE_TTL: ${ESHU_PACKAGE_REGISTRY_CLAIM_LEASE_TTL:-60s}
+      ESHU_PACKAGE_REGISTRY_HEARTBEAT_INTERVAL: ${ESHU_PACKAGE_REGISTRY_HEARTBEAT_INTERVAL:-10s}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      projector:
+        condition: service_healthy
+      workflow-coordinator:
+        condition: service_healthy
+
+  collector-vulnerability-intelligence:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-vulnerability-intelligence"]
+    ports:
+      - "${ESHU_COLLECTOR_VULNERABILITY_INTELLIGENCE_METRICS_PORT:-19476}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
+      ESHU_VULNERABILITY_INTELLIGENCE_COLLECTOR_INSTANCE_ID: remote-e2e-vulnerability-intelligence
+      ESHU_VULNERABILITY_INTELLIGENCE_COLLECTOR_OWNER_ID: remote-e2e-vulnerability-worker
+      ESHU_VULNERABILITY_INTELLIGENCE_POLL_INTERVAL: ${ESHU_VULNERABILITY_INTELLIGENCE_POLL_INTERVAL:-2s}
+      ESHU_VULNERABILITY_INTELLIGENCE_CLAIM_LEASE_TTL: ${ESHU_VULNERABILITY_INTELLIGENCE_CLAIM_LEASE_TTL:-60s}
+      ESHU_VULNERABILITY_INTELLIGENCE_HEARTBEAT_INTERVAL: ${ESHU_VULNERABILITY_INTELLIGENCE_HEARTBEAT_INTERVAL:-10s}
+      NVD_API_KEY: ${ESHU_NVD_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      projector:
+        condition: service_healthy
+      workflow-coordinator:
+        condition: service_healthy
+
+  collector-sbom-attestation:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-sbom-attestation"]
+    ports:
+      - "${ESHU_COLLECTOR_SBOM_ATTESTATION_METRICS_PORT:-19478}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
+      ESHU_SBOM_ATTESTATION_COLLECTOR_INSTANCE_ID: remote-e2e-sbom-attestation
+      ESHU_SBOM_ATTESTATION_COLLECTOR_OWNER_ID: remote-e2e-sbom-attestation-worker
+      ESHU_SBOM_ATTESTATION_POLL_INTERVAL: ${ESHU_SBOM_ATTESTATION_POLL_INTERVAL:-2s}
+      ESHU_SBOM_ATTESTATION_CLAIM_LEASE_TTL: ${ESHU_SBOM_ATTESTATION_CLAIM_LEASE_TTL:-60s}
+      ESHU_SBOM_ATTESTATION_HEARTBEAT_INTERVAL: ${ESHU_SBOM_ATTESTATION_HEARTBEAT_INTERVAL:-10s}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      projector:
+        condition: service_healthy
+      workflow-coordinator:
+        condition: service_healthy
+      sbom-attestation-fixture:
+        condition: service_healthy
+
+  collector-security-alerts:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-security-alerts"]
+    ports:
+      - "${ESHU_COLLECTOR_SECURITY_ALERTS_METRICS_PORT:-19479}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
+      ESHU_SECURITY_ALERT_COLLECTOR_INSTANCE_ID: remote-e2e-security-alert
+      ESHU_SECURITY_ALERT_COLLECTOR_OWNER_ID: remote-e2e-security-alert-worker
+      ESHU_SECURITY_ALERT_POLL_INTERVAL: ${ESHU_SECURITY_ALERT_POLL_INTERVAL:-2s}
+      ESHU_SECURITY_ALERT_CLAIM_LEASE_TTL: ${ESHU_SECURITY_ALERT_CLAIM_LEASE_TTL:-60s}
+      ESHU_SECURITY_ALERT_HEARTBEAT_INTERVAL: ${ESHU_SECURITY_ALERT_HEARTBEAT_INTERVAL:-10s}
+      GITHUB_TOKEN: ${ESHU_SECURITY_ALERT_GITHUB_TOKEN:?set ESHU_SECURITY_ALERT_GITHUB_TOKEN}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      projector:
+        condition: service_healthy
+      workflow-coordinator:
+        condition: service_healthy
+
+  scanner-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-scanner-worker"]
+    ports:
+      - "${ESHU_SCANNER_WORKER_METRICS_PORT:-19477}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
+      ESHU_SCANNER_WORKER_INSTANCE_ID: remote-e2e-scanner-worker-source
+      ESHU_SCANNER_WORKER_OWNER_ID: remote-e2e-scanner-worker
+      ESHU_SCANNER_WORKER_ANALYZER: ${ESHU_SCANNER_WORKER_ANALYZER:-sbom_generation}
+      ESHU_SCANNER_WORKER_POLL_INTERVAL: ${ESHU_SCANNER_WORKER_POLL_INTERVAL:-2s}
+      ESHU_SCANNER_WORKER_CLAIM_LEASE_TTL: ${ESHU_SCANNER_WORKER_CLAIM_LEASE_TTL:-60s}
+      ESHU_SCANNER_WORKER_HEARTBEAT_INTERVAL: ${ESHU_SCANNER_WORKER_HEARTBEAT_INTERVAL:-10s}
+      ESHU_SCANNER_WORKER_CPU_MILLIS: ${ESHU_SCANNER_WORKER_CPU_MILLIS:-4000}
+      ESHU_SCANNER_WORKER_MEMORY_BYTES: ${ESHU_SCANNER_WORKER_MEMORY_BYTES:-4294967296}
+      ESHU_SCANNER_WORKER_TIMEOUT: ${ESHU_SCANNER_WORKER_TIMEOUT:-10m}
+      ESHU_SCANNER_WORKER_MAX_INPUT_BYTES: ${ESHU_SCANNER_WORKER_MAX_INPUT_BYTES:-2147483648}
+      ESHU_SCANNER_WORKER_MAX_FILES: ${ESHU_SCANNER_WORKER_MAX_FILES:-250000}
+      ESHU_SCANNER_WORKER_MAX_FACTS: ${ESHU_SCANNER_WORKER_MAX_FACTS:-50000}
+    volumes:
+      - ${ESHU_SCANNER_WORKER_SBOM_HOST_ROOT:-./tests/fixtures/ecosystems}:/scanner-fixtures:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      projector:
+        condition: service_healthy
+      workflow-coordinator:
+        condition: service_healthy
+
+  collector-aws-cloud:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-aws-cloud"]
+    ports:
+      - "${ESHU_COLLECTOR_AWS_CLOUD_METRICS_PORT:-19473}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env, *remote_e2e_aws_env]
+      ESHU_AWS_COLLECTOR_INSTANCE_ID: remote-e2e-aws-cloud
+      ESHU_AWS_COLLECTOR_OWNER_ID: remote-e2e-aws-worker
+      ESHU_AWS_COLLECTOR_POLL_INTERVAL: ${ESHU_AWS_COLLECTOR_POLL_INTERVAL:-2s}
+      ESHU_AWS_COLLECTOR_CLAIM_LEASE_TTL: ${ESHU_AWS_COLLECTOR_CLAIM_LEASE_TTL:-60s}
+      ESHU_AWS_COLLECTOR_HEARTBEAT_INTERVAL: ${ESHU_AWS_COLLECTOR_HEARTBEAT_INTERVAL:-10s}
+      ESHU_AWS_REDACTION_KEY: ${ESHU_AWS_REDACTION_KEY:?set ESHU_AWS_REDACTION_KEY}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      projector:
+        condition: service_healthy
+      workflow-coordinator:
+        condition: service_healthy
+
+  collector-pagerduty:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles:
+      - pagerduty
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-pagerduty"]
+    ports:
+      - "${ESHU_COLLECTOR_PAGERDUTY_METRICS_PORT:-19480}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
+      ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID: remote-e2e-pagerduty
+      ESHU_PAGERDUTY_COLLECTOR_OWNER_ID: remote-e2e-pagerduty-worker
+      ESHU_PAGERDUTY_POLL_INTERVAL: ${ESHU_PAGERDUTY_POLL_INTERVAL:-2s}
+      ESHU_PAGERDUTY_CLAIM_LEASE_TTL: ${ESHU_PAGERDUTY_CLAIM_LEASE_TTL:-60s}
+      ESHU_PAGERDUTY_HEARTBEAT_INTERVAL: ${ESHU_PAGERDUTY_HEARTBEAT_INTERVAL:-10s}
+      PAGERDUTY_API_TOKEN: ${ESHU_PAGERDUTY_API_TOKEN:-}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      projector:
+        condition: service_healthy
+      workflow-coordinator:
+        condition: service_healthy
+
+  collector-jira:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles:
+      - jira
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-jira"]
+    ports:
+      - "${ESHU_COLLECTOR_JIRA_METRICS_PORT:-19481}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
+      ESHU_JIRA_COLLECTOR_INSTANCE_ID: remote-e2e-jira
+      ESHU_JIRA_COLLECTOR_OWNER_ID: remote-e2e-jira-worker
+      ESHU_JIRA_POLL_INTERVAL: ${ESHU_JIRA_POLL_INTERVAL:-2s}
+      ESHU_JIRA_CLAIM_LEASE_TTL: ${ESHU_JIRA_CLAIM_LEASE_TTL:-60s}
+      ESHU_JIRA_HEARTBEAT_INTERVAL: ${ESHU_JIRA_HEARTBEAT_INTERVAL:-10s}
+      JIRA_EMAIL: ${ESHU_JIRA_EMAIL:-}
+      JIRA_API_TOKEN: ${ESHU_JIRA_API_TOKEN:-}
+      ESHU_JIRA_JQL: ${ESHU_JIRA_JQL:-}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      projector:
+        condition: service_healthy
+      workflow-coordinator:
+        condition: service_healthy
+
+  collector-confluence-preflight:
+    image: alpine:3.21
+    profiles:
+      - confluence
+    restart: "no"
+    environment:
+      ESHU_CONFLUENCE_BASE_URL: ${ESHU_CONFLUENCE_BASE_URL:-}
+      ESHU_CONFLUENCE_SPACE_ID: ${ESHU_CONFLUENCE_SPACE_ID:-}
+      ESHU_CONFLUENCE_SPACE_IDS: ${ESHU_CONFLUENCE_SPACE_IDS:-}
+      ESHU_CONFLUENCE_ROOT_PAGE_ID: ${ESHU_CONFLUENCE_ROOT_PAGE_ID:-}
+      ESHU_CONFLUENCE_BEARER_TOKEN: ${ESHU_CONFLUENCE_BEARER_TOKEN:-}
+      ESHU_CONFLUENCE_EMAIL: ${ESHU_CONFLUENCE_EMAIL:-}
+      ESHU_CONFLUENCE_API_TOKEN: ${ESHU_CONFLUENCE_API_TOKEN:-}
+    volumes:
+      - ./scripts/remote-e2e-confluence-preflight.sh:/usr/local/bin/remote-e2e-confluence-preflight.sh:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - /bin/sh /usr/local/bin/remote-e2e-confluence-preflight.sh
+
+  collector-confluence:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles:
+      - confluence
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-confluence"]
+    ports:
+      - "${ESHU_COLLECTOR_CONFLUENCE_METRICS_PORT:-19474}:9464"
+    environment:
+      <<: *remote_e2e_runtime_env
+      ESHU_CONFLUENCE_BASE_URL: ${ESHU_CONFLUENCE_BASE_URL:-}
+      ESHU_CONFLUENCE_SPACE_ID: ${ESHU_CONFLUENCE_SPACE_ID:-}
+      ESHU_CONFLUENCE_SPACE_IDS: ${ESHU_CONFLUENCE_SPACE_IDS:-}
+      ESHU_CONFLUENCE_ROOT_PAGE_ID: ${ESHU_CONFLUENCE_ROOT_PAGE_ID:-}
+      ESHU_CONFLUENCE_BEARER_TOKEN: ${ESHU_CONFLUENCE_BEARER_TOKEN:-}
+      ESHU_CONFLUENCE_EMAIL: ${ESHU_CONFLUENCE_EMAIL:-}
+      ESHU_CONFLUENCE_API_TOKEN: ${ESHU_CONFLUENCE_API_TOKEN:-}
+      ESHU_CONFLUENCE_PAGE_LIMIT: ${ESHU_CONFLUENCE_PAGE_LIMIT:-100}
+      ESHU_CONFLUENCE_POLL_INTERVAL: ${ESHU_CONFLUENCE_POLL_INTERVAL:-5m}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      collector-confluence-preflight:
+        condition: service_completed_successfully
+      db-migrate:
+        condition: service_completed_successfully

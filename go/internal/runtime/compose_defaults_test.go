@@ -7,11 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
 
 type composeDocument struct {
+	Include  []string                  `yaml:"include"`
 	Services map[string]composeService `yaml:"services"`
 }
 
@@ -399,21 +398,6 @@ func readRepositoryFile(t *testing.T, root, relativePath string) string {
 		t.Fatalf("read %s: %v", relativePath, err)
 	}
 	return string(raw)
-}
-
-func readComposeDocument(t *testing.T, name string) composeDocument {
-	t.Helper()
-
-	raw, err := os.ReadFile(filepath.Join("..", "..", "..", name))
-	if err != nil {
-		t.Fatalf("read %s: %v", name, err)
-	}
-
-	var doc composeDocument
-	if err := yaml.Unmarshal(raw, &doc); err != nil {
-		t.Fatalf("parse %s: %v", name, err)
-	}
-	return doc
 }
 
 func requireComposeService(t *testing.T, doc composeDocument, name string) composeService {

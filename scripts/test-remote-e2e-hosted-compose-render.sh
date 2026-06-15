@@ -53,6 +53,16 @@ compose_observability_pprof_config() {
 		"$@" config >"${output}"
 }
 
+compose_fragment_hashes() {
+	local output="$1"
+	shift
+	docker compose --env-file "${REPO_ROOT}/.env.remote-e2e.example" \
+		-f "${REPO_ROOT}/docker-compose.remote-e2e.foundation.yaml" \
+		-f "${REPO_ROOT}/docker-compose.remote-e2e.runtime.yaml" \
+		-f "${REPO_ROOT}/docker-compose.remote-e2e.seed.yaml" \
+		"$@" config --hash '*' >"${output}"
+}
+
 assert_service_absent() {
 	local services="$1" service="$2"
 	if rg -q "^${service}$" "${services}"; then
@@ -103,7 +113,7 @@ assert_static_contract() {
 		'ESHU_CONFLUENCE_ROOT_PAGE_ID:' \
 		'ESHU_SCANNER_WORKER_SBOM_HOST_ROOT=./tests/fixtures/ecosystems' \
 		'/scanner-fixtures' \
-		'"jql_env": "ESHU_JIRA_JQL"' \
+		'\\"jql_env\\": \\"ESHU_JIRA_JQL\\"' \
 		'127.0.0.1:19675:6060' \
 		'127.0.0.1:19674:6060' \
 		'127.0.0.1:19676:6060' \
@@ -119,6 +129,9 @@ assert_static_contract() {
 		'ESHU_REMOTE_E2E_TEMPO_ENABLED=false'; do
 		if ! rg -q "${want}" \
 			"${REPO_ROOT}/docker-compose.remote-e2e.yaml" \
+			"${REPO_ROOT}/docker-compose.remote-e2e.foundation.yaml" \
+			"${REPO_ROOT}/docker-compose.remote-e2e.runtime.yaml" \
+			"${REPO_ROOT}/docker-compose.remote-e2e.seed.yaml" \
 			"${REPO_ROOT}/docker-compose.remote-e2e.observability.yaml" \
 			"${REPO_ROOT}/docker-compose.remote-e2e.pprof.yaml" \
 			"${REPO_ROOT}/docker-compose.remote-e2e.observability.pprof.yaml" \
@@ -147,6 +160,16 @@ assert_service_absent "${default_services}" collector-loki
 assert_service_absent "${default_services}" collector-tempo
 assert_service_absent "${default_services}" collector-confluence
 assert_service_absent "${default_services}" collector-confluence-preflight
+
+root_hashes="${TMP_DIR}/root-config.hashes"
+fragment_hashes="${TMP_DIR}/fragment-config.hashes"
+compose_fragment_hashes "${fragment_hashes}"
+docker compose --env-file "${REPO_ROOT}/.env.remote-e2e.example" \
+	-f "${REPO_ROOT}/docker-compose.remote-e2e.yaml" \
+	config --hash '*' >"${root_hashes}"
+if ! diff -u "${root_hashes}" "${fragment_hashes}" >"${TMP_DIR}/fragment-render.diff"; then
+	die "remote E2E wrapper service hashes differ from explicit fragment render"
+fi
 
 profiled_services="${TMP_DIR}/profiled-services.txt"
 compose_services "${profiled_services}" --profile jira --profile pagerduty --profile confluence

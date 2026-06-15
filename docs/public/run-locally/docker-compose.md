@@ -291,6 +291,8 @@ intelligence, scanner-worker, AWS cloud, and optional Confluence, Jira, and
 PagerDuty collectors. Add `docker-compose.remote-e2e.observability.yaml` for
 optional Grafana, Prometheus/Mimir, Loki, and Tempo workers. The stack is
 standalone and defaults the Compose project to `eshu-remote-e2e`.
+The root file is the stable operator entrypoint; it includes foundation,
+runtime/collector, and optional seed fragments that own the service groups.
 Run `scripts/verify-compose-helm-runtime-parity.sh` before treating Compose and
 Helm deployment evidence as aligned. The verifier checks this stack against the
 static service-contract shape in
