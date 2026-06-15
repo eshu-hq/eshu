@@ -66,6 +66,9 @@ func TestNewRouterWiresLocalSemanticHybridWhenExplicitlyConfigured(t *testing.T)
 	if router.SemanticSearch.LocalHybrid == nil {
 		t.Fatal("newRouter().SemanticSearch.LocalHybrid = nil, want configured local hybrid backend")
 	}
+	if _, ok := router.SemanticSearch.LocalHybrid.(*query.PersistedLocalSemanticSearchHybrid); !ok {
+		t.Fatalf("newRouter().SemanticSearch.LocalHybrid = %T, want persisted vector backend", router.SemanticSearch.LocalHybrid)
+	}
 }
 
 func TestWireAPIRejectsUnknownSemanticSearchLocalEmbedderBeforeDatastore(t *testing.T) {

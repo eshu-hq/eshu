@@ -2,8 +2,8 @@
 // tool transport over stdio or HTTP backed by the same query and content
 // stores as the HTTP API. `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` or
 // `local_hash` explicitly enables deterministic no-network local
-// semantic/hybrid retrieval over active curated search documents; unset
-// preserves keyword/no-provider behavior.
+// semantic/hybrid retrieval from ready persisted vector rows over active
+// curated search documents; unset preserves keyword/no-provider behavior.
 //
 // When invoked with --version or -v, it prints the embedded application
 // version through the test-covered printMCPServerVersionFlag helper and exits

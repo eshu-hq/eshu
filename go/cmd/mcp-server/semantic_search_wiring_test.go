@@ -56,6 +56,9 @@ func TestNewMCPQueryRouterWiresLocalSemanticHybridWhenExplicitlyConfigured(t *te
 	if router.SemanticSearch.LocalHybrid == nil {
 		t.Fatal("newMCPQueryRouter().SemanticSearch.LocalHybrid = nil, want configured local hybrid backend")
 	}
+	if _, ok := router.SemanticSearch.LocalHybrid.(*query.PersistedLocalSemanticSearchHybrid); !ok {
+		t.Fatalf("newMCPQueryRouter().SemanticSearch.LocalHybrid = %T, want persisted vector backend", router.SemanticSearch.LocalHybrid)
+	}
 }
 
 func TestWireAPIRejectsUnknownSemanticSearchLocalEmbedderBeforeDatastore(t *testing.T) {

@@ -237,7 +237,12 @@ func newLocalSemanticSearchHybrid(db *sql.DB, embedder string) query.SemanticSea
 	if strings.TrimSpace(embedder) == "" {
 		return nil
 	}
-	return query.NewLocalSemanticSearchHybrid(query.NewPostgresSemanticSearchIndexStore(db))
+	sqlDB := pgstatus.SQLDB{DB: db}
+	return query.NewDefaultPersistedLocalSemanticSearchHybrid(
+		query.NewPostgresSemanticSearchIndexStore(db),
+		pgstatus.NewEshuSearchVectorMetadataStore(sqlDB),
+		pgstatus.NewEshuSearchVectorValueStore(sqlDB),
+	)
 }
 
 func loadQueryProfile(getenv func(string) string) (query.QueryProfile, error) {

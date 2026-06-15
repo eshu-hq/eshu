@@ -32,11 +32,16 @@ handling does not rebuild a full corpus index. The response reports
 `corpus_limit=0` means there is no request-time corpus cap, while `limit` still
 bounds returned results.
 When `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` or `local_hash` is set on API
-or MCP, `semantic` and `hybrid` requests load active curated documents for the
-repository scope and build a request-local `searchhybrid` index with the
-deterministic no-network hash embedder. That local path is bounded by
-`corpus_limit=500` and is not an ANN/vector-index production-readiness claim.
-Unset runtime configuration keeps the persisted BM25 behavior.
+or MCP, `semantic` and `hybrid` requests load ready active-generation local
+vector metadata and payload rows for the repository scope. The stored vector
+identity must match the deterministic no-network hash embedder, active search
+document content hash, and vector index version before the route reports vector
+participation. Missing, stale, partial, rebuilding, failed, incompatible, or
+malformed vector state falls back to keyword candidates with an explicit
+`retrieval_state` / `vector_retrieval_state` instead of claiming semantic or
+hybrid participation. That local path is bounded by `corpus_limit=500` and is
+not a hosted-provider, graph-write, or external vector-store integration. Unset
+runtime configuration keeps the persisted BM25 behavior.
 
 Results carry:
 
@@ -57,10 +62,11 @@ result to canonical graph truth.
 `retrieval_state=keyword_only`. `semantic` requires the explicit local hash
 embedder setting; without it the route returns `backend_unavailable` and no
 document store read runs. With it, results report `search_method=vector` and
-`retrieval_state=semantic_active`. `hybrid` without the setting serves the same
-persisted BM25 ranking with `retrieval_state=hybrid_degraded`; with the setting,
-BM25 and vector candidates are fused with Reciprocal Rank Fusion and results can
-report `search_method=rrf_hybrid` plus `retrieval_state=hybrid_active`.
+`retrieval_state=semantic_active` only when persisted vectors are ready and
+compatible. `hybrid` without the setting serves the same persisted BM25 ranking
+with `retrieval_state=hybrid_degraded`; with the setting, ready BM25 and vector
+candidates are fused with Reciprocal Rank Fusion and results can report
+`search_method=rrf_hybrid` plus `retrieval_state=hybrid_active`.
 
 ## Authorization
 

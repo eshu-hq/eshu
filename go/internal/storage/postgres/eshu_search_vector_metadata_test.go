@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -216,6 +217,47 @@ func TestEshuSearchVectorMetadataStoreClampsActiveListLimit(t *testing.T) {
 		t.Fatalf("queries = %d, want 1", len(db.queries))
 	}
 	if got, want := db.queries[0].args[3], 500; got != want {
+		t.Fatalf("limit arg = %v, want %d", got, want)
+	}
+}
+
+func TestEshuSearchVectorMetadataStoreFiltersActiveListByDocumentIDs(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{}},
+	}
+	store := NewEshuSearchVectorMetadataStore(db)
+
+	_, err := store.ListActive(context.Background(), EshuSearchVectorMetadataFilter{
+		ScopeID:            "repo-1",
+		EmbeddingModelID:   "local-hash-v1",
+		VectorIndexVersion: "vector-v1",
+		DocumentIDs:        []string{"", "searchdoc:code:e-2", "searchdoc:code:e-1", "searchdoc:code:e-2"},
+		Limit:              10,
+	})
+	if err != nil {
+		t.Fatalf("ListActive error = %v", err)
+	}
+	if len(db.queries) != 1 {
+		t.Fatalf("queries = %d, want 1", len(db.queries))
+	}
+	q := db.queries[0].query
+	for _, want := range []string{
+		"meta.document_id = ANY($4)",
+		"LIMIT $5",
+	} {
+		if !strings.Contains(q, want) {
+			t.Fatalf("active list query missing %q:\n%s", want, q)
+		}
+	}
+	gotDocumentIDs := fmt.Sprint(db.queries[0].args[3])
+	for _, want := range []string{"searchdoc:code:e-1", "searchdoc:code:e-2"} {
+		if !strings.Contains(gotDocumentIDs, want) {
+			t.Fatalf("document ids arg = %v, want %s", gotDocumentIDs, want)
+		}
+	}
+	if got, want := db.queries[0].args[4], 10; got != want {
 		t.Fatalf("limit arg = %v, want %d", got, want)
 	}
 }

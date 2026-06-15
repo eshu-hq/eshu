@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // EshuSearchVectorBuildState is the low-cardinality lifecycle state for
@@ -141,6 +143,7 @@ type EshuSearchVectorMetadataFilter struct {
 	ScopeID            string
 	EmbeddingModelID   string
 	VectorIndexVersion string
+	DocumentIDs        []string
 	Limit              int
 }
 
@@ -230,14 +233,16 @@ func (s EshuSearchVectorMetadataStore) ListActive(
 		return nil, err
 	}
 
-	rows, err := s.db.QueryContext(
-		ctx,
-		listActiveEshuSearchVectorMetadataSQL,
-		filter.ScopeID,
-		filter.EmbeddingModelID,
-		filter.VectorIndexVersion,
-		filter.Limit,
-	)
+	query := listActiveEshuSearchVectorMetadataSQL
+	args := []any{filter.ScopeID, filter.EmbeddingModelID, filter.VectorIndexVersion}
+	if len(filter.DocumentIDs) > 0 {
+		query = strings.Replace(query, "\nORDER BY meta.document_id ASC", "\n  AND meta.document_id = ANY($4)\nORDER BY meta.document_id ASC", 1)
+		args = append(args, pq.Array(filter.DocumentIDs))
+		query = strings.Replace(query, "LIMIT $4", "LIMIT $5", 1)
+	}
+	args = append(args, filter.Limit)
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list active eshu search vector metadata: %w", err)
 	}
@@ -394,6 +399,7 @@ func normalizeEshuSearchVectorMetadataFilter(filter EshuSearchVectorMetadataFilt
 	filter.ScopeID = strings.TrimSpace(filter.ScopeID)
 	filter.EmbeddingModelID = strings.TrimSpace(filter.EmbeddingModelID)
 	filter.VectorIndexVersion = strings.TrimSpace(filter.VectorIndexVersion)
+	filter.DocumentIDs = cleanStringFilterValues(filter.DocumentIDs)
 	if filter.Limit <= 0 {
 		filter.Limit = 100
 	}

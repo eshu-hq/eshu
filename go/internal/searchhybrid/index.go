@@ -44,6 +44,10 @@ type Options struct {
 	// Embedder, when set, enables semantic and hybrid retrieval. Without it the
 	// index serves BM25 only.
 	Embedder Embedder
+	// PrecomputedDocumentVectors supplies document vectors by document id. When
+	// present, NewIndex uses these vectors instead of embedding documents while
+	// still using Embedder for query vectors.
+	PrecomputedDocumentVectors map[string][]float64
 	// VectorRetrieval selects the semantic vector retrieval strategy. Auto and
 	// Exact use exact cosine; Approximate must be selected explicitly.
 	VectorRetrieval VectorRetrievalMode
@@ -126,9 +130,9 @@ func NewIndex(docs []searchdocs.Document, opts Options) (*Index, error) {
 		}
 		entry := indexedDocument{doc: doc, termFrequency: tf, length: len(tokens)}
 		if index.embedder != nil {
-			vector, err := index.embedDocument(doc)
+			vector, err := index.documentVector(doc, opts.PrecomputedDocumentVectors)
 			if err != nil {
-				return nil, fmt.Errorf("embed document %q: %w", doc.ID, err)
+				return nil, fmt.Errorf("load document vector %q: %w", doc.ID, err)
 			}
 			entry.vector = vector
 		}
@@ -171,6 +175,19 @@ func (index *Index) embedDocument(doc searchdocs.Document) ([]float64, error) {
 	}
 	index.embedCache[hash] = vector
 	return vector, nil
+}
+
+func (index *Index) documentVector(
+	doc searchdocs.Document,
+	precomputed map[string][]float64,
+) ([]float64, error) {
+	if vector, ok := precomputed[doc.ID]; ok {
+		if !validVector(vector, index.embedder.Dimensions()) {
+			return nil, fmt.Errorf("precomputed vector dimensions or values are invalid")
+		}
+		return append([]float64(nil), vector...), nil
+	}
+	return index.embedDocument(doc)
 }
 
 // bm25Score scores one document against the query terms using the precomputed

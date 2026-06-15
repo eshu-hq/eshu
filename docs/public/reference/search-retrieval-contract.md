@@ -181,12 +181,17 @@ index stats are missing, allowing retry to converge after partial failures.
 
 When API or MCP starts with `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER=hash` (or
 `local_hash`), `semantic` and `hybrid` public requests use the same active
-document scope through `EshuSearchDocumentStore.ListActiveDocuments`, then build
-a request-local `searchhybrid.Index` with
-`searchembed.NewHashEmbedder(searchembed.DefaultDimensions)`. This is a
-deterministic no-network local path capped at 500 loaded documents. It reports
-`retrieval_state=semantic_active` or `hybrid_active` when vector retrieval
-participates. It is not an ANN/vector-index production-readiness claim.
+document scope through `EshuSearchDocumentStore.ListActiveDocuments`, then serve
+ready active-generation local vectors from the Postgres sidecar metadata and
+payload tables. The stored vector identity must match
+`searchembed.NewHashEmbedder(searchembed.DefaultDimensions)`, the active
+document content hash, and the configured vector index version. Missing, stale,
+partial, rebuilding, failed, incompatible, or malformed vector state must return
+explicit unavailable or degraded retrieval state instead of claiming vector
+participation. This is a deterministic no-network local path capped at 500
+loaded documents. It reports `retrieval_state=semantic_active` or
+`hybrid_active` only when ready persisted vector retrieval participates. It is
+not a hosted-provider, graph-write, or external vector-store integration.
 
 Production ANN/vector-index retrieval is gated separately by issue #2578 with
 storage-owner follow-up issue #2582. The first implementation storage owner is
@@ -211,7 +216,8 @@ The public surface:
 - serves from the active persisted search index without a request-time full
   rebuild or corpus cap;
 - uses the explicit local hash embedder path for `semantic` and `hybrid` only
-  when API/MCP is configured with `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER`;
+  when API/MCP is configured with `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` and
+  active persisted vector state is ready and compatible;
 - caps returned results at 100;
 - returns the canonical Eshu envelope when requested;
 - reports derived truth basis, freshness, graph handles, `search_method`,
