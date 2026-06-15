@@ -60,11 +60,15 @@ code-calls:v1:whole:<repository_id>
 code-calls:v1:files:<repository_id>:<sha256>
 ```
 
-The file-scoped key is used only when the accepted delta unit carries a
-non-empty, normalized repo-relative affected-file set. The raw affected paths
-are sorted, deduplicated, and hashed with the repository id; no raw path, source
-excerpt, commit SHA, IP address, or credential-shaped value appears in the
-partition key. Missing, empty, absolute, parent-traversing, malformed, or
+The file-scoped key is used only when the accepted unit carries a non-empty,
+bounded, normalized repo-relative affected-file set. Delta units use their
+repository delta metadata. Full-refresh CALLS units may derive the set from the
+accepted parsed-file facts when the repository root and every parsed file path
+are safe; this includes parsed files with no emitted CALLS rows so stale source
+edges can still retract by owner file. The raw affected paths are sorted,
+deduplicated, and hashed with the repository id; no raw path, source excerpt,
+commit SHA, IP address, or credential-shaped value appears in the partition
+key. Missing, empty, absolute, parent-traversing, malformed, over-cap, or
 otherwise unsafe affected-file input falls back to the whole-scope key. The
 acceptance key remains the same
 `scope_id` / `acceptance_unit_id` / `source_run_id`, so whole-scope rows and
@@ -77,8 +81,7 @@ No-Regression Evidence: `go test ./internal/reducer -run
 stability, malformed-input fallback, unchanged delta payload carry, and
 acceptance-key compatibility. The change is statement-construction only for
 shared intent rows; it does not change queue SQL, partition leases, worker
-defaults, graph Cypher, graph write batching, or full-refresh repo-wide
-retraction behavior.
+defaults, graph Cypher, or graph write batching.
 
 No-Observability-Change: operators continue to diagnose this path through the
 existing shared-intent rows, shared acceptance rows, code-call projection cycle
@@ -99,6 +102,13 @@ same-repository file partitions by creation order. The change does not alter
 Cypher statements, edge writer batching, reducer queue conflict keys, or metric
 labels; raw file paths stay in row payloads for retract scope, not partition
 keys or labels.
+
+Issue #2622 extends the same file-scoped CALLS contract to safe full-refresh
+acceptance units. Full refresh still falls back to `code-calls:v1:whole:<repo>`
+when durable parsed-file ownership is missing or unsafe; when it is safe,
+refresh and edge rows use `code-calls:v1:files:<repo>:<sha256>` keys and
+existing `delta_file_paths` retract payloads. The materializer logs only repo
+counts for scoped and fallback full-refresh decisions, never raw file paths.
 
 ## Partitionable Work
 
@@ -122,7 +132,7 @@ into deterministic per-partition intents.
 The reducer must keep the whole-scope `code_graph` fence when any of these are
 true:
 
-- first full projection has no durable affected-file set;
+- full refresh has no durable parsed-file ownership set;
 - generated code or source maps make ownership ambiguous;
 - a parser, SCIP input, or relationship resolver reports ambiguous ownership;
 - the accepted unit spans multiple partitions and cannot be split without

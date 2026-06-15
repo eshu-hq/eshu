@@ -344,14 +344,8 @@ metrics, retry classification, timeout handling, and reducer code-call cycle
 timings. It adds no worker, queue domain, runtime knob, metric instrument,
 metric label, or backend-specific telemetry.
 
-Issue #2541 adds a focused statement-construction benchmark for the existing
-CALLS cleanup paths:
-
-```bash
-cd go && go test ./internal/storage/cypher -run '^$' \
-  -bench BenchmarkEdgeWriterCodeCallRetractAndWrite \
-  -benchtime=1x -benchmem -count=1
-```
+Issue #2541 added a focused statement-construction benchmark for the existing
+CALLS cleanup paths: `cd go && go test ./internal/storage/cypher -run '^$' -bench BenchmarkEdgeWriterCodeCallRetractAndWrite -benchtime=1x -benchmem -count=1`.
 
 Local evidence on Apple M4 Pro:
 
@@ -363,11 +357,10 @@ Local evidence on Apple M4 Pro:
 
 This benchmark isolates Eshu-owned row shaping, retraction dispatch, and write
 batching behind a no-op executor, so it does not claim backend delete latency.
-It does prove that deleted/no-call delta rows stay file-scoped and avoid writes,
-while full-refresh CALLS projection still carries only repo ownership and
-therefore must remain repo-wide. The next implementation should pursue durable
-affected-file ownership for full-refresh acceptance units before changing the
-default full-refresh retraction behavior.
+It proves that deleted/no-call delta rows stay file-scoped and avoid writes.
+Issue #2622 extends CALLS file-scoped cleanup to safe full-refresh acceptance
+units by deriving durable parsed-file ownership before projection; unsafe or
+over-cap full refreshes still use the existing repo-wide retract path.
 
 ### SQL Relationship Delta Scoped Retraction
 
