@@ -17,7 +17,7 @@ read-model state and are not graph truth.
 ## Exported surface
 
 - `Builder` reads active documents, embeds their shared searchable text, and
-  upserts ready or failed vector state.
+  upserts ready or failed vector state across every active-document page.
 - `BuildRequest` identifies the scope, model, vector-index version, and
   optional document filter.
 - `BuildResult` summarizes document, vector, and failed-document counts.
@@ -40,11 +40,28 @@ operator-facing signals described in the telemetry docs.
 ## Gotchas / invariants
 
 - The document store must already enforce active-generation visibility.
+- Builds page through active documents until a short or empty page; a successful
+  build must not silently cover only the first 500-document slice.
+- Paged builds anchor to the first observed generation so active-generation
+  changes cannot mix rows from different generations in one build.
 - Embedding text and content hashes must stay byte-identical to
   `searchhybrid` retrieval indexing.
 - Embedder error text is not persisted; only bounded failure classes are stored.
 - This package is not a queue worker, ANN index, or public semantic-search
   adapter.
+
+## Evidence
+
+No-Regression Evidence: `go test ./internal/searchvector ./internal/storage/postgres
+-run 'TestBuilderAnchorsPagedBuildToFirstGeneration|TestBuilderPagesThroughAllActiveDocuments|TestBuilderPersistsReadyVectorsForActiveDocuments|TestEshuSearchDocumentStoreAnchorsExplicitGeneration|TestEshuSearchVectorValueStoreListsOnlyActiveGeneration'
+-count=1` failed before vector builds paged through every active-document row,
+before paged builds anchored to the first observed generation, and before vector
+value reads were gated by matching ready metadata, then passed.
+
+No-Observability-Change: this review fix adds no route, worker, queue domain,
+graph write, metric, label, runtime default, API field, or MCP field. Existing
+builder result counts and instrumented Postgres query/exec spans remain the
+operator-facing signals for vector build progress and read state.
 
 ## Related docs
 

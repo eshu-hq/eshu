@@ -71,48 +71,66 @@ func (b Builder) Build(ctx context.Context, req BuildRequest) (BuildResult, erro
 		return BuildResult{}, err
 	}
 	now := b.now()
-	rows, err := b.Documents.ListActiveDocuments(ctx, postgres.EshuSearchDocumentFilter{
-		ScopeID:     req.ScopeID,
-		RepoID:      req.RepoID,
-		SourceKinds: req.SourceKinds,
-		Limit:       req.Limit,
-	})
-	if err != nil {
-		return BuildResult{}, fmt.Errorf("list active search documents for vector build: %w", err)
-	}
 
 	var result BuildResult
 	var failures []error
-	for _, row := range rows {
-		result.DocumentCount++
-		vector, failureClass, err := b.embed(row.Document)
+	generationID := ""
+	for offset := 0; ; {
+		rows, err := b.Documents.ListActiveDocuments(ctx, postgres.EshuSearchDocumentFilter{
+			ScopeID:      req.ScopeID,
+			GenerationID: generationID,
+			RepoID:       req.RepoID,
+			SourceKinds:  req.SourceKinds,
+			Limit:        req.Limit,
+			Offset:       offset,
+		})
 		if err != nil {
-			if upsertErr := b.upsertMetadata(ctx, req, row, now, failureClass, nil); upsertErr != nil {
-				return result, upsertErr
+			return result, fmt.Errorf("list active search documents for vector build: %w", err)
+		}
+		if len(rows) == 0 {
+			break
+		}
+		if generationID == "" {
+			generationID = rows[0].GenerationID
+		}
+		for _, row := range rows {
+			if row.GenerationID != generationID {
+				return result, fmt.Errorf("active search document generation changed from %q to %q", generationID, row.GenerationID)
 			}
-			result.FailedCount++
-			failures = append(failures, fmt.Errorf("%s: %w", failureClass, err))
-			continue
-		}
+			result.DocumentCount++
+			vector, failureClass, err := b.embed(row.Document)
+			if err != nil {
+				if upsertErr := b.upsertMetadata(ctx, req, row, now, failureClass, nil); upsertErr != nil {
+					return result, upsertErr
+				}
+				result.FailedCount++
+				failures = append(failures, fmt.Errorf("%s: %w", failureClass, err))
+				continue
+			}
 
-		if err := b.Values.Upsert(ctx, postgres.EshuSearchVectorValue{
-			ScopeID:              row.ScopeID,
-			GenerationID:         row.GenerationID,
-			DocumentID:           row.Document.ID,
-			EmbeddingModelID:     req.EmbeddingModelID,
-			EmbeddingDimensions:  b.Embedder.Dimensions(),
-			EmbeddingContentHash: searchhybrid.DocumentContentHash(row.Document),
-			VectorIndexVersion:   req.VectorIndexVersion,
-			VectorValues:         vector,
-			CreatedAt:            now,
-			UpdatedAt:            now,
-		}); err != nil {
-			return result, fmt.Errorf("upsert vector value for document %q: %w", row.Document.ID, err)
+			if err := b.Values.Upsert(ctx, postgres.EshuSearchVectorValue{
+				ScopeID:              row.ScopeID,
+				GenerationID:         row.GenerationID,
+				DocumentID:           row.Document.ID,
+				EmbeddingModelID:     req.EmbeddingModelID,
+				EmbeddingDimensions:  b.Embedder.Dimensions(),
+				EmbeddingContentHash: searchhybrid.DocumentContentHash(row.Document),
+				VectorIndexVersion:   req.VectorIndexVersion,
+				VectorValues:         vector,
+				CreatedAt:            now,
+				UpdatedAt:            now,
+			}); err != nil {
+				return result, fmt.Errorf("upsert vector value for document %q: %w", row.Document.ID, err)
+			}
+			if err := b.upsertMetadata(ctx, req, row, now, "", &now); err != nil {
+				return result, err
+			}
+			result.VectorCount++
 		}
-		if err := b.upsertMetadata(ctx, req, row, now, "", &now); err != nil {
-			return result, err
+		offset += len(rows)
+		if len(rows) < req.Limit {
+			break
 		}
-		result.VectorCount++
 	}
 	return result, errors.Join(failures...)
 }

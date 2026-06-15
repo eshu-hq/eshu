@@ -23,7 +23,11 @@ func (r *CodeCallProjectionRunner) leaseHeartbeatInterval() time.Duration {
 	return interval
 }
 
-func (r *CodeCallProjectionRunner) startLeaseHeartbeat(ctx context.Context) (context.Context, codeCallLeaseHeartbeatStop) {
+func (r *CodeCallProjectionRunner) startLeaseHeartbeat(
+	ctx context.Context,
+	partitionID int,
+	partitionCount int,
+) (context.Context, codeCallLeaseHeartbeatStop) {
 	heartbeatCtx, cancel := context.WithCancel(ctx)
 	done := make(chan error, 1)
 
@@ -41,8 +45,8 @@ func (r *CodeCallProjectionRunner) startLeaseHeartbeat(ctx context.Context) (con
 				claimed, err := r.LeaseManager.ClaimPartitionLease(
 					heartbeatCtx,
 					DomainCodeCalls,
-					0,
-					1,
+					partitionID,
+					partitionCount,
 					r.Config.leaseOwner(),
 					r.Config.leaseTTL(),
 				)

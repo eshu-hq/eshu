@@ -11,6 +11,7 @@ import (
 
 type codeCallSelectionResult struct {
 	Key                         SharedProjectionAcceptanceKey
+	PartitionKey                string
 	BlockedReadiness            int
 	MaxBlockedIntentWaitSeconds float64
 	SelectionDurationSeconds    float64
@@ -21,7 +22,19 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitWork(ctx context.Context)
 	return result.Key, err
 }
 
-func (r *CodeCallProjectionRunner) selectAcceptanceUnitWorkWithStats(ctx context.Context, now time.Time) (codeCallSelectionResult, error) {
+func (r *CodeCallProjectionRunner) selectAcceptanceUnitWorkWithStats(
+	ctx context.Context,
+	now time.Time,
+) (codeCallSelectionResult, error) {
+	return r.selectAcceptanceUnitPartitionWorkWithStats(ctx, now, 0, 1)
+}
+
+func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
+	ctx context.Context,
+	now time.Time,
+	partitionID int,
+	partitionCount int,
+) (codeCallSelectionResult, error) {
 	start := time.Now()
 	acceptanceTelemetry := sharedAcceptanceTelemetry{
 		Instruments: r.Instruments,
@@ -117,8 +130,7 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitWorkWithStats(ctx context
 
 		blockedCount := 0
 		maxBlockedWait := 0.0
-		seen = make(map[SharedProjectionAcceptanceKey]struct{}, len(pending))
-		for _, row := range pending {
+		for i, row := range pending {
 			key, ok := row.AcceptanceKey()
 			if !ok {
 				return codeCallSelectionResult{}, fmt.Errorf(
@@ -126,11 +138,6 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitWorkWithStats(ctx context
 					row.IntentID,
 				)
 			}
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-
 			acceptedGeneration, ok := acceptedByKey[key]
 			if !ok {
 				continue
@@ -153,6 +160,12 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitWorkWithStats(ctx context
 					continue
 				}
 			}
+			if !codeCallProjectionPartitionMatches(row, partitionID, partitionCount) {
+				continue
+			}
+			if codeCallProjectionRowBlockedByRepoFence(row, pending, i) {
+				continue
+			}
 
 			acceptanceTelemetry.RecordLookup(ctx, sharedAcceptanceLookupEvent{
 				Runner:   "code_call_projection",
@@ -161,6 +174,7 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitWorkWithStats(ctx context
 			})
 			return codeCallSelectionResult{
 				Key:                         key,
+				PartitionKey:                row.PartitionKey,
 				BlockedReadiness:            blockedCount,
 				MaxBlockedIntentWaitSeconds: maxBlockedWait,
 				SelectionDurationSeconds:    time.Since(start).Seconds(),
@@ -212,4 +226,40 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitWorkWithStats(ctx context
 		}
 		scanLimit = nextLimit
 	}
+}
+
+func codeCallProjectionRowBlockedByRepoFence(
+	row SharedProjectionIntentRow,
+	pending []SharedProjectionIntentRow,
+	rowIndex int,
+) bool {
+	repositoryID := codeCallProjectionRowRepository(row)
+	if repositoryID == "" {
+		return false
+	}
+	if codeCallProjectionIsFileScoped(row) {
+		for _, candidate := range pending[:rowIndex] {
+			if codeCallProjectionRowRepository(candidate) == repositoryID &&
+				codeCallProjectionSameAcceptanceUnit(candidate, row) &&
+				codeCallProjectionIsWholeScoped(candidate) {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, candidate := range pending[:rowIndex] {
+		if codeCallProjectionRowRepository(candidate) == repositoryID &&
+			codeCallProjectionSameAcceptanceUnit(candidate, row) &&
+			(codeCallProjectionIsFileScoped(candidate) || codeCallProjectionIsWholeScoped(candidate)) {
+			return true
+		}
+	}
+	return false
+}
+
+func codeCallProjectionSameAcceptanceUnit(a SharedProjectionIntentRow, b SharedProjectionIntentRow) bool {
+	return a.ScopeID == b.ScopeID &&
+		a.AcceptanceUnitID == b.AcceptanceUnitID &&
+		a.SourceRunID == b.SourceRunID
 }

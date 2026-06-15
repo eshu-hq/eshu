@@ -87,6 +87,19 @@ shared-acceptance gauges, graph write metrics, and `/admin/status` backlog.
 No metric, metric label, span, log field, status field, worker, lease, or
 runtime knob is added or changed.
 
+Issue #2607 enables the dedicated code-call projection runner to process
+distinct file-scoped CALLS partitions concurrently when
+`ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT` and
+`ESHU_CODE_CALL_PROJECTION_WORKERS` are configured above `1`. Defaults remain
+single-partition and single-worker. The runner claims the same shared partition
+lease table used by other shared domains, scans the bounded pending set before
+selection, and processes only the selected file partition's active rows. Whole
+or legacy rows still use the existing acceptance-unit load and fence
+same-repository file partitions by creation order. The change does not alter
+Cypher statements, edge writer batching, reducer queue conflict keys, or metric
+labels; raw file paths stay in row payloads for retract scope, not partition
+keys or labels.
+
 ## Partitionable Work
 
 Code graph work is partitionable only when the reducer can name the full write

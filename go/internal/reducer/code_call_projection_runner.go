@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -48,6 +49,17 @@ type CodeCallProjectionCurrentRunHistoryLookup interface {
 	HasCompletedAcceptanceUnitSourceRunDomainIntents(ctx context.Context, key SharedProjectionAcceptanceKey, domain string) (bool, error)
 }
 
+// CodeCallProjectionCurrentRunPartitionHistoryLookup checks whether the
+// selected partition for a source run has already completed.
+type CodeCallProjectionCurrentRunPartitionHistoryLookup interface {
+	HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents(
+		ctx context.Context,
+		key SharedProjectionAcceptanceKey,
+		partitionKey string,
+		domain string,
+	) (bool, error)
+}
+
 // ReducerGraphDrain reports whether reducer graph-writing domains are still
 // active, letting local single-backend runners avoid graph write contention.
 type ReducerGraphDrain interface {
@@ -61,6 +73,8 @@ type CodeCallProjectionRunnerConfig struct {
 	LeaseTTL            time.Duration
 	BatchLimit          int
 	AcceptanceScanLimit int
+	PartitionCount      int
+	Workers             int
 }
 
 func (c CodeCallProjectionRunnerConfig) pollInterval() time.Duration {
@@ -82,6 +96,23 @@ func (c CodeCallProjectionRunnerConfig) batchLimit() int {
 		return defaultBatchLimit
 	}
 	return c.BatchLimit
+}
+
+func (c CodeCallProjectionRunnerConfig) partitionCount() int {
+	if c.PartitionCount <= 0 {
+		return 1
+	}
+	return c.PartitionCount
+}
+
+func (c CodeCallProjectionRunnerConfig) workers() int {
+	if c.Workers <= 0 {
+		return 1
+	}
+	if c.Workers > c.partitionCount() {
+		return c.partitionCount()
+	}
+	return c.Workers
 }
 
 func (c CodeCallProjectionRunnerConfig) acceptanceScanLimit() int {
@@ -170,14 +201,74 @@ func (r *CodeCallProjectionRunner) Run(ctx context.Context) error {
 }
 
 func (r *CodeCallProjectionRunner) runOneCycle(ctx context.Context) (PartitionProcessResult, error) {
-	result, err := r.processOnce(ctx, time.Now().UTC())
-	if err != nil {
-		return result, err
+	now := time.Now().UTC()
+	if r.Config.workers() <= 1 {
+		return r.runOneCycleSequential(ctx, now)
 	}
-	return result, nil
+	return r.runOneCycleConcurrent(ctx, now)
 }
 
 func (r *CodeCallProjectionRunner) processOnce(ctx context.Context, now time.Time) (result PartitionProcessResult, retErr error) {
+	return r.processPartitionOnce(ctx, now, 0, r.Config.partitionCount())
+}
+
+func (r *CodeCallProjectionRunner) runOneCycleSequential(ctx context.Context, now time.Time) (PartitionProcessResult, error) {
+	var cycleResult PartitionProcessResult
+	for partitionID := 0; partitionID < r.Config.partitionCount(); partitionID++ {
+		if ctx.Err() != nil {
+			return cycleResult, nil
+		}
+		result, err := r.processPartitionOnce(ctx, now, partitionID, r.Config.partitionCount())
+		mergePartitionProcessResult(&cycleResult, result)
+		if err != nil {
+			return cycleResult, err
+		}
+	}
+	return cycleResult, nil
+}
+
+func (r *CodeCallProjectionRunner) runOneCycleConcurrent(ctx context.Context, now time.Time) (PartitionProcessResult, error) {
+	partitionCount := r.Config.partitionCount()
+	work := make(chan int, partitionCount)
+	for partitionID := 0; partitionID < partitionCount; partitionID++ {
+		work <- partitionID
+	}
+	close(work)
+
+	var (
+		wg          sync.WaitGroup
+		mu          sync.Mutex
+		cycleResult PartitionProcessResult
+		errs        []error
+	)
+	for i := 0; i < r.Config.workers(); i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for partitionID := range work {
+				if ctx.Err() != nil {
+					return
+				}
+				result, err := r.processPartitionOnce(ctx, now, partitionID, partitionCount)
+				mu.Lock()
+				mergePartitionProcessResult(&cycleResult, result)
+				if err != nil {
+					errs = append(errs, err)
+				}
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+	return cycleResult, errors.Join(errs...)
+}
+
+func (r *CodeCallProjectionRunner) processPartitionOnce(
+	ctx context.Context,
+	now time.Time,
+	partitionID int,
+	partitionCount int,
+) (result PartitionProcessResult, retErr error) {
 	cycleStart := time.Now()
 	acceptanceTelemetry := sharedAcceptanceTelemetry{
 		Instruments: r.Instruments,
@@ -199,8 +290,8 @@ func (r *CodeCallProjectionRunner) processOnce(ctx context.Context, now time.Tim
 	claimed, err := r.LeaseManager.ClaimPartitionLease(
 		ctx,
 		DomainCodeCalls,
-		0,
-		1,
+		partitionID,
+		partitionCount,
 		r.Config.leaseOwner(),
 		r.Config.leaseTTL(),
 	)
@@ -217,7 +308,7 @@ func (r *CodeCallProjectionRunner) processOnce(ctx context.Context, now time.Tim
 	}
 	leaseClaimDuration := time.Since(claimStart).Seconds()
 
-	leaseCtx, stopHeartbeat := r.startLeaseHeartbeat(ctx)
+	leaseCtx, stopHeartbeat := r.startLeaseHeartbeat(ctx, partitionID, partitionCount)
 	defer func() {
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
 			if retErr == nil {
@@ -226,11 +317,11 @@ func (r *CodeCallProjectionRunner) processOnce(ctx context.Context, now time.Tim
 				retErr = errors.Join(retErr, fmt.Errorf("heartbeat code call lease: %w", heartbeatErr))
 			}
 		}
-		_ = r.LeaseManager.ReleasePartitionLease(ctx, DomainCodeCalls, 0, 1, r.Config.leaseOwner())
+		_ = r.LeaseManager.ReleasePartitionLease(ctx, DomainCodeCalls, partitionID, partitionCount, r.Config.leaseOwner())
 	}()
 	ctx = leaseCtx
 
-	selection, err := r.selectAcceptanceUnitWorkWithStats(ctx, now)
+	selection, err := r.selectAcceptanceUnitPartitionWorkWithStats(ctx, now, partitionID, partitionCount)
 	if err != nil {
 		return PartitionProcessResult{
 			LeaseAcquired:             true,
@@ -249,7 +340,7 @@ func (r *CodeCallProjectionRunner) processOnce(ctx context.Context, now time.Tim
 		return result, nil
 	}
 
-	rows, err := r.loadAllAcceptanceUnitIntents(ctx, selection.Key)
+	rows, err := r.loadAcceptanceUnitPartitionIntents(ctx, selection.Key, selection.PartitionKey)
 	if err != nil {
 		return PartitionProcessResult{
 			LeaseAcquired:             true,
@@ -295,7 +386,7 @@ func (r *CodeCallProjectionRunner) processOnce(ctx context.Context, now time.Tim
 	processingStart := time.Now()
 	writtenGroups := 0
 	if len(active) > 0 {
-		skipRetract, err := r.shouldSkipCodeCallRetract(ctx, selection.Key, staleIDs)
+		skipRetract, err := r.shouldSkipCodeCallRetract(ctx, selection.Key, selection.PartitionKey, staleIDs)
 		if err != nil {
 			return result, err
 		}

@@ -87,6 +87,25 @@ func TestEshuSearchDocumentStoreListsActiveDocuments(t *testing.T) {
 	}
 }
 
+func TestEshuSearchDocumentStoreAnchorsExplicitGeneration(t *testing.T) {
+	t.Parallel()
+
+	query, args := buildEshuSearchDocumentQuery(EshuSearchDocumentFilter{
+		ScopeID:      "scope-1",
+		GenerationID: "gen-anchor",
+		Limit:        25,
+	})
+	if strings.Contains(query, "scope.active_generation_id = fact.generation_id") {
+		t.Fatalf("query should not require current active generation when anchored:\n%s", query)
+	}
+	if !strings.Contains(query, "fact.generation_id = $3") {
+		t.Fatalf("query missing explicit generation predicate:\n%s", query)
+	}
+	if got, want := args[2], "gen-anchor"; got != want {
+		t.Fatalf("generation arg = %v, want %v", got, want)
+	}
+}
+
 func TestEshuSearchDocumentStoreRequiresScope(t *testing.T) {
 	t.Parallel()
 

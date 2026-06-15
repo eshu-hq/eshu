@@ -67,6 +67,14 @@ FROM eshu_search_vector_values vec
 JOIN ingestion_scopes scope
   ON scope.scope_id = vec.scope_id
  AND scope.active_generation_id = vec.generation_id
+JOIN eshu_search_vector_metadata meta
+  ON meta.scope_id = vec.scope_id
+ AND meta.generation_id = vec.generation_id
+ AND meta.document_id = vec.document_id
+ AND meta.embedding_model_id = vec.embedding_model_id
+ AND meta.vector_index_version = vec.vector_index_version
+ AND meta.embedding_content_hash = vec.embedding_content_hash
+ AND meta.build_state = 'ready'
 WHERE vec.scope_id = $1
   AND vec.embedding_model_id = $2
   AND vec.vector_index_version = $3
