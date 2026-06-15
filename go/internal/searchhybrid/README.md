@@ -31,6 +31,8 @@ See `doc.go` for the godoc-rendered package contract.
   `HasEmbedder` accessors.
 - `Backend` — implements `searchretrieval.Backend` for keyword, semantic, and
   hybrid retrieval.
+- `DocumentText` / `DocumentContentHash` — shared searchable-text and hash
+  helpers for persisted vector builders.
 - `DocumentTerms` / `QueryTerms` — shared lexical tokenizers used by the
   persisted Postgres index writer and reader so benchmark and runtime BM25 lanes
   score the same text.
