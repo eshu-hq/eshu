@@ -206,6 +206,10 @@ func TestEshuSearchVectorValueStoreListsOnlyActiveGeneration(t *testing.T) {
 	for _, want := range []string{
 		"JOIN ingestion_scopes scope",
 		"scope.active_generation_id = vec.generation_id",
+		"JOIN eshu_search_vector_metadata meta",
+		"meta.document_id = vec.document_id",
+		"meta.embedding_content_hash = vec.embedding_content_hash",
+		"meta.build_state = 'ready'",
 		"vec.scope_id = $1",
 		"vec.embedding_model_id = $2",
 		"vec.vector_index_version = $3",

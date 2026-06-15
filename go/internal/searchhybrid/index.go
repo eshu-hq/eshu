@@ -254,6 +254,18 @@ func contentHash(text string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// DocumentText returns the searchable text projected from doc. Persisted vector
+// builders use this helper so embedding hashes stay byte-identical to the
+// in-memory retrieval index.
+func DocumentText(doc searchdocs.Document) string {
+	return documentText(doc)
+}
+
+// DocumentContentHash returns the SHA-256 hash of DocumentText(doc).
+func DocumentContentHash(doc searchdocs.Document) string {
+	return contentHash(DocumentText(doc))
+}
+
 // TermKey returns a bounded stable key for one BM25 term in persisted indexes.
 func TermKey(term string) string {
 	return contentHash(term)

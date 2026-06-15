@@ -15,6 +15,19 @@ calls remain covered by the existing Postgres instrumentation wrapper
 wrap the `ExecQueryer`; ANN serving and semantic/hybrid API use are left to
 follow-up issues.
 
+No-Regression Evidence: `go test ./internal/searchvector ./internal/storage/postgres
+-run 'TestBuilderPagesThroughAllActiveDocuments|TestBuilderPersistsReadyVectorsForActiveDocuments|TestBuilderRecordsEmbeddingFailureAsBoundedMetadata|TestEshuSearchVectorValueStoreListsOnlyActiveGeneration|TestEshuSearchVectorValueStoreClampsActiveListLimit'
+-count=1` failed before vector builds paged through all active documents and
+before vector value reads were gated by ready metadata with matching content
+hash, then passed. The change keeps vector payload rows as derived read-model
+state and prevents failed or stale metadata from being served by `ListActive`.
+
+No-Observability-Change: this follow-up adds no route, worker, queue domain,
+graph write, metric name, metric label, runtime default, or API/MCP response
+field. Existing builder result counts and instrumented Postgres query/exec
+spans remain the operator-facing signals for vector build progress and read
+state.
+
 ## Reducer Claim Readiness-Gate Benchmark (#2529)
 
 Benchmark Evidence: `BenchmarkReducerQueueClaimReadinessGateGrowth` seeds the
