@@ -72,6 +72,9 @@ assert_static_contract() {
 		'^  collector-security-alerts-preflight:$' \
 		'preflight-provider-access' \
 		'collector-security-alerts-preflight:' \
+		'^  remote-e2e-scanner-sbom-preflight:$' \
+		'remote-e2e-scanner-sbom-preflight.sh' \
+		'remote-e2e-scanner-sbom-preflight:' \
 		'^  collector-confluence-preflight:$' \
 		'remote-e2e-confluence-preflight.sh' \
 		'collector-confluence-preflight:' \
@@ -135,6 +138,7 @@ fi
 default_services="${TMP_DIR}/default-services.txt"
 compose_services "${default_services}"
 assert_service_present "${default_services}" collector-security-alerts-preflight
+assert_service_present "${default_services}" remote-e2e-scanner-sbom-preflight
 assert_service_absent "${default_services}" collector-jira
 assert_service_absent "${default_services}" collector-pagerduty
 assert_service_absent "${default_services}" collector-grafana
@@ -207,6 +211,10 @@ done
 
 if ! rg -q -U 'collector-confluence:\n    profiles:\n(?:.*\n)*    depends_on:\n      collector-confluence-preflight:\n        condition: service_completed_successfully' "${rendered}"; then
 	die "profiled Confluence render does not gate collector startup on collector-confluence-preflight"
+fi
+
+if ! rg -q -U 'workflow-coordinator:\n(?:.*\n)*    depends_on:\n(?:.*\n)*      remote-e2e-scanner-sbom-preflight:\n        condition: service_completed_successfully' "${rendered}"; then
+	die "profiled render does not gate workflow-coordinator startup on remote-e2e-scanner-sbom-preflight"
 fi
 
 for service in grafana prometheus-mimir loki tempo; do
