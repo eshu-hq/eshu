@@ -131,6 +131,9 @@ func buildReducerService(
 	repoDependencyCfg := loadRepoDependencyProjectionConfig(getenv)
 	repairCfg := loadGraphProjectionPhaseRepairConfig(getenv)
 	generationRetentionCfg := loadGenerationRetentionConfig(getenv)
+	if err := validateGenerationRetentionConfig(getenv, generationRetentionCfg); err != nil {
+		return reducer.Service{}, err
+	}
 	graphOrphanSweepCfg := loadGraphOrphanSweepConfig(getenv)
 	codeCallEdgeBatchSize, codeCallEdgeGroupBatchSize := loadCodeCallEdgeWriterTuning(getenv)
 	inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize := loadSharedEdgeWriterGroupTuning(getenv)

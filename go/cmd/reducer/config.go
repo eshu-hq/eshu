@@ -325,6 +325,28 @@ func loadGenerationRetentionConfig(getenv func(string) string) generationRetenti
 	}
 }
 
+func validateGenerationRetentionConfig(
+	getenv func(string) string,
+	cfg generationRetentionConfig,
+) error {
+	if cfg.Enabled {
+		return nil
+	}
+	if getenv == nil {
+		getenv = func(string) string { return "" }
+	}
+	profile, err := query.ParseQueryProfile(getenv(queryProfileEnv))
+	if err != nil {
+		return err
+	}
+	switch profile {
+	case query.ProfileLocalLightweight, query.ProfileLocalAuthoritative, query.ProfileLocalFullStack:
+		return nil
+	default:
+		return fmt.Errorf("%s=false requires an explicit local %s profile; production reducers must run generation retention", generationRetentionEnabledEnv, queryProfileEnv)
+	}
+}
+
 func loadGraphOrphanSweepConfig(getenv func(string) string) graphOrphanSweepConfig {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
