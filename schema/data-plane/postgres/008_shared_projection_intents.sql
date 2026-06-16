@@ -19,6 +19,9 @@ CREATE INDEX IF NOT EXISTS shared_projection_intents_repo_run_idx
     ON shared_projection_intents (repository_id, source_run_id, projection_domain, created_at);
 CREATE INDEX IF NOT EXISTS shared_projection_intents_acceptance_lookup_idx
     ON shared_projection_intents (scope_id, acceptance_unit_id, source_run_id, projection_domain, created_at);
+CREATE INDEX IF NOT EXISTS shared_projection_intents_acceptance_partition_pending_idx
+    ON shared_projection_intents (scope_id, acceptance_unit_id, source_run_id, projection_domain, partition_key, created_at, intent_id)
+    WHERE completed_at IS NULL;
 CREATE INDEX IF NOT EXISTS shared_projection_intents_pending_idx
     ON shared_projection_intents (projection_domain, completed_at, created_at);
 
