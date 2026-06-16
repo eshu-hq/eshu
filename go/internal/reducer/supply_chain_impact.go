@@ -198,7 +198,8 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 		return Result{}, fmt.Errorf("load active package manifest dependency facts: %w", err)
 	}
 	envelopes = append(envelopes, manifestDependencies...)
-	envelopes, err = h.loadActiveSupplyChainImpactFactsUntilStable(ctx, envelopes)
+	activeEvidenceTruncated := false
+	envelopes, activeEvidenceTruncated, err = h.loadActiveSupplyChainImpactFactsUntilStable(ctx, envelopes)
 	if err != nil {
 		return Result{}, fmt.Errorf("load active supply chain impact facts: %w", err)
 	}
@@ -217,6 +218,9 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 	}
 
 	findings := BuildSupplyChainImpactFindings(envelopes)
+	if activeEvidenceTruncated {
+		findings = markSupplyChainImpactFindingsActiveExpansionTruncated(findings)
+	}
 	suppressions := BuildVulnerabilitySuppressions(envelopes)
 	now := h.evaluationNow()
 	for i := range findings {
@@ -238,11 +242,15 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 	}
 	h.emitCounters(ctx, counts, suppressionCounts, remediationCounts)
 
+	evidenceSummary := supplyChainImpactSummary(len(findings), counts, suppressionCounts, writeResult.CanonicalWrites)
+	if activeEvidenceTruncated {
+		evidenceSummary += " active_evidence_truncated=true"
+	}
 	return Result{
 		IntentID:        intent.IntentID,
 		Domain:          DomainSupplyChainImpact,
 		Status:          ResultStatusSucceeded,
-		EvidenceSummary: supplyChainImpactSummary(len(findings), counts, suppressionCounts, writeResult.CanonicalWrites),
+		EvidenceSummary: evidenceSummary,
 		CanonicalWrites: writeResult.CanonicalWrites,
 	}, nil
 }
@@ -274,25 +282,22 @@ const maxSupplyChainImpactActiveEvidenceLoads = 8
 func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFactsUntilStable(
 	ctx context.Context,
 	envelopes []facts.Envelope,
-) ([]facts.Envelope, error) {
+) ([]facts.Envelope, bool, error) {
 	requested := SupplyChainImpactFactFilter{}
 	next := supplyChainImpactFilter(envelopes)
 	for loads := 0; !next.empty(); loads++ {
 		if loads >= maxSupplyChainImpactActiveEvidenceLoads {
-			return nil, fmt.Errorf(
-				"active evidence expansion exceeded %d bounded loads",
-				maxSupplyChainImpactActiveEvidenceLoads,
-			)
+			return envelopes, true, nil
 		}
 		active, err := h.loadActiveSupplyChainImpactFacts(ctx, next)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		requested = mergeSupplyChainImpactFactFilters(requested, next)
 		envelopes = appendUniqueSupplyChainImpactFacts(envelopes, active...)
 		next = supplyChainImpactFollowUpFilter(requested, supplyChainImpactFilter(envelopes))
 	}
-	return envelopes, nil
+	return envelopes, false, nil
 }
 
 func (h SupplyChainImpactHandler) emitCounters(

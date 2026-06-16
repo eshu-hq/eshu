@@ -295,6 +295,69 @@ func TestSupplyChainImpactHandlerLoadsRepositoryPackageConsumptionFollowUp(t *te
 	assertContainsString(t, got.EvidenceFactIDs, "consume-1")
 }
 
+func TestSupplyChainImpactHandlerStopsActiveEvidenceExpansionConservatively(t *testing.T) {
+	t.Parallel()
+
+	activeCalls := 0
+	loader := &stubSupplyChainImpactFactLoader{
+		scopeFacts: []facts.Envelope{
+			vulnerabilityCVEFact("cve-1", "CVE-2026-2635", 8.1),
+			vulnerabilityAffectedPackageFact(
+				"affected-1",
+				"CVE-2026-2635",
+				testImpactPackageID,
+				"npm",
+				"example",
+				"1.2.3",
+				"1.3.0",
+			),
+			packageConsumptionFactWithRange("consume-1", testImpactPackageID, testImpactRepositoryID, "1.2.3"),
+		},
+		activeForFilter: func(filter SupplyChainImpactFactFilter) []facts.Envelope {
+			if len(filter.PackageIDs) == 0 {
+				return nil
+			}
+			activeCalls++
+			return []facts.Envelope{
+				packageRegistryPackageImpactFact(
+					"package-expansion-"+string(rune('a'+activeCalls)),
+					"pkg:npm/expansion-"+string(rune('a'+activeCalls)),
+				),
+			}
+		},
+	}
+	writer := &recordingSupplyChainImpactWriter{}
+	handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+
+	result, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-impact",
+		ScopeID:      testImpactRepositoryID,
+		GenerationID: "generation-repo",
+		SourceSystem: "git",
+		Domain:       DomainSupplyChainImpact,
+		Cause:        "repository dependency observed",
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+
+	if got, want := len(loader.filters), maxSupplyChainImpactActiveEvidenceLoads; got != want {
+		t.Fatalf("active evidence loads = %d, want %d: %#v", got, want, loader.filters)
+	}
+	if got, want := writer.calls, 1; got != want {
+		t.Fatalf("writer calls = %d, want %d", got, want)
+	}
+	if got, want := len(writer.write.Findings), 1; got != want {
+		t.Fatalf("len(Findings) = %d, want %d", got, want)
+	}
+	got := writer.write.Findings[0]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	assertContainsString(t, got.MissingEvidence, supplyChainMissingActiveEvidenceExpansionLimit)
+	if !strings.Contains(result.EvidenceSummary, "active_evidence_truncated=true") {
+		t.Fatalf("EvidenceSummary = %q, want active evidence truncation marker", result.EvidenceSummary)
+	}
+}
+
 func TestSupplyChainImpactHandlerRequestsParserFilesOnlyForNPMReachability(t *testing.T) {
 	t.Parallel()
 
