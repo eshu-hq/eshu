@@ -60,3 +60,55 @@ func TestCloudInventoryResourceViewOmitsTagsWhenAbsent(t *testing.T) {
 		t.Fatalf("tag_value_fingerprints present for untagged resource: %#v", view)
 	}
 }
+
+// TestCloudInventoryResourceViewSurfacesBoundedIdentityPolicyEvidence proves
+// the readback can show Azure policy evidence without raw provider locators,
+// raw principal GUIDs, or raw assignment scopes.
+func TestCloudInventoryResourceViewSurfacesBoundedIdentityPolicyEvidence(t *testing.T) {
+	t.Parallel()
+
+	envelope := map[string]any{
+		"generation_id": "gen-1",
+		"scope_id":      "azure:tenant:subscription:sub-1:all:all:resource_graph",
+		"payload": map[string]any{
+			"cloud_resource_uid":    "cloud_resource:azure-1",
+			"provider":              "azure",
+			"resource_type":         "Microsoft.Compute/virtualMachines",
+			"management_origin":     "observed",
+			"has_observed_evidence": true,
+			"raw_identity":          "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm",
+			"identity_policy_evidence": []any{
+				map[string]any{
+					"evidence_key":          "identity-stable-1",
+					"identity_type":         "system_assigned",
+					"role_class":            "contributor",
+					"principal_fingerprint": "principal-marker",
+					"tenant_fingerprint":    "tenant-marker",
+					"assignment_scope":      "/subscriptions/sub-1/resourceGroups/rg",
+				},
+			},
+			"identity_policy_evidence_truncated": true,
+		},
+	}
+
+	view := cloudInventoryResourceView(envelope)
+	evidence, ok := view["identity_policy_evidence"].([]map[string]string)
+	if !ok {
+		t.Fatalf("identity_policy_evidence type = %T, want []map[string]string", view["identity_policy_evidence"])
+	}
+	if len(evidence) != 1 {
+		t.Fatalf("identity_policy_evidence length = %d, want 1", len(evidence))
+	}
+	row := evidence[0]
+	if row["identity_type"] != "system_assigned" || row["principal_fingerprint"] != "principal-marker" {
+		t.Fatalf("identity_policy_evidence row = %#v", row)
+	}
+	for _, forbidden := range []string{"raw_identity", "assignment_scope", "principal_id", "client_id", "object_id", "tenant_id"} {
+		if _, present := row[forbidden]; present {
+			t.Fatalf("forbidden field %q present in identity policy evidence: %#v", forbidden, row)
+		}
+	}
+	if view["identity_policy_evidence_truncated"] != true {
+		t.Fatalf("identity_policy_evidence_truncated = %#v, want true", view["identity_policy_evidence_truncated"])
+	}
+}

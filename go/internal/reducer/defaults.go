@@ -136,6 +136,11 @@ type DefaultHandlers struct {
 	// sharing their cloud_resource_uid. A nil loader leaves the AWS/GCP resource
 	// admission path unchanged.
 	CloudInventoryTagEvidenceLoader CloudTagEvidenceLoader
+	// CloudInventoryIdentityPolicyEvidenceLoader is optional; when set,
+	// identity-policy evidence (e.g. azure_identity_observation) attaches to the
+	// canonical resource sharing its cloud_resource_uid. A nil loader leaves the
+	// resource admission path unchanged.
+	CloudInventoryIdentityPolicyEvidenceLoader CloudIdentityPolicyEvidenceLoader
 
 	// CloudResourceNodeWriter materializes aws_resource facts into canonical
 	// CloudResource graph nodes (issue #805). It must be non-nil alongside

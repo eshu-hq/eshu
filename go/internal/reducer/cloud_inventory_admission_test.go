@@ -253,10 +253,18 @@ func TestCloudInventoryAdmissionStaleGenerationSuperseded(t *testing.T) {
 		RawIdentity: "//compute.googleapis.com/projects/p/zones/z/instances/i",
 		SourceLayer: SourceLayerObserved,
 	}}}
+	identityLoader := &stubCloudIdentityPolicyEvidenceLoader{records: []CloudIdentityPolicyEvidenceRecord{{
+		Provider:             cloudinventory.ProviderGCP,
+		RawIdentity:          "//compute.googleapis.com/projects/p/zones/z/instances/i",
+		EvidenceKey:          "identity-stable-stale",
+		IdentityType:         "system_assigned",
+		PrincipalFingerprint: "principal-marker",
+	}}}
 	writer := &stubCloudInventoryAdmissionWriter{}
 	handler := CloudInventoryAdmissionHandler{
-		EvidenceLoader: loader,
-		Writer:         writer,
+		EvidenceLoader:               loader,
+		Writer:                       writer,
+		IdentityPolicyEvidenceLoader: identityLoader,
 		GenerationCheck: func(context.Context, string, string) (bool, error) {
 			return false, nil // superseded
 		},
@@ -274,6 +282,9 @@ func TestCloudInventoryAdmissionStaleGenerationSuperseded(t *testing.T) {
 	}
 	if loader.calls != 0 {
 		t.Fatalf("stale generation must short-circuit before loading evidence, calls = %d", loader.calls)
+	}
+	if identityLoader.calls != 0 {
+		t.Fatalf("stale generation must short-circuit before loading identity evidence, calls = %d", identityLoader.calls)
 	}
 }
 

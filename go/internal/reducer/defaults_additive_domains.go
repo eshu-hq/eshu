@@ -165,11 +165,12 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 	if handlers.CloudInventoryEvidenceLoader != nil && handlers.CloudInventoryAdmissionWriter != nil {
 		cloudInventory := cloudInventoryAdmissionDomainDefinition()
 		cloudInventory.Handler = CloudInventoryAdmissionHandler{
-			EvidenceLoader:    handlers.CloudInventoryEvidenceLoader,
-			Writer:            handlers.CloudInventoryAdmissionWriter,
-			GenerationCheck:   handlers.CloudInventoryGenerationCheck,
-			TagEvidenceLoader: handlers.CloudInventoryTagEvidenceLoader,
-			Instruments:       handlers.Instruments,
+			EvidenceLoader:               handlers.CloudInventoryEvidenceLoader,
+			Writer:                       handlers.CloudInventoryAdmissionWriter,
+			GenerationCheck:              handlers.CloudInventoryGenerationCheck,
+			TagEvidenceLoader:            handlers.CloudInventoryTagEvidenceLoader,
+			IdentityPolicyEvidenceLoader: handlers.CloudInventoryIdentityPolicyEvidenceLoader,
+			Instruments:                  handlers.Instruments,
 		}
 		definitions = append(definitions, cloudInventory)
 	}

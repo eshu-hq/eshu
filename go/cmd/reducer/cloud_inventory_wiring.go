@@ -31,6 +31,7 @@ func cloudInventoryAdmissionWiring(
 	reducer.CloudInventoryAdmissionWriter,
 	reducer.GenerationFreshnessCheck,
 	reducer.CloudTagEvidenceLoader,
+	reducer.CloudIdentityPolicyEvidenceLoader,
 ) {
 	loader := postgres.PostgresCloudInventoryEvidenceLoader{
 		DB:     database,
@@ -45,5 +46,9 @@ func cloudInventoryAdmissionWiring(
 		DB:     database,
 		Logger: logger,
 	}
-	return loader, writer, generationCheck, tagEvidenceLoader
+	identityPolicyEvidenceLoader := postgres.PostgresCloudIdentityPolicyEvidenceLoader{
+		DB:     database,
+		Logger: logger,
+	}
+	return loader, writer, generationCheck, tagEvidenceLoader, identityPolicyEvidenceLoader
 }

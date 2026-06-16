@@ -3,10 +3,11 @@ package query
 // openAPIPathsCloudInventory documents the canonical multi-cloud resource
 // inventory readback route. It surfaces reducer-owned
 // reducer_cloud_resource_identity rows (one per cloud_resource_uid) with
-// provider, normalized identity, management_origin, evidence-layer flags, and
-// the provider-neutral source state. The route is read-only, bounded,
-// paginated, and truth-labeled; it never returns raw provider locators, tags,
-// or credentials.
+// provider, normalized identity, management_origin, evidence-layer flags,
+// provider-neutral source state, optional keyed tag fingerprints, and optional
+// bounded identity-policy evidence. The route is read-only, bounded, paginated,
+// and truth-labeled; it never returns raw provider locators, tags, identities,
+// assignment scopes, or credentials.
 const openAPIPathsCloudInventory = `
     "/api/v0/cloud/inventory": {
       "get": {
@@ -43,6 +44,28 @@ const openAPIPathsCloudInventory = `
                           "scope_id": {"type": "string"},
                           "generation_id": {"type": "string"},
                           "source_state": {"type": "string", "description": "Provider-neutral source-state taxonomy value derived from management_origin."},
+                          "tag_value_fingerprints": {
+                            "type": "object",
+                            "description": "Optional keyed, non-reversible tag value fingerprints attached by reducer evidence; raw tag values are never returned.",
+                            "additionalProperties": {"type": "string"}
+                          },
+                          "identity_policy_evidence": {
+                            "type": "array",
+                            "description": "Optional bounded identity-policy evidence rows containing only safe enum/text classes and keyed fingerprints; raw identities, assignment scopes, and principal GUIDs are never returned.",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "evidence_key": {"type": "string"},
+                                "identity_type": {"type": "string"},
+                                "role_class": {"type": "string"},
+                                "principal_fingerprint": {"type": "string"},
+                                "client_fingerprint": {"type": "string"},
+                                "object_fingerprint": {"type": "string"},
+                                "tenant_fingerprint": {"type": "string"}
+                              }
+                            }
+                          },
+                          "identity_policy_evidence_truncated": {"type": "boolean", "description": "Present and true when reducer evidence was capped for this resource."},
                           "evidence": {
                             "type": "object",
                             "description": "Per-layer evidence flags that contributed to the canonical identity.",
