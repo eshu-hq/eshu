@@ -125,18 +125,32 @@ func TestSecretsIAMGraphWriterRetractIsScoped(t *testing.T) {
 		t.Fatalf("retract statements = %d, want 5", len(exec.calls))
 	}
 	var sawEdge, sawNodeDetach int
-	for _, stmt := range exec.calls {
+	firstEdgeRetract := -1
+	lastNodeDetach := -1
+	for i, stmt := range exec.calls {
 		if stmt.Operation != OperationCanonicalRetract {
 			t.Fatalf("retract operation = %q", stmt.Operation)
 		}
-		if !strings.Contains(stmt.Cypher, "$scope_ids") || !strings.Contains(stmt.Cypher, "$evidence_source") {
-			t.Fatalf("retract not scoped by scope_ids+evidence_source:\n%s", stmt.Cypher)
+		for _, want := range []string{
+			"scope_id = $scope_id",
+			"evidence_source = $evidence_source",
+		} {
+			if !strings.Contains(stmt.Cypher, want) {
+				t.Fatalf("retract missing %q:\n%s", want, stmt.Cypher)
+			}
+		}
+		if strings.Contains(stmt.Cypher, " IN $scope_ids") || strings.Contains(stmt.Cypher, "UNWIND $scope_ids") {
+			t.Fatalf("retract uses list predicate or UNWIND mutation path:\n%s", stmt.Cypher)
 		}
 		if strings.Contains(stmt.Cypher, "DELETE rel") {
 			sawEdge++
+			if firstEdgeRetract == -1 {
+				firstEdgeRetract = i
+			}
 		}
 		if strings.Contains(stmt.Cypher, "DETACH DELETE n") {
 			sawNodeDetach++
+			lastNodeDetach = i
 		}
 		// Retract must never touch the retained endpoint nodes.
 		if strings.Contains(stmt.Cypher, "DETACH DELETE w") || strings.Contains(stmt.Cypher, "DELETE (w:KubernetesWorkload)") || strings.Contains(stmt.Cypher, "DELETE (r:CloudResource)") {
@@ -146,14 +160,44 @@ func TestSecretsIAMGraphWriterRetractIsScoped(t *testing.T) {
 	if sawEdge != 1 || sawNodeDetach != 4 {
 		t.Fatalf("retract shape: edge=%d nodeDetach=%d, want 1 and 4", sawEdge, sawNodeDetach)
 	}
-	if cap, ok := exec.calls[0].Parameters["scope_ids"].([]string); !ok || len(cap) != 1 || cap[0] != "scope-1" {
-		t.Fatalf("retract scope_ids param = %v", exec.calls[0].Parameters["scope_ids"])
+	if firstEdgeRetract <= lastNodeDetach {
+		t.Fatalf("workload edge cleanup must run after node DETACH DELETEs: firstEdge=%d lastNode=%d", firstEdgeRetract, lastNodeDetach)
+	}
+	if got, ok := exec.calls[0].Parameters["scope_id"].(string); !ok || got != "scope-1" {
+		t.Fatalf("retract scope_id param = %v", exec.calls[0].Parameters["scope_id"])
 	}
 
 	// Empty scope set is a no-op.
 	exec2 := &recordingExecutor{}
 	if err := NewSecretsIAMGraphWriter(exec2, 0).RetractScope(context.Background(), nil, secretsIAMGraphEvidence); err != nil || len(exec2.calls) != 0 {
 		t.Fatalf("empty retract: err=%v calls=%d", err, len(exec2.calls))
+	}
+}
+
+func TestSecretsIAMGraphWriterRetractUsesSequentialStatements(t *testing.T) {
+	t.Parallel()
+
+	exec := &secretsIAMRecordingGroupExecutor{}
+	w := NewSecretsIAMGraphWriter(exec, 0)
+	if err := w.RetractScope(context.Background(), []string{"scope-1"}, secretsIAMGraphEvidence); err != nil {
+		t.Fatalf("RetractScope error = %v", err)
+	}
+	if exec.groupCalls != 0 {
+		t.Fatalf("RetractScope used ExecuteGroup %d times, want 0", exec.groupCalls)
+	}
+	if got, want := len(exec.calls), 5; got != want {
+		t.Fatalf("RetractScope Execute calls = %d, want %d", got, want)
+	}
+
+	exec.calls = nil
+	if err := w.WriteServiceAccountNodes(context.Background(), saNodeRows()); err != nil {
+		t.Fatalf("WriteServiceAccountNodes error = %v", err)
+	}
+	if exec.groupCalls != 1 {
+		t.Fatalf("WriteServiceAccountNodes ExecuteGroup calls = %d, want 1", exec.groupCalls)
+	}
+	if len(exec.calls) != 0 {
+		t.Fatalf("WriteServiceAccountNodes Execute calls = %d, want 0", len(exec.calls))
 	}
 }
 
@@ -171,4 +215,19 @@ func TestSecretsIAMGraphWriterBatches(t *testing.T) {
 	if len(exec.calls) != 3 { // 2 + 2 + 1
 		t.Fatalf("batched statements = %d, want 3", len(exec.calls))
 	}
+}
+
+type secretsIAMRecordingGroupExecutor struct {
+	calls      []Statement
+	groupCalls int
+}
+
+func (e *secretsIAMRecordingGroupExecutor) Execute(_ context.Context, stmt Statement) error {
+	e.calls = append(e.calls, stmt)
+	return nil
+}
+
+func (e *secretsIAMRecordingGroupExecutor) ExecuteGroup(_ context.Context, _ []Statement) error {
+	e.groupCalls++
+	return nil
 }

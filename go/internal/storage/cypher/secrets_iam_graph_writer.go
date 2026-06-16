@@ -121,28 +121,29 @@ SET rel.capabilities = row.capabilities,
 // KubernetesWorkload endpoints, so a node-scoped predicate is correct here.
 const (
 	secretsIAMServiceAccountNodeRetractCypher = `MATCH (n:SecretsIAMServiceAccount)
-WHERE n.scope_id IN $scope_ids AND n.evidence_source = $evidence_source
+WHERE n.scope_id = $scope_id AND n.evidence_source = $evidence_source
 DETACH DELETE n`
 
 	secretsIAMVaultAuthRoleNodeRetractCypher = `MATCH (n:SecretsIAMVaultAuthRole)
-WHERE n.scope_id IN $scope_ids AND n.evidence_source = $evidence_source
+WHERE n.scope_id = $scope_id AND n.evidence_source = $evidence_source
 DETACH DELETE n`
 
 	secretsIAMVaultPolicyNodeRetractCypher = `MATCH (n:SecretsIAMVaultPolicy)
-WHERE n.scope_id IN $scope_ids AND n.evidence_source = $evidence_source
+WHERE n.scope_id = $scope_id AND n.evidence_source = $evidence_source
 DETACH DELETE n`
 
 	secretsIAMSecretMetadataPathNodeRetractCypher = `MATCH (n:SecretsIAMSecretMetadataPath)
-WHERE n.scope_id IN $scope_ids AND n.evidence_source = $evidence_source
+WHERE n.scope_id = $scope_id AND n.evidence_source = $evidence_source
 DETACH DELETE n`
 
-	// Edge retract removes reducer-owned SECRETS_IAM_* edges whose START node is
-	// a retained endpoint (KubernetesWorkload). The other edge families start
-	// from reducer-owned SecretsIAM* nodes and are removed by the DETACH DELETE
-	// node retract above, including the ServiceAccount->CloudResource IAM-role
-	// edge whose target endpoint is retained.
+	// Edge retract is a stale-edge safety pass for reducer-owned
+	// SECRETS_IAM_* edges whose START node is a retained endpoint
+	// (KubernetesWorkload). Normal rows are removed by the ServiceAccount
+	// DETACH DELETE below; this pass intentionally runs after node retraction so
+	// Bolt-backed NornicDB does not have to delete a relationship and then
+	// DETACH DELETE its target in one managed transaction.
 	secretsIAMUsesServiceAccountEdgeRetractCypher = `MATCH (:KubernetesWorkload)-[rel:SECRETS_IAM_USES_SERVICE_ACCOUNT]->()
-WHERE rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source
+WHERE rel.scope_id = $scope_id AND rel.evidence_source = $evidence_source
 DELETE rel`
 )
 
@@ -229,34 +230,41 @@ func (w *SecretsIAMGraphWriter) RetractScope(
 	if w.executor == nil {
 		return fmt.Errorf("secrets/iam graph writer executor is required")
 	}
-	// Edge retract first (the workload->SA edge whose start node survives node
-	// retract), then DETACH DELETE the reducer-owned nodes. Each statement
+	// DETACH DELETE reducer-owned nodes first. That removes normal
+	// workload->ServiceAccount edges while keeping retained endpoint nodes
+	// intact. The final edge retract is only a stale-edge safety pass for
+	// malformed legacy rows whose target node is not present. Each statement
 	// carries its own bounded entity label for 3 AM operator diagnostics.
 	retracts := []struct {
 		label  string
 		cypher string
 	}{
-		{"SECRETS_IAM_USES_SERVICE_ACCOUNT", secretsIAMUsesServiceAccountEdgeRetractCypher},
 		{secretsIAMNodeServiceAccount, secretsIAMServiceAccountNodeRetractCypher},
 		{secretsIAMNodeVaultAuthRole, secretsIAMVaultAuthRoleNodeRetractCypher},
 		{secretsIAMNodeVaultPolicy, secretsIAMVaultPolicyNodeRetractCypher},
 		{secretsIAMNodeSecretMetadataPath, secretsIAMSecretMetadataPathNodeRetractCypher},
+		{"SECRETS_IAM_USES_SERVICE_ACCOUNT", secretsIAMUsesServiceAccountEdgeRetractCypher},
 	}
-	stmts := make([]Statement, 0, len(retracts))
-	for _, r := range retracts {
-		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
-			Cypher:    r.cypher,
-			Parameters: map[string]any{
-				"scope_ids":                     scopeIDs,
-				"evidence_source":               evidenceSource,
-				StatementMetadataPhaseKey:       canonicalPhaseSecretsIAMGraph,
-				StatementMetadataEntityLabelKey: r.label,
-				StatementMetadataSummaryKey:     fmt.Sprintf("retract entity=%s scopes=%d", r.label, len(scopeIDs)),
-			},
-		})
+	stmts := make([]Statement, 0, len(retracts)*len(scopeIDs))
+	for _, scopeID := range scopeIDs {
+		for _, r := range retracts {
+			stmts = append(stmts, Statement{
+				Operation: OperationCanonicalRetract,
+				Cypher:    r.cypher,
+				Parameters: map[string]any{
+					"scope_id":                      scopeID,
+					"evidence_source":               evidenceSource,
+					StatementMetadataPhaseKey:       canonicalPhaseSecretsIAMGraph,
+					StatementMetadataEntityLabelKey: r.label,
+					StatementMetadataSummaryKey:     fmt.Sprintf("retract entity=%s scope=1", r.label),
+				},
+			})
+		}
 	}
-	return w.dispatch(ctx, stmts)
+	// Retracts commit one bounded entity cleanup at a time. The statements are
+	// idempotent by scope+evidence_source, and this keeps NornicDB from holding
+	// one mixed DELETE/DETACH DELETE transaction across all secrets/IAM labels.
+	return w.dispatchSequential(ctx, stmts)
 }
 
 // writeBatched upserts rows in deterministic batches. When the executor
@@ -292,6 +300,15 @@ func (w *SecretsIAMGraphWriter) dispatch(ctx context.Context, stmts []Statement)
 		}
 		return nil
 	}
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
+}
+
+func (w *SecretsIAMGraphWriter) dispatchSequential(ctx context.Context, stmts []Statement) error {
 	for _, stmt := range stmts {
 		if err := w.executor.Execute(ctx, stmt); err != nil {
 			return WrapRetryableNeo4jError(err)

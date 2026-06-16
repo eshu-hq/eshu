@@ -50,7 +50,7 @@ func secretsIAMGraphProjectionDomainDefinition() DomainDefinition {
 		TruthContract: truth.Contract{
 			CanonicalKind: "secrets_iam_graph_projection",
 			SourceLayers: []truth.Layer{
-				truth.LayerCanonicalAsset,
+				truth.LayerObservedResource,
 			},
 		},
 	}

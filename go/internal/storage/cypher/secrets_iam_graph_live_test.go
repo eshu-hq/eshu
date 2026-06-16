@@ -110,7 +110,20 @@ type liveSecretsIAMExecutor struct {
 }
 
 func (e liveSecretsIAMExecutor) Execute(ctx context.Context, stmt cypher.Statement) error {
-	return e.ExecuteGroup(ctx, []cypher.Statement{stmt})
+	session := e.driver.NewSession(ctx, neo4jdriver.SessionConfig{
+		AccessMode:   neo4jdriver.AccessModeWrite,
+		DatabaseName: e.database,
+	})
+	defer func() { _ = session.Close(ctx) }()
+
+	result, err := session.Run(ctx, stmt.Cypher, stmt.Parameters)
+	if err != nil {
+		return fmt.Errorf("execute write: %w", err)
+	}
+	if _, err := result.Consume(ctx); err != nil {
+		return fmt.Errorf("consume write: %w", err)
+	}
+	return nil
 }
 
 func (e liveSecretsIAMExecutor) ExecuteGroup(ctx context.Context, stmts []cypher.Statement) error {
@@ -161,6 +174,28 @@ func (e liveSecretsIAMExecutor) count(ctx context.Context, cypherText string, pa
 		return 0, fmt.Errorf("count value is not int64: %T", record.Values[0])
 	}
 	return value, nil
+}
+
+func (e liveSecretsIAMExecutor) values(ctx context.Context, cypherText string, params map[string]any) ([]any, error) {
+	session := e.driver.NewSession(ctx, neo4jdriver.SessionConfig{
+		AccessMode:   neo4jdriver.AccessModeRead,
+		DatabaseName: e.database,
+	})
+	defer func() { _ = session.Close(ctx) }()
+
+	result, err := session.Run(ctx, cypherText, params)
+	if err != nil {
+		return nil, fmt.Errorf("run values query: %w", err)
+	}
+	records, err := result.Collect(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("collect values query: %w", err)
+	}
+	values := make([]any, 0, len(records))
+	for _, record := range records {
+		values = append(values, record.Values...)
+	}
+	return values, nil
 }
 
 // TestSecretsIAMGraphWriterLiveConformance writes all four node families and all
@@ -314,6 +349,7 @@ func TestSecretsIAMGraphWriterLiveConformance(t *testing.T) {
 		if got != 1 {
 			t.Fatalf("%s read-back count = %d, want 1", label, got)
 		}
+		t.Logf("sanitized node count %s=%d", label, got)
 	}
 
 	edgeCounts := map[string]string{
@@ -331,7 +367,17 @@ func TestSecretsIAMGraphWriterLiveConformance(t *testing.T) {
 		if got != 1 {
 			t.Fatalf("%s read-back count = %d, want 1", relType, got)
 		}
+		t.Logf("sanitized relationship count %s=%d", relType, got)
 	}
+
+	suspiciousValues, err := countSuspiciousSecretsIAMLiveValues(ctx, exec, scope, evidence)
+	if err != nil {
+		t.Fatalf("sensitive property spot-check: %v", err)
+	}
+	if suspiciousValues != 0 {
+		t.Fatalf("sensitive property spot-check found %d suspicious values, want 0", suspiciousValues)
+	}
+	t.Logf("sanitized sensitive property spot-check suspicious_values=%d", suspiciousValues)
 
 	// Scoped retract removes the four reducer-owned node families (and their
 	// edges), leaving the retained KubernetesWorkload and CloudResource endpoints
