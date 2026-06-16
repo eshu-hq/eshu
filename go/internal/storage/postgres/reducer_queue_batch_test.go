@@ -134,13 +134,32 @@ func TestClaimBatchFencesSameConflictCandidates(t *testing.T) {
 		"same.conflict_domain = fact_work_items.conflict_domain",
 		"COALESCE(same.conflict_key, same.scope_id) = COALESCE(fact_work_items.conflict_key, fact_work_items.scope_id)",
 		"same.status IN ('pending', 'retrying', 'claimed', 'running')",
-		"ORDER BY same.updated_at ASC, same.work_item_id ASC",
+		"CASE WHEN same.domain = 'eshu_search_document' THEN 1 ELSE 0 END ASC",
+		"same.updated_at ASC",
+		"same.work_item_id ASC",
 		"LIMIT 1",
 		"FOR UPDATE SKIP LOCKED",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("batch claim query missing %q:\n%s", want, query)
 		}
+	}
+}
+
+func TestClaimBatchOrdersSearchDocumentCatchupAfterGraphTruth(t *testing.T) {
+	t.Parallel()
+
+	query := claimReducerWorkBatchQuery
+	searchRank := "CASE WHEN fact_work_items.domain = 'eshu_search_document' THEN 1 ELSE 0 END"
+	sameSearchRank := "CASE WHEN same.domain = 'eshu_search_document' THEN 1 ELSE 0 END"
+	if !strings.Contains(query, searchRank) {
+		t.Fatalf("batch claim query missing search-document deprioritization rank:\n%s", query)
+	}
+	if !strings.Contains(query, sameSearchRank) {
+		t.Fatalf("same-conflict representative query missing search-document deprioritization rank:\n%s", query)
+	}
+	if !strings.Contains(query, "ORDER BY reducer_domain_priority ASC, updated_at ASC, work_item_id ASC") {
+		t.Fatalf("batch claim query missing domain-priority ordering:\n%s", query)
 	}
 }
 
