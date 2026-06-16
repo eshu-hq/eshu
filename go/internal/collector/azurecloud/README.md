@@ -68,10 +68,17 @@ and the [Multi-Cloud Runtime Collector Contract](../../../../docs/public/referen
   evidence when the boundary source lane is `SourceLaneResourceChanges`.
   Changed actors are fingerprinted, before/after values and raw provider bodies
   are dropped, and delete records remain tombstone candidates only.
-- `azure_dns_record` and `azure_image_reference` envelope builders are
-  unit-proven. DNS and image-reference scan-loop source data still requires
-  explicit fixture or live source lanes before this package can emit those fact
-  families from provider data.
+- `azure_dns_record` emits keyed DNS record-set evidence from supported Azure
+  DNS Resource Graph rows when a redaction key is configured. Record names and
+  targets are fingerprinted, TTL and record type stay bounded, unsupported or
+  empty record families are skipped, DNS record-set properties are not copied
+  into the generic resource extension, and DNS evidence remains
+  provenance-only.
+- `azure_image_reference` emits keyed Container Apps image evidence from the
+  safe `properties.template.containers` shape when a redaction key is
+  configured. Duplicate image references collapse within a row, container names
+  are fingerprinted, tag-only references stay lower-confidence evidence, and
+  owning ARM resources are not promoted into workload or service truth.
 
 ## Invariants
 
@@ -92,15 +99,16 @@ and the [Multi-Cloud Runtime Collector Contract](../../../../docs/public/referen
 ## Fixture matrix covered
 
 `collector_test.go`, `envelope_test.go`, `redaction_test.go`,
-`resourcegraph_test.go`, `resourcechanges_test.go`, `armid_test.go`, and
-`metrics_test.go` cover:
+`resourcegraph_test.go`, `resourcechanges_test.go`,
+`source_lane_emission_test.go`, `armid_test.go`, and `metrics_test.go` cover:
 skip-token pagination resume, idempotent re-emission of the same generation,
 stale/invalid generation rejection, truncation warning, partial-scope and
 permission-hidden warning accounting, malformed-row unsupported warning,
 extension redaction (including nested maps), provider-read-error propagation,
 resource-change parsing/emission, resource-change empty state, actor
-fingerprinting, raw before/after value exclusion, and bounded telemetry-label
-safety.
+fingerprinting, raw before/after value exclusion, DNS/image source-lane
+emission, no-key fail-closed behavior, unsupported/empty source-lane skips,
+duplicate image-reference convergence, and bounded telemetry-label safety.
 
 ## Tests
 
@@ -110,15 +118,15 @@ cd go && go test ./internal/collector/azurecloud/... ./internal/facts/ -count=1
 
 ## Performance and Observability Evidence
 
-Collector Performance Evidence: this slice adds isolated fixture-driven
-resource-change parsing and changes no existing graph or storage hot path.
-Baseline: Azure resource-change emission did not exist. After: bounded
-in-memory normalization of Resource Graph pages with no Cypher, graph writes,
-Postgres writes, worker/lease/queue changes, or claim-driven scheduler changes.
-Input shape is fixture pages resumed by skip-token; work is O(change rows x
-pages), and terminal output is a bounded generation of `azure_resource_change`
-facts plus explicit warning facts for unsupported rows or partial scope. Focused
-proof: `go test ./internal/collector/azurecloud/... ./cmd/collector-azure-cloud/... ./internal/facts/ -count=1`.
+Collector Performance Evidence: this package adds isolated fixture-driven
+resource-change parsing plus DNS and Container Apps image-reference source-lane
+extraction, and changes no existing graph or storage hot path. Baseline: later
+Azure source families had envelope builders only. After: bounded in-memory
+normalization of Resource Graph pages with no Cypher, graph writes, Postgres
+writes, worker/lease/queue changes, or claim-driven scheduler changes. Input
+shape is fixture pages resumed by skip-token; work is O(rows x page count) with
+small per-row extraction for supported source families. Focused proof:
+`go test ./internal/collector/azurecloud -count=1`.
 
 Collector Observability Evidence: the package exports bounded-label data-plane metrics
 `eshu_dp_azure_api_calls_total`, `_skip_token_resumes_total`,
@@ -128,16 +136,19 @@ operation, status class, fact kind, outcome); a test asserts no ARM resource id,
 subscription id, tenant id, resource name, tag, or URL appears in any label. An
 operator reads partial-scope coverage, skip-token resumes, freshness lag,
 source-lane labels, and fact counts to answer whether a scan is complete,
-fresh, throttled, or partial. Resource-change actors are fingerprinted with the
-configured redaction key; raw actors, before/after values, and provider bodies
-are absent from emitted facts.
+fresh, throttled, or partial. Resource-change actors, DNS names and targets,
+and container names are fingerprinted with the configured redaction key; raw
+actors, DNS targets, container names, before/after values, and provider bodies
+are absent from the new emitted facts.
 
 No-Observability-Change: no telemetry contract file changes are needed. The
 resource-change lane reuses the existing Azure bounded metric family, adds
 `source_lane=resource_changes` and `operation=resource_changes_list`, and keeps
-all identifiers out of metric labels.
+all identifiers out of metric labels. DNS and image source-lane emission reuse
+the existing fact-count metric keyed only by bounded fact kind.
 
 Collector Deployment Evidence: no Docker Compose service, Helm Deployment,
 Service, ServiceMonitor, port, chart value, runtime profile, or live Azure
-credential path changes in this slice. Resource-change emission stays behind
-fixture provider injection and `SourceLaneResourceChanges`.
+credential path changes in this slice. Resource-change, DNS, and image
+source-lane emission stay behind fixture provider injection or already-gated
+live provider injection.

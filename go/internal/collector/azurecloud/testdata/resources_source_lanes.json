@@ -1,0 +1,123 @@
+{
+  "totalRecords": 6,
+  "count": 6,
+  "resultTruncated": "false",
+  "$skipToken": "",
+  "data": [
+    {
+      "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg-dns/providers/Microsoft.Network/dnsZones/example.invalid/CNAME/api",
+      "name": "api",
+      "type": "microsoft.network/dnszones/cname",
+      "tenantId": "tenant-abc",
+      "subscriptionId": "11111111-1111-1111-1111-111111111111",
+      "resourceGroup": "rg-dns",
+      "location": "global",
+      "apiVersion": "2018-05-01",
+      "properties": {
+        "TTL": 300,
+        "CNAMERecord": {"cname": "app.example.invalid"}
+      },
+      "timestamp": "2026-06-09T11:30:00Z"
+    },
+    {
+      "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg-app/providers/Microsoft.App/containerApps/orders-api",
+      "name": "orders-api",
+      "type": "microsoft.app/containerapps",
+      "tenantId": "tenant-abc",
+      "subscriptionId": "11111111-1111-1111-1111-111111111111",
+      "resourceGroup": "rg-app",
+      "location": "eastus",
+      "apiVersion": "2024-03-01",
+      "properties": {
+        "template": {
+          "containers": [
+            {
+              "name": "api",
+              "image": "registry.example.invalid/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "name": "api",
+              "image": "registry.example.invalid/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "name": "worker",
+              "image": "registry.example.invalid/team/worker:2.1.0"
+            },
+            {
+              "name": "empty",
+              "image": ""
+            }
+          ]
+        }
+      },
+      "timestamp": "2026-06-09T11:31:00Z"
+    },
+    {
+      "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg-dns/providers/Microsoft.Network/dnsZones/example.invalid/SOA/@",
+      "name": "@",
+      "type": "microsoft.network/dnszones/soa",
+      "tenantId": "tenant-abc",
+      "subscriptionId": "11111111-1111-1111-1111-111111111111",
+      "resourceGroup": "rg-dns",
+      "location": "global",
+      "apiVersion": "2018-05-01",
+      "properties": {
+        "TTL": 300,
+        "SOARecord": {"host": "ns.example.invalid"}
+      },
+      "timestamp": "2026-06-09T11:32:00Z"
+    },
+    {
+      "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg-dns/providers/Microsoft.Network/dnsZones/example.invalid/CNAME/empty",
+      "name": "empty",
+      "type": "microsoft.network/dnszones/cname",
+      "tenantId": "tenant-abc",
+      "subscriptionId": "11111111-1111-1111-1111-111111111111",
+      "resourceGroup": "rg-dns",
+      "location": "global",
+      "apiVersion": "2018-05-01",
+      "properties": {
+        "TTL": 60,
+        "CNAMERecord": {"cname": ""}
+      },
+      "timestamp": "2026-06-09T11:33:00Z"
+    },
+    {
+      "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg-dns/providers/Microsoft.Network/dnsZones/example.invalid/CNAME/malformed",
+      "name": "malformed",
+      "type": "microsoft.network/dnszones/cname",
+      "tenantId": "tenant-abc",
+      "subscriptionId": "11111111-1111-1111-1111-111111111111",
+      "resourceGroup": "rg-dns",
+      "location": "global",
+      "apiVersion": "2018-05-01",
+      "properties": {
+        "TTL": 60,
+        "CNAMERecord": "not-a-record-object"
+      },
+      "timestamp": "2026-06-09T11:34:00Z"
+    },
+    {
+      "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg-app/providers/Microsoft.ContainerService/managedClusters/aks-prod",
+      "name": "aks-prod",
+      "type": "microsoft.containerservice/managedclusters",
+      "tenantId": "tenant-abc",
+      "subscriptionId": "11111111-1111-1111-1111-111111111111",
+      "resourceGroup": "rg-app",
+      "location": "eastus",
+      "apiVersion": "2026-03-02-preview",
+      "properties": {
+        "kubernetesVersion": "1.32.0",
+        "template": {
+          "containers": [
+            {
+              "name": "not-workload-truth",
+              "image": "registry.example.invalid/team/ignored:latest"
+            }
+          ]
+        }
+      },
+      "timestamp": "2026-06-09T11:35:00Z"
+    }
+  ]
+}

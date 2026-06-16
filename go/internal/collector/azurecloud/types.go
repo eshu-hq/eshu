@@ -30,6 +30,19 @@ const (
 	SourceLaneARMFallback = "arm_fallback"
 )
 
+// Azure DNS record types supported by source-lane extraction.
+const (
+	DNSRecordTypeA     = "A"
+	DNSRecordTypeAAAA  = "AAAA"
+	DNSRecordTypeCNAME = "CNAME"
+	DNSRecordTypeMX    = "MX"
+	DNSRecordTypeNS    = "NS"
+	DNSRecordTypePTR   = "PTR"
+	DNSRecordTypeTXT   = "TXT"
+	DNSRecordTypeSRV   = "SRV"
+	DNSRecordTypeCAA   = "CAA"
+)
+
 // Boundary carries the durable scope-generation and claim identity shared by
 // every fact emitted for one Azure collection claim. It encodes the scope and
 // generation contract fields the Azure collector contract requires.
