@@ -16,11 +16,12 @@
 
 ## Invariants
 
-- This package performs no live Google Cloud call. The live transport is the
-  `LiveClient` seam; it is unimplemented and never wired as a default. Tests
-  always use `FixturePageProvider`.
+- This package contains the explicitly injected `LiveClient` REST seam for
+  Cloud Asset Inventory `assets.list`, but it is never wired as a default. The
+  command path still uses `FixturePageProvider`; live-client tests must use
+  local HTTP servers, not live Google Cloud calls.
 - All transport goes through `PageProvider.FetchPage`. Do not import a Google
-  Cloud SDK into `source.go`; new transport is a new `PageProvider`.
+  Cloud SDK into `source.go`; transport belongs behind a `PageProvider`.
 - Parsed resource labels emit label-backed `gcp_tag_observation` facts through
   `gcpcloud.Generation`; direct/effective GCP tag API collection belongs in a
   later source slice.
@@ -42,19 +43,21 @@
   resource facts. Re-running the same generation id and fencing token is
   idempotent.
 - A continuation token the provider cannot resume becomes a
-  `page_token_expired` warning, not a hard failure or silent truncation.
+  `page_token_expired` warning, not a hard failure or silent truncation. Typed
+  live provider warnings become `gcp_collection_warning` facts.
 - Require a non-zero `redact.Key`. Facts must never carry unkeyed redaction
   markers.
-- Metric labels and log fields are bounded enums and counts only: collector
-  kind, claim status, parent scope kind, asset family, content family, fact
-  kind, warning kind, and outcome. Never emit resource names, project ids,
-  labels, IAM members, DNS names, image references, URLs, or credential names.
+- Metric labels, log fields, and runtime error text are bounded enums and counts
+  only: collector kind, claim status, parent scope kind, asset family, content
+  family, fact kind, warning kind, and outcome. Never emit resource names,
+  project ids, derived scope ids, labels, IAM members, DNS names, image
+  references, URLs, credential names, page tokens, or provider response bodies.
 - Keep every source file under 500 lines; split before the cap.
 
 ## What Not To Change Without An ADR
 
 - Do not wire `LiveClient` (or any live transport) as a default page provider in
-  this slice.
+  this package or in `cmd/collector-gcp-cloud`.
 - Do not add reducer admission, graph writes, API/MCP readback, Helm values, or
   environment-variable contracts here; those are deferred slices.
 - Do not infer environment, workload, ownership, or deployable-unit truth from

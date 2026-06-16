@@ -28,13 +28,15 @@ ship in this slice:
   or from files (`NewFixturePageProviderFromFiles`). It performs no network call
   and backs every test plus the binary's offline smoke path. It enforces
   continuation-token matching so pagination resume is exercised honestly.
-- `LiveClient` is the documented live gRPC/REST seam. It is intentionally
-  **unimplemented** (`FetchPage` returns `ErrLiveClientNotImplemented`) and is
-  **not wired as a default**, so the live path cannot make a Google Cloud call by
-  accident. The real adapter, read-only credential resolution, retry, throttle,
-  and backoff land in a later slice.
+- `LiveClient` is the explicitly injected live REST seam for
+  `assets.list`. It requires a caller-supplied read-only token source, bounds
+  page size, response bytes, timeout, retry attempts, and backoff, and converts
+  expected provider coverage gaps into `gcp_collection_warning` facts. It is
+  **not wired as a default**, so the command path still cannot make a Google
+  Cloud call by accident.
 
-No code in this package and no test performs a live Google Cloud call.
+No test performs a live Google Cloud call; live-client tests use local HTTP
+servers.
 
 ## Configuration
 
@@ -56,14 +58,14 @@ defaults to the contract form
 
 ## Deferred (not in this package)
 
-Direct/effective GCP tag APIs, live Cloud Asset Inventory transport, credential
-resolution, claim-enabled scheduler activation, Helm values, environment-variable
-contracts, ServiceMonitor wiring, and live smoke proof are deferred per
-`docs/public/reference/gcp-cloud-collector-contract.md`. This package is runtime
-scaffolding that is fixture-tested only. Shared cloud inventory admission and
-API/MCP readback for `gcp_cloud_resource`, tag evidence admission, image identity
-admission, relationship resolution, and IAM trust facts are implemented outside
-this package and remain separate from live provider activation.
+Direct/effective GCP tag APIs, command wiring for live transport,
+claim-enabled scheduler activation, Helm values, environment-variable contracts,
+ServiceMonitor wiring, and sanitized target smoke proof are deferred per
+`docs/public/reference/gcp-cloud-collector-contract.md`. Shared cloud inventory
+admission and API/MCP readback for `gcp_cloud_resource`, tag evidence admission,
+image identity admission, relationship resolution, and IAM trust facts are
+implemented outside this package and remain separate from live provider
+activation.
 
 ## Performance and observability evidence
 

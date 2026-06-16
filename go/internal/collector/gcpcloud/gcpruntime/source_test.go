@@ -308,6 +308,39 @@ func TestSourcePageTokenExpiredWarning(t *testing.T) {
 	}
 }
 
+// TestSourceProviderWarningEmitsCollectionWarning proves live provider warning
+// classifications become durable coverage facts rather than hard failures or
+// silent success.
+func TestSourceProviderWarningEmitsCollectionWarning(t *testing.T) {
+	src := newSource(t, testConfig(testScope()), warningProvider{
+		warning: ProviderWarning{
+			WarningKind: gcpcloud.WarningKindQuota,
+			Outcome:     gcpcloud.OutcomeUnavailable,
+			Reason:      "cloud asset inventory throttle exhausted",
+			Retryable:   true,
+		},
+	}, nil)
+
+	collected, ok, err := src.Next(context.Background())
+	if err != nil || !ok {
+		t.Fatalf("Next: ok=%v err=%v", ok, err)
+	}
+	envs := drainFacts(t, collected)
+	if got := countKind(envs, facts.GCPCloudResourceFactKind); got != 0 {
+		t.Fatalf("resource facts = %d, want 0", got)
+	}
+	warning := firstEnvelopeKind(t, envs, facts.GCPCollectionWarningFactKind)
+	if warning.Payload["warning_kind"] != gcpcloud.WarningKindQuota {
+		t.Fatalf("warning_kind = %v, want quota", warning.Payload["warning_kind"])
+	}
+	if warning.Payload["outcome"] != gcpcloud.OutcomeUnavailable {
+		t.Fatalf("outcome = %v, want unavailable", warning.Payload["outcome"])
+	}
+	if warning.Payload["retryable"] != true {
+		t.Fatalf("retryable = %v, want true", warning.Payload["retryable"])
+	}
+}
+
 // TestSourceDrainsScopesThenReportsIdle proves the source yields one generation
 // per scope, then returns ok=false to signal the batch is drained, then
 // restarts the batch on the next poll.
@@ -407,6 +440,14 @@ type failProvider struct{}
 
 func (failProvider) FetchPage(context.Context, PageRequest) (gcpcloud.AssetsListPage, error) {
 	return gcpcloud.AssetsListPage{}, errors.New("provider must not be called")
+}
+
+type warningProvider struct {
+	warning ProviderWarning
+}
+
+func (p warningProvider) FetchPage(context.Context, PageRequest) (gcpcloud.AssetsListPage, error) {
+	return gcpcloud.AssetsListPage{}, p.warning
 }
 
 func equalStrings(a, b []string) bool {

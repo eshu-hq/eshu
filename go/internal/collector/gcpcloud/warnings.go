@@ -14,6 +14,9 @@ const (
 	// WarningKindQuota marks a scan that hit Cloud Asset Inventory quota or
 	// throttle limits before completing.
 	WarningKindQuota = "quota"
+	// WarningKindUnavailable marks a scan that could not reach Cloud Asset
+	// Inventory or received a retry-exhausted provider availability failure.
+	WarningKindUnavailable = "unavailable"
 	// WarningKindStale marks a generation that was rejected because a newer
 	// generation already owns the shard.
 	WarningKindStale = "stale_generation"
@@ -46,6 +49,7 @@ var validWarningKinds = map[string]struct{}{
 	WarningKindPartialPermission: {},
 	WarningKindUnsupported:       {},
 	WarningKindQuota:             {},
+	WarningKindUnavailable:       {},
 	WarningKindStale:             {},
 	WarningKindRedaction:         {},
 	WarningKindPageTokenExpired:  {},

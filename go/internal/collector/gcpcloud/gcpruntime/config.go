@@ -76,7 +76,7 @@ func (c Config) Validate() error {
 			return fmt.Errorf("gcp collector scope %d: %w", i, err)
 		}
 		if _, dup := seen[resolved.ScopeID]; dup {
-			return fmt.Errorf("gcp collector scope %d: duplicate scope_id %q", i, resolved.ScopeID)
+			return fmt.Errorf("gcp collector scope %d: duplicate scope_id", i)
 		}
 		seen[resolved.ScopeID] = struct{}{}
 	}

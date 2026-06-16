@@ -12,13 +12,12 @@
 //
 // The PageProvider interface isolates all Cloud Asset Inventory transport.
 // FixturePageProvider serves parsed pages from memory or files for tests and the
-// binary's offline smoke path; LiveClient is the documented live gRPC/REST seam
-// and is intentionally unimplemented and unwired in this slice. No code in this
-// package performs a live Google Cloud call, and no test exercises a live call.
+// binary's offline smoke path; LiveClient is the explicitly injected live REST
+// seam for assets.list and is not wired as a default. No test performs a live
+// Google Cloud call.
 //
-// This package is fixture-tested runtime scaffolding. Shared GCP reducer
-// admission and API/MCP readback live outside this package; live Cloud Asset
-// Inventory transport, credential resolution, claim-enabled scheduler
-// activation, Helm values, and environment-variable contracts remain gated
-// follow-ups per docs/public/reference/gcp-cloud-collector-contract.md.
+// Shared GCP reducer admission and API/MCP readback live outside this package;
+// command wiring for live transport, claim-enabled scheduler activation, Helm
+// values, environment-variable contracts, and sanitized target smoke proof
+// remain gated follow-ups per docs/public/reference/gcp-cloud-collector-contract.md.
 package gcpruntime
