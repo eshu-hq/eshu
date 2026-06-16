@@ -179,6 +179,29 @@ path through existing code-call projection cycle logs, shared-intent
 backlog/status queries, partition lease rows, reducer execution counters, and
 Postgres query instrumentation.
 
+No-Regression Evidence: remote full-corpus proof on #2631 showed typed
+`INSTANTIATES` graph writes and selected partition loads were no longer the
+dominant cost, but code-call cycles still spent roughly 0.14-0.92s in
+`selection_duration_seconds` while `write_duration_seconds` stayed around
+1-6ms. `go test ./internal/reducer -run
+'TestCodeCallProjectionRunner(SelectsPartitionCandidatesWithoutDomainScan|ReadsUnhashedPendingRowsWithoutDomainScan|EmptyPartitionDoesNotFallbackToDomainScan)'
+-count=1` failed before the runner used the partition-candidate reader, then
+passed after candidate selection preferred rows already hashed into the leased
+partition and read pre-hash legacy rows through a bounded unhashed-reader path
+without re-entering the global domain scan for normal empty partitions. `go test
+./internal/reducer -run
+'TestCodeCallProjectionRunner(Selects|Scans|Skips|Uses|Loads|FileRefresh|LoadAll|Processes|Marks|Retries|Keeps|DoesNot|Suppresses|Partitions|Runs)'
+-count=1` proves readiness gating, refresh fencing, direct partition loading,
+completion, retry, and fallback behavior still converge.
+
+No-Observability-Change: the partition-candidate selector adds no graph query,
+queue table, worker, lease, runtime knob, metric instrument, or metric label.
+Operators still diagnose the path through existing code-call projection cycle
+logs (`selection_duration_seconds`, `write_duration_seconds`,
+`lease_claim_duration_seconds`, intent wait fields), shared-intent backlog and
+status queries, partition lease rows, reducer execution counters, and
+instrumented Postgres query spans/duration metrics.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

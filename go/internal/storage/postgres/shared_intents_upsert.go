@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,13 +13,13 @@ import (
 
 const (
 	// sharedIntentBatchSize is the number of rows per multi-row INSERT batch.
-	// 2000 rows * 11 columns = 22000 parameters per query, well under the
+	// 2000 rows * 12 columns = 24000 parameters per query, well under the
 	// Postgres limit of 65535 while reducing code-call intent round trips.
 	sharedIntentBatchSize = 2000
 
 	// columnsPerSharedIntent is the number of columns in the
 	// shared_projection_intents INSERT.
-	columnsPerSharedIntent = 11
+	columnsPerSharedIntent = 12
 )
 
 // preparedSharedIntentRow holds marshaled data for one shared intent row before batching.
@@ -31,6 +32,7 @@ type preparedSharedIntentRow struct {
 	repositoryID     string
 	sourceRunID      string
 	generationID     string
+	partitionHash    string
 	payloadBytes     []byte
 	createdAt        time.Time
 	completedAt      any
@@ -39,7 +41,8 @@ type preparedSharedIntentRow struct {
 const upsertSharedIntentBatchPrefix = `
 INSERT INTO shared_projection_intents (
     intent_id, projection_domain, partition_key, scope_id, acceptance_unit_id,
-    repository_id, source_run_id, generation_id, payload, created_at, completed_at
+    repository_id, source_run_id, generation_id, partition_hash, payload,
+    created_at, completed_at
 ) VALUES `
 
 const upsertSharedIntentBatchSuffix = `
@@ -51,6 +54,7 @@ SET projection_domain = EXCLUDED.projection_domain,
     repository_id = EXCLUDED.repository_id,
     source_run_id = EXCLUDED.source_run_id,
     generation_id = EXCLUDED.generation_id,
+    partition_hash = EXCLUDED.partition_hash,
     payload = EXCLUDED.payload,
     created_at = EXCLUDED.created_at,
     completed_at = COALESCE(
@@ -90,6 +94,7 @@ func (s *SharedIntentStore) UpsertIntents(ctx context.Context, rows []reducer.Sh
 			repositoryID:     r.RepositoryID,
 			sourceRunID:      r.SourceRunID,
 			generationID:     r.GenerationID,
+			partitionHash:    strconv.FormatUint(reducer.PartitionHashForKey(r.PartitionKey), 10),
 			payloadBytes:     payloadBytes,
 			createdAt:        r.CreatedAt,
 			completedAt:      completedAt,
@@ -142,9 +147,9 @@ func upsertSharedIntentBatch(ctx context.Context, db ExecQueryer, batch []prepar
 		}
 		offset := i * columnsPerSharedIntent
 		fmt.Fprintf(&values,
-			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d::jsonb, $%d, $%d)",
+			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d::numeric, $%d::jsonb, $%d, $%d)",
 			offset+1, offset+2, offset+3, offset+4, offset+5,
-			offset+6, offset+7, offset+8, offset+9, offset+10, offset+11,
+			offset+6, offset+7, offset+8, offset+9, offset+10, offset+11, offset+12,
 		)
 
 		args = append(args,
@@ -156,6 +161,7 @@ func upsertSharedIntentBatch(ctx context.Context, db ExecQueryer, batch []prepar
 			row.repositoryID,
 			row.sourceRunID,
 			row.generationID,
+			row.partitionHash,
 			row.payloadBytes,
 			row.createdAt,
 			row.completedAt,
