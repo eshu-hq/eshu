@@ -238,6 +238,14 @@ func codeCallProjectionRowBlockedByRepoFence(
 		return false
 	}
 	if codeCallProjectionIsFileScoped(row) {
+		for candidateIndex, candidate := range pending {
+			if candidateIndex == rowIndex {
+				continue
+			}
+			if codeCallProjectionRefreshCoversRow(candidate, row) {
+				return true
+			}
+		}
 		for _, candidate := range pending[:rowIndex] {
 			if codeCallProjectionRowRepository(candidate) == repositoryID &&
 				codeCallProjectionSameAcceptanceUnit(candidate, row) &&

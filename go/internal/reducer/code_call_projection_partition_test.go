@@ -146,6 +146,62 @@ func TestCodeCallProjectionRunnerWholeScopeBlocksFilePartitions(t *testing.T) {
 	}
 }
 
+func TestCodeCallProjectionRunnerFileRefreshBlocksCoveredFilePartitions(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.June, 15, 11, 15, 0, 0, time.UTC)
+	partitionCount := 8
+	filePartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
+	refreshPartition := codeCallRefreshPartitionKeyForDelta(
+		"repo-a",
+		[]string{"src/caller.go", "src/models.go"},
+	)
+	refreshRow := codeCallProjectionFileRefreshRow(
+		"file-refresh",
+		refreshPartition,
+		"repo-a",
+		[]string{"/repo/src/caller.go", "/repo/src/models.go"},
+		now,
+	)
+	fileRow := codeCallProjectionDeltaPartitionRow(
+		"caller-edge",
+		filePartition,
+		"repo-a",
+		"/repo/src/caller.go",
+		now.Add(time.Millisecond),
+	)
+	reader := &fakeCodeCallIntentStore{
+		pendingByDomain: []SharedProjectionIntentRow{fileRow, refreshRow},
+		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+			"scope-a|repo-a|run-1": {fileRow, refreshRow},
+		},
+		leaseGranted: true,
+	}
+	runner := CodeCallProjectionRunner{
+		IntentReader: reader,
+		LeaseManager: reader,
+		EdgeWriter:   &recordingCodeCallProjectionEdgeWriter{},
+		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
+		Config:       CodeCallProjectionRunnerConfig{BatchLimit: 10, PartitionCount: partitionCount},
+	}
+
+	result, err := runner.processPartitionOnce(
+		context.Background(),
+		now,
+		mustPartitionForKey(t, filePartition, partitionCount),
+		partitionCount,
+	)
+	if err != nil {
+		t.Fatalf("processPartitionOnce(file) error = %v", err)
+	}
+	if result.ProcessedIntents != 0 {
+		t.Fatalf("ProcessedIntents = %d, want file partition blocked by covering refresh", result.ProcessedIntents)
+	}
+	if len(reader.marked) != 0 {
+		t.Fatalf("marked = %v, want none while refresh fences file partitions", reader.marked)
+	}
+}
+
 func TestCodeCallProjectionRunnerFilePartitionsBlockLaterWholeScope(t *testing.T) {
 	t.Parallel()
 
@@ -284,6 +340,34 @@ func codeCallProjectionWholeScopeRow(intentID string, repositoryID string, creat
 			"action":          "refresh",
 			"intent_type":     "repo_refresh",
 			"evidence_source": codeCallRepoRefreshEvidenceSource,
+		},
+		CreatedAt: createdAt,
+	}
+}
+
+func codeCallProjectionFileRefreshRow(
+	intentID string,
+	partitionKey string,
+	repositoryID string,
+	deltaFilePaths []string,
+	createdAt time.Time,
+) SharedProjectionIntentRow {
+	return SharedProjectionIntentRow{
+		IntentID:         intentID,
+		ProjectionDomain: DomainCodeCalls,
+		PartitionKey:     partitionKey,
+		ScopeID:          "scope-a",
+		AcceptanceUnitID: repositoryID,
+		RepositoryID:     repositoryID,
+		SourceRunID:      "run-1",
+		GenerationID:     "gen-1",
+		Payload: map[string]any{
+			"repo_id":          repositoryID,
+			"action":           "refresh",
+			"intent_type":      "repo_refresh",
+			"evidence_source":  codeCallRepoRefreshEvidenceSource,
+			"delta_projection": true,
+			"delta_file_paths": append([]string(nil), deltaFilePaths...),
 		},
 		CreatedAt: createdAt,
 	}

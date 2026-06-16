@@ -25,6 +25,7 @@ type historyAwareCodeCallIntentStore struct {
 	hasCompleted                  bool
 	hasCompletedCurrentRun        bool
 	completedCurrentRunPartitions map[string]bool
+	completedCurrentRunRefresh    map[string]bool
 	historyErr                    error
 }
 
@@ -72,6 +73,26 @@ func (h *historyAwareCodeCallIntentStore) HasCompletedAcceptanceUnitSourceRunPar
 		return h.completedCurrentRunPartitions[partitionKey], nil
 	}
 	return h.hasCompletedCurrentRun, nil
+}
+
+func (h *historyAwareCodeCallIntentStore) HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents(
+	_ context.Context,
+	_ SharedProjectionAcceptanceKey,
+	filePaths []string,
+	_ string,
+) (bool, error) {
+	if h.historyErr != nil {
+		return false, h.historyErr
+	}
+	if len(filePaths) == 0 || len(h.completedCurrentRunRefresh) == 0 {
+		return false, nil
+	}
+	for _, filePath := range filePaths {
+		if !h.completedCurrentRunRefresh[filePath] {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func codeCallProjectionTestRow(intentID, generationID string, createdAt time.Time) SharedProjectionIntentRow {

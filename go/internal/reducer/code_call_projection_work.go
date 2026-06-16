@@ -66,6 +66,7 @@ func (r *CodeCallProjectionRunner) shouldSkipCodeCallRetract(
 	ctx context.Context,
 	key SharedProjectionAcceptanceKey,
 	partitionKey string,
+	active []SharedProjectionIntentRow,
 	staleIDs []string,
 ) (bool, error) {
 	if len(staleIDs) > 0 {
@@ -84,6 +85,24 @@ func (r *CodeCallProjectionRunner) shouldSkipCodeCallRetract(
 		}
 		if hasCurrent {
 			return true, nil
+		}
+	}
+	if codeCallProjectionPartitionKindForKey(partitionKey) == codeCallProjectionPartitionFile {
+		refreshHistory, ok := r.IntentReader.(CodeCallProjectionCurrentRunRefreshHistoryLookup)
+		if ok {
+			filePaths := codeCallProjectionFilePaths(active)
+			hasRefresh, err := refreshHistory.HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents(
+				ctx,
+				key,
+				filePaths,
+				DomainCodeCalls,
+			)
+			if err != nil {
+				return false, fmt.Errorf("check completed current code call refresh history: %w", err)
+			}
+			if hasRefresh {
+				return true, nil
+			}
 		}
 	}
 	history, ok := r.IntentReader.(CodeCallProjectionHistoryLookup)
@@ -180,6 +199,22 @@ func buildCodeCallRepoRetractRows(repositoryIDs []string) []SharedProjectionInte
 		})
 	}
 	return rows
+}
+
+func codeCallProjectionFilePaths(rows []SharedProjectionIntentRow) []string {
+	seen := make(map[string]struct{})
+	filePaths := make([]string, 0, len(rows))
+	for _, row := range rows {
+		for _, filePath := range semanticPayloadStringSlice(row.Payload, "delta_file_paths") {
+			if _, ok := seen[filePath]; ok {
+				continue
+			}
+			seen[filePath] = struct{}{}
+			filePaths = append(filePaths, filePath)
+		}
+	}
+	sort.Strings(filePaths)
+	return filePaths
 }
 
 func buildCodeCallDeltaRetractRows(

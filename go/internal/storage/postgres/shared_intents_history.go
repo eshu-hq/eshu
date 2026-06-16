@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/lib/pq"
 )
 
 const hasCompletedAcceptanceUnitDomainIntentsSQL = `
@@ -42,6 +43,30 @@ SELECT EXISTS (
       AND partition_key = $4
       AND projection_domain = $5
       AND completed_at IS NOT NULL
+    LIMIT 1
+)
+`
+
+const hasCompletedAcceptanceUnitSourceRunRefreshDomainIntentsSQL = `
+SELECT EXISTS (
+    SELECT 1
+    FROM shared_projection_intents
+    WHERE scope_id = $1
+      AND acceptance_unit_id = $2
+      AND source_run_id = $3
+      AND projection_domain = $4
+      AND completed_at IS NOT NULL
+      AND payload->>'intent_type' = 'repo_refresh'
+      AND jsonb_typeof(payload->'delta_file_paths') = 'array'
+      AND NOT EXISTS (
+          SELECT 1
+          FROM unnest($5::text[]) AS selected(path)
+          WHERE NOT EXISTS (
+              SELECT 1
+              FROM jsonb_array_elements_text(payload->'delta_file_paths') AS refresh(path)
+              WHERE refresh.path = selected.path
+          )
+      )
     LIMIT 1
 )
 `
@@ -138,6 +163,42 @@ func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunPartitionDomainIn
 	var exists bool
 	if err := sqlRows.Scan(&exists); err != nil {
 		return false, fmt.Errorf("scan completed source-run partition shared projection history: %w", err)
+	}
+	return exists, sqlRows.Err()
+}
+
+// HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents reports whether a
+// completed current-run repo refresh covers every selected file path.
+func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents(
+	ctx context.Context,
+	key reducer.SharedProjectionAcceptanceKey,
+	filePaths []string,
+	domain string,
+) (bool, error) {
+	if len(filePaths) == 0 {
+		return false, nil
+	}
+
+	sqlRows, err := s.db.QueryContext(
+		ctx,
+		hasCompletedAcceptanceUnitSourceRunRefreshDomainIntentsSQL,
+		key.ScopeID,
+		key.AcceptanceUnitID,
+		key.SourceRunID,
+		domain,
+		pq.Array(filePaths),
+	)
+	if err != nil {
+		return false, fmt.Errorf("query completed source-run refresh shared projection history: %w", err)
+	}
+	defer func() { _ = sqlRows.Close() }()
+
+	if !sqlRows.Next() {
+		return false, nil
+	}
+	var exists bool
+	if err := sqlRows.Scan(&exists); err != nil {
+		return false, fmt.Errorf("scan completed source-run refresh shared projection history: %w", err)
 	}
 	return exists, sqlRows.Err()
 }
