@@ -18,7 +18,8 @@ import (
 const maxCloudResourceChangeEvidenceString = 256
 
 // PostgresCloudResourceChangeEvidenceLoader reads azure_resource_change source
-// facts for one scope generation and maps each payload into the shared
+// facts for the resource_changes lane corresponding to one inventory admission
+// generation and maps each payload into the shared
 // reducer.CloudResourceChangeEvidenceRecord shape. The loader is read-only and
 // graph-neutral; identity attachment and stale-generation supersession remain
 // owned by the cloud-inventory admission handler.
@@ -31,8 +32,9 @@ type PostgresCloudResourceChangeEvidenceLoader struct {
 
 // LoadCloudResourceChangeEvidence implements
 // reducer.CloudResourceChangeEvidenceLoader. It returns sanitized
-// resource-change records in scope for the generation, bound by scope_id and
-// generation_id so stale generations cannot leak rows into newer admission.
+// resource-change records for the supplied inventory scope/generation, resolving
+// Azure inventory lanes to their active sibling resource_changes generation so
+// resource-change facts can attach without fabricating canonical inventory.
 func (l PostgresCloudResourceChangeEvidenceLoader) LoadCloudResourceChangeEvidence(
 	ctx context.Context,
 	scopeID string,

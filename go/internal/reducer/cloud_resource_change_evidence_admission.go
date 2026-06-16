@@ -50,13 +50,14 @@ type CloudResourceChangeEvidence struct {
 	TombstoneCandidate       bool
 }
 
-// CloudResourceChangeEvidenceLoader loads resource-change source facts for one
-// scope generation. Implementations must bound the load to the supplied scope
-// and generation so stale generations cannot leak freshness evidence into a
-// newer admission.
+// CloudResourceChangeEvidenceLoader loads resource-change source facts for the
+// inventory admission generation. Provider implementations may map the supplied
+// inventory scope/generation to a sibling resource-change lane, but the final
+// read must stay bounded to one current source generation so stale freshness
+// evidence cannot leak into a newer admission.
 type CloudResourceChangeEvidenceLoader interface {
-	// LoadCloudResourceChangeEvidence returns resource-change records in scope
-	// for the generation.
+	// LoadCloudResourceChangeEvidence returns resource-change records relevant
+	// to the supplied inventory admission scope and generation.
 	LoadCloudResourceChangeEvidence(
 		ctx context.Context,
 		scopeID string,

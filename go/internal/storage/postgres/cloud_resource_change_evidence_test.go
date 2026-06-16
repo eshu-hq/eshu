@@ -14,7 +14,7 @@ func TestPostgresCloudResourceChangeEvidenceLoaderMapsAzureChangeFacts(t *testin
 	t.Parallel()
 
 	const (
-		scopeID      = "azure:tenant:subscription:sub-1:all:all:resourcechanges"
+		scopeID      = "azure:tenant:subscription:sub-1:all:all:resource_changes"
 		generationID = "gen-changes-1"
 		armID        = "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm"
 	)
@@ -87,14 +87,59 @@ func TestCloudResourceChangeEvidenceQueryIsBounded(t *testing.T) {
 	t.Parallel()
 
 	for _, want := range []string{
+		"requested_inventory_generation AS",
+		"active_resource_change_generation AS",
 		"azure_resource_change",
-		"fact.scope_id = $1",
-		"fact.generation_id = $2",
+		"generation.scope_id = $1",
+		"generation.generation_id = $2",
+		"source.scope_id LIKE 'azure:%:%:%:%:%:resource_graph'",
+		"source.scope_id LIKE 'azure:%:%:%:%:%:arm_fallback'",
+		"generation.status = 'active'",
+		"fact.scope_id = generation.scope_id",
+		"fact.generation_id = generation.generation_id",
 		"fact.is_tombstone = FALSE",
 		"target_arm_resource_id",
 	} {
 		if !strings.Contains(listCloudResourceChangeEvidenceForGenerationQuery, want) {
 			t.Fatalf("listCloudResourceChangeEvidenceForGenerationQuery missing %q", want)
+		}
+	}
+}
+
+func TestPostgresCloudResourceChangeEvidenceLoaderResolvesSiblingLane(t *testing.T) {
+	t.Parallel()
+
+	const (
+		inventoryScopeID      = "azure:tenant:subscription:sub-1:all:all:resource_graph"
+		inventoryGenerationID = "gen-inventory-1"
+	)
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: [][]any{}}}}
+	loader := PostgresCloudResourceChangeEvidenceLoader{DB: db}
+
+	if _, err := loader.LoadCloudResourceChangeEvidence(
+		context.Background(),
+		inventoryScopeID,
+		inventoryGenerationID,
+	); err != nil {
+		t.Fatalf("LoadCloudResourceChangeEvidence() error = %v, want nil", err)
+	}
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
+	}
+	q := db.queries[0]
+	if got, want := q.args[0], inventoryScopeID; got != want {
+		t.Fatalf("query scope arg = %v, want %v", got, want)
+	}
+	if got, want := q.args[1], inventoryGenerationID; got != want {
+		t.Fatalf("query generation arg = %v, want %v", got, want)
+	}
+	for _, want := range []string{
+		":resource_graph",
+		":resource_changes",
+		"active_resource_change_generation",
+	} {
+		if !strings.Contains(q.query, want) {
+			t.Fatalf("query missing sibling lane fragment %q: %s", want, q.query)
 		}
 	}
 }

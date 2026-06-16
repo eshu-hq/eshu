@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -44,6 +45,12 @@ func newCloudInventoryAdmissionHandler(db *fakeExecQueryer) reducer.CloudInvento
 		EvidenceLoader: PostgresCloudInventoryEvidenceLoader{DB: db},
 		Writer:         reducer.PostgresCloudInventoryAdmissionWriter{DB: db},
 	}
+}
+
+func newCloudInventoryAdmissionHandlerWithFreshness(db *fakeExecQueryer) reducer.CloudInventoryAdmissionHandler {
+	handler := newCloudInventoryAdmissionHandler(db)
+	handler.ResourceChangeEvidenceLoader = PostgresCloudResourceChangeEvidenceLoader{DB: db}
+	return handler
 }
 
 // TestCloudInventoryAdmissionEndToEndProducesCanonicalRows proves the full
@@ -87,6 +94,75 @@ func TestCloudInventoryAdmissionEndToEndProducesCanonicalRows(t *testing.T) {
 		if payload["has_declared_evidence"] != false || payload["has_applied_evidence"] != false {
 			t.Fatalf("declared/applied evidence must stay false for observed-only inventory: %#v", payload)
 		}
+	}
+}
+
+func TestCloudInventoryAdmissionEndToEndAttachesAzureResourceChangeFreshness(t *testing.T) {
+	t.Parallel()
+
+	armID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm"
+	changeTime := time.Date(2026, time.June, 16, 10, 30, 0, 0, time.UTC)
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
+		{rows: [][]any{
+			{facts.AzureCloudResourceFactKind, armID, []byte(`{
+				"arm_resource_id":"` + armID + `",
+				"resource_type":"microsoft.compute/virtualmachines"
+			}`)},
+		}},
+		{rows: [][]any{
+			{
+				facts.AzureResourceChangeFactKind,
+				armID,
+				"change-stable-1",
+				[]byte(`{
+					"target_arm_resource_id":"` + armID + `",
+					"change_type":"updated",
+					"change_time":"` + changeTime.Format(time.RFC3339Nano) + `",
+					"operation":"Microsoft.Compute/virtualMachines/write",
+					"actor_fingerprint":"actor-marker"
+				}`),
+			},
+		}},
+	}}
+	handler := newCloudInventoryAdmissionHandlerWithFreshness(db)
+	intent := cloudInventoryAdmissionIntent()
+	intent.ScopeID = "azure:tenant:subscription:sub-1:all:all:resource_graph"
+	intent.GenerationID = "gen-inventory-1"
+
+	result, err := handler.Handle(context.Background(), intent)
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if result.CanonicalWrites != 1 {
+		t.Fatalf("CanonicalWrites = %d, want 1", result.CanonicalWrites)
+	}
+	if got, want := len(db.queries), 2; got != want {
+		t.Fatalf("loader queries = %d, want %d", got, want)
+	}
+	changeQuery := db.queries[1]
+	if got, want := changeQuery.args[0], intent.ScopeID; got != want {
+		t.Fatalf("resource-change query scope arg = %v, want inventory scope %v", got, want)
+	}
+	if got, want := changeQuery.args[1], intent.GenerationID; got != want {
+		t.Fatalf("resource-change query generation arg = %v, want inventory generation %v", got, want)
+	}
+	if len(db.execs) != 1 {
+		t.Fatalf("canonical upserts = %d, want 1", len(db.execs))
+	}
+	payload := cloudInventoryDecodePayload(t, db.execs[0].args[14])
+	freshness, ok := payload["resource_change_freshness"].([]any)
+	if !ok || len(freshness) != 1 {
+		t.Fatalf("resource_change_freshness = %#v, want one row", payload["resource_change_freshness"])
+	}
+	row, ok := freshness[0].(map[string]any)
+	if !ok {
+		t.Fatalf("freshness row type = %T, want map", freshness[0])
+	}
+	if got, want := row["change_type"], "updated"; got != want {
+		t.Fatalf("change_type = %v, want %v", got, want)
+	}
+	if _, leaked := row["target_arm_resource_id"]; leaked {
+		t.Fatalf("freshness payload leaked raw ARM identity: %#v", row)
 	}
 }
 
