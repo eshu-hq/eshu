@@ -36,6 +36,14 @@ No-Regression Evidence: `go test ./internal/reducer ./internal/storage/postgres
 -run 'TestCodeCallProjectionRunnerWholeScopeBlocksLaterWholeScope|TestCodeCallProjectionRunnerRetractsForDifferentCurrentRunPartition|TestCodeCallProjectionRunnerSkipsRetractForCurrentRunChunkAfterFirstChunk|TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunPartitionDomainIntents'
 -count=1` failed before same-repository whole/legacy rows were mutually fenced
 and current-run history was partition-scoped, then passed.
+`go test ./internal/reducer -run
+'TestCodeCallProjectionRunner(LaterWholeRefreshDoesNotBlockEarlierFilePartition|ScansAcceptanceUnitForCoveringRefreshBeyondDomainPage)'
+-count=1` failed before later whole refreshes stopped fencing earlier file rows
+and file refresh fences scanned the selected acceptance unit beyond the current
+domain page, then passed. The fix preserves useful concurrency: earlier file
+rows can drain before later whole refresh rows, while covered file rows wait for
+same-run file-scoped refreshes even when the refresh sorts outside the current
+`ListPendingDomainIntents` page.
 
 Observability Evidence: no new telemetry surface is needed. The code-call lane
 continues to expose partition lease timing, selection timing, blocked

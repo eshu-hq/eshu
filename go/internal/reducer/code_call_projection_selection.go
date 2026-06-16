@@ -130,6 +130,7 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 
 		blockedCount := 0
 		maxBlockedWait := 0.0
+		acceptanceRowsByKey := make(map[SharedProjectionAcceptanceKey][]SharedProjectionIntentRow)
 		for i, row := range pending {
 			key, ok := row.AcceptanceKey()
 			if !ok {
@@ -163,7 +164,23 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 			if !codeCallProjectionPartitionMatches(row, partitionID, partitionCount) {
 				continue
 			}
-			if codeCallProjectionRowBlockedByRepoFence(row, pending, i) {
+			blocked, err := r.codeCallProjectionRowBlockedByRepoFence(
+				ctx,
+				row,
+				pending,
+				i,
+				acceptanceRowsByKey,
+			)
+			if err != nil {
+				acceptanceTelemetry.RecordLookup(ctx, sharedAcceptanceLookupEvent{
+					Runner:   "code_call_projection",
+					Result:   "error",
+					Duration: time.Since(start).Seconds(),
+					Err:      err,
+				})
+				return codeCallSelectionResult{}, err
+			}
+			if blocked {
 				continue
 			}
 
@@ -228,6 +245,39 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 	}
 }
 
+func (r *CodeCallProjectionRunner) codeCallProjectionRowBlockedByRepoFence(
+	ctx context.Context,
+	row SharedProjectionIntentRow,
+	pending []SharedProjectionIntentRow,
+	rowIndex int,
+	acceptanceRowsByKey map[SharedProjectionAcceptanceKey][]SharedProjectionIntentRow,
+) (bool, error) {
+	if codeCallProjectionRowBlockedByRepoFence(row, pending, rowIndex) {
+		return true, nil
+	}
+	if !codeCallProjectionIsFileScoped(row) || codeCallProjectionIsRepoRefresh(row) {
+		return false, nil
+	}
+
+	key, ok := row.AcceptanceKey()
+	if !ok {
+		return false, fmt.Errorf(
+			"pending code call intent %q is missing scope, acceptance unit, or source run",
+			row.IntentID,
+		)
+	}
+	rows, ok := acceptanceRowsByKey[key]
+	if !ok {
+		var err error
+		rows, err = r.loadAcceptanceUnitRows(ctx, key)
+		if err != nil {
+			return false, fmt.Errorf("load code call acceptance unit rows for refresh fence: %w", err)
+		}
+		acceptanceRowsByKey[key] = rows
+	}
+	return codeCallProjectionRowBlockedByCoveringFileRefresh(row, rows), nil
+}
+
 func codeCallProjectionRowBlockedByRepoFence(
 	row SharedProjectionIntentRow,
 	pending []SharedProjectionIntentRow,
@@ -242,7 +292,9 @@ func codeCallProjectionRowBlockedByRepoFence(
 			if candidateIndex == rowIndex {
 				continue
 			}
-			if codeCallProjectionRefreshCoversRow(candidate, row) {
+			if codeCallProjectionIsFileScoped(candidate) &&
+				!codeCallProjectionIsRepoRefresh(row) &&
+				codeCallProjectionRefreshCoversRow(candidate, row) {
 				return true
 			}
 		}
@@ -260,6 +312,24 @@ func codeCallProjectionRowBlockedByRepoFence(
 		if codeCallProjectionRowRepository(candidate) == repositoryID &&
 			codeCallProjectionSameAcceptanceUnit(candidate, row) &&
 			(codeCallProjectionIsFileScoped(candidate) || codeCallProjectionIsWholeScoped(candidate)) {
+			return true
+		}
+	}
+	return false
+}
+
+func codeCallProjectionRowBlockedByCoveringFileRefresh(
+	row SharedProjectionIntentRow,
+	candidates []SharedProjectionIntentRow,
+) bool {
+	if !codeCallProjectionIsFileScoped(row) || codeCallProjectionIsRepoRefresh(row) {
+		return false
+	}
+	for _, candidate := range candidates {
+		if candidate.IntentID == row.IntentID || !codeCallProjectionIsFileScoped(candidate) {
+			continue
+		}
+		if codeCallProjectionRefreshCoversRow(candidate, row) {
 			return true
 		}
 	}

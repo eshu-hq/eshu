@@ -248,6 +248,54 @@ func TestCodeCallProjectionRunnerFilePartitionsBlockLaterWholeScope(t *testing.T
 	}
 }
 
+func TestCodeCallProjectionRunnerLaterWholeRefreshDoesNotBlockEarlierFilePartition(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.June, 15, 11, 40, 0, 0, time.UTC)
+	partitionCount := 8
+	filePartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
+	fileRow := codeCallProjectionDeltaPartitionRow(
+		"caller-edge",
+		filePartition,
+		"repo-a",
+		"/repo/src/caller.go",
+		now,
+	)
+	wholeRow := codeCallProjectionWholeScopeRow("whole-refresh", "repo-a", now.Add(time.Millisecond))
+	reader := &fakeCodeCallIntentStore{
+		pendingByDomain: []SharedProjectionIntentRow{fileRow, wholeRow},
+		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+			"scope-a|repo-a|run-1": {fileRow, wholeRow},
+		},
+		leaseGranted: true,
+	}
+	writer := &recordingCodeCallProjectionEdgeWriter{}
+	runner := CodeCallProjectionRunner{
+		IntentReader: reader,
+		LeaseManager: reader,
+		EdgeWriter:   writer,
+		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
+		Config:       CodeCallProjectionRunnerConfig{BatchLimit: 10, PartitionCount: partitionCount},
+	}
+
+	result, err := runner.processPartitionOnce(
+		context.Background(),
+		now,
+		mustPartitionForKey(t, filePartition, partitionCount),
+		partitionCount,
+	)
+	if err != nil {
+		t.Fatalf("processPartitionOnce(file) error = %v", err)
+	}
+	if got, want := result.ProcessedIntents, 1; got != want {
+		t.Fatalf("ProcessedIntents = %d, want earlier file partition to run before later whole refresh", got)
+	}
+	if !slices.Equal(reader.marked, []string{"caller-edge"}) {
+		t.Fatalf("marked = %v, want only earlier file partition completed", reader.marked)
+	}
+	assertCodeCallRetractPath(t, writer.retractCalls, "/repo/src/caller.go")
+}
+
 func TestCodeCallProjectionRunnerWholeScopeBlocksLaterWholeScope(t *testing.T) {
 	t.Parallel()
 
