@@ -18,8 +18,11 @@ import (
 // concurrent workers converge instead of duplicating canonical truth. The
 // generation check supersedes a stale scan before any load or write so a
 // superseded admission never publishes canonical rows.
+// Resource-change evidence is wired as additive freshness only: it decorates an
+// already-admitted canonical resource and cannot create resources or finalize
+// tombstones.
 //
-// All three are returned together because the reducer registry only registers
+// The adapters are returned together because the reducer registry only registers
 // DomainCloudInventoryAdmission when both the loader and writer are non-nil;
 // keeping the wiring in one helper keeps that contract obvious and keeps the
 // reducer command entrypoint under the package size budget.
@@ -32,6 +35,7 @@ func cloudInventoryAdmissionWiring(
 	reducer.GenerationFreshnessCheck,
 	reducer.CloudTagEvidenceLoader,
 	reducer.CloudIdentityPolicyEvidenceLoader,
+	reducer.CloudResourceChangeEvidenceLoader,
 ) {
 	loader := postgres.PostgresCloudInventoryEvidenceLoader{
 		DB:     database,
@@ -50,5 +54,9 @@ func cloudInventoryAdmissionWiring(
 		DB:     database,
 		Logger: logger,
 	}
-	return loader, writer, generationCheck, tagEvidenceLoader, identityPolicyEvidenceLoader
+	resourceChangeEvidenceLoader := postgres.PostgresCloudResourceChangeEvidenceLoader{
+		DB:     database,
+		Logger: logger,
+	}
+	return loader, writer, generationCheck, tagEvidenceLoader, identityPolicyEvidenceLoader, resourceChangeEvidenceLoader
 }

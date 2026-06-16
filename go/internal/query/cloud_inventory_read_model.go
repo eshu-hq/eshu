@@ -160,6 +160,12 @@ func cloudInventoryResourceView(envelope map[string]any) map[string]any {
 	if boolFromMap(payload, "identity_policy_evidence_truncated") {
 		view["identity_policy_evidence_truncated"] = true
 	}
+	if freshness := cloudInventoryResourceChangeFreshness(payload); len(freshness) > 0 {
+		view["resource_change_freshness"] = freshness
+	}
+	if boolFromMap(payload, "resource_change_freshness_truncated") {
+		view["resource_change_freshness_truncated"] = true
+	}
 	return view
 }
 
@@ -215,6 +221,62 @@ func cloudInventoryIdentityPolicyEvidence(payload map[string]any) []map[string]s
 		}
 		if len(projected) > 0 {
 			out = append(out, projected)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// cloudInventoryResourceChangeFreshness reads sanitized provider
+// resource-change freshness rows from the canonical identity payload. It
+// allowlists fields the reducer wrote and drops provider locators, raw actor
+// ids, before/after values, and provider bodies even if an older payload
+// contained them.
+func cloudInventoryResourceChangeFreshness(payload map[string]any) []map[string]any {
+	rows, ok := payload["resource_change_freshness"].([]any)
+	if !ok || len(rows) == 0 {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		object, ok := row.(map[string]any)
+		if !ok {
+			continue
+		}
+		safe := map[string]any{
+			"evidence_key":               stringFromMap(object, "evidence_key"),
+			"change_type":                stringFromMap(object, "change_type"),
+			"change_time":                stringFromMap(object, "change_time"),
+			"operation":                  stringFromMap(object, "operation"),
+			"client_type":                stringFromMap(object, "client_type"),
+			"actor_class":                stringFromMap(object, "actor_class"),
+			"actor_fingerprint":          stringFromMap(object, "actor_fingerprint"),
+			"changed_property_paths":     cloudInventoryStringSlice(object["changed_property_paths"]),
+			"changed_property_truncated": boolFromMap(object, "changed_property_truncated"),
+			"tombstone_candidate":        boolFromMap(object, "tombstone_candidate"),
+		}
+		out = append(out, safe)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func cloudInventoryStringSlice(value any) []string {
+	values, ok := value.([]any)
+	if !ok || len(values) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if s, ok := value.(string); ok {
+			trimmed := strings.TrimSpace(s)
+			if trimmed != "" {
+				out = append(out, trimmed)
+			}
 		}
 	}
 	if len(out) == 0 {

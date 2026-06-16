@@ -97,6 +97,14 @@ type AdmittedCloudResource struct {
 	// IdentityPolicyEvidenceTruncated reports that more identity-policy evidence
 	// existed for this resource than the bounded payload cap permits.
 	IdentityPolicyEvidenceTruncated bool
+	// ResourceChangeEvidence carries sanitized freshness rows attached from
+	// provider resource-change facts that share this uid. It is nil unless a
+	// ResourceChangeEvidenceLoader contributed evidence; raw provider locators
+	// and raw actor ids are never present.
+	ResourceChangeEvidence []CloudResourceChangeEvidence
+	// ResourceChangeEvidenceTruncated reports whether resource-change freshness
+	// rows were capped before persistence.
+	ResourceChangeEvidenceTruncated bool
 }
 
 // CloudInventoryAdmissionSummary counts the non-admitted resolution outcomes so
@@ -184,6 +192,11 @@ type CloudInventoryAdmissionHandler struct {
 	// attach to the canonical resource sharing their cloud_resource_uid. A nil
 	// loader leaves the admission path unchanged.
 	IdentityPolicyEvidenceLoader CloudIdentityPolicyEvidenceLoader
+	// ResourceChangeEvidenceLoader, when set, loads provider resource-change
+	// facts whose sanitized freshness evidence attaches to the canonical
+	// resource sharing their cloud_resource_uid. A nil loader leaves the
+	// admission path unchanged.
+	ResourceChangeEvidenceLoader CloudResourceChangeEvidenceLoader
 	// Instruments, when set, records bounded admission phase counts.
 	Instruments *telemetry.Instruments
 }
@@ -231,6 +244,17 @@ func (h CloudInventoryAdmissionHandler) Handle(ctx context.Context, intent Inten
 			return Result{}, fmt.Errorf("load cloud tag evidence: %w", err)
 		}
 		attachCloudTagEvidence(resources, tagRecords)
+	}
+	if h.ResourceChangeEvidenceLoader != nil {
+		changeRecords, err := h.ResourceChangeEvidenceLoader.LoadCloudResourceChangeEvidence(
+			ctx,
+			intent.ScopeID,
+			intent.GenerationID,
+		)
+		if err != nil {
+			return Result{}, fmt.Errorf("load cloud resource change evidence: %w", err)
+		}
+		attachCloudResourceChangeEvidence(resources, changeRecords)
 	}
 
 	if h.IdentityPolicyEvidenceLoader != nil {

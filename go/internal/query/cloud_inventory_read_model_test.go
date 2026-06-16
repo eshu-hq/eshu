@@ -112,3 +112,63 @@ func TestCloudInventoryResourceViewSurfacesBoundedIdentityPolicyEvidence(t *test
 		t.Fatalf("identity_policy_evidence_truncated = %#v, want true", view["identity_policy_evidence_truncated"])
 	}
 }
+
+// TestCloudInventoryResourceViewSurfacesBoundedResourceChangeFreshness proves
+// Azure change evidence can be surfaced as freshness evidence without raw
+// provider targets, raw actor ids, or final-state tombstone claims.
+func TestCloudInventoryResourceViewSurfacesBoundedResourceChangeFreshness(t *testing.T) {
+	t.Parallel()
+
+	envelope := map[string]any{
+		"generation_id": "gen-1",
+		"scope_id":      "azure:tenant:subscription:sub-1:all:all:resourcechanges",
+		"payload": map[string]any{
+			"cloud_resource_uid":    "cloud_resource:azure-1",
+			"provider":              "azure",
+			"resource_type":         "Microsoft.Compute/virtualMachines",
+			"management_origin":     "observed",
+			"has_observed_evidence": true,
+			"raw_identity":          "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm",
+			"resource_change_freshness": []any{
+				map[string]any{
+					"evidence_key":               "change-stable-1",
+					"change_type":                "deleted",
+					"change_time":                "2026-06-16T10:30:00Z",
+					"operation":                  "Microsoft.Compute/virtualMachines/delete",
+					"client_type":                "AzurePortal",
+					"actor_class":                "user",
+					"actor_fingerprint":          "actor-marker",
+					"changed_property_paths":     []any{"properties.provisioningState"},
+					"changed_property_truncated": true,
+					"tombstone_candidate":        true,
+					"target_arm_resource_id":     "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm",
+					"changedBy":                  "raw-actor",
+					"previousValue":              "raw-old",
+					"newValue":                   "raw-new",
+				},
+			},
+			"resource_change_freshness_truncated": true,
+		},
+	}
+
+	view := cloudInventoryResourceView(envelope)
+	evidence, ok := view["resource_change_freshness"].([]map[string]any)
+	if !ok {
+		t.Fatalf("resource_change_freshness type = %T, want []map[string]any", view["resource_change_freshness"])
+	}
+	if len(evidence) != 1 {
+		t.Fatalf("resource_change_freshness length = %d, want 1", len(evidence))
+	}
+	row := evidence[0]
+	if row["change_type"] != "deleted" || row["tombstone_candidate"] != true {
+		t.Fatalf("resource change freshness row = %#v", row)
+	}
+	for _, forbidden := range []string{"raw_identity", "target_arm_resource_id", "changedBy", "previousValue", "newValue"} {
+		if _, present := row[forbidden]; present {
+			t.Fatalf("forbidden field %q present in resource change freshness: %#v", forbidden, row)
+		}
+	}
+	if view["resource_change_freshness_truncated"] != true {
+		t.Fatalf("resource_change_freshness_truncated = %#v, want true", view["resource_change_freshness_truncated"])
+	}
+}

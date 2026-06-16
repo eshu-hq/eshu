@@ -170,6 +170,7 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 			GenerationCheck:              handlers.CloudInventoryGenerationCheck,
 			TagEvidenceLoader:            handlers.CloudInventoryTagEvidenceLoader,
 			IdentityPolicyEvidenceLoader: handlers.CloudInventoryIdentityPolicyEvidenceLoader,
+			ResourceChangeEvidenceLoader: handlers.CloudInventoryResourceChangeEvidenceLoader,
 			Instruments:                  handlers.Instruments,
 		}
 		definitions = append(definitions, cloudInventory)

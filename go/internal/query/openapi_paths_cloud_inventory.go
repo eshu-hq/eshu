@@ -5,9 +5,10 @@ package query
 // reducer_cloud_resource_identity rows (one per cloud_resource_uid) with
 // provider, normalized identity, management_origin, evidence-layer flags,
 // provider-neutral source state, optional keyed tag fingerprints, and optional
-// bounded identity-policy evidence. The route is read-only, bounded, paginated,
-// and truth-labeled; it never returns raw provider locators, tags, identities,
-// assignment scopes, or credentials.
+// bounded identity-policy and resource-change freshness evidence. The
+// route is read-only, bounded, paginated, and truth-labeled; it never returns
+// raw provider locators, raw actors, raw identities, tag values, assignment
+// scopes, or credentials.
 const openAPIPathsCloudInventory = `
     "/api/v0/cloud/inventory": {
       "get": {
@@ -66,6 +67,26 @@ const openAPIPathsCloudInventory = `
                             }
                           },
                           "identity_policy_evidence_truncated": {"type": "boolean", "description": "Present and true when reducer evidence was capped for this resource."},
+                          "resource_change_freshness": {
+                            "type": "array",
+                            "description": "Optional sanitized Azure Resource Graph change evidence attached to an already-admitted canonical resource. Delete rows are tombstone candidates only.",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "evidence_key": {"type": "string"},
+                                "change_type": {"type": "string", "enum": ["created", "updated", "deleted"]},
+                                "change_time": {"type": "string", "format": "date-time"},
+                                "operation": {"type": "string"},
+                                "client_type": {"type": "string"},
+                                "actor_class": {"type": "string"},
+                                "actor_fingerprint": {"type": "string"},
+                                "changed_property_paths": {"type": "array", "items": {"type": "string"}},
+                                "changed_property_truncated": {"type": "boolean"},
+                                "tombstone_candidate": {"type": "boolean"}
+                              }
+                            }
+                          },
+                          "resource_change_freshness_truncated": {"type": "boolean"},
                           "evidence": {
                             "type": "object",
                             "description": "Per-layer evidence flags that contributed to the canonical identity.",

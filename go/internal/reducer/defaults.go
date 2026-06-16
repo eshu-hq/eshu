@@ -141,6 +141,11 @@ type DefaultHandlers struct {
 	// canonical resource sharing its cloud_resource_uid. A nil loader leaves the
 	// resource admission path unchanged.
 	CloudInventoryIdentityPolicyEvidenceLoader CloudIdentityPolicyEvidenceLoader
+	// CloudInventoryResourceChangeEvidenceLoader is optional; when set,
+	// provider resource-change facts attach sanitized freshness evidence onto
+	// admitted canonical resources. Change evidence never admits resources or
+	// finalizes tombstones on its own.
+	CloudInventoryResourceChangeEvidenceLoader CloudResourceChangeEvidenceLoader
 
 	// CloudResourceNodeWriter materializes aws_resource facts into canonical
 	// CloudResource graph nodes (issue #805). It must be non-nil alongside
