@@ -143,6 +143,26 @@ wrapping, and bounded route summaries with relationship, source label, target
 label, and row count. The change adds no metric name, metric label, worker,
 queue domain, runtime knob, backend branch, or new graph-write route.
 
+No-Regression Evidence: package-registry dependency-target package rows now
+skip UIDs already covered by primary package rows in the same canonical
+materialization. The baseline failed
+`go test ./internal/storage/cypher -run
+'TestCanonicalNodeWriterSkipsDependencyTargetsCoveredByPackageRows' -count=1`
+with one duplicate target statement for a one-package, one-dependency NPM input
+shape. After the fix, `go test ./internal/storage/cypher -run
+'TestCanonicalNodeWriter(SkipsDependencyTargetsCoveredByPackageRows|DeduplicatesPackageRegistryDependencyTargets|DeduplicatesPackageRegistryPackages|DeduplicatesPackageRegistryPackagesWithDeterministicTieBreaker|BuildsPackageRegistryStatements|SeparatesPackageRegistryPhaseGroups)'
+-count=1` and `go test ./internal/projector ./internal/storage/cypher -count=1`
+pass. The backend contract is unchanged: primary package rows still write first,
+target-only dependencies still create target packages, and terminal row counts
+drop only for duplicate same-UID target upserts.
+
+No-Observability-Change: package-registry dependency-target filtering runs
+inside statement construction before the existing `CanonicalNodeWriter.Write`
+path. Existing canonical write spans, phase metadata, package identity locks,
+retry classification, backend query metrics, and phase failure logs still cover
+the write. The change adds no metric name, metric label, worker, queue domain,
+runtime knob, backend branch, or new graph-write route.
+
 ## Failure modes and how to debug
 
 - Symptom: `eshu_dp_neo4j_deadlock_retries_total` rising → likely causes:
