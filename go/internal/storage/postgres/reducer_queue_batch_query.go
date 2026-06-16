@@ -4,7 +4,11 @@ var claimReducerWorkBatchQuery = `
 WITH ` + supersedeInactiveReducerGenerationsCTE + `,
 ` + reducerClaimReadinessRequirementsCTE() + `,
 candidate AS (
-    SELECT work_item_id
+    SELECT
+        work_item_id,
+        -- Derived search-document catch-up can be expensive; graph truth and
+        -- materialization reducers must not wait behind it when both are ready.
+        CASE WHEN fact_work_items.domain = 'eshu_search_document' THEN 1 ELSE 0 END AS reducer_domain_priority
     FROM fact_work_items
     WHERE stage = 'reducer'
       AND status IN ('pending', 'retrying', 'claimed', 'running')
@@ -120,10 +124,13 @@ candidate AS (
             AND (same.claim_until IS NULL OR same.claim_until <= $1)
             AND ($2::text[] IS NULL OR same.domain = ANY($2::text[]))
             AND ` + reducerClaimReadinessGateSQL("same", "same_readiness_req", "same_readiness_phase") + `
-          ORDER BY same.updated_at ASC, same.work_item_id ASC
+          ORDER BY
+            CASE WHEN same.domain = 'eshu_search_document' THEN 1 ELSE 0 END ASC,
+            same.updated_at ASC,
+            same.work_item_id ASC
           LIMIT 1
       )
-    ORDER BY updated_at ASC, work_item_id ASC
+    ORDER BY reducer_domain_priority ASC, updated_at ASC, work_item_id ASC
     LIMIT $8
     FOR UPDATE SKIP LOCKED
 ),
