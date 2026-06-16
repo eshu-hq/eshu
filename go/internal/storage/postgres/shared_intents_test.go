@@ -571,10 +571,10 @@ func (db *sharedIntentTestDB) ExecContext(_ context.Context, query string, args 
 	switch {
 	case strings.Contains(query, "INSERT INTO shared_projection_intents"):
 		// Handle batched multi-row INSERT
-		// Each row has 11 columns, including the bounded-unit acceptance identity.
-		numRows := len(args) / 11
+		// Each row has 12 columns, including acceptance identity and partition hash.
+		numRows := len(args) / columnsPerSharedIntent
 		for i := 0; i < numRows; i++ {
-			offset := i * 11
+			offset := i * columnsPerSharedIntent
 			row := reducer.SharedProjectionIntentRow{
 				IntentID:         args[offset+0].(string),
 				ProjectionDomain: args[offset+1].(string),
@@ -582,16 +582,16 @@ func (db *sharedIntentTestDB) ExecContext(_ context.Context, query string, args 
 				RepositoryID:     args[offset+5].(string),
 				SourceRunID:      args[offset+6].(string),
 				GenerationID:     args[offset+7].(string),
-				CreatedAt:        args[offset+9].(time.Time),
+				CreatedAt:        args[offset+10].(time.Time),
 			}
-			if b, ok := args[offset+8].([]byte); ok {
+			if b, ok := args[offset+9].([]byte); ok {
 				var m map[string]any
 				if err := json.Unmarshal(b, &m); err == nil {
 					row.Payload = m
 				}
 			}
-			if args[offset+10] != nil {
-				ca := args[offset+10].(time.Time)
+			if args[offset+11] != nil {
+				ca := args[offset+11].(time.Time)
 				row.CompletedAt = &ca
 			}
 			db.intents[row.IntentID] = storedSharedIntent{
