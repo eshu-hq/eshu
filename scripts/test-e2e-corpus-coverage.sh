@@ -50,6 +50,7 @@ write_current_discovery() {
 			kubernetes_iac: 397,
 			image_sbom: 17,
 			deployment: 38,
+			relationship_evidence: 0,
 			vulnerability: 88,
 			observability: 20,
 			work_item: 6
@@ -78,6 +79,7 @@ write_complete_discovery() {
 			kubernetes_iac: 12,
 			image_sbom: 3,
 			deployment: 5,
+			relationship_evidence: 4,
 			vulnerability: 8,
 			observability: 2,
 			incident: 1,
@@ -192,7 +194,7 @@ jq -e '
 	.ecosystems.gomod.status == "fail" and
 	.ecosystems.gomod.count == 0 and
 	.ecosystems.gomod.reason == "not observed in current private representative corpus" and
-	(.ecosystems.gomod.issue_refs == ["#1249"]) and
+	(.ecosystems.gomod.issue_refs == ["#2641"]) and
 	.ecosystems.maven.status == "fail" and
 	.ecosystems.rubygems.status == "fail" and
 	.ecosystems.cargo.status == "fail" and
@@ -201,6 +203,9 @@ jq -e '
 	.evidence_families.kubernetes_iac == {status: "pass", count: 397} and
 	.evidence_families.image_sbom == {status: "pass", count: 17} and
 	.evidence_families.deployment == {status: "pass", count: 38} and
+	.evidence_families.relationship_evidence.status == "fail" and
+	.evidence_families.relationship_evidence.count == 0 and
+	.evidence_families.relationship_evidence.issue_refs == ["#2641"] and
 	.evidence_families.vulnerability == {status: "pass", count: 88} and
 	.evidence_families.observability == {status: "pass", count: 20} and
 	.evidence_families.work_item == {status: "pass", count: 6} and

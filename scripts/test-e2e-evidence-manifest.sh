@@ -62,6 +62,7 @@ write_valid_manifest() {
 					kubernetes_iac: {status: "pass", count: 2},
 					image_sbom: {status: "pass", count: 2},
 					deployment: {status: "pass", count: 2},
+					relationship_evidence: {status: "pass", count: 2},
 					vulnerability: {status: "pass", count: 4},
 					observability: {status: "pass", count: 1},
 					incident: {status: "pass", count: 1},
@@ -207,6 +208,10 @@ expect_fail reducer_missing_readback "${reducer_missing_readback}" "reducers.vul
 missing_corpus="${TMP_DIR}/missing-corpus.json"
 jq 'del(.corpus.coverage.ecosystems.npm)' "${valid}" >"${missing_corpus}"
 expect_fail missing_corpus "${missing_corpus}" "missing required evidence: corpus.coverage.ecosystems.npm"
+
+missing_relationship_evidence="${TMP_DIR}/missing-relationship-evidence.json"
+jq 'del(.corpus.coverage.evidence_families.relationship_evidence)' "${valid}" >"${missing_relationship_evidence}"
+expect_fail missing_relationship_evidence "${missing_relationship_evidence}" "missing required evidence: corpus.coverage.evidence_families.relationship_evidence"
 
 zero_ecosystem_coverage="${TMP_DIR}/zero-ecosystem-coverage.json"
 jq '.corpus.coverage.ecosystems.gomod = {status: "pass", count: 0}' "${valid}" >"${zero_ecosystem_coverage}"

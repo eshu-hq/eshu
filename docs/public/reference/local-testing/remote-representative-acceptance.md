@@ -60,6 +60,15 @@ The output is aggregate-only. Do not paste repository names, package names,
 alert URLs, tokens, hostnames, or machine paths into public issues, docs, or PR
 evidence.
 
+The public-safe corpus coverage contract also requires a
+`relationship_evidence` evidence-family count. Count it from durable
+`relationship_evidence_facts` and `resolved_relationships` rows that have a
+matching API and MCP relationship evidence readback. A representative corpus
+that covers package/advisory aggregates but has no durable relationship
+drilldown remains partial; use a public follow-up issue reference rather than
+raising the corpus size or falling back to full-corpus mode for routine
+correctness proof.
+
 No-Regression Evidence: `scripts/test-remote-e2e-corpus-preflight.sh` and
 `scripts/test-verify-remote-e2e-runtime-state.sh` cover representative corpus
 bounds, unknown modes, strict terminal queue state, representative scoped
