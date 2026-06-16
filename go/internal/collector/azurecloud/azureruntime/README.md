@@ -114,6 +114,20 @@ single-pass over a fixed target slice, holds only per-provider warning state, an
 adds no concurrency primitive; live calls require explicit injected client
 wiring and are not command- or chart-enabled.
 
+No-Regression Evidence: warning-priority merging for ARM fallback stays inside
+the existing in-memory `ScopeAccess` aggregation. Baseline: a mixed fixture page
+with one skipped, non-allowlisted resource row followed by one allowlisted row
+whose fallback failed emitted 1 resource warning with
+`warning_kind=fallback_skipped`, hiding the actionable fallback failure. After:
+the same 2-row fixture page emits 1 resource warning with throttled, stale,
+permission-hidden, or redaction reason when that fallback failure occurs; a
+successful allowlisted fallback still leaves skip-only evidence visible. Backend
+and input shape: no graph, Postgres, queue, worker, lease, or live-provider
+activation changes; the proof uses the injected mock Resource Graph and ARM
+fallback clients already used by the package. Terminal row counts stay 2
+resource facts plus 1 warning fact, and the fallback client is called only for
+the allowlisted row.
+
 Collector Observability Evidence: The runtime emits a bounded per-target span
 `collector.azure.scope_scan` (labels: collector kind, scope kind, source lane —
 all bounded enums) and a structured `azure scope scan completed` log carrying
@@ -135,7 +149,10 @@ attributes, status fields, or shared-registry telemetry series are added. The
 command-level offline fixture
 factory chooses either Resource Graph inventory parsing or `resourcechanges`
 parsing from the declared target source lane and never changes the default gated
-live provider.
+live provider. No-Observability-Change: the warning-priority fix changes only
+which existing sanitized `azure_collection_warning` reason wins when mixed ARM
+fallback outcomes occur in one scan; it adds no metric label, span attribute,
+status field, log field, or provider identifier.
 
 Collector Deployment Evidence: no Docker Compose service, Helm Deployment,
 Service, ServiceMonitor, port, chart value, runtime profile, or live Azure

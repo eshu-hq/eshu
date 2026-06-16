@@ -274,13 +274,21 @@ func (p *liveResourceGraphProvider) mergeAccess(access azurecloud.ScopeAccess) {
 	if p.access.HiddenResourceCount < access.HiddenResourceCount {
 		p.access.HiddenResourceCount = access.HiddenResourceCount
 	}
-	if p.access.Reason == "" {
+	if p.access.Reason == "" || accessWarningPriority(access.Reason) > accessWarningPriority(p.access.Reason) {
 		p.access.Reason = access.Reason
+		p.access.Message = access.Message
 	}
 	if p.access.Message == "" {
 		p.access.Message = access.Message
 	}
 	p.access.Partial = true
+}
+
+func accessWarningPriority(reason string) int {
+	if reason == azurecloud.WarningFallbackSkipped {
+		return 0
+	}
+	return 1
 }
 
 type liveProviderErrorKind string
