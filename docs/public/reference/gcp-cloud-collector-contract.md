@@ -378,15 +378,23 @@ The first code PRs must prove these cases before any live smoke:
 
 ## Implementation Order
 
-1. Add fact constants, schema helpers, and fixture payload tests.
-2. Add a Cloud Asset Inventory client adapter with mocked `assets.list`,
-   `searchAllResources`, and feed-trigger inputs.
-3. Add the claim-driven collector runtime and source fact emission.
-4. Add reducer admission for resource identity, tag evidence, relationships,
-   and warnings.
-5. Add API/MCP readback truth tests for GCP evidence states.
-6. Add Helm and live-smoke support only after the runtime and reducer contract
-   pass fixture gates.
+Implemented slices:
+
+1. Fact constants, schema helpers, fixture payload tests, CAI parsing, and
+   redacted source fact emission.
+2. Fixture-backed `gcpruntime.Source` and `cmd/collector-gcp-cloud` runtime
+   scaffolding through the `PageProvider` seam.
+3. Shared cloud inventory admission/API/MCP readback for
+   `gcp_cloud_resource`.
+4. Tag evidence admission, image identity admission, relationship resolution,
+   and GCP IAM trust facts.
+
+Remaining gated slices:
+
+1. Live Cloud Asset Inventory transport and read-only credential resolution.
+2. Claim-enabled workflow scheduler/runtime activation.
+3. Direct/effective GCP tag API collection.
+4. Helm values, ServiceMonitor/chart promotion, and live smoke proof.
 
 Observability change: the first slice adds the `gcp_cloud_resource`,
 `gcp_cloud_relationship`, `gcp_tag_observation`,
@@ -394,8 +402,9 @@ Observability change: the first slice adds the `gcp_cloud_resource`,
 `gcp_collection_warning` fact schemas and the scoped GCP collector telemetry
 series listed under
 [Telemetry](#telemetry)
-(`eshu_dp_gcp_cloud_*`). It does not add chart values, environment variables, or
-a runtime binary; those remain deferred.
+(`eshu_dp_gcp_cloud_*`). The later runtime-scaffolding slice adds the
+fixture-backed binary described below; chart values, environment variables, live
+transport, and scheduler activation remain deferred.
 
 ## Runtime Scaffolding Evidence
 
@@ -410,9 +419,9 @@ Collector Observability Evidence: see the Observability Evidence block below.
 Collector Deployment Evidence: this slice adds no Helm chart values, no
 ServiceMonitor, and no environment-variable contract. The binary is
 fixture-driven scaffolding launched with `-config` and `-redaction-key-file`
-file paths only. Deployment, chart, and ServiceMonitor wiring are explicitly
-deferred to a later slice once the reducer path exists, per the Status section
-above. No deployment surface changes in this PR.
+file paths only. Deployment, chart, ServiceMonitor wiring, live transport, and
+claim-enabled scheduler activation are explicitly deferred to a later gated
+slice. No deployment surface changes in this PR.
 
 No-Observability-Change: this slice uses the existing scoped GCP collector
 instruments registered in the first slice

@@ -20,8 +20,12 @@ Kubernetes ServiceAccount names stay out of fact payloads.
 
 This package does not call Google Cloud APIs, schedule collector runs, write
 graph rows, persist raw provider payloads, or admit reducer truth. The
-claim-driven runtime binary, reducer admission, API/MCP readback, and chart path
-are follow-up slices outside this reader stack. See
+fixture-backed `cmd/collector-gcp-cloud` runtime scaffolding, shared cloud
+inventory admission/readback, tag evidence admission, image identity admission,
+relationship resolution, and IAM trust facts live in sibling packages and
+reducers. Live Cloud Asset Inventory transport, credential resolution,
+claim-enabled scheduler activation, direct/effective tag APIs, chart values, and
+live smoke proof remain gated follow-up work. See
 [GCP Cloud Collector Contract](../../../../docs/public/reference/gcp-cloud-collector-contract.md).
 
 ## Collection flow
@@ -110,12 +114,13 @@ cd go && golangci-lint run ./internal/collector/gcpcloud/...
 
 ## Performance and Observability Evidence
 
-No-Regression Evidence: this slice adds a new, isolated fixture-driven parsing
-package and changes no existing hot path. Baseline: no GCP collector existed;
-after: bounded in-memory normalization of Cloud Asset Inventory pages with no
-Cypher, no graph or Postgres writes, no worker/lease/queue, and no claim-driven
-runtime binary. Backend/version: none touched (NornicDB/Neo4j, Postgres, and the
-reducer are unchanged; fact kinds are additive). Input shape: bounded CAI
+No-Regression Evidence: this source-fact slice adds an isolated fixture-driven
+parsing package and changes no existing hot path. Baseline: no GCP source-fact
+reader existed; after: bounded in-memory normalization of Cloud Asset Inventory
+pages with no Cypher, no graph or Postgres writes, no worker/lease/queue, and no
+live provider call. Backend/version: none touched by this package
+(NornicDB/Neo4j, Postgres, and the reducer are unchanged by the reader; fact
+kinds are additive). Input shape: bounded CAI
 `assets.list`/`searchAllResources` fixture pages; work is O(resources x pages)
 single-pass with page-token dedupe plus bounded fact-family passes for parsed
 relationships, labels, IAM bindings, and DNS records, so terminal output is one

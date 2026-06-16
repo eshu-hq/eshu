@@ -16,7 +16,9 @@
 // and is intentionally unimplemented and unwired in this slice. No code in this
 // package performs a live Google Cloud call, and no test exercises a live call.
 //
-// This package is runtime scaffolding. Reducer admission, API/MCP readback,
-// Helm values, and environment-variable contracts are deferred to later slices
-// per docs/public/reference/gcp-cloud-collector-contract.md.
+// This package is fixture-tested runtime scaffolding. Shared GCP reducer
+// admission and API/MCP readback live outside this package; live Cloud Asset
+// Inventory transport, credential resolution, claim-enabled scheduler
+// activation, Helm values, and environment-variable contracts remain gated
+// follow-ups per docs/public/reference/gcp-cloud-collector-contract.md.
 package gcpruntime
