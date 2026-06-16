@@ -33,6 +33,9 @@ CREATE INDEX IF NOT EXISTS shared_projection_intents_repo_run_idx
     ON shared_projection_intents (repository_id, source_run_id, projection_domain, created_at);
 CREATE INDEX IF NOT EXISTS shared_projection_intents_acceptance_lookup_idx
     ON shared_projection_intents (scope_id, acceptance_unit_id, source_run_id, projection_domain, created_at);
+CREATE INDEX IF NOT EXISTS shared_projection_intents_acceptance_partition_pending_idx
+    ON shared_projection_intents (scope_id, acceptance_unit_id, source_run_id, projection_domain, partition_key, created_at, intent_id)
+    WHERE completed_at IS NULL;
 CREATE INDEX IF NOT EXISTS shared_projection_intents_pending_idx
     ON shared_projection_intents (projection_domain, completed_at, created_at);
 
@@ -93,6 +96,21 @@ WHERE scope_id = $1
   AND completed_at IS NULL
 ORDER BY created_at ASC, intent_id ASC
 LIMIT $5
+`
+
+const listPendingAcceptanceUnitPartitionIntentsSQL = `
+SELECT intent_id, projection_domain, partition_key, scope_id,
+       acceptance_unit_id, repository_id,
+       source_run_id, generation_id, payload, created_at, completed_at
+FROM shared_projection_intents
+WHERE scope_id = $1
+  AND acceptance_unit_id = $2
+  AND source_run_id = $3
+  AND projection_domain = $4
+  AND partition_key = $5
+  AND completed_at IS NULL
+ORDER BY created_at ASC, intent_id ASC
+LIMIT $6
 `
 
 const listAcceptanceUnitDomainIntentsSQL = `
@@ -274,6 +292,35 @@ func (s *SharedIntentStore) ListPendingAcceptanceUnitIntents(
 		key.AcceptanceUnitID,
 		key.SourceRunID,
 		domain,
+		l,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = sqlRows.Close() }()
+
+	return scanSharedIntentRows(sqlRows)
+}
+
+// ListPendingAcceptanceUnitPartitionIntents lists uncompleted intents for one
+// bounded freshness key, projection domain, and selected partition key.
+func (s *SharedIntentStore) ListPendingAcceptanceUnitPartitionIntents(
+	ctx context.Context,
+	key reducer.SharedProjectionAcceptanceKey,
+	domain string,
+	partitionKey string,
+	limit int,
+) ([]reducer.SharedProjectionIntentRow, error) {
+	l := max(limit, 1)
+
+	sqlRows, err := s.db.QueryContext(
+		ctx,
+		listPendingAcceptanceUnitPartitionIntentsSQL,
+		key.ScopeID,
+		key.AcceptanceUnitID,
+		key.SourceRunID,
+		domain,
+		partitionKey,
 		l,
 	)
 	if err != nil {

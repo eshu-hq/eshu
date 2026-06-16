@@ -363,6 +363,17 @@ func TestSharedIntentSchemaSQL(t *testing.T) {
 	if !strings.Contains(sqlStr, "shared_projection_intents_acceptance_lookup_idx") {
 		t.Error("missing acceptance lookup index")
 	}
+	if !strings.Contains(sqlStr, "shared_projection_intents_acceptance_partition_pending_idx") {
+		t.Error("missing acceptance partition pending index")
+	}
+	for _, want := range []string{
+		"scope_id, acceptance_unit_id, source_run_id, projection_domain, partition_key, created_at, intent_id",
+		"WHERE completed_at IS NULL",
+	} {
+		if !strings.Contains(sqlStr, want) {
+			t.Errorf("missing acceptance partition index clause %q", want)
+		}
+	}
 	if !strings.Contains(sqlStr, "shared_projection_intents_pending_idx") {
 		t.Error("missing pending index")
 	}

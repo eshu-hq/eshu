@@ -158,6 +158,27 @@ No-Regression Evidence: `go test ./internal/reducer -run 'TestCodeCallProjection
 
 No-Observability-Change: the code-call refresh fence change only adjusts shared-intent selection and current-run history lookup for existing code-call projection rows. It adds no route, graph query shape, queue table, worker, lease, runtime knob, metric instrument, or metric label; operators still diagnose the path through existing code-call projection cycle logs, shared-intent backlog/status queries, partition lease rows, reducer execution counters, and Postgres query instrumentation.
 
+No-Regression Evidence: remote full-corpus proof on #2626 showed completed
+refresh rows no longer blocked code-call progress, but selected file partitions
+still loaded unrelated pending rows from the same acceptance unit and collapsed
+to single-digit completed code-call intents per minute after collectors stopped
+enqueueing. `go test ./internal/reducer -run
+'TestCodeCallProjectionRunnerLoadsSelectedPartitionDirectly|TestCodeCallProjectionRunnerLoadAllAcceptanceUnitIntents'
+-count=1` failed before the runner used the partition-bounded store method,
+then passed after selected partitions loaded only their own uncompleted rows
+while keeping the fallback acceptance-unit scan for compatible stores.
+`go test ./internal/storage/postgres -run
+TestSharedIntentStoreListPendingAcceptanceUnitPartitionIntents -count=1`
+proves the Postgres read stays keyed by scope, acceptance unit, source run,
+domain, partition key, completion state, and deterministic creation ordering.
+
+No-Observability-Change: the direct partition read adds one bounded Postgres
+query method but no route, graph query shape, queue table, worker, lease,
+runtime knob, metric instrument, or metric label. Operators still diagnose the
+path through existing code-call projection cycle logs, shared-intent
+backlog/status queries, partition lease rows, reducer execution counters, and
+Postgres query instrumentation.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

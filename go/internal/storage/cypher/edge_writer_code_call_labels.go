@@ -46,6 +46,18 @@ var codeReferenceEndpointLabels = map[string]struct{}{
 	"TypeAlias": {},
 }
 
+var codeInstantiatesSourceLabels = map[string]struct{}{
+	"Class":    {},
+	"File":     {},
+	"Function": {},
+}
+
+var codeInstantiatesTargetLabels = map[string]struct{}{
+	"Class":  {},
+	"Enum":   {},
+	"Struct": {},
+}
+
 func buildCodeCallRowMap(
 	payload map[string]any,
 	evidenceSource string,
@@ -90,6 +102,9 @@ func buildCodeCallRowMap(
 	applyCodeCallProvenance(rowMap, payload)
 
 	if payloadString(payload, "relationship_type") == "INSTANTIATES" {
+		if isCodeInstantiatesSourceLabel(sourceLabel) && isCodeInstantiatesTargetLabel(targetLabel) {
+			return buildLabelScopedInstantiatesCypher(sourceLabel, targetLabel), rowMap, true
+		}
 		return batchCanonicalInstantiatesUpsertCypher, rowMap, true
 	}
 	if rowMap["call_kind"] == "jsx_component" || payloadString(payload, "relationship_type") == "REFERENCES" {
@@ -114,6 +129,16 @@ func isCodeReferenceEndpointLabel(label string) bool {
 	return ok
 }
 
+func isCodeInstantiatesSourceLabel(label string) bool {
+	_, ok := codeInstantiatesSourceLabels[label]
+	return ok
+}
+
+func isCodeInstantiatesTargetLabel(label string) bool {
+	_, ok := codeInstantiatesTargetLabels[label]
+	return ok
+}
+
 func buildLabelScopedCodeCallCypher(sourceLabel string, targetLabel string) string {
 	return fmt.Sprintf(`UNWIND $rows AS row
 MATCH (source:%s {uid: row.caller_entity_id})
@@ -131,6 +156,18 @@ func buildLabelScopedCodeReferenceCypher(sourceLabel string, targetLabel string)
 MATCH (source:%s {uid: row.caller_entity_id})
 MATCH (target:%s {uid: row.callee_entity_id})
 MERGE (source)-[rel:REFERENCES]->(target)
+SET rel.confidence = row.confidence,
+    rel.reason = row.reason,
+    rel.resolution_method = row.resolution_method,
+    rel.evidence_source = row.evidence_source,
+    rel.call_kind = row.call_kind`, sourceLabel, targetLabel)
+}
+
+func buildLabelScopedInstantiatesCypher(sourceLabel string, targetLabel string) string {
+	return fmt.Sprintf(`UNWIND $rows AS row
+MATCH (source:%s {uid: row.caller_entity_id})
+MATCH (target:%s {uid: row.callee_entity_id})
+MERGE (source)-[rel:INSTANTIATES]->(target)
 SET rel.confidence = row.confidence,
     rel.reason = row.reason,
     rel.resolution_method = row.resolution_method,

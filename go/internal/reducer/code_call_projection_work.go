@@ -17,11 +17,44 @@ func (r *CodeCallProjectionRunner) loadAcceptanceUnitPartitionIntents(
 	key SharedProjectionAcceptanceKey,
 	partitionKey string,
 ) ([]SharedProjectionIntentRow, error) {
+	if reader, ok := r.IntentReader.(CodeCallProjectionPartitionIntentReader); ok {
+		return r.loadAcceptanceUnitPartitionRows(ctx, reader, key, partitionKey)
+	}
 	rows, err := r.loadAcceptanceUnitRows(ctx, key)
 	if err != nil {
 		return nil, err
 	}
 	return codeCallProjectionRowsForPartition(rows, partitionKey), nil
+}
+
+func (r *CodeCallProjectionRunner) loadAcceptanceUnitPartitionRows(
+	ctx context.Context,
+	reader CodeCallProjectionPartitionIntentReader,
+	key SharedProjectionAcceptanceKey,
+	partitionKey string,
+) ([]SharedProjectionIntentRow, error) {
+	limit := r.Config.batchLimit()
+	acceptanceScanLimit := r.Config.acceptanceScanLimit()
+	if limit > acceptanceScanLimit {
+		limit = acceptanceScanLimit
+	}
+	for {
+		rows, err := reader.ListPendingAcceptanceUnitPartitionIntents(ctx, key, DomainCodeCalls, partitionKey, limit)
+		if err != nil {
+			return nil, fmt.Errorf("list pending code call partition intents: %w", err)
+		}
+		if len(rows) < limit {
+			return rows, nil
+		}
+		if limit >= acceptanceScanLimit {
+			return rows, nil
+		}
+		nextLimit := limit * 2
+		if nextLimit > acceptanceScanLimit {
+			nextLimit = acceptanceScanLimit
+		}
+		limit = nextLimit
+	}
 }
 
 func (r *CodeCallProjectionRunner) loadAcceptanceUnitRows(
