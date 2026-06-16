@@ -54,13 +54,16 @@ defaults to the contract form
 - A continuation token the provider cannot resume becomes a
   `page_token_expired` partial warning instead of silent truncation.
 
-## Deferred (not in this slice)
+## Deferred (not in this package)
 
-Direct/effective GCP tag APIs, fact-kind-specific reducer admission, API/MCP
-readback, Helm values, environment-variable contracts, and live Cloud Asset
-Inventory transport are deferred per
+Direct/effective GCP tag APIs, live Cloud Asset Inventory transport, credential
+resolution, claim-enabled scheduler activation, Helm values, environment-variable
+contracts, ServiceMonitor wiring, and live smoke proof are deferred per
 `docs/public/reference/gcp-cloud-collector-contract.md`. This package is runtime
-scaffolding that is fixture-tested only.
+scaffolding that is fixture-tested only. Shared cloud inventory admission and
+API/MCP readback for `gcp_cloud_resource`, tag evidence admission, image identity
+admission, relationship resolution, and IAM trust facts are implemented outside
+this package and remain separate from live provider activation.
 
 ## Performance and observability evidence
 

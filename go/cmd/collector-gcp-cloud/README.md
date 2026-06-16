@@ -53,7 +53,10 @@ never logged.
 ## Deferred
 
 Helm values, environment-variable contracts, live Cloud Asset Inventory
-transport, reducer admission, and API/MCP readback are deferred slices. See
+transport, credential resolution, claim-enabled scheduler activation,
+direct/effective tag APIs, and live smoke proof are deferred slices. Shared GCP
+reducer admission and API/MCP readback are implemented outside this command and
+do not make this binary a live provider collector. See
 `docs/public/reference/gcp-cloud-collector-contract.md`.
 
 ## Verification and evidence
