@@ -179,6 +179,113 @@ func TestExplicitLiveProviderARMFallbackSkippedForUnallowlistedRows(t *testing.T
 	}
 }
 
+func TestExplicitLiveProviderARMFallbackFailuresOutrankSkippedRows(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		err       error
+		response  LiveARMFallbackResponse
+		want      string
+		wantSaved bool
+	}{
+		{
+			name: "throttled",
+			err:  liveProviderError{kind: liveProviderErrorThrottled},
+			want: azurecloud.WarningThrottled,
+		},
+		{
+			name: "timeout_stale",
+			err:  context.DeadlineExceeded,
+			want: azurecloud.WarningStale,
+		},
+		{
+			name: "permission_hidden",
+			err:  liveProviderError{kind: liveProviderErrorPermissionHidden},
+			want: azurecloud.WarningPermissionHidden,
+		},
+		{
+			name: "oversized_redaction",
+			response: LiveARMFallbackResponse{Extension: map[string]any{
+				"powerState": strings.Repeat("x", maxLiveARMFallbackExtensionJSONBytes),
+			}},
+			want: azurecloud.WarningRedaction,
+		},
+		{
+			name: "successful_fallback_preserves_skip",
+			response: LiveARMFallbackResponse{Extension: map[string]any{
+				"powerState": "running",
+			}},
+			want:      azurecloud.WarningFallbackSkipped,
+			wantSaved: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resourceGraph := &mockLiveResourceGraphClient{
+				responses: []LiveResourceGraphResponse{{Page: azurecloud.ResourceGraphPage{
+					TotalRecords: 2,
+					Count:        2,
+					Rows: []azurecloud.ResourceRow{
+						resourceRow(
+							"/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg-app/providers/Microsoft.Network/publicIPAddresses/pip-1",
+							"microsoft.network/publicipaddresses",
+							"eastus",
+						),
+						resourceRow(
+							"/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg-app/providers/Microsoft.Compute/virtualMachines/vm-1",
+							"microsoft.compute/virtualmachines",
+							"eastus",
+						),
+					},
+				}}},
+			}
+			armFallback := &mockLiveARMFallbackClient{
+				responses: []LiveARMFallbackResponse{tc.response},
+				errs:      []error{tc.err},
+			}
+			factory := LiveProviderFactory{
+				ResourceGraphClient: resourceGraph,
+				ARMFallbackClient:   armFallback,
+				ARMFallbackRules: []LiveARMFallbackRule{{
+					ResourceType:    "microsoft.compute/virtualmachines",
+					APIVersion:      "2024-03-01",
+					ExtensionFields: []string{"powerState"},
+				}},
+			}
+			provider, err := factory.PageProvider(context.Background(), azurecloud.Boundary{}, testTarget())
+			if err != nil {
+				t.Fatalf("PageProvider() error = %v, want nil", err)
+			}
+
+			result, err := azurecloud.NewCollector(provider, nil).Collect(context.Background(), testBoundary())
+			if err != nil {
+				t.Fatalf("Collect() error = %v, want nil", err)
+			}
+			warnings := factsOfKind(result.Facts, facts.AzureCollectionWarningFactKind)
+			if len(warnings) != 1 {
+				t.Fatalf("warnings = %d, want 1", len(warnings))
+			}
+			if got := warnings[0].Payload["warning_kind"]; got != tc.want {
+				t.Fatalf("warning_kind = %v, want %s", got, tc.want)
+			}
+			if message := warnings[0].Payload["message"].(string); strings.Contains(message, "11111111") ||
+				strings.Contains(message, "rg-app") ||
+				strings.Contains(message, "vm-1") ||
+				strings.Contains(message, "pip-1") {
+				t.Fatalf("warning message carried raw provider identity: %q", message)
+			}
+			if len(armFallback.calls) != 1 {
+				t.Fatalf("arm fallback calls = %d, want 1", len(armFallback.calls))
+			}
+			resource := factsOfKind(result.Facts, facts.AzureCloudResourceFactKind)[1]
+			extension := resource.Payload["extension"].(map[string]any)
+			data := extension["data"].(map[string]any)
+			_, saved := data["armFallback"]
+			if saved != tc.wantSaved {
+				t.Fatalf("armFallback saved = %v, want %v", saved, tc.wantSaved)
+			}
+		})
+	}
+}
+
 func TestExplicitLiveProviderARMFallbackSkipsInvalidResourceID(t *testing.T) {
 	resourceGraph := &mockLiveResourceGraphClient{
 		responses: []LiveResourceGraphResponse{{Page: azurecloud.ResourceGraphPage{
