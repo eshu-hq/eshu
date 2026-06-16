@@ -49,7 +49,8 @@ write_valid_matrix() {
   "evidence_families": {
     "terraform_iac": {"repository_count": 2, "evidence_rows": 5},
     "image_sbom": {"repository_count": 1, "evidence_rows": 2},
-    "deployment": {"repository_count": 1, "evidence_rows": 1}
+    "deployment": {"repository_count": 1, "evidence_rows": 1},
+    "relationship_evidence": {"repository_count": 1, "evidence_rows": 2}
   },
   "readback": {
     "package_fact_count": 220,
@@ -134,6 +135,8 @@ jq -e '.proof_matrix.ecosystems.npm.affected_rows == 1' "${evidence1}" >/dev/nul
     || { printf 'proof_matrix ecosystem counts missing\n' >&2; exit 1; }
 jq -e '.proof_matrix.mismatch_classes.version_matching == 1' "${evidence1}" >/dev/null \
     || { printf 'proof_matrix mismatch classes missing\n' >&2; exit 1; }
+jq -e '.proof_matrix.evidence_families.relationship_evidence.evidence_rows == 2' "${evidence1}" >/dev/null \
+    || { printf 'proof_matrix relationship evidence family missing\n' >&2; exit 1; }
 jq -e '.proof_matrix.follow_up_issues.total == 2' "${evidence1}" >/dev/null \
     || { printf 'proof_matrix follow-up issue summary missing\n' >&2; exit 1; }
 jq -e '.proof_matrix | has("repository") | not' "${evidence1}" >/dev/null \
@@ -148,6 +151,16 @@ mv "${matrix2}.tmp" "${matrix2}"
 expect_fail "${repo2}" --phases proof-matrix --proof-matrix "${matrix2}"
 rg --fixed-strings --quiet -- "required ecosystem coverage" "${repo2}/_gate.err" \
     || { printf 'expected required ecosystem coverage failure\n' >&2; exit 1; }
+
+# --- Test 2b: durable relationship evidence must be represented or classified.
+repo2b="$(init_fake_repo case2b)"
+matrix2b="${repo2b}/proof-matrix.json"
+write_valid_matrix "${matrix2b}"
+jq 'del(.evidence_families.relationship_evidence)' "${matrix2b}" >"${matrix2b}.tmp"
+mv "${matrix2b}.tmp" "${matrix2b}"
+expect_fail "${repo2b}" --phases proof-matrix --proof-matrix "${matrix2b}"
+rg --fixed-strings --quiet -- "required ecosystem coverage" "${repo2b}/_gate.err" \
+    || { printf 'expected required relationship evidence failure\n' >&2; exit 1; }
 
 # --- Test 3: private-looking repository/package payloads are rejected.
 repo3="$(init_fake_repo case3)"

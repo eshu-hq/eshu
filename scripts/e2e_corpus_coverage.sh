@@ -6,12 +6,12 @@ input=""
 output=""
 mode="representative"
 missing_reason="not observed in current private representative corpus"
-issue_ref="#1249"
+issue_ref="#2641"
 min_repository_count=20
 max_repository_count=50
 
 required_ecosystems='["npm","gomod","pypi","maven","composer","rubygems","cargo","nuget"]'
-required_families='["terraform_iac","kubernetes_iac","image_sbom","deployment","vulnerability","observability","incident","work_item"]'
+required_families='["terraform_iac","kubernetes_iac","image_sbom","deployment","relationship_evidence","vulnerability","observability","incident","work_item"]'
 forbidden_keys='[
 	"repository","repositories","repository_name","repository_id",
 	"repo","repo_name","repo_id","package","packages","package_name",
@@ -39,7 +39,10 @@ Input is an operator-local aggregate JSON file:
   "mode": "representative",
   "repository_count": 29,
   "ecosystems": {"npm": 87},
-  "evidence_families": {"terraform_iac": 89}
+  "evidence_families": {
+    "terraform_iac": 89,
+    "relationship_evidence": 4
+  }
 }
 
 Output is public-safe aggregate coverage with every required E2E slot present.
@@ -87,7 +90,7 @@ case "${mode}" in
 	*) die "--mode must be smoke, representative, or full" ;;
 esac
 [[ -n "${missing_reason}" ]] || die "--missing-reason must not be empty"
-[[ "${issue_ref}" =~ ^#[0-9]+$ ]] || die "--issue-ref must look like #1249"
+[[ "${issue_ref}" =~ ^#[0-9]+$ ]] || die "--issue-ref must look like #2641"
 require_non_negative_int_arg "--min-repository-count" "${min_repository_count}"
 require_non_negative_int_arg "--max-repository-count" "${max_repository_count}"
 

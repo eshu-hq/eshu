@@ -7,7 +7,7 @@
 # machine-local paths before any data reaches evidence.json.
 
 proof_matrix_required_ecosystems='["npm","gomod","pypi","maven","composer","rubygems","cargo","nuget"]'
-proof_matrix_required_families='["terraform_iac","image_sbom","deployment"]'
+proof_matrix_required_families='["terraform_iac","image_sbom","deployment","relationship_evidence"]'
 proof_matrix_allowed_classes='["target_collection","advisory_ingestion","version_matching","unsupported_ecosystem","provider_only_behavior","stale_provider_alert","reducer_bug"]'
 proof_matrix_forbidden_keys='["repository","repositories","repository_name","repository_id","repo","repo_name","repo_id","package","packages","package_name","package_id","provider_url","alert_url","installation","provider_repository","url","host","hostname","ip","path","file","token","payload","description","cve_description"]'
 

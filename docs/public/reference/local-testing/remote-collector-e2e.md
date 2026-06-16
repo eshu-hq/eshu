@@ -150,12 +150,12 @@ ESHU_REMOTE_E2E_MAX_REPOSITORY_COUNT=
 Use `ESHU_REMOTE_E2E_CORPUS_MODE=representative` for fast hosted E2E loops.
 Representative mode is for a cloned 20-50 repository corpus that intentionally
 covers source parsing, package and vulnerability evidence, SBOM/image evidence,
-workload/service/environment correlation, and API/MCP readback without paying
-the full-corpus runtime cost on every change. By default, representative mode
-requires at least 20 and at most 50 candidate repository roots and at least one
-Git repository root. Override `ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT` or
-`ESHU_REMOTE_E2E_MAX_REPOSITORY_COUNT` only when the corpus design is recorded
-with the run evidence.
+workload/service/environment correlation, durable relationship evidence, and
+API/MCP readback without paying the full-corpus runtime cost on every change.
+Representative mode requires 20-50 candidate repository roots and at least one
+Git repository root. Override repository-count bounds only when the corpus
+design is recorded with the run evidence. Reserve full-corpus mode for explicit
+performance, no-regression, or scale validation.
 
 Keep the actual representative corpus manifest outside the public repository.
 It can list private repository paths, provider targets, and package
@@ -163,10 +163,10 @@ coordinates for the operator, but those values must not be copied into public
 docs, issues, PRs, or release-gate evidence. Public evidence records only the
 aggregate proof matrix described in
 [Security Intelligence Release Gate](../security-intelligence-release-gate.md):
-synthetic matrix id, repository count, ecosystem coverage counts, Terraform/IaC
-coverage, image/SBOM coverage, deployment coverage, queue counters, wall time,
-CPU/memory signal state, pprof/log availability, mismatch-class totals, and
-public follow-up issue refs.
+synthetic matrix id, repository count, ecosystem coverage counts,
+Terraform/IaC, image/SBOM, deployment, durable relationship evidence coverage,
+queue counters, wall time, CPU/memory signal state, pprof/log availability,
+mismatch-class totals, and public follow-up issue refs.
 
 Full-corpus mode rejects the default fixture root unless
 `ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT` or

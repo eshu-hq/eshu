@@ -21,6 +21,7 @@ e2e_manifest_required_paths=(
 	"corpus.coverage.evidence_families.kubernetes_iac"
 	"corpus.coverage.evidence_families.image_sbom"
 	"corpus.coverage.evidence_families.deployment"
+	"corpus.coverage.evidence_families.relationship_evidence"
 	"corpus.coverage.evidence_families.vulnerability"
 	"corpus.coverage.evidence_families.observability"
 	"corpus.coverage.evidence_families.incident"
