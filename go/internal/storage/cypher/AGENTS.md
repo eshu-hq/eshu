@@ -120,6 +120,29 @@ No-Observability-Change: inheritance edge writes still flow through `EdgeWriter.
   compile-time list in `go/internal/telemetry/contract.go`; record via
   `Instruments.*` in the write path.
 
+Performance Evidence: Remote full-corpus NornicDB Compose proof on the
+code-call partition-loading branch reached bootstrap completion with schema
+applied and active code-call partition leases, but tiny `INSTANTIATES` code-call
+groups repeatedly spent about 25-28 s in the graph write while adjacent typed
+`CALLS` and `REFERENCES` groups completed in milliseconds. The slow route used
+the multi-label `Function|Class|File` to `Class|Struct|Enum` template for
+1-17-row groups; exact endpoint labels were present in the row payload. The
+fix keeps the same backend-neutral `UNWIND` plus `MERGE` semantics while routing
+typed `INSTANTIATES` rows through exact label + `uid` matches. Red evidence:
+`go test ./internal/storage/cypher -run
+'TestEdgeWriterWriteEdgesInstantiatesUsesExactEndpointLabels' -count=1` failed
+because the old template still used multi-label endpoint matches. Green
+evidence: `go test ./internal/storage/cypher -run
+'TestEdgeWriterWriteEdgesInstantiatesUsesExactEndpointLabels|TestBuildCodeCallRowMapRoutesInstantiates'
+-count=1` and `go test ./internal/storage/cypher -count=1`.
+
+No-Observability-Change: typed `INSTANTIATES` rows still execute through
+`EdgeWriter.WriteEdges`, existing grouped/sequential executor paths,
+`CodeCallEdgeDuration`, `CodeCallEdgeBatches`, shared edge group metrics, retry
+wrapping, and bounded route summaries with relationship, source label, target
+label, and row count. The change adds no metric name, metric label, worker,
+queue domain, runtime knob, backend branch, or new graph-write route.
+
 ## Failure modes and how to debug
 
 - Symptom: `eshu_dp_neo4j_deadlock_retries_total` rising → likely causes:

@@ -63,14 +63,29 @@ func TestBuildCodeCallRowMapRoutesInstantiates(t *testing.T) {
 	if !ok {
 		t.Fatal("buildCodeCallRowMap ok = false, want true")
 	}
-	if cypher != batchCanonicalInstantiatesUpsertCypher {
-		t.Errorf("expected INSTANTIATES template, got %q", cypher)
-	}
 	if !strings.Contains(cypher, "rel:INSTANTIATES") {
 		t.Errorf("template does not write INSTANTIATES: %q", cypher)
 	}
+	if !strings.Contains(cypher, "source:Function") || !strings.Contains(cypher, "target:Class") {
+		t.Errorf("template does not use exact INSTANTIATES endpoint labels: %q", cypher)
+	}
 	if rowMap["confidence"] != 0.80 {
 		t.Errorf("confidence = %#v, want 0.80 (type_inferred)", rowMap["confidence"])
+	}
+}
+
+func TestBuildCodeCallRowMapRoutesInstantiatesCanonicalFallback(t *testing.T) {
+	payload := map[string]any{
+		"caller_entity_id":  "uid:caller",
+		"callee_entity_id":  "uid:class",
+		"relationship_type": "INSTANTIATES",
+	}
+	cypher, _, ok := buildCodeCallRowMap(payload, "parser/code-calls")
+	if !ok {
+		t.Fatal("buildCodeCallRowMap ok = false, want true")
+	}
+	if cypher != batchCanonicalInstantiatesUpsertCypher {
+		t.Errorf("expected fallback INSTANTIATES template, got %q", cypher)
 	}
 }
 
