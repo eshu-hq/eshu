@@ -19,7 +19,8 @@ the parent `azurecloud` fact engine into a `collector.Source` that the shared
 - `PageProviderFactory`: the single seam that keeps the live Resource Graph/ARM
   client out of the runtime and tests.
 - `FixturePageProvider`: an in-memory and file-backed provider used by tests and
-  offline tooling. It issues no network calls.
+  offline tooling for Resource Graph inventory and fixture `resourcechanges`
+  pages. It issues no network calls.
 - `LiveProviderFactory`: an inert documented production seam that returns
   `ErrLiveProviderGated`. It is never the default and never calls Azure.
 
@@ -27,10 +28,13 @@ the parent `azurecloud` fact engine into a `collector.Source` that the shared
 
 Pagination, normalization, ARM identity, redaction, fact-envelope construction,
 and bounded telemetry live in the parent `azurecloud` package. Durable commit
-lives in `collector.Service` + the ingestion store. Reducer admission, the
-graph admission for resource changes, DNS/image live source lanes, API/MCP
-readback, and Helm/chart wiring are deferred follow-ups (issue #1998) gated by
-the Azure cloud collector contract.
+lives in `collector.Service` + the ingestion store. This package also does not
+own reducer admission, graph writes, API/MCP readback, claim-driven workflow
+scheduling, Helm/chart wiring, or live Azure transport activation. Existing
+reducer slices already admit Azure resource, tag, image-reference, and
+managed-relationship evidence outside this package; identity, change, DNS, live
+source lanes, readback expansion, and chart wiring remain gated follow-ups for
+issue #1998.
 
 ## Scope and generation
 
@@ -97,7 +101,10 @@ credential name. No shared-registry telemetry series is added in this slice.
 No-Observability-Change: no telemetry contract file changes are needed. The
 runtime reuses the existing `collector.azure.scope_scan` span, structured scan
 completion log, and parent `eshu_dp_azure_*` metric family while adding only
-bounded enum values for the resource-change lane.
+bounded enum values for the resource-change lane. The command-level offline
+fixture factory chooses either Resource Graph inventory parsing or
+`resourcechanges` parsing from the declared target source lane and never changes
+the default gated live provider.
 
 Collector Deployment Evidence: no Docker Compose service, Helm Deployment,
 Service, ServiceMonitor, port, chart value, runtime profile, or live Azure

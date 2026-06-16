@@ -8,6 +8,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud/azureruntime"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
 func envFunc(values map[string]string) func(string) string {
@@ -21,6 +22,17 @@ const targetsJSON = `[{
   "resource_type_family": "microsoft.compute",
   "location_bucket": "eastus",
   "credential_ref": "azure-read-only-spn",
+  "fencing_token": 7
+}]`
+
+const resourceChangesTargetsJSON = `[{
+  "tenant_id": "tenant-abc",
+  "scope_kind": "subscription",
+  "provider_scope_id": "11111111-1111-1111-1111-111111111111",
+  "resource_type_family": "microsoft.compute",
+  "location_bucket": "eastus",
+  "credential_ref": "azure-read-only-spn",
+  "source_lane": "resource_changes",
   "fencing_token": 7
 }]`
 
@@ -44,6 +56,19 @@ func TestLoadRuntimeConfigParsesTargets(t *testing.T) {
 	}
 }
 
+func TestLoadRuntimeConfigParsesSourceLane(t *testing.T) {
+	config, err := loadRuntimeConfig(envFunc(map[string]string{
+		envCollectorInstanceID: "azure-collector-1",
+		envTargetsJSON:         resourceChangesTargetsJSON,
+	}))
+	if err != nil {
+		t.Fatalf("loadRuntimeConfig: %v", err)
+	}
+	if got := config.Targets[0].SourceLane; got != azurecloud.SourceLaneResourceChanges {
+		t.Fatalf("source lane = %q, want %q", got, azurecloud.SourceLaneResourceChanges)
+	}
+}
+
 func TestLoadRuntimeConfigRequiresInstanceAndTargets(t *testing.T) {
 	if _, err := loadRuntimeConfig(envFunc(map[string]string{})); err == nil {
 		t.Fatal("expected error for missing instance id")
@@ -56,7 +81,7 @@ func TestLoadRuntimeConfigRequiresInstanceAndTargets(t *testing.T) {
 }
 
 func TestBuildProviderFactoryDefaultsToGatedLiveSeam(t *testing.T) {
-	factory, err := buildProviderFactory(envFunc(map[string]string{}))
+	factory, err := buildProviderFactory(azureruntime.Config{}, envFunc(map[string]string{}))
 	if err != nil {
 		t.Fatalf("buildProviderFactory: %v", err)
 	}
@@ -65,6 +90,36 @@ func TestBuildProviderFactoryDefaultsToGatedLiveSeam(t *testing.T) {
 	}
 	if _, err := factory.PageProvider(context.Background(), azurecloud.Boundary{}, azureruntime.TargetConfig{}); err == nil {
 		t.Fatal("gated live factory must not return a live provider")
+	}
+}
+
+func TestBuildProviderFactoryRejectsMixedLaneFixturePages(t *testing.T) {
+	getenv := envFunc(map[string]string{
+		envCollectorInstanceID: "azure-collector-1",
+		envTargetsJSON: `[{
+  "tenant_id": "tenant-abc",
+  "scope_kind": "subscription",
+  "provider_scope_id": "11111111-1111-1111-1111-111111111111",
+  "resource_type_family": "microsoft.compute",
+  "location_bucket": "eastus",
+  "credential_ref": "azure-read-only-spn"
+},{
+  "tenant_id": "tenant-abc",
+  "scope_kind": "subscription",
+  "provider_scope_id": "11111111-1111-1111-1111-111111111111",
+  "resource_type_family": "microsoft.compute",
+  "location_bucket": "eastus",
+  "credential_ref": "azure-read-only-spn",
+  "source_lane": "resource_changes"
+}]`,
+		envFixturePagesJSON: `{"page_paths": ["` + filepath.Join("testdata", "resources_page1.json") + `"]}`,
+	})
+	config, err := loadRuntimeConfig(getenv)
+	if err != nil {
+		t.Fatalf("loadRuntimeConfig: %v", err)
+	}
+	if _, err := buildProviderFactory(config, getenv); err == nil {
+		t.Fatal("expected mixed-lane fixture config to fail")
 	}
 }
 
@@ -83,7 +138,7 @@ func TestSmokeFixtureBackedSourceYieldsGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig: %v", err)
 	}
-	factory, err := buildProviderFactory(getenv)
+	factory, err := buildProviderFactory(config, getenv)
 	if err != nil {
 		t.Fatalf("buildProviderFactory: %v", err)
 	}
@@ -100,5 +155,54 @@ func TestSmokeFixtureBackedSourceYieldsGeneration(t *testing.T) {
 	}
 	if resources != 3 {
 		t.Fatalf("fixture smoke emitted %d resources, want 3", resources)
+	}
+}
+
+// TestSmokeFixtureBackedSourceYieldsResourceChangeGeneration proves the command
+// can run the fixture-only resource_changes source lane without a live Azure
+// call. Resource-change actors are fingerprinted, so this lane requires a
+// redaction key even in offline smoke mode.
+func TestSmokeFixtureBackedSourceYieldsResourceChangeGeneration(t *testing.T) {
+	getenv := envFunc(map[string]string{
+		envCollectorInstanceID: "azure-collector-1",
+		envTargetsJSON:         resourceChangesTargetsJSON,
+		envFixturePagesJSON: `{"page_paths": ["` +
+			filepath.Join("..", "..", "internal", "collector", "azurecloud", "testdata", "resourcechanges_page1.json") + `"]}`,
+	})
+	config, err := loadRuntimeConfig(getenv)
+	if err != nil {
+		t.Fatalf("loadRuntimeConfig: %v", err)
+	}
+	factory, err := buildProviderFactory(config, getenv)
+	if err != nil {
+		t.Fatalf("buildProviderFactory: %v", err)
+	}
+	key, err := redact.NewKey([]byte("azure-command-resource-change-redaction-key"))
+	if err != nil {
+		t.Fatalf("NewKey: %v", err)
+	}
+	source := &azureruntime.Source{
+		Config:          config,
+		ProviderFactory: factory,
+		RedactionKey:    key,
+	}
+	collected, ok, err := source.Next(context.Background())
+	if err != nil || !ok {
+		t.Fatalf("Next ok=%v err=%v", ok, err)
+	}
+	var changes, resources int
+	for env := range collected.Facts {
+		switch env.FactKind {
+		case facts.AzureResourceChangeFactKind:
+			changes++
+		case facts.AzureCloudResourceFactKind:
+			resources++
+		}
+	}
+	if changes != 2 {
+		t.Fatalf("fixture smoke emitted %d resource changes, want 2", changes)
+	}
+	if resources != 0 {
+		t.Fatalf("resource_changes lane emitted %d cloud resources, want 0", resources)
 	}
 }

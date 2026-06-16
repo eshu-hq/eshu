@@ -35,15 +35,18 @@ and the [Multi-Cloud Runtime Collector Contract](../../../../docs/public/referen
   as explicit evidence, emits resource-change facts only when the boundary is
   `SourceLaneResourceChanges`, and records bounded telemetry.
 
-## What this slice does NOT do (documented follow-ups)
+## What this package does NOT do
 
 - No live Azure Resource Graph or ARM calls. The `PageProvider` seam is fed by
-  fixtures under `testdata/`. A live ARM client adapter is a follow-up.
-- No `collector.Source`/`ClaimedService` runtime wiring, no `cmd/` binary, no
-  Helm values, environment variables, or runtime profiles. The contract forbids
-  claiming Azure runtime before it is implemented and fixture-proven.
-- No reducer admission, no `cloud_resource_uid` resolution, no graph projection,
-  no API/MCP readback. Those are reducer-owned follow-ups.
+  fixtures under `testdata/`. The live client remains gated in the sibling
+  `azureruntime` package.
+- No durable commit, claim scheduling, Helm values, chart wiring, runtime
+  profiles, reducer admission, graph projection, or API/MCP readback. Runtime
+  wiring lives in `azureruntime` and `cmd/collector-azure-cloud`; reducer and
+  readback work lives in the reducer, storage, query, and MCP packages.
+
+## Current fact emission
+
 - `azure_cloud_resource` and `azure_collection_warning` are always emitted.
   `azure_tag_observation` is emitted **only when a redaction key is configured**:
   `Collector` takes an optional `WithRedactionKey`, and `emitPageResources`
@@ -51,39 +54,24 @@ and the [Multi-Cloud Runtime Collector Contract](../../../../docs/public/referen
   fingerprints (`FingerprintTagValues`); without a key, tag values are never
   fingerprinted or carried and no tag observation fact is emitted. The runtime
   source threads the key from `azureruntime.Source.RedactionKey`, loaded by the
-  `collector-azure-cloud` binary from `ESHU_AZURE_REDACTION_KEY_FILE` (a blank
-  or unreadable configured file fails closed). The `azure_cloud_relationship`
-  envelope builder (`NewRelationshipEnvelope`) now exists and is unit-proven —
-  provenance-only: it preserves both endpoint ARM identities, the relationship
-  type, and a bounded support state, resolving no endpoints and writing no graph
-  edge — but is not yet wired into the scan loop (#2197). The
-  `azure_identity_observation` envelope builder
-  (`NewIdentityObservationEnvelope`) is also implemented and unit-proven: it
-  fingerprints every principal/client/object/tenant GUID with the redaction key
-  (raw GUIDs never persist) and carries the bounded identity type, role class,
-  and assignment scope as policy evidence only, with a stable key independent of
-  the redaction key so key rotation does not split rows. The
-  `azure_resource_change`, `azure_dns_record`, and `azure_image_reference`
-  envelope builders (`NewResourceChangeEnvelope`, `NewDNSRecordEnvelope`,
-  `NewImageReferenceEnvelope`) now also exist and are unit-proven — change
-  records carry changed property paths plus a fingerprinted actor (a delete is a
-  tombstone candidate only); DNS records fingerprint the record name and every
-  target; image references are digest-first with a fingerprinted container name.
-  **All Azure source fact-family envelope builders are now implemented.** The
-  scan loop also emits, from existing parsed ARM fields, a provenance-only
-  `azure_cloud_relationship` (`managed_by`) from each resource's `managedBy`
-  owning-resource reference (no redaction key needed), and a keyed
-  `azure_identity_observation` from each `identity` block — both the
-  system-assigned identity and one per user-assigned identity under
-  `userAssignedIdentities` (principal/client/tenant GUIDs fingerprinted, emitted
-  only when a redaction key is set). The scan loop now also emits
-  `azure_resource_change` from fixture `resourcechanges` pages when the boundary
-  source lane is `SourceLaneResourceChanges`; changed actors are fingerprinted,
-  changed property values and raw provider bodies are dropped, and delete
-  records remain tombstone candidates only. What remains per kind is emission
-  for the families whose source data still needs the live transport (DNS records
-  and image references) and reducer admission. Reducer admission of tag evidence
-  is already wired (#2192).
+  `collector-azure-cloud` binary from `ESHU_AZURE_REDACTION_KEY_FILE`; a blank
+  or unreadable configured file fails closed.
+- `azure_cloud_relationship` emits provenance-only `managed_by` evidence from
+  each resource's ARM `managedBy` reference. The collector preserves endpoint
+  ARM identities and support state; reducer packages own endpoint resolution and
+  graph writes.
+- `azure_identity_observation` emits keyed system-assigned and user-assigned
+  managed-identity observations from each resource `identity` block when a
+  redaction key is configured. Raw principal, client, object, and tenant GUIDs
+  never persist.
+- `azure_resource_change` emits fixture Resource Graph `resourcechanges`
+  evidence when the boundary source lane is `SourceLaneResourceChanges`.
+  Changed actors are fingerprinted, before/after values and raw provider bodies
+  are dropped, and delete records remain tombstone candidates only.
+- `azure_dns_record` and `azure_image_reference` envelope builders are
+  unit-proven. DNS and image-reference scan-loop source data still requires
+  explicit fixture or live source lanes before this package can emit those fact
+  families from provider data.
 
 ## Invariants
 

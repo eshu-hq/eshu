@@ -30,6 +30,7 @@ type targetJSON struct {
 	LocationBucket     string `json:"location_bucket"`
 	CredentialRef      string `json:"credential_ref"`
 	SourceURI          string `json:"source_uri"`
+	SourceLane         string `json:"source_lane"`
 	FencingToken       int64  `json:"fencing_token"`
 }
 
@@ -83,6 +84,7 @@ func mapTarget(target targetJSON) azureruntime.TargetConfig {
 		LocationBucket:     strings.TrimSpace(target.LocationBucket),
 		CredentialRef:      strings.TrimSpace(target.CredentialRef),
 		SourceURI:          strings.TrimSpace(target.SourceURI),
+		SourceLane:         strings.TrimSpace(target.SourceLane),
 		FencingToken:       target.FencingToken,
 	}
 }

@@ -43,11 +43,12 @@
   `collector.Source` implementation, the `cmd/collector-azure-cloud` binary, and
   the `PageProviderFactory` seam live in the sibling `azureruntime` package
   (`go/internal/collector/azurecloud/azureruntime`); see its `AGENTS.md`.
-- MUST NOT add Helm values, chart wiring, claim-driven workflow scheduling, a
-  live-calling default provider, reducer admission, or new fact-kind envelope
-  builders. Those remain gated follow-ups (issue #1998). The fixture-backed
-  resource-change source lane may emit existing `azure_resource_change` facts;
-  it must stay provenance-only and must not admit graph truth.
+- MUST NOT add Helm values, chart wiring, claim-driven workflow scheduling, or
+  a live-calling default provider. Those remain gated follow-ups (issue #1998).
+  Reducer admission and readback work belongs in reducer/query/MCP packages,
+  not in this fixture fact engine. The fixture-backed resource-change source
+  lane may emit existing `azure_resource_change` facts; it must stay
+  provenance-only and must not admit graph truth.
 
 ## Verify
 

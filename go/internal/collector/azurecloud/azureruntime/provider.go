@@ -126,6 +126,34 @@ func NewFixturePageProviderFromFiles(
 	return NewFixturePageProvider(pages, access), nil
 }
 
+// NewFixtureResourceChangesPageProviderFromFiles parses one JSON Resource Graph
+// resourcechanges page per file path and chains them by each page's $skipToken.
+// It is the file-backed offline provider for resource-change smoke tests; it
+// never calls Azure.
+func NewFixtureResourceChangesPageProviderFromFiles(
+	access azurecloud.ScopeAccess,
+	paths ...string,
+) (*FixturePageProvider, error) {
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("at least one fixture resourcechanges page path is required")
+	}
+	pages := make(map[string]azurecloud.ResourceChangesPage, len(paths))
+	token := ""
+	for i, path := range paths {
+		raw, err := os.ReadFile(filepath.Clean(path))
+		if err != nil {
+			return nil, fmt.Errorf("read azure fixture resourcechanges page %d: %w", i, err)
+		}
+		page, err := azurecloud.ParseResourceChangesPage(raw)
+		if err != nil {
+			return nil, fmt.Errorf("parse azure fixture resourcechanges page %d: %w", i, err)
+		}
+		pages[token] = page
+		token = page.SkipToken
+	}
+	return NewFixtureResourceChangesPageProvider(pages, access), nil
+}
+
 // NextPage returns the page for the given $skipToken. A missing token is an
 // error rather than an empty success so a fixture gap surfaces explicitly.
 func (p *FixturePageProvider) NextPage(
