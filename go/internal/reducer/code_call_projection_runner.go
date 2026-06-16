@@ -358,6 +358,7 @@ func (r *CodeCallProjectionRunner) processPartitionOnce(
 			MaxBlockedIntentWaitSeconds: selection.MaxBlockedIntentWaitSeconds,
 			LeaseClaimDurationSeconds:   leaseClaimDuration,
 			SelectionDurationSeconds:    selection.SelectionDurationSeconds,
+			SelectionPhases:             selection.SelectionPhases,
 		}
 		r.recordCodeCallTiming(ctx, result)
 		return result, nil
@@ -394,6 +395,7 @@ func (r *CodeCallProjectionRunner) processPartitionOnce(
 			MaxBlockedIntentWaitSeconds: selection.MaxBlockedIntentWaitSeconds,
 			LeaseClaimDurationSeconds:   leaseClaimDuration,
 			SelectionDurationSeconds:    selection.SelectionDurationSeconds,
+			SelectionPhases:             selection.SelectionPhases,
 		}
 		r.recordCodeCallTiming(ctx, result)
 		return result, nil
@@ -405,6 +407,7 @@ func (r *CodeCallProjectionRunner) processPartitionOnce(
 		MaxBlockedIntentWaitSeconds: selection.MaxBlockedIntentWaitSeconds,
 		LeaseClaimDurationSeconds:   leaseClaimDuration,
 		SelectionDurationSeconds:    selection.SelectionDurationSeconds,
+		SelectionPhases:             selection.SelectionPhases,
 	}
 	processingStart := time.Now()
 	writtenGroups := 0

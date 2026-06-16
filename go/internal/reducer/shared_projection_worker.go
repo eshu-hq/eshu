@@ -74,6 +74,7 @@ type PartitionProcessResult struct {
 	SelectionDurationSeconds          float64
 	LoadAllDurationSeconds            float64
 	AcceptancePrefetchDurationSeconds float64
+	SelectionPhases                   SelectionPhaseDurations
 	ProcessingDurationSeconds         float64
 	RetractDurationSeconds            float64
 	WriteDurationSeconds              float64

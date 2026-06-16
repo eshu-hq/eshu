@@ -217,6 +217,29 @@ diagnose the path through reducer run spans, reducer execution counters,
 durable `reducer_supply_chain_impact_finding` payloads, and existing Postgres
 query instrumentation.
 
+No-Regression Evidence: #2637 follows the #2633 full-corpus finding that
+partition-candidate selection removed the broad domain scan but still left
+readiness- and refresh-fence-heavy selector outliers. `go test
+./internal/reducer -run
+'TestCodeCallProjectionRunnerReuses(Readiness|RefreshFence)RowsAcrossWidenedCandidateWindows'
+-count=1` failed before one selector call re-prefetched the same blocked
+readiness key and reloaded the same acceptance-unit refresh-fence rows across
+widened candidate pages, then passed after the selector cached accepted
+generations, readiness results, and refresh-fence acceptance rows for the
+current selector invocation only. The cache does not change partition leases,
+worker count, completion marking, graph writes, or retry semantics; a stale
+same-invocation cache can only defer work to the next poll, preserving the
+canonical-node readiness gate and refresh-fence truth.
+
+Observability Evidence: #2637 adds no route, graph query, queue table, worker,
+lease, runtime knob, metric instrument, or metric label. Code-call projection
+cycle logs now split selector time into candidate load, accepted-generation
+prefetch, readiness prefetch, and refresh-fence checks alongside the existing
+total `selection_duration_seconds`, readiness blocked counts, and intent wait
+fields. Operators still use shared-intent backlog/status queries, partition
+lease rows, reducer execution counters, and instrumented Postgres query
+spans/duration metrics to connect those selector phases to queue progress.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain
