@@ -302,6 +302,47 @@ func TestCanonicalNodeWriterDeduplicatesPackageRegistryDependencyTargets(t *test
 	}
 }
 
+func TestCanonicalNodeWriterSkipsDependencyTargetsCoveredByPackageRows(t *testing.T) {
+	t.Parallel()
+
+	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
+	statements := writer.buildPackageRegistryDependencyPackageStatements(projector.CanonicalMaterialization{
+		ScopeID:      "package-registry-scope-1",
+		GenerationID: "package-registry-generation-1",
+		PackageRegistryPackages: []projector.PackageRegistryPackageRow{
+			{
+				UID:              "npm://registry.npmjs.org/eslint-plugin-es-x",
+				Ecosystem:        "npm",
+				Registry:         "https://registry.npmjs.org",
+				RawName:          "eslint-plugin-es-x",
+				NormalizedName:   "eslint-plugin-es-x",
+				SourceFactID:     "package-registry-package-1",
+				StableFactKey:    "package-registry-package-1",
+				SourceSystem:     "package_registry",
+				SourceConfidence: facts.SourceConfidenceReported,
+				CollectorKind:    "package_registry",
+			},
+		},
+		PackageRegistryDependencies: []projector.PackageRegistryDependencyRow{
+			{
+				UID:                  "dependency-1",
+				DependencyPackageID:  "npm://registry.npmjs.org/eslint-plugin-es-x",
+				DependencyEcosystem:  "npm",
+				DependencyRegistry:   "https://registry.npmjs.org",
+				DependencyNormalized: "eslint-plugin-es-x",
+				SourceFactID:         "package-registry-dependency-1",
+				StableFactKey:        "package-registry-dependency-1",
+				SourceSystem:         "package_registry",
+				SourceConfidence:     facts.SourceConfidenceReported,
+				CollectorKind:        "package_registry",
+			},
+		},
+	})
+	if got := len(statements); got != 0 {
+		t.Fatalf("dependency target statements = %d, want 0 because package row already upserts the UID", got)
+	}
+}
+
 func TestCanonicalNodeWriterDeduplicatesPackageRegistryPackages(t *testing.T) {
 	t.Parallel()
 

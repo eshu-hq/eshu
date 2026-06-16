@@ -3,6 +3,7 @@ package cypher
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
@@ -354,16 +355,21 @@ func packageRegistryDependencyRows(mat projector.CanonicalMaterialization) []map
 }
 
 func packageRegistryDependencyTargetPackageRows(mat projector.CanonicalMaterialization) []map[string]any {
+	packageUIDs := packageRegistryPackageUIDSet(mat.PackageRegistryPackages)
 	seen := make(map[string]map[string]any, len(mat.PackageRegistryDependencies))
 	for _, row := range mat.PackageRegistryDependencies {
-		if row.DependencyPackageID == "" {
+		dependencyPackageID := strings.TrimSpace(row.DependencyPackageID)
+		if dependencyPackageID == "" {
 			continue
 		}
-		if _, ok := seen[row.DependencyPackageID]; ok {
+		if _, ok := packageUIDs[dependencyPackageID]; ok {
 			continue
 		}
-		seen[row.DependencyPackageID] = map[string]any{
-			"dependency_package_id": row.DependencyPackageID,
+		if _, ok := seen[dependencyPackageID]; ok {
+			continue
+		}
+		seen[dependencyPackageID] = map[string]any{
+			"dependency_package_id": dependencyPackageID,
 			"dependency_ecosystem":  row.DependencyEcosystem,
 			"dependency_registry":   row.DependencyRegistry,
 			"dependency_namespace":  row.DependencyNamespace,
@@ -385,6 +391,21 @@ func packageRegistryDependencyTargetPackageRows(mat projector.CanonicalMateriali
 		rows = append(rows, seen[key])
 	}
 	return rows
+}
+
+func packageRegistryPackageUIDSet(rows []projector.PackageRegistryPackageRow) map[string]struct{} {
+	if len(rows) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		uid := strings.TrimSpace(row.UID)
+		if uid == "" {
+			continue
+		}
+		seen[uid] = struct{}{}
+	}
+	return seen
 }
 
 func packageRegistryTimeValue(value time.Time) any {
