@@ -13,14 +13,17 @@
 // bounded telemetry to the parent azurecloud package, and it commits nothing
 // itself; the collector.Service owns the durable write boundary.
 //
-// The live Azure Resource Graph client stays behind PageProviderFactory and is
-// never the default. LiveProviderFactory is gated by construction: its zero
-// value returns ErrLiveProviderGated, while live calls require an explicitly
-// injected read-only LiveResourceGraphClient or AzureSDKResourceGraphClient.
-// Tests and offline tooling use FixturePageProvider, which serves pre-parsed or
-// file-backed Resource Graph inventory pages and pre-parsed resourcechanges
-// pages with no network calls. The command and chart paths do not enable live
-// transport.
+// The live Azure Resource Graph and ARM fallback clients stay behind
+// PageProviderFactory and are never the default. LiveProviderFactory is gated by
+// construction: its zero value returns ErrLiveProviderGated, while live calls
+// require an explicitly injected read-only LiveResourceGraphClient or
+// AzureSDKResourceGraphClient. Optional ARM fallback enrichment additionally
+// requires an injected LiveARMFallbackClient, exact resource-type allowlist
+// rules, fixed API versions, and bounded extension fields; the SDK wrapper
+// exposes only GET-by-ID behavior. Tests and offline tooling use
+// FixturePageProvider, which serves pre-parsed or file-backed Resource Graph
+// inventory pages and pre-parsed resourcechanges pages with no network calls.
+// The command and chart paths do not enable live transport.
 //
 // Resource-change facts are emitted only when TargetConfig.SourceLane is
 // azurecloud.SourceLaneResourceChanges and remain provenance-only. Reducer

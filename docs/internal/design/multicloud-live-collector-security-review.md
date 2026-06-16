@@ -15,16 +15,16 @@ seam is explicitly injected, read-only, bounded, and sanitized. Today both
 binaries run fixture/file-backed and make **zero** live calls. The GCP live seam is inert
 (`gcpruntime.LiveClient` → `ErrLiveClientNotImplemented`). The Azure live seam is
 gated by construction: `azureruntime.LiveProviderFactory{}` returns
-`ErrLiveProviderGated`, and live Resource Graph calls require explicit
-operator-owned injection of a read-only client. It is not command- or
-chart-enabled by default.
+`ErrLiveProviderGated`, and live Resource Graph plus optional ARM fallback calls
+require explicit operator-owned injection of read-only clients and allowlist
+rules. It is not command- or chart-enabled by default.
 
 ## 1. Credential surfaces
 
 | Provider | Live seam | Auth model to verify | Least-privilege scope |
 | --- | --- | --- | --- |
 | GCP | `gcpruntime.LiveClient` (`go/internal/collector/gcpcloud/gcpruntime/liveclient.go`); `CredentialRef` is a name only. | Workload Identity Federation / ADC for a dedicated service account. No long-lived JSON keys mounted. | Cloud Asset Inventory read-only (`roles/cloudasset.viewer`) at the configured org/folder/project parent only. No `assets.export`, no IAM write, no data-plane reader roles. |
-| Azure | `azureruntime.LiveProviderFactory` (`go/internal/collector/azurecloud/azureruntime/live_provider.go`). Zero value is inert; explicit injected clients can read Resource Graph only. | Managed/workload identity for the configured tenant. No client-secret string in env. | `Reader` at the configured subscription/management-group scope only; Resource Graph + allowlisted ARM `GET` only. No `Contributor`, no provider registration, no write/delete. |
+| Azure | `azureruntime.LiveProviderFactory` (`go/internal/collector/azurecloud/azureruntime/live_provider.go`). Zero value is inert; explicit injected clients can read Resource Graph and allowlisted ARM `GET` only. | Managed/workload identity for the configured tenant. No client-secret string in env. | `Reader` at the configured subscription/management-group scope only; Resource Graph + allowlisted ARM `GET` only. No `Contributor`, no provider registration, no write/delete. |
 
 Threat-model checks: privilege creep (read-only inventory, not secret *values*);
 credential *reference* vs material (names only — never bytes — in struct fields,
@@ -63,6 +63,10 @@ mirrors it via `ESHU_AZURE_REDACTION_KEY_FILE`):
   evidence rather than hammering the provider.
 - Response page size and per-resource payload size bounded; extension objects
   carry only safe bounded metadata.
+- Azure ARM fallback calls require exact resource-type allowlist rules, fixed
+  API versions, configured extension fields, one bounded `GetByID` per
+  allowlisted Resource Graph row, and oversized payloads degrade to explicit
+  redaction warning evidence.
 - **No write operations** reachable by construction (no export/register/deploy/
   delete/mutate).
 
