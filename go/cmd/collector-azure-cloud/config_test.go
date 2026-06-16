@@ -93,6 +93,36 @@ func TestBuildProviderFactoryDefaultsToGatedLiveSeam(t *testing.T) {
 	}
 }
 
+func TestBuildProviderFactoryRejectsMixedLaneFixturePages(t *testing.T) {
+	getenv := envFunc(map[string]string{
+		envCollectorInstanceID: "azure-collector-1",
+		envTargetsJSON: `[{
+  "tenant_id": "tenant-abc",
+  "scope_kind": "subscription",
+  "provider_scope_id": "11111111-1111-1111-1111-111111111111",
+  "resource_type_family": "microsoft.compute",
+  "location_bucket": "eastus",
+  "credential_ref": "azure-read-only-spn"
+},{
+  "tenant_id": "tenant-abc",
+  "scope_kind": "subscription",
+  "provider_scope_id": "11111111-1111-1111-1111-111111111111",
+  "resource_type_family": "microsoft.compute",
+  "location_bucket": "eastus",
+  "credential_ref": "azure-read-only-spn",
+  "source_lane": "resource_changes"
+}]`,
+		envFixturePagesJSON: `{"page_paths": ["` + filepath.Join("testdata", "resources_page1.json") + `"]}`,
+	})
+	config, err := loadRuntimeConfig(getenv)
+	if err != nil {
+		t.Fatalf("loadRuntimeConfig: %v", err)
+	}
+	if _, err := buildProviderFactory(config, getenv); err == nil {
+		t.Fatal("expected mixed-lane fixture config to fail")
+	}
+}
+
 // TestSmokeFixtureBackedSourceYieldsGeneration proves the binary's declarative
 // config plus the file-backed offline provider produce a committable Azure
 // generation without any live Azure call.

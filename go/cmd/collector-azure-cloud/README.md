@@ -12,7 +12,7 @@ scaffolding slice of issue #1998.
 | `ESHU_AZURE_COLLECTOR_INSTANCE_ID` | yes | Collector instance that owns target policy and the credential environment. |
 | `ESHU_AZURE_TARGETS_JSON` | yes | JSON array of bounded Azure scope shards. |
 | `ESHU_AZURE_POLL_INTERVAL` | no | Sweep cadence (default 5m). |
-| `ESHU_AZURE_FIXTURE_PAGES_JSON` | no | File-backed offline Resource Graph or `resourcechanges` page provider for local proof/smoke. Unset selects the gated live seam. |
+| `ESHU_AZURE_FIXTURE_PAGES_JSON` | no | File-backed offline Resource Graph or `resourcechanges` page provider for local proof/smoke. A configured fixture list must match one `source_lane`; mixed-lane offline runs are rejected. Unset selects the gated live seam. |
 | `ESHU_AZURE_REDACTION_KEY_FILE` | no | Read-only key-material file used to fingerprint tag values, managed identity GUIDs, and resource-change actors. Required by `source_lane=resource_changes`. |
 
 Each target object:
@@ -33,7 +33,9 @@ Each target object:
 `credential_ref` is a **name**, never a secret value. `scope_kind` is one of
 `subscription`, `management_group`, or `tenant`. `source_lane` defaults to
 `resource_graph`; `resource_changes` is fixture-only in this slice and emits
-provenance facts only.
+provenance facts only. Because `ESHU_AZURE_FIXTURE_PAGES_JSON` carries one
+ordered fixture page list, all targets in an offline fixture run must use the
+same `source_lane`.
 
 ## Live-call safety
 

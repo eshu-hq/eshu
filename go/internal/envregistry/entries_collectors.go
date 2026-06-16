@@ -108,7 +108,7 @@ var collectorEntries = func() []Entry {
 		Entry{Name: "ESHU_AZURE_COLLECTOR_INSTANCE_ID", Type: VarString, Subsystem: "collector-azure-cloud", Description: "Instance ID selecting this Azure collector instance."},
 		Entry{Name: "ESHU_AZURE_POLL_INTERVAL", Type: VarDuration, Default: "5m", Subsystem: "collector-azure-cloud", Description: "Poll interval for discovering Azure targets."},
 		Entry{Name: "ESHU_AZURE_TARGETS_JSON", Type: VarString, Subsystem: "collector-azure-cloud", Description: "JSON array of Azure target scopes. Each target may set source_lane to resource_graph or fixture-only resource_changes."},
-		Entry{Name: "ESHU_AZURE_FIXTURE_PAGES_JSON", Type: VarString, Subsystem: "collector-azure-cloud", Description: "JSON fixture pages for offline Resource Graph or resourcechanges smoke testing; not used in production."},
+		Entry{Name: "ESHU_AZURE_FIXTURE_PAGES_JSON", Type: VarString, Subsystem: "collector-azure-cloud", Description: "JSON fixture pages for single-lane offline Resource Graph or resourcechanges smoke testing; not used in production."},
 		Entry{Name: "ESHU_AZURE_REDACTION_KEY_FILE", Type: VarString, Subsystem: "collector-azure-cloud", Description: "Read-only file path for Azure redaction key material used to fingerprint tags, managed identities, and resource-change actors."},
 	)
 

@@ -111,6 +111,9 @@ func buildProviderFactory(
 		Reason:              fixture.Reason,
 		Message:             fixture.Message,
 	}
+	if err := validateSingleFixtureSourceLane(config.Targets); err != nil {
+		return nil, err
+	}
 	var resourceGraphProvider azurecloud.PageProvider
 	var resourceChangesProvider azurecloud.PageProvider
 	for _, target := range config.Targets {
@@ -155,4 +158,38 @@ func buildProviderFactory(
 			return nil, fmt.Errorf("azure fixture page provider does not support source lane %q", target.SourceLane)
 		}
 	}), nil
+}
+
+func validateSingleFixtureSourceLane(targets []azureruntime.TargetConfig) error {
+	var fixtureLane string
+	for _, target := range targets {
+		lane, err := normalizeFixtureSourceLane(target.SourceLane)
+		if err != nil {
+			return err
+		}
+		if fixtureLane == "" {
+			fixtureLane = lane
+			continue
+		}
+		if fixtureLane != lane {
+			return fmt.Errorf(
+				"%s cannot share page_paths across mixed source lanes %q and %q",
+				envFixturePagesJSON,
+				fixtureLane,
+				lane,
+			)
+		}
+	}
+	return nil
+}
+
+func normalizeFixtureSourceLane(lane string) (string, error) {
+	switch lane {
+	case "", azurecloud.SourceLaneResourceGraph:
+		return azurecloud.SourceLaneResourceGraph, nil
+	case azurecloud.SourceLaneResourceChanges:
+		return azurecloud.SourceLaneResourceChanges, nil
+	default:
+		return "", fmt.Errorf("azure fixture page provider does not support source lane %q", lane)
+	}
 }
