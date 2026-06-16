@@ -48,8 +48,14 @@ func TestCodeCallProjectionRunnerRecordCycleUsesAcceptanceLogKeys(t *testing.T) 
 			WriteDurationSeconds:         0.12,
 			MarkCompletedDurationSeconds: 0.03,
 			SelectionDurationSeconds:     0.05,
-			LeaseClaimDurationSeconds:    0.01,
-			MaxBlockedIntentWaitSeconds:  0,
+			SelectionPhases: SelectionPhaseDurations{
+				CandidateLoadSeconds:      0.01,
+				AcceptancePrefetchSeconds: 0.02,
+				ReadinessPrefetchSeconds:  0.03,
+				RefreshFenceCheckSeconds:  0.04,
+			},
+			LeaseClaimDurationSeconds:   0.01,
+			MaxBlockedIntentWaitSeconds: 0,
 		},
 	)
 	if err != nil {
@@ -90,4 +96,8 @@ func TestCodeCallProjectionRunnerRecordCycleUsesAcceptanceLogKeys(t *testing.T) 
 	if got, want := entry["mark_completed_duration_seconds"], 0.03; got != want {
 		t.Fatalf("mark_completed_duration_seconds = %v, want %v", got, want)
 	}
+	assertFloatLogValue(t, entry, "selection_candidate_load_duration_seconds", 0.01)
+	assertFloatLogValue(t, entry, "selection_acceptance_prefetch_duration_seconds", 0.02)
+	assertFloatLogValue(t, entry, "selection_readiness_prefetch_duration_seconds", 0.03)
+	assertFloatLogValue(t, entry, "selection_refresh_fence_duration_seconds", 0.04)
 }

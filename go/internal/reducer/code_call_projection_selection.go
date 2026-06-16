@@ -16,6 +16,7 @@ type codeCallSelectionResult struct {
 	BlockedReadiness            int
 	MaxBlockedIntentWaitSeconds float64
 	SelectionDurationSeconds    float64
+	SelectionPhases             SelectionPhaseDurations
 }
 
 type acceptedGenerationCacheEntry struct {
@@ -60,8 +61,11 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 	acceptedGenerationsByKey := make(map[SharedProjectionAcceptanceKey]acceptedGenerationCacheEntry)
 	readinessByKey := make(map[GraphProjectionPhaseKey]readinessCacheEntry)
 	acceptanceRowsByKey := make(map[SharedProjectionAcceptanceKey][]SharedProjectionIntentRow)
+	selectionPhases := SelectionPhaseDurations{}
 	for {
+		candidateLoadStart := time.Now()
 		pending, err := r.listPendingPartitionCandidates(ctx, partitionID, partitionCount, scanLimit)
+		selectionPhases.CandidateLoadSeconds += time.Since(candidateLoadStart).Seconds()
 		if err != nil {
 			acceptanceTelemetry.RecordLookup(ctx, sharedAcceptanceLookupEvent{
 				Runner:   "code_call_projection",
@@ -77,7 +81,10 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 				Result:   "miss",
 				Duration: time.Since(start).Seconds(),
 			})
-			return codeCallSelectionResult{SelectionDurationSeconds: time.Since(start).Seconds()}, nil
+			return codeCallSelectionResult{
+				SelectionDurationSeconds: time.Since(start).Seconds(),
+				SelectionPhases:          selectionPhases,
+			}, nil
 		}
 
 		phase, gated := sharedProjectionReadinessPhase(DomainCodeCalls)
@@ -108,7 +115,9 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 		if len(missingAcceptedRows) > 0 {
 			lookup := r.AcceptedGen
 			if r.AcceptedGenPrefetch != nil {
+				prefetchStart := time.Now()
 				resolvedLookup, err := r.AcceptedGenPrefetch(ctx, missingAcceptedRows)
+				selectionPhases.AcceptancePrefetchSeconds += time.Since(prefetchStart).Seconds()
 				if err != nil {
 					acceptanceTelemetry.RecordLookup(ctx, sharedAcceptanceLookupEvent{
 						Runner:   "code_call_projection",
@@ -151,7 +160,9 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 				readinessKeys = append(readinessKeys, readinessKey)
 			}
 			if len(readinessKeys) > 0 {
+				readinessPrefetchStart := time.Now()
 				resolvedLookup, err := r.ReadinessPrefetch(ctx, readinessKeys, phase)
+				selectionPhases.ReadinessPrefetchSeconds += time.Since(readinessPrefetchStart).Seconds()
 				if err != nil {
 					acceptanceTelemetry.RecordLookup(ctx, sharedAcceptanceLookupEvent{
 						Runner:   "code_call_projection",
@@ -217,6 +228,7 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 			if !codeCallProjectionPartitionMatches(row, partitionID, partitionCount) {
 				continue
 			}
+			fenceStart := time.Now()
 			blocked, err := r.codeCallProjectionRowBlockedByRepoFence(
 				ctx,
 				row,
@@ -224,6 +236,7 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 				i,
 				acceptanceRowsByKey,
 			)
+			selectionPhases.RefreshFenceCheckSeconds += time.Since(fenceStart).Seconds()
 			if err != nil {
 				acceptanceTelemetry.RecordLookup(ctx, sharedAcceptanceLookupEvent{
 					Runner:   "code_call_projection",
@@ -248,6 +261,7 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 				BlockedReadiness:            blockedCount,
 				MaxBlockedIntentWaitSeconds: maxBlockedWait,
 				SelectionDurationSeconds:    time.Since(start).Seconds(),
+				SelectionPhases:             selectionPhases,
 			}, nil
 		}
 
@@ -272,6 +286,7 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 				BlockedReadiness:            blockedCount,
 				MaxBlockedIntentWaitSeconds: maxBlockedWait,
 				SelectionDurationSeconds:    time.Since(start).Seconds(),
+				SelectionPhases:             selectionPhases,
 			}, nil
 		}
 		if scanLimit >= acceptanceScanLimit {

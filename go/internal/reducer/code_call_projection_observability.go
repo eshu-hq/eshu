@@ -43,6 +43,10 @@ func (r *CodeCallProjectionRunner) recordCodeCallCycle(
 			slog.Float64("write_duration_seconds", timing.WriteDurationSeconds),
 			slog.Float64("mark_completed_duration_seconds", timing.MarkCompletedDurationSeconds),
 			slog.Float64("selection_duration_seconds", timing.SelectionDurationSeconds),
+			slog.Float64("selection_candidate_load_duration_seconds", timing.SelectionPhases.CandidateLoadSeconds),
+			slog.Float64("selection_acceptance_prefetch_duration_seconds", timing.SelectionPhases.AcceptancePrefetchSeconds),
+			slog.Float64("selection_readiness_prefetch_duration_seconds", timing.SelectionPhases.ReadinessPrefetchSeconds),
+			slog.Float64("selection_refresh_fence_duration_seconds", timing.SelectionPhases.RefreshFenceCheckSeconds),
 			slog.Float64("lease_claim_duration_seconds", timing.LeaseClaimDurationSeconds),
 			telemetry.PhaseAttr(telemetry.PhaseReduction),
 		)

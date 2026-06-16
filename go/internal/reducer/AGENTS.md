@@ -231,12 +231,14 @@ worker count, completion marking, graph writes, or retry semantics; a stale
 same-invocation cache can only defer work to the next poll, preserving the
 canonical-node readiness gate and refresh-fence truth.
 
-No-Observability-Change: #2637 adds no route, graph query, queue table, worker,
-lease, runtime knob, metric instrument, or metric label. Operators still
-diagnose selector cost and progress through existing code-call projection cycle
-logs (`selection_duration_seconds`, readiness blocked counts, intent wait
-fields), shared-intent backlog/status queries, partition lease rows, reducer
-execution counters, and instrumented Postgres query spans/duration metrics.
+Observability Evidence: #2637 adds no route, graph query, queue table, worker,
+lease, runtime knob, metric instrument, or metric label. Code-call projection
+cycle logs now split selector time into candidate load, accepted-generation
+prefetch, readiness prefetch, and refresh-fence checks alongside the existing
+total `selection_duration_seconds`, readiness blocked counts, and intent wait
+fields. Operators still use shared-intent backlog/status queries, partition
+lease rows, reducer execution counters, and instrumented Postgres query
+spans/duration metrics to connect those selector phases to queue progress.
 
 ## Anti-patterns
 
