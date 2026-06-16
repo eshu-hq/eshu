@@ -35,6 +35,18 @@ type CodeCallProjectionIntentReader interface {
 	MarkIntentsCompleted(ctx context.Context, intentIDs []string, completedAt time.Time) error
 }
 
+// CodeCallProjectionPartitionIntentReader reads pending code-call rows for one
+// selected partition without scanning unrelated acceptance-unit partitions.
+type CodeCallProjectionPartitionIntentReader interface {
+	ListPendingAcceptanceUnitPartitionIntents(
+		ctx context.Context,
+		key SharedProjectionAcceptanceKey,
+		domain string,
+		partitionKey string,
+		limit int,
+	) ([]SharedProjectionIntentRow, error)
+}
+
 // CodeCallProjectionHistoryLookup checks whether an acceptance unit has ever
 // completed code-call projection before. Runners use it only to skip proven
 // first-projection no-op retractions; absence or errors keep the conservative

@@ -100,6 +100,88 @@ func TestCodeCallProjectionRunnerLoadAllAcceptanceUnitIntentsAllowsLargeConfigur
 	}
 }
 
+func TestCodeCallProjectionRunnerLoadsSelectedPartitionDirectly(t *testing.T) {
+	t.Parallel()
+
+	const targetRows = 120
+	key := SharedProjectionAcceptanceKey{
+		ScopeID:          "scope-a",
+		AcceptanceUnitID: "repo-a",
+		SourceRunID:      "run-1",
+	}
+	rows := make([]SharedProjectionIntentRow, 0, 320)
+	for i := 0; i < 200; i++ {
+		row := codeCallProjectionTestRow("other-"+strconv.Itoa(i), "gen-1", time.Date(2026, time.April, 27, 9, 0, 0, i, time.UTC))
+		row.PartitionKey = "code-calls:v1:files:repo-a:other"
+		rows = append(rows, row)
+	}
+	for i := 0; i < targetRows; i++ {
+		row := codeCallProjectionTestRow("target-"+strconv.Itoa(i), "gen-1", time.Date(2026, time.April, 27, 9, 1, 0, i, time.UTC))
+		row.PartitionKey = "code-calls:v1:files:repo-a:target"
+		rows = append(rows, row)
+	}
+	baseReader := &fakeCodeCallIntentStore{
+		pendingByAcceptance: map[string][]SharedProjectionIntentRow{"scope-a|repo-a|run-1": rows},
+	}
+	reader := &partitionAwareCodeCallIntentStore{fakeCodeCallIntentStore: baseReader}
+	runner := CodeCallProjectionRunner{
+		IntentReader: reader,
+		Config: CodeCallProjectionRunnerConfig{
+			BatchLimit:          50,
+			AcceptanceScanLimit: 500,
+		},
+	}
+
+	got, err := runner.loadAcceptanceUnitPartitionIntents(context.Background(), key, "code-calls:v1:files:repo-a:target")
+	if err != nil {
+		t.Fatalf("loadAcceptanceUnitPartitionIntents() error = %v, want nil", err)
+	}
+	if len(got) != targetRows {
+		t.Fatalf("loaded partition rows = %d, want %d", len(got), targetRows)
+	}
+	if len(baseReader.acceptanceLimitRequests) != 0 {
+		t.Fatalf("acceptanceLimitRequests = %v, want direct partition load", baseReader.acceptanceLimitRequests)
+	}
+	if len(reader.partitionLimitRequests) < 2 {
+		t.Fatalf("partitionLimitRequests = %v, want growth up to full partition", reader.partitionLimitRequests)
+	}
+	for _, row := range got {
+		if row.PartitionKey != "code-calls:v1:files:repo-a:target" {
+			t.Fatalf("loaded partition key = %q, want target partition", row.PartitionKey)
+		}
+	}
+}
+
+type partitionAwareCodeCallIntentStore struct {
+	*fakeCodeCallIntentStore
+	partitionLimitRequests []int
+}
+
+func (p *partitionAwareCodeCallIntentStore) ListPendingAcceptanceUnitPartitionIntents(
+	_ context.Context,
+	key SharedProjectionAcceptanceKey,
+	_ string,
+	partitionKey string,
+	limit int,
+) ([]SharedProjectionIntentRow, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.partitionLimitRequests = append(p.partitionLimitRequests, limit)
+	sourceRows := p.pendingByAcceptance[key.ScopeID+"|"+key.AcceptanceUnitID+"|"+key.SourceRunID]
+	rows := make([]SharedProjectionIntentRow, 0, len(sourceRows))
+	for _, row := range sourceRows {
+		if row.CompletedAt != nil || row.PartitionKey != partitionKey {
+			continue
+		}
+		rows = append(rows, row)
+	}
+	if limit > 0 && len(rows) > limit {
+		rows = rows[:limit]
+	}
+	return rows, nil
+}
+
 func TestCodeCallProjectionRunnerRetractRepoPreservesDeltaFileScope(t *testing.T) {
 	t.Parallel()
 
