@@ -32,10 +32,15 @@ The runtime scaffolding slice (issue #1998) has now landed in
   `collector.Service` for atomic fact + generation commit, with credentials
   referenced by name only.
 
-It still performs **no live Azure calls**. The live Resource Graph/ARM client is
-a documented seam (`azureruntime.LiveProviderFactory`) that is inert and returns
-`ErrLiveProviderGated`; it is never the default. Tests and the binary's offline
-mode use a fixture or file-backed `PageProvider`.
+The command default still performs **no live Azure calls**. The live Resource
+Graph client is a documented seam (`azureruntime.LiveProviderFactory`) that is
+gated by construction: its zero value returns `ErrLiveProviderGated`, and live
+Resource Graph reads require explicit injection of a read-only client. The owned
+default live query avoids the full ARM `properties` bag, SDK rows are capped
+before conversion, and throttling, permission-hidden scopes, and expired auth or
+continuation tokens surface as warning evidence. Tests and the binary's offline
+mode use a fixture or file-backed `PageProvider`; Helm and command activation of
+live credentials remain gated.
 
 Shared multi-cloud reducer admission and API/MCP readback for the
 `azure_cloud_resource` identity are now implemented and fixture-proven. The
@@ -107,9 +112,9 @@ for graph readback. It does not call Azure, mint target nodes from relationship
 facts, or activate API/MCP readback lanes.
 
 Everything else stays gated. Do not add Helm values, chart paths, claim-driven
-workflow scheduling, or a live Resource Graph/ARM transport until implementation
-PRs prove the live runtime adapter (`azureruntime.LiveProviderFactory`) and
-chart path. The `azure_cloud_relationship` envelope builder
+workflow scheduling, or command activation of live Resource Graph/ARM transport
+until implementation PRs prove the full live runtime adapter, security review,
+and chart path. The `azure_cloud_relationship` envelope builder
 (`NewRelationshipEnvelope`) is implemented and unit-proven as provenance-only
 (both endpoint ARM identities, relationship type, and a bounded support state;
 it resolves no endpoints in the collector). The
@@ -212,6 +217,9 @@ Important provider constraints:
   must not appear in metric labels or user-facing status.
 - Resource Graph throttles queries and exposes quota reset information in
   response headers. Requests need bounded concurrency, retry, and backoff.
+- Live Resource Graph response rows must stay bounded before persistence. The
+  owned default query must not project the full ARM `properties` bag; any
+  explicitly overridden query still needs a per-row payload cap.
 - `resourcechanges` records are freshness evidence. Delete records can lack full
   snapshots, so deletion handling must stay conservative.
 - The collector must not register resource providers, deploy resources, delete

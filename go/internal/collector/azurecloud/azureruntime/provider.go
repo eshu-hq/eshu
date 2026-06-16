@@ -42,22 +42,6 @@ var ErrLiveProviderGated = errors.New(
 	"azure live resource graph provider is gated: inject a read-only PageProviderFactory",
 )
 
-// LiveProviderFactory is the documented production seam for the live Azure
-// Resource Graph/ARM client. It is intentionally inert in this slice: every call
-// returns ErrLiveProviderGated so no test or default code path can issue a live
-// Azure request. A future PR replaces this stub with a real read-only adapter
-// proven by its own credential, quota, throttle, and fixture gates.
-type LiveProviderFactory struct{}
-
-// PageProvider always returns ErrLiveProviderGated.
-func (LiveProviderFactory) PageProvider(
-	context.Context,
-	azurecloud.Boundary,
-	TargetConfig,
-) (azurecloud.PageProvider, error) {
-	return nil, ErrLiveProviderGated
-}
-
 // FixturePageProvider serves pre-parsed Resource Graph pages keyed by
 // $skipToken, modeling provider pagination without live calls. The empty string
 // keys the first page. It records partial-scope access as explicit evidence

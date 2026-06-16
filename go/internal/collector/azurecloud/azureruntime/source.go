@@ -121,7 +121,7 @@ func (s *Source) scanTarget(
 		return collector.CollectedGeneration{}, fmt.Errorf("collect azure scope generation: %w", err)
 	}
 
-	s.logScan(ctx, scopeValue, generationValue, target, result, observedAt)
+	s.logScan(ctx, target, result, observedAt)
 	return collector.FactsFromSlice(scopeValue, generationValue, result.Facts), nil
 }
 
@@ -191,8 +191,6 @@ func (s *Source) generationID(scopeID string, observedAt time.Time) string {
 
 func (s *Source) logScan(
 	ctx context.Context,
-	scopeValue scope.IngestionScope,
-	generationValue scope.ScopeGeneration,
 	target TargetConfig,
 	result azurecloud.ScanResult,
 	observedAt time.Time,
@@ -202,8 +200,6 @@ func (s *Source) logScan(
 	}
 	s.Logger.InfoContext(ctx, "azure scope scan completed",
 		telemetry.PhaseAttr(telemetry.PhaseDiscovery),
-		slog.String(telemetry.LogKeyScopeID, scopeValue.ScopeID),
-		slog.String(telemetry.LogKeyGenerationID, generationValue.GenerationID),
 		slog.String("scope_kind", target.ScopeKind),
 		slog.String("source_lane", target.SourceLane),
 		slog.Int("resource_count", result.ResourceCount),

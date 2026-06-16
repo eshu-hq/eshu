@@ -16,13 +16,15 @@ the parent `azurecloud` fact engine into a `collector.Source` that the shared
   resume), and delegates emission to `azurecloud.Collector`. The default source
   lane is `resource_graph`; `resource_changes` is an explicit fixture-only lane
   that emits provenance-only `azure_resource_change` facts.
-- `PageProviderFactory`: the single seam that keeps the live Resource Graph/ARM
-  client out of the runtime and tests.
+- `PageProviderFactory`: the single seam that keeps live Resource Graph access
+  injectable and non-default.
 - `FixturePageProvider`: an in-memory and file-backed provider used by tests and
   offline tooling for Resource Graph inventory and fixture `resourcechanges`
   pages. It issues no network calls.
-- `LiveProviderFactory`: an inert documented production seam that returns
-  `ErrLiveProviderGated`. It is never the default and never calls Azure.
+- `LiveProviderFactory`: a gated-by-default production seam. Its zero value
+  returns `ErrLiveProviderGated`; only an explicitly injected read-only Resource
+  Graph client can make live calls. The command and chart paths still do not
+  activate it.
 
 ## What this package does NOT own
 
@@ -48,10 +50,19 @@ explicit `azure_collection_warning` fact, never silent success.
 
 ## Live-call safety
 
-No code path in this package or its tests calls Azure. The live client is a
-documented seam (`LiveProviderFactory` returns `ErrLiveProviderGated`); a real
-read-only adapter is a separate gated PR with its own credential, quota,
-throttle, and fixture proof.
+No default command, fixture, or test path calls Azure. The zero-value live seam
+(`LiveProviderFactory{}`) still returns `ErrLiveProviderGated`; live transport is
+reachable only when operator-owned wiring explicitly injects a read-only
+`LiveResourceGraphClient` or the SDK-backed `AzureSDKResourceGraphClient`. The
+adapter bounds Resource Graph `Resources` calls with explicit KQL, `$top`,
+`$skipToken`, per-call timeout, retry cap, backoff cap, and a per-row live
+payload size cap. The owned default query avoids the full ARM `properties` bag;
+overridden queries still fail closed on oversized rows. Throttling,
+permission-hidden scopes, unsupported families, and expired auth or continuation
+tokens surface through `ScopeAccess` so the parent collector emits
+`azure_collection_warning` evidence instead of silent empty success. Credential
+references stay names only and are not copied into requests, facts, logs, spans,
+or metric labels.
 
 ## Verify
 
@@ -63,34 +74,38 @@ cd go && golangci-lint run ./internal/collector/azurecloud/... ./cmd/collector-a
 
 ## Evidence
 
-Collector Performance Evidence: This is fixture-only scaffolding that adds a new
-`collector.Source` and runtime binary; it changes no existing hot path.
+Collector Performance Evidence: The runtime source keeps the command default
+gated and adds an injected live Resource Graph provider behind the existing
+`PageProviderFactory`; it changes no existing graph, reducer, queue, or Postgres
+hot path.
 Baseline: before this PR there was no Azure runtime path, so the prior Azure
-ingestion throughput is zero generations/sec. After: the Azure `Source` yields
-one bounded generation per configured scope target by streaming already-parsed
-Resource Graph pages through the existing `azurecloud.Collector`, which is
-unchanged. Backend/version: no graph or Postgres write path is added by this
-package; commit goes through the existing `collector.Service` +
+ingestion throughput is zero live generations/sec. After: the Azure `Source`
+yields one bounded generation per configured scope target by streaming fixture or
+explicitly injected Resource Graph pages through the existing
+`azurecloud.Collector`, which still owns fact emission. Backend/version: no graph
+or Postgres write path is added by this package; commit goes through the
+existing `collector.Service` +
 `postgres.IngestionStore` seam exercised by the AWS and OCI collectors. Input
 shape: bounded fixture pages (2 pages, 3 resource rows) keyed by `$skipToken`;
 production input is bounded per-scope shards within the collector lease and
-Resource Graph quota budget. Terminal counts: fixture sweep commits 1 generation
-with 2-3 resource facts plus 0-1 warning facts; the page loop is bounded by
-`azurecloud.maxResourceGraphPages` (1000) so a malformed continuation cannot
-loop forever. Telemetry: per-target `collector.azure.scope_scan` span plus the
-parent package's bounded-label Azure metrics
+Resource Graph quota budget with live page size capped at 1000, retry count
+capped, and per-call timeout enforced. Terminal counts: fixture sweep commits 1
+generation with 2-3 resource facts plus 0-1 warning facts; the page loop is
+bounded by `azurecloud.maxResourceGraphPages` (1000) so a malformed continuation
+cannot loop forever. Telemetry: per-target `collector.azure.scope_scan` span plus
+the parent package's bounded-label Azure metrics
 (`eshu_dp_azure_*`); no per-target goroutine fan-out, no new lock, no new queue.
 The resource-change lane reuses the same page bound and emits only source facts
 from fixture pages with a configured redaction key. Why safe: the runtime is
-single-pass over a fixed target slice, holds no shared mutable state across
-targets, and adds no concurrency primitive; the only provider is fixture-backed
-under test and gated in production.
+single-pass over a fixed target slice, holds only per-provider warning state, and
+adds no concurrency primitive; live calls require explicit injected client
+wiring and are not command- or chart-enabled.
 
 Collector Observability Evidence: The runtime emits a bounded per-target span
 `collector.azure.scope_scan` (labels: collector kind, scope kind, source lane —
 all bounded enums) and a structured `azure scope scan completed` log carrying
-scope_id, generation_id, scope_kind, source_lane, resource/change/warning/page
-and resume counts, partial-scope and truncation flags, and duration. Fact emission and
+scope_kind, source_lane, resource/change/warning/page and resume counts,
+partial-scope and truncation flags, and duration. Fact emission and
 partial-scope counters reuse the parent `azurecloud` bounded-label instruments
 (`eshu_dp_azure_api_calls_total`, `eshu_dp_azure_skip_token_resumes_total`,
 `eshu_dp_azure_partial_scope_total`, `eshu_dp_azure_facts_emitted_total`). No
@@ -100,13 +115,16 @@ credential name. No shared-registry telemetry series is added in this slice.
 
 No-Observability-Change: no telemetry contract file changes are needed. The
 runtime reuses the existing `collector.azure.scope_scan` span, structured scan
-completion log, and parent `eshu_dp_azure_*` metric family while adding only
-bounded enum values for the resource-change lane. The command-level offline
-fixture factory chooses either Resource Graph inventory parsing or
-`resourcechanges` parsing from the declared target source lane and never changes
-the default gated live provider.
+completion log, and parent `eshu_dp_azure_*` metric family. Live warning
+conditions are emitted as existing `azure_collection_warning` facts via
+`ScopeAccess`; no new metric labels, span attributes, status fields, or
+shared-registry telemetry series are added. The command-level offline fixture
+factory chooses either Resource Graph inventory parsing or `resourcechanges`
+parsing from the declared target source lane and never changes the default gated
+live provider.
 
 Collector Deployment Evidence: no Docker Compose service, Helm Deployment,
 Service, ServiceMonitor, port, chart value, runtime profile, or live Azure
-credential path changes in this slice. `LiveProviderFactory` remains inert and
-fixture providers are the only resource-change source.
+credential path changes in this slice. `LiveProviderFactory{}` remains inert;
+SDK-backed live transport is available only by explicit in-process injection and
+fixture providers remain the only resource-change source.

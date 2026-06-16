@@ -10,8 +10,9 @@
 //
 // This is the runtime scaffolding slice of the Azure collector (issue #1998).
 // The live Azure Resource Graph and ARM client is a gated seam: with no
-// ESHU_AZURE_FIXTURE_PAGES_JSON set the command selects the inert
-// LiveProviderFactory, which never issues a live Azure call. A file-backed
+// ESHU_AZURE_FIXTURE_PAGES_JSON set the command selects the zero-value
+// LiveProviderFactory, which returns ErrLiveProviderGated and never issues a
+// live Azure call. A file-backed
 // offline provider (ESHU_AZURE_FIXTURE_PAGES_JSON) drives local proof and smoke
 // tests. Fact normalization, reducer admission, graph writes, API and MCP
 // readback, workflow scheduling, Helm wiring, and live Azure transport

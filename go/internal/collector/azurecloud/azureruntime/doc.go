@@ -13,14 +13,14 @@
 // bounded telemetry to the parent azurecloud package, and it commits nothing
 // itself; the collector.Service owns the durable write boundary.
 //
-// The live Azure Resource Graph and ARM client stays behind PageProviderFactory
-// and is never the default. LiveProviderFactory is an inert documented seam that
-// returns ErrLiveProviderGated, so no test or default code path issues a live
-// Azure request. Tests and offline tooling use FixturePageProvider, which serves
-// pre-parsed or file-backed Resource Graph inventory pages and pre-parsed
-// resourcechanges pages with no network calls. A future PR replaces
-// LiveProviderFactory with a real read-only adapter proven by its own credential,
-// quota, throttle, and fixture gates.
+// The live Azure Resource Graph client stays behind PageProviderFactory and is
+// never the default. LiveProviderFactory is gated by construction: its zero
+// value returns ErrLiveProviderGated, while live calls require an explicitly
+// injected read-only LiveResourceGraphClient or AzureSDKResourceGraphClient.
+// Tests and offline tooling use FixturePageProvider, which serves pre-parsed or
+// file-backed Resource Graph inventory pages and pre-parsed resourcechanges
+// pages with no network calls. The command and chart paths do not enable live
+// transport.
 //
 // Resource-change facts are emitted only when TargetConfig.SourceLane is
 // azurecloud.SourceLaneResourceChanges and remain provenance-only. Reducer
@@ -28,6 +28,6 @@
 // Helm/chart wiring, and live transport activation belong outside this runtime
 // package; credential-bearing and chart slices remain gated by the Azure cloud
 // collector contract. Credentials are referenced by name only in
-// TargetConfig.CredentialRef, never inlined, so configuration is safe to log and
-// persist, and no secret or credential name reaches telemetry.
+// TargetConfig.CredentialRef, never inlined. Provider identifiers and credential
+// references remain control input only; they must not be copied into telemetry.
 package azureruntime
