@@ -488,12 +488,18 @@ identity-policy evidence attached to the resource, the row may also carry
 `identity_policy_evidence`: capped rows containing only the stable evidence key,
 bounded identity/role classes, and keyed principal/client/object/tenant
 fingerprints. If the reducer capped those rows for the resource,
-`identity_policy_evidence_truncated` is present and true. Raw provider
-identities, locators, raw tag values, raw principal GUIDs, raw assignment
-scopes, and credential names are never echoed. The response carries the
-`semantic_facts` truth envelope; when the active query profile cannot
-materialize the reducer-owned canonical rows (lightweight local) the route
-returns `501` (`unsupported_capability`).
+`identity_policy_evidence_truncated` is present and true. When Azure Resource
+Graph change facts attach to the same admitted canonical resource, the row can
+also carry `resource_change_freshness`: bounded freshness evidence with change
+type, change time, operation/client labels, actor class/fingerprint, changed
+property paths, and a `tombstone_candidate` flag for deletes. Those rows are
+investigation hints only; they do not create resources, finalize deletions, or
+write graph state. Raw provider identities, locators, raw actors, raw principal
+GUIDs, raw assignment scopes, changed values, raw tag values, and credential
+names are never echoed. The response
+carries the `semantic_facts` truth envelope; when the active query profile
+cannot materialize the reducer-owned canonical rows (lightweight local) the
+route returns `501` (`unsupported_capability`).
 
 Observability Evidence: the route is wrapped by the
 `query.cloud_inventory_readback` request span declared in

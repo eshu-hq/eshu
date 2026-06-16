@@ -122,6 +122,12 @@ func cloudInventoryAdmissionPayload(
 	if resource.IdentityPolicyEvidenceTruncated {
 		payload["identity_policy_evidence_truncated"] = true
 	}
+	if len(resource.ResourceChangeEvidence) > 0 {
+		payload["resource_change_freshness"] = cloudResourceChangeEvidencePayload(resource.ResourceChangeEvidence)
+	}
+	if resource.ResourceChangeEvidenceTruncated {
+		payload["resource_change_freshness_truncated"] = true
+	}
 	return payload
 }
 
@@ -148,6 +154,25 @@ func addNonBlankIdentityPolicyField(row map[string]string, key string, value str
 	if value != "" {
 		row[key] = value
 	}
+}
+
+func cloudResourceChangeEvidencePayload(evidence []CloudResourceChangeEvidence) []map[string]any {
+	out := make([]map[string]any, 0, len(evidence))
+	for _, row := range evidence {
+		out = append(out, map[string]any{
+			"evidence_key":               row.EvidenceKey,
+			"change_type":                row.ChangeType,
+			"change_time":                row.ChangeTime.UTC().Format(time.RFC3339Nano),
+			"operation":                  row.Operation,
+			"client_type":                row.ClientType,
+			"actor_class":                row.ActorClass,
+			"actor_fingerprint":          row.ActorFingerprint,
+			"changed_property_paths":     row.ChangedPropertyPaths,
+			"changed_property_truncated": row.ChangedPropertyTruncated,
+			"tombstone_candidate":        row.TombstoneCandidate,
+		})
+	}
+	return out
 }
 
 func cloudInventoryAdmissionBasePayload(

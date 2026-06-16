@@ -73,6 +73,17 @@ Raw ARM identities, assignment scopes, and raw principal GUIDs never cross the
 API or MCP boundary. Rows are capped per resource and set
 `identity_policy_evidence_truncated` when evidence was bounded.
 
+`azure_resource_change` is wired as freshness evidence only. The shared
+`cloud_inventory_admission` reducer domain reads persisted Resource Graph change
+facts for the same scope generation and attaches sanitized rows only to
+resources already admitted by inventory evidence. Change-only facts cannot mint
+canonical resources, write graph state, or finalize deletes; delete records
+remain `tombstone_candidate` investigation hints until inventory or reducer
+evidence confirms final state. The `GET /api/v0/cloud/inventory` readback and
+the MCP inventory tool expose only bounded change metadata, actor
+class/fingerprint, property paths, and truncation/tombstone flags; raw target
+ARM IDs, raw actors, provider bodies, and before/after values are not echoed.
+
 `azure_image_reference` facts now feed the existing `container_image_identity`
 handoff and reducer path when such facts are present. The projector enqueues the
 existing image-identity reducer domain for Azure image-reference generations,
@@ -190,7 +201,7 @@ change data is freshness input, not a replacement for full scans.
 | --- | --- | --- |
 | Resource Graph `Resources` API | Bounded inventory and metadata queries over configured subscriptions or management groups. Use explicit KQL, `$top`, `$skipToken`, `resultTruncated`, and scope metadata. | Emits source facts for the current generation. It does not write graph truth. |
 | Resource Graph tables and joins | Safe discovery for related resource classes when the table supports the relationship. | Provider relationship evidence only. Reducers resolve both endpoints before graph writes. |
-| Resource Graph `resourcechanges` | Freshness hint for create, update, and delete records with change type, target resource, operation, client type, and timestamp. | Emits change evidence. It does not prove final resource state and cannot replace inventory scans. |
+| Resource Graph `resourcechanges` | Freshness hint for create, update, and delete records with change type, target resource, operation, client type, and timestamp. | Emits change evidence. Reducers attach sanitized freshness only to already-admitted resources; it does not prove final resource state and cannot replace inventory scans. |
 | Azure Resource Manager fallback | Optional read-only `GET` calls for configured resource families where Resource Graph lacks safe detail. | Must be allowlisted, bounded, read-only, and versioned separately in the source fact payload. |
 
 Important provider constraints:
@@ -297,8 +308,9 @@ Azure facts stay provenance until reducers admit them:
    Principal fingerprints do not become identity graph nodes unless a later
    identity design admits them.
 5. Change reducers use `azure_resource_change` as freshness and investigation
-   evidence. Delete changes are tombstone candidates only after inventory or
-   reducer evidence confirms the final state.
+   evidence attached to admitted inventory resources only. Delete changes remain
+   tombstone candidates until inventory or reducer evidence confirms the final
+   state.
 6. Relationship reducers materialize graph edges only when both endpoints
    resolve exactly in the current allowed scope from observed
    `azure_cloud_resource` facts. Cross-tenant, cross-subscription, missing,

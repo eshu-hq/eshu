@@ -45,6 +45,20 @@ func cloudInventoryWriteFixture() CloudInventoryAdmissionWrite {
 						TenantFingerprint:    "tenant-marker",
 					},
 				},
+				ResourceChangeEvidence: []CloudResourceChangeEvidence{
+					{
+						EvidenceKey:              "change-stable-1",
+						ChangeType:               "deleted",
+						ChangeTime:               time.Date(2026, time.June, 16, 10, 30, 0, 0, time.UTC),
+						Operation:                "Microsoft.Compute/virtualMachines/delete",
+						ClientType:               "AzurePortal",
+						ActorClass:               "user",
+						ActorFingerprint:         "actor-marker",
+						ChangedPropertyPaths:     []string{"properties.provisioningState"},
+						ChangedPropertyTruncated: true,
+						TombstoneCandidate:       true,
+					},
+				},
 			},
 		},
 		Summary: CloudInventoryAdmissionSummary{Admitted: 2, Ambiguous: 1},
@@ -120,6 +134,26 @@ func TestPostgresCloudInventoryAdmissionWriterPersistsOneFactPerResource(t *test
 	}
 	if _, present := row["assignment_scope"]; present {
 		t.Fatalf("raw assignment_scope must not be persisted: %#v", row)
+	}
+	changeEvidence, ok := payload["resource_change_freshness"].([]any)
+	if !ok {
+		t.Fatalf("resource_change_freshness type = %T, want []any", payload["resource_change_freshness"])
+	}
+	if len(changeEvidence) != 1 {
+		t.Fatalf("resource_change_freshness length = %d, want 1", len(changeEvidence))
+	}
+	changeRow := changeEvidence[0].(map[string]any)
+	if changeRow["change_type"] != "deleted" || changeRow["tombstone_candidate"] != true {
+		t.Fatalf("resource change row = %#v, want deleted tombstone candidate", changeRow)
+	}
+	if changeRow["actor_fingerprint"] != "actor-marker" {
+		t.Fatalf("actor_fingerprint = %#v, want actor marker", changeRow["actor_fingerprint"])
+	}
+	if _, present := changeRow["target_arm_resource_id"]; present {
+		t.Fatalf("raw target identity must not be persisted in change evidence: %#v", changeRow)
+	}
+	if _, present := changeRow["changedBy"]; present {
+		t.Fatalf("raw actor field must not be persisted in change evidence: %#v", changeRow)
 	}
 }
 

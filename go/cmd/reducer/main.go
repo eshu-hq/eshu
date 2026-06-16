@@ -174,7 +174,7 @@ func buildReducerService(
 	if graphOrphanSweepRunner != nil {
 		graphOrphanSweepRunner.Logger = logger
 	}
-	cloudInventoryEvidenceLoader, cloudInventoryAdmissionWriter, cloudInventoryGenerationCheck, cloudInventoryTagEvidenceLoader, cloudInventoryIdentityPolicyEvidenceLoader := cloudInventoryAdmissionWiring(database, logger)
+	cloudInventoryEvidenceLoader, cloudInventoryAdmissionWriter, cloudInventoryGenerationCheck, cloudInventoryTagEvidenceLoader, cloudInventoryIdentityPolicyEvidenceLoader, cloudInventoryResourceChangeEvidenceLoader := cloudInventoryAdmissionWiring(database, logger)
 	multiCloudRuntimeDriftEvidenceLoader, multiCloudRuntimeDriftWriter, multiCloudRuntimeDriftLogger := multiCloudRuntimeDriftWiring(database, tracer, instruments, logger)
 	incidentRepoCorrelationLoader, incidentRepoCorrelationResolver, incidentRepoCorrelationWriter := incidentRepositoryCorrelationWiring(database)
 	semanticEntityExecutor := semanticEntityExecutorForGraphBackend(
@@ -323,6 +323,7 @@ func buildReducerService(
 		CloudInventoryGenerationCheck:              cloudInventoryGenerationCheck,
 		CloudInventoryTagEvidenceLoader:            cloudInventoryTagEvidenceLoader,
 		CloudInventoryIdentityPolicyEvidenceLoader: cloudInventoryIdentityPolicyEvidenceLoader,
+		CloudInventoryResourceChangeEvidenceLoader: cloudInventoryResourceChangeEvidenceLoader,
 		CloudResourceNodeWriter:                    graphWriters.cloudResourceNode,
 		EC2InstanceNodeWriter:                      graphWriters.ec2InstanceNode,
 		CloudResourceEdgeWriter:                    graphWriters.cloudResourceEdge,
