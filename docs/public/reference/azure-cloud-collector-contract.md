@@ -42,6 +42,19 @@ continuation tokens surface as warning evidence. Tests and the binary's offline
 mode use a fixture or file-backed `PageProvider`; Helm and command activation of
 live credentials remain gated.
 
+The allowlisted ARM fallback seam is also implemented behind
+`azureruntime.LiveProviderFactory`. It remains non-default and requires explicit
+in-process injection of a separate read-only `LiveARMFallbackClient`, exact
+resource-type `LiveARMFallbackRule` entries, fixed API versions, and bounded
+extension fields. The SDK wrapper exposes only Azure Resource Manager
+`GetByID`, and the fallback never registers providers or mutates resources. A
+fallback payload is attached under the Resource Graph row extension as
+`armFallback`, carries its own schema version, is byte-bounded before
+attachment, and then passes through the existing `azure_cloud_resource`
+redaction policy before persistence. Unsupported families, throttles, timeouts,
+permission-hidden resources, and oversized fallback payloads emit
+`azure_collection_warning` evidence rather than silent empty success.
+
 Shared multi-cloud reducer admission and API/MCP readback for the
 `azure_cloud_resource` identity are now implemented and fixture-proven. The
 additive `cloud_inventory_admission` reducer domain
@@ -293,8 +306,9 @@ data-plane content:
   object contents, connection strings, access keys, tokens, private endpoint
   hostnames, public IP addresses, private IP addresses, log payloads, database
   contents, request bodies, or provider response bodies.
-- ARM fallback payloads need their own redaction policy version and fixture
-  coverage.
+- ARM fallback payloads are separately schema-versioned under `armFallback`,
+  byte-bounded before attachment, and then passed through the
+  `azure_cloud_resource` redaction policy before persistence.
 
 Metric labels and status keys must never include ARM IDs, subscription IDs,
 resource group names, resource names, tags, identity GUIDs, DNS names, image
@@ -368,16 +382,18 @@ The first code PRs must prove these cases before any live smoke:
 | Throttling | Quota headers drive retry/backoff and eventually emit retryable status or warning evidence. |
 | Change delete | Delete change records do not fabricate a tombstone without inventory or reducer confirmation. |
 | Actor redaction | `changedBy`, identity GUIDs, and client IDs are fingerprinted and raw change payloads are absent. |
-| ARM fallback | Fallback only runs for allowlisted families and emits separate warning evidence when skipped. |
+| ARM fallback | Fallback only runs for allowlisted families, selects configured fields only, rejects oversized extension payloads, and emits separate warning evidence when skipped, throttled, timed out, or redacted. |
 | Reducer truth | Exact, derived, partial, stale, unavailable, and unsupported Azure paths agree across reducer facts and API/MCP reads. |
 
 ## Implementation Order
 
 1. Add fact constants, schema helpers, and fixture payload tests. **(done)**
 2. Add a Resource Graph client adapter with mocked `Resources` and
-   `resourcechanges` responses.
+   `resourcechanges` responses. **(live Resource Graph seam done; command and
+   chart activation remain gated.)**
 3. Add an allowlisted ARM fallback adapter with read-only mocked `GET`
-   responses.
+   responses. **(done behind explicit injection; command and chart activation
+   remain gated.)**
 4. Add the collector runtime and source fact emission. **(runtime scaffolding
    done: `azureruntime.Source` + `collector-azure-cloud` over a fixture/gated
    `PageProvider`; live adapter and claim-driven scheduling remain gated.)**
@@ -387,6 +403,6 @@ The first code PRs must prove these cases before any live smoke:
 7. Add Helm and live-smoke support only after the runtime and reducer contract
    pass fixture gates.
 
-The remaining live Azure runtime adapter, reducer admission, additional fact
-families, API/MCP readback, and chart wiring stay gated until their own
+Remaining command/chart credential activation, live smoke support, claim-driven
+scheduling, and later source-family scan loops stay gated until their own
 implementation PRs land with fixture and live proof.

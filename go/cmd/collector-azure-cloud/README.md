@@ -41,7 +41,9 @@ same `source_lane`.
 
 With `ESHU_AZURE_FIXTURE_PAGES_JSON` unset, the binary selects the zero-value
 `azureruntime.LiveProviderFactory`, which returns `ErrLiveProviderGated`. No
-default code path and no test issues a live Azure request. Command and chart
+default code path and no test issues a live Azure request. Resource Graph and
+allowlisted ARM fallback live adapters are available only by explicit
+in-process injection outside this command's default wiring. Command and chart
 activation of live credentials remain gated.
 
 ## Ownership boundary
@@ -58,9 +60,8 @@ command can run the existing fixture-only `resource_changes` lane when the
 target sets `source_lane=resource_changes` and the offline fixture points at
 Resource Graph `resourcechanges` pages. Identity, resource-change, DNS, and
 expanded readback admission, plus claim-driven scheduling, Helm/env/chart
-wiring, ARM fallback, live-smoke support, and command activation of live Azure
-credentials remain issue #1998 follow-ups gated by the Azure cloud collector
-contract.
+wiring, live-smoke support, and command activation of live Azure credentials
+remain issue #1998 follow-ups gated by the Azure cloud collector contract.
 
 ## Verify
 

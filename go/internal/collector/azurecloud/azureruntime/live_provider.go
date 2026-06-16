@@ -63,6 +63,17 @@ type LiveProviderFactory struct {
 	// ResourceGraphClient executes read-only Resource Graph Resources queries.
 	// A nil client keeps the factory gated.
 	ResourceGraphClient LiveResourceGraphClient
+	// ARMFallbackClient executes optional read-only ARM GET fallback calls for
+	// explicitly allowlisted resource families. Supplying it without
+	// ARMFallbackRules fails closed.
+	ARMFallbackClient LiveARMFallbackClient
+	// ARMFallbackRules is the code-owned allowlist for optional ARM GET
+	// fallback enrichment. Each rule fixes one resource type, API version, and
+	// bounded set of extension fields.
+	ARMFallbackRules []LiveARMFallbackRule
+	// ARMFallbackMaxExtensionBytes bounds one fallback extension wrapper before
+	// it can be added to a Resource Graph row. Zero uses the package default.
+	ARMFallbackMaxExtensionBytes int
 	// Query overrides the owned Resource Graph KQL. Blank uses the package
 	// default, which projects only fields consumed by azurecloud.ResourceRow.
 	Query string
@@ -103,27 +114,43 @@ func (f LiveProviderFactory) PageProvider(
 	if lane != azurecloud.SourceLaneResourceGraph {
 		return nil, fmt.Errorf("azure live provider supports source lane %q only", azurecloud.SourceLaneResourceGraph)
 	}
+	armRules, err := normalizeLiveARMFallbackRules(f.ARMFallbackRules)
+	if err != nil {
+		return nil, err
+	}
+	if len(armRules) > 0 && f.ARMFallbackClient == nil {
+		return nil, fmt.Errorf("azure live ARM fallback requires an injected read-only client")
+	}
+	if f.ARMFallbackClient != nil && len(armRules) == 0 {
+		return nil, fmt.Errorf("azure live ARM fallback requires at least one allowlist rule")
+	}
 	return &liveResourceGraphProvider{
-		client:         f.ResourceGraphClient,
-		target:         target,
-		query:          liveQuery(f.Query),
-		pageSize:       normalizedLivePageSize(f.PageSize),
-		requestTimeout: normalizedLiveTimeout(f.RequestTimeout),
-		maxRetries:     normalizedLiveRetries(f.MaxRetries),
-		backoffCap:     normalizedLiveBackoffCap(f.BackoffCap),
-		sleep:          normalizedLiveSleep(f.Sleep),
+		client:               f.ResourceGraphClient,
+		armClient:            f.ARMFallbackClient,
+		armRules:             armRules,
+		armMaxExtensionBytes: normalizedLiveARMFallbackMaxExtensionBytes(f.ARMFallbackMaxExtensionBytes),
+		target:               target,
+		query:                liveQuery(f.Query),
+		pageSize:             normalizedLivePageSize(f.PageSize),
+		requestTimeout:       normalizedLiveTimeout(f.RequestTimeout),
+		maxRetries:           normalizedLiveRetries(f.MaxRetries),
+		backoffCap:           normalizedLiveBackoffCap(f.BackoffCap),
+		sleep:                normalizedLiveSleep(f.Sleep),
 	}, nil
 }
 
 type liveResourceGraphProvider struct {
-	client         LiveResourceGraphClient
-	target         TargetConfig
-	query          string
-	pageSize       int32
-	requestTimeout time.Duration
-	maxRetries     int
-	backoffCap     time.Duration
-	sleep          func(context.Context, time.Duration) error
+	client               LiveResourceGraphClient
+	armClient            LiveARMFallbackClient
+	armRules             map[string]liveARMFallbackRule
+	armMaxExtensionBytes int
+	target               TargetConfig
+	query                string
+	pageSize             int32
+	requestTimeout       time.Duration
+	maxRetries           int
+	backoffCap           time.Duration
+	sleep                func(context.Context, time.Duration) error
 
 	mu     sync.Mutex
 	access azurecloud.ScopeAccess
@@ -138,7 +165,11 @@ func (p *liveResourceGraphProvider) NextPage(
 		response, err := p.queryResources(ctx, request)
 		if err == nil {
 			p.mergeAccess(response.Access)
-			return response.Page, nil
+			page := response.Page
+			if err := p.applyARMFallbacks(ctx, &page); err != nil {
+				return azurecloud.ResourceGraphPage{}, err
+			}
+			return page, nil
 		}
 		liveErr, ok := classifyLiveProviderError(err)
 		if !ok {
