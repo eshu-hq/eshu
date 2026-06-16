@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -39,7 +40,7 @@ func buildCollectorService(
 	if err != nil {
 		return collector.Service{}, err
 	}
-	factory, err := buildProviderFactory(getenv)
+	factory, err := buildProviderFactory(config, getenv)
 	if err != nil {
 		return collector.Service{}, err
 	}
@@ -93,7 +94,10 @@ func loadRedactionKey(path string) (redact.Key, error) {
 // buildProviderFactory selects the page provider seam. The file-backed offline
 // provider is for local proof and smoke tests only; the default is the gated
 // live seam, which is inert until a real read-only adapter is injected.
-func buildProviderFactory(getenv func(string) string) (azureruntime.PageProviderFactory, error) {
+func buildProviderFactory(
+	config azureruntime.Config,
+	getenv func(string) string,
+) (azureruntime.PageProviderFactory, error) {
 	fixture, ok, err := loadFixturePagesConfig(getenv)
 	if err != nil {
 		return nil, err
@@ -101,17 +105,54 @@ func buildProviderFactory(getenv func(string) string) (azureruntime.PageProvider
 	if !ok {
 		return azureruntime.LiveProviderFactory{}, nil
 	}
-	provider, err := azureruntime.NewFixturePageProviderFromFiles(
-		azurecloud.ScopeAccess{
-			Partial:             fixture.Partial,
-			HiddenResourceCount: fixture.HiddenResourceCount,
-			Reason:              fixture.Reason,
-			Message:             fixture.Message,
-		},
-		fixture.PagePaths...,
-	)
-	if err != nil {
-		return nil, err
+	access := azurecloud.ScopeAccess{
+		Partial:             fixture.Partial,
+		HiddenResourceCount: fixture.HiddenResourceCount,
+		Reason:              fixture.Reason,
+		Message:             fixture.Message,
 	}
-	return azureruntime.StaticFixtureFactory(provider), nil
+	var resourceGraphProvider azurecloud.PageProvider
+	var resourceChangesProvider azurecloud.PageProvider
+	for _, target := range config.Targets {
+		switch target.SourceLane {
+		case "", azurecloud.SourceLaneResourceGraph:
+			if resourceGraphProvider == nil {
+				provider, err := azureruntime.NewFixturePageProviderFromFiles(access, fixture.PagePaths...)
+				if err != nil {
+					return nil, err
+				}
+				resourceGraphProvider = provider
+			}
+		case azurecloud.SourceLaneResourceChanges:
+			if resourceChangesProvider == nil {
+				provider, err := azureruntime.NewFixtureResourceChangesPageProviderFromFiles(access, fixture.PagePaths...)
+				if err != nil {
+					return nil, err
+				}
+				resourceChangesProvider = provider
+			}
+		default:
+			return nil, fmt.Errorf("azure fixture page provider does not support source lane %q", target.SourceLane)
+		}
+	}
+	return azureruntime.PageProviderFactoryFunc(func(
+		_ context.Context,
+		_ azurecloud.Boundary,
+		target azureruntime.TargetConfig,
+	) (azurecloud.PageProvider, error) {
+		switch target.SourceLane {
+		case "", azurecloud.SourceLaneResourceGraph:
+			if resourceGraphProvider == nil {
+				return nil, fmt.Errorf("azure fixture Resource Graph provider is not configured")
+			}
+			return resourceGraphProvider, nil
+		case azurecloud.SourceLaneResourceChanges:
+			if resourceChangesProvider == nil {
+				return nil, fmt.Errorf("azure fixture resourcechanges provider is not configured")
+			}
+			return resourceChangesProvider, nil
+		default:
+			return nil, fmt.Errorf("azure fixture page provider does not support source lane %q", target.SourceLane)
+		}
+	}), nil
 }

@@ -24,9 +24,10 @@
 //
 // Resource-change facts are emitted only when TargetConfig.SourceLane is
 // azurecloud.SourceLaneResourceChanges and remain provenance-only. Reducer
-// admission, graph promotion, API and MCP readback, and Helm or chart wiring are
-// deferred follow-ups gated by the Azure cloud collector contract; this package
-// adds none of them. Credentials are referenced by name only in
+// admission, graph promotion, API and MCP readback, workflow scheduling,
+// Helm/chart wiring, and live transport activation belong outside this runtime
+// package; credential-bearing and chart slices remain gated by the Azure cloud
+// collector contract. Credentials are referenced by name only in
 // TargetConfig.CredentialRef, never inlined, so configuration is safe to log and
 // persist, and no secret or credential name reaches telemetry.
 package azureruntime

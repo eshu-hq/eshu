@@ -12,7 +12,8 @@ scaffolding slice of issue #1998.
 | `ESHU_AZURE_COLLECTOR_INSTANCE_ID` | yes | Collector instance that owns target policy and the credential environment. |
 | `ESHU_AZURE_TARGETS_JSON` | yes | JSON array of bounded Azure scope shards. |
 | `ESHU_AZURE_POLL_INTERVAL` | no | Sweep cadence (default 5m). |
-| `ESHU_AZURE_FIXTURE_PAGES_JSON` | no | File-backed offline page provider for local proof/smoke. Unset selects the gated live seam. |
+| `ESHU_AZURE_FIXTURE_PAGES_JSON` | no | File-backed offline Resource Graph or `resourcechanges` page provider for local proof/smoke. Unset selects the gated live seam. |
+| `ESHU_AZURE_REDACTION_KEY_FILE` | no | Read-only key-material file used to fingerprint tag values, managed identity GUIDs, and resource-change actors. Required by `source_lane=resource_changes`. |
 
 Each target object:
 
@@ -24,12 +25,15 @@ Each target object:
   "resource_type_family": "microsoft.compute",
   "location_bucket": "eastus",
   "credential_ref": "azure-read-only-spn",
+  "source_lane": "resource_graph",
   "fencing_token": 7
 }
 ```
 
 `credential_ref` is a **name**, never a secret value. `scope_kind` is one of
-`subscription`, `management_group`, or `tenant`.
+`subscription`, `management_group`, or `tenant`. `source_lane` defaults to
+`resource_graph`; `resource_changes` is fixture-only in this slice and emits
+provenance facts only.
 
 ## Live-call safety
 
@@ -38,12 +42,22 @@ With `ESHU_AZURE_FIXTURE_PAGES_JSON` unset, the binary selects
 `ErrLiveProviderGated`. No default code path and no test issues a live Azure
 request. A real read-only Resource Graph/ARM adapter is a separate gated PR.
 
-## Deferred (NOT in this slice)
+## Ownership boundary
 
-Reducer admission of `azure_cloud_resource`, the remaining Azure fact families
-(`azure_tag_observation`, identity/policy, relationships, DNS, image refs),
-API/MCP readback truth labels, claim-driven workflow scheduling, and
-Helm/env/chart wiring. Those follow the Azure cloud collector contract gate.
+This command owns process startup, environment parsing, provider-seam selection,
+shared telemetry bootstrap, and `collector.Service` construction for the Azure
+collector source. It does not own fact normalization, reducer admission, graph
+writes, API/MCP readback, workflow-coordinator claim scheduling, Helm values, or
+live Azure transport activation.
+
+Azure resource, tag, image-reference, and managed-relationship reducer slices
+are implemented in their owning packages and stay outside this binary. This
+command can run the existing fixture-only `resource_changes` lane when the
+target sets `source_lane=resource_changes` and the offline fixture points at
+Resource Graph `resourcechanges` pages. Identity, resource-change, DNS, and
+expanded readback admission, plus claim-driven scheduling, Helm/env/chart
+wiring, live-smoke support, and the real read-only Resource Graph/ARM adapter
+remain issue #1998 follow-ups gated by the Azure cloud collector contract.
 
 ## Verify
 

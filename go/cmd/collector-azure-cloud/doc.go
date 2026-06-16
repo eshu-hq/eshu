@@ -13,7 +13,8 @@
 // ESHU_AZURE_FIXTURE_PAGES_JSON set the command selects the inert
 // LiveProviderFactory, which never issues a live Azure call. A file-backed
 // offline provider (ESHU_AZURE_FIXTURE_PAGES_JSON) drives local proof and smoke
-// tests. Reducer admission, the remaining Azure fact families, API and MCP
-// readback, and Helm or chart wiring are deferred follow-ups gated by the Azure
-// cloud collector contract.
+// tests. Fact normalization, reducer admission, graph writes, API and MCP
+// readback, workflow scheduling, Helm wiring, and live Azure transport
+// activation belong to their owning packages and remain gated where the Azure
+// cloud collector contract requires credential or chart proof.
 package main
