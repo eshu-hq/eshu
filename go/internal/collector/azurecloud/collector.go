@@ -87,6 +87,12 @@ type ScanResult struct {
 	// Resource Graph resourcechanges source lane. These facts remain
 	// provenance-only; they do not admit graph state.
 	ResourceChangeCount int
+	// DNSRecordCount counts azure_dns_record facts emitted from supported DNS
+	// record-set rows. Record names and targets are fingerprinted.
+	DNSRecordCount int
+	// ImageReferenceCount counts azure_image_reference facts emitted from
+	// supported runtime image metadata. Owning resources remain source evidence.
+	ImageReferenceCount int
 }
 
 // Collector turns fixture or live Resource Graph pages into ordered Azure
@@ -196,6 +202,12 @@ func (c *Collector) Collect(ctx context.Context, boundary Boundary) (ScanResult,
 	}
 	if result.IdentityObservationCount > 0 {
 		c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureIdentityObservationFactKind, result.IdentityObservationCount)
+	}
+	if result.DNSRecordCount > 0 {
+		c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureDNSRecordFactKind, result.DNSRecordCount)
+	}
+	if result.ImageReferenceCount > 0 {
+		c.metrics.RecordFactsEmitted(ctx, boundary, facts.AzureImageReferenceFactKind, result.ImageReferenceCount)
 	}
 	return result, nil
 }
@@ -343,6 +355,22 @@ func (c *Collector) emitPageResources(boundary Boundary, page ResourceGraphPage,
 				result.Facts = append(result.Facts, idEnv)
 				result.IdentityObservationCount++
 			}
+			if dnsObs, ok := dnsRecordObservationFromRow(observation.Boundary, row); ok {
+				dnsEnv, err := NewDNSRecordEnvelope(dnsObs, c.redactionKey)
+				if err != nil {
+					return fmt.Errorf("build azure_dns_record fact: %w", err)
+				}
+				result.Facts = append(result.Facts, dnsEnv)
+				result.DNSRecordCount++
+			}
+			for _, imageObs := range imageReferenceObservationsFromRow(observation.Boundary, row) {
+				imageEnv, err := NewImageReferenceEnvelope(imageObs, c.redactionKey)
+				if err != nil {
+					return fmt.Errorf("build azure_image_reference fact: %w", err)
+				}
+				result.Facts = append(result.Facts, imageEnv)
+				result.ImageReferenceCount++
+			}
 		}
 	}
 	return nil
@@ -407,7 +435,7 @@ func rowToObservation(boundary Boundary, row ResourceRow, identity ARMIdentity) 
 		ProviderTime:   row.ProviderTime(),
 		Tags:           row.Tags,
 		HasIdentity:    row.HasIdentity(),
-		RawExtension:   row.Properties,
+		RawExtension:   resourceExtensionFromRow(row),
 		SourceRecordID: identity.Normalized,
 	}
 }

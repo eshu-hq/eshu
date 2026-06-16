@@ -141,9 +141,14 @@ as policy evidence only. The `azure_resource_change`, `azure_dns_record`, and
 unit-proven: change records carry changed property paths plus a fingerprinted
 actor (a delete is a tombstone candidate only); DNS records fingerprint the
 record name and every target; image references are digest-first with a
-fingerprinted container name. All Azure source fact-family envelope builders are
-now implemented; scan-loop emission for the later source families and reducer
-admission for identities, changes, and DNS follow.
+fingerprinted container name. Scan-loop emission now exists for DNS record-set
+rows and Container Apps image references when a redaction key is configured:
+unsupported or empty source data is skipped, duplicate image references converge
+within a row, DNS evidence remains provenance-only, and owning ARM resources do
+not mint repository, workload, service, deployment, or graph truth. DNS
+record-set properties are not persisted in the generic resource extension;
+their safe evidence is carried only by `azure_dns_record`. Reducer admission
+for DNS follows.
 
 The implemented slices remain fixture-testable without live Azure access.
 Live smoke tests are promotion proof, not the minimum proof for the source
@@ -181,7 +186,13 @@ the owning ARM resource identity does not invent repository anchors. `go test
 TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerations
 -count=1` proves the active cross-scope image-identity fact loader includes
 Azure image-reference facts while preserving active-generation and tombstone
-predicates. `go test ./internal/reducer -run
+predicates. `go test ./internal/collector/azurecloud -run
+'TestCollect(EmitsDNSAndImageReferencesWhenKeyed|SkipsDNSAndImageReferencesWithoutKey|SourceLaneEmissionHandlesEmptyUnsupportedMalformedAndDuplicateRows|SourceLaneEmissionPreservesPartialScopeWarning)'
+-count=1` proves Resource Graph scan-loop emission for keyed DNS and Container
+Apps image source rows, no-key fail-closed behavior, unsupported and empty
+source-data skips, duplicate image-reference convergence, partial-scope warning
+preservation, and DNS/container redaction boundaries without live Azure access.
+`go test ./internal/reducer -run
 'Azure(Resource|Relationship)Materialization|ExtractAzure' -count=1`, `go test
 ./internal/projector -run Azure -count=1`, `go test ./internal/storage/cypher
 -run AzureCloudResourceEdgeWriter -count=1`, and `go test ./cmd/reducer -run
@@ -207,6 +218,9 @@ Azure relationship materialization reuses the reducer queue, bounded completion
 logs, `GraphProjectionPhaseCanonicalNodesCommitted` readiness lookup, and the
 existing CloudResource Cypher writer shape; it adds no live Azure call, route,
 credential surface, chart value, or API/MCP tool surface.
+Azure DNS and image source-lane emission reuses the collector's existing
+bounded fact-count metric labels and adds no live Azure call, route, worker,
+queue domain, chart value, API/MCP tool surface, or graph write.
 
 ## Source Truth
 
