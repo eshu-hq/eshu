@@ -29,9 +29,9 @@ ship in this slice:
   and backs every test plus the binary's offline smoke path. It enforces
   continuation-token matching so pagination resume is exercised honestly.
 - `LiveClient` is the explicitly injected live REST seam for
-  `assets.list`. It requires a caller-supplied read-only token source, bounds
-  page size, response bytes, timeout, retry attempts, backoff, and asset-family
-  filters, and converts expected provider coverage gaps into
+  `assets.list`. It requires a caller-supplied credential whose IAM grants are
+  read-only, bounds page size, response bytes, timeout, retry attempts, backoff,
+  and asset-family filters, and converts expected provider coverage gaps into
   `gcp_collection_warning` facts. It is **not wired as a default**, so the
   command path still cannot make a Google Cloud call by accident.
 

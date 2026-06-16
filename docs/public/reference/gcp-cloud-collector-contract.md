@@ -30,10 +30,10 @@ the scoped telemetry, and a `cmd/collector-gcp-cloud` binary that wires the
 source and a status-recording committer from a declarative offline config. The
 live Cloud Asset Inventory transport is now implemented as the explicit-injection
 `gcpruntime.LiveClient` REST `PageProvider` for `assets.list`. It requires a
-caller-supplied read-only token source, bounds page size, response bytes,
-timeouts, retry attempts, backoff, OAuth scope, and asset-family filters, and
-keeps the command, chart, and scheduler paths default-off. No test makes a live
-Google Cloud call.
+caller-supplied credential whose IAM grants are read-only, bounds page size,
+response bytes, timeouts, retry attempts, backoff, OAuth scope, and
+asset-family filters, and keeps the command, chart, and scheduler paths
+default-off. No test makes a live Google Cloud call.
 
 Shared multi-cloud reducer admission and API/MCP readback for the
 `gcp_cloud_resource` identity are now implemented and fixture-proven. The

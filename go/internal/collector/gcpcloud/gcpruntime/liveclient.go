@@ -56,12 +56,15 @@ func (w ProviderWarning) Error() string {
 
 // LiveClient fetches Cloud Asset Inventory assets.list pages over REST. It is
 // never wired as the default provider; callers must explicitly inject it into a
-// Source after supplying a read-only TokenSource and bounded runtime settings.
+// Source after supplying a least-privilege credential and bounded runtime
+// settings. The OAuth scope is the broad scope assets.list accepts; read-only
+// behavior is enforced by IAM and by this client's GET-only CAI path.
 type LiveClient struct {
 	// CredentialRef names the read-only credential resolved out of band. It is a
 	// name only and is never sent to Cloud Asset Inventory or telemetry.
 	CredentialRef string
-	// TokenSource supplies read-only OAuth tokens. It must be set explicitly.
+	// TokenSource supplies OAuth tokens for assets.list. It must be set
+	// explicitly.
 	TokenSource oauth2.TokenSource
 	// HTTPClient performs REST calls. Nil uses http.DefaultClient.
 	HTTPClient *http.Client
