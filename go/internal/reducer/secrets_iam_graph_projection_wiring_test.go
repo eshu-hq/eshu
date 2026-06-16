@@ -1,6 +1,10 @@
 package reducer
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/truth"
+)
 
 // hasDomain reports whether the definition slice registers the given domain.
 func hasDomain(defs []DomainDefinition, domain Domain) (DomainDefinition, bool) {
@@ -37,6 +41,24 @@ func TestAppendAdditiveDomainsWiresSecretsIAMGraphProjection(t *testing.T) {
 	}
 	if handler.FactLoader == nil || handler.Writer == nil {
 		t.Fatalf("handler dependencies not wired: loader=%v writer=%v", handler.FactLoader, handler.Writer)
+	}
+	if !def.TruthContract.Supports(truth.LayerObservedResource) {
+		t.Fatal("secrets_iam_graph_projection truth contract does not accept observed_resource source evidence")
+	}
+	if def.TruthContract.Supports(truth.LayerCanonicalAsset) {
+		t.Fatal("secrets_iam_graph_projection truth contract accepts canonical_asset as source evidence")
+	}
+}
+
+func TestNewDefaultRegistryRegistersSecretsIAMGraphProjection(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewDefaultRegistry(DefaultHandlers{
+		FactLoader:            fakeFactLoader{},
+		SecretsIAMGraphWriter: &recordingGraphWriter{},
+	})
+	if err != nil {
+		t.Fatalf("NewDefaultRegistry() error = %v, want nil with secrets/IAM graph writer wired", err)
 	}
 }
 
