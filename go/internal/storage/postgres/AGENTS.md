@@ -157,6 +157,26 @@ When a caller later wires the store through the instrumented Postgres adapter,
 existing query/exec spans and `eshu_dp_postgres_query_duration_seconds` cover
 the SQL path.
 
+No-Regression Evidence: #2633 adds a nullable `partition_hash` column, partial
+pending indexes for hashed and unhashed rows, and Postgres selectors for pending
+shared intents that hash into a leased code-call partition or still need the
+legacy unhashed path. `go test ./internal/storage/postgres -run
+'TestSharedIntentStoreListPendingDomain(Partition|Unhashed)Intents|TestSharedIntentSchemaSQLIncludesPartitionCandidateIndexes'
+-count=1` failed before the selectors existed, then passed after the SQL
+filtered by projection domain, non-null partition hash plus modulo
+partition id/count, null partition hash for legacy rows, uncompleted state, and
+deterministic `created_at, intent_id` ordering. `go test
+./internal/storage/postgres -run 'TestSharedIntent(Store|Schema|SQL)' -count=1`
+and `go test ./internal/storage/postgres -count=1` prove shared-intent upsert
+batching, schema SQL parity, acceptance lookup, partition loading, history
+lookup, completion marking, and lease behavior still work with the new column.
+
+No-Observability-Change: the selector adds no table, route, queue domain,
+worker, lease, runtime knob, metric instrument, or metric label. The new read is
+covered by the existing `InstrumentedDB` Postgres query spans and
+`eshu_dp_postgres_query_duration_seconds`; operators still pair those with
+shared-intent backlog/status queries and reducer code-call cycle logs.
+
 ## Common changes and how to scope them
 
 - **Add a new Postgres store** → implement against `ExecQueryer`; add a

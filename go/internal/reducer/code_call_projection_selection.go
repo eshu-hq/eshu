@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -47,7 +48,7 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 	}
 
 	for {
-		pending, err := r.IntentReader.ListPendingDomainIntents(ctx, DomainCodeCalls, scanLimit)
+		pending, err := r.listPendingPartitionCandidates(ctx, partitionID, partitionCount, scanLimit)
 		if err != nil {
 			acceptanceTelemetry.RecordLookup(ctx, sharedAcceptanceLookupEvent{
 				Runner:   "code_call_projection",
@@ -243,6 +244,62 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 		}
 		scanLimit = nextLimit
 	}
+}
+
+func (r *CodeCallProjectionRunner) listPendingPartitionCandidates(
+	ctx context.Context,
+	partitionID int,
+	partitionCount int,
+	limit int,
+) ([]SharedProjectionIntentRow, error) {
+	if reader, ok := r.IntentReader.(CodeCallProjectionPartitionCandidateReader); ok {
+		rows, err := reader.ListPendingDomainPartitionIntents(ctx, DomainCodeCalls, partitionID, partitionCount, limit)
+		if err != nil {
+			return nil, err
+		}
+		return r.appendUnhashedPartitionCandidates(ctx, rows, partitionID, partitionCount, limit)
+	}
+	return r.IntentReader.ListPendingDomainIntents(ctx, DomainCodeCalls, limit)
+}
+
+func (r *CodeCallProjectionRunner) appendUnhashedPartitionCandidates(
+	ctx context.Context,
+	rows []SharedProjectionIntentRow,
+	partitionID int,
+	partitionCount int,
+	limit int,
+) ([]SharedProjectionIntentRow, error) {
+	reader, ok := r.IntentReader.(CodeCallProjectionUnhashedCandidateReader)
+	if !ok {
+		return rows, nil
+	}
+
+	legacyRows, err := reader.ListPendingDomainUnhashedIntents(
+		ctx,
+		DomainCodeCalls,
+		r.Config.acceptanceScanLimit(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range legacyRows {
+		if codeCallProjectionPartitionMatches(row, partitionID, partitionCount) {
+			rows = append(rows, row)
+		}
+	}
+	if len(legacyRows) == 0 {
+		return rows, nil
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		if !rows[i].CreatedAt.Equal(rows[j].CreatedAt) {
+			return rows[i].CreatedAt.Before(rows[j].CreatedAt)
+		}
+		return rows[i].IntentID < rows[j].IntentID
+	})
+	if limit > 0 && len(rows) > limit {
+		rows = rows[:limit]
+	}
+	return rows, nil
 }
 
 func (r *CodeCallProjectionRunner) codeCallProjectionRowBlockedByRepoFence(
