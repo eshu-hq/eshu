@@ -21,8 +21,8 @@ const (
 	// CloudAssetInventoryEndpoint is the default Cloud Asset Inventory API
 	// endpoint used by LiveClient.
 	CloudAssetInventoryEndpoint = "https://cloudasset.googleapis.com"
-	// CloudPlatformReadOnlyScope is the OAuth scope used by the ADC helper.
-	CloudPlatformReadOnlyScope = "https://www.googleapis.com/auth/cloud-platform.read-only"
+	// CloudAssetInventoryOAuthScope is the OAuth scope accepted by assets.list.
+	CloudAssetInventoryOAuthScope = "https://www.googleapis.com/auth/cloud-platform"
 	// DefaultLivePageSize keeps live assets.list pages bounded when the caller
 	// does not specify a smaller page size.
 	DefaultLivePageSize = 100
@@ -93,7 +93,7 @@ func NewADCLiveClient(ctx context.Context, credentialRef string) (LiveClient, er
 	if strings.TrimSpace(credentialRef) == "" {
 		return LiveClient{}, errors.New("gcp live credential_ref is required")
 	}
-	ts, err := google.DefaultTokenSource(ctx, CloudPlatformReadOnlyScope)
+	ts, err := google.DefaultTokenSource(ctx, CloudAssetInventoryOAuthScope)
 	if err != nil {
 		return LiveClient{}, errors.New("gcp application default token source unavailable")
 	}
@@ -220,7 +220,11 @@ func (c LiveClient) requestURL(req PageRequest) (string, error) {
 	if token := strings.TrimSpace(req.PageToken); token != "" {
 		values.Set("pageToken", token)
 	}
-	for _, assetType := range liveAssetTypes(req.Scope.AssetTypeFamily) {
+	assetTypes, err := liveAssetTypes(req.Scope.AssetTypeFamily)
+	if err != nil {
+		return "", err
+	}
+	for _, assetType := range assetTypes {
 		values.Add("assetTypes", assetType)
 	}
 	return base + "/v1/" + parentPath + "/assets?" + values.Encode(), nil
@@ -260,20 +264,48 @@ func liveContentType(family string) (string, error) {
 	}
 }
 
-func liveAssetTypes(family string) []string {
+func liveAssetTypes(family string) ([]string, error) {
 	trimmed := strings.TrimSpace(family)
 	if trimmed == "" || trimmed == "mixed" {
-		return nil
+		return nil, nil
 	}
 	parts := strings.Split(trimmed, ",")
 	out := make([]string, 0, len(parts))
 	for _, part := range parts {
 		value := strings.TrimSpace(part)
-		if strings.Contains(value, ".googleapis.com/") {
+		switch {
+		case value == "":
+			continue
+		case strings.Contains(value, ".googleapis.com/"):
 			out = append(out, value)
+		case safeAssetFamily(value):
+			out = append(out, value+".googleapis.com.*")
+		default:
+			return nil, ProviderWarning{
+				WarningKind: gcpcloud.WarningKindUnsupported,
+				Outcome:     gcpcloud.OutcomeUnsupported,
+				Reason:      "cloud asset inventory asset family unsupported",
+			}
 		}
 	}
-	return out
+	if len(out) == 0 {
+		return nil, ProviderWarning{
+			WarningKind: gcpcloud.WarningKindUnsupported,
+			Outcome:     gcpcloud.OutcomeUnsupported,
+			Reason:      "cloud asset inventory asset family unsupported",
+		}
+	}
+	return out, nil
+}
+
+func safeAssetFamily(value string) bool {
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func classifyLiveStatus(status int) ProviderWarning {

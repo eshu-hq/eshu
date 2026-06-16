@@ -31,8 +31,9 @@ source and a status-recording committer from a declarative offline config. The
 live Cloud Asset Inventory transport is now implemented as the explicit-injection
 `gcpruntime.LiveClient` REST `PageProvider` for `assets.list`. It requires a
 caller-supplied read-only token source, bounds page size, response bytes,
-timeouts, retry attempts, and backoff, and keeps the command, chart, and
-scheduler paths default-off. No test makes a live Google Cloud call.
+timeouts, retry attempts, backoff, OAuth scope, and asset-family filters, and
+keeps the command, chart, and scheduler paths default-off. No test makes a live
+Google Cloud call.
 
 Shared multi-cloud reducer admission and API/MCP readback for the
 `gcp_cloud_resource` identity are now implemented and fixture-proven. The
@@ -461,8 +462,8 @@ No-Regression Evidence:
   the existing `postgres.IngestionStore` unchanged by this slice.
 - Input shape: two-page `assets.list` fixtures (three resources) per scope, plus
   stale-generation, dangling-page-token, multi-scope, empty-scope, local HTTP
-  live-adapter pagination, path-validation, retry, quota, permission, and
-  unavailable-provider cases.
+  live-adapter pagination, path-validation, OAuth-scope, asset-family filter,
+  retry, quota, permission, and unavailable-provider cases.
 - Terminal counts: one `CollectedGeneration` per configured scope; three
   `gcp_cloud_resource` facts and two label-backed `gcp_tag_observation` facts
   for the two-page resource fixture; the IAM-policy fixture emits one

@@ -69,6 +69,69 @@ func TestLiveClientFetchPageUsesBoundedAssetsListRequest(t *testing.T) {
 	}
 }
 
+func TestNewADCLiveClientUsesAssetsListOAuthScope(t *testing.T) {
+	if CloudAssetInventoryOAuthScope != "https://www.googleapis.com/auth/cloud-platform" {
+		t.Fatalf("CloudAssetInventoryOAuthScope = %q, want assets.list OAuth scope", CloudAssetInventoryOAuthScope)
+	}
+}
+
+func TestLiveClientMapsBareAssetFamilyToBoundedFilter(t *testing.T) {
+	scopeCfg := testScope()
+	scopeCfg.AssetTypeFamily = "compute"
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		got := r.URL.Query()["assetTypes"]
+		if len(got) != 1 || got[0] != "compute.googleapis.com.*" {
+			t.Fatalf("assetTypes = %#v, want bounded compute regex", got)
+		}
+		_, _ = w.Write([]byte(`{"readTime":"2026-06-16T12:00:00Z","assets":[]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client := LiveClient{
+		TokenSource: staticTokenSource("live-token"),
+		HTTPClient:  server.Client(),
+		Endpoint:    server.URL,
+	}
+	if _, err := client.FetchPage(context.Background(), PageRequest{Scope: scopeCfg.withDefaults()}); err != nil {
+		t.Fatalf("FetchPage: %v", err)
+	}
+	if requests != 1 {
+		t.Fatalf("requests = %d, want 1", requests)
+	}
+}
+
+func TestLiveClientRejectsUnsupportedAssetFamilyBeforeRequest(t *testing.T) {
+	scopeCfg := testScope()
+	scopeCfg.AssetTypeFamily = "compute/instances"
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		requests++
+	}))
+	t.Cleanup(server.Close)
+
+	client := LiveClient{
+		TokenSource: staticTokenSource("live-token"),
+		HTTPClient:  server.Client(),
+		Endpoint:    server.URL,
+	}
+	_, err := client.FetchPage(context.Background(), PageRequest{Scope: scopeCfg.withDefaults()})
+	if err == nil {
+		t.Fatal("FetchPage returned nil error, want unsupported warning")
+	}
+	var warning ProviderWarning
+	if !errors.As(err, &warning) {
+		t.Fatalf("err = %T, want ProviderWarning", err)
+	}
+	if warning.WarningKind != gcpcloud.WarningKindUnsupported {
+		t.Fatalf("warning kind = %q, want unsupported", warning.WarningKind)
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
+	}
+}
+
 func TestLiveClientRejectsMissingTokenSourceBeforeRequest(t *testing.T) {
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
