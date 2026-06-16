@@ -60,6 +60,17 @@ type CodeCallProjectionCurrentRunPartitionHistoryLookup interface {
 	) (bool, error)
 }
 
+// CodeCallProjectionCurrentRunRefreshHistoryLookup checks whether a completed
+// repo-refresh intent from the selected source run already covers a file slice.
+type CodeCallProjectionCurrentRunRefreshHistoryLookup interface {
+	HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents(
+		ctx context.Context,
+		key SharedProjectionAcceptanceKey,
+		filePaths []string,
+		domain string,
+	) (bool, error)
+}
+
 // ReducerGraphDrain reports whether reducer graph-writing domains are still
 // active, letting local single-backend runners avoid graph write contention.
 type ReducerGraphDrain interface {
@@ -386,7 +397,7 @@ func (r *CodeCallProjectionRunner) processPartitionOnce(
 	processingStart := time.Now()
 	writtenGroups := 0
 	if len(active) > 0 {
-		skipRetract, err := r.shouldSkipCodeCallRetract(ctx, selection.Key, selection.PartitionKey, staleIDs)
+		skipRetract, err := r.shouldSkipCodeCallRetract(ctx, selection.Key, selection.PartitionKey, active, staleIDs)
 		if err != nil {
 			return result, err
 		}

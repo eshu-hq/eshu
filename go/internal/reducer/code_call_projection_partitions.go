@@ -44,6 +44,47 @@ func codeCallProjectionIsWholeScoped(row SharedProjectionIntentRow) bool {
 	return kind == codeCallProjectionPartitionWhole || kind == codeCallProjectionPartitionLegacy
 }
 
+func codeCallProjectionIsRepoRefresh(row SharedProjectionIntentRow) bool {
+	if row.Payload == nil {
+		return false
+	}
+	return strings.TrimSpace(anyToString(row.Payload["intent_type"])) == "repo_refresh"
+}
+
+func codeCallProjectionRefreshCoversRow(refresh SharedProjectionIntentRow, row SharedProjectionIntentRow) bool {
+	if !codeCallProjectionIsRepoRefresh(refresh) ||
+		!codeCallProjectionSameAcceptanceUnit(refresh, row) ||
+		codeCallProjectionRowRepository(refresh) != codeCallProjectionRowRepository(row) {
+		return false
+	}
+	if codeCallProjectionIsWholeScoped(refresh) {
+		return true
+	}
+	if !codeCallProjectionIsFileScoped(refresh) {
+		return false
+	}
+	if refresh.PartitionKey == row.PartitionKey {
+		return true
+	}
+	rowFiles := semanticPayloadStringSlice(row.Payload, "delta_file_paths")
+	if len(rowFiles) == 0 {
+		return false
+	}
+	refreshFiles := make(map[string]struct{}, len(rowFiles))
+	for _, filePath := range semanticPayloadStringSlice(refresh.Payload, "delta_file_paths") {
+		refreshFiles[filePath] = struct{}{}
+	}
+	if len(refreshFiles) == 0 {
+		return false
+	}
+	for _, filePath := range rowFiles {
+		if _, ok := refreshFiles[filePath]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
 func codeCallProjectionRowsForPartition(
 	rows []SharedProjectionIntentRow,
 	partitionKey string,

@@ -186,6 +186,58 @@ func TestCodeCallProjectionRunnerRetractsForDifferentCurrentRunPartition(t *test
 	}
 }
 
+func TestCodeCallProjectionRunnerSkipsRetractAfterCompletedCoveringRefresh(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 28, 17, 39, 0, 0, time.UTC)
+	activePartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/models.go"})
+	active := codeCallProjectionDeltaPartitionRow(
+		"models-edge",
+		activePartition,
+		"repo-a",
+		"/repo/src/models.go",
+		now,
+	)
+	baseReader := &fakeCodeCallIntentStore{
+		pendingByDomain: []SharedProjectionIntentRow{active},
+		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+			"scope-a|repo-a|run-1": {active},
+		},
+		leaseGranted: true,
+	}
+	reader := &historyAwareCodeCallIntentStore{
+		fakeCodeCallIntentStore: baseReader,
+		hasCompleted:            true,
+		completedCurrentRunRefresh: map[string]bool{
+			"/repo/src/models.go": true,
+		},
+	}
+	writer := &recordingCodeCallProjectionEdgeWriter{}
+	runner := CodeCallProjectionRunner{
+		IntentReader: reader,
+		LeaseManager: reader,
+		EdgeWriter:   writer,
+		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+			return "gen-1", key.ScopeID == "scope-a" && key.AcceptanceUnitID == "repo-a" && key.SourceRunID == "run-1"
+		},
+		Config: CodeCallProjectionRunnerConfig{BatchLimit: 10},
+	}
+
+	result, err := runner.processOnce(context.Background(), now)
+	if err != nil {
+		t.Fatalf("processOnce() error = %v", err)
+	}
+	if got, want := len(writer.retractCalls), 0; got != want {
+		t.Fatalf("len(retractCalls) = %d, want %d after covering refresh", got, want)
+	}
+	if got, want := result.RetractedRows, 0; got != want {
+		t.Fatalf("RetractedRows = %d, want %d", got, want)
+	}
+	if got, want := result.UpsertedRows, 1; got != want {
+		t.Fatalf("UpsertedRows = %d, want %d", got, want)
+	}
+}
+
 func TestCodeCallProjectionRunnerRetractsWhenStaleRowsExistWithoutDurableHistory(t *testing.T) {
 	t.Parallel()
 

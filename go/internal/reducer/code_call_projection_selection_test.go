@@ -132,6 +132,70 @@ func TestCodeCallProjectionRunnerSelectsAcceptanceUnitBeyondInitialBatchWindow(t
 	}
 }
 
+func TestCodeCallProjectionRunnerScansAcceptanceUnitForCoveringRefreshBeyondDomainPage(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 17, 11, 30, 0, 0, time.UTC)
+	partitionCount := 8
+	filePartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
+	refreshPartition := codeCallRefreshPartitionKeyForDelta(
+		"repo-a",
+		[]string{"src/caller.go", "src/models.go"},
+	)
+	filePartitionID := mustPartitionForKey(t, filePartition, partitionCount)
+	if got := mustPartitionForKey(t, refreshPartition, partitionCount); got == filePartitionID {
+		t.Fatalf("refresh partition mapped to file partition %d; choose different fixture paths", filePartitionID)
+	}
+	fileRow := codeCallProjectionDeltaPartitionRow(
+		"caller-edge",
+		filePartition,
+		"repo-a",
+		"/repo/src/caller.go",
+		now,
+	)
+	refreshRow := codeCallProjectionFileRefreshRow(
+		"covering-refresh",
+		refreshPartition,
+		"repo-a",
+		[]string{"/repo/src/caller.go", "/repo/src/models.go"},
+		now.Add(time.Millisecond),
+	)
+	reader := &fakeCodeCallIntentStore{
+		pendingByDomain: []SharedProjectionIntentRow{fileRow, refreshRow},
+		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+			"scope-a|repo-a|run-1": {fileRow, refreshRow},
+		},
+	}
+	runner := CodeCallProjectionRunner{
+		IntentReader: reader,
+		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
+		Config: CodeCallProjectionRunnerConfig{
+			BatchLimit:          1,
+			AcceptanceScanLimit: 10,
+			PartitionCount:      partitionCount,
+		},
+	}
+
+	result, err := runner.selectAcceptanceUnitPartitionWorkWithStats(
+		context.Background(),
+		now,
+		filePartitionID,
+		partitionCount,
+	)
+	if err != nil {
+		t.Fatalf("selectAcceptanceUnitPartitionWorkWithStats() error = %v", err)
+	}
+	if result.Key != (SharedProjectionAcceptanceKey{}) {
+		t.Fatalf("selection = %#v, want file partition blocked by covering refresh outside initial page", result)
+	}
+	if got, want := reader.domainLimitRequests[0], 1; got != want {
+		t.Fatalf("first domain limit = %d, want %d", got, want)
+	}
+	if len(reader.acceptanceLimitRequests) == 0 {
+		t.Fatal("acceptanceLimitRequests empty, want acceptance-unit scan for covering refresh")
+	}
+}
+
 func TestCodeCallProjectionRunnerSkipsAcceptanceUnitUntilCanonicalNodesCommitted(t *testing.T) {
 	t.Parallel()
 

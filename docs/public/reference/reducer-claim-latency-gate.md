@@ -170,6 +170,26 @@ the existing reducer queue claim duration, Postgres queue query duration,
 reducer queue wait, batch claim size, `/admin/status`, and reducer logs as the
 current diagnostic surface.
 
+## Code-Call Refresh Fence Evidence
+
+No-Regression Evidence: #2626 changes only code-call partition selection
+fencing. The regression input shapes are a same-run earlier file partition
+followed by a later whole repo refresh, and a `BatchLimit=1` domain page where a
+same-run covering file refresh sorts outside the current
+`ListPendingDomainIntents` page. `go test ./internal/reducer -run
+'TestCodeCallProjectionRunner(LaterWholeRefreshDoesNotBlockEarlierFilePartition|ScansAcceptanceUnitForCoveringRefreshBeyondDomainPage)'
+-count=1` failed before the fence fix and passed after it. `go test
+./internal/reducer -count=1` proves the unchanged reducer package contract,
+including partition leases, whole-scope fencing, refresh retraction, and
+current-run partition history behavior.
+
+No-Observability-Change: #2626 adds no graph write, queue SQL, worker count,
+runtime knob, route, metric, span, log field, API/MCP response field, or schema
+DDL. Operators keep diagnosing code-call partition progress through existing
+partition lease timing, selection timing, blocked-readiness counters,
+processed/retracted/upserted row counts, shared-intent backlog/status rows, and
+edge writer counters.
+
 ## Search-Document Claim Priority Evidence
 
 Benchmark Evidence: #2627 changes only the reducer batch-claim ordering for

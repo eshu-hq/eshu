@@ -54,10 +54,52 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunPartitionDomainInte
 	}
 }
 
+func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunRefreshDomainIntents(t *testing.T) {
+	t.Parallel()
+
+	db := &partitionHistoryTestDB{refreshCompleted: true}
+	store := NewSharedIntentStore(db)
+	ctx := context.Background()
+
+	got, err := store.HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents(ctx, reducer.SharedProjectionAcceptanceKey{
+		ScopeID:          "scope-a",
+		AcceptanceUnitID: "repo-a",
+		SourceRunID:      "run-new",
+	}, []string{"/repo/src/models.go"}, reducer.DomainCodeCalls)
+	if err != nil {
+		t.Fatalf("HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents: %v", err)
+	}
+	if !got {
+		t.Fatal("HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents = false, want true")
+	}
+	if got, want := len(db.queryArgs), 5; got != want {
+		t.Fatalf("query arg count = %d, want %d", got, want)
+	}
+	if !strings.Contains(db.query, "payload->>'intent_type' = 'repo_refresh'") {
+		t.Fatalf("query = %q, want repo_refresh filter", db.query)
+	}
+	if !strings.Contains(db.query, "jsonb_array_elements_text(payload->'delta_file_paths')") {
+		t.Fatalf("query = %q, want delta_file_paths coverage check", db.query)
+	}
+
+	got, err = store.HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents(ctx, reducer.SharedProjectionAcceptanceKey{
+		ScopeID:          "scope-a",
+		AcceptanceUnitID: "repo-a",
+		SourceRunID:      "run-new",
+	}, nil, reducer.DomainCodeCalls)
+	if err != nil {
+		t.Fatalf("HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents empty files: %v", err)
+	}
+	if got {
+		t.Fatal("HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents empty files = true, want false")
+	}
+}
+
 type partitionHistoryTestDB struct {
-	completed map[string]bool
-	query     string
-	queryArgs []any
+	completed        map[string]bool
+	refreshCompleted bool
+	query            string
+	queryArgs        []any
 }
 
 func (db *partitionHistoryTestDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
@@ -67,6 +109,9 @@ func (db *partitionHistoryTestDB) ExecContext(context.Context, string, ...any) (
 func (db *partitionHistoryTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
 	db.query = query
 	db.queryArgs = append([]any(nil), args...)
+	if strings.Contains(query, "payload->>'intent_type' = 'repo_refresh'") {
+		return &partitionHistoryRows{exists: db.refreshCompleted, idx: -1}, nil
+	}
 	partitionKey := args[3].(string)
 	return &partitionHistoryRows{exists: db.completed[partitionKey], idx: -1}, nil
 }

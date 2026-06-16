@@ -154,6 +154,10 @@ No-Regression Evidence: `go test ./internal/reducer -run 'TestBuildCodeCallRefre
 
 No-Observability-Change: the CALLS delta partition change only alters reducer intent construction for accepted code-call materialization rows. It adds no graph query, queue table, worker, lease, runtime knob, metric instrument, or metric label; operators still diagnose the path through existing `code_call_materialization` completion logs, code-call projection runner timing, reducer execution counters, and shared-intent backlog/status queries.
 
+No-Regression Evidence: `go test ./internal/reducer -run 'TestCodeCallProjectionRunner(FileRefreshBlocksCoveredFilePartitions|SkipsRetractAfterCompletedCoveringRefresh)' -count=1` failed before file-scoped `repo_refresh` rows fenced later file partitions and completed current-run refresh rows suppressed redundant first-retracts, then passed. `go test ./internal/storage/postgres -run 'TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRun(Partition|Refresh)DomainIntents' -count=1` proves the refresh-history lookup stays bounded to one acceptance/source run, completed `repo_refresh` rows, and selected file paths.
+
+No-Observability-Change: the code-call refresh fence change only adjusts shared-intent selection and current-run history lookup for existing code-call projection rows. It adds no route, graph query shape, queue table, worker, lease, runtime knob, metric instrument, or metric label; operators still diagnose the path through existing code-call projection cycle logs, shared-intent backlog/status queries, partition lease rows, reducer execution counters, and Postgres query instrumentation.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain
