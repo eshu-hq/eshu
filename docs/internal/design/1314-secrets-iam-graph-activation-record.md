@@ -7,7 +7,7 @@ gates: [#1381](https://github.com/eshu-hq/eshu/issues/1381) /
 §12 / §14.
 
 **Status: REMOTE-VALIDATION PROOF CAPTURED — repository, chart, and operator
-defaults remain OFF; rollback owner still requires operator confirmation.**
+defaults remain OFF; rollback owner confirmed.**
 `risk:schema` approval in principle was recorded 2026-06-11 (§1) and bound on
 2026-06-16 to the target named in §2 for proof collection only. The flag was
 enabled only for the transient remote-validation reducer proof in §4. This
@@ -68,14 +68,14 @@ Attestations:
 bound on 2026-06-16 to `remote-amd64-validation/issue-2430-secrets-iam-proof`
 only.**
 
-## 2. Target-deployment decision — PROOF CAPTURED; OWNER PENDING
+## 2. Target-deployment decision — PROOF CAPTURED; OWNER CONFIRMED
 
 | Field | Value |
 | --- | --- |
 | Deployment (exactly one) | `remote-amd64-validation/issue-2430-secrets-iam-proof` |
 | Backend | NornicDB default canonical backend |
 | Reducer scope(s) projected | Ephemeral live-proof scope only: `scope:test:secrets-iam-live:<nonce>`; production evidence source remains `reducer/secrets-iam-graph` |
-| Rollback owner | _TBD — operator confirmation required before #2430 closeout_ |
+| Rollback owner | `linuxdynasty / Eshu maintainer on-call` |
 | Observation window after flip | 2026-06-16 19:14:49Z remote-validation proof window for transient flag-on reducer startup, live writer readback, focused reducer/cypher package gates, and cleanup verification |
 
 Confirm no other writer owns the `SecretsIAM*` labels in this deployment (the
@@ -142,10 +142,10 @@ backend branch, or new graph-write route.
 Closeable only when §1, §2, §3, and §4 are complete and the evidence is attached
 here.
 
-- [ ] Rollback owner confirmed for
+- [x] Rollback owner confirmed for
       `remote-amd64-validation/issue-2430-secrets-iam-proof`.
 - [x] No redaction regressions (property allowlist §7 enforced end to end).
-- [ ] #2430 closed with this record linked.
+- [x] #2430 closed with this record linked.
 
 ## What NOT to do
 
