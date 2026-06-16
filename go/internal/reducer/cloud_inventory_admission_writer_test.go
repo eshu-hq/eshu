@@ -36,6 +36,15 @@ func cloudInventoryWriteFixture() CloudInventoryAdmissionWrite {
 				ManagementOrigin:    ManagementOriginDeclared,
 				HasDeclaredEvidence: true,
 				HasObservedEvidence: true,
+				IdentityPolicyEvidence: []CloudIdentityPolicyEvidence{
+					{
+						EvidenceKey:          "identity-stable-1",
+						IdentityType:         "system_assigned",
+						RoleClass:            "contributor",
+						PrincipalFingerprint: "principal-marker",
+						TenantFingerprint:    "tenant-marker",
+					},
+				},
 			},
 		},
 		Summary: CloudInventoryAdmissionSummary{Admitted: 2, Ambiguous: 1},
@@ -97,6 +106,20 @@ func TestPostgresCloudInventoryAdmissionWriterPersistsOneFactPerResource(t *test
 	}
 	if payload["has_declared_evidence"] != true {
 		t.Fatalf("has_declared_evidence = %#v, want true", payload["has_declared_evidence"])
+	}
+	evidence, ok := payload["identity_policy_evidence"].([]any)
+	if !ok {
+		t.Fatalf("identity_policy_evidence type = %T, want []any", payload["identity_policy_evidence"])
+	}
+	if len(evidence) != 1 {
+		t.Fatalf("identity_policy_evidence length = %d, want 1", len(evidence))
+	}
+	row := evidence[0].(map[string]any)
+	if row["principal_fingerprint"] != "principal-marker" || row["tenant_fingerprint"] != "tenant-marker" {
+		t.Fatalf("identity_policy_evidence row = %#v", row)
+	}
+	if _, present := row["assignment_scope"]; present {
+		t.Fatalf("raw assignment_scope must not be persisted: %#v", row)
 	}
 }
 

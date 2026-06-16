@@ -2416,14 +2416,22 @@ reducer-owned read-model facts through `PostgresCloudInventoryAdmissionWriter`
 (`cloud_inventory_admission_writer.go`, fact kind
 `reducer_cloud_resource_identity`).
 
-The slice is graph-neutral. Canonical graph node/edge projection, the
-multi-cloud drift join, and API/MCP readback are deferred follow-ups. The
+The admission slice is graph-neutral. Canonical graph node/edge projection
+stays in separate domains; the admission writer publishes the
+`reducer_cloud_resource_identity` Postgres read model consumed by the
+cloud-inventory API/MCP readback and the shared multi-cloud drift join. The
 evidence layer is preserved: declared, applied, and observed are distinct
 inputs, and a provider observation never overwrites declared IaC truth — the
 admitted row records `management_origin` as the strongest contributing layer
 (declared > applied > observed) plus per-layer evidence flags. Blank,
 malformed, ambiguous, and unsupported identities are counted in the admission
-summary and never fabricated into a uid.
+summary and never fabricated into a uid. Additive evidence loaders may attach
+safe readback-only metadata to already admitted resources: tag evidence
+surfaces keyed `tag_value_fingerprints`, and Azure identity observations
+surface capped `identity_policy_evidence` rows containing only bounded classes
+and keyed fingerprints. Tag facts and identity facts never admit resources on
+their own, and raw tag values, principal GUIDs, ARM identities, and assignment
+scopes do not cross the readback boundary.
 
 No-Regression Evidence: this slice is additive and does not change any existing
 hot-path query, lease, batch size, worker count, or graph write. Baseline:

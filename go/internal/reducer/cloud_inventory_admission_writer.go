@@ -116,7 +116,38 @@ func cloudInventoryAdmissionPayload(
 		// safe to persist and surface for value-blind tag correlation.
 		payload["tag_value_fingerprints"] = resource.TagValueFingerprints
 	}
+	if len(resource.IdentityPolicyEvidence) > 0 {
+		payload["identity_policy_evidence"] = cloudIdentityPolicyEvidencePayload(resource.IdentityPolicyEvidence)
+	}
+	if resource.IdentityPolicyEvidenceTruncated {
+		payload["identity_policy_evidence_truncated"] = true
+	}
 	return payload
+}
+
+func cloudIdentityPolicyEvidencePayload(records []CloudIdentityPolicyEvidence) []map[string]string {
+	out := make([]map[string]string, 0, len(records))
+	for _, record := range records {
+		row := map[string]string{}
+		addNonBlankIdentityPolicyField(row, "evidence_key", record.EvidenceKey)
+		addNonBlankIdentityPolicyField(row, "identity_type", record.IdentityType)
+		addNonBlankIdentityPolicyField(row, "role_class", record.RoleClass)
+		addNonBlankIdentityPolicyField(row, "principal_fingerprint", record.PrincipalFingerprint)
+		addNonBlankIdentityPolicyField(row, "client_fingerprint", record.ClientFingerprint)
+		addNonBlankIdentityPolicyField(row, "object_fingerprint", record.ObjectFingerprint)
+		addNonBlankIdentityPolicyField(row, "tenant_fingerprint", record.TenantFingerprint)
+		if len(row) > 0 {
+			out = append(out, row)
+		}
+	}
+	return out
+}
+
+func addNonBlankIdentityPolicyField(row map[string]string, key string, value string) {
+	value = strings.TrimSpace(value)
+	if value != "" {
+		row[key] = value
+	}
 }
 
 func cloudInventoryAdmissionBasePayload(

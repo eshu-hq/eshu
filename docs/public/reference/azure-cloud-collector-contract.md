@@ -62,6 +62,17 @@ resource on their own), surfaced as `tag_value_fingerprints` on the
 `GET /api/v0/cloud/inventory` readback. Tag value text never crosses the wire;
 only the keyed markers do.
 
+`azure_identity_observation` now feeds the same shared
+`cloud_inventory_admission` reducer domain as additive identity-policy
+evidence. Identity observations attach only to the canonical Azure resource
+sharing their `cloud_resource_uid`; they never admit a resource, create graph
+nodes, or mint IAM edges on their own. The readback surfaces bounded
+`identity_policy_evidence` rows containing the stable evidence key, bounded
+identity/role classes, and keyed principal/client/object/tenant fingerprints.
+Raw ARM identities, assignment scopes, and raw principal GUIDs never cross the
+API or MCP boundary. Rows are capped per resource and set
+`identity_policy_evidence_truncated` when evidence was bounded.
+
 `azure_image_reference` facts now feed the existing `container_image_identity`
 handoff and reducer path when such facts are present. The projector enqueues the
 existing image-identity reducer domain for Azure image-reference generations,
@@ -120,7 +131,15 @@ leaks raw provider locators. `go test ./internal/reducer ./internal/storage/post
 proves tag-evidence fingerprints attach only to the resource sharing their uid,
 never admit a resource on their own, leave the AWS/GCP path unchanged when no
 tag loader is configured, and surface as `tag_value_fingerprints` on the
-readback without exposing tag value text. `go test ./internal/projector -run
+readback without exposing tag value text. `go test ./internal/storage/postgres
+-run CloudIdentityPolicyEvidence -count=1`, `go test ./internal/reducer -run
+'CloudInventoryAdmission(AttachesIdentityPolicyEvidence|CapsIdentityPolicyEvidence)|PostgresCloudInventoryAdmissionWriterPersistsOneFactPerResource'
+-count=1`, and `go test ./internal/query -run
+TestCloudInventoryResourceViewSurfacesBoundedIdentityPolicyEvidence -count=1`
+prove identity-policy evidence loads from Azure identity facts, drops malformed
+or orphan rows, attaches only to admitted resources, caps per-resource payloads,
+and exposes only bounded classes plus keyed fingerprints on readback. `go test
+./internal/projector -run
 TestBuildProjectionQueuesContainerImageIdentityForAzureImageReference -count=1`
 proves Azure image-reference generations enqueue the existing
 `container_image_identity` reducer domain. `go test ./internal/reducer -run

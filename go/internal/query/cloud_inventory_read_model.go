@@ -154,6 +154,12 @@ func cloudInventoryResourceView(envelope map[string]any) map[string]any {
 	if fingerprints := cloudInventoryTagFingerprints(payload); len(fingerprints) > 0 {
 		view["tag_value_fingerprints"] = fingerprints
 	}
+	if evidence := cloudInventoryIdentityPolicyEvidence(payload); len(evidence) > 0 {
+		view["identity_policy_evidence"] = evidence
+	}
+	if boolFromMap(payload, "identity_policy_evidence_truncated") {
+		view["identity_policy_evidence_truncated"] = true
+	}
 	return view
 }
 
@@ -169,6 +175,46 @@ func cloudInventoryTagFingerprints(payload map[string]any) map[string]string {
 	for key, value := range object {
 		if marker, ok := value.(string); ok && strings.TrimSpace(key) != "" && marker != "" {
 			out[key] = marker
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// cloudInventoryIdentityPolicyEvidence reads bounded identity-policy evidence
+// from the canonical identity payload. It keeps only closed safe fields:
+// evidence key, bounded identity/role classes, and keyed fingerprints. Raw ARM
+// identities, raw assignment scopes, and raw principal GUIDs are intentionally
+// omitted even if a malformed payload includes them.
+func cloudInventoryIdentityPolicyEvidence(payload map[string]any) []map[string]string {
+	rows, ok := payload["identity_policy_evidence"].([]any)
+	if !ok || len(rows) == 0 {
+		return nil
+	}
+	out := make([]map[string]string, 0, len(rows))
+	for _, row := range rows {
+		object, ok := row.(map[string]any)
+		if !ok {
+			continue
+		}
+		projected := map[string]string{}
+		for _, key := range []string{
+			"evidence_key",
+			"identity_type",
+			"role_class",
+			"principal_fingerprint",
+			"client_fingerprint",
+			"object_fingerprint",
+			"tenant_fingerprint",
+		} {
+			if value, ok := object[key].(string); ok && strings.TrimSpace(value) != "" {
+				projected[key] = value
+			}
+		}
+		if len(projected) > 0 {
+			out = append(out, projected)
 		}
 	}
 	if len(out) == 0 {

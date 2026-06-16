@@ -483,11 +483,17 @@ per-layer `evidence` object (`declared`, `applied`, `observed`). When tag
 evidence attached to the resource (currently `azure_tag_observation`), the row
 also carries `tag_value_fingerprints`: a map of tag key to keyed,
 non-reversible value fingerprint, so callers can correlate resources that share
-a tag value without the tag value text crossing the wire. Raw provider
-identities, locators, raw tag values, and credential names are never echoed. The response
-carries the `semantic_facts` truth envelope; when the active query profile
-cannot materialize the reducer-owned canonical rows (lightweight local) the
-route returns `501` (`unsupported_capability`).
+a tag value without the tag value text crossing the wire. When Azure
+identity-policy evidence attached to the resource, the row may also carry
+`identity_policy_evidence`: capped rows containing only the stable evidence key,
+bounded identity/role classes, and keyed principal/client/object/tenant
+fingerprints. If the reducer capped those rows for the resource,
+`identity_policy_evidence_truncated` is present and true. Raw provider
+identities, locators, raw tag values, raw principal GUIDs, raw assignment
+scopes, and credential names are never echoed. The response carries the
+`semantic_facts` truth envelope; when the active query profile cannot
+materialize the reducer-owned canonical rows (lightweight local) the route
+returns `501` (`unsupported_capability`).
 
 Observability Evidence: the route is wrapped by the
 `query.cloud_inventory_readback` request span declared in

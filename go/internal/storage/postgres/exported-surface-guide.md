@@ -74,6 +74,11 @@ reducer/query adapter.
   `azure_cloud_resource`) for one scope generation, mapped into the shared
   `reducer.CloudInventoryRecord` shape for the `cloud_inventory_admission`
   reducer domain (issues #1997, #1998)
+- `PostgresCloudIdentityPolicyEvidenceLoader` — bounded read of Azure identity
+  observation facts for one scope generation, mapped into safe
+  `reducer.CloudIdentityPolicyEvidenceRecord` rows. The loader keeps only
+  bounded identity/role classes and keyed principal/client/object/tenant
+  fingerprints, never raw principal GUIDs or assignment scopes.
 - `PostgresMultiCloudRuntimeDriftEvidenceLoader` — bounded observed →
   active Terraform state → owned Terraform config join for the
   `multi_cloud_runtime_drift` reducer domain, keyed on canonical

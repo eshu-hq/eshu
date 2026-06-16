@@ -89,6 +89,14 @@ type AdmittedCloudResource struct {
 	// It is nil unless a TagEvidenceLoader contributed evidence; tag value text
 	// is never present, only the keyed markers from the collector.
 	TagValueFingerprints map[string]string
+	// IdentityPolicyEvidence carries bounded identity-policy evidence attached
+	// from provider identity-observation facts that share this uid. Principal,
+	// client, object, and tenant values are keyed fingerprints only; raw GUIDs
+	// and raw assignment scopes are never present.
+	IdentityPolicyEvidence []CloudIdentityPolicyEvidence
+	// IdentityPolicyEvidenceTruncated reports that more identity-policy evidence
+	// existed for this resource than the bounded payload cap permits.
+	IdentityPolicyEvidenceTruncated bool
 }
 
 // CloudInventoryAdmissionSummary counts the non-admitted resolution outcomes so
@@ -171,6 +179,11 @@ type CloudInventoryAdmissionHandler struct {
 	// sharing their cloud_resource_uid. A nil loader leaves the admission path
 	// unchanged, so the AWS/GCP resource path carries no tag fingerprints.
 	TagEvidenceLoader CloudTagEvidenceLoader
+	// IdentityPolicyEvidenceLoader, when set, loads provider identity-policy
+	// evidence (currently azure_identity_observation) whose keyed fingerprints
+	// attach to the canonical resource sharing their cloud_resource_uid. A nil
+	// loader leaves the admission path unchanged.
+	IdentityPolicyEvidenceLoader CloudIdentityPolicyEvidenceLoader
 	// Instruments, when set, records bounded admission phase counts.
 	Instruments *telemetry.Instruments
 }
@@ -218,6 +231,18 @@ func (h CloudInventoryAdmissionHandler) Handle(ctx context.Context, intent Inten
 			return Result{}, fmt.Errorf("load cloud tag evidence: %w", err)
 		}
 		attachCloudTagEvidence(resources, tagRecords)
+	}
+
+	if h.IdentityPolicyEvidenceLoader != nil {
+		identityRecords, err := h.IdentityPolicyEvidenceLoader.LoadCloudIdentityPolicyEvidence(
+			ctx,
+			intent.ScopeID,
+			intent.GenerationID,
+		)
+		if err != nil {
+			return Result{}, fmt.Errorf("load cloud identity policy evidence: %w", err)
+		}
+		attachCloudIdentityPolicyEvidence(resources, identityRecords)
 	}
 
 	writeResult, err := h.Writer.WriteCloudInventoryAdmission(ctx, CloudInventoryAdmissionWrite{
