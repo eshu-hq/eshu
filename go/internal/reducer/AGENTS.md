@@ -179,6 +179,21 @@ path through existing code-call projection cycle logs, shared-intent
 backlog/status queries, partition lease rows, reducer execution counters, and
 Postgres query instrumentation.
 
+No-Regression Evidence: `go test ./internal/reducer -run
+TestSupplyChainImpactHandlerStopsActiveEvidenceExpansionConservatively -count=1`
+failed before supply-chain impact returned a conservative finding at the active
+evidence expansion ceiling, then passed after the handler kept the bounded
+filtered reads, wrote the available impact finding, and marked
+`active_evidence_truncated=true`.
+
+Observability Evidence: supply-chain impact expansion truncation is surfaced in
+the reducer result evidence summary and in each persisted finding's
+`missing_evidence` payload. The change adds no route, graph query, queue table,
+worker, lease, runtime knob, metric instrument, or metric label; operators still
+diagnose the path through reducer run spans, reducer execution counters,
+durable `reducer_supply_chain_impact_finding` payloads, and existing Postgres
+query instrumentation.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain
