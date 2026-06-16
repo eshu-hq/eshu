@@ -8,26 +8,31 @@ the API/MCP readback (`GET /api/v0/cloud/inventory`, `list_cloud_resource_invent
 are already shipped and fixture-proven; they are out of scope here except where
 the live path changes their inputs.
 
-This review must pass before any of the following is merged or enabled: a live
-transport adapter, Helm values exposing the collector binary, credential mounts,
-a ServiceMonitor, or live smoke tests. Today both binaries run fixture/file-backed
-and make **zero** live calls — the live seams are inert
-(`gcpruntime.LiveClient` → `ErrLiveClientNotImplemented`;
-`azureruntime.LiveProviderFactory` → `ErrLiveProviderGated`, never the default).
+This review must pass before any command, chart, credential mount,
+ServiceMonitor, or live smoke path enables credential-bearing live collection.
+Adapter code may merge only when default wiring stays inert and tests prove the
+seam is explicitly injected, read-only, bounded, and sanitized. Today both
+binaries run fixture/file-backed and make **zero** live calls. The GCP live seam is inert
+(`gcpruntime.LiveClient` → `ErrLiveClientNotImplemented`). The Azure live seam is
+gated by construction: `azureruntime.LiveProviderFactory{}` returns
+`ErrLiveProviderGated`, and live Resource Graph calls require explicit
+operator-owned injection of a read-only client. It is not command- or
+chart-enabled by default.
 
 ## 1. Credential surfaces
 
-| Provider | Live seam (inert today) | Auth model to verify | Least-privilege scope |
+| Provider | Live seam | Auth model to verify | Least-privilege scope |
 | --- | --- | --- | --- |
 | GCP | `gcpruntime.LiveClient` (`go/internal/collector/gcpcloud/gcpruntime/liveclient.go`); `CredentialRef` is a name only. | Workload Identity Federation / ADC for a dedicated service account. No long-lived JSON keys mounted. | Cloud Asset Inventory read-only (`roles/cloudasset.viewer`) at the configured org/folder/project parent only. No `assets.export`, no IAM write, no data-plane reader roles. |
-| Azure | `azureruntime.LiveProviderFactory` (`go/internal/collector/azurecloud/azureruntime/provider.go`). | Managed/workload identity for the configured tenant. No client-secret string in env. | `Reader` at the configured subscription/management-group scope only; Resource Graph + allowlisted ARM `GET` only. No `Contributor`, no provider registration, no write/delete. |
+| Azure | `azureruntime.LiveProviderFactory` (`go/internal/collector/azurecloud/azureruntime/live_provider.go`). Zero value is inert; explicit injected clients can read Resource Graph only. | Managed/workload identity for the configured tenant. No client-secret string in env. | `Reader` at the configured subscription/management-group scope only; Resource Graph + allowlisted ARM `GET` only. No `Contributor`, no provider registration, no write/delete. |
 
 Threat-model checks: privilege creep (read-only inventory, not secret *values*);
 credential *reference* vs material (names only — never bytes — in struct fields,
 config, fact payloads, logs, spans, metric labels); confused-deputy / scope
 escape (scope enforced by the credential's own grant, not a client-side filter);
-default-deny (the inert stubs stay the default; any path constructing the live
-adapter without explicit operator opt-in is a finding).
+default-deny (the inert zero-value seams stay the command/chart default; any path
+constructing or wiring the live adapter without explicit operator opt-in is a
+finding).
 
 ## 2. Redaction-key handling
 

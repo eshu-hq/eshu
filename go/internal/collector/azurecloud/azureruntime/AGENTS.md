@@ -13,18 +13,18 @@
 4. `docs/public/reference/multi-cloud-collector-contract.md` - shared
    scope/generation, redaction, and telemetry rules.
 5. `config.go` - declarative `Config`/`TargetConfig`; credentials by name only.
-6. `provider.go` - `PageProviderFactory` seam, `FixturePageProvider`, and the
-   gated `LiveProviderFactory`.
+6. `provider.go` and `live_provider*.go` - `PageProviderFactory`,
+   `FixturePageProvider`, and the gated-by-default `LiveProviderFactory`.
 7. `source.go` - `collector.Source` implementation, scope/generation identity,
    and bounded per-target telemetry.
 
 ## Hard Rules
 
 - MUST keep the live Azure Resource Graph/ARM client behind
-  `PageProviderFactory`. `LiveProviderFactory` MUST stay inert
-  (`ErrLiveProviderGated`) until a real read-only adapter lands with its own
-  credential, quota, throttle, and fixture proof. NEVER make a live-calling
-  factory the default.
+  `PageProviderFactory`. The zero-value `LiveProviderFactory` MUST stay inert
+  (`ErrLiveProviderGated`), and live calls MUST require an explicitly injected
+  read-only client with credential, quota, throttle, and fixture proof. NEVER
+  make a live-calling factory the command or chart default.
 - MUST NOT call Azure from any test or non-injected code path.
 - MUST reference credentials by NAME only (`CredentialRef`); never inline a
   secret and never log a credential value or name.
@@ -38,7 +38,7 @@
 - MUST NOT add reducer admission, new fact families, API/MCP readback, Helm
   values, env wiring, or shared-registry telemetry in this package. The existing
   `azure_resource_change` fact kind may be emitted only through fixture-backed
-  `SourceLaneResourceChanges`; it must not call Azure or admit graph truth.
+  `SourceLaneResourceChanges`; it must not admit graph truth.
 - MUST apply TDD and keep every source file under 500 lines.
 
 ## Verify

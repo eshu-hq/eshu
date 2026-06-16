@@ -1,8 +1,12 @@
 package azureruntime
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -205,6 +209,34 @@ func TestSourcePartialScopeAccounting(t *testing.T) {
 	}
 	if warnings[0].Payload["outcome"] != azurecloud.OutcomePartial {
 		t.Fatalf("outcome = %v", warnings[0].Payload["outcome"])
+	}
+}
+
+func TestSourceLogOmitsProviderIdentifiers(t *testing.T) {
+	provider := NewFixturePageProvider(twoPageFixture(), azurecloud.ScopeAccess{})
+	var logs bytes.Buffer
+	src := newFixtureSource(t, provider, testTarget())
+	src.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
+
+	collected, ok, err := src.Next(context.Background())
+	if err != nil || !ok {
+		t.Fatalf("Next ok=%v err=%v", ok, err)
+	}
+	drain(t, collected)
+
+	var entry map[string]any
+	if err := json.Unmarshal(logs.Bytes(), &entry); err != nil {
+		t.Fatalf("decode log entry: %v\n%s", err, logs.String())
+	}
+	for _, key := range []string{"scope_id", "generation_id"} {
+		if _, ok := entry[key]; ok {
+			t.Fatalf("log entry contains %q: %s", key, logs.String())
+		}
+	}
+	for _, sensitive := range []string{testTarget().TenantID, testTarget().ProviderScopeID} {
+		if strings.Contains(logs.String(), sensitive) {
+			t.Fatalf("log entry contains provider identifier %q: %s", sensitive, logs.String())
+		}
 	}
 }
 
