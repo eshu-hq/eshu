@@ -58,9 +58,9 @@ Attestations:
 - [x] The §7 metadata-only redaction contract is the one enforced by
       `TestExtractRowsCarryNoForbiddenProperties`, and no change has widened the
       property allowlist since the §14 sign-off.
-- [x] The four `SecretsIAM*` uid constraints and scope indexes exist in the
-      **target** backend, proven by data-plane schema bootstrap before live
-      writer proof and focused reducer/cypher package gates.
+- [x] Data-plane schema bootstrap ran against the **target** backend before live
+      writer proof and focused reducer/cypher package gates. Direct target
+      constraint/index readback was not captured in this record.
 - [x] Schema-level activation is approved in principle, to bind to the single
       target deployment named in §2.
 
