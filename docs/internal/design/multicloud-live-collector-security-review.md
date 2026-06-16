@@ -97,6 +97,27 @@ labels (`partial`/`stale`/`unavailable`/`unsupported`) must not be converted int
 silent fallback truth at read time. Delete/change records stay conservative (a
 delete does not fabricate a tombstone without inventory confirmation).
 
+## Azure live-smoke gate status
+
+Issue #2660 remains blocked on an isolated Azure review target and
+operator-owned credential wiring, now tracked by issue #2665. Local and remote
+preflight on 2026-06-16 found no Azure environment variable names, no Azure CLI
+path, and no existing credential-bearing live-smoke runner. The current
+`collector-azure-cloud` command still selects the zero-value
+`azureruntime.LiveProviderFactory` when no fixture pages are configured, so it
+fails closed before any live Resource Graph or ARM request can occur. That
+default-off state is the intended security posture until live enablement is
+explicitly reviewed.
+
+The Azure checklist below must stay unchecked until a sanitized live run proves:
+
+- a throwaway read-only identity scoped only to the configured review parent;
+- workload or managed identity auth with no long-lived secret material mounted;
+- a bounded Resource Graph query and allowlisted ARM fallback family;
+- result and warning counts captured without tenant, subscription, resource,
+  hostname, IP, credential, query text, or raw provider body values;
+- command and chart defaults still fail closed without explicit live wiring.
+
 ## 6. Reviewer allowlist (all must be checked before enablement)
 
 - [ ] Live credential is a dedicated, read-only identity scoped to the configured
