@@ -108,6 +108,19 @@
 
 ## Evidence notes
 
+No-Regression Evidence: #2718 code reachability watermarks use the
+repository-generation row key `(scope_id, generation_id, repository_id)`.
+`go test ./internal/reducer -run 'CodeReachabilityProjectionRunner' -count=1`
+covers non-empty replacements and empty snapshots writing the loaded completion
+watermark. `go test ./internal/storage/postgres -run 'CodeReachability'
+-count=1` covers the watermark DDL, empty replacement watermark writes, and
+pending selection across `code_calls` plus `inheritance_edges`.
+
+No-Observability-Change: #2718 keeps the existing `code reachability projection
+completed` structured log with input count, row count, and duration for the
+same runner cycle; the fix changes durable progress tracking and does not add
+worker knobs, retries, or high-cardinality telemetry labels.
+
 Performance Evidence: #2050 changes workflow claim admission and completion
 guards from an unfenced baseline to the same indexed workflow row shape plus one
 active tenant-scope grant predicate keyed by opaque tenant/workspace/scope and

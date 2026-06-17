@@ -68,8 +68,10 @@ High-signal invariants for this package:
 
 - Bootstrap DDL is idempotent and ordered through `BootstrapDefinitions`.
 - `code_reachability_rows` stores reducer-materialized code reachable-set rows
-  by active source generation; query dead-code reads consult it before the
-  compatibility scan over completed shared projection intents.
+  by active source generation, and `code_reachability_repository_watermarks`
+  records the completed intent timestamp covered by each repository snapshot so
+  empty reachable sets do not loop forever; query dead-code reads consult the
+  rows before the compatibility scan over completed shared projection intents.
 - Fact writes batch at 500 rows, deduplicate `fact_id` within a batch, sanitize
   JSONB control bytes, and skip unchanged pending-or-active generations by
   `FreshnessHint`.

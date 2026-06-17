@@ -17,7 +17,9 @@ func TestCodeReachabilitySchemaSQL(t *testing.T) {
 	sqlStr := CodeReachabilitySchemaSQL()
 	for _, want := range []string{
 		"CREATE TABLE IF NOT EXISTS code_reachability_rows",
+		"CREATE TABLE IF NOT EXISTS code_reachability_repository_watermarks",
 		"PRIMARY KEY (scope_id, generation_id, repository_id, root_entity_id, entity_id)",
+		"PRIMARY KEY (scope_id, generation_id, repository_id)",
 		"code_reachability_latest_lookup_idx",
 		"code_reachability_root_idx",
 	} {
@@ -98,6 +100,7 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsDeletesStaleRows(t *testing.T
 			ObservedAt:          now,
 			UpdatedAt:           now,
 		}},
+		now.Add(time.Minute),
 	)
 	if err != nil {
 		t.Fatalf("ReplaceRepositoryRows() error = %v", err)
@@ -107,6 +110,54 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsDeletesStaleRows(t *testing.T
 	}
 	if _, ok := db.rows["scope-1|generation-1|repo-1|entity:root|entity:live"]; !ok {
 		t.Fatalf("live replacement row missing: %#v", db.rows)
+	}
+	if got, want := db.watermarks["scope-1|generation-1|repo-1"], now.Add(time.Minute); !got.Equal(want) {
+		t.Fatalf("watermark = %v, want %v", got, want)
+	}
+}
+
+func TestCodeReachabilityStoreReplaceRepositoryRowsRecordsEmptyWatermark(t *testing.T) {
+	now := time.Date(2026, 6, 17, 4, 0, 0, 0, time.UTC)
+	db := newCodeReachabilityTestDB()
+	store := NewCodeReachabilityStore(db)
+	err := store.ReplaceRepositoryRows(
+		context.Background(),
+		"scope-empty",
+		"generation-empty",
+		"repo-empty",
+		nil,
+		now,
+	)
+	if err != nil {
+		t.Fatalf("ReplaceRepositoryRows() error = %v", err)
+	}
+	if len(db.rows) != 0 {
+		t.Fatalf("rows = %#v, want empty replacement", db.rows)
+	}
+	if got, want := db.watermarks["scope-empty|generation-empty|repo-empty"], now; !got.Equal(want) {
+		t.Fatalf("watermark = %v, want %v", got, want)
+	}
+}
+
+func TestCodeReachabilityRepositoryWatermarkUpsertIsMonotonic(t *testing.T) {
+	if !strings.Contains(upsertCodeReachabilityRepositoryWatermarkSQL, "GREATEST(") {
+		t.Fatalf("watermark upsert must preserve newer progress:\n%s", upsertCodeReachabilityRepositoryWatermarkSQL)
+	}
+}
+
+func TestCodeReachabilityPendingInputsWatchAllTraversedDomains(t *testing.T) {
+	for _, want := range []string{
+		"projection_domain IN ('code_calls', 'inheritance_edges')",
+		"code_reachability_repository_watermarks",
+		"watermark.updated_at",
+		"max(intent.completed_at) AS completed_at",
+	} {
+		if !strings.Contains(listPendingCodeReachabilityInputsSQL, want) {
+			t.Fatalf("pending reachability query missing %q:\n%s", want, listPendingCodeReachabilityInputsSQL)
+		}
+	}
+	if strings.Contains(upsertCodeReachabilityRepositoryWatermarkSQL, "GREATEST") {
+		t.Fatalf("watermark upsert must record the committed snapshot timestamp, not hide stale rows:\n%s", upsertCodeReachabilityRepositoryWatermarkSQL)
 	}
 }
 
@@ -142,8 +193,9 @@ func TestCodeReachabilityStoreListLatestByEntitiesUsesActiveGeneration(t *testin
 }
 
 type codeReachabilityTestDB struct {
-	rows      map[string]codeReachabilityStoredRow
-	lastQuery string
+	rows       map[string]codeReachabilityStoredRow
+	watermarks map[string]time.Time
+	lastQuery  string
 }
 
 type codeReachabilityStoredRow struct {
@@ -163,7 +215,10 @@ type codeReachabilityStoredRow struct {
 }
 
 func newCodeReachabilityTestDB() *codeReachabilityTestDB {
-	return &codeReachabilityTestDB{rows: map[string]codeReachabilityStoredRow{}}
+	return &codeReachabilityTestDB{
+		rows:       map[string]codeReachabilityStoredRow{},
+		watermarks: map[string]time.Time{},
+	}
 }
 
 func (db *codeReachabilityTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
@@ -206,6 +261,13 @@ func (db *codeReachabilityTestDB) ExecContext(_ context.Context, query string, a
 			}
 			db.rows[strings.Join([]string{row.ScopeID, row.GenerationID, row.RepositoryID, row.RootEntityID, row.EntityID}, "|")] = row
 		}
+		return sharedIntentResult{}, nil
+	case strings.Contains(query, "INSERT INTO code_reachability_repository_watermarks"):
+		scopeID := args[0].(string)
+		generationID := args[1].(string)
+		repositoryID := args[2].(string)
+		updatedAt := args[3].(time.Time)
+		db.watermarks[strings.Join([]string{scopeID, generationID, repositoryID}, "|")] = updatedAt
 		return sharedIntentResult{}, nil
 	case strings.Contains(query, "CREATE TABLE") || strings.Contains(query, "CREATE INDEX"):
 		return sharedIntentResult{}, nil

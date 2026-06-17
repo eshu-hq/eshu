@@ -89,8 +89,10 @@
 // generation, model, content hash, and index version without changing API/MCP
 // query behavior.
 // CodeReachabilityStore persists reducer-materialized code reachable-set rows
-// keyed by active generation so dead-code reads can use a standing lookup before
-// falling back to completed relationship intents.
+// keyed by active generation plus per-repository completion watermarks so
+// dead-code reads can use a standing lookup before falling back to completed
+// relationship intents, and empty reachable-set snapshots still make durable
+// progress.
 // FactStore.LoadIncidentRoutingEvidence serves the PagerDuty incident-routing
 // graph materialization domain by loading incident-scoped anchors and
 // same-generation routing facts, then resolving Terraform-source

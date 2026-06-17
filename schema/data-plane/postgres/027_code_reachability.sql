@@ -20,3 +20,11 @@ CREATE INDEX IF NOT EXISTS code_reachability_latest_lookup_idx
 
 CREATE INDEX IF NOT EXISTS code_reachability_root_idx
     ON code_reachability_rows (repository_id, root_entity_id, depth, entity_id);
+
+CREATE TABLE IF NOT EXISTS code_reachability_repository_watermarks (
+    scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
+    generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE,
+    repository_id TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (scope_id, generation_id, repository_id)
+);

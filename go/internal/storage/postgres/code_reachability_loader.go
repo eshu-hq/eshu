@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -16,7 +17,7 @@ WITH candidate AS (
            acceptance.source_run_id,
            acceptance.generation_id,
            max(intent.completed_at) AS completed_at,
-           max(reach.updated_at) AS reach_updated_at
+           max(watermark.updated_at) AS reach_updated_at
     FROM shared_projection_acceptance AS acceptance
     JOIN ingestion_scopes AS scope
       ON scope.scope_id = acceptance.scope_id
@@ -29,16 +30,16 @@ WITH candidate AS (
      AND intent.acceptance_unit_id = acceptance.acceptance_unit_id
      AND intent.source_run_id = acceptance.source_run_id
      AND intent.generation_id = acceptance.generation_id
-     AND intent.projection_domain = 'code_calls'
+     AND intent.projection_domain IN ('code_calls', 'inheritance_edges')
      AND intent.completed_at IS NOT NULL
-    LEFT JOIN code_reachability_rows AS reach
-      ON reach.scope_id = acceptance.scope_id
-     AND reach.generation_id = acceptance.generation_id
-     AND reach.repository_id = acceptance.acceptance_unit_id
+    LEFT JOIN code_reachability_repository_watermarks AS watermark
+      ON watermark.scope_id = acceptance.scope_id
+     AND watermark.generation_id = acceptance.generation_id
+     AND watermark.repository_id = acceptance.acceptance_unit_id
     GROUP BY acceptance.scope_id, acceptance.acceptance_unit_id,
              acceptance.source_run_id, acceptance.generation_id
 )
-SELECT scope_id, repository_id, source_run_id, generation_id
+SELECT scope_id, repository_id, source_run_id, generation_id, completed_at
 FROM candidate
 WHERE reach_updated_at IS NULL OR completed_at > reach_updated_at
 ORDER BY completed_at ASC, repository_id ASC
@@ -86,7 +87,8 @@ ORDER BY source_entity_id ASC, target_entity_id ASC, relationship_type ASC
 `
 
 // LoadPendingCodeReachabilityInputs loads bounded active-generation snapshots
-// whose completed code-call intents are newer than materialized reachability.
+// whose completed traversed code-edge intents are newer than materialized
+// reachability.
 func (s *CodeReachabilityStore) LoadPendingCodeReachabilityInputs(
 	ctx context.Context,
 	limit int,
@@ -105,6 +107,7 @@ func (s *CodeReachabilityStore) LoadPendingCodeReachabilityInputs(
 		repositoryID string
 		sourceRunID  string
 		generationID string
+		completedAt  time.Time
 	}
 	candidates := make([]candidate, 0, limit)
 	for rows.Next() {
@@ -114,6 +117,7 @@ func (s *CodeReachabilityStore) LoadPendingCodeReachabilityInputs(
 			&candidate.repositoryID,
 			&candidate.sourceRunID,
 			&candidate.generationID,
+			&candidate.completedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan pending code reachability input: %w", err)
 		}
@@ -139,6 +143,7 @@ func (s *CodeReachabilityStore) LoadPendingCodeReachabilityInputs(
 			RepositoryID: candidate.repositoryID,
 			Roots:        roots,
 			Edges:        edges,
+			UpdatedAt:    candidate.completedAt,
 		})
 	}
 	return inputs, nil

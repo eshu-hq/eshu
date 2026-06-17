@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -38,6 +39,14 @@ CREATE INDEX IF NOT EXISTS code_reachability_latest_lookup_idx
 
 CREATE INDEX IF NOT EXISTS code_reachability_root_idx
     ON code_reachability_rows (repository_id, root_entity_id, depth, entity_id);
+
+CREATE TABLE IF NOT EXISTS code_reachability_repository_watermarks (
+    scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
+    generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE,
+    repository_id TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (scope_id, generation_id, repository_id)
+);
 `
 
 const upsertCodeReachabilityBatchPrefix = `
@@ -66,7 +75,16 @@ WHERE scope_id = $1
   AND repository_id = $3
 `
 
-// CodeReachabilitySchemaSQL returns the DDL for code reachability rows.
+const upsertCodeReachabilityRepositoryWatermarkSQL = `
+INSERT INTO code_reachability_repository_watermarks (
+    scope_id, generation_id, repository_id, updated_at
+) VALUES ($1, $2, $3, $4)
+ON CONFLICT (scope_id, generation_id, repository_id) DO UPDATE
+SET updated_at = GREATEST(code_reachability_repository_watermarks.updated_at, EXCLUDED.updated_at)
+`
+
+// CodeReachabilitySchemaSQL returns the DDL for code reachability rows and
+// repository progress watermarks.
 func CodeReachabilitySchemaSQL() string {
 	return codeReachabilitySchemaSQL
 }
@@ -105,13 +123,15 @@ func (s *CodeReachabilityStore) Upsert(ctx context.Context, rows []reducer.CodeR
 }
 
 // ReplaceRepositoryRows replaces all reachability rows for one active
-// repository generation with a freshly rebuilt deterministic snapshot.
+// repository generation with a freshly rebuilt deterministic snapshot and
+// records the source-intent completion watermark that the snapshot covers.
 func (s *CodeReachabilityStore) ReplaceRepositoryRows(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
 	repositoryID string,
 	rows []reducer.CodeReachabilityRow,
+	watermark time.Time,
 ) error {
 	scopeID = strings.TrimSpace(scopeID)
 	generationID = strings.TrimSpace(generationID)
@@ -119,12 +139,15 @@ func (s *CodeReachabilityStore) ReplaceRepositoryRows(
 	if scopeID == "" || generationID == "" || repositoryID == "" {
 		return fmt.Errorf("code reachability replacement requires scope_id, generation_id, and repository_id")
 	}
+	if watermark.IsZero() {
+		return fmt.Errorf("code reachability replacement requires a non-zero watermark")
+	}
 	if beginner, ok := s.db.(Beginner); ok {
 		tx, err := beginner.Begin(ctx)
 		if err != nil {
 			return fmt.Errorf("begin code reachability replacement: %w", err)
 		}
-		if err := replaceCodeReachabilityRepositoryRows(ctx, tx, scopeID, generationID, repositoryID, rows); err != nil {
+		if err := replaceCodeReachabilityRepositoryRows(ctx, tx, scopeID, generationID, repositoryID, rows, watermark.UTC()); err != nil {
 			_ = tx.Rollback()
 			return err
 		}
@@ -133,7 +156,7 @@ func (s *CodeReachabilityStore) ReplaceRepositoryRows(
 		}
 		return nil
 	}
-	return replaceCodeReachabilityRepositoryRows(ctx, s.db, scopeID, generationID, repositoryID, rows)
+	return replaceCodeReachabilityRepositoryRows(ctx, s.db, scopeID, generationID, repositoryID, rows, watermark.UTC())
 }
 
 // ListLatestByEntities returns the strongest active-generation reachability row
@@ -220,21 +243,24 @@ func replaceCodeReachabilityRepositoryRows(
 	generationID string,
 	repositoryID string,
 	rows []reducer.CodeReachabilityRow,
+	watermark time.Time,
 ) error {
 	if _, err := db.ExecContext(ctx, deleteCodeReachabilityRepositoryRowsSQL, scopeID, generationID, repositoryID); err != nil {
 		return fmt.Errorf("delete code reachability rows: %w", err)
 	}
-	if len(rows) == 0 {
-		return nil
+	if len(rows) > 0 {
+		for i := 0; i < len(rows); i += codeReachabilityBatchSize {
+			end := i + codeReachabilityBatchSize
+			if end > len(rows) {
+				end = len(rows)
+			}
+			if err := upsertCodeReachabilityBatch(ctx, db, rows[i:end]); err != nil {
+				return err
+			}
+		}
 	}
-	for i := 0; i < len(rows); i += codeReachabilityBatchSize {
-		end := i + codeReachabilityBatchSize
-		if end > len(rows) {
-			end = len(rows)
-		}
-		if err := upsertCodeReachabilityBatch(ctx, db, rows[i:end]); err != nil {
-			return err
-		}
+	if _, err := db.ExecContext(ctx, upsertCodeReachabilityRepositoryWatermarkSQL, scopeID, generationID, repositoryID, watermark); err != nil {
+		return fmt.Errorf("upsert code reachability watermark: %w", err)
 	}
 	return nil
 }
