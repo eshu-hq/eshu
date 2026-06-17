@@ -93,6 +93,25 @@ func TestGoDataflowEmitsReachingDefs(t *testing.T) {
 	}
 }
 
+// TestGoDataflowGotoEdgeCarriesReachingDef proves a value defined before a
+// `goto L` reaches a use at the `L:` label via the modeled goto edge (#2861).
+func TestGoDataflowGotoEdgeCarriesReachingDef(t *testing.T) {
+	got := parseGoTaintFixture(t, `package handlers
+
+func handle(x int) int {
+	y := x
+	goto L
+L:
+	return y
+}
+`)
+	handle := dataflowFunctionByName(t, got, "handle")
+	edges := defUseLineSet(t, handle)
+	if !edges["y:4->7"] {
+		t.Fatalf("expected def->use y:4->7 across the goto edge, got %v", edges)
+	}
+}
+
 // dataflowFunctionByName returns the dataflow row for a function name.
 func dataflowFunctionByName(t *testing.T, payload map[string]any, name string) map[string]any {
 	t.Helper()
