@@ -196,6 +196,9 @@ func TestNewMCPQueryRouterUsesSuppliedStatusReader(t *testing.T) {
 	if router.Status.StatusReader != reader {
 		t.Fatalf("newMCPQueryRouter().Status.StatusReader = %#v, want supplied reader", router.Status.StatusReader)
 	}
+	if router.Capabilities == nil {
+		t.Fatal("newMCPQueryRouter().Capabilities = nil, want capability catalog handler mounted for get_capability_catalog")
+	}
 }
 
 func TestOpenQueryGraphAcceptsNornicDBOnSharedBoltPath(t *testing.T) {
