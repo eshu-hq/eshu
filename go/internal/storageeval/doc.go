@@ -21,5 +21,9 @@
 // Missing, stale, divergent, truncated, unsupported, graph-only, or
 // fallback-truth shadow output is rejected so storage migration work cannot
 // silently promote incomplete read models, fact families, durable state classes,
-// or queue/workflow substrates.
+// or queue/workflow substrates. Hosted-growth Postgres proofs are accepted only
+// when aggregate relation sizes, read/write latency, reducer queue drain
+// behavior, migration and rollback scenarios, stale rows, retry/dead-letter
+// rows, active claims, active-generation reads, changed-since retained-window
+// semantics, and operator-facing observability are all covered.
 package storageeval

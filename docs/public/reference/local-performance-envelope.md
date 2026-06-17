@@ -175,6 +175,31 @@ shared-intent backlog, graph-write metrics, and collector/coordinator logs.
 
 ## Current Hot-Path Evidence
 
+### Hosted-Growth Postgres Fact And Queue Proof Gate (#2749)
+
+No-Regression Evidence: #2749 adds a storage-evaluation proof contract and
+public-safe verifier only. It does not change Postgres DDL, relation indexes,
+queue claim SQL, reducer workers, runtime defaults, graph writes, or collector
+fanout. The focused proof suite first failed because
+`ValidateHostedGrowthPostgresProof` and
+`scripts/verify-hosted-growth-postgres-proof.sh` did not exist, then passed
+after the contract required `fact_records`, `fact_work_items`,
+`shared_projection_intents`, and `shared_projection_acceptance` row/index size
+measurements; fact and queue read/write latency; reducer queue drain evidence;
+empty and large table migration scenarios; stale rows; retry/dead-letter rows;
+active-claim preservation; active-generation read correctness; changed-since
+retained-window correctness; rollback behavior; and a hosted-small to
+hosted-growth operator gate.
+
+No-Observability-Change: the slice adds no metric, span, log field, status
+route, worker, lease, batch size, runtime knob, or data-plane query. It defines
+the evidence future hosted-growth proof runners must report: relation sizes,
+index sizes, read/write latency, queue depth, oldest queue age, retry count,
+dead letters, stale rows, active claims, migration duration, rollback status,
+and public-safe summary output. Raw repositories, hostnames, IPs, paths, DSNs,
+logs, source payloads, principals, accounts, and credentials remain
+operator-local.
+
 ### Collector Fact Evidence Status Read (#1678)
 
 No-Regression Evidence: issue #1678 baseline on remote
