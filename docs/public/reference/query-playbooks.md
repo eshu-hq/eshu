@@ -50,10 +50,12 @@ A `QueryPlaybook` declares:
 | `failure_modes` | Declared truth/error conditions and recommended fallbacks. |
 
 Each `PlaybookStep` declares a first-class `tool`, bounded `params` (each bound
-either from a declared input or from a declared constant such as a default
-limit), the `expected_truth` (an `AnswerTruthClass`), the `evidence_expected`,
-and optional `drilldowns`. Each `PlaybookFailureMode` declares a `condition`,
-its `meaning`, and a first-class `fallback`.
+either from a declared input or from a declared constant — a default limit
+(`const_int`), a constant string (`const_string`), or a constant boolean flag
+(`const_bool`) such as opting a step into reranking), the `expected_truth` (an
+`AnswerTruthClass`), the `evidence_expected`, and optional `drilldowns`. Each
+`PlaybookFailureMode` declares a `condition`, its `meaning`, and a first-class
+`fallback`.
 
 ### Resolution
 
@@ -99,6 +101,10 @@ The current catalog is returned by `PlaybookCatalog()`:
 | `incremental_freshness_readiness` | 1.0.0 | `freshness.readiness` | `get_generation_lifecycle` → `get_semantic_capability_status`. Diagnose stale or building answers with lifecycle, changed-since, index, and semantic readiness checks. |
 | `hosted_onboarding_governance_status` | 1.0.0 | `hosted.governance` | `get_index_status` → `get_component_extension_diagnostics`. Summarize hosted onboarding readiness, auth scope, collector health, and governance caveats without exposing secrets. |
 | `change_surface_source_investigation` | 1.0.0 | `change.surface` | `find_change_surface` → `get_relationship_evidence`. Rank affected source, drill into change-surface evidence, and cite exact file or relationship handles. |
+| `query_to_service_context` | 1.0.0 | `query.service_context` | `search_semantic_context` → `get_service_story` → `build_evidence_citation_packet`. Discover context with reranked search, then resolve the recommended service into a dossier and cite the evidence. |
+| `query_to_code_topic_context` | 1.0.0 | `query.code_topic_context` | `search_semantic_context` → `investigate_code_topic` → `get_code_relationship_story`. Discover context with reranked search, then rank the code topic and read the relationship story. |
+| `query_to_incident_context` | 1.0.0 | `query.incident_context` | `search_semantic_context` → `get_incident_context` → `build_evidence_citation_packet`. Discover context with reranked search, then resolve the recommended incident into bounded context and cite the evidence. |
+| `query_to_supply_chain_context` | 1.0.0 | `query.supply_chain_context` | `search_semantic_context` → `explain_supply_chain_impact` → `build_evidence_citation_packet`. Discover context with reranked search, then explain the recommended package or image impact and cite the evidence. |
 
 Each catalog playbook declares its own failure modes — for example "service not
 found" recommends `investigate_service`, and "citation packet truncated"
@@ -106,6 +112,13 @@ recommends raising the bounded limit or sending the next handle batch. The
 second-wave playbooks also declare common answer-experience failure handling for
 unsupported capabilities, missing evidence, stale or building freshness,
 truncated result sets, and ambiguous selectors.
+
+The third-wave `query_to_*` playbooks start from `search_semantic_context` as
+read-only context discovery (with `rerank: true` so the search step's
+`recommended_next_calls` drive the readbacks) and never infer graph truth from
+retrieval alone. Each declares the failure modes a caller hits: missing search
+readiness (`semantic_unavailable` / `index_unready`), no hits, stale vectors,
+an ambiguous readback target, and truncation.
 
 ## API / MCP / CLI exposure
 
