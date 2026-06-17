@@ -24,6 +24,13 @@
 //     0.0.0.0/0. Entrypoints, public API, tests, and generated code are
 //     intentionally not sources.
 //
+//   - The exposure-path assembler (path_trace.go): the conservative truth-state
+//     vocabulary (exact/partial/ambiguous/unresolved), the honest severity
+//     combination (CombinePathSeverity), and BuildExposureFinding, which turns
+//     plain bounded-traversal data into a finding. It is pure data in, data out
+//     so the query handler can run the graph traversal and feed it candidates;
+//     it never fabricates a path or severity and always labels findings derived.
+//
 // Recognition is conservative by construction: a sink is only one of the closed
 // SinkKind values, recognized only by a declared, provenance-cited edge. A sink
 // kind that has no materialized graph fact yet (shell-exec) is kept in the

@@ -115,6 +115,7 @@ Cypher.
 | `get_repository_coverage` | repository selector required | singleton coverage | yes | prompt-ready |
 | `trace_resource_to_code` | resource id or selector required | `max_depth` and `limit` | yes | prompt-ready; returns `truncated` |
 | `explain_dependency_path` | source and target required | bounded path search | yes | prompt-ready |
+| `trace_exposure_path` | `source` (with `repo_id`) or `source_entity_id` required | `max_depth` (1-10) | yes | derived (symbol-level reachability, never value-flow); reports `unresolved` when a code-to-cloud bridge edge is not materialized, never fabricates a path |
 | `find_change_surface` | entity scope required | `limit` | yes | legacy entity-scoped path; prefer `investigate_change_surface` for code-topic and changed-path prompts |
 | `investigate_change_surface` | changed path, topic, or entity scope required | bounded investigation | yes | prompt-ready |
 | `compare_environments` | workload plus two environments | per-environment `limit` | yes | prompt-ready; returns story, summary, shared/dedicated resources, evidence, limitations, next calls, and side-specific truncation coverage |

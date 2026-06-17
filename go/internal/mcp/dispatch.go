@@ -481,6 +481,13 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		}}, nil
 	case "explain_dependency_path":
 		return &route{method: "POST", path: "/api/v0/impact/explain-dependency-path", body: args}, nil
+	case "trace_exposure_path":
+		return &route{method: "POST", path: "/api/v0/impact/trace-exposure-path", body: map[string]any{
+			"source":           str(args, "source"),
+			"source_entity_id": str(args, "source_entity_id"),
+			"repo_id":          str(args, "repo_id"),
+			"max_depth":        intOr(args, "max_depth", 5),
+		}}, nil
 
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", toolName)

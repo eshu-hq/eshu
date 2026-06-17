@@ -10,7 +10,10 @@
 4. `go/internal/exposure/source_catalog.go` — the curated taint-source catalog,
    the classifier (`ClassifySource`), and the honest exposure ranking
    (`RankSourceExposure`).
-5. `go/internal/reducer/iam_escalation_catalog.go` — the closed-catalog pattern
+5. `go/internal/exposure/path_trace.go` — the pure exposure-path assembler:
+   truth-state vocabulary, honest severity (`CombinePathSeverity`), and
+   `BuildExposureFinding`.
+6. `go/internal/reducer/iam_escalation_catalog.go` — the closed-catalog pattern
    this package mirrors.
 
 ## What this package is
@@ -48,6 +51,12 @@ bounded tracer (a later slice, in `internal/query`) consumes these catalogs.
   `network_reachable`, not `internet_exposed`.
 - **Sources are classified, not re-detected** — reuse the parser's
   `dead_code_root_kinds`; do not re-implement handler detection here.
+- **The tracer never fabricates** — `BuildExposureFinding` returns `unresolved`
+  with a reason when there are no candidates; it never invents a path or a
+  severity. Severity is always read from the supplied sink specs, capped by
+  exposure rank. Findings are always labeled `derived`.
+- **The package stays graph-free** — `path_trace.go` assembles plain data; the
+  graph traversal lives in the query handler. Do not add graph access here.
 
 ## Common changes and how to scope them
 
