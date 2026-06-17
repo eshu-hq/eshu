@@ -324,6 +324,8 @@ func Parse(
 	}
 	payload["framework_semantics"] = buildJavaScriptFrameworkSemantics(path, source, payload)
 
+	emitValueFlowBuckets(payload, root, source, outputLanguage, options)
+
 	return payload, nil
 }
 

@@ -52,5 +52,6 @@ telemetry.
 
 ## Related docs
 
-- Epic #2705, issue #2826. Callers: `internal/parser/python` (`cfg_emit.go`),
-  and `internal/parser/golang` (to be migrated).
+- Epic #2705, issue #2826. Callers: `internal/parser/python` and
+  `internal/parser/javascript` (both `cfg_emit.go`); `internal/parser/golang`
+  still carries its own copy (migration tracked in #2885).
