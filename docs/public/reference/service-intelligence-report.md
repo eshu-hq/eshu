@@ -66,6 +66,35 @@ A report is `partial` whenever any present section is partial or unsupported, so
 it never reads as complete while sections are missing or unresolved handles
 remain.
 
+## Guided investigations
+
+The report does not stop at "here is what we know" — it tells you what to look at
+next. Composition derives a bounded list of **suggested investigations** from the
+report's own signals. Each suggestion is grounded in one observable basis:
+
+| Basis | When it fires | Recommended next call |
+| --- | --- | --- |
+| `missing_evidence` | requested evidence handles did not resolve | `build_evidence_citation_packet` (`/api/v0/evidence/citations`) |
+| `stale_freshness` | a section is stale or building with a proven cause | the section's bounded freshness next check |
+| `ambiguous_target` | the source route could not pick one subject | `resolve_entity` (`/api/v0/entities/resolve`) |
+| `unsupported_lane` | a section's evidence lane is unavailable | the section's fallback call |
+| `high_impact_relationship` | a high-impact relationship is flagged | `get_relationship_evidence` |
+
+Every suggestion carries:
+
+- a **reason** — one sentence on why it is suggested;
+- an **evidence basis** — the concrete signal it was derived from (the
+  unresolved handle keys, the freshness cause, the ambiguity message);
+- a bounded **next call** naming a real tool, route, or
+  [query playbook](query-playbooks.md); and
+- an **expected truth class** — what the next call should yield, sourced from the
+  section truth or the linked playbook, never invented.
+
+Suggestions are **never speculative**: an ambiguous target produces a
+disambiguation suggestion rather than a guessed winner, and a fully supported
+report with no gaps produces no suggestions at all. The list is de-duplicated
+and bounded so it stays scannable.
+
 ## Determinism
 
 Report composition is a pure function. The same evidence yields a byte-identical

@@ -29,9 +29,11 @@ func Compose(in ReportInput) Report {
 	report := Report{Schema: ReportSchema, Subject: in.Subject}
 	report.Sections = make([]ReportSection, 0, len(sectionCatalog))
 	for _, spec := range sectionCatalog {
-		section := composeSection(spec, supplied[spec.Kind], in.Subject)
+		input := supplied[spec.Kind]
+		section := composeSection(spec, input, in.Subject)
 		report.Sections = append(report.Sections, section)
 		accumulateReport(&report, spec.Kind, section)
+		suggestInvestigations(&report, spec, input, section)
 	}
 	return report
 }
