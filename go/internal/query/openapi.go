@@ -111,6 +111,7 @@ func OpenAPISpec() string {
 			openAPIPathsSemanticStatus+
 			openAPIPathsAnswerNarrationStatus+
 			openAPIPathsComponentExtensions+
+			openAPIPathsCollectorExtractionReadiness+
 			openAPIPathsQueryPlaybooks+
 			openAPIPathsSemanticSearch+
 			openAPIPathsSemanticEvidence+

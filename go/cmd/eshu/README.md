@@ -145,6 +145,18 @@ that carries hosted registry diagnostics.
 No-Regression Evidence: component extension API readback is covered by
 `go test ./cmd/eshu -run 'TestComponentInventoryCommandReadsCanonicalAPIEnvelope|TestComponentDiagnosticsCommandReadsComponentDrilldown' -count=1`.
 
+`component extraction-readiness [collector-family]` is a local, offline reader: it
+prints the advisory collector extraction readiness checklist (keep-in-tree /
+extraction-candidate / blocked / external-ready) from the static
+`internal/extraction` policy catalog, with `--verbose` and `--json`. It calls no
+API and opens no datastore.
+
+No-Observability-Change: extraction-readiness renders static in-binary policy
+data; the dispatcher emits no OTEL and opens no graph/Postgres drivers.
+
+No-Regression Evidence: extraction-readiness CLI output is covered by
+`go test ./cmd/eshu -run TestExtractionReadiness -count=1`.
+
 No-Observability-Change: component init collector scaffolding writes local
 template files only. The generated sample uses SDK validator tests and does not
 start Eshu runtimes, claim workflow work, write graph state, or emit OTEL from

@@ -41,6 +41,7 @@ func ReadOnlyTools() []ToolDefinition {
 	tools = append(tools, semanticSearchTools()...)
 	tools = append(tools, documentationFindingAggregateTools()...)
 	tools = append(tools, componentExtensionTools()...)
+	tools = append(tools, collectorExtractionReadinessTools()...)
 	tools = append(tools, runtimeTools()...)
 	return tools
 }

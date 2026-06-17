@@ -330,8 +330,9 @@ func newMCPQueryRouter(
 			Policy:        componentPolicy,
 			Profile:       queryProfile,
 		},
-		Playbooks:    &query.QueryPlaybookHandler{Profile: queryProfile},
-		Capabilities: &query.CapabilitiesHandler{Profile: queryProfile},
+		ExtractionReadiness: &query.CollectorExtractionReadinessHandler{Profile: queryProfile},
+		Playbooks:           &query.QueryPlaybookHandler{Profile: queryProfile},
+		Capabilities:        &query.CapabilitiesHandler{Profile: queryProfile},
 		Compare: &query.CompareHandler{
 			Neo4j:   neo4jReader,
 			Content: contentReader,

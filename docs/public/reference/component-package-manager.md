@@ -86,6 +86,9 @@ eshu component inventory \
 eshu component diagnostics dev.eshu.collector.aws \
   --service-url https://eshu.example \
   --json
+eshu component extraction-readiness pagerduty \
+  --verbose \
+  --json
 ```
 
 `component init collector` writes a new scaffold directory. It defaults to
@@ -231,6 +234,16 @@ version, publisher, manifest digest, installed/enabled/claim-capable states,
 revocation or policy failure reasons, and stable activation `config_handle`
 values. They do not include local manifest paths, activation config paths,
 provider credentials, or private host paths.
+
+`component extraction-readiness [collector-family]` prints the advisory collector
+extraction readiness checklist. For each collector family the extraction policy
+tracks it reports a classification (`keep_in_tree`, `extraction_candidate`,
+`blocked`, or `external_ready`), and `--verbose` adds the per-criterion
+checklist; `--json` emits the machine-readable form. Unlike `inventory` and
+`diagnostics`, it reads no API or registry state — the data is static policy
+classification compiled into the CLI, so it runs offline and never moves code.
+See [Collector Extraction Policy](collector-extraction-policy.md) for the
+classification vocabulary and the seven criteria.
 
 ## Hosted Coordinator Activation
 

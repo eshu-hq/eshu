@@ -35,10 +35,12 @@
 // findings envelope,
 // `vuln-scan provider-parity` aggregate provider proof with approved mismatch
 // classes plus readiness/freshness rollups), local component package-manager
-// commands (`component init collector|inspect|verify|install|conform|list|enable|disable|uninstall|inventory|diagnostics`)
+// commands (`component init collector|inspect|verify|install|conform|list|enable|disable|uninstall|inventory|diagnostics|extraction-readiness`)
 // with collector extension scaffolding, fixture conformance, stable JSON output,
-// classified errors, dry-run planning for install and enable, and API-backed
-// hosted component-extension inventory diagnostics, service launch (`mcp start`, `api start`,
+// classified errors, dry-run planning for install and enable, API-backed
+// hosted component-extension inventory diagnostics, and the advisory
+// `component extraction-readiness` checklist (local static policy data),
+// service launch (`mcp start`, `api start`,
 // `serve`), authenticated local Eshu service commands (`graph` — `mcp start --workspace-root` can attach
 // stdio or HTTP MCP transports to the active local owner; `stop` handles both `local_lightweight`
 // and `local_authoritative` profiles; lightweight stop verifies the owner
