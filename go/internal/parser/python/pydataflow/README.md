@@ -21,11 +21,15 @@ See `doc.go` for the godoc contract. The surface is:
 
 - `LowerFunction(node, source, limits) cfg.Function` — lower one Python function
   definition body into a resolved control-flow graph.
+- `TaintFacts(node, source, fn) taint.Facts` — derive intraprocedural taint
+  annotations (sources, sinks, sanitizers) from the Python catalog, mapped onto
+  the control-flow graph, for the `internal/parser/taint` engine.
 
 ## Dependencies
 
-- `internal/parser/cfg` (the dataflow engine), `internal/parser/shared` (node
-  text/line helpers), and `github.com/tree-sitter/go-tree-sitter`.
+- `internal/parser/cfg` (the dataflow engine), `internal/parser/taint` (the
+  taint fact types), `internal/parser/shared` (node text/line helpers), and
+  `github.com/tree-sitter/go-tree-sitter`.
 
 ## Telemetry
 
@@ -48,6 +52,15 @@ telemetry.
   subscript targets read their base, never define.
 - Nested function/lambda bodies are not descended into (a safe false negative,
   never a false edge).
+- **Taint catalog (`taintfacts.go`) matches by final call name only** — a known
+  v1 precision limit shared with the Go and TS catalogs. Sinks: `execute`/
+  `executemany` (sql), `system`/`Popen`/`eval`/`exec` (command). Sanitizers are
+  narrow and unambiguous (`escape` → html); a name that neutralizes different
+  kinds by import (`quote` is urllib URL-encoding but also shlex shell-quoting)
+  is omitted, since a missed sanitizer is safer than a missed vulnerability.
+- **A sanitizer is recorded only when the assigned value is DIRECTLY a sanitizer
+  call.** `safe = escape(x) if cond else x` is not marked sanitized — the other
+  branch is unneutralized, so marking it would wrongly suppress a real finding.
 
 ## Related docs
 
