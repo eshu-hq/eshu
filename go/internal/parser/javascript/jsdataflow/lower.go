@@ -65,6 +65,11 @@ func (l *lowerer) lowerStmt(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID
 	case "expression_statement":
 		l.lowerExpressionStatement(node, cur)
 		return cur
+	case "assignment_expression", "augmented_assignment_expression", "update_expression":
+		// A bare assignment in statement position (for example a C-style for-loop
+		// initializer `for (i = 0; ...)`) must record its def, not just uses.
+		l.lowerInlineExpr(node, cur)
+		return cur
 	default:
 		l.addUses(cur, node)
 		return cur
@@ -173,8 +178,8 @@ func (l *lowerer) lowerForIn(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockI
 	header := l.builder.AddBlock()
 	l.builder.AddEdge(cur, header)
 	var defs, uses []string
-	if left := node.ChildByFieldName("left"); left != nil && left.Kind() == "identifier" {
-		defs = []string{nodeText(left, l.source)}
+	if left := node.ChildByFieldName("left"); left != nil {
+		defs = forInTargets(left, l.source)
 	}
 	if right := node.ChildByFieldName("right"); right != nil {
 		uses = exprUses(right, l.source)

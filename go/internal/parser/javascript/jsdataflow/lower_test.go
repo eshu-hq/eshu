@@ -14,6 +14,12 @@ import (
 // lowerFirstFunction parses TypeScript src, finds the first function declaration,
 // and lowers it to a CFG.
 func lowerFirstFunction(t *testing.T, src string) cfg.Function {
+	return lowerFirstOfKind(t, src, "function_declaration")
+}
+
+// lowerFirstOfKind parses TypeScript src, finds the first node of kind, and
+// lowers it to a CFG.
+func lowerFirstOfKind(t *testing.T, src, kind string) cfg.Function {
 	t.Helper()
 	parser := tree_sitter.NewParser()
 	defer parser.Close()
@@ -30,7 +36,7 @@ func lowerFirstFunction(t *testing.T, src string) cfg.Function {
 		if fnNode != nil || n == nil {
 			return
 		}
-		if n.Kind() == "function_declaration" {
+		if n.Kind() == kind {
 			captured := *n
 			fnNode = &captured
 			return
@@ -44,7 +50,7 @@ func lowerFirstFunction(t *testing.T, src string) cfg.Function {
 	}
 	walk(tree.RootNode())
 	if fnNode == nil {
-		t.Fatalf("no function declaration in fixture")
+		t.Fatalf("no %s in fixture", kind)
 	}
 	return LowerFunction(fnNode, source, cfg.DefaultLimits())
 }
@@ -56,6 +62,56 @@ func defUseLines(fn cfg.Function) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// TestLowerArrowSingleParam proves an unparenthesized single-parameter arrow
+// (req => ...) records its parameter as an entry definition.
+func TestLowerArrowSingleParam(t *testing.T) {
+	t.Parallel()
+
+	src := "const h = req => {\n" +
+		"\tlet x = req;\n" +
+		"\tuse(x);\n" +
+		"};"
+	fn := lowerFirstOfKind(t, src, "arrow_function")
+	got := defUseLines(fn)
+	if !contains(got, "req:1->2") {
+		t.Fatalf("arrow param req not flowing (let x = req); got %v", got)
+	}
+}
+
+// TestLowerForInitAssignment proves a C-style for initializer that is an
+// assignment (not a declaration) records its def, so it reaches the body use.
+func TestLowerForInitAssignment(t *testing.T) {
+	t.Parallel()
+
+	src := "function f(n, start) {\n" +
+		"\tfor (i = start; i < n; ) {\n" +
+		"\t\tuse(i);\n" +
+		"\t}\n" +
+		"}"
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+	if !contains(got, "i:2->3") {
+		t.Fatalf("for-init assignment def of i dropped; got %v", got)
+	}
+}
+
+// TestLowerForOfDeclarationTarget proves a for-of loop target defines its
+// variable, which reaches a body use.
+func TestLowerForOfDeclarationTarget(t *testing.T) {
+	t.Parallel()
+
+	src := "function f(items) {\n" +
+		"\tfor (const item of items) {\n" +
+		"\t\tuse(item);\n" +
+		"\t}\n" +
+		"}"
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+	if !contains(got, "item:2->3") {
+		t.Fatalf("for-of target item not defined; got %v", got)
+	}
 }
 
 func contains(haystack []string, needle string) bool {

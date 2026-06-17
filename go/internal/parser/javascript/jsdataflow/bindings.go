@@ -7,6 +7,13 @@ import (
 // paramNames returns the identifier parameter names of a function, in
 // declaration order. Object and array destructuring patterns are skipped (v1).
 func paramNames(node *tree_sitter.Node, source []byte) []string {
+	// An unparenthesized single-parameter arrow function (req => ...) carries the
+	// parameter under the singular `parameter` field as a bare identifier.
+	if single := node.ChildByFieldName("parameter"); single != nil && single.Kind() == "identifier" {
+		if name := nodeText(single, source); name != "" {
+			return []string{name}
+		}
+	}
 	params := node.ChildByFieldName("parameters")
 	if params == nil {
 		return nil
@@ -30,6 +37,44 @@ func paramNames(node *tree_sitter.Node, source []byte) []string {
 		}
 	}
 	return names
+}
+
+// forInTargets returns the identifier definition targets of a for-in/for-of left
+// side: a bare identifier, or the identifiers of an array/object destructuring
+// pattern. The grammar's loop binding (const/let/var) appears as a separate
+// keyword token, so the left field is the binding pattern itself.
+func forInTargets(left *tree_sitter.Node, source []byte) []string {
+	if left == nil {
+		return nil
+	}
+	if left.Kind() == "identifier" {
+		if name := nodeText(left, source); name != "" {
+			return []string{name}
+		}
+		return nil
+	}
+	// array_pattern / object_pattern: collect the bound identifiers.
+	var targets []string
+	var visit func(*tree_sitter.Node)
+	visit = func(current *tree_sitter.Node) {
+		if current == nil {
+			return
+		}
+		if current.Kind() == "identifier" {
+			if name := nodeText(current, source); name != "" {
+				targets = append(targets, name)
+			}
+			return
+		}
+		cursor := current.Walk()
+		defer cursor.Close()
+		for _, child := range current.NamedChildren(cursor) {
+			child := child
+			visit(&child)
+		}
+	}
+	visit(left)
+	return targets
 }
 
 // assignDefsUses splits an assignment or update expression into defined and used
