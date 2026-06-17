@@ -157,7 +157,7 @@ func semanticSearchNextCalls(
 	anchor := req.Scope.Anchor()
 	if anchor.Kind == searchretrieval.ScopeKindService && anchor.ID != "" {
 		add("get_service_story", "tell the story of the anchored service and cite its evidence",
-			map[string]any{"service": anchor.ID})
+			map[string]any{"workload_id": anchor.ID})
 	}
 
 	for i, item := range ranked {
@@ -165,20 +165,11 @@ func semanticSearchNextCalls(
 			break
 		}
 		for _, h := range item.Result.Handles {
-			switch handleSignalTool(h.Kind) {
-			case "get_service_story":
-				add("get_service_story", "resolve the service story behind a top result",
-					map[string]any{"service": h.ID})
-			case "trace_deployment_chain":
-				add("trace_deployment_chain", "trace the deployment chain for a top result's workload",
-					map[string]any{"workload_id": h.ID})
-			case "get_incident_context":
-				add("get_incident_context", "read the incident context a top result is tied to",
-					map[string]any{"incident_id": h.ID})
-			case "explain_supply_chain_impact":
-				add("explain_supply_chain_impact", "explain the supply-chain impact for a top result's package",
-					map[string]any{"image": h.ID})
+			tool := handleSignalTool(h.Kind)
+			if tool == "" {
+				continue
 			}
+			add(tool, nextCallReason(tool), nextCallArguments(tool, h.ID))
 		}
 	}
 
@@ -189,6 +180,40 @@ func semanticSearchNextCalls(
 		return nil
 	}
 	return calls
+}
+
+// nextCallArguments builds the executable arguments for a follow-up tool from a
+// graph handle id, using the tool's actual dispatch schema keys so a client that
+// follows the recommendation reaches the bounded read rather than a route error.
+func nextCallArguments(tool, handleID string) map[string]any {
+	switch tool {
+	case "get_service_story":
+		return map[string]any{"workload_id": handleID}
+	case "trace_deployment_chain":
+		return map[string]any{"service_name": handleID}
+	case "get_incident_context":
+		return map[string]any{"incident_id": handleID}
+	case "explain_supply_chain_impact":
+		return map[string]any{"subject_digest": handleID}
+	default:
+		return nil
+	}
+}
+
+// nextCallReason explains why a follow-up tool advances the investigation.
+func nextCallReason(tool string) string {
+	switch tool {
+	case "get_service_story":
+		return "resolve the service story behind a top result"
+	case "trace_deployment_chain":
+		return "trace the deployment chain for a top result's service"
+	case "get_incident_context":
+		return "read the incident context a top result is tied to"
+	case "explain_supply_chain_impact":
+		return "explain the supply-chain impact for a top result's package"
+	default:
+		return "advance the investigation from a top result"
+	}
 }
 
 // handleSignalTool maps a graph handle kind to the first-class read tool a
