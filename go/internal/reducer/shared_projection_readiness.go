@@ -6,22 +6,33 @@ import (
 	"time"
 )
 
-// filterRowsByReadiness partitions a domain's pending intent rows into the rows
-// whose prerequisite graph-projection phase has committed and the rows still
-// blocked on readiness. Domains without a readiness gate pass through
-// unchanged. The readiness key is built under the domain's prerequisite
-// keyspace (sharedProjectionReadinessKeyspace) so a multi-keyspace domain such
-// as handles_route looks up the phase under the keyspace it was published in.
+// filterRowsByReadiness partitions a domain's pending intent rows into three
+// disjoint sets: rows ready to project, rows still blocked on a prerequisite
+// graph-projection phase (deferred, re-enqueued), and rows that are terminally
+// complete with no edge (drained without a write). Domains without a readiness
+// gate pass through as ready. The readiness key is built under the domain's
+// prerequisite keyspace (sharedProjectionReadinessKeyspace) so a multi-keyspace
+// domain such as handles_route looks up the phase under the keyspace it was
+// published in.
 //
 // endpointPresence adds a SECOND, domain-scoped gate that applies ONLY to
-// DomainHandlesRoute (#2809): a handles_route intent carries the repo acceptance
-// unit, but its target :Endpoint commits under a per-workload acceptance unit, so
-// the phase gate alone cannot prove the endpoint exists. After the phase gate,
-// handles_route rows are additionally filtered by property-keyed (repo_id, path)
-// endpoint presence; rows whose endpoint is absent join the blocked set and are
-// deferred (re-enqueued, not marked complete). A nil endpointPresence disables
-// this second gate, so every other domain — and handles_route itself when
-// presence is unwired — stays byte-identical to its pre-#2809 behavior.
+// DomainHandlesRoute (#2809). A handles_route intent carries the repo acceptance
+// unit. The repo's single workload-materialization invocation publishes BOTH the
+// workload-materialization phase under that repo acceptance unit AND the
+// property-keyed (repo_id, path) presence for every :Endpoint it commits, before
+// it returns — including the zero-candidate path, which publishes the phase with
+// no endpoints. So once a handles_route row passes the phase gate, every endpoint
+// that repo will ever produce in this generation already has a presence row.
+// Therefore, among phase-ready rows:
+//   - an endpoint that is PRESENT projects (readyRows);
+//   - an endpoint that is ABSENT will never commit (route-only repo, or a route
+//     whose endpoint was not materialized), so the row is TERMINAL — drained with
+//     no edge (terminalRows), never deferred. Deferring it would stall the
+//     shared-projection backlog forever because no producer can fill the key.
+//
+// A nil endpointPresence disables this second gate, so every other domain — and
+// handles_route itself when presence is unwired — stays byte-identical to its
+// pre-#2809 behavior.
 func filterRowsByReadiness(
 	ctx context.Context,
 	domain string,
@@ -29,10 +40,10 @@ func filterRowsByReadiness(
 	readinessLookup GraphProjectionReadinessLookup,
 	readinessPrefetch GraphProjectionReadinessPrefetch,
 	endpointPresence EndpointPresenceLookup,
-) ([]SharedProjectionIntentRow, []SharedProjectionIntentRow, error) {
+) (readyRows, blockedRows, terminalRows []SharedProjectionIntentRow, err error) {
 	phase, gated := sharedProjectionReadinessPhase(domain)
 	if !gated || len(rows) == 0 {
-		return rows, nil, nil
+		return rows, nil, nil, nil
 	}
 	keyspace := sharedProjectionReadinessKeyspace(domain)
 
@@ -51,19 +62,19 @@ func filterRowsByReadiness(
 			seen[key] = struct{}{}
 			keys = append(keys, key)
 		}
-		resolvedLookup, err := readinessPrefetch(ctx, keys, phase)
-		if err != nil {
-			return nil, nil, fmt.Errorf("prefetch graph projection readiness: %w", err)
+		resolvedLookup, prefetchErr := readinessPrefetch(ctx, keys, phase)
+		if prefetchErr != nil {
+			return nil, nil, nil, fmt.Errorf("prefetch graph projection readiness: %w", prefetchErr)
 		}
 		lookup = resolvedLookup
 	}
 
 	if lookup == nil {
-		return rows, nil, nil
+		return rows, nil, nil, nil
 	}
 
-	readyRows := make([]SharedProjectionIntentRow, 0, len(rows))
-	blockedRows := make([]SharedProjectionIntentRow, 0)
+	readyRows = make([]SharedProjectionIntentRow, 0, len(rows))
+	blockedRows = make([]SharedProjectionIntentRow, 0)
 	for _, row := range rows {
 		key, ok := graphProjectionPhaseKeyForIntent(row, row.GenerationID, keyspace)
 		if !ok {
@@ -77,20 +88,22 @@ func filterRowsByReadiness(
 		readyRows = append(readyRows, row)
 	}
 
-	// Second gate (handles_route only, #2809): among the phase-ready rows, defer
-	// the ones whose (repo_id, path) :Endpoint has not committed yet. A nil
-	// presence lookup is a no-op, so every other domain — and handles_route when
-	// presence is unwired — is unaffected.
+	// Second gate (handles_route only, #2809): among the phase-ready rows,
+	// terminally drain the ones whose (repo_id, path) :Endpoint did not commit.
+	// Because the phase gate already proves workload materialization for the repo
+	// is done, an absent endpoint will never appear, so the row is complete with
+	// no edge — NOT deferred. A nil presence lookup is a no-op, so every other
+	// domain — and handles_route when presence is unwired — is unaffected.
 	if domain == DomainHandlesRoute && endpointPresence != nil && len(readyRows) > 0 {
-		presentRows, absentRows, err := filterHandlesRouteRowsByEndpointPresence(ctx, readyRows, endpointPresence)
-		if err != nil {
-			return nil, nil, fmt.Errorf("look up handles_route endpoint presence: %w", err)
+		presentRows, absentRows, presenceErr := filterHandlesRouteRowsByEndpointPresence(ctx, readyRows, endpointPresence)
+		if presenceErr != nil {
+			return nil, nil, nil, fmt.Errorf("look up handles_route endpoint presence: %w", presenceErr)
 		}
 		readyRows = presentRows
-		blockedRows = append(blockedRows, absentRows...)
+		terminalRows = absentRows
 	}
 
-	return readyRows, blockedRows, nil
+	return readyRows, blockedRows, terminalRows, nil
 }
 
 // maxSharedIntentWaitSeconds reports the longest time any row has waited since

@@ -127,6 +127,19 @@ Parsed by `LoadSharedProjectionConfig` in `internal/reducer`.
 | ESHU_SHARED_PROJECTION_LEASE_TTL | `60s` | Partition lease TTL |
 | ESHU_SHARED_PROJECTION_WORKERS | `min(NumCPU,4)` | Concurrent partition workers |
 
+### HANDLES_ROUTE endpoint-presence gate (#2809)
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ESHU_REDUCER_HANDLES_ROUTE_PRESENCE_GATE_ENABLED` | `true` | Gate `Function-[:HANDLES_ROUTE]->Endpoint` projection on the target `(repo_id, path)` `:Endpoint` having committed, so the edge cannot drop on a cold first generation. Set to a false value (`false`, `0`) to restore pre-#2809 behavior. |
+
+The gate is wired independently of `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`:
+disabling secrets/IAM never disables this gate, and this kill switch never widens
+the secrets/IAM uid presence writes onto the cloud/Kubernetes materializers. A
+phase-ready handles_route row whose endpoint never materializes (a route-only repo)
+is drained with no edge — reported as `terminal_no_endpoint` in the shared
+projection cycle log — never deferred, so the backlog cannot stall.
+
 ### Code-call projection
 
 | Variable | Default |
@@ -209,6 +222,22 @@ worker, lease, or graph query shape. It routes the already documented `File`,
 `Directory`, and `Module` label values through the existing
 `eshu_dp_graph_orphan_nodes{node_label=...}` observer and runner completion
 logs, whose `node_label` value space is the bounded closed sweep label set.
+
+No-Regression Evidence: `go test ./cmd/reducer -run
+'TestHandlesRouteEndpointPresenceGateEnabledDefaultsOn|TestEndpointPresenceWiringNilWhenDisabled|TestNewEndpointPresenceWiringsGatesIndependently'
+-count=1` failed before the handles_route (`repo_id`, `path`) presence wiring
+(#2809) was split from the secrets/IAM uid presence wiring (#1380), then passed.
+`newEndpointPresenceWirings` now gates each pair from its own flag, so the
+secrets/IAM uid writer is never handed to the workload materialization handler
+and the handles_route kill switch never widens uid writes onto the cloud
+materializers; with secrets/IAM off and the default gate on, only the
+handles_route pair is non-nil.
+
+No-Observability-Change: the wiring split adds no metric, span, log key, worker,
+lease, runtime knob, or graph query shape in `cmd/reducer`. The handles_route gate
+the wiring feeds emits its operator-facing `terminal_no_endpoint` log key in
+`internal/reducer` (documented in that package's `AGENTS.md`); this binary only
+chooses which presence store each consumer receives.
 
 ### Terraform drift
 

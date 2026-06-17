@@ -155,7 +155,7 @@ func buildReducerService(
 	if err != nil {
 		return reducer.Service{}, err
 	}
-	endpointPresenceWriter, endpointPresenceLookup := endpointPresenceWiring(secretsIAMGraphWriter != nil, database)
+	presence := newEndpointPresenceWirings(getenv, secretsIAMGraphWriter != nil, database)
 	relationshipStore := postgres.NewRelationshipStore(database)
 	factStore := postgres.NewFactStore(database)
 	admissionDecisionWriter := newAdmissionDecisionWriter(database)
@@ -341,8 +341,10 @@ func buildReducerService(
 		IAMEscalationEdgeWriter:                    graphWriters.iamEscalationEdge,
 		IAMCanPerformEdgeWriter:                    graphWriters.iamCanPerformEdge,
 		SecretsIAMGraphWriter:                      secretsIAMGraphWriter,
-		EndpointPresenceWriter:                     endpointPresenceWriter,
-		EndpointPresenceLookup:                     endpointPresenceLookup,
+		EndpointPresenceWriter:                     presence.secretsIAMWriter,
+		EndpointPresenceLookup:                     presence.secretsIAMLookup,
+		APIEndpointRepoPathPresenceWriter:          presence.handlesRouteWriter,
+		APIEndpointRepoPathPresenceLookup:          presence.handlesRouteLookup,
 		ObservabilityCoverageEdgeWriter:            graphWriters.observabilityCoverageEdge,
 		IAMCanAssumeEdgeWriter:                     graphWriters.iamCanAssumeEdge,
 		S3LogsToEdgeWriter:                         graphWriters.s3LogsToEdge,
@@ -433,14 +435,15 @@ func buildReducerService(
 		HeartbeatInterval:          workQueue.LeaseDuration / 2,
 		SharedProjectionEdgeWriter: edgeWriter,
 		SharedProjectionRunner: &reducer.SharedProjectionRunner{
-			IntentReader:           intentStore,
-			LeaseManager:           intentStore,
-			EdgeWriter:             edgeWriter,
-			AcceptedGen:            postgres.NewAcceptedGenerationLookup(database),
-			AcceptedGenPrefetch:    acceptedGenerationPrefetch,
-			ReadinessLookup:        graphProjectionReadinessLookup,
-			ReadinessPrefetch:      graphProjectionReadinessPrefetch,
-			EndpointPresenceLookup: endpointPresenceLookup,
+			IntentReader:        intentStore,
+			LeaseManager:        intentStore,
+			EdgeWriter:          edgeWriter,
+			AcceptedGen:         postgres.NewAcceptedGenerationLookup(database),
+			AcceptedGenPrefetch: acceptedGenerationPrefetch,
+			ReadinessLookup:     graphProjectionReadinessLookup,
+			ReadinessPrefetch:   graphProjectionReadinessPrefetch,
+			// handles_route gate (#2809) — independent of the secrets/IAM lookup.
+			EndpointPresenceLookup: presence.handlesRouteLookup,
 			Config:                 sharedCfg,
 			Tracer:                 tracer,
 			Instruments:            instruments,

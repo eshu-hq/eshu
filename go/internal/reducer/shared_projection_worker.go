@@ -3,7 +3,6 @@ package reducer
 import (
 	"context"
 	"fmt"
-	"sort"
 	"time"
 )
 
@@ -39,12 +38,18 @@ type AcceptedGenerationPrefetch func(ctx context.Context, intents []SharedProjec
 
 // PartitionBatchResult holds the result of selecting one partition batch.
 type PartitionBatchResult struct {
-	LatestRows    []SharedProjectionIntentRow
-	BlockedRows   []SharedProjectionIntentRow
+	LatestRows  []SharedProjectionIntentRow
+	BlockedRows []SharedProjectionIntentRow
+	// TerminalRows are phase-ready rows that are complete with no edge — the
+	// handles_route #2809 terminal-no-endpoint set. They are retracted (to clear
+	// any stale edge whose endpoint vanished) and marked complete, but never
+	// written and never deferred, so a route-only repo cannot stall the backlog.
+	TerminalRows  []SharedProjectionIntentRow
 	StaleIDs      []string
 	StaleCount    int
 	SupersededIDs []string
 	BlockedCount  int
+	TerminalCount int
 	// IndexedSelection is true when candidates were read through the indexed
 	// partition predicate rather than the in-memory domain scan. It is a bounded
 	// operator signal for diagnosing which selection path a domain used.
@@ -94,89 +99,11 @@ type PartitionProcessResult struct {
 	ReplayRequests                    int
 	IndexedSelection                  bool
 	UnhashedFallbackRows              int
-}
-
-// LatestIntentsByRepoAndPartition deduplicates intents to the most recent per
-// bounded acceptance key and partition, matching the Python
-// _latest_intents_by_repo_and_partition function.
-func LatestIntentsByRepoAndPartition(intents []SharedProjectionIntentRow) ([]SharedProjectionIntentRow, []string) {
-	if len(intents) == 0 {
-		return nil, nil
-	}
-
-	sorted := make([]SharedProjectionIntentRow, len(intents))
-	copy(sorted, intents)
-	sort.SliceStable(sorted, func(i, j int) bool {
-		if !sorted[i].CreatedAt.Equal(sorted[j].CreatedAt) {
-			return sorted[i].CreatedAt.Before(sorted[j].CreatedAt)
-		}
-		return sorted[i].IntentID < sorted[j].IntentID
-	})
-
-	type repoPartitionKey struct {
-		scopeID          string
-		acceptanceUnitID string
-		sourceRunID      string
-		repositoryID     string
-		partitionKey     string
-	}
-
-	latestByKey := make(map[repoPartitionKey]SharedProjectionIntentRow)
-	order := make([]repoPartitionKey, 0)
-	var supersededIDs []string
-
-	for _, intent := range sorted {
-		k := repoPartitionKey{
-			scopeID:      intent.ScopeID,
-			sourceRunID:  intent.SourceRunID,
-			repositoryID: intent.RepositoryID,
-			partitionKey: intent.PartitionKey,
-		}
-		if acceptanceKey, ok := intent.AcceptanceKey(); ok {
-			k.scopeID = acceptanceKey.ScopeID
-			k.acceptanceUnitID = acceptanceKey.AcceptanceUnitID
-			k.sourceRunID = acceptanceKey.SourceRunID
-		}
-		if prev, ok := latestByKey[k]; ok {
-			supersededIDs = append(supersededIDs, prev.IntentID)
-		} else {
-			order = append(order, k)
-		}
-		latestByKey[k] = intent
-	}
-
-	result := make([]SharedProjectionIntentRow, 0, len(order))
-	for _, k := range order {
-		result = append(result, latestByKey[k])
-	}
-
-	return result, supersededIDs
-}
-
-// FilterAuthoritativeIntents splits intents into active (matching accepted
-// generation) and stale (mismatching generation) sets, matching the Python
-// _filter_authoritative_intents function.
-func FilterAuthoritativeIntents(
-	intents []SharedProjectionIntentRow,
-	acceptedGen AcceptedGenerationLookup,
-) (active []SharedProjectionIntentRow, staleIDs []string) {
-	for _, intent := range intents {
-		key, ok := intent.AcceptanceKey()
-		if !ok {
-			continue
-		}
-
-		accepted, ok := acceptedGen(key)
-		if !ok {
-			continue
-		}
-		if intent.GenerationID != accepted {
-			staleIDs = append(staleIDs, intent.IntentID)
-			continue
-		}
-		active = append(active, intent)
-	}
-	return active, staleIDs
+	// TerminalNoEndpoint counts handles_route rows drained with no edge because
+	// their (repo_id, path) :Endpoint will never commit (#2809). A non-zero value
+	// during steady state is the operator signal for route handlers whose target
+	// endpoint was not materialized — distinct from readiness-blocked rows.
+	TerminalNoEndpoint int
 }
 
 // SelectPartitionBatch selects one accepted partition batch, matching the
@@ -248,7 +175,7 @@ func SelectPartitionBatch(
 
 		active, staleIDs := FilterAuthoritativeIntents(partitionRows, lookup)
 		latest, supersededIDs := LatestIntentsByRepoAndPartition(active)
-		readyRows, blockedRows, err := filterRowsByReadiness(
+		readyRows, blockedRows, terminalRows, err := filterRowsByReadiness(
 			ctx,
 			domain,
 			latest,
@@ -260,17 +187,22 @@ func SelectPartitionBatch(
 			return PartitionBatchResult{}, err
 		}
 
-		if len(readyRows) >= batchLimit || seenAll {
+		// Terminal rows are complete with no edge; draining them promptly (rather
+		// than widening the scan in search of more ready rows) is what keeps a
+		// route-only backlog from stalling, so they count toward returning a batch.
+		if len(readyRows) >= batchLimit || len(terminalRows) > 0 || seenAll {
 			if len(readyRows) > batchLimit {
 				readyRows = readyRows[:batchLimit]
 			}
 			return PartitionBatchResult{
 				LatestRows:           readyRows,
 				BlockedRows:          blockedRows,
+				TerminalRows:         terminalRows,
 				StaleIDs:             staleIDs,
 				StaleCount:           len(staleIDs),
 				SupersededIDs:        supersededIDs,
 				BlockedCount:         len(blockedRows),
+				TerminalCount:        len(terminalRows),
 				IndexedSelection:     indexed,
 				UnhashedFallbackRows: unhashedFallback,
 			}, nil
@@ -281,10 +213,12 @@ func SelectPartitionBatch(
 				return PartitionBatchResult{
 					LatestRows:           readyRows,
 					BlockedRows:          blockedRows,
+					TerminalRows:         terminalRows,
 					StaleIDs:             staleIDs,
 					StaleCount:           len(staleIDs),
 					SupersededIDs:        supersededIDs,
 					BlockedCount:         len(blockedRows),
+					TerminalCount:        len(terminalRows),
 					IndexedSelection:     indexed,
 					UnhashedFallbackRows: unhashedFallback,
 				}, nil
@@ -353,7 +287,7 @@ func ProcessPartitionOnce(
 		}, fmt.Errorf("select batch: %w", err)
 	}
 
-	if len(batch.LatestRows) == 0 && len(batch.StaleIDs) == 0 && len(batch.SupersededIDs) == 0 {
+	if len(batch.LatestRows) == 0 && len(batch.TerminalRows) == 0 && len(batch.StaleIDs) == 0 && len(batch.SupersededIDs) == 0 {
 		return PartitionProcessResult{
 			LeaseAcquired:               true,
 			BlockedReadiness:            batch.BlockedCount,
@@ -370,9 +304,20 @@ func ProcessPartitionOnce(
 		evidenceSource = "finalization/workloads"
 	}
 
+	// Retract over the ready AND terminal rows: retraction is repo-scoped, so a
+	// repo whose only handles_route rows are terminal (every endpoint absent) must
+	// still contribute its repo_id to clear a stale edge from a prior generation
+	// when the endpoint has since vanished. Writes re-add the ready rows only.
+	retractRows := batch.LatestRows
+	if len(batch.TerminalRows) > 0 {
+		retractRows = make([]SharedProjectionIntentRow, 0, len(batch.LatestRows)+len(batch.TerminalRows))
+		retractRows = append(retractRows, batch.LatestRows...)
+		retractRows = append(retractRows, batch.TerminalRows...)
+	}
+
 	processingStart := time.Now()
 	retractStart := time.Now()
-	if err := edgeWriter.RetractEdges(ctx, cfg.Domain, batch.LatestRows, evidenceSource); err != nil {
+	if err := edgeWriter.RetractEdges(ctx, cfg.Domain, retractRows, evidenceSource); err != nil {
 		return PartitionProcessResult{
 			LeaseAcquired:             true,
 			LeaseClaimDurationSeconds: leaseDuration,
@@ -398,6 +343,11 @@ func ProcessPartitionOnce(
 	for _, row := range batch.LatestRows {
 		processedIDs = append(processedIDs, row.IntentID)
 	}
+	// Terminal rows are completed with no edge (drained, never deferred), so the
+	// route-only backlog drains instead of re-enqueuing forever (#2809).
+	for _, row := range batch.TerminalRows {
+		processedIDs = append(processedIDs, row.IntentID)
+	}
 
 	var markCompletedDuration float64
 	if len(processedIDs) > 0 {
@@ -417,7 +367,7 @@ func ProcessPartitionOnce(
 		LeaseAcquired:                true,
 		ProcessedIntents:             len(processedIDs),
 		UpsertedRows:                 len(upsertRows),
-		RetractedRows:                len(batch.LatestRows),
+		RetractedRows:                len(retractRows),
 		StaleIntents:                 len(batch.StaleIDs),
 		BlockedReadiness:             batch.BlockedCount,
 		MaxIntentWaitSeconds:         maxSharedIntentWaitSeconds(now, batch.LatestRows),
@@ -430,5 +380,6 @@ func ProcessPartitionOnce(
 		MarkCompletedDurationSeconds: markCompletedDuration,
 		IndexedSelection:             batch.IndexedSelection,
 		UnhashedFallbackRows:         batch.UnhashedFallbackRows,
+		TerminalNoEndpoint:           len(batch.TerminalRows),
 	}, nil
 }

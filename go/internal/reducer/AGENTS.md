@@ -243,26 +243,35 @@ spans/duration metrics to connect those selector phases to queue progress.
 No-Regression Evidence: #2809 adds a property-keyed `(repo_id, path)` Endpoint
 presence gate for the `handles_route` shared-projection domain so the
 `Function-[:HANDLES_ROUTE]->Endpoint` edge no longer drains and silently drops on
-the first generation before its target Endpoint commits under a different
-acceptance unit. `go test ./internal/reducer -run
-'TestFilterRowsByReadinessHandlesRouteDefersAbsentEndpoint|TestFilterRowsByReadinessHandlesRouteProjectsWhenPresent|TestFilterRowsByReadinessHandlesRouteNilPresenceIsTodaysBehavior|TestFilterRowsByReadinessNonHandlesRouteIgnoresPresence|TestProcessPartitionOnceHandlesRouteDefersAbsentEndpoint|TestProcessPartitionOnceHandlesRouteNilPresenceProjectsAll|TestWorkloadMaterializationHandlerPublishesEndpointRepoPathPresence|TestWorkloadMaterializationHandlerNilPresenceWriterNoOp'
--count=1` failed before the gate existed, then passed. `go test
-./internal/reducer ./internal/storage/cypher ./internal/runtime ./cmd/reducer
--count=1` stays green, proving byte-identical behavior for every other domain:
-the gate is keyed strictly on `domain == DomainHandlesRoute`, runs ONE bounded
-`MissingUIDs` lookup over the distinct `(repo_id, path)` keys (no N+1 probe), and
-a nil presence lookup/writer is a no-op so the un-wired path matches today's
-exactly. A blocked row is deferred (left pending, re-enqueued) rather than marked
-complete, mirroring the secrets/IAM #1380 presence gate; the new presence rows
-reuse the existing `graph_endpoint_presence` table under a new
-`api_endpoint_repo_path` keyspace with no schema change.
+the first generation before its target Endpoint commits. A phase-ready row whose
+endpoint is ABSENT is TERMINAL (drained with no edge, retracted repo-scoped to
+clear any stale edge), NEVER deferred — a route-only repo, whose endpoint will
+never materialize, therefore cannot stall the shared-projection backlog forever
+(the original gate's liveness bug). The presence and phase gates are independently
+wired so the handles_route gate is toggled solely by
+`ESHU_REDUCER_HANDLES_ROUTE_PRESENCE_GATE_ENABLED`, never by the secrets/IAM flag,
+and the secrets/IAM uid presence writer is never handed to the cloud/Kubernetes
+materializers via this path. `go test ./internal/reducer -run
+'TestFilterRowsByReadinessHandlesRouteTerminatesAbsentEndpoint|TestFilterRowsByReadinessHandlesRoutePhaseBlockedStaysDeferred|TestFilterRowsByReadinessHandlesRouteProjectsWhenPresent|TestFilterRowsByReadinessHandlesRouteNilPresenceIsTodaysBehavior|TestFilterRowsByReadinessNonHandlesRouteIgnoresPresence|TestProcessPartitionOnceHandlesRouteDrainsAbsentEndpoint|TestProcessPartitionOnceHandlesRouteAllTerminalRepoDrainsAndRetracts|TestProcessPartitionOnceHandlesRouteNilPresenceProjectsAll|TestWorkloadMaterializationHandlerPublishesEndpointRepoPathPresence|TestWorkloadMaterializationHandlerNilPresenceWriterNoOp|TestNewDefaultRegistryWiresHandlesRoutePresenceWriterIndependently'
+-count=1` failed before the terminal path and the independent wiring existed, then
+passed. `go test ./internal/reducer ./internal/storage/cypher ./internal/runtime
+./cmd/reducer -count=1` stays green, proving byte-identical behavior for every
+other domain: the gate is keyed strictly on `domain == DomainHandlesRoute`, runs
+ONE bounded `MissingUIDs` lookup over the distinct `(repo_id, path)` keys (no N+1
+probe), and a nil presence lookup/writer is a no-op so the un-wired path matches
+today's exactly. The presence rows reuse the existing `graph_endpoint_presence`
+table under the `api_endpoint_repo_path` keyspace with no schema change.
 
-No-Observability-Change: #2809 reuses the existing endpoint-presence store and
-the shared-projection readiness path. It adds no route, graph query shape, queue
-table, worker, lease, runtime knob, metric instrument, or metric label; deferred
-handles_route rows surface through the existing shared-projection
-`blocked_readiness`/`MaxBlockedIntentWaitSeconds` counters and cycle logs that
-already report readiness-blocked intents, plus the existing workload
+Observability Evidence: #2809 reuses the existing endpoint-presence store and the
+shared-projection readiness path and adds NO metric instrument, metric label,
+span, route, graph query shape, or queue table. It adds one operator-facing log
+key: terminal handles_route rows (route handlers with no endpoint) are reported
+through the new `shared projection drained handles_route intents with no endpoint`
+log line and the `terminal_no_endpoint` field on the existing shared-projection
+cycle log and `PartitionProcessResult` — distinct from the readiness-blocked
+counters, because terminal rows are complete, not waiting. Operators still
+diagnose deferral through the existing `blocked_readiness`/
+`MaxBlockedIntentWaitSeconds` counters and cycle logs, plus the existing workload
 materialization completion logs and Postgres query instrumentation.
 
 ## Anti-patterns
