@@ -46,6 +46,15 @@ func TestParseRetryAfterHandlesSecondsAndHTTPDate(t *testing.T) {
 	}
 }
 
+func TestHTTPErrorExposesRetryAfterDelay(t *testing.T) {
+	t.Parallel()
+
+	err := HTTPError{Provider: "test", StatusCode: http.StatusTooManyRequests, RetryAfter: 17 * time.Second}
+	if got, want := err.RetryAfterDelay(), 17*time.Second; got != want {
+		t.Fatalf("RetryAfterDelay() = %s, want %s", got, want)
+	}
+}
+
 func TestStatusPolicyClassifiesSharedProviderStatuses(t *testing.T) {
 	t.Parallel()
 
@@ -79,6 +88,19 @@ func TestStatusPolicyClassifiesSharedProviderStatuses(t *testing.T) {
 				t.Fatalf("Terminal = %v, want %v", got.Terminal, tt.terminal)
 			}
 		})
+	}
+}
+
+func TestClassifyProviderFailurePreservesRetryAfterDelay(t *testing.T) {
+	t.Parallel()
+
+	cause := HTTPError{Provider: "test", StatusCode: http.StatusTooManyRequests, RetryAfter: 23 * time.Second}
+	failure := ClassifyProviderFailure("test", cause, StatusPolicy{}, FailureRetryable)
+	if got, want := failure.RetryAfterDelay(), 23*time.Second; got != want {
+		t.Fatalf("RetryAfterDelay() = %s, want %s", got, want)
+	}
+	if got, want := failure.FailureClass(), string(FailureRateLimited); got != want {
+		t.Fatalf("FailureClass() = %q, want %q", got, want)
 	}
 }
 

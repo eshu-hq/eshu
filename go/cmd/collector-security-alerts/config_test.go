@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts/alertruntime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 func TestLoadClaimedRuntimeConfigSelectsSecurityAlertInstanceAndLoadsTokenEnv(t *testing.T) {
@@ -75,6 +76,9 @@ func TestBuildClaimedServiceWiresGenerationDeadLetters(t *testing.T) {
 	}
 	if _, ok := service.DeadLetters.(collector.GenerationDeadLetterReplayCompleter); !ok {
 		t.Fatalf("DeadLetters type %T does not complete replay state", service.DeadLetters)
+	}
+	if got, want := service.MaxAttempts, workflow.DefaultClaimMaxAttempts(); got != want {
+		t.Fatalf("MaxAttempts = %d, want %d", got, want)
 	}
 }
 

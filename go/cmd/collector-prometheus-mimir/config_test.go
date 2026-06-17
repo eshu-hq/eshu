@@ -3,6 +3,8 @@ package main
 import (
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 func TestLoadClaimedRuntimeConfigSelectsPrometheusMimirInstanceAndResolvesOptionalCredential(t *testing.T) {
@@ -69,6 +71,18 @@ func TestLoadClaimedRuntimeConfigSelectsPrometheusMimirInstanceAndResolvesOption
 	}
 }
 
+func TestBuildClaimedServiceWiresDefaultMaxAttempts(t *testing.T) {
+	t.Parallel()
+
+	service, err := buildClaimedService(nil, testPrometheusMimirGetenv, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("buildClaimedService() error = %v, want nil", err)
+	}
+	if got, want := service.MaxAttempts, workflow.DefaultClaimMaxAttempts(); got != want {
+		t.Fatalf("MaxAttempts = %d, want %d", got, want)
+	}
+}
+
 func TestLoadClaimedRuntimeConfigAllowsPrometheusWithoutCredential(t *testing.T) {
 	t.Parallel()
 
@@ -126,4 +140,28 @@ func TestLoadClaimedRuntimeConfigRejectsNegativePrometheusMimirFreshnessWindow(t
 	if _, err := loadClaimedRuntimeConfig(func(key string) string { return env[key] }); err == nil {
 		t.Fatal("loadClaimedRuntimeConfig() error = nil, want negative stale_after rejection")
 	}
+}
+
+func testPrometheusMimirGetenv(key string) string {
+	env := map[string]string{
+		envCollectorInstances: `[{
+			"instance_id":"metrics-primary",
+			"collector_kind":"prometheus_mimir",
+			"mode":"continuous",
+			"enabled":true,
+			"claims_enabled":true,
+			"configuration":{
+				"targets":[{
+					"provider":"prometheus",
+					"scope_id":"prometheus:local",
+					"instance_id":"local",
+					"base_url":"http://prometheus.monitoring.svc:9090",
+					"enabled":true
+				}]
+			}
+		}]`,
+		envCollectorOwnerID:    "metrics-owner",
+		envCollectorInstanceID: "metrics-primary",
+	}
+	return env[key]
 }
