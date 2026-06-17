@@ -30,6 +30,13 @@ type CodeCallIntentWriter interface {
 	UpsertIntents(ctx context.Context, rows []SharedProjectionIntentRow) error
 }
 
+type codeCallSymbolDefinitionFactLoader interface {
+	LoadActiveCodeCallSymbolDefinitionFacts(
+		ctx context.Context,
+		symbolKeys []string,
+	) ([]facts.Envelope, error)
+}
+
 // CodeCallMaterializationHandler reduces one parser relationship follow-up into
 // durable shared-intent emission for code-call and Python metaclass rows.
 type CodeCallMaterializationHandler struct {
@@ -92,8 +99,22 @@ func (h CodeCallMaterializationHandler) Handle(
 		}, nil
 	}
 
+	symbolLoadStart := time.Now()
+	symbolKeys := codeCallReferencedSymbolKeys(envelopes)
+	symbolDefinitionEnvelopes, err := loadActiveCodeCallSymbolDefinitionFacts(ctx, h.FactLoader, symbolKeys)
+	if err != nil {
+		return Result{}, fmt.Errorf("load active code call symbol definition facts: %w", err)
+	}
+	relationshipEnvelopes := envelopes
+	if len(symbolDefinitionEnvelopes) > 0 {
+		relationshipEnvelopes = make([]facts.Envelope, 0, len(envelopes)+len(symbolDefinitionEnvelopes))
+		relationshipEnvelopes = append(relationshipEnvelopes, envelopes...)
+		relationshipEnvelopes = append(relationshipEnvelopes, symbolDefinitionEnvelopes...)
+	}
+	symbolLoadDuration := time.Since(symbolLoadStart)
+
 	extractStart := time.Now()
-	_, codeCallRows, _, metaclassRows := ExtractAllCodeRelationshipRows(envelopes)
+	_, codeCallRows, _, metaclassRows := ExtractAllCodeRelationshipRows(relationshipEnvelopes)
 	extractDuration := time.Since(extractStart)
 	createdAt := intent.EnqueuedAt
 	if createdAt.IsZero() {
@@ -130,6 +151,8 @@ func (h CodeCallMaterializationHandler) Handle(
 		logCodeCallMaterializationCompleted(ctx, codeCallMaterializationTiming{
 			intent:              intent,
 			factCount:           len(envelopes),
+			symbolKeyCount:      len(symbolKeys),
+			symbolFactCount:     len(symbolDefinitionEnvelopes),
 			repoCount:           len(contextByRepoID),
 			codeCallRowCount:    len(codeCallRows),
 			metaclassRowCount:   len(metaclassRows),
@@ -139,6 +162,7 @@ func (h CodeCallMaterializationHandler) Handle(
 			fullRefreshFallback: fileScopeResult.fullRefreshFallbackRepos,
 			loadDuration:        loadDuration,
 			contextDuration:     contextDuration,
+			symbolLoadDuration:  symbolLoadDuration,
 			extractDuration:     extractDuration,
 			intentBuildDuration: intentBuildDuration,
 			totalDuration:       time.Since(totalStart),
@@ -160,6 +184,8 @@ func (h CodeCallMaterializationHandler) Handle(
 	logCodeCallMaterializationCompleted(ctx, codeCallMaterializationTiming{
 		intent:              intent,
 		factCount:           len(envelopes),
+		symbolKeyCount:      len(symbolKeys),
+		symbolFactCount:     len(symbolDefinitionEnvelopes),
 		repoCount:           len(contextByRepoID),
 		codeCallRowCount:    len(codeCallRows),
 		metaclassRowCount:   len(metaclassRows),
@@ -169,6 +195,7 @@ func (h CodeCallMaterializationHandler) Handle(
 		fullRefreshFallback: fileScopeResult.fullRefreshFallbackRepos,
 		loadDuration:        loadDuration,
 		contextDuration:     contextDuration,
+		symbolLoadDuration:  symbolLoadDuration,
 		extractDuration:     extractDuration,
 		intentBuildDuration: intentBuildDuration,
 		upsertDuration:      upsertDuration,
@@ -188,9 +215,31 @@ func (h CodeCallMaterializationHandler) Handle(
 	}, nil
 }
 
+func loadActiveCodeCallSymbolDefinitionFacts(
+	ctx context.Context,
+	loader FactLoader,
+	symbolKeys []string,
+) ([]facts.Envelope, error) {
+	symbolKeys = cleanFactFilterValues(symbolKeys)
+	if len(symbolKeys) == 0 {
+		return nil, nil
+	}
+	typed, ok := loader.(codeCallSymbolDefinitionFactLoader)
+	if !ok {
+		return nil, nil
+	}
+	envelopes, err := typed.LoadActiveCodeCallSymbolDefinitionFacts(ctx, symbolKeys)
+	if err != nil {
+		return nil, classifyFactLoadError(err)
+	}
+	return envelopes, nil
+}
+
 type codeCallMaterializationTiming struct {
 	intent              Intent
 	factCount           int
+	symbolKeyCount      int
+	symbolFactCount     int
 	repoCount           int
 	codeCallRowCount    int
 	metaclassRowCount   int
@@ -200,6 +249,7 @@ type codeCallMaterializationTiming struct {
 	fullRefreshFallback int
 	loadDuration        time.Duration
 	contextDuration     time.Duration
+	symbolLoadDuration  time.Duration
 	extractDuration     time.Duration
 	intentBuildDuration time.Duration
 	upsertDuration      time.Duration
@@ -212,6 +262,8 @@ func logCodeCallMaterializationCompleted(ctx context.Context, timing codeCallMat
 		slog.String(telemetry.LogKeyGenerationID, timing.intent.GenerationID),
 		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),
 		slog.Int("fact_count", timing.factCount),
+		slog.Int("symbol_key_count", timing.symbolKeyCount),
+		slog.Int("symbol_definition_fact_count", timing.symbolFactCount),
 		slog.Int("repo_count", timing.repoCount),
 		slog.Int("code_call_row_count", timing.codeCallRowCount),
 		slog.Int("metaclass_row_count", timing.metaclassRowCount),
@@ -221,6 +273,7 @@ func logCodeCallMaterializationCompleted(ctx context.Context, timing codeCallMat
 		slog.Int("full_refresh_file_scope_fallback_repo_count", timing.fullRefreshFallback),
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("context_duration_seconds", timing.contextDuration.Seconds()),
+		slog.Float64("load_symbol_definitions_duration_seconds", timing.symbolLoadDuration.Seconds()),
 		slog.Float64("extract_duration_seconds", timing.extractDuration.Seconds()),
 		slog.Float64("build_intents_duration_seconds", timing.intentBuildDuration.Seconds()),
 		slog.Float64("upsert_intents_duration_seconds", timing.upsertDuration.Seconds()),

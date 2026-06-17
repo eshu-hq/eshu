@@ -33,6 +33,9 @@ func resolveGenericCallee(
 			return entityID, calleeFile, codeprovenance.MethodImportBinding
 		}
 	}
+	if entityID, calleeFile, method := resolveCodeSymbolCallee(index, call); entityID != "" {
+		return entityID, calleeFile, method
+	}
 
 	callLine := codeCallInt(call["line_number"], call["ref_line"])
 	if entityID := resolveSameFileScopedCalleeEntityID(index, rawPath, relativePath, call, callLine); entityID != "" {

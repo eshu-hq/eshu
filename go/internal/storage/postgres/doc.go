@@ -38,9 +38,12 @@
 // FactStore kind-filtered reads use bounded, stable keyset pages and scan the
 // same facts.Envelope metadata shape as full fact loads. Payload value filters
 // are available only for top-level payload fields that are part of a reducer
-// domain's truth contract. Shared projection intent writes use bounded
-// multi-row upserts so high-cardinality package, code-call, and correlation
-// facts reduce Postgres round trips without changing idempotency semantics.
+// domain's truth contract. Active code-call symbol definition reads join
+// through ingestion_scopes.active_generation_id and only return non-tombstoned
+// file facts whose parsed definitions match the requested stable symbol
+// allowlist. Shared projection intent writes use bounded multi-row upserts so
+// high-cardinality package, code-call, and correlation facts reduce Postgres
+// round trips without changing idempotency semantics.
 // Relationship evidence backfill reads latest file/content facts plus
 // gcp_cloud_relationship facts so cloud provider relationships without file
 // content can still flow through the resolver's catalog-admission contract.

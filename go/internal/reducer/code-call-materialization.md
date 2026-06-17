@@ -110,16 +110,29 @@ but must not materialize as `CALLS` because that would make graph truth claim
 that type or class references are invocations.
 
 `CodeCallMaterializationHandler` logs `code call materialization completed`
-with fact count, repository count, row counts, and timing for fact load,
-context build, extraction, intent build, intent upsert, and total duration
-(`code_call_materialization.go:62-156`). Keep that signal when changing the
-handler; it is the first split used to tell parser extraction cost from
-Postgres intent-write cost on large repositories.
+with fact count, stable symbol key count, active symbol-definition fact count,
+repository count, row counts, and timing for scoped fact load, context build,
+active symbol-definition load, extraction, intent build, intent upsert, and
+total duration. Keep that signal when changing the handler; it is the first
+split used to tell parser extraction cost from Postgres lookup and intent-write
+cost on large repositories.
 
 SCIP edges bypass the heuristic resolver when both caller and callee locations
-map to known entities. Keep the native and SCIP paths idempotent: duplicate
-facts for the same caller, callee, and reference line must collapse to one
-intent row before graph writes.
+map to known entities. When a SCIP edge references a callee outside the caller
+repository, the handler collects source-emitted stable keys such as
+`callee_symbol`, loads active definition file facts that carry those exact keys,
+and matches them against definition-level stable symbol keys such as
+`scip_symbol`. Native parser rows can use the same active stable-symbol index
+for explicit package-export symbols (`package_export_symbol`, `export_symbol`,
+or `package:<package_id>#<export_name>`), which resolves cross-repo exported API
+uses as `import_binding` rather than a weak repo-wide name guess. Active
+definition facts are extraction-only: repository context, refresh scopes, and
+delta file scopes still come from the triggering scope's facts so external
+definition repositories do not receive refresh intents. Stable symbol keys are
+derived from parser payload fields only; they must not include `FactID`,
+generation id, or other generation-bearing storage identity. Keep the native
+and SCIP paths idempotent: duplicate facts for the same caller, callee, and
+reference line must collapse to one intent row before graph writes.
 
 ## Gotchas
 
@@ -145,3 +158,9 @@ carries `type_inferred`. The method is descriptive, never admissive: it does not
 change which edges resolve or which rows are emitted. Graph persistence of the
 tiered confidence derived from this method is owned by #2224. The no-regression
 and observability evidence for this change is recorded in `README.md`.
+
+## Cross-repo symbol resolution (issue #2717)
+
+No-Regression Evidence: `go test ./internal/reducer -run 'TestCodeCallMaterializationHandlerLoadsActiveCrossRepoSymbolDefinitions|TestExtractCodeCallRowsResolvesCrossRepo|TestCodeCallDefinitionSymbolKeysIgnoreGenerationFields' -count=1` failed before the production handler loaded active cross-scope definition facts, then passed after definition rows supplied stable symbol keys and calls matched those keys before repo-unique fallback. `go test ./internal/storage/postgres -run TestFactStoreLoadActiveCodeCallSymbolDefinitionFacts -count=1` proves the Postgres loader is active-generation, non-tombstone, file-kind, symbol-allowlist, and keyset-page bounded. Ambiguous symbol keys with more than one target are deliberately not indexed, preserving the existing unique-or-unresolved rule.
+
+Observability Evidence: the existing `code call materialization completed` log now includes stable symbol key count, active definition fact count, and active symbol-definition load duration beside the existing fact count, repository count, row counts, and load/extract/intent/upsert timings. The change adds no metric instrument, metric label, span, route, runtime knob, queue table, or graph backend branch.

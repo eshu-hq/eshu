@@ -330,7 +330,10 @@ path in Eshu:
    generated index path.
 3. `SCIPIndexParser.Parse` reads the protobuf index and returns `SCIPParseResult`
    for downstream fact emission.
-4. SCIP results supplement — not replace — native tree-sitter output for the
+4. SCIP definition payloads preserve the source `scip_symbol` on emitted
+   functions, classes, and variables so reducers can build generation-stable
+   symbol indexes without reconstructing monikers from names and paths.
+5. SCIP results supplement — not replace — native tree-sitter output for the
    same repository.
 
 SCIP defaults on for
@@ -468,6 +471,9 @@ errors are surfaced in `collector snapshot stage completed` logs with
 - SCIP and tree-sitter parse results for the same file may overlap. The
   collector's SCIP path builds supplemented facts by combining both; do not
   assume SCIP output supersedes tree-sitter output entirely.
+- `scip_symbol` is a source symbol identity, not a storage identity. It must
+  remain independent of fact IDs, generation IDs, and content entity IDs so
+  downstream cross-repo symbol indexes can survive re-ingestion churn.
 
 ## Related docs
 
