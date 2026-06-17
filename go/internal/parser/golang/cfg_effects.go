@@ -68,8 +68,29 @@ func goEffectsSpec(funcNode *tree_sitter.Node, source []byte, fn cfg.Function, l
 	}
 
 	spec.Returns = goReturnStmts(funcNode, index)
-	spec.CallArgs = goCallArgSlots(funcNode, source, index, localFuncs)
+	spec.CallArgs = goCallArgSlots(funcNode, source, index, localFuncs, goEarliestDefLines(fn))
 	return spec
+}
+
+// goEarliestDefLines maps each binding defined in the function to the earliest
+// source line that defines it. A bare call is treated as shadowed by a local
+// value only when a definition of that name exists at or before the call's line
+// (parameters are defined at the entry line, so they shadow the whole body).
+// This is a line-ordering approximation of Go's lexical scoping: a local declared
+// after a call does not shadow it, so the earlier call still resolves to the
+// package-level function.
+func goEarliestDefLines(fn cfg.Function) map[string]int {
+	earliest := map[string]int{}
+	for _, block := range fn.Blocks {
+		for _, stmt := range block.Stmts {
+			for _, def := range stmt.Defs {
+				if line, ok := earliest[def]; !ok || stmt.Line < line {
+					earliest[def] = stmt.Line
+				}
+			}
+		}
+	}
+	return earliest
 }
 
 // goReturnStmts returns the CFG statement IDs of value-returning statements.
@@ -97,8 +118,11 @@ func goReturnStmts(funcNode *tree_sitter.Node, index *goLineIndex) []int {
 // function, so it is skipped — otherwise a method whose name matched a local
 // function would produce a false cross-function edge. The call site is located by
 // source line, so two calls on one line are a known intra-file limit (a safe
-// false negative, never a false edge).
-func goCallArgSlots(funcNode *tree_sitter.Node, source []byte, index *goLineIndex, localFuncs map[string]summary.FunctionID) []valueflow.CallArgSlot {
+// false negative, never a false edge). A call whose name is shadowed by a
+// parameter or a local binding defined at or before the call (a function value)
+// is not resolved to the package-level function, which would also be a false
+// edge; a local declared after the call does not shadow it.
+func goCallArgSlots(funcNode *tree_sitter.Node, source []byte, index *goLineIndex, localFuncs map[string]summary.FunctionID, defLines map[string]int) []valueflow.CallArgSlot {
 	var slots []valueflow.CallArgSlot
 	walkScopeBindings(funcNode, func(node *tree_sitter.Node) {
 		if node.Kind() != "call_expression" {
@@ -108,7 +132,11 @@ func goCallArgSlots(funcNode *tree_sitter.Node, source []byte, index *goLineInde
 		if fnNode == nil || fnNode.Kind() != "identifier" {
 			return
 		}
-		callee, ok := localFuncs[nodeText(fnNode, source)]
+		name := nodeText(fnNode, source)
+		if defLine, ok := defLines[name]; ok && defLine <= nodeLine(node) {
+			return // shadowed by a binding defined at or before this call
+		}
+		callee, ok := localFuncs[name]
 		if !ok {
 			return
 		}
