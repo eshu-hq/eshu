@@ -132,8 +132,29 @@ It must keep retained-window limits visible. When the API returns
 `unavailable=true` or `unavailable_reason=retention_expired`, the page must show
 that unavailable state instead of treating the result as an empty diff.
 
+## Service Evidence Graph
+
+The Service Story page (`/service-story`, `/service-story/:serviceName`) renders
+the bounded `service_story` visualization packet as an interactive code-to-cloud
+graph. It is purely source-backed:
+
+- It fetches `GET /api/v0/services/{service_name}/story`, then derives the packet
+  with `POST /api/v0/visualizations/derive` (`view: "service_story"`). The derive
+  route is a side-effect-free transformation, so the console performs no
+  client-side graph synthesis.
+- Node types, categories, relationships, and truth labels come only from the
+  packet. The legend reflects the node types actually present; missing collector
+  lanes are never backfilled with invented nodes.
+- `limits` and `truncation` stay visible: a truncated subgraph shows the dropped
+  node/edge counts so a bounded subset is never read as the full picture.
+- Empty, unsupported, partial, and error states are first-class UI. The page
+  never renders a stale graph when the story or derive route fails.
+
+See `docs/public/reference/visualization-packets.md` for the packet contract.
+
 ## Related Docs
 
 - `docs/public/reference/http-api.md`
 - `docs/public/reference/truth-label-protocol.md`
+- `docs/public/reference/visualization-packets.md`
 - `docs/public/guides/visualization.md`
