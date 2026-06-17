@@ -72,6 +72,7 @@ func buildStreamingGenerationWithContext(
 	}
 	factCount := 1 + len(snapshot.FileData) + contentFileCount +
 		len(snapshot.ContentEntities) + len(snapshot.TerraformStateCandidates) +
+		len(snapshot.TaintEvidence) +
 		(2 * len(snapshot.DeletedRelativePaths)) +
 		observabilityFactCount(snapshot.FileData) +
 		terraformStateBackendExpressionWarningFactCount(repo.ID, snapshot.FileData) +
