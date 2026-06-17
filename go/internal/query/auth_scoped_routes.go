@@ -89,6 +89,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedComponentExtensionRoute(r) {
 		return true
 	}
+	if scopedCollectorExtractionReadinessRoute(r) {
+		return true
+	}
 	if scopedCollectorStatusRoute(r) {
 		return true
 	}

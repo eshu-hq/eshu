@@ -89,7 +89,7 @@ logging.
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 130 tools from the tool definition files.
+`ReadOnlyTools` assembles 131 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
