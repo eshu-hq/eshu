@@ -65,6 +65,23 @@ func TestGenerateRecommendations(t *testing.T) {
 	}
 }
 
+func TestGenerateAlreadyTrackedWithoutIssueIsReview(t *testing.T) {
+	t.Parallel()
+
+	input := AuditInput{Competitors: []Competitor{{
+		Name: "x",
+		Findings: []AuditFinding{
+			// already tracked, but the named capability has no catalog linked issue
+			// and no open issue matches: incomplete evidence must surface for review.
+			{Feature: "lonely feature", EshuCapability: "code_search.symbol_lookup", GapClass: "already tracked", OwnerSurface: "api"},
+		},
+	}}}
+	got := findingFor(t, input, testCatalog(), nil, "lonely feature")
+	if got.Recommendation != RecReview {
+		t.Fatalf("already-tracked-without-issue rec = %q, want %q", got.Recommendation, RecReview)
+	}
+}
+
 func TestGenerateMissingButCapabilityExistsIsReview(t *testing.T) {
 	t.Parallel()
 

@@ -23,14 +23,28 @@ func RenderMarkdown(report Report) string {
 	b.WriteString("# Competitive Audit Report\n\n")
 	b.WriteString(renderSummary(report))
 	b.WriteString("\n## Findings\n\n")
-	b.WriteString("| Competitor | Feature | Gap class | Recommendation | Detail |\n")
-	b.WriteString("| --- | --- | --- | --- | --- |\n")
+	b.WriteString("| Competitor | Feature | Gap class | Recommendation | Detail | Competitor files | Eshu evidence |\n")
+	b.WriteString("| --- | --- | --- | --- | --- | --- | --- |\n")
 	for _, entry := range report.Entries {
-		fmt.Fprintf(&b, "| %s | %s | %s | `%s` | %s |\n",
+		fmt.Fprintf(&b, "| %s | %s | %s | `%s` | %s | %s | %s |\n",
 			cell(entry.Competitor), cell(entry.Feature), cell(entry.GapClass),
-			entry.Recommendation, cell(entry.RecommendationDetail))
+			entry.Recommendation, cell(entry.RecommendationDetail),
+			fileCell(entry.CompetitorFiles), fileCell(entry.EvidenceFiles))
 	}
 	return b.String()
+}
+
+// fileCell renders a list of inspected files into a Markdown table cell so a
+// reviewer can verify the source-backed evidence before acting.
+func fileCell(files []string) string {
+	if len(files) == 0 {
+		return "—"
+	}
+	escaped := make([]string, len(files))
+	for i, f := range files {
+		escaped[i] = strings.ReplaceAll(f, "|", "\\|")
+	}
+	return "`" + strings.Join(escaped, "`, `") + "`"
 }
 
 func renderSummary(report Report) string {

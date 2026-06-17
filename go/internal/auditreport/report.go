@@ -135,6 +135,9 @@ func recommend(finding AuditFinding, entry ReportEntry) (Recommendation, string)
 
 	switch gap {
 	case auditpreflight.GapAlreadyTracked:
+		if !hasDup {
+			return RecReview, "marked already tracked but no linked or matching issue was found; add an explicit issue reference"
+		}
 		return RecLinkExisting, linkDetail("already tracked", entry.DuplicateIssues)
 	case auditpreflight.GapFoundationExists:
 		return RecNoIssue, "foundation exists; surface or document the existing capability instead of a new build"
