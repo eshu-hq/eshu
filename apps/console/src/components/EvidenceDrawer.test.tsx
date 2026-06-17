@@ -131,6 +131,23 @@ describe("EvidenceDrawer", () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
+  it("traps Tab focus within the modal drawer", () => {
+    renderDrawer(packetFrom(), { kind: "node", id: "viznode:up-1" });
+    const dialog = screen.getByRole("dialog");
+    const close = within(dialog).getByRole("button", { name: "Close" });
+    const link = within(dialog).getByRole("link", { name: /Open source/i });
+
+    // Tab from the last focusable (the source link) wraps back to the first (close).
+    link.focus();
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(close).toHaveFocus();
+
+    // Shift+Tab from the first focusable wraps to the last.
+    close.focus();
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(link).toHaveFocus();
+  });
+
   it("renders nothing when the selected id is absent from the packet", () => {
     const { container } = render(
       <MemoryRouter>

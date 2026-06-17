@@ -35,6 +35,7 @@ export function EvidenceDrawer({
   readonly selection: EvidenceSelection;
 }): React.JSX.Element | null {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLElement>(null);
 
   // Focus the close control once on open. Kept separate from the key handler so
   // a parent re-render (new onClose identity, busy/model updates) cannot snatch
@@ -63,6 +64,36 @@ export function EvidenceDrawer({
     return null;
   }
 
+  // Trap Tab focus inside the modal drawer. Without this, tabbing past the last
+  // control moves focus to the page behind the scrim while aria-modal tells
+  // assistive tech the background is unavailable, so Enter could activate a
+  // hidden control. Cycle focus across the drawer's own focusable elements.
+  function trapFocus(event: React.KeyboardEvent): void {
+    if (event.key !== "Tab") {
+      return;
+    }
+    const root = drawerRef.current;
+    if (root === null) {
+      return;
+    }
+    const focusables = root.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusables.length === 0) {
+      return;
+    }
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = root.ownerDocument.activeElement;
+    if (event.shiftKey && active === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   const title = node !== undefined
     ? node.label || node.id
     : edge?.relationship || "relationship";
@@ -73,10 +104,12 @@ export function EvidenceDrawer({
     <>
       <div className="drawer-scrim" onClick={onClose} />
       <aside
+        ref={drawerRef}
         className="drawer evidence-drawer"
         role="dialog"
         aria-modal="true"
         aria-label={`Evidence for ${title}`}
+        onKeyDown={trapFocus}
       >
         <div className="drawer-head">
           <div>
