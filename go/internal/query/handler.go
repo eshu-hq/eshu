@@ -37,6 +37,23 @@ func WriteSuccess(w http.ResponseWriter, r *http.Request, status int, data any, 
 	WriteJSON(w, status, data)
 }
 
+// WriteErrorEnvelope writes an error response using the same envelope/plain split
+// as WriteSuccess: a ResponseEnvelope wrapping the error for envelope-accepting
+// callers, and the plain error message otherwise. It lets sibling packages return
+// a canonical query error (with its code and details) without re-implementing the
+// content negotiation.
+func WriteErrorEnvelope(w http.ResponseWriter, r *http.Request, status int, errEnv *ErrorEnvelope) {
+	if errEnv == nil {
+		WriteError(w, status, http.StatusText(status))
+		return
+	}
+	if acceptsEnvelope(r) {
+		WriteJSON(w, status, ResponseEnvelope{Error: errEnv})
+		return
+	}
+	WriteError(w, status, errEnv.Message)
+}
+
 func WriteContractError(
 	w http.ResponseWriter,
 	r *http.Request,

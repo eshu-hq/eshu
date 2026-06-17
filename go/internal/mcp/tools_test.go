@@ -8,7 +8,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 133
+	expectedCount := 134
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -343,7 +343,7 @@ func TestEveryRegisteredToolHasDispatchRoute(t *testing.T) {
 
 func minimalDispatchRouteArgs(toolName string) map[string]any {
 	switch toolName {
-	case "get_service_context", "get_service_story":
+	case "get_service_context", "get_service_story", "get_service_intelligence_report":
 		return map[string]any{"workload_id": "sample-service-api"}
 	case "get_component_extension_diagnostics":
 		return map[string]any{"component_id": "dev.eshu.collector.aws"}

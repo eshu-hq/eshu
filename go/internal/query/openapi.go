@@ -54,6 +54,7 @@ func OpenAPISpec() string {
 			openAPIPathsRepositoriesBranches+
 			openAPIPathsEntities+
 			openAPIPathsInvestigations+
+			openAPIPathsServiceIntelligenceReport+
 			openAPIPathsCode+
 			openAPIPathsCodeGraph+
 			openAPIPathsCodeQuality+

@@ -346,6 +346,8 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		return serviceContextRoute(args)
 	case "get_service_story":
 		return serviceStoryRoute(args)
+	case "get_service_intelligence_report":
+		return serviceIntelligenceReportRoute(args)
 	case "investigate_service":
 		q := map[string]string{
 			"environment": str(args, "environment"),

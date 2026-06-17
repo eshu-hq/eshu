@@ -29,6 +29,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if r.Method == http.MethodGet && scopedServiceInvestigationRoute(r.URL.Path) {
 		return true
 	}
+	if r.Method == http.MethodGet && scopedServiceIntelligenceReportRoute(r.URL.Path) {
+		return true
+	}
 	if r.Method == http.MethodGet && scopedIncidentContextRoute(r.URL.Path) {
 		return true
 	}
@@ -188,6 +191,23 @@ func scopedServiceInvestigationRoute(path string) bool {
 	}
 	selector := strings.TrimPrefix(path, prefix)
 	return selector != "" && !strings.Contains(selector, "/")
+}
+
+// scopedServiceIntelligenceReportRoute matches the service intelligence report
+// route. The report composes the service-story dossier through the same scoped
+// access filter, so it qualifies for scoped-token tenant filtering exactly like
+// the service-story route.
+func scopedServiceIntelligenceReportRoute(path string) bool {
+	const prefix = "/api/v0/services/"
+	const suffix = "/intelligence-report"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	// CutSuffix (not TrimSuffix) so the suffix must be a distinct trailing
+	// segment: "/api/v0/services/intelligence-report" (no service segment) does
+	// not match because its remainder lacks the leading "/" of the suffix.
+	selector, ok := strings.CutSuffix(strings.TrimPrefix(path, prefix), suffix)
+	return ok && selector != "" && !strings.Contains(selector, "/")
 }
 
 func scopedQueryPlaybookRoute(r *http.Request) bool {
