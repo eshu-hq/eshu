@@ -182,6 +182,7 @@ func SelectPartitionBatch(
 	prefetch AcceptedGenerationPrefetch,
 	readinessLookup GraphProjectionReadinessLookup,
 	readinessPrefetch GraphProjectionReadinessPrefetch,
+	endpointPresence EndpointPresenceLookup,
 ) (PartitionBatchResult, error) {
 	if batchLimit < 1 {
 		batchLimit = 1
@@ -241,6 +242,7 @@ func SelectPartitionBatch(
 			latest,
 			readinessLookup,
 			readinessPrefetch,
+			endpointPresence,
 		)
 		if err != nil {
 			return PartitionBatchResult{}, err
@@ -292,6 +294,7 @@ func ProcessPartitionOnce(
 	prefetch AcceptedGenerationPrefetch,
 	readinessLookup GraphProjectionReadinessLookup,
 	readinessPrefetch GraphProjectionReadinessPrefetch,
+	endpointPresence EndpointPresenceLookup,
 ) (PartitionProcessResult, error) {
 	leaseStart := time.Now()
 	claimed, err := leaseManager.ClaimPartitionLease(
@@ -323,6 +326,7 @@ func ProcessPartitionOnce(
 		cfg.PartitionID, cfg.PartitionCount,
 		batchLimit, acceptedGen, prefetch,
 		readinessLookup, readinessPrefetch,
+		endpointPresence,
 	)
 	selectionDuration := time.Since(selectionStart).Seconds()
 	if err != nil {
