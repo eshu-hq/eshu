@@ -132,6 +132,7 @@ func appendSCIPDefinition(payload map[string]any, symbol string, line int, defin
 		"name":          name,
 		"line_number":   line,
 		"end_line":      line,
+		"scip_symbol":   symbol,
 		"docstring":     stringValueFromMap(definition, "documentation"),
 		"lang":          payload["lang"],
 		"is_dependency": false,

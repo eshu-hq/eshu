@@ -92,6 +92,9 @@ func TestSCIPIndexParserParsesDefinitionsAndCallEdges(t *testing.T) {
 	if got, want := functions[0]["return_type"], "int"; got != want {
 		t.Fatalf("caller return_type = %#v, want %#v", got, want)
 	}
+	if got, want := functions[0]["scip_symbol"], callerSymbol; got != want {
+		t.Fatalf("caller scip_symbol = %#v, want %#v", got, want)
+	}
 	if got, want := functions[0]["args"].([]string), []string{}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("caller args = %#v, want %#v", got, want)
 	}

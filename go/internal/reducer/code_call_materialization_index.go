@@ -22,12 +22,14 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 		goMethodReturnTypes:     make(map[string]map[string]string),
 		entityFileByID:          make(map[string]string),
 		entityTypeByID:          make(map[string]string),
+		entityByStableSymbolKey: make(map[string]codeCallSymbolResolution),
 		javaScriptAliasesByPath: make(map[string][]javaScriptStaticAliasSpan),
 	}
 	nameCandidates := make(map[string]map[string]map[string]struct{})
 	repoNameCandidates := make(map[string]map[string]map[string]struct{})
 	repoDirNameCandidates := make(map[string]map[string]map[string]map[string]struct{})
 	goMethodReturnTypeCandidates := make(map[string]map[string]map[string]struct{})
+	symbolCandidates := make(map[string]map[string]codeCallSymbolResolution)
 
 	for _, env := range envelopes {
 		if env.FactKind != "file" {
@@ -68,6 +70,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 			if entityID == "" {
 				continue
 			}
+			addCodeCallSymbolCandidates(symbolCandidates, item, entityID)
 			if preferredPath != "" {
 				index.entityFileByID[entityID] = preferredPath
 			}
@@ -119,6 +122,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 				if entityID == "" {
 					continue
 				}
+				addCodeCallSymbolCandidates(symbolCandidates, item, entityID)
 				if preferredPath != "" {
 					index.entityFileByID[entityID] = preferredPath
 				}
@@ -224,6 +228,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 			}
 		}
 	}
+	index.entityByStableSymbolKey = uniqueCodeCallSymbolCandidates(symbolCandidates)
 	return index
 }
 
@@ -285,6 +290,11 @@ func extractSCIPCodeCallRows(
 	for _, edge := range mapSlice(fileData["function_calls_scip"]) {
 		callerID := resolveCodeEntityID(entityIndex, edge["caller_file"], edge["caller_line"])
 		calleeID := resolveCodeEntityID(entityIndex, edge["callee_file"], edge["callee_line"])
+		calleeFile := anyToString(edge["callee_file"])
+		resolutionMethod := codeprovenance.MethodSCIP
+		if calleeID == "" {
+			calleeID, calleeFile, resolutionMethod = resolveCodeSymbolCallee(entityIndex, edge)
+		}
 		if callerID == "" || calleeID == "" {
 			continue
 		}
@@ -309,13 +319,16 @@ func extractSCIPCodeCallRows(
 				repositoryID,
 				calleeID,
 			),
-			"resolution_method": codeprovenance.MethodSCIP,
+			"resolution_method": resolutionMethod,
 			"action":            IntentActionUpsert,
 		}
 		copyOptionalCodeCallField(row, edge, "caller_symbol")
 		copyOptionalCodeCallField(row, edge, "callee_symbol")
 		copyOptionalCodeCallField(row, edge, "caller_file")
 		copyOptionalCodeCallField(row, edge, "callee_file")
+		if calleeFile != "" {
+			row["callee_file"] = calleeFile
+		}
 		copyOptionalCodeCallField(row, edge, "ref_line")
 		rows = append(rows, row)
 	}

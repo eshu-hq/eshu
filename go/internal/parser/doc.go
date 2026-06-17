@@ -9,6 +9,9 @@
 // Cargo.lock, Package.resolved, and mix.lock when the adapter owns their evidence
 // contract. Parser output feeds content shaping and durable facts, so parser
 // changes must move fixtures, fact contracts, and downstream docs in lockstep.
+// SCIP definition payloads retain their source symbol string so downstream
+// reducer indexes can resolve cross-repository calls by source-backed symbol
+// identity instead of generation-bearing storage IDs.
 //
 // No-Regression Evidence: SCIP protobuf parsing is enabled by default through
 // collector configuration only when an allowed language and its external

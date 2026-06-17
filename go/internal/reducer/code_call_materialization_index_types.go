@@ -11,6 +11,7 @@ type codeEntityIndex struct {
 	goMethodReturnTypes     map[string]map[string]string
 	entityFileByID          map[string]string
 	entityTypeByID          map[string]string
+	entityByStableSymbolKey map[string]codeCallSymbolResolution
 	javaScriptAliasesByPath map[string][]javaScriptStaticAliasSpan
 }
 
