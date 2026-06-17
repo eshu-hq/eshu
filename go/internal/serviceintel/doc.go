@@ -26,4 +26,13 @@
 // is de-duplicated, bounded, and empty when no section carries a supporting
 // basis. Suggestions never choose a winner for an ambiguous target; they
 // recommend resolving it.
+//
+// FromServiceStory adapts a get_service_story dossier response into a ReportInput
+// (the subject plus the identity, code_to_runtime, and deployment_config
+// sections), so a caller can build a report from real route evidence without
+// hand-assembling SectionInput values. It is a faithful translation: it reads
+// only confirmed dossier fields and section cardinalities, carries the source
+// truth envelope verbatim, and never invents evidence. Callers append
+// supply-chain and incident sections from their own routes before calling
+// Compose.
 package serviceintel
