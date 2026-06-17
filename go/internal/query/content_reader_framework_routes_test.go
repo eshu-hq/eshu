@@ -70,6 +70,40 @@ func TestParseFrameworkSemanticsExtractsHapiAndExpressRoutes(t *testing.T) {
 	}
 }
 
+func TestParseFrameworkSemanticsSurfacesRouteHandlerSymbol(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"frameworks": ["express"],
+		"express": {
+			"route_methods": ["GET", "POST"],
+			"route_paths": ["/widgets", "/widgets/inline"],
+			"route_entries": [
+				{"method": "GET", "path": "/widgets", "handler": "getWidgets"},
+				{"method": "POST", "path": "/widgets/inline"}
+			],
+			"server_symbols": ["app"]
+		}
+	}`)
+
+	results := parseFrameworkSemantics("src/routes.js", raw)
+	if len(results) != 1 {
+		t.Fatalf("len(results) = %d, want 1", len(results))
+	}
+	express := results[0]
+	if len(express.RouteEntries) != 2 {
+		t.Fatalf("len(express.RouteEntries) = %d, want 2", len(express.RouteEntries))
+	}
+	if got, want := express.RouteEntries[0].Handler, "getWidgets"; got != want {
+		t.Fatalf("RouteEntries[0].Handler = %q, want %q", got, want)
+	}
+	// An ambiguous (inline/middleware) route carries no handler symbol; it must
+	// stay empty rather than fabricate a binding.
+	if got := express.RouteEntries[1].Handler; got != "" {
+		t.Fatalf("RouteEntries[1].Handler = %q, want empty for an unbound route", got)
+	}
+}
+
 func TestParseFrameworkSemanticsExtractsNextJSRouteModules(t *testing.T) {
 	t.Parallel()
 
