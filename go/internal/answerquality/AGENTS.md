@@ -14,4 +14,9 @@ rules. It does not own live API, MCP, graph, storage, or hosted runtime calls.
 - Preserve the default suite coverage for service story, code-topic,
   incident-context, supply-chain, documentation-truth, freshness/readiness, and
   hosted-governance families.
+- Keep `ScoreReport` deterministic and offline. A report fails when it carries a
+  confident unsupported claim, a citation gap, a hidden truncation, a missing
+  limitation, an upgraded truth class, or an unexecutable next call. Keep
+  `ReportCorpus` share-safe and extend it (happy plus a fixture per failure
+  mode) when adding a report criterion.
 - Add tests before changing scoring criteria or publish-safety behavior.

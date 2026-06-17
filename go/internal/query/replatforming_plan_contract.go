@@ -138,14 +138,14 @@ type BlastRadiusGroup struct {
 // preserves truth labels and per-item source state, and it always names its
 // non-goals so a consumer cannot mistake it for an execution surface.
 type ReplatformingPlan struct {
-	ContractVersion      string                   `json:"contract_version"`
-	Scope                ReplatformingPlanScope   `json:"scope"`
-	Items                []MigrationPacketItem    `json:"items"`
-	Waves                []MigrationWave          `json:"waves,omitempty"`
-	BlastRadiusGroups    []BlastRadiusGroup       `json:"blast_radius_groups,omitempty"`
-	RecommendedNextCalls []map[string]any         `json:"recommended_next_calls,omitempty"`
-	Limitations          []string                 `json:"limitations,omitempty"`
-	NonGoals             []string                 `json:"non_goals"`
+	ContractVersion      string                 `json:"contract_version"`
+	Scope                ReplatformingPlanScope `json:"scope"`
+	Items                []MigrationPacketItem  `json:"items"`
+	Waves                []MigrationWave        `json:"waves,omitempty"`
+	BlastRadiusGroups    []BlastRadiusGroup     `json:"blast_radius_groups,omitempty"`
+	RecommendedNextCalls []map[string]any       `json:"recommended_next_calls,omitempty"`
+	Limitations          []string               `json:"limitations,omitempty"`
+	NonGoals             []string               `json:"non_goals"`
 }
 
 // ReplatformingPlanNonGoals are the fixed safety boundaries every plan repeats.

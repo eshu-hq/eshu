@@ -77,7 +77,25 @@ const (
 	CriterionFollowUpUsefulness CriterionName = "follow_up_usefulness"
 	// CriterionPublishSafety rejects private paths, hosts, addresses, or secrets.
 	CriterionPublishSafety CriterionName = "publish_safety"
+	// CriterionTruthClassPreservation rejects a report that upgrades or invents a
+	// section or report-level truth class beyond its source.
+	CriterionTruthClassPreservation CriterionName = "truth_class_preservation"
+	// CriterionLimitationVisibility rejects a partial or unsupported section that
+	// hides why it is incomplete.
+	CriterionLimitationVisibility CriterionName = "limitation_visibility"
+	// CriterionNextCallExecutability rejects a recommended next call or suggested
+	// investigation that names no executable tool, route, or playbook.
+	CriterionNextCallExecutability CriterionName = "next_call_executability"
+	// CriterionTruncationSignaling rejects a report that truncates evidence
+	// without marking the section partial and saying so.
+	CriterionTruncationSignaling CriterionName = "truncation_signaling"
+	// CriterionUnsupportedClaimAvoidance rejects a confident summary on an
+	// unsupported or evidence-less section.
+	CriterionUnsupportedClaimAvoidance CriterionName = "unsupported_claim_avoidance"
 )
+
+// ReportEvidenceVersion is the service intelligence report scorecard schema.
+const ReportEvidenceVersion = "service-intelligence-report-scorecard/v1"
 
 // CriterionStatus is the outcome of a scored criterion.
 type CriterionStatus string
