@@ -1,0 +1,122 @@
+package parser
+
+import (
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+// TestGoInterprocFindingAcrossFunctions proves the value-flow engine detects an
+// interprocedural taint flow in real Go: an *http.Request parameter in handle is
+// passed to query, whose parameter reaches a SQL sink.
+func TestGoInterprocFindingAcrossFunctions(t *testing.T) {
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "handlers.go")
+	writeTestFile(t, filePath, `package handlers
+
+import (
+	"database/sql"
+	"net/http"
+)
+
+func handle(r *http.Request, db *sql.DB) {
+	query(db, r)
+}
+
+func query(db *sql.DB, r *http.Request) {
+	db.Query(r.FormValue("q"))
+}
+`)
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v", err)
+	}
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{GoEmitDataflow: true})
+	if err != nil {
+		t.Fatalf("ParsePath error = %v", err)
+	}
+
+	rows, ok := got["interproc_findings"].([]map[string]any)
+	if !ok {
+		t.Fatalf("interproc_findings bucket missing or wrong type: %T", got["interproc_findings"])
+	}
+	found := false
+	for _, row := range rows {
+		srcFn, _ := row["source_func"].(string)
+		sinkFn, _ := row["sink_func"].(string)
+		sinkKind, _ := row["sink_kind"].(string)
+		if strings.Contains(srcFn, "handle") && strings.Contains(sinkFn, "query") && sinkKind == "sql" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected an interprocedural handle->query sql finding, got %+v", rows)
+	}
+}
+
+// TestGoInterprocNoFalseEdgeFromMethodCall proves a method call (conn.Query)
+// whose field name matches a local function (Query) does NOT resolve to that
+// local function, so no false cross-function finding is produced from the caller.
+func TestGoInterprocNoFalseEdgeFromMethodCall(t *testing.T) {
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "handlers.go")
+	writeTestFile(t, filePath, `package handlers
+
+import (
+	"database/sql"
+	"net/http"
+)
+
+func Query(userControlled *http.Request, db *sql.DB) {
+	db.Query(userControlled.FormValue("x"))
+}
+
+func handle(req *http.Request, conn *sql.DB) {
+	conn.Query(req)
+}
+`)
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v", err)
+	}
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{GoEmitDataflow: true})
+	if err != nil {
+		t.Fatalf("ParsePath error = %v", err)
+	}
+	rows, _ := got["interproc_findings"].([]map[string]any)
+	for _, row := range rows {
+		srcFn, _ := row["source_func"].(string)
+		sinkFn, _ := row["sink_func"].(string)
+		// handle's own conn.Query is a real sql sink, so a handle->handle finding
+		// is legitimate. The false edge would be a cross-function handle->Query.
+		if strings.Contains(srcFn, "handle") && srcFn != sinkFn {
+			t.Fatalf("false cross-function finding from handle via method call conn.Query: %+v", row)
+		}
+	}
+}
+
+// TestGoInterprocOffIsByteIdentical proves the interproc findings bucket is absent
+// when the gate is off.
+func TestGoInterprocOffIsByteIdentical(t *testing.T) {
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "handlers.go")
+	writeTestFile(t, filePath, `package handlers
+
+import "net/http"
+
+func handle(r *http.Request) {
+	_ = r.FormValue("q")
+}
+`)
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v", err)
+	}
+	off, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath (off) error = %v", err)
+	}
+	if _, present := off["interproc_findings"]; present {
+		t.Fatalf("interproc_findings present when gate off")
+	}
+}

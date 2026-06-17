@@ -77,6 +77,12 @@ The godoc contract is in `doc.go`.
   source-to-sink taint findings with confidence and provenance, built by
   `cfg_taint_facts.go` (the Go source/sink/sanitizer catalog) over the
   `internal/parser/taint` engine.
+- The `interproc_findings` bucket (same opt-in gate) carries cross-function
+  taint findings within the file: `cfg_effects.go` derives each function's
+  value-flow summary (`internal/parser/valueflow`) and `cfg_interproc.go`
+  composes them into an interprocedural port graph solved by
+  `internal/parser/interproc`. Call resolution is intra-file; cross-file and
+  cross-repo composition is the reducer's job.
 - `EmbeddedSQLQuery`, `Options`, `GoImportedInterfaceParamMethods`, and
   `GoDirectMethodCallRoots` carry the typed contracts used by those functions.
 
