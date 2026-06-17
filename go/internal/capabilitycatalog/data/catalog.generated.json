@@ -1219,6 +1219,59 @@
       "console": false
     },
     {
+      "capability": "code_to_cloud.trace_exposure_path",
+      "display_name": "Code To Cloud Trace Exposure Path",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
+      "surfaces": [
+        {
+          "tool": "trace_exposure_path",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_plus_graph"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "full_stack"
+        },
+        "local_lightweight": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host"
+        },
+        "production": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "deployed_services"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "compose_e2e",
+          "ref": "trace-exposure-path"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "local-authoritative-trace-exposure-path"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "local-lightweight-unsupported-trace-exposure-path"
+        },
+        {
+          "kind": "remote_validation",
+          "ref": "prod-trace-exposure-path"
+        }
+      ],
+      "console": false
+    },
+    {
       "capability": "collector_extraction_readiness.family",
       "display_name": "Collector Extraction Readiness Family",
       "maturity": "general_availability",
