@@ -19,10 +19,12 @@ const deployableUnitCorrelationFallbackThreshold = 0.90
 // evidence-backed candidate evaluation and materializes admitted exact
 // deployable-unit correlation edges when an edge writer is wired.
 type DeployableUnitCorrelationHandler struct {
-	FactLoader     FactLoader
-	ResolvedLoader ResolvedRelationshipLoader
-	PhasePublisher GraphProjectionPhasePublisher
-	EdgeWriter     SharedProjectionEdgeWriter
+	FactLoader              FactLoader
+	ResolvedLoader          ResolvedRelationshipLoader
+	PhasePublisher          GraphProjectionPhasePublisher
+	EdgeWriter              SharedProjectionEdgeWriter
+	AdmissionDecisionWriter AdmissionDecisionWriter
+	AdmissionDecisionNow    func() time.Time
 }
 
 // Handle executes the deployable-unit correlation reduction path.
@@ -97,6 +99,9 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	edgeRows := deployableUnitCorrelationRows(intent, evaluation)
 	canonicalWrites, err := h.materializeDeployableUnitEdges(ctx, edgeRows)
 	if err != nil {
+		return Result{}, err
+	}
+	if err := h.writeDeployableUnitAdmissionDecisions(ctx, intent, evaluation, canonicalWrites); err != nil {
 		return Result{}, err
 	}
 	if err := publishIntentGraphPhase(

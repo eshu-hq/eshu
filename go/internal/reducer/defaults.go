@@ -2,6 +2,7 @@ package reducer
 
 import (
 	"log/slog"
+	"time"
 
 	"go.opentelemetry.io/otel/trace"
 
@@ -30,6 +31,13 @@ type DefaultHandlers struct {
 	// FactLoader loads fact envelopes for workload and infrastructure
 	// platform materialization.
 	FactLoader FactLoader
+
+	// AdmissionDecisionWriter persists shared explainability decisions for
+	// reducer domains that map local admission outcomes to the cross-domain
+	// admission_decisions read model. Nil keeps existing reducer behavior.
+	AdmissionDecisionWriter AdmissionDecisionWriter
+	// AdmissionDecisionNow supplies timestamps for shared admission decisions.
+	AdmissionDecisionNow func() time.Time
 
 	// CodeCallIntentWriter persists durable shared-intent rows for code-call
 	// and Python metaclass materialization.

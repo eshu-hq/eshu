@@ -158,6 +158,7 @@ func buildReducerService(
 	endpointPresenceWriter, endpointPresenceLookup := endpointPresenceWiring(secretsIAMGraphWriter != nil, database)
 	relationshipStore := postgres.NewRelationshipStore(database)
 	factStore := postgres.NewFactStore(database)
+	admissionDecisionWriter := newAdmissionDecisionWriter(database)
 	codeCallIntentWriter := postgres.NewCodeCallIntentWriterWithInstruments(database, instruments)
 	repoDependencyIntentWriter := postgres.NewSharedIntentAcceptanceWriterWithInstruments(database, instruments)
 	acceptedGenerationPrefetch := postgres.NewAcceptedGenerationPrefetch(database)
@@ -230,10 +231,11 @@ func buildReducerService(
 
 	executor, err := reducer.NewDefaultRuntime(reducer.DefaultHandlers{
 		DeployableUnitCorrelationHandler: reducer.DeployableUnitCorrelationHandler{
-			FactLoader:     factStore,
-			ResolvedLoader: relationshipStore,
-			PhasePublisher: graphProjectionStateStore,
-			EdgeWriter:     edgeWriterForHandlers,
+			FactLoader:              factStore,
+			ResolvedLoader:          relationshipStore,
+			PhasePublisher:          graphProjectionStateStore,
+			EdgeWriter:              edgeWriterForHandlers,
+			AdmissionDecisionWriter: admissionDecisionWriter,
 		},
 		WorkloadProjectionInputLoader: reducer.CorrelatedWorkloadProjectionInputLoader{
 			FactLoader:     factStore,
@@ -250,6 +252,7 @@ func buildReducerService(
 		InfrastructurePlatformMaterializer: reducer.NewInfrastructurePlatformMaterializer(cypherExec),
 		InfrastructurePlatformLookup:       reducer.GraphInfrastructurePlatformLookup{Graph: graphReader},
 		FactLoader:                         factStore,
+		AdmissionDecisionWriter:            admissionDecisionWriter,
 		CodeCallIntentWriter:               codeCallIntentWriter,
 		GraphProjectionPhasePublisher:      graphProjectionStateStore,
 		GraphProjectionRepairQueue:         graphProjectionRepairQueue,
