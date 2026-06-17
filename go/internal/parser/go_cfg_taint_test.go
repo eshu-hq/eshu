@@ -1,0 +1,142 @@
+package parser
+
+import (
+	"path/filepath"
+	"testing"
+)
+
+// taintFindingsBucket returns the taint_findings rows from a parsed payload.
+func taintFindingsBucket(t *testing.T, payload map[string]any) []map[string]any {
+	t.Helper()
+	rows, ok := payload["taint_findings"].([]map[string]any)
+	if !ok {
+		t.Fatalf("taint_findings bucket missing or wrong type: %T", payload["taint_findings"])
+	}
+	return rows
+}
+
+// hasFinding reports whether a finding row exists with the given kind, sink
+// kind, and binding.
+func hasFinding(rows []map[string]any, kind, sinkKind, binding string) bool {
+	for _, row := range rows {
+		k, _ := row["kind"].(string)
+		sk, _ := row["sink_kind"].(string)
+		b, _ := row["binding"].(string)
+		if k == kind && sk == sinkKind && b == binding {
+			return true
+		}
+	}
+	return false
+}
+
+func parseGoTaintFixture(t *testing.T, body string) map[string]any {
+	t.Helper()
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "handlers.go")
+	writeTestFile(t, filePath, body)
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v", err)
+	}
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{GoEmitDataflow: true})
+	if err != nil {
+		t.Fatalf("ParsePath error = %v", err)
+	}
+	return got
+}
+
+// TestGoTaintSourceToSQLSink proves an HTTP request value flowing into a SQL
+// query without sanitization yields a TAINTED finding of kind sql.
+func TestGoTaintSourceToSQLSink(t *testing.T) {
+	got := parseGoTaintFixture(t, `package handlers
+
+import (
+	"database/sql"
+	"net/http"
+)
+
+func handle(r *http.Request, db *sql.DB) {
+	q := r.FormValue("q")
+	db.Query(q)
+}
+`)
+	rows := taintFindingsBucket(t, got)
+	if !hasFinding(rows, "TAINTED", "sql", "q") {
+		t.Fatalf("expected TAINTED sql finding for q, got %+v", rows)
+	}
+}
+
+// TestGoTaintWrongKindSanitizerStillTainted proves an HTML escaper does not
+// suppress a SQL sink (the kind-set model end-to-end through Go).
+func TestGoTaintWrongKindSanitizerStillTainted(t *testing.T) {
+	got := parseGoTaintFixture(t, `package handlers
+
+import (
+	"database/sql"
+	"html"
+	"net/http"
+)
+
+func handle(r *http.Request, db *sql.DB) {
+	q := r.FormValue("q")
+	e := html.EscapeString(q)
+	db.Query(e)
+}
+`)
+	rows := taintFindingsBucket(t, got)
+	if !hasFinding(rows, "TAINTED", "sql", "e") {
+		t.Fatalf("expected TAINTED sql finding for e (html escaper must not suppress sql), got %+v", rows)
+	}
+}
+
+// TestGoTaintCorrectSanitizerSuppresses proves an HTML escaper suppresses an
+// HTML sink: the finding is SANITIZES, not TAINTED.
+func TestGoTaintCorrectSanitizerSuppresses(t *testing.T) {
+	got := parseGoTaintFixture(t, `package handlers
+
+import (
+	"html"
+	"html/template"
+	"net/http"
+)
+
+func render(r *http.Request) template.HTML {
+	raw := r.FormValue("name")
+	safe := html.EscapeString(raw)
+	return template.HTML(safe)
+}
+`)
+	rows := taintFindingsBucket(t, got)
+	if hasFinding(rows, "TAINTED", "html", "safe") {
+		t.Fatalf("did not expect TAINTED html finding for safe (escaper should suppress), got %+v", rows)
+	}
+	if !hasFinding(rows, "SANITIZES", "html", "safe") {
+		t.Fatalf("expected SANITIZES html finding for safe, got %+v", rows)
+	}
+}
+
+// TestGoTaintOffIsByteIdentical proves the taint findings bucket is absent when
+// the dataflow gate is off.
+func TestGoTaintOffIsByteIdentical(t *testing.T) {
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "handlers.go")
+	writeTestFile(t, filePath, `package handlers
+
+import "net/http"
+
+func handle(r *http.Request) {
+	_ = r.FormValue("q")
+}
+`)
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v", err)
+	}
+	off, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath (off) error = %v", err)
+	}
+	if _, present := off["taint_findings"]; present {
+		t.Fatalf("taint_findings present when gate off")
+	}
+}

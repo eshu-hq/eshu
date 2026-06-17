@@ -73,6 +73,10 @@ The godoc contract is in `doc.go`.
   per-function control-flow graphs and reaching-definition def->use edges, built
   by `cfg_lower.go`/`cfg_bindings.go`/`cfg_emit.go` over the
   `internal/parser/cfg` engine. Off by default and byte-identical when off.
+- The `taint_findings` bucket (same opt-in gate) carries intraprocedural
+  source-to-sink taint findings with confidence and provenance, built by
+  `cfg_taint_facts.go` (the Go source/sink/sanitizer catalog) over the
+  `internal/parser/taint` engine.
 - `EmbeddedSQLQuery`, `Options`, `GoImportedInterfaceParamMethods`, and
   `GoDirectMethodCallRoots` carry the typed contracts used by those functions.
 

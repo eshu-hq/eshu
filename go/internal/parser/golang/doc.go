@@ -42,8 +42,11 @@
 // adapters do not create dispatcher import cycles.
 //
 // When Options.GoEmitDataflow is set, Parse also emits a "dataflow_functions"
-// bucket: per-function control-flow graphs and reaching-definition def->use
-// edges built by cfg_lower.go over the internal/parser/cfg engine. The gate is
-// off by default and the payload is byte-identical when off, so existing fact
-// contracts are untouched unless a caller opts in.
+// bucket (per-function control-flow graphs and reaching-definition def->use
+// edges built by cfg_lower.go over the internal/parser/cfg engine) and a
+// "taint_findings" bucket (intraprocedural source-to-sink taint findings with
+// confidence and provenance, built by cfg_taint_facts.go over the
+// internal/parser/taint engine). The gate is off by default and the payload is
+// byte-identical when off, so existing fact contracts are untouched unless a
+// caller opts in.
 package golang

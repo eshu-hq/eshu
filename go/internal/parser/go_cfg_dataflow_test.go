@@ -49,10 +49,11 @@ func TestGoDataflowOffIsByteIdentical(t *testing.T) {
 		t.Fatalf("dataflow_functions absent when gate on")
 	}
 
-	// Removing the new bucket must reproduce the off payload exactly.
+	// Removing the opt-in buckets must reproduce the off payload exactly.
 	delete(on, "dataflow_functions")
+	delete(on, "taint_findings")
 	if !reflect.DeepEqual(off, on) {
-		t.Fatalf("enabling dataflow changed more than the dataflow_functions bucket")
+		t.Fatalf("enabling dataflow changed more than the opt-in buckets")
 	}
 }
 
