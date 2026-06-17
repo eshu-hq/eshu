@@ -84,6 +84,27 @@ func TestPyInterprocNoEdgeToNestedFunction(t *testing.T) {
 	}
 }
 
+// TestPyInterprocNoEdgeToClassMethod proves a class method is not a module-level
+// function: an unrelated top-level caller using the same bare name is not wired
+// to the method, so no false cross-function finding is produced. The argument is
+// positioned so it would align with the method's sink parameter if the method
+// were wrongly resolved.
+func TestPyInterprocNoEdgeToClassMethod(t *testing.T) {
+	t.Parallel()
+
+	root, source := parsePyRoot(t, "class C:\n"+
+		"    def query(self, q):\n"+
+		"        cursor.execute(q)\n"+
+		"def view(request):\n"+
+		"    query(other, request)\n")
+	findings := InterprocFindings(root, source, "")
+	for _, f := range findings {
+		if strings.Contains(string(f.SourceFunc), "view") && f.SourceFunc != f.SinkFunc {
+			t.Fatalf("view must not resolve to class C's method query: %+v", f)
+		}
+	}
+}
+
 // TestPyInterprocMultiArgSameBinding proves that when one tainted binding is
 // passed to more than one argument of a call, every argument position is kept:
 // the callee's sink is on the FIRST parameter, so dropping all but the last
