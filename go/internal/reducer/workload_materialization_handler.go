@@ -88,6 +88,12 @@ type WorkloadMaterializationHandler struct {
 	DependencyLookup             WorkloadDependencyGraphLookup
 	WorkloadDependencyEdgeWriter SharedProjectionEdgeWriter
 	PhasePublisher               GraphProjectionPhasePublisher
+	// EndpointPresenceWriter records property-keyed (repo_id, path) :Endpoint
+	// presence after the endpoint nodes commit so the handles_route projection
+	// gate can prove a specific endpoint exists (#2809). A nil writer (the
+	// default) makes presence publication a no-op, keeping the hot workload
+	// materialization path byte-identical.
+	EndpointPresenceWriter EndpointPresenceWriter
 }
 
 // workloadMaterializationTiming keeps success-path stage timings comparable
@@ -170,6 +176,21 @@ func (h WorkloadMaterializationHandler) Handle(
 	timing.graphWriteDuration = time.Since(graphStarted)
 	if err != nil {
 		return Result{}, fmt.Errorf("materialize workloads: %w", err)
+	}
+
+	// Record property-keyed (repo_id, path) presence for the committed :Endpoint
+	// nodes so the handles_route projection gate can prove each endpoint exists
+	// before resolving a HANDLES_ROUTE edge against it (#2809). Published only
+	// after Materialize succeeds so presence never claims an endpoint that did not
+	// commit. Flag-gated: a nil EndpointPresenceWriter (the default) is a no-op.
+	if err := publishAPIEndpointRepoPathPresence(
+		ctx,
+		h.EndpointPresenceWriter,
+		intent.ScopeID,
+		projection.EndpointRows,
+		time.Now().UTC(),
+	); err != nil {
+		return Result{}, fmt.Errorf("record api endpoint repo/path presence: %w", err)
 	}
 
 	totalWrites := materializeResult.WorkloadsWritten +

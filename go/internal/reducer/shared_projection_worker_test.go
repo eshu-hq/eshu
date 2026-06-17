@@ -198,7 +198,7 @@ func TestSelectPartitionBatchReturnsAcceptedBatch(t *testing.T) {
 	batch, err := SelectPartitionBatch(
 		context.Background(), reader, "platform_infra",
 		0, 1, // partition 0 of 1 → all rows match
-		10, lookup, nil, nil, nil,
+		10, lookup, nil, nil, nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("SelectPartitionBatch error = %v", err)
@@ -223,7 +223,7 @@ func TestSelectPartitionBatchFiltersStale(t *testing.T) {
 
 	batch, err := SelectPartitionBatch(
 		context.Background(), reader, "platform_infra",
-		0, 1, 10, lookup, nil, nil, nil,
+		0, 1, 10, lookup, nil, nil, nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("SelectPartitionBatch error = %v", err)
@@ -316,6 +316,7 @@ func TestSelectPartitionBatchExpandsWindowWhenPartitionWorkIsBeyondHeadSlice(t *
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("SelectPartitionBatch() error = %v", err)
@@ -358,6 +359,7 @@ func TestSelectPartitionBatchErrorsWhenScanCapIsReached(t *testing.T) {
 		2,
 		1,
 		acceptedGenerationFixed("gen-1", true),
+		nil,
 		nil,
 		nil,
 		nil,
@@ -407,6 +409,7 @@ func TestSelectPartitionBatchSkipsSQLAndInheritanceRowsUntilSemanticNodesCommitt
 				acceptedGenerationFixed("gen-1", true),
 				nil,
 				readinessLookupFixed(false, false),
+				nil,
 				nil,
 			)
 			if err != nil {
@@ -493,6 +496,7 @@ func TestSelectPartitionBatchKeepsScanningForReadyRowsWhenEarlierUnitsAreReadine
 			return false, false
 		},
 		nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("SelectPartitionBatch() error = %v", err)
@@ -549,7 +553,7 @@ func TestProcessPartitionOnceFullCycle(t *testing.T) {
 		EvidenceSource: "finalization/workloads",
 	}
 
-	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil)
+	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("ProcessPartitionOnce error = %v", err)
 	}
@@ -628,6 +632,7 @@ func TestProcessPartitionOnceReportsReadinessBlockedWait(t *testing.T) {
 		nil,
 		readinessLookupFixed(false, false),
 		nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("ProcessPartitionOnce() error = %v", err)
@@ -663,7 +668,7 @@ func TestProcessPartitionOnceLeaseNotAcquired(t *testing.T) {
 		LeaseTTL:       30 * time.Second,
 	}
 
-	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil)
+	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("ProcessPartitionOnce error = %v", err)
 	}
@@ -692,7 +697,7 @@ func TestProcessPartitionOnceEmptyBatch(t *testing.T) {
 		LeaseTTL:       30 * time.Second,
 	}
 
-	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil)
+	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -756,7 +761,7 @@ func TestProcessPartitionOnceFiltersDeleteAction(t *testing.T) {
 		EvidenceSource: "finalization/workloads",
 	}
 
-	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil)
+	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -810,7 +815,7 @@ func TestProcessPartitionOnceCodeCallsDomain(t *testing.T) {
 		EvidenceSource: "parser/code-calls",
 	}
 
-	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil)
+	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("ProcessPartitionOnce() error = %v", err)
 	}

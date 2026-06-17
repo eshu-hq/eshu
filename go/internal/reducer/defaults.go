@@ -465,6 +465,23 @@ type DefaultHandlers struct {
 	// wired only when the projection feature is enabled.
 	EndpointPresenceLookup EndpointPresenceLookup
 
+	// APIEndpointRepoPathPresenceWriter records property-keyed (repo_id, path)
+	// :Endpoint presence after workload materialization commits, so the
+	// handles_route projection gate can prove a specific endpoint exists (#2809).
+	// It is independent of EndpointPresenceWriter: it is wired only when the
+	// handles_route endpoint-presence gate is enabled and feeds ONLY the workload
+	// materialization handler — the cloud/Kubernetes materializers must never
+	// receive it, so they emit no uid presence unless secrets/IAM is enabled. Nil
+	// (the default when the gate is off) makes presence publication a no-op.
+	APIEndpointRepoPathPresenceWriter EndpointPresenceWriter
+
+	// APIEndpointRepoPathPresenceLookup answers property-keyed (repo_id, path)
+	// :Endpoint presence for the handles_route readiness gate (#2809). It is
+	// independent of EndpointPresenceLookup so the handles_route gate is toggled
+	// solely by its own kill switch, never by the secrets/IAM flag. Nil disables
+	// the gate, leaving handles_route byte-identical to its pre-#2809 behavior.
+	APIEndpointRepoPathPresenceLookup EndpointPresenceLookup
+
 	// PackageCorrelationWriter persists package ownership candidates and
 	// manifest-backed consumption decisions for package-registry evidence.
 	PackageCorrelationWriter PackageCorrelationWriter
