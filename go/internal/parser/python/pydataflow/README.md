@@ -45,6 +45,14 @@ telemetry.
   header.
 - **`if_statement`/`elif_clause`** carry `condition`/`consequence`/`alternative`;
   `else_clause` and `elif_clause` alternatives are descended into.
+- **`with_statement`** binds `as` aliases (defs) and reads context managers
+  (uses) on the header line, then lowers the body in sequence — so a sink call
+  inside `with conn.cursor() as cursor:` gets its own statement line and resolves.
+- **`try_statement`** lowers the body from the current block; each
+  except/else/finally handler branches from the **pre-try** state. This records
+  the handlers' inner statements without inventing a body-completed definition
+  that reaches a handler (which would be a false edge); the under-modeled
+  body→handler flow is a safe false negative.
 - **Attribute access `a.b`**: only `a` (the object) is a use; `b` is the
   attribute name in the grammar (an `identifier`), so `exprUses` skips it to
   avoid a false use of a same-named variable.

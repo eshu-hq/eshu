@@ -3,8 +3,10 @@
 // internal/parser/cfg engine. It is the Python counterpart of the Go and TS/JS
 // lowerings and a step toward Python value-flow taint (epic #2705, issue #2826).
 //
-// Control flow is lowered precisely for blocks, if/elif/else, for-in, and while;
-// constructs not modeled precisely yet contribute their identifier uses but no
+// Control flow is lowered precisely for blocks, if/elif/else, for-in, while,
+// with, and try/except (its handlers branch from the pre-try state, a
+// conservative over-approximation); constructs not modeled precisely yet
+// contribute their identifier uses but no
 // definitions, which can miss a reaching definition but never invents a false
 // edge. Nested function definitions and lambdas are not descended into; closures
 // are modeled by a later pass. Parameters are modeled as definitions in the entry

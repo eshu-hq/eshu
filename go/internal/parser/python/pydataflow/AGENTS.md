@@ -17,9 +17,13 @@
 
 - Reuse the shared `internal/parser/cfg` engine; do not reimplement reaching
   definitions here.
-- Lower control flow precisely for blocks, if/elif/else, for-in, and while.
-  Unmodeled constructs contribute uses but no defs (a safe false negative, never
-  a false edge).
+- Lower control flow precisely for blocks, if/elif/else, for-in, while, with,
+  and try/except. Unmodeled constructs contribute uses but no defs (a safe false
+  negative, never a false edge).
+- `try` handlers (except/else/finally) branch from the pre-try state, never from
+  the body end: a body definition must not reach a handler as if the body always
+  completed (that would be a false edge). The lost body->handler flow is an
+  accepted false negative.
 - Attribute access `a.b` is a use of `a` only; the attribute name must not be
   collected as a variable use (it could collide with a same-named binding).
 - A member/subscript assignment target reads its base, never defines; a

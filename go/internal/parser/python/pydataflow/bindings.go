@@ -155,6 +155,59 @@ func exprUses(node *tree_sitter.Node, source []byte) []string {
 	return uses
 }
 
+// asPatternDefsUses splits an `expr as target` pattern (used by with-items and
+// except clauses): the expression is a use and the alias target's identifiers
+// are defs. A node that is not an as_pattern is treated as a plain expression
+// use.
+func asPatternDefsUses(node *tree_sitter.Node, source []byte) (defs, uses []string) {
+	if node == nil {
+		return nil, nil
+	}
+	if node.Kind() != "as_pattern" {
+		return nil, exprUses(node, source)
+	}
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		if child.Kind() == "as_pattern_target" {
+			defs = append(defs, identifierNames(&child, source)...)
+			continue
+		}
+		uses = append(uses, exprUses(&child, source)...)
+	}
+	return defs, uses
+}
+
+// identifierNames returns the text of every identifier within a subtree. It is
+// used for `as` alias targets, which are bare identifiers (or a tuple of them).
+func identifierNames(node *tree_sitter.Node, source []byte) []string {
+	if node == nil {
+		return nil
+	}
+	var names []string
+	var visit func(*tree_sitter.Node)
+	visit = func(current *tree_sitter.Node) {
+		if current == nil {
+			return
+		}
+		if current.Kind() == "identifier" {
+			if name := nodeText(current, source); name != "" {
+				names = append(names, name)
+			}
+			return
+		}
+		cursor := current.Walk()
+		defer cursor.Close()
+		for _, child := range current.NamedChildren(cursor) {
+			child := child
+			visit(&child)
+		}
+	}
+	visit(node)
+	return names
+}
+
 // isNestedFunction reports whether a node kind starts a nested function scope
 // that must not be descended into for the enclosing function's uses.
 func isNestedFunction(kind string) bool {

@@ -134,6 +134,41 @@ func TestPySinkInNestedFunctionNotAttributed(t *testing.T) {
 	}
 }
 
+// TestPyWithBlockSinkResolved proves a sink call inside a `with` block (the
+// common `with conn.cursor() as cursor:` pattern) is located and reported. The
+// body must be lowered precisely so the call has its own CFG statement line.
+func TestPyWithBlockSinkResolved(t *testing.T) {
+	t.Parallel()
+
+	node, source, fn := parseFirstPyFunction(t, "def view(request):\n"+
+		"    q = request.GET\n"+
+		"    with conn.cursor() as cursor:\n"+
+		"        cursor.execute(q)\n")
+	facts := TaintFacts(node, source, fn)
+	res := taint.Analyze(fn, facts, taint.DefaultLimits())
+	if pyTaintedCount(res, "sql") != 1 {
+		t.Fatalf("sink inside a with block must be reported; want 1 TAINTED sql, got %+v", res.Findings)
+	}
+}
+
+// TestPyTryBlockSinkResolved proves a sink call inside a `try` body is located
+// and reported.
+func TestPyTryBlockSinkResolved(t *testing.T) {
+	t.Parallel()
+
+	node, source, fn := parseFirstPyFunction(t, "def view(request):\n"+
+		"    q = request.GET\n"+
+		"    try:\n"+
+		"        cursor.execute(q)\n"+
+		"    except Exception as e:\n"+
+		"        log(e)\n")
+	facts := TaintFacts(node, source, fn)
+	res := taint.Analyze(fn, facts, taint.DefaultLimits())
+	if pyTaintedCount(res, "sql") != 1 {
+		t.Fatalf("sink inside a try body must be reported; want 1 TAINTED sql, got %+v", res.Findings)
+	}
+}
+
 // TestPyConditionalSanitizerNotMarked proves a sanitizer call inside a
 // conditional expression (escape(raw) if cond else raw) does not mark the whole
 // binding as sanitized, because the other branch is unsanitized — marking it
