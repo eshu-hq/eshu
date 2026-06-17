@@ -196,6 +196,9 @@ func Parse(
 		if len(findings) > 0 {
 			payload["taint_findings"] = findings
 		}
+		if interprocRows := goInterprocFindingPayloads(root, source, options.GoPackageImportPath); len(interprocRows) > 0 {
+			payload["interproc_findings"] = interprocRows
+		}
 	}
 
 	return payload, nil

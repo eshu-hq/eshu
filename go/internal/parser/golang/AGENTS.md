@@ -31,6 +31,10 @@
     when off)
 13b. `cfg_taint_facts.go` - the Go source/sink/sanitizer catalog and the mapping
     from parsed statements to `internal/parser/taint` facts
+13c. `cfg_effects.go`, `cfg_interproc.go` - the Go-AST-to-EffectsSpec extraction
+    (params, returns, intra-file call-arg sites) and the per-file composition
+    into interprocedural findings over `internal/parser/valueflow` and
+    `internal/parser/interproc` (the `interproc_findings` bucket)
 14. `helpers.go` and `types.go` - local helper and shared contract aliases
 15. Parent tests in `go/internal/parser/go*_test.go` before changing emitted
     payload shape
