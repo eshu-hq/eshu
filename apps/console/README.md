@@ -159,6 +159,22 @@ graph. It is purely source-backed:
 
 See `docs/public/reference/visualization-packets.md` for the packet contract.
 
+## Service Intelligence Report
+
+The Service Report page (`/service-report`, `/service-report/:serviceName`)
+renders the service investigation packet from
+`GET /api/v0/investigations/services/{service_name}` in report mode: coverage
+state (complete/partial/unknown), evidence families, findings, repository scope,
+and suggested investigations.
+
+- Complete, partial, unsupported, empty, stale, and API-failure states are all
+  preserved as visible UI; the page never shows stale report content on error.
+- Suggested investigations are clickable **only** when the backing tool maps to a
+  console destination with valid inputs (e.g. `get_service_story` → the evidence
+  graph for the same service). Tools with no console destination render as plain
+  text so the operator still sees the recommendation without a dead link.
+- The page links into the evidence graph view for the same service.
+
 ## Related Docs
 
 - `docs/public/reference/http-api.md`
