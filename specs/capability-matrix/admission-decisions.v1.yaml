@@ -1,0 +1,15 @@
+version: v1
+updated_at: 2026-06-17
+owners:
+  - platform-engineering
+# Reducer-owned correlation admission decisions explain why candidates were
+# admitted, rejected, ambiguous, stale, missing evidence, permission hidden,
+# unsupported, or unsafe before or beside canonical graph writes.
+capabilities:
+  - capability: admission_decisions.list
+    tools: [list_admission_decisions]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-admission-decisions}], notes: requires reducer admission decision read model rows}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: scope_generation, verification: [{go_test: ./internal/query}], notes: bounded Postgres readback by domain, scope_id, generation_id, optional state, and optional anchor}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: scope_generation, verification: [{go_test: ./internal/query ./internal/mcp}], notes: API and MCP parity over reducer-owned admission decision rows}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: scope_generation, verification: [{remote_validation: prod-admission-decisions}], notes: bounded scoped-token-safe admission decision readback with source handles and recommended next calls}

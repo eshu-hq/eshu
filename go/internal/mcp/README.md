@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 125
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 129
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth. Dispatch wraps each handler request in a
@@ -89,7 +89,7 @@ logging.
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 131 tools from the tool definition files.
+`ReadOnlyTools` assembles 132 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
@@ -100,6 +100,7 @@ logging.
 | `cloudInventoryTools` | 1 | `tools_cloud_inventory.go` |
 | `cloudRuntimeDriftTools` | 1 | `tools_cloud_runtime_drift.go` |
 | `packageRegistryTools` | 2 | `tools_package_registry.go` |
+| `admissionDecisionTools` | 1 | `tools_admission_decisions.go` |
 | `packageRegistryAggregateTools` | 2 | `tools_package_registry_aggregates.go` |
 | `cicdTools` | 1 | `tools_cicd.go` |
 | `cicdRunCorrelationAggregateTools` | 2 | `tools_cicd_aggregates.go` |
@@ -151,6 +152,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `find_unmanaged_resource_owners` | POST | `/api/v0/replatforming/ownership-packets` |
 | `calculate_cyclomatic_complexity` | POST | `/api/v0/code/complexity` |
 | `get_relationship_evidence` | GET | `/api/v0/evidence/relationships/{resolved_id}` |
+| `list_admission_decisions` | GET | `/api/v0/evidence/admission-decisions` |
 | `build_evidence_citation_packet` | POST | `/api/v0/evidence/citations` |
 | `list_package_registry_packages` | GET | `/api/v0/package-registry/packages` |
 | `list_package_registry_versions` | GET | `/api/v0/package-registry/versions` |
