@@ -3,6 +3,8 @@ package main
 import (
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 func TestLoadClaimedRuntimeConfigSelectsGrafanaInstanceAndResolvesCredential(t *testing.T) {
@@ -66,6 +68,18 @@ func TestLoadClaimedRuntimeConfigSelectsGrafanaInstanceAndResolvesCredential(t *
 	}
 }
 
+func TestBuildClaimedServiceWiresDefaultMaxAttempts(t *testing.T) {
+	t.Parallel()
+
+	service, err := buildClaimedService(nil, testGrafanaGetenv, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("buildClaimedService() error = %v, want nil", err)
+	}
+	if got, want := service.MaxAttempts, workflow.DefaultClaimMaxAttempts(); got != want {
+		t.Fatalf("MaxAttempts = %d, want %d", got, want)
+	}
+}
+
 func TestLoadClaimedRuntimeConfigRejectsUnresolvedGrafanaCredential(t *testing.T) {
 	t.Parallel()
 
@@ -120,4 +134,30 @@ func TestLoadClaimedRuntimeConfigRejectsNegativeGrafanaFreshnessWindow(t *testin
 	if _, err := loadClaimedRuntimeConfig(func(key string) string { return env[key] }); err == nil {
 		t.Fatal("loadClaimedRuntimeConfig() error = nil, want negative stale_after rejection")
 	}
+}
+
+func testGrafanaGetenv(key string) string {
+	env := map[string]string{
+		envCollectorInstances: `[{
+			"instance_id":"grafana-primary",
+			"collector_kind":"grafana",
+			"mode":"continuous",
+			"enabled":true,
+			"claims_enabled":true,
+			"configuration":{
+				"targets":[{
+					"provider":"grafana",
+					"scope_id":"grafana:prod",
+					"instance_id":"prod",
+					"base_url":"https://grafana.example.test/",
+					"token_env":"GRAFANA_TOKEN",
+					"enabled":true
+				}]
+			}
+		}]`,
+		"GRAFANA_TOKEN":        "resolved-token",
+		envCollectorOwnerID:    "grafana-owner",
+		envCollectorInstanceID: "grafana-primary",
+	}
+	return env[key]
 }

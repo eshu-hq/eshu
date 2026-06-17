@@ -52,6 +52,7 @@ collectors:
     store_name: collector_jira
     claim_id_prefix: jira-claim
     collector_kind_expr: scope.CollectorJira
+    max_attempts_expr: workflow.DefaultClaimMaxAttempts()
     scope_kind: work_item
     auth_mode: token_env
     target_list_field: targets

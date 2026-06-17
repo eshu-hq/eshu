@@ -3,6 +3,8 @@ package main
 import (
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 func TestLoadClaimedRuntimeConfigSelectsJiraInstanceAndResolvesCredential(t *testing.T) {
@@ -65,6 +67,18 @@ func TestLoadClaimedRuntimeConfigSelectsJiraInstanceAndResolvesCredential(t *tes
 	}
 	if got := config.Source.Targets[0].MetadataLimit; got != 25 {
 		t.Fatalf("MetadataLimit = %d, want 25", got)
+	}
+}
+
+func TestBuildClaimedServiceWiresDefaultMaxAttempts(t *testing.T) {
+	t.Parallel()
+
+	service, err := buildClaimedService(nil, testJiraGetenv, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("buildClaimedService() error = %v, want nil", err)
+	}
+	if got, want := service.MaxAttempts, workflow.DefaultClaimMaxAttempts(); got != want {
+		t.Fatalf("MaxAttempts = %d, want %d", got, want)
 	}
 }
 
@@ -166,5 +180,36 @@ func TestLoadClaimedRuntimeConfigRejectsUnresolvedCredential(t *testing.T) {
 
 	if _, err := loadClaimedRuntimeConfig(func(key string) string { return env[key] }); err == nil {
 		t.Fatal("loadClaimedRuntimeConfig() error = nil, want unresolved credential")
+	}
+}
+
+func testJiraGetenv(key string) string {
+	switch key {
+	case envCollectorInstances:
+		return `[{
+			"instance_id":"jira-primary",
+			"collector_kind":"jira",
+			"mode":"continuous",
+			"enabled":true,
+			"claims_enabled":true,
+			"configuration":{
+				"targets":[{
+					"provider":"jira_cloud",
+					"scope_id":"jira:site:example",
+					"site_id":"example.atlassian.net",
+					"base_url":"https://example.atlassian.net",
+					"token_env":"JIRA_API_TOKEN",
+					"jql":"project = OPS ORDER BY updated ASC"
+				}]
+			}
+		}]`
+	case "JIRA_API_TOKEN":
+		return "secret-token"
+	case envCollectorInstanceID:
+		return "jira-primary"
+	case envCollectorOwnerID:
+		return "jira-owner"
+	default:
+		return ""
 	}
 }

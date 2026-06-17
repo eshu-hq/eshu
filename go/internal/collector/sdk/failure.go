@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // Version is the first-party collector SDK contract version.
@@ -125,6 +126,17 @@ func (f ProviderFailure) FailureClass() string {
 // TerminalFailure reports whether workflow should stop retrying this claim.
 func (f ProviderFailure) TerminalFailure() bool {
 	return f.terminal
+}
+
+// RetryAfterDelay returns provider retry guidance preserved from the wrapped cause.
+func (f ProviderFailure) RetryAfterDelay() time.Duration {
+	var retryAfter interface {
+		RetryAfterDelay() time.Duration
+	}
+	if errors.As(f.cause, &retryAfter) {
+		return retryAfter.RetryAfterDelay()
+	}
+	return 0
 }
 
 // ClassifyProviderFailure maps HTTP and context failures to ProviderFailure.

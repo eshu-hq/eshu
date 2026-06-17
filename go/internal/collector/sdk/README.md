@@ -46,6 +46,9 @@ metrics, and low-cardinality labels in their owning collector packages.
   body-close path.
 - `ParseBaseURL` rejects credential-bearing URLs before any request can be
   built.
+- `HTTPError.RetryAfterDelay` and `ProviderFailure.RetryAfterDelay` expose
+  parsed provider retry guidance to claim-aware collectors without making the
+  SDK sleep or mutate workflow state.
 - Provider collectors may wrap these helpers, but source-specific redaction and
   warning semantics stay local to the provider package.
 
@@ -77,6 +80,16 @@ Grafana, and Tempo keep their existing provider request counters, fetch
 duration histograms, rate-limit counters, fact counters, and provider spans;
 metric labels remain bounded to provider, status class, fact kind, and existing
 low-cardinality dimensions.
+
+No-Regression Evidence (#2756): `go test ./internal/collector/sdk ./internal/collector ./cmd/collector-jira ./cmd/collector-grafana ./cmd/collector-loki ./cmd/collector-tempo ./cmd/collector-prometheus-mimir ./cmd/collector-security-alerts ./cmd/collector-cicd-run -run 'Test(HTTPErrorExposesRetryAfterDelay|ClassifyProviderFailurePreservesRetryAfterDelay|ClaimedServiceHonorsSDKProviderFailureRetryAfter|ClaimedServiceHonorsRetryAfterOnRetryableCollectFailure|BuildClaimedServiceWires)' -count=1` proves SDK HTTP errors return parsed Retry-After delay, provider failure classification preserves that delay for claim-aware retry handling, `ClaimedService` applies it to retryable claim `visible_at`, and standard claim-driven collector commands wire the default bounded attempt budget.
+
+No-Observability-Change (#2756): the SDK remains telemetry-free and does not
+sleep, retry beyond caller-supplied bounds, mutate workflow state, or add labels.
+Provider-throttle retries still use the existing workflow claim rows, failure
+class, failure message, retryable status, hosted readiness, and collector-owned
+rate-limit signals. This slice adds no worker, queue, graph write, database
+table, metric, label, span, log field, runtime knob, Helm value, or deployment
+process.
 
 Line-count marker (#2361): Prometheus/Mimir and Loki now reuse the SDK request
 and failure kernel. This slice deletes 210 lines of duplicated local

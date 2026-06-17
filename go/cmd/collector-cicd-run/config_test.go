@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 func TestLoadClaimedRuntimeConfigSelectsCICDRunInstanceAndLoadsTokenEnv(t *testing.T) {
@@ -54,6 +55,18 @@ func TestLoadClaimedRuntimeConfigSelectsCICDRunInstanceAndLoadsTokenEnv(t *testi
 	}
 	if got, want := config.Source.Targets[0].Token, "token-value"; got != want {
 		t.Fatalf("Target token = %q, want %q", got, want)
+	}
+}
+
+func TestBuildClaimedServiceWiresDefaultMaxAttempts(t *testing.T) {
+	t.Parallel()
+
+	service, err := buildClaimedService(nil, testCICDRunGetenv, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("buildClaimedService() error = %v, want nil", err)
+	}
+	if got, want := service.MaxAttempts, workflow.DefaultClaimMaxAttempts(); got != want {
+		t.Fatalf("MaxAttempts = %d, want %d", got, want)
 	}
 }
 
@@ -179,4 +192,19 @@ func testCICDRunCollectorInstancesJSON() string {
 			}]
 		}
 	}]`
+}
+
+func testCICDRunGetenv(key string) string {
+	switch key {
+	case envCollectorInstances:
+		return testCICDRunCollectorInstancesJSON()
+	case "GITHUB_TOKEN":
+		return "token-value"
+	case envCollectorInstanceID:
+		return "cicd-run-primary"
+	case envOwnerID:
+		return "pod-cicd-run"
+	default:
+		return ""
+	}
 }

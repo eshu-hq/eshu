@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -247,6 +248,39 @@ func TestClaimedServiceHonorsRetryAfterOnRetryableCollectFailure(t *testing.T) {
 		},
 	}
 	source := &stubClaimedSource{err: retryAfterCollectFailure{delay: wantDelay}}
+	service := testClaimedService(now, claim, scope.CollectorGit, store, source, &stubClaimedCommitter{})
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil after retryable claim failure", err)
+	}
+	if got, want := store.retryableFailCalls, 1; got != want {
+		t.Fatalf("retryable fail calls = %d, want %d", got, want)
+	}
+	if got, want := store.lastRetryableFail.VisibleAt, now.Add(wantDelay); !got.Equal(want) {
+		t.Fatalf("VisibleAt = %s, want %s", got, want)
+	}
+}
+
+func TestClaimedServiceHonorsSDKProviderFailureRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	now := time.Date(2026, time.May, 18, 16, 55, 0, 0, time.UTC)
+	item := testClaimedWorkItem(now)
+	claim := testWorkflowClaim(item.WorkItemID, now)
+	wantDelay := 55 * time.Second
+	store := &stubClaimStore{
+		item:  item,
+		claim: claim,
+		found: true,
+		retryableFail: func(context.Context, workflow.ClaimMutation) error {
+			cancel()
+			return nil
+		},
+	}
+	httpErr := sdk.HTTPError{Provider: "test", StatusCode: 429, RetryAfter: wantDelay}
+	source := &stubClaimedSource{err: sdk.ClassifyProviderFailure("test", httpErr, sdk.StatusPolicy{}, sdk.FailureRetryable)}
 	service := testClaimedService(now, claim, scope.CollectorGit, store, source, &stubClaimedCommitter{})
 
 	if err := service.Run(ctx); err != nil {

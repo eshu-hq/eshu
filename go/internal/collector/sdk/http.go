@@ -57,6 +57,11 @@ func (e HTTPError) Unwrap() error {
 	return e.Cause
 }
 
+// RetryAfterDelay returns provider retry guidance parsed from Retry-After.
+func (e HTTPError) RetryAfterDelay() time.Duration {
+	return e.RetryAfter
+}
+
 // JSONRequest configures one bounded JSON HTTP request.
 type JSONRequest struct {
 	Provider    string
