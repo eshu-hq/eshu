@@ -51,6 +51,11 @@ func TestSuggestMissingEvidence(t *testing.T) {
 	if inv.ExpectedTruthClass != query.AnswerTruthDeterministic {
 		t.Fatalf("expected truth class = %q, want deterministic", inv.ExpectedTruthClass)
 	}
+	// The hydration call must carry the unresolved handles, or it dispatches 400.
+	handles, ok := inv.NextCall.Arguments["handles"].([]map[string]any)
+	if !ok || len(handles) != 1 || handles[0]["entity_id"] != "entity:route-1" {
+		t.Fatalf("missing-evidence call must carry the unresolved handle, got %#v", inv.NextCall.Arguments)
+	}
 }
 
 func TestSuggestStaleFreshness(t *testing.T) {
@@ -66,6 +71,7 @@ func TestSuggestStaleFreshness(t *testing.T) {
 					NextCheck: &query.FreshnessNextCheck{
 						Tool:   "get_reducer_status",
 						Reason: "check reducer backlog drain",
+						Params: map[string]string{"domain": "code_graph"},
 					},
 				},
 			}
@@ -82,6 +88,10 @@ func TestSuggestStaleFreshness(t *testing.T) {
 	}
 	if len(inv.EvidenceBasis) != 1 || inv.EvidenceBasis[0] != string(query.FreshnessCauseReducerBacklog) {
 		t.Fatalf("stale evidence basis should be the cause, got %v", inv.EvidenceBasis)
+	}
+	// The scoped freshness params must survive onto the suggestion's call.
+	if inv.NextCall.Arguments["domain"] != "code_graph" {
+		t.Fatalf("stale call must preserve freshness next-check params, got %#v", inv.NextCall.Arguments)
 	}
 }
 
@@ -124,6 +134,10 @@ func TestSuggestAmbiguousTargetWithoutChoosingWinner(t *testing.T) {
 	}
 	if len(inv.EvidenceBasis) == 0 || inv.EvidenceBasis[0] != "3 services match 'checkout'" {
 		t.Fatalf("ambiguous evidence basis should carry the ambiguity message, got %v", inv.EvidenceBasis)
+	}
+	// resolve_entity needs a name, so the subject name must be a bounded argument.
+	if inv.NextCall.Arguments["name"] != "checkout" {
+		t.Fatalf("ambiguous call must pass the subject name to resolve_entity, got %#v", inv.NextCall.Arguments)
 	}
 	// An ambiguous section must NOT also produce an unsupported-lane suggestion;
 	// the report must not collapse ambiguity into a single guessed lane.
@@ -170,6 +184,7 @@ func TestSuggestHighImpactRelationshipOnlyWhenFlagged(t *testing.T) {
 	for i := range in.Sections {
 		if in.Sections[i].Kind == SectionCodeToRuntime {
 			in.Sections[i].HighImpact = true
+			in.Sections[i].Evidence = []query.EvidenceCitationHandle{{Kind: "entity", EntityID: "entity:edge-1"}}
 		}
 	}
 	r := Compose(in)
@@ -179,6 +194,25 @@ func TestSuggestHighImpactRelationshipOnlyWhenFlagged(t *testing.T) {
 	}
 	if got[0].NextCall.Tool != "get_relationship_evidence" {
 		t.Fatalf("high-impact next call should be get_relationship_evidence, got %+v", got[0].NextCall)
+	}
+	// get_relationship_evidence needs resolved_id, taken from the section evidence.
+	if got[0].NextCall.Arguments["resolved_id"] != "entity:edge-1" {
+		t.Fatalf("high-impact call must carry resolved_id, got %#v", got[0].NextCall.Arguments)
+	}
+}
+
+func TestSuggestHighImpactSuppressedWithoutResolvableID(t *testing.T) {
+	// Flagged and supported, but the evidence carries no entity id to follow, so
+	// get_relationship_evidence would be non-executable: suppress the suggestion.
+	in := fullInput()
+	for i := range in.Sections {
+		if in.Sections[i].Kind == SectionCodeToRuntime {
+			in.Sections[i].HighImpact = true
+			in.Sections[i].Evidence = []query.EvidenceCitationHandle{{Kind: "file", RepoID: "repo:checkout", RelativePath: "main.go"}}
+		}
+	}
+	if len(investigationsByBasis(Compose(in), BasisHighImpactRelationship)) != 0 {
+		t.Fatalf("high-impact must be suppressed when no resolvable entity id is present")
 	}
 }
 

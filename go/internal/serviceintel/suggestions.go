@@ -81,7 +81,7 @@ func sectionInvestigations(spec sectionSpec, input SectionInput, section ReportS
 
 	ambiguous := isAmbiguousInput(input)
 	if ambiguous {
-		out = append(out, ambiguousTargetInvestigation(spec, input, section))
+		out = append(out, ambiguousTargetInvestigation(spec, input, section, subject))
 	}
 
 	// An ambiguous section gets a disambiguation suggestion, not an
@@ -98,18 +98,25 @@ func sectionInvestigations(spec sectionSpec, input SectionInput, section ReportS
 		out = append(out, staleFreshnessInvestigation(spec, section, cause, check))
 	}
 
-	if input.HighImpact && section.Status == StatusSupported {
-		out = append(out, highImpactInvestigation(spec, input, section))
+	// A high-impact drilldown is only executable with a concrete resolved id, so
+	// emit it only when the section's evidence carries an entity id to follow.
+	if resolvedID := firstEntityID(input.Evidence); input.HighImpact && section.Status == StatusSupported && resolvedID != "" {
+		out = append(out, highImpactInvestigation(spec, input, section, resolvedID))
 	}
 
 	return out
 }
 
-func ambiguousTargetInvestigation(spec sectionSpec, input SectionInput, section ReportSection) SuggestedInvestigation {
+func ambiguousTargetInvestigation(spec sectionSpec, input SectionInput, section ReportSection, subject ReportSubject) SuggestedInvestigation {
 	call := NextCall{
 		Tool:   "resolve_entity",
 		Route:  "/api/v0/entities/resolve",
 		Reason: "resolve the ambiguous service target to a single entity before re-running this section",
+	}
+	// resolve_entity rejects an empty name, so pass the subject name as the
+	// bounded resolver input; without it the suggestion would dispatch a 400.
+	if name := strings.TrimSpace(subject.ServiceName); name != "" {
+		call.Arguments = map[string]any{"name": name}
 	}
 	return SuggestedInvestigation{
 		ID:                 investigationID(spec.Kind, BasisAmbiguousTarget, "resolve_entity"),
@@ -146,6 +153,11 @@ func missingEvidenceInvestigation(spec sectionSpec, section ReportSection) Sugge
 		Playbook: "service_story_citation",
 		Reason:   "hydrate the unresolved evidence handles into a citation packet",
 	}
+	// The citation packet request rejects an empty handles list, so carry the
+	// unresolved handles as the bounded call input.
+	if handles := citationHandleArgs(section.Answer.MissingEvidence); len(handles) > 0 {
+		call.Arguments = map[string]any{"handles": handles}
+	}
 	return SuggestedInvestigation{
 		ID:                 investigationID(spec.Kind, BasisMissingEvidence, "build_evidence_citation_packet"),
 		Section:            spec.Kind,
@@ -170,11 +182,14 @@ func staleFreshnessInvestigation(spec sectionSpec, section ReportSection, cause 
 	}
 }
 
-func highImpactInvestigation(spec sectionSpec, input SectionInput, section ReportSection) SuggestedInvestigation {
+func highImpactInvestigation(spec sectionSpec, input SectionInput, section ReportSection, resolvedID string) SuggestedInvestigation {
 	call := NextCall{
 		Tool:   "get_relationship_evidence",
 		Route:  "/api/v0/evidence/relationships/{resolved_id}",
 		Reason: "inspect the high-impact relationship evidence behind this section",
+		// get_relationship_evidence builds its path from resolved_id and rejects
+		// an empty value, so pass the concrete entity id from the section evidence.
+		Arguments: map[string]any{"resolved_id": resolvedID},
 	}
 	return SuggestedInvestigation{
 		ID:                 investigationID(spec.Kind, BasisHighImpactRelationship, "get_relationship_evidence"),
@@ -213,13 +228,67 @@ func staleFreshnessSignal(section ReportSection) (query.FreshnessCause, *query.F
 }
 
 // freshnessNextCall renders a bounded freshness next check as a typed NextCall.
-// The check must be non-nil; callers obtain it from staleFreshnessSignal.
+// The check must be non-nil; callers obtain it from staleFreshnessSignal. The
+// check's scoped Params (repository, generation, source, or status filters) are
+// preserved as call arguments so the drilldown stays narrowly targeted, matching
+// what AnswerPacket carries in recommended_next_calls.
 func freshnessNextCall(check *query.FreshnessNextCheck) NextCall {
-	return NextCall{
+	call := NextCall{
 		Tool:   strings.TrimSpace(check.Tool),
 		Route:  strings.TrimSpace(check.Route),
 		Reason: strings.TrimSpace(check.Reason),
 	}
+	if len(check.Params) > 0 {
+		args := make(map[string]any, len(check.Params))
+		for key, value := range check.Params {
+			args[key] = value
+		}
+		call.Arguments = args
+	}
+	return call
+}
+
+// firstEntityID returns the first non-empty entity id from a set of evidence
+// handles, used as the concrete resolved id for a relationship drilldown.
+func firstEntityID(handles []query.EvidenceCitationHandle) string {
+	for _, handle := range handles {
+		if id := strings.TrimSpace(handle.EntityID); id != "" {
+			return id
+		}
+	}
+	return ""
+}
+
+// citationHandleArgs renders unresolved evidence handles into the bounded
+// handle-input shape the evidence-citation request accepts, so the hydration
+// call carries the very handles the missing-evidence basis surfaced.
+func citationHandleArgs(handles []query.EvidenceCitationHandle) []map[string]any {
+	if len(handles) == 0 {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(handles))
+	for _, handle := range handles {
+		entry := map[string]any{}
+		if handle.Kind != "" {
+			entry["kind"] = handle.Kind
+		}
+		if handle.RepoID != "" {
+			entry["repo_id"] = handle.RepoID
+		}
+		if handle.RelativePath != "" {
+			entry["relative_path"] = handle.RelativePath
+		}
+		if handle.EntityID != "" {
+			entry["entity_id"] = handle.EntityID
+		}
+		if len(entry) > 0 {
+			out = append(out, entry)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // expectedTruthClass sources the truth class an operator should expect from a
