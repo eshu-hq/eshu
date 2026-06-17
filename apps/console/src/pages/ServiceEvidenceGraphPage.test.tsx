@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { vi } from "vitest";
 import type { EshuApiClient } from "../api/client";
 import type { EshuEnvelope } from "../api/envelope";
@@ -220,6 +220,25 @@ describe("ServiceEvidenceGraphPage", () => {
     renderAt("/service-story/ghost", client);
     expect(await screen.findByText("not_found: service not found")).toBeInTheDocument();
     expect(screen.queryByText("billing")).not.toBeInTheDocument();
+  });
+
+  it("clears a stale graph when navigating back to the bare route", async () => {
+    const { client } = clientFor(deriveEnvelope(supportedPacket()));
+    function Nav(): React.JSX.Element {
+      const navigate = useNavigate();
+      return <button onClick={() => navigate("/service-story")} type="button">to bare</button>;
+    }
+    render(
+      <MemoryRouter initialEntries={["/service-story/payments"]}>
+        <Routes>
+          <Route path="/service-story" element={<><Nav /><ServiceEvidenceGraphPage client={client} model={liveModel()} onOpenService={vi.fn()} /></>} />
+          <Route path="/service-story/:serviceName" element={<><Nav /><ServiceEvidenceGraphPage client={client} model={liveModel()} onOpenService={vi.fn()} /></>} />
+        </Routes>
+      </MemoryRouter>
+    );
+    expect(await screen.findByText("billing")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "to bare" }));
+    await waitFor(() => expect(screen.queryByText("billing")).not.toBeInTheDocument());
   });
 
   it("selects a node and shows its evidence summary", async () => {

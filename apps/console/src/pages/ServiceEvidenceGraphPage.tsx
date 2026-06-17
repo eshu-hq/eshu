@@ -69,7 +69,18 @@ export function ServiceEvidenceGraphPage({
   );
 
   useEffect(() => {
-    if (routeName.length === 0 || routeName === loadedRef.current) {
+    // Both /service-story and /service-story/:serviceName render the same page
+    // instance, so navigating back to the bare route must clear the prior graph
+    // rather than leave a stale, no-longer-selected service on screen.
+    if (routeName.length === 0) {
+      loadedRef.current = null;
+      loadTokenRef.current += 1;
+      setResult(null);
+      setSelected(null);
+      setInput("");
+      return;
+    }
+    if (routeName === loadedRef.current) {
       return;
     }
     loadedRef.current = routeName;
