@@ -3,7 +3,13 @@ package goldenaudit
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
+
+// maxThresholdEdges caps each offending-edge list in the MeetsThreshold failure
+// message so the message stays bounded even when a resolver regresses many
+// edges at once. Lists longer than this are truncated with a "(+N more)" note.
+const maxThresholdEdges = 20
 
 // Score captures precision and recall for one relationship type or the overall
 // roll-up. Precision is correct observed edges over total observed edges; recall
@@ -69,6 +75,65 @@ func (r AccuracyResult) Summary() string {
 		r.Overall.CorrectEdges, r.Overall.ObservedEdges, r.Overall.GoldenEdges,
 		len(r.WrongTarget), len(r.Missing), len(r.Extra),
 	)
+}
+
+// MeetsThreshold gates the result against a minimum precision and recall bar,
+// turning the informational accuracy metric into a regression guard. It returns
+// (true, "") when r.Overall.Precision >= minPrecision AND
+// r.Overall.Recall >= minRecall. Otherwise it returns (false, msg) where msg is
+// a stable, debuggable one-block string stating measured vs required
+// precision/recall and listing the offending edges by Edge.Key(): wrong-target
+// edges first (the dangerous "resolved to the wrong callee" edges), then
+// missing, then extra. Each list is capped at the first maxThresholdEdges keys
+// with a "(+N more)" note when truncated, so the message stays bounded.
+//
+// The comparison uses plain >= with no epsilon fuzzing, matching the exact
+// float comparisons the rest of this package relies on (ScoreAccuracy emits
+// exact ratios and the existing tests assert on == 0.5 and == 1.0). When both
+// thresholds are 0 the gate is disabled and always passes.
+func (r AccuracyResult) MeetsThreshold(minPrecision float64, minRecall float64) (bool, string) {
+	if r.Overall.Precision >= minPrecision && r.Overall.Recall >= minRecall {
+		return true, ""
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b,
+		"accuracy below threshold: precision=%.3f (min %.3f) recall=%.3f (min %.3f)",
+		r.Overall.Precision, minPrecision, r.Overall.Recall, minRecall,
+	)
+	appendThresholdEdges(&b, "wrong_target", r.WrongTarget)
+	appendThresholdEdges(&b, "missing", r.Missing)
+	appendThresholdEdges(&b, "extra", r.Extra)
+	return false, b.String()
+}
+
+// Perfect reports whether the result meets a precision=1.0 and recall=1.0 bar,
+// i.e. observed edges reproduce golden edges exactly. It is a convenience
+// wrapper over MeetsThreshold(1.0, 1.0).
+func (r AccuracyResult) Perfect() bool {
+	ok, _ := r.MeetsThreshold(1.0, 1.0)
+	return ok
+}
+
+// appendThresholdEdges writes a labeled, newline-prefixed block listing edge
+// keys for one mismatch category, capped at maxThresholdEdges with a
+// "(+N more)" note when truncated. Empty categories are skipped so the message
+// only shows offending edges.
+func appendThresholdEdges(b *strings.Builder, label string, edges []Edge) {
+	if len(edges) == 0 {
+		return
+	}
+	fmt.Fprintf(b, "\n%s (%d):", label, len(edges))
+	shown := edges
+	if len(shown) > maxThresholdEdges {
+		shown = shown[:maxThresholdEdges]
+	}
+	for _, edge := range shown {
+		fmt.Fprintf(b, "\n  %s", edge.Key())
+	}
+	if len(edges) > maxThresholdEdges {
+		fmt.Fprintf(b, "\n  (+%d more)", len(edges)-maxThresholdEdges)
+	}
 }
 
 // ScoreAccuracy computes precision/recall of observed edges against golden

@@ -1,6 +1,9 @@
 package goldenaudit
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestScoreAccuracyAllCorrectIsPerfect(t *testing.T) {
 	t.Parallel()
@@ -210,6 +213,106 @@ func TestScoreAccuracyJavaWrongTargetEdgeLowersPrecision(t *testing.T) {
 		[]string{"method:OrderService.placeOrder|CALLS|method:OrderService.cancelOrder"})
 	if len(result.Extra) != 0 {
 		t.Fatalf("wrong-target edge must not be counted as extra: %s", result.Summary())
+	}
+}
+
+func TestMeetsThresholdPerfectResultPasses(t *testing.T) {
+	t.Parallel()
+
+	golden := loadTestGolden(t, "go_call_accuracy.json")
+	observed := Graph{
+		Edges: []Edge{
+			{SourceID: "func:server.Serve", TargetID: "func:server.handle", Type: "CALLS"},
+			{SourceID: "func:server.handle", TargetID: "func:store.Persist", Type: "CALLS"},
+		},
+	}
+
+	result := ScoreAccuracy(golden, observed)
+	ok, msg := result.MeetsThreshold(1.0, 1.0)
+	if !ok {
+		t.Fatalf("MeetsThreshold(1.0, 1.0) = false, want true: %s", msg)
+	}
+	if msg != "" {
+		t.Fatalf("MeetsThreshold(1.0, 1.0) msg = %q, want empty", msg)
+	}
+}
+
+func TestMeetsThresholdWrongTargetFailsAndReportsEdge(t *testing.T) {
+	t.Parallel()
+
+	golden := loadTestGolden(t, "go_call_accuracy.json")
+	observed := Graph{
+		Edges: []Edge{
+			{SourceID: "func:server.Serve", TargetID: "func:server.handle", Type: "CALLS"},
+			// Same source+type as golden's handle->Persist edge, but wrong target.
+			{SourceID: "func:server.handle", TargetID: "func:store.Lookup", Type: "CALLS"},
+		},
+	}
+
+	result := ScoreAccuracy(golden, observed)
+	ok, msg := result.MeetsThreshold(1.0, 1.0)
+	if ok {
+		t.Fatalf("MeetsThreshold(1.0, 1.0) = true, want false for wrong-target result: %s", result.Summary())
+	}
+	if !strings.Contains(msg, "func:server.handle|CALLS|func:store.Lookup") {
+		t.Fatalf("MeetsThreshold msg missing wrong-target edge key, got:\n%s", msg)
+	}
+	if !strings.Contains(msg, "0.500") {
+		t.Fatalf("MeetsThreshold msg missing measured precision 0.500, got:\n%s", msg)
+	}
+}
+
+func TestMeetsThresholdDisabledGatePasses(t *testing.T) {
+	t.Parallel()
+
+	golden := loadTestGolden(t, "go_call_accuracy.json")
+	observed := Graph{
+		Edges: []Edge{
+			// Wrong target degrades precision and recall, but the gate is disabled.
+			{SourceID: "func:server.handle", TargetID: "func:store.Lookup", Type: "CALLS"},
+		},
+	}
+
+	result := ScoreAccuracy(golden, observed)
+	ok, msg := result.MeetsThreshold(0, 0)
+	if !ok {
+		t.Fatalf("MeetsThreshold(0, 0) = false, want true (disabled gate): %s", msg)
+	}
+	if msg != "" {
+		t.Fatalf("MeetsThreshold(0, 0) msg = %q, want empty", msg)
+	}
+}
+
+func TestMeetsThresholdRecallOnlyFailure(t *testing.T) {
+	t.Parallel()
+
+	golden := loadTestGolden(t, "go_call_accuracy.json")
+	observed := Graph{
+		Edges: []Edge{
+			// Correct edge only; golden's handle->Persist edge is missing.
+			{SourceID: "func:server.Serve", TargetID: "func:server.handle", Type: "CALLS"},
+		},
+	}
+
+	result := ScoreAccuracy(golden, observed)
+	if result.Overall.Precision != 1.0 {
+		t.Fatalf("precision = %v, want 1.0 for missing-only result: %s", result.Overall.Precision, result.Summary())
+	}
+
+	ok, msg := result.MeetsThreshold(1.0, 1.0)
+	if ok {
+		t.Fatalf("MeetsThreshold(1.0, 1.0) = true, want false when recall < 1.0: %s", result.Summary())
+	}
+	if !strings.Contains(msg, "func:server.handle|CALLS|func:store.Persist") {
+		t.Fatalf("MeetsThreshold msg missing missing-edge key, got:\n%s", msg)
+	}
+
+	ok, msg = result.MeetsThreshold(1.0, 0)
+	if !ok {
+		t.Fatalf("MeetsThreshold(1.0, 0) = false, want true (recall gate disabled): %s", msg)
+	}
+	if msg != "" {
+		t.Fatalf("MeetsThreshold(1.0, 0) msg = %q, want empty", msg)
 	}
 }
 
