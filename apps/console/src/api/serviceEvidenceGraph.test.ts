@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { EshuApiClient } from "./client";
+import { EshuApiHttpError, type EshuApiClient } from "./client";
 import type { EshuEnvelope } from "./envelope";
 import {
   loadServiceEvidenceGraph,
@@ -190,6 +190,36 @@ describe("loadServiceEvidenceGraph", () => {
 
     const result = await loadServiceEvidenceGraph(client, "payments");
     expect(result.storyError?.code).toBe("unsupported_capability");
+    expect(result.packet).toBeNull();
+    expect(result.graph.nodes).toHaveLength(0);
+  });
+
+  it("converts a thrown story error (non-2xx) into an error result without deriving", async () => {
+    const post = vi.fn();
+    const client = {
+      get: vi.fn(async () => {
+        throw new EshuApiHttpError(404, { code: "not_found", message: "service not found" });
+      }),
+      post
+    } as unknown as EshuApiClient;
+
+    const result = await loadServiceEvidenceGraph(client, "ghost");
+    expect(result.storyError?.code).toBe("not_found");
+    expect(result.packet).toBeNull();
+    expect(result.graph.nodes).toHaveLength(0);
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it("converts a thrown derive error (non-2xx) into an error result", async () => {
+    const client = {
+      get: vi.fn(async () => storyEnvelope()),
+      post: vi.fn(async () => {
+        throw new EshuApiHttpError(503);
+      })
+    } as unknown as EshuApiClient;
+
+    const result = await loadServiceEvidenceGraph(client, "payments");
+    expect(result.storyError?.code).toBe("http_503");
     expect(result.packet).toBeNull();
     expect(result.graph.nodes).toHaveLength(0);
   });

@@ -1,4 +1,4 @@
-import type { EshuApiClient } from "./client";
+import { EshuApiHttpError, type EshuApiClient } from "./client";
 import type { EshuError, EshuTruth } from "./envelope";
 import type { GraphLayer, GraphModel, GraphNode } from "../console/types";
 import { uiTruth } from "../console/types";
@@ -42,34 +42,54 @@ const KIND_ALIASES: Record<string, string> = {
 // asks the side-effect-free derive route to fold it into a bounded
 // visualization packet. It performs no client-side graph synthesis: when either
 // call fails it returns the error and an empty graph so the console never
-// presents fabricated topology.
+// presents fabricated topology. The client throws EshuApiHttpError on non-2xx
+// (e.g. 404 for a missing service); that is caught and converted to an error
+// result so the page never leaves a stale graph on screen after a failed load.
 export async function loadServiceEvidenceGraph(
   client: EshuApiClient,
   serviceName: string
 ): Promise<ServiceEvidenceGraphResult> {
   const trimmed = serviceName.trim();
-  const story = await client.get<Record<string, unknown>>(
-    `/api/v0/services/${encodeURIComponent(trimmed)}/story`
-  );
-  if (story.error !== null || story.data === null) {
-    return emptyResult(trimmed, story.error);
-  }
+  try {
+    const story = await client.get<Record<string, unknown>>(
+      `/api/v0/services/${encodeURIComponent(trimmed)}/story`
+    );
+    if (story.error !== null || story.data === null) {
+      return emptyResult(trimmed, story.error ?? requestFailedError());
+    }
 
-  const derived = await client.post<VisualizationDeriveResponseWire>(
-    "/api/v0/visualizations/derive",
-    serviceStoryVisualizationRequest(story.data, story.truth)
-  );
-  if (derived.error !== null || derived.data === null) {
-    return emptyResult(trimmed, derived.error);
-  }
+    const derived = await client.post<VisualizationDeriveResponseWire>(
+      "/api/v0/visualizations/derive",
+      serviceStoryVisualizationRequest(story.data, story.truth)
+    );
+    if (derived.error !== null || derived.data === null) {
+      return emptyResult(trimmed, derived.error ?? requestFailedError());
+    }
 
-  const packet = normalizeVisualizationPacket(derived.data, derived.truth ?? story.truth);
+    const packet = normalizeVisualizationPacket(derived.data, derived.truth ?? story.truth);
+    return {
+      graph: serviceStoryGraph(packet),
+      packet,
+      serviceName: trimmed,
+      storyError: null,
+      truth: derived.truth ?? packet?.truth ?? story.truth
+    };
+  } catch (error) {
+    return emptyResult(trimmed, eshuErrorFromThrown(error));
+  }
+}
+
+function eshuErrorFromThrown(error: unknown): EshuError {
+  if (error instanceof EshuApiHttpError) {
+    return error.error ?? { code: `http_${error.status}`, message: error.message };
+  }
+  return requestFailedError(error);
+}
+
+function requestFailedError(error?: unknown): EshuError {
   return {
-    graph: serviceStoryGraph(packet),
-    packet,
-    serviceName: trimmed,
-    storyError: null,
-    truth: derived.truth ?? packet?.truth ?? story.truth
+    code: "request_failed",
+    message: error instanceof Error ? error.message : "service evidence graph request failed"
   };
 }
 
