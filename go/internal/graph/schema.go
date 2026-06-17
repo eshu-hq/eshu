@@ -137,6 +137,7 @@ var uidConstraintLabels = []string{
 	"CloudFormationOutput",
 	"CloudFormationParameter",
 	"CloudFormationResource",
+	"CodeTaintEvidence",
 	"ContainerImage",
 	"ContainerImageDescriptor",
 	"ContainerImageIndex",
