@@ -61,6 +61,118 @@ Hot-path PRs must use one performance marker consumed by
 They must also use either `Observability Evidence:` or
 `No-Observability-Change:`.
 
+## Next-Phase Scale Envelope (#2696)
+
+This section records the measured boundary for the next collector and reducer
+growth phase. It completes the #2696 parent audit by naming what is safe today,
+what is risky until a focused implementation ticket lands, and what stays
+blocked until production-shaped proof exists.
+
+The current envelope is evidence-based, not a promise that every collector can
+scale indefinitely. Operators should promote from `local/dev` to
+`hosted-small` or `hosted-growth` only when the proof below matches their
+runtime shape.
+
+Existing proof that feeds this envelope:
+
+| Proof | What it establishes | Remaining boundary |
+| --- | --- | --- |
+| Generation retention implementation evidence in `docs/internal/design/2248-retention-semantics-generations-facts-content.md` | Superseded-generation cleanup can prune a 63K-fact fixture in bounded batches while preserving active and retained-window reads. | It is not a fact-table partitioning or hosted-growth index-size migration proof. |
+| Reducer claim readiness benchmark in `go/internal/storage/postgres/evidence-notes.md` | Readiness-gated reducer claim latency stayed bounded across 1,000 queue rows and up to 5,000 readiness phase rows after the data-shaped lookup change. | It does not prove all high-cardinality collector growth or relation-size thresholds. |
+| Code-graph sub-scope partitioning contract | CALLS has versioned file-scoped partition keys and a partitioned runner foundation with whole-scope fallback. | Semantic entity, SQL relationship, and inheritance domains still need their own partition-key proof. |
+| Workflow fairness unit coverage | `FamilyFairnessScheduler` performs deterministic weighted round-robin across collector families and rotates instances inside one family. | Production claim dispatch still claims one collector family/instance at a time until #2748 wires the scheduler or an equivalent boundary. |
+
+| Profile | Intended shape | Gate before promotion |
+| --- | --- | --- |
+| `local/dev` | One developer or CI stack, bounded repositories, embedded or Compose stores. | Package tests, bounded fixture proof, no retrying or dead-letter queue state, and no unexpected graph-write contention. |
+| `hosted-small` | Split API, MCP, ingester, reducer, workflow coordinator, and a bounded collector set. | `/admin/status` terminal queue proof, fact and queue row-count readback, p95 claim latency, graph-write timing, retry/dead-letter counts, and bounded collector status. |
+| `hosted-growth` | Many claim-driven collectors, larger fact tables, and high-cardinality shared projection domains. | Dedicated Postgres partition or index proof, per-family collector fairness proof, provider throttle/backpressure proof, and shared projection contention proof. |
+
+### Reducer Conflict-Domain Audit (#2697)
+
+Reducer truth still follows the durable flow:
+
+```text
+source facts -> reducer queue claim -> handler extraction -> graph or read-model write -> ack, retry, or dead-letter
+```
+
+Safe domains today are domains whose conflict keys already name the complete
+write set or whose handlers remain whole-scope by design:
+
+| Class | Current state | Operator signal |
+| --- | --- | --- |
+| safe domains | Whole-scope `code_graph` fencing, source-local projection gates, graph-readiness-gated cloud relationship domains, and generation retention cleanup keep correctness first. CALLS has the strongest file-scoped partition-key foundation, but defaults remain compatible with whole-scope behavior. | Reducer queue status, bounded readiness blockage rows, shared-intent backlog, graph write metrics, reducer execution counters, and reducer completion logs. |
+| risky domains | `semantic_entity_materialization`, `sql_relationship_materialization`, and `inheritance_materialization` can become partitionable only when the reducer can name the full source-owner retract and write set before graph mutation. | Pending/retrying/dead-letter rows must keep domain, conflict key, failure class, retry count, and fallback reason visible. |
+| blocked domains | Any domain that retracts by repository, broad graph neighbor, language family, or ambiguous generated/source-map ownership stays whole-scope. A partition key derived from a raw path, commit SHA, private locator, random ID, or graph readback is invalid. | Whole-scope fallback must be explicit in logs/status; it cannot be hidden behind lower worker counts. |
+
+Issue #2751 owns the next implementation proof for extending partition keys
+beyond CALLS. Until that lands, Eshu must not claim broad intra-repository
+parallel graph writes for semantic, SQL, inheritance, or other high-cardinality
+domains. Issue #2754 owns the generic shared projection selection gap: hashed
+shared domains should use indexed partition candidates before Eshu promotes
+more high-cardinality shared projection lanes. Issue #2755 owns the resource
+collector conflict-domain audit for cloud, IAM, Kubernetes, and related
+materialization domains that currently do not have a CALLS-style partition-key
+contract.
+
+### Postgres Fact And Queue Growth Envelope (#2698)
+
+Postgres currently owns facts, queue rows, status, content, recovery state,
+generation retention, workflow control, and shared projection intents. The
+implemented retention proof keeps superseded history bounded by scope and
+protects active, pending, retrying, claimed, running, failed-current, and
+dead-letter work from unsafe cleanup.
+
+The growth gates are:
+
+| Data class | Current gate | Hosted-growth trigger |
+| --- | --- | --- |
+| `fact_records` | Active reads join `ingestion_scopes.active_generation_id`; retention prunes eligible superseded generations in bounded batches. | Sustained fact rows or index size grow faster than retention can prune while active reads or fact writes exceed the known-normal band. |
+| `fact_work_items` | Projector and reducer claims use `FOR UPDATE SKIP LOCKED`, lease fencing, retry/dead-letter states, and conflict-domain gates. | Claim latency rises with queue depth, retry storms, or dead-letter replay while CPU/disk are not saturated. |
+| `shared_projection_intents` | Batched upsert, stable intent IDs, partition hash selectors, partition leases, and status backlog readbacks bound code-call-heavy repositories. | Non-CALLS domains need partition-key proof or shared-intent backlog grows without graph-write saturation. |
+| workflow rows | Claim-aware collector rows carry `fairness_key`, retry state, lease fencing, and expired-claim reaping. | Per-family queue depth, claim wait, or lease age shows starvation across many collector families. |
+
+Issue #2749 owns the hosted-growth Postgres partition or migration proof. That
+work must record row counts, index size, representative read/write latency,
+queue drain behavior, migration rollback, empty-table behavior, large-table
+behavior, old-generation safety, stale-row safety, and active-claim safety
+before changing production schema layout.
+
+### Collector Fairness And Provider Backpressure (#2699)
+
+The workflow package already has a deterministic weighted round-robin
+`FamilyFairnessScheduler`, and workflow work items persist `fairness_key` for
+target grouping. The production claim query is still intentionally FIFO within
+one collector family and instance; `workflow_control_sql.go` leaves
+multi-family fairness for a follow-up wiring phase.
+
+The current fairness and backpressure envelope is:
+
+| Concern | Current state | Required next proof |
+| --- | --- | --- |
+| claim wait | Claim-aware collectors can expose pending, claimed, retryable, expired, terminal, and completed work through workflow status and Postgres query spans. | #2748 must wire family-level scheduling or an equivalent dispatcher so one busy family cannot consume all claim attempts. |
+| lease age | Heartbeats and expired-claim reaping preserve ownership fencing and recovery. | Proof must cover slow collectors, expired leases, recovery, and stale owner rejection without dropping active work. |
+| retry/dead-letter | Retryable and terminal claim failures are durable, and workflow runs reconcile terminal failures into blocked completeness. | #2750 must add or identify provider throttle outcomes and retry-storm status without putting provider targets in metric labels. |
+| per-family queue depth | `fairness_key` and collector kind are present on work rows; selected status readbacks aggregate bounded registry and workflow state. | Hosted-growth proof must surface per-family queue depth, provider throttle, and starvation signals in metrics, status, or logs with bounded labels. |
+
+Provider-rate backpressure must remain provider-family aware. A rate-limited
+provider should delay or retry its own claim stream; it must not force unrelated
+families into a permanent serial path. Issue #2756 owns the code path that must
+propagate provider `Retry-After` values into claim retry timing and wire a
+consistent max-attempt budget for claim-driven collector services that currently
+omit one.
+
+No-Regression Evidence: this #2696 scale-envelope update is documentation and
+verification-script only. It adds no reducer conflict key, queue SQL, graph
+write, Cypher, worker, lease, batch, runtime knob, schema DDL, metric, span, log
+field, status field, API/MCP route, collector runtime, or provider call.
+
+No-Observability-Change: the update records which existing and follow-up
+signals operators must use, but it does not change runtime telemetry. Current
+diagnosis still uses `/admin/status`, reducer queue status, workflow work item
+state, Postgres query spans and duration metrics, reducer execution counters,
+shared-intent backlog, graph-write metrics, and collector/coordinator logs.
+
 ## Current Hot-Path Evidence
 
 ### Collector Fact Evidence Status Read (#1678)
