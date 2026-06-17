@@ -54,6 +54,15 @@ type ClaimedService struct {
 	ControlStore        ClaimControlStore
 	ClaimDispatcher     ClaimDispatcher
 	Source              ClaimedSource
+	// SourceResolver resolves the claim-aware source adapter for one dispatched
+	// claim target (collector kind and instance id). When a ClaimDispatcher
+	// selects targets across multiple collector families and instances, the
+	// runner resolves the matching source per target. When nil, the single
+	// Source is used for every claimed target (the single-family runner).
+	// Resolution must consider the instance id, not just the kind, because some
+	// claim-aware sources reject work whose CollectorInstanceID does not match
+	// their configured instance.
+	SourceResolver      func(target workflow.ClaimTarget) (ClaimedSource, bool)
 	Committer           Committer
 	DeadLetters         GenerationDeadLetterSink
 	CollectorKind       scope.CollectorKind
@@ -98,6 +107,16 @@ func (s ClaimedService) Run(ctx context.Context) error {
 		runner := s
 		runner.CollectorKind = target.CollectorKind
 		runner.CollectorInstanceID = target.CollectorInstanceID
+		runner.Source, err = s.resolveClaimedSource(target)
+		if err != nil {
+			// The dispatcher selected a family with no registered source. Release
+			// the held claim so the work is not stranded, then surface the
+			// misconfiguration rather than processing with the wrong source.
+			if releaseErr := s.ControlStore.ReleaseClaim(ctx, runner.claimMutation(item, claim)); releaseErr != nil {
+				return fmt.Errorf("release unresolved %s claim: %w", target.CollectorKind, releaseErr)
+			}
+			return err
+		}
 		if err := runner.processClaimed(ctx, item, claim); err != nil {
 			if errors.Is(err, errRetryableClaimRecorded) || errors.Is(err, errTerminalClaimRecorded) {
 				continue
@@ -111,8 +130,8 @@ func (s ClaimedService) validate() error {
 	if s.ControlStore == nil {
 		return errors.New("claim control store is required")
 	}
-	if s.Source == nil {
-		return errors.New("claimed source is required")
+	if s.Source == nil && s.SourceResolver == nil {
+		return errors.New("a claimed source or source resolver is required")
 	}
 	if s.Committer == nil {
 		return errors.New("collector committer is required")

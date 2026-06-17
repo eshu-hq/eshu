@@ -80,7 +80,7 @@ Existing proof that feeds this envelope:
 | Generation retention implementation evidence in `docs/internal/design/2248-retention-semantics-generations-facts-content.md` | Superseded-generation cleanup can prune a 63K-fact fixture in bounded batches while preserving active and retained-window reads. | It is not a fact-table partitioning or hosted-growth index-size migration proof. |
 | Reducer claim readiness benchmark in `go/internal/storage/postgres/evidence-notes.md` | Readiness-gated reducer claim latency stayed bounded across 1,000 queue rows and up to 5,000 readiness phase rows after the data-shaped lookup change. | It does not prove all high-cardinality collector growth or relation-size thresholds. |
 | Code-graph sub-scope partitioning contract | CALLS has versioned file-scoped partition keys and a partitioned runner foundation with whole-scope fallback. | Semantic entity, SQL relationship, and inheritance domains still need their own partition-key proof. |
-| Workflow fairness unit coverage | `FamilyFairnessScheduler` performs deterministic weighted round-robin across collector families and rotates instances inside one family. #2748 wired the shared fair claim-dispatch boundary inside `internal/collector`. | Collector binaries still host one claim-aware source adapter at a time, so cross-family fairness is not exercised in a single runtime host until #2773 adds a multi-source collector host. |
+| Workflow fairness unit coverage | `FamilyFairnessScheduler` performs deterministic weighted round-robin across collector families and rotates instances inside one family. #2748 wired the shared fair claim-dispatch boundary inside `internal/collector`, and #2773 added `MultiSourceCollectorHost`, which registers multiple claim-aware sources behind one shared dispatcher and resolves the source per dispatched target while `ClaimedService` stays the sole claim-lifecycle owner. | Production binary wiring and hosted-growth multi-family starvation proof remain; the host abstraction and its fairness/race unit proof are in place. |
 
 | Profile | Intended shape | Gate before promotion |
 | --- | --- | --- |
@@ -218,7 +218,7 @@ The current fairness and backpressure envelope is:
 
 | Concern | Current state | Delivered proof and remaining boundary |
 | --- | --- | --- |
-| claim wait | Claim-aware collectors expose pending, claimed, retryable, expired, terminal, and completed work through workflow status and Postgres query spans, and #2748 added the family-level dispatch boundary so one busy family cannot consume all claim attempts. | #2773 must add a multi-source collector host so a single runtime binary can register multiple claim-aware sources behind the dispatcher and exercise cross-family fairness in production. |
+| claim wait | Claim-aware collectors expose pending, claimed, retryable, expired, terminal, and completed work through workflow status and Postgres query spans, #2748 added the family-level dispatch boundary so one busy family cannot consume all claim attempts, and #2773 added `MultiSourceCollectorHost` so one runtime can register multiple claim-aware sources behind the shared dispatcher. | Production binary wiring of the host and hosted-growth cross-family starvation proof remain. |
 | lease age | Heartbeats and expired-claim reaping preserve ownership fencing and recovery, and #2699 added `eshu_dp_workflow_claim_lease_age_seconds` (labeled by `collector_kind`, `source_system`) so rising lease age is visible before lease-TTL expiry. | Multi-source-host proof (#2773) must cover slow collectors, expired leases, recovery, and stale owner rejection without dropping active work. |
 | retry/dead-letter | Retryable and terminal claim failures are durable, workflow runs reconcile terminal failures into blocked completeness, #2750 (merged) surfaced provider throttle/backpressure status, and #2699 added per-family `eshu_dp_workflow_claim_retries_total` (`failure_class`) and `eshu_dp_workflow_claim_provider_throttle_total` (`outcome`) counters without provider targets in labels. | Hosted-growth proof must still confirm retry-storm status under many concurrent provider families. |
 | per-family queue depth | `fairness_key` and collector kind are present on work rows, and #2857 added the `eshu_dp_workflow_family_queue_depth` observable gauge (labeled by `collector_kind`, `source_system`, `status`) over `workflow_work_items`. | Hosted-growth starvation proof across a multi-source host stays with #2773. |
@@ -400,6 +400,50 @@ Observability Evidence: the gauge is the per-family queue-depth signal the #2699
 envelope required; labels reuse the bounded `collector_kind`/`source_system`/
 `status` enums only — no instance id, target locator, account, URL, or token env
 enters a label.
+
+### Multi-Source Collector Host (#2773)
+
+#2773 adds `MultiSourceCollectorHost` (`go/internal/collector/claimed_multi_source_host.go`)
+so one runtime can register multiple claim-aware source adapters behind a single
+shared `FairClaimDispatcher`. The host builds its dispatch candidates from durable
+collector instance state — filtering disabled and claims-disabled instances out
+before requiring sources — and refuses to start if any claim-enabled candidate
+has no registered source, then runs N concurrent `ClaimedService` workers over the
+shared dispatcher. Each worker resolves the source per dispatched target by
+`(collector_kind, collector_instance_id)` (`resolveClaimedSource`, preferring an
+exact instance registration over a kind wildcard), because some claim-aware
+sources reject work whose instance id does not match their configured instance.
+Claim ownership does not move into the
+host or the coordinator: `ClaimedService` remains the sole owner of heartbeat,
+fenced commit, retry, terminal failure, release, and completion. Per-instance
+FIFO ordering is unchanged because every claim still flows through the existing
+`ClaimNextEligible` path.
+
+No-Regression Evidence: focused tests in
+`go/internal/collector/claimed_multi_source_host_test.go`:
+`TestClaimedServiceResolvesSourcePerDispatchedTarget` (two instances of one kind
+get distinct sources; the dispatched instance's source serves the work, the
+sibling instance's does not),
+`TestMultiSourceCollectorHostRunsLifecycleWithoutStarvingFamilies` (the busy
+family completes the full claim lifecycle through the host while the empty
+family's lane is still queried — no starvation),
+`TestMultiSourceCollectorHostSharedSchedulerIsRaceFree` (eight concurrent
+workers exercising the shared scheduler/dispatch path with a concurrency-safe
+unique claim-id generator, green under `-race`),
+`TestNewMultiSourceCollectorHostRejectsCandidateWithoutSource`, and
+`TestNewMultiSourceCollectorHostIgnoresDisabledInstances` (a disabled instance
+with no source does not block startup). The host requires
+`ClaimIDFunc` to be collision-free and concurrency-safe (documented on the host
+config) so concurrent workers never share a claim-fence identity. The change adds no
+worker-count reduction, batch-size serialization, or coordinator-owned claim
+mutation; `go test ./internal/collector ./cmd/ingester ./cmd/reducer -count=1`
+and `go test -race` on the concurrency test are green.
+
+No-Observability-Change: the host reuses the existing claim-wait, retry,
+provider-throttle, lease-age (#2860), and per-family queue-depth (#2857) signals
+emitted by `ClaimedService` and the workflow gauge; it adds no new metric, label,
+or runtime knob. Production binary wiring and a hosted-growth multi-family
+starvation proof on the remote corpus remain open follow-ups.
 
 ### Collector Fact Evidence Status Read (#1678)
 
