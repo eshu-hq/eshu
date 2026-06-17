@@ -40,6 +40,30 @@ The `identity` section is the **truth anchor**: report-level `supported`,
 `truth`, and `truth_class` are copied from it. A report for an unknown service
 is `unsupported`.
 
+## Generating a report from the CLI
+
+`eshu service-report` composes a report offline from a captured `get_service_story`
+response, with no query, store, or LLM path:
+
+```bash
+# capture the service story envelope, then compose the report
+eshu service-report --from service-story.json          # human-readable
+eshu service-report --from service-story.json --json    # machine-readable report
+cat service-story.json | eshu service-report            # or pipe on stdin
+
+# optionally fold in a captured supply-chain impact inventory response
+eshu service-report --from service-story.json --supply-chain-from supply-chain.json
+```
+
+The input is the service story route response — the standard
+`{"data": ..., "truth": ...}` envelope, or a bare dossier object. The command
+maps the dossier into the `identity`, `code_to_runtime`, and `deployment_config`
+sections and carries the captured truth envelope verbatim. `--supply-chain-from`
+folds a captured `get_supply_chain_impact_inventory` response into the
+`supply_chain` section. The `incidents_support` section is emitted `unsupported`
+(with its fallback next call) until its evidence is wired in. A response with no
+truth composes an `unsupported` report rather than fabricating confidence.
+
 ## Honesty under composition
 
 Each section embeds a canonical [answer packet](answer-packets.md), so it
