@@ -67,6 +67,7 @@ name-match guess. Each edge carries:
 | `import_binding` | Resolved by following an explicit import, package-qualified import, or re-export. | 0.90 |
 | `type_inferred` | Resolved by receiver/return-type inference, dynamic alias, or constructor binding. | 0.80 |
 | `scope_unique_name` | Resolved by a unique name within a directory/package scope, no import. | 0.70 |
+| `cross_repo_export_package` | Resolved across repositories by matching a Go package import path to the single exported function with that name. | 0.70 |
 | `repo_unique_name` | Resolved by a repository-wide unique-name match; the global fallback. | 0.50 |
 
 Provenance is **descriptive, not admissive**: it records the resolver branch

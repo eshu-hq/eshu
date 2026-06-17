@@ -13,6 +13,22 @@ type codeEntityIndex struct {
 	entityTypeByID          map[string]string
 	entityByStableSymbolKey map[string]codeCallSymbolResolution
 	javaScriptAliasesByPath map[string][]javaScriptStaticAliasSpan
+	// goExportByImportPath maps a Go package import path to the exported
+	// top-level functions defined for it across every repository in the
+	// generation. It anchors cross-repo package-export resolution: a key is the
+	// caller-visible import path, and each entry tracks the single resolvable
+	// entity plus a candidate count so ambiguity is detectable and rejected.
+	goExportByImportPath map[string]map[string]goCrossRepoExportEntry
+}
+
+// goCrossRepoExportEntry records the unique-resolution state for one exported Go
+// function name under one package import path. entityID and repositoryID are
+// only safe to resolve when count == 1; a count above one marks the name
+// ambiguous across repositories and forces an unresolved result.
+type goCrossRepoExportEntry struct {
+	entityID     string
+	repositoryID string
+	count        int
 }
 
 type codeFunctionSpan struct {

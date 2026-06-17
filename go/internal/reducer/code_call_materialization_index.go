@@ -229,6 +229,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 		}
 	}
 	index.entityByStableSymbolKey = uniqueCodeCallSymbolCandidates(symbolCandidates)
+	index.goExportByImportPath = buildGoCrossRepoExportIndex(envelopes)
 	return index
 }
 
