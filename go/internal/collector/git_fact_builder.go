@@ -288,6 +288,13 @@ func streamFacts(
 	}
 	snapshot.ContentEntities = nil
 
+	// Value-flow taint evidence facts (opt-in via ESHU_EMIT_DATAFLOW; the slice is
+	// empty otherwise so this loop is a no-op when the gate is off).
+	for _, evidence := range snapshot.TaintEvidence {
+		ch <- taintEvidenceFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, evidence)
+	}
+	snapshot.TaintEvidence = nil
+
 	// Reducer follow-up facts — trigger downstream materialization domains.
 	if snapshot.Delta {
 		return
