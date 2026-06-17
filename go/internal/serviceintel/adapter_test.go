@@ -1,7 +1,9 @@
 package serviceintel
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -111,6 +113,101 @@ func TestFromServiceStoryEmptySectionsMarkedNoEvidence(t *testing.T) {
 	dep := adapterInputByKind(t, in, SectionDeploymentConfig)
 	if !dep.NoEvidence {
 		t.Fatalf("empty deployment_config must be no-evidence")
+	}
+}
+
+func TestFromIncidentEvidence(t *testing.T) {
+	subject := ReportSubject{ServiceName: "checkout", ServiceID: "svc:checkout"}
+	truth := freshExactTruth("incident.context")
+
+	// Two evidence slots for the same incident plus a second incident: count
+	// reflects distinct incidents, not slots.
+	records := []IncidentRecord{
+		{Provider: "pagerduty", ProviderIncidentID: "PD-1", TruthLabel: "deterministic"},
+		{Provider: "pagerduty", ProviderIncidentID: "PD-1", TruthLabel: "deterministic"},
+		{Provider: "pagerduty", ProviderIncidentID: "PD-2", TruthLabel: "deterministic"},
+	}
+	got := FromIncidentEvidence(records, subject, truth)
+	if got.Kind != SectionIncidentsSupport {
+		t.Fatalf("kind = %q, want incidents_support", got.Kind)
+	}
+	if got.NoEvidence {
+		t.Fatalf("records present must not be no-evidence")
+	}
+	if len(got.Evidence) != 2 {
+		t.Fatalf("evidence handles = %d, want 2 distinct incidents", len(got.Evidence))
+	}
+	if got.Evidence[0].Kind != "entity" || got.Evidence[0].EntityID != "PD-1" {
+		t.Fatalf("first handle = %+v, want entity PD-1", got.Evidence[0])
+	}
+
+	empty := FromIncidentEvidence(nil, subject, truth)
+	if !empty.NoEvidence || empty.Summary != "" {
+		t.Fatalf("no incidents must be no-evidence with no summary, got %+v", empty)
+	}
+	if empty.Kind != SectionIncidentsSupport {
+		t.Fatalf("empty incident section must still be the incidents kind")
+	}
+}
+
+func TestFromIncidentEvidenceDedupeIsProviderScoped(t *testing.T) {
+	subject := ReportSubject{ServiceName: "checkout", ServiceID: "svc:checkout"}
+	truth := freshExactTruth("incident.context")
+
+	// Two providers that happen to share an incident id string are distinct
+	// incidents: the composite (provider, id) key must not merge them, or the
+	// report would under-count cross-provider incident history.
+	records := []IncidentRecord{
+		{Provider: "pagerduty", ProviderIncidentID: "INC-1", TruthLabel: "deterministic"},
+		{Provider: "opsgenie", ProviderIncidentID: "INC-1", TruthLabel: "deterministic"},
+		// Blank provider incident ids carry no durable pointer, so they are dropped
+		// rather than emitted as a handle the citation surface would reject.
+		{Provider: "pagerduty", ProviderIncidentID: "  ", TruthLabel: "deterministic"},
+	}
+	got := FromIncidentEvidence(records, subject, truth)
+	if len(got.Evidence) != 2 {
+		t.Fatalf("evidence handles = %d, want 2 distinct cross-provider incidents", len(got.Evidence))
+	}
+}
+
+func TestFromIncidentEvidenceBoundsAndTruncates(t *testing.T) {
+	subject := ReportSubject{ServiceName: "checkout", ServiceID: "svc:checkout"}
+	truth := freshExactTruth("incident.context")
+
+	// A service with more routed incidents than the report bound yields a
+	// bounded, scannable handle list with the section marked truncated rather
+	// than an unbounded list.
+	records := make([]IncidentRecord, 0, maxReportIncidents+5)
+	for i := 0; i < maxReportIncidents+5; i++ {
+		records = append(records, IncidentRecord{
+			Provider:           "pagerduty",
+			ProviderIncidentID: fmt.Sprintf("PD-%d", i),
+			TruthLabel:         "deterministic",
+		})
+	}
+	got := FromIncidentEvidence(records, subject, truth)
+	if len(got.Evidence) != maxReportIncidents {
+		t.Fatalf("evidence handles = %d, want bound %d", len(got.Evidence), maxReportIncidents)
+	}
+	if !got.Truncated {
+		t.Fatalf("overflowing the incident bound must mark the section truncated")
+	}
+	if got.Summary == "" || !strings.Contains(got.Summary, "truncated") {
+		t.Fatalf("truncated incident summary must signal truncation, got %q", got.Summary)
+	}
+}
+
+func TestFromIncidentEvidenceComposesSupportedSection(t *testing.T) {
+	in := FromServiceStory(sampleDossier(), freshExactTruth("platform_impact.context_overview"))
+	in.Sections = append(in.Sections, FromIncidentEvidence(
+		[]IncidentRecord{{Provider: "pagerduty", ProviderIncidentID: "PD-9"}},
+		in.Subject,
+		freshExactTruth("incident.context"),
+	))
+	report := Compose(in)
+	inc := sectionByKind(t, report, SectionIncidentsSupport)
+	if inc.Status == StatusUnsupported {
+		t.Fatalf("incidents section with a routed incident should not be unsupported, got %q", inc.Status)
 	}
 }
 

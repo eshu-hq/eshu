@@ -673,3 +673,40 @@ func TestNewDefaultRegistryWiresWorkloadProjectionInputLoader(t *testing.T) {
 		)
 	}
 }
+
+// TestNewDefaultRegistryWiresHandlesRoutePresenceWriterIndependently proves the
+// workload materialization handler is fed the handles_route (repo_id, path)
+// presence writer (#2809), NOT the secrets/IAM uid presence writer (#1380). The
+// two are distinct DefaultHandlers fields so cloud/Kubernetes materializers stay
+// nil unless secrets/IAM is enabled, and handles_route presence is published
+// whenever its own gate is on.
+func TestNewDefaultRegistryWiresHandlesRoutePresenceWriterIndependently(t *testing.T) {
+	t.Parallel()
+
+	secretsIAMWriter := &recordingPresenceWriter{}
+	handlesRouteWriter := &recordingPresenceWriter{}
+
+	registry, err := NewDefaultRegistry(DefaultHandlers{
+		FactLoader:                        &stubFactLoader{},
+		WorkloadMaterializer:              NewWorkloadMaterializer(&recordingCypherExecutor{}),
+		WorkloadProjectionInputLoader:     &stubWorkloadProjectionInputLoader{},
+		EndpointPresenceWriter:            secretsIAMWriter,
+		APIEndpointRepoPathPresenceWriter: handlesRouteWriter,
+	})
+	if err != nil {
+		t.Fatalf("NewDefaultRegistry() error = %v", err)
+	}
+
+	def, ok := registry.Definition(DomainWorkloadMaterialization)
+	if !ok {
+		t.Fatal("workload materialization definition missing")
+	}
+	handler, ok := def.Handler.(WorkloadMaterializationHandler)
+	if !ok {
+		t.Fatalf("handler type = %T, want WorkloadMaterializationHandler", def.Handler)
+	}
+	if handler.EndpointPresenceWriter != EndpointPresenceWriter(handlesRouteWriter) {
+		t.Fatalf("workload handler presence writer = %p, want the handles_route writer %p (not the secrets/IAM writer %p)",
+			handler.EndpointPresenceWriter, handlesRouteWriter, secretsIAMWriter)
+	}
+}

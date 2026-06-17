@@ -24,11 +24,19 @@ See `doc.go` for the godoc contract. The surface is:
 - `TaintFacts(node, source, fn) taint.Facts` — derive intraprocedural taint
   annotations (sources, sinks, sanitizers) from the TS/JS catalog, mapped onto
   the control-flow graph, for the `internal/parser/taint` engine.
+- `EffectsSpec(node, source, fn, localFuncs) valueflow.EffectsSpec`,
+  `LocalFunctionIDs`, `FunctionID` — build a function's value-flow summary spec
+  (params, sources/sinks/sanitizers, returns, intra-file call-arg sites) for
+  cross-function composition.
+- `InterprocFindings(root, source, importPath) []interproc.Finding` — compose the
+  per-function summaries of a file into an interprocedural port graph and solve
+  it, returning the cross-function taint findings. Resolution is intra-file.
 
 ## Dependencies
 
-- `internal/parser/cfg` (the dataflow engine), `internal/parser/taint` (the
-  taint fact types), `internal/parser/shared` (node text/line helpers), and
+- `internal/parser/cfg` (the dataflow engine), `internal/parser/taint`,
+  `internal/parser/summary`, `internal/parser/valueflow`, `internal/parser/interproc`
+  (the value-flow engines), `internal/parser/shared` (node helpers), and
   `github.com/tree-sitter/go-tree-sitter`.
 
 ## Telemetry

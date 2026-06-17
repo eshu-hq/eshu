@@ -83,7 +83,7 @@ func TestSelectPartitionBatchUsesIndexedPartitionCandidatesWhenReaderSupportsIt(
 		context.Background(), reader, DomainPlatformInfra,
 		target, partitionCount, 1,
 		acceptedGenerationFixed("gen-target", true),
-		nil, nil, nil,
+		nil, nil, nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("SelectPartitionBatch() error = %v", err)
@@ -147,7 +147,7 @@ func TestSelectPartitionBatchDoesNotHitScanCapWithIndexedSelection(t *testing.T)
 		context.Background(), reader, DomainPlatformInfra,
 		target, partitionCount, 1,
 		acceptedGenerationFixed("gen-target", true),
-		nil, nil, nil,
+		nil, nil, nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("SelectPartitionBatch() error = %v, want nil (indexed selection avoids scan cap)", err)
@@ -199,7 +199,7 @@ func TestSelectPartitionBatchMergesUnhashedFallbackForIndexedReader(t *testing.T
 		context.Background(), reader, DomainPlatformInfra,
 		target, partitionCount, 10,
 		acceptedGenerationFixed("gen-target", true),
-		nil, nil, nil,
+		nil, nil, nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("SelectPartitionBatch() error = %v", err)
@@ -337,7 +337,7 @@ func TestSelectPartitionBatchKeepsLegacyScanWhenReaderUnsupported(t *testing.T) 
 		context.Background(), reader, DomainPlatformInfra,
 		target, partitionCount, 1,
 		acceptedGenerationFixed("gen-target", true),
-		nil, nil, nil,
+		nil, nil, nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("SelectPartitionBatch() error = %v", err)

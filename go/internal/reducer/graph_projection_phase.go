@@ -61,6 +61,15 @@ const (
 	// GraphProjectionKeyspaceCrossRepoEvidence represents the reducer readiness
 	// domain for deferred backward relationship evidence during bootstrap.
 	GraphProjectionKeyspaceCrossRepoEvidence GraphProjectionKeyspace = "cross_repo_evidence"
+	// GraphProjectionKeyspaceAPIEndpointRepoPath represents the property-keyed
+	// presence domain for materialized :Endpoint nodes, keyed by (repo_id, path)
+	// rather than the workload-scoped uid. The handles_route shared-projection
+	// domain carries the repo_id and path it MATCHes on but not the per-workload
+	// uid, so its presence gate (#2809) keys on this domain. It reuses the
+	// uid-exact EndpointPresence primitive (#1380) with a synthesized
+	// repo_id\x00path uid, so it never resolves a Function-[:HANDLES_ROUTE]->Endpoint
+	// edge against an Endpoint that has not committed.
+	GraphProjectionKeyspaceAPIEndpointRepoPath GraphProjectionKeyspace = "api_endpoint_repo_path"
 )
 
 // GraphProjectionPhase identifies one durable readiness milestone for a graph
