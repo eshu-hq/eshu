@@ -3,6 +3,7 @@ package reducer
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"go.opentelemetry.io/otel/metric"
 
@@ -30,9 +31,11 @@ type activePackageManifestDependencyFactLoader interface {
 // against active repository remotes and admits Git manifest consumption
 // correlations when registry identity and source declarations agree.
 type PackageSourceCorrelationHandler struct {
-	FactLoader  FactLoader
-	Writer      PackageCorrelationWriter
-	Instruments *telemetry.Instruments
+	FactLoader              FactLoader
+	Writer                  PackageCorrelationWriter
+	Instruments             *telemetry.Instruments
+	AdmissionDecisionWriter AdmissionDecisionWriter
+	AdmissionDecisionNow    func() time.Time
 }
 
 // Handle executes package source correlation for one package-registry scope.
@@ -92,6 +95,15 @@ func (h PackageSourceCorrelationHandler) Handle(
 	})
 	if err != nil {
 		return Result{}, fmt.Errorf("write package correlations: %w", err)
+	}
+	if err := h.writePackageSourceAdmissionDecisions(
+		ctx,
+		intent,
+		decisions,
+		consumptionDecisions,
+		publicationDecisions,
+	); err != nil {
+		return Result{}, err
 	}
 	h.emitCounters(ctx, counts)
 

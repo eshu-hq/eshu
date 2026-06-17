@@ -35,9 +35,11 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 	if handlers.FactLoader != nil && handlers.PackageCorrelationWriter != nil {
 		packageSource := packageSourceCorrelationDomainDefinition()
 		packageSource.Handler = PackageSourceCorrelationHandler{
-			FactLoader:  handlers.FactLoader,
-			Writer:      handlers.PackageCorrelationWriter,
-			Instruments: handlers.Instruments,
+			FactLoader:              handlers.FactLoader,
+			Writer:                  handlers.PackageCorrelationWriter,
+			Instruments:             handlers.Instruments,
+			AdmissionDecisionWriter: handlers.AdmissionDecisionWriter,
+			AdmissionDecisionNow:    handlers.AdmissionDecisionNow,
 		}
 		definitions = append(definitions, packageSource)
 	}
@@ -172,6 +174,8 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 			IdentityPolicyEvidenceLoader: handlers.CloudInventoryIdentityPolicyEvidenceLoader,
 			ResourceChangeEvidenceLoader: handlers.CloudInventoryResourceChangeEvidenceLoader,
 			Instruments:                  handlers.Instruments,
+			AdmissionDecisionWriter:      handlers.AdmissionDecisionWriter,
+			AdmissionDecisionNow:         handlers.AdmissionDecisionNow,
 		}
 		definitions = append(definitions, cloudInventory)
 	}

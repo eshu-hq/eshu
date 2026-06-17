@@ -2,6 +2,9 @@
 // drains the reducer fact-work queue, executes domain handlers, materializes
 // cross-domain truth, and writes shared edges into the configured graph
 // backend.
+// It also wires the shared admission-decision postgres adapter for mapped
+// reducer domains that publish explainable admission outcomes beside their
+// existing canonical graph or fact writers.
 //
 // When invoked with --version or -v, it prints the embedded application
 // version and exits before runtime setup. Otherwise the binary boots OTEL

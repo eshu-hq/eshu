@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -199,6 +200,11 @@ type CloudInventoryAdmissionHandler struct {
 	ResourceChangeEvidenceLoader CloudResourceChangeEvidenceLoader
 	// Instruments, when set, records bounded admission phase counts.
 	Instruments *telemetry.Instruments
+	// AdmissionDecisionWriter, when set, persists explainable shared admission
+	// decisions after the canonical admission writer succeeds.
+	AdmissionDecisionWriter AdmissionDecisionWriter
+	// AdmissionDecisionNow supplies timestamps for shared admission decisions.
+	AdmissionDecisionNow func() time.Time
 }
 
 // Handle executes one cloud-inventory admission intent.
@@ -280,6 +286,9 @@ func (h CloudInventoryAdmissionHandler) Handle(ctx context.Context, intent Inten
 	})
 	if err != nil {
 		return Result{}, fmt.Errorf("write cloud inventory admission: %w", err)
+	}
+	if err := h.writeCloudInventoryAdmissionDecisions(ctx, intent, records, writeResult); err != nil {
+		return Result{}, err
 	}
 
 	h.recordAdmissionCounts(ctx, resources, summary)

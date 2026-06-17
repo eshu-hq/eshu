@@ -29,6 +29,7 @@ flowchart TB
   run --> Graph["openReducerNeo4jAdapters"]
   run --> Build["buildReducerService()"]
   Build --> Handlers["DefaultHandlers wired\n(all domain handlers)"]
+  Build --> AdmissionDecisions["AdmissionDecisionWriter\n(admission_decisions)"]
   Build --> Queue["postgres.NewReducerQueue"]
   Build --> Runners["SharedProjectionRunner\nCodeCallProjectionRunner\nRepoDependencyProjectionRunner\nGraphProjectionPhaseRepairer"]
   Build --> Retention["GenerationRetentionRunner\nbounded superseded-generation cleanup"]
@@ -80,8 +81,9 @@ flowchart TB
    onto existing S3 `CloudResource` nodes only),
    `SharedProjectionRunner`, `CodeCallProjectionRunner`,
    `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`, the
-   generation retention cleanup runner, the graph orphan cleanup runner, and the
-   `postgres.NewReducerQueue`.
+   generation retention cleanup runner, the graph orphan cleanup runner, the
+   shared admission-decision writer for mapped reducer admission outcomes, and
+   the `postgres.NewReducerQueue`.
 6. `app.NewHostedWithStatusServer` — mounts the shared admin surface.
 7. `signal.NotifyContext` for `os.Interrupt` / `syscall.SIGTERM`.
 8. `service.Run(ctx)` — blocks until the context is canceled; hosted
@@ -249,7 +251,8 @@ The direct process contract includes `eshu-reducer --version` and
 - `internal/storage/postgres` — `NewReducerQueue`, `InstrumentedDB`,
   `NewSharedIntentStore`, `NewGraphProjectionPhaseStateStore`,
   `NewGraphProjectionPhaseRepairQueueStore`, `NewGenerationRetentionStore`,
-  `NewReducerGraphDrain`, all fact/relationship stores
+  `NewAdmissionDecisionStore`, `NewReducerGraphDrain`, all fact/relationship
+  stores
 - `internal/storage/cypher` — `InstrumentedExecutor`, `NewEdgeWriter`,
   `NewOrphanSweepStore`
 - `internal/runtime` — `OpenPostgres`, `LoadGraphBackend`, retry policy
@@ -277,6 +280,9 @@ ESHU_POSTGRES_DSN.
 - Graph orphan sweep: `eshu_dp_graph_orphan_nodes` reports bounded
   zero-relationship node counts by closed `node_label`; cycle logs include
   lease acquisition, counts, marks, deletes, duration, and failure class.
+- Admission decisions: mapped reducer domains persist bounded explainability
+  rows in `admission_decisions` after their existing canonical writers succeed;
+  the path adds no raw provider locators or graph writes.
 - Admin surface: `/healthz`, `/readyz`, `/metrics`, `/admin/status` via
   `app.NewHostedWithStatusServer`.
 

@@ -12,7 +12,11 @@
 // truth. Queue ordering, generation supersession, phase publication, repair
 // flows, shared projection readiness, bounded generation-retention cleanup,
 // bounded graph orphan cleanup, and truth-emitting domain registration are
-// package-level contracts.
+// package-level contracts. Shared AdmissionDecisionWriter hooks, when wired,
+// persist explainable admitted, rejected, ambiguous, stale, missing-evidence,
+// unsupported, permission-hidden, and unsafe outcomes for mapped correlation
+// domains after their existing canonical writers succeed; they do not change
+// graph eligibility or fabricate canonical rows for provenance-only evidence.
 // GenerationRetentionRunner prunes only superseded source-generation history in
 // bounded Postgres transactions; it never substitutes for relationship
 // retraction or graph orphan cleanup. GraphOrphanSweepRunner marks and deletes
