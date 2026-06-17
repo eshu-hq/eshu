@@ -628,6 +628,7 @@ type Instruments struct {
 
 	// Histograms track distributions
 	CollectorObserveDuration        metric.Float64Histogram
+	WorkflowClaimWaitDuration       metric.Float64Histogram
 	TerraformStateClaimWaitDuration metric.Float64Histogram
 	TerraformStateSnapshotBytes     metric.Int64Histogram
 	TerraformStateParseDuration     metric.Float64Histogram
@@ -2226,7 +2227,18 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register CollectorObserveDuration histogram: %w", err)
 	}
 
-	tfstateClaimWaitBuckets := []float64{0, 0.1, 0.5, 1, 5, 10, 30, 60, 300, 900, 1800, 3600}
+	workflowClaimWaitBuckets := []float64{0, 0.1, 0.5, 1, 5, 10, 30, 60, 300, 900, 1800, 3600}
+	inst.WorkflowClaimWaitDuration, err = meter.Float64Histogram(
+		"eshu_dp_workflow_claim_wait_seconds",
+		metric.WithDescription("Workflow work item age when a claim starts"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(workflowClaimWaitBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkflowClaimWaitDuration histogram: %w", err)
+	}
+
+	tfstateClaimWaitBuckets := workflowClaimWaitBuckets
 	inst.TerraformStateClaimWaitDuration, err = meter.Float64Histogram(
 		"eshu_dp_tfstate_claim_wait_seconds",
 		metric.WithDescription("Terraform state collector work item age when a claim starts"),

@@ -39,6 +39,7 @@ Content-aware skip reasons use the `content:` prefix. Repo-local
 
 | Metric | Key labels | Use |
 | --- | --- | --- |
+| `eshu_dp_workflow_claim_wait_seconds` | `collector_kind`, `source_system` | Work-item age when any claim-aware collector starts processing a claim. |
 | `eshu_dp_tfstate_claim_wait_seconds` | `collector_kind`, `source_system` | Work-item age when a state claim starts. |
 | `eshu_dp_tfstate_discovery_candidates_total` | `source` | Candidate sources accepted before opening a state file. |
 | `eshu_dp_tfstate_snapshots_observed_total` | `backend_kind`, `result` | State source observations. |

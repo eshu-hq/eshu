@@ -420,31 +420,15 @@ func TestClaimedServiceRecordsTerraformStateClaimWait(t *testing.T) {
 	if got := claimedHistogramCount(t, rm, "eshu_dp_tfstate_claim_wait_seconds"); got != 1 {
 		t.Fatalf("eshu_dp_tfstate_claim_wait_seconds count = %d, want 1", got)
 	}
+	if got := claimedHistogramCount(t, rm, "eshu_dp_workflow_claim_wait_seconds"); got != 1 {
+		t.Fatalf("eshu_dp_workflow_claim_wait_seconds count = %d, want 1", got)
+	}
 	if claimedHistogramHasAttr(t, rm, "eshu_dp_tfstate_claim_wait_seconds", "scope_id") {
 		t.Fatal("eshu_dp_tfstate_claim_wait_seconds has scope_id label, want bounded labels only")
 	}
-}
-
-func claimedHistogramCount(t *testing.T, rm metricdata.ResourceMetrics, metricName string) uint64 {
-	t.Helper()
-	for _, scopeMetrics := range rm.ScopeMetrics {
-		for _, metricRecord := range scopeMetrics.Metrics {
-			if metricRecord.Name != metricName {
-				continue
-			}
-			histogram, ok := metricRecord.Data.(metricdata.Histogram[float64])
-			if !ok {
-				t.Fatalf("metric %s data = %T, want metricdata.Histogram[float64]", metricName, metricRecord.Data)
-			}
-			var count uint64
-			for _, point := range histogram.DataPoints {
-				count += point.Count
-			}
-			return count
-		}
+	if claimedHistogramHasAttr(t, rm, "eshu_dp_workflow_claim_wait_seconds", "scope_id") {
+		t.Fatal("eshu_dp_workflow_claim_wait_seconds has scope_id label, want bounded labels only")
 	}
-	t.Fatalf("metric %s not found", metricName)
-	return 0
 }
 
 func blockingFactStream(count int, observedAt time.Time) (<-chan facts.Envelope, <-chan struct{}) {
@@ -466,34 +450,4 @@ func blockingFactStream(count int, observedAt time.Time) (<-chan facts.Envelope,
 		}
 	}()
 	return ch, done
-}
-
-func claimedHistogramHasAttr(
-	t *testing.T,
-	rm metricdata.ResourceMetrics,
-	metricName string,
-	key string,
-) bool {
-	t.Helper()
-	for _, scopeMetrics := range rm.ScopeMetrics {
-		for _, metricRecord := range scopeMetrics.Metrics {
-			if metricRecord.Name != metricName {
-				continue
-			}
-			histogram, ok := metricRecord.Data.(metricdata.Histogram[float64])
-			if !ok {
-				t.Fatalf("metric %s data = %T, want metricdata.Histogram[float64]", metricName, metricRecord.Data)
-			}
-			for _, point := range histogram.DataPoints {
-				for _, attr := range point.Attributes.ToSlice() {
-					if string(attr.Key) == key {
-						return true
-					}
-				}
-			}
-			return false
-		}
-	}
-	t.Fatalf("metric %s not found", metricName)
-	return false
 }
