@@ -41,7 +41,7 @@
 // shared helper contracts instead of parent parser helpers, so language-owned
 // adapters do not create dispatcher import cycles.
 //
-// When Options.GoEmitDataflow is set, Parse also emits a "dataflow_functions"
+// When Options.EmitDataflow is set, Parse also emits a "dataflow_functions"
 // bucket (per-function control-flow graphs and reaching-definition def->use
 // edges built by cfg_lower.go over the internal/parser/cfg engine) and a
 // "taint_findings" bucket (intraprocedural source-to-sink taint findings with

@@ -9,4 +9,10 @@
 // the same adapter path for import-map discovery. NotebookSource preserves the
 // notebook code-cell invariant so notebook parsing cannot index markdown, raw
 // cells, or partial JSON.
+//
+// When Options.EmitDataflow is set, Parse also emits the opt-in value-flow
+// buckets "dataflow_functions", "taint_findings", and "interproc_findings"
+// (built by cfg_emit.go over the python/pydataflow lowering and the shared
+// internal/parser/dataflowemit renderer). The gate is off by default and the
+// payload is byte-identical to before this feature when off.
 package python

@@ -46,16 +46,21 @@ from the shared parser package.
 The godoc contract is in doc.go.
 
 - Parse reads one Python or notebook path with a caller-owned tree-sitter parser
-  and returns the parser payload.
+  and returns the parser payload. When `Options.EmitDataflow` is set it also emits
+  the opt-in `dataflow_functions`, `taint_findings`, and `interproc_findings`
+  buckets (see `cfg_emit.go`); the gate is off by default and the payload is
+  byte-identical when off.
 - PreScan reuses Parse for collector import-map discovery.
 - NotebookSource extracts executable Python code cells from notebook JSON.
 
 ## Dependencies
 
 The package imports the shared parser helper package for Options, BasePayload,
-ReadSource, WalkNamed, node text helpers, and bucket helpers. It imports the
-YAML parser child package only to decode SAM and serverless config candidates
-when marking Python Lambda handlers.
+ReadSource, WalkNamed, node text helpers, and bucket helpers. The value-flow
+emission (`cfg_emit.go`) imports the `python/pydataflow` lowering, the shared
+`internal/parser/dataflowemit` renderer, and the `internal/parser/cfg`/`taint`
+engines. It imports the YAML parser child package only to decode SAM and
+serverless config candidates when marking Python Lambda handlers.
 
 It does not import the parent parser package, collector packages, storage
 packages, graph query code, or reducer code.

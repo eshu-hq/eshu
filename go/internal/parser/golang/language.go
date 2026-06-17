@@ -188,7 +188,7 @@ func Parse(
 
 	// Dataflow and taint facts are opt-in: when off the payload is byte-identical
 	// to before this feature because no key is added.
-	if options.GoEmitDataflow {
+	if options.EmitDataflow {
 		dataflow, findings := goEmitDataflowBuckets(root, source)
 		if len(dataflow) > 0 {
 			payload["dataflow_functions"] = dataflow

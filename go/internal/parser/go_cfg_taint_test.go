@@ -38,7 +38,7 @@ func parseGoTaintFixture(t *testing.T, body string) map[string]any {
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{GoEmitDataflow: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
