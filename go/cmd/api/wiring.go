@@ -340,8 +340,9 @@ func newRouter(
 			Logger:  logger,
 		},
 		Evidence: &query.EvidenceHandler{
-			Content: contentReader,
-			Profile: queryProfile,
+			Content:            contentReader,
+			AdmissionDecisions: query.NewPostgresAdmissionDecisionReadStore(pgstatus.SQLDB{DB: db}),
+			Profile:            queryProfile,
 		},
 		Documentation: &query.DocumentationHandler{
 			Content:    contentReader,

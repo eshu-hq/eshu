@@ -61,6 +61,54 @@ const openAPIPathsEvidence = `
         }
       }
     },
+    "/api/v0/evidence/admission-decisions": {
+      "get": {
+        "tags": ["evidence"],
+        "summary": "List correlation admission decisions",
+        "description": "Lists reducer-owned correlation admission decisions for one domain, scope, and generation. Rows explain admitted, rejected, ambiguous, stale, missing-evidence, permission-hidden, unsupported, and unsafe candidates before or beside canonical graph edges. The route is bounded, scoped-token safe, and returns source handles plus recommended next calls.",
+        "operationId": "listAdmissionDecisions",
+        "parameters": [
+          {"name": "domain", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Reducer admission domain such as deployable_unit, cloud_inventory, or package_source"},
+          {"name": "scope_id", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Ingestion scope id that bounds the read"},
+          {"name": "generation_id", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Scope generation id that bounds the read"},
+          {"name": "state", "in": "query", "schema": {"type": "string", "enum": ["admitted", "rejected", "ambiguous", "stale", "missing_evidence", "permission_hidden", "unsupported", "unsafe"]}},
+          {"name": "anchor_kind", "in": "query", "schema": {"type": "string"}, "description": "Optional anchor kind such as service, repository, workload, cloud_resource, package, or incident. Provide with anchor_id."},
+          {"name": "anchor_id", "in": "query", "schema": {"type": "string"}, "description": "Optional anchor id. Provide with anchor_kind."},
+          {"name": "include_evidence", "in": "query", "schema": {"type": "boolean", "default": false}, "description": "When true, include bounded evidence rows for returned decisions."},
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Admission decision page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "decisions": {"type": "array", "items": {"type": "object"}},
+                    "count": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                    "truncated": {"type": "boolean"},
+                    "recommended_next_calls": {"type": "array", "items": {"type": "object"}}
+                  },
+                  "required": ["decisions", "count", "limit", "truncated", "recommended_next_calls"]
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {
+            "description": "Postgres admission decision read model is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v0/evidence/citations": {
       "post": {
         "tags": ["evidence"],

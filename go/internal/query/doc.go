@@ -26,6 +26,10 @@
 // Relationship-story rows also include a uniform provenance object so API and
 // MCP clients can compare code-edge and correlation-edge confidence at the row
 // without changing admission policy or the answer-level TruthEnvelope.
+// Admission-decision reads expose reducer-owned admitted, rejected, ambiguous,
+// stale, missing-evidence, permission-hidden, unsupported, and unsafe candidate
+// rows under a domain/scope/generation boundary; they explain graph writes but
+// are not themselves canonical graph edges.
 //
 // Supply-chain reads expose source-only advisory evidence separately from
 // reducer-owned impact findings. Advisory evidence groups active

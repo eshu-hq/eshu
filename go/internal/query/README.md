@@ -102,6 +102,15 @@ Repository context relationship queries include reducer-owned
 `CORRELATES_DEPLOYABLE_UNIT` graph edges so deployable-unit correlation readback
 uses the same confidence, evidence kind, reason, resolved id, and
 resolution-source fields as other typed repository relationships.
+Admission-decision reads (`GET /api/v0/evidence/admission-decisions`) are the
+pre- or side-graph explanation layer for reducer correlation domains. They are
+bounded by `domain`, `scope_id`, and `generation_id`, can be narrowed by shared
+state or by an anchor such as repository, service, workload, cloud resource,
+package, or incident, and expose source handles plus recommended next calls.
+They explain why a candidate was admitted, rejected, ambiguous, stale, missing
+evidence, permission hidden, unsupported, or unsafe; they do not promote a
+candidate to canonical graph truth unless the reducer's canonical write block
+shows an admitted write.
 
 No-Regression Evidence: focused relationship context, evidence drilldown, and
 OpenAPI tests cover both Postgres read-model and graph-backed rows:

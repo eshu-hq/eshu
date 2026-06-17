@@ -13,8 +13,9 @@ const relationshipEvidenceCapability = "relationship_evidence.drilldown"
 // EvidenceHandler exposes drilldown endpoints for compact evidence pointers
 // returned by graph and repository context surfaces.
 type EvidenceHandler struct {
-	Content ContentStore
-	Profile QueryProfile
+	Content            ContentStore
+	AdmissionDecisions AdmissionDecisionReadStore
+	Profile            QueryProfile
 }
 
 type relationshipEvidenceReadModel struct {
@@ -29,6 +30,7 @@ type relationshipEvidenceReadModelStore interface {
 // Mount registers evidence drilldown routes.
 func (h *EvidenceHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/evidence/relationships/{resolved_id}", h.getRelationshipEvidence)
+	mux.HandleFunc("GET /api/v0/evidence/admission-decisions", h.listAdmissionDecisions)
 	mux.HandleFunc("POST /api/v0/evidence/citations", h.buildEvidenceCitations)
 }
 

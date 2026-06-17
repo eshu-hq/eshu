@@ -167,6 +167,8 @@ or spans beyond the startup/connection events.
   `SupplyChainHandler.ImpactExplanations`, and
   `SupplyChainHandler.SecurityAlerts` must be non-nil because MCP exposes read
   tools for those routes.
+- `EvidenceHandler.AdmissionDecisions` must be non-nil because MCP exposes the
+  `list_admission_decisions` readback tool.
 - `IncidentHandler.Context` and `WorkItemHandler.Evidence` must be non-nil
   because MCP exposes incident context and ticket-first work-item evidence tools.
 
