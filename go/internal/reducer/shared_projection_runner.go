@@ -34,6 +34,7 @@ var sharedProjectionDomains = []string{
 	DomainSQLRelationships,
 	DomainHandlesRoute,
 	DomainRunsIn,
+	DomainInvokesCloudAction,
 }
 
 // SharedProjectionRunnerConfig holds configuration for the shared projection

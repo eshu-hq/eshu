@@ -107,6 +107,11 @@ var schemaConstraints = []string{
 	"CREATE CONSTRAINT workload_instance_id IF NOT EXISTS FOR (i:WorkloadInstance) REQUIRE i.id IS UNIQUE",
 	"CREATE CONSTRAINT endpoint_id IF NOT EXISTS FOR (e:Endpoint) REQUIRE e.id IS UNIQUE",
 
+	// Cloud action identity — the closed-catalog action a Function invokes via an
+	// AWS SDK call (#2723). Keyed by id so the inline INVOKES_CLOUD_ACTION MERGE
+	// is an O(1) lookup rather than a CloudAction label scan per row.
+	"CREATE CONSTRAINT cloud_action_id IF NOT EXISTS FOR (a:CloudAction) REQUIRE a.id IS UNIQUE",
+
 	// Platform identity
 	"CREATE CONSTRAINT platform_id IF NOT EXISTS FOR (p:Platform) REQUIRE p.id IS UNIQUE",
 
@@ -324,6 +329,7 @@ var nornicDBMergeLookupIndexes = []string{
 	"CREATE INDEX nornicdb_workload_instance_id_lookup IF NOT EXISTS FOR (i:WorkloadInstance) ON (i.id)",
 	"CREATE INDEX nornicdb_platform_id_lookup IF NOT EXISTS FOR (p:Platform) ON (p.id)",
 	"CREATE INDEX nornicdb_endpoint_id_lookup IF NOT EXISTS FOR (e:Endpoint) ON (e.id)",
+	"CREATE INDEX nornicdb_cloud_action_id_lookup IF NOT EXISTS FOR (a:CloudAction) ON (a.id)",
 	"CREATE INDEX nornicdb_evidence_artifact_id_lookup IF NOT EXISTS FOR (a:EvidenceArtifact) ON (a.id)",
 	"CREATE INDEX nornicdb_environment_name_lookup IF NOT EXISTS FOR (e:Environment) ON (e.name)",
 	"CREATE INDEX nornicdb_source_local_record_scope_lookup IF NOT EXISTS FOR (n:SourceLocalRecord) ON (n.scope_id)",

@@ -244,6 +244,8 @@ func batchCypherForDomain(domain string) (string, error) {
 		return batchCanonicalHandlesRouteEdgeUpsertCypher, nil
 	case reducer.DomainRunsIn:
 		return batchCanonicalRunsInEdgeUpsertCypher, nil
+	case reducer.DomainInvokesCloudAction:
+		return batchCanonicalInvokesCloudActionUpsertCypher, nil
 	default:
 		return "", fmt.Errorf("unsupported domain for write: %q", domain)
 	}
@@ -365,6 +367,9 @@ func buildRowMap(
 
 	case reducer.DomainRunsIn:
 		return buildRunsInRowMap(row.Payload, evidenceSource)
+
+	case reducer.DomainInvokesCloudAction:
+		return buildInvokesCloudActionRowMap(row.Payload, evidenceSource)
 
 	default:
 		return "", nil, false

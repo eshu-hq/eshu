@@ -165,6 +165,16 @@ func (h CodeCallMaterializationHandler) Handle(
 			runsInEvidenceSource,
 		)...,
 	)
+	intentRows = append(
+		intentRows,
+		buildInvokesCloudActionIntentRows(
+			envelopes,
+			entityIndex,
+			contextByRepoID,
+			createdAt,
+			invokesCloudActionEvidenceSource,
+		)...,
+	)
 	intentBuildDuration := time.Since(intentBuildStart)
 
 	if len(intentRows) == 0 {
