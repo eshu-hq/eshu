@@ -104,6 +104,11 @@ type SectionInput struct {
 	Limitations []string
 	// NextCalls are caller-supplied bounded follow-up calls for the section.
 	NextCalls []NextCall
+	// HighImpact marks a section that carries a high-confidence, high-impact
+	// relationship worth a guided drilldown. The composer does not judge impact
+	// itself; the caller, which holds the edge data, sets this flag so a
+	// high_impact_relationship investigation is grounded in real evidence.
+	HighImpact bool
 	// Err, when set, marks the section unavailable because the source route
 	// errored. It takes precedence over Truth.
 	Err *query.ErrorEnvelope
@@ -165,4 +170,9 @@ type Report struct {
 	// NextCalls aggregates the de-duplicated bounded follow-up calls across
 	// sections, each traceable to a real tool, route, or playbook.
 	NextCalls []NextCall `json:"recommended_next_calls,omitempty"`
+	// Investigations are the deterministic, de-duplicated, bounded guided
+	// investigations derived from the report's evidence gaps, stale freshness,
+	// ambiguous targets, unsupported lanes, and flagged high-impact
+	// relationships. It is empty when no section carries a supporting basis.
+	Investigations []SuggestedInvestigation `json:"suggested_investigations,omitempty"`
 }

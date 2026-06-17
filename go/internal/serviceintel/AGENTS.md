@@ -26,8 +26,15 @@ reader, API handler, MCP tool, or queue worker.
   limitation, and recommend a bounded next call that names a real tool, route,
   or query playbook. Never invent an identifier — every tool/route/playbook in
   `sections.go` must exist.
+- Ground every SuggestedInvestigation in a real signal (missing evidence, stale
+  freshness with a proven cause, ambiguous target, unsupported lane, or a
+  caller-flagged high-impact relationship). Never emit a suggestion with no
+  basis, never choose a winner for an ambiguous target, and source the expected
+  truth class from the section truth or the linked playbook — never invent it.
+  Keep the list de-duplicated by stable id and bounded by maxInvestigations.
 - Add or update tests before changing composition behavior; cover complete,
-  partial, unsupported, stale, truncated, empty, and absent-section cases.
+  partial, unsupported, stale, truncated, empty, and absent-section cases, plus
+  each investigation basis and the absent-when-no-basis case.
 
 ## Verification
 

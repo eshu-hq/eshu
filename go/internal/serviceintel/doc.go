@@ -17,4 +17,13 @@
 // limitation plus a bounded next call that names a real tool, route, or query
 // playbook. Compose is deterministic, so the same evidence always yields a
 // byte-identical report suitable for diffing, caching, and dogfood scoring.
+//
+// Compose also derives guided SuggestedInvestigation values from the report's
+// own signals: unresolved evidence handles, stale or building freshness with a
+// proven cause, ambiguous service targets, unavailable evidence lanes, and
+// caller-flagged high-impact relationships. Each suggestion ties a concrete
+// signal to a bounded next call and a grounded expected truth class; the list
+// is de-duplicated, bounded, and empty when no section carries a supporting
+// basis. Suggestions never choose a winner for an ambiguous target; they
+// recommend resolving it.
 package serviceintel

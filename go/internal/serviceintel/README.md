@@ -49,6 +49,26 @@ The report is `partial` whenever any present section is partial or unsupported,
 so a report never reads as complete while sections are missing. Report-level
 `truth` and `truth_class` are copied from the identity section.
 
+## Guided investigations
+
+`Compose` also derives a bounded list of `SuggestedInvestigation` values from the
+report's own signals, so an operator gets a "what to look at next" list grounded
+in real gaps rather than free-form prompts. Each suggestion is derived from one
+closed `InvestigationBasis`:
+
+| Basis | Signal | Bounded next call |
+| --- | --- | --- |
+| `missing_evidence` | requested evidence handles did not resolve | `build_evidence_citation_packet` |
+| `stale_freshness` | section stale/building with a proven cause | the section's freshness next check |
+| `ambiguous_target` | source route could not pick one subject | `resolve_entity` (never guesses a winner) |
+| `unsupported_lane` | section's evidence lane is unavailable | the section's fallback call |
+| `high_impact_relationship` | caller flagged a high-impact relationship | `get_relationship_evidence` |
+
+Each suggestion carries a reason, an evidence basis (the concrete signal it came
+from), a bounded next call, and an expected truth class sourced from the section
+truth or the linked playbook — never invented. The list is de-duplicated by a
+stable id, bounded, and empty when no section carries a supporting basis.
+
 ## Determinism
 
 `Compose` is a pure function. The same `ReportInput` yields a byte-identical
@@ -61,7 +81,8 @@ output.
 
 See `doc.go` for the godoc contract. The package exports `Compose`, the
 `Report` / `ReportSection` / `ReportInput` / `SectionInput` shapes, the
-`SectionKind` and `SectionStatus` enums, `ReportSubject`, and `NextCall`.
+`SectionKind` and `SectionStatus` enums, `ReportSubject`, `NextCall`, and the
+`SuggestedInvestigation` / `InvestigationBasis` guided-investigation surface.
 
 ## Dependencies
 
