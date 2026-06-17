@@ -207,6 +207,14 @@ FROM live_routing
 ORDER BY service_id ASC, provider_incident_id ASC, slot ASC, evidence_kind ASC, evidence_id ASC
 `
 
+// serviceIncidentEvidenceBoundedQuery is the report read path: the same durable
+// fail-closed join as serviceIncidentEvidenceQuery, capped with a row LIMIT so a
+// single report request cannot scan or load an unbounded incident history. The
+// reducer materialization path keeps using the unbounded query because it must
+// observe every routed incident; only the bounded report surface caps the read.
+const serviceIncidentEvidenceBoundedQuery = serviceIncidentEvidenceQuery + `
+LIMIT $2`
+
 // ServiceIncidentEvidenceLoader loads active incident-routing evidence scoped to
 // Eshu catalog service ids. It implements reducer.ServiceScopedIncidentEvidenceLoader.
 type ServiceIncidentEvidenceLoader struct {
@@ -238,9 +246,43 @@ func (l ServiceIncidentEvidenceLoader) GetIncidentEvidenceForServices(
 	if err != nil {
 		return nil, fmt.Errorf("load service incident evidence: %w", err)
 	}
+	return scanServiceIncidentEvidence(rows, len(serviceIDs))
+}
+
+// GetIncidentEvidenceForServicesBounded loads durable active incident-routing
+// evidence for the requested catalog services, capped at rowLimit rows so a
+// single read-surface request cannot scan an unbounded incident history. It is a
+// no-op for an empty service set or a non-positive rowLimit. Callers that need
+// every routed incident (the reducer materialization path) use the unbounded
+// GetIncidentEvidenceForServices instead; this bounded read is for report and
+// query surfaces that only present a capped set.
+func (l ServiceIncidentEvidenceLoader) GetIncidentEvidenceForServicesBounded(
+	ctx context.Context,
+	serviceIDs []string,
+	rowLimit int,
+) (map[string][]reducer.ServiceIncidentRecord, error) {
+	if l.queryer == nil {
+		return nil, fmt.Errorf("incident evidence queryer is required")
+	}
+	serviceIDs = cleanStringFilterValues(serviceIDs)
+	if len(serviceIDs) == 0 || rowLimit <= 0 {
+		return nil, nil
+	}
+
+	rows, err := l.queryer.QueryContext(ctx, serviceIncidentEvidenceBoundedQuery, serviceIDs, rowLimit)
+	if err != nil {
+		return nil, fmt.Errorf("load service incident evidence: %w", err)
+	}
+	return scanServiceIncidentEvidence(rows, len(serviceIDs))
+}
+
+// scanServiceIncidentEvidence scans incident-routing evidence rows into the
+// per-service result map, closing the rows. It is shared by the unbounded and
+// bounded loaders so both decode identical row shapes.
+func scanServiceIncidentEvidence(rows Rows, capacityHint int) (map[string][]reducer.ServiceIncidentRecord, error) {
 	defer func() { _ = rows.Close() }()
 
-	byService := make(map[string][]reducer.ServiceIncidentRecord, len(serviceIDs))
+	byService := make(map[string][]reducer.ServiceIncidentRecord, capacityHint)
 	for rows.Next() {
 		var serviceID string
 		var record reducer.ServiceIncidentRecord

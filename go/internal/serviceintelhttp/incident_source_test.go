@@ -164,10 +164,12 @@ type fakeEvidenceLoader struct {
 	byService map[string][]reducer.ServiceIncidentRecord
 	err       error
 	gotIDs    []string
+	gotLimit  int
 }
 
-func (f *fakeEvidenceLoader) GetIncidentEvidenceForServices(_ context.Context, serviceIDs []string) (map[string][]reducer.ServiceIncidentRecord, error) {
+func (f *fakeEvidenceLoader) GetIncidentEvidenceForServicesBounded(_ context.Context, serviceIDs []string, rowLimit int) (map[string][]reducer.ServiceIncidentRecord, error) {
 	f.gotIDs = serviceIDs
+	f.gotLimit = rowLimit
 	return f.byService, f.err
 }
 
@@ -195,6 +197,9 @@ func TestDurableIncidentEvidenceSourceResolvesLoadsAndMaps(t *testing.T) {
 	}
 	if len(loader.gotIDs) != 1 || loader.gotIDs[0] != "component:default/checkout" {
 		t.Fatalf("loader queried %v, want the resolved catalog service id", loader.gotIDs)
+	}
+	if loader.gotLimit != reportIncidentEvidenceRowLimit {
+		t.Fatalf("loader row limit = %d, want the bounded report limit %d", loader.gotLimit, reportIncidentEvidenceRowLimit)
 	}
 }
 

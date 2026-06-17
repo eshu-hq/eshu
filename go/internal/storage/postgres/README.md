@@ -530,3 +530,23 @@ the cause; the consuming report handler logs `serviceintel.incident_load_error`
 and `serviceintel.incident_ambiguous_catalog_service`, and the route is covered by
 the existing API request-duration/error metrics middleware. The resolver adds no
 new metric or span of its own.
+
+### Bounded incident read for the report surface
+
+`ServiceIncidentEvidenceLoader.GetIncidentEvidenceForServicesBounded`
+(`serviceIncidentEvidenceBoundedQuery` = the unbounded join plus `LIMIT $2`) caps
+the rows one report request loads. The reducer materialization path keeps the
+unbounded `GetIncidentEvidenceForServices` because it must observe every routed
+incident; only the read surface caps the load.
+
+Performance Evidence: the report source passes `reportIncidentEvidenceRowLimit`
+(512), far above the surfaced incident bound (`serviceintel.maxReportIncidents` =
+50) and the few evidence slots per incident, so a `get_service_intelligence_report`
+call can no longer scan/load an unbounded incident history while still reading
+more than enough distinct incidents for the composer's truncation flag to fire.
+No-Regression Evidence: the unbounded query and the reducer path are byte-for-byte
+unchanged (the bounded query is `serviceIncidentEvidenceQuery + "\nLIMIT $2"`),
+proven by `TestServiceIncidentEvidenceBoundedQueryAppliesRowLimit`.
+Observability Evidence: load failures on the bounded path are logged by the report
+source as `serviceintel.incident_load_error` (workload id + catalog service id);
+no new metric or span is added.

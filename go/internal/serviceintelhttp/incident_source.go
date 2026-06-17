@@ -43,10 +43,20 @@ type catalogServiceIDResolver interface {
 }
 
 // serviceIncidentEvidenceLoader loads durable incident routing evidence keyed by
-// catalog service id. postgres.ServiceIncidentEvidenceLoader implements it.
+// catalog service id, bounded to rowLimit rows so a report request cannot scan an
+// unbounded incident history. postgres.ServiceIncidentEvidenceLoader implements it.
 type serviceIncidentEvidenceLoader interface {
-	GetIncidentEvidenceForServices(ctx context.Context, serviceIDs []string) (map[string][]reducer.ServiceIncidentRecord, error)
+	GetIncidentEvidenceForServicesBounded(ctx context.Context, serviceIDs []string, rowLimit int) (map[string][]reducer.ServiceIncidentRecord, error)
 }
+
+// reportIncidentEvidenceRowLimit caps the incident-routing evidence rows the
+// report read loads for one service. It is deliberately far above the report's
+// surfaced incident bound (serviceintel.maxReportIncidents) and the few evidence
+// slots per incident, so the read is bounded against a pathological incident
+// history while still yielding more than enough distinct incidents for the
+// composer's truncation detection to fire honestly when the service overflows
+// the surfaced bound.
+const reportIncidentEvidenceRowLimit = 512
 
 // DurableIncidentEvidenceSource is the production IncidentEvidenceSource: it
 // resolves the workload's durable catalog service id, then loads that service's
@@ -97,7 +107,7 @@ func (s DurableIncidentEvidenceSource) IncidentRecordsForWorkload(
 		return nil, nil
 	}
 
-	byService, err := s.loader.GetIncidentEvidenceForServices(ctx, []string{catalogServiceID})
+	byService, err := s.loader.GetIncidentEvidenceForServicesBounded(ctx, []string{catalogServiceID}, reportIncidentEvidenceRowLimit)
 	if err != nil {
 		s.warn(ctx, "service intelligence report incident load failed",
 			"serviceintel.incident_load_error", workloadID, catalogServiceID)

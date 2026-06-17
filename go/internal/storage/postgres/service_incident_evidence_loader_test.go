@@ -126,4 +126,52 @@ func TestServiceIncidentEvidenceQueryUsesDurableExactFailClosedJoin(t *testing.T
 	}
 }
 
+func TestServiceIncidentEvidenceBoundedQueryAppliesRowLimit(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(serviceIncidentEvidenceBoundedQuery, "LIMIT $2") {
+		t.Fatalf("bounded query must cap rows with LIMIT $2:\n%s", serviceIncidentEvidenceBoundedQuery)
+	}
+	// The bounded query is the unbounded join plus the row cap, so it keeps the
+	// same durable fail-closed admissibility gate.
+	if !strings.HasPrefix(serviceIncidentEvidenceBoundedQuery, serviceIncidentEvidenceQuery) {
+		t.Fatal("bounded query must extend the unbounded query, not diverge from its join")
+	}
+}
+
+func TestServiceIncidentEvidenceForServicesBoundedPassesLimit(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: [][]any{}}}}
+	loader := NewServiceIncidentEvidenceLoader(db)
+
+	if _, err := loader.GetIncidentEvidenceForServicesBounded(
+		context.Background(), []string{"component:default/checkout"}, 512); err != nil {
+		t.Fatalf("GetIncidentEvidenceForServicesBounded() error = %v, want nil", err)
+	}
+	if len(db.queries) != 1 {
+		t.Fatalf("queries = %d, want one bounded load", len(db.queries))
+	}
+	if got := db.queries[0].args; len(got) != 2 || got[1] != 512 {
+		t.Fatalf("bounded query args = %v, want [serviceIDs 512]", got)
+	}
+}
+
+func TestServiceIncidentEvidenceForServicesBoundedNonPositiveLimitIsNoOp(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{}
+	loader := NewServiceIncidentEvidenceLoader(db)
+	got, err := loader.GetIncidentEvidenceForServicesBounded(context.Background(), []string{"component:default/checkout"}, 0)
+	if err != nil {
+		t.Fatalf("GetIncidentEvidenceForServicesBounded() error = %v, want nil", err)
+	}
+	if got != nil {
+		t.Fatalf("got = %v, want nil for a non-positive row limit", got)
+	}
+	if len(db.queries) != 0 {
+		t.Fatalf("queries = %d, want no query for a non-positive row limit", len(db.queries))
+	}
+}
+
 var _ reducer.ServiceScopedIncidentEvidenceLoader = ServiceIncidentEvidenceLoader{}
