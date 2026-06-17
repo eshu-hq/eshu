@@ -9,16 +9,28 @@
 
 ## Ownership
 
-This package owns the service intelligence report HTTP route and nothing else.
-It composes the `query` service-story seam with the `serviceintel` composer.
+This package owns the service intelligence report HTTP route. It composes the
+`query` service-story seam with the `serviceintel` composer, and owns the durable
+incident lane that fills `incidents_support` (`IncidentEvidenceSource` /
+`DurableIncidentEvidenceSource`, over the postgres catalog-id resolver + incident
+evidence loader).
 
 ## Rules
 
 - Never import this package from `query` or `serviceintel` — the dependency must
-  flow one way (`serviceintelhttp -> {query, serviceintel}`), or the build cycles.
-  Mount the route from `cmd/api`, never from the `query` router.
+  flow one way (`serviceintelhttp -> {query, serviceintel, reducer, storage/postgres}`),
+  or the build cycles. Mount the route from `cmd/api`/`cmd/mcp-server`, never from
+  the `query` router.
 - Reuse `query.EntityHandler.BuildServiceStoryEnvelope` for dossier + truth;
-  never re-derive truth or re-implement service resolution here.
+  never re-derive the service-story truth or re-implement service resolution here.
+- The `incidents_support` section MUST carry incident-context truth
+  (`incident.context.read`), not the service-story platform truth, and MUST be
+  attributed only when the workload resolves to exactly one catalog service.
+  Unresolved / ambiguous / load-error / no-incident cases leave the section
+  unsupported with its fallback — never fabricate a false "no incidents", never
+  let an incident-lane failure corrupt or fail the rest of the report.
+- The incident source contract: the loader keys on the durable **catalog service
+  id**, never the workload id. Resolve workload id → catalog service id first.
 - Return resolution failures as the seam's `ErrorEnvelope` + status via
   `query.WriteErrorEnvelope`, so this route and the service-story route stay
   consistent.

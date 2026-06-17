@@ -170,8 +170,13 @@ func wireAPI(
 
 	// Mount the service intelligence report route. It lives in its own package
 	// (which imports both query and serviceintel) and is mounted here rather than
-	// by the query router, so query never depends on serviceintel — no cycle.
-	(&serviceintelhttp.ReportHandler{Entities: router.Entities}).Mount(apiMux)
+	// by the query router, so query never depends on serviceintel — no cycle. The
+	// incidents_support section is sourced from durable incident-routing evidence
+	// (catalog-service-id resolver + incident evidence loader, both over Postgres).
+	(&serviceintelhttp.ReportHandler{
+		Entities:  router.Entities,
+		Incidents: newIncidentEvidenceSource(db, logger),
+	}).Mount(apiMux)
 
 	// Record per-endpoint duration/error metrics for every API route. The
 	// middleware wraps the application mux only; the admin surface (probes,

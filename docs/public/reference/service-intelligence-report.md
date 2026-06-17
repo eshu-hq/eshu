@@ -60,9 +60,19 @@ The input is the service story route response — the standard
 maps the dossier into the `identity`, `code_to_runtime`, and `deployment_config`
 sections and carries the captured truth envelope verbatim. `--supply-chain-from`
 folds a captured `get_supply_chain_impact_inventory` response into the
-`supply_chain` section. The `incidents_support` section is emitted `unsupported`
-(with its fallback next call) until its evidence is wired in. A response with no
-truth composes an `unsupported` report rather than fabricating confidence.
+`supply_chain` section. The offline CLI emits the `incidents_support` section
+`unsupported` (with its fallback next call) because it has no store access. A
+response with no truth composes an `unsupported` report rather than fabricating
+confidence.
+
+The live API/MCP route (`GET /api/v0/services/{service_name}/intelligence-report`,
+`get_service_intelligence_report`) additionally sources `incidents_support` from
+durable incident-routing evidence: it resolves the workload's catalog service id,
+loads that service's routed incidents, and the section carries incident-context
+truth (`incident.context.read`). It attributes incidents only when the workload
+resolves to exactly one catalog service; an unresolved or ambiguous workload, a
+load error, or no routed incidents leave the section `unsupported` with its
+fallback rather than fabricating a false "no incidents".
 
 ## Honesty under composition
 

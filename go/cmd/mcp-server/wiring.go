@@ -146,8 +146,12 @@ func wireAPI(
 	// Mount the service intelligence report route so the get_service_intelligence_report
 	// MCP tool dispatches to a real handler. It lives in its own package (importing
 	// query and serviceintel) and is mounted here, not by the query router, so query
-	// never depends on serviceintel — no cycle.
-	(&serviceintelhttp.ReportHandler{Entities: router.Entities}).Mount(mux)
+	// never depends on serviceintel — no cycle. The incidents_support section is
+	// sourced from durable incident-routing evidence over Postgres.
+	(&serviceintelhttp.ReportHandler{
+		Entities:  router.Entities,
+		Incidents: newIncidentEvidenceSource(db, logger),
+	}).Mount(mux)
 
 	// Record per-endpoint duration/error metrics for every read route, then wrap
 	// with auth middleware (shared token + optional scoped-token registry;
