@@ -39,6 +39,26 @@ telemetry dependencies.
 
 None. The solver is pure; a reducer that drives it owns metrics and spans.
 
+## Performance
+
+No-Regression Evidence: this is a new, self-contained package with no runtime
+callers on the hot path yet — pure in-memory computation with no graph backend,
+database, or network I/O, so there is no existing path to regress. Baseline and
+after are therefore identical; backend/version is N/A (no backend); the input
+shape is one in-memory port graph per parse and there are no queue or row counts
+(nothing is persisted). `Solve` is a single monotone worklist over the port
+graph. `SolvePartitioned` splits the program into weakly-connected components
+(the conflict key) and solves them concurrently, bounded by GOMAXPROCS; it is a
+pure function of disjoint sub-programs, proven equal to the serial `Solve` and
+data-race free under `go test -race` (`TestPartitionedEqualsSerial`,
+`TestPartitionedEqualsSerialAtCap`). The change is safe because findings are
+bounded with counted overflow and concurrency touches only per-component local
+state with no shared mutation.
+
+No-Observability-Change: the package emits no metrics, spans, logs, or status;
+a future reducer that drives it owns telemetry. Overflow is surfaced as data on
+the `Result` for the caller to record.
+
 ## Gotchas / invariants
 
 - **Closures and fields are named-slot ports.** Closing the two false-negative
