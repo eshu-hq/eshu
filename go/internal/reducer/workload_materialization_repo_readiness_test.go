@@ -372,3 +372,64 @@ func publishedReadinessKey(p *recordingGraphProjectionPhasePublisher, key GraphP
 	}
 	return false
 }
+
+// TestPublishRepoReadinessPhasesRetractsStalePresenceBeforeOpeningGate proves the
+// #2891-review fix: opening a repo's workload-materialization phase gate first
+// clears that repo's stale (other-generation) presence in BOTH symbol→runtime
+// keyspaces. Without it, a generation that materializes no endpoint/workload row
+// for a repo (zero-candidate path, or a repo whose endpoints disappeared) leaves
+// a prior generation's presence in place, the phase gate opens, and the presence
+// second-gate projects a HANDLES_ROUTE/RUNS_IN edge to a stale node instead of
+// terminalizing the absent target.
+func TestPublishRepoReadinessPhasesRetractsStalePresenceBeforeOpeningGate(t *testing.T) {
+	t.Parallel()
+
+	publisher := &recordingGraphProjectionPhasePublisher{}
+	presence := &recordingPresenceWriter{}
+	repoIDs := []string{"repository:r_1", "repository:r_2"}
+
+	if err := publishRepoReadinessPhases(
+		context.Background(), publisher, presence, "scope-1", "gen-1", repoIDs, time.Unix(1700000000, 0).UTC(),
+	); err != nil {
+		t.Fatalf("publishRepoReadinessPhases error = %v", err)
+	}
+
+	// Stale presence retracted for BOTH symbol→runtime keyspaces, scoped to this
+	// generation and these repos.
+	byKeyspace := make(map[GraphProjectionKeyspace]staleRepoGenerationRetract)
+	for _, r := range presence.staleRetract {
+		if r.scopeID != "scope-1" || r.generationID != "gen-1" {
+			t.Fatalf("stale-retract scope/gen = %s/%s, want scope-1/gen-1", r.scopeID, r.generationID)
+		}
+		byKeyspace[r.keyspace] = r
+	}
+	for _, ks := range []GraphProjectionKeyspace{
+		GraphProjectionKeyspaceAPIEndpointRepoPath,
+		GraphProjectionKeyspaceRepoWorkloadPresence,
+	} {
+		r, ok := byKeyspace[ks]
+		if !ok {
+			t.Fatalf("no stale-presence retract for keyspace %q (gate opened without clearing stale presence)", ks)
+		}
+		if len(r.repoIDs) != 2 {
+			t.Fatalf("retract repoIDs for %q = %v, want both repos", ks, r.repoIDs)
+		}
+	}
+
+	// The readiness rows are still published (the gate still opens).
+	if !publishedReadinessKey(publisher, workloadMaterializationRepoReadinessKey("scope-1", "repository:r_1", "gen-1")) {
+		t.Fatal("repo readiness phase row not published after retract")
+	}
+
+	// A nil presence writer (gate off) skips the retract and stays byte-identical:
+	// the readiness rows still publish.
+	pub2 := &recordingGraphProjectionPhasePublisher{}
+	if err := publishRepoReadinessPhases(
+		context.Background(), pub2, nil, "scope-1", "gen-1", repoIDs, time.Unix(1700000000, 0).UTC(),
+	); err != nil {
+		t.Fatalf("nil-writer error = %v", err)
+	}
+	if !publishedReadinessKey(pub2, workloadMaterializationRepoReadinessKey("scope-1", "repository:r_1", "gen-1")) {
+		t.Fatal("nil-writer path must still publish readiness rows")
+	}
+}

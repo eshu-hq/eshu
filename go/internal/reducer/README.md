@@ -2755,7 +2755,7 @@ fact load); on the zero-candidate path it adds one bounded `repository`-kind fac
 query (one row per repo). It introduces no new graph write, Cypher, lease, or
 worker, and the non-symbol-runtime key derivation is untouched. `go test
 ./internal/storage/postgres ./cmd/reducer -count=1` confirms the durable phase
-store and reducer wiring are unaffected.
+store and reducer wiring are unaffected. The publisher additionally retracts each repo's stale (other-generation) presence in both symbol-runtime keyspaces before opening its phase gate, so a generation with no endpoint/workload row for a repo cannot let the presence gate see a prior generation's target as present and project a stale edge (`TestPublishRepoReadinessPhasesRetractsStalePresenceBeforeOpeningGate`).
 
 Observability Evidence: an operator sees the fix as `handles_route`/`runs_in`
 shared-projection intents completing (`Function-[:HANDLES_ROUTE]->Endpoint` and

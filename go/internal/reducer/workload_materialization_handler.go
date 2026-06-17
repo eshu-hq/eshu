@@ -160,6 +160,7 @@ func (h WorkloadMaterializationHandler) Handle(
 		if err := publishRepoReadinessPhases(
 			ctx,
 			h.PhasePublisher,
+			h.EndpointPresenceWriter,
 			intent.ScopeID,
 			intent.GenerationID,
 			repoIDs,
@@ -297,6 +298,7 @@ func (h WorkloadMaterializationHandler) Handle(
 	if err := publishRepoReadinessPhases(
 		ctx,
 		h.PhasePublisher,
+		h.EndpointPresenceWriter,
 		intent.ScopeID,
 		intent.GenerationID,
 		projectionRepoReadinessRepoIDs(projection),

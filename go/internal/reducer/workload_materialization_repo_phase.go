@@ -43,6 +43,15 @@ func repoReadinessPhaseStates(
 	return states
 }
 
+// repoReadinessPresenceKeyspaces are the symbol→runtime presence keyspaces whose
+// stale rows must be cleared before a repo's workload-materialization phase gate
+// is opened: the (repo_id, path) endpoint presence the handles_route gate reads,
+// and the repo→workload presence the runs_in gate reads.
+var repoReadinessPresenceKeyspaces = []GraphProjectionKeyspace{
+	GraphProjectionKeyspaceAPIEndpointRepoPath,
+	GraphProjectionKeyspaceRepoWorkloadPresence,
+}
+
 // publishRepoReadinessPhases publishes the repo-keyed workload-materialization
 // phase rows for the given repos through the existing phase publisher (#2891).
 // A nil publisher or empty repo set is a no-op. It builds the rows directly with
@@ -50,15 +59,36 @@ func repoReadinessPhaseStates(
 // graphProjectionPhaseStateForIntent, which would overwrite the acceptance unit
 // with the workload intent's basename-prefixed EntityKey and re-introduce the
 // key mismatch this fix removes.
+//
+// Before opening the gate it RETRACTS each repo's stale (other-generation)
+// presence in both symbol→runtime keyspaces (#2891 review). Publishing the
+// readiness phase lets handles_route/runs_in pass the phase gate and reach the
+// presence second-gate; if a prior generation's (repo_id, path) endpoint or
+// repo→workload presence still lingered — e.g. a generation with no workload
+// candidates, or a repo whose endpoints/workloads disappeared, where the per-row
+// presence publish is a no-op and never runs its own retract — the presence gate
+// would see that stale target as present and project a HANDLES_ROUTE / RUNS_IN
+// edge to a node this generation did not materialize, instead of terminalizing
+// the absent target. RetractStaleRepoGenerations deletes only OTHER generations'
+// rows, so this never removes presence this generation just published. A nil
+// presence writer (gate off) skips the retract.
 func publishRepoReadinessPhases(
 	ctx context.Context,
 	publisher GraphProjectionPhasePublisher,
+	presenceWriter EndpointPresenceWriter,
 	scopeID, generationID string,
 	repoIDs []string,
 	observedAt time.Time,
 ) error {
 	if publisher == nil || len(repoIDs) == 0 {
 		return nil
+	}
+	if presenceWriter != nil {
+		for _, keyspace := range repoReadinessPresenceKeyspaces {
+			if err := presenceWriter.RetractStaleRepoGenerations(ctx, keyspace, scopeID, generationID, repoIDs); err != nil {
+				return fmt.Errorf("retract stale %s presence before repo readiness: %w", keyspace, err)
+			}
+		}
 	}
 	states := repoReadinessPhaseStates(scopeID, generationID, repoIDs, observedAt)
 	if len(states) == 0 {
