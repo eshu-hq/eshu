@@ -70,6 +70,15 @@ const (
 	// repo_id\x00path uid, so it never resolves a Function-[:HANDLES_ROUTE]->Endpoint
 	// edge against an Endpoint that has not committed.
 	GraphProjectionKeyspaceAPIEndpointRepoPath GraphProjectionKeyspace = "api_endpoint_repo_path"
+	// GraphProjectionKeyspaceRepoWorkloadPresence represents the property-keyed
+	// presence domain for committed :Workload nodes, keyed by repo_id. The runs_in
+	// shared-projection domain binds a handler Function to every Workload its
+	// Repository DEFINES; it carries the repo_id it MATCHes on but not the
+	// per-workload uid, so its presence gate (#2855) keys on this domain. It reuses
+	// the uid-exact EndpointPresence primitive (#1380) with the repo_id as the
+	// synthesized uid, so it never resolves a Function-[:RUNS_IN]->Workload edge
+	// against a repo whose Workloads have not committed.
+	GraphProjectionKeyspaceRepoWorkloadPresence GraphProjectionKeyspace = "repo_workload"
 )
 
 // GraphProjectionPhase identifies one durable readiness milestone for a graph

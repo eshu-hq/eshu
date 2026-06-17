@@ -332,14 +332,15 @@ func (r *SharedProjectionRunner) processPartitionWithTelemetry(
 		)
 	}
 	if result.TerminalNoEndpoint > 0 && r.Logger != nil {
-		// Operator signal (#2809): route handlers drained with no edge because
-		// their target :Endpoint will never commit (route-only repo, or a route
-		// whose endpoint was not materialized). Distinct from readiness-blocked —
+		// Operator signal (#2809 handles_route, #2855 runs_in): symbol→runtime rows
+		// drained with no edge because their runtime target will never commit (a
+		// route-only repo with no endpoint, or a repo with no Workload). The
+		// `domain` attribute says which gate. Distinct from readiness-blocked —
 		// these rows are complete, not waiting — so a non-zero count is expected,
 		// not a stall.
 		r.Logger.InfoContext(
 			ctx,
-			"shared projection drained handles_route intents with no endpoint",
+			"shared projection drained intents with no runtime target",
 			slog.String("domain", domain),
 			slog.Int("partition_id", partitionID),
 			slog.Int("partition_count", partitionCount),

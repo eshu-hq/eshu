@@ -293,6 +293,31 @@ instrument, metric label, or log key; operators still diagnose the path through
 the existing workload materialization completion logs and Postgres query
 instrumentation.
 
+No-Regression Evidence: #2855 extends the #2809 terminal-presence gate to the
+`runs_in` domain, which had the identical cross-acceptance-unit silent-drop gap:
+its `Function-[:RUNS_IN]->Workload` intent is built in the code stage (repo AU)
+but its target `:Workload` commits in workload materialization, so on a cold first
+generation the both-MATCH MERGE could run before the Workload committed and drop
+the edge. The workload materializer now publishes repo-keyed `:Workload` presence
+(new `GraphProjectionKeyspaceRepoWorkloadPresence` keyspace, deduped by repo_id,
+same EndpointPresence store/writer as #2809), and the second readiness gate
+(`filterRowsByTargetPresence` via `symbolRuntimePresenceGate`) terminally drains a
+phase-ready `runs_in` row whose repo has no committed Workload — never deferred,
+mirroring handles_route. `go test ./internal/reducer -run
+'TestFilterRowsByReadinessRunsInTerminatesAbsentWorkload|TestFilterRowsByReadinessRunsInProjectsWhenWorkloadPresent|TestFilterRowsByReadinessRunsInNilPresenceIsTodaysBehavior|TestProcessPartitionOnceRunsInDrainsAbsentWorkload|TestPublishRepoWorkloadPresenceDeduplicatesByRepo|TestWorkloadMaterializationHandlerPublishesRepoWorkloadPresence'
+-count=1` fails before the gate covered `runs_in`, then passes; the existing
+handles_route and all other-domain tests stay green (nil-presence parity, the gate
+is keyed on `symbolRuntimePresenceGate` returning gated only for the two
+symbol→runtime domains).
+
+Observability Evidence: #2855 adds no new metric or log key. It REUSES the #2809
+`terminal_no_endpoint` count and the shared-projection terminal log line, whose
+message is now domain-generic and carries the originating `domain` attribute
+(`runs_in` vs `handles_route`) so an operator can tell which gate drained a row.
+The same `ESHU_REDUCER_HANDLES_ROUTE_PRESENCE_GATE_ENABLED` flag gates both, since
+both presence concerns are published by the workload materializer and share one
+store; a nil presence lookup/writer keeps both domains byte-identical.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain
