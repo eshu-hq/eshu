@@ -67,7 +67,10 @@ parser-family extension.
    claims, add source-authored golden audit fixtures whose expected nodes and
    edges are independent from Eshu output. The `goldenaudit` helper reports
    missing, unexpected, and duplicate graph facts deterministically so CI does
-   not compare Eshu output to itself.
+   not compare Eshu output to itself. Its `ScoreAccuracy` scorer adds per-type
+   and overall precision/recall with a wrong-target vs missing vs extra
+   breakdown, so an edge resolved to the wrong callee fails even when its tier
+   distribution looks healthy.
 9. Run the focused Go tests, `scripts/verify-parser-relationship-kit.sh`, the
    docs build, and `git diff --check`.
 

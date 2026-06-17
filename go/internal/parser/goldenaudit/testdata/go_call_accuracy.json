@@ -1,0 +1,45 @@
+{
+  "schema_version": "parser_golden_graph.v1",
+  "nodes": [
+    {
+      "id": "func:server.Serve",
+      "kind": "function",
+      "name": "Serve",
+      "path": "internal/server/server.go",
+      "line": 11
+    },
+    {
+      "id": "func:server.handle",
+      "kind": "function",
+      "name": "handle",
+      "path": "internal/server/server.go",
+      "line": 27
+    },
+    {
+      "id": "func:store.Persist",
+      "kind": "function",
+      "name": "Persist",
+      "path": "internal/store/store.go",
+      "line": 14
+    },
+    {
+      "id": "func:store.Lookup",
+      "kind": "function",
+      "name": "Lookup",
+      "path": "internal/store/store.go",
+      "line": 31
+    }
+  ],
+  "edges": [
+    {
+      "source_id": "func:server.Serve",
+      "target_id": "func:server.handle",
+      "type": "CALLS"
+    },
+    {
+      "source_id": "func:server.handle",
+      "target_id": "func:store.Persist",
+      "type": "CALLS"
+    }
+  ]
+}
