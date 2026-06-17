@@ -75,30 +75,43 @@ query proof before facts are presented as active platform truth.
 
 ## PagerDuty Reference Path
 
-PagerDuty is the first extraction proof target for this policy. Completion
-requires all of the following:
+PagerDuty is the first extraction proof target for this policy. The reference
+proof for the out-of-tree boundary is complete: a PagerDuty reference collector
+runs as a trusted out-of-tree component package, claims work through the hosted
+component-extension worker with no core handles, and its facts reach the reducer
+and the API/MCP read model with parity to the in-tree path. The following stages
+are done and are guarded by tracked tests, scripts, and proof artifacts.
 
-1. A reference PagerDuty component package using `collector-sdk/v1alpha1` and a
-   digest-pinned artifact.
-2. Component trust verification in the intended mode (`allowlist` or `strict`)
-   with revocation behavior documented.
-3. Claim-capable execution through `collector-component-extension` with no core
-   handles exposed to the extension.
-4. Fact parity with the in-tree PagerDuty path for synthetic incident and
-   routing fixtures.
-5. Reducer admission and graph/query readback parity for exact, derived,
-   ambiguous, missing, stale, permission-hidden, unsupported, drifted, and
-   rejected outcomes that apply to the PagerDuty evidence contract.
-6. Remote Compose proof, and Kubernetes proof before hosted chart defaults or
-   production deployment claims.
-7. Private-data proof showing tokens, private endpoints, responder identities,
-   provider payloads, private paths, and private names are redacted or rejected.
-8. Operator evidence covering health, readiness, metrics, logs, status,
-   retries, dead letters, fact counts, and freshness.
+| Stage | Required evidence | State | Proof |
+| --- | --- | --- | --- |
+| Reference package | Reference PagerDuty component package on `collector-sdk/v1alpha1` with a digest-pinned artifact. | Complete | `examples/collector-extensions/pagerduty/manifest.yaml` |
+| Trust boundary | Trust verification in `allowlist` or `strict` mode with revocation behavior documented. | Complete | `go/internal/runtime` Helm component-extension contract tests; [Plugin Trust Model](plugin-trust-model.md) |
+| Claim-capable execution | Execution through `collector-component-extension` with no core handles exposed. | Complete | `go/cmd/collector-component-extension`, `go/internal/collector/extensionhost` |
+| Fact parity | Fact parity with the in-tree PagerDuty path for synthetic incident and routing fixtures. | Complete | `go test ./internal/collector/pagerduty -run ReferenceComponent` |
+| Reducer and read parity | Reducer admission and graph/query readback for the outcomes the PagerDuty evidence contract defines. | Complete (conservative) | `go/internal/reducer/incident_routing_evidence_rows.go`, `go/internal/storage/cypher/incident_routing_evidence_writer.go`, `go/internal/query/incident_context_routing.go` |
+| Remote Compose proof | Remote Compose proof with default-off Helm wiring before hosted chart defaults. | Complete | `docs/public/run-locally/docker-compose.component-extension-pagerduty.yaml`, `scripts/verify-remote-e2e-pagerduty-component-extension.sh` |
+| Private-data proof | Tokens, private endpoints, responder identities, payloads, paths, and names redacted or rejected. | Complete | Redaction canary in `scripts/verify-remote-e2e-pagerduty-component-extension.sh`; reference component redaction test |
+| Operator evidence | Health, readiness, metrics, logs, status, retries, dead letters, fact counts, and freshness. | Complete | Proof artifacts and `/admin/status`, `/healthz`, `/readyz`, `/metrics` on the component-extension worker |
 
-Until those proofs exist, PagerDuty remains in-tree for production use. The
-extension path can be tested as an explicit proof target, but extraction is not
-complete.
+Completing this boundary proof does not move PagerDuty out of tree for
+production correlation. The following are intentional, still-open caveats:
+
+- The Helm component-extension wiring is default-off. Enabling it is an explicit
+  operator opt-in, not a production default.
+- Reducer graph materialization is deliberately conservative. It promotes
+  `IncidentRoutingEvidence` only when declared, applied, and live service slots
+  converge to `exact` (or a live service is `exact` with no IaC). Drifted,
+  stale, permission-hidden, ambiguous, unresolved, rejected, derived, and
+  missing evidence stays provenance-only.
+- Broader live PagerDuty config classes and alert-route-to-service comparison
+  remain staged follow-up work.
+
+Until the full incident-routing surface lands, the in-tree PagerDuty collector
+stays the production correlation path. The completed boundary proof shows the
+extraction mechanics work end to end; it is the template for the next candidate,
+not a signal to disable the in-tree collector. See
+[PagerDuty Evidence Contract](pagerduty-evidence.md) for the per-stage evidence
+detail and the exact proof commands.
 
 ## Verification Gates
 

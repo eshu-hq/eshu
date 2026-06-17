@@ -216,12 +216,28 @@ PagerDuty service is exact and no IaC routing evidence exists. Drifted, stale,
 permission-hidden, ambiguous, unresolved, rejected, derived, and missing
 evidence remains provenance-only and is counted by reducer telemetry.
 
+The out-of-tree boundary proof for this surface is complete. A PagerDuty
+reference collector runs as a trusted out-of-tree component package, the hosted
+`collector-component-extension` worker claims and commits its work through the
+existing `collector.ClaimedService` boundary with no core handles, and the
+emitted facts reach the reducer and the API/MCP read model with parity to the
+in-tree path. That proof is tracked by `go test
+./internal/collector/pagerduty -run ReferenceComponent`, the Helm
+component-extension contract tests in `go/internal/runtime`, and
+`scripts/verify-remote-e2e-pagerduty-component-extension.sh`. See
+[Collector Extraction Policy](collector-extraction-policy.md) for the
+stage-by-stage status table.
+
 Broader live PagerDuty config classes and alert-route-to-service comparison
 remain staged follow-up work.
 
-Do not add Helm production-readiness claims for the full incident-routing
-surface until the collector, reducer, fixtures, telemetry, status, and API/MCP
-reads all exist.
+The completed boundary proof does not by itself make the full incident-routing
+surface a production default. The Helm component-extension wiring stays
+default-off and is an explicit operator opt-in. Do not add Helm
+production-readiness claims for the broader incident-routing surface (the staged
+live config classes and alert-route-to-service comparison above) until their
+collector, reducer, fixtures, telemetry, status, and API/MCP reads also exist
+with the same proof depth.
 
 Observability Evidence: optional live PagerDuty config validation records
 bounded provider request, emitted fact, config resource observed, drift
