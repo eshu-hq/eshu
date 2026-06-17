@@ -18,4 +18,11 @@
 // Resolvers accept JSONC TypeScript config files, keep resolution inside the
 // repository root, and return repository-relative source paths for
 // resolved_source metadata.
+//
+// When Options.EmitDataflow is set, Parse also emits the opt-in value-flow
+// buckets "dataflow_functions", "taint_findings", and "interproc_findings"
+// (built by cfg_emit.go over the javascript/jsdataflow lowering and the shared
+// internal/parser/dataflowemit renderer, labeled with the output language). The
+// gate is off by default and the payload is byte-identical to before this
+// feature when off.
 package javascript

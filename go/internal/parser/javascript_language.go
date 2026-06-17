@@ -16,6 +16,7 @@ func (e *Engine) parseJavaScriptLike(
 	return jsparser.Parse(e.runtime.Parser, repoRoot, path, runtimeLanguage, outputLanguage, isDependency, shared.Options{
 		IndexSource:   options.IndexSource,
 		VariableScope: options.VariableScope,
+		EmitDataflow:  options.EmitDataflow,
 	})
 }
 

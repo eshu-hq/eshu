@@ -6,7 +6,9 @@
 2. doc.go - godoc contract for the JavaScript parser package
 3. javascript_language.go - `Parse`, `PreScan`, payload construction, and
    tree-sitter traversal
-4. javascript_imports.go and javascript_exports.go - import, require, and
+4. cfg_emit.go - opt-in value-flow buckets (EmitDataflow) over jsdataflow and the
+   shared internal/parser/dataflowemit renderer
+5. javascript_imports.go and javascript_exports.go - import, require, and
    re-export rows
 5. javascript_dead_code_roots.go and related `javascript_dead_code_*` files -
    parser-proven dead-code root evidence
