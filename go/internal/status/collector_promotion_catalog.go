@@ -72,10 +72,10 @@ func defaultCatalogMetadata() map[string]collectorCatalogMetadata {
 		string(scope.CollectorSemanticExtraction):        {"Semantic Extraction", true, "semantic_extraction"},
 		string(scope.CollectorKubernetesLive):            {"Kubernetes Live", true, "cluster"},
 		string(scope.CollectorVaultLive):                 {"Vault Live", true, "vault_cluster"},
-		string(scope.CollectorPrometheusMimir):           {"Prometheus / Mimir", true, "observability_signal"},
-		string(scope.CollectorTempo):                     {"Tempo", true, "observability_signal"},
-		string(scope.CollectorGrafana):                   {"Grafana", true, "observability_signal"},
-		string(scope.CollectorLoki):                      {"Loki", true, "observability_signal"},
+		string(scope.CollectorPrometheusMimir):           {"Prometheus / Mimir", true, "metric_source"},
+		string(scope.CollectorTempo):                     {"Tempo", true, "trace_source"},
+		string(scope.CollectorGrafana):                   {"Grafana", true, "grafana_instance"},
+		string(scope.CollectorLoki):                      {"Loki", true, "log_source"},
 	}
 }
 
