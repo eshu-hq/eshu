@@ -34,6 +34,13 @@ type DocClaim struct {
 	State Maturity
 	// Issue is an optional tracking issue number.
 	Issue int
+	// Malformed marks a capability-state marker that is present but missing its
+	// id or state. Malformed markers are surfaced as findings rather than
+	// dropped, so a typo cannot bypass the freshness gate. Marker holds the raw
+	// marker body for the finding detail.
+	Malformed bool
+	// Marker is the raw marker body, populated for malformed markers.
+	Marker string
 }
 
 // DocFinding is a contradiction between a docs claim and the catalog.
@@ -73,8 +80,9 @@ func normalizeMaturity(state string) Maturity {
 
 // ParseDocClaims scans every .md file under docsDir for capability-state markers
 // and returns the parsed claims sorted by path then line for deterministic
-// output. A marker missing id or state is skipped silently; the freshness check
-// surfaces malformed claims through findings instead.
+// output. A marker missing id or state is returned with Malformed set so the
+// freshness check surfaces it as a finding instead of dropping it. Markers
+// inside fenced code blocks are skipped as illustrative examples.
 func ParseDocClaims(docsDir string) ([]DocClaim, error) {
 	var claims []DocClaim
 	err := filepath.WalkDir(docsDir, func(path string, d os.DirEntry, err error) error {
@@ -133,10 +141,7 @@ func parseFileClaims(path, rel string) ([]DocClaim, error) {
 		}
 		matches := docClaimRE.FindAllStringSubmatch(text, -1)
 		for _, match := range matches {
-			claim, ok := parseClaimFields(match[1])
-			if !ok {
-				continue
-			}
+			claim := parseClaimFields(match[1])
 			claim.Path = rel
 			claim.Line = line
 			claims = append(claims, claim)
@@ -148,9 +153,10 @@ func parseFileClaims(path, rel string) ([]DocClaim, error) {
 	return claims, nil
 }
 
-// parseClaimFields parses the "id=... state=... issue=..." body of a marker.
-// It returns ok=false when id or state is absent.
-func parseClaimFields(body string) (DocClaim, bool) {
+// parseClaimFields parses the "id=... state=... issue=..." body of a marker. A
+// marker missing its id or state is returned with Malformed set so the freshness
+// check can surface it as a finding instead of silently dropping it.
+func parseClaimFields(body string) DocClaim {
 	var claim DocClaim
 	for _, field := range strings.Fields(body) {
 		key, value, found := strings.Cut(field, "=")
@@ -169,9 +175,10 @@ func parseClaimFields(body string) (DocClaim, bool) {
 		}
 	}
 	if claim.Capability == "" || claim.State == "" {
-		return DocClaim{}, false
+		claim.Malformed = true
+		claim.Marker = strings.TrimSpace(body)
 	}
-	return claim, true
+	return claim
 }
 
 // CheckDocFreshness compares parsed claims against the catalog and returns a
@@ -185,6 +192,13 @@ func CheckDocFreshness(catalog Catalog, claims []DocClaim) []DocFinding {
 
 	var findings []DocFinding
 	for _, claim := range claims {
+		if claim.Malformed {
+			findings = append(findings, DocFinding{
+				Path: claim.Path, Line: claim.Line, Capability: claim.Marker,
+				Reason: "malformed capability-state marker: missing id or state",
+			})
+			continue
+		}
 		entry, ok := byID[claim.Capability]
 		if !ok {
 			findings = append(findings, DocFinding{

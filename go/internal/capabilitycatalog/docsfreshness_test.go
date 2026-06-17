@@ -65,6 +65,40 @@ func TestParseDocClaimsSkipsCodeFences(t *testing.T) {
 	}
 }
 
+func TestMalformedMarkerIsReportedNotDropped(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	// One marker missing state, one missing id — both must surface as findings,
+	// not be silently dropped (a typo must not bypass the gate).
+	writeFile(t, filepath.Join(dir, "bad.md"),
+		"<!-- capability-state: id=component_extensions.diagnostics -->\n"+
+			"<!-- capability-state: state=ga -->\n")
+
+	claims, err := ParseDocClaims(dir)
+	if err != nil {
+		t.Fatalf("ParseDocClaims: %v", err)
+	}
+	if len(claims) != 2 {
+		t.Fatalf("claims = %d, want 2 (malformed markers retained): %+v", len(claims), claims)
+	}
+	for _, claim := range claims {
+		if !claim.Malformed {
+			t.Fatalf("claim should be malformed: %+v", claim)
+		}
+	}
+
+	findings := CheckDocFreshness(freshnessCatalog(), claims)
+	if len(findings) != 2 {
+		t.Fatalf("findings = %d, want 2: %+v", len(findings), findings)
+	}
+	for _, f := range findings {
+		if f.Reason != "malformed capability-state marker: missing id or state" {
+			t.Fatalf("unexpected reason: %q", f.Reason)
+		}
+	}
+}
+
 func TestCheckDocFreshness(t *testing.T) {
 	t.Parallel()
 
