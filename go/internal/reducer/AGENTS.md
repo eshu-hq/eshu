@@ -343,6 +343,32 @@ log key; operators still diagnose the path through the existing workload
 materialization completion logs, the shared-projection terminal/blocked counters,
 and Postgres query instrumentation.
 
+No-Regression Evidence: #2892 makes HANDLES_ROUTE/RUNS_IN actually project. A cold
+compose run showed both edges = 0 because the readiness PHASE gate keyed the
+code-stage bridge intents (`acceptance_unit_id=repository:<repo_id>`,
+`source_run=<code run>`) against the service-stage `workload_materialization`
+phase (`acceptance_unit_id=repo:`/`workload:`, `source_run=generation`) — neither
+the acceptance unit nor the source run ever matched, so the intents deferred
+forever and the #2844 presence gate (a second gate) was never reached. Unit tests
+stubbed `phaseReady=true` and hid it. Fix: the workload materializer now publishes
+a per-repo workload-done marker `{scope, repository:<repo_id>, source_run=generation,
+generation, service_uid, workload_materialization}` (`publishRepoWorkloadDoneMarkers`),
+and `graphProjectionPhaseKeyForReadiness` builds the bridge-domain readiness key
+with `source_run=generation` so it matches that marker. `go test ./internal/reducer
+-run 'TestBridgePhaseGateMatchesRepoWorkloadDoneMarker|TestPublishRepoWorkloadDoneMarkersKeysByRepoAndGeneration'
+-count=1` fails before the marker+key-alignment exist (the key-aware,
+non-stubbed lookup misses), then passes. Scoped to the two bridge domains plus one
+additive phase publication; code_calls and the semantic/cloud-action domains are
+untouched (their phase mapping and source-run are unchanged). Cold-start compose
+re-run on the fixture is the binding gate before #2721/#2722/#2703 close.
+
+No-Observability-Change: #2892 reuses the existing `workload_materialization`
+phase and `graph_projection_phase_state` table (additive marker rows under a new
+acceptance unit). It adds no route, graph query shape, queue domain, worker,
+lease, runtime knob, metric instrument, metric label, or log key; operators still
+diagnose readiness through the existing shared-projection blocked/terminal
+counters and `graph_projection_phase_state`.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

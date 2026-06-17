@@ -52,7 +52,7 @@ func filterRowsByReadiness(
 		seen := make(map[GraphProjectionPhaseKey]struct{}, len(rows))
 		keys := make([]GraphProjectionPhaseKey, 0, len(rows))
 		for _, row := range rows {
-			key, ok := graphProjectionPhaseKeyForIntent(row, row.GenerationID, keyspace)
+			key, ok := graphProjectionPhaseKeyForReadiness(row, domain, row.GenerationID, keyspace)
 			if !ok {
 				continue
 			}
@@ -76,7 +76,7 @@ func filterRowsByReadiness(
 	readyRows = make([]SharedProjectionIntentRow, 0, len(rows))
 	blockedRows = make([]SharedProjectionIntentRow, 0)
 	for _, row := range rows {
-		key, ok := graphProjectionPhaseKeyForIntent(row, row.GenerationID, keyspace)
+		key, ok := graphProjectionPhaseKeyForReadiness(row, domain, row.GenerationID, keyspace)
 		if !ok {
 			continue
 		}

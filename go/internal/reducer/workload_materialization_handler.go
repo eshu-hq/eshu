@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -210,6 +211,21 @@ func (h WorkloadMaterializationHandler) Handle(
 		return Result{}, fmt.Errorf("record repo workload presence: %w", err)
 	}
 
+	// Publish a per-repo workload-done marker keyed by repository:<repo_id> +
+	// generation so the code-stage handles_route/runs_in readiness gate can match
+	// it (#2892); the stage-native workload_materialization phase is keyed by the
+	// workload/repo EntityKey AU and never matches the bridge intents.
+	if err := publishRepoWorkloadDoneMarkers(
+		ctx,
+		h.PhasePublisher,
+		intent.ScopeID,
+		intent.GenerationID,
+		projectionRepoIDs(projection),
+		time.Now().UTC(),
+	); err != nil {
+		return Result{}, fmt.Errorf("publish repo workload-done markers: %w", err)
+	}
+
 	totalWrites := materializeResult.WorkloadsWritten +
 		materializeResult.InstancesWritten +
 		materializeResult.DeploymentSourcesWritten +
@@ -314,6 +330,39 @@ func (h WorkloadMaterializationHandler) loadInfrastructurePlatforms(
 		return nil, fmt.Errorf("load provisioned infrastructure platforms: %w", err)
 	}
 	return platforms, nil
+}
+
+// projectionRepoIDs returns the distinct repository:<repo_id> graph ids whose
+// workloads or endpoints committed this generation, in stable order. These are
+// the repos that get a #2892 workload-done marker so their handles_route/runs_in
+// bridge intents can pass the readiness gate. A repo that materialized neither a
+// workload nor an endpoint (a route-only repo below the workload threshold) gets
+// no marker; its bridge intents defer until it materializes a target, which is
+// the documented residual tracked alongside the #2842 scope/generation cleanup.
+func projectionRepoIDs(projection *ProjectionResult) []string {
+	if projection == nil {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	repoIDs := make([]string, 0)
+	add := func(repoID string) {
+		repoID = strings.TrimSpace(repoID)
+		if repoID == "" {
+			return
+		}
+		if _, ok := seen[repoID]; ok {
+			return
+		}
+		seen[repoID] = struct{}{}
+		repoIDs = append(repoIDs, repoID)
+	}
+	for _, row := range projection.WorkloadRows {
+		add(row.RepoID)
+	}
+	for _, row := range projection.EndpointRows {
+		add(row.RepoID)
+	}
+	return repoIDs
 }
 
 func uniqueProvisioningRepoIDs(candidates []WorkloadCandidate) []string {

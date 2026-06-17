@@ -173,14 +173,35 @@ func graphProjectionPhaseKeyForAcceptance(
 	return phaseKey, true
 }
 
-func graphProjectionPhaseKeyForIntent(
+// bridgeReadinessDomain reports the code→service bridge domains whose readiness
+// phase is published by the workload-materialization stage, not the code stage.
+// Their intents carry the CODE stage's source run, but the workload-materialization
+// done marker (#2892) is published with the generation id as its source run (the
+// reducer's phase publisher sets SourceRunID = generationID). The code-stage
+// source run therefore never matches the service-stage publication, so the
+// readiness key for these domains must use the generation id as the source run.
+func bridgeReadinessDomain(domain string) bool {
+	return domain == DomainHandlesRoute || domain == DomainRunsIn
+}
+
+// graphProjectionPhaseKeyForReadiness builds the readiness lookup key for a
+// pending intent. For bridge domains (#2892) it overrides the source run with the
+// generation id so the key matches the per-repo workload-done marker the workload
+// materializer publishes under {scope, repository:<repo_id>, generation,
+// generation, service_uid}; for every other domain it uses the intent's own
+// source run, which matches the code/semantic-stage publication.
+func graphProjectionPhaseKeyForReadiness(
 	row SharedProjectionIntentRow,
+	domain string,
 	generationID string,
 	keyspace GraphProjectionKeyspace,
 ) (GraphProjectionPhaseKey, bool) {
 	acceptanceKey, ok := row.AcceptanceKey()
 	if !ok {
 		return GraphProjectionPhaseKey{}, false
+	}
+	if bridgeReadinessDomain(domain) {
+		acceptanceKey.SourceRunID = strings.TrimSpace(generationID)
 	}
 	return graphProjectionPhaseKeyForAcceptance(acceptanceKey, generationID, keyspace)
 }
