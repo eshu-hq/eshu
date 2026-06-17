@@ -39,6 +39,7 @@ func Parse(
 	constructorReturns := goConstructorReturnTypes(root, source)
 	localNameBindings := goLocalNameBindings(root, source, lookup)
 	localReceiverBindings := goLocalReceiverBindings(root, source, constructorReturns, lookup)
+	awsSDKServiceBindings := goAWSSDKReceiverBindings(root, source, goAWSSDKServiceAliases(importAliases), lookup)
 	deadCodeEvidence := goDeadCodeEvidence(
 		root,
 		source,
@@ -144,7 +145,7 @@ func Parse(
 				"line_number": nodeLine(node),
 				"lang":        "go",
 			}
-			goAnnotateCallMetadata(item, node, functionNode, source, importAliases, localReceiverBindings, lookup)
+			goAnnotateCallMetadata(item, node, functionNode, source, importAliases, localReceiverBindings, awsSDKServiceBindings, lookup)
 			shared.AppendBucket(payload, "function_calls", item)
 		case "composite_literal":
 			name := goCompositeLiteralTypeName(node.ChildByFieldName("type"), source)
@@ -252,6 +253,7 @@ func goAnnotateCallMetadata(
 	source []byte,
 	importAliases map[string][]string,
 	localReceiverBindings []goLocalReceiverBinding,
+	awsSDKServiceBindings []goLocalReceiverBinding,
 	lookup *goParentLookup,
 ) {
 	receiverIdentifier, receiverIsImportAlias := goCallReceiverIdentifier(functionNode, source, importAliases)
@@ -265,6 +267,9 @@ func goAnnotateCallMetadata(
 	if !receiverIsImportAlias {
 		if receiverType := goInferredReceiverType(receiverIdentifier, nodeLine(callNode), localReceiverBindings); receiverType != "" {
 			item["inferred_obj_type"] = receiverType
+		}
+		if service := goInferredReceiverSDKService(receiverIdentifier, nodeLine(callNode), awsSDKServiceBindings); service != "" {
+			item["receiver_sdk_service"] = service
 		}
 	}
 
