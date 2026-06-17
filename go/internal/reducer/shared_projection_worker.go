@@ -45,6 +45,15 @@ type PartitionBatchResult struct {
 	StaleCount    int
 	SupersededIDs []string
 	BlockedCount  int
+	// IndexedSelection is true when candidates were read through the indexed
+	// partition predicate rather than the in-memory domain scan. It is a bounded
+	// operator signal for diagnosing which selection path a domain used.
+	IndexedSelection bool
+	// UnhashedFallbackRows counts legacy partition-matched rows from the unhashed
+	// lane that were selected into this cycle's candidate batch (after limit
+	// truncation). A non-zero value during steady state means pre-hash rows are
+	// still draining for the domain.
+	UnhashedFallbackRows int
 }
 
 // PartitionProcessorConfig holds configuration for one partition processor
@@ -83,6 +92,8 @@ type PartitionProcessResult struct {
 	ActiveIntents                     int
 	AcceptanceUnitRows                int
 	ReplayRequests                    int
+	IndexedSelection                  bool
+	UnhashedFallbackRows              int
 }
 
 // LatestIntentsByRepoAndPartition deduplicates intents to the most recent per
@@ -187,6 +198,12 @@ func SelectPartitionBatch(
 		batchLimit = 1
 	}
 
+	// Indexed candidate readers (Postgres) return only this partition's pending
+	// rows, so the scan never dilutes across partitions and cannot starve at the
+	// scan cap. Readers without the candidate interface keep the in-memory
+	// domain scan with its widen-and-cap behavior unchanged.
+	_, indexed := reader.(SharedProjectionPartitionCandidateReader)
+
 	scanLimit := batchLimit * max(partitionCount, 1) * 2
 	if scanLimit > maxSharedSelectionScanLimit {
 		scanLimit = maxSharedSelectionScanLimit
@@ -197,30 +214,25 @@ func SelectPartitionBatch(
 			return PartitionBatchResult{}, err
 		}
 
-		pending, err := reader.ListPendingDomainIntents(ctx, domain, scanLimit)
+		partitionRows, loadedCount, unhashedFallback, err := loadPartitionRows(
+			ctx, reader, domain, partitionID, partitionCount, scanLimit, indexed,
+		)
 		if err != nil {
-			return PartitionBatchResult{}, fmt.Errorf("list pending intents: %w", err)
+			return PartitionBatchResult{}, err
 		}
 
-		partitionRows := RowsForPartition(pending, partitionID, partitionCount)
+		seenAll := loadedCount < scanLimit
 		if len(partitionRows) == 0 {
-			if len(pending) < scanLimit {
-				return PartitionBatchResult{}, nil
+			if seenAll {
+				return PartitionBatchResult{IndexedSelection: indexed}, nil
 			}
 			if scanLimit >= maxSharedSelectionScanLimit {
-				return PartitionBatchResult{}, fmt.Errorf(
-					"shared partition selection reached scan cap (%d) for domain %q partition %d/%d",
-					maxSharedSelectionScanLimit,
-					domain,
-					partitionID,
-					partitionCount,
-				)
+				if indexed {
+					return PartitionBatchResult{IndexedSelection: indexed}, nil
+				}
+				return PartitionBatchResult{}, scanCapError(domain, partitionID, partitionCount)
 			}
-			nextLimit := scanLimit * 2
-			if nextLimit > maxSharedSelectionScanLimit {
-				nextLimit = maxSharedSelectionScanLimit
-			}
-			scanLimit = nextLimit
+			scanLimit = widenScanLimit(scanLimit)
 			continue
 		}
 
@@ -246,34 +258,38 @@ func SelectPartitionBatch(
 			return PartitionBatchResult{}, err
 		}
 
-		if len(readyRows) >= batchLimit || len(pending) < scanLimit {
+		if len(readyRows) >= batchLimit || seenAll {
 			if len(readyRows) > batchLimit {
 				readyRows = readyRows[:batchLimit]
 			}
 			return PartitionBatchResult{
-				LatestRows:    readyRows,
-				BlockedRows:   blockedRows,
-				StaleIDs:      staleIDs,
-				StaleCount:    len(staleIDs),
-				SupersededIDs: supersededIDs,
-				BlockedCount:  len(blockedRows),
+				LatestRows:           readyRows,
+				BlockedRows:          blockedRows,
+				StaleIDs:             staleIDs,
+				StaleCount:           len(staleIDs),
+				SupersededIDs:        supersededIDs,
+				BlockedCount:         len(blockedRows),
+				IndexedSelection:     indexed,
+				UnhashedFallbackRows: unhashedFallback,
 			}, nil
 		}
 
 		if scanLimit >= maxSharedSelectionScanLimit {
-			return PartitionBatchResult{}, fmt.Errorf(
-				"shared partition selection reached scan cap (%d) for domain %q partition %d/%d",
-				maxSharedSelectionScanLimit,
-				domain,
-				partitionID,
-				partitionCount,
-			)
+			if indexed {
+				return PartitionBatchResult{
+					LatestRows:           readyRows,
+					BlockedRows:          blockedRows,
+					StaleIDs:             staleIDs,
+					StaleCount:           len(staleIDs),
+					SupersededIDs:        supersededIDs,
+					BlockedCount:         len(blockedRows),
+					IndexedSelection:     indexed,
+					UnhashedFallbackRows: unhashedFallback,
+				}, nil
+			}
+			return PartitionBatchResult{}, scanCapError(domain, partitionID, partitionCount)
 		}
-		nextLimit := scanLimit * 2
-		if nextLimit > maxSharedSelectionScanLimit {
-			nextLimit = maxSharedSelectionScanLimit
-		}
-		scanLimit = nextLimit
+		scanLimit = widenScanLimit(scanLimit)
 	}
 }
 
@@ -340,6 +356,8 @@ func ProcessPartitionOnce(
 			MaxBlockedIntentWaitSeconds: maxSharedIntentWaitSeconds(now, batch.BlockedRows),
 			LeaseClaimDurationSeconds:   leaseDuration,
 			SelectionDurationSeconds:    selectionDuration,
+			IndexedSelection:            batch.IndexedSelection,
+			UnhashedFallbackRows:        batch.UnhashedFallbackRows,
 		}, nil
 	}
 
@@ -406,5 +424,7 @@ func ProcessPartitionOnce(
 		RetractDurationSeconds:       retractDuration,
 		WriteDurationSeconds:         writeDuration,
 		MarkCompletedDurationSeconds: markCompletedDuration,
+		IndexedSelection:             batch.IndexedSelection,
+		UnhashedFallbackRows:         batch.UnhashedFallbackRows,
 	}, nil
 }

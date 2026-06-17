@@ -407,6 +407,8 @@ func (r *SharedProjectionRunner) recordSharedProjectionCycle(
 		logAttrs = append(logAttrs, slog.Float64("mark_completed_duration_seconds", result.MarkCompletedDurationSeconds))
 		logAttrs = append(logAttrs, slog.Float64("selection_duration_seconds", result.SelectionDurationSeconds))
 		logAttrs = append(logAttrs, slog.Float64("lease_claim_duration_seconds", result.LeaseClaimDurationSeconds))
+		logAttrs = append(logAttrs, slog.Bool("indexed_selection", result.IndexedSelection))
+		logAttrs = append(logAttrs, slog.Int("unhashed_fallback_rows", result.UnhashedFallbackRows))
 		logAttrs = append(logAttrs, telemetry.PhaseAttr(telemetry.PhaseShared))
 		r.Logger.InfoContext(ctx, "shared projection cycle completed", logAttrs...)
 	}
