@@ -27,4 +27,9 @@ type Options struct {
 	GoImportedInterfaceParamMethods GoImportedInterfaceParamMethods
 	GoDirectMethodCallRoots         GoDirectMethodCallRoots
 	GoPackageImportPath             string
+	// GoEmitDataflow opts the Go parser into emitting per-function control-flow
+	// and reaching-definition facts (the "dataflow_functions" bucket). It is off
+	// by default; when off the parser payload is byte-identical to before this
+	// feature, mirroring GitNexus's byte-identical-when-off --pdg gate.
+	GoEmitDataflow bool
 }
