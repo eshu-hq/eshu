@@ -158,6 +158,26 @@ runtime default, or API/MCP field. Denials return the existing bounded
 dead-letter state plus existing Postgres query/exec spans and
 `eshu_dp_postgres_query_duration_seconds`.
 
+## Collector Backpressure Status (#2750)
+
+No-Regression Evidence: `go test ./internal/status ./internal/storage/postgres
+-run 'Test(RenderStatusIncludesCollectorBackpressure|ReadWorkflowCollectorBackpressureStatus|ReadCoordinatorSnapshotIncludesCollectorBackpressure|ReadCoordinatorSnapshotHandlesNullableDeactivatedAtAndCreatedAtBacklogFallback|ReadCoordinatorSnapshotClampsNegativeOldestPendingAge)'
+-count=1` proves `/admin/status` text and JSON render bounded
+`coordinator.collector_backpressure` rows, `StatusStore` wires the rows into the
+coordinator snapshot, workflow retry/terminal/expired counts come from
+`workflow_work_items`, collector-generation dead letters come from
+`collector_generation_dead_letters`, and the SQL does not project scope ids,
+source-run ids, generation ids, acceptance-unit ids, payloads, or raw failure
+messages.
+
+No-Observability-Change: #2750 adds no route, worker, queue mutation, lease
+mutation, runtime knob, metric name, metric label, span name, log field, or
+high-cardinality telemetry value. Operators diagnose provider throttling,
+retry storms, terminal collector failures, expired claims, and recovery pressure
+through the existing `/admin/status` text/JSON surface plus existing
+`workflow_work_items`, `workflow_claims`, `collector_generation_dead_letters`,
+and Postgres query spans / `eshu_dp_postgres_query_duration_seconds`.
+
 ## Reducer Endpoint Readiness Retry (#1391)
 
 No-Regression Evidence: `go test ./internal/storage/postgres -run 'TestReducerQueueFailDefersSecretsIAMEndpointReadinessPastAttemptBudget|TestReducerQueueClaimDoesNotCountSecretsIAMEndpointReadinessDefers|TestClaimBatchDoesNotCountSecretsIAMEndpointReadinessDefers' -count=1` failed before over-budget `secrets_iam_endpoint_not_ready` dead-lettered and both claim paths consumed `attempt_count`; it passed after the class became a deferred retry and both claim SQL shapes preserved the attempt budget.

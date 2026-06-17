@@ -139,15 +139,16 @@ type collectorInstanceJSON struct {
 }
 
 type coordinatorSnapshotJSON struct {
-	CollectorInstances   []collectorInstanceJSON        `json:"collector_instances"`
-	RunStatusCounts      []namedCountJSON               `json:"run_status_counts"`
-	WorkItemStatusCounts []namedCountJSON               `json:"work_item_status_counts"`
-	CompletenessCounts   []namedCountJSON               `json:"completeness_counts"`
-	ActiveClaims         int                            `json:"active_claims"`
-	OverdueClaims        int                            `json:"overdue_claims"`
-	OldestPendingAge     string                         `json:"oldest_pending_age"`
-	OldestPendingSeconds float64                        `json:"oldest_pending_age_seconds"`
-	RecentFailures       *coordinatorRecentFailuresJSON `json:"recent_failures,omitempty"`
+	CollectorInstances    []collectorInstanceJSON        `json:"collector_instances"`
+	RunStatusCounts       []namedCountJSON               `json:"run_status_counts"`
+	WorkItemStatusCounts  []namedCountJSON               `json:"work_item_status_counts"`
+	CompletenessCounts    []namedCountJSON               `json:"completeness_counts"`
+	CollectorBackpressure []collectorBackpressureJSON    `json:"collector_backpressure,omitempty"`
+	ActiveClaims          int                            `json:"active_claims"`
+	OverdueClaims         int                            `json:"overdue_claims"`
+	OldestPendingAge      string                         `json:"oldest_pending_age"`
+	OldestPendingSeconds  float64                        `json:"oldest_pending_age_seconds"`
+	RecentFailures        *coordinatorRecentFailuresJSON `json:"recent_failures,omitempty"`
 }
 
 type coordinatorRecentFailuresJSON struct {
@@ -347,15 +348,16 @@ func coordinatorJSON(snapshot *CoordinatorSnapshot) *coordinatorSnapshotJSON {
 	}
 
 	return &coordinatorSnapshotJSON{
-		CollectorInstances:   instances,
-		RunStatusCounts:      namedCountsJSON(snapshot.RunStatusCounts),
-		WorkItemStatusCounts: namedCountsJSON(snapshot.WorkItemStatusCounts),
-		CompletenessCounts:   namedCountsJSON(snapshot.CompletenessCounts),
-		ActiveClaims:         snapshot.ActiveClaims,
-		OverdueClaims:        snapshot.OverdueClaims,
-		OldestPendingAge:     snapshot.OldestPendingAge.String(),
-		OldestPendingSeconds: snapshot.OldestPendingAge.Seconds(),
-		RecentFailures:       coordinatorRecentFailuresJSONValue(snapshot.RecentFailures),
+		CollectorInstances:    instances,
+		RunStatusCounts:       namedCountsJSON(snapshot.RunStatusCounts),
+		WorkItemStatusCounts:  namedCountsJSON(snapshot.WorkItemStatusCounts),
+		CompletenessCounts:    namedCountsJSON(snapshot.CompletenessCounts),
+		CollectorBackpressure: collectorBackpressureJSONRows(snapshot.CollectorBackpressure),
+		ActiveClaims:          snapshot.ActiveClaims,
+		OverdueClaims:         snapshot.OverdueClaims,
+		OldestPendingAge:      snapshot.OldestPendingAge.String(),
+		OldestPendingSeconds:  snapshot.OldestPendingAge.Seconds(),
+		RecentFailures:        coordinatorRecentFailuresJSONValue(snapshot.RecentFailures),
 	}
 }
 

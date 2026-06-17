@@ -25,13 +25,14 @@ type CollectorInstanceSummary struct {
 // CoordinatorSnapshot captures additive workflow-coordinator state without
 // redefining the platform health contract.
 type CoordinatorSnapshot struct {
-	CollectorInstances   []CollectorInstanceSummary `json:"collector_instances"`
-	RunStatusCounts      []NamedCount               `json:"run_status_counts"`
-	WorkItemStatusCounts []NamedCount               `json:"work_item_status_counts"`
-	CompletenessCounts   []NamedCount               `json:"completeness_counts"`
-	ActiveClaims         int                        `json:"active_claims"`
-	OverdueClaims        int                        `json:"overdue_claims"`
-	OldestPendingAge     time.Duration              `json:"oldest_pending_age"`
+	CollectorInstances    []CollectorInstanceSummary      `json:"collector_instances"`
+	RunStatusCounts       []NamedCount                    `json:"run_status_counts"`
+	WorkItemStatusCounts  []NamedCount                    `json:"work_item_status_counts"`
+	CompletenessCounts    []NamedCount                    `json:"completeness_counts"`
+	CollectorBackpressure []CollectorBackpressureSnapshot `json:"collector_backpressure"`
+	ActiveClaims          int                             `json:"active_claims"`
+	OverdueClaims         int                             `json:"overdue_claims"`
+	OldestPendingAge      time.Duration                   `json:"oldest_pending_age"`
 	// RecentFailures carries failure counts bounded to a recent time window so
 	// the degraded health state reflects active failures, not aged all-time
 	// totals. A nil value means the reader did not compute a window; callers
@@ -70,14 +71,15 @@ func cloneCoordinatorSnapshot(snapshot *CoordinatorSnapshot) *CoordinatorSnapsho
 		return nil
 	}
 	cloned := &CoordinatorSnapshot{
-		CollectorInstances:   slices.Clone(snapshot.CollectorInstances),
-		RunStatusCounts:      slices.Clone(snapshot.RunStatusCounts),
-		WorkItemStatusCounts: slices.Clone(snapshot.WorkItemStatusCounts),
-		CompletenessCounts:   slices.Clone(snapshot.CompletenessCounts),
-		ActiveClaims:         snapshot.ActiveClaims,
-		OverdueClaims:        snapshot.OverdueClaims,
-		OldestPendingAge:     nonNegativeDuration(snapshot.OldestPendingAge),
-		RecentFailures:       cloneCoordinatorRecentFailures(snapshot.RecentFailures),
+		CollectorInstances:    slices.Clone(snapshot.CollectorInstances),
+		RunStatusCounts:       slices.Clone(snapshot.RunStatusCounts),
+		WorkItemStatusCounts:  slices.Clone(snapshot.WorkItemStatusCounts),
+		CompletenessCounts:    slices.Clone(snapshot.CompletenessCounts),
+		CollectorBackpressure: cloneCollectorBackpressure(snapshot.CollectorBackpressure),
+		ActiveClaims:          snapshot.ActiveClaims,
+		OverdueClaims:         snapshot.OverdueClaims,
+		OldestPendingAge:      nonNegativeDuration(snapshot.OldestPendingAge),
+		RecentFailures:        cloneCoordinatorRecentFailures(snapshot.RecentFailures),
 	}
 	return cloned
 }
@@ -114,6 +116,7 @@ func renderCoordinatorLines(snapshot *CoordinatorSnapshot) []string {
 	if len(snapshot.CompletenessCounts) > 0 {
 		lines = append(lines, fmt.Sprintf("Coordinator completeness: %s", formatNamedTotals(toCountMap(snapshot.CompletenessCounts))))
 	}
+	lines = append(lines, renderCollectorBackpressureLines(snapshot.CollectorBackpressure)...)
 	if len(snapshot.CollectorInstances) > 0 {
 		lines = append(lines, "Collector instances:")
 		for _, instance := range snapshot.CollectorInstances {

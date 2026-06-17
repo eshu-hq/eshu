@@ -77,6 +77,12 @@ See `doc.go` for the godoc contract. Key types and functions:
 - `CoordinatorSnapshot` — optional workflow-coordinator state: collector
   instances, run and work-item status counts, completeness counts, active and
   overdue claims, and optional `RecentFailures`
+- `CollectorBackpressureSnapshot` — bounded claim-aware collector pressure by
+  collector family/instance/source-system tuple: pending, claimed, retrying,
+  terminal, expired, active and overdue claims, collector-generation dead
+  letters, oldest ages, next retry delay, and aggregate failure-class counts
+  without scope ids, source locators, generation ids, payloads, or raw failure
+  messages
 - `CoordinatorRecentFailures` — failure counts bounded to a recent window
   (failed runs, blocked completeness, terminal work items) that drive the
   degraded health state; cumulative counts stay available as detail
@@ -227,11 +233,11 @@ states (in priority order):
 - `RenderText(report)` — compact multi-line text for CLI and plain-text admin
   endpoints; includes health, queue, retry policies, collector generation
   dead-letter state, scope activity, generation history, stage summaries,
-  domain backlogs, queue blockages, coordinator state, derived collector runtime
-  classification, collector promotion proofs for present collectors, registry
-  collector state, AWS cloud scan state, AWS freshness
-  backlog state, semantic extraction status with redacted provider profile rows,
-  answer narration fallback status, and flow lanes
+  domain backlogs, queue blockages, coordinator state, collector backpressure,
+  derived collector runtime classification, collector promotion proofs for
+  present collectors, registry collector state, AWS cloud scan state, AWS
+  freshness backlog state, semantic extraction status with redacted provider
+  profile rows, answer narration fallback status, and flow lanes
 - `RenderJSON(report)` — stable JSON payload for machine-readable consumption;
   field names are part of the operator contract
 - `NewHTTPHandler(reader, opts)` — returns an `http.Handler` that serves `GET`
@@ -276,6 +282,27 @@ strings.
 Collector generation dead-letter state is a status surface only. Runtime
 metrics derive aggregate gauges from it; failure messages and payload references
 stay out of metric labels.
+
+No-Regression Evidence: `go test ./internal/status ./internal/storage/postgres
+-run 'Test(RenderStatusIncludesCollectorBackpressure|ReadWorkflowCollectorBackpressureStatus|ReadCoordinatorSnapshotIncludesCollectorBackpressure|ReadCoordinatorSnapshotHandlesNullableDeactivatedAtAndCreatedAtBacklogFallback|ReadCoordinatorSnapshotClampsNegativeOldestPendingAge)'
+-count=1` proves `/admin/status` text and JSON render bounded
+`coordinator.collector_backpressure` rows, the Postgres status reader wires the
+rows into the coordinator snapshot, workflow retry/terminal/expired counts come
+from `workflow_work_items`, collector-generation dead letters come from
+`collector_generation_dead_letters`, and the SQL omits scope ids, source-run
+ids, generation ids, acceptance-unit ids, payloads, and raw failure messages.
+Input shape: one collector family/instance/source-system row with pending,
+claimed, retrying, terminal, expired, active-claim, overdue-claim, and
+dead-letter counts. Backend: Postgres status read path with no queue mutation.
+
+No-Observability-Change: collector backpressure is an additive status projection
+only. It adds no route, worker, queue mutation, lease mutation, runtime knob,
+metric name, metric label, span name, log field, or high-cardinality telemetry
+value. Operators diagnose provider throttling, retry storms, terminal collector
+failures, expired claims, and recovery pressure through the existing
+`/admin/status` text/JSON surface plus existing `workflow_work_items`,
+`workflow_claims`, `collector_generation_dead_letters`, Postgres query spans,
+and `eshu_dp_postgres_query_duration_seconds`.
 
 ## Gotchas / invariants
 

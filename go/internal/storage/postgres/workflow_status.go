@@ -120,19 +120,24 @@ func readCoordinatorSnapshot(ctx context.Context, queryer Queryer, asOf time.Tim
 	if err != nil {
 		return nil, err
 	}
-	if len(instances) == 0 && len(runCounts) == 0 && len(workItemCounts) == 0 && len(completenessCounts) == 0 && activeClaims == 0 && overdueClaims == 0 && oldestPendingAge == 0 {
+	backpressure, err := readWorkflowCollectorBackpressureStatus(ctx, queryer, asOf)
+	if err != nil {
+		return nil, err
+	}
+	if len(instances) == 0 && len(runCounts) == 0 && len(workItemCounts) == 0 && len(completenessCounts) == 0 && activeClaims == 0 && overdueClaims == 0 && oldestPendingAge == 0 && len(backpressure) == 0 {
 		return nil, nil
 	}
 
 	return &statuspkg.CoordinatorSnapshot{
-		CollectorInstances:   instances,
-		RunStatusCounts:      runCounts,
-		WorkItemStatusCounts: workItemCounts,
-		CompletenessCounts:   completenessCounts,
-		ActiveClaims:         activeClaims,
-		OverdueClaims:        overdueClaims,
-		OldestPendingAge:     oldestPendingAge,
-		RecentFailures:       recentFailures,
+		CollectorInstances:    instances,
+		RunStatusCounts:       runCounts,
+		WorkItemStatusCounts:  workItemCounts,
+		CompletenessCounts:    completenessCounts,
+		CollectorBackpressure: backpressure,
+		ActiveClaims:          activeClaims,
+		OverdueClaims:         overdueClaims,
+		OldestPendingAge:      oldestPendingAge,
+		RecentFailures:        recentFailures,
 	}, nil
 }
 

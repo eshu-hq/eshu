@@ -101,6 +101,58 @@ func TestReadCoordinatorSnapshotClampsNegativeOldestPendingAge(t *testing.T) {
 	}
 }
 
+func TestReadCoordinatorSnapshotIncludesCollectorBackpressure(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 17, 4, 20, 0, 0, time.UTC)
+	queryer := &fakeQueryer{
+		responses: []fakeRows{
+			{rows: [][]any{}},
+			{rows: [][]any{}},
+			{rows: [][]any{{"failed_retryable", int64(3)}}},
+			{rows: [][]any{}},
+			{rows: [][]any{{int64(1), int64(0), 0.0}}},
+			{rows: [][]any{{int64(0), int64(0), int64(0)}}},
+			{rows: [][]any{{
+				"package_registry",
+				"pkg-registry-primary",
+				"package_registry",
+				int64(7),
+				int64(1),
+				int64(3),
+				int64(2),
+				int64(1),
+				int64(1),
+				int64(1),
+				int64(0),
+				300.0,
+				90.0,
+				120.0,
+				45.0,
+			}}},
+			{rows: [][]any{{"package_registry", "pkg-registry-primary", "package_registry", "provider_rate_limited", int64(3)}}},
+		},
+	}
+
+	got, err := readCoordinatorSnapshot(context.Background(), queryer, now)
+	if err != nil {
+		t.Fatalf("readCoordinatorSnapshot() error = %v, want nil", err)
+	}
+	if got == nil {
+		t.Fatal("readCoordinatorSnapshot() = nil, want snapshot")
+	}
+	if len(got.CollectorBackpressure) != 1 {
+		t.Fatalf("CollectorBackpressure len = %d, want 1: %#v", len(got.CollectorBackpressure), got.CollectorBackpressure)
+	}
+	row := got.CollectorBackpressure[0]
+	if row.Pending != 7 || row.Retrying != 3 || row.DeadLetter != 2 || row.TerminalFailed != 1 {
+		t.Fatalf("CollectorBackpressure[0] = %#v, want pending/retrying/dead-letter/terminal counts", row)
+	}
+	if len(row.FailureClassCounts) != 1 || row.FailureClassCounts[0].Name != "provider_rate_limited" {
+		t.Fatalf("FailureClassCounts = %#v, want provider_rate_limited evidence", row.FailureClassCounts)
+	}
+}
+
 func TestReadWorkflowCoordinatorRecentFailuresCountsWindowedRows(t *testing.T) {
 	t.Parallel()
 
