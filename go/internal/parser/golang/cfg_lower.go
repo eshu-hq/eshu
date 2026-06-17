@@ -36,19 +36,31 @@ type goCFGLowerer struct {
 
 // lowerStmtList lowers each statement in a block in source order, threading the
 // current block through so straight-line statements share one basic block.
-func (l *goCFGLowerer) lowerStmtList(blockNode *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID {
+func (l *goCFGLowerer) lowerStmtList(blockNode *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
 	cursor := blockNode.Walk()
 	defer cursor.Close()
+	reachable := true
 	for _, child := range blockNode.NamedChildren(cursor) {
 		child := child
-		cur = l.lowerStmt(&child, cur)
+		if !reachable {
+			// Code after a terminating statement is dead and skipped, EXCEPT a
+			// labeled statement, which may be a goto target. Lower it in a fresh
+			// block so the labeled code is not dropped from the CFG. (Precise goto
+			// edges are a separate, unmodeled concern.)
+			if child.Kind() != "labeled_statement" {
+				continue
+			}
+			cur = l.builder.AddBlock()
+		}
+		cur, reachable = l.lowerStmt(&child, cur)
 	}
-	return cur
+	return cur, reachable
 }
 
 // lowerStmt lowers a single statement and returns the block that control reaches
-// after it.
-func (l *goCFGLowerer) lowerStmt(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID {
+// after it and whether control falls through. A return terminates flow, so a
+// definition in a returning branch does not reach code after it.
+func (l *goCFGLowerer) lowerStmt(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
 	switch node.Kind() {
 	case "block", "statement_list":
 		// tree-sitter-go wraps a block's statements in a statement_list node;
@@ -60,50 +72,63 @@ func (l *goCFGLowerer) lowerStmt(node *tree_sitter.Node, cur cfg.BlockID) cfg.Bl
 		return l.lowerFor(node, cur)
 	case "labeled_statement":
 		return l.lowerLabeled(node, cur)
+	case "return_statement":
+		l.addUses(cur, node)
+		return cur, false
 	case "short_var_declaration", "assignment_statement", "var_declaration",
 		"const_declaration", "inc_statement", "dec_statement":
 		defs, uses := goStmtDefsUses(node, l.source)
 		l.addStmt(cur, nodeLine(node), defs, uses)
-		return cur
+		return cur, true
 	default:
 		l.addUses(cur, node)
-		return cur
+		return cur, true
 	}
 }
 
 // lowerIf lowers an if/else, modeling the condition as a use in the current
 // block, a then branch, an optional else branch, and a merge block.
-func (l *goCFGLowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID {
+func (l *goCFGLowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
 	if init := node.ChildByFieldName("initializer"); init != nil {
-		cur = l.lowerStmt(init, cur)
+		cur, _ = l.lowerStmt(init, cur)
 	}
 	if cond := node.ChildByFieldName("condition"); cond != nil {
 		l.addUses(cur, cond)
 	}
 
 	merge := l.builder.AddBlock()
+	mergeReachable := false
 
 	thenBlk := l.builder.AddBlock()
 	l.builder.AddEdge(cur, thenBlk)
+	thenReach := true
 	if cons := node.ChildByFieldName("consequence"); cons != nil {
-		thenBlk = l.lowerStmt(cons, thenBlk)
+		thenBlk, thenReach = l.lowerStmt(cons, thenBlk)
 	}
-	l.builder.AddEdge(thenBlk, merge)
+	if thenReach {
+		l.builder.AddEdge(thenBlk, merge)
+		mergeReachable = true
+	}
 
 	if alt := node.ChildByFieldName("alternative"); alt != nil {
 		elseBlk := l.builder.AddBlock()
 		l.builder.AddEdge(cur, elseBlk)
-		elseBlk = l.lowerStmt(alt, elseBlk)
-		l.builder.AddEdge(elseBlk, merge)
+		elseBlk, elseReach := l.lowerStmt(alt, elseBlk)
+		if elseReach {
+			l.builder.AddEdge(elseBlk, merge)
+			mergeReachable = true
+		}
 	} else {
+		// No else: the condition-false path falls through to the merge.
 		l.builder.AddEdge(cur, merge)
+		mergeReachable = true
 	}
-	return merge
+	return merge, mergeReachable
 }
 
 // lowerFor lowers a for loop, threading a back-edge from the loop body to the
 // header so in-loop definitions reach the header on later iterations.
-func (l *goCFGLowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID {
+func (l *goCFGLowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
 	clause := goForClause(node)
 
 	// for range: the range clause defines its loop variables each iteration.
@@ -116,7 +141,7 @@ func (l *goCFGLowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) cfg.Blo
 	var cond *tree_sitter.Node
 	if clause != nil && clause.Kind() == "for_clause" {
 		if init := clause.ChildByFieldName("initializer"); init != nil {
-			cur = l.lowerStmt(init, cur)
+			cur, _ = l.lowerStmt(init, cur)
 		}
 		cond = clause.ChildByFieldName("condition")
 		post = clause.ChildByFieldName("update")
@@ -130,22 +155,26 @@ func (l *goCFGLowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) cfg.Blo
 
 	bodyBlk := l.builder.AddBlock()
 	l.builder.AddEdge(header, bodyBlk)
+	bodyReach := true
 	if body := node.ChildByFieldName("body"); body != nil {
-		bodyBlk = l.lowerStmt(body, bodyBlk)
+		bodyBlk, bodyReach = l.lowerStmt(body, bodyBlk)
 	}
-	if post != nil {
-		bodyBlk = l.lowerStmt(post, bodyBlk)
+	if bodyReach && post != nil {
+		bodyBlk, bodyReach = l.lowerStmt(post, bodyBlk)
 	}
-	l.builder.AddEdge(bodyBlk, header) // back-edge
+	if bodyReach {
+		l.builder.AddEdge(bodyBlk, header) // back-edge only when the body falls through
+	}
 
 	exit := l.builder.AddBlock()
 	l.builder.AddEdge(header, exit)
-	return exit
+	// The loop may run zero times, so control after it is reachable.
+	return exit, true
 }
 
 // lowerForRange lowers a for-range loop: the range clause defines its loop
 // variables at the header on every iteration and reads the ranged expression.
-func (l *goCFGLowerer) lowerForRange(node *tree_sitter.Node, clause *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID {
+func (l *goCFGLowerer) lowerForRange(node *tree_sitter.Node, clause *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
 	header := l.builder.AddBlock()
 	l.builder.AddEdge(cur, header)
 
@@ -160,19 +189,22 @@ func (l *goCFGLowerer) lowerForRange(node *tree_sitter.Node, clause *tree_sitter
 
 	bodyBlk := l.builder.AddBlock()
 	l.builder.AddEdge(header, bodyBlk)
+	bodyReach := true
 	if body := node.ChildByFieldName("body"); body != nil {
-		bodyBlk = l.lowerStmt(body, bodyBlk)
+		bodyBlk, bodyReach = l.lowerStmt(body, bodyBlk)
 	}
-	l.builder.AddEdge(bodyBlk, header) // back-edge
+	if bodyReach {
+		l.builder.AddEdge(bodyBlk, header) // back-edge only when the body falls through
+	}
 
 	exit := l.builder.AddBlock()
 	l.builder.AddEdge(header, exit)
-	return exit
+	return exit, true
 }
 
 // lowerLabeled lowers the statement carried by a labeled statement, ignoring the
 // label itself.
-func (l *goCFGLowerer) lowerLabeled(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID {
+func (l *goCFGLowerer) lowerLabeled(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
 	cursor := node.Walk()
 	defer cursor.Close()
 	children := node.NamedChildren(cursor)
@@ -183,7 +215,7 @@ func (l *goCFGLowerer) lowerLabeled(node *tree_sitter.Node, cur cfg.BlockID) cfg
 		}
 		return l.lowerStmt(&child, cur)
 	}
-	return cur
+	return cur, true
 }
 
 // addStmt records a statement on a block when it carries at least one binding.
