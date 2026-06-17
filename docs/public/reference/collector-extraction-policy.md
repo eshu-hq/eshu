@@ -73,6 +73,45 @@ These sources can change on provider cadence and can often emit source facts
 without changing Eshu's core graph admission model. They still need reducer and
 query proof before facts are presented as active platform truth.
 
+## Extraction Readiness Diagnostics
+
+Component diagnostics surface this policy as an advisory readiness checklist so
+the decision is evidence-based, not a matter of memory. The diagnostic is
+informational: it never moves code, disables a collector, or changes runtime
+behavior.
+
+Each tracked collector family receives one classification:
+
+| Classification | Meaning |
+| --- | --- |
+| `keep_in_tree` | Correlation-critical core collector. It stays in tree until a separate architecture gate proves a split keeps correlation correct. |
+| `extraction_candidate` | Eligible family with no unmet criteria that has not yet been promoted to run out of tree as its default. |
+| `blocked` | Eligible family with at least one unmet criterion. The unmet criteria are reported as concrete blockers. |
+| `external_ready` | The out-of-tree proof is complete and the family runs out of tree as its default path. |
+
+The checklist evaluates the same seven rows as the
+[Extraction Criteria](#extraction-criteria) table, and each criterion is `met`,
+`unmet`, or `not_applicable`. A `blocked` verdict distinguishes a schema or
+identity gap (`source_coupling`, `fact_contract`, or `scope_generation` unmet)
+from a hosted-runtime gap (`runtime_behavior` unmet), so a contributor knows
+which kind of work closes it. A profile that omits a criterion fails closed: the
+missing criterion is treated as `unmet`.
+
+The classifications are reproducible from documented repository evidence, not
+inferred at runtime. Today the cloud, Git, Terraform-state, and Kubernetes-live
+collectors are `keep_in_tree`; PagerDuty is an `extraction_candidate` because its
+out-of-tree boundary proof is complete while the in-tree collector stays the
+production path; the remaining named candidates are `blocked` until their trust,
+hosted-runtime, and proof work exists. No collector is `external_ready` yet.
+
+Read the checklist with:
+
+```bash
+eshu component extraction-readiness            # every tracked family
+eshu component extraction-readiness pagerduty  # one family, with blockers
+eshu component extraction-readiness jira --verbose --json
+```
+
 ## PagerDuty Reference Path
 
 PagerDuty is the first extraction proof target for this policy. Completion
