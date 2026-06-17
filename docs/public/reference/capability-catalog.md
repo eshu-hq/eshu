@@ -54,6 +54,23 @@ Maturity is derived from the matrix support statuses:
 `gated` and `degraded` cannot be derived from the matrix; the overlay assigns
 them and each requires a `maturity_reason`.
 
+## Surfaces
+
+The same embedded artifact is exposed through three surfaces, so they report the
+same catalog state:
+
+| Surface | Where | Notes |
+| --- | --- | --- |
+| HTTP API | `GET /api/v0/capabilities` | Bounded read with optional `maturity` and `owner` filters and `limit`/`offset` paging; exact truth, fresh freshness. |
+| MCP tool | `get_capability_catalog` | Routes to `GET /api/v0/capabilities` with the same filters; prompt-ready. |
+| Console | Capabilities page (System nav) | Capability matrix table with maturity, surfaces, proof, owner, and linked issues; truthful empty/unavailable state. |
+
+The API serves the embedded artifact from `capabilitycatalog.Load`; the MCP tool
+dispatches to the same route; the console fetches the same endpoint. Parity is
+covered by `go/internal/query/capabilities_test.go` (API total equals the
+embedded catalog), `go/internal/mcp/tools_runtime_test.go` (tool routes to the
+endpoint), and `apps/console/src/pages/CapabilityMatrixPage.test.tsx`.
+
 ## Reconciliation findings
 
 `go run ./cmd/capability-inventory -mode verify` fails when the catalog does not

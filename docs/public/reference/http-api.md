@@ -25,6 +25,7 @@ The mounted Go runtime admin OpenAPI contract lives in
 | Need | Start here |
 | --- | --- |
 | Health, readiness, index status, queue/admin controls, ingester status | [Status and admin routes](http-api/status-admin.md) |
+| Capability maturity catalog (`GET /api/v0/capabilities`) | [Capability Catalog](capability-catalog.md#surfaces) |
 | Component extension inventory and diagnostics | [Status and admin routes](http-api/status-admin.md#component-extension-inventory) and [Component Package Manager](component-package-manager.md) |
 | Optional semantic observations and code hints | [Semantic evidence routes](http-api/semantic-evidence.md) |
 | Repository-bounded semantic retrieval over curated search documents | [Semantic search route](http-api/semantic-search.md) |

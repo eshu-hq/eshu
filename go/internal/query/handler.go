@@ -138,6 +138,7 @@ type APIRouter struct {
 	ComponentExtensions   *ComponentExtensionsHandler
 	Playbooks             *QueryPlaybookHandler
 	Metrics               *MetricsHandler
+	Capabilities          *CapabilitiesHandler
 	Compare               *CompareHandler
 	Admin                 *AdminHandler
 }
@@ -300,6 +301,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Metrics
 	if a.Metrics != nil {
 		a.Metrics.Mount(mux)
+	}
+
+	// Capabilities
+	if a.Capabilities != nil {
+		a.Capabilities.Mount(mux)
 	}
 
 	// Compare

@@ -89,6 +89,7 @@ func TestReadOnlyTools(t *testing.T) {
 		"get_hosted_governance_status",
 		"get_semantic_capability_status",
 		"get_answer_narration_status",
+		"get_capability_catalog",
 		"list_component_extensions",
 		"get_component_extension_diagnostics",
 		"list_collectors",

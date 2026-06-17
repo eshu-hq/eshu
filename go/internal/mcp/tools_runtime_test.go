@@ -112,3 +112,47 @@ func TestHostedGovernanceRuntimeToolRoutesToStatus(t *testing.T) {
 		t.Fatalf("route.path = %q, want %q", got, want)
 	}
 }
+
+func TestCapabilityCatalogRuntimeToolRoutesToCapabilities(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("get_capability_catalog", map[string]any{
+		"maturity": "gated",
+		"owner":    "internal/query",
+		"limit":    50,
+		"offset":   10,
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.method, "GET"; got != want {
+		t.Fatalf("route.method = %q, want %q", got, want)
+	}
+	if got, want := route.path, "/api/v0/capabilities"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	if got, want := route.query["maturity"], "gated"; got != want {
+		t.Fatalf("query maturity = %q, want %q", got, want)
+	}
+	if got, want := route.query["limit"], "50"; got != want {
+		t.Fatalf("query limit = %q, want %q", got, want)
+	}
+}
+
+func TestCapabilityCatalogRuntimeToolOmitsEmptyFilters(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("get_capability_catalog", map[string]any{})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if _, ok := route.query["maturity"]; ok {
+		t.Fatal("empty maturity must not be forwarded")
+	}
+	if _, ok := route.query["owner"]; ok {
+		t.Fatal("empty owner must not be forwarded")
+	}
+	if got, want := route.query["limit"], "200"; got != want {
+		t.Fatalf("default limit = %q, want %q", got, want)
+	}
+}
