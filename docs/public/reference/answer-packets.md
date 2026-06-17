@@ -100,7 +100,7 @@ composition explicit and testable.
 | `missing_evidence` | Evidence handles that were requested but could not be resolved. |
 | `evidence_handles` | Addressable handles to the evidence behind the answer, in the [evidence citation handle](evidence-citation-handles.md) shape. |
 | `citation_ref` | Reference to a citation packet that hydrates the handles. Optional. |
-| `recommended_next_calls` | Bounded follow-up calls, in the same shape as the evidence-citation `recommended_next_calls`. |
+| `recommended_next_calls` | Bounded follow-up calls, in the same shape as the evidence-citation `recommended_next_calls`; entries may include `tool`, `route`, `playbook`, `reason`, and bounded non-sensitive `arguments` or legacy `params`. |
 | `unsupported_reasons` | Why the answer is unsupported or partial. Non-empty whenever `supported` is false or `partial` is true. |
 
 The packet never carries a confident `summary` while `supported` is false. That
