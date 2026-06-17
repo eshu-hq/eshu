@@ -2,6 +2,7 @@ package goldenaudit
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -50,6 +51,78 @@ func TestCompareGraphReportsMissingUnexpectedAndDuplicates(t *testing.T) {
 	assertEdgeKeys(t, "duplicate observed edges", report.DuplicateObservedEdges, []string{"function:app.orphan|CALLS|function:app.handle"})
 	if report.Pass() {
 		t.Fatalf("CompareGraph() passed drift report: %s", report.Summary())
+	}
+}
+
+func TestCompareGraphSurfacesAccuracyForWrongTargetEdge(t *testing.T) {
+	t.Parallel()
+
+	want := loadTestGolden(t, "go_call_accuracy.json")
+	got := Graph{
+		Edges: []Edge{
+			{SourceID: "func:server.Serve", TargetID: "func:server.handle", Type: "CALLS"},
+			// Same source+type as golden's handle->Persist edge, but wrong target.
+			{SourceID: "func:server.handle", TargetID: "func:store.Lookup", Type: "CALLS"},
+		},
+	}
+
+	report := CompareGraph(want, got)
+	if report.Accuracy.Overall.Precision >= 1.0 {
+		t.Fatalf("Accuracy.Overall.Precision = %v, want < 1.0", report.Accuracy.Overall.Precision)
+	}
+	if !strings.Contains(report.Summary(), "accuracy_precision=") {
+		t.Fatalf("Summary() missing accuracy precision: %s", report.Summary())
+	}
+}
+
+func TestCompareGraphSecondLanguageFixtureAccuracy(t *testing.T) {
+	t.Parallel()
+
+	want := loadTestGolden(t, "js_call_accuracy.json")
+	got := Graph{
+		Edges: []Edge{
+			// Correct edge.
+			{SourceID: "func:router.route", TargetID: "func:router.dispatch", Type: "CALLS"},
+			// Wrong target: shares source+type with golden's dispatch->save edge.
+			{SourceID: "func:router.dispatch", TargetID: "func:repo.find", Type: "CALLS"},
+		},
+	}
+
+	report := CompareGraph(want, got)
+	if report.Accuracy.Overall.Precision != 0.5 {
+		t.Fatalf("Accuracy.Overall.Precision = %v, want 0.5: %s", report.Accuracy.Overall.Precision, report.Summary())
+	}
+	if report.Accuracy.Overall.Recall != 0.5 {
+		t.Fatalf("Accuracy.Overall.Recall = %v, want 0.5: %s", report.Accuracy.Overall.Recall, report.Summary())
+	}
+	assertEdgeKeys(t, "wrong-target edges", report.Accuracy.WrongTarget,
+		[]string{"func:router.dispatch|CALLS|func:repo.find"})
+}
+
+func TestCompareGraphPassSemanticsUnchangedForExactMatch(t *testing.T) {
+	t.Parallel()
+
+	want := loadTestGolden(t, "js_call_accuracy.json")
+	got := Graph{
+		Nodes: []Node{
+			{ID: "func:router.route", Kind: "function", Name: "route", Path: "src/router.js", Line: 5},
+			{ID: "func:router.dispatch", Kind: "function", Name: "dispatch", Path: "src/router.js", Line: 18},
+			{ID: "func:repo.save", Kind: "function", Name: "save", Path: "src/repo.js", Line: 9},
+			{ID: "func:repo.find", Kind: "function", Name: "find", Path: "src/repo.js", Line: 24},
+		},
+		Edges: []Edge{
+			{SourceID: "func:router.route", TargetID: "func:router.dispatch", Type: "CALLS"},
+			{SourceID: "func:router.dispatch", TargetID: "func:repo.save", Type: "CALLS"},
+		},
+	}
+
+	report := CompareGraph(want, got)
+	if !report.Pass() {
+		t.Fatalf("CompareGraph() failed structurally exact match: %s", report.Summary())
+	}
+	if report.Accuracy.Overall.Precision != 1.0 || report.Accuracy.Overall.Recall != 1.0 {
+		t.Fatalf("exact-match accuracy = %v/%v, want 1.0/1.0",
+			report.Accuracy.Overall.Precision, report.Accuracy.Overall.Recall)
 	}
 }
 

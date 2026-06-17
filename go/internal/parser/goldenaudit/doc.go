@@ -10,6 +10,10 @@
 // precision/recall of observed edges against golden edges, per relationship
 // type and overall, with a wrong-target vs missing vs extra breakdown so a
 // resolver that points an edge at the wrong target is caught even when its tier
-// distribution looks healthy. Both are measurement only; neither parses source
-// nor writes graph rows.
+// distribution looks healthy. The Report returned by CompareGraph carries this
+// AccuracyResult in its Accuracy field, and Report.Summary appends the overall
+// accuracy_precision/accuracy_recall. Accuracy is surfaced additively:
+// Report.Pass still gates only on structural node/edge drift, not on
+// precision/recall. Both are measurement only; neither parses source nor writes
+// graph rows.
 package goldenaudit

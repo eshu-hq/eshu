@@ -1,0 +1,45 @@
+{
+  "schema_version": "parser_golden_graph.v1",
+  "nodes": [
+    {
+      "id": "func:router.route",
+      "kind": "function",
+      "name": "route",
+      "path": "src/router.js",
+      "line": 5
+    },
+    {
+      "id": "func:router.dispatch",
+      "kind": "function",
+      "name": "dispatch",
+      "path": "src/router.js",
+      "line": 18
+    },
+    {
+      "id": "func:repo.save",
+      "kind": "function",
+      "name": "save",
+      "path": "src/repo.js",
+      "line": 9
+    },
+    {
+      "id": "func:repo.find",
+      "kind": "function",
+      "name": "find",
+      "path": "src/repo.js",
+      "line": 24
+    }
+  ],
+  "edges": [
+    {
+      "source_id": "func:router.route",
+      "target_id": "func:router.dispatch",
+      "type": "CALLS"
+    },
+    {
+      "source_id": "func:router.dispatch",
+      "target_id": "func:repo.save",
+      "type": "CALLS"
+    }
+  ]
+}

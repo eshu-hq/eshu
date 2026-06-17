@@ -19,7 +19,11 @@ See `doc.go` for the godoc contract.
 - `Graph`, `Node`, and `Edge` describe expected or observed source graph facts.
 - `LoadGoldenGraph` reads checked-in fixture truth.
 - `CompareGraph` returns a `Report` with missing, unexpected, and duplicate
-  nodes and edges.
+  nodes and edges. The `Report` also carries an `Accuracy` field populated by
+  `ScoreAccuracy`, and `Report.Summary()` appends
+  `accuracy_precision`/`accuracy_recall` so a failing structural audit surfaces
+  precision/recall alongside the diff. `Accuracy` is informational only:
+  `Report.Pass()` still gates on structural drift, not on precision/recall.
 - `ScoreAccuracy` returns an `AccuracyResult` with per-relationship-type and
   overall precision/recall (`Score`, `TypeAccuracy`) plus a wrong-target vs
   missing vs extra edge breakdown. It exists because tier distribution cannot
