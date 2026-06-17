@@ -1,10 +1,11 @@
 # storage/postgres
 
 `storage/postgres` owns Eshu's relational persistence layer: facts, queue state,
-content store, status, recovery data, decisions, webhook refresh triggers,
-shared projection intents, AWS scan status, and workflow coordination tables.
-It is the single durable source of truth for pipeline state that projector,
-reducer, ingester, collectors, and the API surface all share.
+content store, status, recovery data, projection and admission decisions,
+webhook refresh triggers, shared projection intents, AWS scan status, and
+workflow coordination tables. It is the single durable source of truth for
+pipeline state that projector, reducer, ingester, collectors, and the API
+surface all share.
 
 ## Where this fits in the pipeline
 
@@ -20,6 +21,7 @@ flowchart LR
   D -->|Publish phases| H["postgres.GraphProjectionPhaseStateStore\n(graph_projection_phase_state)"]
   H -->|ReadinessLookup| F
   F -->|WriteDecisions| I["postgres.DecisionStore\n(projection_decisions)"]
+  F -->|WriteAdmissionDecisions| I2["postgres.AdmissionDecisionStore\n(admission_decisions)"]
   F -->|WriteIntents| J["postgres.SharedIntentStore\n(shared_projection_intents)"]
   J -->|ReadBacklog| K["postgres.StatusStore\n/admin/status domain backlog"]
   J -->|ClaimPartitions| L["shared_projection_partition_leases\nactive reducers"]
@@ -38,7 +40,7 @@ flowchart TB
   C --> G["ContentWriter\ncontent_files / content_entities"]
   C --> H["GraphProjectionPhaseStateStore\ngraph_projection_phase_state\nbatched INSERT"]
   C --> I["SharedIntentStore\nshared_projection_intents\n+ SharedIntentAcceptanceWriter"]
-  C --> J["DecisionStore\nprojection_decisions\nprojection_decision_evidence"]
+  C --> J["DecisionStore + AdmissionDecisionStore\nprojection and admission decisions"]
   C --> K["RecoveryStore\nreplay dead_letter / failed\nwork items + collector generation DLQ/status"]
   C --> L["WorkflowControlStore\nworkflow coordinator\nclaim lease fencing"]
   C --> M["GovernanceAuditStore\ngovernance_audit_events\nprivate bounded audit sink"]
@@ -187,6 +189,8 @@ Primary groups:
   concurrency and Postgres pool-budget notes.
 - Graph projection phase, shared projection intent, acceptance, freshness, and
   readiness helpers used by reducer domains.
+- Projection and admission decision stores for reducer-owned write decisions
+  and scope/generation/domain-bounded correlation admission explanations.
 - Fact indexes for reducer-owned package and service-catalog correlations,
   including service-catalog candidate repository IDs used by ambiguous
   repository-scoped API/MCP readbacks.
@@ -260,23 +264,8 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   is pending. This lets cross-scope endpoint readiness wait past
   `ESHU_REDUCER_MAX_ATTEMPTS` without terminally dropping edges.
 
-No-Regression Evidence:
-
-```bash
-go test ./internal/storage/postgres -run 'TestReducerQueueFailDefersSecretsIAMEndpointReadinessPastAttemptBudget|TestReducerQueueClaimDoesNotCountSecretsIAMEndpointReadinessDefers|TestClaimBatchDoesNotCountSecretsIAMEndpointReadinessDefers' -count=1
-```
-
-This gate failed before #1391 because over-budget
-`secrets_iam_endpoint_not_ready` dead-lettered and both claim paths consumed
-`attempt_count`; it passed after the class became a deferred retry and both
-claim SQL shapes preserved the attempt budget.
-
-Observability Evidence: the change adds no metric or status field. Existing
-queue status, latest-failure, queue-blockage, and
-`eshu_dp_postgres_query_duration_seconds{store="queue"}` signals keep exposing
-retrying/dead-letter counts, `visible_at` backoff, claim latency, and the
-specific `failure_class=secrets_iam_endpoint_not_ready` needed to diagnose
-blocked cross-scope endpoint readiness.
+No-regression and observability proof for this retry class lives in
+[`evidence-notes.md`](evidence-notes.md#reducer-endpoint-readiness-retry-1391).
 
 ## Extension points
 
@@ -490,80 +479,9 @@ blocked cross-scope endpoint readiness.
   Tables with foreign key constraints on other tables must appear after their
   dependencies.
 
-No-Regression Evidence: incident freshness store coverage includes
-`go test ./internal/storage/postgres -run 'TestIncidentFreshness|TestBootstrapSQLFilesMirrorDefinitions' -count=1`.
-The queue keeps at-least-once webhook delivery coalesced by source freshness
-key, preserves claimed rows during duplicate upserts, and uses
-`FOR UPDATE SKIP LOCKED` for concurrent coordinator handoff without changing
-fact emission, reducer lanes, worker counts, or graph writes.
-
-Observability Evidence: incident freshness storage is wrapped by
-`InstrumentedDB` as `store="incident_freshness_triggers"` in the webhook
-listener and workflow coordinator. Existing Postgres query-duration metrics and
-spans expose read/write latency without adding delivery IDs, issue keys,
-incident IDs, URLs, or provider payload fields to metric labels.
-
-No-Regression Evidence: incident-routing evidence loading is covered by
-`go test ./internal/storage/postgres -run 'IncidentRoutingEvidence' -count=1`.
-The read path stays bounded to one scope/generation fact query plus one
-service-name allowlisted `content_entities` query and adds no table, schema
-migration, queue behavior, worker count, or graph query.
-
-No-Regression Evidence: workflow terminal failure mutation coverage includes
-`go test ./internal/storage/postgres -run TestWorkflowControlStoreFailClaimTerminalUsesDensePostgresParameters -count=1`
-and a remote Postgres integration run of
-`TestWorkflowControlStoreIntegrationFailClaimTerminalRecordsFailureWithoutParameterHole`.
-The change preserves claim fencing, retryable requeue `visible_at`, claim
-ordering, worker counts, and workflow status semantics.
-
-No-Observability-Change: existing `workflow_work_items.last_failure_class`,
-`workflow_claims.failure_class`, fenced mutation errors, collector logs, and
-`/api/v0/index-status` continue to expose terminal workflow failures and active
-claim counts; no new telemetry dimension was required.
-
-No-Regression Evidence: AWS relationship readiness gating is covered by
-`go test ./internal/storage/postgres -run 'TestReducerQueueClaim(GatesAWSRelationshipsOnCanonicalCloudResourceReadiness|WaitsForAWSRelationshipReadinessBehavior|WaitsForRetryingAWSRelationshipReadinessBehavior|AWSRelationshipAlreadyReadyBehavior)|TestClaimBatchGatesAWSRelationshipsOnCanonicalCloudResourceReadiness|TestReducerQueueBlockagesReportAWSRelationshipReadinessWait' -count=1`.
-The same CloudResource readiness gate now also covers RDS posture property
-updates; `go test ./internal/storage/postgres -run RDSPosture -count=1` proves
-`rds_posture_materialization` waits for the same phase. S3 internet-exposure
-readiness is covered by
-`go test ./internal/storage/postgres -run 'S3InternetExposure' -count=1`.
-EC2 internet-exposure readiness is covered by
-`go test ./internal/storage/postgres -run EC2InternetExposure -count=1` and
-uses the same `cloud_resource_uid` gate keyed to
-`ec2_instance_node_materialization:<scope>`.
-The claim path keeps pending and retrying CloudResource-consuming reducer rows
-unclaimed until the matching `cloud_resource_uid` /
-`canonical_nodes_committed` phase exists, then makes the same row claimable
-without changing worker counts, retry delays, or conflict-key fencing.
-
-Observability Evidence: `/admin/status` queue blockages now include
-`conflict_domain=readiness` and a conflict key prefixed with
-`cloud_resource_uid:canonical_nodes_committed:` for reducer work that is
-waiting on canonical `CloudResource` nodes. Existing queue gauges and domain
-backlog rows continue to expose pending, retrying, in-flight, and oldest-age
-counts without adding a high-cardinality metric label.
-
-No-Regression Evidence: owned dependency target selection is covered by
-`go test ./internal/storage/postgres -run 'TestListOwnedPackageDependencyTargetsQuery|TestOwnedPackageDependencyTargetLimit' -count=1`.
-The query remains scoped to active Git dependency facts, adds package-level
-selection for package-registry derivation, keeps package-version selection for
-vulnerability derivation, and rotates bounded reads by caller-provided offset.
-
-No-Observability-Change: existing Postgres query-duration telemetry,
-workflow-run `requested_scope_set`, workflow work-item status rows, collector
-claim status, and `/api/v0/index-status` expose whether derived targets were
-planned, repeated, completed, retried, or failed. The target reader adds no new
-metric labels and does not include package names or versions in telemetry
-labels.
-
-No-Regression Evidence: `go test ./internal/storage/postgres -run 'List.*AdvisoryTargets' -count=1` proves installed advisory target SQL stays active-generation scoped, bounded, ecosystem-filtered, and attached to SBOM subject evidence before the coordinator admits exact OSV targets.
-
-No-Observability-Change: installed advisory target readers use the existing
-`InstrumentedDB` query spans and `eshu_dp_postgres_query_duration_seconds`
-histogram. Store labels stay bounded to the configured store name and operation;
-package names, versions, PURLs, document IDs, subject digests, and advisory
-payloads are not metric labels.
+Additional historical no-regression notes for incident freshness, incident
+routing, workflow terminal failure, readiness gating, owned dependency targets,
+and advisory targets live in [`evidence-notes.md`](evidence-notes.md).
 
 ## Related docs
 

@@ -1,8 +1,8 @@
 // Package postgres owns Eshu's relational persistence: facts, queue state,
 // content store, source-backed repository refs, status, recovery data,
-// decisions, webhook refresh triggers, incident freshness triggers, AWS scan
-// status, hosted tenant/workspace grant state, and workflow coordination
-// tables.
+// projection and admission decisions, webhook refresh triggers, incident
+// freshness triggers, AWS scan status, hosted tenant/workspace grant state, and
+// workflow coordination tables.
 //
 // The package wraps the Postgres driver with OTEL-instrumented helpers and
 // exposes typed access to queue claim, lease, batch, and recovery
@@ -44,6 +44,12 @@
 // allowlist. Shared projection intent writes use bounded multi-row upserts so
 // high-cardinality package, code-call, and correlation facts reduce Postgres
 // round trips without changing idempotency semantics.
+// AdmissionDecisionStore persists reducer-owned correlation admission outcomes
+// and redaction-safe evidence handles under a scope/generation/domain boundary;
+// rejected, ambiguous, stale, hidden, unsupported, and unsafe rows explain why
+// canonical graph writes were skipped without promoting those candidates to
+// truth. The store rejects unsupported admission states before write execution,
+// and SQL keeps the same closed vocabulary as a migration-level guardrail.
 // Relationship evidence backfill reads latest file/content facts plus
 // gcp_cloud_relationship facts so cloud provider relationships without file
 // content can still flow through the resolver's catalog-admission contract.
