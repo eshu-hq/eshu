@@ -21,11 +21,15 @@ See `doc.go` for the godoc contract. The surface is:
 
 - `LowerFunction(node, source, limits) cfg.Function` — lower one Python function
   definition body into a resolved control-flow graph.
+- `TaintFacts(node, source, fn) taint.Facts` — derive intraprocedural taint
+  annotations (sources, sinks, sanitizers) from the Python catalog, mapped onto
+  the control-flow graph, for the `internal/parser/taint` engine.
 
 ## Dependencies
 
-- `internal/parser/cfg` (the dataflow engine), `internal/parser/shared` (node
-  text/line helpers), and `github.com/tree-sitter/go-tree-sitter`.
+- `internal/parser/cfg` (the dataflow engine), `internal/parser/taint` (the
+  taint fact types), `internal/parser/shared` (node text/line helpers), and
+  `github.com/tree-sitter/go-tree-sitter`.
 
 ## Telemetry
 
@@ -41,6 +45,14 @@ telemetry.
   header.
 - **`if_statement`/`elif_clause`** carry `condition`/`consequence`/`alternative`;
   `else_clause` and `elif_clause` alternatives are descended into.
+- **`with_statement`** binds `as` aliases (defs) and reads context managers
+  (uses) on the header line, then lowers the body in sequence — so a sink call
+  inside `with conn.cursor() as cursor:` gets its own statement line and resolves.
+- **`try_statement`** lowers the body from the current block; each
+  except/else/finally handler branches from the **pre-try** state. This records
+  the handlers' inner statements without inventing a body-completed definition
+  that reaches a handler (which would be a false edge); the under-modeled
+  body→handler flow is a safe false negative.
 - **Attribute access `a.b`**: only `a` (the object) is a use; `b` is the
   attribute name in the grammar (an `identifier`), so `exprUses` skips it to
   avoid a false use of a same-named variable.
@@ -48,6 +60,15 @@ telemetry.
   subscript targets read their base, never define.
 - Nested function/lambda bodies are not descended into (a safe false negative,
   never a false edge).
+- **Taint catalog (`taintfacts.go`) matches by final call name only** — a known
+  v1 precision limit shared with the Go and TS catalogs. Sinks: `execute`/
+  `executemany` (sql), `system`/`Popen`/`eval`/`exec` (command). Sanitizers are
+  narrow and unambiguous (`escape` → html); a name that neutralizes different
+  kinds by import (`quote` is urllib URL-encoding but also shlex shell-quoting)
+  is omitted, since a missed sanitizer is safer than a missed vulnerability.
+- **A sanitizer is recorded only when the assigned value is DIRECTLY a sanitizer
+  call.** `safe = escape(x) if cond else x` is not marked sanitized — the other
+  branch is unneutralized, so marking it would wrongly suppress a real finding.
 
 ## Related docs
 
