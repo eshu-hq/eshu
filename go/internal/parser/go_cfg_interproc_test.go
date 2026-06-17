@@ -31,7 +31,7 @@ func query(db *sql.DB, r *http.Request) {
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{GoEmitDataflow: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
@@ -79,7 +79,7 @@ func handle(req *http.Request, conn *sql.DB) {
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{GoEmitDataflow: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
@@ -146,7 +146,7 @@ func handle(userReq *http.Request, query func(*http.Request)) {
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{GoEmitDataflow: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
@@ -187,7 +187,7 @@ func handle(r *http.Request, db *sql.DB) {
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{GoEmitDataflow: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}

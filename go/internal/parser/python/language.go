@@ -249,6 +249,8 @@ func Parse(
 	payload["framework_semantics"] = buildPythonFrameworkSemantics(string(source))
 	payload["orm_table_mappings"] = buildPythonORMTableMappings(string(source))
 
+	emitValueFlowBuckets(payload, root, source, options)
+
 	return payload, nil
 }
 
@@ -474,31 +476,4 @@ func pythonModuleScoped(node *tree_sitter.Node) bool {
 	return true
 }
 
-func sortNamedBucket(payload map[string]any, key string) {
-	items, _ := payload[key].([]map[string]any)
-	slices.SortFunc(items, func(left, right map[string]any) int {
-		leftLine, _ := left["line_number"].(int)
-		rightLine, _ := right["line_number"].(int)
-		if leftLine != rightLine {
-			return leftLine - rightLine
-		}
-		leftName, _ := left["name"].(string)
-		rightName, _ := right["name"].(string)
-		return strings.Compare(leftName, rightName)
-	})
-	payload[key] = items
-}
-
-func collectBucketNames(payload map[string]any, keys ...string) []string {
-	var names []string
-	for _, key := range keys {
-		items, _ := payload[key].([]map[string]any)
-		for _, item := range items {
-			name, _ := item["name"].(string)
-			if strings.TrimSpace(name) != "" {
-				names = append(names, filepath.Clean(name))
-			}
-		}
-	}
-	return names
-}
+// sortNamedBucket and collectBucketNames live in payload_buckets.go.

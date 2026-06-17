@@ -69,7 +69,7 @@ The godoc contract is in `doc.go`.
   Go semantic roots.
 - `EmbeddedSQLQueries` returns typed SQL table evidence from recognized Go
   database call sites.
-- The `dataflow_functions` bucket (opt-in via `Options.GoEmitDataflow`) carries
+- The `dataflow_functions` bucket (opt-in via `Options.EmitDataflow`) carries
   per-function control-flow graphs and reaching-definition def->use edges, built
   by `cfg_lower.go`/`cfg_bindings.go`/`cfg_emit.go` over the
   `internal/parser/cfg` engine. Off by default and byte-identical when off.

@@ -9,7 +9,9 @@
 5. notebook.go and notebook_temp.go - notebook extraction and temporary source file lifecycle
 6. dead_code_roots.go, lambda_roots.go, public_api_roots.go - dead-code root evidence
 7. semantics.go, imports.go, call_inference.go, annotation_support.go - metadata helpers
-8. notebook_test.go and language_test.go - child package contract coverage
+8. cfg_emit.go - opt-in value-flow buckets (EmitDataflow) over python/pydataflow
+9. payload_buckets.go - sortNamedBucket / collectBucketNames bucket utilities
+10. notebook_test.go and language_test.go - child package contract coverage
 
 ## Invariants this package enforces
 

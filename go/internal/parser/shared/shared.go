@@ -40,10 +40,11 @@ type Options struct {
 	GoImportedInterfaceParamMethods GoImportedInterfaceParamMethods
 	GoDirectMethodCallRoots         GoDirectMethodCallRoots
 	GoPackageImportPath             string
-	// GoEmitDataflow opts the Go parser into emitting per-function control-flow
-	// and reaching-definition facts. Off by default; the payload is
+	// EmitDataflow opts the parser into emitting per-function control-flow and
+	// reaching-definition facts, taint findings, and interprocedural findings for
+	// every value-flow-capable language. Off by default; the payload is
 	// byte-identical to before this feature when off.
-	GoEmitDataflow bool
+	EmitDataflow bool
 }
 
 // NormalizedVariableScope returns the canonical scope used by language

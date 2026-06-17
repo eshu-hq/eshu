@@ -12,8 +12,9 @@ toward Python value-flow taint (epic #2705, issue #2826).
 This package owns the Python tree-sitter-to-CFG lowering and binding extraction.
 It does NOT own the dataflow algorithm (`internal/parser/cfg`), taint semantics,
 source/sink catalogs, or summary composition — those are language neutral and
-shared. It does not emit parser payload buckets; wiring into the `python`
-adapter's payload is a later step.
+shared. It does not emit parser payload buckets directly; the `python` adapter
+(`cfg_emit.go`) drives this lowering and renders the `dataflow_functions`,
+`taint_findings`, and `interproc_findings` buckets behind `Options.EmitDataflow`.
 
 ## Exported surface
 

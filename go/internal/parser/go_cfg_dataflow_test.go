@@ -41,7 +41,7 @@ func TestGoDataflowOffIsByteIdentical(t *testing.T) {
 		t.Fatalf("dataflow_functions present when gate off")
 	}
 
-	on, err := engine.ParsePath(repoRoot, filePath, false, Options{GoEmitDataflow: true})
+	on, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
 	if err != nil {
 		t.Fatalf("ParsePath (on) error = %v", err)
 	}
@@ -69,7 +69,7 @@ func TestGoDataflowEmitsReachingDefs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
 	}
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{GoEmitDataflow: true})
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{EmitDataflow: true})
 	if err != nil {
 		t.Fatalf("ParsePath error = %v", err)
 	}
