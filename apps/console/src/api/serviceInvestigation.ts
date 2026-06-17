@@ -1,3 +1,74 @@
+import { EshuApiHttpError, type EshuApiClient } from "./client";
+import type { EshuError, EshuTruth } from "./envelope";
+
+// ServiceReportResult is the source-backed payload behind the report-mode page.
+// On any API failure it carries the error with an empty investigation, so the
+// page renders an explicit failure state instead of stale or invented findings.
+export interface ServiceReportResult {
+  readonly contextPath: string;
+  readonly error: EshuError | null;
+  readonly investigation: ServiceInvestigation;
+  readonly serviceName: string;
+  readonly storyPath: string;
+  readonly truth: EshuTruth | null;
+}
+
+// loadServiceInvestigation fetches the bounded service investigation packet and
+// normalizes it. It is read-only and performs no synthesis; a non-2xx envelope
+// returns the error with `emptyServiceInvestigation`.
+export async function loadServiceInvestigation(
+  client: EshuApiClient,
+  serviceName: string
+): Promise<ServiceReportResult> {
+  const trimmed = serviceName.trim();
+  try {
+    const env = await client.get<ServiceInvestigationResponse>(
+      `/api/v0/investigations/services/${encodeURIComponent(trimmed)}`
+    );
+    if (env.error !== null || env.data === null) {
+      return reportError(trimmed, env.error ?? requestFailedError());
+    }
+    return {
+      contextPath: env.data.service_context_path ?? "",
+      error: null,
+      investigation: normalizeServiceInvestigation(env.data),
+      serviceName: trimmed,
+      storyPath: env.data.service_story_path ?? "",
+      truth: env.truth
+    };
+  } catch (error) {
+    // The client throws EshuApiHttpError on non-2xx (404/400/409/5xx) and on
+    // timeouts. Convert it to an explicit error result so the page renders the
+    // failure state instead of leaving a previously loaded report on screen.
+    return reportError(trimmed, eshuErrorFromThrown(error));
+  }
+}
+
+function reportError(serviceName: string, error: EshuError): ServiceReportResult {
+  return {
+    contextPath: "",
+    error,
+    investigation: emptyServiceInvestigation,
+    serviceName,
+    storyPath: "",
+    truth: null
+  };
+}
+
+function eshuErrorFromThrown(error: unknown): EshuError {
+  if (error instanceof EshuApiHttpError) {
+    return error.error ?? { code: `http_${error.status}`, message: error.message };
+  }
+  return requestFailedError(error);
+}
+
+function requestFailedError(error?: unknown): EshuError {
+  return {
+    code: "request_failed",
+    message: error instanceof Error ? error.message : "service investigation request failed"
+  };
+}
+
 export interface ServiceInvestigation {
   readonly coverage: {
     readonly reason: string;
@@ -43,6 +114,8 @@ export interface ServiceInvestigationResponse {
   readonly recommended_next_calls?: readonly InvestigationNextCallRecord[];
   readonly repositories_considered?: readonly InvestigationRepositoryRecord[];
   readonly repositories_with_evidence?: readonly InvestigationRepositoryRecord[];
+  readonly service_context_path?: string;
+  readonly service_story_path?: string;
 }
 
 interface InvestigationFindingRecord {

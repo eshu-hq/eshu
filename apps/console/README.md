@@ -149,8 +149,31 @@ graph. It is purely source-backed:
   node/edge counts so a bounded subset is never read as the full picture.
 - Empty, unsupported, partial, and error states are first-class UI. The page
   never renders a stale graph when the story or derive route fails.
+- Selecting a node or edge opens an **evidence drawer** (`EvidenceDrawer`) that
+  shows the truth label, packet truth basis/level/freshness, the source evidence
+  handle (with a link into repository source when present), limitations, and
+  recommended next calls. Missing optional fields render an explicit
+  "not provided" state and unknown truth labels render literally, so the drawer
+  never hides uncertainty or collapses on partial data. It is keyboard-closable
+  (Escape) and focuses its close control on open.
 
 See `docs/public/reference/visualization-packets.md` for the packet contract.
+
+## Service Intelligence Report
+
+The Service Report page (`/service-report`, `/service-report/:serviceName`)
+renders the service investigation packet from
+`GET /api/v0/investigations/services/{service_name}` in report mode: coverage
+state (complete/partial/unknown), evidence families, findings, repository scope,
+and suggested investigations.
+
+- Complete, partial, unsupported, empty, stale, and API-failure states are all
+  preserved as visible UI; the page never shows stale report content on error.
+- Suggested investigations are clickable **only** when the backing tool maps to a
+  console destination with valid inputs (e.g. `get_service_story` → the evidence
+  graph for the same service). Tools with no console destination render as plain
+  text so the operator still sees the recommendation without a dead link.
+- The page links into the evidence graph view for the same service.
 
 ## Related Docs
 

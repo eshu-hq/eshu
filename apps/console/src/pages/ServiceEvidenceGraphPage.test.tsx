@@ -241,15 +241,26 @@ describe("ServiceEvidenceGraphPage", () => {
     await waitFor(() => expect(screen.queryByText("billing")).not.toBeInTheDocument());
   });
 
-  it("selects a node and shows its evidence summary", async () => {
+  it("selects a node and opens the evidence drawer", async () => {
     const { client } = clientFor(deriveEnvelope(supportedPacket()));
     renderAt("/service-story/payments", client);
 
     const billing = await screen.findByText("billing");
     fireEvent.click(billing);
 
-    const selected = await screen.findByTestId("seg-selection");
-    expect(within(selected).getByText("billing")).toBeInTheDocument();
-    expect(within(selected).getByText(/upstream/)).toBeInTheDocument();
+    const drawer = await screen.findByRole("dialog");
+    expect(within(drawer).getByText("billing")).toBeInTheDocument();
+    expect(within(drawer).getByText(/upstream/)).toBeInTheDocument();
+  });
+
+  it("selects an edge from the relationships list and opens the drawer", async () => {
+    const { client } = clientFor(deriveEnvelope(supportedPacket()));
+    renderAt("/service-story/payments", client);
+
+    await screen.findByText("billing");
+    fireEvent.click(screen.getByRole("button", { name: /DEPENDS_ON/ }));
+
+    const drawer = await screen.findByRole("dialog");
+    expect(within(drawer).getByText("DEPENDS_ON")).toBeInTheDocument();
   });
 });
