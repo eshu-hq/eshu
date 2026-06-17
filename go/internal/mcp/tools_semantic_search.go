@@ -56,6 +56,12 @@ func semanticSearchTools() []ToolDefinition {
 					},
 					"description": "Optional curated document source-kind filter.",
 				},
+				"rerank": map[string]any{
+					"type": "boolean",
+					"description": "Opt into graph-neighborhood reranking over the in-scope results. " +
+						"When true the response reports the reranking state, per-result ranking basis, " +
+						"and recommended next calls. Off by default.",
+				},
 			},
 			"required": []any{"repo_id", "query", "mode", "limit", "timeout_ms"},
 		},

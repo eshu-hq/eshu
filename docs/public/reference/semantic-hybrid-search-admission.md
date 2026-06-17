@@ -113,6 +113,33 @@ Implementation proof must record:
 The proof must compare the same query suite against the persisted keyword
 baseline and the semantic or hybrid candidate.
 
+## Graph-Neighborhood Reranking
+
+Reranking (`internal/searchrerank`) is an opt-in stage that reorders the
+already-retrieved, in-scope results around code-to-cloud graph anchors. It is
+admitted under the same truth boundary as retrieval: it is a permutation of the
+retrieved set that never creates, removes, or relabels a result, and it derives
+graph proximity only from the graph handles already on each curated document, so
+it performs no extra graph read or write and promotes no score to canonical
+truth.
+
+A request opts in with `rerank: true`. The response then reports a `rerank.state`
+that an operator and client can rely on:
+
+| Rerank state | Meaning |
+| --- | --- |
+| `applied` | At least one graph signal fired and the results were fused into a graph-aware order. |
+| `inactive` | Reranking was requested but no graph signal fired; the baseline order is returned unchanged. |
+| `stale_skipped` | Graph context was stale, so reranking failed closed to the baseline order. |
+
+Reranking must fail closed (return the baseline order with an explicit state)
+whenever it is not requested, no signal fires, or graph context is stale. It must
+never reorder results it was not given, and the per-result `ranking_basis` must
+preserve the baseline rank and lexical/vector score. Adoption requires measured
+benchmark evidence that reranking improves quality without regressing the
+no-signal case; the accept decision and nDCG lift are recorded in
+[issue-2678 graph-rerank evidence](searchbench-evidence/2678-graph-rerank.md).
+
 ## Failure Classes
 
 Search responses, status, logs, and metrics must use bounded failure classes:
@@ -144,6 +171,7 @@ uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
   mkdocs build --strict --clean --config-file docs/mkdocs.yml
 go test ./internal/searchretrieval ./internal/searchdocs ./internal/searchbench \
   ./internal/searchnornicdb ./internal/searchpostgres ./internal/searchhybrid \
+  ./internal/searchrerank \
   -count=1
 git diff --check
 ```
