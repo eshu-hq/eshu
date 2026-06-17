@@ -120,8 +120,13 @@ eshu component extraction-readiness jira --verbose --json
 PagerDuty is the first extraction proof target for this policy. The reference
 proof for the out-of-tree boundary is complete: a PagerDuty reference collector
 runs as a trusted out-of-tree component package, claims work through the hosted
-component-extension worker with no core handles, and its facts reach the reducer
-and the API/MCP read model with parity to the in-tree path. The hosted
+component-extension worker with no core handles, and commits validated facts
+through the existing `collector.ClaimedService` boundary. The proof establishes
+the extraction *mechanics* — packaging, trust, claim execution, fact-shape
+parity, Compose proof, redaction, and operator evidence. It does not change which
+facts the reducer materializes: the reference component emits namespaced example
+facts, and the incident-routing reducer/graph/query readback continues to consume
+only the in-tree collector's fact kinds (see the caveats below). The hosted
 component-extension surfaces it exercises — `list_component_extensions` and
 `get_component_extension_diagnostics` — are generally available in the
 [capability catalog](capability-catalog.md). The following stages are done and
@@ -132,8 +137,8 @@ are guarded by tracked tests, scripts, and proof artifacts.
 | Reference package | Reference PagerDuty component package on `collector-sdk/v1alpha1` with a digest-pinned artifact. | Complete | `examples/collector-extensions/pagerduty/manifest.yaml` |
 | Trust boundary | Trust verification in `allowlist` or `strict` mode with revocation behavior documented. | Complete | `go/internal/runtime` Helm component-extension contract tests; [Plugin Trust Model](plugin-trust-model.md) |
 | Claim-capable execution | Execution through `collector-component-extension` with no core handles exposed. | Complete | `go/cmd/collector-component-extension`, `go/internal/collector/extensionhost` |
-| Fact parity | Fact parity with the in-tree PagerDuty path for synthetic incident and routing fixtures. | Complete | `go test ./internal/collector/pagerduty -run ReferenceComponent` |
-| Reducer and read parity | Reducer admission and graph/query readback for the outcomes the PagerDuty evidence contract defines. | Complete (conservative) | `go/internal/reducer/incident_routing_evidence_rows.go`, `go/internal/storage/cypher/incident_routing_evidence_writer.go`, `go/internal/query/incident_context_routing.go` |
+| Fact-shape parity | The reference component's SDK result matches the in-tree PagerDuty fact contract on schema version, stable key, confidence, source ref, and payload for synthetic fixtures. The reference component's fact **kinds** are namespaced (`dev.eshu.examples.pagerduty.*`), distinct from the core kinds, so they are not interchangeable core facts. | Complete | `go test ./internal/collector/pagerduty -run ReferenceComponent` |
+| Reducer and read materialization | Conservative incident-routing materialization and graph/query readback exists for the **in-tree** collector's fact kinds. The reference component emits namespaced example facts that are committed as source evidence only and are **not** consumed by this readback. | In-tree only; not proven via the extension path | `go/internal/reducer/incident_routing_evidence_rows.go`, `go/internal/storage/cypher/incident_routing_evidence_writer.go`, `go/internal/query/incident_context_routing.go` |
 | Remote Compose proof | Remote Compose proof with default-off Helm wiring before hosted chart defaults. | Complete | `docs/public/run-locally/docker-compose.component-extension-pagerduty.yaml`, `scripts/verify-remote-e2e-pagerduty-component-extension.sh` |
 | Private-data proof | Tokens, private endpoints, responder identities, payloads, paths, and names redacted or rejected. | Complete | Redaction canary in `scripts/verify-remote-e2e-pagerduty-component-extension.sh`; reference component redaction test |
 | Operator evidence | Health, readiness, metrics, logs, status, retries, dead letters, fact counts, and freshness. | Complete | Proof artifacts and `/admin/status`, `/healthz`, `/readyz`, `/metrics` on the component-extension worker |
@@ -141,6 +146,13 @@ are guarded by tracked tests, scripts, and proof artifacts.
 Completing this boundary proof does not move PagerDuty out of tree for
 production correlation. The following are intentional, still-open caveats:
 
+- The reference component emits namespaced example facts
+  (`dev.eshu.examples.pagerduty.*`). They are committed as source evidence
+  through the claim boundary but are **not** consumed by the incident-routing
+  reducer, graph writer, or API/MCP readback, which key on the in-tree
+  collector's `incident_routing.*` and `incident.record` kinds. Disabling the
+  in-tree collector in favor of the reference component would therefore commit
+  facts that the incident-routing readback silently skips.
 - The Helm component-extension wiring is default-off. Enabling it is an explicit
   operator opt-in, not a production default.
 - Reducer graph materialization is deliberately conservative. It promotes
