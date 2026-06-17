@@ -29,20 +29,27 @@ type lowerer struct {
 	source  []byte
 }
 
-// lowerStmtList lowers each statement in a block in source order.
-func (l *lowerer) lowerStmtList(blockNode *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID {
+// lowerStmtList lowers each statement in a block in source order. It returns the
+// block control reaches after the list and whether control falls through (false
+// once a statement terminates flow, for example a return, so later statements are
+// unreachable and not lowered).
+func (l *lowerer) lowerStmtList(blockNode *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
 	cursor := blockNode.Walk()
 	defer cursor.Close()
 	for _, child := range blockNode.NamedChildren(cursor) {
 		child := child
-		cur = l.lowerStmt(&child, cur)
+		next, reachable := l.lowerStmt(&child, cur)
+		cur = next
+		if !reachable {
+			return cur, false
+		}
 	}
-	return cur
+	return cur, true
 }
 
-// lowerStmt lowers a single statement and returns the block control reaches after
-// it.
-func (l *lowerer) lowerStmt(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID {
+// lowerStmt lowers a single statement, returning the block control reaches after
+// it and whether control falls through. A return or raise terminates flow.
+func (l *lowerer) lowerStmt(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
 	switch node.Kind() {
 	case "block":
 		return l.lowerStmtList(node, cur)
@@ -52,12 +59,15 @@ func (l *lowerer) lowerStmt(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID
 		return l.lowerFor(node, cur)
 	case "while_statement":
 		return l.lowerWhile(node, cur)
+	case "return_statement", "raise_statement":
+		l.addUses(cur, node)
+		return cur, false
 	case "expression_statement":
 		l.lowerExpressionStatement(node, cur)
-		return cur
+		return cur, true
 	default:
 		l.addUses(cur, node)
-		return cur
+		return cur, true
 	}
 }
 
@@ -92,25 +102,31 @@ func (l *lowerer) lowerInlineExpr(expr *tree_sitter.Node, block cfg.BlockID) {
 // false path leads to the next alternative, not directly to the merge — branching
 // every alternative from the if condition would let a pre-if definition leak
 // through an elif's fall-through (a false reaching definition).
-func (l *lowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID {
+func (l *lowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
 	if cond := node.ChildByFieldName("condition"); cond != nil {
 		l.addUses(cur, cond)
 	}
 	merge := l.builder.AddBlock()
+	mergeReachable := false
 
 	thenBlk := l.builder.AddBlock()
 	l.builder.AddEdge(cur, thenBlk)
+	thenReach := true
 	if cons := node.ChildByFieldName("consequence"); cons != nil {
-		thenBlk = l.lowerStmt(cons, thenBlk)
+		thenBlk, thenReach = l.lowerStmt(cons, thenBlk)
 	}
-	l.builder.AddEdge(thenBlk, merge)
+	if thenReach {
+		l.builder.AddEdge(thenBlk, merge)
+		mergeReachable = true
+	}
 
 	cursor := node.Walk()
 	defer cursor.Close()
 	alternatives := node.ChildrenByFieldName("alternative", cursor)
 	if len(alternatives) == 0 {
+		// No else: the condition-false path falls through to the merge.
 		l.builder.AddEdge(cur, merge)
-		return merge
+		return merge, true
 	}
 
 	// chain is the block reached when every preceding condition was false.
@@ -126,32 +142,41 @@ func (l *lowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID {
 			}
 			thenElif := l.builder.AddBlock()
 			l.builder.AddEdge(chain, thenElif)
+			elifReach := true
 			if cons := alt.ChildByFieldName("consequence"); cons != nil {
-				thenElif = l.lowerStmt(cons, thenElif)
+				thenElif, elifReach = l.lowerStmt(cons, thenElif)
 			}
-			l.builder.AddEdge(thenElif, merge)
+			if elifReach {
+				l.builder.AddEdge(thenElif, merge)
+				mergeReachable = true
+			}
 			next := l.builder.AddBlock()
 			l.builder.AddEdge(chain, next)
 			chain = next
 		case "else_clause":
 			end := chain
+			elseReach := true
 			if body := alt.ChildByFieldName("body"); body != nil {
-				end = l.lowerStmt(body, chain)
+				end, elseReach = l.lowerStmt(body, chain)
 			}
-			l.builder.AddEdge(end, merge)
+			if elseReach {
+				l.builder.AddEdge(end, merge)
+				mergeReachable = true
+			}
 			chainOpen = false
 		}
 	}
 	if chainOpen {
 		// No else: the last elif's false path falls through to the merge.
 		l.builder.AddEdge(chain, merge)
+		mergeReachable = true
 	}
-	return merge
+	return merge, mergeReachable
 }
 
 // lowerFor lowers a for-in loop: the loop target is defined each iteration from
 // the iterable, with a back-edge from the body to the header.
-func (l *lowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID {
+func (l *lowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
 	header := l.builder.AddBlock()
 	l.builder.AddEdge(cur, header)
 	var defs, uses []string
@@ -165,17 +190,21 @@ func (l *lowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID 
 
 	body := l.builder.AddBlock()
 	l.builder.AddEdge(header, body)
+	bodyReach := true
 	if b := node.ChildByFieldName("body"); b != nil {
-		body = l.lowerStmt(b, body)
+		body, bodyReach = l.lowerStmt(b, body)
 	}
-	l.builder.AddEdge(body, header)
+	if bodyReach {
+		l.builder.AddEdge(body, header) // back-edge only when the body falls through
+	}
 	exit := l.builder.AddBlock()
 	l.builder.AddEdge(header, exit)
-	return exit
+	// The loop may run zero times, so control after it is always reachable.
+	return exit, true
 }
 
 // lowerWhile lowers a while loop with a back-edge from the body to the header.
-func (l *lowerer) lowerWhile(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID {
+func (l *lowerer) lowerWhile(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
 	header := l.builder.AddBlock()
 	l.builder.AddEdge(cur, header)
 	if cond := node.ChildByFieldName("condition"); cond != nil {
@@ -183,13 +212,16 @@ func (l *lowerer) lowerWhile(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockI
 	}
 	body := l.builder.AddBlock()
 	l.builder.AddEdge(header, body)
+	bodyReach := true
 	if b := node.ChildByFieldName("body"); b != nil {
-		body = l.lowerStmt(b, body)
+		body, bodyReach = l.lowerStmt(b, body)
 	}
-	l.builder.AddEdge(body, header)
+	if bodyReach {
+		l.builder.AddEdge(body, header)
+	}
 	exit := l.builder.AddBlock()
 	l.builder.AddEdge(header, exit)
-	return exit
+	return exit, true
 }
 
 // addStmt records a statement on a block when it carries at least one binding.

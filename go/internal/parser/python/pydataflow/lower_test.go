@@ -159,3 +159,44 @@ func TestLowerForLoopBackEdge(t *testing.T) {
 		}
 	}
 }
+
+// TestLowerReturnTerminatesBranch proves a definition in a branch that returns
+// does NOT reach code after the if — the returned branch terminates flow rather
+// than falling through to the merge (which would be a false reaching definition).
+func TestLowerReturnTerminatesBranch(t *testing.T) {
+	t.Parallel()
+
+	src := "def f(cond):\n" +
+		"    x = safe\n" +
+		"    if cond:\n" +
+		"        x = tainted\n" +
+		"        return x\n" +
+		"    sink(x)\n"
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+
+	if !contains(got, "x:2->6") {
+		t.Fatalf("sink(x) should see the pre-if x=safe (line 2); got %v", got)
+	}
+	if contains(got, "x:4->6") {
+		t.Fatalf("x=tainted in the returned branch (line 4) leaked to sink(x) line 6: %v", got)
+	}
+}
+
+// TestLowerKeywordArgNameNotAUse proves a keyword argument name (sink(user=value))
+// is not recorded as a variable use, only its value side is.
+func TestLowerKeywordArgNameNotAUse(t *testing.T) {
+	t.Parallel()
+
+	src := "def g(user, value):\n" +
+		"    sink(user=value)\n"
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+
+	if !contains(got, "value:1->2") {
+		t.Fatalf("the keyword value (value) should be a use; got %v", got)
+	}
+	if contains(got, "user:1->2") {
+		t.Fatalf("the keyword name (user) was wrongly recorded as a variable use: %v", got)
+	}
+}

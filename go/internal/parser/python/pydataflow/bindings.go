@@ -131,6 +131,14 @@ func exprUses(node *tree_sitter.Node, source []byte) []string {
 			}
 			return
 		}
+		if current.Kind() == "keyword_argument" {
+			// Only the value of name=value is a use; the keyword name is not a
+			// variable, so visiting it would invent a use of a same-named binding.
+			if value := current.ChildByFieldName("value"); value != nil {
+				visit(value)
+			}
+			return
+		}
 		if current.Kind() == "identifier" {
 			if name := nodeText(current, source); name != "" {
 				uses = append(uses, name)
