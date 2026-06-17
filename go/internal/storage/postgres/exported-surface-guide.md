@@ -262,14 +262,18 @@ reducer/query adapter.
   `SharedIntentSchemaSQL`, `SharedProjectionAcceptanceSchemaSQL`,
   `GraphProjectionPhaseStateSchemaSQL`, `GraphProjectionPhaseRepairQueueSchemaSQL`,
   `WorkflowControlSchemaSQL`, `WorkflowCoordinatorStateSchemaSQL`,
-  `IaCReachabilitySchemaSQL`, `VulnerabilitySourceStateSchemaSQL`,
-  `TenantWorkspaceGrantSchemaSQL`, `ScopedAPITokenSchemaSQL`,
+  `IaCReachabilitySchemaSQL`, `CodeReachabilitySchemaSQL`,
+  `VulnerabilitySourceStateSchemaSQL`, `TenantWorkspaceGrantSchemaSQL`,
+  `ScopedAPITokenSchemaSQL`,
   `EshuSearchVectorMetadataSchemaSQL`, `EshuSearchVectorValuesSchemaSQL`
 
 **IaC reachability**
 
 - `IaCReachabilityStore` / `NewIaCReachabilityStore` — IaC-to-workload
   reachability rows; `IaCReachabilityRow`, `IaCReachability`, `IaCFinding`
+- `CodeReachabilityStore` / `NewCodeReachabilityStore` — reducer-materialized
+  code reachable-set rows keyed by active source generation; dead-code reads use
+  `ListLatestByEntities` before falling back to completed shared intents.
 
 **Freshness checks** (implement `reducer` interfaces)
 

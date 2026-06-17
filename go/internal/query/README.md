@@ -11,8 +11,9 @@ Code-quality routes also classify graph-derived findings before they reach
 HTTP, MCP, or CLI callers; `code_quality.dead_code` returns candidate evidence,
 language maturity, exclusions, and truth metadata instead of presenting a raw
 Cypher scan as a cleanup list. The dead-code incoming-edge probe is
-provenance-weighted (#2719): a candidate reachable only by a weak
-`repo_unique_name` edge classifies as `ambiguous` rather than confidently
+provenance-weighted (#2719) and now prefers reducer-materialized
+`code_reachability_rows` (#2718): a candidate reachable only by a weak
+`repo_unique_name` path classifies as `ambiguous` rather than confidently
 reachable or `unused`.
 
 No-Regression Evidence: see the #2719 entry in

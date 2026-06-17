@@ -23,6 +23,9 @@ func (s Service) startSideRunners(
 	if s.RepoDependencyProjectionRunner != nil {
 		startServiceSideRunner(ctx, wg, recordErr, s.RepoDependencyProjectionRunner)
 	}
+	if s.CodeReachabilityProjectionRunner != nil {
+		startServiceSideRunner(ctx, wg, recordErr, s.CodeReachabilityProjectionRunner)
+	}
 	if s.GraphProjectionPhaseRepairer != nil {
 		startServiceSideRunner(ctx, wg, recordErr, s.GraphProjectionPhaseRepairer)
 	}

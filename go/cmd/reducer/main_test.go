@@ -108,6 +108,21 @@ func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 	if got := service.RepoDependencyProjectionRunner.Config.BatchLimit; got <= 0 {
 		t.Fatalf("buildReducerService() repo dependency batch limit = %d, want positive", got)
 	}
+	if service.CodeReachabilityProjectionRunner == nil {
+		t.Fatal("buildReducerService() code reachability projection runner = nil, want non-nil")
+	}
+	if service.CodeReachabilityProjectionRunner.InputLoader == nil {
+		t.Fatal("buildReducerService() code reachability input loader = nil, want non-nil")
+	}
+	if service.CodeReachabilityProjectionRunner.RowWriter == nil {
+		t.Fatal("buildReducerService() code reachability row writer = nil, want non-nil")
+	}
+	if got := service.CodeReachabilityProjectionRunner.Config.PollInterval; got <= 0 {
+		t.Fatalf("buildReducerService() code reachability poll interval = %v, want positive", got)
+	}
+	if got := service.CodeReachabilityProjectionRunner.Config.BatchLimit; got <= 0 {
+		t.Fatalf("buildReducerService() code reachability batch limit = %d, want positive", got)
+	}
 	codeCallEdgeWriter, ok := service.CodeCallProjectionRunner.EdgeWriter.(*sourcecypher.EdgeWriter)
 	if !ok {
 		t.Fatalf("code call edge writer type = %T, want *cypher.EdgeWriter", service.CodeCallProjectionRunner.EdgeWriter)

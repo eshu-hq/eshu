@@ -88,6 +88,9 @@
 // state and vector value rows persist derived numeric embeddings by active
 // generation, model, content hash, and index version without changing API/MCP
 // query behavior.
+// CodeReachabilityStore persists reducer-materialized code reachable-set rows
+// keyed by active generation so dead-code reads can use a standing lookup before
+// falling back to completed relationship intents.
 // FactStore.LoadIncidentRoutingEvidence serves the PagerDuty incident-routing
 // graph materialization domain by loading incident-scoped anchors and
 // same-generation routing facts, then resolving Terraform-source

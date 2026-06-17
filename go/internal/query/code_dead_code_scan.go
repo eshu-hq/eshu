@@ -294,7 +294,23 @@ func (h *CodeHandler) deadCodeIncomingEntityIDs(
 	}
 	incoming := make(map[string]deadCodeIncomingEdge)
 	for repoID, entityIDs := range entityIDsByRepo {
-		repoIncoming, err := content.DeadCodeIncomingEntityIDs(ctx, repoID, entityIDs)
+		legacyEntityIDs := entityIDs
+		if reachability, ok := h.Content.(codeReachabilityContentStore); ok {
+			repoIncoming, err := reachability.CodeReachabilityIncomingEntityIDs(ctx, repoID, entityIDs)
+			if err != nil {
+				return nil, err
+			}
+			if len(repoIncoming) > 0 {
+				for entityID, edge := range repoIncoming {
+					mergeStrongestDeadCodeIncomingEdge(incoming, entityID, edge)
+				}
+				legacyEntityIDs = missingDeadCodeIncomingEntityIDs(entityIDs, repoIncoming)
+				if len(legacyEntityIDs) == 0 {
+					continue
+				}
+			}
+		}
+		repoIncoming, err := content.DeadCodeIncomingEntityIDs(ctx, repoID, legacyEntityIDs)
 		if err != nil {
 			return nil, err
 		}
@@ -303,6 +319,19 @@ func (h *CodeHandler) deadCodeIncomingEntityIDs(
 		}
 	}
 	return incoming, nil
+}
+
+func missingDeadCodeIncomingEntityIDs(
+	entityIDs []string,
+	incoming map[string]deadCodeIncomingEdge,
+) []string {
+	missing := make([]string, 0, len(entityIDs))
+	for _, entityID := range entityIDs {
+		if _, ok := incoming[entityID]; !ok {
+			missing = append(missing, entityID)
+		}
+	}
+	return missing
 }
 
 func mergeStrongestDeadCodeIncomingEdge(
@@ -317,6 +346,10 @@ func mergeStrongestDeadCodeIncomingEdge(
 
 type deadCodeIncomingContentStore interface {
 	DeadCodeIncomingEntityIDs(ctx context.Context, repoID string, entityIDs []string) (map[string]deadCodeIncomingEdge, error)
+}
+
+type codeReachabilityContentStore interface {
+	CodeReachabilityIncomingEntityIDs(ctx context.Context, repoID string, entityIDs []string) (map[string]deadCodeIncomingEdge, error)
 }
 
 type deadCodeCandidateContentStore interface {

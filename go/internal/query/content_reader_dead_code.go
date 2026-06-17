@@ -105,6 +105,74 @@ func (cr *ContentReader) DeadCodeIncomingEntityIDs(
 	return incoming, nil
 }
 
+// CodeReachabilityIncomingEntityIDs returns dead-code reachability evidence
+// from reducer-materialized code_reachability_rows. This is the preferred
+// standing projection lookup; DeadCodeIncomingEntityIDs remains a compatibility
+// fallback for stores without materialized reachability.
+func (cr *ContentReader) CodeReachabilityIncomingEntityIDs(
+	ctx context.Context,
+	repoID string,
+	entityIDs []string,
+) (map[string]deadCodeIncomingEdge, error) {
+	repoID = strings.TrimSpace(repoID)
+	entityIDs = cleanDeadCodeIncomingEntityIDs(entityIDs)
+	if cr == nil || cr.db == nil || repoID == "" || len(entityIDs) == 0 {
+		return map[string]deadCodeIncomingEdge{}, nil
+	}
+
+	ctx, span := cr.tracer.Start(ctx, "postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "code_reachability_incoming_entity_ids"),
+			attribute.String("db.sql.table", "code_reachability_rows"),
+		),
+	)
+	defer span.End()
+
+	placeholders := make([]string, 0, len(entityIDs))
+	args := make([]any, 0, len(entityIDs)+1)
+	args = append(args, repoID)
+	for i, entityID := range entityIDs {
+		args = append(args, entityID)
+		placeholders = append(placeholders, fmt.Sprintf("$%d", i+2))
+	}
+	query := `
+		SELECT DISTINCT row.entity_id, row.min_resolution_method
+		FROM code_reachability_rows AS row
+		JOIN ingestion_scopes AS scope
+		  ON scope.scope_id = row.scope_id
+		 AND scope.active_generation_id = row.generation_id
+		JOIN scope_generations AS generation
+		  ON generation.generation_id = row.generation_id
+		 AND generation.status = 'active'
+		WHERE row.repository_id = $1
+		  AND row.entity_id IN (` + strings.Join(placeholders, ", ") + `)
+		  AND row.depth > 0
+	`
+	rows, err := cr.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("code reachability incoming entity ids: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	incoming := make(map[string]deadCodeIncomingEdge)
+	for rows.Next() {
+		var entityID string
+		var method sql.NullString
+		if err := rows.Scan(&entityID, &method); err != nil {
+			span.RecordError(err)
+			return nil, fmt.Errorf("scan code reachability incoming entity id: %w", err)
+		}
+		mergeDeadCodeIncomingEdge(incoming, entityID, method.String)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		return nil, err
+	}
+	return incoming, nil
+}
+
 // mergeDeadCodeIncomingEdge records the strongest incoming edge seen for
 // entityID. Confidence is derived from method via codeprovenance.Confidence, so
 // a missing or unrecorded method yields LegacyConfidence (strong) rather than a
