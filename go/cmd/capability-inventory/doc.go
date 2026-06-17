@@ -11,6 +11,7 @@
 //	report    print reconciliation findings and the entry count (default)
 //	generate  write the catalog artifact to -out
 //	verify    fail when findings exist or the embedded artifact is stale
+//	docs      fail when a docs capability-state marker contradicts the catalog
 //
 // Run from the go module directory:
 //

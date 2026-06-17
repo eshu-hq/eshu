@@ -40,6 +40,15 @@ supported unless the ceiling is `unsupported`. The overlay may override maturity
 with the operational states the matrix cannot express (`gated`, `degraded`); each
 override requires a reason. Entries record both effective and derived maturity.
 
+## Docs freshness guard
+
+`ParseDocClaims` scans markdown for `<!-- capability-state: id=<id> state=<state>
+[issue=<n>] -->` markers and `CheckDocFreshness` flags any marker that names an
+unknown capability, uses an invalid state, or contradicts the catalog maturity.
+The marker is an HTML comment, so it is invisible in rendered docs. Run it with
+`go run ./cmd/capability-inventory -mode docs`. See
+[Capability Catalog](../../../docs/public/reference/capability-catalog.md).
+
 ## Generated artifact
 
 `data/catalog.generated.json` is the committed, deterministic artifact embedded

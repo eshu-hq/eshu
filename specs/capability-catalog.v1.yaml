@@ -102,6 +102,9 @@ tool_exemptions:
     reason: operator repository index listing surface
   - tool: get_hosted_readiness
     reason: operator hosted readiness surface
+  - tool: get_collector_readiness
+    reason: operator collector family readiness surface
+    issue: 2687
 
 # Matrix-declared tools that are served through an HTTP API operation rather
 # than the MCP registry. Each name maps 1:1 to an OpenAPI operationId.
