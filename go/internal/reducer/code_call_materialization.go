@@ -155,6 +155,16 @@ func (h CodeCallMaterializationHandler) Handle(
 			handlesRouteEvidenceSource,
 		)...,
 	)
+	intentRows = append(
+		intentRows,
+		buildRunsInIntentRows(
+			envelopes,
+			entityIndex,
+			contextByRepoID,
+			createdAt,
+			runsInEvidenceSource,
+		)...,
+	)
 	intentBuildDuration := time.Since(intentBuildStart)
 
 	if len(intentRows) == 0 {

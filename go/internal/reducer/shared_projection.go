@@ -25,6 +25,14 @@ const (
 	// guarantee, so the edge rides the ordering-safe shared-projection path the
 	// same way CALLS edges do.
 	DomainHandlesRoute = "handles_route"
+	// DomainRunsIn projects Function-[:RUNS_IN]->Workload edges binding a route
+	// handler Function to the deployed runtime it runs in (#2722). It scopes to the
+	// same proven entrypoint Functions handles_route resolves and anchors each edge
+	// through the Repository the handler belongs to: a handler binds to every
+	// Workload its Repository DEFINES. Functions commit at canonical-nodes while
+	// Workloads commit at workload-materialization, so the edge rides the same
+	// ordering-safe shared-projection path and readiness gate as handles_route.
+	DomainRunsIn = "runs_in"
 )
 
 // SharedProjectionIntentRow is one durable shared-domain projection intent.
@@ -110,10 +118,11 @@ func sharedProjectionReadinessPhase(domain string) (GraphProjectionPhase, bool) 
 		return GraphProjectionPhaseCanonicalNodesCommitted, true
 	case DomainSQLRelationships, DomainInheritanceEdges, DomainDocumentationEdges, DomainRationaleEdges:
 		return GraphProjectionPhaseSemanticNodesCommitted, true
-	case DomainHandlesRoute:
-		// Endpoints commit at workload-materialization; Functions commit earlier
-		// at canonical-nodes. Gating on workload-materialization guarantees both
-		// MATCH targets exist before the HANDLES_ROUTE MERGE runs (#2721).
+	case DomainHandlesRoute, DomainRunsIn:
+		// Endpoints (handles_route) and Workloads (runs_in) both commit at
+		// workload-materialization; Functions commit earlier at canonical-nodes.
+		// Gating on workload-materialization guarantees both MATCH targets exist
+		// before the MERGE runs (#2721, #2722).
 		return GraphProjectionPhaseWorkloadMaterialization, true
 	default:
 		return "", false
@@ -124,13 +133,13 @@ func sharedProjectionReadinessPhase(domain string) (GraphProjectionPhase, bool) 
 // readiness phase gates a domain's edge projection. The generic shared
 // projection worker reads this so each domain's readiness lookup targets the
 // keyspace its prerequisite phase was published under: code_calls and the
-// semantic edge domains key on code_entities_uid, while handles_route keys on
-// service_uid because the workload_materialization phase that commits Endpoint
-// nodes is published under the service identity keyspace (#2721). A wrong
-// keyspace here would make the readiness lookup miss forever and silently drop
-// every edge.
+// semantic edge domains key on code_entities_uid, while handles_route and
+// runs_in key on service_uid because the workload_materialization phase that
+// commits Endpoint and Workload nodes is published under the service identity
+// keyspace (#2721, #2722). A wrong keyspace here would make the readiness lookup
+// miss forever and silently drop every edge.
 func sharedProjectionReadinessKeyspace(domain string) GraphProjectionKeyspace {
-	if domain == DomainHandlesRoute {
+	if domain == DomainHandlesRoute || domain == DomainRunsIn {
 		return GraphProjectionKeyspaceServiceUID
 	}
 	return GraphProjectionKeyspaceCodeEntitiesUID
