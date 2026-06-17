@@ -223,6 +223,15 @@ func NewAnswerPacketFromCitations(in AnswerPacketInput, citation evidenceCitatio
 	return NewAnswerPacket(in)
 }
 
+// ClassifyAnswerTruth is the exported wrapper over the canonical answer-truth
+// classifier. It lets sibling packages (for example the answer-quality
+// scorecard) re-derive the prompt-facing AnswerTruthClass a TruthEnvelope should
+// map to, so they can detect a section whose serialized truth class was upgraded
+// relative to its envelope without duplicating the mapping.
+func ClassifyAnswerTruth(truth *TruthEnvelope) AnswerTruthClass {
+	return classifyAnswerTruth(truth)
+}
+
 // classifyAnswerTruth folds an existing TruthEnvelope into a single prompt-facing
 // AnswerTruthClass. A nil envelope means there is no truth to classify and maps
 // to AnswerTruthUnsupported. The ordered rules are documented in

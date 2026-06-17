@@ -97,16 +97,26 @@ func scoreReportCitationCoverage(report serviceintel.Report) CriterionScore {
 }
 
 // scoreReportTruthClassPreservation rejects a report that upgrades or invents a
-// truth class: an unsupported section claiming a non-unsupported class, or a
-// report-level class that does not match the identity anchor.
+// truth class: an unsupported section claiming a non-unsupported class, a
+// supported section whose class is upgraded relative to its own truth envelope,
+// or a report-level class that does not match the identity anchor.
 func scoreReportTruthClassPreservation(report serviceintel.Report) CriterionScore {
 	for _, section := range report.Sections {
-		if section.Answer.Supported {
+		if !section.Answer.Supported {
+			if section.Answer.TruthClass != "" && section.Answer.TruthClass != query.AnswerTruthUnsupported {
+				return fail(CriterionTruthClassPreservation,
+					fmt.Sprintf("unsupported section %s claims truth class %q", section.Kind, section.Answer.TruthClass))
+			}
 			continue
 		}
-		if section.Answer.TruthClass != "" && section.Answer.TruthClass != query.AnswerTruthUnsupported {
-			return fail(CriterionTruthClassPreservation,
-				fmt.Sprintf("unsupported section %s claims truth class %q", section.Kind, section.Answer.TruthClass))
+		// A supported section's class must match what its truth envelope maps to;
+		// a content-index or fallback truth serialized as deterministic is an
+		// upgrade the report must not pass.
+		if section.Answer.Truth != nil {
+			if want := query.ClassifyAnswerTruth(section.Answer.Truth); section.Answer.TruthClass != want {
+				return fail(CriterionTruthClassPreservation,
+					fmt.Sprintf("section %s truth class %q does not match its envelope (%q)", section.Kind, section.Answer.TruthClass, want))
+			}
 		}
 	}
 	if anchor, ok := identitySection(report); ok {
@@ -201,10 +211,16 @@ func mentionsTruncation(values []string) bool {
 	return false
 }
 
+// executableCall reports whether a next call names a runnable target. A call
+// that references a query playbook must name one that actually exists in the
+// catalog (a typoed playbook id is not executable, even alongside a tool or
+// route); otherwise it must name a tool or route.
 func executableCall(call serviceintel.NextCall) bool {
-	return strings.TrimSpace(call.Tool) != "" ||
-		strings.TrimSpace(call.Route) != "" ||
-		strings.TrimSpace(call.Playbook) != ""
+	if playbook := strings.TrimSpace(call.Playbook); playbook != "" {
+		_, ok := query.LookupPlaybook(playbook)
+		return ok
+	}
+	return strings.TrimSpace(call.Tool) != "" || strings.TrimSpace(call.Route) != ""
 }
 
 // nextCallsFromAnswer renders an answer packet's recommended_next_calls into the

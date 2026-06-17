@@ -133,6 +133,33 @@ func ReportCorpus() []ReportFixture {
 		ExpectFailing: []CriterionName{CriterionUnsupportedClaimAvoidance},
 	})
 
+	upgradedSupportedTruth := honestCompleteReport()
+	mutateSection(&upgradedSupportedTruth, serviceintel.SectionSupplyChain, func(s *serviceintel.ReportSection) {
+		// Content-index truth serialized as deterministic: an upgrade vs the
+		// section's own envelope that the criterion must catch.
+		s.Answer.Truth = &query.TruthEnvelope{Level: query.TruthLevelDerived, Basis: query.TruthBasisContentIndex}
+		s.Answer.TruthClass = query.AnswerTruthDeterministic
+	})
+	fixtures = append(fixtures, ReportFixture{
+		Name:          "supported_section_truth_upgrade",
+		Report:        upgradedSupportedTruth,
+		ExpectFailing: []CriterionName{CriterionTruthClassPreservation},
+	})
+
+	typoedPlaybook := honestCompleteReport()
+	typoedPlaybook.Investigations = append(typoedPlaybook.Investigations, serviceintel.SuggestedInvestigation{
+		ID:       "broken:typoed_playbook",
+		Section:  serviceintel.SectionSupplyChain,
+		Basis:    serviceintel.BasisUnsupportedLane,
+		Reason:   "this suggestion names a playbook that does not exist",
+		NextCall: serviceintel.NextCall{Playbook: "service_story_citaton"}, // typo
+	})
+	fixtures = append(fixtures, ReportFixture{
+		Name:          "nonexistent_playbook_next_call",
+		Report:        typoedPlaybook,
+		ExpectFailing: []CriterionName{CriterionNextCallExecutability},
+	})
+
 	return fixtures
 }
 
