@@ -42,6 +42,20 @@ func TestValidateHostedGrowthPostgresProofRejectsInvalidEvidence(t *testing.T) {
 			want: "relation fact_records write p95 latency must be positive",
 		},
 		{
+			name: "missing relation observation timestamp",
+			mutate: func(proof *HostedGrowthPostgresProof) {
+				proof.Relations[0].ObservedAt = time.Time{}
+			},
+			want: "relation fact_records observed_at is required",
+		},
+		{
+			name: "unbounded relation evidence",
+			mutate: func(proof *HostedGrowthPostgresProof) {
+				proof.Relations[0].BoundedEvidence = false
+			},
+			want: "relation fact_records evidence must be bounded",
+		},
+		{
 			name: "missing queue drain evidence",
 			mutate: func(proof *HostedGrowthPostgresProof) {
 				proof.QueueDrain.CompletedRows = 0
@@ -110,6 +124,13 @@ func TestValidateHostedGrowthPostgresProofRejectsInvalidEvidence(t *testing.T) {
 				proof.QueueDrain.StaleRows = 0
 			},
 			want: "queue drain must include retry, dead-letter, and stale rows",
+		},
+		{
+			name: "non reducer queue surface",
+			mutate: func(proof *HostedGrowthPostgresProof) {
+				proof.QueueDrain.QueueSurface = QueueSurfaceWorkflow
+			},
+			want: "queue drain surface must be reducer",
 		},
 		{
 			name: "operator gate not hosted growth",

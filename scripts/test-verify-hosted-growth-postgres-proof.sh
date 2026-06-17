@@ -23,10 +23,10 @@ write_safe_proof() {
 			eshu_commit: "commit-2749",
 			profile: "hosted_growth",
 			relations: [
-				{relation: "fact_records", row_count: 3200000, index_bytes: 409600000, total_bytes: 1228800000, read_p95_ns: 75000000, write_p95_ns: 95000000},
-				{relation: "fact_work_items", row_count: 180000, index_bytes: 23040000, total_bytes: 69120000, read_p95_ns: 40000000, write_p95_ns: 55000000},
-				{relation: "shared_projection_intents", row_count: 45000, index_bytes: 5760000, total_bytes: 17280000, read_p95_ns: 25000000, write_p95_ns: 35000000},
-				{relation: "shared_projection_acceptance", row_count: 43000, index_bytes: 5504000, total_bytes: 16512000, read_p95_ns: 25000000, write_p95_ns: 35000000}
+				{relation: "fact_records", row_count: 3200000, index_bytes: 409600000, total_bytes: 1228800000, read_p95_ns: 75000000, write_p95_ns: 95000000, observed_at: "2026-06-17T03:00:00Z", bounded_evidence: true},
+				{relation: "fact_work_items", row_count: 180000, index_bytes: 23040000, total_bytes: 69120000, read_p95_ns: 40000000, write_p95_ns: 55000000, observed_at: "2026-06-17T03:00:00Z", bounded_evidence: true},
+				{relation: "shared_projection_intents", row_count: 45000, index_bytes: 5760000, total_bytes: 17280000, read_p95_ns: 25000000, write_p95_ns: 35000000, observed_at: "2026-06-17T03:00:00Z", bounded_evidence: true},
+				{relation: "shared_projection_acceptance", row_count: 43000, index_bytes: 5504000, total_bytes: 16512000, read_p95_ns: 25000000, write_p95_ns: 35000000, observed_at: "2026-06-17T03:00:00Z", bounded_evidence: true}
 			],
 			queue_drain: {
 				queue_surface: "reducer",
@@ -39,7 +39,9 @@ write_safe_proof() {
 				failed_rows: 3,
 				oldest_age_ns: 300000000000,
 				drain_duration_ns: 720000000000,
-				worker_count: 8
+				worker_count: 8,
+				observed_at: "2026-06-17T03:00:00Z",
+				bounded_evidence: true
 			},
 			migration: {
 				native_partitioning: false,
@@ -153,6 +155,26 @@ expect_pass safe "${safe_input}"
 missing_relation="${tmp_dir}/missing-relation.json"
 jq 'del(.relations[] | select(.relation == "fact_records"))' "${safe_input}" >"${missing_relation}"
 expect_fail missing_relation "${missing_relation}" "missing required relations: fact_records"
+
+unbounded_relation="${tmp_dir}/unbounded-relation.json"
+jq 'del(.relations[].bounded_evidence)' "${safe_input}" >"${unbounded_relation}"
+expect_fail unbounded_relation "${unbounded_relation}" "relation proof must include bounded evidence for every measurement"
+
+missing_relation_observed="${tmp_dir}/missing-relation-observed.json"
+jq 'del(.relations[].observed_at)' "${safe_input}" >"${missing_relation_observed}"
+expect_fail missing_relation_observed "${missing_relation_observed}" "relation proof must include observed_at for every measurement"
+
+workflow_queue="${tmp_dir}/workflow-queue.json"
+jq '.queue_drain.queue_surface = "workflow"' "${safe_input}" >"${workflow_queue}"
+expect_fail workflow_queue "${workflow_queue}" "queue drain surface must be reducer"
+
+missing_queue_observed="${tmp_dir}/missing-queue-observed.json"
+jq 'del(.queue_drain.observed_at)' "${safe_input}" >"${missing_queue_observed}"
+expect_fail missing_queue_observed "${missing_queue_observed}" "queue drain proof must include observed_at"
+
+unbounded_queue="${tmp_dir}/unbounded-queue.json"
+jq 'del(.queue_drain.bounded_evidence)' "${safe_input}" >"${unbounded_queue}"
+expect_fail unbounded_queue "${unbounded_queue}" "queue drain proof must include bounded evidence"
 
 missing_queue="${tmp_dir}/missing-queue.json"
 jq '.queue_drain.retry_rows = 0' "${safe_input}" >"${missing_queue}"

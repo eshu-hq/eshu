@@ -129,7 +129,22 @@ if ! jq -e '
 fi
 
 if ! jq -e '
-	.queue_drain.queue_surface == "reducer" and
+	[.relations[] | (.observed_at | type == "string" and length > 0)] | all
+' "${input}" >/dev/null; then
+	die "relation proof must include observed_at for every measurement"
+fi
+
+if ! jq -e '
+	[.relations[] | .bounded_evidence == true] | all
+' "${input}" >/dev/null; then
+	die "relation proof must include bounded evidence for every measurement"
+fi
+
+if ! jq -e '.queue_drain.queue_surface == "reducer"' "${input}" >/dev/null; then
+	die "queue drain surface must be reducer"
+fi
+
+if ! jq -e '
 	(.queue_drain.pending_rows | type == "number" and . >= 0) and
 	(.queue_drain.retry_rows | type == "number" and . > 0) and
 	(.queue_drain.dead_letter_rows | type == "number" and . > 0) and
@@ -142,6 +157,14 @@ if ! jq -e '
 	(.queue_drain.worker_count | type == "number" and . > 0)
 ' "${input}" >/dev/null; then
 	die "queue drain must include retry, dead-letter, stale, claimed, and completed rows plus positive age, duration, and worker count"
+fi
+
+if ! jq -e '(.queue_drain.observed_at | type == "string" and length > 0)' "${input}" >/dev/null; then
+	die "queue drain proof must include observed_at"
+fi
+
+if ! jq -e '.queue_drain.bounded_evidence == true' "${input}" >/dev/null; then
+	die "queue drain proof must include bounded evidence"
 fi
 
 if ! jq -e '

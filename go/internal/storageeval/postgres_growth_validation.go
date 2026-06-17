@@ -56,6 +56,9 @@ func validateHostedGrowthQueueDrain(queue HostedGrowthQueueDrainMeasurement) err
 	if !supportedQueueSurface(queue.QueueSurface) {
 		return fmt.Errorf("unsupported queue surface %q", queue.QueueSurface)
 	}
+	if queue.QueueSurface != QueueSurfaceReducer {
+		return fmt.Errorf("queue drain surface must be reducer to prove fact_work_items drain, got %q", queue.QueueSurface)
+	}
 	if queue.PendingRows < 0 || queue.FailedRows < 0 || queue.ClaimedRows < 0 {
 		return fmt.Errorf("queue drain row counts must not be negative")
 	}
