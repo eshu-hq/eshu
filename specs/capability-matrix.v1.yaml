@@ -173,6 +173,13 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-call-chain}], notes: graph sidecar shortestPath}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 3000, max_scope_size: indexed_workspace, verification: [{compose_e2e: call-chain-path}], notes: authoritative path query}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-call-chain-path}], notes: authoritative path query}
+  - capability: code_to_cloud.trace_exposure_path
+    tools: [trace_exposure_path]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_repo, verification: [{integration_test: local-lightweight-unsupported-trace-exposure-path}], notes: requires authoritative graph mode for the bounded CALLS traversal}
+      local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 3000, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-trace-exposure-path}], notes: bounded symbol-level reachability over the call graph and cloud-sink catalog; derived not value-flow; reports unresolved when code-to-cloud bridge edges are unmaterialized, never fabricating a path}
+      local_full_stack: {status: supported, max_truth_level: derived, required_runtime: full_stack, p95_latency_ms: 4000, max_scope_size: indexed_workspace, verification: [{compose_e2e: trace-exposure-path}], notes: bounded symbol-level reachability over the call graph and cloud-sink catalog; derived not value-flow; reports unresolved when code-to-cloud bridge edges are unmaterialized, never fabricating a path}
+      production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 6000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-trace-exposure-path}], notes: bounded symbol-level reachability over the call graph and cloud-sink catalog; derived not value-flow; reports unresolved when code-to-cloud bridge edges are unmaterialized, never fabricating a path}
   - capability: code_quality.dead_code
     tools: [find_dead_code, investigate_dead_code]
     profiles:

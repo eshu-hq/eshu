@@ -5,9 +5,15 @@
 1. `go/internal/exposure/README.md` — capability framing, sink table, honesty
    contract, content-hash discipline.
 2. `go/internal/exposure/doc.go` — package contract paragraph.
-3. `go/internal/exposure/sink_catalog.go` — the curated catalog, the recognizer
-   (`MatchSink`), and the content hash.
-4. `go/internal/reducer/iam_escalation_catalog.go` — the closed-catalog pattern
+3. `go/internal/exposure/sink_catalog.go` — the curated sink catalog, the
+   recognizer (`MatchSink`), and the content hash.
+4. `go/internal/exposure/source_catalog.go` — the curated taint-source catalog,
+   the classifier (`ClassifySource`), and the honest exposure ranking
+   (`RankSourceExposure`).
+5. `go/internal/exposure/path_trace.go` — the pure exposure-path assembler:
+   truth-state vocabulary, honest severity (`CombinePathSeverity`), and
+   `BuildExposureFinding`.
+6. `go/internal/reducer/iam_escalation_catalog.go` — the closed-catalog pattern
    this package mirrors.
 
 ## What this package is
@@ -37,9 +43,36 @@ bounded tracer (a later slice, in `internal/query`) consumes these catalogs.
   does. `sinkCatalogVersionGolden` is pinned; bump it deliberately.
 - **No internal Eshu imports** — keep this a leaf analysis package (stdlib only).
   Do not import `internal/graph`, `internal/reducer`, `internal/query`, or
-  storage packages.
+  storage packages. In particular the source catalog must NOT walk the
+  security-group graph; `RankSourceExposure` takes the reachability boolean as an
+  argument, computed by the tracer.
+- **Honest exposure ranking** — never label a source `internet_exposed` without a
+  proven reachability boolean. Unproven internet-exposable sources are
+  `network_reachable`, not `internet_exposed`.
+- **Sources are classified, not re-detected** — reuse the parser's
+  `dead_code_root_kinds`; do not re-implement handler detection here.
+- **The tracer never fabricates** — `BuildExposureFinding` returns `unresolved`
+  with a reason when there are no candidates; it never invents a path or a
+  severity. Severity is always read from the supplied sink specs, capped by
+  exposure rank. Findings are always labeled `derived`.
+- **The package stays graph-free** — `path_trace.go` assembles plain data; the
+  graph traversal lives in the query handler. Do not add graph access here.
 
 ## Common changes and how to scope them
+
+- **Add a taint-source kind or root-kind token** →
+  1. Add/extend the `SourceKind` constant or the spec's `RootKinds`.
+  2. **Verify the token is actually emitted by a parser** (`rg "\"<token>\""
+     internal/parser/*/dead_code_roots.go`). Do not classify a token the parser
+     never produces — that is the same trap as a graph-backed-but-unmaterialized
+     sink. Cite the dead-code root catalog in `Provenance`.
+  3. Keep the catalog conservative: only genuine untrusted-input entry points.
+     Entrypoints, public API, lifecycle callbacks, tests, generated code are NOT
+     sources.
+  4. Order internet-exposable kinds before non-exposable ones; `ClassifySource`
+     prefers the earlier (higher-value) kind on a tie.
+  5. Re-pin `sourceCatalogVersionGolden` deliberately.
+  Run `cd go && go test ./internal/exposure -count=1`.
 
 - **Add a sink kind** →
   1. Add the `SinkKind` constant with a doc comment.

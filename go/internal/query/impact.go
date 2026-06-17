@@ -26,6 +26,7 @@ func (h *ImpactHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/impact/resource-investigation", h.investigateResource)
 	mux.HandleFunc("POST /api/v0/impact/trace-resource-to-code", h.traceResourceToCode)
 	mux.HandleFunc("POST /api/v0/impact/explain-dependency-path", h.explainDependencyPath)
+	mux.HandleFunc("POST /api/v0/impact/trace-exposure-path", h.traceExposurePath)
 }
 
 func (h *ImpactHandler) profile() QueryProfile {
