@@ -99,10 +99,12 @@ type PartitionProcessResult struct {
 	ReplayRequests                    int
 	IndexedSelection                  bool
 	UnhashedFallbackRows              int
-	// TerminalNoEndpoint counts handles_route rows drained with no edge because
-	// their (repo_id, path) :Endpoint will never commit (#2809). A non-zero value
-	// during steady state is the operator signal for route handlers whose target
-	// endpoint was not materialized — distinct from readiness-blocked rows.
+	// TerminalNoEndpoint counts symbol→runtime rows drained with no edge because
+	// their runtime target will never commit: handles_route on an absent
+	// (repo_id, path) :Endpoint (#2809), runs_in on a repo with no :Workload
+	// (#2855). A non-zero value during steady state is the operator signal for
+	// handlers whose target was not materialized — distinct from readiness-blocked
+	// rows. The runner logs the originating `domain` alongside the count.
 	TerminalNoEndpoint int
 }
 

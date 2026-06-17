@@ -193,6 +193,21 @@ func (h WorkloadMaterializationHandler) Handle(
 		return Result{}, fmt.Errorf("record api endpoint repo/path presence: %w", err)
 	}
 
+	// Record repo-keyed presence for the committed :Workload nodes so the runs_in
+	// projection gate can prove a repo's Workloads exist before resolving a
+	// Function-[:RUNS_IN]->Workload edge against them (#2855). Same presence store
+	// and writer as the endpoint presence above, a different keyspace. Published
+	// only after Materialize succeeds; a nil writer (the default) is a no-op.
+	if err := publishRepoWorkloadPresence(
+		ctx,
+		h.EndpointPresenceWriter,
+		intent.ScopeID,
+		projection.WorkloadRows,
+		time.Now().UTC(),
+	); err != nil {
+		return Result{}, fmt.Errorf("record repo workload presence: %w", err)
+	}
+
 	totalWrites := materializeResult.WorkloadsWritten +
 		materializeResult.InstancesWritten +
 		materializeResult.DeploymentSourcesWritten +

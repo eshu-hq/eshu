@@ -127,18 +127,21 @@ Parsed by `LoadSharedProjectionConfig` in `internal/reducer`.
 | ESHU_SHARED_PROJECTION_LEASE_TTL | `60s` | Partition lease TTL |
 | ESHU_SHARED_PROJECTION_WORKERS | `min(NumCPU,4)` | Concurrent partition workers |
 
-### HANDLES_ROUTE endpoint-presence gate (#2809)
+### Symbol→runtime presence gate (#2809, #2855)
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `ESHU_REDUCER_HANDLES_ROUTE_PRESENCE_GATE_ENABLED` | `true` | Gate `Function-[:HANDLES_ROUTE]->Endpoint` projection on the target `(repo_id, path)` `:Endpoint` having committed, so the edge cannot drop on a cold first generation. Set to a false value (`false`, `0`) to restore pre-#2809 behavior. |
+| `ESHU_REDUCER_HANDLES_ROUTE_PRESENCE_GATE_ENABLED` | `true` | Gate the symbol→runtime edges on their target having committed, so they cannot drop on a cold first generation: `Function-[:HANDLES_ROUTE]->Endpoint` on the target `(repo_id, path)` `:Endpoint` (#2809), and `Function-[:RUNS_IN]->Workload` on the repo having a committed `:Workload` (#2855). Set to a false value (`false`, `0`) to restore pre-gate behavior for both. |
 
-The gate is wired independently of `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`:
-disabling secrets/IAM never disables this gate, and this kill switch never widens
-the secrets/IAM uid presence writes onto the cloud/Kubernetes materializers. A
-phase-ready handles_route row whose endpoint never materializes (a route-only repo)
-is drained with no edge — reported as `terminal_no_endpoint` in the shared
-projection cycle log — never deferred, so the backlog cannot stall.
+Both gates share one presence store and this one flag — they are the same
+symbol→runtime concern, published by the workload materializer. The flag is wired
+independently of `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`: disabling
+secrets/IAM never disables these gates, and this kill switch never widens the
+secrets/IAM uid presence writes onto the cloud/Kubernetes materializers. A
+phase-ready row whose target never materializes (a route-only repo with no
+endpoint, or a repo with no workload) is drained with no edge — reported as
+`terminal_no_endpoint` with its `domain` in the shared projection cycle log —
+never deferred, so the backlog cannot stall.
 
 ### Code-call projection
 

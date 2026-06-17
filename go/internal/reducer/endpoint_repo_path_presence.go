@@ -96,20 +96,23 @@ func handlesRouteEndpointPresenceKey(row SharedProjectionIntentRow) string {
 	return apiEndpointRepoPathPresenceKey(repoID, path)
 }
 
-// filterHandlesRouteRowsByEndpointPresence splits phase-ready handles_route rows
-// into the rows whose (repo_id, path) :Endpoint is committed (present) and the
-// rows whose endpoint is absent (#2809). It runs ONE bounded MissingUIDs lookup
-// for the distinct synthesized uids, never an N+1 per-row probe. A nil lookup
-// disables the gate and returns every input row as present, so the handles_route
-// path stays byte-identical to its pre-#2809 behavior when presence is unwired.
-// Callers MUST only invoke this for DomainHandlesRoute; every other domain stays
-// untouched. The caller treats the absent set as TERMINAL (complete, no edge),
-// not deferred: the phase gate already proves the repo's endpoints have all
-// committed, so an absent endpoint will never appear.
-func filterHandlesRouteRowsByEndpointPresence(
+// filterRowsByTargetPresence splits phase-ready symbol→runtime rows into the rows
+// whose target is committed (present) and the rows whose target is absent. It
+// backs both the handles_route endpoint-presence gate (#2809) and the runs_in
+// repo-workload-presence gate (#2855): the caller supplies the presence keyspace
+// and a per-row key function so the same bounded MissingUIDs lookup (ONE call
+// over the distinct synthesized uids, never an N+1 per-row probe) serves either
+// domain. A nil lookup disables the gate and returns every input row as present,
+// so the gated path stays byte-identical to its pre-gate behavior when presence
+// is unwired. The caller treats the absent set as TERMINAL (complete, no edge),
+// not deferred: the phase gate already proves the repo's targets have all
+// committed, so an absent target will never appear.
+func filterRowsByTargetPresence(
 	ctx context.Context,
 	rows []SharedProjectionIntentRow,
 	presence EndpointPresenceLookup,
+	keyspace GraphProjectionKeyspace,
+	keyFor func(SharedProjectionIntentRow) string,
 ) (present, absent []SharedProjectionIntentRow, err error) {
 	if presence == nil || len(rows) == 0 {
 		return rows, nil, nil
@@ -119,7 +122,7 @@ func filterHandlesRouteRowsByEndpointPresence(
 	seen := make(map[string]struct{}, len(rows))
 	uids := make([]string, 0, len(rows))
 	for i, row := range rows {
-		key := handlesRouteEndpointPresenceKey(row)
+		key := keyFor(row)
 		keyByRow[i] = key
 		if key == "" {
 			continue
@@ -132,7 +135,7 @@ func filterHandlesRouteRowsByEndpointPresence(
 	}
 	sort.Strings(uids)
 
-	missing, err := presence.MissingUIDs(ctx, GraphProjectionKeyspaceAPIEndpointRepoPath, uids)
+	missing, err := presence.MissingUIDs(ctx, keyspace, uids)
 	if err != nil {
 		return nil, nil, err
 	}

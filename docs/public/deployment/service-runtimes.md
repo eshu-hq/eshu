@@ -66,8 +66,9 @@ before treating a graph as current:
 - Enable `ESHU_PPROF_ADDR` only on the runtime that owns the slow stage and keep
   it private.
 - Keep `ESHU_REDUCER_HANDLES_ROUTE_PRESENCE_GATE_ENABLED` at its default (`true`)
-  so `Function-[:HANDLES_ROUTE]->Endpoint` edges cannot drop on a cold first
-  generation; it is independent of the secrets/IAM projection flag. See
+  so the symbol→runtime edges (`Function-[:HANDLES_ROUTE]->Endpoint` and
+  `Function-[:RUNS_IN]->Workload`) cannot drop on a cold first generation; it is
+  independent of the secrets/IAM projection flag. See
   [Resolution engine](../services/resolution-engine.md) for the kill switch.
 
 ## Route Map

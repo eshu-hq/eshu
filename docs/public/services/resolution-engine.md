@@ -129,14 +129,18 @@ Important env vars:
 - `ESHU_REDUCER_HANDLES_ROUTE_PRESENCE_GATE_ENABLED`
 
 `ESHU_REDUCER_HANDLES_ROUTE_PRESENCE_GATE_ENABLED` defaults to `true` and gates
-`Function-[:HANDLES_ROUTE]->Endpoint` projection on its target `(repo_id, path)`
-`:Endpoint` having committed, so the edge cannot drop on a cold first generation.
-It is independent of `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`: the
-secrets/IAM flag never enables or disables this gate, and this kill switch never
-widens uid presence writes onto the cloud/Kubernetes materializers. Set it to a
-false value to restore the pre-#2809 behavior. A route handler whose endpoint
-never materializes is drained with no edge (`terminal_no_endpoint` in the shared
-projection cycle log), never deferred, so the backlog cannot stall.
+the symbol→runtime edges on their target having committed, so they cannot drop on
+a cold first generation: `Function-[:HANDLES_ROUTE]->Endpoint` on its target
+`(repo_id, path)` `:Endpoint` (#2809), and `Function-[:RUNS_IN]->Workload` on the
+repo having a committed `:Workload` (#2855). Both share one presence store and
+this one flag. It is independent of
+`ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`: the secrets/IAM flag never
+enables or disables these gates, and this kill switch never widens uid presence
+writes onto the cloud/Kubernetes materializers. Set it to a false value to restore
+the pre-gate behavior. A handler whose target never materializes (a route with no
+endpoint, or a repo with no workload) is drained with no edge
+(`terminal_no_endpoint` with its `domain` in the shared projection cycle log),
+never deferred, so the backlog cannot stall.
 
 Raise `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` only after the reducer
 reports the explicit acceptance-cap failure and discovery evidence shows the

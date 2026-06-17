@@ -88,22 +88,41 @@ func filterRowsByReadiness(
 		readyRows = append(readyRows, row)
 	}
 
-	// Second gate (handles_route only, #2809): among the phase-ready rows,
-	// terminally drain the ones whose (repo_id, path) :Endpoint did not commit.
-	// Because the phase gate already proves workload materialization for the repo
-	// is done, an absent endpoint will never appear, so the row is complete with
-	// no edge — NOT deferred. A nil presence lookup is a no-op, so every other
-	// domain — and handles_route when presence is unwired — is unaffected.
-	if domain == DomainHandlesRoute && endpointPresence != nil && len(readyRows) > 0 {
-		presentRows, absentRows, presenceErr := filterHandlesRouteRowsByEndpointPresence(ctx, readyRows, endpointPresence)
+	// Second gate (symbol→runtime domains, #2809/#2855): among the phase-ready
+	// rows, terminally drain the ones whose runtime target did not commit —
+	// handles_route on its (repo_id, path) :Endpoint, runs_in on its repo's
+	// :Workload presence. Because the phase gate already proves workload
+	// materialization for the repo is done, an absent target will never appear, so
+	// the row is complete with no edge — NOT deferred. A nil presence lookup is a
+	// no-op, so every other domain — and these domains when presence is unwired —
+	// is unaffected.
+	if keyspace, keyFor, gated := symbolRuntimePresenceGate(domain); gated && endpointPresence != nil && len(readyRows) > 0 {
+		presentRows, absentRows, presenceErr := filterRowsByTargetPresence(ctx, readyRows, endpointPresence, keyspace, keyFor)
 		if presenceErr != nil {
-			return nil, nil, nil, fmt.Errorf("look up handles_route endpoint presence: %w", presenceErr)
+			return nil, nil, nil, fmt.Errorf("look up %s target presence: %w", domain, presenceErr)
 		}
 		readyRows = presentRows
 		terminalRows = absentRows
 	}
 
 	return readyRows, blockedRows, terminalRows, nil
+}
+
+// symbolRuntimePresenceGate reports the presence keyspace and per-row key
+// function for the symbol→runtime shared-projection domains whose edge targets
+// commit in the workload-materialization domain under a different acceptance unit
+// (#2809 handles_route, #2855 runs_in). For every other domain it returns
+// gated=false, so the second presence gate is skipped and the domain stays
+// byte-identical to its phase-gate-only behavior.
+func symbolRuntimePresenceGate(domain string) (GraphProjectionKeyspace, func(SharedProjectionIntentRow) string, bool) {
+	switch domain {
+	case DomainHandlesRoute:
+		return GraphProjectionKeyspaceAPIEndpointRepoPath, handlesRouteEndpointPresenceKey, true
+	case DomainRunsIn:
+		return GraphProjectionKeyspaceRepoWorkloadPresence, runsInRepoWorkloadPresenceKey, true
+	default:
+		return "", nil, false
+	}
 }
 
 // maxSharedIntentWaitSeconds reports the longest time any row has waited since
