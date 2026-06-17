@@ -30,5 +30,6 @@
 ## Do not change without review
 
 - The bucket key names or the schema (wire contract shared with the reducer and
-  every language adapter). Keep changes in lockstep with `golang/cfg_emit.go`
-  until that adapter is migrated onto this package.
+  every language adapter). The Go, Python, and JS/TS adapters all render through
+  this package, so a key/schema change here is a wire-contract change to all of
+  them and to the reducer that consumes the buckets.

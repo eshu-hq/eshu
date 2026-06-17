@@ -47,11 +47,9 @@ telemetry.
 - **Ordering lives here, not in the analysis.** `SortFunctionRows`/
   `SortFindingRows` must be applied by the caller after collecting rows so the
   bucket is deterministic.
-- The Go adapter (`internal/parser/golang`) still carries its own copy of these
-  renderers; migrating it onto this package is a tracked follow-up.
 
 ## Related docs
 
-- Epic #2705, issue #2826. Callers: `internal/parser/python` and
-  `internal/parser/javascript` (both `cfg_emit.go`); `internal/parser/golang`
-  still carries its own copy (migration tracked in #2885).
+- Epic #2705, issue #2826. Callers: `internal/parser/golang`,
+  `internal/parser/python`, and `internal/parser/javascript` (all `cfg_emit.go`)
+  render the buckets through this package.
