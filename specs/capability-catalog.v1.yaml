@@ -1,0 +1,123 @@
+# Capability catalog overlay.
+#
+# Source of editorial capability metadata that cannot be derived from the
+# capability matrix (specs/capability-matrix*.yaml): display names, owning
+# packages, operational maturity overrides, known gaps, linked issues, docs,
+# and the exemption/surface lists that record intentional reconciliation gaps.
+#
+# The reconciled, generated artifact is
+# go/internal/capabilitycatalog/data/catalog.generated.json. Regenerate it with:
+#   cd go && go run ./cmd/capability-inventory -mode generate
+# Verify drift with:
+#   cd go && go run ./cmd/capability-inventory -mode verify
+#
+# Treat edits here as a contract change. See
+# docs/public/reference/capability-catalog.md.
+version: v1
+updated_at: 2026-06-16
+owners:
+  - platform-engineering
+
+# Per-capability editorial overlay. Capabilities without an entry inherit
+# derived display names and matrix-derived maturity.
+capabilities:
+  - capability: query.playbooks
+    owner_package: internal/query
+    console: true
+  - capability: semantic_search.curated_retrieval
+    owner_package: internal/searchretrieval
+    console: true
+
+# MCP tools that the matrix tools field does not reference. A capability maps
+# the tool to an existing entry as an alias surface; an empty capability marks a
+# genuine utility or operator surface that is not a distinct product capability.
+tool_exemptions:
+  # Query playbook tools belong to the query.playbooks capability, which does
+  # not yet declare tools in the matrix. Tracked by #2743.
+  - tool: list_query_playbooks
+    capability: query.playbooks
+    reason: query playbook catalog read; promote to matrix tools in #2743
+    issue: 2743
+  - tool: resolve_query_playbook
+    capability: query.playbooks
+    reason: query playbook resolver read; promote to matrix tools in #2743
+    issue: 2743
+
+  # Narrative, context, and visualization tools without a capability-matrix row.
+  # Tracked by #2743.
+  - tool: get_repo_story
+    reason: repository narrative surface pending capability-matrix row
+    issue: 2743
+  - tool: get_repo_summary
+    reason: repository summary narrative surface pending capability-matrix row
+    issue: 2743
+  - tool: get_service_story
+    reason: service narrative surface pending capability-matrix row
+    issue: 2743
+  - tool: get_workload_context
+    reason: workload context surface pending capability-matrix row
+    issue: 2743
+  - tool: get_workload_story
+    reason: workload narrative surface pending capability-matrix row
+    issue: 2743
+  - tool: investigate_service
+    reason: service investigation narrative surface pending capability-matrix row
+    issue: 2743
+  - tool: derive_visualization_packet
+    reason: visualization packet surface pending capability-matrix row
+    issue: 2743
+  - tool: visualize_graph_query
+    reason: graph visualization surface pending capability-matrix row
+    issue: 2743
+
+  # Genuine retrieval, diagnostic, and operator utilities that are not distinct
+  # product capabilities.
+  - tool: get_file_content
+    reason: file content retrieval utility
+  - tool: get_file_lines
+    reason: file line-range retrieval utility
+  - tool: get_entity_content
+    reason: entity content retrieval utility
+  - tool: get_entity_context
+    reason: entity context retrieval utility
+  - tool: search_entity_content
+    reason: entity content search utility
+  - tool: resolve_entity
+    reason: entity id resolution utility
+  - tool: search_registry_bundles
+    reason: component registry bundle search utility
+  - tool: get_repository_coverage
+    reason: repository coverage diagnostic surface
+  - tool: get_repository_stats
+    reason: repository statistics diagnostic surface
+  - tool: get_index_status
+    reason: operator index status surface
+  - tool: get_ingester_status
+    reason: operator ingester status surface
+  - tool: list_ingesters
+    reason: operator ingester listing surface
+  - tool: list_collectors
+    reason: operator collector listing surface
+  - tool: list_indexed_repositories
+    reason: operator repository index listing surface
+  - tool: get_hosted_readiness
+    reason: operator hosted readiness surface
+
+# Matrix-declared tools that are served through an HTTP API operation rather
+# than the MCP registry. Each name maps 1:1 to an OpenAPI operationId.
+non_mcp_surfaces:
+  - tool: entity_map
+    kind: api
+    reason: served by the entityMap HTTP operation (GET /api/v0/entities/{id}/map)
+  - tool: get_metrics_time_series
+    kind: api
+    reason: served by the getMetricsTimeSeries HTTP operation (GET /api/v0/metrics/timeseries)
+  - tool: list_cloud_resources
+    kind: api
+    reason: served by the listCloudResources HTTP operation (GET /api/v0/cloud/resources)
+  - tool: list_container_images
+    kind: api
+    reason: served by the listContainerImages HTTP operation (GET /api/v0/supply-chain/container-images)
+  - tool: list_iac_resources
+    kind: api
+    reason: served by the listIaCResources HTTP operation (GET /api/v0/iac/resources)

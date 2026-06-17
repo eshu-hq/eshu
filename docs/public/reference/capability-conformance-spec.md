@@ -107,6 +107,7 @@ backend matrix evidence changed.
 
 ## Related Docs
 
+- [Capability Catalog](capability-catalog.md)
 - [Truth Label Protocol](truth-label-protocol.md)
 - [Backend Conformance](backend-conformance.md)
 - [MCP Tool Contract Matrix](mcp-tool-contract-matrix.md)
