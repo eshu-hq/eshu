@@ -43,7 +43,10 @@ func Summarize(results ...Result) []FixtureReadiness {
 			acc.contractMet = false
 			acc.failed = append(acc.failed, result.Scenario)
 		}
-		if len(result.ReadableFactKinds) > 0 {
+		// Use the per-scenario reach, not the cumulative ReadableFactKinds, so a
+		// collector whose own facts were all withheld does not inherit a true
+		// readiness signal from an earlier collector on the same harness.
+		if result.ReadbackReached {
 			acc.readback = true
 		}
 	}

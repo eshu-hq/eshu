@@ -14,7 +14,9 @@ import (
 
 // Result captures the observed outcome of one scenario attempt and whether it
 // satisfied the scenario's expectation. ReadableFactKinds is cumulative across
-// the harness lifetime because reducer readback is stateful.
+// the harness lifetime because reducer readback is stateful; ReadbackReached is
+// scoped to this attempt so readiness aggregation cannot inherit an earlier
+// collector's readback.
 type Result struct {
 	Scenario           string
 	CollectorKind      string
@@ -25,6 +27,7 @@ type Result struct {
 	ReplayCompleted    bool
 	CommittedFactKinds []string
 	ReadableFactKinds  []string
+	ReadbackReached    bool
 	ContractMet        bool
 	Failures           []string
 }
@@ -92,7 +95,7 @@ func (h *Harness) Run(ctx context.Context, scenario Scenario) (Result, error) {
 		return Result{}, fmt.Errorf("run claimed service for scenario %q: %w", scenario.Name, err)
 	}
 
-	h.applyReadback(committer.committed, classByKey)
+	reached := h.applyReadback(committer.committed, classByKey)
 
 	result := Result{
 		Scenario:           scenario.Name,
@@ -103,6 +106,7 @@ func (h *Harness) Run(ctx context.Context, scenario Scenario) (Result, error) {
 		ReplayCompleted:    len(h.deadLetters.replayDone) > replayBefore,
 		CommittedFactKinds: distinctFactKinds(committer.committed),
 		ReadableFactKinds:  h.readback.readableFactKinds(),
+		ReadbackReached:    reached,
 	}
 	if result.DeadLettered {
 		result.DeadLetterClass = h.deadLetters.records[len(h.deadLetters.records)-1].FailureClass
@@ -141,14 +145,24 @@ func (h *Harness) buildSource(scenario Scenario) (*fixtureSource, map[string]Fac
 	return &fixtureSource{generation: generation, ok: true}, classByKey
 }
 
-func (h *Harness) applyReadback(committed []facts.Envelope, classByKey map[string]FactClass) {
+// applyReadback offers this run's committed facts to the shared readback model
+// and reports whether any of them reached readback (newly admitted or an
+// idempotent replay of an already-readable row). The per-run signal is what the
+// readiness summary uses, so reusing one harness across collectors cannot let a
+// later collector inherit an earlier collector's cumulative readback.
+func (h *Harness) applyReadback(committed []facts.Envelope, classByKey map[string]FactClass) bool {
+	reached := false
 	for _, envelope := range committed {
 		class := classByKey[readbackKey(envelope)]
 		if class == "" {
 			class = FactAdmissible
 		}
-		h.readback.offer(envelope, class)
+		switch h.readback.offer(envelope, class) {
+		case admissionAdmitted, admissionIdempotent:
+			reached = true
+		}
 	}
+	return reached
 }
 
 func stampEnvelope(envelope facts.Envelope, scenario Scenario) facts.Envelope {

@@ -282,6 +282,62 @@ func TestSummarizeAggregatesReadinessPerCollector(t *testing.T) {
 	}
 }
 
+func TestHarnessReadbackKeysAreScopedBySourceIdentity(t *testing.T) {
+	t.Parallel()
+
+	// Two scopes emitting the same StableFactKey must both become readable; the
+	// fact contract only guarantees stable keys are unique within a source scope.
+	h := parity.New()
+	scopeA := parity.NewScenario("scope-a", scope.CollectorJira, "scope-1", "gen-1", 1).
+		WithFacts(parity.AdmissibleFact("jira_issue", "issue:1")).
+		Expecting(parity.Expectation{ClaimOutcome: parity.ClaimCompleted})
+	scopeB := parity.NewScenario("scope-b", scope.CollectorJira, "scope-2", "gen-1", 1).
+		WithFacts(parity.AdmissibleFact("jira_issue", "issue:1")).
+		Expecting(parity.Expectation{ClaimOutcome: parity.ClaimCompleted})
+
+	if err := mustRun(t, h, scopeA).Err(); err != nil {
+		t.Fatal(err)
+	}
+	if err := mustRun(t, h, scopeB).Err(); err != nil {
+		t.Fatal(err)
+	}
+	if h.ReadableCount() != 2 {
+		t.Fatalf("readable count = %d, want 2 (same stable key across two scopes must not collapse)", h.ReadableCount())
+	}
+}
+
+func TestHarnessReadbackReachedIsPerScenario(t *testing.T) {
+	t.Parallel()
+
+	// One harness, two collectors: the first admits facts, the second's facts are
+	// all withheld. The second must report ReadbackReached=false even though the
+	// shared readback store is non-empty from the first.
+	h := parity.New()
+	admitted := mustRun(t, h, parity.NewScenario("jira", scope.CollectorJira, "scope-1", "gen-1", 1).
+		WithFacts(parity.AdmissibleFact("jira_issue", "jira:1")).
+		Expecting(parity.Expectation{ClaimOutcome: parity.ClaimCompleted, ReadableFactKinds: []string{"jira_issue"}}))
+	if !admitted.ReadbackReached {
+		t.Fatalf("first scenario should reach readback")
+	}
+
+	withheld := mustRun(t, h, parity.NewScenario("grafana", scope.CollectorGrafana, "scope-2", "gen-1", 1).
+		WithFacts(parity.PermissionHiddenFact("grafana_dashboard", "grafana:1")).
+		Expecting(parity.Expectation{ClaimOutcome: parity.ClaimCompleted}))
+	if withheld.ReadbackReached {
+		t.Fatalf("all-withheld scenario must not report ReadbackReached despite shared store: %#v", withheld)
+	}
+
+	summaries := parity.Summarize(admitted, withheld)
+	for _, s := range summaries {
+		if s.CollectorKind == "grafana" && s.ReadbackReached {
+			t.Fatalf("grafana summary must not inherit readback from jira: %#v", s)
+		}
+		if s.CollectorKind == "jira" && !s.ReadbackReached {
+			t.Fatalf("jira summary should report readback reached: %#v", s)
+		}
+	}
+}
+
 func TestHarnessUnchangedCompletesWithoutCommit(t *testing.T) {
 	t.Parallel()
 

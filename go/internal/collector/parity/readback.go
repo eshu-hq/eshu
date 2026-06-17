@@ -54,10 +54,7 @@ func (r *readbackStore) offer(envelope facts.Envelope, class FactClass) admissio
 		r.withheld[string(class)]++
 		return admissionWithheld
 	}
-	key := envelope.StableFactKey
-	if key == "" {
-		key = envelope.FactID
-	}
+	key := readbackIdentity(envelope)
 	existing, ok := r.admitted[key]
 	if ok {
 		switch {
@@ -69,6 +66,19 @@ func (r *readbackStore) offer(envelope facts.Envelope, class FactClass) admissio
 	}
 	r.admitted[key] = admittedFact{factKind: envelope.FactKind, fencingToken: envelope.FencingToken}
 	return admissionAdmitted
+}
+
+// readbackIdentity scopes the admission key by source identity. The fact
+// envelope contract only guarantees StableFactKey uniqueness within one
+// collector kind and scope, so admission must key on (collector kind, scope id,
+// stable key) — otherwise the same fixture key emitted by two scopes or
+// families would collapse into one readable row.
+func readbackIdentity(envelope facts.Envelope) string {
+	key := envelope.StableFactKey
+	if key == "" {
+		key = envelope.FactID
+	}
+	return envelope.CollectorKind + "\x00" + envelope.ScopeID + "\x00" + key
 }
 
 // readableFactKinds returns the sorted distinct fact kinds currently readable.
