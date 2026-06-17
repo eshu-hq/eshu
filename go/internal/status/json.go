@@ -17,6 +17,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		Health                         HealthSummary                     `json:"health"`
 		Coordinator                    *coordinatorSnapshotJSON          `json:"coordinator,omitempty"`
 		CollectorRuntimes              []collectorRuntimeStatusJSON      `json:"collector_runtimes,omitempty"`
+		CollectorPromotionProofs       []collectorPromotionProofJSON     `json:"collector_promotion_proofs,omitempty"`
 		Flow                           []flowSummaryJSON                 `json:"flow"`
 		Queue                          queueJSON                         `json:"queue"`
 		LatestFailure                  *queueFailureJSON                 `json:"latest_failure,omitempty"`
@@ -40,11 +41,16 @@ func RenderJSON(report Report) ([]byte, error) {
 		QueueBlockages                 []queueBlockageJSON               `json:"queue_blockages"`
 		TerraformState                 *terraformStateJSON               `json:"terraform_state,omitempty"`
 	}{
-		Version:                        buildinfo.AppVersion(),
-		AsOf:                           report.AsOf.UTC().Format(time.RFC3339),
-		Health:                         report.Health,
-		Coordinator:                    coordinatorJSON(report.Coordinator),
-		CollectorRuntimes:              collectorRuntimeStatusesJSON(CollectorRuntimeStatuses(report)),
+		Version:           buildinfo.AppVersion(),
+		AsOf:              report.AsOf.UTC().Format(time.RFC3339),
+		Health:            report.Health,
+		Coordinator:       coordinatorJSON(report.Coordinator),
+		CollectorRuntimes: collectorRuntimeStatusesJSON(CollectorRuntimeStatuses(report)),
+		CollectorPromotionProofs: collectorPromotionProofsJSON(CollectorPromotionProofs(report, CollectorPromotionOptions{
+			Catalog:    presentCollectorCatalog(report),
+			AsOf:       report.AsOf,
+			StaleAfter: DefaultCollectorPromotionStaleAfter,
+		})),
 		Flow:                           flowSummariesJSON(report.FlowSummaries),
 		Queue:                          queueJSONFromReport(report.Queue),
 		LatestFailure:                  queueFailureJSONFromReport(report.LatestQueueFailure),
@@ -396,60 +402,6 @@ func metadataTargetsJSON(rows []RegistryMetadataTargetCount) []metadataTargetJSO
 	projected := make([]metadataTargetJSON, 0, len(rows))
 	for _, row := range rows {
 		projected = append(projected, metadataTargetJSON(row))
-	}
-	return projected
-}
-
-func awsCloudScansJSON(rows []AWSCloudScanStatus) []awsCloudScanJSON {
-	projected := make([]awsCloudScanJSON, 0, len(rows))
-	for _, row := range rows {
-		projected = append(projected, awsCloudScanJSON{
-			CollectorInstanceID: row.CollectorInstanceID,
-			AccountID:           row.AccountID,
-			Region:              row.Region,
-			ServiceKind:         row.ServiceKind,
-			Status:              row.Status,
-			CommitStatus:        row.CommitStatus,
-			FailureClass:        row.FailureClass,
-			FailureMessage:      row.FailureMessage,
-			APICallCount:        row.APICallCount,
-			ThrottleCount:       row.ThrottleCount,
-			WarningCount:        row.WarningCount,
-			ResourceCount:       row.ResourceCount,
-			RelationshipCount:   row.RelationshipCount,
-			TagObservationCount: row.TagObservationCount,
-			BudgetExhausted:     row.BudgetExhausted,
-			CredentialFailed:    row.CredentialFailed,
-			LastStartedAt:       nullableRFC3339Value(row.LastStartedAt),
-			LastObservedAt:      nullableRFC3339Value(row.LastObservedAt),
-			LastCompletedAt:     nullableRFC3339Value(row.LastCompletedAt),
-			LastSuccessfulAt:    nullableRFC3339Value(row.LastSuccessfulAt),
-			UpdatedAt:           nullableRFC3339Value(row.UpdatedAt),
-		})
-	}
-	return projected
-}
-
-func vulnerabilitySourcesJSON(rows []VulnerabilitySourceState) []vulnerabilitySourceJSON {
-	projected := make([]vulnerabilitySourceJSON, 0, len(rows))
-	for _, row := range rows {
-		projected = append(projected, vulnerabilitySourceJSON{
-			CollectorInstanceID: row.CollectorInstanceID,
-			ScopeID:             row.ScopeID,
-			Source:              row.Source,
-			Ecosystem:           row.Ecosystem,
-			WindowStart:         nullableRFC3339Value(row.WindowStart),
-			WindowEnd:           nullableRFC3339Value(row.WindowEnd),
-			LastAttemptAt:       nullableRFC3339Value(row.LastAttemptAt),
-			LastSuccessAt:       nullableRFC3339Value(row.LastSuccessAt),
-			NextRetryAt:         nullableRFC3339Value(row.NextRetryAt),
-			LastErrorClass:      row.LastErrorClass,
-			FreshnessState:      row.FreshnessState,
-			TerminalStatus:      row.TerminalStatus,
-			ResultCount:         row.ResultCount,
-			WarningCount:        row.WarningCount,
-			UpdatedAt:           nullableRFC3339Value(row.UpdatedAt),
-		})
 	}
 	return projected
 }

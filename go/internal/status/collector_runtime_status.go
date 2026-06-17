@@ -245,17 +245,17 @@ func (b collectorRuntimeStatusBuilder) rows() []CollectorRuntimeStatus {
 
 func coordinatorRuntimeStatus(instance CollectorInstanceSummary) CollectorRuntimeStatus {
 	category := CollectorRuntimeCoordinatorManaged
-	mode := "claim_driven"
+	mode := CollectorClaimDriven
 	detail := "registered with workflow coordinator"
 	health := "registered"
 	if !instance.Enabled || !instance.DeactivatedAt.IsZero() {
 		category = CollectorRuntimeDisabled
-		mode = "registration_only"
+		mode = CollectorClaimRegistration
 		health = "disabled"
 		detail = "registered but disabled or deactivated"
 	} else if !instance.ClaimsEnabled {
 		category = CollectorRuntimeDirectMode
-		mode = "direct"
+		mode = CollectorClaimDirect
 		detail = "registered with claims disabled; direct-mode or profile-gated runtime"
 	}
 	return CollectorRuntimeStatus{
@@ -291,7 +291,7 @@ func directEvidenceRuntimeStatus(
 	return CollectorRuntimeStatus{
 		InstanceID:       instanceID,
 		CollectorKind:    collectorKind,
-		RuntimeMode:      "direct",
+		RuntimeMode:      CollectorClaimDirect,
 		StatusCategory:   CollectorRuntimeUnregistered,
 		Health:           health,
 		EvidenceSources:  []string{evidenceSource},

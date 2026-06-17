@@ -181,6 +181,49 @@ Keep the detailed test matrix with the package that owns the behavior. Start
 with the collector, workflow, reducer, query, MCP, telemetry, and storage
 package READMEs instead of duplicating their local contracts here.
 
+### Machine-Readable Promotion Proof Report
+
+`/admin/status` now carries a deterministic, credential-safe promotion proof per
+collector family or instance under `collector_promotion_proofs` (text surface:
+`Collector promotion proofs:`). It is the machine-checkable evidence a reviewer
+uses instead of stitching together claim, fact, reducer, and telemetry state by
+hand. The report is generated from existing runtime/status/readback sources only;
+it contains no credentials and no raw source payloads — only counts,
+evidence-source labels, bounded source-system names, and safe blocker strings.
+
+Each proof carries a closed `promotion_state`:
+
+| State | Reviewer reading |
+| --- | --- |
+| `implemented` | Healthy, fresh, reducer-readback evidence. Promotable. |
+| `partial` | Evidence exists but the implemented contract is unmet (readback pending, claims inactive, or a fixture-only lane). Not promotable yet. |
+| `failed` | Runtime health degraded. Reject and fix the owning layer. |
+| `stale` | Newest evidence older than the freshness window. Re-run before trusting. |
+| `gated` | Claim-driven lane with claims disabled, or hidden by a runtime profile gate. Expected for preview lanes. |
+| `disabled` | Registered but disabled or deactivated. |
+| `permission_hidden` | Hidden from the caller by an active permission scope; metadata is redacted. |
+| `unsupported` | Known family with no configured instance. |
+
+**How a reviewer uses it to promote or reject a collector:**
+
+1. Pull the full-fleet report (default catalog) and locate the collector family.
+2. Promote only when `promotion_state` is `implemented`: this guarantees
+   `reducer_readback: available`, non-degraded health, and fresh evidence.
+3. Reject `failed`; fix the owning layer (collector/workflow for collection
+   bugs, reducer/projection for truth bugs) rather than adding a fallback.
+4. Treat `partial` as "in progress" — read `blockers` and `reducer_readback`
+   for the exact gap. A lane with `fixture_only: true` is never `implemented`;
+   live promotion still requires the fixture-to-runtime parity harness plus a
+   live smoke against the real provider.
+5. Treat `gated`/`disabled`/`unsupported`/`permission_hidden` as not-yet-live by
+   design; confirm the gate or missing instance is intentional.
+
+The catalog spine is `scope.AllCollectorKinds()`, so adding a collector
+automatically adds a readiness lane — there is no separate checklist to drift.
+The global `/admin/status` payload reports only collectors that are present; the
+full-fleet enumeration (including `unsupported` no-instance lanes) is available
+through the dedicated collector-readiness read model.
+
 If any step fails, fix the owning layer instead of adding a broader fallback.
 Collection bugs belong in collectors or workflow planning. Truth bugs belong in
 reducers, graph projection, or read-model stores. Operator visibility bugs
