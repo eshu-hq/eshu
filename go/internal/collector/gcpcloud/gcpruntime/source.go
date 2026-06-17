@@ -93,7 +93,7 @@ func (s *Source) collectScope(ctx context.Context, scopeCfg ScopeConfig) (collec
 		if errors.Is(err, gcpcloud.ErrStaleGeneration) {
 			return s.staleGeneration(ctx, scopeCfg, generationID, observedAt)
 		}
-		return collector.CollectedGeneration{}, fmt.Errorf("fence gcp generation for scope %q: %w", scopeCfg.ScopeID, err)
+		return collector.CollectedGeneration{}, fmt.Errorf("fence gcp generation for parent scope kind %q: %w", scopeCfg.ParentScopeKind, err)
 	}
 
 	boundary := s.boundary(scopeCfg, generationID, observedAt)
@@ -107,7 +107,7 @@ func (s *Source) collectScope(ctx context.Context, scopeCfg ScopeConfig) (collec
 	envelopes, err := generation.Build()
 	if err != nil {
 		s.recordClaim(ctx, gcpcloud.ClaimStatusFailed)
-		return collector.CollectedGeneration{}, fmt.Errorf("build gcp generation for scope %q: %w", scopeCfg.ScopeID, err)
+		return collector.CollectedGeneration{}, fmt.Errorf("build gcp generation for parent scope kind %q: %w", scopeCfg.ParentScopeKind, err)
 	}
 
 	s.recordEmission(ctx, scopeCfg, envelopes, generation.Boundary(), observedAt)
@@ -142,12 +142,18 @@ func (s *Source) drainPages(ctx context.Context, scopeCfg ScopeConfig, generatio
 				s.recordWarning(ctx, gcpcloud.WarningKindPageTokenExpired, gcpcloud.OutcomePartial)
 				return nil
 			}
-			return fmt.Errorf("fetch gcp page for scope %q: %w", scopeCfg.ScopeID, err)
+			var warning ProviderWarning
+			if errors.As(err, &warning) {
+				generation.AddWarning(s.providerWarning(scopeCfg, generation, warning))
+				s.recordWarning(ctx, warning.WarningKind, warning.Outcome)
+				return nil
+			}
+			return fmt.Errorf("fetch gcp page for parent scope kind %q: %w", scopeCfg.ParentScopeKind, err)
 		}
 		s.recordPage(ctx, scopeCfg.ParentScopeKind)
 		generation.ObserveReadTime(page.ReadTime)
 		if addErr := generation.AddPage(page.Resources); addErr != nil {
-			return fmt.Errorf("accumulate gcp page for scope %q: %w", scopeCfg.ScopeID, addErr)
+			return fmt.Errorf("accumulate gcp page for parent scope kind %q: %w", scopeCfg.ParentScopeKind, addErr)
 		}
 		token = page.NextPageToken
 		if token == "" {
@@ -174,7 +180,7 @@ func (s *Source) staleGeneration(
 	}
 	envelope, err := gcpcloud.NewCollectionWarningEnvelope(warning)
 	if err != nil {
-		return collector.CollectedGeneration{}, fmt.Errorf("build gcp stale warning for scope %q: %w", scopeCfg.ScopeID, err)
+		return collector.CollectedGeneration{}, fmt.Errorf("build gcp stale warning for parent scope kind %q: %w", scopeCfg.ParentScopeKind, err)
 	}
 	s.recordWarning(ctx, gcpcloud.WarningKindStale, gcpcloud.OutcomeStale)
 	s.recordFactsEmitted(ctx, facts.GCPCollectionWarningFactKind, scopeCfg.ParentScopeKind, 1)
@@ -191,7 +197,27 @@ func (s *Source) expiredTokenWarning(scopeCfg ScopeConfig, generation *gcpcloud.
 		Outcome:     gcpcloud.OutcomePartial,
 		Reason:      "continuation token could not be resumed",
 		Retryable:   true,
-		SourceURI:   scopeCfg.ParentScopeID,
+		SourceURI:   "cai://assets.list",
+	}
+}
+
+func (s *Source) providerWarning(
+	scopeCfg ScopeConfig,
+	generation *gcpcloud.Generation,
+	warning ProviderWarning,
+) gcpcloud.WarningObservation {
+	sourceURI := warning.SourceURI
+	if sourceURI == "" {
+		sourceURI = "cai://assets.list"
+	}
+	return gcpcloud.WarningObservation{
+		Boundary:    generation.Boundary(),
+		WarningKind: warning.WarningKind,
+		Outcome:     warning.Outcome,
+		Reason:      warning.Reason,
+		Retryable:   warning.Retryable,
+		HiddenCount: warning.HiddenCount,
+		SourceURI:   sourceURI,
 	}
 }
 

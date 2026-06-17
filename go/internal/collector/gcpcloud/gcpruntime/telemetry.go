@@ -83,7 +83,6 @@ func (s *Source) logScope(ctx context.Context, scopeCfg ScopeConfig, generation 
 		return
 	}
 	s.Logger.InfoContext(ctx, "gcp collector scope collected",
-		slog.String("scope_id", scopeCfg.ScopeID),
 		slog.String("parent_scope_kind", string(scopeCfg.ParentScopeKind)),
 		slog.String("asset_type_family", scopeCfg.AssetTypeFamily),
 		slog.String("content_family", scopeCfg.ContentFamily),

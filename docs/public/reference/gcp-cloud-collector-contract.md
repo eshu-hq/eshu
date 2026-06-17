@@ -3,8 +3,9 @@
 This page defines the provider-specific design baseline for the GCP cloud
 collector. It is a child of the
 [Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md) and
-does not promise live Google Cloud runtime deployment until the live transport,
-credential, and chart gates are proven.
+does not promise live Google Cloud runtime deployment until command credential
+wiring, scheduler activation, chart exposure, and sanitized smoke gates are
+proven.
 
 The collector kind is `gcp`. It observes Google Cloud control-plane metadata
 through Cloud Asset Inventory and emits source facts only. Reducers own
@@ -27,9 +28,12 @@ implementation (`go/internal/collector/gcpcloud/gcpruntime`) that drains Cloud
 Asset Inventory pages through a `PageProvider` seam, fences generations, emits
 the scoped telemetry, and a `cmd/collector-gcp-cloud` binary that wires the
 source and a status-recording committer from a declarative offline config. The
-live Cloud Asset Inventory transport is the documented, unimplemented,
-unwired `gcpruntime.LiveClient` seam; no code or test makes a live Google Cloud
-call.
+live Cloud Asset Inventory transport is now implemented as the explicit-injection
+`gcpruntime.LiveClient` REST `PageProvider` for `assets.list`. It requires a
+caller-supplied credential whose IAM grants are read-only, bounds page size,
+response bytes, timeouts, retry attempts, backoff, OAuth scope, and
+asset-family filters, and keeps the command, chart, and scheduler paths
+default-off. No test makes a live Google Cloud call.
 
 Shared multi-cloud reducer admission and API/MCP readback for the
 `gcp_cloud_resource` identity are now implemented and fixture-proven. The
@@ -76,10 +80,10 @@ pool, namespace, Kubernetes ServiceAccount name, and IAM member strings are not
 persisted in those trust facts.
 
 The rest of this contract remains gated. Do not add Helm values, environment
-variables, chart claims, or a live Cloud Asset Inventory transport until later
-implementation PRs prove the live runtime adapter (`gcpruntime.LiveClient`) and
-chart path. The relationship, tag, IAM, DNS, and image-reference fact kinds and
-schema versions are registered in `go/internal/facts/gcp.go`, and **all five
+variables, chart claims, or live command/scheduler wiring until later
+implementation PRs prove sanitized target smoke and the chart path. The
+relationship, tag, IAM, DNS, and image-reference fact kinds and schema versions
+are registered in `go/internal/facts/gcp.go`, and **all five
 envelope builders are implemented and unit-proven**:
 `NewCloudRelationshipEnvelope` (provenance-only: both endpoint full resource
 names, asset types, relationship type, bounded support state; resolves no
@@ -97,8 +101,8 @@ configured, with `source_kind=label`, and emits
 usable. It also emits `gcp_dns_record` from parsed CAI
 `dns.googleapis.com/ResourceRecordSet` assets when record type, record name, and
 managed-zone identity are usable. Direct/effective GCP tag API collection,
-live transport, credential resolution, runtime scheduling, and chart promotion
-remain follow-up work under #1997. Raw `gcp_iam_policy_observation`,
+command credential wiring, runtime scheduling, and chart promotion remain
+follow-up work under #1997. Raw `gcp_iam_policy_observation`,
 `gcp_dns_record`, and `gcp_collection_warning` facts are intentionally
 provenance-only or audit evidence until separate reducer/read-model contracts
 admit them.
@@ -388,13 +392,15 @@ Implemented slices:
    `gcp_cloud_resource`.
 4. Tag evidence admission, image identity admission, relationship resolution,
    and GCP IAM trust facts.
+5. Explicit-injection `gcpruntime.LiveClient` REST transport for bounded
+   `assets.list` page reads.
 
 Remaining gated slices:
 
-1. Live Cloud Asset Inventory transport and read-only credential resolution.
-2. Claim-enabled workflow scheduler/runtime activation.
-3. Direct/effective GCP tag API collection.
-4. Helm values, ServiceMonitor/chart promotion, and live smoke proof.
+1. Live command credential wiring and claim-enabled scheduler/runtime
+   activation.
+2. Direct/effective GCP tag API collection.
+3. Helm values, ServiceMonitor/chart promotion, and sanitized live smoke proof.
 
 Observability change: the first slice adds the `gcp_cloud_resource`,
 `gcp_cloud_relationship`, `gcp_tag_observation`,
@@ -402,15 +408,17 @@ Observability change: the first slice adds the `gcp_cloud_resource`,
 `gcp_collection_warning` fact schemas and the scoped GCP collector telemetry
 series listed under
 [Telemetry](#telemetry)
-(`eshu_dp_gcp_cloud_*`). The later runtime-scaffolding slice adds the
-fixture-backed binary described below; chart values, environment variables, live
-transport, and scheduler activation remain deferred.
+(`eshu_dp_gcp_cloud_*`). The runtime-scaffolding slice adds the fixture-backed
+binary and explicit-injection live transport described below; chart values,
+environment variables, live command wiring, and scheduler activation remain
+deferred.
 
 ## Runtime Scaffolding Evidence
 
-This evidence covers the second slice: the `gcpruntime` source and the
-`collector-gcp-cloud` binary. These are hot-path collector files, so they carry
-tracked performance and observability evidence here.
+This evidence covers the second slice plus the default-off `LiveClient` transport
+adapter: the `gcpruntime` source and the `collector-gcp-cloud` binary. These are
+hot-path collector files, so they carry tracked performance and observability
+evidence here.
 
 Collector Performance Evidence: see the No-Regression Evidence block below.
 
@@ -419,9 +427,9 @@ Collector Observability Evidence: see the Observability Evidence block below.
 Collector Deployment Evidence: this slice adds no Helm chart values, no
 ServiceMonitor, and no environment-variable contract. The binary is
 fixture-driven scaffolding launched with `-config` and `-redaction-key-file`
-file paths only. Deployment, chart, ServiceMonitor wiring, live transport, and
-claim-enabled scheduler activation are explicitly deferred to a later gated
-slice. No deployment surface changes in this PR.
+file paths only. Deployment, chart, ServiceMonitor wiring, live command
+credential wiring, and claim-enabled scheduler activation are explicitly
+deferred to later gated slices. No deployment surface changes in this PR.
 
 No-Observability-Change: this slice uses the existing scoped GCP collector
 instruments registered in the first slice
@@ -434,21 +442,28 @@ through the existing `fact_kind` dimension with `gcp_tag_observation`,
 the same existing dimension with `gcp_cloud_relationship`; image-reference
 emission uses the same existing dimension with `gcp_image_reference`. It
 registers no new metric series, adds no new label keys, and changes no telemetry
-contract.
+contract. `LiveClient` records no additional telemetry by itself; provider
+warnings flow through the existing warning metric after `Source` converts them
+to `gcp_collection_warning` facts.
 
 No-Regression Evidence:
 
-- Baseline: before this slice there was no GCP collector runtime; the source
-  path did not exist, so the comparison is against the empty/no-runtime
-  baseline and against the AWS collector source shape this mirrors.
+- Baseline: before this slice there was no GCP collector runtime, and before the
+  live-adapter slice `LiveClient` was an inert stub. The comparison is against
+  the empty/no-runtime baseline, the fixture-backed source shape, and the inert
+  live seam.
 - After: `go test ./internal/collector/gcpcloud/gcpruntime/...
   ./cmd/collector-gcp-cloud/... ./internal/collector/gcpcloud/...
-  ./internal/facts/... -count=1` passes.
+  ./internal/facts/... -count=1` passes. `go test
+  ./internal/collector/gcpcloud/gcpruntime -run
+  'TestLiveClient|TestSourceProviderWarning' -count=1` proves the live adapter.
 - Backend/version: no graph or database backend is exercised. The source builds
   facts in memory through the fixture `PageProvider`; the binary commits through
   the existing `postgres.IngestionStore` unchanged by this slice.
 - Input shape: two-page `assets.list` fixtures (three resources) per scope, plus
-  stale-generation, dangling-page-token, multi-scope, and empty-scope cases.
+  stale-generation, dangling-page-token, multi-scope, empty-scope, local HTTP
+  live-adapter pagination, path-validation, OAuth-scope, asset-family filter,
+  retry, quota, permission, and unavailable-provider cases.
 - Terminal counts: one `CollectedGeneration` per configured scope; three
   `gcp_cloud_resource` facts and two label-backed `gcp_tag_observation` facts
   for the two-page resource fixture; the IAM-policy fixture emits one
@@ -462,9 +477,10 @@ No-Regression Evidence:
 - Telemetry/log/status evidence: see the observability evidence below.
 - Why safe: the source is single-goroutine per `collector.Service`, reuses the
   existing fixture-tested `Generation`/`GenerationTracker` dedupe and fencing,
-  performs no live call, and adds no new database query, Cypher, lease, or
-  concurrent writer. Pagination resumes strictly by continuation token, so an
-  expired token degrades to a durable partial warning rather than truncation.
+  wires no live provider by default, and adds no new database query, Cypher,
+  lease, or concurrent writer. Pagination resumes strictly by continuation
+  token, so an expired token or typed live provider warning degrades to a durable
+  coverage warning rather than truncation.
 
 Observability Evidence:
 
@@ -475,7 +491,8 @@ Observability Evidence:
 - The status committer records `eshu_dp_gcp_cloud_claims_total` with
   `status=succeeded` or `status=failed` on commit outcome.
 - One structured log line per committed scope reports bounded counts only
-  (page, resource, and warning counts plus the scope id and bounded families).
-  No instrument or log field carries a resource name, project id, label value,
-  IAM member, DNS name, image reference, URL, or credential name. Credentials
-  are referenced by name only and the redaction key is never logged.
+  (page, resource, and warning counts plus bounded parent scope and family
+  enums). No instrument or log field carries a resource name, project id,
+  derived scope id, label value, IAM member, DNS name, image reference, URL,
+  credential name, page token, or provider response body. Credentials are
+  referenced by name only and the redaction key is never logged.
