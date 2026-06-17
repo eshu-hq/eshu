@@ -8,7 +8,9 @@ selected content/read-model families and the #1288 shadow-write comparison gate
 for bounded fact-family migration proof. It also owns the #1289 queue-substrate
 decision gate that keeps queue/workflow ownership separate from storage
 ownership and the #1290 backup/restore proof gate for future NornicDB-owned
-durable state classes.
+durable state classes. The #2749 hosted-growth Postgres proof gate records the
+fact, queue, migration, rollback, and operator signals required before a hosted
+installation can claim it is ready for growth storage.
 
 The package validates records that compare current Postgres production answers
 with NornicDB shadow answers. Passing evidence proves only parity for the
@@ -17,6 +19,10 @@ Queue-substrate decisions prove only that a candidate comparison covered queue
 semantics and observability; they do not implement a new queue. Backup/restore
 proofs prove only clean restore parity for one durable state class; they do not
 implement backup tooling or change production ownership.
+Hosted-growth Postgres proofs prove only that aggregate relation sizes, queue
+drain behavior, migration safety, rollback behavior, and observability have
+been recorded. They do not apply DDL, change partitioning, or move work between
+profiles.
 
 ## Ownership boundary
 
@@ -71,6 +77,18 @@ See `doc.go` for the godoc contract.
   `BackupRestoreScenarioProof`, `BackupRestoreRollbackBehavior`,
   `BackupRestoreObservability`, `BackupRestoreVerdict`, and
   `BackupRestoreFailureClass` provide backup/restore proof labels.
+- `HostedGrowthPostgresProof` is the evidence record for hosted-growth Postgres
+  fact and queue proof.
+- `ValidateHostedGrowthPostgresProof` accepts only relation size and latency
+  measurements, reducer queue drain evidence, migration/rollback coverage,
+  active-generation and changed-since correctness, operator gate thresholds,
+  and observability that all pass the #2749 contract.
+- `HostedGrowthProfile`, `HostedGrowthRelation`,
+  `HostedGrowthRelationMeasurement`, `HostedGrowthQueueDrainMeasurement`,
+  `HostedGrowthScenarioProof`, `HostedGrowthMigrationProof`,
+  `HostedGrowthOperatorGate`, `HostedGrowthObservability`,
+  `HostedGrowthVerdict`, and `HostedGrowthFailureClass` provide hosted-growth
+  proof labels.
 
 ## Dependencies
 
@@ -87,6 +105,12 @@ labels.
 
 Backup/restore proof runners must also expose backup artifact age, artifact
 size, restore duration, restore failure class, and parity drift.
+
+Hosted-growth Postgres proof runners must expose relation row counts, index and
+total sizes, read/write latency, queue depth, oldest queue age, retry and
+dead-letter counts, stale rows, active claims, migration duration, rollback
+status, and status summaries. Raw repositories, hostnames, IPs, paths, DSNs,
+logs, payloads, principals, and accounts remain operator-local.
 
 No-Observability-Change: this package defines the required evidence labels and
 does not alter hosted runtime signals.
@@ -123,6 +147,14 @@ does not alter hosted runtime signals.
   evidence state.
 - Passing backup/restore proof requires explicit `keep_postgres` fallback and a
   rollback behavior; fallback reads must not hide parity drift.
+- Hosted-growth proof must include `fact_records`, `fact_work_items`,
+  `shared_projection_intents`, and `shared_projection_acceptance` measurements.
+- Native Postgres partitioning proof must show primary and unique constraints
+  include the partition key; otherwise the proof must remain a migration plan,
+  not a shipped DDL claim.
+- Hosted-growth proof must preserve active claims, retry rows, dead letters,
+  stale-row classification, active-generation reads, and changed-since retained
+  windows. It must not delete active work or force retries during migration.
 
 ## Verification
 
@@ -132,6 +164,8 @@ Run from the repository root:
 (cd go && go test ./internal/storageeval -count=1)
 (cd go && go vet ./internal/storageeval)
 (cd go && golangci-lint run ./internal/storageeval)
+./scripts/test-verify-hosted-growth-postgres-proof.sh
+./scripts/verify-hosted-growth-postgres-proof.sh --input hosted-growth-proof.json --output-json hosted-growth-proof.summary.json --output-markdown hosted-growth-proof.summary.md
 ./scripts/verify-package-docs.sh
 git diff --check
 ```

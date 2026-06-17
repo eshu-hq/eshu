@@ -22,6 +22,12 @@ adapter-free, queue-free, and runtime-free.
   that hide parity drift here.
 - MUST reject graph-only backup proof for content, fact-family, read-model,
   search-document, or relationship-evidence state.
+- MUST keep hosted-growth Postgres proof as an evidence contract only; do not
+  add partition DDL, queue adapters, migration runners, or hosted profile
+  cutover logic here.
+- MUST reject hosted-growth proof that lacks relation sizes, queue drain,
+  active-claim, retry/dead-letter, stale-row, rollback, active-generation, or
+  changed-since retained-window evidence.
 
 ## Read first
 
@@ -31,7 +37,8 @@ adapter-free, queue-free, and runtime-free.
 4. `shadow_write.go` before changing the #1288 comparison gate.
 5. `queue_substrate.go` before changing the #1289 decision gate.
 6. `backup_restore.go` before changing the #1290 proof gate.
-7. `docs/internal/design/431-nornicdb-primary-store-evaluation.md` before
+7. `postgres_growth.go` before changing the #2749 hosted-growth Postgres gate.
+8. `docs/internal/design/431-nornicdb-primary-store-evaluation.md` before
    changing storage migration evidence semantics.
 
 ## Verification
