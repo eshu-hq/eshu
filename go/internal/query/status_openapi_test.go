@@ -37,6 +37,31 @@ func TestOpenAPISpecStatusPathsMatchCurrentContract(t *testing.T) {
 			t.Fatalf("/api/v0/status/hosted-readiness response schema missing %q", want)
 		}
 	}
+	if _, ok := paths["/api/v0/collector-readiness"]; !ok {
+		t.Fatal("OpenAPI paths missing /api/v0/collector-readiness alias")
+	}
+	collectorReadinessPath := mustMapField(t, paths, "/api/v0/status/collector-readiness")
+	collectorReadinessGet := mustMapField(t, collectorReadinessPath, "get")
+	collectorReadinessResponses := mustMapField(t, collectorReadinessGet, "responses")
+	collectorReadinessOK := mustMapField(t, collectorReadinessResponses, "200")
+	collectorReadinessContent := mustMapField(t, collectorReadinessOK, "content")
+	collectorReadinessJSON := mustMapField(t, collectorReadinessContent, "application/json")
+	collectorReadinessSchema := mustMapField(t, collectorReadinessJSON, "schema")
+	collectorReadinessProperties := mustMapField(t, collectorReadinessSchema, "properties")
+	readinessItems := mustMapField(t, collectorReadinessProperties, "readiness")
+	readinessItemSchema := mustMapField(t, readinessItems, "items")
+	readinessItemProperties := mustMapField(t, readinessItemSchema, "properties")
+	for _, want := range []string{
+		"collector_kind",
+		"promotion_state",
+		"reducer_readback",
+		"recommended_next_action",
+	} {
+		if _, ok := readinessItemProperties[want]; !ok {
+			t.Fatalf("/api/v0/status/collector-readiness item schema missing %q", want)
+		}
+	}
+
 	semanticPath := mustMapField(t, paths, "/api/v0/status/semantic-extraction")
 	semanticGet := mustMapField(t, semanticPath, "get")
 	semanticResponses := mustMapField(t, semanticGet, "responses")

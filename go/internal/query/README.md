@@ -553,6 +553,16 @@ collector instance identifiers, display names, queue conflict keys,
 tenant/workspace values, provider payloads, local paths, and credentials stay
 out of the payload.
 
+`GET /api/v0/status/collector-readiness` (alias `/api/v0/collector-readiness`)
+projects `status.CollectorPromotionProofs` over the full collector fleet into a
+redacted, console-consumable readiness read model: per-family promotion state,
+runtime category, health, claim state, reducer readback status, evidence counts,
+last proof time, blockers, and a recommended next action. The MCP tool
+`get_collector_readiness` maps to the same route so API and MCP return identical
+readiness truth. Scoped tokens drop the per-instance identifier so a scoped
+caller sees family-level readiness only; full per-grant `permission_hidden`
+filtering is tracked as a follow-up.
+
 ## Telemetry
 
 - Spans: `telemetry.SpanQueryRelationshipEvidence` (`query.relationship_evidence`)

@@ -199,6 +199,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_collectors` | GET | `/api/v0/status/collectors` |
 | `list_ingesters` | GET | `/api/v0/status/ingesters` |
 | `get_hosted_readiness` | GET | `/api/v0/status/hosted-readiness` with fail-closed queue, collector, projection, and API/MCP query-readback checks |
+| `get_collector_readiness` | GET | `/api/v0/status/collector-readiness` with per-collector-family promotion state, reducer readback, evidence counts, last proof time, blockers, and recommended next action; redacted |
 | `get_hosted_governance_status` | GET | `/api/v0/status/governance` with redacted governance mode, policy state, readiness booleans, aggregate counts, and low-cardinality reasons |
 | `get_semantic_capability_status` | GET | `/api/v0/status/semantic-extraction` with redacted provider profile, semantic queue, budget, and audit status when configured |
 | `get_answer_narration_status` | GET | `/api/v0/status/answer-narration` with disabled-by-default narration posture, deterministic fallback state, retention posture, and validator reason codes |
