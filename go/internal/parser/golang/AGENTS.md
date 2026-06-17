@@ -26,8 +26,11 @@
 13. `embedded_sql.go` - SQL literal extraction and line-number accounting
 13a. `cfg_lower.go`, `cfg_bindings.go`, `cfg_emit.go` - opt-in dataflow pass:
     lowers each function to a control-flow graph over `internal/parser/cfg`,
-    extracts per-statement defs/uses, and emits the `dataflow_functions` bucket
-    (gated by `Options.GoEmitDataflow`, byte-identical when off)
+    extracts per-statement defs/uses, and emits the `dataflow_functions` and
+    `taint_findings` buckets (gated by `Options.GoEmitDataflow`, byte-identical
+    when off)
+13b. `cfg_taint_facts.go` - the Go source/sink/sanitizer catalog and the mapping
+    from parsed statements to `internal/parser/taint` facts
 14. `helpers.go` and `types.go` - local helper and shared contract aliases
 15. Parent tests in `go/internal/parser/go*_test.go` before changing emitted
     payload shape

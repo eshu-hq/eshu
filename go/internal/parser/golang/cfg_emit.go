@@ -5,26 +5,18 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/cfg"
+	"github.com/eshu-hq/eshu/go/internal/parser/taint"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-// goDataflowPayloads renders the per-function dataflow bucket using the default
-// limits. It is the entry point used by the parser so language.go need not
-// depend on the cfg package directly.
-func goDataflowPayloads(root *tree_sitter.Node, source []byte) []map[string]any {
-	return goDataflowFunctionPayloads(root, source, cfg.DefaultLimits())
-}
-
-// goDataflowFunctionPayloads lowers every top-level Go function and method to a
-// control-flow graph, resolves reaching definitions, and renders the result as
-// deterministic, bounded payload rows. Function literals are skipped here;
-// closures are modeled by a later pass. The returned slice is sorted by
-// (line, name) so the bucket is byte-stable across runs.
-//
-// limits bounds each function independently; a function that trips a cap still
-// emits its blocks and records counted overflow rather than dropping data.
-func goDataflowFunctionPayloads(root *tree_sitter.Node, source []byte, limits cfg.Limits) []map[string]any {
-	var rows []map[string]any
+// goEmitDataflowBuckets lowers every top-level Go function and method once and
+// renders two deterministic, bounded payload buckets: per-function control-flow
+// and reaching-definition facts ("dataflow_functions"), and intraprocedural
+// taint findings ("taint_findings"). Function literals are skipped here;
+// closures are modeled by a later pass. Both slices are sorted so the buckets
+// are byte-stable across runs.
+func goEmitDataflowBuckets(root *tree_sitter.Node, source []byte) (dataflow, findings []map[string]any) {
+	limits := cfg.DefaultLimits()
 	walkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "function_declaration", "method_declaration":
@@ -36,36 +28,76 @@ func goDataflowFunctionPayloads(root *tree_sitter.Node, source []byte, limits cf
 		if name == "" {
 			return
 		}
+		line := nodeLine(nameNode)
+		classContext := goReceiverContext(node, source)
+
 		fn := goLowerFunction(node, source, limits)
-		row := map[string]any{
-			"name":        name,
-			"line_number": nodeLine(nameNode),
-			"lang":        "go",
-			"blocks":      dataflowBlockPayloads(fn.Blocks),
-			"def_uses":    dataflowDefUsePayloads(fn.DefUses),
+		dataflow = append(dataflow, dataflowFunctionRow(name, line, classContext, fn))
+
+		facts := goTaintFacts(node, source, fn)
+		result := taint.Analyze(fn, facts, taint.DefaultLimits())
+		for _, finding := range result.Findings {
+			findings = append(findings, taintFindingRow(name, line, classContext, finding))
 		}
-		if classContext := goReceiverContext(node, source); classContext != "" {
-			row["class_context"] = classContext
-		}
-		if fn.Overflow.Any() {
-			row["overflow"] = map[string]any{
-				"blocks":        fn.Overflow.Blocks,
-				"stmts":         fn.Overflow.Stmts,
-				"def_use_edges": fn.Overflow.DefUseEdges,
-			}
-		}
-		rows = append(rows, row)
 	})
-	sort.SliceStable(rows, func(i, j int) bool {
-		li, lj := intFromRow(rows[i], "line_number"), intFromRow(rows[j], "line_number")
-		if li != lj {
-			return li < lj
+	sortFunctionRows(dataflow)
+	sortFindingRows(findings)
+	return dataflow, findings
+}
+
+// dataflowFunctionRow renders one function's CFG and def->use facts.
+func dataflowFunctionRow(name string, line int, classContext string, fn cfg.Function) map[string]any {
+	row := map[string]any{
+		"name":        name,
+		"line_number": line,
+		"lang":        "go",
+		"blocks":      dataflowBlockPayloads(fn.Blocks),
+		"def_uses":    dataflowDefUsePayloads(fn.DefUses),
+	}
+	if classContext != "" {
+		row["class_context"] = classContext
+	}
+	if fn.Overflow.Any() {
+		row["overflow"] = map[string]any{
+			"blocks":        fn.Overflow.Blocks,
+			"stmts":         fn.Overflow.Stmts,
+			"def_use_edges": fn.Overflow.DefUseEdges,
 		}
-		ni, _ := rows[i]["name"].(string)
-		nj, _ := rows[j]["name"].(string)
-		return ni < nj
-	})
-	return rows
+	}
+	return row
+}
+
+// taintFindingRow renders one taint finding with confidence and provenance.
+func taintFindingRow(name string, line int, classContext string, finding taint.Finding) map[string]any {
+	row := map[string]any{
+		"function_name": name,
+		"line_number":   line,
+		"lang":          "go",
+		"kind":          string(finding.Kind),
+		"sink_kind":     string(finding.SinkKind),
+		"source_kind":   finding.SourceKind,
+		"binding":       finding.Binding,
+		"source_line":   finding.SourceLine,
+		"sink_line":     finding.SinkLine,
+		"confidence":    finding.Confidence,
+	}
+	if classContext != "" {
+		row["class_context"] = classContext
+	}
+	if finding.SinkLabel != "" {
+		row["sink_label"] = finding.SinkLabel
+	}
+	if finding.SourceLabel != "" {
+		row["source_label"] = finding.SourceLabel
+	}
+	if len(finding.Neutralized) > 0 {
+		neutralized := make([]string, 0, len(finding.Neutralized))
+		for _, kind := range finding.Neutralized {
+			neutralized = append(neutralized, string(kind))
+		}
+		row["neutralized"] = neutralized
+	}
+	return row
 }
 
 // dataflowBlockPayloads renders basic blocks with their statements and sorted
@@ -107,8 +139,42 @@ func dataflowDefUsePayloads(defUses []cfg.DefUse) []map[string]any {
 	return out
 }
 
-// intFromRow reads an int payload field, tolerating the int type emitted here.
+// sortFunctionRows orders dataflow rows by (line, name) for stable output.
+func sortFunctionRows(rows []map[string]any) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		li, lj := intFromRow(rows[i], "line_number"), intFromRow(rows[j], "line_number")
+		if li != lj {
+			return li < lj
+		}
+		return stringFromRow(rows[i], "name") < stringFromRow(rows[j], "name")
+	})
+}
+
+// sortFindingRows orders taint findings deterministically by sink line, source
+// line, binding, and kind.
+func sortFindingRows(rows []map[string]any) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		if si, sj := intFromRow(rows[i], "sink_line"), intFromRow(rows[j], "sink_line"); si != sj {
+			return si < sj
+		}
+		if si, sj := intFromRow(rows[i], "source_line"), intFromRow(rows[j], "source_line"); si != sj {
+			return si < sj
+		}
+		if bi, bj := stringFromRow(rows[i], "binding"), stringFromRow(rows[j], "binding"); bi != bj {
+			return bi < bj
+		}
+		return stringFromRow(rows[i], "kind") < stringFromRow(rows[j], "kind")
+	})
+}
+
+// intFromRow reads an int payload field.
 func intFromRow(row map[string]any, key string) int {
 	value, _ := row[key].(int)
+	return value
+}
+
+// stringFromRow reads a string payload field.
+func stringFromRow(row map[string]any, key string) string {
+	value, _ := row[key].(string)
 	return value
 }
