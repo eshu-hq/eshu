@@ -31,6 +31,10 @@ func InterprocFindings(root *tree_sitter.Node, source []byte, importPath string)
 				summaries[id] = valueflow.DeriveEffects(fn, spec)
 				sources = append(sources, interprocSources(node, source, id)...)
 			}
+			// Do not descend into the body: a nested function is lexically private
+			// and is not a file-level interprocedural entry (closures are a later
+			// pass). This mirrors LocalFunctionIDs so the two stay consistent.
+			return
 		}
 		cursor := node.Walk()
 		defer cursor.Close()

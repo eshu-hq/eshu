@@ -17,7 +17,10 @@ func FunctionID(importPath, name string) summary.FunctionID {
 }
 
 // LocalFunctionIDs maps each top-level function declaration name in a file to its
-// summary identity, for intra-file call resolution.
+// summary identity, for intra-file call resolution. It records a function
+// declaration but does not descend into its body: a function nested inside
+// another function is lexically private to it and must not become visible to
+// unrelated top-level callers, which would invent a false cross-function edge.
 func LocalFunctionIDs(root *tree_sitter.Node, source []byte, importPath string) map[string]summary.FunctionID {
 	out := map[string]summary.FunctionID{}
 	var walk func(*tree_sitter.Node)
@@ -29,6 +32,8 @@ func LocalFunctionIDs(root *tree_sitter.Node, source []byte, importPath string) 
 			if name := nodeText(node.ChildByFieldName("name"), source); name != "" {
 				out[name] = FunctionID(importPath, name)
 			}
+			// Do not descend: nested declarations are not file-visible.
+			return
 		}
 		cursor := node.Walk()
 		defer cursor.Close()
