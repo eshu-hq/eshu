@@ -140,7 +140,8 @@ such as `confidence`, `resolution_method`, `confidence_basis`, and
 
 For `CALLS`/`REFERENCES` code edges, `method` is the code `resolution_method`
 when available. `resolution_method` values include `scip`, `declared`,
-`same_file`, `import_binding`, `type_inferred`, `scope_unique_name`, and
+`same_file`, `import_binding`, `type_inferred`, `scope_unique_name`,
+`cross_repo_export_package`, and
 `repo_unique_name`, with confidence derived from that method (see the
 [graph model](../../concepts/graph-model.md)). An edge projected before this
 contract can still miss scalar provenance; its `provenance` block reports

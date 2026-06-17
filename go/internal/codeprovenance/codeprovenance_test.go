@@ -15,6 +15,7 @@ func TestConfidenceMatchesADRTierTable(t *testing.T) {
 		{MethodImportBinding, 0.90},
 		{MethodTypeInferred, 0.80},
 		{MethodScopeUniqueName, 0.70},
+		{MethodCrossRepoExportPackage, 0.70},
 		{MethodRepoUniqueName, 0.50},
 	}
 	for _, tc := range cases {
@@ -40,7 +41,8 @@ func TestValidAndClassified(t *testing.T) {
 
 	classified := []Method{
 		MethodSCIP, MethodDeclared, MethodSameFile, MethodImportBinding,
-		MethodTypeInferred, MethodScopeUniqueName, MethodRepoUniqueName,
+		MethodTypeInferred, MethodScopeUniqueName, MethodCrossRepoExportPackage,
+		MethodRepoUniqueName,
 	}
 	for _, method := range classified {
 		if !Valid(method) {
@@ -70,8 +72,8 @@ func TestReasonIsNonEmptyForEveryVocabularyValue(t *testing.T) {
 
 	all := []Method{
 		MethodSCIP, MethodDeclared, MethodSameFile, MethodImportBinding,
-		MethodTypeInferred, MethodScopeUniqueName, MethodRepoUniqueName,
-		MethodUnspecified,
+		MethodTypeInferred, MethodScopeUniqueName, MethodCrossRepoExportPackage,
+		MethodRepoUniqueName, MethodUnspecified,
 	}
 	for _, method := range all {
 		if Reason(method) == "" {

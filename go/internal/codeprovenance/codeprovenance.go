@@ -31,6 +31,13 @@ const (
 	// MethodScopeUniqueName marks an edge resolved by a unique name within a
 	// bounded directory or package scope, with no import binding.
 	MethodScopeUniqueName Method = "scope_unique_name"
+	// MethodCrossRepoExportPackage marks an edge resolved across repositories by
+	// matching a Go package-qualified call to the single exported top-level
+	// function with that name whose defining package import path equals the
+	// caller's import path. The match is anchored on the defining module's
+	// declared module path and the import path string, not a SCIP or semantic
+	// binding, so it sits at the same tier as scope_unique_name.
+	MethodCrossRepoExportPackage Method = "cross_repo_export_package"
 	// MethodRepoUniqueName marks an edge resolved by a repository-wide
 	// unique-name match with no scope or import evidence; the global fallback.
 	MethodRepoUniqueName Method = "repo_unique_name"
@@ -50,26 +57,28 @@ const LegacyConfidence = 0.95
 // table. Confidence is a derivation of Method, not an independent signal, so it
 // lives in exactly one place and cannot drift per call site.
 var confidenceByMethod = map[Method]float64{
-	MethodSCIP:            0.99,
-	MethodDeclared:        0.95,
-	MethodSameFile:        0.95,
-	MethodImportBinding:   0.90,
-	MethodTypeInferred:    0.80,
-	MethodScopeUniqueName: 0.70,
-	MethodRepoUniqueName:  0.50,
+	MethodSCIP:                   0.99,
+	MethodDeclared:               0.95,
+	MethodSameFile:               0.95,
+	MethodImportBinding:          0.90,
+	MethodTypeInferred:           0.80,
+	MethodScopeUniqueName:        0.70,
+	MethodCrossRepoExportPackage: 0.70,
+	MethodRepoUniqueName:         0.50,
 }
 
 // reasonByMethod gives an operator reading a raw edge a short, mechanism-level
 // explanation in place of the previous single fixed reason string.
 var reasonByMethod = map[Method]string{
-	MethodSCIP:            "Resolved by SCIP semantic symbol analysis",
-	MethodDeclared:        "Relationship explicitly declared in source",
-	MethodSameFile:        "Resolved within the caller's file by lexical scope or unique name",
-	MethodImportBinding:   "Resolved by following an explicit import or package binding",
-	MethodTypeInferred:    "Resolved by receiver or return-type inference",
-	MethodScopeUniqueName: "Resolved by a unique name within a directory or package scope",
-	MethodRepoUniqueName:  "Resolved by a repository-wide unique-name match",
-	MethodUnspecified:     "Resolution method not recorded",
+	MethodSCIP:                   "Resolved by SCIP semantic symbol analysis",
+	MethodDeclared:               "Relationship explicitly declared in source",
+	MethodSameFile:               "Resolved within the caller's file by lexical scope or unique name",
+	MethodImportBinding:          "Resolved by following an explicit import or package binding",
+	MethodTypeInferred:           "Resolved by receiver or return-type inference",
+	MethodScopeUniqueName:        "Resolved by a unique name within a directory or package scope",
+	MethodCrossRepoExportPackage: "Resolved by matching a cross-repository Go package import path to a single exported function",
+	MethodRepoUniqueName:         "Resolved by a repository-wide unique-name match",
+	MethodUnspecified:            "Resolution method not recorded",
 }
 
 // Confidence returns the derived confidence for a resolution method per the ADR

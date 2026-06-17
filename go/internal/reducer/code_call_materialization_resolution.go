@@ -74,6 +74,12 @@ func resolveGenericCallee(
 		}
 	}
 
+	if language == "go" {
+		if entityID := resolveGoCrossRepoExportCalleeEntityID(index, repositoryID, fileData, call); entityID != "" {
+			return entityID, index.entityFileByID[entityID], codeprovenance.MethodCrossRepoExportPackage
+		}
+	}
+
 	entityID, calleeFile := resolveImportedCrossFileCallee(
 		index,
 		repositoryImports,

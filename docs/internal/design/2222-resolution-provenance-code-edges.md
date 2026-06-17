@@ -74,6 +74,7 @@ ordered strongest → weakest.
 | `import_binding` | Callee resolved by following an explicit import / Go package-qualified import / re-export barrel. | 0.90 |
 | `type_inferred` | Callee resolved through receiver/return-type inference, dynamic-alias inference, or constructor binding. | 0.80 |
 | `scope_unique_name` | Callee resolved by a unique name within a bounded directory/package scope, with no import binding (e.g. Go same-directory). | 0.70 |
+| `cross_repo_export_package` | Callee resolved across repositories by matching a Go package import path (anchored on the defining repo's declared `go.mod` module path) to the single exported top-level function with that name. | 0.70 |
 | `repo_unique_name` | Callee resolved by a repository-wide unique-name match with no scope or import evidence; the global fallback. | 0.50 |
 | `unspecified` | Method not recorded (legacy edge written before this ADR, or a future branch not yet classified). Readers must tolerate this; writers must not emit it for any classified branch. | preserves prior value (see §6) |
 
@@ -101,6 +102,7 @@ contract the accuracy goldens (#2226) assert against.
 | `resolveGoPackageQualifiedCalleeEntityID` | `import_binding` |
 | `resolveReexportedCrossFileCallee` | `import_binding` |
 | `resolveGoSameDirectoryCalleeEntityID` | `scope_unique_name` |
+| `resolveGoCrossRepoExportCalleeEntityID` | `cross_repo_export_package` |
 | `index.uniqueNameByRepo` exact-name match | `repo_unique_name` |
 | `index.uniqueNameByRepo` broad-name match | `repo_unique_name` |
 
