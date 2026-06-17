@@ -1194,6 +1194,7 @@ func TestEntityTypeLabelMapCoversAllSchemaLabels(t *testing.T) {
 		"PrefixList":                   {},
 		"SecurityGroupRule":            {},
 		"IncidentRoutingEvidence":      {},
+		"CodeTaintEvidence":            {},
 		"ExternalPrincipal":            {},
 		"SecretsIAMServiceAccount":     {},
 		"SecretsIAMVaultAuthRole":      {},

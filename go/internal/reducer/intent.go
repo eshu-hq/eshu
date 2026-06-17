@@ -19,6 +19,9 @@ const (
 	DomainDeploymentMapping Domain = "deployment_mapping"
 	// DomainDataLineage resolves lineage across sources and scopes.
 	DomainDataLineage Domain = "data_lineage"
+	// DomainCodeTaintEvidence projects value-flow taint findings into graph
+	// evidence nodes attached to their Function.
+	DomainCodeTaintEvidence Domain = "code_taint_evidence"
 	// DomainOwnership resolves ownership and responsibility records.
 	DomainOwnership Domain = "ownership"
 	// DomainGovernance resolves governance and policy attribution.
