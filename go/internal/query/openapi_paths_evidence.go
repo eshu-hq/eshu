@@ -65,7 +65,7 @@ const openAPIPathsEvidence = `
       "get": {
         "tags": ["evidence"],
         "summary": "List correlation admission decisions",
-        "description": "Lists reducer-owned correlation admission decisions for one domain, scope, and generation. Rows explain admitted, rejected, ambiguous, stale, missing-evidence, permission-hidden, unsupported, and unsafe candidates before or beside canonical graph edges. The route is bounded, scoped-token safe, and returns source handles plus recommended next calls.",
+        "description": "Lists reducer-owned correlation admission decisions for one domain, scope, and generation. Rows explain admitted, rejected, ambiguous, stale, missing-evidence, permission-hidden, unsupported, and unsafe candidates before or beside canonical graph edges. The route is bounded, scoped-token safe, and returns source handles plus recommended next calls. local_lightweight returns unsupported_capability.",
         "operationId": "listAdmissionDecisions",
         "parameters": [
           {"name": "domain", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Reducer admission domain such as deployable_unit, cloud_inventory, or package_source"},
@@ -74,7 +74,7 @@ const openAPIPathsEvidence = `
           {"name": "state", "in": "query", "schema": {"type": "string", "enum": ["admitted", "rejected", "ambiguous", "stale", "missing_evidence", "permission_hidden", "unsupported", "unsafe"]}},
           {"name": "anchor_kind", "in": "query", "schema": {"type": "string"}, "description": "Optional anchor kind such as service, repository, workload, cloud_resource, package, or incident. Provide with anchor_id."},
           {"name": "anchor_id", "in": "query", "schema": {"type": "string"}, "description": "Optional anchor id. Provide with anchor_kind."},
-          {"name": "include_evidence", "in": "query", "schema": {"type": "boolean", "default": false}, "description": "When true, include bounded evidence rows for returned decisions."},
+          {"name": "include_evidence", "in": "query", "schema": {"type": "boolean", "default": false}, "description": "When true, include up to 20 bounded evidence rows per returned decision with evidence_limit and evidence_truncated metadata."},
           {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200}}
         ],
         "responses": {
@@ -85,7 +85,11 @@ const openAPIPathsEvidence = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "decisions": {"type": "array", "items": {"type": "object"}},
+                    "decisions": {"type": "array", "items": {"type": "object", "properties": {
+                      "evidence": {"type": "array", "items": {"type": "object"}, "description": "Present only when include_evidence=true; capped at 20 rows per decision."},
+                      "evidence_limit": {"type": "integer", "description": "Per-decision evidence row cap when evidence is included."},
+                      "evidence_truncated": {"type": "boolean", "description": "True when additional evidence rows exist beyond evidence_limit."}
+                    }}},
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean"},
@@ -97,6 +101,7 @@ const openAPIPathsEvidence = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "501": {"$ref": "#/components/responses/UnsupportedCapability"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {
             "description": "Postgres admission decision read model is unavailable",

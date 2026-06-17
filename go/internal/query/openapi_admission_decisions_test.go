@@ -25,6 +25,28 @@ func TestOpenAPISpecIncludesAdmissionDecisions(t *testing.T) {
 			t.Fatalf("parameters missing %q: %#v", name, parameters)
 		}
 	}
+	responses := mustMapField(t, get, "responses")
+	if _, ok := responses["501"]; !ok {
+		t.Fatalf("responses missing 501 unsupported-capability response: %#v", responses)
+	}
+	schema := mustMapField(t,
+		mustMapField(t,
+			mustMapField(t,
+				mustMapField(t, responses["200"].(map[string]any), "content"),
+				"application/json",
+			),
+			"schema",
+		),
+		"properties",
+	)
+	decisions := mustMapField(t, schema, "decisions")
+	items := mustMapField(t, decisions, "items")
+	itemProps := mustMapField(t, items, "properties")
+	for _, name := range []string{"evidence", "evidence_limit", "evidence_truncated"} {
+		if _, present := itemProps[name]; !present {
+			t.Fatalf("admission decision item schema missing %q: %#v", name, itemProps)
+		}
+	}
 }
 
 func openAPIParametersIncludeName(parameters []any, name string) bool {

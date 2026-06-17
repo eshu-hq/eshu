@@ -8,9 +8,10 @@ import (
 )
 
 const (
-	admissionDecisionCapability   = "admission_decisions.list"
-	admissionDecisionDefaultLimit = 50
-	admissionDecisionMaxLimit     = 200
+	admissionDecisionCapability    = "admission_decisions.list"
+	admissionDecisionDefaultLimit  = 50
+	admissionDecisionMaxLimit      = 200
+	admissionDecisionEvidenceLimit = 20
 )
 
 func (h *EvidenceHandler) listAdmissionDecisions(w http.ResponseWriter, r *http.Request) {
@@ -21,6 +22,20 @@ func (h *EvidenceHandler) listAdmissionDecisions(w http.ResponseWriter, r *http.
 		admissionDecisionCapability,
 	)
 	defer span.End()
+
+	if capabilityUnsupported(h.profile(), admissionDecisionCapability) {
+		WriteContractError(
+			w,
+			r,
+			http.StatusNotImplemented,
+			"admission decisions require the local-authoritative profile or higher",
+			ErrorCodeUnsupportedCapability,
+			admissionDecisionCapability,
+			h.profile(),
+			requiredProfile(admissionDecisionCapability),
+		)
+		return
+	}
 
 	filter, limit, includeEvidence, ok := admissionDecisionFilterFromRequest(w, r)
 	if !ok {
@@ -58,12 +73,17 @@ func (h *EvidenceHandler) listAdmissionDecisions(w http.ResponseWriter, r *http.
 	for _, row := range rows {
 		result := admissionDecisionResult(row)
 		if includeEvidence {
-			evidence, err := h.AdmissionDecisions.ListAdmissionDecisionEvidence(r.Context(), row.DecisionID)
+			evidence, err := h.AdmissionDecisions.ListAdmissionDecisionEvidence(
+				r.Context(),
+				row.DecisionID,
+				admissionDecisionEvidenceLimit+1,
+			)
 			if err != nil {
 				WriteError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
-			result.Evidence = evidence
+			result.Evidence, result.EvidenceTruncated = boundedAdmissionDecisionEvidence(evidence)
+			result.EvidenceLimit = admissionDecisionEvidenceLimit
 		}
 		results = append(results, result)
 	}
@@ -128,6 +148,16 @@ func queryParamBool(r *http.Request, key string) bool {
 	value := QueryParam(r, key)
 	parsed, err := strconv.ParseBool(value)
 	return err == nil && parsed
+}
+
+func boundedAdmissionDecisionEvidence(
+	evidence []AdmissionDecisionEvidenceRow,
+) ([]AdmissionDecisionEvidenceRow, *bool) {
+	truncated := len(evidence) > admissionDecisionEvidenceLimit
+	if truncated {
+		evidence = evidence[:admissionDecisionEvidenceLimit]
+	}
+	return evidence, &truncated
 }
 
 func (h *EvidenceHandler) writeEmptyAdmissionDecisionPage(w http.ResponseWriter, r *http.Request, limit int) {

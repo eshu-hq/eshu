@@ -3,6 +3,12 @@
 Keep this file for scoped evidence that is too detailed for the package
 orientation README.
 
+## Admission Decision Evidence Bounds (#2694)
+
+No-Regression Evidence: `go test ./internal/query -run 'TestAdmissionDecision|TestOpenAPISpecIncludesAdmissionDecisions' -count=1` and `go test ./internal/storage/postgres -run 'TestAdmissionDecisionStore|TestAdmissionDecisionSchema|TestAdmissionDecisionStates' -count=1` prove `admission_decisions.list` now rejects unsupported lightweight profiles before store reads, requests `limit+1` evidence rows per decision, reports `evidence_limit` and `evidence_truncated`, and pushes the per-decision evidence cap into the Postgres read query. The list page limit remains capped at 200 decisions and the embedded evidence preview is capped at 20 rows per decision.
+
+No-Observability-Change: the fix adds no route, worker, queue, graph write, metric, span, runtime default, or new high-cardinality label. Operators continue to diagnose the read path through existing HTTP route attribution, query truth envelopes, and instrumented Postgres query spans/`eshu_dp_postgres_query_duration_seconds` when the query store is wrapped by the existing Postgres instrumentation.
+
 ## Search Vector Payload Storage (#2594)
 
 No-Regression Evidence: `go test ./internal/storage/postgres -run 'TestEshuSearchVectorValue|TestBootstrapDefinitionsIncludeEshuSearchVectorValues|TestBootstrapDefinitionsAreOrderedAndComplete|TestBootstrapDefinitionsIncludeEshuSearchVectorMetadata' -count=1` failed before `EshuSearchVectorValueStore` and `eshu_search_vector_values` bootstrap DDL existed, then passed after adding idempotent vector payload upserts, active-generation readback, finite-value and dimension validation, deterministic document ordering, and bounded list limits. The table is additive and does not change API, MCP, reducer graph writes, BM25 search reads, hosted providers, credentials, egress, or canonical graph truth.

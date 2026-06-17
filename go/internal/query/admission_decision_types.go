@@ -8,7 +8,7 @@ import (
 // AdmissionDecisionReadStore reads bounded correlation admission decisions.
 type AdmissionDecisionReadStore interface {
 	ListAdmissionDecisions(context.Context, AdmissionDecisionReadFilter) ([]AdmissionDecisionReadRow, error)
-	ListAdmissionDecisionEvidence(context.Context, string) ([]AdmissionDecisionEvidenceRow, error)
+	ListAdmissionDecisionEvidence(context.Context, string, int) ([]AdmissionDecisionEvidenceRow, error)
 }
 
 // AdmissionDecisionReadFilter bounds admission decision reads to one domain,
@@ -119,6 +119,8 @@ type AdmissionDecisionResult struct {
 	DecidedAt           time.Time                       `json:"decided_at"`
 	UpdatedAt           time.Time                       `json:"updated_at"`
 	Evidence            []AdmissionDecisionEvidenceRow  `json:"evidence,omitempty"`
+	EvidenceLimit       int                             `json:"evidence_limit,omitempty"`
+	EvidenceTruncated   *bool                           `json:"evidence_truncated,omitempty"`
 }
 
 // RecommendedNextCall describes a bounded follow-up API or MCP call.

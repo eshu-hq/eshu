@@ -327,9 +327,10 @@ func admissionDecisionDomainStateForTest(state string) string {
 }
 
 type recordingAdmissionDecisionReadStore struct {
-	lastFilter AdmissionDecisionReadFilter
-	rows       []AdmissionDecisionReadRow
-	evidence   map[string][]AdmissionDecisionEvidenceRow
+	lastFilter        AdmissionDecisionReadFilter
+	lastEvidenceLimit int
+	rows              []AdmissionDecisionReadRow
+	evidence          map[string][]AdmissionDecisionEvidenceRow
 }
 
 func (s *recordingAdmissionDecisionReadStore) ListAdmissionDecisions(
@@ -343,8 +344,14 @@ func (s *recordingAdmissionDecisionReadStore) ListAdmissionDecisions(
 func (s *recordingAdmissionDecisionReadStore) ListAdmissionDecisionEvidence(
 	_ context.Context,
 	decisionID string,
+	limit int,
 ) ([]AdmissionDecisionEvidenceRow, error) {
-	return append([]AdmissionDecisionEvidenceRow(nil), s.evidence[decisionID]...), nil
+	s.lastEvidenceLimit = limit
+	rows := append([]AdmissionDecisionEvidenceRow(nil), s.evidence[decisionID]...)
+	if limit > 0 && len(rows) > limit {
+		rows = rows[:limit]
+	}
+	return rows, nil
 }
 
 type failingAdmissionDecisionReadStore struct {
@@ -362,6 +369,7 @@ func (s *failingAdmissionDecisionReadStore) ListAdmissionDecisions(
 func (s *failingAdmissionDecisionReadStore) ListAdmissionDecisionEvidence(
 	context.Context,
 	string,
+	int,
 ) ([]AdmissionDecisionEvidenceRow, error) {
 	s.called = true
 	return nil, errors.New("broad admission decision evidence read")
