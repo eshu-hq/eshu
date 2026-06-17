@@ -153,15 +153,25 @@ func TestSemanticSearchHandlerRerankPromotesServiceAnchoredResult(t *testing.T) 
 	if !ok || len(nextCalls) == 0 {
 		t.Fatalf("expected recommended_next_calls, got %#v", data["recommended_next_calls"])
 	}
-	tools := map[string]bool{}
+	tools := map[string]map[string]any{}
 	for _, call := range nextCalls {
-		tools[call.(map[string]any)["tool"].(string)] = true
+		c := call.(map[string]any)
+		args, _ := c["arguments"].(map[string]any)
+		tools[c["tool"].(string)] = args
 	}
-	if !tools["get_service_story"] {
+	if _, ok := tools["get_service_story"]; !ok {
 		t.Fatalf("expected get_service_story next call, got %#v", tools)
 	}
-	if !tools["get_incident_context"] {
+	if _, ok := tools["get_incident_context"]; !ok {
 		t.Fatalf("expected get_incident_context next call from incident handle, got %#v", tools)
+	}
+	// Next-call arguments must use the tools' real dispatch keys so they are
+	// executable as advertised (get_service_story reads workload_id, not service).
+	if got := tools["get_service_story"]["workload_id"]; got != "svc-payments" {
+		t.Fatalf("get_service_story must use executable workload_id key, got %#v", tools["get_service_story"])
+	}
+	if got := tools["get_incident_context"]["incident_id"]; got != "inc-42" {
+		t.Fatalf("get_incident_context must use executable incident_id key, got %#v", tools["get_incident_context"])
 	}
 }
 
