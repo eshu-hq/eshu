@@ -268,3 +268,33 @@ func handler(cond bool) {
 		t.Fatalf("x = tainted in the returned branch (line 6) leaked to sink(x) line 9: %v", got)
 	}
 }
+
+// TestLowerLabeledStmtAfterReturnNotDropped proves a labeled statement after a
+// return (a potential goto target) is not dropped from the CFG.
+func TestLowerLabeledStmtAfterReturnNotDropped(t *testing.T) {
+	t.Parallel()
+
+	src := `package main
+
+func f(x int) {
+	return
+L:
+	sink(x)
+	goto L
+}
+`
+	fn := lowerFirstFunction(t, src)
+	hasUseOfX := false
+	for _, b := range fn.Blocks {
+		for _, s := range b.Stmts {
+			for _, u := range s.Uses {
+				if u == "x" {
+					hasUseOfX = true
+				}
+			}
+		}
+	}
+	if !hasUseOfX {
+		t.Fatalf("labeled sink(x) after return was dropped from the CFG; blocks=%+v", fn.Blocks)
+	}
+}

@@ -39,15 +39,22 @@ type goCFGLowerer struct {
 func (l *goCFGLowerer) lowerStmtList(blockNode *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
 	cursor := blockNode.Walk()
 	defer cursor.Close()
+	reachable := true
 	for _, child := range blockNode.NamedChildren(cursor) {
 		child := child
-		next, reachable := l.lowerStmt(&child, cur)
-		cur = next
 		if !reachable {
-			return cur, false
+			// Code after a terminating statement is dead and skipped, EXCEPT a
+			// labeled statement, which may be a goto target. Lower it in a fresh
+			// block so the labeled code is not dropped from the CFG. (Precise goto
+			// edges are a separate, unmodeled concern.)
+			if child.Kind() != "labeled_statement" {
+				continue
+			}
+			cur = l.builder.AddBlock()
 		}
+		cur, reachable = l.lowerStmt(&child, cur)
 	}
-	return cur, true
+	return cur, reachable
 }
 
 // lowerStmt lowers a single statement and returns the block that control reaches
