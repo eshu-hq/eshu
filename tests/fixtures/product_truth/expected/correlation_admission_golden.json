@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "suite_id": "correlation_admission_golden",
+  "fixture_root": "tests/fixtures/product_truth/correlation_admission_golden",
+  "capability_assertions": [
+    {
+      "capability": "admission_decisions.golden_audit",
+      "surfaces": ["reducer", "graph", "api", "mcp"],
+      "positive": "Admitted service, package, and cloud/resource correlation decisions carry explanation evidence and agree with graph and readback truth.",
+      "negative": "Rejected and missing-evidence decisions remain provenance-only and never publish canonical graph facts.",
+      "ambiguous": "Ambiguous and stale replay cases stay visible without being promoted to current canonical graph truth."
+    }
+  ],
+  "fixture_intents": [
+    {
+      "case_id": "deployable-service-admitted",
+      "domain": "deployable_unit_correlation",
+      "scope_id": "git-repository-scope:team/api",
+      "generation_id": "generation-current",
+      "expected_state": "admitted",
+      "expected_graph_facts": [
+        {
+          "case_id": "deployable-service-admitted",
+          "kind": "relationship",
+          "id": "CORRELATES_DEPLOYABLE_UNIT:repo://team/api:service://team/api"
+        }
+      ],
+      "fixture_intent": "deployable-service-admitted expects one explicit service/deployment graph relationship with reducer admission evidence"
+    },
+    {
+      "case_id": "deployable-service-missing-evidence",
+      "domain": "deployable_unit_correlation",
+      "scope_id": "git-repository-scope:team/worker",
+      "generation_id": "generation-current",
+      "expected_state": "missing_evidence",
+      "fixture_intent": "deployable-service-missing-evidence expects a service candidate without deployment repository evidence to stay provenance-only"
+    },
+    {
+      "case_id": "package-source-admitted",
+      "domain": "package_source_correlation",
+      "scope_id": "package-registry:npm:team-api",
+      "generation_id": "generation-current",
+      "expected_state": "admitted",
+      "expected_graph_facts": [
+        {
+          "case_id": "package-source-admitted",
+          "kind": "package_consumption",
+          "id": "package-consumption:repo://team/consumer:pkg:npm/team-api"
+        }
+      ],
+      "fixture_intent": "package-source-admitted expects manifest dependency evidence to publish one package consumption truth row"
+    },
+    {
+      "case_id": "package-source-ambiguous",
+      "domain": "package_source_correlation",
+      "scope_id": "package-registry:npm:team-api",
+      "generation_id": "generation-current",
+      "expected_state": "ambiguous",
+      "fixture_intent": "package-source-ambiguous expects conflicting source hints to stay visible without ownership promotion"
+    },
+    {
+      "case_id": "package-source-stale-replay",
+      "domain": "package_source_correlation",
+      "scope_id": "package-registry:npm:team-api",
+      "generation_id": "generation-previous",
+      "expected_state": "stale",
+      "fixture_intent": "package-source-stale-replay expects an older package-source generation to stay stale and never appear as current admitted truth"
+    },
+    {
+      "case_id": "cloud-resource-admitted",
+      "domain": "cloud_inventory_admission",
+      "scope_id": "cloud:gcp:team",
+      "generation_id": "generation-current",
+      "expected_state": "admitted",
+      "expected_graph_facts": [
+        {
+          "case_id": "cloud-resource-admitted",
+          "kind": "cloud_resource",
+          "id": "cloud-resource:gcp:team:api-instance"
+        }
+      ],
+      "fixture_intent": "cloud-resource-admitted expects supported cloud inventory identity to publish one canonical cloud resource"
+    },
+    {
+      "case_id": "cloud-resource-rejected",
+      "domain": "cloud_inventory_admission",
+      "scope_id": "cloud:gcp:team",
+      "generation_id": "generation-current",
+      "expected_state": "rejected",
+      "fixture_intent": "cloud-resource-rejected expects unsafe or conflicting cloud identity evidence to remain provenance-only"
+    }
+  ]
+}
