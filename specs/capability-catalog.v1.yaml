@@ -54,6 +54,9 @@ tool_exemptions:
   - tool: get_service_story
     reason: service narrative surface pending capability-matrix row
     issue: 2743
+  - tool: get_service_intelligence_report
+    reason: service intelligence report surface composing the service story pending capability-matrix row
+    issue: 2743
   - tool: get_workload_context
     reason: workload context surface pending capability-matrix row
     issue: 2743
