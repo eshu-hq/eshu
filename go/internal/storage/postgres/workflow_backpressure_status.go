@@ -17,7 +17,10 @@ WITH workflow_collector_backpressure AS (
       source_system,
       COUNT(*) FILTER (WHERE status = 'pending') AS pending_count,
       COUNT(*) FILTER (WHERE status = 'claimed') AS claimed_count,
-      COUNT(*) FILTER (WHERE status = 'failed_retryable') AS retrying_count,
+      COUNT(*) FILTER (
+        WHERE status = 'failed_retryable'
+           OR (status = 'pending' AND visible_at > $1)
+      ) AS retrying_count,
       COUNT(*) FILTER (WHERE status = 'failed_terminal') AS terminal_failed_count,
       COUNT(*) FILTER (WHERE status = 'expired') AS expired_count,
       GREATEST(
@@ -40,7 +43,10 @@ WITH workflow_collector_backpressure AS (
             EPOCH FROM (
               $1 - (
                 MIN(updated_at)
-                  FILTER (WHERE status = 'failed_retryable')
+                  FILTER (
+                    WHERE status = 'failed_retryable'
+                       OR (status = 'pending' AND visible_at > $1)
+                  )
               )
             )
           ),
@@ -54,7 +60,10 @@ WITH workflow_collector_backpressure AS (
             EPOCH FROM (
               (
                 MIN(visible_at)
-                  FILTER (WHERE status = 'failed_retryable' AND visible_at > $1)
+                  FILTER (
+                    WHERE (status = 'failed_retryable' AND visible_at > $1)
+                       OR (status = 'pending' AND visible_at > $1)
+                  )
               ) - $1
             )
           ),
@@ -132,7 +141,10 @@ SELECT
     last_failure_class,
     COUNT(*) AS count
 FROM workflow_work_items
-WHERE status IN ('failed_retryable', 'failed_terminal', 'expired')
+WHERE (
+    status IN ('failed_retryable', 'failed_terminal', 'expired')
+    OR (status = 'pending' AND visible_at IS NOT NULL AND visible_at > $1)
+  )
   AND COALESCE(last_failure_class, '') <> ''
 GROUP BY collector_kind, collector_instance_id, source_system, last_failure_class
 UNION ALL
@@ -198,7 +210,7 @@ func readWorkflowCollectorBackpressureStatus(
 		return nil, fmt.Errorf("read workflow collector backpressure: %w", err)
 	}
 
-	if err := attachWorkflowCollectorBackpressureFailureClasses(ctx, queryer, backpressure, byKey); err != nil {
+	if err := attachWorkflowCollectorBackpressureFailureClasses(ctx, queryer, asOf, backpressure, byKey); err != nil {
 		return nil, err
 	}
 	return backpressure, nil
@@ -207,10 +219,11 @@ func readWorkflowCollectorBackpressureStatus(
 func attachWorkflowCollectorBackpressureFailureClasses(
 	ctx context.Context,
 	queryer Queryer,
+	asOf time.Time,
 	rows []statuspkg.CollectorBackpressureSnapshot,
 	byKey map[string]int,
 ) error {
-	classRows, err := queryer.QueryContext(ctx, workflowCollectorBackpressureFailureClassQuery)
+	classRows, err := queryer.QueryContext(ctx, workflowCollectorBackpressureFailureClassQuery, asOf.UTC())
 	if err != nil {
 		return fmt.Errorf("read workflow collector backpressure failure classes: %w", err)
 	}

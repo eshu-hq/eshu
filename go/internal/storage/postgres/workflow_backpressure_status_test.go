@@ -72,6 +72,8 @@ func TestReadWorkflowCollectorBackpressureStatus(t *testing.T) {
 		"GROUP BY collector_kind, collector_instance_id, source_system",
 		"FROM collector_generation_dead_letters",
 		"last_failure_class",
+		"status = 'pending' AND visible_at > $1",
+		"status = 'pending' AND visible_at IS NOT NULL",
 		"visible_at > $1",
 		"lease_expires_at < $1",
 	} {
