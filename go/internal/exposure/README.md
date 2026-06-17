@@ -101,6 +101,29 @@ over-claiming:
 The package never walks the graph itself; the reachability boolean is supplied by
 the tracer (#2726). This keeps `exposure` a pure, graph-free leaf package.
 
+## Exposure-path assembler (#2726)
+
+The **path tracer** (`path_trace.go`) is the pure assembly logic behind the
+`trace_exposure_path` tool (MCP + `/api/v0/impact/trace-exposure-path`). The query
+handler runs the bounded `CALLS*0..n` graph traversal and the catalog sink
+recognition, then feeds plain `PathCandidate` data to `BuildExposureFinding`,
+which:
+
+- labels every finding `derived` (`TruthLabelDerived`) — Level 1 reachability is
+  symbol-level, never value-flow;
+- assigns each path a `TraversalState` from the conservative vocabulary
+  (`exact` / `partial` / `ambiguous` / `unresolved`);
+- computes severity via `CombinePathSeverity`, capping by exposure rank so a
+  network-reachable (unproven-internet) or internal source is never over-claimed
+  as critical, while an internet-exposed handler reaching a privileged IAM action
+  is critical with an honest reason;
+- returns `unresolved` with a recorded reason — never a fabricated path — when the
+  traversal finds no reachable sink (the production reality until the code-to-cloud
+  bridge edges materialize).
+
+The assembler takes plain data, not a graph, so it is fully unit-tested without a
+backend; the package stays graph-free.
+
 ## Public surface
 
 - `SinkKind`, `Severity`, `SinkPredicate`, `SinkSpec` — the sink vocabulary.
