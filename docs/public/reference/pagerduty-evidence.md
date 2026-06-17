@@ -219,9 +219,15 @@ evidence remains provenance-only and is counted by reducer telemetry.
 The out-of-tree boundary proof for this surface is complete. A PagerDuty
 reference collector runs as a trusted out-of-tree component package, the hosted
 `collector-component-extension` worker claims and commits its work through the
-existing `collector.ClaimedService` boundary with no core handles, and the
-emitted facts reach the reducer and the API/MCP read model with parity to the
-in-tree path. That proof is tracked by `go test
+existing `collector.ClaimedService` boundary with no core handles, and its SDK
+result matches the in-tree PagerDuty fact contract for synthetic fixtures. The
+proof establishes the extraction mechanics; it does not change reducer
+materialization. The reference component emits namespaced example facts
+(`dev.eshu.examples.pagerduty.*`) that are committed as source evidence only —
+the incident-routing reducer, graph writer, and API/MCP readback continue to
+consume the in-tree collector's `incident_routing.*` and `incident.record`
+kinds, so the in-tree collector remains the production correlation path. That
+proof is tracked by `go test
 ./internal/collector/pagerduty -run ReferenceComponent`, the Helm
 component-extension contract tests in `go/internal/runtime`, and
 `scripts/verify-remote-e2e-pagerduty-component-extension.sh`. See
