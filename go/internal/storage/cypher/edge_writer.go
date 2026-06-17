@@ -240,6 +240,8 @@ func batchCypherForDomain(domain string) (string, error) {
 		return batchCanonicalSQLRelationshipUpsertCypher, nil
 	case reducer.DomainDeployableUnitEdges:
 		return batchCanonicalDeployableUnitCorrelationUpsertCypher, nil
+	case reducer.DomainHandlesRoute:
+		return batchCanonicalHandlesRouteEdgeUpsertCypher, nil
 	default:
 		return "", fmt.Errorf("unsupported domain for write: %q", domain)
 	}
@@ -356,9 +358,40 @@ func buildRowMap(
 	case reducer.DomainDeployableUnitEdges:
 		return buildDeployableUnitCorrelationRowMap(row.Payload, evidenceSource)
 
+	case reducer.DomainHandlesRoute:
+		return buildHandlesRouteRowMap(row.Payload, evidenceSource)
+
 	default:
 		return "", nil, false
 	}
+}
+
+// buildHandlesRouteRowMap converts a handles_route intent payload into the flat
+// UNWIND parameter map for the HANDLES_ROUTE upsert. It skips the row (ok=false)
+// when any MATCH key — function_entity_id, repo_id, or path — is empty so an
+// unresolvable edge is never written. Provenance fields are passed through from
+// the reducer, which derives them from the resolution method.
+func buildHandlesRouteRowMap(
+	payload map[string]any,
+	evidenceSource string,
+) (string, map[string]any, bool) {
+	functionEntityID := payloadString(payload, "function_entity_id")
+	repoID := payloadString(payload, "repo_id")
+	path := payloadString(payload, "path")
+	if functionEntityID == "" || repoID == "" || path == "" {
+		return "", nil, false
+	}
+	resolutionMethod := payloadString(payload, "resolution_method")
+	return batchCanonicalHandlesRouteEdgeUpsertCypher, map[string]any{
+		"function_entity_id": functionEntityID,
+		"repo_id":            repoID,
+		"path":               path,
+		"http_method":        payloadString(payload, "http_method"),
+		"resolution_method":  resolutionMethod,
+		"confidence":         payloadFloat(payload, "confidence"),
+		"reason":             payloadString(payload, "reason"),
+		"evidence_source":    evidenceSource,
+	}, true
 }
 
 func buildDeployableUnitCorrelationRowMap(
