@@ -10,17 +10,31 @@ import (
 )
 
 // endpointPresenceWiring returns the uid-exact endpoint-presence writer and
-// lookup that back the cross-scope secrets/IAM projection gate (issue #1380),
-// or (nil, nil) when the projection feature is off. Both are the same Postgres
-// store; returning nil when disabled keeps the CloudResource/KubernetesWorkload
-// materializers and the projection handler at their current behavior with zero
-// extra write.
+// lookup backing two readiness gates: the cross-scope secrets/IAM projection
+// gate (issue #1380) and the handles_route endpoint-presence gate (#2809). Both
+// are the same Postgres store. Returning nil when disabled keeps the
+// CloudResource/KubernetesWorkload materializers, the secrets/IAM handler, and
+// the handles_route gate at their pre-gate behavior with zero extra write.
 func endpointPresenceWiring(enabled bool, db postgres.ExecQueryer) (reducer.EndpointPresenceWriter, reducer.EndpointPresenceLookup) {
 	if !enabled {
 		return nil, nil
 	}
 	store := postgres.NewGraphEndpointPresenceStore(db)
 	return store, store
+}
+
+// handlesRouteEndpointPresenceGateEnabledEnv toggles the handles_route
+// endpoint-presence readiness gate (#2809). It defaults ON so
+// Function-[:HANDLES_ROUTE]->Endpoint edges are gated on their target endpoint
+// committing in EVERY reducer deployment — not only when secrets-IAM graph
+// projection happens to be enabled. Set it to a false value to restore the
+// pre-#2809 behavior (the edge may then drop on a cold first generation).
+const handlesRouteEndpointPresenceGateEnabledEnv = "ESHU_REDUCER_HANDLES_ROUTE_PRESENCE_GATE_ENABLED"
+
+// handlesRouteEndpointPresenceGateEnabled reports whether the handles_route
+// endpoint-presence gate should be wired. Default true.
+func handlesRouteEndpointPresenceGateEnabled(getenv func(string) string) bool {
+	return loadBoolOrDefault(getenv, handlesRouteEndpointPresenceGateEnabledEnv, true)
 }
 
 // newHandlerEdgeWriter constructs the shared canonical edge writer used by the

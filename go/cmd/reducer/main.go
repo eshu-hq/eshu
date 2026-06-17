@@ -155,7 +155,10 @@ func buildReducerService(
 	if err != nil {
 		return reducer.Service{}, err
 	}
-	endpointPresenceWriter, endpointPresenceLookup := endpointPresenceWiring(secretsIAMGraphWriter != nil, database)
+	endpointPresenceWriter, endpointPresenceLookup := endpointPresenceWiring(
+		secretsIAMGraphWriter != nil || handlesRouteEndpointPresenceGateEnabled(getenv),
+		database,
+	)
 	relationshipStore := postgres.NewRelationshipStore(database)
 	factStore := postgres.NewFactStore(database)
 	admissionDecisionWriter := newAdmissionDecisionWriter(database)

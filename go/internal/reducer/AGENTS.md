@@ -265,6 +265,21 @@ handles_route rows surface through the existing shared-projection
 already report readiness-blocked intents, plus the existing workload
 materialization completion logs and Postgres query instrumentation.
 
+No-Regression Evidence: the #2809 follow-up wires the endpoint-presence gate by
+default (env `ESHU_REDUCER_HANDLES_ROUTE_PRESENCE_GATE_ENABLED`, default on)
+instead of only when secrets-IAM graph projection is enabled, so the
+`HANDLES_ROUTE` cold-start fix is effective in every reducer deployment.
+`go test ./cmd/reducer -run 'HandlesRouteEndpointPresenceGate|EndpointPresenceWiringNil' -count=1`
+proves the default-on toggle and the nil-when-disabled pair; `go test
+./cmd/reducer ./internal/reducer -count=1` stays green. The added cost is one
+idempotent presence upsert per committed endpoint per generation (bounded by
+endpoint count) and one already-bounded `MissingUIDs` lookup per handles_route
+projection batch — the intended correctness cost, no new round trips elsewhere.
+
+No-Observability-Change: the default-on follow-up adds no route, graph query,
+queue, worker, lease, metric instrument, or metric label; it only flips the
+existing presence wiring on by default behind a documented env toggle.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain
