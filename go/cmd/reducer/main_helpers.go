@@ -109,9 +109,14 @@ func incidentRepositoryCorrelationWiring(database postgres.ExecQueryer) (
 	return loader, resolver, writer
 }
 
+// codeReachabilityProjectionRunnerFor wires the reachability read-model runner.
+// It reuses the backend-aware reducer worker count (ESHU_REDUCER_WORKERS) as the
+// disjoint-partition fan-out so operators tune both with one knob; the runner
+// clamps the value to the host CPU count.
 func codeReachabilityProjectionRunnerFor(
 	database postgres.ExecQueryer,
 	sharedCfg reducer.SharedProjectionRunnerConfig,
+	concurrency int,
 	logger *slog.Logger,
 ) *reducer.CodeReachabilityProjectionRunner {
 	store := postgres.NewCodeReachabilityStore(database)
@@ -121,6 +126,7 @@ func codeReachabilityProjectionRunnerFor(
 		Config: reducer.CodeReachabilityProjectionRunnerConfig{
 			PollInterval: sharedCfg.PollInterval,
 			BatchLimit:   sharedCfg.BatchLimit,
+			Concurrency:  concurrency,
 		},
 		Logger: logger,
 	}

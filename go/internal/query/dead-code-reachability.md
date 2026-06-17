@@ -144,6 +144,52 @@ silently treated as reachable on a same-name guess. An edge with no recorded
 a candidate is only demoted when every incoming edge is known to be weak. A
 single strong incoming edge (`scip`, `import_binding`, `same_file`, and the
 other tiers above 0.50) still removes the candidate as confidently reachable.
+
+### Concurrent, bounded, backend-safe projection
+
+The reducer reachability projection (`reducer.CodeReachabilityProjectionRunner`)
+is partitioned by the `(scope_id, generation_id, repository_id)` conflict key.
+`ReplaceRepositoryRows` deletes and re-inserts exactly that triple (the row
+primary key), so distinct partitions touch disjoint rows and project
+concurrently without MERGE races or lost updates; inputs that share one key
+(for example two source runs for the same repository generation) stay in one
+ordered partition worker so their replacements never overlap. Fan-out is bounded
+by the reducer worker count (`ESHU_REDUCER_WORKERS`), clamped to the host CPU
+count, and is purely additive — no worker-count reduction is used as a
+correctness fix.
+
+The traversal is in-memory, uid-anchored, and single-connected-path (each entity
+keeps only its strongest shortest root path), bounded by `MaxDepth` (default 10)
+and `MaxVisited` (default 200000 distinct entities). When `MaxVisited` stops a
+pathological mega-repo before the full reachable set is enumerated, the snapshot
+is marked truncated and logged; omitted entities are **not** asserted dead
+because the incoming-edge classification falls back to the completed
+shared-projection intent rows and the backend graph probe for any entity absent
+from the materialized slice. The projection itself performs no graph writes, so
+it is backend-agnostic; backend parity is preserved by the consuming probe,
+which uses the NornicDB depth-bounded hop-by-hop call-chain fallback on NornicDB
+and variable-length Cypher on Neo4j-compat.
+
+Benchmark Evidence: `BenchmarkBuildCodeReachabilityRows`
+(`internal/reducer/code_reachability_projection_test.go`) projects a
+50,000-entity fan-out (fan-out 4, depth 12) in ~36 ms/op, ~89 MB/op, ~325k
+allocs/op on a 12-core host (`go test ./internal/reducer -run='^$'
+-bench=BenchmarkBuildCodeReachabilityRows -benchmem`); the depth and visited
+bounds cap a single snapshot's worst-case cost. Concurrency safety is proven by
+`TestCodeReachabilityProjectionRunnerPartitionsDisjointRepositoriesConcurrently`
+(disjoint partitions parallelize, never overlap a partition) and
+`TestCodeReachabilityProjectionRunnerSerializesSamePartitionInputs` (same-key
+inputs serialize, newest watermark wins). Classification: Scheduling/Wall-clock
+win (disjoint partitions parallelize) plus Correctness (bounded, honest
+truncation). No-Regression Evidence: the existing single-input runner and
+projection tests are unchanged and still pass.
+
+Observability Evidence: the runner logs `code reachability projection completed`
+with `partition_count`, `concurrency`, `snapshots_truncated`, `input_count`,
+`row_count`, and `duration_seconds`, and emits a `code reachability snapshot
+truncated at max visited bound` warning carrying `scope_id`, `generation_id`,
+`repository_id`, and `visited` whenever a snapshot hits the bound, so an
+operator can see partition fan-out, throughput, and any truncation at 3 AM.
 Dead-code candidate paging uses `DeadCodeCandidateRows` in
 `content_reader_dead_code_candidates.go:13` when the content read model is
 available, pushing the optional language predicate into the Postgres query so

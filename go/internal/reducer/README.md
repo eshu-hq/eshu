@@ -14,6 +14,15 @@ Code reachability projection computes a bounded transitive reachable set from
 root code entities over `CALLS`, `REFERENCES`, and `INHERITS`, preserving the
 weakest provenance method on each path so downstream dead-code reads can use
 materialized `code_reachability_rows` without promoting weak guesses to truth.
+The runner partitions work by the `(scope_id, generation_id, repository_id)`
+conflict key and projects disjoint partitions concurrently (bounded by
+`ESHU_REDUCER_WORKERS`, clamped to host CPUs); same-key inputs stay in one
+ordered partition so the per-repository DELETE+INSERT replacement never races.
+Traversal is bounded by `MaxDepth` and `MaxVisited`; a truncated snapshot is
+logged and its omitted entities fall back to the legacy incoming-edge lookup
+rather than being asserted dead. See
+[dead-code-reachability.md](../query/dead-code-reachability.md) for the
+concurrency, bounds, backend-parity, and benchmark/observability evidence.
 
 ## Where this fits in the pipeline
 

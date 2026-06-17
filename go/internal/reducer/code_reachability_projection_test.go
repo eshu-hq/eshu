@@ -1,6 +1,105 @@
 package reducer
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
+
+func TestBuildCodeReachabilityRowsWithStatsTruncatesAtMaxVisited(t *testing.T) {
+	input := CodeReachabilityProjectionInput{
+		ScopeID:      "scope-1",
+		GenerationID: "generation-1",
+		RepositoryID: "repo-1",
+		Roots:        []CodeReachabilityRoot{{EntityID: "entity:root"}},
+		Edges: []CodeReachabilityEdge{
+			{SourceEntityID: "entity:root", TargetEntityID: "entity:a", RelationshipType: "CALLS", ResolutionMethod: "scip"},
+			{SourceEntityID: "entity:root", TargetEntityID: "entity:b", RelationshipType: "CALLS", ResolutionMethod: "scip"},
+			{SourceEntityID: "entity:root", TargetEntityID: "entity:c", RelationshipType: "CALLS", ResolutionMethod: "scip"},
+		},
+		MaxDepth:   5,
+		MaxVisited: 2,
+	}
+
+	rows, stats := BuildCodeReachabilityRowsWithStats(input)
+	if !stats.Truncated {
+		t.Fatalf("stats.Truncated = false, want true at MaxVisited=2 with 4 reachable entities")
+	}
+	if got, want := stats.Visited, 2; got != want {
+		t.Fatalf("stats.Visited = %d, want %d", got, want)
+	}
+	if got, want := len(rows), 2; got != want {
+		t.Fatalf("rows = %d, want %d (root + one target under the bound): %#v", got, want, rows)
+	}
+}
+
+func TestBuildCodeReachabilityRowsWithStatsReportsFullSetWhenUnbounded(t *testing.T) {
+	input := CodeReachabilityProjectionInput{
+		ScopeID:      "scope-1",
+		GenerationID: "generation-1",
+		RepositoryID: "repo-1",
+		Roots:        []CodeReachabilityRoot{{EntityID: "entity:root"}},
+		Edges: []CodeReachabilityEdge{
+			{SourceEntityID: "entity:root", TargetEntityID: "entity:a", RelationshipType: "CALLS", ResolutionMethod: "scip"},
+			{SourceEntityID: "entity:root", TargetEntityID: "entity:b", RelationshipType: "CALLS", ResolutionMethod: "scip"},
+		},
+		MaxDepth:   5,
+		MaxVisited: 100,
+	}
+
+	rows, stats := BuildCodeReachabilityRowsWithStats(input)
+	if stats.Truncated {
+		t.Fatalf("stats.Truncated = true, want false under generous bound")
+	}
+	if got, want := stats.Visited, 3; got != want {
+		t.Fatalf("stats.Visited = %d, want %d (root + 2 targets)", got, want)
+	}
+	if got, want := len(rows), 3; got != want {
+		t.Fatalf("rows = %d, want %d", got, want)
+	}
+}
+
+// BenchmarkBuildCodeReachabilityRows records the bounded-traversal cost over a
+// large synthetic corpus: a fan-out graph with depth and visited bounds applied.
+// Run: go test ./internal/reducer -run='^$' -bench=BenchmarkBuildCodeReachabilityRows -benchmem
+func BenchmarkBuildCodeReachabilityRows(b *testing.B) {
+	const (
+		nodes    = 50000
+		fanOut   = 4
+		maxDepth = 12
+	)
+	edges := make([]CodeReachabilityEdge, 0, nodes*fanOut)
+	for i := 0; i < nodes; i++ {
+		for j := 1; j <= fanOut; j++ {
+			target := i*fanOut + j
+			if target >= nodes {
+				break
+			}
+			edges = append(edges, CodeReachabilityEdge{
+				SourceEntityID:   fmt.Sprintf("entity:%d", i),
+				TargetEntityID:   fmt.Sprintf("entity:%d", target),
+				RelationshipType: "CALLS",
+				ResolutionMethod: "scip",
+			})
+		}
+	}
+	input := CodeReachabilityProjectionInput{
+		ScopeID:      "scope-bench",
+		GenerationID: "generation-bench",
+		RepositoryID: "repo-bench",
+		Roots:        []CodeReachabilityRoot{{EntityID: "entity:0", RootKinds: []string{"go.main_function"}}},
+		Edges:        edges,
+		MaxDepth:     maxDepth,
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		rows, stats := BuildCodeReachabilityRowsWithStats(input)
+		if len(rows) == 0 || stats.Visited == 0 {
+			b.Fatalf("benchmark produced empty reachable set")
+		}
+	}
+}
 
 func TestBuildCodeReachabilityRowsComputesTransitiveReachableSet(t *testing.T) {
 	rows := BuildCodeReachabilityRows(CodeReachabilityProjectionInput{
