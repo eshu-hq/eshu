@@ -500,6 +500,27 @@ type Instruments struct {
 	// see that runtime backpressure is working and failed_retryable rows are
 	// no longer unbounded (issue #612).
 	WorkflowClaimAttemptBudgetExhausted metric.Int64Counter
+	// WorkflowClaimRetries counts retryable workflow claim failures that were
+	// re-queued (not yet terminal), labeled by collector_kind, source_system,
+	// and failure_class so an operator can see which collector family is
+	// generating retry pressure and why, without high-cardinality labels.
+	// failure_class is the bounded classified failure class: a closed set for
+	// built-in collectors (collect_failure, commit_failure, registry_rate_limited,
+	// ...) and a validated, pattern-bounded value for extension-host collectors
+	// (issue #2699).
+	WorkflowClaimRetries metric.Int64Counter
+	// WorkflowClaimProviderThrottles counts retryable workflow claim failures
+	// classified as provider rate-limiting/throttling, labeled by
+	// collector_kind, source_system, and outcome (retry_after_honored or
+	// poll_backoff). It lets an operator see provider backpressure per family
+	// without putting provider targets, accounts, or URLs in labels
+	// (issue #2699).
+	WorkflowClaimProviderThrottles metric.Int64Counter
+	// WorkflowClaimLeaseAge records the observed heartbeat age (seconds since the
+	// last successful heartbeat) for an active claim, labeled by collector_kind
+	// and source_system. Rising lease age before lease-TTL expiry is the 3 AM
+	// signal that a collector family is stalling under load (issue #2699).
+	WorkflowClaimLeaseAge metric.Float64Histogram
 	// CorrelationRuleMatches counts rule-match outcomes recorded by
 	// engine.Evaluate.Results[i].MatchCounts, labeled by pack and rule.
 	// The engine populates MatchCounts for RuleKindMatch rules only
@@ -1959,6 +1980,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register WorkflowClaimAttemptBudgetExhausted counter: %w", err)
 	}
 
+	inst.WorkflowClaimRetries, err = meter.Int64Counter(
+		"eshu_dp_workflow_claim_retries_total",
+		metric.WithDescription("Total retryable workflow claim failures re-queued for another attempt, labeled by collector_kind, source_system, and failure_class"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkflowClaimRetries counter: %w", err)
+	}
+
+	inst.WorkflowClaimProviderThrottles, err = meter.Int64Counter(
+		"eshu_dp_workflow_claim_provider_throttle_total",
+		metric.WithDescription("Total retryable workflow claim failures classified as provider throttling/rate-limiting, labeled by collector_kind, source_system, and outcome (retry_after_honored, poll_backoff)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkflowClaimProviderThrottles counter: %w", err)
+	}
+
 	inst.CorrelationRuleMatches, err = meter.Int64Counter(
 		"eshu_dp_correlation_rule_matches_total",
 		metric.WithDescription("Total correlation rule matches by pack and rule"),
@@ -2247,6 +2284,16 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register TerraformStateClaimWaitDuration histogram: %w", err)
+	}
+
+	inst.WorkflowClaimLeaseAge, err = meter.Float64Histogram(
+		"eshu_dp_workflow_claim_lease_age_seconds",
+		metric.WithDescription("Observed heartbeat age in seconds for an active claim at heartbeat time, labeled by collector_kind and source_system"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(workflowClaimWaitBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkflowClaimLeaseAge histogram: %w", err)
 	}
 
 	tfstateSnapshotByteBuckets := []float64{1024, 10240, 102400, 1048576, 10485760, 52428800, 104857600}

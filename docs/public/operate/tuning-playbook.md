@@ -98,6 +98,38 @@ Decision path:
 | repeated retry class | fix the owning reducer/query/storage path |
 | dead letters | stop and inspect the exact failure before replay |
 
+## Collector Fairness And Provider Backpressure
+
+Claim-aware collectors share a fair claim-dispatch boundary. Each collector
+instance carries a positive `fairness_weight` (default `1`) in its
+configuration; the weighted round-robin scheduler gives a family with weight `2`
+twice the claim turns of a family with weight `1`, and rotates instances inside
+a family. The production claim query stays FIFO within a selected
+family/instance — fairness lives in the scheduler, not the SQL.
+
+Per-family signals (all labeled by `collector_kind` and `source_system` only):
+
+| Signal | Metric |
+| --- | --- |
+| retry pressure | `eshu_dp_workflow_claim_retries_total` (by `failure_class`) |
+| provider backpressure | `eshu_dp_workflow_claim_provider_throttle_total` (by `outcome`) |
+| lease stall | `eshu_dp_workflow_claim_lease_age_seconds` |
+| budget exhaustion | `eshu_dp_workflow_claim_attempt_budget_exhausted_total` |
+
+Decision path:
+
+| Signal | First response |
+| --- | --- |
+| one family's `retries_total` climbing while others are idle | raise that family's `fairness_weight` is the wrong move — it does not fix the upstream cause; inspect that family's `failure_class` first |
+| `provider_throttle_total` rising with `outcome=retry_after_honored` | the provider is rate-limiting; let the family back off on its own claim stream. Do not slow unrelated families |
+| one rate-limited family appears to crowd out others | split it into more instances of the same family (lower per-instance load) rather than reducing global worker count |
+| `lease_age_seconds` trending toward the lease TTL | a family is stalling mid-claim; inspect that collector before the lease is reaped |
+
+Do not respond to fairness or backpressure pressure by lowering worker counts,
+forcing batch size to `1`, or single-threading the drain. Those hide the cause
+and violate the concurrency contract. Split the workload by family or instance
+instead.
+
 ## High Memory
 
 Check whether pressure is in Eshu, Postgres, NornicDB, or generated source
