@@ -181,6 +181,12 @@ reducer/query adapter.
 
 - `DecisionStore` / `NewDecisionStore` — upserts `projection_decisions` and
   `projection_decision_evidence`; `DecisionFilter` for scoped reads
+- `AdmissionDecisionStore` / `NewAdmissionDecisionStore` — upserts
+  `admission_decisions` and `admission_decision_evidence`; reads require
+  domain, scope, and generation bounds before optional state/anchor filters.
+  `AdmissionDecisionSchemaSQL` registers the schema in bootstrap as
+  `007a_admission_decisions.sql`, preserving compatibility with existing
+  projection decisions and reducer fact payloads.
 
 **Hosted tenant/workspace grants**
 

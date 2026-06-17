@@ -10,8 +10,8 @@ func TestBootstrapDefinitionsAreOrderedAndComplete(t *testing.T) {
 	t.Parallel()
 
 	defs := BootstrapDefinitions()
-	if len(defs) != 37 {
-		t.Fatalf("BootstrapDefinitions() len = %d, want 37", len(defs))
+	if len(defs) != 38 {
+		t.Fatalf("BootstrapDefinitions() len = %d, want 38", len(defs))
 	}
 
 	wantNames := []string{
@@ -33,6 +33,7 @@ func TestBootstrapDefinitionsAreOrderedAndComplete(t *testing.T) {
 		"generation_retention_events",
 		"scoped_api_tokens",
 		"projection_decisions",
+		"admission_decisions",
 		"shared_projection_intents",
 		"runtime_ingester_control",
 		"relationship_tables",
