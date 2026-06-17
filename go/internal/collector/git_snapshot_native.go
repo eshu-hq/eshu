@@ -94,9 +94,13 @@ type NativeRepositorySnapshotter struct {
 	SCIP             SnapshotSCIPConfig
 	Now              func() time.Time
 	ParseWorkers     int
-	Tracer           trace.Tracer
-	Instruments      *telemetry.Instruments
-	Logger           *slog.Logger
+	// EmitDataflow opts the per-file parser into emitting value-flow buckets
+	// (dataflow_functions, taint_findings, interproc_findings). Off by default;
+	// the snapshot payload is byte-identical when off.
+	EmitDataflow bool
+	Tracer       trace.Tracer
+	Instruments  *telemetry.Instruments
+	Logger       *slog.Logger
 }
 
 // SnapshotRepository builds one native repository snapshot for the selected repo.
