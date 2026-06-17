@@ -27,6 +27,16 @@
 // active persisted source or reducer fact evidence, including Git repository
 // ingestion facts, so coordinator-managed, direct-mode, disabled, and
 // unregistered collectors are visible in one operator view.
+// CollectorPromotionProof rows (CollectorPromotionProofs over a
+// CollectorCatalog) project that runtime evidence into a deterministic,
+// credential-safe promotion verdict per collector family or instance:
+// implemented, partial, failed, stale, gated, disabled, permission_hidden, or
+// unsupported. The catalog (DefaultCollectorCatalog, built from
+// scope.AllCollectorKinds) is the spine, so every known family yields at least
+// one proof and unconfigured lanes are explicit; implemented requires reducer
+// readback evidence and a fixture-only lane is never promoted to implemented.
+// The global status surface reports only collectors that are present, while the
+// full-fleet enumeration is available to the dedicated readiness read model.
 // AWSCloudScanStatus rows expose per-account, per-region, per-service AWS
 // scanner liveness, throttle counts, warning state, and commit status so
 // operators can separate throttling, credential failure, budget exhaustion, and

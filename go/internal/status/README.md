@@ -159,6 +159,57 @@ See `doc.go` for the godoc contract. Key types and functions:
   directly; caps domain backlogs to `Options.DomainLimit` (default 5)
 - `DefaultOptions()` — stall threshold 10 minutes, domain limit 5
 
+### Collector promotion proofs
+
+`CollectorPromotionProofs(report, opts)` projects the runtime collector evidence
+into a deterministic, credential-safe **promotion proof** per collector family or
+instance. It is the machine-checkable readiness report a reviewer uses to promote
+or reject a collector without manually stitching together claim, fact, reducer,
+and telemetry state.
+
+The catalog is the spine. `DefaultCollectorCatalog()` is built from
+`scope.AllCollectorKinds()`, so every known family yields at least one proof
+(a no-instance proof when nothing is configured) and adding a collector to
+`scope.AllCollectorKinds()` automatically surfaces a readiness lane — there is no
+separate checklist to drift. `KnownCollectorKinds()` exposes the catalog spine as
+strings.
+
+Promotion states (closed vocabulary, reused by the readiness read model):
+
+| State | Meaning |
+| --- | --- |
+| `implemented` | Healthy, fresh evidence that reached reducer readback. The only "ready to promote" state. |
+| `partial` | Some evidence, but the implemented contract is not yet met (reducer readback pending, claims inactive, or a fixture-only lane). |
+| `failed` | Runtime health degraded (failures, dead-letters, credential/budget). |
+| `stale` | Newest evidence older than `CollectorPromotionOptions.StaleAfter`. |
+| `gated` | Claim-driven family with claims disabled, or hidden by an active runtime profile gate. |
+| `disabled` | Registered family disabled by config or deactivated by reconciliation. |
+| `permission_hidden` | Hidden from the caller by an active permission scope; the proof is redacted to instance-free metadata. |
+| `unsupported` | Known family with no configured instance and no runtime evidence. |
+
+Precedence is fixed: disabled, then failed, then gated, then stale, then
+implemented/partial, so the most actionable blocker is reported first. Each proof
+carries the underlying runtime category and health, claim state, reducer readback
+availability (`available`/`pending`/`unavailable`), aggregate observation count,
+bounded source-system names, shared telemetry handles, and safe blocker strings.
+`implemented` requires reducer readback evidence, and a lane marked
+`FixtureOnly` is never promoted to implemented — proof automation does not claim
+live readiness from fixture-only evidence.
+
+The global `RenderJSON`/`RenderText` surfaces emit promotion proofs only for
+collectors that are **present** in the report (`collector_promotion_proofs` is
+omitted when none are present). The full-fleet enumeration — including
+no-instance and unsupported lanes — is produced by calling
+`CollectorPromotionProofs` with the default catalog and is exposed through the
+dedicated collector-readiness read model.
+
+`No-Regression Evidence:` `CollectorPromotionProofs` is a pure in-memory
+projection over `CollectorRuntimeStatuses(report)` (O(collectors)); it performs
+no I/O, no graph or Cypher access, and runs only inside the already-bounded
+status render. Covered by `go test ./internal/status ./internal/scope -count=1`.
+`No-Observability-Change:` reuses the existing `/admin/status` text/JSON signal;
+adds no metrics, spans, or logs.
+
 ### Health states
 
 `evaluateHealth` maps queue and generation state to one of four operator-visible
@@ -177,7 +228,8 @@ states (in priority order):
   endpoints; includes health, queue, retry policies, collector generation
   dead-letter state, scope activity, generation history, stage summaries,
   domain backlogs, queue blockages, coordinator state, derived collector runtime
-  classification, registry collector state, AWS cloud scan state, AWS freshness
+  classification, collector promotion proofs for present collectors, registry
+  collector state, AWS cloud scan state, AWS freshness
   backlog state, semantic extraction status with redacted provider profile rows,
   answer narration fallback status, and flow lanes
 - `RenderJSON(report)` — stable JSON payload for machine-readable consumption;

@@ -787,6 +787,77 @@ components:
             $ref: "#/components/schemas/QueueBlockage"
         collector_generation_dead_letters:
           $ref: "#/components/schemas/CollectorGenerationDeadLetters"
+        collector_promotion_proofs:
+          type: array
+          description: >
+            Per-collector-family promotion readiness derived from runtime status
+            evidence. Present only for collectors with runtime evidence. Rows are
+            redacted: they carry counts, evidence-source labels, bounded
+            source-system names, and safe blocker strings, never credentials or
+            raw provider payloads. The full-fleet enumeration is served by
+            GET /api/v0/status/collector-readiness.
+          items:
+            type: object
+            required:
+              - collector_kind
+              - promotion_state
+            properties:
+              collector_kind:
+                type: string
+              instance_id:
+                type: string
+              display_name:
+                type: string
+              promotion_state:
+                type: string
+                enum:
+                  - implemented
+                  - partial
+                  - failed
+                  - stale
+                  - gated
+                  - disabled
+                  - permission_hidden
+                  - unsupported
+              runtime_category:
+                type: string
+              health:
+                type: string
+              claim_driven:
+                type: boolean
+              claim_state:
+                type: string
+              source_scope:
+                type: string
+              fixture_only:
+                type: boolean
+              evidence_sources:
+                type: array
+                items:
+                  type: string
+              source_systems:
+                type: array
+                items:
+                  type: string
+              observation_count:
+                type: integer
+              reducer_readback:
+                type: string
+                enum: [available, pending, unavailable]
+              telemetry_handles:
+                type: array
+                items:
+                  type: string
+              blockers:
+                type: array
+                items:
+                  type: string
+              last_observed_at:
+                type: string
+                format: date-time
+              updated_at:
+                type: string
+                format: date-time
         registry_collectors:
           type: array
           description: >

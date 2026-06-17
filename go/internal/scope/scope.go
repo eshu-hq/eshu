@@ -120,6 +120,38 @@ const (
 	CollectorLoki CollectorKind = "loki"
 )
 
+// AllCollectorKinds returns every collector kind known to the platform in a
+// stable, deterministic order. It is the single source of truth for tooling
+// that must enumerate the full collector fleet (readiness reports, promotion
+// proofs, fleet hygiene checks) so adding a collector means updating one list.
+func AllCollectorKinds() []CollectorKind {
+	return []CollectorKind{
+		CollectorGit,
+		CollectorAWS,
+		CollectorAzure,
+		CollectorGCP,
+		CollectorTerraformState,
+		CollectorWebhook,
+		CollectorDocumentation,
+		CollectorOCIRegistry,
+		CollectorPackageRegistry,
+		CollectorVulnerabilityIntelligence,
+		CollectorSBOMAttestation,
+		CollectorSecurityAlert,
+		CollectorCICDRun,
+		CollectorPagerDuty,
+		CollectorJira,
+		CollectorScannerWorker,
+		CollectorSemanticExtraction,
+		CollectorKubernetesLive,
+		CollectorVaultLive,
+		CollectorPrometheusMimir,
+		CollectorTempo,
+		CollectorGrafana,
+		CollectorLoki,
+	}
+}
+
 // TriggerKind identifies how a generation was produced.
 type TriggerKind string
 

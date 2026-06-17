@@ -53,6 +53,9 @@ this. `TransitionTo` enforces the table; forbidden transitions return an error.
   `CollectorSemanticExtraction`, `CollectorKubernetesLive`,
   `CollectorVaultLive`, `CollectorPrometheusMimir`, `CollectorTempo`,
   `CollectorGrafana`, `CollectorLoki`
+- `AllCollectorKinds()` — every `CollectorKind` in a stable, deterministic order;
+  the single source of truth for tooling that enumerates the full collector
+  fleet (readiness reports, promotion proofs, fleet hygiene)
 - `TriggerKind` — `TriggerKindSnapshot`
 - `GenerationStatus` — `GenerationStatusPending`, `GenerationStatusActive`,
   `GenerationStatusSuperseded`, `GenerationStatusCompleted`,

@@ -208,6 +208,11 @@ func RenderText(report Report) string {
 	lines = append(lines, renderQueueBlockageLines(report.QueueBlockages)...)
 	lines = append(lines, renderCoordinatorLines(report.Coordinator)...)
 	lines = append(lines, renderCollectorRuntimeStatusLines(CollectorRuntimeStatuses(report))...)
+	lines = append(lines, renderCollectorPromotionProofLines(CollectorPromotionProofs(report, CollectorPromotionOptions{
+		Catalog:    presentCollectorCatalog(report),
+		AsOf:       report.AsOf,
+		StaleAfter: DefaultCollectorPromotionStaleAfter,
+	}))...)
 	lines = append(lines, renderRegistryCollectorLines(report.RegistryCollectors)...)
 	lines = append(lines, renderAWSCloudScanLines(report.AWSCloudScans)...)
 	lines = append(lines, renderAWSFreshnessLines(report.AWSFreshness)...)
