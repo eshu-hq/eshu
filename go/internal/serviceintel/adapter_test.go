@@ -114,6 +114,54 @@ func TestFromServiceStoryEmptySectionsMarkedNoEvidence(t *testing.T) {
 	}
 }
 
+func TestFromIncidentEvidence(t *testing.T) {
+	subject := ReportSubject{ServiceName: "checkout", ServiceID: "svc:checkout"}
+	truth := freshExactTruth("incident.context")
+
+	// Two evidence slots for the same incident plus a second incident: count
+	// reflects distinct incidents, not slots.
+	records := []IncidentRecord{
+		{Provider: "pagerduty", ProviderIncidentID: "PD-1", TruthLabel: "deterministic"},
+		{Provider: "pagerduty", ProviderIncidentID: "PD-1", TruthLabel: "deterministic"},
+		{Provider: "pagerduty", ProviderIncidentID: "PD-2", TruthLabel: "deterministic"},
+	}
+	got := FromIncidentEvidence(records, subject, truth)
+	if got.Kind != SectionIncidentsSupport {
+		t.Fatalf("kind = %q, want incidents_support", got.Kind)
+	}
+	if got.NoEvidence {
+		t.Fatalf("records present must not be no-evidence")
+	}
+	if len(got.Evidence) != 2 {
+		t.Fatalf("evidence handles = %d, want 2 distinct incidents", len(got.Evidence))
+	}
+	if got.Evidence[0].Kind != "entity" || got.Evidence[0].EntityID != "PD-1" {
+		t.Fatalf("first handle = %+v, want entity PD-1", got.Evidence[0])
+	}
+
+	empty := FromIncidentEvidence(nil, subject, truth)
+	if !empty.NoEvidence || empty.Summary != "" {
+		t.Fatalf("no incidents must be no-evidence with no summary, got %+v", empty)
+	}
+	if empty.Kind != SectionIncidentsSupport {
+		t.Fatalf("empty incident section must still be the incidents kind")
+	}
+}
+
+func TestFromIncidentEvidenceComposesSupportedSection(t *testing.T) {
+	in := FromServiceStory(sampleDossier(), freshExactTruth("platform_impact.context_overview"))
+	in.Sections = append(in.Sections, FromIncidentEvidence(
+		[]IncidentRecord{{Provider: "pagerduty", ProviderIncidentID: "PD-9"}},
+		in.Subject,
+		freshExactTruth("incident.context"),
+	))
+	report := Compose(in)
+	inc := sectionByKind(t, report, SectionIncidentsSupport)
+	if inc.Status == StatusUnsupported {
+		t.Fatalf("incidents section with a routed incident should not be unsupported, got %q", inc.Status)
+	}
+}
+
 func TestFromSupplyChainInventory(t *testing.T) {
 	subject := ReportSubject{ServiceName: "checkout", ServiceID: "svc:checkout"}
 	truth := freshExactTruth("supply-chain.impact")
