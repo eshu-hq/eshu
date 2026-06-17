@@ -105,6 +105,101 @@ func supplyChainSummary(subject ReportSubject, count int) string {
 	return fmt.Sprintf("Service %s has %d supply-chain impact finding(s).", subjectName(subject), count)
 }
 
+// IncidentRecord is the minimal durable, service-scoped incident evidence the
+// report's incidents_support section needs. Callers map their source records (for
+// example the durable reducer.ServiceIncidentRecord loaded via the
+// incident-repository correlation join) onto it, so this package stays decoupled
+// from the storage and reducer layers and never reclassifies the join.
+type IncidentRecord struct {
+	// Provider is the incident provider (for example pagerduty).
+	Provider string
+	// ProviderIncidentID is the durable provider incident identifier.
+	ProviderIncidentID string
+	// TruthLabel is the source truth label for the routing evidence.
+	TruthLabel string
+}
+
+// maxReportIncidents bounds the incidents surfaced in one report so a service
+// with a long incident history yields a scannable, bounded section rather than
+// an unbounded handle list; overflow is signalled via the section truncation.
+const maxReportIncidents = 50
+
+// FromIncidentEvidence maps durable service-scoped incident evidence into the
+// incidents_support SectionInput. It is faithful and side-effect free: it counts
+// distinct incidents (the loader returns one row per evidence slot), addresses
+// each with an entity handle keyed by the durable provider incident id, carries
+// the source truth verbatim, bounds the set to maxReportIncidents (marking the
+// section truncated on overflow), and marks NoEvidence when the service has no
+// routed incidents. Callers invoke it only when the durable incident source is
+// wired; an unwired source leaves the section unsupported with its fallback.
+func FromIncidentEvidence(records []IncidentRecord, subject ReportSubject, truth *query.TruthEnvelope) SectionInput {
+	incidents := distinctIncidents(records)
+	truncated := len(incidents) > maxReportIncidents
+	if truncated {
+		incidents = incidents[:maxReportIncidents]
+	}
+	return SectionInput{
+		Kind:       SectionIncidentsSupport,
+		Summary:    incidentSummary(subject, len(incidents), truncated),
+		Truth:      truth,
+		Evidence:   incidentHandles(incidents),
+		Truncated:  truncated,
+		NoEvidence: len(incidents) == 0,
+	}
+}
+
+// distinctIncidents returns unique incidents keyed by (provider, provider incident
+// id) in stable input order, so two providers that share an id string are not
+// merged and the count reflects incidents, not evidence slots.
+func distinctIncidents(records []IncidentRecord) []IncidentRecord {
+	type incidentKey struct{ provider, id string }
+	seen := make(map[incidentKey]struct{}, len(records))
+	var out []IncidentRecord
+	for _, record := range records {
+		id := strings.TrimSpace(record.ProviderIncidentID)
+		if id == "" {
+			continue
+		}
+		key := incidentKey{provider: strings.TrimSpace(record.Provider), id: id}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, IncidentRecord{Provider: key.provider, ProviderIncidentID: id, TruthLabel: record.TruthLabel})
+	}
+	return out
+}
+
+func incidentHandles(incidents []IncidentRecord) []query.EvidenceCitationHandle {
+	if len(incidents) == 0 {
+		return nil
+	}
+	handles := make([]query.EvidenceCitationHandle, 0, len(incidents))
+	for _, incident := range incidents {
+		reason := "incident routed to the service via the durable incident-repository correlation"
+		if incident.Provider != "" {
+			reason = incident.Provider + " " + reason
+		}
+		handles = append(handles, query.EvidenceCitationHandle{
+			Kind:           "entity",
+			EntityID:       incident.ProviderIncidentID,
+			EvidenceFamily: "incident_routing",
+			Reason:         reason,
+		})
+	}
+	return handles
+}
+
+func incidentSummary(subject ReportSubject, count int, truncated bool) string {
+	if count == 0 {
+		return ""
+	}
+	if truncated {
+		return fmt.Sprintf("Service %s has at least %d routed incident(s) (truncated).", subjectName(subject), count)
+	}
+	return fmt.Sprintf("Service %s has %d routed incident(s).", subjectName(subject), count)
+}
+
 // serviceEntityHandle builds the evidence handle that addresses the service node
 // itself: the canonical, resolvable pointer behind a service-story claim (the
 // graph node is the evidence). It emits an `entity` handle keyed by the service
