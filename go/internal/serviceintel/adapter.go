@@ -105,6 +105,82 @@ func supplyChainSummary(subject ReportSubject, count int) string {
 	return fmt.Sprintf("Service %s has %d supply-chain impact finding(s).", subjectName(subject), count)
 }
 
+// IncidentRecord is the minimal durable, service-scoped incident evidence the
+// report's incidents_support section needs. Callers map their source records (for
+// example the durable reducer.ServiceIncidentRecord loaded via the
+// incident-repository correlation join) onto it, so this package stays decoupled
+// from the storage and reducer layers and never reclassifies the join.
+type IncidentRecord struct {
+	// Provider is the incident provider (for example pagerduty).
+	Provider string
+	// ProviderIncidentID is the durable provider incident identifier.
+	ProviderIncidentID string
+	// TruthLabel is the source truth label for the routing evidence.
+	TruthLabel string
+}
+
+// FromIncidentEvidence maps durable service-scoped incident evidence into the
+// incidents_support SectionInput. It is faithful and side-effect free: it counts
+// distinct incidents (the loader returns one row per evidence slot), addresses
+// each with an entity handle keyed by the durable provider incident id, carries
+// the source truth verbatim, and marks the section NoEvidence when the service
+// has no routed incidents. Callers invoke it only when the durable incident
+// source is wired; an unwired source leaves the section unsupported with its
+// fallback next call instead.
+func FromIncidentEvidence(records []IncidentRecord, subject ReportSubject, truth *query.TruthEnvelope) SectionInput {
+	incidents := distinctIncidentIDs(records)
+	return SectionInput{
+		Kind:       SectionIncidentsSupport,
+		Summary:    incidentSummary(subject, len(incidents)),
+		Truth:      truth,
+		Evidence:   incidentHandles(incidents),
+		NoEvidence: len(incidents) == 0,
+	}
+}
+
+// distinctIncidentIDs returns the unique, non-empty provider incident ids in
+// stable input order, so the count and handles reflect incidents, not evidence
+// slots, and stay deterministic.
+func distinctIncidentIDs(records []IncidentRecord) []string {
+	seen := make(map[string]struct{}, len(records))
+	var ids []string
+	for _, record := range records {
+		id := strings.TrimSpace(record.ProviderIncidentID)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+func incidentHandles(incidentIDs []string) []query.EvidenceCitationHandle {
+	if len(incidentIDs) == 0 {
+		return nil
+	}
+	handles := make([]query.EvidenceCitationHandle, 0, len(incidentIDs))
+	for _, id := range incidentIDs {
+		handles = append(handles, query.EvidenceCitationHandle{
+			Kind:           "entity",
+			EntityID:       id,
+			EvidenceFamily: "incident_routing",
+			Reason:         "incident routed to the service via the durable incident-repository correlation",
+		})
+	}
+	return handles
+}
+
+func incidentSummary(subject ReportSubject, count int) string {
+	if count == 0 {
+		return ""
+	}
+	return fmt.Sprintf("Service %s has %d routed incident(s).", subjectName(subject), count)
+}
+
 // serviceEntityHandle builds the evidence handle that addresses the service node
 // itself: the canonical, resolvable pointer behind a service-story claim (the
 // graph node is the evidence). It emits an `entity` handle keyed by the service
