@@ -23,7 +23,8 @@ import {
   ShieldCheck,
   TriangleAlert,
   Workflow,
-  Waves
+  Waves,
+  Waypoints
 } from "lucide-react";
 import { EshuApiClient } from "./api/client";
 import { createDemoApiClient, demoApiBaseUrl, demoDefaults, demoRepositories } from "./api/demoClient";
@@ -46,6 +47,7 @@ import { SbomPage } from "./pages/SbomPage";
 import { ObservabilityPage } from "./pages/ObservabilityPage";
 import { DependenciesPage } from "./pages/DependenciesPage";
 import { ExplorerPage } from "./pages/ExplorerPage";
+import { ServiceEvidenceGraphPage } from "./pages/ServiceEvidenceGraphPage";
 import { IacPage } from "./pages/IacPage";
 import { ReplatformingPage } from "./pages/ReplatformingPage";
 import { RepositoriesPage } from "./pages/RepositoriesPage";
@@ -82,7 +84,8 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
       { to: "/ask", label: "Ask Eshu", icon: Search },
       { to: "/impact", label: "Impact", icon: Network },
       { to: "/changed-since", label: "Changed Since", icon: History },
-      { to: "/explorer", label: "Graph Explorer", icon: GitBranch }
+      { to: "/explorer", label: "Graph Explorer", icon: GitBranch },
+      { to: "/service-story", label: "Service Story", icon: Waypoints }
     ]
   },
   {
@@ -341,6 +344,8 @@ export function App(): React.JSX.Element {
             <Route path="/impact" element={<ImpactPage model={visibleModel} client={client} />} />
             <Route path="/changed-since" element={<ChangedSincePage client={client} />} />
             <Route path="/explorer" element={<ExplorerPage model={visibleModel} client={client} onOpenService={openService} />} />
+            <Route path="/service-story" element={<ServiceEvidenceGraphPage model={visibleModel} client={client} onOpenService={openService} />} />
+            <Route path="/service-story/:serviceName" element={<ServiceEvidenceGraphPage model={visibleModel} client={client} onOpenService={openService} />} />
             <Route path="/code-graph" element={<CodeGraphPage model={visibleModel} client={client} />} />
             <Route path="/repositories" element={<RepositoriesPage client={client} model={visibleModel} />} />
             <Route path="/repositories/:id/source" element={<RepoSourcePage client={client} />} />

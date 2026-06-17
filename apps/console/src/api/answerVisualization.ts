@@ -16,6 +16,12 @@ export interface VisualizationDeriveRequest {
   readonly view: "evidence_citation";
 }
 
+export interface ServiceStoryVisualizationRequest {
+  readonly source_response: Record<string, unknown>;
+  readonly source_truth?: EshuTruth;
+  readonly view: "service_story";
+}
+
 export interface VisualizationDeriveResponseWire {
   readonly visualization_packet?: VisualizationPacketWire;
 }
@@ -23,10 +29,12 @@ export interface VisualizationDeriveResponseWire {
 export interface VisualizationPacket {
   readonly edges: readonly VisualizationEdge[];
   readonly limitations: readonly string[];
+  readonly limits: VisualizationLimits;
   readonly nodes: readonly VisualizationNode[];
   readonly recommendedNextCalls: readonly AnswerNextCall[];
   readonly supported: boolean;
   readonly title: string;
+  readonly truncation: VisualizationTruncation;
   readonly truth: EshuTruth | null;
   readonly view: string;
 }
@@ -34,12 +42,51 @@ export interface VisualizationPacket {
 export interface VisualizationPacketWire {
   readonly edges?: readonly VisualizationEdgeWire[];
   readonly limitations?: readonly string[];
+  readonly limits?: VisualizationLimitsWire;
   readonly nodes?: readonly VisualizationNodeWire[];
   readonly recommended_next_calls?: readonly AnswerNextCallWire[];
   readonly supported?: boolean;
   readonly title?: string;
+  readonly truncation?: VisualizationTruncationWire;
   readonly truth?: EshuTruth | null;
   readonly view?: string;
+}
+
+// VisualizationLimits mirrors the bounded-payload counts the derive route
+// returns so the console can report how much of the subgraph is shown and what
+// the server-side caps are, instead of silently presenting a partial graph as
+// complete.
+export interface VisualizationLimits {
+  readonly edgeCount: number;
+  readonly maxEdges: number;
+  readonly maxNodes: number;
+  readonly nodeCount: number;
+  readonly ordering: string;
+}
+
+export interface VisualizationLimitsWire {
+  readonly edge_count?: number;
+  readonly max_edges?: number;
+  readonly max_nodes?: number;
+  readonly node_count?: number;
+  readonly ordering?: string;
+}
+
+// VisualizationTruncation captures what the derive route dropped to stay within
+// bounds. The console must keep this visible so a truncated subgraph is never
+// mistaken for the full evidence picture.
+export interface VisualizationTruncation {
+  readonly droppedEdgeCount: number;
+  readonly droppedNodeCount: number;
+  readonly droppedNodeIds: readonly string[];
+  readonly truncated: boolean;
+}
+
+export interface VisualizationTruncationWire {
+  readonly dropped_edge_count?: number;
+  readonly dropped_node_count?: number;
+  readonly dropped_node_ids?: readonly string[];
+  readonly truncated?: boolean;
 }
 
 export interface VisualizationNode {
@@ -89,6 +136,22 @@ export function visualizationRequest(
   };
 }
 
+// serviceStoryVisualizationRequest derives the request body for the
+// service_story view from an already-fetched service-story dossier response.
+// The derive route is a side-effect-free transformation of source_response, so
+// the console passes the raw dossier through unchanged and never synthesizes
+// graph topology client-side.
+export function serviceStoryVisualizationRequest(
+  story: Record<string, unknown>,
+  sourceTruth: EshuTruth | null
+): ServiceStoryVisualizationRequest {
+  return {
+    source_response: story,
+    ...(sourceTruth === null ? {} : { source_truth: sourceTruth }),
+    view: "service_story"
+  };
+}
+
 export function normalizeVisualizationPacket(
   response: VisualizationDeriveResponseWire,
   routeTruth: EshuTruth | null
@@ -107,6 +170,7 @@ export function normalizeVisualizationPacket(
       truthLabel: clean(edge.truth_label)
     })),
     limitations: packet.limitations ?? [],
+    limits: normalizeLimits(packet.limits),
     nodes: (packet.nodes ?? []).map((node) => ({
       category: clean(node.category),
       evidenceHandle: handleRow(node.evidence_handle),
@@ -118,8 +182,28 @@ export function normalizeVisualizationPacket(
     recommendedNextCalls: nextCalls(packet.recommended_next_calls ?? []),
     supported: packet.supported ?? false,
     title: clean(packet.title),
+    truncation: normalizeTruncation(packet.truncation),
     truth: packet.truth ?? routeTruth,
     view: clean(packet.view)
+  };
+}
+
+function normalizeLimits(limits: VisualizationLimitsWire | undefined): VisualizationLimits {
+  return {
+    edgeCount: limits?.edge_count ?? 0,
+    maxEdges: limits?.max_edges ?? 0,
+    maxNodes: limits?.max_nodes ?? 0,
+    nodeCount: limits?.node_count ?? 0,
+    ordering: clean(limits?.ordering)
+  };
+}
+
+function normalizeTruncation(truncation: VisualizationTruncationWire | undefined): VisualizationTruncation {
+  return {
+    droppedEdgeCount: truncation?.dropped_edge_count ?? 0,
+    droppedNodeCount: truncation?.dropped_node_count ?? 0,
+    droppedNodeIds: (truncation?.dropped_node_ids ?? []).filter((id) => id.trim().length > 0),
+    truncated: truncation?.truncated ?? false
   };
 }
 
