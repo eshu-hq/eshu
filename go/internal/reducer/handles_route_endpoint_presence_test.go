@@ -2,6 +2,7 @@ package reducer
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
@@ -32,9 +33,33 @@ func TestAPIEndpointRepoPathPresenceKeyShape(t *testing.T) {
 	t.Parallel()
 
 	got := apiEndpointRepoPathPresenceKey("repo-1", "/users/{id}")
-	want := "repo-1\x00/users/{id}"
-	if got != want {
-		t.Fatalf("presence key = %q, want %q", got, want)
+	if got == "" {
+		t.Fatal("presence key for a valid (repo_id, path) must not be empty")
+	}
+	// REGRESSION (#2844): the synthesized uid is written to the Postgres text
+	// graph_endpoint_presence.uid column. A raw repo_id + "\x00" + path join
+	// embeds a NUL byte, which Postgres rejects for text (SQLSTATE 22021),
+	// dead-lettering workload materialization for every endpoint-exposing repo.
+	// The uid must be Postgres-safe: no NUL byte (and, being a hex digest, no
+	// other control bytes).
+	if strings.ContainsRune(got, '\x00') {
+		t.Fatalf("presence key %q contains a NUL byte; Postgres text columns reject it (SQLSTATE 22021)", got)
+	}
+	// Deterministic: same (repo_id, path) → same key (publisher and gate must agree).
+	if again := apiEndpointRepoPathPresenceKey("repo-1", "/users/{id}"); again != got {
+		t.Fatalf("presence key not deterministic: %q vs %q", got, again)
+	}
+	// Distinct: a different path (or repo) must not collide.
+	if apiEndpointRepoPathPresenceKey("repo-1", "/users/{id}") == apiEndpointRepoPathPresenceKey("repo-1", "/users") {
+		t.Fatal("distinct paths collided to the same presence key")
+	}
+	if apiEndpointRepoPathPresenceKey("repo-1", "/x") == apiEndpointRepoPathPresenceKey("repo-2", "/x") {
+		t.Fatal("distinct repos collided to the same presence key")
+	}
+	// The separator boundary must not be ambiguous: ("a","bc") and ("ab","c")
+	// must differ even though raw concatenation would not.
+	if apiEndpointRepoPathPresenceKey("a", "/bc") == apiEndpointRepoPathPresenceKey("ab", "/c") {
+		t.Fatal("separator-ambiguous (repo_id, path) pairs collided")
 	}
 	// Blank repo_id or path cannot key a presence row.
 	if k := apiEndpointRepoPathPresenceKey("", "/x"); k != "" {
