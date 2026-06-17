@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/cfg"
+	"github.com/eshu-hq/eshu/go/internal/parser/dataflowemit"
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 	"github.com/eshu-hq/eshu/go/internal/parser/valueflow"
@@ -46,18 +47,7 @@ func goInterprocFindingPayloads(root *tree_sitter.Node, source []byte, importPat
 
 	rows := make([]map[string]any, 0, len(result.Findings))
 	for _, finding := range result.Findings {
-		row := map[string]any{
-			"source_func": string(finding.SourceFunc),
-			"source_kind": finding.SourceKind,
-			"sink_func":   string(finding.SinkFunc),
-			"sink_kind":   string(finding.SinkKind),
-			"confidence":  finding.Confidence,
-			"lang":        "go",
-		}
-		if finding.Cloud {
-			row["cloud"] = true
-		}
-		rows = append(rows, row)
+		rows = append(rows, dataflowemit.InterprocFindingRow("go", finding))
 	}
 	return rows
 }
