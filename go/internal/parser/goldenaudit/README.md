@@ -20,6 +20,10 @@ See `doc.go` for the godoc contract.
 - `LoadGoldenGraph` reads checked-in fixture truth.
 - `CompareGraph` returns a `Report` with missing, unexpected, and duplicate
   nodes and edges.
+- `ScoreAccuracy` returns an `AccuracyResult` with per-relationship-type and
+  overall precision/recall (`Score`, `TypeAccuracy`) plus a wrong-target vs
+  missing vs extra edge breakdown. It exists because tier distribution cannot
+  tell a correctly targeted edge from one resolved to the wrong callee.
 
 ## Dependencies
 
@@ -39,6 +43,14 @@ source fixture contract, with IDs stable enough for review and CI.
 
 Comparison output is sorted by node ID and edge key so failures are stable
 across runs.
+
+`ScoreAccuracy` reuses `Edge.Key()` ((source, type, target)) as the correct-edge
+identity and the `(source, type)` prefix to split wrong-target from extra edges.
+Duplicate edges (same key) are collapsed before scoring. The div-by-zero
+convention: an empty denominator scores `1.0` only when the counterpart
+dimension is also empty (empty observed and empty golden is a perfect score),
+otherwise `0.0` — so emitting nothing against a non-empty golden set still
+fails.
 
 ## Related docs
 
