@@ -108,3 +108,20 @@ func incidentRepositoryCorrelationWiring(database postgres.ExecQueryer) (
 	writer := reducer.PostgresIncidentRepositoryCorrelationWriter{DB: database}
 	return loader, resolver, writer
 }
+
+func codeReachabilityProjectionRunnerFor(
+	database postgres.ExecQueryer,
+	sharedCfg reducer.SharedProjectionRunnerConfig,
+	logger *slog.Logger,
+) *reducer.CodeReachabilityProjectionRunner {
+	store := postgres.NewCodeReachabilityStore(database)
+	return &reducer.CodeReachabilityProjectionRunner{
+		InputLoader: store,
+		RowWriter:   store,
+		Config: reducer.CodeReachabilityProjectionRunnerConfig{
+			PollInterval: sharedCfg.PollInterval,
+			BatchLimit:   sharedCfg.BatchLimit,
+		},
+		Logger: logger,
+	}
+}

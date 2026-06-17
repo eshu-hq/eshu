@@ -45,6 +45,7 @@ flowchart TB
   C --> L["WorkflowControlStore\nworkflow coordinator\nclaim lease fencing"]
   C --> M["GovernanceAuditStore\ngovernance_audit_events\nprivate bounded audit sink"]
   C --> N["IncidentFreshnessStore\nincident_freshness_triggers\nFOR UPDATE SKIP LOCKED"]
+  C --> P["CodeReachabilityStore\ncode_reachability_rows\nactive-generation lookup"]
   E --> O["Beginner.Begin\natomic ack transaction:\nsupersede active → supersede obsolete terminal → activate → update scope → mark succeeded"]
 ```
 
@@ -66,6 +67,11 @@ in `internal/reducer`.
 High-signal invariants for this package:
 
 - Bootstrap DDL is idempotent and ordered through `BootstrapDefinitions`.
+- `code_reachability_rows` stores reducer-materialized code reachable-set rows
+  by active source generation, and `code_reachability_repository_watermarks`
+  records the completed intent timestamp covered by each repository snapshot so
+  empty reachable sets do not loop forever; query dead-code reads consult the
+  rows before the compatibility scan over completed shared projection intents.
 - Fact writes batch at 500 rows, deduplicate `fact_id` within a batch, sanitize
   JSONB control bytes, and skip unchanged pending-or-active generations by
   `FreshnessHint`.

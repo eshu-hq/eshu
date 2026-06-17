@@ -131,9 +131,12 @@ Returned candidates can also populate
 blockers from blockers actually present in the page they received. Candidates
 that carry observed exactness blockers classify as `ambiguous` rather than
 cleanup-ready `unused`.
-Incoming-edge reachability is provenance-weighted: each incoming edge's
-confidence is derived from its `resolution_method` (ADR #2222) via
-`codeprovenance.Confidence`. A candidate whose strongest incoming edge is at or
+Incoming-edge reachability first consults reducer-materialized
+`code_reachability_rows` for the active generation, then falls back to completed
+shared-projection intent rows and the SQL graph probe where needed. The
+classification is provenance-weighted: each incoming edge or path's confidence
+is derived from its `resolution_method` (ADR #2222) via
+`codeprovenance.Confidence`. A candidate whose strongest incoming path is at or
 below the weakest tier (`repo_unique_name`, 0.50) is kept and classified
 `ambiguous` with a `weak_incoming_edge:<method>` reason, rather than being
 silently treated as reachable on a same-name guess. An edge with no recorded

@@ -10,6 +10,10 @@ graph truth, query truth, or deployment truth is a product failure. Track the
 full path — raw evidence → admitted candidate → projected row → graph write →
 query surface — before changing ordering, admission, retries, or
 backend-specific behavior. See CLAUDE.md "Correlation Truth Gates".
+Code reachability projection computes a bounded transitive reachable set from
+root code entities over `CALLS`, `REFERENCES`, and `INHERITS`, preserving the
+weakest provenance method on each path so downstream dead-code reads can use
+materialized `code_reachability_rows` without promoting weak guesses to truth.
 
 ## Where this fits in the pipeline
 

@@ -77,6 +77,10 @@ type Service struct {
 	// projection lane concurrently with the main reducer loop. Nil disables it.
 	RepoDependencyProjectionRunner *RepoDependencyProjectionRunner
 
+	// CodeReachabilityProjectionRunner maintains the materialized code
+	// reachable-set read model. Nil disables it.
+	CodeReachabilityProjectionRunner *CodeReachabilityProjectionRunner
+
 	// GraphProjectionPhaseRepairer retries exact readiness publications that
 	// failed after the underlying graph write already committed.
 	GraphProjectionPhaseRepairer *GraphProjectionPhaseRepairer

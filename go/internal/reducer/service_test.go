@@ -150,6 +150,44 @@ func TestServiceRunStartsSharedProjectionRunner(t *testing.T) {
 	}
 }
 
+func TestServiceRunStartsCodeReachabilityProjectionRunner(t *testing.T) {
+	t.Parallel()
+
+	writer := &fakeCodeReachabilityRowWriter{}
+	service := Service{
+		PollInterval: 10 * time.Millisecond,
+		WorkSource:   &stubReducerWorkSource{},
+		Executor:     &stubReducerExecutor{},
+		WorkSink:     &stubReducerWorkSink{},
+		CodeReachabilityProjectionRunner: &CodeReachabilityProjectionRunner{
+			InputLoader: &fakeCodeReachabilityInputLoader{
+				inputs: []CodeReachabilityProjectionInput{{
+					ScopeID:      "scope-1",
+					GenerationID: "generation-1",
+					RepositoryID: "repo-1",
+					Roots:        []CodeReachabilityRoot{{EntityID: "entity:root"}},
+				}},
+			},
+			RowWriter: writer,
+			Config: CodeReachabilityProjectionRunnerConfig{
+				PollInterval: 10 * time.Millisecond,
+				BatchLimit:   1,
+			},
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	err := service.Run(ctx)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if len(writer.rows) == 0 {
+		t.Fatal("code reachability runner did not write rows")
+	}
+}
+
 func TestServiceRunStartsCodeCallProjectionRunner(t *testing.T) {
 	t.Parallel()
 

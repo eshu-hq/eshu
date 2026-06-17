@@ -471,6 +471,7 @@ func buildReducerService(
 			Instruments:                     instruments,
 			Logger:                          logger,
 		},
+		CodeReachabilityProjectionRunner: codeReachabilityProjectionRunnerFor(database, sharedCfg, logger),
 		GraphProjectionPhaseRepairer: &reducer.GraphProjectionPhaseRepairer{
 			Queue:       graphProjectionRepairQueue,
 			AcceptedGen: postgres.NewAcceptedGenerationLookup(database),

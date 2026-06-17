@@ -509,6 +509,53 @@ func TestDeadCodeIncomingEntityIDsGroupsContentLookupsByRepository(t *testing.T)
 	}
 }
 
+func TestDeadCodeIncomingEntityIDsPrefersMaterializedReachabilityRows(t *testing.T) {
+	t.Parallel()
+
+	store := &materializedReachabilityIncomingStore{
+		incomingByRepo: map[string]map[string]deadCodeIncomingEdge{
+			"repo-1": {
+				"live-go": {
+					MaxConfidence: codeprovenance.Confidence(codeprovenance.MethodSCIP),
+					Method:        codeprovenance.MethodSCIP,
+				},
+			},
+		},
+		legacyByRepo: map[string]map[string]deadCodeIncomingEdge{
+			"repo-1": {
+				"dead-go": {
+					MaxConfidence: codeprovenance.LegacyConfidence,
+					Method:        codeprovenance.MethodUnspecified,
+				},
+			},
+		},
+	}
+	handler := &CodeHandler{Content: store}
+
+	incoming, err := handler.deadCodeIncomingEntityIDs(context.Background(), []map[string]any{
+		{"entity_id": "live-go", "repo_id": "repo-1"},
+		{"entity_id": "dead-go", "repo_id": "repo-1"},
+	})
+	if err != nil {
+		t.Fatalf("deadCodeIncomingEntityIDs() error = %v, want nil", err)
+	}
+	if got, want := incoming["live-go"].Method, codeprovenance.MethodSCIP; got != want {
+		t.Fatalf("incoming[live-go].Method = %q, want %q", got, want)
+	}
+	if got, want := incoming["dead-go"].Method, codeprovenance.MethodUnspecified; got != want {
+		t.Fatalf("incoming[dead-go].Method = %q, want %q", got, want)
+	}
+	if got, want := store.reachabilityCalls, 1; got != want {
+		t.Fatalf("reachability calls = %d, want %d", got, want)
+	}
+	if got, want := store.legacyCalls, 1; got != want {
+		t.Fatalf("legacy incoming calls = %d, want %d", got, want)
+	}
+	if got, want := store.legacyEntityIDs, []string{"dead-go"}; !equalStringSlices(got, want) {
+		t.Fatalf("legacy entity IDs = %#v, want %#v", got, want)
+	}
+}
+
 func TestFilterDeadCodeResultsBatchesSQLGraphIncomingProbes(t *testing.T) {
 	t.Parallel()
 
@@ -606,6 +653,15 @@ type repoGroupedIncomingStore struct {
 	calls          map[string][]string
 }
 
+type materializedReachabilityIncomingStore struct {
+	fakePortContentStore
+	incomingByRepo    map[string]map[string]deadCodeIncomingEdge
+	legacyByRepo      map[string]map[string]deadCodeIncomingEdge
+	legacyEntityIDs   []string
+	reachabilityCalls int
+	legacyCalls       int
+}
+
 func (s *repoGroupedIncomingStore) DeadCodeIncomingEntityIDs(
 	_ context.Context,
 	repoID string,
@@ -624,6 +680,38 @@ func (s *repoGroupedIncomingStore) DeadCodeIncomingEntityIDs(
 				MaxConfidence: codeprovenance.LegacyConfidence,
 				Method:        codeprovenance.MethodUnspecified,
 			}
+		}
+	}
+	return incoming, nil
+}
+
+func (s *materializedReachabilityIncomingStore) CodeReachabilityIncomingEntityIDs(
+	_ context.Context,
+	repoID string,
+	entityIDs []string,
+) (map[string]deadCodeIncomingEdge, error) {
+	s.reachabilityCalls++
+	incoming := make(map[string]deadCodeIncomingEdge)
+	for _, entityID := range entityIDs {
+		if edge, ok := s.incomingByRepo[repoID][entityID]; ok {
+			incoming[entityID] = edge
+		}
+	}
+	return incoming, nil
+}
+
+func (s *materializedReachabilityIncomingStore) DeadCodeIncomingEntityIDs(
+	_ context.Context,
+	repoID string,
+	entityIDs []string,
+) (map[string]deadCodeIncomingEdge, error) {
+	s.legacyCalls++
+	s.legacyEntityIDs = append(s.legacyEntityIDs, entityIDs...)
+	sort.Strings(s.legacyEntityIDs)
+	incoming := make(map[string]deadCodeIncomingEdge)
+	for _, entityID := range entityIDs {
+		if edge, ok := s.legacyByRepo[repoID][entityID]; ok {
+			incoming[entityID] = edge
 		}
 	}
 	return incoming, nil
