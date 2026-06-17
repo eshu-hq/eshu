@@ -189,7 +189,7 @@ func NewAnswerPacket(in AnswerPacketInput) AnswerPacket {
 	}
 
 	hasEvidence := !in.NoEvidence || len(in.EvidenceHandles) > 0
-	markPartial(&packet, truth, hasEvidence)
+	markPartial(&packet, truth, hasEvidence, len(in.MissingEvidence) > 0)
 
 	// A confident summary survives only when the answer is fully usable, or
 	// partial yet still backed by resolved evidence. A partial answer with no
@@ -260,15 +260,20 @@ func finalizeUnsupported(packet AnswerPacket, errEnv *ErrorEnvelope) AnswerPacke
 
 // markPartial sets Partial and records the reasons when a supported answer is
 // incomplete: stale or building freshness, an unavailable backend, truncation,
-// or no resolved evidence. When the freshness carries a proven cause, the cause
-// is folded into the partial reasons and its bounded next check is surfaced as a
-// recommended next call, so the packet explains WHY the answer lags and WHERE to
-// drill in.
-func markPartial(packet *AnswerPacket, truth *TruthEnvelope, hasEvidence bool) {
+// unresolved evidence handles, or no resolved evidence. When the freshness
+// carries a proven cause, the cause is folded into the partial reasons and its
+// bounded next check is surfaced as a recommended next call, so the packet
+// explains WHY the answer lags and WHERE to drill in.
+func markPartial(packet *AnswerPacket, truth *TruthEnvelope, hasEvidence bool, missingEvidence bool) {
 	if packet.Truncated {
 		packet.Partial = true
 		packet.UnsupportedReasons = appendReason(packet.UnsupportedReasons,
 			"result truncated; not all evidence is included")
+	}
+	if missingEvidence {
+		packet.Partial = true
+		packet.UnsupportedReasons = appendReason(packet.UnsupportedReasons,
+			"some requested evidence could not be resolved")
 	}
 	switch truth.Freshness.State {
 	case FreshnessStale:

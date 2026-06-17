@@ -9,7 +9,8 @@ already-produced, truth-labelled answer evidence into a fixed set of sections an
 operator can read top to bottom and trust.
 
 The report ties every section to code-to-cloud evidence, preserved truth labels,
-explicit missing-evidence reasons, and recommended bounded next calls.
+explicit missing-evidence reasons, and recommended bounded next calls with any
+non-sensitive arguments required to execute them.
 
 ## Ownership boundary
 
@@ -41,6 +42,8 @@ Each section embeds a canonical `query.AnswerPacket`, so it preserves the source
 truth envelope, evidence handles, limitations, and recommended next calls. A
 section's `status` is `supported`, `partial`, or `unsupported`, derived from the
 packet — never reclassified from the source truth.
+Missing evidence marks the section partial and adds the section fallback, so
+the report never reads as complete while unresolved handles remain.
 
 The report is `partial` whenever any present section is partial or unsupported,
 so a report never reads as complete while sections are missing. Report-level

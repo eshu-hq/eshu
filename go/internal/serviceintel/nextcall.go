@@ -1,6 +1,9 @@
 package serviceintel
 
-import "strings"
+import (
+	"reflect"
+	"strings"
+)
 
 // nextCallsToMaps converts typed next calls into the evidence-citation
 // recommended_next_calls map shape carried by AnswerPacket, so report sections
@@ -27,6 +30,9 @@ func nextCallsToMaps(calls []NextCall) []map[string]any {
 		if call.Reason != "" {
 			entry["reason"] = call.Reason
 		}
+		if len(call.Arguments) > 0 {
+			entry["arguments"] = cloneNextCallArguments(call.Arguments)
+		}
 		out = append(out, entry)
 	}
 	if len(out) == 0 {
@@ -46,10 +52,14 @@ func nextCallsFromMaps(maps []map[string]any) []NextCall {
 	out := make([]NextCall, 0, len(maps))
 	for _, entry := range maps {
 		call := NextCall{
-			Tool:     mapString(entry, "tool"),
-			Route:    mapString(entry, "route"),
-			Playbook: mapString(entry, "playbook"),
-			Reason:   mapString(entry, "reason"),
+			Tool:      mapString(entry, "tool"),
+			Route:     mapString(entry, "route"),
+			Playbook:  mapString(entry, "playbook"),
+			Reason:    mapString(entry, "reason"),
+			Arguments: mapArguments(entry, "arguments"),
+		}
+		if len(call.Arguments) == 0 {
+			call.Arguments = mapArguments(entry, "params")
 		}
 		if nextCallEmpty(call) {
 			continue
@@ -63,14 +73,17 @@ func nextCallsFromMaps(maps []map[string]any) []NextCall {
 }
 
 // appendUniqueNextCall appends a next call when no existing call shares the same
-// tool, route, and playbook, keeping aggregated next calls de-duplicated and
-// order-stable.
+// tool, route, playbook, and bounded arguments, keeping aggregated next calls
+// de-duplicated and order-stable.
 func appendUniqueNextCall(calls []NextCall, candidate NextCall) []NextCall {
 	if nextCallEmpty(candidate) {
 		return calls
 	}
-	for _, existing := range calls {
-		if nextCallTargetEqual(existing, candidate) {
+	for i, existing := range calls {
+		if nextCallTargetCompatible(existing, candidate) {
+			if len(calls[i].Arguments) == 0 && len(candidate.Arguments) > 0 {
+				calls[i].Arguments = cloneNextCallArguments(candidate.Arguments)
+			}
 			return calls
 		}
 	}
@@ -92,11 +105,13 @@ func appendUniqueString(values []string, candidate string) []string {
 	return append(values, candidate)
 }
 
-// nextCallTargetEqual compares two next calls by their executable target (tool,
-// route, playbook), ignoring the reason text so two callers recommending the
-// same call with different wording collapse to one entry.
-func nextCallTargetEqual(a, b NextCall) bool {
-	return a.Tool == b.Tool && a.Route == b.Route && a.Playbook == b.Playbook
+func nextCallTargetCompatible(a, b NextCall) bool {
+	if a.Tool != b.Tool || a.Route != b.Route || a.Playbook != b.Playbook {
+		return false
+	}
+	return len(a.Arguments) == 0 ||
+		len(b.Arguments) == 0 ||
+		reflect.DeepEqual(a.Arguments, b.Arguments)
 }
 
 func nextCallEmpty(call NextCall) bool {
@@ -108,4 +123,30 @@ func mapString(entry map[string]any, key string) string {
 		return value
 	}
 	return ""
+}
+
+func mapArguments(entry map[string]any, key string) map[string]any {
+	raw, ok := entry[key].(map[string]any)
+	if !ok || len(raw) == 0 {
+		return nil
+	}
+	return cloneNextCallArguments(raw)
+}
+
+func cloneNextCallArguments(args map[string]any) map[string]any {
+	if len(args) == 0 {
+		return nil
+	}
+	cloned := make(map[string]any, len(args))
+	for key, value := range args {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		cloned[key] = value
+	}
+	if len(cloned) == 0 {
+		return nil
+	}
+	return cloned
 }

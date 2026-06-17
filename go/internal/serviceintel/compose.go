@@ -45,7 +45,7 @@ func composeSection(spec sectionSpec, input SectionInput, subject ReportSubject)
 
 	nextCalls := append([]NextCall(nil), input.NextCalls...)
 	if needsFallback {
-		nextCalls = appendUniqueNextCall(nextCalls, spec.Fallback)
+		nextCalls = appendUniqueNextCall(nextCalls, fallbackNextCall(spec, subject))
 	}
 
 	limitations := append([]string(nil), input.Limitations...)
@@ -83,6 +83,9 @@ func sectionNeedsFallback(input SectionInput) bool {
 		return true
 	}
 	if input.Truncated {
+		return true
+	}
+	if len(input.MissingEvidence) > 0 {
 		return true
 	}
 	if input.NoEvidence && len(input.Evidence) == 0 {
@@ -154,6 +157,27 @@ func sectionQuestion(spec sectionSpec, subject ReportSubject) string {
 
 func fallbackLimitation(spec sectionSpec, subject ReportSubject) string {
 	return fmt.Sprintf("%s is not fully resolved for service %s; run the recommended next call to gather it", spec.Title, subjectName(subject))
+}
+
+func fallbackNextCall(spec sectionSpec, subject ReportSubject) NextCall {
+	call := spec.Fallback
+	if args := subjectArguments(subject); len(args) > 0 {
+		call.Arguments = args
+	}
+	switch call.Tool {
+	case "compare_environments", "get_incident_context":
+		call.Tool = ""
+		call.Route = ""
+	}
+	return call
+}
+
+func subjectArguments(subject ReportSubject) map[string]any {
+	serviceName := strings.TrimSpace(subject.ServiceName)
+	if serviceName == "" {
+		return nil
+	}
+	return map[string]any{"service_name": serviceName}
 }
 
 func subjectName(subject ReportSubject) string {

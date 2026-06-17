@@ -231,11 +231,78 @@ func TestComposeTruncatedSectionIsPartial(t *testing.T) {
 	}
 }
 
+func TestComposeMissingEvidenceSectionIsPartial(t *testing.T) {
+	in := fullInput()
+	for i := range in.Sections {
+		if in.Sections[i].Kind == SectionCodeToRuntime {
+			in.Sections[i].MissingEvidence = []query.EvidenceCitationHandle{handle("repo:checkout", "missing.go")}
+		}
+	}
+
+	r := Compose(in)
+	c2r := sectionByKind(t, r, SectionCodeToRuntime)
+	if c2r.Status != StatusPartial {
+		t.Fatalf("missing-evidence section status = %q, want partial", c2r.Status)
+	}
+	if !c2r.Answer.Partial {
+		t.Fatalf("missing-evidence section answer must be partial")
+	}
+	if !r.Partial {
+		t.Fatalf("report with missing evidence should be partial")
+	}
+	if len(c2r.Answer.Limitations) == 0 {
+		t.Fatalf("missing-evidence section must carry an explicit limitation")
+	}
+}
+
 func TestComposeIsDeterministic(t *testing.T) {
 	a := Compose(fullInput())
 	b := Compose(fullInput())
 	if !reflect.DeepEqual(a, b) {
 		t.Fatalf("compose is not deterministic for identical input")
+	}
+}
+
+func TestComposePreservesNextCallArguments(t *testing.T) {
+	in := fullInput()
+	call := NextCall{
+		Tool:      "get_service_story",
+		Reason:    "refresh the service story with a bounded page",
+		Arguments: map[string]any{"service_name": "checkout", "limit": 25},
+	}
+	for i := range in.Sections {
+		if in.Sections[i].Kind == SectionIdentity {
+			in.Sections[i].NextCalls = []NextCall{call}
+		}
+	}
+
+	r := Compose(in)
+	id := sectionByKind(t, r, SectionIdentity)
+	args, ok := id.Answer.RecommendedNextCalls[0]["arguments"].(map[string]any)
+	if !ok {
+		t.Fatalf("section next call arguments missing: %#v", id.Answer.RecommendedNextCalls)
+	}
+	if got, want := args["service_name"], "checkout"; got != want {
+		t.Fatalf("section next call service_name = %#v, want %#v", got, want)
+	}
+	if len(r.NextCalls) == 0 || r.NextCalls[0].Arguments["limit"] != 25 {
+		t.Fatalf("report next call arguments not preserved: %#v", r.NextCalls)
+	}
+}
+
+func TestComposeFallbackNextCallsUseSubjectArguments(t *testing.T) {
+	r := Compose(ReportInput{Subject: ReportSubject{ServiceName: "checkout"}})
+	dep := sectionByKind(t, r, SectionDeploymentConfig)
+	if len(dep.Answer.RecommendedNextCalls) == 0 {
+		t.Fatalf("deployment fallback missing next call")
+	}
+	call := dep.Answer.RecommendedNextCalls[0]
+	if _, hasTool := call["tool"]; hasTool {
+		t.Fatalf("deployment fallback should use a service-scoped playbook instead of an unbound tool: %#v", call)
+	}
+	args, ok := call["arguments"].(map[string]any)
+	if !ok || args["service_name"] != "checkout" {
+		t.Fatalf("deployment fallback arguments = %#v, want service_name checkout", call["arguments"])
 	}
 }
 

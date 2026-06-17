@@ -58,10 +58,10 @@ type ReportSubject struct {
 }
 
 // NextCall is a bounded, executable follow-up call. It mirrors the
-// evidence-citation recommended_next_calls shape (tool, route, reason) and adds
-// an optional playbook handle so a suggestion can point at a deterministic
-// query playbook. The composer never emits a NextCall that cannot be executed
-// against a real tool, route, or playbook.
+// evidence-citation recommended_next_calls shape and adds an optional playbook
+// handle plus bounded input arguments so a suggestion can point at a
+// deterministic query playbook. The composer never emits a NextCall that cannot
+// be executed against a real tool, route, or playbook.
 type NextCall struct {
 	// Tool is the MCP tool to call, when the next step is an MCP tool.
 	Tool string `json:"tool,omitempty"`
@@ -71,6 +71,9 @@ type NextCall struct {
 	Playbook string `json:"playbook,omitempty"`
 	// Reason explains why this call is recommended.
 	Reason string `json:"reason,omitempty"`
+	// Arguments carries bounded, non-sensitive input values needed to execute
+	// the call.
+	Arguments map[string]any `json:"arguments,omitempty"`
 }
 
 // SectionInput carries the evidence for one section, already produced by an

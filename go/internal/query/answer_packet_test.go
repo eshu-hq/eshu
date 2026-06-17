@@ -135,6 +135,36 @@ func TestAnswerPacketEmptyEvidenceIsPartialNotConfident(t *testing.T) {
 	}
 }
 
+func TestAnswerPacketMissingEvidenceIsPartialWithSummary(t *testing.T) {
+	truth := &TruthEnvelope{
+		Level:      TruthLevelDerived,
+		Capability: "evidence_citation.packet",
+		Basis:      TruthBasisContentIndex,
+		Freshness:  TruthFreshness{State: FreshnessFresh},
+	}
+	packet := NewAnswerPacket(AnswerPacketInput{
+		PromptFamily:    "evidence_citation.packet",
+		Question:        "Cite the evidence for AdmitWorkload.",
+		Summary:         "1 citation resolved.",
+		EvidenceHandles: []evidenceCitationHandle{{Kind: "entity", EntityID: "go:func:AdmitWorkload"}},
+		MissingEvidence: []evidenceCitationHandle{{Kind: "file", RepoID: "r1", RelativePath: "missing.go"}},
+		Envelope:        &ResponseEnvelope{Data: map[string]any{}, Truth: truth},
+	})
+
+	if !packet.Supported {
+		t.Fatalf("missing evidence on a supported answer must remain supported")
+	}
+	if !packet.Partial {
+		t.Fatalf("missing evidence must mark the packet partial: %+v", packet)
+	}
+	if strings.TrimSpace(packet.Summary) == "" {
+		t.Fatalf("partial answer with resolved evidence should keep its summary")
+	}
+	if len(packet.UnsupportedReasons) == 0 {
+		t.Fatalf("missing evidence must record why the packet is partial")
+	}
+}
+
 func TestAnswerPacketFromCitationResponseMapsEvidence(t *testing.T) {
 	truth := &TruthEnvelope{
 		Level:      TruthLevelDerived,
