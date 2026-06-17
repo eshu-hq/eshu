@@ -105,6 +105,7 @@ func OpenAPISpec() string {
 			openAPIPathsFreshnessChangedSince+
 			openAPIPathsFreshnessServiceChangedSince+
 			openAPIPathsHostedReadiness+
+			openAPIPathsCollectorReadiness+
 			openAPIPathsGovernanceStatus+
 			openAPIPathsSemanticStatus+
 			openAPIPathsAnswerNarrationStatus+

@@ -54,6 +54,15 @@ func runtimeTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "get_collector_readiness",
+			Description: "Return per-collector-family promotion readiness: promotion state (implemented, partial, failed, stale, gated, disabled, permission_hidden, unsupported), reducer readback status, evidence counts, last proof time, blockers, and a recommended next action. Redacts credentials and raw provider payloads.",
+			InputSchema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+				"required":   []string{},
+			},
+		},
+		{
 			Name:        "get_hosted_governance_status",
 			Description: "Return redacted hosted governance status across policy mode, shared-token posture, tenancy, egress, semantic, extension, redaction, retention, audit, and aggregate decision readbacks.",
 			InputSchema: map[string]any{
