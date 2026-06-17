@@ -1,5 +1,5 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { vi } from "vitest";
 import { EshuApiHttpError, type EshuApiClient } from "../api/client";
 import type { EshuEnvelope } from "../api/envelope";
@@ -94,6 +94,25 @@ describe("ServiceReportPage", () => {
     // trace_deployment_chain has no console destination — shown but not a link.
     expect(within(investigations).getByText("trace the deploy chain")).toBeInTheDocument();
     expect(within(investigations).queryByRole("link", { name: /trace the deploy chain/i })).toBeNull();
+  });
+
+  it("clears a stale report when navigating back to the bare route", async () => {
+    const { client } = clientReturning(reportEnvelope(fullReport()));
+    function Nav(): React.JSX.Element {
+      const navigate = useNavigate();
+      return <button onClick={() => navigate("/service-report")} type="button">to bare</button>;
+    }
+    render(
+      <MemoryRouter initialEntries={["/service-report/payments"]}>
+        <Routes>
+          <Route path="/service-report" element={<><Nav /><ServiceReportPage client={client} model={liveModel()} onOpenService={vi.fn()} /></>} />
+          <Route path="/service-report/:serviceName" element={<><Nav /><ServiceReportPage client={client} model={liveModel()} onOpenService={vi.fn()} /></>} />
+        </Routes>
+      </MemoryRouter>
+    );
+    expect(await screen.findByText("ECS service declared")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "to bare" }));
+    await waitFor(() => expect(screen.queryByText("ECS service declared")).not.toBeInTheDocument());
   });
 
   it("shows an empty state when the report has no evidence", async () => {

@@ -60,7 +60,17 @@ export function ServiceReportPage({
   );
 
   useEffect(() => {
-    if (routeName.length === 0 || routeName === loadedRef.current) {
+    // Both /service-report and /service-report/:serviceName render the same page
+    // instance, so navigating back to the bare route must clear the prior report
+    // rather than leave stale evidence under a route that no longer selects it.
+    if (routeName.length === 0) {
+      loadedRef.current = null;
+      loadTokenRef.current += 1;
+      setResult(null);
+      setInput("");
+      return;
+    }
+    if (routeName === loadedRef.current) {
       return;
     }
     loadedRef.current = routeName;
