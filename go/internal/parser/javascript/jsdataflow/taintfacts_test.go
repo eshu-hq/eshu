@@ -121,3 +121,20 @@ func TestTSSinkInNestedClosureNotAttributed(t *testing.T) {
 		t.Fatalf("sink inside nested closure must not be attributed to the outer function; got %+v", facts.Sinks)
 	}
 }
+
+// TestTSConditionalSanitizerNotMarked proves a sanitizer call inside a
+// conditional (cond ? raw : escape(raw)) does not mark the whole binding as
+// sanitized, because the other branch is unsanitized — marking it would wrongly
+// suppress a real finding.
+func TestTSConditionalSanitizerNotMarked(t *testing.T) {
+	t.Parallel()
+
+	node, source, fn := parseFirstFunction(t, "function handler(req) {\n"+
+		"\tconst safe = cond ? req.body : escape(req.body);\n"+
+		"\tdb.query(safe);\n"+
+		"}")
+	facts := TaintFacts(node, source, fn)
+	if len(facts.Sanitizers) != 0 {
+		t.Fatalf("conditional sanitizer must not mark the binding; got %+v", facts.Sanitizers)
+	}
+}

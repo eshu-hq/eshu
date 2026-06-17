@@ -112,14 +112,16 @@ func classifyAssignmentSanitizer(node *tree_sitter.Node, source []byte, index *l
 	markSanitizer(right, source, nodeText(left, source), nodeLine(node), index, facts)
 }
 
-// markSanitizer records a sanitizer when value is a recognized sanitizer call
-// producing the named binding.
+// markSanitizer records a sanitizer when the produced value is DIRECTLY a
+// recognized sanitizer call. It deliberately does not descend into the value: a
+// sanitizer call inside a conditional or logical expression
+// (cond ? raw : escape(raw)) leaves an unsanitized branch, so marking the whole
+// binding as neutralized would wrongly suppress a real finding.
 func markSanitizer(value *tree_sitter.Node, source []byte, target string, line int, index *lineIndex, facts *taint.Facts) {
-	call := firstCall(value)
-	if call == nil {
+	if value == nil || value.Kind() != "call_expression" {
 		return
 	}
-	neutralizes, ok := jsSanitizerCallKinds[callFinalName(call, source)]
+	neutralizes, ok := jsSanitizerCallKinds[callFinalName(value, source)]
 	if !ok {
 		return
 	}
@@ -148,36 +150,6 @@ func callFinalName(call *tree_sitter.Node, source []byte) string {
 		}
 	}
 	return ""
-}
-
-// firstCall returns node if it is a call, or its first call descendant.
-func firstCall(node *tree_sitter.Node) *tree_sitter.Node {
-	if node == nil {
-		return nil
-	}
-	if node.Kind() == "call_expression" {
-		return node
-	}
-	var found *tree_sitter.Node
-	var visit func(*tree_sitter.Node)
-	visit = func(current *tree_sitter.Node) {
-		if found != nil || current == nil {
-			return
-		}
-		if current.Kind() == "call_expression" {
-			cloned := *current
-			found = &cloned
-			return
-		}
-		cursor := current.Walk()
-		defer cursor.Close()
-		for _, child := range current.NamedChildren(cursor) {
-			child := child
-			visit(&child)
-		}
-	}
-	visit(node)
-	return found
 }
 
 // walkInFunction visits named descendants of a function body without descending
