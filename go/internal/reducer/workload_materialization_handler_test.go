@@ -177,7 +177,11 @@ func TestWorkloadMaterializationHandlerPublishesPhaseWhenNoCandidates(t *testing
 	if err != nil {
 		t.Fatalf("Handle() error = %v", err)
 	}
-	if got, want := len(publisher.calls), 1; got != want {
+	// Two publishes on the zero-candidate path (#2891): the existing per-EntityKey
+	// workload phase row (calls[0]) AND the additive deterministic per-repo
+	// readiness row for every repo in scope (calls[1]), so a route-only repo's
+	// handles_route gate still resolves.
+	if got, want := len(publisher.calls), 2; got != want {
 		t.Fatalf("publisher call count = %d, want %d", got, want)
 	}
 	if got, want := publisher.calls[0][0].Key.Keyspace, GraphProjectionKeyspaceServiceUID; got != want {
@@ -185,6 +189,12 @@ func TestWorkloadMaterializationHandlerPublishesPhaseWhenNoCandidates(t *testing
 	}
 	if got, want := publisher.calls[0][0].Phase, GraphProjectionPhaseWorkloadMaterialization; got != want {
 		t.Fatalf("published phase = %q, want %q", got, want)
+	}
+	// The additive batch carries the deterministic per-repo readiness key the
+	// handles_route/runs_in consumer reconstructs.
+	repoKey := workloadMaterializationRepoReadinessKey("scope-docs", "repo-docs", "gen-1")
+	if !publishedReadinessKey(publisher, repoKey) {
+		t.Fatalf("repo-keyed readiness row %+v not published; calls=%+v", repoKey, publisher.calls)
 	}
 }
 
