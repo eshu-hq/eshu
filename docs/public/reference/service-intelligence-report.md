@@ -48,8 +48,8 @@ recommended next calls without reclassifying them. A section's `status` is one
 of:
 
 - `supported` — backed by resolved, fresh evidence;
-- `partial` — usable but truncated, stale, or resolved with no supporting
-  evidence;
+- `partial` — usable but truncated, stale, carrying unresolved evidence
+  handles, or resolved with no supporting evidence;
 - `unsupported` — the source route errored or returned no truth.
 
 The report follows the same no-confident-summary rule as answer packets: an
@@ -59,10 +59,12 @@ carry:
 
 - an explicit **limitation** explaining what is not resolved, and
 - a bounded **recommended next call** naming a real tool, route, or
-  [query playbook](query-playbooks.md) to gather the missing evidence.
+  [query playbook](query-playbooks.md) plus any non-sensitive subject arguments
+  needed to gather the missing evidence.
 
 A report is `partial` whenever any present section is partial or unsupported, so
-it never reads as complete while sections are missing.
+it never reads as complete while sections are missing or unresolved handles
+remain.
 
 ## Determinism
 
