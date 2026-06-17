@@ -7,6 +7,18 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
+// The shared intent store backs both the dedicated code-call runner and the
+// generic shared projection runner, so it must satisfy the indexed and unhashed
+// candidate reader contracts for each. Locking these at compile time prevents a
+// future signature drift from silently dropping the generic runner back to the
+// in-memory domain scan.
+var (
+	_ reducer.CodeCallProjectionPartitionCandidateReader = (*SharedIntentStore)(nil)
+	_ reducer.CodeCallProjectionUnhashedCandidateReader  = (*SharedIntentStore)(nil)
+	_ reducer.SharedProjectionPartitionCandidateReader   = (*SharedIntentStore)(nil)
+	_ reducer.SharedProjectionUnhashedCandidateReader    = (*SharedIntentStore)(nil)
+)
+
 const listPendingDomainPartitionIntentsSQL = `
 SELECT intent_id, projection_domain, partition_key, scope_id,
        acceptance_unit_id, repository_id,

@@ -216,6 +216,67 @@ and public-safe summary output. Raw repositories, hostnames, IPs, paths, DSNs,
 logs, source payloads, principals, accounts, and credentials remain
 operator-local.
 
+### Shared Projection Indexed Partition Selection (#2755)
+
+The dedicated code-call runner already selected pending rows through the indexed
+`partition_hash` predicate, but the generic shared projection runner
+(`SelectPartitionBatch` in `go/internal/reducer/shared_projection_worker.go`)
+still scanned pending rows by domain and filtered partition membership in
+memory. Under a high-cardinality shared domain a leased partition's work could
+sit behind a full `maxSharedSelectionScanLimit` (10,000-row) head slice of other
+partitions and never be selected, surfacing as a "shared partition selection
+reached scan cap" error rather than progress.
+
+`SelectPartitionBatch` now prefers the indexed candidate readers
+(`ListPendingDomainPartitionIntents` plus the legacy
+`ListPendingDomainUnhashedIntents`) when the intent reader implements them, and
+keeps the in-memory domain scan with its widen-and-cap behavior for readers that
+do not (test fakes and any non-Postgres backend). The selector reuses the
+existing partial indexes
+(`shared_projection_intents_domain_partition_pending_idx` and
+`shared_projection_intents_domain_unhashed_pending_idx`); no new schema, index,
+DDL, or migration is introduced. Correctness rests on the invariant that the SQL
+`mod(partition_hash, count)` equals the Go `PartitionForKey` assignment used by
+the partition lease, so the indexed path returns exactly the rows the in-memory
+path would have, and same-key fencing across the hashed and unhashed lanes
+deduplicates by intent id.
+
+No-Regression Evidence: focused TDD proof in
+`go/internal/reducer/shared_projection_partition_candidate_test.go`. The new
+tests first failed on `main` and pass after the selector change:
+`TestSelectPartitionBatchUsesIndexedPartitionCandidatesWhenReaderSupportsIt`
+(indexed predicate is used, the in-memory domain scan is not called),
+`TestSelectPartitionBatchDoesNotHitScanCapWithIndexedSelection` (a target-
+partition row buried behind a 10,000-row other-partition head slice is returned
+without the scan-cap error that the legacy path raises),
+`TestSelectPartitionBatchMergesUnhashedFallbackForIndexedReader` (legacy
+`partition_hash IS NULL` rows are partition-matched, merged in
+`created_at`/`intent_id` order, and counted), and
+`TestSelectPartitionBatchKeepsLegacyScanWhenReaderUnsupported` (readers without
+the candidate interface keep the unchanged in-memory scan). Backend: package
+fakes, no live graph or Postgres round trip; input shape covers pending,
+unhashed-fallback, empty-partition, and starvation-cap cases. The full
+`go test ./internal/reducer ./internal/storage/postgres -count=1` suite stays
+green, and a compile-time assertion in
+`shared_intents_partition_candidates.go` locks `*SharedIntentStore` to the
+candidate contracts so the runner cannot silently fall back to the in-memory
+scan. The fix uses no worker-count reduction, batch-size serialization, or graph
+query. End-to-end throughput proof for promoting specific high-cardinality
+shared domains to intra-repository parallel writes remains open and is tracked
+under #2751.
+
+Classification: correctness and scheduling win. It removes a partition-
+starvation failure mode and cross-partition scan dilution for hashed shared
+domains; it does not by itself change graph-write wall time.
+
+No-Observability-Change to metrics and spans; the runner adds two bounded fields
+to the existing `shared projection cycle completed` log — `indexed_selection`
+(bool) and `unhashed_fallback_rows` (count) — so operators can confirm which
+selection path a domain used and watch pre-hash rows drain, without any new
+metric label, high-cardinality identifier, or runtime knob. Partition lease
+churn stays diagnosable through the existing `lease_claim_duration_seconds`,
+`selection_duration_seconds`, and shared-intent backlog signals.
+
 ### Collector Fact Evidence Status Read (#1678)
 
 No-Regression Evidence: issue #1678 baseline on remote
