@@ -274,6 +274,25 @@ diagnose deferral through the existing `blocked_readiness`/
 `MaxBlockedIntentWaitSeconds` counters and cycle logs, plus the existing workload
 materialization completion logs and Postgres query instrumentation.
 
+No-Regression Evidence: #2809 `publishAPIEndpointRepoPathPresence` deduplicates
+its `(repo_id, path)` presence rows by synthesized uid before the upsert, because
+a multi-workload repo emits one `APIEndpointRow` per workload sharing the same
+route path (the endpoint id embeds the workload id; the presence uid does not),
+and the batched `INSERT ... ON CONFLICT (keyspace, uid) DO UPDATE` would
+otherwise carry the same conflict key twice — which Postgres rejects, making the
+workload materialization intent retry forever after its graph write already
+succeeded. `go test ./internal/reducer -run
+'TestPublishAPIEndpointRepoPathPresenceDeduplicatesRepoPath|TestPublishAPIEndpointRepoPathPresenceUpsertsRepoPathKeys'
+-count=1` fails on the duplicate-key batch before the dedupe and passes after; the
+dedupe is O(rows) with one map and changes no graph write.
+
+No-Observability-Change: the presence dedupe only collapses redundant rows in an
+existing upsert batch on the workload materialization commit path. It adds no
+route, graph query shape, queue table, worker, lease, runtime knob, metric
+instrument, metric label, or log key; operators still diagnose the path through
+the existing workload materialization completion logs and Postgres query
+instrumentation.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

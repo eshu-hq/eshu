@@ -38,6 +38,16 @@ func apiEndpointRepoPathPresenceKey(repoID, path string) string {
 // commit path carries zero extra write. When enabled the upsert is idempotent
 // (the store conflicts on (keyspace, uid)) and safe under concurrent
 // materializer workers. Endpoint rows with a blank repo_id or path are skipped.
+//
+// The synthesized (repo_id, path) uid collapses many workload-scoped endpoint
+// rows onto one presence key: a multi-workload repo can emit several
+// APIEndpointRows sharing the same repo_id and route path (the endpoint id
+// embeds the workload id, the presence uid does not). Those rows are deduplicated
+// by uid before the upsert, because the presence store batches one
+// INSERT ... ON CONFLICT (keyspace, uid) DO UPDATE and Postgres rejects the same
+// conflict key appearing twice in one VALUES list — which would otherwise make
+// the workload materialization intent retry forever after its graph write
+// already succeeded.
 func publishAPIEndpointRepoPathPresence(
 	ctx context.Context,
 	writer EndpointPresenceWriter,
@@ -49,11 +59,16 @@ func publishAPIEndpointRepoPathPresence(
 		return nil
 	}
 	rows := make([]EndpointPresenceRow, 0, len(endpointRows))
+	seen := make(map[string]struct{}, len(endpointRows))
 	for _, endpoint := range endpointRows {
 		uid := apiEndpointRepoPathPresenceKey(endpoint.RepoID, endpoint.Path)
 		if uid == "" {
 			continue
 		}
+		if _, exists := seen[uid]; exists {
+			continue
+		}
+		seen[uid] = struct{}{}
 		rows = append(rows, EndpointPresenceRow{
 			Keyspace:    GraphProjectionKeyspaceAPIEndpointRepoPath,
 			UID:         uid,
@@ -82,18 +97,20 @@ func handlesRouteEndpointPresenceKey(row SharedProjectionIntentRow) string {
 }
 
 // filterHandlesRouteRowsByEndpointPresence splits phase-ready handles_route rows
-// into the rows whose (repo_id, path) :Endpoint is committed and the rows still
-// blocked on endpoint presence (#2809). It runs ONE bounded MissingUIDs lookup
+// into the rows whose (repo_id, path) :Endpoint is committed (present) and the
+// rows whose endpoint is absent (#2809). It runs ONE bounded MissingUIDs lookup
 // for the distinct synthesized uids, never an N+1 per-row probe. A nil lookup
-// disables the gate and returns every input row as ready, so the handles_route
+// disables the gate and returns every input row as present, so the handles_route
 // path stays byte-identical to its pre-#2809 behavior when presence is unwired.
 // Callers MUST only invoke this for DomainHandlesRoute; every other domain stays
-// untouched.
+// untouched. The caller treats the absent set as TERMINAL (complete, no edge),
+// not deferred: the phase gate already proves the repo's endpoints have all
+// committed, so an absent endpoint will never appear.
 func filterHandlesRouteRowsByEndpointPresence(
 	ctx context.Context,
 	rows []SharedProjectionIntentRow,
 	presence EndpointPresenceLookup,
-) (ready, blocked []SharedProjectionIntentRow, err error) {
+) (present, absent []SharedProjectionIntentRow, err error) {
 	if presence == nil || len(rows) == 0 {
 		return rows, nil, nil
 	}
@@ -124,21 +141,21 @@ func filterHandlesRouteRowsByEndpointPresence(
 		missingSet[uid] = struct{}{}
 	}
 
-	ready = make([]SharedProjectionIntentRow, 0, len(rows))
-	blocked = make([]SharedProjectionIntentRow, 0)
+	present = make([]SharedProjectionIntentRow, 0, len(rows))
+	absent = make([]SharedProjectionIntentRow, 0)
 	for i, row := range rows {
 		key := keyByRow[i]
-		// A row with no derivable (repo_id, path) cannot be proven present, so it
-		// defers rather than projecting against a possibly-absent endpoint.
+		// A row with no derivable (repo_id, path) cannot be proven present and
+		// cannot anchor a MERGE either, so it joins the absent (terminal) set.
 		if key == "" {
-			blocked = append(blocked, row)
+			absent = append(absent, row)
 			continue
 		}
 		if _, isMissing := missingSet[key]; isMissing {
-			blocked = append(blocked, row)
+			absent = append(absent, row)
 			continue
 		}
-		ready = append(ready, row)
+		present = append(present, row)
 	}
-	return ready, blocked, nil
+	return present, absent, nil
 }
