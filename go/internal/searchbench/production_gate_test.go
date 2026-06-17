@@ -111,6 +111,29 @@ func TestProductionGateDegradedWhenEmbeddingDisabled(t *testing.T) {
 	}
 }
 
+func TestProductionGateRejectsUnknownProfile(t *testing.T) {
+	// An unknown or zero-value profile must reject, never be admitted as
+	// production quality on the lenient local thresholds.
+	run := vectorRun(0.99, 0.99, 0.99, 1*time.Millisecond, 0)
+	for _, profile := range []GateProfile{"", "typo_profile"} {
+		decision, reasons := EvaluateProductionGate(profile, run, 1.0)
+		if decision != GateRejected {
+			t.Fatalf("profile %q decision = %q, reasons=%v; want rejected", profile, decision, reasons)
+		}
+	}
+}
+
+func TestProductionGateRejectsMissingFalseCanonicalMeasurement(t *testing.T) {
+	// A run assembled without truth-claim scoring must reject: the missing
+	// safety measurement cannot pass as production-ready.
+	run := vectorRun(0.85, 0.75, 0.82, 120*time.Millisecond, 0)
+	run.Metrics.FalseCanonicalClaimCount = nil
+	decision, reasons := EvaluateProductionGate(GateProfileProductionProvider, run, 0.99)
+	if decision != GateRejected {
+		t.Fatalf("decision = %q, reasons=%v; want rejected for missing false-canonical measurement", decision, reasons)
+	}
+}
+
 func TestProductionGateThresholdsAreDocumented(t *testing.T) {
 	// The published gate doc quotes these exact numbers; pin them so the doc and
 	// code cannot drift on any threshold.

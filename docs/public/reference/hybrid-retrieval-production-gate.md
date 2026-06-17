@@ -69,12 +69,15 @@ the unmet thresholds:
 | `production_ready` | A production-provider run met every threshold with zero false canonical claims. |
 | `local_proof_passed` | A local deterministic run met the local bar. It is explicitly **not** production-ready on its own. |
 | `degraded` | The vector path did not participate, or vector coverage was below the minimum. The run is keyword-degraded and not evaluable as semantic retrieval. |
-| `rejected` | The run was evaluable but failed a measured recall/precision/nDCG/p95 threshold, or emitted a false canonical claim. |
+| `rejected` | The run failed a measured recall/precision/nDCG/p95 threshold, emitted a false canonical claim, omitted the false-canonical measurement, or named an unknown gate profile. |
 
-The order is deliberate: a run is classified `degraded` before any accuracy or
-latency threshold is judged, because semantic quality is not evaluable without a
-vector path. This makes the answer to "is semantic search production-ready or
-degraded?" explicit rather than implied.
+The order is deliberate. A run is rejected up front when its gate profile is
+unknown (so a typo or unset config can never be admitted on the lenient local
+thresholds) and when its false-canonical-claim count is missing (the truth-safety
+measurement is required, never assumed zero). A run is then classified `degraded`
+before any accuracy or latency threshold is judged, because semantic quality is
+not evaluable without a vector path. This makes the answer to "is semantic search
+production-ready or degraded?" explicit rather than implied.
 
 ## Degradation and freshness handling
 

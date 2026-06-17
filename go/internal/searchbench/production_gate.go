@@ -94,9 +94,18 @@ func EvaluateProductionGate(
 	run BackendRun,
 	vectorCoverage float64,
 ) (GateDecision, []string) {
+	if !knownGateProfile(profile) {
+		return GateRejected, []string{fmt.Sprintf("unknown gate profile %q", profile)}
+	}
 	thresholds := ProductionGateThresholdsFor(profile)
 
-	if claims := falseCanonicalClaims(run.Metrics); claims > 0 {
+	// The false-canonical-claim measurement is the gate's truth-safety stop, so a
+	// missing measurement rejects rather than silently passing, and a positive
+	// count rejects unconditionally even on an otherwise-degraded run.
+	if run.Metrics.FalseCanonicalClaimCount == nil {
+		return GateRejected, []string{"false canonical claim count is required"}
+	}
+	if claims := *run.Metrics.FalseCanonicalClaimCount; claims > 0 {
 		return GateRejected, []string{fmt.Sprintf("false canonical claim count %d must be 0", claims)}
 	}
 	if !vectorPathParticipated(run) {
@@ -124,11 +133,24 @@ func EvaluateProductionGate(
 		return GateRejected, reasons
 	}
 
-	if profile == GateProfileLocalDeterministic {
-		// A passing local run is a proof, not production readiness.
-		return GateLocalProofPassed, nil
+	if profile == GateProfileProductionProvider {
+		return GateProductionReady, nil
 	}
-	return GateProductionReady, nil
+	// A passing local-deterministic run is a proof, not production readiness.
+	return GateLocalProofPassed, nil
+}
+
+// knownGateProfile reports whether profile is one of the two admitted gate
+// profiles. An unknown or zero-value profile is rejected before evaluation so a
+// typo or unset config can never be admitted as production quality on the
+// lenient local thresholds.
+func knownGateProfile(profile GateProfile) bool {
+	switch profile {
+	case GateProfileLocalDeterministic, GateProfileProductionProvider:
+		return true
+	default:
+		return false
+	}
 }
 
 // vectorPathParticipated reports whether the run actually exercised vector
@@ -139,13 +161,4 @@ func vectorPathParticipated(run BackendRun) bool {
 		return false
 	}
 	return run.SearchFlags.VectorEnabled && run.SearchFlags.EmbeddingEnabled
-}
-
-// falseCanonicalClaims returns the run's false-canonical-claim count, treating a
-// missing count as zero.
-func falseCanonicalClaims(metrics RetrievalMetrics) int {
-	if metrics.FalseCanonicalClaimCount == nil {
-		return 0
-	}
-	return *metrics.FalseCanonicalClaimCount
 }
