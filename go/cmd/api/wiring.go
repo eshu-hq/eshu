@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scopedtoken"
 	"github.com/eshu-hq/eshu/go/internal/semanticpolicy"
 	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
+	"github.com/eshu-hq/eshu/go/internal/serviceintelhttp"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -166,6 +167,11 @@ func wireAPI(
 
 	apiMux := http.NewServeMux()
 	router.Mount(apiMux)
+
+	// Mount the service intelligence report route. It lives in its own package
+	// (which imports both query and serviceintel) and is mounted here rather than
+	// by the query router, so query never depends on serviceintel — no cycle.
+	(&serviceintelhttp.ReportHandler{Entities: router.Entities}).Mount(apiMux)
 
 	// Record per-endpoint duration/error metrics for every API route. The
 	// middleware wraps the application mux only; the admin surface (probes,

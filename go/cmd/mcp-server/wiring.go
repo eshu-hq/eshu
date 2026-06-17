@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scopedtoken"
 	"github.com/eshu-hq/eshu/go/internal/semanticpolicy"
 	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
+	"github.com/eshu-hq/eshu/go/internal/serviceintelhttp"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -141,6 +142,12 @@ func wireAPI(
 
 	mux := http.NewServeMux()
 	router.Mount(mux)
+
+	// Mount the service intelligence report route so the get_service_intelligence_report
+	// MCP tool dispatches to a real handler. It lives in its own package (importing
+	// query and serviceintel) and is mounted here, not by the query router, so query
+	// never depends on serviceintel — no cycle.
+	(&serviceintelhttp.ReportHandler{Entities: router.Entities}).Mount(mux)
 
 	// Record per-endpoint duration/error metrics for every read route, then wrap
 	// with auth middleware (shared token + optional scoped-token registry;
