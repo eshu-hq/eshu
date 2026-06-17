@@ -43,12 +43,14 @@ is wired in; this slice sources only the service story.`,
 		RunE:          runServiceReport,
 	}
 	cmd.Flags().String("from", "", "Path to a captured service-story response JSON file (default: read stdin)")
+	cmd.Flags().String("supply-chain-from", "", "Optional path to a captured supply-chain impact inventory response JSON file")
 	cmd.Flags().Bool("json", false, "Emit the composed report as JSON")
 	return cmd
 }
 
 func runServiceReport(cmd *cobra.Command, _ []string) error {
 	path, _ := cmd.Flags().GetString("from")
+	supplyChainPath, _ := cmd.Flags().GetString("supply-chain-from")
 	jsonOut, _ := cmd.Flags().GetBool("json")
 
 	raw, err := readServiceReportInput(cmd.InOrStdin(), path)
@@ -60,7 +62,14 @@ func runServiceReport(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	report := serviceintel.Compose(serviceintel.FromServiceStory(dossier, truth))
+	input := serviceintel.FromServiceStory(dossier, truth)
+	if section, err := supplyChainSection(supplyChainPath, input.Subject); err != nil {
+		return err
+	} else if section != nil {
+		input.Sections = append(input.Sections, *section)
+	}
+
+	report := serviceintel.Compose(input)
 
 	if jsonOut {
 		enc := json.NewEncoder(cmd.OutOrStdout())
@@ -90,6 +99,25 @@ func readServiceReportInput(stdin io.Reader, path string) ([]byte, error) {
 		return nil, fmt.Errorf("no service-story response provided; pass --from or pipe JSON on stdin")
 	}
 	return data, nil
+}
+
+// supplyChainSection reads an optional captured supply-chain inventory response
+// and maps it into the report's supply_chain section. It returns nil when no
+// path is given, so the section falls back to its unsupported placeholder.
+func supplyChainSection(path string, subject serviceintel.ReportSubject) (*serviceintel.SectionInput, error) {
+	if strings.TrimSpace(path) == "" {
+		return nil, nil
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read supply-chain inventory %s: %w", path, err)
+	}
+	inventory, truth, err := parseServiceStoryResponse(raw)
+	if err != nil {
+		return nil, fmt.Errorf("decode supply-chain inventory: %w", err)
+	}
+	section := serviceintel.FromSupplyChainInventory(inventory, subject, truth)
+	return &section, nil
 }
 
 // parseServiceStoryResponse extracts the dossier map and optional truth envelope

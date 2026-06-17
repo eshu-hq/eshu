@@ -114,6 +114,45 @@ func TestFromServiceStoryEmptySectionsMarkedNoEvidence(t *testing.T) {
 	}
 }
 
+func TestFromSupplyChainInventory(t *testing.T) {
+	subject := ReportSubject{ServiceName: "checkout", ServiceID: "svc:checkout"}
+	truth := freshExactTruth("supply-chain.impact")
+
+	withFindings := FromSupplyChainInventory(map[string]any{"count": 3, "truncated": true}, subject, truth)
+	if withFindings.Kind != SectionSupplyChain {
+		t.Fatalf("kind = %q, want supply_chain", withFindings.Kind)
+	}
+	if withFindings.NoEvidence {
+		t.Fatalf("inventory with findings must not be no-evidence")
+	}
+	if !withFindings.Truncated {
+		t.Fatalf("must reflect truncated")
+	}
+	if len(withFindings.Evidence) != 1 || withFindings.Evidence[0].EntityID != "svc:checkout" {
+		t.Fatalf("supply-chain section should carry the service entity handle, got %+v", withFindings.Evidence)
+	}
+
+	empty := FromSupplyChainInventory(map[string]any{"count": 0}, subject, truth)
+	if !empty.NoEvidence || empty.Summary != "" {
+		t.Fatalf("empty inventory must be no-evidence with no summary, got %+v", empty)
+	}
+
+	if got := FromSupplyChainInventory(nil, subject, truth); got.Kind != "" {
+		t.Fatalf("nil inventory should yield a zero SectionInput, got %+v", got)
+	}
+}
+
+func TestFromSupplyChainInventoryComposesIntoReport(t *testing.T) {
+	in := FromServiceStory(sampleDossier(), freshExactTruth("platform_impact.context_overview"))
+	in.Sections = append(in.Sections, FromSupplyChainInventory(map[string]any{"count": 2}, in.Subject, freshExactTruth("supply-chain.impact")))
+
+	report := Compose(in)
+	sc := sectionByKind(t, report, SectionSupplyChain)
+	if sc.Status == StatusUnsupported {
+		t.Fatalf("supply-chain section with findings should not be unsupported, got %q", sc.Status)
+	}
+}
+
 func TestFromServiceStoryDeterministic(t *testing.T) {
 	a := FromServiceStory(sampleDossier(), freshExactTruth("x"))
 	b := FromServiceStory(sampleDossier(), freshExactTruth("x"))

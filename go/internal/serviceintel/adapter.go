@@ -67,6 +67,39 @@ func FromServiceStory(dossier map[string]any, truth *query.TruthEnvelope) Report
 	return input
 }
 
+// FromSupplyChainInventory maps a get_supply_chain_impact_inventory response
+// into the report's supply_chain SectionInput. It is faithful and side-effect
+// free: it reads only the confirmed top-level `count` and `truncated` fields,
+// carries the source truth envelope verbatim, addresses the section with the
+// service entity handle when a subject is known, and marks the section
+// NoEvidence when the inventory is empty so Compose keeps it visible with a
+// fallback next call. A nil dossier yields a zero SectionInput the caller can
+// skip.
+func FromSupplyChainInventory(inventory map[string]any, subject ReportSubject, truth *query.TruthEnvelope) SectionInput {
+	if inventory == nil {
+		return SectionInput{}
+	}
+	count := query.IntVal(inventory, "count")
+	truncated := query.BoolVal(inventory, "truncated")
+	hasEvidence := count > 0
+	handle, hasHandle := serviceEntityHandle(subject)
+	return SectionInput{
+		Kind:       SectionSupplyChain,
+		Summary:    supplyChainSummary(subject, count),
+		Truth:      truth,
+		Evidence:   handlesIf(hasHandle && hasEvidence, handle),
+		Truncated:  truncated,
+		NoEvidence: !hasEvidence,
+	}
+}
+
+func supplyChainSummary(subject ReportSubject, count int) string {
+	if count == 0 {
+		return ""
+	}
+	return fmt.Sprintf("Service %s has %d supply-chain impact finding(s).", subjectName(subject), count)
+}
+
 // serviceEntityHandle builds the evidence handle that addresses the service node
 // itself. It is the canonical, resolvable pointer behind a service-story claim
 // (the graph node is the evidence). It returns ok=false when no identifier is

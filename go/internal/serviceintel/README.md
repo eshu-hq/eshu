@@ -82,10 +82,12 @@ output.
 See `doc.go` for the godoc contract. The package exports `Compose`, the
 `Report` / `ReportSection` / `ReportInput` / `SectionInput` shapes, the
 `SectionKind` and `SectionStatus` enums, `ReportSubject`, `NextCall`, the
-`SuggestedInvestigation` / `InvestigationBasis` guided-investigation surface, and
-`FromServiceStory`, which adapts a `get_service_story` dossier response into a
-`ReportInput` (subject + identity / code_to_runtime / deployment_config
-sections) so callers build reports from real route evidence.
+`SuggestedInvestigation` / `InvestigationBasis` guided-investigation surface,
+`FromServiceStory` (adapts a `get_service_story` dossier into a `ReportInput`:
+subject + identity / code_to_runtime / deployment_config sections), and
+`FromSupplyChainInventory` (adapts a `get_supply_chain_impact_inventory` response
+into the `supply_chain` section), so callers build reports from real route
+evidence.
 
 ## Dependencies
 
