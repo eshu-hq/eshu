@@ -133,7 +133,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesSequential(
 		}
 
 		startTime := time.Now()
-		parsed, err := engine.ParsePath(repoPath, filePath, isDependency, snapshotParserOptions(filePath, goPackageTargets))
+		parsed, err := engine.ParsePath(repoPath, filePath, isDependency, snapshotParserOptions(filePath, goPackageTargets, s.EmitDataflow))
 		duration := fileParseDurationSeconds(startTime)
 
 		if err != nil {
@@ -243,7 +243,7 @@ func (s NativeRepositorySnapshotter) buildParsedRepositoryFilesConcurrent(
 				}
 
 				startTime := time.Now()
-				parsed, err := engine.ParsePath(repoPath, job.path, isDependency, snapshotParserOptions(job.path, goPackageTargets))
+				parsed, err := engine.ParsePath(repoPath, job.path, isDependency, snapshotParserOptions(job.path, goPackageTargets, s.EmitDataflow))
 				duration := fileParseDurationSeconds(startTime)
 
 				if err != nil {
