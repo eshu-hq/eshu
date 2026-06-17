@@ -17,6 +17,14 @@ const (
 	CodeReachabilityStateAmbiguous = "ambiguous"
 
 	defaultCodeReachabilityMaxDepth = 10
+
+	// defaultCodeReachabilityMaxVisited bounds how many distinct reachable
+	// entities one repository-generation snapshot may materialize. The cap
+	// protects a single pathological mega-repo from unbounded traversal memory
+	// and row counts; entities omitted by truncation are not asserted dead,
+	// because the dead-code query falls back to the legacy incoming-edge lookup
+	// for entities absent from the materialized slice.
+	defaultCodeReachabilityMaxVisited = 200000
 )
 
 // CodeReachabilityProjectionInput is the bounded in-memory snapshot used to
@@ -29,8 +37,21 @@ type CodeReachabilityProjectionInput struct {
 	Edges             []CodeReachabilityEdge
 	AffectedEntityIDs []string
 	MaxDepth          int
-	ObservedAt        time.Time
-	UpdatedAt         time.Time
+	// MaxVisited bounds the distinct reachable entities materialized for this
+	// snapshot. Zero selects defaultCodeReachabilityMaxVisited.
+	MaxVisited int
+	ObservedAt time.Time
+	UpdatedAt  time.Time
+}
+
+// CodeReachabilityProjectionStats reports bounded-traversal outcomes for one
+// snapshot so the runner can surface truncation to operators.
+type CodeReachabilityProjectionStats struct {
+	// Visited counts the distinct reachable entities retained in the snapshot.
+	Visited int
+	// Truncated is true when the MaxVisited bound stopped traversal before the
+	// full reachable set was enumerated.
+	Truncated bool
 }
 
 // CodeReachabilityRoot identifies an entrypoint/root entity.
@@ -81,12 +102,26 @@ type codeReachabilityPath struct {
 // reducer caller to rewrite one changed slice without refreshing the whole
 // repository read model.
 func BuildCodeReachabilityRows(input CodeReachabilityProjectionInput) []CodeReachabilityRow {
+	rows, _ := BuildCodeReachabilityRowsWithStats(input)
+	return rows
+}
+
+// BuildCodeReachabilityRowsWithStats is BuildCodeReachabilityRows plus a
+// CodeReachabilityProjectionStats report. Traversal is bounded by both MaxDepth
+// and MaxVisited; when the MaxVisited bound stops expansion before the full
+// reachable set is enumerated, Stats.Truncated is true. The traversal is
+// uid-anchored and single-connected-path: each entity keeps only its strongest
+// shortest root path, mirroring the depth/frontier discipline of the
+// NornicDB hop-by-hop call-chain fallback.
+func BuildCodeReachabilityRowsWithStats(input CodeReachabilityProjectionInput) ([]CodeReachabilityRow, CodeReachabilityProjectionStats) {
 	roots := cleanCodeReachabilityRoots(input.Roots)
 	if len(roots) == 0 {
-		return nil
+		return nil, CodeReachabilityProjectionStats{}
 	}
 	edgesBySource := codeReachabilityEdgesBySource(input.Edges)
 	maxDepth := normalizeCodeReachabilityMaxDepth(input.MaxDepth)
+	maxVisited := normalizeCodeReachabilityMaxVisited(input.MaxVisited)
+	truncated := false
 	affected := codeReachabilityAffectedSet(input.AffectedEntityIDs)
 	now := time.Now().UTC()
 	observedAt := input.ObservedAt
@@ -120,6 +155,13 @@ func BuildCodeReachabilityRows(input CodeReachabilityProjectionInput) []CodeReac
 			continue
 		}
 		for _, edge := range edgesBySource[path.entityID] {
+			if _, seen := best[edge.TargetEntityID]; !seen && len(best) >= maxVisited {
+				// Bound reached: stop discovering new entities. Omitted
+				// entities are not asserted dead; the dead-code query falls
+				// back to the legacy incoming-edge lookup for them.
+				truncated = true
+				continue
+			}
 			confidence := codeprovenance.Confidence(edge.ResolutionMethod)
 			next := codeReachabilityPath{
 				rootEntityID:        path.rootEntityID,
@@ -164,7 +206,7 @@ func BuildCodeReachabilityRows(input CodeReachabilityProjectionInput) []CodeReac
 		}
 		return rows[i].EntityID < rows[j].EntityID
 	})
-	return rows
+	return rows, CodeReachabilityProjectionStats{Visited: len(best), Truncated: truncated}
 }
 
 func cleanCodeReachabilityRoots(roots []CodeReachabilityRoot) []CodeReachabilityRoot {
@@ -247,6 +289,13 @@ func normalizeCodeReachabilityMaxDepth(maxDepth int) int {
 		return defaultCodeReachabilityMaxDepth
 	}
 	return maxDepth
+}
+
+func normalizeCodeReachabilityMaxVisited(maxVisited int) int {
+	if maxVisited <= 0 {
+		return defaultCodeReachabilityMaxVisited
+	}
+	return maxVisited
 }
 
 func codeReachabilityKeepBest(best map[string]codeReachabilityPath, path codeReachabilityPath) bool {
