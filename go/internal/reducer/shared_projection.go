@@ -19,6 +19,12 @@ const (
 	DomainDocumentationEdges  = "documentation_edges"
 	DomainRationaleEdges      = "rationale_edges"
 	DomainDeployableUnitEdges = "deployable_unit_edges"
+	// DomainHandlesRoute projects Function-[:HANDLES_ROUTE]->Endpoint edges from
+	// parser-owned framework route handler bindings (#2721). Functions and
+	// Endpoints are committed by different reducer domains with no ordering
+	// guarantee, so the edge rides the ordering-safe shared-projection path the
+	// same way CALLS edges do.
+	DomainHandlesRoute = "handles_route"
 )
 
 // SharedProjectionIntentRow is one durable shared-domain projection intent.
@@ -104,9 +110,30 @@ func sharedProjectionReadinessPhase(domain string) (GraphProjectionPhase, bool) 
 		return GraphProjectionPhaseCanonicalNodesCommitted, true
 	case DomainSQLRelationships, DomainInheritanceEdges, DomainDocumentationEdges, DomainRationaleEdges:
 		return GraphProjectionPhaseSemanticNodesCommitted, true
+	case DomainHandlesRoute:
+		// Endpoints commit at workload-materialization; Functions commit earlier
+		// at canonical-nodes. Gating on workload-materialization guarantees both
+		// MATCH targets exist before the HANDLES_ROUTE MERGE runs (#2721).
+		return GraphProjectionPhaseWorkloadMaterialization, true
 	default:
 		return "", false
 	}
+}
+
+// sharedProjectionReadinessKeyspace returns the graph-projection keyspace whose
+// readiness phase gates a domain's edge projection. The generic shared
+// projection worker reads this so each domain's readiness lookup targets the
+// keyspace its prerequisite phase was published under: code_calls and the
+// semantic edge domains key on code_entities_uid, while handles_route keys on
+// service_uid because the workload_materialization phase that commits Endpoint
+// nodes is published under the service identity keyspace (#2721). A wrong
+// keyspace here would make the readiness lookup miss forever and silently drop
+// every edge.
+func sharedProjectionReadinessKeyspace(domain string) GraphProjectionKeyspace {
+	if domain == DomainHandlesRoute {
+		return GraphProjectionKeyspaceServiceUID
+	}
+	return GraphProjectionKeyspaceCodeEntitiesUID
 }
 
 func graphProjectionPhaseKeyForAcceptance(

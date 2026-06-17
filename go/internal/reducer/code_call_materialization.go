@@ -114,7 +114,7 @@ func (h CodeCallMaterializationHandler) Handle(
 	symbolLoadDuration := time.Since(symbolLoadStart)
 
 	extractStart := time.Now()
-	_, codeCallRows, _, metaclassRows := ExtractAllCodeRelationshipRows(relationshipEnvelopes)
+	_, codeCallRows, _, metaclassRows, entityIndex := extractAllCodeRelationshipRowsWithIndex(relationshipEnvelopes)
 	extractDuration := time.Since(extractStart)
 	createdAt := intent.EnqueuedAt
 	if createdAt.IsZero() {
@@ -143,6 +143,16 @@ func (h CodeCallMaterializationHandler) Handle(
 			createdAt,
 			pythonMetaclassEvidenceSource,
 			fileScopesByRepoID,
+		)...,
+	)
+	intentRows = append(
+		intentRows,
+		buildHandlesRouteIntentRows(
+			envelopes,
+			entityIndex,
+			contextByRepoID,
+			createdAt,
+			handlesRouteEvidenceSource,
 		)...,
 	)
 	intentBuildDuration := time.Since(intentBuildStart)
@@ -291,22 +301,38 @@ func ExtractAllCodeRelationshipRows(envelopes []facts.Envelope) (
 	metaclassRepoIDs []string,
 	metaclassRows []map[string]any,
 ) {
+	ccRepoIDs, ccRows, mcRepoIDs, mcRows, _ := extractAllCodeRelationshipRowsWithIndex(envelopes)
+	return ccRepoIDs, ccRows, mcRepoIDs, mcRows
+}
+
+// extractAllCodeRelationshipRowsWithIndex builds code-call and metaclass edge
+// rows and also returns the shared codeEntityIndex it built, so callers that
+// need the index for an additional resolution pass (for example HANDLES_ROUTE
+// handler resolution, #2721) reuse one index build instead of paying for a
+// second pass over the same envelopes.
+func extractAllCodeRelationshipRowsWithIndex(envelopes []facts.Envelope) (
+	codeCallRepoIDs []string,
+	codeCallRows []map[string]any,
+	metaclassRepoIDs []string,
+	metaclassRows []map[string]any,
+	entityIndex codeEntityIndex,
+) {
 	if len(envelopes) == 0 {
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, codeEntityIndex{}
 	}
 
 	repositoryIDs := collectCodeCallRepositoryIDs(envelopes)
 	if len(repositoryIDs) == 0 {
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, codeEntityIndex{}
 	}
 
-	entityIndex := buildCodeEntityIndex(envelopes)
+	entityIndex = buildCodeEntityIndex(envelopes)
 	repositoryImports := collectCodeCallRepositoryImports(envelopes)
 	reexportIndex := buildCodeCallReexportIndex(envelopes)
 
 	ccRepoIDs, ccRows := extractCodeCallRowsWithIndex(envelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
 	mcRepoIDs, mcRows := extractPythonMetaclassRowsWithIndex(envelopes, repositoryIDs, entityIndex, repositoryImports)
-	return ccRepoIDs, ccRows, mcRepoIDs, mcRows
+	return ccRepoIDs, ccRows, mcRepoIDs, mcRows, entityIndex
 }
 
 // ExtractCodeCallRows builds canonical caller/callee edge rows from repository

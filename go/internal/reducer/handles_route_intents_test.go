@@ -1,0 +1,292 @@
+package reducer
+
+import (
+	"testing"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
+	"github.com/eshu-hq/eshu/go/internal/facts"
+)
+
+// handlesRouteRepoEnvelope builds a repository fact envelope that anchors the
+// projection context (scope, source run, acceptance unit) for a repo.
+func handlesRouteRepoEnvelope(repoID string) facts.Envelope {
+	return facts.Envelope{
+		FactKind: "repository",
+		ScopeID:  "scope-1",
+		Payload: map[string]any{
+			"repo_id":       repoID,
+			"source_run_id": "run-1",
+		},
+	}
+}
+
+// handlesRouteFileEnvelope builds a file fact envelope whose parsed_file_data
+// carries the given functions and a single-framework route_entries slice.
+func handlesRouteFileEnvelope(
+	repoID string,
+	relativePath string,
+	functions []map[string]any,
+	framework string,
+	routeEntries []any,
+) facts.Envelope {
+	return facts.Envelope{
+		FactKind: "file",
+		ScopeID:  "scope-1",
+		Payload: map[string]any{
+			"repo_id":       repoID,
+			"relative_path": relativePath,
+			"parsed_file_data": map[string]any{
+				"path":      relativePath,
+				"functions": functions,
+				"framework_semantics": map[string]any{
+					"frameworks": []any{framework},
+					framework: map[string]any{
+						"route_entries": routeEntries,
+					},
+				},
+			},
+		},
+	}
+}
+
+func buildHandlesRouteIntentsForTest(t *testing.T, envelopes []facts.Envelope) []SharedProjectionIntentRow {
+	t.Helper()
+	generationID := "gen-1"
+	contextByRepoID := buildCodeCallProjectionContexts(envelopes, generationID)
+	index := buildCodeEntityIndex(envelopes)
+	return buildHandlesRouteIntentRows(
+		envelopes,
+		index,
+		contextByRepoID,
+		time.Unix(0, 0).UTC(),
+		handlesRouteEvidenceSource,
+	)
+}
+
+func TestBuildHandlesRouteIntentRowsEmitsExactSameFileMatch(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		handlesRouteRepoEnvelope("repo-1"),
+		handlesRouteFileEnvelope(
+			"repo-1",
+			"server.js",
+			[]map[string]any{
+				{"name": "getWidgets", "uid": "content-entity:gw", "line_number": 10, "end_line": 20},
+			},
+			"express",
+			[]any{
+				map[string]any{"method": "GET", "path": "/widgets", "handler": "getWidgets"},
+			},
+		),
+	}
+
+	intents := buildHandlesRouteIntentsForTest(t, envelopes)
+	if len(intents) != 1 {
+		t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d", len(intents))
+	}
+
+	intent := intents[0]
+	if intent.ProjectionDomain != DomainHandlesRoute {
+		t.Fatalf("projection domain = %q, want %q", intent.ProjectionDomain, DomainHandlesRoute)
+	}
+	if got, want := payloadStr(intent.Payload, "function_entity_id"), "content-entity:gw"; got != want {
+		t.Fatalf("function_entity_id = %q, want %q", got, want)
+	}
+	if got, want := payloadStr(intent.Payload, "repo_id"), "repo-1"; got != want {
+		t.Fatalf("repo_id = %q, want %q", got, want)
+	}
+	if got, want := payloadStr(intent.Payload, "path"), "/widgets"; got != want {
+		t.Fatalf("path = %q, want %q", got, want)
+	}
+	if got, want := payloadStr(intent.Payload, "http_method"), "GET"; got != want {
+		t.Fatalf("http_method = %q, want %q", got, want)
+	}
+	method := payloadStr(intent.Payload, "resolution_method")
+	if !codeprovenance.Classified(method) {
+		t.Fatalf("resolution_method = %q, want a classified provenance method", method)
+	}
+	if method != codeprovenance.MethodSameFile {
+		t.Fatalf("resolution_method = %q, want same_file for an in-file handler", method)
+	}
+}
+
+func TestBuildHandlesRouteIntentRowsResolvesRepoUniqueAcrossFiles(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		handlesRouteRepoEnvelope("repo-1"),
+		// Handler defined in a different file than the route registration.
+		handlesRouteFileEnvelope(
+			"repo-1",
+			"routes.js",
+			nil,
+			"express",
+			[]any{
+				map[string]any{"method": "POST", "path": "/things", "handler": "createThing"},
+			},
+		),
+		{
+			FactKind: "file",
+			ScopeID:  "scope-1",
+			Payload: map[string]any{
+				"repo_id":       "repo-1",
+				"relative_path": "handlers.js",
+				"parsed_file_data": map[string]any{
+					"path": "handlers.js",
+					"functions": []map[string]any{
+						{"name": "createThing", "uid": "content-entity:ct", "line_number": 5, "end_line": 9},
+					},
+				},
+			},
+		},
+	}
+
+	intents := buildHandlesRouteIntentsForTest(t, envelopes)
+	if len(intents) != 1 {
+		t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d", len(intents))
+	}
+	intent := intents[0]
+	if got, want := payloadStr(intent.Payload, "function_entity_id"), "content-entity:ct"; got != want {
+		t.Fatalf("function_entity_id = %q, want %q", got, want)
+	}
+	if got, want := payloadStr(intent.Payload, "resolution_method"), codeprovenance.MethodRepoUniqueName; got != want {
+		t.Fatalf("resolution_method = %q, want %q", got, want)
+	}
+}
+
+func TestBuildHandlesRouteIntentRowsSkipsUnknownHandler(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		handlesRouteRepoEnvelope("repo-1"),
+		handlesRouteFileEnvelope(
+			"repo-1",
+			"server.js",
+			[]map[string]any{
+				{"name": "getWidgets", "uid": "content-entity:gw", "line_number": 10, "end_line": 20},
+			},
+			"express",
+			[]any{
+				map[string]any{"method": "GET", "path": "/widgets", "handler": "doesNotExist"},
+			},
+		),
+	}
+
+	intents := buildHandlesRouteIntentsForTest(t, envelopes)
+	if len(intents) != 0 {
+		t.Fatalf("expected no HANDLES_ROUTE intent for unknown handler, got %d", len(intents))
+	}
+}
+
+func TestBuildHandlesRouteIntentRowsSkipsAmbiguousHandler(t *testing.T) {
+	t.Parallel()
+
+	// "handle" is defined twice across two files (ambiguous repo-wide) and is
+	// not unique within the route file, so no edge may be produced.
+	envelopes := []facts.Envelope{
+		handlesRouteRepoEnvelope("repo-1"),
+		handlesRouteFileEnvelope(
+			"repo-1",
+			"routes.js",
+			nil,
+			"express",
+			[]any{
+				map[string]any{"method": "GET", "path": "/ambiguous", "handler": "handle"},
+			},
+		),
+		{
+			FactKind: "file",
+			ScopeID:  "scope-1",
+			Payload: map[string]any{
+				"repo_id":       "repo-1",
+				"relative_path": "a.js",
+				"parsed_file_data": map[string]any{
+					"path": "a.js",
+					"functions": []map[string]any{
+						{"name": "handle", "uid": "content-entity:a", "line_number": 1, "end_line": 2},
+					},
+				},
+			},
+		},
+		{
+			FactKind: "file",
+			ScopeID:  "scope-1",
+			Payload: map[string]any{
+				"repo_id":       "repo-1",
+				"relative_path": "b.js",
+				"parsed_file_data": map[string]any{
+					"path": "b.js",
+					"functions": []map[string]any{
+						{"name": "handle", "uid": "content-entity:b", "line_number": 1, "end_line": 2},
+					},
+				},
+			},
+		},
+	}
+
+	intents := buildHandlesRouteIntentsForTest(t, envelopes)
+	if len(intents) != 0 {
+		t.Fatalf("expected no HANDLES_ROUTE intent for ambiguous handler, got %d", len(intents))
+	}
+}
+
+func TestBuildHandlesRouteIntentRowsSkipsEntryWithoutHandler(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		handlesRouteRepoEnvelope("repo-1"),
+		handlesRouteFileEnvelope(
+			"repo-1",
+			"server.js",
+			[]map[string]any{
+				{"name": "getWidgets", "uid": "content-entity:gw", "line_number": 10, "end_line": 20},
+			},
+			"express",
+			[]any{
+				map[string]any{"method": "GET", "path": "/widgets"},
+			},
+		),
+	}
+
+	intents := buildHandlesRouteIntentsForTest(t, envelopes)
+	if len(intents) != 0 {
+		t.Fatalf("expected no HANDLES_ROUTE intent when handler is absent, got %d", len(intents))
+	}
+}
+
+func TestBuildHandlesRouteIntentRowsSkipsFrameworkWithoutRouteEntries(t *testing.T) {
+	t.Parallel()
+
+	// nextjs carries no route_entries; the emitter must tolerate that and skip.
+	envelopes := []facts.Envelope{
+		handlesRouteRepoEnvelope("repo-1"),
+		{
+			FactKind: "file",
+			ScopeID:  "scope-1",
+			Payload: map[string]any{
+				"repo_id":       "repo-1",
+				"relative_path": "app/route.ts",
+				"parsed_file_data": map[string]any{
+					"path": "app/route.ts",
+					"functions": []map[string]any{
+						{"name": "GET", "uid": "content-entity:get", "line_number": 1, "end_line": 2},
+					},
+					"framework_semantics": map[string]any{
+						"frameworks": []any{"nextjs"},
+						"nextjs": map[string]any{
+							"module_kind":    "route",
+							"route_segments": []any{"widgets"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	intents := buildHandlesRouteIntentsForTest(t, envelopes)
+	if len(intents) != 0 {
+		t.Fatalf("expected no HANDLES_ROUTE intent for framework without route_entries, got %d", len(intents))
+	}
+}

@@ -256,6 +256,7 @@ func TestSharedProjectionDomainsIncludesAllExpected(t *testing.T) {
 		DomainDocumentationEdges: false,
 		DomainRationaleEdges:     false,
 		DomainSQLRelationships:   false,
+		DomainHandlesRoute:       false,
 	}
 
 	for _, domain := range sharedProjectionDomains {
