@@ -64,6 +64,12 @@ See `doc.go` for the godoc-rendered package contract.
   reason.
 - `RequiredFailureClasses` returns the operator-visible failure classes every
   benchmark must report.
+- `ProductionGateThresholdsFor` and `EvaluateProductionGate` are the issue #2677
+  hybrid-retrieval production admission gate: separate local-deterministic and
+  production-provider thresholds (recall, precision, nDCG, p95, vector coverage)
+  and a `production_ready` / `local_proof_passed` / `degraded` / `rejected`
+  decision over a measured `BackendRun`. The published thresholds are in
+  `docs/public/reference/hybrid-retrieval-production-gate.md`.
 
 ## Dependencies
 
