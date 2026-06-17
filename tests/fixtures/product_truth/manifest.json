@@ -73,6 +73,22 @@
         "iac_reachability.ansible",
         "iac_reachability.compose"
       ]
+    },
+    {
+      "id": "correlation_admission_golden",
+      "status": "owned",
+      "fixture_root": "tests/fixtures/product_truth/correlation_admission_golden",
+      "compose_gate": "scripts/verify_correlation_admission_audit.sh",
+      "expected_truth_files": [
+        "tests/fixtures/product_truth/expected/correlation_admission_golden.json"
+      ],
+      "capabilities": [
+        "admission_decisions.golden_audit",
+        "admission_decisions.list",
+        "deployable_unit.correlation",
+        "package_source.correlation",
+        "cloud_inventory.admission"
+      ]
     }
   ],
   "planned": []
