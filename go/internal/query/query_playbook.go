@@ -47,11 +47,14 @@ const (
 	// PlaybookParamConstInt binds the parameter to a constant integer, used for
 	// default limits and other bounds.
 	PlaybookParamConstInt PlaybookParamSource = "const_int"
+	// PlaybookParamConstBool binds the parameter to a constant boolean, used for
+	// flag arguments such as opting a step into reranking.
+	PlaybookParamConstBool PlaybookParamSource = "const_bool"
 )
 
 // PlaybookParam declares one bounded argument for a step. Exactly one source is
-// active, determined by FromInput / ConstString / ConstInt. The resolver
-// produces a concrete value from this declaration alone.
+// active, determined by FromInput / ConstInt / ConstBool / ConstString. The
+// resolver produces a concrete value from this declaration alone.
 type PlaybookParam struct {
 	// Name is the argument key passed to the tool.
 	Name string `json:"name"`
@@ -66,6 +69,11 @@ type PlaybookParam struct {
 	// field. It is package-internal because the catalog uses the helper
 	// constructors below.
 	hasConstInt bool
+	// ConstBool sets Name to a constant boolean flag argument.
+	ConstBool bool `json:"const_bool,omitempty"`
+	// hasConstBool disambiguates a deliberate false constant boolean from an unset
+	// field. It is package-internal for the same reason as hasConstInt.
+	hasConstBool bool
 }
 
 func (p PlaybookParam) source() PlaybookParamSource {
@@ -74,6 +82,8 @@ func (p PlaybookParam) source() PlaybookParamSource {
 		return PlaybookParamFromInput
 	case p.hasConstInt:
 		return PlaybookParamConstInt
+	case p.hasConstBool:
+		return PlaybookParamConstBool
 	default:
 		return PlaybookParamConstString
 	}
@@ -93,6 +103,12 @@ func limitParam(name string, value int) PlaybookParam {
 // constStringParam declares a constant string argument.
 func constStringParam(name, value string) PlaybookParam {
 	return PlaybookParam{Name: name, ConstString: value}
+}
+
+// boolParam declares a constant boolean flag argument so a resolved call carries
+// a real bool (not a "true" string) for flags such as rerank.
+func boolParam(name string, value bool) PlaybookParam {
+	return PlaybookParam{Name: name, ConstBool: value, hasConstBool: true}
 }
 
 // PlaybookDrilldown declares an optional follow-up call surfaced after a step
@@ -280,6 +296,8 @@ func resolveParams(playbookID string, step PlaybookStep, inputs map[string]strin
 			args[param.Name] = value
 		case PlaybookParamConstInt:
 			args[param.Name] = param.ConstInt
+		case PlaybookParamConstBool:
+			args[param.Name] = param.ConstBool
 		case PlaybookParamConstString:
 			args[param.Name] = param.ConstString
 		default:

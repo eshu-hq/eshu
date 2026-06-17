@@ -22,6 +22,10 @@ func PlaybookCatalog() []QueryPlaybook {
 		incrementalFreshnessReadinessPlaybook(),
 		hostedOnboardingGovernanceStatusPlaybook(),
 		changeSurfaceSourceInvestigationPlaybook(),
+		queryToServiceContextPlaybook(),
+		queryToCodeTopicContextPlaybook(),
+		queryToIncidentContextPlaybook(),
+		queryToSupplyChainContextPlaybook(),
 	}
 }
 

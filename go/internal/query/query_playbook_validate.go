@@ -133,11 +133,38 @@ func (s PlaybookStep) validateParams(playbookID string, declaredInputs map[strin
 			return fmt.Errorf("playbook %q: step %q has duplicate param %q", playbookID, s.ID, param.Name)
 		}
 		seenParam[param.Name] = struct{}{}
+		if err := param.validateSingleSource(playbookID, s.ID); err != nil {
+			return err
+		}
 		if param.FromInput != "" {
 			if _, ok := declaredInputs[param.FromInput]; !ok {
 				return fmt.Errorf("playbook %q: step %q param %q references undeclared input %q", playbookID, s.ID, param.Name, param.FromInput)
 			}
 		}
+	}
+	return nil
+}
+
+// validateSingleSource rejects a param that declares more than one value
+// source. A param must bind from exactly one of an input, a constant int, a
+// constant bool, or a constant string; declaring several is an authoring error
+// that source() would resolve silently by precedence.
+func (p PlaybookParam) validateSingleSource(playbookID, stepID string) error {
+	sources := 0
+	if p.FromInput != "" {
+		sources++
+	}
+	if p.hasConstInt {
+		sources++
+	}
+	if p.hasConstBool {
+		sources++
+	}
+	if p.ConstString != "" {
+		sources++
+	}
+	if sources > 1 {
+		return fmt.Errorf("playbook %q: step %q param %q declares multiple value sources", playbookID, stepID, p.Name)
 	}
 	return nil
 }
