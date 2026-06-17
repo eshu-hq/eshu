@@ -11,11 +11,10 @@ import type { ConsoleModel } from "../console/types";
 import { uiFresh, uiTruth } from "../console/types";
 import { Badge, FreshDot, Panel, TruthChip } from "../components/atoms";
 import { GraphCanvas } from "../components/GraphCanvas";
+import { EvidenceDrawer, type EvidenceSelection } from "../components/EvidenceDrawer";
 import "./serviceEvidenceGraph.css";
 
-type Selection =
-  | { readonly kind: "node"; readonly id: string }
-  | { readonly kind: "edge"; readonly id: string };
+type Selection = EvidenceSelection;
 
 // ServiceEvidenceGraphPage renders the bounded service-story visualization
 // packet as an interactive code-to-cloud graph. Every node, edge, truth label,
@@ -249,10 +248,12 @@ function ServiceEvidenceResult({
             onSelect={(node) => onSelect({ kind: "node", id: node.id })}
             selectedId={selected?.kind === "node" ? selected.id : undefined}
           />
-          <SelectionSummary onSelect={onSelect} packet={packet} selected={selected} />
           <RelationshipList edges={packet.edges} onSelect={onSelect} selected={selected} />
           <StateList title="Limitations" values={packet.limitations} />
           <NextCalls calls={packet.recommendedNextCalls} />
+          {selected !== null ? (
+            <EvidenceDrawer packet={packet} selection={selected} onClose={() => onSelect(null)} />
+          ) : null}
         </>
       )}
     </Panel>
@@ -270,58 +271,6 @@ function NodeTypeLegend({ types }: { readonly types: readonly string[] }): React
         <span key={type} className={`seg-kind seg-kind-${type}`}>{type}</span>
       ))}
     </div>
-  );
-}
-
-function SelectionSummary({
-  onSelect,
-  packet,
-  selected
-}: {
-  readonly onSelect: (selection: Selection | null) => void;
-  readonly packet: ServiceEvidenceGraphResult["packet"];
-  readonly selected: Selection | null;
-}): React.JSX.Element | null {
-  if (packet === null || selected === null) {
-    return null;
-  }
-  if (selected.kind === "node") {
-    const node = packet.nodes.find((row) => row.id === selected.id);
-    if (node === undefined) {
-      return null;
-    }
-    return (
-      <section className="seg-selection" data-testid="seg-selection" aria-label="Selected node">
-        <header>
-          <h4>{node.label || node.id}</h4>
-          <button className="link-btn" onClick={() => onSelect(null)} type="button">Clear</button>
-        </header>
-        <dl>
-          <Row label="Type" value={node.type} />
-          <Row label="Category" value={node.category} />
-          <Row label="Truth" value={node.truthLabel} />
-          <Row label="Evidence" value={handleSummary(node.evidenceHandle)} />
-        </dl>
-      </section>
-    );
-  }
-  const edge = packet.edges.find((row) => row.id === selected.id);
-  if (edge === undefined) {
-    return null;
-  }
-  return (
-    <section className="seg-selection" data-testid="seg-selection" aria-label="Selected edge">
-      <header>
-        <h4>{edge.relationship || "relationship"}</h4>
-        <button className="link-btn" onClick={() => onSelect(null)} type="button">Clear</button>
-      </header>
-      <dl>
-        <Row label="From" value={nodeLabel(packet, edge.source)} />
-        <Row label="To" value={nodeLabel(packet, edge.target)} />
-        <Row label="Truth" value={edge.truthLabel} />
-        <Row label="Evidence" value={handleSummary(edge.evidenceHandle)} />
-      </dl>
-    </section>
   );
 }
 
@@ -396,18 +345,6 @@ function StateList({ title, values }: { readonly title: string; readonly values:
   );
 }
 
-function Row({ label, value }: { readonly label: string; readonly value: string }): React.JSX.Element | null {
-  if (value.trim().length === 0) {
-    return null;
-  }
-  return (
-    <div className="seg-row">
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-    </div>
-  );
-}
-
 // limitsLine reports how much of the bounded subgraph is shown. It only asserts
 // an "up to N" cap when the server actually returned one, so the UI never claims
 // a false bound (e.g. "of up to 0 nodes") when the limits block is omitted.
@@ -425,17 +362,4 @@ function limitsLine(
 
 function uniqueNodeTypes(nodes: readonly VisualizationNode[]): readonly string[] {
   return [...new Set(nodes.map((node) => node.type).filter((type) => type.length > 0))].sort();
-}
-
-function nodeLabel(packet: NonNullable<ServiceEvidenceGraphResult["packet"]>, id: string): string {
-  return packet.nodes.find((node) => node.id === id)?.label || id;
-}
-
-function handleSummary(handle: VisualizationNode["evidenceHandle"]): string {
-  if (handle === null) {
-    return "";
-  }
-  const parts = [handle.repoId, handle.relativePath ?? handle.entityId, handle.evidenceFamily]
-    .filter((part): part is string => part !== undefined && part.length > 0);
-  return parts.join(" · ");
 }
