@@ -24,6 +24,7 @@ func TestBootstrapDefinitionsIncludeServiceCatalogCorrelationFactIndexes(t *test
 		"fact_records_service_catalog_correlations_service_idx",
 		"fact_records_service_catalog_correlations_candidate_repository_idx",
 		"fact_records_service_catalog_correlations_owner_idx",
+		"fact_records_service_catalog_correlations_workload_idx",
 		"'reducer_service_catalog_correlation'",
 		"(payload->>'provider')",
 		"(payload->>'entity_ref')",

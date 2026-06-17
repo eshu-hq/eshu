@@ -497,3 +497,36 @@ and advisory targets live in [`evidence-notes.md`](evidence-notes.md).
 - `docs/public/reference/local-testing.md` — Postgres verification gates
 - ADR: `docs/public/reference/backend-conformance.md`
 - ADR: `docs/public/reference/graph-backend-operations.md`
+
+## ServiceCatalogIDResolver evidence (#2877 / #2863)
+
+`ServiceCatalogIDResolver` (`service_catalog_id_resolver.go`) resolves a workload
+id to its durable catalog service id over `reducer_service_catalog_correlation`
+facts, the bridge the service intelligence report's incident lane needs (the
+incident loader keys on the catalog service id, the service story exposes the
+workload id).
+
+Performance Evidence: the resolve query filters
+`fact_kind = 'reducer_service_catalog_correlation'` and
+`payload->>'workload_id' = $1` under the active-generation join, backed by the new
+partial index `fact_records_service_catalog_correlations_workload_idx` that leads
+with `(payload->>'workload_id')`. Before it, no index led with `workload_id` (the
+`_repository_idx` keyed it third), so a workload lookup scanned the
+fact-kind-filtered partition; with it the resolve is an index seek bounded by the
+active-generation correlation rows for one workload (typically 1, fail-closed when
+> 1). The report route adds one resolve plus one bounded incident load per
+request, only when the incident source is wired.
+
+No-Regression Evidence: no existing index, query, or write path is altered; the
+added `CREATE INDEX IF NOT EXISTS ... WHERE fact_kind = '...'` is a small partial
+index over an already-maintained fact kind, alongside its sibling partial indexes.
+Validated by focused unit tests (fake `Queryer`) and the schema index test
+(`schema_service_catalog_test.go`); the cost argument rests on the index
+left-prefix match above, mirroring the proven `ServiceIncidentEvidenceLoader`
+pattern rather than a live benchmark in this PR.
+
+Observability Evidence: the resolver wraps failures with `%w` so callers attribute
+the cause; the consuming report handler logs `serviceintel.incident_load_error`
+and `serviceintel.incident_ambiguous_catalog_service`, and the route is covered by
+the existing API request-duration/error metrics middleware. The resolver adds no
+new metric or span of its own.

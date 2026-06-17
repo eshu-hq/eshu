@@ -48,4 +48,13 @@ CREATE INDEX IF NOT EXISTS fact_records_service_catalog_correlations_owner_idx
     )
     WHERE fact_kind = 'reducer_service_catalog_correlation'
       AND is_tombstone = FALSE;
+CREATE INDEX IF NOT EXISTS fact_records_service_catalog_correlations_workload_idx
+    ON fact_records (
+        (payload->>'workload_id'),
+        (payload->>'service_id'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'reducer_service_catalog_correlation'
+      AND is_tombstone = FALSE;
 `
