@@ -80,9 +80,17 @@ func uniqueOrdered(matches [][]string, group int) []string {
 	return values
 }
 
-func routeEntry(method string, path string) map[string]string {
-	return map[string]string{
+// routeEntry is the parser-owned wire shape consumed by query read models. The
+// handler symbol is included only when an exact route->handler binding was
+// observed (a single named def following the route decorator); an empty handler
+// is omitted so consumers never read a fabricated binding (#2788).
+func routeEntry(method string, path string, handler string) map[string]string {
+	entry := map[string]string{
 		"method": strings.ToUpper(strings.TrimSpace(method)),
 		"path":   strings.TrimSpace(path),
 	}
+	if handler = strings.TrimSpace(handler); handler != "" {
+		entry["handler"] = handler
+	}
+	return entry
 }

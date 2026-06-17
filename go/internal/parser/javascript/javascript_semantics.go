@@ -19,15 +19,12 @@ var (
 	javaScriptExpressRouteHandlerRe = regexp.MustCompile(`(?m)\b[A-Za-z_$][A-Za-z0-9_$]*\.(get|post|put|patch|delete|head|options)\(\s*["']([^"']+)["']\s*,\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*\)`)
 	javaScriptHapiMethodRe          = regexp.MustCompile(`(?m)\bmethod\s*:\s*["']([A-Za-z]+)["']`)
 	javaScriptHapiPathRe            = regexp.MustCompile(`(?m)\bpath\s*:\s*["']([^"']+)["']`)
-	javaScriptHapiRoutePairRe       = regexp.MustCompile(
-		`(?s)\bmethod\s*:\s*["']([A-Za-z]+)["'][\s\S]{0,800}?\bpath\s*:\s*["'](/[^"']*)["']|\bpath\s*:\s*["'](/[^"']*)["'][\s\S]{0,800}?\bmethod\s*:\s*["']([A-Za-z]+)["']`,
-	)
-	javaScriptAWSImportRe    = regexp.MustCompile(`@aws-sdk/client-([a-z0-9-]+)`)
-	javaScriptGCPImportRe    = regexp.MustCompile(`@google-cloud/([a-z0-9-]+)`)
-	javaScriptClientSymbolRe = regexp.MustCompile(`\b([A-Z][A-Za-z0-9]+Client)\b`)
-	javaScriptHookCallRe     = regexp.MustCompile(`\b(use[A-Z][A-Za-z0-9_]*)\s*\(`)
-	javaScriptDirectiveRe    = regexp.MustCompile(`(?m)^\s*["']use\s+(client|server)["'];?`)
-	javaScriptJSXReturnRe    = regexp.MustCompile(`(?m)(return\s*<|=>\s*<)`)
+	javaScriptAWSImportRe           = regexp.MustCompile(`@aws-sdk/client-([a-z0-9-]+)`)
+	javaScriptGCPImportRe           = regexp.MustCompile(`@google-cloud/([a-z0-9-]+)`)
+	javaScriptClientSymbolRe        = regexp.MustCompile(`\b([A-Z][A-Za-z0-9]+Client)\b`)
+	javaScriptHookCallRe            = regexp.MustCompile(`\b(use[A-Z][A-Za-z0-9_]*)\s*\(`)
+	javaScriptDirectiveRe           = regexp.MustCompile(`(?m)^\s*["']use\s+(client|server)["'];?`)
+	javaScriptJSXReturnRe           = regexp.MustCompile(`(?m)(return\s*<|=>\s*<)`)
 )
 
 func maybeAppendJavaScriptComponent(
@@ -357,28 +354,6 @@ func javaScriptHasHapiRouteSignal(source string) bool {
 		strings.Contains(source, `require('hapi')`) ||
 		strings.Contains(source, `from "@hapi/hapi"`) ||
 		strings.Contains(source, `from '@hapi/hapi'`)
-}
-
-// javaScriptHapiRouteEntries preserves the observed method/path pairing for
-// Hapi route objects, including routes with nested config blocks.
-func javaScriptHapiRouteEntries(source string) []map[string]string {
-	matches := javaScriptHapiRoutePairRe.FindAllStringSubmatch(source, -1)
-	entries := make([]map[string]string, 0, len(matches))
-	for _, match := range matches {
-		method := match[1]
-		path := match[2]
-		if method == "" {
-			path = match[3]
-			method = match[4]
-		}
-		if method == "" || path == "" {
-			continue
-		}
-		// Hapi route-object handler binding is a #2721 follow-up; the method/path
-		// pairing is preserved here without a handler symbol.
-		entries = append(entries, routeEntry(method, path, ""))
-	}
-	return entries
 }
 
 // routeEntry is the parser-owned wire shape consumed by query read models. The
