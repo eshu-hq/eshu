@@ -120,3 +120,42 @@ func handle(r *http.Request) {
 		t.Fatalf("interproc_findings present when gate off")
 	}
 }
+
+// TestGoInterprocNoFalseEdgeFromShadowedCallee proves that a call whose name is
+// shadowed by a parameter (a function value) is not resolved to a same-named
+// package function, so no false cross-function finding is produced.
+func TestGoInterprocNoFalseEdgeFromShadowedCallee(t *testing.T) {
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "handlers.go")
+	writeTestFile(t, filePath, `package handlers
+
+import (
+	"net/http"
+	"os/exec"
+)
+
+func query(r *http.Request) {
+	exec.Command(r.FormValue("c"))
+}
+
+func handle(userReq *http.Request, query func(*http.Request)) {
+	query(userReq)
+}
+`)
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v", err)
+	}
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{GoEmitDataflow: true})
+	if err != nil {
+		t.Fatalf("ParsePath error = %v", err)
+	}
+	rows, _ := got["interproc_findings"].([]map[string]any)
+	for _, row := range rows {
+		srcFn, _ := row["source_func"].(string)
+		sinkFn, _ := row["sink_func"].(string)
+		if strings.Contains(srcFn, "handle") && srcFn != sinkFn {
+			t.Fatalf("false cross-function finding from handle via shadowed callee query: %+v", row)
+		}
+	}
+}

@@ -148,3 +148,31 @@ func TestInterproceduralPipeline(t *testing.T) {
 		t.Fatalf("unexpected interprocedural finding: %+v", f)
 	}
 }
+
+// TestDeriveCallArgSameBindingMultipleArgs proves that when one tainted binding
+// occupies more than one argument position on a call (query(in, in)), every
+// position yields a ParamToCallArg flow, not just the last.
+func TestDeriveCallArgSameBindingMultipleArgs(t *testing.T) {
+	t.Parallel()
+
+	b := cfg.NewBuilder(cfg.DefaultLimits())
+	blk := b.AddBlock()
+	s0 := int(b.AddStmt(blk, 1, []string{"in"}, nil))
+	s1 := int(b.AddStmt(blk, 2, nil, []string{"in"})) // query(in, in)
+	fn := b.Build()
+
+	eff := DeriveEffects(fn, EffectsSpec{
+		Params: []ParamSlot{{Index: 0, Stmt: s0, Binding: "in"}},
+		CallArgs: []CallArgSlot{
+			{Stmt: s1, Binding: "in", Callee: "repo\x1fquery", Arg: 0},
+			{Stmt: s1, Binding: "in", Callee: "repo\x1fquery", Arg: 1},
+		},
+	})
+	want := []summary.CallArgFlow{
+		{Callee: "repo\x1fquery", Param: 0, Arg: 0},
+		{Callee: "repo\x1fquery", Param: 0, Arg: 1},
+	}
+	if !reflect.DeepEqual(eff.ParamToCallArg, want) {
+		t.Fatalf("ParamToCallArg = %+v, want both arg positions %+v", eff.ParamToCallArg, want)
+	}
+}

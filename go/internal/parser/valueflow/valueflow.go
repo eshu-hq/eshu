@@ -97,7 +97,7 @@ func DeriveEffects(fn cfg.Function, spec EffectsSpec) summary.Effects {
 			if roles.returnStmts[f.SinkStmt] {
 				effects.ParamToReturn = appendUniqueInt(effects.ParamToReturn, p.Index)
 			}
-			if ca, ok := roles.callArgs[callArgKey{Stmt: f.SinkStmt, Binding: f.Binding}]; ok {
+			for _, ca := range roles.callArgs[callArgKey{Stmt: f.SinkStmt, Binding: f.Binding}] {
 				effects.ParamToCallArg = append(effects.ParamToCallArg, summary.CallArgFlow{
 					Callee: ca.Callee, Param: p.Index, Arg: ca.Arg,
 				})
@@ -148,7 +148,10 @@ type roleSet struct {
 	sinks       map[int]taint.SinkMark
 	realSinks   map[int]string
 	returnStmts map[int]bool
-	callArgs    map[callArgKey]CallArgSlot
+	// callArgs maps (statement, binding) to every call-argument flow it carries.
+	// The same binding can occupy more than one argument position on one call
+	// (for example query(r, r)), so all flows are kept, not just the last.
+	callArgs map[callArgKey][]CallArgSlot
 }
 
 // roleMaps builds the role lookups. Every statement carrying any role is marked
@@ -160,7 +163,7 @@ func (spec EffectsSpec) roleMaps() roleSet {
 		sinks:       map[int]taint.SinkMark{},
 		realSinks:   map[int]string{},
 		returnStmts: map[int]bool{},
-		callArgs:    map[callArgKey]CallArgSlot{},
+		callArgs:    map[callArgKey][]CallArgSlot{},
 	}
 	mark := func(stmt int) { roles.sinks[stmt] = taint.SinkMark{Kind: observeKind} }
 	for stmt, s := range spec.Sinks {
@@ -173,7 +176,8 @@ func (spec EffectsSpec) roleMaps() roleSet {
 	}
 	for _, ca := range spec.CallArgs {
 		mark(ca.Stmt)
-		roles.callArgs[callArgKey{Stmt: ca.Stmt, Binding: ca.Binding}] = ca
+		key := callArgKey{Stmt: ca.Stmt, Binding: ca.Binding}
+		roles.callArgs[key] = append(roles.callArgs[key], ca)
 	}
 	return roles
 }

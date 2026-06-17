@@ -68,8 +68,23 @@ func goEffectsSpec(funcNode *tree_sitter.Node, source []byte, fn cfg.Function, l
 	}
 
 	spec.Returns = goReturnStmts(funcNode, index)
-	spec.CallArgs = goCallArgSlots(funcNode, source, index, localFuncs)
+	spec.CallArgs = goCallArgSlots(funcNode, source, index, localFuncs, goDefinedBindings(fn))
 	return spec
+}
+
+// goDefinedBindings returns the set of binding names defined anywhere in the
+// function (parameters and locals). A call whose name matches one of these is
+// shadowed by a local value and must not be resolved to a package-level function.
+func goDefinedBindings(fn cfg.Function) map[string]bool {
+	defined := map[string]bool{}
+	for _, block := range fn.Blocks {
+		for _, stmt := range block.Stmts {
+			for _, def := range stmt.Defs {
+				defined[def] = true
+			}
+		}
+	}
+	return defined
 }
 
 // goReturnStmts returns the CFG statement IDs of value-returning statements.
@@ -97,8 +112,10 @@ func goReturnStmts(funcNode *tree_sitter.Node, index *goLineIndex) []int {
 // function, so it is skipped — otherwise a method whose name matched a local
 // function would produce a false cross-function edge. The call site is located by
 // source line, so two calls on one line are a known intra-file limit (a safe
-// false negative, never a false edge).
-func goCallArgSlots(funcNode *tree_sitter.Node, source []byte, index *goLineIndex, localFuncs map[string]summary.FunctionID) []valueflow.CallArgSlot {
+// false negative, never a false edge). A call whose name is shadowed by a
+// parameter or local binding (a function value) is not resolved to the
+// package-level function, which would also be a false edge.
+func goCallArgSlots(funcNode *tree_sitter.Node, source []byte, index *goLineIndex, localFuncs map[string]summary.FunctionID, shadowed map[string]bool) []valueflow.CallArgSlot {
 	var slots []valueflow.CallArgSlot
 	walkScopeBindings(funcNode, func(node *tree_sitter.Node) {
 		if node.Kind() != "call_expression" {
@@ -108,7 +125,11 @@ func goCallArgSlots(funcNode *tree_sitter.Node, source []byte, index *goLineInde
 		if fnNode == nil || fnNode.Kind() != "identifier" {
 			return
 		}
-		callee, ok := localFuncs[nodeText(fnNode, source)]
+		name := nodeText(fnNode, source)
+		if shadowed[name] {
+			return
+		}
+		callee, ok := localFuncs[name]
 		if !ok {
 			return
 		}
