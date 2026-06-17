@@ -41,6 +41,7 @@ exact binary set on `PATH`.
 | `eshu-webhook-listener` | `webhook-listener/` | Long-running GitHub/GitLab webhook intake |
 | `eshu-admin-status` | `admin-status/` | Admin/status read helper |
 | `eshu-workflow-coordinator` | `workflow-coordinator/` | Long-running workflow coordinator |
+| `capability-inventory` | `capability-inventory/` | Generate/verify the capability catalog artifact (dev/CI tool) |
 
 ## Pipeline shape
 

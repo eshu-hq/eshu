@@ -207,6 +207,7 @@ nav:
     - Local Host & Capabilities:
       - Backend Conformance: reference/backend-conformance.md
       - Capability Conformance Spec: reference/capability-conformance-spec.md
+      - Capability Catalog: reference/capability-catalog.md
       - Truth Label Protocol: reference/truth-label-protocol.md
       - Replatforming Source-State Taxonomy: reference/replatforming-source-state-taxonomy.md
       - Replatforming Plan Contract: reference/replatforming-plan-contract.md
