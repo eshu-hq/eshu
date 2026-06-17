@@ -5,6 +5,10 @@ search from a real embedder-backed retrieval path. It is a gate for
 implementation work under #2451. It does not add an embedder, runtime flag,
 provider call, API change, MCP change, graph write, or vector index by itself.
 
+For the measured quality and latency thresholds that decide when an
+embedder-backed path is *production-grade* (versus working-but-degraded), see the
+[Hybrid Retrieval Production Gate](hybrid-retrieval-production-gate.md).
+
 ## Truth Boundary
 
 Semantic search is derived retrieval evidence over curated
