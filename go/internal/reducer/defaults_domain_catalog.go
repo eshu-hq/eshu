@@ -53,6 +53,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				DependencyLookup:             handlers.WorkloadDependencyLookup,
 				WorkloadDependencyEdgeWriter: handlers.WorkloadDependencyEdgeWriter,
 				PhasePublisher:               handlers.GraphProjectionPhasePublisher,
+				EndpointPresenceWriter:       handlers.EndpointPresenceWriter,
 			}
 		case DomainCodeCallMaterialization:
 			def.Handler = CodeCallMaterializationHandler{

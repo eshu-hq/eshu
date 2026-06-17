@@ -102,8 +102,13 @@ type SharedProjectionRunner struct {
 	AcceptedGenPrefetch AcceptedGenerationPrefetch
 	ReadinessLookup     GraphProjectionReadinessLookup
 	ReadinessPrefetch   GraphProjectionReadinessPrefetch
-	Config              SharedProjectionRunnerConfig
-	Wait                func(context.Context, time.Duration) error
+	// EndpointPresenceLookup answers property-keyed (repo_id, path) :Endpoint
+	// presence for the DomainHandlesRoute readiness gate (#2809). A nil lookup
+	// disables the gate, leaving handles_route — and every other domain —
+	// byte-identical to its pre-#2809 behavior.
+	EndpointPresenceLookup EndpointPresenceLookup
+	Config                 SharedProjectionRunnerConfig
+	Wait                   func(context.Context, time.Duration) error
 
 	// Telemetry fields (optional)
 	Tracer      trace.Tracer
@@ -306,6 +311,7 @@ func (r *SharedProjectionRunner) processPartitionWithTelemetry(
 		r.AcceptedGenPrefetch,
 		r.ReadinessLookup,
 		r.ReadinessPrefetch,
+		r.EndpointPresenceLookup,
 	)
 
 	duration := time.Since(start).Seconds()

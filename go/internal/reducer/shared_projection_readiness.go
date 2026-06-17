@@ -12,12 +12,23 @@ import (
 // unchanged. The readiness key is built under the domain's prerequisite
 // keyspace (sharedProjectionReadinessKeyspace) so a multi-keyspace domain such
 // as handles_route looks up the phase under the keyspace it was published in.
+//
+// endpointPresence adds a SECOND, domain-scoped gate that applies ONLY to
+// DomainHandlesRoute (#2809): a handles_route intent carries the repo acceptance
+// unit, but its target :Endpoint commits under a per-workload acceptance unit, so
+// the phase gate alone cannot prove the endpoint exists. After the phase gate,
+// handles_route rows are additionally filtered by property-keyed (repo_id, path)
+// endpoint presence; rows whose endpoint is absent join the blocked set and are
+// deferred (re-enqueued, not marked complete). A nil endpointPresence disables
+// this second gate, so every other domain — and handles_route itself when
+// presence is unwired — stays byte-identical to its pre-#2809 behavior.
 func filterRowsByReadiness(
 	ctx context.Context,
 	domain string,
 	rows []SharedProjectionIntentRow,
 	readinessLookup GraphProjectionReadinessLookup,
 	readinessPrefetch GraphProjectionReadinessPrefetch,
+	endpointPresence EndpointPresenceLookup,
 ) ([]SharedProjectionIntentRow, []SharedProjectionIntentRow, error) {
 	phase, gated := sharedProjectionReadinessPhase(domain)
 	if !gated || len(rows) == 0 {
@@ -65,6 +76,20 @@ func filterRowsByReadiness(
 		}
 		readyRows = append(readyRows, row)
 	}
+
+	// Second gate (handles_route only, #2809): among the phase-ready rows, defer
+	// the ones whose (repo_id, path) :Endpoint has not committed yet. A nil
+	// presence lookup is a no-op, so every other domain — and handles_route when
+	// presence is unwired — is unaffected.
+	if domain == DomainHandlesRoute && endpointPresence != nil && len(readyRows) > 0 {
+		presentRows, absentRows, err := filterHandlesRouteRowsByEndpointPresence(ctx, readyRows, endpointPresence)
+		if err != nil {
+			return nil, nil, fmt.Errorf("look up handles_route endpoint presence: %w", err)
+		}
+		readyRows = presentRows
+		blockedRows = append(blockedRows, absentRows...)
+	}
+
 	return readyRows, blockedRows, nil
 }
 
