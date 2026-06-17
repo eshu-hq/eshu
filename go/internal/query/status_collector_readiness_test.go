@@ -72,7 +72,10 @@ func TestCollectorReadinessNoCollectorsAreUnsupported(t *testing.T) {
 func TestCollectorReadinessClassifiesConfiguredCollectors(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
+	// Evidence freshness is evaluated against the handler's live clock with a 24h
+	// window, so the jira "implemented" assertion needs now-relative timestamps;
+	// a hardcoded past date is a time bomb that flips jira to "stale" after 24h.
+	now := time.Now().UTC()
 	reader := fakeStatusReader{snapshot: statuspkg.RawSnapshot{
 		AsOf: now,
 		Coordinator: &statuspkg.CoordinatorSnapshot{
