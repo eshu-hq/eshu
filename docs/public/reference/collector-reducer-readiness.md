@@ -13,6 +13,16 @@ Reducer claim-path changes that affect readiness gating or domain-count growth
 must satisfy the
 [Reducer Claim-Latency Gate](reducer-claim-latency-gate.md) before production
 support is claimed.
+Resource reducer conflict policy is explicit: only
+`aws_resource_materialization` is promoted to a versioned hashed
+`cloud_resource_node` conflict family today. GCP, Azure, EC2, Kubernetes, and
+security-group node materializers remain risky resource-scope fallbacks until
+partition-filtered handler proof exists. Relationship, posture, IAM, S3, RDS,
+Kubernetes-correlation, and security-group reachability domains stay blocked
+behind a hashed `resource_scope` fallback while their handlers still load,
+write, or retract whole scope generations. Queue conflict keys must not store
+raw provider locators, paths, credential-shaped values, provider payload
+excerpts, or IP address-shaped values.
 
 ## Current Contract
 

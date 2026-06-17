@@ -27,6 +27,10 @@
 // it starts its edge write lane. CloudResource-consuming reducer edge domains
 // stay unclaimed until their matching cloud_resource_uid canonical-nodes phase
 // exists, including provider relationship domains such as AWS and Azure.
+// Resource materialization conflict keys are versioned and hashed before they
+// reach durable queue rows; domains whose handlers still load, write, or
+// retract whole scope generations stay behind an explicit resource-scope
+// fallback fence until partition-filtered semantics are proven.
 // CollectorGenerationDeadLetterStore persists bounded commit-failure metadata
 // for generations that failed before projector work rows existed and exposes a
 // source-level replay request/completion path plus unresolved status aggregates

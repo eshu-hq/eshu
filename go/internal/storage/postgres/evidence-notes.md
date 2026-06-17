@@ -88,6 +88,30 @@ and readiness waits through existing Postgres query spans,
 queue status, bounded `/admin/status` blockage rows, failure class,
 retry/dead-letter state, and reducer logs.
 
+## Resource Reducer Conflict Policy (#2754)
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run
+'TestReducerConflictDomainKey(ClassifiesResourceMaterializationDomains|RejectsRawProviderLocators)|TestReducerResourceConflictPolicyCoversIssue2754Domains|TestClaimBatchFencesSameConflictCandidates|TestReducerClaimBenchmarkWorkShapeMatchesReducerConflictDerivation'
+-count=1` failed before resource materialization domains had an audited
+safe/risky/blocked conflict policy, then passed after adding versioned hashed
+resource conflict keys. `aws_resource_materialization` is the only promoted
+resource-node conflict family in this slice because its handler writes
+idempotent CloudResource nodes and does not scope-wide retract. GCP, Azure,
+EC2, Kubernetes, and security-group node materializers remain risky
+resource-scope fallbacks until partition-filtered load/write proof exists.
+Relationship, posture, IAM, S3, RDS, Kubernetes-correlation, and
+security-group reachability domains stay blocked behind the explicit
+resource-scope fallback because their handlers still use scope-wide load,
+readiness, write, or retract semantics.
+
+No-Observability-Change: no route, worker, lease duration, retry policy,
+metric, span, or runtime default changed. Operators see the policy through the
+existing durable `fact_work_items.conflict_domain` and hashed `conflict_key`
+columns plus `/admin/status` queue blockage rows. Conflict keys never copy raw
+provider locators, paths, credential-shaped values, provider excerpts, or IP
+address-shaped values; unsafe AWS resource-node inputs fall back to the hashed
+resource-scope fence.
+
 ## Tenant Workspace Grants (#2047)
 
 No-Regression Evidence: `go test ./internal/storage/postgres -run 'Test(BootstrapDefinitionsIncludeTenantWorkspaceGrants|TenantWorkspaceGrantStore)' -count=1` failed before `TenantWorkspaceGrantStore` and `tenant_workspace_grants` bootstrap DDL existed, then passed after adding idempotent tenant/workspace/scope/repository grant upserts, active bounded grant reads, tombstone/expiry/effective-time predicates, and the privacy guard that prevents raw display names or credential-shaped columns in the schema. The tables are additive and do not change existing fact, queue, graph, API, MCP, collector, or workflow behavior.
