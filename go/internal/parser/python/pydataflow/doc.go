@@ -21,4 +21,12 @@
 // onto the control-flow graph, ready for the internal/parser/taint engine.
 // Sources are Django/Flask-style request parameters; sinks and sanitizers are
 // recognized calls (cursor.execute, os.system, html.escape).
+//
+// EffectsSpec, LocalFunctionIDs, and FunctionID build a function's value-flow
+// summary spec for cross-function composition; InterprocFindings composes the
+// per-function summaries of a file into an interprocedural port graph and solves
+// it, returning the cross-function taint findings. Resolution is intra-file:
+// only top-level functions are entries and only bare-identifier calls resolve to
+// a local callee, so a method call or a nested (lexically private) function never
+// invents a false cross-function edge.
 package pydataflow

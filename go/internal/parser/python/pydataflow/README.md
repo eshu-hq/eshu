@@ -24,17 +24,40 @@ See `doc.go` for the godoc contract. The surface is:
 - `TaintFacts(node, source, fn) taint.Facts` — derive intraprocedural taint
   annotations (sources, sinks, sanitizers) from the Python catalog, mapped onto
   the control-flow graph, for the `internal/parser/taint` engine.
+- `EffectsSpec(node, source, fn, localFuncs) valueflow.EffectsSpec`,
+  `LocalFunctionIDs`, `FunctionID` — build a function's value-flow summary spec
+  (params, sources/sinks/sanitizers, returns, intra-file call-arg sites) for
+  cross-function composition.
+- `InterprocFindings(root, source, importPath) []interproc.Finding` — compose the
+  per-function summaries of a file into an interprocedural port graph and solve
+  it, returning the cross-function taint findings. Resolution is intra-file.
 
 ## Dependencies
 
 - `internal/parser/cfg` (the dataflow engine), `internal/parser/taint` (the
-  taint fact types), `internal/parser/shared` (node text/line helpers), and
-  `github.com/tree-sitter/go-tree-sitter`.
+  taint fact types), `internal/parser/valueflow` + `internal/parser/interproc` +
+  `internal/parser/summary` (cross-function composition), `internal/parser/shared`
+  (node text/line helpers), and `github.com/tree-sitter/go-tree-sitter`.
 
 ## Telemetry
 
 None. The lowering is a pure function; a reducer that drives the pipeline owns
 telemetry.
+
+## Performance and concurrency
+
+`InterprocFindings` composes per-function summaries and calls
+`interproc.SolvePartitioned`. It introduces no new goroutines, channels, locks,
+or shared state of its own — the partitioned, race-free fixpoint lives in
+`internal/parser/interproc` and is proven there.
+
+- No-Regression Evidence: the cross-function pass is bounded by the cfg and
+  interproc limits and runs per file off the parse tree; it adds no graph write,
+  Cypher, queue, or worker behavior. Measurement is the package test suite
+  (`go test ./internal/parser/python/pydataflow -count=1`), which exercises the
+  interprocedural composition on small fixtures deterministically.
+- No-Observability-Change: pure functions with no telemetry surface; an operator
+  observes this work through the reducer that drives the pipeline, unchanged here.
 
 ## Gotchas / invariants
 
@@ -69,6 +92,12 @@ telemetry.
 - **A sanitizer is recorded only when the assigned value is DIRECTLY a sanitizer
   call.** `safe = escape(x) if cond else x` is not marked sanitized — the other
   branch is unneutralized, so marking it would wrongly suppress a real finding.
+- **Interprocedural resolution is intra-file and conservative.** Only top-level
+  `function_definition`s are entries (`LocalFunctionIDs`/`InterprocFindings` do
+  not descend into nested function bodies — closures are a later pass), and only
+  bare-identifier calls resolve to a local callee. A method call (`cursor.execute`)
+  or a nested private function never invents a false cross-function edge. A call
+  whose name is shadowed by a local binding at or before the call is also skipped.
 
 ## Related docs
 

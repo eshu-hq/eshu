@@ -8,10 +8,13 @@
 4. `bindings.go` - parameter, def/use, assignment-target, and attribute handling
 5. `taintfacts.go` - the Python source/sink/sanitizer catalog and `TaintFacts`
 6. `lineindex.go` - maps source lines to CFG statement IDs for fact placement
-7. `lower_test.go` / `taintfacts_test.go` - reaching-def and taint-catalog proofs
-8. The counterparts this mirrors: `../../golang/cfg_lower.go`,
-   `../../javascript/jsdataflow/lower.go` and `taintfacts.go`, and the shared
-   engine `../../cfg`
+7. `effects.go` / `interproc.go` - value-flow `EffectsSpec` extraction and the
+   intra-file `InterprocFindings` composition
+8. `lower_test.go` / `taintfacts_test.go` / `interproc_test.go` - reaching-def,
+   taint-catalog, and cross-function proofs
+9. The counterparts this mirrors: `../../golang/cfg_lower.go`,
+   `../../javascript/jsdataflow/lower.go`, `taintfacts.go`, `effects.go`,
+   `interproc.go`, and the shared engine `../../cfg`
 
 ## Invariants this package enforces
 
@@ -59,3 +62,6 @@
   nested-function exclusion.
 - The direct-call-only sanitizer rule in `markSanitizer`; descending into
   conditional values would suppress real findings.
+- The top-level-only, bare-identifier-only call resolution in `effects.go`/
+  `interproc.go`. Resolving method calls or nested (lexically private) functions
+  would invent false cross-function edges.
