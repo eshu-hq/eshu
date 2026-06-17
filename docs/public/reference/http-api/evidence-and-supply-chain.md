@@ -58,6 +58,11 @@ repository anchors. Empty or out-of-grant scoped requests return a bounded empty
 page without reading the store, so callers do not learn whether another tenant's
 decision exists.
 
+`include_evidence=true` includes at most 20 evidence rows per returned decision.
+Rows that have more evidence set `evidence_truncated=true` and
+`evidence_limit=20`, so clients can treat embedded evidence as a preview rather
+than an unbounded drilldown.
+
 ## Citation Packets
 
 `POST /api/v0/evidence/citations`

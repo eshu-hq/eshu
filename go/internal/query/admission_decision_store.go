@@ -61,11 +61,12 @@ func (s PostgresAdmissionDecisionReadStore) ListAdmissionDecisions(
 func (s PostgresAdmissionDecisionReadStore) ListAdmissionDecisionEvidence(
 	ctx context.Context,
 	decisionID string,
+	limit int,
 ) ([]AdmissionDecisionEvidenceRow, error) {
 	if s.store == nil {
 		return nil, fmt.Errorf("admission decision store is required")
 	}
-	rows, err := s.store.ListEvidence(ctx, decisionID)
+	rows, err := s.store.ListEvidence(ctx, decisionID, limit)
 	if err != nil {
 		return nil, err
 	}

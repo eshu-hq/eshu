@@ -91,6 +91,7 @@ SELECT evidence_id, decision_id, source_handle, evidence_kind, detail, created_a
 FROM admission_decision_evidence
 WHERE decision_id = $1
 ORDER BY created_at ASC, evidence_id ASC
+LIMIT $2
 `
 
 // AdmissionDecisionState is the closed reducer admission vocabulary shared
@@ -337,9 +338,14 @@ func (s *AdmissionDecisionStore) ListDecisions(ctx context.Context, f AdmissionD
 	return scanAdmissionDecisionRows(rows)
 }
 
-// ListEvidence returns persisted evidence rows for one admission decision.
-func (s *AdmissionDecisionStore) ListEvidence(ctx context.Context, decisionID string) ([]AdmissionDecisionEvidence, error) {
-	rows, err := s.db.QueryContext(ctx, listAdmissionDecisionEvidenceSQL, decisionID)
+// ListEvidence returns a bounded page of persisted evidence rows for one
+// admission decision.
+func (s *AdmissionDecisionStore) ListEvidence(
+	ctx context.Context,
+	decisionID string,
+	limit int,
+) ([]AdmissionDecisionEvidence, error) {
+	rows, err := s.db.QueryContext(ctx, listAdmissionDecisionEvidenceSQL, decisionID, admissionDecisionLimit(limit))
 	if err != nil {
 		return nil, fmt.Errorf("query admission decision evidence: %w", err)
 	}
