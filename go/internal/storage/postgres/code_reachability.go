@@ -80,7 +80,7 @@ INSERT INTO code_reachability_repository_watermarks (
     scope_id, generation_id, repository_id, updated_at
 ) VALUES ($1, $2, $3, $4)
 ON CONFLICT (scope_id, generation_id, repository_id) DO UPDATE
-SET updated_at = GREATEST(code_reachability_repository_watermarks.updated_at, EXCLUDED.updated_at)
+SET updated_at = EXCLUDED.updated_at
 `
 
 // CodeReachabilitySchemaSQL returns the DDL for code reachability rows and

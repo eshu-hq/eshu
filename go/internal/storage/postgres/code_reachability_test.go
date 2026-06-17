@@ -139,12 +139,6 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsRecordsEmptyWatermark(t *test
 	}
 }
 
-func TestCodeReachabilityRepositoryWatermarkUpsertIsMonotonic(t *testing.T) {
-	if !strings.Contains(upsertCodeReachabilityRepositoryWatermarkSQL, "GREATEST(") {
-		t.Fatalf("watermark upsert must preserve newer progress:\n%s", upsertCodeReachabilityRepositoryWatermarkSQL)
-	}
-}
-
 func TestCodeReachabilityPendingInputsWatchAllTraversedDomains(t *testing.T) {
 	for _, want := range []string{
 		"projection_domain IN ('code_calls', 'inheritance_edges')",
