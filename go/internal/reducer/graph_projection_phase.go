@@ -168,10 +168,18 @@ type GraphProjectionPhasePublisher interface {
 // graph_projection_phase_state gate cannot express. CommittedAt is the node
 // materializer's commit instant; an empty value defers to the store's clock.
 type EndpointPresenceRow struct {
-	Keyspace    GraphProjectionKeyspace
-	UID         string
-	ScopeID     string
-	CommittedAt time.Time
+	Keyspace GraphProjectionKeyspace
+	UID      string
+	ScopeID  string
+	// RepoID and SourceGeneration are written only by the symbol→runtime presence
+	// publishers (#2842) so stale rows can be retracted per repo when a generation
+	// re-materializes — the synthesized uid is a hash (#2844) and no longer carries
+	// the repo_id. They are blank for the uid-exact #1380 presence rows, which are
+	// retracted by scope/node lifecycle instead. Both are NUL-free (a repo_id and a
+	// generation id contain no 0x00), so they are safe in the Postgres text columns.
+	RepoID           string
+	SourceGeneration string
+	CommittedAt      time.Time
 }
 
 // EndpointPresenceWriter records and retracts endpoint-node presence. The
@@ -184,6 +192,15 @@ type EndpointPresenceRow struct {
 type EndpointPresenceWriter interface {
 	Upsert(ctx context.Context, rows []EndpointPresenceRow) error
 	RetractScope(ctx context.Context, scopeIDs []string) error
+	// RetractStaleRepoGenerations removes a keyspace's presence rows for the given
+	// repos whose source_generation differs from generationID (#2842), so a repo's
+	// removed or re-pathed endpoints/workloads stop being reported present once the
+	// repo re-materializes. It is race-free under concurrent materializer workers:
+	// it only deletes rows from OTHER generations, never the current generation's
+	// rows that a sibling intent may have just upserted, and deleting an
+	// already-removed older row is idempotent. A blank generationID or empty repo
+	// set is a no-op.
+	RetractStaleRepoGenerations(ctx context.Context, keyspace GraphProjectionKeyspace, scopeID, generationID string, repoIDs []string) error
 }
 
 // EndpointPresenceLookup answers the uid-exact cross-scope readiness question

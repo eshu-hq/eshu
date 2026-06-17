@@ -11,7 +11,7 @@ import (
 
 const (
 	graphEndpointPresenceBatchSize     = 250
-	graphEndpointPresenceColumnsPerRow = 4
+	graphEndpointPresenceColumnsPerRow = 6
 )
 
 // graphEndpointPresenceSchemaSQL is the durable uid-exact endpoint-presence
@@ -26,28 +26,39 @@ CREATE TABLE IF NOT EXISTS graph_endpoint_presence (
     keyspace TEXT NOT NULL,
     uid TEXT NOT NULL,
     scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
+    repo_id TEXT NOT NULL DEFAULT '',
+    source_generation TEXT NOT NULL DEFAULT '',
     committed_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (keyspace, uid)
 );
+ALTER TABLE graph_endpoint_presence
+    ADD COLUMN IF NOT EXISTS repo_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE graph_endpoint_presence
+    ADD COLUMN IF NOT EXISTS source_generation TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS graph_endpoint_presence_scope_idx
     ON graph_endpoint_presence (scope_id);
 CREATE INDEX IF NOT EXISTS graph_endpoint_presence_updated_idx
     ON graph_endpoint_presence (updated_at DESC);
+CREATE INDEX IF NOT EXISTS graph_endpoint_presence_stale_idx
+    ON graph_endpoint_presence (keyspace, scope_id, repo_id);
 `
 
 const upsertGraphEndpointPresenceBatchPrefix = `
 INSERT INTO graph_endpoint_presence (
-    keyspace, uid, scope_id, committed_at, updated_at
+    keyspace, uid, scope_id, repo_id, source_generation, committed_at, updated_at
 ) VALUES `
 
 // upsertGraphEndpointPresenceBatchSuffix makes the upsert idempotent: a repeated
 // (keyspace, uid) converges on one row and only refreshes the commit/update
-// instants and the owning scope, so concurrent materializer workers and reducer
-// retries never duplicate or fabricate presence.
+// instants, the owning scope, and the repo_id/source_generation provenance, so
+// concurrent materializer workers and reducer retries never duplicate or
+// fabricate presence.
 const upsertGraphEndpointPresenceBatchSuffix = `
 ON CONFLICT (keyspace, uid) DO UPDATE
 SET scope_id = EXCLUDED.scope_id,
+    repo_id = EXCLUDED.repo_id,
+    source_generation = EXCLUDED.source_generation,
     committed_at = EXCLUDED.committed_at,
     updated_at = EXCLUDED.updated_at
 `
@@ -55,6 +66,20 @@ SET scope_id = EXCLUDED.scope_id,
 const retractGraphEndpointPresenceByScopeSQL = `
 DELETE FROM graph_endpoint_presence
 WHERE scope_id = ANY($1)
+`
+
+// retractStaleGraphEndpointPresenceSQL removes a keyspace's presence rows for the
+// listed repos whose source_generation differs from the current generation
+// (#2842). It is race-free: it deletes only OTHER generations' rows, never the
+// current generation's rows a sibling intent may have just upserted, so
+// concurrent materializer workers for the same scope cannot delete each other's
+// in-flight presence; deleting an already-removed older row is idempotent.
+const retractStaleGraphEndpointPresenceSQL = `
+DELETE FROM graph_endpoint_presence
+WHERE keyspace = $1
+  AND scope_id = $2
+  AND repo_id = ANY($3::text[])
+  AND source_generation <> $4
 `
 
 // presentGraphEndpointUIDsSQL is the single bounded lookup the gate runs per
@@ -142,6 +167,37 @@ func (s *GraphEndpointPresenceStore) RetractScope(ctx context.Context, scopeIDs 
 	return nil
 }
 
+// RetractStaleRepoGenerations removes the keyspace's presence rows for the given
+// repos whose source_generation differs from generationID (#2842). It deletes
+// only OTHER generations' rows for those repos, so a sibling materializer worker
+// that just upserted the current generation's rows for an overlapping repo is
+// never disturbed; the delete is idempotent. A blank keyspace, scope, or
+// generation, or an empty repo set, is a no-op (the gate stays at its pre-#2842
+// behavior, only growing the table).
+func (s *GraphEndpointPresenceStore) RetractStaleRepoGenerations(
+	ctx context.Context,
+	keyspace reducer.GraphProjectionKeyspace,
+	scopeID, generationID string,
+	repoIDs []string,
+) error {
+	keyspaceValue := strings.TrimSpace(string(keyspace))
+	scope := strings.TrimSpace(scopeID)
+	generation := strings.TrimSpace(generationID)
+	repos := cleanStringFilterValues(repoIDs)
+	if keyspaceValue == "" || scope == "" || generation == "" || len(repos) == 0 {
+		return nil
+	}
+	if _, err := s.db.ExecContext(
+		ctx, retractStaleGraphEndpointPresenceSQL, keyspaceValue, scope, repos, generation,
+	); err != nil {
+		return fmt.Errorf(
+			"retract stale graph endpoint presence for keyspace %q (%d repo(s)): %w",
+			keyspaceValue, len(repos), err,
+		)
+	}
+	return nil
+}
+
 // MissingUIDs returns the candidate uids that have no presence row for the
 // keyspace, using one bounded query plus an in-memory set-difference. Duplicate
 // and blank candidates are normalized away first so the bound matches the
@@ -210,15 +266,18 @@ func upsertGraphEndpointPresenceBatch(ctx context.Context, db ExecQueryer, batch
 			values.WriteString(", ")
 		}
 		offset := i * graphEndpointPresenceColumnsPerRow
+		// committed_at and updated_at both bind the same committedAt arg ($6).
 		fmt.Fprintf(
 			&values,
-			"($%d, $%d, $%d, $%d, $%d)",
-			offset+1, offset+2, offset+3, offset+4, offset+4,
+			"($%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+6,
 		)
 		args = append(args,
 			strings.TrimSpace(string(row.Keyspace)),
 			strings.TrimSpace(row.UID),
 			strings.TrimSpace(row.ScopeID),
+			strings.TrimSpace(row.RepoID),
+			strings.TrimSpace(row.SourceGeneration),
 			committedAt,
 		)
 	}

@@ -6,11 +6,21 @@ import (
 	"time"
 )
 
-// recordingPresenceWriter captures Upsert/RetractScope calls for assertions.
+// recordingPresenceWriter captures Upsert/RetractScope/RetractStaleRepoGenerations
+// calls for assertions.
 type recordingPresenceWriter struct {
-	upserts  [][]EndpointPresenceRow
-	retracts [][]string
-	err      error
+	upserts      [][]EndpointPresenceRow
+	retracts     [][]string
+	staleRetract []staleRepoGenerationRetract
+	err          error
+}
+
+// staleRepoGenerationRetract records one RetractStaleRepoGenerations call (#2842).
+type staleRepoGenerationRetract struct {
+	keyspace     GraphProjectionKeyspace
+	scopeID      string
+	generationID string
+	repoIDs      []string
 }
 
 func (w *recordingPresenceWriter) Upsert(_ context.Context, rows []EndpointPresenceRow) error {
@@ -23,6 +33,24 @@ func (w *recordingPresenceWriter) Upsert(_ context.Context, rows []EndpointPrese
 
 func (w *recordingPresenceWriter) RetractScope(_ context.Context, scopeIDs []string) error {
 	w.retracts = append(w.retracts, scopeIDs)
+	return nil
+}
+
+func (w *recordingPresenceWriter) RetractStaleRepoGenerations(
+	_ context.Context,
+	keyspace GraphProjectionKeyspace,
+	scopeID, generationID string,
+	repoIDs []string,
+) error {
+	if w.err != nil {
+		return w.err
+	}
+	w.staleRetract = append(w.staleRetract, staleRepoGenerationRetract{
+		keyspace:     keyspace,
+		scopeID:      scopeID,
+		generationID: generationID,
+		repoIDs:      repoIDs,
+	})
 	return nil
 }
 

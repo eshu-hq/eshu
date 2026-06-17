@@ -56,7 +56,7 @@ func TestPublishRepoWorkloadPresenceDeduplicatesByRepo(t *testing.T) {
 		{RepoID: "", WorkloadID: "wl-blank"}, // blank repo skipped
 	}
 	if err := publishRepoWorkloadPresence(
-		context.Background(), writer, "scope-1", rows, time.Unix(1700000000, 0).UTC(),
+		context.Background(), writer, "scope-1", "gen-1", rows, time.Unix(1700000000, 0).UTC(),
 	); err != nil {
 		t.Fatalf("publish error = %v", err)
 	}
@@ -74,6 +74,23 @@ func TestPublishRepoWorkloadPresenceDeduplicatesByRepo(t *testing.T) {
 		if r.ScopeID != "scope-1" || r.UID == "" {
 			t.Fatalf("malformed presence row: %+v", r)
 		}
+		// #2842 provenance: each row carries its repo_id (= uid here) and the
+		// materializing generation so stale rows can be retracted per repo.
+		if r.RepoID != r.UID || r.SourceGeneration != "gen-1" {
+			t.Fatalf("row missing #2842 provenance: %+v", r)
+		}
+	}
+	// #2842: after upsert, the stale other-generation rows for the materialized
+	// repos are retracted (race-free: only OTHER generations).
+	if len(writer.staleRetract) != 1 {
+		t.Fatalf("stale-retract calls = %d, want 1", len(writer.staleRetract))
+	}
+	sr := writer.staleRetract[0]
+	if sr.keyspace != GraphProjectionKeyspaceRepoWorkloadPresence || sr.scopeID != "scope-1" || sr.generationID != "gen-1" {
+		t.Fatalf("stale-retract args = %+v, want repo_workload/scope-1/gen-1", sr)
+	}
+	if len(sr.repoIDs) != 2 {
+		t.Fatalf("stale-retract repoIDs = %v, want the 2 materialized repos", sr.repoIDs)
 	}
 }
 
@@ -81,7 +98,7 @@ func TestPublishRepoWorkloadPresenceNilWriterNoOp(t *testing.T) {
 	t.Parallel()
 
 	if err := publishRepoWorkloadPresence(
-		context.Background(), nil, "scope-1",
+		context.Background(), nil, "scope-1", "gen-1",
 		[]WorkloadRow{{RepoID: "repo-1", WorkloadID: "wl-1"}},
 		time.Now().UTC(),
 	); err != nil {

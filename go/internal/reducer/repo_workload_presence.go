@@ -32,6 +32,7 @@ func publishRepoWorkloadPresence(
 	ctx context.Context,
 	writer EndpointPresenceWriter,
 	scopeID string,
+	generationID string,
 	workloadRows []WorkloadRow,
 	committedAt time.Time,
 ) error {
@@ -40,6 +41,7 @@ func publishRepoWorkloadPresence(
 	}
 	rows := make([]EndpointPresenceRow, 0, len(workloadRows))
 	seen := make(map[string]struct{}, len(workloadRows))
+	repoIDs := make([]string, 0, len(workloadRows))
 	for _, workload := range workloadRows {
 		uid := repoWorkloadPresenceKey(workload.RepoID)
 		if uid == "" {
@@ -49,17 +51,31 @@ func publishRepoWorkloadPresence(
 			continue
 		}
 		seen[uid] = struct{}{}
+		repoIDs = append(repoIDs, uid) // repo-workload uid IS the repo_id
 		rows = append(rows, EndpointPresenceRow{
-			Keyspace:    GraphProjectionKeyspaceRepoWorkloadPresence,
-			UID:         uid,
-			ScopeID:     scopeID,
-			CommittedAt: committedAt,
+			Keyspace:         GraphProjectionKeyspaceRepoWorkloadPresence,
+			UID:              uid,
+			ScopeID:          scopeID,
+			RepoID:           uid,
+			SourceGeneration: generationID,
+			CommittedAt:      committedAt,
 		})
 	}
 	if len(rows) == 0 {
 		return nil
 	}
-	return writer.Upsert(ctx, rows)
+	if err := writer.Upsert(ctx, rows); err != nil {
+		return err
+	}
+	// Retract the other-generation presence rows for the repos materialized this
+	// generation, so a repo whose Workload set shrank stops over-reporting (#2842).
+	// A repo that lost ALL its Workloads materializes no row here and so is not
+	// retracted by this path; that narrow case stays bounded-safe (the gate cannot
+	// resolve an edge against a Workload that no longer exists) and is left to the
+	// scope/generation-retention lifecycle.
+	return writer.RetractStaleRepoGenerations(
+		ctx, GraphProjectionKeyspaceRepoWorkloadPresence, scopeID, generationID, repoIDs,
+	)
 }
 
 // runsInRepoWorkloadPresenceKey returns the repo_id presence uid for one runs_in

@@ -69,6 +69,7 @@ func publishAPIEndpointRepoPathPresence(
 	ctx context.Context,
 	writer EndpointPresenceWriter,
 	scopeID string,
+	generationID string,
 	endpointRows []APIEndpointRow,
 	committedAt time.Time,
 ) error {
@@ -77,26 +78,43 @@ func publishAPIEndpointRepoPathPresence(
 	}
 	rows := make([]EndpointPresenceRow, 0, len(endpointRows))
 	seen := make(map[string]struct{}, len(endpointRows))
+	repoIDs := make([]string, 0, len(endpointRows))
+	repoSeen := make(map[string]struct{}, len(endpointRows))
 	for _, endpoint := range endpointRows {
 		uid := apiEndpointRepoPathPresenceKey(endpoint.RepoID, endpoint.Path)
 		if uid == "" {
 			continue
+		}
+		repoID := strings.TrimSpace(endpoint.RepoID)
+		if _, ok := repoSeen[repoID]; !ok && repoID != "" {
+			repoSeen[repoID] = struct{}{}
+			repoIDs = append(repoIDs, repoID)
 		}
 		if _, exists := seen[uid]; exists {
 			continue
 		}
 		seen[uid] = struct{}{}
 		rows = append(rows, EndpointPresenceRow{
-			Keyspace:    GraphProjectionKeyspaceAPIEndpointRepoPath,
-			UID:         uid,
-			ScopeID:     scopeID,
-			CommittedAt: committedAt,
+			Keyspace:         GraphProjectionKeyspaceAPIEndpointRepoPath,
+			UID:              uid,
+			ScopeID:          scopeID,
+			RepoID:           repoID,
+			SourceGeneration: generationID,
+			CommittedAt:      committedAt,
 		})
 	}
 	if len(rows) == 0 {
 		return nil
 	}
-	return writer.Upsert(ctx, rows)
+	if err := writer.Upsert(ctx, rows); err != nil {
+		return err
+	}
+	// Retract this generation's no-longer-present (repo_id, path) endpoints for the
+	// repos just materialized, so a removed or re-pathed route stops being reported
+	// present (#2842). Race-free: only OTHER generations' rows are deleted.
+	return writer.RetractStaleRepoGenerations(
+		ctx, GraphProjectionKeyspaceAPIEndpointRepoPath, scopeID, generationID, repoIDs,
+	)
 }
 
 // handlesRouteEndpointPresenceKey returns the (repo_id, path) presence uid for
