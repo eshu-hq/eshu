@@ -12,9 +12,14 @@ var (
 	javaScriptHTTPVerbExportRe = regexp.MustCompile(`(?m)export\s+(?:async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b`)
 	javaScriptMetadataConstRe  = regexp.MustCompile(`(?m)export\s+const\s+metadata\b`)
 	javaScriptExpressRouteRe   = regexp.MustCompile(`(?m)\b([A-Za-z_$][A-Za-z0-9_$]*)\.(get|post|put|patch|delete|head|options)\(\s*["']([^"']+)["']`)
-	javaScriptHapiMethodRe     = regexp.MustCompile(`(?m)\bmethod\s*:\s*["']([A-Za-z]+)["']`)
-	javaScriptHapiPathRe       = regexp.MustCompile(`(?m)\bpath\s*:\s*["']([^"']+)["']`)
-	javaScriptHapiRoutePairRe  = regexp.MustCompile(
+	// javaScriptExpressRouteHandlerRe binds an Express route to its handler only
+	// when the callback is a single bare named reference closing the call
+	// (e.g. app.get("/x", getX)). Inline callbacks and middleware chains do not
+	// match, so they stay unbound rather than guess a handler symbol (#2721).
+	javaScriptExpressRouteHandlerRe = regexp.MustCompile(`(?m)\b[A-Za-z_$][A-Za-z0-9_$]*\.(get|post|put|patch|delete|head|options)\(\s*["']([^"']+)["']\s*,\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*\)`)
+	javaScriptHapiMethodRe          = regexp.MustCompile(`(?m)\bmethod\s*:\s*["']([A-Za-z]+)["']`)
+	javaScriptHapiPathRe            = regexp.MustCompile(`(?m)\bpath\s*:\s*["']([^"']+)["']`)
+	javaScriptHapiRoutePairRe       = regexp.MustCompile(
 		`(?s)\bmethod\s*:\s*["']([A-Za-z]+)["'][\s\S]{0,800}?\bpath\s*:\s*["'](/[^"']*)["']|\bpath\s*:\s*["'](/[^"']*)["'][\s\S]{0,800}?\bmethod\s*:\s*["']([A-Za-z]+)["']`,
 	)
 	javaScriptAWSImportRe    = regexp.MustCompile(`@aws-sdk/client-([a-z0-9-]+)`)
@@ -277,6 +282,8 @@ func detectExpressSemantics(source string) (map[string]any, bool) {
 		return nil, false
 	}
 
+	handlersByRoute := expressRouteHandlers(source)
+	routeRegistrations := expressRouteRegistrationCounts(matches)
 	methods := make([]string, 0, len(matches))
 	paths := make([]string, 0, len(matches))
 	entries := make([]map[string]string, 0, len(matches))
@@ -288,7 +295,16 @@ func detectExpressSemantics(source string) (map[string]any, bool) {
 		symbol := match[1]
 		method := strings.ToUpper(match[2])
 		path := match[3]
-		entries = append(entries, routeEntry(method, path))
+		key := expressRouteKey(method, path)
+		handler := ""
+		// A route registered exactly once has an unambiguous handler. A route
+		// registered more than once (e.g. an inline and a named callback, or two
+		// routers) is ambiguous about which handler serves it, so it stays
+		// unbound rather than attach a handler to the wrong entry (#2721).
+		if routeRegistrations[key] == 1 {
+			handler = handlersByRoute[key]
+		}
+		entries = append(entries, routeEntry(method, path, handler))
 		if _, ok := seenMethods[method]; !ok {
 			seenMethods[method] = struct{}{}
 			methods = append(methods, method)
@@ -358,15 +374,61 @@ func javaScriptHapiRouteEntries(source string) []map[string]string {
 		if method == "" || path == "" {
 			continue
 		}
-		entries = append(entries, routeEntry(method, path))
+		// Hapi route-object handler binding is a #2721 follow-up; the method/path
+		// pairing is preserved here without a handler symbol.
+		entries = append(entries, routeEntry(method, path, ""))
 	}
 	return entries
 }
 
-// routeEntry is the parser-owned wire shape consumed by query read models.
-func routeEntry(method string, path string) map[string]string {
-	return map[string]string{
+// routeEntry is the parser-owned wire shape consumed by query read models. The
+// handler symbol is included only when an exact route↔handler binding was
+// observed; an empty handler is omitted so consumers never read a fabricated
+// binding for an inline or middleware-wrapped route (#2721).
+func routeEntry(method string, path string, handler string) map[string]string {
+	entry := map[string]string{
 		"method": strings.ToUpper(strings.TrimSpace(method)),
 		"path":   strings.TrimSpace(path),
 	}
+	if handler = strings.TrimSpace(handler); handler != "" {
+		entry["handler"] = handler
+	}
+	return entry
+}
+
+// expressRouteKey identifies an Express route by its normalized method and path
+// so a separately-scanned handler binding can be matched back to its entry.
+func expressRouteKey(method string, path string) string {
+	return strings.ToUpper(strings.TrimSpace(method)) + " " + strings.TrimSpace(path)
+}
+
+// expressRouteHandlers maps an Express route to its handler function symbol for
+// routes whose callback is a single bare named reference. Ambiguity from a route
+// registered more than once is resolved by the registration-count guard in the
+// caller, so this only records the observed named handler per route key (#2721).
+func expressRouteHandlers(source string) map[string]string {
+	matches := javaScriptExpressRouteHandlerRe.FindAllStringSubmatch(source, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	handlers := make(map[string]string, len(matches))
+	for _, match := range matches {
+		handler := strings.TrimSpace(match[3])
+		if handler == "" {
+			continue
+		}
+		handlers[expressRouteKey(match[1], match[2])] = handler
+	}
+	return handlers
+}
+
+// expressRouteRegistrationCounts counts how many times each route key (method
+// and path) is registered across all Express route calls, so a route declared
+// more than once can be treated as an ambiguous handler binding (#2721).
+func expressRouteRegistrationCounts(matches [][]string) map[string]int {
+	counts := make(map[string]int, len(matches))
+	for _, match := range matches {
+		counts[expressRouteKey(match[2], match[3])]++
+	}
+	return counts
 }

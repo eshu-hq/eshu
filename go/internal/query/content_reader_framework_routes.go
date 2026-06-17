@@ -181,8 +181,9 @@ func frameworkRouteEntries(raw any) []FrameworkRouteEntryEvidence {
 			continue
 		}
 		entry := FrameworkRouteEntryEvidence{
-			Method: strings.TrimSpace(stringValue(row["method"])),
-			Path:   strings.TrimSpace(stringValue(row["path"])),
+			Method:  strings.TrimSpace(stringValue(row["method"])),
+			Path:    strings.TrimSpace(stringValue(row["path"])),
+			Handler: strings.TrimSpace(stringValue(row["handler"])),
 		}
 		if entry.Method == "" || entry.Path == "" {
 			continue

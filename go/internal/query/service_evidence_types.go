@@ -78,7 +78,11 @@ type FrameworkRouteEvidence struct {
 }
 
 // FrameworkRouteEntryEvidence preserves one parser-observed route declaration.
+// Handler is the route's handler function symbol when the parser observed an
+// exact binding; it is omitted for inline or middleware-wrapped routes whose
+// handler is ambiguous (#2721).
 type FrameworkRouteEntryEvidence struct {
-	Method string `json:"method"`
-	Path   string `json:"path"`
+	Method  string `json:"method"`
+	Path    string `json:"path"`
+	Handler string `json:"handler,omitempty"`
 }

@@ -161,8 +161,8 @@ const client = new vision.ImageAnnotatorClient();
 	assertNestedStringSliceEqual(t, got, "express", "route_methods", []string{"GET", "POST"})
 	assertNestedStringSliceEqual(t, got, "express", "route_paths", []string{"/auth/login", "/"})
 	assertNestedRouteEntriesEqual(t, got, "express", []map[string]string{
-		{"method": "GET", "path": "/auth/login"},
-		{"method": "POST", "path": "/"},
+		{"method": "GET", "path": "/auth/login", "handler": "login"},
+		{"method": "POST", "path": "/", "handler": "createVideo"},
 	})
 	assertNestedStringSliceEqual(t, got, "express", "server_symbols", []string{"router"})
 	assertNestedStringSliceEqual(t, got, "gcp", "services", []string{"vision"})
