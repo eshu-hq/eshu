@@ -205,8 +205,8 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		t.Fatalf("ReadRawSnapshot().Coordinator = %#v, want nil", got.Coordinator)
 	}
 
-	if len(queryer.queries) != 27 {
-		t.Fatalf("QueryContext() call count = %d, want 27", len(queryer.queries))
+	if len(queryer.queries) != 29 {
+		t.Fatalf("QueryContext() call count = %d, want 29", len(queryer.queries))
 	}
 	for _, want := range []string{
 		"FROM ingestion_scopes",
@@ -222,6 +222,8 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		"FROM aws_scan_status",
 		"FROM aws_freshness_triggers",
 		"recent_failed_runs",
+		"workflow_collector_backpressure",
+		"last_failure_class",
 		"WITH active_scopes AS (",
 		"fact_summary AS (",
 		"workflow_instances AS (",

@@ -114,6 +114,14 @@ happened before normal projector work items existed. It includes
 rows. It does not include fact payloads, repository names, local paths,
 credential handles, or provider response bodies.
 
+`coordinator.collector_backpressure` reports bounded claim-aware collector
+pressure by collector kind, collector instance, and source system. It includes
+pending, claimed, retrying, terminal, expired, active-claim, overdue-claim, and
+collector-generation dead-letter counts plus oldest pending, retry, and claim
+ages. Failure classes are aggregate counts only. It does not include provider
+URLs, scope ids, generation ids, source locators, credential handles, resource
+identifiers, payload excerpts, or raw failure messages.
+
 `vulnerability_sources` lists durable OSV, NVD, KEV, EPSS, or derived source
 target state when the vulnerability intelligence collector has attempted a
 target. Each row carries last attempt/success timestamps, next retry, last
