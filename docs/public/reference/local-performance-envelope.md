@@ -290,8 +290,11 @@ the existing claim failure and heartbeat paths:
   `source_system`, `failure_class`; incremented on each retryable claim re-queue.
 - `eshu_dp_workflow_claim_provider_throttle_total` — labeled `collector_kind`,
   `source_system`, `outcome` (`retry_after_honored` or `poll_backoff`);
-  incremented when a retryable failure is provider rate-limiting or carries a
-  provider `Retry-After`.
+  incremented only when a retryable failure carries a rate-limited failure class
+  or a positive provider `Retry-After`. Ordinary retryable failures (5xx,
+  transport, deadline) wrapped in `sdk.ProviderFailure` report a zero
+  `RetryAfterDelay()` and are deliberately excluded so generic outages do not
+  read as provider backpressure.
 - `eshu_dp_workflow_claim_lease_age_seconds` — labeled `collector_kind`,
   `source_system`; the active claim's held duration at heartbeat time.
 

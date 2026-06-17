@@ -6,6 +6,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -91,16 +92,17 @@ func (s ClaimedService) providerThrottleOutcome(err error) string {
 }
 
 // isProviderThrottle reports whether a retryable failure represents provider
-// backpressure: an explicit rate-limited failure class or any error carrying a
-// provider Retry-After delay. A Retry-After is a throttle signal regardless of
-// its magnitude — even a delay shorter than the local poll interval means the
-// provider asked us to back off — so the count is magnitude-independent. The
-// providerThrottleOutcome label then records whether the provider's delay or
-// the local poll floor governed the actual backoff.
+// backpressure. It must NOT fire for ordinary retryable failures (5xx,
+// transport errors, context deadlines): claim-aware SDK collectors wrap those
+// in sdk.ProviderFailure, whose RetryAfterDelay() returns 0 when the provider
+// gave no Retry-After, so an errors.As check alone would count every generic
+// outage as throttling. A failure is throttling only when its class is an
+// explicit rate-limited class, or when the provider supplied a positive
+// Retry-After delay.
 func isProviderThrottle(failureClass string, err error) bool {
-	if failureClass == RegistryFailureRateLimited {
+	if failureClass == RegistryFailureRateLimited || failureClass == string(sdk.FailureRateLimited) {
 		return true
 	}
 	var retryAfter retryAfterFailure
-	return errors.As(err, &retryAfter)
+	return errors.As(err, &retryAfter) && retryAfter.RetryAfterDelay() > 0
 }

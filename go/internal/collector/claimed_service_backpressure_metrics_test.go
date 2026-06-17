@@ -9,10 +9,34 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
+
+// claimMetricValueOrZero returns the summed value of an Int64 counter metric
+// across all data points, or 0 when the metric is absent. Use it to assert a
+// counter did NOT fire.
+func claimMetricValueOrZero(rm metricdata.ResourceMetrics, metricName string) int64 {
+	for _, scopeMetrics := range rm.ScopeMetrics {
+		for _, record := range scopeMetrics.Metrics {
+			if record.Name != metricName {
+				continue
+			}
+			sum, ok := record.Data.(metricdata.Sum[int64])
+			if !ok {
+				return 0
+			}
+			var total int64
+			for _, dp := range sum.DataPoints {
+				total += dp.Value
+			}
+			return total
+		}
+	}
+	return 0
+}
 
 // rateLimitedCollectFailure is a retryable collect failure classified as
 // provider rate-limiting but carrying no provider Retry-After delay, so its
@@ -164,16 +188,98 @@ func TestClaimedServiceProviderThrottleRecordsPollBackoff(t *testing.T) {
 	}
 }
 
-// TestClaimedServiceProviderThrottleCountsShortRetryAfterAsPollBackoff pins the
-// intended magnitude-independent throttle count: a provider Retry-After shorter
-// than the poll interval is still a throttle event, but its backoff is governed
-// by the poll floor, so it is recorded with outcome poll_backoff.
-func TestClaimedServiceProviderThrottleCountsShortRetryAfterAsPollBackoff(t *testing.T) {
+// TestClaimedServiceGenericSDKRetryableFailureNotCountedAsThrottle is the
+// regression for the over-count Codex flagged: claim-aware SDK collectors wrap
+// ordinary retryable failures (5xx, transport, deadline) in sdk.ProviderFailure,
+// whose RetryAfterDelay() is 0 when no provider Retry-After exists. Such a
+// failure must NOT be counted as provider throttling, though it still counts as
+// a retry.
+func TestClaimedServiceGenericSDKRetryableFailureNotCountedAsThrottle(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	now := time.Date(2026, time.June, 17, 13, 30, 0, 0, time.UTC)
+	item := testClaimedWorkItem(now)
+	item.SourceSystem = "jira"
+	claim := testWorkflowClaim(item.WorkItemID, now)
+	store := &stubClaimStore{
+		item:  item,
+		claim: claim,
+		found: true,
+		retryableFail: func(context.Context, workflow.ClaimMutation) error {
+			cancel()
+			return nil
+		},
+	}
+	source := &stubClaimedSource{err: sdk.NewProviderFailure("test", sdk.FailureRetryable, false, errors.New("upstream 500"))}
+	service := testClaimedService(now, claim, scope.CollectorGit, store, source, &stubClaimedCommitter{})
+	instruments, reader := newBackpressureInstruments(t)
+	service.Instruments = instruments
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	rm := collectMetrics(t, reader)
+	if got := claimMetricValueOrZero(rm, "eshu_dp_workflow_claim_provider_throttle_total"); got != 0 {
+		t.Fatalf("provider throttle counter = %d, want 0 for a generic retryable SDK failure", got)
+	}
+	if got := claimMetricValueOrZero(rm, "eshu_dp_workflow_claim_retries_total"); got != 1 {
+		t.Fatalf("retry counter = %d, want 1 (generic failure still retries)", got)
+	}
+}
+
+// TestClaimedServiceSDKRateLimitedCountedAsThrottle proves an SDK rate-limited
+// failure class (sdk.FailureRateLimited == "rate_limited", as a 429 produces)
+// is counted as provider throttling, with poll_backoff when no Retry-After is
+// present.
+func TestClaimedServiceSDKRateLimitedCountedAsThrottle(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	now := time.Date(2026, time.June, 17, 13, 45, 0, 0, time.UTC)
+	item := testClaimedWorkItem(now)
+	item.SourceSystem = "grafana"
+	claim := testWorkflowClaim(item.WorkItemID, now)
+	store := &stubClaimStore{
+		item:  item,
+		claim: claim,
+		found: true,
+		retryableFail: func(context.Context, workflow.ClaimMutation) error {
+			cancel()
+			return nil
+		},
+	}
+	source := &stubClaimedSource{err: sdk.NewProviderFailure("test", sdk.FailureRateLimited, false, errors.New("429"))}
+	service := testClaimedService(now, claim, scope.CollectorGit, store, source, &stubClaimedCommitter{})
+	instruments, reader := newBackpressureInstruments(t)
+	service.Instruments = instruments
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	got := claimMetricValue(t, collectMetrics(t, reader), "eshu_dp_workflow_claim_provider_throttle_total", map[string]string{
+		telemetry.MetricDimensionCollectorKind: string(scope.CollectorGit),
+		telemetry.MetricDimensionSourceSystem:  "grafana",
+		telemetry.MetricDimensionOutcome:       claimThrottleOutcomePollBackoff,
+	})
+	if got != 1 {
+		t.Fatalf("provider throttle counter = %d, want 1 with poll_backoff for SDK rate_limited", got)
+	}
+}
+
+// TestClaimedServiceProviderThrottlePositiveShortRetryAfterIsPollBackoff pins
+// that a positive Retry-After shorter than the poll interval is still a throttle
+// event, recorded with poll_backoff because the poll floor governs the backoff.
+func TestClaimedServiceProviderThrottlePositiveShortRetryAfterIsPollBackoff(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	now := time.Date(2026, time.June, 17, 14, 15, 0, 0, time.UTC)
 	item := testClaimedWorkItem(now)
 	item.SourceSystem = "github"
 	claim := testWorkflowClaim(item.WorkItemID, now)
@@ -186,9 +292,9 @@ func TestClaimedServiceProviderThrottleCountsShortRetryAfterAsPollBackoff(t *tes
 			return nil
 		},
 	}
-	// PollInterval is 1ms in testClaimedService; a zero Retry-After is shorter,
-	// so the poll floor governs the backoff.
-	source := &stubClaimedSource{err: retryAfterCollectFailure{delay: 0}}
+	// PollInterval is 1ms in testClaimedService; 500us is positive but shorter,
+	// so it is still a throttle but the poll floor governs the backoff.
+	source := &stubClaimedSource{err: retryAfterCollectFailure{delay: 500 * time.Microsecond}}
 	service := testClaimedService(now, claim, scope.CollectorGit, store, source, &stubClaimedCommitter{})
 	instruments, reader := newBackpressureInstruments(t)
 	service.Instruments = instruments
@@ -203,7 +309,7 @@ func TestClaimedServiceProviderThrottleCountsShortRetryAfterAsPollBackoff(t *tes
 		telemetry.MetricDimensionOutcome:       claimThrottleOutcomePollBackoff,
 	})
 	if got != 1 {
-		t.Fatalf("provider throttle counter = %d, want 1 with poll_backoff for short Retry-After", got)
+		t.Fatalf("provider throttle counter = %d, want 1 with poll_backoff for short positive Retry-After", got)
 	}
 }
 
