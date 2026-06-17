@@ -1096,6 +1096,47 @@ Observability Evidence: the existing `CodeCallEdgeDuration` histogram and
 regression without new metric labels or backend branches; provenance is carried
 as edge properties, not as new instrumentation.
 
+## INVOKES_CLOUD_ACTION cloud-action edges (#2723)
+
+`canonical_invokes_cloud_action_edges.go` projects
+`Function-[:INVOKES_CLOUD_ACTION]->CloudAction` for the `invokes_cloud_action`
+shared-projection domain. The reducer
+(`go/internal/reducer/invokes_cloud_action_intents.go`) emits an intent only when
+a Go AWS SDK call site carries a non-empty `receiver_sdk_service`, its method
+maps to an action via the explicit `cloudActionByServiceMethod` table, that
+action is in the closed CAN_PERFORM catalog, and the call's containing entity is
+a `Function`. The batched `UNWIND` upsert `MATCH`es the caller `Function` by
+`uid` and creates the `CloudAction` target inline with
+`MERGE (action:CloudAction {id: row.action_id})`, so there is no
+cross-acceptance-unit `MATCH` dependency the way `HANDLES_ROUTE` waits on
+`Endpoint` materialization. The `CloudAction` label is `id`-keyed by the
+`cloud_action_id` constraint (and the `nornicdb_cloud_action_id_lookup` index on
+NornicDB), so the inline `MERGE` is an O(1) lookup rather than a label scan. The
+retract deletes only the `INVOKES_CLOUD_ACTION` edges whose source
+`Function.repo_id IN $repo_ids` and `rel.evidence_source = $evidence_source`,
+leaving the shared id-keyed `CloudAction` node in place.
+
+No-Regression Evidence: `go test ./internal/reducer ./internal/storage/cypher
+./internal/graph -count=1` plus the focused
+`go test ./internal/storage/cypher -run 'InvokesCloudAction' -count=1` and
+`go test ./internal/reducer -run 'InvokesCloudAction' -count=1` passes; the
+edge-writer and reducer tests fail before the new dispatch/producer exist.
+Cardinality is bounded at most one edge per `(Function, catalog-action)` that is
+provably invoked: the reducer deduplicates by `(function uid, action)` and the
+mapping table is closed to ~19 catalog actions, so a file with many SDK calls
+collapses to a small constant set of edges. The write adds one `UNWIND`
+statement that does one `Function` `uid` `MATCH`, one `id`-keyed `CloudAction`
+`MERGE`, and one relationship `MERGE` per row — all index-backed, no traversal or
+label scan — so the plan shape matches the existing `HANDLES_ROUTE`/`CALLS`
+batched edge writes.
+
+Observability Evidence: the edge write rides the existing per-statement
+`domain=invokes_cloud_action` shared-projection route summary and the shared
+edge-write duration/batch telemetry in `telemetry.go`, so a slow or oversized
+cloud-action batch is attributable to the domain at 3 AM without new metric
+names or labels. Provenance (`confidence`, `resolution_method`,
+`evidence_source`) is carried as edge properties, not as new instrumentation.
+
 ## Related docs
 
 - `docs/public/architecture.md` — pipeline and ownership table

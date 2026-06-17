@@ -33,6 +33,12 @@ const (
 	// Workloads commit at workload-materialization, so the edge rides the same
 	// ordering-safe shared-projection path and readiness gate as handles_route.
 	DomainRunsIn = "runs_in"
+	// DomainInvokesCloudAction projects Function-[:INVOKES_CLOUD_ACTION]->CloudAction
+	// edges from Go AWS SDK call sites whose (service, method) maps to an action
+	// in the closed CAN_PERFORM catalog (#2723). The Function is committed at
+	// canonical-nodes; the CloudAction node is created inline by the same MERGE,
+	// so unlike HANDLES_ROUTE there is no cross-acceptance-unit MATCH dependency.
+	DomainInvokesCloudAction = "invokes_cloud_action"
 )
 
 // SharedProjectionIntentRow is one durable shared-domain projection intent.
@@ -114,7 +120,11 @@ type SharedProjectionAcceptanceKey struct {
 
 func sharedProjectionReadinessPhase(domain string) (GraphProjectionPhase, bool) {
 	switch domain {
-	case DomainCodeCalls:
+	case DomainCodeCalls, DomainInvokesCloudAction:
+		// Functions commit at canonical-nodes. The CloudAction target is created
+		// inline by the same INVOKES_CLOUD_ACTION MERGE, so canonical-nodes is the
+		// only prerequisite phase: there is no cross-acceptance-unit dependency to
+		// wait on the way HANDLES_ROUTE waits on Endpoint materialization (#2723).
 		return GraphProjectionPhaseCanonicalNodesCommitted, true
 	case DomainSQLRelationships, DomainInheritanceEdges, DomainDocumentationEdges, DomainRationaleEdges:
 		return GraphProjectionPhaseSemanticNodesCommitted, true
