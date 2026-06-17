@@ -240,3 +240,31 @@ func contains(haystack []string, needle string) bool {
 	}
 	return false
 }
+
+// TestLowerReturnTerminatesBranch proves a definition in a branch that returns
+// does not reach code after the if (the returned branch terminates flow, so the
+// reaching-def graph does not gain a false edge).
+func TestLowerReturnTerminatesBranch(t *testing.T) {
+	t.Parallel()
+
+	src := `package main
+
+func handler(cond bool) {
+	x := input
+	if cond {
+		x = tainted
+		return
+	}
+	sink(x)
+}
+`
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+
+	if !contains(got, "x:4->9") {
+		t.Fatalf("sink(x) should see the pre-if x := input (line 4); got %v", got)
+	}
+	if contains(got, "x:6->9") {
+		t.Fatalf("x = tainted in the returned branch (line 6) leaked to sink(x) line 9: %v", got)
+	}
+}

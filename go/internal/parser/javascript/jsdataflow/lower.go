@@ -30,20 +30,27 @@ type lowerer struct {
 	source  []byte
 }
 
-// lowerStmtList lowers each statement in a block in source order.
-func (l *lowerer) lowerStmtList(blockNode *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID {
+// lowerStmtList lowers each statement in a block in source order. It returns the
+// block control reaches after the list and whether control falls through (false
+// once a statement terminates flow, for example a return, so later statements are
+// unreachable and not lowered).
+func (l *lowerer) lowerStmtList(blockNode *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
 	cursor := blockNode.Walk()
 	defer cursor.Close()
 	for _, child := range blockNode.NamedChildren(cursor) {
 		child := child
-		cur = l.lowerStmt(&child, cur)
+		next, reachable := l.lowerStmt(&child, cur)
+		cur = next
+		if !reachable {
+			return cur, false
+		}
 	}
-	return cur
+	return cur, true
 }
 
-// lowerStmt lowers a single statement and returns the block control reaches after
-// it.
-func (l *lowerer) lowerStmt(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID {
+// lowerStmt lowers a single statement, returning the block control reaches after
+// it and whether control falls through. A return or throw terminates flow.
+func (l *lowerer) lowerStmt(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
 	switch node.Kind() {
 	case "statement_block":
 		return l.lowerStmtList(node, cur)
@@ -59,20 +66,23 @@ func (l *lowerer) lowerStmt(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID
 		return l.lowerForIn(node, cur)
 	case "while_statement":
 		return l.lowerWhile(node, cur)
+	case "return_statement", "throw_statement":
+		l.addUses(cur, node)
+		return cur, false
 	case "lexical_declaration", "variable_declaration":
 		l.lowerDeclaration(node, cur)
-		return cur
+		return cur, true
 	case "expression_statement":
 		l.lowerExpressionStatement(node, cur)
-		return cur
+		return cur, true
 	case "assignment_expression", "augmented_assignment_expression", "update_expression":
 		// A bare assignment in statement position (for example a C-style for-loop
 		// initializer `for (i = 0; ...)`) must record its def, not just uses.
 		l.lowerInlineExpr(node, cur)
-		return cur
+		return cur, true
 	default:
 		l.addUses(cur, node)
-		return cur
+		return cur, true
 	}
 }
 
@@ -124,34 +134,44 @@ func (l *lowerer) lowerInlineExpr(expr *tree_sitter.Node, block cfg.BlockID) {
 }
 
 // lowerIf lowers an if/else.
-func (l *lowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID {
+func (l *lowerer) lowerIf(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
 	if cond := node.ChildByFieldName("condition"); cond != nil {
 		l.addUses(cur, cond)
 	}
 	merge := l.builder.AddBlock()
+	mergeReachable := false
 
 	thenBlk := l.builder.AddBlock()
 	l.builder.AddEdge(cur, thenBlk)
+	thenReach := true
 	if cons := node.ChildByFieldName("consequence"); cons != nil {
-		thenBlk = l.lowerStmt(cons, thenBlk)
+		thenBlk, thenReach = l.lowerStmt(cons, thenBlk)
 	}
-	l.builder.AddEdge(thenBlk, merge)
+	if thenReach {
+		l.builder.AddEdge(thenBlk, merge)
+		mergeReachable = true
+	}
 
 	if alt := node.ChildByFieldName("alternative"); alt != nil {
 		elseBlk := l.builder.AddBlock()
 		l.builder.AddEdge(cur, elseBlk)
-		elseBlk = l.lowerStmt(alt, elseBlk)
-		l.builder.AddEdge(elseBlk, merge)
+		elseBlk, elseReach := l.lowerStmt(alt, elseBlk)
+		if elseReach {
+			l.builder.AddEdge(elseBlk, merge)
+			mergeReachable = true
+		}
 	} else {
+		// No else: the condition-false path falls through to the merge.
 		l.builder.AddEdge(cur, merge)
+		mergeReachable = true
 	}
-	return merge
+	return merge, mergeReachable
 }
 
 // lowerFor lowers a C-style for loop with a back-edge from the body to the head.
-func (l *lowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID {
+func (l *lowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
 	if init := node.ChildByFieldName("initializer"); init != nil {
-		cur = l.lowerStmt(init, cur)
+		cur, _ = l.lowerStmt(init, cur)
 	}
 	header := l.builder.AddBlock()
 	l.builder.AddEdge(cur, header)
@@ -160,21 +180,24 @@ func (l *lowerer) lowerFor(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID 
 	}
 	body := l.builder.AddBlock()
 	l.builder.AddEdge(header, body)
+	bodyReach := true
 	if b := node.ChildByFieldName("body"); b != nil {
-		body = l.lowerStmt(b, body)
+		body, bodyReach = l.lowerStmt(b, body)
 	}
-	if inc := node.ChildByFieldName("increment"); inc != nil {
-		l.lowerInlineExpr(inc, body)
+	if bodyReach {
+		if inc := node.ChildByFieldName("increment"); inc != nil {
+			l.lowerInlineExpr(inc, body)
+		}
+		l.builder.AddEdge(body, header) // back-edge only when the body falls through
 	}
-	l.builder.AddEdge(body, header)
 	exit := l.builder.AddBlock()
 	l.builder.AddEdge(header, exit)
-	return exit
+	return exit, true
 }
 
 // lowerForIn lowers a for-in/for-of loop: the left binding is defined each
 // iteration from the right expression.
-func (l *lowerer) lowerForIn(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID {
+func (l *lowerer) lowerForIn(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
 	header := l.builder.AddBlock()
 	l.builder.AddEdge(cur, header)
 	var defs, uses []string
@@ -187,17 +210,20 @@ func (l *lowerer) lowerForIn(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockI
 	l.addStmt(header, nodeLine(node), defs, uses)
 	body := l.builder.AddBlock()
 	l.builder.AddEdge(header, body)
+	bodyReach := true
 	if b := node.ChildByFieldName("body"); b != nil {
-		body = l.lowerStmt(b, body)
+		body, bodyReach = l.lowerStmt(b, body)
 	}
-	l.builder.AddEdge(body, header)
+	if bodyReach {
+		l.builder.AddEdge(body, header) // back-edge only when the body falls through
+	}
 	exit := l.builder.AddBlock()
 	l.builder.AddEdge(header, exit)
-	return exit
+	return exit, true
 }
 
 // lowerWhile lowers a while loop with a back-edge.
-func (l *lowerer) lowerWhile(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockID {
+func (l *lowerer) lowerWhile(node *tree_sitter.Node, cur cfg.BlockID) (cfg.BlockID, bool) {
 	header := l.builder.AddBlock()
 	l.builder.AddEdge(cur, header)
 	if cond := node.ChildByFieldName("condition"); cond != nil {
@@ -205,13 +231,16 @@ func (l *lowerer) lowerWhile(node *tree_sitter.Node, cur cfg.BlockID) cfg.BlockI
 	}
 	body := l.builder.AddBlock()
 	l.builder.AddEdge(header, body)
+	bodyReach := true
 	if b := node.ChildByFieldName("body"); b != nil {
-		body = l.lowerStmt(b, body)
+		body, bodyReach = l.lowerStmt(b, body)
 	}
-	l.builder.AddEdge(body, header)
+	if bodyReach {
+		l.builder.AddEdge(body, header) // back-edge only when the body falls through
+	}
 	exit := l.builder.AddBlock()
 	l.builder.AddEdge(header, exit)
-	return exit
+	return exit, true
 }
 
 // addStmt records a statement on a block when it carries at least one binding.

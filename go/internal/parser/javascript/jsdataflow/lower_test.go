@@ -228,3 +228,26 @@ func TestLowerForLoopBackEdge(t *testing.T) {
 		}
 	}
 }
+
+// TestLowerReturnTerminatesBranch proves a definition in a branch that returns
+// does not reach code after the if (the returned branch terminates flow).
+func TestLowerReturnTerminatesBranch(t *testing.T) {
+	t.Parallel()
+
+	src := "function handler(cond) {\n" +
+		"\tlet x = input;\n" +
+		"\tif (cond) {\n" +
+		"\t\tx = tainted;\n" +
+		"\t\treturn;\n" +
+		"\t}\n" +
+		"\tsink(x);\n" +
+		"}"
+	fn := lowerFirstFunction(t, src)
+	got := defUseLines(fn)
+	if !contains(got, "x:2->7") {
+		t.Fatalf("sink(x) should see the pre-if let x = input (line 2); got %v", got)
+	}
+	if contains(got, "x:4->7") {
+		t.Fatalf("x = tainted in the returned branch (line 4) leaked to sink(x) line 7: %v", got)
+	}
+}
