@@ -297,7 +297,7 @@ func TestPythonMetaclassRowsCarryDeclaredResolutionMethod(t *testing.T) {
 		}},
 	}
 
-	_, _, _, metaclassRows := ExtractAllCodeRelationshipRows(envelopes)
+	_, _, _, metaclassRows, _ := ExtractAllCodeRelationshipRows(envelopes)
 	if len(metaclassRows) != 1 {
 		t.Fatalf("len(metaclassRows) = %d, want 1", len(metaclassRows))
 	}

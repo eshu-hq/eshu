@@ -164,6 +164,47 @@ Each code-call statement carries a bounded route summary with relationship,
 source label, target label, and row count so slow shared-edge logs can be tied
 back to the exact Cypher shape without exposing file paths or entity IDs.
 
+The `handles_route` shared-projection domain writes
+`Function-[:HANDLES_ROUTE]->Endpoint` edges from parser framework
+route-to-handler bindings (issue #2721 Stage 2). `batchCanonicalHandlesRouteUpsertCypher`
+matches the handler `Function` by `uid` and the `Endpoint` by `path` anchored
+through `(:Repository {id})-[:EXPOSES_ENDPOINT]->(:Endpoint)`, so the endpoint
+lookup stays bounded to the repository that owns the handler instead of a global
+`Endpoint` scan. Expected cardinality is roughly one edge per resolvable handler
+route per workload: a repository with N workloads exposes N `Endpoint` nodes for
+the same path, and the handler serves the path in each, so the bounded MATCH
+fans out to those N nodes and never beyond the repository. The anchor is the
+indexed `Repository.id`; the `EXPOSES_ENDPOINT` expansion is bounded to that one
+repository's endpoint set (tens, not thousands) and `path` is an in-set filter
+over that small bounded expansion, so no separate `Endpoint.path` index is
+required. This is the same Repository-anchored endpoint shape the read surface
+already uses in `repository_api_surface.go`. Confidence, reason,
+and `resolution_method` are row parameters derived from the reducer-stamped
+resolution method (ADR #2222), identical to the `CALLS` provenance contract:
+same-file handler bindings carry `same_file` (0.95) and repo-unique-name
+fallbacks carry `repo_unique_name` (0.50). Ambiguous handlers (name absent
+in-file and not repo-unique) emit no edge.
+
+No-Regression Evidence: `go test ./internal/storage/cypher ./internal/reducer
+-run 'HandlesRoute' -count=1` proves the new domain dispatches UNWIND-based
+MATCH-MATCH-MERGE Cypher with the bounded Repository-anchored Endpoint match,
+builds the flat row map, drops rows missing `repo_id`/`function_id`/`path`, and
+that the reducer resolves same-file and repo-unique handlers while leaving
+ambiguous and handler-less route entries with zero intents. The edge reuses the
+existing batched `UNWIND` writer and per-generation code-entity index, so it adds
+no new graph-write hot path beyond the bounded handler-route match described
+above.
+
+Observability Evidence: an operator sees the new edges through the existing
+shared-projection telemetry. The `handles_route` domain flows through the same
+`SharedProjectionRunner` cycle, `eshu_dp` shared-projection counters,
+`canonical.write` spans, and `shared projection cycle completed` logs (all
+carry a `domain` attribute that now includes `handles_route`), and the
+code-call materialization log line gains a `handles_route_row_count` field so
+the count of resolved handler bindings is visible per generation. Intents are
+inspectable in the shared-projection intent table under the `handles_route`
+projection domain.
+
 Terraform-state rows are written as `TerraformResource`, `TerraformModule`, and
 `TerraformOutput` nodes keyed by `uid`. The rows keep lineage, serial, provider
 binding, tag-key hashes, and hashed correlation anchors on the node without

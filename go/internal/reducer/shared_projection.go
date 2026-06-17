@@ -14,6 +14,7 @@ const (
 	DomainRepoDependency      = "repo_dependency"
 	DomainWorkloadDependency  = "workload_dependency"
 	DomainCodeCalls           = "code_calls"
+	DomainHandlesRoute        = "handles_route"
 	DomainSQLRelationships    = "sql_relationships"
 	DomainInheritanceEdges    = "inheritance_edges"
 	DomainDocumentationEdges  = "documentation_edges"
@@ -100,7 +101,7 @@ type SharedProjectionAcceptanceKey struct {
 
 func sharedProjectionReadinessPhase(domain string) (GraphProjectionPhase, bool) {
 	switch domain {
-	case DomainCodeCalls:
+	case DomainCodeCalls, DomainHandlesRoute:
 		return GraphProjectionPhaseCanonicalNodesCommitted, true
 	case DomainSQLRelationships, DomainInheritanceEdges, DomainDocumentationEdges, DomainRationaleEdges:
 		return GraphProjectionPhaseSemanticNodesCommitted, true

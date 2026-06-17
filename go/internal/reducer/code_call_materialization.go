@@ -114,7 +114,7 @@ func (h CodeCallMaterializationHandler) Handle(
 	symbolLoadDuration := time.Since(symbolLoadStart)
 
 	extractStart := time.Now()
-	_, codeCallRows, _, metaclassRows := ExtractAllCodeRelationshipRows(relationshipEnvelopes)
+	_, codeCallRows, _, metaclassRows, handlesRouteRows := ExtractAllCodeRelationshipRows(relationshipEnvelopes)
 	extractDuration := time.Since(extractStart)
 	createdAt := intent.EnqueuedAt
 	if createdAt.IsZero() {
@@ -145,27 +145,37 @@ func (h CodeCallMaterializationHandler) Handle(
 			fileScopesByRepoID,
 		)...,
 	)
+	intentRows = append(
+		intentRows,
+		buildHandlesRouteSharedIntentRows(
+			handlesRouteRows,
+			contextByRepoID,
+			createdAt,
+			handlesRouteEvidenceSource,
+		)...,
+	)
 	intentBuildDuration := time.Since(intentBuildStart)
 
 	if len(intentRows) == 0 {
 		logCodeCallMaterializationCompleted(ctx, codeCallMaterializationTiming{
-			intent:              intent,
-			factCount:           len(envelopes),
-			symbolKeyCount:      len(symbolKeys),
-			symbolFactCount:     len(symbolDefinitionEnvelopes),
-			repoCount:           len(contextByRepoID),
-			codeCallRowCount:    len(codeCallRows),
-			metaclassRowCount:   len(metaclassRows),
-			intentRowCount:      0,
-			fileScopedRepoCount: len(fileScopesByRepoID),
-			fullRefreshScoped:   fileScopeResult.fullRefreshScopedRepos,
-			fullRefreshFallback: fileScopeResult.fullRefreshFallbackRepos,
-			loadDuration:        loadDuration,
-			contextDuration:     contextDuration,
-			symbolLoadDuration:  symbolLoadDuration,
-			extractDuration:     extractDuration,
-			intentBuildDuration: intentBuildDuration,
-			totalDuration:       time.Since(totalStart),
+			intent:               intent,
+			factCount:            len(envelopes),
+			symbolKeyCount:       len(symbolKeys),
+			symbolFactCount:      len(symbolDefinitionEnvelopes),
+			repoCount:            len(contextByRepoID),
+			codeCallRowCount:     len(codeCallRows),
+			metaclassRowCount:    len(metaclassRows),
+			handlesRouteRowCount: len(handlesRouteRows),
+			intentRowCount:       0,
+			fileScopedRepoCount:  len(fileScopesByRepoID),
+			fullRefreshScoped:    fileScopeResult.fullRefreshScopedRepos,
+			fullRefreshFallback:  fileScopeResult.fullRefreshFallbackRepos,
+			loadDuration:         loadDuration,
+			contextDuration:      contextDuration,
+			symbolLoadDuration:   symbolLoadDuration,
+			extractDuration:      extractDuration,
+			intentBuildDuration:  intentBuildDuration,
+			totalDuration:        time.Since(totalStart),
 		})
 		return Result{
 			IntentID:        intent.IntentID,
@@ -182,24 +192,25 @@ func (h CodeCallMaterializationHandler) Handle(
 	upsertDuration := time.Since(upsertStart)
 
 	logCodeCallMaterializationCompleted(ctx, codeCallMaterializationTiming{
-		intent:              intent,
-		factCount:           len(envelopes),
-		symbolKeyCount:      len(symbolKeys),
-		symbolFactCount:     len(symbolDefinitionEnvelopes),
-		repoCount:           len(contextByRepoID),
-		codeCallRowCount:    len(codeCallRows),
-		metaclassRowCount:   len(metaclassRows),
-		intentRowCount:      len(intentRows),
-		fileScopedRepoCount: len(fileScopesByRepoID),
-		fullRefreshScoped:   fileScopeResult.fullRefreshScopedRepos,
-		fullRefreshFallback: fileScopeResult.fullRefreshFallbackRepos,
-		loadDuration:        loadDuration,
-		contextDuration:     contextDuration,
-		symbolLoadDuration:  symbolLoadDuration,
-		extractDuration:     extractDuration,
-		intentBuildDuration: intentBuildDuration,
-		upsertDuration:      upsertDuration,
-		totalDuration:       time.Since(totalStart),
+		intent:               intent,
+		factCount:            len(envelopes),
+		symbolKeyCount:       len(symbolKeys),
+		symbolFactCount:      len(symbolDefinitionEnvelopes),
+		repoCount:            len(contextByRepoID),
+		codeCallRowCount:     len(codeCallRows),
+		metaclassRowCount:    len(metaclassRows),
+		handlesRouteRowCount: len(handlesRouteRows),
+		intentRowCount:       len(intentRows),
+		fileScopedRepoCount:  len(fileScopesByRepoID),
+		fullRefreshScoped:    fileScopeResult.fullRefreshScopedRepos,
+		fullRefreshFallback:  fileScopeResult.fullRefreshFallbackRepos,
+		loadDuration:         loadDuration,
+		contextDuration:      contextDuration,
+		symbolLoadDuration:   symbolLoadDuration,
+		extractDuration:      extractDuration,
+		intentBuildDuration:  intentBuildDuration,
+		upsertDuration:       upsertDuration,
+		totalDuration:        time.Since(totalStart),
 	})
 
 	return Result{
@@ -236,24 +247,25 @@ func loadActiveCodeCallSymbolDefinitionFacts(
 }
 
 type codeCallMaterializationTiming struct {
-	intent              Intent
-	factCount           int
-	symbolKeyCount      int
-	symbolFactCount     int
-	repoCount           int
-	codeCallRowCount    int
-	metaclassRowCount   int
-	intentRowCount      int
-	fileScopedRepoCount int
-	fullRefreshScoped   int
-	fullRefreshFallback int
-	loadDuration        time.Duration
-	contextDuration     time.Duration
-	symbolLoadDuration  time.Duration
-	extractDuration     time.Duration
-	intentBuildDuration time.Duration
-	upsertDuration      time.Duration
-	totalDuration       time.Duration
+	intent               Intent
+	factCount            int
+	symbolKeyCount       int
+	symbolFactCount      int
+	repoCount            int
+	codeCallRowCount     int
+	metaclassRowCount    int
+	handlesRouteRowCount int
+	intentRowCount       int
+	fileScopedRepoCount  int
+	fullRefreshScoped    int
+	fullRefreshFallback  int
+	loadDuration         time.Duration
+	contextDuration      time.Duration
+	symbolLoadDuration   time.Duration
+	extractDuration      time.Duration
+	intentBuildDuration  time.Duration
+	upsertDuration       time.Duration
+	totalDuration        time.Duration
 }
 
 func logCodeCallMaterializationCompleted(ctx context.Context, timing codeCallMaterializationTiming) {
@@ -267,6 +279,7 @@ func logCodeCallMaterializationCompleted(ctx context.Context, timing codeCallMat
 		slog.Int("repo_count", timing.repoCount),
 		slog.Int("code_call_row_count", timing.codeCallRowCount),
 		slog.Int("metaclass_row_count", timing.metaclassRowCount),
+		slog.Int("handles_route_row_count", timing.handlesRouteRowCount),
 		slog.Int("intent_row_count", timing.intentRowCount),
 		slog.Int("file_scoped_repo_count", timing.fileScopedRepoCount),
 		slog.Int("full_refresh_file_scoped_repo_count", timing.fullRefreshScoped),
@@ -281,23 +294,26 @@ func logCodeCallMaterializationCompleted(ctx context.Context, timing codeCallMat
 	)
 }
 
-// ExtractAllCodeRelationshipRows builds both code-call and metaclass edge rows
-// from a single entity index pass. This eliminates the duplicate
-// buildCodeEntityIndex call that occurs when ExtractCodeCallRows and
-// ExtractPythonMetaclassRows are called separately.
+// ExtractAllCodeRelationshipRows builds code-call, metaclass, and
+// framework-route handler edge rows from a single entity index pass. This
+// eliminates the duplicate buildCodeEntityIndex call that occurs when
+// ExtractCodeCallRows and ExtractPythonMetaclassRows are called separately. The
+// handlesRouteRows share the same per-generation index so a route handler
+// resolves to the identical Function uid a CALLS edge would.
 func ExtractAllCodeRelationshipRows(envelopes []facts.Envelope) (
 	codeCallRepoIDs []string,
 	codeCallRows []map[string]any,
 	metaclassRepoIDs []string,
 	metaclassRows []map[string]any,
+	handlesRouteRows []map[string]any,
 ) {
 	if len(envelopes) == 0 {
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, nil
 	}
 
 	repositoryIDs := collectCodeCallRepositoryIDs(envelopes)
 	if len(repositoryIDs) == 0 {
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, nil
 	}
 
 	entityIndex := buildCodeEntityIndex(envelopes)
@@ -306,7 +322,8 @@ func ExtractAllCodeRelationshipRows(envelopes []facts.Envelope) (
 
 	ccRepoIDs, ccRows := extractCodeCallRowsWithIndex(envelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
 	mcRepoIDs, mcRows := extractPythonMetaclassRowsWithIndex(envelopes, repositoryIDs, entityIndex, repositoryImports)
-	return ccRepoIDs, ccRows, mcRepoIDs, mcRows
+	hrRows := extractHandlesRouteRows(envelopes, entityIndex)
+	return ccRepoIDs, ccRows, mcRepoIDs, mcRows, hrRows
 }
 
 // ExtractCodeCallRows builds canonical caller/callee edge rows from repository
