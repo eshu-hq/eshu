@@ -56,3 +56,27 @@ func TestUnsupportedMode(t *testing.T) {
 		t.Fatal("run() error = nil, want unsupported mode error")
 	}
 }
+
+// repoDocsDir resolves the repository docs/public directory from this test file.
+func repoDocsDir(t *testing.T) string {
+	t.Helper()
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	return filepath.Clean(filepath.Join(filepath.Dir(filename), "..", "..", "..", "docs", "public"))
+}
+
+// TestDocsFreshnessAgainstRealDocs is the docs freshness drift gate: every
+// capability-state marker in docs must agree with the catalog.
+func TestDocsFreshnessAgainstRealDocs(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	err := run([]string{"-mode", "docs", "-specs", repoSpecsDir(t), "-docs", repoDocsDir(t)}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("docs freshness failed: %v\nstdout:\n%s", err, stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "no freshness findings") {
+		t.Fatalf("docs freshness output unexpected:\n%s", stdout.String())
+	}
+}

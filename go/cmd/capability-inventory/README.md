@@ -18,15 +18,19 @@ go run ./cmd/capability-inventory -mode generate
 
 # Drift gate: fail when findings exist or the embedded artifact is stale.
 go run ./cmd/capability-inventory -mode verify
+
+# Docs freshness guard: fail when a capability-state marker contradicts the catalog.
+go run ./cmd/capability-inventory -mode docs
 ```
 
 ## Flags
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
-| `-mode` | `report` | `report`, `generate`, or `verify` |
+| `-mode` | `report` | `report`, `generate`, `verify`, or `docs` |
 | `-specs` | `../specs` | path to the specs directory |
 | `-out` | `internal/capabilitycatalog/data/catalog.generated.json` | artifact output path (generate mode) |
+| `-docs` | `../docs/public` | path to the docs directory (docs mode) |
 
 ## Invariants
 

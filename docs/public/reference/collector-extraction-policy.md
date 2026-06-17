@@ -114,12 +114,18 @@ eshu component extraction-readiness jira --verbose --json
 
 ## PagerDuty Reference Path
 
+<!-- capability-state: id=component_extensions.diagnostics state=ga issue=2700 -->
+<!-- capability-state: id=component_extensions.inventory state=ga issue=2700 -->
+
 PagerDuty is the first extraction proof target for this policy. The reference
 proof for the out-of-tree boundary is complete: a PagerDuty reference collector
 runs as a trusted out-of-tree component package, claims work through the hosted
 component-extension worker with no core handles, and its facts reach the reducer
-and the API/MCP read model with parity to the in-tree path. The following stages
-are done and are guarded by tracked tests, scripts, and proof artifacts.
+and the API/MCP read model with parity to the in-tree path. The hosted
+component-extension surfaces it exercises — `list_component_extensions` and
+`get_component_extension_diagnostics` — are generally available in the
+[capability catalog](capability-catalog.md). The following stages are done and
+are guarded by tracked tests, scripts, and proof artifacts.
 
 | Stage | Required evidence | State | Proof |
 | --- | --- | --- | --- |

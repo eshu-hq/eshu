@@ -63,6 +63,32 @@ match and no non-MCP-surface declaration), and stale overlay entries. Intentiona
 gaps are recorded in the overlay with a reason so the gate stays green and the
 gap stays auditable.
 
+## Docs freshness guard
+
+Docs pages that assert capability state must bind the claim to a stable
+capability id with a machine-checkable marker. The marker is an HTML comment, so
+it is invisible in rendered MkDocs output:
+
+```markdown
+<!-- capability-state: id=component_extensions.diagnostics state=ga issue=2700 -->
+```
+
+`state` accepts any catalog maturity (`general_availability` or its `ga` alias,
+`experimental`, `preview`, `gated`, `degraded`, `not_implemented`). The guard
+flags any marker that names an unknown capability, uses an invalid state, or
+contradicts the catalog maturity, naming the doc, line, capability, claimed
+state, and expected state.
+
+```bash
+cd go
+go run ./cmd/capability-inventory -mode docs        # fails on contradictions
+```
+
+`TestDocsFreshnessAgainstRealDocs` (in `cmd/capability-inventory`) runs this as a
+CI gate. The contract is marker-based on purpose: prose is not machine-parsed, so
+add a marker beside any capability-state claim you want guarded, and keep the
+surrounding prose consistent with it.
+
 ## Workflow
 
 ```bash
