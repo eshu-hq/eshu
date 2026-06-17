@@ -388,6 +388,19 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
   duplicates one-at-a-time). Keep both sides in lockstep when changing
   the truncation policy.
 
+## Evidence Notes
+
+No-Regression Evidence: admission-decision evidence bounds are covered by
+`go test ./internal/query -run 'TestAdmissionDecision|TestOpenAPISpecIncludesAdmissionDecisions' -count=1`
+and `go test ./internal/storage/postgres -run 'TestAdmissionDecisionStore|TestAdmissionDecisionSchema|TestAdmissionDecisionStates' -count=1`.
+The route rejects unsupported lightweight profiles before store reads and caps
+embedded evidence at 20 rows per decision with truncation metadata.
+
+No-Observability-Change: the admission-decision evidence cap adds no route,
+worker, queue, graph write, metric, span, runtime default, or high-cardinality
+label. Existing HTTP route attribution, truth envelopes, and Postgres query
+spans/`eshu_dp_postgres_query_duration_seconds` diagnose the read.
+
 ## What NOT to change without an ADR
 
 - `fact_work_items` table schema (columns, indexes, conflict keys) — the projector

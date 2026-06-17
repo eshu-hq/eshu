@@ -80,6 +80,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedPackageRegistryCorrelationRoute(r) {
 		return true
 	}
+	if scopedAdmissionDecisionRoute(r) {
+		return true
+	}
 	if scopedCICDRunCorrelationRoute(r) {
 		return true
 	}
@@ -355,6 +358,15 @@ func scopedServiceCatalogCorrelationRoute(r *http.Request) bool {
 
 func scopedPackageRegistryCorrelationRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/package-registry/correlations"
+}
+
+// scopedAdmissionDecisionRoute reports whether the request targets the
+// reducer-owned correlation admission decision read route. The handler requires
+// domain, scope_id, and generation_id before reading and intersects scoped-token
+// grants with scope_id plus repository anchors, so empty or out-of-grant scoped
+// tokens get a bounded empty page without a store read.
+func scopedAdmissionDecisionRoute(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/evidence/admission-decisions"
 }
 
 // scopedContainerImageIdentityRoute reports whether the request targets one of

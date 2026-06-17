@@ -35,6 +35,29 @@ control-plane assertion.
 Use this route when a client needs to explain why an edge exists without
 embedding full evidence payloads in every graph response.
 
+## Admission Decisions
+
+`GET /api/v0/evidence/admission-decisions`
+
+Lists reducer-owned admission decisions for correlation domains. The required
+`domain`, `scope_id`, and `generation_id` filters keep every read bounded to one
+source generation. Optional `state`, `anchor_kind`, and `anchor_id` filters
+narrow the page to decisions for a service, repository, workload, cloud
+resource, package, incident, or another domain-owned anchor.
+
+Admission decisions are not canonical graph edges. They explain why a candidate
+was admitted, rejected, ambiguous, stale, missing evidence, permission hidden,
+unsupported, or unsafe. A candidate becomes graph truth only when the reducer's
+canonical-write block says it was eligible and written. Non-admitted rows stay
+visible with redaction-safe source handles and recommended next calls so
+operators can inspect missing or conflicting evidence without fabricating
+progress.
+
+Scoped tokens may read only decisions attributable to granted scopes or
+repository anchors. Empty or out-of-grant scoped requests return a bounded empty
+page without reading the store, so callers do not learn whether another tenant's
+decision exists.
+
 ## Citation Packets
 
 `POST /api/v0/evidence/citations`

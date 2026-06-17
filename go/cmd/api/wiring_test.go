@@ -185,6 +185,12 @@ func TestNewRouterMountsPostgresBackedHandlers(t *testing.T) {
 	if router.SupplyChain.SecurityAlerts == nil {
 		t.Fatal("newRouter().SupplyChain.SecurityAlerts = nil, want Postgres security alert reconciliation store")
 	}
+	if router.Evidence == nil {
+		t.Fatal("newRouter().Evidence = nil, want evidence routes mounted")
+	}
+	if router.Evidence.AdmissionDecisions == nil {
+		t.Fatal("newRouter().Evidence.AdmissionDecisions = nil, want Postgres admission decision read model store")
+	}
 	if router.ServiceCatalog == nil {
 		t.Fatal("newRouter().ServiceCatalog = nil, want service catalog route mounted")
 	}
