@@ -246,6 +246,48 @@ func TestAuditFlagsNonAdmittedDecisionMissingExplanation(t *testing.T) {
 	})
 }
 
+func TestAuditReportsReadbackTruthDisagreement(t *testing.T) {
+	t.Parallel()
+
+	// Both public surfaces returning the same wrong state must still fail: they
+	// agree with each other but disagree with the audited reducer decision.
+	suite := fixtureSuite()
+	observed := passingObservation()
+	observed.APIReadback[0].State = StateRejected
+	observed.MCPReadback[0].State = StateRejected
+
+	report := Audit(suite, observed)
+	if len(report.ReadbackDisagreements) != 0 {
+		t.Fatalf("expected no api-vs-mcp disagreement, got %v", report.ReadbackDisagreements)
+	}
+	assertAuditKeys(t, "readback truth disagreements", report.ReadbackTruthDisagreements, []string{
+		"admission:deployable-service-admitted|api_state",
+		"admission:deployable-service-admitted|mcp_state",
+	})
+	if report.Pass() {
+		t.Fatal("Audit() passed while both readbacks disagreed with reducer truth")
+	}
+}
+
+func TestAuditReportsMissingCanonicalWriteForAdmittedDecision(t *testing.T) {
+	t.Parallel()
+
+	// An admitted decision whose reducer payload did not record the canonical
+	// write must fail even when a graph fact is present, because that is the
+	// reducer-vs-graph disagreement the suite must catch.
+	suite := fixtureSuite()
+	observed := passingObservation()
+	observed.Decisions[0].CanonicalWrite.Written = false
+
+	report := Audit(suite, observed)
+	assertAuditKeys(t, "missing canonical writes", report.MissingCanonicalWrites, []string{
+		"deployable-service-admitted|admission:deployable-service-admitted",
+	})
+	if report.Pass() {
+		t.Fatal("Audit() passed for an admitted decision with no canonical write")
+	}
+}
+
 func fixtureSuite() Suite {
 	return Suite{
 		SchemaVersion: 1,

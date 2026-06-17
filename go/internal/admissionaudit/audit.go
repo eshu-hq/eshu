@@ -93,6 +93,17 @@ func (r *Report) auditDecision(
 		})
 	}
 	if intent.ExpectedState == StateAdmitted {
+		// An admitted decision must itself record the canonical write. Trusting
+		// only the graph snapshot would let a reducer that left
+		// CanonicalWrite.Written=false pass whenever a stale or externally
+		// supplied graph fact happens to be present, hiding the exact
+		// reducer-vs-graph disagreement this suite must catch.
+		if !decision.CanonicalWrite.Written {
+			r.MissingCanonicalWrites = append(r.MissingCanonicalWrites, DecisionFinding{
+				CaseID:     intent.CaseID,
+				DecisionID: decision.ID,
+			})
+		}
 		for _, fact := range intent.ExpectedGraphFacts {
 			if _, ok := graphFacts[fact.Key()]; !ok {
 				r.MissingGraphFacts = append(r.MissingGraphFacts, fact)
@@ -118,6 +129,22 @@ func (r *Report) auditDecision(
 		r.MissingMCPReadback = append(r.MissingMCPReadback, DecisionFinding{
 			CaseID:     intent.CaseID,
 			DecisionID: decision.ID,
+		})
+	}
+	// Each public surface must also agree with the audited reducer decision, not
+	// only with the other surface. Without this, API and MCP returning the same
+	// wrong state (for example both `rejected` for an `admitted` decision) would
+	// agree with each other and slip past compareReadback.
+	if apiOK && api.State != decision.State {
+		r.ReadbackTruthDisagreements = append(r.ReadbackTruthDisagreements, ReadbackFinding{
+			DecisionID: decision.ID,
+			Field:      "api_state",
+		})
+	}
+	if mcpOK && mcp.State != decision.State {
+		r.ReadbackTruthDisagreements = append(r.ReadbackTruthDisagreements, ReadbackFinding{
+			DecisionID: decision.ID,
+			Field:      "mcp_state",
 		})
 	}
 	if apiOK && mcpOK {
@@ -313,6 +340,7 @@ func sortReport(report *Report) {
 	sortDecisionFindings(report.StateDisagreements)
 	sortDecisionFindings(report.MissingExplanations)
 	sortGraphFacts(report.MissingGraphFacts)
+	sortDecisionFindings(report.MissingCanonicalWrites)
 	sortGraphFacts(report.UnexpectedGraphFacts)
 	sortCanonicalFindings(report.UnexpectedCanonicalWrites)
 	sortDuplicates(report.DuplicateDecisions)
@@ -321,6 +349,7 @@ func sortReport(report *Report) {
 	sortDecisionFindings(report.MissingAPIReadback)
 	sortDecisionFindings(report.MissingMCPReadback)
 	sortReadbackFindings(report.ReadbackDisagreements)
+	sortReadbackFindings(report.ReadbackTruthDisagreements)
 }
 
 func sortCaseFindings(findings []CaseFinding) {

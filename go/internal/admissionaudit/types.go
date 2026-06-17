@@ -139,18 +139,20 @@ type ReadbackDecision struct {
 // Report records deterministic audit failures across reducer, graph, API, and
 // MCP truth.
 type Report struct {
-	MissingDecisions          []CaseFinding      `json:"missing_decisions,omitempty"`
-	StateDisagreements        []DecisionFinding  `json:"state_disagreements,omitempty"`
-	MissingExplanations       []DecisionFinding  `json:"missing_explanations,omitempty"`
-	MissingGraphFacts         []GraphFact        `json:"missing_graph_facts,omitempty"`
-	UnexpectedGraphFacts      []GraphFact        `json:"unexpected_graph_facts,omitempty"`
-	UnexpectedCanonicalWrites []CanonicalFinding `json:"unexpected_canonical_writes,omitempty"`
-	DuplicateDecisions        []DuplicateFinding `json:"duplicate_decisions,omitempty"`
-	LogicalDuplicateDecisions []DecisionFinding  `json:"logical_duplicate_decisions,omitempty"`
-	StaleReplayAdmissions     []DecisionFinding  `json:"stale_replay_admissions,omitempty"`
-	MissingAPIReadback        []DecisionFinding  `json:"missing_api_readback,omitempty"`
-	MissingMCPReadback        []DecisionFinding  `json:"missing_mcp_readback,omitempty"`
-	ReadbackDisagreements     []ReadbackFinding  `json:"readback_disagreements,omitempty"`
+	MissingDecisions           []CaseFinding      `json:"missing_decisions,omitempty"`
+	StateDisagreements         []DecisionFinding  `json:"state_disagreements,omitempty"`
+	MissingExplanations        []DecisionFinding  `json:"missing_explanations,omitempty"`
+	MissingGraphFacts          []GraphFact        `json:"missing_graph_facts,omitempty"`
+	MissingCanonicalWrites     []DecisionFinding  `json:"missing_canonical_writes,omitempty"`
+	UnexpectedGraphFacts       []GraphFact        `json:"unexpected_graph_facts,omitempty"`
+	UnexpectedCanonicalWrites  []CanonicalFinding `json:"unexpected_canonical_writes,omitempty"`
+	DuplicateDecisions         []DuplicateFinding `json:"duplicate_decisions,omitempty"`
+	LogicalDuplicateDecisions  []DecisionFinding  `json:"logical_duplicate_decisions,omitempty"`
+	StaleReplayAdmissions      []DecisionFinding  `json:"stale_replay_admissions,omitempty"`
+	MissingAPIReadback         []DecisionFinding  `json:"missing_api_readback,omitempty"`
+	MissingMCPReadback         []DecisionFinding  `json:"missing_mcp_readback,omitempty"`
+	ReadbackDisagreements      []ReadbackFinding  `json:"readback_disagreements,omitempty"`
+	ReadbackTruthDisagreements []ReadbackFinding  `json:"readback_truth_disagreements,omitempty"`
 }
 
 // CaseFinding identifies a fixture case-level failure.
@@ -214,6 +216,7 @@ func (r Report) Pass() bool {
 		len(r.StateDisagreements) == 0 &&
 		len(r.MissingExplanations) == 0 &&
 		len(r.MissingGraphFacts) == 0 &&
+		len(r.MissingCanonicalWrites) == 0 &&
 		len(r.UnexpectedGraphFacts) == 0 &&
 		len(r.UnexpectedCanonicalWrites) == 0 &&
 		len(r.DuplicateDecisions) == 0 &&
@@ -221,7 +224,8 @@ func (r Report) Pass() bool {
 		len(r.StaleReplayAdmissions) == 0 &&
 		len(r.MissingAPIReadback) == 0 &&
 		len(r.MissingMCPReadback) == 0 &&
-		len(r.ReadbackDisagreements) == 0
+		len(r.ReadbackDisagreements) == 0 &&
+		len(r.ReadbackTruthDisagreements) == 0
 }
 
 // Summary returns a stable one-line count summary for test failures.
@@ -231,6 +235,7 @@ func (r Report) Summary() string {
 		fmt.Sprintf("state_disagreements=%d", len(r.StateDisagreements)),
 		fmt.Sprintf("missing_explanations=%d", len(r.MissingExplanations)),
 		fmt.Sprintf("missing_graph_facts=%d", len(r.MissingGraphFacts)),
+		fmt.Sprintf("missing_canonical_writes=%d", len(r.MissingCanonicalWrites)),
 		fmt.Sprintf("unexpected_graph_facts=%d", len(r.UnexpectedGraphFacts)),
 		fmt.Sprintf("unexpected_canonical_writes=%d", len(r.UnexpectedCanonicalWrites)),
 		fmt.Sprintf("duplicate_decisions=%d", len(r.DuplicateDecisions)),
@@ -239,5 +244,6 @@ func (r Report) Summary() string {
 		fmt.Sprintf("missing_api_readback=%d", len(r.MissingAPIReadback)),
 		fmt.Sprintf("missing_mcp_readback=%d", len(r.MissingMCPReadback)),
 		fmt.Sprintf("readback_disagreements=%d", len(r.ReadbackDisagreements)),
+		fmt.Sprintf("readback_truth_disagreements=%d", len(r.ReadbackTruthDisagreements)),
 	}, " ")
 }

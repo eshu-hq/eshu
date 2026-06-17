@@ -38,6 +38,11 @@
 - Logical duplicate decisions mean the reducer emitted more than one decision
   row for the same case/domain/scope/generation identity, which hides an upsert
   or idempotency-key bug.
+- Missing canonical writes mean an admitted decision did not record its own
+  canonical write, so a stale or external graph fact could mask a reducer bug.
+- Readback truth disagreements mean an API or MCP surface returned a state that
+  disagrees with the reducer decision even if the two surfaces agree with each
+  other.
 
 ## What not to change without design review
 

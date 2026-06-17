@@ -51,9 +51,18 @@ evidence count, and no explanation text is an explainability failure even when
 it is rejected or ambiguous, because an operator must be able to ask why the
 candidate did not become canonical truth.
 
-Admitted decisions must carry explanation evidence and matching graph/readback
-truth. Duplicate decision IDs and stale admitted decisions are failures because
-they hide replay or upsert bugs. Two decisions that share the same logical
+Admitted decisions must carry explanation evidence, record their own canonical
+write (`canonical_write.written`), and match graph/readback truth. Relying on the
+graph snapshot alone is not enough: a `missing_canonical_writes` failure catches
+an admitted reducer decision that never recorded the write even when a stale or
+externally supplied graph fact is present.
+
+Each public surface must agree with the audited reducer decision, not only with
+the other surface. API and MCP returning the same wrong state agree with each
+other but are a `readback_truth_disagreements` failure against reducer truth.
+
+Duplicate decision IDs and stale admitted decisions are failures because they
+hide replay or upsert bugs. Two decisions that share the same logical
 identity (case, domain, scope, generation) but carry different row IDs are a
 `logical_duplicate_decisions` failure; the audit selects the lowest row ID so
 its output stays deterministic regardless of input order.
