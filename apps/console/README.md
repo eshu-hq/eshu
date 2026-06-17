@@ -149,6 +149,13 @@ graph. It is purely source-backed:
   node/edge counts so a bounded subset is never read as the full picture.
 - Empty, unsupported, partial, and error states are first-class UI. The page
   never renders a stale graph when the story or derive route fails.
+- Selecting a node or edge opens an **evidence drawer** (`EvidenceDrawer`) that
+  shows the truth label, packet truth basis/level/freshness, the source evidence
+  handle (with a link into repository source when present), limitations, and
+  recommended next calls. Missing optional fields render an explicit
+  "not provided" state and unknown truth labels render literally, so the drawer
+  never hides uncertainty or collapses on partial data. It is keyboard-closable
+  (Escape) and focuses its close control on open.
 
 See `docs/public/reference/visualization-packets.md` for the packet contract.
 

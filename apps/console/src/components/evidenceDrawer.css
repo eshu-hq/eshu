@@ -1,0 +1,72 @@
+.evidence-drawer .drawer-body {
+  gap: 16px;
+}
+
+.evd-section {
+  display: grid;
+  gap: 8px;
+}
+
+.evd-section h4 {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted, #9aa4af);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.evd-truth-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.evd-meta {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.evd-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 10px;
+  font-size: 13px;
+  align-items: baseline;
+}
+
+.evd-row dt {
+  color: var(--muted, #9aa4af);
+}
+
+.evd-row dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.evd-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.evd-reason {
+  margin-left: 8px;
+  color: var(--muted, #9aa4af);
+}
+
+.evd-muted {
+  margin: 0;
+  color: var(--muted, #9aa4af);
+  font-size: 13px;
+}
+
+/* Keep label/value rows from overlapping on narrow drawers. */
+@media (max-width: 480px) {
+  .evd-row {
+    grid-template-columns: 92px 1fr;
+  }
+}
