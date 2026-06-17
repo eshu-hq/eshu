@@ -33,7 +33,12 @@ func FromServiceStory(dossier map[string]any, truth *query.TruthEnvelope) Report
 
 	entrypoints := sliceLen(dossier, "entrypoints")
 	networkPaths := sliceLen(dossier, "network_paths")
-	codeToRuntime := entrypoints > 0 || networkPaths > 0
+	// The service-story builder always emits api_surface, and the code-to-runtime
+	// trace's entrypoints segment is populated from api_surface.endpoints, so an
+	// API-spec-only service still has real code-to-runtime evidence even with no
+	// raw entrypoints or network paths.
+	apiEndpoints := apiSurfaceEndpointCount(dossier)
+	codeToRuntime := entrypoints > 0 || networkPaths > 0 || apiEndpoints > 0
 	lanes := sliceLen(dossier, "deployment_lanes")
 
 	input := ReportInput{Subject: subject}
@@ -49,7 +54,7 @@ func FromServiceStory(dossier map[string]any, truth *query.TruthEnvelope) Report
 		},
 		{
 			Kind:       SectionCodeToRuntime,
-			Summary:    codeToRuntimeSummary(subject, entrypoints, networkPaths),
+			Summary:    codeToRuntimeSummary(subject, entrypoints, networkPaths, apiEndpoints),
 			Truth:      truth,
 			Evidence:   handlesIf(hasHandle && codeToRuntime, serviceHandle),
 			Truncated:  truncated,
@@ -101,22 +106,37 @@ func supplyChainSummary(subject ReportSubject, count int) string {
 }
 
 // serviceEntityHandle builds the evidence handle that addresses the service node
-// itself. It is the canonical, resolvable pointer behind a service-story claim
-// (the graph node is the evidence). It returns ok=false when no identifier is
-// available, so the adapter never emits an empty handle.
+// itself: the canonical, resolvable pointer behind a service-story claim (the
+// graph node is the evidence). It emits an `entity` handle keyed by the service
+// id, the only service-level kind the evidence-citation normalizer accepts, so a
+// caller can follow the report's handles into build_evidence_citation_packet
+// without a bad-request. It returns ok=false when there is no service id, so the
+// adapter never emits a handle the citation surface would reject.
 func serviceEntityHandle(subject ReportSubject) (query.EvidenceCitationHandle, bool) {
 	entityID := strings.TrimSpace(subject.ServiceID)
-	repoID := strings.TrimSpace(subject.RepoID)
-	if entityID == "" && repoID == "" {
+	if entityID == "" {
 		return query.EvidenceCitationHandle{}, false
 	}
 	return query.EvidenceCitationHandle{
-		Kind:           "service",
+		Kind:           "entity",
 		EntityID:       entityID,
-		RepoID:         repoID,
 		EvidenceFamily: "service_story",
 		Reason:         "service identity resolved from the service story dossier",
 	}, true
+}
+
+// apiSurfaceEndpointCount returns the number of API-surface endpoints the
+// dossier carries, preferring the builder's endpoint_count and falling back to
+// the endpoints slice length. It reads only confirmed api_surface fields.
+func apiSurfaceEndpointCount(dossier map[string]any) int {
+	apiSurface := subMap(dossier, "api_surface")
+	if apiSurface == nil {
+		return 0
+	}
+	if count := query.IntVal(apiSurface, "endpoint_count"); count > 0 {
+		return count
+	}
+	return sliceLen(apiSurface, "endpoints")
 }
 
 func identitySummary(subject ReportSubject, kind string) string {
@@ -127,12 +147,12 @@ func identitySummary(subject ReportSubject, kind string) string {
 	return fmt.Sprintf("Service %s.", name)
 }
 
-func codeToRuntimeSummary(subject ReportSubject, entrypoints, networkPaths int) string {
-	if entrypoints == 0 && networkPaths == 0 {
+func codeToRuntimeSummary(subject ReportSubject, entrypoints, networkPaths, apiEndpoints int) string {
+	if entrypoints == 0 && networkPaths == 0 && apiEndpoints == 0 {
 		return ""
 	}
-	return fmt.Sprintf("Service %s exposes %d entrypoint(s) over %d evidence-backed network path(s).",
-		subjectName(subject), entrypoints, networkPaths)
+	return fmt.Sprintf("Service %s exposes %d entrypoint(s) and %d API endpoint(s) over %d evidence-backed network path(s).",
+		subjectName(subject), entrypoints, apiEndpoints, networkPaths)
 }
 
 func deploymentSummary(subject ReportSubject, lanes int) string {

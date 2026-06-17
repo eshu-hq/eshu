@@ -153,6 +153,45 @@ func TestFromSupplyChainInventoryComposesIntoReport(t *testing.T) {
 	}
 }
 
+func TestFromServiceStoryCountsAPISurfaceForCodeToRuntime(t *testing.T) {
+	// API-spec-only service: api_surface present, no raw entrypoints/network paths.
+	// code_to_runtime must still be evidence-backed (the trace is built from
+	// api_surface.endpoints).
+	dossier := map[string]any{
+		"service_identity": map[string]any{"service_id": "svc:api", "service_name": "api"},
+		"api_surface":      map[string]any{"endpoint_count": 4, "endpoints": []any{map[string]any{"path": "/v1"}}},
+	}
+	in := FromServiceStory(dossier, freshExactTruth("x"))
+	c2r := adapterInputByKind(t, in, SectionCodeToRuntime)
+	if c2r.NoEvidence || c2r.Summary == "" {
+		t.Fatalf("api-surface-only code_to_runtime must be evidence-backed, got %+v", c2r)
+	}
+}
+
+func TestFromServiceStoryEmitsCitationCompatibleHandle(t *testing.T) {
+	in := FromServiceStory(sampleDossier(), freshExactTruth("x"))
+	id := adapterInputByKind(t, in, SectionIdentity)
+	if len(id.Evidence) != 1 {
+		t.Fatalf("identity should carry one handle, got %d", len(id.Evidence))
+	}
+	// The evidence-citation normalizer accepts only file/entity kinds; the
+	// service handle must be an entity handle so callers can hydrate it.
+	if id.Evidence[0].Kind != "entity" || id.Evidence[0].EntityID != "svc:checkout" {
+		t.Fatalf("identity handle must be a citation-compatible entity handle, got %+v", id.Evidence[0])
+	}
+}
+
+func TestFromServiceStoryNoHandleWithoutServiceID(t *testing.T) {
+	// No service id means no citation-compatible entity handle; the section stays
+	// explicit about missing citeable evidence rather than emitting a rejected handle.
+	dossier := map[string]any{"service_identity": map[string]any{"service_name": "x", "repo_id": "repo:x"}}
+	in := FromServiceStory(dossier, freshExactTruth("x"))
+	id := adapterInputByKind(t, in, SectionIdentity)
+	if len(id.Evidence) != 0 || !id.NoEvidence {
+		t.Fatalf("no service id should yield no handle and NoEvidence, got %+v", id)
+	}
+}
+
 func TestFromServiceStoryDeterministic(t *testing.T) {
 	a := FromServiceStory(sampleDossier(), freshExactTruth("x"))
 	b := FromServiceStory(sampleDossier(), freshExactTruth("x"))
