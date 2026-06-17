@@ -3,7 +3,34 @@ package query
 import (
 	"context"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
+
+// deadCodeIncomingEdge is the strongest incoming reachability edge observed for
+// a dead-code candidate. MaxConfidence is the maximum codeprovenance.Confidence
+// across the candidate's incoming CALLS/REFERENCES/INHERITS/USES_METACLASS
+// edges; Method names the resolution method behind that strongest edge.
+type deadCodeIncomingEdge struct {
+	MaxConfidence float64
+	Method        string
+}
+
+// deadCodeWeakIncomingResultKey marks a kept candidate whose only incoming
+// edges were weak (repo_unique_name tier). It drives the ambiguous
+// classification instead of silently treating the candidate as reachable.
+const (
+	deadCodeWeakIncomingResultKey   = "weak_incoming_only"
+	deadCodeWeakIncomingMethodKey   = "weak_incoming_method"
+	deadCodeWeakIncomingReasonScope = "weak_incoming_edge:"
+)
+
+// deadCodeIncomingEdgeIsWeak reports whether an incoming edge confidence is at
+// or below the weakest resolution tier (repo_unique_name, 0.50). A weak-only
+// candidate is surfaced for review rather than filtered out as reachable.
+func deadCodeIncomingEdgeIsWeak(confidence float64) bool {
+	return confidence <= codeprovenance.Confidence(codeprovenance.MethodRepoUniqueName)
+}
 
 type deadCodeCandidateScan struct {
 	Results                []map[string]any
@@ -154,29 +181,72 @@ func (h *CodeHandler) filterDeadCodeResultsWithoutIncomingEdges(
 		if err != nil {
 			return nil, err
 		}
-		filtered := results[:0]
-		for _, result := range results {
-			entityID := StringVal(result, "entity_id")
-			if incoming[entityID] || graphIncoming[entityID] {
-				continue
-			}
-			filtered = append(filtered, result)
-		}
-		return filtered, nil
+		return applyDeadCodeIncomingEdges(results, incoming, graphIncoming), nil
 	}
 
 	graphIncoming, err := h.deadCodeResultsWithGraphIncomingEdges(ctx, results, label)
 	if err != nil {
 		return nil, err
 	}
+	return applyDeadCodeIncomingEdges(results, nil, graphIncoming), nil
+}
+
+// applyDeadCodeIncomingEdges merges the content read-model and graph incoming
+// probes into one per-entity max-confidence decision: a strong incoming edge
+// filters the candidate out as reachable, a weak-only incoming edge keeps the
+// candidate and stamps the ambiguity marker, and no incoming edge leaves the
+// candidate unchanged.
+func applyDeadCodeIncomingEdges(
+	results []map[string]any,
+	contentIncoming map[string]deadCodeIncomingEdge,
+	graphIncoming map[string]deadCodeIncomingEdge,
+) []map[string]any {
 	filtered := results[:0]
 	for _, result := range results {
-		if graphIncoming[StringVal(result, "entity_id")] {
+		entityID := StringVal(result, "entity_id")
+		edge, hasIncoming := strongestDeadCodeIncomingEdge(contentIncoming, graphIncoming, entityID)
+		if !hasIncoming {
+			filtered = append(filtered, result)
 			continue
 		}
+		if !deadCodeIncomingEdgeIsWeak(edge.MaxConfidence) {
+			continue
+		}
+		markDeadCodeResultWeakIncoming(result, edge)
 		filtered = append(filtered, result)
 	}
-	return filtered, nil
+	return filtered
+}
+
+func strongestDeadCodeIncomingEdge(
+	contentIncoming map[string]deadCodeIncomingEdge,
+	graphIncoming map[string]deadCodeIncomingEdge,
+	entityID string,
+) (deadCodeIncomingEdge, bool) {
+	best, found := deadCodeIncomingEdge{}, false
+	if edge, ok := contentIncoming[entityID]; ok {
+		best, found = edge, true
+	}
+	if edge, ok := graphIncoming[entityID]; ok {
+		if !found || edge.MaxConfidence > best.MaxConfidence {
+			best = edge
+		}
+		found = true
+	}
+	return best, found
+}
+
+// markDeadCodeResultWeakIncoming stamps the weak-incoming marker and finalizes
+// the classification to ambiguous, since classification runs before the
+// incoming-edge probe in both the analysis and investigation scans.
+func markDeadCodeResultWeakIncoming(result map[string]any, edge deadCodeIncomingEdge) {
+	method := strings.TrimSpace(edge.Method)
+	if method == "" {
+		method = codeprovenance.MethodRepoUniqueName
+	}
+	result[deadCodeWeakIncomingResultKey] = true
+	result[deadCodeWeakIncomingMethodKey] = method
+	result["classification"] = deadCodeClassificationAmbiguous
 }
 
 func deadCodeResultsNeedingGraphIncomingProbe(results []map[string]any, label string) []map[string]any {
@@ -199,7 +269,7 @@ func deadCodeResultNeedsGraphIncomingProbe(result map[string]any, label string) 
 func (h *CodeHandler) deadCodeIncomingEntityIDs(
 	ctx context.Context,
 	results []map[string]any,
-) (map[string]bool, error) {
+) (map[string]deadCodeIncomingEdge, error) {
 	content, ok := h.Content.(deadCodeIncomingContentStore)
 	if !ok {
 		return nil, nil
@@ -222,23 +292,31 @@ func (h *CodeHandler) deadCodeIncomingEntityIDs(
 	if len(entityIDsByRepo) == 0 {
 		return nil, nil
 	}
-	incoming := make(map[string]bool)
+	incoming := make(map[string]deadCodeIncomingEdge)
 	for repoID, entityIDs := range entityIDsByRepo {
 		repoIncoming, err := content.DeadCodeIncomingEntityIDs(ctx, repoID, entityIDs)
 		if err != nil {
 			return nil, err
 		}
-		for entityID, hasIncoming := range repoIncoming {
-			if hasIncoming {
-				incoming[entityID] = true
-			}
+		for entityID, edge := range repoIncoming {
+			mergeStrongestDeadCodeIncomingEdge(incoming, entityID, edge)
 		}
 	}
 	return incoming, nil
 }
 
+func mergeStrongestDeadCodeIncomingEdge(
+	incoming map[string]deadCodeIncomingEdge,
+	entityID string,
+	edge deadCodeIncomingEdge,
+) {
+	if existing, ok := incoming[entityID]; !ok || edge.MaxConfidence > existing.MaxConfidence {
+		incoming[entityID] = edge
+	}
+}
+
 type deadCodeIncomingContentStore interface {
-	DeadCodeIncomingEntityIDs(ctx context.Context, repoID string, entityIDs []string) (map[string]bool, error)
+	DeadCodeIncomingEntityIDs(ctx context.Context, repoID string, entityIDs []string) (map[string]deadCodeIncomingEdge, error)
 }
 
 type deadCodeCandidateContentStore interface {
@@ -249,9 +327,9 @@ func (h *CodeHandler) deadCodeResultsWithGraphIncomingEdges(
 	ctx context.Context,
 	results []map[string]any,
 	label string,
-) (map[string]bool, error) {
+) (map[string]deadCodeIncomingEdge, error) {
 	entityIDs := deadCodeResultEntityIDs(results)
-	incoming := make(map[string]bool)
+	incoming := make(map[string]deadCodeIncomingEdge)
 	if len(entityIDs) == 0 {
 		return incoming, nil
 	}
@@ -263,9 +341,14 @@ func (h *CodeHandler) deadCodeResultsWithGraphIncomingEdges(
 	}
 	for _, row := range rows {
 		entityID := strings.TrimSpace(StringVal(row, "incoming_entity_id"))
-		if entityID != "" {
-			incoming[entityID] = true
+		if entityID == "" {
+			continue
 		}
+		method := strings.TrimSpace(StringVal(row, "resolution_method"))
+		mergeStrongestDeadCodeIncomingEdge(incoming, entityID, deadCodeIncomingEdge{
+			MaxConfidence: codeprovenance.Confidence(method),
+			Method:        method,
+		})
 	}
 	return incoming, nil
 }

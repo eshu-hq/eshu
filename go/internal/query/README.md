@@ -10,7 +10,16 @@ determines which queries are permitted under each runtime profile.
 Code-quality routes also classify graph-derived findings before they reach
 HTTP, MCP, or CLI callers; `code_quality.dead_code` returns candidate evidence,
 language maturity, exclusions, and truth metadata instead of presenting a raw
-Cypher scan as a cleanup list.
+Cypher scan as a cleanup list. The dead-code incoming-edge probe is
+provenance-weighted (#2719): a candidate reachable only by a weak
+`repo_unique_name` edge classifies as `ambiguous` rather than confidently
+reachable or `unused`.
+
+No-Regression Evidence: see the #2719 entry in
+[evidence-notes.md](evidence-notes.md); the probe stays a bounded read over
+dead-code candidates with no added round trips or graph writes.
+No-Observability-Change: #2719 reuses the existing dead-code query span and adds
+no route, metric, worker, queue, or graph write.
 
 ## Where this fits in the pipeline
 

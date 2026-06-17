@@ -26,6 +26,9 @@ func deadCodeResultClassification(result map[string]any, entity *EntityContent) 
 	if deadCodeResultHasExactnessBlockers(result, entity) {
 		return deadCodeClassificationAmbiguous
 	}
+	if deadCodeResultHasWeakIncomingEdge(result) {
+		return deadCodeClassificationAmbiguous
+	}
 	maturity := deadCodeLanguageMaturity[language]
 	switch maturity {
 	case deadCodeMaturityDerived:
@@ -44,6 +47,15 @@ func deadCodeResultHasExactnessBlockers(result map[string]any, entity *EntityCon
 		}
 	}
 	return entity != nil && len(StringSliceVal(entity.Metadata, "exactness_blockers")) > 0
+}
+
+// deadCodeResultHasWeakIncomingEdge reports whether the incoming-edge probe
+// stamped this result as reachable only by the weakest (repo_unique_name)
+// resolution tier, which makes the candidate ambiguous rather than confidently
+// unused.
+func deadCodeResultHasWeakIncomingEdge(result map[string]any) bool {
+	weak, _ := result[deadCodeWeakIncomingResultKey].(bool)
+	return weak
 }
 
 func deadCodeLanguageSupported(language string) bool {

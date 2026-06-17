@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
 
 type fakeDeadCodeContentStore struct {
@@ -25,11 +27,14 @@ func (f fakeDeadCodeContentStore) GetEntityContent(_ context.Context, entityID s
 	return &cloned, nil
 }
 
-func (f fakeDeadCodeContentStore) DeadCodeIncomingEntityIDs(_ context.Context, _ string, entityIDs []string) (map[string]bool, error) {
-	incoming := make(map[string]bool)
+func (f fakeDeadCodeContentStore) DeadCodeIncomingEntityIDs(_ context.Context, _ string, entityIDs []string) (map[string]deadCodeIncomingEdge, error) {
+	incoming := make(map[string]deadCodeIncomingEdge)
 	for _, entityID := range entityIDs {
 		if f.incomingEntityIDs[entityID] {
-			incoming[entityID] = true
+			incoming[entityID] = deadCodeIncomingEdge{
+				MaxConfidence: codeprovenance.LegacyConfidence,
+				Method:        codeprovenance.MethodUnspecified,
+			}
 		}
 	}
 	return incoming, nil

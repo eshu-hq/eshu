@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -320,6 +321,9 @@ func deadCodeInvestigationCleanupReadyAllowed(result map[string]any) bool {
 }
 
 func deadCodeInvestigationAmbiguityReasons(result map[string]any) []string {
+	if reason, ok := deadCodeWeakIncomingAmbiguityReason(result); ok {
+		return []string{reason}
+	}
 	language := strings.ToLower(strings.TrimSpace(StringVal(result, "language")))
 	switch language {
 	case "typescript", "tsx":
@@ -334,6 +338,20 @@ func deadCodeInvestigationAmbiguityReasons(result map[string]any) []string {
 	}
 	slices.Sort(reasons)
 	return reasons
+}
+
+// deadCodeWeakIncomingAmbiguityReason returns the investigation reason string
+// for a candidate that is ambiguous because its only incoming edges were weak
+// (repo_unique_name tier), naming the resolution method that triggered it.
+func deadCodeWeakIncomingAmbiguityReason(result map[string]any) (string, bool) {
+	if !deadCodeResultHasWeakIncomingEdge(result) {
+		return "", false
+	}
+	method := strings.TrimSpace(StringVal(result, deadCodeWeakIncomingMethodKey))
+	if method == "" {
+		method = codeprovenance.MethodRepoUniqueName
+	}
+	return deadCodeWeakIncomingReasonScope + method, true
 }
 
 func attachDeadCodeSourceHandle(result map[string]any) {

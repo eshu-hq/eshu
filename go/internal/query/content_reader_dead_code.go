@@ -2,25 +2,30 @@ package query
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
-// DeadCodeIncomingEntityIDs returns candidate entity IDs that have completed
-// reducer code-call, metaclass, or inheritance incoming edges in the relational
-// read model.
+// DeadCodeIncomingEntityIDs returns, per candidate entity, the strongest
+// completed reducer code-call, metaclass, or inheritance incoming edge in the
+// relational read model. Confidence is derived from the per-edge
+// resolution_method (ADR #2222) via codeprovenance.Confidence; an edge whose
+// payload carries no resolution_method is treated as strong (LegacyConfidence)
+// so a candidate is only demoted when every incoming edge is known to be weak.
 func (cr *ContentReader) DeadCodeIncomingEntityIDs(
 	ctx context.Context,
 	repoID string,
 	entityIDs []string,
-) (map[string]bool, error) {
+) (map[string]deadCodeIncomingEdge, error) {
 	repoID = strings.TrimSpace(repoID)
 	entityIDs = cleanDeadCodeIncomingEntityIDs(entityIDs)
 	if cr == nil || cr.db == nil || repoID == "" || len(entityIDs) == 0 {
-		return map[string]bool{}, nil
+		return map[string]deadCodeIncomingEdge{}, nil
 	}
 
 	ctx, span := cr.tracer.Start(ctx, "postgres.query",
@@ -40,25 +45,31 @@ func (cr *ContentReader) DeadCodeIncomingEntityIDs(
 		placeholders = append(placeholders, fmt.Sprintf("$%d", i+2))
 	}
 	entityIDSet := strings.Join(placeholders, ", ")
+	// DISTINCT collapses duplicate (entity, method) pairs so row volume is bounded
+	// by distinct resolution methods per candidate, not the raw incoming-edge
+	// count; the strongest-edge selection by confidence still happens in Go.
 	query := `
-		SELECT DISTINCT incoming_entity_id
+		SELECT DISTINCT incoming_entity_id, resolution_method
 		FROM (
-			SELECT payload->>'callee_entity_id' AS incoming_entity_id
+			SELECT payload->>'callee_entity_id' AS incoming_entity_id,
+			       payload->>'resolution_method' AS resolution_method
 			FROM shared_projection_intents
 			WHERE repository_id = $1
 			  AND projection_domain = 'code_calls'
 			  AND completed_at IS NOT NULL
 			  AND payload->>'callee_entity_id' IN (` + entityIDSet + `)
-			UNION
-			SELECT payload->>'target_entity_id' AS incoming_entity_id
+			UNION ALL
+			SELECT payload->>'target_entity_id' AS incoming_entity_id,
+			       payload->>'resolution_method' AS resolution_method
 			FROM shared_projection_intents
 			WHERE repository_id = $1
 			  AND projection_domain = 'code_calls'
 			  AND completed_at IS NOT NULL
 			  AND payload->>'relationship_type' = 'USES_METACLASS'
 			  AND payload->>'target_entity_id' IN (` + entityIDSet + `)
-			UNION
-			SELECT payload->>'parent_entity_id' AS incoming_entity_id
+			UNION ALL
+			SELECT payload->>'parent_entity_id' AS incoming_entity_id,
+			       payload->>'resolution_method' AS resolution_method
 			FROM shared_projection_intents
 			WHERE repository_id = $1
 			  AND projection_domain = 'inheritance_edges'
@@ -75,20 +86,34 @@ func (cr *ContentReader) DeadCodeIncomingEntityIDs(
 	}
 	defer func() { _ = rows.Close() }()
 
-	incoming := make(map[string]bool)
+	incoming := make(map[string]deadCodeIncomingEdge)
 	for rows.Next() {
-		var entityID string
-		if err := rows.Scan(&entityID); err != nil {
+		var (
+			entityID string
+			method   sql.NullString
+		)
+		if err := rows.Scan(&entityID, &method); err != nil {
 			span.RecordError(err)
 			return nil, fmt.Errorf("scan dead code incoming entity id: %w", err)
 		}
-		incoming[entityID] = true
+		mergeDeadCodeIncomingEdge(incoming, entityID, method.String)
 	}
 	if err := rows.Err(); err != nil {
 		span.RecordError(err)
 		return nil, err
 	}
 	return incoming, nil
+}
+
+// mergeDeadCodeIncomingEdge records the strongest incoming edge seen for
+// entityID. Confidence is derived from method via codeprovenance.Confidence, so
+// a missing or unrecorded method yields LegacyConfidence (strong) rather than a
+// silent demotion.
+func mergeDeadCodeIncomingEdge(incoming map[string]deadCodeIncomingEdge, entityID, method string) {
+	confidence := codeprovenance.Confidence(method)
+	if existing, ok := incoming[entityID]; !ok || confidence > existing.MaxConfidence {
+		incoming[entityID] = deadCodeIncomingEdge{MaxConfidence: confidence, Method: method}
+	}
 }
 
 func cleanDeadCodeIncomingEntityIDs(entityIDs []string) []string {
