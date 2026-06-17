@@ -52,8 +52,15 @@ func (h *StatusHandler) getCollectorReadiness(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// Evaluate evidence staleness against the snapshot's own AsOf, not a freshly
+	// captured wall clock. The text (RenderText) and status-JSON surfaces already
+	// classify against report.AsOf; matching them here keeps the three readiness
+	// surfaces in agreement and makes the verdict a function of the snapshot
+	// rather than of when this handler happens to run. In production the reader
+	// stamps RawSnapshot.AsOf with the request time, so this preserves live
+	// behavior while removing the wall-clock divergence.
 	proofs := status.CollectorPromotionProofs(report, status.CollectorPromotionOptions{
-		AsOf:       asOf,
+		AsOf:       report.AsOf,
 		StaleAfter: status.DefaultCollectorPromotionStaleAfter,
 	})
 	redactInstance := scopedAuthContext(r.Context())

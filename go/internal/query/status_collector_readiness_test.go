@@ -72,10 +72,14 @@ func TestCollectorReadinessNoCollectorsAreUnsupported(t *testing.T) {
 func TestCollectorReadinessClassifiesConfiguredCollectors(t *testing.T) {
 	t.Parallel()
 
-	// Evidence freshness is evaluated against the handler's live clock with a 24h
-	// window, so the jira "implemented" assertion needs now-relative timestamps;
-	// a hardcoded past date is a time bomb that flips jira to "stale" after 24h.
-	now := time.Now().UTC()
+	// Evidence freshness must be evaluated against the snapshot's own AsOf so the
+	// readiness API agrees with the text and status-JSON surfaces, which already
+	// classify against report.AsOf. Pinning the snapshot and its evidence to a
+	// fixed past instant keeps this deterministic: a correct classifier reads
+	// zero evidence age (fresh -> implemented), while one that uses the handler's
+	// wall clock would see the snapshot as long stale and wrongly flip jira to
+	// "stale".
+	now := time.Date(2025, 6, 16, 12, 0, 0, 0, time.UTC)
 	reader := fakeStatusReader{snapshot: statuspkg.RawSnapshot{
 		AsOf: now,
 		Coordinator: &statuspkg.CoordinatorSnapshot{
@@ -122,9 +126,10 @@ func TestCollectorReadinessClassifiesConfiguredCollectors(t *testing.T) {
 func TestCollectorReadinessMarksStaleEvidence(t *testing.T) {
 	t.Parallel()
 
-	// The handler evaluates staleness against time.Now with a 24h window, so age
-	// the evidence relative to now to stay deterministic regardless of run time.
-	now := time.Now().UTC()
+	// Staleness is evaluated against the snapshot's AsOf with a 24h window, so
+	// pin both to fixed instants: evidence observed 48h before the snapshot AsOf
+	// must classify as stale regardless of when this test runs.
+	now := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
 	old := now.Add(-48 * time.Hour)
 	reader := fakeStatusReader{snapshot: statuspkg.RawSnapshot{
 		AsOf: now,
