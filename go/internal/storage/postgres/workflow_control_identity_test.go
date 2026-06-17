@@ -62,6 +62,24 @@ func TestWorkflowControlSchemaIndexesCollectorScopeGenerationLookup(t *testing.T
 	}
 }
 
+// TestWorkflowControlSchemaIndexesFamilyQueueDepth locks the partial index that
+// keeps the per-family queue-depth gauge query (#2857) off a sequential scan of
+// workflow_work_items on every metrics scrape. The index must match the gauge
+// query's WHERE filter and grouping columns.
+func TestWorkflowControlSchemaIndexesFamilyQueueDepth(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"workflow_work_items_family_queue_depth_idx",
+		"ON workflow_work_items (collector_kind, source_system, status)",
+		"WHERE status IN ('pending', 'claimed', 'failed_retryable', 'expired')",
+	} {
+		if !strings.Contains(workflowControlSchemaSQL, want) {
+			t.Fatalf("workflowControlSchemaSQL missing family queue-depth index marker %q", want)
+		}
+	}
+}
+
 func TestWorkflowControlClaimNextEligibleRequiresCompleteIdentity(t *testing.T) {
 	t.Parallel()
 

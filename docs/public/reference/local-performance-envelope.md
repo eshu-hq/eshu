@@ -170,7 +170,7 @@ The current fairness and backpressure envelope is:
 | claim wait | Claim-aware collectors expose pending, claimed, retryable, expired, terminal, and completed work through workflow status and Postgres query spans, and #2748 added the family-level dispatch boundary so one busy family cannot consume all claim attempts. | #2773 must add a multi-source collector host so a single runtime binary can register multiple claim-aware sources behind the dispatcher and exercise cross-family fairness in production. |
 | lease age | Heartbeats and expired-claim reaping preserve ownership fencing and recovery, and #2699 added `eshu_dp_workflow_claim_lease_age_seconds` (labeled by `collector_kind`, `source_system`) so rising lease age is visible before lease-TTL expiry. | Multi-source-host proof (#2773) must cover slow collectors, expired leases, recovery, and stale owner rejection without dropping active work. |
 | retry/dead-letter | Retryable and terminal claim failures are durable, workflow runs reconcile terminal failures into blocked completeness, #2750 (merged) surfaced provider throttle/backpressure status, and #2699 added per-family `eshu_dp_workflow_claim_retries_total` (`failure_class`) and `eshu_dp_workflow_claim_provider_throttle_total` (`outcome`) counters without provider targets in labels. | Hosted-growth proof must still confirm retry-storm status under many concurrent provider families. |
-| per-family queue depth | `fairness_key` and collector kind are present on work rows; selected status readbacks aggregate bounded registry and workflow state. | A per-family `eshu_dp_workflow_family_queue_depth` observable gauge (labeled by `collector_kind`, `source_system`, `status`) is tracked as the remaining #2699 metric; hosted-growth starvation proof across a multi-source host stays with #2773. |
+| per-family queue depth | `fairness_key` and collector kind are present on work rows, and #2857 added the `eshu_dp_workflow_family_queue_depth` observable gauge (labeled by `collector_kind`, `source_system`, `status`) over `workflow_work_items`. | Hosted-growth starvation proof across a multi-source host stays with #2773. |
 
 Provider-rate backpressure must remain provider-family aware. A rate-limited
 provider should delay or retry its own claim stream; it must not force unrelated
@@ -300,9 +300,9 @@ the existing claim failure and heartbeat paths:
 
 All labels reuse the existing bounded `collector_kind`/`source_system`/
 `failure_class`/`outcome` enums; no provider target, account, URL, token env, or
-instance id enters a label. The remaining per-family `eshu_dp_workflow_family_queue_depth`
-observable gauge and the production multi-source-host starvation proof are
-tracked separately (the gauge under #2699, the host under #2773).
+instance id enters a label. The per-family `eshu_dp_workflow_family_queue_depth`
+observable gauge landed in #2857 (see below); the production multi-source-host
+starvation proof stays with #2773.
 
 No-Regression Evidence: focused tests in
 `go/internal/collector/claimed_service_backpressure_metrics_test.go` prove each
@@ -319,6 +319,36 @@ Observability Evidence: the three instruments above are the operator-facing
 signals; they are recorded after the durable claim mutation (outside the
 dispatcher scheduler lock) and on the heartbeat tick, so they add no
 high-cardinality label and no runtime knob.
+
+### Per-Family Queue-Depth Gauge (#2857)
+
+#2857 completes the #2699 metric set with the `eshu_dp_workflow_family_queue_depth`
+Int64 observable gauge. The reducer registers it with a read-only callback over
+`WorkflowControlStore.WorkflowFamilyQueueDepths`, which groups outstanding
+`workflow_work_items` (`pending`, `claimed`, `failed_retryable`, `expired`) by
+`collector_kind`, `source_system`, and `status`. Completed and terminally-failed
+rows are excluded because they are not live queue depth. The callback runs on
+the meter collection goroutine and issues a single `GROUP BY` query backed by the
+partial index `workflow_work_items_family_queue_depth_idx`
+(`(collector_kind, source_system, status) WHERE status IN (...)`), so each scrape
+is an index scan over only outstanding rows rather than a sequential scan of the
+full table. Operators must not drop that index. No claim SQL, claim ownership, or
+runtime knob changes.
+
+No-Regression Evidence: `TestWorkflowControlStoreFamilyQueueDepthsGroupsByFamilyAndStatus`
+(`go/internal/storage/postgres`) proves the query groups by family and status and
+scopes to outstanding statuses;
+`TestRegisterWorkflowFamilyQueueDepthObservableGauge_WithObserver` and
+`_NilObserver` (`go/internal/telemetry`) prove the gauge observes each
+`(collector_kind, source_system, status)` triple and is a no-op without an
+observer. A compile-time assertion binds `*WorkflowControlStore` to
+`telemetry.WorkflowFamilyQueueDepthObserver`. `go test ./internal/telemetry
+./internal/storage/postgres ./cmd/reducer -count=1` is green.
+
+Observability Evidence: the gauge is the per-family queue-depth signal the #2699
+envelope required; labels reuse the bounded `collector_kind`/`source_system`/
+`status` enums only — no instance id, target locator, account, URL, or token env
+enters a label.
 
 ### Collector Fact Evidence Status Read (#1678)
 
