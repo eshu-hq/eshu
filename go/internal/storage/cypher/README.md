@@ -249,6 +249,49 @@ trigger evidence with label-scoped endpoints. Trigger rows can emit both
 part of dead-code reachability for stored routines and must stay in the
 relationship retraction set.
 
+`DomainRunsIn` writes `Function-[:RUNS_IN]->Workload` edges that bind a proven
+route-handler Function to the deployed runtime it runs in (#2722, under epic
+#2703/#2710). The reducer scopes the source to exactly the entrypoint Functions
+`handles_route` resolves, so a binding is produced only for an exact, unambiguous
+handler resolution and never for every Function in the repo. The upsert is
+MATCH-anchored through the handler's Repository:
+`MATCH (func:Function {uid: row.function_id}) MATCH (repo:Repository {id:
+row.repo_id})-[:DEFINES]->(workload:Workload) MERGE (func)-[rel:RUNS_IN]->
+(workload)`. The traversal is bounded by the indexed `Repository.id` anchor and
+fans out only to the workloads that one repository DEFINES, so no unused index is
+added — the bounded-anchor reasoning mirrors `handles_route`. Expected
+cardinality is at most one edge per (handler Function, Workload the repo
+DEFINES); a handler serving many routes still produces one intent per
+(Function, repo).
+
+Ambiguity is represented, not collapsed. The code-call materialization stage that
+builds these intents loads only repository and file facts and never runs the
+workload admission/correlation that decides how many Workload nodes a repo
+ultimately DEFINES, so it cannot count them at intent-build time. It therefore
+marks every edge `rel.ambiguous = true` with a deliberately conservative
+`rel.confidence` (0.5): each edge is a candidate member of the repo's workload
+set, never an asserted single-workload binding. A repo that DEFINES exactly one
+Workload still yields exactly one edge, and a consumer derives exactness by
+counting the MATCH fan-out at query time. `RUNS_IN` shares the
+`workload_materialization` readiness phase and `service_uid` keyspace with
+`handles_route` because Workload nodes commit in that phase under that keyspace.
+Operators see the domain in the shared-projection partition worker telemetry
+alongside the other drained domains, and retraction removes only edges owned by
+`evidence_source='reducer/runs-in'` for the re-projected repositories, anchored on
+the source `Function.repo_id`.
+
+No-Regression Evidence: `go test ./internal/reducer ./internal/storage/cypher
+-count=1` proves the runs_in intent scoping (one intent per resolved handler
+Function, skips for unknown/ambiguous/handler-less entries), the conservative
+`ambiguous=true` representation, the readiness phase/keyspace and domain
+enumeration, and the edge-writer UNWIND MATCH-MATCH-MERGE Cypher plus row map
+(rows missing `function_id`/`repo_id` are dropped) and scoped retract.
+
+Observability Evidence: `runs_in` is drained by the shared-projection partition
+worker like every other shared domain, so its statement summaries and operation
+metadata appear in the same `canonical.write`/retract telemetry path; no new
+observability surface is introduced.
+
 `IncidentRoutingEvidenceWriter` is a reducer-owned graph writer for PagerDuty
 incident routing. It writes only `IncidentRoutingEvidence` nodes and static
 `HAS_INTENDED_ROUTING`, `HAS_APPLIED_ROUTING`, or `HAS_LIVE_ROUTING`

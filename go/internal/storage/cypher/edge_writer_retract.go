@@ -186,6 +186,15 @@ func buildRetractStatement(
 				"evidence_source": evidenceSource,
 			},
 		}, nil
+	case reducer.DomainRunsIn:
+		return Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    retractRunsInEdgesCypher,
+			Parameters: map[string]any{
+				"repo_ids":        repoIDs,
+				"evidence_source": evidenceSource,
+			},
+		}, nil
 	default:
 		return Statement{}, fmt.Errorf("unsupported domain for retract: %q", domain)
 	}

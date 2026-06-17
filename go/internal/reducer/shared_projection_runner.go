@@ -33,6 +33,7 @@ var sharedProjectionDomains = []string{
 	DomainRationaleEdges,
 	DomainSQLRelationships,
 	DomainHandlesRoute,
+	DomainRunsIn,
 }
 
 // SharedProjectionRunnerConfig holds configuration for the shared projection
