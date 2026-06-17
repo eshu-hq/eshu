@@ -1,0 +1,45 @@
+{
+  "schema_version": "parser_golden_graph.v1",
+  "nodes": [
+    {
+      "id": "method:OrderService.placeOrder",
+      "kind": "method",
+      "name": "placeOrder",
+      "path": "src/main/java/com/eshu/OrderService.java",
+      "line": 17
+    },
+    {
+      "id": "method:OrderService.reserveStock",
+      "kind": "method",
+      "name": "reserveStock",
+      "path": "src/main/java/com/eshu/OrderService.java",
+      "line": 34
+    },
+    {
+      "id": "method:OrderService.chargePayment",
+      "kind": "method",
+      "name": "chargePayment",
+      "path": "src/main/java/com/eshu/OrderService.java",
+      "line": 52
+    },
+    {
+      "id": "method:OrderService.cancelOrder",
+      "kind": "method",
+      "name": "cancelOrder",
+      "path": "src/main/java/com/eshu/OrderService.java",
+      "line": 70
+    }
+  ],
+  "edges": [
+    {
+      "source_id": "method:OrderService.placeOrder",
+      "target_id": "method:OrderService.reserveStock",
+      "type": "CALLS"
+    },
+    {
+      "source_id": "method:OrderService.placeOrder",
+      "target_id": "method:OrderService.chargePayment",
+      "type": "CALLS"
+    }
+  ]
+}

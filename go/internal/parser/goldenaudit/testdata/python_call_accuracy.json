@@ -1,0 +1,45 @@
+{
+  "schema_version": "parser_golden_graph.v1",
+  "nodes": [
+    {
+      "id": "func:handlers.handle_request",
+      "kind": "function",
+      "name": "handle_request",
+      "path": "app/handlers.py",
+      "line": 8
+    },
+    {
+      "id": "func:handlers.validate_input",
+      "kind": "function",
+      "name": "validate_input",
+      "path": "app/handlers.py",
+      "line": 21
+    },
+    {
+      "id": "func:repository.save_record",
+      "kind": "function",
+      "name": "save_record",
+      "path": "app/repository.py",
+      "line": 12
+    },
+    {
+      "id": "func:repository.load_record",
+      "kind": "function",
+      "name": "load_record",
+      "path": "app/repository.py",
+      "line": 29
+    }
+  ],
+  "edges": [
+    {
+      "source_id": "func:handlers.handle_request",
+      "target_id": "func:handlers.validate_input",
+      "type": "CALLS"
+    },
+    {
+      "source_id": "func:handlers.handle_request",
+      "target_id": "func:repository.save_record",
+      "type": "CALLS"
+    }
+  ]
+}

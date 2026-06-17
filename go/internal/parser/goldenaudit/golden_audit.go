@@ -50,6 +50,13 @@ type Report struct {
 	UnexpectedEdges        []Edge
 	DuplicateExpectedEdges []Edge
 	DuplicateObservedEdges []Edge
+
+	// Accuracy carries the precision/recall scoring of observed edges against
+	// expected edges (see ScoreAccuracy). It is informational: Pass() ignores
+	// it and reports only structural drift, so a wrong-target edge that keeps
+	// node and edge sets structurally intact still surfaces a precision drop
+	// here without changing the pass/fail gate.
+	Accuracy AccuracyResult
 }
 
 // Pass reports whether expected and observed graph facts match exactly.
@@ -75,6 +82,8 @@ func (r Report) Summary() string {
 		fmt.Sprintf("unexpected_edges=%d", len(r.UnexpectedEdges)),
 		fmt.Sprintf("duplicate_expected_edges=%d", len(r.DuplicateExpectedEdges)),
 		fmt.Sprintf("duplicate_observed_edges=%d", len(r.DuplicateObservedEdges)),
+		fmt.Sprintf("accuracy_precision=%.3f", r.Accuracy.Overall.Precision),
+		fmt.Sprintf("accuracy_recall=%.3f", r.Accuracy.Overall.Recall),
 	}
 	return strings.Join(parts, " ")
 }
@@ -118,6 +127,7 @@ func CompareGraph(expected Graph, observed Graph) Report {
 		UnexpectedEdges:        missingEdges(observedEdges, expectedEdges),
 		DuplicateExpectedEdges: duplicateExpectedEdges,
 		DuplicateObservedEdges: duplicateObservedEdges,
+		Accuracy:               ScoreAccuracy(expected, observed),
 	}
 }
 
