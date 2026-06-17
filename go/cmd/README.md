@@ -43,6 +43,7 @@ exact binary set on `PATH`.
 | `eshu-workflow-coordinator` | `workflow-coordinator/` | Long-running workflow coordinator |
 | `capability-inventory` | `capability-inventory/` | Generate/verify the capability catalog artifact (dev/CI tool) |
 | `audit-preflight` | `audit-preflight/` | Validate competitive-audit issues against the preflight contract (dev/CI tool) |
+| `audit-report` | `audit-report/` | Generate a deterministic competitive-audit report from a local audit input (dev tool) |
 
 ## Pipeline shape
 

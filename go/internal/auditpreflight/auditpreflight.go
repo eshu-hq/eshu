@@ -72,6 +72,10 @@ const (
 	FindingInvalidGapClass FindingKind = "invalid_gap_class"
 	// FindingInvalidOwnerSurface means the owner surface is not in the taxonomy.
 	FindingInvalidOwnerSurface FindingKind = "invalid_owner_surface"
+	// FindingUnknownCapability means a named capability id is absent from the
+	// capability catalog. It is emitted by consumers that reconcile findings
+	// against the catalog (the audit report generator), not by Validate.
+	FindingUnknownCapability FindingKind = "unknown_capability"
 )
 
 // Finding is one preflight validation problem.
@@ -165,24 +169,40 @@ func normalize(value string) string {
 	return strings.Join(strings.Fields(strings.ToLower(value)), " ")
 }
 
-func validGapClass(value string) bool {
+// NormalizeGapClass resolves a free-form value to a canonical GapClass,
+// tolerating case and whitespace. ok is false when the value is outside the
+// taxonomy.
+func NormalizeGapClass(value string) (GapClass, bool) {
 	norm := normalize(value)
 	for _, gap := range GapClasses {
 		if norm == string(gap) {
-			return true
+			return gap, true
 		}
 	}
-	return false
+	return "", false
 }
 
-func validOwnerSurface(value string) bool {
+// NormalizeOwnerSurface resolves a free-form value to a canonical OwnerSurface,
+// tolerating case and whitespace. ok is false when the value is outside the
+// taxonomy.
+func NormalizeOwnerSurface(value string) (OwnerSurface, bool) {
 	norm := normalize(value)
 	for _, surface := range OwnerSurfaces {
 		if norm == string(surface) {
-			return true
+			return surface, true
 		}
 	}
-	return false
+	return "", false
+}
+
+func validGapClass(value string) bool {
+	_, ok := NormalizeGapClass(value)
+	return ok
+}
+
+func validOwnerSurface(value string) bool {
+	_, ok := NormalizeOwnerSurface(value)
+	return ok
 }
 
 func joinGapClasses() string {

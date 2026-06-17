@@ -64,8 +64,27 @@ The three classic comparisons map to three outcomes (validated fixtures live in
 | GitNexus (commit timeline) | missing | Create a new child issue with a verification plan. |
 | CodeGraphContext (semantic retrieval) | already tracked | Reject as duplicate; link epic #2676. |
 
+## Local audit report generator
+
+For repeated audits, drive the preflight from a declarative input instead of
+hand-writing each issue. The local report generator reconciles an audit input
+against the capability catalog and an optional open-issues list, classifies each
+finding with this taxonomy, and recommends an action — no issue, link existing,
+update existing, draft new, or review. It never creates issues and runs offline.
+
+```bash
+cd go
+gh issue list --json number,title --limit 200 > issues.json   # optional, for duplicate detection
+go run ./cmd/audit-report -input audit.yaml -issues issues.json -format md
+```
+
+The input lists competitors and per-feature findings with the competitor source
+files inspected, Eshu evidence files, an optional `eshu_capability`, and a
+proposed gap class and owner surface. See `go/cmd/audit-report/testdata` for the
+graphify/GitNexus/CodeGraphContext dogfood example and its golden report.
+
 ## Related
 
 - [Capability Catalog](capability-catalog.md)
-- Local competitive audit report generator (issue #2716): reuses this taxonomy.
 - `go/internal/auditpreflight/README.md`
+- `go/internal/auditreport/README.md`

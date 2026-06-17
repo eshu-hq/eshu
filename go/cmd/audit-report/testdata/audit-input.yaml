@@ -1,0 +1,30 @@
+competitors:
+  - name: codegraphcontext
+    path: /local/codegraphcontext
+    findings:
+      - feature: semantic retrieval embedder
+        competitor_files: [src/embed/index.py]
+        eshu_capability: semantic_search.curated_retrieval
+        evidence_files: [go/internal/searchretrieval/doc.go]
+        gap_class: already tracked
+        owner_surface: search
+        notes: hybrid retrieval epic owns this
+  - name: gitnexus
+    path: /local/gitnexus
+    findings:
+      - feature: commit history timeline
+        competitor_files: [src/timeline.ts]
+        evidence_files: [go/internal/query/contract_changed_since.go]
+        gap_class: missing
+        owner_surface: api
+        notes: no commit timeline surface in Eshu
+  - name: graphify
+    path: /local/graphify
+    findings:
+      - feature: symbol relationship lookup
+        competitor_files: [src/graph/symbols.ts]
+        eshu_capability: code_search.symbol_lookup
+        evidence_files: [go/internal/query/code.go]
+        gap_class: foundation exists
+        owner_surface: api
+        notes: shipped as code_search.symbol_lookup
