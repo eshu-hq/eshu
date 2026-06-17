@@ -9,6 +9,7 @@ func sharedOptions(options Options) shared.Options {
 		GoImportedInterfaceParamMethods: shared.GoImportedInterfaceParamMethods(options.GoImportedInterfaceParamMethods),
 		GoDirectMethodCallRoots:         shared.GoDirectMethodCallRoots(options.GoDirectMethodCallRoots),
 		GoPackageImportPath:             options.GoPackageImportPath,
+		GoEmitDataflow:                  options.GoEmitDataflow,
 	}
 }
 

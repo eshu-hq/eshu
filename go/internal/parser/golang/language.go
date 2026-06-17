@@ -185,6 +185,14 @@ func Parse(
 	shared.SortNamedBucket(payload, "imports")
 	shared.SortNamedBucket(payload, "function_calls")
 
+	// Dataflow facts are opt-in: when off the payload is byte-identical to
+	// before this feature because no key is added.
+	if options.GoEmitDataflow {
+		if rows := goDataflowPayloads(root, source); len(rows) > 0 {
+			payload["dataflow_functions"] = rows
+		}
+	}
+
 	return payload, nil
 }
 
