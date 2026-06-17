@@ -1,7 +1,9 @@
 package serviceintel
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -145,6 +147,53 @@ func TestFromIncidentEvidence(t *testing.T) {
 	}
 	if empty.Kind != SectionIncidentsSupport {
 		t.Fatalf("empty incident section must still be the incidents kind")
+	}
+}
+
+func TestFromIncidentEvidenceDedupeIsProviderScoped(t *testing.T) {
+	subject := ReportSubject{ServiceName: "checkout", ServiceID: "svc:checkout"}
+	truth := freshExactTruth("incident.context")
+
+	// Two providers that happen to share an incident id string are distinct
+	// incidents: the composite (provider, id) key must not merge them, or the
+	// report would under-count cross-provider incident history.
+	records := []IncidentRecord{
+		{Provider: "pagerduty", ProviderIncidentID: "INC-1", TruthLabel: "deterministic"},
+		{Provider: "opsgenie", ProviderIncidentID: "INC-1", TruthLabel: "deterministic"},
+		// Blank provider incident ids carry no durable pointer, so they are dropped
+		// rather than emitted as a handle the citation surface would reject.
+		{Provider: "pagerduty", ProviderIncidentID: "  ", TruthLabel: "deterministic"},
+	}
+	got := FromIncidentEvidence(records, subject, truth)
+	if len(got.Evidence) != 2 {
+		t.Fatalf("evidence handles = %d, want 2 distinct cross-provider incidents", len(got.Evidence))
+	}
+}
+
+func TestFromIncidentEvidenceBoundsAndTruncates(t *testing.T) {
+	subject := ReportSubject{ServiceName: "checkout", ServiceID: "svc:checkout"}
+	truth := freshExactTruth("incident.context")
+
+	// A service with more routed incidents than the report bound yields a
+	// bounded, scannable handle list with the section marked truncated rather
+	// than an unbounded list.
+	records := make([]IncidentRecord, 0, maxReportIncidents+5)
+	for i := 0; i < maxReportIncidents+5; i++ {
+		records = append(records, IncidentRecord{
+			Provider:           "pagerduty",
+			ProviderIncidentID: fmt.Sprintf("PD-%d", i),
+			TruthLabel:         "deterministic",
+		})
+	}
+	got := FromIncidentEvidence(records, subject, truth)
+	if len(got.Evidence) != maxReportIncidents {
+		t.Fatalf("evidence handles = %d, want bound %d", len(got.Evidence), maxReportIncidents)
+	}
+	if !got.Truncated {
+		t.Fatalf("overflowing the incident bound must mark the section truncated")
+	}
+	if got.Summary == "" || !strings.Contains(got.Summary, "truncated") {
+		t.Fatalf("truncated incident summary must signal truncation, got %q", got.Summary)
 	}
 }
 
