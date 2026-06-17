@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
 
 func deadCodeScanRow(entityID string, name string) map[string]any {
@@ -490,11 +492,14 @@ func TestDeadCodeIncomingEntityIDsGroupsContentLookupsByRepository(t *testing.T)
 	if err != nil {
 		t.Fatalf("deadCodeIncomingEntityIDs() error = %v, want nil", err)
 	}
-	if !incoming["live-go"] || !incoming["live-rust"] {
-		t.Fatalf("incoming = %#v, want live-go and live-rust", incoming)
+	if _, ok := incoming["live-go"]; !ok {
+		t.Fatalf("incoming = %#v, want live-go", incoming)
 	}
-	if incoming["dead-go"] {
-		t.Fatalf("incoming[dead-go] = true, want false")
+	if _, ok := incoming["live-rust"]; !ok {
+		t.Fatalf("incoming = %#v, want live-rust", incoming)
+	}
+	if _, ok := incoming["dead-go"]; ok {
+		t.Fatalf("incoming[dead-go] present, want absent")
 	}
 	if got, want := store.calls, map[string][]string{
 		"repo-1": {"dead-go", "live-go"},
@@ -605,17 +610,20 @@ func (s *repoGroupedIncomingStore) DeadCodeIncomingEntityIDs(
 	_ context.Context,
 	repoID string,
 	entityIDs []string,
-) (map[string]bool, error) {
+) (map[string]deadCodeIncomingEdge, error) {
 	if s.calls == nil {
 		s.calls = make(map[string][]string)
 	}
 	ids := append([]string(nil), entityIDs...)
 	sort.Strings(ids)
 	s.calls[repoID] = append(s.calls[repoID], ids...)
-	incoming := make(map[string]bool)
+	incoming := make(map[string]deadCodeIncomingEdge)
 	for _, entityID := range entityIDs {
 		if s.incomingByRepo[repoID][entityID] {
-			incoming[entityID] = true
+			incoming[entityID] = deadCodeIncomingEdge{
+				MaxConfidence: codeprovenance.LegacyConfidence,
+				Method:        codeprovenance.MethodUnspecified,
+			}
 		}
 	}
 	return incoming, nil

@@ -124,8 +124,9 @@ func buildDeadCodeIncomingBatchProbeCypher(label string) string {
 	}
 	return `
 		UNWIND $entity_ids AS entity_id
-		MATCH (e:` + label + ` {uid: entity_id})<-[:CALLS|IMPORTS|REFERENCES|INHERITS|EXECUTES]-(source)
-		RETURN DISTINCT coalesce(e.uid, e.id) as incoming_entity_id
+		MATCH (e:` + label + ` {uid: entity_id})<-[rel:CALLS|IMPORTS|REFERENCES|INHERITS|EXECUTES]-(source)
+		RETURN DISTINCT coalesce(e.uid, e.id) as incoming_entity_id,
+		       rel.resolution_method as resolution_method
 	`
 }
 
@@ -477,27 +478,4 @@ func deadCodeEntityLanguage(result map[string]any, entity *EntityContent) string
 		return entity.Language
 	}
 	return StringVal(result, "language")
-}
-
-func deadCodeIsGoFrameworkRoot(result map[string]any, policy deadCodeGoPolicyContext, stats *deadCodePolicyStats) bool {
-	if policy.language != "go" {
-		return false
-	}
-	if len(policy.rootKinds) > 0 {
-		if deadCodeIsGoCLICommandRoot(result, policy) ||
-			deadCodeIsGoHTTPHandlerRoot(result, policy) ||
-			deadCodeIsGoFrameworkCallbackRoot(result, policy) {
-			stats.ParserMetadataFrameworkRoots++
-			return true
-		}
-		return false
-	}
-
-	if deadCodeIsGoCLICommandRoot(result, policy) ||
-		deadCodeIsGoHTTPHandlerRoot(result, policy) ||
-		deadCodeIsGoFrameworkCallbackRoot(result, policy) {
-		stats.SourceFallbackFrameworkRoots++
-		return true
-	}
-	return false
 }

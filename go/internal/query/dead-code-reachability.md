@@ -131,6 +131,16 @@ Returned candidates can also populate
 blockers from blockers actually present in the page they received. Candidates
 that carry observed exactness blockers classify as `ambiguous` rather than
 cleanup-ready `unused`.
+Incoming-edge reachability is provenance-weighted: each incoming edge's
+confidence is derived from its `resolution_method` (ADR #2222) via
+`codeprovenance.Confidence`. A candidate whose strongest incoming edge is at or
+below the weakest tier (`repo_unique_name`, 0.50) is kept and classified
+`ambiguous` with a `weak_incoming_edge:<method>` reason, rather than being
+silently treated as reachable on a same-name guess. An edge with no recorded
+`resolution_method` resolves to `LegacyConfidence` and is treated as strong, so
+a candidate is only demoted when every incoming edge is known to be weak. A
+single strong incoming edge (`scip`, `import_binding`, `same_file`, and the
+other tiers above 0.50) still removes the candidate as confidently reachable.
 Dead-code candidate paging uses `DeadCodeCandidateRows` in
 `content_reader_dead_code_candidates.go:13` when the content read model is
 available, pushing the optional language predicate into the Postgres query so

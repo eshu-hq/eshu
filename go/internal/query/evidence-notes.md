@@ -5,6 +5,33 @@ notes for `internal/query`. Keep the package overview in `README.md`; put longer
 evidence records here when they would otherwise push the overview past the
 repository line budget.
 
+## Provenance-weighted dead-code incoming-edge probe (#2719)
+
+No-Regression Evidence: `go test ./internal/query ./cmd/api ./cmd/mcp-server
+./internal/mcp -count=1` passes after the change; the new
+`code_dead_code_provenance_test.go` and `content_reader_dead_code_provenance_test.go`
+cases failed to compile/assert before it (they reference the new
+`deadCodeIncomingEdge`/`weak_incoming_only` behavior). The incoming-edge probe
+was an existence check; it now also reads each edge's `resolution_method` and
+derives confidence in Go via `codeprovenance.Confidence`. The graph probe Cypher
+returns one extra projected property and drops a `DISTINCT`; the content
+read-model SQL changes `UNION` to `UNION ALL` and selects `resolution_method`,
+with an outer `SELECT DISTINCT (entity, method)` (and `RETURN DISTINCT` on the
+graph probe) bounding row volume to distinct resolution methods per candidate
+rather than the raw incoming-edge count. Both run only over the bounded
+dead-code candidate batch (functions selected *because* they have few or no
+incoming edges), so the rows and the O(edges) max-confidence aggregation add no
+round trips, no graph writes, and no measurable regression to the read path. An edge with no recorded
+`resolution_method` resolves to `LegacyConfidence` (strong), so the change never
+demotes a candidate on unknown provenance.
+
+No-Observability-Change: #2719 reuses the existing `postgres.query`
+(`dead_code_incoming_entity_ids`) span and the existing dead-code graph read; it
+adds no route, metric, worker, queue, lease, or graph write. The dead-code
+response keeps its `classification` field — weak-incoming-only candidates now
+classify as `ambiguous` with a `weak_incoming_edge:<method>` ambiguity reason
+instead of being silently dropped as reachable.
+
 ## Repository tenant-isolation canary (#2048)
 
 No-Regression Evidence: `go test ./internal/query -run 'Test(RepositoryList.*ScopedAuth|ResolveRepositorySelector.*ScopedAuth|ResolveRepositorySelectorDenies|RepositoryListSharedAuth|RepositoryListAllScopeAdmin)' -count=1` failed before the canary because repository list queries had no scoped predicate, content fallback paged before filtering, duplicate-name selectors considered repositories outside the token grant, and canonical out-of-scope IDs resolved successfully. It passed after repository list and selector resolution applied `AuthContext` allowed repository/scope IDs before pagination, count metadata, ambiguity, and not-found decisions.
