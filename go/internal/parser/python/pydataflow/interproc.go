@@ -23,6 +23,11 @@ func InterprocFindings(root *tree_sitter.Node, source []byte, importPath string)
 		if node == nil {
 			return
 		}
+		// Skip class bodies: methods are not module-level interprocedural entries
+		// (mirrors LocalFunctionIDs so the two stay consistent).
+		if node.Kind() == "class_definition" {
+			return
+		}
 		if node.Kind() == "function_definition" {
 			if name := nodeText(node.ChildByFieldName("name"), source); name != "" {
 				id := FunctionID(importPath, name)

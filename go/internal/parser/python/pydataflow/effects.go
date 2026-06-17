@@ -28,6 +28,12 @@ func LocalFunctionIDs(root *tree_sitter.Node, source []byte, importPath string) 
 		if node == nil {
 			return
 		}
+		// Do not descend into a class body: a method is an attribute of the class
+		// (C.query), not a module-level function, so it must not become visible as
+		// a bare-name callee — that would invent a false cross-function edge.
+		if node.Kind() == "class_definition" {
+			return
+		}
 		if node.Kind() == "function_definition" {
 			if name := nodeText(node.ChildByFieldName("name"), source); name != "" {
 				out[name] = FunctionID(importPath, name)
