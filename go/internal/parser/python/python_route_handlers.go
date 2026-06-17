@@ -23,9 +23,10 @@ func submatchByIndex(source string, loc []int, n int) string {
 
 // pythonRouteHandlerForDecorator returns the handler function name bound to a
 // route decorator located at byte offset decoratorStart in source. Starting at
-// the decorator line, it advances to the next non-decorator, non-blank line and
-// returns that line's def name. Stacked decorators between the route decorator
-// and the def (e.g. @app.get("/x") / @auth_required / def handler) are skipped.
+// the decorator line, it advances to the next non-decorator, non-blank,
+// non-comment line and returns that line's def name. Stacked decorators between
+// the route decorator and the def (e.g. @app.get("/x") / @auth_required /
+// def handler) are skipped.
 //
 // The handler is bound ONLY when the first non-decorator line is a def or async
 // def. If that line is anything else (an assignment, another statement, end of
@@ -46,6 +47,9 @@ func pythonRouteHandlerForDecorator(source string, decoratorStart int) string {
 	for _, rawLine := range strings.Split(rest, "\n") {
 		line := strings.TrimSpace(rawLine)
 		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "#") {
 			continue
 		}
 		// Stacked decorators sit between the route decorator and the def; skip
