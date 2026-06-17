@@ -24,6 +24,7 @@ Optional request fields:
 | `workload_id` | Smaller workload anchor inside the repository corpus. |
 | `environment` | Environment anchor inside the repository corpus. |
 | `source_kinds` | Optional filter over `code_entity`, `repository_file`, `runtime_summary`, and `semantic_context`. |
+| `rerank` | Opt into graph-neighborhood reranking over the in-scope results. Off by default. |
 
 The route reads the active generation from the persisted curated search index.
 The reducer maintains that index when it writes search documents, so request
@@ -56,6 +57,36 @@ Results carry:
 Search scores and vector similarity stay derived evidence. They do not promote a
 result to canonical graph truth.
 
+## Graph-neighborhood reranking
+
+When `rerank: true` is set, the route reorders the already-retrieved, in-scope
+results around code-to-cloud graph anchors before returning them. Reranking is a
+permutation of the retrieved set: it never adds, drops, or relabels a result, so
+scope and authorization filtering still apply and truth labels are unchanged.
+Graph proximity is derived only from the graph handles already on each curated
+document, so the route issues no extra graph read or write.
+
+A reranked response adds:
+
+- top-level `rerank` with `state` (`applied`, `inactive`, or `stale_skipped`)
+  and `applied`;
+- per-result `ranking_basis` carrying the preserved `baseline_rank` and
+  `baseline_score`, the new `final_rank`, the summed `graph_boost`, and the
+  `contributions` (each a signal `kind`, the bounded `kind:id` `handle`, and a
+  `weight`);
+- top-level `recommended_next_calls`: bounded first-class read tools
+  (`get_service_story`, `trace_deployment_chain`, `get_incident_context`,
+  `explain_supply_chain_impact`, `build_evidence_citation_packet`) to advance the
+  investigation from the results.
+
+Reranking fails closed to the baseline order when it is not requested
+(`state` omitted), when no graph signal fires for any result
+(`state=inactive`), or when graph context is stale (`state=stale_skipped`). The
+signals, weights, and fusion are documented in
+[`internal/searchrerank`](https://github.com/eshu-hq/eshu/tree/main/go/internal/searchrerank).
+The accept decision and measured nDCG lift are recorded in
+[issue-2678 graph-rerank evidence](../searchbench-evidence/2678-graph-rerank.md).
+
 ## Modes
 
 `keyword` uses BM25 over persisted curated search-document postings and reports
@@ -82,15 +113,25 @@ tokens.
 ## MCP Parity
 
 MCP exposes the same route through `search_semantic_context`. MCP dispatch is
-transport-only: it forwards the request fields to
+transport-only: it forwards the request fields, including `rerank`, to
 `POST /api/v0/search/semantic` and preserves the HTTP envelope as
-`structuredContent`.
+`structuredContent`. The reranked `rerank`, `ranking_basis`, and
+`recommended_next_calls` fields flow back unchanged.
 
 ## Evidence
 
 No-Regression Evidence: `go test ./internal/query ./internal/mcp -run 'Test(SemanticSearch|OpenAPISpecIncludesSemanticSearch|SemanticSearchTool)' -count=1`
 covers required fields, bounds, scoped-token no-grant and not-found behavior,
-OpenAPI shape, MCP schema, and route mapping.
+OpenAPI shape, MCP schema, route mapping, and graph-neighborhood reranking
+(promotion of the service-anchored result, ranking basis, recommended next
+calls, and the rerank-off default).
+
+Benchmark Evidence: `go test ./internal/searchrerank -run Benchmark -v -count=1`
+scores baseline vs reranked nDCG@3 over a labeled fixture suite and gates the
+accept decision recorded in
+[issue-2678 graph-rerank evidence](../searchbench-evidence/2678-graph-rerank.md):
+mean nDCG@3 0.7232 -> 1.0000 with no regression and the no-signal case held
+neutral.
 
 Observability Evidence: `telemetry.SpanQuerySemanticSearch`
 (`query.semantic_search`) wraps the route with stable `http.route` and

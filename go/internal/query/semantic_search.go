@@ -52,6 +52,10 @@ type semanticSearchRequest struct {
 	WorkloadID  string   `json:"workload_id,omitempty"`
 	Environment string   `json:"environment,omitempty"`
 	SourceKinds []string `json:"source_kinds,omitempty"`
+	// Rerank opts the request into graph-neighborhood reranking over the
+	// retrieved in-scope results. Off by default; when on, the response reports
+	// the reranking state, per-result ranking basis, and recommended next calls.
+	Rerank bool `json:"rerank,omitempty"`
 }
 
 type semanticSearchResponse struct {
@@ -69,6 +73,8 @@ type semanticSearchResponse struct {
 	CorpusLimit              int                    `json:"corpus_limit"`
 	CorpusMayBeTruncated     bool                   `json:"corpus_may_be_truncated"`
 	RetrievalState           string                 `json:"retrieval_state"`
+	Rerank                   *semanticSearchRerank  `json:"rerank,omitempty"`
+	RecommendedNextCalls     []semanticSearchCall   `json:"recommended_next_calls,omitempty"`
 }
 
 type semanticSearchResult struct {
@@ -81,6 +87,7 @@ type semanticSearchResult struct {
 	Freshness    semanticSearchFreshness     `json:"freshness"`
 	Failures     []searchbench.FailureClass  `json:"failures,omitempty"`
 	Metadata     map[string]string           `json:"metadata,omitempty"`
+	RankingBasis *semanticSearchRankingBasis `json:"ranking_basis,omitempty"`
 }
 
 type semanticSearchDocument struct {
@@ -219,7 +226,7 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 		w,
 		r,
 		http.StatusOK,
-		semanticSearchResponseFromRetrieval(req, retrieval, indexResult),
+		semanticSearchResponseFromRetrieval(req, retrieval, indexResult, body.Rerank),
 		h.truth(),
 	)
 }
@@ -357,95 +364,6 @@ func emptySemanticSearchResponse(req searchretrieval.Request) semanticSearchResp
 	}
 }
 
-func semanticSearchResponseFromRetrieval(
-	req searchretrieval.Request,
-	retrieval searchretrieval.Response,
-	indexResult semanticSearchIndexResult,
-) semanticSearchResponse {
-	results := make([]semanticSearchResult, 0, len(retrieval.Results))
-	for _, result := range retrieval.Results {
-		results = append(results, semanticSearchResult{
-			Rank:         result.Rank,
-			Score:        result.Score,
-			SearchMethod: semanticSearchMethod(result.Metadata, retrieval.Mode),
-			Document:     semanticSearchDocumentFromSearchDoc(result.Document),
-			GraphHandles: semanticSearchGraphHandles(result.Handles),
-			TruthScope:   semanticSearchTruthScope(result.TruthScope),
-			Freshness:    semanticSearchFreshness(result.Freshness),
-			Failures:     append([]searchbench.FailureClass(nil), result.Failures...),
-			Metadata:     cloneSemanticSearchMetadata(result.Metadata),
-		})
-	}
-	return semanticSearchResponse{
-		Query:                    retrieval.Query,
-		RepoID:                   req.Scope.RepoID,
-		Anchor:                   retrieval.Anchor,
-		Mode:                     retrieval.Mode,
-		SearchMode:               string(retrieval.Mode),
-		Limit:                    retrieval.Limit,
-		TimeoutMS:                int(retrieval.Timeout / time.Millisecond),
-		Results:                  results,
-		Truncated:                retrieval.Truncated,
-		FalseCanonicalClaimCount: retrieval.FalseCanonicalClaimCount,
-		IndexedDocumentCount:     indexResult.IndexedDocumentCount,
-		CorpusLimit:              indexResult.CorpusLimit,
-		CorpusMayBeTruncated:     indexResult.CorpusMayBeTruncated,
-		RetrievalState:           indexResult.RetrievalState,
-	}
-}
-
-func semanticSearchDocumentFromSearchDoc(doc searchdocs.Document) semanticSearchDocument {
-	return semanticSearchDocument{
-		ID:           doc.ID,
-		RepoID:       doc.RepoID,
-		SourceKind:   doc.SourceKind,
-		Title:        doc.Title,
-		Path:         doc.Path,
-		ContextText:  doc.ContextText,
-		EntityRefs:   semanticSearchEntityRefs(doc.EntityRefs),
-		GraphHandles: semanticSearchGraphHandles(doc.GraphHandles),
-		Labels:       append([]string(nil), doc.Labels...),
-		UpdatedAt:    doc.UpdatedAt,
-		TruthScope:   semanticSearchTruthScope(doc.TruthScope),
-		Freshness:    semanticSearchFreshness(doc.Freshness),
-		AccessScope:  semanticSearchAccessScope{RepoID: doc.AccessScope.RepoID},
-		Provenance: semanticSearchProvenance{
-			SourceTable: doc.Provenance.SourceTable,
-			SourceIDs:   append([]string(nil), doc.Provenance.SourceIDs...),
-		},
-	}
-}
-
-func semanticSearchEntityRefs(refs []searchdocs.EntityRef) []semanticSearchEntityRef {
-	out := make([]semanticSearchEntityRef, 0, len(refs))
-	for _, ref := range refs {
-		out = append(out, semanticSearchEntityRef{
-			ID:        ref.ID,
-			Type:      ref.Type,
-			Name:      ref.Name,
-			Path:      ref.Path,
-			StartLine: ref.StartLine,
-			EndLine:   ref.EndLine,
-		})
-	}
-	return out
-}
-
-func semanticSearchGraphHandles(handles []searchdocs.GraphHandle) []semanticSearchGraphHandle {
-	out := make([]semanticSearchGraphHandle, 0, len(handles))
-	for _, handle := range handles {
-		out = append(out, semanticSearchGraphHandle{Kind: handle.Kind, ID: handle.ID})
-	}
-	return out
-}
-
-func semanticSearchMethod(metadata map[string]string, mode searchbench.Mode) string {
-	if method := strings.TrimSpace(metadata["search_method"]); method != "" {
-		return method
-	}
-	return string(mode)
-}
-
 func semanticSearchRetrievalError(err error) (int, ErrorCode) {
 	message := err.Error()
 	if strings.Contains(message, "semantic mode requires an embedder") {
@@ -455,17 +373,6 @@ func semanticSearchRetrievalError(err error) (int, ErrorCode) {
 		return http.StatusInternalServerError, ErrorCodeInternalError
 	}
 	return http.StatusBadRequest, ErrorCodeInvalidArgument
-}
-
-func cloneSemanticSearchMetadata(metadata map[string]string) map[string]string {
-	if len(metadata) == 0 {
-		return nil
-	}
-	cloned := make(map[string]string, len(metadata))
-	for key, value := range metadata {
-		cloned[key] = value
-	}
-	return cloned
 }
 
 func (h *SemanticSearchHandler) truth() *TruthEnvelope {

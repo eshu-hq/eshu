@@ -61,6 +61,40 @@ func TestSemanticSearchToolRoutesToBoundedHTTPRead(t *testing.T) {
 	}
 }
 
+func TestSemanticSearchToolPassesRerankFlag(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("search_semantic_context", map[string]any{
+		"repo_id":    "repo-payments",
+		"query":      "payment runbook",
+		"mode":       "hybrid",
+		"limit":      5,
+		"timeout_ms": 250,
+		"rerank":     true,
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute error = %v, want nil", err)
+	}
+	if got, want := route.body.(map[string]any)["rerank"], true; got != want {
+		t.Fatalf("body[rerank] = %#v, want %#v", got, want)
+	}
+
+	// rerank defaults to false when the caller omits it.
+	defaultRoute, err := resolveRoute("search_semantic_context", map[string]any{
+		"repo_id":    "repo-payments",
+		"query":      "payment runbook",
+		"mode":       "keyword",
+		"limit":      5,
+		"timeout_ms": 250,
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute(default) error = %v, want nil", err)
+	}
+	if got, want := defaultRoute.body.(map[string]any)["rerank"], false; got != want {
+		t.Fatalf("default body[rerank] = %#v, want %#v", got, want)
+	}
+}
+
 func containsRequired(fields []any, want string) bool {
 	for _, field := range fields {
 		if field == want {

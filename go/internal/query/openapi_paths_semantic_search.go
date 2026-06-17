@@ -26,7 +26,8 @@ const openAPIPathsSemanticSearch = `
                   "source_kinds": {
                     "type": "array",
                     "items": {"type": "string", "enum": ["code_entity", "repository_file", "runtime_summary", "semantic_context"]}
-                  }
+                  },
+                  "rerank": {"type": "boolean", "description": "Opt into graph-neighborhood reranking over the in-scope results. When true the response reports the reranking state, per-result ranking basis, and recommended next calls. Off by default."}
                 }
               }
             }
@@ -82,7 +83,48 @@ const openAPIPathsSemanticSearch = `
                           "truth_scope": {"type": "object"},
                           "freshness": {"type": "object"},
                           "failures": {"type": "array", "items": {"type": "string"}},
-                          "metadata": {"type": "object", "additionalProperties": {"type": "string"}}
+                          "metadata": {"type": "object", "additionalProperties": {"type": "string"}},
+                          "ranking_basis": {
+                            "type": "object",
+                            "description": "Present only when rerank was requested. Preserves the baseline rank and lexical/vector score and lists the graph signals that moved the result.",
+                            "properties": {
+                              "baseline_rank": {"type": "integer"},
+                              "baseline_score": {"type": "number"},
+                              "final_rank": {"type": "integer"},
+                              "graph_boost": {"type": "number"},
+                              "contributions": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {"type": "string"},
+                                    "handle": {"type": "string"},
+                                    "weight": {"type": "number"}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "rerank": {
+                      "type": "object",
+                      "description": "Present only when rerank was requested; the block is absent (not 'disabled') when rerank is off. Reports which reranking path answered.",
+                      "properties": {
+                        "state": {"type": "string", "enum": ["applied", "inactive", "stale_skipped"]},
+                        "applied": {"type": "boolean"}
+                      }
+                    },
+                    "recommended_next_calls": {
+                      "type": "array",
+                      "description": "Bounded first-class read tools to advance the investigation from the results. Present only when rerank was requested.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "tool": {"type": "string"},
+                          "arguments": {"type": "object"},
+                          "reason": {"type": "string"}
                         }
                       }
                     }
