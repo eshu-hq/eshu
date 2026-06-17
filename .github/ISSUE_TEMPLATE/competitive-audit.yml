@@ -1,0 +1,90 @@
+name: Competitive audit gap
+description: Propose a gap found while comparing Eshu to a competitor. Requires repo evidence and a gap classification before it becomes work.
+title: "Audit: <competitor> <capability> gap"
+labels: ["capability:documentation-truth"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every competitive-audit issue must state what was validated before it
+        becomes work. Fill every section. The preflight validator
+        (`go run ./cmd/audit-preflight`) and
+        [Competitive Audit Preflight](https://github.com/eshu-hq/eshu/blob/main/docs/public/reference/competitive-audit-preflight.md)
+        check these fields. Section headings here match the validator contract —
+        do not rename them.
+  - type: textarea
+    id: competitor_source
+    attributes:
+      label: Competitor source and local path
+      description: Competitor name, local repo path inspected, and the specific feature/source file observed (not docs-only claims).
+    validations:
+      required: true
+  - type: textarea
+    id: code_evidence
+    attributes:
+      label: Eshu code evidence
+      description: Eshu code paths inspected and what they already do (or do not do). Cite files.
+    validations:
+      required: true
+  - type: textarea
+    id: docs_evidence
+    attributes:
+      label: Eshu docs evidence
+      description: Eshu docs inspected, including the capability catalog comparison point.
+    validations:
+      required: true
+  - type: textarea
+    id: proof_evidence
+    attributes:
+      label: Eshu test or proof evidence
+      description: Tests, contracts, or proof runs inspected for the touched surface.
+    validations:
+      required: true
+  - type: textarea
+    id: duplicate_search
+    attributes:
+      label: Existing issue duplicate search
+      description: Search terms used against open issues and recent closed PRs/issues, and the results.
+    validations:
+      required: true
+  - type: dropdown
+    id: gap_class
+    attributes:
+      label: Gap class
+      description: Classify the gap.
+      options:
+        - missing
+        - foundation exists
+        - ui missing
+        - docs stale
+        - proof missing
+        - quality gap
+        - already tracked
+    validations:
+      required: true
+  - type: dropdown
+    id: owner_surface
+    attributes:
+      label: Owner surface
+      description: The Eshu surface that owns the gap.
+      options:
+        - api
+        - mcp
+        - console
+        - docs
+        - collector
+        - parser
+        - reducer
+        - correlation
+        - search
+        - runtime
+        - governance
+    validations:
+      required: true
+  - type: textarea
+    id: verification_plan
+    attributes:
+      label: Verification plan
+      description: How closing this issue will be proven, or why it links to an existing issue instead of becoming new work.
+    validations:
+      required: true
