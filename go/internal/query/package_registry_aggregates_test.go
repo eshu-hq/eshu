@@ -554,9 +554,9 @@ func TestGraphPackageRegistryAggregateStoreNormalizesEmptyStringBuckets(t *testi
 	// CASE expression must instead map both NULL and empty-string to
 	// `unknown` so callers never see an empty bucket key.
 	for _, kind := range []struct {
-		name           string
-		dimension      PackageRegistryInventoryDimension
-		propertyMatch  string
+		name          string
+		dimension     PackageRegistryInventoryDimension
+		propertyMatch string
 	}{
 		{"namespace", PackageRegistryInventoryByNamespace, "p.namespace"},
 		{"ecosystem", PackageRegistryInventoryByEcosystem, "p.ecosystem"},

@@ -465,7 +465,7 @@ func TestGraphInfraResourceAggregateInventoryRejectsUnsafeDimension(t *testing.T
 // guards the hot-path index eligibility for the four TerraformResource
 // indexes shipped with #690 (provider, environment, resource_service,
 // resource_category). A future refactor that wraps the property in
-// `coalesce(n.X, '') = $X` would silently block planner index selection
+// `coalesce(n.X, ”) = $X` would silently block planner index selection
 // even though the test fixture still returns the right rows. This test
 // fails as soon as that regression lands.
 func TestInfraResourceAggregateWhereClauseUsesDirectEqualityForIndexedProps(t *testing.T) {

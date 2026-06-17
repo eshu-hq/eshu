@@ -68,6 +68,7 @@ func OpenAPISpec() string {
 			openAPIPathsReplatformingOwnership+
 			openAPIPathsContent+
 			openAPIPathsMetrics+
+			openAPIPathsCapabilities+
 			openAPIPathsAdmin+
 			openAPIPathsInfrastructure+
 			openAPIPathsInfraResourceAggregate+

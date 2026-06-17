@@ -17,6 +17,7 @@ import {
   Images,
   KeyRound,
   LayoutDashboard,
+  ListChecks,
   Network,
   PackageSearch,
   Search,
@@ -55,6 +56,7 @@ import { ReplatformingPage } from "./pages/ReplatformingPage";
 import { RepositoriesPage } from "./pages/RepositoriesPage";
 import { RepoSourcePage } from "./pages/RepoSourcePage";
 import { ImagesPage } from "./pages/ImagesPage";
+import { CapabilityMatrixPage } from "./pages/CapabilityMatrixPage";
 import { CloudPage } from "./pages/CloudPage";
 import { CloudDriftPage } from "./pages/CloudDriftPage";
 import { SecretsIamPage } from "./pages/SecretsIamPage";
@@ -127,6 +129,7 @@ const NAV_GROUPS: readonly { readonly label: string; readonly items: readonly Na
   {
     label: "System",
     items: [
+      { to: "/capabilities", label: "Capabilities", icon: ListChecks },
       { to: "/operations", label: "Operations", icon: ServerCog }
     ]
   }
@@ -363,6 +366,7 @@ export function App(): React.JSX.Element {
             <Route path="/incidents/:incidentId/context" element={<IncidentContextPage model={visibleModel} client={client} onOpenService={openService} />} />
             <Route path="/catalog" element={<CatalogPage model={visibleModel} onOpenService={openService} />} />
             <Route path="/images" element={<ImagesPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
+            <Route path="/capabilities" element={<CapabilityMatrixPage client={client} sourceLabel={source.mode === "demo" ? "demo fixtures" : "live"} />} />
             <Route path="/iac" element={<IacPage model={visibleModel} client={source.mode === "demo" ? undefined : client} />} />
             <Route path="/replatforming" element={<ReplatformingPage model={visibleModel} client={client} />} />
             <Route path="/findings" element={<FindingsPage model={visibleModel} />} />

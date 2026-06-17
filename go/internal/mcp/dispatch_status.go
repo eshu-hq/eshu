@@ -30,6 +30,18 @@ func statusRoute(toolName string, args map[string]any) (*route, bool, error) {
 		return &route{method: "GET", path: "/api/v0/status/semantic-extraction"}, true, nil
 	case "get_answer_narration_status":
 		return &route{method: "GET", path: "/api/v0/status/answer-narration"}, true, nil
+	case "get_capability_catalog":
+		query := map[string]string{
+			"limit":  intString(args, "limit", 200),
+			"offset": intString(args, "offset", 0),
+		}
+		if maturity := str(args, "maturity"); maturity != "" {
+			query["maturity"] = maturity
+		}
+		if owner := str(args, "owner"); owner != "" {
+			query["owner"] = owner
+		}
+		return &route{method: "GET", path: "/api/v0/capabilities", query: query}, true, nil
 	case "list_component_extensions":
 		return &route{method: "GET", path: "/api/v0/component-extensions", query: map[string]string{
 			"limit": intString(args, "limit", 100),
