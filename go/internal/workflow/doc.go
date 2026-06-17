@@ -8,10 +8,11 @@
 // derives run status and completeness rows deterministically from bounded
 // collector progress and reducer phase publications, including blocked
 // completeness when terminal collector failures appear. The family fairness
-// scheduler chooses the next claim target across enabled collector instances;
-// GCP is registered as a known collector contract with no operational phases
-// and must remain claim-disabled until coordinator scheduler support lands.
-// Terraform state collector instances also validate their discovery config
+// scheduler supplies deterministic claim targets across enabled collector
+// instances; the collector claim-dispatch boundary synchronizes scheduler state
+// and delegates each selected target to ControlStore.ClaimNextEligible so lease
+// fencing remains in storage. Terraform state collector instances also validate
+// their discovery config
 // before reaching durable storage: they must enable graph discovery, explicit
 // seeds, local repo limits, or backend filters. S3 seeds require bucket, key,
 // region, and credentials through target scopes or a legacy AWS role ARN; S3

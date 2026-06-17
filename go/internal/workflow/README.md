@@ -142,6 +142,11 @@ Types in this package flow through four phases of the workflow control plane:
 - `FairnessCandidatesFromCollectorInstances` — extracts claim-enabled durable
   instances into `FairnessCandidate` slices
 
+`collector.FairClaimDispatcher` is the production claim-dispatch boundary that
+uses these scheduler values. It chooses the next target, then calls
+`ClaimNextEligible` for that target so lease fencing, retry, terminal failure,
+and completion stay in the existing claim lifecycle.
+
 `DesiredCollectorInstance.Validate` applies a stricter configuration check for
 `terraform_state` instances. A Terraform state collector must declare a
 `discovery` block with graph discovery, explicit seeds, or local repo limits.
@@ -447,7 +452,8 @@ Observability Evidence: no new metrics were required. Single-pass proof mode is 
   treated as corruption and not silently ignored.
 - `FamilyFairnessScheduler.Next` mutates internal `currentWeight` state. A
   single scheduler instance is not safe for concurrent use without external
-  synchronization.
+  synchronization; `collector.FairClaimDispatcher` holds that lock around
+  `Next` and does not hold it while Postgres claims work.
 - Adding a new collector family requires an entry in `collectorContracts` in
   `collector_contract.go`. The lookup returns `false` for unknown kinds;
   callers that do not check will silently get empty phase lists.

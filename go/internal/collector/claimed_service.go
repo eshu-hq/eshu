@@ -53,6 +53,7 @@ const FailureClassAttemptBudgetExhausted = "attempt_budget_exhausted"
 // unbounded behavior for callers that have not yet wired a budget.
 type ClaimedService struct {
 	ControlStore        ClaimControlStore
+	ClaimDispatcher     ClaimDispatcher
 	Source              ClaimedSource
 	Committer           Committer
 	DeadLetters         GenerationDeadLetterSink
@@ -84,12 +85,7 @@ func (s ClaimedService) Run(ctx context.Context) error {
 		if claimID == "" {
 			return fmt.Errorf("claim id is required")
 		}
-		item, claim, found, err := s.ControlStore.ClaimNextEligible(ctx, workflow.ClaimSelector{
-			CollectorKind:       s.CollectorKind,
-			CollectorInstanceID: s.CollectorInstanceID,
-			OwnerID:             s.OwnerID,
-			ClaimID:             claimID,
-		}, s.now(), s.ClaimLeaseTTL)
+		item, claim, target, found, err := s.claimNext(ctx, claimID)
 		if err != nil {
 			return fmt.Errorf("claim next %s work item: %w", s.claimedKindLabel(), err)
 		}
@@ -100,7 +96,10 @@ func (s ClaimedService) Run(ctx context.Context) error {
 			continue
 		}
 
-		if err := s.processClaimed(ctx, item, claim); err != nil {
+		runner := s
+		runner.CollectorKind = target.CollectorKind
+		runner.CollectorInstanceID = target.CollectorInstanceID
+		if err := runner.processClaimed(ctx, item, claim); err != nil {
 			if errors.Is(err, errRetryableClaimRecorded) || errors.Is(err, errTerminalClaimRecorded) {
 				continue
 			}
@@ -122,11 +121,13 @@ func (s ClaimedService) validate() error {
 	if _, ok := s.Committer.(ClaimedCommitter); !ok {
 		return errors.New("claim-aware collector committer must implement ClaimedCommitter")
 	}
-	if strings.TrimSpace(string(s.CollectorKind)) == "" {
-		return errors.New("collector kind is required")
-	}
-	if strings.TrimSpace(s.CollectorInstanceID) == "" {
-		return errors.New("collector instance id is required")
+	if s.ClaimDispatcher == nil {
+		if strings.TrimSpace(string(s.CollectorKind)) == "" {
+			return errors.New("collector kind is required")
+		}
+		if strings.TrimSpace(s.CollectorInstanceID) == "" {
+			return errors.New("collector instance id is required")
+		}
 	}
 	if strings.TrimSpace(s.OwnerID) == "" {
 		return errors.New("owner id is required")
@@ -149,13 +150,33 @@ func (s ClaimedService) validate() error {
 	return nil
 }
 
+func (s ClaimedService) claimNext(
+	ctx context.Context,
+	claimID string,
+) (workflow.WorkItem, workflow.Claim, workflow.ClaimTarget, bool, error) {
+	if s.ClaimDispatcher != nil {
+		return s.ClaimDispatcher.ClaimNext(ctx, s.OwnerID, claimID, s.now(), s.ClaimLeaseTTL)
+	}
+	target := workflow.ClaimTarget{
+		CollectorKind:       s.CollectorKind,
+		CollectorInstanceID: s.CollectorInstanceID,
+	}
+	item, claim, found, err := s.ControlStore.ClaimNextEligible(ctx, workflow.ClaimSelector{
+		CollectorKind:       target.CollectorKind,
+		CollectorInstanceID: target.CollectorInstanceID,
+		OwnerID:             s.OwnerID,
+		ClaimID:             claimID,
+	}, s.now(), s.ClaimLeaseTTL)
+	return item, claim, target, found, err
+}
+
 func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkItem, claim workflow.Claim) error {
 	if s.Tracer != nil && s.CollectorKind == scope.CollectorTerraformState {
 		var span trace.Span
 		ctx, span = s.Tracer.Start(ctx, telemetry.SpanTerraformStateClaimProcess)
 		defer span.End()
 	}
-	s.recordTerraformStateClaimWait(ctx, item)
+	s.recordWorkflowClaimWait(ctx, item)
 
 	mutation := s.claimMutation(item, claim)
 	if err := s.ControlStore.HeartbeatClaim(ctx, mutation); err != nil {
@@ -389,27 +410,6 @@ func (s ClaimedService) now() time.Time {
 		return s.Clock().UTC()
 	}
 	return time.Now().UTC()
-}
-
-func (s ClaimedService) recordTerraformStateClaimWait(ctx context.Context, item workflow.WorkItem) {
-	if s.CollectorKind != scope.CollectorTerraformState || s.Instruments == nil {
-		return
-	}
-	reference := item.VisibleAt
-	if reference.IsZero() {
-		reference = item.CreatedAt
-	}
-	if reference.IsZero() {
-		return
-	}
-	wait := s.now().Sub(reference.UTC()).Seconds()
-	if wait < 0 {
-		wait = 0
-	}
-	s.Instruments.TerraformStateClaimWaitDuration.Record(ctx, wait, metric.WithAttributes(
-		telemetry.AttrSourceSystem(item.SourceSystem),
-		telemetry.AttrCollectorKind(string(item.CollectorKind)),
-	))
 }
 
 func validateClaimedGeneration(item workflow.WorkItem, collected CollectedGeneration) error {

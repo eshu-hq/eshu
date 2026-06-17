@@ -247,6 +247,14 @@ progress messages.
   Hosted work items copy tenant identity into commit mutations. Retryable
   source errors exposing `RetryAfterDelay()` set retry `visible_at` to the
   larger of poll interval and provider guidance without changing fact output.
+  A configured `ClaimDispatcher` can choose the next claim target across
+  collector families before the service enters the same heartbeat, commit,
+  retry, terminal-failure, release, and completion path.
+- `FairClaimDispatcher` — applies `workflow.FamilyFairnessScheduler` to a
+  bounded candidate set and delegates each selected target to
+  `ClaimControlStore.ClaimNextEligible`; empty target lanes are skipped during
+  the same poll without changing Postgres FIFO ordering inside a selected
+  collector instance.
 - `FailureClassAttemptBudgetExhausted` — exported failure-class label that
   `ClaimedService` writes to `workflow_claims.failure_class` and
   `workflow_work_items.last_failure_class` when the retry budget escalates a
