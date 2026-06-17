@@ -21,6 +21,15 @@ type QueueObserver interface {
 	QueueOldestAge(ctx context.Context) (map[string]float64, error)
 }
 
+// WorkflowFamilyQueueDepthObserver provides outstanding claim-aware collector
+// queue depth grouped by collector family and status, backing the per-family
+// queue-depth gauge. Keys: collector_kind -> source_system -> status -> count.
+// It is intentionally separate from QueueObserver so existing implementers are
+// not forced to provide it.
+type WorkflowFamilyQueueDepthObserver interface {
+	WorkflowFamilyQueueDepths(ctx context.Context) (map[string]map[string]map[string]int64, error)
+}
+
 // WorkerObserver provides active worker counts for observable gauges.
 type WorkerObserver interface {
 	// ActiveWorkers returns the current active count per worker pool.
@@ -797,6 +806,9 @@ type Instruments struct {
 	SharedAcceptanceRows metric.Int64ObservableGauge
 	GraphOrphanNodes     metric.Int64ObservableGauge
 	AWSClaimConcurrency  metric.Int64ObservableGauge
+	// WorkflowFamilyQueueDepth reports outstanding claim-aware collector queue
+	// depth by collector_kind, source_system, and status (issue #2699/#2857).
+	WorkflowFamilyQueueDepth metric.Int64ObservableGauge
 }
 
 // NewInstruments creates and registers all OTEL metric instruments using the
@@ -3396,6 +3408,50 @@ func RegisterGraphOrphanObservableGauge(inst *Instruments, meter metric.Meter, o
 	)
 	if err != nil {
 		return fmt.Errorf("register GraphOrphanNodes gauge: %w", err)
+	}
+	return nil
+}
+
+// RegisterWorkflowFamilyQueueDepthObservableGauge registers the per-family
+// claim-aware collector queue-depth gauge. The callback runs read-only on the
+// meter collection goroutine. It is a no-op when observer is nil so binaries
+// without a workflow control store skip it.
+func RegisterWorkflowFamilyQueueDepthObservableGauge(inst *Instruments, meter metric.Meter, observer WorkflowFamilyQueueDepthObserver) error {
+	if inst == nil {
+		return errors.New("instruments are required")
+	}
+	if meter == nil {
+		return errors.New("meter is required")
+	}
+	if observer == nil {
+		return nil
+	}
+
+	var err error
+	inst.WorkflowFamilyQueueDepth, err = meter.Int64ObservableGauge(
+		"eshu_dp_workflow_family_queue_depth",
+		metric.WithDescription("Outstanding claim-aware collector work-item count by collector_kind, source_system, and status"),
+		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+			depths, err := observer.WorkflowFamilyQueueDepths(ctx)
+			if err != nil {
+				return err
+			}
+			for collectorKind, sources := range depths {
+				for sourceSystem, statuses := range sources {
+					for status, count := range statuses {
+						o.Observe(count, metric.WithAttributes(
+							AttrCollectorKind(collectorKind),
+							AttrSourceSystem(sourceSystem),
+							AttrStatus(status),
+						))
+					}
+				}
+			}
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register WorkflowFamilyQueueDepth gauge: %w", err)
 	}
 	return nil
 }

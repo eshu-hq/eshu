@@ -45,6 +45,11 @@ func registerReducerObservableGauges(
 	if err := telemetry.RegisterGraphOrphanObservableGauge(instruments, meter, graphOrphanObserver); err != nil {
 		return fmt.Errorf("register graph orphan observable gauge: %w", err)
 	}
+
+	workflowFamilyQueueObserver := postgres.NewWorkflowControlStore(postgres.SQLDB{DB: db})
+	if err := telemetry.RegisterWorkflowFamilyQueueDepthObservableGauge(instruments, meter, workflowFamilyQueueObserver); err != nil {
+		return fmt.Errorf("register workflow family queue depth observable gauge: %w", err)
+	}
 	return nil
 }
 

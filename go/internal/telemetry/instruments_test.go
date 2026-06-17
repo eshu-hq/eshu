@@ -572,6 +572,64 @@ func TestRegisterGraphOrphanObservableGauge_WithObserver(t *testing.T) {
 	}
 }
 
+type fakeWorkflowFamilyQueueObserver struct {
+	depths map[string]map[string]map[string]int64
+}
+
+func (f *fakeWorkflowFamilyQueueObserver) WorkflowFamilyQueueDepths(_ context.Context) (map[string]map[string]map[string]int64, error) {
+	return f.depths, nil
+}
+
+func TestRegisterWorkflowFamilyQueueDepthObservableGauge_NilObserver(t *testing.T) {
+	inst := &Instruments{}
+	meter := sdkmetric.NewMeterProvider().Meter("test")
+	if err := RegisterWorkflowFamilyQueueDepthObservableGauge(inst, meter, nil); err != nil {
+		t.Fatalf("RegisterWorkflowFamilyQueueDepthObservableGauge(nil observer) error = %v", err)
+	}
+	if inst.WorkflowFamilyQueueDepth != nil {
+		t.Fatal("gauge should not be registered for a nil observer")
+	}
+}
+
+func TestRegisterWorkflowFamilyQueueDepthObservableGauge_WithObserver(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	inst := &Instruments{}
+	observer := &fakeWorkflowFamilyQueueObserver{
+		depths: map[string]map[string]map[string]int64{
+			"git": {"github": {"pending": 3, "claimed": 1}},
+			"aws": {"aws": {"failed_retryable": 2}},
+		},
+	}
+
+	if err := RegisterWorkflowFamilyQueueDepthObservableGauge(inst, provider.Meter("test"), observer); err != nil {
+		t.Fatalf("RegisterWorkflowFamilyQueueDepthObservableGauge() error = %v", err)
+	}
+	if inst.WorkflowFamilyQueueDepth == nil {
+		t.Fatal("WorkflowFamilyQueueDepth gauge was not registered")
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if got := observableInt64GaugeValue(t, rm, "eshu_dp_workflow_family_queue_depth", map[string]string{
+		"collector_kind": "git", "source_system": "github", "status": "pending",
+	}); got != 3 {
+		t.Fatalf("git/github/pending gauge = %d, want 3", got)
+	}
+	if got := observableInt64GaugeValue(t, rm, "eshu_dp_workflow_family_queue_depth", map[string]string{
+		"collector_kind": "git", "source_system": "github", "status": "claimed",
+	}); got != 1 {
+		t.Fatalf("git/github/claimed gauge = %d, want 1", got)
+	}
+	if got := observableInt64GaugeValue(t, rm, "eshu_dp_workflow_family_queue_depth", map[string]string{
+		"collector_kind": "aws", "source_system": "aws", "status": "failed_retryable",
+	}); got != 2 {
+		t.Fatalf("aws/aws/failed_retryable gauge = %d, want 2", got)
+	}
+}
+
 func TestReconciliationDriftRetractionsCounterRecordsBoundedLabels(t *testing.T) {
 	reader := sdkmetric.NewManualReader()
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))

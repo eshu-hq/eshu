@@ -161,6 +161,13 @@ ALTER TABLE workflow_work_items
 CREATE INDEX IF NOT EXISTS workflow_work_items_phase_tuple_idx
     ON workflow_work_items (run_id, scope_id, acceptance_unit_id, source_run_id, generation_id);
 
+-- Created after the source_system upgrade migration above so installations whose
+-- workflow_work_items table predates the source_system column add the column
+-- before this index references it. Backs the per-family queue-depth gauge (#2857).
+CREATE INDEX IF NOT EXISTS workflow_work_items_family_queue_depth_idx
+    ON workflow_work_items (collector_kind, source_system, status)
+    WHERE status IN ('pending', 'claimed', 'failed_retryable', 'expired');
+
 CREATE TABLE IF NOT EXISTS workflow_claims (
     claim_id TEXT PRIMARY KEY,
     work_item_id TEXT NOT NULL REFERENCES workflow_work_items(work_item_id) ON DELETE CASCADE,
