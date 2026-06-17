@@ -105,13 +105,15 @@ write set or whose handlers remain whole-scope by design:
 | risky domains | `semantic_entity_materialization`, `sql_relationship_materialization`, and `inheritance_materialization` can become partitionable only when the reducer can name the full source-owner retract and write set before graph mutation. | Pending/retrying/dead-letter rows must keep domain, conflict key, failure class, retry count, and fallback reason visible. |
 | blocked domains | Any domain that retracts by repository, broad graph neighbor, language family, or ambiguous generated/source-map ownership stays whole-scope. The scope-wide resource relationship and posture domains (`aws_relationship_materialization`, `gcp_relationship_materialization`, `azure_relationship_materialization`, `iam_can_assume_materialization`, `s3_logs_to_materialization`, `s3_external_principal_grant_materialization`, `rds_posture_materialization`, and the Kubernetes-correlation and security-group reachability reducers) load, write, or retract by scope today, so they remain whole-scope. A partition key derived from a raw path, commit SHA, private locator, random ID, IP-address-shaped value, or graph readback is invalid. | Whole-scope fallback must be explicit in logs/status; it cannot be hidden behind lower worker counts. |
 
-Issue #2751 owns the next implementation proof for extending partition keys
-beyond CALLS. Until that lands, Eshu must not claim broad intra-repository
-parallel graph writes for semantic, SQL, inheritance, or other high-cardinality
-domains. Issue #2755 owns the generic shared projection selection gap: hashed
-shared domains should select indexed `partition_hash` candidates rather than
-scanning pending rows by domain and filtering partition membership in memory,
-before Eshu promotes more high-cardinality shared projection lanes.
+Issue #2755 (merged) closed the generic shared projection selection gap: hashed
+shared domains now select indexed `partition_hash` candidates rather than
+scanning pending rows by domain and filtering partition membership in memory.
+Issue #2751 audited which high-cardinality shared domains can use that
+foundation; see [Partition-Key Proof Beyond CALLS (#2751)](#partition-key-proof-beyond-calls-2751)
+below. Until each named domain's per-domain implementation ticket lands, Eshu
+must not claim broad intra-repository parallel graph writes for the inheritance,
+SQL relationship, rationale, documentation, or other high-cardinality shared
+edge domains.
 
 Issue #2754 (merged) defined the resource collector conflict domains and
 partition keys for cloud, IAM, Kubernetes, and related materialization domains,
@@ -124,6 +126,55 @@ resource relationship and posture reducers into partition-safe load, write,
 retract, retry, and dead-letter behavior. Until those land, resource domains
 stay on the explicit `resource_scope` fallback and Eshu must not claim
 per-resource parallel graph writes.
+
+### Partition-Key Proof Beyond CALLS (#2751)
+
+CALLS has the strongest file-scoped partition-key foundation: its edge originates
+at `source`, and its delta retract anchors on `source.path` / `source.repo_id`,
+so a file partition names the complete write-and-retract set. The audit of the
+other high-cardinality shared **edge** domains found a structural prerequisite:
+unlike CALLS and cross-repo resolution, the inheritance, SQL relationship,
+rationale, and documentation edge handlers call the edge writer directly and do
+**not** persist shared-projection intents today. They are listed in
+`sharedProjectionDomains` but the generic partitioned runner finds zero pending
+rows for them. Promotion is therefore not "set a partition key at emit" — it is
+building the same intent-persist pipeline CALLS has (emit via `UpsertIntents`
+with a versioned file-scoped key and `delta_projection` payload), then proving
+convergence and concurrency, **per domain**.
+
+The governing invariant for any promotion: the **emit partition-key dimension
+must equal the delta retract anchor**. A file-scoped key paired with a
+whole-repository retract would over-retract a neighbor's edges; a whole-scope key
+paired with a file retract would silently under-retract. The promotion test must
+pin that the partitioned and whole-scope paths converge to byte-identical graph
+and query truth.
+
+| Shared edge domain | Durable source-owner anchor | Classification |
+| --- | --- | --- |
+| `inheritance_edges` | `child.path` / `child.repo_id` (delta retract already anchored on `child.path`) | SAFE to promote — key on the child file. |
+| `sql_relationships` | `source.path` / `source.repo_id` (per-label delta retract on `source.path`) | SAFE to promote — key on the source file. |
+| `rationale_edges` | `target.path` (the comment co-locates with the entity it precedes; delta retract anchors on `target.path`) | SAFE to promote — key on the **target** file, not the rationale uid. |
+| `documentation_edges` | `section.scope_id` + `section.document_id` / `section.uid` | RISKY — the retract is scope-id-anchored, not code-file-path; the runner currently threads `repo_id` where the retract needs `scope_id`. Reconcile the `scope_id`-vs-`repo_id` retract plumbing before promotion. |
+
+No shared edge domain is BLOCKED outright: each already has a narrow delta
+retract path. The blocking risk is pairing a key with a broader retract, which
+the invariant above forbids. Per-domain implementation tickets carry each
+promotion: #2867 (`inheritance_edges`, first — cleanest anchor), #2868
+(`sql_relationships`), #2869 (`rationale_edges`, target-file keyed), and #2870
+(the `documentation_edges` `scope_id`-vs-`repo_id` retract reconciliation
+precursor that must land before documentation is promoted). No domain is promoted
+in #2751 itself, and none is promoted by lowering worker counts, batch size, or
+graph-writer concurrency.
+
+No-Regression Evidence: #2751 is an audit and documentation deliverable. It adds
+no reducer conflict key, intent emit, queue SQL, graph write, Cypher, worker,
+lease, batch, runtime knob, schema DDL, metric, span, log field, status field,
+API/MCP route, collector runtime, or provider call. The classification is backed
+by the existing delta-scope retract proofs (`inheritance_delta_scope_test.go`,
+`sql_relationship_delta_scope_test.go`) and the direct-write handler call sites.
+
+No-Observability-Change: the audit records which durable anchors and convergence
+proofs a future promotion must carry; it changes no runtime telemetry.
 
 ### Postgres Fact And Queue Growth Envelope (#2698)
 
