@@ -8,7 +8,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 129
+	expectedCount := 131
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -92,6 +92,8 @@ func TestReadOnlyTools(t *testing.T) {
 		"get_capability_catalog",
 		"list_component_extensions",
 		"get_component_extension_diagnostics",
+		"list_collector_extraction_readiness",
+		"get_collector_extraction_readiness",
 		"list_collectors",
 		"list_ingesters",
 		"count_repositories_by_language",
@@ -344,6 +346,8 @@ func minimalDispatchRouteArgs(toolName string) map[string]any {
 		return map[string]any{"workload_id": "sample-service-api"}
 	case "get_component_extension_diagnostics":
 		return map[string]any{"component_id": "dev.eshu.collector.aws"}
+	case "get_collector_extraction_readiness":
+		return map[string]any{"family": "pagerduty"}
 	default:
 		return map[string]any{}
 	}

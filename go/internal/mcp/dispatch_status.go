@@ -55,6 +55,19 @@ func statusRoute(toolName string, args map[string]any) (*route, bool, error) {
 			method: "GET",
 			path:   "/api/v0/component-extensions/" + url.PathEscape(componentID) + "/diagnostics",
 		}, true, nil
+	case "list_collector_extraction_readiness":
+		return &route{method: "GET", path: "/api/v0/collector-extraction-readiness", query: map[string]string{
+			"limit": intString(args, "limit", 100),
+		}}, true, nil
+	case "get_collector_extraction_readiness":
+		family := strings.TrimSpace(str(args, "family"))
+		if family == "" {
+			return nil, true, fmt.Errorf("family is required")
+		}
+		return &route{
+			method: "GET",
+			path:   "/api/v0/collector-extraction-readiness/" + url.PathEscape(family),
+		}, true, nil
 	default:
 		return nil, false, nil
 	}

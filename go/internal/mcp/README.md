@@ -89,7 +89,7 @@ logging.
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 125 tools from the tool definition files.
+`ReadOnlyTools` assembles 130 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
@@ -124,7 +124,8 @@ logging.
 | `semanticSearchTools` | 1 | `tools_semantic_search.go` |
 | `documentationFindingAggregateTools` | 2 | `tools_documentation_aggregates.go` |
 | `componentExtensionTools` | 2 | `tools_component_extensions.go` |
-| `runtimeTools` | 7 | `tools_runtime.go` |
+| `collectorExtractionReadinessTools` | 2 | `tools_collector_extraction_readiness.go` |
+| `runtimeTools` | 8 | `tools_runtime.go` |
 
 Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 
@@ -196,6 +197,8 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `resolve_query_playbook` | POST | `/api/v0/query-playbooks/resolve` |
 | `list_component_extensions` | GET | `/api/v0/component-extensions` with defaulted `limit` |
 | `get_component_extension_diagnostics` | GET | `/api/v0/component-extensions/{component_id}/diagnostics` |
+| `list_collector_extraction_readiness` | GET | `/api/v0/collector-extraction-readiness` with defaulted `limit` |
+| `get_collector_extraction_readiness` | GET | `/api/v0/collector-extraction-readiness/{family}` |
 | `list_collectors` | GET | `/api/v0/status/collectors` |
 | `list_ingesters` | GET | `/api/v0/status/ingesters` |
 | `get_hosted_readiness` | GET | `/api/v0/status/hosted-readiness` with fail-closed queue, collector, projection, and API/MCP query-readback checks |

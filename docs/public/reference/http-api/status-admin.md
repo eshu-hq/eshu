@@ -259,6 +259,29 @@ The MCP equivalents are `list_component_extensions` with optional `limit` and
 `eshu component inventory --limit <n> --json` and
 `eshu component diagnostics <component-id> --json`.
 
+## Collector Extraction Readiness
+
+- `GET /api/v0/collector-extraction-readiness?limit=100`
+- `GET /api/v0/collector-extraction-readiness/{family}`
+
+These routes expose the advisory collector extraction readiness checklist. For
+each collector family the extraction policy tracks, they report a classification
+(`keep_in_tree`, `extraction_candidate`, `blocked`, or `external_ready`), the
+per-criterion checklist, and any blockers. The data is static policy
+classification computed from documented repository evidence; the routes read no
+runtime, graph, or registry state, and the result is advisory only and never
+moves code. The drilldown returns HTTP 404 with the canonical `not_found` error
+when the family is not tracked by the policy.
+
+List responses are bounded by `limit` (default 100, max 500) and return `count`,
+`total_count`, and `truncated`. See
+[Collector Extraction Policy](../collector-extraction-policy.md) for the
+classification vocabulary and the seven criteria.
+
+The MCP equivalents are `list_collector_extraction_readiness` with optional
+`limit` and `get_collector_extraction_readiness`. The CLI equivalent is
+`eshu component extraction-readiness [family] --json --verbose`.
+
 No-Regression Evidence: `cd go && go test ./internal/status ./internal/query ./internal/storage/postgres ./internal/mcp -run 'Test(RenderStatusIncludesCollectorRuntimeCategories|CollectorRuntimeStatuses(MergesPersistedFactEvidence|MapsUnattributedFactsToSingleCoordinatorInstance)|StatusHandlerCollectorsRouteExposes(DirectRuntimeEvidence|PersistedFactEvidence)|ReadCollectorFactEvidenceUsesBoundedActiveFactMetadata|ListCollectorsRuntimeToolRoutesToStatusCollectors)' -count=1`; `cd go && go test ./internal/status ./internal/query ./internal/storage/postgres -run 'Test(CollectorRuntimeStatusesMergesPersistedFactEvidence|StatusHandlerCollectorsRouteExposesPersistedFactEvidence|ReadCollectorFactEvidenceUsesBoundedActiveFactMetadata)' -count=1` proves source systems survive persisted fact evidence, status projection, and public collector status rendering.
 No-Observability-Change: collector status classification reuses existing
 `/admin/status`, `/api/v0/status/collectors`, `aws_cloud_scans`,
