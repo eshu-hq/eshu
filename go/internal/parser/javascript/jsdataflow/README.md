@@ -21,11 +21,15 @@ See `doc.go` for the godoc contract. The surface is:
 
 - `LowerFunction(node, source, limits) cfg.Function` — lower one TS/JS function,
   method, or arrow-function body into a resolved control-flow graph.
+- `TaintFacts(node, source, fn) taint.Facts` — derive intraprocedural taint
+  annotations (sources, sinks, sanitizers) from the TS/JS catalog, mapped onto
+  the control-flow graph, for the `internal/parser/taint` engine.
 
 ## Dependencies
 
-- `internal/parser/cfg` (the dataflow engine), `internal/parser/shared` (node
-  text/line helpers), and `github.com/tree-sitter/go-tree-sitter`.
+- `internal/parser/cfg` (the dataflow engine), `internal/parser/taint` (the
+  taint fact types), `internal/parser/shared` (node text/line helpers), and
+  `github.com/tree-sitter/go-tree-sitter`.
 
 ## Telemetry
 
