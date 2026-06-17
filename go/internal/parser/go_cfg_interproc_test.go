@@ -159,3 +159,49 @@ func handle(userReq *http.Request, query func(*http.Request)) {
 		}
 	}
 }
+
+// TestGoInterprocCallBeforeLocalShadow proves a bare call that precedes a local
+// binding of the same name still resolves to the package function (the local
+// declared later does not shadow the earlier call), so the finding is kept.
+func TestGoInterprocCallBeforeLocalShadow(t *testing.T) {
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "handlers.go")
+	writeTestFile(t, filePath, `package handlers
+
+import (
+	"database/sql"
+	"net/http"
+)
+
+func sink(r *http.Request, db *sql.DB) {
+	db.Query(r.FormValue("q"))
+}
+
+func handle(r *http.Request, db *sql.DB) {
+	sink(r, db)
+	sink := r
+	_ = sink
+}
+`)
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v", err)
+	}
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{GoEmitDataflow: true})
+	if err != nil {
+		t.Fatalf("ParsePath error = %v", err)
+	}
+	rows, _ := got["interproc_findings"].([]map[string]any)
+	found := false
+	for _, row := range rows {
+		srcFn, _ := row["source_func"].(string)
+		sinkFn, _ := row["sink_func"].(string)
+		sinkKind, _ := row["sink_kind"].(string)
+		if strings.Contains(srcFn, "handle") && strings.Contains(sinkFn, "sink") && sinkKind == "sql" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected handle->sink finding (call precedes the local shadow); got %+v", rows)
+	}
+}

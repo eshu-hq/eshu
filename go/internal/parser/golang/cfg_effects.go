@@ -68,23 +68,29 @@ func goEffectsSpec(funcNode *tree_sitter.Node, source []byte, fn cfg.Function, l
 	}
 
 	spec.Returns = goReturnStmts(funcNode, index)
-	spec.CallArgs = goCallArgSlots(funcNode, source, index, localFuncs, goDefinedBindings(fn))
+	spec.CallArgs = goCallArgSlots(funcNode, source, index, localFuncs, goEarliestDefLines(fn))
 	return spec
 }
 
-// goDefinedBindings returns the set of binding names defined anywhere in the
-// function (parameters and locals). A call whose name matches one of these is
-// shadowed by a local value and must not be resolved to a package-level function.
-func goDefinedBindings(fn cfg.Function) map[string]bool {
-	defined := map[string]bool{}
+// goEarliestDefLines maps each binding defined in the function to the earliest
+// source line that defines it. A bare call is treated as shadowed by a local
+// value only when a definition of that name exists at or before the call's line
+// (parameters are defined at the entry line, so they shadow the whole body).
+// This is a line-ordering approximation of Go's lexical scoping: a local declared
+// after a call does not shadow it, so the earlier call still resolves to the
+// package-level function.
+func goEarliestDefLines(fn cfg.Function) map[string]int {
+	earliest := map[string]int{}
 	for _, block := range fn.Blocks {
 		for _, stmt := range block.Stmts {
 			for _, def := range stmt.Defs {
-				defined[def] = true
+				if line, ok := earliest[def]; !ok || stmt.Line < line {
+					earliest[def] = stmt.Line
+				}
 			}
 		}
 	}
-	return defined
+	return earliest
 }
 
 // goReturnStmts returns the CFG statement IDs of value-returning statements.
@@ -113,9 +119,10 @@ func goReturnStmts(funcNode *tree_sitter.Node, index *goLineIndex) []int {
 // function would produce a false cross-function edge. The call site is located by
 // source line, so two calls on one line are a known intra-file limit (a safe
 // false negative, never a false edge). A call whose name is shadowed by a
-// parameter or local binding (a function value) is not resolved to the
-// package-level function, which would also be a false edge.
-func goCallArgSlots(funcNode *tree_sitter.Node, source []byte, index *goLineIndex, localFuncs map[string]summary.FunctionID, shadowed map[string]bool) []valueflow.CallArgSlot {
+// parameter or a local binding defined at or before the call (a function value)
+// is not resolved to the package-level function, which would also be a false
+// edge; a local declared after the call does not shadow it.
+func goCallArgSlots(funcNode *tree_sitter.Node, source []byte, index *goLineIndex, localFuncs map[string]summary.FunctionID, defLines map[string]int) []valueflow.CallArgSlot {
 	var slots []valueflow.CallArgSlot
 	walkScopeBindings(funcNode, func(node *tree_sitter.Node) {
 		if node.Kind() != "call_expression" {
@@ -126,8 +133,8 @@ func goCallArgSlots(funcNode *tree_sitter.Node, source []byte, index *goLineInde
 			return
 		}
 		name := nodeText(fnNode, source)
-		if shadowed[name] {
-			return
+		if defLine, ok := defLines[name]; ok && defLine <= nodeLine(node) {
+			return // shadowed by a binding defined at or before this call
 		}
 		callee, ok := localFuncs[name]
 		if !ok {
