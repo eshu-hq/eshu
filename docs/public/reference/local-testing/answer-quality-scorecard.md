@@ -126,6 +126,15 @@ outputs that prove the scorecard passed.
 If hosted evidence cannot be captured in the current environment, mark that
 scorecard incomplete. The scorer should fail rather than invent hosted parity.
 
+## Service intelligence report scorecard
+
+The same gate scores composed [service intelligence reports](../service-intelligence-report.md)
+through `answerquality.ScoreReport`. It rejects a report that carries a confident
+unsupported claim, a citation gap, a hidden truncation, a missing limitation, an
+upgraded truth class, or an unexecutable next call. The share-safe `ReportCorpus`
+fixtures (one happy path plus one fixture per failure mode) back the CI and local
+dogfood run, so a regression that hides any of these failures fails the build.
+
 ## Verification
 
 The scorecard evaluator is unit-tested as a pure Go package and exposed through

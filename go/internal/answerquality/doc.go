@@ -9,4 +9,10 @@
 // narration rows are judged against deterministic fallback metadata and the
 // governed narration validator; the fallback remains canonical when narration
 // is unavailable, rejected, or unsafe.
+//
+// ScoreReport extends the same offline gate to composed service intelligence
+// reports: it rejects a report that carries a confident unsupported claim, a
+// citation gap, a hidden truncation, a missing limitation, an upgraded truth
+// class, or an unexecutable next call. ReportCorpus ships the share-safe fixture
+// corpus that backs the report gate.
 package answerquality

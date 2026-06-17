@@ -100,6 +100,27 @@ report: sections are emitted in catalog order, the first input for a section
 kind wins, and aggregated limitations and next calls are de-duplicated in stable
 encounter order. Reports are safe to diff, cache, and score in a dogfood gate.
 
+## Dogfood scorecard
+
+A polished report that quietly omits citations, hides truncation, or upgrades a
+truth class is worse than no report. The answer-quality dogfood gate scores every
+report against six criteria and fails the build when any is violated:
+
+| Criterion | Rejects |
+| --- | --- |
+| `unsupported_claim_avoidance` | a confident summary on an unsupported or evidence-less section |
+| `citation_coverage` | a supported claim with no evidence handle or citation |
+| `truth_class_preservation` | an upgraded or invented truth class |
+| `limitation_visibility` | a partial or unsupported section that hides why |
+| `truncation_signaling` | truncation that is not marked partial and stated |
+| `next_call_executability` | a recommended next call or investigation with no real tool, route, or playbook |
+
+The gate ships a share-safe report fixture corpus — one honest happy path, one
+honest partial report, and one fixture per failure mode — so a regression that
+reintroduces any of these failures is caught in CI and local dogfood runs. See
+the [Answer Quality Scorecard](local-testing/answer-quality-scorecard.md) for how
+to run the gate.
+
 ## Truth preservation
 
 The report introduces no new truth source. Every section's truth is the source
