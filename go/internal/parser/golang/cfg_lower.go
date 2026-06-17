@@ -78,15 +78,23 @@ func (l *goCFGLowerer) lowerStmtList(blockNode *tree_sitter.Node, cur cfg.BlockI
 	reachable := true
 	for _, child := range blockNode.NamedChildren(cursor) {
 		child := child
-		if !reachable {
-			// Code after a terminating statement is dead and skipped, EXCEPT a
-			// labeled statement, which may be a goto target. Lower it in a fresh
-			// block so the labeled code is not dropped from the CFG; resolveGotos
-			// wires the goto edge into that block after lowering.
-			if child.Kind() != "labeled_statement" {
-				continue
+		if child.Kind() == "labeled_statement" {
+			// A label is a jump target, so it must begin its own single-entry
+			// block: otherwise a goto to it would also enter the statements that
+			// precede the label in the current block, inventing reaching
+			// definitions the goto should skip. Fall through into the label block
+			// only when control reaches here; a label after a terminator is
+			// reachable solely via its goto edge (added by resolveGotos).
+			labelBlock := l.builder.AddBlock()
+			if reachable {
+				l.builder.AddEdge(cur, labelBlock)
 			}
-			cur = l.builder.AddBlock()
+			cur, reachable = l.lowerStmt(&child, labelBlock)
+			continue
+		}
+		if !reachable {
+			// Code after a terminating statement is dead and skipped.
+			continue
 		}
 		cur, reachable = l.lowerStmt(&child, cur)
 	}

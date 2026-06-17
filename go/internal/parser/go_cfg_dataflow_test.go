@@ -112,6 +112,33 @@ L:
 	}
 }
 
+// TestGoDataflowGotoSkipsInterveningDef proves a goto jumps to a single-entry
+// label block, skipping a definition between the goto and the label: a value
+// defined before the goto still reaches the label's use via the goto edge,
+// because the intervening reassignment is not part of the label block (#2861,
+// Codex follow-up).
+func TestGoDataflowGotoSkipsInterveningDef(t *testing.T) {
+	got := parseGoTaintFixture(t, `package handlers
+
+func handle(cond bool) int {
+	x := 1
+	if cond {
+		goto L
+	}
+	x = 2
+L:
+	return x
+}
+`)
+	handle := dataflowFunctionByName(t, got, "handle")
+	edges := defUseLineSet(t, handle)
+	// x:=1 (line 4) reaches return x (line 10) via the goto path, which skips the
+	// x = 2 reassignment on line 8.
+	if !edges["x:4->10"] {
+		t.Fatalf("goto must skip the intervening def so x:4->10 holds, got %v", edges)
+	}
+}
+
 // dataflowFunctionByName returns the dataflow row for a function name.
 func dataflowFunctionByName(t *testing.T, payload map[string]any, name string) map[string]any {
 	t.Helper()
