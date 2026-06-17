@@ -171,6 +171,14 @@ func renderServiceReport(w io.Writer, report serviceintel.Report) {
 			_, _ = fmt.Fprintln(w)
 		}
 	}
+
+	if len(report.Investigations) > 0 {
+		_, _ = fmt.Fprintf(w, "\nSuggested investigations:\n")
+		for _, inv := range report.Investigations {
+			_, _ = fmt.Fprintf(w, "  - [%s] %s -> %s (expect %s)\n",
+				inv.Basis, inv.Reason, nextCallLabel(inv.NextCall), inv.ExpectedTruthClass)
+		}
+	}
 }
 
 func reportSubjectLabel(subject serviceintel.ReportSubject) string {

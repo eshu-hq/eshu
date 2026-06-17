@@ -45,7 +45,7 @@ func TestServiceReportRendersFromEnvelope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v (out=%s)", err, out)
 	}
-	for _, want := range []string{"checkout", "Service identity", "Supply-chain evidence", "[UNSUPPORTED]"} {
+	for _, want := range []string{"checkout", "Service identity", "Supply-chain evidence", "[UNSUPPORTED]", "Suggested investigations:", "unsupported_lane"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("output missing %q:\n%s", want, out)
 		}
