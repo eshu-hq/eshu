@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -184,7 +183,7 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	}
 
 	heartbeatCtx, stopHeartbeat := context.WithCancel(ctx)
-	heartbeatErr := s.startHeartbeatLoop(heartbeatCtx, mutation)
+	heartbeatErr := s.startHeartbeatLoop(heartbeatCtx, mutation, item)
 	defer stopHeartbeat()
 
 	collected, ok, err := s.Source.NextClaimed(ctx, item)
@@ -195,7 +194,7 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		if s.attemptBudgetExhausted(item) {
 			return s.failTerminal(ctx, mutation, FailureClassAttemptBudgetExhausted, s.budgetExhaustedError(ctx, item, err))
 		}
-		return s.failRetryable(ctx, mutation, "collect_failure", err)
+		return s.failRetryable(ctx, mutation, item, "collect_failure", err)
 	}
 	if !ok {
 		stopHeartbeat()
@@ -245,7 +244,7 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		if s.attemptBudgetExhausted(item) {
 			return s.failTerminal(ctx, mutation, FailureClassAttemptBudgetExhausted, s.budgetExhaustedError(ctx, item, err))
 		}
-		return s.failRetryable(ctx, mutation, "commit_failure", err)
+		return s.failRetryable(ctx, mutation, item, "commit_failure", err)
 	}
 	completeMutation, err := s.resolvedCompletionMutation(mutation, collected)
 	if err != nil {
@@ -314,8 +313,9 @@ func cleanupCollectedFactStream(collected CollectedGeneration) error {
 	return nil
 }
 
-func (s ClaimedService) startHeartbeatLoop(ctx context.Context, mutation workflow.ClaimMutation) <-chan error {
+func (s ClaimedService) startHeartbeatLoop(ctx context.Context, mutation workflow.ClaimMutation, item workflow.WorkItem) <-chan error {
 	errc := make(chan error, 1)
+	claimStart := s.now()
 	go func() {
 		ticker := time.NewTicker(s.HeartbeatInterval)
 		defer ticker.Stop()
@@ -330,6 +330,7 @@ func (s ClaimedService) startHeartbeatLoop(ctx context.Context, mutation workflo
 					errc <- fmt.Errorf("heartbeat claimed %s work item: %w", s.claimedKindLabel(), err)
 					return
 				}
+				s.recordClaimLeaseAge(ctx, item, next.ObservedAt.Sub(claimStart).Seconds())
 			}
 		}
 	}()
@@ -360,19 +361,10 @@ func (s ClaimedService) budgetExhaustedError(ctx context.Context, item workflow.
 	)
 }
 
-func (s ClaimedService) recordAttemptBudgetExhausted(ctx context.Context, item workflow.WorkItem) {
-	if s.Instruments == nil || s.Instruments.WorkflowClaimAttemptBudgetExhausted == nil {
-		return
-	}
-	s.Instruments.WorkflowClaimAttemptBudgetExhausted.Add(ctx, 1, metric.WithAttributes(
-		telemetry.AttrCollectorKind(string(s.CollectorKind)),
-		telemetry.AttrSourceSystem(item.SourceSystem),
-	))
-}
-
 func (s ClaimedService) failRetryable(
 	ctx context.Context,
 	mutation workflow.ClaimMutation,
+	item workflow.WorkItem,
 	failureClass string,
 	err error,
 ) error {
@@ -384,6 +376,8 @@ func (s ClaimedService) failRetryable(
 	if failErr := s.ControlStore.FailClaimRetryable(ctx, failed); failErr != nil {
 		return fmt.Errorf("retryable-fail claimed %s work item: %w", s.claimedKindLabel(), failErr)
 	}
+	s.recordClaimRetry(ctx, item, failureClass)
+	s.recordProviderThrottle(ctx, item, failureClass, err)
 	return errors.Join(errRetryableClaimRecorded, fmt.Errorf("%s: %w", failureClass, err))
 }
 

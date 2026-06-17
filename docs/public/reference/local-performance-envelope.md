@@ -168,9 +168,9 @@ The current fairness and backpressure envelope is:
 | Concern | Current state | Delivered proof and remaining boundary |
 | --- | --- | --- |
 | claim wait | Claim-aware collectors expose pending, claimed, retryable, expired, terminal, and completed work through workflow status and Postgres query spans, and #2748 added the family-level dispatch boundary so one busy family cannot consume all claim attempts. | #2773 must add a multi-source collector host so a single runtime binary can register multiple claim-aware sources behind the dispatcher and exercise cross-family fairness in production. |
-| lease age | Heartbeats and expired-claim reaping preserve ownership fencing and recovery. | Multi-source-host proof must cover slow collectors, expired leases, recovery, and stale owner rejection without dropping active work. |
-| retry/dead-letter | Retryable and terminal claim failures are durable, workflow runs reconcile terminal failures into blocked completeness, and #2750 (merged) surfaced provider throttle and backpressure status for claim-aware collectors without putting provider targets in metric labels. | Hosted-growth proof must still confirm retry-storm status under many concurrent provider families. |
-| per-family queue depth | `fairness_key` and collector kind are present on work rows; selected status readbacks aggregate bounded registry and workflow state. | Hosted-growth proof must surface per-family queue depth, provider throttle, and starvation signals in metrics, status, or logs with bounded labels across a multi-source host. |
+| lease age | Heartbeats and expired-claim reaping preserve ownership fencing and recovery, and #2699 added `eshu_dp_workflow_claim_lease_age_seconds` (labeled by `collector_kind`, `source_system`) so rising lease age is visible before lease-TTL expiry. | Multi-source-host proof (#2773) must cover slow collectors, expired leases, recovery, and stale owner rejection without dropping active work. |
+| retry/dead-letter | Retryable and terminal claim failures are durable, workflow runs reconcile terminal failures into blocked completeness, #2750 (merged) surfaced provider throttle/backpressure status, and #2699 added per-family `eshu_dp_workflow_claim_retries_total` (`failure_class`) and `eshu_dp_workflow_claim_provider_throttle_total` (`outcome`) counters without provider targets in labels. | Hosted-growth proof must still confirm retry-storm status under many concurrent provider families. |
+| per-family queue depth | `fairness_key` and collector kind are present on work rows; selected status readbacks aggregate bounded registry and workflow state. | A per-family `eshu_dp_workflow_family_queue_depth` observable gauge (labeled by `collector_kind`, `source_system`, `status`) is tracked as the remaining #2699 metric; hosted-growth starvation proof across a multi-source host stays with #2773. |
 
 Provider-rate backpressure must remain provider-family aware. A rate-limited
 provider should delay or retry its own claim stream; it must not force unrelated
@@ -276,6 +276,49 @@ selection path a domain used and watch pre-hash rows drain, without any new
 metric label, high-cardinality identifier, or runtime knob. Partition lease
 churn stays diagnosable through the existing `lease_claim_duration_seconds`,
 `selection_duration_seconds`, and shared-intent backlog signals.
+
+### Collector Fairness Backpressure Metrics (#2699)
+
+The fair claim-dispatch boundary (#2748), provider throttle status (#2750), and
+Retry-After/max-attempt budget (#2756) merged earlier. #2699 closes the
+remaining per-family observability gap so an operator paged at 3 AM can attribute
+retry pressure, provider backpressure, and lease stalls to a collector family
+without high-cardinality labels. It adds three bounded instruments recorded on
+the existing claim failure and heartbeat paths:
+
+- `eshu_dp_workflow_claim_retries_total` — labeled `collector_kind`,
+  `source_system`, `failure_class`; incremented on each retryable claim re-queue.
+- `eshu_dp_workflow_claim_provider_throttle_total` — labeled `collector_kind`,
+  `source_system`, `outcome` (`retry_after_honored` or `poll_backoff`);
+  incremented only when a retryable failure carries a rate-limited failure class
+  or a positive provider `Retry-After`. Ordinary retryable failures (5xx,
+  transport, deadline) wrapped in `sdk.ProviderFailure` report a zero
+  `RetryAfterDelay()` and are deliberately excluded so generic outages do not
+  read as provider backpressure.
+- `eshu_dp_workflow_claim_lease_age_seconds` — labeled `collector_kind`,
+  `source_system`; the active claim's held duration at heartbeat time.
+
+All labels reuse the existing bounded `collector_kind`/`source_system`/
+`failure_class`/`outcome` enums; no provider target, account, URL, token env, or
+instance id enters a label. The remaining per-family `eshu_dp_workflow_family_queue_depth`
+observable gauge and the production multi-source-host starvation proof are
+tracked separately (the gauge under #2699, the host under #2773).
+
+No-Regression Evidence: focused tests in
+`go/internal/collector/claimed_service_backpressure_metrics_test.go` prove each
+counter/histogram increments with exactly the bounded label set
+(`TestClaimedServiceRecordsPerFamilyRetryCounter`,
+`TestClaimedServiceProviderThrottleRecordsRetryAfterHonored`,
+`TestClaimedServiceProviderThrottleRecordsPollBackoff`,
+`TestClaimedServiceRecordsClaimLeaseAge`). The recording is additive on the
+existing `failRetryable` and heartbeat paths; it introduces no worker-count
+reduction, batch-size serialization, or coordinator-owned claim mutation, and
+`go test ./internal/collector ./internal/telemetry -count=1` stays green.
+
+Observability Evidence: the three instruments above are the operator-facing
+signals; they are recorded after the durable claim mutation (outside the
+dispatcher scheduler lock) and on the heartbeat tick, so they add no
+high-cardinality label and no runtime knob.
 
 ### Collector Fact Evidence Status Read (#1678)
 
