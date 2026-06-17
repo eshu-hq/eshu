@@ -318,6 +318,31 @@ The same `ESHU_REDUCER_HANDLES_ROUTE_PRESENCE_GATE_ENABLED` flag gates both, sin
 both presence concerns are published by the workload materializer and share one
 store; a nil presence lookup/writer keeps both domains byte-identical.
 
+No-Regression Evidence: #2842 retracts stale `api_endpoint_repo_path` /
+`repo_workload` presence rows when a repo re-materializes, so a removed or
+re-pathed route/workload stops being reported present (the uid is a #2844 hash and
+no longer carries the repo, so the store gained `repo_id` + `source_generation`
+columns and a `RetractStaleRepoGenerations(keyspace, scope, generation, repoIDs)`
+method). It is RACE-FREE under concurrent materializer workers: it deletes only
+the listed repos' rows whose `source_generation <> current`, never the current
+generation's rows a sibling intent may have just upserted (overlapping deployable
+units share repos), and deleting an already-removed older row is idempotent — no
+worker-count or batch-size reduction is used. `go test ./internal/reducer
+./internal/storage/postgres -run
+'TestGraphEndpointPresenceStoreRetractStaleRepoGenerations|TestPublishAPIEndpointRepoPathPresenceUpsertsRepoPathKeys|TestPublishRepoWorkloadPresenceDeduplicatesByRepo|TestGraphEndpointPresenceStoreUpsertIsIdempotent'
+-count=1` fails before the columns/retraction exist (stale rows linger; the upsert
+arg layout omits provenance), then passes. The schema change is additive and
+idempotent (`ADD COLUMN IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`), validated
+against real Postgres by the CI bootstrap that applies the data-plane schema;
+new columns store NUL-free values so the #2844 NUL-in-text class cannot recur.
+
+No-Observability-Change: #2842 only prunes stale presence rows and adds two
+provenance columns to an existing table. It adds no route, graph query shape,
+queue domain, worker, lease, runtime knob, metric instrument, metric label, or
+log key; operators still diagnose the path through the existing workload
+materialization completion logs, the shared-projection terminal/blocked counters,
+and Postgres query instrumentation.
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

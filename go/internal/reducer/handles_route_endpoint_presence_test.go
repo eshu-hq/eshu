@@ -81,7 +81,7 @@ func TestPublishAPIEndpointRepoPathPresenceUpsertsRepoPathKeys(t *testing.T) {
 		{EndpointID: "e4", RepoID: "repo-1", Path: ""}, // blank path skipped
 	}
 	if err := publishAPIEndpointRepoPathPresence(
-		context.Background(), writer, "scope-1", rows, time.Unix(1700000000, 0).UTC(),
+		context.Background(), writer, "scope-1", "gen-1", rows, time.Unix(1700000000, 0).UTC(),
 	); err != nil {
 		t.Fatalf("publish error = %v", err)
 	}
@@ -99,6 +99,20 @@ func TestPublishAPIEndpointRepoPathPresenceUpsertsRepoPathKeys(t *testing.T) {
 		if r.ScopeID != "scope-1" || r.UID == "" {
 			t.Fatalf("malformed presence row: %+v", r)
 		}
+		// #2842 provenance: the un-hashed repo_id and the materializing generation
+		// are stored so stale rows can be retracted per repo (the uid is a hash).
+		if r.RepoID != "repo-1" || r.SourceGeneration != "gen-1" {
+			t.Fatalf("row missing #2842 provenance: %+v", r)
+		}
+	}
+	// #2842: stale other-generation rows for the materialized repo are retracted.
+	if len(writer.staleRetract) != 1 {
+		t.Fatalf("stale-retract calls = %d, want 1", len(writer.staleRetract))
+	}
+	if sr := writer.staleRetract[0]; sr.keyspace != GraphProjectionKeyspaceAPIEndpointRepoPath ||
+		sr.scopeID != "scope-1" || sr.generationID != "gen-1" ||
+		len(sr.repoIDs) != 1 || sr.repoIDs[0] != "repo-1" {
+		t.Fatalf("stale-retract args = %+v, want api_endpoint_repo_path/scope-1/gen-1/[repo-1]", writer.staleRetract[0])
 	}
 }
 
@@ -118,7 +132,7 @@ func TestPublishAPIEndpointRepoPathPresenceDeduplicatesRepoPath(t *testing.T) {
 		{EndpointID: "wl-3:/health", RepoID: "repo-1", Path: "/health"},
 	}
 	if err := publishAPIEndpointRepoPathPresence(
-		context.Background(), writer, "scope-1", rows, time.Unix(1700000000, 0).UTC(),
+		context.Background(), writer, "scope-1", "gen-1", rows, time.Unix(1700000000, 0).UTC(),
 	); err != nil {
 		t.Fatalf("publish error = %v", err)
 	}
@@ -148,7 +162,7 @@ func TestPublishAPIEndpointRepoPathPresenceNilWriterNoOp(t *testing.T) {
 	t.Parallel()
 
 	if err := publishAPIEndpointRepoPathPresence(
-		context.Background(), nil, "scope-1",
+		context.Background(), nil, "scope-1", "gen-1",
 		[]APIEndpointRow{{EndpointID: "e1", RepoID: "repo-1", Path: "/a"}},
 		time.Now().UTC(),
 	); err != nil {

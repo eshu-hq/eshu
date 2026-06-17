@@ -126,6 +126,63 @@ func TestGraphEndpointPresenceStoreRetractScope(t *testing.T) {
 	}
 }
 
+func TestGraphEndpointPresenceStoreRetractStaleRepoGenerations(t *testing.T) {
+	t.Parallel()
+
+	db := newGraphEndpointPresenceTestDB()
+	store := NewGraphEndpointPresenceStore(db)
+	ctx := context.Background()
+
+	ks := reducer.GraphProjectionKeyspaceAPIEndpointRepoPath
+	rows := []reducer.EndpointPresenceRow{
+		// repo-1: a stale gen-1 endpoint and a current gen-2 endpoint.
+		{Keyspace: ks, UID: "u-old", ScopeID: "scope-a", RepoID: "repo-1", SourceGeneration: "gen-1"},
+		{Keyspace: ks, UID: "u-new", ScopeID: "scope-a", RepoID: "repo-1", SourceGeneration: "gen-2"},
+		// repo-2: an unchanged repo still at gen-1 that this intent did NOT touch.
+		{Keyspace: ks, UID: "u-other", ScopeID: "scope-a", RepoID: "repo-2", SourceGeneration: "gen-1"},
+		// a different keyspace must never be touched.
+		{Keyspace: reducer.GraphProjectionKeyspaceCloudResourceUID, UID: "cr-1", ScopeID: "scope-a", RepoID: "repo-1", SourceGeneration: "gen-1"},
+	}
+	if err := store.Upsert(ctx, rows); err != nil {
+		t.Fatalf("Upsert() error = %v", err)
+	}
+
+	// repo-1 re-materialized at gen-2: drop its non-gen-2 rows only.
+	if err := store.RetractStaleRepoGenerations(ctx, ks, "scope-a", "gen-2", []string{"repo-1"}); err != nil {
+		t.Fatalf("RetractStaleRepoGenerations() error = %v", err)
+	}
+	if db.rowCount(string(ks), "u-old") != 0 {
+		t.Fatal("repo-1 gen-1 endpoint should be retracted as stale")
+	}
+	if db.rowCount(string(ks), "u-new") != 1 {
+		t.Fatal("repo-1 current gen-2 endpoint must survive")
+	}
+	if db.rowCount(string(ks), "u-other") != 1 {
+		t.Fatal("repo-2 (untouched repo) must survive even though it is at an older generation")
+	}
+	if db.rowCount("cloud_resource_uid", "cr-1") != 1 {
+		t.Fatal("a different keyspace must never be retracted")
+	}
+
+	// Blank generation / empty repos / blank scope are no-ops (no query).
+	db.execCount = 0
+	for _, c := range []struct {
+		scope, gen string
+		repos      []string
+	}{
+		{"scope-a", "", []string{"repo-1"}},
+		{"scope-a", "gen-2", nil},
+		{"", "gen-2", []string{"repo-1"}},
+	} {
+		if err := store.RetractStaleRepoGenerations(ctx, ks, c.scope, c.gen, c.repos); err != nil {
+			t.Fatalf("RetractStaleRepoGenerations no-op error = %v", err)
+		}
+	}
+	if db.execCount != 0 {
+		t.Fatalf("no-op retract issued %d exec(s), want 0", db.execCount)
+	}
+}
+
 func TestGraphEndpointPresenceStoreMissingUIDs(t *testing.T) {
 	t.Parallel()
 
@@ -238,11 +295,13 @@ func equalStringSlices(a, b []string) bool {
 
 // graphEndpointPresenceRow mirrors the stored tuple for the in-memory fake DB.
 type graphEndpointPresenceRow struct {
-	keyspace    string
-	uid         string
-	scopeID     string
-	committedAt time.Time
-	updatedAt   time.Time
+	keyspace         string
+	uid              string
+	scopeID          string
+	repoID           string
+	sourceGeneration string
+	committedAt      time.Time
+	updatedAt        time.Time
 }
 
 // graphEndpointPresenceTestDB is an in-memory ExecQueryer that mimics the
@@ -274,20 +333,46 @@ func (db *graphEndpointPresenceTestDB) ExecContext(_ context.Context, query stri
 	db.execCount++
 	switch {
 	case strings.Contains(query, "INSERT INTO graph_endpoint_presence"):
-		const columnsPerRow = 4
+		const columnsPerRow = 6
 		batchRows := len(args) / columnsPerRow
 		if batchRows > db.maxBatchRows {
 			db.maxBatchRows = batchRows
 		}
 		for i := 0; i < len(args); i += columnsPerRow {
 			row := graphEndpointPresenceRow{
-				keyspace:    args[i+0].(string),
-				uid:         args[i+1].(string),
-				scopeID:     args[i+2].(string),
-				committedAt: args[i+3].(time.Time),
-				updatedAt:   args[i+3].(time.Time),
+				keyspace:         args[i+0].(string),
+				uid:              args[i+1].(string),
+				scopeID:          args[i+2].(string),
+				repoID:           args[i+3].(string),
+				sourceGeneration: args[i+4].(string),
+				committedAt:      args[i+5].(time.Time),
+				updatedAt:        args[i+5].(time.Time),
 			}
 			db.rows[graphEndpointPresenceKey(row.keyspace, row.uid)] = row
+		}
+		return sharedIntentResult{}, nil
+	case strings.Contains(query, "DELETE FROM graph_endpoint_presence") &&
+		strings.Contains(query, "source_generation"):
+		// Retract-stale (#2842): DELETE WHERE keyspace=$1 AND scope_id=$2
+		// AND repo_id = ANY($3) AND source_generation <> $4.
+		keyspace := args[0].(string)
+		scopeID := args[1].(string)
+		repoIDs := args[2].([]string)
+		generation := args[3].(string)
+		keepRepo := make(map[string]struct{}, len(repoIDs))
+		for _, r := range repoIDs {
+			keepRepo[r] = struct{}{}
+		}
+		for key, row := range db.rows {
+			if row.keyspace != keyspace || row.scopeID != scopeID {
+				continue
+			}
+			if _, ok := keepRepo[row.repoID]; !ok {
+				continue
+			}
+			if row.sourceGeneration != generation {
+				delete(db.rows, key)
+			}
 		}
 		return sharedIntentResult{}, nil
 	case strings.Contains(query, "DELETE FROM graph_endpoint_presence"):

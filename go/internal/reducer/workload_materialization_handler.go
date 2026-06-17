@@ -187,6 +187,7 @@ func (h WorkloadMaterializationHandler) Handle(
 		ctx,
 		h.EndpointPresenceWriter,
 		intent.ScopeID,
+		intent.GenerationID,
 		projection.EndpointRows,
 		time.Now().UTC(),
 	); err != nil {
@@ -202,6 +203,7 @@ func (h WorkloadMaterializationHandler) Handle(
 		ctx,
 		h.EndpointPresenceWriter,
 		intent.ScopeID,
+		intent.GenerationID,
 		projection.WorkloadRows,
 		time.Now().UTC(),
 	); err != nil {
