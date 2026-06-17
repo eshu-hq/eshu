@@ -105,6 +105,114 @@ func TestScoreAccuracyEmptyGraphsConventionIsPerfect(t *testing.T) {
 	}
 }
 
+func TestScoreAccuracyPythonAllCorrectIsPerfect(t *testing.T) {
+	t.Parallel()
+
+	golden := loadTestGolden(t, "python_call_accuracy.json")
+	observed := Graph{
+		Edges: []Edge{
+			{SourceID: "func:handlers.handle_request", TargetID: "func:handlers.validate_input", Type: "CALLS"},
+			{SourceID: "func:handlers.handle_request", TargetID: "func:repository.save_record", Type: "CALLS"},
+		},
+	}
+
+	result := ScoreAccuracy(golden, observed)
+	if result.Overall.Precision != 1.0 {
+		t.Fatalf("overall precision = %v, want 1.0: %s", result.Overall.Precision, result.Summary())
+	}
+	if result.Overall.Recall != 1.0 {
+		t.Fatalf("overall recall = %v, want 1.0: %s", result.Overall.Recall, result.Summary())
+	}
+	callsType := findTypeAccuracy(t, result, "CALLS")
+	if callsType.Precision != 1.0 || callsType.Recall != 1.0 {
+		t.Fatalf("CALLS precision/recall = %v/%v, want 1.0/1.0", callsType.Precision, callsType.Recall)
+	}
+	if len(result.WrongTarget) != 0 || len(result.Missing) != 0 || len(result.Extra) != 0 {
+		t.Fatalf("expected empty mismatch breakdown, got %s", result.Summary())
+	}
+}
+
+func TestScoreAccuracyPythonWrongTargetEdgeLowersPrecision(t *testing.T) {
+	t.Parallel()
+
+	golden := loadTestGolden(t, "python_call_accuracy.json")
+	observed := Graph{
+		Edges: []Edge{
+			// Correct edge.
+			{SourceID: "func:handlers.handle_request", TargetID: "func:handlers.validate_input", Type: "CALLS"},
+			// Same source+type as golden's handle_request->save_record edge, but wrong target.
+			{SourceID: "func:handlers.handle_request", TargetID: "func:repository.load_record", Type: "CALLS"},
+		},
+	}
+
+	result := ScoreAccuracy(golden, observed)
+	if result.Overall.Precision != 0.5 {
+		t.Fatalf("overall precision = %v, want 0.5: %s", result.Overall.Precision, result.Summary())
+	}
+	if result.Overall.Recall != 0.5 {
+		t.Fatalf("overall recall = %v, want 0.5: %s", result.Overall.Recall, result.Summary())
+	}
+	assertEdgeKeys(t, "wrong-target edges", result.WrongTarget,
+		[]string{"func:handlers.handle_request|CALLS|func:repository.load_record"})
+	if len(result.Extra) != 0 {
+		t.Fatalf("wrong-target edge must not be counted as extra: %s", result.Summary())
+	}
+}
+
+func TestScoreAccuracyJavaAllCorrectIsPerfect(t *testing.T) {
+	t.Parallel()
+
+	golden := loadTestGolden(t, "java_call_accuracy.json")
+	observed := Graph{
+		Edges: []Edge{
+			{SourceID: "method:OrderService.placeOrder", TargetID: "method:OrderService.reserveStock", Type: "CALLS"},
+			{SourceID: "method:OrderService.placeOrder", TargetID: "method:OrderService.chargePayment", Type: "CALLS"},
+		},
+	}
+
+	result := ScoreAccuracy(golden, observed)
+	if result.Overall.Precision != 1.0 {
+		t.Fatalf("overall precision = %v, want 1.0: %s", result.Overall.Precision, result.Summary())
+	}
+	if result.Overall.Recall != 1.0 {
+		t.Fatalf("overall recall = %v, want 1.0: %s", result.Overall.Recall, result.Summary())
+	}
+	callsType := findTypeAccuracy(t, result, "CALLS")
+	if callsType.Precision != 1.0 || callsType.Recall != 1.0 {
+		t.Fatalf("CALLS precision/recall = %v/%v, want 1.0/1.0", callsType.Precision, callsType.Recall)
+	}
+	if len(result.WrongTarget) != 0 || len(result.Missing) != 0 || len(result.Extra) != 0 {
+		t.Fatalf("expected empty mismatch breakdown, got %s", result.Summary())
+	}
+}
+
+func TestScoreAccuracyJavaWrongTargetEdgeLowersPrecision(t *testing.T) {
+	t.Parallel()
+
+	golden := loadTestGolden(t, "java_call_accuracy.json")
+	observed := Graph{
+		Edges: []Edge{
+			// Correct edge.
+			{SourceID: "method:OrderService.placeOrder", TargetID: "method:OrderService.reserveStock", Type: "CALLS"},
+			// Same source+type as golden's placeOrder->chargePayment edge, but wrong target.
+			{SourceID: "method:OrderService.placeOrder", TargetID: "method:OrderService.cancelOrder", Type: "CALLS"},
+		},
+	}
+
+	result := ScoreAccuracy(golden, observed)
+	if result.Overall.Precision != 0.5 {
+		t.Fatalf("overall precision = %v, want 0.5: %s", result.Overall.Precision, result.Summary())
+	}
+	if result.Overall.Recall != 0.5 {
+		t.Fatalf("overall recall = %v, want 0.5: %s", result.Overall.Recall, result.Summary())
+	}
+	assertEdgeKeys(t, "wrong-target edges", result.WrongTarget,
+		[]string{"method:OrderService.placeOrder|CALLS|method:OrderService.cancelOrder"})
+	if len(result.Extra) != 0 {
+		t.Fatalf("wrong-target edge must not be counted as extra: %s", result.Summary())
+	}
+}
+
 func findTypeAccuracy(t *testing.T, result AccuracyResult, relType string) TypeAccuracy {
 	t.Helper()
 
