@@ -214,10 +214,10 @@ module.exports = function registerRoutes(server) {
 	assertNestedStringSliceEqual(t, got, "hapi", "route_methods", []string{"GET", "POST", "DELETE", "PUT"})
 	assertNestedStringSliceEqual(t, got, "hapi", "route_paths", []string{"/health", "/orders/{id}", "/orders/{id}/metadata"})
 	assertNestedRouteEntriesEqual(t, got, "hapi", []map[string]string{
-		{"method": "GET", "path": "/health"},
-		{"method": "POST", "path": "/orders/{id}"},
-		{"method": "DELETE", "path": "/orders/{id}"},
-		{"method": "PUT", "path": "/orders/{id}/metadata"},
+		{"method": "GET", "path": "/health", "handler": "health"},
+		{"method": "POST", "path": "/orders/{id}", "handler": "createOrder"},
+		{"method": "DELETE", "path": "/orders/{id}", "handler": "deleteOrder"},
+		{"method": "PUT", "path": "/orders/{id}/metadata", "handler": "updateMetadata"},
 	})
 }
 

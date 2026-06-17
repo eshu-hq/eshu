@@ -48,24 +48,25 @@ func detectPythonFastAPISemantics(source string) map[string]any {
 		serverSymbols = appendUniqueString(serverSymbols, match[1])
 	}
 
-	decorators := pythonFastAPIDecoratorRe.FindAllStringSubmatch(source, -1)
-	if len(serverSymbols) == 0 || len(decorators) == 0 {
+	decoratorLocs := pythonFastAPIDecoratorRe.FindAllStringSubmatchIndex(source, -1)
+	if len(serverSymbols) == 0 || len(decoratorLocs) == 0 {
 		return nil
 	}
 
-	methods := make([]string, 0, len(decorators))
-	paths := make([]string, 0, len(decorators))
-	entries := make([]map[string]string, 0, len(decorators))
-	for _, match := range decorators {
-		symbol := match[1]
-		path := match[3]
+	methods := make([]string, 0, len(decoratorLocs))
+	paths := make([]string, 0, len(decoratorLocs))
+	entries := make([]map[string]string, 0, len(decoratorLocs))
+	for _, loc := range decoratorLocs {
+		symbol := submatchByIndex(source, loc, 1)
+		path := submatchByIndex(source, loc, 3)
 		if prefix := routerPrefixes[symbol]; prefix != "" {
 			path = prefix + path
 		}
-		method := strings.ToUpper(match[2])
+		method := strings.ToUpper(submatchByIndex(source, loc, 2))
+		handler := pythonRouteHandlerForDecorator(source, loc[0])
 		methods = appendUniqueString(methods, method)
 		paths = appendUniqueString(paths, path)
-		entries = append(entries, routeEntry(method, path))
+		entries = append(entries, routeEntry(method, path, handler))
 	}
 
 	return map[string]any{
@@ -82,32 +83,36 @@ func detectPythonFlaskSemantics(source string) map[string]any {
 		return nil
 	}
 
-	routes := pythonFlaskRouteRe.FindAllStringSubmatch(source, -1)
-	if len(routes) == 0 {
+	routeLocs := pythonFlaskRouteRe.FindAllStringSubmatchIndex(source, -1)
+	if len(routeLocs) == 0 {
 		return nil
 	}
 
-	methods := make([]string, 0, len(routes))
-	paths := make([]string, 0, len(routes))
-	entries := make([]map[string]string, 0, len(routes))
+	methods := make([]string, 0, len(routeLocs))
+	paths := make([]string, 0, len(routeLocs))
+	entries := make([]map[string]string, 0, len(routeLocs))
 	allowed := make(map[string]struct{}, len(serverSymbols))
 	for _, symbol := range serverSymbols {
 		allowed[symbol] = struct{}{}
 	}
 
-	for _, match := range routes {
-		symbol := match[1]
+	for _, loc := range routeLocs {
+		symbol := submatchByIndex(source, loc, 1)
 		if _, ok := allowed[symbol]; !ok {
 			continue
 		}
-		paths = appendUniqueString(paths, match[2])
+		path := submatchByIndex(source, loc, 2)
+		paths = appendUniqueString(paths, path)
+		// The handler def is shared by every method the route declares; capture it
+		// once from the decorator's offset and reuse it across the methods.
+		handler := pythonRouteHandlerForDecorator(source, loc[0])
 		routeMethods := []string{"GET"}
-		if strings.TrimSpace(match[3]) != "" {
-			routeMethods = pythonRouteMethods(match[3])
+		if methodList := submatchByIndex(source, loc, 3); strings.TrimSpace(methodList) != "" {
+			routeMethods = pythonRouteMethods(methodList)
 		}
 		for _, method := range routeMethods {
 			methods = appendUniqueString(methods, method)
-			entries = append(entries, routeEntry(method, match[2]))
+			entries = append(entries, routeEntry(method, path, handler))
 		}
 	}
 	if len(paths) == 0 {
