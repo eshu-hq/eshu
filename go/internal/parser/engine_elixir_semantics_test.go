@@ -347,6 +347,40 @@ end`,
 	assertStringFieldValue(t, render, "docstring", `@doc "Render docs."`)
 }
 
+func TestDefaultEngineParsePathElixirEndLinesDoNotRequireSourceIndex(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "spans_without_source.ex")
+	writeTestFile(
+		t,
+		filePath,
+		`defmodule Demo.Worker do
+  def caller do
+    Demo.Basic.greet()
+  end
+end
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	caller := assertBucketItemByName(t, got, "functions", "caller")
+	assertIntFieldValue(t, caller, "line_number", 2)
+	assertIntFieldValue(t, caller, "end_line", 4)
+	if _, ok := caller["source"]; ok {
+		t.Fatalf("source present without IndexSource: %#v", caller["source"])
+	}
+}
+
 func assertStringSliceFieldValue(
 	t *testing.T,
 	item map[string]any,
