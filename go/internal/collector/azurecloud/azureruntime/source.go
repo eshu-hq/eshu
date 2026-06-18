@@ -77,20 +77,25 @@ func (s *Source) Next(ctx context.Context) (collector.CollectedGeneration, bool,
 	target := config.Targets[s.next]
 	s.next++
 
-	collected, err := s.scanTarget(ctx, config.CollectorInstanceID, target)
+	collected, err := s.scanTarget(ctx, config.CollectorInstanceID, target, "")
 	if err != nil {
 		return collector.CollectedGeneration{}, false, err
 	}
 	return collected, true, nil
 }
 
+// scanTarget collects one bounded Azure scope target. A non-empty generationID
+// pins the durable generation identity (claim-driven collection supplies the
+// coordinator-assigned id); an empty value derives a deterministic per-poll id
+// so an unclaimed sweep at the same instant converges.
 func (s *Source) scanTarget(
 	ctx context.Context,
 	collectorInstanceID string,
 	target TargetConfig,
+	generationID string,
 ) (collector.CollectedGeneration, error) {
 	observedAt := s.now()
-	boundary := s.boundary(collectorInstanceID, target, observedAt)
+	boundary := s.boundary(collectorInstanceID, target, generationID, observedAt)
 
 	if s.Tracer != nil {
 		var span trace.Span
@@ -118,19 +123,43 @@ func (s *Source) scanTarget(
 
 	result, err := azurecloud.NewCollector(provider, s.Metrics, azurecloud.WithRedactionKey(s.RedactionKey)).Collect(ctx, boundary)
 	if err != nil {
+		s.recordClaim(ctx, azurecloud.ClaimStatusFailed)
 		return collector.CollectedGeneration{}, fmt.Errorf("collect azure scope generation: %w", err)
+	}
+
+	// Record the coverage-aware claim outcome: partial scope access or any
+	// collection warning is a partial claim, not a full success. The status
+	// committer separately records the commit outcome.
+	if result.Partial || result.WarningCount > 0 {
+		s.recordClaim(ctx, azurecloud.ClaimStatusPartial)
+	} else {
+		s.recordClaim(ctx, azurecloud.ClaimStatusSucceeded)
 	}
 
 	s.logScan(ctx, target, result, observedAt)
 	return collector.FactsFromSlice(scopeValue, generationValue, result.Facts), nil
 }
 
+// recordClaim records one claim lifecycle outcome on the bounded claim counter.
+// A nil Metrics disables recording so the source runs without a meter.
+func (s *Source) recordClaim(ctx context.Context, status string) {
+	if s.Metrics == nil {
+		return
+	}
+	s.Metrics.RecordClaim(ctx, status)
+}
+
 func (s *Source) boundary(
 	collectorInstanceID string,
 	target TargetConfig,
+	generationID string,
 	observedAt time.Time,
 ) azurecloud.Boundary {
 	scopeID := scopeIDForTarget(target)
+	resolvedGenerationID := strings.TrimSpace(generationID)
+	if resolvedGenerationID == "" {
+		resolvedGenerationID = s.generationID(scopeID, observedAt)
+	}
 	return azurecloud.Boundary{
 		CollectorInstanceID: collectorInstanceID,
 		TenantID:            target.TenantID,
@@ -140,7 +169,7 @@ func (s *Source) boundary(
 		LocationBucket:      target.LocationBucket,
 		SourceLane:          target.SourceLane,
 		ScopeID:             scopeID,
-		GenerationID:        s.generationID(scopeID, observedAt),
+		GenerationID:        resolvedGenerationID,
 		FencingToken:        target.FencingToken,
 		ObservedAt:          observedAt,
 	}

@@ -26,6 +26,7 @@ func TestNewMetricsRegistersInstruments(t *testing.T) {
 	m.RecordPartialScope(ctx, boundary, WarningPartialScope)
 	m.RecordFactsEmitted(ctx, boundary, "azure_cloud_resource", 3)
 	m.RecordFreshnessLag(ctx, boundary, 42.0)
+	m.RecordClaim(ctx, ClaimStatusSucceeded)
 
 	var rm metricdata.ResourceMetrics
 	if err := reader.Collect(ctx, &rm); err != nil {
@@ -68,6 +69,39 @@ func TestNopMetricsSafe(t *testing.T) {
 	m.RecordPartialScope(ctx, boundary, WarningPartialScope)
 	m.RecordFactsEmitted(ctx, boundary, "azure_cloud_resource", 1)
 	m.RecordFreshnessLag(ctx, boundary, 1.0)
+	m.RecordClaim(ctx, ClaimStatusFailed)
+}
+
+func TestRecordClaimUsesBoundedLabels(t *testing.T) {
+	reader := metric.NewManualReader()
+	provider := metric.NewMeterProvider(metric.WithReader(reader))
+	meter := provider.Meter("azurecloud-claim-test")
+
+	m, err := NewMetrics(meter)
+	if err != nil {
+		t.Fatalf("NewMetrics error: %v", err)
+	}
+
+	ctx := context.Background()
+	m.RecordClaim(ctx, ClaimStatusSucceeded)
+	m.RecordClaim(ctx, ClaimStatusPartial)
+	m.RecordClaim(ctx, ClaimStatusFailed)
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(ctx, &rm); err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	labels := collectLabelKeys(t, rm)
+	for _, forbidden := range []string{"subscription_id", "tenant_id", "credential", "scope_id"} {
+		if _, present := labels[forbidden]; present {
+			t.Fatalf("claim telemetry exposed forbidden label %q; labels=%v", forbidden, keysOf(labels))
+		}
+	}
+	for _, want := range []string{"collector_kind", "status"} {
+		if _, present := labels[want]; !present {
+			t.Fatalf("claim telemetry missing bounded label %q; labels=%v", want, keysOf(labels))
+		}
+	}
 }
 
 func collectLabelKeys(t *testing.T, rm metricdata.ResourceMetrics) map[string]struct{} {

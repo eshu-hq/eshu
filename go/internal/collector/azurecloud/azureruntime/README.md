@@ -30,13 +30,15 @@ the parent `azurecloud` fact engine into a `collector.Source` that the shared
 
 Pagination, normalization, ARM identity, redaction, fact-envelope construction,
 and bounded telemetry live in the parent `azurecloud` package. Durable commit
-lives in `collector.Service` + the ingestion store. This package also does not
-own reducer admission, graph writes, API/MCP readback, claim-driven workflow
-scheduling, Helm/chart wiring, or live Azure transport activation. Existing
-reducer slices already admit Azure resource, tag, image-reference, and
-managed-relationship evidence outside this package; identity, change, DNS, live
-source lanes, readback expansion, and chart wiring remain gated follow-ups for
-issue #1998.
+lives in `collector.Service`/`collector.ClaimedService` + the ingestion store.
+This package implements the `collector.ClaimedSource` (`NextClaimed`) that
+resolves an already-claimed work item to its authorized scope target, but it
+does not own coordinator-side claim scheduling, reducer admission, graph writes,
+API/MCP readback, Helm/chart wiring, or live-smoke proof. Existing reducer slices
+already admit Azure resource, tag, image-reference, and managed-relationship
+evidence outside this package; identity, change, DNS, live source lanes, readback
+expansion, Helm chart activation, and live-smoke proof remain gated follow-ups
+(issue #3024 tracks the live-transport promotion).
 
 ## Scope and generation
 

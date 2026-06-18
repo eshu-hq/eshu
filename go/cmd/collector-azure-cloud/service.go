@@ -2,11 +2,15 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -15,8 +19,81 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud/azureruntime"
 	"github.com/eshu-hq/eshu/go/internal/redact"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
+
+// fallbackClaimSequence backs the deterministic fallback claim id when the
+// crypto random source is unavailable.
+var fallbackClaimSequence uint64
+
+// buildClaimedService constructs the claim-driven Azure cloud collector service.
+// It selects one enabled, claim-enabled Azure collector instance, wires the
+// read-only live Resource Graph provider, and records bounded claim outcomes
+// through the Azure status committer. Live transport is reached only here, so a
+// fixture deployment never issues a live Azure call.
+func buildClaimedService(
+	ctx context.Context,
+	database postgres.ExecQueryer,
+	redactionKey redact.Key,
+	getenv func(string) string,
+	tracer trace.Tracer,
+	meter metric.Meter,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) (collector.ClaimedService, error) {
+	config, err := loadClaimedRuntimeConfig(getenv)
+	if err != nil {
+		return collector.ClaimedService{}, err
+	}
+	factory, err := newAzureLiveProviderFactory(ctx, config.CredentialRef)
+	if err != nil {
+		return collector.ClaimedService{}, err
+	}
+	metrics, err := azurecloud.NewMetrics(meter)
+	if err != nil {
+		return collector.ClaimedService{}, fmt.Errorf("azure collector metrics: %w", err)
+	}
+	ingestion := postgres.NewIngestionStore(database)
+	ingestion.Logger = logger
+	committer := newAzureStatusCommitter(ingestion, metrics)
+	return collector.ClaimedService{
+		ControlStore: postgres.NewWorkflowControlStore(database),
+		Source: &azureruntime.Source{
+			Config:          config.Source,
+			ProviderFactory: factory,
+			Metrics:         metrics,
+			RedactionKey:    redactionKey,
+			Tracer:          tracer,
+			Logger:          logger,
+		},
+		Committer:           committer,
+		CollectorKind:       scope.CollectorAzure,
+		CollectorInstanceID: config.Instance.InstanceID,
+		OwnerID:             config.OwnerID,
+		ClaimIDFunc:         newClaimID,
+		PollInterval:        config.PollInterval,
+		ClaimLeaseTTL:       config.ClaimLeaseTTL,
+		HeartbeatInterval:   config.HeartbeatInterval,
+		MaxAttempts:         workflow.DefaultClaimMaxAttempts(),
+		Clock:               time.Now,
+		Tracer:              tracer,
+		Instruments:         instruments,
+	}, nil
+}
+
+// newClaimID returns a unique, bounded claim id. It prefers crypto random and
+// falls back to a monotonic sequence so the runner always has a claim id.
+func newClaimID() string {
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err == nil {
+		return "azure-claim-" + hex.EncodeToString(raw[:])
+	}
+	next := atomic.AddUint64(&fallbackClaimSequence, 1)
+	return fmt.Sprintf("azure-claim-fallback-%d-%d", time.Now().UTC().UnixNano(), next)
+}
 
 // redactionKeyFileEnv names the env var holding the path to the read-only
 // redaction key material used to fingerprint azure_tag_observation values. When

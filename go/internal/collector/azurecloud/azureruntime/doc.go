@@ -1,10 +1,18 @@
-// Package azureruntime wires the fixture-driven Azure cloud collector into the
-// shared collector runtime. It implements collector.Source for one or more
-// declarative Azure scope targets (tenant, subscription, or management group),
-// reads Resource Graph inventory or fixture resourcechanges pages through the
+// Package azureruntime wires the Azure cloud collector into the shared collector
+// runtime. It implements collector.Source for one or more declarative Azure
+// scope targets (tenant, subscription, or management group), reads Resource
+// Graph inventory or fixture resourcechanges pages through the
 // azurecloud.PageProvider seam with $skipToken resume, and yields one
 // collector.CollectedGeneration per target for atomic durable commit by the
 // shared collector.Service.
+//
+// It also implements collector.ClaimedSource: NextClaimed resolves one
+// already-claimed workflow work item to its authorized scope target and pins the
+// coordinator-assigned generation id and fencing token, so the same scan logic
+// runs under fixtures, the non-claimed poll loop, and the claim-driven
+// collector.ClaimedService runner. An unauthorized scope, mismatched collector
+// instance, non-claimed status, non-positive fencing token, or generation/run
+// mismatch is rejected before any provider call.
 //
 // The runtime is the scaffolding slice of the Azure collector: it owns config
 // validation, scope and generation identity, deterministic generation

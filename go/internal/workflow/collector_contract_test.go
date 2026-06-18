@@ -118,6 +118,24 @@ func TestCollectorContractForGCPHasNoOperationalGraphReadinessUntilProjectionLan
 	}
 }
 
+func TestCollectorContractForAzureHasNoOperationalGraphReadinessUntilProjectionLands(t *testing.T) {
+	t.Parallel()
+
+	contract, ok := CollectorContractFor(scope.CollectorAzure)
+	if !ok {
+		t.Fatalf("CollectorContractFor(%q) found = false, want true", scope.CollectorAzure)
+	}
+	if contract.CollectorKind != scope.CollectorAzure {
+		t.Fatalf("CollectorKind = %q, want %q", contract.CollectorKind, scope.CollectorAzure)
+	}
+	if got := len(contract.CanonicalKeyspaces); got != 0 {
+		t.Fatalf("Azure CanonicalKeyspaces = %#v, want empty until Azure graph projection is implemented", contract.CanonicalKeyspaces)
+	}
+	if got := len(contract.RequiredPhases); got != 0 {
+		t.Fatalf("Azure RequiredPhases = %#v, want empty until Azure graph projection is implemented", contract.RequiredPhases)
+	}
+}
+
 func TestCollectorContractForCICDRunHasNoOperationalGraphReadinessUntilProjectionLands(t *testing.T) {
 	t.Parallel()
 
