@@ -90,7 +90,7 @@ func (h *CodeHandler) handleDeadCodeInvestigation(w http.ResponseWriter, r *http
 		return
 	}
 	allReturned := deadCodeInvestigationAllReturned(scan)
-	analysis := buildDeadCodeAnalysis(allReturned, req.ExcludeDecoratedWith, scan.PolicyStats)
+	analysis := buildDeadCodeAnalysisForLanguage(allReturned, req.ExcludeDecoratedWith, scan.PolicyStats, req.Language)
 
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"repo_id":                  req.RepoID,

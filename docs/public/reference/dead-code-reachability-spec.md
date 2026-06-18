@@ -80,6 +80,8 @@ Important response fields:
 | `candidate_scan_limit`, `candidate_scan_pages`, `candidate_scan_rows` | Bounded scan coverage. |
 | `analysis.root_categories_used` | Root categories applied by the analyzer. |
 | `analysis.frameworks_recognized` | Framework values observed in result metadata. |
+| `analysis.reflection_modeled` | True only when the requested language has modeled reflection reachability evidence. |
+| `analysis.reflection_modeled_languages` | Languages with modeled reflection reachability evidence; currently `java`. |
 | `analysis.modeled_entrypoints` | Entrypoint root kinds currently modeled. |
 | `analysis.modeled_framework_roots` | Framework and callback root kinds currently modeled. |
 | `analysis.modeled_public_api` | Public API root kinds currently modeled. |
@@ -93,6 +95,29 @@ Important response fields:
 
 See [Dead Code Language Maturity](dead-code-language-maturity.md) for the
 current language-by-language model.
+
+No-Regression Evidence: issue #2706 / #2731 / #2732 / #2733 focused proof on
+2026-06-18. `go test ./internal/query -run
+'TestDeadCodeIncomingEntityIDs(CompleteReachabilitySnapshotSkipsLegacyDeadCluster|TruncatedReachabilitySnapshotFallsBack|PrefersMaterializedReachabilityRows)|TestContentReaderCodeReachabilityIncomingEntityIDsUsesCrossRepoRows|TestHandleDeadCodeReturnsDerivedTruthAndAnalysisMetadata|TestBuildDeadCodeAnalysisForLanguageReportsReflectionModeledTruth|TestOpenAPIDeadCodeMentionsHaskellRootsAndLanguageFilter'
+-count=1` proves complete materialized reachability snapshots suppress legacy
+one-hop dead-cluster fallback, truncated snapshots remain conservative,
+cross-repo materialized rows keep library symbols live through stable entity
+IDs, and reflection modeling is only claimed for Java. `go test
+./internal/storage/postgres -run 'TestCodeReachability' -count=1` proves the
+watermark stores truncation truth, active-generation lookups still work, and
+the entity-scoped reachability index is present for bounded cross-repo reads.
+`go test ./internal/reducer -run
+'TestCodeReachabilityProjectionRunner|TestBuildCodeReachabilityRows' -count=1`
+proves transitive reachability projection and runner replacement behavior still
+converge.
+
+No-Observability-Change: the query path reuses existing `postgres.query` spans
+and `db.operation=code_reachability_incoming_entity_ids`,
+`code_reachability_coverage`, and `dead_code_incoming_entity_ids` labels plus
+the existing dead-code handler span and HTTP route metrics. The reducer path
+keeps the existing code reachability completion log and truncation warning; no
+metric, worker, queue domain, runtime knob, graph write, or high-cardinality
+telemetry label is added.
 
 ## Default Policy
 
