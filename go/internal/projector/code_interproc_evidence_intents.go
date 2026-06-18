@@ -10,13 +10,14 @@ import (
 
 // buildCodeInterprocEvidenceReducerIntent queues one cross-function evidence
 // materialization intent per scope generation. It fires both when a
-// code_interproc_evidence finding is present AND when only the
+// code_interproc_evidence finding is present and when only the
 // code_dataflow_scanned marker is present (the value-flow gate ran but produced
-// no cross-function findings this generation). The marker case is what lets the
-// reducer retract stale TAINT_FLOWS_TO edges when a prior generation's findings
-// are edited away — without it an empty finding set queues no intent and the old
-// edges leak (#2919). A finding is preferred as the intent's provenance; the
-// marker is the fallback trigger.
+// no cross-function findings this generation). The marker case lets the reducer
+// retract stale TAINT_FLOWS_TO edges when a prior generation's findings are
+// edited away. A finding is preferred as the intent's provenance; the marker is
+// the fallback trigger. Summary-driven fixpoint projection is triggered after
+// the function-summary handler persists durable summaries, sources, and graph
+// ids so it cannot retract direct interproc evidence under the same scope.
 func buildCodeInterprocEvidenceReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,

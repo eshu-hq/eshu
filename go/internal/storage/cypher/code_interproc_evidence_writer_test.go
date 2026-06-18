@@ -128,6 +128,38 @@ func TestCodeInterprocEvidenceWriterEmptyRetractIsNoOp(t *testing.T) {
 	}
 }
 
+// TestCodeInterprocEvidenceWriterRetractEvidenceSource proves global fixpoint
+// retraction deletes by evidence source without depending on the last writer's
+// stamped scope_id.
+func TestCodeInterprocEvidenceWriterRetractEvidenceSource(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewCodeInterprocEvidenceWriter(executor, 0)
+	if err := writer.RetractCodeInterprocEvidenceSource(context.Background(), "reducer/code-interproc-fixpoint"); err != nil {
+		t.Fatalf("RetractCodeInterprocEvidenceSource returned error: %v", err)
+	}
+	if len(executor.calls) != 1 {
+		t.Fatalf("len(calls) = %d, want 1", len(executor.calls))
+	}
+	cypher := executor.calls[0].Cypher
+	for _, want := range []string{
+		"MATCH (:Function)-[rel:TAINT_FLOWS_TO]->(:Function)",
+		"rel.evidence_source = $evidence_source",
+		"DELETE rel",
+	} {
+		if !strings.Contains(cypher, want) {
+			t.Fatalf("source retract cypher missing %q:\n%s", want, cypher)
+		}
+	}
+	if strings.Contains(cypher, "scope_id") {
+		t.Fatalf("source retract must not filter by scope_id:\n%s", cypher)
+	}
+	if got := executor.calls[0].Parameters["evidence_source"]; got != "reducer/code-interproc-fixpoint" {
+		t.Fatalf("evidence_source param = %v, want fixpoint source", got)
+	}
+}
+
 // TestCodeInterprocEvidenceWriterRetractStaleGeneration proves side cleanup
 // deletes only stale generations for one scope/source pair and keeps the
 // mutation bounded so a runner can call it repeatedly until no stale edges

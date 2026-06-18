@@ -546,6 +546,10 @@ type DefaultHandlers struct {
 	// durable store for the cross-repo fixpoint's TAINT_FLOWS_TO projection.
 	CodeFunctionGraphIDWriter CodeFunctionGraphIDWriter
 
+	// ValueFlowFixpointProjector projects durable value-flow fixpoint findings
+	// after function summaries, sources, and graph ids are persisted.
+	ValueFlowFixpointProjector ValueFlowFixpointProjector
+
 	// AppliedPagerDutyServiceRoutingLoader loads applied PagerDuty service
 	// routing facts (provider service id + Terraform backend locator) for the
 	// incident-repository correlation domain. It must be non-nil alongside

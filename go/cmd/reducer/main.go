@@ -92,6 +92,17 @@ func buildReducerService(
 	cloudInventoryEvidenceLoader, cloudInventoryAdmissionWriter, cloudInventoryGenerationCheck, cloudInventoryTagEvidenceLoader, cloudInventoryIdentityPolicyEvidenceLoader, cloudInventoryResourceChangeEvidenceLoader := cloudInventoryAdmissionWiring(database, logger)
 	multiCloudRuntimeDriftEvidenceLoader, multiCloudRuntimeDriftWriter, multiCloudRuntimeDriftLogger := multiCloudRuntimeDriftWiring(database, tracer, instruments, logger)
 	incidentRepoCorrelationLoader, incidentRepoCorrelationResolver, incidentRepoCorrelationWriter := incidentRepositoryCorrelationWiring(database)
+	functionSummaryStore := postgres.NewFunctionSummaryStore(database)
+	functionSourceStore := postgres.NewFunctionSourceStore(database)
+	functionGraphIDStore := postgres.NewFunctionGraphIDStore(database)
+	valueFlowFixpointProjector := newValueFlowFixpointProjector(
+		functionSummaryStore,
+		functionSourceStore,
+		functionGraphIDStore,
+		graphReader,
+		graphWriters.codeInterprocEvidence,
+		logger,
+	)
 	semanticEntityExecutor := semanticEntityExecutorForGraphBackend(
 		neo4jExec,
 		graphBackend,
@@ -310,11 +321,12 @@ func buildReducerService(
 		CodeInterprocEvidenceLoader:   factStore,
 		CodeInterprocEvidenceWriter:   graphWriters.codeInterprocEvidence,
 		CodeFunctionSummaryLoader:     factStore,
-		CodeFunctionSummaryWriter:     postgres.NewFunctionSummaryStore(database),
+		CodeFunctionSummaryWriter:     functionSummaryStore,
 		CodeFunctionSourceLoader:      factStore,
-		CodeFunctionSourceWriter:      postgres.NewFunctionSourceStore(database),
+		CodeFunctionSourceWriter:      functionSourceStore,
 		CodeFunctionGraphIDLoader:     factStore,
-		CodeFunctionGraphIDWriter:     postgres.NewFunctionGraphIDStore(database),
+		CodeFunctionGraphIDWriter:     functionGraphIDStore,
+		ValueFlowFixpointProjector:    valueFlowFixpointProjector,
 		// Durable incident -> repository correlation (#2161); see helper for rationale.
 		AppliedPagerDutyServiceRoutingLoader: incidentRepoCorrelationLoader,
 		BackendRepositoryResolver:            incidentRepoCorrelationResolver,

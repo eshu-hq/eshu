@@ -35,6 +35,10 @@ WHERE rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
+const retractCodeInterprocEvidenceSourceCypher = `MATCH (:Function)-[rel:TAINT_FLOWS_TO]->(:Function)
+WHERE rel.evidence_source = $evidence_source
+DELETE rel`
+
 const retractStaleCodeInterprocEvidenceCypher = `MATCH (:Function)-[rel:TAINT_FLOWS_TO]->(:Function)
 WHERE rel.scope_id = $scope_id
   AND rel.evidence_source = $evidence_source
@@ -125,6 +129,36 @@ func (w *CodeInterprocEvidenceWriter) RetractCodeInterprocEvidence(
 				codeInterprocEvidenceRelType,
 				len(scopeIDs),
 				generationID,
+			),
+		},
+	}
+	return w.dispatch(ctx, []Statement{stmt})
+}
+
+// RetractCodeInterprocEvidenceSource removes all reducer-owned TAINT_FLOWS_TO
+// edges for one evidence source. It is used by global fixpoint projection,
+// whose solve and write are not scoped to the triggering repository.
+func (w *CodeInterprocEvidenceWriter) RetractCodeInterprocEvidenceSource(
+	ctx context.Context,
+	evidenceSource string,
+) error {
+	if evidenceSource == "" {
+		return fmt.Errorf("evidence_source must not be blank")
+	}
+	if w.executor == nil {
+		return fmt.Errorf("code interproc evidence writer executor is required")
+	}
+	stmt := Statement{
+		Operation: OperationCanonicalRetract,
+		Cypher:    retractCodeInterprocEvidenceSourceCypher,
+		Parameters: map[string]any{
+			"evidence_source":               evidenceSource,
+			StatementMetadataPhaseKey:       canonicalPhaseCodeInterprocEvidence,
+			StatementMetadataEntityLabelKey: codeInterprocEvidenceRelType,
+			StatementMetadataSummaryKey: fmt.Sprintf(
+				"edge=%s retract evidence_source=%s",
+				codeInterprocEvidenceRelType,
+				evidenceSource,
 			),
 		},
 	}
