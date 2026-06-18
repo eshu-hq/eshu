@@ -1,9 +1,16 @@
 # cmd/collector-azure-cloud
 
-Fixture-driven runtime binary for the Azure cloud collector. It wires the
-`azureruntime.Source` into the shared `collector.Service` and commits Azure
-source facts through the Postgres ingestion store. This is the runtime
-scaffolding slice of issue #1998.
+Runtime binary for the Azure cloud collector. It runs in two modes:
+
+- **fixture** (default): wires the `azureruntime.Source` into the shared
+  `collector.Service` and commits Azure source facts through the Postgres
+  ingestion store. The live seam stays gated (issue #1998 scaffolding).
+- **claimed-live** (`-mode claimed-live`): selects one enabled, claim-enabled
+  Azure collector instance, wires the read-only live Resource Graph adapter, and
+  runs through `collector.ClaimedService` so claim acquire, heartbeat, fenced
+  commit, retry, and terminal failure follow the shared workflow lifecycle. This
+  is the live-transport promotion path tracked by issue #3024 (the Azure
+  equivalent of GCP #1997). It is opt-in and off by default.
 
 ## Configuration (declarative, credentials by name only)
 
@@ -37,41 +44,95 @@ provenance facts only. Because `ESHU_AZURE_FIXTURE_PAGES_JSON` carries one
 ordered fixture page list, all targets in an offline fixture run must use the
 same `source_lane`.
 
+## Claimed-live mode (`-mode claimed-live`)
+
+Claimed-live mode reads its instance from the reconciled
+`ESHU_COLLECTOR_INSTANCES_JSON` document instead of `ESHU_AZURE_TARGETS_JSON`,
+and requires a read-only redaction key file.
+
+| Env var | Required | Meaning |
+| --- | --- | --- |
+| `ESHU_COLLECTOR_INSTANCES_JSON` | yes | Reconciled desired collector instances. The runner selects the enabled, claim-enabled `azure` instance. |
+| `ESHU_AZURE_COLLECTOR_INSTANCE_ID` | when >1 azure instance | Disambiguates which `azure` instance to run. |
+| `ESHU_AZURE_POLL_INTERVAL` | no | Claim poll cadence (default 5m). |
+| `ESHU_AZURE_COLLECTOR_CLAIM_LEASE_TTL` | no | Claim lease TTL (default from workflow). |
+| `ESHU_AZURE_COLLECTOR_HEARTBEAT_INTERVAL` | no | Lease heartbeat interval; must be less than the lease TTL. |
+| `ESHU_AZURE_COLLECTOR_OWNER_ID` | no | Durable claim owner id (defaults to `HOSTNAME`). |
+| `-redaction-key-file` flag | yes | Read-only redaction key material file; a blank file is rejected. |
+
+The instance `configuration` must set `live_collection_enabled: true` and carry
+one or more enabled `scopes` that share a single `credential_ref`:
+
+```json
+{
+  "live_collection_enabled": true,
+  "scopes": [{
+    "enabled": true,
+    "tenant_id": "tenant-abc",
+    "scope_kind": "subscription",
+    "provider_scope_id": "11111111-1111-1111-1111-111111111111",
+    "resource_type_family": "microsoft.compute",
+    "location_bucket": "eastus",
+    "credential_ref": "azure-read-only-spn"
+  }]
+}
+```
+
+The coordinator-assigned generation id and fencing token come from each claimed
+work item; configured scopes carry no fencing token. The live credential is
+resolved from the ambient Azure workload identity, never from configuration.
+
 ## Live-call safety
 
-With `ESHU_AZURE_FIXTURE_PAGES_JSON` unset, the binary selects the zero-value
-`azureruntime.LiveProviderFactory`, which returns `ErrLiveProviderGated`. No
-default code path and no test issues a live Azure request. Resource Graph and
-allowlisted ARM fallback live adapters are available only by explicit
-in-process injection outside this command's default wiring. Command and chart
-activation of live credentials remain gated.
+In fixture mode with `ESHU_AZURE_FIXTURE_PAGES_JSON` unset, the binary selects
+the zero-value `azureruntime.LiveProviderFactory`, which returns
+`ErrLiveProviderGated`. No default code path and no test issues a live Azure
+request. Live transport is reached only in `-mode claimed-live`, which is opt-in
+and requires an explicit `live_collection_enabled=true` collector instance and a
+granted workflow claim before any read. Helm chart activation of the claimed-live
+deployment remains gated until the runtime and security gates pass.
 
 ## Ownership boundary
 
-This command owns process startup, environment parsing, provider-seam selection,
-shared telemetry bootstrap, and `collector.Service` construction for the Azure
-collector source. It does not own fact normalization, reducer admission, graph
-writes, API/MCP readback, workflow-coordinator claim scheduling, Helm values, or
-live Azure transport activation.
+This command owns process startup, environment parsing, mode/provider-seam
+selection, shared telemetry bootstrap, `collector.Service` (fixture) and
+`collector.ClaimedService` (claimed-live) construction, and the claim-status
+committer for the Azure collector source. It does not own fact normalization,
+reducer admission, graph writes, API/MCP readback, Helm values, or live-smoke
+proof.
 
 Azure resource, tag, image-reference, and managed-relationship reducer slices
-are implemented in their owning packages and stay outside this binary. This
-command can run the existing fixture-only `resource_changes` lane when the
-target sets `source_lane=resource_changes` and the offline fixture points at
-Resource Graph `resourcechanges` pages. Identity, resource-change, DNS, and
-expanded readback admission, plus claim-driven scheduling, Helm/env/chart
-wiring, live-smoke support, and command activation of live Azure credentials
-remain issue #1998 follow-ups gated by the Azure cloud collector contract.
+are implemented in their owning packages and stay outside this binary. Helm
+chart activation, the hosted security posture gate, and live-smoke proof remain
+issue #3024 follow-ups gated by the Azure cloud collector contract; this PR
+delivers the claimed-live runtime and its fixture-proven claim handoff, and
+keeps live transport off by default.
 
 ## Verify
 
 ```bash
 cd go && go build ./...
-cd go && go test ./cmd/collector-azure-cloud/... ./internal/collector/azurecloud/... -count=1
+cd go && go test ./cmd/collector-azure-cloud/... ./internal/collector/azurecloud/... ./internal/workflow/ -count=1
 cd go && golangci-lint run ./cmd/collector-azure-cloud/... ./internal/collector/azurecloud/...
+scripts/verify-package-docs.sh
+scripts/verify-performance-evidence.sh
 ```
 
 ## Evidence
+
+No-Regression Evidence (claimed-live): The claimed-live path reuses the shared
+`collector.ClaimedService` runner already exercised by `collector-aws-cloud` and
+`collector-gcp-cloud`; it adds no new graph or Postgres hot path. Conflict
+domain: one durable workflow claim per `(azure instance, scope_id, generation)`;
+fencing and lease handoff are owned by `collector.ClaimedService` and the
+Postgres workflow control store, unchanged. The source emits one bounded
+generation per claimed work item (page loop bounded by
+`azurecloud.maxResourceGraphPages`). Fixture-proven claim handoff: matching work
+item collects facts with the claim's generation id and fencing token;
+unauthorized scope, mismatched instance, wrong collector kind, non-claimed
+status, non-positive fencing token, and generation/run mismatch are each
+rejected before any provider call (claimed_source_test.go). The bounded
+`eshu_dp_azure_claims_total` counter records committed/failed claim outcomes.
 
 No-Regression Evidence: New runtime scaffolding binary; it adds no new graph or
 Postgres hot path. Baseline: no Azure collector binary existed before this PR

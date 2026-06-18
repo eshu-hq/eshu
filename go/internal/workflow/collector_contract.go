@@ -91,6 +91,15 @@ var collectorContracts = map[scope.CollectorKind]CollectorContract{
 		CanonicalKeyspaces: nil,
 		RequiredPhases:     nil,
 	},
+	scope.CollectorAzure: {
+		// Azure is a known collector contract for fixture-backed and gated live
+		// cloud facts. It has no graph-readiness phase requirements until the
+		// cloud-resource graph writer and anchor publisher are implemented,
+		// matching the GCP cloud contract.
+		CollectorKind:      scope.CollectorAzure,
+		CanonicalKeyspaces: nil,
+		RequiredPhases:     nil,
+	},
 	scope.CollectorWebhook: {
 		CollectorKind: scope.CollectorWebhook,
 		CanonicalKeyspaces: []reducer.GraphProjectionKeyspace{

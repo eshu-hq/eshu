@@ -77,20 +77,25 @@ func (s *Source) Next(ctx context.Context) (collector.CollectedGeneration, bool,
 	target := config.Targets[s.next]
 	s.next++
 
-	collected, err := s.scanTarget(ctx, config.CollectorInstanceID, target)
+	collected, err := s.scanTarget(ctx, config.CollectorInstanceID, target, "")
 	if err != nil {
 		return collector.CollectedGeneration{}, false, err
 	}
 	return collected, true, nil
 }
 
+// scanTarget collects one bounded Azure scope target. A non-empty generationID
+// pins the durable generation identity (claim-driven collection supplies the
+// coordinator-assigned id); an empty value derives a deterministic per-poll id
+// so an unclaimed sweep at the same instant converges.
 func (s *Source) scanTarget(
 	ctx context.Context,
 	collectorInstanceID string,
 	target TargetConfig,
+	generationID string,
 ) (collector.CollectedGeneration, error) {
 	observedAt := s.now()
-	boundary := s.boundary(collectorInstanceID, target, observedAt)
+	boundary := s.boundary(collectorInstanceID, target, generationID, observedAt)
 
 	if s.Tracer != nil {
 		var span trace.Span
@@ -128,9 +133,14 @@ func (s *Source) scanTarget(
 func (s *Source) boundary(
 	collectorInstanceID string,
 	target TargetConfig,
+	generationID string,
 	observedAt time.Time,
 ) azurecloud.Boundary {
 	scopeID := scopeIDForTarget(target)
+	resolvedGenerationID := strings.TrimSpace(generationID)
+	if resolvedGenerationID == "" {
+		resolvedGenerationID = s.generationID(scopeID, observedAt)
+	}
 	return azurecloud.Boundary{
 		CollectorInstanceID: collectorInstanceID,
 		TenantID:            target.TenantID,
@@ -140,7 +150,7 @@ func (s *Source) boundary(
 		LocationBucket:      target.LocationBucket,
 		SourceLane:          target.SourceLane,
 		ScopeID:             scopeID,
-		GenerationID:        s.generationID(scopeID, observedAt),
+		GenerationID:        resolvedGenerationID,
 		FencingToken:        target.FencingToken,
 		ObservedAt:          observedAt,
 	}

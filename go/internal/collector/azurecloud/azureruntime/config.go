@@ -66,6 +66,14 @@ type TargetConfig struct {
 	FencingToken int64
 }
 
+// Validate reports whether the declarative config has the minimum bounded scope
+// identity to run. It is the exported gate command wiring uses to reject an
+// invalid claimed-live configuration before the runner starts.
+func (c Config) Validate() error {
+	_, err := c.validated()
+	return err
+}
+
 func (c Config) validated() (Config, error) {
 	collectorID := strings.TrimSpace(c.CollectorInstanceID)
 	if collectorID == "" {

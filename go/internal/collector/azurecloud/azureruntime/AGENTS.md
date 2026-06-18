@@ -17,6 +17,8 @@
    `FixturePageProvider`, and the gated-by-default `LiveProviderFactory`.
 7. `source.go` - `collector.Source` implementation, scope/generation identity,
    and bounded per-target telemetry.
+8. `claimed_source.go` - `collector.ClaimedSource` (`NextClaimed`): claim
+   validation and authorized-target resolution for the claim-driven runner.
 
 ## Hard Rules
 
@@ -32,7 +34,11 @@
   non-identifying counts. NEVER add ARM IDs, subscription/tenant IDs, resource
   group/resource names, locations, tags, KQL text, URLs, or credential names.
 - MUST keep generation identity deterministic so replayed sweeps converge
-  (idempotent re-emission).
+  (idempotent re-emission). In claimed mode the generation id and fencing token
+  come from the work item; `NextClaimed` MUST reject an unauthorized scope,
+  mismatched instance/kind, non-claimed status, non-positive fencing token, or
+  generation/run mismatch before any provider call, and its errors MUST NOT embed
+  configured provider identity.
 - MUST treat partial subscription/management-group access as explicit
   `azure_collection_warning` evidence, never silent success.
 - MUST NOT add reducer admission, new fact families, API/MCP readback, Helm

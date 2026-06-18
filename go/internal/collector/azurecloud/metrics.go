@@ -21,6 +21,19 @@ const (
 	StatusClassError = "error"
 )
 
+// Claim status values are bounded enums for the claim lifecycle counter. They
+// are safe as telemetry labels and mirror the GCP cloud collector claim states.
+const (
+	// ClaimStatusSucceeded marks a claim that committed with full coverage.
+	ClaimStatusSucceeded = "succeeded"
+	// ClaimStatusPartial marks a claim that committed with durable partial-scope
+	// warning evidence.
+	ClaimStatusPartial = "partial"
+	// ClaimStatusFailed marks a claim that failed before committing complete
+	// evidence.
+	ClaimStatusFailed = "failed"
+)
+
 // metricSourceLaneKey is the bounded source_lane metric dimension. The Azure
 // collector owns it because the shared telemetry package has no source_lane
 // helper yet; the value is always a SourceLane* enum.
@@ -43,6 +56,10 @@ type Metrics interface {
 	RecordFactsEmitted(ctx context.Context, boundary Boundary, factKind string, count int)
 	// RecordFreshnessLag records provider-to-Eshu freshness lag in seconds.
 	RecordFreshnessLag(ctx context.Context, boundary Boundary, lagSeconds float64)
+	// RecordClaim records one claim lifecycle outcome by bounded status enum. It
+	// carries collector kind and status only, never scope, credential, or
+	// provider identity.
+	RecordClaim(ctx context.Context, status string)
 }
 
 // NopMetrics is a Metrics that records nothing. It lets callers run the
@@ -64,12 +81,16 @@ func (NopMetrics) RecordFactsEmitted(context.Context, Boundary, string, int) {}
 // RecordFreshnessLag does nothing.
 func (NopMetrics) RecordFreshnessLag(context.Context, Boundary, float64) {}
 
+// RecordClaim does nothing.
+func (NopMetrics) RecordClaim(context.Context, string) {}
+
 type otelMetrics struct {
 	apiCalls     metric.Int64Counter
 	skipResumes  metric.Int64Counter
 	partialScope metric.Int64Counter
 	factsEmitted metric.Int64Counter
 	freshnessLag metric.Float64Histogram
+	claims       metric.Int64Counter
 }
 
 // NewMetrics registers the Azure collector OTel instruments. The returned
@@ -113,12 +134,20 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 	if err != nil {
 		return nil, err
 	}
+	claims, err := meter.Int64Counter(
+		"eshu_dp_azure_claims_total",
+		metric.WithDescription("Azure cloud collector claim lifecycle events by collector kind and status"),
+	)
+	if err != nil {
+		return nil, err
+	}
 	return otelMetrics{
 		apiCalls:     apiCalls,
 		skipResumes:  skipResumes,
 		partialScope: partialScope,
 		factsEmitted: factsEmitted,
 		freshnessLag: freshnessLag,
+		claims:       claims,
 	}, nil
 }
 
@@ -152,6 +181,13 @@ func (m otelMetrics) RecordFactsEmitted(ctx context.Context, boundary Boundary, 
 
 func (m otelMetrics) RecordFreshnessLag(ctx context.Context, boundary Boundary, lagSeconds float64) {
 	m.freshnessLag.Record(ctx, lagSeconds, metric.WithAttributes(boundaryAttrs(boundary)...))
+}
+
+func (m otelMetrics) RecordClaim(ctx context.Context, status string) {
+	m.claims.Add(ctx, 1, metric.WithAttributes(
+		telemetry.AttrCollectorKind(CollectorKind),
+		telemetry.AttrStatus(status),
+	))
 }
 
 // boundaryAttrs returns the bounded-enum attribute set shared by every Azure
