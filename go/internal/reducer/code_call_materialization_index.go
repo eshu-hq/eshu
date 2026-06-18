@@ -20,6 +20,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 		uniqueNameByRepoDir:     make(map[string]map[string]map[string]string),
 		constructorByPath:       make(map[string]map[string]string),
 		goMethodReturnTypes:     make(map[string]map[string]string),
+		pythonClassBasesByRepo:  make(map[string]map[string][]string),
 		entityFileByID:          make(map[string]string),
 		entityTypeByID:          make(map[string]string),
 		entityByStableSymbolKey: make(map[string]codeCallSymbolResolution),
@@ -30,6 +31,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 	repoDirNameCandidates := make(map[string]map[string]map[string]map[string]struct{})
 	goMethodReturnTypeCandidates := make(map[string]map[string]map[string]struct{})
 	symbolCandidates := make(map[string]map[string]codeCallSymbolResolution)
+	pythonClassBaseCandidates := make(map[string]map[string]map[string]pythonClassBaseCandidate)
 
 	for _, env := range envelopes {
 		if env.FactKind != "file" {
@@ -161,6 +163,9 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 						}
 					}
 				}
+				if bucket == "classes" {
+					addPythonClassBaseCandidate(pythonClassBaseCandidates, repositoryID, item)
+				}
 			}
 		}
 	}
@@ -228,6 +233,7 @@ func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
 			}
 		}
 	}
+	index.pythonClassBasesByRepo = uniquePythonClassBasesByRepo(pythonClassBaseCandidates)
 	index.entityByStableSymbolKey = uniqueCodeCallSymbolCandidates(symbolCandidates)
 	index.goExportByImportPath = buildGoCrossRepoExportIndex(envelopes)
 	return index
