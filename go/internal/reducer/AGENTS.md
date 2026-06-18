@@ -43,8 +43,8 @@ before touching any file in this directory.
   their `intent_id`s; audit every caller before using it.
 - **Edge domains gate on readiness phases** — `shared_projection.go:91–99`;
   `code_calls` gates on `canonical_nodes_committed`;
-  `sql_relationships` and `inheritance_edges` gate on
-  `semantic_nodes_committed`.
+  `sql_relationships` gates on `canonical_nodes_committed`; `inheritance_edges`
+  gates on `semantic_nodes_committed`.
 - **SQL trigger functions materialize as `EXECUTES` edges** —
   `ExtractSQLRelationshipRows` reads `function_name` from `SqlTrigger`
   metadata and writes trigger-to-`SqlFunction` `EXECUTES` rows
