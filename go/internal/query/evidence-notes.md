@@ -64,6 +64,30 @@ Operators can still diagnose denied calls through the existing HTTP status,
 structured error envelope, correlation id, request logs, and unchanged route
 handler spans for requests that are allowed to reach handlers.
 
+## Repository story capability gate (#3028)
+
+No-Regression Evidence: baseline behavior allowed the repository story handler
+to enter repository lookup under `local_lightweight` even though the shared
+`platform_impact.context_overview` capability matrix marks that profile
+unsupported. The change reuses `requireContextOverview` before any graph or
+content read, so unsupported callers now receive the structured capability
+error that repository context, workload context, and workload story already
+return. After measurement on Go 1.26.4 (`darwin/arm64`) used
+`go test ./internal/query -run
+'Test(GetRepositoryStory_LocalLightweightReturnsStructuredUnsupportedCapability|GetRepositoryStoryReturnsEnvelopeWhenRequested|GetRepositoryStoryUsesNarrowRepositoryLookupAndLogsStages)'
+-count=1`. The focused gate proves zero backend rows for the unsupported
+profile because the handler returns before repository selector or story reads;
+the supported story path still returns the same bounded repository story
+envelope and the existing narrow lookup/log-stage test continues to pass. No
+queue, worker, reducer, or graph-write path is involved.
+
+No-Observability-Change: the supported route keeps the existing
+`repository_query.stage_*` timers, `Neo4jReader.Run`/`RunSingle` spans,
+`neo4j.query` graph spans, response truth envelope, result limits, and partial
+reason fields. Unsupported requests now stop earlier with the existing
+structured capability error envelope; no metric, log field, span name, route,
+runtime knob, queue state, or response field is added.
+
 ## Incident context routing evidence (#1142)
 
 Incident context now includes three routing slots before deployable/runtime

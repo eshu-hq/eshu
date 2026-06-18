@@ -5,7 +5,7 @@ const openAPIPathsVisualizationPackets = `
       "post": {
         "tags": ["visualizations"],
         "summary": "Derive a visualization packet",
-        "description": "Builds a bounded visualization packet from a source response the caller already received from an authorized answer route. The derivation is side-effect-free, performs no graph or content query, preserves the supplied source_truth in the packet and envelope, and supports service_story, evidence_citation, and incident_context views. Unsupported source shapes return an explicit unsupported packet with limitations and recommended next calls.",
+        "description": "Builds a bounded visualization packet from a source response the caller already received from an authorized answer route. The derivation is side-effect-free, performs no graph or content query, preserves the supplied source_truth in the packet, and returns a derived visualization.packet_derivation truth envelope. Supports service_story, evidence_citation, and incident_context views. Unsupported source shapes return an explicit unsupported packet with limitations and recommended next calls.",
         "operationId": "deriveVisualizationPacket",
         "requestBody": {
           "required": true,
@@ -25,7 +25,7 @@ const openAPIPathsVisualizationPackets = `
                   },
                   "source_truth": {
                     "type": "object",
-                    "description": "Optional TruthEnvelope from the source response; copied into the packet and envelope."
+                    "description": "Optional TruthEnvelope from the source response; copied into the derived visualization packet."
                   }
                 },
                 "required": ["view", "source_response"]

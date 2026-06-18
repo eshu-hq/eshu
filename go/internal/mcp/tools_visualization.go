@@ -19,7 +19,7 @@ func visualizationTools() []ToolDefinition {
 					},
 					"source_truth": map[string]any{
 						"type":        "object",
-						"description": "Optional source TruthEnvelope copied into the derived visualization packet and envelope.",
+						"description": "Optional source TruthEnvelope copied into the derived visualization packet; the route envelope reports visualization.packet_derivation.",
 					},
 				},
 				"required": []string{"view", "source_response"},

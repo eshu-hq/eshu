@@ -40,7 +40,7 @@ func (h *VisualizationHandler) derive(w http.ResponseWriter, r *http.Request) {
 	}
 	WriteSuccess(w, r, http.StatusOK, visualizationDeriveResponse{
 		VisualizationPacket: packet,
-	}, req.SourceTruth)
+	}, visualizationPacketDerivationTruth(req.SourceTruth))
 }
 
 func deriveVisualizationPacket(req visualizationDeriveRequest) (VisualizationPacket, error) {
@@ -82,4 +82,17 @@ func decodeVisualizationSource(raw json.RawMessage, dst any) error {
 		return fmt.Errorf("invalid source_response: %w", err)
 	}
 	return nil
+}
+
+func visualizationPacketDerivationTruth(source *TruthEnvelope) *TruthEnvelope {
+	profile := ProfileLocalLightweight
+	if source != nil && source.Profile != "" {
+		profile = source.Profile
+	}
+	return BuildTruthEnvelope(
+		profile,
+		"visualization.packet_derivation",
+		TruthBasisHybrid,
+		"derived from caller-supplied authorized source response without graph or content reads",
+	)
 }

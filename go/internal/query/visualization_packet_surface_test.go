@@ -29,8 +29,23 @@ func TestVisualizationDeriveRouteBuildsServiceStoryPacket(t *testing.T) {
 	if packet.Truth == nil || packet.Truth.Level != truth.Level || packet.Truth.Basis != truth.Basis {
 		t.Fatalf("packet truth = %+v, want source truth %+v", packet.Truth, truth)
 	}
-	if env.Truth == nil || env.Truth.Level != truth.Level || env.Truth.Basis != truth.Basis {
-		t.Fatalf("envelope truth = %+v, want source truth %+v", env.Truth, truth)
+	if got, want := packet.Truth.Freshness.State, truth.Freshness.State; got != want {
+		t.Fatalf("packet truth freshness = %q, want source freshness %q", got, want)
+	}
+	if env.Truth == nil {
+		t.Fatal("envelope truth = nil, want visualization packet derivation truth")
+	}
+	if got, want := env.Truth.Capability, "visualization.packet_derivation"; got != want {
+		t.Fatalf("envelope truth capability = %q, want %q", got, want)
+	}
+	if got, want := env.Truth.Level, TruthLevelDerived; got != want {
+		t.Fatalf("envelope truth level = %q, want %q", got, want)
+	}
+	if got, want := env.Truth.Basis, TruthBasisHybrid; got != want {
+		t.Fatalf("envelope truth basis = %q, want %q", got, want)
+	}
+	if got, want := env.Truth.Profile, ProfileLocalLightweight; got != want {
+		t.Fatalf("envelope truth profile = %q, want %q", got, want)
 	}
 	for i := 1; i < len(packet.Nodes); i++ {
 		if packet.Nodes[i-1].ID >= packet.Nodes[i].ID {
