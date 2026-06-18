@@ -414,6 +414,33 @@ worker, queue, graph write, metric, span, runtime default, or high-cardinality
 label. Existing HTTP route attribution, truth envelopes, and Postgres query
 spans/`eshu_dp_postgres_query_duration_seconds` diagnose the read.
 
+No-Regression Evidence: the #2842/#2903-review `graph_endpoint_presence` migration
+NON-DESTRUCTIVELY backfills pre-#2842 `repo_workload` rows with
+`UPDATE ... SET repo_id = uid WHERE keyspace = 'repo_workload' AND repo_id = ''`,
+so the repo-scoped runtime retract (keyed `repo_id = ANY(...)`) can finally match
+and clean legacy stale rows once their repo re-materializes. It deliberately does
+NOT delete blank-provenance rows: a delete would also remove still-CURRENT target
+presence, and because `filterRowsByReadiness` terminalizes (does not defer) a
+handles_route/runs_in row whose presence is absent, that would silently drop a live
+edge until the next re-materialization (the #2903 P1). The hashed
+`api_endpoint_repo_path` uid (#2844) makes repo_id unrecoverable, so those legacy
+rows are left in place and are bounded-safe — the HANDLES_ROUTE MERGE re-MATCHes the
+actual `:Endpoint`, so a stale-present row never creates an edge to a removed/
+re-pathed endpoint, and a current endpoint re-upserts proper provenance next
+materialization. The backfill matches zero rows once migrated, so it is idempotent
+on every `EnsureSchema`. `go test ./internal/storage/postgres -run
+'TestGraphEndpointPresenceSchemaSQL|TestGraphEndpointPresenceStoreRetractStaleRepoGenerations|TestGraphEndpointPresenceStoreUpsertIsIdempotent'
+-count=1` covers the backfill assertion and the upsert/retract contract; the Go DDL
+const and `024_graph_endpoint_presence.sql` stay byte-identical.
+
+No-Observability-Change: the backfill only sets `repo_id` on blank-provenance
+`repo_workload` rows in an existing table on schema apply; it deletes nothing and
+drops no presence. It adds no route, worker, queue domain, graph write, lease,
+runtime knob, metric instrument, metric label, span, or log key; operators still
+diagnose presence through the existing workload-materialization completion logs,
+the shared-projection blocked/terminal counters, and
+`eshu_dp_postgres_query_duration_seconds`.
+
 ## What NOT to change without an ADR
 
 - `fact_work_items` table schema (columns, indexes, conflict keys) — the projector

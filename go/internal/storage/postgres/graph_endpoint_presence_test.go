@@ -279,6 +279,23 @@ func TestGraphEndpointPresenceSchemaSQL(t *testing.T) {
 	if !strings.Contains(sqlStr, "REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE") {
 		t.Fatal("missing scope FK with ON DELETE CASCADE")
 	}
+	if !strings.Contains(sqlStr, "repo_id TEXT NOT NULL DEFAULT ''") ||
+		!strings.Contains(sqlStr, "source_generation TEXT NOT NULL DEFAULT ''") {
+		t.Fatal("missing repo_id / source_generation provenance columns (#2842)")
+	}
+	// #2903 review (P1): the migration must NON-DESTRUCTIVELY recover pre-#2842
+	// blank repo_id rows so the repo-scoped retract can match them, WITHOUT
+	// deleting still-current target presence (a delete would terminalize live
+	// handles_route/runs_in edges). repo_workload's uid IS the repo id, so it
+	// backfills repo_id = uid; it must NOT issue a DELETE of blank-provenance rows.
+	if !strings.Contains(sqlStr, "UPDATE graph_endpoint_presence") ||
+		!strings.Contains(sqlStr, "SET repo_id = uid") ||
+		!strings.Contains(sqlStr, "keyspace = 'repo_workload'") {
+		t.Fatal("missing non-destructive repo_workload repo_id backfill")
+	}
+	if strings.Contains(sqlStr, "DELETE FROM graph_endpoint_presence\nWHERE keyspace IN") {
+		t.Fatal("migration must not DELETE blank-provenance presence rows (drops current targets)")
+	}
 }
 
 func equalStringSlices(a, b []string) bool {
