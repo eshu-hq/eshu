@@ -104,6 +104,13 @@ type RepositorySnapshot struct {
 	// composition. Empty unless the parser emitted dataflow_summaries (gated by
 	// ESHU_EMIT_DATAFLOW and a supplied RepositoryID); byte-identical when off.
 	FunctionSummaries []FunctionSummarySnapshot `json:"function_summaries,omitempty"`
+	// DataflowScanned records that the value-flow gate (ESHU_EMIT_DATAFLOW) was on
+	// for this snapshot, independent of whether TaintEvidence or
+	// InterprocTaintEvidence produced any findings. It drives a per-generation
+	// marker fact so the reducer reconciles (and retracts stale) value-flow
+	// evidence even when the current finding set is empty. False — and omitted —
+	// when the gate is off, preserving the byte-identical-when-off guarantee.
+	DataflowScanned bool `json:"dataflow_scanned,omitempty"`
 }
 
 // TaintEvidenceSnapshot is one intraprocedural value-flow taint finding resolved

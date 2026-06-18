@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -278,17 +279,19 @@ func TestExtractCodeCallRowsResolvesPythonConstructorsInheritedClassMethodsAndCl
 					"classes": []any{
 						map[string]any{"uid": "class-base", "name": "BaseModel", "line_number": 1, "end_line": 1, "lang": "python"},
 						map[string]any{"uid": "class-event", "name": "S3Event", "line_number": 5, "end_line": 10, "lang": "python", "bases": []any{"BaseModel"}},
+						map[string]any{"uid": "class-unrelated", "name": "UnrelatedModel", "line_number": 11, "end_line": 12, "lang": "python"},
 						map[string]any{"uid": "class-worker", "name": "Worker", "line_number": 12, "end_line": 18, "lang": "python"},
 					},
 					"functions": []any{
 						map[string]any{"uid": "fn-from-dict", "name": "from_dict", "line_number": 3, "end_line": 4, "lang": "python", "class_context": "BaseModel"},
+						map[string]any{"uid": "fn-unrelated-from-dict", "name": "from_dict", "line_number": 11, "end_line": 12, "lang": "python", "class_context": "UnrelatedModel"},
 						map[string]any{"uid": "fn-worker-init", "name": "__init__", "line_number": 13, "end_line": 14, "lang": "python", "class_context": "Worker"},
 						map[string]any{"uid": "fn-main", "name": "main", "line_number": 20, "end_line": 22, "lang": "python"},
 					},
 					"function_calls": []any{
 						map[string]any{"name": "Worker", "full_name": "Worker", "line_number": 21, "lang": "python", "call_kind": "constructor_call"},
 						map[string]any{"name": "S3Event", "full_name": "S3Event", "line_number": 14, "lang": "python", "call_kind": "python.class_reference"},
-						map[string]any{"name": "from_dict", "full_name": "S3Event.from_dict", "line_number": 14, "lang": "python"},
+						map[string]any{"name": "from_dict", "full_name": "events.S3Event.from_dict", "line_number": 14, "lang": "python"},
 					},
 				},
 			},
@@ -300,6 +303,10 @@ func TestExtractCodeCallRowsResolvesPythonConstructorsInheritedClassMethodsAndCl
 	assertCodeCallRow(t, rows, "fn-main", "fn-worker-init")
 	assertCodeCallRow(t, rows, "fn-worker-init", "class-event")
 	assertCodeCallRow(t, rows, "fn-worker-init", "fn-from-dict")
+	assertNoCodeCallRow(t, rows, "fn-worker-init", "fn-unrelated-from-dict")
+	if got := resolutionMethodForCallee(t, rows, "fn-from-dict"); got != codeprovenance.MethodTypeInferred {
+		t.Fatalf("resolution_method = %q, want %q", got, codeprovenance.MethodTypeInferred)
+	}
 }
 
 func TestExtractCodeCallRowsResolvesPythonSelfMethodCalls(t *testing.T) {
@@ -335,6 +342,44 @@ func TestExtractCodeCallRowsResolvesPythonSelfMethodCalls(t *testing.T) {
 	assertCodeCallRow(t, rows, "fn-create", "fn-object")
 }
 
+func TestExtractCodeCallRowsLeavesPythonAmbiguousInheritedClassMethodsUnresolved(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{
+			FactKind: "repository",
+			Payload:  map[string]any{"repo_id": "repo-python"},
+		},
+		{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":       "repo-python",
+				"relative_path": "models.py",
+				"parsed_file_data": map[string]any{
+					"path": "models.py",
+					"classes": []any{
+						map[string]any{"uid": "class-base-a", "name": "BaseA", "line_number": 1, "end_line": 2, "lang": "python"},
+						map[string]any{"uid": "class-base-b", "name": "BaseB", "line_number": 4, "end_line": 5, "lang": "python"},
+						map[string]any{"uid": "class-child", "name": "Child", "line_number": 7, "end_line": 8, "lang": "python", "bases": []any{"BaseA", "BaseB"}},
+					},
+					"functions": []any{
+						map[string]any{"uid": "fn-base-a-from-dict", "name": "from_dict", "line_number": 2, "end_line": 3, "lang": "python", "class_context": "BaseA"},
+						map[string]any{"uid": "fn-base-b-from-dict", "name": "from_dict", "line_number": 5, "end_line": 6, "lang": "python", "class_context": "BaseB"},
+						map[string]any{"uid": "fn-main", "name": "main", "line_number": 10, "end_line": 12, "lang": "python"},
+					},
+					"function_calls": []any{
+						map[string]any{"name": "from_dict", "full_name": "Child.from_dict", "line_number": 11, "lang": "python"},
+					},
+				},
+			},
+		},
+	}
+
+	_, rows := ExtractCodeCallRows(envelopes)
+	assertNoCodeCallRow(t, rows, "fn-main", "fn-base-a-from-dict")
+	assertNoCodeCallRow(t, rows, "fn-main", "fn-base-b-from-dict")
+}
+
 func assertCodeCallRow(t *testing.T, rows []map[string]any, callerID string, calleeID string) {
 	t.Helper()
 	for _, row := range rows {
@@ -343,4 +388,13 @@ func assertCodeCallRow(t *testing.T, rows []map[string]any, callerID string, cal
 		}
 	}
 	t.Fatalf("missing code-call row %s -> %s in %#v", callerID, calleeID, rows)
+}
+
+func assertNoCodeCallRow(t *testing.T, rows []map[string]any, callerID string, calleeID string) {
+	t.Helper()
+	for _, row := range rows {
+		if anyToString(row["caller_entity_id"]) == callerID && anyToString(row["callee_entity_id"]) == calleeID {
+			t.Fatalf("unexpected code-call row %s -> %s in %#v", callerID, calleeID, rows)
+		}
+	}
 }

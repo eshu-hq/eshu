@@ -31,6 +31,9 @@
 // reach durable queue rows; domains whose handlers still load, write, or
 // retract whole scope generations stay behind an explicit resource-scope
 // fallback fence until partition-filtered semantics are proven.
+// CodeValueFlowCurrentGenerationStore pages active repository scope generations
+// from ingestion_scopes so reducer-owned value-flow stale cleanup can run even
+// when a current generation emits no value-flow facts.
 // CollectorGenerationDeadLetterStore persists bounded commit-failure metadata
 // for generations that failed before projector work rows existed and exposes a
 // source-level replay request/completion path plus unresolved status aggregates

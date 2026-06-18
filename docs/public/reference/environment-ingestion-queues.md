@@ -38,7 +38,7 @@ queue, or graph-write evidence.
 | `ESHU_BOOTSTRAP_IS_DEPENDENCY` | `false` | collector | Marks bootstrap source as dependency package. |
 | `ESHU_BOOTSTRAP_PACKAGE_NAME` | unset | collector | Dependency package name. |
 | `ESHU_BOOTSTRAP_PACKAGE_LANGUAGE` | unset | collector | Dependency package language. |
-| `SCIP_INDEXER` | `true` | collector snapshotter | Enables SCIP supplement indexing when the selected language's `scip-*` binary is available. Set `false`, `0`, `no`, or `off` to force native-only parsing. |
+| `SCIP_INDEXER` | `true` | collector snapshotter | Enables SCIP supplement indexing when the selected language's `scip-*` binary is available. Set `false`, `0`, `no`, or `off` to force native-only parsing. Outcome volume is visible through `eshu_dp_scip_snapshot_attempts_total{language,result}`. |
 | `SCIP_LANGUAGES` | `python,typescript,javascript,go,rust,java,cpp,c` | collector snapshotter | Comma-separated SCIP language allowlist. Narrow this list to keep native parsing complete while limiting which language can run SCIP. |
 
 ## Incremental Refresh
@@ -97,6 +97,12 @@ queue, or graph-write evidence.
 | `ESHU_GRAPH_PROJECTION_REPAIR_POLL_INTERVAL` | `1s` | reducer repairer | Poll interval for graph projection phase repair. |
 | `ESHU_GRAPH_PROJECTION_REPAIR_BATCH_LIMIT` | `100` | reducer repairer | Repair rows per batch. |
 | `ESHU_GRAPH_PROJECTION_REPAIR_RETRY_DELAY` | `1m` | reducer repairer | Delay before retrying repair. |
+| `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_ENABLED` | `true` | reducer value-flow cleanup | Enables bounded stale cleanup for reducer-owned value-flow graph evidence. |
+| `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_POLL_INTERVAL` | `1h` | reducer value-flow cleanup | Idle poll interval after an exhausted or failed cleanup pass. |
+| `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_LEASE_OWNER` | unique per process | reducer value-flow cleanup | Lease owner for the single cleanup worker. |
+| `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_LEASE_TTL` | `5m` | reducer value-flow cleanup | TTL for the cleanup lease. |
+| `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_SCOPE_BATCH_LIMIT` | `100` | reducer value-flow cleanup | Active repository scopes scanned per pass. |
+| `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_DELETE_BATCH_LIMIT` | `500` | reducer value-flow cleanup | Stale evidence nodes or edges deleted per scope and family in one Cypher statement. |
 
 Performance Evidence: the #2624 baseline remote proof rendered file-scoped
 `code_calls` work but leased the domain with `partition_count=1`, while the

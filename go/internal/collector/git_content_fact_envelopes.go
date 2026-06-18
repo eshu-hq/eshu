@@ -56,8 +56,8 @@ func contentFactEnvelope(
 }
 
 // contentEntityFactEnvelope builds the durable content-entity fact for one parsed
-// entity (function, class, etc.): its identity, location, language, and any extra
-// parser metadata. The stable key is the entity uid so re-emission of a
+// entity (function, class, etc.): its identity, location, language, and any
+// extra parser metadata. The stable key is the entity uid so re-emission of a
 // generation is idempotent. Extracted from git_fact_builder.go to keep that file
 // within the repo file-size budget.
 func contentEntityFactEnvelope(
