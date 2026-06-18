@@ -76,6 +76,29 @@ from `gcpCloudCollector.redaction.*` as a read-only Secret volume mount. The
 collector instance configuration must set `live_collection_enabled=true`, and
 enabled scopes must reference credentials by name with `credential_ref`.
 
+## Azure Cloud Collector
+
+The Azure collector runs in fixture mode by default. Fixture mode reads
+`ESHU_AZURE_TARGETS_JSON` (and the optional `ESHU_AZURE_FIXTURE_PAGES_JSON` /
+`ESHU_AZURE_REDACTION_KEY_FILE`). The claim-driven environment below applies to
+`-mode claimed-live`.
+
+| Variable | Default | Read by | Purpose |
+| --- | --- | --- | --- |
+| `ESHU_AZURE_COLLECTOR_INSTANCE_ID` | required when more than one enabled Azure instance exists | collector-azure-cloud | Selects the claim-capable `azure` instance from `ESHU_COLLECTOR_INSTANCES_JSON`. |
+| `ESHU_AZURE_COLLECTOR_OWNER_ID` | host/process-derived | collector-azure-cloud | Owner label written into workflow claim rows. |
+| `ESHU_AZURE_POLL_INTERVAL` | `5m` | collector-azure-cloud | Delay between empty claim polls. |
+| `ESHU_AZURE_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | collector-azure-cloud | Lease TTL used when claiming and refreshing work. |
+| `ESHU_AZURE_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | collector-azure-cloud | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
+
+The Azure collector also requires `-mode claimed-live` and
+`-redaction-key-file` at process startup. Helm supplies the redaction key path
+from `azureCloudCollector.redaction.*` as a read-only Secret volume mount. The
+collector instance configuration must set `live_collection_enabled=true`, and
+enabled scopes must reference credentials by name with `credential_ref`.
+Claimed-live serves the `resource_graph` source lane only; the live credential
+is the ambient Azure workload identity.
+
 ## Vault Live Collector
 
 The Vault live collector is claim-only. It selects an enabled `vault_live`

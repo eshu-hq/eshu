@@ -1,0 +1,62 @@
+{{- if .Values.azureCloudCollector.enabled -}}
+{{- if not .Values.workflowCoordinator.enabled -}}
+{{- fail "workflowCoordinator.enabled=true is required when azureCloudCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.azureCloudCollector.instanceId -}}
+{{- fail "azureCloudCollector.instanceId is required when azureCloudCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.azureCloudCollector.collectorInstances -}}
+{{- fail "azureCloudCollector.collectorInstances must contain at least one instance when azureCloudCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.azureCloudCollector.redaction.secretName -}}
+{{- fail "azureCloudCollector.redaction.secretName is required when azureCloudCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.azureCloudCollector.redaction.keyKey -}}
+{{- fail "azureCloudCollector.redaction.keyKey is required when azureCloudCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.azureCloudCollector.redaction.mountPath -}}
+{{- fail "azureCloudCollector.redaction.mountPath is required when azureCloudCollector.enabled=true" -}}
+{{- end -}}
+{{- $azureLocalMatch := false -}}
+{{- $azureLocalEnabledScope := false -}}
+{{- range .Values.azureCloudCollector.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "azure") (eq (default "" .instance_id) $.Values.azureCloudCollector.instanceId) (default false .enabled) (default false .claims_enabled) (default false .configuration.live_collection_enabled) -}}
+{{- $azureLocalMatch = true -}}
+{{- range (default (list) .configuration.scopes) -}}
+{{- if default false .enabled -}}
+{{- $azureLocalEnabledScope = true -}}
+{{- if not .credential_ref -}}
+{{- fail "azureCloudCollector.collectorInstances enabled scopes must set credential_ref" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if not $azureLocalMatch -}}
+{{- fail "azureCloudCollector.collectorInstances must contain an enabled claim-driven azure instance with live_collection_enabled=true matching azureCloudCollector.instanceId" -}}
+{{- end -}}
+{{- if not $azureLocalEnabledScope -}}
+{{- fail "azureCloudCollector.collectorInstances must contain at least one enabled Azure scope" -}}
+{{- end -}}
+{{- $azureCoordinatorMatch := false -}}
+{{- $azureCoordinatorEnabledScope := false -}}
+{{- range .Values.workflowCoordinator.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "azure") (default false .claims_enabled) (default false .enabled) (default false .configuration.live_collection_enabled) -}}
+{{- $azureCoordinatorMatch = true -}}
+{{- range (default (list) .configuration.scopes) -}}
+{{- if default false .enabled -}}
+{{- $azureCoordinatorEnabledScope = true -}}
+{{- if not .credential_ref -}}
+{{- fail "workflowCoordinator.collectorInstances enabled azure scopes must set credential_ref when azureCloudCollector.enabled=true" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if not $azureCoordinatorMatch -}}
+{{- fail "workflowCoordinator.collectorInstances must contain an enabled claim-driven azure instance with live_collection_enabled=true when azureCloudCollector.enabled=true" -}}
+{{- end -}}
+{{- if not $azureCoordinatorEnabledScope -}}
+{{- fail "workflowCoordinator.collectorInstances must contain at least one enabled Azure scope when azureCloudCollector.enabled=true" -}}
+{{- end -}}
+{{- end -}}

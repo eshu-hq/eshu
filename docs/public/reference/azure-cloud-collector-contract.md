@@ -32,15 +32,24 @@ The runtime scaffolding slice (issue #1998) has now landed in
   `collector.Service` for atomic fact + generation commit, with credentials
   referenced by name only.
 
-The command default still performs **no live Azure calls**. The live Resource
-Graph client is a documented seam (`azureruntime.LiveProviderFactory`) that is
-gated by construction: its zero value returns `ErrLiveProviderGated`, and live
-Resource Graph reads require explicit injection of a read-only client. The owned
-default live query avoids the full ARM `properties` bag, SDK rows are capped
-before conversion, and throttling, permission-hidden scopes, and expired auth or
-continuation tokens surface as warning evidence. Tests and the binary's offline
-mode use a fixture or file-backed `PageProvider`; Helm and command activation of
-live credentials remain gated.
+The **fixture mode** default still performs **no live Azure calls**. The live
+Resource Graph client is a documented seam (`azureruntime.LiveProviderFactory`)
+that is gated by construction: its zero value returns `ErrLiveProviderGated`, and
+live Resource Graph reads require explicit injection of a read-only client. The
+owned default live query avoids the full ARM `properties` bag, SDK rows are
+capped before conversion, and throttling, permission-hidden scopes, and expired
+auth or continuation tokens surface as warning evidence. Tests and the binary's
+fixture mode use a fixture or file-backed `PageProvider`.
+
+Claimed-live transport is now wired and **off by default**: the
+`collector-azure-cloud` binary `-mode claimed-live` path (issue #3024) selects an
+enabled, claim-enabled `azure` instance with `live_collection_enabled=true`,
+resolves the ambient read-only Azure credential, injects the SDK Resource Graph
+client into `LiveProviderFactory`, and runs through `collector.ClaimedService`.
+The claimed source serves the `resource_graph` lane only. Default-off Helm
+exposure (deployment, metrics service, ServiceMonitor, render-time validation)
+mirrors GCP. **Live smoke proof against a real tenant remains gated**; promotion
+to `implemented` requires an operator-run live proof.
 
 The allowlisted ARM fallback seam is also implemented behind
 `azureruntime.LiveProviderFactory`. It remains non-default and requires explicit
@@ -124,10 +133,11 @@ skipped. The Cypher writer uses MATCH-MATCH-MERGE over existing
 for graph readback. It does not call Azure, mint target nodes from relationship
 facts, or activate API/MCP readback lanes.
 
-Everything else stays gated. Do not add Helm values, chart paths, claim-driven
-workflow scheduling, or command activation of live Resource Graph/ARM transport
-until implementation PRs prove the full live runtime adapter, security review,
-and chart path. The `azure_cloud_relationship` envelope builder
+Claimed-live command wiring and default-off Helm exposure now exist for the
+Resource Graph lane (issue #3024). Live smoke proof against a real tenant, the
+hosted security posture sign-off, ARM-fallback live activation, and API/MCP
+readback promotion remain gated until their own proof lands. The
+`azure_cloud_relationship` envelope builder
 (`NewRelationshipEnvelope`) is implemented and unit-proven as provenance-only
 (both endpoint ARM identities, relationship type, and a bounded support state;
 it resolves no endpoints in the collector). The
@@ -403,20 +413,23 @@ The first code PRs must prove these cases before any live smoke:
 
 1. Add fact constants, schema helpers, and fixture payload tests. **(done)**
 2. Add a Resource Graph client adapter with mocked `Resources` and
-   `resourcechanges` responses. **(live Resource Graph seam done; command and
-   chart activation remain gated.)**
+   `resourcechanges` responses. **(live Resource Graph seam done; claimed-live
+   command activation done, default-off; live smoke remains gated.)**
 3. Add an allowlisted ARM fallback adapter with read-only mocked `GET`
-   responses. **(done behind explicit injection; command and chart activation
-   remain gated.)**
-4. Add the collector runtime and source fact emission. **(runtime scaffolding
-   done: `azureruntime.Source` + `collector-azure-cloud` over a fixture/gated
-   `PageProvider`; live adapter and claim-driven scheduling remain gated.)**
+   responses. **(done behind explicit injection; ARM-fallback live activation
+   remains gated — claimed-live serves the `resource_graph` lane only.)**
+4. Add the collector runtime and source fact emission. **(done: `azureruntime.Source`
+   + `collector-azure-cloud` over a fixture/gated `PageProvider`, plus the
+   claim-driven `-mode claimed-live` runtime through `collector.ClaimedService`
+   with fixture-proven claim handoff; live smoke remains gated.)**
 5. Add reducer admission for resource identity, tag evidence, change evidence,
    relationships, and warnings.
 6. Add API/MCP readback truth tests for Azure evidence states.
 7. Add Helm and live-smoke support only after the runtime and reducer contract
-   pass fixture gates.
+   pass fixture gates. **(default-off Helm exposure done — deployment, metrics
+   service, ServiceMonitor, render-time validation, issue #3024; live smoke
+   remains gated.)**
 
-Remaining command/chart credential activation, live smoke support, claim-driven
-scheduling, and later source-family scan loops stay gated until their own
-implementation PRs land with fixture and live proof.
+Remaining items gated until their own implementation PRs land with fixture and
+live proof: live smoke proof against a real tenant, the hosted security posture
+sign-off, ARM-fallback live activation, and later source-family scan loops.

@@ -470,6 +470,42 @@ gcpCloudCollector:
       cpu: 1000m
       memory: 2Gi
 
+# azureCloudCollector runs the claim-driven Azure cloud collector. It is gated
+# off by default; live transport requires an explicit enabled claim-driven azure
+# instance with live_collection_enabled=true and a read-only redaction Secret.
+azureCloudCollector:
+  enabled: false
+  replicas: 1
+  revisionHistoryLimit: 3
+  instanceId: azure-cloud-primary
+  pollInterval: 1s
+  claimLeaseTTL: ""
+  heartbeatInterval: ""
+  collectorInstances: []
+  serviceAccount:
+    create: false
+    name: ""
+    annotations: {}
+  redaction:
+    secretName: ""
+    keyKey: redaction-key
+    mountPath: /var/run/eshu/azure-redaction
+  extraEnv: []
+  connectionTuning:
+    postgres:
+      maxOpenConns: ""
+      maxIdleConns: ""
+      connMaxLifetime: ""
+      connMaxIdleTime: ""
+      pingTimeout: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
 packageRegistryCollector:
   enabled: false
   replicas: 1
