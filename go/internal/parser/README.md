@@ -238,12 +238,13 @@ evidence so RubyGems manifest and lockfile rows use the same parser payload
 path as `.rb` source files.
 
 **SCIP path**: the collector snapshotter enables SCIP by default for the
-configured SCIP-capable language list, detects the dominant language via
-`DetectSCIPProjectLanguage`, verifies the matching `scip-*` binary is on
-`PATH`, runs it via `SCIPIndexer.Run`, and parses the resulting protobuf index
-via `SCIPIndexParser.Parse`. The SCIP result supplements the native
-tree-sitter parse for supported languages (Go, Python, TypeScript, JavaScript,
-Rust, Java, C, C++).
+configured SCIP-capable language list, groups selected files by language and
+package/workspace root, verifies the matching `scip-*` binary is on `PATH`,
+runs it via `SCIPIndexer.Run`, and parses the resulting protobuf index via
+`SCIPIndexParser.Parse`. The SCIP result supplements the native tree-sitter
+parse for supported languages (Go, Python, TypeScript, JavaScript, Rust, Java,
+C, C++), and files omitted from an index still complete through the native
+parser path.
 
 ## Exported surface
 

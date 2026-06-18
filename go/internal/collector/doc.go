@@ -49,10 +49,10 @@
 // SCIP indexing is enabled by default when a selected file group's external
 // scip-* binary is available, and explicit SCIP_INDEXER=false/off/0/no keeps
 // native-only parsing. SCIP groups run sequentially by bounded language
-// priority and supplement native parser output with call facts for matching
-// files only. SCIP must not shrink the discovered parser file set: files
-// selected by discovery but omitted from index.scip still parse through the
-// native parser and emit normal content facts.
+// priority and package/workspace root, then supplement native parser output
+// with call facts for matching files only. SCIP must not shrink the discovered
+// parser file set: files selected by discovery but omitted from index.scip
+// still parse through the native parser and emit normal content facts.
 //
 // No-Regression Evidence: `TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex`
 // covers a default SCIP-enabled snapshot where one selected Python file is
