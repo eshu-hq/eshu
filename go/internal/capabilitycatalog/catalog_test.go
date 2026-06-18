@@ -280,3 +280,92 @@ func realSpecToolDeclared(matrix Matrix, tool string) bool {
 	}
 	return false
 }
+
+// TestRealSpecsReachabilityRows pins the issue #3021 per-ecosystem reachability
+// capability rows: their tools, the maturity each row derives or overrides to,
+// the owning package, and the cross-linked doc. The reachability envelope is not
+// a standalone tool, so every reachability row shares the supply-chain impact
+// surfaces that actually carry it.
+func TestRealSpecsReachabilityRows(t *testing.T) {
+	t.Parallel()
+
+	catalog, findings, err := BuildFromSpecs(repoSpecsDir(t), Signals{MCPTools: map[string]bool{
+		"list_supply_chain_impact_findings": true,
+		"explain_supply_chain_impact":       true,
+	}})
+	if err != nil {
+		t.Fatalf("BuildFromSpecs: %v", err)
+	}
+	for _, finding := range findings {
+		switch finding.Kind {
+		case FindingInvalidOverlayMaturity, FindingMissingMaturityReason, FindingStaleOverlayCapability:
+			if strings.HasPrefix(finding.Subject, "reachability.") {
+				t.Fatalf("reachability overlay finding: %+v", finding)
+			}
+		}
+	}
+
+	byID := map[string]Entry{}
+	for _, entry := range catalog.Entries {
+		byID[entry.Capability] = entry
+	}
+
+	const reachabilityDoc = "reference/vulnerability-scanner-confidence.md"
+	wantSurfaces := []string{"explain_supply_chain_impact", "list_supply_chain_impact_findings"}
+	cases := []struct {
+		id           string
+		maturity     Maturity
+		ownerPackage string
+	}{
+		{"reachability.go.govulncheck", MaturityGeneralAvailability, "internal/collector/vulnerabilityintelligence"},
+		{"reachability.python.value_flow", MaturityGated, "internal/parser/python/pydataflow"},
+		{"reachability.typescript.value_flow", MaturityGated, "internal/parser/javascript/jsdataflow"},
+		{"reachability.javascript.value_flow", MaturityGated, "internal/parser/javascript/jsdataflow"},
+		{"reachability.jvm.bounded", MaturityPreview, "internal/reducer"},
+	}
+	for _, tc := range cases {
+		entry, ok := byID[tc.id]
+		if !ok {
+			t.Fatalf("capability %q missing from catalog", tc.id)
+		}
+		if entry.Maturity != tc.maturity {
+			t.Errorf("%s maturity = %q, want %q", tc.id, entry.Maturity, tc.maturity)
+		}
+		if entry.OwnerPackage != tc.ownerPackage {
+			t.Errorf("%s owner_package = %q, want %q", tc.id, entry.OwnerPackage, tc.ownerPackage)
+		}
+		if !slices.Contains(entry.Docs, reachabilityDoc) {
+			t.Errorf("%s docs = %v, want to contain %q", tc.id, entry.Docs, reachabilityDoc)
+		}
+		if !slices.Contains(entry.LinkedIssues, 3021) {
+			t.Errorf("%s linked_issues = %v, want to contain 3021", tc.id, entry.LinkedIssues)
+		}
+		surfaces := make([]string, 0, len(entry.Surfaces))
+		for _, surface := range entry.Surfaces {
+			if surface.Kind != SurfaceMCP {
+				t.Errorf("%s surface %q kind = %q, want mcp", tc.id, surface.Tool, surface.Kind)
+			}
+			surfaces = append(surfaces, surface.Tool)
+		}
+		if !slices.Equal(surfaces, wantSurfaces) {
+			t.Errorf("%s surfaces = %v, want %v", tc.id, surfaces, wantSurfaces)
+		}
+	}
+
+	// Gated value_flow rows must be unsupported in every profile until the
+	// operator opts in; the gate state cannot be expressed by the matrix.
+	for _, id := range []string{"reachability.python.value_flow", "reachability.typescript.value_flow", "reachability.javascript.value_flow"} {
+		entry := byID[id]
+		if entry.DerivedMaturity != MaturityNotImplemented {
+			t.Errorf("%s derived_maturity = %q, want not_implemented (gated off by default)", id, entry.DerivedMaturity)
+		}
+		if !strings.Contains(strings.ToUpper(entry.MaturityReason), "ESHU_EMIT_DATAFLOW") {
+			t.Errorf("%s maturity_reason must name the gate env var, got %q", id, entry.MaturityReason)
+		}
+	}
+
+	// Go reachability is always on and derives to GA from the matrix alone.
+	if got := byID["reachability.go.govulncheck"].DerivedMaturity; got != MaturityGeneralAvailability {
+		t.Errorf("reachability.go.govulncheck derived_maturity = %q, want general_availability", got)
+	}
+}

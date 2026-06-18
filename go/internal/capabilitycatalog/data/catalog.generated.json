@@ -3606,6 +3606,346 @@
       "console": true
     },
     {
+      "capability": "reachability.go.govulncheck",
+      "display_name": "Go Reachability (govulncheck)",
+      "owner_package": "internal/collector/vulnerabilityintelligence",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
+      "surfaces": [
+        {
+          "tool": "explain_supply_chain_impact",
+          "kind": "mcp"
+        },
+        {
+          "tool": "list_supply_chain_impact_findings",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_plus_graph"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "full_stack"
+        },
+        "local_lightweight": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host"
+        },
+        "production": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "deployed_services"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/reducer"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "local-lightweight-unsupported-go-reachability"
+        },
+        {
+          "kind": "remote_validation",
+          "ref": "prod-supply-chain-impact"
+        }
+      ],
+      "known_gaps": [
+        "Reachability is prioritization evidence on the impact envelope; not_called is emitted only with ecosystem-specific scanner semantics, otherwise unknown."
+      ],
+      "linked_issues": [
+        3021,
+        2704,
+        2705
+      ],
+      "docs": [
+        "reference/vulnerability-scanner-confidence.md"
+      ],
+      "console": true
+    },
+    {
+      "capability": "reachability.javascript.value_flow",
+      "display_name": "JavaScript Reachability (value flow)",
+      "owner_package": "internal/parser/javascript/jsdataflow",
+      "maturity": "gated",
+      "derived_maturity": "not_implemented",
+      "maturity_reason": "JavaScript value-flow reachability is gated by ESHU_EMIT_DATAFLOW, which is off by default; the matrix cannot express an env-var gate, so the profiles are unsupported until an operator opts in.",
+      "surfaces": [
+        {
+          "tool": "explain_supply_chain_impact",
+          "kind": "mcp"
+        },
+        {
+          "tool": "list_supply_chain_impact_findings",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host_plus_graph"
+        },
+        "local_full_stack": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "full_stack"
+        },
+        "local_lightweight": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host"
+        },
+        "production": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "deployed_services"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "integration_test",
+          "ref": "local-authoritative-unsupported-javascript-value-flow-reachability"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "local-full-stack-unsupported-javascript-value-flow-reachability"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "local-lightweight-unsupported-javascript-value-flow-reachability"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "prod-unsupported-javascript-value-flow-reachability"
+        }
+      ],
+      "known_gaps": [
+        "Disabled unless ESHU_EMIT_DATAFLOW is set; when enabled, value-flow taint evidence is derived (partial), never exact, and does not change impact truth."
+      ],
+      "linked_issues": [
+        3021,
+        2704,
+        2705
+      ],
+      "docs": [
+        "reference/vulnerability-scanner-confidence.md"
+      ],
+      "console": false
+    },
+    {
+      "capability": "reachability.jvm.bounded",
+      "display_name": "JVM Reachability (bounded)",
+      "owner_package": "internal/reducer",
+      "maturity": "preview",
+      "derived_maturity": "preview",
+      "surfaces": [
+        {
+          "tool": "explain_supply_chain_impact",
+          "kind": "mcp"
+        },
+        {
+          "tool": "list_supply_chain_impact_findings",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_plus_graph"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "full_stack"
+        },
+        "local_lightweight": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host"
+        },
+        "production": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "deployed_services"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/reducer"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "local-lightweight-unsupported-jvm-reachability"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "prod-unsupported-jvm-reachability"
+        }
+      ],
+      "known_gaps": [
+        "Bounded/partial: the JVM reducer family derives Maven/Gradle reachability from stored parser/SCIP package-API evidence (jvm_package_api_reachable), not a full call graph, so it never proves not_called and stays a local graph-backed preview."
+      ],
+      "linked_issues": [
+        3021,
+        2704,
+        2705
+      ],
+      "docs": [
+        "reference/vulnerability-scanner-confidence.md"
+      ],
+      "console": false
+    },
+    {
+      "capability": "reachability.python.value_flow",
+      "display_name": "Python Reachability (value flow)",
+      "owner_package": "internal/parser/python/pydataflow",
+      "maturity": "gated",
+      "derived_maturity": "not_implemented",
+      "maturity_reason": "Python value-flow reachability is gated by ESHU_EMIT_DATAFLOW, which is off by default; the matrix cannot express an env-var gate, so the profiles are unsupported until an operator opts in.",
+      "surfaces": [
+        {
+          "tool": "explain_supply_chain_impact",
+          "kind": "mcp"
+        },
+        {
+          "tool": "list_supply_chain_impact_findings",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host_plus_graph"
+        },
+        "local_full_stack": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "full_stack"
+        },
+        "local_lightweight": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host"
+        },
+        "production": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "deployed_services"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "integration_test",
+          "ref": "local-authoritative-unsupported-python-value-flow-reachability"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "local-full-stack-unsupported-python-value-flow-reachability"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "local-lightweight-unsupported-python-value-flow-reachability"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "prod-unsupported-python-value-flow-reachability"
+        }
+      ],
+      "known_gaps": [
+        "Disabled unless ESHU_EMIT_DATAFLOW is set; when enabled, value-flow taint evidence is derived (partial), never exact, and does not change impact truth."
+      ],
+      "linked_issues": [
+        3021,
+        2704,
+        2705
+      ],
+      "docs": [
+        "reference/vulnerability-scanner-confidence.md"
+      ],
+      "console": false
+    },
+    {
+      "capability": "reachability.typescript.value_flow",
+      "display_name": "TypeScript Reachability (value flow)",
+      "owner_package": "internal/parser/javascript/jsdataflow",
+      "maturity": "gated",
+      "derived_maturity": "not_implemented",
+      "maturity_reason": "TypeScript value-flow reachability is gated by ESHU_EMIT_DATAFLOW, which is off by default; the matrix cannot express an env-var gate, so the profiles are unsupported until an operator opts in.",
+      "surfaces": [
+        {
+          "tool": "explain_supply_chain_impact",
+          "kind": "mcp"
+        },
+        {
+          "tool": "list_supply_chain_impact_findings",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host_plus_graph"
+        },
+        "local_full_stack": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "full_stack"
+        },
+        "local_lightweight": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host"
+        },
+        "production": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "deployed_services"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "integration_test",
+          "ref": "local-authoritative-unsupported-typescript-value-flow-reachability"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "local-full-stack-unsupported-typescript-value-flow-reachability"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "local-lightweight-unsupported-typescript-value-flow-reachability"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "prod-unsupported-typescript-value-flow-reachability"
+        }
+      ],
+      "known_gaps": [
+        "Disabled unless ESHU_EMIT_DATAFLOW is set; when enabled, value-flow taint evidence is derived (partial), never exact, and does not change impact truth."
+      ],
+      "linked_issues": [
+        3021,
+        2704,
+        2705
+      ],
+      "docs": [
+        "reference/vulnerability-scanner-confidence.md"
+      ],
+      "console": false
+    },
+    {
       "capability": "relationship_evidence.drilldown",
       "display_name": "Relationship Evidence Drilldown",
       "maturity": "general_availability",
