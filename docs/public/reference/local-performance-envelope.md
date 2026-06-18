@@ -659,6 +659,30 @@ Observability Evidence: reuses the partitioned-runner signals — `IndexedSelect
 `UnhashedFallbackRows`, and the #2898 `RefreshFenceDeferred` field + log. No new
 metric, label, queue domain, or runtime knob.
 
+### Documentation Edges scope_id Retract Reconciliation (#2870)
+
+Precursor to a future `documentation_edges` partition promotion. The documentation
+retract Cypher binds `WHERE section.scope_id IN $scope_ids`
+(`canonical_documentation_edges.go`), but `edge_writer_retract.go` threaded repo ids
+there (`collectRepoIDs`). It only worked because the handler stuffed the scope id
+into `RepositoryID` and left `ScopeID` empty; once the promotion emits intents with
+distinct `repo_id` and `scope_id` the retract would bind repo ids and clear nothing
+(or a neighbor's sections). Added `collectScopeIDs` and used it for both the delta
+and whole-scope documentation retract paths, and set `ScopeID` on the handler's
+retract rows.
+
+No-Regression Evidence: the change does not alter retract cost — it is the same
+statement shape with the correct `$scope_ids` value — proven by before/after Cypher
+tests in `go/internal/storage/cypher/edge_writer_documentation_test.go`
+(`TestEdgeWriterRetractEdgesDocumentationWholeScopeBindsScopeIDNotRepoID` and
+`...DeltaBindsScopeIDNotRepoID` bind the rows' scope ids, not repo ids) plus
+`TestBuildDocumentationRetractRowsCarryScopeID`. `go test ./internal/storage/cypher
+./internal/reducer ./cmd/reducer -count=1` and `-race` are green.
+
+No-Observability-Change: the reconciliation adds no metric, label, span, log field,
+queue domain, or runtime knob; the retract still runs through the existing edge
+writer and graph-write spans.
+
 ### Collector Fact Evidence Status Read (#1678)
 
 No-Regression Evidence: issue #1678 baseline on remote
