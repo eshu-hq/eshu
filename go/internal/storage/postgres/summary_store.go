@@ -58,6 +58,13 @@ FROM function_summaries
 ORDER BY function_id ASC
 `
 
+const loadRepoFunctionSummariesSQL = `
+SELECT function_id, effects, version
+FROM function_summaries
+WHERE repo = $1
+ORDER BY function_id ASC
+`
+
 // FunctionSummarySchemaSQL returns the DDL for durable value-flow function
 // summaries.
 func FunctionSummarySchemaSQL() string {
@@ -117,10 +124,25 @@ func (s FunctionSummaryStore) UpsertSnapshot(ctx context.Context, snap summary.S
 // LoadSnapshot reloads all persisted summaries in deterministic function_id
 // order so summary.Load can rebuild the exact in-memory Store state.
 func (s FunctionSummaryStore) LoadSnapshot(ctx context.Context) (summary.Snapshot, error) {
+	return s.loadSnapshot(ctx, loadFunctionSummariesSQL)
+}
+
+// LoadRepoSnapshot reloads one repository's persisted summaries in
+// deterministic function_id order. Ingestion uses this scoped load before
+// recomposing changed parser effects, so one repository generation does not scan
+// summaries for every other repository.
+func (s FunctionSummaryStore) LoadRepoSnapshot(ctx context.Context, repo string) (summary.Snapshot, error) {
+	if strings.TrimSpace(repo) == "" {
+		return summary.Snapshot{}, fmt.Errorf("function summary repo is required")
+	}
+	return s.loadSnapshot(ctx, loadRepoFunctionSummariesSQL, repo)
+}
+
+func (s FunctionSummaryStore) loadSnapshot(ctx context.Context, query string, args ...any) (summary.Snapshot, error) {
 	if s.db == nil {
 		return summary.Snapshot{}, fmt.Errorf("function summary store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, loadFunctionSummariesSQL)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return summary.Snapshot{}, fmt.Errorf("load function summaries: %w", err)
 	}
@@ -150,9 +172,9 @@ func (s FunctionSummaryStore) upsertBatch(ctx context.Context, functions []summa
 		if strings.TrimSpace(fn.Version) == "" {
 			return fmt.Errorf("function summary version is required for %q", fn.ID)
 		}
-		repo := functionSummaryRepo(fn.ID)
-		if repo == "" {
-			return fmt.Errorf("function summary repo is required for %q", fn.ID)
+		repo, err := functionSummaryRepo(fn.ID)
+		if err != nil {
+			return err
 		}
 		effects, err := json.Marshal(fn.Effects)
 		if err != nil {
@@ -198,10 +220,16 @@ func scanFunctionSummary(rows Rows) (summary.SnapshotFunction, error) {
 	}, nil
 }
 
-func functionSummaryRepo(id summary.FunctionID) string {
-	raw := string(id)
-	if idx := strings.Index(raw, "\x1f"); idx >= 0 {
-		return raw[:idx]
+func functionSummaryRepo(id summary.FunctionID) (string, error) {
+	parts := strings.Split(string(id), "\x1f")
+	if len(parts) != 4 || strings.TrimSpace(parts[0]) == "" {
+		return "", fmt.Errorf("function summary repo is required for %q", id)
 	}
-	return ""
+	if strings.TrimSpace(parts[1]) == "" {
+		return "", fmt.Errorf("function summary package is required for %q", id)
+	}
+	if strings.TrimSpace(parts[3]) == "" {
+		return "", fmt.Errorf("function summary name is required for %q", id)
+	}
+	return parts[0], nil
 }

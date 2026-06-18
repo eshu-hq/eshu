@@ -2,8 +2,8 @@
 // capture, parser input shaping, and fact streaming for Eshu indexing runs.
 //
 // The package turns selected sources into cloned or native filesystem
-// snapshots, discovery reports, parser metadata, content entity snapshots, and
-// facts.Envelope streams. Git-backed selection also captures source-observed
+// snapshots, discovery reports, parser metadata, content entity snapshots,
+// parser-emitted value-flow summary metadata, and facts.Envelope streams. Git-backed selection also captures source-observed
 // branch/ref heads so downstream query routes can expose branch selectors
 // without inventing names. It is the source of truth for snapshot input shape,
 // but graph projection and query-time truth belong to downstream projector,

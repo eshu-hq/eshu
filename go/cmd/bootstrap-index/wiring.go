@@ -55,6 +55,7 @@ func buildBootstrapCollector(
 			SCIP:             collector.LoadSnapshotSCIPConfig(getenv),
 			ParseWorkers:     config.ParseWorkers,
 			DiscoveryOptions: discoveryOptions,
+			EmitDataflow:     collector.LoadEmitDataflowGate(getenv),
 			Tracer:           tracer,
 			Instruments:      instruments,
 			Logger:           logger,

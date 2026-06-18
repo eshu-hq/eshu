@@ -27,7 +27,9 @@
 // If ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED is true, the repository selector
 // checks queued GitHub, GitLab, and Bitbucket webhook refresh triggers before
 // scheduled polling, marks unsupported providers failed, and still sends
-// selected repositories through the same Git sync and snapshot path. The
+// selected repositories through the same Git sync and snapshot path. When
+// ESHU_EMIT_DATAFLOW is enabled, the snapshotter also emits parser value-flow
+// metadata that Postgres persists before projector enqueue. The
 // selector receives the ingester runtime logger so clone/fetch start, progress,
 // completion, and failure records are visible during hosted startup before
 // snapshot workers begin. It is the only long-running runtime that mounts the

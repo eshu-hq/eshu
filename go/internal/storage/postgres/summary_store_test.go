@@ -109,6 +109,27 @@ func TestFunctionSummaryStoreRejectsBlankRepoComponent(t *testing.T) {
 	}
 }
 
+func TestFunctionSummaryStoreRejectsBlankPackageComponent(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{}
+	store := NewFunctionSummaryStore(db)
+	err := store.UpsertSnapshot(context.Background(), summary.Snapshot{Functions: []summary.SnapshotFunction{{
+		ID:      summary.NewFunctionID("repo-alpha", "", "", "handler"),
+		Effects: summary.Effects{ParamToReturn: []int{0}},
+		Version: "version-1",
+	}}}, time.Date(2026, 6, 18, 4, 0, 0, 0, time.UTC))
+	if err == nil {
+		t.Fatal("UpsertSnapshot() error = nil, want blank package rejection")
+	}
+	if !strings.Contains(err.Error(), "package is required") {
+		t.Fatalf("UpsertSnapshot() error = %v, want package requirement", err)
+	}
+	if len(db.execs) != 0 {
+		t.Fatalf("exec count = %d, want 0", len(db.execs))
+	}
+}
+
 func TestFunctionSummaryStoreRejectsMalformedFunctionID(t *testing.T) {
 	t.Parallel()
 
@@ -202,6 +223,39 @@ func TestFunctionSummaryStoreLoadsSnapshotIntoStableStore(t *testing.T) {
 	}
 	if !strings.Contains(db.queries[0].query, "ORDER BY function_id ASC") {
 		t.Fatalf("load query missing deterministic ordering:\n%s", db.queries[0].query)
+	}
+}
+
+func TestFunctionSummaryStoreLoadsRepoSnapshot(t *testing.T) {
+	t.Parallel()
+
+	snap := summarySnapshotFixture()
+	rows := make([][]any, 0, len(snap.Functions))
+	for _, fn := range snap.Functions {
+		effects, err := json.Marshal(fn.Effects)
+		if err != nil {
+			t.Fatalf("marshal effects: %v", err)
+		}
+		rows = append(rows, []any{string(fn.ID), effects, fn.Version})
+	}
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: rows}}}
+	store := NewFunctionSummaryStore(db)
+
+	loaded, err := store.LoadRepoSnapshot(context.Background(), "repo-alpha")
+	if err != nil {
+		t.Fatalf("LoadRepoSnapshot() error = %v", err)
+	}
+	if got := len(loaded.Functions); got != len(snap.Functions) {
+		t.Fatalf("loaded function count = %d, want %d", got, len(snap.Functions))
+	}
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
+	}
+	if !strings.Contains(db.queries[0].query, "WHERE repo = $1") {
+		t.Fatalf("repo load query missing repo filter:\n%s", db.queries[0].query)
+	}
+	if got, want := db.queries[0].args[0], "repo-alpha"; got != want {
+		t.Fatalf("repo load arg = %v, want %v", got, want)
 	}
 }
 

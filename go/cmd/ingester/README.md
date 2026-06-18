@@ -91,6 +91,11 @@ repository sync completed` logs still surface operation, repository ordinal,
 branch, elapsed time, and failure class; the retry path keeps the original fetch
 progress writer so a repeated failure remains visible.
 
+When `ESHU_EMIT_DATAFLOW` is true, the ingester passes the shared value-flow
+gate into `NativeRepositorySnapshotter`. Parser-emitted `dataflow_summaries`
+then travel as non-fact generation metadata and are persisted by the
+summary-aware `IngestionStore` path before projector work is enqueued.
+
 After each full collector batch drain, `AfterBatchDrained` calls
 `BackfillAllRelationshipEvidence` then `ReopenDeploymentMappingWorkItems`.
 These two calls implement the Phase 1 → Phase 3 bootstrap ordering described in
@@ -171,6 +176,7 @@ telemetry, Postgres, or graph setup begins.
 | ESHU_WEBHOOK_TRIGGER_HANDOFF_OWNER | ingester | Lease owner written when claiming queued webhook triggers |
 | ESHU_WEBHOOK_TRIGGER_CLAIM_LIMIT | 100 | Max webhook triggers claimed per selector pass |
 | ESHU_REPO_SCHEDULED_SYNC_ENABLED | true | Enable broad scheduled repository selection when no webhook triggers are queued |
+| ESHU_EMIT_DATAFLOW | false | Opt parser snapshots into value-flow buckets and durable function summary metadata |
 | ESHU_PPROF_ADDR | unset (disabled) | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; port-only inputs bind to `127.0.0.1` |
 
 Per-label NornicDB tuning knobs (ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES,

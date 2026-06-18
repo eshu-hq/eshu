@@ -18,7 +18,9 @@ flowchart LR
   B --> C["internal/collector/discovery\nResolveRepositoryFileSetsWithStats"]
   C --> D["internal/parser\nEngine.ParsePath + PreScanRepositoryPathsWithWorkers"]
   D --> E["internal/facts\nfacts.Envelope channel"]
+  D --> E2["value-flow summaries\nnon-fact metadata"]
   E --> F["Postgres fact store\nCommitter.CommitScopeGeneration"]
+  E2 --> F
   F --> G["Projector queue\n(downstream)"]
 ```
 
@@ -47,9 +49,13 @@ When a generation is available, the span covers source collection and durable
 commit. When no generation is ready, the service calls `AfterBatchDrained` if
 at least one generation was committed since the last drain, then waits
 `PollInterval` (1 second in `cmd/ingester`). On receipt of a generation it
-calls `Committer.CommitScopeGeneration` with the `facts.Envelope` channel and
-records `CollectorObserveDuration`, `FactsEmitted`, `GenerationFactCount`, and
-`FactsCommitted`.
+calls `Committer.CommitScopeGeneration` with the `facts.Envelope` channel, or a
+summary-aware commit method when parser-emitted value-flow summaries are
+present, and records `CollectorObserveDuration`, `FactsEmitted`,
+`GenerationFactCount`, and `FactsCommitted`. Value-flow summaries are not fact
+records, so they do not change fact-count metrics; summary-aware committers log
+`value_flow_summary_count` on the collector commit message and persist them in
+storage before downstream projector enqueue.
 If the durable commit returns an error and `DeadLetters` is wired, `Service`
 records bounded scope/generation replay metadata without storing fact payloads
 or local repository paths.
@@ -114,7 +120,10 @@ per repository:
    observability state buckets are emitted as versioned `observability.*`
    source facts during fact streaming, not as graph truth.
 5. **Materialize** — `shape.Materialize` turns parsed files into
-   `ContentFileMeta` records and `ContentEntitySnapshot` rows. Body strings are
+   `ContentFileMeta` records and `ContentEntitySnapshot` rows. Parser-emitted
+   `dataflow_summaries` rows are copied into `ValueFlowSummarySnapshot`
+   metadata after materialization; malformed rows without repository, package,
+   and function identity are dropped before durable commit. Body strings are
    released after materialization; `streamFacts` re-reads them from disk at emit
    time so snapshot memory is `O(single_file)`.
 
@@ -152,6 +161,10 @@ No-Regression Evidence: `go test ./internal/collector ./internal/doctruth ./inte
 
 No-Observability-Change: documentation extraction stays inside existing `collector.observe`, body-free snapshot metadata, and stream-time re-reads. It adds no worker, queue, graph write, metric label, runtime knob, or deployment profile.
 
+No-Regression Evidence: #2941 value-flow summary persistence is covered by `go test ./internal/collector ./internal/storage/postgres ./cmd/ingester ./cmd/bootstrap-index -run 'TestBuildValueFlowSummaries|TestSnapshotFreshnessHintIncludesValueFlowSummaries|TestBuildStreamingGenerationDoesNotCountValueFlowSummariesAsFacts|TestFunctionSummaryStoreRejectsBlankPackageComponent|TestFunctionSummaryStoreLoadsRepoSnapshot|TestIngestionStoreCommitScopeGenerationPersistsFunctionSummariesBeforeProjectorEnqueue|TestIngestionStoreCommitScopeGenerationRollsBackWhenFunctionSummaryPersistenceFails|TestBuildIngesterCollectorServiceWiresEmitDataflowGate|TestBuildBootstrapCollectorWiresEmitDataflowGate' -count=1`. It proves summary row extraction, malformed ID drops, freshness-hint changes for summary-only changes, fact-count isolation, repo-scoped summary reload, transaction rollback before projector enqueue, and runtime gate wiring.
+
+Observability Evidence: #2941 reuses `collector.observe`, existing fact counters, and ingestion commit-stage logs. Summary persistence adds the low-cardinality `upsert_function_summaries` commit stage with `summary_count`, `repo_count`, and `recomputed_count`, plus `value_flow_summary_count` on collector commit logs when summaries are present. It adds no worker, queue domain, metric name, or metric label.
+
 No-Regression Evidence: `go test ./internal/collector -run
 'Test(NativeRepositorySnapshotterCarriesDeletedOnlyDeltaMetadata|NativeRepositorySnapshotterDeltaTargetsKeepFullPreScanContext|NativeRepositorySnapshotterPreservesDeltaMetadataPathWhitespace|UpdateRepositoryReturnsChangedAndDeletedFileTargets|BuildSelectedRepositoriesCarriesGitDeltaFileTargets|BuildStreamingGenerationEmitsDeltaMetadataAndDeletedTombstones|BuildStreamingGenerationPreservesDeltaPathWhitespace|BuildStreamingGenerationDeltaChangedFileFactsMatchFullSnapshot|BuildStreamingGenerationSkipsRepoWideReducerFollowupsForDelta)'
 -count=1` proves Git delta parsing, selector propagation, deleted-only
@@ -182,6 +195,7 @@ progress messages.
   `StartObserveFunc` and returns a `CollectorObservation` so real collection
   attempts, not idle polls, can share one `collector.observe` span with commit
 - `Committer` — interface: `CommitScopeGeneration(ctx, scope, generation, <-chan facts.Envelope) error`
+- `FunctionSummaryCommitter` and `StreamErrorFunctionSummaryCommitter` — optional commit interfaces used when a generation carries value-flow summary metadata; they persist summaries in the same durable boundary as facts
 - `GenerationDeadLetterSink` / `GenerationDeadLetter` — optional
   commit-failure sink and bounded replay metadata for generations that fail
   before normal projector work items exist
@@ -190,13 +204,15 @@ progress messages.
   `ClaimedService` so claim ownership can be verified in the same transaction
   that persists facts; hosted claim mutations also carry the work item's tenant
   boundary so storage can re-check the active grant before fact writes
+- `FunctionSummaryClaimedCommitter` and `StreamErrorFunctionSummaryClaimedCommitter` — claimed variants for generations that carry value-flow summaries
 - `CollectedGeneration` — `Scope`, `Generation`, `Facts` channel, `FactCount`,
-  optional `DiscoveryAdvisory`
+  optional `DiscoveryAdvisory`, and optional `ValueFlowSummaries` metadata
 - `GitSource` — implements `Source`; fields include `Selector`,
   `Snapshotter`, `SnapshotWorkers`, `LargeRepoThreshold`,
   `LargeRepoMaxConcurrent`, `StreamBuffer`
 - `NativeRepositorySnapshotter` — implements `RepositorySnapshotter`; fields
-  include `Engine`, `Registry`, `DiscoveryOptions`, `SCIP`, `ParseWorkers`
+  include `Engine`, `Registry`, `DiscoveryOptions`, `SCIP`, `ParseWorkers`, and
+  `EmitDataflow`
 - `RepositorySelector` — interface: `SelectRepositories(context.Context) (SelectionBatch, error)`
 - `PriorityRepositorySelector` — tries selectors in order and returns the
   first non-empty batch
@@ -211,7 +227,8 @@ progress messages.
 - `RepositorySnapshot` — `RepoPath`, `RemoteURL`, `FileCount`, `ImportsMap`,
   `FileData`, `ContentFileMetas`, `DocumentationFileMetas`, `ContentEntities`,
   source-observed `GitRefs`, `DiscoveryAdvisory`, optional delta metadata
-  for file-scoped Git resyncs, and `TaintEvidence`
+  for file-scoped Git resyncs, `TaintEvidence`, `InterprocTaintEvidence`, and
+  `ValueFlowSummaries`
 - `TaintEvidenceSnapshot` — one intraprocedural value-flow taint finding resolved
   to its graph `Function` entity uid, carried as evidence (confidence +
   provenance). Populated only when the parser emits `taint_findings` (gated by
@@ -223,6 +240,10 @@ progress messages.
   but not the uid; ambiguous or unresolved endpoints are dropped). Populated only
   when the parser emits `interproc_findings`; `streamFacts` emits each as a
   `code_interproc_evidence` fact. Empty (and byte-identical) when the gate is off
+- `ValueFlowSummarySnapshot` — parser-emitted `summary.Effects` keyed by durable
+  repository/package/function identity. These rows are generation metadata, not
+  fact envelopes; summary-aware Postgres committers persist and recompose them
+  before projector enqueue
 - `ContentFileSnapshot`, `ContentFileMeta`, `ContentEntitySnapshot` — portable
   file and entity records; `ContentFileMeta` carries no body string. Declared
   PagerDuty module/tfvars rows materialize as `PagerDutyDeclaration` content

@@ -18,6 +18,7 @@ flowchart LR
   D -->|Enqueue intents| E["postgres.ReducerQueue\n(fact_work_items stage=reducer)"]
   E -->|Claim| F["internal/reducer\nService.Run"]
   D -->|WriteContent| G["postgres.ContentWriter\ncontent_files, content_entities,\nrepository_refs"]
+  A -->|Function summaries| G2["postgres.FunctionSummaryStore\nfunction_summaries"]
   D -->|Publish phases| H["postgres.GraphProjectionPhaseStateStore\n(graph_projection_phase_state)"]
   H -->|ReadinessLookup| F
   F -->|WriteDecisions| I["postgres.DecisionStore\n(projection_decisions)"]
@@ -74,7 +75,10 @@ High-signal invariants for this package:
   rows before the compatibility scan over completed shared projection intents.
 - Fact writes batch at 500 rows, deduplicate `fact_id` within a batch, sanitize
   JSONB control bytes, and skip unchanged pending-or-active generations by
-  `FreshnessHint`.
+  `FreshnessHint`. Parser value-flow summaries are committed in the same
+  ingestion transaction after fact streaming succeeds and before projector
+  enqueue, so downstream work never observes a queued generation without its
+  durable summary state.
 - Projector claims preserve one active source-local generation per `scope_id`,
   reclaim expired leases before fresh work, coalesce stale same-scope work, and
   atomically ack by superseding stale active generation, superseding older
@@ -121,6 +125,14 @@ High-signal invariants for this package:
   payloads by active generation, model, content hash, and index version without
   promoting vector similarity to graph truth. The pending sweeper re-enqueues
   scopes whose active search documents exist but stats are missing.
+- `FunctionSummaryStore` stores durable parser `summary.SnapshotFunction` rows
+  by `function_id` and repository prefix. `LoadRepoSnapshot` reads one repo at
+  a time before ingestion recomposition, and `UpsertSnapshot` keeps an
+  idempotent `ON CONFLICT (function_id)` timestamp guard so concurrent or
+  replayed writers converge without duplicate rows. Stale row pruning for
+  functions removed by a later full snapshot is tracked in #2947; delta
+  generations must not delete unrelated functions just because they were not
+  reparsed.
 - Relationship evidence backfill stays bounded to latest active repository
   facts, file/content facts, and `gcp_cloud_relationship` facts. GCP
   relationship facts are included explicitly because they are provider-resource
@@ -132,6 +144,10 @@ High-signal invariants for this package:
 No-Regression Evidence: scoped hot-path notes live in
 [`evidence-notes.md`](evidence-notes.md), including #2059 claimed fact commit
 tenant-grant fencing. No-Observability-Change: #2059 adds no new signal shape.
+
+No-Regression Evidence: #2941 parser summary persistence is covered by `go test ./internal/storage/postgres -run 'TestFunctionSummaryStoreRejectsBlankPackageComponent|TestFunctionSummaryStoreLoadsRepoSnapshot|TestIngestionStoreCommitScopeGenerationPersistsFunctionSummariesBeforeProjectorEnqueue|TestIngestionStoreCommitScopeGenerationRollsBackWhenFunctionSummaryPersistenceFails' -count=1`. It proves malformed blank-package identities fail closed, repo-scoped reloads stay bounded by `repo = $1`, summary upsert happens before projector enqueue in the ingestion transaction, and failed summary persistence rolls back without enqueuing projector work.
+
+Observability Evidence: #2941 adds the existing ingestion commit-stage log `upsert_function_summaries` with `summary_count`, `repo_count`, and `recomputed_count`; it adds no metric name, metric label, queue domain, worker, or table beyond the existing `function_summaries` schema.
 
 ### Multi-cloud runtime drift evidence loader (issues #1997, #1998)
 
@@ -178,7 +194,7 @@ Primary groups:
 
 - Database adapters: `ExecQueryer`, `Transaction`, `Beginner`, `SQLDB`,
   `SQLTx`, `InstrumentedDB`.
-- Fact, queue, recovery, status, workflow, and webhook stores.
+- Fact, queue, recovery, status, workflow, webhook, and function-summary stores.
 - Governance audit store for validation-safe private event persistence,
   authorized bounded detailed reads, retention pruning, and aggregate-only
   status readback.
@@ -193,6 +209,9 @@ Primary groups:
   SBOM component evidence used by vulnerability-intelligence planning.
 - Content stores and content writers, including bounded entity-batch
   concurrency and Postgres pool-budget notes.
+- `FunctionSummaryStore`, `LoadSnapshot`, `LoadRepoSnapshot`, and
+  `UpsertSnapshot` for durable parser summary state used by runtime
+  value-flow composition.
 - Graph projection phase, shared projection intent, acceptance, freshness, and
   readiness helpers used by reducer domains.
 - Projection and admission decision stores for reducer-owned write decisions
@@ -208,7 +227,10 @@ Primary groups:
 
 ## Dependencies
 
+- `internal/collector` — `ValueFlowSummarySnapshot` metadata carried by
+  collected generations
 - `internal/facts` — `facts.Envelope`
+- `internal/parser/summary` — durable summary snapshots and recomposition store
 - `internal/projector` — `projector.ScopeGenerationWork`, `projector.Result`,
   `projector.IsRetryable`
 - `internal/reducer` — `reducer.Domain`, `reducer.SharedProjectionIntentRow`,

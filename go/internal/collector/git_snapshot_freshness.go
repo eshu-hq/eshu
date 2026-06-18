@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"sort"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 )
 
 // snapshotFreshnessHint computes a deterministic hash from file digests and
@@ -55,6 +57,13 @@ func snapshotFreshnessHint(snapshot RepositorySnapshot) string {
 		for _, ev := range snapshot.InterprocTaintEvidence {
 			writeFreshnessHashf(h, "interproc:%s:%s:%s:%s\n",
 				ev.SourceFunctionUID, ev.SinkFunctionUID, ev.SinkKind, ev.SourceKind)
+		}
+	}
+	if len(snapshot.ValueFlowSummaries) > 0 {
+		writeFreshnessHashf(h, "value_flow_summaries=%d\n", len(snapshot.ValueFlowSummaries))
+		for _, row := range snapshot.ValueFlowSummaries {
+			writeFreshnessHashf(h, "summary:%s:%s:%s\n",
+				row.FunctionID, row.Language, summary.StructuralHash(row.Effects))
 		}
 	}
 
