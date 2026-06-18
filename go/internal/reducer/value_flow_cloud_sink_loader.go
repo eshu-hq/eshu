@@ -138,22 +138,6 @@ func valueFlowCloudSinkSpecFromRow(row map[string]any) (exposure.SinkSpec, bool)
 	return exposure.SinkSpec{}, false
 }
 
-func valueFlowGraphBackedSinkRelationships() []string {
-	seen := map[string]struct{}{}
-	for _, spec := range exposure.GraphBackedSinkSpecs() {
-		rel := strings.TrimSpace(spec.Relationship)
-		if rel != "" {
-			seen[rel] = struct{}{}
-		}
-	}
-	rels := make([]string, 0, len(seen))
-	for rel := range seen {
-		rels = append(rels, rel)
-	}
-	sort.Strings(rels)
-	return rels
-}
-
 func valueFlowStringSlice(raw any) []string {
 	switch values := raw.(type) {
 	case []string:

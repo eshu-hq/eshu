@@ -148,12 +148,3 @@ func TestGraphValueFlowCloudSinkTargetLoaderEmptyAndNilGuards(t *testing.T) {
 		t.Fatal("nil graph must error rather than silently drop cloud sinks")
 	}
 }
-
-func valueFlowTestContainsString(values []string, want string) bool {
-	for _, value := range values {
-		if value == want {
-			return true
-		}
-	}
-	return false
-}
