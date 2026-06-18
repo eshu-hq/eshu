@@ -958,6 +958,7 @@ nornicdb:
   ports:
     http: 7474
     bolt: 7687
+  bindAddress: 0.0.0.0
   env:
     NORNICDB_NO_AUTH: "true"
     NORNICDB_DATA_DIR: /data

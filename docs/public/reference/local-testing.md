@@ -144,6 +144,20 @@ No-Observability-Change: the proof reads existing spans, metrics, status, and th
 documented `/api/v0/repositories` and MCP responses; no telemetry, metric label,
 span, or status field is added or altered by the chart hooks.
 
+No-Regression Evidence: bundled NornicDB Helm render proof on Kubernetes 1.32
+showed the Deployment preserves the pinned image entrypoint, sets
+`NORNICDB_ADDRESS=0.0.0.0`, and exposes the charted HTTP and Bolt ports through
+the Service. A Linux amd64 Docker proof with the same pinned backend image and
+entrypoint-preserving environment reached HTTP health and accepted a Bolt TCP
+connection through published ports. This changes only the Kubernetes startup
+contract for the bundled graph backend; it does not change Eshu queue workers,
+graph query text, reducer batching, or API/MCP read paths.
+
+No-Observability-Change: the bundled NornicDB chart fix keeps the existing HTTP
+health probes, named `http` and `bolt` container ports, and Service targetPorts.
+Operators still diagnose the path through pod readiness, container logs, Service
+endpoints, and the existing graph-backed Eshu readiness checks.
+
 ## Discovery Advisory Playbook
 
 Use [Discovery advisory](local-testing/discovery-advisory.md) when a repository
